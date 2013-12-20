@@ -1,0 +1,3 @@
+opcua_BinaryEncDec.o: opcua_BinaryEncDec.c opcua_BinaryEncDec.h
+
+opcua_BinaryEncDec.h:
