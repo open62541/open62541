@@ -7,7 +7,7 @@
 
 #ifndef OPCUA_TRANSPORTLAYER_H_
 #define OPCUA_TRANSPORTLAYER_H_
-
+#include "opcua_byteArrayConverter.h"
 struct TL_message
 {
 	struct TL_header Header;
@@ -20,6 +20,8 @@ struct TL_header
 	Byte Reserved;
 	UInt32 MessageSize;
 };
+
+const UInt32 HEADER_LENGTH = 8;
 
 struct TL_messageBodyHEL
 {
@@ -43,12 +45,12 @@ struct TL_messageBodyACK
 
 struct TL_messageBodyERR
 {
-	UInt32 ProtocolVersion;
-	UInt32 ReceiveBufferSize;
-	UInt32 SendBufferSize;
-	UInt32 MaxMessageSize;
-	UInt32 MaxChunkCount;
-	UA_String EndpointUrl;
+	UInt32 Error;
+	UA_String Reason;
+
 };
+//functions
+void TL_getHELMessage_test();
+void TL_getHELMessage(char *message, struct TL_messageBodyHEL *HELmessage, struct TL_header *messageHeader);
 
 #endif /* OPCUA_TRANSPORTLAYER_H_ */

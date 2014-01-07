@@ -25,8 +25,8 @@ opcuaServer.o: opcuaServer.c /usr/include/stdio.h /usr/include/features.h \
  /usr/include/i386-linux-gnu/bits/select2.h \
  /usr/include/i386-linux-gnu/sys/sysmacros.h \
  /usr/include/i386-linux-gnu/bits/pthreadtypes.h /usr/include/alloca.h \
- /usr/include/i386-linux-gnu/bits/stdlib.h opcua_BinaryEncDec.h \
- opcua_BuiltInDatatypes.h \
+ /usr/include/i386-linux-gnu/bits/stdlib.h opcua_binaryEncDec.h \
+ opcua_builtInDatatypes.h \
  /usr/lib/gcc/i686-linux-gnu/4.6/include/stdint.h /usr/include/stdint.h \
  /usr/include/i386-linux-gnu/bits/wchar.h /usr/include/string.h \
  /usr/include/xlocale.h /usr/include/i386-linux-gnu/bits/string.h \
@@ -103,9 +103,9 @@ opcuaServer.o: opcuaServer.c /usr/include/stdio.h /usr/include/features.h \
 
 /usr/include/i386-linux-gnu/bits/stdlib.h:
 
-opcua_BinaryEncDec.h:
+opcua_binaryEncDec.h:
 
-opcua_BuiltInDatatypes.h:
+opcua_builtInDatatypes.h:
 
 /usr/lib/gcc/i686-linux-gnu/4.6/include/stdint.h:
 

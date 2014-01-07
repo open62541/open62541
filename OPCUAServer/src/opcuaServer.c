@@ -10,8 +10,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "opcua_BinaryEncDec.h"
-#include "opcua_BuiltInDatatypes.h"
+
+#include "opcua_binaryEncDec.h"
+#include "opcua_builtInDatatypes.h"
 
 
 int main(void)
@@ -24,3 +25,4 @@ int main(void)
 
 	return EXIT_SUCCESS;
 }
+

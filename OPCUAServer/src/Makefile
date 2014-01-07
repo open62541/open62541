@@ -35,7 +35,7 @@ POST_UNINSTALL = :
 build_triplet = i686-pc-linux-gnu
 host_triplet = i686-pc-linux-gnu
 target_triplet = i686-pc-linux-gnu
-bin_PROGRAMS = a.out$(EXEEXT)
+bin_PROGRAMS = $(top_builddir)/bin/stackTest.out$(EXEEXT)
 subdir = src
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -47,9 +47,12 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
-am_a_out_OBJECTS = opcuaServer.$(OBJEXT) opcua_BinaryEncDec.$(OBJEXT)
-a_out_OBJECTS = $(am_a_out_OBJECTS)
-a_out_LDADD = $(LDADD)
+am___top_builddir__bin_stackTest_out_OBJECTS = opcuaServer.$(OBJEXT) \
+	opcua_builtInDatatypes.$(OBJEXT) opcua_binaryEncDec.$(OBJEXT)
+__top_builddir__bin_stackTest_out_OBJECTS =  \
+	$(am___top_builddir__bin_stackTest_out_OBJECTS)
+__top_builddir__bin_stackTest_out_LDADD = $(LDADD)
+am__dirstamp = $(am__leading_dot)dirstamp
 DEFAULT_INCLUDES = -I.
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -58,16 +61,16 @@ COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(a_out_SOURCES)
-DIST_SOURCES = $(a_out_SOURCES)
+SOURCES = $(__top_builddir__bin_stackTest_out_SOURCES)
+DIST_SOURCES = $(__top_builddir__bin_stackTest_out_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
-ACLOCAL = ${SHELL} /home/opcua/workspace/OPCUAServer/missing --run aclocal-1.11
+ACLOCAL = ${SHELL} /home/opcua/git/OPCUAStack/OPCUAServer/missing --run aclocal-1.11
 AMTAR = $${TAR-tar}
-AUTOCONF = ${SHELL} /home/opcua/workspace/OPCUAServer/missing --run autoconf
-AUTOHEADER = ${SHELL} /home/opcua/workspace/OPCUAServer/missing --run autoheader
-AUTOMAKE = ${SHELL} /home/opcua/workspace/OPCUAServer/missing --run automake-1.11
+AUTOCONF = ${SHELL} /home/opcua/git/OPCUAStack/OPCUAServer/missing --run autoconf
+AUTOHEADER = ${SHELL} /home/opcua/git/OPCUAStack/OPCUAServer/missing --run autoheader
+AUTOMAKE = ${SHELL} /home/opcua/git/OPCUAStack/OPCUAServer/missing --run automake-1.11
 AWK = mawk
 CC = gcc
 CCDEPMODE = depmode=gcc3
@@ -89,7 +92,7 @@ LDFLAGS =
 LIBOBJS = 
 LIBS = 
 LTLIBOBJS = 
-MAKEINFO = ${SHELL} /home/opcua/workspace/OPCUAServer/missing --run makeinfo
+MAKEINFO = ${SHELL} /home/opcua/git/OPCUAStack/OPCUAServer/missing --run makeinfo
 MKDIR_P = /bin/mkdir -p
 OBJEXT = o
 PACKAGE = opcuaserver
@@ -104,10 +107,10 @@ SET_MAKE =
 SHELL = /bin/bash
 STRIP = 
 VERSION = 1.0
-abs_builddir = /home/opcua/workspace/OPCUAServer/src
-abs_srcdir = /home/opcua/workspace/OPCUAServer/src
-abs_top_builddir = /home/opcua/workspace/OPCUAServer
-abs_top_srcdir = /home/opcua/workspace/OPCUAServer
+abs_builddir = /home/opcua/git/OPCUAStack/OPCUAServer/src
+abs_srcdir = /home/opcua/git/OPCUAStack/OPCUAServer/src
+abs_top_builddir = /home/opcua/git/OPCUAStack/OPCUAServer
+abs_top_srcdir = /home/opcua/git/OPCUAStack/OPCUAServer
 ac_ct_CC = gcc
 am__include = include
 am__leading_dot = .
@@ -134,7 +137,7 @@ host_vendor = pc
 htmldir = ${docdir}
 includedir = ${prefix}/include
 infodir = ${datarootdir}/info
-install_sh = ${SHELL} /home/opcua/workspace/OPCUAServer/install-sh
+install_sh = ${SHELL} /home/opcua/git/OPCUAStack/OPCUAServer/install-sh
 libdir = ${exec_prefix}/lib
 libexecdir = ${exec_prefix}/libexec
 localedir = ${datarootdir}/locale
@@ -158,7 +161,12 @@ target_vendor = pc
 top_build_prefix = ../
 top_builddir = ..
 top_srcdir = ..
-a_out_SOURCES = opcuaServer.c opcua_BinaryEncDec.c opcua_BinaryEncDec.h
+__top_builddir__bin_stackTest_out_SOURCES = opcuaServer.c\
+											opcua_builtInDatatypes.c\
+											opcua_binaryEncDec.c\
+											opcua_builtInDatatypes.h\
+											opcua_binaryEncDec.h
+
 all: all-am
 
 .SUFFIXES:
@@ -230,9 +238,12 @@ uninstall-binPROGRAMS:
 
 clean-binPROGRAMS:
 	-test -z "$(bin_PROGRAMS)" || rm -f $(bin_PROGRAMS)
-a.out$(EXEEXT): $(a_out_OBJECTS) $(a_out_DEPENDENCIES) $(EXTRA_a_out_DEPENDENCIES) 
-	@rm -f a.out$(EXEEXT)
-	$(LINK) $(a_out_OBJECTS) $(a_out_LDADD) $(LIBS)
+$(top_builddir)/bin/$(am__dirstamp):
+	@$(MKDIR_P) $(top_builddir)/bin
+	@: > $(top_builddir)/bin/$(am__dirstamp)
+$(top_builddir)/bin/stackTest.out$(EXEEXT): $(__top_builddir__bin_stackTest_out_OBJECTS) $(__top_builddir__bin_stackTest_out_DEPENDENCIES) $(EXTRA___top_builddir__bin_stackTest_out_DEPENDENCIES) $(top_builddir)/bin/$(am__dirstamp)
+	@rm -f $(top_builddir)/bin/stackTest.out$(EXEEXT)
+	$(LINK) $(__top_builddir__bin_stackTest_out_OBJECTS) $(__top_builddir__bin_stackTest_out_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -241,7 +252,8 @@ distclean-compile:
 	-rm -f *.tab.c
 
 include ./$(DEPDIR)/opcuaServer.Po
-include ./$(DEPDIR)/opcua_BinaryEncDec.Po
+include ./$(DEPDIR)/opcua_binaryEncDec.Po
+include ./$(DEPDIR)/opcua_builtInDatatypes.Po
 
 .c.o:
 	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -372,6 +384,7 @@ clean-generic:
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
 	-test . = "$(srcdir)" || test -z "$(CONFIG_CLEAN_VPATH_FILES)" || rm -f $(CONFIG_CLEAN_VPATH_FILES)
+	-test -z "$(top_builddir)/bin/$(am__dirstamp)" || rm -f $(top_builddir)/bin/$(am__dirstamp)
 
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"

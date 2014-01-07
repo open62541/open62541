@@ -6,6 +6,6 @@
  */
 
 
-#include "opcua_BuiltInDatatypes.h"
+#include "opcua_builtInDatatypes.h"
 
 
