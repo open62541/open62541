@@ -13,6 +13,7 @@
 
 #include "opcua_binaryEncDec.h"
 #include "opcua_builtInDatatypes.h"
+#include "opcua_types.h"
 
 
 int main(void)
