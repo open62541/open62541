@@ -163,10 +163,10 @@ typedef enum _UA_IdentifierType
 {
 	// Some Values are called the same as previouse Enumerations so we need
 	//names that are unique
-	IT_NUMERIC,
-	IT_STRING,
-	IT_GUID,
-	IT_OPAQUE
+	IT_NUMERIC = 0,
+	IT_STRING = 1,
+	IT_GUID = 2,
+	IT_OPAQUE = 3
 }
 UA_IdentifierType;
 
@@ -190,32 +190,20 @@ UA_NodeIdEncodingValuesType;
 */
 typedef struct _UA_NodeId
 {
-	UInt16 Namespace;
-	Int32 IdentifierType; //enum BID_IdentifierType
-	Byte *Value;
-}
-UA_NodeId;
-
-/**
-* StandartNodeIdBinaryEncoding
-*/
-typedef struct _UA_StandartNodeIdBinaryEncoding
-{
 	Int32 EncodingByte; //enum BID_NodeIdEncodingValuesType
 	UInt16 Namespace;
-	Byte *Identifier;
-}
-UA_StandardNodeIdBinaryEncoding;
 
-/**
-* TwoByteNoteIdBinaryEncoding
-*/
-typedef struct _UA_TwoByteNoteId
-{
-//ToDo	Int32 EncodingByte = (Int32) BID_NodeIdEncodingValuesType.TWO_BYTE; //enum BID_NodeIdEncodingValuesType.TWO_BYTE
-	UInt16 Identifier;
+    union
+    {
+        UInt32 Numeric;
+        UA_String String;
+        UA_Guid* Guid;
+        UA_ByteString ByteString;
+    }
+    Identifier;
+
 }
-UA_TwoByteNoteId;
+UA_NodeId;
 
 
 /**
@@ -257,7 +245,7 @@ typedef struct _UA_DiagnosticInfo
 	Int32 Locale;
 	UA_String AdditionalInfo;
 	UA_StatusCode InnerStatusCode;
-//ToDo	UA_DiagnosticInfo InnerDiagnosticInfo; //Struct of its own
+	struct _UA_DiagnosticInfo* InnerDiagnosticInfo;
 }
 UA_DiagnosticInfo;
 
@@ -285,6 +273,7 @@ UA_DiagnosticInfoEncodingMaskType;
 typedef struct _UA_QualifiedName
 {
 	UInt16 NamespaceIndex;
+	UInt16 Reserved;
 	UA_String Name;
 }
 UA_QualifiedName;
@@ -342,12 +331,88 @@ UA_ExtensionObjectEncodingMaskType;
 * Chapter: 5.2.2.16
 * Page: 22
 */
+struct _UA_DataValue;
+struct _UA_Variant;
+typedef union _UA_VariantArrayUnion
+{
+    void*              Array;
+    Boolean*           BooleanArray;
+    SByte*             SByteArray;
+    Byte*              ByteArray;
+    Int16*             Int16Array;
+    UInt16*            UInt16Array;
+    Int32*             Int32Array;
+    UInt32*            UInt32Array;
+    Int64*             Int64Array;
+    UInt64*            UInt64Array;
+    Float*             FloatArray;
+    Double*            DoubleArray;
+    UA_String*            StringArray;
+    UA_DateTime*          DateTimeArray;
+    UA_Guid*              GuidArray;
+    UA_ByteString*        ByteStringArray;
+    UA_ByteString*        XmlElementArray;
+    UA_NodeId*            NodeIdArray;
+    UA_ExpandedNodeId*    ExpandedNodeIdArray;
+    UA_StatusCode*        StatusCodeArray;
+    UA_QualifiedName*     QualifiedNameArray;
+    UA_LocalizedText*     LocalizedTextArray;
+    UA_ExtensionObject*   ExtensionObjectArray;
+    struct _UA_DataValue* DataValueArray;
+    struct _UA_Variant*   VariantArray;
+}
+UA_VariantArrayUnion;
+
+typedef struct _UA_VariantArrayValue
+{
+    Int32  Length;
+    UA_VariantArrayUnion Value;
+}
+UA_VariantArrayValue;
+
+typedef struct _UA_VariantMatrixValue
+{
+    Int32 NoOfDimensions;
+    Int32* Dimensions;
+    UA_VariantArrayUnion Value;
+}
+UA_VariantMatrixValue;
+
+typedef union _UA_VariantUnion
+{
+    Boolean Boolean;
+    SByte SByte;
+    Byte Byte;
+    Int16 Int16;
+    UInt16 UInt16;
+    Int32 Int32;
+    UInt32 UInt32;
+    Int64 Int64;
+    UInt64 UInt64;
+    Float Float;
+    Double Double;
+    UA_DateTime DateTime;
+    UA_String String;
+    UA_Guid* Guid;
+    UA_ByteString ByteString;
+    UA_XmlElement XmlElement;
+    UA_NodeId* NodeId;
+    UA_ExpandedNodeId* ExpandedNodeId;
+    UA_StatusCode StatusCode;
+    UA_QualifiedName* QualifiedName;
+    UA_LocalizedText* LocalizedText;
+    UA_ExtensionObject* ExtensionObject;
+    struct _UA_DataValue* DataValue;
+    UA_VariantArrayValue  Array;
+    UA_VariantMatrixValue Matrix;
+}
+UA_VariantUnion;
+
 typedef struct _UA_Variant
 {
 	Byte EncodingMask; //Type of Enum UA_VariantTypeEncodingMaskType
 	Int32 ArrayLength;
-	Byte *Value;
-	Int32 ArrayDimensions[];
+	UA_VariantUnion *Value;
 }
 UA_Variant;
 
