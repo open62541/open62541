@@ -19,7 +19,7 @@
 int main(void)
 {
 	puts("OPC ua Server");
-	struct BED_ApplicationDescription nStruct;
+	T_ApplicationDescription nStruct;
 	UA_String s;
 
 
