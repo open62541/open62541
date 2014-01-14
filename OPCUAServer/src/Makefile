@@ -48,7 +48,9 @@ CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
 am___top_builddir__bin_stackTest_out_OBJECTS = opcuaServer.$(OBJEXT) \
-	opcua_builtInDatatypes.$(OBJEXT) opcua_binaryEncDec.$(OBJEXT)
+	opcua_builtInDatatypes.$(OBJEXT) \
+	opcua_transportLayer.$(OBJEXT) \
+	opcua_byteArrayConverter.$(OBJEXT)
 __top_builddir__bin_stackTest_out_OBJECTS =  \
 	$(am___top_builddir__bin_stackTest_out_OBJECTS)
 __top_builddir__bin_stackTest_out_LDADD = $(LDADD)
@@ -66,15 +68,15 @@ DIST_SOURCES = $(__top_builddir__bin_stackTest_out_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
-ACLOCAL = ${SHELL} /home/opcua/git/OPCUAStack/OPCUAServer/missing --run aclocal-1.11
+ACLOCAL = ${SHELL} /home/opcua/git/opcUaStack/OPCUAServer/missing --run aclocal-1.11
 AMTAR = $${TAR-tar}
-AUTOCONF = ${SHELL} /home/opcua/git/OPCUAStack/OPCUAServer/missing --run autoconf
-AUTOHEADER = ${SHELL} /home/opcua/git/OPCUAStack/OPCUAServer/missing --run autoheader
-AUTOMAKE = ${SHELL} /home/opcua/git/OPCUAStack/OPCUAServer/missing --run automake-1.11
+AUTOCONF = ${SHELL} /home/opcua/git/opcUaStack/OPCUAServer/missing --run autoconf
+AUTOHEADER = ${SHELL} /home/opcua/git/opcUaStack/OPCUAServer/missing --run autoheader
+AUTOMAKE = ${SHELL} /home/opcua/git/opcUaStack/OPCUAServer/missing --run automake-1.11
 AWK = mawk
 CC = gcc
 CCDEPMODE = depmode=gcc3
-CFLAGS = -g -O2
+CFLAGS = -g -O0
 CPPFLAGS = 
 CYGPATH_W = echo
 DEFS = -DPACKAGE_NAME=\"OPCUAServer\" -DPACKAGE_TARNAME=\"opcuaserver\" -DPACKAGE_VERSION=\"1.0\" -DPACKAGE_STRING=\"OPCUAServer\ 1.0\" -DPACKAGE_BUGREPORT=\"\" -DPACKAGE_URL=\"\" -DPACKAGE=\"opcuaserver\" -DVERSION=\"1.0\"
@@ -92,7 +94,7 @@ LDFLAGS =
 LIBOBJS = 
 LIBS = 
 LTLIBOBJS = 
-MAKEINFO = ${SHELL} /home/opcua/git/OPCUAStack/OPCUAServer/missing --run makeinfo
+MAKEINFO = ${SHELL} /home/opcua/git/opcUaStack/OPCUAServer/missing --run makeinfo
 MKDIR_P = /bin/mkdir -p
 OBJEXT = o
 PACKAGE = opcuaserver
@@ -107,10 +109,10 @@ SET_MAKE =
 SHELL = /bin/bash
 STRIP = 
 VERSION = 1.0
-abs_builddir = /home/opcua/git/OPCUAStack/OPCUAServer/src
-abs_srcdir = /home/opcua/git/OPCUAStack/OPCUAServer/src
-abs_top_builddir = /home/opcua/git/OPCUAStack/OPCUAServer
-abs_top_srcdir = /home/opcua/git/OPCUAStack/OPCUAServer
+abs_builddir = /home/opcua/git/opcUaStack/OPCUAServer/src
+abs_srcdir = /home/opcua/git/opcUaStack/OPCUAServer/src
+abs_top_builddir = /home/opcua/git/opcUaStack/OPCUAServer
+abs_top_srcdir = /home/opcua/git/opcUaStack/OPCUAServer
 ac_ct_CC = gcc
 am__include = include
 am__leading_dot = .
@@ -137,7 +139,7 @@ host_vendor = pc
 htmldir = ${docdir}
 includedir = ${prefix}/include
 infodir = ${datarootdir}/info
-install_sh = ${SHELL} /home/opcua/git/OPCUAStack/OPCUAServer/install-sh
+install_sh = ${SHELL} /home/opcua/git/opcUaStack/OPCUAServer/install-sh
 libdir = ${exec_prefix}/lib
 libexecdir = ${exec_prefix}/libexec
 localedir = ${datarootdir}/locale
@@ -163,9 +165,11 @@ top_builddir = ..
 top_srcdir = ..
 __top_builddir__bin_stackTest_out_SOURCES = opcuaServer.c\
 											opcua_builtInDatatypes.c\
-											opcua_binaryEncDec.c\
+											opcua_transportLayer.c\
+											opcua_byteArrayConverter.c\
 											opcua_builtInDatatypes.h\
-											opcua_binaryEncDec.h
+											opcua_transportLayer.h\
+											opcua_byteArrayConverter.h
 
 all: all-am
 
@@ -252,8 +256,9 @@ distclean-compile:
 	-rm -f *.tab.c
 
 include ./$(DEPDIR)/opcuaServer.Po
-include ./$(DEPDIR)/opcua_binaryEncDec.Po
 include ./$(DEPDIR)/opcua_builtInDatatypes.Po
+include ./$(DEPDIR)/opcua_byteArrayConverter.Po
+include ./$(DEPDIR)/opcua_transportLayer.Po
 
 .c.o:
 	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
