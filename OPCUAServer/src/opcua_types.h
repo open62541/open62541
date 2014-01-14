@@ -767,13 +767,13 @@ T_RelativePath;
 */
 typedef struct _T_RequestHeader
 {
-//ToDo	struct BED_SessionAuthenticationToken authenticationToken;		//ToDo
+	UA_NodeId authenticationToken;
 	UA_DateTime timestamp;
 	T_IntegerId requestHandle;
 	UInt32 returnDiagnostics;
 	UA_String auditEntryId;
 	UInt32 timeoutHint;
-//ToDo	struct BED_ExtensibleParameterAdditionalHeader additionalHeader;		//ToDo
+	UA_ExpandedNodeId additionalHeader;
 }
 T_RequestHeader;
 
