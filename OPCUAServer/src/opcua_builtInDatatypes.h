@@ -6,8 +6,8 @@
  */
 #include <stdint.h>
 #include <string.h>
-#ifndef OPCUA_BUILTINDATATYPES_NEU_H_
-#define OPCUA_BUILTINDATATYPES_NEU_H_
+#ifndef OPCUA_BUILTINDATATYPES_H_
+#define OPCUA_BUILTINDATATYPES_H_
 
 /**
 * Enumerations:
@@ -123,8 +123,8 @@ UA_Guid;
 */
 typedef struct _UA_ByteString
 {
-	int32_t Length;
-	uint8_t *Data;
+	Int32 Length;
+	Byte *Data;
 }
 UA_ByteString;
 
@@ -172,16 +172,16 @@ UA_IdentifierType;
 
 typedef enum _UA_NodeIdEncodingValuesType
 {
-	// Some Values are called the same as previouse Enumerations so we need
-	//names that are unique
+	// Some Values are called the same as previous Enumerations so we need
+	// names that are unique
 	NIEVT_TWO_BYTE = 0, 			//Hex 0x00
 	NIEVT_FOUR_BYTE = 1, 			//Hex 0x01
-	NIEVT_NUMERIC = 2, 			//Hex 0x02
-	NIEVT_STRING = 3, 			//Hex 0x03
-	NIEVT_GUID = 4, 			//Hex 0x04
-	NIEVT_BYTESTRING = 5, 		//Hex 0x05
-	NIEVT_NAMESPACE_URI_FLAG = 128, 	//Hex 0x80
-	NIEVT_SERVERINDEX_FLAG = 64 		//Hex 0x40
+	NIEVT_NUMERIC = 2, 				//Hex 0x02
+	NIEVT_STRING = 3, 				//Hex 0x03
+	NIEVT_GUID = 4, 				//Hex 0x04
+	NIEVT_BYTESTRING = 5, 			//Hex 0x05
+	NIEVT_NAMESPACE_URI_FLAG = 128, //Hex 0x80 Is only for ExpandedNodeId required
+	NIEVT_SERVERINDEX_FLAG = 64 	//Hex 0x40 Is only for ExpandedNodeId required
 }
 UA_NodeIdEncodingValuesType;
 
@@ -197,8 +197,8 @@ typedef struct _UA_NodeId
     {
         UInt32 Numeric;
         UA_String String;
-        UA_Guid* Guid;
-        UA_ByteString ByteString;
+        UA_Guid Guid;
+        UA_ByteString OPAQUE;
     }
     Identifier;
 
@@ -214,9 +214,18 @@ UA_NodeId;
 */
 typedef struct _UA_ExpandedNodeId
 {
-	UA_NodeId NodeId;
-	UA_String NamepaceUri;
+	Int32 EncodingByte; //enum BID_NodeIdEncodingValuesType
+	UInt16 Namespace;
 	UInt32 ServerIndex;
+
+    union
+    {
+        UInt32 Numeric;
+        UA_String String;
+        UA_Guid Guid;
+        UA_ByteString ByteString;
+    }
+    Identifier;
 }
 UA_ExpandedNodeId;
 
@@ -479,4 +488,4 @@ UA_DataValue;
 */
 typedef double UA_Duration;
 
-#endif /* OPCUA_BUILTINDATATYPES_NEU_H_ */
+#endif /* OPCUA_BUILTINDATATYPES_H_ */
