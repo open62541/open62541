@@ -6,4 +6,5 @@ bin/
 target/
 
 # ignore all files ending with ~
-*~ 
+*.po
+*.o 

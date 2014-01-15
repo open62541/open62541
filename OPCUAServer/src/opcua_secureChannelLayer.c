@@ -41,7 +41,7 @@ void SL_openSecureChannel(UA_connection *connection)
 {
 
 
-	TL_send()
+	TL_send();
 }
 /*
 void SL_receive(UA_connection *connection, AD_RawMessage *serviceMessage)
