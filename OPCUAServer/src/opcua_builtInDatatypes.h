@@ -16,7 +16,7 @@
 *
 */
 
-enum BID_BuiltInDataTypes
+typedef enum _UA_BuiltInDataTypes
 {
 	BOOLEAN = 1,
 	SBYTE = 2,
@@ -43,8 +43,16 @@ enum BID_BuiltInDataTypes
 	DATA_VALUE = 23,
 	VARIAN = 24,
 	DIAGNOSTIC_INFO = 25
-};
+}
+UA_BuiltInDataTypes;
 
+
+/**
+* BasicBuiltInDatatypes
+* Part: 6
+* Chapter: 5.2.2.1 - 5.2.2.3
+* Page: 15
+*/
 typedef _Bool Boolean;
 
 typedef int8_t SByte;
@@ -68,16 +76,24 @@ typedef float Float;
 typedef double Double;
 
 
-struct UA_StringType
+/**
+* String
+* Part: 6
+* Chapter: 5.2.2.4
+* Page: 16
+*/
+typedef struct _UA_String
 {
 	int Length;
 	char *Data;
-};
-
-typedef struct UA_StringType UA_String;
+}
+UA_String;
 
 /**
 * DateTime
+* Part: 6
+* Chapter: 5.2.2.5
+* Page: 16
 */
 typedef Int64 UA_DateTime; //100 nanosecond resolution
 			      //start Date: 1601-01-01 12:00 AM
@@ -85,258 +101,364 @@ typedef Int64 UA_DateTime; //100 nanosecond resolution
 
 /**
 * GuidType
+* Part: 6
+* Chapter: 5.2.2.6
+* Page: 17
 */
-struct UA_GuidType
+typedef struct _UA_Guid
 {
 	UInt32 Data1[4];
 	UInt16 Data2[2];
 	UInt16 Data3[2];
 	Byte Data4[8];
-};
-
-typedef struct UA_GuidType UA_Guid;
+}
+UA_Guid;
 
 
 /**
 * ByteString
+* Part: 6
+* Chapter: 5.2.2.7
+* Page: 17
 */
-struct UA_ByteStringType
+typedef struct _UA_ByteString
 {
 	int32_t Length;
 	uint8_t *Data;
-};
-
-typedef struct UA_ByteStringType UA_ByteString;
+}
+UA_ByteString;
 
 
 /**
- * Überlegung ob man es direkt als ByteString speichert oder als String
- */
-struct UA_XmlElementType
+* XmlElement
+* Part: 6
+* Chapter: 5.2.2.8
+* Page: 17
+*/
+//Überlegung ob man es direkt als ByteString speichert oder als String
+typedef struct _UA_XmlElement
 {
 	UA_String Data;
-};
+}
+UA_XmlElement;
 
-typedef struct UA_XmlElementType UA_XmlElement;
 
-
-struct UA_XmlElementEncodedType
+typedef struct _UA_XmlElementEncoded
 {
 	UInt32 Length;
 	Byte StartTag[3];
 	Byte *Message;
 	UInt32 EndTag[4];
-};
-
-typedef struct UA_XmlElementEncodedType UA_XmlElementEncoded;
+}
+UA_XmlElementEncoded;
 
 
 /**
  * NodeIds
- */
-enum BID_IdentifierType
+* Part: 6
+* Chapter: 5.2.2.9
+* Page: 17
+*/
+typedef enum _UA_IdentifierType
 {
-	NUMERIC,
-	STRING,
-	GUID,
-	OPAQUE
-};
+	// Some Values are called the same as previouse Enumerations so we need
+	//names that are unique
+	IT_NUMERIC = 0,
+	IT_STRING = 1,
+	IT_GUID = 2,
+	IT_OPAQUE = 3
+}
+UA_IdentifierType;
 
-enum BID_NodeIdEncodingValuesType
+typedef enum _UA_NodeIdEncodingValuesType
 {
-	TWO_BYTE = 0, 			//Hex 0x00
-	FOUR_BYTE = 1, 			//Hex 0x01
-	NUMERIC = 2, 			//Hex 0x02
-	STRING = 3, 			//Hex 0x03
-	GUID = 4, 			//Hex 0x04
-	BYTESTRING = 5, 		//Hex 0x05
-	NAMESPACE_URI_FLAG = 128, 	//Hex 0x80
-	SERVERINDEX_FLAG = 64 		//Hex 0x40
-};
+	// Some Values are called the same as previouse Enumerations so we need
+	//names that are unique
+	NIEVT_TWO_BYTE = 0, 			//Hex 0x00
+	NIEVT_FOUR_BYTE = 1, 			//Hex 0x01
+	NIEVT_NUMERIC = 2, 			//Hex 0x02
+	NIEVT_STRING = 3, 			//Hex 0x03
+	NIEVT_GUID = 4, 			//Hex 0x04
+	NIEVT_BYTESTRING = 5, 		//Hex 0x05
+	NIEVT_NAMESPACE_URI_FLAG = 128, 	//Hex 0x80
+	NIEVT_SERVERINDEX_FLAG = 64 		//Hex 0x40
+}
+UA_NodeIdEncodingValuesType;
 
 /**
-* NodeIdComponents
+* NodeId
 */
-struct UA_NodeIdComponentsType
-{
-	UInt16 Namespace;
-	Int32 IdentifierType; //enum BID_IdentifierType
-	Byte *Value;
-};
-
-typedef struct UA_NodeIdComponentsType UA_NodeIdComponents;
-
-/**
-* StandartNodeIdBinaryEncoding
-*/
-struct UA_StandartNodeIdType
+typedef struct _UA_NodeId
 {
 	Int32 EncodingByte; //enum BID_NodeIdEncodingValuesType
 	UInt16 Namespace;
-	Byte *Identifier;
-};
 
-typedef struct UA_StandardNodeIdType UA_StandardNodeId;
+    union
+    {
+        UInt32 Numeric;
+        UA_String String;
+        UA_Guid* Guid;
+        UA_ByteString ByteString;
+    }
+    Identifier;
 
-/**
-* TwoByteNoteIdBinaryEncoding
-*/
-struct UA_TwoByteNoteIdType
-{
-	Int32 EncodingByte = (Int32) BID_NodeIdEncodingValuesType.TWO_BYTE; //enum BID_NodeIdEncodingValuesType.TWO_BYTE
-	UInt16 Identifier;
-};
+}
+UA_NodeId;
 
-typedef struct UA_TwoByteNoteIdType UA_TwoByteNoteId;
 
 /**
-* ExpandedNodeIdBinaryEncoding
+* ExpandedNodeId
+* Part: 6
+* Chapter: 5.2.2.10
+* Page: 19
 */
-struct UA_ExpandedNodeIdType
+typedef struct _UA_ExpandedNodeId
 {
-	UA_NodeIdComponents NodeId;
+	UA_NodeId NodeId;
 	UA_String NamepaceUri;
 	UInt32 ServerIndex;
-};
+}
+UA_ExpandedNodeId;
 
-typedef struct UA_ExpandedNodeIdType UA_ExpandedNodeId;
 
 /**
 * StatusCodeBinaryEncoding
+* Part: 6
+* Chapter: 5.2.2.11
+* Page: 20
 */
 typedef UInt32 UA_StatusCode;
 
 
 /**
-* DiagrnoticInfoBinaryEncoding
+* DiagnoticInfoBinaryEncoding
+* Part: 6
+* Chapter: 5.2.2.12
+* Page: 20
 */
-struct UA_DiagnosticInfoType
+typedef struct _UA_DiagnosticInfo
 {
-	Byte EncodingMask;
+	Byte EncodingMask; //Type of the Enum UA_DiagnosticInfoEncodingMaskType
 	Int32 SymbolicId;
 	Int32 NamespaceUri;
 	Int32 LocalizedText;
 	Int32 Locale;
 	UA_String AdditionalInfo;
 	UA_StatusCode InnerStatusCode;
-	UA_DiagnosticInfo InnderDiagnosticInfo;
-};
+	struct _UA_DiagnosticInfo* InnerDiagnosticInfo;
+}
+UA_DiagnosticInfo;
 
-typedef struct UA_DiagnosticInfoType UA_DiagnosticInfo;
-
-enum BID_DiagnosticInfoEncodingMaskType
+typedef enum _UA_DiagnosticInfoEncodingMaskType
 {
-	SYMBOLIC_ID = 1, 		//Hex 0x01
-	NAMESPACE = 2, 			//Hex 0x02
-	LOCALIZED_TEXT = 4, 		//Hex 0x04
-	LOCATE = 8, 			//Hex 0x08
-	ADDITIONAL_INFO = 16, 		//Hex 0x10
-	INNER_STATUS_CODE = 32, 	//Hex 0x20
-	INNER_DIAGNOSTIC_INFO = 64 	//Hex 0x40
-};
+	// Some Values are called the same as previouse Enumerations so we need
+	//names that are unique
+	DIEMT_SYMBOLIC_ID = 1, 		//Hex 0x01
+	DIEMT_NAMESPACE = 2, 			//Hex 0x02
+	DIEMT_LOCALIZED_TEXT = 4, 		//Hex 0x04
+	DIEMT_LOCATE = 8, 			//Hex 0x08
+	DIEMT_ADDITIONAL_INFO = 16, 		//Hex 0x10
+	DIEMT_INNER_STATUS_CODE = 32, 	//Hex 0x20
+	DIEMT_INNER_DIAGNOSTIC_INFO = 64 	//Hex 0x40
+}
+UA_DiagnosticInfoEncodingMaskType;
+
 
 /**
 * QualifiedNameBinaryEncoding
+* Part: 6
+* Chapter: 5.2.2.13
+* Page: 20
 */
-struct UA_QualifiedNameType
+typedef struct _UA_QualifiedName
 {
 	UInt16 NamespaceIndex;
+	UInt16 Reserved;
 	UA_String Name;
-};
+}
+UA_QualifiedName;
 
-typedef struct UA_QualifiedNameType UA_QualifiedName;
 
 /**
 * LocalizedTextBinaryEncoding
+* Part: 6
+* Chapter: 5.2.2.14
+* Page: 21
 */
-struct UA_LocalizedTextType
+typedef struct _UA_LocalizedText
 {
 	Byte EncodingMask;
 	UA_String Locale;
 	UA_String Test;
-};
+}
+UA_LocalizedText;
 
-typedef struct UA_LocalizedTextType UA_LocalizedText;
-
-enum BID_LocalizedTextEncodingMaskType
+typedef enum _UA_LocalizedTextEncodingMaskType
 {
-	SYMBOLIC_ID = 1, 		//Hex 0x01
-	NAMESPACE = 2 			//Hex 0x02
-};
+	LTEMT_SYMBOLIC_ID = 1, 		//Hex 0x01
+	LTEMT_NAMESPACE = 2 			//Hex 0x02
+}
+UA_LocalizedTextEncodingMaskType;
+
 
 /**
 * ExtensionObjectBinaryEncoding
+* Part: 6
+* Chapter: 5.2.2.15
+* Page: 21
 */
-struct UA_ExtensionObjectType
+typedef struct _UA_ExtensionObject
 {
-	UA_NodeIdComponents TypeId;
-	Byte Encoding;
+	UA_NodeId TypeId;
+	Byte Encoding; //Type of the Enum UA_ExtensionObjectEncodingMaskType
 	Int32 Length;
 	Byte *Body;
-};
+}
+UA_ExtensionObject;
 
-typedef struct UA_ExtensionObjectType UA_ExtensionObject;
-
-enum BID_ExtensionObjectEncodingMaskType
+typedef enum _UA_ExtensionObjectEncodingMaskType
 {
 	NO_BODY_IS_ENCODED = 0,		//Hex 0x00
 	BODY_IS_BYTE_STRING = 1,	//Hex 0x01
 	BODY_IS_XML_ELEMENT = 2		//Hex 0x02
-};
+}
+UA_ExtensionObjectEncodingMaskType;
 
 
 /**
 * VariantBinaryEncoding
+* Part: 6
+* Chapter: 5.2.2.16
+* Page: 22
 */
-struct UA_VariantType
+struct _UA_DataValue;
+struct _UA_Variant;
+typedef union _UA_VariantArrayUnion
 {
-	Byte EncodingMask;
+    void*              Array;
+    Boolean*           BooleanArray;
+    SByte*             SByteArray;
+    Byte*              ByteArray;
+    Int16*             Int16Array;
+    UInt16*            UInt16Array;
+    Int32*             Int32Array;
+    UInt32*            UInt32Array;
+    Int64*             Int64Array;
+    UInt64*            UInt64Array;
+    Float*             FloatArray;
+    Double*            DoubleArray;
+    UA_String*            StringArray;
+    UA_DateTime*          DateTimeArray;
+    UA_Guid*              GuidArray;
+    UA_ByteString*        ByteStringArray;
+    UA_ByteString*        XmlElementArray;
+    UA_NodeId*            NodeIdArray;
+    UA_ExpandedNodeId*    ExpandedNodeIdArray;
+    UA_StatusCode*        StatusCodeArray;
+    UA_QualifiedName*     QualifiedNameArray;
+    UA_LocalizedText*     LocalizedTextArray;
+    UA_ExtensionObject*   ExtensionObjectArray;
+    struct _UA_DataValue* DataValueArray;
+    struct _UA_Variant*   VariantArray;
+}
+UA_VariantArrayUnion;
+
+typedef struct _UA_VariantArrayValue
+{
+    Int32  Length;
+    UA_VariantArrayUnion Value;
+}
+UA_VariantArrayValue;
+
+typedef struct _UA_VariantMatrixValue
+{
+    Int32 NoOfDimensions;
+    Int32* Dimensions;
+    UA_VariantArrayUnion Value;
+}
+UA_VariantMatrixValue;
+
+typedef union _UA_VariantUnion
+{
+    Boolean Boolean;
+    SByte SByte;
+    Byte Byte;
+    Int16 Int16;
+    UInt16 UInt16;
+    Int32 Int32;
+    UInt32 UInt32;
+    Int64 Int64;
+    UInt64 UInt64;
+    Float Float;
+    Double Double;
+    UA_DateTime DateTime;
+    UA_String String;
+    UA_Guid* Guid;
+    UA_ByteString ByteString;
+    UA_XmlElement XmlElement;
+    UA_NodeId* NodeId;
+    UA_ExpandedNodeId* ExpandedNodeId;
+    UA_StatusCode StatusCode;
+    UA_QualifiedName* QualifiedName;
+    UA_LocalizedText* LocalizedText;
+    UA_ExtensionObject* ExtensionObject;
+    struct _UA_DataValue* DataValue;
+    UA_VariantArrayValue  Array;
+    UA_VariantMatrixValue Matrix;
+}
+UA_VariantUnion;
+
+typedef struct _UA_Variant
+{
+	Byte EncodingMask; //Type of Enum UA_VariantTypeEncodingMaskType
 	Int32 ArrayLength;
-	Byte *Value;
-	Int32 ArrayDimensions[];
-};
+	UA_VariantUnion *Value;
+}
+UA_Variant;
 
-typedef struct UA_VariantType UA_Variant;
-
-enum BID_VariantTypeEncodingMaskType
+typedef enum _UA_VariantTypeEncodingMaskType
 {
 	//Bytes 0:5	HEX 0x00 - 0x20
-	BOOLEAN = 1,
-	SBYTE = 2,
-	BYTE = 3,
-	INT16 = 4,
-	UINT16 = 5,
-	INT32 = 6,
-	UINT32 = 7,
-	INT64 = 8,
-	UINT64 = 9,
-	FLOAT = 10,
-	DOUBLE = 11,
-	STRING = 12,
-	DATE_TIME = 13,
-	GUID = 14,
-	BYTE_STRING = 15,
-	XML_ELEMENT = 16,
-	NODE_ID = 17,
-	EXPANDED_NODE_ID = 18,
-	STATUS_CODE = 19,
-	QUALIFIED_NAME = 20,
-	LOCALIZED_TEXT = 21,
-	EXTENSION_OBJECT = 22,
-	DATA_VALUE = 23,
-	VARIANT = 24,
-	DIAGNOSTIC_INFO = 25,
+	VTEMT_BOOLEAN = 1,
+	VTEMT_SBYTE = 2,
+	VTEMT_BYTE = 3,
+	VTEMT_INT16 = 4,
+	VTEMT_UINT16 = 5,
+	VTEMT_INT32 = 6,
+	VTEMT_UINT32 = 7,
+	VTEMT_INT64 = 8,
+	VTEMT_UINT64 = 9,
+	VTEMT_FLOAT = 10,
+	VTEMT_DOUBLE = 11,
+	VTEMT_STRING = 12,
+	VTEMT_DATE_TIME = 13,
+	VTEMT_GUID = 14,
+	VTEMT_BYTE_STRING = 15,
+	VTEMT_XML_ELEMENT = 16,
+	VTEMT_NODE_ID = 17,
+	VTEMT_EXPANDED_NODE_ID = 18,
+	VTEMT_STATUS_CODE = 19,
+	VTEMT_QUALIFIED_NAME = 20,
+	VTEMT_LOCALIZED_TEXT = 21,
+	VTEMT_EXTENSION_OBJECT = 22,
+	VTEMT_DATA_VALUE = 23,
+	VTEMT_VARIANT = 24,
+	VTEMT_DIAGNOSTIC_INFO = 25,
 	//Byte 6
-	ARRAY_DIMENSIONS_ENCODED = 64,	//HEX 0x40
+	VTEMT_ARRAY_DIMENSIONS_ENCODED = 64,	//HEX 0x40
 	//Byte 7
-	ARRAY_VALUE_ENCODED = 128	//HEX 0x80
-};
+	VTEMT_ARRAY_VALUE_ENCODED = 128	//HEX 0x80
+}
+UA_VariantTypeEncodingMaskType;
 
 
 /**
 * DataValueBinaryEncoding
+* Part: 6
+* Chapter: 5.2.2.17
+* Page: 23
 */
-struct UA_DataValueType
+typedef struct _UA_DataValue
 {
 	Byte EncodingMask;
 	UA_Variant Value;
@@ -345,7 +467,9 @@ struct UA_DataValueType
 	Int16 SourcePicoseconds;
 	UA_DateTime ServerTimestamp;
 	Int16 ServerPicoseconds;
-};
+}
+UA_DataValue;
+
 
 /**
 * Duration

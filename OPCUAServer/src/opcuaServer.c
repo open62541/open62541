@@ -15,6 +15,7 @@
 //#include "opcua_binaryEncDec.h"
 #include "opcua_builtInDatatypes.h"
 #include "opcua_transportLayer.h"
+#include "opcua_types.h"
 
 /*#include <sys/socket.h>
 #include <netinet/in.h>
@@ -45,6 +46,12 @@ void server_init()
 }
 void server_run()
 {
+	int server_state = 0;
+	int recv_data = 0;
+	int send_data = 1;
+	int new_client = 2;
+	int new_request = 3;
+
 	while(1)
 	{
 		//call recv (nonblocking)
