@@ -19,16 +19,30 @@ void TL_sendACK(UA_connection *connection)
 	//call send function
 
 }
-
+/*
+ * server answer to open message
+ */
 void TL_open(UA_connection *connection, AD_RawMessage *rawMessage)
 {
+	UA_connection tmpConnection;
 	switch(connection->transportLayer.connectionState)
 	{
 		connectionState_CLOSED :
 		{
+			//process the connection values received by the client
+			TL_processHELMessage(&tmpConnection,rawMessage);
+			connection->transportLayer.serverBuffers.protocolVersion = TL_SERVER_PROTOCOL_VERSION;
 
-			TL_processHELMessage(connection,rawMessage);
-			TL_sendACK(connection);
+			connection->transportLayer.serverBuffers.recvBufferSize =
+					tmpConnection->transportLayer.serverBuffers.recvBufferSize;
+
+			connection->transportLayer.serverBuffers.sendBufferSize =
+					tmpConnection->transportLayer.serverBuffers.sendBufferSize;
+
+			connection->transportLayer.serverBuffers.maxMessageSize = TL_SERVER_MAX_MESSAGE_SIZE;
+			connection->transportLayer.serverBuffers.maxChunkCount = TL_SERVER_MAX_CHUNK_COUNT;
+
+		    TL_sendACK(connection);
 			connection->transportLayer.connectionState = connectionState_ESTABLISHED;
 			break;
 		}
@@ -45,7 +59,7 @@ void TL_open(UA_connection *connection, AD_RawMessage *rawMessage)
 		}
 	}
 }
-/*
+
 void TL_receive(UA_connection *connection, AD_RawMessage *TL_message)
 {
 	UInt32 bufferSize = connection->transportLayer.serverBuffers.recvBufferSize = 8192;
@@ -62,34 +76,42 @@ void TL_receive(UA_connection *connection, AD_RawMessage *TL_message)
 	{
 		length = tcp_recv(connection, tmpRawMessage.message, bufferSize);
 	}
+
+
 	tmpRawMessage.length = length;
 	if(tmpRawMessage.length > 0)
 	{
-		TL_getMessageHeader(connection, &tmpHeader);
-		switch(tmpHeader->MessageType)
+		switch(TL_getPacketType(tmpRawMessage))
 		{
-			TL_OPN,TL_MSG,TL_CLO :
-			{
-
-				break;
-			}
-			TL_HEL :
-			{
-				break;
-			}
-			TL_ACK :
-			{
-				break;
-			}
-
-
+		packetType_MSG:
+		packetType_OPN:
+		packetType_CLO:
+			TL_message->length = tmpRawMessage.length;
+			TL_message->message = tmpRawMessage.message;
+			break;
+		packetType_HEL:
+			TL_message->length = 0;
+			TL_message->message = NULL;
+			TL_open(connection, tmpRawMessage);
+			break;
+		packetType_ACK:
+			TL_message->length = 0;
+			TL_message->message = NULL;
+			break;
+		packetType_ERR:
+			TL_message->length = 0;
+			TL_message->message = NULL;
+			//TODO ERROR HANDLING
+			break;
+		default:
+			//TODO ERROR HANDLING
 		}
 		//check in which state the connection is
 
 	}
 
 }
-*/
+
 void TL_getMessageHeader_test()
 {
 

@@ -6,79 +6,150 @@
  */
 #include "opcua_secureChannelLayer.h"
 
-void SL_open(UA_connection *connection,AD_RawMessage *rawMessage)
+SL_getRequestHeader()
 {
-	switch(connection->secureLayer.connectionState)
+
+}
+/*
+ * opens a secureChannel (server side)
+ */
+void SL_secureChannel_open(UA_connection     *connection,
+		AD_RawMessage                        *secureChannelMessage,
+		SL_SecureConversationMessageHeader   *SCM_Header,
+		SL_AsymmetricAlgorithmSecurityHeader *AAS_Header
+		SL_openSecureChannelResponse *response )
+{
+
+	//connection->secureLayer.
+}
+void SL_secureChannel_Request_get(AD_RawMessage        *secureChannelMessage,
+		                          secureChannelRequest *SC_request)
+{
+
+}
+/*
+ * closes a secureChannel (server side)
+ */
+void SL_secureChannel_close(UA_connection *connection)
+{
+
+}
+/*
+ * receive and process data from underlying layer
+ */
+void SL_receive(UA_connection *connection,
+		        AD_RawMessage *serviceMessage)
+{
+	AD_RawMessage* secureChannelMessage;
+	SL_SecureConversationMessageHeader SCM_Header;
+	SL_AsymmetricAlgorithmSecurityHeader AAS_Header;
+
+	//get data from transport layer
+	TL_receive(UA_connection, secureChannelMessage);
+
+	UInt32 readPosition = SL_secureChannel_SCMHeader_get(connection,secureChannelMessage,&SCM_Header);
+
+	readPosition = SL_secureChannel_AASHeader_get(connection,secureChannelMessage,readPosition,&AAS_Header);
+
+	SL_secureChannel_Message_get(connection,secureChannelMessage,readPosition,serviceMessage);
+
+
+	if (secureChannelMessage.length > 0)
 	{
-		connectionState_OPENING :
+		switch (SCM_Header.MessageType)
 		{
-
-			break;
-		}
-
-		connectionState_ESTABLISHED :
+		case packetType_MSG:
 		{
-			break;
-		}
-
-		connectionState_CLOSED :
-		{
-			//open the connection on transport layer
-			if(connection->transportLayer.connectionState == connectionState_ESTABLISHED)
+			if (connection->secureLayer.connectionState
+					== connectionState_ESTABLISHED)
 			{
-				if (TL_getPacketType(rawMessage) == packetType_OPN)
-				{
-					SL_openSecureChannel(connection, rawMessage);
-				}
 
+			}
+			else //receiving message, without secure channel
+			{
+				//TODO send back Error Message
 			}
 			break;
 		}
-
-	}
-}
-void SL_openSecureChannel(UA_connection *connection)
-{
-
-
-	TL_send();
-}
-/*
-void SL_receive(UA_connection *connection, AD_RawMessage *serviceMessage)
-{
-	AD_RawMessage* secureChannelMessage;
-
-	TL_receive(UA_connection, secureChannelMessage);
-
-	switch (SL_getMessageType(secureChannelMessage))
-	{
-		case SL_messageType_MSG:
+		case packetType_OPN:
 		{
-			serviceMessage = secureChannelMessage;
+			if (openSecureChannelHeader_check(connection, secureChannelMessage))
+			{
+				SL_secureChannel_open(connection, serviceMessage);
+			}
+			else
+			{
+				//TODO send back Error Message
+			}
+			//TODO free memory for secureChannelMessage
 			break;
+		}
+		case packetType_CLO:
+		{
+			SL_secureChannel_close(connection, secureChannelMessage);
+
+			//TODO free memory for secureChannelMessage
+			break;
+		}
 		}
 	}
 
 }
-*/
-UInt32 SL_getMessageType(UA_connection *connection, AD_RawMessage *rawMessage)
+UInt32 SL_secureChannel_SCMHeader_get(UA_connection *connection, AD_RawMessage *rawMessage, SL_SecureConversationMessageHeader* SC_Header)
 {
-	if(rawMessage->message[0] == 'O' &&
-	   rawMessage->message[1] == 'P' &&
-	   rawMessage->message[2] == 'N')
+	Int32 pos = 0;
+	SC_Header->MessageType = TL_getPacketType(rawMessage);
+	pos += TL_MESSAGE_TYPE_LEN;
+	SC_Header->IsFinal = rawMessage[pos];
+	pos += sizeof(Byte);
+	SC_Header->MessageSize = convertToUInt32(rawMessage,pos);
+	pos += sizeof(UInt32);
+	SC_Header->SecureChannelId = convertToUInt32(rawMessage,pos);
+	pos += sizeof(UInt32);
+	return pos;
+
+}
+UInt32 SL_secureChannel_AASHeader_get(UA_connection *connection, AD_RawMessage *rawMessage,UInt32 pos, SL_AsymmetricAlgorithmSecurityHeader* AAS_Header)
+{
+	AAS_Header->SecurityPolicyUri.Length = convertToInt32(rawMessage,pos);
+
+	pos += sizeof(Int32);
+	AAS_Header->SecurityPolicyUri.Data = rawMessage[pos];
+
+	if(AAS_Header->SecurityPolicyUri.Length < 0)
 	{
-		return SL_messageType_OPN;
+		AAS_Header->SecurityPolicyUri.Length = 0;
 	}
-	else if(rawMessage->message[0] == 'C' &&
-	        rawMessage->message[1] == 'L' &&
-	        rawMessage->message[2] == 'O')
+	pos +=  AAS_Header->SecurityPolicyUri.Length;
+
+	AAS_Header->SenderCertificate.Length = convertToInt32(rawMessage,pos);
+	pos += sizeof(Int32);
+	if(AAS_Header->SenderCertificate.Length < 0)
 	{
-		return SL_messageType_CLO;
+		AAS_Header->SenderCertificate.Length = 0;
 	}
-	else if(rawMessage->message[0] == 'M' &&
-			rawMessage->message[1] == 'S' &&
-			rawMessage->message[2] == 'G')
+	AAS_Header->SenderCertificate.Data = rawMessage[pos];
+
+	pos += AAS_Header->SenderCertificate.Length;
+
+	AAS_Header->ReceiverThumbprint.Length = convertToInt32(rawMessage,pos);
+	pos += sizeof(Int32);
+
+	if(AAS_Header->ReceiverThumbprint.Length < 0)
 	{
-		return SL_messageType_MSG;
+		AAS_Header->ReceiverThumbprint.Length = 0;
 	}
+	AAS_Header->ReceiverThumbprint.Data = rawMessage[pos];
+
+	pos += AAS_Header->ReceiverThumbprint.Length;
+	return pos;
+}
+void SL_secureChannel_Footer_get()
+{
+
+
+}
+void SL_secureChannel_Message_get(UA_connection *connection, AD_RawMessage *rawMessage,UInt32 pos, AD_RawMessage *message)
+{
+
 }

@@ -47,7 +47,13 @@ struct TL_connection
 
 struct SL_connection
 {
-	UInt32 secureChannelId;
+
+	T_ApplicationInstanceCertificate clientCertificate;
+	UInt32 requestType;
+	UA_String secureChannelId;
+	UInt32 securityMode;
+	UA_String clientNonce;
+	UA_Duration requestedLifetime;
 	UInt32 connectionState;
 
 };
