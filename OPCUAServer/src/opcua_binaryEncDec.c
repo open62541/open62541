@@ -6,7 +6,9 @@
  */
 
 #include "opcua_binaryEncDec.h"
+#include "opcua_types.h"
 
+const char *TEST_PASSED = "PASSED";
 
 /*
  * convert byte array to Byte
@@ -77,6 +79,12 @@ Int64 convertToInt64(char* buf, int pos)
 	return t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8;
 }
 
+Int64 convertToInt64_test(char* buf, int pos)
+{
+
+	printf("");
+}
+
 UA_String convertToUAString(char* buf, int pos)
 {
 	UA_String tmpUAString;
@@ -92,30 +100,63 @@ UA_Guid convertToUAGuid(char* buf, int pos)
 	UInt32 i = 0;
 	for(i = 1; i <= 4; i++)
 	{
-		tmpUAGuid.Data1[i] = convertToUInt32(*buf, pos+counter);
+		tmpUAGuid.Data1[i] = convertToUInt32(buf, pos+counter);
 		counter += sizeof(UInt32);
 	}
 	for(i = 1; i <= 2; i++)
 	{
-		tmpUAGuid.Data2[i] = convertToUInt16(*buf, pos+counter);
+		tmpUAGuid.Data2[i] = convertToUInt16(buf, pos+counter);
 		counter += sizeof(UInt16);
 	}
 	for(i = 1; i <= 2; i++)
 	{
-		tmpUAGuid.Data3[i] = convertToUInt16(*buf, pos+counter);
+		tmpUAGuid.Data3[i] = convertToUInt16(buf, pos+counter);
 		counter += sizeof(UInt16);
 	}
 	for(i = 1; i <= 8; i++)
 	{
-		tmpUAGuid.Data4[i] = convertToByte(*buf, pos+counter);
+		tmpUAGuid.Data4[i] = convertToByte(buf, pos+counter);
 		counter += sizeof(Byte);
 	}
 	return tmpUAGuid;
 }
 
+UA_ByteString convertToUAByteString(char* buf, int pos){
+	UA_ByteString tmpUAByteString;
+	int counter = sizeof(Int32);
+	int i = 0;
+
+	tmpUAByteString.Length = convertToInt32(buf, pos);
+	Byte byteStringData[tmpUAByteString.Length];
+
+	if(tmpUAByteString.Length == -1){
+		return tmpUAByteString;
+	}else{
+		for(i = 0; i < tmpUAByteString.Length; i++)
+		{
+			byteStringData[i] = convertToByte(buf, pos+counter);
+			counter += sizeof(Byte);
+		}
+	}
+
+	tmpUAByteString.Data = byteStringData;
+
+	return tmpUAByteString;
+}
+
+UA_DateTime convertToUADateTime(char* buf, int pos){
+	UA_DateTime tmpUADateTime;
+	tmpUADateTime = convertToInt64(buf, pos);
+	return tmpUADateTime;
+}
+
+UA_StatusCode convertToUAStatusCode(char* buf, int pos){
+	return convertToUInt32(buf, pos);
+}
+
 UA_NodeId convertToUANodeId(char* buf, int pos){
 	UA_NodeId tmpUANodeId;
-	tmpUANodeId.EncodingByte = convertToInt32(*buf, 0);
+	tmpUANodeId.EncodingByte = convertToInt32(buf, 0);
 	int counter = sizeof(UInt32);
 
 	UA_NodeIdEncodingValuesType encodingType = tmpUANodeId.EncodingByte;
@@ -124,48 +165,48 @@ UA_NodeId convertToUANodeId(char* buf, int pos){
 	{
 		case NIEVT_TWO_BYTE:
 		{
-			tmpUANodeId.Identifier.Numeric = convertToInt32(*buf, counter);
+			tmpUANodeId.Identifier.Numeric = convertToInt32(buf, counter);
 			counter += sizeof(UInt16);
 			break;
 		}
 		case NIEVT_FOUR_BYTE:
 		{
-			tmpUANodeId.Identifier.Numeric = convertToInt32(*buf, counter);
+			tmpUANodeId.Identifier.Numeric = convertToInt32(buf, counter);
 			counter += sizeof(Int64);
 			break;
 		}
 		case NIEVT_NUMERIC:
 		{
-			tmpUANodeId.Identifier.Numeric = convertToInt32(*buf, counter);
+			tmpUANodeId.Identifier.Numeric = convertToInt32(buf, counter);
 			counter += sizeof(UInt32);
 			break;
 		}
 		case NIEVT_STRING:
 		{
-			tmpUANodeId.Identifier.String = convertToUAString(*buf, counter);
+			tmpUANodeId.Identifier.String = convertToUAString(buf, counter);
 			counter += sizeof(sizeof(UInt32) + tmpUANodeId.Identifier.String.Length*sizeof(char));
 			break;
 		}
 		case NIEVT_GUID:
 		{
-			UA_Guid tempGuid = convertToUAGuid(*buf, counter);
-			tmpUANodeId.Identifier.Guid = &tempGuid;
+			tmpUANodeId.Identifier.Guid = convertToUAGuid(buf, counter);
 			counter += sizeof(UA_Guid);
 			break;
 		}
 		case NIEVT_BYTESTRING:
 		{
-			//ToDo
+			tmpUANodeId.Identifier.OPAQUE = convertToUAByteString(buf, counter);
+			//If Length == -1 then the ByteString is null
+			if(tmpUANodeId.Identifier.OPAQUE.Length == -1)
+			{
+				counter += sizeof(Int32);
+			}else{
+				counter += sizeof(Int32)+sizeof(Byte)*tmpUANodeId.Identifier.OPAQUE.Length;
+			}
 			break;
 		}
-		case NIEVT_NAMESPACE_URI_FLAG:
-		{
+		default:
 			break;
-		}
-		case NIEVT_SERVERINDEX_FLAG:
-		{
-			break;
-		}
 	}
 
 	return tmpUANodeId;

@@ -165,14 +165,14 @@ T_DataValue;
 */
 typedef struct _T_DiagnosticInfo
 {
-//ToDo	struct ???? identifier;				//ToDo: what kind of strcuture?
+	//ToDo	struct ???? identifier;	identifier is only needed for encoding????
 	Int32 namespaceUri;
 	Int32 symbolicId;
 	Int32 locale;
 	Int32 localizesText;
 	UA_String additionalInfo;
 	UA_StatusCode innerStatusCode;
-//ToDo	T_DiagnosticInfo innerDiagnosticInfo;
+	struct _T_DiagnosticInfo* innerDiagnosticInfo;
 }
 T_DiagnosticInfo;
 

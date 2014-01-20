@@ -18,31 +18,31 @@
 
 typedef enum _UA_BuiltInDataTypes
 {
-	BOOLEAN = 1,
-	SBYTE = 2,
-	BYTE = 3,
-	INT16 = 4,
-	UINT16 = 5,
-	INT32 = 6,
-	UINT32 = 7,
-	INT64 = 8,
-	UINT64 = 9,
-	FLOAT = 10,
-	DOUBLE = 11,
-	STRING = 12,
+	BOOLEAN = 	1,
+	SBYTE = 	2,
+	BYTE = 		3,
+	INT16 = 	4,
+	UINT16 = 	5,
+	INT32 = 	6,
+	UINT32 = 	7,
+	INT64 = 	8,
+	UINT64 = 	9,
+	FLOAT = 	10,
+	DOUBLE = 	11,
+	STRING = 	12,
 	DATE_TIME = 13,
-	GUID = 14,
-	BYTE_STRING = 15,
-	XML_ELEMENT = 16,
-	NODE_ID = 17,
-	EXPANDED_NODE_ID = 18,
-	STATUS_CODE = 19,
-	QUALIFIED_NAME = 20,
-	LOCALIZED_TEXT = 21,
-	EXTENSION_OBJECT = 22,
-	DATA_VALUE = 23,
-	VARIAN = 24,
-	DIAGNOSTIC_INFO = 25
+	GUID = 		14,
+	BYTE_STRING = 		15,
+	XML_ELEMENT = 		16,
+	NODE_ID = 			17,
+	EXPANDED_NODE_ID = 	18,
+	STATUS_CODE = 		19,
+	QUALIFIED_NAME = 	20,
+	LOCALIZED_TEXT = 	21,
+	EXTENSION_OBJECT = 	22,
+	DATA_VALUE = 		23,
+	VARIAN = 			24,
+	DIAGNOSTIC_INFO = 	25
 }
 UA_BuiltInDataTypes;
 
@@ -174,14 +174,14 @@ typedef enum _UA_NodeIdEncodingValuesType
 {
 	// Some Values are called the same as previous Enumerations so we need
 	// names that are unique
-	NIEVT_TWO_BYTE = 0, 			//Hex 0x00
-	NIEVT_FOUR_BYTE = 1, 			//Hex 0x01
-	NIEVT_NUMERIC = 2, 				//Hex 0x02
-	NIEVT_STRING = 3, 				//Hex 0x03
-	NIEVT_GUID = 4, 				//Hex 0x04
-	NIEVT_BYTESTRING = 5, 			//Hex 0x05
-	NIEVT_NAMESPACE_URI_FLAG = 128, //Hex 0x80 Is only for ExpandedNodeId required
-	NIEVT_SERVERINDEX_FLAG = 64 	//Hex 0x40 Is only for ExpandedNodeId required
+	NIEVT_TWO_BYTE = 	0x00,
+	NIEVT_FOUR_BYTE = 	0x01,
+	NIEVT_NUMERIC = 	0x02,
+	NIEVT_STRING = 		0x03,
+	NIEVT_GUID = 		0x04,
+	NIEVT_BYTESTRING = 	0x05,
+	NIEVT_NAMESPACE_URI_FLAG = 	0x80, 	//Is only for ExpandedNodeId required
+	NIEVT_SERVERINDEX_FLAG = 	0x40 	//Is only for ExpandedNodeId required
 }
 UA_NodeIdEncodingValuesType;
 
@@ -262,13 +262,13 @@ typedef enum _UA_DiagnosticInfoEncodingMaskType
 {
 	// Some Values are called the same as previouse Enumerations so we need
 	//names that are unique
-	DIEMT_SYMBOLIC_ID = 1, 		//Hex 0x01
-	DIEMT_NAMESPACE = 2, 			//Hex 0x02
-	DIEMT_LOCALIZED_TEXT = 4, 		//Hex 0x04
-	DIEMT_LOCATE = 8, 			//Hex 0x08
-	DIEMT_ADDITIONAL_INFO = 16, 		//Hex 0x10
-	DIEMT_INNER_STATUS_CODE = 32, 	//Hex 0x20
-	DIEMT_INNER_DIAGNOSTIC_INFO = 64 	//Hex 0x40
+	DIEMT_SYMBOLIC_ID = 			0x01,
+	DIEMT_NAMESPACE = 				0x02,
+	DIEMT_LOCALIZED_TEXT = 			0x04,
+	DIEMT_LOCATE = 					0x08,
+	DIEMT_ADDITIONAL_INFO = 		0x10,
+	DIEMT_INNER_STATUS_CODE = 		0x20,
+	DIEMT_INNER_DIAGNOSTIC_INFO = 	0x40
 }
 UA_DiagnosticInfoEncodingMaskType;
 
@@ -304,8 +304,8 @@ UA_LocalizedText;
 
 typedef enum _UA_LocalizedTextEncodingMaskType
 {
-	LTEMT_SYMBOLIC_ID = 1, 		//Hex 0x01
-	LTEMT_NAMESPACE = 2 			//Hex 0x02
+	LTEMT_SYMBOLIC_ID = 0x01,
+	LTEMT_NAMESPACE = 	0x02
 }
 UA_LocalizedTextEncodingMaskType;
 
@@ -327,9 +327,9 @@ UA_ExtensionObject;
 
 typedef enum _UA_ExtensionObjectEncodingMaskType
 {
-	NO_BODY_IS_ENCODED = 0,		//Hex 0x00
-	BODY_IS_BYTE_STRING = 1,	//Hex 0x01
-	BODY_IS_XML_ELEMENT = 2		//Hex 0x02
+	NO_BODY_IS_ENCODED = 	0x00,
+	BODY_IS_BYTE_STRING = 	0x01,
+	BODY_IS_XML_ELEMENT = 	0x02
 }
 UA_ExtensionObjectEncodingMaskType;
 
@@ -428,35 +428,35 @@ UA_Variant;
 typedef enum _UA_VariantTypeEncodingMaskType
 {
 	//Bytes 0:5	HEX 0x00 - 0x20
-	VTEMT_BOOLEAN = 1,
-	VTEMT_SBYTE = 2,
-	VTEMT_BYTE = 3,
-	VTEMT_INT16 = 4,
-	VTEMT_UINT16 = 5,
-	VTEMT_INT32 = 6,
-	VTEMT_UINT32 = 7,
-	VTEMT_INT64 = 8,
-	VTEMT_UINT64 = 9,
-	VTEMT_FLOAT = 10,
-	VTEMT_DOUBLE = 11,
-	VTEMT_STRING = 12,
-	VTEMT_DATE_TIME = 13,
-	VTEMT_GUID = 14,
-	VTEMT_BYTE_STRING = 15,
-	VTEMT_XML_ELEMENT = 16,
-	VTEMT_NODE_ID = 17,
-	VTEMT_EXPANDED_NODE_ID = 18,
-	VTEMT_STATUS_CODE = 19,
-	VTEMT_QUALIFIED_NAME = 20,
-	VTEMT_LOCALIZED_TEXT = 21,
-	VTEMT_EXTENSION_OBJECT = 22,
-	VTEMT_DATA_VALUE = 23,
-	VTEMT_VARIANT = 24,
-	VTEMT_DIAGNOSTIC_INFO = 25,
+	VTEMT_BOOLEAN = 			1,
+	VTEMT_SBYTE = 				2,
+	VTEMT_BYTE = 				3,
+	VTEMT_INT16 = 				4,
+	VTEMT_UINT16 = 				5,
+	VTEMT_INT32 = 				6,
+	VTEMT_UINT32 = 				7,
+	VTEMT_INT64 = 				8,
+	VTEMT_UINT64 = 				9,
+	VTEMT_FLOAT = 				10,
+	VTEMT_DOUBLE = 				11,
+	VTEMT_STRING = 				12,
+	VTEMT_DATE_TIME = 			13,
+	VTEMT_GUID = 				14,
+	VTEMT_BYTE_STRING = 		15,
+	VTEMT_XML_ELEMENT = 		16,
+	VTEMT_NODE_ID = 			17,
+	VTEMT_EXPANDED_NODE_ID = 	18,
+	VTEMT_STATUS_CODE = 		19,
+	VTEMT_QUALIFIED_NAME = 		20,
+	VTEMT_LOCALIZED_TEXT = 		21,
+	VTEMT_EXTENSION_OBJECT = 	22,
+	VTEMT_DATA_VALUE = 			23,
+	VTEMT_VARIANT = 			24,
+	VTEMT_DIAGNOSTIC_INFO = 	25,
 	//Byte 6
-	VTEMT_ARRAY_DIMENSIONS_ENCODED = 64,	//HEX 0x40
+	VTEMT_ARRAY_DIMENSIONS_ENCODED = 	0x40,
 	//Byte 7
-	VTEMT_ARRAY_VALUE_ENCODED = 128	//HEX 0x80
+	VTEMT_ARRAY_VALUE_ENCODED = 		0x80,
 }
 UA_VariantTypeEncodingMaskType;
 
