@@ -16,17 +16,19 @@ SL_getRequestHeader()
 void SL_secureChannel_open(UA_connection     *connection,
 		AD_RawMessage                        *secureChannelMessage,
 		SL_SecureConversationMessageHeader   *SCM_Header,
-		SL_AsymmetricAlgorithmSecurityHeader *AAS_Header
-		SL_openSecureChannelResponse *response )
+		SL_AsymmetricAlgorithmSecurityHeader *AAS_Header)
 {
 
+	TL_send();
 	//connection->secureLayer.
 }
+/*
 void SL_secureChannel_Request_get(AD_RawMessage        *secureChannelMessage,
 		                          secureChannelRequest *SC_request)
 {
 
 }
+*/
 /*
  * closes a secureChannel (server side)
  */
@@ -47,10 +49,13 @@ void SL_receive(UA_connection *connection,
 	//get data from transport layer
 	TL_receive(UA_connection, secureChannelMessage);
 
+	//get the Secure Channel Message Header
 	UInt32 readPosition = SL_secureChannel_SCMHeader_get(connection,secureChannelMessage,&SCM_Header);
 
+	//get the Secure Channel Asymmetric Algorithm Security Header
 	readPosition = SL_secureChannel_AASHeader_get(connection,secureChannelMessage,readPosition,&AAS_Header);
 
+	//get Secure Channel Message
 	SL_secureChannel_Message_get(connection,secureChannelMessage,readPosition,serviceMessage);
 
 
@@ -59,7 +64,6 @@ void SL_receive(UA_connection *connection,
 		switch (SCM_Header.MessageType)
 		{
 		case packetType_MSG:
-		{
 			if (connection->secureLayer.connectionState
 					== connectionState_ESTABLISHED)
 			{
@@ -70,9 +74,7 @@ void SL_receive(UA_connection *connection,
 				//TODO send back Error Message
 			}
 			break;
-		}
 		case packetType_OPN:
-		{
 			if (openSecureChannelHeader_check(connection, secureChannelMessage))
 			{
 				SL_secureChannel_open(connection, serviceMessage);
@@ -83,15 +85,11 @@ void SL_receive(UA_connection *connection,
 			}
 			//TODO free memory for secureChannelMessage
 			break;
-		}
 		case packetType_CLO:
-		{
 			SL_secureChannel_close(connection, secureChannelMessage);
 
 			//TODO free memory for secureChannelMessage
 			break;
-		}
-		}
 	}
 
 }

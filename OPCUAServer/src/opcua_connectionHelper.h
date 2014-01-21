@@ -8,6 +8,7 @@
 #ifndef OPCUA_CONNECTIONHELPER_H_
 #define OPCUA_CONNECTIONHELPER_H_
 #include "opcua_builtInDatatypes.h"
+#include "opcua_types.h"
 
 enum packetType
 {

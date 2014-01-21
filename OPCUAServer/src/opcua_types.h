@@ -12,10 +12,10 @@
 
 typedef enum _T_ApplicationType
 {
-	SERVER_0,
-	CLIENT_1,
-	CLIENTANDSERVER_2,
-	DISCOVERYSERVER_3
+	ApplicationType_SERVER_0,
+	ApplicationType_CLIENT_1,
+	ApplicationType_CLIENTANDSERVER_2,
+	ApplicationType_DISCOVERYSERVER_3
 }
 T_ApplicationType;
 
@@ -185,9 +185,9 @@ T_DiagnosticInfo;
 */
 typedef enum _T_MessageSecurityMode
 {
-	INVALID_0 = 0,
-	SIGN_1 = 1,
-	SIGNANDENCRYPT_2 = 2
+	MessageSecurityMode_INVALID_0 = 0,
+	MessageSecurityMode_SIGN_1 = 1,
+	MessageSecurityMode_SIGNANDENCRYPT_2 = 2
 }
 T_MessageSecurityMode;
 
@@ -376,9 +376,9 @@ T_ExtensibleParameterMonitoringFilter;
 */
 typedef enum _T_MonitoringFilter
 {
-	DATA_CHANGE_FILTER = 1,
-	EVENT_FILTER = 2,
-	AGGREGATE_FILTER = 3
+	MonitoringFilter_DATA_CHANGE_FILTER = 1,
+	MonitoringFilter_EVENT_FILTER = 2,
+	MonitoringFilter_AGGREGATE_FILTER = 3
 }
 T_MonitoringFilter;
 
@@ -393,9 +393,9 @@ T_MonitoringFilter;
 */
 typedef enum _T_MonitoringModeValues
 {
-	DISABLED_0 = 0,	//The item being monitored is not sampled or evaluated, and Notifications are not generated or queued. Notification reporting is disabled.
-	SAMPLING_1 = 1,	//The item being monitored is sampled and evaluated, and Notifications are generated and queued. Notification reporting is disabled.
-	REPORTING_2 = 2	//The item being monitored is sampled and evaluated, and Notifications are generated and queued. Notification reporting is enabled.
+	MonitoringModeValues_DISABLED_0 = 0,	//The item being monitored is not sampled or evaluated, and Notifications are not generated or queued. Notification reporting is disabled.
+	MonitoringModeValues_SAMPLING_1 = 1,	//The item being monitored is sampled and evaluated, and Notifications are generated and queued. Notification reporting is disabled.
+	MonitoringModeValues_REPORTING_2 = 2	//The item being monitored is sampled and evaluated, and Notifications are generated and queued. Notification reporting is enabled.
 }
 T_MonitoringModeValues;
 
@@ -408,41 +408,41 @@ T_MonitoringModeValues;
 */
 typedef enum _T_NodeAttributesParamterTypeIds
 {
-	ObjectAttributes,	//Defines the Attributes for the Object NodeClass.
-	VariableAttributes,	//Defines the Attributes for the Variable NodeClass.
-	MethodAttributes,	//Defines the Attributes for the Method NodeClass.
-	ObjectTypeAttributes,	//Defines the Attributes for the ObjectType NodeClass.
-	VariableTypeAttributes,	//Defines the Attributes for the VariableType NodeClass.
-	ReferenceTypeAttributes,//Defines the Attributes for the ReferenceType NodeClass.
-	DataTypeAttributes,	//Defines the Attributes for the DataType NodeClass.
-	ViewAttributes		//Defines the Attributes for the View NodeClass.
+	NodeAttributesParamterTypeIds_ObjectAttributes,	//Defines the Attributes for the Object NodeClass.
+	NodeAttributesParamterTypeIds_VariableAttributes,	//Defines the Attributes for the Variable NodeClass.
+	NodeAttributesParamterTypeIds_MethodAttributes,	//Defines the Attributes for the Method NodeClass.
+	NodeAttributesParamterTypeIds_ObjectTypeAttributes,	//Defines the Attributes for the ObjectType NodeClass.
+	NodeAttributesParamterTypeIds_VariableTypeAttributes,	//Defines the Attributes for the VariableType NodeClass.
+	NodeAttributesParamterTypeIds_ReferenceTypeAttributes,//Defines the Attributes for the ReferenceType NodeClass.
+	NodeAttributesParamterTypeIds_DataTypeAttributes,	//Defines the Attributes for the DataType NodeClass.
+	NodeAttributesParamterTypeIds_ViewAttributes		//Defines the Attributes for the View NodeClass.
 }
 T_NodeAttributesParamterTypeIds;
 
 typedef enum _T_NodeAttributesBitMask
 {
-	AccessLevel = 1, 	//Bit: 0 Indicates if the AccessLevel Attribute is set.
-	ArrayDimensions = 2,	//Bit: 1 Indicates if the ArrayDimensions Attribute is set.
+	NodeAttributesBitMask_AccessLevel = 1, 	//Bit: 0 Indicates if the AccessLevel Attribute is set.
+	NodeAttributesBitMask_ArrayDimensions = 2,	//Bit: 1 Indicates if the ArrayDimensions Attribute is set.
 	//Reserved = 4, 	//Bit: 2 Reserved to be consistent with WriteMask defined in IEC 62541-3.
-	ContainsNoLoops = 8,	//Bit: 3 Indicates if the ContainsNoLoops Attribute is set.
-	DataType = 16,		//Bit: 4 Indicates if the DataType Attribute is set.
-	Description = 32,	//Bit: 5 Indicates if the Description Attribute is set.
-	DisplayName = 64,	//Bit: 6 Indicates if the DisplayName Attribute is set.
-	EventNotifier = 128,	//Bit: 7 Indicates if the EventNotifier Attribute is set.
-	Executable = 256,	//Bit: 8 Indicates if the Executable Attribute is set.
-	Historizing = 512,	//Bit: 9 Indicates if the Historizing Attribute is set.
-	InverseName = 1024,	//Bit:10 Indicates if the InverseName Attribute is set.
-	IsAbstract = 2048,	//Bit:11 Indicates if the IsAbstract Attribute is set.
-	MinimumSamplingInterval = 4096, //Bit:12 Indicates if the MinimumSamplingInterval Attribute is set.
+	NodeAttributesBitMask_ContainsNoLoops = 8,	//Bit: 3 Indicates if the ContainsNoLoops Attribute is set.
+	NodeAttributesBitMask_DataType = 16,		//Bit: 4 Indicates if the DataType Attribute is set.
+	NodeAttributesBitMask_Description = 32,	//Bit: 5 Indicates if the Description Attribute is set.
+	NodeAttributesBitMask_DisplayName = 64,	//Bit: 6 Indicates if the DisplayName Attribute is set.
+	NodeAttributesBitMask_EventNotifier = 128,	//Bit: 7 Indicates if the EventNotifier Attribute is set.
+	NodeAttributesBitMask_Executable = 256,	//Bit: 8 Indicates if the Executable Attribute is set.
+	NodeAttributesBitMask_Historizing = 512,	//Bit: 9 Indicates if the Historizing Attribute is set.
+	NodeAttributesBitMask_InverseName = 1024,	//Bit:10 Indicates if the InverseName Attribute is set.
+	NodeAttributesBitMask_IsAbstract = 2048,	//Bit:11 Indicates if the IsAbstract Attribute is set.
+	NodeAttributesBitMask_MinimumSamplingInterval = 4096, //Bit:12 Indicates if the MinimumSamplingInterval Attribute is set.
 	//Reserved = 8192,	//Bit:13 Reserved to be consistent with WriteMask defined in IEC 62541-3.
 	//Reserved = 16384,	//Bit:14 Reserved to be consistent with WriteMask defined in IEC 62541-3.
-	Symmetric = 32768,	//Bit:15 Indicates if the Symmetric Attribute is set.
-	UserAccessLevel = 65536,//Bit:16 Indicates if the UserAccessLevel Attribute is set.
-	UserExecutable = 131072,//Bit:17 Indicates if the UserExecutable Attribute is set.
-	UserWriteMask = 262144, //Bit:18 Indicates if the UserWriteMask Attribute is set.
-	ValueRank = 524288,	//Bit:19 Indicates if the ValueRank Attribute is set.
-	WriteMask = 1048576,	//Bit:20 Indicates if the WriteMask Attribute is set.
-	Value = 2097152		//Bit:21 Indicates if the Value Attribute is set.
+	NodeAttributesBitMask_Symmetric = 32768,	//Bit:15 Indicates if the Symmetric Attribute is set.
+	NodeAttributesBitMask_UserAccessLevel = 65536,//Bit:16 Indicates if the UserAccessLevel Attribute is set.
+	NodeAttributesBitMask_UserExecutable = 131072,//Bit:17 Indicates if the UserExecutable Attribute is set.
+	NodeAttributesBitMask_UserWriteMask = 262144, //Bit:18 Indicates if the UserWriteMask Attribute is set.
+	NodeAttributesBitMask_ValueRank = 524288,	//Bit:19 Indicates if the ValueRank Attribute is set.
+	NodeAttributesBitMask_WriteMask = 1048576,	//Bit:20 Indicates if the WriteMask Attribute is set.
+	NodeAttributesBitMask_Value = 2097152		//Bit:21 Indicates if the Value Attribute is set.
 	//Reserved		//Bit:22:32 Reserved for future use. Shall always be zero.
 }
 T_NodeAttributesBitMask;
@@ -619,9 +619,9 @@ T_ViewAttributes;
 */
 typedef enum _T_NotificationDataParameterTypeIds
 {
-	DATA_CHANGE = 1,
-	EVENT = 2,
-	STATUS_CHANGE = 3
+	NotificationDataParameterTypeIds_DATA_CHANGE = 1,
+	NotificationDataParameterTypeIds_EVENT = 2,
+	NotificationDataParameterTypeIds_STATUS_CHANGE = 3
 }
 T_NotificationDataParameterTypeIds;
 
@@ -780,16 +780,16 @@ T_RequestHeader;
 
 typedef enum _T_RequestReturnDiagnositcs
 {
-	SERVICE_LEVEL_SYMBOLIC_ID = 1,				//Hex 0x01
-	SERVICE_LEVEL_LOCALIZED_TEXT= 2,			//Hex 0x02
-	SERVICE_LEVEL_ADDITIONAL_INFO = 4,			//Hex 0x04
-	SERVICE_LEVEL_INNER_STATUS_CODE = 8,		//Hex 0x08
-	SERVICE_LEVEL_INNER_DIAGNOSTICS = 16,		//Hex 0x10
-	OPERATION_LEVEL_SYMBOLIC_ID = 32,			//Hex 0x20
-	OPERATION_LEVEL_LOCALIZED_TEXT= 64,			//Hex 0x40
-	OPERATION_LEVEL_ADDITIONAL_INFO = 128,		//Hex 0x80
-	OPERATION_LEVEL_INNER_STATUS_CODE = 256,	//Hex 0x100
-	OPERATION_LEVEL_INNER_DIAGNOSTICS = 512		//Hex 0x200
+	RequestReturnDiagnositcs_SERVICE_LEVEL_SYMBOLIC_ID = 1,				//Hex 0x01
+	RequestReturnDiagnositcs_SERVICE_LEVEL_LOCALIZED_TEXT= 2,			//Hex 0x02
+	RequestReturnDiagnositcs_SERVICE_LEVEL_ADDITIONAL_INFO = 4,			//Hex 0x04
+	RequestReturnDiagnositcs_SERVICE_LEVEL_INNER_STATUS_CODE = 8,		//Hex 0x08
+	RequestReturnDiagnositcs_SERVICE_LEVEL_INNER_DIAGNOSTICS = 16,		//Hex 0x10
+	RequestReturnDiagnositcs_OPERATION_LEVEL_SYMBOLIC_ID = 32,			//Hex 0x20
+	RequestReturnDiagnositcs_OPERATION_LEVEL_LOCALIZED_TEXT= 64,			//Hex 0x40
+	RequestReturnDiagnositcs_OPERATION_LEVEL_ADDITIONAL_INFO = 128,		//Hex 0x80
+	RequestReturnDiagnositcs_OPERATION_LEVEL_INNER_STATUS_CODE = 256,	//Hex 0x100
+	RequestReturnDiagnositcs_OPERATION_LEVEL_INNER_DIAGNOSTICS = 512		//Hex 0x200
 }
 T_RequestReturnDiagnositcs;
 
@@ -883,12 +883,12 @@ T_SignedSoftwareCertificate;
 */
 typedef enum _T_ComplianceLevel
 {
-	UNTESTED_0 = 0,		//the profiled capability has not been tested successfully.
-	PARTIAL_1 = 1,		//the profiled capability has been partially tested and has
+	ComplianceLevel_UNTESTED_0 = 0,		//the profiled capability has not been tested successfully.
+	ComplianceLevel_PARTIAL_1 = 1,		//the profiled capability has been partially tested and has
 				//passed critical tests, as defined by the certifying authority.
-	SELFTESTED_2 = 2,	//the profiled capability has been successfully tested using a
+	ComplianceLevel_SELFTESTED_2 = 2,	//the profiled capability has been successfully tested using a
 				//self-test system authorized by the certifying authority.
-	CERTIFIED_3 = 3		//the profiled capability has been successfully tested by a
+	ComplianceLevel_CERTIFIED_3 = 3		//the profiled capability has been successfully tested by a
 				//testing organisation authorized by the certifying authority.
 }
 T_ComplianceLevel;
@@ -938,13 +938,13 @@ T_SoftwareCertificate;
 */
 typedef enum _T_TimestampsToReturn
 {
-	SOURCE_0 = 1,	//Return the source timestamp.
+	TimestampsToReturn_SOURCE_0 = 1,	//Return the source timestamp.
 			//If used in HistoryRead the source timestamp is used to determine which historical data values are returned.
-	SERVER_1 = 1,	//Return the Server timestamp.
+	TimestampsToReturn_SERVER_1 = 1,	//Return the Server timestamp.
 			//If used in HistoryRead the Server timestamp is used to determine which historical data values are returned.
-	BOTH_2 = 2,	//Return both the source and Server timestamps.
+	TimestampsToReturn_BOTH_2 = 2,	//Return both the source and Server timestamps.
 			//If used in HistoryRead the source timestamp is used to determine which historical data values are returned.
-	NEITHER_3 = 3	//Return neither timestamp.
+	TimestampsToReturn_NEITHER_3 = 3	//Return neither timestamp.
 			//This is the default value for MonitoredItems if a Variable value is not being accessed.
 			//For HistoryRead this is not a valid setting.
 }

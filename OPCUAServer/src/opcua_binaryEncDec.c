@@ -80,49 +80,48 @@ Int64 convertToInt64(char* buf, int pos)
 convertToUAString(char* buf, int pos,UA_String *dstUAString)
 {
 
-	dstUAString.Length = convertToInt32(buf,pos);
-	if(dstUAString.Length > 0)
+	dstUAString->Length = convertToInt32(buf,pos);
+	if(dstUAString->Length > 0)
 	{
-		dstUAString.Data = &(buf[sizeof(UInt32)]);
+		dstUAString->Data = &(buf[sizeof(UInt32)]);
 	}
 	else
 	{
-		dstUAString.Length = 0;
+		dstUAString->Length = 0;
 		dstUAString->Data = NULL;
 	}
 }
 
-UA_Guid* convertToUAGuid(char* buf, int pos)
+convertToUAGuid(char* buf, int pos,UA_Guid* dstGUID)
 {
-	UA_Guid tmpUAGuid;
+
 	int counter = 0;
 	UInt32 i = 0;
 	for(i = 1; i <= 4; i++)
 	{
-		tmpUAGuid.Data1[i] = convertToUInt32(*buf, pos+counter);
+		dstGUID->Data1[i] = convertToUInt32(*buf, pos+counter);
 		counter += sizeof(UInt32);
 	}
 	for(i = 1; i <= 2; i++)
 	{
-		tmpUAGuid.Data2[i] = convertToUInt16(*buf, pos+counter);
+		dstGUID->Data2[i] = convertToUInt16(*buf, pos+counter);
 		counter += sizeof(UInt16);
 	}
 	for(i = 1; i <= 2; i++)
 	{
-		tmpUAGuid.Data3[i] = convertToUInt16(*buf, pos+counter);
+		dstGUID->Data3[i] = convertToUInt16(*buf, pos+counter);
 		counter += sizeof(UInt16);
 	}
 	for(i = 1; i <= 8; i++)
 	{
-		tmpUAGuid.Data4[i] = convertToByte(*buf, pos+counter);
+		dstGUID->Data4[i] = convertToByte(*buf, pos+counter);
 		counter += sizeof(Byte);
 	}
-	return tmpUAGuid;
 }
 
 void convertToUANodeId(char* buf, int pos, UA_NodeId* dstNodeId){
 
-	dstNodeId->EncodingByte = convertToInt32(*buf, 0);
+	dstNodeId->EncodingByte = convertToInt32(buf, 0);
 	int counter = sizeof(UInt32);
 
 	UA_NodeIdEncodingValuesType encodingType = dstNodeId->EncodingByte;
@@ -131,32 +130,33 @@ void convertToUANodeId(char* buf, int pos, UA_NodeId* dstNodeId){
 	{
 		case NIEVT_TWO_BYTE:
 		{
-			dstNodeId->Identifier.Numeric = convertToInt32(*buf, counter);
+			dstNodeId->Identifier.Numeric = convertToInt32(buf, counter);
 			counter += sizeof(UInt16);
 			break;
 		}
 		case NIEVT_FOUR_BYTE:
 		{
-			dstNodeId->Identifier.Numeric = convertToInt32(*buf, counter);
+			dstNodeId->Identifier.Numeric = convertToInt32(buf, counter);
 			counter += sizeof(Int64);
 			break;
 		}
 		case NIEVT_NUMERIC:
 		{
-			dstNodeId->Identifier.Numeric = convertToInt32(*buf, counter);
+			dstNodeId->Identifier.Numeric = convertToInt32(buf, counter);
 			counter += sizeof(UInt32);
 			break;
 		}
 		case NIEVT_STRING:
 		{
-			dstNodeId->Identifier.String = convertToUAString(*buf, counter);
-			counter += sizeof(sizeof(UInt32) + dstNodeId->Identifier.String.Length*sizeof(char));
+
+			convertToUAString(buf, counter,&dstNodeId->Identifier.String);
+			counter += sizeof(sizeof(UInt32) + dstNodeId->Identifier.String.Length);
 			break;
 		}
 		case NIEVT_GUID:
 		{
-			UA_Guid tempGuid = convertToUAGuid(*buf, counter);
-			dstNodeId->Identifier.Guid = &tempGuid;
+
+			convertToUAGuid(buf, counter,&dstNodeId->Identifier.Guid);
 			counter += sizeof(UA_Guid);
 			break;
 		}

@@ -34,10 +34,10 @@ void TL_open(UA_connection *connection, AD_RawMessage *rawMessage)
 			connection->transportLayer.serverBuffers.protocolVersion = TL_SERVER_PROTOCOL_VERSION;
 
 			connection->transportLayer.serverBuffers.recvBufferSize =
-					tmpConnection->transportLayer.serverBuffers.recvBufferSize;
+					tmpConnection.transportLayer.serverBuffers.recvBufferSize;
 
 			connection->transportLayer.serverBuffers.sendBufferSize =
-					tmpConnection->transportLayer.serverBuffers.sendBufferSize;
+					tmpConnection.transportLayer.serverBuffers.sendBufferSize;
 
 			connection->transportLayer.serverBuffers.maxMessageSize = TL_SERVER_MAX_MESSAGE_SIZE;
 			connection->transportLayer.serverBuffers.maxChunkCount = TL_SERVER_MAX_CHUNK_COUNT;
@@ -74,7 +74,7 @@ void TL_receive(UA_connection *connection, AD_RawMessage *TL_message)
 
 	if (tmpRawMessage.message != NULL)
 	{
-		length = tcp_recv(connection, tmpRawMessage.message, bufferSize);
+		//length = tcp_recv(connection, tmpRawMessage.message, bufferSize);
 	}
 
 
@@ -92,7 +92,7 @@ void TL_receive(UA_connection *connection, AD_RawMessage *TL_message)
 		packetType_HEL:
 			TL_message->length = 0;
 			TL_message->message = NULL;
-			TL_open(connection, tmpRawMessage);
+			TL_open(connection, &tmpRawMessage);
 			break;
 		packetType_ACK:
 			TL_message->length = 0;
@@ -103,7 +103,6 @@ void TL_receive(UA_connection *connection, AD_RawMessage *TL_message)
 			TL_message->message = NULL;
 			//TODO ERROR HANDLING
 			break;
-		default:
 			//TODO ERROR HANDLING
 		}
 		//check in which state the connection is
