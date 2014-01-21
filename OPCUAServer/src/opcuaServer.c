@@ -51,7 +51,36 @@ void server_run()
 	int send_data = 1;
 	int new_client = 2;
 	int new_request = 3;
+	char buf[8192];
+	struct sockaddr_in self;
+	int sockfd;
+	int clientfd;
 
+	struct sockaddr_in client_addr;
+	int addrlen=sizeof(client_addr);
+
+	/*---Create streaming socket---*/
+    if ( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0 )
+	{
+    	puts("socket error");
+	}
+	bzero(&self, sizeof(self));
+	self.sin_family = AF_INET;
+	self.sin_port = htons(4840);
+	self.sin_addr.s_addr = htonl(INADDR_ANY);
+
+
+	if(bind(sockfd, self, sizeof( self)) < 0) {
+	   //Fehler bei bind()
+	 }
+
+	/*---Make it a "listening socket"---*/
+	if ( listen(sockfd, 1) != 0 )
+	{
+		puts("listen error");
+	}
+	clientfd = accept(sockfd, (struct sockaddr*)&client_addr, &addrlen);
+	server_state = 0;
 	while(1)
 	{
 		//call recv (nonblocking)
@@ -62,13 +91,20 @@ void server_run()
 		//
 		UA_connection connection;
 		AD_RawMessage *rawMessage;
+		rawMessage->message = buf;
+		rawMessage->length = 0;
 		switch(server_state)
 		{
 
 			recv_data :
 			{
-				//call receive function
 
+				//call receive function
+				rawMessage->length = recv(sockfd,buf,8192,0);
+				if(rawMessage->length > 0)
+				{
+					server_state = new_client;
+				}
 				break;
 			}
 			send_data :
