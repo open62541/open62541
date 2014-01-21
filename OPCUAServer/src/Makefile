@@ -48,9 +48,8 @@ CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
 am___top_builddir__bin_stackTest_out_OBJECTS = opcuaServer.$(OBJEXT) \
-	opcua_builtInDatatypes.$(OBJEXT) \
-	opcua_transportLayer.$(OBJEXT) \
-	opcua_byteArrayConverter.$(OBJEXT)
+	opcua_builtInDatatypes.$(OBJEXT) opcua_binaryEncDec.$(OBJEXT) \
+	opcua_transportLayer.$(OBJEXT)
 __top_builddir__bin_stackTest_out_OBJECTS =  \
 	$(am___top_builddir__bin_stackTest_out_OBJECTS)
 __top_builddir__bin_stackTest_out_LDADD = $(LDADD)
@@ -76,7 +75,7 @@ AUTOMAKE = ${SHELL} /home/opcua/git/opcUaStack/OPCUAServer/missing --run automak
 AWK = mawk
 CC = gcc
 CCDEPMODE = depmode=gcc3
-CFLAGS = -g -O0
+CFLAGS = -g -O2
 CPPFLAGS = 
 CYGPATH_W = echo
 DEFS = -DPACKAGE_NAME=\"OPCUAServer\" -DPACKAGE_TARNAME=\"opcuaserver\" -DPACKAGE_VERSION=\"1.0\" -DPACKAGE_STRING=\"OPCUAServer\ 1.0\" -DPACKAGE_BUGREPORT=\"\" -DPACKAGE_URL=\"\" -DPACKAGE=\"opcuaserver\" -DVERSION=\"1.0\"
@@ -165,11 +164,15 @@ top_builddir = ..
 top_srcdir = ..
 __top_builddir__bin_stackTest_out_SOURCES = opcuaServer.c\
 											opcua_builtInDatatypes.c\
+											opcua_binaryEncDec.c\
 											opcua_transportLayer.c\
-											opcua_byteArrayConverter.c\
 											opcua_builtInDatatypes.h\
+											opcua_binaryEncDec.h\
 											opcua_transportLayer.h\
-											opcua_byteArrayConverter.h
+											opcua_advancedDatatypes.h\
+											opcua_types.h\
+											opcua_connectionHelper.h\
+											tcp_layer.h
 
 all: all-am
 
@@ -256,8 +259,8 @@ distclean-compile:
 	-rm -f *.tab.c
 
 include ./$(DEPDIR)/opcuaServer.Po
+include ./$(DEPDIR)/opcua_binaryEncDec.Po
 include ./$(DEPDIR)/opcua_builtInDatatypes.Po
-include ./$(DEPDIR)/opcua_byteArrayConverter.Po
 include ./$(DEPDIR)/opcua_transportLayer.Po
 
 .c.o:

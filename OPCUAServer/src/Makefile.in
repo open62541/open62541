@@ -48,7 +48,8 @@ CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
 am___top_builddir__bin_stackTest_out_OBJECTS = opcuaServer.$(OBJEXT) \
-	opcua_builtInDatatypes.$(OBJEXT) opcua_binaryEncDec.$(OBJEXT)
+	opcua_builtInDatatypes.$(OBJEXT) opcua_binaryEncDec.$(OBJEXT) \
+	opcua_transportLayer.$(OBJEXT)
 __top_builddir__bin_stackTest_out_OBJECTS =  \
 	$(am___top_builddir__bin_stackTest_out_OBJECTS)
 __top_builddir__bin_stackTest_out_LDADD = $(LDADD)
@@ -164,8 +165,14 @@ top_srcdir = @top_srcdir@
 __top_builddir__bin_stackTest_out_SOURCES = opcuaServer.c\
 											opcua_builtInDatatypes.c\
 											opcua_binaryEncDec.c\
+											opcua_transportLayer.c\
 											opcua_builtInDatatypes.h\
-											opcua_binaryEncDec.h
+											opcua_binaryEncDec.h\
+											opcua_transportLayer.h\
+											opcua_advancedDatatypes.h\
+											opcua_types.h\
+											opcua_connectionHelper.h\
+											tcp_layer.h
 
 all: all-am
 
@@ -254,6 +261,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/opcuaServer.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/opcua_binaryEncDec.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/opcua_builtInDatatypes.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/opcua_transportLayer.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

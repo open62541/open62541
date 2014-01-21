@@ -8,6 +8,45 @@
 #ifndef OPCUA_SECURECHANNELLAYER_H_
 #define OPCUA_SECURECHANNELLAYER_H_
 
+static const Int32 SL_HEADER_LENGTH = 0;
+typedef struct _SL_OpenSecureChannelResponse
+{
+
+};
+typedef struct _SL_SecureConversationMessageHeader
+{
+	UInt32 MessageType;
+	Byte   IsFinal;
+	UInt32 MessageSize;
+	UInt32 SecureChannelId;
+}SL_SecureConversationMessageHeader;
+typedef struct _SL_AsymmetricAlgorithmSecurityHeader
+{
+	UA_String SecurityPolicyUri;
+	UA_String SenderCertificate;
+	UA_String ReceiverThumbprint;
+}SL_AsymmetricAlgorithmSecurityHeader;
+
+typedef struct _SL_SequenceHeader
+{
+	UInt32 SequenceNumber;
+	UInt32 RequestId;
+}SL_SequenceHeader;
+
+/*
+ * optional, only if there is encryption present
+ */
+typedef struct _SL_AsymmetricAlgorithmSecurityFooter
+{
+	Byte PaddingSize;
+	Byte *Padding;
+
+	UInt32 SignatureSize;
+	Byte *Signature;
+}SL_AsymmetricAlgorithmSecurityFooter;
+
+
+
 
 
 #endif /* OPCUA_SECURECHANNELLAYER_H_ */

@@ -8,6 +8,7 @@
 #ifndef OPCUA_CONNECTIONHELPER_H_
 #define OPCUA_CONNECTIONHELPER_H_
 #include "opcua_builtInDatatypes.h"
+#include "opcua_types.h"
 
 enum packetType
 {
@@ -47,7 +48,13 @@ struct TL_connection
 
 struct SL_connection
 {
-	UInt32 secureChannelId;
+
+	T_ApplicationInstanceCertificate clientCertificate;
+	UInt32 requestType;
+	UA_String secureChannelId;
+	UInt32 securityMode;
+	UA_String clientNonce;
+	UA_Duration requestedLifetime;
 	UInt32 connectionState;
 
 };

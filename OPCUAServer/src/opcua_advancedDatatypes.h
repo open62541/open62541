@@ -129,9 +129,7 @@ struct BED_DataValue
 /**
 * DiagnosticInfo
 * Part: 4
-* Chapter: 7.9
-* Page: 116
-*/
+* Chapter: 7.9*/
 struct BED_DiagnosticInfo
 {
 //ToDo	struct ???? identifier;				//ToDo: what kind of strcuture?

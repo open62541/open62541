@@ -7,7 +7,9 @@
 #include "opcua_encodingLayer.h"
 #include "opcua_binaryEncDec.h"
 #include "opcua_types.h"
+#include "opcua_builtInDatatypes.h"
 
+<<<<<<< HEAD
 /**
 * IntegerId
 * Part: 4
@@ -55,10 +57,15 @@ T_DiagnosticInfo convertToTDiagnosticInfo(char* buf, int pos){
 * Page: 132
 */
 T_RequestHeader encodeTRequestHeader(char* buf){
+=======
+T_RequestHeader encodeRequestHeader(char* buf)
+{
+>>>>>>> branch 'master' of https://github.com/Stasik0/Open62541.git
 	T_RequestHeader tmpRequestHeader;
-	int counter = 0 ;
+	int counter = 0;
 	//ToDo: counter needs the length of the buffer,
 	//		strings have in this type just the size of the pointer not of the content
+<<<<<<< HEAD
 	tmpRequestHeader.authenticationToken = convertToUANodeId(buf, counter);
 	if(tmpRequestHeader.authenticationToken.EncodingByte ==  NIEVT_STRING){
 		counter = sizeof(tmpRequestHeader.authenticationToken.EncodingByte) +
@@ -66,6 +73,19 @@ T_RequestHeader encodeTRequestHeader(char* buf){
 				sizeof(tmpRequestHeader.authenticationToken.Identifier.String.Length) +
 				sizeof(tmpRequestHeader.authenticationToken.Identifier.String.Data);
 	}else{
+=======
+	tmpRequestHeader.authenticationToken = convertToUANodeId(*buf, counter);
+	if (tmpRequestHeader.authenticationToken.EncodingByte == NIEVT_STRING)
+	{
+		counter =
+				sizeof(tmpRequestHeader.authenticationToken.EncodingByte)
+						+ sizeof(tmpRequestHeader.authenticationToken.Namespace)
+						+ sizeof(tmpRequestHeader.authenticationToken.Identifier.String.Length)
+						+ sizeof(tmpRequestHeader.authenticationToken.Identifier.String.Data);
+	}
+	else
+	{
+>>>>>>> branch 'master' of https://github.com/Stasik0/Open62541.git
 		counter = sizeof(tmpRequestHeader.authenticationToken);
 	}
 	tmpRequestHeader.timestamp = convertToUADateTime(buf, counter);
@@ -83,6 +103,7 @@ T_RequestHeader encodeTRequestHeader(char* buf){
 	return tmpRequestHeader;
 }
 
+<<<<<<< HEAD
 /**
 * ResponseHeader
 * Part: 4
@@ -102,4 +123,25 @@ T_ResponseHeader encodeTResponseHeader(char* buf){
 
 
 	return tmpResponseHeader;
+=======
+void decodeMessage_test()
+{
+
+	char testMessage = {01,0x20,0xbe,0x01,0x20,0x20,0xf2,0xd6,0xd6,0xc9,0x01,0x00,0xbe,0x01,0x00,0x00,0xf2,0xd6,0xd6,0xc9,0x87,0x0b,0xcf,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xff,0xff,0xff,0xff,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0xe0,0x93,0x04,0x00,0x,0x};
+	AD_RawMessage rawMessage;
+	rawMessage.message = testMessage;
+	rawMessage.length = 64;
+	decodeMessage(testMessage);
+}
+/*
+ * builds a message structure by decoding a byte stream
+ */
+UA_ExtensionObject processMessage(AD_RawMessage *rawMessage)
+{
+	UA_NodeId tmpNodeId = convertToUANodeId(rawMessage,0);
+
+
+	//callServiceHandler(tmpNodeId,rawMessage);
+
+>>>>>>> branch 'master' of https://github.com/Stasik0/Open62541.git
 }

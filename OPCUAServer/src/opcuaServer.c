@@ -17,9 +17,9 @@
 #include "opcua_transportLayer.h"
 #include "opcua_types.h"
 
-/*#include <sys/socket.h>
+#include <sys/socket.h>
 #include <netinet/in.h>
-*/
+
 
 int main(void)
 {
@@ -28,7 +28,7 @@ int main(void)
 	//UA_String s;
 	puts("running tests...");
 	TL_getMessageHeader_test();
-	TL_getHELMessage_test();
+	//TL_getHELMessage_test();
 	puts("...done");
 
 	server_init();
@@ -78,7 +78,7 @@ void server_run()
 			}
 			new_client :
 			{
-				if(connection->transportLayer.connectionState != connectionState_ESTABLISHED)
+				if(connection.transportLayer.connectionState != connectionState_ESTABLISHED)
 				{
 					TL_open(connection,rawMessage);
 				}

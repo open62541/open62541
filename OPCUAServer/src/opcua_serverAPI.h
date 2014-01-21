@@ -15,7 +15,7 @@
 
 
 
-
+// registerServiceCallback(NodeTypeIde,)
 // sessionId = AcceptSecureChannel()
 
 // serviceRequest = receiveServiceRequest(sessionId)

@@ -23,7 +23,9 @@ static const UInt32 TL_MESSAGE_TYPE_LEN = 3;
 static const UInt32 TL_RESERVED_LEN = 1;
 
 //variables which belong to layer
-
+static const TL_SERVER_PROTOCOL_VERSION = 0;
+static const TL_SERVER_MAX_CHUNK_COUNT = 1;
+static const TL_SERVER_MAX_MESSAGE_SIZE = 8192;
 
 enum TL_messageType_td
 {
