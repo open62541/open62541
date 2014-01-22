@@ -81,7 +81,7 @@ void TL_receive(UA_connection *connection, AD_RawMessage *TL_message)
 	tmpRawMessage.length = length;
 	if(tmpRawMessage.length > 0)
 	{
-		switch(TL_getPacketType(tmpRawMessage))
+		switch(TL_getPacketType(&tmpRawMessage))
 		{
 		packetType_MSG:
 		packetType_OPN:
@@ -282,22 +282,22 @@ void TL_processHELMessage(UA_connection *connection, AD_RawMessage *rawMessage)
 	struct TL_header tmpHeader;
 
 	connection->transportLayer.clientBuffers.protocolVersion =
-			convertToUInt32(rawMessage,pos);
+			convertToUInt32(rawMessage->message,pos);
 	pos = pos + sizeof(UInt32);
 
 	connection->transportLayer.clientBuffers.recvBufferSize =
-			convertToUInt32(rawMessage,pos);
+			convertToUInt32(rawMessage->message,pos);
 	pos = pos +  sizeof(UInt32);
 
 	connection->transportLayer.clientBuffers.sendBufferSize =
-			convertToUInt32(rawMessage,pos);
+			convertToUInt32(rawMessage->message,pos);
 	pos = pos +  sizeof(UInt32);
 	connection->transportLayer.clientBuffers.maxMessageSize =
-			convertToUInt32(rawMessage,pos);
+			convertToUInt32(rawMessage->message,pos);
 	pos = pos +  sizeof(UInt32);
 
 	connection->transportLayer.clientBuffers.maxChunkCount =
-			convertToUInt32(rawMessage,pos);
+			convertToUInt32(rawMessage->message,pos);
 	pos = pos +  sizeof(UInt32);
 
 	connection->transportLayer.endpointURL.Data = (rawMessage->message[pos]);

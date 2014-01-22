@@ -79,7 +79,7 @@ struct TL_messageBodyERR
 void TL_receive(UA_connection *connection, AD_RawMessage *TL_message);
 //Test
 void TL_getMessageHeader_test();
-
+Int32 TL_getPacketType(AD_RawMessage *rawMessage);
 void TL_getMessageHeader(struct TL_header *messageHeader,AD_RawMessage *rawMessage);
 
 //Test

@@ -13,8 +13,8 @@ SL_getRequestHeader()
 /*
  * opens a secureChannel (server side)
  */
-void SL_secureChannel_open(UA_connection     *connection,
-		AD_RawMessage                        *secureChannelMessage,
+void SL_secureChannel_open(const UA_connection     *connection,
+		const AD_RawMessage                        *secureChannelMessage,
 		SL_SecureConversationMessageHeader   *SCM_Header,
 		SL_AsymmetricAlgorithmSecurityHeader *AAS_Header)
 {
@@ -75,6 +75,7 @@ void SL_receive(UA_connection *connection,
 			}
 			break;
 		case packetType_OPN:
+			//Server Handling
 			if (openSecureChannelHeader_check(connection, secureChannelMessage))
 			{
 				SL_secureChannel_open(connection, serviceMessage);
@@ -83,7 +84,11 @@ void SL_receive(UA_connection *connection,
 			{
 				//TODO send back Error Message
 			}
+
+			//Client Handling
+
 			//TODO free memory for secureChannelMessage
+
 			break;
 		case packetType_CLO:
 			SL_secureChannel_close(connection, secureChannelMessage);

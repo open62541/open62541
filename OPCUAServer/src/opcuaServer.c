@@ -8,36 +8,38 @@
  ============================================================================
  */
 
-#include <stdio.h>
-#include <stdlib.h>
+//#include <stdio.h>
+//#include <stdlib.h>
+//#include <assert.h>
 
 
 //#include "opcua_binaryEncDec.h"
-#include "opcua_builtInDatatypes.h"
-#include "opcua_transportLayer.h"
-#include "opcua_types.h"
+//#include "opcua_builtInDatatypes.h"
+//#include "opcua_transportLayer.h"
+//#include "opcua_types.h"
 
-#include <sys/socket.h>
-#include <netinet/in.h>
+//#include <sys/socket.h>
+//#include <netinet/in.h>
 
+//void server_init();
+//void server_run();
 
 int main(void)
 {
-	puts("OPC ua Stack");
+//	puts("OPC ua Stack");
 	//struct BED_ApplicationDescription nStruct;
 	//UA_String s;
-	puts("running tests...");
-	TL_getMessageHeader_test();
+//	puts("running tests...");
+//	TL_getMessageHeader_test();
 	//TL_getHELMessage_test();
-	puts("...done");
+//	puts("...done");
+//	server_init();
+//	server_run();
 
-	server_init();
-	server_run();
-
-	return EXIT_SUCCESS;
+	return 0;//EXIT_SUCCESS;
 
 }
-
+/*
 void server_init()
 {
 	puts("starting demo Server");
@@ -59,7 +61,7 @@ void server_run()
 	struct sockaddr_in client_addr;
 	int addrlen=sizeof(client_addr);
 
-	/*---Create streaming socket---*/
+	//---Create streaming socket---
     if ( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0 )
 	{
     	puts("socket error");
@@ -69,12 +71,14 @@ void server_run()
 	self.sin_port = htons(4840);
 	self.sin_addr.s_addr = htonl(INADDR_ANY);
 
+	if( bind(sockfd,(struct sockaddr *)&self , sizeof(self)) < 0)
+	{
 
-	if(bind(sockfd, self, sizeof( self)) < 0) {
+
 	   //Fehler bei bind()
 	 }
 
-	/*---Make it a "listening socket"---*/
+	//---Make it a "listening socket"---
 	if ( listen(sockfd, 1) != 0 )
 	{
 		puts("listen error");
@@ -118,12 +122,12 @@ void server_run()
 				{
 					TL_open(connection,rawMessage);
 				}
-/*				else
-				{
-					SL_open(connection,rawMessage);
+//			else
+//				{
+//					SL_open(connection,rawMessage);
+//
+//				}
 
-				}
-*/
 			}
 			new_request :
 			{
@@ -143,4 +147,4 @@ void server_run()
 	}
 
 }
-
+*/

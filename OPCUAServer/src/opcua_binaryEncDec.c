@@ -172,7 +172,7 @@ UA_StatusCode convertToUAStatusCode(char* buf, int pos){
 }
 
 
-void convertToUANodeId(char* buf, int pos, UA_NodeId* dstNodeId){
+void convertToUANodeId(const char* buf, int pos, UA_NodeId* dstNodeId){
 
 	dstNodeId->EncodingByte = convertToInt32(buf, 0);
 
