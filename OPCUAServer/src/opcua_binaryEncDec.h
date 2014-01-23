@@ -13,8 +13,8 @@
 
 
 //functions
-Byte convertToByte(char* buf, int pos);
-Int32 convertToInt32(char* buf,int pos);
-UInt32 convertToUInt32(char* buf, int pos);
+Byte convertToByte(const char* buf, int pos);
+Int32 convertToInt32(const char* buf,int pos);
+UInt32 convertToUInt32(const char* buf, int pos);
 
 #endif /* OPCUA_BINARYENCDEC_NEU_H_ */

@@ -52,12 +52,14 @@ struct SL_connection
 	T_ApplicationInstanceCertificate clientCertificate;
 	UInt32 requestType;
 	UA_String secureChannelId;
+	UInt32 UInt32_secureChannelId;
 	UInt32 securityMode;
 	UA_String clientNonce;
 	UA_Duration requestedLifetime; /// life time of the secure channel
 	UA_DateTime requestedAt; /// Point in time in which the secure channel was requested
 	UInt32 connectionState;
-
+	UInt32 tokenId;
+	UInt32 revisedLifetime;
 };
 
 struct SS_connection

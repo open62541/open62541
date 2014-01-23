@@ -187,9 +187,9 @@ void TL_getMessageHeader(struct TL_header *header, AD_RawMessage *rawMessage)
 	}
 
 	pos = pos + TL_MESSAGE_TYPE_LEN;
-	header->Reserved = convertToByte(rawMessage,pos);
+	header->Reserved = convertToByte(rawMessage->message,pos);
 	pos = pos + TL_RESERVED_LEN;
-	header->MessageSize = convertToUInt32(rawMessage,pos);
+	header->MessageSize = convertToUInt32(rawMessage->message,pos);
 
 }
 Int32 TL_getPacketType(AD_RawMessage *rawMessage)
@@ -300,7 +300,7 @@ void TL_processHELMessage(UA_connection *connection, AD_RawMessage *rawMessage)
 			convertToUInt32(rawMessage->message,pos);
 	pos = pos +  sizeof(UInt32);
 
-	connection->transportLayer.endpointURL.Data = (rawMessage->message[pos]);
+	connection->transportLayer.endpointURL.Data = &(rawMessage->message[pos]);
 	connection->transportLayer.endpointURL.Length = tmpHeader.MessageSize - pos;
 }
 /*

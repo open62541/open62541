@@ -13,14 +13,14 @@
 /*
  * convert byte array to Byte
  */
-Byte convertToByte(char* buf, int pos)
+Byte convertToByte(const char *buf, int pos)
 {
 	return (Byte)buf[pos];
 }
 /*
  * convert byte array to UInt16
  */
-UInt16 convertToUInt16(char* buf, int pos)
+UInt16 convertToUInt16(const char* buf, int pos)
 {
 
 	Byte t1 = buf[pos];
@@ -31,7 +31,7 @@ UInt16 convertToUInt16(char* buf, int pos)
 /*
  * convert byte array to Int32
  */
-Int32 convertToInt32(char* buf, int pos)
+Int32 convertToInt32(const char* buf, int pos)
 {
 
 	SByte t1 = buf[pos];
@@ -44,7 +44,7 @@ Int32 convertToInt32(char* buf, int pos)
 /*
  * convert byte array to UInt32
  */
-UInt32 convertToUInt32(char* buf, int pos)
+UInt32 convertToUInt32(const char* buf, int pos)
 {
 	Byte t1 = buf[pos];
 	UInt32 t2 = (UInt32)(buf[pos+1] << 8);
@@ -56,15 +56,17 @@ UInt32 convertToUInt32(char* buf, int pos)
 
 void convertUInt32ToByteArray(UInt32 value,char *buf,int pos)
 {
-	buf[pos] = (char)(value && 0xFF);
+	memcpy(buf,&value,sizeof(value));
+	/*buf[pos] = (char)(value && 0xFF);
 	buf[pos + 1] = (char)((value >> 8) && 0xFF);
 	buf[pos + 2] = (char)((value >> 16) && 0xFF);
 	buf[pos + 3] = (char)((value >> 24) && 0xFF);
+	*/
 }
 /*
  * convert byte array to Int64
  */
-Int64 convertToInt64(char* buf, int pos)
+Int64 convertToInt64(const char* buf, int pos)
 {
 
 	SByte t1 = buf[pos];
@@ -82,7 +84,7 @@ Int64 convertToInt64(char* buf, int pos)
 
 
 
-convertToUAString(char* buf, int pos,UA_String *dstUAString)
+convertToUAString(const char* buf, int pos,UA_String *dstUAString)
 {
 
 	dstUAString->Length = convertToInt32(buf,pos);
@@ -97,7 +99,7 @@ convertToUAString(char* buf, int pos,UA_String *dstUAString)
 	}
 }
 
-convertToUAGuid(char* buf, int pos,UA_Guid* dstGUID)
+convertToUAGuid(const char* buf, int pos,UA_Guid* dstGUID)
 {
 
 	int counter = 0;
@@ -133,7 +135,7 @@ convertToUAGuid(char* buf, int pos,UA_Guid* dstGUID)
 }
 
 
-UA_ByteString convertToUAByteString(char* buf, int pos){
+UA_ByteString convertToUAByteString(const char* buf, int pos){
 	UA_ByteString tmpUAByteString;
 	int counter = sizeof(Int32);
 	int i = 0;
@@ -156,13 +158,13 @@ UA_ByteString convertToUAByteString(char* buf, int pos){
 	return tmpUAByteString;
 }
 
-UA_DateTime convertToUADateTime(char* buf, int pos){
+UA_DateTime convertToUADateTime(const char* buf, int pos){
 	UA_DateTime tmpUADateTime;
 	tmpUADateTime = convertToInt64(buf, pos);
 	return tmpUADateTime;
 }
 
-UA_StatusCode convertToUAStatusCode(char* buf, int pos){
+UA_StatusCode convertToUAStatusCode(const char* buf, int pos){
 	return convertToUInt32(buf, pos);
 }
 

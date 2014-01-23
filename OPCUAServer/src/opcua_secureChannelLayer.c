@@ -6,15 +6,22 @@
  */
 #include "opcua_secureChannelLayer.h"
 
-SL_getRequestHeader()
+Int32 SL_openSecureChannelRequest_check(const UA_connection *connection, secureChannelMessage)
 {
 
 }
+/*
+ * respond the securechannel_open request
+ */
 
+Int32 SL_secureChannel_respond(UA_connection *connection, SL_Response *response)
+{
+
+}
 /*
  * opens a secureChannel (server side)
  */
-void SL_secureChannel_open(const UA_connection *connection,
+Int32 SL_secureChannel_open(const UA_connection *connection,
 		const AD_RawMessage *secureChannelMessage,
 		const SL_SecureConversationMessageHeader *SCM_Header,
 		const SL_AsymmetricAlgorithmSecurityHeader *AAS_Header)
@@ -23,7 +30,7 @@ void SL_secureChannel_open(const UA_connection *connection,
 	TL_send();
 	//client protocol Version
 
-connection->secureLayer.
+connection->secureLayer.secureChannelId = AAS_Header->
 //connection->secureLayer.
 }
 /*
@@ -88,7 +95,8 @@ if (secureChannelMessage.length > 0)
 		//Server Handling
 		if (openSecureChannelHeader_check(connection, secureChannelMessage))
 		{
-
+			//check if the request is valid
+			SL_openSecureChannelRequest_check(connection, secureChannelMessage);
 		}
 		SL_secureChannel_open(connection, serviceMessage);
 	}
@@ -110,6 +118,9 @@ if (secureChannelMessage.length > 0)
 }
 
 }
+/*
+ * get the secure channel message header
+ */
 UInt32 SL_secureChannel_SCMHeader_get(UA_connection *connection,
 	AD_RawMessage *rawMessage, SL_SecureConversationMessageHeader* SC_Header)
 {
@@ -125,42 +136,46 @@ pos += sizeof(UInt32);
 return pos;
 
 }
+/*
+ * get the asymmetric algorithm security header
+ */
 UInt32 SL_secureChannel_AASHeader_get(UA_connection *connection,
 	AD_RawMessage *rawMessage, UInt32 pos,
 	SL_AsymmetricAlgorithmSecurityHeader* AAS_Header)
 {
-AAS_Header->SecurityPolicyUri.Length = convertToInt32(rawMessage, pos);
 
-pos += sizeof(Int32);
-AAS_Header->SecurityPolicyUri.Data = rawMessage[pos];
+	AAS_Header->SecurityPolicyUri.Length = convertToInt32(rawMessage, pos);
 
-if (AAS_Header->SecurityPolicyUri.Length < 0)
-{
-	AAS_Header->SecurityPolicyUri.Length = 0;
-}
-pos += AAS_Header->SecurityPolicyUri.Length;
+	pos += sizeof(Int32);
+	AAS_Header->SecurityPolicyUri.Data = rawMessage[pos];
 
-AAS_Header->SenderCertificate.Length = convertToInt32(rawMessage, pos);
-pos += sizeof(Int32);
-if (AAS_Header->SenderCertificate.Length < 0)
-{
-	AAS_Header->SenderCertificate.Length = 0;
-}
-AAS_Header->SenderCertificate.Data = rawMessage[pos];
+	if (AAS_Header->SecurityPolicyUri.Length < 0)
+	{
+		AAS_Header->SecurityPolicyUri.Length = 0;
+	}
+	pos += AAS_Header->SecurityPolicyUri.Length;
 
-pos += AAS_Header->SenderCertificate.Length;
+	AAS_Header->SenderCertificate.Length = convertToInt32(rawMessage, pos);
+	pos += sizeof(Int32);
+	if (AAS_Header->SenderCertificate.Length < 0)
+	{
+		AAS_Header->SenderCertificate.Length = 0;
+	}
+	AAS_Header->SenderCertificate.Data = rawMessage[pos];
 
-AAS_Header->ReceiverThumbprint.Length = convertToInt32(rawMessage, pos);
-pos += sizeof(Int32);
+	pos += AAS_Header->SenderCertificate.Length;
 
-if (AAS_Header->ReceiverThumbprint.Length < 0)
-{
-	AAS_Header->ReceiverThumbprint.Length = 0;
-}
-AAS_Header->ReceiverThumbprint.Data = rawMessage[pos];
+	AAS_Header->ReceiverThumbprint.Length = convertToInt32(rawMessage, pos);
+	pos += sizeof(Int32);
 
-pos += AAS_Header->ReceiverThumbprint.Length;
-return pos;
+	if (AAS_Header->ReceiverThumbprint.Length < 0)
+	{
+		AAS_Header->ReceiverThumbprint.Length = 0;
+	}
+	AAS_Header->ReceiverThumbprint.Data = rawMessage[pos];
+
+	pos += AAS_Header->ReceiverThumbprint.Length;
+	return pos;
 }
 void SL_secureChannel_Footer_get()
 {

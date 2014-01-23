@@ -9,10 +9,19 @@
 #define OPCUA_SECURECHANNELLAYER_H_
 
 static const Int32 SL_HEADER_LENGTH = 0;
+typedef struct _SL_SecurityToken
+{
+	UInt32 ChannelId;
+	UInt32 TokenId;
+	UA_DateTime CreatedAt;
+	Int32 RevisedLifeTime;
+}SL_SecurityToken;
 typedef struct _SL_OpenSecureChannelResponse
 {
-
-};
+	UInt32 ServerProtocolVersion;
+	SL_SecurityToken ChannelSecurityToken;
+	UA_String ServerNonce;
+}SL_Response;
 typedef struct _SL_SecureConversationMessageHeader
 {
 	UInt32 MessageType;

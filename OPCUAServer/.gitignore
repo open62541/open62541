@@ -1,7 +1,8 @@
 # ignore all bin directories
 # matches "bin" in any subfolder
 bin/
-
+m4
+build-test
 # ignore all target directories
 target/
 autom4te.cache
@@ -11,4 +12,8 @@ src/Makefile
 tests/Makefile
 # ignore all files ending with ~
 *.po
-*.o 
+*.o
+*.plo
+*.log
+*.la
+*.sub 
