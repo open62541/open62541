@@ -54,7 +54,8 @@ struct SL_connection
 	UA_String secureChannelId;
 	UInt32 securityMode;
 	UA_String clientNonce;
-	UA_Duration requestedLifetime;
+	UA_Duration requestedLifetime; /// life time of the secure channel
+	UA_DateTime requestedAt; /// Point in time in which the secure channel was requested
 	UInt32 connectionState;
 
 };

@@ -1,1 +1,1 @@
-opcuaServer.o: opcuaServer.c
+# dummy

@@ -8,7 +8,7 @@
 #include "opcua_binaryEncDec.h"
 #include "opcua_types.h"
 
-const char *TEST_PASSED = "PASSED";
+
 
 /*
  * convert byte array to Byte
@@ -80,11 +80,6 @@ Int64 convertToInt64(char* buf, int pos)
 }
 
 
-Int64 convertToInt64_test(char* buf, int pos)
-{
-
-	printf("");
-}
 
 
 convertToUAString(char* buf, int pos,UA_String *dstUAString)

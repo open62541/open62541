@@ -4,7 +4,11 @@ bin/
 
 # ignore all target directories
 target/
-
+autom4te.cache
+# ignore Makefiles
+Makefile
+src/Makefile
+tests/Makefile
 # ignore all files ending with ~
 *.po
 *.o 

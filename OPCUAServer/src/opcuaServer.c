@@ -8,38 +8,32 @@
  ============================================================================
  */
 
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 
-//#include "opcua_binaryEncDec.h"
-//#include "opcua_builtInDatatypes.h"
-//#include "opcua_transportLayer.h"
-//#include "opcua_types.h"
 
-//#include <sys/socket.h>
-//#include <netinet/in.h>
+#include "opcua_binaryEncDec.h"
+#include "opcua_builtInDatatypes.h"
+#include "opcua_transportLayer.h"
+#include "opcua_types.h"
 
-//void server_init();
-//void server_run();
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+void server_init();
+void server_run();
 
 int main(void)
 {
-//	puts("OPC ua Stack");
-	//struct BED_ApplicationDescription nStruct;
-	//UA_String s;
-//	puts("running tests...");
-//	TL_getMessageHeader_test();
-	//TL_getHELMessage_test();
-//	puts("...done");
-//	server_init();
-//	server_run();
 
-	return 0;//EXIT_SUCCESS;
+	server_init();
+	server_run();
+
+	return EXIT_SUCCESS;
 
 }
-/*
+
 void server_init()
 {
 	puts("starting demo Server");
@@ -147,4 +141,4 @@ void server_run()
 	}
 
 }
-*/
+
