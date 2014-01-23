@@ -1,11 +1,11 @@
 # ignore all bin directories
 # matches "bin" in any subfolder
 bin/
-m4
-build-test
+m4/
+build-test/
 # ignore all target directories
 target/
-autom4te.cache
+autom4te.cache/
 # ignore Makefiles
 Makefile
 src/Makefile
@@ -16,4 +16,6 @@ tests/Makefile
 *.plo
 *.log
 *.la
-*.sub 
+*.sub
+*.status
+*.guess 
