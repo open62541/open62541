@@ -18,4 +18,5 @@ tests/Makefile
 *.la
 *.sub
 *.status
-*.guess 
+*.guess
+*.in 
