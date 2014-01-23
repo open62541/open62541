@@ -479,6 +479,8 @@ typedef struct _UA_DataValue
 }
 UA_DataValue;
 
+typedef UInt32 IntegerId;
+
 
 /**
 * Duration

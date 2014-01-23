@@ -13,10 +13,36 @@ Int32 SL_openSecureChannelRequest_check(const UA_connection *connection, secureC
 /*
  * respond the securechannel_open request
  */
-
-Int32 SL_secureChannel_respond(UA_connection *connection, SL_Response *response)
+Int32 SL_secureChannel_ResponseHeader_form(UA_connection *connection, T_ResponseHeader *responseHeader)
 {
+	responseHeader->timestamp = 0;//TODO getCurrentTime();
+	responseHeader->requestHandle = 0;
+	responseHeader->serviceResult = 0; // TODO insert service result code
 
+	responseHeader->serviceDiagnostics.EncodingMask = 0;
+	responseHeader->noOfStringTable = 0;
+
+	responseHeader->additionalHeader.Body = 0;
+	responseHeader->additionalHeader.Encoding = 0;
+	responseHeader->additionalHeader.Length = 0;
+
+	responseHeader->additionalHeader.TypeId.Namespace = 0;
+	responseHeader->additionalHeader.TypeId.Identifier = 0;
+
+
+	responseHeader->requestHandle = 0;
+}
+/*
+ *
+ */
+Int32 SL_secureChannel_Response_form(UA_connection *connection, SL_Response *response)
+{
+	response->ServerProtocolVersion = 0; //TODO must be set
+	response->SecurityToken.ChannelId = connection->secureLayer.UInt32_secureChannelId;
+	response->SecurityToken.CreatedAt = connection->secureLayer.requestedAt;
+	response->SecurityToken.TokenId = connection->secureLayer.tokenId; //TODO  must be generated;
+	response->SecurityToken.RevisedLifeTime = connection->secureLayer.revisedLifetime;
+	response->ServerNonce.Length = 0; // TODO
 }
 /*
  * opens a secureChannel (server side)
@@ -26,11 +52,17 @@ Int32 SL_secureChannel_open(const UA_connection *connection,
 		const SL_SecureConversationMessageHeader *SCM_Header,
 		const SL_AsymmetricAlgorithmSecurityHeader *AAS_Header)
 {
+	SL_Response response;
+	T_ResponseHeader responseHeader;
+
+	SL_secureChannel_Response_form(connection,&response);
+	SL_secureChannel_ResponseHeader_form(connection,&responseHeader);
+
 
 	TL_send();
 	//client protocol Version
 
-connection->secureLayer.secureChannelId = AAS_Header->
+
 //connection->secureLayer.
 }
 /*

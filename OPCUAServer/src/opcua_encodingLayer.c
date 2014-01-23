@@ -15,7 +15,7 @@
 * Chapter: 7.13
 * Page: 118
 */
-T_IntegerId convertToTIntegerId(char* buf, int pos){
+T_IntegerId convertToIntegerId(char* buf, int pos){
 	return convertToUInt32(buf, pos);
 }
 
@@ -25,7 +25,7 @@ T_IntegerId convertToTIntegerId(char* buf, int pos){
 * Chapter: 7.9
 * Page: 116
 */
-T_DiagnosticInfo convertToTDiagnosticInfo(char* buf, int pos){
+T_DiagnosticInfo convertToDiagnosticInfo(char* buf, int pos){
 	T_DiagnosticInfo tmpTDiagnosticInfo;
 	int counter = 0;
 	tmpTDiagnosticInfo.namespaceUri = convertToInt32(buf, counter);
@@ -55,7 +55,7 @@ T_DiagnosticInfo convertToTDiagnosticInfo(char* buf, int pos){
 * Chapter: 7.26
 * Page: 132
 */
-T_RequestHeader encodeRequestHeader(char* buf)
+T_RequestHeader decodeRequestHeader(char* buf)
 {
 	T_RequestHeader tmpRequestHeader;
 	int counter = 0;
@@ -95,19 +95,18 @@ T_RequestHeader encodeRequestHeader(char* buf)
 * Chapter: 7.27
 * Page: 133
 */
-T_ResponseHeader encodeTResponseHeader(char* buf){
-	T_ResponseHeader tmpResponseHeader;
+decodeResponseHeader(const T_ResponseHeader *responseHeader, AD_RawMessage *buf)
+{
+
 	int counter = 0;
-	tmpResponseHeader.timestamp = convertToUADateTime(buf, counter);
-	counter += sizeof(tmpResponseHeader.timestamp);
-	tmpResponseHeader.requestHandle = convertToTIntegerId(buf, counter);
-	counter += sizeof(tmpResponseHeader.requestHandle);
-	tmpResponseHeader.serviceResult = convertToUAStatusCode(buf, counter);
-	counter += sizeof(tmpResponseHeader.serviceResult);
-	tmpResponseHeader.serviceDiagnostics = convertToTDiagnosticInfo(buf, counter);
+	responseHeader->timestamp = convertToUADateTime(buf->message, counter);
+	counter += sizeof(responseHeader->timestamp);
+	responseHeader->requestHandle = convertToTIntegerId(buf->message, counter);
+	counter += sizeof(responseHeader->requestHandle);
+	responseHeader->serviceResult = convertToUAStatusCode(buf->message, counter);
+	counter += sizeof(responseHeader->serviceResult);
+	responseHeader->serviceDiagnostics = convertToTDiagnosticInfo(buf->message, counter);
 
-
-	return tmpResponseHeader;
 }
 
 void decodeMessage_test()
@@ -129,3 +128,5 @@ UA_ExtensionObject processMessage(AD_RawMessage *rawMessage)
 
 	//callServiceHandler(tmpNodeId,rawMessage);
 }
+
+

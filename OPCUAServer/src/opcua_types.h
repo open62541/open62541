@@ -773,7 +773,7 @@ typedef struct _T_RequestHeader
 	UInt32 returnDiagnostics;
 	UA_String auditEntryId;
 	UInt32 timeoutHint;
-	UA_ExpandedNodeId additionalHeader;
+	UA_ExtensionObject additionalHeader;
 }
 T_RequestHeader;
 
@@ -808,7 +808,7 @@ typedef struct _T_ResponseHeader
 	UA_DiagnosticInfo serviceDiagnostics;
 	UInt16 noOfStringTable;
 	UA_String* stringTable;
-//ToDo	struct BED_ExtensibleParameterAdditionalHeader additionalHeader;		//ToDo
+	UA_ExtensionObject additionalHeader;
 }
 T_ResponseHeader;
 

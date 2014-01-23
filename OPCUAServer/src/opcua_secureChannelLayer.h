@@ -8,20 +8,25 @@
 #ifndef OPCUA_SECURECHANNELLAYER_H_
 #define OPCUA_SECURECHANNELLAYER_H_
 
+#include "opcua_advancedDatatypes.h"
 static const Int32 SL_HEADER_LENGTH = 0;
-typedef struct _SL_SecurityToken
+typedef struct _SL_ChannelSecurityToken
 {
 	UInt32 ChannelId;
 	UInt32 TokenId;
 	UA_DateTime CreatedAt;
 	Int32 RevisedLifeTime;
-}SL_SecurityToken;
+}SL_ChannelSecurityToken;
+
+
 typedef struct _SL_OpenSecureChannelResponse
 {
 	UInt32 ServerProtocolVersion;
-	SL_SecurityToken ChannelSecurityToken;
+	SL_ChannelSecurityToken SecurityToken;
 	UA_String ServerNonce;
 }SL_Response;
+
+
 typedef struct _SL_SecureConversationMessageHeader
 {
 	UInt32 MessageType;
@@ -29,6 +34,8 @@ typedef struct _SL_SecureConversationMessageHeader
 	UInt32 MessageSize;
 	UInt32 SecureChannelId;
 }SL_SecureConversationMessageHeader;
+
+
 typedef struct _SL_AsymmetricAlgorithmSecurityHeader
 {
 	UA_String SecurityPolicyUri;
@@ -54,8 +61,17 @@ typedef struct _SL_AsymmetricAlgorithmSecurityFooter
 	Byte *Signature;
 }SL_AsymmetricAlgorithmSecurityFooter;
 
-
-
-
+/*
+typedef struct _SL_ResponseHeader
+{
+	UA_DateTime timestamp;
+    IntegerId requestHandle;
+    UA_StatusCode serviceResult;
+    UA_DiagnosticInfo serviceDiagnostics;
+    UA_String *stringTable;
+    UInt32 stringTableLength;
+    UA_ExtensionObject additionalHeader;
+}SL_ResponseHeader;
+*/
 
 #endif /* OPCUA_SECURECHANNELLAYER_H_ */
