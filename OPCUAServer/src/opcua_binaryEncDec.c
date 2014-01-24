@@ -8,235 +8,170 @@
 #include "opcua_binaryEncDec.h"
 #include "opcua_types.h"
 
-
-
 /*
  * convert byte array to Byte
  */
-Byte convertToByte(const char *buf, int pos)
+Byte convertToByte(const char *buf, Int32 *pos)
 {
-	return (Byte)buf[pos];
+	*pos = (*pos) + 1;
+	return (Byte) buf[(*pos)-1];
+
 }
 /*
  * convert byte array to UInt16
  */
-UInt16 convertToUInt16(const char* buf, int pos)
+UInt16 convertToUInt16(const char* buf, Int32 *pos)
 {
 
-	Byte t1 = buf[pos];
-	Int32 t2 = (UInt16)(buf[pos+1] << 8);
-
+	Byte t1 = buf[*pos];
+	Int32 t2 = (UInt16) (buf[*pos + 1] << 8);
+	*pos += 2;
 	return t1 + t2;
 }
 /*
  * convert byte array to Int32
  */
-Int32 convertToInt32(const char* buf, int pos)
+Int32 convertToInt32(const char* buf, Int32 *pos)
 {
 
-	SByte t1 = buf[pos];
-	Int32 t2 = (UInt32)(buf[pos+1] << 8);
-	Int32 t3 = (UInt32)(buf[pos+2] << 16);
-	Int32 t4 = (UInt32)(buf[pos+3] << 24);
-
+	SByte t1 = buf[*pos];
+	Int32 t2 = (UInt32) (buf[*pos + 1] << 8);
+	Int32 t3 = (UInt32) (buf[*pos + 2] << 16);
+	Int32 t4 = (UInt32) (buf[*pos + 3] << 24);
+	*pos += 4;
 	return t1 + t2 + t3 + t4;
 }
 /*
  * convert byte array to UInt32
  */
-UInt32 convertToUInt32(const char* buf, int pos)
+UInt32 convertToUInt32(const char* buf, Int32 *pos)
 {
-	Byte t1 = buf[pos];
-	UInt32 t2 = (UInt32)(buf[pos+1] << 8);
-	UInt32 t3 = (UInt32)(buf[pos+2] << 16);
-	UInt32 t4 = (UInt32)(buf[pos+3] << 24);
-
+	Byte t1 = buf[*pos];
+	UInt32 t2 = (UInt32) (buf[*pos + 1] << 8);
+	UInt32 t3 = (UInt32) (buf[*pos + 2] << 16);
+	UInt32 t4 = (UInt32) (buf[*pos + 3] << 24);
+	*pos += 4;
 	return t1 + t2 + t3 + t4;
 }
 
-void convertUInt32ToByteArray(UInt32 value,char *buf,int pos)
+void convertUInt32ToByteArray(UInt32 value, char *dstBuf, Int32 *pos)
 {
-	memcpy(buf,&value,sizeof(value));
+	memcpy(&(dstBuf[*pos]), &value, sizeof(value));
+	pos += 4;
 	/*buf[pos] = (char)(value && 0xFF);
-	buf[pos + 1] = (char)((value >> 8) && 0xFF);
-	buf[pos + 2] = (char)((value >> 16) && 0xFF);
-	buf[pos + 3] = (char)((value >> 24) && 0xFF);
-	*/
+	 buf[pos + 1] = (char)((value >> 8) && 0xFF);
+	 buf[pos + 2] = (char)((value >> 16) && 0xFF);
+	 buf[pos + 3] = (char)((value >> 24) && 0xFF);
+	 */
 }
 /*
  * convert byte array to Int64
  */
-Int64 convertToInt64(const char* buf, int pos)
+Int64 convertToInt64(const char* buf, Int32 *pos)
 {
 
-	SByte t1 = buf[pos];
-	UInt64 t2 = (UInt64)(buf[pos+1] << 8);
-	UInt64 t3 = (UInt64)(buf[pos+2] << 16);
-	UInt64 t4 = (UInt64)(buf[pos+3] << 24);
-	UInt64 t5 = (UInt64)(buf[pos+4] << 32);
-	UInt64 t6 = (UInt64)(buf[pos+5] << 40);
-	UInt64 t7 = (UInt64)(buf[pos+6] << 48);
-	UInt64 t8 = (UInt64)(buf[pos+7] << 56);
-
+	SByte t1 = buf[*pos];
+	UInt64 t2 = (UInt64) (buf[*pos + 1] << 8);
+	UInt64 t3 = (UInt64) (buf[*pos + 2] << 16);
+	UInt64 t4 = (UInt64) (buf[*pos + 3] << 24);
+	UInt64 t5 = (UInt64) (buf[*pos + 4] << 32);
+	UInt64 t6 = (UInt64) (buf[*pos + 5] << 40);
+	UInt64 t7 = (UInt64) (buf[*pos + 6] << 48);
+	UInt64 t8 = (UInt64) (buf[*pos + 7] << 56);
+	pos += 8;
 	return t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8;
 }
 
-
-
-
-convertToUAString(const char* buf, int pos,UA_String *dstUAString)
+convertToUAString(const char* buf, Int32 *pos, UA_String *dstUAString)
 {
 
-	dstUAString->Length = convertToInt32(buf,pos);
-	if(dstUAString->Length > 0)
+	dstUAString->Length = convertToInt32(buf, pos);
+	if (dstUAString->Length > 0)
 	{
-		dstUAString->Data = &(buf[sizeof(UInt32)]);
+		dstUAString->Data = &(buf[*pos]);
 	}
 	else
 	{
 		dstUAString->Length = 0;
 		dstUAString->Data = NULL;
 	}
+	*pos += dstUAString->Length;
 }
 
-convertToUAGuid(const char* buf, int pos,UA_Guid* dstGUID)
+Int32 convertToUAGuid(const char *buf, Int32 *pos, UA_Guid *dstGUID)
 {
-
-	int counter = 0;
-	UInt32 i = 0;
-	for(i = 1; i <= 4; i++)
-	{
-
-		dstGUID->Data1[i] = convertToUInt32(*buf, pos+counter);
-
-		counter += sizeof(UInt32);
-	}
-	for(i = 1; i <= 2; i++)
-	{
-
-		dstGUID->Data2[i] = convertToUInt16(*buf, pos+counter);
-
-		counter += sizeof(UInt16);
-	}
-	for(i = 1; i <= 2; i++)
-	{
-
-		dstGUID->Data3[i] = convertToUInt16(*buf, pos+counter);
-
-		counter += sizeof(UInt16);
-	}
-	for(i = 1; i <= 8; i++)
-	{
-
-		dstGUID->Data4[i] = convertToByte(*buf, pos+counter);
-
-		counter += sizeof(Byte);
-	}
+	dstGUID->Data1 = convertToUInt32(buf, pos);
+	dstGUID->Data2 = convertToUInt16(buf, pos);
+	dstGUID->Data3 = convertToUInt16(buf, pos);
+	convertToUAByteString(buf, pos, &(dstGUID->Data4));
+	return 0;
 }
 
-
-UA_ByteString convertToUAByteString(const char* buf, int pos){
-	UA_ByteString tmpUAByteString;
-	int counter = sizeof(Int32);
-	int i = 0;
-
-	tmpUAByteString.Length = convertToInt32(buf, pos);
-	Byte byteStringData[tmpUAByteString.Length];
-
-	if(tmpUAByteString.Length == -1){
-		return tmpUAByteString;
-	}else{
-		for(i = 0; i < tmpUAByteString.Length; i++)
-		{
-			byteStringData[i] = convertToByte(buf, pos+counter);
-			counter += sizeof(Byte);
-		}
-	}
-
-	tmpUAByteString.Data = byteStringData;
-
-	return tmpUAByteString;
+convertToUAByteString(const char *buf, Int32* pos, UA_ByteString *dstBytestring)
+{
+	convertToUAString(buf,pos,dstBytestring);
 }
 
-UA_DateTime convertToUADateTime(const char* buf, int pos){
-	UA_DateTime tmpUADateTime;
-	tmpUADateTime = convertToInt64(buf, pos);
-	return tmpUADateTime;
+UA_DateTime convertToUADateTime(const char *buf, Int32 *pos)
+{
+	return convertToInt64(buf, pos);
 }
 
-UA_StatusCode convertToUAStatusCode(const char* buf, int pos){
+UA_StatusCode convertToUAStatusCode(const char* buf, Int32 *pos)
+{
 	return convertToUInt32(buf, pos);
 }
 
+Int32 convertToUANodeId(const char* buf, Int32 *pos, UA_NodeId *dstNodeId)
+{
 
-void convertToUANodeId(const char* buf, int pos, UA_NodeId* dstNodeId){
+	dstNodeId->EncodingByte = convertToInt32(buf, pos);
 
-	dstNodeId->EncodingByte = convertToInt32(buf, 0);
 
-	int counter = sizeof(UInt32);
-
-	UA_NodeIdEncodingValuesType encodingType = dstNodeId->EncodingByte;
-
-	switch(encodingType)
+	switch (dstNodeId->EncodingByte)
 	{
-		case NIEVT_TWO_BYTE:
-		{
+	case NIEVT_TWO_BYTE:
+	{
 
-			dstNodeId->Identifier.Numeric = convertToInt32(buf, counter);
-
-			counter += sizeof(UInt16);
-			break;
-		}
-		case NIEVT_FOUR_BYTE:
-		{
-
-			dstNodeId->Identifier.Numeric = convertToInt32(buf, counter);
-
-			counter += sizeof(Int64);
-			break;
-		}
-		case NIEVT_NUMERIC:
-		{
-
-			dstNodeId->Identifier.Numeric = convertToInt32(buf, counter);
-
-			counter += sizeof(UInt32);
-			break;
-		}
-		case NIEVT_STRING:
-		{
-
-
-			convertToUAString(buf, counter,&dstNodeId->Identifier.String);
-			counter += sizeof(sizeof(UInt32) + dstNodeId->Identifier.String.Length);
-
-			break;
-		}
-		case NIEVT_GUID:
-		{
-
-
-			convertToUAGuid(buf, counter,&dstNodeId->Identifier.Guid);
-
-			counter += sizeof(UA_Guid);
-			break;
-		}
-		case NIEVT_BYTESTRING:
-		{
-			dstNodeId->Identifier.OPAQUE = convertToUAByteString(buf, counter);
-			//If Length == -1 then the ByteString is null
-			if(dstNodeId->Identifier.OPAQUE.Length == -1)
-			{
-				counter += sizeof(Int32);
-			}else{
-				counter += sizeof(Int32)+sizeof(Byte)*dstNodeId->Identifier.OPAQUE.Length;
-			}
-			break;
-		}
-		default:
-			break;
+		dstNodeId->Identifier.Numeric = convertToByte(buf, pos);
+		break;
 	}
+	case NIEVT_FOUR_BYTE:
+	{
+		dstNodeId->Identifier.Numeric = convertToInt16(buf, pos);
+		break;
+	}
+	case NIEVT_NUMERIC:
+	{
+
+		dstNodeId->Identifier.Numeric = convertToInt32(buf, pos);
+		break;
+	}
+	case NIEVT_STRING:
+	{
+		convertToUAString(buf, pos, &dstNodeId->Identifier.String);
+		break;
+	}
+	case NIEVT_GUID:
+	{
+		convertToUAGuid(buf, pos, &(dstNodeId->Identifier.Guid));
+		break;
+	}
+	case NIEVT_BYTESTRING:
+	{
+
+		convertToUAByteString(buf, pos,&(dstNodeId->Identifier.OPAQUE));
+		break;
+	}
+	case NIEVT_NAMESPACE_URI_FLAG:
+	{
+		//TODO implement
+		break;
+	}
+	default:
+
+		break;
+	}
+	return 0;
 }
-
-
 

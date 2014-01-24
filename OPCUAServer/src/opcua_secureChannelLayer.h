@@ -9,6 +9,7 @@
 #define OPCUA_SECURECHANNELLAYER_H_
 
 #include "opcua_advancedDatatypes.h"
+#include "opcua_encodingLayer.h"
 static const Int32 SL_HEADER_LENGTH = 0;
 typedef struct _SL_ChannelSecurityToken
 {

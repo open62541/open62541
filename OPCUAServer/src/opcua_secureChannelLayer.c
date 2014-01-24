@@ -6,10 +6,14 @@
  */
 #include "opcua_secureChannelLayer.h"
 
+
 Int32 SL_openSecureChannelRequest_check(const UA_connection *connection, secureChannelMessage)
 {
-
+	return 0;
 }
+
+
+
 /*
  * respond the securechannel_open request
  */
@@ -53,10 +57,8 @@ Int32 SL_secureChannel_open(const UA_connection *connection,
 		const SL_AsymmetricAlgorithmSecurityHeader *AAS_Header)
 {
 	SL_Response response;
-	T_ResponseHeader responseHeader;
 
-	SL_secureChannel_Response_form(connection,&response);
-	SL_secureChannel_ResponseHeader_form(connection,&responseHeader);
+
 
 
 	TL_send();
@@ -71,7 +73,7 @@ Int32 SL_secureChannel_open(const UA_connection *connection,
  {
 
  }
- */
+
 /*
  * closes a secureChannel (server side)
  */
@@ -89,65 +91,65 @@ void SL_secureChannel_close(UA_connection *connection)
  */
 void SL_receive(UA_connection *connection, AD_RawMessage *serviceMessage)
 {
-AD_RawMessage* secureChannelMessage;
-SL_SecureConversationMessageHeader SCM_Header;
-SL_AsymmetricAlgorithmSecurityHeader AAS_Header;
+	AD_RawMessage* secureChannelMessage;
+	SL_SecureConversationMessageHeader SCM_Header;
+	SL_AsymmetricAlgorithmSecurityHeader AAS_Header;
 
-//get data from transport layer
-TL_receive(UA_connection, secureChannelMessage);
+	//get data from transport layer
+	TL_receive(UA_connection, secureChannelMessage);
 
-//get the Secure Channel Message Header
-UInt32 readPosition = SL_secureChannel_SCMHeader_get(connection,
-		secureChannelMessage, &SCM_Header);
+	//get the Secure Channel Message Header
+	UInt32 readPosition = SL_secureChannel_SCMHeader_get(connection,
+			secureChannelMessage, &SCM_Header);
 
-//get the Secure Channel Asymmetric Algorithm Security Header
-readPosition = SL_secureChannel_AASHeader_get(connection, secureChannelMessage,
-		readPosition, &AAS_Header);
+	//get the Secure Channel Asymmetric Algorithm Security Header
+	readPosition = SL_secureChannel_AASHeader_get(connection, secureChannelMessage,
+			readPosition, &AAS_Header);
 
-//get Secure Channel Message
-SL_secureChannel_Message_get(connection, secureChannelMessage, readPosition,
-		serviceMessage);
+	//get Secure Channel Message
+	SL_secureChannel_Message_get(connection, secureChannelMessage, readPosition,
+			serviceMessage);
 
-if (secureChannelMessage.length > 0)
-{
-	switch (SCM_Header.MessageType)
+	if (secureChannelMessage.length > 0)
 	{
-	case packetType_MSG:
-		if (connection->secureLayer.connectionState
-				== connectionState_ESTABLISHED)
+		switch (SCM_Header.MessageType)
 		{
+		case packetType_MSG:
+			if (connection->secureLayer.connectionState
+					== connectionState_ESTABLISHED)
+			{
 
+			}
+			else //receiving message, without secure channel
+			{
+				//TODO send back Error Message
+			}
+			break;
+		case packetType_OPN:
+			//Server Handling
+			if (openSecureChannelHeader_check(connection, secureChannelMessage))
+			{
+				//check if the request is valid
+				SL_openSecureChannelRequest_check(connection, secureChannelMessage);
+			}
+			SL_secureChannel_open(connection, serviceMessage);
 		}
-		else //receiving message, without secure channel
+		else
 		{
 			//TODO send back Error Message
 		}
+
+		//Client Handling
+
+		//TODO free memory for secureChannelMessage
+
 		break;
-	case packetType_OPN:
-		//Server Handling
-		if (openSecureChannelHeader_check(connection, secureChannelMessage))
-		{
-			//check if the request is valid
-			SL_openSecureChannelRequest_check(connection, secureChannelMessage);
-		}
-		SL_secureChannel_open(connection, serviceMessage);
+		case packetType_CLO:
+		SL_secureChannel_close(connection, secureChannelMessage);
+
+		//TODO free memory for secureChannelMessage
+		break;
 	}
-	else
-	{
-		//TODO send back Error Message
-	}
-
-	//Client Handling
-
-	//TODO free memory for secureChannelMessage
-
-	break;
-	case packetType_CLO:
-	SL_secureChannel_close(connection, secureChannelMessage);
-
-	//TODO free memory for secureChannelMessage
-	break;
-}
 
 }
 /*
@@ -156,16 +158,16 @@ if (secureChannelMessage.length > 0)
 UInt32 SL_secureChannel_SCMHeader_get(UA_connection *connection,
 	AD_RawMessage *rawMessage, SL_SecureConversationMessageHeader* SC_Header)
 {
-Int32 pos = 0;
-SC_Header->MessageType = TL_getPacketType(rawMessage);
-pos += TL_MESSAGE_TYPE_LEN;
-SC_Header->IsFinal = rawMessage[pos];
-pos += sizeof(Byte);
-SC_Header->MessageSize = convertToUInt32(rawMessage, pos);
-pos += sizeof(UInt32);
-SC_Header->SecureChannelId = convertToUInt32(rawMessage, pos);
-pos += sizeof(UInt32);
-return pos;
+	Int32 pos = 0;
+	SC_Header->MessageType = TL_getPacketType(rawMessage);
+	pos += TL_MESSAGE_TYPE_LEN;
+	SC_Header->IsFinal = rawMessage[pos];
+	pos += sizeof(Byte);
+	SC_Header->MessageSize = convertToUInt32(rawMessage, pos);
+	pos += sizeof(UInt32);
+	SC_Header->SecureChannelId = convertToUInt32(rawMessage, pos);
+	pos += sizeof(UInt32);
+	return pos;
 
 }
 /*

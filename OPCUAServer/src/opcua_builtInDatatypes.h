@@ -99,23 +99,11 @@ typedef Int64 UA_DateTime; //100 nanosecond resolution
 			      //start Date: 1601-01-01 12:00 AM
 
 
-/**
-* GuidType
-* Part: 6
-* Chapter: 5.2.2.6
-* Page: 17
-*/
-typedef struct _UA_Guid
-{
-	UInt32 Data1[4];
-	UInt16 Data2[2];
-	UInt16 Data3[2];
-	Byte Data4[8];
-}
-UA_Guid;
 
 
-/**
+
+
+/*
 * ByteString
 * Part: 6
 * Chapter: 5.2.2.7
@@ -128,7 +116,19 @@ typedef struct _UA_ByteString
 }
 UA_ByteString;
 
-
+/* GuidType
+* Part: 6
+* Chapter: 5.2.2.6
+* Page: 17
+*/
+typedef struct _UA_Guid
+{
+	UInt32 Data1;
+	UInt16 Data2;
+	UInt16 Data3;
+	UA_ByteString Data4;
+}
+UA_Guid;
 /**
 * XmlElement
 * Part: 6
