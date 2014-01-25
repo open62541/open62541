@@ -357,9 +357,15 @@ UA_Int32 Service_Write_writeNode(Application *app, UA_WriteValue *writeValue, UA
 		/* retval |= UA_Variant_borrowSetValue(&v.value, &UA_.types[UA_VARIANT], */
 		/*                                     &((UA_VariableNode *)node)->value); */
 
+#ifdef RASPI
+		//Sten: this is  highly hacked to cope with pthreads
+		//tested only with raspberrypi and boolean
+		*((UA_Boolean*)((UA_VariableNode *)node)->value.data) = *((UA_Boolean*)(writeValue->value.value.data));
+		//it seems that UA_Variant_copy copies the value out of the shared memory
+#else
 		retval |= UA_Variant_copy(&writeValue->value.value, &((UA_VariableNode *)node)->value);
+#endif
 		*result = UA_STATUSCODE_GOOD;
-
 		}
 
 		break;

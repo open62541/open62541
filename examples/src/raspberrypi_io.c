@@ -53,7 +53,7 @@ int writePin(_Bool state, int pin){
 	if(initialized)
 	{
 		pinMode(0, OUTPUT);
-		if(state){
+		if(state==(1==1)){
 			digitalWrite(pin, 1);
 		}else{
 			digitalWrite(pin, 0);
