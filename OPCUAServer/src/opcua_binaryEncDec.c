@@ -15,7 +15,6 @@ Byte convertToByte(const char *buf, Int32 *pos)
 	return (Byte) buf[(*pos)-1];
 
 }
-
 void encodeByte(Byte encodeByte, Int32 *pos, AD_RawMessage *dstBuf)
 {
 	dstBuf->message[*pos] = encodeByte;
@@ -32,6 +31,14 @@ UInt16 convertToUInt16(const char* buf, Int32 *pos)
 	*pos += 2;
 	return t1 + t2;
 }
+void encodeUInt16(UInt16 encodeUInt16, Int32 *pos, AD_RawMessage *dstBuf)
+{
+	dstBuf->message[*pos] = encodeUInt16;
+	dstBuf->message[*pos +1 ] = encodeUInt16 >>8;
+	*pos = (*pos) + sizeof(UInt16);
+	dstBuf->length = dstBuf->length + sizeof(UInt16);
+}
+
 Int16 convertToInt16(const char* buf, Int32 *pos)
 {
 

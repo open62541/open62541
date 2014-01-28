@@ -50,20 +50,34 @@ START_TEST(test_decodeRequestHeader_validParameter)
 }
 END_TEST
 
-START_TEST(test_binaryEncDec_encodeByte)
+START_TEST(test_binaryEncDec_encoding)
 {
-		Byte testByte = 0x08;
-		char testChar;
-		AD_RawMessage rawMessage;
-		rawMessage.length = 0;
-		rawMessage.message = &testChar;
 
-		Int32 position = 0;
+	AD_RawMessage rawMessage;
+	Int32 position = 0;
+	//EncodeByte
+		char testChar = {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+		rawMessage.message = &testChar;
+		Byte testByte = 0x08;
+		rawMessage.length = 0;
+		position = 0;
 		encodeByte(testByte, &position, &rawMessage);
 
 		ck_assert_int_eq(rawMessage.message[0], 0x08);
 		ck_assert_int_eq(rawMessage.length, 1);
 		ck_assert_int_eq(position, 1);
+	//EncodeUInt16
+		char testChar1 = {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+		rawMessage.message = &testChar1;
+		UInt16 testUInt16 = 0XABCD;
+		rawMessage.length = 0;
+		position = 0;
+		encodeUInt16(testUInt16, &position, &rawMessage);
+
+		ck_assert_int_eq(rawMessage.length, 2);
+		ck_assert_int_eq(position, 2);
+		ck_assert_int_eq((Byte) rawMessage.message[1], 0xAB);
+		ck_assert_int_eq((Byte) rawMessage.message[0], 0xCD);
 }
 END_TEST
 
@@ -81,7 +95,7 @@ Suite* TL_testSuite_encode(void)
 {
 	Suite *s = suite_create("encoding");
 	TCase *tc_core = tcase_create("Core");
-	tcase_add_test(tc_core,test_binaryEncDec_encodeByte);
+	tcase_add_test(tc_core,test_binaryEncDec_encoding);
 	suite_add_tcase(s,tc_core);
 	return s;
 }
