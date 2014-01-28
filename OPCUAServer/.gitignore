@@ -20,10 +20,16 @@ tests/Makefile.in
 #ignore autoconf files
 config.log
 config.status
+config.guess
+config.sub
 aclocal.m4
 configure
 libtool
 compile
+depcom
+missing
+install-sh
+ltmain.sh
 # ignore all files ending with ~
 *.po
 *.o
