@@ -26,7 +26,7 @@ aclocal.m4
 configure
 libtool
 compile
-depcom
+depcomp
 missing
 install-sh
 ltmain.sh
