@@ -16,6 +16,14 @@ Byte convertToByte(const char *buf, Int32 *pos)
 
 }
 
+void encodeByte(Byte encodeByte, Int32 *pos, AD_RawMessage *dstBuf)
+{
+	dstBuf->message[*pos] = encodeByte;
+	*pos = (*pos) + 1;
+	dstBuf->length = dstBuf->length + 1;
+
+}
+
 UInt16 convertToUInt16(const char* buf, Int32 *pos)
 {
 

@@ -10,6 +10,7 @@
 
 #include "opcua_builtInDatatypes.h"
 
+#include "opcua_advancedDatatypes.h"
 
 
 //functions
@@ -20,6 +21,14 @@
  * @return
  */
 Byte convertToByte(const char* buf, Int32 *pos);
+
+/**
+ *
+ * @param encodeByte 	byte that should be encoded
+ * @param pos 			position at which the data is located in/out, parser position after the conversion
+ * @param dstBuf		rawMessage where the Byte is encoded in
+ */
+void encodeByte(Byte encodeByte, Int32 *pos, AD_RawMessage *dstBuf);
 
 /**
  *

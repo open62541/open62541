@@ -11,6 +11,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "../src/opcua_transportLayer.h"
+
+#include "../src/opcua_advancedDatatypes.h"
 #include "check.h"
 
 START_TEST(test_getPacketType_validParameter)
@@ -48,12 +50,38 @@ START_TEST(test_decodeRequestHeader_validParameter)
 }
 END_TEST
 
+START_TEST(test_binaryEncDec_encodeByte)
+{
+		Byte testByte = 0x08;
+		char testChar;
+		AD_RawMessage rawMessage;
+		rawMessage.length = 0;
+		rawMessage.message = &testChar;
+
+		Int32 position = 0;
+		encodeByte(testByte, &position, &rawMessage);
+
+		ck_assert_int_eq(rawMessage.message[0], 0x08);
+		ck_assert_int_eq(rawMessage.length, 1);
+		ck_assert_int_eq(position, 1);
+}
+END_TEST
+
 
 Suite* TL_testSuite_getPacketType(void)
 {
 	Suite *s = suite_create("getPacketType");
 	TCase *tc_core = tcase_create("Core");
 	tcase_add_test(tc_core,test_getPacketType_validParameter);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
+
+Suite* TL_testSuite_encode(void)
+{
+	Suite *s = suite_create("encoding");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core,test_binaryEncDec_encodeByte);
 	suite_add_tcase(s,tc_core);
 	return s;
 }
@@ -74,11 +102,16 @@ int main (void)
 {
 	int number_failed;
 
-
 	Suite *s = TL_testSuite_getPacketType();
 	SRunner *sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed = srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	s = TL_testSuite_encode();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
 
 
