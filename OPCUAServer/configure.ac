@@ -12,6 +12,8 @@ AC_CHECK_LIB([m],[exp],,AC_MSG_ERROR([Libm missing]))
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.4],[have_check="yes"],AC_MSG_WARN([Check not found; cannot run unit tests!])
 [have_check="no"])
 AM_CONDITIONAL(HAVE_CHECK, test x"$have_check" = "xyes")
+AM_CONDITIONAL([TARGET_WIN],[test "${host_os}" = "mingw32"])
+AM_CONDITIONAL([TARGET_LINUX],[test "${host_os}" = "linux-gnu" || test "${host_os}" = "linux"]) 
 AC_PROG_LIBTOOL
 AC_CONFIG_MACRO_DIR([m4])
 
