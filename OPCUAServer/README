@@ -1,1 +1,10 @@
 Sample readme file for OPCUAServer project.
+
+# Building and installing
+```bash
+./generate.sh
+./configure
+make
+make check
+sudo make install
+```

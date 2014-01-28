@@ -3,13 +3,27 @@
 bin/
 m4/
 build-test/
+.deps/
+.libs/
 # ignore all target directories
 target/
 autom4te.cache/
+#ignore test driver
+test-driver
 # ignore Makefiles
 Makefile
 src/Makefile
 tests/Makefile
+Makefile.in
+src/Makefile.in
+tests/Makefile.in
+#ignore autoconf files
+config.log
+config.status
+aclocal.m4
+configure
+libtool
+compile
 # ignore all files ending with ~
 *.po
 *.o
@@ -20,3 +34,4 @@ tests/Makefile
 *.status
 *.guess
 *.in 
+*.lo
