@@ -43,11 +43,11 @@ Int32 encodeRequestHeader(const T_RequestHeader *srcHeader,Int32 *pos,AD_RawMess
 Int32 decodeResponseHeader(const AD_RawMessage *srcRaw, Int32 *pos, T_ResponseHeader *dstResponseHeader);
 
 /**
- *  \brief function to encode a secureChannelRequestHeader
+ *  @brief function to encode a secureChannelRequestHeader
  *
- * \param header   a open secure channel header structure which should be encoded to binary format
- * \param dstBuf   pointer to a structure which hold the encoded header
- * \return
+ * @param header   a open secure channel header structure which should be encoded to binary format
+ * @param dstBuf   pointer to a structure which hold the encoded header
+ * @return
  */
 Int32 encodeResponseHeader(const T_ResponseHeader *responseHeader, Int32 *pos, AD_RawMessage *dstBuf);
 

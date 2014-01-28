@@ -21,7 +21,13 @@
  */
 Byte convertToByte(const char* buf, Int32 *pos);
 
-
+/**
+ *
+ * @param buf
+ * @param pos
+ * @return
+ */
+Int16 convertToInt16(const char* buf, Int32 *pos);
 /**
  *
  * @param buf

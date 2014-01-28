@@ -66,7 +66,7 @@
 					<folderInfo id="org.eclipse.linuxtools.cdt.autotools.core.configuration.build.2007012728.1003956089." name="/" resourcePath="">
 						<toolChain id="org.eclipse.linuxtools.cdt.autotools.core.toolChain.1824136001" name="GNU Autotools Toolchain" superClass="org.eclipse.linuxtools.cdt.autotools.core.toolChain">
 							<targetPlatform id="org.eclipse.linuxtools.cdt.autotools.core.toolchain.targetPlatform.1920178037" isAbstract="false" name="GNU Autotools Target Platform" superClass="org.eclipse.linuxtools.cdt.autotools.core.toolchain.targetPlatform"/>
-							<builder buildPath="${workspace_loc:/OPCUAServer}/build-test" enabledIncrementalBuild="true" id="org.eclipse.linuxtools.cdt.autotools.core.toolchain.builder.1994791557" incrementalBuildTarget="check" keepEnvironmentInBuildfile="false" managedBuildOn="true" superClass="org.eclipse.linuxtools.cdt.autotools.core.toolchain.builder">
+							<builder arguments="" buildPath="${workspace_loc:/OPCUAServer}/build-test" command="make" enabledIncrementalBuild="true" id="org.eclipse.linuxtools.cdt.autotools.core.toolchain.builder.1994791557" incrementalBuildTarget="check" keepEnvironmentInBuildfile="false" managedBuildOn="true" superClass="org.eclipse.linuxtools.cdt.autotools.core.toolchain.builder">
 								<outputEntries>
 									<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="outputPath" name=""/>
 								</outputEntries>
@@ -101,6 +101,7 @@
 		</scannerConfigBuildInfo>
 	</storageModule>
 	<storageModule moduleId="refreshScope" versionNumber="2">
+		<configuration configurationName="test"/>
 		<configuration configurationName="Build (GNU)">
 			<resource resourceType="PROJECT" workspacePath="/OPCUAServer"/>
 		</configuration>

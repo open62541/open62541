@@ -20,7 +20,15 @@ UInt16 convertToUInt16(const char* buf, Int32 *pos)
 {
 
 	Byte t1 = buf[*pos];
-	Int32 t2 = (UInt16) (buf[*pos + 1] << 8);
+	UInt16 t2 = (UInt16) (buf[*pos + 1] << 8);
+	*pos += 2;
+	return t1 + t2;
+}
+Int16 convertToInt16(const char* buf, Int32 *pos)
+{
+
+	Byte t1 = buf[*pos];
+	Int32 t2 = (Int16) (buf[*pos + 1] << 8);
 	*pos += 2;
 	return t1 + t2;
 }

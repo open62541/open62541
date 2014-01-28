@@ -33,7 +33,8 @@ Int32 convertToDiagnosticInfo(char* buf, Int32 *pos, T_DiagnosticInfo* dstDiagno
 	dstDiagnosticInfo->symbolicId = convertToInt32(buf, pos);
 	dstDiagnosticInfo->locale = convertToInt32(buf, pos);
 	dstDiagnosticInfo->localizesText = convertToInt32(buf, pos);
-	convertToUAString(buf, pos,dstDiagnosticInfo->additionalInfo.Data);
+
+	convertToUAByteString(buf, pos, dstDiagnosticInfo->additionalInfo);
 	dstDiagnosticInfo->innerStatusCode = convertToUAStatusCode(buf, pos);
 
 	//If the Flag InnerDiagnosticInfo is set, then the DiagnosticInfo will be encoded
@@ -80,13 +81,7 @@ Int32 decodeRequestHeader(const AD_RawMessage *srcRaw, Int32 *pos,
 /** \copydoc encodeResponseHeader */
 Int32 encodeResponseHeader(const T_ResponseHeader *responseHeader, Int32 *pos, AD_RawMessage *dstBuf)
 {
-	responseHeader->timestamp = convertToUADateTime(dstBuf->message, pos);
-	responseHeader->requestHandle = convertToIntegerId(dstBuf->message, pos);
-	responseHeader->serviceResult = convertToUAStatusCode(dstBuf->message,
-			pos);
 
-	responseHeader->serviceDiagnostics = convertToDiagnosticInfo(dstBuf->message,
-			pos);
 	return 0;
 }
 

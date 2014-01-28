@@ -187,6 +187,7 @@ void TL_getMessageHeader(struct TL_header *header, AD_RawMessage *rawMessage)
 	}
 
 	pos = pos + TL_MESSAGE_TYPE_LEN;
+
 	header->Reserved = convertToByte(rawMessage->message,pos);
 	pos = pos + TL_RESERVED_LEN;
 	header->MessageSize = convertToUInt32(rawMessage->message,pos);
