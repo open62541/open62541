@@ -8,38 +8,39 @@
 #ifndef OPCUA_ENCODINGLAYER_H_
 #define OPCUA_ENCODINGLAYER_H_
 
+#include "opcua_builtInDatatypes.h"
+#include "opcua_advancedDatatypes.h"
+#include "opcua_types.h"
 /**
- *  \brief function to decode a request header message
- *
+ * \brief
  * \param srcRaw             pointer to raw data which holds the encoded data
+ * \param pos
  * \param dstRequestHeader   pointer to a structure which hold the encoded header
  * \return                   0 = success
  */
-Int32 decodeRequestHeader(const AD_RawMessage *srcRaw, T_RequestHeader *dstRequestHeader);
+Int32 decodeRequestHeader(const AD_RawMessage *srcRaw,Int32 *pos, T_RequestHeader *dstRequestHeader);
 
 
 
 /**
- *  \brief function to encode a request header message
  *
- * \param srcHeader        pointer to header which should be encoded
- * \param dstRaw           pointer to the destination buffer which receives the encoded data
- * \return				   0 = success
+ * @param srcHeader
+ * @param pos
+ * @param dstRaw
+ * @return
  */
-Int32 encodeRequestHeader(const T_RequestHeader *srcHeader,AD_RawMessage *dstRaw);
+Int32 encodeRequestHeader(const T_RequestHeader *srcHeader,Int32 *pos,AD_RawMessage *dstRaw);
 
 
 
 /**
- *  \brief function to decode a response header message
  *
- * \param srcRaw             pointer to raw data which holds the encoded data
- * \param dstResponseHeader  pointer to ResponseHeader structure in which the encoded structure is copied
- * \return                   0 = success
+ * @param srcRaw
+ * @param pos
+ * @param dstResponseHeader
+ * @return
  */
-Int32 decodeResponseHeader(const AD_RawMessage *srcRaw, T_ResponseHeader *dstResponseHeader);
-
-
+Int32 decodeResponseHeader(const AD_RawMessage *srcRaw, Int32 *pos, T_ResponseHeader *dstResponseHeader);
 
 /**
  *  \brief function to encode a secureChannelRequestHeader
@@ -48,7 +49,7 @@ Int32 decodeResponseHeader(const AD_RawMessage *srcRaw, T_ResponseHeader *dstRes
  * \param dstBuf   pointer to a structure which hold the encoded header
  * \return
  */
-Int32 encodeResponseHeader(T_ResponseHeader *header,AD_RawMessage* *dstBuf);
+Int32 encodeResponseHeader(const T_ResponseHeader *responseHeader, Int32 *pos, AD_RawMessage *dstBuf);
 
 
 

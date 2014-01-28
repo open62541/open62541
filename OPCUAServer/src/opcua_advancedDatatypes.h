@@ -693,13 +693,13 @@ struct BED_RelativePath
 */
 struct BED_RequestHeader
 {
-	struct BED_SessionAuthenticationToken authenticationToken;		//ToDo
+	UA_NodeId authenticationToken;		//ToDo
 	UA_DateTime timestamp;
 	BED_IntegerId requestHandle;
 	UInt32 returnDiagnostics;
 	UA_String auditEntryId;
 	UInt32 timeoutHint;
-	T_ExtensibleParameter additionalHeader;
+	UA_ExtensionObject additionalHeader;
 };
 
 

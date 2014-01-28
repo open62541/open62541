@@ -89,7 +89,8 @@ am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(bindir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libstack_la_LIBADD =
 am_libstack_la_OBJECTS = opcua_builtInDatatypes.lo \
-	opcua_binaryEncDec.lo opcua_transportLayer.lo
+	opcua_binaryEncDec.lo opcua_transportLayer.lo \
+	opcua_encodingLayer.lo
 libstack_la_OBJECTS = $(am_libstack_la_OBJECTS)
 PROGRAMS = $(bin_PROGRAMS)
 am___top_builddir__bin_stackTest_out_OBJECTS = opcuaServer.$(OBJEXT)
@@ -249,12 +250,14 @@ lib_LTLIBRARIES = libstack.la
 libstack_la_SOURCES = opcua_builtInDatatypes.c\
 						opcua_binaryEncDec.c\
 						opcua_transportLayer.c\
+						opcua_encodingLayer.c\
 						opcua_builtInDatatypes.h\
 						opcua_binaryEncDec.h\
 						opcua_transportLayer.h\
 						opcua_advancedDatatypes.h\
 						opcua_types.h\
 						opcua_connectionHelper.h\
+						opcua_encodingLayer.h\
 						tcp_layer.h
 
 __top_builddir__bin_stackTest_out_SOURCES = opcuaServer.c
@@ -385,6 +388,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/opcuaServer.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/opcua_binaryEncDec.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/opcua_builtInDatatypes.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/opcua_encodingLayer.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/opcua_transportLayer.Plo@am__quote@
 
 .c.o:

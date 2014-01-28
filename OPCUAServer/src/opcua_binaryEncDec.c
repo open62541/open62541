@@ -8,18 +8,14 @@
 #include "opcua_binaryEncDec.h"
 #include "opcua_types.h"
 
-/*
- * convert byte array to Byte
- */
+
 Byte convertToByte(const char *buf, Int32 *pos)
 {
 	*pos = (*pos) + 1;
 	return (Byte) buf[(*pos)-1];
 
 }
-/*
- * convert byte array to UInt16
- */
+
 UInt16 convertToUInt16(const char* buf, Int32 *pos)
 {
 
@@ -28,9 +24,6 @@ UInt16 convertToUInt16(const char* buf, Int32 *pos)
 	*pos += 2;
 	return t1 + t2;
 }
-/*
- * convert byte array to Int32
- */
 Int32 convertToInt32(const char* buf, Int32 *pos)
 {
 
@@ -41,9 +34,8 @@ Int32 convertToInt32(const char* buf, Int32 *pos)
 	*pos += 4;
 	return t1 + t2 + t3 + t4;
 }
-/*
- * convert byte array to UInt32
- */
+
+
 UInt32 convertToUInt32(const char* buf, Int32 *pos)
 {
 	Byte t1 = buf[*pos];
@@ -64,9 +56,8 @@ void convertUInt32ToByteArray(UInt32 value, char *dstBuf, Int32 *pos)
 	 buf[pos + 3] = (char)((value >> 24) && 0xFF);
 	 */
 }
-/*
- * convert byte array to Int64
- */
+
+
 Int64 convertToInt64(const char* buf, Int32 *pos)
 {
 
@@ -82,7 +73,7 @@ Int64 convertToInt64(const char* buf, Int32 *pos)
 	return t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8;
 }
 
-convertToUAString(const char* buf, Int32 *pos, UA_String *dstUAString)
+Int32 convertToUAString(const char* buf, Int32 *pos, UA_String *dstUAString)
 {
 
 	dstUAString->Length = convertToInt32(buf, pos);
