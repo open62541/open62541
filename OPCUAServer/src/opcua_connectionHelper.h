@@ -40,8 +40,8 @@ struct TL_connection
 {
 	Int32 socket;
 	UInt32 connectionState;
-	TL_buffer clientBuffers;
-	TL_buffer serverBuffers;
+	TL_buffer clientConf;
+	TL_buffer serverConf;
 	UA_String endpointURL;
 };
 

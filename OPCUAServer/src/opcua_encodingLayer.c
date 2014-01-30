@@ -15,9 +15,9 @@
  * Chapter: 7.13
  * Page: 118
  */
-T_IntegerId convertToIntegerId(char* buf, Int32 *pos)
+T_IntegerId decodeIntegerId(char* buf, Int32 *pos)
 {
-	return convertToUInt32(buf, pos);
+	return decodeUInt32(buf, pos);
 }
 
 /**
@@ -26,21 +26,21 @@ T_IntegerId convertToIntegerId(char* buf, Int32 *pos)
  * Chapter: 7.9
  * Page: 116
  */
-Int32 convertToDiagnosticInfo(char* buf, Int32 *pos, T_DiagnosticInfo* dstDiagnosticInfo)
+Int32 decodeToDiagnosticInfo(char* buf, Int32 *pos, T_DiagnosticInfo* dstDiagnosticInfo)
 {
 
-	dstDiagnosticInfo->namespaceUri = convertToInt32(buf,pos);
-	dstDiagnosticInfo->symbolicId = convertToInt32(buf, pos);
-	dstDiagnosticInfo->locale = convertToInt32(buf, pos);
-	dstDiagnosticInfo->localizesText = convertToInt32(buf, pos);
+	dstDiagnosticInfo->namespaceUri = decodeInt32(buf,pos);
+	dstDiagnosticInfo->symbolicId = decodeInt32(buf, pos);
+	dstDiagnosticInfo->locale = decodeInt32(buf, pos);
+	dstDiagnosticInfo->localizesText = decodeInt32(buf, pos);
 
-	convertToUAByteString(buf, pos, dstDiagnosticInfo->additionalInfo);
-	dstDiagnosticInfo->innerStatusCode = convertToUAStatusCode(buf, pos);
+	decodeUAByteString(buf, pos, dstDiagnosticInfo->additionalInfo);
+	dstDiagnosticInfo->innerStatusCode = decodeUAStatusCode(buf, pos);
 
 	//If the Flag InnerDiagnosticInfo is set, then the DiagnosticInfo will be encoded
 	if ((dstDiagnosticInfo->innerStatusCode & DIEMT_INNER_DIAGNOSTIC_INFO) == 1)
 	{
-		dstDiagnosticInfo->innerDiagnosticInfo = convertToTDiagnosticInfo(buf,
+		dstDiagnosticInfo->innerDiagnosticInfo = decodeTDiagnosticInfo(buf,
 				pos);
 	}
 
@@ -59,12 +59,12 @@ Int32 decodeRequestHeader(const AD_RawMessage *srcRaw, Int32 *pos,
 		T_RequestHeader *dstRequestHeader)
 {
 
-	convertToUANodeId(srcRaw->message, pos,&(dstRequestHeader->authenticationToken));
-	dstRequestHeader->timestamp = convertToUADateTime(srcRaw->message, pos);
-	dstRequestHeader->requestHandle = convertToIntegerId(srcRaw->message, pos);
-	dstRequestHeader->returnDiagnostics = convertToUInt32(srcRaw->message, pos);
-	convertToUAString(srcRaw->message, pos, &dstRequestHeader->auditEntryId);
-	dstRequestHeader->timeoutHint = convertToUInt32(srcRaw->message, pos);
+	decodeUANodeId(srcRaw->message, pos,&(dstRequestHeader->authenticationToken));
+	dstRequestHeader->timestamp = decodeUADateTime(srcRaw->message, pos);
+	dstRequestHeader->requestHandle = decodeIntegerId(srcRaw->message, pos);
+	dstRequestHeader->returnDiagnostics = decodeUInt32(srcRaw->message, pos);
+	decodeUAString(srcRaw->message, pos, &dstRequestHeader->auditEntryId);
+	dstRequestHeader->timeoutHint = decodeUInt32(srcRaw->message, pos);
 
 
 	// AdditionalHeader will stay empty, need to be changed if there is relevant information

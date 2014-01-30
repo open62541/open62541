@@ -163,9 +163,9 @@ UInt32 SL_secureChannel_SCMHeader_get(UA_connection *connection,
 	pos += TL_MESSAGE_TYPE_LEN;
 	SC_Header->IsFinal = rawMessage[pos];
 	pos += sizeof(Byte);
-	SC_Header->MessageSize = convertToUInt32(rawMessage, pos);
+	SC_Header->MessageSize = decodeUInt32(rawMessage, pos);
 	pos += sizeof(UInt32);
-	SC_Header->SecureChannelId = convertToUInt32(rawMessage, pos);
+	SC_Header->SecureChannelId = decodeUInt32(rawMessage, pos);
 	pos += sizeof(UInt32);
 	return pos;
 
@@ -178,7 +178,7 @@ UInt32 SL_secureChannel_AASHeader_get(UA_connection *connection,
 	SL_AsymmetricAlgorithmSecurityHeader* AAS_Header)
 {
 
-	AAS_Header->SecurityPolicyUri.Length = convertToInt32(rawMessage, pos);
+	AAS_Header->SecurityPolicyUri.Length = decodeInt32(rawMessage, pos);
 
 	pos += sizeof(Int32);
 	AAS_Header->SecurityPolicyUri.Data = rawMessage[pos];
@@ -189,7 +189,7 @@ UInt32 SL_secureChannel_AASHeader_get(UA_connection *connection,
 	}
 	pos += AAS_Header->SecurityPolicyUri.Length;
 
-	AAS_Header->SenderCertificate.Length = convertToInt32(rawMessage, pos);
+	AAS_Header->SenderCertificate.Length = decodeInt32(rawMessage, pos);
 	pos += sizeof(Int32);
 	if (AAS_Header->SenderCertificate.Length < 0)
 	{
@@ -199,7 +199,7 @@ UInt32 SL_secureChannel_AASHeader_get(UA_connection *connection,
 
 	pos += AAS_Header->SenderCertificate.Length;
 
-	AAS_Header->ReceiverThumbprint.Length = convertToInt32(rawMessage, pos);
+	AAS_Header->ReceiverThumbprint.Length = decodeInt32(rawMessage, pos);
 	pos += sizeof(Int32);
 
 	if (AAS_Header->ReceiverThumbprint.Length < 0)

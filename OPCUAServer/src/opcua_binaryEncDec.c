@@ -9,7 +9,7 @@
 #include "opcua_types.h"
 
 
-Byte convertToByte(const char *buf, Int32 *pos)
+Byte decodeByte(const char *buf, Int32 *pos)
 {
 	*pos = (*pos) + 1;
 	return (Byte) buf[(*pos)-1];
@@ -23,7 +23,7 @@ void encodeByte(Byte encodeByte, Int32 *pos, AD_RawMessage *dstBuf)
 
 }
 
-UInt16 convertToUInt16(const char* buf, Int32 *pos)
+UInt16 decodeUInt16(const char* buf, Int32 *pos)
 {
 
 	Byte t1 = buf[*pos];
@@ -31,15 +31,15 @@ UInt16 convertToUInt16(const char* buf, Int32 *pos)
 	*pos += 2;
 	return t1 + t2;
 }
-void encodeUInt16(UInt16 encodeUInt16, Int32 *pos, AD_RawMessage *dstBuf)
+
+void encodeUInt16(UInt16 value, Int32 *pos, AD_RawMessage *dstBuf)
 {
-	dstBuf->message[*pos] = encodeUInt16;
-	dstBuf->message[*pos +1 ] = encodeUInt16 >>8;
+	memcpy(dstBuf->message, &value, 2);
 	*pos = (*pos) + sizeof(UInt16);
-	dstBuf->length = dstBuf->length + sizeof(UInt16);
+
 }
 
-Int16 convertToInt16(const char* buf, Int32 *pos)
+Int16 decodeInt16(const char* buf, Int32 *pos)
 {
 
 	Byte t1 = buf[*pos];
@@ -47,7 +47,7 @@ Int16 convertToInt16(const char* buf, Int32 *pos)
 	*pos += 2;
 	return t1 + t2;
 }
-Int32 convertToInt32(const char* buf, Int32 *pos)
+Int32 decodeInt32(const char* buf, Int32 *pos)
 {
 
 	SByte t1 = buf[*pos];
@@ -59,7 +59,7 @@ Int32 convertToInt32(const char* buf, Int32 *pos)
 }
 
 
-UInt32 convertToUInt32(const char* buf, Int32 *pos)
+UInt32 decodeUInt32(const char* buf, Int32 *pos)
 {
 	Byte t1 = buf[*pos];
 	UInt32 t2 = (UInt32) (buf[*pos + 1] << 8);
@@ -69,19 +69,15 @@ UInt32 convertToUInt32(const char* buf, Int32 *pos)
 	return t1 + t2 + t3 + t4;
 }
 
-void convertUInt32ToByteArray(UInt32 value, char *dstBuf, Int32 *pos)
+void encodeUInt32(UInt32 value, char *dstBuf, Int32 *pos)
 {
 	memcpy(&(dstBuf[*pos]), &value, sizeof(value));
 	pos += 4;
-	/*buf[pos] = (char)(value && 0xFF);
-	 buf[pos + 1] = (char)((value >> 8) && 0xFF);
-	 buf[pos + 2] = (char)((value >> 16) && 0xFF);
-	 buf[pos + 3] = (char)((value >> 24) && 0xFF);
-	 */
+
 }
 
 
-Int64 convertToInt64(const char* buf, Int32 *pos)
+Int64 decodeInt64(const char* buf, Int32 *pos)
 {
 
 	SByte t1 = buf[*pos];
@@ -96,10 +92,10 @@ Int64 convertToInt64(const char* buf, Int32 *pos)
 	return t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8;
 }
 
-Int32 convertToUAString(const char* buf, Int32 *pos, UA_String *dstUAString)
+Int32 decodeUAString(const char* buf, Int32 *pos, UA_String *dstUAString)
 {
 
-	dstUAString->Length = convertToInt32(buf, pos);
+	dstUAString->Length = decodeInt32(buf, pos);
 	if (dstUAString->Length > 0)
 	{
 		dstUAString->Data = &(buf[*pos]);
@@ -112,34 +108,35 @@ Int32 convertToUAString(const char* buf, Int32 *pos, UA_String *dstUAString)
 	*pos += dstUAString->Length;
 }
 
-Int32 convertToUAGuid(const char *buf, Int32 *pos, UA_Guid *dstGUID)
+Int32 decodeUAGuid(const char *buf, Int32 *pos, UA_Guid *dstGUID)
 {
-	dstGUID->Data1 = convertToUInt32(buf, pos);
-	dstGUID->Data2 = convertToUInt16(buf, pos);
-	dstGUID->Data3 = convertToUInt16(buf, pos);
-	convertToUAByteString(buf, pos, &(dstGUID->Data4));
+	dstGUID->Data1 = decodeUInt32(buf, pos);
+	dstGUID->Data2 = decodeUInt16(buf, pos);
+	dstGUID->Data3 = decodeUInt16(buf, pos);
+	decodeUAByteString(buf, pos, &(dstGUID->Data4));
 	return 0;
 }
 
-convertToUAByteString(const char *buf, Int32* pos, UA_ByteString *dstBytestring)
+void decodeUAByteString(const char *buf, Int32* pos, UA_ByteString *dstBytestring)
 {
-	convertToUAString(buf,pos,dstBytestring);
+
+	decodeUAString(buf,pos,dstBytestring->Data);
 }
 
-UA_DateTime convertToUADateTime(const char *buf, Int32 *pos)
+UA_DateTime decodeUADateTime(const char *buf, Int32 *pos)
 {
-	return convertToInt64(buf, pos);
+	return decodeInt64(buf, pos);
 }
 
-UA_StatusCode convertToUAStatusCode(const char* buf, Int32 *pos)
+UA_StatusCode decodeUAStatusCode(const char* buf, Int32 *pos)
 {
-	return convertToUInt32(buf, pos);
+	return decodeUInt32(buf, pos);
 }
 
-Int32 convertToUANodeId(const char* buf, Int32 *pos, UA_NodeId *dstNodeId)
+Int32 decodeUANodeId(const char* buf, Int32 *pos, UA_NodeId *dstNodeId)
 {
 
-	dstNodeId->EncodingByte = convertToInt32(buf, pos);
+	dstNodeId->EncodingByte = decodeInt32(buf, pos);
 
 
 	switch (dstNodeId->EncodingByte)
@@ -147,34 +144,34 @@ Int32 convertToUANodeId(const char* buf, Int32 *pos, UA_NodeId *dstNodeId)
 	case NIEVT_TWO_BYTE:
 	{
 
-		dstNodeId->Identifier.Numeric = convertToByte(buf, pos);
+		dstNodeId->Identifier.Numeric = decodeByte(buf, pos);
 		break;
 	}
 	case NIEVT_FOUR_BYTE:
 	{
-		dstNodeId->Identifier.Numeric = convertToInt16(buf, pos);
+		dstNodeId->Identifier.Numeric = decodeInt16(buf, pos);
 		break;
 	}
 	case NIEVT_NUMERIC:
 	{
 
-		dstNodeId->Identifier.Numeric = convertToInt32(buf, pos);
+		dstNodeId->Identifier.Numeric = decodeInt32(buf, pos);
 		break;
 	}
 	case NIEVT_STRING:
 	{
-		convertToUAString(buf, pos, &dstNodeId->Identifier.String);
+		decodeUAString(buf, pos, &dstNodeId->Identifier.String);
 		break;
 	}
 	case NIEVT_GUID:
 	{
-		convertToUAGuid(buf, pos, &(dstNodeId->Identifier.Guid));
+		decodeUAGuid(buf, pos, &(dstNodeId->Identifier.Guid));
 		break;
 	}
 	case NIEVT_BYTESTRING:
 	{
 
-		convertToUAByteString(buf, pos,&(dstNodeId->Identifier.OPAQUE));
+		decodeUAByteString(buf, pos,&(dstNodeId->Identifier.OPAQUE));
 		break;
 	}
 	case NIEVT_NAMESPACE_URI_FLAG:

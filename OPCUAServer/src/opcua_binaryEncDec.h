@@ -13,6 +13,7 @@
 #include "opcua_advancedDatatypes.h"
 
 
+
 //functions
 /**
  *
@@ -20,7 +21,7 @@
  * @param pos  			position at which the data is located in/out, parser position after the conversion
  * @return
  */
-Byte convertToByte(const char* buf, Int32 *pos);
+Byte decodeByte(const char* buf, Int32 *pos);
 
 /**
  *
@@ -36,21 +37,29 @@ void encodeByte(Byte encodeByte, Int32 *pos, AD_RawMessage *dstBuf);
  * @param pos
  * @return
  */
-Int16 convertToInt16(const char* buf, Int32 *pos);
+Int16 decodeInt16(const char* buf, Int32 *pos);
+
+/**
+ *
+ * @param value
+ * @param pos
+ * @param dstBuf
+ */
+void encodeUInt16(UInt16 value, Int32 *pos, AD_RawMessage *dstBuf);
 /**
  *
  * @param buf
  * @param pos
  * @return
  */
-UInt16 convertToUInt16(const char* buf, Int32 *pos);
+UInt16 decodeUInt16(const char* buf, Int32 *pos);
 /**
  *
  * @param buf  			binary encoded message
  * @param pos  			position at which the data is located in/out, parser position after the conversion
  * @return
  */
-Int32 convertToInt32(const char* buf, Int32 *pos);
+Int32 decodeInt32(const char* buf, Int32 *pos);
 
 /**
  *
@@ -58,14 +67,14 @@ Int32 convertToInt32(const char* buf, Int32 *pos);
  * @param pos  			position at which the data is located in/out, parser position after the conversion
  * @return				encoded data
  */
-UInt32 convertToUInt32(const char* buf, Int32 *pos);
+UInt32 decodeUInt32(const char* buf, Int32 *pos);
 /**
  *
  * @param buf
  * @param pos
  * @return
  */
-Int64 convertToInt64(const char* buf, Int32 *pos);
+Int64 decodeInt64(const char* buf, Int32 *pos);
 /**
  *
  * @param buf  			binary encoded message
@@ -73,7 +82,7 @@ Int64 convertToInt64(const char* buf, Int32 *pos);
  * @param dstNodeId		receiver of the nodeid structure
  * @param return		success = 0
  */
-Int32 convertToUANodeId(const char* buf, Int32 *pos, UA_NodeId *dstNodeId);
+Int32 decodeUANodeId(const char* buf, Int32 *pos, UA_NodeId *dstNodeId);
 /**
  *
  * @param buf
@@ -81,7 +90,7 @@ Int32 convertToUANodeId(const char* buf, Int32 *pos, UA_NodeId *dstNodeId);
  * @param dstGUID
  * @return
  */
-Int32 convertToUAGuid(const char *buf, Int32 *pos, UA_Guid *dstGUID);
+Int32 decodeUAGuid(const char *buf, Int32 *pos, UA_Guid *dstGUID);
 
 /**
  *
@@ -89,14 +98,14 @@ Int32 convertToUAGuid(const char *buf, Int32 *pos, UA_Guid *dstGUID);
  * @param pos
  * @return
  */
-UA_StatusCode convertToUAStatusCode(const char* buf, Int32 *pos);
+UA_StatusCode decodeUAStatusCode(const char* buf, Int32 *pos);
 /**
  *
  * @param buf
  * @param pos
  * @return
  */
-UA_DateTime convertToUADateTime(const char *buf, Int32 *pos);
+UA_DateTime decodeUADateTime(const char *buf, Int32 *pos);
 /**
  *
  * @param buf
@@ -104,13 +113,13 @@ UA_DateTime convertToUADateTime(const char *buf, Int32 *pos);
  * @param dstUAString
  * @return
  */
-Int32 convertToUAString(const char* buf, Int32 *pos, UA_String *dstUAString);
+Int32 decodeUAString(const char* buf, Int32 *pos, UA_String *dstUAString);
 /**
  *
  * @param value
  * @param dstBuf
  * @param pos
  */
-void convertUInt32ToByteArray(UInt32 value, char *dstBuf, Int32 *pos);
+void encodeUInt32(UInt32 value, char *dstBuf, Int32 *pos);
 
 #endif /* OPCUA_BINARYENCDEC_NEU_H_ */

@@ -14,7 +14,7 @@ void TL_sendACK(UA_connection *connection)
 	//get memory for message
 	//
 	//build message
-	//connection->transportLayer.serverBuffers.maxChunkCount;
+	//connection->transportLayer.serverConf.maxChunkCount;
 
 	//call send function
 
@@ -31,16 +31,16 @@ void TL_open(UA_connection *connection, AD_RawMessage *rawMessage)
 		{
 			//process the connection values received by the client
 			TL_processHELMessage(&tmpConnection,rawMessage);
-			connection->transportLayer.serverBuffers.protocolVersion = TL_SERVER_PROTOCOL_VERSION;
+			connection->transportLayer.serverConf.protocolVersion = TL_SERVER_PROTOCOL_VERSION;
 
-			connection->transportLayer.serverBuffers.recvBufferSize =
-					tmpConnection.transportLayer.serverBuffers.recvBufferSize;
+			connection->transportLayer.serverConf.recvBufferSize =
+					tmpConnection.transportLayer.serverConf.recvBufferSize;
 
-			connection->transportLayer.serverBuffers.sendBufferSize =
-					tmpConnection.transportLayer.serverBuffers.sendBufferSize;
+			connection->transportLayer.serverConf.sendBufferSize =
+					tmpConnection.transportLayer.serverConf.sendBufferSize;
 
-			connection->transportLayer.serverBuffers.maxMessageSize = TL_SERVER_MAX_MESSAGE_SIZE;
-			connection->transportLayer.serverBuffers.maxChunkCount = TL_SERVER_MAX_CHUNK_COUNT;
+			connection->transportLayer.serverConf.maxMessageSize = TL_SERVER_MAX_MESSAGE_SIZE;
+			connection->transportLayer.serverConf.maxChunkCount = TL_SERVER_MAX_CHUNK_COUNT;
 
 		    TL_sendACK(connection);
 			connection->transportLayer.connectionState = connectionState_ESTABLISHED;
@@ -59,10 +59,22 @@ void TL_open(UA_connection *connection, AD_RawMessage *rawMessage)
 		}
 	}
 }
+Int32 TL_checkMessage(UA_connection *connection, AD_RawMessage *TL_messsage)
+{
+	Int32 position = 4;
+	TL_getPacketType(TL_messsage);
 
+	Int32 messageLen = decodeUInt32(TL_messsage->message, &position);
+	if (messageLen == TL_messsage->length &&
+		messageLen < (connection->transportLayer.serverConf.maxMessageSize));
+	{
+		return 1;
+	}
+	return 0;
+}
 void TL_receive(UA_connection *connection, AD_RawMessage *TL_message)
 {
-	UInt32 bufferSize = connection->transportLayer.serverBuffers.recvBufferSize = 8192;
+	UInt32 bufferSize = connection->transportLayer.serverConf.recvBufferSize = 8192;
 	UInt32 length = 0;
 
 	AD_RawMessage tmpRawMessage;
@@ -78,6 +90,7 @@ void TL_receive(UA_connection *connection, AD_RawMessage *TL_message)
 	}
 
 
+
 	tmpRawMessage.length = length;
 	if(tmpRawMessage.length > 0)
 	{
@@ -86,8 +99,16 @@ void TL_receive(UA_connection *connection, AD_RawMessage *TL_message)
 		packetType_MSG:
 		packetType_OPN:
 		packetType_CLO:
-			TL_message->length = tmpRawMessage.length;
-			TL_message->message = tmpRawMessage.message;
+			//CHECK MESSAGE SIZE
+			if (TL_checkMessage(connection,TL_message))
+			{
+				TL_message->length = tmpRawMessage.length;
+				TL_message->message = tmpRawMessage.message;
+			}
+			else
+			{
+				// SEND BACK ERROR MESSAGE
+			}
 			break;
 		packetType_HEL:
 			TL_message->length = 0;
@@ -111,33 +132,7 @@ void TL_receive(UA_connection *connection, AD_RawMessage *TL_message)
 
 }
 
-void TL_getMessageHeader_test()
-{
 
-	Byte data[] = {0x48,0x45,0x4c,0x46,0x56,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x01,0x88,0x13,0x00,0x00,0x36,0x00,0x00,0x00,0x6f,0x70,0x63,0x2e,0x74,0x63,0x70,0x3a,0x2f,0x2f,0x43,0x61,0x6e,0x6f,0x70,0x75,0x73,0x2e,0x70,0x6c,0x74,0x2e,0x72,0x77,0x74,0x68,0x2d,0x61,0x61,0x63,0x68,0x65,0x6e,0x2e,0x64,0x65,0x3a,0x31,0x36,0x36,0x36,0x34,0x2f,0x34,0x43,0x45,0x55,0x41,0x53,0x65,0x72,0x76,0x65,0x72};
-
-	AD_RawMessage rawMessage;
-	rawMessage.message = data;
-	rawMessage.length = 86;
-
-
-	struct TL_messageBodyHEL HELmessage;
-	struct TL_header header;
-	printf("TL_getMessageHeader_test");
-
-	TL_getMessageHeader(&header, &rawMessage);
-
-	if(header.MessageSize == 86 &&
-	   header.MessageType == TL_HEL &&
-	   header.Reserved == 0x46)
-	{
-		printf(" - passed \n");
-	}
-	else
-	{
-		printf(" - failed \n");
-	}
-}
 /*
  * get the message header
  */
@@ -188,9 +183,9 @@ void TL_getMessageHeader(struct TL_header *header, AD_RawMessage *rawMessage)
 
 	pos = pos + TL_MESSAGE_TYPE_LEN;
 
-	header->Reserved = convertToByte(rawMessage->message,pos);
+	header->Reserved = decodeByte(rawMessage->message,pos);
 	pos = pos + TL_RESERVED_LEN;
-	header->MessageSize = convertToUInt32(rawMessage->message,pos);
+	header->MessageSize = decodeUInt32(rawMessage->message,pos);
 
 }
 Int32 TL_getPacketType(AD_RawMessage *rawMessage)
@@ -257,11 +252,11 @@ void TL_processHELMessage_test()
 
 	TL_processHELMessage(&con, &rawMessage);
 
-	if(con.transportLayer.clientBuffers.protocolVersion == 0 &&
-	   con.transportLayer.clientBuffers.recvBufferSize == 65536 &&
-	   con.transportLayer.clientBuffers.sendBufferSize == 65536 &&
-	   con.transportLayer.clientBuffers.maxMessageSize == 16777216 &&
-	   con.transportLayer.clientBuffers.maxChunkCount == 5000)
+	if(con.transportLayer.clientConf.protocolVersion == 0 &&
+	   con.transportLayer.clientConf.recvBufferSize == 65536 &&
+	   con.transportLayer.clientConf.sendBufferSize == 65536 &&
+	   con.transportLayer.clientConf.maxMessageSize == 16777216 &&
+	   con.transportLayer.clientConf.maxChunkCount == 5000)
 	{
 		printf(" - passed \n");
 	}
@@ -282,23 +277,23 @@ void TL_processHELMessage(UA_connection *connection, AD_RawMessage *rawMessage)
 	UInt32 pos = TL_HEADER_LENGTH;
 	struct TL_header tmpHeader;
 
-	connection->transportLayer.clientBuffers.protocolVersion =
-			convertToUInt32(rawMessage->message,pos);
+	connection->transportLayer.clientConf.protocolVersion =
+			decodeUInt32(rawMessage->message,pos);
 	pos = pos + sizeof(UInt32);
 
-	connection->transportLayer.clientBuffers.recvBufferSize =
-			convertToUInt32(rawMessage->message,pos);
+	connection->transportLayer.clientConf.recvBufferSize =
+			decodeUInt32(rawMessage->message,pos);
 	pos = pos +  sizeof(UInt32);
 
-	connection->transportLayer.clientBuffers.sendBufferSize =
-			convertToUInt32(rawMessage->message,pos);
+	connection->transportLayer.clientConf.sendBufferSize =
+			decodeUInt32(rawMessage->message,pos);
 	pos = pos +  sizeof(UInt32);
-	connection->transportLayer.clientBuffers.maxMessageSize =
-			convertToUInt32(rawMessage->message,pos);
+	connection->transportLayer.clientConf.maxMessageSize =
+			decodeUInt32(rawMessage->message,pos);
 	pos = pos +  sizeof(UInt32);
 
-	connection->transportLayer.clientBuffers.maxChunkCount =
-			convertToUInt32(rawMessage->message,pos);
+	connection->transportLayer.clientConf.maxChunkCount =
+			decodeUInt32(rawMessage->message,pos);
 	pos = pos +  sizeof(UInt32);
 
 	connection->transportLayer.endpointURL.Data = &(rawMessage->message[pos]);

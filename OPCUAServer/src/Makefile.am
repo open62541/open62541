@@ -20,8 +20,8 @@
 #					  opcua_transportLayer.h\
 #					  opcua_advancedDatatypes.h\
 #					  opcua_connectionHelper.h	
-lib_LTLIBRARIES = libstack.la
-libstack_la_SOURCES = 	opcua_builtInDatatypes.c\
+lib_LTLIBRARIES = libOpen62541.la
+libOpen62541_la_SOURCES = 	opcua_builtInDatatypes.c\
 						opcua_binaryEncDec.c\
 						opcua_transportLayer.c\
 						opcua_encodingLayer.c\
@@ -34,7 +34,7 @@ libstack_la_SOURCES = 	opcua_builtInDatatypes.c\
 						opcua_encodingLayer.h\
 						tcp_layer.h
 
-bin_PROGRAMS= $(top_builddir)/bin/stackTest.out
-__top_builddir__bin_stackTest_out_SOURCES = opcuaServer.c
-__top_builddir__bin_stackTest_out_LADD = libstack.la		  										
+#bin_PROGRAMS= $(top_builddir)/bin/open62541.out
+#__top_builddir__bin_libOpen62541_out_SOURCES = opcuaServer.c
+__top_builddir__bin_libOpen62541_out_LADD = libOpen62541.la		  										
 
