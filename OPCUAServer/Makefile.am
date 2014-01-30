@@ -1,5 +1,7 @@
 if HAVE_CHECK
-    SUBDIRS=src . tests
+    SUBS=src . tests .
 else 
-    SUBDIRS=src .
-endif	
+    SUBS=src .
+endif
+
+SUBDIRS = $(SUBS) examples/src	

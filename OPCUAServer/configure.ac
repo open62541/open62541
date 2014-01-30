@@ -21,6 +21,6 @@ AM_COND_IF([TARGET_LINUX],
     AC_DEFINE([LINUX]))
 AC_PROG_LIBTOOL
 AC_CONFIG_MACRO_DIR([m4])
-AC_CONFIG_FILES(Makefile src/Makefile tests/Makefile)
+AC_CONFIG_FILES(Makefile src/Makefile tests/Makefile examples/src/Makefile)
 AC_OUTPUT
 

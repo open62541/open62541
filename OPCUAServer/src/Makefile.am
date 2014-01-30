@@ -20,8 +20,8 @@
 #					  opcua_transportLayer.h\
 #					  opcua_advancedDatatypes.h\
 #					  opcua_connectionHelper.h	
-lib_LTLIBRARIES = libOpen62541.la
-libOpen62541_la_SOURCES = 	opcua_builtInDatatypes.c\
+noinst_LTLIBRARIES =$(top_builddir)/bin/libOpen62541.la
+__top_builddir__bin_libOpen62541_la_SOURCES = 	opcua_builtInDatatypes.c\
 						opcua_binaryEncDec.c\
 						opcua_transportLayer.c\
 						opcua_encodingLayer.c\
@@ -36,5 +36,5 @@ libOpen62541_la_SOURCES = 	opcua_builtInDatatypes.c\
 
 #bin_PROGRAMS= $(top_builddir)/bin/open62541.out
 #__top_builddir__bin_libOpen62541_out_SOURCES = opcuaServer.c
-__top_builddir__bin_libOpen62541_out_LADD = libOpen62541.la		  										
+#libOpen62541_la_LIBADD = ../lib/libOpen62541.la		  										
 
