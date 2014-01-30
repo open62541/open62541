@@ -60,7 +60,7 @@ START_TEST(encodeByte_test)
 	Int32 position = 0;
 	//EncodeByte
 		char *mem = malloc(sizeof(Byte));
-		rawMessage.message = &mem;
+		rawMessage.message = mem;
 		Byte testByte = 0x08;
 		rawMessage.length = 1;
 		position = 0;
@@ -82,7 +82,7 @@ START_TEST(decodeUInt16_test)
 	//EncodeUInt16
 	char mem[2] = {0x01,0x00};
 
-	rawMessage.message = &mem;
+	rawMessage.message = mem;
 
 	rawMessage.length = 2;
 
@@ -103,7 +103,7 @@ START_TEST(encodeUInt16_test)
 	Int32 position = 0;
 	//EncodeUInt16
 	char *mem = malloc(sizeof(UInt16));
-	rawMessage.message = &mem;
+	rawMessage.message = mem;
 	UInt16 testUInt16 = 1;
 	rawMessage.length = 2;
 	position = 0;
@@ -145,7 +145,7 @@ Suite* TL_testSuite_encodeUInt16(void)
 	suite_add_tcase(s,tc_core);
 	return s;
 }
-/*
+
 Suite* TL_testSuite_encodeByte(void)
 {
 	Suite *s = suite_create("encodeByte_test");
@@ -154,7 +154,7 @@ Suite* TL_testSuite_encodeByte(void)
 	suite_add_tcase(s,tc_core);
 	return s;
 }
-*/
+
 /*
 Suite* TL_<TESTSUITENAME>(void)
 {
@@ -187,13 +187,13 @@ int main (void)
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
-/*
+
 	s = TL_testSuite_encodeByte();
 	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
-*/
+
 	/* <TESTSUITE_TEMPLATE>
 	s =  <TESTSUITENAME>;
 	sr = srunner_create(s);

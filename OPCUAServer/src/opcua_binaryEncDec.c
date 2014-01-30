@@ -19,7 +19,6 @@ void encodeByte(Byte encodeByte, Int32 *pos, AD_RawMessage *dstBuf)
 {
 	dstBuf->message[*pos] = encodeByte;
 	*pos = (*pos) + 1;
-	dstBuf->length = dstBuf->length + 1;
 
 }
 
@@ -106,6 +105,7 @@ Int32 decodeUAString(const char* buf, Int32 *pos, UA_String *dstUAString)
 		dstUAString->Data = NULL;
 	}
 	*pos += dstUAString->Length;
+	return 0;
 }
 
 Int32 decodeUAGuid(const char *buf, Int32 *pos, UA_Guid *dstGUID)
