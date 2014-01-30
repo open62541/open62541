@@ -33,7 +33,7 @@ UInt16 decodeUInt16(const char* buf, Int32 *pos)
 
 void encodeUInt16(UInt16 value, Int32 *pos, AD_RawMessage *dstBuf)
 {
-	memcpy(dstBuf->message, &value, 2);
+	memcpy(dstBuf->message, &value, sizeof(UInt16));
 	*pos = (*pos) + sizeof(UInt16);
 
 }

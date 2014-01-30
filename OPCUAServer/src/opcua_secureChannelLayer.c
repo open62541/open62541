@@ -147,7 +147,7 @@ void SL_receive(UA_connection *connection, AD_RawMessage *serviceMessage)
 
 		break;
 		case packetType_CLO:
-		SL_secureChannel_close(connection, secureChannelMessage);
+			SL_secureChannel_close(connection, secureChannelMessage);
 
 		//TODO free memory for secureChannelMessage
 		break;
