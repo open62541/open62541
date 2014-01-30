@@ -66,7 +66,7 @@ Int32 TL_checkMessage(UA_connection *connection, AD_RawMessage *TL_messsage)
 
 	Int32 messageLen = decodeUInt32(TL_messsage->message, &position);
 	if (messageLen == TL_messsage->length &&
-		messageLen < (connection->transportLayer.serverConf.maxMessageSize));
+		messageLen < (connection->transportLayer.serverConf.maxMessageSize))
 	{
 		return 1;
 	}
@@ -183,9 +183,9 @@ void TL_getMessageHeader(struct TL_header *header, AD_RawMessage *rawMessage)
 
 	pos = pos + TL_MESSAGE_TYPE_LEN;
 
-	header->Reserved = decodeByte(rawMessage->message,pos);
+	header->Reserved = decodeByte(rawMessage->message,&pos);
 	pos = pos + TL_RESERVED_LEN;
-	header->MessageSize = decodeUInt32(rawMessage->message,pos);
+	header->MessageSize = decodeUInt32(rawMessage->message,&pos);
 
 }
 Int32 TL_getPacketType(AD_RawMessage *rawMessage)
@@ -278,22 +278,22 @@ void TL_processHELMessage(UA_connection *connection, AD_RawMessage *rawMessage)
 	struct TL_header tmpHeader;
 
 	connection->transportLayer.clientConf.protocolVersion =
-			decodeUInt32(rawMessage->message,pos);
+			decodeUInt32(rawMessage->message,&pos);
 	pos = pos + sizeof(UInt32);
 
 	connection->transportLayer.clientConf.recvBufferSize =
-			decodeUInt32(rawMessage->message,pos);
+			decodeUInt32(rawMessage->message,&pos);
 	pos = pos +  sizeof(UInt32);
 
 	connection->transportLayer.clientConf.sendBufferSize =
-			decodeUInt32(rawMessage->message,pos);
+			decodeUInt32(rawMessage->message,&pos);
 	pos = pos +  sizeof(UInt32);
 	connection->transportLayer.clientConf.maxMessageSize =
-			decodeUInt32(rawMessage->message,pos);
+			decodeUInt32(rawMessage->message,&pos);
 	pos = pos +  sizeof(UInt32);
 
 	connection->transportLayer.clientConf.maxChunkCount =
-			decodeUInt32(rawMessage->message,pos);
+			decodeUInt32(rawMessage->message,&pos);
 	pos = pos +  sizeof(UInt32);
 
 	connection->transportLayer.endpointURL.Data = &(rawMessage->message[pos]);

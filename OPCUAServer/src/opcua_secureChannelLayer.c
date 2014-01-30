@@ -35,6 +35,7 @@ Int32 SL_secureChannel_ResponseHeader_form(UA_connection *connection, T_Response
 
 
 	responseHeader->requestHandle = 0;
+	return 0;
 }
 /*
  *
@@ -47,6 +48,7 @@ Int32 SL_secureChannel_Response_form(UA_connection *connection, SL_Response *res
 	response->SecurityToken.TokenId = connection->secureLayer.tokenId; //TODO  must be generated;
 	response->SecurityToken.RevisedLifeTime = connection->secureLayer.revisedLifetime;
 	response->ServerNonce.Length = 0; // TODO
+	return 0;
 }
 /*
  * opens a secureChannel (server side)
@@ -64,8 +66,8 @@ Int32 SL_secureChannel_open(const UA_connection *connection,
 	TL_send();
 	//client protocol Version
 
+return 0;
 
-//connection->secureLayer.
 }
 /*
  void SL_secureChannel_Request_get(AD_RawMessage        *secureChannelMessage,
