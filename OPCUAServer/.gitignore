@@ -12,6 +12,7 @@ autom4te.cache/
 test-driver
 #ignore compiled tests
 tests/check_stack
+tests/check_stack.exe
 tests/check_stack.trs
 # ignore Makefiles
 Makefile

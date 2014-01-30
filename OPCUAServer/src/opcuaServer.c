@@ -26,15 +26,21 @@
 void server_init();
 void server_run();
 
+#endif
+
 int main(void)
 {
 
+#ifdef LINUX
 	server_init();
 	server_run();
+#endif
 
 	return EXIT_SUCCESS;
 
 }
+
+#ifdef LINUX
 
 void server_init()
 {
