@@ -21,6 +21,7 @@
 #					  opcua_advancedDatatypes.h\
 #					  opcua_connectionHelper.h	
 noinst_LTLIBRARIES =$(top_builddir)/bin/libOpen62541.la
+__top_builddir__bin_libOpen62541_la_LDFLAGS = -no-undefined
 __top_builddir__bin_libOpen62541_la_SOURCES = 	opcua_builtInDatatypes.c\
 						opcua_binaryEncDec.c\
 						opcua_transportLayer.c\
