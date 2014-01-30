@@ -18,6 +18,8 @@
 #include "opcua_transportLayer.h"
 #include "opcua_types.h"
 
+#ifdef LINUX
+
 #include <sys/socket.h>
 #include <netinet/in.h>
 
@@ -142,3 +144,4 @@ void server_run()
 
 }
 
+#endif
