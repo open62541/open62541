@@ -21,6 +21,7 @@
 #					  opcua_advancedDatatypes.h\
 #					  opcua_connectionHelper.h	
 lib_LTLIBRARIES = libOpen62541.la
+libOpen62541_la_LDFLAGS = -no-undefined
 libOpen62541_la_SOURCES = 	opcua_builtInDatatypes.c\
 						opcua_binaryEncDec.c\
 						opcua_transportLayer.c\
