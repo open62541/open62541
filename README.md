@@ -36,9 +36,12 @@ $ make install
 # Building
 ```bash
 $ cd OPCUAServer
-$ ./autogen.sh
 $ ./configure
 $ make
 $ make check
 ```
 
+### Rebuilding configure tools (only if configure.am is changed)
+```bash
+$ ./autogen.sh
+```
