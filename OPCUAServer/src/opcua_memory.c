@@ -8,11 +8,11 @@
 
 void *opcua_malloc(size_t size)
 {
-	malloc(size);
+	return malloc(size);
 }
 
 
-void free(void *pointer)
+void opcua_free(void *pointer)
 {
 	free(pointer);
 }

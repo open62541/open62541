@@ -26,7 +26,7 @@ enum connectionState
 	connectionState_ESTABLISHED,
 
 };
-typedef struct buffer_t
+typedef struct
 {
 	UInt32 recvBufferSize;
 	UInt32 sendBufferSize;
@@ -40,8 +40,8 @@ struct TL_connection
 {
 	Int32 socket;
 	UInt32 connectionState;
-	TL_buffer clientConf;
-	TL_buffer serverConf;
+	TL_buffer remoteConf;
+	TL_buffer localConf;
 	UA_String endpointURL;
 };
 
@@ -67,7 +67,7 @@ struct SS_connection
 
 };
 
-typedef struct UA_connection_t
+typedef struct
 {
 	struct TL_connection transportLayer;
 	struct SL_connection secureLayer;

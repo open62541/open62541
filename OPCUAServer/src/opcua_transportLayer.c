@@ -14,7 +14,7 @@ void TL_sendACK(UA_connection *connection)
 	//get memory for message
 	//
 	//build message
-	//connection->transportLayer.serverConf.maxChunkCount;
+	//connection->transportLayer.localConf.maxChunkCount;
 
 	//call send function
 
@@ -31,16 +31,16 @@ void TL_open(UA_connection *connection, AD_RawMessage *rawMessage)
 		{
 			//process the connection values received by the client
 			TL_processHELMessage(&tmpConnection,rawMessage);
-			connection->transportLayer.serverConf.protocolVersion = TL_SERVER_PROTOCOL_VERSION;
+			connection->transportLayer.localConf.protocolVersion = TL_SERVER_PROTOCOL_VERSION;
 
-			connection->transportLayer.serverConf.recvBufferSize =
-					tmpConnection.transportLayer.serverConf.recvBufferSize;
+			connection->transportLayer.localConf.recvBufferSize =
+					tmpConnection.transportLayer.localConf.recvBufferSize;
 
-			connection->transportLayer.serverConf.sendBufferSize =
-					tmpConnection.transportLayer.serverConf.sendBufferSize;
+			connection->transportLayer.localConf.sendBufferSize =
+					tmpConnection.transportLayer.localConf.sendBufferSize;
 
-			connection->transportLayer.serverConf.maxMessageSize = TL_SERVER_MAX_MESSAGE_SIZE;
-			connection->transportLayer.serverConf.maxChunkCount = TL_SERVER_MAX_CHUNK_COUNT;
+			connection->transportLayer.localConf.maxMessageSize = TL_SERVER_MAX_MESSAGE_SIZE;
+			connection->transportLayer.localConf.maxChunkCount = TL_SERVER_MAX_CHUNK_COUNT;
 
 		    TL_sendACK(connection);
 			connection->transportLayer.connectionState = connectionState_ESTABLISHED;
@@ -66,7 +66,7 @@ Int32 TL_checkMessage(UA_connection *connection, AD_RawMessage *TL_messsage)
 
 	Int32 messageLen = decodeUInt32(TL_messsage->message, &position);
 	if (messageLen == TL_messsage->length &&
-		messageLen < (connection->transportLayer.serverConf.maxMessageSize))
+		messageLen < (connection->transportLayer.localConf.maxMessageSize))
 	{
 		return 1;
 	}
@@ -74,7 +74,7 @@ Int32 TL_checkMessage(UA_connection *connection, AD_RawMessage *TL_messsage)
 }
 void TL_receive(UA_connection *connection, AD_RawMessage *TL_message)
 {
-	UInt32 bufferSize = connection->transportLayer.serverConf.recvBufferSize = 8192;
+	UInt32 bufferSize = connection->transportLayer.localConf.recvBufferSize = 8192;
 	UInt32 length = 0;
 
 	AD_RawMessage tmpRawMessage;
@@ -252,11 +252,11 @@ void TL_processHELMessage_test()
 
 	TL_processHELMessage(&con, &rawMessage);
 
-	if(con.transportLayer.clientConf.protocolVersion == 0 &&
-	   con.transportLayer.clientConf.recvBufferSize == 65536 &&
-	   con.transportLayer.clientConf.sendBufferSize == 65536 &&
-	   con.transportLayer.clientConf.maxMessageSize == 16777216 &&
-	   con.transportLayer.clientConf.maxChunkCount == 5000)
+	if(con.transportLayer.remoteConf.protocolVersion == 0 &&
+	   con.transportLayer.remoteConf.recvBufferSize == 65536 &&
+	   con.transportLayer.remoteConf.sendBufferSize == 65536 &&
+	   con.transportLayer.remoteConf.maxMessageSize == 16777216 &&
+	   con.transportLayer.remoteConf.maxChunkCount == 5000)
 	{
 		printf(" - passed \n");
 	}
@@ -277,22 +277,22 @@ void TL_processHELMessage(UA_connection *connection, AD_RawMessage *rawMessage)
 	UInt32 pos = TL_HEADER_LENGTH;
 	struct TL_header tmpHeader;
 
-	connection->transportLayer.clientConf.protocolVersion =
+	connection->transportLayer.remoteConf.protocolVersion =
 			decodeUInt32(rawMessage->message,&pos);
 	pos = pos + sizeof(UInt32);
 
-	connection->transportLayer.clientConf.recvBufferSize =
+	connection->transportLayer.remoteConf.recvBufferSize =
 			decodeUInt32(rawMessage->message,&pos);
 	pos = pos +  sizeof(UInt32);
 
-	connection->transportLayer.clientConf.sendBufferSize =
+	connection->transportLayer.remoteConf.sendBufferSize =
 			decodeUInt32(rawMessage->message,&pos);
 	pos = pos +  sizeof(UInt32);
-	connection->transportLayer.clientConf.maxMessageSize =
+	connection->transportLayer.remoteConf.maxMessageSize =
 			decodeUInt32(rawMessage->message,&pos);
 	pos = pos +  sizeof(UInt32);
 
-	connection->transportLayer.clientConf.maxChunkCount =
+	connection->transportLayer.remoteConf.maxChunkCount =
 			decodeUInt32(rawMessage->message,&pos);
 	pos = pos +  sizeof(UInt32);
 

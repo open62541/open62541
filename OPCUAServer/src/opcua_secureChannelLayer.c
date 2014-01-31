@@ -42,7 +42,7 @@ Int32 SL_secureChannel_ResponseHeader_form(UA_connection *connection, T_Response
  */
 Int32 SL_secureChannel_Response_form(UA_connection *connection, SL_Response *response)
 {
-	response->ServerProtocolVersion = 0; //TODO must be set
+	response->ServerProtocolVersion = connection->transportLayer//TODO must be set
 	response->SecurityToken.ChannelId = connection->secureLayer.UInt32_secureChannelId;
 	response->SecurityToken.CreatedAt = connection->secureLayer.requestedAt;
 	response->SecurityToken.TokenId = connection->secureLayer.tokenId; //TODO  must be generated;
