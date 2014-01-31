@@ -127,6 +127,7 @@ typedef struct _UA_Guid
 	UInt16 Data2;
 	UInt16 Data3;
 	UA_ByteString Data4;
+
 }
 UA_Guid;
 /**
@@ -265,7 +266,7 @@ typedef enum _UA_DiagnosticInfoEncodingMaskType
 	DIEMT_SYMBOLIC_ID = 			0x01,
 	DIEMT_NAMESPACE = 				0x02,
 	DIEMT_LOCALIZED_TEXT = 			0x04,
-	DIEMT_LOCATE = 					0x08,
+	DIEMT_LOCALE = 					0x08,
 	DIEMT_ADDITIONAL_INFO = 		0x10,
 	DIEMT_INNER_STATUS_CODE = 		0x20,
 	DIEMT_INNER_DIAGNOSTIC_INFO = 	0x40

@@ -10,14 +10,10 @@
 
 #include "opcua_advancedDatatypes.h"
 #include "opcua_encodingLayer.h"
+#include "opcua_connectionHelper.h"
+
 static const Int32 SL_HEADER_LENGTH = 0;
-typedef struct _SL_ChannelSecurityToken
-{
-	UInt32 ChannelId;
-	UInt32 TokenId;
-	UA_DateTime CreatedAt;
-	Int32 RevisedLifeTime;
-}SL_ChannelSecurityToken;
+
 
 
 typedef struct _SL_OpenSecureChannelResponse

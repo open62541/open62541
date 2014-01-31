@@ -8,7 +8,7 @@
 #ifndef OPCUA_ADVANCEDDATATYPES_H_
 #define OPCUA_ADVANCEDDATATYPES_H_
 
-
+#include "opcua_builtInDatatypes.h"
 typedef struct AD_RawMessage_t AD_RawMessage;
 
 struct AD_RawMessage_t
@@ -139,7 +139,7 @@ struct BED_DiagnosticInfo
 	Int32 localizesText;
 	UA_String additionalInfo;
 	UA_StatusCode innerStatusCode;
-//	struct BED_DiagnosticInfo innerDiagnosticInfo;
+	struct BED_DiagnosticInfo *innerDiagnosticInfo;
 };
 
 

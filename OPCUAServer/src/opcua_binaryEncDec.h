@@ -11,6 +11,7 @@
 #include "opcua_builtInDatatypes.h"
 
 #include "opcua_advancedDatatypes.h"
+#include "opcua_types.h"
 
 
 
@@ -121,5 +122,51 @@ Int32 decodeUAString(const char* buf, Int32 *pos, UA_String *dstUAString);
  * @param pos
  */
 void encodeUInt32(UInt32 value, char *dstBuf, Int32 *pos);
+
+
+/**
+ * \brief
+ * \param srcRaw             pointer to raw data which holds the encoded data
+ * \param pos
+ * \param dstRequestHeader   pointer to a structure which hold the encoded header
+ * \return                   0 = success
+ */
+Int32 decodeRequestHeader(const AD_RawMessage *srcRaw,Int32 *pos, T_RequestHeader *dstRequestHeader);
+
+
+
+/**
+ *
+ * @param srcHeader
+ * @param pos
+ * @param dstRaw
+ * @return
+ */
+Int32 encodeRequestHeader(const T_RequestHeader *srcHeader,Int32 *pos,AD_RawMessage *dstRaw);
+
+
+
+/**
+ *
+ * @param srcRaw
+ * @param pos
+ * @param dstResponseHeader
+ * @return
+ */
+Int32 decodeResponseHeader(const AD_RawMessage *srcRaw, Int32 *pos, T_ResponseHeader *dstResponseHeader);
+
+/**
+ *  @brief function to encode a secureChannelRequestHeader
+ *
+ * @param header   a open secure channel header structure which should be encoded to binary format
+ * @param dstBuf   pointer to a structure which hold the encoded header
+ * @return
+ */
+Int32 encodeResponseHeader(const T_ResponseHeader *responseHeader, Int32 *pos, AD_RawMessage *dstBuf);
+
+
+
+
+
 
 #endif /* OPCUA_BINARYENCDEC_NEU_H_ */

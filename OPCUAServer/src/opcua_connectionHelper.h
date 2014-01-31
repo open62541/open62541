@@ -26,6 +26,15 @@ enum connectionState
 	connectionState_ESTABLISHED,
 
 };
+
+typedef struct
+{
+	UInt32 secureChannelId;
+	UInt32 tokenId;
+	UA_DateTime createdAt;
+	Int32 revisedLifetime;
+}SL_ChannelSecurityToken;
+
 typedef struct
 {
 	UInt32 recvBufferSize;
@@ -54,12 +63,10 @@ struct SL_connection
 	UA_String secureChannelId;
 	UInt32 UInt32_secureChannelId;
 	UInt32 securityMode;
-	UA_String clientNonce;
-	UA_Duration requestedLifetime; /// life time of the secure channel
-	UA_DateTime requestedAt; /// Point in time in which the secure channel was requested
+	UA_ByteString clientNonce;
 	UInt32 connectionState;
-	UInt32 tokenId;
-	UInt32 revisedLifetime;
+	SL_ChannelSecurityToken securityToken;
+
 };
 
 struct SS_connection

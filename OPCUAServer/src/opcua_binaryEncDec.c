@@ -8,11 +8,10 @@
 #include "opcua_binaryEncDec.h"
 #include "opcua_types.h"
 
-
 Byte decodeByte(const char *buf, Int32 *pos)
 {
 	*pos = (*pos) + 1;
-	return (Byte) buf[(*pos)-1];
+	return (Byte) buf[(*pos) - 1];
 
 }
 void encodeByte(Byte encodeByte, Int32 *pos, AD_RawMessage *dstBuf)
@@ -57,7 +56,6 @@ Int32 decodeInt32(const char* buf, Int32 *pos)
 	return t1 + t2 + t3 + t4;
 }
 
-
 UInt32 decodeUInt32(const char* buf, Int32 *pos)
 {
 	Byte t1 = buf[*pos];
@@ -74,7 +72,6 @@ void encodeUInt32(UInt32 value, char *dstBuf, Int32 *pos)
 	pos += 4;
 
 }
-
 
 Int64 decodeInt64(const char* buf, Int32 *pos)
 {
@@ -117,10 +114,11 @@ Int32 decodeUAGuid(const char *buf, Int32 *pos, UA_Guid *dstGUID)
 	return 0;
 }
 
-void decodeUAByteString(const char *buf, Int32* pos, UA_ByteString *dstBytestring)
+void decodeUAByteString(const char *buf, Int32* pos,
+		UA_ByteString *dstBytestring)
 {
 
-	decodeUAString(buf,pos,dstBytestring->Data);
+	decodeUAString(buf, pos, dstBytestring->Data);
 }
 
 UA_DateTime decodeUADateTime(const char *buf, Int32 *pos)
@@ -137,7 +135,6 @@ Int32 decodeUANodeId(const char* buf, Int32 *pos, UA_NodeId *dstNodeId)
 {
 
 	dstNodeId->EncodingByte = decodeInt32(buf, pos);
-
 
 	switch (dstNodeId->EncodingByte)
 	{
@@ -171,7 +168,7 @@ Int32 decodeUANodeId(const char* buf, Int32 *pos, UA_NodeId *dstNodeId)
 	case NIEVT_BYTESTRING:
 	{
 
-		decodeUAByteString(buf, pos,&(dstNodeId->Identifier.OPAQUE));
+		decodeUAByteString(buf, pos, &(dstNodeId->Identifier.OPAQUE));
 		break;
 	}
 	case NIEVT_NAMESPACE_URI_FLAG:
@@ -183,6 +180,137 @@ Int32 decodeUANodeId(const char* buf, Int32 *pos, UA_NodeId *dstNodeId)
 
 		break;
 	}
+	return 0;
+}
+
+/**
+ * IntegerId
+ * Part: 4
+ * Chapter: 7.13
+ * Page: 118
+ */
+T_IntegerId decodeIntegerId(char* buf, Int32 *pos)
+{
+	return decodeUInt32(buf, pos);
+}
+
+/**
+ * DiagnosticInfo
+ * Part: 4
+ * Chapter: 7.9
+ * Page: 116
+ */
+enum encodingMask
+{
+	encodingMask_HasSymbolicId = 0x01,
+	encodingMask_HasNamespace = 0x02,
+	encodingMask_HasLocalizedText = 0x04,
+	encodingMask_HasLocale = 0x08,
+	encodingMask_HasAdditionalInfo = 0x10,
+	encodingMask_HasInnerStatusCode = 0x20,
+	encodingMask_HasInnerDiagnosticInfo= 0x40
+};
+Int32 decodeToDiagnosticInfo(char* buf, Int32 *pos,
+		T_DiagnosticInfo* dstDiagnosticInfo)
+{
+	Byte encodingByte =  (buf[*pos]);
+	Byte mask;
+	for(mask = 1; mask <= 0x40; mask << 2)
+	{
+		switch(mask && encodingByte)
+		{
+		DIEMT_SYMBOLIC_ID:
+			dstDiagnosticInfo->symbolicId = decodeInt32(buf, pos);
+			break;
+		DIEMT_NAMESPACE:
+
+			dstDiagnosticInfo->namespaceUri = decodeInt32(buf, pos);
+			break;
+		DIEMT_LOCALIZED_TEXT:
+			dstDiagnosticInfo->localizesText = decodeInt32(buf, pos);
+			break;
+		DIEMT_LOCALE:
+			dstDiagnosticInfo->locale = decodeInt32(buf, pos);
+			break;
+		DIEMT_ADDITIONAL_INFO:
+			decodeUAString(buf, pos, &dstDiagnosticInfo->additionalInfo);
+			break;
+		DIEMT_INNER_STATUS_CODE:
+
+			dstDiagnosticInfo->innerStatusCode = decodeUAStatusCode(buf, pos);
+			break;
+		DIEMT_INNER_DIAGNOSTIC_INFO:
+
+			dstDiagnosticInfo->innerDiagnosticInfo = opcua_malloc(sizeof(T_DiagnosticInfo));
+			decodeToDiagnosticInfo(buf, pos,
+				dstDiagnosticInfo->innerDiagnosticInfo);
+			break;
+		}
+	}
+	*pos += 1;
+	return 0;
+}
+Int32 DiagnosticInfo_calcSize(T_DiagnosticInfo *diagnosticInfo)
+{
+	Int32 minimumLength = 20;
+	Int32 length;
+	length += minimumLength;
+	length += diagnosticInfo->additionalInfo.Length;
+	length += sizeof(UInt32);
+	length += DiagnosticInfo_calcSize(diagnosticInfo->innerDiagnosticInfo);
+	return length;
+}
+/**
+ * RequestHeader
+ * Part: 4
+ * Chapter: 7.26
+ * Page: 132
+ */
+
+/** \copydoc decodeRequestHeader */
+Int32 decodeRequestHeader(const AD_RawMessage *srcRaw, Int32 *pos,
+		T_RequestHeader *dstRequestHeader)
+{
+
+	decodeUANodeId(srcRaw->message, pos,
+			&(dstRequestHeader->authenticationToken));
+	dstRequestHeader->timestamp = decodeUADateTime(srcRaw->message, pos);
+	dstRequestHeader->requestHandle = decodeIntegerId(srcRaw->message, pos);
+	dstRequestHeader->returnDiagnostics = decodeUInt32(srcRaw->message, pos);
+	decodeUAString(srcRaw->message, pos, &dstRequestHeader->auditEntryId);
+	dstRequestHeader->timeoutHint = decodeUInt32(srcRaw->message, pos);
+
+	// AdditionalHeader will stay empty, need to be changed if there is relevant information
+
+	return 0;
+}
+
+/**
+ * ResponseHeader
+ * Part: 4
+ * Chapter: 7.27
+ * Page: 133
+ */
+/** \copydoc encodeResponseHeader */
+/*Int32 encodeResponseHeader(const T_ResponseHeader *responseHeader, Int32 *pos,
+		AD_RawMessage *dstBuf)
+{
+
+	return 0;
+}*/
+
+Int32 ResponseHeader_calcSize(T_ResponseHeader *responseHeader)
+{
+	Int32 minimumLength = 24; // summation of all simple types
+	Int32 i, length;
+	length += minimumLength;
+
+	for (i = 0; i < responseHeader->noOfStringTable; i++)
+	{
+		length += responseHeader->stringTable[i].Length;
+		length += sizeof(UInt32); // length of the encoded length field
+	}
+//TODO
 	return 0;
 }
 
