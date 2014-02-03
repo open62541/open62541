@@ -45,6 +45,13 @@ Int16 decodeInt16(const char* buf, Int32 *pos)
 	*pos += 2;
 	return t1 + t2;
 }
+
+void encodeInt16(Int16 value, Int32 *pos, AD_RawMessage *dstBuf)
+{
+	memcpy(dstBuf->message, &value, sizeof(Int16));
+	*pos = (*pos) + sizeof(Int16);
+}
+
 Int32 decodeInt32(const char* buf, Int32 *pos)
 {
 
@@ -54,6 +61,12 @@ Int32 decodeInt32(const char* buf, Int32 *pos)
 	Int32 t4 = (UInt32) (buf[*pos + 3] << 24);
 	*pos += 4;
 	return t1 + t2 + t3 + t4;
+}
+
+void encodeInt32(Int32 value, Int32 *pos, AD_RawMessage *dstBuf)
+{
+	memcpy(dstBuf->message, &value, sizeof(Int32));
+	*pos = (*pos) + sizeof(Int32);
 }
 
 UInt32 decodeUInt32(const char* buf, Int32 *pos)
@@ -86,6 +99,12 @@ Int64 decodeInt64(const char* buf, Int32 *pos)
 	UInt64 t8 = (UInt64) (buf[*pos + 7] << 56);
 	pos += 8;
 	return t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8;
+}
+
+void encodeInt64(Int64 value, Int64 *pos, AD_RawMessage *dstBuf)
+{
+	memcpy(dstBuf->message, &value, sizeof(Int64));
+	*pos = (*pos) + sizeof(Int64);
 }
 
 Int32 decodeUAString(const char* buf, Int32 *pos, UA_String *dstUAString)
