@@ -11,3 +11,4 @@
 #include "opcua_builtInDatatypes.h"
 #include "opcua_advancedDatatypes.h"
 #include "opcua_types.h"
+#endif
