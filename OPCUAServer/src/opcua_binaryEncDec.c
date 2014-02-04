@@ -353,7 +353,35 @@ Int32 decodeRequestHeader(const AD_RawMessage *srcRaw, Int32 *pos,
 	return 0;
 }*/
 
-Int32 ResponseHeader_calcSize(T_ResponseHeader *responseHeader)
+Int32 extensionObject_calcSize(UA_ExtensionObject extensionObject)
+{
+	Int32 length;
+	length = 2; //The EncodingMask Byte
+	//ToDo
+	switch(extensionObject.TypeId.EncodingByte)
+	{
+	case NIEVT_TWO_BYTE:
+		length += sizeof(Byte);
+		break;
+	case NIEVT_FOUR_BYTE:
+		length += 2*sizeof(Byte);
+		break;
+	case NIEVT_NUMERIC:
+		break;
+	case NIEVT_STRING:
+		break;
+	case NIEVT_GUID:
+		break;
+	case NIEVT_BYTESTRING:
+		break;
+	default:
+		break;
+	}
+
+	return length;
+}
+
+Int32 responseHeader_calcSize(T_ResponseHeader *responseHeader)
 {
 	Int32 minimumLength = 20; // summation of all simple types
 	Int32 i, length;
@@ -367,7 +395,8 @@ Int32 ResponseHeader_calcSize(T_ResponseHeader *responseHeader)
 	}
 
 	length += diagnosticInfo_calcSize(responseHeader->serviceDiagnostics);
-	//ToDo: AdditionalHeader needs a getSize function
+	//ToDo
+	//length += extensionObject_calcSize(responseHeader->additionalHeader);
 
 
 	return length;

@@ -169,7 +169,7 @@ START_TEST(responseHeader_calcSize_test)
 	extensionObject.Encoding = 0x00; //binaryBody = false, xmlBody = false
 	responseHeader.additionalHeader = extensionObject;
 
-	valcalc = ResponseHeader_calcSize(&responseHeader);
+	valcalc = responseHeader_calcSize(&responseHeader);
 	valreal = 49;
 	ck_assert_int_eq(valcalc,valreal);
 
