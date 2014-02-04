@@ -7,7 +7,8 @@
 
 #include "opcua_binaryEncDec.h"
 #include "opcua_types.h"
-
+#include <stdio.h>
+#include <stdlib.h>
 Byte decodeByte(const char *buf, Int32 *pos)
 {
 	*pos = (*pos) + 1;
@@ -118,7 +119,7 @@ void decodeUAByteString(const char *buf, Int32* pos,
 		UA_ByteString *dstBytestring)
 {
 
-	decodeUAString(buf, pos, dstBytestring->Data);
+	decodeUAString(buf, pos, (UA_String*)dstBytestring);
 }
 
 UA_DateTime decodeUADateTime(const char *buf, Int32 *pos)
@@ -250,14 +251,48 @@ Int32 decodeToDiagnosticInfo(char* buf, Int32 *pos,
 	*pos += 1;
 	return 0;
 }
-Int32 DiagnosticInfo_calcSize(T_DiagnosticInfo *diagnosticInfo)
+Int32 diagnosticInfo_calcSize(UA_DiagnosticInfo *diagnosticInfo)
 {
-	Int32 minimumLength = 20;
-	Int32 length;
-	length += minimumLength;
-	length += diagnosticInfo->additionalInfo.Length;
-	length += sizeof(UInt32);
-	length += DiagnosticInfo_calcSize(diagnosticInfo->innerDiagnosticInfo);
+	Int32 minimumLength = 1;
+	Int32 length = minimumLength;
+	Byte mask;
+	Int32 j = 0;
+	mask = 0;
+	puts("diagnosticInfo called");
+	for(mask = 1; mask <= 0x40; mask *= 2)
+	{
+		j++;
+		puts("loop");
+		printf("mask %u",mask);
+		printf("mask calc %u",mask & (diagnosticInfo->EncodingMask));
+		switch(mask & (diagnosticInfo->EncodingMask))
+		{
+
+		DIEMT_SYMBOLIC_ID:
+			puts("diagnosticInfo symbolic id");
+			length += sizeof(Int32);
+			break;
+		DIEMT_NAMESPACE:
+			length += sizeof(Int32);
+			break;
+		DIEMT_LOCALIZED_TEXT:
+			length += sizeof(Int32);
+			break;
+		DIEMT_LOCALE:
+			length += sizeof(Int32);
+			break;
+		DIEMT_ADDITIONAL_INFO:
+			length += diagnosticInfo->AdditionalInfo.Length;
+			length += sizeof(Int32);
+			break;
+		DIEMT_INNER_STATUS_CODE:
+			length += sizeof(UA_StatusCode);
+			break;
+		DIEMT_INNER_DIAGNOSTIC_INFO:
+			length += diagnosticInfo_calcSize(diagnosticInfo->InnerDiagnosticInfo);
+			break;
+		}
+	}
 	return length;
 }
 /**
@@ -310,6 +345,9 @@ Int32 ResponseHeader_calcSize(T_ResponseHeader *responseHeader)
 		length += responseHeader->stringTable[i].Length;
 		length += sizeof(UInt32); // length of the encoded length field
 	}
+
+	length += diagnosticInfo_calcSize(responseHeader->serviceDiagnostics);
+
 //TODO
 	return 0;
 }

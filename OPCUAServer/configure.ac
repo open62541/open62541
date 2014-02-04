@@ -6,6 +6,9 @@ AC_INIT(OPCUAServer, 1.0)
 
 AC_CANONICAL_SYSTEM
 AM_INIT_AUTOMAKE()
+if test -z $CFLAGS; then
+    CFLAGS='-O2'
+fi
 AC_PROG_CC
 AM_PROG_CC_C_O
 AC_CHECK_LIB([m],[exp],,AC_MSG_ERROR([Libm missing]))

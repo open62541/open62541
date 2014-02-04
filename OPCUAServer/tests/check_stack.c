@@ -121,6 +121,28 @@ START_TEST(encodeUInt16_test)
 END_TEST
 
 
+START_TEST(diagnosticInfo_calcSize_test)
+{
+
+
+	Int32 valreal = 0;
+	Int32 valcalc = 0;
+	UA_DiagnosticInfo diagnosticInfo;
+	diagnosticInfo.EncodingMask = 0x01 | 0x02 | 0x04 | 0x08 | 0x10;
+	diagnosticInfo.SymbolicId = 30;
+	diagnosticInfo.NamespaceUri = 25;
+	diagnosticInfo.LocalizedText = 22;
+	diagnosticInfo.AdditionalInfo.Data = "OPCUA";
+	diagnosticInfo.AdditionalInfo.Length = 5;
+
+
+	valcalc = diagnosticInfo_calcSize(&diagnosticInfo);
+	valreal = 23;
+	ck_assert_int_eq(valcalc,valreal);
+
+
+}
+END_TEST
 Suite* TL_testSuite_getPacketType(void)
 {
 	Suite *s = suite_create("getPacketType");
@@ -165,7 +187,14 @@ Suite* TL_<TESTSUITENAME>(void)
 	return s;
 }
 */
-
+Suite* TL_testSuite_diagnosticInfo_calcSize()
+{
+	Suite *s = suite_create("diagnosticInfo_calcSize");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, diagnosticInfo_calcSize_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
 int main (void)
 {
 	int number_failed = 0;
@@ -189,6 +218,12 @@ int main (void)
 	srunner_free(sr);
 
 	s = TL_testSuite_encodeByte();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	s = TL_testSuite_diagnosticInfo_calcSize();
 	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);

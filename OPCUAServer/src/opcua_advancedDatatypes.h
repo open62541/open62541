@@ -729,7 +729,7 @@ struct BED_ResponseHeader
 	UA_DateTime timestamp;
 	BED_IntegerId requestHandle;
 	UA_StatusCode serviceResult;
-	UA_DiagnosticInfo serviceDiagnostics;
+	UA_DiagnosticInfo *serviceDiagnostics;
 	UA_String stringTable[];
 //ToDo	struct BED_ExtensibleParameterAdditionalHeader additionalHeader;		//ToDo
 };

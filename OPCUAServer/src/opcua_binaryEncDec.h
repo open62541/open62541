@@ -165,7 +165,12 @@ Int32 decodeResponseHeader(const AD_RawMessage *srcRaw, Int32 *pos, T_ResponseHe
 Int32 encodeResponseHeader(const T_ResponseHeader *responseHeader, Int32 *pos, AD_RawMessage *dstBuf);
 
 
-
+/**
+ *
+ * @param diagnosticInfo
+ * @return length of the binary encoded data
+ */
+Int32 diagnosticInfo_calcSize(UA_DiagnosticInfo *diagnosticInfo);
 
 
 

@@ -805,7 +805,7 @@ typedef struct _T_ResponseHeader
 	UA_DateTime timestamp;
 	T_IntegerId requestHandle;
 	UA_StatusCode serviceResult;
-	UA_DiagnosticInfo serviceDiagnostics;
+	UA_DiagnosticInfo *serviceDiagnostics;
 	UInt16 noOfStringTable;
 	UA_String* stringTable;
 	UA_ExtensionObject additionalHeader;

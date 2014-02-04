@@ -63,10 +63,26 @@ void server_run()
 	struct sockaddr_in client_addr;
 	int addrlen=sizeof(client_addr);
 
-	//---Create streaming socket---
-    if ( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0 )
+
+	Int32 valreal = 0;
+	Int32 valcalc = 0;
+	UA_DiagnosticInfo diagnosticInfo;
+	diagnosticInfo.EncodingMask |= 0x01 | 0x02 | 0x04 | 0x04 | 0x08 | 0x10 | 0x10;
+	diagnosticInfo.SymbolicId = 30;
+	diagnosticInfo.NamespaceUri = 25;
+	diagnosticInfo.LocalizedText = 22;
+	diagnosticInfo.AdditionalInfo.Data = "OPCUA";
+	diagnosticInfo.AdditionalInfo.Length = 5;
+
+	if (diagnosticInfo_calcSize(&diagnosticInfo) > 10)
 	{
-    	puts("socket error");
+
+
+	//---Create streaming socket---
+	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+	{
+		puts("socket error");
+	}
 	}
 	bzero(&self, sizeof(self));
 	self.sin_family = AF_INET;

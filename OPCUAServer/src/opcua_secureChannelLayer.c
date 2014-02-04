@@ -25,7 +25,7 @@ Int32 SL_secureChannel_ResponseHeader_form(UA_connection *connection, T_Response
 	responseHeader->requestHandle = 0;
 	responseHeader->serviceResult = 0; // TODO insert service result code
 
-	responseHeader->serviceDiagnostics.EncodingMask = 0;
+	responseHeader->serviceDiagnostics->EncodingMask = 0;
 	responseHeader->noOfStringTable = 0;
 
 	responseHeader->additionalHeader.Body = 0;
@@ -101,8 +101,8 @@ void SL_receive(UA_connection *connection, AD_RawMessage *serviceMessage)
 			&readPosition,&SequenceHeader);
 
 	//get Secure Channel Message
-	SL_secureChannel_Message_get(connection, secureChannelMessage,
-			&readPosition,serviceMessage);
+	//SL_secureChannel_Message_get(connection, secureChannelMessage,
+//			&readPosition,serviceMessage);
 
 	if (secureChannelMessage->length > 0)
 	{
@@ -121,15 +121,15 @@ void SL_receive(UA_connection *connection, AD_RawMessage *serviceMessage)
 			break;
 		case packetType_OPN:
 			//Server Handling
-			if (openSecureChannelHeader_check(connection, secureChannelMessage))
-			{
+	//		if (openSecureChannelHeader_check(connection, secureChannelMessage))
+	//		{
 				//check if the request is valid
 				SL_openSecureChannelRequest_check(connection, secureChannelMessage);
-			}
-			else
-			{
-				//TODO send back Error Message
-			}
+	//		}
+	//		else
+	//		{
+	//			//TODO send back Error Message
+	//		}
 		//Client Handling
 
 		//TODO free memory for secureChannelMessage
