@@ -237,31 +237,31 @@ Int32 decodeToDiagnosticInfo(char* buf, Int32 *pos,
 	Byte mask;
 	for(mask = 1; mask <= 0x40; mask << 2)
 	{
-		switch(mask && encodingByte)
+		switch(mask & encodingByte)
 		{
-		DIEMT_SYMBOLIC_ID:
+		case DIEMT_SYMBOLIC_ID:
 			dstDiagnosticInfo->symbolicId = decodeInt32(buf, pos);
 			break;
-		DIEMT_NAMESPACE:
+		case DIEMT_NAMESPACE:
 
 			dstDiagnosticInfo->namespaceUri = decodeInt32(buf, pos);
 			break;
-		DIEMT_LOCALIZED_TEXT:
+		case DIEMT_LOCALIZED_TEXT:
 			dstDiagnosticInfo->localizesText = decodeInt32(buf, pos);
 			break;
-		DIEMT_LOCALE:
+		case DIEMT_LOCALE:
 			dstDiagnosticInfo->locale = decodeInt32(buf, pos);
 			break;
-		DIEMT_ADDITIONAL_INFO:
+		case DIEMT_ADDITIONAL_INFO:
 			decodeUAString(buf, pos, &dstDiagnosticInfo->additionalInfo);
 			break;
-		DIEMT_INNER_STATUS_CODE:
+		case DIEMT_INNER_STATUS_CODE:
 
 			dstDiagnosticInfo->innerStatusCode = decodeUAStatusCode(buf, pos);
 			break;
-		DIEMT_INNER_DIAGNOSTIC_INFO:
+		case DIEMT_INNER_DIAGNOSTIC_INFO:
 
-			dstDiagnosticInfo->innerDiagnosticInfo = opcua_malloc(sizeof(T_DiagnosticInfo));
+			dstDiagnosticInfo->innerDiagnosticInfo = (T_DiagnosticInfo*)opcua_malloc(sizeof(T_DiagnosticInfo));
 			decodeToDiagnosticInfo(buf, pos,
 				dstDiagnosticInfo->innerDiagnosticInfo);
 			break;
@@ -277,8 +277,8 @@ Int32 diagnosticInfo_calcSize(UA_DiagnosticInfo *diagnosticInfo)
 	Byte mask;
 	Int32 j = 0;
 	mask = 0;
-	puts("diagnosticInfo called");
-	printf("with this mask %u", diagnosticInfo->EncodingMask);
+	//puts("diagnosticInfo called");
+	//printf("with this mask %u", diagnosticInfo->EncodingMask);
 	for(mask = 1; mask <= 0x40; mask *= 2)
 	{
 		j++;
@@ -286,7 +286,7 @@ Int32 diagnosticInfo_calcSize(UA_DiagnosticInfo *diagnosticInfo)
 		{
 
 		case DIEMT_SYMBOLIC_ID:
-			puts("diagnosticInfo symbolic id");
+		//	puts("diagnosticInfo symbolic id");
 			length += sizeof(Int32);
 			break;
 		case DIEMT_NAMESPACE:
@@ -352,32 +352,48 @@ Int32 decodeRequestHeader(const AD_RawMessage *srcRaw, Int32 *pos,
 
 	return 0;
 }*/
-
-Int32 extensionObject_calcSize(UA_ExtensionObject extensionObject)
+Int32 nodeId_calcSize(UA_NodeId *nodeId)
+{
+	Int32 length = 0;
+	switch(nodeId->EncodingByte)
+	{
+		case NIEVT_TWO_BYTE:
+			length += 2 * sizeof(Byte);
+			break;
+		case NIEVT_FOUR_BYTE:
+			length += 4 * sizeof(Byte);
+			break;
+		case NIEVT_NUMERIC:
+			//TODO call registered function which knows how to calculate the length
+			break;
+		case NIEVT_STRING:
+			length += sizeof(Byte) + sizeof(UInt16) + sizeof(UInt32) + nodeId->Identifier.String.Length;
+			break;
+		case NIEVT_GUID:
+			length += sizeof(Byte) + sizeof(UInt16) + sizeof(UInt32) + sizeof(UInt16) + sizeof(UInt16) + 8 * sizeof(Byte);
+			break;
+		case NIEVT_BYTESTRING:
+			length += sizeof(Byte) + sizeof(UInt16) +  sizeof(UInt32) + nodeId->Identifier.OPAQUE.Length;
+			break;
+		default:
+			break;
+	}
+	return length;
+}
+Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject)
 {
 	Int32 length;
-	length = 2; //The EncodingMask Byte
-	//ToDo
-	switch(extensionObject.TypeId.EncodingByte)
-	{
-	case NIEVT_TWO_BYTE:
-		length += sizeof(Byte);
-		break;
-	case NIEVT_FOUR_BYTE:
-		length += 2*sizeof(Byte);
-		break;
-	case NIEVT_NUMERIC:
-		break;
-	case NIEVT_STRING:
-		break;
-	case NIEVT_GUID:
-		break;
-	case NIEVT_BYTESTRING:
-		break;
-	default:
-		break;
-	}
+	Byte mask;
 
+	length += nodeId_calcSize(&(extensionObject->TypeId));
+	length += sizeof(Byte); //The EncodingMask Byte
+
+
+	if(extensionObject->Encoding == 0x01 ||
+	   extensionObject->Encoding == 0x02)
+	{
+		length += sizeof(Int32) + extensionObject->Length;
+	}
 	return length;
 }
 
@@ -396,7 +412,7 @@ Int32 responseHeader_calcSize(T_ResponseHeader *responseHeader)
 
 	length += diagnosticInfo_calcSize(responseHeader->serviceDiagnostics);
 	//ToDo
-	//length += extensionObject_calcSize(responseHeader->additionalHeader);
+	length += extensionObject_calcSize(&(responseHeader->additionalHeader));
 
 
 	return length;
