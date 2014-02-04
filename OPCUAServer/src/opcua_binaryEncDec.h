@@ -172,6 +172,10 @@ Int32 encodeResponseHeader(const T_ResponseHeader *responseHeader, Int32 *pos, A
  */
 Int32 diagnosticInfo_calcSize(UA_DiagnosticInfo *diagnosticInfo);
 
-
-
+/**
+ *
+ * @param extensionObject
+ * @return length of the binary encoded data
+ */
+Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject);
 #endif /* OPCUA_BINARYENCDEC_NEU_H_ */
