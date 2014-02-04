@@ -278,37 +278,37 @@ Int32 diagnosticInfo_calcSize(UA_DiagnosticInfo *diagnosticInfo)
 	Int32 j = 0;
 	mask = 0;
 	puts("diagnosticInfo called");
+	printf("with this mask %u", diagnosticInfo->EncodingMask);
 	for(mask = 1; mask <= 0x40; mask *= 2)
 	{
 		j++;
-		puts("loop");
-		printf("mask %u",mask);
-		printf("mask calc %u",mask & (diagnosticInfo->EncodingMask));
 		switch(mask & (diagnosticInfo->EncodingMask))
 		{
 
-		DIEMT_SYMBOLIC_ID:
+		case DIEMT_SYMBOLIC_ID:
 			puts("diagnosticInfo symbolic id");
 			length += sizeof(Int32);
 			break;
-		DIEMT_NAMESPACE:
+		case DIEMT_NAMESPACE:
 			length += sizeof(Int32);
 			break;
-		DIEMT_LOCALIZED_TEXT:
+		case DIEMT_LOCALIZED_TEXT:
 			length += sizeof(Int32);
 			break;
-		DIEMT_LOCALE:
+		case DIEMT_LOCALE:
 			length += sizeof(Int32);
 			break;
-		DIEMT_ADDITIONAL_INFO:
+		case DIEMT_ADDITIONAL_INFO:
 			length += diagnosticInfo->AdditionalInfo.Length;
 			length += sizeof(Int32);
 			break;
-		DIEMT_INNER_STATUS_CODE:
+		case DIEMT_INNER_STATUS_CODE:
 			length += sizeof(UA_StatusCode);
 			break;
-		DIEMT_INNER_DIAGNOSTIC_INFO:
+		case DIEMT_INNER_DIAGNOSTIC_INFO:
 			length += diagnosticInfo_calcSize(diagnosticInfo->InnerDiagnosticInfo);
+			break;
+		default:
 			break;
 		}
 	}

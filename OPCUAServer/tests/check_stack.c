@@ -124,7 +124,6 @@ END_TEST
 START_TEST(diagnosticInfo_calcSize_test)
 {
 
-
 	Int32 valreal = 0;
 	Int32 valcalc = 0;
 	UA_DiagnosticInfo diagnosticInfo;
@@ -135,9 +134,8 @@ START_TEST(diagnosticInfo_calcSize_test)
 	diagnosticInfo.AdditionalInfo.Data = "OPCUA";
 	diagnosticInfo.AdditionalInfo.Length = 5;
 
-
 	valcalc = diagnosticInfo_calcSize(&diagnosticInfo);
-	valreal = 23;
+	valreal = 26;
 	ck_assert_int_eq(valcalc,valreal);
 
 
