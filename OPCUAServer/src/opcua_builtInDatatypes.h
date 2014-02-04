@@ -84,7 +84,7 @@ typedef double Double;
 */
 typedef struct _UA_String
 {
-	int Length;
+	Int32 Length;
 	char *Data;
 }
 UA_String;

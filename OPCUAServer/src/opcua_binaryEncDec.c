@@ -355,9 +355,10 @@ Int32 decodeRequestHeader(const AD_RawMessage *srcRaw, Int32 *pos,
 
 Int32 ResponseHeader_calcSize(T_ResponseHeader *responseHeader)
 {
-	Int32 minimumLength = 24; // summation of all simple types
+	Int32 minimumLength = 20; // summation of all simple types
 	Int32 i, length;
 	length += minimumLength;
+
 
 	for (i = 0; i < responseHeader->noOfStringTable; i++)
 	{
@@ -366,8 +367,9 @@ Int32 ResponseHeader_calcSize(T_ResponseHeader *responseHeader)
 	}
 
 	length += diagnosticInfo_calcSize(responseHeader->serviceDiagnostics);
+	//ToDo: AdditionalHeader needs a getSize function
 
-//TODO
-	return 0;
+
+	return length;
 }
 

@@ -138,6 +138,40 @@ START_TEST(diagnosticInfo_calcSize_test)
 	valreal = 26;
 	ck_assert_int_eq(valcalc,valreal);
 
+}
+END_TEST
+
+START_TEST(responseHeader_calcSize_test)
+{
+	Int32 valreal = 0;
+	Int32 valcalc = 0;
+	T_ResponseHeader responseHeader;
+	UA_DiagnosticInfo diagnosticInfo;
+	UA_ExtensionObject extensionObject;
+
+	//Should have the size of 16 Bytes
+	responseHeader.timestamp = 150014;
+	responseHeader.requestHandle = 514;
+	responseHeader.serviceResult = 504;
+	//Should have the size of 26 Bytes
+	diagnosticInfo.EncodingMask = 0x01 | 0x02 | 0x04 | 0x08 | 0x10;
+	diagnosticInfo.SymbolicId = 30;
+	diagnosticInfo.NamespaceUri = 25;
+	diagnosticInfo.LocalizedText = 22;
+	diagnosticInfo.AdditionalInfo.Data = "OPCUA";
+	diagnosticInfo.AdditionalInfo.Length = 5;
+	responseHeader.serviceDiagnostics = &diagnosticInfo;
+	//Should have the size of 4 Bytes
+	responseHeader.noOfStringTable = 0;
+	//Should have the size of 3 Bytes
+	extensionObject.TypeId.EncodingByte = NIEVT_TWO_BYTE;
+	extensionObject.TypeId.Identifier.Numeric = 0;
+	extensionObject.Encoding = 0x00; //binaryBody = false, xmlBody = false
+	responseHeader.additionalHeader = extensionObject;
+
+	valcalc = ResponseHeader_calcSize(&responseHeader);
+	valreal = 49;
+	ck_assert_int_eq(valcalc,valreal);
 
 }
 END_TEST
@@ -193,6 +227,14 @@ Suite* TL_testSuite_diagnosticInfo_calcSize()
 	suite_add_tcase(s,tc_core);
 	return s;
 }
+Suite* TL_testSuite_responseHeader_calcSize()
+{
+	Suite *s = suite_create("responseHeader_calcSize");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, responseHeader_calcSize_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
 int main (void)
 {
 	int number_failed = 0;
@@ -222,6 +264,12 @@ int main (void)
 	srunner_free(sr);
 
 	s = TL_testSuite_diagnosticInfo_calcSize();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	s = TL_testSuite_responseHeader_calcSize();
 	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
