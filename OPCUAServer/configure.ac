@@ -6,10 +6,12 @@ AC_INIT(OPCUAServer, 1.0)
 
 AC_CANONICAL_SYSTEM
 AM_INIT_AUTOMAKE()
+AC_PROG_MAKE_SET
 if test -z $CFLAGS; then
     CFLAGS='-O2'
 fi
 AC_PROG_CC
+AC_PROG_LN_S
 AM_PROG_CC_C_O
 AC_CHECK_LIB([m],[exp],,AC_MSG_ERROR([Libm missing]))
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.4],[have_check="yes"],AC_MSG_WARN([Check not found; cannot run unit tests!])

@@ -5,6 +5,8 @@ m4/
 build-test/
 .deps/
 .libs/
+lib/*
+lib/
 # ignore all target directories
 target/
 autom4te.cache/
