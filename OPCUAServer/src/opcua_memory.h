@@ -7,7 +7,8 @@
 
 #ifndef OPCUA_MEMORY_H_
 #define OPCUA_MEMORY_H_
-
+#include <stdint.h>
+#include <stdlib.h>
 /**
  *
  * @param size

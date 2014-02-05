@@ -11,15 +11,12 @@
 
 Int32 SL_openSecureChannelRequest_check(const UA_connection *connection, AD_RawMessage *secureChannelMessage)
 {
-	return 0;
+	return UA_NO_ERROR;
 }
-
-
-
 /*
  * respond the securechannel_open request
  */
-Int32 SL_secureChannel_ResponseHeader_form(UA_connection *connection, T_ResponseHeader *responseHeader)
+Int32 SL_secureChannel_ResponseHeader_get(const UA_connection *connection, T_ResponseHeader *responseHeader)
 {
 	responseHeader->timestamp = 0;//TODO getCurrentTime();
 	responseHeader->requestHandle = 0;
@@ -38,7 +35,7 @@ Int32 SL_secureChannel_ResponseHeader_form(UA_connection *connection, T_Response
 
 
 	responseHeader->requestHandle = 0;
-	return 0;
+	return UA_NO_ERROR;
 }
 
 /*
@@ -51,16 +48,38 @@ Int32 SL_secureChannel_open(const UA_connection *connection,
 		const SL_SequenceHeader *SequenceHeader)
 {
 
+	T_ResponseHeader responseHeader;
+	AD_RawMessage rawMessage;
+	Int32 position = 0;
+	SL_secureChannel_ResponseHeader_get(connection,&responseHeader);
+	Int32 size = responseHeader_calcSize(&responseHeader);
+	rawMessage.message = (char*)opcua_malloc(size);
 
+	encodeResponseHeader(&responseHeader, &position, &rawMessage);
 
+	rawMessage.length = position;
 
-	return 0;
-
+	return UA_NO_ERROR;
 }
 
-Int32 SL_openSecureChannel_responseMessage_getSize(SL_Response *response, Int32* sizeInOut)
+Int32 SL_openSecureChannel_responseMessage_get(UA_connection *connection,SL_Response *response, Int32* sizeInOut)
 {
 
+	response->ServerNonce.Length =0; // TODO set a valid value for the Server Nonce
+	response->ServerProtocolVersion = UA_PROTOCOL_VERSION; //
+	response->SecurityToken.createdAt = opcua_getTime(); //
+	response->SecurityToken.revisedLifetime = 300000; //TODO set Lifetime of Security Token
+	response->SecurityToken.secureChannelId = connection->secureLayer.UInt32_secureChannelId; //TODO set a valid value for secureChannel id
+	return UA_NO_ERROR;
+}
+
+Int32 SL_openSecureChannel_responseMessage_calcSize(SL_Response *response, Int32* sizeInOut)
+{
+	Int32 length = 0;
+	length += sizeof(response->SecurityToken);
+	length += UA_String_calcSize(response->ServerNonce);
+	length += sizeof(response->ServerProtocolVersion);
+	return length;
 }
 
 /*
@@ -89,16 +108,16 @@ void SL_receive(UA_connection *connection, AD_RawMessage *serviceMessage)
 	Int32 readPosition = 0;
 
 	//get the Secure Channel Message Header
-	SL_secureChannel_SCMHeader_get(connection,secureChannelMessage,
+	decodeSCMHeader(secureChannelMessage,
 			&readPosition, &SCM_Header);
 
 	//get the Secure Channel Asymmetric Algorithm Security Header
-	SL_secureChannel_AASHeader_get(connection, secureChannelMessage,
+	decodeAASHeader(secureChannelMessage,
 			&readPosition, &AAS_Header);
 
 	//get the Sequence Header
-	SL_secureChannel_SequenceHeader_get(connection,secureChannelMessage,
-			&readPosition,&SequenceHeader);
+	decodeSequenceHeader(secureChannelMessage,
+			&readPosition, &SequenceHeader);
 
 	//get Secure Channel Message
 	//SL_secureChannel_Message_get(connection, secureChannelMessage,
@@ -148,30 +167,66 @@ void SL_receive(UA_connection *connection, AD_RawMessage *serviceMessage)
 /*
  * get the secure channel message header
  */
-Int32 SL_secureChannel_SCMHeader_get(UA_connection *connection,
-	AD_RawMessage *rawMessage,Int32 *pos, SL_SecureConversationMessageHeader* SC_Header)
+Int32 decodeSCMHeader(AD_RawMessage *rawMessage,Int32 *pos,
+		SL_SecureConversationMessageHeader* SC_Header)
 {
 	SC_Header->MessageType = TL_getPacketType(rawMessage);
 	*pos += 3;//TL_MESSAGE_TYPE_LEN;
 	SC_Header->IsFinal = rawMessage->message[*pos];
 	SC_Header->MessageSize = decodeUInt32(rawMessage, *pos);
 	SC_Header->SecureChannelId = decodeUInt32(rawMessage, *pos);
-	return 0;
+	return UA_NO_ERROR;
 
 }
-Int32 SL_secureChannel_SequenceHeader_get(UA_connection *connection,
-		AD_RawMessage *rawMessage, Int32 *pos,
+Int32 encodeSCMHeader(SL_SecureConversationMessageHeader *SC_Header,
+		 Int32 *pos,AD_RawMessage *rawMessage)
+{
+	char *type = "ERR";
+	switch(SC_Header->MessageType)
+	{
+	case packetType_ACK:
+		type = "ACK";
+		break;
+	case packetType_CLO:
+		type = "CLO";
+		break;
+	case packetType_ERR:
+		type = "ERR";
+		break;
+	case packetType_HEL:
+		type = "HEL";
+		break;
+	case packetType_MSG:
+		type = "MSG";
+		break;
+	case packetType_OPN:
+		type = "OPN";
+		break;
+	default:
+		return UA_ERROR;
+	}
+
+	memcpy(&(rawMessage->message[*pos]), &type, 3);
+
+	return UA_NO_ERROR;
+}
+Int32 decodeSequenceHeader(AD_RawMessage *rawMessage, Int32 *pos,
 		SL_SequenceHeader *SequenceHeader)
 {
 	SequenceHeader->RequestId = decodeUInt32(rawMessage->message, pos);
 	SequenceHeader->SequenceNumber = decodeUInt32(rawMessage->message, pos);
-	return 0;
+	return UA_NO_ERROR;
+}
+Int32 encodeSequenceHeader(SL_SequenceHeader *sequenceHeader,Int32 *pos,
+		AD_RawMessage *dstRawMessage)
+{
+	encodeUInt32(sequenceHeader->SequenceNumber,pos,&dstRawMessage->message[*pos]);
+	return UA_NO_ERROR;
 }
 /*
  * get the asymmetric algorithm security header
  */
-Int32 SL_secureChannel_AASHeader_get(UA_connection *connection,
-	AD_RawMessage *rawMessage, Int32 *pos,
+Int32 decodeAASHeader(AD_RawMessage *rawMessage, Int32 *pos,
 	SL_AsymmetricAlgorithmSecurityHeader* AAS_Header)
 {
 	Int32 err = 0;
@@ -180,6 +235,15 @@ Int32 SL_secureChannel_AASHeader_get(UA_connection *connection,
 	err += decodeUAByteString(rawMessage->message,pos,AAS_Header->ReceiverThumbprint);
 	return err;
 }
+Int32 encodeAASHeader(SL_AsymmetricAlgorithmSecurityHeader *AAS_Header,
+		Int32 *pos, AD_RawMessage* dstRawMessage)
+{
+	encodeUAString(AAS_Header->SecurityPolicyUri,pos,&dstRawMessage->message[*pos]);
+	encodeUAString(AAS_Header->SenderCertificate,pos,&dstRawMessage->message[*pos]);
+	encodeUAString(AAS_Header->ReceiverThumbprint,pos,&dstRawMessage->message[*pos]);
+	return UA_NO_ERROR;
+}
+
 void SL_secureChannel_Footer_get()
 {
 

@@ -121,6 +121,46 @@ START_TEST(encodeUInt16_test)
 END_TEST
 
 
+START_TEST(encodeUAString_test)
+{
+
+	Int32 pos = 0;
+	UA_String string;
+	Int32 l = 11;
+	char mem[11] = "ACPLT OPCUA";
+	char *dstBuf = (char*) malloc(sizeof(Int32)+l);
+	string.Data =  mem;
+	string.Length = 11;
+
+	encodeUAString(&string, &pos, dstBuf);
+
+	ck_assert_int_eq(dstBuf[0],11);
+	ck_assert_int_eq(dstBuf[0+sizeof(Int32)],'A');
+
+
+}
+END_TEST
+
+START_TEST(decodeUAString_test)
+{
+
+	Int32 pos = 0;
+	UA_String string;
+	Int32 l = 11;
+	char binString[15] = {11,0x00,0x00,0x00,'A','C','P','L','T',' ','U','A'};
+
+	char *dstBuf = (char*) malloc(l-sizeof(Int32));
+	string.Data = dstBuf;
+	string.Length = 0;
+	decodeUAString(binString, &pos, &string);
+
+
+	ck_assert_int_eq(string.Length,11);
+	ck_assert_int_eq(string.Data[3],'L');
+
+
+}
+END_TEST
 START_TEST(diagnosticInfo_calcSize_test)
 {
 
@@ -198,7 +238,7 @@ START_TEST(responseHeader_calcSize_test)
 
 }
 END_TEST
-Suite* TL_testSuite_getPacketType(void)
+Suite* testSuite_getPacketType(void)
 {
 	Suite *s = suite_create("getPacketType");
 	TCase *tc_core = tcase_create("Core");
@@ -206,7 +246,16 @@ Suite* TL_testSuite_getPacketType(void)
 	suite_add_tcase(s,tc_core);
 	return s;
 }
-Suite* TL_testSuite_decodeUInt16(void)
+
+Suite* testSuite_encodeByte(void)
+{
+	Suite *s = suite_create("encodeByte_test");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, encodeByte_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
+Suite* testSuite_decodeUInt16(void)
 {
 	Suite *s = suite_create("decodeUInt16_test");
 	TCase *tc_core = tcase_create("Core");
@@ -214,7 +263,7 @@ Suite* TL_testSuite_decodeUInt16(void)
 	suite_add_tcase(s,tc_core);
 	return s;
 }
-Suite* TL_testSuite_encodeUInt16(void)
+Suite* testSuite_encodeUInt16(void)
 {
 	Suite *s = suite_create("encodeUInt16_test");
 	TCase *tc_core = tcase_create("Core");
@@ -223,14 +272,25 @@ Suite* TL_testSuite_encodeUInt16(void)
 	return s;
 }
 
-Suite* TL_testSuite_encodeByte(void)
+
+
+Suite* testSuite_encodeUAString(void)
 {
-	Suite *s = suite_create("encodeByte_test");
+	Suite *s = suite_create("encodeUAString_test");
 	TCase *tc_core = tcase_create("Core");
-	tcase_add_test(tc_core, encodeByte_test);
+	tcase_add_test(tc_core, encodeUAString_test);
 	suite_add_tcase(s,tc_core);
 	return s;
 }
+Suite* testSuite_decodeUAString(void)
+{
+	Suite *s = suite_create("decodeUAString_test");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, decodeUAString_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
+
 
 /*
 Suite* TL_<TESTSUITENAME>(void)
@@ -242,7 +302,7 @@ Suite* TL_<TESTSUITENAME>(void)
 	return s;
 }
 */
-Suite* TL_testSuite_diagnosticInfo_calcSize()
+Suite* testSuite_diagnosticInfo_calcSize()
 {
 	Suite *s = suite_create("diagnosticInfo_calcSize");
 	TCase *tc_core = tcase_create("Core");
@@ -250,7 +310,7 @@ Suite* TL_testSuite_diagnosticInfo_calcSize()
 	suite_add_tcase(s,tc_core);
 	return s;
 }
-Suite* TL_testSuite_extensionObject_calcSize()
+Suite* testSuite_extensionObject_calcSize()
 {
 	Suite *s = suite_create("extensionObject_calcSize");
 	TCase *tc_core = tcase_create("Core");
@@ -258,7 +318,7 @@ Suite* TL_testSuite_extensionObject_calcSize()
 	suite_add_tcase(s,tc_core);
 	return s;
 }
-Suite* TL_testSuite_responseHeader_calcSize()
+Suite* testSuite_responseHeader_calcSize()
 {
 	Suite *s = suite_create("responseHeader_calcSize");
 	TCase *tc_core = tcase_create("Core");
@@ -270,47 +330,60 @@ int main (void)
 {
 	int number_failed = 0;
 
-	Suite *s = TL_testSuite_getPacketType();
+	Suite *s = testSuite_getPacketType();
 	SRunner *sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed = srunner_ntests_failed(sr);
 	srunner_free(sr);
 
-	s = TL_testSuite_decodeUInt16();
+	s = testSuite_decodeUInt16();
 	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
 
-	s = TL_testSuite_encodeUInt16();
+	s = testSuite_encodeUInt16();
 	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
 
-	s = TL_testSuite_encodeByte();
+	s = testSuite_encodeByte();
 	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
 
-	s = TL_testSuite_diagnosticInfo_calcSize();
+	s = testSuite_encodeUAString();
 	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
 
-	s = TL_testSuite_extensionObject_calcSize();
+	s = testSuite_decodeUAString();
 	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
 
-	s = TL_testSuite_responseHeader_calcSize();
+	s = testSuite_diagnosticInfo_calcSize();
 	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
+
+	s = testSuite_extensionObject_calcSize();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	s = testSuite_responseHeader_calcSize();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
 
 	/* <TESTSUITE_TEMPLATE>
 	s =  <TESTSUITENAME>;

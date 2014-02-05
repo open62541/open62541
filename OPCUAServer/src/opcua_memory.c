@@ -5,7 +5,7 @@
  *      Author: opcua
  */
 
-
+#include "opcua_memory.h"
 void *opcua_malloc(size_t size)
 {
 	return malloc(size);

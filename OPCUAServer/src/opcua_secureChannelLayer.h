@@ -16,7 +16,7 @@ static const Int32 SL_HEADER_LENGTH = 0;
 
 
 
-typedef struct _SL_OpenSecureChannelResponse
+typedef struct
 {
 	UInt32 ServerProtocolVersion;
 	SL_ChannelSecurityToken SecurityToken;
@@ -24,7 +24,7 @@ typedef struct _SL_OpenSecureChannelResponse
 }SL_Response;
 
 
-typedef struct _SL_SecureConversationMessageHeader
+typedef struct
 {
 	UInt32 MessageType;
 	Byte   IsFinal;
@@ -33,7 +33,7 @@ typedef struct _SL_SecureConversationMessageHeader
 }SL_SecureConversationMessageHeader;
 
 
-typedef struct _SL_AsymmetricAlgorithmSecurityHeader
+typedef struct
 {
 	UA_String SecurityPolicyUri;
 	UA_String SenderCertificate;
@@ -70,5 +70,67 @@ typedef struct _SL_ResponseHeader
     UA_ExtensionObject additionalHeader;
 }SL_ResponseHeader;
 */
+Int32 SL_openSecureChannel_responseMessage_get(UA_connection *connection,
+		SL_Response *response, Int32* sizeInOut);
+
+/**
+ *
+ * @param connection
+ * @param rawMessage
+ * @param pos
+ * @param SC_Header
+ * @return
+ */
+Int32 decodeSCMHeader(AD_RawMessage *rawMessage,Int32 *pos,
+		SL_SecureConversationMessageHeader* SC_Header);
+
+/**
+ *
+ * @param SC_Header
+ * @param pos
+ * @param rawMessage
+ * @return
+ */
+Int32 encodeSCMHeader(SL_SecureConversationMessageHeader *SC_Header,
+	 Int32 *pos,AD_RawMessage *rawMessage);
+
+/**
+ *
+ * @param rawMessage
+ * @param pos
+ * @param SequenceHeader
+ * @return
+ */
+Int32 decodeSequenceHeader(AD_RawMessage *rawMessage, Int32 *pos,
+		SL_SequenceHeader *sequenceHeader);
+/**
+ *
+ * @param sequenceHeader
+ * @param pos
+ * @param dstRawMessage
+ * @return
+ */
+Int32 encodeSequenceHeader(SL_SequenceHeader *sequenceHeader,Int32 *pos,
+		AD_RawMessage *dstRawMessage);
+/**
+ *
+ * @param rawMessage
+ * @param pos
+ * @param AAS_Header
+ * @return
+ */
+Int32 decodeAASHeader(AD_RawMessage *rawMessage, Int32 *pos,
+	SL_AsymmetricAlgorithmSecurityHeader* AAS_Header);
+
+/**
+ *
+ * @param AAS_Header
+ * @param pos
+ * @param dstRawMessage
+ * @return
+ */
+Int32 encodeAASHeader(SL_AsymmetricAlgorithmSecurityHeader *AAS_Header,
+		Int32 *pos, AD_RawMessage* dstRawMessage);
+
 
 #endif /* OPCUA_SECURECHANNELLAYER_H_ */

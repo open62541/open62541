@@ -23,6 +23,8 @@ libopen62541_la_SOURCES = opcua_builtInDatatypes.c\
 						opcua_transportLayer.c\
 						opcua_encodingLayer.c\
 						opcua_secureChannelLayer.c\
+						opcua_memory.c\
+						opcua_time.c\
 						opcua_builtInDatatypes.h\
 						opcua_binaryEncDec.h\
 						opcua_transportLayer.h\
@@ -31,7 +33,9 @@ libopen62541_la_SOURCES = opcua_builtInDatatypes.c\
 						opcua_connectionHelper.h\
 						opcua_encodingLayer.h\
 						opcua_secureChannelLayer.h\
-						tcp_layer.h
+						opcua_memory.h\
+						opcua_time.h\
+						tcp_layer.h						
 
 #bin_PROGRAMS= $(top_builddir)/bin/open62541.out
 #__top_builddir__bin_libOpen62541_out_SOURCES = opcuaServer.c

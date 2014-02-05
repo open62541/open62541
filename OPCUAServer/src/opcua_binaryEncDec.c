@@ -9,6 +9,11 @@
 #include "opcua_types.h"
 #include <stdio.h>
 #include <stdlib.h>
+
+#include "opcua_builtInDatatypes.h"
+#include "opcua_advancedDatatypes.h"
+
+
 Byte decodeByte(const char *buf, Int32 *pos)
 {
 	*pos = (*pos) + 1;
@@ -80,12 +85,13 @@ UInt32 decodeUInt32(const char* buf, Int32 *pos)
 	return t1 + t2 + t3 + t4;
 }
 
-void encodeUInt32(UInt32 value, char *dstBuf, Int32 *pos)
+void encodeUInt32(UInt32 value, Int32 *pos,char *dstBuf)
 {
 	memcpy(&(dstBuf[*pos]), &value, sizeof(value));
 	pos += 4;
 
 }
+
 
 Int64 decodeInt64(const char* buf, Int32 *pos)
 {
@@ -122,6 +128,23 @@ Int32 decodeUAString(const char* buf, Int32 *pos, UA_String *dstUAString)
 		dstUAString->Data = NULL;
 	}
 	*pos += dstUAString->Length;
+	return 0;
+}
+Int32 encodeUAString(UA_String *string, Int32 *pos, char *dstBuf)
+{
+	if(string->Length > 0)
+	{
+		memcpy(&(dstBuf[*pos]),&(string->Length),sizeof(Int32));
+		*pos += sizeof(Int32);
+		memcpy(&(dstBuf[*pos]),string->Data, string->Length);
+		*pos += string->Length;
+	}
+	else
+	{
+		int lengthNULL = 0xFFFFFFFF;
+		memcpy(&(dstBuf[*pos]),&lengthNULL,sizeof(Int32));
+		*pos += sizeof(Int32);
+	}
 	return 0;
 }
 
@@ -270,6 +293,8 @@ Int32 decodeToDiagnosticInfo(char* buf, Int32 *pos,
 	*pos += 1;
 	return 0;
 }
+
+
 Int32 diagnosticInfo_calcSize(UA_DiagnosticInfo *diagnosticInfo)
 {
 	Int32 minimumLength = 1;
@@ -346,12 +371,25 @@ Int32 decodeRequestHeader(const AD_RawMessage *srcRaw, Int32 *pos,
  * Page: 133
  */
 /** \copydoc encodeResponseHeader */
-/*Int32 encodeResponseHeader(const T_ResponseHeader *responseHeader, Int32 *pos,
+Int32 encodeResponseHeader(const T_ResponseHeader *responseHeader, Int32 *pos,
 		AD_RawMessage *dstBuf)
 {
 
 	return 0;
-}*/
+}
+
+
+Int32 UA_String_calcSize(UA_String *string)
+{
+	if(string->Length>0)
+	{
+		return string->Length + sizeof(string->Length);
+	}
+	else
+	{
+		return sizeof(Int32);
+	}
+}
 Int32 nodeId_calcSize(UA_NodeId *nodeId)
 {
 	Int32 length = 0;

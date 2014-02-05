@@ -121,7 +121,7 @@ Int32 decodeUAString(const char* buf, Int32 *pos, UA_String *dstUAString);
  * @param dstBuf
  * @param pos
  */
-void encodeUInt32(UInt32 value, char *dstBuf, Int32 *pos);
+void encodeUInt32(UInt32 value, Int32 *pos, char *dstBuf);
 
 
 /**
@@ -178,4 +178,7 @@ Int32 diagnosticInfo_calcSize(UA_DiagnosticInfo *diagnosticInfo);
  * @return length of the binary encoded data
  */
 Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject);
+
+
+
 #endif /* OPCUA_BINARYENCDEC_NEU_H_ */

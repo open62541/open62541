@@ -9,7 +9,10 @@
 #define OPCUA_TYPES_H_
 
 #include "opcua_builtInDatatypes.h"
+#define UA_PROTOCOL_VERSION 0
 
+#define UA_NO_ERROR 0
+#define UA_ERROR 1
 typedef enum _T_ApplicationType
 {
 	ApplicationType_SERVER_0,
