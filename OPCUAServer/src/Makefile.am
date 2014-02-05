@@ -57,7 +57,8 @@ convenience-link: $(lib_LTLIBRARIES)
 	done
 
 clean-convenience-link:
-	rm -rf $(top_builddir)/lib || true;
+	rm -f $(top_builddir)/lib/*.a || true;
+	rm -f $(top_builddir)/lib/*.so || true;
 
 all-local: convenience-link
 
