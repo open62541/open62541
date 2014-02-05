@@ -30,7 +30,7 @@ Byte decodeByte(const char* buf, Int32 *pos);
  * @param pos 			position at which the data is located in/out, parser position after the conversion
  * @param dstBuf		rawMessage where the Byte is encoded in
  */
-void encodeByte(Byte encodeByte, Int32 *pos, AD_RawMessage *dstBuf);
+void encodeByte(Byte encodeByte, Int32 *pos, char *dstBuf);
 
 /**
  *
@@ -46,7 +46,7 @@ Int16 decodeInt16(const char* buf, Int32 *pos);
  * @param pos
  * @param dstBuf
  */
-void encodeUInt16(UInt16 value, Int32 *pos, AD_RawMessage *dstBuf);
+void encodeUInt16(UInt16 value, Int32 *pos, char *dstBuf);
 /**
  *
  * @param buf
@@ -107,6 +107,7 @@ UA_StatusCode decodeUAStatusCode(const char* buf, Int32 *pos);
  * @return
  */
 UA_DateTime decodeUADateTime(const char *buf, Int32 *pos);
+
 /**
  *
  * @param buf
@@ -115,6 +116,15 @@ UA_DateTime decodeUADateTime(const char *buf, Int32 *pos);
  * @return
  */
 Int32 decodeUAString(const char* buf, Int32 *pos, UA_String *dstUAString);
+
+
+
+/**
+ *
+ * @param byteString
+ * @return length of the binary encoded data
+ */
+Int32 UAByteString_calcSize(UA_ByteString *byteString);
 /**
  *
  * @param value

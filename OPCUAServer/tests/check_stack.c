@@ -65,7 +65,7 @@ START_TEST(encodeByte_test)
 		rawMessage.length = 1;
 		position = 0;
 
-		encodeByte(testByte, &position, &rawMessage);
+		encodeByte(testByte, &position, rawMessage.message);
 
 		ck_assert_int_eq(rawMessage.message[0], 0x08);
 		ck_assert_int_eq(rawMessage.length, 1);
@@ -108,7 +108,7 @@ START_TEST(encodeUInt16_test)
 	rawMessage.length = 2;
 	position = 0;
 
-	encodeUInt16(testUInt16, &position, &rawMessage);
+	encodeUInt16(testUInt16, &position, rawMessage.message);
 	//encodeUInt16(testUInt16, &position, &rawMessage);
 
 	ck_assert_int_eq(position, 2);

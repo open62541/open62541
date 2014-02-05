@@ -20,9 +20,9 @@ Byte decodeByte(const char *buf, Int32 *pos)
 	return (Byte) buf[(*pos) - 1];
 
 }
-void encodeByte(Byte encodeByte, Int32 *pos, AD_RawMessage *dstBuf)
+void encodeByte(Byte encodeByte, Int32 *pos, char *dstBuf)
 {
-	dstBuf->message[*pos] = encodeByte;
+	dstBuf[*pos] = encodeByte;
 	*pos = (*pos) + 1;
 
 }
@@ -36,9 +36,9 @@ UInt16 decodeUInt16(const char* buf, Int32 *pos)
 	return t1 + t2;
 }
 
-void encodeUInt16(UInt16 value, Int32 *pos, AD_RawMessage *dstBuf)
+void encodeUInt16(UInt16 value, Int32 *pos, char* dstBuf)
 {
-	memcpy(dstBuf->message, &value, sizeof(UInt16));
+	memcpy(dstBuf, &value, sizeof(UInt16));
 	*pos = (*pos) + sizeof(UInt16);
 
 }
@@ -108,9 +108,9 @@ Int64 decodeInt64(const char* buf, Int32 *pos)
 	return t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8;
 }
 
-void encodeInt64(Int64 value, Int64 *pos, AD_RawMessage *dstBuf)
+void encodeInt64(Int64 value, Int64 *pos, char *dstBuf)
 {
-	memcpy(dstBuf->message, &value, sizeof(Int64));
+	memcpy(dstBuf, &value, sizeof(Int64));
 	*pos = (*pos) + sizeof(Int64);
 }
 
@@ -147,6 +147,17 @@ Int32 encodeUAString(UA_String *string, Int32 *pos, char *dstBuf)
 	}
 	return 0;
 }
+Int32 UAString_calcSize(UA_String *string)
+{
+	if(string->Length>0)
+	{
+		return string->Length + sizeof(string->Length);
+	}
+	else
+	{
+		return sizeof(Int32);
+	}
+}
 
 Int32 decodeUAGuid(const char *buf, Int32 *pos, UA_Guid *dstGUID)
 {
@@ -157,13 +168,42 @@ Int32 decodeUAGuid(const char *buf, Int32 *pos, UA_Guid *dstGUID)
 	return 0;
 }
 
-void decodeUAByteString(const char *buf, Int32* pos,
+Int32 encodeUAGuid(UA_Guid *srcGuid, Int32 *pos, char *buf)
+{
+	encodeUInt32(srcGuid->Data1,pos,buf);
+	encodeUInt16(srcGuid->Data2,pos,buf);
+	encodeUInt16(srcGuid->Data3,pos,buf);
+	encodeUAByteString(srcGuid->Data4,pos,buf);
+	return UA_NO_ERROR;
+
+}
+
+
+Int32 UAGuid_calcSize(UA_Guid *guid)
+{
+	return sizeof(guid->Data1) + sizeof(guid->Data2) + sizeof(guid->Data3) + UAByteString_calcSize(&(guid->Data4));
+}
+
+
+Int32 decodeUAByteString(const char *buf, Int32* pos,
 		UA_ByteString *dstBytestring)
 {
 
-	decodeUAString(buf, pos, (UA_String*)dstBytestring);
+	return decodeUAString(buf, pos, (UA_String*)dstBytestring);
+
 }
 
+Int32 encodeUAByteString(UA_ByteString *srcByteString, Int32* pos,
+		char *dstBuf)
+{
+
+	return encodeUAString((UA_String*)srcByteString,pos,dstBuf);
+
+}
+Int32 UAByteString_calcSize(UA_ByteString *byteString)
+{
+	return UAString_calcSize((UA_String*)byteString);
+}
 UA_DateTime decodeUADateTime(const char *buf, Int32 *pos)
 {
 	return decodeInt64(buf, pos);
@@ -379,17 +419,9 @@ Int32 encodeResponseHeader(const T_ResponseHeader *responseHeader, Int32 *pos,
 }
 
 
-Int32 UA_String_calcSize(UA_String *string)
-{
-	if(string->Length>0)
-	{
-		return string->Length + sizeof(string->Length);
-	}
-	else
-	{
-		return sizeof(Int32);
-	}
-}
+
+
+
 Int32 nodeId_calcSize(UA_NodeId *nodeId)
 {
 	Int32 length = 0;
@@ -418,6 +450,8 @@ Int32 nodeId_calcSize(UA_NodeId *nodeId)
 	}
 	return length;
 }
+
+
 Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject)
 {
 	Int32 length;
@@ -434,6 +468,7 @@ Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject)
 	}
 	return length;
 }
+
 
 Int32 responseHeader_calcSize(T_ResponseHeader *responseHeader)
 {
