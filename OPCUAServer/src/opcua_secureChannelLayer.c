@@ -77,7 +77,7 @@ Int32 SL_openSecureChannel_responseMessage_calcSize(SL_Response *response, Int32
 {
 	Int32 length = 0;
 	length += sizeof(response->SecurityToken);
-	length += UA_String_calcSize(response->ServerNonce);
+	length += UAString_calcSize(response->ServerNonce);
 	length += sizeof(response->ServerProtocolVersion);
 	return length;
 }

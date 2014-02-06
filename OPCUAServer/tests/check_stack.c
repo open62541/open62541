@@ -96,6 +96,7 @@ START_TEST(decodeUInt16_test)
 
 }
 END_TEST
+
 START_TEST(encodeUInt16_test)
 {
 
@@ -116,6 +117,27 @@ START_TEST(encodeUInt16_test)
 	Int16 val = decodeUInt16(rawMessage.message,&p);
 	ck_assert_int_eq(val,testUInt16);
 	//ck_assert_int_eq(rawMessage.message[0], 0xAB);
+
+}
+END_TEST
+
+START_TEST(encodeFloat_test)
+{
+	Float value = -6.5;
+	Int32 pos = 0;
+	char *buf = (char*)opcua_malloc(sizeof(Float));
+
+	encodeFloat(value,&pos,buf);
+
+	ck_assert_int_eq(buf[2],0xD0);
+	ck_assert_int_eq(buf[3],0xC0);
+	opcua_free(buf);
+
+}
+END_TEST
+
+START_TEST(encodeDouble_test)
+{
 
 }
 END_TEST
@@ -161,6 +183,7 @@ START_TEST(decodeUAString_test)
 
 }
 END_TEST
+
 START_TEST(diagnosticInfo_calcSize_test)
 {
 
@@ -238,7 +261,7 @@ START_TEST(responseHeader_calcSize_test)
 
 }
 END_TEST
-Suite* testSuite_getPacketType(void)
+Suite *testSuite_getPacketType(void)
 {
 	Suite *s = suite_create("getPacketType");
 	TCase *tc_core = tcase_create("Core");
@@ -247,7 +270,7 @@ Suite* testSuite_getPacketType(void)
 	return s;
 }
 
-Suite* testSuite_encodeByte(void)
+Suite *testSuite_encodeByte(void)
 {
 	Suite *s = suite_create("encodeByte_test");
 	TCase *tc_core = tcase_create("Core");
@@ -255,7 +278,7 @@ Suite* testSuite_encodeByte(void)
 	suite_add_tcase(s,tc_core);
 	return s;
 }
-Suite* testSuite_decodeUInt16(void)
+Suite *testSuite_decodeUInt16(void)
 {
 	Suite *s = suite_create("decodeUInt16_test");
 	TCase *tc_core = tcase_create("Core");
@@ -263,7 +286,7 @@ Suite* testSuite_decodeUInt16(void)
 	suite_add_tcase(s,tc_core);
 	return s;
 }
-Suite* testSuite_encodeUInt16(void)
+Suite*testSuite_encodeUInt16(void)
 {
 	Suite *s = suite_create("encodeUInt16_test");
 	TCase *tc_core = tcase_create("Core");
@@ -272,9 +295,24 @@ Suite* testSuite_encodeUInt16(void)
 	return s;
 }
 
+Suite *testSuite_encodeFloat(void)
+{
+	Suite *s = suite_create("encodeFloat_test");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, encodeFloat_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
+Suite *testSuite_encodeDouble(void)
+{
+	Suite *s = suite_create("encodeDouble_test");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, encodeDouble_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
 
-
-Suite* testSuite_encodeUAString(void)
+Suite * testSuite_encodeUAString(void)
 {
 	Suite *s = suite_create("encodeUAString_test");
 	TCase *tc_core = tcase_create("Core");
@@ -282,7 +320,7 @@ Suite* testSuite_encodeUAString(void)
 	suite_add_tcase(s,tc_core);
 	return s;
 }
-Suite* testSuite_decodeUAString(void)
+Suite * testSuite_decodeUAString(void)
 {
 	Suite *s = suite_create("decodeUAString_test");
 	TCase *tc_core = tcase_create("Core");
@@ -347,6 +385,20 @@ int main (void)
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
+
+
+	s = testSuite_encodeFloat();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	s = testSuite_encodeDouble();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
 
 	s = testSuite_encodeByte();
 	sr = srunner_create(s);

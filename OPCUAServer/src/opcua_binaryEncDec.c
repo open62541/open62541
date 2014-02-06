@@ -20,6 +20,7 @@ Byte decodeByte(const char *buf, Int32 *pos)
 	return (Byte) buf[(*pos) - 1];
 
 }
+
 void encodeByte(Byte encodeByte, Int32 *pos, char *dstBuf)
 {
 	dstBuf[*pos] = encodeByte;
@@ -52,9 +53,9 @@ Int16 decodeInt16(const char* buf, Int32 *pos)
 	return t1 + t2;
 }
 
-void encodeInt16(Int16 value, Int32 *pos, AD_RawMessage *dstBuf)
+void encodeInt16(Int16 value, Int32 *pos, char *dstBuf)
 {
-	memcpy(dstBuf->message, &value, sizeof(Int16));
+	memcpy(dstBuf, &value, sizeof(Int16));
 	*pos = (*pos) + sizeof(Int16);
 }
 
@@ -69,9 +70,9 @@ Int32 decodeInt32(const char* buf, Int32 *pos)
 	return t1 + t2 + t3 + t4;
 }
 
-void encodeInt32(Int32 value, Int32 *pos, AD_RawMessage *dstBuf)
+void encodeInt32(Int32 value, Int32 *pos, char *dstBuf)
 {
-	memcpy(dstBuf->message, &value, sizeof(Int32));
+	memcpy(dstBuf, &value, sizeof(Int32));
 	*pos = (*pos) + sizeof(Int32);
 }
 
@@ -92,7 +93,6 @@ void encodeUInt32(UInt32 value, Int32 *pos,char *dstBuf)
 
 }
 
-
 Int64 decodeInt64(const char* buf, Int32 *pos)
 {
 
@@ -108,13 +108,39 @@ Int64 decodeInt64(const char* buf, Int32 *pos)
 	return t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8;
 }
 
-void encodeInt64(Int64 value, Int64 *pos, char *dstBuf)
+void encodeInt64(Int64 value, Int32 *pos, char *dstBuf)
 {
 	memcpy(dstBuf, &value, sizeof(Int64));
 	*pos = (*pos) + sizeof(Int64);
 }
 
-Int32 decodeUAString(const char* buf, Int32 *pos, UA_String *dstUAString)
+Float decodeFloat(char *buf, Int32 *pos)
+{
+	Float tmpFloat;
+	tmpFloat = (Float)(buf[*pos]);
+	*pos += sizeof(Float);
+	return tmpFloat;
+}
+Int32 encodeFloat(Float value,Int32 *pos,char *dstBuf)
+{
+	memcpy(&(dstBuf[*pos]), &value, sizeof(Float));
+	*pos *= sizeof(Float);
+	return UA_NO_ERROR;
+}
+Double decodeDouble(char *buf, Int32 *pos)
+{
+	Double tmpDouble;
+	tmpDouble = (Double)(buf[*pos]);
+	*pos += sizeof(Double);
+	return tmpDouble;
+}
+Int32 encodeDouble(Double value, Int32 *pos,char *dstBuf)
+{
+	memcpy(&(dstBuf[*pos]),&value,sizeof(Double));
+	*pos *= sizeof(Double);
+	return UA_NO_ERROR;
+}
+Int32 decodeUAString(char *const buf, Int32 *pos, UA_String *dstUAString)
 {
 
 	dstUAString->Length = decodeInt32(buf, pos);
@@ -130,6 +156,7 @@ Int32 decodeUAString(const char* buf, Int32 *pos, UA_String *dstUAString)
 	*pos += dstUAString->Length;
 	return 0;
 }
+
 Int32 encodeUAString(UA_String *string, Int32 *pos, char *dstBuf)
 {
 	if(string->Length > 0)
@@ -147,6 +174,7 @@ Int32 encodeUAString(UA_String *string, Int32 *pos, char *dstBuf)
 	}
 	return 0;
 }
+
 Int32 UAString_calcSize(UA_String *string)
 {
 	if(string->Length>0)
@@ -178,12 +206,10 @@ Int32 encodeUAGuid(UA_Guid *srcGuid, Int32 *pos, char *buf)
 
 }
 
-
 Int32 UAGuid_calcSize(UA_Guid *guid)
 {
 	return sizeof(guid->Data1) + sizeof(guid->Data2) + sizeof(guid->Data3) + UAByteString_calcSize(&(guid->Data4));
 }
-
 
 Int32 decodeUAByteString(const char *buf, Int32* pos,
 		UA_ByteString *dstBytestring)
@@ -200,10 +226,12 @@ Int32 encodeUAByteString(UA_ByteString *srcByteString, Int32* pos,
 	return encodeUAString((UA_String*)srcByteString,pos,dstBuf);
 
 }
+
 Int32 UAByteString_calcSize(UA_ByteString *byteString)
 {
 	return UAString_calcSize((UA_String*)byteString);
 }
+
 UA_DateTime decodeUADateTime(const char *buf, Int32 *pos)
 {
 	return decodeInt64(buf, pos);
@@ -214,7 +242,7 @@ UA_StatusCode decodeUAStatusCode(const char* buf, Int32 *pos)
 	return decodeUInt32(buf, pos);
 }
 
-Int32 decodeUANodeId(const char* buf, Int32 *pos, UA_NodeId *dstNodeId)
+Int32 decodeUANodeId(char *const buf, Int32 *pos, UA_NodeId *dstNodeId)
 {
 
 	dstNodeId->EncodingByte = decodeInt32(buf, pos);
@@ -240,7 +268,7 @@ Int32 decodeUANodeId(const char* buf, Int32 *pos, UA_NodeId *dstNodeId)
 	}
 	case NIEVT_STRING:
 	{
-		decodeUAString(buf, pos, &dstNodeId->Identifier.String);
+		decodeUAString(buf, pos, &(dstNodeId->Identifier.String));
 		break;
 	}
 	case NIEVT_GUID:
@@ -265,35 +293,100 @@ Int32 decodeUANodeId(const char* buf, Int32 *pos, UA_NodeId *dstNodeId)
 	}
 	return 0;
 }
+Int32 encodeUANodeId(UA_NodeId *srcNodeId, Int32 *pos, char *buf)
+{
+		buf[*pos] = srcNodeId->EncodingByte;
+		*pos += sizeof(Byte);
+		switch(srcNodeId->EncodingByte)
+		{
+		case NIEVT_TWO_BYTE:
+			memcpy(&(buf[*pos]),&(srcNodeId->Identifier.Numeric),sizeof(Byte));
+			*pos +=  sizeof(Byte);
+			break;
+		case NIEVT_FOUR_BYTE:
+			encodeByte((Byte)(srcNodeId->Namespace & 0xFF),pos,buf);
+			encodeUInt16((UInt16)(srcNodeId->Identifier.Numeric & 0xFFFF),pos,buf);
+			break;
+		case NIEVT_NUMERIC:
+			if(srcNodeId->Namespace == 0)
+			{
+				encodeUInt16((UInt16)(srcNodeId->Namespace & 0xFFFF),pos,buf);
+				encodeUInt32(srcNodeId->Identifier.Numeric,pos,buf);
+			}
+			else
+			{
+			//TODO call registered function which knows how to calculate the length
+			}
+			break;
+		case NIEVT_STRING:
+			encodeUInt16(srcNodeId->Namespace,pos,buf);
+			encodeUAString(&(srcNodeId->Identifier.String),pos,buf);
+			break;
+		case NIEVT_GUID:
+			encodeUInt16(srcNodeId->Namespace,pos,buf);
+			encodeUAGuid(&(srcNodeId->Identifier.Guid),pos,buf);
+			break;
+		case NIEVT_BYTESTRING:
+			encodeUInt16(srcNodeId->Namespace,pos,buf);
+			encodeUAByteString(&(srcNodeId->Identifier.OPAQUE),pos,buf);
+			break;
+		default:
+			break;
+	}
+		return UA_NO_ERROR;
 
+}
 /**
- * IntegerId
+* IntegerId
  * Part: 4
  * Chapter: 7.13
  * Page: 118
  */
+Int32 nodeId_calcSize(UA_NodeId *nodeId)
+{
+	Int32 length = 0;
+	switch(nodeId->EncodingByte)
+	{
+		case NIEVT_TWO_BYTE:
+			length += 2 * sizeof(Byte);
+			break;
+		case NIEVT_FOUR_BYTE:
+			length += 4 * sizeof(Byte);
+			break;
+		case NIEVT_NUMERIC:
+			if(nodeId->Namespace == 0) // builtIn Type
+			{
+				length += sizeof(Byte) + sizeof(UInt16) + sizeof(UInt32);
+			}
+			//TODO call registered function which knows how to calculate the length
+			break;
+		case NIEVT_STRING:
+			length += sizeof(Byte) + sizeof(UInt16) + sizeof(UInt32) + nodeId->Identifier.String.Length;
+			break;
+		case NIEVT_GUID:
+			length += sizeof(Byte) + sizeof(UInt16) + sizeof(UInt32) + sizeof(UInt16) + sizeof(UInt16) + 8 * sizeof(Byte);
+			break;
+		case NIEVT_BYTESTRING:
+			length += sizeof(Byte) + sizeof(UInt16) +  sizeof(UInt32) + nodeId->Identifier.OPAQUE.Length;
+			break;
+		default:
+			break;
+	}
+	return length;
+}
+
 T_IntegerId decodeIntegerId(char* buf, Int32 *pos)
 {
 	return decodeUInt32(buf, pos);
 }
-
 /**
  * DiagnosticInfo
  * Part: 4
  * Chapter: 7.9
  * Page: 116
  */
-enum encodingMask
-{
-	encodingMask_HasSymbolicId = 0x01,
-	encodingMask_HasNamespace = 0x02,
-	encodingMask_HasLocalizedText = 0x04,
-	encodingMask_HasLocale = 0x08,
-	encodingMask_HasAdditionalInfo = 0x10,
-	encodingMask_HasInnerStatusCode = 0x20,
-	encodingMask_HasInnerDiagnosticInfo= 0x40
-};
-Int32 decodeToDiagnosticInfo(char* buf, Int32 *pos,
+Int32 decodeDiagnosticInfo(char* buf, Int32 *pos,
+
 		T_DiagnosticInfo* dstDiagnosticInfo)
 {
 	Byte encodingByte =  (buf[*pos]);
@@ -333,7 +426,6 @@ Int32 decodeToDiagnosticInfo(char* buf, Int32 *pos,
 	*pos += 1;
 	return 0;
 }
-
 
 Int32 diagnosticInfo_calcSize(UA_DiagnosticInfo *diagnosticInfo)
 {
@@ -419,39 +511,6 @@ Int32 encodeResponseHeader(const T_ResponseHeader *responseHeader, Int32 *pos,
 }
 
 
-
-
-
-Int32 nodeId_calcSize(UA_NodeId *nodeId)
-{
-	Int32 length = 0;
-	switch(nodeId->EncodingByte)
-	{
-		case NIEVT_TWO_BYTE:
-			length += 2 * sizeof(Byte);
-			break;
-		case NIEVT_FOUR_BYTE:
-			length += 4 * sizeof(Byte);
-			break;
-		case NIEVT_NUMERIC:
-			//TODO call registered function which knows how to calculate the length
-			break;
-		case NIEVT_STRING:
-			length += sizeof(Byte) + sizeof(UInt16) + sizeof(UInt32) + nodeId->Identifier.String.Length;
-			break;
-		case NIEVT_GUID:
-			length += sizeof(Byte) + sizeof(UInt16) + sizeof(UInt32) + sizeof(UInt16) + sizeof(UInt16) + 8 * sizeof(Byte);
-			break;
-		case NIEVT_BYTESTRING:
-			length += sizeof(Byte) + sizeof(UInt16) +  sizeof(UInt32) + nodeId->Identifier.OPAQUE.Length;
-			break;
-		default:
-			break;
-	}
-	return length;
-}
-
-
 Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject)
 {
 	Int32 length;
@@ -468,7 +527,6 @@ Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject)
 	}
 	return length;
 }
-
 
 Int32 responseHeader_calcSize(T_ResponseHeader *responseHeader)
 {
