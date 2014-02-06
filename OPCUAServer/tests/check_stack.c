@@ -14,7 +14,10 @@
 #include "../src/opcua_binaryEncDec.h"
 #include "../src/opcua_encodingLayer.h"
 #include "../src/opcua_advancedDatatypes.h"
+//#include "check_stdint.h"
 #include "check.h"
+
+
 
 START_TEST(test_getPacketType_validParameter)
 {
@@ -26,6 +29,26 @@ START_TEST(test_getPacketType_validParameter)
 
 	ck_assert_int_eq(TL_getPacketType(&rawMessage),packetType_CLO);
 
+}
+END_TEST
+
+START_TEST(encodeByte_test)
+{
+	AD_RawMessage rawMessage;
+	Int32 position = 0;
+	//EncodeByte
+		char *mem = malloc(sizeof(Byte));
+		rawMessage.message = mem;
+		Byte testByte = 0x08;
+		rawMessage.length = 1;
+		position = 0;
+
+		encodeByte(testByte, &position, rawMessage.message);
+
+		ck_assert_int_eq(rawMessage.message[0], 0x08);
+		ck_assert_int_eq(rawMessage.length, 1);
+		ck_assert_int_eq(position, 1);
+		free(mem);
 }
 END_TEST
 
@@ -54,23 +77,49 @@ START_TEST(decodeRequestHeader_test_validParameter)
 END_TEST
 */
 
-START_TEST(encodeByte_test)
+START_TEST(decodeInt16_test)
 {
+
 	AD_RawMessage rawMessage;
 	Int32 position = 0;
-	//EncodeByte
-		char *mem = malloc(sizeof(Byte));
-		rawMessage.message = mem;
-		Byte testByte = 0x08;
-		rawMessage.length = 1;
-		position = 0;
+	//EncodeUInt16
+	char mem[2] = {0x01,0x00};
 
-		encodeByte(testByte, &position, rawMessage.message);
+	rawMessage.message = mem;
 
-		ck_assert_int_eq(rawMessage.message[0], 0x08);
-		ck_assert_int_eq(rawMessage.length, 1);
-		ck_assert_int_eq(position, 1);
-		free(mem);
+	rawMessage.length = 2;
+
+	//encodeUInt16(testUInt16, &position, &rawMessage);
+
+	Int32 p = 0;
+	Int16 val = decodeInt16(rawMessage.message,&p);
+	ck_assert_int_eq(val,1);
+	//ck_assert_int_eq(p, 2);
+	//ck_assert_int_eq(rawMessage.message[0], 0xAB);
+
+}
+END_TEST
+START_TEST(encodeInt16_test)
+{
+
+	AD_RawMessage rawMessage;
+	Int32 position = 0;
+	//EncodeUInt16
+	char *mem = malloc(sizeof(UInt16));
+	rawMessage.message = mem;
+	UInt16 testUInt16 = 1;
+	rawMessage.length = 2;
+	position = 0;
+
+	encodeUInt16(testUInt16, &position, rawMessage.message);
+	//encodeUInt16(testUInt16, &position, &rawMessage);
+
+	ck_assert_int_eq(position, 2);
+	Int32 p = 0;
+	Int16 val = decodeInt16(rawMessage.message,&p);
+	ck_assert_int_eq(val,testUInt16);
+	//ck_assert_int_eq(rawMessage.message[0], 0xAB);
+
 }
 END_TEST
 
@@ -96,7 +145,6 @@ START_TEST(decodeUInt16_test)
 
 }
 END_TEST
-
 START_TEST(encodeUInt16_test)
 {
 
@@ -114,13 +162,179 @@ START_TEST(encodeUInt16_test)
 
 	ck_assert_int_eq(position, 2);
 	Int32 p = 0;
-	Int16 val = decodeUInt16(rawMessage.message,&p);
+	UInt16 val = decodeUInt16(rawMessage.message,&p);
 	ck_assert_int_eq(val,testUInt16);
 	//ck_assert_int_eq(rawMessage.message[0], 0xAB);
 
 }
 END_TEST
 
+
+START_TEST(decodeUInt32_test)
+{
+	AD_RawMessage rawMessage;
+	Int32 position = 0;
+	//EncodeUInt16
+	char mem[4] = {0xFF,0x00,0x00,0x00};
+
+	rawMessage.message = mem;
+	rawMessage.length = 4;
+
+	Int32 p = 0;
+	UInt32 val = decodeUInt32(rawMessage.message,&p);
+	ck_assert_uint_eq(val,255);
+
+}
+END_TEST
+START_TEST(encodeUInt32_test)
+{
+	AD_RawMessage rawMessage;
+	Int32 position = 0;
+	UInt32 value = 0x0101FF00;
+	//EncodeUInt16
+
+	rawMessage.message = (char*)opcua_malloc(sizeof(UInt32));
+
+	rawMessage.length = 4;
+
+	Int32 p = 0;
+	encodeUInt32(value, &p,rawMessage.message);
+
+	ck_assert_uint_eq((Byte)rawMessage.message[0],0x00);
+	ck_assert_uint_eq((Byte)rawMessage.message[1],0xFF);
+	ck_assert_uint_eq((Byte)rawMessage.message[2],0x01);
+	ck_assert_uint_eq((Byte)rawMessage.message[3],0x01);
+
+}
+END_TEST
+
+START_TEST(decodeInt32_test)
+{
+	AD_RawMessage rawMessage;
+	Int32 position = 0;
+	//EncodeUInt16
+	char mem[4] = {0x00,0xCA,0x9A,0x3B};
+
+	rawMessage.message = mem;
+
+	rawMessage.length = 4;
+
+
+	Int32 p = 0;
+	Int32 val = decodeInt32(rawMessage.message,&p);
+	ck_assert_int_eq(val,1000000000);
+}
+END_TEST
+START_TEST(encodeInt32_test)
+{
+
+}
+END_TEST
+
+
+START_TEST(decodeUInt64_test)
+{
+	AD_RawMessage rawMessage;
+	Int32 position = 0;
+	UInt64 expectedVal = 0xFF;
+	expectedVal = expectedVal << 56;
+	char mem[8] = {00,00,00,00,0x00,0x00,0x00,0xFF};
+
+	rawMessage.message = mem;
+
+	rawMessage.length = 8;
+
+	Int32 p = 0;
+	UInt64 val = decodeUInt64(rawMessage.message,&p);
+	ck_assert_uint_eq(val, expectedVal);
+}
+END_TEST
+START_TEST(encodeUInt64_test)
+{
+	AD_RawMessage rawMessage;
+	Int32 position = 0;
+	UInt64 value = 0x0101FF00FF00FF00;
+	//EncodeUInt16
+
+	rawMessage.message = (char*)opcua_malloc(sizeof(UInt32));
+
+	rawMessage.length = 8;
+
+	Int32 p = 0;
+	encodeUInt64(value, &p,rawMessage.message);
+
+	ck_assert_uint_eq((Byte)rawMessage.message[0],0x00);
+	ck_assert_uint_eq((Byte)rawMessage.message[1],0xFF);
+	ck_assert_uint_eq((Byte)rawMessage.message[2],0x00);
+	ck_assert_uint_eq((Byte)rawMessage.message[3],0xFF);
+	ck_assert_uint_eq((Byte)rawMessage.message[4],0x00);
+	ck_assert_uint_eq((Byte)rawMessage.message[5],0xFF);
+	ck_assert_uint_eq((Byte)rawMessage.message[6],0x01);
+	ck_assert_uint_eq((Byte)rawMessage.message[7],0x01);
+}
+END_TEST
+
+START_TEST(decodeInt64_test)
+{
+	AD_RawMessage rawMessage;
+	Int32 position = 0;
+	Int64 expectedVal = 0xFF;
+	expectedVal = expectedVal << 56;
+	char mem[8] = {00,00,00,00,0x00,0x00,0x00,0xFF};
+
+	rawMessage.message = mem;
+
+	rawMessage.length = 8;
+
+	Int32 p = 0;
+	Int64 val = decodeInt64(rawMessage.message,&p);
+	ck_assert_uint_eq(val, expectedVal);
+}
+END_TEST
+START_TEST(encodeInt64_test)
+{
+	AD_RawMessage rawMessage;
+	Int32 position = 0;
+	UInt64 value = 0x0101FF00FF00FF00;
+	//EncodeUInt16
+
+	rawMessage.message = (char*)opcua_malloc(sizeof(UInt32));
+
+	rawMessage.length = 8;
+
+	Int32 p = 0;
+	encodeUInt64(value, &p,rawMessage.message);
+
+	ck_assert_uint_eq((Byte)rawMessage.message[0],0x00);
+	ck_assert_uint_eq((Byte)rawMessage.message[1],0xFF);
+	ck_assert_uint_eq((Byte)rawMessage.message[2],0x00);
+	ck_assert_uint_eq((Byte)rawMessage.message[3],0xFF);
+	ck_assert_uint_eq((Byte)rawMessage.message[4],0x00);
+	ck_assert_uint_eq((Byte)rawMessage.message[5],0xFF);
+	ck_assert_uint_eq((Byte)rawMessage.message[6],0x01);
+	ck_assert_uint_eq((Byte)rawMessage.message[7],0x01);
+}
+END_TEST
+
+
+START_TEST(decodeFloat_test)
+{
+	Float expectedValue = -6.5;
+	Int32 pos = 0;
+	char buf[4] = {0x00,0x00,0xD0,0xC0};
+
+
+	Float calcVal = decodeFloat(buf,&pos);
+	//val should be -6.5
+
+	Int32 val = (calcVal > -6.501 && calcVal < -6.499);
+
+
+	ck_assert_int_gt(val,0);
+
+	opcua_free(buf);
+}
+END_TEST
 START_TEST(encodeFloat_test)
 {
 	Float value = -6.5;
@@ -129,16 +343,29 @@ START_TEST(encodeFloat_test)
 
 	encodeFloat(value,&pos,buf);
 
-	ck_assert_int_eq(buf[2],0xD0);
-	ck_assert_int_eq(buf[3],0xC0);
+	ck_assert_uint_eq((Byte)buf[2],0xD0);
+	ck_assert_uint_eq((Byte)buf[3],0xC0);
 	opcua_free(buf);
 
 }
 END_TEST
 
-START_TEST(encodeDouble_test)
+START_TEST(decodeDouble_test)
 {
 
+}
+END_TEST
+START_TEST(encodeDouble_test)
+{
+	Float value = -6.5;
+	Int32 pos = 0;
+	char *buf = (char*)opcua_malloc(sizeof(Float));
+
+	encodeDouble(value,&pos,buf);
+
+	ck_assert_uint_eq((Byte)buf[6],0xD0);
+	ck_assert_uint_eq((Byte)buf[7],0xC0);
+	opcua_free(buf);
 }
 END_TEST
 
@@ -162,7 +389,6 @@ START_TEST(encodeUAString_test)
 
 }
 END_TEST
-
 START_TEST(decodeUAString_test)
 {
 
@@ -203,7 +429,6 @@ START_TEST(diagnosticInfo_calcSize_test)
 
 }
 END_TEST
-
 START_TEST(extensionObject_calcSize_test)
 {
 
@@ -257,6 +482,7 @@ START_TEST(responseHeader_calcSize_test)
 
 	valcalc = responseHeader_calcSize(&responseHeader);
 	valreal = 49;
+
 	ck_assert_int_eq(valcalc,valreal);
 
 }
@@ -278,6 +504,26 @@ Suite *testSuite_encodeByte(void)
 	suite_add_tcase(s,tc_core);
 	return s;
 }
+
+
+Suite *testSuite_decodeInt16(void)
+{
+	Suite *s = suite_create("decodeInt16_test");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, decodeInt16_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
+Suite*testSuite_encodeInt16(void)
+{
+	Suite *s = suite_create("encodeInt16_test");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, encodeInt16_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
+
+
 Suite *testSuite_decodeUInt16(void)
 {
 	Suite *s = suite_create("decodeUInt16_test");
@@ -295,6 +541,77 @@ Suite*testSuite_encodeUInt16(void)
 	return s;
 }
 
+Suite*testSuite_decodeUInt32(void)
+{
+	Suite *s = suite_create("decodeUInt32_test");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, decodeUInt32_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
+Suite*testSuite_encodeUInt32(void)
+{
+	Suite *s = suite_create("encodeUInt32_test");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, encodeUInt32_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
+
+Suite*testSuite_decodeInt32(void)
+{
+	Suite *s = suite_create("decodeInt32_test");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, decodeInt32_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
+Suite*testSuite_encodeInt32(void)
+{
+	Suite *s = suite_create("encodeInt32_test");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, encodeInt32_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
+
+
+
+
+Suite*testSuite_decodeUInt64(void)
+{
+	Suite *s = suite_create("decodeUInt64_test");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, decodeUInt64_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
+Suite*testSuite_encodeUInt64(void)
+{
+	Suite *s = suite_create("encodeUInt64_test");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, encodeUInt64_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
+
+Suite*testSuite_decodeInt64(void)
+{
+	Suite *s = suite_create("decodeInt64_test");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, decodeInt64_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
+Suite*testSuite_encodeInt64(void)
+{
+	Suite *s = suite_create("encodeInt64_test");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, encodeInt64_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
+
 Suite *testSuite_encodeFloat(void)
 {
 	Suite *s = suite_create("encodeFloat_test");
@@ -303,6 +620,15 @@ Suite *testSuite_encodeFloat(void)
 	suite_add_tcase(s,tc_core);
 	return s;
 }
+Suite *testSuite_decodeFloat(void)
+{
+	Suite *s = suite_create("decodeFloat_test");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, decodeFloat_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
+
 Suite *testSuite_encodeDouble(void)
 {
 	Suite *s = suite_create("encodeDouble_test");
@@ -311,7 +637,14 @@ Suite *testSuite_encodeDouble(void)
 	suite_add_tcase(s,tc_core);
 	return s;
 }
-
+Suite *testSuite_decodeDouble(void)
+{
+	Suite *s = suite_create("decodeDouble_test");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, decodeDouble_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
 Suite * testSuite_encodeUAString(void)
 {
 	Suite *s = suite_create("encodeUAString_test");
@@ -374,6 +707,18 @@ int main (void)
 	number_failed = srunner_ntests_failed(sr);
 	srunner_free(sr);
 
+	s = testSuite_decodeInt16();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	s = testSuite_encodeInt16();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
 	s = testSuite_decodeUInt16();
 	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
@@ -381,6 +726,54 @@ int main (void)
 	srunner_free(sr);
 
 	s = testSuite_encodeUInt16();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	s = testSuite_decodeUInt32();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	s = testSuite_encodeUInt32();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	s = testSuite_decodeInt32();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	s = testSuite_encodeInt32();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	s = testSuite_decodeUInt64();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	s = testSuite_encodeUInt64();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	s = testSuite_decodeInt64();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	s = testSuite_encodeInt64();
 	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);

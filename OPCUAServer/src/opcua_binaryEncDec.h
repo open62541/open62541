@@ -22,7 +22,7 @@
  * @param pos  			position at which the data is located in/out, parser position after the conversion
  * @return
  */
-Byte decodeByte(const char* buf, Int32 *pos);
+Byte decodeByte(char *const buf, Int32 *pos);
 /**
  *
  * @param encodeByte 	byte that should be encoded
@@ -36,7 +36,7 @@ void encodeByte(Byte encodeByte, Int32 *pos, char *dstBuf);
  * @param pos
  * @return
  */
-UInt16 decodeUInt16(const char* buf, Int32 *pos);
+UInt16 decodeUInt16(char *const buf, Int32 *pos);
 /**
  *
  * @param value
@@ -50,7 +50,7 @@ void encodeUInt16(UInt16 value, Int32 *pos, char *dstBuf);
  * @param pos
  * @return
  */
-Int16 decodeInt16(const char* buf, Int32 *pos);
+Int16 decodeInt16(char *const buf, Int32 *pos);
 /**
  *
  * @param value
@@ -64,7 +64,7 @@ void encodeInt16(Int16 value, Int32 *pos, char *dstBuf);
  * @param pos  			position at which the data is located in/out, parser position after the conversion
  * @return
  */
-Int32 decodeInt32(const char* buf, Int32 *pos);
+Int32 decodeInt32(char *const buf, Int32 *pos);
 /**
  *
  * @param value
@@ -78,7 +78,7 @@ void encodeInt32(Int32 value, Int32 *pos, char *dstBuf);
  * @param pos  			position at which the data is located in/out, parser position after the conversion
  * @return				encoded data
  */
-UInt32 decodeUInt32(const char* buf, Int32 *pos);
+UInt32 decodeUInt32(char *const buf, Int32 *pos);
 /**
  *
  * @param value
@@ -92,7 +92,7 @@ void encodeUInt32(UInt32 value, Int32 *pos, char *dstBuf);
  * @param pos
  * @return
  */
-Int64 decodeInt64(const char* buf, Int32 *pos);
+Int64 decodeInt64(char *const buf, Int32 *pos);
 /**
  *
  * @param value
@@ -100,6 +100,20 @@ Int64 decodeInt64(const char* buf, Int32 *pos);
  * @param dstBuf
  */
 void encodeInt64(Int64 value, Int32 *pos, char *dstBuf);
+/**
+ *
+ * @param buf
+ * @param pos
+ * @return
+ */
+UInt64 decodeUInt64(char *const buf, Int32 *pos);
+/**
+ *
+ * @param value
+ * @param pos
+ * @param dstBuf
+ */
+void encodeUInt64(UInt64 value, Int32 *pos, char *dstBuf);
 /**
  *
  * @param buf  			binary encoded message
@@ -161,21 +175,21 @@ Int32 encodeUAGuid(UA_Guid *srcGuid, Int32 *pos, char *buf);
  * @param dstGUID
  * @return
  */
-Int32 decodeUAGuid(const char *buf, Int32 *pos, UA_Guid *dstGUID);
+Int32 decodeUAGuid(char *const buf, Int32 *pos, UA_Guid *dstGUID);
 /**
  *
  * @param buf
  * @param pos
  * @return
  */
-UA_StatusCode decodeUAStatusCode(const char* buf, Int32 *pos);
+UA_StatusCode decodeUAStatusCode(char *const buf, Int32 *pos);
 /**
  *
  * @param buf
  * @param pos
  * @return
  */
-UA_DateTime decodeUADateTime(const char *buf, Int32 *pos);
+UA_DateTime decodeUADateTime(char *const buf, Int32 *pos);
 /**
  *
  * @param buf
