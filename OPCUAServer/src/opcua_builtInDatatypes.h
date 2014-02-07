@@ -41,7 +41,7 @@ typedef enum _UA_BuiltInDataTypes
 	LOCALIZED_TEXT = 	21,
 	EXTENSION_OBJECT = 	22,
 	DATA_VALUE = 		23,
-	VARIAN = 			24,
+	VARIANT = 			24,
 	DIAGNOSTIC_INFO = 	25
 }
 UA_BuiltInDataTypes;
@@ -116,6 +116,13 @@ typedef struct _UA_ByteString
 }
 UA_ByteString;
 
+
+typedef struct
+{
+	Int32 Length;
+	Int32 *Data;
+}IntegerString;
+
 /* GuidType
 * Part: 6
 * Chapter: 5.2.2.6
@@ -139,7 +146,7 @@ UA_Guid;
 //Überlegung ob man es direkt als ByteString speichert oder als String
 typedef struct _UA_XmlElement
 {
-	UA_String Data;
+	UA_ByteString Data;
 }
 UA_XmlElement;
 
@@ -199,7 +206,7 @@ typedef struct _UA_NodeId
         UInt32 Numeric;
         UA_String String;
         UA_Guid Guid;
-        UA_ByteString OPAQUE;
+        UA_ByteString ByteString;
     }
     Identifier;
 
@@ -215,18 +222,10 @@ UA_NodeId;
 */
 typedef struct _UA_ExpandedNodeId
 {
+	UA_NodeId NodeId;
 	Int32 EncodingByte; //enum BID_NodeIdEncodingValuesType
-	UInt16 Namespace;
+	UA_String NamespaceUri;
 	UInt32 ServerIndex;
-
-    union
-    {
-        UInt32 Numeric;
-        UA_String String;
-        UA_Guid Guid;
-        UA_ByteString ByteString;
-    }
-    Identifier;
 }
 UA_ExpandedNodeId;
 
@@ -299,7 +298,7 @@ typedef struct _UA_LocalizedText
 {
 	Byte EncodingMask;
 	UA_String Locale;
-	UA_String Test;
+	UA_String Text;
 }
 UA_LocalizedText;
 
@@ -322,7 +321,7 @@ typedef struct _UA_ExtensionObject
 	UA_NodeId TypeId;
 	Byte Encoding; //Type of the Enum UA_ExtensionObjectEncodingMaskType
 	Int32 Length;
-	Byte *Body;
+	UA_ByteString Body;
 }
 UA_ExtensionObject;
 

@@ -14,8 +14,37 @@
 #include "opcua_types.h"
 
 
-
+#define UA_TRUE 1
+#define UA_FALSE 0
 //functions
+/**
+ *
+ * @param buf
+ * @param pos
+ * @return
+ */
+Boolean decodeBoolean(char * const buf, Int32 *pos);
+/**
+ *
+ * @param value
+ * @param pos
+ * @param dstBuf
+ */
+void encodeBoolean(Boolean value, Int32 *pos, char *dstBuf);
+/**
+ *
+ * @param buf
+ * @param pos
+ * @return
+ */
+SByte decodeSByte(char * const buf, Int32 *pos);
+/**
+ *
+ * @param value
+ * @param pos
+ * @param dstBuf
+ */
+void encodeSByte(SByte value, Int32 *pos, char *dstBuf);
 /**
  *
  * @param buf  			binary encoded message
@@ -25,11 +54,11 @@
 Byte decodeByte(char *const buf, Int32 *pos);
 /**
  *
- * @param encodeByte 	byte that should be encoded
- * @param pos 			position at which the data is located in/out, parser position after the conversion
- * @param dstBuf		rawMessage where the Byte is encoded in
+ * @param value
+ * @param pos
+ * @param dstBuf
  */
-void encodeByte(Byte encodeByte, Int32 *pos, char *dstBuf);
+void encodeByte(Byte value, Int32 *pos, char *dstBuf);
 /**
  *
  * @param buf
@@ -192,6 +221,14 @@ UA_StatusCode decodeUAStatusCode(char *const buf, Int32 *pos);
 UA_DateTime decodeUADateTime(char *const buf, Int32 *pos);
 /**
  *
+ * @param time
+ * @param pos
+ * @param dstBuf
+ * @return
+ */
+void encodeUADateTime(UA_DateTime time, Int32 *pos, char *dstBuf);
+/**
+ *
  * @param buf
  * @param pos
  * @param dstUAString
@@ -204,6 +241,21 @@ Int32 decodeUAString(char *const buf, Int32 *pos, UA_String *dstUAString);
  * @return length of the binary encoded data
  */
 Int32 UAByteString_calcSize(UA_ByteString *byteString);
+/**
+ *
+ * @param buf
+ * @param pos
+ * @return
+ */
+T_IntegerId decodeIntegerId(char* buf, Int32 *pos);
+/**
+ *
+ * @param integerId
+ * @param pos
+ * @param buf
+
+ */
+void encodeIntegerId(T_IntegerId integerId, Int32 *pos, char *buf);
 /**
  * \brief
  * \param srcRaw             pointer to raw data which holds the encoded data

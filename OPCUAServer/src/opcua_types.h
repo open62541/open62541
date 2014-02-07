@@ -22,6 +22,12 @@ typedef enum _T_ApplicationType
 }
 T_ApplicationType;
 
+typedef struct
+{
+	Int32 Length;
+	Int32 *Data;
+
+}IntegerString;
 
 /**
 * Index

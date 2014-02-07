@@ -25,7 +25,7 @@ Int32 SL_secureChannel_ResponseHeader_get(const UA_connection *connection, T_Res
 	responseHeader->serviceDiagnostics->EncodingMask = 0;
 	responseHeader->noOfStringTable = 0;
 
-	responseHeader->additionalHeader.Body = 0;
+	responseHeader->additionalHeader.Body.Length = 0;
 	responseHeader->additionalHeader.Encoding = 0;
 	responseHeader->additionalHeader.Length = 0;
 
