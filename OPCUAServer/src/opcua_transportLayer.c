@@ -4,7 +4,9 @@
  *  Created on: Dec 19, 2013
  *      Author: opcua
  */
+
 #include "opcua_transportLayer.h"
+
 
 /*
  * send acknowledge to the client
@@ -82,12 +84,12 @@ void TL_receive(UA_connection *connection, AD_RawMessage *TL_message)
 	//allocate memory for the message
 //TODO filter double Hello Messages -> generate error message as response
 //TODO build a file which handles the memory allocation
-	tmpRawMessage.message = (char *)malloc(bufferSize);
+	tmpRawMessage.message = (char *)opcua_malloc(bufferSize);
 
-	if (tmpRawMessage.message != NULL)
-	{
+//	if (tmpRawMessage.message != NULL)
+//	{
 		//length = tcp_recv(connection, tmpRawMessage.message, bufferSize);
-	}
+//	}
 
 
 

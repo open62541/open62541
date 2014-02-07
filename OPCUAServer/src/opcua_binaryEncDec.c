@@ -63,7 +63,7 @@ encode_builtInType(void *data, Int32 type, Int32 *pos, char *dstBuf)
 		encodeUAByteString(((UA_ByteString*) data), pos, dstBuf);
 		break;
 	case XML_ELEMENT:
-		encodeXMLElement(((UA_XmlElement*) data), pos, dstBuf);
+		encodeXmlElement(((UA_XmlElement*) data), pos, dstBuf);
 		break;
 	case NODE_ID:
 		encodeUANodeId((UA_NodeId*)data, pos, dstBuf);
@@ -191,7 +191,8 @@ Boolean decodeBoolean(char * const buf, Int32 *pos)
 }
 void encodeBoolean(Boolean value, Int32 *pos, char *dstBuf)
 {
-	dstBuf[*pos] = (Byte)((value > 0) ? UA_TRUE : UA_FALSE);
+	Boolean tmpBool = ((value > 0) ? UA_TRUE : UA_FALSE);
+	mmemcpy(&(dstBuf[*pos]),&tmpBool,sizeof(Boolean));
 }
 
 SByte decodeSByte(char * const buf, Int32 *pos)
@@ -202,7 +203,7 @@ SByte decodeSByte(char * const buf, Int32 *pos)
 }
 void encodeSByte(SByte value, Int32 *pos, char *dstBuf)
 {
-	dstBuf[*pos] = value;
+	memcpy(&(dstBuf[*pos]),&value,sizeof(SByte));
 	*pos = (*pos) + 1;
 
 }
@@ -214,14 +215,12 @@ Byte decodeByte(char * const buf, Int32 *pos)
 }
 void encodeByte(Byte value, Int32 *pos, char *dstBuf)
 {
-	dstBuf[*pos] = value;
+	memcpy(&(dstBuf[*pos]),&value,sizeof(Byte));
 	*pos = (*pos) + 1;
-
 }
 
 UInt16 decodeUInt16(char * const buf, Int32 *pos)
 {
-
 	Byte t1 = buf[*pos];
 	UInt16 t2 = (UInt16) (buf[*pos + 1] << 8);
 	*pos += 2;
@@ -356,7 +355,7 @@ Int32 decodeUAString(char * const buf, Int32 *pos, UA_String *dstUAString)
 	else
 	{
 		dstUAString->Length = 0;
-		dstUAString->Data = NULL;
+		dstUAString->Data = (void*)0;
 	}
 	*pos += dstUAString->Length;
 	return 0;
@@ -431,9 +430,7 @@ Int32 decodeUAByteString(char * const buf, Int32* pos,
 }
 Int32 encodeUAByteString(UA_ByteString *srcByteString, Int32* pos, char *dstBuf)
 {
-
 	return encodeUAString((UA_String*) srcByteString, pos, dstBuf);
-
 }
 
 Int32 encodeXmlElement(UA_XmlElement xmlElement, Int32 *pos, char *dstBuf)
@@ -512,7 +509,6 @@ Int32 encodeUANodeId(UA_NodeId *srcNodeId, Int32 *pos, char *buf)
 		break;
 	}
 	return UA_NO_ERROR;
-
 }
 Int32 nodeId_calcSize(UA_NodeId *nodeId)
 {
@@ -545,7 +541,6 @@ Int32 nodeId_calcSize(UA_NodeId *nodeId)
 	}
 	return length;
 }
-
 /**
  * IntegerId
  * Part: 4
@@ -749,7 +744,7 @@ Int32 encodeDataValue(UA_DataValue *dataValue, Int32 *pos, char *dstBuf)
 	}
 	if(dataValue->EncodingMask & 0x10)
 	{
-		encode_builtInType((void*)&(dataValue->ServerTimestamp),UA_DateTime,pos,dstBuf);
+		encode_builtInType((void*)&(dataValue->ServerTimestamp),DATE_TIME,pos,dstBuf);
 	}
 	if(dataValue->EncodingMask & 0x20)
 	{
@@ -811,7 +806,7 @@ Int32 encodeDiagnosticInfo(UA_DiagnosticInfo *diagnosticInfo,Int32 *pos,char *ds
 	mask = 0;
 
 	encode_builtInType((void*)(&(diagnosticInfo->EncodingMask)),BYTE,pos,dstbuf);
-	for (mask = 1; mask <= 0x40; mask *= 2)
+	for (mask = 1; mask <= 0x40; mask = mask << 2)
 	{
 		switch (mask & (diagnosticInfo->EncodingMask))
 		{
