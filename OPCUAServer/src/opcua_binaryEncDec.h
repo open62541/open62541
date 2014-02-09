@@ -23,9 +23,10 @@
  *
  * @param buf
  * @param pos
+ * @param dst
  * @return
  */
-Boolean decodeBoolean(char * const buf, Int32 *pos);
+Int32 decodeBoolean(char * const buf, Int32 *pos, Boolean *dst);
 /**
  *
  * @param value
@@ -37,9 +38,10 @@ void encodeBoolean(Boolean value, Int32 *pos, char *dstBuf);
  *
  * @param buf
  * @param pos
+ * @param dst
  * @return
  */
-SByte decodeSByte(char * const buf, Int32 *pos);
+Int32 decodeSByte(char * const buf, Int32 *pos, SByte *dst);
 /**
  *
  * @param value
@@ -49,11 +51,12 @@ SByte decodeSByte(char * const buf, Int32 *pos);
 void encodeSByte(SByte value, Int32 *pos, char *dstBuf);
 /**
  *
- * @param buf  			binary encoded message
- * @param pos  			position at which the data is located in/out, parser position after the conversion
+ * @param buf
+ * @param pos
+ * @param dst
  * @return
  */
-Byte decodeByte(char *const buf, Int32 *pos);
+Int32 decodeByte(char *const buf, Int32 *pos,Byte *dst);
 /**
  *
  * @param value
@@ -67,7 +70,7 @@ void encodeByte(Byte value, Int32 *pos, char *dstBuf);
  * @param pos
  * @return
  */
-UInt16 decodeUInt16(char *const buf, Int32 *pos);
+Int32 decodeUInt16(char *const buf, Int32 *pos, UInt16 *dst);
 /**
  *
  * @param value
@@ -79,9 +82,10 @@ void encodeUInt16(UInt16 value, Int32 *pos, char *dstBuf);
  *
  * @param buf
  * @param pos
+ * @param dst
  * @return
  */
-Int16 decodeInt16(char *const buf, Int32 *pos);
+Int32 decodeInt16(char *const buf, Int32 *pos, Int16 *dst);
 /**
  *
  * @param value
@@ -91,11 +95,12 @@ Int16 decodeInt16(char *const buf, Int32 *pos);
 void encodeInt16(Int16 value, Int32 *pos, char *dstBuf);
 /**
  *
- * @param buf  			binary encoded message
- * @param pos  			position at which the data is located in/out, parser position after the conversion
+ * @param buf
+ * @param pos
+ * @param dst
  * @return
  */
-Int32 decodeInt32(char *const buf, Int32 *pos);
+Int32 decodeInt32(char *const buf, Int32 *pos, Int32 *dst);
 /**
  *
  * @param value
@@ -105,11 +110,12 @@ Int32 decodeInt32(char *const buf, Int32 *pos);
 void encodeInt32(Int32 value, Int32 *pos, char *dstBuf);
 /**
  *
- * @param buf  			binary encoded message
- * @param pos  			position at which the data is located in/out, parser position after the conversion
- * @return				encoded data
+ * @param buf
+ * @param pos
+ * @param dst
+ * @return
  */
-UInt32 decodeUInt32(char *const buf, Int32 *pos);
+Int32 decodeUInt32(char *const buf, Int32 *pos, UInt32 *dst);
 /**
  *
  * @param value
@@ -121,9 +127,10 @@ void encodeUInt32(UInt32 value, Int32 *pos, char *dstBuf);
  *
  * @param buf
  * @param pos
+ * @param dst
  * @return
  */
-Int64 decodeInt64(char *const buf, Int32 *pos);
+Int32 decodeInt64(char *const buf, Int32 *pos,Int64 *dst);
 /**
  *
  * @param value
@@ -135,9 +142,10 @@ void encodeInt64(Int64 value, Int32 *pos, char *dstBuf);
  *
  * @param buf
  * @param pos
+ * @param dst
  * @return
  */
-UInt64 decodeUInt64(char *const buf, Int32 *pos);
+Int32 decodeUInt64(char *const buf, Int32 *pos, UInt64 *dst);
 /**
  *
  * @param value
@@ -157,9 +165,10 @@ Int32 decodeUANodeId(char *const buf, Int32 *pos, UA_NodeId *dstNodeId);
  *
  * @param buf
  * @param pos
+ * @param dst
  * @return
  */
-Float decodeFloat(char *buf, Int32 *pos);
+Int32 decodeFloat(char *buf, Int32 *pos, Float *dst);
 /**
  *
  * @param value
@@ -172,9 +181,10 @@ Int32 encodeFloat(Float value,Int32 *pos,char *dstBuf);
  *
  * @param buf
  * @param pos
+ * @param dst
  * @return
  */
-Double decodeDouble(char *buf, Int32 *pos);
+Int32 decodeDouble(char *buf, Int32 *pos, Double *dst);
 /**
  *
  * @param value
@@ -211,16 +221,17 @@ Int32 decodeUAGuid(char *const buf, Int32 *pos, UA_Guid *dstGUID);
  *
  * @param buf
  * @param pos
+ * @param dst
  * @return
  */
-UA_StatusCode decodeUAStatusCode(char *const buf, Int32 *pos);
+Int32 decodeUAStatusCode(char *const buf, Int32 *pos,UA_StatusCode* dst);
 /**
  *
  * @param buf
  * @param pos
  * @return
  */
-UA_DateTime decodeUADateTime(char *const buf, Int32 *pos);
+Int32 decodeUADateTime(char *const buf, Int32 *pos,UA_DateTime *dst);
 /**
  *
  * @param time
@@ -250,7 +261,7 @@ Int32 UAByteString_calcSize(UA_ByteString *byteString);
  * @param dstBuf
  * @return
  */
-Int32 encodeXmlElement(UA_XmlElement xmlElement, Int32 *pos, char *dstBuf);
+Int32 encodeXmlElement(UA_XmlElement *xmlElement, Int32 *pos, char *dstBuf);
 /**
  *
  * @param buf
@@ -265,7 +276,7 @@ Int32 decodeXmlElement(char * const buf, Int32* pos, UA_XmlElement *xmlElement);
  * @param pos
  * @return
  */
-T_IntegerId decodeIntegerId(char* buf, Int32 *pos);
+Int32 decodeIntegerId(char* buf, Int32 *pos, Int32* dst);
 /**
  *
  * @param integerId
