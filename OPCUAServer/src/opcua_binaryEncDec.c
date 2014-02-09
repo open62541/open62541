@@ -66,199 +66,201 @@ encode_builtInType(void *data, Int32 type, Int32 *pos, char *dstBuf)
 		encodeXmlElement(((UA_XmlElement*) data), pos, dstBuf);
 		break;
 	case NODE_ID:
-		encodeUANodeId((UA_NodeId*)data, pos, dstBuf);
+		encodeUANodeId((UA_NodeId*) data, pos, dstBuf);
 		break;
 	case EXPANDED_NODE_ID:
-		encodeExpandedNodeId((UA_ExpandedNodeId*)data,pos,dstBuf);
+		encodeExpandedNodeId((UA_ExpandedNodeId*) data, pos, dstBuf);
 		break;
 	case STATUS_CODE:
 		encodeUInt32(*((UInt32*) data), pos, dstBuf);
 		break;
 	case QUALIFIED_NAME:
-		encodeQualifiedName(((UA_QualifiedName*)data),pos,dstBuf);
+		encodeQualifiedName(((UA_QualifiedName*) data), pos, dstBuf);
 		break;
 	case LOCALIZED_TEXT:
-		encodeLocalizedText(((UA_LocalizedText*)data),pos,dstBuf);
+		encodeLocalizedText(((UA_LocalizedText*) data), pos, dstBuf);
 		break;
 	case EXTENSION_OBJECT:
-		encodeExtensionObject((UA_ExtensionObject*)data,pos,dstBuf);
+		encodeExtensionObject((UA_ExtensionObject*) data, pos, dstBuf);
 		break;
 	case DATA_VALUE:
-		encodeDataValue((UA_DataValue*)data,pos,dstBuf);
+		encodeDataValue((UA_DataValue*) data, pos, dstBuf);
 		break;
 	case VARIANT:
-		encodeVariant((UA_Variant*)data,pos,dstBuf);
+		encodeVariant((UA_Variant*) data, pos, dstBuf);
 		break;
 	case DIAGNOSTIC_INFO:
-		encodeDiagnosticInfo((UA_DiagnosticInfo*)data,pos,dstBuf);
+		encodeDiagnosticInfo((UA_DiagnosticInfo*) data, pos, dstBuf);
 		break;
 	}
 }
-Int32 decode_builtInDataType(char *srcBuf,Int32 type, Int32 *pos, void *dstStructure)
+Int32 decode_builtInDataType(char *srcBuf, Int32 type, Int32 *pos,
+		void *dstStructure)
 {
 	switch (type)
-		{
-		case BOOLEAN:
-			dstStructure = &decodeBoolean(srcBuf,pos);
-			break;
-		case SBYTE:
-			dstStructure = &decodeSByte(srcBuf,pos);
-			break;
-		case BYTE:
-			dstStructure = &decodeByte(srcBuf,pos);
-			break;
-		case INT16:
-			dstStructure = &decodeInt16(srcBuf,pos);
-			break;
-		case UINT16:
-			dstStructure = &decodeUInt16(srcBuf,pos);
-			break;
-		case INT32:
-			dstStructure = &decodeInt32(srcBuf,pos);
-			break;
-		case UINT32:
-			dstStructure = &decodeUInt32(srcBuf,pos);
-			break;
-		case INT64:
-			dstStructure = &decodeInt64((srcBuf,pos);
-			break;
-		case UINT64:
-			dstStructure = &decodeUInt64(srcBuf,pos);
-			break;
-		case FLOAT:
-			dstStructure = &decodeFloat(srcBuf,pos);
-			break;
-		case DOUBLE:
-			dstStructure = &decodeDouble(srcBuf,pos);
-			break;
-		case STRING:
-			dstStructure = &decodeUAByteString(srcBuf,pos);
-			break;
-		case DATE_TIME:
-			dstStructure = &decodeUADateTime(srcBuf,pos);
-			break;
-		case GUID:
-			decodeUAGuid(srcBuf,pos,(UA_Guid*)dstStructure);
-			break;
-		case BYTE_STRING:
-			decodeUAByteString(srcBuf,pos,(UA_ByteString*) dstStructure);
-			break;
-		case XML_ELEMENT:
-			decodeXmlElement(srcBuf,pos,(UA_XmlElement*) dstStructure);
-			break;
-		case NODE_ID:
-			decodeUANodeId(srcBuf,pos,(UA_NodeId*)dstStructure);
-			break;
-		case EXPANDED_NODE_ID:
-			decodeExpandedNodeId(srcBuf,pos,(UA_ExpandedNodeId*)dstStructure);
-			break;
-		case STATUS_CODE:
-			dstStructure = &decodeUAStatusCode(srcBuf,pos);
-			break;
-		case QUALIFIED_NAME:
-			encodeQualifiedName(((UA_QualifiedName*)data),pos,dstBuf);
-			break;
-		case LOCALIZED_TEXT:
-			encodeLocalizedText(((UA_LocalizedText*)data),pos,dstBuf);
-			break;
-		case EXTENSION_OBJECT:
-			encodeExtensionObject((UA_ExtensionObject*)data,pos,dstBuf);
-			break;
-		case DATA_VALUE:
-			encodeDataValue((UA_DataValue*)data,pos,dstBuf);
-			break;
-		case VARIANT:
-			encodeVariant((UA_Variant*)data,pos,dstBuf);
-			break;
-		case DIAGNOSTIC_INFO:
-			encodeDiagnosticInfo((UA_DiagnosticInfo*)data,pos,dstBuf);
-			break;
-		}
+	{
+	case BOOLEAN:
+		*dstStructure = decodeBoolean(srcBuf, pos);
+		break;
+	case SBYTE:
+		*dstStructure = decodeSByte(srcBuf, pos);
+		break;
+	case BYTE:
+		*dstStructure = decodeByte(srcBuf, pos);
+		break;
+	case INT16:
+		*dstStructure = decodeInt16(srcBuf, pos);
+		break;
+	case UINT16:
+		*dstStructure = decodeUInt16(srcBuf, pos);
+		break;
+	case INT32:
+		*dstStructure = decodeInt32(srcBuf, pos);
+		break;
+	case UINT32:
+		*dstStructure = decodeUInt32(srcBuf, pos);
+		break;
+	case INT64:
+		*dstStructure = decodeInt64(srcBuf, pos);
+		break;
+	case UINT64:
+		*dstStructure = decodeUInt64(srcBuf, pos);
+		break;
+	case FLOAT:
+		*dstStructure = decodeFloat(srcBuf, pos);
+		break;
+	case DOUBLE:
+		*dstStructure = decodeDouble(srcBuf, pos);
+		break;
+	case STRING:
+		*dstStructure = decodeUAByteString(srcBuf, pos);
+		break;
+	case DATE_TIME:
+		*dstStructure = decodeUADateTime(srcBuf, pos);
+		break;
+	case GUID:
+		decodeUAGuid(srcBuf, pos, (UA_Guid*) dstStructure);
+		break;
+	case BYTE_STRING:
+		decodeUAByteString(srcBuf, pos, (UA_ByteString*) dstStructure);
+		break;
+	case XML_ELEMENT:
+		decodeXmlElement(srcBuf, pos, (UA_XmlElement*) dstStructure);
+		break;
+	case NODE_ID:
+		decodeUANodeId(srcBuf, pos, (UA_NodeId*) dstStructure);
+		break;
+	case EXPANDED_NODE_ID:
+		decodeExpandedNodeId(srcBuf, pos, (UA_ExpandedNodeId*) dstStructure);
+		break;
+	case STATUS_CODE:
+		dstStructure = &decodeUAStatusCode(srcBuf, pos);
+		break;
+	case QUALIFIED_NAME:
+		decodeQualifiedName(srcBuf, pos, (UA_QualifiedName*) dstStructure);
+		break;
+	case LOCALIZED_TEXT:
+		decodeLocalizedText(srcBuf, pos, (UA_LocalizedText*) dstStructure);
+		break;
+	case EXTENSION_OBJECT:
+		decodeExtensionObject(srcBuf, pos, (UA_ExtensionObject*) dstStructure);
+		break;
+	case DATA_VALUE:
+		decodeDataValue(srcBuf, pos, (UA_DataValue*) dstStructure);
+		break;
+	case VARIANT:
+		decodeVariant(srcBuf, pos, (UA_Variant*) dstStructure);
+		break;
+	case DIAGNOSTIC_INFO:
+		decodeDiagnosticInfo(srcBuf, pos, (UA_DiagnosticInfo*) dstStructure);
+		break;
+	}
 }
-Int32 encode_builtInDatatypeArray(void *data, Int32 size, Int32 type, Int32 *pos, char *dstBuf)
+Int32 encode_builtInDatatypeArray(void *data, Int32 size, Int32 type,
+		Int32 *pos, char *dstBuf)
 {
 	int i;
 	void * pItem;
-	encode_builtInType((void*)(size), INT32, pos, dstBuf);
-	for(i = 0; i < size;)
+	encode_builtInType((void*) (size), INT32, pos, dstBuf);
+	for (i = 0; i < size;)
 	{
 		encode_builtInType(pItem, type, pos, dstBuf);
 		switch (type)
 		{
 		case BOOLEAN:
-			pItem = (Boolean*)(data) + 1;
+			pItem = (Boolean*) (data) + 1;
 			break;
 		case SBYTE:
-			pItem = (SByte*)(data) + 1;
+			pItem = (SByte*) (data) + 1;
 			break;
 		case BYTE:
-			pItem = (Byte*)(data) + 1;
+			pItem = (Byte*) (data) + 1;
 			break;
 		case INT16:
-			pItem = (Int16*)(data) + 1;
+			pItem = (Int16*) (data) + 1;
 			break;
 		case UINT16:
-			pItem = (UInt16*)(data) + 1;
+			pItem = (UInt16*) (data) + 1;
 			break;
 		case INT32:
-			pItem = (Int32*)(data) + 1;
+			pItem = (Int32*) (data) + 1;
 			break;
 		case UINT32:
-			pItem = (UInt32*)(data) + 1;
+			pItem = (UInt32*) (data) + 1;
 			break;
 		case INT64:
-			pItem = (Int64*)(data) + 1;
+			pItem = (Int64*) (data) + 1;
 			break;
 		case UINT64:
-			pItem = (UInt64*)(data) + 1;
+			pItem = (UInt64*) (data) + 1;
 			break;
 		case FLOAT:
-			pItem = (Float*)(data) + 1;
+			pItem = (Float*) (data) + 1;
 			break;
 		case DOUBLE:
-			pItem = (Double*)(data) + 1;
+			pItem = (Double*) (data) + 1;
 			break;
 		case STRING:
-			pItem = (UA_String*)(data) + 1;
+			pItem = (UA_String*) (data) + 1;
 			break;
 		case DATE_TIME:
-			pItem = (UA_DateTime*)(data) + 1;
+			pItem = (UA_DateTime*) (data) + 1;
 			break;
 		case GUID:
-			pItem = (UA_Guid*)(data) + 1;
+			pItem = (UA_Guid*) (data) + 1;
 			break;
 		case BYTE_STRING:
-			pItem = (UA_ByteString*)(data) + 1;
+			pItem = (UA_ByteString*) (data) + 1;
 			break;
 		case XML_ELEMENT:
-			pItem = (UA_XmlElement*)(data) + 1;
+			pItem = (UA_XmlElement*) (data) + 1;
 			break;
 		case NODE_ID:
-			pItem = (UA_NodeId*)(data) + 1;
+			pItem = (UA_NodeId*) (data) + 1;
 			break;
 		case EXPANDED_NODE_ID:
-			pItem = (UA_ExpandedNodeId*)(data) + 1;
+			pItem = (UA_ExpandedNodeId*) (data) + 1;
 			break;
 		case STATUS_CODE:
-			pItem = (UA_StatusCode*)(data) + 1;
+			pItem = (UA_StatusCode*) (data) + 1;
 			break;
 		case QUALIFIED_NAME:
-			pItem = (UA_QualifiedName*)(data) + 1;
+			pItem = (UA_QualifiedName*) (data) + 1;
 			break;
 		case LOCALIZED_TEXT:
-			pItem = (UA_LocalizedText*)(data) + 1;
+			pItem = (UA_LocalizedText*) (data) + 1;
 			break;
 		case EXTENSION_OBJECT:
-			pItem = (UA_ExtensionObject*)(data) + 1;
+			pItem = (UA_ExtensionObject*) (data) + 1;
 			break;
 		case DATA_VALUE:
-			pItem = (UA_DataValue*)(data) + 1;
+			pItem = (UA_DataValue*) (data) + 1;
 			break;
 		case VARIANT:
-			pItem = (UA_Variant*)(data) + 1;
+			pItem = (UA_Variant*) (data) + 1;
 			break;
 		case DIAGNOSTIC_INFO:
-			pItem = (UA_DiagnosticInfo*)(data) + 1;
+			pItem = (UA_DiagnosticInfo*) (data) + 1;
 			break;
 		}
 	}
@@ -267,12 +269,12 @@ Int32 encode_builtInDatatypeArray(void *data, Int32 size, Int32 type, Int32 *pos
 
 Boolean decodeBoolean(char * const buf, Int32 *pos)
 {
-	return ((Boolean)(buf[*pos]) > 0) ? UA_TRUE : UA_FALSE;
+	return ((Boolean) (buf[*pos]) > 0) ? UA_TRUE : UA_FALSE;
 }
 void encodeBoolean(Boolean value, Int32 *pos, char *dstBuf)
 {
 	Boolean tmpBool = ((value > 0) ? UA_TRUE : UA_FALSE);
-	mmemcpy(&(dstBuf[*pos]),&tmpBool,sizeof(Boolean));
+	mmemcpy(&(dstBuf[*pos]), &tmpBool, sizeof(Boolean));
 }
 
 SByte decodeSByte(char * const buf, Int32 *pos)
@@ -283,7 +285,7 @@ SByte decodeSByte(char * const buf, Int32 *pos)
 }
 void encodeSByte(SByte value, Int32 *pos, char *dstBuf)
 {
-	memcpy(&(dstBuf[*pos]),&value,sizeof(SByte));
+	memcpy(&(dstBuf[*pos]), &value, sizeof(SByte));
 	*pos = (*pos) + 1;
 
 }
@@ -295,7 +297,7 @@ Byte decodeByte(char * const buf, Int32 *pos)
 }
 void encodeByte(Byte value, Int32 *pos, char *dstBuf)
 {
-	memcpy(&(dstBuf[*pos]),&value,sizeof(Byte));
+	memcpy(&(dstBuf[*pos]), &value, sizeof(Byte));
 	*pos = (*pos) + 1;
 }
 
@@ -435,7 +437,7 @@ Int32 decodeUAString(char * const buf, Int32 *pos, UA_String *dstUAString)
 	else
 	{
 		dstUAString->Length = 0;
-		dstUAString->Data = (void*)0;
+		dstUAString->Data = (void*) 0;
 	}
 	*pos += dstUAString->Length;
 	return 0;
@@ -515,13 +517,12 @@ Int32 encodeUAByteString(UA_ByteString *srcByteString, Int32* pos, char *dstBuf)
 
 Int32 encodeXmlElement(UA_XmlElement xmlElement, Int32 *pos, char *dstBuf)
 {
-	return encodeUAByteString(&xmlElement.Data,pos,dstBuf);
+	return encodeUAByteString(&xmlElement.Data, pos, dstBuf);
 }
 Int32 decodeXmlElement(char * const buf, Int32* pos, UA_XmlElement *xmlElement)
 {
 	return decodeUAByteString(buf, pos, &xmlElement->Data);
 }
-
 
 Int32 UAByteString_calcSize(UA_ByteString *byteString)
 {
@@ -536,7 +537,7 @@ Int32 decodeUANodeId(char * const buf, Int32 *pos, UA_NodeId *dstNodeId)
 	switch (dstNodeId->EncodingByte)
 	{
 	case NIEVT_TWO_BYTE:
-		dstNodeId->Identifier.Numeric = decodeByte(buf, pos);
+		decode_builtInDataType(buf, BYTE, pos, &dstNodeId->Identifier.Numeric);
 		break;
 	case NIEVT_FOUR_BYTE:
 		dstNodeId->Identifier.Numeric = decodeInt16(buf, pos);
@@ -636,9 +637,10 @@ void encodeIntegerId(T_IntegerId integerId, Int32 *pos, char *buf)
 	encodeInt32(integerId, pos, buf);
 }
 
-Int32 decodeExpandedNodeId(char *const buf, Int32 *pos,UA_ExpandedNodeId *nodeId)
+Int32 decodeExpandedNodeId(char * const buf, Int32 *pos,
+		UA_ExpandedNodeId *nodeId)
 {
-	nodeId->NodeId.EncodingByte = decodeByte(buf,pos);
+	nodeId->NodeId.EncodingByte = decodeByte(buf, pos);
 	switch (nodeId->NodeId.EncodingByte)
 	{
 	case NIEVT_TWO_BYTE:
@@ -660,49 +662,57 @@ Int32 decodeExpandedNodeId(char *const buf, Int32 *pos,UA_ExpandedNodeId *nodeId
 		decodeUAByteString(buf, pos, &(nodeId->NodeId.Identifier.ByteString));
 		break;
 	}
-	if(nodeId->NodeId.EncodingByte & NIEVT_NAMESPACE_URI_FLAG)
+	if (nodeId->NodeId.EncodingByte & NIEVT_NAMESPACE_URI_FLAG)
 	{
 		nodeId->NodeId.Namespace = 0;
 		decodeUAString(buf, pos, &(nodeId->NamespaceUri));
 	}
-	if(nodeId->NodeId.EncodingByte & NIEVT_SERVERINDEX_FLAG)
+	if (nodeId->NodeId.EncodingByte & NIEVT_SERVERINDEX_FLAG)
 	{
 		nodeId->ServerIndex = decodeUInt32(buf, pos);
 	}
 	return UA_NO_ERROR;
 }
-Int32 encodeExpandedNodeId(UA_ExpandedNodeId *nodeId,Int32 *pos,char *dstBuf)
+Int32 encodeExpandedNodeId(UA_ExpandedNodeId *nodeId, Int32 *pos, char *dstBuf)
 {
-	encode_builtInType((void*)&(nodeId->NodeId.EncodingByte), BYTE, pos, dstBuf);
+	encode_builtInType((void*) &(nodeId->NodeId.EncodingByte), BYTE, pos,
+			dstBuf);
 	switch (nodeId->NodeId.EncodingByte)
 	{
 	case NIEVT_TWO_BYTE:
-		encode_builtInType((void*)&(nodeId->NodeId.Identifier.Numeric),BYTE, pos,dstBuf);
+		encode_builtInType((void*) &(nodeId->NodeId.Identifier.Numeric), BYTE,
+				pos, dstBuf);
 		break;
 	case NIEVT_FOUR_BYTE:
-		encode_builtInType((void*)&(nodeId->NodeId.Identifier.Numeric),UINT16, pos,dstBuf);
+		encode_builtInType((void*) &(nodeId->NodeId.Identifier.Numeric), UINT16,
+				pos, dstBuf);
 		break;
 	case NIEVT_NUMERIC:
-		encode_builtInType((void*)&(nodeId->NodeId.Identifier.Numeric),UINT32, pos,dstBuf);
+		encode_builtInType((void*) &(nodeId->NodeId.Identifier.Numeric), UINT32,
+				pos, dstBuf);
 		break;
 	case NIEVT_STRING:
-		encode_builtInType((void*)&(nodeId->NodeId.Identifier.String),STRING, pos,dstBuf);
+		encode_builtInType((void*) &(nodeId->NodeId.Identifier.String), STRING,
+				pos, dstBuf);
 		break;
 	case NIEVT_GUID:
-		encode_builtInType((void*)&(nodeId->NodeId.Identifier.Guid),STRING, pos,dstBuf);
+		encode_builtInType((void*) &(nodeId->NodeId.Identifier.Guid), STRING,
+				pos, dstBuf);
 		break;
 	case NIEVT_BYTESTRING:
-		encode_builtInType((void*)&(nodeId->NodeId.Identifier.ByteString),BYTE_STRING, pos,dstBuf);
+		encode_builtInType((void*) &(nodeId->NodeId.Identifier.ByteString),
+				BYTE_STRING, pos, dstBuf);
 		break;
 	}
-	if(nodeId->NodeId.EncodingByte & NIEVT_NAMESPACE_URI_FLAG)
+	if (nodeId->NodeId.EncodingByte & NIEVT_NAMESPACE_URI_FLAG)
 	{
 		nodeId->NodeId.Namespace = 0;
-		encode_builtInType((void*)&(nodeId->NamespaceUri),STRING,pos,dstBuf);
+		encode_builtInType((void*) &(nodeId->NamespaceUri), STRING, pos,
+				dstBuf);
 	}
-	if(nodeId->NodeId.EncodingByte & NIEVT_SERVERINDEX_FLAG)
+	if (nodeId->NodeId.EncodingByte & NIEVT_SERVERINDEX_FLAG)
 	{
-		encode_builtInType((void*)&(nodeId->ServerIndex),UINT32,pos,dstBuf);
+		encode_builtInType((void*) &(nodeId->ServerIndex), UINT32, pos, dstBuf);
 	}
 	return UA_NO_ERROR;
 }
@@ -712,124 +722,189 @@ UA_StatusCode decodeUAStatusCode(char * const buf, Int32 *pos)
 	return decodeUInt32(buf, pos);
 }
 
-Int32 decodeQualifiedName(char * const buf, Int32 *pos, UA_QualifiedName *dstQualifiedName)
+Int32 decodeQualifiedName(char * const buf, Int32 *pos,
+		UA_QualifiedName *dstQualifiedName)
 {
-	//TODO implement
+	//TODO memory management for ua string
+	decode_builtInDataType(buf, STRING, pos, &(dstQualifiedName->NamespaceIndex));
+	decode_builtInDataType(buf, STRING, pos, &(dstQualifiedName->Name));
 	return UA_NO_ERROR;
 }
-Int32 encodeQualifiedName(UA_QualifiedName *qualifiedName,Int32 *pos,char *dstBuf)
+Int32 encodeQualifiedName(UA_QualifiedName *qualifiedName, Int32 *pos,
+		char *dstBuf)
 {
-	encode_builtInType((void*)&(qualifiedName->NamespaceIndex),UINT16,pos,dstBuf);
-	encode_builtInType((void*)&(qualifiedName->Name),STRING,pos,dstBuf);
-	return UA_NO_ERROR;
-}
-
-Int32 decodeLocalizedText(char * const buf, Int32 *pos, UA_LocalizedText *dstLocalizedText)
-{
-	//TODO implement
-	return UA_NO_ERROR;
-}
-Int32 encodeLocalizedText(UA_LocalizedText *localizedText,Int32 *pos,char *dstBuf)
-{
-	if(localizedText->EncodingMask & 0x01)
-	{
-		encode_builtInType((void*)&(localizedText->Locale),STRING,pos,dstBuf);
-	}
-	if(localizedText->EncodingMask & 0x02)
-	{
-		encode_builtInType((void*)&(localizedText->Text),STRING,pos,dstBuf);
-	}
+	encode_builtInType((void*) &(qualifiedName->NamespaceIndex), UINT16, pos,
+			dstBuf);
+	encode_builtInType((void*) &(qualifiedName->Name), STRING, pos, dstBuf);
 	return UA_NO_ERROR;
 }
 
-Int32 decodeExtensionObject(char * const buf, Int32 *pos, UA_ExtensionObject *dstExtensionObject)
+Int32 decodeLocalizedText(char * const buf, Int32 *pos,
+		UA_LocalizedText *dstLocalizedText)
+{
+	//TODO memory management for ua string
+	decode_builtInDataType(buf, BYTE, pos, dstLocalizedText->EncodingMask);
+	decode_builtInDataType(buf, STRING, pos, dstLocalizedText->Locale);
+	decode_builtInDataType(buf, STRING, pos, dstLocalizedText->Text);
+
+	return UA_NO_ERROR;
+}
+Int32 encodeLocalizedText(UA_LocalizedText *localizedText, Int32 *pos,
+		char *dstBuf)
+{
+	if (localizedText->EncodingMask & 0x01)
+	{
+		encode_builtInType((void*) &(localizedText->Locale), STRING, pos,
+				dstBuf);
+	}
+	if (localizedText->EncodingMask & 0x02)
+	{
+		encode_builtInType((void*) &(localizedText->Text), STRING, pos, dstBuf);
+	}
+	return UA_NO_ERROR;
+}
+
+Int32 decodeExtensionObject(char * const buf, Int32 *pos,
+		UA_ExtensionObject *dstExtensionObject)
 {
 	//TODO to be implemented
+	decode_builtInDataType(buf, NODE_ID, pos, dstExtensionObject->TypeId);
+	decode_builtInDataType(buf, BYTE, pos, dstExtensionObject->Encoding);
+	//decode_builtInDataType(buf,INT32,pos,dstExtensionObject->Leng
+
+	//TODO length in bytearray and in extension object as parameter saved
+	decode_builtInDataType(buf, BYTE_STRING, pos, dstExtensionObject->Body);
+	dstExtensionObject->Length = dstExtensionObject->Body.Length;
+
 	return UA_NO_ERROR;
 }
-Int32 encodeExtensionObject(UA_ExtensionObject *extensionObject,Int32 *pos,char *dstBuf)
+Int32 encodeExtensionObject(UA_ExtensionObject *extensionObject, Int32 *pos,
+		char *dstBuf)
 {
-	encode_builtInType((void*)&(extensionObject->TypeId),NODE_ID,pos,dstBuf);
-	encode_builtInType((void*)&(extensionObject->Encoding),BYTE,pos,dstBuf);
-	switch(extensionObject->Encoding)
+	encode_builtInType((void*) &(extensionObject->TypeId), NODE_ID, pos,
+			dstBuf);
+	encode_builtInType((void*) &(extensionObject->Encoding), BYTE, pos, dstBuf);
+	switch (extensionObject->Encoding)
 	{
 	case 0x00:
-		encode_builtInType((void*)&(extensionObject->Body.Length), INT32, pos, dstBuf);
+		encode_builtInType((void*) &(extensionObject->Body.Length), INT32, pos,
+				dstBuf);
 		break;
 	case 0x01:
-		encode_builtInType((void*)&(extensionObject->Body), BYTE_STRING, pos, dstBuf);
+		encode_builtInType((void*) &(extensionObject->Body), BYTE_STRING, pos,
+				dstBuf);
 		break;
 	case 0x02:
-		encode_builtInType((void*)&(extensionObject->Body), BYTE_STRING, pos, dstBuf);
+		encode_builtInType((void*) &(extensionObject->Body), BYTE_STRING, pos,
+				dstBuf);
 		break;
 	}
 	return UA_NO_ERROR;
 }
 
-Int32 decodeVariant(char * const buf, Int32 *pos, UA_ExtensionObject *dstExtensionObject)
+Int32 decodeVariant(char * const buf, Int32 *pos, UA_Variant *dstVariant)
 {
-	//TODO to be implemented
+	decode_builtInDataType(buf, BYTE, pos, dstVariant->EncodingMask);
+
+	if (dstVariant->EncodingMask & (1 << 7))
+	{
+		decode_builtInDataType(buf, INT32, pos, dstVariant->ArrayLength);
+	}
+
+	//TODO implement the multiarray decoding
 	return UA_NO_ERROR;
 }
-Int32 encodeVariant(UA_Variant *variant, Int32 *pos,char *dstBuf)
+Int32 encodeVariant(UA_Variant *variant, Int32 *pos, char *dstBuf)
 {
-	encode_builtInType((void*)&(variant->EncodingMask),BYTE,pos,dstBuf);
-	if(variant->EncodingMask & (1<<7)) // array length is encoded
+	encode_builtInType((void*) &(variant->EncodingMask), BYTE, pos, dstBuf);
+	if (variant->EncodingMask & (1 << 7)) // array length is encoded
 	{
-		encode_builtInType((void*)&(variant->ArrayLength),INT32,pos,dstBuf);
-		if(variant->ArrayLength > 0)
+		encode_builtInType((void*) &(variant->ArrayLength), INT32, pos, dstBuf);
+		if (variant->ArrayLength > 0)
 		{
 			//encode array as given by variant type
-			encode_builtInDatatypeArray((void*)variant->Value,variant->ArrayLength,
-					(variant->EncodingMask & 31),pos,dstBuf);
+			encode_builtInDatatypeArray((void*) variant->Value,
+					variant->ArrayLength, (variant->EncodingMask & 31), pos,
+					dstBuf);
 		}
 		//single value to encode
-		encode_builtInType((void*)variant->Value,(variant->EncodingMask & 31),pos,dstBuf);
+		encode_builtInType((void*) variant->Value, (variant->EncodingMask & 31),
+				pos, dstBuf);
 	}
 	else //single value to encode
 	{
-		encode_builtInType((void*)variant->Value,(variant->EncodingMask & 31),pos,dstBuf);
+		encode_builtInType((void*) variant->Value, (variant->EncodingMask & 31),
+				pos, dstBuf);
 	}
-	if(variant->EncodingMask & (1<<6)) // encode array dimension field
+	if (variant->EncodingMask & (1 << 6)) // encode array dimension field
 	{
-		encode_builtInType((void*)variant->Value,(variant->EncodingMask & 31),pos,dstBuf);
+		encode_builtInType((void*) variant->Value, (variant->EncodingMask & 31),
+				pos, dstBuf);
 	}
 	return UA_NO_ERROR;
 }
 
-Int32 decodeDataValue(char* const buf, Int32 *pos, UA_DataValue *dataValue)
+Int32 decodeDataValue(char* const buf, Int32 *pos, UA_DataValue *dstDataValue)
 {
+
+	decode_builtInDataType(buf, BYTE, pos, dstDataValue->EncodingMask);
+	decode_builtInDataType(buf, VARIANT, pos, dstDataValue->Value);
+
+	decode_builtInDataType(buf, STATUS_CODE, pos, dstDataValue->Status);
+
+	decode_builtInDataType(buf, DATE_TIME, pos, dstDataValue->SourceTimestamp);
+
+	decode_builtInDataType(buf, UINT16, dstDataValue->SourcePicoseconds);
+
+	if (dstDataValue->SourcePicoseconds > MAX_PICO_SECONDS)
+	{
+		dstDataValue->SourcePicoseconds = MAX_PICO_SECONDS;
+	}
+
+	decode_builtInDataType(buf, DATE_TIME, dstDataValue->ServerTimestamp);
+
+	decode_builtInDataType(buf, UINT16, dstDataValue->ServerPicoseconds);
+
+	if (dstDataValue->ServerPicoseconds > MAX_PICO_SECONDS)
+	{
+		dstDataValue->ServerPicoseconds = MAX_PICO_SECONDS;
+	}
 
 	//TODO to be implemented
 	return UA_NO_ERROR;
 }
 Int32 encodeDataValue(UA_DataValue *dataValue, Int32 *pos, char *dstBuf)
 {
-	encode_builtInType((void*)&(dataValue->EncodingMask),BYTE,pos,dstBuf);
+	encode_builtInType((void*) &(dataValue->EncodingMask), BYTE, pos, dstBuf);
 
-	if(dataValue->EncodingMask & 0x01)
+	if (dataValue->EncodingMask & 0x01)
 	{
-		encode_builtInType((void*)&(dataValue->Value),VARIANT,pos,dstBuf);
+		encode_builtInType((void*) &(dataValue->Value), VARIANT, pos, dstBuf);
 	}
-	if(dataValue->EncodingMask & 0x02)
+	if (dataValue->EncodingMask & 0x02)
 	{
-		encode_builtInType((void*)&(dataValue->Status),STATUS_CODE,pos,dstBuf);
+		encode_builtInType((void*) &(dataValue->Status), STATUS_CODE, pos,
+				dstBuf);
 	}
-	if(dataValue->EncodingMask & 0x04)
+	if (dataValue->EncodingMask & 0x04)
 	{
-		encode_builtInType((void*)&(dataValue->SourceTimestamp),DATE_TIME,pos,dstBuf);
+		encode_builtInType((void*) &(dataValue->SourceTimestamp), DATE_TIME,
+				pos, dstBuf);
 	}
-	if(dataValue->EncodingMask & 0x08)
+	if (dataValue->EncodingMask & 0x08)
 	{
-		encode_builtInType((void*)&(dataValue->SourcePicoseconds),UINT16,pos,dstBuf);
+		encode_builtInType((void*) &(dataValue->SourcePicoseconds), UINT16, pos,
+				dstBuf);
 	}
-	if(dataValue->EncodingMask & 0x10)
+	if (dataValue->EncodingMask & 0x10)
 	{
-		encode_builtInType((void*)&(dataValue->ServerTimestamp),DATE_TIME,pos,dstBuf);
+		encode_builtInType((void*) &(dataValue->ServerTimestamp), DATE_TIME,
+				pos, dstBuf);
 	}
-	if(dataValue->EncodingMask & 0x20)
+	if (dataValue->EncodingMask & 0x20)
 	{
-		encode_builtInType((void*)&(dataValue->ServerPicoseconds),UINT16,pos,dstBuf);
+		encode_builtInType((void*) &(dataValue->ServerPicoseconds), UINT16, pos,
+				dstBuf);
 	}
 	return UA_NO_ERROR;
 
@@ -881,37 +956,46 @@ Int32 decodeDiagnosticInfo(char* buf, Int32 *pos,
 	*pos += 1;
 	return 0;
 }
-Int32 encodeDiagnosticInfo(UA_DiagnosticInfo *diagnosticInfo,Int32 *pos,char *dstbuf)
+Int32 encodeDiagnosticInfo(UA_DiagnosticInfo *diagnosticInfo, Int32 *pos,
+		char *dstbuf)
 {
 	Byte mask;
 	mask = 0;
 
-	encode_builtInType((void*)(&(diagnosticInfo->EncodingMask)),BYTE,pos,dstbuf);
+	encode_builtInType((void*) (&(diagnosticInfo->EncodingMask)), BYTE, pos,
+			dstbuf);
 	for (mask = 1; mask <= 0x40; mask = mask << 2)
 	{
 		switch (mask & (diagnosticInfo->EncodingMask))
 		{
 		case DIEMT_SYMBOLIC_ID:
 			//	puts("diagnosticInfo symbolic id");
-			encode_builtInType((void*)&(diagnosticInfo->SymbolicId),INT32,pos,dstbuf);
+			encode_builtInType((void*) &(diagnosticInfo->SymbolicId), INT32,
+					pos, dstbuf);
 			break;
 		case DIEMT_NAMESPACE:
-			encode_builtInType((void*)&(diagnosticInfo->NamespaceUri),INT32,pos,dstbuf);
+			encode_builtInType((void*) &(diagnosticInfo->NamespaceUri), INT32,
+					pos, dstbuf);
 			break;
 		case DIEMT_LOCALIZED_TEXT:
-			encode_builtInType((void*)&(diagnosticInfo->LocalizedText),INT32,pos,dstbuf);
+			encode_builtInType((void*) &(diagnosticInfo->LocalizedText), INT32,
+					pos, dstbuf);
 			break;
 		case DIEMT_LOCALE:
-			encode_builtInType((void*)&(diagnosticInfo->Locale),INT32,pos,dstbuf);
+			encode_builtInType((void*) &(diagnosticInfo->Locale), INT32, pos,
+					dstbuf);
 			break;
 		case DIEMT_ADDITIONAL_INFO:
-			encode_builtInType((void*)&(diagnosticInfo->AdditionalInfo),STRING,pos,dstbuf);
+			encode_builtInType((void*) &(diagnosticInfo->AdditionalInfo),
+					STRING, pos, dstbuf);
 			break;
 		case DIEMT_INNER_STATUS_CODE:
-			encode_builtInType((void*)&(diagnosticInfo->InnerStatusCode),STATUS_CODE,pos,dstbuf);
+			encode_builtInType((void*) &(diagnosticInfo->InnerStatusCode),
+					STATUS_CODE, pos, dstbuf);
 			break;
 		case DIEMT_INNER_DIAGNOSTIC_INFO:
-			encode_builtInType((void*)&(diagnosticInfo->InnerDiagnosticInfo),DIAGNOSTIC_INFO,pos,dstbuf);
+			encode_builtInType((void*) &(diagnosticInfo->InnerDiagnosticInfo),
+					DIAGNOSTIC_INFO, pos, dstbuf);
 			break;
 		}
 	}

@@ -16,6 +16,8 @@
 
 #define UA_TRUE 1
 #define UA_FALSE 0
+
+#define MAX_PICO_SECONDS 9999
 //functions
 /**
  *
