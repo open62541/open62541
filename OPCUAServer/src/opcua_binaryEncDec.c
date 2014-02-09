@@ -94,7 +94,87 @@ encode_builtInType(void *data, Int32 type, Int32 *pos, char *dstBuf)
 		break;
 	}
 }
-
+Int32 decode_builtInDataType(char *srcBuf,Int32 type, Int32 *pos, void *dstStructure)
+{
+	switch (type)
+		{
+		case BOOLEAN:
+			dstStructure = &decodeBoolean(srcBuf,pos);
+			break;
+		case SBYTE:
+			dstStructure = &decodeSByte(srcBuf,pos);
+			break;
+		case BYTE:
+			dstStructure = &decodeByte(srcBuf,pos);
+			break;
+		case INT16:
+			dstStructure = &decodeInt16(srcBuf,pos);
+			break;
+		case UINT16:
+			dstStructure = &decodeUInt16(srcBuf,pos);
+			break;
+		case INT32:
+			dstStructure = &decodeInt32(srcBuf,pos);
+			break;
+		case UINT32:
+			dstStructure = &decodeUInt32(srcBuf,pos);
+			break;
+		case INT64:
+			dstStructure = &decodeInt64((srcBuf,pos);
+			break;
+		case UINT64:
+			dstStructure = &decodeUInt64(srcBuf,pos);
+			break;
+		case FLOAT:
+			dstStructure = &decodeFloat(srcBuf,pos);
+			break;
+		case DOUBLE:
+			dstStructure = &decodeDouble(srcBuf,pos);
+			break;
+		case STRING:
+			dstStructure = &decodeUAByteString(srcBuf,pos);
+			break;
+		case DATE_TIME:
+			dstStructure = &decodeUADateTime(srcBuf,pos);
+			break;
+		case GUID:
+			decodeUAGuid(srcBuf,pos,(UA_Guid*)dstStructure);
+			break;
+		case BYTE_STRING:
+			decodeUAByteString(srcBuf,pos,(UA_ByteString*) dstStructure);
+			break;
+		case XML_ELEMENT:
+			decodeXmlElement(srcBuf,pos,(UA_XmlElement*) dstStructure);
+			break;
+		case NODE_ID:
+			decodeUANodeId(srcBuf,pos,(UA_NodeId*)dstStructure);
+			break;
+		case EXPANDED_NODE_ID:
+			decodeExpandedNodeId(srcBuf,pos,(UA_ExpandedNodeId*)dstStructure);
+			break;
+		case STATUS_CODE:
+			dstStructure = &decodeUAStatusCode(srcBuf,pos);
+			break;
+		case QUALIFIED_NAME:
+			encodeQualifiedName(((UA_QualifiedName*)data),pos,dstBuf);
+			break;
+		case LOCALIZED_TEXT:
+			encodeLocalizedText(((UA_LocalizedText*)data),pos,dstBuf);
+			break;
+		case EXTENSION_OBJECT:
+			encodeExtensionObject((UA_ExtensionObject*)data,pos,dstBuf);
+			break;
+		case DATA_VALUE:
+			encodeDataValue((UA_DataValue*)data,pos,dstBuf);
+			break;
+		case VARIANT:
+			encodeVariant((UA_Variant*)data,pos,dstBuf);
+			break;
+		case DIAGNOSTIC_INFO:
+			encodeDiagnosticInfo((UA_DiagnosticInfo*)data,pos,dstBuf);
+			break;
+		}
+}
 Int32 encode_builtInDatatypeArray(void *data, Int32 size, Int32 type, Int32 *pos, char *dstBuf)
 {
 	int i;
@@ -719,6 +799,7 @@ Int32 encodeVariant(UA_Variant *variant, Int32 *pos,char *dstBuf)
 
 Int32 decodeDataValue(char* const buf, Int32 *pos, UA_DataValue *dataValue)
 {
+
 	//TODO to be implemented
 	return UA_NO_ERROR;
 }

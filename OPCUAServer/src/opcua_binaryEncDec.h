@@ -243,6 +243,22 @@ Int32 decodeUAString(char *const buf, Int32 *pos, UA_String *dstUAString);
 Int32 UAByteString_calcSize(UA_ByteString *byteString);
 /**
  *
+ * @param xmlElement
+ * @param pos
+ * @param dstBuf
+ * @return
+ */
+Int32 encodeXmlElement(UA_XmlElement xmlElement, Int32 *pos, char *dstBuf);
+/**
+ *
+ * @param buf
+ * @param pos
+ * @param xmlElement
+ * @return
+ */
+Int32 decodeXmlElement(char * const buf, Int32* pos, UA_XmlElement *xmlElement);
+/**
+ *
  * @param buf
  * @param pos
  * @return
