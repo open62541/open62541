@@ -498,6 +498,37 @@ START_TEST(responseHeader_calcSize_test)
 
 }
 END_TEST
+
+START_TEST(encodeDataValue_test)
+{
+	UA_DataValue dataValue;
+	Int32 pos = 0;
+	char *buf = (char*)opcua_malloc(500);
+
+	buf[0] = 99;
+	buf[1] = 99;
+	buf[2] = 99;
+
+	//without Variant
+	dataValue.EncodingMask = 0x08; //Only the SourvePicoseconds
+	UA_Variant variant;
+	variant.ArrayLength = 0;
+	variant.EncodingMask = VTEMT_UINT32;
+	UA_VariantUnion variantUnion;
+	variantUnion.Int32 = 45;
+	variant.Value = &variantUnion;
+	dataValue.Value = variant;
+	dataValue.SourcePicoseconds = 12;
+	dataValue.ServerPicoseconds = 34;
+
+	encodeDataValue(&dataValue, &pos, buf);
+	ck_assert_int_eq(pos, 3);// represents the length
+	ck_assert_int_eq(buf[0], 0x08);
+	ck_assert_int_eq(buf[1], 0);
+	ck_assert_int_eq(buf[2], 12);
+}
+END_TEST
+
 Suite *testSuite_getPacketType(void)
 {
 	Suite *s = suite_create("getPacketType");
@@ -673,6 +704,14 @@ Suite * testSuite_decodeUAString(void)
 	return s;
 }
 
+Suite* testSuite_encodeDataValue()
+{
+	Suite *s = suite_create("encodeDataValue");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, encodeDataValue_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
 
 /*
 Suite* TL_<TESTSUITENAME>(void)
@@ -708,6 +747,7 @@ Suite* testSuite_responseHeader_calcSize()
 	suite_add_tcase(s,tc_core);
 	return s;
 }
+
 int main (void)
 {
 	int number_failed = 0;
@@ -840,6 +880,11 @@ int main (void)
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
 
+	s = testSuite_encodeDataValue();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
 
 	/* <TESTSUITE_TEMPLATE>
 	s =  <TESTSUITENAME>;
