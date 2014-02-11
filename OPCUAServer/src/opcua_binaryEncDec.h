@@ -21,6 +21,26 @@
 //functions
 /**
  *
+ * @param srcBuf
+ * @param type
+ * @param pos
+ * @param dstStructure
+ * @return
+ */
+Int32 decoder_decodeBuiltInDatatype(char *srcBuf, Int32 type, Int32 *pos,
+		void *dstStructure);
+/**
+ *
+ * @param data
+ * @param type
+ * @param pos
+ * @param dstBuf
+ * @return
+ */
+Int32 encoder_encodeBuiltInDatatype(void *data, Int32 type, Int32 *pos, char *dstBuf);
+
+/**
+ *
  * @param buf
  * @param pos
  * @param dst

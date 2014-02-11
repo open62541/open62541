@@ -16,7 +16,7 @@
 *
 */
 
-typedef enum _UA_BuiltInDataTypes
+typedef enum
 {
 	BOOLEAN = 	1,
 	SBYTE = 	2,
@@ -45,6 +45,70 @@ typedef enum _UA_BuiltInDataTypes
 	DIAGNOSTIC_INFO = 	25
 }
 UA_BuiltInDataTypes;
+
+
+
+
+typedef enum
+{
+	BOOLEAN_ARRAY = 	129,
+	SBYTE_ARRAY = 	130,
+	BYTE_ARRAY = 		131,
+	INT16_ARRAY = 	132,
+	UINT16_ARRAY = 	133,
+	INT32_ARRAY = 	134,
+	UINT32_ARRAY = 	135,
+	INT64_ARRAY = 	136,
+	UINT64_ARRAY = 	137,
+	FLOAT_ARRAY = 	138,
+	DOUBLE_ARRAY = 	139,
+	STRING_ARRAY = 	140,
+	DATE_TIME_ARRAY = 141,
+	GUID_ARRAY = 		142,
+	BYTE_STRING_ARRAY = 143,
+	XML_ELEMENT_ARRAY = 144,
+	NODE_ID_ARRAY = 	145,
+	EXPANDED_NODE_ID_ARRAY = 145,
+	STATUS_CODE_ARRAY = 146,
+	QUALIFIED_NAME_ARRAY = 147,
+	LOCALIZED_TEXT_ARRAY = 	148,
+	EXTENSION_OBJECT_ARRAY = 149,
+	DATA_VALUE_ARRAY = 150,
+	VARIANT_ARRAY = 151,
+	DIAGNOSTIC_INFO_ARRAY = 152
+}
+UA_BuiltInDataTypes_Array;
+
+typedef enum
+{
+	BOOLEAN_MATRIX = 193,
+	SBYTE_MATRIX = 	194,
+	BYTE_MATRIX = 	195,
+	INT16_MATRIX = 	196,
+	UINT16_MATRIX = 197,
+	INT32_MATRIX = 	198,
+	UINT32_MATRIX = 199,
+	INT64_MATRIX =  200,
+	UINT64_MATRIX = 201,
+	FLOAT_MATRIX = 	202,
+	DOUBLE_MATRIX = 203,
+	STRING_MATRIX = 204,
+	DATE_TIME_MATRIX = 205,
+	GUID_MATRIX = 206,
+	BYTE_STRING_MATRIX = 207,
+	XML_ELEMENT_MATRIX = 208,
+	NODE_ID_MATRIX = 209,
+	EXPANDED_NODE_ID_MATRIX = 210,
+	STATUS_CODE_MATRIX = 211,
+	QUALIFIED_NAME_MATRIX = 212,
+	LOCALIZED_TEXT_MATRIX = 213,
+	EXTENSION_OBJECT_MATRIX = 214,
+	DATA_VALUE_MATRIX = 215,
+	VARIANT_MATRIX = 216,
+	DIAGNOSTIC_INFO_MATRIX = 217
+}
+UA_BuiltInDataTypes_Array;
+
 
 
 /**
@@ -116,12 +180,6 @@ typedef struct _UA_ByteString
 }
 UA_ByteString;
 
-
-typedef struct
-{
-	Int32 Length;
-	Int32 *Data;
-}IntegerString;
 
 /* GuidType
 * Part: 6
@@ -342,33 +400,227 @@ UA_ExtensionObjectEncodingMaskType;
 */
 struct _UA_DataValue;
 struct _UA_Variant;
+
+
+typedef struct
+{
+	Int32 *data;
+	Int32 length;
+}IntegerString;
+
+typedef struct
+{
+	Int32 *data;
+	Int32 arrayLength;
+	IntegerString dimensions;
+}Int32_Array;
+
+
+// Array types of builtInDatatypes
+typedef struct
+{
+	SByte *data;
+	Int32 arrayLength;
+	IntegerString dimensions;
+}SBYte_Array;
+
+typedef struct
+{
+	Boolean *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}Boolean_Array;
+
+typedef struct
+{
+	SByte *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}SByte_Array;
+
+typedef struct
+{
+	Byte *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}Byte_Array;
+
+typedef struct
+{
+	Int16 *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}Int16_Array;
+
+typedef struct
+{
+	UInt16 *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}UInt16_Array;
+
+
+typedef struct
+{
+	UInt32 *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}UInt32_Array
+
+typedef struct
+{
+	Int64 *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}Int64_Array;
+
+typedef struct
+{
+	UInt64 *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}UInt64_Array;
+typedef struct
+{
+	Float *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}Float_Array;
+
+typedef struct
+{
+	Double *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}Double_Array;
+
+typedef struct
+{
+	UA_String *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}String_Array;
+
+typedef struct
+{
+	UA_DateTime *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}DateTime_Array;
+
+typedef struct
+{
+	UA_Guid *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}Guid_Array;
+
+typedef struct
+{
+	UA_ByteString *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}ByteString_Array;
+
+typedef struct
+{
+	UA_XmlElement *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}XmlElement_Array;
+
+typedef struct
+{
+	UA_NodeId *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}NodeId_Array;
+
+typedef struct
+{
+	UA_ExpandedNodeId *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}ExpandedNodeId_Array;
+
+
+typedef struct
+{
+	UA_StatusCode *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}StatusCode_Array;
+
+typedef struct
+{
+	UA_QualifiedName *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}QualifiedName_Array;
+
+typedef struct
+{
+	UA_LocalizedText *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}LocalizedText_Array;
+
+typedef struct
+{
+	UA_ExtensionObject *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}ExtensionObject_Array;
+
+typedef struct
+{
+	UA_DataValue *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}DataValue_Array;
+
+typedef struct
+{
+	UA_Variant *data;
+	Int32 arrayLength;
+	IntegerString  dimensions;
+}Variant_Array;
+
+typedef struct
+{
+	UA_DiagnosticInfo *data;
+	Int32 arrayLength;
+	IntegerString dimensions;
+}DiagnosticInfo_Array;
+
+
 typedef union _UA_VariantArrayUnion
 {
-    void*              Array;
-    Boolean*           BooleanArray;
-    SByte*             SByteArray;
-    Byte*              ByteArray;
-    Int16*             Int16Array;
-    UInt16*            UInt16Array;
-    Int32*             Int32Array;
-    UInt32*            UInt32Array;
-    Int64*             Int64Array;
-    UInt64*            UInt64Array;
-    Float*             FloatArray;
-    Double*            DoubleArray;
-    UA_String*            StringArray;
-    UA_DateTime*          DateTimeArray;
-    UA_Guid*              GuidArray;
-    UA_ByteString*        ByteStringArray;
-    UA_ByteString*        XmlElementArray;
-    UA_NodeId*            NodeIdArray;
-    UA_ExpandedNodeId*    ExpandedNodeIdArray;
-    UA_StatusCode*        StatusCodeArray;
-    UA_QualifiedName*     QualifiedNameArray;
-    UA_LocalizedText*     LocalizedTextArray;
-    UA_ExtensionObject*   ExtensionObjectArray;
-    struct _UA_DataValue* DataValueArray;
-    struct _UA_Variant*   VariantArray;
+    void*         Array;
+    Boolean_Array BooleanArray;
+    SByte_Array   SByteArray;
+    Byte_Array    ByteArray;
+    Int16_Array   Int16Array;
+    UInt16_Array  UInt16Array;
+    Int32_Array   Int32Array;
+    UInt32_Array  UInt32Array;
+    Int64_Array   Int64Array;
+    UInt64_Array  UInt64Array;
+    Float_Array   FloatArray;
+    Double_Array            DoubleArray;
+    String_Array            StringArray;
+    DateTime_Array          DateTimeArray;
+    Guid_Array              GuidArray;
+    ByteString_Array        ByteStringArray;
+    ByteString_Array        XmlElementArray;
+    NodeId_Array            NodeIdArray;
+    ExpandedNodeId_Array    ExpandedNodeIdArray;
+    StatusCode_Array        StatusCodeArray;
+    QualifiedName_Array     QualifiedNameArray;
+    LocalizedText_Array     LocalizedTextArray;
+    ExtensionObject_Array   ExtensionObjectArray;
+    DataValue_Array DataValueArray;
+    Variant_Array   VariantArray;
 }
 UA_VariantArrayUnion;
 
@@ -489,5 +741,7 @@ typedef UInt32 IntegerId;
 * Page: 74
 */
 typedef double UA_Duration;
+
+
 
 #endif /* OPCUA_BUILTINDATATYPES_H_ */

@@ -13,7 +13,7 @@
 
 #define UA_NO_ERROR 0
 #define UA_ERROR 1
-#define NULL (void*)0
+
 typedef enum _T_ApplicationType
 {
 	ApplicationType_SERVER_0,

@@ -92,7 +92,8 @@ START_TEST(decodeInt16_test)
 	//encodeUInt16(testUInt16, &position, &rawMessage);
 
 	Int32 p = 0;
-	Int16 val = decodeInt16(rawMessage.message,&p);
+	Int16 val;
+	decoder_decodeBuiltInDatatype(rawMessage.message,INT16,&p,&val);
 	ck_assert_int_eq(val,1);
 	//ck_assert_int_eq(p, 2);
 	//ck_assert_int_eq(rawMessage.message[0], 0xAB);
@@ -116,7 +117,8 @@ START_TEST(encodeInt16_test)
 
 	ck_assert_int_eq(position, 2);
 	Int32 p = 0;
-	Int16 val = decodeInt16(rawMessage.message,&p);
+	Int16 val;
+	decoder_decodeBuiltInDatatype(rawMessage.message, INT16, &p, &val);
 	ck_assert_int_eq(val,testUInt16);
 	//ck_assert_int_eq(rawMessage.message[0], 0xAB);
 
@@ -138,7 +140,9 @@ START_TEST(decodeUInt16_test)
 	//encodeUInt16(testUInt16, &position, &rawMessage);
 
 	Int32 p = 0;
-	UInt16 val = decodeUInt16(rawMessage.message,&p);
+	UInt16 val;
+	decoder_decodeBuiltInDatatype(rawMessage.message,UINT16,&p,&val);
+
 	ck_assert_int_eq(val,1);
 	//ck_assert_int_eq(p, 2);
 	//ck_assert_int_eq(rawMessage.message[0], 0xAB);
@@ -162,7 +166,8 @@ START_TEST(encodeUInt16_test)
 
 	ck_assert_int_eq(position, 2);
 	Int32 p = 0;
-	UInt16 val = decodeUInt16(rawMessage.message,&p);
+	UInt16 val;
+	decoder_decodeBuiltInDatatype(rawMessage.message, UINT16, &p, &val);
 	ck_assert_int_eq(val,testUInt16);
 	//ck_assert_int_eq(rawMessage.message[0], 0xAB);
 
@@ -181,7 +186,8 @@ START_TEST(decodeUInt32_test)
 	rawMessage.length = 4;
 
 	Int32 p = 0;
-	UInt32 val = decodeUInt32(rawMessage.message,&p);
+	UInt32 val;
+	decoder_decodeBuiltInDatatype(rawMessage.message, UINT32, &p, &val);
 	ck_assert_uint_eq(val,255);
 
 }
@@ -221,7 +227,8 @@ START_TEST(decodeInt32_test)
 
 
 	Int32 p = 0;
-	Int32 val = decodeInt32(rawMessage.message,&p);
+	Int32 val;
+	decoder_decodeBuiltInDatatype(rawMessage.message, INT32, &p, &val);
 	ck_assert_int_eq(val,1000000000);
 }
 END_TEST
@@ -245,7 +252,8 @@ START_TEST(decodeUInt64_test)
 	rawMessage.length = 8;
 
 	Int32 p = 0;
-	UInt64 val = decodeUInt64(rawMessage.message,&p);
+	UInt64 val;
+	decoder_decodeBuiltInDatatype(rawMessage.message, UINT64, &p, &val);
 	ck_assert_uint_eq(val, expectedVal);
 }
 END_TEST
@@ -287,7 +295,8 @@ START_TEST(decodeInt64_test)
 	rawMessage.length = 8;
 
 	Int32 p = 0;
-	Int64 val = decodeInt64(rawMessage.message,&p);
+	Int64 val;
+	decoder_decodeBuiltInDatatype(rawMessage.message, INT64, &p, &val);
 	ck_assert_uint_eq(val, expectedVal);
 }
 END_TEST
@@ -324,7 +333,9 @@ START_TEST(decodeFloat_test)
 	char buf[4] = {0x00,0x00,0xD0,0xC0};
 
 
-	Float calcVal = decodeFloat(buf,&pos);
+	Float calcVal;
+
+	decoder_decodeBuiltInDatatype(buf, FLOAT, &pos, &calcVal);
 	//val should be -6.5
 
 	Int32 val = (calcVal > -6.501 && calcVal < -6.499);

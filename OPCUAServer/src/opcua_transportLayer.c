@@ -64,15 +64,16 @@ void TL_open(UA_connection *connection, AD_RawMessage *rawMessage)
 Int32 TL_checkMessage(UA_connection *connection, AD_RawMessage *TL_messsage)
 {
 	Int32 position = 4;
+	UInt32 messageLength = 0;
 	TL_getPacketType(TL_messsage);
+	decoder_decodeBuiltInDatatype(TL_messsage->message,UINT32,&position,&messageLength);
 
-	Int32 messageLen = decodeUInt32(TL_messsage->message, &position);
-	if (messageLen == TL_messsage->length &&
-		messageLen < (connection->transportLayer.localConf.maxMessageSize))
+	if (messageLength == TL_messsage->length &&
+			messageLength < (connection->transportLayer.localConf.maxMessageSize))
 	{
-		return 1;
+		return UA_ERROR;
 	}
-	return 0;
+	return UA_NO_ERROR;
 }
 void TL_receive(UA_connection *connection, AD_RawMessage *TL_message)
 {
@@ -185,10 +186,8 @@ void TL_getMessageHeader(struct TL_header *header, AD_RawMessage *rawMessage)
 
 	pos = pos + TL_MESSAGE_TYPE_LEN;
 
-	header->Reserved = decodeByte(rawMessage->message,&pos);
-	pos = pos + TL_RESERVED_LEN;
-	header->MessageSize = decodeUInt32(rawMessage->message,&pos);
-
+	decoder_decodeBuiltInDatatype(rawMessage->message,BYTE,&pos,&(header->Reserved));
+	decoder_decodeBuiltInDatatype(rawMessage->message,UINT32,&pos,&(header->MessageSize));
 }
 Int32 TL_getPacketType(AD_RawMessage *rawMessage)
 {
@@ -267,9 +266,6 @@ void TL_processHELMessage_test()
 		printf(" - failed \n");
 	}
 
-
-
-
 }
 /*
  * gets the TL_messageBody
@@ -279,24 +275,20 @@ void TL_processHELMessage(UA_connection *connection, AD_RawMessage *rawMessage)
 	UInt32 pos = TL_HEADER_LENGTH;
 	struct TL_header tmpHeader;
 
-	connection->transportLayer.remoteConf.protocolVersion =
-			decodeUInt32(rawMessage->message,&pos);
-	pos = pos + sizeof(UInt32);
+	decoder_decodeBuiltInDatatype(rawMessage->message,UINT32,pos,
+			(void*)&(connection->transportLayer.remoteConf.protocolVersion));
 
-	connection->transportLayer.remoteConf.recvBufferSize =
-			decodeUInt32(rawMessage->message,&pos);
-	pos = pos +  sizeof(UInt32);
+	decoder_decodeBuiltInDatatype(rawMessage->message,UINT32,pos,
+			(void*)&(connection->transportLayer.remoteConf.recvBufferSize));
 
-	connection->transportLayer.remoteConf.sendBufferSize =
-			decodeUInt32(rawMessage->message,&pos);
-	pos = pos +  sizeof(UInt32);
-	connection->transportLayer.remoteConf.maxMessageSize =
-			decodeUInt32(rawMessage->message,&pos);
-	pos = pos +  sizeof(UInt32);
+	decoder_decodeBuiltInDatatype(rawMessage->message,UINT32,pos,
+			(void*)&(connection->transportLayer.remoteConf.sendBufferSize));
 
-	connection->transportLayer.remoteConf.maxChunkCount =
-			decodeUInt32(rawMessage->message,&pos);
-	pos = pos +  sizeof(UInt32);
+	decoder_decodeBuiltInDatatype(rawMessage->message,UINT32,pos,
+			(void*)&(connection->transportLayer.remoteConf.maxMessageSize));
+
+	decoder_decodeBuiltInDatatype(rawMessage->message,UINT32,pos,
+			(void*)&(connection->transportLayer.remoteConf.maxChunkCount));
 
 	connection->transportLayer.endpointURL.Data = &(rawMessage->message[pos]);
 	connection->transportLayer.endpointURL.Length = tmpHeader.MessageSize - pos;
