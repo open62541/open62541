@@ -499,7 +499,6 @@
 			</target>
 			<target name="Server" path="src" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
 				<buildCommand>make</buildCommand>
-				<buildArguments/>
 				<buildTarget>Server</buildTarget>
 				<stopOnError>true</stopOnError>
 				<useDefaultCommand>true</useDefaultCommand>

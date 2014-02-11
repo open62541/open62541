@@ -1123,7 +1123,7 @@ Int32 decodeVariant(char * const buf, Int32 *pos, UA_Variant *dstVariant)
 	{
 		decoder_decodeBuiltInDatatype(buf, INT32, pos,
 				&(dstVariant->ArrayLength));
-		dstVariant->Value->
+		//dstVariant->Value->
 	}
 
 
