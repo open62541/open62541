@@ -107,7 +107,7 @@ typedef enum
 	VARIANT_MATRIX = 216,
 	DIAGNOSTIC_INFO_MATRIX = 217
 }
-UA_BuiltInDataTypes_Array;
+UA_BuiltInDataTypes_Matrix;
 
 
 
@@ -465,7 +465,7 @@ typedef struct
 	UInt32 *data;
 	Int32 arrayLength;
 	IntegerString  dimensions;
-}UInt32_Array
+}UInt32_Array;
 
 typedef struct
 {
@@ -574,14 +574,14 @@ typedef struct
 
 typedef struct
 {
-	UA_DataValue *data;
+	struct UA_DataValue *data;
 	Int32 arrayLength;
 	IntegerString  dimensions;
 }DataValue_Array;
 
 typedef struct
 {
-	UA_Variant *data;
+	struct UA_Variant *data;
 	Int32 arrayLength;
 	IntegerString  dimensions;
 }Variant_Array;
