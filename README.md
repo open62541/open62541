@@ -5,9 +5,19 @@ An open communication stack implementation of OPC UA.
 
 # Getting dependencies
 ### Ubuntu
+##### Getting gcc toolchain:
 ```bash
-sudo apt-get install build-essential check
+sudo apt-get install build-essential subversion git
 ```
+##### Getting check unit test framework:
+```bash
+$ svn checkout svn://svn.code.sf.net/p/check/code/trunk check-code
+$ autoreconf --install
+$ ./configure
+$ make
+$ make install
+```
+
 ### Windows
 ##### Getting MinGW and MSYS:
 * Get the latest MinGW installer: http://sourceforge.net/projects/mingw/files/latest/download?source=files
