@@ -10,8 +10,6 @@ An open communication stack implementation of OPC UA.
 sudo apt-get install build-essential subversion git
 ```
 ##### Getting check unit test framework:
-* Open MinGW\msys\1.0\msys.bat
-
 ```bash
 $ svn checkout svn://svn.code.sf.net/p/check/code/trunk check-code
 $ autoreconf --install
