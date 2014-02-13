@@ -12,10 +12,12 @@ sudo apt-get install build-essential subversion git
 ##### Getting check unit test framework:
 ```bash
 $ svn checkout svn://svn.code.sf.net/p/check/code/trunk check-code
+$ cd check-code
 $ autoreconf --install
 $ ./configure
 $ make
-$ make install
+$ sudo make install
+$ sudo ldconfig
 ```
 
 ### Windows
@@ -37,6 +39,7 @@ $ make install
 
 ```bash
 $ svn checkout svn://svn.code.sf.net/p/check/code/trunk check-code
+$ cd check-code
 $ autoreconf --install
 $ ./configure --prefix=
 $ make
