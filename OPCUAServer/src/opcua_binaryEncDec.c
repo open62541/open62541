@@ -573,7 +573,7 @@ Int32 decodeUInt16(char * const buf, Int32 *pos, UInt16 *dst)
 }
 void encodeUInt16(UInt16 value, Int32 *pos, char* dstBuf)
 {
-	memcpy(dstBuf, &value, sizeof(UInt16));
+	memcpy(&(dstBuf[*pos]), &value, sizeof(UInt16));
 	*pos = (*pos) + sizeof(UInt16);
 }
 
@@ -587,7 +587,7 @@ Int32 decodeInt16(char * const buf, Int32 *pos, Int16 *dst)
 }
 void encodeInt16(Int16 value, Int32 *pos, char *dstBuf)
 {
-	memcpy(dstBuf, &value, sizeof(Int16));
+	memcpy(&(dstBuf[*pos]), &value, sizeof(Int16));
 	*pos = (*pos) + sizeof(Int16);
 }
 
@@ -603,7 +603,7 @@ Int32 decodeInt32(char * const buf, Int32 *pos, Int32 *dst)
 }
 void encodeInt32(Int32 value, Int32 *pos, char *dstBuf)
 {
-	memcpy(dstBuf, &value, sizeof(Int32));
+	memcpy(&(dstBuf[*pos]), &value, sizeof(Int32));
 	*pos = (*pos) + sizeof(Int32);
 }
 
@@ -641,7 +641,7 @@ Int32 decodeInt64(char * const buf, Int32 *pos, Int64 *dst)
 }
 void encodeInt64(Int64 value, Int32 *pos, char *dstBuf)
 {
-	memcpy(dstBuf, &value, sizeof(Int64));
+	memcpy(&(dstBuf[*pos]), &value, sizeof(Int64));
 	*pos = (*pos) + sizeof(Int64);
 }
 
@@ -662,7 +662,7 @@ Int32 decodeUInt64(char * const buf, Int32 *pos, UInt64 *dst)
 }
 void encodeUInt64(UInt64 value, Int32 *pos, char *dstBuf)
 {
-	memcpy(dstBuf, &value, sizeof(UInt64));
+	memcpy(&(dstBuf[*pos]), &value, sizeof(UInt64));
 	*pos = (*pos) + sizeof(UInt64);
 }
 
@@ -1222,14 +1222,15 @@ Int32 encodeDataValue(UA_DataValue *dataValue, Int32 *pos, char *dstBuf)
 	}
 	if (dataValue->EncodingMask & 0x08)
 	{
-		encoder_encodeBuiltInDatatype((void*) &(dataValue->SourcePicoseconds),
-				UINT16, pos, dstBuf);
-	}
-	if (dataValue->EncodingMask & 0x10)
-	{
 		encoder_encodeBuiltInDatatype((void*) &(dataValue->ServerTimestamp),
 				DATE_TIME, pos, dstBuf);
 	}
+	if (dataValue->EncodingMask & 0x10)
+	{
+		encoder_encodeBuiltInDatatype((void*) &(dataValue->SourcePicoseconds),
+				UINT16, pos, dstBuf);
+	}
+
 	if (dataValue->EncodingMask & 0x20)
 	{
 		encoder_encodeBuiltInDatatype((void*) &(dataValue->ServerPicoseconds),

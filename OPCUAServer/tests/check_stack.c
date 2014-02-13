@@ -503,29 +503,49 @@ START_TEST(encodeDataValue_test)
 {
 	UA_DataValue dataValue;
 	Int32 pos = 0;
-	char *buf = (char*)opcua_malloc(500);
+	char *buf = (char*)opcua_malloc(15);
+	UA_DateTime dateTime;
+	dateTime = 80;
+	dataValue.ServerTimestamp = dateTime;
 
-	buf[0] = 99;
-	buf[1] = 99;
-	buf[2] = 99;
-
-	//without Variant
+	//--without Variant
 	dataValue.EncodingMask = 0x08; //Only the SourvePicoseconds
+	encodeDataValue(&dataValue, &pos, buf);
+
+	ck_assert_int_eq(pos, 9);// represents the length
+	ck_assert_int_eq(buf[0], 0x08);
+	ck_assert_int_eq(buf[1], 80);
+	ck_assert_int_eq(buf[2], 0);
+	ck_assert_int_eq(buf[3], 0);
+	ck_assert_int_eq(buf[4], 0);
+	ck_assert_int_eq(buf[5], 0);
+	ck_assert_int_eq(buf[6], 0);
+	ck_assert_int_eq(buf[7], 0);
+	ck_assert_int_eq(buf[8], 0);
+
+	//TestCase for a DataValue with a Variant!
+	//ToDo: Need to be checked after the function for encoding variants has been implemented
+	pos = 0;
+	dataValue.EncodingMask = 0x01 || 0x08; //Variant & SourvePicoseconds
 	UA_Variant variant;
 	variant.ArrayLength = 0;
-	variant.EncodingMask = VTEMT_UINT32;
+	variant.EncodingMask = VTEMT_INT32;
 	UA_VariantUnion variantUnion;
 	variantUnion.Int32 = 45;
 	variant.Value = &variantUnion;
 	dataValue.Value = variant;
-	dataValue.SourcePicoseconds = 12;
-	dataValue.ServerPicoseconds = 34;
-
 	encodeDataValue(&dataValue, &pos, buf);
-	ck_assert_int_eq(pos, 3);// represents the length
+
+	ck_assert_int_eq(pos, 14);// represents the length
 	ck_assert_int_eq(buf[0], 0x08);
-	ck_assert_int_eq(buf[1], 0);
-	ck_assert_int_eq(buf[2], 12);
+	ck_assert_int_eq(buf[1], 0x06);
+	ck_assert_int_eq(buf[2], 45);
+	ck_assert_int_eq(buf[3], 0);
+	ck_assert_int_eq(buf[4], 0);
+	ck_assert_int_eq(buf[5], 0);
+	ck_assert_int_eq(buf[6], 80);
+	ck_assert_int_eq(buf[7], 0);
+
 }
 END_TEST
 
