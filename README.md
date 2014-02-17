@@ -9,7 +9,7 @@ An open communication stack implementation of OPC UA.
 ```bash
 sudo apt-get install build-essential subversion git
 ```
-##### Getting check unit test framework:
+##### Getting and installing check 0.9.12
 ```bash
 $ svn checkout svn://svn.code.sf.net/p/check/code/trunk check-code
 $ cd check-code
