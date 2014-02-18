@@ -23,11 +23,12 @@ START_TEST(test_getPacketType_validParameter)
 {
 
 	char buf[] = {'C','L','O'};
+	Int32 pos = 0;
 	AD_RawMessage rawMessage;
 	rawMessage.message = buf;
 	rawMessage.length = 3;
 
-	ck_assert_int_eq(TL_getPacketType(&rawMessage),packetType_CLO);
+	ck_assert_int_eq(TL_getPacketType(&pos,&rawMessage),packetType_CLO);
 
 }
 END_TEST

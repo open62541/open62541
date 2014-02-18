@@ -626,6 +626,7 @@ UA_VariantArrayUnion;
 
 typedef struct _UA_VariantArrayValue
 {
+	//Byte TypeEncoding;
     Int32  Length;
     UA_VariantArrayUnion Value;
 }

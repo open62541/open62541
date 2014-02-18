@@ -6,37 +6,8 @@
  */
 #include "opcua_secureChannelLayer.h"
 
-//memory calculation
 
 
-Int32 SL_openSecureChannelRequest_check(const UA_connection *connection, AD_RawMessage *secureChannelMessage)
-{
-	return UA_NO_ERROR;
-}
-/*
- * respond the securechannel_open request
- */
-Int32 SL_secureChannel_ResponseHeader_get(const UA_connection *connection, T_ResponseHeader *responseHeader)
-{
-	responseHeader->timestamp = 0;//TODO getCurrentTime();
-	responseHeader->requestHandle = 0;
-	responseHeader->serviceResult = 0; // TODO insert service result code
-
-	responseHeader->serviceDiagnostics->EncodingMask = 0;
-	responseHeader->noOfStringTable = 0;
-
-	responseHeader->additionalHeader.Body.Length = 0;
-	responseHeader->additionalHeader.Encoding = 0;
-	responseHeader->additionalHeader.Length = 0;
-
-
-	responseHeader->additionalHeader.TypeId.Namespace = 0;
-	responseHeader->additionalHeader.TypeId.Identifier.Numeric = 0;
-
-
-	responseHeader->requestHandle = 0;
-	return UA_NO_ERROR;
-}
 
 /*
  * opens a secureChannel (server side)
@@ -51,7 +22,7 @@ Int32 SL_secureChannel_open(const UA_connection *connection,
 	T_ResponseHeader responseHeader;
 	AD_RawMessage rawMessage;
 	Int32 position = 0;
-	SL_secureChannel_ResponseHeader_get(connection,&responseHeader);
+	//SL_secureChannel_ResponseHeader_get(connection,&responseHeader);
 	Int32 size = responseHeader_calcSize(&responseHeader);
 	rawMessage.message = (char*)opcua_malloc(size);
 
@@ -143,7 +114,7 @@ void SL_receive(UA_connection *connection, AD_RawMessage *serviceMessage)
 	//		if (openSecureChannelHeader_check(connection, secureChannelMessage))
 	//		{
 				//check if the request is valid
-				SL_openSecureChannelRequest_check(connection, secureChannelMessage);
+			//	SL_openSecureChannelRequest_check(connection, secureChannelMessage);
 	//		}
 	//		else
 	//		{
@@ -181,7 +152,7 @@ Int32 decodeSCMHeader(AD_RawMessage *rawMessage,Int32 *pos,
 Int32 encodeSCMHeader(SL_SecureConversationMessageHeader *SC_Header,
 		 Int32 *pos,AD_RawMessage *rawMessage)
 {
-	char *type = "ERR";
+	const char *type = "ERR";
 	switch(SC_Header->MessageType)
 	{
 	case packetType_ACK:

@@ -16,6 +16,9 @@
 
 //TODO : Implement this interface
 #include "tcp_layer.h"
+//transport errors begin at 1000
+#define UA_ERROR_MULTIPLY_HEL 1000
+#define UA_ERROR_RCV_ERROR 1001
 
 //constants
 static const UInt32 TL_HEADER_LENGTH = 8;
@@ -76,10 +79,21 @@ struct TL_messageBodyERR
 
 };
 //functions
-void TL_receive(UA_connection *connection, AD_RawMessage *TL_message);
-//Test
-void TL_getMessageHeader_test();
-Int32 TL_getPacketType(AD_RawMessage *rawMessage);
+/**
+ *
+ * @param connection connection object
+ * @param TL_message
+ * @return
+ */
+Int32 TL_check(UA_connection *connection, AD_RawMessage *TL_message);
+/**
+ *
+ * @param connection
+ * @param TL_message
+ */
+Int32 TL_receive(UA_connection *connection, AD_RawMessage *TL_message);
+
+Int32 TL_getPacketType(Int32 *pos, AD_RawMessage *rawMessage);
 void TL_getMessageHeader(struct TL_header *messageHeader,AD_RawMessage *rawMessage);
 
 //Test

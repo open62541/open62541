@@ -8,19 +8,7 @@
 #include "opcua_transportLayer.h"
 
 
-/*
- * send acknowledge to the client
- */
-void TL_sendACK(UA_connection *connection)
-{
-	//get memory for message
-	//
-	//build message
-	//connection->transportLayer.localConf.maxChunkCount;
 
-	//call send function
-
-}
 /*
  * server answer to open message
  */
@@ -61,11 +49,13 @@ void TL_open(UA_connection *connection, AD_RawMessage *rawMessage)
 		}
 	}
 }
-Int32 TL_checkMessage(UA_connection *connection, AD_RawMessage *TL_messsage)
+
+Int32 TL_check(UA_connection *connection, AD_RawMessage *TL_messsage)
 {
 	Int32 position = 4;
 	UInt32 messageLength = 0;
-	TL_getPacketType(TL_messsage);
+	Int32 pos = 0;
+	TL_getPacketType(&pos,TL_messsage);
 	decoder_decodeBuiltInDatatype(TL_messsage->message,UINT32,&position,&messageLength);
 
 	if (messageLength == TL_messsage->length &&
@@ -75,64 +65,50 @@ Int32 TL_checkMessage(UA_connection *connection, AD_RawMessage *TL_messsage)
 	}
 	return UA_NO_ERROR;
 }
-void TL_receive(UA_connection *connection, AD_RawMessage *TL_message)
+
+
+Int32 TL_receive(UA_connection *connection, AD_RawMessage *TL_message)
 {
 	UInt32 bufferSize = connection->transportLayer.localConf.recvBufferSize = 8192;
 	UInt32 length = 0;
+	Int32 pos = 0;
 
 	AD_RawMessage tmpRawMessage;
 	struct TL_header tmpHeader;
-	//allocate memory for the message
-//TODO filter double Hello Messages -> generate error message as response
-//TODO build a file which handles the memory allocation
+	//TODO call socket receive function
 	tmpRawMessage.message = (char *)opcua_malloc(bufferSize);
+	tmpRawMessage.length = bufferSize;
 
-//	if (tmpRawMessage.message != NULL)
-//	{
-		//length = tcp_recv(connection, tmpRawMessage.message, bufferSize);
-//	}
-
-
-
-	tmpRawMessage.length = length;
-	if(tmpRawMessage.length > 0)
+	if(TL_check(connection,TL_message) == UA_NO_ERROR)
 	{
-		switch(TL_getPacketType(&tmpRawMessage))
+		Int32 packetType = TL_getPacketType(&pos,TL_message);
+		switch(packetType)
 		{
 		packetType_MSG:
 		packetType_OPN:
 		packetType_CLO:
-			//CHECK MESSAGE SIZE
-			if (TL_checkMessage(connection,TL_message))
-			{
-				TL_message->length = tmpRawMessage.length;
-				TL_message->message = tmpRawMessage.message;
-			}
-			else
-			{
-				// SEND BACK ERROR MESSAGE
-			}
+
 			break;
 		packetType_HEL:
-			TL_message->length = 0;
-			TL_message->message = NULL;
-			TL_open(connection, &tmpRawMessage);
-			break;
 		packetType_ACK:
-			TL_message->length = 0;
-			TL_message->message = NULL;
+			TL_process(connection,TL_message,packetType);
 			break;
 		packetType_ERR:
 			TL_message->length = 0;
 			TL_message->message = NULL;
+
 			//TODO ERROR HANDLING
+
+			return UA_ERROR_RCV_ERROR;
 			break;
-			//TODO ERROR HANDLING
 		}
-		//check in which state the connection is
-
 	}
-
+	else
+	{
+		//length error: send error message to communication partner
+		//TL_send()
+	}
+	return UA_NO_ERROR;
 }
 
 
@@ -189,41 +165,42 @@ void TL_getMessageHeader(struct TL_header *header, AD_RawMessage *rawMessage)
 	decoder_decodeBuiltInDatatype(rawMessage->message,BYTE,&pos,&(header->Reserved));
 	decoder_decodeBuiltInDatatype(rawMessage->message,UINT32,&pos,&(header->MessageSize));
 }
-Int32 TL_getPacketType(AD_RawMessage *rawMessage)
+Int32 TL_getPacketType(Int32 *pos,AD_RawMessage *rawMessage)
 {
-	if(rawMessage->message[0] == 'H' &&
-	   rawMessage->message[1] == 'E' &&
-	   rawMessage->message[2] == 'L')
+
+	if(rawMessage->message[*pos] == 'H' &&
+	   rawMessage->message[*pos+1] == 'E' &&
+	   rawMessage->message[*pos+2] == 'L')
 	{
 		return packetType_HEL;
 	}
-	else if(rawMessage->message[0] == 'A' &&
-	        rawMessage->message[1] == 'C' &&
-	        rawMessage->message[2] == 'K')
+	else if(rawMessage->message[*pos] == 'A' &&
+	        rawMessage->message[*pos+1] == 'C' &&
+	        rawMessage->message[*pos+2] == 'K')
 	{
 		return packetType_ACK;
 	}
-	else if(rawMessage->message[0] == 'E' &&
-			rawMessage->message[1] == 'R' &&
-			rawMessage->message[2] == 'R')
+	else if(rawMessage->message[*pos] == 'E' &&
+			rawMessage->message[*pos+1] == 'R' &&
+			rawMessage->message[*pos+2] == 'R')
 	{
 		return packetType_ERR;
 	}
-	else if(rawMessage->message[0] == 'O' &&
-	        rawMessage->message[1] == 'P' &&
-	        rawMessage->message[2] == 'N')
+	else if(rawMessage->message[*pos] == 'O' &&
+	        rawMessage->message[*pos+1] == 'P' &&
+	        rawMessage->message[*pos+2] == 'N')
 	{
 		return packetType_OPN;
 	}
-	else if(rawMessage->message[0] == 'C' &&
-	        rawMessage->message[1] == 'L' &&
-	        rawMessage->message[2] == 'O')
+	else if(rawMessage->message[*pos] == 'C' &&
+	        rawMessage->message[*pos+1] == 'L' &&
+	        rawMessage->message[*pos+2] == 'O')
 	{
 		return packetType_CLO;
 	}
-	else if(rawMessage->message[0] == 'M' &&
-			rawMessage->message[1] == 'S' &&
-			rawMessage->message[2] == 'G')
+	else if(rawMessage->message[*pos] == 'M' &&
+			rawMessage->message[*pos+1] == 'S' &&
+			rawMessage->message[*pos+2] == 'G')
 	{
 		return packetType_MSG;
 	}
@@ -232,66 +209,43 @@ Int32 TL_getPacketType(AD_RawMessage *rawMessage)
 		return -1;//TODO ERROR no valid message received
 	}
 }
-void TL_processHELMessage_test()
+
+
+Int32 TL_process(UA_connection *connection,Int32 packetType, Int32 *pos, AD_RawMessage *rawMessage)
 {
-	Byte data[] = {0x48,0x45,0x4c,0x46,0x56,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x01,0x88,0x13,0x00,0x00,0x36,0x00,0x00,0x00,0x6f,0x70,0x63,0x2e,0x74,0x63,0x70,0x3a,0x2f,0x2f,0x43,0x61,0x6e,0x6f,0x70,0x75,0x73,0x2e,0x70,0x6c,0x74,0x2e,0x72,0x77,0x74,0x68,0x2d,0x61,0x61,0x63,0x68,0x65,0x6e,0x2e,0x64,0x65,0x3a,0x31,0x36,0x36,0x36,0x34,0x2f,0x34,0x43,0x45,0x55,0x41,0x53,0x65,0x72,0x76,0x65,0x72};
-	UA_connection con;
-	AD_RawMessage rawMessage;
-	rawMessage.message = data;
-	rawMessage.length = 86;
-
-
-	struct TL_messageBodyHEL HELmessage;
-
-	struct TL_header header;
-
-	printf("TL_getHELMessage_test");
-
-	header.MessageSize = 86;
-	header.MessageType = TL_HEL; // HEL message
-	header.Reserved = 0x46; // F
-
-	TL_processHELMessage(&con, &rawMessage);
-
-	if(con.transportLayer.remoteConf.protocolVersion == 0 &&
-	   con.transportLayer.remoteConf.recvBufferSize == 65536 &&
-	   con.transportLayer.remoteConf.sendBufferSize == 65536 &&
-	   con.transportLayer.remoteConf.maxMessageSize == 16777216 &&
-	   con.transportLayer.remoteConf.maxChunkCount == 5000)
-	{
-		printf(" - passed \n");
-	}
-	else
-	{
-		printf(" - failed \n");
-	}
-
-}
-/*
- * gets the TL_messageBody
- */
-void TL_processHELMessage(UA_connection *connection, AD_RawMessage *rawMessage)
-{
-	UInt32 pos = TL_HEADER_LENGTH;
 	struct TL_header tmpHeader;
+	switch(packetType)
+	{
+	packetType_HEL :
+		if(connection->transportLayer.connectionState == connectionState_CLOSED)
+		{
 
-	decoder_decodeBuiltInDatatype(rawMessage->message,UINT32,pos,
-			(void*)&(connection->transportLayer.remoteConf.protocolVersion));
+			decoder_decodeBuiltInDatatype(rawMessage->message,UINT32,&pos,
+					(void*)(&(connection->transportLayer.remoteConf.protocolVersion)));
 
-	decoder_decodeBuiltInDatatype(rawMessage->message,UINT32,pos,
-			(void*)&(connection->transportLayer.remoteConf.recvBufferSize));
+			decoder_decodeBuiltInDatatype(rawMessage->message,UINT32,&pos,
+					(void*)(&(connection->transportLayer.remoteConf.recvBufferSize)));
 
-	decoder_decodeBuiltInDatatype(rawMessage->message,UINT32,pos,
-			(void*)&(connection->transportLayer.remoteConf.sendBufferSize));
+			decoder_decodeBuiltInDatatype(rawMessage->message,UINT32,&pos,
+					(void*)(&(connection->transportLayer.remoteConf.sendBufferSize)));
 
-	decoder_decodeBuiltInDatatype(rawMessage->message,UINT32,pos,
-			(void*)&(connection->transportLayer.remoteConf.maxMessageSize));
+			decoder_decodeBuiltInDatatype(rawMessage->message,UINT32,&pos,
+					(void*)(&(connection->transportLayer.remoteConf.maxMessageSize)));
 
-	decoder_decodeBuiltInDatatype(rawMessage->message,UINT32,pos,
-			(void*)&(connection->transportLayer.remoteConf.maxChunkCount));
+			decoder_decodeBuiltInDatatype(rawMessage->message,UINT32,&pos,
+					(void*)(&(connection->transportLayer.remoteConf.maxChunkCount)));
 
-	connection->transportLayer.endpointURL.Data = &(rawMessage->message[pos]);
-	connection->transportLayer.endpointURL.Length = tmpHeader.MessageSize - pos;
+
+			decoder_decodeBuiltInDatatype(rawMessage->message,STRING,&pos,
+					(void*)(&(connection->transportLayer.endpointURL)));
+
+		}
+		else
+		{
+			return UA_ERROR_MULTIPLY_HEL;
+		}
+	}
+	return UA_NO_ERROR;
 }
 /*
  * respond to client request
