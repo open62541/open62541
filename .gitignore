@@ -1,0 +1,9 @@
+tignore
+    # exclude everything except directory foo/bar
+    .log
+    .guess
+    .in
+    Makefile
+    !/foo
+    /foo/*
+    !/foo/bar
