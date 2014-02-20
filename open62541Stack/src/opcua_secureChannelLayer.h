@@ -14,8 +14,19 @@
 
 static const Int32 SL_HEADER_LENGTH = 0;
 
+typedef enum
+{
+	securityToken_ISSUE = 0,
+	securityToken_RENEW = 1
+}SecurityTokenRequestType;
 
+typedef enum
+{
+	securityMode_INVALID = 0,
+	securityMode_SIGN = 1,
+	securityMode_SIGNANDENCRYPT = 2
 
+}securityMode;
 typedef struct
 {
 	UInt32 ServerProtocolVersion;
@@ -81,7 +92,7 @@ Int32 SL_openSecureChannel_responseMessage_get(UA_connection *connection,
  * @param SC_Header
  * @return
  */
-Int32 decodeSCMHeader(AD_RawMessage *rawMessage,Int32 *pos,
+Int32 decodeSCMHeader(UA_ByteString *rawMessage,Int32 *pos,
 		SL_SecureConversationMessageHeader* SC_Header);
 
 /**
@@ -101,7 +112,7 @@ Int32 encodeSCMHeader(SL_SecureConversationMessageHeader *SC_Header,
  * @param SequenceHeader
  * @return
  */
-Int32 decodeSequenceHeader(AD_RawMessage *rawMessage, Int32 *pos,
+Int32 decodeSequenceHeader(UA_ByteString *rawMessage, Int32 *pos,
 		SL_SequenceHeader *sequenceHeader);
 /**
  *
@@ -119,7 +130,7 @@ Int32 encodeSequenceHeader(SL_SequenceHeader *sequenceHeader,Int32 *pos,
  * @param AAS_Header
  * @return
  */
-Int32 decodeAASHeader(AD_RawMessage *rawMessage, Int32 *pos,
+Int32 decodeAASHeader(UA_ByteString *rawMessage, Int32 *pos,
 	SL_AsymmetricAlgorithmSecurityHeader* AAS_Header);
 
 /**
@@ -132,5 +143,11 @@ Int32 decodeAASHeader(AD_RawMessage *rawMessage, Int32 *pos,
 Int32 encodeAASHeader(SL_AsymmetricAlgorithmSecurityHeader *AAS_Header,
 		Int32 *pos, AD_RawMessage* dstRawMessage);
 
+/**
+ *
+ * @param connection
+ * @param serviceMessage
+ */
+void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage);
 
 #endif /* OPCUA_SECURECHANNELLAYER_H_ */

@@ -37,7 +37,7 @@ Int32 encoder_encodeBuiltInDatatype(void *data, Int32 type, Int32 *pos,
 		encodeInt32((*(Int32*) data), pos, dstBuf);
 		break;
 	case UINT32:
-		encodeUInt32((*(UInt32*) data), pos, dstBuf);
+		encodeUInt32(*(UInt32*)(data), pos, dstBuf);
 		break;
 	case INT64:
 		encodeInt64((*(Int64*) data), pos, dstBuf);
@@ -619,8 +619,8 @@ Int32 decodeUInt32(char * const buf, Int32 *pos, UInt32 *dst)
 }
 void encodeUInt32(UInt32 value, Int32 *pos, char *dstBuf)
 {
-	memcpy(&(dstBuf[*pos]), &value, sizeof(value));
-	pos += 4;
+	memcpy(&(dstBuf[*pos]), &value, sizeof(UInt32));
+	*pos += 4;
 
 }
 
@@ -635,7 +635,7 @@ Int32 decodeInt64(char * const buf, Int32 *pos, Int64 *dst)
 	Int64 t6 = (Int64) buf[*pos + 5] << 40;
 	Int64 t7 = (Int64) buf[*pos + 6] << 48;
 	Int64 t8 = (Int64) buf[*pos + 7] << 56;
-	pos += 8;
+	*pos += 8;
 	*dst = t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8;
 	return UA_NO_ERROR;
 }
@@ -656,7 +656,7 @@ Int32 decodeUInt64(char * const buf, Int32 *pos, UInt64 *dst)
 	UInt64 t6 = (UInt64) buf[*pos + 5] << 40;
 	UInt64 t7 = (UInt64) buf[*pos + 6] << 48;
 	UInt64 t8 = (UInt64) buf[*pos + 7] << 56;
-	pos += 8;
+	*pos += 8;
 	*dst = t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8;
 	return UA_NO_ERROR;
 }
@@ -764,6 +764,7 @@ Int32 decodeUAGuid(char * const buf, Int32 *pos, UA_Guid *dstGUID)
 	decodeUAByteString(buf, pos, &(dstGUID->Data4));
 	return UA_NO_ERROR;
 }
+
 Int32 encodeUAGuid(UA_Guid *srcGuid, Int32 *pos, char *buf)
 {
 	encodeUInt32(srcGuid->Data1, pos, buf);
@@ -914,7 +915,7 @@ Int32 decodeIntegerId(char* buf, Int32 *pos, Int32 *dst)
 	decoder_decodeBuiltInDatatype(buf, INT32, pos, dst);
 	return UA_NO_ERROR;
 }
-void encodeIntegerId(T_IntegerId integerId, Int32 *pos, char *buf)
+void encodeIntegerId(UA_AD_IntegerId integerId, Int32 *pos, char *buf)
 {
 	encodeInt32(integerId, pos, buf);
 }
@@ -1245,52 +1246,54 @@ Int32 encodeDataValue(UA_DataValue *dataValue, Int32 *pos, char *dstBuf)
  * Chapter: 7.9
  * Page: 116
  */
-Int32 decodeDiagnosticInfo(char* buf, Int32 *pos,
-		T_DiagnosticInfo* dstDiagnosticInfo)
+Int32 decodeDiagnosticInfo(char *buf, Int32 *pos,
+		UA_DiagnosticInfo *dstDiagnosticInfo)
 {
+
 	Byte encodingByte = (buf[*pos]);
 	Byte mask;
 	for (mask = 1; mask <= 0x40; mask << 2)
 	{
+
 		switch (mask & encodingByte)
 		{
 		case DIEMT_SYMBOLIC_ID:
 			decoder_decodeBuiltInDatatype(buf, INT32, pos,
-					&(dstDiagnosticInfo->symbolicId));
+					&(dstDiagnosticInfo->SymbolicId));
 			//dstDiagnosticInfo->symbolicId = decodeInt32(buf, pos);
 			break;
 		case DIEMT_NAMESPACE:
 			decoder_decodeBuiltInDatatype(buf, INT32, pos,
-					&(dstDiagnosticInfo->namespaceUri));
+					&(dstDiagnosticInfo->NamespaceUri));
 			//dstDiagnosticInfo->namespaceUri = decodeInt32(buf, pos);
 			break;
 		case DIEMT_LOCALIZED_TEXT:
 			decoder_decodeBuiltInDatatype(buf, INT32, pos,
-					&(dstDiagnosticInfo->localizesText));
+					&(dstDiagnosticInfo->LocalizedText));
 			//dstDiagnosticInfo->localizesText = decodeInt32(buf, pos);
 			break;
 		case DIEMT_LOCALE:
 			decoder_decodeBuiltInDatatype(buf, INT32, pos,
-					&(dstDiagnosticInfo->locale));
+					&(dstDiagnosticInfo->Locale));
 			//dstDiagnosticInfo->locale = decodeInt32(buf, pos);
 			break;
 		case DIEMT_ADDITIONAL_INFO:
 			decoder_decodeBuiltInDatatype(buf, STRING, pos,
-					&(dstDiagnosticInfo->additionalInfo));
-			decodeUAString(buf, pos, &dstDiagnosticInfo->additionalInfo);
+					&(dstDiagnosticInfo->AdditionalInfo));
+			decodeUAString(buf, pos, &dstDiagnosticInfo->AdditionalInfo);
 			break;
 		case DIEMT_INNER_STATUS_CODE:
 			decoder_decodeBuiltInDatatype(buf, STATUS_CODE, pos,
-					&(dstDiagnosticInfo->innerStatusCode));
+					&(dstDiagnosticInfo->InnerStatusCode));
 			//dstDiagnosticInfo->innerStatusCode = decodeUAStatusCode(buf, pos);
 			break;
 		case DIEMT_INNER_DIAGNOSTIC_INFO:
 			//TODO memory management should be checked (getting memory within a function)
 
-			dstDiagnosticInfo->innerDiagnosticInfo =
-					(T_DiagnosticInfo*) opcua_malloc(sizeof(T_DiagnosticInfo));
+			dstDiagnosticInfo->InnerDiagnosticInfo =
+					(UA_DiagnosticInfo*) opcua_malloc(sizeof(UA_DiagnosticInfo));
 			decoder_decodeBuiltInDatatype(buf, DIAGNOSTIC_INFO, pos,
-					&(dstDiagnosticInfo->innerDiagnosticInfo));
+					&(dstDiagnosticInfo->InnerDiagnosticInfo));
 
 			break;
 		}
@@ -1308,6 +1311,7 @@ Int32 encodeDiagnosticInfo(UA_DiagnosticInfo *diagnosticInfo, Int32 *pos,
 			BYTE, pos, dstbuf);
 	for (mask = 1; mask <= 0x40; mask = mask << 2)
 	{
+
 		switch (mask & (diagnosticInfo->EncodingMask))
 		{
 		case DIEMT_SYMBOLIC_ID:
@@ -1400,7 +1404,7 @@ Int32 diagnosticInfo_calcSize(UA_DiagnosticInfo *diagnosticInfo)
  */
 /** \copydoc decodeRequestHeader */
 Int32 decodeRequestHeader(const AD_RawMessage *srcRaw, Int32 *pos,
-		T_RequestHeader *dstRequestHeader)
+		UA_AD_RequestHeader *dstRequestHeader)
 {
 
 	decoder_decodeBuiltInDatatype(srcRaw->message, NODE_ID, pos,
@@ -1437,12 +1441,12 @@ Int32 decodeRequestHeader(const AD_RawMessage *srcRaw, Int32 *pos,
  * Page: 133
  */
 /** \copydoc encodeResponseHeader */
-Int32 encodeResponseHeader(const T_ResponseHeader *responseHeader, Int32 *pos,
-		AD_RawMessage *dstBuf)
+Int32 encodeResponseHeader(const UA_AD_ResponseHeader *responseHeader, Int32 *pos,
+		UA_ByteString *dstBuf)
 {
-	encodeUADateTime(responseHeader->timestamp, pos, dstBuf->message);
-	encodeIntegerId(responseHeader->requestHandle, pos, dstBuf->message);
-	encodeUInt32(responseHeader->serviceResult, pos, dstBuf->message);
+	encodeUADateTime(responseHeader->timestamp, pos, dstBuf->Data);
+	encodeIntegerId(responseHeader->requestHandle, pos, dstBuf->Data);
+	encodeUInt32(responseHeader->serviceResult, pos, dstBuf->Data);
 	//Kodieren von String Datentypen
 
 	return 0;
@@ -1462,7 +1466,7 @@ Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject)
 	return length;
 }
 
-Int32 responseHeader_calcSize(T_ResponseHeader *responseHeader)
+Int32 responseHeader_calcSize(UA_AD_ResponseHeader *responseHeader)
 {
 	Int32 minimumLength = 20; // summation of all simple types
 	Int32 i, length;

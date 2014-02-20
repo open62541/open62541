@@ -304,7 +304,7 @@ Int32 decodeIntegerId(char* buf, Int32 *pos, Int32* dst);
  * @param buf
 
  */
-void encodeIntegerId(T_IntegerId integerId, Int32 *pos, char *buf);
+void encodeIntegerId(UA_AD_IntegerId integerId, Int32 *pos, char *buf);
 /**
  * \brief
  * \param srcRaw             pointer to raw data which holds the encoded data
@@ -312,7 +312,7 @@ void encodeIntegerId(T_IntegerId integerId, Int32 *pos, char *buf);
  * \param dstRequestHeader   pointer to a structure which hold the encoded header
  * \return                   0 = success
  */
-Int32 decodeRequestHeader(const AD_RawMessage *srcRaw,Int32 *pos, T_RequestHeader *dstRequestHeader);
+Int32 decodeRequestHeader(const AD_RawMessage *srcRaw,Int32 *pos, UA_AD_RequestHeader *dstRequestHeader);
 /**
  *
  * @param srcHeader
@@ -320,7 +320,7 @@ Int32 decodeRequestHeader(const AD_RawMessage *srcRaw,Int32 *pos, T_RequestHeade
  * @param dstRaw
  * @return
  */
-Int32 encodeRequestHeader(const T_RequestHeader *srcHeader,Int32 *pos,AD_RawMessage *dstRaw);
+Int32 encodeRequestHeader(const UA_AD_RequestHeader *srcHeader,Int32 *pos,UA_ByteString *dstRaw);
 /**
  *
  * @param srcRaw
@@ -328,7 +328,7 @@ Int32 encodeRequestHeader(const T_RequestHeader *srcHeader,Int32 *pos,AD_RawMess
  * @param dstResponseHeader
  * @return
  */
-Int32 decodeResponseHeader(const AD_RawMessage *srcRaw, Int32 *pos, T_ResponseHeader *dstResponseHeader);
+Int32 decodeResponseHeader(const UA_ByteString *srcRaw, Int32 *pos, UA_AD_ResponseHeader *dstResponseHeader);
 /**
  *  @brief function to encode a secureChannelRequestHeader
  *
@@ -336,7 +336,7 @@ Int32 decodeResponseHeader(const AD_RawMessage *srcRaw, Int32 *pos, T_ResponseHe
  * @param dstBuf   pointer to a structure which hold the encoded header
  * @return
  */
-Int32 encodeResponseHeader(const T_ResponseHeader *responseHeader, Int32 *pos, AD_RawMessage *dstBuf);
+Int32 encodeResponseHeader(const UA_AD_ResponseHeader *responseHeader, Int32 *pos, UA_ByteString *dstBuf);
 /**
  *
  * @param diagnosticInfo

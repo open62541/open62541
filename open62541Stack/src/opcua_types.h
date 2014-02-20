@@ -9,19 +9,16 @@
 #define OPCUA_TYPES_H_
 
 #include "opcua_builtInDatatypes.h"
-#define UA_PROTOCOL_VERSION 0
 
-#define UA_NO_ERROR 0
-#define UA_ERROR 1
 
-typedef enum _T_ApplicationType
+typedef enum
 {
 	ApplicationType_SERVER_0,
-	ApplicationType_CLIENT_1,
+	ApplicationType_CLIENUA_1,
 	ApplicationType_CLIENTANDSERVER_2,
 	ApplicationType_DISCOVERYSERVER_3
 }
-T_ApplicationType;
+UA_AD_ApplicationType;
 
 
 /**
@@ -30,7 +27,7 @@ T_ApplicationType;
 * Chapter: 7.12
 * Page: 118
 */
-typedef UInt32 T_Index;
+typedef UInt32 UA_AD_Index;
 
 
 /**
@@ -39,7 +36,7 @@ typedef UInt32 T_Index;
 * Chapter: 7.13
 * Page: 118
 */
-typedef UInt32 T_IntegerId;
+typedef UInt32 UA_AD_IntegerId;
 
 
 /**
@@ -48,18 +45,18 @@ typedef UInt32 T_IntegerId;
 * Chapter: 7.1
 * Page: 103
 */
-typedef struct _T_ApplicationDescription
+typedef struct
 {
 	UA_String applicationUri;
 	UA_String productUri;
 	UA_LocalizedText applicationName;
-	T_ApplicationType applicationType;
+	UA_AD_ApplicationType applicationType;
 	UA_String gatewayServerUri;
 	UA_String discoveryProfileUri;
 	UInt16 noOfDiscoerUrls;
 	UA_String* discoverUrls;
 }
-T_ApplicationDescription;
+UA_AD_ApplicationDescription;
 
 /**
 * ApplicationInstanceCertificate
@@ -67,7 +64,7 @@ T_ApplicationDescription;
 * Chapter: 7.2
 * Page: 104
 */
-typedef struct _T_ApplicationInstanceCertificate
+typedef struct
 {
 	UA_String version;
 	UA_ByteString serialNumber;
@@ -84,7 +81,7 @@ typedef struct _T_ApplicationInstanceCertificate
 	UInt16 noOfKeyUsages;
 	UA_String* keyUsage;
 }
-T_ApplicationInstanceCertificate;
+UA_AD_ApplicationInstanceCertificate;
 
 
 /**
@@ -93,10 +90,10 @@ T_ApplicationInstanceCertificate;
 * Chapter: 7.6
 * Page: 114
 */
-typedef struct _T_ContinuationPoint
+typedef struct UA_AD_ContinuationPoint
 {
 }
-T_ContinuationPoint;
+UA_AD_ContinuationPoint;
 
 
 /**
@@ -105,17 +102,17 @@ T_ContinuationPoint;
 * Chapter: 7.24
 * Page: 131
 */
-typedef struct _T_ReferenceDescription
+typedef struct
 {
 	UA_NodeId referenceTypeId;
 	Boolean isForward;
 	UA_ExpandedNodeId nodeId;
 	UA_QualifiedName browseName;
 	UA_LocalizedText displayName;
-//ToDo	T_NodeClass nodeClass;			//ToDo
+//ToDo	UA_NodeClass nodeClass;			//ToDo
 	UA_ExpandedNodeId typeDefinition;
 }
-T_ReferenceDescription;
+UA_AD_ReferenceDescription;
 
 
 /**
@@ -124,14 +121,14 @@ T_ReferenceDescription;
 * Chapter: 7.3
 * Page: 104
 */
-typedef struct _T_BrowseResult
+typedef struct
 {
 	UA_StatusCode statusCode;
-	T_ContinuationPoint continuationPoint;
+	UA_AD_ContinuationPoint continuationPoint;
 	UInt16 noOfReferences;
-	T_ReferenceDescription *references;
+	UA_AD_ReferenceDescription *references;
 }
-T_BrowseResult;
+UA_AD_BrowseResult;
 
 
 /**
@@ -140,7 +137,7 @@ T_BrowseResult;
 * Chapter: 7.5
 * Page: 113
 */
-typedef UInt32 T_Counter;
+typedef UInt32 UA_Counter;
 
 
 /**
@@ -149,7 +146,7 @@ typedef UInt32 T_Counter;
 * Chapter: 7.7.1
 * Page: 114
 */
-typedef struct _T_DataValue
+typedef struct UA_AD_DataValue
 {
 	UA_Variant value;	// BaseDataType are mapped to a UA_Variant -> part: 6 chapter: 5.1.5 page: 14
 	UA_StatusCode statusCode;
@@ -157,8 +154,7 @@ typedef struct _T_DataValue
 //ToDo	UInt					//toBeDiscussed: Resolution of PicoSeconds
 	UA_DateTime serverTimestamp;
 //ToDo	UInt					//toBeDiscussed: Resolution of PicoSeconds
-}
-T_DataValue;
+}UA_AD_DataValue;
 
 
 /**
@@ -167,7 +163,7 @@ T_DataValue;
 * Chapter: 7.9
 * Page: 116
 */
-typedef struct _T_DiagnosticInfo
+typedef struct
 {
 	//ToDo	struct ???? identifier;	identifier is only needed for encoding????
 	Int32 namespaceUri;
@@ -176,9 +172,9 @@ typedef struct _T_DiagnosticInfo
 	Int32 localizesText;
 	UA_String additionalInfo;
 	UA_StatusCode innerStatusCode;
-	struct _T_DiagnosticInfo* innerDiagnosticInfo;
+	struct _UA_DiagnosticInfo* innerDiagnosticInfo;
 }
-T_DiagnosticInfo;
+UA_AD_DiagnosticInfo;
 
 
 /**
@@ -187,13 +183,13 @@ T_DiagnosticInfo;
 * Chapter: 7.14
 * Page: 118
 */
-typedef enum _T_MessageSecurityMode
+typedef enum
 {
 	MessageSecurityMode_INVALID_0 = 0,
 	MessageSecurityMode_SIGN_1 = 1,
-	MessageSecurityMode_SIGNANDENCRYPT_2 = 2
+	MessageSecurityMode_SIGNANDENCRYPUA_2 = 2
 }
-T_MessageSecurityMode;
+UA_AD_MessageSecurityMode;
 
 
 /**
@@ -202,15 +198,15 @@ T_MessageSecurityMode;
 * Chapter: 7.36
 * Page: 142
 */
-typedef struct _T_UserTokenPolicy
+typedef struct
 {
 	UA_String policyId;
-//ToDo	T_UserIdentityTokenType tokenType;
+//ToDo	UA_UserIdentityTokenType tokenType;
 	UA_String issuedTokenType;
 	UA_String issuerEndpointUrl;
 	UA_String securityPolicyUri;
 }
-T_UserTokenPolicy;
+UA_AD_UserTokenPolicy;
 
 
 /**
@@ -219,19 +215,19 @@ T_UserTokenPolicy;
 * Chapter: 7.9
 * Page: 116
 */
-typedef struct _T_EndpointDescription
+typedef struct
 {
 	UA_String endpointUrl;
-	T_ApplicationDescription server;
-	T_ApplicationInstanceCertificate serverCertificate;
-	T_MessageSecurityMode securityMode;
+	UA_AD_ApplicationDescription server;
+	UA_AD_ApplicationInstanceCertificate serverCertificate;
+	UA_AD_MessageSecurityMode securityMode;
 	UA_String securityPolicyUri;
 	UInt16 noOfUserIdentyTokens;
-	T_UserTokenPolicy* useridentyTokens;
+	UA_AD_UserTokenPolicy* useridentyTokens;
 	UA_String transportProfileUri;
 	Byte securtiyLevel;
 }
-T_EndpointDescription;
+UA_AD_EndpointDescription;
 
 
 /**
@@ -240,15 +236,15 @@ T_EndpointDescription;
 * Chapter: 7.10
 * Page: 117
 */
-typedef struct _T_ExpandedNodeId
+typedef struct
 {
-	T_Index serverIndex;
+	UA_AD_Index serverIndex;
 	UA_String namespaceUri;
-	T_Index namespaveIndex;
+	UA_AD_Index namespaveIndex;
 //ToDo	enum BED_IdentifierType identiferType;		//ToDo: Is the enumeration correct?
 //ToDo	UA_NodeIdentifier identifier;		//ToDo -> Part 3: Address Space Model
 }
-T_ExpandedNodeId;
+UA_AD_ExpandedNodeId;
 
 
 /**
@@ -257,12 +253,12 @@ T_ExpandedNodeId;
 * Chapter: 7.11
 * Page: 117
 */
-typedef struct _T_ExtensibleParameter
+typedef struct
 {
 	UA_NodeId parameterTypeId;
 //ToDo	-- parameterData;			//toBeDiscussed
 }
-T_ExtensibleParameter;
+UA_AD_ExtensibleParameter;
 
 
 /**
@@ -271,13 +267,13 @@ T_ExtensibleParameter;
 * Chapter: 7.16.2
 * Page: 119
 */
-typedef struct _T_DataChangeFilter
+typedef struct
 {
 //ToDo	enum BED_MonitoringFilter trigger = BED_MonitoringFilter.DATA_CHANGE_FILTER;
 	UInt32 deadbandType;
 	Double deadbandValue;
 }
-T_DataChangeFilter;
+UA_AD_DataChangeFilter;
 
 
 /**
@@ -286,13 +282,13 @@ T_DataChangeFilter;
 * Chapter: 7.4.1
 * Page: 104
 */
-typedef struct _T_ContentFilter
+typedef struct
 {
 //ToDo	struct BED_ContentFilterElement elements[];		//ToDo
 //ToDo	enum BED_FilterOperand filterOperator;			//ToDo table 110
 //ToDo	struct BED_ExtensibleParamterFilterOperand filterOperands[]; //ToDo 7.4.4
 }
-T_ContentFilter;
+UA_AD_ContentFilter;
 
 
 /**
@@ -301,20 +297,20 @@ T_ContentFilter;
 * Chapter: 7.16.3
 * Page: 120
 */
-typedef struct _T_EventFilter
+typedef struct
 {
 //ToDo	SimpleAttributeOperantd selectClauses[]; 		//ToDo
 //ToDo	ContenFilter whereClause;				//ToDo
 }
-T_EventFilter;
+UA_AD_EventFilter;
 
-typedef struct _T_EventFilterResult
+typedef struct
 {
 	UA_StatusCode selectClauseResults[3];
 	UA_DiagnosticInfo selectClauseDiagnosticInfos[3];
-//ToDo	T_ContentFilterResult whereClauseResult;
+//ToDo	UA_ContentFilterResult whereClauseResult;
 }
-T_EventFilterResult;
+UA_AD_EventFilterResult;
 
 
 /**
@@ -323,7 +319,7 @@ T_EventFilterResult;
 * Chapter: 7.16.4
 * Page: 122
 */
-typedef struct _T_AggregateFilter
+typedef struct
 {
 	UA_DateTime startTime;
 	UA_NodeId aggregateType;
@@ -335,14 +331,14 @@ typedef struct _T_AggregateFilter
 	Byte percentDataGood;
 	Boolean steppedSlopedExtrapolation;
 }
-T_AggregateFilter;
+UA_AD_AggregateFilter;
 
-typedef struct _T_AggregateFilterResult
+typedef struct
 {
 	UA_DateTime revisedStartTime;
 	UA_Duration revisedProcessingInterval;
 }
-T_AggregateFilterResult;
+UA_AD_AggregateFilterResult;
 
 
 
@@ -352,25 +348,25 @@ T_AggregateFilterResult;
 * Chapter: 7.15
 * Page: 118
 */
-typedef struct _T_MonitoringParameters
+typedef struct
 {
-	T_IntegerId clientHandle;
+	UA_AD_IntegerId clientHandle;
 //ToDo	Duration???? samplingInterval;						//ToDo
 //ToDo	struct BED_ExtensibleParameterMonitoringFilter filter			//ToDo
-	T_Counter queueSize;
+	UA_Counter queueSize;
 	Boolean discardOldest;
 }
-T_MonitoringParameters;
+UA_AD_MonitoringParameters;
 
 //->ExtensibleParameter ->Part:4 Chapter:7.11 Page:117
-typedef struct _T_ExtensibleParameterMonitoringFilter		//ToDo: Ist die Umsetzung des ExtensibleParameter korrekt?
+typedef struct 		//ToDo: Ist die Umsetzung des ExtensibleParameter korrekt?
 {
-//ToDo	T_MonitoringFilter parameterTypeId;
-	T_DataChangeFilter dataChangeFilter;
-	T_EventFilter eventFilter;
-	T_AggregateFilter aggregateFilter;
+//ToDo	UA_MonitoringFilter parameterTypeId;
+	UA_AD_DataChangeFilter dataChangeFilter;
+	UA_AD_EventFilter eventFilter;
+	UA_AD_AggregateFilter aggregateFilter;
 }
-T_ExtensibleParameterMonitoringFilter;
+UA_AD_ExtensibleParameterMonitoringFilter;
 
 /**
 * MonitoringFilter parameterTypeIds
@@ -378,13 +374,13 @@ T_ExtensibleParameterMonitoringFilter;
 * Chapter: 7.16.1
 * Page: 119
 */
-typedef enum _T_MonitoringFilter
+typedef enum
 {
 	MonitoringFilter_DATA_CHANGE_FILTER = 1,
-	MonitoringFilter_EVENT_FILTER = 2,
+	MonitoringFilter_EVENUA_FILTER = 2,
 	MonitoringFilter_AGGREGATE_FILTER = 3
 }
-T_MonitoringFilter;
+UA_AD_MonitoringFilter;
 
 
 
@@ -395,13 +391,13 @@ T_MonitoringFilter;
 * Chapter: 7.17
 * Page: 123
 */
-typedef enum _T_MonitoringModeValues
+typedef enum
 {
 	MonitoringModeValues_DISABLED_0 = 0,	//The item being monitored is not sampled or evaluated, and Notifications are not generated or queued. Notification reporting is disabled.
 	MonitoringModeValues_SAMPLING_1 = 1,	//The item being monitored is sampled and evaluated, and Notifications are generated and queued. Notification reporting is disabled.
 	MonitoringModeValues_REPORTING_2 = 2	//The item being monitored is sampled and evaluated, and Notifications are generated and queued. Notification reporting is enabled.
 }
-T_MonitoringModeValues;
+UA_AD_MonitoringModeValues;
 
 
 /**
@@ -410,7 +406,7 @@ T_MonitoringModeValues;
 * Chapter: 7.18.1
 * Page: 124
 */
-typedef enum _T_NodeAttributesParamterTypeIds
+typedef enum
 {
 	NodeAttributesParamterTypeIds_ObjectAttributes,	//Defines the Attributes for the Object NodeClass.
 	NodeAttributesParamterTypeIds_VariableAttributes,	//Defines the Attributes for the Variable NodeClass.
@@ -421,9 +417,9 @@ typedef enum _T_NodeAttributesParamterTypeIds
 	NodeAttributesParamterTypeIds_DataTypeAttributes,	//Defines the Attributes for the DataType NodeClass.
 	NodeAttributesParamterTypeIds_ViewAttributes		//Defines the Attributes for the View NodeClass.
 }
-T_NodeAttributesParamterTypeIds;
+UA_AD_NodeAttributesParamterTypeIds;
 
-typedef enum _T_NodeAttributesBitMask
+typedef enum
 {
 	NodeAttributesBitMask_AccessLevel = 1, 	//Bit: 0 Indicates if the AccessLevel Attribute is set.
 	NodeAttributesBitMask_ArrayDimensions = 2,	//Bit: 1 Indicates if the ArrayDimensions Attribute is set.
@@ -449,7 +445,7 @@ typedef enum _T_NodeAttributesBitMask
 	NodeAttributesBitMask_Value = 2097152		//Bit:21 Indicates if the Value Attribute is set.
 	//Reserved		//Bit:22:32 Reserved for future use. Shall always be zero.
 }
-T_NodeAttributesBitMask;
+UA_AD_NodeAttributesBitMask;
 
 
 /**
@@ -458,7 +454,7 @@ T_NodeAttributesBitMask;
 * Chapter: 7.18.2
 * Page: 125
 */
-typedef struct _T_ObjectAttributes
+typedef struct
 {
 	UInt32 specifiedAttribute;	//BitMask corresponding to BED_NodeAttributesBitMask
 	UA_LocalizedText displayName;
@@ -467,7 +463,7 @@ typedef struct _T_ObjectAttributes
 	UInt32 writeMask;
 	UInt32 userWriteMask;
 }
-T_ObjectAttributes;
+UA_AD_ObjectAttributes;
 
 
 /**
@@ -476,7 +472,7 @@ T_ObjectAttributes;
 * Chapter: 7.18.3
 * Page: 125
 */
-typedef struct _T_VariableAttributes
+typedef struct
 {
 	UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
 	UA_LocalizedText displayName;
@@ -493,7 +489,7 @@ typedef struct _T_VariableAttributes
 	UInt32 writeMask;
 	UInt32 userWriteMask;
 }
-T_VariableAttributes;
+UA_AD_VariableAttributes;
 
 
 /**
@@ -502,7 +498,7 @@ T_VariableAttributes;
 * Chapter: 7.18.4
 * Page: 125
 */
-typedef struct _T_MethodAttributes
+typedef struct
 {
 	UInt32 specifiedAttributes;	//BitMask corresponding to BED_NodeAttributesBitMask
 	UA_LocalizedText displayName;
@@ -512,7 +508,7 @@ typedef struct _T_MethodAttributes
 	UInt32 writeMask;
 	UInt32 userWriteMask;
 }
-T_MethodAttributes;
+UA_AD_MethodAttributes;
 
 
 /**
@@ -521,7 +517,7 @@ T_MethodAttributes;
 * Chapter: 7.18.5
 * Page: 125
 */
-typedef struct _T_ObjectTypeAttributes
+typedef struct
 {
 	UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
 	UA_LocalizedText displayName;
@@ -530,7 +526,7 @@ typedef struct _T_ObjectTypeAttributes
 	UInt32 wirteMask;
 	UInt32 userWriteMask;
 }
-T_ObjectTypeAttributes;
+UA_AD_ObjectTypeAttributes;
 
 
 /**
@@ -539,7 +535,7 @@ T_ObjectTypeAttributes;
 * Chapter: 7.18.6
 * Page: 126
 */
-typedef struct _T_VariableTypeAttributes
+typedef struct
 {
 	UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
 	UA_LocalizedText displayName;
@@ -553,7 +549,7 @@ typedef struct _T_VariableTypeAttributes
 	UInt32 writeMask;
 	UInt32 userWriteMask;
 }
-T_VariableTypeAttributes;
+UA_AD_VariableTypeAttributes;
 
 
 /**
@@ -562,7 +558,7 @@ T_VariableTypeAttributes;
 * Chapter: 7.18.7
 * Page: 126
 */
-typedef struct _T_ReferenceTypeAttributes
+typedef struct
 {
 	UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
 	UA_LocalizedText displayName;
@@ -573,7 +569,7 @@ typedef struct _T_ReferenceTypeAttributes
 	UInt32 writeMask;
 	UInt32 userWriteMask;
 }
-T_ReferenceTypeAttributes;
+UA_AD_ReferenceTypeAttributes;
 
 
 
@@ -583,7 +579,7 @@ T_ReferenceTypeAttributes;
 * Chapter: 7.18.8
 * Page: 126
 */
-typedef struct _T_DataTypeAttributes
+typedef struct
 {
 	UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
 	UA_LocalizedText displayName;
@@ -592,7 +588,7 @@ typedef struct _T_DataTypeAttributes
 	UInt32 writeMask;
 	UInt32 userWriteMask;
 }
-T_DataTypeAttributes;
+UA_AD_DataTypeAttributes;
 
 
 
@@ -602,7 +598,7 @@ T_DataTypeAttributes;
 * Chapter: 7.18.9
 * Page: 127
 */
-typedef struct _T_ViewAttributes
+typedef struct
 {
 	UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
 	UA_LocalizedText displayName;
@@ -612,7 +608,7 @@ typedef struct _T_ViewAttributes
 	UInt32 writeMask;
 	UInt32 userWriteMask;
 }
-T_ViewAttributes;
+UA_AD_ViewAttributes;
 
 
 /**
@@ -621,13 +617,13 @@ T_ViewAttributes;
 * Chapter: 7.19
 * Page: 127
 */
-typedef enum _T_NotificationDataParameterTypeIds
+typedef enum
 {
 	NotificationDataParameterTypeIds_DATA_CHANGE = 1,
 	NotificationDataParameterTypeIds_EVENT = 2,
 	NotificationDataParameterTypeIds_STATUS_CHANGE = 3
 }
-T_NotificationDataParameterTypeIds;
+UA_AD_NotificationDataParameterTypeIds;
 
 
 /**
@@ -636,15 +632,15 @@ T_NotificationDataParameterTypeIds;
 * Chapter: 7.19.2
 * Page: 127
 */
-typedef struct _T_DataChangeNotification
+typedef struct UA_DataChangeNotification
 {
 //ToDo	struct BED_MonitoredItemNotification monitoredItems[];		//ToDo
-	T_IntegerId clientHandle;
+	UA_AD_IntegerId clientHandle;
 	UA_DataValue value;
 	UInt16 noOfdiagnosticInfos;
 	UA_DiagnosticInfo* diagnosticInfos;
 }
-T_DataChangeNotification;
+UA_AD_DataChangeNotification;
 
 
 /**
@@ -653,14 +649,14 @@ T_DataChangeNotification;
 * Chapter: 7.19.3
 * Page: 128
 */
-typedef struct _T_EventNotificationList
+typedef struct
 {
 //ToDo	struct EventFieldList events[];			//ToDo
-	T_IntegerId clientHandle;
+	UA_AD_IntegerId clientHandle;
 	UInt16 noOfEventFields;
 	UA_Variant* eventFields;	// BaseDataType are mapped to a UA_Variant -> part: 6 chapter: 5.1.5 page: 14
 }
-T_EventNotificationList;
+UA_AD_EventNotificationList;
 
 
 /**
@@ -669,12 +665,12 @@ T_EventNotificationList;
 * Chapter: 7.19.4
 * Page: 128
 */
-typedef struct _T_StatusChangeNotification
+typedef struct
 {
 	UA_StatusCode status;
 	UA_DiagnosticInfo diagnosticInfo;
 }
-T_StatusChangeNotification;
+UA_AD_StatusChangeNotification;
 
 
 /**
@@ -684,23 +680,23 @@ T_StatusChangeNotification;
 * Page: 129
 */
 //->ExtensibleParameter ->Part:4 Chapter:7.11 Page:117
-typedef struct _T_ExtensibleParameterNotificationData 		//ToDo: Ist die Umsetzung des ExtensibleParameter korrekt?
+typedef struct 		//ToDo: Ist die Umsetzung des ExtensibleParameter korrekt?
 {
-	T_NotificationDataParameterTypeIds parameterTypeId;
-	T_DataChangeNotification dataChange;
-	T_EventNotificationList event;
-	T_StatusChangeNotification statusChange;
+	UA_AD_NotificationDataParameterTypeIds parameterTypeId;
+	UA_AD_DataChangeNotification dataChange;
+	UA_AD_EventNotificationList event;
+	UA_AD_StatusChangeNotification statusChange;
 }
-T_ExtensibleParameterNotificationData;
+UA_AD_ExtensibleParameterNotificationData;
 
-typedef struct _T_NotificationMessage
+typedef struct
 {
-	T_Counter sequenceNumber;
+	UA_Counter sequenceNumber;
 	UA_DateTime publishTime;
 	UInt16 noOfNotificationData;
-	T_ExtensibleParameterNotificationData* notificationData;
+	UA_AD_ExtensibleParameterNotificationData* notificationData;
 }
-T_NotificationMessage;
+UA_AD_NotificationMessage;
 
 
 
@@ -711,7 +707,7 @@ T_NotificationMessage;
 * Chapter: 7.21
 * Page: 129
 */
-typedef UA_String T_NumericRange;
+typedef UA_String UA_NumericRange;
 
 
 /**
@@ -720,14 +716,14 @@ typedef UA_String T_NumericRange;
 * Chapter: 7.22
 * Page: 130
 */
-typedef struct _T_QueryDataSet
+typedef struct
 {
 	UA_ExpandedNodeId nodeId;
 	UA_ExpandedNodeId typeDefinitionNode;
 	UInt16 noOfValues;
 	UA_Variant* values;	// BaseDataType are mapped to a UA_Variant -> part: 6 chapter: 5.1.5 page: 14
 }
-T_QueryDataSet;
+UA_AD_QueryDataSet;
 
 
 /**
@@ -736,14 +732,14 @@ T_QueryDataSet;
 * Chapter: 7.23
 * Page: 130
 */
-typedef struct _T_ReadValueId
+typedef struct
 {
 	UA_NodeId nodeId;
-	T_IntegerId attributeId;
-	T_NumericRange indexRange;
+	UA_AD_IntegerId attributeId;
+	UA_NumericRange indexRange;
 	UA_QualifiedName dataEncoding;
 }
-T_ReadValueId;
+UA_AD_ReadValueId;
 
 
 /**
@@ -752,7 +748,7 @@ T_ReadValueId;
 * Chapter: 7.25
 * Page: 131
 */
-typedef struct _T_RelativePath
+typedef struct
 {
 //ToDo	struct BED_RelativePathElement elements[];		//ToDo
 	UA_NodeId referenceTypeId;
@@ -760,7 +756,7 @@ typedef struct _T_RelativePath
 	Boolean includeSubtypes;
 	UA_QualifiedName targetName;
 }
-T_RelativePath;
+UA_AD_RelativePath;
 
 
 /**
@@ -769,20 +765,20 @@ T_RelativePath;
 * Chapter: 7.26
 * Page: 132
 */
-typedef struct _T_RequestHeader
+typedef struct
 {
 	UA_NodeId authenticationToken;
 	UA_DateTime timestamp;
-	T_IntegerId requestHandle;
+	UA_AD_IntegerId requestHandle;
 	UInt32 returnDiagnostics;
 	UA_String auditEntryId;
 	UInt32 timeoutHint;
 	UA_ExtensionObject additionalHeader;
 }
-T_RequestHeader;
+UA_AD_RequestHeader;
 
 
-typedef enum _T_RequestReturnDiagnositcs
+typedef enum
 {
 	RequestReturnDiagnositcs_SERVICE_LEVEL_SYMBOLIC_ID = 1,				//Hex 0x01
 	RequestReturnDiagnositcs_SERVICE_LEVEL_LOCALIZED_TEXT= 2,			//Hex 0x02
@@ -795,7 +791,7 @@ typedef enum _T_RequestReturnDiagnositcs
 	RequestReturnDiagnositcs_OPERATION_LEVEL_INNER_STATUS_CODE = 256,	//Hex 0x100
 	RequestReturnDiagnositcs_OPERATION_LEVEL_INNER_DIAGNOSTICS = 512		//Hex 0x200
 }
-T_RequestReturnDiagnositcs;
+UA_AD_RequestReturnDiagnositcs;
 
 
 /**
@@ -804,17 +800,17 @@ T_RequestReturnDiagnositcs;
 * Chapter: 7.27
 * Page: 133
 */
-typedef struct _T_ResponseHeader
+typedef struct
 {
 	UA_DateTime timestamp;
-	T_IntegerId requestHandle;
+	UA_AD_IntegerId requestHandle;
 	UA_StatusCode serviceResult;
 	UA_DiagnosticInfo *serviceDiagnostics;
 	UInt16 noOfStringTable;
 	UA_String* stringTable;
 	UA_ExtensionObject additionalHeader;
 }
-T_ResponseHeader;
+UA_AD_ResponseHeader;
 
 
 /**
@@ -823,11 +819,11 @@ T_ResponseHeader;
 * Chapter: 7.28
 * Page: 133
 */
-typedef struct _T_ServiceFault
+typedef struct
 {
-	T_ResponseHeader responseHeader;
+	UA_AD_ResponseHeader responseHeader;
 }
-T_ServiceFault;
+UA_AD_ServiceFault;
 
 
 //ToDo: Own DataType with typeDef?
@@ -846,12 +842,12 @@ T_ServiceFault;
 * Chapter: 7.30
 * Page: 135
 */
-typedef struct _T_SignatureData
+typedef struct
 {
 	UA_ByteString signature;
 	UA_String agorithm;
 }
-T_SignatureData;
+UA_AD_SignatureData;
 
 
 /**
@@ -860,7 +856,7 @@ T_SignatureData;
 * Chapter: 7.31
 * Page: 135
 */
-typedef struct _T_SignedSoftwareCertificate
+typedef struct
 {
 	UA_String version;
 	UA_ByteString serialNumber;
@@ -876,7 +872,7 @@ typedef struct _T_SignedSoftwareCertificate
 	UA_String* keyUsage;
 	UA_ByteString softwareCertificate;
 }
-T_SignedSoftwareCertificate;
+UA_AD_SignedSoftwareCertificate;
 
 
 /**
@@ -885,7 +881,7 @@ T_SignedSoftwareCertificate;
 * Chapter: 7.32
 * Page: 135
 */
-typedef enum _T_ComplianceLevel
+typedef enum
 {
 	ComplianceLevel_UNTESTED_0 = 0,		//the profiled capability has not been tested successfully.
 	ComplianceLevel_PARTIAL_1 = 1,		//the profiled capability has been partially tested and has
@@ -895,21 +891,21 @@ typedef enum _T_ComplianceLevel
 	ComplianceLevel_CERTIFIED_3 = 3		//the profiled capability has been successfully tested by a
 				//testing organisation authorized by the certifying authority.
 }
-T_ComplianceLevel;
+UA_AD_ComplianceLevel;
 
-typedef struct _T_SupportedProfiles
+typedef struct
 {
 	UA_String oranizationUri;
 	UA_String profileId;
 	UA_String complianceTool;
 	UA_DateTime complianceDate;
-	T_ComplianceLevel complianceLevel;
+	UA_AD_ComplianceLevel complianceLevel;
 	UInt16 noOfUnsupportedUnitIds;
 	UA_String* unsupportedUnitIds;
 }
-T_SupportedProfiles;
+UA_AD_SupportedProfiles;
 
-typedef struct _T_SoftwareCertificate
+typedef struct
 {
 	UA_String productName;
 	UA_String productUri;
@@ -921,9 +917,9 @@ typedef struct _T_SoftwareCertificate
 	UA_String issuedBy;
 	UA_DateTime issueDate;
 //ToDo	UA_ByteString vendorProductCertificate; //Name is double in this struct
-	T_SupportedProfiles supportedProfiles;
+	UA_AD_SupportedProfiles supportedProfiles;
 }
-T_SoftwareCertificate;
+UA_AD_SoftwareCertificate;
 
 
 /**
@@ -940,7 +936,7 @@ T_SoftwareCertificate;
 * Chapter: 7.34
 * Page: 140
 */
-typedef enum _T_TimestampsToReturn
+typedef enum
 {
 	TimestampsToReturn_SOURCE_0 = 1,	//Return the source timestamp.
 			//If used in HistoryRead the source timestamp is used to determine which historical data values are returned.
@@ -952,7 +948,7 @@ typedef enum _T_TimestampsToReturn
 			//This is the default value for MonitoredItems if a Variable value is not being accessed.
 			//For HistoryRead this is not a valid setting.
 }
-T_TimestampsToReturn;
+UA_AD_TimestampsToReturn;
 
 
 /**
@@ -961,7 +957,7 @@ T_TimestampsToReturn;
 * Chapter: 7.35.1
 * Page: 140
 */
-typedef struct _T_UserIdentityTokenEncryptedTokenFormat
+typedef struct
 {
 	Byte length[4];
 	UInt16 noOfTokenData;
@@ -969,7 +965,7 @@ typedef struct _T_UserIdentityTokenEncryptedTokenFormat
 	UInt16 noOfServerNonce;
 	Byte* serverNonce;
 }
-T_UserIdentityTokenEncryptedTokenFormat;
+UA_AD_UserIdentityTokenEncryptedTokenFormat;
 
 
 /**
@@ -978,11 +974,11 @@ T_UserIdentityTokenEncryptedTokenFormat;
 * Chapter: 7.35.2
 * Page: 141
 */
-typedef struct _T_AnonymousIdentityToken
+typedef struct
 {
 	UA_String policyId;
 }
-_T_AnonymousIdentityToken;
+UA_AD_AnonymousIdentityToken;
 
 
 /**
@@ -991,14 +987,14 @@ _T_AnonymousIdentityToken;
 * Chapter: 7.35.3
 * Page: 141
 */
-typedef struct _T_UserNameIdentityToken
+typedef struct
 {
 	UA_String policyId;
 	UA_String userName;
 	UA_ByteString password;
 	UA_String encryptionAlogrithm;
 }
-T_UserNameIdentityToken;
+UA_AD_UserNameIdentityToken;
 
 
 /**
@@ -1007,12 +1003,12 @@ T_UserNameIdentityToken;
 * Chapter: 7.35.4
 * Page: 141
 */
-typedef struct _T_X509IdentityTokens
+typedef struct
 {
 	UA_String policyId;
 	UA_ByteString certificateData;
 }
-T_X509IdentityTokens;
+UA_AD_X509IdentityTokens;
 
 
 /**
@@ -1021,13 +1017,13 @@ T_X509IdentityTokens;
 * Chapter: 7.35.5
 * Page: 142
 */
-typedef struct _T_IssuedIdentityToken
+typedef struct
 {
 	UA_String policyId;
 	UA_ByteString tokenData;
 	UA_String encryptionAlgorithm;
 }
-T_IssuedIdentityToken;
+UA_AD_IssuedIdentityToken;
 
 
 
@@ -1039,13 +1035,13 @@ T_IssuedIdentityToken;
 * Chapter: 7.37
 * Page: 143
 */
-typedef struct _T_ViewDescription
+typedef struct
 {
 	UA_NodeId viewId;
 	UA_DateTime timestamp;
 	UInt32 viewVersion;
 }
-T_ViewDescription;
+UA_AD_ViewDescription;
 
 
 #endif /* OPCUA_TYPES_H_ */

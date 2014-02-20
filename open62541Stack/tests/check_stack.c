@@ -1,6 +1,6 @@
 /*
  ============================================================================
- Name        : opcuaServer.c
+ Name        : check_stack.c
  Author      :
  Version     :
  Copyright   : Your copyright notice
@@ -200,17 +200,19 @@ START_TEST(encodeUInt32_test)
 	UInt32 value = 0x0101FF00;
 	//EncodeUInt16
 
-	rawMessage.message = (char*)opcua_malloc(sizeof(UInt32));
+	rawMessage.message = (char*)opcua_malloc(2 * sizeof(UInt32));
 
-	rawMessage.length = 4;
+	rawMessage.length = 8;
 
-	Int32 p = 0;
-	encodeUInt32(value, &p,rawMessage.message);
+	Int32 p = 4;
+	//encodeUInt32(value, &p,rawMessage.message);
+	encoder_encodeBuiltInDatatype(&value,UINT32,&p,rawMessage.message);
+	ck_assert_uint_eq((Byte)rawMessage.message[4],0x00);
+	ck_assert_uint_eq((Byte)rawMessage.message[5],0xFF);
+	ck_assert_uint_eq((Byte)rawMessage.message[6],0x01);
+	ck_assert_uint_eq((Byte)rawMessage.message[7],0x01);
+	ck_assert_int_eq(p,8);
 
-	ck_assert_uint_eq((Byte)rawMessage.message[0],0x00);
-	ck_assert_uint_eq((Byte)rawMessage.message[1],0xFF);
-	ck_assert_uint_eq((Byte)rawMessage.message[2],0x01);
-	ck_assert_uint_eq((Byte)rawMessage.message[3],0x01);
 
 }
 END_TEST

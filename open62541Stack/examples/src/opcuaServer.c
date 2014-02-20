@@ -20,14 +20,17 @@
 
 #ifdef LINUX
 
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <sys/socketvar.h>
 
 void server_init();
 void server_run();
 
 #endif
-
+#define PORT    16664
+     #define MAXMSG  512
 int main(void)
 {
 
@@ -50,120 +53,101 @@ void server_init()
 }
 void server_run()
 {
-	int server_state = 0;
-	int recv_data = 0;
-	int send_data = 1;
-	int new_client = 2;
-	int new_request = 3;
-	char buf[8192];
-	struct sockaddr_in self;
-	int sockfd;
-	int clientfd;
+	UA_connection connection;
+	UA_ByteString slMessage;
+	TL_initConnectionObject(&connection);
+	char optval;
+	int sockfd, newsockfd, portno, clilen;
+	char buffer[8192];
+	struct sockaddr_in serv_addr, cli_addr;
+	int  n;
 
-	struct sockaddr_in client_addr;
-	int addrlen=sizeof(client_addr);
-
-
-	Int32 valreal = 0;
-	Int32 valcalc = 0;
-	UA_DiagnosticInfo diagnosticInfo;
-	diagnosticInfo.EncodingMask |= 0x01 | 0x02 | 0x04 | 0x04 | 0x08 | 0x10 | 0x10;
-	diagnosticInfo.SymbolicId = 30;
-	diagnosticInfo.NamespaceUri = 25;
-	diagnosticInfo.LocalizedText = 22;
-	diagnosticInfo.AdditionalInfo.Data = "OPCUA";
-	diagnosticInfo.AdditionalInfo.Length = 5;
-
-	if (diagnosticInfo_calcSize(&diagnosticInfo) > 10)
+	/* First call to socket() function */
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sockfd < 0)
 	{
-
-
-	//---Create streaming socket---
-	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-	{
-		puts("socket error");
+		perror("ERROR opening socket");
+		exit(1);
 	}
+
+	/* Initialize socket structure */
+	bzero((char *) &serv_addr, sizeof(serv_addr));
+	portno = 16664;
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_addr.s_addr = INADDR_ANY;
+	serv_addr.sin_port = htons(portno);
+	optval = 1;
+
+	if (setsockopt(sockfd,SOL_SOCKET,SO_REUSEADDR,&optval,sizeof(int)) == -1) {
+	    perror("setsockopt");
+	    exit(1);
 	}
-	bzero(&self, sizeof(self));
-	self.sin_family = AF_INET;
-	self.sin_port = htons(4840);
-	self.sin_addr.s_addr = htonl(INADDR_ANY);
-
-	if( bind(sockfd,(struct sockaddr *)&self , sizeof(self)) < 0)
+	/* Now bind the host address using bind() call.*/
+	if (bind(sockfd, (struct sockaddr *) &serv_addr,
+						  sizeof(serv_addr)) < 0)
 	{
-
-
-	   //Fehler bei bind()
-	 }
-
-	//---Make it a "listening socket"---
-	if ( listen(sockfd, 1) != 0 )
-	{
-		puts("listen error");
+		 perror("ERROR on binding");
+		 exit(1);
 	}
-	clientfd = accept(sockfd, (struct sockaddr*)&client_addr, &addrlen);
-	server_state = 0;
+
+	/* Now start listening for the clients, here process will
+	* go in sleep mode and will wait for the incoming connection
+	*/
+	listen(sockfd,5);
+	clilen = sizeof(cli_addr);
+
+	/* Accept actual connection from the client */
+	newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr,
+								&clilen);
+	if (newsockfd < 0)
+	{
+		perror("ERROR on accept");
+		exit(1);
+	}
+	printf("One connection accepted");
 	while(1)
 	{
-		//call recv (nonblocking)
+		/* If connection is established then start communicating */
+		bzero(buffer,8192);
 
-		//call TL_getPacketType
+		n = read( newsockfd,buffer,8192);
 
-		//if newData
-		//
-		UA_connection connection;
-		AD_RawMessage *rawMessage;
-		rawMessage->message = buf;
-		rawMessage->length = 0;
-		switch(server_state)
+		if (n > 0)
 		{
+			printf("received: %s\n",buffer);
+			connection.readData.Data = buffer;
+			connection.readData.Length = n;
+			connection.newDataToRead = 1;
 
-			recv_data :
-			{
-
-				//call receive function
-				rawMessage->length = recv(sockfd,buf,8192,0);
-				if(rawMessage->length > 0)
-				{
-					server_state = new_client;
-				}
-				break;
-			}
-			send_data :
-			{
-				//call send function
-				break;
-			}
-			new_client :
-			{
-				if(connection.transportLayer.connectionState != connectionState_ESTABLISHED)
-				{
-					TL_open(connection,rawMessage);
-				}
-//			else
-//				{
-//					SL_open(connection,rawMessage);
-//
-//				}
-
-			}
-			new_request :
-			{
-
-
-				break;
-			}
-
+			//TL_receive(&connection, &slMessage);
+			SL_receive(&connection, &slMessage);
 		}
-		//if newClient
+		else if (n < 0)
+		{
+			perror("ERROR reading from socket1");
+			exit(1);
+		}
+
+		if(connection.newDataToWrite)
+		{
+			printf("data will be sent \n");
+			n = write(newsockfd,connection.writeData.Data,connection.writeData.Length);
+			printf("sent data \n");
+			connection.newDataToWrite = 0;
+			opcua_free(connection.writeData.Data);
+			connection.writeData.Data = NULL;
+			connection.writeData.Length = 0;
+		}
+
+		connection.readData.Data = NULL;
+		connection.readData.Length = 0;
+		connection.newDataToRead = 0;
 
 
-		//TL_processHELMessage(&connection,);
 
-		//--------
-		//call listen
 	}
+  }
 
-}
+
 
 #endif

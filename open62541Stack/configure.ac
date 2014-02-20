@@ -25,7 +25,19 @@ AM_COND_IF([TARGET_WIN],
 
 AM_COND_IF([TARGET_LINUX],
     AC_DEFINE([LINUX]))
-    
+   
+AC_ARG_ENABLE(debug,
+AS_HELP_STRING([--enable-debug],
+               [enable debugging, default: no]),
+[case "${enableval}" in
+             yes) debug=true ;;
+             no)  debug=false ;;
+             *)   AC_MSG_ERROR([bad value ${enableval} for --enable-debug]) ;;
+esac],
+[debug=false])
+
+AM_CONDITIONAL(DEBUG, test x"$debug" = x"true")
+   
 AC_LIBTOOL_WIN32_DLL
 AC_PROG_LIBTOOL
 AC_CONFIG_MACRO_DIR([m4])

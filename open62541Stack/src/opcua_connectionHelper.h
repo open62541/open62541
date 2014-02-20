@@ -12,12 +12,12 @@
 
 enum packetType
 {
-	packetType_HEL,
-	packetType_ACK,
-	packetType_ERR,
-	packetType_OPN,
-	packetType_MSG,
-	packetType_CLO
+	packetType_HEL = 1,
+	packetType_ACK = 2,
+	packetType_ERR = 3,
+	packetType_OPN = 4,
+	packetType_MSG = 5,
+	packetType_CLO = 6
 };
 enum connectionState
 {
@@ -37,10 +37,9 @@ typedef struct
 
 typedef struct
 {
-	UInt32 recvBufferSize;
-	UInt32 sendBufferSize;
-
 	UInt32 protocolVersion;
+	UInt32 sendBufferSize;
+	UInt32 recvBufferSize;
 	UInt32 maxMessageSize;
 	UInt32 maxChunkCount;
 }TL_buffer;
@@ -58,7 +57,10 @@ struct TL_connection
 struct SL_connection
 {
 
-	T_ApplicationInstanceCertificate clientCertificate;
+	UA_ByteString SecurityPolicyUri;
+	UA_ByteString SenderCertificate;
+	UA_ByteString ReceiverCertificateThumbprint;
+	UInt32 sequenceNumber;
 	UInt32 requestType;
 	UA_String secureChannelId;
 	UInt32 UInt32_secureChannelId;
@@ -79,6 +81,11 @@ typedef struct
 	struct TL_connection transportLayer;
 	struct SL_connection secureLayer;
 	struct SS_connection serviceLayer;
+
+	Boolean newDataToRead;
+	UA_ByteString readData;
+	Boolean newDataToWrite;
+	UA_ByteString writeData;
 }UA_connection;
 
 

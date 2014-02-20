@@ -16,9 +16,14 @@
 
 //TODO : Implement this interface
 #include "tcp_layer.h"
+/*------------------Defined Error Codes------------------*/
 //transport errors begin at 1000
 #define UA_ERROR_MULTIPLY_HEL 1000
 #define UA_ERROR_RCV_ERROR 1001
+
+
+/*------------------Defined Lengths------------------*/
+#define SIZE_OF_ACKNOWLEDGE_MESSAGE 28
 
 //constants
 static const UInt32 TL_HEADER_LENGTH = 8;
@@ -32,12 +37,12 @@ static const TL_SERVER_MAX_MESSAGE_SIZE = 8192;
 
 enum TL_messageType_td
 {
-	TL_HEL,
-	TL_ACK,
-	TL_ERR,
-	TL_OPN,
-	TL_CLO,
-	TL_MSG
+	TL_HEL = 1,
+	TL_ACK = 2,
+	TL_ERR = 3,
+	TL_OPN = 4,
+	TL_CLO = 5,
+	TL_MSG = 6
 }TL_messageType;
 
 struct TL_header
@@ -85,19 +90,15 @@ struct TL_messageBodyERR
  * @param TL_message
  * @return
  */
-Int32 TL_check(UA_connection *connection, AD_RawMessage *TL_message);
+Int32 TL_check(UA_connection *connection);
 /**
  *
  * @param connection
  * @param TL_message
  */
-Int32 TL_receive(UA_connection *connection, AD_RawMessage *TL_message);
+Int32 TL_receive(UA_connection *connection,UA_ByteString *packet);
+Int32 TL_send(UA_connection *connection, UA_ByteString *packet);
+Int32 TL_getPacketType(UA_ByteString *packet, Int32 *pos);
 
-Int32 TL_getPacketType(Int32 *pos, AD_RawMessage *rawMessage);
-void TL_getMessageHeader(struct TL_header *messageHeader,AD_RawMessage *rawMessage);
 
-//Test
-void TL_processHELMessage_test();
-
-void TL_processHELMessage(UA_connection *connection, AD_RawMessage *rawMessage);
 #endif /* OPCUA_TRANSPORTLAYER_H_ */

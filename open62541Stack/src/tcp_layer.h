@@ -8,9 +8,18 @@
 #ifndef TCP_LAYER_H_
 #define TCP_LAYER_H_
 #include "opcua_connectionHelper.h"
+#ifdef LINUX
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <sys/socketvar.h>
+
+#endif
 /*
  * returns the length of read bytes
  */
-UInt32 receive(UA_connection *connection, AD_RawMessage *message,UInt32 bufferLength);
+
+
 
 #endif /* TCP_LAYER_H_ */
