@@ -3,7 +3,6 @@ tignore
     .log
     .guess
     .in
+    .sub
+    .status
     Makefile
-    !/foo
-    /foo/*
-    !/foo/bar
