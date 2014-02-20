@@ -1,8 +1,7 @@
 Open62541
 =========
 
-An open communication stack implementation of OPC UA.
-For license information see LICENSE.
+An open-source communication stack implementation of OPC UA licensed under LGPL + static linking exception.
 # Getting dependencies
 ### Ubuntu
 ##### Getting gcc toolchain:
