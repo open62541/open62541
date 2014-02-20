@@ -467,8 +467,9 @@ END_TEST
 
 START_TEST(responseHeader_calcSize_test)
 {
-	Int32 valreal = 0;
+	Int32 valreal = 1;
 	Int32 valcalc = 0;
+
 	T_ResponseHeader responseHeader;
 	UA_DiagnosticInfo diagnosticInfo;
 	UA_ExtensionObject extensionObject;

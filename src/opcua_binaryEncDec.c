@@ -1086,6 +1086,16 @@ Int32 encodeQualifiedName(UA_QualifiedName *qualifiedName, Int32 *pos,
 			dstBuf);
 	return UA_NO_ERROR;
 }
+Int32 QualifiedName_calcSize(UA_QualifiedName *qualifiedName)
+{
+	Int32 length = 0;
+
+	length += sizeof(UInt16); 							//qualifiedName->NamespaceIndex
+	length += UAString_calcSize(&(qualifiedName->Name));	//qualifiedName->Name
+	length += sizeof(UInt16); 							//qualifiedName->Reserved
+
+	return length;
+}
 
 Int32 decodeLocalizedText(char * const buf, Int32 *pos,
 		UA_LocalizedText *dstLocalizedText)
@@ -1113,6 +1123,22 @@ Int32 encodeLocalizedText(UA_LocalizedText *localizedText, Int32 *pos,
 				pos, dstBuf);
 	}
 	return UA_NO_ERROR;
+}
+Int32 LocalizedText_calcSize(UA_LocalizedText *localizedText)
+{
+	Int32 length = 0;
+
+	length += localizedText->EncodingMask;
+	if (localizedText->EncodingMask & 0x01)
+	{
+		length += UAString_calcSize(&(localizedText->Locale));
+	}
+	if (localizedText->EncodingMask & 0x02)
+	{
+		length += UAString_calcSize(&(localizedText->Text));
+	}
+
+	return length;
 }
 
 Int32 decodeExtensionObject(char * const buf, Int32 *pos,
@@ -1155,6 +1181,27 @@ Int32 encodeExtensionObject(UA_ExtensionObject *extensionObject, Int32 *pos,
 		break;
 	}
 	return UA_NO_ERROR;
+}
+Int32 ExtensionObject_calcSize(UA_ExtensionObject *extensionObject)
+{
+	Int32 length = 0;
+
+	length += nodeId_calcSize(&(extensionObject->TypeId));
+	length += sizeof(Byte);								//extensionObject->Encoding
+	switch (extensionObject->Encoding)
+	{
+	case 0x00:
+		length += sizeof(Int32);//extensionObject->Body.Length
+		break;
+	case 0x01:
+		length += UAByteString_calcSize(&(extensionObject->Body));
+		break;
+	case 0x02:
+		length += UAByteString_calcSize(&(extensionObject->Body));
+		break;
+	}
+
+	return length;
 }
 
 Int32 decodeVariant(char * const buf, Int32 *pos, UA_Variant *dstVariant)
@@ -1205,6 +1252,33 @@ Int32 encodeVariant(UA_Variant *variant, Int32 *pos, char *dstBuf)
 				(variant->EncodingMask & 31), pos, dstBuf);
 	}
 	return UA_NO_ERROR;
+}
+Int32 Variant_calcSize(UA_Variant *variant)
+{
+	Int32 length = 0;
+
+	length += sizeof(Byte);	//variant->EncodingMask
+	if (variant->EncodingMask & (1 << 7)) // array length is encoded
+	{
+		length += sizeof(Int32);//variant->ArrayLength
+		if (variant->ArrayLength > 0)
+		{
+			//encode array as given by variant type
+			//ToDo: tobeInsert: length += the calcSize for VariantUnions
+		}
+		//single value to encode
+		//ToDo: tobeInsert: length += the calcSize for VariantUnions
+	}
+	else //single value to encode
+	{
+		//ToDo: tobeInsert: length += the calcSize for VariantUnions
+	}
+	if (variant->EncodingMask & (1 << 6)) // encode array dimension field
+	{
+		//ToDo: tobeInsert: length += the calcSize for VariantUnions
+	}
+
+	return length;
 }
 
 Int32 decodeDataValue(char* const buf, Int32 *pos, UA_DataValue *dstDataValue)
