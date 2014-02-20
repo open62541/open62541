@@ -1,9 +1,10 @@
-tignore
-    # exclude everything except directory foo/bar
+    # exclude
     .log
     .guess
     .in
     .sub
     .status
-    /autom4te.cache	
+    .m4
+    /m4
+    /autom4te.cache
     Makefile
