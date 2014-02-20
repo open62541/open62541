@@ -5,4 +5,5 @@ tignore
     .in
     .sub
     .status
+    /autom4te.cache	
     Makefile
