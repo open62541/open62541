@@ -502,6 +502,15 @@ START_TEST(responseHeader_calcSize_test)
 }
 END_TEST
 
+//ToDo: Function needs to be filled
+START_TEST(expandedNodeId_calcSize_test)
+{
+	Int32 valreal = 300;
+	Int32 valcalc = 0;
+	ck_assert_int_eq(valcalc,valreal);
+}
+END_TEST
+
 START_TEST(encodeDataValue_test)
 {
 	UA_DataValue dataValue;
@@ -736,6 +745,15 @@ Suite* testSuite_encodeDataValue()
 	return s;
 }
 
+Suite* testSuite_expandedNodeId_calcSize(void)
+{
+	Suite *s = suite_create("expandedNodeId_calcSize");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core,expandedNodeId_calcSize_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
+
 /*
 Suite* TL_<TESTSUITENAME>(void)
 {
@@ -904,6 +922,12 @@ int main (void)
 	srunner_free(sr);
 
 	s = testSuite_encodeDataValue();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	s = testSuite_expandedNodeId_calcSize();
 	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);

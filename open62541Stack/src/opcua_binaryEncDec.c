@@ -1020,6 +1020,47 @@ Int32 encodeExpandedNodeId(UA_ExpandedNodeId *nodeId, Int32 *pos, char *dstBuf)
 	return UA_NO_ERROR;
 }
 
+Int32 ExpandedNodeId_calcSize(UA_ExpandedNodeId *nodeId){
+	Int32 length = 0;
+
+	length += sizeof(UInt32); //nodeId->NodeId.EncodingByte
+
+	switch (nodeId->NodeId.EncodingByte)
+	{
+	case NIEVT_TWO_BYTE:
+		length += sizeof(Byte);//nodeId->NodeId.Identifier.Numeric
+		break;
+	case NIEVT_FOUR_BYTE:
+		length += sizeof(UInt16);//nodeId->NodeId.Identifier.Numeric
+		break;
+	case NIEVT_NUMERIC:
+		length += sizeof(UInt32);//nodeId->NodeId.Identifier.Numeric
+		break;
+	case NIEVT_STRING:
+		//nodeId->NodeId.Identifier.String
+		length += UAString_calcSize(&(nodeId->NodeId.Identifier.String));
+		break;
+	case NIEVT_GUID:
+		//nodeId->NodeId.Identifier.Guid
+		length += UAGuid_calcSize(&(nodeId->NodeId.Identifier.Guid));
+		break;
+	case NIEVT_BYTESTRING:
+		//nodeId->NodeId.Identifier.ByteString
+		length += UAByteString_calcSize(&(nodeId->NodeId.Identifier.ByteString));
+		break;
+	}
+	if (nodeId->NodeId.EncodingByte & NIEVT_NAMESPACE_URI_FLAG)
+	{
+		length += sizeof(UInt16);//nodeId->NodeId.Namespace
+		length += UAString_calcSize(&(nodeId->NamespaceUri));//nodeId->NamespaceUri
+	}
+	if (nodeId->NodeId.EncodingByte & NIEVT_SERVERINDEX_FLAG)
+	{
+		length += sizeof(UInt32); //nodeId->ServerIndex
+	}
+	return length;
+}
+
 Int32 decodeUAStatusCode(char * const buf, Int32 *pos, UA_StatusCode* dst)
 {
 	decoder_decodeBuiltInDatatype(buf, UINT32, pos, dst);
