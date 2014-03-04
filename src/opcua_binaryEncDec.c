@@ -1355,6 +1355,38 @@ Int32 encodeDataValue(UA_DataValue *dataValue, Int32 *pos, char *dstBuf)
 	return UA_NO_ERROR;
 
 }
+Int32 DataValue_calcSize(UA_DataValue *dataValue)
+{
+	Int32 length = 0;
+
+	length += sizeof(Byte); //dataValue->EncodingMask
+
+	if (dataValue->EncodingMask & 0x01)
+	{
+		length += Variant_calcSize(&(dataValue->Value));
+	}
+	if (dataValue->EncodingMask & 0x02)
+	{
+		length += sizeof(UInt32); //dataValue->Status
+	}
+	if (dataValue->EncodingMask & 0x04)
+	{
+		length += sizeof(Int64); //dataValue->SourceTimestamp
+	}
+	if (dataValue->EncodingMask & 0x08)
+	{
+		length += sizeof(Int64); //dataValue->ServerTimestamp
+	}
+	if (dataValue->EncodingMask & 0x10)
+	{
+		length += sizeof(Int64); //dataValue->SourcePicoseconds
+	}
+	if (dataValue->EncodingMask & 0x20)
+	{
+		length += sizeof(Int64); //dataValue->ServerPicoseconds
+	}
+	return length;
+}
 /**
  * DiagnosticInfo
  * Part: 4
