@@ -27,7 +27,7 @@
  * @param dstStructure
  * @return
  */
-Int32 decoder_decodeBuiltInDatatype(char *srcBuf, Int32 type, Int32 *pos,
+Int32 decoder_decodeBuiltInDatatype(char const * srcBuf, Int32 type, Int32 *pos,
 		void *dstStructure);
 /**
  *
@@ -46,7 +46,7 @@ Int32 encoder_encodeBuiltInDatatype(void *data, Int32 type, Int32 *pos, char *ds
  * @param dst
  * @return
  */
-Int32 decodeBoolean(char * const buf, Int32 *pos, Boolean *dst);
+Int32 decodeBoolean(char const * buf, Int32 *pos, Boolean *dst);
 /**
  *
  * @param value
@@ -61,7 +61,7 @@ void encodeBoolean(Boolean value, Int32 *pos, char *dstBuf);
  * @param dst
  * @return
  */
-Int32 decodeSByte(char * const buf, Int32 *pos, SByte *dst);
+Int32 decodeSByte(char const * buf, Int32 *pos, SByte *dst);
 /**
  *
  * @param value
@@ -76,7 +76,7 @@ void encodeSByte(SByte value, Int32 *pos, char *dstBuf);
  * @param dst
  * @return
  */
-Int32 decodeByte(char *const buf, Int32 *pos,Byte *dst);
+Int32 decodeByte(char const * buf, Int32 *pos,Byte *dst);
 /**
  *
  * @param value
@@ -90,7 +90,7 @@ void encodeByte(Byte value, Int32 *pos, char *dstBuf);
  * @param pos
  * @return
  */
-Int32 decodeUInt16(char *const buf, Int32 *pos, UInt16 *dst);
+Int32 decodeUInt16(char const * buf, Int32 *pos, UInt16 *dst);
 /**
  *
  * @param value
@@ -105,7 +105,7 @@ void encodeUInt16(UInt16 value, Int32 *pos, char *dstBuf);
  * @param dst
  * @return
  */
-Int32 decodeInt16(char *const buf, Int32 *pos, Int16 *dst);
+Int32 decodeInt16(char const * buf, Int32 *pos, Int16 *dst);
 /**
  *
  * @param value
@@ -120,7 +120,7 @@ void encodeInt16(Int16 value, Int32 *pos, char *dstBuf);
  * @param dst
  * @return
  */
-Int32 decodeInt32(char *const buf, Int32 *pos, Int32 *dst);
+Int32 decodeInt32(char const * buf, Int32 *pos, Int32 *dst);
 /**
  *
  * @param value
@@ -135,7 +135,7 @@ void encodeInt32(Int32 value, Int32 *pos, char *dstBuf);
  * @param dst
  * @return
  */
-Int32 decodeUInt32(char *const buf, Int32 *pos, UInt32 *dst);
+Int32 decodeUInt32(char const * const buf, Int32 *pos, UInt32 *dst);
 /**
  *
  * @param value
@@ -150,7 +150,7 @@ void encodeUInt32(UInt32 value, Int32 *pos, char *dstBuf);
  * @param dst
  * @return
  */
-Int32 decodeInt64(char *const buf, Int32 *pos,Int64 *dst);
+Int32 decodeInt64(char const * buf, Int32 *pos,Int64 *dst);
 /**
  *
  * @param value
@@ -165,7 +165,7 @@ void encodeInt64(Int64 value, Int32 *pos, char *dstBuf);
  * @param dst
  * @return
  */
-Int32 decodeUInt64(char *const buf, Int32 *pos, UInt64 *dst);
+Int32 decodeUInt64(char const * buf, Int32 *pos, UInt64 *dst);
 /**
  *
  * @param value
@@ -180,7 +180,7 @@ void encodeUInt64(UInt64 value, Int32 *pos, char *dstBuf);
  * @param dstNodeId		receiver of the nodeid structure
  * @param return		success = 0
  */
-Int32 decodeUANodeId(char *const buf, Int32 *pos, UA_NodeId *dstNodeId);
+Int32 decodeUANodeId(char const * buf, Int32 *pos, UA_NodeId *dstNodeId);
 /**
  *
  * @param buf
@@ -188,7 +188,7 @@ Int32 decodeUANodeId(char *const buf, Int32 *pos, UA_NodeId *dstNodeId);
  * @param dst
  * @return
  */
-Int32 decodeFloat(char *buf, Int32 *pos, Float *dst);
+Int32 decodeFloat(char const * buf, Int32 *pos, Float *dst);
 /**
  *
  * @param value
@@ -204,7 +204,7 @@ Int32 encodeFloat(Float value,Int32 *pos,char *dstBuf);
  * @param dst
  * @return
  */
-Int32 decodeDouble(char *buf, Int32 *pos, Double *dst);
+Int32 decodeDouble(char const * buf, Int32 *pos, Double *dst);
 /**
  *
  * @param value
@@ -236,7 +236,7 @@ Int32 encodeUAGuid(UA_Guid *srcGuid, Int32 *pos, char *buf);
  * @param dstGUID
  * @return
  */
-Int32 decodeUAGuid(char *const buf, Int32 *pos, UA_Guid *dstGUID);
+Int32 decodeUAGuid(char const * buf, Int32 *pos, UA_Guid *dstGUID);
 /**
  *
  * @param buf
@@ -244,14 +244,14 @@ Int32 decodeUAGuid(char *const buf, Int32 *pos, UA_Guid *dstGUID);
  * @param dst
  * @return
  */
-Int32 decodeUAStatusCode(char *const buf, Int32 *pos,UA_StatusCode* dst);
+Int32 decodeUAStatusCode(char const * buf, Int32 *pos,UA_StatusCode* dst);
 /**
  *
  * @param buf
  * @param pos
  * @return
  */
-Int32 decodeUADateTime(char *const buf, Int32 *pos,UA_DateTime *dst);
+Int32 decodeUADateTime(char const * buf, Int32 *pos,UA_DateTime *dst);
 /**
  *
  * @param time
@@ -267,7 +267,7 @@ void encodeUADateTime(UA_DateTime time, Int32 *pos, char *dstBuf);
  * @param dstUAString
  * @return
  */
-Int32 decodeUAString(char *const buf, Int32 *pos, UA_String *dstUAString);
+Int32 decodeUAString(char const * buf, Int32 *pos, UA_String *dstUAString);
 /**
  *
  * @param byteString
@@ -289,14 +289,14 @@ Int32 encodeXmlElement(UA_XmlElement *xmlElement, Int32 *pos, char *dstBuf);
  * @param xmlElement
  * @return
  */
-Int32 decodeXmlElement(char * const buf, Int32* pos, UA_XmlElement *xmlElement);
+Int32 decodeXmlElement(char const * buf, Int32* pos, UA_XmlElement *xmlElement);
 /**
  *
  * @param buf
  * @param pos
  * @return
  */
-Int32 decodeIntegerId(char* buf, Int32 *pos, Int32* dst);
+Int32 decodeIntegerId(char const * buf, Int32 *pos, Int32* dst);
 /**
  *
  * @param integerId

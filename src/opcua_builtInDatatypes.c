@@ -7,7 +7,7 @@
 
 
 #include "opcua_builtInDatatypes.h"
-
+#include <stdio.h>
 
 Int32 UA_String_compare(UA_String *string1,UA_String *string2)
 {
@@ -37,4 +37,8 @@ Int32 UA_String_compare(UA_String *string1,UA_String *string2)
 Int32 UA_ByteString_compare(UA_ByteString *string1,UA_ByteString *string2)
 {
 	return UA_String_compare((UA_String*)string1,(UA_String*)string2);
+}
+
+void UA_String_printf(char* label, UA_ByteString* string) {
+	printf("%s %.*s\n", label, string->Length, (char*) string->Data);
 }

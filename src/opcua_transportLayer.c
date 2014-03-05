@@ -113,9 +113,11 @@ Int32 TL_receive(UA_connection *connection, UA_ByteString *packet)
 	return UA_NO_ERROR;
 }
 
+#define Cmp3Byte(data,pos,a,b,c) (*((Int32*) ((data)+(pos))) & 0xFFFFFF) == (Int32)(((Byte)(a))|((Byte)(b))<<8|((Byte)(c))<<16)
 
 Int32 TL_getPacketType(UA_ByteString *packet, Int32 *pos)
 {
+	Int32 retVal = -1;
 	printf("TL_getPacketType - entered \n");
 	printf("TL_getPacketType - pos = %d \n",*pos);
 	//printf(packet->Data[*pos]);
@@ -125,47 +127,45 @@ Int32 TL_getPacketType(UA_ByteString *packet, Int32 *pos)
 	   packet->Data[*pos+2] == 'L')
 	{
 		*pos += 3 * sizeof(Byte);
-		return packetType_HEL;
+		retVal = packetType_HEL;
 	}
 	else if(packet->Data[*pos] == 'A' &&
 	        packet->Data[*pos+1] == 'C' &&
 	        packet->Data[*pos+2] == 'K')
 	{
 		*pos += 3 * sizeof(Byte);
-		return packetType_ACK;
+		retVal = packetType_ACK;
 	}
 	else if(packet->Data[*pos] == 'E' &&
 			packet->Data[*pos+1] == 'R' &&
 			packet->Data[*pos+2] == 'R')
 	{
 		*pos += 3 * sizeof(Byte);
-		return packetType_ERR;
+		retVal =  packetType_ERR;
 	}
 	else if(packet->Data[*pos] == 'O' &&
 	        packet->Data[*pos+1] == 'P' &&
 	        packet->Data[*pos+2] == 'N')
 	{
 		*pos += 3 * sizeof(Byte);
-		return packetType_OPN;
+		retVal =  packetType_OPN;
 	}
 	else if(packet->Data[*pos] == 'C' &&
 	        packet->Data[*pos+1] == 'L' &&
 	        packet->Data[*pos+2] == 'O')
 	{
 		*pos += 3 * sizeof(Byte);
-		return packetType_CLO;
+		retVal =  packetType_CLO;
 	}
 	else if(packet->Data[*pos] == 'M' &&
 			packet->Data[*pos+1] == 'S' &&
 			packet->Data[*pos+2] == 'G')
 	{
 		*pos += 3 * sizeof(Byte);
-		return packetType_MSG;
+		retVal =  packetType_MSG;
 	}
-
-
-	return -1;//TODO ERROR no valid message received
-
+	//TODO retVal == -1 -- ERROR no valid message received
+	return retVal;
 }
 
 
