@@ -85,7 +85,7 @@ AUTOMAKE = ${SHELL} /home/opcua/git/opcUaStack/missing --run automake-1.11
 AWK = mawk
 CC = gcc
 CCDEPMODE = depmode=gcc3
-CFLAGS = -O2
+CFLAGS = -g -O0
 CHECK_CFLAGS = -pthread -I/usr/local/include  
 CHECK_LIBS = -L/usr/local/lib -lcheck  
 CPP = gcc -E

@@ -17,6 +17,7 @@
 #include "../../src/opcua_builtInDatatypes.h"
 #include "../../src/opcua_transportLayer.h"
 #include "../../src/opcua_types.h"
+#include "../../src/opcua_time.h"
 
 #ifdef LINUX
 
@@ -47,7 +48,9 @@ int main(void)
 
 void server_init()
 {
-	puts("starting demo Server");
+	puts("Starting Demo Server");
+	Int64 now = opcua_time_now();
+	printf("now");
 	//call listen
 
 }

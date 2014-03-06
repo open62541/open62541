@@ -115,7 +115,7 @@ AUTOMAKE = ${SHELL} /home/opcua/git/opcUaStack/missing --run automake-1.11
 AWK = mawk
 CC = gcc
 CCDEPMODE = depmode=gcc3
-CFLAGS = -O2
+CFLAGS = -g -O0
 CHECK_CFLAGS = -pthread -I/usr/local/include  
 CHECK_LIBS = -L/usr/local/lib -lcheck  
 CPP = gcc -E
@@ -228,6 +228,8 @@ target_vendor = pc
 top_build_prefix = 
 top_builddir = .
 top_srcdir = .
+AM_CFLAGS = -O2
+#AM_CFLAGS = -g -O0
 #SUBS = src .
 SUBS = src . tests .
 SUBDIRS = $(SUBS) examples/src	

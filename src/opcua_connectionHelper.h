@@ -54,7 +54,7 @@ struct TL_connection
 };
 
 
-struct SL_connection
+typedef struct
 {
 
 	UA_ByteString SecurityPolicyUri;
@@ -63,13 +63,14 @@ struct SL_connection
 	UInt32 sequenceNumber;
 	UInt32 requestType;
 	UA_String secureChannelId;
-	UInt32 UInt32_secureChannelId;
+	// UInt32 UInt32_secureChannelId;
 	UInt32 securityMode;
 	UA_ByteString clientNonce;
+	UA_ByteString serverNonce;
 	UInt32 connectionState;
 	SL_ChannelSecurityToken securityToken;
 
-};
+}SL_connection;
 
 struct SS_connection
 {
@@ -79,7 +80,7 @@ struct SS_connection
 typedef struct
 {
 	struct TL_connection transportLayer;
-	struct SL_connection secureLayer;
+	SL_connection *secureLayer;
 	struct SS_connection serviceLayer;
 
 	Boolean newDataToRead;

@@ -122,7 +122,7 @@ AUTOMAKE = ${SHELL} /home/opcua/git/opcUaStack/missing --run automake-1.11
 AWK = mawk
 CC = gcc
 CCDEPMODE = depmode=gcc3
-CFLAGS = -O2
+CFLAGS = -g -O0
 CHECK_CFLAGS = -pthread -I/usr/local/include  
 CHECK_LIBS = -L/usr/local/lib -lcheck  
 CPP = gcc -E
@@ -263,14 +263,6 @@ libopen62541_la_SOURCES = opcua_builtInDatatypes.c\
 						opcua_time.h\
 						tcp_layer.h						
 
-AM_CFLAGS = -O2
-
-#bin_PROGRAMS= $(top_builddir)/bin/open62541.out
-#__top_builddir__bin_libOpen62541_out_SOURCES = opcuaServer.c
-#libOpen62541_la_LIBADD = ../lib/libOpen62541.la		  										
-#AM_CFLAGS = -g -O0
-AM_CXXFLAGS = -O2
-#AM_CXXFLAGS = -g -O0
 all: all-am
 
 .SUFFIXES:
@@ -587,6 +579,10 @@ uninstall-am: uninstall-libLTLIBRARIES
 	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
 	tags uninstall uninstall-am uninstall-libLTLIBRARIES
 
+
+#bin_PROGRAMS= $(top_builddir)/bin/open62541.out
+#__top_builddir__bin_libOpen62541_out_SOURCES = opcuaServer.c
+#libOpen62541_la_LIBADD = ../lib/libOpen62541.la		  										
 
 .PHONY: convenience-link clean-convenience-link
 

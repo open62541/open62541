@@ -5,13 +5,33 @@
  *      Author: opcua
  */
 #include "opcua_secureChannelLayer.h"
+#include "opcua_connectionHelper.h"
 #include <stdio.h>
 
 
 
-/*
- * opens a secureChannel (server side)
- */
+/* Initializes securechannel connection */
+Int32 SL_initConnection(SL_connection *connection,
+		UInt32                         secureChannelId,
+		UA_ByteString                 *serverNonce,
+		UA_ByteString                 *securityPolicyUri,
+		Int32                          revisedLifetime)
+{
+	connection->securityToken.secureChannelId = secureChannelId;//TODO generate valid secureChannel Id
+
+	connection->securityToken.revisedLifetime = revisedLifetime;
+	connection->SecurityPolicyUri = securityPolicyUri;
+	connection->connectionState = connectionState_CLOSED;
+
+	connection->secureChannelId.Data = NULL;
+	connection->secureChannelId.Length = 0;
+
+	connection->serverNonce = serverNonce;
+
+
+	return UA_NO_ERROR;
+}
+
 Int32 SL_secureChannel_open(const UA_connection *connection,
 		const AD_RawMessage *secureChannelPacket,
 		const SL_SecureConversationMessageHeader *SCMHeader,
@@ -33,14 +53,27 @@ Int32 SL_secureChannel_open(const UA_connection *connection,
 	return UA_NO_ERROR;
 }
 
-Int32 SL_openSecureChannel_responseMessage_get(UA_connection *connection,SL_Response *response, Int32* sizeInOut)
+Int32 SL_openSecureChannel_responsMessage(UA_connection *connection, Int32 tokenLifetime, SL_Response *response)
 {
 
-	response->ServerNonce.Length =0; // TODO set a valid value for the Server Nonce
-	response->ServerProtocolVersion = 0; //
-	response->SecurityToken.createdAt = opcua_getTime(); //
-	response->SecurityToken.revisedLifetime = 300000; //TODO set Lifetime of Security Token
-	response->SecurityToken.secureChannelId = connection->secureLayer.UInt32_secureChannelId; //TODO set a valid value for secureChannel id
+
+	response->ServerNonce.Length = connection->secureLayer->serverNonce.Length; // TODO set a valid value for the Server Nonce
+	response->ServerNonce.Data = connection->secureLayer->serverNonce.Data;
+
+	response->ServerProtocolVersion = connection->transportLayer.localConf.protocolVersion;
+
+
+	response->SecurityToken.createdAt = opcua_time_now(); //
+	//save the request time
+	connection->secureLayer->securityToken.createdAt = response->SecurityToken.createdAt;
+
+	response->SecurityToken.revisedLifetime = tokenLifetime;
+
+	//save the revised lifetime of security token
+	connection->secureLayer->securityToken.revisedLifetime = tokenLifetime;
+
+	response->SecurityToken.secureChannelId = connection->secureLayer->securityToken.secureChannelId; //TODO set a valid value for secureChannel id
+
 	return UA_NO_ERROR;
 }
 
@@ -101,7 +134,7 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message)
 			switch(requestType)
 			{
 			case securityToken_ISSUE:
-				if(connection->secureLayer.connectionState == connectionState_ESTABLISHED)
+				if(connection->secureLayer->connectionState == connectionState_ESTABLISHED)
 				{
 					printf("SL_processMessage - multiply security token request");
 					//TODO return ERROR
@@ -110,7 +143,7 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message)
 			//	SL_createNewToken(connection);
 				break;
 			case securityToken_RENEW:
-				if(connection->secureLayer.connectionState == connectionState_CLOSED)
+				if(connection->secureLayer->connectionState == connectionState_CLOSED)
 				{
 					printf("SL_processMessage - renew token request received, but no secureChannel was established before");
 					//TODO return ERROR
@@ -123,8 +156,9 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message)
 			switch(securityMode)
 			{
 			case securityMode_INVALID:
-				connection->secureLayer.clientNonce.Data = NULL;
-				connection->secureLayer.clientNonce.Length = 0;
+
+				connection->secureLayer->clientNonce.Data = NULL;
+				connection->secureLayer->clientNonce.Length = 0;
 				printf("SL_processMessage - client demands no security \n");
 				break;
 			case securityMode_SIGN:
@@ -137,6 +171,7 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message)
 			}
 			decoder_decodeBuiltInDatatype(message,INT32,&pos,&requestedLifetime);
 			//TODO process requestedLifetime
+			SL_openSecureChannel_respond(connection,response,TOKEN_LIFETIME);
 		}
 		else
 		{
@@ -161,7 +196,7 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage)
 	Int32 packetType = 0;
 	Int32 pos = 0;
 	Int32 iTmp;
-	//TODO Error Handling, length checking
+
 	//get data from transport layer
 	printf("SL_receive - entered \n");
 
@@ -200,7 +235,7 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage)
 
 				//SL_decrypt(&secureChannelPacket);
 
-				message.Data = secureChannelPacket.Data[pos];
+				message.Data = &secureChannelPacket.Data[pos];
 				message.Length = secureChannelPacket.Length - pos;
 
 				SL_processMessage(connection, message);

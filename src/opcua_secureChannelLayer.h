@@ -13,7 +13,7 @@
 #include "opcua_connectionHelper.h"
 
 static const Int32 SL_HEADER_LENGTH = 0;
-
+#define TOKEN_LIFETIME 30000
 typedef enum
 {
 	securityToken_ISSUE = 0,

@@ -11,12 +11,16 @@
 #include <errno.h>
 #include <stdarg.h>
 
+
 //get the current Server Time
-UA_DateTime opcua_getTime()
+UA_DateTime opcua_time_now()
 {
-	//TODO call System Time function
-	UA_DateTime time = 10000000;
-	return time;
+	Int64 time1970 = 621356004000000000;
+
+	time_t now = time(NULL);
+	Int64 now_nano_ticks = ((Int64)now) * 10 * 1000 * 1000;
+	return now_nano_ticks + time1970;
+
 }
 
 

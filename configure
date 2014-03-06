@@ -2766,7 +2766,7 @@ $as_echo "no" >&6; }
 fi
 
 if test -z $CFLAGS; then
-    CFLAGS='-O2'
+    CFLAGS='-g -O0'
 fi
 ac_ext=c
 ac_cpp='$CPP $CPPFLAGS'
