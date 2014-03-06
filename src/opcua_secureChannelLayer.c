@@ -20,13 +20,15 @@ Int32 SL_initConnection(SL_connection *connection,
 	connection->securityToken.secureChannelId = secureChannelId;//TODO generate valid secureChannel Id
 
 	connection->securityToken.revisedLifetime = revisedLifetime;
-	connection->SecurityPolicyUri = securityPolicyUri;
+	connection->SecurityPolicyUri.Data = securityPolicyUri->Data;
+	connection->SecurityPolicyUri.Length = securityPolicyUri->Length;
 	connection->connectionState = connectionState_CLOSED;
 
 	connection->secureChannelId.Data = NULL;
 	connection->secureChannelId.Length = 0;
 
-	connection->serverNonce = serverNonce;
+	connection->serverNonce.Data = serverNonce->Data;
+	connection->serverNonce.Length = serverNonce->Length;
 
 
 	return UA_NO_ERROR;
@@ -117,12 +119,16 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message)
 	Int32 requestedLifetime;
 
 	decoder_decodeBuiltInDatatype(message.Data,NODE_ID,&pos,&ServiceRequestType);
+	UA_NodeId_printf("serviceRequestType=",&ServiceRequestType);
 
 	if(ServiceRequestType.EncodingByte == NIEVT_FOUR_BYTE)
 	{
 		if(ServiceRequestType.Identifier.Numeric == 446) // OpensecureChannelRequest
 		{
 			decoder_decodeRequestHeader(message.Data, &pos, &requestHeader);
+			UA_String_printf("requestHeader.auditEntryId=",&requestHeader.auditEntryId);
+			UA_NodeId_printf("requestHeader.authenticationToken=", &requestHeader.authenticationToken);
+
 			decoder_decodeBuiltInDatatype(message.Data,UINT32, &pos, &clientProtocolVersion);
 
 			if(clientProtocolVersion != connection->transportLayer.remoteConf.protocolVersion)
@@ -138,7 +144,7 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message)
 			switch(requestType)
 			{
 			case securityToken_ISSUE:
-				if(connection->secureLayer.connectionState == connectionState_ESTABLISHED)
+				if(connection->secureLayer->connectionState == connectionState_ESTABLISHED)
 				{
 					printf("SL_processMessage - multiply security token request");
 					//TODO return ERROR
@@ -148,7 +154,7 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message)
 			//	SL_createNewToken(connection);
 				break;
 			case securityToken_RENEW:
-				if(connection->secureLayer.connectionState == connectionState_CLOSED)
+				if(connection->secureLayer->connectionState == connectionState_CLOSED)
 				{
 					printf("SL_processMessage - renew token request received, but no secureChannel was established before");
 					//TODO return ERROR
@@ -163,8 +169,8 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message)
 			switch(securityMode)
 			{
 			case securityMode_INVALID:
-				connection->secureLayer.clientNonce.Data = NULL;
-				connection->secureLayer.clientNonce.Length = 0;
+				connection->secureLayer->clientNonce.Data = NULL;
+				connection->secureLayer->clientNonce.Length = 0;
 				printf("SL_processMessage - client demands no security \n");
 				break;
 			case securityMode_SIGN:
@@ -178,7 +184,7 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message)
 			// requestedLifetime
 			decoder_decodeBuiltInDatatype(message.Data,INT32,&pos,&requestedLifetime);
 			//TODO process requestedLifetime
-			SL_openSecureChannel_respond(connection,response,TOKEN_LIFETIME);
+			//SL_openSecureChannel_respond(connection,response,TOKEN_LIFETIME);
 		}
 		else
 		{
@@ -224,15 +230,13 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage)
 		case packetType_OPN : /* openSecureChannel Message received */
 
 				decodeAASHeader(&secureChannelPacket,&pos,&AAS_Header);
-#if DEBUG
 				UA_String_printf("AAS_Header.ReceiverThumbprint=", &(AAS_Header.ReceiverThumbprint));
 				UA_String_printf("AAS_Header.SecurityPolicyUri=", &(AAS_Header.SecurityPolicyUri));
 				UA_String_printf("AAS_Header.SenderCertificate=", &(AAS_Header.SenderCertificate));
-#endif
 				if(SCM_Header.SecureChannelId != 0)
 				{
 
-					iTmp = UA_ByteString_compare(&(connection->secureLayer.SenderCertificate), &(AAS_Header.SenderCertificate));
+					iTmp = UA_ByteString_compare(&(connection->secureLayer->SenderCertificate), &(AAS_Header.SenderCertificate));
 					if(iTmp != UA_EQUAL)
 					{
 						printf("SL_receive - UA_ERROR_BadSecureChannelUnknown \n");
@@ -242,8 +246,11 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage)
 				}
 
 				decodeSequenceHeader(&secureChannelPacket,&pos,&SequenceHeader);
+				printf("SequenceHeader.RequestId=%d\n",SequenceHeader.RequestId);
+				printf("SequenceHeader.SequenceNr=%d\n",SequenceHeader.SequenceNumber);
+
 				//TODO check that the sequence number is smaller than MaxUInt32 - 1024
-				connection->secureLayer.sequenceNumber = SequenceHeader.SequenceNumber;
+				connection->secureLayer->sequenceNumber = SequenceHeader.SequenceNumber;
 
 				//SL_decrypt(&secureChannelPacket);
 
@@ -254,10 +261,11 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage)
 
 			break;
 		case packetType_MSG : /* secure Channel Message received */
-			if(connection->secureLayer.connectionState == connectionState_ESTABLISHED)
+			if(connection->secureLayer->connectionState == connectionState_ESTABLISHED)
 			{
-
-				if(SCM_Header.SecureChannelId == connection->secureLayer.UInt32_secureChannelId)
+				//TODO
+/*
+				if(SCM_Header.SecureChannelId == connection->secureLayer)
 				{
 
 				}
@@ -265,6 +273,7 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage)
 				{
 					//TODO generate ERROR_Bad_SecureChannelUnkown
 				}
+*/
 			}
 
 			break;

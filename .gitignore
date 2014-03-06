@@ -1,43 +1,43 @@
-    # exclude
-    .log
-    .guess
-    .in
-    .sub
-    .status
-    .m4
-    .lo
-    .o
-    .a
-    .la
-    .so*
-    /bin
-    m4
-    /autom4te.cache
-    Makefile
-    Makefile.in
-    /stamp-h1
-    /config.status
-    config.log
-    /config.h
-    /aclocal.m4
-    /config/
-    /config.h.in
-    /configure
-    /install-sh
-    /compile
-    /depcomp
-    /ltmain.sh
-    /autogen.sh
-    /configure
-    /missing
-    *~
-    GIT_REVISION
-    SVN_REVISION
-    libtool
-    .deps
-    .libs
-    .gcno
-    .gcda
-    coverage_report
-    .project
-    .cproject
+# exclude
+log
+*.guess
+.in
+*.sub
+.status
+.m4
+*.lo
+*.o
+*.a
+*.la
+*.so*
+/bin
+m4
+/autom4te.cache
+Makefile
+Makefile.in
+/stamp-h1
+/config.status
+config.log
+/config.h
+/aclocal.m4
+/config/
+/config.h.in
+/configure
+/install-sh
+/compile
+/depcomp
+/ltmain.sh
+/autogen.sh
+/configure
+/missing
+*~
+GIT_REVISION
+SVN_REVISION
+libtool
+.deps
+.libs
+.gcno
+.gcda
+coverage_report
+.project
+.cproject

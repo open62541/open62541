@@ -33,6 +33,29 @@ START_TEST(test_getPacketType_validParameter)
 }
 END_TEST
 
+
+START_TEST(decodeByte_test)
+{
+	AD_RawMessage rawMessage;
+	Int32 position = 0;
+	//EncodeByte
+		char *mem = malloc(sizeof(Byte));
+		UInt16 Ui16Val;
+
+		rawMessage.message = mem;
+		rawMessage.length = 1;
+		mem[0] = 0x08;
+
+		position = 0;
+
+		decoder_decodeBuiltInDatatype(rawMessage.message, BYTE, &position,Ui16Val);
+
+		ck_assert_int_eq(Ui16Val, 0x08);
+		ck_assert_int_eq(position, 1);
+		free(mem);
+}
+END_TEST
+
 START_TEST(encodeByte_test)
 {
 	AD_RawMessage rawMessage;
@@ -592,6 +615,15 @@ Suite *testSuite_getPacketType(void)
 	return s;
 }
 
+Suite *testSuite_decodeByte(void)
+{
+	Suite *s = suite_create("decodeByte_test");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, decodeByte_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
+
 Suite *testSuite_encodeByte(void)
 {
 	Suite *s = suite_create("encodeByte_test");
@@ -824,6 +856,12 @@ int main (void)
 	int number_failed = 0;
 
 	Suite *s = testSuite_getPacketType();
+	SRunner *sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed = srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	s = testSuite_decodeByte();
 	SRunner *sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed = srunner_ntests_failed(sr);

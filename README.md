@@ -47,19 +47,15 @@ $ make install
 
 # Clone open62541
 ```bash
-$ git clone git://github.com/acplt/open62541.git
+$ git clone https://github.com/acplt/open62541.git
 ```
 
-# Building (autoreconf only first time)
+# Building 
+* use autogen.sh only first time and whenever aclocal.m4 or configure.ac were modified
 ```bash
 $ cd open62541
-$ autoreconf --force --install
+$ ./autogen.sh
 $ ./configure
 $ make
 $ make check
-```
-
-### Rebuilding configure tools (only if configure.am is changed)
-```bash
-$ ./autogen.sh
 ```

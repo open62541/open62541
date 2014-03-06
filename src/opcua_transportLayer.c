@@ -118,9 +118,8 @@ Int32 TL_receive(UA_connection *connection, UA_ByteString *packet)
 Int32 TL_getPacketType(UA_ByteString *packet, Int32 *pos)
 {
 	Int32 retVal = -1;
-	printf("TL_getPacketType - entered \n");
-	printf("TL_getPacketType - pos = %d \n",*pos);
-	//printf(packet->Data[*pos]);
+	// printf("TL_getPacketType - entered \n");
+	// printf("TL_getPacketType - pos = %d \n",*pos);
 
 	if(packet->Data[*pos] == 'H' &&
 	   packet->Data[*pos+1] == 'E' &&
