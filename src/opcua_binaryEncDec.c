@@ -527,7 +527,7 @@ Int32 encode_builtInDatatypeArray(void *data, Int32 size, Int32 type,
 	return UA_NO_ERROR;
 }
 
-Int32 decodeBoolean(char const * const buf, Int32 *pos, Boolean *dst)
+Int32 decodeBoolean(char const * buf, Int32 *pos, Boolean *dst)
 {
 	*dst = ((Boolean) (buf[*pos]) > 0) ? UA_TRUE : UA_FALSE;
 	return UA_NO_ERROR;
@@ -538,7 +538,7 @@ void encodeBoolean(Boolean value, Int32 *pos, char *dstBuf)
 	memcpy(&(dstBuf[*pos]), &tmpBool, sizeof(Boolean));
 }
 
-Int32 decodeSByte(char const * const buf, Int32 *pos, SByte *dst)
+Int32 decodeSByte(char const * buf, Int32 *pos, SByte *dst)
 {
 	*pos = (*pos) + 1;
 	*dst = (SByte) buf[(*pos) - 1];
@@ -551,7 +551,7 @@ void encodeSByte(SByte value, Int32 *pos, char *dstBuf)
 	*pos = (*pos) + 1;
 
 }
-Int32 decodeByte(char const * const buf, Int32 *pos, Byte* dst)
+Int32 decodeByte(char const * buf, Int32 *pos, Byte* dst)
 {
 	*pos = (*pos) + 1;
 	*dst = (Byte) buf[(*pos) - 1];
@@ -564,7 +564,7 @@ void encodeByte(Byte value, Int32 *pos, char *dstBuf)
 	*pos = (*pos) + 1;
 }
 
-Int32 decodeUInt16(char const * const buf, Int32 *pos, UInt16 *dst)
+Int32 decodeUInt16(char const * buf, Int32 *pos, UInt16 *dst)
 {
 	Byte t1 = buf[*pos];
 	UInt16 t2 = (UInt16) (buf[*pos + 1] << 8);
@@ -578,7 +578,7 @@ void encodeUInt16(UInt16 value, Int32 *pos, char* dstBuf)
 	*pos = (*pos) + sizeof(UInt16);
 }
 
-Int32 decodeInt16(char const * const buf, Int32 *pos, Int16 *dst)
+Int32 decodeInt16(char const * buf, Int32 *pos, Int16 *dst)
 {
 	SByte t1 = buf[*pos];
 	Int32 t2 = (Int16) (buf[*pos + 1] << 8);
@@ -592,7 +592,7 @@ void encodeInt16(Int16 value, Int32 *pos, char *dstBuf)
 	*pos = (*pos) + sizeof(Int16);
 }
 
-Int32 decodeInt32(char const * const buf, Int32 *pos, Int32 *dst)
+Int32 decodeInt32(char const * buf, Int32 *pos, Int32 *dst)
 {
 	Int32 t1 = (SByte) buf[*pos];
 	Int32 t2 = (Int32) (((SByte) (buf[*pos + 1]) & 0xFF) << 8);
@@ -608,7 +608,7 @@ void encodeInt32(Int32 value, Int32 *pos, char *dstBuf)
 	*pos = (*pos) + sizeof(Int32);
 }
 
-Int32 decodeUInt32(char const * const buf, Int32 *pos, UInt32 *dst)
+Int32 decodeUInt32(char const * buf, Int32 *pos, UInt32 *dst)
 {
 	Byte t1 = buf[*pos];
 	UInt32 t2 = (UInt32) buf[*pos + 1] << 8;
@@ -781,7 +781,7 @@ Int32 UAGuid_calcSize(UA_Guid *guid)
 			+ UAByteString_calcSize(&(guid->Data4));
 }
 
-Int32 decodeUAByteString(char const * const buf, Int32* pos,
+Int32 decodeUAByteString(char const * buf, Int32* pos,
 		UA_ByteString *dstBytestring)
 {
 
@@ -933,7 +933,7 @@ void encodeIntegerId(UA_AD_IntegerId integerId, Int32 *pos, char *buf)
 	encodeInt32(integerId, pos, buf);
 }
 
-Int32 decodeExpandedNodeId(char const * const buf, Int32 *pos,
+Int32 decodeExpandedNodeId(char const * buf, Int32 *pos,
 		UA_ExpandedNodeId *nodeId)
 {
 
@@ -1081,7 +1081,7 @@ Int32 decodeUAStatusCode(char const * buf, Int32 *pos, UA_StatusCode* dst)
 
 }
 
-Int32 decodeQualifiedName(char const * const buf, Int32 *pos,
+Int32 decodeQualifiedName(char const * buf, Int32 *pos,
 		UA_QualifiedName *dstQualifiedName)
 {
 	//TODO memory management for ua string
@@ -1110,7 +1110,7 @@ Int32 QualifiedName_calcSize(UA_QualifiedName *qualifiedName)
 	return length;
 }
 
-Int32 decodeLocalizedText(char const * const buf, Int32 *pos,
+Int32 decodeLocalizedText(char const * buf, Int32 *pos,
 		UA_LocalizedText *dstLocalizedText)
 {
 	//TODO memory management for ua string
@@ -1154,7 +1154,7 @@ Int32 LocalizedText_calcSize(UA_LocalizedText *localizedText)
 	return length;
 }
 
-Int32 decodeExtensionObject(char const * const buf, Int32 *pos,
+Int32 decodeExtensionObject(char const * buf, Int32 *pos,
 		UA_ExtensionObject *dstExtensionObject)
 {
 	//TODO to be implemented
@@ -1217,7 +1217,7 @@ Int32 ExtensionObject_calcSize(UA_ExtensionObject *extensionObject)
 	return length;
 }
 
-Int32 decodeVariant(char const * const buf, Int32 *pos, UA_Variant *dstVariant)
+Int32 decodeVariant(char const * buf, Int32 *pos, UA_Variant *dstVariant)
 {
 	decoder_decodeBuiltInDatatype(buf, BYTE, pos, &(dstVariant->EncodingMask));
 
@@ -1294,7 +1294,7 @@ Int32 Variant_calcSize(UA_Variant *variant)
 	return length;
 }
 
-Int32 decodeDataValue(char const * const buf, Int32 *pos, UA_DataValue *dstDataValue)
+Int32 decodeDataValue(char const * buf, Int32 *pos, UA_DataValue *dstDataValue)
 {
 
 	decoder_decodeBuiltInDatatype(buf, BYTE, pos,
@@ -1406,7 +1406,7 @@ Int32 DataValue_calcSize(UA_DataValue *dataValue)
  * Chapter: 7.9
  * Page: 116
  */
-Int32 decodeDiagnosticInfo(char const * const buf, Int32 *pos,
+Int32 decodeDiagnosticInfo(char const * buf, Int32 *pos,
 		UA_DiagnosticInfo *dstDiagnosticInfo)
 {
 
@@ -1569,7 +1569,7 @@ Int32 decodeRequestHeader(const AD_RawMessage *srcRaw, Int32 *pos,
 	return decoder_decodeRequestHeader(srcRaw->message, pos, dstRequestHeader);
 }
 
-Int32 decoder_decodeRequestHeader(char const * const message, Int32 *pos,
+Int32 decoder_decodeRequestHeader(char const * message, Int32 *pos,
 		UA_AD_RequestHeader *dstRequestHeader)
 {
 

@@ -5,6 +5,10 @@
     .sub
     .status
     .m4
+    .lo
+    .o
+    .a
+    .la
     /m4
     /autom4te.cache
     Makefile

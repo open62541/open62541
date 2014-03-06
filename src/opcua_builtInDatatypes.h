@@ -318,7 +318,7 @@ typedef struct UA_DiagnosticInfo
 	Int32 Locale;
 	UA_String AdditionalInfo;
 	UA_StatusCode InnerStatusCode;
-	struct _UA_DiagnosticInfo* InnerDiagnosticInfo;
+	struct UA_DiagnosticInfo* InnerDiagnosticInfo;
 }
 UA_DiagnosticInfo;
 

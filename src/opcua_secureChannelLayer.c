@@ -8,7 +8,6 @@
 #include <stdio.h>
 
 
-
 /*
  * opens a secureChannel (server side)
  */
@@ -188,9 +187,11 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage)
 
 		case packetType_OPN : /* openSecureChannel Message received */
 				decodeAASHeader(&secureChannelPacket,&pos,&AAS_Header);
+#if DEBUG
 				UA_String_printf("AAS_Header.ReceiverThumbprint=", &(AAS_Header.ReceiverThumbprint));
 				UA_String_printf("AAS_Header.SecurityPolicyUri=", &(AAS_Header.SecurityPolicyUri));
 				UA_String_printf("AAS_Header.SenderCertificate=", &(AAS_Header.SenderCertificate));
+#endif
 				if(SCM_Header.SecureChannelId != 0)
 				{
 
