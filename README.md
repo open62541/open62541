@@ -1,13 +1,12 @@
 Open62541
 =========
 
-An open communication stack implementation of OPC UA.
-For license information see LICENSE.
+An open-source communication stack implementation of OPC UA licensed under LGPL + static linking exception.
 # Getting dependencies
 ### Ubuntu
 ##### Getting gcc toolchain:
 ```bash
-sudo apt-get install build-essential subversion git
+sudo apt-get install build-essential subversion git autoconf libtool texinfo
 ```
 ##### Getting and installing check 0.9.12
 ```bash
@@ -46,9 +45,15 @@ $ make
 $ make install
 ```
 
-# Building
+# Clone open62541
 ```bash
-$ cd OPCUAServer
+$ git clone git://github.com/acplt/open62541.git
+```
+
+# Building (autoreconf only first time)
+```bash
+$ cd open62541
+$ autoreconf --force --install
 $ ./configure
 $ make
 $ make check

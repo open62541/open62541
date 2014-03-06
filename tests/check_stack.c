@@ -467,16 +467,17 @@ END_TEST
 
 START_TEST(responseHeader_calcSize_test)
 {
-	Int32 valreal = 0;
+	Int32 valreal = 1;
 	Int32 valcalc = 0;
-	T_ResponseHeader responseHeader;
+	fail();//ToDo: needs to be adjusted: just to see this needs to be adjusted
+	//ToDo: needs to be adjusted: T_ResponseHeader responseHeader;
 	UA_DiagnosticInfo diagnosticInfo;
 	UA_ExtensionObject extensionObject;
 
 	//Should have the size of 16 Bytes
-	responseHeader.timestamp = 150014;
-	responseHeader.requestHandle = 514;
-	responseHeader.serviceResult = 504;
+	//ToDo: needs to be adjusted: responseHeader.timestamp = 150014;
+	//ToDo: needs to be adjusted: responseHeader.requestHandle = 514;
+	//ToDo: needs to be adjusted: responseHeader.serviceResult = 504;
 
 	//Should have the size of 26 Bytes
 	diagnosticInfo.EncodingMask = 0x01 | 0x02 | 0x04 | 0x08 | 0x10;
@@ -485,16 +486,17 @@ START_TEST(responseHeader_calcSize_test)
 	diagnosticInfo.LocalizedText = 22;
 	diagnosticInfo.AdditionalInfo.Data = "OPCUA";
 	diagnosticInfo.AdditionalInfo.Length = 5;
-	responseHeader.serviceDiagnostics = &diagnosticInfo;
+	//ToDo: needs to be adjusted: responseHeader.serviceDiagnostics = &diagnosticInfo;
 	//Should have the size of 4 Bytes
-	responseHeader.noOfStringTable = 0;
+	//ToDo: needs to be adjusted: responseHeader.noOfStringTable = 0;
 	//Should have the size of 3 Bytes
 	extensionObject.TypeId.EncodingByte = NIEVT_TWO_BYTE;
 	extensionObject.TypeId.Identifier.Numeric = 0;
 	extensionObject.Encoding = 0x00; //binaryBody = false, xmlBody = false
-	responseHeader.additionalHeader = extensionObject;
+	//ToDo: needs to be adjusted: responseHeader.additionalHeader = extensionObject;
 
-	valcalc = responseHeader_calcSize(&responseHeader);
+	//ToDo: needs to be adjusted: valcalc = responseHeader_calcSize(&responseHeader);
+	fail(); //ToDo: needs to be adjusted: Just to see that this needs to be adjusted
 	valreal = 49;
 
 	ck_assert_int_eq(valcalc,valreal);
@@ -543,7 +545,8 @@ START_TEST(encodeDataValue_test)
 	variant.ArrayLength = 0;
 	variant.EncodingMask = VTEMT_INT32;
 	UA_VariantUnion variantUnion;
-	variantUnion.Int32 = 45;
+	//ToDo: needs to be adjusted: variantUnion.Int32 = 45;
+	fail(); ////ToDo: needs to be adjusted: Just to see that see that this needs to be adjusted
 	variant.Value = &variantUnion;
 	dataValue.Value = variant;
 	encodeDataValue(&dataValue, &pos, buf);
@@ -558,6 +561,25 @@ START_TEST(encodeDataValue_test)
 	ck_assert_int_eq(buf[6], 80);
 	ck_assert_int_eq(buf[7], 0);
 
+}
+END_TEST
+
+START_TEST(DataValue_calcSize_test)
+{
+	UA_DataValue dataValue;
+	dataValue.EncodingMask = 0x02 + 0x04 + 0x10;
+	dataValue.Status = 12;
+	UA_DateTime dateTime;
+	dateTime = 80;
+	dataValue.SourceTimestamp = dateTime;
+	UA_DateTime sourceTime;
+	dateTime = 214;
+	dataValue.SourcePicoseconds = sourceTime;
+
+	int size = 0;
+	size = DataValue_calcSize(&dataValue);
+
+	ck_assert_int_eq(size, 21);
 }
 END_TEST
 
@@ -788,6 +810,14 @@ Suite* testSuite_responseHeader_calcSize()
 	suite_add_tcase(s,tc_core);
 	return s;
 }
+Suite* testSuite_dataValue_calcSize(void)
+{
+	Suite *s = suite_create("dataValue_calcSize");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core,DataValue_calcSize_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
 
 int main (void)
 {
@@ -928,6 +958,12 @@ int main (void)
 	srunner_free(sr);
 
 	s = testSuite_expandedNodeId_calcSize();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+	s = testSuite_dataValue_calcSize();
 	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);

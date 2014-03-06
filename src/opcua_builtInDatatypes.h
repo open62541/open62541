@@ -236,6 +236,12 @@ typedef enum UA_IdentifierType
 }
 UA_IdentifierType;
 
+/**
+ * NodeIds
+* Part: 6
+* Chapter: 5.2.2.9
+* Table 5
+*/
 typedef enum UA_NodeIdEncodingValuesType
 {
 	// Some Values are called the same as previous Enumerations so we need
@@ -256,7 +262,7 @@ UA_NodeIdEncodingValuesType;
 */
 typedef struct UA_NodeId
 {
-	Int32 EncodingByte; //enum BID_NodeIdEncodingValuesType
+	Byte   EncodingByte; //enum BID_NodeIdEncodingValuesType
 	UInt16 Namespace;
 
     union
@@ -312,7 +318,7 @@ typedef struct UA_DiagnosticInfo
 	Int32 Locale;
 	UA_String AdditionalInfo;
 	UA_StatusCode InnerStatusCode;
-	struct _UA_DiagnosticInfo* InnerDiagnosticInfo;
+	struct UA_DiagnosticInfo* InnerDiagnosticInfo;
 }
 UA_DiagnosticInfo;
 
