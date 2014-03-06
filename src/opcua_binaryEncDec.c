@@ -810,6 +810,10 @@ Int32 UAByteString_calcSize(UA_ByteString *byteString)
 /* See 62541-6 §5.2.2.9 */
 Int32 decodeUANodeId(char const * buf, Int32 *pos, UA_NodeId *dstNodeId)
 {
+	// LU: Initialize dstNodeId to gain repeatable results
+	dstNodeId->Namespace = 0;
+	dstNodeId->Identifier.Numeric = 0;
+
 	decoder_decodeBuiltInDatatype(buf, BYTE, pos, &(dstNodeId->EncodingByte));
 
 	switch (dstNodeId->EncodingByte)

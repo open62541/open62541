@@ -40,5 +40,34 @@ Int32 UA_ByteString_compare(UA_ByteString *string1,UA_ByteString *string2)
 }
 
 void UA_String_printf(char* label, UA_ByteString* string) {
-	printf("%s %.*s\n", label, string->Length, (char*) string->Data);
+	printf("%s {Length=%d, Data=%.*s}\n", label, string->Length, string->Length, (char*) string->Data);
 }
+
+void UA_NodeId_printf(char* label, UA_NodeId* node) {
+	printf("%s {EncodingByte=%d, Namespace=%d, ", label, (int) node->EncodingByte, (int) node->Namespace);
+	switch (node->EncodingByte)
+	{
+	case NIEVT_TWO_BYTE:
+	case NIEVT_FOUR_BYTE:
+	case NIEVT_NUMERIC:
+		printf("Identifier=%d", node->Identifier.Numeric);
+		break;
+	case NIEVT_STRING:
+	case NIEVT_BYTESTRING:
+		// TODO: This implementation does not distinguish between String and Bytestring. Error?
+		printf("Identifier={Length=%d, Data=%.*s}", node->Identifier.String.Length, node->Identifier.String.Length, (char*) (node->Identifier.String.Data));
+		break;
+	case NIEVT_GUID:
+		printf("guid={Data1=%d, Data2=%d, Data3=%d, Data4=={Length=%d, Data=%.*s}}",
+				node->Identifier.Guid.Data1,
+				node->Identifier.Guid.Data2,
+				node->Identifier.Guid.Data3,
+				node->Identifier.Guid.Data4.Length, node->Identifier.Guid.Data4.Length, (char*) (node->Identifier.Guid.Data4.Data));
+		break;
+	default:
+		printf("ups! shit happens");
+		break;
+	}
+	printf("}\n");
+}
+

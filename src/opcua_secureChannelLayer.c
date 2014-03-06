@@ -82,12 +82,16 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message)
 	Int32 requestedLifetime;
 
 	decoder_decodeBuiltInDatatype(message.Data,NODE_ID,&pos,&ServiceRequestType);
+	UA_NodeId_printf("serviceRequestType=",&ServiceRequestType);
 
 	if(ServiceRequestType.EncodingByte == NIEVT_FOUR_BYTE)
 	{
 		if(ServiceRequestType.Identifier.Numeric == 446) // OpensecureChannelRequest
 		{
 			decoder_decodeRequestHeader(message.Data, &pos, &requestHeader);
+			UA_String_printf("requestHeader.auditEntryId=",&requestHeader.auditEntryId);
+			UA_NodeId_printf("requestHeader.authenticationToken=", &requestHeader.authenticationToken);
+
 			decoder_decodeBuiltInDatatype(message.Data,UINT32, &pos, &clientProtocolVersion);
 
 			if(clientProtocolVersion != connection->transportLayer.remoteConf.protocolVersion)
@@ -187,11 +191,9 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage)
 
 		case packetType_OPN : /* openSecureChannel Message received */
 				decodeAASHeader(&secureChannelPacket,&pos,&AAS_Header);
-#if DEBUG
 				UA_String_printf("AAS_Header.ReceiverThumbprint=", &(AAS_Header.ReceiverThumbprint));
 				UA_String_printf("AAS_Header.SecurityPolicyUri=", &(AAS_Header.SecurityPolicyUri));
 				UA_String_printf("AAS_Header.SenderCertificate=", &(AAS_Header.SenderCertificate));
-#endif
 				if(SCM_Header.SecureChannelId != 0)
 				{
 
@@ -205,6 +207,9 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage)
 				}
 
 				decodeSequenceHeader(&secureChannelPacket,&pos,&SequenceHeader);
+				printf("SequenceHeader.RequestId=%d\n",SequenceHeader.RequestId);
+				printf("SequenceHeader.SequenceNr=%d\n",SequenceHeader.SequenceNumber);
+
 				//TODO check that the sequence number is smaller than MaxUInt32 - 1024
 				connection->secureLayer.sequenceNumber = SequenceHeader.SequenceNumber;
 
