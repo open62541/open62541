@@ -23,7 +23,13 @@
     /config/
     /config.h.in
     /configure
-    install-sh
+    /install-sh
+    /compile
+    /depcomp
+    /ltmain.sh
+    /autogen.sh
+    /configure
+    /missing
     *~
     GIT_REVISION
     SVN_REVISION
