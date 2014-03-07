@@ -1,4 +1,6 @@
 language: c
+notifications:
+  email: false
 before_install:
  - sudo apt-get update -qq
  - sudo apt-get install -qq build-essential subversion git autoconf libtool texinfo
@@ -7,7 +9,7 @@ before_install:
  - autoreconf --install
  - ./configure
  - make
- - sudo make install -qq
+ - sudo make install
  - sudo ldconfig -qq
  - cd ..
 script: ./autogen.sh && ./configure && make && make check
