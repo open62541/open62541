@@ -2,12 +2,12 @@ language: c
 before_install:
  - sudo apt-get update -qq
  - sudo apt-get install -qq build-essential subversion git autoconf libtool texinfo
-- svn checkout svn://svn.code.sf.net/p/check/code/trunk check-code
-- cd check-code
-- autoreconf --install
-- ./configure
-- make
-- sudo make install -qq
-- sudo ldconfig -qq
-- cd ..
+ - svn checkout svn://svn.code.sf.net/p/check/code/trunk check-code
+ - cd check-code
+ - autoreconf --install
+ - ./configure
+ - make
+ - sudo make install -qq
+ - sudo ldconfig -qq
+ - cd ..
 script: ./autogen.sh && ./configure && make && make check
