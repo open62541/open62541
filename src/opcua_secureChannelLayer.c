@@ -55,7 +55,7 @@ Int32 SL_secureChannel_open(const UA_connection *connection,
 	return UA_NO_ERROR;
 }
 
-Int32 SL_openSecureChannel_responsMessage(UA_connection *connection, Int32 tokenLifetime, SL_Response *response)
+Int32 SL_openSecureChannel_responseMessage(UA_connection *connection, Int32 tokenLifetime, SL_Response *response)
 {
 
 

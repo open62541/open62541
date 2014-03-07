@@ -48,7 +48,7 @@ START_TEST(decodeByte_test)
 
 		position = 0;
 
-		decoder_decodeBuiltInDatatype(rawMessage.message, BYTE, &position,Ui16Val);
+		decoder_decodeBuiltInDatatype(rawMessage.message, BYTE, &position, &Ui16Val);
 
 		ck_assert_int_eq(Ui16Val, 0x08);
 		ck_assert_int_eq(position, 1);
@@ -862,7 +862,7 @@ int main (void)
 	srunner_free(sr);
 
 	s = testSuite_decodeByte();
-	SRunner *sr = srunner_create(s);
+	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed = srunner_ntests_failed(sr);
 	srunner_free(sr);

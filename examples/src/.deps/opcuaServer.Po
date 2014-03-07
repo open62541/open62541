@@ -4,11 +4,11 @@ opcuaServer.o: opcuaServer.c /usr/include/stdio.h /usr/include/features.h \
  /usr/include/i386-linux-gnu/bits/wordsize.h \
  /usr/include/i386-linux-gnu/gnu/stubs.h \
  /usr/include/i386-linux-gnu/gnu/stubs-32.h \
- /usr/lib/gcc/i686-linux-gnu/4.6.1/include/stddef.h \
+ /usr/lib/gcc/i686-linux-gnu/4.6/include/stddef.h \
  /usr/include/i386-linux-gnu/bits/types.h \
  /usr/include/i386-linux-gnu/bits/typesizes.h /usr/include/libio.h \
  /usr/include/_G_config.h /usr/include/wchar.h \
- /usr/lib/gcc/i686-linux-gnu/4.6.1/include/stdarg.h \
+ /usr/lib/gcc/i686-linux-gnu/4.6/include/stdarg.h \
  /usr/include/i386-linux-gnu/bits/stdio_lim.h \
  /usr/include/i386-linux-gnu/bits/sys_errlist.h /usr/include/stdlib.h \
  /usr/include/i386-linux-gnu/bits/waitflags.h \
@@ -23,11 +23,7 @@ opcuaServer.o: opcuaServer.c /usr/include/stdio.h /usr/include/features.h \
  /usr/include/i386-linux-gnu/sys/sysmacros.h \
  /usr/include/i386-linux-gnu/bits/pthreadtypes.h /usr/include/alloca.h \
  ../../src/opcua_binaryEncDec.h ../../src/opcua_builtInDatatypes.h \
-<<<<<<< HEAD
  /usr/lib/gcc/i686-linux-gnu/4.6/include/stdint.h /usr/include/stdint.h \
-=======
- /usr/lib/gcc/i686-linux-gnu/4.6.1/include/stdint.h /usr/include/stdint.h \
->>>>>>> de6a1f744a794a0c89bb41ce02b4e7f7b5993596
  /usr/include/i386-linux-gnu/bits/wchar.h /usr/include/string.h \
  /usr/include/xlocale.h ../../src/opcua_advancedDatatypes.h \
  ../../src/opcua_types.h ../../src/opcua_builtInDatatypes.h \
@@ -60,7 +56,7 @@ opcuaServer.o: opcuaServer.c /usr/include/stdio.h /usr/include/features.h \
 
 /usr/include/i386-linux-gnu/gnu/stubs-32.h:
 
-/usr/lib/gcc/i686-linux-gnu/4.6.1/include/stddef.h:
+/usr/lib/gcc/i686-linux-gnu/4.6/include/stddef.h:
 
 /usr/include/i386-linux-gnu/bits/types.h:
 
@@ -72,7 +68,7 @@ opcuaServer.o: opcuaServer.c /usr/include/stdio.h /usr/include/features.h \
 
 /usr/include/wchar.h:
 
-/usr/lib/gcc/i686-linux-gnu/4.6.1/include/stdarg.h:
+/usr/lib/gcc/i686-linux-gnu/4.6/include/stdarg.h:
 
 /usr/include/i386-linux-gnu/bits/stdio_lim.h:
 
@@ -112,7 +108,7 @@ opcuaServer.o: opcuaServer.c /usr/include/stdio.h /usr/include/features.h \
 
 ../../src/opcua_builtInDatatypes.h:
 
-/usr/lib/gcc/i686-linux-gnu/4.6.1/include/stdint.h:
+/usr/lib/gcc/i686-linux-gnu/4.6/include/stdint.h:
 
 /usr/include/stdint.h:
 
