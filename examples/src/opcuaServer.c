@@ -30,8 +30,11 @@ void server_init();
 void server_run();
 
 #endif
+
 #define PORT    16664
-     #define MAXMSG  512
+#define MAXMSG  512
+#define BUFFER_SIZE 8192
+
 int main(void)
 {
 
@@ -54,6 +57,7 @@ void server_init()
 	//call listen
 
 }
+
 void server_run()
 {
 	UA_connection connection;
@@ -61,7 +65,7 @@ void server_run()
 	TL_initConnectionObject(&connection);
 	char optval;
 	int sockfd, newsockfd, portno, clilen;
-	char buffer[8192];
+	char buffer[BUFFER_SIZE];
 	struct sockaddr_in serv_addr, cli_addr;
 	int  n;
 
@@ -75,7 +79,7 @@ void server_run()
 
 	/* Initialize socket structure */
 	bzero((char *) &serv_addr, sizeof(serv_addr));
-	portno = 16664;
+	portno = PORT;
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_addr.s_addr = INADDR_ANY;
 	serv_addr.sin_port = htons(portno);
@@ -111,9 +115,9 @@ void server_run()
 	while(1)
 	{
 		/* If connection is established then start communicating */
-		bzero(buffer,8192);
+		bzero(buffer,BUFFER_SIZE);
 
-		n = read( newsockfd,buffer,8192);
+		n = read( newsockfd,buffer,BUFFER_SIZE);
 
 		if (n > 0)
 		{

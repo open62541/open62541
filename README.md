@@ -1,14 +1,15 @@
 Open62541
 =========
 
-An open-source communication stack implementation of OPC UA licensed under LGPL + static linking exception.
-# Getting dependencies
+An open-source communication stack implementation of OPC UA (OPC Unified Architecture) licensed under LGPL + static linking exception.
+
+## Getting dependencies
 ### Ubuntu
 ##### Getting gcc toolchain:
 ```bash
 sudo apt-get install build-essential subversion git autoconf libtool texinfo
 ```
-##### Getting and installing check 0.9.12
+##### Getting and installing *check* as unit test framework (http://check.sourceforge.net/):
 ```bash
 $ svn checkout svn://svn.code.sf.net/p/check/code/trunk check-code
 $ cd check-code
@@ -33,7 +34,7 @@ $ sudo ldconfig
 ##### Get git (IMPORTANT: get 1.8.4, since 1.8.5.2 has a bug):
 * http://code.google.com/p/msysgit/downloads/detail?name=Git-1.8.4-preview20130916.exe&can=2&q=
 
-##### Getting check unit test framework:
+##### Getting and installing *check* as unit testing framework (http://check.sourceforge.net/):
 * Open MinGW\msys\1.0\msys.bat
 
 ```bash
@@ -45,12 +46,12 @@ $ make
 $ make install
 ```
 
-# Clone open62541
+## Clone open62541
 ```bash
 $ git clone https://github.com/acplt/open62541.git
 ```
 
-# Building 
+## Building 
 * use autogen.sh only first time and whenever aclocal.m4 or configure.ac were modified
 ```bash
 $ cd open62541

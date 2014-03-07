@@ -807,27 +807,27 @@ Int32 UAByteString_calcSize(UA_ByteString *byteString)
 	return UAString_calcSize((UA_String*) byteString);
 }
 
-/* See 62541-6 §5.2.2.9 */
+/* Serialization of UANodeID is specified in 62541-6, §5.2.2.9 */
 Int32 decodeUANodeId(char const * buf, Int32 *pos, UA_NodeId *dstNodeId)
 {
-	// LU: Initialize dstNodeId to gain repeatable results
-	dstNodeId->Namespace = 0;
-	dstNodeId->Identifier.Numeric = 0;
+	// Vars for overcoming decoder_decodeXXX's non-endian-savenes
+	Byte dstByte;
+	UInt16 dstUInt16;
 
 	decoder_decodeBuiltInDatatype(buf, BYTE, pos, &(dstNodeId->EncodingByte));
 
 	switch (dstNodeId->EncodingByte)
 	{
 	case NIEVT_TWO_BYTE: // Table 7
-		decoder_decodeBuiltInDatatype(buf, BYTE, pos,
-				&(dstNodeId->Identifier.Numeric));
+		decoder_decodeBuiltInDatatype(buf, BYTE, pos, &dstByte);
+		dstNodeId->Identifier.Numeric = dstByte;
 		dstNodeId->Namespace = 0; // default OPC UA Namespace
 		break;
 	case NIEVT_FOUR_BYTE: // Table 8
-		decoder_decodeBuiltInDatatype(buf, BYTE, pos,
-				&(dstNodeId->Namespace));
-		decoder_decodeBuiltInDatatype(buf, UINT16, pos,
-				&(dstNodeId->Identifier.Numeric));
+		decoder_decodeBuiltInDatatype(buf, BYTE, pos, &dstByte);
+		dstNodeId->Namespace = dstByte;
+		decoder_decodeBuiltInDatatype(buf, UINT16, pos, &dstUInt16);
+		dstNodeId->Identifier.Numeric = dstUInt16;
 		break;
 	case NIEVT_NUMERIC: // Table 6, first entry
 		decoder_decodeBuiltInDatatype(buf, UINT16, pos,
