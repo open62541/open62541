@@ -10,6 +10,6 @@ before_install:
  - ./configure
  - make
  - sudo make install
- - sudo ldconfig -qq
+ - sudo ldconfig
  - cd ..
 script: ./autogen.sh && ./configure && make && make check
