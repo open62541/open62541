@@ -382,7 +382,6 @@ typedef struct UA_ExtensionObject
 {
 	UA_NodeId TypeId;
 	Byte Encoding; //Type of the Enum UA_ExtensionObjectEncodingMaskType
-	Int32 Length;
 	UA_ByteString Body;
 }
 UA_ExtensionObject;
