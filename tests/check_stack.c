@@ -80,25 +80,34 @@ END_TEST
 
 START_TEST(decodeInt16_test)
 {
-
-	AD_RawMessage rawMessage;
-	Int32 position = 0;
-	//EncodeUInt16
-	char mem[2] = {0x01,0x00};
-
-	rawMessage.message = mem;
-
-	rawMessage.length = 2;
-
-	//encodeUInt16(testUInt16, &position, &rawMessage);
-
 	Int32 p = 0;
 	Int16 val;
+	AD_RawMessage rawMessage;
+	char mem[] = {
+			0x00,0x00,	// 0
+			0x01,0x00,	// 1
+			0xFF,0x00,	// 255
+			0x00,0x01,	// 256
+			0xFF,0xFF,	// -1
+			0x00,0x80,	// -32768
+	};
+
+	rawMessage.message = mem;
+	rawMessage.length = sizeof(mem);
+	ck_assert_int_eq(rawMessage.length,12);
+
+	decoder_decodeBuiltInDatatype(rawMessage.message,INT16,&p,&val);
+	ck_assert_int_eq(val,0);
 	decoder_decodeBuiltInDatatype(rawMessage.message,INT16,&p,&val);
 	ck_assert_int_eq(val,1);
-	//ck_assert_int_eq(p, 2);
-	//ck_assert_int_eq(rawMessage.message[0], 0xAB);
-
+	decoder_decodeBuiltInDatatype(rawMessage.message,INT16,&p,&val);
+	ck_assert_int_eq(val,255);
+	decoder_decodeBuiltInDatatype(rawMessage.message,INT16,&p,&val);
+	ck_assert_int_eq(val,256);
+	decoder_decodeBuiltInDatatype(rawMessage.message,INT16,&p,&val);
+	ck_assert_int_eq(val,-1);
+	decoder_decodeBuiltInDatatype(rawMessage.message,INT16,&p,&val);
+	ck_assert_int_eq(val,-32768);
 }
 END_TEST
 START_TEST(encodeInt16_test)
