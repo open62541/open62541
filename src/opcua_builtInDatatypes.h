@@ -301,6 +301,12 @@ UA_ExpandedNodeId;
 * Page: 20
 */
 typedef UInt32 UA_StatusCode;
+typedef enum UA_StatusCodes
+{
+	// Some Values are called the same as previous Enumerations so we need
+	//names that are unique
+	SC_Good 			= 			0x00
+} UA_StatusCodes;
 
 
 /**

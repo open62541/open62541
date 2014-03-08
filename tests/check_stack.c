@@ -451,15 +451,21 @@ START_TEST(extensionObject_calcSize_test)
 	Byte data[3] = {1,2,3};
 	UA_ExtensionObject extensionObject;
 
+	// empty ExtensionObject
 	extensionObject.TypeId.EncodingByte = NIEVT_TWO_BYTE;; // Numeric TWO BYTES
 	extensionObject.TypeId.Identifier.Numeric = 0;
-
-	extensionObject.Encoding = 0x00;
-	extensionObject.Length = 0;
-	//extensionObject.Body = &data;
+	extensionObject.Encoding = NO_BODY_IS_ENCODED;
 
 	valcalc = extensionObject_calcSize(&extensionObject);
 	valreal = 3;
+	ck_assert_int_eq(valcalc, valreal);
+
+	// ExtensionObject with ByteString-Body
+	extensionObject.Encoding = BODY_IS_BYTE_STRING;
+	extensionObject.Body.Data = data;
+	extensionObject.Body.Length = 3;
+	valcalc = extensionObject_calcSize(&extensionObject);
+	valreal = 3 + 4 + 3;
 	ck_assert_int_eq(valcalc, valreal);
 
 }

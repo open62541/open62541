@@ -800,7 +800,7 @@ UA_AD_RequestReturnDiagnositcs;
 * Chapter: 7.27
 * Page: 133
 */
-typedef struct
+typedef struct UA_AD_ResponseHeader
 {
 	UA_DateTime timestamp;
 	UA_AD_IntegerId requestHandle;

@@ -1489,8 +1489,7 @@ Int32 encodeResponseHeader(UA_AD_ResponseHeader const * responseHeader,
 	return 0;
 }
 Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject) {
-	Int32 length;
-	Byte mask;
+	Int32 length = 0;
 
 	length += nodeId_calcSize(&(extensionObject->TypeId));
 	length += sizeof(Byte); //The EncodingMask Byte
