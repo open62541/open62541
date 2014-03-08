@@ -3,6 +3,8 @@ Open62541
 
 An open-source communication stack implementation of OPC UA (OPC Unified Architecture) licensed under LGPL + static linking exception.
 
+[![Build Status](https://travis-ci.org/acplt/open62541.png?branch=master)](https://travis-ci.org/acplt/open62541)
+
 ## Getting dependencies
 ### Ubuntu
 ##### Getting gcc toolchain:

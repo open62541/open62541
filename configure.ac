@@ -7,9 +7,9 @@ AC_INIT(OPCUAServer, 1.0)
 AC_CANONICAL_SYSTEM
 AM_INIT_AUTOMAKE()
 AC_PROG_MAKE_SET
-if test -z $CFLAGS; then
-    CFLAGS='-O0'
-fi
+#if test -z $CFLAGS; then
+#    CFLAGS='-O0'
+#fi
 AC_PROG_CC
 AC_PROG_LN_S
 AM_PROG_CC_C_O
