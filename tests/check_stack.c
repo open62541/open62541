@@ -606,6 +606,37 @@ START_TEST(DataValue_calcSize_test)
 }
 END_TEST
 
+START_TEST(encoder_encodeBuiltInDatatypeArray_test)
+{
+	Int32 position = 0;
+
+	char input = {1,2,3,4,5,6,7,8,9};
+	Int32 len = 9;
+	Int32 ret;
+	char *mem = malloc(13 * sizeof(Byte));
+
+
+	ret = encoder_encodeBuiltInDatatypeArray((void*)input,len, BYTE_ARRAY,
+			&position, mem);
+
+	ck_assert_int_eq(mem[4], 0x01);
+	ck_assert_int_eq(mem[5], 0x02);
+	ck_assert_int_eq(mem[6], 0x03);
+	ck_assert_int_eq(mem[7], 0x04);
+	ck_assert_int_eq(mem[8], 0x05);
+	ck_assert_int_eq(mem[9], 0x06);
+	ck_assert_int_eq(mem[10], 0x07);
+	ck_assert_int_eq(mem[11], 0x08);
+	ck_assert_int_eq(mem[12], 0x09);
+
+	ck_assert_int_eq(position, sizeof(Int32) + 9);
+	ck_assert_int_eq(ret, UA_NO_ERROR);
+
+
+	free(mem);
+}
+END_TEST
+
 Suite *testSuite_getPacketType(void)
 {
 	Suite *s = suite_create("getPacketType");
@@ -851,6 +882,14 @@ Suite* testSuite_dataValue_calcSize(void)
 	return s;
 }
 
+Suite *testSuite_encoder_encodeBuiltInDatatypeArray_test(void)
+{
+	Suite *s = suite_create("encoder_encodeBuiltInDatatypeArray_test");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, encoder_encodeBuiltInDatatypeArray_test);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
 int main (void)
 {
 	int number_failed = 0;
@@ -859,6 +898,13 @@ int main (void)
 	SRunner *sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed = srunner_ntests_failed(sr);
+	srunner_free(sr);
+
+
+	s = testSuite_encoder_encodeBuiltInDatatypeArray_test();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
 
 	s = testSuite_decodeByte();
@@ -1006,6 +1052,8 @@ int main (void)
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
+
+
 
 	/* <TESTSUITE_TEMPLATE>
 	s =  <TESTSUITENAME>;

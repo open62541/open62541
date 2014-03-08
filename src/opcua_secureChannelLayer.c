@@ -184,7 +184,48 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message)
 			// requestedLifetime
 			decoder_decodeBuiltInDatatype(message.Data,INT32,&pos,&requestedLifetime);
 			//TODO process requestedLifetime
-			//SL_openSecureChannel_respond(connection,response,TOKEN_LIFETIME);
+/* --------------------------------------------------------------------------------
+			UA_ByteString responseMessage;
+			char * response;
+			Int32 pos = 0;
+			String_Array stringArray;
+
+			stringArray.arrayLength = 0;
+			stringArray.data = NULL;
+
+			stringArray.dimensions.data = NULL;
+			stringArray.dimensions.length = 0;
+
+			UA_DateTime now = opcua_time_now();
+			UA_DiagnosticInfo returnDiagnostics;
+
+			Int32 StatusCode;
+			encoder_encodeBuiltInDatatype(now, DATE_TIME, &pos, response);
+			encoder_encodeBuiltInDatatype(requestHeader.requestHandle,INT32,&pos,response);
+			//return a valid StatusCode
+			StatusCode = 0;  //TODO generate valid StatusCode
+			encoder_encodeBuiltInDatatype(StatusCode,Int32,&pos,response);
+
+			encoder_encodeBuiltInDatatype
+
+			returnDiagnostics.EncodingMask = 0; // TODO return Dianostics if client requests
+
+			encoder_encodeBuiltInDatatype(returnDiagnostics,Int32,&pos,response);
+			//encoder_encodeBuiltInDatatype(stringArray,STRING_ARRAY,pos,response);
+
+			encoder_encodebuiltInDatatypeArray(stringArray.data,stringArray.arrayLength,STRING_ARRAY,&pos,response);
+			UA_ExtensionObject additionalHeader;
+			additionalHeader.Encoding = 0;
+
+			encode_encodebuiltInDatatype(&addtionalHeader
+			//get memory
+
+
+
+
+/* -------------------------------------------------------------------------------- */
+			//SL_openSecureChannel_respond(connection,TOKEN_LIFETIME);
+
 		}
 		else
 		{
@@ -264,8 +305,8 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage)
 			if(connection->secureLayer->connectionState == connectionState_ESTABLISHED)
 			{
 				//TODO
-/*
-				if(SCM_Header.SecureChannelId == connection->secureLayer)
+
+				if(SCM_Header.SecureChannelId == connection->secureLayer->securityToken.secureChannelId)
 				{
 
 				}
@@ -273,7 +314,7 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage)
 				{
 					//TODO generate ERROR_Bad_SecureChannelUnkown
 				}
-*/
+
 			}
 
 			break;

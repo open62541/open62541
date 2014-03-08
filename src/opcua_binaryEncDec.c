@@ -436,17 +436,22 @@ Int32 decoder_decodeBuiltInDatatype(char const * srcBuf, Int32 type, Int32 *pos,
 
 /* not tested */
 /*needs to be reimplemented */
-Int32 encode_builtInDatatypeArray(void *data, Int32 size, Int32 type,
+Int32 encoder_encodeBuiltInDatatypeArray(void *data, Int32 size, Int32 type,
 		Int32 *pos, char *dstBuf)
 {
 	int i;
-	void * pItem;
+	void * pItem = NULL;
 	encoder_encodeBuiltInDatatype((void*) (size), INT32, pos, dstBuf);
-	for (i = 0; i < size;)
+	pItem = data;
+	for (i = 0; i < size; i++)
 	{
-		encoder_encodeBuiltInDatatype(pItem, type, pos, dstBuf);
-		switch (type)
+		//-128 does the conversion e.g. from BOOLEAN_ARRAY to BOOLEAN (type)
+		encoder_encodeBuiltInDatatype(pItem, type - 128 , pos, dstBuf);
+		pItem++;
+	}
+	/*	switch (type)
 		{
+
 		case BOOLEAN:
 			pItem = (Boolean*) (data) + 1;
 			break;
@@ -524,6 +529,7 @@ Int32 encode_builtInDatatypeArray(void *data, Int32 size, Int32 type,
 			break;
 		}
 	}
+	*/
 	return UA_NO_ERROR;
 }
 
@@ -1250,7 +1256,7 @@ Int32 encodeVariant(UA_Variant *variant, Int32 *pos, char *dstBuf)
 		if (variant->ArrayLength > 0)
 		{
 			//encode array as given by variant type
-			encode_builtInDatatypeArray((void*) variant->Value,
+			encoder_encodeBuiltInDatatypeArray((void*) variant->Value,
 					variant->ArrayLength, (variant->EncodingMask & 31), pos,
 					dstBuf);
 		}

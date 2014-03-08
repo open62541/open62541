@@ -2765,9 +2765,9 @@ $as_echo "no" >&6; }
   SET_MAKE="MAKE=${MAKE-make}"
 fi
 
-if test -z $CFLAGS; then
-    CFLAGS='-O0'
-fi
+#if test -z $CFLAGS; then
+#    CFLAGS='-O0'
+#fi
 ac_ext=c
 ac_cpp='$CPP $CPPFLAGS'
 ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'

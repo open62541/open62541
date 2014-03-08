@@ -39,6 +39,19 @@ Int32 decoder_decodeBuiltInDatatype(char const * srcBuf, Int32 type, Int32 *pos,
  */
 Int32 encoder_encodeBuiltInDatatype(void *data, Int32 type, Int32 *pos, char *dstBuf);
 
+
+/**
+ *
+ * @param data
+ * @param size
+ * @param type
+ * @param pos
+ * @param dstBuf
+ * @return
+ */
+Int32 encoder_encodeBuiltInDatatypeArray(void *data, Int32 size,
+		Int32 type, Int32 *pos,
+		char *dstBuf);
 /**
  *
  * @param buf
