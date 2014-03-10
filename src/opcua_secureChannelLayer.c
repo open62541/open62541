@@ -6,7 +6,7 @@
  */
 #include "opcua_secureChannelLayer.h"
 #include <stdio.h>
-
+#include "opcua_time.h"
 
 Int32 SL_send(UA_connection *connection, UA_ByteString responseMessage, Int32 type)
 {
@@ -105,7 +105,7 @@ Int32 SL_openSecureChannel(UA_connection *connection, IntegerId requestHandle, U
 	//fill toke structure with default server information
 	securityToken.secureChannelId = connection->secureLayer.securityToken.secureChannelId;
 	securityToken.tokenId = connection->secureLayer.securityToken.tokenId;
-	securityToken.createdAt = opcua_time();
+	securityToken.createdAt = opcua_getTime();
 	securityToken.revisedLifetime = connection->secureLayer.securityToken.revisedLifetime;
 
 	serverProtocolVersion = connection->transportLayer.localConf.protocolVersion;
