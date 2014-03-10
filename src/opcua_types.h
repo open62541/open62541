@@ -808,7 +808,7 @@ typedef struct UA_AD_ResponseHeader
 	UA_DiagnosticInfo *serviceDiagnostics;
 	UInt16 noOfStringTable;
 	UA_String* stringTable;
-	UA_ExtensionObject additionalHeader;
+	UA_ExtensionObject *additionalHeader;
 }
 UA_AD_ResponseHeader;
 

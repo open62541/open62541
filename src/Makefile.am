@@ -42,7 +42,13 @@ libopen62541_la_SOURCES = opcua_builtInDatatypes.c\
 #__top_builddir__bin_libOpen62541_out_SOURCES = opcuaServer.c
 #libOpen62541_la_LIBADD = ../lib/libOpen62541.la		  										
 
-
+if DEBUG
+AM_CFLAGS = -g -O0
+AM_CXXFLAGS = -g -O0
+else
+AM_CFLAGS = -O2
+AM_CXXFLAGS = -O2
+endif
 
 .PHONY: convenience-link clean-convenience-link
 
@@ -69,4 +75,11 @@ clean-convenience-link:
 all-local: convenience-link
 
 clean-local: clean-convenience-link
+
+#optimization levels depending on debug
+if DEBUG
+        AM_CFLAGS = -O0
+else
+        AM_CFLAGS = -O2
+endif
 

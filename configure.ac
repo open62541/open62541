@@ -7,9 +7,11 @@ AC_INIT(OPCUAServer, 1.0)
 AC_CANONICAL_SYSTEM
 AM_INIT_AUTOMAKE()
 AC_PROG_MAKE_SET
-#if test -z $CFLAGS; then
-#    CFLAGS='-O0'
-#fi
+#default CFLAGS is -g -02
+#reset it just to -g and make optimization dependend on --enable-debug
+if test -z $CFLAGS; then
+    CFLAGS='-g'
+fi
 AC_PROG_CC
 AC_PROG_LN_S
 AM_PROG_CC_C_O
@@ -37,6 +39,9 @@ esac],
 [debug=false])
 
 AM_CONDITIONAL(DEBUG, test x"$debug" = x"true")
+AM_COND_IF([DEBUG],
+    AC_DEFINE([DEBUG])) #define DEBUG is accessible from pre-processor
+
    
 AC_LIBTOOL_WIN32_DLL
 AC_PROG_LIBTOOL
