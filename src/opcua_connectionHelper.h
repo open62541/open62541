@@ -63,12 +63,12 @@ struct SL_connection
 	UInt32 sequenceNumber;
 	UInt32 requestType;
 	UA_String secureChannelId;
-	UInt32 UInt32_secureChannelId;
+	//UInt32 UInt32_secureChannelId;
 	UInt32 securityMode;
 	UA_ByteString clientNonce;
 	UInt32 connectionState;
 	SL_ChannelSecurityToken securityToken;
-
+	UInt32 requestId; // request Id of the current request
 };
 
 struct SS_connection

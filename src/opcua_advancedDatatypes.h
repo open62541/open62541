@@ -724,16 +724,16 @@ enum BED_RequestReturnDiagnositcs
 * Chapter: 7.27
 * Page: 133
 */
-struct BED_ResponseHeader
+/*typedef struct UA_AD_ResponseHeader
 {
 	UA_DateTime timestamp;
-	BED_IntegerId requestHandle;
+	UInt32 requestHandle;
 	UA_StatusCode serviceResult;
 	UA_DiagnosticInfo *serviceDiagnostics;
-	UA_String stringTable[];
-//ToDo	struct BED_ExtensibleParameterAdditionalHeader additionalHeader;		//ToDo
-};
-
+	UA_String *stringTable;
+    UA_AD_ExtensibleParameter *additionalHeader;
+}UA_AD_ResponseHeader;
+*/
 
 /**
 * ServiceFault
@@ -741,11 +741,11 @@ struct BED_ResponseHeader
 * Chapter: 7.28
 * Page: 133
 */
-struct BED_ServiceFault
+/*struct BED_ServiceFault
 {
 	struct BED_ResponseHeader responseHeader;
 };
-
+*/
 
 //ToDo: Own DataType with typeDef?
 /**

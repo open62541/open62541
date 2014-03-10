@@ -58,7 +58,7 @@ $ git clone https://github.com/acplt/open62541.git
 ```bash
 $ cd open62541
 $ ./autogen.sh
-$ ./configure
+$ ./configure --enable-debug
 $ make
 $ make check
 ```
