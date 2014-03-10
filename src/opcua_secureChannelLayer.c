@@ -34,12 +34,10 @@ Int32 SL_send(UA_connection *connection, UA_ByteString responseMessage, Int32 ty
 /*
  * opens a secure channel
  */
-Int32 SL_openSecureChannel(UA_connection *connection, IntegerId requestHandle, UA_StatusCode serviceResult, UA_AD_DiagnosticInfo *serviceDiagnostics)
+Int32 SL_openSecureChannel(UA_connection *connection, IntegerId requestHandle, UA_StatusCode serviceResult, UA_DiagnosticInfo *serviceDiagnostics)
 {
-
-
-
 	UA_AD_ResponseHeader responseHeader;
+	UA_ExtensionObject additionalHeader;
 	SL_ChannelSecurityToken securityToken;
 	UA_ByteString serverNonce;
 	UA_NodeId responseType;
@@ -55,7 +53,6 @@ Int32 SL_openSecureChannel(UA_connection *connection, IntegerId requestHandle, U
 	/*--------------type ----------------------*/
 	//Four Bytes Encoding
 	responseType.EncodingByte = NIEVT_FOUR_BYTE;
-	//openSecureChannelResponse = 449
 	responseType.Identifier.Numeric = 449;
 
 	/*--------------responseHeader-------------*/
@@ -74,18 +71,15 @@ Int32 SL_openSecureChannel(UA_connection *connection, IntegerId requestHandle, U
 	responseHeader.requestHandle = requestHandle;
 	// StatusCode which informs client about quality of response
 	responseHeader.serviceResult = serviceResult;
-	//retrive diagnosticInfo if client demands
+	//retrieve diagnosticInfo if client demands
 	responseHeader.serviceDiagnostics = serviceDiagnostics;
 
 	//text of fields defined in the serviceDiagnostics
 	responseHeader.noOfStringTable = 0;
 	responseHeader.stringTable = NULL;
 
-
 	// no additional header
-	responseHeader.additionalHeader->Encoding = 0;
-	responseHeader.additionalHeader->TypeId.EncodingByte = 0;
-	responseHeader.additionalHeader->TypeId.Identifier.Numeric = 0;
+	responseHeader.additionalHeader = &the_empty_UA_ExtensionObject;
 
 	//calculate the size
 	sizeRespHeader = responseHeader_calcSize(&responseHeader);
@@ -99,7 +93,7 @@ Int32 SL_openSecureChannel(UA_connection *connection, IntegerId requestHandle, U
 	sizeSecurityToken = sizeof(UInt32) + sizeof(UInt32) + sizeof(UA_DateTime) + sizeof(Int32);
 
 	//ignore server nonce
-	serverNonce.Length = 0;
+	serverNonce.Length = -1;
 	serverNonce.Data = NULL;
 
 	//fill toke structure with default server information
@@ -111,7 +105,7 @@ Int32 SL_openSecureChannel(UA_connection *connection, IntegerId requestHandle, U
 	serverProtocolVersion = connection->transportLayer.localConf.protocolVersion;
 
 	//                ProtocolVersion + SecurityToken + Nonce
-	sizeRespMessage = sizeof(UInt32) + sizeSecurityToken + serverNonce.Length + sizeof(Int32) + sizeSecurityToken;
+	sizeRespMessage = sizeof(UInt32) + sizeSecurityToken + UAByteString_calcSize(&serverNonce) + sizeof(Int32) + sizeSecurityToken;
 
 	//get memory for response
 	response.Data = (char*)opcua_malloc(nodeId_calcSize(responseType) + sizeRespHeader + sizeRespMessage);
@@ -147,9 +141,13 @@ Int32 SL_createSecurityToken(UA_connection *connection, Int32 lifeTime) {
 }
 
 Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
+	UA_DiagnosticInfo serviceDiagnostics;
+
 	Int32 pos = 0;
 	// Every Message starts with a NodeID which names the serviceRequestType
 	UA_NodeId serviceRequestType;
+
+
 
 	decoder_decodeBuiltInDatatype(message.Data, NODE_ID, &pos,
 			&serviceRequestType);
@@ -255,47 +253,12 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 		printf("SL_processMessage - requestedLifeTime=%d\n", requestedLifetime);
 		//TODO process requestedLifetime
 
-		{
-			// Res-0) NodeId typeID
-			UA_NodeId typeID;
-			// Res-1) ResponseHeader responseHeader
-			UA_AD_ResponseHeader responseHeader;
-			// Res-2) UInt32 ServerProtocolVersion
-			UInt32 serverProtocolVersion;
-			// Res-3) SecurityToken channelSecurityToken
-			SL_ChannelSecurityToken securityToken;
-			// Res-4) ByteString ServerNonce
-			UA_ByteString serverNonce;
-
-			// Res-1) ResponseHeader responseHeader
-			responseHeader.timestamp = opcua_getTime();
-			// 62541-4 §7.27 "The requestHandle given by the Client to the request."
-			responseHeader.requestHandle = requestHeader.requestHandle;
-			responseHeader.serviceResult = SC_Good;
-			// 62541-4 §7.27 "This parameter is empty if diagnostics information was not requested in the request header"
-			responseHeader.serviceDiagnostics = NULL;
-			responseHeader.stringTable = NULL;
-			responseHeader.additionalHeader.TypeId.EncodingByte = 0;
-			responseHeader.additionalHeader.TypeId.Identifier.Numeric = 0;
-			responseHeader.additionalHeader.Encoding = NO_BODY_IS_ENCODED;
-
-			// Res-2) UInt32 ServerProtocolVersion
-			// 62541-6 §6.4.4 "Implementations that have not been certified shall set the protocol version to 0"
-			serverProtocolVersion = 0;
-
-			// Res-3) SecurityToken channelSecurityToken
-			securityToken.secureChannelId = 666; // TODO: create
-			securityToken.tokenId = 42; // TODO: create
-			securityToken.createdAt = opcua_getTime();
-			securityToken.revisedLifetime = requestHeader.timeoutHint;
-			// Res-4) ByteString ServerNonce
-			serverNonce.Length = -1;
-		}
+		// 62541-4 §7.27 "The requestHandle given by the Client to the request."
+		return SL_openSecureChannel(connection, requestHeader.requestHandle, SC_Good, &serviceDiagnostics);
 	} else {
 		printf("SL_processMessage - unknown service request");
 		//TODO change error code
 		return UA_ERROR;
-
 	}
 	return UA_NO_ERROR;
 }

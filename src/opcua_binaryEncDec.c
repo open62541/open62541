@@ -1397,15 +1397,12 @@ Int32 encodeDiagnosticInfo(UA_DiagnosticInfo *diagnosticInfo, Int32 *pos,
 	return UA_NO_ERROR;
 }
 Int32 diagnosticInfo_calcSize(UA_DiagnosticInfo *diagnosticInfo) {
-	Int32 minimumLength = 1;
-	Int32 length = minimumLength;
+	Int32 length = 0;
 	Byte mask;
-	Int32 j = 0;
-	mask = 0;
-	//puts("diagnosticInfo called");
-	//printf("with this mask %u", diagnosticInfo->EncodingMask);
-	for (mask = 1; mask <= 0x40; mask *= 2) {
-		j++;
+
+	length += sizeof(Byte);	// EncodingMask
+
+	for (mask = 0x01; mask <= 0x40; mask *= 2) {
 		switch (mask & (diagnosticInfo->EncodingMask)) {
 
 		case DIEMT_SYMBOLIC_ID:
@@ -1422,8 +1419,7 @@ Int32 diagnosticInfo_calcSize(UA_DiagnosticInfo *diagnosticInfo) {
 			length += sizeof(Int32);
 			break;
 		case DIEMT_ADDITIONAL_INFO:
-			length += diagnosticInfo->AdditionalInfo.Length;
-			length += sizeof(Int32);
+			length += UAString_calcSize(&(diagnosticInfo->AdditionalInfo));
 			break;
 		case DIEMT_INNER_STATUS_CODE:
 			length += sizeof(UA_StatusCode);
@@ -1496,25 +1492,37 @@ Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject) {
 
 	if (extensionObject->Encoding == BODY_IS_BYTE_STRING
 			|| extensionObject->Encoding == BODY_IS_XML_ELEMENT) {
-		length += sizeof(Int32) + extensionObject->Body.Length;
+		length += UAByteString_calcSize(&(extensionObject->Body));
 	}
 	return length;
 }
 
 Int32 responseHeader_calcSize(UA_AD_ResponseHeader *responseHeader) {
-	Int32 minimumLength = 20; // summation of all simple types
-	Int32 i, length;
-	length += minimumLength;
+	Int32 i;
+	Int32 length = 0;
 
-	for (i = 0; i < responseHeader->noOfStringTable; i++) {
-		length += responseHeader->stringTable[i].Length;
-		length += sizeof(UInt32); // length of the encoded length field
+	// UtcTime timestamp	8
+	length += sizeof(UA_DateTime);
+
+	// IntegerId requestHandle	4
+	length += sizeof(UA_AD_IntegerId);
+
+	// StatusCode serviceResult	4
+	length += sizeof(UA_StatusCode);
+
+	// DiagnosticInfo serviceDiagnostics
+	length += diagnosticInfo_calcSize(responseHeader->serviceDiagnostics);
+
+	// String stringTable[], see 62541-6 § 5.2.4
+	length += sizeof(Int32); // Length of Stringtable always
+	if (responseHeader->noOfStringTable > 0) {
+		for (i = 0; i < responseHeader->noOfStringTable; i++) {
+			length += UAString_calcSize(responseHeader->stringTable[i]);
+		}
 	}
 
-	length += diagnosticInfo_calcSize(responseHeader->serviceDiagnostics);
-	//ToDo
-	length += extensionObject_calcSize(&(responseHeader->additionalHeader));
-
+	// ExtensibleObject additionalHeader
+	length += extensionObject_calcSize(responseHeader->additionalHeader);
 	return length;
 }
 
