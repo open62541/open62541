@@ -81,6 +81,21 @@ typedef struct _SL_ResponseHeader
     UA_ExtensionObject additionalHeader;
 }SL_ResponseHeader;
 */
+
+/**
+ *
+ * @param connection
+ * @return
+ */
+Int32 SL_initConnectionObject(UA_connection *connection);
+
+/**
+ *
+ * @param connection
+ * @param response
+ * @param sizeInOut
+ * @return
+ */
 Int32 SL_openSecureChannel_responseMessage_get(UA_connection *connection,
 		SL_Response *response, Int32* sizeInOut);
 

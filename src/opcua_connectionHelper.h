@@ -52,14 +52,25 @@ struct TL_connection
 	TL_buffer localConf;
 	UA_String endpointURL;
 };
+typedef struct
+{
+	UA_ByteString SecurityPolicyUri;
+	UA_ByteString SenderCertificate;
+	UA_ByteString ReceiverCertificateThumbprint;
+
+}AsymmetricAlgSecuritySettings;
+
 
 
 struct SL_connection
 {
-
+	AsymmetricAlgSecuritySettings remoteAsymAlgSettings;
+	AsymmetricAlgSecuritySettings localtAsymAlgSettings;
+/*
 	UA_ByteString SecurityPolicyUri;
 	UA_ByteString SenderCertificate;
 	UA_ByteString ReceiverCertificateThumbprint;
+*/
 	UInt32 sequenceNumber;
 	UInt32 requestType;
 	UA_String secureChannelId;

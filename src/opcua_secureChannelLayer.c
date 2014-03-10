@@ -8,55 +8,170 @@
 #include <stdio.h>
 #include "opcua_time.h"
 
+#define SIZE_SECURECHANNEL_HEADER 12
+#define SIZE_SEQHEADER_HEADER 8
+
+
+/*
+ * inits a connection object for secure channel layer
+ */
+Int32 SL_initConnectionObject(UA_connection *connection)
+{
+
+	//TODO: fill with valid information
+	connection->secureLayer.localtAsymAlgSettings.ReceiverCertificateThumbprint.Data = NULL;
+	connection->secureLayer.localtAsymAlgSettings.ReceiverCertificateThumbprint.Length = 0;
+
+	connection->secureLayer.localtAsymAlgSettings.SecurityPolicyUri.Data = "http://opcfoundation.org/UA/SecurityPolicy#None";
+	connection->secureLayer.localtAsymAlgSettings.SecurityPolicyUri.Length = 47;
+
+	connection->secureLayer.localtAsymAlgSettings.SenderCertificate.Data = NULL;
+	connection->secureLayer.localtAsymAlgSettings.SenderCertificate.Length = 0;
+
+	connection->secureLayer.clientNonce.Data = NULL;
+	connection->secureLayer.clientNonce.Length = 0;
+
+	connection->secureLayer.connectionState = connectionState_CLOSED;
+
+	connection->secureLayer.requestId = 0;
+
+	connection->secureLayer.requestType = 0;
+
+	connection->secureLayer.secureChannelId.Data = NULL;
+	connection->secureLayer.secureChannelId.Length = 0;
+
+	connection->secureLayer.securityMode = securityMode_INVALID;
+
+	connection->secureLayer.sequenceNumber = 1;
+
+	return UA_NO_ERROR;
+}
+
 Int32 SL_send(UA_connection *connection, UA_ByteString responseMessage, Int32 type)
 {
 	UInt32 sequenceNumber;
 	UInt32 requestId;
-	//TODO: fill with valid information
-	char securityPolicy[] = "http://opcfoundation.org/UA/SecurityPolicy#None";
+	Int32 pos;
+	Int32 sizeAsymAlgHeader;
+	UA_ByteString responsePacket;
+	Int32 packetSize;
+	Int32 sizePadding;
+	Int32 sizeSignature;
 
+
+	sizeAsymAlgHeader = 3 * sizeof(UInt32) +
+			connection->secureLayer.localtAsymAlgSettings.SecurityPolicyUri.Length +
+			connection->secureLayer.localtAsymAlgSettings.SenderCertificate.Length +
+			connection->secureLayer.localtAsymAlgSettings.ReceiverCertificateThumbprint.Length;
+	pos = 0;
 	//sequence header
 	sequenceNumber = connection->secureLayer.sequenceNumber;
-	requestId = connection->secureLayer.requestId;
-
+    requestId = connection->secureLayer.requestId;
 
 
 	if(type == 449) //openSecureChannelResponse -> asymmetric algorithm
 	{
-		//TODO add Asymmetric Security Header
+		//TODO fill with valid sizes
+		sizePadding = 0;
+		sizeSignature = 0;
+
+		//TODO: size calculation need
+		packetSize = SIZE_SECURECHANNEL_HEADER +
+				SIZE_SEQHEADER_HEADER +
+				sizeAsymAlgHeader +
+				responseMessage.Length +
+				sizePadding +
+				sizeSignature;
+
+		//get memory for response
+		responsePacket.Data = (char*)opcua_malloc(packetSize);
+
+		responsePacket.Length = packetSize;
+
+		/*---encode Secure Conversation Message Header ---*/
+		//encode MessageType - OPN message
+		responsePacket.Data[0] = 'O';
+		responsePacket.Data[1] = 'P';
+		responsePacket.Data[2] = 'N';
+		pos += 3;
+		//encode Chunk Type - set to final
+		responsePacket.Data[3] = 'F';
+		pos += 1;
+		encoder_encodeBuiltInDatatype(&packetSize,INT32,&pos,responsePacket.Data);
+		encoder_encodeBuiltInDatatype(&(connection->secureLayer.securityToken.secureChannelId),
+				INT32,&pos,responsePacket.Data);
+
+		/*---encode Asymmetric Algorithm Header ---*/
+		encoder_encodeBuiltInDatatype(&(connection->secureLayer.localtAsymAlgSettings.SecurityPolicyUri),
+						BYTE_STRING,&pos,responsePacket.Data);
+		encoder_encodeBuiltInDatatype(&(connection->secureLayer.localtAsymAlgSettings.SenderCertificate),
+						BYTE_STRING,&pos,responsePacket.Data );
+		encoder_encodeBuiltInDatatype(&(connection->secureLayer.localtAsymAlgSettings.ReceiverCertificateThumbprint),
+						BYTE_STRING,&pos,responsePacket.Data );
 	}
-	else
-	{
-		//TODO add Symmetric Security
-	}
+
+
+
+
+	/*---encode Sequence Header ---*/
+	encoder_encodeBuiltInDatatype(&sequenceNumber,UINT32,&pos,responsePacket.Data);
+	encoder_encodeBuiltInDatatype(&requestId,UINT32,&pos,responsePacket.Data);
+
+	/*---add encoded Message ---*/
+	memcpy(&(responsePacket.Data[pos]), responseMessage.Data, responseMessage.Length);
+
+	/* sign Data*/
+
+	/* encrypt Data */
+
+	/* send Data */
+	TL_send(connection,&responsePacket);
+
+
 	return UA_NO_ERROR;
 }
+
 /*
  * opens a secure channel
  */
-Int32 SL_openSecureChannel(UA_connection *connection, IntegerId requestHandle, UA_StatusCode serviceResult, UA_AD_DiagnosticInfo *serviceDiagnostics)
+Int32 SL_openSecureChannel(UA_connection *connection,
+		UA_AD_RequestHeader *requestHeader,
+		UA_StatusCode serviceResult)
 {
-
-
-
 	UA_AD_ResponseHeader responseHeader;
 	SL_ChannelSecurityToken securityToken;
 	UA_ByteString serverNonce;
 	UA_NodeId responseType;
+	UA_ExtensionObject additionalHeader;
 	//sizes for memory allocation
 	Int32 sizeResponse;
 	Int32 sizeRespHeader;
+	Int32 sizeResponseType;
 	Int32 sizeRespMessage;
 	Int32 sizeSecurityToken;
 	UA_ByteString response;
 	UInt32 serverProtocolVersion;
 	Int32 *pos;
+	UA_DiagnosticInfo serviceDiagnostics;
 
+	if(requestHeader->returnDiagnostics != 0)
+	{
+		printf("SL_openSecureChannel - diagnostics demanded by the client\n");
+		printf("SL_openSecureChannel - retrieving diagnostics not implemented!\n");
+		//TODO fill with demanded information part 4, 7.8 - Table 123
+		serviceDiagnostics.EncodingMask = 0;
+	}
+	else
+	{
+		serviceDiagnostics.EncodingMask = 0;
+	}
 	/*--------------type ----------------------*/
+
 	//Four Bytes Encoding
 	responseType.EncodingByte = NIEVT_FOUR_BYTE;
 	//openSecureChannelResponse = 449
 	responseType.Identifier.Numeric = 449;
+	responseType.Namespace = 0;
 
 	/*--------------responseHeader-------------*/
 
@@ -69,13 +184,14 @@ Int32 SL_openSecureChannel(UA_connection *connection, IntegerId requestHandle, U
 	 * 		addtionalHeader Extensible Parameter
 	 */
 	//current time
-	responseHeader.timestamp = opcua_getTime();
+
+	responseHeader.timestamp = opcua_time_now();
 	//request Handle which client sent
-	responseHeader.requestHandle = requestHandle;
+	responseHeader.requestHandle = requestHeader->requestHandle;
 	// StatusCode which informs client about quality of response
 	responseHeader.serviceResult = serviceResult;
-	//retrive diagnosticInfo if client demands
-	responseHeader.serviceDiagnostics = serviceDiagnostics;
+	//retrieve diagnosticInfo if client demands
+	responseHeader.serviceDiagnostics = &serviceDiagnostics;
 
 	//text of fields defined in the serviceDiagnostics
 	responseHeader.noOfStringTable = 0;
@@ -83,18 +199,27 @@ Int32 SL_openSecureChannel(UA_connection *connection, IntegerId requestHandle, U
 
 
 	// no additional header
-	responseHeader.additionalHeader->Encoding = 0;
-	responseHeader.additionalHeader->TypeId.EncodingByte = 0;
-	responseHeader.additionalHeader->TypeId.Identifier.Numeric = 0;
+	additionalHeader.Encoding = 0;
+
+	additionalHeader.Body.Data = NULL;
+	additionalHeader.Body.Length = 0;
+
+	additionalHeader.TypeId.EncodingByte = 0;
+	additionalHeader.TypeId.Namespace = 0;
+	additionalHeader.TypeId.Identifier.Numeric = 0;
+
+	responseHeader.additionalHeader = &additionalHeader;
+	printf("SL_openSecureChannel - built response header\n");
 
 	//calculate the size
 	sizeRespHeader = responseHeader_calcSize(&responseHeader);
-
+	printf("SL_openSecureChannel - size response header =%d\n",sizeRespHeader);
 	/*--------------responseMessage-------------*/
 	/* 	Res-2) UInt32 ServerProtocolVersion
 	 * 	Res-3) SecurityToken channelSecurityToken
 	 *  Res-5) ByteString ServerNonce
 	*/
+
 	//                  secureChannelId + TokenId + CreatedAt + RevisedLifetime
 	sizeSecurityToken = sizeof(UInt32) + sizeof(UInt32) + sizeof(UA_DateTime) + sizeof(Int32);
 
@@ -102,38 +227,54 @@ Int32 SL_openSecureChannel(UA_connection *connection, IntegerId requestHandle, U
 	serverNonce.Length = 0;
 	serverNonce.Data = NULL;
 
-	//fill toke structure with default server information
+	//fill token structure with default server information
 	securityToken.secureChannelId = connection->secureLayer.securityToken.secureChannelId;
 	securityToken.tokenId = connection->secureLayer.securityToken.tokenId;
-	securityToken.createdAt = opcua_getTime();
+	securityToken.createdAt = opcua_time_now();
 	securityToken.revisedLifetime = connection->secureLayer.securityToken.revisedLifetime;
 
 	serverProtocolVersion = connection->transportLayer.localConf.protocolVersion;
 
 	//                ProtocolVersion + SecurityToken + Nonce
 	sizeRespMessage = sizeof(UInt32) + sizeSecurityToken + serverNonce.Length + sizeof(Int32) + sizeSecurityToken;
-
+	printf("SL_openSecureChannel - size of response message=%d\n",sizeRespMessage);
 	//get memory for response
-	response.Data = (char*)opcua_malloc(nodeId_calcSize(responseType) + sizeRespHeader + sizeRespMessage);
+	sizeResponseType = nodeId_calcSize(&responseType);
+	response.Data = (char*)opcua_malloc(sizeResponseType + sizeRespHeader + sizeRespMessage);
+	response.Length = sizeResponseType + sizeRespHeader + sizeRespMessage;
+
 	*pos = 0;
 	//encode responseType (NodeId)
-	encoder_encodeBuiltInDatatype(responseType,NODE_ID,pos,response.Data);
-	//encode header
-	encodeResponseHeader(&responseHeader,pos, &response);
-	//encode message
-	encoder_encodeBuiltInDatatype(serverProtocolVersion, UINT32, pos,response.Data);
-	encoder_encodeBuiltInDatatype(securityToken.secureChannelId, UINT32, pos,response.Data);
-	encoder_encodeBuiltInDatatype(securityToken.tokenId, INT32, pos,response.Data);
-	encoder_encodeBuiltInDatatype(securityToken.createdAt, DATE_TIME, pos,response.Data);
-	encoder_encodeBuiltInDatatype(securityToken.revisedLifetime, INT32, pos,response.Data);
-	encoder_encodeBuiltInDatatype(serverNonce, BYTE_STRING, pos,response.Data);
+	UA_NodeId_printf("SL_openSecureChannel - TypeId =",&responseType);
+	encoder_encodeBuiltInDatatype(&responseType, NODE_ID, pos, response.Data);
 
+	//encode header
+	printf("SL_openSecureChannel - encoding response header \n");
+
+	encodeResponseHeader(&responseHeader, pos, &response);
+	printf("SL_openSecureChannel - response header encoded \n");
+
+	//encode message
+	printf("SL_openSecureChannel - serverProtocolVersion = %d \n",serverProtocolVersion);
+	encoder_encodeBuiltInDatatype(&serverProtocolVersion, UINT32, pos,response.Data);
+	printf("SL_openSecureChannel - secureChannelId = %d \n",securityToken.secureChannelId);
+	encoder_encodeBuiltInDatatype(&(securityToken.secureChannelId), UINT32, pos,response.Data);
+	printf("SL_openSecureChannel - tokenId = %d \n",securityToken.tokenId);
+	encoder_encodeBuiltInDatatype(&(securityToken.tokenId), INT32, pos,response.Data);
+
+	encoder_encodeBuiltInDatatype(&(securityToken.createdAt), DATE_TIME, pos,response.Data);
+	printf("SL_openSecureChannel - revisedLifetime = %d \n",securityToken.revisedLifetime);
+	encoder_encodeBuiltInDatatype(&(securityToken.revisedLifetime), INT32, pos,response.Data);
+
+	encoder_encodeBuiltInDatatype(&serverNonce, BYTE_STRING, pos,response.Data);
+
+	printf("SL_openSecureChannel - response.Length = %d \n",response.Length);
 	//449 = openSecureChannelResponse
-	SL_send(connection,response,449);
+	SL_send(connection, response, 449);
 
 	return UA_NO_ERROR;
 }
-
+/*
 Int32 SL_openSecureChannel_responseMessage_calcSize(SL_Response *response,
 		Int32* sizeInOut) {
 	Int32 length = 0;
@@ -142,7 +283,7 @@ Int32 SL_openSecureChannel_responseMessage_calcSize(SL_Response *response,
 	length += sizeof(response->ServerProtocolVersion);
 	return length;
 }
-
+*/
 /*
  * closes a secureChannel (server side)
  */
@@ -165,6 +306,7 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 	Int32 securityMode;
 	Int32 requestedLifetime;
 	UA_ByteString clientNonce;
+	UA_StatusCode serviceResult;
 
 	// Every Message starts with a NodeID which names the serviceRequestType
 	decoder_decodeBuiltInDatatype(message.Data, NODE_ID, &pos,
@@ -272,6 +414,12 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 				&requestedLifetime);
 		printf("SL_processMessage - requestedLifeTime=%d\n",requestedLifetime);
 		//TODO process requestedLifetime
+
+		//TODO
+		serviceResult = 0;
+
+		SL_openSecureChannel(connection, &requestHeader, serviceResult);
+
 	} else {
 		printf("SL_processMessage - unknown service request");
 		//TODO change error code
@@ -318,13 +466,17 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 			if (SCM_Header.SecureChannelId != 0) {
 
 				iTmp = UA_ByteString_compare(
-						&(connection->secureLayer.SenderCertificate),
+						&(connection->secureLayer.remoteAsymAlgSettings.SenderCertificate),
 						&(AAS_Header.SenderCertificate));
 				if (iTmp != UA_EQUAL) {
 					printf("SL_receive - UA_ERROR_BadSecureChannelUnknown \n");
 					//TODO return UA_ERROR_BadSecureChannelUnknown
 				}
 
+			}
+			else
+			{
+				//TODO invalid securechannelId
 			}
 
 			decodeSequenceHeader(&secureChannelPacket, &pos, &SequenceHeader);
@@ -333,7 +485,7 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 			printf("SL_receive - SequenceHeader.SequenceNr=%d\n",
 					SequenceHeader.SequenceNumber);
 			//save request id to return it to client
-			connection->secureLayer.requestId = SequenceHeader.RequestId;
+			connection->secureLayer.requestId= SequenceHeader.RequestId;
 			//TODO check that the sequence number is smaller than MaxUInt32 - 1024
 			connection->secureLayer.sequenceNumber =
 					SequenceHeader.SequenceNumber;
@@ -445,6 +597,7 @@ Int32 decodeSCMHeader(UA_ByteString *rawMessage, Int32 *pos,
 	return UA_NO_ERROR;
 
 }
+/*
 Int32 encodeSCMHeader(SL_SecureConversationMessageHeader *SC_Header, Int32 *pos,
 		AD_RawMessage *rawMessage) {
 	const char *type = "ERR";
@@ -475,6 +628,8 @@ Int32 encodeSCMHeader(SL_SecureConversationMessageHeader *SC_Header, Int32 *pos,
 
 	return UA_NO_ERROR;
 }
+*/
+
 Int32 decodeSequenceHeader(UA_ByteString *rawMessage, Int32 *pos,
 		SL_SequenceHeader *SequenceHeader) {
 	decodeUInt32(rawMessage->Data, pos, &(SequenceHeader->RequestId));

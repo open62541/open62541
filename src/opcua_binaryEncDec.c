@@ -95,6 +95,7 @@ Int32 encoder_encodeBuiltInDatatype(void *data, Int32 type, Int32 *pos,
 	return UA_NO_ERROR;
 }
 
+
 Int32 decoder_decodeBuiltInDatatype(char const * srcBuf, Int32 type, Int32 *pos,
 		void *dstStructure) {
 	Boolean tmp;
@@ -525,6 +526,7 @@ Int32 encoder_encodeBuiltInDatatypeArray(void *data, Int32 size, Int32 type,
 			break;
 		}
 	}
+	*/
 	return UA_NO_ERROR;
 }
 
@@ -846,6 +848,7 @@ Int32 encodeUANodeId(UA_NodeId *srcNodeId, Int32 *pos, char *buf) {
 }
 Int32 nodeId_calcSize(UA_NodeId *nodeId) {
 	Int32 length = 0;
+	printf("nodeId_calcSize - nodeId.EncodingByte = %d \n",nodeId->EncodingByte);
 	switch (nodeId->EncodingByte) {
 	case NIEVT_TWO_BYTE:
 		length += 2 * sizeof(Byte);
@@ -871,6 +874,7 @@ Int32 nodeId_calcSize(UA_NodeId *nodeId) {
 	default:
 		break;
 	}
+	printf("nodeId_calcSize - nodeId length = %d \n",length);
 	return length;
 }
 /**
@@ -1167,7 +1171,7 @@ Int32 encodeVariant(UA_Variant *variant, Int32 *pos, char *dstBuf) {
 				pos, dstBuf);
 		if (variant->ArrayLength > 0) {
 			//encode array as given by variant type
-			encode_builtInDatatypeArray((void*) variant->Value,
+			encoder_encodeBuiltInDatatypeArray((void*) variant->Value,
 					variant->ArrayLength, (variant->EncodingMask & 31), pos,
 					dstBuf);
 		}
@@ -1413,6 +1417,7 @@ Int32 diagnosticInfo_calcSize(UA_DiagnosticInfo *diagnosticInfo) {
 	Byte mask;
 	Int32 j = 0;
 	mask = 0;
+
 	//puts("diagnosticInfo called");
 	//printf("with this mask %u", diagnosticInfo->EncodingMask);
 	for (mask = 1; mask <= 0x40; mask *= 2) {
@@ -1521,7 +1526,7 @@ Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject) {
 Int32 responseHeader_calcSize(UA_AD_ResponseHeader *responseHeader) {
 	Int32 minimumLength = 20; // summation of all simple types
 	Int32 i, length;
-	length += minimumLength;
+	length = minimumLength;
 
 	for (i = 0; i < responseHeader->noOfStringTable; i++) {
 		length += responseHeader->stringTable[i].Length;
@@ -1529,8 +1534,9 @@ Int32 responseHeader_calcSize(UA_AD_ResponseHeader *responseHeader) {
 	}
 
 	length += diagnosticInfo_calcSize(responseHeader->serviceDiagnostics);
-	//ToDo
-	length += extensionObject_calcSize(&(responseHeader->additionalHeader));
+
+
+	length += extensionObject_calcSize(responseHeader->additionalHeader);
 
 	return length;
 }
