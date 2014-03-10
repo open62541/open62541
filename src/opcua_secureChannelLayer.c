@@ -65,15 +65,9 @@ Int32 SL_createSecurityToken(UA_connection *connection, Int32 lifeTime) {
 
 Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 	Int32 pos = 0;
-	UA_AD_RequestHeader requestHeader;
-	UInt32 clientProtocolVersion;
-	UA_NodeId serviceRequestType;
-	Int32 requestType;
-	Int32 securityMode;
-	Int32 requestedLifetime;
-	UA_ByteString clientNonce;
-
 	// Every Message starts with a NodeID which names the serviceRequestType
+	UA_NodeId serviceRequestType;
+
 	decoder_decodeBuiltInDatatype(message.Data, NODE_ID, &pos,
 			&serviceRequestType);
 	UA_NodeId_printf("SL_processMessage - serviceRequestType=",
@@ -83,24 +77,19 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 			&& serviceRequestType.Identifier.Numeric == 446) {
 		/* OpenSecureChannelService, defined in 62541-6 §6.4.4, Table 34.
 		 * Note that part 6 adds ClientProtocolVersion and ServerProtocolVersion
-		 * to the definition in part 4
-		 *
-		 * Request
-		 *
-		 * 	Req-1) RequestHeader requestHeader
-		 * 	Req-2) UInt32 ClientProtocolVersion
-		 * 	Req-3) Enum SecurityTokenRequestType requestType
-		 * 	Req-4) Enum MessageSecurityMode SecurityMode
-		 *  Req-5) ByteString ClientNonce
-		 *  Req-6) Int32 RequestLifetime
-		 *
-		 * Response
-		 *
-		 * 	Res-1) ResponseHeader responseHeader
-		 * 	Res-2) UInt32 ServerProtocolVersion
-		 * 	Res-3) SecurityToken channelSecurityToken
-		 *  Res-5) ByteString ServerNonce
-		 */
+		 * to the definition in part 4 */
+		// 	Req-1) RequestHeader requestHeader
+		UA_AD_RequestHeader requestHeader;
+		// 	Req-2) UInt32 ClientProtocolVersion
+		UInt32 clientProtocolVersion;
+		// 	Req-3) Enum SecurityTokenRequestType requestType
+		Int32 requestType;
+		// 	Req-4) Enum MessageSecurityMode SecurityMode
+		Int32 securityMode;
+		//  Req-5) ByteString ClientNonce
+		UA_ByteString clientNonce;
+		//  Req-6) Int32 RequestLifetime
+		Int32 requestedLifetime;
 
 		UA_ByteString_printx("SL_processMessage - message=", &message);
 
@@ -115,7 +104,8 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 		// 	Req-2) UInt32 ClientProtocolVersion
 		decoder_decodeBuiltInDatatype(message.Data, UINT32, &pos,
 				&clientProtocolVersion);
-		printf("SL_processMessage - clientProtocolVersion=%d\n",clientProtocolVersion);
+		printf("SL_processMessage - clientProtocolVersion=%d\n",
+				clientProtocolVersion);
 
 		if (clientProtocolVersion
 				!= connection->transportLayer.remoteConf.protocolVersion) {
@@ -127,7 +117,7 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 
 		// 	Req-3) SecurityTokenRequestType requestType
 		decoder_decodeBuiltInDatatype(message.Data, INT32, &pos, &requestType);
-		printf("SL_processMessage - requestType=%d\n",requestType);
+		printf("SL_processMessage - requestType=%d\n", requestType);
 		switch (requestType) {
 		case securityToken_ISSUE:
 			if (connection->secureLayer.connectionState
@@ -154,31 +144,70 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 
 		// 	Req-4) MessageSecurityMode SecurityMode
 		decoder_decodeBuiltInDatatype(message.Data, INT32, &pos, &securityMode);
-		printf("SL_processMessage - securityMode=%d\n",securityMode);
+		printf("SL_processMessage - securityMode=%d\n", securityMode);
 		switch (securityMode) {
 		case securityMode_INVALID:
-			connection->secureLayer.clientNonce.Data = NULL;
-			connection->secureLayer.clientNonce.Length = 0;
 			printf("SL_processMessage - client demands no security \n");
 			break;
+
 		case securityMode_SIGN:
+			printf("SL_processMessage - client demands signed \n");
 			//TODO check if senderCertificate and ReceiverCertificateThumbprint are present
 			break;
 
 		case securityMode_SIGNANDENCRYPT:
+			printf("SL_processMessage - client demands signed & encrypted \n");
 			//TODO check if senderCertificate and ReceiverCertificateThumbprint are present
 			break;
 		}
 
 		//  Req-5) ByteString ClientNonce
-		decoder_decodeBuiltInDatatype(message.Data, BYTE_STRING, &pos, &clientNonce);
-		UA_String_printf("SL_processMessage - clientNonce=",&clientNonce);
+		decoder_decodeBuiltInDatatype(message.Data, BYTE_STRING, &pos,
+				&clientNonce);
+		UA_String_printf("SL_processMessage - clientNonce=", &clientNonce);
 
 		//  Req-6) Int32 RequestLifetime
 		decoder_decodeBuiltInDatatype(message.Data, INT32, &pos,
 				&requestedLifetime);
-		printf("SL_processMessage - requestedLifeTime=%d\n",requestedLifetime);
+		printf("SL_processMessage - requestedLifeTime=%d\n", requestedLifetime);
 		//TODO process requestedLifetime
+
+		{
+			// Res-0) NodeId typeID
+			UA_NodeId typeID;
+			// Res-1) ResponseHeader responseHeader
+			UA_AD_ResponseHeader responseHeader;
+			// Res-2) UInt32 ServerProtocolVersion
+			UInt32 serverProtocolVersion;
+			// Res-3) SecurityToken channelSecurityToken
+			SL_ChannelSecurityToken securityToken;
+			// Res-4) ByteString ServerNonce
+			UA_ByteString serverNonce;
+
+			// Res-1) ResponseHeader responseHeader
+			responseHeader.timestamp = opcua_getTime();
+			// 62541-4 §7.27 "The requestHandle given by the Client to the request."
+			responseHeader.requestHandle = requestHeader.requestHandle;
+			responseHeader.serviceResult = SC_Good;
+			// 62541-4 §7.27 "This parameter is empty if diagnostics information was not requested in the request header"
+			responseHeader.serviceDiagnostics = NULL;
+			responseHeader.stringTable = NULL;
+			responseHeader.additionalHeader.TypeId.EncodingByte = 0;
+			responseHeader.additionalHeader.TypeId.Identifier.Numeric = 0;
+			responseHeader.additionalHeader.Encoding = NO_BODY_IS_ENCODED;
+
+			// Res-2) UInt32 ServerProtocolVersion
+			// 62541-6 §6.4.4 "Implementations that have not been certified shall set the protocol version to 0"
+			serverProtocolVersion = 0;
+
+			// Res-3) SecurityToken channelSecurityToken
+			securityToken.secureChannelId = 666; // TODO: create
+			securityToken.tokenId = 42; // TODO: create
+			securityToken.createdAt = opcua_getTime();
+			securityToken.revisedLifetime = requestHeader.timeoutHint;
+			// Res-4) ByteString ServerNonce
+			serverNonce.Length = -1;
+		}
 	} else {
 		printf("SL_processMessage - unknown service request");
 		//TODO change error code
