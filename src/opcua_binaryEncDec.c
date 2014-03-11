@@ -430,92 +430,26 @@ Int32 decoder_decodeBuiltInDatatype(char const * srcBuf, Int32 type, Int32 *pos,
  }
 
 
- /* not tested */
-/*needs to be reimplemented */
-Int32 encode_builtInDatatypeArray(void *data, Int32 size, Int32 type,
+/* not tested, needs to be reimplemented */
+Int32 encode_builtInDatatypeArray(void* data[], Int32 size, Int32 type,
 		Int32 *pos, char *dstBuf) {
 	int i;
-	void * pItem;
-	encoder_encodeBuiltInDatatype((void*) (size), INT32, pos, dstBuf);
-	for (i = 0; i < size;) {
-		encoder_encodeBuiltInDatatype(pItem, type, pos, dstBuf);
-		switch (type) {
-		case BOOLEAN:
-			pItem = (Boolean*) (data) + 1;
-			break;
-		case SBYTE:
-			pItem = (SByte*) (data) + 1;
-			break;
-		case BYTE:
-			pItem = (Byte*) (data) + 1;
-			break;
-		case INT16:
-			pItem = (Int16*) (data) + 1;
-			break;
-		case UINT16:
-			pItem = (UInt16*) (data) + 1;
-			break;
-		case INT32:
-			pItem = (Int32*) (data) + 1;
-			break;
-		case UINT32:
-			pItem = (UInt32*) (data) + 1;
-			break;
-		case INT64:
-			pItem = (Int64*) (data) + 1;
-			break;
-		case UINT64:
-			pItem = (UInt64*) (data) + 1;
-			break;
-		case FLOAT:
-			pItem = (Float*) (data) + 1;
-			break;
-		case DOUBLE:
-			pItem = (Double*) (data) + 1;
-			break;
-		case STRING:
-			pItem = (UA_String*) (data) + 1;
-			break;
-		case DATE_TIME:
-			pItem = (UA_DateTime*) (data) + 1;
-			break;
-		case GUID:
-			pItem = (UA_Guid*) (data) + 1;
-			break;
-		case BYTE_STRING:
-			pItem = (UA_ByteString*) (data) + 1;
-			break;
-		case XML_ELEMENT:
-			pItem = (UA_XmlElement*) (data) + 1;
-			break;
-		case NODE_ID:
-			pItem = (UA_NodeId*) (data) + 1;
-			break;
-		case EXPANDED_NODE_ID:
-			pItem = (UA_ExpandedNodeId*) (data) + 1;
-			break;
-		case STATUS_CODE:
-			pItem = (UA_StatusCode*) (data) + 1;
-			break;
-		case QUALIFIED_NAME:
-			pItem = (UA_QualifiedName*) (data) + 1;
-			break;
-		case LOCALIZED_TEXT:
-			pItem = (UA_LocalizedText*) (data) + 1;
-			break;
-		case EXTENSION_OBJECT:
-			pItem = (UA_ExtensionObject*) (data) + 1;
-			break;
-		case DATA_VALUE:
-			pItem = (UA_DataValue*) (data) + 1;
-			break;
-		case VARIANT:
-			pItem = (UA_Variant*) (data) + 1;
-			break;
-		case DIAGNOSTIC_INFO:
-			pItem = (UA_DiagnosticInfo*) (data) + 1;
-			break;
+
+	printf("encode_builtInDatatypeArray - size=%d, data=%p\n", size, data);
+
+	// encode length of array
+	encodeUInt32(size, pos, dstBuf);
+
+	// now iterate over array
+	for (i = 0; i < size; i++) {
+		printf("encode_builtInDatatypeArray - pItem=%p", data[i]);
+		if (type == BYTE_STRING) {
+			UA_ByteString* p = (UA_ByteString*) data[i];
+			printf(", item={l=%d,m=%.*s\n}", p->Length, p->Length, p->Data);
+		} else {
+			printf("\n");
 		}
+		encoder_encodeBuiltInDatatype(data[i], type, pos, dstBuf);
 	}
 	return UA_NO_ERROR;
 }
@@ -1351,13 +1285,13 @@ Int32 decodeDiagnosticInfo(char const * buf, Int32 *pos,
 Int32 encodeDiagnosticInfo(UA_DiagnosticInfo *diagnosticInfo, Int32 *pos,
 		char *dstbuf) {
 	Byte mask;
-	mask = 0;
+	int i;
 
 	encoder_encodeBuiltInDatatype((void*) (&(diagnosticInfo->EncodingMask)),
 			BYTE, pos, dstbuf);
-	for (mask = 1; mask <= 0x40; mask = mask << 2) {
+	for (i = 0; i < 7; i++) {
 
-		switch (mask & (diagnosticInfo->EncodingMask)) {
+		switch ( (0x01 << i) & diagnosticInfo->EncodingMask)  {
 		case DIEMT_SYMBOLIC_ID:
 			//	puts("diagnosticInfo symbolic id");
 			encoder_encodeBuiltInDatatype((void*) &(diagnosticInfo->SymbolicId),
@@ -1480,8 +1414,9 @@ Int32 encodeResponseHeader(UA_AD_ResponseHeader const * responseHeader,
 	encodeUADateTime(responseHeader->timestamp, pos, dstBuf->Data);
 	encodeIntegerId(responseHeader->requestHandle, pos, dstBuf->Data);
 	encodeUInt32(responseHeader->serviceResult, pos, dstBuf->Data);
-	//Kodieren von String Datentypen
-
+	encodeDiagnosticInfo(responseHeader->serviceDiagnostics, pos, dstBuf->Data);
+	encode_builtInDatatypeArray(responseHeader->stringTable, responseHeader->noOfStringTable, BYTE_STRING, pos, dstBuf->Data);
+	encodeExtensionObject(responseHeader->additionalHeader,pos, dstBuf->Data);
 	return 0;
 }
 Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject) {
