@@ -10,10 +10,10 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "../src/opcua_transportLayer.h"
-#include "../src/opcua_binaryEncDec.h"
-#include "../src/opcua_encodingLayer.h"
-#include "../src/opcua_advancedDatatypes.h"
+#include "opcua_transportLayer.h"
+#include "opcua_binaryEncDec.h"
+#include "opcua_encodingLayer.h"
+#include "opcua_advancedDatatypes.h"
 //#include "check_stdint.h"
 #include "check.h"
 
