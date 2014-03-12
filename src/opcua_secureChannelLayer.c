@@ -12,18 +12,20 @@ Int32 SL_send(UA_connection *connection, UA_ByteString responseMessage, Int32 ty
 {
 	UInt32 sequenceNumber;
 	UInt32 requestId;
-	//TODO: fill with valid information
 	char securityPolicy[] = "http://opcfoundation.org/UA/SecurityPolicy#None";
+	SL_AsymmetricAlgorithmSecurityHeader AAS_header;
 
 	//sequence header
 	sequenceNumber = connection->secureLayer.sequenceNumber;
 	requestId = connection->secureLayer.requestId;
 
 
-
 	if(type == 449) //openSecureChannelResponse -> asymmetric algorithm
 	{
-		//TODO add Asymmetric Security Header
+		AAS_header.SecurityPolicyUri.Length = strlen(securityPolicy);
+		AAS_header.SecurityPolicyUri.Data = securityPolicy;
+		AAS_header.SenderCertificate.Length = -1;
+		AAS_header.ReceiverThumbprint.Length = -1;
 	}
 	else
 	{
@@ -48,11 +50,12 @@ Int32 SL_openSecureChannel(UA_connection *connection, IntegerId requestHandle, U
 	Int32 sizeSecurityToken;
 	UA_ByteString response;
 	UInt32 serverProtocolVersion;
-	Int32 *pos;
+	Int32 pos = 0;
 
 	/*--------------type ----------------------*/
 	//Four Bytes Encoding
 	responseType.EncodingByte = NIEVT_FOUR_BYTE;
+	responseType.Namespace = 0;
 	responseType.Identifier.Numeric = 449;
 
 	/*--------------responseHeader-------------*/
@@ -81,8 +84,6 @@ Int32 SL_openSecureChannel(UA_connection *connection, IntegerId requestHandle, U
 	// no additional header
 	responseHeader.additionalHeader = &the_empty_UA_ExtensionObject;
 
-	//calculate the size
-	sizeRespHeader = responseHeader_calcSize(&responseHeader);
 
 	/*--------------responseMessage-------------*/
 	/* 	Res-2) UInt32 ServerProtocolVersion
@@ -92,9 +93,7 @@ Int32 SL_openSecureChannel(UA_connection *connection, IntegerId requestHandle, U
 	//                  secureChannelId + TokenId + CreatedAt + RevisedLifetime
 	sizeSecurityToken = sizeof(UInt32) + sizeof(UInt32) + sizeof(UA_DateTime) + sizeof(Int32);
 
-	//ignore server nonce
-	serverNonce.Length = -1;
-	serverNonce.Data = NULL;
+	serverProtocolVersion = connection->transportLayer.localConf.protocolVersion;
 
 	//fill toke structure with default server information
 	securityToken.secureChannelId = connection->secureLayer.securityToken.secureChannelId;
@@ -102,27 +101,32 @@ Int32 SL_openSecureChannel(UA_connection *connection, IntegerId requestHandle, U
 	securityToken.createdAt = opcua_getTime();
 	securityToken.revisedLifetime = connection->secureLayer.securityToken.revisedLifetime;
 
-	serverProtocolVersion = connection->transportLayer.localConf.protocolVersion;
+	// server nonce
+	serverNonce.Length = -1;
 
+	//calculate the size
+	sizeRespHeader = responseHeader_calcSize(&responseHeader);
 	//                ProtocolVersion + SecurityToken + Nonce
-	sizeRespMessage = sizeof(UInt32) + sizeSecurityToken + UAByteString_calcSize(&serverNonce) + sizeof(Int32) + sizeSecurityToken;
+	sizeRespMessage = sizeof(Int32) + sizeSecurityToken + UAByteString_calcSize(&serverNonce);
 
 	//get memory for response
-	response.Data = (char*)opcua_malloc(nodeId_calcSize(responseType) + sizeRespHeader + sizeRespMessage);
-	*pos = 0;
+	response.Length = nodeId_calcSize(&responseType) + sizeRespHeader + sizeRespMessage;
+	response.Data = (char*) opcua_malloc(response.Length);
+
 	//encode responseType (NodeId)
-	encoder_encodeBuiltInDatatype(responseType,NODE_ID,pos,response.Data);
+	encoder_encodeBuiltInDatatype(&responseType,NODE_ID,&pos,response.Data);
 	//encode header
-	encodeResponseHeader(&responseHeader,pos, &response);
+	encodeResponseHeader(&responseHeader,&pos, &response);
 	//encode message
-	encoder_encodeBuiltInDatatype(serverProtocolVersion, UINT32, pos,response.Data);
-	encoder_encodeBuiltInDatatype(securityToken.secureChannelId, UINT32, pos,response.Data);
-	encoder_encodeBuiltInDatatype(securityToken.tokenId, INT32, pos,response.Data);
-	encoder_encodeBuiltInDatatype(securityToken.createdAt, DATE_TIME, pos,response.Data);
-	encoder_encodeBuiltInDatatype(securityToken.revisedLifetime, INT32, pos,response.Data);
-	encoder_encodeBuiltInDatatype(serverNonce, BYTE_STRING, pos,response.Data);
+	encoder_encodeBuiltInDatatype(&serverProtocolVersion, UINT32, &pos,response.Data);
+	encoder_encodeBuiltInDatatype(&securityToken.secureChannelId, UINT32, &pos,response.Data);
+	encoder_encodeBuiltInDatatype(&securityToken.tokenId, INT32, &pos,response.Data);
+	encoder_encodeBuiltInDatatype(&securityToken.createdAt, DATE_TIME, &pos,response.Data);
+	encoder_encodeBuiltInDatatype(&securityToken.revisedLifetime, INT32, &pos,response.Data);
+	encoder_encodeBuiltInDatatype(&serverNonce, BYTE_STRING, &pos,response.Data);
 
 	//449 = openSecureChannelResponse
+	UA_ByteString_printx("SL_processMessage - response=", &response);
 	SL_send(connection,response,449);
 
 	return UA_NO_ERROR;

@@ -327,6 +327,7 @@ typedef struct UA_DiagnosticInfo
 	struct UA_DiagnosticInfo* InnerDiagnosticInfo;
 }
 UA_DiagnosticInfo;
+extern UA_DiagnosticInfo the_empty_UA_DiagnosticInfo;
 
 typedef enum UA_DiagnosticInfoEncodingMaskType
 {
