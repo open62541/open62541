@@ -28,8 +28,12 @@ Int32 SL_initConnectionObject(UA_connection *connection)
 	connection->secureLayer.localtAsymAlgSettings.SenderCertificate.Data = NULL;
 	connection->secureLayer.localtAsymAlgSettings.SenderCertificate.Length = 0;
 
-	connection->secureLayer.clientNonce.Data = NULL;
-	connection->secureLayer.clientNonce.Length = 0;
+	connection->secureLayer.remoteNonce.Data = NULL;
+	connection->secureLayer.remoteNonce.Length = 0;
+
+	connection->secureLayer.localNonce.Data = (Byte*)opcua_malloc(sizeof(Byte));
+	*connection->secureLayer.localNonce.Data = sizeof(Byte);
+	connection->secureLayer.localNonce.Length = 1;
 
 	connection->secureLayer.connectionState = connectionState_CLOSED;
 
@@ -41,7 +45,11 @@ Int32 SL_initConnectionObject(UA_connection *connection)
 	connection->secureLayer.secureChannelId.Length = 0;
 
 	connection->secureLayer.securityMode = securityMode_INVALID;
+	//TODO set a valid start secureChannelId number
+	connection->secureLayer.securityToken.secureChannelId = 25;
 
+	//TODO set a valid start TokenId
+	connection->secureLayer.securityToken.tokenId = 1;
 	connection->secureLayer.sequenceNumber = 1;
 
 	return UA_NO_ERROR;
@@ -146,7 +154,6 @@ Int32 SL_openSecureChannel(UA_connection *connection,
 	SL_ChannelSecurityToken securityToken;
 	UA_ByteString serverNonce;
 	UA_NodeId responseType;
-	UA_ExtensionObject additionalHeader;
 	//sizes for memory allocation
 	Int32 sizeResponse;
 	Int32 sizeRespHeader;
@@ -155,7 +162,7 @@ Int32 SL_openSecureChannel(UA_connection *connection,
 	Int32 sizeSecurityToken;
 	UA_ByteString response;
 	UInt32 serverProtocolVersion;
-	Int32 *pos;
+	Int32 pos;
 	UA_DiagnosticInfo serviceDiagnostics;
 
 	if(requestHeader->returnDiagnostics != 0)
@@ -227,9 +234,9 @@ Int32 SL_openSecureChannel(UA_connection *connection,
 	//                  secureChannelId + TokenId + CreatedAt + RevisedLifetime
 	sizeSecurityToken = sizeof(UInt32) + sizeof(UInt32) + sizeof(UA_DateTime) + sizeof(Int32);
 
-	//ignore server nonce
-	serverNonce.Length = 0;
-	serverNonce.Data = NULL;
+
+	serverNonce.Length = connection->secureLayer.localNonce.Length;
+	serverNonce.Data = connection->secureLayer.localNonce.Data;
 
 	//fill token structure with default server information
 	securityToken.secureChannelId = connection->secureLayer.securityToken.secureChannelId;
@@ -240,39 +247,41 @@ Int32 SL_openSecureChannel(UA_connection *connection,
 	serverProtocolVersion = connection->transportLayer.localConf.protocolVersion;
 
 	//                ProtocolVersion + SecurityToken + Nonce
-	sizeRespMessage = sizeof(UInt32) + sizeSecurityToken + serverNonce.Length + sizeof(Int32) + sizeSecurityToken;
+	sizeRespMessage = sizeof(UInt32) + serverNonce.Length + sizeof(Int32) + sizeSecurityToken;
 	printf("SL_openSecureChannel - size of response message=%d\n",sizeRespMessage);
+
+
 	//get memory for response
 	sizeResponseType = nodeId_calcSize(&responseType);
-	response.Data = (char*)opcua_malloc(sizeResponseType + sizeRespHeader + sizeRespMessage);
+
 	response.Length = sizeResponseType + sizeRespHeader + sizeRespMessage;
 
 	//get memory for response
-	response.Data = (char*)opcua_malloc(nodeId_calcSize(responseType) + sizeRespHeader + sizeRespMessage);
-	*pos = 0;
+	response.Data = (char*)opcua_malloc(nodeId_calcSize(&responseType) + sizeRespHeader + sizeRespMessage);
+	pos = 0;
 	//encode responseType (NodeId)
 	UA_NodeId_printf("SL_openSecureChannel - TypeId =",&responseType);
-	encoder_encodeBuiltInDatatype(&responseType, NODE_ID, pos, response.Data);
+	encoder_encodeBuiltInDatatype(&responseType, NODE_ID, &pos, response.Data);
 
 	//encode header
 	printf("SL_openSecureChannel - encoding response header \n");
 
-	encodeResponseHeader(&responseHeader, pos, &response);
+	encodeResponseHeader(&responseHeader, &pos, &response);
 	printf("SL_openSecureChannel - response header encoded \n");
 
 	//encode message
 	printf("SL_openSecureChannel - serverProtocolVersion = %d \n",serverProtocolVersion);
-	encoder_encodeBuiltInDatatype(&serverProtocolVersion, UINT32, pos,response.Data);
+	encoder_encodeBuiltInDatatype(&serverProtocolVersion, UINT32, &pos,response.Data);
 	printf("SL_openSecureChannel - secureChannelId = %d \n",securityToken.secureChannelId);
-	encoder_encodeBuiltInDatatype(&(securityToken.secureChannelId), UINT32, pos,response.Data);
+	encoder_encodeBuiltInDatatype(&(securityToken.secureChannelId), UINT32, &pos,response.Data);
 	printf("SL_openSecureChannel - tokenId = %d \n",securityToken.tokenId);
-	encoder_encodeBuiltInDatatype(&(securityToken.tokenId), INT32, pos,response.Data);
+	encoder_encodeBuiltInDatatype(&(securityToken.tokenId), INT32, &pos,response.Data);
 
-	encoder_encodeBuiltInDatatype(&(securityToken.createdAt), DATE_TIME, pos,response.Data);
+	encoder_encodeBuiltInDatatype(&(securityToken.createdAt), DATE_TIME, &pos,response.Data);
 	printf("SL_openSecureChannel - revisedLifetime = %d \n",securityToken.revisedLifetime);
-	encoder_encodeBuiltInDatatype(&(securityToken.revisedLifetime), INT32, pos,response.Data);
+	encoder_encodeBuiltInDatatype(&(securityToken.revisedLifetime), INT32, &pos,response.Data);
 
-	encoder_encodeBuiltInDatatype(&serverNonce, BYTE_STRING, pos,response.Data);
+	encoder_encodeBuiltInDatatype(&serverNonce, BYTE_STRING, &pos,response.Data);
 
 	printf("SL_openSecureChannel - response.Length = %d \n",response.Length);
 	//449 = openSecureChannelResponse
@@ -396,8 +405,8 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 		printf("SL_processMessage - securityMode=%d\n", securityMode);
 		switch (securityMode) {
 		case securityMode_INVALID:
-			connection->secureLayer.clientNonce.Data = NULL;
-			connection->secureLayer.clientNonce.Length = 0;
+			connection->secureLayer.remoteNonce.Data = NULL;
+			connection->secureLayer.remoteNonce.Length = 0;
 			printf("SL_processMessage - client demands no security \n");
 			break;
 
@@ -424,7 +433,7 @@ Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 		//TODO process requestedLifetime
 
 		// 62541-4 §7.27 "The requestHandle given by the Client to the request."
-		return SL_openSecureChannel(connection, requestHeader.requestHandle, SC_Good, &serviceDiagnostics);
+		return SL_openSecureChannel(connection, &requestHeader, SC_Good);
 	} else {
 		printf("SL_processMessage - unknown service request");
 		//TODO change error code
@@ -637,8 +646,8 @@ Int32 encodeSCMHeader(SL_SecureConversationMessageHeader *SC_Header, Int32 *pos,
 
 Int32 decodeSequenceHeader(UA_ByteString *rawMessage, Int32 *pos,
 		SL_SequenceHeader *SequenceHeader) {
-	decodeUInt32(rawMessage->Data, pos, &(SequenceHeader->RequestId));
 	decodeUInt32(rawMessage->Data, pos, &(SequenceHeader->SequenceNumber));
+	decodeUInt32(rawMessage->Data, pos, &(SequenceHeader->RequestId));
 	return UA_NO_ERROR;
 }
 

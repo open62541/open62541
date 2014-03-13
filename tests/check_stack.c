@@ -628,25 +628,29 @@ END_TEST
 START_TEST(encoder_encodeBuiltInDatatypeArray_test)
 {
 	Int32 position = 0;
+	Int32 i;
+	char vals[9];
+	char *pVals[9];
 
-	char input = {1,2,3,4,5,6,7,8,9};
+	//generate data, numbers from 0-9
+	for(i = 0; i < 9; i++){
+		vals[i] = i;
+		pVals[i] = &vals[i];
+	}
+
 	Int32 len = 9;
 	Int32 ret;
+
 	char *mem = malloc(13 * sizeof(Byte));
 
-
-	ret = encoder_encodeBuiltInDatatypeArray((void*)input,len, BYTE_ARRAY,
+	ret = encoder_encodeBuiltInDatatypeArray((void*)pVals,len, BYTE_ARRAY,
 			&position, mem);
 
-	ck_assert_int_eq(mem[4], 0x01);
-	ck_assert_int_eq(mem[5], 0x02);
-	ck_assert_int_eq(mem[6], 0x03);
-	ck_assert_int_eq(mem[7], 0x04);
-	ck_assert_int_eq(mem[8], 0x05);
-	ck_assert_int_eq(mem[9], 0x06);
-	ck_assert_int_eq(mem[10], 0x07);
-	ck_assert_int_eq(mem[11], 0x08);
-	ck_assert_int_eq(mem[12], 0x09);
+	for(i = 0; i < 9; i++){
+		ck_assert_int_eq(mem[i+sizeof(Int32)], i);
+	}
+
+
 
 	ck_assert_int_eq(position, sizeof(Int32) + 9);
 	ck_assert_int_eq(ret, UA_NO_ERROR);
@@ -910,6 +914,7 @@ Suite *testSuite_encoder_encodeBuiltInDatatypeArray_test(void)
 	suite_add_tcase(s,tc_core);
 	return s;
 }
+
 int main (void)
 {
 	int number_failed = 0;

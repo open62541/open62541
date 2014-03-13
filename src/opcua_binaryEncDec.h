@@ -49,8 +49,8 @@ Int32 encoder_encodeBuiltInDatatype(void *data, Int32 type, Int32 *pos, char *ds
  * @param dstBuf
  * @return
  */
-Int32 encoder_encodeBuiltInDatatypeArray(void *data, Int32 size,
-		Int32 type, Int32 *pos,
+Int32 encoder_encodeBuiltInDatatypeArray(void **data, Int32 size,
+		Int32 arrayType, Int32 *pos,
 		char *dstBuf);
 /**
  *

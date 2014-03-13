@@ -76,7 +76,8 @@ struct SL_connection
 	UA_String secureChannelId;
 	//UInt32 UInt32_secureChannelId;
 	UInt32 securityMode;
-	UA_ByteString clientNonce;
+	UA_ByteString remoteNonce;
+	UA_ByteString localNonce;
 	UInt32 connectionState;
 	SL_ChannelSecurityToken securityToken;
 	UInt32 requestId; // request Id of the current request
