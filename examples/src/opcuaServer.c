@@ -50,7 +50,7 @@ int main(void)
 
 void server_init()
 {
-	puts("starting demo Server");
+	printf("Starting open62541 demo server on port %d\n", PORT);
 	//call listen
 
 }
