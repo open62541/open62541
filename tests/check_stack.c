@@ -33,6 +33,29 @@ START_TEST(test_getPacketType_validParameter)
 }
 END_TEST
 
+
+START_TEST(decodeByte_test)
+{
+	AD_RawMessage rawMessage;
+	Int32 position = 0;
+	//EncodeByte
+		char *mem = malloc(sizeof(Byte));
+		UInt16 Ui16Val;
+
+		rawMessage.message = mem;
+		rawMessage.length = 1;
+		mem[0] = 0x08;
+
+		position = 0;
+
+		decoder_decodeBuiltInDatatype(rawMessage.message, BYTE, &position, &Ui16Val);
+
+		ck_assert_int_eq(Ui16Val, 0x08);
+		ck_assert_int_eq(position, 1);
+		free(mem);
+}
+END_TEST
+
 START_TEST(encodeByte_test)
 {
 	AD_RawMessage rawMessage;
@@ -461,8 +484,10 @@ START_TEST(diagnosticInfo_calcSize_test)
 	diagnosticInfo.AdditionalInfo.Data = "OPCUA";
 	diagnosticInfo.AdditionalInfo.Length = 5;
 
-	ck_assert_int_eq(diagnosticInfo_calcSize(&diagnosticInfo),26);
-	ck_assert_int_eq(diagnosticInfo_calcSize(&the_empty_UA_DiagnosticInfo),1);
+	valcalc = diagnosticInfo_calcSize(&diagnosticInfo);
+	valreal = 26;
+	ck_assert_int_eq(valcalc,valreal);
+
 }
 END_TEST
 
@@ -1039,3 +1064,5 @@ int main (void)
 	return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 
 }
+
+

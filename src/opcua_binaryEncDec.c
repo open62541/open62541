@@ -430,24 +430,128 @@ Int32 decoder_decodeBuiltInDatatype(char const * srcBuf, Int32 type, Int32 *pos,
  }
 
 
-/* not tested, needs to be reimplemented */
-Int32 encode_builtInDatatypeArray(void* data[], Int32 size, Int32 type,
-		Int32 *pos, char *dstBuf) {
-	int i;
+ /* not tested */
+Int32 encoder_encodeBuiltInDatatypeArray(void **data, Int32 size, Int32 arrayType, Int32 *pos, char *dstBuf)
+{
+	Int32 i;
+	Int32 type;
+	void* pElement = NULL;
+	//encode the length
+	encoder_encodeBuiltInDatatype((void*) (&size), INT32, pos, dstBuf);
 
-	printf("encode_builtInDatatypeArray - size=%d, data=%p\n", size, data);
+	if(data != NULL)
+	{
+		pElement = *data;
+	}
 
-	// encode length of array
-	encodeUInt32(size, pos, dstBuf);
+	//get the element type from array type
+	type = arrayType - 128; //TODO replace with define
 
-	// now iterate over array
+	//encode data elements
 	for (i = 0; i < size; i++) {
-		printf("encode_builtInDatatypeArray - pItem=%p", data[i]);
-		if (type == BYTE_STRING) {
-			UA_ByteString* p = (UA_ByteString*) data[i];
-			printf(", item={l=%d,m=%.*s\n}", p->Length, p->Length, p->Data);
-		} else {
-			printf("\n");
+		switch(type)
+		{
+		case BOOLEAN:
+			encoder_encodeBuiltInDatatype((Boolean*)pElement, type, pos, dstBuf);
+			pElement = (Boolean*)pElement + 1;
+			break;
+		case SBYTE:
+			encoder_encodeBuiltInDatatype((SByte*)pElement, type, pos, dstBuf);
+			pElement = (SByte*)pElement + 1;
+			break;
+		case BYTE:
+			encoder_encodeBuiltInDatatype((Byte*)pElement, type, pos, dstBuf);
+			pElement = (Byte*)pElement + 1;
+			break;
+		case INT16:
+			encoder_encodeBuiltInDatatype((Int16*)pElement, type, pos, dstBuf);
+			pElement = (Int16*)pElement + 1;
+			break;
+		case UINT16:
+			encoder_encodeBuiltInDatatype((UInt16*)pElement, type, pos, dstBuf);
+			pElement = (UInt16*)pElement + 1;
+			break;
+		case INT32:
+			encoder_encodeBuiltInDatatype((Int32*)pElement, type, pos, dstBuf);
+			pElement = (Int32*)pElement + 1;
+			break;
+		case UINT32:
+			encoder_encodeBuiltInDatatype((UInt32*)pElement, type, pos, dstBuf);
+			pElement = (UInt32*)pElement + 1;
+			break;
+		case INT64:
+			encoder_encodeBuiltInDatatype((Int64*)pElement, type, pos, dstBuf);
+			pElement = (Int64*)pElement + 1;
+			break;
+		case UINT64:
+			encoder_encodeBuiltInDatatype((UInt64*)pElement, type, pos, dstBuf);
+			pElement = (UInt64*)pElement + 1;
+			break;
+		case FLOAT:
+			encoder_encodeBuiltInDatatype((Float*)pElement, type, pos, dstBuf);
+			pElement = (Float*)pElement + 1;
+			break;
+		case DOUBLE:
+			encoder_encodeBuiltInDatatype((Double*)pElement, type, pos, dstBuf);
+			pElement = (Double*)pElement + 1;
+			break;
+		case STRING:
+			encoder_encodeBuiltInDatatype((UA_String*)pElement, type, pos, dstBuf);
+			pElement = (UA_String*)pElement + 1;
+			break;
+		case DATE_TIME:
+			encoder_encodeBuiltInDatatype((UA_DateTime*)pElement, type, pos, dstBuf);
+			pElement = (UA_DateTime*)pElement + 1;
+			break;
+		case GUID:
+			encoder_encodeBuiltInDatatype((UA_Guid*)pElement, type, pos, dstBuf);
+			pElement = (UA_Guid*)pElement + 1;
+			break;
+		case BYTE_STRING:
+			encoder_encodeBuiltInDatatype((UA_ByteString*)pElement, type, pos, dstBuf);
+			pElement = (UA_ByteString*)pElement + 1;
+			break;
+		case XML_ELEMENT:
+			encoder_encodeBuiltInDatatype((UA_XmlElement*)pElement, type, pos, dstBuf);
+			pElement = (UA_XmlElement*)pElement + 1;
+			break;
+		case NODE_ID:
+			encoder_encodeBuiltInDatatype((UA_NodeId*)pElement, type, pos, dstBuf);
+			pElement = (UA_NodeId*)pElement + 1;
+			break;
+		case EXPANDED_NODE_ID:
+			encoder_encodeBuiltInDatatype((UA_ExpandedNodeId*)pElement, type, pos, dstBuf);
+			pElement = (UA_ExpandedNodeId*)pElement + 1;
+			break;
+		case STATUS_CODE:
+			encoder_encodeBuiltInDatatype((UA_StatusCode*)pElement, type, pos, dstBuf);
+			pElement = (UA_StatusCode*)pElement + 1;
+			break;
+		case QUALIFIED_NAME:
+			encoder_encodeBuiltInDatatype((UA_QualifiedName*)pElement, type, pos, dstBuf);
+			pElement = (UA_QualifiedName*)pElement + 1;
+			break;
+		case LOCALIZED_TEXT:
+			encoder_encodeBuiltInDatatype((UA_LocalizedText*)pElement, type, pos, dstBuf);
+			pElement = (UA_LocalizedText*)pElement + 1;
+			break;
+		case EXTENSION_OBJECT:
+			encoder_encodeBuiltInDatatype((UA_ExtensionObject*)pElement, type, pos, dstBuf);
+			pElement = (UA_ExtensionObject*)pElement + 1;
+			break;
+		case DATA_VALUE:
+			encoder_encodeBuiltInDatatype((UA_DataValue*)pElement, type, pos, dstBuf);
+			pElement = (UA_DataValue*)pElement + 1;
+			break;
+		case VARIANT:
+			encoder_encodeBuiltInDatatype((UA_Variant*)pElement, type, pos, dstBuf);
+			pElement = (UA_Variant*)pElement + 1;
+			break;
+		case DIAGNOSTIC_INFO:
+			encoder_encodeBuiltInDatatype((UA_DiagnosticInfo*)pElement, type, pos, dstBuf);
+			pElement = (UA_DiagnosticInfo*)pElement + 1;
+
+			break;
 		}
 		encoder_encodeBuiltInDatatype(data[i], type, pos, dstBuf);
 	}
@@ -1415,8 +1519,14 @@ Int32 encodeResponseHeader(UA_AD_ResponseHeader const * responseHeader,
 	encodeIntegerId(responseHeader->requestHandle, pos, dstBuf->Data);
 	encodeUInt32(responseHeader->serviceResult, pos, dstBuf->Data);
 	encodeDiagnosticInfo(responseHeader->serviceDiagnostics, pos, dstBuf->Data);
-	encode_builtInDatatypeArray(responseHeader->stringTable, responseHeader->noOfStringTable, BYTE_STRING, pos, dstBuf->Data);
-	encodeExtensionObject(responseHeader->additionalHeader,pos, dstBuf->Data);
+
+	encoder_encodeBuiltInDatatypeArray(responseHeader->stringTable,
+			responseHeader->noOfStringTable, STRING_ARRAY, pos, dstBuf->Data);
+
+	encodeExtensionObject(responseHeader->additionalHeader, pos, dstBuf->Data);
+
+	//Kodieren von String Datentypen
+
 	return 0;
 }
 Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject) {

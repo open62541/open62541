@@ -58,13 +58,17 @@ void server_init()
 void server_run()
 {
 	UA_connection connection;
+
 	UA_ByteString slMessage;
-	TL_initConnectionObject(&connection);
+
 	char optval;
 	int sockfd, newsockfd, portno, clilen;
 	char buffer[BUFFER_SIZE];
 	struct sockaddr_in serv_addr, cli_addr;
 	int  n;
+
+	TL_initConnectionObject(&connection);
+	SL_initConnectionObject(&connection);
 
 	/* First call to socket() function */
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -108,6 +112,7 @@ void server_run()
 		perror("ERROR on accept");
 		exit(1);
 	}
+
 	printf("One connection accepted");
 	while(1)
 	{

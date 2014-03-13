@@ -27,3 +27,5 @@ UA_DateTime opcua_getTime() {
 			* HUNDRED_NANOSEC_PER_SEC + tv.tv_usec * HUNDRED_NANOSEC_PER_USEC;
 	return dateTime;
 }
+
+

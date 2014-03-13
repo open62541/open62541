@@ -54,6 +54,18 @@ void UA_ByteString_printx(char* label, UA_ByteString* string) {
 	}
 	printf("}}\n");
 }
+void UA_ByteString_printx_hex(char* label, UA_ByteString* string) {
+	int i;
+	printf("%s {Length=%d, Data=", label, string->Length);
+	if (string->Length > 0) {
+		for (i = 0; i < string->Length; i++) {
+			printf("%c%x", i == 0 ? '{' : ',', (string->Data)[i]);
+		}
+	} else {
+		printf("{");
+	}
+	printf("}}\n");
+}
 
 void UA_NodeId_printf(char* label, UA_NodeId* node) {
 	printf("%s {EncodingByte=%d, Namespace=%d, ", label,
