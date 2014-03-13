@@ -1,5 +1,5 @@
 # exclude
-log
+*.log
 *.guess
 .in
 *.sub
@@ -43,3 +43,4 @@ coverage_report
 .project
 .cproject
 /INSTALL
+/.settings
