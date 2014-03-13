@@ -1,10 +1,13 @@
 INCLUDE = @CHECK_CFLAGS@ -I$(top_builddir)/src -I$(top_builddir)/include
 LIBS = $(top_builddir)/lib/libopen62541.a @CHECK_LIBS@
 
-#add new tests to this line
+#STEP 1: add new tests to this line
 TESTS = check_stack check_list
 
-check_PROGRAMS = $(TESTS)
+#STEP 2: add new tests to the following list
+check_stack_SOURCES = check_stack.c
+check_list_SOURCES = check_list.c
+
 AM_LDADD = $(LIBS)
 
 #optimization levels depending on debug
