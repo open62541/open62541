@@ -288,7 +288,7 @@ TL_send(UA_connection *connection, UA_ByteString *packet)
 	}
 	else
 	{
-		printf("TL_send - ERROR: packet size greater than remote buffer size", packet->Length);
+		printf("TL_send - ERROR: packet size greater than remote buffer size");
 		//server error
 	}
 
