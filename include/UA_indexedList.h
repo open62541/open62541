@@ -9,7 +9,7 @@
  * Integer Indexed List
  */
 typedef struct T_UA_indexedList_Element {
-	struct T_UA_list_element* father;
+	struct T_UA_list_Element* father;
 	Int32 index;
 	void* payload;
 }UA_indexedList_Element;
