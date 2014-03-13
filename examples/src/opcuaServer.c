@@ -13,11 +13,10 @@
 
 
 
-#include "../../src/opcua_binaryEncDec.h"
-#include "../../src/opcua_builtInDatatypes.h"
-#include "../../src/opcua_transportLayer.h"
-#include "../../src/opcua_types.h"
-#include "../../src/opcua_time.h"
+#include "opcua_binaryEncDec.h"
+#include "opcua_builtInDatatypes.h"
+#include "opcua_transportLayer.h"
+#include "opcua_types.h"
 
 #ifdef LINUX
 
@@ -51,9 +50,7 @@ int main(void)
 
 void server_init()
 {
-	puts("Starting Demo Server");
-	Int64 now = opcua_time_now();
-	printf("now");
+	puts("starting demo Server");
 	//call listen
 
 }

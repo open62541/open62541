@@ -553,6 +553,7 @@ Int32 encoder_encodeBuiltInDatatypeArray(void **data, Int32 size, Int32 arrayTyp
 
 			break;
 		}
+		encoder_encodeBuiltInDatatype(data[i], type, pos, dstBuf);
 	}
 	return UA_NO_ERROR;
 }
@@ -1193,7 +1194,7 @@ Int32 encodeVariant(UA_Variant *variant, Int32 *pos, char *dstBuf) {
 				pos, dstBuf);
 		if (variant->ArrayLength > 0) {
 			//encode array as given by variant type
-			encoder_encodeBuiltInDatatypeArray((void*) variant->Value,
+			encode_builtInDatatypeArray((void*) variant->Value,
 					variant->ArrayLength, (variant->EncodingMask & 31), pos,
 					dstBuf);
 		}
@@ -1388,13 +1389,13 @@ Int32 decodeDiagnosticInfo(char const * buf, Int32 *pos,
 Int32 encodeDiagnosticInfo(UA_DiagnosticInfo *diagnosticInfo, Int32 *pos,
 		char *dstbuf) {
 	Byte mask;
-	mask = 0;
+	int i;
 
 	encoder_encodeBuiltInDatatype((void*) (&(diagnosticInfo->EncodingMask)),
 			BYTE, pos, dstbuf);
-	for (mask = 1; mask <= 0x40; mask = mask << 1) {
+	for (i = 0; i < 7; i++) {
 
-		switch (mask & (diagnosticInfo->EncodingMask)) {
+		switch ( (0x01 << i) & diagnosticInfo->EncodingMask)  {
 		case DIEMT_SYMBOLIC_ID:
 			//	puts("diagnosticInfo symbolic id");
 			encoder_encodeBuiltInDatatype((void*) &(diagnosticInfo->SymbolicId),

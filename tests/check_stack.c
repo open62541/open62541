@@ -10,10 +10,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "../src/opcua_transportLayer.h"
-#include "../src/opcua_binaryEncDec.h"
-#include "../src/opcua_encodingLayer.h"
-#include "../src/opcua_advancedDatatypes.h"
+#include "UA_config.h"
+#include "opcua_transportLayer.h"
+#include "opcua_binaryEncDec.h"
+#include "opcua_encodingLayer.h"
+#include "opcua_advancedDatatypes.h"
 //#include "check_stdint.h"
 #include "check.h"
 
@@ -489,6 +490,7 @@ START_TEST(diagnosticInfo_calcSize_test)
 
 }
 END_TEST
+
 START_TEST(extensionObject_calcSize_test)
 {
 
@@ -498,23 +500,19 @@ START_TEST(extensionObject_calcSize_test)
 	UA_ExtensionObject extensionObject;
 
 	// empty ExtensionObject
-	valcalc = extensionObject_calcSize(&the_empty_UA_ExtensionObject);
-	ck_assert_int_eq(valcalc, 1 + 1 + 1);
+	ck_assert_int_eq(extensionObject_calcSize(&the_empty_UA_ExtensionObject), 1 + 1 + 1);
 
 	// empty ExtensionObject, handcoded
 	extensionObject.TypeId.EncodingByte = NIEVT_TWO_BYTE;
 	extensionObject.TypeId.Identifier.Numeric = 0;
 	extensionObject.Encoding = NO_BODY_IS_ENCODED;
-
-	valcalc = extensionObject_calcSize(&extensionObject);
-	ck_assert_int_eq(valcalc, 1 + 1 + 1);
+	ck_assert_int_eq(extensionObject_calcSize(&extensionObject), 1 + 1 + 1);
 
 	// ExtensionObject with ByteString-Body
 	extensionObject.Encoding = BODY_IS_BYTE_STRING;
 	extensionObject.Body.Data = data;
 	extensionObject.Body.Length = 3;
-	valcalc = extensionObject_calcSize(&extensionObject);
-	ck_assert_int_eq(valcalc, 3 + 4 + 3);
+	ck_assert_int_eq(extensionObject_calcSize(&extensionObject), 3 + 4 + 3);
 
 }
 END_TEST
@@ -543,6 +541,9 @@ START_TEST(responseHeader_calcSize_test)
 
 	responseHeader.additionalHeader = &the_empty_UA_ExtensionObject;	//		    3
 	ck_assert_int_eq(responseHeader_calcSize(&responseHeader),16+26+4+3);
+
+	responseHeader.serviceDiagnostics = &the_empty_UA_DiagnosticInfo;
+	ck_assert_int_eq(responseHeader_calcSize(&responseHeader),16+1+4+3);
 }
 END_TEST
 
@@ -625,38 +626,29 @@ START_TEST(DataValue_calcSize_test)
 }
 END_TEST
 
-START_TEST(encoder_encodeBuiltInDatatypeArray_test)
+START_TEST(encode_builtInDatatypeArray_test_String)
 {
-	Int32 position = 0;
-	Int32 i;
-	char vals[9];
-	char *pVals[9];
+	Int32 noElements = 2;
+	UA_ByteString s1 = { 6, "OPC UA" };
+	UA_ByteString s2 = { -1, NULL };
+	UA_ByteString* array[] = { &s1, &s2	};
+	Int32 pos = 0, i;
+	char buf[256];
+	char result[] = {
+			0x02, 0x00, 0x00, 0x00,		// noElements
+			0x06, 0x00, 0x00, 0x00,		// s1.Length
+			'O', 'P', 'C', ' ', 'U', 'A', // s1.Data
+			0xFF, 0xFF, 0xFF, 0xFF		// s2.Length
+	};
 
-	//generate data, numbers from 0-9
-	for(i = 0; i < 9; i++){
-		vals[i] = i;
-		pVals[i] = &vals[i];
+	encode_builtInDatatypeArray(array, noElements, BYTE_STRING, &pos, buf);
+
+	// check size
+	ck_assert_int_eq(pos, 4 + 4 + 6 + 4);
+	// check result
+	for (i=0; i< sizeof(result); i++) {
+		ck_assert_int_eq(buf[i],result[i]);
 	}
-
-	Int32 len = 9;
-	Int32 ret;
-
-	char *mem = malloc(13 * sizeof(Byte));
-
-	ret = encoder_encodeBuiltInDatatypeArray((void*)pVals,len, BYTE_ARRAY,
-			&position, mem);
-
-	for(i = 0; i < 9; i++){
-		ck_assert_int_eq(mem[i+sizeof(Int32)], i);
-	}
-
-
-
-	ck_assert_int_eq(position, sizeof(Int32) + 9);
-	ck_assert_int_eq(ret, UA_NO_ERROR);
-
-
-	free(mem);
 }
 END_TEST
 
@@ -665,15 +657,6 @@ Suite *testSuite_getPacketType(void)
 	Suite *s = suite_create("getPacketType");
 	TCase *tc_core = tcase_create("Core");
 	tcase_add_test(tc_core,test_getPacketType_validParameter);
-	suite_add_tcase(s,tc_core);
-	return s;
-}
-
-Suite *testSuite_decodeByte(void)
-{
-	Suite *s = suite_create("decodeByte_test");
-	TCase *tc_core = tcase_create("Core");
-	tcase_add_test(tc_core, decodeByte_test);
 	suite_add_tcase(s,tc_core);
 	return s;
 }
@@ -854,6 +837,15 @@ Suite* testSuite_encodeDataValue()
 	return s;
 }
 
+Suite* testSuite_encode_builtInDatatypeArray()
+{
+	Suite *s = suite_create("encode_builtInDatatypeArray");
+	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, encode_builtInDatatypeArray_test_String);
+	suite_add_tcase(s,tc_core);
+	return s;
+}
+
 Suite* testSuite_expandedNodeId_calcSize(void)
 {
 	Suite *s = suite_create("expandedNodeId_calcSize");
@@ -906,34 +898,12 @@ Suite* testSuite_dataValue_calcSize(void)
 	return s;
 }
 
-Suite *testSuite_encoder_encodeBuiltInDatatypeArray_test(void)
-{
-	Suite *s = suite_create("encoder_encodeBuiltInDatatypeArray_test");
-	TCase *tc_core = tcase_create("Core");
-	tcase_add_test(tc_core, encoder_encodeBuiltInDatatypeArray_test);
-	suite_add_tcase(s,tc_core);
-	return s;
-}
-
 int main (void)
 {
 	int number_failed = 0;
 
 	Suite *s = testSuite_getPacketType();
 	SRunner *sr = srunner_create(s);
-	srunner_run_all(sr,CK_NORMAL);
-	number_failed = srunner_ntests_failed(sr);
-	srunner_free(sr);
-
-
-	s = testSuite_encoder_encodeBuiltInDatatypeArray_test();
-	sr = srunner_create(s);
-	srunner_run_all(sr,CK_NORMAL);
-	number_failed += srunner_ntests_failed(sr);
-	srunner_free(sr);
-
-	s = testSuite_decodeByte();
-	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed = srunner_ntests_failed(sr);
 	srunner_free(sr);
@@ -1066,6 +1036,12 @@ int main (void)
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
 
+	s = testSuite_encode_builtInDatatypeArray();
+	sr = srunner_create(s);
+	srunner_run_all(sr,CK_NORMAL);
+	number_failed += srunner_ntests_failed(sr);
+	srunner_free(sr);
+
 	s = testSuite_expandedNodeId_calcSize();
 	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
@@ -1077,8 +1053,6 @@ int main (void)
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
-
-
 
 	/* <TESTSUITE_TEMPLATE>
 	s =  <TESTSUITENAME>;

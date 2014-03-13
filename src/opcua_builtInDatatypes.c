@@ -8,6 +8,7 @@
 #include <stdio.h>
 
 UA_ExtensionObject the_empty_UA_ExtensionObject = { { NIEVT_TWO_BYTE, 0 }, NO_BODY_IS_ENCODED};
+UA_DiagnosticInfo the_empty_UA_DiagnosticInfo = { 0x00 };
 
 Int32 UA_String_compare(UA_String *string1, UA_String *string2) {
 	Int32 i;
@@ -46,6 +47,7 @@ void UA_ByteString_printx(char* label, UA_ByteString* string) {
 	if (string->Length > 0) {
 		for (i = 0; i < string->Length; i++) {
 			printf("%c%d", i == 0 ? '{' : ',', (string->Data)[i]);
+			if (i > 0 && !(i%20)) { printf("\n\t"); }
 		}
 	} else {
 		printf("{");

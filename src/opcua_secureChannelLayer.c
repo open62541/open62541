@@ -234,6 +234,9 @@ Int32 SL_openSecureChannel(UA_connection *connection,
 	//                  secureChannelId + TokenId + CreatedAt + RevisedLifetime
 	sizeSecurityToken = sizeof(UInt32) + sizeof(UInt32) + sizeof(UA_DateTime) + sizeof(Int32);
 
+	//ignore server nonce
+	serverNonce.Length = -1;
+	serverNonce.Data = NULL;
 
 	serverNonce.Length = connection->secureLayer.localNonce.Length;
 	serverNonce.Data = connection->secureLayer.localNonce.Data;
@@ -648,6 +651,7 @@ Int32 decodeSequenceHeader(UA_ByteString *rawMessage, Int32 *pos,
 		SL_SequenceHeader *SequenceHeader) {
 	decodeUInt32(rawMessage->Data, pos, &(SequenceHeader->SequenceNumber));
 	decodeUInt32(rawMessage->Data, pos, &(SequenceHeader->RequestId));
+	decodeUInt32(rawMessage->Data, pos, &(SequenceHeader->SequenceNumber));
 	return UA_NO_ERROR;
 }
 

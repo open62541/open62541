@@ -36,7 +36,10 @@ libopen62541_la_SOURCES = opcua_builtInDatatypes.c\
 						opcua_secureChannelLayer.h\
 						opcua_memory.h\
 						opcua_time.h\
-						tcp_layer.h						
+						tcp_layer.h\
+						util/UA_list.c\
+						util/UA_indexedList.c						
+libopen62541_la_CFLAGS = -I $(top_builddir)/include
 
 #bin_PROGRAMS= $(top_builddir)/bin/open62541.out
 #__top_builddir__bin_libOpen62541_out_SOURCES = opcuaServer.c
