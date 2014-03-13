@@ -1,4 +1,3 @@
-
 #include "UA_config.h"
 #include "UA_list.h"
 
@@ -7,6 +6,7 @@ void UA_list_defaultFreer(void* payload){
 		opcua_free(payload);
 	}
 }
+
 Int32 UA_list_initElement(UA_list_Element* const element){
 	if(element==NULL)return UA_ERROR;
 	element->next=NULL;

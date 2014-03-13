@@ -1,23 +1,13 @@
-/*
- * UA_list.h
- *
- *  Created on: Mar 13, 2014
- *      Author: sten
- */
-
 #ifndef UA_LIST_H_
 #define UA_LIST_H_
 
 #include "opcua_builtInDatatypes.h"
 
 /*
- * Data Structures
- */
-typedef void (*UA_list_PayloadVisitor)(void* payload);
-
-/*
  * Double Linked Lists
  */
+
+typedef void (*UA_list_PayloadVisitor)(void* payload);
 
 typedef struct T_UA_list_Element {
 	struct T_UA_list_List* father;
@@ -33,10 +23,10 @@ typedef struct T_UA_list_List {
 }UA_list_List;
 
 typedef void (*UA_list_ElementVisitor)(UA_list_Element* payload);
-/*
- * Returns 1 for true, 0 otherwise
- */
+
 typedef Boolean (*UA_list_PayloadMatcher)(void* payload);
+
+void UA_list_defaultFreer(void* payload);
 
 Int32 UA_list_initElement(UA_list_Element* const element);
 

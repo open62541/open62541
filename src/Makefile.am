@@ -19,7 +19,8 @@ libopen62541_la_SOURCES = opcua_builtInDatatypes.c\
 						opcua_memory.h\
 						opcua_time.h\
 						tcp_layer.h\
-						util/UA_list.c						
+						util/UA_list.c\
+						util/UA_indexedList.c						
 libopen62541_la_CFLAGS = -I $(top_builddir)/include
 
 .PHONY: convenience-link clean-convenience-link
