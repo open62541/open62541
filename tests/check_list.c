@@ -85,7 +85,6 @@ int main (void)
 {
 	int number_failed = 0;
 
-	/* check_list */
 	Suite* s = list_testSuite();
 	SRunner* sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
