@@ -24,12 +24,11 @@ START_TEST(test_getPacketType_validParameter)
 
 	char buf[] = {'C','L','O'};
 	Int32 pos = 0;
-	AD_RawMessage rawMessage;
-	rawMessage.message = buf;
-	rawMessage.length = 3;
+	UA_ByteString msg;
+	msg.Data = buf;
+	msg.Length = 3;
 
-	ck_assert_int_eq(TL_getPacketType(&pos,&rawMessage),packetType_CLO);
-
+	ck_assert_int_eq(TL_getPacketType(&msg, &pos),packetType_CLO);
 }
 END_TEST
 
@@ -101,7 +100,7 @@ START_TEST(decodeRequestHeader_test_validParameter)
 END_TEST
 */
 
-START_TEST(decodeInt16_test)
+START_TEST(decodeInt16_test_positives)
 {
 	Int32 p = 0;
 	Int16 val;
@@ -111,13 +110,11 @@ START_TEST(decodeInt16_test)
 			0x01,0x00,	// 1
 			0xFF,0x00,	// 255
 			0x00,0x01,	// 256
-			0xFF,0xFF,	// -1
-			0x00,0x80,	// -32768
 	};
 
 	rawMessage.message = mem;
 	rawMessage.length = sizeof(mem);
-	ck_assert_int_eq(rawMessage.length,12);
+	ck_assert_int_eq(rawMessage.length,8);
 
 	decoder_decodeBuiltInDatatype(rawMessage.message,INT16,&p,&val);
 	ck_assert_int_eq(val,0);
@@ -127,12 +124,29 @@ START_TEST(decodeInt16_test)
 	ck_assert_int_eq(val,255);
 	decoder_decodeBuiltInDatatype(rawMessage.message,INT16,&p,&val);
 	ck_assert_int_eq(val,256);
+}
+END_TEST
+START_TEST(decodeInt16_test_negatives)
+{
+	Int32 p = 0;
+	Int16 val;
+	AD_RawMessage rawMessage;
+	char mem[] = {
+			0xFF,0xFF,	// -1
+			0x00,0x80,	// -32768
+	};
+
+	rawMessage.message = mem;
+	rawMessage.length = sizeof(mem);
+	ck_assert_int_eq(rawMessage.length,4);
+
 	decoder_decodeBuiltInDatatype(rawMessage.message,INT16,&p,&val);
 	ck_assert_int_eq(val,-1);
 	decoder_decodeBuiltInDatatype(rawMessage.message,INT16,&p,&val);
 	ck_assert_int_eq(val,-32768);
 }
 END_TEST
+
 START_TEST(encodeInt16_test)
 {
 
@@ -484,61 +498,51 @@ START_TEST(extensionObject_calcSize_test)
 	UA_ExtensionObject extensionObject;
 
 	// empty ExtensionObject
-	extensionObject.TypeId.EncodingByte = NIEVT_TWO_BYTE;; // Numeric TWO BYTES
+	valcalc = extensionObject_calcSize(&the_empty_UA_ExtensionObject);
+	ck_assert_int_eq(valcalc, 1 + 1 + 1);
+
+	// empty ExtensionObject, handcoded
+	extensionObject.TypeId.EncodingByte = NIEVT_TWO_BYTE;
 	extensionObject.TypeId.Identifier.Numeric = 0;
 	extensionObject.Encoding = NO_BODY_IS_ENCODED;
 
 	valcalc = extensionObject_calcSize(&extensionObject);
-	valreal = 3;
-	ck_assert_int_eq(valcalc, valreal);
+	ck_assert_int_eq(valcalc, 1 + 1 + 1);
 
 	// ExtensionObject with ByteString-Body
 	extensionObject.Encoding = BODY_IS_BYTE_STRING;
 	extensionObject.Body.Data = data;
 	extensionObject.Body.Length = 3;
 	valcalc = extensionObject_calcSize(&extensionObject);
-	valreal = 3 + 4 + 3;
-	ck_assert_int_eq(valcalc, valreal);
+	ck_assert_int_eq(valcalc, 3 + 4 + 3);
 
 }
 END_TEST
 
 START_TEST(responseHeader_calcSize_test)
 {
-	Int32 valreal = 1;
-	Int32 valcalc = 0;
-	fail();//ToDo: needs to be adjusted: just to see this needs to be adjusted
-	//ToDo: needs to be adjusted: T_ResponseHeader responseHeader;
+	UA_AD_ResponseHeader responseHeader;
 	UA_DiagnosticInfo diagnosticInfo;
 	UA_ExtensionObject extensionObject;
 
-	//Should have the size of 16 Bytes
-	//ToDo: needs to be adjusted: responseHeader.timestamp = 150014;
-	//ToDo: needs to be adjusted: responseHeader.requestHandle = 514;
-	//ToDo: needs to be adjusted: responseHeader.serviceResult = 504;
-
 	//Should have the size of 26 Bytes
-	diagnosticInfo.EncodingMask = 0x01 | 0x02 | 0x04 | 0x08 | 0x10;
-	diagnosticInfo.SymbolicId = 30;
-	diagnosticInfo.NamespaceUri = 25;
-	diagnosticInfo.LocalizedText = 22;
-	diagnosticInfo.AdditionalInfo.Data = "OPCUA";
-	diagnosticInfo.AdditionalInfo.Length = 5;
-	//ToDo: needs to be adjusted: responseHeader.serviceDiagnostics = &diagnosticInfo;
-	//Should have the size of 4 Bytes
-	//ToDo: needs to be adjusted: responseHeader.noOfStringTable = 0;
-	//Should have the size of 3 Bytes
-	extensionObject.TypeId.EncodingByte = NIEVT_TWO_BYTE;
-	extensionObject.TypeId.Identifier.Numeric = 0;
-	extensionObject.Encoding = 0x00; //binaryBody = false, xmlBody = false
-	//ToDo: needs to be adjusted: responseHeader.additionalHeader = extensionObject;
+	diagnosticInfo.EncodingMask = DIEMT_SYMBOLIC_ID | DIEMT_NAMESPACE | DIEMT_LOCALIZED_TEXT | DIEMT_LOCALE | DIEMT_ADDITIONAL_INFO;		// Byte:   1
+	// Indices into to Stringtable of the responseHeader (62541-6 §5.5.12 )
+	diagnosticInfo.SymbolicId = -1;										// Int32:  4
+	diagnosticInfo.NamespaceUri = -1;									// Int32:  4
+	diagnosticInfo.LocalizedText = -1;									// Int32:  4
+	diagnosticInfo.Locale = -1;											// Int32:  4
+	// Additional Info
+	diagnosticInfo.AdditionalInfo.Length = 5;							// Int32:  4
+	diagnosticInfo.AdditionalInfo.Data = "OPCUA";						// Byte[]: 5
+	responseHeader.serviceDiagnostics = &diagnosticInfo;
+	ck_assert_int_eq(diagnosticInfo_calcSize(&diagnosticInfo),1+(4+4+4+4)+(4+5));
 
-	//ToDo: needs to be adjusted: valcalc = responseHeader_calcSize(&responseHeader);
-	fail(); //ToDo: needs to be adjusted: Just to see that this needs to be adjusted
-	valreal = 49;
+	responseHeader.noOfStringTable = -1;								// Int32:	4
+	responseHeader.stringTable = NULL;
 
-	ck_assert_int_eq(valcalc,valreal);
-
+	responseHeader.additionalHeader = &the_empty_UA_ExtensionObject;	//		    3
+	ck_assert_int_eq(responseHeader_calcSize(&responseHeader),16+26+4+3);
 }
 END_TEST
 
@@ -684,7 +688,8 @@ Suite *testSuite_decodeInt16(void)
 {
 	Suite *s = suite_create("decodeInt16_test");
 	TCase *tc_core = tcase_create("Core");
-	tcase_add_test(tc_core, decodeInt16_test);
+	tcase_add_test(tc_core, decodeInt16_test_positives);
+	tcase_add_test(tc_core, decodeInt16_test_negatives);
 	suite_add_tcase(s,tc_core);
 	return s;
 }

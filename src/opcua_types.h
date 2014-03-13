@@ -806,8 +806,8 @@ typedef struct UA_AD_ResponseHeader
 	UA_AD_IntegerId requestHandle;
 	UA_StatusCode serviceResult;
 	UA_DiagnosticInfo *serviceDiagnostics;
-	UInt16 noOfStringTable;
-	UA_String* stringTable;
+	Int16 noOfStringTable;		// Unsigned: -1 == Empty Array
+	UA_String** stringTable;	//  this is an array of strings, i.e. String** or String* ... []
 	UA_ExtensionObject *additionalHeader;
 }
 UA_AD_ResponseHeader;

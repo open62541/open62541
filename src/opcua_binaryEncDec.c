@@ -95,7 +95,6 @@ Int32 encoder_encodeBuiltInDatatype(void *data, Int32 type, Int32 *pos,
 	return UA_NO_ERROR;
 }
 
-
 Int32 decoder_decodeBuiltInDatatype(char const * srcBuf, Int32 type, Int32 *pos,
 		void *dstStructure) {
 	Boolean tmp;
@@ -431,24 +430,16 @@ Int32 decoder_decodeBuiltInDatatype(char const * srcBuf, Int32 type, Int32 *pos,
  }
 
 
-/* not tested */
+ /* not tested */
 /*needs to be reimplemented */
-Int32 encoder_encodeBuiltInDatatypeArray(void *data, Int32 size, Int32 type,
-		Int32 *pos, char *dstBuf)
-{
+Int32 encode_builtInDatatypeArray(void *data, Int32 size, Int32 type,
+		Int32 *pos, char *dstBuf) {
 	int i;
-	void * pItem = NULL;
+	void * pItem;
 	encoder_encodeBuiltInDatatype((void*) (size), INT32, pos, dstBuf);
-	pItem = data;
-	for (i = 0; i < size; i++)
-	{
-		//-128 does the conversion e.g. from BOOLEAN_ARRAY to BOOLEAN (type)
-		encoder_encodeBuiltInDatatype(pItem, type - 128 , pos, dstBuf);
-		pItem++;
-	}
-	/*	switch (type)
-		{
-
+	for (i = 0; i < size;) {
+		encoder_encodeBuiltInDatatype(pItem, type, pos, dstBuf);
+		switch (type) {
 		case BOOLEAN:
 			pItem = (Boolean*) (data) + 1;
 			break;
@@ -526,7 +517,6 @@ Int32 encoder_encodeBuiltInDatatypeArray(void *data, Int32 size, Int32 type,
 			break;
 		}
 	}
-	*/
 	return UA_NO_ERROR;
 }
 
@@ -848,7 +838,6 @@ Int32 encodeUANodeId(UA_NodeId *srcNodeId, Int32 *pos, char *buf) {
 }
 Int32 nodeId_calcSize(UA_NodeId *nodeId) {
 	Int32 length = 0;
-	printf("nodeId_calcSize - nodeId.EncodingByte = %d \n",nodeId->EncodingByte);
 	switch (nodeId->EncodingByte) {
 	case NIEVT_TWO_BYTE:
 		length += 2 * sizeof(Byte);
@@ -874,7 +863,6 @@ Int32 nodeId_calcSize(UA_NodeId *nodeId) {
 	default:
 		break;
 	}
-	printf("nodeId_calcSize - nodeId length = %d \n",length);
 	return length;
 }
 /**
@@ -1155,9 +1143,6 @@ Int32 decodeVariant(char const * buf, Int32 *pos, UA_Variant *dstVariant) {
 		//	dstVariant->Value->
 	}
 
-
-
-
 	//TODO implement the multiarray decoding
 	return UA_NO_ERROR;
 }
@@ -1171,7 +1156,7 @@ Int32 encodeVariant(UA_Variant *variant, Int32 *pos, char *dstBuf) {
 				pos, dstBuf);
 		if (variant->ArrayLength > 0) {
 			//encode array as given by variant type
-			encoder_encodeBuiltInDatatypeArray((void*) variant->Value,
+			encode_builtInDatatypeArray((void*) variant->Value,
 					variant->ArrayLength, (variant->EncodingMask & 31), pos,
 					dstBuf);
 		}
@@ -1412,16 +1397,12 @@ Int32 encodeDiagnosticInfo(UA_DiagnosticInfo *diagnosticInfo, Int32 *pos,
 	return UA_NO_ERROR;
 }
 Int32 diagnosticInfo_calcSize(UA_DiagnosticInfo *diagnosticInfo) {
-	Int32 minimumLength = 1;
-	Int32 length = minimumLength;
+	Int32 length = 0;
 	Byte mask;
-	Int32 j = 0;
-	mask = 0;
 
-	//puts("diagnosticInfo called");
-	//printf("with this mask %u", diagnosticInfo->EncodingMask);
-	for (mask = 1; mask <= 0x40; mask *= 2) {
-		j++;
+	length += sizeof(Byte);	// EncodingMask
+
+	for (mask = 0x01; mask <= 0x40; mask *= 2) {
 		switch (mask & (diagnosticInfo->EncodingMask)) {
 
 		case DIEMT_SYMBOLIC_ID:
@@ -1438,8 +1419,7 @@ Int32 diagnosticInfo_calcSize(UA_DiagnosticInfo *diagnosticInfo) {
 			length += sizeof(Int32);
 			break;
 		case DIEMT_ADDITIONAL_INFO:
-			length += diagnosticInfo->AdditionalInfo.Length;
-			length += sizeof(Int32);
+			length += UAString_calcSize(&(diagnosticInfo->AdditionalInfo));
 			break;
 		case DIEMT_INNER_STATUS_CODE:
 			length += sizeof(UA_StatusCode);
@@ -1471,20 +1451,14 @@ Int32 decoder_decodeRequestHeader(char const * message, Int32 *pos,
 	// requestHeader - common request parameters. The authenticationToken is always omitted
 	decoder_decodeBuiltInDatatype(message, NODE_ID, pos,
 			&(dstRequestHeader->authenticationToken));
-
 	decoder_decodeBuiltInDatatype(message, DATE_TIME, pos,
 			&(dstRequestHeader->timestamp));
 	decoder_decodeBuiltInDatatype(message, UINT32, pos,
 			&(dstRequestHeader->requestHandle));
-
-	//dstRequestHeader->requestHandle = decodeIntegerId(srcRaw->message, pos);
 	decoder_decodeBuiltInDatatype(message, UINT32, pos,
 			&(dstRequestHeader->returnDiagnostics));
-	//dstRequestHeader->returnDiagnostics = decodeUInt32(srcRaw->message, pos);
-
 	decoder_decodeBuiltInDatatype(message, STRING, pos,
 			&(dstRequestHeader->auditEntryId));
-	//decodeUAString(srcRaw->message, pos, &dstRequestHeader->auditEntryId);
 	decoder_decodeBuiltInDatatype(message, UINT32, pos,
 			&(dstRequestHeader->timeoutHint));
 	decoder_decodeBuiltInDatatype(message, EXTENSION_OBJECT, pos,
@@ -1518,26 +1492,37 @@ Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject) {
 
 	if (extensionObject->Encoding == BODY_IS_BYTE_STRING
 			|| extensionObject->Encoding == BODY_IS_XML_ELEMENT) {
-		length += sizeof(Int32) + extensionObject->Body.Length;
+		length += UAByteString_calcSize(&(extensionObject->Body));
 	}
 	return length;
 }
 
 Int32 responseHeader_calcSize(UA_AD_ResponseHeader *responseHeader) {
-	Int32 minimumLength = 20; // summation of all simple types
-	Int32 i, length;
-	length = minimumLength;
+	Int32 i;
+	Int32 length = 0;
 
-	for (i = 0; i < responseHeader->noOfStringTable; i++) {
-		length += responseHeader->stringTable[i].Length;
-		length += sizeof(UInt32); // length of the encoded length field
-	}
+	// UtcTime timestamp	8
+	length += sizeof(UA_DateTime);
 
+	// IntegerId requestHandle	4
+	length += sizeof(UA_AD_IntegerId);
+
+	// StatusCode serviceResult	4
+	length += sizeof(UA_StatusCode);
+
+	// DiagnosticInfo serviceDiagnostics
 	length += diagnosticInfo_calcSize(responseHeader->serviceDiagnostics);
 
+	// String stringTable[], see 62541-6 § 5.2.4
+	length += sizeof(Int32); // Length of Stringtable always
+	if (responseHeader->noOfStringTable > 0) {
+		for (i = 0; i < responseHeader->noOfStringTable; i++) {
+			length += UAString_calcSize(responseHeader->stringTable[i]);
+		}
+	}
 
+	// ExtensibleObject additionalHeader
 	length += extensionObject_calcSize(responseHeader->additionalHeader);
-
 	return length;
 }
 

@@ -4,9 +4,10 @@
  *  Created on: Dec 19, 2013
  *      Author: opcua
  */
-
 #include "opcua_builtInDatatypes.h"
 #include <stdio.h>
+
+UA_ExtensionObject the_empty_UA_ExtensionObject = { { NIEVT_TWO_BYTE, 0 }, NO_BODY_IS_ENCODED};
 
 Int32 UA_String_compare(UA_String *string1, UA_String *string2) {
 	Int32 i;

@@ -400,6 +400,9 @@ typedef enum UA_ExtensionObjectEncodingMaskType
 }
 UA_ExtensionObjectEncodingMaskType;
 
+// the empty extensionobject
+extern UA_ExtensionObject the_empty_UA_ExtensionObject;
+
 typedef UA_VariantUnion;
 /**
 * VariantBinaryEncoding
