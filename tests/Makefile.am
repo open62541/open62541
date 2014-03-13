@@ -1,14 +1,15 @@
-TESTS = check_main
-check_PROGRAMS = check_main
-check_main_SOURCES = 	check_main.c\
-						check_stack.c
+INCLUDE = @CHECK_CFLAGS@ -I$(top_builddir)/src -I$(top_builddir)/include
+LIBS = $(top_builddir)/lib/libopen62541.a @CHECK_LIBS@
 
-check_main_CFLAGS = @CHECK_CFLAGS@ -I$(top_builddir)/src -I$(top_builddir)/include
-check_main_LDADD = $(top_builddir)/lib/libopen62541.a @CHECK_LIBS@
+#add new tests to this line
+TESTS = check_stack check_list
+
+check_PROGRAMS = $(TESTS)
+AM_LDADD = $(LIBS)
 
 #optimization levels depending on debug
 if DEBUG
-        AM_CFLAGS = -O0
+        AM_CFLAGS = -O0 $(INCLUDE)
 else
-        AM_CFLAGS = -O2
+        AM_CFLAGS = -O2 $(INCLUDE)
 endif

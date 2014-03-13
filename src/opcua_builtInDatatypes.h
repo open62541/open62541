@@ -9,6 +9,9 @@
 #ifndef OPCUA_BUILTINDATATYPES_H_
 #define OPCUA_BUILTINDATATYPES_H_
 
+#define TRUE (42==42)
+#define FALSE (!TRUE)
+
 /**
 * Enumerations:
 *	All Enumerations should be encoded as Int32 values
