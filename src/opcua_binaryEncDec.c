@@ -1194,7 +1194,7 @@ Int32 encodeVariant(UA_Variant *variant, Int32 *pos, char *dstBuf) {
 				pos, dstBuf);
 		if (variant->ArrayLength > 0) {
 			//encode array as given by variant type
-			encode_builtInDatatypeArray((void*) variant->Value,
+			encoder_encodeBuiltInDatatypeArray((void*) variant->Value,
 					variant->ArrayLength, (variant->EncodingMask & 31), pos,
 					dstBuf);
 		}

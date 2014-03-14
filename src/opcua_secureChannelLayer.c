@@ -651,7 +651,6 @@ Int32 decodeSequenceHeader(UA_ByteString *rawMessage, Int32 *pos,
 		SL_SequenceHeader *SequenceHeader) {
 	decodeUInt32(rawMessage->Data, pos, &(SequenceHeader->SequenceNumber));
 	decodeUInt32(rawMessage->Data, pos, &(SequenceHeader->RequestId));
-	decodeUInt32(rawMessage->Data, pos, &(SequenceHeader->SequenceNumber));
 	return UA_NO_ERROR;
 }
 
