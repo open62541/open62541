@@ -19,7 +19,7 @@
 
 // IEC 62541-6 §5.2.2.5  A DateTime value shall be encoded as a 64-bit signed integer
 // which represents the number of 100 nanosecond intervals since January 1, 1601 (UTC).
-UA_DateTime opcua_getTime() {
+UA_DateTime opcua_time_now() {
 	UA_DateTime dateTime;
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
