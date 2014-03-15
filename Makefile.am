@@ -6,9 +6,10 @@ AM_CFLAGS = -O2
 endif
 
 if HAVE_CHECK
-    SUBS=src . tests .
+    SUBS=src tool . tests .
+
 else 
-    SUBS=src .
+    SUBS=src tool .
 endif
 
 SUBDIRS = $(SUBS) examples/src	

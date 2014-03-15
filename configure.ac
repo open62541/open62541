@@ -46,6 +46,6 @@ AM_COND_IF([DEBUG],
 AC_LIBTOOL_WIN32_DLL
 AC_PROG_LIBTOOL
 AC_CONFIG_MACRO_DIR([m4])
-AC_CONFIG_FILES(Makefile src/Makefile tests/Makefile examples/src/Makefile)
+AC_CONFIG_FILES(Makefile src/Makefile tool/Makefile tests/Makefile examples/src/Makefile)
 AC_OUTPUT
 
