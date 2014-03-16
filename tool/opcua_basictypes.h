@@ -10,19 +10,27 @@
 
 #include <stdint.h>
 
+typedef _Bool Boolean;
 typedef uint8_t Byte;
-typedef int8_t SByte;
+typedef int8_t 	SByte;
 typedef int16_t Int16;
 typedef int32_t Int32;
 typedef int64_t Int64;
 typedef uint16_t UInt16;
 typedef uint32_t UInt32;
 typedef uint64_t UInt64;
-
+typedef float Float;
+typedef double Double;
 
 #define UA_SUCCESS 0
+#define UA_ERROR (0x01)
+#define UA_ERR_INCONSISTENT  (UA_ERROR | (0x01 << 1))
+#define UA_ERR_INVALID_VALUE (UA_ERROR | (0x01 << 2))
+#define UA_ERR_NO_MEMORY     (UA_ERROR | (0x01 << 3))
+
 #define UA_TRUE (42==42)
 #define UA_FALSE (!UA_TRUE)
+#define UA_NULL ((void*)0)
 
 #define UA_TYPE_METHOD_PROTOTYPES(TYPE) \
 Int32 TYPE##_calcSize(TYPE const * ptr);\
@@ -79,10 +87,18 @@ enum UA_StatusCode_enum
 };
 UA_TYPE_METHOD_PROTOTYPES (UA_StatusCode)
 
+typedef struct T_UA_VTable {
+	UA_UInt32 Id;
+	Int32 (*calcSize)(void* ptr);
+	Int32 (*decode)(char const * src, Int32* pos, void* dst);
+	Int32 (*encode)(void const * src, Int32* pos, char* dst);
+} UA_VTable;
+
 /* VariantBinaryEncoding - Part: 6, Chapter: 5.2.2.16, Page: 22 */
 typedef struct T_UA_Variant {
-	Byte encodingMask; // Type of Enum UA_VariantTypeEncodingMaskType
-	UA_Int32 size;
+	UA_VTable* vt;		// internal entry into vTable
+	UA_Byte encodingMask; 	// Type of UA_Variant_EncodingMaskType_enum
+	UA_Int32 arrayLength;	// total number of elements
 	void** data;
 } UA_Variant;
 UA_TYPE_METHOD_PROTOTYPES (UA_Variant)
@@ -149,7 +165,7 @@ UA_TYPE_METHOD_PROTOTYPES (UA_NodeId)
 typedef struct T_UA_XmlElement
 {
 	//TODO Überlegung ob man es direkt als ByteString speichert oder als String
-	UA_ByteString Data;
+	UA_ByteString data;
 } UA_XmlElement;
 UA_TYPE_METHOD_PROTOTYPES (UA_XmlElement)
 
@@ -171,7 +187,6 @@ enum UA_NodeIdEncodingValuesType_enum
 typedef struct T_UA_ExpandedNodeId
 {
 	UA_NodeId nodeId;
-	UA_Int32 encodingByte; //enum BID_NodeIdEncodingValuesType
 	UA_String namespaceUri;
 	UA_UInt32 serverIndex;
 }
@@ -198,6 +213,12 @@ typedef struct T_UA_ExtensionObject {
 	UA_ByteString body;
 } UA_ExtensionObject;
 UA_TYPE_METHOD_PROTOTYPES(UA_ExtensionObject)
+enum UA_ExtensionObject_EncodingMaskType_enum
+{
+	NO_BODY_IS_ENCODED = 	0x00,
+	BODY_IS_BYTE_STRING = 	0x01,
+	BODY_IS_XML_ELEMENT = 	0x02
+};
 
 /* QualifiedNameBinaryEncoding - Part: 6, Chapter: 5.2.2.13, Page: 20 */
 typedef struct T_UA_QualifiedName {
@@ -207,12 +228,7 @@ typedef struct T_UA_QualifiedName {
 } UA_QualifiedName;
 UA_TYPE_METHOD_PROTOTYPES(UA_QualifiedName)
 
-/*
-* DataValueBinaryEncoding
-* Part: 6
-* Chapter: 5.2.2.17
-* Page: 23
-*/
+/* DataValue - Part: 6, Chapter: 5.2.2.17, Page: 23 */
 typedef struct UA_DataValue {
 	UA_Byte encodingMask;
 	UA_Variant value;
@@ -233,7 +249,7 @@ typedef struct T_UA_DiagnosticInfo {
 	UA_Int32 locale;
 	UA_String additionalInfo;
 	UA_StatusCode innerStatusCode;
-	struct T_UA_DiagnosticInfo* InnerDiagnosticInfo;
+	struct T_UA_DiagnosticInfo* innerDiagnosticInfo;
 } UA_DiagnosticInfo;
 UA_TYPE_METHOD_PROTOTYPES(UA_DiagnosticInfo)
 
