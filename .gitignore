@@ -44,3 +44,10 @@ coverage_report
 .cproject
 /INSTALL
 /.settings
+.autotools
+test-driver
+tool/opcua.c
+tool/opcua.h
+tool/opcua_namespace_0.c
+tool/opcua_namespace_0.h
+
