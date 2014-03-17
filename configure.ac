@@ -12,6 +12,7 @@ AC_PROG_MAKE_SET
 if test -z $CFLAGS; then
     CFLAGS='-g'
 fi
+AM_PATH_PYTHON
 AC_PROG_CC
 AC_PROG_LN_S
 AM_PROG_CC_C_O
