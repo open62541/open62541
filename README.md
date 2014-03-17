@@ -48,6 +48,9 @@ $ make
 $ make install
 ```
 
+##### Get Pyhton with lxml module
+* [TBD]
+
 ## Clone open62541
 ```bash
 $ git clone https://github.com/acplt/open62541.git
