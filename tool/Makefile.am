@@ -1,5 +1,6 @@
 bin_PROGRAMS = test_tool
 test_tool_SOURCES = main.c opcua_basictypes.c opcua.c opcua_namespace_0.c opcua.h opcua_namespace_0.h
+#test_tool_CFLAGS = -I$(top_builddir)/src -I$(top_builddir)/include
 
 main.c: opcua.h opcua_namespace_0.h
 

@@ -603,31 +603,6 @@ Int32 UA_ExtensionObject_deleteMembers(UA_ExtensionObject *p) {
 	return retval;
 }
 
-Int32 UA_DataValue_calcSize(UA_DataValue const * dataValue) {
-	Int32 length = 0;
-
-	length += sizeof(UA_Byte); //dataValue->EncodingMask
-
-	if (dataValue->encodingMask & 0x01) {
-		length += UA_Variant_calcSize(&(dataValue->value));
-	}
-	if (dataValue->encodingMask & 0x02) {
-		length += sizeof(UA_UInt32); //dataValue->status
-	}
-	if (dataValue->encodingMask & 0x04) {
-		length += sizeof(UA_Int64); //dataValue->sourceTimestamp
-	}
-	if (dataValue->encodingMask & 0x08) {
-		length += sizeof(UA_Int64); //dataValue->serverTimestamp
-	}
-	if (dataValue->encodingMask & 0x10) {
-		length += sizeof(UA_Int64); //dataValue->sourcePicoseconds
-	}
-	if (dataValue->encodingMask & 0x20) {
-		length += sizeof(UA_Int64); //dataValue->serverPicoseconds
-	}
-	return length;
-}
 // TODO: UA_DataValue_encode
 // TODO: UA_DataValue_decode
 // TODO: UA_DataValue_delete
