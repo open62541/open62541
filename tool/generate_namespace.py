@@ -27,14 +27,7 @@ print('''/* struktur vTable und enumerierung*/
 #ifndef OPCUA_NAMESPACE_0_H_
 #define OPCUA_NAMESPACE_0_H_
 
-#include "opcua.h"
-
-typedef struct _UA_VTable {
-	UA_UInt32 Id;
-	Int32 (*calcSize)(void* ptr);
-	Int32 (*decode)(char const * src, Int32* pos, void* dst);
-	Int32 (*encode)(void const * src, Int32* pos, char* dst);
-} UA_VTable;
+#include "opcua.h"  // definition of UA_VTable and basic UA_Types
 
 Int32 UA_namespace_zero_to_index(Int32 id);
 extern UA_VTable UA_namespace_zero[]; 
