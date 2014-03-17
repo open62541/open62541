@@ -641,7 +641,7 @@ START_TEST(encode_builtInDatatypeArray_test_String)
 			0xFF, 0xFF, 0xFF, 0xFF		// s2.Length
 	};
 
-	encode_builtInDatatypeArray(array, noElements, BYTE_STRING, &pos, buf);
+	encoder_encodeBuiltInDatatypeArray(array, noElements, BYTE_STRING, &pos, buf);
 
 	// check size
 	ck_assert_int_eq(pos, 4 + 4 + 6 + 4);
