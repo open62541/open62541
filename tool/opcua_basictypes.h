@@ -10,6 +10,7 @@
 
 #include <stdint.h>
 
+/* Basic C types */
 typedef _Bool Boolean;
 typedef uint8_t Byte;
 typedef int8_t 	SByte;
@@ -22,15 +23,21 @@ typedef uint64_t UInt64;
 typedef float Float;
 typedef double Double;
 
+/* Function return values */
 #define UA_SUCCESS 0
+#define UA_NO_ERROR UA_SUCCESS
 #define UA_ERROR (0x01)
 #define UA_ERR_INCONSISTENT  (UA_ERROR | (0x01 << 1))
 #define UA_ERR_INVALID_VALUE (UA_ERROR | (0x01 << 2))
 #define UA_ERR_NO_MEMORY     (UA_ERROR | (0x01 << 3))
 
+/* Boolean values and null */
 #define UA_TRUE (42==42)
+#define TRUE UA_TRUE
 #define UA_FALSE (!UA_TRUE)
+#define FALSE UA_FALSE
 #define UA_NULL ((void*)0)
+#define NULL UA_NULL
 
 #define UA_TYPE_METHOD_PROTOTYPES(TYPE) \
 Int32 TYPE##_calcSize(TYPE const * ptr);\
@@ -39,6 +46,7 @@ Int32 TYPE##_decode(char const * src, Int32* pos, TYPE * dst);\
 Int32 TYPE##_delete(TYPE * p);\
 Int32 TYPE##_deleteMembers(TYPE * p); \
 
+/* Prototypes for basic types */
 typedef _Bool UA_Boolean;
 UA_TYPE_METHOD_PROTOTYPES (UA_Boolean)
 

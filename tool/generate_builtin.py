@@ -162,7 +162,7 @@ def createStructured(element):
             if t in enum_types:
                 print('\tretval |= UA_'+t+'_encode(&(src->'+n+'));', end='\n', file=fc)
             elif t.find("**") != -1:
-                print('\tretval |= UA_Int32_encode(&(src->'+n+'_size)); // encode size', end='\n', file=fc)
+                print('\tretval |= UA_Int32_encode(&(src->'+n+'_size),pos,dst); // encode size', end='\n', file=fc)
 		print("\tretval |= UA_Array_encode((void**) (src->"+n+"),src->"+n+"_size, UA_" + t[0:t.find("*")].upper()+",pos,dst);", end='\n', file=fc)
             elif t.find("*") != -1:
                 print('\tretval |= UA_' + t[0:t.find("*")] + "_encode(src->" + n + ',pos,dst);', end='\n', file=fc)
