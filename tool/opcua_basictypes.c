@@ -400,10 +400,10 @@ Int32 UA_NodeId_calcSize(UA_NodeId const *p) {
 			length += sizeof(UA_Byte) + sizeof(UA_UInt16) + UA_String_calcSize(&(p->identifier.string));
 			break;
 		case NIEVT_GUID:
-			length += sizeof(UA_Byte) + sizeof(UA_UInt16) + UA_Guid_calcSize(&(nodeId->identifier.guid));
+			length += sizeof(UA_Byte) + sizeof(UA_UInt16) + UA_Guid_calcSize(&(p->identifier.guid));
 			break;
 		case NIEVT_BYTESTRING:
-			length += sizeof(UA_Byte) + sizeof(UA_UInt16) + UA_ByteString_calcSize(&(nodeId->identifier.byteString));
+			length += sizeof(UA_Byte) + sizeof(UA_UInt16) + UA_ByteString_calcSize(&(p->identifier.byteString));
 			break;
 		default:
 			break;
