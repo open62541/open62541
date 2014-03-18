@@ -1,6 +1,7 @@
 from __future__ import print_function
 import sys
 from collections import OrderedDict
+import time
 import re
 import csv
 from itertools import tee
@@ -23,7 +24,11 @@ rows1, rows2, rows3 = tee(csv.reader(f), 3)
 fh = open(sys.argv[2] + ".h",'w');
 fc = open(sys.argv[2] + ".c",'w');
 
-print('''/* struktur vTable und enumerierung*/
+print('''/**********************************************************
+ * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
+ * on node XXX by user XXX at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
+ * do not modify
+ **********************************************************/ 
 #ifndef OPCUA_NAMESPACE_0_H_
 #define OPCUA_NAMESPACE_0_H_
 
@@ -64,7 +69,7 @@ for row in rows2:
 
     print("\t{" + row[1] + ", &" + name + "_calcSize, &" + name + "_decode, &" + name + "_encode},",end='\n',file=fc) 
 
-print("\t{0,NULL,NULL,NULL}\n};",file=fc)
+print("\t{0,UA_NULL,UA_NULL,UA_NULL}\n};",file=fc)
 print('#endif /* OPCUA_NAMESPACE_0_H_ */', end='\n', file=fh)
 fh.close()
 fc.close()

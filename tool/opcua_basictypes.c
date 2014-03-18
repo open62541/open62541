@@ -239,10 +239,16 @@ UA_TYPE_METHOD_DELETE_MEMFREE(UA_Double)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Double)
 
 Int32 UA_String_calcSize(UA_String const * string) {
-	if (string->length > 0) {
-		return string->length + sizeof(string->length);
+	if (string == UA_NULL) {
+		// internal size for UA_memalloc
+		return sizeof(UA_String);
 	} else {
-		return sizeof(UA_Int32);
+		// binary encoding size
+		if (string->length > 0) {
+			return sizeof(UA_Int32) + string->length * sizeof(UA_Byte);
+		} else {
+			return sizeof(UA_Int32);
+		}
 	}
 }
 Int32 UA_String_encode(UA_String const * src, Int32* pos, char *dst) {
@@ -291,15 +297,18 @@ UA_TYPE_METHOD_DECODE_AS(UA_ByteString, UA_String)
 UA_TYPE_METHOD_DELETE_AS(UA_ByteString, UA_String)
 UA_TYPE_METHOD_DELETEMEMBERS_AS(UA_ByteString, UA_String)
 
-Int32 UA_Guid_calcSize(UA_Guid const * guid) {
-	return 	0
-			+ sizeof(guid->data1)
-			+ sizeof(guid->data2)
-			+ sizeof(guid->data3)
-			+ UA_ByteString_calcSize(&(guid->data4))
-	;
+Int32 UA_Guid_calcSize(UA_Guid const * p) {
+	if (p == UA_NULL) {
+		return sizeof(UA_Guid);
+	} else {
+		return 	0
+				+ sizeof(p->data1)
+				+ sizeof(p->data2)
+				+ sizeof(p->data3)
+				+ UA_ByteString_calcSize(&(p->data4))
+		;
+	}
 }
-// TODO: UA_Guid_encode
 Int32 UA_Guid_encode(UA_Guid const *src, Int32* pos, char *dst) {
 	Int32 retval = UA_SUCCESS;
 	retval |= UA_UInt32_encode(&(src->data1), pos, dst);
@@ -308,7 +317,6 @@ Int32 UA_Guid_encode(UA_Guid const *src, Int32* pos, char *dst) {
 	retval |= UA_ByteString_encode(&(src->data4), pos, dst);
 	return UA_SUCCESS;
 }
-
 Int32 UA_Guid_decode(char const * src, Int32* pos, UA_Guid *dst) {
 	Int32 retval = UA_SUCCESS;
 	retval |= UA_Int32_decode(src,pos,&(dst->data1));
@@ -320,15 +328,20 @@ Int32 UA_Guid_decode(char const * src, Int32* pos, UA_Guid *dst) {
 UA_TYPE_METHOD_DELETE_STRUCT(UA_Guid)
 Int32 UA_Guid_deleteMembers(UA_Guid* p) { return UA_ByteString_delete(&(p->data4)); };
 
-Int32 UA_LocalizedText_calcSize(UA_LocalizedText const * localizedText) {
+Int32 UA_LocalizedText_calcSize(UA_LocalizedText const * p) {
 	Int32 length = 0;
-
-	length += localizedText->encodingMask;
-	if (localizedText->encodingMask & 0x01) {
-		length += UA_String_calcSize(&(localizedText->locale));
-	}
-	if (localizedText->encodingMask & 0x02) {
-		length += UA_String_calcSize(&(localizedText->text));
+	if (p==UA_NULL) {
+		// size for UA_memalloc
+		length = sizeof(UA_LocalizedText);
+	} else {
+		// size for binary encoding
+		length += p->encodingMask;
+		if (p->encodingMask & 0x01) {
+			length += UA_String_calcSize(&(p->locale));
+		}
+		if (p->encodingMask & 0x02) {
+			length += UA_String_calcSize(&(p->text));
+		}
 	}
 	return length;
 }
@@ -368,35 +381,38 @@ Int32 UA_LocalizedText_deleteMembers(UA_LocalizedText* p) {
 };
 
 /* Serialization of UA_NodeID is specified in 62541-6, §5.2.2.9 */
-Int32 UA_NodeId_calcSize(UA_NodeId const *nodeId) {
+Int32 UA_NodeId_calcSize(UA_NodeId const *p) {
 	Int32 length = 0;
-	switch (nodeId->encodingByte) {
-	case NIEVT_TWO_BYTE:
-		length += 2 * sizeof(UA_Byte);
-		break;
-	case NIEVT_FOUR_BYTE:
-		length += 4 * sizeof(UA_Byte);
-		break;
-	case NIEVT_NUMERIC:
-		length += sizeof(UA_Byte) + sizeof(UA_UInt16) + sizeof(UInt32);
-		break;
-	case NIEVT_STRING:
-		length += sizeof(UA_Byte) + sizeof(UA_UInt16) + UA_String_calcSize(&(nodeId->identifier.string));
-		break;
-	case NIEVT_GUID:
-		length += sizeof(UA_Byte) + sizeof(UA_UInt16) + UA_Guid_calcSize(&(nodeId->identifier.guid));
-		break;
-	case NIEVT_BYTESTRING:
-		length += sizeof(UA_Byte) + sizeof(UA_UInt16) + UA_ByteString_calcSize(&(nodeId->identifier.byteString));
-		break;
-	default:
-		break;
+	if (p == UA_NULL) {
+		length = sizeof(UA_NodeId);
+	} else {
+		switch (p->encodingByte) {
+		case NIEVT_TWO_BYTE:
+			length += 2 * sizeof(UA_Byte);
+			break;
+		case NIEVT_FOUR_BYTE:
+			length += 4 * sizeof(UA_Byte);
+			break;
+		case NIEVT_NUMERIC:
+			length += sizeof(UA_Byte) + sizeof(UA_UInt16) + sizeof(UInt32);
+			break;
+		case NIEVT_STRING:
+			length += sizeof(UA_Byte) + sizeof(UA_UInt16) + UA_String_calcSize(&(p->identifier.string));
+			break;
+		case NIEVT_GUID:
+			length += sizeof(UA_Byte) + sizeof(UA_UInt16) + UA_Guid_calcSize(&(nodeId->identifier.guid));
+			break;
+		case NIEVT_BYTESTRING:
+			length += sizeof(UA_Byte) + sizeof(UA_UInt16) + UA_ByteString_calcSize(&(nodeId->identifier.byteString));
+			break;
+		default:
+			break;
+		}
 	}
 	return length;
 }
-
 Int32 UA_NodeId_encode(UA_NodeId const * src, Int32* pos, char *dst) {
-	// temporary variables
+	// temporary variables for endian-save code
 	UA_Byte srcByte;
 	UA_UInt16 srcUInt16;
 
@@ -492,14 +508,18 @@ Int32 UA_NodeId_deleteMembers(UA_NodeId* p) {
 	return retval;
 }
 
-Int32 UA_ExpandedNodeId_calcSize(UA_ExpandedNodeId const * nodeId) {
-	Int32 length = UA_NodeId_calcSize(&(nodeId->nodeId));
-
-	if (nodeId->nodeId.encodingByte & NIEVT_NAMESPACE_URI_FLAG) {
-		length += UA_String_calcSize(&(nodeId->namespaceUri)); //nodeId->namespaceUri
-	}
-	if (nodeId->nodeId.encodingByte & NIEVT_SERVERINDEX_FLAG) {
-		length += sizeof(UInt32); //nodeId->serverIndex
+Int32 UA_ExpandedNodeId_calcSize(UA_ExpandedNodeId const * p) {
+	Int32 length = 0;
+	if (p == UA_NULL) {
+		length = sizeof(UA_ExpandedNodeId);
+	} else {
+		length = UA_NodeId_calcSize(&(p->nodeId));
+		if (p->nodeId.encodingByte & NIEVT_NAMESPACE_URI_FLAG) {
+			length += UA_String_calcSize(&(p->namespaceUri)); //p->namespaceUri
+		}
+		if (p->nodeId.encodingByte & NIEVT_SERVERINDEX_FLAG) {
+			length += sizeof(UA_UInt32); //p->serverIndex
+		}
 	}
 	return length;
 }
@@ -538,21 +558,24 @@ Int32 UA_ExpandedNodeId_deleteMembers(UA_ExpandedNodeId* p) {
 	return retval;
 }
 
-Int32 UA_ExtensionObject_calcSize(UA_ExtensionObject const * extensionObject) {
+Int32 UA_ExtensionObject_calcSize(UA_ExtensionObject const * p) {
 	Int32 length = 0;
-
-	length += UA_NodeId_calcSize(&(extensionObject->typeId));
-	length += sizeof(Byte); //extensionObject->Encoding
-	switch (extensionObject->encoding) {
-	case 0x00:
-		length += sizeof(Int32); //extensionObject->Body.Length
-		break;
-	case 0x01:
-		length += UA_ByteString_calcSize(&(extensionObject->body));
-		break;
-	case 0x02:
-		length += UA_ByteString_calcSize(&(extensionObject->body));
-		break;
+	if (p == UA_NULL) {
+		length = sizeof(UA_ExtensionObject);
+	} else {
+		length += UA_NodeId_calcSize(&(p->typeId));
+		length += sizeof(Byte); //p->encoding
+		switch (p->encoding) {
+		case 0x00:
+			length += sizeof(UA_Int32); //p->body.length
+			break;
+		case 0x01:
+			length += UA_ByteString_calcSize(&(p->body));
+			break;
+		case 0x02:
+			length += UA_ByteString_calcSize(&(p->body));
+			break;
+		}
 	}
 	return length;
 }
