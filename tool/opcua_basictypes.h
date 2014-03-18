@@ -37,7 +37,7 @@ typedef double Double;
 #define UA_FALSE (!UA_TRUE)
 #define FALSE UA_FALSE
 #define UA_NULL ((void*)0)
-#define NULL UA_NULL
+// #define NULL UA_NULL
 
 #define UA_TYPE_METHOD_PROTOTYPES(TYPE) \
 Int32 TYPE##_calcSize(TYPE const * ptr);\

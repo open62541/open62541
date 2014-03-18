@@ -8,12 +8,12 @@ if len(sys.argv) != 3:
     print("Usage: python generate_builtin.py <path/to/Opc.Ua.Types.bsd> <outfile w/o extension>", file=sys.stdout)
     exit(0)
 
-# types that are coded manually
+# types that are coded manually 
 exclude_types = set(["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
                     "Int64", "UInt64", "Float", "Double", "String", "DateTime", "Guid",
                     "ByteString", "XmlElement", "NodeId", "ExpandedNodeId", "StatusCode", 
                     "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
-                     "Variant", "DiagnosticInfo", "RequestHeader", "ResponseHeader", "NodeIdType"])
+                     "Variant", "DiagnosticInfo", "NodeIdType"])
 
 elementary_size = dict()
 elementary_size["Boolean"] = 1;

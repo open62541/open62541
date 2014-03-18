@@ -67,7 +67,7 @@ for row in rows2:
     name = "UA_" + row[0]
     print('#define '+name.upper()+'_NS0 (UA_namespace_zero['+name.upper()+'].Id)', file=fh)
 
-    print("\t{" + row[1] + ", &" + name + "_calcSize, &" + name + "_decode, &" + name + "_encode},",end='\n',file=fc) 
+    print("\t{" + row[1] + ", (Int32(*)(void const*)) " + name + "_calcSize, (Int32(*)(char const*,Int32*,void*)) " + name + "_decode, (Int32(*)(void const*,Int32*,char*))" + name + "_encode},",end='\n',file=fc) 
 
 print("\t{0,UA_NULL,UA_NULL,UA_NULL}\n};",file=fc)
 print('#endif /* OPCUA_NAMESPACE_0_H_ */', end='\n', file=fh)
