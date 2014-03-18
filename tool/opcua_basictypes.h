@@ -97,7 +97,7 @@ UA_TYPE_METHOD_PROTOTYPES (UA_StatusCode)
 
 typedef struct T_UA_VTable {
 	UA_UInt32 Id;
-	Int32 (*calcSize)(void* ptr);
+	Int32 (*calcSize)(void const * ptr);
 	Int32 (*decode)(char const * src, Int32* pos, void* dst);
 	Int32 (*encode)(void const * src, Int32* pos, char* dst);
 } UA_VTable;

@@ -614,7 +614,6 @@ Int32 UA_ExtensionObject_encode(UA_ExtensionObject const *src, Int32* pos, char 
 	}
 	return retval;
 }
-
 Int32 UA_ExtensionObject_decode(char const * src, Int32 *pos,
 		UA_ExtensionObject *dst) {
 	Int32 retval = UA_SUCCESS;
@@ -632,14 +631,7 @@ Int32 UA_ExtensionObject_decode(char const * src, Int32 *pos,
 	return retval;
 }
 
-Int32 UA_ExtensionObject_delete(UA_ExtensionObject *p) {
-	Int32 retval = UA_SUCCESS;
-	retval |= UA_ExtensionObject_deleteMembers(p);
-	retval |= UA_memfree(p);
-	return retval;
-}
-
-// TODO: UA_ExtensionObject_delete
+UA_TYPE_METHOD_DELETE_STRUCT(UA_ExtensionObject)
 Int32 UA_ExtensionObject_deleteMembers(UA_ExtensionObject *p) {
 	Int32 retval = UA_SUCCESS;
 	retval |= UA_NodeId_deleteMembers(&(p->typeId));
@@ -652,128 +644,69 @@ Int32 UA_ExtensionObject_deleteMembers(UA_ExtensionObject *p) {
 // TODO: UA_DataValue_delete
 // TODO: UA_DataValue_deleteMembers
 
-// TODO: UA_DiagnosticInfo_encode [Sten: done]
-// TODO: UA_DiagnosticInfo_decode [Sten: done]
-// TODO: UA_DiagnosticInfo_delete
-// TODO: UA_DiagnosticInfo_deleteMembers
-/**
- * DiagnosticInfo
- * Part: 4
- * Chapter: 7.9
- * Page: 116
- */
+/** DiagnosticInfo - Part: 4, Chapter: 7.9, Page: 116 */
 Int32 UA_DiagnosticInfo_decode(char const * src, Int32 *pos, UA_DiagnosticInfo *dst) {
 	Int32 retval = UA_SUCCESS;
+	int i;
 
-	//FIXME SURE?
-	//pos seems not to be incremented
-	Byte encodingByte = (src[*pos]);
-	/*
-	 *  retval |= UA_Byte_decode(src, pos, encodingByte);
-	 */
-	Byte mask;
-	for (mask = 1; mask <= 0x40; mask << 1) {
+	retval |= UA_Byte_decode(src, pos, &(dst->encodingMask));
 
-		switch (mask & encodingByte) {
+	for (i = 0; i < 7; i++) {
+		switch ( (0x01 << i) & dst->encodingMask)  {
 		case DIEMT_SYMBOLIC_ID:
-			/* decoder_decodeBuiltInDatatype(buf, INT32, pos,
-					&(dst->SymbolicId)); */
 			 retval |= UA_Int32_decode(src, pos, &(dst->symbolicId));
 			break;
 		case DIEMT_NAMESPACE:
-			/* decoder_decodeBuiltInDatatype(buf, INT32, pos,
-					&(dst->NamespaceUri)); */
 			retval |= UA_Int32_decode(src, pos, &(dst->namespaceUri));
 			break;
 		case DIEMT_LOCALIZED_TEXT:
-			/* decoder_decodeBuiltInDatatype(buf, INT32, pos,
-					&(dst->LocalizedText)); */
 			retval |= UA_Int32_decode(src, pos, &(dst->localizedText));
 			break;
 		case DIEMT_LOCALE:
-			/* decoder_decodeBuiltInDatatype(src, INT32, pos,
-					&(dst->Locale)); */
 			retval |= UA_Int32_decode(src, pos, &(dst->locale));
 			break;
 		case DIEMT_ADDITIONAL_INFO:
-			/* decoder_decodeBuiltInDatatype(buf, STRING, pos,
-					&(dst->AdditionalInfo)); */
 			retval |= UA_String_decode(src, pos, &(dst->additionalInfo));
 			break;
 		case DIEMT_INNER_STATUS_CODE:
-			/* decoder_decodeBuiltInDatatype(buf, STATUS_CODE, pos,
-					&(dstDiagnosticInfo->InnerStatusCode)); */
 			retval |= UA_StatusCode_decode(src, pos, &(dst->innerStatusCode));
 			break;
 		case DIEMT_INNER_DIAGNOSTIC_INFO:
-			//TODO memory management should be checked (getting memory within a function)
-			//TODO: Sten: not sure
-			/*
-			dstDiagnosticInfo->innerDiagnosticInfo =
-					(UA_DiagnosticInfo*) opcua_malloc(
-							sizeof(UA_DiagnosticInfo));
-			decoder_decodeBuiltInDatatype(src, DIAGNOSTIC_INFO, pos,
-					&(dstDiagnosticInfo->innerDiagnosticInfo));
-			*/
+			// innerDiagnosticInfo is a pointer to struct, therefore allocate
+			retval |= UA_memalloc(&(dst->innerDiagnosticInfo),UA_DiagnosticInfo_calcSize(UA_NULL));
 			retval |= UA_DiagnosticInfo_decode(src, pos, dst->innerDiagnosticInfo);
 			break;
 		}
 	}
-	//FIXME: sure?
-	*pos += 1;
 	return retval;
 }
-
 Int32 UA_DiagnosticInfo_encode(UA_DiagnosticInfo const *src, Int32 *pos, char *dst) {
 	Int32 retval = UA_SUCCESS;
 	Byte mask;
 	int i;
 
 	UA_ByteString_encode(&(src->encodingMask), pos, dst);
-	/*encoder_encodeBuiltInDatatype((void*) (&(diagnosticInfo->encodingMask)),
-			BYTE, pos, dst);*/
 	for (i = 0; i < 7; i++) {
-
 		switch ( (0x01 << i) & src->encodingMask)  {
 		case DIEMT_SYMBOLIC_ID:
-			//	puts("diagnosticInfo symbolic id");
 			retval |= UA_Int32_encode(&(src->symbolicId), pos, dst);
-			/*encoder_encodeBuiltInDatatype((void*) &(diagnosticInfo->symbolicId),
-					INT32, pos, dst);*/
 			break;
 		case DIEMT_NAMESPACE:
-			/*encoder_encodeBuiltInDatatype(
-					(void*) &(diagnosticInfo->namespaceUri), INT32, pos,
-					dst);*/
 			retval |=  UA_Int32_encode( &(src->namespaceUri), pos, dst);
 			break;
 		case DIEMT_LOCALIZED_TEXT:
-			/*encoder_encodeBuiltInDatatype(
-					(void*) &(diagnosticInfo->localizedText), INT32, pos,
-					dst);*/
 			retval |= UA_Int32_encode(&(src->localizedText), pos, dst);
 			break;
 		case DIEMT_LOCALE:
-			/*encoder_encodeBuiltInDatatype((void*) &(diagnosticInfo->locale),
-					INT32, pos, dst);*/
 			retval |= UA_Int32_encode(&(src->locale), pos, dst);
 			break;
 		case DIEMT_ADDITIONAL_INFO:
-			/*encoder_encodeBuiltInDatatype(
-					(void*) &(diagnosticInfo->additionalInfo), STRING, pos,
-					dst);*/
 			retval |= UA_String_encode(&(src->additionalInfo), pos, dst);
 			break;
 		case DIEMT_INNER_STATUS_CODE:
-			/*encoder_encodeBuiltInDatatype(
-					(void*) &(diagnosticInfo->innerStatusCode), STATUS_CODE,
-					pos, dst);*/
 			retval |= UA_StatusCode_encode(&(src->innerStatusCode), pos, dst);
 			break;
 		case DIEMT_INNER_DIAGNOSTIC_INFO:
-			/*encoder_encodeBuiltInDatatype(
-					(void*) &(diagnosticInfo->innerDiagnosticInfo),
-					DIAGNOSTIC_INFO, pos, dst);*/
 			retval |= UA_DiagnosticInfo_encode(src->innerDiagnosticInfo, pos, dst);
 			break;
 		}
@@ -782,39 +715,52 @@ Int32 UA_DiagnosticInfo_encode(UA_DiagnosticInfo const *src, Int32 *pos, char *d
 }
 Int32 UA_DiagnosticInfo_calcSize(UA_DiagnosticInfo const * ptr) {
 	Int32 length = 0;
-	Byte mask;
+	if (ptr == UA_NULL) {
+		length = sizeof(UA_DiagnosticInfo);
+	} else {
+		Byte mask;
+		length += sizeof(Byte);	// EncodingMask
 
-	length += sizeof(Byte);	// EncodingMask
+		for (mask = 0x01; mask <= 0x40; mask *= 2) {
+			switch (mask & (ptr->encodingMask)) {
 
-	for (mask = 0x01; mask <= 0x40; mask *= 2) {
-		switch (mask & (ptr->encodingMask)) {
-
-		case DIEMT_SYMBOLIC_ID:
-			//	puts("diagnosticInfo symbolic id");
-			length += sizeof(Int32);
-			break;
-		case DIEMT_NAMESPACE:
-			length += sizeof(Int32);
-			break;
-		case DIEMT_LOCALIZED_TEXT:
-			length += sizeof(Int32);
-			break;
-		case DIEMT_LOCALE:
-			length += sizeof(Int32);
-			break;
-		case DIEMT_ADDITIONAL_INFO:
-			length += UA_String_calcSize(&(ptr->additionalInfo));
-			break;
-		case DIEMT_INNER_STATUS_CODE:
-			length += sizeof(UA_StatusCode);
-			break;
-		case DIEMT_INNER_DIAGNOSTIC_INFO:
-			length += UA_DiagnosticInfo_calcSize(ptr->innerDiagnosticInfo);
-			break;
+			case DIEMT_SYMBOLIC_ID:
+				//	puts("diagnosticInfo symbolic id");
+				length += sizeof(UA_Int32);
+				break;
+			case DIEMT_NAMESPACE:
+				length += sizeof(UA_Int32);
+				break;
+			case DIEMT_LOCALIZED_TEXT:
+				length += sizeof(UA_Int32);
+				break;
+			case DIEMT_LOCALE:
+				length += sizeof(UA_Int32);
+				break;
+			case DIEMT_ADDITIONAL_INFO:
+				length += UA_String_calcSize(&(ptr->additionalInfo));
+				break;
+			case DIEMT_INNER_STATUS_CODE:
+				length += sizeof(UA_StatusCode);
+				break;
+			case DIEMT_INNER_DIAGNOSTIC_INFO:
+				length += UA_DiagnosticInfo_calcSize(ptr->innerDiagnosticInfo);
+				break;
+			}
 		}
 	}
 	return length;
 }
+UA_TYPE_METHOD_DELETE_STRUCT(UA_DiagnosticInfo)
+Int32 UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
+	Int32 retval = UA_SUCCESS;
+	if (p->encodingMask & DIEMT_INNER_DIAGNOSTIC_INFO) {
+		retval |= UA_DiagnosticInfo_deleteMembers(p->innerDiagnosticInfo);
+		retval |= UA_memfree(p->innerDiagnosticInfo);
+	}
+	return retval;
+}
+
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_DateTime)
 UA_TYPE_METHOD_ENCODE_AS(UA_DateTime,UA_Int64)
