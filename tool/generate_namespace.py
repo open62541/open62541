@@ -58,14 +58,14 @@ print('''/**********************************************************
 
 #include "opcua.h"  // definition of UA_VTable and basic UA_Types
 
-Int32 UA_namespace_zero_to_index(Int32 id);
-extern UA_VTable UA_namespace_zero[]; 
+Int32 UA_toIndex(Int32 id);
+extern UA_VTable UA_[]; 
 
 enum UA_VTableIndex_enum {''', end='\n', file=fh)
 
 print('''/* Mapping and vTable of Namespace Zero */
 #include "opcua.h"
-Int32 UA_namespace_zero_to_index(Int32 id) {
+Int32 UA_toIndex(Int32 id) {
     Int32 retval = -1;
     switch (id) { ''', end='\n',file=fc)
 
@@ -85,7 +85,7 @@ for row in rows1:
 print('\tUA_NS0_VTABLE_MAX = 0\n};\n', file=fh)
 print('''\t}\n\treturn retval;
 }
-UA_VTable UA_namespace_zero[] = {''', file=fc)
+UA_VTable UA_[] = {''', file=fc)
 
 for row in rows2:
     if skipKind(row[2]):

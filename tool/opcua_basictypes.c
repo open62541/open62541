@@ -11,7 +11,7 @@
 
 
 Int32 UA_calcSize(void* const data, UInt32 type) {
-	return (UA_namespace_zero[type].calcSize)(data);
+	return (UA_[type].calcSize)(data);
 }
 
 Int32 UA_Array_calcSize(Int32 nElements, Int32 type, void const ** data) {
@@ -851,7 +851,7 @@ Int32 UA_Variant_decode(char const * src, Int32 *pos, UA_Variant *dst) {
 	if (ns0Id < UA_BOOLEAN && ns0Id > UA_DOUBLECOMPLEXNUMBERTYPE) {
 		return UA_ERR_INVALID_VALUE;
 	} else {
-		dst->vt = &UA_namespace_zero[UA_namespace_zero_to_index(ns0Id)];
+		dst->vt = &UA_[UA_toIndex(ns0Id)];
 	}
 
 	// get size of array
