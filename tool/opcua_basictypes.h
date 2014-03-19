@@ -39,9 +39,9 @@ typedef double Double;
 #define FALSE UA_FALSE
 
 /* heap memory functions */
-Int32 UA_memfree(void * ptr);
+Int32 UA_free(void * ptr);
 Int32 UA_memcpy(void *dst, void const *src, int size);
-Int32 UA_memalloc(void ** dst, int size);
+Int32 UA_alloc(void ** dst, int size);
 
 #define UA_NULL ((void*)0)
 // #define NULL UA_NULL
@@ -59,8 +59,8 @@ Int32 TYPE##_calcSize(TYPE const * p) { return sizeof(TYPE); }
 #define UA_TYPE_METHOD_CALCSIZE_AS(TYPE, TYPE_AS) \
 Int32 TYPE##_calcSize(TYPE const * p) { return TYPE_AS##_calcSize((TYPE_AS*) p); }
 
-#define UA_TYPE_METHOD_DELETE_MEMFREE(TYPE) \
-Int32 TYPE##_delete(TYPE * p) { return UA_memfree(p); };
+#define UA_TYPE_METHOD_DELETE_FREE(TYPE) \
+Int32 TYPE##_delete(TYPE * p) { return UA_free(p); };
 
 #define UA_TYPE_METHOD_DELETE_AS(TYPE, TYPE_AS) \
 Int32 TYPE##_delete(TYPE * p) { return TYPE_AS##_delete((TYPE_AS*) p);};
@@ -69,7 +69,7 @@ Int32 TYPE##_delete(TYPE * p) { return TYPE_AS##_delete((TYPE_AS*) p);};
 Int32 TYPE##_delete(TYPE *p) { \
 	Int32 retval = UA_SUCCESS; \
 	retval |= TYPE##_deleteMembers(p); \
-	retval |= UA_memfree(p); \
+	retval |= UA_free(p); \
 	return retval; \
 }
 

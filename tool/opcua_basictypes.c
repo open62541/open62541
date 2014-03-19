@@ -32,12 +32,12 @@ Int32 UA_Array_encode(void const **src, Int32 noElements, Int32 type, Int32* pos
 	return UA_ERR_NOT_IMPLEMENTED;
 }
 
-Int32 UA_memfree(void * ptr){
+Int32 UA_free(void * ptr){
 	free(ptr);
 	return UA_SUCCESS;
 }
 
-Int32 UA_memalloc(void ** ptr, int size){
+Int32 UA_alloc(void ** ptr, int size){
 	*ptr = malloc(size);
 	if(*ptr == UA_NULL) return UA_ERR_NO_MEMORY;
 	return UA_SUCCESS;
@@ -59,7 +59,7 @@ Int32 UA_Boolean_decode(char const * src, Int32* pos, UA_Boolean * dst) {
 	*dst = ((UA_Boolean) (src[(*pos)++]) > 0) ? UA_TRUE : UA_FALSE;
 	return UA_SUCCESS;
 }
-UA_TYPE_METHOD_DELETE_MEMFREE(UA_Boolean)
+UA_TYPE_METHOD_DELETE_FREE(UA_Boolean)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Boolean)
 
 
@@ -73,7 +73,7 @@ Int32 UA_Byte_decode(char const * src, Int32* pos, UA_Byte * dst) {
 	memcpy(&(dst[(*pos)++]), src, sizeof(UA_Byte));
 	return UA_SUCCESS;
 }
-UA_TYPE_METHOD_DELETE_MEMFREE(UA_Byte)
+UA_TYPE_METHOD_DELETE_FREE(UA_Byte)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Byte)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_SByte)
@@ -85,7 +85,7 @@ Int32 UA_SByte_decode(char const * src, Int32* pos, UA_SByte * dst) {
 	*dst = src[(*pos)++];
 	return 1;
 }
-UA_TYPE_METHOD_DELETE_MEMFREE(UA_SByte)
+UA_TYPE_METHOD_DELETE_FREE(UA_SByte)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_SByte)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_UInt16)
@@ -100,7 +100,7 @@ Int32 UA_UInt16_decode(char const * src, Int32* pos, UA_UInt16* dst) {
 	*dst = t1 + t2;
 	return UA_SUCCESS;
 }
-UA_TYPE_METHOD_DELETE_MEMFREE(UA_UInt16)
+UA_TYPE_METHOD_DELETE_FREE(UA_UInt16)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_UInt16)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Int16)
@@ -115,7 +115,7 @@ Int32 UA_Int16_decode(char const * src, Int32* pos, UA_Int16 *dst) {
 	*dst = t1 + t2;
 	return UA_SUCCESS;
 }
-UA_TYPE_METHOD_DELETE_MEMFREE(UA_Int16)
+UA_TYPE_METHOD_DELETE_FREE(UA_Int16)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Int16)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Int32)
@@ -132,7 +132,7 @@ Int32 UA_Int32_decode(char const * src, Int32* pos, UA_Int32* dst) {
 	*dst = t1 + t2 + t3 + t4;
 	return UA_SUCCESS;
 }
-UA_TYPE_METHOD_DELETE_MEMFREE(UA_Int32)
+UA_TYPE_METHOD_DELETE_FREE(UA_Int32)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Int32)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_UInt32)
@@ -149,7 +149,7 @@ Int32 UA_UInt32_decode(char const * src, Int32* pos, UA_UInt32 *dst) {
 	*dst = t1 + t2 + t3 + t4;
 	return UA_SUCCESS;
 }
-UA_TYPE_METHOD_DELETE_MEMFREE(UA_UInt32)
+UA_TYPE_METHOD_DELETE_FREE(UA_UInt32)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_UInt32)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Int64)
@@ -170,7 +170,7 @@ Int32 UA_Int64_decode(char const * src, Int32* pos, UA_Int64* dst) {
 	*dst = t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8;
 	return UA_SUCCESS;
 }
-UA_TYPE_METHOD_DELETE_MEMFREE(UA_Int64)
+UA_TYPE_METHOD_DELETE_FREE(UA_Int64)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Int64)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_UInt64)
@@ -191,7 +191,7 @@ Int32 UA_UInt64_decode(char const * src, Int32* pos, UA_UInt64* dst) {
 	*dst = t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8;
 	return UA_SUCCESS;
 }
-UA_TYPE_METHOD_DELETE_MEMFREE(UA_UInt64)
+UA_TYPE_METHOD_DELETE_FREE(UA_UInt64)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_UInt64)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Float)
@@ -207,7 +207,7 @@ Int32 UA_Float_encode(UA_Float const * src, Int32* pos, char *dst) {
 	*pos += sizeof(UA_Float);
 	return UA_SUCCESS;
 }
-UA_TYPE_METHOD_DELETE_MEMFREE(UA_Float)
+UA_TYPE_METHOD_DELETE_FREE(UA_Float)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Float)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Double)
@@ -225,7 +225,7 @@ Int32 UA_Double_encode(UA_Double const * src, Int32 *pos, char * dst) {
 	*pos *= sizeof(UA_Double);
 	return UA_SUCCESS;
 }
-UA_TYPE_METHOD_DELETE_MEMFREE(UA_Double)
+UA_TYPE_METHOD_DELETE_FREE(UA_Double)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Double)
 
 Int32 UA_String_calcSize(UA_String const * string) {
@@ -254,7 +254,7 @@ Int32 UA_String_decode(char const * src, Int32* pos, UA_String * dst) {
 	Int32 retval = UA_SUCCESS;
 	retval |= UA_Int32_decode(src,pos,&(dst->length));
 	if (dst->length > 0) {
-		retval |= UA_memalloc(&(dst->data),dst->length);
+		retval |= UA_alloc(&(dst->data),dst->length);
 		retval |= UA_memcpy((void*)&(src[*pos]),dst->data,dst->length);
 		*pos += dst->length;
 	} else {
@@ -269,7 +269,7 @@ Int32 UA_String_copy(UA_String const * src, UA_String* dst) {
 	dst->length = src->length;
 	dst->data = UA_NULL;
 	if (src->length > 0) {
-		retval |= UA_memalloc(&(dst->data), src->length);
+		retval |= UA_alloc(&(dst->data), src->length);
 		if (retval == UA_SUCCESS) {
 			retval |= UA_memcpy((void*)dst->data, src->data, src->length);
 		}
@@ -642,7 +642,7 @@ Int32 UA_DiagnosticInfo_decode(char const * src, Int32 *pos, UA_DiagnosticInfo *
 			break;
 		case DIEMT_INNER_DIAGNOSTIC_INFO:
 			// innerDiagnosticInfo is a pointer to struct, therefore allocate
-			retval |= UA_memalloc((void **) &(dst->innerDiagnosticInfo),UA_DiagnosticInfo_calcSize(UA_NULL));
+			retval |= UA_alloc((void **) &(dst->innerDiagnosticInfo),UA_DiagnosticInfo_calcSize(UA_NULL));
 			retval |= UA_DiagnosticInfo_decode(src, pos, dst->innerDiagnosticInfo);
 			break;
 		}
@@ -734,7 +734,7 @@ Int32 UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_DateTime)
 UA_TYPE_METHOD_ENCODE_AS(UA_DateTime,UA_Int64)
 UA_TYPE_METHOD_DECODE_AS(UA_DateTime,UA_Int64)
-UA_TYPE_METHOD_DELETE_MEMFREE(UA_DateTime)
+UA_TYPE_METHOD_DELETE_FREE(UA_DateTime)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_DateTime)
 
 UA_TYPE_METHOD_CALCSIZE_AS(UA_XmlElement, UA_ByteString)
@@ -860,7 +860,7 @@ Int32 UA_Variant_decode(char const * src, Int32 *pos, UA_Variant *dst) {
 		dst->arrayLength = 1;
 	}
 	// allocate place for arrayLength pointers to any type
-	retval |= UA_memalloc(dst->data,dst->arrayLength * sizeof(void*));
+	retval |= UA_alloc(dst->data,dst->arrayLength * sizeof(void*));
 
 	for (i=0;i<dst->arrayLength;i++) {
 		// TODO: this is crazy, how to work with variants with variable size?
@@ -868,7 +868,7 @@ Int32 UA_Variant_decode(char const * src, Int32 *pos, UA_Variant *dst) {
 		// dynamic members and the storage size with the dynamic members, e.g.
 		// for a string we here need to allocate definitely 8 byte (length=4, data*=4)
 		// on a 32-bit architecture - so this code is definitely wrong
-		retval |= UA_memalloc(&(dst->data[i]),dst->vt->calcSize(UA_NULL));
+		retval |= UA_alloc(&(dst->data[i]),dst->vt->calcSize(UA_NULL));
 		retval |= dst->vt->decode(src,pos,dst->data[i]);
 	}
 	if (dst->encodingMask & (1 << 6)) {
