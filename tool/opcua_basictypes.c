@@ -860,7 +860,7 @@ Int32 UA_Variant_decode(char const * src, Int32 *pos, UA_Variant *dst) {
 		dst->arrayLength = 1;
 	}
 	// allocate place for arrayLength pointers to any type
-	retval |= UA_memalloc(&(dst->data),dst->arrayLength * sizeof(void*));
+	retval |= UA_memalloc(dst->data,dst->arrayLength * sizeof(void*));
 
 	for (i=0;i<dst->arrayLength;i++) {
 		// TODO: this is crazy, how to work with variants with variable size?
