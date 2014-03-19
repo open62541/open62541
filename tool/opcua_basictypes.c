@@ -11,9 +11,7 @@
 
 
 Int32 UA_calcSize(void* const data, UInt32 type) {
-	//return (UA_namespace_zero[type].calcSize)(data);
-	//FIXME:
-	return 0;
+	return (UA_namespace_zero[type].calcSize)(data);
 }
 
 Int32 UA_Array_calcSize(Int32 nElements, Int32 type, void const ** data) {
@@ -839,11 +837,7 @@ Int32 UA_Variant_encode(UA_Variant const *src, Int32* pos, char *dst) {
 	return retval;
 }
 
-//FIXME:
 Int32 UA_Variant_decode(char const * src, Int32 *pos, UA_Variant *dst) {
-	return UA_SUCCESS;
-
-	//FIXME:
 	Int32 retval = UA_SUCCESS;
 	Int32 ns0Id;
 	int i;
