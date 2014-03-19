@@ -136,9 +136,13 @@ def createStructured(element):
     print("Int32 " + name + "_decode(char const * src, UInt32* pos, " + name + "* dst);", end='\n', file=fh)
 
     if "Response" in name[len(name)-9:]:
-        print("Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn UA_ResponseHeader_getSize()", end='', file=fc) 
+		#Sten: not sure how to get it, actually we need to solve it on a higher level
+        #print("Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn UA_ResponseHeader_getSize()", end='', file=fc)
+		print("Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn 0", end='', file=fc)  
     elif "Request" in name[len(name)-9:]:
-        print("Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn UA_RequestHeader_getSize()", end='', file=fc) 
+		#Sten: dito
+        #print("Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn UA_RequestHeader_getSize()", end='', file=fc) 
+		print("Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn 0", end='', file=fc) 
     else:
 	# code 
         print("Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn 0", end='', file=fc)
@@ -167,7 +171,7 @@ def createStructured(element):
             print('\tretval |= UA_'+t+'_encode(&(src->'+n+'),pos,dst);', end='\n', file=fc)
         else:
             if t in enum_types:
-                print('\tretval |= UA_'+t+'_encode(&(src->'+n+'));', end='\n', file=fc)
+                print('\tretval |= UA_'+t+'_encode(&(src->'+n+'),pos,dst);', end='\n', file=fc)
             elif t.find("**") != -1:
                 print('\tretval |= UA_Int32_encode(&(src->'+n+'_size),pos,dst); // encode size', end='\n', file=fc)
 		print("\tretval |= UA_Array_encode((void const**) (src->"+n+"),src->"+n+"_size, UA_" + t[0:t.find("*")].upper()+",pos,dst);", end='\n', file=fc)
@@ -175,6 +179,23 @@ def createStructured(element):
                 print('\tretval |= UA_' + t[0:t.find("*")] + "_encode(src->" + n + ',pos,dst);', end='\n', file=fc)
             else:
                 print('\tretval |= UA_'+t+"_encode(&(src->"+n+"),pos,dst);", end='\n', file=fc)
+    print("\treturn retval;\n};\n", end='\n', file=fc)
+
+    print("Int32 "+name+"_decode(char const * src, UInt32* pos, " + name + "* dst) {\n\tInt32 retval = UA_SUCCESS;", end='\n', file=fc)
+    # code _decode
+    for n,t in valuemap.iteritems():
+        if t in elementary_size:
+            print('\tretval |= UA_'+t+'_decode(src,pos,&(dst->'+n+'));', end='\n', file=fc)
+        else:
+            if t in enum_types:
+                print('\tretval |= UA_'+t+'_decode(src,pos,&(dst->'+n+'));', end='\n', file=fc)
+            elif t.find("**") != -1:
+                print('\tretval |= UA_Int32_decode(src,pos,&(dst->'+n+'_size)); // decode size', end='\n', file=fc)
+		print("\tretval |= UA_Array_decode(src,dst->"+n+"_size, UA_" + t[0:t.find("*")].upper()+",pos,(void const**) (dst->"+n+"));", end='\n', file=fc) #not tested
+            elif t.find("*") != -1:
+                print('\tretval |= UA_' + t[0:t.find("*")] + "_decode(src,pos,dst->"+ n +");", end='\n', file=fc)
+            else:
+                print('\tretval |= UA_'+t+"_decode(src,pos,&(dst->"+n+"));", end='\n', file=fc)
     print("\treturn retval;\n};\n", end='\n', file=fc)
         
 def createOpaque(element):

@@ -43,6 +43,11 @@ Int32 UA_free(void * ptr);
 Int32 UA_memcpy(void *dst, void const *src, int size);
 Int32 UA_alloc(void ** dst, int size);
 
+/* Array operations */
+Int32 UA_Array_calcSize(Int32 noElements, Int32 type, void const ** ptr);
+Int32 UA_Array_encode(void const **src, Int32 noElements, Int32 type, Int32* pos, char * dst);
+Int32 UA_Array_decode(char const * src, Int32 noElements, Int32 type, Int32* pos, void const **dst);
+
 #define UA_NULL ((void*)0)
 // #define NULL UA_NULL
 
@@ -320,8 +325,5 @@ enum UA_DiagnosticInfoEncodingMaskType_enum
 	DIEMT_INNER_STATUS_CODE = 		0x20,
 	DIEMT_INNER_DIAGNOSTIC_INFO = 	0x40
 };
-
-Int32 UA_Array_calcSize(Int32 noElements, Int32 type, void const ** ptr);
-Int32 UA_Array_encode(void const **src, Int32 noElements, Int32 type, Int32* pos, char * dst);
 
 #endif /* OPCUA_BASICTYPES_H_ */

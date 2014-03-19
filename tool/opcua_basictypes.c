@@ -32,6 +32,11 @@ Int32 UA_Array_encode(void const **src, Int32 noElements, Int32 type, Int32* pos
 	return UA_ERR_NOT_IMPLEMENTED;
 }
 
+Int32 UA_Array_decode(char const * src, Int32 noElements, Int32 type, Int32* pos, void const **dst) {
+	//TODO: Implement
+	return UA_ERR_NOT_IMPLEMENTED;
+}
+
 Int32 UA_free(void * ptr){
 	free(ptr);
 	return UA_SUCCESS;
