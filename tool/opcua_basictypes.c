@@ -380,22 +380,22 @@ Int32 UA_NodeId_calcSize(UA_NodeId const *p) {
 		length = sizeof(UA_NodeId);
 	} else {
 		switch (p->encodingByte) {
-		case NIEVT_TWO_BYTE:
+		case UA_NodeIdType_TwoByte:
 			length += 2 * sizeof(UA_Byte);
 			break;
-		case NIEVT_FOUR_BYTE:
+		case UA_NodeIdType_FourByte:
 			length += 4 * sizeof(UA_Byte);
 			break;
-		case NIEVT_NUMERIC:
+		case UA_NodeIdType_Numeric:
 			length += sizeof(UA_Byte) + sizeof(UA_UInt16) + sizeof(UInt32);
 			break;
-		case NIEVT_STRING:
+		case UA_NodeIdType_String:
 			length += sizeof(UA_Byte) + sizeof(UA_UInt16) + UA_String_calcSize(&(p->identifier.string));
 			break;
-		case NIEVT_GUID:
+		case UA_NodeIdType_Guid:
 			length += sizeof(UA_Byte) + sizeof(UA_UInt16) + UA_Guid_calcSize(&(p->identifier.guid));
 			break;
-		case NIEVT_BYTESTRING:
+		case UA_NodeIdType_ByteString:
 			length += sizeof(UA_Byte) + sizeof(UA_UInt16) + UA_ByteString_calcSize(&(p->identifier.byteString));
 			break;
 		default:
@@ -412,29 +412,29 @@ Int32 UA_NodeId_encode(UA_NodeId const * src, Int32* pos, char *dst) {
 	int retval = UA_SUCCESS;
 	retval |= UA_Byte_encode(&(src->encodingByte),pos,dst);
 	switch (src->encodingByte) {
-	case NIEVT_TWO_BYTE:
+	case UA_NodeIdType_TwoByte:
 		srcByte = src->identifier.numeric;
 		retval |= UA_Byte_encode(&srcByte,pos,dst);
 		break;
-	case NIEVT_FOUR_BYTE:
+	case UA_NodeIdType_FourByte:
 		srcByte = src->namespace;
 		srcUInt16 = src->identifier.numeric;
 		retval |= UA_Byte_encode(&srcByte,pos,dst);
 		retval |= UA_UInt16_encode(&srcUInt16,pos,dst);
 		break;
-	case NIEVT_NUMERIC:
+	case UA_NodeIdType_Numeric:
 		retval |= UA_UInt16_encode(&(src->namespace), pos, dst);
 		retval |= UA_UInt32_encode(&(src->identifier.numeric), pos, dst);
 		break;
-	case NIEVT_STRING:
+	case UA_NodeIdType_String:
 		retval |= UA_UInt16_encode(&(src->namespace), pos, dst);
 		retval |= UA_String_encode(&(src->identifier.string), pos, dst);
 		break;
-	case NIEVT_GUID:
+	case UA_NodeIdType_Guid:
 		retval |= UA_UInt16_encode(&(src->namespace), pos, dst);
 		retval |= UA_Guid_encode(&(src->identifier.guid), pos, dst);
 		break;
-	case NIEVT_BYTESTRING:
+	case UA_NodeIdType_ByteString:
 		retval |= UA_UInt16_encode(&(src->namespace), pos, dst);
 		retval |= UA_ByteString_encode(&(src->identifier.byteString), pos, dst);
 		break;
@@ -449,30 +449,30 @@ Int32 UA_NodeId_decode(char const * src, Int32* pos, UA_NodeId *dst) {
 
 	retval |= UA_Byte_decode(src,pos,&(dst->encodingByte));
 	switch (dst->encodingByte) {
-	case NIEVT_TWO_BYTE: // Table 7
+	case UA_NodeIdType_TwoByte: // Table 7
 		retval |=UA_Byte_decode(src, pos, &dstByte);
 		dst->identifier.numeric = dstByte;
 		dst->namespace = 0; // default namespace
 		break;
-	case NIEVT_FOUR_BYTE: // Table 8
+	case UA_NodeIdType_FourByte: // Table 8
 		retval |=UA_Byte_decode(src, pos, &dstByte);
 		dst->namespace= dstByte;
 		retval |=UA_UInt16_decode(src, pos, &dstUInt16);
 		dst->identifier.numeric = dstUInt16;
 		break;
-	case NIEVT_NUMERIC: // Table 6, first entry
+	case UA_NodeIdType_Numeric: // Table 6, first entry
 		retval |=UA_Int16_decode(src,pos,&(dst->namespace));
 		retval |=UA_Int32_decode(src,pos,&(dst->identifier.numeric));
 		break;
-	case NIEVT_STRING: // Table 6, second entry
+	case UA_NodeIdType_String: // Table 6, second entry
 		retval |=UA_Int16_decode(src,pos,&(dst->namespace));
 		retval |=UA_String_decode(src,pos,&(dst->identifier.string));
 		break;
-	case NIEVT_GUID: // Table 6, third entry
+	case UA_NodeIdType_Guid: // Table 6, third entry
 		retval |=UA_Int16_decode(src,pos,&(dst->namespace));
 		retval |=UA_Guid_decode(src,pos,&(dst->identifier.guid));
 		break;
-	case NIEVT_BYTESTRING: // Table 6, "OPAQUE"
+	case UA_NodeIdType_ByteString: // Table 6, "OPAQUE"
 		retval |=UA_Int16_decode(src,pos,&(dst->namespace));
 		retval |=UA_ByteString_decode(src,pos,&(dst->identifier.byteString));
 		break;
@@ -483,24 +483,26 @@ UA_TYPE_METHOD_DELETE_STRUCT(UA_NodeId)
 Int32 UA_NodeId_deleteMembers(UA_NodeId* p) {
 	int retval = UA_SUCCESS;
 	switch (p->encodingByte) {
-	case NIEVT_TWO_BYTE:
-	case NIEVT_FOUR_BYTE:
-	case NIEVT_NUMERIC:
+	case UA_NodeIdType_TwoByte:
+	case UA_NodeIdType_FourByte:
+	case UA_NodeIdType_Numeric:
 		// nothing to do
 		break;
-	case NIEVT_STRING: // Table 6, second entry
+	case UA_NodeIdType_String: // Table 6, second entry
 		retval |= UA_String_deleteMembers(&(p->identifier.string));
 		break;
-	case NIEVT_GUID: // Table 6, third entry
+	case UA_NodeIdType_Guid: // Table 6, third entry
 		retval |= UA_Guid_deleteMembers(&(p->identifier.guid));
 		break;
-	case NIEVT_BYTESTRING: // Table 6, "OPAQUE"
+	case UA_NodeIdType_ByteString: // Table 6, "OPAQUE"
 		retval |= UA_ByteString_deleteMembers(&(p->identifier.byteString));
 		break;
 	}
 	return retval;
 }
-
+//FIXME: Sten Where do these two flags come from?
+#define NIEVT_NAMESPACE_URI_FLAG 0x80 	//Is only for ExpandedNodeId required
+#define NIEVT_SERVERINDEX_FLAG 0x40 //Is only for ExpandedNodeId required
 Int32 UA_ExpandedNodeId_calcSize(UA_ExpandedNodeId const * p) {
 	Int32 length = 0;
 	if (p == UA_NULL) {

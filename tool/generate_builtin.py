@@ -13,7 +13,7 @@ exclude_types = set(["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UI
                     "Int64", "UInt64", "Float", "Double", "String", "DateTime", "Guid",
                     "ByteString", "XmlElement", "NodeId", "ExpandedNodeId", "StatusCode", 
                     "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
-                     "Variant", "DiagnosticInfo", "NodeIdType", "IntegerId"])
+                     "Variant", "DiagnosticInfo", "IntegerId"])
 
 elementary_size = dict()
 elementary_size["Boolean"] = 1;
@@ -68,15 +68,15 @@ def createEnumerated(element):
     valuemap = OrderedDict()
     name = "UA_" + element.get("Name")
     enum_types.append(name)
-    print("// " + name, end='\n', file=fh)
+    print("\n/*** " + name + " ***/", end='\n', file=fh)
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
-            print("// " + child.text, end='\n', file=fh)
+            print("/* " + child.text + " */", end='\n', file=fh)
         if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
             valuemap[name + "_" + child.get("Name")] = child.get("Value")
     valuemap = OrderedDict(sorted(valuemap.iteritems(), key=lambda (k,v): int(v)))
     print("typedef UA_UInt32 " + name + ";", end='\n', file=fh);
-    print("enum " + name + "_enum { \n" + ",\n\t".join(map(lambda (key, value) : key + " = " + value, valuemap.iteritems())) + "\n};\n", end='\n', file=fh)
+    print("enum " + name + "_enum { \n\t" + ",\n\t".join(map(lambda (key, value) : key + " = " + value, valuemap.iteritems())) + "\n};", end='\n', file=fh)
     print("UA_TYPE_METHOD_PROTOTYPES (" + name + ")", end='\n', file=fh)
     print("UA_TYPE_METHOD_CALCSIZE_AS("+name+", UA_UInt32)", end='\n', file=fc)
     print("UA_TYPE_METHOD_ENCODE_AS("+name+", UA_UInt32)", end='\n', file=fc)
@@ -89,7 +89,7 @@ def createEnumerated(element):
 def createStructured(element):
     valuemap = OrderedDict()
     name = "UA_" + element.get("Name")
-    print("// " + name, end='\n', file=fh)
+    print("\n/*** " + name + " ***/", end='\n', file=fh)
 
     lengthfields = set()
     for child in element:
@@ -98,7 +98,7 @@ def createStructured(element):
     
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
-            print("// " + child.text, end='\n', file=fh)
+            print("/* " + child.text + " */", end='\n', file=fh)
         elif child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
             if child.get("Name") in lengthfields:
                 continue
@@ -200,10 +200,10 @@ def createStructured(element):
         
 def createOpaque(element):
     name = "UA_" + element.get("Name")
-    print("// " + name , end='\n', file=fh)
+    print("\n/*** " + name + " ***/", end='\n', file=fh)
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
-            print("// " + child.text, end='\n', file=fh)
+            print("/* " + child.text + " */", end='\n', file=fh)
 
     print("typedef UA_ByteString " + name + ";", end='\n', file=fh)
     print("UA_TYPE_METHOD_PROTOTYPES (" + name + ")", end='\n', file=fh)

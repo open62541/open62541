@@ -229,20 +229,6 @@ typedef struct T_UA_XmlElement
 } UA_XmlElement;
 UA_TYPE_METHOD_PROTOTYPES (UA_XmlElement)
 
-/** NodeIds - Part: 6, Chapter: 5.2.2.9, Table 5 */
-enum UA_NodeIdEncodingValuesType_enum
-{
-	// Some Values are called the same as previous Enumerations so we need names that are unique
-	NIEVT_TWO_BYTE = 	0x00,
-	NIEVT_FOUR_BYTE = 	0x01,
-	NIEVT_NUMERIC = 	0x02,
-	NIEVT_STRING = 		0x03,
-	NIEVT_GUID = 		0x04,
-	NIEVT_BYTESTRING = 	0x05,
-	NIEVT_NAMESPACE_URI_FLAG = 	0x80, 	//Is only for ExpandedNodeId required
-	NIEVT_SERVERINDEX_FLAG = 	0x40 	//Is only for ExpandedNodeId required
-};
-
 /* ExpandedNodeId - Part: 6, Chapter: 5.2.2.10, Page: 19 */
 typedef struct T_UA_ExpandedNodeId
 {
@@ -254,15 +240,6 @@ UA_ExpandedNodeId;
 UA_TYPE_METHOD_PROTOTYPES(UA_ExpandedNodeId)
 
 
-/* NodeIds - Part: 6, Chapter: 5.2.2.9, Page: 17 */
-enum UA_IdentifierType_enum {
-	// Some Values are called the same as previouse Enumerations so we need
-	//names that are unique
-	IT_NUMERIC = 0,
-	IT_STRING = 1,
-	IT_GUID = 2,
-	IT_OPAQUE = 3
-};
 typedef UA_Int32 UA_IdentifierType;
 UA_TYPE_METHOD_PROTOTYPES(UA_IdentifierType)
 
