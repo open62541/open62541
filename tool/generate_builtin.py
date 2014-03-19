@@ -160,7 +160,7 @@ def createStructured(element):
 
     print("\n\t;\n};\n", end='\n', file=fc)
 
-    print("Int32 "+name+"_encode("+name+" const * src, Int32* pos, char* dst) {\n\tInt32 retval=0;", end='\n', file=fc)
+    print("Int32 "+name+"_encode("+name+" const * src, Int32* pos, char* dst) {\n\tInt32 retval = UA_SUCCESS;", end='\n', file=fc)
     # code _encode
     for n,t in valuemap.iteritems():
         if t in elementary_size:
