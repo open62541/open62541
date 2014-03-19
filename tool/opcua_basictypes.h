@@ -30,12 +30,19 @@ typedef double Double;
 #define UA_ERR_INCONSISTENT  (UA_ERROR | (0x01 << 1))
 #define UA_ERR_INVALID_VALUE (UA_ERROR | (0x01 << 2))
 #define UA_ERR_NO_MEMORY     (UA_ERROR | (0x01 << 3))
+#define UA_ERR_NOT_IMPLEMENTED (UA_ERROR | (0x01 << 4))
 
 /* Boolean values and null */
 #define UA_TRUE (42==42)
 #define TRUE UA_TRUE
 #define UA_FALSE (!UA_TRUE)
 #define FALSE UA_FALSE
+
+/* heap memory functions */
+Int32 UA_memfree(void * ptr);
+Int32 UA_memcpy(void *dst, void const *src, int size);
+Int32 UA_memalloc(void ** dst, int size);
+
 #define UA_NULL ((void*)0)
 // #define NULL UA_NULL
 
@@ -45,6 +52,42 @@ Int32 TYPE##_encode(TYPE const * src, Int32* pos, char * dst);\
 Int32 TYPE##_decode(char const * src, Int32* pos, TYPE * dst);\
 Int32 TYPE##_delete(TYPE * p);\
 Int32 TYPE##_deleteMembers(TYPE * p); \
+
+#define UA_TYPE_METHOD_CALCSIZE_SIZEOF(TYPE) \
+Int32 TYPE##_calcSize(TYPE const * p) { return sizeof(TYPE); }
+
+#define UA_TYPE_METHOD_CALCSIZE_AS(TYPE, TYPE_AS) \
+Int32 TYPE##_calcSize(TYPE const * p) { return TYPE_AS##_calcSize((TYPE_AS*) p); }
+
+#define UA_TYPE_METHOD_DELETE_MEMFREE(TYPE) \
+Int32 TYPE##_delete(TYPE * p) { return UA_memfree(p); };
+
+#define UA_TYPE_METHOD_DELETE_AS(TYPE, TYPE_AS) \
+Int32 TYPE##_delete(TYPE * p) { return TYPE_AS##_delete((TYPE_AS*) p);};
+
+#define UA_TYPE_METHOD_DELETE_STRUCT(TYPE) \
+Int32 TYPE##_delete(TYPE *p) { \
+	Int32 retval = UA_SUCCESS; \
+	retval |= TYPE##_deleteMembers(p); \
+	retval |= UA_memfree(p); \
+	return retval; \
+}
+
+#define UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(TYPE) \
+Int32 TYPE##_deleteMembers(TYPE * p) { return UA_SUCCESS; };
+
+#define UA_TYPE_METHOD_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
+Int32 TYPE##_deleteMembers(TYPE * p) { return TYPE_AS##_deleteMembers((TYPE_AS*) p);};
+
+#define UA_TYPE_METHOD_DECODE_AS(TYPE,TYPE_AS) \
+Int32 TYPE##_decode(char const * src, Int32* pos, TYPE *dst) { \
+	return TYPE_AS##_decode(src,pos,(TYPE_AS*) dst); \
+}
+
+#define UA_TYPE_METHOD_ENCODE_AS(TYPE,TYPE_AS) \
+Int32 TYPE##_encode(TYPE const * src, Int32* pos, char *dst) { \
+	return TYPE_AS##_encode((TYPE_AS*) src,pos,dst); \
+}
 
 /* Prototypes for basic types */
 typedef _Bool UA_Boolean;
@@ -94,6 +137,10 @@ enum UA_StatusCode_enum
 	SC_Good 			= 			0x00
 };
 UA_TYPE_METHOD_PROTOTYPES (UA_StatusCode)
+
+/** IntegerId - Part: 4, Chapter: 7.13, Page: 118 */
+typedef float UA_IntegerId;
+UA_TYPE_METHOD_PROTOTYPES (UA_IntegerId)
 
 typedef struct T_UA_VTable {
 	UA_UInt32 Id;
@@ -275,4 +322,6 @@ enum UA_DiagnosticInfoEncodingMaskType_enum
 };
 
 Int32 UA_Array_calcSize(Int32 noElements, Int32 type, void const ** ptr);
+Int32 UA_Array_encode(void const **src, Int32 noElements, Int32 type, Int32* pos, char * dst);
+
 #endif /* OPCUA_BASICTYPES_H_ */

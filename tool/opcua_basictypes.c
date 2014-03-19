@@ -27,15 +27,19 @@ Int32 UA_Array_calcSize(Int32 nElements, Int32 type, void const ** data) {
 	}
 	return length;
 }
+Int32 UA_Array_encode(void const **src, Int32 noElements, Int32 type, Int32* pos, char * dst) {
+	//TODO: Implement
+	return UA_ERR_NOT_IMPLEMENTED;
+}
 
 Int32 UA_memfree(void * ptr){
 	free(ptr);
 	return UA_SUCCESS;
 }
 
-Int32 UA_alloc(void * ptr, int size){
-	ptr = malloc(size);
-	if(ptr == NULL) return UA_ERROR;
+Int32 UA_memalloc(void ** ptr, int size){
+	*ptr = malloc(size);
+	if(*ptr == UA_NULL) return UA_ERR_NO_MEMORY;
 	return UA_SUCCESS;
 }
 
@@ -44,41 +48,6 @@ Int32 UA_memcpy(void * dst, void const * src, int size){
 	return UA_SUCCESS;
 }
 
-#define UA_TYPE_METHOD_CALCSIZE_SIZEOF(TYPE) \
-Int32 TYPE##_calcSize(TYPE const * p) { return sizeof(TYPE); }
-
-#define UA_TYPE_METHOD_CALCSIZE_AS(TYPE, TYPE_AS) \
-Int32 TYPE##_calcSize(TYPE const * p) { return TYPE_AS##_calcSize((TYPE_AS*) p); }
-
-#define UA_TYPE_METHOD_DELETE_MEMFREE(TYPE) \
-Int32 TYPE##_delete(TYPE * p) { return UA_memfree(p); };
-
-#define UA_TYPE_METHOD_DELETE_AS(TYPE, TYPE_AS) \
-Int32 TYPE##_delete(TYPE * p) { return TYPE_AS##_delete((TYPE_AS*) p);};
-
-#define UA_TYPE_METHOD_DELETE_STRUCT(TYPE) \
-Int32 TYPE##_delete(TYPE *p) { \
-	Int32 retval = UA_SUCCESS; \
-	retval |= TYPE##_deleteMembers(p); \
-	retval |= UA_memfree(p); \
-	return retval; \
-}
-
-#define UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(TYPE) \
-Int32 TYPE##_deleteMembers(TYPE * p) { return UA_SUCCESS; };
-
-#define UA_TYPE_METHOD_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
-Int32 TYPE##_deleteMembers(TYPE * p) { return TYPE_AS##_deleteMembers((TYPE_AS*) p);};
-
-#define UA_TYPE_METHOD_DECODE_AS(TYPE,TYPE_AS) \
-Int32 TYPE##_decode(char const * src, Int32* pos, TYPE *dst) { \
-	return TYPE_AS##_decode(src,pos,(TYPE_AS*) dst); \
-}
-
-#define UA_TYPE_METHOD_ENCODE_AS(TYPE,TYPE_AS) \
-Int32 TYPE##_encode(TYPE const * src, Int32* pos, char *dst) { \
-	return TYPE_AS##_encode((TYPE_AS*) src,pos,dst); \
-}
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Boolean)
 Int32 UA_Boolean_encode(UA_Boolean const * src, Int32* pos, char * dst) {
@@ -285,7 +254,7 @@ Int32 UA_String_decode(char const * src, Int32* pos, UA_String * dst) {
 	Int32 retval = UA_SUCCESS;
 	retval |= UA_Int32_decode(src,pos,&(dst->length));
 	if (dst->length > 0) {
-		retval |= UA_alloc(&(dst->data),dst->length);
+		retval |= UA_memalloc(&(dst->data),dst->length);
 		retval |= UA_memcpy((void*)&(src[*pos]),dst->data,dst->length);
 		*pos += dst->length;
 	} else {
@@ -300,7 +269,7 @@ Int32 UA_String_copy(UA_String const * src, UA_String* dst) {
 	dst->length = src->length;
 	dst->data = UA_NULL;
 	if (src->length > 0) {
-		retval |= UA_alloc(&(dst->data), src->length);
+		retval |= UA_memalloc(&(dst->data), src->length);
 		if (retval == UA_SUCCESS) {
 			retval |= UA_memcpy((void*)dst->data, src->data, src->length);
 		}
@@ -635,7 +604,7 @@ UA_TYPE_METHOD_DELETE_STRUCT(UA_ExtensionObject)
 Int32 UA_ExtensionObject_deleteMembers(UA_ExtensionObject *p) {
 	Int32 retval = UA_SUCCESS;
 	retval |= UA_NodeId_deleteMembers(&(p->typeId));
-	retval |= UA_String_deleteMembers(&(p->body));
+	retval |= UA_ByteString_deleteMembers(&(p->body));
 	return retval;
 }
 
@@ -673,7 +642,7 @@ Int32 UA_DiagnosticInfo_decode(char const * src, Int32 *pos, UA_DiagnosticInfo *
 			break;
 		case DIEMT_INNER_DIAGNOSTIC_INFO:
 			// innerDiagnosticInfo is a pointer to struct, therefore allocate
-			retval |= UA_memalloc(&(dst->innerDiagnosticInfo),UA_DiagnosticInfo_calcSize(UA_NULL));
+			retval |= UA_memalloc((void **) &(dst->innerDiagnosticInfo),UA_DiagnosticInfo_calcSize(UA_NULL));
 			retval |= UA_DiagnosticInfo_decode(src, pos, dst->innerDiagnosticInfo);
 			break;
 		}
@@ -685,7 +654,7 @@ Int32 UA_DiagnosticInfo_encode(UA_DiagnosticInfo const *src, Int32 *pos, char *d
 	Byte mask;
 	int i;
 
-	UA_ByteString_encode(&(src->encodingMask), pos, dst);
+	UA_Byte_encode(&(src->encodingMask), pos, dst);
 	for (i = 0; i < 7; i++) {
 		switch ( (0x01 << i) & src->encodingMask)  {
 		case DIEMT_SYMBOLIC_ID:
@@ -891,7 +860,7 @@ Int32 UA_Variant_decode(char const * src, Int32 *pos, UA_Variant *dst) {
 		dst->arrayLength = 1;
 	}
 	// allocate place for arrayLength pointers to any type
-	retval |= UA_alloc(&(dst->data),dst->arrayLength * sizeof(void*));
+	retval |= UA_memalloc(&(dst->data),dst->arrayLength * sizeof(void*));
 
 	for (i=0;i<dst->arrayLength;i++) {
 		// TODO: this is crazy, how to work with variants with variable size?
@@ -899,7 +868,7 @@ Int32 UA_Variant_decode(char const * src, Int32 *pos, UA_Variant *dst) {
 		// dynamic members and the storage size with the dynamic members, e.g.
 		// for a string we here need to allocate definitely 8 byte (length=4, data*=4)
 		// on a 32-bit architecture - so this code is definitely wrong
-		retval |= UA_alloc(&(dst->data[i]),dst->vt->calcSize(UA_NULL));
+		retval |= UA_memalloc(&(dst->data[i]),dst->vt->calcSize(UA_NULL));
 		retval |= dst->vt->decode(src,pos,dst->data[i]);
 	}
 	if (dst->encodingMask & (1 << 6)) {

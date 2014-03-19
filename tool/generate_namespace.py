@@ -11,8 +11,32 @@ if len(sys.argv) != 3:
     exit(0)
 
 # types that are to be excluded
-exclude_types = set(["Object","ObjectType","Variable","Method"])
-
+exclude_kind = set(["Object","ObjectType","Variable","Method","ReferenceType"])
+exclude_types = set(["Structure", "BaseDataType", "Number", 
+    "Integer", "UInteger", "Enumeration",
+	"Image", "ImageBMP", "ImageGIF", "ImageJPG", "ImagePNG",
+	"References", "BaseVariableType", "BaseDataVariableType", 
+	"PropertyType", "DataTypeDescriptionType", "DataTypeDictionaryType", "NamingRuleType",
+	"IntegerId","Counter","Duration","NumericRange","Time","Date",
+	"UtcTime", "LocaleId","UserTokenType",
+	"ApplicationType","ApplicationInstanceCertificate",
+	"ServerVendorCapabilityType","ServerStatusType","ServerDiagnosticsSummaryType",
+	"SamplingIntervalDiagnosticsArrayType", "SamplingIntervalDiagnosticsType", 
+	"SubscriptionDiagnosticsArrayType", "SubscriptionDiagnosticsType",
+	"SessionDiagnosticsArrayType", "SessionDiagnosticsVariableType", 
+	"SessionSecurityDiagnosticsArrayType", "SessionSecurityDiagnosticsType", 
+	"DataItemType", "AnalogItemType", "DiscreteItemType", "TwoStateDiscreteType",
+	"MultiStateDiscreteType", "ProgramDiagnosticType", "StateVariableType", "FiniteStateVariableType",
+	"TransitionVariableType", "FiniteTransitionVariableType", "BuildInfoType", "TwoStateVariableType",
+	"ConditionVariableType", "MultiStateValueDiscreteType", "OptionSetType", "ArrayItemType",
+	"YArrayItemType", "XYArrayItemType", "ImageItemType", "CubeItemType", "NDimensionArrayItemType"
+	])
+	
+def skipKind(name):
+    if name in exclude_kind:
+        return True
+    return False
+    
 def skipType(name):
     if name in exclude_types:
         return True
@@ -47,7 +71,10 @@ Int32 UA_namespace_zero_to_index(Int32 id) {
 
 i = 0
 for row in rows1:
-    if skipType(row[2]):
+    if skipKind(row[2]):
+	continue
+
+    if skipType(row[0]):
 	continue
 
     name = "UA_" + row[0]
@@ -61,7 +88,10 @@ print('''\t}\n\treturn retval;
 UA_VTable UA_namespace_zero[] = {''', file=fc)
 
 for row in rows2:
-    if skipType(row[2]):
+    if skipKind(row[2]):
+	continue
+
+    if skipType(row[0]):
 	continue
 
     name = "UA_" + row[0]

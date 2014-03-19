@@ -13,7 +13,7 @@ exclude_types = set(["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UI
                     "Int64", "UInt64", "Float", "Double", "String", "DateTime", "Guid",
                     "ByteString", "XmlElement", "NodeId", "ExpandedNodeId", "StatusCode", 
                     "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
-                     "Variant", "DiagnosticInfo", "NodeIdType"])
+                     "Variant", "DiagnosticInfo", "NodeIdType", "IntegerId"])
 
 elementary_size = dict()
 elementary_size["Boolean"] = 1;
@@ -77,6 +77,13 @@ def createEnumerated(element):
     valuemap = OrderedDict(sorted(valuemap.iteritems(), key=lambda (k,v): int(v)))
     print("typedef UA_UInt32 " + name + ";", end='\n', file=fh);
     print("enum " + name + "_enum { \n" + ",\n\t".join(map(lambda (key, value) : key + " = " + value, valuemap.iteritems())) + "\n};\n", end='\n', file=fh)
+    print("UA_TYPE_METHOD_PROTOTYPES (" + name + ")", end='\n', file=fh)
+    print("UA_TYPE_METHOD_CALCSIZE_AS("+name+", UA_UInt32)", end='\n', file=fc)
+    print("UA_TYPE_METHOD_ENCODE_AS("+name+", UA_UInt32)", end='\n', file=fc)
+    print("UA_TYPE_METHOD_DECODE_AS("+name+", UA_UInt32)", end='\n', file=fc)
+    print("UA_TYPE_METHOD_DELETE_AS("+name+", UA_UInt32)", end='\n', file=fc)
+    print("UA_TYPE_METHOD_DELETEMEMBERS_AS("+name+", UA_UInt32)\n", end='\n', file=fc)
+    
     return
     
 def createStructured(element):
@@ -145,7 +152,7 @@ def createStructured(element):
                 print('\n\t + 4 //' + n, end='', file=fc) # enums are all 32 bit
             elif t.find("**") != -1:
 		print("\n\t + 4 //" + n + "_size", end='', file=fc),
-		print("\n\t + UA_Array_calcSize(ptr->" + n + "_size, UA_" + t[0:t.find("*")].upper() + ", (void**) ptr->" + n +")", end='', file=fc)
+		print("\n\t + UA_Array_calcSize(ptr->" + n + "_size, UA_" + t[0:t.find("*")].upper() + ", (void const**) ptr->" + n +")", end='', file=fc)
             elif t.find("*") != -1:
                 print('\n\t + ' + "UA_" + t[0:t.find("*")] + "_calcSize(ptr->" + n + ')', end='', file=fc)
             else:
@@ -163,7 +170,7 @@ def createStructured(element):
                 print('\tretval |= UA_'+t+'_encode(&(src->'+n+'));', end='\n', file=fc)
             elif t.find("**") != -1:
                 print('\tretval |= UA_Int32_encode(&(src->'+n+'_size),pos,dst); // encode size', end='\n', file=fc)
-		print("\tretval |= UA_Array_encode((void**) (src->"+n+"),src->"+n+"_size, UA_" + t[0:t.find("*")].upper()+",pos,dst);", end='\n', file=fc)
+		print("\tretval |= UA_Array_encode((void const**) (src->"+n+"),src->"+n+"_size, UA_" + t[0:t.find("*")].upper()+",pos,dst);", end='\n', file=fc)
             elif t.find("*") != -1:
                 print('\tretval |= UA_' + t[0:t.find("*")] + "_encode(src->" + n + ',pos,dst);', end='\n', file=fc)
             else:
@@ -177,7 +184,13 @@ def createOpaque(element):
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
             print("// " + child.text, end='\n', file=fh)
 
-    print("typedef void* " + name + ";\n", end='\n', file=fh)
+    print("typedef UA_ByteString " + name + ";", end='\n', file=fh)
+    print("UA_TYPE_METHOD_PROTOTYPES (" + name + ")", end='\n', file=fh)
+    print("UA_TYPE_METHOD_CALCSIZE_AS("+name+", UA_ByteString)", end='\n', file=fc)
+    print("UA_TYPE_METHOD_ENCODE_AS("+name+", UA_ByteString)", end='\n', file=fc)
+    print("UA_TYPE_METHOD_DECODE_AS("+name+", UA_ByteString)", end='\n', file=fc)
+    print("UA_TYPE_METHOD_DELETE_AS("+name+", UA_ByteString)", end='\n', file=fc)
+    print("UA_TYPE_METHOD_DELETEMEMBERS_AS("+name+", UA_ByteString)\n", end='\n', file=fc)
     return
 
 ns = {"opc": "http://opcfoundation.org/BinarySchema/"}
