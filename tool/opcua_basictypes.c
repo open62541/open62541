@@ -263,7 +263,7 @@ Int32 UA_String_decode(char const * src, Int32* pos, UA_String * dst) {
 	return retval;
 }
 UA_TYPE_METHOD_DELETE_STRUCT(UA_String)
-Int32 UA_String_deleteMembers(UA_String* p) { return UA_memfree(p->data); };
+Int32 UA_String_deleteMembers(UA_String* p) { return UA_free(p->data); };
 Int32 UA_String_copy(UA_String const * src, UA_String* dst) {
 	Int32 retval = UA_SUCCESS;
 	dst->length = src->length;
@@ -725,7 +725,7 @@ Int32 UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
 	Int32 retval = UA_SUCCESS;
 	if (p->encodingMask & DIEMT_INNER_DIAGNOSTIC_INFO) {
 		retval |= UA_DiagnosticInfo_deleteMembers(p->innerDiagnosticInfo);
-		retval |= UA_memfree(p->innerDiagnosticInfo);
+		retval |= UA_free(p->innerDiagnosticInfo);
 	}
 	return retval;
 }
