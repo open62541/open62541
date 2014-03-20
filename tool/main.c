@@ -5,30 +5,36 @@
  *      Author: mrt
  */
 #include <stdio.h>
+#include <stdlib.h>
+#include <memory.h>
 
 #include "opcua.h"
 
-typedef union Integer {
-	UA_Int32 i;
-	SByte b[4];
-} Integer;
-
 int main() {
-	Integer a;
-	Integer b;
-	int pos = 0;
+	char* buf;
+	int pos = 0, retval, size;
 
-	UA_Int32 i = -42;
+	// the value to encode
+	UA_Int32 i = -42, j;
 
-	UA_Int32_encode(&i, &pos, &a.b[0]);
-	printf("%d, {%d,%d,%d,%d}\n", a.i, a.b[0], a.b[1], a.b[2], a.b[3]);
+	// get buffer for encoding
+	size = UA_Int32_calcSize(UA_NULL);
+	buf = (char *) malloc(size);
+	printf("buf=%p, size=%d\n", buf, size);
+	if (buf == UA_NULL) return -1;
 
+	// encode
 	pos = 0;
-	UA_Int32_decode((char *) &a.b[0], &pos, &(b.i));
-	printf("%d, {%d,%d,%d,%d}\n", b.i, b.b[0], b.b[1], b.b[2], b.b[3]);
+	retval = UA_Int32_encode(&i, &pos, buf);
+	printf("retval=%d, src=%d, pos=%d, buf={%d,%d,%d,%d}\n", retval, i, pos, buf[0], buf[1], buf[2], buf[3]);
 
-	printf("%i\n", UA_Int32_calcSize(b.i));
+	// decode
+	pos = 0;
+	retval = UA_Int32_decode(buf, &pos, &j);
+	printf("retval=%d, dst=%d, pos=%d, {%d,%d,%d,%d}\n", retval, j, pos, buf[0], buf[1], buf[2], buf[3]);
 
+	// return memory
+	free(buf);
 	return 0;
 }
 

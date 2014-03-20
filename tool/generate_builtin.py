@@ -49,6 +49,15 @@ def skipType(name):
 def stripTypename(tn):
     return tn[tn.find(":")+1:]
 
+def camlCase2AdaCase(item):
+    (newitem, n) = re.subn("(?<!^)(?<![A-Z])([A-Z])", "_\\1", item)
+    return newitem
+    
+def camlCase2CCase(item):
+    if item in ["Float","Double"]:
+        return "my" + item
+    return item[:1].lower() + item[1:] if item else ''
+
 # are the prerequisites in place? if not, postpone.
 def printableStructuredType(element):
     for child in element:
@@ -131,7 +140,7 @@ def createStructured(element):
 
     print("Int32 " + name + "_calcSize(" + name + " const * ptr);", end='\n', file=fh)
     print("Int32 " + name + "_encode(" + name + " const * src, Int32* pos, char* dst);", end='\n', file=fh)
-    print("Int32 " + name + "_decode(char const * src, UInt32* pos, " + name + "* dst);", end='\n', file=fh)
+    print("Int32 " + name + "_decode(char const * src, Int32* pos, " + name + "* dst);", end='\n', file=fh)
 
     if "Response" in name[len(name)-9:]:
 		#Sten: not sure how to get it, actually we need to solve it on a higher level
@@ -160,7 +169,7 @@ def createStructured(element):
             else:
                 print('\n\t + ' + "UA_" + t + "_calcSize(&(ptr->" + n + '))', end='', file=fc)
 
-    print("\n\t;\n};\n", end='\n', file=fc)
+    print("\n\t;\n}\n", end='\n', file=fc)
 
     print("Int32 "+name+"_encode("+name+" const * src, Int32* pos, char* dst) {\n\tInt32 retval = UA_SUCCESS;", end='\n', file=fc)
     # code _encode
@@ -177,9 +186,9 @@ def createStructured(element):
                 print('\tretval |= UA_' + t[0:t.find("*")] + "_encode(src->" + n + ',pos,dst);', end='\n', file=fc)
             else:
                 print('\tretval |= UA_'+t+"_encode(&(src->"+n+"),pos,dst);", end='\n', file=fc)
-    print("\treturn retval;\n};\n", end='\n', file=fc)
+    print("\treturn retval;\n}\n", end='\n', file=fc)
 
-    print("Int32 "+name+"_decode(char const * src, UInt32* pos, " + name + "* dst) {\n\tInt32 retval = UA_SUCCESS;", end='\n', file=fc)
+    print("Int32 "+name+"_decode(char const * src, Int32* pos, " + name + "* dst) {\n\tInt32 retval = UA_SUCCESS;", end='\n', file=fc)
     # code _decode
     for n,t in valuemap.iteritems():
         if t in elementary_size:
@@ -194,7 +203,7 @@ def createStructured(element):
                 print('\tretval |= UA_' + t[0:t.find("*")] + "_decode(src,pos,dst->"+ n +");", end='\n', file=fc)
             else:
                 print('\tretval |= UA_'+t+"_decode(src,pos,&(dst->"+n+"));", end='\n', file=fc)
-    print("\treturn retval;\n};\n", end='\n', file=fc)
+    print("\treturn retval;\n}\n", end='\n', file=fc)
         
 def createOpaque(element):
     name = "UA_" + element.get("Name")

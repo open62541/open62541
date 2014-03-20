@@ -5,7 +5,8 @@
  *      Author: mrt
  */
 #include "opcua.h"
-#include <stdlib.h>
+#include <stdio.h>	// printf
+#include <stdlib.h>	// alloc, free
 #include <string.h>
 
 
@@ -36,12 +37,14 @@ Int32 UA_Array_decode(char const * src, Int32 noElements, Int32 type, Int32* pos
 }
 
 Int32 UA_free(void * ptr){
+	printf("UA_free - ptr=%p\n",ptr);
 	free(ptr);
 	return UA_SUCCESS;
 }
 
 Int32 UA_alloc(void ** ptr, int size){
 	*ptr = malloc(size);
+	printf("UA_alloc - ptr=%p, size=%d\n",*ptr,size);
 	if(*ptr == UA_NULL) return UA_ERR_NO_MEMORY;
 	return UA_SUCCESS;
 }
@@ -257,7 +260,7 @@ Int32 UA_String_decode(char const * src, Int32* pos, UA_String * dst) {
 	Int32 retval = UA_SUCCESS;
 	retval |= UA_Int32_decode(src,pos,&(dst->length));
 	if (dst->length > 0) {
-		retval |= UA_alloc(&(dst->data),dst->length);
+		retval |= UA_alloc((void**)&(dst->data),dst->length);
 		retval |= UA_memcpy((void*)&(src[*pos]),dst->data,dst->length);
 		*pos += dst->length;
 	} else {
@@ -266,13 +269,13 @@ Int32 UA_String_decode(char const * src, Int32* pos, UA_String * dst) {
 	return retval;
 }
 UA_TYPE_METHOD_DELETE_STRUCT(UA_String)
-Int32 UA_String_deleteMembers(UA_String* p) { return UA_free(p->data); };
+Int32 UA_String_deleteMembers(UA_String* p) { return UA_free(p->data); }
 Int32 UA_String_copy(UA_String const * src, UA_String* dst) {
 	Int32 retval = UA_SUCCESS;
 	dst->length = src->length;
 	dst->data = UA_NULL;
 	if (src->length > 0) {
-		retval |= UA_alloc(&(dst->data), src->length);
+		retval |= UA_alloc((void**)&(dst->data), src->length);
 		if (retval == UA_SUCCESS) {
 			retval |= UA_memcpy((void*)dst->data, src->data, src->length);
 		}
@@ -312,14 +315,14 @@ Int32 UA_Guid_encode(UA_Guid const *src, Int32* pos, char *dst) {
 }
 Int32 UA_Guid_decode(char const * src, Int32* pos, UA_Guid *dst) {
 	Int32 retval = UA_SUCCESS;
-	retval |= UA_Int32_decode(src,pos,&(dst->data1));
-	retval |= UA_Int16_decode(src,pos,&(dst->data2));
-	retval |= UA_Int16_decode(src,pos,&(dst->data3));
+	retval |= UA_UInt32_decode(src,pos,&(dst->data1));
+	retval |= UA_UInt16_decode(src,pos,&(dst->data2));
+	retval |= UA_UInt16_decode(src,pos,&(dst->data3));
 	retval |= UA_ByteString_decode(src,pos,&(dst->data4));
 	return retval;
 }
 UA_TYPE_METHOD_DELETE_STRUCT(UA_Guid)
-Int32 UA_Guid_deleteMembers(UA_Guid* p) { return UA_ByteString_delete(&(p->data4)); };
+Int32 UA_Guid_deleteMembers(UA_Guid* p) { return UA_ByteString_delete(&(p->data4)); }
 
 Int32 UA_LocalizedText_calcSize(UA_LocalizedText const * p) {
 	Int32 length = 0;
@@ -371,7 +374,7 @@ Int32 UA_LocalizedText_deleteMembers(UA_LocalizedText* p) {
 			|| UA_String_deleteMembers(&(p->locale))
 			|| UA_String_deleteMembers(&(p->text))
 	;
-};
+}
 
 /* Serialization of UA_NodeID is specified in 62541-6, §5.2.2.9 */
 Int32 UA_NodeId_calcSize(UA_NodeId const *p) {
@@ -444,8 +447,8 @@ Int32 UA_NodeId_encode(UA_NodeId const * src, Int32* pos, char *dst) {
 Int32 UA_NodeId_decode(char const * src, Int32* pos, UA_NodeId *dst) {
 	int retval = UA_SUCCESS;
 	// temporary variables to overcome decoder's non-endian-saveness for datatypes
-	Byte   dstByte;
-	UInt16 dstUInt16;
+	UA_Byte   dstByte;
+	UA_UInt16 dstUInt16;
 
 	retval |= UA_Byte_decode(src,pos,&(dst->encodingByte));
 	switch (dst->encodingByte) {
@@ -461,19 +464,19 @@ Int32 UA_NodeId_decode(char const * src, Int32* pos, UA_NodeId *dst) {
 		dst->identifier.numeric = dstUInt16;
 		break;
 	case UA_NodeIdType_Numeric: // Table 6, first entry
-		retval |=UA_Int16_decode(src,pos,&(dst->namespace));
-		retval |=UA_Int32_decode(src,pos,&(dst->identifier.numeric));
+		retval |=UA_UInt16_decode(src,pos,&(dst->namespace));
+		retval |=UA_UInt32_decode(src,pos,&(dst->identifier.numeric));
 		break;
 	case UA_NodeIdType_String: // Table 6, second entry
-		retval |=UA_Int16_decode(src,pos,&(dst->namespace));
+		retval |=UA_UInt16_decode(src,pos,&(dst->namespace));
 		retval |=UA_String_decode(src,pos,&(dst->identifier.string));
 		break;
 	case UA_NodeIdType_Guid: // Table 6, third entry
-		retval |=UA_Int16_decode(src,pos,&(dst->namespace));
+		retval |=UA_UInt16_decode(src,pos,&(dst->namespace));
 		retval |=UA_Guid_decode(src,pos,&(dst->identifier.guid));
 		break;
 	case UA_NodeIdType_ByteString: // Table 6, "OPAQUE"
-		retval |=UA_Int16_decode(src,pos,&(dst->namespace));
+		retval |=UA_UInt16_decode(src,pos,&(dst->namespace));
 		retval |=UA_ByteString_decode(src,pos,&(dst->identifier.byteString));
 		break;
 	}
@@ -897,13 +900,13 @@ Int32 UA_DataValue_decode(char const * src, Int32* pos, UA_DataValue* dst) {
 		retval |= UA_DateTime_decode(src,pos,&(dst->serverTimestamp));
 	}
 	if (dst->encodingMask & 0x10) {
-		retval |= UA_UInt16_decode(src,pos,&(dst->sourcePicoseconds));
+		retval |= UA_Int16_decode(src,pos,&(dst->sourcePicoseconds));
 		if (dst->sourcePicoseconds > MAX_PICO_SECONDS) {
 			dst->sourcePicoseconds = MAX_PICO_SECONDS;
 		}
 	}
 	if (dst->encodingMask & 0x20) {
-		retval |= UA_UInt16_decode(src,pos,&(dst->serverPicoseconds));
+		retval |= UA_Int16_decode(src,pos,&(dst->serverPicoseconds));
 		if (dst->serverPicoseconds > MAX_PICO_SECONDS) {
 			dst->serverPicoseconds = MAX_PICO_SECONDS;
 		}
@@ -926,10 +929,10 @@ Int32 UA_DataValue_encode(UA_DataValue const * src, Int32* pos, char *dst) {
 		retval |= UA_DateTime_encode(&(src->serverTimestamp),pos,dst);
 	}
 	if (src->encodingMask & 0x10) {
-		retval |= UA_UInt16_encode(&(src->sourcePicoseconds),pos,dst);
+		retval |= UA_Int16_encode(&(src->sourcePicoseconds),pos,dst);
 	}
 	if (src->encodingMask & 0x10) {
-		retval |= UA_UInt16_encode(&(src->serverPicoseconds),pos,dst);
+		retval |= UA_Int16_encode(&(src->serverPicoseconds),pos,dst);
 	}
 	return retval;
 }
