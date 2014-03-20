@@ -7,7 +7,7 @@ void UA_list_defaultFreer(void* payload){
 	}
 }
 
-UA_Int32 UA_list_initElement(UA_list_Element* const element){
+Int32 UA_list_initElement(UA_list_Element* const element){
 	if(element==NULL)return UA_ERROR;
 	element->next=NULL;
 	element->prev=NULL;
@@ -16,7 +16,7 @@ UA_Int32 UA_list_initElement(UA_list_Element* const element){
 	return UA_NO_ERROR;
 }
 
-UA_Int32 UA_list_init(UA_list_List* const list){
+Int32 UA_list_init(UA_list_List* const list){
 	if(list==NULL)return UA_ERROR;
 	list->first = NULL;
 	list->last = NULL;
@@ -24,7 +24,7 @@ UA_Int32 UA_list_init(UA_list_List* const list){
 	return UA_NO_ERROR;
 }
 
-UA_Int32 UA_list_addElementToFront(UA_list_List* const list, UA_list_Element* const element){
+Int32 UA_list_addElementToFront(UA_list_List* const list, UA_list_Element* const element){
 	if(list==NULL || element==NULL)return UA_ERROR;
 	UA_list_Element* second = NULL;
 	second = list->first;
@@ -42,7 +42,7 @@ UA_Int32 UA_list_addElementToFront(UA_list_List* const list, UA_list_Element* co
 	return UA_NO_ERROR;
 }
 
-UA_Int32 UA_list_addPayloadToFront(UA_list_List* const list, void* const payload){
+Int32 UA_list_addPayloadToFront(UA_list_List* const list, void* const payload){
 	if(list==NULL)return UA_ERROR;
 	UA_list_Element* elem = (UA_list_Element*)opcua_malloc(sizeof(*elem));
 	UA_list_initElement(elem);
@@ -51,7 +51,7 @@ UA_Int32 UA_list_addPayloadToFront(UA_list_List* const list, void* const payload
 	return UA_NO_ERROR;
 }
 
-UA_Int32 UA_list_addElementToBack(UA_list_List* const list, UA_list_Element* const element){
+Int32 UA_list_addElementToBack(UA_list_List* const list, UA_list_Element* const element){
 	if(list==NULL || element == NULL)return UA_ERROR;
 	UA_list_Element* secondLast = NULL;
 	secondLast = list->last;
@@ -69,7 +69,7 @@ UA_Int32 UA_list_addElementToBack(UA_list_List* const list, UA_list_Element* con
 	return UA_NO_ERROR;
 }
 
-UA_Int32 UA_list_addPayloadToBack(UA_list_List* const list, void* const payload){
+Int32 UA_list_addPayloadToBack(UA_list_List* const list, void* const payload){
 	if(list==NULL)return UA_ERROR;
 	UA_list_Element* elem = (UA_list_Element*)opcua_malloc(sizeof(*elem));
 	UA_list_initElement(elem);
@@ -78,7 +78,7 @@ UA_Int32 UA_list_addPayloadToBack(UA_list_List* const list, void* const payload)
 	return UA_NO_ERROR;
 }
 
-UA_Int32 UA_list_removeFirst(UA_list_List* const list, UA_list_PayloadVisitor visitor){
+Int32 UA_list_removeFirst(UA_list_List* const list, UA_list_PayloadVisitor visitor){
 	if(list==NULL)return UA_ERROR;
 	UA_list_Element* temp = NULL;
 	if(list->first){
@@ -98,7 +98,7 @@ UA_Int32 UA_list_removeFirst(UA_list_List* const list, UA_list_PayloadVisitor vi
 	return UA_NO_ERROR;
 }
 
-UA_Int32 UA_list_removeLast(UA_list_List* const list, UA_list_PayloadVisitor visitor){
+Int32 UA_list_removeLast(UA_list_List* const list, UA_list_PayloadVisitor visitor){
 	if(list==NULL)return UA_ERROR;
 	UA_list_Element* temp = NULL;
 	if(list->last){
@@ -119,7 +119,7 @@ UA_Int32 UA_list_removeLast(UA_list_List* const list, UA_list_PayloadVisitor vis
 }
 
 
-UA_Int32 UA_list_removeElement(UA_list_Element* const elem, UA_list_PayloadVisitor visitor){
+Int32 UA_list_removeElement(UA_list_Element* const elem, UA_list_PayloadVisitor visitor){
 	if(elem==NULL)return UA_ERROR;
 	if(elem==elem->father->first){
 		return UA_list_removeFirst(elem->father, visitor);
@@ -139,7 +139,7 @@ UA_Int32 UA_list_removeElement(UA_list_Element* const elem, UA_list_PayloadVisit
 	return UA_NO_ERROR;
 }
 
-UA_Int32 UA_list_destroy(UA_list_List* const list, UA_list_PayloadVisitor visitor){
+Int32 UA_list_destroy(UA_list_List* const list, UA_list_PayloadVisitor visitor){
 	if(list==NULL)return UA_ERROR;
 	UA_list_Element* current = NULL;
 	current=list->first;
@@ -155,7 +155,7 @@ UA_Int32 UA_list_destroy(UA_list_List* const list, UA_list_PayloadVisitor visito
 	return UA_NO_ERROR;
 }
 
-UA_Int32 UA_list_iterateElement(UA_list_List* const list, UA_list_ElementVisitor visitor){
+Int32 UA_list_iterateElement(UA_list_List* const list, UA_list_ElementVisitor visitor){
 	if(list==NULL)return UA_ERROR;
 	UA_list_Element* current = list->first;
 	while(current){
@@ -178,7 +178,7 @@ UA_Int32 UA_list_iterateElement(UA_list_List* const list, UA_list_ElementVisitor
 	return UA_NO_ERROR;
 }*/
 /** ANSI C forbids function nesting - reworked ugly version **/
-UA_Int32 UA_list_iteratePayload(UA_list_List* const list, UA_list_PayloadVisitor visitor){
+Int32 UA_list_iteratePayload(UA_list_List* const list, UA_list_PayloadVisitor visitor){
 	if(list==NULL)return UA_ERROR;
 	UA_list_Element* current = list->first;
 	while(current){

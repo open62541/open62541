@@ -10,8 +10,8 @@
 UA_ExtensionObject the_empty_UA_ExtensionObject = { { NIEVT_TWO_BYTE, 0 }, NO_BODY_IS_ENCODED};
 UA_DiagnosticInfo the_empty_UA_DiagnosticInfo = { 0x00 };
 
-UA_Int32 UA_String_compare(UA_String *string1, UA_String *string2) {
-	UA_Int32 i;
+Int32 UA_String_compare(UA_String *string1, UA_String *string2) {
+	Int32 i;
 	Boolean equal;
 
 	if (string1->Length == string2->Length&&
@@ -32,7 +32,7 @@ else
 	return UA_EQUAL;
 }
 
-UA_Int32 UA_ByteString_compare(UA_ByteString *string1, UA_ByteString *string2) {
+Int32 UA_ByteString_compare(UA_ByteString *string1, UA_ByteString *string2) {
 	return UA_String_compare((UA_String*) string1, (UA_String*) string2);
 }
 

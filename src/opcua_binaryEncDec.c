@@ -1472,5 +1472,103 @@ UA_Int32 diagnosticInfo_calcSize(UA_DiagnosticInfo *diagnosticInfo) {
 	return length;
 }
 
+/**
+ * RequestHeader
+ * Part: 4
+ * Chapter: 7.26
+ * Page: 132
+ */
+/** \copydoc decodeRequestHeader */
+Int32 decodeRequestHeader(const AD_RawMessage *srcRaw, Int32 *pos,
+		UA_AD_RequestHeader *dstRequestHeader) {
+	return decoder_decodeRequestHeader(srcRaw->message, pos, dstRequestHeader);
+}
 
+Int32 decoder_decodeRequestHeader(char const * message, Int32 *pos,
+		UA_AD_RequestHeader *dstRequestHeader) {
+	// 62541-4 §5.5.2.2 OpenSecureChannelServiceParameters
+	// requestHeader - common request parameters. The authenticationToken is always omitted
+	decoder_decodeBuiltInDatatype(message, NODE_ID, pos,
+			&(dstRequestHeader->authenticationToken));
+	decoder_decodeBuiltInDatatype(message, DATE_TIME, pos,
+			&(dstRequestHeader->timestamp));
+	decoder_decodeBuiltInDatatype(message, UINT32, pos,
+			&(dstRequestHeader->requestHandle));
+	decoder_decodeBuiltInDatatype(message, UINT32, pos,
+			&(dstRequestHeader->returnDiagnostics));
+	decoder_decodeBuiltInDatatype(message, STRING, pos,
+			&(dstRequestHeader->auditEntryId));
+	decoder_decodeBuiltInDatatype(message, UINT32, pos,
+			&(dstRequestHeader->timeoutHint));
+	decoder_decodeBuiltInDatatype(message, EXTENSION_OBJECT, pos,
+			&(dstRequestHeader->additionalHeader));
+	// AdditionalHeader will stay empty, need to be changed if there is relevant information
+
+	return 0;
+}
+
+/**
+ * ResponseHeader
+ * Part: 4
+ * Chapter: 7.27
+ * Page: 133
+ */
+/** \copydoc encodeResponseHeader */
+Int32 encodeResponseHeader(UA_AD_ResponseHeader const * responseHeader,
+		Int32 *pos, UA_ByteString *dstBuf) {
+	encodeUADateTime(responseHeader->timestamp, pos, dstBuf->Data);
+	encodeIntegerId(responseHeader->requestHandle, pos, dstBuf->Data);
+	encodeUInt32(responseHeader->serviceResult, pos, dstBuf->Data);
+	encodeDiagnosticInfo(responseHeader->serviceDiagnostics, pos, dstBuf->Data);
+
+	encoder_encodeBuiltInDatatypeArray(responseHeader->stringTable,
+			responseHeader->noOfStringTable, STRING_ARRAY, pos, dstBuf->Data);
+
+	encodeExtensionObject(responseHeader->additionalHeader, pos, dstBuf->Data);
+
+	//Kodieren von String Datentypen
+
+	return 0;
+}
+Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject) {
+	Int32 length = 0;
+
+	length += nodeId_calcSize(&(extensionObject->TypeId));
+	length += sizeof(Byte); //The EncodingMask Byte
+
+	if (extensionObject->Encoding == BODY_IS_BYTE_STRING
+			|| extensionObject->Encoding == BODY_IS_XML_ELEMENT) {
+		length += UAByteString_calcSize(&(extensionObject->Body));
+	}
+	return length;
+}
+
+Int32 responseHeader_calcSize(UA_AD_ResponseHeader *responseHeader) {
+	Int32 i;
+	Int32 length = 0;
+
+	// UtcTime timestamp	8
+	length += sizeof(UA_DateTime);
+
+	// IntegerId requestHandle	4
+	length += sizeof(UA_AD_IntegerId);
+
+	// StatusCode serviceResult	4
+	length += sizeof(UA_StatusCode);
+
+	// DiagnosticInfo serviceDiagnostics
+	length += diagnosticInfo_calcSize(responseHeader->serviceDiagnostics);
+
+	// String stringTable[], see 62541-6 § 5.2.4
+	length += sizeof(Int32); // Length of Stringtable always
+	if (responseHeader->noOfStringTable > 0) {
+		for (i = 0; i < responseHeader->noOfStringTable; i++) {
+			length += UAString_calcSize(responseHeader->stringTable[i]);
+		}
+	}
+
+	// ExtensibleObject additionalHeader
+	length += extensionObject_calcSize(responseHeader->additionalHeader);
+	return length;
+}
 

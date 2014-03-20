@@ -56,15 +56,6 @@ struct TL_message
 	struct TL_header Header;
 	char *message;
 };
-typedef struct UA_T_SecureConversationMessageHeader
-{
-	UA_ByteString messageType;
-	UA_Byte isFinal;
-	UA_UInt32 messageSize;
-	UA_UInt32 secureChannelId;
-}UA_SecureConversationMessageHeader;
-typedef _Bool UA_Boolean;
-UA_TYPE_METHOD_PROTOTYPES (UA_SecureConversationMessageHeader)
 
 struct TL_messageBodyHEL
 {
@@ -99,15 +90,15 @@ struct TL_messageBodyERR
  * @param TL_message
  * @return
  */
-UA_Int32 TL_check(UA_connection *connection);
+Int32 TL_check(UA_connection *connection);
 /**
  *
  * @param connection
  * @param TL_message
  */
-UA_Int32 TL_receive(UA_connection *connection,UA_ByteString *packet);
-UA_Int32 TL_send(UA_connection *connection, UA_ByteString *packet);
-UA_Int32 TL_getPacketType(UA_ByteString *packet, UA_Int32 *pos);
+Int32 TL_receive(UA_connection *connection,UA_ByteString *packet);
+Int32 TL_send(UA_connection *connection, UA_ByteString *packet);
+Int32 TL_getPacketType(UA_ByteString *packet, Int32 *pos);
 
 
 #endif /* OPCUA_TRANSPORTLAYER_H_ */

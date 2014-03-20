@@ -18,16 +18,16 @@
 #					  opcua_connectionHelper.h	
 lib_LTLIBRARIES = libopen62541.la
 libopen62541_la_LDFLAGS = -avoid-version -no-undefined
-libopen62541_la_SOURCES = opcua_transportLayer.c\
+libopen62541_la_SOURCES = opcua_builtInDatatypes.c\
+						opcua_binaryEncDec.c\
+						opcua_transportLayer.c\
 						opcua_encodingLayer.c\
 						opcua_secureChannelLayer.c\
 						opcua_memory.c\
 						opcua_time.c\
 						tcp_layer.c\
-						#opcua_binaryEncDec.c\
-						#opcua_builtInDatatypes.c\
-						#opcua_builtInDatatypes.h\
-						#opcua_binaryEncDec.h\
+						opcua_builtInDatatypes.h\
+						opcua_binaryEncDec.h\
 						opcua_transportLayer.h\
 						opcua_advancedDatatypes.h\
 						opcua_types.h\

@@ -296,7 +296,7 @@ UA_Int32 UA_String_decode(char const * src, UA_Int32* pos, UA_String * dst) {
 	return retval;
 }
 UA_TYPE_METHOD_DELETE_STRUCT(UA_String)
-UA_Int32 UA_String_deleteMembers(UA_String* p) { return UA_free(p->data); };
+UA_Int32 UA_String_deleteMembers(UA_String* p) { return UA_free(p->data); }
 UA_Int32 UA_String_copy(UA_String const * src, UA_String* dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	dst->length = src->length;
@@ -342,14 +342,14 @@ UA_Int32 UA_Guid_encode(UA_Guid const *src, UA_Int32* pos, char *dst) {
 }
 UA_Int32 UA_Guid_decode(char const * src, UA_Int32* pos, UA_Guid *dst) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_Int32_decode(src,pos,&(dst->data1));
-	retval |= UA_Int16_decode(src,pos,&(dst->data2));
-	retval |= UA_Int16_decode(src,pos,&(dst->data3));
+	retval |= UA_UInt32_decode(src,pos,&(dst->data1));
+	retval |= UA_UInt16_decode(src,pos,&(dst->data2));
+	retval |= UA_UInt16_decode(src,pos,&(dst->data3));
 	retval |= UA_ByteString_decode(src,pos,&(dst->data4));
 	return retval;
 }
 UA_TYPE_METHOD_DELETE_STRUCT(UA_Guid)
-UA_Int32 UA_Guid_deleteMembers(UA_Guid* p) { return UA_ByteString_delete(&(p->data4)); };
+UA_Int32 UA_Guid_deleteMembers(UA_Guid* p) { return UA_ByteString_delete(&(p->data4)); }
 
 UA_Int32 UA_LocalizedText_calcSize(UA_LocalizedText const * p) {
 	UA_Int32 length = 0;
@@ -928,13 +928,13 @@ UA_Int32 UA_DataValue_decode(char const * src, UA_Int32* pos, UA_DataValue* dst)
 		retval |= UA_DateTime_decode(src,pos,&(dst->serverTimestamp));
 	}
 	if (dst->encodingMask & 0x10) {
-		retval |= UA_UInt16_decode(src,pos,&(dst->sourcePicoseconds));
+		retval |= UA_Int16_decode(src,pos,&(dst->sourcePicoseconds));
 		if (dst->sourcePicoseconds > MAX_PICO_SECONDS) {
 			dst->sourcePicoseconds = MAX_PICO_SECONDS;
 		}
 	}
 	if (dst->encodingMask & 0x20) {
-		retval |= UA_UInt16_decode(src,pos,&(dst->serverPicoseconds));
+		retval |= UA_Int16_decode(src,pos,&(dst->serverPicoseconds));
 		if (dst->serverPicoseconds > MAX_PICO_SECONDS) {
 			dst->serverPicoseconds = MAX_PICO_SECONDS;
 		}
@@ -957,10 +957,10 @@ UA_Int32 UA_DataValue_encode(UA_DataValue const * src, UA_Int32* pos, char *dst)
 		retval |= UA_DateTime_encode(&(src->serverTimestamp),pos,dst);
 	}
 	if (src->encodingMask & 0x10) {
-		retval |= UA_UInt16_encode(&(src->sourcePicoseconds),pos,dst);
+		retval |= UA_Int16_encode(&(src->sourcePicoseconds),pos,dst);
 	}
 	if (src->encodingMask & 0x10) {
-		retval |= UA_UInt16_encode(&(src->serverPicoseconds),pos,dst);
+		retval |= UA_Int16_encode(&(src->serverPicoseconds),pos,dst);
 	}
 	return retval;
 }

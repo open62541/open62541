@@ -57,6 +57,7 @@ UA_Int32 TYPE##_decode(char const * src, UA_Int32* pos, TYPE * dst);\
 UA_Int32 TYPE##_delete(TYPE * p);\
 UA_Int32 TYPE##_deleteMembers(TYPE * p); \
 
+
 #define UA_TYPE_METHOD_CALCSIZE_SIZEOF(TYPE) \
 UA_Int32 TYPE##_calcSize(TYPE const * p) { return sizeof(TYPE); }
 
@@ -64,10 +65,10 @@ UA_Int32 TYPE##_calcSize(TYPE const * p) { return sizeof(TYPE); }
 UA_Int32 TYPE##_calcSize(TYPE const * p) { return TYPE_AS##_calcSize((TYPE_AS*) p); }
 
 #define UA_TYPE_METHOD_DELETE_FREE(TYPE) \
-UA_Int32 TYPE##_delete(TYPE * p) { return UA_free(p); };
+UA_Int32 TYPE##_delete(TYPE * p) { return UA_free(p); }
 
 #define UA_TYPE_METHOD_DELETE_AS(TYPE, TYPE_AS) \
-UA_Int32 TYPE##_delete(TYPE * p) { return TYPE_AS##_delete((TYPE_AS*) p);};
+UA_Int32 TYPE##_delete(TYPE * p) { return TYPE_AS##_delete((TYPE_AS*) p);}
 
 #define UA_TYPE_METHOD_DELETE_STRUCT(TYPE) \
 UA_Int32 TYPE##_delete(TYPE *p) { \
@@ -78,13 +79,13 @@ UA_Int32 TYPE##_delete(TYPE *p) { \
 }
 
 #define UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(TYPE) \
-UA_Int32 TYPE##_deleteMembers(TYPE * p) { return UA_SUCCESS; };
+UA_Int32 TYPE##_deleteMembers(TYPE * p) { return UA_SUCCESS; }
 
 #define UA_TYPE_METHOD_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
-		UA_Int32 TYPE##_deleteMembers(TYPE * p) { return TYPE_AS##_deleteMembers((TYPE_AS*) p);};
+UA_Int32 TYPE##_deleteMembers(TYPE * p) { return TYPE_AS##_deleteMembers((TYPE_AS*) p);}
 
 #define UA_TYPE_METHOD_DECODE_AS(TYPE,TYPE_AS) \
-		UA_Int32 TYPE##_decode(char const * src, UA_Int32* pos, TYPE *dst) { \
+UA_Int32 TYPE##_decode(char const * src, UA_Int32* pos, TYPE *dst) { \
 	return TYPE_AS##_decode(src,pos,(TYPE_AS*) dst); \
 }
 

@@ -129,7 +129,7 @@ typedef _Bool Boolean;
 
 typedef int8_t SByte;
 
-typedef uint8_t UA_Byte;
+typedef uint8_t Byte;
 
 typedef int16_t Int16;
 
@@ -137,15 +137,15 @@ typedef uint16_t UInt16;
 
 typedef int32_t Int32;
 
-typedef uint32_t UA_UInt32;
+typedef uint32_t UInt32;
 
-typedef int64_t UA_Int64;
+typedef int64_t Int64;
 
-typedef uint64_t UA_UInt64;
+typedef uint64_t UInt64;
 
 typedef float Float;
 
-typedef double UA_Double;
+typedef double Double;
 
 
 /**

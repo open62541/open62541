@@ -166,10 +166,10 @@ typedef struct UA_AD_DataValue
 typedef struct
 {
 	//ToDo	struct ???? identifier;	identifier is only needed for encoding????
-	UA_Int32 namespaceUri;
-	UA_Int32 symbolicId;
-	UA_Int32 locale;
-	UA_Int32 localizesText;
+	Int32 namespaceUri;
+	Int32 symbolicId;
+	Int32 locale;
+	Int32 localizesText;
 	UA_String additionalInfo;
 	UA_StatusCode innerStatusCode;
 	struct _UA_DiagnosticInfo* innerDiagnosticInfo;
@@ -479,7 +479,7 @@ typedef struct
 	UA_LocalizedText description;
 //ToDo	DefinedByTheDataTypeAttribte??? value				//ToDo
 	UA_NodeId dataType;
-	UA_Int32 valueRank;
+	Int32 valueRank;
 	UInt16 noOfArrayDimensions;
 	UA_UInt32* arrayDimensions;
 	UA_Byte accessLevel;
@@ -542,7 +542,7 @@ typedef struct
 	UA_LocalizedText description;
 //ToDo	DefinedByTheDataTypeAttribte??? value			//ToDo
 	UA_NodeId dataType;
-	UA_Int32 valueRank;
+	Int32 valueRank;
 	UInt16 noOfArrayDimensions;
 	UA_UInt32* arrayDimesions;
 	Boolean isAbstract;
