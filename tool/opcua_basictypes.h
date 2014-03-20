@@ -15,7 +15,7 @@ typedef _Bool Boolean;
 typedef uint8_t Byte;
 typedef int8_t 	SByte;
 typedef int16_t Int16;
-typedef int32_t UA_Int32;
+typedef int32_t Int32;
 typedef int64_t Int64;
 typedef uint16_t UInt16;
 typedef uint32_t UInt32;
@@ -279,7 +279,7 @@ UA_TYPE_METHOD_PROTOTYPES(UA_DataValue)
 
 /* DiagnosticInfo - Part: 6, Chapter: 5.2.2.12, Page: 20 */
 typedef struct T_UA_DiagnosticInfo {
-	Byte encodingMask; //Type of the Enum UA_DiagnosticInfoEncodingMaskType
+	UA_Byte encodingMask; //Type of the Enum UA_DiagnosticInfoEncodingMaskType
 	UA_Int32 symbolicId;
 	UA_Int32 namespaceUri;
 	UA_Int32 localizedText;

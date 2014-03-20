@@ -5,7 +5,8 @@
  *      Author: mrt
  */
 #include "opcua.h"
-#include <stdlib.h>
+#include <stdio.h>	// printf
+#include <stdlib.h>	// alloc, free
 #include <string.h>
 
 
@@ -70,6 +71,7 @@ UA_Int32 UA_free(void * ptr){
 
 UA_Int32 UA_alloc(void ** ptr, int size){
 	*ptr = malloc(size);
+	printf("UA_alloc - ptr=%p, size=%d\n",*ptr,size);
 	if(*ptr == UA_NULL) return UA_ERR_NO_MEMORY;
 	return UA_SUCCESS;
 }
@@ -92,6 +94,7 @@ UA_Int32 UA_Boolean_decode(char const * src, UA_Int32* pos, UA_Boolean * dst) {
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_Boolean)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Boolean)
+
 
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Byte)
@@ -284,7 +287,7 @@ UA_Int32 UA_String_decode(char const * src, UA_Int32* pos, UA_String * dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_Int32_decode(src,pos,&(dst->length));
 	if (dst->length > 0) {
-		retval |= UA_alloc((void*)&(dst->data),dst->length);
+		retval |= UA_alloc((void**)&(dst->data),dst->length);
 		retval |= UA_memcpy((void*)&(src[*pos]),dst->data,dst->length);
 		*pos += dst->length;
 	} else {
@@ -299,8 +302,7 @@ UA_Int32 UA_String_copy(UA_String const * src, UA_String* dst) {
 	dst->length = src->length;
 	dst->data = UA_NULL;
 	if (src->length > 0) {
-
-		retval |= UA_alloc((void*)&(dst->data), src->length);
+		retval |= UA_alloc((void**)&(dst->data), src->length);
 		if (retval == UA_SUCCESS) {
 			retval |= UA_memcpy((void*)dst->data, src->data, src->length);
 		}
@@ -399,7 +401,7 @@ UA_Int32 UA_LocalizedText_deleteMembers(UA_LocalizedText* p) {
 			|| UA_String_deleteMembers(&(p->locale))
 			|| UA_String_deleteMembers(&(p->text))
 	;
-};
+}
 
 /* Serialization of UA_NodeID is specified in 62541-6, §5.2.2.9 */
 UA_Int32 UA_NodeId_calcSize(UA_NodeId const *p) {
@@ -472,8 +474,8 @@ UA_Int32 UA_NodeId_encode(UA_NodeId const * src, UA_Int32* pos, char *dst) {
 UA_Int32 UA_NodeId_decode(char const * src, UA_Int32* pos, UA_NodeId *dst) {
 	int retval = UA_SUCCESS;
 	// temporary variables to overcome decoder's non-endian-saveness for datatypes
-	Byte   dstByte;
-	UInt16 dstUInt16;
+	UA_Byte   dstByte;
+	UA_UInt16 dstUInt16;
 
 	retval |= UA_Byte_decode(src,pos,&(dst->encodingByte));
 	switch (dst->encodingByte) {
@@ -489,19 +491,19 @@ UA_Int32 UA_NodeId_decode(char const * src, UA_Int32* pos, UA_NodeId *dst) {
 		dst->identifier.numeric = dstUInt16;
 		break;
 	case UA_NodeIdType_Numeric: // Table 6, first entry
-		retval |=UA_Int16_decode(src,pos,&(dst->namespace));
-		retval |=UA_Int32_decode(src,pos,&(dst->identifier.numeric));
+		retval |=UA_UInt16_decode(src,pos,&(dst->namespace));
+		retval |=UA_UInt32_decode(src,pos,&(dst->identifier.numeric));
 		break;
 	case UA_NodeIdType_String: // Table 6, second entry
-		retval |=UA_Int16_decode(src,pos,&(dst->namespace));
+		retval |=UA_UInt16_decode(src,pos,&(dst->namespace));
 		retval |=UA_String_decode(src,pos,&(dst->identifier.string));
 		break;
 	case UA_NodeIdType_Guid: // Table 6, third entry
-		retval |=UA_Int16_decode(src,pos,&(dst->namespace));
+		retval |=UA_UInt16_decode(src,pos,&(dst->namespace));
 		retval |=UA_Guid_decode(src,pos,&(dst->identifier.guid));
 		break;
 	case UA_NodeIdType_ByteString: // Table 6, "OPAQUE"
-		retval |=UA_Int16_decode(src,pos,&(dst->namespace));
+		retval |=UA_UInt16_decode(src,pos,&(dst->namespace));
 		retval |=UA_ByteString_decode(src,pos,&(dst->identifier.byteString));
 		break;
 	}
@@ -992,3 +994,112 @@ UA_Int32 UA_DataValue_calcSize(UA_DataValue const * p) {
 	return length;
 }
 
+/**
+ * RequestHeader
+ * Part: 4
+ * Chapter: 7.26
+ * Page: 132
+ */
+/** \copydoc decodeRequestHeader */
+/*** Sten: removed to compile
+Int32 decodeRequestHeader(const AD_RawMessage *srcRaw, Int32 *pos,
+		UA_AD_RequestHeader *dstRequestHeader) {
+	return decoder_decodeRequestHeader(srcRaw->message, pos, dstRequestHeader);
+}
+***/
+
+/*** Sten: removed to compile
+Int32 decoder_decodeRequestHeader(char const * message, Int32 *pos,
+		UA_AD_RequestHeader *dstRequestHeader) {
+	// 62541-4 §5.5.2.2 OpenSecureChannelServiceParameters
+	// requestHeader - common request parameters. The authenticationToken is always omitted
+	decoder_decodeBuiltInDatatype(message, NODE_ID, pos,
+			&(dstRequestHeader->authenticationToken));
+	decoder_decodeBuiltInDatatype(message, DATE_TIME, pos,
+			&(dstRequestHeader->timestamp));
+	decoder_decodeBuiltInDatatype(message, UINT32, pos,
+			&(dstRequestHeader->requestHandle));
+	decoder_decodeBuiltInDatatype(message, UINT32, pos,
+			&(dstRequestHeader->returnDiagnostics));
+	decoder_decodeBuiltInDatatype(message, STRING, pos,
+			&(dstRequestHeader->auditEntryId));
+	decoder_decodeBuiltInDatatype(message, UINT32, pos,
+			&(dstRequestHeader->timeoutHint));
+	decoder_decodeBuiltInDatatype(message, EXTENSION_OBJECT, pos,
+			&(dstRequestHeader->additionalHeader));
+	// AdditionalHeader will stay empty, need to be changed if there is relevant information
+
+	return 0;
+}
+***/
+
+/**
+ * ResponseHeader
+ * Part: 4
+ * Chapter: 7.27
+ * Page: 133
+ */
+/** \copydoc encodeResponseHeader */
+/*** Sten: removed to compile
+Int32 encodeResponseHeader(UA_AD_ResponseHeader const * responseHeader,
+		Int32 *pos, UA_ByteString *dstBuf) {
+	encodeUADateTime(responseHeader->timestamp, pos, dstBuf->data);
+	encodeIntegerId(responseHeader->requestHandle, pos, dstBuf->data);
+	encodeUInt32(responseHeader->serviceResult, pos, dstBuf->data);
+	encodeDiagnosticInfo(responseHeader->serviceDiagnostics, pos, dstBuf->data);
+
+	encoder_encodeBuiltInDatatypeArray(responseHeader->stringTable,
+			responseHeader->noOfStringTable, STRING_ARRAY, pos, dstBuf->data);
+
+	encodeExtensionObject(responseHeader->additionalHeader, pos, dstBuf->data);
+
+	//Kodieren von String Datentypen
+
+	return 0;
+}
+***/
+/*** Sten: removed to compile
+Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject) {
+	Int32 length = 0;
+
+	length += nodeId_calcSize(&(extensionObject->typeId));
+	length += sizeof(Byte); //The EncodingMask Byte
+
+	if (extensionObject->encoding == BODY_IS_BYTE_STRING
+			|| extensionObject->encoding == BODY_IS_XML_ELEMENT) {
+		length += UAByteString_calcSize(&(extensionObject->body));
+	}
+	return length;
+}
+***/
+
+/*** Sten: removed to compile
+Int32 responseHeader_calcSize(UA_AD_ResponseHeader *responseHeader) {
+	Int32 i;
+	Int32 length = 0;
+
+	// UtcTime timestamp	8
+	length += sizeof(UA_DateTime);
+
+	// IntegerId requestHandle	4
+	length += sizeof(UA_AD_IntegerId);
+
+	// StatusCode serviceResult	4
+	length += sizeof(UA_StatusCode);
+
+	// DiagnosticInfo serviceDiagnostics
+	length += diagnosticInfo_calcSize(responseHeader->serviceDiagnostics);
+
+	// String stringTable[], see 62541-6 § 5.2.4
+	length += sizeof(Int32); // Length of Stringtable always
+	if (responseHeader->noOfStringTable > 0) {
+		for (i = 0; i < responseHeader->noOfStringTable; i++) {
+			length += UAString_calcSize(responseHeader->stringTable[i]);
+		}
+	}
+
+	// ExtensibleObject additionalHeader
+	length += extensionObject_calcSize(responseHeader->additionalHeader);
+	return length;
+}
+***/

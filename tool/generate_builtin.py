@@ -51,6 +51,11 @@ def stripTypename(tn):
 def camlCase2AdaCase(item):
     (newitem, n) = re.subn("(?<!^)(?<![A-Z])([A-Z])", "_\\1", item)
     return newitem
+    
+def camlCase2CCase(item):
+    if item in ["Float","Double"]:
+        return "my" + item
+    return item[:1].lower() + item[1:] if item else ''
 
 # are the prerequisites in place? if not, postpone.
 def printableStructuredType(element):
@@ -102,7 +107,7 @@ def createStructured(element):
         elif child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
             if child.get("Name") in lengthfields:
                 continue
-            childname = camlCase2AdaCase(child.get("Name"))
+            childname = camlCase2CCase(child.get("Name"))
             if childname in printed_types:
                 childname = childname + "_Value" # attributes may not have the name of a type
             typename = stripTypename(child.get("TypeName"))
