@@ -4,8 +4,8 @@
 #include "check.h"
 
 /* global test counters */
-Int32 visit_count = 0;
-Int32 free_count = 0;
+UA_Int32 visit_count = 0;
+UA_Int32 free_count = 0;
 
 void visitor(void* payload){
 	visit_count++;
@@ -22,7 +22,7 @@ Boolean matcher(void* payload){
 	if(payload == NULL){
 		return FALSE;
 	}
-	if(*((Int32*)payload) == 42){
+	if(*((UA_Int32*)payload) == 42){
 		return TRUE;
 	}
 	return FALSE;
@@ -36,13 +36,13 @@ START_TEST(linkedList_test_basic)
 
 	ck_assert_int_eq(list.size, 0);
 
-	Int32* payload = (Int32*)malloc(sizeof(*payload));
+	UA_Int32* payload = (UA_Int32*)malloc(sizeof(*payload));
 	*payload = 10;
 	UA_indexedList_addValue(&list, 1, payload);
-	payload = (Int32*)malloc(sizeof(*payload));
+	payload = (UA_Int32*)malloc(sizeof(*payload));
 	*payload = 20;
 	UA_indexedList_addValueToFront(&list, 2, payload);
-	payload = (Int32*)malloc(sizeof(*payload));
+	payload = (UA_Int32*)malloc(sizeof(*payload));
 	*payload = 30;
 	UA_indexedList_addValue(&list, 3, payload);
 
@@ -52,7 +52,7 @@ START_TEST(linkedList_test_basic)
 	ck_assert_int_eq(visit_count, 3);
 	visit_count = 0;
 
-	payload = (Int32*)UA_indexedList_findValue(&list, 2);
+	payload = (UA_Int32*)UA_indexedList_findValue(&list, 2);
 	if(payload){
 		ck_assert_int_eq(*payload, 20);
 	}else{
@@ -64,7 +64,7 @@ START_TEST(linkedList_test_basic)
 	free_count=0;
 	ck_assert_int_eq(list.size, 2);
 
-	payload = (Int32*)UA_indexedList_findValue(&list, 2);
+	payload = (UA_Int32*)UA_indexedList_findValue(&list, 2);
 	if(payload){
 		fail("Previously removed element 20 found");
 	}

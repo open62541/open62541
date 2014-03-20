@@ -5,12 +5,12 @@ void UA_indexedList_defaultFreer(void* payload){
 	UA_list_defaultFreer(payload);
 }
 
-Int32 UA_indexedList_init(UA_indexedList_List* const list){
+UA_Int32 UA_indexedList_init(UA_indexedList_List* const list){
 	if(list==NULL)return UA_ERROR;
 	return UA_list_init((UA_list_List*)list);
 }
 
-Int32 UA_indexedList_destroy(UA_indexedList_List* const list, UA_indexedList_PayloadVisitor visitor){
+UA_Int32 UA_indexedList_destroy(UA_indexedList_List* const list, UA_indexedList_PayloadVisitor visitor){
 	if(list==NULL)return UA_ERROR;
 	UA_list_Element* current = NULL;
 	current=list->first;
@@ -30,7 +30,7 @@ Int32 UA_indexedList_destroy(UA_indexedList_List* const list, UA_indexedList_Pay
 	return UA_NO_ERROR;
 }
 
-Int32 UA_indexedList_initElement(UA_indexedList_Element* const elem){
+UA_Int32 UA_indexedList_initElement(UA_indexedList_Element* const elem){
 	if(elem==NULL)return UA_ERROR;
 	elem->father = NULL;
 	elem->index = -1;
@@ -38,7 +38,7 @@ Int32 UA_indexedList_initElement(UA_indexedList_Element* const elem){
 	return UA_NO_ERROR;
 }
 
-Int32 UA_indexedList_addValue(UA_indexedList_List* const list, Int32 index, void* payload){
+UA_Int32 UA_indexedList_addValue(UA_indexedList_List* const list, UA_Int32 index, void* payload){
 	if(list==NULL)return UA_ERROR;
 	UA_list_Element* dllElem = (UA_list_Element*)malloc(sizeof(*dllElem));
 	UA_list_initElement(dllElem);
@@ -51,7 +51,7 @@ Int32 UA_indexedList_addValue(UA_indexedList_List* const list, Int32 index, void
 	return UA_list_addElementToBack((UA_list_List*)list, dllElem);
 }
 
-Int32 UA_indexedList_addValueToFront(UA_indexedList_List* const list, Int32 index, void* payload){
+UA_Int32 UA_indexedList_addValueToFront(UA_indexedList_List* const list, UA_Int32 index, void* payload){
 	if(list==NULL)return UA_ERROR;
 	UA_list_Element* dllElem = (UA_list_Element*)malloc(sizeof(*dllElem));
 	UA_list_initElement(dllElem);
@@ -64,7 +64,7 @@ Int32 UA_indexedList_addValueToFront(UA_indexedList_List* const list, Int32 inde
 	return UA_list_addElementToFront((UA_list_List*)list, dllElem);
 }
 
-UA_indexedList_Element* UA_indexedList_find(UA_indexedList_List* const list, Int32 index){
+UA_indexedList_Element* UA_indexedList_find(UA_indexedList_List* const list, UA_Int32 index){
 	if(list==NULL)return NULL;
 	UA_list_Element* current = list->first;
 	while(current){
@@ -79,7 +79,7 @@ UA_indexedList_Element* UA_indexedList_find(UA_indexedList_List* const list, Int
 	return NULL;
 }
 
-void* UA_indexedList_findValue(UA_indexedList_List* const list, Int32 index){
+void* UA_indexedList_findValue(UA_indexedList_List* const list, UA_Int32 index){
 	if(list==NULL)return NULL;
 	UA_indexedList_Element* iilElem = UA_indexedList_find(list, index);
 	if(iilElem){
@@ -88,7 +88,7 @@ void* UA_indexedList_findValue(UA_indexedList_List* const list, Int32 index){
 	return NULL;
 }
 
-Int32 UA_indexedList_iterateValues(UA_indexedList_List* const list, UA_indexedList_PayloadVisitor visitor){
+UA_Int32 UA_indexedList_iterateValues(UA_indexedList_List* const list, UA_indexedList_PayloadVisitor visitor){
 	if(list==NULL)return UA_ERROR;
 	UA_list_Element* current = list->first;
 	while(current){
@@ -104,7 +104,7 @@ Int32 UA_indexedList_iterateValues(UA_indexedList_List* const list, UA_indexedLi
 	return UA_NO_ERROR;
 }
 
-Int32 UA_indexedList_removeElement(UA_indexedList_List* const list, UA_indexedList_Element* elem, UA_indexedList_PayloadVisitor visitor){
+UA_Int32 UA_indexedList_removeElement(UA_indexedList_List* const list, UA_indexedList_Element* elem, UA_indexedList_PayloadVisitor visitor){
 	if(list==NULL || elem==NULL)return UA_ERROR;
 	if(visitor){
 		(*visitor)(elem->payload);

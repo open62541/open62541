@@ -25,7 +25,7 @@ UA_Int32 encoder_encodeBuiltInDatatype(void *data, UA_Int32 type, UA_Int32 *pos,
 		encodeByte((*(UA_Byte*) data), pos, dstBuf);
 		break;
 	case INT16:
-		encodeInt16((*(Int16*) data), pos, dstBuf);
+		encodeInt16((*(UA_Int16*) data), pos, dstBuf);
 		break;
 	case UINT16:
 		encodeUInt16((*(UInt16*) data), pos, dstBuf);
@@ -105,13 +105,13 @@ UA_Int32 decoder_decodeBuiltInDatatype(char const * srcBuf, UA_Int32 type, UA_In
 
 		break;
 	case SBYTE:
-		decodeSByte(srcBuf, pos, (SByte*) dstStructure);
+		decodeSByte(srcBuf, pos, (UA_SByte*) dstStructure);
 		break;
 	case BYTE:
 		decodeByte(srcBuf, pos, (UA_Byte*) dstStructure);
 		break;
 	case INT16:
-		decodeInt16(srcBuf, pos, (Int16*) dstStructure);
+		decodeInt16(srcBuf, pos, (UA_Int16*) dstStructure);
 		break;
 	case UINT16:
 		decodeUInt16(srcBuf, pos, (UInt16*) dstStructure);
@@ -455,16 +455,16 @@ UA_Int32 encoder_encodeBuiltInDatatypeArray(void **data, UA_Int32 size, UA_Int32
 			pElement = (Boolean*)pElement + 1;
 			break;
 		case SBYTE:
-			encoder_encodeBuiltInDatatype((SByte*)pElement, type, pos, dstBuf);
-			pElement = (SByte*)pElement + 1;
+			encoder_encodeBuiltInDatatype((UA_SByte*)pElement, type, pos, dstBuf);
+			pElement = (UA_SByte*)pElement + 1;
 			break;
 		case BYTE:
 			encoder_encodeBuiltInDatatype((UA_Byte*)pElement, type, pos, dstBuf);
 			pElement = (UA_Byte*)pElement + 1;
 			break;
 		case INT16:
-			encoder_encodeBuiltInDatatype((Int16*)pElement, type, pos, dstBuf);
-			pElement = (Int16*)pElement + 1;
+			encoder_encodeBuiltInDatatype((UA_Int16*)pElement, type, pos, dstBuf);
+			pElement = (UA_Int16*)pElement + 1;
 			break;
 		case UINT16:
 			encoder_encodeBuiltInDatatype((UInt16*)pElement, type, pos, dstBuf);
@@ -566,14 +566,14 @@ void encodeBoolean(Boolean value, UA_Int32 *pos, char *dstBuf) {
 	memcpy(&(dstBuf[*pos]), &tmpBool, sizeof(Boolean));
 }
 
-UA_Int32 decodeSByte(char const * buf, UA_Int32 *pos, SByte *dst) {
+UA_Int32 decodeSByte(char const * buf, UA_Int32 *pos, UA_SByte *dst) {
 	*pos = (*pos) + 1;
-	*dst = (SByte) buf[(*pos) - 1];
+	*dst = (UA_SByte) buf[(*pos) - 1];
 	return UA_NO_ERROR;
 
 }
-void encodeSByte(SByte value, UA_Int32 *pos, char *dstBuf) {
-	memcpy(&(dstBuf[*pos]), &value, sizeof(SByte));
+void encodeSByte(UA_SByte value, UA_Int32 *pos, char *dstBuf) {
+	memcpy(&(dstBuf[*pos]), &value, sizeof(UA_SByte));
 	*pos = (*pos) + 1;
 
 }
@@ -600,23 +600,23 @@ void encodeUInt16(UInt16 value, UA_Int32 *pos, char* dstBuf) {
 	*pos = (*pos) + sizeof(UInt16);
 }
 
-UA_Int32 decodeInt16(char const * buf, UA_Int32 *pos, Int16 *dst) {
-	Int16 t1 = (Int16) (((SByte) (buf[*pos]) & 0xFF));
-	Int16 t2 = (Int16) (((SByte) (buf[*pos + 1]) & 0xFF) << 8);
+UA_Int32 decodeInt16(char const * buf, UA_Int32 *pos, UA_Int16 *dst) {
+	UA_Int16 t1 = (UA_Int16) (((UA_SByte) (buf[*pos]) & 0xFF));
+	UA_Int16 t2 = (UA_Int16) (((UA_SByte) (buf[*pos + 1]) & 0xFF) << 8);
 	*pos += 2;
 	*dst = t1 + t2;
 	return UA_NO_ERROR;
 }
-void encodeInt16(Int16 value, UA_Int32 *pos, char *dstBuf) {
-	memcpy(&(dstBuf[*pos]), &value, sizeof(Int16));
-	*pos = (*pos) + sizeof(Int16);
+void encodeInt16(UA_Int16 value, UA_Int32 *pos, char *dstBuf) {
+	memcpy(&(dstBuf[*pos]), &value, sizeof(UA_Int16));
+	*pos = (*pos) + sizeof(UA_Int16);
 }
 
 UA_Int32 decodeInt32(char const * buf, UA_Int32 *pos, UA_Int32 *dst) {
-	UA_Int32 t1 = (UA_Int32) (((SByte) (buf[*pos]) & 0xFF));
-	UA_Int32 t2 = (UA_Int32) (((SByte) (buf[*pos + 1]) & 0xFF) << 8);
-	UA_Int32 t3 = (UA_Int32) (((SByte) (buf[*pos + 2]) & 0xFF) << 16);
-	UA_Int32 t4 = (UA_Int32) (((SByte) (buf[*pos + 3]) & 0xFF) << 24);
+	UA_Int32 t1 = (UA_Int32) (((UA_SByte) (buf[*pos]) & 0xFF));
+	UA_Int32 t2 = (UA_Int32) (((UA_SByte) (buf[*pos + 1]) & 0xFF) << 8);
+	UA_Int32 t3 = (UA_Int32) (((UA_SByte) (buf[*pos + 2]) & 0xFF) << 16);
+	UA_Int32 t4 = (UA_Int32) (((UA_SByte) (buf[*pos + 3]) & 0xFF) << 24);
 	*pos += sizeof(UA_Int32);
 	*dst = t1 + t2 + t3 + t4;
 	return UA_NO_ERROR;
@@ -643,7 +643,7 @@ void encodeUInt32(UA_UInt32 value, UA_Int32 *pos, char *dstBuf) {
 
 UA_Int32 decodeInt64(char const * buf, UA_Int32 *pos, UA_Int64 *dst) {
 
-	SByte t1 = buf[*pos];
+	UA_SByte t1 = buf[*pos];
 	UA_Int64 t2 = (UA_Int64) buf[*pos + 1] << 8;
 	UA_Int64 t3 = (UA_Int64) buf[*pos + 2] << 16;
 	UA_Int64 t4 = (UA_Int64) buf[*pos + 3] << 24;
@@ -1479,12 +1479,12 @@ UA_Int32 diagnosticInfo_calcSize(UA_DiagnosticInfo *diagnosticInfo) {
  * Page: 132
  */
 /** \copydoc decodeRequestHeader */
-Int32 decodeRequestHeader(const AD_RawMessage *srcRaw, Int32 *pos,
+UA_Int32 decodeRequestHeader(const AD_RawMessage *srcRaw, UA_Int32 *pos,
 		UA_AD_RequestHeader *dstRequestHeader) {
 	return decoder_decodeRequestHeader(srcRaw->message, pos, dstRequestHeader);
 }
 
-Int32 decoder_decodeRequestHeader(char const * message, Int32 *pos,
+UA_Int32 decoder_decodeRequestHeader(char const * message, UA_Int32 *pos,
 		UA_AD_RequestHeader *dstRequestHeader) {
 	// 62541-4 §5.5.2.2 OpenSecureChannelServiceParameters
 	// requestHeader - common request parameters. The authenticationToken is always omitted
@@ -1514,8 +1514,8 @@ Int32 decoder_decodeRequestHeader(char const * message, Int32 *pos,
  * Page: 133
  */
 /** \copydoc encodeResponseHeader */
-Int32 encodeResponseHeader(UA_AD_ResponseHeader const * responseHeader,
-		Int32 *pos, UA_ByteString *dstBuf) {
+UA_Int32 encodeResponseHeader(UA_AD_ResponseHeader const * responseHeader,
+		UA_Int32 *pos, UA_ByteString *dstBuf) {
 	encodeUADateTime(responseHeader->timestamp, pos, dstBuf->Data);
 	encodeIntegerId(responseHeader->requestHandle, pos, dstBuf->Data);
 	encodeUInt32(responseHeader->serviceResult, pos, dstBuf->Data);
@@ -1530,11 +1530,11 @@ Int32 encodeResponseHeader(UA_AD_ResponseHeader const * responseHeader,
 
 	return 0;
 }
-Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject) {
-	Int32 length = 0;
+UA_Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject) {
+	UA_Int32 length = 0;
 
 	length += nodeId_calcSize(&(extensionObject->TypeId));
-	length += sizeof(Byte); //The EncodingMask Byte
+	length += sizeof(UA_Byte); //The EncodingMask Byte
 
 	if (extensionObject->Encoding == BODY_IS_BYTE_STRING
 			|| extensionObject->Encoding == BODY_IS_XML_ELEMENT) {
@@ -1543,9 +1543,9 @@ Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject) {
 	return length;
 }
 
-Int32 responseHeader_calcSize(UA_AD_ResponseHeader *responseHeader) {
-	Int32 i;
-	Int32 length = 0;
+UA_Int32 responseHeader_calcSize(UA_AD_ResponseHeader *responseHeader) {
+	UA_Int32 i;
+	UA_Int32 length = 0;
 
 	// UtcTime timestamp	8
 	length += sizeof(UA_DateTime);
@@ -1560,7 +1560,7 @@ Int32 responseHeader_calcSize(UA_AD_ResponseHeader *responseHeader) {
 	length += diagnosticInfo_calcSize(responseHeader->serviceDiagnostics);
 
 	// String stringTable[], see 62541-6 § 5.2.4
-	length += sizeof(Int32); // Length of Stringtable always
+	length += sizeof(UA_Int32); // Length of Stringtable always
 	if (responseHeader->noOfStringTable > 0) {
 		for (i = 0; i < responseHeader->noOfStringTable; i++) {
 			length += UAString_calcSize(responseHeader->stringTable[i]);

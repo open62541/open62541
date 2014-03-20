@@ -19,7 +19,7 @@ typedef struct T_UA_list_Element {
 typedef struct T_UA_list_List {
    struct T_UA_list_Element* first;
    struct T_UA_list_Element* last;
-   Int32 size;
+   UA_Int32 size;
 }UA_list_List;
 
 typedef void (*UA_list_ElementVisitor)(UA_list_Element* payload);
@@ -28,29 +28,29 @@ typedef Boolean (*UA_list_PayloadMatcher)(void* payload);
 
 void UA_list_defaultFreer(void* payload);
 
-Int32 UA_list_initElement(UA_list_Element* const element);
+UA_Int32 UA_list_initElement(UA_list_Element* const element);
 
-Int32 UA_list_init(UA_list_List* const list);
+UA_Int32 UA_list_init(UA_list_List* const list);
 
-Int32 UA_list_addElementToFront(UA_list_List* const list, UA_list_Element* const element);
+UA_Int32 UA_list_addElementToFront(UA_list_List* const list, UA_list_Element* const element);
 
-Int32 UA_list_addPayloadToFront(UA_list_List* const list, void* const payload);
+UA_Int32 UA_list_addPayloadToFront(UA_list_List* const list, void* const payload);
 
-Int32 UA_list_addElementToBack(UA_list_List* const list, UA_list_Element* const element);
+UA_Int32 UA_list_addElementToBack(UA_list_List* const list, UA_list_Element* const element);
 
-Int32 UA_list_addPayloadToBack(UA_list_List* const list, void* const payload);
+UA_Int32 UA_list_addPayloadToBack(UA_list_List* const list, void* const payload);
 
-Int32 UA_list_removeFirst(UA_list_List* const list, UA_list_PayloadVisitor visitor);
+UA_Int32 UA_list_removeFirst(UA_list_List* const list, UA_list_PayloadVisitor visitor);
 
-Int32 UA_list_removeLast(UA_list_List* const list, UA_list_PayloadVisitor visitor);
+UA_Int32 UA_list_removeLast(UA_list_List* const list, UA_list_PayloadVisitor visitor);
 
-Int32 UA_list_removeElement(UA_list_Element* const elem, UA_list_PayloadVisitor visitor);
+UA_Int32 UA_list_removeElement(UA_list_Element* const elem, UA_list_PayloadVisitor visitor);
 
-Int32 UA_list_destroy(UA_list_List* const list, UA_list_PayloadVisitor visitor);
+UA_Int32 UA_list_destroy(UA_list_List* const list, UA_list_PayloadVisitor visitor);
 
-Int32 UA_list_iterateElement(UA_list_List* const list, UA_list_ElementVisitor visitor);
+UA_Int32 UA_list_iterateElement(UA_list_List* const list, UA_list_ElementVisitor visitor);
 
-Int32 UA_list_iteratePayload(UA_list_List* const list, UA_list_PayloadVisitor visitor);
+UA_Int32 UA_list_iteratePayload(UA_list_List* const list, UA_list_PayloadVisitor visitor);
 
 UA_list_Element* UA_list_find(UA_list_List* const list, UA_list_PayloadMatcher matcher);
 

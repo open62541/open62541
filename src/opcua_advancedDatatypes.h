@@ -133,10 +133,10 @@ struct BED_DataValue
 struct BED_DiagnosticInfo
 {
 //ToDo	struct ???? identifier;				//ToDo: what kind of strcuture?
-	Int32 namespaceUri;
-	Int32 symbolicId;
-	Int32 locale;
-	Int32 localizesText;
+	UA_Int32 namespaceUri;
+	UA_Int32 symbolicId;
+	UA_Int32 locale;
+	UA_Int32 localizesText;
 	UA_String additionalInfo;
 	UA_StatusCode innerStatusCode;
 	struct BED_DiagnosticInfo *innerDiagnosticInfo;
@@ -410,7 +410,7 @@ struct BED_VariableAttributes
 //	struct UA_LocalizedText description;
 //ToDo	DefinedByTheDataTypeAttribte??? value				//ToDo
 //	struct UA_NodeId dataType;
-	Int32 valueRank;
+	UA_Int32 valueRank;
 //	UInt32 arrayDimensions[];
 	UA_Byte accessLevel;
 	UA_Byte userAccesLevel;
@@ -469,7 +469,7 @@ struct BED_VariableTypeAttributes
 //	struct UA_LocalizedText description;
 //ToDo	DefinedByTheDataTypeAttribte??? value			//ToDo
 //	struct UA_NodeId dataType;
-	Int32 valueRank;
+	UA_Int32 valueRank;
 //	UInt32 arrayDimesions[];
 	Boolean isAbstract;
 	UA_UInt32 writeMask;

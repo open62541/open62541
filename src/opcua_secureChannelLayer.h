@@ -12,7 +12,7 @@
 #include "opcua_encodingLayer.h"
 #include "opcua_connectionHelper.h"
 
-static const Int32 SL_HEADER_LENGTH = 0;
+static const UA_Int32 SL_HEADER_LENGTH = 0;
 #define TOKEN_LIFETIME 30000
 typedef enum
 {
@@ -87,7 +87,7 @@ typedef struct _SL_ResponseHeader
  * @param connection
  * @return
  */
-Int32 SL_initConnectionObject(UA_connection *connection);
+UA_Int32 SL_initConnectionObject(UA_connection *connection);
 
 /**
  *
@@ -96,8 +96,8 @@ Int32 SL_initConnectionObject(UA_connection *connection);
  * @param sizeInOut
  * @return
  */
-Int32 SL_openSecureChannel_responseMessage_get(UA_connection *connection,
-		SL_Response *response, Int32* sizeInOut);
+UA_Int32 SL_openSecureChannel_responseMessage_get(UA_connection *connection,
+		SL_Response *response, UA_Int32* sizeInOut);
 
 /**
  *
@@ -107,7 +107,7 @@ Int32 SL_openSecureChannel_responseMessage_get(UA_connection *connection,
  * @param SC_Header
  * @return
  */
-Int32 decodeSCMHeader(UA_ByteString *rawMessage,Int32 *pos,
+UA_Int32 decodeSCMHeader(UA_ByteString *rawMessage,UA_Int32 *pos,
 		SL_SecureConversationMessageHeader* SC_Header);
 
 /**
@@ -117,8 +117,8 @@ Int32 decodeSCMHeader(UA_ByteString *rawMessage,Int32 *pos,
  * @param rawMessage
  * @return
  */
-Int32 encodeSCMHeader(SL_SecureConversationMessageHeader *SC_Header,
-	 Int32 *pos,AD_RawMessage *rawMessage);
+UA_Int32 encodeSCMHeader(SL_SecureConversationMessageHeader *SC_Header,
+	 UA_Int32 *pos,AD_RawMessage *rawMessage);
 
 /**
  *
@@ -127,7 +127,7 @@ Int32 encodeSCMHeader(SL_SecureConversationMessageHeader *SC_Header,
  * @param SequenceHeader
  * @return
  */
-Int32 decodeSequenceHeader(UA_ByteString *rawMessage, Int32 *pos,
+UA_Int32 decodeSequenceHeader(UA_ByteString *rawMessage, UA_Int32 *pos,
 		SL_SequenceHeader *sequenceHeader);
 /**
  *
@@ -136,7 +136,7 @@ Int32 decodeSequenceHeader(UA_ByteString *rawMessage, Int32 *pos,
  * @param dstRawMessage
  * @return
  */
-Int32 encodeSequenceHeader(SL_SequenceHeader *sequenceHeader,Int32 *pos,
+UA_Int32 encodeSequenceHeader(SL_SequenceHeader *sequenceHeader,UA_Int32 *pos,
 		AD_RawMessage *dstRawMessage);
 /**
  *
@@ -145,7 +145,7 @@ Int32 encodeSequenceHeader(SL_SequenceHeader *sequenceHeader,Int32 *pos,
  * @param AAS_Header
  * @return
  */
-Int32 decodeAASHeader(UA_ByteString *rawMessage, Int32 *pos,
+UA_Int32 decodeAASHeader(UA_ByteString *rawMessage, UA_Int32 *pos,
 	SL_AsymmetricAlgorithmSecurityHeader* AAS_Header);
 
 /**
@@ -155,8 +155,8 @@ Int32 decodeAASHeader(UA_ByteString *rawMessage, Int32 *pos,
  * @param dstRawMessage
  * @return
  */
-Int32 encodeAASHeader(SL_AsymmetricAlgorithmSecurityHeader *AAS_Header,
-		Int32 *pos, AD_RawMessage* dstRawMessage);
+UA_Int32 encodeAASHeader(SL_AsymmetricAlgorithmSecurityHeader *AAS_Header,
+		UA_Int32 *pos, AD_RawMessage* dstRawMessage);
 
 /**
  *

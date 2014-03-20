@@ -127,21 +127,21 @@ UA_BuiltInDataTypes_Matrix;
 */
 typedef _Bool Boolean;
 
-typedef int8_t SByte;
+typedef int8_t UA_SByte;
 
-typedef uint8_t Byte;
+typedef uint8_t UA_Byte;
 
-typedef int16_t Int16;
+typedef int16_t UA_Int16;
 
 typedef uint16_t UInt16;
 
-typedef int32_t Int32;
+typedef int32_t UA_Int32;
 
-typedef uint32_t UInt32;
+typedef uint32_t UA_UInt32;
 
-typedef int64_t Int64;
+typedef int64_t UA_Int64;
 
-typedef uint64_t UInt64;
+typedef uint64_t UA_UInt64;
 
 typedef float Float;
 
@@ -434,9 +434,9 @@ typedef struct UA_DataValue
 	UA_Variant Value;
 	UA_StatusCode Status;
 	UA_DateTime SourceTimestamp;
-	Int16 SourcePicoseconds;
+	UA_Int16 SourcePicoseconds;
 	UA_DateTime ServerTimestamp;
-	Int16 ServerPicoseconds;
+	UA_Int16 ServerPicoseconds;
 }
 UA_DataValue;
 
@@ -457,7 +457,7 @@ typedef struct Int32_Array
 // Array types of builtInDatatypes
 typedef struct SBYte_Array
 {
-	SByte *data;
+	UA_SByte *data;
 	UA_Int32 arrayLength;
 	IntegerString dimensions;
 }SBYte_Array;
@@ -471,7 +471,7 @@ typedef struct Boolean_Array
 
 typedef struct
 {
-	SByte *data;
+	UA_SByte *data;
 	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }SByte_Array;
@@ -485,7 +485,7 @@ typedef struct Byte_Array
 
 typedef struct Int16_Array
 {
-	Int16 *data;
+	UA_Int16 *data;
 	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }Int16_Array;
@@ -683,9 +683,9 @@ UA_VariantMatrixValue;
 union UA_VariantUnion
 {
     Boolean Boolean;
-    SByte SByte;
+    UA_SByte SByte;
     UA_Byte Byte;
-    Int16 Int16;
+    UA_Int16 Int16;
     UInt16 UInt16;
     UA_Int32 Int32;
     UA_UInt32 UInt32;

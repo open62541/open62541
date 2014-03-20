@@ -104,7 +104,7 @@ END_TEST
 START_TEST(decodeInt16_test_positives)
 {
 	UA_Int32 p = 0;
-	Int16 val;
+	UA_Int16 val;
 	AD_RawMessage rawMessage;
 	char mem[] = {
 			0x00,0x00,	// 0
@@ -130,7 +130,7 @@ END_TEST
 START_TEST(decodeInt16_test_negatives)
 {
 	UA_Int32 p = 0;
-	Int16 val;
+	UA_Int16 val;
 	AD_RawMessage rawMessage;
 	char mem[] = {
 			0xFF,0xFF,	// -1
@@ -165,7 +165,7 @@ START_TEST(encodeInt16_test)
 
 	ck_assert_int_eq(position, 2);
 	UA_Int32 p = 0;
-	Int16 val;
+	UA_Int16 val;
 	decoder_decodeBuiltInDatatype(rawMessage.message, INT16, &p, &val);
 	ck_assert_int_eq(val,testUInt16);
 	//ck_assert_int_eq(rawMessage.message[0], 0xAB);

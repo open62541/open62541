@@ -90,15 +90,15 @@ struct TL_messageBodyERR
  * @param TL_message
  * @return
  */
-Int32 TL_check(UA_connection *connection);
+UA_Int32 TL_check(UA_connection *connection);
 /**
  *
  * @param connection
  * @param TL_message
  */
-Int32 TL_receive(UA_connection *connection,UA_ByteString *packet);
-Int32 TL_send(UA_connection *connection, UA_ByteString *packet);
-Int32 TL_getPacketType(UA_ByteString *packet, Int32 *pos);
+UA_Int32 TL_receive(UA_connection *connection,UA_ByteString *packet);
+UA_Int32 TL_send(UA_connection *connection, UA_ByteString *packet);
+UA_Int32 TL_getPacketType(UA_ByteString *packet, UA_Int32 *pos);
 
 
 #endif /* OPCUA_TRANSPORTLAYER_H_ */

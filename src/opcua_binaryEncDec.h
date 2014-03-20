@@ -74,14 +74,14 @@ void encodeBoolean(Boolean value, UA_Int32 *pos, char *dstBuf);
  * @param dst
  * @return
  */
-UA_Int32 decodeSByte(char const * buf, UA_Int32 *pos, SByte *dst);
+UA_Int32 decodeSByte(char const * buf, UA_Int32 *pos, UA_SByte *dst);
 /**
  *
  * @param value
  * @param pos
  * @param dstBuf
  */
-void encodeSByte(SByte value, UA_Int32 *pos, char *dstBuf);
+void encodeSByte(UA_SByte value, UA_Int32 *pos, char *dstBuf);
 /**
  *
  * @param buf
@@ -118,14 +118,14 @@ void encodeUInt16(UInt16 value, UA_Int32 *pos, char *dstBuf);
  * @param dst
  * @return
  */
-UA_Int32 decodeInt16(char const * buf, UA_Int32 *pos, Int16 *dst);
+UA_Int32 decodeInt16(char const * buf, UA_Int32 *pos, UA_Int16 *dst);
 /**
  *
  * @param value
  * @param pos
  * @param dstBuf
  */
-void encodeInt16(Int16 value, UA_Int32 *pos, char *dstBuf);
+void encodeInt16(UA_Int16 value, UA_Int32 *pos, char *dstBuf);
 /**
  *
  * @param buf
