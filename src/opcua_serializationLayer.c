@@ -10,7 +10,7 @@ serviceManager_registerServiceImplementation()
 {
 
 }
-serviceManager(Int32 serviceRequest)
+serviceManager(UA_Int32 serviceRequest)
 {
 	if(serviceManager_serviceAvailable(serviceRequest))
 	{

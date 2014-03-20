@@ -32,7 +32,7 @@ typedef struct
 	UInt32 secureChannelId;
 	UInt32 tokenId;
 	UA_DateTime createdAt;
-	Int32 revisedLifetime;
+	UA_Int32 revisedLifetime;
 }SL_ChannelSecurityToken;
 
 typedef struct
@@ -46,7 +46,7 @@ typedef struct
 
 struct TL_connection
 {
-	Int32 socket;
+	UA_Int32 socket;
 	UInt32 connectionState;
 	TL_buffer remoteConf;
 	TL_buffer localConf;
@@ -65,7 +65,7 @@ typedef struct
 struct SL_connection
 {
 	AsymmetricAlgSecuritySettings remoteAsymAlgSettings;
-	AsymmetricAlgSecuritySettings localtAsymAlgSettings;
+	AsymmetricAlgSecuritySettings localAsymAlgSettings;
 /*
 	UA_ByteString SecurityPolicyUri;
 	UA_ByteString SenderCertificate;

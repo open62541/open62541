@@ -4,8 +4,8 @@
 #include "check.h"
 
 /* global test counters */
-Int32 visit_count = 0;
-Int32 free_count = 0;
+UA_Int32 visit_count = 0;
+UA_Int32 free_count = 0;
 
 void visitor(void* payload){
 	visit_count++;
@@ -22,7 +22,7 @@ Boolean matcher(void* payload){
 	if(payload == NULL){
 		return FALSE;
 	}
-	if(*((Int32*)payload) == 42){
+	if(*((UA_Int32*)payload) == 42){
 		return TRUE;
 	}
 	return FALSE;
@@ -36,13 +36,13 @@ START_TEST(list_test_basic)
 
 	ck_assert_int_eq(list.size, 0);
 
-	Int32* payload = (Int32*)opcua_malloc(sizeof(*payload));
+	UA_Int32* payload = (UA_Int32*)opcua_malloc(sizeof(*payload));
 	*payload = 42;
 	UA_list_addPayloadToFront(&list, payload);
-	payload = (Int32*)opcua_malloc(sizeof(*payload));
+	payload = (UA_Int32*)opcua_malloc(sizeof(*payload));
 	*payload = 24;
 	UA_list_addPayloadToFront(&list, payload);
-	payload = (Int32*)opcua_malloc(sizeof(*payload));
+	payload = (UA_Int32*)opcua_malloc(sizeof(*payload));
 	*payload = 1;
 	UA_list_addPayloadToBack(&list, payload);
 
@@ -55,7 +55,7 @@ START_TEST(list_test_basic)
 	UA_list_Element* elem = NULL;
 	elem = UA_list_find(&list, matcher);
 	if(elem){
-		ck_assert_int_eq((*((Int32*)elem->payload)), 42);
+		ck_assert_int_eq((*((UA_Int32*)elem->payload)), 42);
 		UA_list_removeElement(elem, freer);
 		ck_assert_int_eq(free_count, 1);
 		free_count = 0; //reset free counter

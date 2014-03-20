@@ -135,7 +135,7 @@ typedef int16_t Int16;
 
 typedef uint16_t UInt16;
 
-typedef int32_t Int32;
+typedef int32_t UA_Int32;
 
 typedef uint32_t UInt32;
 
@@ -156,7 +156,7 @@ typedef double Double;
 */
 typedef struct UA_String
 {
-	Int32 Length;
+	UA_Int32 Length;
 	char *Data;
 }
 UA_String;
@@ -178,7 +178,7 @@ typedef Int64 UA_DateTime; //100 nanosecond resolution
 */
 typedef struct UA_ByteString
 {
-	Int32 Length;
+	UA_Int32 Length;
 	Byte *Data;
 }
 UA_ByteString;
@@ -290,7 +290,7 @@ UA_NodeId;
 typedef struct UA_ExpandedNodeId
 {
 	UA_NodeId NodeId;
-	Int32 EncodingByte; //enum BID_NodeIdEncodingValuesType
+	UA_Int32 EncodingByte; //enum BID_NodeIdEncodingValuesType
 	UA_String NamespaceUri;
 	UInt32 ServerIndex;
 }
@@ -321,10 +321,10 @@ typedef enum UA_StatusCodes
 typedef struct UA_DiagnosticInfo
 {
 	Byte EncodingMask; //Type of the Enum UA_DiagnosticInfoEncodingMaskType
-	Int32 SymbolicId;
-	Int32 NamespaceUri;
-	Int32 LocalizedText;
-	Int32 Locale;
+	UA_Int32 SymbolicId;
+	UA_Int32 NamespaceUri;
+	UA_Int32 LocalizedText;
+	UA_Int32 Locale;
 	UA_String AdditionalInfo;
 	UA_StatusCode InnerStatusCode;
 	struct UA_DiagnosticInfo* InnerDiagnosticInfo;
@@ -417,7 +417,7 @@ typedef UA_VariantUnion;
 typedef struct UA_Variant
 {
 	Byte EncodingMask; //Type of Enum UA_VariantTypeEncodingMaskType
-	Int32 ArrayLength;
+	UA_Int32 ArrayLength;
 	UA_VariantUnion *Value;
 }
 UA_Variant;
@@ -442,14 +442,14 @@ UA_DataValue;
 
 typedef struct IntegerString
 {
-	Int32 *data;
-	Int32 length;
+	UA_Int32 *data;
+	UA_Int32 length;
 }IntegerString;
 
 typedef struct Int32_Array
 {
-	Int32 *data;
-	Int32 arrayLength;
+	UA_Int32 *data;
+	UA_Int32 arrayLength;
 	IntegerString dimensions;
 }Int32_Array;
 
@@ -458,42 +458,42 @@ typedef struct Int32_Array
 typedef struct SBYte_Array
 {
 	SByte *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString dimensions;
 }SBYte_Array;
 
 typedef struct Boolean_Array
 {
 	Boolean *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }Boolean_Array;
 
 typedef struct
 {
 	SByte *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }SByte_Array;
 
 typedef struct Byte_Array
 {
 	Byte *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }Byte_Array;
 
 typedef struct Int16_Array
 {
 	Int16 *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }Int16_Array;
 
 typedef struct UInt16_Array
 {
 	UInt16 *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }UInt16_Array;
 
@@ -501,84 +501,84 @@ typedef struct UInt16_Array
 typedef struct UInt32_Array
 {
 	UInt32 *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }UInt32_Array;
 
 typedef struct
 {
 	Int64 *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }Int64_Array;
 
 typedef struct UInt64_Array
 {
 	UInt64 *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }UInt64_Array;
 
 typedef struct Float_Array
 {
 	Float *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }Float_Array;
 
 typedef struct Double_Array
 {
 	Double *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }Double_Array;
 
 typedef struct String_Array
 {
 	UA_String *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }String_Array;
 
 typedef struct DateTime_Array
 {
 	UA_DateTime *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }DateTime_Array;
 
 typedef struct Guid_Array
 {
 	UA_Guid *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }Guid_Array;
 
 typedef struct ByteString_Array
 {
 	UA_ByteString *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }ByteString_Array;
 
 typedef struct XmlElement_Array
 {
 	UA_XmlElement *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }XmlElement_Array;
 
 typedef struct NodeId_Array
 {
 	UA_NodeId *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }NodeId_Array;
 
 typedef struct ExpandedNodeId_Array
 {
 	UA_ExpandedNodeId *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }ExpandedNodeId_Array;
 
@@ -586,49 +586,49 @@ typedef struct ExpandedNodeId_Array
 typedef struct StatusCode_Array
 {
 	UA_StatusCode *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }StatusCode_Array;
 
 typedef struct QualifiedName_Array
 {
 	UA_QualifiedName *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }QualifiedName_Array;
 
 typedef struct LocalizedText_Array
 {
 	UA_LocalizedText *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }LocalizedText_Array;
 
 typedef struct ExtensionObject_Array
 {
 	UA_ExtensionObject *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }ExtensionObject_Array;
 
 typedef struct
 {
 	struct UA_DataValue *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }DataValue_Array;
 
 typedef struct Variant_Array
 {
 	struct UA_Variant *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString  dimensions;
 }Variant_Array;
 
 typedef struct DiagnosticInfo_Array
 {
 	UA_DiagnosticInfo *data;
-	Int32 arrayLength;
+	UA_Int32 arrayLength;
 	IntegerString dimensions;
 }DiagnosticInfo_Array;
 
@@ -667,15 +667,15 @@ UA_VariantArrayUnion;
 typedef struct UA_VariantArrayValue
 {
 	//Byte TypeEncoding;
-    Int32  Length;
+    UA_Int32  Length;
     UA_VariantArrayUnion Value;
 }
 UA_VariantArrayValue;
 
 typedef struct
 {
-    Int32 NoOfDimensions;
-    Int32* Dimensions;
+    UA_Int32 NoOfDimensions;
+    UA_Int32* Dimensions;
     UA_VariantArrayUnion Value;
 }
 UA_VariantMatrixValue;
@@ -687,7 +687,7 @@ union UA_VariantUnion
     Byte Byte;
     Int16 Int16;
     UInt16 UInt16;
-    Int32 Int32;
+    UA_Int32 Int32;
     UInt32 UInt32;
     Int64 Int64;
     UInt64 UInt64;
@@ -766,13 +766,13 @@ typedef double UA_Duration;
  * @param string2
  * @return
  */
-Int32 UA_String_compare(UA_String *string1, UA_String *string2);
+UA_Int32 UA_String_compare(UA_String *string1, UA_String *string2);
 /**
  *
  * @param string1
  * @param string2
  * @return
  */
-Int32 UA_ByteString_compare(UA_ByteString *string1, UA_ByteString *string2);
+UA_Int32 UA_ByteString_compare(UA_ByteString *string1, UA_ByteString *string2);
 
 #endif /* OPCUA_BUILTINDATATYPES_H_ */

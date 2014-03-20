@@ -125,27 +125,27 @@ def createStructured(element):
     if len(valuemap) > 0:
         for n,t in valuemap.iteritems():
             if t.find("**") != -1:
-	        print("\t" + "UInt32 " + n + "_size;", end='\n', file=fh)
+	        print("\t" + "UA_UInt32 " + n + "_size;", end='\n', file=fh)
             print("\t" + "UA_" + t + " " + n + ";", end='\n', file=fh)
     else:
         print("// null record", end='\n', file=fh)
     print("} " + name + ";", end='\n', file=fh)
 
-    print("Int32 " + name + "_calcSize(" + name + " const * ptr);", end='\n', file=fh)
-    print("Int32 " + name + "_encode(" + name + " const * src, Int32* pos, char* dst);", end='\n', file=fh)
-    print("Int32 " + name + "_decode(char const * src, UInt32* pos, " + name + "* dst);", end='\n', file=fh)
+    print("UA_Int32 " + name + "_calcSize(" + name + " const * ptr);", end='\n', file=fh)
+    print("UA_Int32 " + name + "_encode(" + name + " const * src, UA_Int32* pos, char* dst);", end='\n', file=fh)
+    print("UA_Int32 " + name + "_decode(char const * src, UA_UInt32* pos, " + name + "* dst);", end='\n', file=fh)
 
     if "Response" in name[len(name)-9:]:
 		#Sten: not sure how to get it, actually we need to solve it on a higher level
-        #print("Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn UA_ResponseHeader_getSize()", end='', file=fc)
-		print("Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn 0", end='', file=fc)  
+        #print("UA_Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn UA_ResponseHeader_getSize()", end='', file=fc)
+		print("UA_Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn 0", end='', file=fc)  
     elif "Request" in name[len(name)-9:]:
 		#Sten: dito
-        #print("Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn UA_RequestHeader_getSize()", end='', file=fc) 
-		print("Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn 0", end='', file=fc) 
+        #print("UA_Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn UA_RequestHeader_getSize()", end='', file=fc) 
+		print("UA_Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn 0", end='', file=fc) 
     else:
 	# code 
-        print("Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn 0", end='', file=fc)
+        print("UA_Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn 0", end='', file=fc)
 
     # code _calcSize
     for n,t in valuemap.iteritems():
@@ -164,7 +164,7 @@ def createStructured(element):
 
     print("\n\t;\n};\n", end='\n', file=fc)
 
-    print("Int32 "+name+"_encode("+name+" const * src, Int32* pos, char* dst) {\n\tInt32 retval = UA_SUCCESS;", end='\n', file=fc)
+    print("UA_Int32 "+name+"_encode("+name+" const * src, UA_Int32* pos, char* dst) {\n\tUA_Int32 retval = UA_SUCCESS;", end='\n', file=fc)
     # code _encode
     for n,t in valuemap.iteritems():
         if t in elementary_size:
@@ -181,7 +181,7 @@ def createStructured(element):
                 print('\tretval |= UA_'+t+"_encode(&(src->"+n+"),pos,dst);", end='\n', file=fc)
     print("\treturn retval;\n};\n", end='\n', file=fc)
 
-    print("Int32 "+name+"_decode(char const * src, UInt32* pos, " + name + "* dst) {\n\tInt32 retval = UA_SUCCESS;", end='\n', file=fc)
+    print("UA_Int32 "+name+"_decode(char const * src, UA_UInt32* pos, " + name + "* dst) {\n\tUA_Int32 retval = UA_SUCCESS;", end='\n', file=fc)
     # code _decode
     for n,t in valuemap.iteritems():
         if t in elementary_size:
