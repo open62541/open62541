@@ -58,15 +58,15 @@ print('''/**********************************************************
 
 #include "opcua.h"  // definition of UA_VTable and basic UA_Types
 
-Int32 UA_toIndex(Int32 id);
+UA_Int32 UA_toIndex(UA_Int32 id);
 extern UA_VTable UA_[]; 
 
 enum UA_VTableIndex_enum {''', end='\n', file=fh)
 
 print('''/* Mapping and vTable of Namespace Zero */
 #include "opcua.h"
-Int32 UA_toIndex(Int32 id) {
-    Int32 retval = -1;
+UA_Int32 UA_toIndex(UA_Int32 id) {
+    UA_Int32 retval = -1;
     switch (id) { ''', end='\n',file=fc)
 
 i = 0
@@ -97,7 +97,7 @@ for row in rows2:
     name = "UA_" + row[0]
     print('#define '+name.upper()+'_NS0 (UA_namespace_zero['+name.upper()+'].Id)', file=fh)
 
-    print("\t{" + row[1] + ", (Int32(*)(void const*)) " + name + "_calcSize, (Int32(*)(char const*,Int32*,void*)) " + name + "_decode, (Int32(*)(void const*,Int32*,char*))" + name + "_encode},",end='\n',file=fc) 
+    print("\t{" + row[1] + ", (UA_Int32(*)(void const*)) " + name + "_calcSize, (UA_Int32(*)(char const*,UA_Int32*,void*)) " + name + "_decode, (UA_Int32(*)(void const*,UA_Int32*,char*))" + name + "_encode},",end='\n',file=fc) 
 
 print("\t{0,UA_NULL,UA_NULL,UA_NULL}\n};",file=fc)
 print('#endif /* OPCUA_NAMESPACE_0_H_ */', end='\n', file=fh)

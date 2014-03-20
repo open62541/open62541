@@ -38,59 +38,62 @@ typedef double Double;
 #define UA_FALSE (!UA_TRUE)
 #define FALSE UA_FALSE
 
+// This is the standard return value, need to have this definition here to make the macros work
+typedef int32_t UA_Int32;
+
 /* heap memory functions */
-Int32 UA_free(void * ptr);
-Int32 UA_memcpy(void *dst, void const *src, int size);
-Int32 UA_alloc(void ** dst, int size);
+UA_Int32 UA_free(void * ptr);
+UA_Int32 UA_memcpy(void *dst, void const *src, int size);
+UA_Int32 UA_alloc(void ** dst, int size);
 
 /* Array operations */
-Int32 UA_Array_calcSize(Int32 noElements, Int32 type, void const ** ptr);
-Int32 UA_Array_encode(void const **src, Int32 noElements, Int32 type, Int32* pos, char * dst);
-Int32 UA_Array_decode(char const * src, Int32 noElements, Int32 type, Int32* pos, void const **dst);
-
+UA_Int32 UA_Array_calcSize(UA_Int32 noElements, UA_Int32 type, void const ** ptr);
+UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, char * dst);
+UA_Int32 UA_Array_decode(char const * src,UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void const **dst);
 #define UA_NULL ((void*)0)
 // #define NULL UA_NULL
 
 #define UA_TYPE_METHOD_PROTOTYPES(TYPE) \
-Int32 TYPE##_calcSize(TYPE const * ptr);\
-Int32 TYPE##_encode(TYPE const * src, Int32* pos, char * dst);\
-Int32 TYPE##_decode(char const * src, Int32* pos, TYPE * dst);\
-Int32 TYPE##_delete(TYPE * p);\
-Int32 TYPE##_deleteMembers(TYPE * p); \
+UA_Int32 TYPE##_calcSize(TYPE const * ptr);\
+UA_Int32 TYPE##_encode(TYPE const * src, UA_Int32* pos, char * dst);\
+UA_Int32 TYPE##_decode(char const * src, UA_Int32* pos, TYPE * dst);\
+UA_Int32 TYPE##_delete(TYPE * p);\
+UA_Int32 TYPE##_deleteMembers(TYPE * p); \
+
 
 #define UA_TYPE_METHOD_CALCSIZE_SIZEOF(TYPE) \
-Int32 TYPE##_calcSize(TYPE const * p) { return sizeof(TYPE); }
+UA_Int32 TYPE##_calcSize(TYPE const * p) { return sizeof(TYPE); }
 
 #define UA_TYPE_METHOD_CALCSIZE_AS(TYPE, TYPE_AS) \
-Int32 TYPE##_calcSize(TYPE const * p) { return TYPE_AS##_calcSize((TYPE_AS*) p); }
+UA_Int32 TYPE##_calcSize(TYPE const * p) { return TYPE_AS##_calcSize((TYPE_AS*) p); }
 
 #define UA_TYPE_METHOD_DELETE_FREE(TYPE) \
-Int32 TYPE##_delete(TYPE * p) { return UA_free(p); }
+UA_Int32 TYPE##_delete(TYPE * p) { return UA_free(p); }
 
 #define UA_TYPE_METHOD_DELETE_AS(TYPE, TYPE_AS) \
-Int32 TYPE##_delete(TYPE * p) { return TYPE_AS##_delete((TYPE_AS*) p);}
+UA_Int32 TYPE##_delete(TYPE * p) { return TYPE_AS##_delete((TYPE_AS*) p);}
 
 #define UA_TYPE_METHOD_DELETE_STRUCT(TYPE) \
-Int32 TYPE##_delete(TYPE *p) { \
-	Int32 retval = UA_SUCCESS; \
+UA_Int32 TYPE##_delete(TYPE *p) { \
+	UA_Int32 retval = UA_SUCCESS; \
 	retval |= TYPE##_deleteMembers(p); \
 	retval |= UA_free(p); \
 	return retval; \
 }
 
 #define UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(TYPE) \
-Int32 TYPE##_deleteMembers(TYPE * p) { return UA_SUCCESS; }
+UA_Int32 TYPE##_deleteMembers(TYPE * p) { return UA_SUCCESS; }
 
 #define UA_TYPE_METHOD_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
-Int32 TYPE##_deleteMembers(TYPE * p) { return TYPE_AS##_deleteMembers((TYPE_AS*) p);}
+UA_Int32 TYPE##_deleteMembers(TYPE * p) { return TYPE_AS##_deleteMembers((TYPE_AS*) p);}
 
 #define UA_TYPE_METHOD_DECODE_AS(TYPE,TYPE_AS) \
-Int32 TYPE##_decode(char const * src, Int32* pos, TYPE *dst) { \
+UA_Int32 TYPE##_decode(char const * src, UA_Int32* pos, TYPE *dst) { \
 	return TYPE_AS##_decode(src,pos,(TYPE_AS*) dst); \
 }
 
 #define UA_TYPE_METHOD_ENCODE_AS(TYPE,TYPE_AS) \
-Int32 TYPE##_encode(TYPE const * src, Int32* pos, char *dst) { \
+UA_Int32 TYPE##_encode(TYPE const * src, UA_Int32* pos, char *dst) { \
 	return TYPE_AS##_encode((TYPE_AS*) src,pos,dst); \
 }
 
@@ -110,10 +113,11 @@ UA_TYPE_METHOD_PROTOTYPES (UA_Int16)
 typedef uint16_t UA_UInt16;
 UA_TYPE_METHOD_PROTOTYPES (UA_UInt16)
 
-typedef int32_t UA_Int32;
+
+/* typedef int32_t UA_Int32; // see typedef above */
 UA_TYPE_METHOD_PROTOTYPES (UA_Int32)
 
-typedef uint32_t UA_UInt32;
+typedef int32_t UA_UInt32;
 UA_TYPE_METHOD_PROTOTYPES (UA_UInt32)
 
 typedef int64_t UA_Int64;
@@ -149,9 +153,9 @@ UA_TYPE_METHOD_PROTOTYPES (UA_IntegerId)
 
 typedef struct T_UA_VTable {
 	UA_UInt32 Id;
-	Int32 (*calcSize)(void const * ptr);
-	Int32 (*decode)(char const * src, Int32* pos, void* dst);
-	Int32 (*encode)(void const * src, Int32* pos, char* dst);
+	UA_Int32 (*calcSize)(void const * ptr);
+	UA_Int32 (*decode)(char const * src, UA_Int32* pos, void* dst);
+	UA_Int32 (*encode)(void const * src, UA_Int32* pos, char* dst);
 } UA_VTable;
 
 /* VariantBinaryEncoding - Part: 6, Chapter: 5.2.2.16, Page: 22 */
@@ -250,11 +254,12 @@ typedef struct T_UA_ExtensionObject {
 	UA_ByteString body;
 } UA_ExtensionObject;
 UA_TYPE_METHOD_PROTOTYPES(UA_ExtensionObject)
+
 enum UA_ExtensionObject_EncodingMaskType_enum
 {
-	NO_BODY_IS_ENCODED = 	0x00,
-	BODY_IS_BYTE_STRING = 	0x01,
-	BODY_IS_XML_ELEMENT = 	0x02
+	UA_ExtensionObject_NoBodyIsEncoded = 	0x00,
+	UA_ExtensionObject_BodyIsByteString = 	0x01,
+	UA_ExtensionObject_BodyIsXml = 	0x02
 };
 
 /* QualifiedNameBinaryEncoding - Part: 6, Chapter: 5.2.2.13, Page: 20 */
@@ -292,15 +297,13 @@ UA_TYPE_METHOD_PROTOTYPES(UA_DiagnosticInfo)
 
 enum UA_DiagnosticInfoEncodingMaskType_enum
 {
-	// Some Values are called the same as previous Enumerations so we need
-	//names that are unique
-	DIEMT_SYMBOLIC_ID = 			0x01,
-	DIEMT_NAMESPACE = 				0x02,
-	DIEMT_LOCALIZED_TEXT = 			0x04,
-	DIEMT_LOCALE = 					0x08,
-	DIEMT_ADDITIONAL_INFO = 		0x10,
-	DIEMT_INNER_STATUS_CODE = 		0x20,
-	DIEMT_INNER_DIAGNOSTIC_INFO = 	0x40
+	UA_DiagnosticInfoEncodingMaskType_SymbolicId = 			0x01,
+	UA_DiagnosticInfoEncodingMaskType_Namespace = 			0x02,
+	UA_DiagnosticInfoEncodingMaskType_LocalizedText = 		0x04,
+	UA_DiagnosticInfoEncodingMaskType_Locale = 				0x08,
+	UA_DiagnosticInfoEncodingMaskType_AdditionalInfo = 		0x10,
+	UA_DiagnosticInfoEncodingMaskType_InnerStatusCode = 	0x20,
+	UA_DiagnosticInfoEncodingMaskType_InnerDiagnosticInfo = 0x40
 };
 
 #endif /* OPCUA_BASICTYPES_H_ */
