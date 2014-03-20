@@ -38,11 +38,8 @@ UA_Int32 UA_Array_calcSize(UA_Int32 nElements, UA_Int32 type, void const ** data
 	return length;
 }
 UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, char * dst) {
-	UA_Int32 length = sizeof(UA_Int32);
 	UA_Int32 retVal = 0;
 	UA_Int32 i = 0;
-
-	char** ptr = (char**)src;
 
 	UA_Int32_encode(&noElements, pos, dst);
 	for(i=0; i<noElements; i++) {
@@ -53,11 +50,8 @@ UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, U
 }
 
 UA_Int32 UA_Array_decode(char const * src,UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void const **dst) {
-	UA_Int32 length = sizeof(UA_Int32);
 	UA_Int32 retval = 0;
 	UA_Int32 i = 0;
-
-	char** ptr = (char**)src;
 
 	for(i=0; i<noElements; i++) {
 		retval |= UA_[type].decode(src, pos, (void*)dst[i]);
@@ -688,7 +682,6 @@ UA_Int32 UA_DiagnosticInfo_decode(char const * src, UA_Int32 *pos, UA_Diagnostic
 }
 UA_Int32 UA_DiagnosticInfo_encode(UA_DiagnosticInfo const *src, UA_Int32 *pos, char *dst) {
 	UA_Int32 retval = UA_SUCCESS;
-	Byte mask;
 	int i;
 
 	UA_Byte_encode(&(src->encodingMask), pos, dst);
@@ -820,12 +813,11 @@ UA_Int32 UA_QualifiedName_encode(UA_QualifiedName const *src, UA_Int32* pos,
 
 UA_Int32 UA_Variant_calcSize(UA_Variant const * p) {
 	UA_Int32 length = 0;
-	UA_Int32 ns0Id = p->encodingMask & 0x1F; // Bits 1-5
 	Boolean isArray = p->encodingMask & (0x01 << 7); // Bit 7
 	Boolean hasDimensions = p->encodingMask & (0x01 << 6); // Bit 6
 	int i;
 
-	if (p->vt == UA_NULL || p->encodingMask != p->vt->Id) {
+	if (p->vt == UA_NULL || ( p->encodingMask & 0x1F) != p->vt->Id) {
 		return UA_ERR_INCONSISTENT;
 	}
 	length += sizeof(Byte); //p->encodingMask
@@ -847,9 +839,9 @@ UA_Int32 UA_Variant_calcSize(UA_Variant const * p) {
 }
 UA_Int32 UA_Variant_encode(UA_Variant const *src, UA_Int32* pos, char *dst) {
 	UA_Int32 retval = UA_SUCCESS;
-	int i;
+	int i = 0;
 
-	if (src->vt == UA_NULL || src->encodingMask != src->vt->Id) {
+	if (src->vt == UA_NULL || ( src->encodingMask & 0x1F) != src->vt->Id) {
 		return UA_ERR_INCONSISTENT;
 	}
 
