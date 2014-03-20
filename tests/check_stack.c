@@ -26,8 +26,8 @@ START_TEST(test_getPacketType_validParameter)
 	char buf[] = {'C','L','O'};
 	Int32 pos = 0;
 	UA_ByteString msg;
-	msg.Data = buf;
-	msg.Length = 3;
+	msg.data = buf;
+	msg.length = 3;
 
 	ck_assert_int_eq(TL_getPacketType(&msg, &pos),packetType_CLO);
 }
@@ -439,8 +439,8 @@ START_TEST(encodeUAString_test)
 	Int32 l = 11;
 	char mem[11] = "ACPLT OPCUA";
 	char *dstBuf = (char*) malloc(sizeof(Int32)+l);
-	string.Data =  mem;
-	string.Length = 11;
+	string.data =  mem;
+	string.length = 11;
 
 	encodeUAString(&string, &pos, dstBuf);
 
@@ -459,13 +459,13 @@ START_TEST(decodeUAString_test)
 	char binString[15] = {11,0x00,0x00,0x00,'A','C','P','L','T',' ','U','A'};
 
 	char *dstBuf = (char*) malloc(l-sizeof(Int32));
-	string.Data = dstBuf;
-	string.Length = 0;
+	string.data = dstBuf;
+	string.length = 0;
 	decodeUAString(binString, &pos, &string);
 
 
-	ck_assert_int_eq(string.Length,11);
-	ck_assert_int_eq(string.Data[3],'L');
+	ck_assert_int_eq(string.length,11);
+	ck_assert_int_eq(string.data[3],'L');
 
 
 }
@@ -477,12 +477,12 @@ START_TEST(diagnosticInfo_calcSize_test)
 	Int32 valreal = 0;
 	Int32 valcalc = 0;
 	UA_DiagnosticInfo diagnosticInfo;
-	diagnosticInfo.EncodingMask = 0x01 | 0x02 | 0x04 | 0x08 | 0x10;
-	diagnosticInfo.SymbolicId = 30;
-	diagnosticInfo.NamespaceUri = 25;
-	diagnosticInfo.LocalizedText = 22;
-	diagnosticInfo.AdditionalInfo.Data = "OPCUA";
-	diagnosticInfo.AdditionalInfo.Length = 5;
+	diagnosticInfo.encodingMask = 0x01 | 0x02 | 0x04 | 0x08 | 0x10;
+	diagnosticInfo.symbolicId = 30;
+	diagnosticInfo.namespaceUri = 25;
+	diagnosticInfo.localizedText = 22;
+	diagnosticInfo.additionalInfo.data = "OPCUA";
+	diagnosticInfo.additionalInfo.length = 5;
 
 	valcalc = diagnosticInfo_calcSize(&diagnosticInfo);
 	valreal = 26;
@@ -503,15 +503,15 @@ START_TEST(extensionObject_calcSize_test)
 	ck_assert_int_eq(extensionObject_calcSize(&the_empty_UA_ExtensionObject), 1 + 1 + 1);
 
 	// empty ExtensionObject, handcoded
-	extensionObject.TypeId.EncodingByte = NIEVT_TWO_BYTE;
-	extensionObject.TypeId.Identifier.Numeric = 0;
-	extensionObject.Encoding = NO_BODY_IS_ENCODED;
+	extensionObject.typeId.encodingByte = NIEVT_TWO_BYTE;
+	extensionObject.typeId.identifier.numeric = 0;
+	extensionObject.encoding = NO_BODY_IS_ENCODED;
 	ck_assert_int_eq(extensionObject_calcSize(&extensionObject), 1 + 1 + 1);
 
 	// ExtensionObject with ByteString-Body
-	extensionObject.Encoding = BODY_IS_BYTE_STRING;
-	extensionObject.Body.Data = data;
-	extensionObject.Body.Length = 3;
+	extensionObject.encoding = BODY_IS_BYTE_STRING;
+	extensionObject.body.data = data;
+	extensionObject.body.length = 3;
 	ck_assert_int_eq(extensionObject_calcSize(&extensionObject), 3 + 4 + 3);
 
 }
@@ -524,15 +524,15 @@ START_TEST(responseHeader_calcSize_test)
 	UA_ExtensionObject extensionObject;
 
 	//Should have the size of 26 Bytes
-	diagnosticInfo.EncodingMask = DIEMT_SYMBOLIC_ID | DIEMT_NAMESPACE | DIEMT_LOCALIZED_TEXT | DIEMT_LOCALE | DIEMT_ADDITIONAL_INFO;		// Byte:   1
+	diagnosticInfo.encodingMask = DIEMT_SYMBOLIC_ID | DIEMT_NAMESPACE | DIEMT_LOCALIZED_TEXT | DIEMT_LOCALE | DIEMT_ADDITIONAL_INFO;		// Byte:   1
 	// Indices into to Stringtable of the responseHeader (62541-6 §5.5.12 )
-	diagnosticInfo.SymbolicId = -1;										// Int32:  4
-	diagnosticInfo.NamespaceUri = -1;									// Int32:  4
-	diagnosticInfo.LocalizedText = -1;									// Int32:  4
-	diagnosticInfo.Locale = -1;											// Int32:  4
+	diagnosticInfo.symbolicId = -1;										// Int32:  4
+	diagnosticInfo.namespaceUri = -1;									// Int32:  4
+	diagnosticInfo.localizedText = -1;									// Int32:  4
+	diagnosticInfo.locale = -1;											// Int32:  4
 	// Additional Info
-	diagnosticInfo.AdditionalInfo.Length = 5;							// Int32:  4
-	diagnosticInfo.AdditionalInfo.Data = "OPCUA";						// Byte[]: 5
+	diagnosticInfo.additionalInfo.length = 5;							// Int32:  4
+	diagnosticInfo.additionalInfo.data = "OPCUA";						// Byte[]: 5
 	responseHeader.serviceDiagnostics = &diagnosticInfo;
 	ck_assert_int_eq(diagnosticInfo_calcSize(&diagnosticInfo),1+(4+4+4+4)+(4+5));
 
@@ -563,10 +563,10 @@ START_TEST(encodeDataValue_test)
 	char *buf = (char*)opcua_malloc(15);
 	UA_DateTime dateTime;
 	dateTime = 80;
-	dataValue.ServerTimestamp = dateTime;
+	dataValue.serverTimestamp = dateTime;
 
 	//--without Variant
-	dataValue.EncodingMask = 0x08; //Only the SourvePicoseconds
+	dataValue.encodingMask = 0x08; //Only the SourvePicoseconds
 	encodeDataValue(&dataValue, &pos, buf);
 
 	ck_assert_int_eq(pos, 9);// represents the length
@@ -583,15 +583,14 @@ START_TEST(encodeDataValue_test)
 	//TestCase for a DataValue with a Variant!
 	//ToDo: Need to be checked after the function for encoding variants has been implemented
 	pos = 0;
-	dataValue.EncodingMask = 0x01 || 0x08; //Variant & SourvePicoseconds
+	dataValue.encodingMask = 0x01 || 0x08; //Variant & SourvePicoseconds
 	UA_Variant variant;
-	variant.ArrayLength = 0;
-	variant.EncodingMask = VTEMT_INT32;
+	dataValue.value.arrayLength = 0;
+	dataValue.value.encodingMask = VTEMT_INT32;
 	UA_VariantUnion variantUnion;
 	//ToDo: needs to be adjusted: variantUnion.Int32 = 45;
 	fail(); ////ToDo: needs to be adjusted: Just to see that see that this needs to be adjusted
-	variant.Value = &variantUnion;
-	dataValue.Value = variant;
+	dataValue.value.data = &variantUnion;
 	encodeDataValue(&dataValue, &pos, buf);
 
 	ck_assert_int_eq(pos, 14);// represents the length
@@ -610,14 +609,14 @@ END_TEST
 START_TEST(DataValue_calcSize_test)
 {
 	UA_DataValue dataValue;
-	dataValue.EncodingMask = 0x02 + 0x04 + 0x10;
-	dataValue.Status = 12;
+	dataValue.encodingMask = 0x02 + 0x04 + 0x10;
+	dataValue.status = 12;
 	UA_DateTime dateTime;
 	dateTime = 80;
-	dataValue.SourceTimestamp = dateTime;
+	dataValue.sourceTimestamp = dateTime;
 	UA_DateTime sourceTime;
 	dateTime = 214;
-	dataValue.SourcePicoseconds = sourceTime;
+	dataValue.sourcePicoseconds = sourceTime;
 
 	int size = 0;
 	size = DataValue_calcSize(&dataValue);

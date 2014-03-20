@@ -25,8 +25,8 @@ typedef double Double;
 
 /* Basic types */
 typedef _Bool UA_Boolean;
-typedef int8_t UA_Byte;
-typedef uint8_t UA_SByte;
+typedef uint8_t UA_Byte;
+typedef int8_t UA_SByte;
 typedef int16_t UA_Int16;
 typedef uint16_t UA_UInt16;
 typedef int32_t UA_Int32;
