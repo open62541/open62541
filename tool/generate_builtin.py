@@ -108,7 +108,7 @@ def createStructured(element):
         elif child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
             if child.get("Name") in lengthfields:
                 continue
-            childname = child.get("Name")
+            childname = camlCase2CCase(child.get("Name"))
             #if childname in printed_types:
             #    childname = childname + "_Value" # attributes may not have the name of a type
             typename = stripTypename(child.get("TypeName"))
@@ -131,7 +131,7 @@ def createStructured(element):
     if len(valuemap) > 0:
         for n,t in valuemap.iteritems():
             if t.find("**") != -1:
-	        print("\t" + "UInt32 " + n + "Size;", end='\n', file=fh)
+	        print("\t" + "Int32 " + n + "Size;", end='\n', file=fh)
             print("\t" + "UA_" + t + " " + n + ";", end='\n', file=fh)
     else:
         print("\t/* null record */", end='\n', file=fh)
