@@ -33,6 +33,7 @@ elementary_size["StatusCode"] = 4;
 # indefinite_types = ["NodeId", "ExpandedNodeId", "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue", "Variant", "DiagnosticInfo"]
 indefinite_types = ["ExpandedNodeId", "QualifiedName", "ExtensionObject", "DataValue", "Variant", "DiagnosticInfo"]
 enum_types = []
+structured_types = []
                    
 # indefinite types cannot be directly contained in a record as they don't have a definite size
 printed_types = exclude_types # types that were already printed and which we can use in the structures to come
@@ -107,13 +108,13 @@ def createStructured(element):
         elif child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
             if child.get("Name") in lengthfields:
                 continue
-            childname = camlCase2CCase(child.get("Name"))
-            if childname in printed_types:
-                childname = childname + "_Value" # attributes may not have the name of a type
+            childname = child.get("Name")
+            #if childname in printed_types:
+            #    childname = childname + "_Value" # attributes may not have the name of a type
             typename = stripTypename(child.get("TypeName"))
-            if childname == "Response_Header" or childname == "Request_Header":
-                continue
-            if typename in indefinite_types:
+            if typename in structured_types:
+                valuemap[childname] = typename + "*"
+            elif typename in indefinite_types:
                 valuemap[childname] = typename + "*"
             elif child.get("LengthField"):
                 valuemap[childname] = typename + "**"
@@ -133,7 +134,8 @@ def createStructured(element):
 	        print("\t" + "UA_UInt32 " + n + "_size;", end='\n', file=fh)
             print("\t" + "UA_" + t + " " + n + ";", end='\n', file=fh)
     else:
-        print("// null record", end='\n', file=fh)
+        print("\t/* null record */", end='\n', file=fh)
+        print("\tUA_Int32 NullRecord; /* avoiding warnings */", end='\n', file=fh)
     print("} " + name + ";", end='\n', file=fh)
 
     print("UA_Int32 " + name + "_calcSize(" + name + " const * ptr);", end='\n', file=fh)
@@ -167,7 +169,7 @@ def createStructured(element):
             else:
                 print('\n\t + ' + "UA_" + t + "_calcSize(&(ptr->" + n + '))', end='', file=fc)
 
-    print("\n\t;\n};\n", end='\n', file=fc)
+    print("\n\t;\n}\n", end='\n', file=fc)
 
     print("UA_Int32 "+name+"_encode("+name+" const * src, UA_Int32* pos, char* dst) {\n\tUA_Int32 retval = UA_SUCCESS;", end='\n', file=fc)
     # code _encode
@@ -178,13 +180,13 @@ def createStructured(element):
             if t in enum_types:
                 print('\tretval |= UA_'+t+'_encode(&(src->'+n+'),pos,dst);', end='\n', file=fc)
             elif t.find("**") != -1:
-                print('\tretval |= UA_Int32_encode(&(src->'+n+'_size),pos,dst); // encode size', end='\n', file=fc)
-		print("\tretval |= UA_Array_encode((void const**) (src->"+n+"),src->"+n+"_size, UA_" + t[0:t.find("*")].upper()+",pos,dst);", end='\n', file=fc)
+                print('\tretval |= UA_Int32_encode(&(src->'+n+'Size),pos,dst); // encode size', end='\n', file=fc)
+		print("\tretval |= UA_Array_encode((void const**) (src->"+n+"),src->"+n+"Size, UA_" + t[0:t.find("*")].upper()+",pos,dst);", end='\n', file=fc)
             elif t.find("*") != -1:
                 print('\tretval |= UA_' + t[0:t.find("*")] + "_encode(src->" + n + ',pos,dst);', end='\n', file=fc)
             else:
                 print('\tretval |= UA_'+t+"_encode(&(src->"+n+"),pos,dst);", end='\n', file=fc)
-    print("\treturn retval;\n};\n", end='\n', file=fc)
+    print("\treturn retval;\n}\n", end='\n', file=fc)
 
     print("UA_Int32 "+name+"_decode(char const * src, UA_UInt32* pos, " + name + "* dst) {\n\tUA_Int32 retval = UA_SUCCESS;", end='\n', file=fc)
     # code _decode
@@ -195,13 +197,13 @@ def createStructured(element):
             if t in enum_types:
                 print('\tretval |= UA_'+t+'_decode(src,pos,&(dst->'+n+'));', end='\n', file=fc)
             elif t.find("**") != -1:
-                print('\tretval |= UA_Int32_decode(src,pos,&(dst->'+n+'_size)); // decode size', end='\n', file=fc)
-		print("\tretval |= UA_Array_decode(src,dst->"+n+"_size, UA_" + t[0:t.find("*")].upper()+",pos,(void const**) (dst->"+n+"));", end='\n', file=fc) #not tested
+                print('\tretval |= UA_Int32_decode(src,pos,&(dst->'+n+'Size)); // decode size', end='\n', file=fc)
+		print("\tretval |= UA_Array_decode(src,dst->"+n+"Size, UA_" + t[0:t.find("*")].upper()+",pos,(void const**) (dst->"+n+"));", end='\n', file=fc) #not tested
             elif t.find("*") != -1:
                 print('\tretval |= UA_' + t[0:t.find("*")] + "_decode(src,pos,dst->"+ n +");", end='\n', file=fc)
             else:
                 print('\tretval |= UA_'+t+"_decode(src,pos,&(dst->"+n+"));", end='\n', file=fc)
-    print("\treturn retval;\n};\n", end='\n', file=fc)
+    print("\treturn retval;\n}\n", end='\n', file=fc)
         
 def createOpaque(element):
     name = "UA_" + element.get("Name")
@@ -252,6 +254,7 @@ for element in types:
     elif element.tag == "{http://opcfoundation.org/BinarySchema/}StructuredType":
         if printableStructuredType(element):
             createStructured(element)
+            structured_types.append(name)
             printed_types.add(name)
         else: # the record contains types that were not yet detailed
             deferred_types[name] = element
