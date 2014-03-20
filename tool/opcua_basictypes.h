@@ -10,19 +10,6 @@
 
 #include <stdint.h>
 
-/* Basic C types */
-typedef _Bool Boolean;
-typedef uint8_t Byte;
-typedef int8_t 	SByte;
-typedef int16_t Int16;
-typedef int32_t Int32;
-typedef int64_t Int64;
-typedef uint16_t UInt16;
-typedef uint32_t UInt32;
-typedef uint64_t UInt64;
-typedef float Float;
-typedef double Double;
-
 /* Basic types */
 typedef _Bool UA_Boolean;
 typedef int8_t UA_Byte;
@@ -251,8 +238,8 @@ enum UA_ExtensionObject_EncodingMaskType_enum
 
 /* QualifiedNameBinaryEncoding - Part: 6, Chapter: 5.2.2.13, Page: 20 */
 typedef struct T_UA_QualifiedName {
-	UInt16 namespaceIndex;
-	UInt16 reserved;
+	UA_UInt16 namespaceIndex;
+	UA_UInt16 reserved;
 	UA_String name;
 } UA_QualifiedName;
 UA_TYPE_METHOD_PROTOTYPES(UA_QualifiedName)
