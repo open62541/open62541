@@ -7,9 +7,4 @@ LDADD = $(top_builddir)/lib/libopen62541.a @CHECK_LIBS@
 check_PROGRAMS = $(TESTS)
 AM_LDFLAGS = $(LDADD)
 
-#optimization levels depending on debug
-if DEBUG
-        AM_CFLAGS = -O0 $(INCLUDE)
-else
-        AM_CFLAGS = -O2 $(INCLUDE)
-endif
+AM_CFLAGS = $(GLOBAL_AM_CFLAGS)

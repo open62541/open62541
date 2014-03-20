@@ -72,9 +72,4 @@ all-local: convenience-link
 clean-local: clean-convenience-link
 
 #optimization levels depending on debug
-if DEBUG
-        AM_CFLAGS = -O0
-else
-        AM_CFLAGS = -O2
-endif
-
+AM_CFLAGS = $(GLOBAL_AM_CFLAGS)
