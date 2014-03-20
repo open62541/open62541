@@ -89,14 +89,14 @@ void encodeSByte(SByte value, UA_Int32 *pos, char *dstBuf);
  * @param dst
  * @return
  */
-UA_Int32 decodeByte(char const * buf, UA_Int32 *pos,Byte *dst);
+UA_Int32 decodeByte(char const * buf, UA_Int32 *pos,UA_Byte *dst);
 /**
  *
  * @param value
  * @param pos
  * @param dstBuf
  */
-void encodeByte(Byte value, UA_Int32 *pos, char *dstBuf);
+void encodeByte(UA_Byte value, UA_Int32 *pos, char *dstBuf);
 /**
  *
  * @param buf
@@ -148,14 +148,14 @@ void encodeInt32(UA_Int32 value, UA_Int32 *pos, char *dstBuf);
  * @param dst
  * @return
  */
-UA_Int32 decodeUInt32(char const * const buf, UA_Int32 *pos, UInt32 *dst);
+UA_Int32 decodeUInt32(char const * const buf, UA_Int32 *pos, UA_UInt32 *dst);
 /**
  *
  * @param value
  * @param dstBuf
  * @param pos
  */
-void encodeUInt32(UInt32 value, UA_Int32 *pos, char *dstBuf);
+void encodeUInt32(UA_UInt32 value, UA_Int32 *pos, char *dstBuf);
 /**
  *
  * @param buf
@@ -163,14 +163,14 @@ void encodeUInt32(UInt32 value, UA_Int32 *pos, char *dstBuf);
  * @param dst
  * @return
  */
-UA_Int32 decodeInt64(char const * buf, UA_Int32 *pos,Int64 *dst);
+UA_Int32 decodeInt64(char const * buf, UA_Int32 *pos,UA_Int64 *dst);
 /**
  *
  * @param value
  * @param pos
  * @param dstBuf
  */
-void encodeInt64(Int64 value, UA_Int32 *pos, char *dstBuf);
+void encodeInt64(UA_Int64 value, UA_Int32 *pos, char *dstBuf);
 /**
  *
  * @param buf
@@ -178,14 +178,14 @@ void encodeInt64(Int64 value, UA_Int32 *pos, char *dstBuf);
  * @param dst
  * @return
  */
-UA_Int32 decodeUInt64(char const * buf, UA_Int32 *pos, UInt64 *dst);
+UA_Int32 decodeUInt64(char const * buf, UA_Int32 *pos, UA_UInt64 *dst);
 /**
  *
  * @param value
  * @param pos
  * @param dstBuf
  */
-void encodeUInt64(UInt64 value, UA_Int32 *pos, char *dstBuf);
+void encodeUInt64(UA_UInt64 value, UA_Int32 *pos, char *dstBuf);
 /**
  *
  * @param buf  			binary encoded message
@@ -217,7 +217,7 @@ UA_Int32 encodeFloat(Float value,UA_Int32 *pos,char *dstBuf);
  * @param dst
  * @return
  */
-UA_Int32 decodeDouble(char const * buf, UA_Int32 *pos, Double *dst);
+UA_Int32 decodeDouble(char const * buf, UA_Int32 *pos, UA_Double *dst);
 /**
  *
  * @param value
@@ -225,7 +225,7 @@ UA_Int32 decodeDouble(char const * buf, UA_Int32 *pos, Double *dst);
  * @param dstBuf
  * @return
  */
-UA_Int32 encodeDouble(Double value, UA_Int32 *pos,char *dstBuf);
+UA_Int32 encodeDouble(UA_Double value, UA_Int32 *pos,char *dstBuf);
 /**
  *
  * @param srcNodeId

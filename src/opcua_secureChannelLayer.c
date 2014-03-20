@@ -31,8 +31,8 @@ UA_Int32 SL_initConnectionObject(UA_connection *connection)
 	connection->secureLayer.remoteNonce.data = NULL;
 	connection->secureLayer.remoteNonce.length = 0;
 
-	connection->secureLayer.localNonce.data = (Byte*)opcua_malloc(sizeof(Byte));
-	*connection->secureLayer.localNonce.data = sizeof(Byte);
+	connection->secureLayer.localNonce.data = (UA_Byte*)opcua_malloc(sizeof(UA_Byte));
+	*connection->secureLayer.localNonce.data = sizeof(UA_Byte);
 	connection->secureLayer.localNonce.length = 1;
 
 	connection->secureLayer.connectionState = connectionState_CLOSED;
@@ -57,8 +57,8 @@ UA_Int32 SL_initConnectionObject(UA_connection *connection)
 
 UA_Int32 SL_send(UA_connection *connection, UA_ByteString responseMessage, UA_Int32 type)
 {
-	UInt32 sequenceNumber;
-	UInt32 requestId;
+	UA_UInt32 sequenceNumber;
+	UA_UInt32 requestId;
 	UA_Int32 pos;
 	UA_Int32 sizeAsymAlgHeader;
 	UA_ByteString responsePacket;
@@ -67,7 +67,7 @@ UA_Int32 SL_send(UA_connection *connection, UA_ByteString responseMessage, UA_In
 	UA_Int32 sizeSignature;
 
 
-	sizeAsymAlgHeader = 3 * sizeof(UInt32) +
+	sizeAsymAlgHeader = 3 * sizeof(UA_UInt32) +
 			connection->secureLayer.localtAsymAlgSettings.SecurityPolicyUri.length +
 			connection->secureLayer.localtAsymAlgSettings.SenderCertificate.length +
 			connection->secureLayer.localtAsymAlgSettings.ReceiverCertificateThumbprint.length;
@@ -161,7 +161,7 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 	UA_Int32 sizeRespMessage;
 	UA_Int32 sizeSecurityToken;
 	UA_ByteString response;
-	UInt32 serverProtocolVersion;
+	UA_UInt32 serverProtocolVersion;
 	UA_Int32 pos;
 	UA_DiagnosticInfo serviceDiagnostics;
 
@@ -232,7 +232,7 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 	*/
 
 	//                  secureChannelId + TokenId + CreatedAt + RevisedLifetime
-	sizeSecurityToken = sizeof(UInt32) + sizeof(UInt32) + sizeof(UA_DateTime) + sizeof(UA_Int32);
+	sizeSecurityToken = sizeof(UA_UInt32) + sizeof(UA_UInt32) + sizeof(UA_DateTime) + sizeof(UA_Int32);
 
 	//ignore server nonce
 	serverNonce.length = -1;
@@ -250,7 +250,7 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 	serverProtocolVersion = connection->transportLayer.localConf.protocolVersion;
 
 	//                ProtocolVersion + SecurityToken + Nonce
-	sizeRespMessage = sizeof(UInt32) + serverNonce.length + sizeof(UA_Int32) + sizeSecurityToken;
+	sizeRespMessage = sizeof(UA_UInt32) + serverNonce.length + sizeof(UA_Int32) + sizeSecurityToken;
 	printf("SL_openSecureChannel - size of response message=%d\n",sizeRespMessage);
 
 
@@ -320,7 +320,7 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 
 	UA_Int32 pos = 0;
 	UA_AD_RequestHeader requestHeader;
-	UInt32 clientProtocolVersion;
+	UA_UInt32 clientProtocolVersion;
 	UA_NodeId serviceRequestType;
 	UA_Int32 requestType;
 	UA_Int32 securityMode;
@@ -342,7 +342,7 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 		// 	Req-1) RequestHeader requestHeader
 		UA_AD_RequestHeader requestHeader;
 		// 	Req-2) UInt32 ClientProtocolVersion
-		UInt32 clientProtocolVersion;
+		UA_UInt32 clientProtocolVersion;
 		// 	Req-3) Enum SecurityTokenRequestType requestType
 		UA_Int32 requestType;
 		// 	Req-4) Enum MessageSecurityMode SecurityMode
@@ -602,7 +602,7 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
  */
 UA_Int32 decodeSCMHeader(UA_ByteString *rawMessage, UA_Int32 *pos,
 		SL_SecureConversationMessageHeader* SC_Header) {
-	UInt32 err;
+	UA_UInt32 err;
 	printf("decodeSCMHeader - entered \n");
 	// LU: wild guess - reset pos, we want to reread the message type again
 	*pos = 0;

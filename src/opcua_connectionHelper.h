@@ -29,25 +29,25 @@ enum connectionState
 
 typedef struct
 {
-	UInt32 secureChannelId;
-	UInt32 tokenId;
+	UA_UInt32 secureChannelId;
+	UA_UInt32 tokenId;
 	UA_DateTime createdAt;
 	UA_Int32 revisedLifetime;
 }SL_ChannelSecurityToken;
 
 typedef struct
 {
-	UInt32 protocolVersion;
-	UInt32 sendBufferSize;
-	UInt32 recvBufferSize;
-	UInt32 maxMessageSize;
-	UInt32 maxChunkCount;
+	UA_UInt32 protocolVersion;
+	UA_UInt32 sendBufferSize;
+	UA_UInt32 recvBufferSize;
+	UA_UInt32 maxMessageSize;
+	UA_UInt32 maxChunkCount;
 }TL_buffer;
 
 struct TL_connection
 {
 	UA_Int32 socket;
-	UInt32 connectionState;
+	UA_UInt32 connectionState;
 	TL_buffer remoteConf;
 	TL_buffer localConf;
 	UA_String endpointURL;
@@ -71,16 +71,16 @@ struct SL_connection
 	UA_ByteString SenderCertificate;
 	UA_ByteString ReceiverCertificateThumbprint;
 */
-	UInt32 sequenceNumber;
-	UInt32 requestType;
+	UA_UInt32 sequenceNumber;
+	UA_UInt32 requestType;
 	UA_String secureChannelId;
 	//UInt32 UInt32_secureChannelId;
-	UInt32 securityMode;
+	UA_UInt32 securityMode;
 	UA_ByteString remoteNonce;
 	UA_ByteString localNonce;
-	UInt32 connectionState;
+	UA_UInt32 connectionState;
 	SL_ChannelSecurityToken securityToken;
-	UInt32 requestId; // request Id of the current request
+	UA_UInt32 requestId; // request Id of the current request
 };
 
 struct SS_connection

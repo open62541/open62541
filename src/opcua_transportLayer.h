@@ -26,9 +26,9 @@
 #define SIZE_OF_ACKNOWLEDGE_MESSAGE 28
 
 //constants
-static const UInt32 TL_HEADER_LENGTH = 8;
-static const UInt32 TL_MESSAGE_TYPE_LEN = 3;
-static const UInt32 TL_RESERVED_LEN = 1;
+static const UA_UInt32 TL_HEADER_LENGTH = 8;
+static const UA_UInt32 TL_MESSAGE_TYPE_LEN = 3;
+static const UA_UInt32 TL_RESERVED_LEN = 1;
 
 //variables which belong to layer
 static const TL_SERVER_PROTOCOL_VERSION = 0;
@@ -47,9 +47,9 @@ enum TL_messageType_td
 
 struct TL_header
 {
-	UInt32 MessageType;
-	Byte Reserved;
-	UInt32 MessageSize;
+	UA_UInt32 MessageType;
+	UA_Byte Reserved;
+	UA_UInt32 MessageSize;
 };
 struct TL_message
 {
@@ -68,27 +68,27 @@ UA_TYPE_METHOD_PROTOTYPES (UA_SecureConversationMessageHeader)
 
 struct TL_messageBodyHEL
 {
-	UInt32 ProtocolVersion;
-	UInt32 ReceiveBufferSize;
-	UInt32 SendBufferSize;
-	UInt32 MaxMessageSize;
-	UInt32 MaxChunkCount;
+	UA_UInt32 ProtocolVersion;
+	UA_UInt32 ReceiveBufferSize;
+	UA_UInt32 SendBufferSize;
+	UA_UInt32 MaxMessageSize;
+	UA_UInt32 MaxChunkCount;
 	UA_String EndpointUrl;
 };
 
 struct TL_messageBodyACK
 {
-	UInt32 ProtocolVersion;
-	UInt32 ReceiveBufferSize;
-	UInt32 SendBufferSize;
-	UInt32 MaxMessageSize;
-	UInt32 MaxChunkCount;
+	UA_UInt32 ProtocolVersion;
+	UA_UInt32 ReceiveBufferSize;
+	UA_UInt32 SendBufferSize;
+	UA_UInt32 MaxMessageSize;
+	UA_UInt32 MaxChunkCount;
 	UA_String EndpointUrl;
 };
 
 struct TL_messageBodyERR
 {
-	UInt32 Error;
+	UA_UInt32 Error;
 	UA_String Reason;
 
 };

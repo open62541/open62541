@@ -27,7 +27,7 @@ UA_AD_ApplicationType;
 * Chapter: 7.12
 * Page: 118
 */
-typedef UInt32 UA_AD_Index;
+typedef UA_UInt32 UA_AD_Index;
 
 
 /**
@@ -36,7 +36,7 @@ typedef UInt32 UA_AD_Index;
 * Chapter: 7.13
 * Page: 118
 */
-typedef UInt32 UA_AD_IntegerId;
+typedef UA_UInt32 UA_AD_IntegerId;
 
 
 /**
@@ -137,7 +137,7 @@ UA_AD_BrowseResult;
 * Chapter: 7.5
 * Page: 113
 */
-typedef UInt32 UA_Counter;
+typedef UA_UInt32 UA_Counter;
 
 
 /**
@@ -225,7 +225,7 @@ typedef struct
 	UInt16 noOfUserIdentyTokens;
 	UA_AD_UserTokenPolicy* useridentyTokens;
 	UA_String transportProfileUri;
-	Byte securtiyLevel;
+	UA_Byte securtiyLevel;
 }
 UA_AD_EndpointDescription;
 
@@ -270,8 +270,8 @@ UA_AD_ExtensibleParameter;
 typedef struct
 {
 //ToDo	enum BED_MonitoringFilter trigger = BED_MonitoringFilter.DATA_CHANGE_FILTER;
-	UInt32 deadbandType;
-	Double deadbandValue;
+	UA_UInt32 deadbandType;
+	UA_Double deadbandValue;
 }
 UA_AD_DataChangeFilter;
 
@@ -327,8 +327,8 @@ typedef struct
 //ToDo	AggregateConfiguration aggregateConfiguration;		//ToDo
 	Boolean useServerCapabilitiesDafaults;
 	Boolean treatUncertainAsBad;
-	Byte percentDataBad;
-	Byte percentDataGood;
+	UA_Byte percentDataBad;
+	UA_Byte percentDataGood;
 	Boolean steppedSlopedExtrapolation;
 }
 UA_AD_AggregateFilter;
@@ -456,12 +456,12 @@ UA_AD_NodeAttributesBitMask;
 */
 typedef struct
 {
-	UInt32 specifiedAttribute;	//BitMask corresponding to BED_NodeAttributesBitMask
+	UA_UInt32 specifiedAttribute;	//BitMask corresponding to BED_NodeAttributesBitMask
 	UA_LocalizedText displayName;
 	UA_LocalizedText description;
-	Byte eventNotifier;
-	UInt32 writeMask;
-	UInt32 userWriteMask;
+	UA_Byte eventNotifier;
+	UA_UInt32 writeMask;
+	UA_UInt32 userWriteMask;
 }
 UA_AD_ObjectAttributes;
 
@@ -474,20 +474,20 @@ UA_AD_ObjectAttributes;
 */
 typedef struct
 {
-	UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
+	UA_UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
 	UA_LocalizedText displayName;
 	UA_LocalizedText description;
 //ToDo	DefinedByTheDataTypeAttribte??? value				//ToDo
 	UA_NodeId dataType;
 	UA_Int32 valueRank;
 	UInt16 noOfArrayDimensions;
-	UInt32* arrayDimensions;
-	Byte accessLevel;
-	Byte userAccesLevel;
+	UA_UInt32* arrayDimensions;
+	UA_Byte accessLevel;
+	UA_Byte userAccesLevel;
 //ToDo	Duration???? minimumSamplingInterval;			//ToDo
 	Boolean historizing;
-	UInt32 writeMask;
-	UInt32 userWriteMask;
+	UA_UInt32 writeMask;
+	UA_UInt32 userWriteMask;
 }
 UA_AD_VariableAttributes;
 
@@ -500,13 +500,13 @@ UA_AD_VariableAttributes;
 */
 typedef struct
 {
-	UInt32 specifiedAttributes;	//BitMask corresponding to BED_NodeAttributesBitMask
+	UA_UInt32 specifiedAttributes;	//BitMask corresponding to BED_NodeAttributesBitMask
 	UA_LocalizedText displayName;
 	UA_LocalizedText description;
 	Boolean executable;
 	Boolean userExecutable;
-	UInt32 writeMask;
-	UInt32 userWriteMask;
+	UA_UInt32 writeMask;
+	UA_UInt32 userWriteMask;
 }
 UA_AD_MethodAttributes;
 
@@ -519,12 +519,12 @@ UA_AD_MethodAttributes;
 */
 typedef struct
 {
-	UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
+	UA_UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
 	UA_LocalizedText displayName;
 	UA_LocalizedText description;
 	Boolean isAbstract;
-	UInt32 wirteMask;
-	UInt32 userWriteMask;
+	UA_UInt32 wirteMask;
+	UA_UInt32 userWriteMask;
 }
 UA_AD_ObjectTypeAttributes;
 
@@ -537,17 +537,17 @@ UA_AD_ObjectTypeAttributes;
 */
 typedef struct
 {
-	UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
+	UA_UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
 	UA_LocalizedText displayName;
 	UA_LocalizedText description;
 //ToDo	DefinedByTheDataTypeAttribte??? value			//ToDo
 	UA_NodeId dataType;
 	UA_Int32 valueRank;
 	UInt16 noOfArrayDimensions;
-	UInt32* arrayDimesions;
+	UA_UInt32* arrayDimesions;
 	Boolean isAbstract;
-	UInt32 writeMask;
-	UInt32 userWriteMask;
+	UA_UInt32 writeMask;
+	UA_UInt32 userWriteMask;
 }
 UA_AD_VariableTypeAttributes;
 
@@ -560,14 +560,14 @@ UA_AD_VariableTypeAttributes;
 */
 typedef struct
 {
-	UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
+	UA_UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
 	UA_LocalizedText displayName;
 	UA_LocalizedText description;
 	Boolean isAbstract;
 	Boolean symmetric;
 	UA_LocalizedText inverseName;
-	UInt32 writeMask;
-	UInt32 userWriteMask;
+	UA_UInt32 writeMask;
+	UA_UInt32 userWriteMask;
 }
 UA_AD_ReferenceTypeAttributes;
 
@@ -581,12 +581,12 @@ UA_AD_ReferenceTypeAttributes;
 */
 typedef struct
 {
-	UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
+	UA_UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
 	UA_LocalizedText displayName;
 	UA_LocalizedText description;
 	Boolean isAbstract;
-	UInt32 writeMask;
-	UInt32 userWriteMask;
+	UA_UInt32 writeMask;
+	UA_UInt32 userWriteMask;
 }
 UA_AD_DataTypeAttributes;
 
@@ -600,13 +600,13 @@ UA_AD_DataTypeAttributes;
 */
 typedef struct
 {
-	UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
+	UA_UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
 	UA_LocalizedText displayName;
 	UA_LocalizedText description;
 	Boolean containsNoLoops;
-	Byte eventNotifier;
-	UInt32 writeMask;
-	UInt32 userWriteMask;
+	UA_Byte eventNotifier;
+	UA_UInt32 writeMask;
+	UA_UInt32 userWriteMask;
 }
 UA_AD_ViewAttributes;
 
@@ -770,9 +770,9 @@ typedef struct
 	UA_NodeId authenticationToken;
 	UA_DateTime timestamp;
 	UA_AD_IntegerId requestHandle;
-	UInt32 returnDiagnostics;
+	UA_UInt32 returnDiagnostics;
 	UA_String auditEntryId;
-	UInt32 timeoutHint;
+	UA_UInt32 timeoutHint;
 	UA_ExtensionObject additionalHeader;
 }
 UA_AD_RequestHeader;
@@ -959,11 +959,11 @@ UA_AD_TimestampsToReturn;
 */
 typedef struct
 {
-	Byte length[4];
+	UA_Byte length[4];
 	UInt16 noOfTokenData;
-	Byte* tokenData;
+	UA_Byte* tokenData;
 	UInt16 noOfServerNonce;
-	Byte* serverNonce;
+	UA_Byte* serverNonce;
 }
 UA_AD_UserIdentityTokenEncryptedTokenFormat;
 
@@ -1039,7 +1039,7 @@ typedef struct
 {
 	UA_NodeId viewId;
 	UA_DateTime timestamp;
-	UInt32 viewVersion;
+	UA_UInt32 viewVersion;
 }
 UA_AD_ViewDescription;
 

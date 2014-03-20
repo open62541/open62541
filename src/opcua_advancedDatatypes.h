@@ -14,7 +14,7 @@ typedef struct AD_RawMessage_t AD_RawMessage;
 struct AD_RawMessage_t
 {
 	char *message;
-	UInt32 length;
+	UA_UInt32 length;
 };
 
 enum BED_ApplicationType {SERVER_0, CLIENT_1, CLIENTANDSERVER_2, DISCOVERYSERVER_3};
@@ -96,7 +96,7 @@ struct BED_ContentFilter
 * Chapter: 7.5
 * Page: 113
 */
-typedef UInt32 BED_Counter;
+typedef UA_UInt32 BED_Counter;
 
 
 /**
@@ -158,7 +158,7 @@ struct BED_EndpointDescription
 	UA_String securityPolicyUri;
 //	struct BED_UserTokenPolicy useridentyTokens[];
 	UA_String transportProfileUri;
-	Byte securtiyLevel;
+	UA_Byte securtiyLevel;
 };
 
 /**
@@ -196,7 +196,7 @@ struct BED_ExtensibleParameter
 * Chapter: 7.12
 * Page: 118
 */
-typedef UInt32 BED_Index;
+typedef UA_UInt32 BED_Index;
 
 
 /**
@@ -205,7 +205,7 @@ typedef UInt32 BED_Index;
 * Chapter: 7.13
 * Page: 118
 */
-typedef UInt32 BED_IntegerId;
+typedef UA_UInt32 BED_IntegerId;
 
 
 /**
@@ -269,8 +269,8 @@ enum BED_MonitoringFilter
 struct BED_DataChangeFilter
 {
 //ToDo	enum BED_MonitoringFilter trigger = BED_MonitoringFilter.DATA_CHANGE_FILTER;
-	UInt32 deadbandType;
-	Double deadbandValue;
+	UA_UInt32 deadbandType;
+	UA_Double deadbandValue;
 };
 
 
@@ -308,8 +308,8 @@ struct BED_AggregateFilter
 //ToDo	AggregateConfiguration aggregateConfiguration;		//ToDo
 	Boolean useServerCapabilitiesDafaults;
 	Boolean treatUncertainAsBad;
-	Byte percentDataBad;
-	Byte percentDataGood;
+	UA_Byte percentDataBad;
+	UA_Byte percentDataGood;
 	Boolean steppedSlopedExtrapolation;
 };
 
@@ -388,12 +388,12 @@ enum BED_NodeAttributesBitMask
 */
 struct BED_ObjectAttributes
 {
-	UInt32 specifiedAttribute;	//BitMask corresponding to BED_NodeAttributesBitMask
+	UA_UInt32 specifiedAttribute;	//BitMask corresponding to BED_NodeAttributesBitMask
 //	struct UA_LocalizedText displayName;
 //	struct UA_LocalizedText description;
-	Byte eventNotifier;
-	UInt32 writeMask;
-	UInt32 userWriteMask;
+	UA_Byte eventNotifier;
+	UA_UInt32 writeMask;
+	UA_UInt32 userWriteMask;
 };
 
 
@@ -405,19 +405,19 @@ struct BED_ObjectAttributes
 */
 struct BED_VariableAttributes
 {
-	UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
+	UA_UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
 //	struct UA_LocalizedText displayName;
 //	struct UA_LocalizedText description;
 //ToDo	DefinedByTheDataTypeAttribte??? value				//ToDo
 //	struct UA_NodeId dataType;
 	UA_Int32 valueRank;
 //	UInt32 arrayDimensions[];
-	Byte accessLevel;
-	Byte userAccesLevel;
+	UA_Byte accessLevel;
+	UA_Byte userAccesLevel;
 //ToDo	Duration???? minimumSamplingInterval;			//ToDo
 	Boolean historizing;
-	UInt32 writeMask;
-	UInt32 userWriteMask;
+	UA_UInt32 writeMask;
+	UA_UInt32 userWriteMask;
 };
 
 
@@ -429,13 +429,13 @@ struct BED_VariableAttributes
 */
 struct BED_MethodAttributes
 {
-	UInt32 specifiedAttributes;	//BitMask corresponding to BED_NodeAttributesBitMask
+	UA_UInt32 specifiedAttributes;	//BitMask corresponding to BED_NodeAttributesBitMask
 //	struct UA_LocalizedText displayName;
 //	struct UA_LocalizedText description;
 	Boolean executable;
 	Boolean userExecutable;
-	UInt32 writeMask;
-	UInt32 userWriteMask;
+	UA_UInt32 writeMask;
+	UA_UInt32 userWriteMask;
 };
 
 
@@ -447,12 +447,12 @@ struct BED_MethodAttributes
 */
 struct BED_ObjectTypeAttributes
 {
-	UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
+	UA_UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
 //	struct UA_LocalizedText displayName;
 //	struct UA_LocalizedText description;
 	Boolean isAbstract;
-	UInt32 wirteMask;
-	UInt32 userWriteMask;
+	UA_UInt32 wirteMask;
+	UA_UInt32 userWriteMask;
 };
 
 
@@ -464,7 +464,7 @@ struct BED_ObjectTypeAttributes
 */
 struct BED_VariableTypeAttributes
 {
-	UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
+	UA_UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
 //	struct UA_LocalizedText displayName;
 //	struct UA_LocalizedText description;
 //ToDo	DefinedByTheDataTypeAttribte??? value			//ToDo
@@ -472,8 +472,8 @@ struct BED_VariableTypeAttributes
 	UA_Int32 valueRank;
 //	UInt32 arrayDimesions[];
 	Boolean isAbstract;
-	UInt32 writeMask;
-	UInt32 userWriteMask;
+	UA_UInt32 writeMask;
+	UA_UInt32 userWriteMask;
 };
 
 
@@ -485,14 +485,14 @@ struct BED_VariableTypeAttributes
 */
 struct BED_ReferenceTypeAttributes
 {
-	UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
+	UA_UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
 //	struct UA_LocalizedText displayName;
 //	struct UA_LocalizedText description;
 	Boolean isAbstract;
 	Boolean symmetric;
 //	struct UA_LocalizedText inverseName;
-	UInt32 writeMask;
-	UInt32 userWriteMask;
+	UA_UInt32 writeMask;
+	UA_UInt32 userWriteMask;
 };
 
 
@@ -505,12 +505,12 @@ struct BED_ReferenceTypeAttributes
 */
 struct BED_DataTypeAttributes
 {
-	UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
+	UA_UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
 //	struct UA_LocalizedText displayName;
 //	struct UA_LocalizedText description;
 	Boolean isAbstract;
-	UInt32 writeMask;
-	UInt32 userWriteMask;
+	UA_UInt32 writeMask;
+	UA_UInt32 userWriteMask;
 };
 
 
@@ -523,13 +523,13 @@ struct BED_DataTypeAttributes
 */
 struct BED_ViewAttributes
 {
-	UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
+	UA_UInt32 specifiedAttributes; 	//BitMask corresponding to BED_NodeAttributesBitMask
 //	struct UA_LocalizedText displayName;
 //	struct UA_LocalizedText description;
 	Boolean containsNoLoops;
-	Byte eventNotifier;
-	UInt32 writeMask;
-	UInt32 userWriteMask;
+	UA_Byte eventNotifier;
+	UA_UInt32 writeMask;
+	UA_UInt32 userWriteMask;
 };
 
 
@@ -696,9 +696,9 @@ struct BED_RequestHeader
 	UA_NodeId authenticationToken;		//ToDo
 	UA_DateTime timestamp;
 	BED_IntegerId requestHandle;
-	UInt32 returnDiagnostics;
+	UA_UInt32 returnDiagnostics;
 	UA_String auditEntryId;
-	UInt32 timeoutHint;
+	UA_UInt32 timeoutHint;
 	UA_ExtensionObject additionalHeader;
 };
 
@@ -872,7 +872,7 @@ enum BED_TimestampsToReturn
 */
 struct BED_UserIdentityTokenEncryptedTokenFormat
 {
-	Byte length[4];
+	UA_Byte length[4];
 //	Byte tokenData[];
 //	Byte serverNonce[];
 };
@@ -966,7 +966,7 @@ struct BED_ViewDescription
 {
 //	struct UA_NodeId viewId;
 	UA_DateTime timestamp;
-	UInt32 viewVersion;
+	UA_UInt32 viewVersion;
 };
 
 

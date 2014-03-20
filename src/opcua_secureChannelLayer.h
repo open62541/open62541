@@ -29,7 +29,7 @@ typedef enum
 }securityMode;
 typedef struct
 {
-	UInt32 ServerProtocolVersion;
+	UA_UInt32 ServerProtocolVersion;
 	SL_ChannelSecurityToken SecurityToken;
 	UA_String ServerNonce;
 }SL_Response;
@@ -37,10 +37,10 @@ typedef struct
 
 typedef struct
 {
-	UInt32 MessageType;
-	Byte   IsFinal;
-	UInt32 MessageSize;
-	UInt32 SecureChannelId;
+	UA_UInt32 MessageType;
+	UA_Byte   IsFinal;
+	UA_UInt32 MessageSize;
+	UA_UInt32 SecureChannelId;
 }SL_SecureConversationMessageHeader;
 
 
@@ -53,8 +53,8 @@ typedef struct
 
 typedef struct _SL_SequenceHeader
 {
-	UInt32 SequenceNumber;
-	UInt32 RequestId;
+	UA_UInt32 SequenceNumber;
+	UA_UInt32 RequestId;
 }SL_SequenceHeader;
 
 /*
@@ -62,11 +62,11 @@ typedef struct _SL_SequenceHeader
  */
 typedef struct _SL_AsymmetricAlgorithmSecurityFooter
 {
-	Byte PaddingSize;
-	Byte *Padding;
+	UA_Byte PaddingSize;
+	UA_Byte *Padding;
 
-	UInt32 SignatureSize;
-	Byte *Signature;
+	UA_UInt32 SignatureSize;
+	UA_Byte *Signature;
 }SL_AsymmetricAlgorithmSecurityFooter;
 
 /*

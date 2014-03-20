@@ -19,10 +19,10 @@ UA_Int32 encoder_encodeBuiltInDatatype(void *data, UA_Int32 type, UA_Int32 *pos,
 		encodeBoolean((*(Boolean*) data), pos, dstBuf);
 		break;
 	case SBYTE:
-		encodeSByte((*(Byte*) data), pos, dstBuf);
+		encodeSByte((*(UA_Byte*) data), pos, dstBuf);
 		break;
 	case BYTE:
-		encodeByte((*(Byte*) data), pos, dstBuf);
+		encodeByte((*(UA_Byte*) data), pos, dstBuf);
 		break;
 	case INT16:
 		encodeInt16((*(Int16*) data), pos, dstBuf);
@@ -34,19 +34,19 @@ UA_Int32 encoder_encodeBuiltInDatatype(void *data, UA_Int32 type, UA_Int32 *pos,
 		encodeInt32((*(UA_Int32*) data), pos, dstBuf);
 		break;
 	case UINT32:
-		encodeUInt32(*(UInt32*) (data), pos, dstBuf);
+		encodeUInt32(*(UA_UInt32*) (data), pos, dstBuf);
 		break;
 	case INT64:
-		encodeInt64((*(Int64*) data), pos, dstBuf);
+		encodeInt64((*(UA_Int64*) data), pos, dstBuf);
 		break;
 	case UINT64:
-		encodeUInt64((*(UInt64*) data), pos, dstBuf);
+		encodeUInt64((*(UA_UInt64*) data), pos, dstBuf);
 		break;
 	case FLOAT:
 		encodeFloat((*(Float*) data), pos, dstBuf);
 		break;
 	case DOUBLE:
-		encodeDouble((*(Double*) data), pos, dstBuf);
+		encodeDouble((*(UA_Double*) data), pos, dstBuf);
 		break;
 	case STRING:
 		encodeUAString(((UA_String*) data), pos, dstBuf);
@@ -70,7 +70,7 @@ UA_Int32 encoder_encodeBuiltInDatatype(void *data, UA_Int32 type, UA_Int32 *pos,
 		encodeExpandedNodeId((UA_ExpandedNodeId*) data, pos, dstBuf);
 		break;
 	case STATUS_CODE:
-		encodeUInt32(*((UInt32*) data), pos, dstBuf);
+		encodeUInt32(*((UA_UInt32*) data), pos, dstBuf);
 		break;
 	case QUALIFIED_NAME:
 		encodeQualifiedName(((UA_QualifiedName*) data), pos, dstBuf);
@@ -108,7 +108,7 @@ UA_Int32 decoder_decodeBuiltInDatatype(char const * srcBuf, UA_Int32 type, UA_In
 		decodeSByte(srcBuf, pos, (SByte*) dstStructure);
 		break;
 	case BYTE:
-		decodeByte(srcBuf, pos, (Byte*) dstStructure);
+		decodeByte(srcBuf, pos, (UA_Byte*) dstStructure);
 		break;
 	case INT16:
 		decodeInt16(srcBuf, pos, (Int16*) dstStructure);
@@ -120,19 +120,19 @@ UA_Int32 decoder_decodeBuiltInDatatype(char const * srcBuf, UA_Int32 type, UA_In
 		decodeInt32(srcBuf, pos, (UA_Int32*) dstStructure);
 		break;
 	case UINT32:
-		decodeUInt32(srcBuf, pos, (UInt32*) dstStructure);
+		decodeUInt32(srcBuf, pos, (UA_UInt32*) dstStructure);
 		break;
 	case INT64:
-		decodeInt64(srcBuf, pos, (Int64*) dstStructure);
+		decodeInt64(srcBuf, pos, (UA_Int64*) dstStructure);
 		break;
 	case UINT64:
-		decodeUInt64(srcBuf, pos, (UInt64*) dstStructure);
+		decodeUInt64(srcBuf, pos, (UA_UInt64*) dstStructure);
 		break;
 	case FLOAT:
 		decodeFloat(srcBuf, pos, (Float*) dstStructure);
 		break;
 	case DOUBLE:
-		decodeDouble(srcBuf, pos, (Double*) dstStructure);
+		decodeDouble(srcBuf, pos, (UA_Double*) dstStructure);
 		break;
 	case STRING:
 		decodeUAByteString(srcBuf, pos, (UA_String*) dstStructure);
@@ -459,8 +459,8 @@ UA_Int32 encoder_encodeBuiltInDatatypeArray(void **data, UA_Int32 size, UA_Int32
 			pElement = (SByte*)pElement + 1;
 			break;
 		case BYTE:
-			encoder_encodeBuiltInDatatype((Byte*)pElement, type, pos, dstBuf);
-			pElement = (Byte*)pElement + 1;
+			encoder_encodeBuiltInDatatype((UA_Byte*)pElement, type, pos, dstBuf);
+			pElement = (UA_Byte*)pElement + 1;
 			break;
 		case INT16:
 			encoder_encodeBuiltInDatatype((Int16*)pElement, type, pos, dstBuf);
@@ -475,24 +475,24 @@ UA_Int32 encoder_encodeBuiltInDatatypeArray(void **data, UA_Int32 size, UA_Int32
 			pElement = (UA_Int32*)pElement + 1;
 			break;
 		case UINT32:
-			encoder_encodeBuiltInDatatype((UInt32*)pElement, type, pos, dstBuf);
-			pElement = (UInt32*)pElement + 1;
+			encoder_encodeBuiltInDatatype((UA_UInt32*)pElement, type, pos, dstBuf);
+			pElement = (UA_UInt32*)pElement + 1;
 			break;
 		case INT64:
-			encoder_encodeBuiltInDatatype((Int64*)pElement, type, pos, dstBuf);
-			pElement = (Int64*)pElement + 1;
+			encoder_encodeBuiltInDatatype((UA_Int64*)pElement, type, pos, dstBuf);
+			pElement = (UA_Int64*)pElement + 1;
 			break;
 		case UINT64:
-			encoder_encodeBuiltInDatatype((UInt64*)pElement, type, pos, dstBuf);
-			pElement = (UInt64*)pElement + 1;
+			encoder_encodeBuiltInDatatype((UA_UInt64*)pElement, type, pos, dstBuf);
+			pElement = (UA_UInt64*)pElement + 1;
 			break;
 		case FLOAT:
 			encoder_encodeBuiltInDatatype((Float*)pElement, type, pos, dstBuf);
 			pElement = (Float*)pElement + 1;
 			break;
 		case DOUBLE:
-			encoder_encodeBuiltInDatatype((Double*)pElement, type, pos, dstBuf);
-			pElement = (Double*)pElement + 1;
+			encoder_encodeBuiltInDatatype((UA_Double*)pElement, type, pos, dstBuf);
+			pElement = (UA_Double*)pElement + 1;
 			break;
 		case STRING:
 			encoder_encodeBuiltInDatatype((UA_String*)pElement, type, pos, dstBuf);
@@ -577,19 +577,19 @@ void encodeSByte(SByte value, UA_Int32 *pos, char *dstBuf) {
 	*pos = (*pos) + 1;
 
 }
-UA_Int32 decodeByte(char const * buf, UA_Int32 *pos, Byte* dst) {
+UA_Int32 decodeByte(char const * buf, UA_Int32 *pos, UA_Byte* dst) {
 	*pos = (*pos) + 1;
-	*dst = (Byte) buf[(*pos) - 1];
+	*dst = (UA_Byte) buf[(*pos) - 1];
 	return UA_NO_ERROR;
 
 }
-void encodeByte(Byte value, UA_Int32 *pos, char *dstBuf) {
-	memcpy(&(dstBuf[*pos]), &value, sizeof(Byte));
+void encodeByte(UA_Byte value, UA_Int32 *pos, char *dstBuf) {
+	memcpy(&(dstBuf[*pos]), &value, sizeof(UA_Byte));
 	*pos = (*pos) + 1;
 }
 
 UA_Int32 decodeUInt16(char const * buf, UA_Int32 *pos, UInt16 *dst) {
-	Byte t1 = buf[*pos];
+	UA_Byte t1 = buf[*pos];
 	UInt16 t2 = (UInt16) (buf[*pos + 1] << 8);
 	*pos += 2;
 	*dst = t1 + t2;
@@ -626,57 +626,57 @@ void encodeInt32(UA_Int32 value, UA_Int32 *pos, char *dstBuf) {
 	*pos = (*pos) + sizeof(UA_Int32);
 }
 
-UA_Int32 decodeUInt32(char const * buf, UA_Int32 *pos, UInt32 *dst) {
-	Byte t1 = buf[*pos];
-	UInt32 t2 = (UInt32) buf[*pos + 1] << 8;
-	UInt32 t3 = (UInt32) buf[*pos + 2] << 16;
-	UInt32 t4 = (UInt32) buf[*pos + 3] << 24;
-	*pos += sizeof(UInt32);
+UA_Int32 decodeUInt32(char const * buf, UA_Int32 *pos, UA_UInt32 *dst) {
+	UA_Byte t1 = buf[*pos];
+	UA_UInt32 t2 = (UA_UInt32) buf[*pos + 1] << 8;
+	UA_UInt32 t3 = (UA_UInt32) buf[*pos + 2] << 16;
+	UA_UInt32 t4 = (UA_UInt32) buf[*pos + 3] << 24;
+	*pos += sizeof(UA_UInt32);
 	*dst = t1 + t2 + t3 + t4;
 	return UA_NO_ERROR;
 }
 
-void encodeUInt32(UInt32 value, UA_Int32 *pos, char *dstBuf) {
-	memcpy(&(dstBuf[*pos]), &value, sizeof(UInt32));
+void encodeUInt32(UA_UInt32 value, UA_Int32 *pos, char *dstBuf) {
+	memcpy(&(dstBuf[*pos]), &value, sizeof(UA_UInt32));
 	*pos += 4;
 }
 
-UA_Int32 decodeInt64(char const * buf, UA_Int32 *pos, Int64 *dst) {
+UA_Int32 decodeInt64(char const * buf, UA_Int32 *pos, UA_Int64 *dst) {
 
 	SByte t1 = buf[*pos];
-	Int64 t2 = (Int64) buf[*pos + 1] << 8;
-	Int64 t3 = (Int64) buf[*pos + 2] << 16;
-	Int64 t4 = (Int64) buf[*pos + 3] << 24;
-	Int64 t5 = (Int64) buf[*pos + 4] << 32;
-	Int64 t6 = (Int64) buf[*pos + 5] << 40;
-	Int64 t7 = (Int64) buf[*pos + 6] << 48;
-	Int64 t8 = (Int64) buf[*pos + 7] << 56;
+	UA_Int64 t2 = (UA_Int64) buf[*pos + 1] << 8;
+	UA_Int64 t3 = (UA_Int64) buf[*pos + 2] << 16;
+	UA_Int64 t4 = (UA_Int64) buf[*pos + 3] << 24;
+	UA_Int64 t5 = (UA_Int64) buf[*pos + 4] << 32;
+	UA_Int64 t6 = (UA_Int64) buf[*pos + 5] << 40;
+	UA_Int64 t7 = (UA_Int64) buf[*pos + 6] << 48;
+	UA_Int64 t8 = (UA_Int64) buf[*pos + 7] << 56;
 	*pos += 8;
 	*dst = t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8;
 	return UA_NO_ERROR;
 }
-void encodeInt64(Int64 value, UA_Int32 *pos, char *dstBuf) {
-	memcpy(&(dstBuf[*pos]), &value, sizeof(Int64));
-	*pos = (*pos) + sizeof(Int64);
+void encodeInt64(UA_Int64 value, UA_Int32 *pos, char *dstBuf) {
+	memcpy(&(dstBuf[*pos]), &value, sizeof(UA_Int64));
+	*pos = (*pos) + sizeof(UA_Int64);
 }
 
-UA_Int32 decodeUInt64(char const * buf, UA_Int32 *pos, UInt64 *dst) {
+UA_Int32 decodeUInt64(char const * buf, UA_Int32 *pos, UA_UInt64 *dst) {
 
-	Byte t1 = buf[*pos];
-	UInt64 t2 = (UInt64) buf[*pos + 1] << 8;
-	UInt64 t3 = (UInt64) buf[*pos + 2] << 16;
-	UInt64 t4 = (UInt64) buf[*pos + 3] << 24;
-	UInt64 t5 = (UInt64) buf[*pos + 4] << 32;
-	UInt64 t6 = (UInt64) buf[*pos + 5] << 40;
-	UInt64 t7 = (UInt64) buf[*pos + 6] << 48;
-	UInt64 t8 = (UInt64) buf[*pos + 7] << 56;
+	UA_Byte t1 = buf[*pos];
+	UA_UInt64 t2 = (UA_UInt64) buf[*pos + 1] << 8;
+	UA_UInt64 t3 = (UA_UInt64) buf[*pos + 2] << 16;
+	UA_UInt64 t4 = (UA_UInt64) buf[*pos + 3] << 24;
+	UA_UInt64 t5 = (UA_UInt64) buf[*pos + 4] << 32;
+	UA_UInt64 t6 = (UA_UInt64) buf[*pos + 5] << 40;
+	UA_UInt64 t7 = (UA_UInt64) buf[*pos + 6] << 48;
+	UA_UInt64 t8 = (UA_UInt64) buf[*pos + 7] << 56;
 	*pos += 8;
 	*dst = t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8;
 	return UA_NO_ERROR;
 }
-void encodeUInt64(UInt64 value, UA_Int32 *pos, char *dstBuf) {
-	memcpy(&(dstBuf[*pos]), &value, sizeof(UInt64));
-	*pos = (*pos) + sizeof(UInt64);
+void encodeUInt64(UA_UInt64 value, UA_Int32 *pos, char *dstBuf) {
+	memcpy(&(dstBuf[*pos]), &value, sizeof(UA_UInt64));
+	*pos = (*pos) + sizeof(UA_UInt64);
 }
 
 UA_Int32 decodeFloat(char const * buf, UA_Int32 *pos, Float *dst) {
@@ -692,16 +692,16 @@ UA_Int32 encodeFloat(Float value, UA_Int32 *pos, char *dstBuf) {
 	return UA_NO_ERROR;
 }
 
-UA_Int32 decodeDouble(char const * buf, UA_Int32 *pos, Double *dst) {
-	Double tmpDouble;
-	tmpDouble = (Double) (buf[*pos]);
-	*pos += sizeof(Double);
+UA_Int32 decodeDouble(char const * buf, UA_Int32 *pos, UA_Double *dst) {
+	UA_Double tmpDouble;
+	tmpDouble = (UA_Double) (buf[*pos]);
+	*pos += sizeof(UA_Double);
 	*dst = tmpDouble;
 	return UA_NO_ERROR;
 }
-UA_Int32 encodeDouble(Double value, UA_Int32 *pos, char *dstBuf) {
-	memcpy(&(dstBuf[*pos]), &value, sizeof(Double));
-	*pos *= sizeof(Double);
+UA_Int32 encodeDouble(UA_Double value, UA_Int32 *pos, char *dstBuf) {
+	memcpy(&(dstBuf[*pos]), &value, sizeof(UA_Double));
+	*pos *= sizeof(UA_Double);
 	return UA_NO_ERROR;
 }
 
@@ -798,7 +798,7 @@ UA_Int32 UAByteString_calcSize(UA_ByteString *byteString) {
 /* Serialization of UANodeID is specified in 62541-6, §5.2.2.9 */
 UA_Int32 decodeUANodeId(char const * buf, UA_Int32 *pos, UA_NodeId *dstNodeId) {
 	// Vars for overcoming decoder_decodeXXX's non-endian-savenes
-	Byte dstByte;
+	UA_Byte dstByte;
 	UInt16 dstUInt16;
 
 	decoder_decodeBuiltInDatatype(buf, BYTE, pos, &(dstNodeId->encodingByte));
@@ -844,14 +844,14 @@ UA_Int32 decodeUANodeId(char const * buf, UA_Int32 *pos, UA_NodeId *dstNodeId) {
 }
 UA_Int32 encodeUANodeId(UA_NodeId *srcNodeId, UA_Int32 *pos, char *buf) {
 	buf[*pos] = srcNodeId->encodingByte;
-	*pos += sizeof(Byte);
+	*pos += sizeof(UA_Byte);
 	switch (srcNodeId->encodingByte) {
 	case NIEVT_TWO_BYTE:
-		memcpy(&(buf[*pos]), &(srcNodeId->identifier.numeric), sizeof(Byte));
-		*pos += sizeof(Byte);
+		memcpy(&(buf[*pos]), &(srcNodeId->identifier.numeric), sizeof(UA_Byte));
+		*pos += sizeof(UA_Byte);
 		break;
 	case NIEVT_FOUR_BYTE:
-		encodeByte((Byte) (srcNodeId->namespace & 0xFF), pos, buf);
+		encodeByte((UA_Byte) (srcNodeId->namespace & 0xFF), pos, buf);
 		encodeUInt16((UInt16) (srcNodeId->identifier.numeric & 0xFFFF), pos,
 				buf);
 		break;
@@ -878,24 +878,24 @@ UA_Int32 nodeId_calcSize(UA_NodeId *nodeId) {
 	UA_Int32 length = 0;
 	switch (nodeId->encodingByte) {
 	case NIEVT_TWO_BYTE:
-		length += 2 * sizeof(Byte);
+		length += 2 * sizeof(UA_Byte);
 		break;
 	case NIEVT_FOUR_BYTE:
-		length += 4 * sizeof(Byte);
+		length += 4 * sizeof(UA_Byte);
 		break;
 	case NIEVT_NUMERIC:
-		length += sizeof(Byte) + sizeof(UInt16) + sizeof(UInt32);
+		length += sizeof(UA_Byte) + sizeof(UInt16) + sizeof(UA_UInt32);
 		break;
 	case NIEVT_STRING:
-		length += sizeof(Byte) + sizeof(UInt16) + sizeof(UInt32)
+		length += sizeof(UA_Byte) + sizeof(UInt16) + sizeof(UA_UInt32)
 				+ nodeId->identifier.string.length;
 		break;
 	case NIEVT_GUID:
-		length += sizeof(Byte) + sizeof(UInt16) + sizeof(UInt32)
-				+ sizeof(UInt16) + sizeof(UInt16) + 8 * sizeof(Byte);
+		length += sizeof(UA_Byte) + sizeof(UInt16) + sizeof(UA_UInt32)
+				+ sizeof(UInt16) + sizeof(UInt16) + 8 * sizeof(UA_Byte);
 		break;
 	case NIEVT_BYTESTRING:
-		length += sizeof(Byte) + sizeof(UInt16) + sizeof(UInt32)
+		length += sizeof(UA_Byte) + sizeof(UInt16) + sizeof(UA_UInt32)
 				+ nodeId->identifier.byteString.length;
 		break;
 	default:
@@ -1012,17 +1012,17 @@ UA_Int32 encodeExpandedNodeId(UA_ExpandedNodeId *nodeId, UA_Int32 *pos, char *ds
 UA_Int32 ExpandedNodeId_calcSize(UA_ExpandedNodeId *nodeId) {
 	UA_Int32 length = 0;
 
-	length += sizeof(UInt32); //nodeId->nodeId.encodingByte
+	length += sizeof(UA_UInt32); //nodeId->nodeId.encodingByte
 
 	switch (nodeId->nodeId.encodingByte) {
 	case NIEVT_TWO_BYTE:
-		length += sizeof(Byte); //nodeId->nodeId.identifier.numeric
+		length += sizeof(UA_Byte); //nodeId->nodeId.identifier.numeric
 		break;
 	case NIEVT_FOUR_BYTE:
 		length += sizeof(UInt16); //nodeId->nodeId.identifier.numeric
 		break;
 	case NIEVT_NUMERIC:
-		length += sizeof(UInt32); //nodeId->nodeId.identifier.numeric
+		length += sizeof(UA_UInt32); //nodeId->nodeId.identifier.numeric
 		break;
 	case NIEVT_STRING:
 		//nodeId->nodeId.identifier.string
@@ -1043,7 +1043,7 @@ UA_Int32 ExpandedNodeId_calcSize(UA_ExpandedNodeId *nodeId) {
 		length += UAString_calcSize(&(nodeId->namespaceUri)); //nodeId->namespaceUri
 	}
 	if (nodeId->nodeId.encodingByte & NIEVT_SERVERINDEX_FLAG) {
-		length += sizeof(UInt32); //nodeId->serverIndex
+		length += sizeof(UA_UInt32); //nodeId->serverIndex
 	}
 	return length;
 }
@@ -1156,7 +1156,7 @@ UA_Int32 ExtensionObject_calcSize(UA_ExtensionObject *extensionObject) {
 	UA_Int32 length = 0;
 
 	length += nodeId_calcSize(&(extensionObject->typeId));
-	length += sizeof(Byte); //extensionObject->encoding
+	length += sizeof(UA_Byte); //extensionObject->encoding
 	switch (extensionObject->encoding) {
 	case 0x00:
 		length += sizeof(UA_Int32); //extensionObject->body.length
@@ -1217,7 +1217,7 @@ UA_Int32 encodeVariant(UA_Variant *variant, UA_Int32 *pos, char *dstBuf) {
 UA_Int32 Variant_calcSize(UA_Variant *variant) {
 	UA_Int32 length = 0;
 
-	length += sizeof(Byte); //variant->encodingMask
+	length += sizeof(UA_Byte); //variant->encodingMask
 	if (variant->encodingMask & (1 << 7)) // array length is encoded
 			{
 		length += sizeof(UA_Int32); //variant->arrayLength
@@ -1306,25 +1306,25 @@ UA_Int32 encodeDataValue(UA_DataValue *dataValue, UA_Int32 *pos, char *dstBuf) {
 UA_Int32 DataValue_calcSize(UA_DataValue *dataValue) {
 	UA_Int32 length = 0;
 
-	length += sizeof(Byte); //dataValue->encodingMask
+	length += sizeof(UA_Byte); //dataValue->encodingMask
 
 	if (dataValue->encodingMask & 0x01) {
 		length += Variant_calcSize(&(dataValue->value));
 	}
 	if (dataValue->encodingMask & 0x02) {
-		length += sizeof(UInt32); //dataValue->Status
+		length += sizeof(UA_UInt32); //dataValue->Status
 	}
 	if (dataValue->encodingMask & 0x04) {
-		length += sizeof(Int64); //dataValue->SourceTimestamp
+		length += sizeof(UA_Int64); //dataValue->SourceTimestamp
 	}
 	if (dataValue->encodingMask & 0x08) {
-		length += sizeof(Int64); //dataValue->serverTimestamp
+		length += sizeof(UA_Int64); //dataValue->serverTimestamp
 	}
 	if (dataValue->encodingMask & 0x10) {
-		length += sizeof(Int64); //dataValue->SourcePicoseconds
+		length += sizeof(UA_Int64); //dataValue->SourcePicoseconds
 	}
 	if (dataValue->encodingMask & 0x20) {
-		length += sizeof(Int64); //dataValue->serverPicoseconds
+		length += sizeof(UA_Int64); //dataValue->serverPicoseconds
 	}
 	return length;
 }
@@ -1337,8 +1337,8 @@ UA_Int32 DataValue_calcSize(UA_DataValue *dataValue) {
 UA_Int32 decodeDiagnosticInfo(char const * buf, UA_Int32 *pos,
 		UA_DiagnosticInfo *dstDiagnosticInfo) {
 
-	Byte encodingByte = (buf[*pos]);
-	Byte mask;
+	UA_Byte encodingByte = (buf[*pos]);
+	UA_Byte mask;
 	for (mask = 1; mask <= 0x40; mask << 2) {
 
 		switch (mask & encodingByte) {
@@ -1389,7 +1389,7 @@ UA_Int32 decodeDiagnosticInfo(char const * buf, UA_Int32 *pos,
 }
 UA_Int32 encodeDiagnosticInfo(UA_DiagnosticInfo *diagnosticInfo, UA_Int32 *pos,
 		char *dstbuf) {
-	Byte mask;
+	UA_Byte mask;
 	int i;
 
 	encoder_encodeBuiltInDatatype((void*) (&(diagnosticInfo->encodingMask)),
@@ -1437,9 +1437,9 @@ UA_Int32 encodeDiagnosticInfo(UA_DiagnosticInfo *diagnosticInfo, UA_Int32 *pos,
 }
 UA_Int32 diagnosticInfo_calcSize(UA_DiagnosticInfo *diagnosticInfo) {
 	UA_Int32 length = 0;
-	Byte mask;
+	UA_Byte mask;
 
-	length += sizeof(Byte);	// EncodingMask
+	length += sizeof(UA_Byte);	// EncodingMask
 
 	for (mask = 0x01; mask <= 0x40; mask *= 2) {
 		switch (mask & (diagnosticInfo->encodingMask)) {

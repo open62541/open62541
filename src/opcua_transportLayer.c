@@ -25,7 +25,7 @@ UA_Int32 TL_initConnectionObject(UA_connection *connection)
 UA_Int32 TL_check(UA_connection *connection)
 {
 	UA_Int32 position = 4;
-	UInt32 messageLength = 0;
+	UA_UInt32 messageLength = 0;
 
 
 	printf("TL_check - entered \n");
@@ -51,7 +51,7 @@ UA_Int32 TL_check(UA_connection *connection)
 
 UA_Int32 TL_receive(UA_connection *connection, UA_ByteString *packet)
 {
-	UInt32 length = 0;
+	UA_UInt32 length = 0;
 	UA_Int32 pos = 0;
 
 	AD_RawMessage tmpRawMessage;
@@ -70,9 +70,9 @@ UA_Int32 TL_receive(UA_connection *connection, UA_ByteString *packet)
 
 		//is final chunk or not
 		//TODO process chunks
-		pos += sizeof(Byte);
+		pos += sizeof(UA_Byte);
 		//save the message size if needed
-		pos += sizeof(UInt32);
+		pos += sizeof(UA_UInt32);
 
 		printf("TL_receive - packetType = %d \n",packetType);
 		switch(packetType)
@@ -126,42 +126,42 @@ UA_Int32 TL_getPacketType(UA_ByteString *packet, UA_Int32 *pos)
 	   packet->data[*pos+1] == 'E' &&
 	   packet->data[*pos+2] == 'L')
 	{
-		*pos += 3 * sizeof(Byte);
+		*pos += 3 * sizeof(UA_Byte);
 		retVal = packetType_HEL;
 	}
 	else if(packet->data[*pos] == 'A' &&
 	        packet->data[*pos+1] == 'C' &&
 	        packet->data[*pos+2] == 'K')
 	{
-		*pos += 3 * sizeof(Byte);
+		*pos += 3 * sizeof(UA_Byte);
 		retVal = packetType_ACK;
 	}
 	else if(packet->data[*pos] == 'E' &&
 			packet->data[*pos+1] == 'R' &&
 			packet->data[*pos+2] == 'R')
 	{
-		*pos += 3 * sizeof(Byte);
+		*pos += 3 * sizeof(UA_Byte);
 		retVal =  packetType_ERR;
 	}
 	else if(packet->data[*pos] == 'O' &&
 	        packet->data[*pos+1] == 'P' &&
 	        packet->data[*pos+2] == 'N')
 	{
-		*pos += 3 * sizeof(Byte);
+		*pos += 3 * sizeof(UA_Byte);
 		retVal =  packetType_OPN;
 	}
 	else if(packet->data[*pos] == 'C' &&
 	        packet->data[*pos+1] == 'L' &&
 	        packet->data[*pos+2] == 'O')
 	{
-		*pos += 3 * sizeof(Byte);
+		*pos += 3 * sizeof(UA_Byte);
 		retVal =  packetType_CLO;
 	}
 	else if(packet->data[*pos] == 'M' &&
 			packet->data[*pos+1] == 'S' &&
 			packet->data[*pos+2] == 'G')
 	{
-		*pos += 3 * sizeof(Byte);
+		*pos += 3 * sizeof(UA_Byte);
 		retVal =  packetType_MSG;
 	}
 	//TODO retVal == -1 -- ERROR no valid message received
@@ -173,8 +173,8 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 {
 	UA_Int32 tmpPos = 0;
 	UA_ByteString tmpMessage;
-	Byte reserved;
-	UInt32 messageSize;
+	UA_Byte reserved;
+	UA_UInt32 messageSize;
 	printf("TL_process - entered \n");
 	struct TL_header tmpHeader;
 	switch(packetType)
@@ -215,7 +215,7 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 					(void*)(&(connection->transportLayer.endpointURL)));
 
 			/* send back acknowledge */
-			tmpMessage.data = (Byte*)opcua_malloc(SIZE_OF_ACKNOWLEDGE_MESSAGE);
+			tmpMessage.data = (UA_Byte*)opcua_malloc(SIZE_OF_ACKNOWLEDGE_MESSAGE);
 			if(tmpMessage.data == NULL)
 			{
 				printf("TL_process - memory allocation failed \n");
