@@ -23,6 +23,19 @@ typedef uint64_t UInt64;
 typedef float Float;
 typedef double Double;
 
+/* Basic types */
+typedef _Bool UA_Boolean;
+typedef int8_t UA_Byte;
+typedef uint8_t UA_SByte;
+typedef int16_t UA_Int16;
+typedef uint16_t UA_UInt16;
+typedef int32_t UA_Int32;
+typedef uint32_t UA_UInt32;
+typedef int64_t UA_Int64;
+typedef uint64_t UA_UInt64;
+typedef float UA_Float;
+typedef double UA_Double;
+
 /* Function return values */
 #define UA_SUCCESS 0
 #define UA_NO_ERROR UA_SUCCESS
@@ -93,38 +106,17 @@ UA_Int32 TYPE##_encode(TYPE const * src, UA_Int32* pos, char *dst) { \
 	return TYPE_AS##_encode((TYPE_AS*) src,pos,dst); \
 }
 
-/* Prototypes for basic types */
-typedef _Bool UA_Boolean;
+/*** Prototypes for basic types **/
 UA_TYPE_METHOD_PROTOTYPES (UA_Boolean)
-
-typedef int8_t UA_Byte;
 UA_TYPE_METHOD_PROTOTYPES (UA_Byte)
-
-typedef uint8_t UA_SByte;
 UA_TYPE_METHOD_PROTOTYPES (UA_SByte)
-
-typedef int16_t UA_Int16;
 UA_TYPE_METHOD_PROTOTYPES (UA_Int16)
-
-typedef uint16_t UA_UInt16;
 UA_TYPE_METHOD_PROTOTYPES (UA_UInt16)
-
-typedef int32_t UA_Int32;
 UA_TYPE_METHOD_PROTOTYPES (UA_Int32)
-
-typedef uint32_t UA_UInt32;
 UA_TYPE_METHOD_PROTOTYPES (UA_UInt32)
-
-typedef int64_t UA_Int64;
 UA_TYPE_METHOD_PROTOTYPES (UA_Int64)
-
-typedef uint64_t UA_UInt64;
 UA_TYPE_METHOD_PROTOTYPES (UA_UInt64)
-
-typedef float UA_Float;
 UA_TYPE_METHOD_PROTOTYPES (UA_Float)
-
-typedef double UA_Double;
 UA_TYPE_METHOD_PROTOTYPES (UA_Double)
 
 /**

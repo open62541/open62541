@@ -108,7 +108,7 @@ def createStructured(element):
         elif child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
             if child.get("Name") in lengthfields:
                 continue
-            childname = child.get("Name")
+            childname = camlCase2CCase(child.get("Name"))
             #if childname in printed_types:
             #    childname = childname + "_Value" # attributes may not have the name of a type
             typename = stripTypename(child.get("TypeName"))
@@ -131,7 +131,7 @@ def createStructured(element):
     if len(valuemap) > 0:
         for n,t in valuemap.iteritems():
             if t.find("**") != -1:
-	        print("\t" + "UA_UInt32 " + n + "_size;", end='\n', file=fh)
+	        print("\t" + "UA_UInt32 " + n + "Size;", end='\n', file=fh)
             print("\t" + "UA_" + t + " " + n + ";", end='\n', file=fh)
     else:
         print("\t/* null record */", end='\n', file=fh)
@@ -162,8 +162,8 @@ def createStructured(element):
             if t in enum_types:
                 print('\n\t + 4 //' + n, end='', file=fc) # enums are all 32 bit
             elif t.find("**") != -1:
-		print("\n\t + 4 //" + n + "_size", end='', file=fc),
-		print("\n\t + UA_Array_calcSize(ptr->" + n + "_size, UA_" + t[0:t.find("*")].upper() + ", (void const**) ptr->" + n +")", end='', file=fc)
+		print("\n\t + 4 //" + n + "Size", end='', file=fc),
+		print("\n\t + UA_Array_calcSize(ptr->" + n + "Size, UA_" + t[0:t.find("*")].upper() + ", (void const**) ptr->" + n +")", end='', file=fc)
             elif t.find("*") != -1:
                 print('\n\t + ' + "UA_" + t[0:t.find("*")] + "_calcSize(ptr->" + n + ')', end='', file=fc)
             else:
