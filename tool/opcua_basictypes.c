@@ -36,12 +36,14 @@ Int32 UA_Array_decode(char const * src, Int32 noElements, Int32 type, Int32* pos
 }
 
 Int32 UA_free(void * ptr){
+	printf("UA_free - ptr=%p\n",ptr);
 	free(ptr);
 	return UA_SUCCESS;
 }
 
 Int32 UA_alloc(void ** ptr, int size){
 	*ptr = malloc(size);
+	printf("UA_alloc - ptr=%p, size=%d\n",ptr,size);
 	if(*ptr == UA_NULL) return UA_ERR_NO_MEMORY;
 	return UA_SUCCESS;
 }
