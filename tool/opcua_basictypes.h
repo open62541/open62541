@@ -65,10 +65,10 @@ Int32 TYPE##_calcSize(TYPE const * p) { return sizeof(TYPE); }
 Int32 TYPE##_calcSize(TYPE const * p) { return TYPE_AS##_calcSize((TYPE_AS*) p); }
 
 #define UA_TYPE_METHOD_DELETE_FREE(TYPE) \
-Int32 TYPE##_delete(TYPE * p) { return UA_free(p); };
+Int32 TYPE##_delete(TYPE * p) { return UA_free(p); }
 
 #define UA_TYPE_METHOD_DELETE_AS(TYPE, TYPE_AS) \
-Int32 TYPE##_delete(TYPE * p) { return TYPE_AS##_delete((TYPE_AS*) p);};
+Int32 TYPE##_delete(TYPE * p) { return TYPE_AS##_delete((TYPE_AS*) p);}
 
 #define UA_TYPE_METHOD_DELETE_STRUCT(TYPE) \
 Int32 TYPE##_delete(TYPE *p) { \
@@ -79,10 +79,10 @@ Int32 TYPE##_delete(TYPE *p) { \
 }
 
 #define UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(TYPE) \
-Int32 TYPE##_deleteMembers(TYPE * p) { return UA_SUCCESS; };
+Int32 TYPE##_deleteMembers(TYPE * p) { return UA_SUCCESS; }
 
 #define UA_TYPE_METHOD_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
-Int32 TYPE##_deleteMembers(TYPE * p) { return TYPE_AS##_deleteMembers((TYPE_AS*) p);};
+Int32 TYPE##_deleteMembers(TYPE * p) { return TYPE_AS##_deleteMembers((TYPE_AS*) p);}
 
 #define UA_TYPE_METHOD_DECODE_AS(TYPE,TYPE_AS) \
 Int32 TYPE##_decode(char const * src, Int32* pos, TYPE *dst) { \
@@ -279,7 +279,7 @@ UA_TYPE_METHOD_PROTOTYPES(UA_DataValue)
 
 /* DiagnosticInfo - Part: 6, Chapter: 5.2.2.12, Page: 20 */
 typedef struct T_UA_DiagnosticInfo {
-	Byte encodingMask; //Type of the Enum UA_DiagnosticInfoEncodingMaskType
+	UA_Byte encodingMask; //Type of the Enum UA_DiagnosticInfoEncodingMaskType
 	UA_Int32 symbolicId;
 	UA_Int32 namespaceUri;
 	UA_Int32 localizedText;
