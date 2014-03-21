@@ -10,13 +10,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <memory.h> // bzero
 
 
-
-#include "opcua_binaryEncDec.h"
-#include "opcua_builtInDatatypes.h"
+#include "opcua.h"
 #include "opcua_transportLayer.h"
-#include "opcua_types.h"
 
 #ifdef LINUX
 
@@ -79,7 +77,7 @@ void server_run()
 	}
 
 	/* Initialize socket structure */
-	bzero((char *) &serv_addr, sizeof(serv_addr));
+	bzero((void *) &serv_addr, sizeof(serv_addr));
 	portno = PORT;
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_addr.s_addr = INADDR_ANY;
@@ -124,8 +122,8 @@ void server_run()
 		if (n > 0)
 		{
 			printf("received: %s\n",buffer);
-			connection.readData.Data = buffer;
-			connection.readData.Length = n;
+			connection.readData.data = buffer;
+			connection.readData.length = n;
 			connection.newDataToRead = 1;
 
 			//TL_receive(&connection, &slMessage);
@@ -140,19 +138,17 @@ void server_run()
 		if(connection.newDataToWrite)
 		{
 			printf("data will be sent \n");
-			n = write(newsockfd,connection.writeData.Data,connection.writeData.Length);
+			n = write(newsockfd,connection.writeData.data,connection.writeData.length);
 			printf("sent data \n");
 			connection.newDataToWrite = 0;
-			opcua_free(connection.writeData.Data);
-			connection.writeData.Data = NULL;
-			connection.writeData.Length = 0;
+			UA_free(connection.writeData.data);
+			connection.writeData.data = NULL;
+			connection.writeData.length = 0;
 		}
 
-		connection.readData.Data = NULL;
-		connection.readData.Length = 0;
+		connection.readData.data = NULL;
+		connection.readData.length = 0;
 		connection.newDataToRead = 0;
-
-
 
 	}
   }

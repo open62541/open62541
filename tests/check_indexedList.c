@@ -14,11 +14,11 @@ void visitor(void* payload){
 void freer(void* payload){
 	if(payload){
 		free_count++;
-		opcua_free(payload);
+		UA_free(payload);
 	}
 }
 
-Boolean matcher(void* payload){
+_Bool matcher(void* payload){
 	if(payload == NULL){
 		return FALSE;
 	}

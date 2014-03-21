@@ -162,7 +162,7 @@ def createStructured(element):
             if t in enum_types:
                 print('\n\t + 4 //' + n, end='', file=fc) # enums are all 32 bit
             elif t.find("**") != -1:
-		print("\n\t + 4 //" + n + "Size", end='', file=fc),
+		print("\n\t + 0 //" + n + "Size is included in UA_Array_calcSize", end='', file=fc),
 		print("\n\t + UA_Array_calcSize(ptr->" + n + "Size, UA_" + t[0:t.find("*")].upper() + ", (void const**) ptr->" + n +")", end='', file=fc)
             elif t.find("*") != -1:
                 print('\n\t + ' + "UA_" + t[0:t.find("*")] + "_calcSize(ptr->" + n + ')', end='', file=fc)

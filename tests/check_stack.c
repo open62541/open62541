@@ -10,12 +10,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "UA_config.h"
+
+#include "opcua.h"
 #include "opcua_transportLayer.h"
-#include "opcua_binaryEncDec.h"
-#include "opcua_encodingLayer.h"
-#include "opcua_advancedDatatypes.h"
-//#include "check_stdint.h"
 #include "check.h"
 
 
@@ -26,8 +23,9 @@ START_TEST(test_getPacketType_validParameter)
 	char buf[] = {'C','L','O'};
 	UA_Int32 pos = 0;
 	UA_ByteString msg;
-	msg.Data = buf;
-	msg.Length = 3;
+
+	msg.data = buf;
+	msg.length = 3;
 
 	ck_assert_int_eq(TL_getPacketType(&msg, &pos),packetType_CLO);
 }
@@ -36,21 +34,21 @@ END_TEST
 
 START_TEST(decodeByte_test)
 {
-	AD_RawMessage rawMessage;
+	UA_ByteString rawMessage;
 	UA_Int32 position = 0;
 	//EncodeByte
 		char *mem = malloc(sizeof(UA_Byte));
-		UInt16 Ui16Val;
+		UA_Byte val;
 
-		rawMessage.message = mem;
+		rawMessage.data = mem;
 		rawMessage.length = 1;
 		mem[0] = 0x08;
 
 		position = 0;
 
-		decoder_decodeBuiltInDatatype(rawMessage.message, BYTE, &position, &Ui16Val);
+		UA_Byte_decode(rawMessage.data, &position, &val);
 
-		ck_assert_int_eq(Ui16Val, 0x08);
+		ck_assert_int_eq(val, 0x08);
 		ck_assert_int_eq(position, 1);
 		free(mem);
 }
@@ -58,20 +56,21 @@ END_TEST
 
 START_TEST(encodeByte_test)
 {
-	AD_RawMessage rawMessage;
+	UA_ByteString rawMessage;
 	UA_Int32 position = 0;
 	//EncodeByte
 		char *mem = malloc(sizeof(UA_Byte));
-		rawMessage.message = mem;
+		rawMessage.data = mem;
 		UA_Byte testByte = 0x08;
 		rawMessage.length = 1;
 		position = 0;
 
-		encodeByte(testByte, &position, rawMessage.message);
+		UA_Byte_encode(&(testByte), &position, rawMessage.data);
 
-		ck_assert_int_eq(rawMessage.message[0], 0x08);
+		ck_assert_int_eq(rawMessage.data[0], 0x08);
 		ck_assert_int_eq(rawMessage.length, 1);
 		ck_assert_int_eq(position, 1);
+
 		free(mem);
 }
 END_TEST
@@ -84,8 +83,8 @@ START_TEST(decodeRequestHeader_test_validParameter)
 							0xcf,0x01,0x00,0x00,0x00,0x00,0x00,0x00,
 							0x00,0x00,0xff,0xff,0xff,0xff,0x00,0x00,
 							0x00,0x00,0x00,0x00,0x00};
-		AD_RawMessage rawMessage;
-		rawMessage.message = &testMessage;
+		UA_ByteString rawMessage;
+		rawMessage.data = &testMessage;
 		rawMessage.length = 29;
 		Int32 position = 0;
 		T_RequestHeader requestHeader;
@@ -105,7 +104,7 @@ START_TEST(decodeInt16_test_positives)
 {
 	UA_Int32 p = 0;
 	UA_Int16 val;
-	AD_RawMessage rawMessage;
+	UA_ByteString rawMessage;
 	char mem[] = {
 			0x00,0x00,	// 0
 			0x01,0x00,	// 1
@@ -113,37 +112,37 @@ START_TEST(decodeInt16_test_positives)
 			0x00,0x01,	// 256
 	};
 
-	rawMessage.message = mem;
+	rawMessage.data = mem;
 	rawMessage.length = sizeof(mem);
 	ck_assert_int_eq(rawMessage.length,8);
 
-	decoder_decodeBuiltInDatatype(rawMessage.message,INT16,&p,&val);
+	UA_Int16_decode(rawMessage.data,&p,&val);
 	ck_assert_int_eq(val,0);
-	decoder_decodeBuiltInDatatype(rawMessage.message,INT16,&p,&val);
+	UA_Int16_decode(rawMessage.data,&p,&val);
 	ck_assert_int_eq(val,1);
-	decoder_decodeBuiltInDatatype(rawMessage.message,INT16,&p,&val);
+	UA_Int16_decode(rawMessage.data,&p,&val);
 	ck_assert_int_eq(val,255);
-	decoder_decodeBuiltInDatatype(rawMessage.message,INT16,&p,&val);
+	UA_Int16_decode(rawMessage.data,&p,&val);
 	ck_assert_int_eq(val,256);
 }
 END_TEST
 START_TEST(decodeInt16_test_negatives)
 {
-	Int32 p = 0;
-	Int16 val;
-	AD_RawMessage rawMessage;
-	char mem[] = {
+	UA_Int32 p = 0;
+	UA_Int16 val;
+	UA_ByteString rawMessage;
+	UA_Byte mem[] = {
 			0xFF,0xFF,	// -1
 			0x00,0x80,	// -32768
 	};
 
-	rawMessage.message = mem;
+	rawMessage.data = mem;
 	rawMessage.length = sizeof(mem);
 	ck_assert_int_eq(rawMessage.length,4);
 
-	decoder_decodeBuiltInDatatype(rawMessage.message,INT16,&p,&val);
+	UA_Int16_decode(rawMessage.data,&p,&val);
 	ck_assert_int_eq(val,-1);
-	decoder_decodeBuiltInDatatype(rawMessage.message,INT16,&p,&val);
+	UA_Int16_decode(rawMessage.data,&p,&val);
 	ck_assert_int_eq(val,-32768);
 }
 END_TEST
@@ -151,134 +150,134 @@ END_TEST
 START_TEST(encodeInt16_test)
 {
 
-	AD_RawMessage rawMessage;
+	UA_ByteString rawMessage;
 	UA_Int32 position = 0;
 	//EncodeUInt16
-	char *mem = malloc(sizeof(UInt16));
-	rawMessage.message = mem;
-	UInt16 testUInt16 = 1;
+	UA_Byte *mem = malloc(sizeof(UA_UInt16));
+	rawMessage.data = mem;
+	UA_UInt16 testUInt16 = 1;
 	rawMessage.length = 2;
 	position = 0;
 
-	encodeUInt16(testUInt16, &position, rawMessage.message);
-	//encodeUInt16(testUInt16, &position, &rawMessage);
+	UA_UInt16_encode(&testUInt16, &position, rawMessage.data);
 
 	ck_assert_int_eq(position, 2);
 	UA_Int32 p = 0;
 	UA_Int16 val;
-	decoder_decodeBuiltInDatatype(rawMessage.message, INT16, &p, &val);
+	UA_UInt16_decode(rawMessage.data, &p, &val);
 	ck_assert_int_eq(val,testUInt16);
-	//ck_assert_int_eq(rawMessage.message[0], 0xAB);
+	//ck_assert_int_eq(rawMessage.data[0], 0xAB);
 
+	free(mem);
 }
 END_TEST
 
 START_TEST(decodeUInt16_test)
 {
 
-	AD_RawMessage rawMessage;
+	UA_ByteString rawMessage;
 	UA_Int32 position = 0;
 	//EncodeUInt16
-	char mem[2] = {0x01,0x00};
+	UA_Byte mem[2] = {0x01,0x00};
 
-	rawMessage.message = mem;
+	rawMessage.data = mem;
 
 	rawMessage.length = 2;
 
 	//encodeUInt16(testUInt16, &position, &rawMessage);
 
 	UA_Int32 p = 0;
-	UInt16 val;
-	decoder_decodeBuiltInDatatype(rawMessage.message,UINT16,&p,&val);
+	UA_UInt16 val;
+	UA_UInt16_decode(rawMessage.data,&p,&val);
 
 	ck_assert_int_eq(val,1);
 	//ck_assert_int_eq(p, 2);
-	//ck_assert_int_eq(rawMessage.message[0], 0xAB);
+	//ck_assert_int_eq(rawMessage.data[0], 0xAB);
 
 }
 END_TEST
 START_TEST(encodeUInt16_test)
 {
 
-	AD_RawMessage rawMessage;
+	UA_ByteString rawMessage;
 	UA_Int32 position = 0;
 	//EncodeUInt16
-	char *mem = malloc(sizeof(UInt16));
-	rawMessage.message = mem;
-	UInt16 testUInt16 = 1;
+	UA_Byte *mem = (UA_Byte*) malloc(sizeof(UA_UInt16));
+	rawMessage.data = mem;
+	UA_UInt16 testUInt16 = 1;
 	rawMessage.length = 2;
 	position = 0;
 
-	encodeUInt16(testUInt16, &position, rawMessage.message);
-	//encodeUInt16(testUInt16, &position, &rawMessage);
-
+	UA_UInt16_encode(&testUInt16, &position, rawMessage.data);
 	ck_assert_int_eq(position, 2);
-	UA_Int32 p = 0;
-	UInt16 val;
-	decoder_decodeBuiltInDatatype(rawMessage.message, UINT16, &p, &val);
-	ck_assert_int_eq(val,testUInt16);
-	//ck_assert_int_eq(rawMessage.message[0], 0xAB);
 
+	UA_Int32 p = 0;
+	UA_UInt16 val;
+	UA_UInt16_decode(rawMessage.data, &p, &val);
+	ck_assert_int_eq(val,testUInt16);
+	//ck_assert_int_eq(rawMessage.data[0], 0xAB);
+
+	free(mem);
 }
 END_TEST
 
 
 START_TEST(decodeUInt32_test)
 {
-	AD_RawMessage rawMessage;
+	UA_ByteString rawMessage;
 	UA_Int32 position = 0;
 	//EncodeUInt16
-	char mem[4] = {0xFF,0x00,0x00,0x00};
+	UA_Byte mem[4] = {0xFF,0x00,0x00,0x00};
 
-	rawMessage.message = mem;
+	rawMessage.data = mem;
 	rawMessage.length = 4;
 
 	UA_Int32 p = 0;
 	UA_UInt32 val;
-	decoder_decodeBuiltInDatatype(rawMessage.message, UINT32, &p, &val);
+	UA_Int32_decode(rawMessage.data, &p, &val);
 	ck_assert_uint_eq(val,255);
 
 }
 END_TEST
 START_TEST(encodeUInt32_test)
 {
-	AD_RawMessage rawMessage;
+	UA_ByteString rawMessage;
 	UA_Int32 position = 0;
 	UA_UInt32 value = 0x0101FF00;
 	//EncodeUInt16
 
-	rawMessage.message = (char*)opcua_malloc(2 * sizeof(UA_UInt32));
+	rawMessage.data = (UA_Byte*) malloc(2 * sizeof(UA_UInt32));
 
 	rawMessage.length = 8;
 
 	UA_Int32 p = 4;
-	//encodeUInt32(value, &p,rawMessage.message);
-	encoder_encodeBuiltInDatatype(&value,UINT32,&p,rawMessage.message);
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[4],0x00);
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[5],0xFF);
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[6],0x01);
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[7],0x01);
+	UA_UInt32_encode(&value,&p,rawMessage.data);
+	ck_assert_uint_eq(rawMessage.data[4],0x00);
+	ck_assert_uint_eq(rawMessage.data[5],0xFF);
+	ck_assert_uint_eq(rawMessage.data[6],0x01);
+	ck_assert_uint_eq(rawMessage.data[7],0x01);
 	ck_assert_int_eq(p,8);
 
+	free(rawMessage.data);
 
 }
 END_TEST
 
 START_TEST(decodeInt32_test)
 {
-	AD_RawMessage rawMessage;
+	UA_ByteString rawMessage;
 	UA_Int32 position = 0;
 	//EncodeUInt16
-	char mem[4] = {0x00,0xCA,0x9A,0x3B};
+	UA_Byte mem[4] = {0x00,0xCA,0x9A,0x3B};
 
-	rawMessage.message = mem;
+	rawMessage.data = mem;
 
 	rawMessage.length = 4;
 
 
 	UA_Int32 p = 0;
 	UA_Int32 val;
-	decoder_decodeBuiltInDatatype(rawMessage.message, INT32, &p, &val);
+	UA_Int32_decode(rawMessage.data, &p, &val);
 	ck_assert_int_eq(val,1000000000);
 }
 END_TEST
@@ -291,123 +290,120 @@ END_TEST
 
 START_TEST(decodeUInt64_test)
 {
-	AD_RawMessage rawMessage;
+	UA_ByteString rawMessage;
 	UA_Int32 position = 0;
 	UA_UInt64 expectedVal = 0xFF;
 	expectedVal = expectedVal << 56;
-	char mem[8] = {00,00,00,00,0x00,0x00,0x00,0xFF};
+	UA_Byte mem[8] = {00,00,00,00,0x00,0x00,0x00,0xFF};
 
-	rawMessage.message = mem;
+	rawMessage.data = mem;
 
 	rawMessage.length = 8;
 
 	UA_Int32 p = 0;
 	UA_UInt64 val;
-	decoder_decodeBuiltInDatatype(rawMessage.message, UINT64, &p, &val);
+	UA_UInt64_decode(rawMessage.data, &p, &val);
 	ck_assert_uint_eq(val, expectedVal);
 }
 END_TEST
 START_TEST(encodeUInt64_test)
 {
-	AD_RawMessage rawMessage;
+	UA_ByteString rawMessage;
 	UA_Int32 position = 0;
 	UA_UInt64 value = 0x0101FF00FF00FF00;
 	//EncodeUInt16
 
-	rawMessage.message = (char*)opcua_malloc(sizeof(UA_UInt32));
+	rawMessage.data = (UA_Byte*) malloc(sizeof(UA_UInt32));
 
 	rawMessage.length = 8;
 
 	UA_Int32 p = 0;
-	encodeUInt64(value, &p,rawMessage.message);
+	UA_UInt64_encode(&value, &p,rawMessage.data);
 
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[0],0x00);
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[1],0xFF);
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[2],0x00);
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[3],0xFF);
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[4],0x00);
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[5],0xFF);
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[6],0x01);
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[7],0x01);
+	ck_assert_uint_eq((UA_Byte)rawMessage.data[0],0x00);
+	ck_assert_uint_eq((UA_Byte)rawMessage.data[1],0xFF);
+	ck_assert_uint_eq((UA_Byte)rawMessage.data[2],0x00);
+	ck_assert_uint_eq((UA_Byte)rawMessage.data[3],0xFF);
+	ck_assert_uint_eq((UA_Byte)rawMessage.data[4],0x00);
+	ck_assert_uint_eq((UA_Byte)rawMessage.data[5],0xFF);
+	ck_assert_uint_eq((UA_Byte)rawMessage.data[6],0x01);
+	ck_assert_uint_eq((UA_Byte)rawMessage.data[7],0x01);
+
+	free(rawMessage.data);
 }
 END_TEST
 
 START_TEST(decodeInt64_test)
 {
-	AD_RawMessage rawMessage;
+	UA_ByteString rawMessage;
 	UA_Int32 position = 0;
 	UA_Int64 expectedVal = 0xFF;
 	expectedVal = expectedVal << 56;
-	char mem[8] = {00,00,00,00,0x00,0x00,0x00,0xFF};
+	UA_Byte mem[8] = {00,00,00,00,0x00,0x00,0x00,0xFF};
 
-	rawMessage.message = mem;
-
+	rawMessage.data = mem;
 	rawMessage.length = 8;
 
 	UA_Int32 p = 0;
 	UA_Int64 val;
-	decoder_decodeBuiltInDatatype(rawMessage.message, INT64, &p, &val);
+	UA_Int64_decode(rawMessage.data, &p, &val);
 	ck_assert_uint_eq(val, expectedVal);
 }
 END_TEST
 START_TEST(encodeInt64_test)
 {
-	AD_RawMessage rawMessage;
+	UA_ByteString rawMessage;
 	UA_Int32 position = 0;
 	UA_UInt64 value = 0x0101FF00FF00FF00;
 	//EncodeUInt16
 
-	rawMessage.message = (char*)opcua_malloc(sizeof(UA_UInt32));
+	rawMessage.data = (UA_Byte*) malloc(sizeof(UA_UInt32));
 
 	rawMessage.length = 8;
 
 	UA_Int32 p = 0;
-	encodeUInt64(value, &p,rawMessage.message);
+	UA_UInt64_encode(&value, &p,rawMessage.data);
 
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[0],0x00);
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[1],0xFF);
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[2],0x00);
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[3],0xFF);
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[4],0x00);
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[5],0xFF);
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[6],0x01);
-	ck_assert_uint_eq((UA_Byte)rawMessage.message[7],0x01);
+	ck_assert_uint_eq(rawMessage.data[0],0x00);
+	ck_assert_uint_eq(rawMessage.data[1],0xFF);
+	ck_assert_uint_eq(rawMessage.data[2],0x00);
+	ck_assert_uint_eq(rawMessage.data[3],0xFF);
+	ck_assert_uint_eq(rawMessage.data[4],0x00);
+	ck_assert_uint_eq(rawMessage.data[5],0xFF);
+	ck_assert_uint_eq(rawMessage.data[6],0x01);
+	ck_assert_uint_eq(rawMessage.data[7],0x01);
+
+	free(rawMessage.data);
 }
 END_TEST
 
 
 START_TEST(decodeFloat_test)
 {
-	Float expectedValue = -6.5;
+	UA_Float expectedValue = -6.5;
 	UA_Int32 pos = 0;
-	char buf[4] = {0x00,0x00,0xD0,0xC0};
+	UA_Byte buf[4] = {0x00,0x00,0xD0,0xC0};
 
 
-	Float calcVal;
+	UA_Float fval;
 
-	decoder_decodeBuiltInDatatype(buf, FLOAT, &pos, &calcVal);
+	UA_Float_decode(buf, &pos, &fval);
 	//val should be -6.5
-
-	UA_Int32 val = (calcVal > -6.501 && calcVal < -6.499);
-
-
+	UA_Int32 val = (fval > -6.501 && fval < -6.499);
 	ck_assert_int_gt(val,0);
-
-	opcua_free(buf);
 }
 END_TEST
 START_TEST(encodeFloat_test)
 {
-	Float value = -6.5;
+	UA_Float value = -6.5;
 	UA_Int32 pos = 0;
-	char *buf = (char*)opcua_malloc(sizeof(Float));
+	UA_Byte* buf = (char*)malloc(sizeof(UA_Float));
 
-	encodeFloat(value,&pos,buf);
+	UA_Float_encode(&value,&pos,buf);
 
-	ck_assert_uint_eq((UA_Byte)buf[2],0xD0);
-	ck_assert_uint_eq((UA_Byte)buf[3],0xC0);
-	opcua_free(buf);
-
+	ck_assert_uint_eq(buf[2],0xD0);
+	ck_assert_uint_eq(buf[3],0xC0);
+	free(buf);
 }
 END_TEST
 
@@ -418,15 +414,15 @@ START_TEST(decodeDouble_test)
 END_TEST
 START_TEST(encodeDouble_test)
 {
-	Float value = -6.5;
+	UA_Double value = -6.5;
 	UA_Int32 pos = 0;
-	char *buf = (char*)opcua_malloc(sizeof(Float));
+	UA_Byte* buf = (char*)malloc(sizeof(UA_Double));
 
-	encodeDouble(value,&pos,buf);
+	UA_Double_encode(&value,&pos,buf);
 
-	ck_assert_uint_eq((UA_Byte)buf[6],0xD0);
-	ck_assert_uint_eq((UA_Byte)buf[7],0xC0);
-	opcua_free(buf);
+	ck_assert_uint_eq(buf[6],0xD0);
+	ck_assert_uint_eq(buf[7],0xC0);
+	free(buf);
 }
 END_TEST
 
@@ -437,12 +433,12 @@ START_TEST(encodeUAString_test)
 	UA_Int32 pos = 0;
 	UA_String string;
 	UA_Int32 l = 11;
-	char mem[11] = "ACPLT OPCUA";
-	char *dstBuf = (char*) malloc(sizeof(UA_Int32)+l);
-	string.Data =  mem;
-	string.Length = 11;
+	UA_Byte mem[11] = "ACPLT OPCUA";
+	UA_Byte *dstBuf = (char*) malloc(sizeof(UA_Int32)+l);
+	string.data =  mem;
+	string.length = 11;
 
-	encodeUAString(&string, &pos, dstBuf);
+	UA_String_encode(&string, &pos, dstBuf);
 
 	ck_assert_int_eq(dstBuf[0],11);
 	ck_assert_int_eq(dstBuf[0+sizeof(UA_Int32)],'A');
@@ -455,19 +451,16 @@ START_TEST(decodeUAString_test)
 
 	UA_Int32 pos = 0;
 	UA_String string;
-	UA_Int32 l = 11;
-	char binString[15] = {11,0x00,0x00,0x00,'A','C','P','L','T',' ','U','A'};
+	UA_Int32 l = 12;
+	char binString[12] = {0x08,0x00,0x00,0x00,'A','C','P','L','T',' ','U','A'};
 
-	char *dstBuf = (char*) malloc(l-sizeof(UA_Int32));
-	string.Data = dstBuf;
-	string.Length = 0;
-	decodeUAString(binString, &pos, &string);
+	UA_String_decode(binString, &pos, &string);
 
+	ck_assert_int_eq(string.length,8);
+	ck_assert_ptr_eq(string.data,UA_alloc_lastptr);
+	ck_assert_int_eq(string.data[3],'L');
 
-	ck_assert_int_eq(string.Length,11);
-	ck_assert_int_eq(string.Data[3],'L');
-
-
+	UA_String_deleteMembers(&string);
 }
 END_TEST
 
@@ -477,16 +470,14 @@ START_TEST(diagnosticInfo_calcSize_test)
 	UA_Int32 valreal = 0;
 	UA_Int32 valcalc = 0;
 	UA_DiagnosticInfo diagnosticInfo;
-	diagnosticInfo.EncodingMask = 0x01 | 0x02 | 0x04 | 0x08 | 0x10;
-	diagnosticInfo.SymbolicId = 30;
-	diagnosticInfo.NamespaceUri = 25;
-	diagnosticInfo.LocalizedText = 22;
-	diagnosticInfo.AdditionalInfo.Data = "OPCUA";
-	diagnosticInfo.AdditionalInfo.Length = 5;
+	diagnosticInfo.encodingMask = 0x01 | 0x02 | 0x04 | 0x08 | 0x10;
+	diagnosticInfo.symbolicId = 30;
+	diagnosticInfo.namespaceUri = 25;
+	diagnosticInfo.localizedText = 22;
+	diagnosticInfo.additionalInfo.data = "OPCUA";
+	diagnosticInfo.additionalInfo.length = 5;
 
-	valcalc = diagnosticInfo_calcSize(&diagnosticInfo);
-	valreal = 26;
-	ck_assert_int_eq(valcalc,valreal);
+	ck_assert_int_eq(UA_DiagnosticInfo_calcSize(&diagnosticInfo),26);
 
 }
 END_TEST
@@ -499,51 +490,48 @@ START_TEST(extensionObject_calcSize_test)
 	UA_Byte data[3] = {1,2,3};
 	UA_ExtensionObject extensionObject;
 
-	// empty ExtensionObject
-	ck_assert_int_eq(extensionObject_calcSize(&the_empty_UA_ExtensionObject), 1 + 1 + 1);
-
 	// empty ExtensionObject, handcoded
-	extensionObject.TypeId.EncodingByte = NIEVT_TWO_BYTE;
-	extensionObject.TypeId.Identifier.Numeric = 0;
-	extensionObject.Encoding = NO_BODY_IS_ENCODED;
-	ck_assert_int_eq(extensionObject_calcSize(&extensionObject), 1 + 1 + 1);
+	extensionObject.typeId.encodingByte = UA_NodeIdType_TwoByte;
+	extensionObject.typeId.identifier.numeric = 0;
+	extensionObject.encoding = UA_ExtensionObject_NoBodyIsEncoded;
+	ck_assert_int_eq(UA_ExtensionObject_calcSize(&extensionObject), 1 + 1 + 1);
 
 	// ExtensionObject with ByteString-Body
-	extensionObject.Encoding = BODY_IS_BYTE_STRING;
-	extensionObject.Body.Data = data;
-	extensionObject.Body.Length = 3;
-	ck_assert_int_eq(extensionObject_calcSize(&extensionObject), 3 + 4 + 3);
-
+	extensionObject.encoding = UA_ExtensionObject_BodyIsByteString;
+	extensionObject.body.data = data;
+	extensionObject.body.length = 3;
+	ck_assert_int_eq(UA_ExtensionObject_calcSize(&extensionObject), 3 + 4 + 3);
 }
 END_TEST
 
 START_TEST(responseHeader_calcSize_test)
 {
-	UA_AD_ResponseHeader responseHeader;
+	UA_ResponseHeader responseHeader;
 	UA_DiagnosticInfo diagnosticInfo;
 	UA_ExtensionObject extensionObject;
-
+	UA_DiagnosticInfo  emptyDO = {0x00};
+	UA_ExtensionObject emptyEO = {{UA_NodeIdType_TwoByte,0},UA_ExtensionObject_NoBodyIsEncoded};
 	//Should have the size of 26 Bytes
-	diagnosticInfo.EncodingMask = DIEMT_SYMBOLIC_ID | DIEMT_NAMESPACE | DIEMT_LOCALIZED_TEXT | DIEMT_LOCALE | DIEMT_ADDITIONAL_INFO;		// Byte:   1
+	diagnosticInfo.encodingMask = UA_DiagnosticInfoEncodingMaskType_SymbolicId | UA_DiagnosticInfoEncodingMaskType_Namespace | UA_DiagnosticInfoEncodingMaskType_LocalizedText | UA_DiagnosticInfoEncodingMaskType_Locale | UA_DiagnosticInfoEncodingMaskType_AdditionalInfo;		// Byte:   1
 	// Indices into to Stringtable of the responseHeader (62541-6 §5.5.12 )
-	diagnosticInfo.SymbolicId = -1;										// Int32:  4
-	diagnosticInfo.NamespaceUri = -1;									// Int32:  4
-	diagnosticInfo.LocalizedText = -1;									// Int32:  4
-	diagnosticInfo.Locale = -1;											// Int32:  4
+	diagnosticInfo.symbolicId = -1;										// Int32:  4
+	diagnosticInfo.namespaceUri = -1;									// Int32:  4
+	diagnosticInfo.localizedText = -1;									// Int32:  4
+	diagnosticInfo.locale = -1;											// Int32:  4
 	// Additional Info
-	diagnosticInfo.AdditionalInfo.Length = 5;							// Int32:  4
-	diagnosticInfo.AdditionalInfo.Data = "OPCUA";						// Byte[]: 5
+	diagnosticInfo.additionalInfo.length = 5;							// Int32:  4
+	diagnosticInfo.additionalInfo.data = "OPCUA";						// Byte[]: 5
 	responseHeader.serviceDiagnostics = &diagnosticInfo;
-	ck_assert_int_eq(diagnosticInfo_calcSize(&diagnosticInfo),1+(4+4+4+4)+(4+5));
+	ck_assert_int_eq(UA_DiagnosticInfo_calcSize(&diagnosticInfo),1+(4+4+4+4)+(4+5));
 
-	responseHeader.noOfStringTable = -1;								// Int32:	4
+	responseHeader.stringTableSize = -1;								// Int32:	4
 	responseHeader.stringTable = NULL;
 
-	responseHeader.additionalHeader = &the_empty_UA_ExtensionObject;	//		    3
-	ck_assert_int_eq(responseHeader_calcSize(&responseHeader),16+26+4+3);
+	responseHeader.additionalHeader = &emptyEO;	//		    3
+	ck_assert_int_eq(UA_ResponseHeader_calcSize(&responseHeader),16+26+4+3);
 
-	responseHeader.serviceDiagnostics = &the_empty_UA_DiagnosticInfo;
-	ck_assert_int_eq(responseHeader_calcSize(&responseHeader),16+1+4+3);
+	responseHeader.serviceDiagnostics = &emptyDO;
+	ck_assert_int_eq(UA_ResponseHeader_calcSize(&responseHeader),16+1+4+3);
 }
 END_TEST
 
@@ -559,68 +547,68 @@ END_TEST
 START_TEST(encodeDataValue_test)
 {
 	UA_DataValue dataValue;
-	UA_Int32 pos = 0;
-	char *buf = (char*)opcua_malloc(15);
+	UA_Int32 pos = 0, retval;
+	UA_Byte* buf = (char*) malloc(15);
 	UA_DateTime dateTime;
 	dateTime = 80;
-	dataValue.ServerTimestamp = dateTime;
+	dataValue.serverTimestamp = dateTime;
 
 	//--without Variant
-	dataValue.EncodingMask = 0x08; //Only the SourvePicoseconds
-	encodeDataValue(&dataValue, &pos, buf);
+	dataValue.encodingMask = UA_DataValue_serverTimestamp; //Only the sourcePicoseconds
+	UA_DataValue_encode(&dataValue, &pos, buf);
 
 	ck_assert_int_eq(pos, 9);// represents the length
-	ck_assert_int_eq(buf[0], 0x08);
-	ck_assert_int_eq(buf[1], 80);
-	ck_assert_int_eq(buf[2], 0);
-	ck_assert_int_eq(buf[3], 0);
-	ck_assert_int_eq(buf[4], 0);
-	ck_assert_int_eq(buf[5], 0);
-	ck_assert_int_eq(buf[6], 0);
-	ck_assert_int_eq(buf[7], 0);
-	ck_assert_int_eq(buf[8], 0);
+	ck_assert_uint_eq(buf[0], 0x08); // encodingMask
+	ck_assert_uint_eq(buf[1], 80); // 8 Byte serverTimestamp
+	ck_assert_uint_eq(buf[2], 0);
+	ck_assert_uint_eq(buf[3], 0);
+	ck_assert_uint_eq(buf[4], 0);
+	ck_assert_uint_eq(buf[5], 0);
+	ck_assert_uint_eq(buf[6], 0);
+	ck_assert_uint_eq(buf[7], 0);
+	ck_assert_uint_eq(buf[8], 0);
 
 	//TestCase for a DataValue with a Variant!
-	//ToDo: Need to be checked after the function for encoding variants has been implemented
+	dataValue.encodingMask = UA_DataValue_variant | UA_DataValue_serverTimestamp; //Variant & SourvePicoseconds
+	dataValue.value.vt = &UA_[UA_INT32];
+	dataValue.value.arrayLength = 0;
+	dataValue.value.encodingMask = UA_INT32_NS0;
+	UA_Int32 data = 45;
+	UA_Int32* pdata = &data;
+	dataValue.value.data = (void**) &pdata;
+
 	pos = 0;
-	dataValue.EncodingMask = 0x01 || 0x08; //Variant & SourvePicoseconds
-	UA_Variant variant;
-	variant.ArrayLength = 0;
-	variant.EncodingMask = VTEMT_INT32;
-	UA_VariantUnion variantUnion;
-	//ToDo: needs to be adjusted: variantUnion.Int32 = 45;
-	fail(); ////ToDo: needs to be adjusted: Just to see that see that this needs to be adjusted
-	variant.Value = &variantUnion;
-	dataValue.Value = variant;
-	encodeDataValue(&dataValue, &pos, buf);
+	retval = UA_DataValue_encode(&dataValue, &pos, buf);
 
-	ck_assert_int_eq(pos, 14);// represents the length
-	ck_assert_int_eq(buf[0], 0x08);
-	ck_assert_int_eq(buf[1], 0x06);
-	ck_assert_int_eq(buf[2], 45);
-	ck_assert_int_eq(buf[3], 0);
-	ck_assert_int_eq(buf[4], 0);
-	ck_assert_int_eq(buf[5], 0);
-	ck_assert_int_eq(buf[6], 80);
-	ck_assert_int_eq(buf[7], 0);
+	ck_assert_int_eq(retval, UA_SUCCESS);
+	ck_assert_int_eq(pos, 1+(1+4)+8);// represents the length
+	ck_assert_uint_eq(buf[0], 0x08 | 0x01); // encodingMask
+	ck_assert_uint_eq(buf[1], 0x06); // Variant's Encoding Mask - INT32
+	ck_assert_uint_eq(buf[2], 45);  // the single value
+	ck_assert_uint_eq(buf[3], 0);
+	ck_assert_uint_eq(buf[4], 0);
+	ck_assert_uint_eq(buf[5], 0);
+	ck_assert_uint_eq(buf[6], 80);  // the server timestamp
+	ck_assert_uint_eq(buf[7], 0);
 
+	free(buf);
 }
 END_TEST
 
 START_TEST(DataValue_calcSize_test)
 {
 	UA_DataValue dataValue;
-	dataValue.EncodingMask = 0x02 + 0x04 + 0x10;
-	dataValue.Status = 12;
+	dataValue.encodingMask = UA_DataValue_statusCode |  UA_DataValue_sourceTimestamp |  UA_DataValue_sourcePicoseconds;
+	dataValue.status = 12;
 	UA_DateTime dateTime;
 	dateTime = 80;
-	dataValue.SourceTimestamp = dateTime;
+	dataValue.sourceTimestamp = dateTime;
 	UA_DateTime sourceTime;
 	dateTime = 214;
-	dataValue.SourcePicoseconds = sourceTime;
+	dataValue.sourcePicoseconds = sourceTime;
 
 	int size = 0;
-	size = DataValue_calcSize(&dataValue);
+	size = UA_DataValue_calcSize(&dataValue);
 
 	ck_assert_int_eq(size, 21);
 }
@@ -641,7 +629,7 @@ START_TEST(encode_builtInDatatypeArray_test_String)
 			0xFF, 0xFF, 0xFF, 0xFF		// s2.Length
 	};
 
-	encoder_encodeBuiltInDatatypeArray(array, noElements, BYTE_STRING, &pos, buf);
+	UA_Array_encode((void const**)array, noElements, UA_BYTESTRING, &pos, buf);
 
 	// check size
 	ck_assert_int_eq(pos, 4 + 4 + 6 + 4);
@@ -665,6 +653,7 @@ Suite *testSuite_encodeByte(void)
 {
 	Suite *s = suite_create("encodeByte_test");
 	TCase *tc_core = tcase_create("Core");
+	tcase_add_test(tc_core, decodeByte_test);
 	tcase_add_test(tc_core, encodeByte_test);
 	suite_add_tcase(s,tc_core);
 	return s;

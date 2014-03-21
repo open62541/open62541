@@ -4,10 +4,10 @@
  *  Created on: 13.03.2014
  *      Author: mrt
  */
-#include "opcua.h"
 #include <stdio.h>	// printf
 #include <stdlib.h>	// alloc, free
 #include <string.h>
+#include "opcua.h"
 #include "opcua_basictypes.h"
 
 
@@ -38,11 +38,8 @@ UA_Int32 UA_Array_calcSize(UA_Int32 nElements, UA_Int32 type, void const ** data
 	return length;
 }
 UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, char * dst) {
-	UA_Int32 length = sizeof(UA_Int32);
-	UA_Int32 retVal = 0;
+	UA_Int32 retVal = UA_SUCCESS;
 	UA_Int32 i = 0;
-
-	char** ptr = (char**)src;
 
 	UA_Int32_encode(&noElements, pos, dst);
 	for(i=0; i<noElements; i++) {
@@ -53,11 +50,8 @@ UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, U
 }
 
 UA_Int32 UA_Array_decode(char const * src,UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void const **dst) {
-	UA_Int32 length = sizeof(UA_Int32);
-	UA_Int32 retval = 0;
+	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 i = 0;
-
-	char** ptr = (char**)src;
 
 	for(i=0; i<noElements; i++) {
 		retval |= UA_[type].decode(src, pos, (void*)dst[i]);
@@ -66,18 +60,21 @@ UA_Int32 UA_Array_decode(char const * src,UA_Int32 noElements, UA_Int32 type, UA
 }
 
 UA_Int32 UA_free(void * ptr){
+	printf("UA_free - ptr=%p\n",ptr);
 	free(ptr);
 	return UA_SUCCESS;
 }
 
+void const * UA_alloc_lastptr;
 UA_Int32 UA_alloc(void ** ptr, int size){
-	*ptr = malloc(size);
+	UA_alloc_lastptr = *ptr = malloc(size);
 	printf("UA_alloc - ptr=%p, size=%d\n",*ptr,size);
 	if(*ptr == UA_NULL) return UA_ERR_NO_MEMORY;
 	return UA_SUCCESS;
 }
 
 UA_Int32 UA_memcpy(void * dst, void const * src, int size){
+	printf("UA_memcpy - dst=%p, src=%p, size=%d\n",dst,src,size);
 	memcpy(dst, src, size);
 	return UA_SUCCESS;
 }
@@ -100,11 +97,11 @@ UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Boolean)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Byte)
 UA_Int32 UA_Byte_encode(UA_Byte const * src, UA_Int32* pos, char * dst) {
-	*dst = src[(*pos)++];
+	dst[(*pos)++] = *src;
 	return UA_SUCCESS;
 }
 UA_Int32 UA_Byte_decode(char const * src, UA_Int32* pos, UA_Byte * dst) {
-	memcpy(&(dst[(*pos)++]), src, sizeof(UA_Byte));
+	*dst = src[(*pos)++];
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_Byte)
@@ -279,7 +276,7 @@ UA_Int32 UA_String_encode(UA_String const * src, UA_Int32* pos, char *dst) {
 	UA_Int32_encode(&(src->length),pos,dst);
 
 	if (src->length > 0) {
-		UA_memcpy((void*)&(dst[*pos]), src->data, src->length);
+		UA_memcpy(&(dst[*pos]), src->data, src->length);
 		*pos += src->length;
 	}
 	return UA_SUCCESS;
@@ -289,7 +286,7 @@ UA_Int32 UA_String_decode(char const * src, UA_Int32* pos, UA_String * dst) {
 	retval |= UA_Int32_decode(src,pos,&(dst->length));
 	if (dst->length > 0) {
 		retval |= UA_alloc((void**)&(dst->data),dst->length);
-		retval |= UA_memcpy((void*)&(src[*pos]),dst->data,dst->length);
+		retval |= UA_memcpy(dst->data,&(src[*pos]),dst->length);
 		*pos += dst->length;
 	} else {
 		dst->data = UA_NULL;
@@ -314,12 +311,71 @@ UA_String UA_String_null = { -1, UA_NULL };
 UA_Byte UA_Byte_securityPoliceNoneData[] = "http://opcfoundation.org/UA/SecurityPolicy#None";
 UA_String UA_String_securityPoliceNone = { sizeof(UA_Byte_securityPoliceNoneData), UA_Byte_securityPoliceNoneData };
 
+UA_Int32 UA_String_compare(UA_String* string1, UA_String* string2) {
+	UA_Int32 i;
+	UA_Int32 retval;
+
+	if (string1->length == 0 && string2->length == 0) {
+		retval = UA_EQUAL;
+	} else if (string1->length == -1 && string2->length == -1) {
+		retval = UA_EQUAL;
+	} else if (string1->length != string2->length) {
+		retval = UA_NOT_EQUAL;
+	} else {
+		retval = strncmp(string1->data,string2->data,string1->length);
+	}
+	return retval;
+}
+void UA_String_printf(char* label, UA_String* string) {
+	printf("%s {Length=%d, Data=%.*s}\n", label, string->length, string->length,
+			(char*) string->data);
+}
+void UA_String_printx(char* label, UA_String* string) {
+	int i;
+	printf("%s {Length=%d, Data=", label, string->length);
+	if (string->length > 0) {
+		for (i = 0; i < string->length; i++) {
+			printf("%c%d", i == 0 ? '{' : ',', (string->data)[i]);
+			if (i > 0 && !(i%20)) { printf("\n\t"); }
+		}
+	} else {
+		printf("{");
+	}
+	printf("}}\n");
+}
+void UA_String_printx_hex(char* label, UA_String* string) {
+	int i;
+	printf("%s {Length=%d, Data=", label, string->length);
+	if (string->length > 0) {
+		for (i = 0; i < string->length; i++) {
+			printf("%c%x", i == 0 ? '{' : ',', (string->data)[i]);
+		}
+	} else {
+		printf("{");
+	}
+	printf("}}\n");
+}
+
+
 // TODO: should we really handle UA_String and UA_ByteString the same way?
 UA_TYPE_METHOD_CALCSIZE_AS(UA_ByteString, UA_String)
 UA_TYPE_METHOD_ENCODE_AS(UA_ByteString, UA_String)
 UA_TYPE_METHOD_DECODE_AS(UA_ByteString, UA_String)
 UA_TYPE_METHOD_DELETE_AS(UA_ByteString, UA_String)
 UA_TYPE_METHOD_DELETEMEMBERS_AS(UA_ByteString, UA_String)
+UA_Int32 UA_ByteString_compare(UA_ByteString *string1, UA_ByteString *string2) {
+	return UA_String_compare((UA_String*) string1, (UA_String*) string2);
+}
+void UA_ByteString_printf(char* label, UA_ByteString* string) {
+	return UA_String_printf(label, (UA_String*) string);
+}
+void UA_ByteString_printx(char* label, UA_String* string) {
+	return UA_String_printx(label, (UA_String*) string);
+}
+void UA_ByteString_printx_hex(char* label, UA_String* string) {
+	return UA_String_printx_hex(label, (UA_String*) string);
+}
+
 
 UA_Int32 UA_Guid_calcSize(UA_Guid const * p) {
 	if (p == UA_NULL) {
@@ -531,6 +587,41 @@ UA_Int32 UA_NodeId_deleteMembers(UA_NodeId* p) {
 	}
 	return retval;
 }
+void UA_NodeId_printf(char* label, UA_NodeId* node) {
+	printf("%s {encodingByte=%d, namespace=%d, ", label,
+			(int) node->encodingByte, (int) node->namespace);
+	switch (node->encodingByte) {
+	case UA_NodeIdType_TwoByte:
+	case UA_NodeIdType_FourByte:
+	case UA_NodeIdType_Numeric:
+		printf("identifier=%d", node->identifier.numeric);
+		break;
+	case UA_NodeIdType_String:
+		printf("identifier={length=%d, data=%.*s}",
+				node->identifier.string.length, node->identifier.string.length,
+				(char*) (node->identifier.string.data));
+		break;
+	case UA_NodeIdType_ByteString:
+		printf("identifier={Length=%d, data=%.*s}",
+				node->identifier.byteString.length, node->identifier.byteString.length,
+				(char*) (node->identifier.byteString.data));
+		break;
+	case UA_NodeIdType_Guid:
+		printf(
+				"guid={data1=%d, data2=%d, data3=%d, data4={length=%d, data=%.*s}}",
+				node->identifier.guid.data1, node->identifier.guid.data2,
+				node->identifier.guid.data3, node->identifier.guid.data4.length,
+				node->identifier.guid.data4.length,
+				(char*) (node->identifier.guid.data4.data));
+		break;
+	default:
+		printf("ups! shit happens");
+		break;
+	}
+	printf("}\n");
+}
+
+
 //FIXME: Sten Where do these two flags come from?
 #define NIEVT_NAMESPACE_URI_FLAG 0x80 	//Is only for ExpandedNodeId required
 #define NIEVT_SERVERINDEX_FLAG 0x40 //Is only for ExpandedNodeId required
@@ -592,14 +683,11 @@ UA_Int32 UA_ExtensionObject_calcSize(UA_ExtensionObject const * p) {
 		length += UA_NodeId_calcSize(&(p->typeId));
 		length += sizeof(UA_Byte); //p->encoding
 		switch (p->encoding) {
-		case 0x00:
-			length += sizeof(UA_Int32); //p->body.length
-			break;
-		case 0x01:
+		case UA_ExtensionObject_BodyIsByteString:
 			length += UA_ByteString_calcSize(&(p->body));
 			break;
-		case 0x02:
-			length += UA_ByteString_calcSize(&(p->body));
+		case UA_ExtensionObject_BodyIsXml:
+			length += UA_XmlElement_calcSize(&(p->body));
 			break;
 		}
 	}
@@ -643,11 +731,6 @@ UA_Int32 UA_ExtensionObject_deleteMembers(UA_ExtensionObject *p) {
 	retval |= UA_ByteString_deleteMembers(&(p->body));
 	return retval;
 }
-
-// TODO: UA_DataValue_encode
-// TODO: UA_DataValue_decode
-// TODO: UA_DataValue_delete
-// TODO: UA_DataValue_deleteMembers
 
 /** DiagnosticInfo - Part: 4, Chapter: 7.9, Page: 116 */
 UA_Int32 UA_DiagnosticInfo_decode(char const * src, UA_Int32 *pos, UA_DiagnosticInfo *dst) {
@@ -773,6 +856,25 @@ UA_TYPE_METHOD_ENCODE_AS(UA_DateTime,UA_Int64)
 UA_TYPE_METHOD_DECODE_AS(UA_DateTime,UA_Int64)
 UA_TYPE_METHOD_DELETE_FREE(UA_DateTime)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_DateTime)
+#include <sys/time.h>
+
+// Number of seconds from 1 Jan. 1601 00:00 to 1 Jan 1970 00:00 UTC
+#define FILETIME_UNIXTIME_BIAS_SEC 11644473600LL
+// Factors
+#define HUNDRED_NANOSEC_PER_USEC 10LL
+#define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
+
+// IEC 62541-6 §5.2.2.5  A DateTime value shall be encoded as a 64-bit signed integer
+// which represents the number of 100 nanosecond intervals since January 1, 1601 (UTC).
+UA_DateTime UA_DateTime_now() {
+	UA_DateTime dateTime;
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	dateTime = (tv.tv_sec + FILETIME_UNIXTIME_BIAS_SEC)
+			* HUNDRED_NANOSEC_PER_SEC + tv.tv_usec * HUNDRED_NANOSEC_PER_USEC;
+	return dateTime;
+}
+
 
 UA_TYPE_METHOD_CALCSIZE_AS(UA_XmlElement, UA_ByteString)
 UA_TYPE_METHOD_ENCODE_AS(UA_XmlElement, UA_ByteString)
@@ -916,25 +1018,25 @@ UA_Int32 UA_Variant_decode(char const * src, UA_Int32 *pos, UA_Variant *dst) {
 UA_Int32 UA_DataValue_decode(char const * src, UA_Int32* pos, UA_DataValue* dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_Byte_decode(src,pos,&(dst->encodingMask));
-	if (dst->encodingMask & 0x01) {
+	if (dst->encodingMask & UA_DataValue_variant) {
 		retval |= UA_Variant_decode(src,pos,&(dst->value));
 	}
-	if (dst->encodingMask & 0x02) {
+	if (dst->encodingMask & UA_DataValue_statusCode) {
 		retval |= UA_StatusCode_decode(src,pos,&(dst->status));
 	}
-	if (dst->encodingMask & 0x04) {
+	if (dst->encodingMask & UA_DataValue_sourceTimestamp) {
 		retval |= UA_DateTime_decode(src,pos,&(dst->sourceTimestamp));
 	}
-	if (dst->encodingMask & 0x08) {
-		retval |= UA_DateTime_decode(src,pos,&(dst->serverTimestamp));
-	}
-	if (dst->encodingMask & 0x10) {
+	if (dst->encodingMask & UA_DataValue_sourcePicoseconds) {
 		retval |= UA_Int16_decode(src,pos,&(dst->sourcePicoseconds));
 		if (dst->sourcePicoseconds > MAX_PICO_SECONDS) {
 			dst->sourcePicoseconds = MAX_PICO_SECONDS;
 		}
 	}
-	if (dst->encodingMask & 0x20) {
+	if (dst->encodingMask & UA_DataValue_serverTimestamp) {
+		retval |= UA_DateTime_decode(src,pos,&(dst->serverTimestamp));
+	}
+	if (dst->encodingMask & UA_DataValue_serverPicoseconds) {
 		retval |= UA_Int16_decode(src,pos,&(dst->serverPicoseconds));
 		if (dst->serverPicoseconds > MAX_PICO_SECONDS) {
 			dst->serverPicoseconds = MAX_PICO_SECONDS;
@@ -945,22 +1047,22 @@ UA_Int32 UA_DataValue_decode(char const * src, UA_Int32* pos, UA_DataValue* dst)
 UA_Int32 UA_DataValue_encode(UA_DataValue const * src, UA_Int32* pos, char *dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_Byte_encode(&(src->encodingMask),pos,dst);
-	if (src->encodingMask & 0x01) {
+	if (src->encodingMask & UA_DataValue_variant) {
 		retval |= UA_Variant_encode(&(src->value),pos,dst);
 	}
-	if (src->encodingMask & 0x02) {
+	if (src->encodingMask & UA_DataValue_statusCode) {
 		retval |= UA_StatusCode_encode(&(src->status),pos,dst);
 	}
-	if (src->encodingMask & 0x04) {
+	if (src->encodingMask & UA_DataValue_sourceTimestamp) {
 		retval |= UA_DateTime_encode(&(src->sourceTimestamp),pos,dst);
 	}
-	if (src->encodingMask & 0x08) {
-		retval |= UA_DateTime_encode(&(src->serverTimestamp),pos,dst);
-	}
-	if (src->encodingMask & 0x10) {
+	if (src->encodingMask & UA_DataValue_sourcePicoseconds) {
 		retval |= UA_Int16_encode(&(src->sourcePicoseconds),pos,dst);
 	}
-	if (src->encodingMask & 0x10) {
+	if (src->encodingMask & UA_DataValue_serverTimestamp) {
+		retval |= UA_DateTime_encode(&(src->serverTimestamp),pos,dst);
+	}
+	if (src->encodingMask & UA_DataValue_serverPicoseconds) {
 		retval |= UA_Int16_encode(&(src->serverPicoseconds),pos,dst);
 	}
 	return retval;
@@ -973,22 +1075,22 @@ UA_Int32 UA_DataValue_calcSize(UA_DataValue const * p) {
 		length = sizeof(UA_DataValue);
 	} else { // get decoding size
 		length = sizeof(UA_Byte);
-		if (p->encodingMask & 0x01) {
+		if (p->encodingMask & UA_DataValue_variant) {
 			length += UA_Variant_calcSize(&(p->value));
 		}
-		if (p->encodingMask & 0x02) {
+		if (p->encodingMask & UA_DataValue_statusCode) {
 			length += sizeof(UA_UInt32); //dataValue->status
 		}
-		if (p->encodingMask & 0x04) {
-			length += sizeof(UA_Int64); //dataValue->sourceTimestamp
+		if (p->encodingMask & UA_DataValue_sourceTimestamp) {
+			length += sizeof(UA_DateTime); //dataValue->sourceTimestamp
 		}
-		if (p->encodingMask & 0x08) {
-			length += sizeof(UA_Int64); //dataValue->serverTimestamp
-		}
-		if (p->encodingMask & 0x10) {
+		if (p->encodingMask & UA_DataValue_sourcePicoseconds) {
 			length += sizeof(UA_Int64); //dataValue->sourcePicoseconds
 		}
-		if (p->encodingMask & 0x20) {
+		if (p->encodingMask & UA_DataValue_serverTimestamp) {
+			length += sizeof(UA_DateTime); //dataValue->serverTimestamp
+		}
+		if (p->encodingMask & UA_DataValue_serverPicoseconds) {
 			length += sizeof(UA_Int64); //dataValue->serverPicoseconds
 		}
 	}
@@ -1034,31 +1136,6 @@ Int32 decoder_decodeRequestHeader(char const * message, Int32 *pos,
 }
 ***/
 
-/**
- * ResponseHeader
- * Part: 4
- * Chapter: 7.27
- * Page: 133
- */
-/** \copydoc encodeResponseHeader */
-/*** Sten: removed to compile
-Int32 encodeResponseHeader(UA_AD_ResponseHeader const * responseHeader,
-		Int32 *pos, UA_ByteString *dstBuf) {
-	encodeUADateTime(responseHeader->timestamp, pos, dstBuf->data);
-	encodeIntegerId(responseHeader->requestHandle, pos, dstBuf->data);
-	encodeUInt32(responseHeader->serviceResult, pos, dstBuf->data);
-	encodeDiagnosticInfo(responseHeader->serviceDiagnostics, pos, dstBuf->data);
-
-	encoder_encodeBuiltInDatatypeArray(responseHeader->stringTable,
-			responseHeader->noOfStringTable, STRING_ARRAY, pos, dstBuf->data);
-
-	encodeExtensionObject(responseHeader->additionalHeader, pos, dstBuf->data);
-
-	//Kodieren von String Datentypen
-
-	return 0;
-}
-***/
 /*** Sten: removed to compile
 Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject) {
 	Int32 length = 0;
@@ -1070,37 +1147,6 @@ Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject) {
 			|| extensionObject->encoding == BODY_IS_XML_ELEMENT) {
 		length += UAByteString_calcSize(&(extensionObject->body));
 	}
-	return length;
-}
-***/
-
-/*** Sten: removed to compile
-Int32 responseHeader_calcSize(UA_AD_ResponseHeader *responseHeader) {
-	Int32 i;
-	Int32 length = 0;
-
-	// UtcTime timestamp	8
-	length += sizeof(UA_DateTime);
-
-	// IntegerId requestHandle	4
-	length += sizeof(UA_AD_IntegerId);
-
-	// StatusCode serviceResult	4
-	length += sizeof(UA_StatusCode);
-
-	// DiagnosticInfo serviceDiagnostics
-	length += diagnosticInfo_calcSize(responseHeader->serviceDiagnostics);
-
-	// String stringTable[], see 62541-6 § 5.2.4
-	length += sizeof(UA_Int32); // Length of Stringtable always
-	if (responseHeader->noOfStringTable > 0) {
-		for (i = 0; i < responseHeader->noOfStringTable; i++) {
-			length += UAString_calcSize(responseHeader->stringTable[i]);
-		}
-	}
-
-	// ExtensibleObject additionalHeader
-	length += extensionObject_calcSize(responseHeader->additionalHeader);
 	return length;
 }
 ***/

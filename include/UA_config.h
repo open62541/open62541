@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "opcua_builtInDatatypes.h"
+#include "opcua.h"
 #include "UA_abbr.h"
 
 

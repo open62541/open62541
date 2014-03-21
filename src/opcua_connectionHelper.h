@@ -7,8 +7,7 @@
 
 #ifndef OPCUA_CONNECTIONHELPER_H_
 #define OPCUA_CONNECTIONHELPER_H_
-#include "opcua_builtInDatatypes.h"
-#include "opcua_types.h"
+#include "opcua.h"
 
 enum packetType
 {
@@ -94,9 +93,9 @@ typedef struct
 	struct SL_connection secureLayer;
 	struct SS_connection serviceLayer;
 
-	Boolean newDataToRead;
+	UA_Boolean newDataToRead;
 	UA_ByteString readData;
-	Boolean newDataToWrite;
+	UA_Boolean newDataToWrite;
 	UA_ByteString writeData;
 }UA_connection;
 

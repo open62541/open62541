@@ -8,10 +8,10 @@ endif
 export GLOBAL_AM_CFLAGS = $(AM_CFLAGS)
 
 if HAVE_CHECK
-    SUBS=src tests tool
+    SUBS=tool include src tests
 
 else 
-    SUBS=src tool
+    SUBS=tool include src
 endif
 
 SUBDIRS = $(SUBS) examples/src	

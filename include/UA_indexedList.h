@@ -1,7 +1,7 @@
 #ifndef UA_INDEXEDLIST_H_
 #define UA_INDEXEDLIST_H_
 
-#include "opcua_builtInDatatypes.h"
+#include "opcua.h"
 /* UA_indexedList reuses many types of UA_list */
 #include "UA_list.h"
 

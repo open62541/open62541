@@ -14,11 +14,11 @@ void visitor(void* payload){
 void freer(void* payload){
 	if(payload){
 		free_count++;
-		opcua_free(payload);
+		UA_free(payload);
 	}
 }
 
-Boolean matcher(void* payload){
+_Bool matcher(void* payload){
 	if(payload == NULL){
 		return FALSE;
 	}
@@ -36,13 +36,14 @@ START_TEST(list_test_basic)
 
 	ck_assert_int_eq(list.size, 0);
 
-	UA_Int32* payload = (UA_Int32*)opcua_malloc(sizeof(*payload));
+	UA_Int32* payload;
+	UA_alloc((void**)&payload, sizeof(*payload));
 	*payload = 42;
 	UA_list_addPayloadToFront(&list, payload);
-	payload = (UA_Int32*)opcua_malloc(sizeof(*payload));
+	UA_alloc((void**)&payload, sizeof(*payload));
 	*payload = 24;
 	UA_list_addPayloadToFront(&list, payload);
-	payload = (UA_Int32*)opcua_malloc(sizeof(*payload));
+	UA_alloc((void**)&payload, sizeof(*payload));
 	*payload = 1;
 	UA_list_addPayloadToBack(&list, payload);
 

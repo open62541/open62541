@@ -38,7 +38,14 @@ typedef double UA_Double;
 #define UA_FALSE (!UA_TRUE)
 #define FALSE UA_FALSE
 
+/* Compare values */
+#define UA_EQUAL 0
+#define UA_NOT_EQUAL (!UA_EQUAL)
+
+
 /* heap memory functions */
+#define UA_NULL ((void*)0)
+extern void const * UA_alloc_lastptr;
 UA_Int32 UA_free(void * ptr);
 UA_Int32 UA_memcpy(void *dst, void const *src, int size);
 UA_Int32 UA_alloc(void ** dst, int size);
@@ -47,8 +54,6 @@ UA_Int32 UA_alloc(void ** dst, int size);
 UA_Int32 UA_Array_calcSize(UA_Int32 noElements, UA_Int32 type, void const ** ptr);
 UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, char * dst);
 UA_Int32 UA_Array_decode(char const * src,UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void const **dst);
-#define UA_NULL ((void*)0)
-// #define NULL UA_NULL
 
 #define UA_TYPE_METHOD_PROTOTYPES(TYPE) \
 UA_Int32 TYPE##_calcSize(TYPE const * ptr);\
@@ -150,6 +155,10 @@ typedef struct T_UA_String
 }
 UA_String;
 UA_TYPE_METHOD_PROTOTYPES (UA_String)
+UA_Int32 UA_String_compare(UA_String *string1, UA_String *string2);
+void UA_String_printf(char* label, UA_String* string);
+void UA_String_printx(char* label, UA_String* string);
+void UA_String_printx_hex(char* label, UA_String* string);
 
 /* ByteString - Part: 6, Chapter: 5.2.2.7, Page: 17 */
 typedef struct T_UA_ByteString
@@ -159,6 +168,7 @@ typedef struct T_UA_ByteString
 }
 UA_ByteString;
 UA_TYPE_METHOD_PROTOTYPES (UA_ByteString)
+UA_Int32 UA_ByteString_compare(UA_ByteString *string1, UA_ByteString *string2);
 
 /** LocalizedTextBinaryEncoding - Part: 6, Chapter: 5.2.2.14, Page: 21 */
 typedef struct T_UA_LocalizedText
@@ -256,6 +266,17 @@ typedef struct UA_DataValue {
 	UA_Int16 serverPicoseconds;
 } UA_DataValue;
 UA_TYPE_METHOD_PROTOTYPES(UA_DataValue)
+
+/** 62541-6, §5.2.2.17, Table 15 */
+enum UA_DataValue_EncodingMaskType_enum
+{
+	UA_DataValue_variant = 	0x01,
+	UA_DataValue_statusCode = 	0x02,
+	UA_DataValue_sourceTimestamp = 	0x04,
+	UA_DataValue_serverTimestamp = 	0x08,
+	UA_DataValue_sourcePicoseconds = 	0x10,
+	UA_DataValue_serverPicoseconds = 	0x20
+};
 
 /* DiagnosticInfo - Part: 6, Chapter: 5.2.2.12, Page: 20 */
 typedef struct T_UA_DiagnosticInfo {

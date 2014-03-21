@@ -1,7 +1,7 @@
 #ifndef UA_LIST_H_
 #define UA_LIST_H_
 
-#include "opcua_builtInDatatypes.h"
+#include "opcua.h"
 
 /*
  * Double Linked Lists
@@ -24,7 +24,8 @@ typedef struct T_UA_list_List {
 
 typedef void (*UA_list_ElementVisitor)(UA_list_Element* payload);
 
-typedef Boolean (*UA_list_PayloadMatcher)(void* payload);
+//typedef Boolean (*UA_list_PayloadMatcher)(void* payload);
+typedef _Bool (*UA_list_PayloadMatcher)(void* payload);
 
 void UA_list_defaultFreer(void* payload);
 

@@ -1,3 +1,8 @@
+TOOL_DIR = ../tool
+opcua.c: $(TOOL_DIR)/opcua.c
+	cp $< $@
+opcua_namespace_0.c: $(TOOL_DIR)/opcua_namespace_0.c
+	cp $< $@
 
 #__top_builddir__bin_stackTest_out_SOURCES =	opcuaServer.c\
 #											opcua_builtInDatatypes.c\
@@ -18,27 +23,20 @@
 #					  opcua_connectionHelper.h	
 lib_LTLIBRARIES = libopen62541.la
 libopen62541_la_LDFLAGS = -avoid-version -no-undefined
-libopen62541_la_SOURCES = opcua_builtInDatatypes.c\
-						opcua_binaryEncDec.c\
+libopen62541_la_SOURCES = include/opcua.h\
+						opcua.c\
+						opcua_basictypes.c\
+						opcua_namespace_0.c\
 						opcua_transportLayer.c\
-						opcua_encodingLayer.c\
 						opcua_secureChannelLayer.c\
-						opcua_memory.c\
-						opcua_time.c\
 						tcp_layer.c\
-						opcua_builtInDatatypes.h\
-						opcua_binaryEncDec.h\
 						opcua_transportLayer.h\
-						opcua_advancedDatatypes.h\
-						opcua_types.h\
 						opcua_connectionHelper.h\
 						opcua_encodingLayer.h\
 						opcua_secureChannelLayer.h\
-						opcua_memory.h\
-						opcua_time.h\
 						tcp_layer.h\
 						util/UA_list.c\
-						util/UA_indexedList.c						
+						util/UA_indexedList.c
 libopen62541_la_CFLAGS = -I $(top_builddir)/include
 
 #bin_PROGRAMS= $(top_builddir)/bin/open62541.out

@@ -3,7 +3,7 @@
 
 void UA_list_defaultFreer(void* payload){
 	if(payload){
-		opcua_free(payload);
+		UA_free(payload);
 	}
 }
 
@@ -44,7 +44,8 @@ UA_Int32 UA_list_addElementToFront(UA_list_List* const list, UA_list_Element* co
 
 UA_Int32 UA_list_addPayloadToFront(UA_list_List* const list, void* const payload){
 	if(list==NULL)return UA_ERROR;
-	UA_list_Element* elem = (UA_list_Element*)opcua_malloc(sizeof(*elem));
+	UA_list_Element* elem;
+	UA_alloc((void**)&elem, sizeof(*elem));
 	UA_list_initElement(elem);
 	elem->payload = payload;
 	UA_list_addElementToFront(list, elem);
@@ -71,7 +72,8 @@ UA_Int32 UA_list_addElementToBack(UA_list_List* const list, UA_list_Element* con
 
 UA_Int32 UA_list_addPayloadToBack(UA_list_List* const list, void* const payload){
 	if(list==NULL)return UA_ERROR;
-	UA_list_Element* elem = (UA_list_Element*)opcua_malloc(sizeof(*elem));
+	UA_list_Element* elem;
+	UA_alloc((void**)&elem, sizeof(*elem));
 	UA_list_initElement(elem);
 	elem->payload = payload;
 	UA_list_addElementToBack(list, elem);
@@ -86,7 +88,7 @@ UA_Int32 UA_list_removeFirst(UA_list_List* const list, UA_list_PayloadVisitor vi
 		if(visitor){
 			(*visitor)(list->first->payload);
 		}
-		opcua_free(list->first);
+		UA_free(list->first);
 		list->first = temp;
 		list->size--;
 		if(list->size == 1){
@@ -106,7 +108,7 @@ UA_Int32 UA_list_removeLast(UA_list_List* const list, UA_list_PayloadVisitor vis
 		if(visitor){
 			(*visitor)(list->last->payload);
 		}
-		opcua_free(list->last);
+		UA_free(list->last);
 		list->last = temp;
 		list->size--;
 		if(list->size == 1){
@@ -134,7 +136,7 @@ UA_Int32 UA_list_removeElement(UA_list_Element* const elem, UA_list_PayloadVisit
 			(*visitor)(elem->payload);
 		}
 		(elem->father)->size--;
-		opcua_free(elem);
+		UA_free(elem);
 	}
 	return UA_NO_ERROR;
 }
@@ -148,7 +150,7 @@ UA_Int32 UA_list_destroy(UA_list_List* const list, UA_list_PayloadVisitor visito
 		if(visitor){
 			(*visitor)(current->payload);
 		}
-		opcua_free(current);
+		UA_free(current);
 		current = next;
 	}
 	UA_list_init(list);

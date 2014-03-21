@@ -9,8 +9,7 @@
 #define OPCUA_TRANSPORTLAYER_H_
 #include <stdio.h>
 
-#include "opcua_binaryEncDec.h"
-#include "opcua_advancedDatatypes.h"
+#include "opcua.h"
 #include "opcua_connectionHelper.h"
 
 

@@ -12,8 +12,8 @@ UA_Int32 TL_initConnectionObject(UA_connection *connection)
 {
 
 	connection->newDataToRead = 0;
-	connection->readData->data = NULL;
-	connection->readData->length = 0;
+	connection->readData.data = UA_NULL;
+	connection->readData.length = 0;
 	connection->transportLayer.connectionState = connectionState_CLOSED;
 	connection->transportLayer.localConf.maxChunkCount = 1;
 	connection->transportLayer.localConf.maxMessageSize = 16384;
@@ -31,11 +31,11 @@ UA_Int32 TL_check(UA_connection *connection)
 	printf("TL_check - entered \n");
 
 
-	decoder_decodeBuiltInDatatype(connection->readData->data,UINT32,&position,&messageLength);
+	UA_UInt32_decode(connection->readData.data,&position,&messageLength);
 
 	printf("TL_check - messageLength = %d \n",messageLength);
 
-	if (messageLength == connection->readData->length &&
+	if (messageLength == connection->readData.length &&
 			messageLength < (connection->transportLayer.localConf.maxMessageSize))
 	{
 		printf("TL_check - no error \n");
@@ -54,7 +54,6 @@ UA_Int32 TL_receive(UA_connection *connection, UA_ByteString *packet)
 	UA_UInt32 length = 0;
 	UA_Int32 pos = 0;
 
-	AD_RawMessage tmpRawMessage;
 	struct TL_header tmpHeader;
 	printf("TL_receive - entered \n");
 
@@ -186,37 +185,31 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 			printf("TL_process - pos = %d \n",*pos);
 
 			/* extract information from received header */
-			decoder_decodeBuiltInDatatype(connection->readData.data,UINT32,pos,
-					(void*)(&(connection->transportLayer.remoteConf.protocolVersion)));
+			UA_UInt32_decode(connection->readData.data,pos,(&(connection->transportLayer.remoteConf.protocolVersion)));
 
 			printf("TL_process - protocolVersion = %d \n",connection->transportLayer.remoteConf.protocolVersion);
 
-			decoder_decodeBuiltInDatatype(connection->readData.data,UINT32,pos,
-					(void*)(&(connection->transportLayer.remoteConf.recvBufferSize)));
+			UA_UInt32_decode(connection->readData.data,pos,(&(connection->transportLayer.remoteConf.recvBufferSize)));
 
 			printf("TL_process - recvBufferSize = %d \n",connection->transportLayer.remoteConf.recvBufferSize);
 
-			decoder_decodeBuiltInDatatype(connection->readData.data,UINT32,pos,
-					(void*)(&(connection->transportLayer.remoteConf.sendBufferSize)));
+			UA_UInt32_decode(connection->readData.data,pos,(&(connection->transportLayer.remoteConf.sendBufferSize)));
 
 			printf("TL_process - sendBufferSize = %d \n",connection->transportLayer.remoteConf.sendBufferSize);
 
-			decoder_decodeBuiltInDatatype(connection->readData.data,UINT32,pos,
-					(void*)(&(connection->transportLayer.remoteConf.maxMessageSize)));
+			UA_UInt32_decode(connection->readData.data,pos,(&(connection->transportLayer.remoteConf.maxMessageSize)));
 
 			printf("TL_process - maxMessageSize = %d \n",connection->transportLayer.remoteConf.maxMessageSize);
 
-			decoder_decodeBuiltInDatatype(connection->readData.data,UINT32,pos,
-					(void*)(&(connection->transportLayer.remoteConf.maxChunkCount)));
+			UA_UInt32_decode(connection->readData.data,pos,(&(connection->transportLayer.remoteConf.maxChunkCount)));
 
 			printf("TL_process - maxChunkCount = %d \n",connection->transportLayer.remoteConf.maxChunkCount);
 
-			decoder_decodeBuiltInDatatype(connection->readData.data,STRING,pos,
-					(void*)(&(connection->transportLayer.endpointURL)));
+			UA_String_decode(connection->readData.data,pos,(&(connection->transportLayer.endpointURL)));
 
 			/* send back acknowledge */
-			tmpMessage.data = (UA_Byte*)opcua_malloc(SIZE_OF_ACKNOWLEDGE_MESSAGE);
-			if(tmpMessage.data == NULL)
+			UA_alloc((void**)&(tmpMessage.data),SIZE_OF_ACKNOWLEDGE_MESSAGE);
+			if(tmpMessage.data == UA_NULL)
 			{
 				printf("TL_process - memory allocation failed \n");
 			}
@@ -230,33 +223,33 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 			tmpPos += 3;
 			// Chunk
 			reserved = 'F';
-			encoder_encodeBuiltInDatatype(&reserved, BYTE, &tmpPos, tmpMessage.data);
+			UA_Byte_encode(&reserved, &tmpPos, tmpMessage.data);
 			// MessageSize
 			messageSize = SIZE_OF_ACKNOWLEDGE_MESSAGE;
-			encoder_encodeBuiltInDatatype(&messageSize,UINT32, &tmpPos, tmpMessage.data);
+			UA_UInt32_encode(&messageSize,&tmpPos, tmpMessage.data);
 			printf("TL_process - Size messageToSend = %d \n",messageSize);
 
 			/* ------------------------ Body ------------------------ */
 			// protocol version
-			encoder_encodeBuiltInDatatype(&(connection->transportLayer.localConf.protocolVersion),
-					UINT32, &tmpPos, tmpMessage.data);
+			UA_UInt32_encode(&(connection->transportLayer.localConf.protocolVersion),
+					&tmpPos, tmpMessage.data);
 			printf("TL_process - localConf.protocolVersion = %d \n",connection->transportLayer.localConf.protocolVersion);
 
 			//receive buffer size
-			encoder_encodeBuiltInDatatype(&(connection->transportLayer.localConf.recvBufferSize),
-					UINT32, &tmpPos, tmpMessage.data);
+			UA_UInt32_encode(&(connection->transportLayer.localConf.recvBufferSize),
+					&tmpPos, tmpMessage.data);
 			printf("TL_process - localConf.recvBufferSize = %d \n", connection->transportLayer.localConf.recvBufferSize);
 			//send buffer size
-			encoder_encodeBuiltInDatatype(&(connection->transportLayer.localConf.sendBufferSize),
-					UINT32, &tmpPos, tmpMessage.data);
+			UA_UInt32_encode(&(connection->transportLayer.localConf.sendBufferSize),
+					&tmpPos, tmpMessage.data);
 			printf("TL_process - localConf.sendBufferSize = %d \n", connection->transportLayer.localConf.sendBufferSize);
 			//maximum message size
-			encoder_encodeBuiltInDatatype(&(connection->transportLayer.localConf.maxMessageSize),
-					UINT32, &tmpPos, tmpMessage.data);
+			UA_UInt32_encode(&(connection->transportLayer.localConf.maxMessageSize),
+					&tmpPos, tmpMessage.data);
 			printf("TL_process - localConf.maxMessageSize = %d \n", connection->transportLayer.localConf.maxMessageSize);
 			//maximum chunk count
-			encoder_encodeBuiltInDatatype(&(connection->transportLayer.localConf.maxChunkCount),
-					UINT32, &tmpPos, tmpMessage.data);
+			UA_UInt32_encode(&(connection->transportLayer.localConf.maxChunkCount),
+					&tmpPos, tmpMessage.data);
 			printf("TL_process - localConf.maxChunkCount = %d \n", connection->transportLayer.localConf.maxChunkCount);
 
 			TL_send(connection, &tmpMessage);
@@ -270,7 +263,7 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 	default:
 		return UA_ERROR;
 	}
-	return UA_NO_ERROR;
+	return UA_SUCCESS;
 }
 /*
  * respond to client request
