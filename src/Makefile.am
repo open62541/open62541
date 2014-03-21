@@ -3,11 +3,6 @@ AM_CFLAGS = $(GLOBAL_AM_CFLAGS) -I$(top_builddir)/include
 
 
 TOOL_DIR = ../tool
-opcua.c: $(TOOL_DIR)/opcua.c
-	cp $< $@
-opcua_namespace_0.c: $(TOOL_DIR)/opcua_namespace_0.c
-	cp $< $@
-
 #__top_builddir__bin_stackTest_out_SOURCES =	opcuaServer.c\
 #											opcua_builtInDatatypes.c\
 #											opcua_binaryEncDec.c\
@@ -27,8 +22,7 @@ opcua_namespace_0.c: $(TOOL_DIR)/opcua_namespace_0.c
 #					  opcua_connectionHelper.h	
 lib_LTLIBRARIES = libopen62541.la
 libopen62541_la_LDFLAGS = -avoid-version -no-undefined
-libopen62541_la_SOURCES = include/opcua.h\
-						opcua.c\
+libopen62541_la_SOURCES = 			opcua.c\
 						opcua_basictypes.c\
 						opcua_namespace_0.c\
 						opcua_transportLayer.c\
