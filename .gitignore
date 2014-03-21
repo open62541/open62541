@@ -50,4 +50,8 @@ tool/opcua.c
 tool/opcua.h
 tool/opcua_namespace_0.c
 tool/opcua_namespace_0.h
+include/opcua.h
+include/opcua_namespace_0.h
+src/opcua.c
+src/opcua_namespace_0.c
 
