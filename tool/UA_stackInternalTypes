@@ -1,0 +1,70 @@
+<!-- 	Types within the Stack Begin  -->
+   <opc:StructuredType Name="OPCUATcpMessageHeader">
+    <opc:Documentation>TCP Header</opc:Documentation>
+    <opc:Field Name="MessageType" TypeName="opc:UInt32" />
+    <opc:Field Name="IsFinal" TypeName="opc:Byte" />
+    <opc:Field Name="MessageSize" TypeName="opc:UInt32" />
+  </opc:StructuredType>
+  
+   <opc:StructuredType Name="OPCUATcpHelloMessage">
+    <opc:Documentation>Hello Message</opc:Documentation>
+    <opc:Field Name="ProtocolVersion" TypeName="opc:UInt32" />
+    <opc:Field Name="ReceiveBufferSize" TypeName="opc:UInt32" />
+    <opc:Field Name="SendBufferSize" TypeName="opc:UInt32" />
+    <opc:Field Name="MaxMessageSize" TypeName="opc:UInt32" />
+	<opc:Field Name="MaxChunkCount" TypeName="opc:UInt32" />
+    <opc:Field Name="EndpointUrl" TypeName="opc:String" />
+  </opc:StructuredType>
+  
+   <opc:StructuredType Name="OPCUATcpAcknowledgeMessage">
+    <opc:Documentation>Acknowledge Message</opc:Documentation>
+    <opc:Field Name="ProtocolVersion" TypeName="opc:UInt32" />
+    <opc:Field Name="ReceiveBufferSize" TypeName="opc:UInt32" />
+    <opc:Field Name="SendBufferSize" TypeName="opc:UInt32" />
+    <opc:Field Name="MaxMessageSize" TypeName="opc:UInt32" />
+	<opc:Field Name="MaxChunkCount" TypeName="opc:UInt32" />
+  </opc:StructuredType>
+  
+  
+  <opc:StructuredType Name="SecureConversationMessageHeader">
+    <opc:Documentation>Secure Layer Sequence Header</opc:Documentation>
+    <opc:Field Name="MessageType" TypeName="opc:UInt32" />
+    <opc:Field Name="IsFinal" TypeName="opc:Byte" />
+    <opc:Field Name="MessageSize" TypeName="opc:UInt32" />
+    <opc:Field Name="SecureChannelId" TypeName="opc:UInt32" />
+  </opc:StructuredType>
+  
+  <opc:StructuredType Name="AsymmetricAlgorithmSecurityHeader">
+    <opc:Documentation>Security Header></opc:Documentation>
+    <opc:Field Name="SecurityPolicyUri" TypeName="opc:ByteString" />
+    <opc:Field Name="SenderCertificate" TypeName="opc:ByteString" />
+    <opc:Field Name="ReceiverCertificateThumbprint" TypeName="opc:ByteString" />
+    <opc:Field Name="RequestId" TypeName="opc:UInt32"/>
+  </opc:StructuredType>
+  
+  <opc:StructuredType Name="SymmetricAlgorithmSecurityHeader">
+    <opc:Documentation>Secure Layer Symmetric Algorithm Header</opc:Documentation>
+    <opc:Field Name="TokenId" TypeName="opc:UInt32" />
+  </opc:StructuredType>
+  
+  <opc:StructuredType Name="SequenceHeader">
+    <opc:Documentation>Secure Layer Sequence Header</opc:Documentation>
+    <opc:Field Name="SequenceNumber" TypeName="opc:UInt32" />
+    <opc:Field Name="RequestId" TypeName="opc:UInt32"/>
+  </opc:StructuredType>
+  
+  <opc:StructuredType Name="SecureConversationMessageFooter">
+    <opc:Documentation>Secure Conversation Message Footer</opc:Documentation>
+    <opc:Field Name="PaddingSize" TypeName="opc:Byte" />
+    <opc:Field Name="Padding" TypeName="opc:Byte" LengthField="PaddingSize" />
+    <opc:Field Name="Signature" TypeName="opc:Byte"/>
+  </opc:StructuredType>
+  
+  <opc:StructuredType Name="SecureConversationMessageAbortBody">
+    <opc:Documentation>Secure Conversation Message Abort Body</opc:Documentation>
+    <opc:Field Name="Error" TypeName="opc:UInt32" />
+    <opc:Field Name="Reason" TypeName="opc:String" />
+  </opc:StructuredType>
+ 
+  
+<!-- Types within the Stack End -->
