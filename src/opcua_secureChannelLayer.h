@@ -13,6 +13,7 @@
 #include "../include/UA_config.h"
 
 static const UA_Int32 SL_HEADER_LENGTH = 0;
+/* Enums */
 typedef enum
 {
 	UA_SECURITYTOKEN_ISSUE = 0,
@@ -26,60 +27,117 @@ typedef enum
 	UA_SECURITYMODE_SIGNANDENCRYPT = 2
 
 } securityMode;
+/* Structures */
 typedef struct T_SL_Response
 {
 	UA_UInt32 serverProtocolVersion;
 	SL_ChannelSecurityToken securityToken;
 	UA_String serverNonce;
-}SL_Response;
+}UA_SL_Response;
+UA_TYPE_METHOD_PROTOTYPES(UA_SL_Response)
 
 
-typedef struct T_SL_SecureConversationMessageHeader
-{
+/*** UA_OPCUATcpMessageHeader ***/
+/* TCP Header */
+typedef struct T_UA_OPCUATcpMessageHeader {
 	UA_UInt32 messageType;
-	UA_Byte   isFinal;
+	UA_Byte isFinal;
+	UA_UInt32 messageSize;
+} UA_OPCUATcpMessageHeader;
+UA_Int32 UA_OPCUATcpMessageHeader_calcSize(UA_OPCUATcpMessageHeader const * ptr);
+UA_Int32 UA_OPCUATcpMessageHeader_encode(UA_OPCUATcpMessageHeader const * src, UA_Int32* pos, char* dst);
+UA_Int32 UA_OPCUATcpMessageHeader_decode(char const * src, UA_Int32* pos, UA_OPCUATcpMessageHeader* dst);
+
+/*** UA_OPCUATcpHelloMessage ***/
+/* Hello Message */
+typedef struct T_UA_OPCUATcpHelloMessage {
+	UA_UInt32 protocolVersion;
+	UA_UInt32 receiveBufferSize;
+	UA_UInt32 sendBufferSize;
+	UA_UInt32 maxMessageSize;
+	UA_UInt32 maxChunkCount;
+	UA_String endpointUrl;
+} UA_OPCUATcpHelloMessage;
+UA_Int32 UA_OPCUATcpHelloMessage_calcSize(UA_OPCUATcpHelloMessage const * ptr);
+UA_Int32 UA_OPCUATcpHelloMessage_encode(UA_OPCUATcpHelloMessage const * src, UA_Int32* pos, char* dst);
+UA_Int32 UA_OPCUATcpHelloMessage_decode(char const * src, UA_Int32* pos, UA_OPCUATcpHelloMessage* dst);
+
+/*** UA_OPCUATcpAcknowledgeMessage ***/
+/* Acknowledge Message */
+typedef struct T_UA_OPCUATcpAcknowledgeMessage {
+	UA_UInt32 protocolVersion;
+	UA_UInt32 receiveBufferSize;
+	UA_UInt32 sendBufferSize;
+	UA_UInt32 maxMessageSize;
+	UA_UInt32 maxChunkCount;
+} UA_OPCUATcpAcknowledgeMessage;
+UA_Int32 UA_OPCUATcpAcknowledgeMessage_calcSize(UA_OPCUATcpAcknowledgeMessage const * ptr);
+UA_Int32 UA_OPCUATcpAcknowledgeMessage_encode(UA_OPCUATcpAcknowledgeMessage const * src, UA_Int32* pos, char* dst);
+UA_Int32 UA_OPCUATcpAcknowledgeMessage_decode(char const * src, UA_Int32* pos, UA_OPCUATcpAcknowledgeMessage* dst);
+
+/*** UA_SecureConversationMessageHeader ***/
+/* Secure Layer Sequence Header */
+typedef struct T_UA_SecureConversationMessageHeader {
+	UA_UInt32 messageType;
+	UA_Byte isFinal;
 	UA_UInt32 messageSize;
 	UA_UInt32 secureChannelId;
-}SL_SecureConversationMessageHeader;
+} UA_SecureConversationMessageHeader;
+UA_Int32 UA_SecureConversationMessageHeader_calcSize(UA_SecureConversationMessageHeader const * ptr);
+UA_Int32 UA_SecureConversationMessageHeader_encode(UA_SecureConversationMessageHeader const * src, UA_Int32* pos, char* dst);
+UA_Int32 UA_SecureConversationMessageHeader_decode(char const * src, UA_Int32* pos, UA_SecureConversationMessageHeader* dst);
 
-
-typedef struct T_SL_AsymmetricAlgorithmSecurityHeader
-{
-	UA_String securityPolicyUri;
+/*** UA_AsymmetricAlgorithmSecurityHeader ***/
+/* Security Header> */
+typedef struct T_UA_AsymmetricAlgorithmSecurityHeader {
+	UA_ByteString securityPolicyUri;
 	UA_ByteString senderCertificate;
-	UA_String receiverThumbprint;
-}SL_AsymmetricAlgorithmSecurityHeader;
+	UA_ByteString receiverCertificateThumbprint;
+	UA_UInt32 requestId;
+} UA_AsymmetricAlgorithmSecurityHeader;
+UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_calcSize(UA_AsymmetricAlgorithmSecurityHeader const * ptr);
+UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_encode(UA_AsymmetricAlgorithmSecurityHeader const * src, UA_Int32* pos, char* dst);
+UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_decode(char const * src, UA_Int32* pos, UA_AsymmetricAlgorithmSecurityHeader* dst);
 
-typedef struct T_SL_SequenceHeader
-{
+/*** UA_SymmetricAlgorithmSecurityHeader ***/
+/* Secure Layer Symmetric Algorithm Header */
+typedef struct T_UA_SymmetricAlgorithmSecurityHeader {
+	UA_UInt32 tokenId;
+} UA_SymmetricAlgorithmSecurityHeader;
+UA_Int32 UA_SymmetricAlgorithmSecurityHeader_calcSize(UA_SymmetricAlgorithmSecurityHeader const * ptr);
+UA_Int32 UA_SymmetricAlgorithmSecurityHeader_encode(UA_SymmetricAlgorithmSecurityHeader const * src, UA_Int32* pos, char* dst);
+UA_Int32 UA_SymmetricAlgorithmSecurityHeader_decode(char const * src, UA_Int32* pos, UA_SymmetricAlgorithmSecurityHeader* dst);
+
+/*** UA_SequenceHeader ***/
+/* Secure Layer Sequence Header */
+typedef struct T_UA_SequenceHeader {
 	UA_UInt32 sequenceNumber;
 	UA_UInt32 requestId;
-}SL_SequenceHeader;
+} UA_SequenceHeader;
+UA_Int32 UA_SequenceHeader_calcSize(UA_SequenceHeader const * ptr);
+UA_Int32 UA_SequenceHeader_encode(UA_SequenceHeader const * src, UA_Int32* pos, char* dst);
+UA_Int32 UA_SequenceHeader_decode(char const * src, UA_Int32* pos, UA_SequenceHeader* dst);
 
-/*
- * optional, only if there is encryption present
- */
-typedef struct T_SL_AsymmetricAlgorithmSecurityFooter
-{
-	UA_Byte paddingSize;
-	UA_Byte *padding;
+/*** UA_SecureConversationMessageFooter ***/
+/* Secure Conversation Message Footer */
+typedef struct T_UA_SecureConversationMessageFooter {
+	UA_Int32 paddingSize;
+	UA_Byte** padding;
+	UA_Byte signature;
+} UA_SecureConversationMessageFooter;
+UA_Int32 UA_SecureConversationMessageFooter_calcSize(UA_SecureConversationMessageFooter const * ptr);
+UA_Int32 UA_SecureConversationMessageFooter_encode(UA_SecureConversationMessageFooter const * src, UA_Int32* pos, char* dst);
+UA_Int32 UA_SecureConversationMessageFooter_decode(char const * src, UA_Int32* pos, UA_SecureConversationMessageFooter* dst);
 
-	UA_UInt32 signatureSize;
-	UA_Byte *signature;
-}SL_AsymmetricAlgorithmSecurityFooter;
-
-/*
-typedef struct _SL_ResponseHeader
-{
-	UA_DateTime timestamp;
-    IntegerId requestHandle;
-    UA_StatusCode serviceResult;
-    UA_DiagnosticInfo serviceDiagnostics;
-    UA_String *stringTable;
-    UInt32 stringTableLength;
-    UA_ExtensionObject additionalHeader;
-}SL_ResponseHeader;
-*/
+/*** UA_SecureConversationMessageAbortBody ***/
+/* Secure Conversation Message Abort Body */
+typedef struct T_UA_SecureConversationMessageAbortBody {
+	UA_UInt32 error;
+	UA_String reason;
+} UA_SecureConversationMessageAbortBody;
+UA_Int32 UA_SecureConversationMessageAbortBody_calcSize(UA_SecureConversationMessageAbortBody const * ptr);
+UA_Int32 UA_SecureConversationMessageAbortBody_encode(UA_SecureConversationMessageAbortBody const * src, UA_Int32* pos, char* dst);
+UA_Int32 UA_SecureConversationMessageAbortBody_decode(char const * src, UA_Int32* pos, UA_SecureConversationMessageAbortBody* dst);
 
 /**
  *
@@ -96,72 +154,8 @@ UA_Int32 SL_initConnectionObject(UA_connection *connection);
  * @return
  */
 UA_Int32 SL_openSecureChannel_responseMessage_get(UA_connection *connection,
-		SL_Response *response, UA_Int32* sizeInOut);
+		UA_SL_Response *response, UA_Int32* sizeInOut);
 
-/**
- *
- * @param connection
- * @param rawMessage
- * @param pos
- * @param SC_Header
- * @return
- */
-UA_Int32 decodeSCMHeader(UA_ByteString *rawMessage,UA_Int32 *pos,
-		SL_SecureConversationMessageHeader* SC_Header);
-
-/**
- *
- * @param SC_Header
- * @param pos
- * @param rawMessage
- * @return
- */
-UA_Int32 encodeSCMHeader(SL_SecureConversationMessageHeader *SC_Header,
-	 UA_Int32 *pos,UA_ByteString *rawMessage);
-
-/**
- *
- * @param rawMessage
- * @param pos
- * @param SequenceHeader
- * @return
- */
-UA_Int32 decodeSequenceHeader(UA_ByteString *rawMessage, UA_Int32 *pos,
-		SL_SequenceHeader *sequenceHeader);
-/**
- *
- * @param sequenceHeader
- * @param pos
- * @param dstRawMessage
- * @return
- */
-UA_Int32 encodeSequenceHeader(SL_SequenceHeader *sequenceHeader,UA_Int32 *pos,
-		UA_ByteString *dstRawMessage);
-/**
- *
- * @param rawMessage
- * @param pos
- * @param AAS_Header
- * @return
- */
-UA_Int32 decodeAASHeader(UA_ByteString *rawMessage, UA_Int32 *pos,
-	SL_AsymmetricAlgorithmSecurityHeader* AAS_Header);
-
-/**
- *
- * @param AAS_Header
- * @param pos
- * @param dstRawMessage
- * @return
- */
-UA_Int32 encodeAASHeader(SL_AsymmetricAlgorithmSecurityHeader *AAS_Header,
-		UA_Int32 *pos, UA_ByteString* dstRawMessage);
-
-/**
- *
- * @param connection
- * @param serviceMessage
- */
 void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage);
 
 #endif /* OPCUA_SECURECHANNELLAYER_H_ */

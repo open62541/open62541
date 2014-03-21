@@ -83,7 +83,7 @@ void server_run()
 	serv_addr.sin_addr.s_addr = INADDR_ANY;
 	serv_addr.sin_port = htons(portno);
 
-	if (setsockopt(sockfd,SOL_SOCKET,(SO_REUSEPORT | SO_REUSEADDR),(char*)&optval,sizeof(int)) == -1) {
+	if (setsockopt(sockfd,SOL_SOCKET,(SO_REUSEADDR),(char*)&optval,sizeof(int)) == -1) {
 	    perror("setsockopt");
 	    exit(1);
 	}

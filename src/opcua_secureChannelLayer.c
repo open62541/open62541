@@ -453,9 +453,9 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 	UA_ByteString secureChannelPacket;
 	UA_ByteString message;
-	SL_SecureConversationMessageHeader SCM_Header;
-	SL_AsymmetricAlgorithmSecurityHeader AAS_Header;
-	SL_SequenceHeader SequenceHeader;
+	UA_SecureConversationMessageHeader secureConvHeader;
+	UA_AsymmetricAlgorithmSecurityHeader asymAlgSecHeader;
+	UA_SequenceHeader sequenceHeader;
 	UA_Int32 packetType = 0;
 	UA_Int32 pos = 0;
 	UA_Int32 iTmp;
@@ -470,23 +470,23 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 		printf("SL_receive - data received \n");
 		packetType = TL_getPacketType(&secureChannelPacket, &pos);
 
-		decodeSCMHeader(&secureChannelPacket, &pos, &SCM_Header);
+		UA_SecureConversationMessageHeader_decode(secureChannelPacket.data, &pos, &secureConvHeader);
 
-		switch (SCM_Header.messageType) {
+		switch (secureConvHeader.messageType) {
 
 		case packetType_OPN: /* openSecureChannel Message received */
-			decodeAASHeader(&secureChannelPacket, &pos, &AAS_Header);
+			UA_AsymmetricAlgorithmSecurityHeader_encode(secureChannelPacket.data, &pos, &asymAlgSecHeader);
 			UA_String_printf("SL_receive - AAS_Header.ReceiverThumbprint=",
-					&(AAS_Header.receiverThumbprint));
+					&(asymAlgSecHeader.receiverCertificateThumbprint));
 			UA_String_printf("SL_receive - AAS_Header.SecurityPolicyUri=",
-					&(AAS_Header.securityPolicyUri));
+					&(asymAlgSecHeader.securityPolicyUri));
 			UA_ByteString_printf("SL_receive - AAS_Header.SenderCertificate=",
-					&(AAS_Header.senderCertificate));
-			if (SCM_Header.secureChannelId != 0) {
+					&(asymAlgSecHeader.senderCertificate));
+			if (secureConvHeader.secureChannelId != 0) {
 
 				iTmp = UA_ByteString_compare(
 						&(connection->secureLayer.remoteAsymAlgSettings.SenderCertificate),
-						&(AAS_Header.senderCertificate));
+						&(asymAlgSecHeader.senderCertificate));
 				if (iTmp != UA_EQUAL) {
 					printf("SL_receive - UA_ERROR_BadSecureChannelUnknown \n");
 					//TODO return UA_ERROR_BadSecureChannelUnknown
@@ -499,16 +499,16 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 				//TODO invalid securechannelId
 			}
 
-			decodeSequenceHeader(&secureChannelPacket, &pos, &SequenceHeader);
+			UA_SequenceHeader_decode(&secureChannelPacket.data, &pos, &sequenceHeader);
 			printf("SL_receive - SequenceHeader.RequestId=%d\n",
-					SequenceHeader.requestId);
+					sequenceHeader.requestId);
 			printf("SL_receive - SequenceHeader.SequenceNr=%d\n",
-					SequenceHeader.sequenceNumber);
+					sequenceHeader.sequenceNumber);
 			//save request id to return it to client
-			connection->secureLayer.requestId = SequenceHeader.requestId;
+			connection->secureLayer.requestId = sequenceHeader.requestId;
 			//TODO check that the sequence number is smaller than MaxUInt32 - 1024
 			connection->secureLayer.sequenceNumber =
-					SequenceHeader.sequenceNumber;
+					sequenceHeader.sequenceNumber;
 
 			//SL_decrypt(&secureChannelPacket);
 			message.data = &secureChannelPacket.data[pos];
@@ -521,7 +521,7 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 			if (connection->secureLayer.connectionState
 					== connectionState_ESTABLISHED) {
 
-				if (SCM_Header.secureChannelId
+				if (secureConvHeader.secureChannelId
 						== connection->secureLayer.securityToken.secureChannelId) {
 
 				} else {
@@ -600,86 +600,278 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 	 }
 	 */
 }
+
+
+UA_Int32 UA_OPCUATcpMessageHeader_calcSize(UA_OPCUATcpMessageHeader const * ptr) {
+	return 0
+	 + sizeof(UA_UInt32) // messageType
+	 + sizeof(UA_Byte) // isFinal
+	 + sizeof(UA_UInt32) // messageSize
+	;
+}
+
+UA_Int32 UA_OPCUATcpMessageHeader_encode(UA_OPCUATcpMessageHeader const * src, UA_Int32* pos, char* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_UInt32_encode(&(src->messageType),pos,dst);
+	retval |= UA_Byte_encode(&(src->isFinal),pos,dst);
+	retval |= UA_UInt32_encode(&(src->messageSize),pos,dst);
+	return retval;
+}
+
+UA_Int32 UA_OPCUATcpMessageHeader_decode(char const * src, UA_Int32* pos, UA_OPCUATcpMessageHeader* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_UInt32_decode(src,pos,&(dst->messageType));
+	retval |= UA_Byte_decode(src,pos,&(dst->isFinal));
+	retval |= UA_UInt32_decode(src,pos,&(dst->messageSize));
+	return retval;
+}
+
+UA_Int32 UA_OPCUATcpHelloMessage_calcSize(UA_OPCUATcpHelloMessage const * ptr) {
+	return 0
+	 + sizeof(UA_UInt32) // protocolVersion
+	 + sizeof(UA_UInt32) // receiveBufferSize
+	 + sizeof(UA_UInt32) // sendBufferSize
+	 + sizeof(UA_UInt32) // maxMessageSize
+	 + sizeof(UA_UInt32) // maxChunkCount
+	 + UA_String_calcSize(&(ptr->endpointUrl))
+	;
+}
+
+UA_Int32 UA_OPCUATcpHelloMessage_encode(UA_OPCUATcpHelloMessage const * src, UA_Int32* pos, char* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_UInt32_encode(&(src->protocolVersion),pos,dst);
+	retval |= UA_UInt32_encode(&(src->receiveBufferSize),pos,dst);
+	retval |= UA_UInt32_encode(&(src->sendBufferSize),pos,dst);
+	retval |= UA_UInt32_encode(&(src->maxMessageSize),pos,dst);
+	retval |= UA_UInt32_encode(&(src->maxChunkCount),pos,dst);
+	retval |= UA_String_encode(&(src->endpointUrl),pos,dst);
+	return retval;
+}
+
+UA_Int32 UA_OPCUATcpHelloMessage_decode(char const * src, UA_Int32* pos, UA_OPCUATcpHelloMessage* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_UInt32_decode(src,pos,&(dst->protocolVersion));
+	retval |= UA_UInt32_decode(src,pos,&(dst->receiveBufferSize));
+	retval |= UA_UInt32_decode(src,pos,&(dst->sendBufferSize));
+	retval |= UA_UInt32_decode(src,pos,&(dst->maxMessageSize));
+	retval |= UA_UInt32_decode(src,pos,&(dst->maxChunkCount));
+	retval |= UA_String_decode(src,pos,&(dst->endpointUrl));
+	return retval;
+}
+
+UA_Int32 UA_OPCUATcpAcknowledgeMessage_calcSize(UA_OPCUATcpAcknowledgeMessage const * ptr) {
+	return 0
+	 + sizeof(UA_UInt32) // protocolVersion
+	 + sizeof(UA_UInt32) // receiveBufferSize
+	 + sizeof(UA_UInt32) // sendBufferSize
+	 + sizeof(UA_UInt32) // maxMessageSize
+	 + sizeof(UA_UInt32) // maxChunkCount
+	;
+}
+
+UA_Int32 UA_OPCUATcpAcknowledgeMessage_encode(UA_OPCUATcpAcknowledgeMessage const * src, UA_Int32* pos, char* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_UInt32_encode(&(src->protocolVersion),pos,dst);
+	retval |= UA_UInt32_encode(&(src->receiveBufferSize),pos,dst);
+	retval |= UA_UInt32_encode(&(src->sendBufferSize),pos,dst);
+	retval |= UA_UInt32_encode(&(src->maxMessageSize),pos,dst);
+	retval |= UA_UInt32_encode(&(src->maxChunkCount),pos,dst);
+	return retval;
+}
+
+UA_Int32 UA_OPCUATcpAcknowledgeMessage_decode(char const * src, UA_Int32* pos, UA_OPCUATcpAcknowledgeMessage* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_UInt32_decode(src,pos,&(dst->protocolVersion));
+	retval |= UA_UInt32_decode(src,pos,&(dst->receiveBufferSize));
+	retval |= UA_UInt32_decode(src,pos,&(dst->sendBufferSize));
+	retval |= UA_UInt32_decode(src,pos,&(dst->maxMessageSize));
+	retval |= UA_UInt32_decode(src,pos,&(dst->maxChunkCount));
+	return retval;
+}
+
+UA_Int32 UA_SecureConversationMessageHeader_calcSize(UA_SecureConversationMessageHeader const * ptr) {
+	return 0
+	 + sizeof(UA_UInt32) // messageType
+	 + sizeof(UA_Byte) // isFinal
+	 + sizeof(UA_UInt32) // messageSize
+	 + sizeof(UA_UInt32) // secureChannelId
+	;
+}
+
+UA_Int32 UA_SecureConversationMessageHeader_encode(UA_SecureConversationMessageHeader const * src, UA_Int32* pos, char* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_UInt32_encode(&(src->messageType),pos,dst);
+	retval |= UA_Byte_encode(&(src->isFinal),pos,dst);
+	retval |= UA_UInt32_encode(&(src->messageSize),pos,dst);
+	retval |= UA_UInt32_encode(&(src->secureChannelId),pos,dst);
+	return retval;
+}
+
+UA_Int32 UA_SecureConversationMessageHeader_decode(char const * src, UA_Int32* pos, UA_SecureConversationMessageHeader* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_UInt32_decode(src,pos,&(dst->messageType));
+	retval |= UA_Byte_decode(src,pos,&(dst->isFinal));
+	retval |= UA_UInt32_decode(src,pos,&(dst->messageSize));
+	retval |= UA_UInt32_decode(src,pos,&(dst->secureChannelId));
+	return retval;
+}
+
+UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_calcSize(UA_AsymmetricAlgorithmSecurityHeader const * ptr) {
+	return 0
+	 + UA_ByteString_calcSize(&(ptr->securityPolicyUri))
+	 + UA_ByteString_calcSize(&(ptr->senderCertificate))
+	 + UA_ByteString_calcSize(&(ptr->receiverCertificateThumbprint))
+	 + sizeof(UA_UInt32) // requestId
+	;
+}
+
+UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_encode(UA_AsymmetricAlgorithmSecurityHeader const * src, UA_Int32* pos, char* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_ByteString_encode(&(src->securityPolicyUri),pos,dst);
+	retval |= UA_ByteString_encode(&(src->senderCertificate),pos,dst);
+	retval |= UA_ByteString_encode(&(src->receiverCertificateThumbprint),pos,dst);
+	retval |= UA_UInt32_encode(&(src->requestId),pos,dst);
+	return retval;
+}
+
+UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_decode(char const * src, UA_Int32* pos, UA_AsymmetricAlgorithmSecurityHeader* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_ByteString_decode(src,pos,&(dst->securityPolicyUri));
+	retval |= UA_ByteString_decode(src,pos,&(dst->senderCertificate));
+	retval |= UA_ByteString_decode(src,pos,&(dst->receiverCertificateThumbprint));
+	retval |= UA_UInt32_decode(src,pos,&(dst->requestId));
+	return retval;
+}
+
+UA_Int32 UA_SymmetricAlgorithmSecurityHeader_calcSize(UA_SymmetricAlgorithmSecurityHeader const * ptr) {
+	return 0
+	 + sizeof(UA_UInt32) // tokenId
+	;
+}
+
+UA_Int32 UA_SymmetricAlgorithmSecurityHeader_encode(UA_SymmetricAlgorithmSecurityHeader const * src, UA_Int32* pos, char* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_UInt32_encode(&(src->tokenId),pos,dst);
+	return retval;
+}
+
+UA_Int32 UA_SymmetricAlgorithmSecurityHeader_decode(char const * src, UA_Int32* pos, UA_SymmetricAlgorithmSecurityHeader* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_UInt32_decode(src,pos,&(dst->tokenId));
+	return retval;
+}
+
+UA_Int32 UA_SequenceHeader_calcSize(UA_SequenceHeader const * ptr) {
+	return 0
+	 + sizeof(UA_UInt32) // sequenceNumber
+	 + sizeof(UA_UInt32) // requestId
+	;
+}
+
+UA_Int32 UA_SequenceHeader_encode(UA_SequenceHeader const * src, UA_Int32* pos, char* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_UInt32_encode(&(src->sequenceNumber),pos,dst);
+	retval |= UA_UInt32_encode(&(src->requestId),pos,dst);
+	return retval;
+}
+
+UA_Int32 UA_SequenceHeader_decode(char const * src, UA_Int32* pos, UA_SequenceHeader* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_UInt32_decode(src,pos,&(dst->sequenceNumber));
+	retval |= UA_UInt32_decode(src,pos,&(dst->requestId));
+	return retval;
+}
+
+UA_Int32 UA_SecureConversationMessageFooter_calcSize(UA_SecureConversationMessageFooter const * ptr) {
+	return 0
+	 + 0 //paddingSize is included in UA_Array_calcSize
+	 + UA_Array_calcSize(ptr->paddingSize, UA_BYTE, (void const**) ptr->padding)
+	 + sizeof(UA_Byte) // signature
+	;
+}
+
+UA_Int32 UA_SecureConversationMessageFooter_encode(UA_SecureConversationMessageFooter const * src, UA_Int32* pos, char* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_Int32_encode(&(src->paddingSize),pos,dst); // encode size
+	retval |= UA_Array_encode((void const**) (src->padding),src->paddingSize, UA_BYTE,pos,dst);
+	retval |= UA_Byte_encode(&(src->signature),pos,dst);
+	return retval;
+}
+
+UA_Int32 UA_SecureConversationMessageFooter_decode(char const * src, UA_Int32* pos, UA_SecureConversationMessageFooter* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_Int32_decode(src,pos,&(dst->paddingSize)); // decode size
+	retval |= UA_Array_decode(src,dst->paddingSize, UA_BYTE,pos,(void const**) (dst->padding));
+	retval |= UA_Byte_decode(src,pos,&(dst->signature));
+	return retval;
+}
+
+UA_Int32 UA_SecureConversationMessageAbortBody_calcSize(UA_SecureConversationMessageAbortBody const * ptr) {
+	return 0
+	 + sizeof(UA_UInt32) // error
+	 + UA_String_calcSize(&(ptr->reason))
+	;
+}
+
+UA_Int32 UA_SecureConversationMessageAbortBody_encode(UA_SecureConversationMessageAbortBody const * src, UA_Int32* pos, char* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_UInt32_encode(&(src->error),pos,dst);
+	retval |= UA_String_encode(&(src->reason),pos,dst);
+	return retval;
+}
+
+UA_Int32 UA_SecureConversationMessageAbortBody_decode(char const * src, UA_Int32* pos, UA_SecureConversationMessageAbortBody* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_UInt32_decode(src,pos,&(dst->error));
+	retval |= UA_String_decode(src,pos,&(dst->reason));
+	return retval;
+}
+
 /*
- * get the secure channel message header
- */
-UA_Int32 decodeSCMHeader(UA_ByteString *rawMessage, UA_Int32 *pos,
-		SL_SecureConversationMessageHeader* SC_Header) {
-	UA_UInt32 err;
-	printf("decodeSCMHeader - entered \n");
-	// LU: wild guess - reset pos, we want to reread the message type again
-	*pos = 0;
-	SC_Header->messageType = TL_getPacketType(rawMessage, pos);
-	SC_Header->isFinal = rawMessage->data[*pos];
-	*pos += 1;
-	UA_UInt32_decode(rawMessage->data, pos, &(SC_Header->messageSize));
-	UA_UInt32_decode(rawMessage->data, pos, &(SC_Header->secureChannelId));
-	return UA_SUCCESS;
+UA_Int32 UA_SL_SequenceHeader_calcSize(UA_SL_SequenceHeader const * ptr);\
+UA_Int32 UA_SL_SequenceHeader_delete(UA_SL_SequenceHeader * p);\
+UA_Int32 UA_SL_SequenceHeader_deleteMembers(UA_SL_SequenceHeader * p);
 
-}
-/*
-Int32 encodeSCMHeader(SL_SecureConversationMessageHeader *SC_Header, Int32 *pos,
-		AD_RawMessage *rawMessage) {
-	const char *type = "ERR";
-	switch (SC_Header->MessageType) {
-	case packetType_ACK:
-		type = "ACK";
-		break;
-	case packetType_CLO:
-		type = "CLO";
-		break;
-	case packetType_ERR:
-		type = "ERR";
-		break;
-	case packetType_HEL:
-		type = "HEL";
-		break;
-	case packetType_MSG:
-		type = "MSG";
-		break;
-	case packetType_OPN:
-		type = "OPN";
-		break;
-	default:
-		return UA_ERROR;
-	}
-
-	memcpy(&(rawMessage->message[*pos]), &type, 3);
-
-	return UA_NO_ERROR;
-}
-*/
-
-UA_Int32 decodeSequenceHeader(UA_ByteString *rawMessage, UA_Int32 *pos,
-		SL_SequenceHeader *SequenceHeader) {
-	UA_UInt32_decode(rawMessage->data, pos, &(SequenceHeader->sequenceNumber));
-	UA_UInt32_decode(rawMessage->data, pos, &(SequenceHeader->requestId));
+UA_Int32 UA_SL_SequenceHeader_decode(char const * src, UA_Int32* pos, UA_SL_SequenceHeader * dst){
+	UA_Int32 retVal = 0;
+	retVal |= UA_UInt32_decode(src, pos, &(dst->sequenceNumber));
+	retVal |= UA_UInt32_decode(src, pos, &(dst->requestId));
 	return UA_SUCCESS;
 }
+UA_Int32 UA_SL_SequenceHeader_encode(UA_SL_SequenceHeader const * src, UA_Int32* pos, char * dst){
+	UA_Int32 retVal = 0;
+	retVal |= UA_UInt32_encode(&(src->requestId),pos,dst);
+	retVal |= UA_UInt32_encode(&(src->sequenceNumber),pos,dst);
+	return retVal;
 
+}
 /*
  * get the asymmetric algorithm security header
  */
-UA_Int32 decodeAASHeader(UA_ByteString *rawMessage, UA_Int32 *pos,
-		SL_AsymmetricAlgorithmSecurityHeader* AAS_Header) {
-	UA_Int32 err = 0;
-	err |= UA_String_decode(rawMessage->data, pos,
-			&(AAS_Header->securityPolicyUri));
-	err |= UA_ByteString_decode(rawMessage->data, pos,
-			&(AAS_Header->senderCertificate));
-	err |= UA_String_decode(rawMessage->data, pos,
-			&(AAS_Header->receiverThumbprint));
-	return err;
+/*
+UA_Int32 UA_SL_AsymmetricAlgorithmSecurityHeader_decode(char * const src, UA_Int32 *pos,
+		UA_SL_AsymmetricAlgorithmSecurityHeader *dst){
+	UA_Int32 retVal = 0;
+	retVal |= UA_String_decode(src, pos,
+			&(dst->securityPolicyUri));
+	retVal |= UA_ByteString_decode(src, pos,
+			&(dst->senderCertificate));
+	retVal |= UA_String_decode(src, pos,
+			&(dst->receiverThumbprint));
+	return retVal;
+
 }
 
-UA_Int32 encodeAASHeader(SL_AsymmetricAlgorithmSecurityHeader *AAS_Header,
-		UA_Int32 *pos, UA_ByteString* dstRawMessage) {
-	UA_String_encode(&(AAS_Header->securityPolicyUri), pos,
-			dstRawMessage->data);
-	UA_ByteString_encode(&(AAS_Header->senderCertificate), pos,
-			dstRawMessage->data);
-	UA_String_encode(&(AAS_Header->receiverThumbprint), pos,
-			dstRawMessage->data);
+UA_Int32 UA_SL_AsymetricAlgorithmSecurityHeader_encode(UA_SL_AsymmetricAlgorithmSecurityHeader *const src,
+		UA_Int32 *pos, char * dst) {
+	UA_Int32 retVal = 0;
+	retVal |= UA_String_encode(&(src->securityPolicyUri), pos,
+			dst);
+	retVal |= UA_ByteString_encode(&(src->senderCertificate), pos,
+			dst);
+	retVal |= UA_String_encode(&(src->receiverThumbprint), pos,
+			dst);
 	return UA_SUCCESS;
 }
 
+*/

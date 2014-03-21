@@ -9,7 +9,7 @@
   <!-- This File was generated on 2013-03-06 and supports the specifications supported by version 1.1.334.4 of the OPC UA deliverables. -->
 
   <opc:Import Namespace="http://opcfoundation.org/BinarySchema/" />
-
+ 
   <opc:StructuredType Name="XmlElement">
     <opc:Documentation>An XML element encoded as a UTF-8 string.</opc:Documentation>
     <opc:Field Name="Length" TypeName="opc:Int32" />
