@@ -288,6 +288,8 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 	//449 = openSecureChannelResponse
 	SL_send(connection, response, 449);
 
+	UA_free(response.data);
+
 	return UA_SUCCESS;
 }
 /*
@@ -427,6 +429,8 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 				&clientNonce);
 		UA_ByteString_printf("SL_processMessage - clientNonce=", &clientNonce);
 
+		UA_ByteString_delete(&clientNonce);
+
 		//  Req-6) Int32 RequestLifetime
 		UA_Int32_decode(message.data, &pos,
 				&requestedLifetime);
@@ -488,6 +492,7 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 					//TODO return UA_ERROR_BadSecureChannelUnknown
 				}
 
+			//FIXME: destroy decodeAASHeader (to prevent memleak)
 			}
 			else
 			{
