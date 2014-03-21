@@ -3,7 +3,6 @@ opcua.c: $(TOOL_DIR)/opcua.c
 	cp $< $@
 opcua_namespace_0.c: $(TOOL_DIR)/opcua_namespace_0.c
 	cp $< $@
-
 #__top_builddir__bin_stackTest_out_SOURCES =	opcuaServer.c\
 #											opcua_builtInDatatypes.c\
 #											opcua_binaryEncDec.c\
@@ -36,7 +35,8 @@ libopen62541_la_SOURCES = include/opcua.h\
 						opcua_secureChannelLayer.h\
 						tcp_layer.h\
 						util/UA_list.c\
-						util/UA_indexedList.c
+						util/UA_indexedList.c\
+						namespace.c
 libopen62541_la_CFLAGS = -I $(top_builddir)/include
 
 #bin_PROGRAMS= $(top_builddir)/bin/open62541.out
