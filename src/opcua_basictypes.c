@@ -407,6 +407,9 @@ UA_Int32 UA_Guid_decode(char const * src, UA_Int32* pos, UA_Guid *dst) {
 }
 UA_TYPE_METHOD_DELETE_STRUCT(UA_Guid)
 UA_Int32 UA_Guid_deleteMembers(UA_Guid* p) { return UA_ByteString_delete(&(p->data4)); }
+UA_Int32 UA_Guid_compare(UA_Guid *g1, UA_Guid *g2) {
+	return memcmp(g1, g2, sizeof(UA_Guid));
+}
 
 UA_Int32 UA_LocalizedText_calcSize(UA_LocalizedText const * p) {
 	UA_Int32 length = 0;
@@ -566,6 +569,7 @@ UA_Int32 UA_NodeId_decode(char const * src, UA_Int32* pos, UA_NodeId *dst) {
 	}
 	return retval;
 }
+
 UA_TYPE_METHOD_DELETE_STRUCT(UA_NodeId)
 UA_Int32 UA_NodeId_deleteMembers(UA_NodeId* p) {
 	int retval = UA_SUCCESS;
@@ -626,8 +630,30 @@ void UA_NodeId_printf(char* label, UA_NodeId* node) {
 	printf("}\n");
 }
 
+UA_Int32 UA_NodeId_compare(UA_NodeId *n1, UA_NodeId *n2) {
+	if (n1->encodingByte != n2->encodingByte || n1->namespace != n2->namespace)
+		return FALSE;
 
-//FIXME: Sten Where do these two flags come from?
+	switch (n1->encodingByte) {
+	case UA_NODEIDTYPE_TWOBYTE:
+	case UA_NODEIDTYPE_FOURBYTE:
+	case UA_NODEIDTYPE_NUMERIC:
+		if(n1->identifier.numeric == n2->identifier.numeric)
+			return UA_EQUAL;
+		else
+			return UA_NOT_EQUAL;
+	case UA_NODEIDTYPE_STRING:
+		return UA_String_compare(&(n1->identifier.string), &(n2->identifier.string));
+	case UA_NODEIDTYPE_GUID:
+		return UA_Guid_compare(&(n1->identifier.guid), &(n2->identifier.guid));
+	case UA_NODEIDTYPE_BYTESTRING:
+		return UA_ByteString_compare(&(n1->identifier.byteString), &(n2->identifier.byteString));
+	}
+	return UA_NOT_EQUAL;
+}
+
+//FIXME: Sten Where do these two flags come from? .. These are the higher bits
+//in the encodingByte that tell whether uri and serverindex have been changed
 #define NIEVT_NAMESPACE_URI_FLAG 0x80 	//Is only for ExpandedNodeId required
 #define NIEVT_SERVERINDEX_FLAG 0x40 //Is only for ExpandedNodeId required
 UA_Int32 UA_ExpandedNodeId_calcSize(UA_ExpandedNodeId const * p) {
