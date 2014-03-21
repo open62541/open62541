@@ -327,13 +327,8 @@ UA_Int32 UA_String_compare(UA_String* string1, UA_String* string2) {
 	return retval;
 }
 void UA_String_printf(char* label, UA_String* string) {
-	if(string->data)
-	{
-		printf("%s {Length=%d, Data=%.*s}\n", label, string->length,
+	printf("%s {Length=%d, Data=%.*s}\n", label, string->length,
 			(char*) string->data);
-	} else {
-		printf("%s {Length=%d, Data=(NULL)}\n", label, string->length);
-	}
 }
 void UA_String_printx(char* label, UA_String* string) {
 	int i;
