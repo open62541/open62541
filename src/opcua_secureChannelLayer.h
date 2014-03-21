@@ -8,8 +8,7 @@
 #ifndef OPCUA_SECURECHANNELLAYER_H_
 #define OPCUA_SECURECHANNELLAYER_H_
 
-#include "opcua_advancedDatatypes.h"
-#include "opcua_encodingLayer.h"
+#include "opcua.h"
 #include "opcua_connectionHelper.h"
 
 static const UA_Int32 SL_HEADER_LENGTH = 0;
@@ -22,12 +21,12 @@ typedef enum
 
 typedef enum
 {
-	securityMode_INVALID = 0,
-	securityMode_SIGN = 1,
-	securityMode_SIGNANDENCRYPT = 2
+	UA_SecurityMode_INVALID = 0,
+	UA_SecurityMode_SIGN = 1,
+	UA_SecurityMode_SIGNANDENCRYPT = 2
 
-}securityMode;
-typedef struct
+} securityMode;
+typedef struct T_SL_Response
 {
 	UA_UInt32 ServerProtocolVersion;
 	SL_ChannelSecurityToken SecurityToken;
@@ -35,7 +34,7 @@ typedef struct
 }SL_Response;
 
 
-typedef struct
+typedef struct T_SL_SecureConversationMessageHeader
 {
 	UA_UInt32 MessageType;
 	UA_Byte   IsFinal;
@@ -44,14 +43,14 @@ typedef struct
 }SL_SecureConversationMessageHeader;
 
 
-typedef struct
+typedef struct T_SL_AsymmetricAlgorithmSecurityHeader
 {
 	UA_String SecurityPolicyUri;
-	UA_String SenderCertificate;
+	UA_ByteString SenderCertificate;
 	UA_String ReceiverThumbprint;
 }SL_AsymmetricAlgorithmSecurityHeader;
 
-typedef struct _SL_SequenceHeader
+typedef struct T_SL_SequenceHeader
 {
 	UA_UInt32 SequenceNumber;
 	UA_UInt32 RequestId;
@@ -60,7 +59,7 @@ typedef struct _SL_SequenceHeader
 /*
  * optional, only if there is encryption present
  */
-typedef struct _SL_AsymmetricAlgorithmSecurityFooter
+typedef struct T_SL_AsymmetricAlgorithmSecurityFooter
 {
 	UA_Byte PaddingSize;
 	UA_Byte *Padding;
@@ -118,7 +117,7 @@ UA_Int32 decodeSCMHeader(UA_ByteString *rawMessage,UA_Int32 *pos,
  * @return
  */
 UA_Int32 encodeSCMHeader(SL_SecureConversationMessageHeader *SC_Header,
-	 UA_Int32 *pos,AD_RawMessage *rawMessage);
+	 UA_Int32 *pos,UA_ByteString *rawMessage);
 
 /**
  *
@@ -137,7 +136,7 @@ UA_Int32 decodeSequenceHeader(UA_ByteString *rawMessage, UA_Int32 *pos,
  * @return
  */
 UA_Int32 encodeSequenceHeader(SL_SequenceHeader *sequenceHeader,UA_Int32 *pos,
-		AD_RawMessage *dstRawMessage);
+		UA_ByteString *dstRawMessage);
 /**
  *
  * @param rawMessage
@@ -156,7 +155,7 @@ UA_Int32 decodeAASHeader(UA_ByteString *rawMessage, UA_Int32 *pos,
  * @return
  */
 UA_Int32 encodeAASHeader(SL_AsymmetricAlgorithmSecurityHeader *AAS_Header,
-		UA_Int32 *pos, AD_RawMessage* dstRawMessage);
+		UA_Int32 *pos, UA_ByteString* dstRawMessage);
 
 /**
  *
