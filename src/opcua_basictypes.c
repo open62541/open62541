@@ -687,7 +687,7 @@ UA_Int32 UA_ExtensionObject_calcSize(UA_ExtensionObject const * p) {
 			length += UA_ByteString_calcSize(&(p->body));
 			break;
 		case UA_ExtensionObject_BodyIsXml:
-			length += UA_XmlElement_calcSize(&(p->body));
+			length += UA_XmlElement_calcSize((UA_XmlElement*)&(p->body));
 			break;
 		}
 	}
@@ -869,7 +869,7 @@ UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_DateTime)
 UA_DateTime UA_DateTime_now() {
 	UA_DateTime dateTime;
 	struct timeval tv;
-	gettimeofday(&tv, NULL);
+	gettimeofday(&tv, UA_NULL);
 	dateTime = (tv.tv_sec + FILETIME_UNIXTIME_BIAS_SEC)
 			* HUNDRED_NANOSEC_PER_SEC + tv.tv_usec * HUNDRED_NANOSEC_PER_USEC;
 	return dateTime;

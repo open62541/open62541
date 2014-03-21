@@ -6,13 +6,13 @@ void UA_indexedList_defaultFreer(void* payload){
 }
 
 UA_Int32 UA_indexedList_init(UA_indexedList_List* const list){
-	if(list==NULL)return UA_ERROR;
+	if(list==UA_NULL)return UA_ERROR;
 	return UA_list_init((UA_list_List*)list);
 }
 
 UA_Int32 UA_indexedList_destroy(UA_indexedList_List* const list, UA_indexedList_PayloadVisitor visitor){
-	if(list==NULL)return UA_ERROR;
-	UA_list_Element* current = NULL;
+	if(list==UA_NULL)return UA_ERROR;
+	UA_list_Element* current = UA_NULL;
 	current=list->first;
 	while(current){
 		UA_list_Element* next = current->next;
@@ -31,15 +31,15 @@ UA_Int32 UA_indexedList_destroy(UA_indexedList_List* const list, UA_indexedList_
 }
 
 UA_Int32 UA_indexedList_initElement(UA_indexedList_Element* const elem){
-	if(elem==NULL)return UA_ERROR;
-	elem->father = NULL;
+	if(elem==UA_NULL)return UA_ERROR;
+	elem->father = UA_NULL;
 	elem->index = -1;
-	elem->payload = NULL;
+	elem->payload = UA_NULL;
 	return UA_NO_ERROR;
 }
 
 UA_Int32 UA_indexedList_addValue(UA_indexedList_List* const list, UA_Int32 index, void* payload){
-	if(list==NULL)return UA_ERROR;
+	if(list==UA_NULL)return UA_ERROR;
 	UA_list_Element* dllElem = (UA_list_Element*)malloc(sizeof(*dllElem));
 	UA_list_initElement(dllElem);
 	UA_indexedList_Element* iilElem = (UA_indexedList_Element*)malloc(sizeof(UA_indexedList_Element));
@@ -52,7 +52,7 @@ UA_Int32 UA_indexedList_addValue(UA_indexedList_List* const list, UA_Int32 index
 }
 
 UA_Int32 UA_indexedList_addValueToFront(UA_indexedList_List* const list, UA_Int32 index, void* payload){
-	if(list==NULL)return UA_ERROR;
+	if(list==UA_NULL)return UA_ERROR;
 	UA_list_Element* dllElem = (UA_list_Element*)malloc(sizeof(*dllElem));
 	UA_list_initElement(dllElem);
 	UA_indexedList_Element* iilElem = (UA_indexedList_Element*)malloc(sizeof(*iilElem));
@@ -65,7 +65,7 @@ UA_Int32 UA_indexedList_addValueToFront(UA_indexedList_List* const list, UA_Int3
 }
 
 UA_indexedList_Element* UA_indexedList_find(UA_indexedList_List* const list, UA_Int32 index){
-	if(list==NULL)return NULL;
+	if(list==UA_NULL)return UA_NULL;
 	UA_list_Element* current = list->first;
 	while(current){
 		if(current->payload){
@@ -76,20 +76,20 @@ UA_indexedList_Element* UA_indexedList_find(UA_indexedList_List* const list, UA_
 		}
 		current=current->next;
 	}
-	return NULL;
+	return UA_NULL;
 }
 
 void* UA_indexedList_findValue(UA_indexedList_List* const list, UA_Int32 index){
-	if(list==NULL)return NULL;
+	if(list==UA_NULL)return UA_NULL;
 	UA_indexedList_Element* iilElem = UA_indexedList_find(list, index);
 	if(iilElem){
 		return iilElem->payload;
 	}
-	return NULL;
+	return UA_NULL;
 }
 
 UA_Int32 UA_indexedList_iterateValues(UA_indexedList_List* const list, UA_indexedList_PayloadVisitor visitor){
-	if(list==NULL)return UA_ERROR;
+	if(list==UA_NULL)return UA_ERROR;
 	UA_list_Element* current = list->first;
 	while(current){
 		if(current->payload){
@@ -105,11 +105,11 @@ UA_Int32 UA_indexedList_iterateValues(UA_indexedList_List* const list, UA_indexe
 }
 
 UA_Int32 UA_indexedList_removeElement(UA_indexedList_List* const list, UA_indexedList_Element* elem, UA_indexedList_PayloadVisitor visitor){
-	if(list==NULL || elem==NULL)return UA_ERROR;
+	if(list==UA_NULL || elem==UA_NULL)return UA_ERROR;
 	if(visitor){
 		(*visitor)(elem->payload);
 	}
 	UA_list_Element* father = elem->father;
 	free(elem);
-	return UA_list_removeElement(father, NULL);
+	return UA_list_removeElement(father, UA_NULL);
 }
