@@ -9,51 +9,51 @@
 #define OPCUA_SECURECHANNELLAYER_H_
 
 #include "opcua.h"
-#include "opcua_connectionHelper.h"
+#include "UA_connection.h"
+#include "../include/UA_config.h"
 
 static const UA_Int32 SL_HEADER_LENGTH = 0;
-#define TOKEN_LIFETIME 30000
 typedef enum
 {
-	securityToken_ISSUE = 0,
-	securityToken_RENEW = 1
+	UA_SECURITYTOKEN_ISSUE = 0,
+	UA_SECURITYTOKEN_RENEW = 1
 }SecurityTokenRequestType;
 
 typedef enum
 {
-	UA_SecurityMode_INVALID = 0,
-	UA_SecurityMode_SIGN = 1,
-	UA_SecurityMode_SIGNANDENCRYPT = 2
+	UA_SECURITYMODE_INVALID = 0,
+	UA_SECURITYMODE_SIGN = 1,
+	UA_SECURITYMODE_SIGNANDENCRYPT = 2
 
 } securityMode;
 typedef struct T_SL_Response
 {
-	UA_UInt32 ServerProtocolVersion;
-	SL_ChannelSecurityToken SecurityToken;
-	UA_String ServerNonce;
+	UA_UInt32 serverProtocolVersion;
+	SL_ChannelSecurityToken securityToken;
+	UA_String serverNonce;
 }SL_Response;
 
 
 typedef struct T_SL_SecureConversationMessageHeader
 {
-	UA_UInt32 MessageType;
-	UA_Byte   IsFinal;
-	UA_UInt32 MessageSize;
-	UA_UInt32 SecureChannelId;
+	UA_UInt32 messageType;
+	UA_Byte   isFinal;
+	UA_UInt32 messageSize;
+	UA_UInt32 secureChannelId;
 }SL_SecureConversationMessageHeader;
 
 
 typedef struct T_SL_AsymmetricAlgorithmSecurityHeader
 {
-	UA_String SecurityPolicyUri;
-	UA_ByteString SenderCertificate;
-	UA_String ReceiverThumbprint;
+	UA_String securityPolicyUri;
+	UA_ByteString senderCertificate;
+	UA_String receiverThumbprint;
 }SL_AsymmetricAlgorithmSecurityHeader;
 
 typedef struct T_SL_SequenceHeader
 {
-	UA_UInt32 SequenceNumber;
-	UA_UInt32 RequestId;
+	UA_UInt32 sequenceNumber;
+	UA_UInt32 requestId;
 }SL_SequenceHeader;
 
 /*
@@ -61,11 +61,11 @@ typedef struct T_SL_SequenceHeader
  */
 typedef struct T_SL_AsymmetricAlgorithmSecurityFooter
 {
-	UA_Byte PaddingSize;
-	UA_Byte *Padding;
+	UA_Byte paddingSize;
+	UA_Byte *padding;
 
-	UA_UInt32 SignatureSize;
-	UA_Byte *Signature;
+	UA_UInt32 signatureSize;
+	UA_Byte *signature;
 }SL_AsymmetricAlgorithmSecurityFooter;
 
 /*

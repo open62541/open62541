@@ -82,7 +82,7 @@ def createEnumerated(element):
             valuemap[name + "_" + child.get("Name")] = child.get("Value")
     valuemap = OrderedDict(sorted(valuemap.iteritems(), key=lambda (k,v): int(v)))
     print("typedef UA_UInt32 " + name + ";", end='\n', file=fh);
-    print("enum " + name + "_enum { \n\t" + ",\n\t".join(map(lambda (key, value) : key + " = " + value, valuemap.iteritems())) + "\n};", end='\n', file=fh)
+    print("enum " + name + "_enum { \n\t" + ",\n\t".join(map(lambda (key, value) : key.upper() + " = " + value, valuemap.iteritems())) + "\n};", end='\n', file=fh)
     print("UA_TYPE_METHOD_PROTOTYPES (" + name + ")", end='\n', file=fh)
     print("UA_TYPE_METHOD_CALCSIZE_AS("+name+", UA_UInt32)", end='\n', file=fc)
     print("UA_TYPE_METHOD_ENCODE_AS("+name+", UA_UInt32)", end='\n', file=fc)

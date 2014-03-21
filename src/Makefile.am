@@ -1,3 +1,7 @@
+#optimization levels depending on debug
+AM_CFLAGS = $(GLOBAL_AM_CFLAGS) -I$(top_builddir)/include
+
+
 TOOL_DIR = ../tool
 opcua.c: $(TOOL_DIR)/opcua.c
 	cp $< $@
@@ -37,7 +41,6 @@ libopen62541_la_SOURCES = include/opcua.h\
 						tcp_layer.h\
 						util/UA_list.c\
 						util/UA_indexedList.c
-libopen62541_la_CFLAGS = -I $(top_builddir)/include
 
 #bin_PROGRAMS= $(top_builddir)/bin/open62541.out
 #__top_builddir__bin_libOpen62541_out_SOURCES = opcuaServer.c
@@ -69,5 +72,3 @@ all-local: convenience-link
 
 clean-local: clean-convenience-link
 
-#optimization levels depending on debug
-AM_CFLAGS = $(GLOBAL_AM_CFLAGS)

@@ -10,7 +10,7 @@
 #include <stdio.h>
 
 #include "opcua.h"
-#include "opcua_connectionHelper.h"
+#include "UA_connection.h"
 
 
 //TODO : Implement this interface
@@ -30,18 +30,18 @@ static const UA_UInt32 TL_MESSAGE_TYPE_LEN = 3;
 static const UA_UInt32 TL_RESERVED_LEN = 1;
 
 //variables which belong to layer
-static const TL_SERVER_PROTOCOL_VERSION = 0;
-static const TL_SERVER_MAX_CHUNK_COUNT = 1;
-static const TL_SERVER_MAX_MESSAGE_SIZE = 8192;
+#define TL_SERVER_PROTOCOL_VERSION  0
+#define TL_SERVER_MAX_CHUNK_COUNT 1
+#define  TL_SERVER_MAX_MESSAGE_SIZE  8192
 
 enum TL_messageType_td
 {
-	TL_HEL = 1,
-	TL_ACK = 2,
-	TL_ERR = 3,
-	TL_OPN = 4,
-	TL_CLO = 5,
-	TL_MSG = 6
+	TL_MESSAGETYPE_HEL = 1,
+	TL_MESSAGETYPE_ACK = 2,
+	TL_MESSAGETYPE_ERR = 3,
+	TL_MESSAGETYPE_OPN = 4,
+	TL_MESSAGETYPE_CLO = 5,
+	TL_MESSAGETYPE_MSG = 6
 }TL_messageType;
 
 struct TL_header

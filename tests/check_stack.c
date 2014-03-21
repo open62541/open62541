@@ -234,7 +234,7 @@ START_TEST(decodeUInt32_test)
 
 	UA_Int32 p = 0;
 	UA_UInt32 val;
-	UA_Int32_decode(rawMessage.data, &p, &val);
+	UA_UInt32_decode(rawMessage.data, &p, &val);
 	ck_assert_uint_eq(val,255);
 
 }
@@ -491,13 +491,13 @@ START_TEST(extensionObject_calcSize_test)
 	UA_ExtensionObject extensionObject;
 
 	// empty ExtensionObject, handcoded
-	extensionObject.typeId.encodingByte = UA_NodeIdType_TwoByte;
+	extensionObject.typeId.encodingByte = UA_NODEIDTYPE_TWOBYTE;
 	extensionObject.typeId.identifier.numeric = 0;
-	extensionObject.encoding = UA_ExtensionObject_NoBodyIsEncoded;
+	extensionObject.encoding = UA_EXTENSIONOBJECT_NOBODYISENCODED;
 	ck_assert_int_eq(UA_ExtensionObject_calcSize(&extensionObject), 1 + 1 + 1);
 
 	// ExtensionObject with ByteString-Body
-	extensionObject.encoding = UA_ExtensionObject_BodyIsByteString;
+	extensionObject.encoding = UA_EXTENSIONOBJECT_BODYISBYTESTRING;
 	extensionObject.body.data = data;
 	extensionObject.body.length = 3;
 	ck_assert_int_eq(UA_ExtensionObject_calcSize(&extensionObject), 3 + 4 + 3);
@@ -510,9 +510,9 @@ START_TEST(responseHeader_calcSize_test)
 	UA_DiagnosticInfo diagnosticInfo;
 	UA_ExtensionObject extensionObject;
 	UA_DiagnosticInfo  emptyDO = {0x00};
-	UA_ExtensionObject emptyEO = {{UA_NodeIdType_TwoByte,0},UA_ExtensionObject_NoBodyIsEncoded};
+	UA_ExtensionObject emptyEO = {{UA_NODEIDTYPE_TWOBYTE,0},UA_EXTENSIONOBJECT_NOBODYISENCODED};
 	//Should have the size of 26 Bytes
-	diagnosticInfo.encodingMask = UA_DiagnosticInfoEncodingMaskType_SymbolicId | UA_DiagnosticInfoEncodingMaskType_Namespace | UA_DiagnosticInfoEncodingMaskType_LocalizedText | UA_DiagnosticInfoEncodingMaskType_Locale | UA_DiagnosticInfoEncodingMaskType_AdditionalInfo;		// Byte:   1
+	diagnosticInfo.encodingMask = UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_SYMBOLICID | UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_NAMESPACE | UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_LOCALIZEDTEXT | UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_LOCALE | UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_ADDITIONALINFO;		// Byte:   1
 	// Indices into to Stringtable of the responseHeader (62541-6 §5.5.12 )
 	diagnosticInfo.symbolicId = -1;										// Int32:  4
 	diagnosticInfo.namespaceUri = -1;									// Int32:  4
@@ -554,7 +554,7 @@ START_TEST(encodeDataValue_test)
 	dataValue.serverTimestamp = dateTime;
 
 	//--without Variant
-	dataValue.encodingMask = UA_DataValue_serverTimestamp; //Only the sourcePicoseconds
+	dataValue.encodingMask = UA_DATAVALUE_SERVERTIMPSTAMP; //Only the sourcePicoseconds
 	UA_DataValue_encode(&dataValue, &pos, buf);
 
 	ck_assert_int_eq(pos, 9);// represents the length
@@ -569,7 +569,7 @@ START_TEST(encodeDataValue_test)
 	ck_assert_uint_eq(buf[8], 0);
 
 	//TestCase for a DataValue with a Variant!
-	dataValue.encodingMask = UA_DataValue_variant | UA_DataValue_serverTimestamp; //Variant & SourvePicoseconds
+	dataValue.encodingMask = UA_DATAVALUE_VARIANT | UA_DATAVALUE_SERVERTIMPSTAMP; //Variant & SourvePicoseconds
 	dataValue.value.vt = &UA_[UA_INT32];
 	dataValue.value.arrayLength = 0;
 	dataValue.value.encodingMask = UA_INT32_NS0;
@@ -598,7 +598,7 @@ END_TEST
 START_TEST(DataValue_calcSize_test)
 {
 	UA_DataValue dataValue;
-	dataValue.encodingMask = UA_DataValue_statusCode |  UA_DataValue_sourceTimestamp |  UA_DataValue_sourcePicoseconds;
+	dataValue.encodingMask = UA_DATAVALUE_STATUSCODE |  UA_DATAVALUE_SOURCETIMESTAMP |  UA_DATAVALUE_SOURCEPICOSECONDS;
 	dataValue.status = 12;
 	UA_DateTime dateTime;
 	dateTime = 80;

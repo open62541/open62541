@@ -30,7 +30,7 @@ UA_Int32 TL_check(UA_connection *connection)
 
 	printf("TL_check - entered \n");
 
-
+	UA_ByteString_printf("received data:",&(connection->readData));
 	UA_UInt32_decode(connection->readData.data,&position,&messageLength);
 
 	printf("TL_check - messageLength = %d \n",messageLength);
@@ -270,7 +270,7 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
  */
 
 
-TL_send(UA_connection *connection, UA_ByteString *packet)
+UA_Int32 TL_send(UA_connection *connection, UA_ByteString *packet)
 {
 	printf("TL_send - entered \n");
 	connection->newDataToWrite = 1;

@@ -242,9 +242,9 @@ UA_TYPE_METHOD_PROTOTYPES(UA_ExtensionObject)
 
 enum UA_ExtensionObject_EncodingMaskType_enum
 {
-	UA_ExtensionObject_NoBodyIsEncoded = 	0x00,
-	UA_ExtensionObject_BodyIsByteString = 	0x01,
-	UA_ExtensionObject_BodyIsXml = 	0x02
+	UA_EXTENSIONOBJECT_NOBODYISENCODED = 	0x00,
+	UA_EXTENSIONOBJECT_BODYISBYTESTRING = 	0x01,
+	UA_EXTENSIONOBJECT_BODYISXML = 	0x02
 };
 
 /* QualifiedNameBinaryEncoding - Part: 6, Chapter: 5.2.2.13, Page: 20 */
@@ -270,17 +270,17 @@ UA_TYPE_METHOD_PROTOTYPES(UA_DataValue)
 /** 62541-6, §5.2.2.17, Table 15 */
 enum UA_DataValue_EncodingMaskType_enum
 {
-	UA_DataValue_variant = 	0x01,
-	UA_DataValue_statusCode = 	0x02,
-	UA_DataValue_sourceTimestamp = 	0x04,
-	UA_DataValue_serverTimestamp = 	0x08,
-	UA_DataValue_sourcePicoseconds = 	0x10,
-	UA_DataValue_serverPicoseconds = 	0x20
+	UA_DATAVALUE_VARIANT = 	0x01,
+	UA_DATAVALUE_STATUSCODE = 	0x02,
+	UA_DATAVALUE_SOURCETIMESTAMP = 	0x04,
+	UA_DATAVALUE_SERVERTIMPSTAMP = 	0x08,
+	UA_DATAVALUE_SOURCEPICOSECONDS = 	0x10,
+	UA_DATAVALUE_SERVERPICOSECONDS = 	0x20
 };
 
 /* DiagnosticInfo - Part: 6, Chapter: 5.2.2.12, Page: 20 */
 typedef struct T_UA_DiagnosticInfo {
-	UA_Byte encodingMask; //Type of the Enum UA_DiagnosticInfoEncodingMaskType
+	UA_Byte encodingMask; //Type of the Enum UA_DIAGNOSTICINFO_ENCODINGMASKTYPE
 	UA_Int32 symbolicId;
 	UA_Int32 namespaceUri;
 	UA_Int32 localizedText;
@@ -291,15 +291,15 @@ typedef struct T_UA_DiagnosticInfo {
 } UA_DiagnosticInfo;
 UA_TYPE_METHOD_PROTOTYPES(UA_DiagnosticInfo)
 
-enum UA_DiagnosticInfoEncodingMaskType_enum
+enum UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_enum
 {
-	UA_DiagnosticInfoEncodingMaskType_SymbolicId = 			0x01,
-	UA_DiagnosticInfoEncodingMaskType_Namespace = 			0x02,
-	UA_DiagnosticInfoEncodingMaskType_LocalizedText = 		0x04,
-	UA_DiagnosticInfoEncodingMaskType_Locale = 				0x08,
-	UA_DiagnosticInfoEncodingMaskType_AdditionalInfo = 		0x10,
-	UA_DiagnosticInfoEncodingMaskType_InnerStatusCode = 	0x20,
-	UA_DiagnosticInfoEncodingMaskType_InnerDiagnosticInfo = 0x40
+	UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_SYMBOLICID = 			0x01,
+	UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_NAMESPACE = 			0x02,
+	UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_LOCALIZEDTEXT = 		0x04,
+	UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_LOCALE = 				0x08,
+	UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_ADDITIONALINFO = 		0x10,
+	UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_INNERSTATUSCODE = 	0x20,
+	UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_INNERDIAGNOSTICINFO = 0x40
 };
 
 #endif /* OPCUA_BASICTYPES_H_ */

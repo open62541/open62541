@@ -173,10 +173,10 @@ UA_Int32 UA_UInt32_encode(UA_UInt32 const * src, UA_Int32* pos, char *dst) {
 	return UA_SUCCESS;
 }
 UA_Int32 UA_UInt32_decode(char const * src, UA_Int32* pos, UA_UInt32 *dst) {
-	UA_UInt32 t1 = (UA_UInt32) src[(*pos)++];
-	UA_UInt32 t2 = (UA_UInt32) src[(*pos)++] << 8;
-	UA_UInt32 t3 = (UA_UInt32) src[(*pos)++] << 16;
-	UA_UInt32 t4 = (UA_UInt32) src[(*pos)++] << 24;
+	UA_UInt32 t1 = (UA_UInt32)((UA_Byte)(src[(*pos)++] & 0xFF));
+	UA_UInt32 t2 = (UA_UInt32)((UA_Byte)(src[(*pos)++]& 0xFF) << 8);
+	UA_UInt32 t3 = (UA_UInt32)((UA_Byte)(src[(*pos)++]& 0xFF) << 16);
+	UA_UInt32 t4 = (UA_UInt32)((UA_Byte)(src[(*pos)++]& 0xFF) << 24);
 	*dst = t1 + t2 + t3 + t4;
 	return UA_SUCCESS;
 }
@@ -327,8 +327,13 @@ UA_Int32 UA_String_compare(UA_String* string1, UA_String* string2) {
 	return retval;
 }
 void UA_String_printf(char* label, UA_String* string) {
-	printf("%s {Length=%d, Data=%.*s}\n", label, string->length, string->length,
+	if(string->data)
+	{
+		printf("%s {Length=%d, Data=%.*s}\n", label, string->length,
 			(char*) string->data);
+	} else {
+		printf("%s {Length=%d, Data=(NULL)}\n", label, string->length);
+	}
 }
 void UA_String_printx(char* label, UA_String* string) {
 	int i;
@@ -367,13 +372,13 @@ UA_Int32 UA_ByteString_compare(UA_ByteString *string1, UA_ByteString *string2) {
 	return UA_String_compare((UA_String*) string1, (UA_String*) string2);
 }
 void UA_ByteString_printf(char* label, UA_ByteString* string) {
-	return UA_String_printf(label, (UA_String*) string);
+	UA_String_printf(label, (UA_String*) string);
 }
 void UA_ByteString_printx(char* label, UA_String* string) {
-	return UA_String_printx(label, (UA_String*) string);
+	UA_String_printx(label, (UA_String*) string);
 }
 void UA_ByteString_printx_hex(char* label, UA_String* string) {
-	return UA_String_printx_hex(label, (UA_String*) string);
+	UA_String_printx_hex(label, (UA_String*) string);
 }
 
 
@@ -467,22 +472,22 @@ UA_Int32 UA_NodeId_calcSize(UA_NodeId const *p) {
 		length = sizeof(UA_NodeId);
 	} else {
 		switch (p->encodingByte) {
-		case UA_NodeIdType_TwoByte:
+		case UA_NODEIDTYPE_TWOBYTE:
 			length += 2 * sizeof(UA_Byte);
 			break;
-		case UA_NodeIdType_FourByte:
+		case UA_NODEIDTYPE_FOURBYTE:
 			length += 4 * sizeof(UA_Byte);
 			break;
-		case UA_NodeIdType_Numeric:
+		case UA_NODEIDTYPE_NUMERIC:
 			length += sizeof(UA_Byte) + sizeof(UA_UInt16) + sizeof(UA_UInt32);
 			break;
-		case UA_NodeIdType_String:
+		case UA_NODEIDTYPE_STRING:
 			length += sizeof(UA_Byte) + sizeof(UA_UInt16) + UA_String_calcSize(&(p->identifier.string));
 			break;
-		case UA_NodeIdType_Guid:
+		case UA_NODEIDTYPE_GUID:
 			length += sizeof(UA_Byte) + sizeof(UA_UInt16) + UA_Guid_calcSize(&(p->identifier.guid));
 			break;
-		case UA_NodeIdType_ByteString:
+		case UA_NODEIDTYPE_BYTESTRING:
 			length += sizeof(UA_Byte) + sizeof(UA_UInt16) + UA_ByteString_calcSize(&(p->identifier.byteString));
 			break;
 		default:
@@ -499,29 +504,29 @@ UA_Int32 UA_NodeId_encode(UA_NodeId const * src, UA_Int32* pos, char *dst) {
 	int retval = UA_SUCCESS;
 	retval |= UA_Byte_encode(&(src->encodingByte),pos,dst);
 	switch (src->encodingByte) {
-	case UA_NodeIdType_TwoByte:
+	case UA_NODEIDTYPE_TWOBYTE:
 		srcByte = src->identifier.numeric;
 		retval |= UA_Byte_encode(&srcByte,pos,dst);
 		break;
-	case UA_NodeIdType_FourByte:
+	case UA_NODEIDTYPE_FOURBYTE:
 		srcByte = src->namespace;
 		srcUInt16 = src->identifier.numeric;
 		retval |= UA_Byte_encode(&srcByte,pos,dst);
 		retval |= UA_UInt16_encode(&srcUInt16,pos,dst);
 		break;
-	case UA_NodeIdType_Numeric:
+	case UA_NODEIDTYPE_NUMERIC:
 		retval |= UA_UInt16_encode(&(src->namespace), pos, dst);
 		retval |= UA_UInt32_encode(&(src->identifier.numeric), pos, dst);
 		break;
-	case UA_NodeIdType_String:
+	case UA_NODEIDTYPE_STRING:
 		retval |= UA_UInt16_encode(&(src->namespace), pos, dst);
 		retval |= UA_String_encode(&(src->identifier.string), pos, dst);
 		break;
-	case UA_NodeIdType_Guid:
+	case UA_NODEIDTYPE_GUID:
 		retval |= UA_UInt16_encode(&(src->namespace), pos, dst);
 		retval |= UA_Guid_encode(&(src->identifier.guid), pos, dst);
 		break;
-	case UA_NodeIdType_ByteString:
+	case UA_NODEIDTYPE_BYTESTRING:
 		retval |= UA_UInt16_encode(&(src->namespace), pos, dst);
 		retval |= UA_ByteString_encode(&(src->identifier.byteString), pos, dst);
 		break;
@@ -536,30 +541,30 @@ UA_Int32 UA_NodeId_decode(char const * src, UA_Int32* pos, UA_NodeId *dst) {
 
 	retval |= UA_Byte_decode(src,pos,&(dst->encodingByte));
 	switch (dst->encodingByte) {
-	case UA_NodeIdType_TwoByte: // Table 7
+	case UA_NODEIDTYPE_TWOBYTE: // Table 7
 		retval |=UA_Byte_decode(src, pos, &dstByte);
 		dst->identifier.numeric = dstByte;
 		dst->namespace = 0; // default namespace
 		break;
-	case UA_NodeIdType_FourByte: // Table 8
+	case UA_NODEIDTYPE_FOURBYTE: // Table 8
 		retval |=UA_Byte_decode(src, pos, &dstByte);
 		dst->namespace= dstByte;
 		retval |=UA_UInt16_decode(src, pos, &dstUInt16);
 		dst->identifier.numeric = dstUInt16;
 		break;
-	case UA_NodeIdType_Numeric: // Table 6, first entry
+	case UA_NODEIDTYPE_NUMERIC: // Table 6, first entry
 		retval |=UA_UInt16_decode(src,pos,&(dst->namespace));
 		retval |=UA_UInt32_decode(src,pos,&(dst->identifier.numeric));
 		break;
-	case UA_NodeIdType_String: // Table 6, second entry
+	case UA_NODEIDTYPE_STRING: // Table 6, second entry
 		retval |=UA_UInt16_decode(src,pos,&(dst->namespace));
 		retval |=UA_String_decode(src,pos,&(dst->identifier.string));
 		break;
-	case UA_NodeIdType_Guid: // Table 6, third entry
+	case UA_NODEIDTYPE_GUID: // Table 6, third entry
 		retval |=UA_UInt16_decode(src,pos,&(dst->namespace));
 		retval |=UA_Guid_decode(src,pos,&(dst->identifier.guid));
 		break;
-	case UA_NodeIdType_ByteString: // Table 6, "OPAQUE"
+	case UA_NODEIDTYPE_BYTESTRING: // Table 6, "OPAQUE"
 		retval |=UA_UInt16_decode(src,pos,&(dst->namespace));
 		retval |=UA_ByteString_decode(src,pos,&(dst->identifier.byteString));
 		break;
@@ -570,43 +575,48 @@ UA_TYPE_METHOD_DELETE_STRUCT(UA_NodeId)
 UA_Int32 UA_NodeId_deleteMembers(UA_NodeId* p) {
 	int retval = UA_SUCCESS;
 	switch (p->encodingByte) {
-	case UA_NodeIdType_TwoByte:
-	case UA_NodeIdType_FourByte:
-	case UA_NodeIdType_Numeric:
+	case UA_NODEIDTYPE_TWOBYTE:
+	case UA_NODEIDTYPE_FOURBYTE:
+	case UA_NODEIDTYPE_NUMERIC:
 		// nothing to do
 		break;
-	case UA_NodeIdType_String: // Table 6, second entry
+	case UA_NODEIDTYPE_STRING: // Table 6, second entry
 		retval |= UA_String_deleteMembers(&(p->identifier.string));
 		break;
-	case UA_NodeIdType_Guid: // Table 6, third entry
+	case UA_NODEIDTYPE_GUID: // Table 6, third entry
 		retval |= UA_Guid_deleteMembers(&(p->identifier.guid));
 		break;
-	case UA_NodeIdType_ByteString: // Table 6, "OPAQUE"
+	case UA_NODEIDTYPE_BYTESTRING: // Table 6, "OPAQUE"
 		retval |= UA_ByteString_deleteMembers(&(p->identifier.byteString));
 		break;
 	}
 	return retval;
 }
+
 void UA_NodeId_printf(char* label, UA_NodeId* node) {
-	printf("%s {encodingByte=%d, namespace=%d, ", label,
-			(int) node->encodingByte, (int) node->namespace);
+
+
+	printf("%s {encodingByte=%d, namespace=%d,", label,
+			(int)( node->encodingByte), (int) (node->namespace));
+
 	switch (node->encodingByte) {
-	case UA_NodeIdType_TwoByte:
-	case UA_NodeIdType_FourByte:
-	case UA_NodeIdType_Numeric:
-		printf("identifier=%d", node->identifier.numeric);
+
+	case UA_NODEIDTYPE_TWOBYTE:
+	case UA_NODEIDTYPE_FOURBYTE:
+	case UA_NODEIDTYPE_NUMERIC:
+		printf("identifier=%d\n", node->identifier.numeric);
 		break;
-	case UA_NodeIdType_String:
+	case UA_NODEIDTYPE_STRING:
 		printf("identifier={length=%d, data=%.*s}",
 				node->identifier.string.length, node->identifier.string.length,
 				(char*) (node->identifier.string.data));
 		break;
-	case UA_NodeIdType_ByteString:
+	case UA_NODEIDTYPE_BYTESTRING:
 		printf("identifier={Length=%d, data=%.*s}",
 				node->identifier.byteString.length, node->identifier.byteString.length,
 				(char*) (node->identifier.byteString.data));
 		break;
-	case UA_NodeIdType_Guid:
+	case UA_NODEIDTYPE_GUID:
 		printf(
 				"guid={data1=%d, data2=%d, data3=%d, data4={length=%d, data=%.*s}}",
 				node->identifier.guid.data1, node->identifier.guid.data2,
@@ -683,10 +693,10 @@ UA_Int32 UA_ExtensionObject_calcSize(UA_ExtensionObject const * p) {
 		length += UA_NodeId_calcSize(&(p->typeId));
 		length += sizeof(UA_Byte); //p->encoding
 		switch (p->encoding) {
-		case UA_ExtensionObject_BodyIsByteString:
+		case UA_EXTENSIONOBJECT_BODYISBYTESTRING:
 			length += UA_ByteString_calcSize(&(p->body));
 			break;
-		case UA_ExtensionObject_BodyIsXml:
+		case UA_EXTENSIONOBJECT_BODYISXML:
 			length += UA_XmlElement_calcSize((UA_XmlElement*)&(p->body));
 			break;
 		}
@@ -698,10 +708,10 @@ UA_Int32 UA_ExtensionObject_encode(UA_ExtensionObject const *src, UA_Int32* pos,
 	retval |= UA_NodeId_encode(&(src->typeId),pos,dst);
 	retval |= UA_Byte_encode(&(src->encoding),pos,dst);
 	switch (src->encoding) {
-	case UA_ExtensionObject_NoBodyIsEncoded:
+	case UA_EXTENSIONOBJECT_NOBODYISENCODED:
 		break;
-	case UA_ExtensionObject_BodyIsByteString:
-	case UA_ExtensionObject_BodyIsXml:
+	case UA_EXTENSIONOBJECT_BODYISBYTESTRING:
+	case UA_EXTENSIONOBJECT_BODYISXML:
 		retval |= UA_ByteString_encode(&(src->body),pos,dst);
 		break;
 	}
@@ -710,14 +720,14 @@ UA_Int32 UA_ExtensionObject_encode(UA_ExtensionObject const *src, UA_Int32* pos,
 UA_Int32 UA_ExtensionObject_decode(char const * src, UA_Int32 *pos,
 		UA_ExtensionObject *dst) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_NodeId_decode(src,pos,&(dst->typeId));
+ 	retval |= UA_NodeId_decode(src,pos,&(dst->typeId));
 	retval |= UA_Byte_decode(src,pos,&(dst->encoding));
 	retval |= UA_String_copy(&UA_String_null, (UA_String*) &(dst->body));
 	switch (dst->encoding) {
-	case UA_ExtensionObject_NoBodyIsEncoded:
+	case UA_EXTENSIONOBJECT_NOBODYISENCODED:
 		break;
-	case UA_ExtensionObject_BodyIsByteString:
-	case UA_ExtensionObject_BodyIsXml:
+	case UA_EXTENSIONOBJECT_BODYISBYTESTRING:
+	case UA_EXTENSIONOBJECT_BODYISXML:
 		retval |= UA_ByteString_decode(src,pos,&(dst->body));
 		break;
 	}
@@ -742,25 +752,25 @@ UA_Int32 UA_DiagnosticInfo_decode(char const * src, UA_Int32 *pos, UA_Diagnostic
 	for (i = 0; i < 7; i++) {
 		switch ( (0x01 << i) & dst->encodingMask)  {
 
-		case UA_DiagnosticInfoEncodingMaskType_SymbolicId:
+		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_SYMBOLICID:
 			 retval |= UA_Int32_decode(src, pos, &(dst->symbolicId));
 			break;
-		case UA_DiagnosticInfoEncodingMaskType_Namespace:
+		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_NAMESPACE:
 			retval |= UA_Int32_decode(src, pos, &(dst->namespaceUri));
 			break;
-		case UA_DiagnosticInfoEncodingMaskType_LocalizedText:
+		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_LOCALIZEDTEXT:
 			retval |= UA_Int32_decode(src, pos, &(dst->localizedText));
 			break;
-		case UA_DiagnosticInfoEncodingMaskType_Locale:
+		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_LOCALE:
 			retval |= UA_Int32_decode(src, pos, &(dst->locale));
 			break;
-		case UA_DiagnosticInfoEncodingMaskType_AdditionalInfo:
+		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_ADDITIONALINFO:
 			retval |= UA_String_decode(src, pos, &(dst->additionalInfo));
 			break;
-		case UA_DiagnosticInfoEncodingMaskType_InnerStatusCode:
+		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_INNERSTATUSCODE:
 			retval |= UA_StatusCode_decode(src, pos, &(dst->innerStatusCode));
 			break;
-		case UA_DiagnosticInfoEncodingMaskType_InnerDiagnosticInfo:
+		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_INNERDIAGNOSTICINFO:
 			// innerDiagnosticInfo is a pointer to struct, therefore allocate
 			retval |= UA_alloc((void **) &(dst->innerDiagnosticInfo),UA_DiagnosticInfo_calcSize(UA_NULL));
 			retval |= UA_DiagnosticInfo_decode(src, pos, dst->innerDiagnosticInfo);
@@ -777,25 +787,25 @@ UA_Int32 UA_DiagnosticInfo_encode(UA_DiagnosticInfo const *src, UA_Int32 *pos, c
 	UA_Byte_encode(&(src->encodingMask), pos, dst);
 	for (i = 0; i < 7; i++) {
 		switch ( (0x01 << i) & src->encodingMask)  {
-		case UA_DiagnosticInfoEncodingMaskType_SymbolicId:
+		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_SYMBOLICID:
 			retval |= UA_Int32_encode(&(src->symbolicId), pos, dst);
 			break;
-		case UA_DiagnosticInfoEncodingMaskType_Namespace:
+		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_NAMESPACE:
 			retval |=  UA_Int32_encode( &(src->namespaceUri), pos, dst);
 			break;
-		case UA_DiagnosticInfoEncodingMaskType_LocalizedText:
+		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_LOCALIZEDTEXT:
 			retval |= UA_Int32_encode(&(src->localizedText), pos, dst);
 			break;
-		case UA_DiagnosticInfoEncodingMaskType_Locale:
+		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_LOCALE:
 			retval |= UA_Int32_encode(&(src->locale), pos, dst);
 			break;
-		case UA_DiagnosticInfoEncodingMaskType_AdditionalInfo:
+		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_ADDITIONALINFO:
 			retval |= UA_String_encode(&(src->additionalInfo), pos, dst);
 			break;
-		case UA_DiagnosticInfoEncodingMaskType_InnerStatusCode:
+		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_INNERSTATUSCODE:
 			retval |= UA_StatusCode_encode(&(src->innerStatusCode), pos, dst);
 			break;
-		case UA_DiagnosticInfoEncodingMaskType_InnerDiagnosticInfo:
+		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_INNERDIAGNOSTICINFO:
 			retval |= UA_DiagnosticInfo_encode(src->innerDiagnosticInfo, pos, dst);
 			break;
 		}
@@ -813,26 +823,26 @@ UA_Int32 UA_DiagnosticInfo_calcSize(UA_DiagnosticInfo const * ptr) {
 		for (mask = 0x01; mask <= 0x40; mask *= 2) {
 			switch (mask & (ptr->encodingMask)) {
 
-			case UA_DiagnosticInfoEncodingMaskType_SymbolicId:
+			case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_SYMBOLICID:
 				//	puts("diagnosticInfo symbolic id");
 				length += sizeof(UA_Int32);
 				break;
-			case UA_DiagnosticInfoEncodingMaskType_Namespace:
+			case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_NAMESPACE:
 				length += sizeof(UA_Int32);
 				break;
-			case UA_DiagnosticInfoEncodingMaskType_LocalizedText:
+			case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_LOCALIZEDTEXT:
 				length += sizeof(UA_Int32);
 				break;
-			case UA_DiagnosticInfoEncodingMaskType_Locale:
+			case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_LOCALE:
 				length += sizeof(UA_Int32);
 				break;
-			case UA_DiagnosticInfoEncodingMaskType_AdditionalInfo:
+			case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_ADDITIONALINFO:
 				length += UA_String_calcSize(&(ptr->additionalInfo));
 				break;
-			case UA_DiagnosticInfoEncodingMaskType_InnerStatusCode:
+			case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_INNERSTATUSCODE:
 				length += sizeof(UA_StatusCode);
 				break;
-			case UA_DiagnosticInfoEncodingMaskType_InnerDiagnosticInfo:
+			case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_INNERDIAGNOSTICINFO:
 				length += UA_DiagnosticInfo_calcSize(ptr->innerDiagnosticInfo);
 				break;
 			}
@@ -843,7 +853,7 @@ UA_Int32 UA_DiagnosticInfo_calcSize(UA_DiagnosticInfo const * ptr) {
 UA_TYPE_METHOD_DELETE_STRUCT(UA_DiagnosticInfo)
 UA_Int32 UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
 	UA_Int32 retval = UA_SUCCESS;
-	if (p->encodingMask & UA_DiagnosticInfoEncodingMaskType_InnerDiagnosticInfo) {
+	if (p->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_INNERDIAGNOSTICINFO) {
 		retval |= UA_DiagnosticInfo_deleteMembers(p->innerDiagnosticInfo);
 		retval |= UA_free(p->innerDiagnosticInfo);
 	}
@@ -1018,25 +1028,25 @@ UA_Int32 UA_Variant_decode(char const * src, UA_Int32 *pos, UA_Variant *dst) {
 UA_Int32 UA_DataValue_decode(char const * src, UA_Int32* pos, UA_DataValue* dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_Byte_decode(src,pos,&(dst->encodingMask));
-	if (dst->encodingMask & UA_DataValue_variant) {
+	if (dst->encodingMask & UA_DATAVALUE_VARIANT) {
 		retval |= UA_Variant_decode(src,pos,&(dst->value));
 	}
-	if (dst->encodingMask & UA_DataValue_statusCode) {
+	if (dst->encodingMask & UA_DATAVALUE_STATUSCODE) {
 		retval |= UA_StatusCode_decode(src,pos,&(dst->status));
 	}
-	if (dst->encodingMask & UA_DataValue_sourceTimestamp) {
+	if (dst->encodingMask & UA_DATAVALUE_SOURCETIMESTAMP) {
 		retval |= UA_DateTime_decode(src,pos,&(dst->sourceTimestamp));
 	}
-	if (dst->encodingMask & UA_DataValue_sourcePicoseconds) {
+	if (dst->encodingMask & UA_DATAVALUE_SOURCEPICOSECONDS) {
 		retval |= UA_Int16_decode(src,pos,&(dst->sourcePicoseconds));
 		if (dst->sourcePicoseconds > MAX_PICO_SECONDS) {
 			dst->sourcePicoseconds = MAX_PICO_SECONDS;
 		}
 	}
-	if (dst->encodingMask & UA_DataValue_serverTimestamp) {
+	if (dst->encodingMask & UA_DATAVALUE_SERVERTIMPSTAMP) {
 		retval |= UA_DateTime_decode(src,pos,&(dst->serverTimestamp));
 	}
-	if (dst->encodingMask & UA_DataValue_serverPicoseconds) {
+	if (dst->encodingMask & UA_DATAVALUE_SERVERPICOSECONDS) {
 		retval |= UA_Int16_decode(src,pos,&(dst->serverPicoseconds));
 		if (dst->serverPicoseconds > MAX_PICO_SECONDS) {
 			dst->serverPicoseconds = MAX_PICO_SECONDS;
@@ -1047,22 +1057,22 @@ UA_Int32 UA_DataValue_decode(char const * src, UA_Int32* pos, UA_DataValue* dst)
 UA_Int32 UA_DataValue_encode(UA_DataValue const * src, UA_Int32* pos, char *dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_Byte_encode(&(src->encodingMask),pos,dst);
-	if (src->encodingMask & UA_DataValue_variant) {
+	if (src->encodingMask & UA_DATAVALUE_VARIANT) {
 		retval |= UA_Variant_encode(&(src->value),pos,dst);
 	}
-	if (src->encodingMask & UA_DataValue_statusCode) {
+	if (src->encodingMask & UA_DATAVALUE_STATUSCODE) {
 		retval |= UA_StatusCode_encode(&(src->status),pos,dst);
 	}
-	if (src->encodingMask & UA_DataValue_sourceTimestamp) {
+	if (src->encodingMask & UA_DATAVALUE_SOURCETIMESTAMP) {
 		retval |= UA_DateTime_encode(&(src->sourceTimestamp),pos,dst);
 	}
-	if (src->encodingMask & UA_DataValue_sourcePicoseconds) {
+	if (src->encodingMask & UA_DATAVALUE_SOURCEPICOSECONDS) {
 		retval |= UA_Int16_encode(&(src->sourcePicoseconds),pos,dst);
 	}
-	if (src->encodingMask & UA_DataValue_serverTimestamp) {
+	if (src->encodingMask & UA_DATAVALUE_SERVERTIMPSTAMP) {
 		retval |= UA_DateTime_encode(&(src->serverTimestamp),pos,dst);
 	}
-	if (src->encodingMask & UA_DataValue_serverPicoseconds) {
+	if (src->encodingMask & UA_DATAVALUE_SERVERPICOSECONDS) {
 		retval |= UA_Int16_encode(&(src->serverPicoseconds),pos,dst);
 	}
 	return retval;
@@ -1075,22 +1085,22 @@ UA_Int32 UA_DataValue_calcSize(UA_DataValue const * p) {
 		length = sizeof(UA_DataValue);
 	} else { // get decoding size
 		length = sizeof(UA_Byte);
-		if (p->encodingMask & UA_DataValue_variant) {
+		if (p->encodingMask & UA_DATAVALUE_VARIANT) {
 			length += UA_Variant_calcSize(&(p->value));
 		}
-		if (p->encodingMask & UA_DataValue_statusCode) {
+		if (p->encodingMask & UA_DATAVALUE_STATUSCODE) {
 			length += sizeof(UA_UInt32); //dataValue->status
 		}
-		if (p->encodingMask & UA_DataValue_sourceTimestamp) {
+		if (p->encodingMask & UA_DATAVALUE_SOURCETIMESTAMP) {
 			length += sizeof(UA_DateTime); //dataValue->sourceTimestamp
 		}
-		if (p->encodingMask & UA_DataValue_sourcePicoseconds) {
+		if (p->encodingMask & UA_DATAVALUE_SOURCEPICOSECONDS) {
 			length += sizeof(UA_Int64); //dataValue->sourcePicoseconds
 		}
-		if (p->encodingMask & UA_DataValue_serverTimestamp) {
+		if (p->encodingMask & UA_DATAVALUE_SERVERTIMPSTAMP) {
 			length += sizeof(UA_DateTime); //dataValue->serverTimestamp
 		}
-		if (p->encodingMask & UA_DataValue_serverPicoseconds) {
+		if (p->encodingMask & UA_DATAVALUE_SERVERPICOSECONDS) {
 			length += sizeof(UA_Int64); //dataValue->serverPicoseconds
 		}
 	}

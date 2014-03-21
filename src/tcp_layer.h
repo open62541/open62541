@@ -7,7 +7,7 @@
 
 #ifndef TCP_LAYER_H_
 #define TCP_LAYER_H_
-#include "opcua_connectionHelper.h"
+#include "UA_connection.h"
 #ifdef LINUX
 
 #include <sys/types.h>

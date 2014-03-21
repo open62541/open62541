@@ -14,8 +14,8 @@
 
 typedef struct T_element
 {
-   AD_RawMessage *binaryData;
-   int(*serviceImplementation)(AD_RawMessage *data, AD_RawMessage *response);
+   UA_ByteString *binaryData;
+   int(*serviceImplementation)(UA_ByteString *data, UA_ByteString *response);
    struct T_linkedList * next;
 };
 
