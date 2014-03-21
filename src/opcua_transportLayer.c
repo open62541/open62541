@@ -286,6 +286,8 @@ UA_Int32 TL_send(UA_connection *connection, UA_ByteString *packet)
 		//server error
 	}
 
+	return UA_SUCCESS;
+
 }
 
 

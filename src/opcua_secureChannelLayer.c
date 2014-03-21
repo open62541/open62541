@@ -6,6 +6,7 @@
  */
 #include <stdio.h>
 #include <memory.h> // memcpy
+#include "opcua_transportLayer.h"
 #include "opcua_secureChannelLayer.h"
 
 #define SIZE_SECURECHANNEL_HEADER 12
@@ -257,11 +258,15 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 
 	response.length = sizeResponseType + sizeRespHeader + sizeRespMessage;
 
+	//FIXME: Sten 4 bytes are missing
+	response.length += 4;
+
 	//get memory for response
-	UA_alloc(&(response.data), UA_NodeId_calcSize(&responseType) + sizeRespHeader + sizeRespMessage);
+	UA_alloc((void*)&(response.data), response.length);
 	pos = 0;
 	//encode responseType (NodeId)
 	UA_NodeId_printf("SL_openSecureChannel - TypeId =",&responseType);
+
 	UA_NodeId_encode(&responseType, &pos, response.data);
 
 	//encode header
@@ -285,6 +290,11 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 	UA_ByteString_encode(&serverNonce, &pos,response.data);
 
 	printf("SL_openSecureChannel - response.length = %d \n",response.length);
+
+	printf("-----> reserved: %i\n", response.length);
+	printf("-----> encoded: %i\n", pos);
+	//FIXME: Sten: here is a problem
+
 	//449 = openSecureChannelResponse
 	SL_send(connection, response, 449);
 
@@ -341,6 +351,9 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 		 * to the definition in part 4 */
 		// 	Req-1) RequestHeader requestHeader
 		UA_RequestHeader requestHeader;
+		UA_ExtensionObject additionalHeader;
+		//FIXME: Sten the structure was empty and decode attempted to fill it -> segfault
+		requestHeader.additionalHeader = &additionalHeader;
 		// 	Req-2) UInt32 ClientProtocolVersion
 		UA_UInt32 clientProtocolVersion;
 		// 	Req-3) Enum SecurityTokenRequestType requestType
@@ -348,12 +361,11 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 		// 	Req-4) Enum MessageSecurityMode SecurityMode
 		UA_Int32 securityMode;
 		//  Req-5) ByteString ClientNonce
-		UA_ByteString clientNonce;
+		UA_ByteString clientNonce = {0, NULL};
 		//  Req-6) Int32 RequestLifetime
 		UA_Int32 requestedLifetime;
 
 		UA_ByteString_printx("SL_processMessage - message=", &message);
-
 		// Req-1) RequestHeader requestHeader
 		UA_RequestHeader_decode(message.data, &pos, &requestHeader);
 		UA_String_printf("SL_processMessage - requestHeader.auditEntryId=",
@@ -429,7 +441,8 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 				&clientNonce);
 		UA_ByteString_printf("SL_processMessage - clientNonce=", &clientNonce);
 
-		UA_ByteString_delete(&clientNonce);
+		//deleteMembers is important since clientNonce is on stack
+		UA_ByteString_deleteMembers(&clientNonce);
 
 		//  Req-6) Int32 RequestLifetime
 		UA_Int32_decode(message.data, &pos,
