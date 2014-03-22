@@ -353,6 +353,7 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 		UA_RequestHeader requestHeader;
 		UA_ExtensionObject additionalHeader;
 		//FIXME: Sten the structure was empty and decode attempted to fill it -> segfault
+		//FIXME: Sten: probably not needed anymore, since memory gets malloced in the decoder
 		requestHeader.additionalHeader = &additionalHeader;
 		// 	Req-2) UInt32 ClientProtocolVersion
 		UA_UInt32 clientProtocolVersion;
