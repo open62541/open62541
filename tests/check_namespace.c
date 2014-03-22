@@ -12,7 +12,7 @@
 #include <stdlib.h>
 
 #include "opcua.h"
-#include "namespace.h"
+#include "opcua_namespace.h"
 #include "check.h"
 
 
