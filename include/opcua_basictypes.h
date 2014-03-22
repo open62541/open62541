@@ -189,6 +189,7 @@ typedef struct T_UA_Guid
 	UA_ByteString data4;
 } UA_Guid;
 UA_TYPE_METHOD_PROTOTYPES (UA_Guid)
+UA_Int32 UA_Guid_compare(UA_Guid *g1, UA_Guid *g2);
 
 /* DateTime - Part: 6, Chapter: 5.2.2.5, Page: 16 */
 typedef UA_Int64 UA_DateTime; //100 nanosecond resolution
@@ -209,6 +210,7 @@ typedef struct T_UA_NodeId
     identifier;
 } UA_NodeId;
 UA_TYPE_METHOD_PROTOTYPES (UA_NodeId)
+UA_Int32 UA_NodeId_compare(UA_NodeId *n1, UA_NodeId *n2);
 
 /** XmlElement - Part: 6, Chapter: 5.2.2.8, Page: 17 */
 typedef struct T_UA_XmlElement
