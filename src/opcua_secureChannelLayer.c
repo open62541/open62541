@@ -490,9 +490,9 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 
 		case packetType_OPN: /* openSecureChannel Message received */
 			UA_AsymmetricAlgorithmSecurityHeader_encode(secureChannelPacket.data, &pos, &asymAlgSecHeader);
-			UA_String_printf("SL_receive - AAS_Header.ReceiverThumbprint=",
+			UA_ByteString_printf("SL_receive - AAS_Header.ReceiverThumbprint=",
 					&(asymAlgSecHeader.receiverCertificateThumbprint));
-			UA_String_printf("SL_receive - AAS_Header.SecurityPolicyUri=",
+			UA_ByteString_printf("SL_receive - AAS_Header.SecurityPolicyUri=",
 					&(asymAlgSecHeader.securityPolicyUri));
 			UA_ByteString_printf("SL_receive - AAS_Header.SenderCertificate=",
 					&(asymAlgSecHeader.senderCertificate));

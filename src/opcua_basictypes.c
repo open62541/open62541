@@ -54,8 +54,26 @@ UA_Int32 UA_Array_decode(char const * src,UA_Int32 noElements, UA_Int32 type, UA
 	UA_Int32 i = 0;
 
 	for(i=0; i<noElements; i++) {
+		retval |= UA_alloc((void**)&dst[i], UA_[type].calcSize(UA_NULL));
 		retval |= UA_[type].decode(src, pos, (void*)dst[i]);
 	}
+	return retval;
+}
+
+UA_Int32 UA_Array_deleteMembers(void ** p,UA_Int32 noElements) {
+	UA_Int32 retval = UA_SUCCESS;
+	UA_Int32 i = 0;
+
+	for(i=0; i<noElements; i++) {
+		retval |= UA_free((void*)p[i]);
+	}
+	return retval;
+}
+
+UA_Int32 UA_Array_delete(void **p,UA_Int32 noElements) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_Array_deleteMembers(p,noElements);
+	retval |= UA_free(p);
 	return retval;
 }
 
@@ -312,7 +330,6 @@ UA_Byte UA_Byte_securityPoliceNoneData[] = "http://opcfoundation.org/UA/Security
 UA_String UA_String_securityPoliceNone = { sizeof(UA_Byte_securityPoliceNoneData), UA_Byte_securityPoliceNoneData };
 
 UA_Int32 UA_String_compare(UA_String* string1, UA_String* string2) {
-	UA_Int32 i;
 	UA_Int32 retval;
 
 	if (string1->length == 0 && string2->length == 0) {
@@ -322,7 +339,9 @@ UA_Int32 UA_String_compare(UA_String* string1, UA_String* string2) {
 	} else if (string1->length != string2->length) {
 		retval = UA_NOT_EQUAL;
 	} else {
-		retval = strncmp(string1->data,string2->data,string1->length);
+		// casts to overcome signed warnings
+		//TODO: map return of strncmp to UA_EQUAL/UA_NOT_EQUAL
+		retval = strncmp((char const*)string1->data,(char const*)string2->data,string1->length);
 	}
 	return retval;
 }
@@ -802,7 +821,6 @@ UA_Int32 UA_DiagnosticInfo_decode(char const * src, UA_Int32 *pos, UA_Diagnostic
 }
 UA_Int32 UA_DiagnosticInfo_encode(UA_DiagnosticInfo const *src, UA_Int32 *pos, char *dst) {
 	UA_Int32 retval = UA_SUCCESS;
-	UA_Byte mask;
 	int i;
 
 	UA_Byte_encode(&(src->encodingMask), pos, dst);
@@ -949,16 +967,26 @@ UA_Int32 UA_QualifiedName_encode(UA_QualifiedName const *src, UA_Int32* pos,
 	retval |= UA_String_encode(&(src->name),pos,dst);
 	return retval;
 }
+UA_Int32 UA_QualifiedName_delete(UA_QualifiedName  * p) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_QualifiedName_deleteMembers(p);
+	retval |= UA_free(p);
+	return retval;
+}
+// FIXME: Implement
+UA_Int32 UA_QualifiedName_deleteMembers(UA_QualifiedName  * p) {
+	return UA_ERR_NOT_IMPLEMENTED;
+}
 
 
 UA_Int32 UA_Variant_calcSize(UA_Variant const * p) {
 	UA_Int32 length = 0;
-	UA_Int32 ns0Id = p->encodingMask & 0x1F; // Bits 1-5
+	UA_UInt32 ns0Id = p->encodingMask & 0x1F; // Bits 1-5
 	UA_Boolean isArray = p->encodingMask & (0x01 << 7); // Bit 7
 	UA_Boolean hasDimensions = p->encodingMask & (0x01 << 6); // Bit 6
 	int i;
 
-	if (p->vt == UA_NULL || ( p->encodingMask & 0x1F) != p->vt->Id) {
+	if (p->vt == UA_NULL || ns0Id != p->vt->Id) {
 		return UA_ERR_INCONSISTENT;
 	}
 	length += sizeof(UA_Byte); //p->encodingMask
@@ -1041,6 +1069,16 @@ UA_Int32 UA_Variant_decode(char const * src, UA_Int32 *pos, UA_Variant *dst) {
 		// TODO: decode array dimension field
 	}
 	return retval;
+}
+UA_Int32 UA_Variant_delete(UA_Variant  * p) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_Variant_deleteMembers(p);
+	retval |= UA_free(p);
+	return retval;
+}
+// FIXME: Implement
+UA_Int32 UA_Variant_deleteMembers(UA_Variant  * p) {
+	return UA_ERR_NOT_IMPLEMENTED;
 }
 
 
@@ -1127,6 +1165,16 @@ UA_Int32 UA_DataValue_calcSize(UA_DataValue const * p) {
 	}
 	return length;
 }
+
+// FIXME: Implement
+UA_Int32 UA_DataValue_delete(UA_DataValue * p) {
+	return UA_ERR_NOT_IMPLEMENTED;
+}
+// FIXME: Implement
+UA_Int32 UA_DataValue_deleteMembers(UA_DataValue * p) {
+	return UA_ERR_NOT_IMPLEMENTED;
+}
+
 
 /**
  * RequestHeader

@@ -141,20 +141,12 @@ def createStructured(element):
     print("UA_Int32 " + name + "_calcSize(" + name + " const * ptr);", end='\n', file=fh)
     print("UA_Int32 " + name + "_encode(" + name + " const * src, UA_Int32* pos, char* dst);", end='\n', file=fh)
     print("UA_Int32 " + name + "_decode(char const * src, UA_Int32* pos, " + name + "* dst);", end='\n', file=fh)
+    print("UA_Int32 " + name + "_delete("+ name + "* p);", end='\n', file=fh)
+    print("UA_Int32 " + name + "_deleteMembers(" + name + "* p);", end='\n', file=fh)
 
-    if "Response" in name[len(name)-9:]:
-		#Sten: not sure how to get it, actually we need to solve it on a higher level
-        #print("UA_Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn UA_ResponseHeader_getSize()", end='', file=fc)
-		print("UA_Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn 0", end='', file=fc)  
-    elif "Request" in name[len(name)-9:]:
-		#Sten: dito
-        #print("UA_Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn UA_RequestHeader_getSize()", end='', file=fc) 
-		print("UA_Int32 "  + name + "_calcSize(" + name + " const * ptr) {\n\treturn 0", end='', file=fc) 
-    else:
-	# code 
-		print("UA_Int32 "  + name + "_calcSize(" + name + " const * ptr) {", end='', file=fc)
-		print("\n\tif(ptr==UA_NULL){return sizeof("+ name +");}", end='', file=fc)
-		print("\n\treturn 0", end='', file=fc)
+    print("UA_Int32 "  + name + "_calcSize(" + name + " const * ptr) {", end='', file=fc)
+    print("\n\tif(ptr==UA_NULL){return sizeof("+ name +");}", end='', file=fc)
+    print("\n\treturn 0", end='', file=fc)
 
     # code _calcSize
     for n,t in valuemap.iteritems():
@@ -190,8 +182,8 @@ def createStructured(element):
                 print('\tretval |= UA_'+t+"_encode(&(src->"+n+"),pos,dst);", end='\n', file=fc)
     print("\treturn retval;\n}\n", end='\n', file=fc)
 
-    print("UA_Int32 "+name+"_decode(char const * src, UA_Int32* pos, " + name + "* dst) {\n\tUA_Int32 retval = UA_SUCCESS;", end='\n', file=fc)
     # code _decode
+    print("UA_Int32 "+name+"_decode(char const * src, UA_Int32* pos, " + name + "* dst) {\n\tUA_Int32 retval = UA_SUCCESS;", end='\n', file=fc)
     for n,t in valuemap.iteritems():
         if t in elementary_size:
             print('\tretval |= UA_'+t+'_decode(src,pos,&(dst->'+n+'));', end='\n', file=fc)
@@ -199,16 +191,36 @@ def createStructured(element):
             if t in enum_types:
                 print('\tretval |= UA_'+t+'_decode(src,pos,&(dst->'+n+'));', end='\n', file=fc)
             elif t.find("**") != -1:
-				print('\tretval |= UA_Int32_decode(src,pos,&(dst->'+n+'Size)); // decode size', end='\n', file=fc)
-				#allocate memory
-				print('\tretval |= UA_alloc((void**)&(dst->' + n + "),dst->" + n + "Size*sizeof(void*));", end='\n', file=fc)
-				print("\tretval |= UA_Array_decode(src,dst->"+n+"Size, UA_" + t[0:t.find("*")].upper()+",pos,(void const**) (dst->"+n+"));", end='\n', file=fc) #not tested
+		print('\tretval |= UA_Int32_decode(src,pos,&(dst->'+n+'Size)); // decode size', end='\n', file=fc)
+		#allocate memory
+		print('\tretval |= UA_alloc((void**)&(dst->' + n + "),dst->" + n + "Size*sizeof(void*));", end='\n', file=fc)
+		print("\tretval |= UA_Array_decode(src,dst->"+n+"Size, UA_" + t[0:t.find("*")].upper()+",pos,(void const**) (dst->"+n+"));", end='\n', file=fc) #not tested
             elif t.find("*") != -1:
-				#allocate memory
-				print('\tretval |= UA_alloc((void**)&(dst->' + n + "),UA_" + t[0:t.find("*")] +"_calcSize(UA_NULL));", end='\n', file=fc)
-				print('\tretval |= UA_' + t[0:t.find("*")] + "_decode(src,pos,dst->"+ n +");", end='\n', file=fc)
+		#allocate memory
+		print('\tretval |= UA_alloc((void**)&(dst->' + n + "),UA_" + t[0:t.find("*")] +"_calcSize(UA_NULL));", end='\n', file=fc)
+		print('\tretval |= UA_' + t[0:t.find("*")] + "_decode(src,pos,dst->"+ n +");", end='\n', file=fc)
             else:
                 print('\tretval |= UA_'+t+"_decode(src,pos,&(dst->"+n+"));", end='\n', file=fc)
+    print("\treturn retval;\n}\n", end='\n', file=fc)
+    
+    # code _delete and _deleteMembers
+    print('UA_Int32 '+name+'_delete('+name+'''* p) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= '''+name+'''_deleteMembers(p);
+	retval |= UA_free(p);
+	return retval;
+    }''', end='\n', file=fc)
+    
+    print("UA_Int32 "+name+"_deleteMembers(" + name + "* p) {\n\tUA_Int32 retval = UA_SUCCESS;", end='\n', file=fc)
+    for n,t in valuemap.iteritems():
+        if t not in elementary_size:
+            if t.find("**") != -1:
+		print("\tretval |= UA_Array_delete(p->"+n+",p->"+n+"Size);", end='\n', file=fc) #not tested
+            elif t.find("*") != -1:
+		print('\tretval |= UA_' + t[0:t.find("*")] + "_delete(p->"+n+");", end='\n', file=fc)
+            else:
+		print('\tretval |= UA_' + t + "_deleteMembers(&(p->"+n+"));", end='\n', file=fc)
+		
     print("\treturn retval;\n}\n", end='\n', file=fc)
         
 def createOpaque(element):
