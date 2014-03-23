@@ -167,7 +167,7 @@ void delete_ns (namespace *ns) {
 }
 
 UA_Int32 insert(namespace *ns, UA_Node *node) {
-	if((float)ns->count/(float)ns->size < 0.75) {
+	if(ns->size * 3 <= ns->count*4) {
 		if(expand(ns) != UA_SUCCESS)
 			return UA_ERROR;
 	}
@@ -223,6 +223,10 @@ void delete(namespace *ns, UA_NodeId *nodeid) {
 	default:
 		break; // Unspecified nodes are not permitted.
 	}
+
+	/* Downsize the hashmap if it is very empty */
+	if(ns->count*8 < ns->size && ns->size > 32) {
+		expand(ns);
 }
 
 /* Hashing inspired by code from from http://www.azillionmonkeys.com/qed/hash.html, licensed under the LGPL 2.1 */
@@ -286,7 +290,7 @@ static hash_t hash(const UA_NodeId *n) {
 	case UA_NODEIDTYPE_TWOBYTE:
 	case UA_NODEIDTYPE_FOURBYTE:
 	case UA_NODEIDTYPE_NUMERIC:
-		return n->identifier.numeric;
+		return (n->identifier.numeric * 2654435761) % 2^32; // Knuth's multiplicative hashing
 	case UA_NODEIDTYPE_STRING:
 		return hash_string(n->identifier.string.data, n->identifier.string.length);
 	case UA_NODEIDTYPE_GUID:
