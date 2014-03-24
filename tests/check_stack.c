@@ -73,7 +73,7 @@ START_TEST(encode_builtInDatatypeArray_test_String)
 			0xFF, 0xFF, 0xFF, 0xFF		// s2.Length
 	};
 
-	UA_Array_encode((void const**)array, noElements, UA_ByteString, &pos, buf);
+	UA_Array_encode((void const**)array, noElements, UA_BYTESTRING, &pos, buf);
 
 	// check size
 	ck_assert_int_eq(pos, 4 + 4 + 6 + 4);
