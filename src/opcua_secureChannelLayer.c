@@ -482,14 +482,14 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 	if (secureChannelPacket.length > 0 && secureChannelPacket.data != NULL) {
 
 		printf("SL_receive - data received \n");
-		packetType = TL_getPacketType(&secureChannelPacket, &pos);
+		secureConvHeader.messageType = TL_getPacketType(&secureChannelPacket, &pos);
 
 		UA_SecureConversationMessageHeader_decode(secureChannelPacket.data, &pos, &secureConvHeader);
 
 		switch (secureConvHeader.messageType) {
 
 		case packetType_OPN: /* openSecureChannel Message received */
-			UA_AsymmetricAlgorithmSecurityHeader_encode(secureChannelPacket.data, &pos, &asymAlgSecHeader);
+			UA_AsymmetricAlgorithmSecurityHeader_decode(secureChannelPacket.data, &pos, &asymAlgSecHeader);
 			UA_ByteString_printf("SL_receive - AAS_Header.ReceiverThumbprint=",
 					&(asymAlgSecHeader.receiverCertificateThumbprint));
 			UA_ByteString_printf("SL_receive - AAS_Header.SecurityPolicyUri=",
@@ -703,6 +703,7 @@ UA_Int32 UA_OPCUATcpAcknowledgeMessage_decode(char const * src, UA_Int32* pos, U
 	return retval;
 }
 
+// FIXME: decide if serialized messageType (3 Bytes) shall be part of header
 UA_Int32 UA_SecureConversationMessageHeader_calcSize(UA_SecureConversationMessageHeader const * ptr) {
 	return 0
 	 + sizeof(UA_UInt32) // messageType
@@ -712,6 +713,7 @@ UA_Int32 UA_SecureConversationMessageHeader_calcSize(UA_SecureConversationMessag
 	;
 }
 
+// FIXME: decide if serialized messageType (3 Bytes) shall be part of header
 UA_Int32 UA_SecureConversationMessageHeader_encode(UA_SecureConversationMessageHeader const * src, UA_Int32* pos, char* dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_UInt32_encode(&(src->messageType),pos,dst);
@@ -721,9 +723,11 @@ UA_Int32 UA_SecureConversationMessageHeader_encode(UA_SecureConversationMessageH
 	return retval;
 }
 
+// FIXME: decide if serialized messageType (3 Bytes) shall be part of header
 UA_Int32 UA_SecureConversationMessageHeader_decode(char const * src, UA_Int32* pos, UA_SecureConversationMessageHeader* dst) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_UInt32_decode(src,pos,&(dst->messageType));
+	// TODO: this is an inconsistent quickfix for current logic in SL_receive
+	// retval |= UA_UInt32_decode(src,pos,&(dst->messageType));
 	retval |= UA_Byte_decode(src,pos,&(dst->isFinal));
 	retval |= UA_UInt32_decode(src,pos,&(dst->messageSize));
 	retval |= UA_UInt32_decode(src,pos,&(dst->secureChannelId));
