@@ -32,48 +32,6 @@ START_TEST(test_getPacketType_validParameter)
 END_TEST
 
 
-START_TEST(decodeByte_test)
-{
-	UA_ByteString rawMessage;
-	UA_Int32 position = 0;
-	//EncodeByte
-		char *mem = malloc(sizeof(UA_Byte));
-		UA_Byte val;
-
-		rawMessage.data = mem;
-		rawMessage.length = 1;
-		mem[0] = 0x08;
-
-		position = 0;
-
-		UA_Byte_decode(rawMessage.data, &position, &val);
-
-		ck_assert_int_eq(val, 0x08);
-		ck_assert_int_eq(position, 1);
-		free(mem);
-}
-END_TEST
-
-START_TEST(encodeByte_test)
-{
-	UA_ByteString rawMessage;
-	UA_Int32 position = 0;
-	//EncodeByte
-		char *mem = malloc(sizeof(UA_Byte));
-		rawMessage.data = mem;
-		UA_Byte testByte = 0x08;
-		rawMessage.length = 1;
-		position = 0;
-
-		UA_Byte_encode(&(testByte), &position, rawMessage.data);
-
-		ck_assert_int_eq(rawMessage.data[0], 0x08);
-		ck_assert_int_eq(rawMessage.length, 1);
-		ck_assert_int_eq(position, 1);
-
-		free(mem);
-}
-END_TEST
 
 /*
 START_TEST(decodeRequestHeader_test_validParameter)
@@ -649,15 +607,7 @@ Suite *testSuite_getPacketType(void)
 	return s;
 }
 
-Suite *testSuite_encodeByte(void)
-{
-	Suite *s = suite_create("encodeByte_test");
-	TCase *tc_core = tcase_create("Core");
-	tcase_add_test(tc_core, decodeByte_test);
-	tcase_add_test(tc_core, encodeByte_test);
-	suite_add_tcase(s,tc_core);
-	return s;
-}
+
 
 
 Suite *testSuite_decodeInt16(void)
@@ -977,13 +927,6 @@ int main (void)
 	srunner_free(sr);
 
 	s = testSuite_encodeDouble();
-	sr = srunner_create(s);
-	srunner_run_all(sr,CK_NORMAL);
-	number_failed += srunner_ntests_failed(sr);
-	srunner_free(sr);
-
-
-	s = testSuite_encodeByte();
 	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
