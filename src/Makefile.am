@@ -34,9 +34,9 @@ libopen62541_la_SOURCES = 			opcua.c\
 						opcua_secureChannelLayer.h\
 						tcp_layer.h\
 						util/UA_list.c\
-						util/UA_indexedList.c\
-						opcua_namespace.h\
-						opcua_namespace.c
+						util/UA_indexedList.c#\
+						#opcua_namespace.h\
+						#opcua_namespace.c
 
 #bin_PROGRAMS= $(top_builddir)/bin/open62541.out
 #__top_builddir__bin_libOpen62541_out_SOURCES = opcuaServer.c
