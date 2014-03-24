@@ -227,6 +227,7 @@ void delete(namespace *ns, UA_NodeId *nodeid) {
 	/* Downsize the hashmap if it is very empty */
 	if(ns->count*8 < ns->size && ns->size > 32) {
 		expand(ns);
+	}
 }
 
 /* Hashing inspired by code from from http://www.azillionmonkeys.com/qed/hash.html, licensed under the LGPL 2.1 */
