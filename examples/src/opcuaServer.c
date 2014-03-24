@@ -57,7 +57,7 @@ void server_run()
 {
 	UA_connection connection;
 
-	UA_ByteString slMessage = {NULL,0};
+        UA_ByteString slMessage = {-1,UA_NULL};
 
 	char optval = 1;
 	int sockfd, newsockfd, portno, clilen;
