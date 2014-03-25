@@ -470,6 +470,7 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 	UA_SecureConversationMessageHeader secureConvHeader;
 	UA_AsymmetricAlgorithmSecurityHeader asymAlgSecHeader;
 	UA_SequenceHeader sequenceHeader;
+	UA_Int32 packetType = 0;
 	UA_Int32 pos = 0;
 	UA_Int32 iTmp;
 	//TODO Error Handling, length checking
@@ -488,7 +489,7 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 		switch (secureConvHeader.tcpMessageHeader->messageType) {
 
 		case UA_MESSAGETYPE_OPN: /* openSecureChannel Message received */
-			UA_AsymmetricAlgorithmSecurityHeader_encode(secureChannelPacket.data, &pos, &asymAlgSecHeader);
+			UA_AsymmetricAlgorithmSecurityHeader_decode(secureChannelPacket.data, &pos, &asymAlgSecHeader);
 			UA_ByteString_printf("SL_receive - AAS_Header.ReceiverThumbprint=",
 					&(asymAlgSecHeader.receiverCertificateThumbprint));
 			UA_ByteString_printf("SL_receive - AAS_Header.SecurityPolicyUri=",
@@ -613,5 +614,6 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 	 }
 	 */
 }
+
 
 

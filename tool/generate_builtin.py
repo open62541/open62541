@@ -261,6 +261,23 @@ print('#define OPCUA_H_', end='\n', file=fh)
 print('#include "opcua_basictypes.h"', end='\n', file=fh)
 print('#include "opcua_namespace_0.h"', end='\n', file=fh);
 
+
+#plugin handling
+import os
+files = [f for f in os.listdir('.') if os.path.isfile(f) and f[-3:] == ".py" and f[:7] == "plugin_"]
+plugin_types = []
+packageForType = OrderedDict()
+
+for f in files:
+	package = f[:-3]
+	exec "import " + package
+	exec "pluginSetup = " + package + ".setup()"
+	if pluginSetup["pluginType"] == "structuredObject":
+		plugin_types.append(pluginSetup["tagName"])
+		packageForType[pluginSetup["tagName"]] = [package,pluginSetup]
+		print("Custom object creation for tag " + pluginSetup["tagName"] + " imported from package " + package)
+#end plugin handling
+
 for element in types:
     name = element.get("Name")
     if skipType(name):
@@ -285,7 +302,13 @@ for element in types:
     #    print "package ListOf" + name + " is new Types.Arrays.UA_Builtin_Arrays(" + name + ");\n"
 
 for name, element in deferred_types.iteritems():
-    createStructured(element)
+	if name in plugin_types:
+		#execute plugin if registered
+		exec "ret = " + packageForType[name][0]+"."+packageForType[name][1]["functionCall"]
+		if ret == "default":
+			createStructured(element)
+	else:
+		createStructured(element)
     # if name in arraytypes:
     #    print "package ListOf" + name + " is new Types.Arrays.UA_Builtin_Arrays(" + name + ");\n"
 

@@ -72,12 +72,6 @@ UA_Int32 TL_receive(UA_connection *connection, UA_ByteString *packet)
 		printf("TL_receive - connection->readData.length %d \n",connection->readData.length);
 
 
-		//is final chunk or not
-		//TODO process chunks
-		pos += sizeof(UA_Byte);
-		//save the message size if needed
-		pos += sizeof(UA_UInt32);
-
 		printf("TL_receive - MessageType = %d \n",tcpMessageHeader->messageType);
 		switch(tcpMessageHeader->messageType)
 		{
@@ -180,7 +174,10 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 	UA_Byte reserved;
 	UA_UInt32 messageSize;
 	UA_OPCUATcpHelloMessage *helloMessage;
+	UA_OPCUATcpAcknowledgeMessage *ackMessage;
+	UA_OPCUATcpMessageHeader *ackHeader;
 	UA_alloc((void**)(&helloMessage),UA_OPCUATcpHelloMessage_calcSize(UA_NULL));
+
 	printf("TL_process - entered \n");
 	struct TL_header tmpHeader;
 	switch(packetType)
@@ -209,53 +206,45 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 
 			connection->transportLayer.remoteConf.maxChunkCount = helloMessage->maxChunkCount;
 			printf("TL_process - maxChunkCount = %d \n",connection->transportLayer.remoteConf.maxChunkCount);
-
-
-			UA_String_decode(connection->readData.data,pos,(&(connection->transportLayer.endpointURL)));
+			UA_String_copy(&(helloMessage->endpointUrl), &(connection->transportLayer.endpointURL));
 
 			/* send back acknowledge */
-			UA_alloc((void**)&(tmpMessage.data),SIZE_OF_ACKNOWLEDGE_MESSAGE);
-			if(tmpMessage.data == UA_NULL)
-			{
-				printf("TL_process - memory allocation failed \n");
-			}
-			tmpMessage.length = SIZE_OF_ACKNOWLEDGE_MESSAGE;
-			printf("TL_process - allocated memory \n");
-			/* ------------------------ Header ------------------------ */
-			// MessageType
-			tmpMessage.data[0] = 'A';
-			tmpMessage.data[1] = 'C';
-			tmpMessage.data[2] = 'K';
-			tmpPos += 3;
-			// Chunk
-			reserved = 'F';
-			UA_Byte_encode(&reserved, &tmpPos, tmpMessage.data);
-			// MessageSize
-			messageSize = SIZE_OF_ACKNOWLEDGE_MESSAGE;
-			UA_UInt32_encode(&messageSize,&tmpPos, tmpMessage.data);
-			printf("TL_process - Size messageToSend = %d \n",messageSize);
+			//memory for message
+			UA_alloc((void**)&(ackMessage),UA_OPCUATcpAcknowledgeMessage_calcSize(UA_NULL));
 
+			ackMessage->protocolVersion = connection->transportLayer.localConf.protocolVersion;
+			ackMessage->receiveBufferSize = connection->transportLayer.localConf.recvBufferSize;
+			ackMessage->maxMessageSize = connection->transportLayer.localConf.maxMessageSize;
+			ackMessage->maxChunkCount = connection->transportLayer.localConf.maxChunkCount;
+
+			//memory for header
+			UA_alloc((void**)&(ackHeader),UA_OPCUATcpMessageHeader_calcSize(UA_NULL));
+
+			ackHeader->messageType = UA_MESSAGETYPE_ACK;
+			ackHeader->isFinal = 'F';
+			ackHeader->messageSize = UA_OPCUATcpAcknowledgeMessage_calcSize(ackMessage) +
+					UA_OPCUATcpMessageHeader_calcSize(ackHeader);
+
+			//allocate memory in stream
+			UA_alloc((void**)&(tmpMessage.data),ackHeader->messageSize);
+			//encode header and message
+			UA_OPCUATcpMessageHeader_encode(ackHeader,&tmpPos,tmpMessage.data);
+			UA_OPCUATcpAcknowledgeMessage_encode(ackMessage,&tmpPos,tmpMessage.data);
+
+
+			tmpMessage.length = SIZE_OF_ACKNOWLEDGE_MESSAGE;
+
+			printf("TL_process - Size messageToSend = %d \n",ackHeader->messageSize);
 			/* ------------------------ Body ------------------------ */
 			// protocol version
-			UA_UInt32_encode(&(connection->transportLayer.localConf.protocolVersion),
-					&tmpPos, tmpMessage.data);
 			printf("TL_process - localConf.protocolVersion = %d \n",connection->transportLayer.localConf.protocolVersion);
-
 			//receive buffer size
-			UA_UInt32_encode(&(connection->transportLayer.localConf.recvBufferSize),
-					&tmpPos, tmpMessage.data);
 			printf("TL_process - localConf.recvBufferSize = %d \n", connection->transportLayer.localConf.recvBufferSize);
 			//send buffer size
-			UA_UInt32_encode(&(connection->transportLayer.localConf.sendBufferSize),
-					&tmpPos, tmpMessage.data);
 			printf("TL_process - localConf.sendBufferSize = %d \n", connection->transportLayer.localConf.sendBufferSize);
 			//maximum message size
-			UA_UInt32_encode(&(connection->transportLayer.localConf.maxMessageSize),
-					&tmpPos, tmpMessage.data);
 			printf("TL_process - localConf.maxMessageSize = %d \n", connection->transportLayer.localConf.maxMessageSize);
 			//maximum chunk count
-			UA_UInt32_encode(&(connection->transportLayer.localConf.maxChunkCount),
-					&tmpPos, tmpMessage.data);
 			printf("TL_process - localConf.maxChunkCount = %d \n", connection->transportLayer.localConf.maxChunkCount);
 
 			TL_send(connection, &tmpMessage);
