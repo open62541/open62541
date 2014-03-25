@@ -11,12 +11,12 @@
 
 enum packetType
 {
-	packetType_HEL = 1,
-	packetType_ACK = 2,
-	packetType_ERR = 3,
-	packetType_OPN = 4,
-	packetType_MSG = 5,
-	packetType_CLO = 6
+	UA_MESSAGETYPE_HEL = 0x48454C, // H E L
+	UA_MESSAGETYPE_ACK = 0x41434B, // A C k
+	UA_MESSAGETYPE_ERR = 0x455151, // E R R
+	UA_MESSAGETYPE_OPN = 0x4F504E, // O P N
+	UA_MESSAGETYPE_MSG = 0x4D5347, // M S G
+	UA_MESSAGETYPE_CLO = 0x434C4F  // C L O
 };
 enum connectionState
 {

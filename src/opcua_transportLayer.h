@@ -11,7 +11,7 @@
 
 #include "opcua.h"
 #include "UA_connection.h"
-
+#include "UA_stackInternalTypes.h"
 
 //TODO : Implement this interface
 #include "tcp_layer.h"
@@ -98,6 +98,7 @@ UA_Int32 TL_check(UA_connection *connection);
 UA_Int32 TL_receive(UA_connection *connection,UA_ByteString *packet);
 UA_Int32 TL_send(UA_connection *connection, UA_ByteString *packet);
 UA_Int32 TL_getPacketType(UA_ByteString *packet, UA_Int32 *pos);
+UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos);
 
 
 #endif /* OPCUA_TRANSPORTLAYER_H_ */

@@ -28,9 +28,7 @@
   
   <opc:StructuredType Name="SecureConversationMessageHeader">
     <opc:Documentation>Secure Layer Sequence Header</opc:Documentation>
-    <opc:Field Name="MessageType" TypeName="opc:UInt32" />
-    <opc:Field Name="IsFinal" TypeName="opc:Byte" />
-    <opc:Field Name="MessageSize" TypeName="opc:UInt32" />
+    <opc:Field Name="MessageHeader" TypeName="opc:OPCUATcpMessageHeader" />
     <opc:Field Name="SecureChannelId" TypeName="opc:UInt32" />
   </opc:StructuredType>
   

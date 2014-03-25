@@ -1,5 +1,5 @@
 #optimization levels depending on debug
-AM_CFLAGS = $(GLOBAL_AM_CFLAGS) -I$(top_builddir)/include
+AM_CFLAGS = $(GLOBAL_AM_CFLAGS) -I$(top_builddir)/include -I$(top_builddir)/src -I. -I$(top_builddir)/src/util
 
 
 TOOL_DIR = ../tool
@@ -22,21 +22,49 @@ TOOL_DIR = ../tool
 #					  opcua_connectionHelper.h	
 lib_LTLIBRARIES = libopen62541.la
 libopen62541_la_LDFLAGS = -avoid-version -no-undefined
-libopen62541_la_SOURCES = 			opcua.c\
+#libopen62541_la_SOURCES = 			opcua.c\
+#						opcua_basictypes.c\
+#						opcua_namespace_0.c\
+#						opcua_transportLayer.c\
+#						opcua_secureLayer.c\
+#						tcp_layer.c\
+#						opcua_transportLayer.h\
+#						opcua_connectionHelper.h\
+#						opcua_encodingLayer.h\
+#						opcua_secureLayer.h\
+#						tcp_layer.h\
+#						util/UA_list.c\
+#						util/UA_indexedList.c\
+#						UA_stackInternalTypes.c\
+#						opcua_namespace.h\
+#						opcua_namespace.c
+						
+#libopen62541_ladir = $(top_builddir)/include . $(top_builddir)/src . $(top_builddir)/src/util					
+
+#libopen62541_la_HEADERS = opcua.h\
+#						opcua_basictypes.h\
+#						opcua_namespace.h\
+#						opcua_transportLayer.h\
+#						opcua_connectionHelper.h\
+#						opcua_encodingLayer.h\
+#						opcua_secureLayer.h\
+#						opcua_namespace.h\
+#						UA_connection.h\
+#						UA_stackInternalTypes.h\
+#						UA_list.h\
+#						UA_indexedList.h
+						
+libopen62541_la_SOURCES = opcua.c\
 						opcua_basictypes.c\
 						opcua_namespace_0.c\
+						UA_stackInternalTypes.c\
 						opcua_transportLayer.c\
-						opcua_secureChannelLayer.c\
-						tcp_layer.c\
-						opcua_transportLayer.h\
-						opcua_connectionHelper.h\
-						opcua_encodingLayer.h\
-						opcua_secureChannelLayer.h\
-						tcp_layer.h\
+						opcua_secureLayer.c\
 						util/UA_list.c\
 						util/UA_indexedList.c\
-						opcua_namespace.h\
 						opcua_namespace.c
+						
+						
 
 #bin_PROGRAMS= $(top_builddir)/bin/open62541.out
 #__top_builddir__bin_libOpen62541_out_SOURCES = opcuaServer.c
