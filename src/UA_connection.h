@@ -9,7 +9,7 @@
 #define OPCUA_CONNECTIONHELPER_H_
 #include "opcua.h"
 
-enum packetType
+enum UA_MessageType
 {
 	UA_MESSAGETYPE_HEL = 0x48454C, // H E L
 	UA_MESSAGETYPE_ACK = 0x41434B, // A C k

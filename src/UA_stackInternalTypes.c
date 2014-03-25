@@ -15,8 +15,11 @@ UA_Int32 UA_MessageType_calcSize(UA_MessageType const * ptr){
 
 UA_Int32 UA_MessageType_encode(UA_MessageType const * src, UA_Int32* pos, char* dst){
 	UA_Int32 retval = UA_SUCCESS;
-	UA_Byte *tmpBuf;
-	tmpBuf = (UA_Byte*)&(src); //messageType to Byte representation
+	UA_Byte tmpBuf[3];
+	tmpBuf[0] = (UA_Byte)((((UA_Int32)*src) >> 16) );
+	tmpBuf[1] = (UA_Byte)((((UA_Int32)*src) >> 8));
+	tmpBuf[2] = (UA_Byte)(((UA_Int32)*src));
+
 	retval |= UA_Byte_encode(&(tmpBuf[0]),pos,dst);
 	retval |= UA_Byte_encode(&(tmpBuf[1]),pos,dst);
 	retval |= UA_Byte_encode(&(tmpBuf[2]),pos,dst);

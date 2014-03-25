@@ -138,7 +138,7 @@ void server_run()
 		{
 			printf("data will be sent \n");
 			n = write(newsockfd,connection.writeData.data,connection.writeData.length);
-			printf("sent data \n");
+			printf("written %d bytes \n",n);
 			connection.newDataToWrite = 0;
 			UA_free(connection.writeData.data);
 			connection.writeData.data = NULL;

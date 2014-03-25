@@ -114,72 +114,19 @@ UA_Int32 TL_receive(UA_connection *connection, UA_ByteString *packet)
 
 #define Cmp3Byte(data,pos,a,b,c) (*((Int32*) ((data)+(pos))) & 0xFFFFFF) == (Int32)(((Byte)(a))|((Byte)(b))<<8|((Byte)(c))<<16)
 
-UA_Int32 TL_getPacketType(UA_ByteString *packet, UA_Int32 *pos)
-{
-	UA_Int32 retVal = -1;
-	// printf("TL_getPacketType - entered \n");
-	// printf("TL_getPacketType - pos = %d \n",*pos);
-
-	if(packet->data[*pos] == 'H' &&
-	   packet->data[*pos+1] == 'E' &&
-	   packet->data[*pos+2] == 'L')
-	{
-		*pos += 3 * sizeof(UA_Byte);
-		retVal = UA_MESSAGETYPE_HEL;
-	}
-	else if(packet->data[*pos] == 'A' &&
-	        packet->data[*pos+1] == 'C' &&
-	        packet->data[*pos+2] == 'K')
-	{
-		*pos += 3 * sizeof(UA_Byte);
-		retVal = UA_MESSAGETYPE_ACK;
-	}
-	else if(packet->data[*pos] == 'E' &&
-			packet->data[*pos+1] == 'R' &&
-			packet->data[*pos+2] == 'R')
-	{
-		*pos += 3 * sizeof(UA_Byte);
-		retVal =  UA_MESSAGETYPE_ERR;
-	}
-	else if(packet->data[*pos] == 'O' &&
-	        packet->data[*pos+1] == 'P' &&
-	        packet->data[*pos+2] == 'N')
-	{
-		*pos += 3 * sizeof(UA_Byte);
-		retVal =  UA_MESSAGETYPE_OPN;
-	}
-	else if(packet->data[*pos] == 'C' &&
-	        packet->data[*pos+1] == 'L' &&
-	        packet->data[*pos+2] == 'O')
-	{
-		*pos += 3 * sizeof(UA_Byte);
-		retVal =  UA_MESSAGETYPE_CLO;
-	}
-	else if(packet->data[*pos] == 'M' &&
-			packet->data[*pos+1] == 'S' &&
-			packet->data[*pos+2] == 'G')
-	{
-		*pos += 3 * sizeof(UA_Byte);
-		retVal =  UA_MESSAGETYPE_MSG;
-	}
-	//TODO retVal == -1 -- ERROR no valid message received
-	return retVal;
-}
-
 
 UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos)
 {
 	UA_Int32 tmpPos = 0;
 	UA_ByteString tmpMessage;
-	UA_Byte reserved;
-	UA_UInt32 messageSize;
 	UA_OPCUATcpHelloMessage *helloMessage;
 	UA_OPCUATcpAcknowledgeMessage *ackMessage;
 	UA_OPCUATcpMessageHeader *ackHeader;
-	UA_alloc((void**)(&helloMessage),UA_OPCUATcpHelloMessage_calcSize(UA_NULL));
+
+
 
 	printf("TL_process - entered \n");
-	struct TL_header tmpHeader;
+
 	switch(packetType)
 	{
 	case UA_MESSAGETYPE_HEL :
@@ -187,6 +134,8 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 		{
 			printf("TL_process - extracting header information \n");
 			printf("TL_process - pos = %d \n",*pos);
+
+			UA_alloc((void**)(&helloMessage),UA_OPCUATcpHelloMessage_calcSize(UA_NULL));
 
 			UA_OPCUATcpHelloMessage_decode(connection->readData.data,pos,helloMessage);
 
@@ -206,6 +155,7 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 
 			connection->transportLayer.remoteConf.maxChunkCount = helloMessage->maxChunkCount;
 			printf("TL_process - maxChunkCount = %d \n",connection->transportLayer.remoteConf.maxChunkCount);
+
 			UA_String_copy(&(helloMessage->endpointUrl), &(connection->transportLayer.endpointURL));
 
 			/* send back acknowledge */
@@ -227,12 +177,11 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 
 			//allocate memory in stream
 			UA_alloc((void**)&(tmpMessage.data),ackHeader->messageSize);
+			tmpMessage.length = ackHeader->messageSize;
+
 			//encode header and message
 			UA_OPCUATcpMessageHeader_encode(ackHeader,&tmpPos,tmpMessage.data);
 			UA_OPCUATcpAcknowledgeMessage_encode(ackMessage,&tmpPos,tmpMessage.data);
-
-
-			tmpMessage.length = SIZE_OF_ACKNOWLEDGE_MESSAGE;
 
 			printf("TL_process - Size messageToSend = %d \n",ackHeader->messageSize);
 			/* ------------------------ Body ------------------------ */
@@ -246,7 +195,7 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 			printf("TL_process - localConf.maxMessageSize = %d \n", connection->transportLayer.localConf.maxMessageSize);
 			//maximum chunk count
 			printf("TL_process - localConf.maxChunkCount = %d \n", connection->transportLayer.localConf.maxChunkCount);
-
+			UA_ByteString_printf("encoded data",&tmpMessage);
 			TL_send(connection, &tmpMessage);
 		}
 		else
