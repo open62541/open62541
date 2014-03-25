@@ -88,7 +88,9 @@ def createEnumerated(element):
     print("UA_TYPE_METHOD_ENCODE_AS("+name+", UA_UInt32)", end='\n', file=fc)
     print("UA_TYPE_METHOD_DECODE_AS("+name+", UA_UInt32)", end='\n', file=fc)
     print("UA_TYPE_METHOD_DELETE_AS("+name+", UA_UInt32)", end='\n', file=fc)
-    print("UA_TYPE_METHOD_DELETEMEMBERS_AS("+name+", UA_UInt32)\n", end='\n', file=fc)
+    print("UA_TYPE_METHOD_DELETEMEMBERS_AS("+name+", UA_UInt32)", end='\n', file=fc)
+    print("UA_TYPE_METHOD_INIT_AS("+name+", UA_UInt32)", end='\n', file=fc)
+    print("UA_TYPE_METHOD_NEW_DEFAULT("+name+")\n", end='\n', file=fc)
     
     return
     
@@ -143,6 +145,8 @@ def createStructured(element):
     print("UA_Int32 " + name + "_decode(char const * src, UA_Int32* pos, " + name + "* dst);", end='\n', file=fh)
     print("UA_Int32 " + name + "_delete("+ name + "* p);", end='\n', file=fh)
     print("UA_Int32 " + name + "_deleteMembers(" + name + "* p);", end='\n', file=fh)
+    print("UA_Int32 " + name + "_init("+ name + " * p);", end='\n', file=fh)
+    print("UA_Int32 " + name + "_new(" + name + " * p);", end='\n', file=fh)
 
     print("UA_Int32 "  + name + "_calcSize(" + name + " const * ptr) {", end='', file=fc)
     print("\n\tif(ptr==UA_NULL){return sizeof("+ name +");}", end='', file=fc)
@@ -191,14 +195,14 @@ def createStructured(element):
             if t in enum_types:
                 print('\tretval |= UA_'+t+'_decode(src,pos,&(dst->'+n+'));', end='\n', file=fc)
             elif t.find("**") != -1:
-		print('\tretval |= UA_Int32_decode(src,pos,&(dst->'+n+'Size)); // decode size', end='\n', file=fc)
-		#allocate memory
-		print('\tretval |= UA_alloc((void**)&(dst->' + n + "),dst->" + n + "Size*sizeof(void*));", end='\n', file=fc)
-		print("\tretval |= UA_Array_decode(src,dst->"+n+"Size, UA_" + t[0:t.find("*")].upper()+",pos,(void const**) (dst->"+n+"));", end='\n', file=fc) #not tested
+				print('\tretval |= UA_Int32_decode(src,pos,&(dst->'+n+'Size)); // decode size', end='\n', file=fc)
+				#allocate memory for array
+				print('\tretval |= UA_alloc((void**)&(dst->' + n + "),dst->" + n + "Size*sizeof(void*));", end='\n', file=fc)
+				print("\tretval |= UA_Array_decode(src,dst->"+n+"Size, UA_" + t[0:t.find("*")].upper()+",pos,(void const**) (dst->"+n+"));", end='\n', file=fc) #not tested
             elif t.find("*") != -1:
-		#allocate memory
-		print('\tretval |= UA_alloc((void**)&(dst->' + n + "),UA_" + t[0:t.find("*")] +"_calcSize(UA_NULL));", end='\n', file=fc)
-		print('\tretval |= UA_' + t[0:t.find("*")] + "_decode(src,pos,dst->"+ n +");", end='\n', file=fc)
+				#allocate memory using new
+				print('\tretval |= UA_'+ t[0:t.find("*")] +"_new(dst->" + n + ");", end='\n', file=fc)
+				print('\tretval |= UA_' + t[0:t.find("*")] + "_decode(src,pos,dst->"+ n +");", end='\n', file=fc)
             else:
                 print('\tretval |= UA_'+t+"_decode(src,pos,&(dst->"+n+"));", end='\n', file=fc)
     print("\treturn retval;\n}\n", end='\n', file=fc)
@@ -222,6 +226,26 @@ def createStructured(element):
 		print('\tretval |= UA_' + t + "_deleteMembers(&(p->"+n+"));", end='\n', file=fc)
 		
     print("\treturn retval;\n}\n", end='\n', file=fc)
+
+    # code _init
+    print("UA_Int32 "+name+"_init(" + name + " * p) {\n\tUA_Int32 retval = UA_SUCCESS;", end='\n', file=fc)
+    for n,t in valuemap.iteritems():
+        if t in elementary_size:
+            print('\tretval |= UA_'+t+'_init(&(p->'+n+'));', end='\n', file=fc)
+        else:
+            if t in enum_types:
+                print('\tretval |= UA_'+t+'_init(&(p->'+n+'));', end='\n', file=fc)
+            elif t.find("**") != -1:
+				print('\tp->'+n+'Size=0;', end='\n', file=fc)
+				print("\tp->"+n+"=UA_NULL;", end='\n', file=fc)
+            elif t.find("*") != -1:
+				print("\tp->"+n+"=UA_NULL;", end='\n', file=fc)
+            else:
+                print('\tretval |= UA_'+t+"_init(&(p->"+n+"));", end='\n', file=fc)
+    print("\treturn retval;\n}\n", end='\n', file=fc)
+
+    # code _new
+    print("UA_TYPE_METHOD_NEW_DEFAULT(" + name + ")", end='\n', file=fc)
         
 def createOpaque(element):
     name = "UA_" + element.get("Name")
@@ -236,7 +260,9 @@ def createOpaque(element):
     print("UA_TYPE_METHOD_ENCODE_AS("+name+", UA_ByteString)", end='\n', file=fc)
     print("UA_TYPE_METHOD_DECODE_AS("+name+", UA_ByteString)", end='\n', file=fc)
     print("UA_TYPE_METHOD_DELETE_AS("+name+", UA_ByteString)", end='\n', file=fc)
-    print("UA_TYPE_METHOD_DELETEMEMBERS_AS("+name+", UA_ByteString)\n", end='\n', file=fc)
+    print("UA_TYPE_METHOD_DELETEMEMBERS_AS("+name+", UA_ByteString)", end='\n', file=fc)
+    print("UA_TYPE_METHOD_INIT_AS("+name+", UA_ByteString)", end='\n', file=fc)
+    print("UA_TYPE_METHOD_NEW_DEFAULT("+name+")\n", end='\n', file=fc)
     return
 
 ns = {"opc": "http://opcfoundation.org/BinarySchema/"}
