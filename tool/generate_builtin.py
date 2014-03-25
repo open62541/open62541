@@ -274,7 +274,7 @@ for f in files:
 	exec "pluginSetup = " + package + ".setup()"
 	if pluginSetup["pluginType"] == "structuredObject":
 		plugin_types.append(pluginSetup["tagName"])
-		packageForType[pluginSetup["tagName"]] = package
+		packageForType[pluginSetup["tagName"]] = [package,pluginSetup]
 		print("Custom object creation for tag " + pluginSetup["tagName"] + " imported from package " + package)
 #end plugin handling
 
@@ -304,7 +304,7 @@ for element in types:
 for name, element in deferred_types.iteritems():
 	if name in plugin_types:
 		#execute plugin if registered
-		exec "ret = " + packageForType[name]+".createElement(element, fc, fh)"
+		exec "ret = " + packageForType[name][0]+"."+packageForType[name][1]["functionCall"]
 		if ret == "default":
 			createStructured(element)
 	else:
