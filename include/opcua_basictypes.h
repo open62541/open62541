@@ -61,6 +61,8 @@ UA_Int32 TYPE##_encode(TYPE const * src, UA_Int32* pos, char * dst);\
 UA_Int32 TYPE##_decode(char const * src, UA_Int32* pos, TYPE * dst);\
 UA_Int32 TYPE##_delete(TYPE * p);\
 UA_Int32 TYPE##_deleteMembers(TYPE * p); \
+UA_Int32 TYPE##_init(TYPE * p); \
+UA_Int32 TYPE##_new(TYPE * p);
 
 
 #define UA_TYPE_METHOD_CALCSIZE_SIZEOF(TYPE) \
@@ -97,6 +99,26 @@ UA_Int32 TYPE##_decode(char const * src, UA_Int32* pos, TYPE *dst) { \
 #define UA_TYPE_METHOD_ENCODE_AS(TYPE,TYPE_AS) \
 UA_Int32 TYPE##_encode(TYPE const * src, UA_Int32* pos, char *dst) { \
 	return TYPE_AS##_encode((TYPE_AS*) src,pos,dst); \
+}
+
+#define UA_TYPE_METHOD_INIT_AS(TYPE, TYPE_AS) \
+UA_Int32 TYPE##_init(TYPE * p){ \
+	return TYPE_AS##_init((TYPE_AS*)p); \
+}
+
+#define UA_TYPE_METHOD_NEW_DEFAULT(TYPE) \
+UA_Int32 TYPE##_new(TYPE * p){ \
+	UA_Int32 retval = UA_SUCCESS;\
+	retval |= UA_alloc((void**)p, TYPE##_calcSize(UA_NULL));\
+	retval |= TYPE##_init(p);\
+	return retval;\
+}
+
+#define UA_TYPE_METHOD_INIT_DEFAULT(TYPE) \
+UA_Int32 TYPE##_init(TYPE * p){ \
+	if(p==UA_NULL)return UA_ERROR;\
+	*p = (TYPE)0;\
+	return UA_SUCCESS;\
 }
 
 /*** Prototypes for basic types **/

@@ -49,7 +49,7 @@ UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, U
 	return retVal;
 }
 
-UA_Int32 UA_Array_decode(char const * src,UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void const **dst) {
+UA_Int32 UA_Array_decode(char const * src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void const **dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 i = 0;
 
@@ -108,9 +108,14 @@ UA_Int32 UA_Boolean_decode(char const * src, UA_Int32* pos, UA_Boolean * dst) {
 	*dst = ((UA_Boolean) (src[(*pos)++]) > 0) ? UA_TRUE : UA_FALSE;
 	return UA_SUCCESS;
 }
+UA_Int32 UA_Boolean_init(UA_Boolean * p){
+	if(p==UA_NULL)return UA_ERROR;
+	*p = UA_FALSE;
+	return UA_SUCCESS;
+}
 UA_TYPE_METHOD_DELETE_FREE(UA_Boolean)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Boolean)
-
+UA_TYPE_METHOD_NEW_DEFAULT(UA_Boolean)
 
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Byte)
@@ -124,6 +129,8 @@ UA_Int32 UA_Byte_decode(char const * src, UA_Int32* pos, UA_Byte * dst) {
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_Byte)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Byte)
+UA_TYPE_METHOD_INIT_DEFAULT(UA_Byte)
+UA_TYPE_METHOD_NEW_DEFAULT(UA_Byte)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_SByte)
 UA_Int32 UA_SByte_encode(UA_SByte const * src, UA_Int32* pos, char * dst) {
@@ -136,6 +143,8 @@ UA_Int32 UA_SByte_decode(char const * src, UA_Int32* pos, UA_SByte * dst) {
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_SByte)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_SByte)
+UA_TYPE_METHOD_INIT_DEFAULT(UA_SByte)
+UA_TYPE_METHOD_NEW_DEFAULT(UA_SByte)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_UInt16)
 UA_Int32 UA_UInt16_encode(UA_UInt16 const *src, UA_Int32* pos, char * dst) {
@@ -151,6 +160,8 @@ UA_Int32 UA_UInt16_decode(char const * src, UA_Int32* pos, UA_UInt16* dst) {
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_UInt16)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_UInt16)
+UA_TYPE_METHOD_INIT_DEFAULT(UA_UInt16)
+UA_TYPE_METHOD_NEW_DEFAULT(UA_UInt16)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Int16)
 UA_Int32 UA_Int16_encode(UA_Int16 const * src, UA_Int32* pos, char* dst) {
@@ -166,6 +177,8 @@ UA_Int32 UA_Int16_decode(char const * src, UA_Int32* pos, UA_Int16 *dst) {
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_Int16)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Int16)
+UA_TYPE_METHOD_INIT_DEFAULT(UA_Int16)
+UA_TYPE_METHOD_NEW_DEFAULT(UA_Int16)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Int32)
 UA_Int32 UA_Int32_encode(UA_Int32 const * src, UA_Int32* pos, char *dst) {
@@ -183,6 +196,8 @@ UA_Int32 UA_Int32_decode(char const * src, UA_Int32* pos, UA_Int32* dst) {
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_Int32)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Int32)
+UA_TYPE_METHOD_INIT_DEFAULT(UA_Int32)
+UA_TYPE_METHOD_NEW_DEFAULT(UA_Int32)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_UInt32)
 UA_Int32 UA_UInt32_encode(UA_UInt32 const * src, UA_Int32* pos, char *dst) {
@@ -200,6 +215,8 @@ UA_Int32 UA_UInt32_decode(char const * src, UA_Int32* pos, UA_UInt32 *dst) {
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_UInt32)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_UInt32)
+UA_TYPE_METHOD_INIT_DEFAULT(UA_UInt32)
+UA_TYPE_METHOD_NEW_DEFAULT(UA_UInt32)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Int64)
 UA_Int32 UA_Int64_encode(UA_Int64 const * src, UA_Int32* pos, char *dst) {
@@ -221,6 +238,8 @@ UA_Int32 UA_Int64_decode(char const * src, UA_Int32* pos, UA_Int64* dst) {
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_Int64)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Int64)
+UA_TYPE_METHOD_INIT_DEFAULT(UA_Int64)
+UA_TYPE_METHOD_NEW_DEFAULT(UA_Int64)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_UInt64)
 UA_Int32 UA_UInt64_encode(UA_UInt64 const * src , UA_Int32* pos, char * dst) {
@@ -242,6 +261,8 @@ UA_Int32 UA_UInt64_decode(char const * src, UA_Int32* pos, UA_UInt64* dst) {
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_UInt64)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_UInt64)
+UA_TYPE_METHOD_INIT_DEFAULT(UA_UInt64)
+UA_TYPE_METHOD_NEW_DEFAULT(UA_UInt64)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Float)
 UA_Int32 UA_Float_decode(char const * src, UA_Int32* pos, UA_Float* dst) {
@@ -258,6 +279,12 @@ UA_Int32 UA_Float_encode(UA_Float const * src, UA_Int32* pos, char *dst) {
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_Float)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Float)
+UA_Int32 UA_Float_init(UA_Float * p){
+	if(p==UA_NULL)return UA_ERROR;
+	*p = (UA_Float)0.0;
+	return UA_SUCCESS;
+}
+UA_TYPE_METHOD_NEW_DEFAULT(UA_Float)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Double)
 UA_Int32 UA_Double_decode(char const * src, UA_Int32* pos, UA_Double * dst) {
@@ -276,6 +303,8 @@ UA_Int32 UA_Double_encode(UA_Double const * src, UA_Int32 *pos, char * dst) {
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_Double)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Double)
+UA_TYPE_METHOD_INIT_DEFAULT(UA_Double)
+UA_TYPE_METHOD_NEW_DEFAULT(UA_Double)
 
 UA_Int32 UA_String_calcSize(UA_String const * string) {
 	if (string == UA_NULL) {
@@ -326,6 +355,15 @@ UA_Int32 UA_String_copy(UA_String const * src, UA_String* dst) {
 	return retval;
 }
 UA_String UA_String_null = { -1, UA_NULL };
+UA_Int32 UA_String_init(UA_String* p){
+	//FIXME: is UA_String_null now depricated?
+	if(p==UA_NULL)return UA_ERROR;
+	p->length = -1;
+	p->data = UA_NULL;
+	return UA_SUCCESS;
+}
+UA_TYPE_METHOD_NEW_DEFAULT(UA_String)
+
 UA_Byte UA_Byte_securityPoliceNoneData[] = "http://opcfoundation.org/UA/SecurityPolicy#None";
 UA_String UA_String_securityPoliceNone = { sizeof(UA_Byte_securityPoliceNoneData), UA_Byte_securityPoliceNoneData };
 
@@ -382,6 +420,8 @@ UA_TYPE_METHOD_ENCODE_AS(UA_ByteString, UA_String)
 UA_TYPE_METHOD_DECODE_AS(UA_ByteString, UA_String)
 UA_TYPE_METHOD_DELETE_AS(UA_ByteString, UA_String)
 UA_TYPE_METHOD_DELETEMEMBERS_AS(UA_ByteString, UA_String)
+UA_TYPE_METHOD_INIT_AS(UA_ByteString, UA_String)
+UA_TYPE_METHOD_NEW_DEFAULT(UA_ByteString)
 UA_Int32 UA_ByteString_compare(UA_ByteString *string1, UA_ByteString *string2) {
 	return UA_String_compare((UA_String*) string1, (UA_String*) string2);
 }
@@ -429,6 +469,15 @@ UA_Int32 UA_Guid_deleteMembers(UA_Guid* p) { return UA_ByteString_delete(&(p->da
 UA_Int32 UA_Guid_compare(UA_Guid *g1, UA_Guid *g2) {
 	return memcmp(g1, g2, sizeof(UA_Guid));
 }
+UA_Int32 UA_Guid_init(UA_Guid* p){
+	if(p==UA_NULL)return UA_ERROR;
+	p->data1 = 0;
+	p->data2 = 0;
+	p->data3 = 0;
+	UA_ByteString_init(&(p->data4));
+	return UA_SUCCESS;
+}
+UA_TYPE_METHOD_NEW_DEFAULT(UA_Guid)
 
 UA_Int32 UA_LocalizedText_calcSize(UA_LocalizedText const * p) {
 	UA_Int32 length = 0;
@@ -481,6 +530,14 @@ UA_Int32 UA_LocalizedText_deleteMembers(UA_LocalizedText* p) {
 			|| UA_String_deleteMembers(&(p->text))
 	;
 }
+UA_Int32 UA_LocalizedText_init(UA_LocalizedText* p){
+	if(p==UA_NULL)return UA_ERROR;
+	p->encodingMask = 0;
+	UA_String_init(&(p->locale));
+	UA_String_init(&(p->text));
+	return UA_SUCCESS;
+}
+UA_TYPE_METHOD_NEW_DEFAULT(UA_LocalizedText)
 
 /* Serialization of UA_NodeID is specified in 62541-6, §5.2.2.9 */
 UA_Int32 UA_NodeId_calcSize(UA_NodeId const *p) {
@@ -670,6 +727,14 @@ UA_Int32 UA_NodeId_compare(UA_NodeId *n1, UA_NodeId *n2) {
 	}
 	return UA_NOT_EQUAL;
 }
+UA_Int32 UA_NodeId_init(UA_NodeId* p){
+	if(p==UA_NULL)return UA_ERROR;
+	p->encodingByte = 0;
+	p->identifier.numeric = 0;
+	p->namespace = 0;
+	return UA_SUCCESS;
+}
+UA_TYPE_METHOD_NEW_DEFAULT(UA_NodeId)
 
 //FIXME: Sten Where do these two flags come from? .. These are the higher bits
 //in the encodingByte that tell whether uri and serverindex have been changed
@@ -724,6 +789,13 @@ UA_Int32 UA_ExpandedNodeId_deleteMembers(UA_ExpandedNodeId* p) {
 	retval |= UA_String_deleteMembers(&(p->namespaceUri));
 	return retval;
 }
+UA_Int32 UA_ExpandedNodeId_init(UA_ExpandedNodeId* p){
+	if(p==UA_NULL)return UA_ERROR;
+	UA_String_init(&(p->namespaceUri));
+	return UA_SUCCESS;
+}
+UA_TYPE_METHOD_NEW_DEFAULT(UA_ExpandedNodeId)
+
 
 UA_Int32 UA_ExtensionObject_calcSize(UA_ExtensionObject const * p) {
 	UA_Int32 length = 0;
@@ -781,6 +853,15 @@ UA_Int32 UA_ExtensionObject_deleteMembers(UA_ExtensionObject *p) {
 	retval |= UA_ByteString_deleteMembers(&(p->body));
 	return retval;
 }
+UA_Int32 UA_ExtensionObject_init(UA_ExtensionObject* p){
+	if(p==UA_NULL)return UA_ERROR;
+	UA_ByteString_init(&(p->body));
+	p->encoding = 0;
+	UA_NodeId_init(&(p->typeId));
+	return UA_SUCCESS;
+}
+UA_TYPE_METHOD_NEW_DEFAULT(UA_ExtensionObject)
+
 
 /** DiagnosticInfo - Part: 4, Chapter: 7.9, Page: 116 */
 UA_Int32 UA_DiagnosticInfo_decode(char const * src, UA_Int32 *pos, UA_DiagnosticInfo *dst) {
@@ -898,13 +979,27 @@ UA_Int32 UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
 	}
 	return retval;
 }
-
+UA_Int32 UA_DiagnosticInfo_init(UA_DiagnosticInfo* p){
+	if(p==UA_NULL)return UA_ERROR;
+	UA_String_init(&(p->additionalInfo));
+	p->encodingMask = 0;
+	p->innerDiagnosticInfo = UA_NULL;
+	UA_StatusCode_init(&(p->innerStatusCode));
+	p->locale = 0;
+	p->localizedText = 0;
+	p->namespaceUri = 0;
+	p->symbolicId = 0;
+	return UA_SUCCESS;
+}
+UA_TYPE_METHOD_NEW_DEFAULT(UA_DiagnosticInfo)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_DateTime)
 UA_TYPE_METHOD_ENCODE_AS(UA_DateTime,UA_Int64)
 UA_TYPE_METHOD_DECODE_AS(UA_DateTime,UA_Int64)
 UA_TYPE_METHOD_DELETE_FREE(UA_DateTime)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_DateTime)
+UA_TYPE_METHOD_INIT_AS(UA_DateTime,UA_Int64)
+UA_TYPE_METHOD_NEW_DEFAULT(UA_DateTime)
 #include <sys/time.h>
 
 // Number of seconds from 1 Jan. 1601 00:00 to 1 Jan 1970 00:00 UTC
@@ -930,6 +1025,8 @@ UA_TYPE_METHOD_ENCODE_AS(UA_XmlElement, UA_ByteString)
 UA_TYPE_METHOD_DECODE_AS(UA_XmlElement, UA_ByteString)
 UA_TYPE_METHOD_DELETE_AS(UA_XmlElement, UA_ByteString)
 UA_TYPE_METHOD_DELETEMEMBERS_AS(UA_XmlElement, UA_ByteString)
+UA_TYPE_METHOD_INIT_AS(UA_XmlElement, UA_ByteString)
+UA_TYPE_METHOD_NEW_DEFAULT(UA_XmlElement)
 
 /** IntegerId - Part: 4, Chapter: 7.13, Page: 118 */
 UA_TYPE_METHOD_CALCSIZE_AS(UA_IntegerId, UA_Int32)
@@ -937,12 +1034,16 @@ UA_TYPE_METHOD_ENCODE_AS(UA_IntegerId, UA_Int32)
 UA_TYPE_METHOD_DECODE_AS(UA_IntegerId, UA_Int32)
 UA_TYPE_METHOD_DELETE_AS(UA_IntegerId, UA_Int32)
 UA_TYPE_METHOD_DELETEMEMBERS_AS(UA_IntegerId, UA_Int32)
+UA_TYPE_METHOD_INIT_AS(UA_IntegerId, UA_Int32)
+UA_TYPE_METHOD_NEW_DEFAULT(UA_IntegerId)
 
 UA_TYPE_METHOD_CALCSIZE_AS(UA_StatusCode, UA_UInt32)
 UA_TYPE_METHOD_ENCODE_AS(UA_StatusCode, UA_UInt32)
 UA_TYPE_METHOD_DECODE_AS(UA_StatusCode, UA_UInt32)
 UA_TYPE_METHOD_DELETE_AS(UA_StatusCode, UA_UInt32)
 UA_TYPE_METHOD_DELETEMEMBERS_AS(UA_StatusCode, UA_UInt32)
+UA_TYPE_METHOD_INIT_AS(UA_StatusCode, UA_Int32)
+UA_TYPE_METHOD_NEW_DEFAULT(UA_StatusCode)
 
 UA_Int32 UA_QualifiedName_calcSize(UA_QualifiedName const * p) {
 	UA_Int32 length = 0;
@@ -977,6 +1078,14 @@ UA_Int32 UA_QualifiedName_delete(UA_QualifiedName  * p) {
 UA_Int32 UA_QualifiedName_deleteMembers(UA_QualifiedName  * p) {
 	return UA_ERR_NOT_IMPLEMENTED;
 }
+UA_Int32 UA_QualifiedName_init(UA_QualifiedName * p){
+	if(p==UA_NULL)return UA_ERROR;
+	UA_String_init(&(p->name));
+	p->namespaceIndex=0;
+	p->reserved=0;
+	return UA_SUCCESS;
+}
+UA_TYPE_METHOD_NEW_DEFAULT(UA_QualifiedName)
 
 
 UA_Int32 UA_Variant_calcSize(UA_Variant const * p) {
@@ -1080,6 +1189,15 @@ UA_Int32 UA_Variant_delete(UA_Variant  * p) {
 UA_Int32 UA_Variant_deleteMembers(UA_Variant  * p) {
 	return UA_ERR_NOT_IMPLEMENTED;
 }
+UA_Int32 UA_Variant_init(UA_Variant * p){
+	if(p==UA_NULL)return UA_ERROR;
+	p->arrayLength = 0;
+	p->data = UA_NULL;
+	p->encodingMask = 0;
+	p->vt = UA_NULL;
+	return UA_SUCCESS;
+}
+UA_TYPE_METHOD_NEW_DEFAULT(UA_Variant)
 
 
 //TODO: place this define at the server configuration
@@ -1174,6 +1292,18 @@ UA_Int32 UA_DataValue_delete(UA_DataValue * p) {
 UA_Int32 UA_DataValue_deleteMembers(UA_DataValue * p) {
 	return UA_ERR_NOT_IMPLEMENTED;
 }
+UA_Int32 UA_DataValue_init(UA_DataValue * p){
+	if(p==UA_NULL)return UA_ERROR;
+	p->encodingMask = 0;
+	p->serverPicoseconds = 0;
+	UA_DateTime_init(&(p->serverTimestamp));
+	p->sourcePicoseconds = 0;
+	UA_DateTime_init(&(p->sourceTimestamp));
+	UA_StatusCode_init(&(p->status));
+	UA_Variant_init(&(p->value));
+	return UA_SUCCESS;
+}
+UA_TYPE_METHOD_NEW_DEFAULT(UA_DataValue)
 
 
 /**
