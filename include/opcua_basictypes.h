@@ -52,13 +52,14 @@ UA_Int32 UA_alloc(void ** dst, int size);
 
 /* Array operations */
 UA_Int32 UA_Array_calcSize(UA_Int32 noElements, UA_Int32 type, void const ** ptr);
-UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, char * dst);
-UA_Int32 UA_Array_decode(char const * src,UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void const **dst);
+UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, UA_Byte * dst);
+UA_Int32 UA_Array_decode(UA_Byte const * src,UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void const **dst);
+UA_Int32 UA_Array_delete(void **p,UA_Int32 noElements);
 
 #define UA_TYPE_METHOD_PROTOTYPES(TYPE) \
 UA_Int32 TYPE##_calcSize(TYPE const * ptr);\
-UA_Int32 TYPE##_encode(TYPE const * src, UA_Int32* pos, char * dst);\
-UA_Int32 TYPE##_decode(char const * src, UA_Int32* pos, TYPE * dst);\
+UA_Int32 TYPE##_encode(TYPE const * src, UA_Int32* pos, UA_Byte * dst);\
+UA_Int32 TYPE##_decode(UA_Byte const * src, UA_Int32* pos, TYPE * dst);\
 UA_Int32 TYPE##_delete(TYPE * p);\
 UA_Int32 TYPE##_deleteMembers(TYPE * p); \
 UA_Int32 TYPE##_init(TYPE * p); \
@@ -92,12 +93,12 @@ UA_Int32 TYPE##_deleteMembers(TYPE * p) { return UA_SUCCESS; }
 UA_Int32 TYPE##_deleteMembers(TYPE * p) { return TYPE_AS##_deleteMembers((TYPE_AS*) p);}
 
 #define UA_TYPE_METHOD_DECODE_AS(TYPE,TYPE_AS) \
-UA_Int32 TYPE##_decode(char const * src, UA_Int32* pos, TYPE *dst) { \
+UA_Int32 TYPE##_decode(UA_Byte const * src, UA_Int32* pos, TYPE *dst) { \
 	return TYPE_AS##_decode(src,pos,(TYPE_AS*) dst); \
 }
 
 #define UA_TYPE_METHOD_ENCODE_AS(TYPE,TYPE_AS) \
-UA_Int32 TYPE##_encode(TYPE const * src, UA_Int32* pos, char *dst) { \
+UA_Int32 TYPE##_encode(TYPE const * src, UA_Int32* pos, UA_Byte *dst) { \
 	return TYPE_AS##_encode((TYPE_AS*) src,pos,dst); \
 }
 
@@ -156,8 +157,8 @@ UA_TYPE_METHOD_PROTOTYPES (UA_IntegerId)
 typedef struct T_UA_VTable {
 	UA_UInt32 Id;
 	UA_Int32 (*calcSize)(void const * ptr);
-	UA_Int32 (*decode)(char const * src, UA_Int32* pos, void* dst);
-	UA_Int32 (*encode)(void const * src, UA_Int32* pos, char* dst);
+	UA_Int32 (*decode)(UA_Byte const * src, UA_Int32* pos, void* dst);
+	UA_Int32 (*encode)(void const * src, UA_Int32* pos, UA_Byte* dst);
 } UA_VTable;
 
 /* VariantBinaryEncoding - Part: 6, Chapter: 5.2.2.16, Page: 22 */
@@ -177,6 +178,7 @@ typedef struct T_UA_String
 }
 UA_String;
 UA_TYPE_METHOD_PROTOTYPES (UA_String)
+UA_Int32 UA_String_copy(UA_String const * src, UA_String* dst);
 UA_Int32 UA_String_compare(UA_String *string1, UA_String *string2);
 void UA_String_printf(char* label, UA_String* string);
 void UA_String_printx(char* label, UA_String* string);
@@ -191,6 +193,7 @@ typedef struct T_UA_ByteString
 UA_ByteString;
 UA_TYPE_METHOD_PROTOTYPES (UA_ByteString)
 UA_Int32 UA_ByteString_compare(UA_ByteString *string1, UA_ByteString *string2);
+extern UA_String UA_String_securityPoliceNone;
 
 /** LocalizedTextBinaryEncoding - Part: 6, Chapter: 5.2.2.14, Page: 21 */
 typedef struct T_UA_LocalizedText
@@ -219,6 +222,7 @@ UA_Int32 UA_Guid_compare(UA_Guid *g1, UA_Guid *g2);
 /* DateTime - Part: 6, Chapter: 5.2.2.5, Page: 16 */
 typedef UA_Int64 UA_DateTime; //100 nanosecond resolution
 UA_TYPE_METHOD_PROTOTYPES (UA_DateTime)
+UA_DateTime UA_DateTime_now();
 
 typedef struct T_UA_NodeId
 {
@@ -236,6 +240,7 @@ typedef struct T_UA_NodeId
 } UA_NodeId;
 UA_TYPE_METHOD_PROTOTYPES (UA_NodeId)
 UA_Int32 UA_NodeId_compare(UA_NodeId *n1, UA_NodeId *n2);
+void UA_NodeId_printf(char* label, UA_NodeId* node);
 
 /** XmlElement - Part: 6, Chapter: 5.2.2.8, Page: 17 */
 typedef struct T_UA_XmlElement

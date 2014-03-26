@@ -20,17 +20,10 @@ UA_Int32 SL_initConnectionObject(UA_connection *connection)
 {
 
 	//TODO: fill with valid information
-	connection->secureLayer.localAsymAlgSettings.ReceiverCertificateThumbprint.data = NULL;
-	connection->secureLayer.localAsymAlgSettings.ReceiverCertificateThumbprint.length = 0;
-
-	connection->secureLayer.localAsymAlgSettings.SecurityPolicyUri.data = "http://opcfoundation.org/UA/SecurityPolicy#None";
-	connection->secureLayer.localAsymAlgSettings.SecurityPolicyUri.length = 47;
-
-	connection->secureLayer.localAsymAlgSettings.SenderCertificate.data = NULL;
-	connection->secureLayer.localAsymAlgSettings.SenderCertificate.length = 0;
-
-	connection->secureLayer.remoteNonce.data = NULL;
-	connection->secureLayer.remoteNonce.length = 0;
+	UA_ByteString_init(&(connection->secureLayer.localAsymAlgSettings.ReceiverCertificateThumbprint));
+	UA_ByteString_copy(&(connection->secureLayer.localAsymAlgSettings.SecurityPolicyUri), UA_String_securityPoliceNone);
+	UA_ByteString_init(&(connection->secureLayer.localAsymAlgSettings.SenderCertificate));
+	UA_ByteString_init(&(connection->secureLayer.remoteNonce));
 
 	UA_alloc((void**)&(connection->secureLayer.localNonce.data),sizeof(UA_Byte));
 	connection->secureLayer.localNonce.length = 1;
@@ -38,11 +31,9 @@ UA_Int32 SL_initConnectionObject(UA_connection *connection)
 	connection->secureLayer.connectionState = connectionState_CLOSED;
 
 	connection->secureLayer.requestId = 0;
-
 	connection->secureLayer.requestType = 0;
 
-	connection->secureLayer.secureChannelId.data = NULL;
-	connection->secureLayer.secureChannelId.length = 0;
+	UA_String_init(&(connection->secureLayer.secureChannelId));
 
 	connection->secureLayer.securityMode = UA_SECURITYMODE_INVALID;
 	//TODO set a valid start secureChannelId number
@@ -106,7 +97,7 @@ UA_Int32 SL_send(UA_connection *connection, UA_ByteString responseMessage, UA_In
 		responsePacket.data[3] = 'F';
 		pos += 1;
 		UA_Int32_encode(&packetSize,&pos,responsePacket.data);
-		UA_Int32_encode(&(connection->secureLayer.securityToken.secureChannelId),&pos,responsePacket.data);
+		UA_UInt32_encode(&(connection->secureLayer.securityToken.secureChannelId),&pos,responsePacket.data);
 
 		/*---encode Asymmetric Algorithm Header ---*/
 		UA_ByteString_encode(&(connection->secureLayer.localAsymAlgSettings.SecurityPolicyUri),
@@ -281,7 +272,7 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 	printf("SL_openSecureChannel - secureChannelId = %d \n",securityToken.secureChannelId);
 	UA_UInt32_encode(&(securityToken.secureChannelId), &pos,response.data);
 	printf("SL_openSecureChannel - tokenId = %d \n",securityToken.tokenId);
-	UA_Int32_encode(&(securityToken.tokenId), &pos,response.data);
+	UA_UInt32_encode(&(securityToken.tokenId), &pos,response.data);
 
 	UA_DateTime_encode(&(securityToken.createdAt), &pos,response.data);
 	printf("SL_openSecureChannel - revisedLifetime = %d \n",securityToken.revisedLifetime);
@@ -417,7 +408,7 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 		}
 
 		// 	Req-4) MessageSecurityMode SecurityMode
-		UA_UInt32_decode(message.data, &pos, &securityMode);
+		UA_Int32_decode(message.data, &pos, &securityMode);
 		printf("SL_processMessage - securityMode=%d\n", securityMode);
 		switch (securityMode) {
 		case UA_SECURITYMODE_INVALID:

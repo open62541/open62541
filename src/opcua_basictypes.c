@@ -11,11 +11,11 @@
 #include "opcua_basictypes.h"
 
 
-UA_Int32 UA_encode(void* const data, UA_Int32 *pos, UA_Int32 type, char* dst) {
+UA_Int32 UA_encode(void* const data, UA_Int32 *pos, UA_Int32 type, UA_Byte* dst) {
 	return UA_[type].encode(data,pos,dst);
 }
 
-UA_Int32 UA_decode(char* const data, UA_Int32* pos, UA_Int32 type, void* dst){
+UA_Int32 UA_decode(UA_Byte* const data, UA_Int32* pos, UA_Int32 type, void* dst){
 	return UA_[type].decode(data,pos,dst);
 }
 
@@ -37,7 +37,7 @@ UA_Int32 UA_Array_calcSize(UA_Int32 nElements, UA_Int32 type, void const ** data
 	}
 	return length;
 }
-UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, char * dst) {
+UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, UA_Byte * dst) {
 	UA_Int32 retVal = UA_SUCCESS;
 	UA_Int32 i = 0;
 
@@ -49,7 +49,7 @@ UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, U
 	return retVal;
 }
 
-UA_Int32 UA_Array_decode(char const * src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void const **dst) {
+UA_Int32 UA_Array_decode(UA_Byte const * src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void const **dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 i = 0;
 
@@ -99,12 +99,12 @@ UA_Int32 UA_memcpy(void * dst, void const * src, int size){
 
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Boolean)
-UA_Int32 UA_Boolean_encode(UA_Boolean const * src, UA_Int32* pos, char * dst) {
+UA_Int32 UA_Boolean_encode(UA_Boolean const * src, UA_Int32* pos, UA_Byte * dst) {
 	UA_Boolean tmpBool = ((*src > 0) ? UA_TRUE : UA_FALSE);
 	memcpy(&(dst[(*pos)++]), &tmpBool, sizeof(UA_Boolean));
 	return UA_SUCCESS;
 }
-UA_Int32 UA_Boolean_decode(char const * src, UA_Int32* pos, UA_Boolean * dst) {
+UA_Int32 UA_Boolean_decode(UA_Byte const * src, UA_Int32* pos, UA_Boolean * dst) {
 	*dst = ((UA_Boolean) (src[(*pos)++]) > 0) ? UA_TRUE : UA_FALSE;
 	return UA_SUCCESS;
 }
@@ -119,11 +119,11 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_Boolean)
 
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Byte)
-UA_Int32 UA_Byte_encode(UA_Byte const * src, UA_Int32* pos, char * dst) {
+UA_Int32 UA_Byte_encode(UA_Byte const * src, UA_Int32* pos, UA_Byte * dst) {
 	dst[(*pos)++] = *src;
 	return UA_SUCCESS;
 }
-UA_Int32 UA_Byte_decode(char const * src, UA_Int32* pos, UA_Byte * dst) {
+UA_Int32 UA_Byte_decode(UA_Byte const * src, UA_Int32* pos, UA_Byte * dst) {
 	*dst = src[(*pos)++];
 	return UA_SUCCESS;
 }
@@ -133,11 +133,11 @@ UA_TYPE_METHOD_INIT_DEFAULT(UA_Byte)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_Byte)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_SByte)
-UA_Int32 UA_SByte_encode(UA_SByte const * src, UA_Int32* pos, char * dst) {
+UA_Int32 UA_SByte_encode(UA_SByte const * src, UA_Int32* pos, UA_Byte * dst) {
 	dst[(*pos)++] = *src;
 	return UA_SUCCESS;
 }
-UA_Int32 UA_SByte_decode(char const * src, UA_Int32* pos, UA_SByte * dst) {
+UA_Int32 UA_SByte_decode(UA_Byte const * src, UA_Int32* pos, UA_SByte * dst) {
 	*dst = src[(*pos)++];
 	return 1;
 }
@@ -147,12 +147,12 @@ UA_TYPE_METHOD_INIT_DEFAULT(UA_SByte)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_SByte)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_UInt16)
-UA_Int32 UA_UInt16_encode(UA_UInt16 const *src, UA_Int32* pos, char * dst) {
+UA_Int32 UA_UInt16_encode(UA_UInt16 const *src, UA_Int32* pos, UA_Byte * dst) {
 	memcpy(&(dst[*pos]), src, sizeof(UA_UInt16));
 	*pos += sizeof(UA_UInt16);
 	return UA_SUCCESS;
 }
-UA_Int32 UA_UInt16_decode(char const * src, UA_Int32* pos, UA_UInt16* dst) {
+UA_Int32 UA_UInt16_decode(UA_Byte const * src, UA_Int32* pos, UA_UInt16* dst) {
 	UA_Byte t1 = src[(*pos)++];
 	UA_UInt16 t2 = (UA_UInt16) (src[(*pos)++] << 8);
 	*dst = t1 + t2;
@@ -164,12 +164,12 @@ UA_TYPE_METHOD_INIT_DEFAULT(UA_UInt16)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_UInt16)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Int16)
-UA_Int32 UA_Int16_encode(UA_Int16 const * src, UA_Int32* pos, char* dst) {
+UA_Int32 UA_Int16_encode(UA_Int16 const * src, UA_Int32* pos, UA_Byte* dst) {
 	memcpy(&(dst[*pos]), src, sizeof(UA_Int16));
 	*pos += sizeof(UA_Int16);
 	return UA_SUCCESS;
 }
-UA_Int32 UA_Int16_decode(char const * src, UA_Int32* pos, UA_Int16 *dst) {
+UA_Int32 UA_Int16_decode(UA_Byte const * src, UA_Int32* pos, UA_Int16 *dst) {
 	UA_Int16 t1 = (UA_Int16) (((UA_SByte) (src[(*pos)++]) & 0xFF));
 	UA_Int16 t2 = (UA_Int16) (((UA_SByte) (src[(*pos)++]) & 0xFF) << 8);
 	*dst = t1 + t2;
@@ -181,12 +181,12 @@ UA_TYPE_METHOD_INIT_DEFAULT(UA_Int16)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_Int16)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Int32)
-UA_Int32 UA_Int32_encode(UA_Int32 const * src, UA_Int32* pos, char *dst) {
+UA_Int32 UA_Int32_encode(UA_Int32 const * src, UA_Int32* pos, UA_Byte* dst) {
 	memcpy(&(dst[*pos]), src, sizeof(UA_Int32));
 	*pos += sizeof(UA_Int32);
 	return UA_SUCCESS;
 }
-UA_Int32 UA_Int32_decode(char const * src, UA_Int32* pos, UA_Int32* dst) {
+UA_Int32 UA_Int32_decode(UA_Byte const * src, UA_Int32* pos, UA_Int32* dst) {
 	UA_Int32 t1 = (UA_Int32) (((UA_SByte) (src[(*pos)++]) & 0xFF));
 	UA_Int32 t2 = (UA_Int32) (((UA_SByte) (src[(*pos)++]) & 0xFF) << 8);
 	UA_Int32 t3 = (UA_Int32) (((UA_SByte) (src[(*pos)++]) & 0xFF) << 16);
@@ -200,12 +200,12 @@ UA_TYPE_METHOD_INIT_DEFAULT(UA_Int32)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_Int32)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_UInt32)
-UA_Int32 UA_UInt32_encode(UA_UInt32 const * src, UA_Int32* pos, char *dst) {
+UA_Int32 UA_UInt32_encode(UA_UInt32 const * src, UA_Int32* pos, UA_Byte* dst) {
 	memcpy(&(dst[*pos]), src, sizeof(UA_UInt32));
 	*pos += sizeof(UA_UInt32);
 	return UA_SUCCESS;
 }
-UA_Int32 UA_UInt32_decode(char const * src, UA_Int32* pos, UA_UInt32 *dst) {
+UA_Int32 UA_UInt32_decode(UA_Byte const * src, UA_Int32* pos, UA_UInt32 *dst) {
 	UA_UInt32 t1 = (UA_UInt32)((UA_Byte)(src[(*pos)++] & 0xFF));
 	UA_UInt32 t2 = (UA_UInt32)((UA_Byte)(src[(*pos)++]& 0xFF) << 8);
 	UA_UInt32 t3 = (UA_UInt32)((UA_Byte)(src[(*pos)++]& 0xFF) << 16);
@@ -219,12 +219,12 @@ UA_TYPE_METHOD_INIT_DEFAULT(UA_UInt32)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_UInt32)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Int64)
-UA_Int32 UA_Int64_encode(UA_Int64 const * src, UA_Int32* pos, char *dst) {
+UA_Int32 UA_Int64_encode(UA_Int64 const * src, UA_Int32* pos, UA_Byte *dst) {
 	memcpy(&(dst[*pos]), src, sizeof(UA_Int64));
 	*pos += sizeof(UA_Int64);
 	return UA_SUCCESS;
 }
-UA_Int32 UA_Int64_decode(char const * src, UA_Int32* pos, UA_Int64* dst) {
+UA_Int32 UA_Int64_decode(UA_Byte const * src, UA_Int32* pos, UA_Int64* dst) {
 	UA_Int64 t1 = (UA_Int64) src[(*pos)++];
 	UA_Int64 t2 = (UA_Int64) src[(*pos)++] << 8;
 	UA_Int64 t3 = (UA_Int64) src[(*pos)++] << 16;
@@ -242,12 +242,12 @@ UA_TYPE_METHOD_INIT_DEFAULT(UA_Int64)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_Int64)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_UInt64)
-UA_Int32 UA_UInt64_encode(UA_UInt64 const * src , UA_Int32* pos, char * dst) {
+UA_Int32 UA_UInt64_encode(UA_UInt64 const * src , UA_Int32* pos, UA_Byte * dst) {
 	memcpy(&(dst[*pos]), src, sizeof(UA_UInt64));
 	*pos += sizeof(UA_UInt64);
 	return UA_SUCCESS;
 }
-UA_Int32 UA_UInt64_decode(char const * src, UA_Int32* pos, UA_UInt64* dst) {
+UA_Int32 UA_UInt64_decode(UA_Byte const * src, UA_Int32* pos, UA_UInt64* dst) {
 	UA_UInt64 t1 = (UA_UInt64) src[(*pos)++];
 	UA_UInt64 t2 = (UA_UInt64) src[(*pos)++] << 8;
 	UA_UInt64 t3 = (UA_UInt64) src[(*pos)++] << 16;
@@ -265,13 +265,13 @@ UA_TYPE_METHOD_INIT_DEFAULT(UA_UInt64)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_UInt64)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Float)
-UA_Int32 UA_Float_decode(char const * src, UA_Int32* pos, UA_Float* dst) {
+UA_Int32 UA_Float_decode(UA_Byte const * src, UA_Int32* pos, UA_Float* dst) {
 	// TODO: not yet implemented
 	memcpy(dst, &(src[*pos]), sizeof(UA_Float));
 	*pos += sizeof(UA_Float);
 	return UA_SUCCESS;
 }
-UA_Int32 UA_Float_encode(UA_Float const * src, UA_Int32* pos, char *dst) {
+UA_Int32 UA_Float_encode(UA_Float const * src, UA_Int32* pos, UA_Byte* dst) {
 	// TODO: not yet implemented
 	memcpy(&(dst[*pos]), src, sizeof(UA_Float));
 	*pos += sizeof(UA_Float);
@@ -287,7 +287,7 @@ UA_Int32 UA_Float_init(UA_Float * p){
 UA_TYPE_METHOD_NEW_DEFAULT(UA_Float)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Double)
-UA_Int32 UA_Double_decode(char const * src, UA_Int32* pos, UA_Double * dst) {
+UA_Int32 UA_Double_decode(UA_Byte const * src, UA_Int32* pos, UA_Double * dst) {
 	// TODO: not yet implemented
 	UA_Double tmpDouble;
 	tmpDouble = (UA_Double) (src[*pos]);
@@ -295,7 +295,7 @@ UA_Int32 UA_Double_decode(char const * src, UA_Int32* pos, UA_Double * dst) {
 	*dst = tmpDouble;
 	return UA_SUCCESS;
 }
-UA_Int32 UA_Double_encode(UA_Double const * src, UA_Int32 *pos, char * dst) {
+UA_Int32 UA_Double_encode(UA_Double const * src, UA_Int32 *pos, UA_Byte* dst) {
 	// TODO: not yet implemented
 	memcpy(&(dst[*pos]), src, sizeof(UA_Double));
 	*pos *= sizeof(UA_Double);
@@ -319,7 +319,7 @@ UA_Int32 UA_String_calcSize(UA_String const * string) {
 		}
 	}
 }
-UA_Int32 UA_String_encode(UA_String const * src, UA_Int32* pos, char *dst) {
+UA_Int32 UA_String_encode(UA_String const * src, UA_Int32* pos, UA_Byte* dst) {
 	UA_Int32_encode(&(src->length),pos,dst);
 
 	if (src->length > 0) {
@@ -328,7 +328,7 @@ UA_Int32 UA_String_encode(UA_String const * src, UA_Int32* pos, char *dst) {
 	}
 	return UA_SUCCESS;
 }
-UA_Int32 UA_String_decode(char const * src, UA_Int32* pos, UA_String * dst) {
+UA_Int32 UA_String_decode(UA_Byte const * src, UA_Int32* pos, UA_String * dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_Int32_decode(src,pos,&(dst->length));
 	if (dst->length > 0) {
@@ -448,7 +448,7 @@ UA_Int32 UA_Guid_calcSize(UA_Guid const * p) {
 		;
 	}
 }
-UA_Int32 UA_Guid_encode(UA_Guid const *src, UA_Int32* pos, char *dst) {
+UA_Int32 UA_Guid_encode(UA_Guid const *src, UA_Int32* pos, UA_Byte* dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_UInt32_encode(&(src->data1), pos, dst);
 	retval |= UA_UInt16_encode(&(src->data2), pos, dst);
@@ -456,7 +456,7 @@ UA_Int32 UA_Guid_encode(UA_Guid const *src, UA_Int32* pos, char *dst) {
 	retval |= UA_ByteString_encode(&(src->data4), pos, dst);
 	return UA_SUCCESS;
 }
-UA_Int32 UA_Guid_decode(char const * src, UA_Int32* pos, UA_Guid *dst) {
+UA_Int32 UA_Guid_decode(UA_Byte const * src, UA_Int32* pos, UA_Guid *dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_UInt32_decode(src,pos,&(dst->data1));
 	retval |= UA_UInt16_decode(src,pos,&(dst->data2));
@@ -497,7 +497,7 @@ UA_Int32 UA_LocalizedText_calcSize(UA_LocalizedText const * p) {
 	return length;
 }
 UA_Int32 UA_LocalizedText_encode(UA_LocalizedText const * src, UA_Int32 *pos,
-		char * dst) {
+		UA_Byte* dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_Byte_encode(&(src->encodingMask),pos,dst);
 	if (src->encodingMask & 0x01) {
@@ -508,7 +508,7 @@ UA_Int32 UA_LocalizedText_encode(UA_LocalizedText const * src, UA_Int32 *pos,
 	}
 	return retval;
 }
-UA_Int32 UA_LocalizedText_decode(char const * src, UA_Int32 *pos,
+UA_Int32 UA_LocalizedText_decode(UA_Byte const * src, UA_Int32 *pos,
 		UA_LocalizedText *dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_String_copy(&UA_String_null,&(dst->locale));
@@ -570,7 +570,7 @@ UA_Int32 UA_NodeId_calcSize(UA_NodeId const *p) {
 	}
 	return length;
 }
-UA_Int32 UA_NodeId_encode(UA_NodeId const * src, UA_Int32* pos, char *dst) {
+UA_Int32 UA_NodeId_encode(UA_NodeId const * src, UA_Int32* pos, UA_Byte* dst) {
 	// temporary variables for endian-save code
 	UA_Byte srcByte;
 	UA_UInt16 srcUInt16;
@@ -607,7 +607,7 @@ UA_Int32 UA_NodeId_encode(UA_NodeId const * src, UA_Int32* pos, char *dst) {
 	}
 	return retval;
 }
-UA_Int32 UA_NodeId_decode(char const * src, UA_Int32* pos, UA_NodeId *dst) {
+UA_Int32 UA_NodeId_decode(UA_Byte const * src, UA_Int32* pos, UA_NodeId *dst) {
 	int retval = UA_SUCCESS;
 	// temporary variables to overcome decoder's non-endian-saveness for datatypes
 	UA_Byte   dstByte;
@@ -755,7 +755,7 @@ UA_Int32 UA_ExpandedNodeId_calcSize(UA_ExpandedNodeId const * p) {
 	}
 	return length;
 }
-UA_Int32 UA_ExpandedNodeId_encode(UA_ExpandedNodeId const * src, UA_Int32* pos, char *dst) {
+UA_Int32 UA_ExpandedNodeId_encode(UA_ExpandedNodeId const * src, UA_Int32* pos, UA_Byte* dst) {
 	UA_UInt32 retval = UA_SUCCESS;
 	retval |= UA_NodeId_encode(&(src->nodeId),pos,dst);
 	if (src->nodeId.encodingByte & NIEVT_NAMESPACE_URI_FLAG) {
@@ -766,7 +766,7 @@ UA_Int32 UA_ExpandedNodeId_encode(UA_ExpandedNodeId const * src, UA_Int32* pos, 
 	}
 	return retval;
 }
-UA_Int32 UA_ExpandedNodeId_decode(char const * src, UA_Int32* pos,
+UA_Int32 UA_ExpandedNodeId_decode(UA_Byte const * src, UA_Int32* pos,
 		UA_ExpandedNodeId *dst) {
 	UA_UInt32 retval = UA_SUCCESS;
 	retval |= UA_NodeId_decode(src,pos,&(dst->nodeId));
@@ -815,7 +815,7 @@ UA_Int32 UA_ExtensionObject_calcSize(UA_ExtensionObject const * p) {
 	}
 	return length;
 }
-UA_Int32 UA_ExtensionObject_encode(UA_ExtensionObject const *src, UA_Int32* pos, char * dst) {
+UA_Int32 UA_ExtensionObject_encode(UA_ExtensionObject const *src, UA_Int32* pos, UA_Byte * dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_NodeId_encode(&(src->typeId),pos,dst);
 	retval |= UA_Byte_encode(&(src->encoding),pos,dst);
@@ -829,7 +829,7 @@ UA_Int32 UA_ExtensionObject_encode(UA_ExtensionObject const *src, UA_Int32* pos,
 	}
 	return retval;
 }
-UA_Int32 UA_ExtensionObject_decode(char const * src, UA_Int32 *pos,
+UA_Int32 UA_ExtensionObject_decode(UA_Byte const * src, UA_Int32 *pos,
 		UA_ExtensionObject *dst) {
 	UA_Int32 retval = UA_SUCCESS;
  	retval |= UA_NodeId_decode(src,pos,&(dst->typeId));
@@ -864,7 +864,7 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_ExtensionObject)
 
 
 /** DiagnosticInfo - Part: 4, Chapter: 7.9, Page: 116 */
-UA_Int32 UA_DiagnosticInfo_decode(char const * src, UA_Int32 *pos, UA_DiagnosticInfo *dst) {
+UA_Int32 UA_DiagnosticInfo_decode(UA_Byte const * src, UA_Int32 *pos, UA_DiagnosticInfo *dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	int i;
 
@@ -900,7 +900,7 @@ UA_Int32 UA_DiagnosticInfo_decode(char const * src, UA_Int32 *pos, UA_Diagnostic
 	}
 	return retval;
 }
-UA_Int32 UA_DiagnosticInfo_encode(UA_DiagnosticInfo const *src, UA_Int32 *pos, char *dst) {
+UA_Int32 UA_DiagnosticInfo_encode(UA_DiagnosticInfo const *src, UA_Int32 *pos, UA_Byte* dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	int i;
 
@@ -1052,7 +1052,7 @@ UA_Int32 UA_QualifiedName_calcSize(UA_QualifiedName const * p) {
 	length += UA_String_calcSize(&(p->name)); //qualifiedName->name
 	return length;
 }
-UA_Int32 UA_QualifiedName_decode(char const * src, UA_Int32 *pos,
+UA_Int32 UA_QualifiedName_decode(UA_Byte const * src, UA_Int32 *pos,
 		UA_QualifiedName *dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_UInt16_decode(src,pos,&(dst->namespaceIndex));
@@ -1061,7 +1061,7 @@ UA_Int32 UA_QualifiedName_decode(char const * src, UA_Int32 *pos,
 	return retval;
 }
 UA_Int32 UA_QualifiedName_encode(UA_QualifiedName const *src, UA_Int32* pos,
-		char *dst) {
+		UA_Byte *dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_UInt16_encode(&(src->namespaceIndex),pos,dst);
 	retval |= UA_UInt16_encode(&(src->reserved),pos,dst);
@@ -1115,7 +1115,7 @@ UA_Int32 UA_Variant_calcSize(UA_Variant const * p) {
 	}
 	return length;
 }
-UA_Int32 UA_Variant_encode(UA_Variant const *src, UA_Int32* pos, char *dst) {
+UA_Int32 UA_Variant_encode(UA_Variant const *src, UA_Int32* pos, UA_Byte *dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	int i = 0;
 
@@ -1141,7 +1141,7 @@ UA_Int32 UA_Variant_encode(UA_Variant const *src, UA_Int32* pos, char *dst) {
 	return retval;
 }
 
-UA_Int32 UA_Variant_decode(char const * src, UA_Int32 *pos, UA_Variant *dst) {
+UA_Int32 UA_Variant_decode(UA_Byte const * src, UA_Int32 *pos, UA_Variant *dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 ns0Id;
 	int i;
@@ -1202,7 +1202,7 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_Variant)
 
 //TODO: place this define at the server configuration
 #define MAX_PICO_SECONDS 1000
-UA_Int32 UA_DataValue_decode(char const * src, UA_Int32* pos, UA_DataValue* dst) {
+UA_Int32 UA_DataValue_decode(UA_Byte const * src, UA_Int32* pos, UA_DataValue* dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_Byte_decode(src,pos,&(dst->encodingMask));
 	if (dst->encodingMask & UA_DATAVALUE_VARIANT) {
@@ -1231,7 +1231,7 @@ UA_Int32 UA_DataValue_decode(char const * src, UA_Int32* pos, UA_DataValue* dst)
 	}
 	return retval;
 }
-UA_Int32 UA_DataValue_encode(UA_DataValue const * src, UA_Int32* pos, char *dst) {
+UA_Int32 UA_DataValue_encode(UA_DataValue const * src, UA_Int32* pos, UA_Byte*dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_Byte_encode(&(src->encodingMask),pos,dst);
 	if (src->encodingMask & UA_DATAVALUE_VARIANT) {

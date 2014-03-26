@@ -141,8 +141,8 @@ def createStructured(element):
     print("} " + name + ";", end='\n', file=fh)
 
     print("UA_Int32 " + name + "_calcSize(" + name + " const * ptr);", end='\n', file=fh)
-    print("UA_Int32 " + name + "_encode(" + name + " const * src, UA_Int32* pos, char* dst);", end='\n', file=fh)
-    print("UA_Int32 " + name + "_decode(char const * src, UA_Int32* pos, " + name + "* dst);", end='\n', file=fh)
+    print("UA_Int32 " + name + "_encode(" + name + " const * src, UA_Int32* pos, UA_Byte* dst);", end='\n', file=fh)
+    print("UA_Int32 " + name + "_decode(UA_Byte const * src, UA_Int32* pos, " + name + "* dst);", end='\n', file=fh)
     print("UA_Int32 " + name + "_delete("+ name + "* p);", end='\n', file=fh)
     print("UA_Int32 " + name + "_deleteMembers(" + name + "* p);", end='\n', file=fh)
     print("UA_Int32 " + name + "_init("+ name + " * p);", end='\n', file=fh)
@@ -169,7 +169,7 @@ def createStructured(element):
 
     print("\n\t;\n}\n", end='\n', file=fc)
 
-    print("UA_Int32 "+name+"_encode("+name+" const * src, UA_Int32* pos, char* dst) {\n\tUA_Int32 retval = UA_SUCCESS;", end='\n', file=fc)
+    print("UA_Int32 "+name+"_encode("+name+" const * src, UA_Int32* pos, UA_Byte* dst) {\n\tUA_Int32 retval = UA_SUCCESS;", end='\n', file=fc)
     # code _encode
     for n,t in valuemap.iteritems():
         if t in elementary_size:
@@ -187,7 +187,7 @@ def createStructured(element):
     print("\treturn retval;\n}\n", end='\n', file=fc)
 
     # code _decode
-    print("UA_Int32 "+name+"_decode(char const * src, UA_Int32* pos, " + name + "* dst) {\n\tUA_Int32 retval = UA_SUCCESS;", end='\n', file=fc)
+    print("UA_Int32 "+name+"_decode(UA_Byte const * src, UA_Int32* pos, " + name + "* dst) {\n\tUA_Int32 retval = UA_SUCCESS;", end='\n', file=fc)
     for n,t in valuemap.iteritems():
         if t in elementary_size:
             print('\tretval |= UA_'+t+'_decode(src,pos,&(dst->'+n+'));', end='\n', file=fc)
@@ -219,7 +219,7 @@ def createStructured(element):
     for n,t in valuemap.iteritems():
         if t not in elementary_size:
             if t.find("**") != -1:
-		print("\tretval |= UA_Array_delete(p->"+n+",p->"+n+"Size);", end='\n', file=fc) #not tested
+		print("\tretval |= UA_Array_delete((void**)p->"+n+",p->"+n+"Size);", end='\n', file=fc) #not tested
             elif t.find("*") != -1:
 		print('\tretval |= UA_' + t[0:t.find("*")] + "_delete(p->"+n+");", end='\n', file=fc)
             else:

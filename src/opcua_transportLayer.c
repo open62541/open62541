@@ -25,17 +25,17 @@ UA_Int32 TL_initConnectionObject(UA_connection *connection)
 UA_Int32 TL_check(UA_connection *connection)
 {
 	UA_Int32 position = 4;
-	UA_UInt32 messageLength = 0;
+	UA_Int32 messageLength = 0;
 
 
 	printf("TL_check - entered \n");
 
 	UA_ByteString_printf("received data:",&(connection->readData));
-	UA_UInt32_decode(connection->readData.data,&position,&messageLength);
+	UA_Int32_decode(connection->readData.data,&position,&messageLength);
 
 	printf("TL_check - messageLength = %d \n",messageLength);
 
-	if (messageLength == connection->readData.length &&
+	if (messageLength != -1 && messageLength == connection->readData.length &&
 			messageLength < (connection->transportLayer.localConf.maxMessageSize))
 	{
 		printf("TL_check - no error \n");
