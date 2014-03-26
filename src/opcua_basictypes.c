@@ -428,10 +428,10 @@ UA_Int32 UA_ByteString_compare(UA_ByteString *string1, UA_ByteString *string2) {
 void UA_ByteString_printf(char* label, UA_ByteString* string) {
 	UA_String_printf(label, (UA_String*) string);
 }
-void UA_ByteString_printx(char* label, UA_String* string) {
+void UA_ByteString_printx(char* label, UA_ByteString* string) {
 	UA_String_printx(label, (UA_String*) string);
 }
-void UA_ByteString_printx_hex(char* label, UA_String* string) {
+void UA_ByteString_printx_hex(char* label, UA_ByteString* string) {
 	UA_String_printx_hex(label, (UA_String*) string);
 }
 

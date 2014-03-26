@@ -109,7 +109,7 @@ typedef struct T_UA_AsymmetricAlgorithmSecurityHeader {
 	UA_ByteString securityPolicyUri;
 	UA_ByteString senderCertificate;
 	UA_ByteString receiverCertificateThumbprint;
-	UA_UInt32 requestId;
+	// UA_UInt32 requestId;
 } UA_AsymmetricAlgorithmSecurityHeader;
 UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_calcSize(UA_AsymmetricAlgorithmSecurityHeader const * ptr);
 UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_encode(UA_AsymmetricAlgorithmSecurityHeader const * src, UA_Int32* pos, char* dst);

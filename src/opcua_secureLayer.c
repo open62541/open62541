@@ -272,7 +272,7 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 	//encode header
 	printf("SL_openSecureChannel - encoding response header \n");
 
-	UA_ResponseHeader_encode(&responseHeader, &pos, &response.data);
+	UA_ResponseHeader_encode(&responseHeader, &pos, response.data);
 	printf("SL_openSecureChannel - response header encoded \n");
 
 	//encode message
@@ -470,7 +470,7 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 	UA_SecureConversationMessageHeader secureConvHeader;
 	UA_AsymmetricAlgorithmSecurityHeader asymAlgSecHeader;
 	UA_SequenceHeader sequenceHeader;
-	UA_Int32 packetType = 0;
+	// UA_Int32 packetType = 0;
 	UA_Int32 pos = 0;
 	UA_Int32 iTmp;
 	//TODO Error Handling, length checking
@@ -507,13 +507,14 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 				}
 
 			//FIXME: destroy decodeAASHeader (to prevent memleak)
+			// UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymAlgSecHeader);
 			}
 			else
 			{
 				//TODO invalid securechannelId
 			}
 
-			UA_SequenceHeader_decode(&secureChannelPacket.data, &pos, &sequenceHeader);
+			UA_SequenceHeader_decode(secureChannelPacket.data, &pos, &sequenceHeader);
 			printf("SL_receive - SequenceHeader.RequestId=%d\n",
 					sequenceHeader.requestId);
 			printf("SL_receive - SequenceHeader.SequenceNr=%d\n",
@@ -527,6 +528,7 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 			//SL_decrypt(&secureChannelPacket);
 			message.data = &secureChannelPacket.data[pos];
 			message.length = secureChannelPacket.length - pos;
+			UA_ByteString_printx("SL_receive - message=",&message);
 
 			SL_processMessage(connection, message);
 

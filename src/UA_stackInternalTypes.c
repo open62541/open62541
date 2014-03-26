@@ -197,13 +197,14 @@ UA_Int32 UA_SecureConversationMessageHeader_deleteMembers(UA_SecureConversationM
 	return retval;
 }
 
+//TODO: I assume that requestId belongs to the sequence header, not to the AAS. Need to check
 UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_calcSize(UA_AsymmetricAlgorithmSecurityHeader const * ptr) {
 	if(ptr==UA_NULL){return sizeof(UA_AsymmetricAlgorithmSecurityHeader);}
 	return 0
 	 + UA_ByteString_calcSize(&(ptr->securityPolicyUri))
 	 + UA_ByteString_calcSize(&(ptr->senderCertificate))
 	 + UA_ByteString_calcSize(&(ptr->receiverCertificateThumbprint))
-	 + sizeof(UA_UInt32) // requestId
+	 // + sizeof(UA_UInt32) // requestId
 	;
 }
 
@@ -212,7 +213,7 @@ UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_encode(UA_AsymmetricAlgorithmSecur
 	retval |= UA_ByteString_encode(&(src->securityPolicyUri),pos,dst);
 	retval |= UA_ByteString_encode(&(src->senderCertificate),pos,dst);
 	retval |= UA_ByteString_encode(&(src->receiverCertificateThumbprint),pos,dst);
-	retval |= UA_UInt32_encode(&(src->requestId),pos,dst);
+	// retval |= UA_UInt32_encode(&(src->requestId),pos,dst);
 	return retval;
 }
 
@@ -221,7 +222,7 @@ UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_decode(char const * src, UA_Int32*
 	retval |= UA_ByteString_decode(src,pos,&(dst->securityPolicyUri));
 	retval |= UA_ByteString_decode(src,pos,&(dst->senderCertificate));
 	retval |= UA_ByteString_decode(src,pos,&(dst->receiverCertificateThumbprint));
-	retval |= UA_UInt32_decode(src,pos,&(dst->requestId));
+	// retval |= UA_UInt32_decode(src,pos,&(dst->requestId));
 	return retval;
 }
 

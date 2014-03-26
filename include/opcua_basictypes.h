@@ -201,6 +201,9 @@ typedef struct T_UA_LocalizedText
 }
 UA_LocalizedText;
 UA_TYPE_METHOD_PROTOTYPES (UA_LocalizedText)
+void UA_ByteString_printf(char* label, UA_ByteString* string);
+void UA_ByteString_printx(char* label, UA_ByteString* string);
+void UA_ByteString_printx_hex(char* label, UA_ByteString* string);
 
 /* GuidType - Part: 6, Chapter: 5.2.2.6 Page: 17 */
 typedef struct T_UA_Guid
