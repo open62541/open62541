@@ -16,7 +16,7 @@
 #include "check.h"
 
 
-
+/*
 START_TEST(test_getPacketType_validParameter)
 {
 
@@ -30,7 +30,7 @@ START_TEST(test_getPacketType_validParameter)
 	ck_assert_int_eq(TL_getPacketType(&msg, &pos),packetType_CLO);
 }
 END_TEST
-
+*/
 
 
 /*
@@ -84,14 +84,14 @@ START_TEST(encode_builtInDatatypeArray_test_String)
 }
 END_TEST
 
-Suite *testSuite_getPacketType(void)
+/**Suite *testSuite_getPacketType(void)
 {
 	Suite *s = suite_create("getPacketType");
 	TCase *tc_core = tcase_create("Core");
 	tcase_add_test(tc_core,test_getPacketType_validParameter);
 	suite_add_tcase(s,tc_core);
 	return s;
-}
+}**/
 
 Suite* testSuite_encode_builtInDatatypeArray()
 {
@@ -118,11 +118,14 @@ int main (void)
 {
 	int number_failed = 0;
 
-	Suite *s = testSuite_getPacketType();
-	SRunner *sr = srunner_create(s);
+	Suite *s;
+	SRunner *sr;
+
+	/* s = testSuite_getPacketType();
+	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed = srunner_ntests_failed(sr);
-	srunner_free(sr);
+	srunner_free(sr); */
 
 	s = testSuite_encode_builtInDatatypeArray();
 	sr = srunner_create(s);
