@@ -364,9 +364,6 @@ UA_Int32 UA_String_init(UA_String* p){
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_String)
 
-UA_Byte UA_Byte_securityPoliceNoneData[] = "http://opcfoundation.org/UA/SecurityPolicy#None";
-UA_String UA_String_securityPoliceNone = { sizeof(UA_Byte_securityPoliceNoneData), UA_Byte_securityPoliceNoneData };
-
 UA_Int32 UA_String_compare(UA_String* string1, UA_String* string2) {
 	UA_Int32 retval;
 
@@ -435,6 +432,11 @@ void UA_ByteString_printx_hex(char* label, UA_ByteString* string) {
 	UA_String_printx_hex(label, (UA_String*) string);
 }
 
+UA_Byte UA_Byte_securityPoliceNoneData[] = "http://opcfoundation.org/UA/SecurityPolicy#None";
+UA_String UA_String_securityPoliceNone = { sizeof(UA_Byte_securityPoliceNoneData), UA_Byte_securityPoliceNoneData };
+UA_Int32 UA_ByteString_copy(UA_ByteString const * src, UA_ByteString* dst) {
+	return UA_String_copy((UA_String const*)src,(UA_String*)dst);
+}
 
 UA_Int32 UA_Guid_calcSize(UA_Guid const * p) {
 	if (p == UA_NULL) {
