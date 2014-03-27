@@ -80,7 +80,9 @@ UA_Int32 SL_send(UA_connection* connection, UA_ByteString const * responseMessag
 				sizeAsymAlgHeader +
 				responseMessage->length +
 				sizePadding +
-				sizeSignature;
+				sizeSignature +
+		// FIXME: Leon misses two bytes here
+				2;
 
 		//get memory for response
 		UA_alloc((void**)&(responsePacket.data),packetSize);
@@ -142,7 +144,7 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 
 	UA_ResponseHeader responseHeader;
 	UA_ExtensionObject additionalHeader;
-	SL_ChannelSecurityToken securityToken;
+	UA_ChannelSecurityToken securityToken;
 	UA_ByteString serverNonce;
 	UA_NodeId responseType;
 	//sizes for memory allocation
@@ -150,7 +152,7 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 	UA_Int32 sizeRespHeader;
 	UA_Int32 sizeResponseType;
 	UA_Int32 sizeRespMessage;
-	UA_Int32 sizeSecurityToken;
+	// UA_Int32 sizeSecurityToken;
 	UA_ByteString response;
 	UA_UInt32 serverProtocolVersion;
 	UA_Int32 pos;
@@ -221,38 +223,27 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 	 * 	Res-3) SecurityToken channelSecurityToken
 	 *  Res-5) ByteString ServerNonce
 	*/
+	serverProtocolVersion = connection->transportLayer.localConf.protocolVersion;
 
-	//                  secureChannelId + TokenId + CreatedAt + RevisedLifetime
-	sizeSecurityToken = sizeof(UA_UInt32) + sizeof(UA_UInt32) + sizeof(UA_DateTime) + sizeof(UA_Int32);
-
-	//ignore server nonce
-	serverNonce.length = -1;
-	serverNonce.data = NULL;
-
-	serverNonce.length = connection->secureLayer.localNonce.length;
-	serverNonce.data = connection->secureLayer.localNonce.data;
-
-	//fill token structure with default server information
-	securityToken.secureChannelId = connection->secureLayer.securityToken.secureChannelId;
+	securityToken.channelId = connection->secureLayer.securityToken.secureChannelId;
 	securityToken.tokenId = connection->secureLayer.securityToken.tokenId;
 	securityToken.createdAt = UA_DateTime_now();
 	securityToken.revisedLifetime = connection->secureLayer.securityToken.revisedLifetime;
 
-	serverProtocolVersion = connection->transportLayer.localConf.protocolVersion;
+	serverNonce.length = connection->secureLayer.localNonce.length;
+	serverNonce.data = connection->secureLayer.localNonce.data;
 
-	//                ProtocolVersion + SecurityToken + Nonce
-	sizeRespMessage = sizeof(UA_UInt32) + serverNonce.length + sizeof(UA_Int32) + sizeSecurityToken;
+	// ProtocolVersion + SecurityToken + ServerNonce
+	sizeRespMessage = sizeof(UA_UInt32) +
+			UA_ChannelSecurityToken_calcSize(&securityToken) +
+			UA_ByteString_calcSize(&serverNonce);
 	printf("SL_openSecureChannel - size of response message=%d\n",sizeRespMessage);
-
 
 	//get memory for response
 	sizeResponseType = UA_NodeId_calcSize(&responseType);
+	printf("SL_openSecureChannel - size response type =%d\n",sizeResponseType);
 
 	response.length = sizeResponseType + sizeRespHeader + sizeRespMessage;
-
-	//FIXME: Sten: 4 bytes are missing
-	//Leon: fixed bug in generator / UA_Array_encode, still missing 2 :-(
-	response.length += 2;
 
 	//get memory for response
 	UA_alloc((void*)&(response.data), response.length);
@@ -271,14 +262,8 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 	//encode message
 	printf("SL_openSecureChannel - serverProtocolVersion = %d \n",serverProtocolVersion);
 	UA_UInt32_encode(&serverProtocolVersion, &pos,response.data);
-	printf("SL_openSecureChannel - secureChannelId = %d \n",securityToken.secureChannelId);
-	UA_UInt32_encode(&(securityToken.secureChannelId), &pos,response.data);
-	printf("SL_openSecureChannel - tokenId = %d \n",securityToken.tokenId);
-	UA_UInt32_encode(&(securityToken.tokenId), &pos,response.data);
 
-	UA_DateTime_encode(&(securityToken.createdAt), &pos,response.data);
-	printf("SL_openSecureChannel - revisedLifetime = %d \n",securityToken.revisedLifetime);
-	UA_Int32_encode(&(securityToken.revisedLifetime), &pos,response.data);
+	UA_ChannelSecurityToken_encode(&securityToken,&pos,response.data);
 
 	UA_ByteString_encode(&serverNonce, &pos,response.data);
 

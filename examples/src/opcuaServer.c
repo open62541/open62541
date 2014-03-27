@@ -141,8 +141,8 @@ void server_run()
 			n = write(newsockfd,connection.writeData.data,connection.writeData.length);
 			printf("written %d bytes \n",n);
 			connection.newDataToWrite = 0;
-			//FIXME: this seems to be the right address, free crashes however
-			//UA_free(connection.writeData.data);
+			UA_ByteString_deleteMembers(&connection.writeData);
+
 			connection.writeData.data = NULL;
 			connection.writeData.length = 0;
 		}
