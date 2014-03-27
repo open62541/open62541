@@ -51,7 +51,7 @@ UA_Int32 TL_check(UA_connection *connection)
 
 UA_Int32 TL_receive(UA_connection *connection, UA_ByteString *packet)
 {
-
+	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 pos = 0;
 	UA_OPCUATcpMessageHeader *tcpMessageHeader;
 
@@ -98,7 +98,7 @@ UA_Int32 TL_receive(UA_connection *connection, UA_ByteString *packet)
 
 			//TODO ERROR HANDLING
 
-			return UA_ERROR_RCV_ERROR;
+			retval = UA_ERROR_RCV_ERROR;
 			break;
 		}
 
@@ -109,7 +109,9 @@ UA_Int32 TL_receive(UA_connection *connection, UA_ByteString *packet)
 		//length error: send error message to communication partner
 		//TL_send()
 	}
-	return UA_NO_ERROR;
+	// Clean Up
+	UA_OPCUATcpMessageHeader_delete(tcpMessageHeader);
+	return retval;
 }
 
 #define Cmp3Byte(data,pos,a,b,c) (*((Int32*) ((data)+(pos))) & 0xFFFFFF) == (Int32)(((Byte)(a))|((Byte)(b))<<8|((Byte)(c))<<16)
@@ -157,6 +159,7 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 			printf("TL_process - maxChunkCount = %d \n",connection->transportLayer.remoteConf.maxChunkCount);
 
 			UA_String_copy(&(helloMessage->endpointUrl), &(connection->transportLayer.endpointURL));
+			UA_OPCUATcpHelloMessage_delete(helloMessage);
 
 			/* send back acknowledge */
 			//memory for message

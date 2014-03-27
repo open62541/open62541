@@ -46,9 +46,11 @@ typedef double UA_Double;
 /* heap memory functions */
 #define UA_NULL ((void*)0)
 extern void const * UA_alloc_lastptr;
-UA_Int32 UA_free(void * ptr);
+#define UA_free(ptr) _UA_free(ptr,__FILE__,__LINE__)
+UA_Int32 _UA_free(void * ptr,char*,int);
 UA_Int32 UA_memcpy(void *dst, void const *src, int size);
-UA_Int32 UA_alloc(void ** dst, int size);
+#define UA_alloc(ptr,size) _UA_alloc(ptr,size,__FILE__,__LINE__)
+UA_Int32 _UA_alloc(void ** dst, int size,char*,int);
 
 /* Array operations */
 UA_Int32 UA_Array_calcSize(UA_Int32 noElements, UA_Int32 type, void const ** ptr);

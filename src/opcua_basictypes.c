@@ -86,22 +86,22 @@ UA_Int32 UA_Array_new(void **p,UA_Int32 noElements, UA_Int32 type) {
 	return UA_ERR_NOT_IMPLEMENTED;
 }
 
-UA_Int32 UA_free(void * ptr){
-	printf("UA_free - ptr=%p\n",ptr);
+UA_Int32 _UA_free(void * ptr,char* f,int l){
+	printf("UA_free;%p;;%s;%d\n",ptr,f,l); fflush(stdout);
 	free(ptr);
 	return UA_SUCCESS;
 }
 
 void const * UA_alloc_lastptr;
-UA_Int32 UA_alloc(void ** ptr, int size){
+UA_Int32 _UA_alloc(void ** ptr, int size,char* f,int l){
 	UA_alloc_lastptr = *ptr = malloc(size);
-	printf("UA_alloc - ptr=%p, size=%d\n",*ptr,size);
+	printf("UA_alloc;%p;%d;%s;%d\n",*ptr,size,f,l); fflush(stdout);
 	if(*ptr == UA_NULL) return UA_ERR_NO_MEMORY;
 	return UA_SUCCESS;
 }
 
 UA_Int32 UA_memcpy(void * dst, void const * src, int size){
-	printf("UA_memcpy - dst=%p, src=%p, size=%d\n",dst,src,size);
+	printf("UA_memcpy;%p;%p;%d\n",dst,src,size);
 	memcpy(dst, src, size);
 	return UA_SUCCESS;
 }
