@@ -271,12 +271,10 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 
 	printf("-----> reserved: %i\n", response.length);
 	printf("-----> encoded: %i\n", pos);
-	//FIXME: Sten: here is a problem
 
 	//449 = openSecureChannelResponse
 	SL_send(connection, &response, 449);
-	//FIXME: this call crashs in UA_free
-	//UA_ByteString_deleteMembers(&response);
+	UA_ByteString_deleteMembers(&response);
 
 	return UA_SUCCESS;
 }
@@ -304,17 +302,9 @@ UA_Int32 SL_createSecurityToken(UA_connection *connection, UA_Int32 lifeTime) {
 }
 
 UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
-	// UA_DiagnosticInfo serviceDiagnostics;
-
+	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 pos = 0;
-	// UA_RequestHeader requestHeader;
-	// UA_UInt32 clientProtocolVersion;
 	UA_NodeId serviceRequestType;
-	// UA_Int32 requestType;
-	// UA_Int32 securityMode;
-	// UA_Int32 requestedLifetime;
-	// UA_ByteString clientNonce;
-	// UA_StatusCode serviceResult;
 
 	// Every Message starts with a NodeID which names the serviceRequestType
 	UA_NodeId_decode(message.data, &pos,
@@ -329,10 +319,6 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 		 * to the definition in part 4 */
 		// 	Req-1) RequestHeader requestHeader
 		UA_RequestHeader requestHeader;
-		UA_ExtensionObject additionalHeader;
-		//FIXME: Sten the structure was empty and decode attempted to fill it -> segfault
-		//FIXME: Sten: probably not needed anymore, since memory gets malloced in the decoder
-		requestHeader.additionalHeader = &additionalHeader;
 		// 	Req-2) UInt32 ClientProtocolVersion
 		UA_UInt32 clientProtocolVersion;
 		// 	Req-3) Enum SecurityTokenRequestType requestType
@@ -430,14 +416,15 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 		//TODO process requestedLifetime
 
 		// 62541-4 §7.27 "The requestHandle given by the Client to the request."
-		return SL_openSecureChannel(connection, &requestHeader, SC_Good);
+		retval = SL_openSecureChannel(connection, &requestHeader, SC_Good);
+		UA_RequestHeader_deleteMembers(&requestHeader);
 	} else {
 		printf("SL_processMessage - unknown service request");
 		//TODO change error code
-		return UA_ERROR;
+		retval = UA_ERROR;
 
 	}
-	return UA_SUCCESS;
+	return retval;
 }
 /*
  * receive and process data from underlying layer
@@ -534,6 +521,9 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 	} else {
 		printf("SL_receive - no data received \n");
 	}
+	// Clean up
+	UA_SecureConversationMessageHeader_deleteMembers(&secureConvHeader);
+	UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymAlgSecHeader);
 	/*
 	 Int32 readPosition = 0;
 

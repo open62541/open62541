@@ -146,7 +146,7 @@ def createStructured(element):
     print("UA_Int32 " + name + "_delete("+ name + "* p);", end='\n', file=fh)
     print("UA_Int32 " + name + "_deleteMembers(" + name + "* p);", end='\n', file=fh)
     print("UA_Int32 " + name + "_init("+ name + " * p);", end='\n', file=fh)
-    print("UA_Int32 " + name + "_new(" + name + " * p);", end='\n', file=fh)
+    print("UA_Int32 " + name + "_new(" + name + " ** p);", end='\n', file=fh)
 
     print("UA_Int32 "  + name + "_calcSize(" + name + " const * ptr) {", end='', file=fc)
     print("\n\tif(ptr==UA_NULL){return sizeof("+ name +");}", end='', file=fc)
@@ -201,7 +201,7 @@ def createStructured(element):
 				print("\tretval |= UA_Array_decode(src,dst->"+n+"Size, UA_" + t[0:t.find("*")].upper()+",pos,(void const**) (dst->"+n+"));", end='\n', file=fc) #not tested
             elif t.find("*") != -1:
 				#allocate memory using new
-				print('\tretval |= UA_'+ t[0:t.find("*")] +"_new(dst->" + n + ");", end='\n', file=fc)
+				print('\tretval |= UA_'+ t[0:t.find("*")] +"_new(&(dst->" + n + "));", end='\n', file=fc)
 				print('\tretval |= UA_' + t[0:t.find("*")] + "_decode(src,pos,dst->"+ n +");", end='\n', file=fc)
             else:
                 print('\tretval |= UA_'+t+"_decode(src,pos,&(dst->"+n+"));", end='\n', file=fc)

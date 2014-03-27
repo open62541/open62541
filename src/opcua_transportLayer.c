@@ -125,8 +125,6 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 	UA_OPCUATcpAcknowledgeMessage *ackMessage;
 	UA_OPCUATcpMessageHeader *ackHeader;
 
-
-
 	printf("TL_process - entered \n");
 
 	switch(packetType)
@@ -187,6 +185,8 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 			UA_OPCUATcpAcknowledgeMessage_encode(ackMessage,&tmpPos,tmpMessage.data);
 
 			printf("TL_process - Size messageToSend = %d \n",ackHeader->messageSize);
+			UA_OPCUATcpMessageHeader_delete(ackHeader);
+			UA_OPCUATcpAcknowledgeMessage_delete(ackMessage);
 			/* ------------------------ Body ------------------------ */
 			// protocol version
 			printf("TL_process - localConf.protocolVersion = %d \n",connection->transportLayer.localConf.protocolVersion);
@@ -200,6 +200,7 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 			printf("TL_process - localConf.maxChunkCount = %d \n", connection->transportLayer.localConf.maxChunkCount);
 			UA_ByteString_printf("encoded data",&tmpMessage);
 			TL_send(connection, &tmpMessage);
+			// do not delete tmpMessage - this is the responsibility of the send thread
 		}
 		else
 		{

@@ -67,7 +67,7 @@ UA_Int32 TYPE##_decode(UA_Byte const * src, UA_Int32* pos, TYPE * dst);\
 UA_Int32 TYPE##_delete(TYPE * p);\
 UA_Int32 TYPE##_deleteMembers(TYPE * p); \
 UA_Int32 TYPE##_init(TYPE * p); \
-UA_Int32 TYPE##_new(TYPE * p);
+UA_Int32 TYPE##_new(TYPE ** p);
 
 
 #define UA_TYPE_METHOD_CALCSIZE_SIZEOF(TYPE) \
@@ -112,10 +112,10 @@ UA_Int32 TYPE##_init(TYPE * p){ \
 }
 
 #define UA_TYPE_METHOD_NEW_DEFAULT(TYPE) \
-UA_Int32 TYPE##_new(TYPE * p){ \
+UA_Int32 TYPE##_new(TYPE ** p){ \
 	UA_Int32 retval = UA_SUCCESS;\
 	retval |= UA_alloc((void**)p, TYPE##_calcSize(UA_NULL));\
-	retval |= TYPE##_init(p);\
+	retval |= TYPE##_init(*p);\
 	return retval;\
 }
 
