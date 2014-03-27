@@ -69,7 +69,8 @@ void server_run()
 	SL_initConnectionObject(&connection);
 
 	/* First call to socket() function */
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	// sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	sockfd = socket(PF_INET, SOCK_STREAM, 0);
 	if (sockfd < 0)
 	{
 		perror("ERROR opening socket");

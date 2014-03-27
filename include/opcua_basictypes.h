@@ -55,6 +55,8 @@ UA_Int32 UA_Array_calcSize(UA_Int32 noElements, UA_Int32 type, void const ** ptr
 UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, UA_Byte * dst);
 UA_Int32 UA_Array_decode(UA_Byte const * src,UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void const **dst);
 UA_Int32 UA_Array_delete(void **p,UA_Int32 noElements);
+UA_Int32 UA_Array_init(void **p,UA_Int32 noElements, UA_Int32 type);
+UA_Int32 UA_Array_new(void **p,UA_Int32 noElements, UA_Int32 type);
 
 #define UA_TYPE_METHOD_PROTOTYPES(TYPE) \
 UA_Int32 TYPE##_calcSize(TYPE const * ptr);\
@@ -193,7 +195,8 @@ typedef struct T_UA_ByteString
 UA_ByteString;
 UA_TYPE_METHOD_PROTOTYPES (UA_ByteString)
 UA_Int32 UA_ByteString_compare(UA_ByteString *string1, UA_ByteString *string2);
-extern UA_String UA_String_securityPoliceNone;
+UA_Int32 UA_ByteString_copy(UA_ByteString const * src, UA_ByteString* dst);
+extern UA_ByteString UA_ByteString_securityPoliceNone;
 
 /** LocalizedTextBinaryEncoding - Part: 6, Chapter: 5.2.2.14, Page: 21 */
 typedef struct T_UA_LocalizedText

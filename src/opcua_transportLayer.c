@@ -36,7 +36,7 @@ UA_Int32 TL_check(UA_connection *connection)
 	printf("TL_check - messageLength = %d \n",messageLength);
 
 	if (messageLength != -1 && messageLength == connection->readData.length &&
-			messageLength < (connection->transportLayer.localConf.maxMessageSize))
+			messageLength < (UA_Int32) connection->transportLayer.localConf.maxMessageSize)
 	{
 		printf("TL_check - no error \n");
 		return UA_NO_ERROR;
@@ -214,11 +214,11 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
  */
 
 
-UA_Int32 TL_send(UA_connection *connection, UA_ByteString *packet)
+UA_Int32 TL_send(UA_connection* connection, UA_ByteString* packet)
 {
 	printf("TL_send - entered \n");
 	connection->newDataToWrite = 1;
-	if(packet->length < connection->transportLayer.remoteConf.maxMessageSize)
+	if(packet->length != -1 && packet->length < (UA_Int32) connection->transportLayer.remoteConf.maxMessageSize)
 	{
 		connection->writeData.data = packet->data;
 		connection->writeData.length = packet->length;

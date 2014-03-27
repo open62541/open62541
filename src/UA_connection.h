@@ -84,10 +84,10 @@ struct SL_connection
 
 struct SS_connection
 {
-
+	UA_Int32 dummy;
 };
 
-typedef struct
+typedef struct T_UA_connection
 {
 	struct TL_connection transportLayer;
 	struct SL_connection secureLayer;

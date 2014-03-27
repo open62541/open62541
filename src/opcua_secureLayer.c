@@ -21,7 +21,7 @@ UA_Int32 SL_initConnectionObject(UA_connection *connection)
 
 	//TODO: fill with valid information
 	UA_ByteString_init(&(connection->secureLayer.localAsymAlgSettings.ReceiverCertificateThumbprint));
-	UA_ByteString_copy(&(connection->secureLayer.localAsymAlgSettings.SecurityPolicyUri), UA_String_securityPoliceNone);
+	UA_ByteString_copy(&UA_ByteString_securityPoliceNone, &(connection->secureLayer.localAsymAlgSettings.SecurityPolicyUri));
 	UA_ByteString_init(&(connection->secureLayer.localAsymAlgSettings.SenderCertificate));
 	UA_ByteString_init(&(connection->secureLayer.remoteNonce));
 
@@ -46,7 +46,7 @@ UA_Int32 SL_initConnectionObject(UA_connection *connection)
 	return UA_NO_ERROR;
 }
 
-UA_Int32 SL_send(UA_connection *connection, UA_ByteString responseMessage, UA_Int32 type)
+UA_Int32 SL_send(UA_connection* connection, UA_ByteString* responseMessage, UA_Int32 type)
 {
 	UA_UInt32 sequenceNumber;
 	UA_UInt32 requestId;
@@ -78,7 +78,7 @@ UA_Int32 SL_send(UA_connection *connection, UA_ByteString responseMessage, UA_In
 		packetSize = SIZE_SECURECHANNEL_HEADER +
 				SIZE_SEQHEADER_HEADER +
 				sizeAsymAlgHeader +
-				responseMessage.length +
+				responseMessage->length +
 				sizePadding +
 				sizeSignature;
 
@@ -116,7 +116,7 @@ UA_Int32 SL_send(UA_connection *connection, UA_ByteString responseMessage, UA_In
 	UA_UInt32_encode(&requestId,&pos,responsePacket.data);
 
 	/*---add encoded Message ---*/
-	memcpy(&(responsePacket.data[pos]), responseMessage.data, responseMessage.length);
+	UA_memcpy(&(responsePacket.data[pos]), responseMessage->data, responseMessage->length);
 
 	/* sign Data*/
 
@@ -124,7 +124,8 @@ UA_Int32 SL_send(UA_connection *connection, UA_ByteString responseMessage, UA_In
 
 	/* send Data */
 	TL_send(connection,&responsePacket);
-
+	// do not delete here, memory still needed for actual writing  in top-level procedure
+	// UA_ByteString_deleteMembers(&responsePacket);
 
 	return UA_NO_ERROR;
 }
@@ -145,7 +146,7 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 	UA_ByteString serverNonce;
 	UA_NodeId responseType;
 	//sizes for memory allocation
-	UA_Int32 sizeResponse;
+	// UA_Int32 sizeResponse;
 	UA_Int32 sizeRespHeader;
 	UA_Int32 sizeResponseType;
 	UA_Int32 sizeRespMessage;
@@ -287,9 +288,8 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 	//FIXME: Sten: here is a problem
 
 	//449 = openSecureChannelResponse
-	SL_send(connection, response, 449);
-
-	UA_free(response.data);
+	SL_send(connection, &response, 449);
+	UA_ByteString_deleteMembers(&response);
 
 	return UA_SUCCESS;
 }
@@ -317,17 +317,17 @@ UA_Int32 SL_createSecurityToken(UA_connection *connection, UA_Int32 lifeTime) {
 }
 
 UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
-	UA_DiagnosticInfo serviceDiagnostics;
+	// UA_DiagnosticInfo serviceDiagnostics;
 
 	UA_Int32 pos = 0;
-	UA_RequestHeader requestHeader;
-	UA_UInt32 clientProtocolVersion;
+	// UA_RequestHeader requestHeader;
+	// UA_UInt32 clientProtocolVersion;
 	UA_NodeId serviceRequestType;
-	UA_Int32 requestType;
-	UA_Int32 securityMode;
-	UA_Int32 requestedLifetime;
-	UA_ByteString clientNonce;
-	UA_StatusCode serviceResult;
+	// UA_Int32 requestType;
+	// UA_Int32 securityMode;
+	// UA_Int32 requestedLifetime;
+	// UA_ByteString clientNonce;
+	// UA_StatusCode serviceResult;
 
 	// Every Message starts with a NodeID which names the serviceRequestType
 	UA_NodeId_decode(message.data, &pos,

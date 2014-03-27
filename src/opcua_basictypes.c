@@ -76,6 +76,14 @@ UA_Int32 UA_Array_delete(void **p,UA_Int32 noElements) {
 	retval |= UA_free(p);
 	return retval;
 }
+// FIXME: Implement
+UA_Int32 UA_Array_init(void **p,UA_Int32 noElements, UA_Int32 type) {
+	return UA_ERR_NOT_IMPLEMENTED;
+}
+// FIXME: Implement
+UA_Int32 UA_Array_new(void **p,UA_Int32 noElements, UA_Int32 type) {
+	return UA_ERR_NOT_IMPLEMENTED;
+}
 
 UA_Int32 UA_free(void * ptr){
 	printf("UA_free - ptr=%p\n",ptr);
@@ -433,7 +441,7 @@ void UA_ByteString_printx_hex(char* label, UA_ByteString* string) {
 }
 
 UA_Byte UA_Byte_securityPoliceNoneData[] = "http://opcfoundation.org/UA/SecurityPolicy#None";
-UA_String UA_String_securityPoliceNone = { sizeof(UA_Byte_securityPoliceNoneData), UA_Byte_securityPoliceNoneData };
+UA_ByteString UA_ByteString_securityPoliceNone = { sizeof(UA_Byte_securityPoliceNoneData), UA_Byte_securityPoliceNoneData };
 UA_Int32 UA_ByteString_copy(UA_ByteString const * src, UA_ByteString* dst) {
 	return UA_String_copy((UA_String const*)src,(UA_String*)dst);
 }
