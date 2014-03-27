@@ -49,6 +49,7 @@ UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, U
 	return retVal;
 }
 
+// FIXME: While calcSize and encode handle size themselfes, decode relies on others to do things correctly
 UA_Int32 UA_Array_decode(UA_Byte const * src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void const **dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 i = 0;
@@ -441,7 +442,9 @@ void UA_ByteString_printx_hex(char* label, UA_ByteString* string) {
 }
 
 UA_Byte UA_Byte_securityPoliceNoneData[] = "http://opcfoundation.org/UA/SecurityPolicy#None";
-UA_ByteString UA_ByteString_securityPoliceNone = { sizeof(UA_Byte_securityPoliceNoneData), UA_Byte_securityPoliceNoneData };
+// sizeof()-1 : discard the implicit null-terminator of the c-char-string
+UA_ByteString UA_ByteString_securityPoliceNone = { sizeof(UA_Byte_securityPoliceNoneData)-1, UA_Byte_securityPoliceNoneData };
+
 UA_Int32 UA_ByteString_copy(UA_ByteString const * src, UA_ByteString* dst) {
 	return UA_String_copy((UA_String const*)src,(UA_String*)dst);
 }

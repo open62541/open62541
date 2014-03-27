@@ -137,11 +137,12 @@ void server_run()
 
 		if(connection.newDataToWrite)
 		{
-			printf("data will be sent \n");
+			UA_ByteString_printx("Send data:",&connection.writeData);
 			n = write(newsockfd,connection.writeData.data,connection.writeData.length);
 			printf("written %d bytes \n",n);
 			connection.newDataToWrite = 0;
-			UA_free(connection.writeData.data);
+			//FIXME: this seems to be the right address, free crashes however
+			//UA_free(connection.writeData.data);
 			connection.writeData.data = NULL;
 			connection.writeData.length = 0;
 		}

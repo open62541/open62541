@@ -46,7 +46,7 @@ UA_Int32 SL_initConnectionObject(UA_connection *connection)
 	return UA_NO_ERROR;
 }
 
-UA_Int32 SL_send(UA_connection* connection, UA_ByteString* responseMessage, UA_Int32 type)
+UA_Int32 SL_send(UA_connection* connection, UA_ByteString const * responseMessage, UA_Int32 type)
 {
 	UA_UInt32 sequenceNumber;
 	UA_UInt32 requestId;
@@ -250,8 +250,9 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 
 	response.length = sizeResponseType + sizeRespHeader + sizeRespMessage;
 
-	//FIXME: Sten 4 bytes are missing
-	response.length += 4;
+	//FIXME: Sten: 4 bytes are missing
+	//Leon: fixed bug in generator / UA_Array_encode, still missing 2 :-(
+	response.length += 2;
 
 	//get memory for response
 	UA_alloc((void*)&(response.data), response.length);
@@ -289,7 +290,8 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 
 	//449 = openSecureChannelResponse
 	SL_send(connection, &response, 449);
-	UA_ByteString_deleteMembers(&response);
+	//FIXME: this call crashs in UA_free
+	//UA_ByteString_deleteMembers(&response);
 
 	return UA_SUCCESS;
 }
