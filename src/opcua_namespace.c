@@ -273,6 +273,7 @@ static hash_t hash_string (const UA_Byte * data, UA_Int32 len) {
 	case 1: hash += (signed char)*data;
 		hash ^= hash << 10;
 		hash += hash >> 1;
+		break;
     }
 
     /* Force "avalanching" of final 127 bits */
@@ -385,6 +386,7 @@ static UA_Int32 find_slot (const namespace *ns, UA_Node **slot, UA_NodeId *nodei
 			return UA_SUCCESS;
 		}
     }
+	return UA_SUCCESS;
 }
 
 /* Always returns an empty slot. This is inevitable if the entries are not
@@ -407,6 +409,7 @@ static UA_Node ** find_empty_slot(const namespace *ns, hash_t h) {
 		if (*slot == UA_NULL)
 			return slot;
 	}
+	return UA_NULL;
 }
 
 /* The following function changes size of memory allocated for the

@@ -462,7 +462,6 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 			UA_ByteString_printf("SL_receive - AAS_Header.SenderCertificate=",
 					&(asymAlgSecHeader.senderCertificate));
 			if (secureConvHeader.secureChannelId != 0) {
-
 				iTmp = UA_ByteString_compare(
 						&(connection->secureLayer.remoteAsymAlgSettings.SenderCertificate),
 						&(asymAlgSecHeader.senderCertificate));
@@ -470,9 +469,6 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 					printf("SL_receive - UA_ERROR_BadSecureChannelUnknown \n");
 					//TODO return UA_ERROR_BadSecureChannelUnknown
 				}
-
-			//FIXME: destroy decodeAASHeader (to prevent memleak)
-			// UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymAlgSecHeader);
 			}
 			else
 			{
@@ -496,9 +492,12 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 			UA_ByteString_printx("SL_receive - message=",&message);
 
 			SL_processMessage(connection, message);
+			// Clean up
+			UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymAlgSecHeader);
 
 			break;
 		case UA_MESSAGETYPE_MSG: /* secure Channel Message received */
+			UA_ByteString_printx("SL_receive - MSG, msg=", serviceMessage);
 			if (connection->secureLayer.connectionState
 					== connectionState_ESTABLISHED) {
 
@@ -512,18 +511,17 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 
 			break;
 		case UA_MESSAGETYPE_CLO: /* closeSecureChannel Message received */
+			UA_ByteString_printx("SL_receive - CLO, msg=", serviceMessage);
 			if (SL_check(connection, secureChannelPacket) == UA_NO_ERROR) {
 
 			}
 			break;
 		}
-
+		// Clean up
+		UA_SecureConversationMessageHeader_deleteMembers(&secureConvHeader);
 	} else {
 		printf("SL_receive - no data received \n");
 	}
-	// Clean up
-	UA_SecureConversationMessageHeader_deleteMembers(&secureConvHeader);
-	UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymAlgSecHeader);
 	/*
 	 Int32 readPosition = 0;
 

@@ -37,6 +37,10 @@ UA_Int32 UA_MessageType_decode(UA_Byte const * src, UA_Int32* pos, UA_MessageTyp
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_MessageType)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_MessageType)
+UA_Int32 UA_MessageType_printf(char *label, UA_MessageType* p) {
+	UA_Byte* b = (UA_Byte*) p;
+	printf("%s{%c%c%c}\n", label, b[2],b[1],b[0]);
+}
 
 UA_Int32 UA_OPCUATcpMessageHeader_calcSize(UA_OPCUATcpMessageHeader const * ptr) {
 	if(ptr==UA_NULL){return sizeof(UA_OPCUATcpMessageHeader);}

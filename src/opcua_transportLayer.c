@@ -26,26 +26,21 @@ UA_Int32 TL_check(UA_connection *connection)
 {
 	UA_Int32 position = 4;
 	UA_Int32 messageLength = 0;
+	UA_Int32 retval = UA_SUCCESS;
 
 
 	printf("TL_check - entered \n");
 
-	UA_ByteString_printf("received data:",&(connection->readData));
 	UA_Int32_decode(connection->readData.data,&position,&messageLength);
-
 	printf("TL_check - messageLength = %d \n",messageLength);
 
-	if (messageLength != -1 && messageLength == connection->readData.length &&
-			messageLength < (UA_Int32) connection->transportLayer.localConf.maxMessageSize)
+	if (messageLength == -1 || messageLength != connection->readData.length ||
+			messageLength > (UA_Int32) connection->transportLayer.localConf.maxMessageSize)
 	{
-		printf("TL_check - no error \n");
-		return UA_NO_ERROR;
+		printf("TL_check - length error \n");
+		retval = UA_ERR_INCONSISTENT;
 	}
-
-	printf("TL_check - length error \n");
-
-	return UA_ERROR;
-
+	return retval;
 }
 
 
@@ -72,7 +67,7 @@ UA_Int32 TL_receive(UA_connection *connection, UA_ByteString *packet)
 		printf("TL_receive - connection->readData.length %d \n",connection->readData.length);
 
 
-		printf("TL_receive - MessageType = %d \n",tcpMessageHeader->messageType);
+		UA_MessageType_printf("TL_receive - messageType=",&(tcpMessageHeader->messageType));
 		switch(tcpMessageHeader->messageType)
 		{
 		case UA_MESSAGETYPE_MSG:
@@ -198,7 +193,6 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 			printf("TL_process - localConf.maxMessageSize = %d \n", connection->transportLayer.localConf.maxMessageSize);
 			//maximum chunk count
 			printf("TL_process - localConf.maxChunkCount = %d \n", connection->transportLayer.localConf.maxChunkCount);
-			UA_ByteString_printf("encoded data",&tmpMessage);
 			TL_send(connection, &tmpMessage);
 			// do not delete tmpMessage - this is the responsibility of the send thread
 		}
@@ -220,22 +214,21 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 
 UA_Int32 TL_send(UA_connection* connection, UA_ByteString* packet)
 {
+	UA_Int32 retval = UA_SUCCESS;
 	printf("TL_send - entered \n");
 	connection->newDataToWrite = 1;
 	if(packet->length != -1 && packet->length < (UA_Int32) connection->transportLayer.remoteConf.maxMessageSize)
 	{
+		UA_ByteString_printx("TL_send - data=", packet);
 		connection->writeData.data = packet->data;
 		connection->writeData.length = packet->length;
-		printf("TL_send - packet length = %d \n", packet->length);
 	}
 	else
 	{
 		printf("TL_send - ERROR: packet size greater than remote buffer size");
-		//server error
+		retval = UA_ERROR;
 	}
-
-	return UA_SUCCESS;
-
+	return retval;
 }
 
 

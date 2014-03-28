@@ -88,7 +88,9 @@ UA_Int32 UA_Array_new(void **p,UA_Int32 noElements, UA_Int32 type) {
 
 UA_Int32 _UA_free(void * ptr,char* f,int l){
 	printf("UA_free;%p;;%s;%d\n",ptr,f,l); fflush(stdout);
-	free(ptr);
+	if (UA_NULL != ptr) {
+		free(ptr);
+	}
 	return UA_SUCCESS;
 }
 
@@ -399,7 +401,7 @@ void UA_String_printx(char* label, UA_String* string) {
 	if (string->length > 0) {
 		for (i = 0; i < string->length; i++) {
 			printf("%c%d", i == 0 ? '{' : ',', (string->data)[i]);
-			if (i > 0 && !(i%20)) { printf("\n\t"); }
+			// if (i > 0 && !(i%20)) { printf("\n\t"); }
 		}
 	} else {
 		printf("{");

@@ -59,7 +59,7 @@ void server_run()
 
         UA_ByteString slMessage = {-1,UA_NULL};
 
-	char optval = 1;
+	int optval = 1;
 	int sockfd, newsockfd, portno, clilen;
 	char buffer[BUFFER_SIZE];
 	struct sockaddr_in serv_addr, cli_addr;
@@ -84,7 +84,7 @@ void server_run()
 	serv_addr.sin_addr.s_addr = INADDR_ANY;
 	serv_addr.sin_port = htons(portno);
 
-	if (setsockopt(sockfd,SOL_SOCKET,(SO_REUSEADDR),(char*)&optval,sizeof(int)) == -1) {
+	if (setsockopt(sockfd,SOL_SOCKET,SO_REUSEADDR,&optval,sizeof optval) == -1) {
 	    perror("setsockopt");
 	    exit(1);
 	}
@@ -111,7 +111,7 @@ void server_run()
 		exit(1);
 	}
 
-	printf("One connection accepted");
+	printf("One connection accepted\n");
 	while(1)
 	{
 		/* If connection is established then start communicating */
@@ -121,10 +121,10 @@ void server_run()
 
 		if (n > 0)
 		{
-			printf("received: %s\n",buffer);
 			connection.readData.data = buffer;
 			connection.readData.length = n;
 			connection.newDataToRead = 1;
+			UA_ByteString_printx("server_run - received=",&connection.readData);
 
 			//TL_receive(&connection, &slMessage);
 			SL_receive(&connection, &slMessage);
