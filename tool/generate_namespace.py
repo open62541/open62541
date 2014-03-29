@@ -107,7 +107,7 @@ for row in rows2:
     else:	
 	name = "UA_" + row[0]
 
-    print('#define '+name.upper()+'_NS0 (UA_['+name.upper()+'].Id)', file=fh)
+    print('#define '+name.upper()+'_NS0 '+row[1], file=fh)
 
     print("\t{" + row[1] + ", (UA_Int32(*)(void const*)) " + name + "_calcSize, (UA_Int32(*)(UA_Byte const*,UA_Int32*,void*)) " + name + "_decode, (UA_Int32(*)(void const*,UA_Int32*,UA_Byte*))" + name + "_encode},",end='\n',file=fc) 
 

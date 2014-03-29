@@ -24,7 +24,7 @@ enum connectionState
 	connectionState_CLOSED,
 	connectionState_OPENING,
 	connectionState_ESTABLISHED,
-
+	connectionState_CLOSE,
 };
 
 typedef struct
