@@ -365,6 +365,19 @@ UA_Int32 UA_String_copy(UA_String const * src, UA_String* dst) {
 	}
 	return retval;
 }
+UA_Int32 UA_String_copycstring(char const * src, UA_String* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	dst->length = strlen(src);
+	dst->data = UA_NULL;
+	if (dst->length > 0) {
+		retval |= UA_alloc((void**)&(dst->data), dst->length);
+		if (retval == UA_SUCCESS) {
+			retval |= UA_memcpy((void*)dst->data, src, dst->length);
+		}
+	}
+	return retval;
+}
+
 UA_String UA_String_null = { -1, UA_NULL };
 UA_Int32 UA_String_init(UA_String* p){
 	//FIXME: is UA_String_null now depricated?
@@ -392,11 +405,12 @@ UA_Int32 UA_String_compare(UA_String* string1, UA_String* string2) {
 	return retval;
 }
 void UA_String_printf(char* label, UA_String* string) {
-	printf("%s {Length=%d, Data=%s}\n", label, string->length,
-			(char*)string->data);
+	printf("%s {Length=%d, Data=%.*s}\n", label, string->length,
+			string->length, (char*)string->data);
 }
 void UA_String_printx(char* label, UA_String* string) {
 	int i;
+	if (string == UA_NULL) { printf("%s {NULL}\n", label); return; }
 	printf("%s {Length=%d, Data=", label, string->length);
 	if (string->length > 0) {
 		for (i = 0; i < string->length; i++) {
@@ -553,6 +567,14 @@ UA_Int32 UA_LocalizedText_init(UA_LocalizedText* p){
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_LocalizedText)
+UA_Int32 UA_LocalizedText_copycstring(char const * src, UA_LocalizedText* dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	if(dst==UA_NULL)return UA_ERROR;
+	dst->encodingMask = 0x03;
+	retval |= UA_String_copycstring("EN",&(dst->locale));
+	retval |= UA_String_copycstring(src,&(dst->text));
+	return retval;
+}
 
 /* Serialization of UA_NodeID is specified in 62541-6, §5.2.2.9 */
 UA_Int32 UA_NodeId_calcSize(UA_NodeId const *p) {

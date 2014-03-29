@@ -11,7 +11,6 @@
 
 #include "UA_config.h"
 #include "opcua.h"
-#include "UA_connection.h"
 
 
 static const UA_Int32 SL_HEADER_LENGTH = 0;
@@ -33,7 +32,7 @@ typedef enum
 typedef struct T_SL_Response
 {
 	UA_UInt32 serverProtocolVersion;
-	SL_ChannelSecurityToken securityToken;
+	UA_ChannelSecurityToken securityToken;
 	UA_String serverNonce;
 }UA_SL_Response;
 UA_TYPE_METHOD_PROTOTYPES(UA_SL_Response)
@@ -45,7 +44,7 @@ UA_Int32 UA_MessageType_encode(UA_MessageType const * src, UA_Int32* pos, UA_Byt
 UA_Int32 UA_MessageType_decode(UA_Byte const * src, UA_Int32* pos, UA_MessageType* dst);
 UA_Int32 UA_MessageType_delete(UA_MessageType* p);
 UA_Int32 UA_MessageType_deleteMembers(UA_MessageType* p);
-
+void UA_MessageType_printf(char *label, UA_MessageType* p);
 
 /*** UA_OPCUATcpMessageHeader ***/
 /* TCP Header */
@@ -109,24 +108,14 @@ typedef struct T_UA_AsymmetricAlgorithmSecurityHeader {
 	UA_ByteString securityPolicyUri;
 	UA_ByteString senderCertificate;
 	UA_ByteString receiverCertificateThumbprint;
-	// UA_UInt32 requestId;
 } UA_AsymmetricAlgorithmSecurityHeader;
-UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_calcSize(UA_AsymmetricAlgorithmSecurityHeader const * ptr);
-UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_encode(UA_AsymmetricAlgorithmSecurityHeader const * src, UA_Int32* pos, UA_Byte* dst);
-UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_decode(UA_Byte const * src, UA_Int32* pos, UA_AsymmetricAlgorithmSecurityHeader* dst);
-UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_delete(UA_AsymmetricAlgorithmSecurityHeader* p);
-UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(UA_AsymmetricAlgorithmSecurityHeader* p);
+UA_TYPE_METHOD_PROTOTYPES (UA_AsymmetricAlgorithmSecurityHeader)
+UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_init(UA_AsymmetricAlgorithmSecurityHeader* p);
 
 /*** UA_SymmetricAlgorithmSecurityHeader ***/
 /* Secure Layer Symmetric Algorithm Header */
-typedef struct T_UA_SymmetricAlgorithmSecurityHeader {
-	UA_UInt32 tokenId;
-} UA_SymmetricAlgorithmSecurityHeader;
-UA_Int32 UA_SymmetricAlgorithmSecurityHeader_calcSize(UA_SymmetricAlgorithmSecurityHeader const * ptr);
-UA_Int32 UA_SymmetricAlgorithmSecurityHeader_encode(UA_SymmetricAlgorithmSecurityHeader const * src, UA_Int32* pos, UA_Byte* dst);
-UA_Int32 UA_SymmetricAlgorithmSecurityHeader_decode(UA_Byte const * src, UA_Int32* pos, UA_SymmetricAlgorithmSecurityHeader* dst);
-UA_Int32 UA_SymmetricAlgorithmSecurityHeader_delete(UA_SymmetricAlgorithmSecurityHeader* p);
-UA_Int32 UA_SymmetricAlgorithmSecurityHeader_deleteMembers(UA_SymmetricAlgorithmSecurityHeader* p);
+typedef UA_Int32 UA_SymmetricAlgorithmSecurityHeader;
+UA_TYPE_METHOD_PROTOTYPES(UA_SymmetricAlgorithmSecurityHeader)
 
 /*** UA_SequenceHeader ***/
 /* Secure Layer Sequence Header */

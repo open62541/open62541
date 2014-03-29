@@ -183,6 +183,7 @@ typedef struct T_UA_String
 UA_String;
 UA_TYPE_METHOD_PROTOTYPES (UA_String)
 UA_Int32 UA_String_copy(UA_String const * src, UA_String* dst);
+UA_Int32 UA_String_copycstring(char const * src, UA_String* dst);
 UA_Int32 UA_String_compare(UA_String *string1, UA_String *string2);
 void UA_String_printf(char* label, UA_String* string);
 void UA_String_printx(char* label, UA_String* string);
@@ -209,6 +210,7 @@ typedef struct T_UA_LocalizedText
 }
 UA_LocalizedText;
 UA_TYPE_METHOD_PROTOTYPES (UA_LocalizedText)
+UA_Int32 UA_LocalizedText_copycstring(char const * src, UA_LocalizedText* dst);
 void UA_ByteString_printf(char* label, UA_ByteString* string);
 void UA_ByteString_printx(char* label, UA_ByteString* string);
 void UA_ByteString_printx_hex(char* label, UA_ByteString* string);

@@ -12,7 +12,7 @@ if len(sys.argv) != 3:
 
 # types that are to be excluded
 exclude_kind = set(["Object","ObjectType","Variable","Method","ReferenceType"])
-exclude_types = set(["Structure", "BaseDataType", "Number", 
+exclude_types = set(["Number", 
     "Integer", "UInteger", "Enumeration",
 	"Image", "ImageBMP", "ImageGIF", "ImageJPG", "ImagePNG",
 	"References", "BaseVariableType", "BaseDataVariableType", 
@@ -76,8 +76,14 @@ for row in rows1:
 
     if skipType(row[0]):
 	continue
-
-    name = "UA_" + row[0]
+	
+    if row[0] == "BaseDataType":
+    	name = "UA_Variant"
+    elif row[0] == "Structure":
+    	name = "UA_ExtensionObject" 
+    else:	
+	name = "UA_" + row[0]
+	
     print("\t"+name.upper()+"="+str(i)+",", file=fh)
     print('\tcase '+row[1]+': retval='+name.upper()+'; break; //'+row[2], file=fc)
     i = i+1
@@ -94,7 +100,13 @@ for row in rows2:
     if skipType(row[0]):
 	continue
 
-    name = "UA_" + row[0]
+    if row[0] == "BaseDataType":
+    	name = "UA_Variant"
+    elif row[0] == "Structure":
+    	name = "UA_ExtensionObject" 
+    else:	
+	name = "UA_" + row[0]
+
     print('#define '+name.upper()+'_NS0 (UA_['+name.upper()+'].Id)', file=fh)
 
     print("\t{" + row[1] + ", (UA_Int32(*)(void const*)) " + name + "_calcSize, (UA_Int32(*)(UA_Byte const*,UA_Int32*,void*)) " + name + "_decode, (UA_Int32(*)(void const*,UA_Int32*,UA_Byte*))" + name + "_encode},",end='\n',file=fc) 

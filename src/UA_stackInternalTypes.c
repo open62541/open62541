@@ -37,7 +37,7 @@ UA_Int32 UA_MessageType_decode(UA_Byte const * src, UA_Int32* pos, UA_MessageTyp
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_MessageType)
 UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_MessageType)
-UA_Int32 UA_MessageType_printf(char *label, UA_MessageType* p) {
+void UA_MessageType_printf(char *label, UA_MessageType* p) {
 	UA_Byte* b = (UA_Byte*) p;
 	printf("%s{%c%c%c}\n", label, b[2],b[1],b[0]);
 }
@@ -208,7 +208,6 @@ UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_calcSize(UA_AsymmetricAlgorithmSec
 	 + UA_ByteString_calcSize(&(ptr->securityPolicyUri))
 	 + UA_ByteString_calcSize(&(ptr->senderCertificate))
 	 + UA_ByteString_calcSize(&(ptr->receiverCertificateThumbprint))
-	 // + sizeof(UA_UInt32) // requestId
 	;
 }
 
@@ -217,7 +216,6 @@ UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_encode(UA_AsymmetricAlgorithmSecur
 	retval |= UA_ByteString_encode(&(src->securityPolicyUri),pos,dst);
 	retval |= UA_ByteString_encode(&(src->senderCertificate),pos,dst);
 	retval |= UA_ByteString_encode(&(src->receiverCertificateThumbprint),pos,dst);
-	// retval |= UA_UInt32_encode(&(src->requestId),pos,dst);
 	return retval;
 }
 
@@ -226,7 +224,6 @@ UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_decode(UA_Byte const * src, UA_Int
 	retval |= UA_ByteString_decode(src,pos,&(dst->securityPolicyUri));
 	retval |= UA_ByteString_decode(src,pos,&(dst->senderCertificate));
 	retval |= UA_ByteString_decode(src,pos,&(dst->receiverCertificateThumbprint));
-	// retval |= UA_UInt32_decode(src,pos,&(dst->requestId));
 	return retval;
 }
 
@@ -243,36 +240,20 @@ UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(UA_AsymmetricAlgorit
 	retval |= UA_ByteString_deleteMembers(&(p->receiverCertificateThumbprint));
 	return retval;
 }
-
-UA_Int32 UA_SymmetricAlgorithmSecurityHeader_calcSize(UA_SymmetricAlgorithmSecurityHeader const * ptr) {
-	if(ptr==UA_NULL){return sizeof(UA_SymmetricAlgorithmSecurityHeader);}
-	return 0
-	 + sizeof(UA_UInt32) // tokenId
-	;
-}
-
-UA_Int32 UA_SymmetricAlgorithmSecurityHeader_encode(UA_SymmetricAlgorithmSecurityHeader const * src, UA_Int32* pos, UA_Byte* dst) {
+UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_init(UA_AsymmetricAlgorithmSecurityHeader* p) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_UInt32_encode(&(src->tokenId),pos,dst);
+	if(p==UA_NULL) return UA_ERROR;
+	retval |= UA_ByteString_init(&(p->securityPolicyUri));
+	retval |= UA_ByteString_init(&(p->senderCertificate));
+	retval |= UA_ByteString_init(&(p->receiverCertificateThumbprint));
 	return retval;
 }
 
-UA_Int32 UA_SymmetricAlgorithmSecurityHeader_decode(UA_Byte const * src, UA_Int32* pos, UA_SymmetricAlgorithmSecurityHeader* dst) {
-	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_UInt32_decode(src,pos,&(dst->tokenId));
-	return retval;
-}
-
-UA_Int32 UA_SymmetricAlgorithmSecurityHeader_delete(UA_SymmetricAlgorithmSecurityHeader* p) {
-	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_SymmetricAlgorithmSecurityHeader_deleteMembers(p);
-	retval |= UA_free(p);
-	return retval;
-    }
-UA_Int32 UA_SymmetricAlgorithmSecurityHeader_deleteMembers(UA_SymmetricAlgorithmSecurityHeader* p) {
-	UA_Int32 retval = UA_SUCCESS;
-	return retval;
-}
+UA_TYPE_METHOD_DECODE_AS(UA_SymmetricAlgorithmSecurityHeader, UA_UInt32)
+UA_TYPE_METHOD_ENCODE_AS(UA_SymmetricAlgorithmSecurityHeader, UA_UInt32)
+UA_TYPE_METHOD_DELETE_AS(UA_SymmetricAlgorithmSecurityHeader, UA_UInt32)
+UA_TYPE_METHOD_DELETEMEMBERS_AS(UA_SymmetricAlgorithmSecurityHeader, UA_UInt32)
+UA_TYPE_METHOD_CALCSIZE_AS(UA_SymmetricAlgorithmSecurityHeader, UA_UInt32)
 
 UA_Int32 UA_SequenceHeader_calcSize(UA_SequenceHeader const * ptr) {
 	if(ptr==UA_NULL){return sizeof(UA_SequenceHeader);}

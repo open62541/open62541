@@ -116,8 +116,12 @@ def createStructured(element):
             typename = stripTypename(child.get("TypeName"))
             if typename in structured_types:
                 valuemap[childname] = typename + "*"
+                if child.get("LengthField"):
+                    valuemap[childname] = typename + "**"
             elif typename in indefinite_types:
                 valuemap[childname] = typename + "*"
+                if child.get("LengthField"):
+                    valuemap[childname] = typename + "**"
             elif child.get("LengthField"):
                 valuemap[childname] = typename + "**"
             else:

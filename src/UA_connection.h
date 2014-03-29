@@ -8,6 +8,7 @@
 #ifndef OPCUA_CONNECTIONHELPER_H_
 #define OPCUA_CONNECTIONHELPER_H_
 #include "opcua.h"
+#include "UA_stackInternalTypes.h"
 
 enum UA_MessageType
 {
@@ -29,7 +30,7 @@ enum connectionState
 typedef struct
 {
 	UA_UInt32 secureChannelId;
-	UA_UInt32 tokenId;
+	UA_SymmetricAlgorithmSecurityHeader tokenId;
 	UA_DateTime createdAt;
 	UA_Int32 revisedLifetime;
 }SL_ChannelSecurityToken;
@@ -51,33 +52,22 @@ struct TL_connection
 	TL_buffer localConf;
 	UA_String endpointURL;
 };
-typedef struct
-{
-	UA_ByteString SecurityPolicyUri;
-	UA_ByteString SenderCertificate;
-	UA_ByteString ReceiverCertificateThumbprint;
-
-}AsymmetricAlgSecuritySettings;
-
 
 
 struct SL_connection
 {
-	AsymmetricAlgSecuritySettings remoteAsymAlgSettings;
-	AsymmetricAlgSecuritySettings localAsymAlgSettings;
-/*
-	UA_ByteString SecurityPolicyUri;
-	UA_ByteString SenderCertificate;
-	UA_ByteString ReceiverCertificateThumbprint;
-*/
+	UA_AsymmetricAlgorithmSecurityHeader remoteAsymAlgSettings;
+	UA_AsymmetricAlgorithmSecurityHeader localAsymAlgSettings;
+
 	UA_UInt32 sequenceNumber;
 	UA_UInt32 requestType;
 	UA_String secureChannelId;
-	//UInt32 UInt32_secureChannelId;
+
 	UA_UInt32 securityMode;
 	UA_ByteString remoteNonce;
 	UA_ByteString localNonce;
 	UA_UInt32 connectionState;
+
 	SL_ChannelSecurityToken securityToken;
 	UA_UInt32 requestId; // request Id of the current request
 };

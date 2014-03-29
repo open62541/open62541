@@ -8,6 +8,7 @@
 #include <memory.h> // memcpy
 #include "opcua_transportLayer.h"
 #include "opcua_secureLayer.h"
+#include "UA_stackInternalTypes.h"
 
 #define SIZE_SECURECHANNEL_HEADER 12
 #define SIZE_SEQHEADER_HEADER 8
@@ -18,12 +19,8 @@
  */
 UA_Int32 SL_initConnectionObject(UA_connection *connection)
 {
-
-	//TODO: fill with valid information
-	UA_ByteString_init(&(connection->secureLayer.localAsymAlgSettings.ReceiverCertificateThumbprint));
-	UA_ByteString_copy(&UA_ByteString_securityPoliceNone, &(connection->secureLayer.localAsymAlgSettings.SecurityPolicyUri));
-	UA_ByteString_init(&(connection->secureLayer.localAsymAlgSettings.SenderCertificate));
-	UA_ByteString_init(&(connection->secureLayer.remoteNonce));
+	UA_AsymmetricAlgorithmSecurityHeader_init(&(connection->secureLayer.localAsymAlgSettings));
+	UA_ByteString_copy(&UA_ByteString_securityPoliceNone, &(connection->secureLayer.localAsymAlgSettings.securityPolicyUri));
 
 	UA_alloc((void**)&(connection->secureLayer.localNonce.data),sizeof(UA_Byte));
 	connection->secureLayer.localNonce.length = 1;
@@ -51,67 +48,58 @@ UA_Int32 SL_send(UA_connection* connection, UA_ByteString const * responseMessag
 	UA_UInt32 sequenceNumber;
 	UA_UInt32 requestId;
 	UA_Int32 pos;
-	UA_Int32 sizeAsymAlgHeader;
 	UA_ByteString responsePacket;
 	UA_Int32 packetSize;
 	UA_Int32 sizePadding;
 	UA_Int32 sizeSignature;
 
+	// FIXME: this is a to dump method to determine asymmetric algorithm setting
+	UA_Int32 isAsym = (type == 449);
 
-	sizeAsymAlgHeader = 3 * sizeof(UA_UInt32) +
-			connection->secureLayer.localAsymAlgSettings.SecurityPolicyUri.length +
-			connection->secureLayer.localAsymAlgSettings.SenderCertificate.length +
-			connection->secureLayer.localAsymAlgSettings.ReceiverCertificateThumbprint.length;
+
 	pos = 0;
 	//sequence header
 	sequenceNumber = connection->secureLayer.sequenceNumber;
     requestId = connection->secureLayer.requestId;
 
+    sizePadding = 0;
+	sizeSignature = 0;
 
-	if(type == 449) //openSecureChannelResponse -> asymmetric algorithm
-	{
-		//TODO fill with valid sizes
-		sizePadding = 0;
-		sizeSignature = 0;
-
-		//TODO: size calculation need
-		packetSize = SIZE_SECURECHANNEL_HEADER +
+	packetSize = SIZE_SECURECHANNEL_HEADER +
 				SIZE_SEQHEADER_HEADER +
-				sizeAsymAlgHeader +
+				( isAsym ? UA_AsymmetricAlgorithmSecurityHeader_calcSize(&(connection->secureLayer.localAsymAlgSettings)) : UA_SymmetricAlgorithmSecurityHeader_calcSize(&(connection->secureLayer.securityToken.tokenId)) )+
 				responseMessage->length +
 				sizePadding +
-				sizeSignature +
-		// FIXME: Leon misses two bytes here
-				2;
+				sizeSignature;
 
-		//get memory for response
-		UA_alloc((void**)&(responsePacket.data),packetSize);
+	//get memory for response
+	UA_alloc((void**)&(responsePacket.data),packetSize);
+	responsePacket.length = packetSize;
 
-		responsePacket.length = packetSize;
-
-		/*---encode Secure Conversation Message Header ---*/
+	/*---encode Secure Conversation Message Header ---*/
+	if (isAsym) {
 		//encode MessageType - OPN message
 		responsePacket.data[0] = 'O';
 		responsePacket.data[1] = 'P';
 		responsePacket.data[2] = 'N';
-		pos += 3;
-		//encode Chunk Type - set to final
-		responsePacket.data[3] = 'F';
-		pos += 1;
-		UA_Int32_encode(&packetSize,&pos,responsePacket.data);
-		UA_UInt32_encode(&(connection->secureLayer.securityToken.secureChannelId),&pos,responsePacket.data);
-
-		/*---encode Asymmetric Algorithm Header ---*/
-		UA_ByteString_encode(&(connection->secureLayer.localAsymAlgSettings.SecurityPolicyUri),
-						&pos,responsePacket.data);
-		UA_ByteString_encode(&(connection->secureLayer.localAsymAlgSettings.SenderCertificate),
-						&pos,responsePacket.data );
-		UA_ByteString_encode(&(connection->secureLayer.localAsymAlgSettings.ReceiverCertificateThumbprint),
-						&pos,responsePacket.data );
+	} else {
+		//encode MessageType - MSG message
+		responsePacket.data[0] = 'M';
+		responsePacket.data[1] = 'S';
+		responsePacket.data[2] = 'G';
 	}
+	pos += 3;
+	responsePacket.data[3] = 'F';
+	pos += 1;
+	UA_Int32_encode(&packetSize,&pos,responsePacket.data);
+	UA_UInt32_encode(&(connection->secureLayer.securityToken.secureChannelId),&pos,responsePacket.data);
 
-
-
+	/*---encode Algorithm Security Header ---*/
+	if (isAsym)	{
+		UA_AsymmetricAlgorithmSecurityHeader_encode(&(connection->secureLayer.localAsymAlgSettings),&pos,responsePacket.data);
+	} else {
+		UA_SymmetricAlgorithmSecurityHeader_encode(&(connection->secureLayer.securityToken.tokenId),&pos,responsePacket.data);
+	}
 
 	/*---encode Sequence Header ---*/
 	UA_UInt32_encode(&sequenceNumber,&pos,responsePacket.data);
@@ -122,13 +110,11 @@ UA_Int32 SL_send(UA_connection* connection, UA_ByteString const * responseMessag
 
 	/* sign Data*/
 
-	/* encrypt Data */
+	/* encrypt Data*/
 
 	/* send Data */
 	TL_send(connection,&responsePacket);
-	// do not delete here, memory still needed for actual writing  in top-level procedure
-	// UA_ByteString_deleteMembers(&responsePacket);
-
+	// responsePackage will be deleted by top-level procedure
 	return UA_NO_ERROR;
 }
 
@@ -279,16 +265,6 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 	return UA_SUCCESS;
 }
 /*
-Int32 SL_openSecureChannel_responseMessage_calcSize(SL_Response *response,
-		Int32* sizeInOut) {
-	Int32 length = 0;
-	length += sizeof(response->SecurityToken);
-	length += UAString_calcSize(response->ServerNonce);
-	length += sizeof(response->ServerProtocolVersion);
-	return length;
-}
-*/
-/*
  * closes a secureChannel (server side)
  */
 void SL_secureChannel_close(UA_connection *connection) {
@@ -386,7 +362,7 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 		switch (securityMode) {
 		case UA_SECURITYMODE_INVALID:
 			connection->secureLayer.remoteNonce.data = NULL;
-			connection->secureLayer.remoteNonce.length = 0;
+			connection->secureLayer.remoteNonce.length = -1;
 			printf("SL_processMessage - client demands no security \n");
 			break;
 
@@ -419,10 +395,84 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 		retval = SL_openSecureChannel(connection, &requestHeader, SC_Good);
 		UA_RequestHeader_deleteMembers(&requestHeader);
 	} else {
-		printf("SL_processMessage - unknown service request");
-		//TODO change error code
-		retval = UA_ERROR;
+		if (serviceRequestType.namespace == 0) {
+			// FIXME: quick hack
+			switch (serviceRequestType.identifier.numeric) {
+			case 428:
+				serviceRequestType.identifier.numeric = 426;
+				break;
+			}
+			UA_Int32 namespace_index = UA_toIndex(serviceRequestType.identifier.numeric);
+			if (namespace_index == -1) {
+				printf("SL_processMessage - unknown request, namespace=%d, request=%d\n", serviceRequestType.namespace, serviceRequestType.identifier.numeric);
+				retval = UA_ERROR;
+			} else {
+				void * obj;
+				UA_alloc(&obj,UA_[namespace_index].calcSize(UA_NULL));
+				UA_[namespace_index].decode(message.data,&pos,obj);
 
+				// FXIME: we need a more clever response/request architecture
+				if (serviceRequestType.identifier.numeric  == 426 ) {
+					UA_GetEndpointsRequest *p = (UA_GetEndpointsRequest*) obj;
+					UA_GetEndpointsResponse *r;
+					UA_NodeId responseType;
+
+					UA_String_printx("endpointUrl=",&(p->endpointUrl));
+					UA_GetEndpointsResponse_new(&r);
+					UA_ResponseHeader_new(&(r->responseHeader));
+					r->responseHeader->requestHandle = p->requestHeader->requestHandle;
+					r->responseHeader->serviceResult = SC_Good;
+					r->responseHeader->stringTableSize = 0;
+					r->responseHeader->timestamp = UA_DateTime_now();
+					UA_DiagnosticInfo_new(&(r->responseHeader->serviceDiagnostics));
+					UA_ExtensionObject_new(&(r->responseHeader->additionalHeader));
+
+					// TODO: Arrays need to be redesigned, this is crap
+					r->endpointsSize = 1;
+					UA_alloc((void**) &(r->endpoints), sizeof(void*));
+					UA_EndpointDescription *epd;
+					UA_EndpointDescription_new(&epd);
+					*(r->endpoints) = epd;
+
+					// FIXME: this memory gets lost
+					UA_String_copycstring("http://localhost:16664/",&(r->endpoints[0]->endpointUrl));
+					// FIXME: this memory gets lost
+					UA_ApplicationDescription_new(&(r->endpoints[0]->server));
+					// FIXME: This should be a feature of the application
+					UA_String_copycstring("open62541.com/applications/4711",&(r->endpoints[0]->server->applicationUri));
+					UA_String_copycstring("open62541.com/product/release",&(r->endpoints[0]->server->productUri));
+					// FIXME: This should be a feature of the application
+					UA_LocalizedText_copycstring("The open62541 application",&(r->endpoints[0]->server->applicationName));
+					// FIXME: This should be a feature of the application and an enum
+					r->endpoints[0]->server->applicationType = 0; // Server
+					// all the other strings are empty by initialization
+
+					// Now let's build the response
+					UA_ByteString response;
+					responseType.encodingByte = UA_NODEIDTYPE_FOURBYTE;
+					responseType.namespace = 0;
+					responseType.identifier.numeric = 431;
+
+					response.length = UA_NodeId_calcSize(&responseType) + UA_GetEndpointsResponse_calcSize(r);
+					UA_alloc((void**)&(response.data), response.length);
+					pos = 0;
+
+					UA_NodeId_encode(&responseType, &pos, response.data);
+					UA_GetEndpointsResponse_encode(r, &pos, response.data);
+
+					SL_send(connection, &response, 431);
+
+					UA_ByteString_deleteMembers(&response);
+					UA_GetEndpointsResponse_delete(r);
+					UA_GetEndpointsRequest_delete(p);
+
+					return UA_SUCCESS;
+				}
+			}
+		} else {
+			printf("SL_processMessage - unknown request, namespace=%d, request=%d\n", serviceRequestType.namespace, serviceRequestType.identifier.numeric);
+			retval = UA_ERROR;
+		}
 	}
 	return retval;
 }
@@ -454,6 +504,7 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 		switch (secureConvHeader.tcpMessageHeader->messageType) {
 
 		case UA_MESSAGETYPE_OPN: /* openSecureChannel Message received */
+			printf("SL_receive - process OPN\n");
 			UA_AsymmetricAlgorithmSecurityHeader_decode(secureChannelPacket.data, &pos, &asymAlgSecHeader);
 			UA_ByteString_printf("SL_receive - AAS_Header.ReceiverThumbprint=",
 					&(asymAlgSecHeader.receiverCertificateThumbprint));
@@ -463,7 +514,7 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 					&(asymAlgSecHeader.senderCertificate));
 			if (secureConvHeader.secureChannelId != 0) {
 				iTmp = UA_ByteString_compare(
-						&(connection->secureLayer.remoteAsymAlgSettings.SenderCertificate),
+						&(connection->secureLayer.remoteAsymAlgSettings.senderCertificate),
 						&(asymAlgSecHeader.senderCertificate));
 				if (iTmp != UA_EQUAL) {
 					printf("SL_receive - UA_ERROR_BadSecureChannelUnknown \n");
@@ -486,7 +537,6 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 			connection->secureLayer.sequenceNumber =
 					sequenceHeader.sequenceNumber;
 
-			//SL_decrypt(&secureChannelPacket);
 			message.data = &secureChannelPacket.data[pos];
 			message.length = secureChannelPacket.length - pos;
 			UA_ByteString_printx("SL_receive - message=",&message);
@@ -497,21 +547,35 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 
 			break;
 		case UA_MESSAGETYPE_MSG: /* secure Channel Message received */
-			UA_ByteString_printx("SL_receive - MSG, msg=", serviceMessage);
-			if (connection->secureLayer.connectionState
-					== connectionState_ESTABLISHED) {
-
+			printf("SL_receive - process MSG\n");
+// FIXME: check connection state
+//			if (connection->secureLayer.connectionState
+//					== connectionState_ESTABLISHED) {
 				if (secureConvHeader.secureChannelId
 						== connection->secureLayer.securityToken.secureChannelId) {
+					UA_SymmetricAlgorithmSecurityHeader symAlgSecHeader;
 
+					//FIXME: we assume SAS, need to check if AAS or SAS
+					UA_SymmetricAlgorithmSecurityHeader_decode(secureChannelPacket.data, &pos, &symAlgSecHeader);
+
+					// decode sequenceHeader and remember
+					UA_SequenceHeader_decode(secureChannelPacket.data, &pos, &sequenceHeader);
+					printf("SL_receive - SequenceHeader.RequestId=%d\n",sequenceHeader.requestId);
+					printf("SL_receive - SequenceHeader.SequenceNr=%d\n",sequenceHeader.sequenceNumber);
+					connection->secureLayer.requestId = sequenceHeader.requestId;
+					connection->secureLayer.sequenceNumber = sequenceHeader.sequenceNumber;
+					// process message
+					message.data = &secureChannelPacket.data[pos];
+					message.length = secureChannelPacket.length - pos;
+					UA_ByteString_printx("SL_receive - message=",&message);
+					SL_processMessage(connection, message);
 				} else {
 					//TODO generate ERROR_Bad_SecureChannelUnkown
 				}
-			}
+//			} // check connection state
 
 			break;
 		case UA_MESSAGETYPE_CLO: /* closeSecureChannel Message received */
-			UA_ByteString_printx("SL_receive - CLO, msg=", serviceMessage);
 			if (SL_check(connection, secureChannelPacket) == UA_NO_ERROR) {
 
 			}
@@ -522,65 +586,6 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 	} else {
 		printf("SL_receive - no data received \n");
 	}
-	/*
-	 Int32 readPosition = 0;
-
-	 //get the Secure Channel Message Header
-	 decodeSCMHeader(secureChannelPacket,
-	 &readPosition, &SCM_Header);
-
-	 //get the Secure Channel Asymmetric Algorithm Security Header
-	 decodeAASHeader(secureChannelPacket,
-	 &readPosition, &AAS_Header);
-
-	 //get the Sequence Header
-	 decodeSequenceHeader(secureChannelPacket,
-	 &readPosition, &SequenceHeader);
-
-	 //get Secure Channel Message
-	 //SL_secureChannel_Message_get(connection, secureChannelPacket,
-	 //			&readPosition,serviceMessage);
-
-	 if (secureChannelPacket->length > 0)
-	 {
-	 switch (SCM_Header.MessageType)
-	 {
-	 case packetType_MSG:
-	 if (connection->secureLayer.connectionState
-	 == connectionState_ESTABLISHED)
-	 {
-
-	 }
-	 else //receiving message, without secure channel
-	 {
-	 //TODO send back Error Message
-	 }
-	 break;
-	 case packetType_OPN:
-	 //Server Handling
-	 //		if (openSecureChannelHeader_check(connection, secureChannelPacket))
-	 //		{
-	 //check if the request is valid
-	 //	SL_openSecureChannelRequest_check(connection, secureChannelPacket);
-	 //		}
-	 //		else
-	 //		{
-	 //			//TODO send back Error Message
-	 //		}
-	 //Client Handling
-
-	 //TODO free memory for secureChannelPacket
-
-	 break;
-	 case packetType_CLO:
-
-
-	 //TODO free memory for secureChannelPacket
-	 break;
-	 }
-
-	 }
-	 */
 }
 
 

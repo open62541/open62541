@@ -83,7 +83,7 @@ UA_Int32 TL_receive(UA_connection *connection, UA_ByteString *packet)
 		case UA_MESSAGETYPE_HEL:
 		case UA_MESSAGETYPE_ACK:
 		{
-			printf("TL_receive - received HEL or ACK message\n");
+			puts("TL_receive - received HEL or ACK message");
 			TL_process(connection, tcpMessageHeader->messageType, &pos);
 			break;
 		}
