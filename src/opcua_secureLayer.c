@@ -55,7 +55,7 @@ UA_Int32 SL_send(UA_connection* connection,
 	UA_Int32 sizePadding;
 	UA_Int32 sizeSignature;
 
-	// FIXME: this is a to dump method to determine asymmetric algorithm setting
+	// FIXME: this is a to dumb method to determine asymmetric algorithm setting
 	UA_Int32 isAsym = (type == 449);
 
 	pos = 0;
@@ -315,9 +315,6 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 				r->responseHeader.stringTableSize = 0;
 				r->responseHeader.timestamp = UA_DateTime_now();
 
-				// FIXME: Valgrind tells invalid write of size 4 in encode
-				UA_ByteString_printx("SL_processMessage serverNonce", &(r->serverNonce));
-				UA_ByteString_printx("SL_processMessage serverCertificate", &(r->serverCertificate));
 				// FIXME: create session
 
 				// Now let's build the response

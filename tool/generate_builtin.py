@@ -202,14 +202,15 @@ def createStructured(element):
             if t in enum_types:
                 print('\tretval |= UA_'+t+'_decode(src,pos,&(dst->'+n+'));', end='\n', file=fc)
             elif t.find("**") != -1:
-				print('\tretval |= UA_Int32_decode(src,pos,&(dst->'+n+'Size)); // decode size', end='\n', file=fc)
-				#allocate memory for array
-				print('\tretval |= UA_alloc((void**)&(dst->' + n + "),dst->" + n + "Size*sizeof(void*));", end='\n', file=fc)
-				print("\tretval |= UA_Array_decode(src,dst->"+n+"Size, UA_" + t[0:t.find("*")].upper()+",pos,(void const**) (dst->"+n+"));", end='\n', file=fc) #not tested
+            	# decode size
+		print('\tretval |= UA_Int32_decode(src,pos,&(dst->'+n+'Size)); // decode size', end='\n', file=fc)
+		# allocate memory for array
+		print("\tretval |= UA_Array_new((void**)&(dst->"+n+"),dst->"+n+"Size,UA_"+t[0:t.find("*")].upper()+");", end='\n', file=fc)
+		print("\tretval |= UA_Array_decode(src,dst->"+n+"Size, UA_" + t[0:t.find("*")].upper()+",pos,(void ** const) (dst->"+n+"));", end='\n', file=fc) #not tested
             elif t.find("*") != -1:
-				#allocate memory using new
-				print('\tretval |= UA_'+ t[0:t.find("*")] +"_new(&(dst->" + n + "));", end='\n', file=fc)
-				print('\tretval |= UA_' + t[0:t.find("*")] + "_decode(src,pos,dst->"+ n +");", end='\n', file=fc)
+		#allocate memory using new
+		print('\tretval |= UA_'+ t[0:t.find("*")] +"_new(&(dst->" + n + "));", end='\n', file=fc)
+		print('\tretval |= UA_' + t[0:t.find("*")] + "_decode(src,pos,dst->"+ n +");", end='\n', file=fc)
             else:
                 print('\tretval |= UA_'+t+"_decode(src,pos,&(dst->"+n+"));", end='\n', file=fc)
     print("\treturn retval;\n}\n", end='\n', file=fc)
@@ -341,9 +342,6 @@ for element in types:
         createOpaque(element)
         printed_types.add(name)
 
-    #if name in arraytypes:
-    #    print "package ListOf" + name + " is new Types.Arrays.UA_Builtin_Arrays(" + name + ");\n"
-
 for name, element in deferred_types.iteritems():
 	if name in plugin_types:
 		#execute plugin if registered
@@ -352,8 +350,6 @@ for name, element in deferred_types.iteritems():
 			createStructured(element)
 	else:
 		createStructured(element)
-    # if name in arraytypes:
-    #    print "package ListOf" + name + " is new Types.Arrays.UA_Builtin_Arrays(" + name + ");\n"
 
 print('#endif /* OPCUA_H_ */', end='\n', file=fh)
 fh.close()

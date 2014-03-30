@@ -53,9 +53,9 @@ UA_Int32 UA_memcpy(void *dst, void const *src, int size);
 UA_Int32 _UA_alloc(void ** dst, int size,char*,int);
 
 /* Array operations */
-UA_Int32 UA_Array_calcSize(UA_Int32 noElements, UA_Int32 type, void const ** ptr);
+UA_Int32 UA_Array_calcSize(UA_Int32 noElements, UA_Int32 type, void const ** const ptr);
 UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, UA_Byte * dst);
-UA_Int32 UA_Array_decode(UA_Byte const * src,UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void const **dst);
+UA_Int32 UA_Array_decode(UA_Byte const * src,UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void ** const dst);
 UA_Int32 UA_Array_delete(void **p,UA_Int32 noElements, UA_Int32 type);
 UA_Int32 UA_Array_init(void **p,UA_Int32 noElements, UA_Int32 type);
 UA_Int32 UA_Array_new(void **p,UA_Int32 noElements, UA_Int32 type);

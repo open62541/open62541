@@ -201,7 +201,6 @@ UA_Int32 UA_SecureConversationMessageHeader_deleteMembers(UA_SecureConversationM
 	return retval;
 }
 
-//TODO: I assume that requestId belongs to the sequence header, not to the AAS. Need to check
 UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_calcSize(UA_AsymmetricAlgorithmSecurityHeader const * ptr) {
 	if(ptr==UA_NULL){return sizeof(UA_AsymmetricAlgorithmSecurityHeader);}
 	return 0
@@ -308,8 +307,8 @@ UA_Int32 UA_SecureConversationMessageFooter_encode(UA_SecureConversationMessageF
 UA_Int32 UA_SecureConversationMessageFooter_decode(UA_Byte const * src, UA_Int32* pos, UA_SecureConversationMessageFooter* dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_Int32_decode(src,pos,&(dst->paddingSize)); // decode size
-	retval |= UA_alloc((void**)&(dst->padding),dst->paddingSize*sizeof(void*));
-	retval |= UA_Array_decode(src,dst->paddingSize, UA_BYTE,pos,(void const**) (dst->padding));
+	retval |= UA_Array_new((void**)&(dst->padding),dst->paddingSize, UA_BYTE);
+	retval |= UA_Array_decode(src,dst->paddingSize, UA_BYTE,pos,(void ** const) (dst->padding));
 	retval |= UA_Byte_decode(src,pos,&(dst->signature));
 	return retval;
 }

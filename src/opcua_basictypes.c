@@ -23,20 +23,19 @@ UA_Int32 UA_calcSize(void* const data, UA_UInt32 type) {
 	return (UA_[type].calcSize)(data);
 }
 
-UA_Int32 UA_Array_calcSize(UA_Int32 nElements, UA_Int32 type, void const ** data) {
+UA_Int32 UA_Array_calcSize(UA_Int32 nElements, UA_Int32 type, void const ** const data) {
 
 	int length = sizeof(UA_Int32);
 	int i;
 
-	char** ptr = (char**)data;
-
 	if (nElements > 0) {
 		for(i=0; i<nElements;i++) {
-			length += UA_calcSize((void*)ptr[i],type);
+			length += UA_calcSize((void*)data[i],type);
 		}
 	}
 	return length;
 }
+
 UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, UA_Byte * dst) {
 	UA_Int32 retVal = UA_SUCCESS;
 	UA_Int32 i = 0;
@@ -49,13 +48,11 @@ UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, U
 	return retVal;
 }
 
-// FIXME: While calcSize and encode handle size themselves, decode relies on others to do things correctly
-UA_Int32 UA_Array_decode(UA_Byte const * src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void const **dst) {
+UA_Int32 UA_Array_decode(UA_Byte const * src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void ** const dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 i = 0;
 
 	for(i=0; i<noElements; i++) {
-		retval |= UA_alloc((void**)&dst[i], UA_[type].calcSize(UA_NULL));
 		retval |= UA_[type].decode(src, pos, (void*)dst[i]);
 	}
 	return retval;
@@ -78,7 +75,7 @@ UA_Int32 UA_Array_delete(void **p,UA_Int32 noElements, UA_Int32 type) {
 	return retval;
 }
 
-// FIXME: Implement? We would need to add init to the VTable...
+// TODO: Do we need to implement? We would need to add init to the VTable...
 // UA_Int32 UA_Array_init(void **p,UA_Int32 noElements, UA_Int32 type) {
 
 /** p is the address of a pointer to an array of pointers (type**).
@@ -289,14 +286,14 @@ UA_TYPE_METHOD_INIT_DEFAULT(UA_UInt64)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_UInt64)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Float)
+// FIXME: Implement
 UA_Int32 UA_Float_decode(UA_Byte const * src, UA_Int32* pos, UA_Float* dst) {
-	// TODO: not yet implemented
 	memcpy(dst, &(src[*pos]), sizeof(UA_Float));
 	*pos += sizeof(UA_Float);
 	return UA_SUCCESS;
 }
+// FIXME: Implement
 UA_Int32 UA_Float_encode(UA_Float const * src, UA_Int32* pos, UA_Byte* dst) {
-	// TODO: not yet implemented
 	memcpy(&(dst[*pos]), src, sizeof(UA_Float));
 	*pos += sizeof(UA_Float);
 	return UA_SUCCESS;
@@ -311,16 +308,16 @@ UA_Int32 UA_Float_init(UA_Float * p){
 UA_TYPE_METHOD_NEW_DEFAULT(UA_Float)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Double)
+// FIXME: Implement
 UA_Int32 UA_Double_decode(UA_Byte const * src, UA_Int32* pos, UA_Double * dst) {
-	// TODO: not yet implemented
 	UA_Double tmpDouble;
 	tmpDouble = (UA_Double) (src[*pos]);
 	*pos += sizeof(UA_Double);
 	*dst = tmpDouble;
 	return UA_SUCCESS;
 }
+// FIXME: Implement
 UA_Int32 UA_Double_encode(UA_Double const * src, UA_Int32 *pos, UA_Byte* dst) {
-	// TODO: not yet implemented
 	memcpy(&(dst[*pos]), src, sizeof(UA_Double));
 	*pos += sizeof(UA_Double);
 	return UA_SUCCESS;
@@ -412,7 +409,7 @@ UA_Int32 UA_String_compare(UA_String* string1, UA_String* string2) {
 		retval = UA_NOT_EQUAL;
 	} else {
 		// casts to overcome signed warnings
-		//TODO: map return of strncmp to UA_EQUAL/UA_NOT_EQUAL
+		// FIXME: map return of strncmp to UA_EQUAL/UA_NOT_EQUAL
 		retval = strncmp((char const*)string1->data,(char const*)string2->data,string1->length);
 	}
 	return retval;
@@ -786,20 +783,19 @@ UA_Int32 UA_NodeId_init(UA_NodeId* p){
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_NodeId)
 
-//FIXME: Sten Where do these two flags come from? .. These are the higher bits
-//in the encodingByte that tell whether uri and serverindex have been changed
-#define NIEVT_NAMESPACE_URI_FLAG 0x80 	//Is only for ExpandedNodeId required
-#define NIEVT_SERVERINDEX_FLAG 0x40 //Is only for ExpandedNodeId required
+// 62541-6 Chapter 5.2.2.9, Table 5
+#define UA_NODEIDTYPE_NAMESPACE_URI_FLAG 0x80
+#define UA_NODEIDTYPE_SERVERINDEX_FLAG   0x40
 UA_Int32 UA_ExpandedNodeId_calcSize(UA_ExpandedNodeId const * p) {
 	UA_Int32 length = 0;
 	if (p == UA_NULL) {
 		length = sizeof(UA_ExpandedNodeId);
 	} else {
 		length = UA_NodeId_calcSize(&(p->nodeId));
-		if (p->nodeId.encodingByte & NIEVT_NAMESPACE_URI_FLAG) {
+		if (p->nodeId.encodingByte & UA_NODEIDTYPE_NAMESPACE_URI_FLAG) {
 			length += UA_String_calcSize(&(p->namespaceUri)); //p->namespaceUri
 		}
-		if (p->nodeId.encodingByte & NIEVT_SERVERINDEX_FLAG) {
+		if (p->nodeId.encodingByte & UA_NODEIDTYPE_SERVERINDEX_FLAG) {
 			length += sizeof(UA_UInt32); //p->serverIndex
 		}
 	}
@@ -808,10 +804,10 @@ UA_Int32 UA_ExpandedNodeId_calcSize(UA_ExpandedNodeId const * p) {
 UA_Int32 UA_ExpandedNodeId_encode(UA_ExpandedNodeId const * src, UA_Int32* pos, UA_Byte* dst) {
 	UA_UInt32 retval = UA_SUCCESS;
 	retval |= UA_NodeId_encode(&(src->nodeId),pos,dst);
-	if (src->nodeId.encodingByte & NIEVT_NAMESPACE_URI_FLAG) {
+	if (src->nodeId.encodingByte & UA_NODEIDTYPE_NAMESPACE_URI_FLAG) {
 		retval |= UA_String_encode(&(src->namespaceUri),pos,dst);
 	}
-	if (src->nodeId.encodingByte & NIEVT_SERVERINDEX_FLAG) {
+	if (src->nodeId.encodingByte & UA_NODEIDTYPE_SERVERINDEX_FLAG) {
 		retval |= UA_UInt32_encode(&(src->serverIndex),pos,dst);
 	}
 	return retval;
@@ -820,14 +816,14 @@ UA_Int32 UA_ExpandedNodeId_decode(UA_Byte const * src, UA_Int32* pos,
 		UA_ExpandedNodeId *dst) {
 	UA_UInt32 retval = UA_SUCCESS;
 	retval |= UA_NodeId_decode(src,pos,&(dst->nodeId));
-	if (dst->nodeId.encodingByte & NIEVT_NAMESPACE_URI_FLAG) {
+	if (dst->nodeId.encodingByte & UA_NODEIDTYPE_NAMESPACE_URI_FLAG) {
 		dst->nodeId.namespace = 0;
 		retval |= UA_String_decode(src,pos,&(dst->namespaceUri));
 	} else {
 		retval |= UA_String_copy(&UA_String_null, &(dst->namespaceUri));
 	}
 
-	if (dst->nodeId.encodingByte & NIEVT_SERVERINDEX_FLAG) {
+	if (dst->nodeId.encodingByte & UA_NODEIDTYPE_SERVERINDEX_FLAG) {
 		retval |= UA_UInt32_decode(src,pos,&(dst->serverIndex));
 	}
 	return retval;
@@ -1124,9 +1120,10 @@ UA_Int32 UA_QualifiedName_delete(UA_QualifiedName  * p) {
 	retval |= UA_free(p);
 	return retval;
 }
-// FIXME: Implement
 UA_Int32 UA_QualifiedName_deleteMembers(UA_QualifiedName  * p) {
-	return UA_ERR_NOT_IMPLEMENTED;
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_String_deleteMembers(&(p->name));
+	return retval;
 }
 UA_Int32 UA_QualifiedName_init(UA_QualifiedName * p){
 	if(p==UA_NULL)return UA_ERROR;
@@ -1194,7 +1191,6 @@ UA_Int32 UA_Variant_encode(UA_Variant const *src, UA_Int32* pos, UA_Byte *dst) {
 UA_Int32 UA_Variant_decode(UA_Byte const * src, UA_Int32 *pos, UA_Variant *dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 ns0Id;
-	int i;
 
 	retval |= UA_Byte_decode(src,pos,&(dst->encodingMask));
 	ns0Id = dst->encodingMask & 0x1F;
@@ -1212,32 +1208,21 @@ UA_Int32 UA_Variant_decode(UA_Byte const * src, UA_Int32 *pos, UA_Variant *dst) 
 	} else {
 		dst->arrayLength = 1;
 	}
-	// allocate place for arrayLength pointers to any type
-	retval |= UA_alloc(dst->data,dst->arrayLength * sizeof(void*));
+	// allocate array and decode
+	retval |= UA_Array_new((void**)&(dst->data),dst->arrayLength,UA_toIndex(ns0Id));
+	retval |= UA_Array_decode(src,dst->arrayLength,UA_toIndex(ns0Id),pos,dst->data);
 
-	for (i=0;i<dst->arrayLength;i++) {
-		// TODO: this is crazy, how to work with variants with variable size?
-		// actually we have two different sizes - the storage size without
-		// dynamic members and the storage size with the dynamic members, e.g.
-		// for a string we here need to allocate definitely 8 byte (length=4, data*=4)
-		// on a 32-bit architecture - so this code is definitely wrong
-		retval |= UA_alloc(&(dst->data[i]),dst->vt->calcSize(UA_NULL));
-		retval |= dst->vt->decode(src,pos,dst->data[i]);
-	}
 	if (dst->encodingMask & (1 << 6)) {
 		// TODO: decode array dimension field
 	}
 	return retval;
 }
-UA_Int32 UA_Variant_delete(UA_Variant  * p) {
-	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_Variant_deleteMembers(p);
-	retval |= UA_free(p);
-	return retval;
-}
-// FIXME: Implement
+
+UA_TYPE_METHOD_DELETE_STRUCT(UA_Variant)
 UA_Int32 UA_Variant_deleteMembers(UA_Variant  * p) {
-	return UA_ERR_NOT_IMPLEMENTED;
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_Array_delete(p->data,p->arrayLength,UA_toIndex(p->vt->Id));
+	return retval;
 }
 UA_Int32 UA_Variant_init(UA_Variant * p){
 	if(p==UA_NULL)return UA_ERROR;
@@ -1334,13 +1319,11 @@ UA_Int32 UA_DataValue_calcSize(UA_DataValue const * p) {
 	return length;
 }
 
-// FIXME: Implement
-UA_Int32 UA_DataValue_delete(UA_DataValue * p) {
-	return UA_ERR_NOT_IMPLEMENTED;
-}
-// FIXME: Implement
+UA_TYPE_METHOD_DELETE_STRUCT(UA_DataValue)
 UA_Int32 UA_DataValue_deleteMembers(UA_DataValue * p) {
-	return UA_ERR_NOT_IMPLEMENTED;
+	UA_Int32 retval = UA_SUCCESS;
+	UA_Variant_deleteMembers(&(p->value));
+	return retval;
 }
 UA_Int32 UA_DataValue_init(UA_DataValue * p){
 	if(p==UA_NULL)return UA_ERROR;
