@@ -116,9 +116,9 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 {
 	UA_Int32 tmpPos = 0;
 	UA_ByteString tmpMessage;
-	UA_OPCUATcpHelloMessage *helloMessage;
-	UA_OPCUATcpAcknowledgeMessage *ackMessage;
-	UA_OPCUATcpMessageHeader *ackHeader;
+	UA_OPCUATcpHelloMessage helloMessage;
+	UA_OPCUATcpAcknowledgeMessage ackMessage;
+	UA_OPCUATcpMessageHeader ackHeader;
 
 	printf("TL_process - entered \n");
 
@@ -130,58 +130,52 @@ UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos
 			printf("TL_process - extracting header information \n");
 			printf("TL_process - pos = %d \n",*pos);
 
-			UA_alloc((void**)(&helloMessage),UA_OPCUATcpHelloMessage_calcSize(UA_NULL));
-
-			UA_OPCUATcpHelloMessage_decode(connection->readData.data,pos,helloMessage);
+			UA_OPCUATcpHelloMessage_decode(connection->readData.data,pos,&helloMessage);
 
 			/* extract information from received header */
 			//UA_UInt32_decode(connection->readData.data,pos,(&(connection->transportLayer.remoteConf.protocolVersion)));
-			connection->transportLayer.remoteConf.protocolVersion = helloMessage->protocolVersion;
+			connection->transportLayer.remoteConf.protocolVersion = helloMessage.protocolVersion;
 			printf("TL_process - protocolVersion = %d \n",connection->transportLayer.remoteConf.protocolVersion);
 
-			connection->transportLayer.remoteConf.recvBufferSize = helloMessage->receiveBufferSize;
+			connection->transportLayer.remoteConf.recvBufferSize = helloMessage.receiveBufferSize;
 			printf("TL_process - recvBufferSize = %d \n",connection->transportLayer.remoteConf.recvBufferSize);
 
-			connection->transportLayer.remoteConf.sendBufferSize = helloMessage->sendBufferSize;
+			connection->transportLayer.remoteConf.sendBufferSize = helloMessage.sendBufferSize;
 			printf("TL_process - sendBufferSize = %d \n",connection->transportLayer.remoteConf.sendBufferSize);
 
-			connection->transportLayer.remoteConf.maxMessageSize = helloMessage->maxMessageSize;
+			connection->transportLayer.remoteConf.maxMessageSize = helloMessage.maxMessageSize;
 			printf("TL_process - maxMessageSize = %d \n",connection->transportLayer.remoteConf.maxMessageSize);
 
-			connection->transportLayer.remoteConf.maxChunkCount = helloMessage->maxChunkCount;
+			connection->transportLayer.remoteConf.maxChunkCount = helloMessage.maxChunkCount;
 			printf("TL_process - maxChunkCount = %d \n",connection->transportLayer.remoteConf.maxChunkCount);
 
-			UA_String_copy(&(helloMessage->endpointUrl), &(connection->transportLayer.endpointURL));
-			UA_OPCUATcpHelloMessage_delete(helloMessage);
+			// FIXME: This memory needs to be cleaned up in the server!
+			UA_String_copy(&(helloMessage.endpointUrl), &(connection->transportLayer.endpointURL));
+
+			// Clean up
+			UA_OPCUATcpHelloMessage_deleteMembers(&helloMessage);
 
 			/* send back acknowledge */
-			//memory for message
-			UA_alloc((void**)&(ackMessage),UA_OPCUATcpAcknowledgeMessage_calcSize(UA_NULL));
+			ackMessage.protocolVersion = connection->transportLayer.localConf.protocolVersion;
+			ackMessage.receiveBufferSize = connection->transportLayer.localConf.recvBufferSize;
+			ackMessage.sendBufferSize = connection->transportLayer.localConf.sendBufferSize;
+			ackMessage.maxMessageSize = connection->transportLayer.localConf.maxMessageSize;
+			ackMessage.maxChunkCount = connection->transportLayer.localConf.maxChunkCount;
 
-			ackMessage->protocolVersion = connection->transportLayer.localConf.protocolVersion;
-			ackMessage->receiveBufferSize = connection->transportLayer.localConf.recvBufferSize;
-			ackMessage->maxMessageSize = connection->transportLayer.localConf.maxMessageSize;
-			ackMessage->maxChunkCount = connection->transportLayer.localConf.maxChunkCount;
-
-			//memory for header
-			UA_alloc((void**)&(ackHeader),UA_OPCUATcpMessageHeader_calcSize(UA_NULL));
-
-			ackHeader->messageType = UA_MESSAGETYPE_ACK;
-			ackHeader->isFinal = 'F';
-			ackHeader->messageSize = UA_OPCUATcpAcknowledgeMessage_calcSize(ackMessage) +
-					UA_OPCUATcpMessageHeader_calcSize(ackHeader);
+			ackHeader.messageType = UA_MESSAGETYPE_ACK;
+			ackHeader.isFinal = 'F';
+			ackHeader.messageSize = UA_OPCUATcpAcknowledgeMessage_calcSize(&ackMessage)
+			+ UA_OPCUATcpMessageHeader_calcSize(&ackHeader);
 
 			//allocate memory in stream
-			UA_alloc((void**)&(tmpMessage.data),ackHeader->messageSize);
-			tmpMessage.length = ackHeader->messageSize;
+			UA_alloc((void**)&(tmpMessage.data),ackHeader.messageSize);
+			tmpMessage.length = ackHeader.messageSize;
 
 			//encode header and message
-			UA_OPCUATcpMessageHeader_encode(ackHeader,&tmpPos,tmpMessage.data);
-			UA_OPCUATcpAcknowledgeMessage_encode(ackMessage,&tmpPos,tmpMessage.data);
+			UA_OPCUATcpMessageHeader_encode(&ackHeader,&tmpPos,tmpMessage.data);
+			UA_OPCUATcpAcknowledgeMessage_encode(&ackMessage,&tmpPos,tmpMessage.data);
 
-			printf("TL_process - Size messageToSend = %d \n",ackHeader->messageSize);
-			UA_OPCUATcpMessageHeader_delete(ackHeader);
-			UA_OPCUATcpAcknowledgeMessage_delete(ackMessage);
+			printf("TL_process - Size messageToSend = %d, pos=%d\n",ackHeader.messageSize, tmpPos);
 			/* ------------------------ Body ------------------------ */
 			// protocol version
 			printf("TL_process - localConf.protocolVersion = %d \n",connection->transportLayer.localConf.protocolVersion);

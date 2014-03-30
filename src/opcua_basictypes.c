@@ -49,7 +49,7 @@ UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, U
 	return retVal;
 }
 
-// FIXME: While calcSize and encode handle size themselfes, decode relies on others to do things correctly
+// FIXME: While calcSize and encode handle size themselves, decode relies on others to do things correctly
 UA_Int32 UA_Array_decode(UA_Byte const * src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void const **dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 i = 0;
@@ -61,29 +61,42 @@ UA_Int32 UA_Array_decode(UA_Byte const * src, UA_Int32 noElements, UA_Int32 type
 	return retval;
 }
 
-UA_Int32 UA_Array_deleteMembers(void ** p,UA_Int32 noElements) {
+UA_Int32 UA_Array_deleteMembers(void ** p,UA_Int32 noElements, UA_Int32 type) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 i = 0;
 
 	for(i=0; i<noElements; i++) {
-		retval |= UA_free((void*)p[i]);
+		retval |= UA_[type].delete((void*)p[i]);
 	}
 	return retval;
 }
 
-UA_Int32 UA_Array_delete(void **p,UA_Int32 noElements) {
+UA_Int32 UA_Array_delete(void **p,UA_Int32 noElements, UA_Int32 type) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_Array_deleteMembers(p,noElements);
+	retval |= UA_Array_deleteMembers(p,noElements,type);
 	retval |= UA_free(p);
 	return retval;
 }
-// FIXME: Implement
-UA_Int32 UA_Array_init(void **p,UA_Int32 noElements, UA_Int32 type) {
-	return UA_ERR_NOT_IMPLEMENTED;
-}
-// FIXME: Implement
+
+// FIXME: Implement? We would need to add init to the VTable...
+// UA_Int32 UA_Array_init(void **p,UA_Int32 noElements, UA_Int32 type) {
+
+/** p is the address of a pointer to an array of pointers (type**).
+ *  [p] -> [p1, p2, p3, p4]
+ *           +-> struct 1, ...
+ */
 UA_Int32 UA_Array_new(void **p,UA_Int32 noElements, UA_Int32 type) {
-	return UA_ERR_NOT_IMPLEMENTED;
+	UA_Int32 retval = UA_SUCCESS;
+	UA_Int32 i;
+	// Get memory for the pointers
+	retval |= UA_alloc(p, sizeof(void*)*noElements);
+	// Then allocate all the elements. We could allocate all the members in one chunk and
+	// calculate the addresses to prevent memory segmentation. This would however not call
+	// init for each member
+	for(i=0; i<noElements; i++) {
+		retval |= UA_[type].new(p[i]);
+	}
+	return retval;
 }
 
 UA_Int32 _UA_free(void * ptr,char* f,int l){
@@ -309,7 +322,7 @@ UA_Int32 UA_Double_decode(UA_Byte const * src, UA_Int32* pos, UA_Double * dst) {
 UA_Int32 UA_Double_encode(UA_Double const * src, UA_Int32 *pos, UA_Byte* dst) {
 	// TODO: not yet implemented
 	memcpy(&(dst[*pos]), src, sizeof(UA_Double));
-	*pos *= sizeof(UA_Double);
+	*pos += sizeof(UA_Double);
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_Double)
@@ -355,12 +368,13 @@ UA_TYPE_METHOD_DELETE_STRUCT(UA_String)
 UA_Int32 UA_String_deleteMembers(UA_String* p) { return UA_free(p->data); }
 UA_Int32 UA_String_copy(UA_String const * src, UA_String* dst) {
 	UA_Int32 retval = UA_SUCCESS;
-	dst->length = src->length;
 	dst->data = UA_NULL;
+	dst->length = -1;
 	if (src->length > 0) {
 		retval |= UA_alloc((void**)&(dst->data), src->length);
 		if (retval == UA_SUCCESS) {
 			retval |= UA_memcpy((void*)dst->data, src->data, src->length);
+			dst->length = src->length;
 		}
 	}
 	return retval;
@@ -380,7 +394,6 @@ UA_Int32 UA_String_copycstring(char const * src, UA_String* dst) {
 
 UA_String UA_String_null = { -1, UA_NULL };
 UA_Int32 UA_String_init(UA_String* p){
-	//FIXME: is UA_String_null now depricated?
 	if(p==UA_NULL)return UA_ERROR;
 	p->length = -1;
 	p->data = UA_NULL;

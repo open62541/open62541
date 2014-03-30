@@ -5,6 +5,6 @@ INCLUDE = @CHECK_CFLAGS@ -I$(top_builddir)/src -I$(top_builddir)/include
 LDADD = $(top_builddir)/lib/libopen62541.a @CHECK_LIBS@
 
 check_PROGRAMS = $(TESTS)
-AM_LDFLAGS = $(LDADD)
+AM_LDFLAGS = $(LDADD)  --coverage
 
-AM_CFLAGS = $(GLOBAL_AM_CFLAGS) $(INCLUDE)
+AM_CFLAGS = $(GLOBAL_AM_CFLAGS) $(INCLUDE) --coverage

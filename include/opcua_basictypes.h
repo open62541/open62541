@@ -56,7 +56,7 @@ UA_Int32 _UA_alloc(void ** dst, int size,char*,int);
 UA_Int32 UA_Array_calcSize(UA_Int32 noElements, UA_Int32 type, void const ** ptr);
 UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, UA_Byte * dst);
 UA_Int32 UA_Array_decode(UA_Byte const * src,UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void const **dst);
-UA_Int32 UA_Array_delete(void **p,UA_Int32 noElements);
+UA_Int32 UA_Array_delete(void **p,UA_Int32 noElements, UA_Int32 type);
 UA_Int32 UA_Array_init(void **p,UA_Int32 noElements, UA_Int32 type);
 UA_Int32 UA_Array_new(void **p,UA_Int32 noElements, UA_Int32 type);
 
@@ -163,6 +163,8 @@ typedef struct T_UA_VTable {
 	UA_Int32 (*calcSize)(void const * ptr);
 	UA_Int32 (*decode)(UA_Byte const * src, UA_Int32* pos, void* dst);
 	UA_Int32 (*encode)(void const * src, UA_Int32* pos, UA_Byte* dst);
+	UA_Int32 (*new)(void ** p);
+	UA_Int32 (*delete)(void * p);
 } UA_VTable;
 
 /* VariantBinaryEncoding - Part: 6, Chapter: 5.2.2.16, Page: 22 */

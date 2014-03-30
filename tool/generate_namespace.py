@@ -45,8 +45,8 @@ def skipType(name):
 f = open(sys.argv[1])
 rows1, rows2, rows3 = tee(csv.reader(f), 3)
 
-fh = open(sys.argv[2] + ".h",'w');
-fc = open(sys.argv[2] + ".c",'w');
+fh = open(sys.argv[2] + ".hgen",'w');
+fc = open(sys.argv[2] + ".cgen",'w');
 
 print('''/**********************************************************
  * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
@@ -63,7 +63,11 @@ extern UA_VTable UA_[];
 
 enum UA_VTableIndex_enum {''', end='\n', file=fh)
 
-print('''/* Mapping and vTable of Namespace Zero */
+print('''/**********************************************************
+ * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
+ * on node XXX by user XXX at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
+ * do not modify
+ **********************************************************/
 #include "opcua.h"
 UA_Int32 UA_toIndex(UA_Int32 id) {
     UA_Int32 retval = -1;
@@ -109,7 +113,7 @@ for row in rows2:
 
     print('#define '+name.upper()+'_NS0 '+row[1], file=fh)
 
-    print("\t{" + row[1] + ", (UA_Int32(*)(void const*)) " + name + "_calcSize, (UA_Int32(*)(UA_Byte const*,UA_Int32*,void*)) " + name + "_decode, (UA_Int32(*)(void const*,UA_Int32*,UA_Byte*))" + name + "_encode},",end='\n',file=fc) 
+    print("\t{" + row[1] + ", (UA_Int32(*)(void const*)) " + name + "_calcSize, (UA_Int32(*)(UA_Byte const*,UA_Int32*,void*)) " + name + "_decode, (UA_Int32(*)(void const*,UA_Int32*,UA_Byte*))" + name + "_encode, (UA_Int32(*)(void **))" + name + "_new, (UA_Int32(*)(void *))" + name + "_delete},",end='\n',file=fc) 
 
 print("\t{0,UA_NULL,UA_NULL,UA_NULL}\n};",file=fc)
 print('#endif /* OPCUA_NAMESPACE_0_H_ */', end='\n', file=fh)

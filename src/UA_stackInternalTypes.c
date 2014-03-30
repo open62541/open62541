@@ -322,7 +322,7 @@ UA_Int32 UA_SecureConversationMessageFooter_delete(UA_SecureConversationMessageF
     }
 UA_Int32 UA_SecureConversationMessageFooter_deleteMembers(UA_SecureConversationMessageFooter* p) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_Array_delete((void**)p->padding,p->paddingSize);
+	retval |= UA_Array_delete((void**)p->padding,p->paddingSize,UA_BYTE);
 	return retval;
 }
 

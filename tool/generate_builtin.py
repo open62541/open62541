@@ -1,5 +1,6 @@
 from __future__ import print_function
 import sys
+import time
 from collections import OrderedDict
 import re
 from lxml import etree
@@ -31,7 +32,9 @@ elementary_size["DateTime"] = 8;
 elementary_size["StatusCode"] = 4;
 
 # indefinite_types = ["NodeId", "ExpandedNodeId", "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue", "Variant", "DiagnosticInfo"]
-indefinite_types = ["ExpandedNodeId", "QualifiedName", "ExtensionObject", "DataValue", "Variant", "DiagnosticInfo"]
+# indefinite_types = ["ExpandedNodeId", "QualifiedName", "ExtensionObject", "DataValue", "Variant", "DiagnosticInfo"]
+# LU - pointers only for arrays (ByteString, etc.)
+indefinite_types = []
 enum_types = []
 structured_types = []
                    
@@ -114,14 +117,14 @@ def createStructured(element):
             #if childname in printed_types:
             #    childname = childname + "_Value" # attributes may not have the name of a type
             typename = stripTypename(child.get("TypeName"))
-            if typename in structured_types:
+            if typename in indefinite_types:
                 valuemap[childname] = typename + "*"
                 if child.get("LengthField"):
                     valuemap[childname] = typename + "**"
-            elif typename in indefinite_types:
-                valuemap[childname] = typename + "*"
-                if child.get("LengthField"):
-                    valuemap[childname] = typename + "**"
+#            elif typename in structured_types:
+#                valuemap[childname] = typename + "*"
+#                if child.get("LengthField"):
+#                    valuemap[childname] = typename + "**"
             elif child.get("LengthField"):
                 valuemap[childname] = typename + "**"
             else:
@@ -223,7 +226,7 @@ def createStructured(element):
     for n,t in valuemap.iteritems():
         if t not in elementary_size:
             if t.find("**") != -1:
-		print("\tretval |= UA_Array_delete((void**)p->"+n+",p->"+n+"Size);", end='\n', file=fc) #not tested
+		print("\tretval |= UA_Array_delete((void**)p->"+n+",p->"+n+"Size,UA_"+t[0:t.find("*")].upper()+");", end='\n', file=fc) #not tested
             elif t.find("*") != -1:
 		print('\tretval |= UA_' + t[0:t.find("*")] + "_delete(p->"+n+");", end='\n', file=fc)
             else:
@@ -273,9 +276,14 @@ ns = {"opc": "http://opcfoundation.org/BinarySchema/"}
 tree = etree.parse(sys.argv[1])
 types = tree.xpath("/opc:TypeDictionary/*[not(self::opc:Import)]", namespaces=ns)
 
-fh = open(sys.argv[2] + ".h",'w');
-fc = open(sys.argv[2] + ".c",'w');
-print('#include "' + sys.argv[2] + '.h"', end='\n', file=fc);
+fh = open(sys.argv[2] + ".hgen",'w');
+fc = open(sys.argv[2] + ".cgen",'w');
+print('''/**********************************************************
+ * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
+ * on node XXX by user XXX at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
+ * do not modify
+ **********************************************************/
+#include "''' + sys.argv[2] + '.h"', end='\n', file=fc);
 
 # types for which we create a vector type
 arraytypes = set()
@@ -286,7 +294,12 @@ for field in fields:
 
 deferred_types = OrderedDict()
 
-print('#ifndef OPCUA_H_', end='\n', file=fh)
+print('''/**********************************************************
+ * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
+ * on node XXX by user XXX at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
+ * do not modify
+ **********************************************************/
+#ifndef OPCUA_H_''', end='\n', file=fh)
 print('#define OPCUA_H_', end='\n', file=fh)
 print('#include "opcua_basictypes.h"', end='\n', file=fh)
 print('#include "opcua_namespace_0.h"', end='\n', file=fh);

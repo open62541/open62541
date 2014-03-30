@@ -138,19 +138,15 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 	UA_Int32 pos;
 
 	UA_OpenSecureChannelResponse_new(&r);
-	UA_ResponseHeader_new(&(r->responseHeader));
-	UA_ExtensionObject_new(&(r->responseHeader->additionalHeader));
-	UA_DiagnosticInfo_new(&(r->responseHeader->serviceDiagnostics));
-	UA_ChannelSecurityToken_new(&(r->securityToken));
 
 	if (requestHeader->returnDiagnostics != 0) {
 		printf("SL_openSecureChannel - diagnostics demanded by the client\n");
 		printf(
 				"SL_openSecureChannel - retrieving diagnostics not implemented!\n");
 		//TODO fill with demanded information part 4, 7.8 - Table 123
-		r->responseHeader->serviceDiagnostics->encodingMask = 0;
+		r->responseHeader.serviceDiagnostics.encodingMask = 0;
 	} else {
-		r->responseHeader->serviceDiagnostics->encodingMask = 0;
+		r->responseHeader.serviceDiagnostics.encodingMask = 0;
 	}
 	/*--------------type ----------------------*/
 
@@ -161,22 +157,22 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 	responseType.namespace = 0;
 
 	/*--------------responseHeader-------------*/
-	r->responseHeader->timestamp = UA_DateTime_now();
-	r->responseHeader->requestHandle = requestHeader->requestHandle;
-	r->responseHeader->serviceResult = serviceResult;
+	r->responseHeader.timestamp = UA_DateTime_now();
+	r->responseHeader.requestHandle = requestHeader->requestHandle;
+	r->responseHeader.serviceResult = serviceResult;
 
 	//text of fields defined in the serviceDiagnostics
-	r->responseHeader->stringTableSize = 0;
-	r->responseHeader->stringTable = UA_NULL;
+	r->responseHeader.stringTableSize = 0;
+	r->responseHeader.stringTable = UA_NULL;
 
 	r->serverProtocolVersion =
 			connection->transportLayer.localConf.protocolVersion;
 
-	r->securityToken->channelId =
+	r->securityToken.channelId =
 			connection->secureLayer.securityToken.secureChannelId;
-	r->securityToken->tokenId = connection->secureLayer.securityToken.tokenId;
-	r->securityToken->createdAt = UA_DateTime_now();
-	r->securityToken->revisedLifetime =
+	r->securityToken.tokenId = connection->secureLayer.securityToken.tokenId;
+	r->securityToken.createdAt = UA_DateTime_now();
+	r->securityToken.revisedLifetime =
 			connection->secureLayer.securityToken.revisedLifetime;
 
 	UA_ByteString_copy(&(connection->secureLayer.localNonce), &(r->serverNonce));
@@ -245,9 +241,8 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 					serviceRequestType.identifier.numeric);
 			retval = UA_ERROR;
 		} else {
-			// decode message
 			void * obj;
-			UA_alloc(&obj, UA_[namespace_index].calcSize(UA_NULL));
+			UA_[namespace_index].new(&obj);
 			UA_[namespace_index].decode(message.data, &pos, obj);
 
 			// FXIME: we need a more clever response/request architecture
@@ -261,37 +256,27 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 
 				UA_String_printx("endpointUrl=", &(p->endpointUrl));
 				UA_GetEndpointsResponse_new(&r);
-				UA_ResponseHeader_new(&(r->responseHeader));
-				r->responseHeader->requestHandle =
-						p->requestHeader->requestHandle;
-				r->responseHeader->serviceResult = SC_Good;
-				r->responseHeader->stringTableSize = 0;
-				r->responseHeader->timestamp = UA_DateTime_now();
-				UA_DiagnosticInfo_new(&(r->responseHeader->serviceDiagnostics));
-				UA_ExtensionObject_new(&(r->responseHeader->additionalHeader));
+				r->responseHeader.requestHandle =
+						p->requestHeader.requestHandle;
+				r->responseHeader.serviceResult = SC_Good;
+				r->responseHeader.stringTableSize = 0;
+				r->responseHeader.timestamp = UA_DateTime_now();
 
-				// TODO: Arrays need to be redesigned, this is crap
 				r->endpointsSize = 1;
-				UA_alloc((void**) &(r->endpoints), sizeof(void*));
-				UA_EndpointDescription *epd;
-				UA_EndpointDescription_new(&epd);
-				*(r->endpoints) = epd;
+				UA_Array_new((void**) &(r->endpoints),r->endpointsSize,UA_ENDPOINTDESCRIPTION);
 
-				// FIXME: this memory gets lost
 				UA_String_copycstring("tcp.opc://localhost:16664/",
 						&(r->endpoints[0]->endpointUrl));
-				// FIXME: this memory gets lost
-				UA_ApplicationDescription_new(&(r->endpoints[0]->server));
 				// FIXME: This should be a feature of the application
 				UA_String_copycstring("http://open62541.info/applications/4711",
-						&(r->endpoints[0]->server->applicationUri));
+						&(r->endpoints[0]->server.applicationUri));
 				UA_String_copycstring("http://open62541.info/product/release",
-						&(r->endpoints[0]->server->productUri));
+						&(r->endpoints[0]->server.productUri));
 				// FIXME: This should be a feature of the application
 				UA_LocalizedText_copycstring("The open62541 application",
-						&(r->endpoints[0]->server->applicationName));
+						&(r->endpoints[0]->server.applicationName));
 				// FIXME: This should be a feature of the application and an enum
-				r->endpoints[0]->server->applicationType = 0; // Server
+				r->endpoints[0]->server.applicationType = 0; // Server
 				// all the other strings are empty by initialization
 
 				// Now let's build the response
@@ -312,8 +297,6 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 
 				UA_ByteString_deleteMembers(&response);
 				UA_GetEndpointsResponse_delete(r);
-				UA_GetEndpointsRequest_delete(p);
-
 				retval = UA_SUCCESS;
 			}
 				break;
@@ -326,16 +309,15 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 				UA_CreateSessionResponse* r;
 
 				UA_CreateSessionResponse_new(&r);
-				// Header
-				UA_ResponseHeader_new(&(r->responseHeader));
-				r->responseHeader->requestHandle =
-						p->requestHeader->requestHandle;
-				r->responseHeader->serviceResult = SC_Good;
-				r->responseHeader->stringTableSize = 0;
-				r->responseHeader->timestamp = UA_DateTime_now();
-				UA_DiagnosticInfo_new(&(r->responseHeader->serviceDiagnostics));
-				UA_ExtensionObject_new(&(r->responseHeader->additionalHeader));
+				r->responseHeader.requestHandle =
+						p->requestHeader.requestHandle;
+				r->responseHeader.serviceResult = SC_Good;
+				r->responseHeader.stringTableSize = 0;
+				r->responseHeader.timestamp = UA_DateTime_now();
 
+				// FIXME: Valgrind tells invalid write of size 4 in encode
+				UA_ByteString_printx("SL_processMessage serverNonce", &(r->serverNonce));
+				UA_ByteString_printx("SL_processMessage serverCertificate", &(r->serverCertificate));
 				// FIXME: create session
 
 				// Now let's build the response
@@ -356,7 +338,6 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 
 				UA_ByteString_deleteMembers(&response);
 				UA_CreateSessionResponse_delete(r);
-				UA_CreateSessionRequest_delete(p);
 
 				retval = UA_SUCCESS;
 			}
@@ -365,8 +346,6 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 			case UA_CLOSESECURECHANNELREQUEST_NS0: {
 				puts("UA_CLOSESECURECHANNELREQUEST");
 
-				UA_CloseSecureChannelRequest* p =
-						(UA_CloseSecureChannelRequest*) obj;
 				// 62451 Part 6 Chapter 7.1.4 - The server does not send a CloseSecureChannel response
 				connection->transportLayer.connectionState = connectionState_CLOSE;
 				retval = UA_SUCCESS;
@@ -377,8 +356,6 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 
 				UA_OpenSecureChannelRequest* p =
 						(UA_OpenSecureChannelRequest*) obj;
-				UA_NodeId responseType;
-				UA_OpenSecureChannelResponse* r;
 
 				if (p->clientProtocolVersion
 						!= connection->transportLayer.remoteConf.protocolVersion) {
@@ -432,12 +409,12 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 					break;
 				}
 
-				retval = SL_openSecureChannel(connection, p->requestHeader,
+				retval |= SL_openSecureChannel(connection, &(p->requestHeader),
 						SC_Good);
-				UA_OpenSecureChannelRequest_delete(p);
 			}
 				break;
-			}
+			} // end switch over known messages
+			retval |= UA_[namespace_index].delete(obj);
 		}
 	} else {
 		printf(
