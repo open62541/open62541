@@ -119,7 +119,7 @@ START_TEST(encodeUInt64_test)
 	UA_UInt64 value = 0x0101FF00FF00FF00;
 	//EncodeUInt16
 
-	rawMessage.data = (UA_Byte*) malloc(sizeof(UA_UInt32));
+	rawMessage.data = (UA_Byte*) malloc(sizeof(UA_UInt64));
 
 	rawMessage.length = 8;
 
@@ -145,7 +145,7 @@ START_TEST(encodeInt64_test)
 	UA_UInt64 value = 0x0101FF00FF00FF00;
 	//EncodeUInt16
 
-	rawMessage.data = (UA_Byte*) malloc(sizeof(UA_UInt32));
+	rawMessage.data = (UA_Byte*) malloc(sizeof(UA_UInt64));
 
 	rawMessage.length = 8;
 
@@ -206,7 +206,7 @@ START_TEST(encodeUAString_test)
 	ck_assert_int_eq(dstBuf[0],11);
 	ck_assert_int_eq(dstBuf[0+sizeof(UA_Int32)],'A');
 
-
+	free(dstBuf);
 }
 END_TEST
 START_TEST(encodeDataValue_test)
