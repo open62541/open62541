@@ -12,4 +12,4 @@ before_install:
  - sudo make install
  - sudo ldconfig
  - cd ..
-script: ./autogen.sh && ./configure && make && make check && cd tests && make check-mem
+script: ./autogen.sh && ./configure && make && make check
