@@ -2,7 +2,6 @@
  ============================================================================
  Name        : check_stack.c
  Author      :
- Version     :
  Copyright   : Your copyright notice
  Description :
  ============================================================================
@@ -401,7 +400,110 @@ START_TEST(UA_ExpandedNodeId_calcSizeEncodingStringAndNamespaceUriShallReturnEnc
 	ck_assert_int_eq(encodingSize, 1+2+4+3+4+7);
 }
 END_TEST
-
+START_TEST(UA_Guid_calcSizeShallReturnEncodingSize)
+{
+	// given
+	UA_Guid arg;
+	// when
+	UA_Int32 encodingSize = UA_Guid_calcSize(&arg);
+	// then
+	ck_assert_int_eq(encodingSize, 16);
+}
+END_TEST
+START_TEST(UA_LocalizedText_calcSizeTextOnlyShallReturnEncodingSize)
+{
+	// given
+	UA_LocalizedText arg;
+	arg.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
+	arg.text.length = 42;
+	// when
+	UA_Int32 encodingSize = UA_LocalizedText_calcSize(&arg);
+	// then
+	ck_assert_int_eq(encodingSize, 1+4+42);
+}
+END_TEST
+START_TEST(UA_LocalizedText_calcSizeLocaleOnlyShallReturnEncodingSize)
+{
+	// given
+	UA_LocalizedText arg;
+	arg.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE;
+	arg.locale.length = 11;
+	// when
+	UA_Int32 encodingSize = UA_LocalizedText_calcSize(&arg);
+	// then
+	ck_assert_int_eq(encodingSize, 1+4+11);
+}
+END_TEST
+START_TEST(UA_LocalizedText_calcSizeTextAndLocaleShallReturnEncodingSize)
+{
+	// given
+	UA_LocalizedText arg;
+	arg.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE | UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
+	arg.text.length = 47;
+	arg.locale.length = 11;
+	// when
+	UA_Int32 encodingSize = UA_LocalizedText_calcSize(&arg);
+	// then
+	ck_assert_int_eq(encodingSize, 1+4+11+4+47);
+}
+END_TEST
+START_TEST(UA_Variant_calcSizeFixedSizeArrayShallReturnEncodingSize)
+{
+	// given
+	UA_Variant arg;
+	arg.encodingMask = UA_INT32_NS0 | UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
+	arg.vt = &UA_[UA_INT32];
+#define ARRAY_LEN 8
+	arg.arrayLength = ARRAY_LEN;
+	UA_Int32* data[ARRAY_LEN];
+	arg.data = (void**) &data;
+	// when
+	UA_Int32 encodingSize = UA_Variant_calcSize(&arg);
+	// then
+	ck_assert_int_eq(encodingSize, 1+4+ARRAY_LEN*4);
+#undef ARRAY_LEN
+}
+END_TEST
+START_TEST(UA_Variant_calcSizeVariableSizeArrayShallReturnEncodingSize)
+{
+	// given
+	UA_Variant arg;
+	arg.encodingMask = UA_STRING_NS0 | UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
+	arg.vt = &UA_[UA_STRING];
+#define ARRAY_LEN 3
+	arg.arrayLength = ARRAY_LEN;
+	UA_String s1 = {-1, UA_NULL };
+	UA_String s2 = {3, "PLT" };
+	UA_String s3 = {47, UA_NULL };
+	UA_String* data[ARRAY_LEN] = { &s1, &s2, &s3 };
+	arg.data = (void**) &data;
+	// when
+	UA_Int32 encodingSize = UA_Variant_calcSize(&arg);
+	// then
+	ck_assert_int_eq(encodingSize, 1+4+(4+0)+(4+3)+(4+47));
+#undef ARRAY_LEN
+}
+END_TEST
+START_TEST(UA_Variant_calcSizeVariableSizeArrayWithNullPtrWillReturnWrongEncodingSize)
+{
+	// given
+	UA_Variant arg;
+	arg.encodingMask = UA_STRING_NS0 | UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
+	arg.vt = &UA_[UA_STRING];
+#define ARRAY_LEN 6
+	arg.arrayLength = ARRAY_LEN;
+	UA_String s1 = {-1, UA_NULL };
+	UA_String s2 = {3, "PLT" };
+	UA_String s3 = {47, UA_NULL };
+	UA_String* data[ARRAY_LEN] = { &s1, &s2, &s3 }; // will be filled with null-ptrs
+	arg.data = (void**) &data;
+	// when
+	UA_Int32 encodingSize = UA_Variant_calcSize(&arg);
+	// then
+	ck_assert_int_ne(encodingSize, 1+4+(4+0)+(4+3)+(4+47)+(ARRAY_LEN-3)*(4+0));
+#undef ARRAY_LEN
+}
+END_TEST
 START_TEST(UA_Byte_decode_test)
 {
 	UA_Byte dst;
@@ -531,7 +633,17 @@ Suite *testSuite_builtin(void)
 	tcase_add_test(tc_calcSize, UA_NodeId_calcSizeEncodingStringZeroLengthShallReturnEncodingSize);
 	tcase_add_test(tc_calcSize, UA_ExpandedNodeId_calcSizeEncodingStringAndServerIndexShallReturnEncodingSize);
 	tcase_add_test(tc_calcSize, UA_ExpandedNodeId_calcSizeEncodingStringAndNamespaceUriShallReturnEncodingSize);
+	tcase_add_test(tc_calcSize, UA_Guid_calcSizeShallReturnEncodingSize);
+	tcase_add_test(tc_calcSize, UA_Guid_calcSizeShallReturnEncodingSize);
+	tcase_add_test(tc_calcSize, UA_LocalizedText_calcSizeTextOnlyShallReturnEncodingSize);
+	tcase_add_test(tc_calcSize, UA_LocalizedText_calcSizeLocaleOnlyShallReturnEncodingSize);
+	tcase_add_test(tc_calcSize, UA_LocalizedText_calcSizeTextAndLocaleShallReturnEncodingSize);
+	tcase_add_test(tc_calcSize, UA_Variant_calcSizeFixedSizeArrayShallReturnEncodingSize);
+	tcase_add_test(tc_calcSize, UA_Variant_calcSizeVariableSizeArrayShallReturnEncodingSize);
+	tcase_add_test(tc_calcSize, UA_Variant_calcSizeVariableSizeArrayWithNullPtrWillReturnWrongEncodingSize);
 	suite_add_tcase(s,tc_calcSize);
+
+
 
 	TCase *tc_decode = tcase_create("decode");
 	tcase_add_test(tc_decode, UA_Byte_decode_test);

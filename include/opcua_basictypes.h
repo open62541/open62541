@@ -168,6 +168,13 @@ typedef struct T_UA_VTable {
 } UA_VTable;
 
 /* VariantBinaryEncoding - Part: 6, Chapter: 5.2.2.16, Page: 22 */
+enum UA_VARIANT_ENCODINGMASKTYPE_enum
+{
+	UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK = 0x3F,	// bits 0:5
+	UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS = (0x01 << 6), // bit 6
+	UA_VARIANT_ENCODINGMASKTYPE_ARRAY = ( 0x01 << 7) // bit 7
+};
+
 typedef struct T_UA_Variant {
 	UA_VTable* vt;		// internal entry into vTable
 	UA_Byte encodingMask; 	// Type of UA_Variant_EncodingMaskType_enum
@@ -204,6 +211,11 @@ UA_Int32 UA_ByteString_copy(UA_ByteString const * src, UA_ByteString* dst);
 extern UA_ByteString UA_ByteString_securityPoliceNone;
 
 /** LocalizedTextBinaryEncoding - Part: 6, Chapter: 5.2.2.14, Page: 21 */
+enum UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_enum
+{
+	UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE = 0x01,
+	UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT = 0x02
+};
 typedef struct T_UA_LocalizedText
 {
 	UA_Byte encodingMask;
@@ -223,7 +235,7 @@ typedef struct T_UA_Guid
 	UA_UInt32 data1;
 	UA_UInt16 data2;
 	UA_UInt16 data3;
-	UA_ByteString data4;
+	UA_Byte data4[8];
 } UA_Guid;
 UA_TYPE_METHOD_PROTOTYPES (UA_Guid)
 UA_Int32 UA_Guid_compare(UA_Guid *g1, UA_Guid *g2);

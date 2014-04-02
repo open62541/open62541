@@ -479,32 +479,33 @@ UA_Int32 UA_Guid_calcSize(UA_Guid const * p) {
 	if (p == UA_NULL) {
 		return sizeof(UA_Guid);
 	} else {
-		return 	0
-				+ sizeof(p->data1)
-				+ sizeof(p->data2)
-				+ sizeof(p->data3)
-				+ UA_ByteString_calcSize(&(p->data4))
-		;
+		return 16;
 	}
 }
 UA_Int32 UA_Guid_encode(UA_Guid const *src, UA_Int32* pos, UA_Byte* dst) {
 	UA_Int32 retval = UA_SUCCESS;
+	int i=0;
 	retval |= UA_UInt32_encode(&(src->data1), pos, dst);
 	retval |= UA_UInt16_encode(&(src->data2), pos, dst);
 	retval |= UA_UInt16_encode(&(src->data3), pos, dst);
-	retval |= UA_ByteString_encode(&(src->data4), pos, dst);
+	for (i=0;i<8;i++) {
+		retval |= UA_Byte_encode(&(src->data4[i]), pos, dst);
+	}
 	return UA_SUCCESS;
 }
 UA_Int32 UA_Guid_decode(UA_Byte const * src, UA_Int32* pos, UA_Guid *dst) {
 	UA_Int32 retval = UA_SUCCESS;
+	int i=0;
 	retval |= UA_UInt32_decode(src,pos,&(dst->data1));
 	retval |= UA_UInt16_decode(src,pos,&(dst->data2));
 	retval |= UA_UInt16_decode(src,pos,&(dst->data3));
-	retval |= UA_ByteString_decode(src,pos,&(dst->data4));
+	for (i=0;i<8;i++) {
+		retval |= UA_Byte_decode(src,pos,&(dst->data4[i]));
+	}
 	return retval;
 }
 UA_TYPE_METHOD_DELETE_STRUCT(UA_Guid)
-UA_Int32 UA_Guid_deleteMembers(UA_Guid* p) { return UA_ByteString_delete(&(p->data4)); }
+UA_Int32 UA_Guid_deleteMembers(UA_Guid* p) { return UA_SUCCESS; }
 UA_Int32 UA_Guid_compare(UA_Guid *g1, UA_Guid *g2) {
 	return memcmp(g1, g2, sizeof(UA_Guid));
 }
@@ -513,7 +514,7 @@ UA_Int32 UA_Guid_init(UA_Guid* p){
 	p->data1 = 0;
 	p->data2 = 0;
 	p->data3 = 0;
-	UA_ByteString_init(&(p->data4));
+	memset(p->data4,8,sizeof(UA_Byte));
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_Guid)
@@ -525,11 +526,11 @@ UA_Int32 UA_LocalizedText_calcSize(UA_LocalizedText const * p) {
 		length = sizeof(UA_LocalizedText);
 	} else {
 		// size for binary encoding
-		length += p->encodingMask;
-		if (p->encodingMask & 0x01) {
+		length += 1; // p->encodingMask;
+		if (p->encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE) {
 			length += UA_String_calcSize(&(p->locale));
 		}
-		if (p->encodingMask & 0x02) {
+		if (p->encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT) {
 			length += UA_String_calcSize(&(p->text));
 		}
 	}
@@ -539,10 +540,10 @@ UA_Int32 UA_LocalizedText_encode(UA_LocalizedText const * src, UA_Int32 *pos,
 		UA_Byte* dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_Byte_encode(&(src->encodingMask),pos,dst);
-	if (src->encodingMask & 0x01) {
+	if (src->encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE) {
 		UA_String_encode(&(src->locale),pos,dst);
 	}
-	if (src->encodingMask & 0x02) {
+	if (src->encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT) {
 		UA_String_encode(&(src->text),pos,dst);
 	}
 	return retval;
@@ -554,10 +555,10 @@ UA_Int32 UA_LocalizedText_decode(UA_Byte const * src, UA_Int32 *pos,
 	retval |= UA_String_copy(&UA_String_null,&(dst->text));
 
 	retval |= UA_Byte_decode(src,pos,&(dst->encodingMask));
-	if (dst->encodingMask & 0x01) {
+	if (dst->encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE) {
 		retval |= UA_String_decode(src,pos,&(dst->locale));
 	}
-	if (dst->encodingMask & 0x02) {
+	if (dst->encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT) {
 		retval |= UA_String_decode(src,pos,&(dst->text));
 	}
 	return retval;
@@ -580,7 +581,7 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_LocalizedText)
 UA_Int32 UA_LocalizedText_copycstring(char const * src, UA_LocalizedText* dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	if(dst==UA_NULL)return UA_ERROR;
-	dst->encodingMask = 0x03;
+	dst->encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE | UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
 	retval |= UA_String_copycstring("EN",&(dst->locale));
 	retval |= UA_String_copycstring(src,&(dst->text));
 	return retval;
@@ -741,13 +742,12 @@ void UA_NodeId_printf(char* label, UA_NodeId* node) {
 				(char*) (node->identifier.byteString.data));
 		break;
 	case UA_NODEIDTYPE_GUID:
-		l = ( node->identifier.guid.data4.length < 0 ) ? 0 : node->identifier.guid.data4.length;
 		printf(
 				"guid={data1=%d, data2=%d, data3=%d, data4={length=%d, data=%.*s}}",
 				node->identifier.guid.data1, node->identifier.guid.data2,
-				node->identifier.guid.data3, node->identifier.guid.data4.length,
-				l,
-				(char*) (node->identifier.guid.data4.data));
+				node->identifier.guid.data3, 8,
+				8,
+				(char*) (node->identifier.guid.data4));
 		break;
 	default:
 		printf("ups! shit happens");
@@ -849,7 +849,7 @@ UA_Int32 UA_ExtensionObject_calcSize(UA_ExtensionObject const * p) {
 		length = sizeof(UA_ExtensionObject);
 	} else {
 		length += UA_NodeId_calcSize(&(p->typeId));
-		length += sizeof(UA_Byte); //p->encoding
+		length += 1; //p->encoding
 		switch (p->encoding) {
 		case UA_EXTENSIONOBJECT_BODYISBYTESTRING:
 			length += UA_ByteString_calcSize(&(p->body));
@@ -1152,6 +1152,10 @@ UA_Int32 UA_Variant_calcSize(UA_Variant const * p) {
 		length += sizeof(UA_Int32); //p->arrayLength
 		if (p->arrayLength > 0) {
 			// TODO: add suggestions of @jfpr to not iterate over arrays with fixed len elements
+			// FIXME: the concept of calcSize delivering the storageSize given an UA_Null argument
+			// fails for arrays with null-ptrs, see test case
+			// UA_Variant_calcSizeVariableSizeArrayWithNullPtrWillReturnWrongEncodingSize
+			// Simply do not allow?
 			for (i=0;i<p->arrayLength;i++) {
 				length += p->vt->calcSize(p->data[i]);
 			}
@@ -1168,12 +1172,12 @@ UA_Int32 UA_Variant_encode(UA_Variant const *src, UA_Int32* pos, UA_Byte *dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	int i = 0;
 
-	if (src->vt == UA_NULL || ( src->encodingMask & 0x1F) != src->vt->Id) {
+	if (src->vt == UA_NULL || ( src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) != src->vt->Id) {
 		return UA_ERR_INCONSISTENT;
 	}
 
 	retval |= UA_Byte_encode(&(src->encodingMask),pos,dst);
-	if (src->encodingMask & (0x01 << 7)) { // encode array length
+	if (src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_ARRAY) { // encode array length
 		retval |= UA_Int32_encode(&(src->arrayLength),pos,dst);
 	}
 	if (src->arrayLength > 0) {
@@ -1184,7 +1188,7 @@ UA_Int32 UA_Variant_encode(UA_Variant const *src, UA_Int32* pos, UA_Byte *dst) {
 	} else {
 		retval |= src->vt->encode(src->data[i],pos,dst);
 	}
-	if (src->encodingMask & (1 << 6)) { // encode array dimension field
+	if (src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_ARRAY) { // encode array dimension field
 		// TODO: encode array dimension field
 	}
 	return retval;
@@ -1195,7 +1199,7 @@ UA_Int32 UA_Variant_decode(UA_Byte const * src, UA_Int32 *pos, UA_Variant *dst) 
 	UA_Int32 ns0Id;
 
 	retval |= UA_Byte_decode(src,pos,&(dst->encodingMask));
-	ns0Id = dst->encodingMask & 0x1F;
+	ns0Id = dst->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK;
 
 	// initialize vTable
 	if (ns0Id < UA_BOOLEAN && ns0Id > UA_DOUBLECOMPLEXNUMBERTYPE) {
@@ -1205,7 +1209,7 @@ UA_Int32 UA_Variant_decode(UA_Byte const * src, UA_Int32 *pos, UA_Variant *dst) 
 	}
 
 	// get size of array
-	if (dst->encodingMask & (0x01 << 7)) { // encode array length
+	if (dst->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_ARRAY) { // encode array length
 		retval |= UA_Int32_decode(src,pos,&(dst->arrayLength));
 	} else {
 		dst->arrayLength = 1;
@@ -1214,7 +1218,7 @@ UA_Int32 UA_Variant_decode(UA_Byte const * src, UA_Int32 *pos, UA_Variant *dst) 
 	retval |= UA_Array_new((void**)&(dst->data),dst->arrayLength,UA_toIndex(ns0Id));
 	retval |= UA_Array_decode(src,dst->arrayLength,UA_toIndex(ns0Id),pos,dst->data);
 
-	if (dst->encodingMask & (1 << 6)) {
+	if (dst->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) {
 		// TODO: decode array dimension field
 	}
 	return retval;
@@ -1339,58 +1343,3 @@ UA_Int32 UA_DataValue_init(UA_DataValue * p){
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_DataValue)
-
-
-/**
- * RequestHeader
- * Part: 4
- * Chapter: 7.26
- * Page: 132
- */
-/** \copydoc decodeRequestHeader */
-/*** Sten: removed to compile
-Int32 decodeRequestHeader(const AD_RawMessage *srcRaw, Int32 *pos,
-		UA_AD_RequestHeader *dstRequestHeader) {
-	return decoder_decodeRequestHeader(srcRaw->message, pos, dstRequestHeader);
-}
-***/
-
-/*** Sten: removed to compile
-Int32 decoder_decodeRequestHeader(char const * message, Int32 *pos,
-		UA_AD_RequestHeader *dstRequestHeader) {
-	// 62541-4 §5.5.2.2 OpenSecureChannelServiceParameters
-	// requestHeader - common request parameters. The authenticationToken is always omitted
-	decoder_decodeBuiltInDatatype(message, NODE_ID, pos,
-			&(dstRequestHeader->authenticationToken));
-	decoder_decodeBuiltInDatatype(message, DATE_TIME, pos,
-			&(dstRequestHeader->timestamp));
-	decoder_decodeBuiltInDatatype(message, UINT32, pos,
-			&(dstRequestHeader->requestHandle));
-	decoder_decodeBuiltInDatatype(message, UINT32, pos,
-			&(dstRequestHeader->returnDiagnostics));
-	decoder_decodeBuiltInDatatype(message, STRING, pos,
-			&(dstRequestHeader->auditEntryId));
-	decoder_decodeBuiltInDatatype(message, UINT32, pos,
-			&(dstRequestHeader->timeoutHint));
-	decoder_decodeBuiltInDatatype(message, EXTENSION_OBJECT, pos,
-			&(dstRequestHeader->additionalHeader));
-	// AdditionalHeader will stay empty, need to be changed if there is relevant information
-
-	return 0;
-}
-***/
-
-/*** Sten: removed to compile
-Int32 extensionObject_calcSize(UA_ExtensionObject *extensionObject) {
-	Int32 length = 0;
-
-	length += nodeId_calcSize(&(extensionObject->typeId));
-	length += sizeof(UA_Byte); //The EncodingMask Byte
-
-	if (extensionObject->encoding == BODY_IS_BYTE_STRING
-			|| extensionObject->encoding == BODY_IS_XML_ELEMENT) {
-		length += UAByteString_calcSize(&(extensionObject->body));
-	}
-	return length;
-}
-***/
