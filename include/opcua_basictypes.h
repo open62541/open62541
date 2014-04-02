@@ -260,6 +260,10 @@ typedef struct T_UA_XmlElement
 UA_TYPE_METHOD_PROTOTYPES (UA_XmlElement)
 
 /* ExpandedNodeId - Part: 6, Chapter: 5.2.2.10, Page: 19 */
+// 62541-6 Chapter 5.2.2.9, Table 5
+#define UA_NODEIDTYPE_NAMESPACE_URI_FLAG 0x80
+#define UA_NODEIDTYPE_SERVERINDEX_FLAG   0x40
+#define UA_NODEIDTYPE_MASK (~(UA_NODEIDTYPE_NAMESPACE_URI_FLAG | UA_NODEIDTYPE_SERVERINDEX_FLAG))
 typedef struct T_UA_ExpandedNodeId
 {
 	UA_NodeId nodeId;

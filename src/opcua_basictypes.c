@@ -592,12 +592,12 @@ UA_Int32 UA_NodeId_calcSize(UA_NodeId const *p) {
 	if (p == UA_NULL) {
 		length = sizeof(UA_NodeId);
 	} else {
-		switch (p->encodingByte) {
+		switch (p->encodingByte & UA_NODEIDTYPE_MASK) {
 		case UA_NODEIDTYPE_TWOBYTE:
-			length += 2 * sizeof(UA_Byte);
+			length = 2;
 			break;
 		case UA_NODEIDTYPE_FOURBYTE:
-			length += 4 * sizeof(UA_Byte);
+			length = 4;
 			break;
 		case UA_NODEIDTYPE_NUMERIC:
 			length += sizeof(UA_Byte) + sizeof(UA_UInt16) + sizeof(UA_UInt32);
@@ -624,7 +624,7 @@ UA_Int32 UA_NodeId_encode(UA_NodeId const * src, UA_Int32* pos, UA_Byte* dst) {
 
 	int retval = UA_SUCCESS;
 	retval |= UA_Byte_encode(&(src->encodingByte),pos,dst);
-	switch (src->encodingByte) {
+	switch (src->encodingByte & UA_NODEIDTYPE_MASK) {
 	case UA_NODEIDTYPE_TWOBYTE:
 		srcByte = src->identifier.numeric;
 		retval |= UA_Byte_encode(&srcByte,pos,dst);
@@ -661,7 +661,7 @@ UA_Int32 UA_NodeId_decode(UA_Byte const * src, UA_Int32* pos, UA_NodeId *dst) {
 	UA_UInt16 dstUInt16;
 
 	retval |= UA_Byte_decode(src,pos,&(dst->encodingByte));
-	switch (dst->encodingByte) {
+	switch (dst->encodingByte & UA_NODEIDTYPE_MASK) {
 	case UA_NODEIDTYPE_TWOBYTE: // Table 7
 		retval |=UA_Byte_decode(src, pos, &dstByte);
 		dst->identifier.numeric = dstByte;
@@ -696,7 +696,7 @@ UA_Int32 UA_NodeId_decode(UA_Byte const * src, UA_Int32* pos, UA_NodeId *dst) {
 UA_TYPE_METHOD_DELETE_STRUCT(UA_NodeId)
 UA_Int32 UA_NodeId_deleteMembers(UA_NodeId* p) {
 	int retval = UA_SUCCESS;
-	switch (p->encodingByte) {
+	switch (p->encodingByte & UA_NODEIDTYPE_MASK) {
 	case UA_NODEIDTYPE_TWOBYTE:
 	case UA_NODEIDTYPE_FOURBYTE:
 	case UA_NODEIDTYPE_NUMERIC:
@@ -716,12 +716,12 @@ UA_Int32 UA_NodeId_deleteMembers(UA_NodeId* p) {
 }
 
 void UA_NodeId_printf(char* label, UA_NodeId* node) {
-
+	int l;
 
 	printf("%s {encodingByte=%d, namespace=%d,", label,
 			(int)( node->encodingByte), (int) (node->namespace));
 
-	switch (node->encodingByte) {
+	switch (node->encodingByte & UA_NODEIDTYPE_MASK) {
 
 	case UA_NODEIDTYPE_TWOBYTE:
 	case UA_NODEIDTYPE_FOURBYTE:
@@ -729,21 +729,24 @@ void UA_NodeId_printf(char* label, UA_NodeId* node) {
 		printf("identifier=%d\n", node->identifier.numeric);
 		break;
 	case UA_NODEIDTYPE_STRING:
+		l = ( node->identifier.string.length < 0 ) ? 0 : node->identifier.string.length;
 		printf("identifier={length=%d, data=%.*s}",
-				node->identifier.string.length, node->identifier.string.length,
+				node->identifier.string.length, l,
 				(char*) (node->identifier.string.data));
 		break;
 	case UA_NODEIDTYPE_BYTESTRING:
+		l = ( node->identifier.byteString.length < 0 ) ? 0 : node->identifier.byteString.length;
 		printf("identifier={Length=%d, data=%.*s}",
-				node->identifier.byteString.length, node->identifier.byteString.length,
+				node->identifier.byteString.length, l,
 				(char*) (node->identifier.byteString.data));
 		break;
 	case UA_NODEIDTYPE_GUID:
+		l = ( node->identifier.guid.data4.length < 0 ) ? 0 : node->identifier.guid.data4.length;
 		printf(
 				"guid={data1=%d, data2=%d, data3=%d, data4={length=%d, data=%.*s}}",
 				node->identifier.guid.data1, node->identifier.guid.data2,
 				node->identifier.guid.data3, node->identifier.guid.data4.length,
-				node->identifier.guid.data4.length,
+				l,
 				(char*) (node->identifier.guid.data4.data));
 		break;
 	default:
@@ -757,7 +760,7 @@ UA_Int32 UA_NodeId_compare(UA_NodeId *n1, UA_NodeId *n2) {
 	if (n1->encodingByte != n2->encodingByte || n1->namespace != n2->namespace)
 		return FALSE;
 
-	switch (n1->encodingByte) {
+	switch (n1->encodingByte & UA_NODEIDTYPE_MASK) {
 	case UA_NODEIDTYPE_TWOBYTE:
 	case UA_NODEIDTYPE_FOURBYTE:
 	case UA_NODEIDTYPE_NUMERIC:
@@ -783,9 +786,6 @@ UA_Int32 UA_NodeId_init(UA_NodeId* p){
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_NodeId)
 
-// 62541-6 Chapter 5.2.2.9, Table 5
-#define UA_NODEIDTYPE_NAMESPACE_URI_FLAG 0x80
-#define UA_NODEIDTYPE_SERVERINDEX_FLAG   0x40
 UA_Int32 UA_ExpandedNodeId_calcSize(UA_ExpandedNodeId const * p) {
 	UA_Int32 length = 0;
 	if (p == UA_NULL) {
@@ -1093,6 +1093,7 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_StatusCode)
 
 UA_Int32 UA_QualifiedName_calcSize(UA_QualifiedName const * p) {
 	UA_Int32 length = 0;
+	if (p == NULL) return sizeof(UA_QualifiedName);
 	length += sizeof(UA_UInt16); //qualifiedName->namespaceIndex
 	length += sizeof(UA_UInt16); //qualifiedName->reserved
 	length += UA_String_calcSize(&(p->name)); //qualifiedName->name
@@ -1137,6 +1138,7 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_QualifiedName)
 
 UA_Int32 UA_Variant_calcSize(UA_Variant const * p) {
 	UA_Int32 length = 0;
+	if (p == UA_NULL) return sizeof(UA_Variant);
 	UA_UInt32 ns0Id = p->encodingMask & 0x1F; // Bits 1-5
 	UA_Boolean isArray = p->encodingMask & (0x01 << 7); // Bit 7
 	UA_Boolean hasDimensions = p->encodingMask & (0x01 << 6); // Bit 6
