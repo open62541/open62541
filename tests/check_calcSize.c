@@ -45,11 +45,11 @@ START_TEST(extensionObject_calcSize_test)
 	// empty ExtensionObject, handcoded
 	extensionObject.typeId.encodingByte = UA_NODEIDTYPE_TWOBYTE;
 	extensionObject.typeId.identifier.numeric = 0;
-	extensionObject.encoding = UA_EXTENSIONOBJECT_NOBODYISENCODED;
+	extensionObject.encoding = UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_NOBODYISENCODED;
 	ck_assert_int_eq(UA_ExtensionObject_calcSize(&extensionObject), 1 + 1 + 1);
 
 	// ExtensionObject with ByteString-Body
-	extensionObject.encoding = UA_EXTENSIONOBJECT_BODYISBYTESTRING;
+	extensionObject.encoding = UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_BODYISBYTESTRING;
 	extensionObject.body.data = data;
 	extensionObject.body.length = 3;
 	ck_assert_int_eq(UA_ExtensionObject_calcSize(&extensionObject), 3 + 4 + 3);
@@ -62,7 +62,7 @@ START_TEST(responseHeader_calcSize_test)
 	UA_DiagnosticInfo diagnosticInfo;
 	UA_ExtensionObject extensionObject;
 	UA_DiagnosticInfo  emptyDO = {0x00};
-	UA_ExtensionObject emptyEO = {{UA_NODEIDTYPE_TWOBYTE,0},UA_EXTENSIONOBJECT_NOBODYISENCODED};
+	UA_ExtensionObject emptyEO = {{UA_NODEIDTYPE_TWOBYTE,0},UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_NOBODYISENCODED};
 	//Should have the size of 26 Bytes
 	diagnosticInfo.encodingMask = UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_SYMBOLICID | UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_NAMESPACE | UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_LOCALIZEDTEXT | UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_LOCALE | UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_ADDITIONALINFO;		// Byte:   1
 	// Indices into to Stringtable of the responseHeader (62541-6 §5.5.12 )

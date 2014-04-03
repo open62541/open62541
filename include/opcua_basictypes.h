@@ -150,7 +150,7 @@ enum UA_StatusCode_enum
 {
 	// Some Values are called the same as previous Enumerations so we need
 	//names that are unique
-	SC_Good 			= 			0x00
+	UA_STATUSCODE_GOOD 			= 			0x00
 };
 UA_TYPE_METHOD_PROTOTYPES (UA_StatusCode)
 
@@ -299,9 +299,9 @@ UA_TYPE_METHOD_PROTOTYPES(UA_ExtensionObject)
 
 enum UA_ExtensionObject_EncodingMaskType_enum
 {
-	UA_EXTENSIONOBJECT_NOBODYISENCODED = 	0x00,
-	UA_EXTENSIONOBJECT_BODYISBYTESTRING = 	0x01,
-	UA_EXTENSIONOBJECT_BODYISXML = 	0x02
+	UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_NOBODYISENCODED = 	0x00,
+	UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_BODYISBYTESTRING = 	0x01,
+	UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_BODYISXML = 	0x02
 };
 
 /* QualifiedNameBinaryEncoding - Part: 6, Chapter: 5.2.2.13, Page: 20 */

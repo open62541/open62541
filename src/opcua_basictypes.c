@@ -851,10 +851,10 @@ UA_Int32 UA_ExtensionObject_calcSize(UA_ExtensionObject const * p) {
 		length += UA_NodeId_calcSize(&(p->typeId));
 		length += 1; //p->encoding
 		switch (p->encoding) {
-		case UA_EXTENSIONOBJECT_BODYISBYTESTRING:
+		case UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_BODYISBYTESTRING:
 			length += UA_ByteString_calcSize(&(p->body));
 			break;
-		case UA_EXTENSIONOBJECT_BODYISXML:
+		case UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_BODYISXML:
 			length += UA_XmlElement_calcSize((UA_XmlElement*)&(p->body));
 			break;
 		}
@@ -866,10 +866,10 @@ UA_Int32 UA_ExtensionObject_encode(UA_ExtensionObject const *src, UA_Int32* pos,
 	retval |= UA_NodeId_encode(&(src->typeId),pos,dst);
 	retval |= UA_Byte_encode(&(src->encoding),pos,dst);
 	switch (src->encoding) {
-	case UA_EXTENSIONOBJECT_NOBODYISENCODED:
+	case UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_NOBODYISENCODED:
 		break;
-	case UA_EXTENSIONOBJECT_BODYISBYTESTRING:
-	case UA_EXTENSIONOBJECT_BODYISXML:
+	case UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_BODYISBYTESTRING:
+	case UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_BODYISXML:
 		retval |= UA_ByteString_encode(&(src->body),pos,dst);
 		break;
 	}
@@ -882,10 +882,10 @@ UA_Int32 UA_ExtensionObject_decode(UA_Byte const * src, UA_Int32 *pos,
 	retval |= UA_Byte_decode(src,pos,&(dst->encoding));
 	retval |= UA_String_copy(&UA_String_null, (UA_String*) &(dst->body));
 	switch (dst->encoding) {
-	case UA_EXTENSIONOBJECT_NOBODYISENCODED:
+	case UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_NOBODYISENCODED:
 		break;
-	case UA_EXTENSIONOBJECT_BODYISBYTESTRING:
-	case UA_EXTENSIONOBJECT_BODYISXML:
+	case UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_BODYISBYTESTRING:
+	case UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_BODYISXML:
 		retval |= UA_ByteString_decode(src,pos,&(dst->body));
 		break;
 	}

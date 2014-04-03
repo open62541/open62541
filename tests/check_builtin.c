@@ -484,7 +484,7 @@ START_TEST(UA_Variant_calcSizeVariableSizeArrayShallReturnEncodingSize)
 #undef ARRAY_LEN
 }
 END_TEST
-START_TEST(UA_Variant_calcSizeVariableSizeArrayWithNullPtrWillReturnWrongEncodingSize)
+START_TEST(UA_Variant_calcSizeVariableSizeArrayWithNullPtrWillReturnWrongButLargeEnoughEncodingSize)
 {
 	// given
 	UA_Variant arg;
@@ -500,23 +500,238 @@ START_TEST(UA_Variant_calcSizeVariableSizeArrayWithNullPtrWillReturnWrongEncodin
 	// when
 	UA_Int32 encodingSize = UA_Variant_calcSize(&arg);
 	// then
-	ck_assert_int_ne(encodingSize, 1+4+(4+0)+(4+3)+(4+47)+(ARRAY_LEN-3)*(4+0));
+	ck_assert_int_ge(encodingSize, 1+4+(4+0)+(4+3)+(4+47)+(ARRAY_LEN-3)*(4+0));
 #undef ARRAY_LEN
 }
 END_TEST
-START_TEST(UA_Byte_decode_test)
+START_TEST(UA_Byte_decodeShallCopyAndAdvancePosition)
 {
+	// given
 	UA_Byte dst;
 	UA_Byte src[] = { 0x08 };
-	UA_Int32 retval, pos = 0;
-
-	retval = UA_Byte_decode(src, &pos, &dst);
-
+	UA_Int32 pos = 0;
+	// when
+	UA_Int32 retval = UA_Byte_decode(src, &pos, &dst);
+	// then
 	ck_assert_int_eq(retval, UA_SUCCESS);
 	ck_assert_uint_eq(pos, 1);
-	ck_assert_uint_eq(dst, 8);
+	ck_assert_uint_eq(dst, 0x08);
 }
 END_TEST
+START_TEST(UA_Byte_decodeShallModifyOnlyCurrentPosition)
+{
+	// given
+	UA_Byte dst[] = { 0xFF, 0xFF, 0xFF };
+	UA_Byte src[] = { 0x08 };
+	UA_Int32 pos = 0;
+	// when
+	UA_Int32 retval = UA_Byte_decode(src, &pos, &dst[1]);
+	// then
+	ck_assert_int_eq(retval, UA_SUCCESS);
+	ck_assert_int_eq(pos, 1);
+	ck_assert_uint_eq(dst[0], 0xFF);
+	ck_assert_uint_eq(dst[1], 0x08);
+	ck_assert_uint_eq(dst[2], 0xFF);
+}
+END_TEST
+START_TEST(UA_Int16_decodeShallAssumeLittleEndian)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = {
+			0x01,0x00,	// 1
+			0x00,0x01,	// 256
+	};
+	// when
+	UA_Int16 val_01_00, val_00_01;
+	UA_Int32 retval = UA_Int16_decode(src,&pos,&val_01_00);
+	retval |= UA_Int16_decode(src,&pos,&val_00_01);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(val_01_00,1);
+	ck_assert_int_eq(val_00_01,256);
+	ck_assert_int_eq(pos,4);
+}
+END_TEST
+START_TEST(UA_Int16_decodeShallRespectSign)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = {
+			0xFF,0xFF,	// -1
+			0x00,0x80,	// -32768
+	};
+	// when
+	UA_Int16 val_ff_ff, val_00_80;
+	UA_Int32 retval = UA_Int16_decode(src,&pos,&val_ff_ff);
+	retval |= UA_Int16_decode(src,&pos,&val_00_80);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(val_ff_ff,-1);
+	ck_assert_int_eq(val_00_80,-32768);
+}
+END_TEST
+START_TEST(UA_UInt16_decodeShallNotRespectSign)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = {
+			0xFF,0xFF,	// -1
+			0x00,0x80,	// -32768
+	};
+	// when
+	UA_UInt16 val_ff_ff, val_00_80;
+	UA_Int32 retval = UA_UInt16_decode(src,&pos,&val_ff_ff);
+	retval |= UA_UInt16_decode(src,&pos,&val_00_80);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(pos,4);
+	ck_assert_uint_eq(val_ff_ff, (0x01 << 16)-1);
+	ck_assert_uint_eq(val_00_80, (0x01 << 15));
+}
+END_TEST
+START_TEST(UA_String_decodeShallAllocateMemoryAndCopyString)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = {0x08,0x00,0x00,0x00,'A','C','P','L','T',' ','U','A',0xFF,0xFF,0xFF,0xFF,0xFF};
+	UA_String dst;
+	// when
+	UA_Int32 retval = UA_String_decode(src, &pos, &dst);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(dst.length,8);
+	ck_assert_ptr_eq(dst.data,UA_alloc_lastptr);
+	ck_assert_int_eq(dst.data[3],'L');
+	// finally
+	UA_String_deleteMembers(&dst);
+}
+END_TEST
+START_TEST(UA_String_decodeWithNegativeSizeShallNotAllocateMemoryAndNullPtr)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = {0xFF,0xFF,0xFF,0xFF,'A','C','P','L','T',' ','U','A',0xFF,0xFF,0xFF,0xFF,0xFF};
+	UA_String dst;
+	// when
+	UA_Int32 retval = UA_String_decode(src, &pos, &dst);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(dst.length,-1);
+	ck_assert_ptr_eq(dst.data,UA_NULL);
+}
+END_TEST
+START_TEST(UA_String_decodeWithZeroSizeShallNotAllocateMemoryAndNullPtr)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = {0x00,0x00,0x00,0x00,'A','C','P','L','T',' ','U','A',0xFF,0xFF,0xFF,0xFF,0xFF};
+	UA_String dst = { 2, "XX" };
+	// when
+	UA_Int32 retval = UA_String_decode(src, &pos, &dst);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(dst.length,0);
+	ck_assert_ptr_eq(dst.data,UA_NULL);
+}
+END_TEST
+START_TEST(UA_NodeId_decodeTwoByteShallReadTwoBytesAndSetNamespaceToZero)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = { UA_NODEIDTYPE_TWOBYTE, 0x10 };
+	UA_NodeId dst;
+	// when
+	UA_Int32 retval = UA_NodeId_decode(src, &pos, &dst);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(pos,2);
+	ck_assert_int_eq(dst.encodingByte, UA_NODEIDTYPE_TWOBYTE);
+	ck_assert_int_eq(dst.identifier.numeric,16);
+	ck_assert_int_eq(dst.namespace,0);
+}
+END_TEST
+START_TEST(UA_NodeId_decodeFourByteShallReadFourBytesAndRespectNamespace)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = { UA_NODEIDTYPE_FOURBYTE, 0x01, 0x00, 0x01 };
+	UA_NodeId dst;
+	// when
+	UA_Int32 retval = UA_NodeId_decode(src, &pos, &dst);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(pos,4);
+	ck_assert_int_eq(dst.encodingByte, UA_NODEIDTYPE_FOURBYTE);
+	ck_assert_int_eq(dst.identifier.numeric,256);
+	ck_assert_int_eq(dst.namespace,1);
+}
+END_TEST
+START_TEST(UA_NodeId_decodeStringShallAllocateMemory)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = { UA_NODEIDTYPE_STRING, 0x01, 0x00, 0x03, 0x00, 0x00, 0x00, 'P', 'L', 'T' };
+	UA_NodeId dst;
+	// when
+	UA_Int32 retval = UA_NodeId_decode(src, &pos, &dst);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(pos,10);
+	ck_assert_int_eq(dst.encodingByte, UA_NODEIDTYPE_STRING);
+	ck_assert_int_eq(dst.namespace,1);
+	ck_assert_int_eq(dst.identifier.string.length,3);
+	ck_assert_ptr_eq(dst.identifier.string.data,UA_alloc_lastptr);
+	ck_assert_int_eq(dst.identifier.string.data[1],'L');
+	// finally
+	UA_NodeId_deleteMembers(&dst);
+}
+END_TEST
+START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArray)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = { UA_INT32_NS0, 0xFF, 0x00, 0x00, 0x00};
+	UA_Variant dst;
+	// when
+	UA_Int32 retval = UA_Variant_decode(src, &pos, &dst);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(pos,5);
+	ck_assert_uint_eq(dst.encodingMask, UA_INT32_NS0);
+	ck_assert_ptr_eq(dst.vt, &UA_[UA_INT32]);
+	ck_assert_int_eq(dst.arrayLength,1);
+	ck_assert_ptr_ne(dst.data,UA_NULL);
+	ck_assert_ptr_eq(dst.data[0],UA_alloc_lastptr);
+	ck_assert_int_eq(*(UA_Int32*)dst.data[0],255);
+	// finally
+	UA_Variant_deleteMembers(&dst);
+}
+END_TEST
+START_TEST(UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = { UA_INT32_NS0 | UA_VARIANT_ENCODINGMASKTYPE_ARRAY, 0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF};
+	UA_Variant dst;
+	// when
+	UA_Int32 retval = UA_Variant_decode(src, &pos, &dst);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(pos,1+4+2*4);
+	ck_assert_uint_eq(dst.encodingMask & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK, UA_INT32_NS0);
+	ck_assert_uint_eq(dst.encodingMask & UA_VARIANT_ENCODINGMASKTYPE_ARRAY, UA_VARIANT_ENCODINGMASKTYPE_ARRAY);
+	ck_assert_ptr_eq(dst.vt, &UA_[UA_INT32]);
+	ck_assert_int_eq(dst.arrayLength,2);
+	ck_assert_ptr_ne(dst.data,UA_NULL);
+	ck_assert_ptr_eq(dst.data[1],UA_alloc_lastptr);
+	ck_assert_int_eq(*((UA_Int32*)dst.data[0]),255);
+	ck_assert_int_eq(*((UA_Int32*)dst.data[1]),-1);
+	// finally
+	UA_Variant_deleteMembers(&dst);
+}
+END_TEST
+
 START_TEST(UA_Byte_encode_test)
 {
 	UA_Byte src;
@@ -543,51 +758,6 @@ START_TEST(UA_Byte_encode_test)
 	ck_assert_int_eq(pos, 1);
 	ck_assert_int_eq(retval, UA_SUCCESS);
 
-}
-END_TEST
-START_TEST(UA_Int16_decode_test_positives)
-{
-	UA_Int32 p = 0;
-	UA_Int16 val;
-	UA_Int32 retval;
-	UA_Byte buf[] = {
-			0x00,0x00,	// 0
-			0x01,0x00,	// 1
-			0xFF,0x00,	// 255
-			0x00,0x01,	// 256
-	};
-
-	retval = UA_Int16_decode(buf,&p,&val);
-	ck_assert_int_eq(retval,UA_SUCCESS);
-	ck_assert_int_eq(val,0);
-	retval = UA_Int16_decode(buf,&p,&val);
-	ck_assert_int_eq(retval,UA_SUCCESS);
-	ck_assert_int_eq(val,1);
-	retval = UA_Int16_decode(buf,&p,&val);
-	ck_assert_int_eq(retval,UA_SUCCESS);
-	ck_assert_int_eq(val,255);
-	retval = UA_Int16_decode(buf,&p,&val);
-	ck_assert_int_eq(retval,UA_SUCCESS);
-	ck_assert_int_eq(val,256);
-}
-END_TEST
-START_TEST(UA_Int16_decode_test_negatives)
-{
-	UA_Int32 p = 0;
-	UA_Int16 val;
-	UA_Int32 retval;
-	UA_Byte mem[] = {
-			0xFF,0xFF,	// -1
-			0x00,0x80,	// -32768
-	};
-
-
-	retval = UA_Int16_decode(mem,&p,&val);
-	ck_assert_int_eq(retval,UA_SUCCESS);
-	ck_assert_int_eq(val,-1);
-	retval = UA_Int16_decode(mem,&p,&val);
-	ck_assert_int_eq(retval,UA_SUCCESS);
-	ck_assert_int_eq(val,-32768);
 }
 END_TEST
 
@@ -640,17 +810,25 @@ Suite *testSuite_builtin(void)
 	tcase_add_test(tc_calcSize, UA_LocalizedText_calcSizeTextAndLocaleShallReturnEncodingSize);
 	tcase_add_test(tc_calcSize, UA_Variant_calcSizeFixedSizeArrayShallReturnEncodingSize);
 	tcase_add_test(tc_calcSize, UA_Variant_calcSizeVariableSizeArrayShallReturnEncodingSize);
-	tcase_add_test(tc_calcSize, UA_Variant_calcSizeVariableSizeArrayWithNullPtrWillReturnWrongEncodingSize);
+	tcase_add_test(tc_calcSize, UA_Variant_calcSizeVariableSizeArrayWithNullPtrWillReturnWrongButLargeEnoughEncodingSize);
 	suite_add_tcase(s,tc_calcSize);
 
 
 
 	TCase *tc_decode = tcase_create("decode");
-	tcase_add_test(tc_decode, UA_Byte_decode_test);
-	tcase_add_test(tc_decode, UA_Byte_encode_test);
-	tcase_add_test(tc_decode, UA_Int16_decode_test_negatives);
-	tcase_add_test(tc_decode, UA_Int16_decode_test_positives);
-	tcase_add_test(tc_decode, UA_Byte_encode_test);
+	tcase_add_test(tc_decode, UA_Byte_decodeShallCopyAndAdvancePosition);
+	tcase_add_test(tc_decode, UA_Byte_decodeShallModifyOnlyCurrentPosition);
+	tcase_add_test(tc_decode, UA_Int16_decodeShallAssumeLittleEndian);
+	tcase_add_test(tc_decode, UA_Int16_decodeShallRespectSign);
+	tcase_add_test(tc_decode, UA_UInt16_decodeShallNotRespectSign);
+	tcase_add_test(tc_decode, UA_String_decodeShallAllocateMemoryAndCopyString);
+	tcase_add_test(tc_decode, UA_String_decodeWithNegativeSizeShallNotAllocateMemoryAndNullPtr);
+	tcase_add_test(tc_decode, UA_String_decodeWithZeroSizeShallNotAllocateMemoryAndNullPtr);
+	tcase_add_test(tc_decode, UA_NodeId_decodeTwoByteShallReadTwoBytesAndSetNamespaceToZero);
+	tcase_add_test(tc_decode, UA_NodeId_decodeFourByteShallReadFourBytesAndRespectNamespace);
+	tcase_add_test(tc_decode, UA_NodeId_decodeStringShallAllocateMemory);
+	tcase_add_test(tc_decode, UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArray);
+	tcase_add_test(tc_decode, UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray);
 	suite_add_tcase(s,tc_decode);
 
 	return s;

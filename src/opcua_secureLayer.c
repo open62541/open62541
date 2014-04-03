@@ -258,7 +258,7 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 				UA_GetEndpointsResponse_new(&r);
 				r->responseHeader.requestHandle =
 						p->requestHeader.requestHandle;
-				r->responseHeader.serviceResult = SC_Good;
+				r->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
 				r->responseHeader.stringTableSize = 0;
 				r->responseHeader.timestamp = UA_DateTime_now();
 
@@ -311,7 +311,7 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 				UA_CreateSessionResponse_new(&r);
 				r->responseHeader.requestHandle =
 						p->requestHeader.requestHandle;
-				r->responseHeader.serviceResult = SC_Good;
+				r->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
 				r->responseHeader.stringTableSize = 0;
 				r->responseHeader.timestamp = UA_DateTime_now();
 
@@ -407,7 +407,7 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 				}
 
 				retval |= SL_openSecureChannel(connection, &(p->requestHeader),
-						SC_Good);
+						UA_STATUSCODE_GOOD);
 			}
 				break;
 			} // end switch over known messages
