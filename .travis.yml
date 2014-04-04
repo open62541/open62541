@@ -4,7 +4,7 @@ notifications:
 before_install:
  - sudo apt-get update -qq
  - sudo apt-get install -qq build-essential subversion git autoconf libtool texinfo python-lxml valgrind
- - svn checkout svn://svn.code.sf.net/p/check/code/trunk check-code
+ - svn checkout https://svn.code.sf.net/p/check/code/trunk check-code
  - cd check-code
  - autoreconf --install
  - ./configure
