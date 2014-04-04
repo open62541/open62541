@@ -91,7 +91,7 @@ UA_Int32 UA_Array_new(void **p,UA_Int32 noElements, UA_Int32 type) {
 	// calculate the addresses to prevent memory segmentation. This would however not call
 	// init for each member
 	for(i=0; i<noElements; i++) {
-		retval |= UA_[type].new(p[i]);
+		retval |= UA_[type].new((void**)(*p + i * sizeof(void*)));
 	}
 	return retval;
 }
