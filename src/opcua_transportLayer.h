@@ -89,16 +89,20 @@ struct TL_messageBodyERR
  * @param TL_message
  * @return
  */
-UA_Int32 TL_check(UA_connection *connection);
+enum UA_TL_CHECK_enum {
+	UA_TL_CHECK_LOCAL = 0,
+	UA_TL_CHECK_REMOTE = 1
+};
+UA_Int32 TL_check(TL_connection *connection, UA_ByteString* msg, UA_Int32 local);
 /**
  *
  * @param connection
  * @param TL_message
  */
-UA_Int32 TL_receive(UA_connection *connection,UA_ByteString *packet);
-UA_Int32 TL_send(UA_connection *connection, UA_ByteString *packet);
+UA_Int32 TL_receive(TL_connection *connection,UA_ByteString *packet);
+UA_Int32 TL_send(TL_connection *connection, UA_ByteString *packet);
 UA_Int32 TL_getPacketType(UA_ByteString *packet, UA_Int32 *pos);
-UA_Int32 TL_process(UA_connection *connection,UA_Int32 packetType, UA_Int32 *pos);
+UA_Int32 TL_process(TL_connection *connection, UA_ByteString *packet, UA_Int32 packetType, UA_Int32 *pos);
 
 
 #endif /* OPCUA_TRANSPORTLAYER_H_ */

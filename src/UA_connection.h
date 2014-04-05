@@ -10,6 +10,8 @@
 #include "opcua.h"
 #include "UA_stackInternalTypes.h"
 
+#include <pthread.h>
+
 enum UA_MessageType
 {
 	UA_MESSAGETYPE_HEL = 0x48454C, // H E L
@@ -44,17 +46,20 @@ typedef struct
 	UA_UInt32 maxChunkCount;
 }TL_buffer;
 
-struct TL_connection
+typedef struct T_TL_connection
 {
 	UA_Int32 socket;
 	UA_UInt32 connectionState;
-	TL_buffer remoteConf;
+	pthread_t readerThread;
 	TL_buffer localConf;
-	UA_String endpointURL;
-};
+	UA_Int32 (*UA_TL_writer)(struct T_TL_connection* c, UA_ByteString* msg);
+	TL_buffer remoteConf;
+	UA_String endpointUrl;
+} TL_connection;
 
 
-struct SL_connection
+/* Secure Layer Channel */
+typedef struct T_SL_Channel
 {
 	UA_AsymmetricAlgorithmSecurityHeader remoteAsymAlgSettings;
 	UA_AsymmetricAlgorithmSecurityHeader localAsymAlgSettings;
@@ -70,25 +75,26 @@ struct SL_connection
 
 	SL_ChannelSecurityToken securityToken;
 	UA_UInt32 requestId; // request Id of the current request
-};
+	TL_connection* tlc;
+} UA_SL_Channel;
 
 struct SS_connection
 {
 	UA_Int32 dummy;
 };
 
-typedef struct T_UA_connection
-{
-	struct TL_connection transportLayer;
-	struct SL_connection secureLayer;
-	struct SS_connection serviceLayer;
-
-	UA_Boolean newDataToRead;
-	UA_ByteString readData;
-	UA_Boolean newDataToWrite;
-	UA_ByteString writeData;
-}UA_connection;
-
+//typedef struct T_UA_connection
+//{
+//	TL_connection transportLayer;
+//	struct SL_connection secureLayer;
+//	struct SS_connection serviceLayer;
+//
+//	UA_Boolean newDataToRead;
+//	UA_ByteString readData;
+//	UA_Boolean newDataToWrite;
+//	UA_ByteString writeData;
+//} UA_SL_connection;
+//
 
 
 #endif /* OPCUA_CONNECTIONHELPER_H_ */

@@ -10,6 +10,15 @@
 
 #include <stdint.h>
 
+// FIXME: check debug printfs
+#if defined(DEBUG) || 1
+#define DBG_VERBOSE_printf printf
+#define DBG_ERR_printf printf
+#else
+#define DBG_VERBOSE_printf(...) //
+#define DBG_ERR_printf(...) //
+#endif
+
 /* Basic types */
 typedef _Bool UA_Boolean;
 typedef uint8_t UA_Byte;

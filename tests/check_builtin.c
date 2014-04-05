@@ -731,6 +731,20 @@ START_TEST(UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray)
 	UA_Variant_deleteMembers(&dst);
 }
 END_TEST
+START_TEST(UA_Variant_decodeWithOutDeleteMembersShallFailInCheckMem)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = { UA_INT32_NS0 | UA_VARIANT_ENCODINGMASKTYPE_ARRAY, 0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF};
+	UA_Variant dst;
+	// when
+	UA_Int32 retval = UA_Variant_decode(src, &pos, &dst);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	// finally - unfortunately we cannot express that not freeing three chunks is what we expect
+	// UA_Variant_deleteMembers(&dst);
+}
+END_TEST
 
 START_TEST(UA_Byte_encode_test)
 {
@@ -811,6 +825,7 @@ Suite *testSuite_builtin(void)
 	tcase_add_test(tc_calcSize, UA_Variant_calcSizeFixedSizeArrayShallReturnEncodingSize);
 	tcase_add_test(tc_calcSize, UA_Variant_calcSizeVariableSizeArrayShallReturnEncodingSize);
 	tcase_add_test(tc_calcSize, UA_Variant_calcSizeVariableSizeArrayWithNullPtrWillReturnWrongButLargeEnoughEncodingSize);
+	tcase_add_test(tc_calcSize, UA_Variant_decodeWithOutDeleteMembersShallFailInCheckMem);
 	suite_add_tcase(s,tc_calcSize);
 
 

@@ -17,35 +17,35 @@
 /*
  * inits a connection object for secure channel layer
  */
-UA_Int32 SL_initConnectionObject(UA_connection *connection) {
+UA_Int32 SL_initConnectionObject(UA_SL_Channel *connection) {
 	UA_AsymmetricAlgorithmSecurityHeader_init(
-			&(connection->secureLayer.localAsymAlgSettings));
+			&(connection->localAsymAlgSettings));
 	UA_ByteString_copy(&UA_ByteString_securityPoliceNone,
-			&(connection->secureLayer.localAsymAlgSettings.securityPolicyUri));
+			&(connection->localAsymAlgSettings.securityPolicyUri));
 
-	UA_alloc((void**)&(connection->secureLayer.localNonce.data),
+	UA_alloc((void**)&(connection->localNonce.data),
 			sizeof(UA_Byte));
-	connection->secureLayer.localNonce.length = 1;
+	connection->localNonce.length = 1;
 
-	connection->secureLayer.connectionState = connectionState_CLOSED;
+	connection->connectionState = connectionState_CLOSED;
 
-	connection->secureLayer.requestId = 0;
-	connection->secureLayer.requestType = 0;
+	connection->requestId = 0;
+	connection->requestType = 0;
 
-	UA_String_init(&(connection->secureLayer.secureChannelId));
+	UA_String_init(&(connection->secureChannelId));
 
-	connection->secureLayer.securityMode = UA_SECURITYMODE_INVALID;
+	connection->securityMode = UA_SECURITYMODE_INVALID;
 	//TODO set a valid start secureChannelId number
-	connection->secureLayer.securityToken.secureChannelId = 25;
+	connection->securityToken.secureChannelId = 25;
 
 	//TODO set a valid start TokenId
-	connection->secureLayer.securityToken.tokenId = 1;
-	connection->secureLayer.sequenceNumber = 1;
+	connection->securityToken.tokenId = 1;
+	connection->sequenceNumber = 1;
 
-	return UA_NO_ERROR;
+	return UA_SUCCESS;
 }
 
-UA_Int32 SL_send(UA_connection* connection,
+UA_Int32 SL_send(UA_SL_Channel* channel,
 		UA_ByteString const * responseMessage, UA_Int32 type) {
 	UA_UInt32 sequenceNumber;
 	UA_UInt32 requestId;
@@ -60,8 +60,8 @@ UA_Int32 SL_send(UA_connection* connection,
 
 	pos = 0;
 	//sequence header
-	sequenceNumber = connection->secureLayer.sequenceNumber;
-	requestId = connection->secureLayer.requestId;
+	sequenceNumber = channel->sequenceNumber;
+	requestId = channel->requestId;
 
 	sizePadding = 0;
 	sizeSignature = 0;
@@ -69,9 +69,9 @@ UA_Int32 SL_send(UA_connection* connection,
 	packetSize = SIZE_SECURECHANNEL_HEADER + SIZE_SEQHEADER_HEADER
 			+ (isAsym ?
 					UA_AsymmetricAlgorithmSecurityHeader_calcSize(
-							&(connection->secureLayer.localAsymAlgSettings)) :
+							&(channel->localAsymAlgSettings)) :
 					UA_SymmetricAlgorithmSecurityHeader_calcSize(
-							&(connection->secureLayer.securityToken.tokenId)))
+							&(channel->securityToken.tokenId)))
 			+ responseMessage->length + sizePadding + sizeSignature;
 
 	//get memory for response
@@ -94,17 +94,17 @@ UA_Int32 SL_send(UA_connection* connection,
 	responsePacket.data[3] = 'F';
 	pos += 1;
 	UA_Int32_encode(&packetSize, &pos, responsePacket.data);
-	UA_UInt32_encode(&(connection->secureLayer.securityToken.secureChannelId),
+	UA_UInt32_encode(&(channel->securityToken.secureChannelId),
 			&pos, responsePacket.data);
 
 	/*---encode Algorithm Security Header ---*/
 	if (isAsym) {
 		UA_AsymmetricAlgorithmSecurityHeader_encode(
-				&(connection->secureLayer.localAsymAlgSettings), &pos,
+				&(channel->localAsymAlgSettings), &pos,
 				responsePacket.data);
 	} else {
 		UA_SymmetricAlgorithmSecurityHeader_encode(
-				&(connection->secureLayer.securityToken.tokenId), &pos,
+				&(channel->securityToken.tokenId), &pos,
 				responsePacket.data);
 	}
 
@@ -121,15 +121,15 @@ UA_Int32 SL_send(UA_connection* connection,
 	/* encrypt Data*/
 
 	/* send Data */
-	TL_send(connection, &responsePacket);
-	// responsePackage will be deleted by top-level procedure
-	return UA_NO_ERROR;
+	TL_send(channel->tlc, &responsePacket);
+	UA_ByteString_deleteMembers(&responsePacket);
+	return UA_SUCCESS;
 }
 
 /*
  * opens a secure channel
  */
-UA_Int32 SL_openSecureChannel(UA_connection *connection,
+UA_Int32 SL_openSecureChannel(UA_SL_Channel *connection,
 		UA_RequestHeader *requestHeader, UA_StatusCode serviceResult) {
 
 	UA_OpenSecureChannelResponse* r;
@@ -166,16 +166,16 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 	r->responseHeader.stringTable = UA_NULL;
 
 	r->serverProtocolVersion =
-			connection->transportLayer.localConf.protocolVersion;
+			connection->tlc->localConf.protocolVersion;
 
 	r->securityToken.channelId =
-			connection->secureLayer.securityToken.secureChannelId;
-	r->securityToken.tokenId = connection->secureLayer.securityToken.tokenId;
+			connection->securityToken.secureChannelId;
+	r->securityToken.tokenId = connection->securityToken.tokenId;
 	r->securityToken.createdAt = UA_DateTime_now();
 	r->securityToken.revisedLifetime =
-			connection->secureLayer.securityToken.revisedLifetime;
+			connection->securityToken.revisedLifetime;
 
-	UA_ByteString_copy(&(connection->secureLayer.localNonce), &(r->serverNonce));
+	UA_ByteString_copy(&(connection->localNonce), &(r->serverNonce));
 
 	//get memory for response
 	response.length = UA_NodeId_calcSize(&responseType) + UA_OpenSecureChannelResponse_calcSize(r);
@@ -193,23 +193,24 @@ UA_Int32 SL_openSecureChannel(UA_connection *connection,
 /*
  * closes a secureChannel (server side)
  */
-void SL_secureChannel_close(UA_connection *connection) {
+void SL_secureChannel_close(UA_SL_Channel *channel) {
 
 }
-UA_Int32 SL_check(UA_connection *connection, UA_ByteString secureChannelPacket) {
+UA_Int32 SL_check(UA_SL_Channel* channel, UA_ByteString* msg) {
 	return UA_NO_ERROR;
 }
-UA_Int32 SL_createSecurityToken(UA_connection *connection, UA_Int32 lifeTime) {
+UA_Int32 SL_createSecurityToken(UA_SL_Channel* channel, UA_Int32 lifeTime) {
 	return UA_NO_ERROR;
 }
 
-UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
+UA_Int32 SL_processMessage(UA_SL_Channel *sc, UA_ByteString* msg) {
 	UA_Int32 retval = UA_SUCCESS;
+
 	UA_Int32 pos = 0;
-	UA_NodeId serviceRequestType;
 
 	// Every Message starts with a NodeID which names the serviceRequestType
-	UA_NodeId_decode(message.data, &pos, &serviceRequestType);
+	UA_NodeId serviceRequestType;
+	UA_NodeId_decode(msg->data, &pos, &serviceRequestType);
 	UA_NodeId_printf("SL_processMessage - serviceRequestType=",
 			&serviceRequestType);
 
@@ -243,7 +244,7 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 		} else {
 			void * obj;
 			UA_[namespace_index].new(&obj);
-			UA_[namespace_index].decode(message.data, &pos, obj);
+			UA_[namespace_index].decode(msg->data, &pos, obj);
 
 			// FXIME: we need a more clever response/request architecture
 			switch (serviceRequestType.identifier.numeric) {
@@ -293,7 +294,7 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 				UA_NodeId_encode(&responseType, &pos, response.data);
 				UA_GetEndpointsResponse_encode(r, &pos, response.data);
 
-				SL_send(connection, &response, 431);
+				SL_send(sc, &response, 431);
 
 				UA_ByteString_deleteMembers(&response);
 				UA_GetEndpointsResponse_delete(r);
@@ -331,7 +332,7 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 				UA_NodeId_encode(&responseType, &pos, response.data);
 				UA_CreateSessionResponse_encode(r, &pos, response.data);
 
-				SL_send(connection, &response, responseType.identifier.numeric);
+				SL_send(sc, &response, responseType.identifier.numeric);
 
 				UA_ByteString_deleteMembers(&response);
 				UA_CreateSessionResponse_delete(r);
@@ -344,7 +345,7 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 				puts("UA_CLOSESECURECHANNELREQUEST");
 
 				// 62451 Part 6 Chapter 7.1.4 - The server does not send a CloseSecureChannel response
-				connection->transportLayer.connectionState = connectionState_CLOSE;
+				sc->tlc->connectionState = connectionState_CLOSE;
 				retval = UA_SUCCESS;
 			}
 				break;
@@ -355,14 +356,14 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 						(UA_OpenSecureChannelRequest*) obj;
 
 				if (p->clientProtocolVersion
-						!= connection->transportLayer.remoteConf.protocolVersion) {
+						!= sc->tlc->remoteConf.protocolVersion) {
 					printf("SL_processMessage - error protocol version \n");
 					//TODO error protocol version
 					//TODO ERROR_Bad_ProtocolVersionUnsupported
 				}
 				switch (p->requestType) {
 				case UA_SECURITYTOKEN_ISSUE:
-					if (connection->secureLayer.connectionState
+					if (sc->connectionState
 							== connectionState_ESTABLISHED) {
 						printf("SL_processMessage - multiply security token request");
 						//TODO return ERROR
@@ -374,7 +375,7 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 					//	SL_createNewToken(connection);
 					break;
 				case UA_SECURITYTOKEN_RENEW:
-					if (connection->secureLayer.connectionState
+					if (sc->connectionState
 							== connectionState_CLOSED) {
 						printf(
 								"SL_processMessage - renew token request received, but no secureChannel was established before");
@@ -389,8 +390,8 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 
 				switch (p->securityMode) {
 				case UA_SECURITYMODE_INVALID:
-					connection->secureLayer.remoteNonce.data = NULL;
-					connection->secureLayer.remoteNonce.length = -1;
+					sc->remoteNonce.data = NULL;
+					sc->remoteNonce.length = -1;
 					printf("SL_processMessage - client demands no security \n");
 					break;
 
@@ -406,7 +407,7 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 					break;
 				}
 
-				retval |= SL_openSecureChannel(connection, &(p->requestHeader),
+				retval |= SL_openSecureChannel(sc, &(p->requestHeader),
 						UA_STATUSCODE_GOOD);
 			}
 				break;
@@ -422,78 +423,67 @@ UA_Int32 SL_processMessage(UA_connection *connection, UA_ByteString message) {
 	}
 	return retval;
 }
-/*
- * receive and process data from underlying layer
- */
-void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
-	UA_ByteString secureChannelPacket;
-	UA_ByteString message;
+
+// FIXME: we need to associate secure channels with the connection
+UA_SL_Channel slc;
+
+/** process data as we've got it from the transport layer */
+void SL_process(TL_connection *connection, UA_ByteString* msg, UA_Int32 messageType) {
 	UA_SecureConversationMessageHeader secureConvHeader;
 	UA_AsymmetricAlgorithmSecurityHeader asymAlgSecHeader;
 	UA_SequenceHeader sequenceHeader;
-	// UA_Int32 packetType = 0;
 	UA_Int32 pos = 0;
-	UA_Int32 iTmp;
-	//TODO Error Handling, length checking
-	//get data from transport layer
-	printf("SL_receive - entered \n");
 
-	TL_receive(connection, &secureChannelPacket);
+	DBG_VERBOSE_printf("SL_receive - entered \n");
+	switch (messageType) {
+		case UA_MESSAGETYPE_OPN:
+			DBG_VERBOSE_printf("SL_receive - process OPN\n");
 
-	if (secureChannelPacket.length > 0 && secureChannelPacket.data != NULL) {
+			UA_SecureConversationMessageHeader_decode(msg->data, &pos, &secureConvHeader);
 
-		printf("SL_receive - data received \n");
-		//packetType = TL_getPacketType(&secureChannelPacket, &pos);
-
-		UA_SecureConversationMessageHeader_decode(secureChannelPacket.data,
-				&pos, &secureConvHeader);
-
-		switch (secureConvHeader.tcpMessageHeader->messageType) {
-
-		case UA_MESSAGETYPE_OPN: /* openSecureChannel Message received */
-			printf("SL_receive - process OPN\n");
 			UA_AsymmetricAlgorithmSecurityHeader_decode(
-					secureChannelPacket.data, &pos, &asymAlgSecHeader);
+					msg->data, &pos, &asymAlgSecHeader);
 			UA_ByteString_printf("SL_receive - AAS_Header.ReceiverThumbprint=",
 					&(asymAlgSecHeader.receiverCertificateThumbprint));
 			UA_ByteString_printf("SL_receive - AAS_Header.SecurityPolicyUri=",
 					&(asymAlgSecHeader.securityPolicyUri));
 			UA_ByteString_printf("SL_receive - AAS_Header.SenderCertificate=",
 					&(asymAlgSecHeader.senderCertificate));
-			if (secureConvHeader.secureChannelId != 0) {
-				iTmp =
-						UA_ByteString_compare(
-								&(connection->secureLayer.remoteAsymAlgSettings.senderCertificate),
-								&(asymAlgSecHeader.senderCertificate));
-				if (iTmp != UA_EQUAL) {
-					printf("SL_receive - UA_ERROR_BadSecureChannelUnknown \n");
-					//TODO return UA_ERROR_BadSecureChannelUnknown
-				}
-			} else {
-				//TODO invalid securechannelId
-			}
 
-			UA_SequenceHeader_decode(secureChannelPacket.data, &pos,
+//			if (secureConvHeader.secureChannelId != 0) {
+//				UA_Int32 iTmp = UA_ByteString_compare(
+//								&(connection->secureLayer.remoteAsymAlgSettings.senderCertificate),
+//								&(asymAlgSecHeader.senderCertificate));
+//				if (iTmp != UA_EQUAL) {
+//					printf("SL_receive - UA_ERROR_BadSecureChannelUnknown \n");
+//					//TODO return UA_ERROR_BadSecureChannelUnknown
+//				}
+//			} else {
+//				//TODO invalid securechannelId
+//			}
+
+			UA_SequenceHeader_decode(msg->data, &pos,
 					&sequenceHeader);
-			printf("SL_receive - SequenceHeader.RequestId=%d\n",
+			DBG_VERBOSE_printf("SL_receive - SequenceHeader.RequestId=%d\n",
 					sequenceHeader.requestId);
-			printf("SL_receive - SequenceHeader.SequenceNr=%d\n",
+			DBG_VERBOSE_printf("SL_receive - SequenceHeader.SequenceNr=%d\n",
 					sequenceHeader.sequenceNumber);
-			//save request id to return it to client
-			connection->secureLayer.requestId = sequenceHeader.requestId;
+			//
+			slc.requestId = sequenceHeader.requestId;
 			//TODO check that the sequence number is smaller than MaxUInt32 - 1024
-			connection->secureLayer.sequenceNumber =
-					sequenceHeader.sequenceNumber;
+			slc.sequenceNumber = sequenceHeader.sequenceNumber;
 
-			message.data = &secureChannelPacket.data[pos];
-			message.length = secureChannelPacket.length - pos;
-			UA_ByteString_printx("SL_receive - message=", &message);
+			UA_ByteString slMessage;
+			slMessage.data  = &(msg->data[pos]);
+			slMessage.length = msg->length - pos;
+			UA_ByteString_printx("SL_receive - message=", &slMessage);
 
-			SL_processMessage(connection, message);
+			SL_processMessage(&slc, &slMessage);
 			// Clean up
 			UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(
 					&asymAlgSecHeader);
 
+			UA_SecureConversationMessageHeader_deleteMembers(&secureConvHeader);
 			break;
 		case UA_MESSAGETYPE_MSG:
 		case UA_MESSAGETYPE_CLO:
@@ -501,37 +491,32 @@ void SL_receive(UA_connection *connection, UA_ByteString *serviceMessage) {
 //			if (connection->secureLayer.connectionState
 //					== connectionState_ESTABLISHED) {
 			if (secureConvHeader.secureChannelId
-					== connection->secureLayer.securityToken.secureChannelId) {
+					== slc.securityToken.secureChannelId) {
 				UA_SymmetricAlgorithmSecurityHeader symAlgSecHeader;
 
 				//FIXME: we assume SAS, need to check if AAS or SAS
 				UA_SymmetricAlgorithmSecurityHeader_decode(
-						secureChannelPacket.data, &pos, &symAlgSecHeader);
+						msg->data, &pos, &symAlgSecHeader);
 
 				// decode sequenceHeader and remember
-				UA_SequenceHeader_decode(secureChannelPacket.data, &pos,
+				UA_SequenceHeader_decode(msg->data, &pos,
 						&sequenceHeader);
 				printf("SL_receive - SequenceHeader.RequestId=%d\n",
 						sequenceHeader.requestId);
 				printf("SL_receive - SequenceHeader.SequenceNr=%d\n",
 						sequenceHeader.sequenceNumber);
-				connection->secureLayer.requestId = sequenceHeader.requestId;
-				connection->secureLayer.sequenceNumber =
-						sequenceHeader.sequenceNumber;
+				slc.requestId = sequenceHeader.requestId;
+				slc.sequenceNumber = sequenceHeader.sequenceNumber;
 				// process message
-				message.data = &secureChannelPacket.data[pos];
-				message.length = secureChannelPacket.length - pos;
-				SL_processMessage(connection, message);
+				UA_ByteString slMessage;
+				slMessage.data = &(msg->data[pos]);
+				slMessage.length = msg->length - pos;
+				SL_processMessage(&slc, &slMessage);
 			} else {
 				//TODO generate ERROR_Bad_SecureChannelUnkown
 			}
 //			} // check connection state
 			break;
-		}
-		// Clean up
-		UA_SecureConversationMessageHeader_deleteMembers(&secureConvHeader);
-	} else {
-		printf("SL_receive - no data received \n");
 	}
 }
 
