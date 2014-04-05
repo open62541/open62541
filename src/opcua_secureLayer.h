@@ -27,6 +27,6 @@ UA_Int32 SL_initConnectionObject(UA_SL_Channel *connection);
 UA_Int32 SL_openSecureChannel_responseMessage_get(UA_SL_Channel *connection,
 UA_SL_Response *response, UA_Int32* sizeInOut);
 
-void SL_process(TL_connection *connection, UA_ByteString* msg, UA_Int32 messageType);
+void SL_process(UA_TL_connection *connection, UA_ByteString* msg, UA_Int32 messageType);
 
 #endif /* OPCUA_SECURECHANNELLAYER_H_ */

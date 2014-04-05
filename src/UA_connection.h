@@ -55,7 +55,7 @@ typedef struct T_TL_connection
 	UA_Int32 (*UA_TL_writer)(struct T_TL_connection* c, UA_ByteString* msg);
 	TL_buffer remoteConf;
 	UA_String endpointUrl;
-} TL_connection;
+} UA_TL_connection;
 
 
 /* Secure Layer Channel */
@@ -75,7 +75,7 @@ typedef struct T_SL_Channel
 
 	SL_ChannelSecurityToken securityToken;
 	UA_UInt32 requestId; // request Id of the current request
-	TL_connection* tlc;
+	UA_TL_connection* tlc;
 } UA_SL_Channel;
 
 struct SS_connection

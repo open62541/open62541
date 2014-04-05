@@ -10,7 +10,7 @@
 #include "opcua_transportLayer.h"
 
 
-UA_Int32 TL_Connection_init(TL_connection *c, UA_TL_Description* tld)
+UA_Int32 TL_Connection_init(UA_TL_connection *c, UA_TL_Description* tld)
 {
 	c->socket = -1;
 	c->connectionState = connectionState_CLOSED;
@@ -22,7 +22,7 @@ UA_Int32 TL_Connection_init(TL_connection *c, UA_TL_Description* tld)
 	return UA_SUCCESS;
 }
 
-UA_Int32 TL_check(TL_connection *connection, UA_ByteString* msg, int checkLocal)
+UA_Int32 TL_check(UA_TL_connection *connection, UA_ByteString* msg, int checkLocal)
 {
 	UA_Int32 retval = UA_SUCCESS;
 
@@ -46,7 +46,7 @@ UA_Int32 TL_check(TL_connection *connection, UA_ByteString* msg, int checkLocal)
 
 #define Cmp3Byte(data,pos,a,b,c) (*((Int32*) ((data)+(pos))) & 0xFFFFFF) == (Int32)(((Byte)(a))|((Byte)(b))<<8|((Byte)(c))<<16)
 
-UA_Int32 TL_process(TL_connection *connection, UA_ByteString* msg, UA_Int32 packetType, UA_Int32 *pos)
+UA_Int32 TL_process(UA_TL_connection *connection, UA_ByteString* msg, UA_Int32 packetType, UA_Int32 *pos)
 {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 tmpPos = 0;
@@ -140,7 +140,7 @@ UA_Int32 TL_process(TL_connection *connection, UA_ByteString* msg, UA_Int32 pack
 	return retval;
 }
 /** respond to client request */
-UA_Int32 TL_send(TL_connection* connection, UA_ByteString* msg)
+UA_Int32 TL_send(UA_TL_connection* connection, UA_ByteString* msg)
 {
 	UA_Int32 retval = UA_SUCCESS;
 	DBG_VERBOSE_printf("TL_send - entered \n");
