@@ -428,7 +428,7 @@ UA_Int32 SL_processMessage(UA_SL_Channel *sc, UA_ByteString* msg) {
 UA_SL_Channel slc;
 
 /** process data as we've got it from the transport layer */
-void SL_process(UA_TL_connection *connection, UA_ByteString* msg, UA_Int32 messageType) {
+UA_Int32 SL_process(UA_TL_connection *connection, UA_ByteString* msg, UA_Int32 messageType) {
 	UA_SecureConversationMessageHeader secureConvHeader;
 	UA_AsymmetricAlgorithmSecurityHeader asymAlgSecHeader;
 	UA_SequenceHeader sequenceHeader;
@@ -518,5 +518,6 @@ void SL_process(UA_TL_connection *connection, UA_ByteString* msg, UA_Int32 messa
 //			} // check connection state
 			break;
 	}
+	return UA_SUCCESS;
 }
 

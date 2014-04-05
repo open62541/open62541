@@ -9,6 +9,7 @@
 #include "UA_connection.h"
 #include "opcua_transportLayer.h"
 
+#include "opcua_secureLayer.h" // SL_process
 
 UA_Int32 TL_Connection_init(UA_TL_connection *c, UA_TL_Description* tld)
 {
@@ -31,7 +32,7 @@ UA_Int32 TL_check(UA_TL_connection *connection, UA_ByteString* msg, int checkLoc
 
 	DBG_VERBOSE_printf("TL_check - entered \n");
 
-	UA_Int32_decode(msg,&position,&messageLength);
+	UA_Int32_decode(msg->data,&position,&messageLength);
 	DBG_VERBOSE_printf("TL_check - messageLength = %d \n",messageLength);
 
 	if (messageLength == -1 || messageLength != msg->length ||
@@ -46,9 +47,10 @@ UA_Int32 TL_check(UA_TL_connection *connection, UA_ByteString* msg, int checkLoc
 
 #define Cmp3Byte(data,pos,a,b,c) (*((Int32*) ((data)+(pos))) & 0xFFFFFF) == (Int32)(((Byte)(a))|((Byte)(b))<<8|((Byte)(c))<<16)
 
-UA_Int32 TL_process(UA_TL_connection *connection, UA_ByteString* msg, UA_Int32 packetType, UA_Int32 *pos)
+UA_Int32 TL_process(UA_TL_connection *connection, UA_ByteString* msg)
 {
 	UA_Int32 retval = UA_SUCCESS;
+	UA_Int32 pos = 0;
 	UA_Int32 tmpPos = 0;
 	UA_ByteString tmpMessage;
 	UA_OPCUATcpMessageHeader tcpMessageHeader;
@@ -58,7 +60,7 @@ UA_Int32 TL_process(UA_TL_connection *connection, UA_ByteString* msg, UA_Int32 p
 
 	DBG_VERBOSE_printf("TL_process - entered \n");
 
-	retval = UA_OPCUATcpMessageHeader_decode(&msg, &pos, &tcpMessageHeader);
+	retval = UA_OPCUATcpMessageHeader_decode(msg->data, &pos, &tcpMessageHeader);
 
 	if (retval == UA_SUCCESS) {
 	switch(tcpMessageHeader.messageType)
@@ -68,7 +70,7 @@ UA_Int32 TL_process(UA_TL_connection *connection, UA_ByteString* msg, UA_Int32 p
 		{
 			DBG_VERBOSE_printf("TL_process - extracting header information \n");
 
-			UA_OPCUATcpHelloMessage_decode(&msg->data,pos,&helloMessage);
+			UA_OPCUATcpHelloMessage_decode(msg->data,&pos,&helloMessage);
 
 			/* extract information from received header */
 			connection->remoteConf.protocolVersion = helloMessage.protocolVersion;
@@ -114,7 +116,7 @@ UA_Int32 TL_process(UA_TL_connection *connection, UA_ByteString* msg, UA_Int32 p
 			DBG_VERBOSE_printf("TL_process - Size messageToSend = %d, pos=%d\n",ackHeader.messageSize, tmpPos);
 			connection->connectionState = connectionState_OPENING;
 			TL_send(connection, &tmpMessage);
-			UA_ByteString_delete(&tmpMessage);
+			UA_ByteString_deleteMembers(&tmpMessage);
 		}
 		else
 		{
@@ -122,7 +124,7 @@ UA_Int32 TL_process(UA_TL_connection *connection, UA_ByteString* msg, UA_Int32 p
 			retval = UA_ERROR_MULTIPLY_HEL;
 		}
 		break;
-	default:
+	default: // dispatch processing to secureLayer
 		if ((connection->connectionState != connectionState_CLOSED)) {
 			retval = SL_process(connection, msg, tcpMessageHeader.messageType);
 		} else {
@@ -145,7 +147,7 @@ UA_Int32 TL_send(UA_TL_connection* connection, UA_ByteString* msg)
 	UA_Int32 retval = UA_SUCCESS;
 	DBG_VERBOSE_printf("TL_send - entered \n");
 
-	if (TL_check(connection,msg,UA_TL_CHECK_REMOTE)) {
+	if (TL_check(connection,msg,UA_TL_CHECK_REMOTE) == UA_SUCCESS) {
 		connection->UA_TL_writer(connection,msg);
 	}
 	else

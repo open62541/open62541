@@ -10,6 +10,7 @@
 #include <stdio.h>
 
 #include "opcua.h"
+#include "UA_stack.h"
 #include "UA_connection.h"
 #include "UA_stackInternalTypes.h"
 
@@ -102,7 +103,9 @@ UA_Int32 TL_check(UA_TL_connection *connection, UA_ByteString* msg, UA_Int32 loc
 UA_Int32 TL_receive(UA_TL_connection *connection,UA_ByteString *packet);
 UA_Int32 TL_send(UA_TL_connection *connection, UA_ByteString *packet);
 UA_Int32 TL_getPacketType(UA_ByteString *packet, UA_Int32 *pos);
-UA_Int32 TL_process(UA_TL_connection *connection, UA_ByteString *packet, UA_Int32 packetType, UA_Int32 *pos);
+UA_Int32 TL_process(UA_TL_connection *connection, UA_ByteString *packet);
 
+
+UA_Int32 TL_Connection_init(UA_TL_connection *c, UA_TL_Description* tld);
 
 #endif /* OPCUA_TRANSPORTLAYER_H_ */
