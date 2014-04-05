@@ -13,7 +13,7 @@ sudo apt-get install build-essential subversion git autoconf libtool texinfo pyt
 ```
 ##### Getting and installing *check* as unit test framework (http://check.sourceforge.net/):
 ```bash
-$ svn checkout svn://svn.code.sf.net/p/check/code/trunk check-code
+$ svn checkout https://svn.code.sf.net/p/check/code/trunk check-code
 $ cd check-code
 $ autoreconf --install
 $ ./configure
