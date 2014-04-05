@@ -39,29 +39,29 @@ void* UA_TL_TCP_reader(void *p) {
 	UA_alloc((void**)&(readBuffer.data),c->localConf.recvBufferSize);
 
 	while (c->connectionState != connectionState_CLOSE) {
-		readBuffer.length = read(c->socket, readBuffer.data, c->localConf.recvBufferSize);
+		readBuffer.length = read(c->connectionHandle, readBuffer.data, c->localConf.recvBufferSize);
 
-		UA_ByteString_printx("server_run - received=",&readBuffer);
+		printf("UA_TL_TCP_reader - %*.s ",c->remoteEndpointUrl.length,c->remoteEndpointUrl.data);
+		UA_ByteString_printx("received=",&readBuffer);
 
 		if (readBuffer.length  > 0) {
 			TL_process(c,&readBuffer);
-		} else if (readBuffer.length < 0) {
+		} else {
+			c->connectionState = connectionState_CLOSE;
 			perror("ERROR reading from socket1");
-			break;
 		}
 	}
 	// clean up: socket, buffer, connection
-	// not really necessary?
-	c->connectionState = connectionState_CLOSE;
 	// free resources allocated with socket
-	close(c->socket);
+	close(c->connectionHandle);
+	c->connectionState = connectionState_CLOSED;
 	UA_ByteString_deleteMembers(&readBuffer);
-	// FIXME: C has no lambdas, we need a matcher with two arguments
+	// FIXME: standard C has no lambdas, we need a matcher with two arguments
 	// UA_list_Element* lec = UA_list_findFirst(theTL,c,compare);
 	// TODO: can we get get rid of reference to theTL?
 	UA_list_Element* lec = UA_list_find(&theTL.connections,UA_NULL);
 	UA_list_removeElement(lec,UA_NULL);
-	UA_free(lec->payload);
+	UA_free(c);
 	return UA_NULL;
 }
 
@@ -72,7 +72,7 @@ void* UA_TL_TCP_write(UA_TL_connection* c, UA_ByteString* msg) {
 	while (nWritten < msg->length) {
 		int n;
 		do {
-			n = write(c->socket, &(msg->data[n]), msg->length-n);
+			n = write(c->connectionHandle, &(msg->data[n]), msg->length-n);
 		} while (n == -1L && errno == EINTR);
 		if (n >= 0) {
 			nWritten += n;
@@ -103,7 +103,7 @@ void* UA_TL_TCP_listen(void *p) {
 				UA_Int32 retval = UA_SUCCESS;
 				retval |= UA_alloc((void**)&c,sizeof(UA_TL_connection));
 				TL_Connection_init(c, tld->tld);
-				c->socket = newsockfd;
+				c->connectionHandle = newsockfd;
 				c->UA_TL_writer = UA_TL_TCP_write;
 				// add to list
 				UA_list_addPayloadToBack(&(tld->connections),c);

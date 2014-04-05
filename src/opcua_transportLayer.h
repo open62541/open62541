@@ -18,7 +18,7 @@
 #include "tcp_layer.h"
 /*------------------Defined Error Codes------------------*/
 //transport errors begin at 1000
-#define UA_ERROR_MULTIPLY_HEL 1000
+#define UA_ERROR_MULTIPLE_HEL 1000
 #define UA_ERROR_RCV_ERROR 1001
 
 

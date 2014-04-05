@@ -46,27 +46,30 @@ typedef struct
 	UA_UInt32 maxChunkCount;
 }TL_buffer;
 
+/* Transport Layer Connection */
 typedef struct T_TL_connection
 {
-	UA_Int32 socket;
+	UA_Int32 connectionHandle;
 	UA_UInt32 connectionState;
 	pthread_t readerThread;
 	TL_buffer localConf;
 	UA_Int32 (*UA_TL_writer)(struct T_TL_connection* c, UA_ByteString* msg);
 	TL_buffer remoteConf;
-	UA_String endpointUrl;
+	UA_String localEndpointUrl;
+	UA_String remoteEndpointUrl;
+	struct T_SL_Channel* secureChannel;
 } UA_TL_connection;
 
 
 /* Secure Layer Channel */
 typedef struct T_SL_Channel
 {
+	UA_String secureChannelId;
+	UA_TL_connection* tlConnection;
+
 	UA_AsymmetricAlgorithmSecurityHeader remoteAsymAlgSettings;
 	UA_AsymmetricAlgorithmSecurityHeader localAsymAlgSettings;
-
-	UA_UInt32 sequenceNumber;
-	UA_UInt32 requestType;
-	UA_String secureChannelId;
+	UA_SequenceHeader sequenceHeader;
 
 	UA_UInt32 securityMode;
 	UA_ByteString remoteNonce;
@@ -75,7 +78,7 @@ typedef struct T_SL_Channel
 
 	SL_ChannelSecurityToken securityToken;
 	UA_UInt32 requestId; // request Id of the current request
-	UA_TL_connection* tlc;
+
 } UA_SL_Channel;
 
 struct SS_connection

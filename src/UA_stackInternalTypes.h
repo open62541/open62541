@@ -93,7 +93,7 @@ UA_Int32 UA_OPCUATcpAcknowledgeMessage_deleteMembers(UA_OPCUATcpAcknowledgeMessa
 /*** UA_SecureConversationMessageHeader ***/
 /* Secure Layer Sequence Header */
 typedef struct T_UA_SecureConversationMessageHeader {
-	UA_OPCUATcpMessageHeader* tcpMessageHeader;
+	// UA_OPCUATcpMessageHeader* tcpMessageHeader;
 	UA_UInt32 secureChannelId;
 } UA_SecureConversationMessageHeader;
 UA_Int32 UA_SecureConversationMessageHeader_calcSize(UA_SecureConversationMessageHeader const * ptr);

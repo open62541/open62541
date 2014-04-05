@@ -10,13 +10,15 @@
 
 #include <stdint.h>
 
-// FIXME: check debug printfs
+#define DBG_VERBOSE(expression) //
+#define DBG_ERR(expression) //
 #if defined(DEBUG) || 1
-#define DBG_VERBOSE_printf printf
-#define DBG_ERR_printf printf
-#else
-#define DBG_VERBOSE_printf(...) //
-#define DBG_ERR_printf(...) //
+# undef DBG_ERR
+# define DBG_ERR(expression) expression
+# if defined(VERBOSE)
+#  undef DB_VERBOSE
+#  define DBG_VERBOSE(expression) expression
+# endif
 #endif
 
 /* Basic types */
@@ -217,6 +219,7 @@ UA_ByteString;
 UA_TYPE_METHOD_PROTOTYPES (UA_ByteString)
 UA_Int32 UA_ByteString_compare(UA_ByteString *string1, UA_ByteString *string2);
 UA_Int32 UA_ByteString_copy(UA_ByteString const * src, UA_ByteString* dst);
+UA_Int32 UA_ByteString_newMembers(UA_ByteString* p, UA_Int32 length);
 extern UA_ByteString UA_ByteString_securityPoliceNone;
 
 /** LocalizedTextBinaryEncoding - Part: 6, Chapter: 5.2.2.14, Page: 21 */

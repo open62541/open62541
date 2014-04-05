@@ -97,7 +97,7 @@ UA_Int32 UA_Array_new(void **p,UA_Int32 noElements, UA_Int32 type) {
 }
 
 UA_Int32 _UA_free(void * ptr,char* f,int l){
-	printf("UA_free;%p;;%s;%d\n",ptr,f,l); fflush(stdout);
+	DBG_VERBOSE(printf("UA_free;%p;;%s;%d\n",ptr,f,l); fflush(stdout));
 	if (UA_NULL != ptr) {
 		free(ptr);
 	}
@@ -107,13 +107,13 @@ UA_Int32 _UA_free(void * ptr,char* f,int l){
 void const * UA_alloc_lastptr;
 UA_Int32 _UA_alloc(void ** ptr, int size,char* f,int l){
 	UA_alloc_lastptr = *ptr = malloc(size);
-	printf("UA_alloc;%p;%d;%s;%d\n",*ptr,size,f,l); fflush(stdout);
+	DBG_VERBOSE(printf("UA_alloc;%p;%d;%s;%d\n",*ptr,size,f,l); fflush(stdout));
 	if(*ptr == UA_NULL) return UA_ERR_NO_MEMORY;
 	return UA_SUCCESS;
 }
 
 UA_Int32 UA_memcpy(void * dst, void const * src, int size){
-	printf("UA_memcpy;%p;%p;%d\n",dst,src,size);
+	DBG_VERBOSE(printf("UA_memcpy;%p;%p;%d\n",dst,src,size));
 	memcpy(dst, src, size);
 	return UA_SUCCESS;
 }
@@ -474,6 +474,17 @@ UA_ByteString UA_ByteString_securityPoliceNone = { sizeof(UA_Byte_securityPolice
 UA_Int32 UA_ByteString_copy(UA_ByteString const * src, UA_ByteString* dst) {
 	return UA_String_copy((UA_String const*)src,(UA_String*)dst);
 }
+UA_Int32 UA_ByteString_newMembers(UA_ByteString* p, UA_Int32 length) {
+	UA_Int32 retval = UA_SUCCESS;
+	if ((retval |= UA_alloc((void**)&(p->data),length)) == UA_SUCCESS) {
+		p->length = length;
+	} else {
+		p->length = length;
+		p->data = UA_NULL;
+	}
+	return retval;
+}
+
 
 UA_Int32 UA_Guid_calcSize(UA_Guid const * p) {
 	if (p == UA_NULL) {

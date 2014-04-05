@@ -169,35 +169,35 @@ UA_Int32 UA_OPCUATcpAcknowledgeMessage_deleteMembers(UA_OPCUATcpAcknowledgeMessa
 UA_Int32 UA_SecureConversationMessageHeader_calcSize(UA_SecureConversationMessageHeader const * ptr) {
 	if(ptr==UA_NULL){return sizeof(UA_SecureConversationMessageHeader);}
 	return 0
-	 + UA_OPCUATcpMessageHeader_calcSize(ptr->tcpMessageHeader)
+	 // + UA_OPCUATcpMessageHeader_calcSize(ptr->tcpMessageHeader)
 	 + sizeof(UA_UInt32) // secureChannelId
 	;
 }
 
 UA_Int32 UA_SecureConversationMessageHeader_encode(UA_SecureConversationMessageHeader const * src, UA_Int32* pos, UA_Byte* dst) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_OPCUATcpMessageHeader_encode(src->tcpMessageHeader,pos,dst);
+	// retval |= UA_OPCUATcpMessageHeader_encode(src->tcpMessageHeader,pos,dst);
 	retval |= UA_UInt32_encode(&(src->secureChannelId),pos,dst);
 	return retval;
 }
 
 UA_Int32 UA_SecureConversationMessageHeader_decode(UA_Byte const * src, UA_Int32* pos, UA_SecureConversationMessageHeader* dst) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_alloc((void**)&(dst->tcpMessageHeader),UA_OPCUATcpMessageHeader_calcSize(UA_NULL));
-	retval |= UA_OPCUATcpMessageHeader_decode(src,pos,dst->tcpMessageHeader);
+	//retval |= UA_alloc((void**)&(dst->tcpMessageHeader),UA_OPCUATcpMessageHeader_calcSize(UA_NULL));
+	//retval |= UA_OPCUATcpMessageHeader_decode(src,pos,dst->tcpMessageHeader);
 	retval |= UA_UInt32_decode(src,pos,&(dst->secureChannelId));
 	return retval;
 }
 
 UA_Int32 UA_SecureConversationMessageHeader_delete(UA_SecureConversationMessageHeader* p) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_SecureConversationMessageHeader_deleteMembers(p);
+	// retval |= UA_SecureConversationMessageHeader_deleteMembers(p);
 	retval |= UA_free(p);
 	return retval;
     }
 UA_Int32 UA_SecureConversationMessageHeader_deleteMembers(UA_SecureConversationMessageHeader* p) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_OPCUATcpMessageHeader_delete(p->tcpMessageHeader);
+	// retval |= UA_OPCUATcpMessageHeader_delete(p->tcpMessageHeader);
 	return retval;
 }
 
