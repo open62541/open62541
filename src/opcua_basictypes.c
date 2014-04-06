@@ -106,6 +106,7 @@ UA_Int32 _UA_free(void * ptr,char* f,int l){
 
 void const * UA_alloc_lastptr;
 UA_Int32 _UA_alloc(void ** ptr, int size,char* f,int l){
+	if(ptr == UA_NULL) return UA_ERR_INVALID_VALUE;
 	UA_alloc_lastptr = *ptr = malloc(size);
 	DBG_VERBOSE(printf("UA_alloc;%p;%d;%s;%d\n",*ptr,size,f,l); fflush(stdout));
 	if(*ptr == UA_NULL) return UA_ERR_NO_MEMORY;
@@ -113,6 +114,7 @@ UA_Int32 _UA_alloc(void ** ptr, int size,char* f,int l){
 }
 
 UA_Int32 UA_memcpy(void * dst, void const * src, int size){
+	if(dst == UA_NULL) return UA_ERR_INVALID_VALUE;
 	DBG_VERBOSE(printf("UA_memcpy;%p;%p;%d\n",dst,src,size));
 	memcpy(dst, src, size);
 	return UA_SUCCESS;

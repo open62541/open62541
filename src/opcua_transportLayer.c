@@ -11,15 +11,15 @@
 
 #include "opcua_secureLayer.h" // SL_process
 
-UA_Int32 TL_Connection_init(UA_TL_connection* c, UA_TL_Description* tld)
+UA_Int32 TL_Connection_init(UA_TL_connection* c, UA_TL_data* tld)
 {
 	c->connectionHandle = -1;
 	c->connectionState = connectionState_CLOSED;
 	c->readerThread = -1;
 	c->UA_TL_writer = UA_NULL;
-	memcpy(&(c->localConf),&(tld->localConf),sizeof(TL_buffer));
+	memcpy(&(c->localConf),&(tld->tld->localConf),sizeof(TL_buffer));
 	memset(&(c->remoteConf),0,sizeof(TL_buffer));
-	UA_String_init(&(c->localEndpointUrl));
+	UA_String_copy(&(tld->endpointUrl), &(c->localEndpointUrl));
 	return UA_SUCCESS;
 }
 
@@ -142,6 +142,7 @@ UA_Int32 TL_process(UA_TL_connection* connection, UA_ByteString* msg)
 	DBG_VERBOSE(printf("TL_process - entered \n"));
 
 	if ((retval = UA_OPCUATcpMessageHeader_decode(msg->data, &pos, &tcpMessageHeader)) == UA_SUCCESS) {
+		printf("TL_process - messageType=%.*s\n",3,msg->data);
 		switch(tcpMessageHeader.messageType) {
 		case UA_MESSAGETYPE_HEL:
 			retval = UA_TL_handleHello(connection, msg, &pos);

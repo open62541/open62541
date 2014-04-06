@@ -14,36 +14,8 @@
 #define SIZE_SECURECHANNEL_HEADER 12
 #define SIZE_SEQHEADER_HEADER 8
 
-/* inits a connection object for secure channel layer */
-UA_Int32 SL_initConnectionObject(UA_SL_Channel *connection) {
-	UA_AsymmetricAlgorithmSecurityHeader_init(
-			&(connection->localAsymAlgSettings));
-	UA_ByteString_copy(&UA_ByteString_securityPoliceNone,
-			&(connection->localAsymAlgSettings.securityPolicyUri));
 
-	UA_alloc((void**)&(connection->localNonce.data),
-			sizeof(UA_Byte));
-	connection->localNonce.length = 1;
-
-	connection->connectionState = connectionState_CLOSED;
-
-	connection->sequenceHeader.requestId = 0;
-	connection->sequenceHeader.sequenceNumber = 1;
-
-	UA_String_init(&(connection->secureChannelId));
-
-	connection->securityMode = UA_SECURITYMODE_INVALID;
-	//TODO set a valid start secureChannelId number
-	connection->securityToken.secureChannelId = 25;
-
-	//TODO set a valid start TokenId
-	connection->securityToken.tokenId = 1;
-
-	return UA_SUCCESS;
-}
-
-UA_Int32 SL_send(UA_SL_Channel* channel,
-		UA_ByteString const * responseMessage, UA_Int32 type) {
+UA_Int32 SL_send(UA_SL_Channel* channel, UA_ByteString const * responseMessage, UA_Int32 type) {
 	UA_UInt32 sequenceNumber;
 	UA_UInt32 requestId;
 	UA_Int32 pos;
@@ -123,76 +95,7 @@ UA_Int32 SL_send(UA_SL_Channel* channel,
 	return UA_SUCCESS;
 }
 
-/*
- * opens a secure channel
- */
-UA_Int32 SL_openSecureChannel(UA_SL_Channel *connection,
-		UA_RequestHeader *requestHeader, UA_StatusCode serviceResult) {
 
-	UA_OpenSecureChannelResponse* r;
-	UA_NodeId responseType;
-	UA_ByteString response;
-	UA_Int32 pos;
-
-	UA_OpenSecureChannelResponse_new(&r);
-
-	if (requestHeader->returnDiagnostics != 0) {
-		printf("SL_openSecureChannel - diagnostics demanded by the client\n");
-		printf(
-				"SL_openSecureChannel - retrieving diagnostics not implemented!\n");
-		//TODO fill with demanded information part 4, 7.8 - Table 123
-		r->responseHeader.serviceDiagnostics.encodingMask = 0;
-	} else {
-		r->responseHeader.serviceDiagnostics.encodingMask = 0;
-	}
-	/*--------------type ----------------------*/
-
-	//Four Bytes Encoding
-	responseType.encodingByte = UA_NODEIDTYPE_FOURBYTE;
-	//openSecureChannelResponse = 449
-	responseType.identifier.numeric = 449;
-	responseType.namespace = 0;
-
-	/*--------------responseHeader-------------*/
-	r->responseHeader.timestamp = UA_DateTime_now();
-	r->responseHeader.requestHandle = requestHeader->requestHandle;
-	r->responseHeader.serviceResult = serviceResult;
-
-	//text of fields defined in the serviceDiagnostics
-	r->responseHeader.stringTableSize = 0;
-	r->responseHeader.stringTable = UA_NULL;
-
-	r->serverProtocolVersion =
-			connection->tlConnection->localConf.protocolVersion;
-
-	r->securityToken.channelId =
-			connection->securityToken.secureChannelId;
-	r->securityToken.tokenId = connection->securityToken.tokenId;
-	r->securityToken.createdAt = UA_DateTime_now();
-	r->securityToken.revisedLifetime =
-			connection->securityToken.revisedLifetime;
-
-	UA_ByteString_copy(&(connection->localNonce), &(r->serverNonce));
-
-	//get memory for response
-	response.length = UA_NodeId_calcSize(&responseType) + UA_OpenSecureChannelResponse_calcSize(r);
-	UA_alloc((void*)&(response.data), response.length);
-	pos = 0;
-	UA_NodeId_encode(&responseType, &pos, response.data);
-	UA_OpenSecureChannelResponse_encode(r, &pos, response.data);
-
-	SL_send(connection, &response, 449);
-	UA_ByteString_deleteMembers(&response);
-	UA_OpenSecureChannelResponse_delete(r);
-
-	return UA_SUCCESS;
-}
-/*
- * closes a secureChannel (server side)
- */
-void SL_secureChannel_close(UA_SL_Channel *channel) {
-
-}
 UA_Int32 SL_check(UA_SL_Channel* channel, UA_ByteString* msg) {
 	return UA_NO_ERROR;
 }
@@ -200,20 +103,21 @@ UA_Int32 SL_createSecurityToken(UA_SL_Channel* channel, UA_Int32 lifeTime) {
 	return UA_NO_ERROR;
 }
 
-UA_Int32 UA_SL_handleGetEndpointsRequest(UA_SL_Channel *channel, void* obj) {
-	puts("UA_GETENDPOINTSREQUEST");
-	UA_Int32 retval = UA_SUCCESS;
+#define START_HANDLER(TYPE) \
+UA_Int32 UA_SL_handle##TYPE##Request(UA_SL_Channel *channel, void* request, void* response) { \
+	UA_Int32 retval = UA_SUCCESS; \
+	printf("UA_SL_handle%sRequest\n",#TYPE ); \
+	UA_##TYPE##Request* p = (UA_##TYPE##Request*) request; \
+	UA_##TYPE##Response* r = (UA_##TYPE##Response*) response; \
 
-	UA_GetEndpointsRequest* p = (UA_GetEndpointsRequest*) obj;
-	UA_NodeId responseType;
-	UA_GetEndpointsResponse* r;
 
+#define END_HANDLER \
+	return retval;	\
+} \
+
+
+START_HANDLER(GetEndpoints)
 	UA_String_printx("endpointUrl=", &(p->endpointUrl));
-	UA_GetEndpointsResponse_new(&r);
-	r->responseHeader.requestHandle = p->requestHeader.requestHandle;
-	r->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
-	r->responseHeader.stringTableSize = 0;
-	r->responseHeader.timestamp = UA_DateTime_now();
 
 	r->endpointsSize = 1;
 	UA_Array_new((void**) &(r->endpoints),r->endpointsSize,UA_ENDPOINTDESCRIPTION);
@@ -225,73 +129,70 @@ UA_Int32 UA_SL_handleGetEndpointsRequest(UA_SL_Channel *channel, void* obj) {
 	// FIXME: This should be a feature of the application and an enum
 	r->endpoints[0]->server.applicationType = 0; // Server
 	// all the other strings are empty by initialization
+END_HANDLER
 
-	// Now let's build the response
-	UA_ByteString response;
-	responseType.encodingByte = UA_NODEIDTYPE_FOURBYTE;
-	responseType.namespace = 0;
-	responseType.identifier.numeric = 431; // GetEndpointsResponse_Encoding_DefaultBinary
-
-	UA_ByteString_newMembers(&response, UA_NodeId_calcSize(&responseType) + UA_GetEndpointsResponse_calcSize(r));
-
-	UA_Int32 pos = 0;
-	UA_NodeId_encode(&responseType, &pos, response.data);
-	UA_GetEndpointsResponse_encode(r, &pos, response.data);
-
-	SL_send(channel, &response, 431);
-	UA_ByteString_deleteMembers(&response);
-	UA_GetEndpointsResponse_delete(r);
-	return retval;
-}
-
-UA_Int32 UA_SL_handleCreateSessionRequest(UA_SL_Channel *channel, void* obj) {
-	UA_Int32 retval = UA_SUCCESS;
-	puts("UA_CREATESESSIONREQUEST");
-
-	UA_CreateSessionRequest* p = (UA_CreateSessionRequest*) obj;
-	UA_NodeId responseType;
-	UA_CreateSessionResponse* r;
-
-	UA_CreateSessionResponse_new(&r);
-	r->responseHeader.requestHandle = p->requestHeader.requestHandle;
-	r->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
-	r->responseHeader.stringTableSize = 0;
-	r->responseHeader.timestamp = UA_DateTime_now();
+START_HANDLER(CreateSession)
 
 	// FIXME: create session
 
-	// Now let's build the response
-	UA_ByteString response;
-	responseType.encodingByte = UA_NODEIDTYPE_FOURBYTE;
-	responseType.namespace = 0;
-	responseType.identifier.numeric = 464; // CreateSessionResponse_Encoding_DefaultBinary
+END_HANDLER
 
-	UA_ByteString_newMembers(&response, UA_NodeId_calcSize(&responseType) + UA_CreateSessionResponse_calcSize(r));
-	UA_Int32 pos = 0;
+START_HANDLER(ActivateSession)
 
-	UA_NodeId_encode(&responseType, &pos, response.data);
-	UA_CreateSessionResponse_encode(r, &pos, response.data);
-	SL_send(channel, &response, responseType.identifier.numeric);
+	// FIXME: activate session
 
-	UA_ByteString_deleteMembers(&response);
-	UA_CreateSessionResponse_delete(r);
+END_HANDLER
 
-	return retval;
-}
+START_HANDLER(CloseSession)
 
-UA_Int32 UA_SL_handleCloseSecureChannelRequest(UA_SL_Channel *channel, void* obj) {
+	// FIXME: close session
+
+END_HANDLER
+
+START_HANDLER(Browse)
+
+	// FIXME: Browse Service
+
+END_HANDLER
+
+START_HANDLER(Read)
+
+	// FIXME: Read Service
+
+END_HANDLER
+
+START_HANDLER(CreateSubscription)
+
+	// FIXME: Subscription
+
+END_HANDLER
+
+START_HANDLER(CreateMonitoredItems)
+
+	// FIXME: Subscription
+
+END_HANDLER
+
+START_HANDLER(SetPublishingMode)
+
+	// FIXME: Subscription
+
+END_HANDLER
+
+START_HANDLER(Publish)
+
+	// FIXME: Subscription
+
+END_HANDLER
+
+UA_Int32 UA_SL_handleCloseSecureChannelRequest(UA_SL_Channel *channel, void* request, void* response) {
 	UA_Int32 retval = UA_SUCCESS;
 	// 62451 Part 6 Chapter 7.1.4 - The server does not send a CloseSecureChannel response
 	channel->connectionState = connectionState_CLOSE;
 	return retval;
 }
 
-UA_Int32 UA_SL_handleOpenSecureChannelRequest(UA_SL_Channel *channel, void* obj) {
-	UA_Int32 retval;
-	puts("UA_OPENSECURECHANNELREQUEST");
-
-	UA_OpenSecureChannelRequest* p = (UA_OpenSecureChannelRequest*) obj;
-
+START_HANDLER(OpenSecureChannel)
 	if (p->clientProtocolVersion != channel->tlConnection->remoteConf.protocolVersion) {
 		printf("SL_processMessage - error protocol version \n");
 		//TODO ERROR_Bad_ProtocolVersionUnsupported
@@ -336,34 +237,68 @@ UA_Int32 UA_SL_handleOpenSecureChannelRequest(UA_SL_Channel *channel, void* obj)
 	break;
 	}
 
-	retval |= SL_openSecureChannel(channel, &(p->requestHeader), UA_STATUSCODE_GOOD);
-	return retval;
-}
+	channel->connectionState = connectionState_ESTABLISHED;
 
+	if (p->requestHeader.returnDiagnostics != 0) {
+		printf("SL_openSecureChannel - diagnostics demanded by the client\n");
+		printf("SL_openSecureChannel - retrieving diagnostics not implemented!\n");
+		//TODO fill with demanded information part 4, 7.8 - Table 123
+		r->responseHeader.serviceDiagnostics.encodingMask = 0;
+	} else {
+		r->responseHeader.serviceDiagnostics.encodingMask = 0;
+	}
+
+	r->serverProtocolVersion = channel->tlConnection->localConf.protocolVersion;
+	r->securityToken.channelId = channel->securityToken.secureChannelId;
+	r->securityToken.tokenId = channel->securityToken.tokenId;
+	r->securityToken.revisedLifetime = channel->securityToken.revisedLifetime;
+
+	UA_ByteString_copy(&(channel->localNonce), &(r->serverNonce));
+
+END_HANDLER
 
 typedef struct T_UA_SL_handleRequestTableEntry {
-	UA_Int32 methodNodeId;
-	UA_Int32 dataTypeId;
-	UA_Int32 (*handleRequest)(UA_SL_Channel*,void*);
+	UA_Int32 requestNodeId;
+	UA_Int32 requestDataTypeId;
+	UA_Int32 responseNodeId;
+	UA_Int32 responseDataTypeId;
+	UA_Int32 (*handleRequest)(UA_SL_Channel*,void const*,void*);
 } UA_SL_handleRequestTableEntry;
 
 UA_SL_handleRequestTableEntry hrt[] = {
-		{452, UA_CLOSESECURECHANNELREQUEST, UA_SL_handleCloseSecureChannelRequest},
-		{446, UA_OPENSECURECHANNELREQUEST, UA_SL_handleOpenSecureChannelRequest},
-		{428, UA_GETENDPOINTSREQUEST, UA_SL_handleGetEndpointsRequest},
-		{461, UA_CREATESESSIONREQUEST, UA_SL_handleCreateSessionRequest}
+		{452, UA_CLOSESECURECHANNELREQUEST, 0,   0                            , UA_SL_handleCloseSecureChannelRequest},
+		{446, UA_OPENSECURECHANNELREQUEST , 449, UA_OPENSECURECHANNELRESPONSE , UA_SL_handleOpenSecureChannelRequest},
+		{428, UA_GETENDPOINTSREQUEST      , 431, UA_GETENDPOINTSRESPONSE      , UA_SL_handleGetEndpointsRequest},
+		{461, UA_CREATESESSIONREQUEST     , 464, UA_CREATESESSIONRESPONSE     , UA_SL_handleCreateSessionRequest},
+		{467, UA_ACTIVATESESSIONREQUEST   , 470, UA_ACTIVATESESSIONRESPONSE   , UA_SL_handleActivateSessionRequest},
+		{473, UA_CLOSESESSIONREQUEST      , 476, UA_CLOSESESSIONRESPONSE      , UA_SL_handleCloseSessionRequest},
+		{527, UA_BROWSEREQUEST            , 530, UA_BROWSERESPONSE            , UA_SL_handleBrowseRequest},
+		{631, UA_READREQUEST              , 634, UA_READRESPONSE              , UA_SL_handleReadRequest},
+		{787, UA_CREATESUBSCRIPTIONREQUEST, 790, UA_CREATESUBSCRIPTIONRESPONSE, UA_SL_handleCreateSubscriptionRequest},
+		{751, UA_CREATEMONITOREDITEMSREQUEST,754,UA_CREATEMONITOREDITEMSRESPONSE, UA_SL_handleCreateMonitoredItemsRequest},
+		{799, UA_SETPUBLISHINGMODEREQUEST , 802, UA_SETPUBLISHINGMODERESPONSE , UA_SL_handleSetPublishingModeRequest},
+		{826, UA_PUBLISHREQUEST           , 829, UA_PUBLISHRESPONSE           , UA_SL_handlePublishRequest}
 };
 
 UA_SL_handleRequestTableEntry* getHRTEntry(UA_Int32 methodNodeId) {
 	UA_UInt32 i = 0;
 	for (i=0;i< sizeof(hrt)/sizeof(UA_SL_handleRequestTableEntry);i++) {
-		if (methodNodeId == hrt[i].methodNodeId) {
+		if (methodNodeId == hrt[i].requestNodeId) {
 			return &hrt[i];
 		}
 	}
 	return UA_NULL;
 }
 
+UA_Int32 UA_ResponseHeader_initFromRequest(UA_RequestHeader const * p, UA_ResponseHeader * r) {
+	r->requestHandle = p->requestHandle;
+	r->serviceResult = UA_STATUSCODE_GOOD;
+	r->stringTableSize = 0;
+	r->timestamp = UA_DateTime_now();
+	return UA_SUCCESS;
+}
+
+/** this function manages all the generic stuff for the request-response game */
 UA_Int32 UA_SL_handleRequest(UA_SL_Channel *channel, UA_ByteString* msg) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 pos = 0;
@@ -379,17 +314,69 @@ UA_Int32 UA_SL_handleRequest(UA_SL_Channel *channel, UA_ByteString* msg) {
 					serviceRequestType.namespace,serviceRequestType.identifier.numeric);
 			retval = UA_ERROR;
 	} else {
-		void * obj;
-		UA_[hrte->dataTypeId].new(&obj);
-		UA_[hrte->dataTypeId].decode(msg->data, &pos, obj);
-		hrte->handleRequest(channel, obj);
-		retval |= UA_[hrte->dataTypeId].delete(obj);
+		void * requestObj = UA_NULL;
+		void * responseObj = UA_NULL;
+		UA_[hrte->requestDataTypeId].new(&requestObj);
+		UA_[hrte->requestDataTypeId].decode(msg->data, &pos, requestObj);
+		if (hrte->responseDataTypeId > 0) {
+			UA_[hrte->responseDataTypeId].new(&responseObj);
+			UA_ResponseHeader_initFromRequest((UA_RequestHeader*)requestObj, (UA_ResponseHeader*)responseObj);
+		}
+		if ((retval = hrte->handleRequest(channel, requestObj, responseObj)) == UA_SUCCESS) {
+			if (hrte->responseDataTypeId > 0) {
+				UA_NodeId responseType;
+				responseType.encodingByte = UA_NODEIDTYPE_FOURBYTE;
+				responseType.namespace = 0;
+				responseType.identifier.numeric = hrte->responseNodeId;
+
+				UA_ByteString response;
+				UA_ByteString_newMembers(&response, UA_NodeId_calcSize(&responseType) + UA_[hrte->responseDataTypeId].calcSize(responseObj));
+				UA_Int32 pos = 0;
+
+				UA_NodeId_encode(&responseType, &pos, response.data);
+				UA_[hrte->responseDataTypeId].encode(responseObj, &pos, response.data);
+				SL_send(channel, &response, responseType.identifier.numeric);
+
+				UA_NodeId_deleteMembers(&responseType);
+				UA_ByteString_deleteMembers(&response);
+				UA_[hrte->responseDataTypeId].delete(responseObj);
+			}
+		}
+		retval |= UA_[hrte->requestDataTypeId].delete(requestObj);
 	}
 	return retval;
 }
 
 // FIXME: we need to associate secure channels with the connection
 UA_SL_Channel slc;
+
+/* inits a connection object for secure channel layer */
+UA_Int32 UA_SL_Channel_init(UA_SL_Channel *channel) {
+	UA_AsymmetricAlgorithmSecurityHeader_init(
+			&(channel->localAsymAlgSettings));
+	UA_ByteString_copy(&UA_ByteString_securityPoliceNone,
+			&(channel->localAsymAlgSettings.securityPolicyUri));
+
+	UA_alloc((void**)&(channel->localNonce.data),
+			sizeof(UA_Byte));
+	channel->localNonce.length = 1;
+
+	channel->connectionState = connectionState_CLOSED;
+
+	channel->sequenceHeader.requestId = 0;
+	channel->sequenceHeader.sequenceNumber = 1;
+
+	UA_String_init(&(channel->secureChannelId));
+
+	channel->securityMode = UA_SECURITYMODE_INVALID;
+	//TODO set a valid start secureChannelId number
+	channel->securityToken.secureChannelId = 25;
+
+	//TODO set a valid start TokenId
+	channel->securityToken.tokenId = 1;
+
+	return UA_SUCCESS;
+}
 
 UA_Int32 UA_SL_Channel_new(UA_TL_connection *connection, UA_ByteString* msg, UA_Int32* pos) {
 	UA_Int32 retval = UA_SUCCESS;
@@ -398,6 +385,7 @@ UA_Int32 UA_SL_Channel_new(UA_TL_connection *connection, UA_ByteString* msg, UA_
 	DBG_VERBOSE(printf("UA_SL_Channel_new - entered\n"));
 
 	// FIXME: generate new secure channel
+	UA_SL_Channel_init(&slc);
 	connection->secureChannel = &slc;
 	connection->secureChannel->tlConnection = connection;
 
@@ -407,14 +395,17 @@ UA_Int32 UA_SL_Channel_new(UA_TL_connection *connection, UA_ByteString* msg, UA_
 	//TODO check that the sequence number is smaller than MaxUInt32 - 1024
 	UA_SequenceHeader_decode(msg->data, pos, &(connection->secureChannel->sequenceHeader));
 
+	connection->secureChannel->securityToken.tokenId = 4711;
+
 	UA_ByteString_printf("SL_receive - AAS_Header.ReceiverThumbprint=",
 			&(connection->secureChannel->remoteAsymAlgSettings.receiverCertificateThumbprint));
 	UA_ByteString_printf("SL_receive - AAS_Header.SecurityPolicyUri=",
 			&(connection->secureChannel->remoteAsymAlgSettings.securityPolicyUri));
 	UA_ByteString_printf("SL_receive - AAS_Header.SenderCertificate=",
 			&(connection->secureChannel->remoteAsymAlgSettings.senderCertificate));
-	DBG_VERBOSE(printf("SL_receive - SequenceHeader.RequestId=%d\n",connection->secureChannel->sequenceHeader.requestId));
-	DBG_VERBOSE(printf("SL_receive - SequenceHeader.SequenceNr=%d\n",connection->secureChannel->sequenceHeader.sequenceNumber));
+	printf("UA_SL_Channel_new - SequenceHeader.RequestId=%d\n",connection->secureChannel->sequenceHeader.requestId);
+	printf("UA_SL_Channel_new - SequenceHeader.SequenceNr=%d\n",connection->secureChannel->sequenceHeader.sequenceNumber);
+	printf("UA_SL_Channel_new - SecurityToken.tokenID=%d\n",connection->secureChannel->securityToken.tokenId);
 
 // FIXME: reject
 //	if (secureConvHeader.secureChannelId != 0) {
@@ -436,23 +427,30 @@ UA_Int32 UA_SL_Channel_new(UA_TL_connection *connection, UA_ByteString* msg, UA_
 	return retval;
 }
 
-/** process data as we've got it from the transport layer */
+/**
+ * process the rest of the header. TL already processed
+ * MessageType (OPN,MSG,...), isFinal and MessageSize.
+ * UA_SL_process cares for secureChannelId, XASHeader and sequenceHeader
+ *
+ * */
 UA_Int32 UA_SL_process(UA_SL_Channel* connection, UA_ByteString* msg, UA_Int32* pos) {
 
 	DBG_VERBOSE(printf("UA_SL_process - entered \n"));
+	UA_UInt32 secureChannelId;
 
-// FIXME: check connection state
 	if (connection->connectionState == connectionState_ESTABLISHED) {
-		UA_SymmetricAlgorithmSecurityHeader symAlgSecHeader;
+		UA_UInt32_decode(msg->data,pos,&secureChannelId);
 
 		//FIXME: we assume SAS, need to check if AAS or SAS
-		if (connection->securityMode == UA_MESSAGESECURITYMODE_NONE) {
+		UA_SymmetricAlgorithmSecurityHeader symAlgSecHeader;
+//		if (connection->securityMode == UA_MESSAGESECURITYMODE_NONE) {
 			UA_SymmetricAlgorithmSecurityHeader_decode(msg->data, pos, &symAlgSecHeader);
-		} else {
-			// FIXME:
-		}
+//		} else {
+//			// FIXME:
+//		}
 
-		if (symAlgSecHeader == connection->securityToken.tokenId) {
+		printf("UA_SL_process - securityToken received=%d, expected=%d\n",secureChannelId,connection->securityToken.secureChannelId);
+		if (secureChannelId == connection->securityToken.secureChannelId) {
 			UA_SequenceHeader_decode(msg->data, pos, &(connection->sequenceHeader));
 			// process message
 			UA_ByteString slMessage;

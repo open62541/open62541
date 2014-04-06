@@ -1,4 +1,4 @@
-/*
+/*c
  * UA_stack.c
  *
  *  Created on: 04.04.2014
@@ -53,6 +53,8 @@ void* UA_TL_TCP_reader(void *p) {
 	}
 	// clean up: socket, buffer, connection
 	// free resources allocated with socket
+	printf("UA_TL_TCP_reader - shutdown\n");
+	shutdown(c->connectionHandle,2);
 	close(c->connectionHandle);
 	c->connectionState = connectionState_CLOSED;
 	UA_ByteString_deleteMembers(&readBuffer);
@@ -102,7 +104,7 @@ void* UA_TL_TCP_listen(void *p) {
 				UA_TL_connection* c;
 				UA_Int32 retval = UA_SUCCESS;
 				retval |= UA_alloc((void**)&c,sizeof(UA_TL_connection));
-				TL_Connection_init(c, tld->tld);
+				TL_Connection_init(c, tld);
 				c->connectionHandle = newsockfd;
 				c->UA_TL_writer = UA_TL_TCP_write;
 				// add to list

@@ -106,6 +106,6 @@ UA_Int32 TL_getPacketType(UA_ByteString *packet, UA_Int32 *pos);
 UA_Int32 TL_process(UA_TL_connection *connection, UA_ByteString *packet);
 
 
-UA_Int32 TL_Connection_init(UA_TL_connection *c, UA_TL_Description* tld);
+UA_Int32 TL_Connection_init(UA_TL_connection *c, UA_TL_data* tld);
 
 #endif /* OPCUA_TRANSPORTLAYER_H_ */
