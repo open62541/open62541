@@ -1,4 +1,5 @@
 #include "UA_stackInternalTypes.h"
+#include "stdio.h"
 
 UA_Int32 UA_MessageType_calcSize(UA_MessageType const * ptr){
 	if(ptr==UA_NULL){return sizeof(UA_MessageType);}
