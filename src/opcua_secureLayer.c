@@ -104,7 +104,7 @@ UA_Int32 SL_createSecurityToken(UA_SL_Channel* channel, UA_Int32 lifeTime) {
 }
 
 #define START_HANDLER(TYPE) \
-UA_Int32 UA_SL_handle##TYPE##Request(UA_SL_Channel *channel, void* request, void* response) { \
+UA_Int32 UA_SL_handle##TYPE##Request(UA_SL_Channel *channel, void const* request, void* response) { \
 	UA_Int32 retval = UA_SUCCESS; \
 	printf("UA_SL_handle%sRequest\n",#TYPE ); \
 	UA_##TYPE##Request* p = (UA_##TYPE##Request*) request; \
@@ -132,60 +132,74 @@ START_HANDLER(GetEndpoints)
 END_HANDLER
 
 START_HANDLER(CreateSession)
-
+	UA_String_printf("CreateSession Service - endpointUrl=", &(p->endpointUrl));
 	// FIXME: create session
-
+	r->sessionId.encodingByte = UA_NODEIDTYPE_FOURBYTE;
+	r->sessionId.namespace = 1;
+	r->sessionId.identifier.numeric = 666;
 END_HANDLER
 
 START_HANDLER(ActivateSession)
+#pragma GCC diagnostic ignored "-Wunused-variable"
 
 	// FIXME: activate session
 
 END_HANDLER
 
 START_HANDLER(CloseSession)
+#pragma GCC diagnostic ignored "-Wunused-variable"
 
 	// FIXME: close session
 
 END_HANDLER
 
 START_HANDLER(Browse)
+#pragma GCC diagnostic ignored "-Wunused-variable"
+	UA_NodeId_printf("BrowseService - view=",&(p->view.viewId));
 
-	// FIXME: Browse Service
-
+	UA_Int32 i = 0;
+	for (i=0;i<p->nodesToBrowseSize;i++) {
+		UA_NodeId_printf("BrowseService - nodesToBrowse=", &(p->nodesToBrowse[i]->nodeId));
+	}
 END_HANDLER
 
 START_HANDLER(Read)
-
-	// FIXME: Read Service
-
+#pragma GCC diagnostic ignored "-Wunused-variable"
+	UA_Int32 i = 0;
+	for (i=0;i<p->nodesToReadSize;i++) {
+		UA_NodeId_printf("ReadService - nodesToRed=", &(p->nodesToRead[i]->nodeId));
+	}
 END_HANDLER
 
 START_HANDLER(CreateSubscription)
 
 	// FIXME: Subscription
+#pragma GCC diagnostic ignored "-Wunused-variable"
 
 END_HANDLER
 
 START_HANDLER(CreateMonitoredItems)
 
 	// FIXME: Subscription
+#pragma GCC diagnostic ignored "-Wunused-variable"
 
 END_HANDLER
 
 START_HANDLER(SetPublishingMode)
 
 	// FIXME: Subscription
+#pragma GCC diagnostic ignored "-Wunused-variable"
 
 END_HANDLER
 
 START_HANDLER(Publish)
 
 	// FIXME: Subscription
+#pragma GCC diagnostic ignored "-Wunused-variable"
 
 END_HANDLER
 
-UA_Int32 UA_SL_handleCloseSecureChannelRequest(UA_SL_Channel *channel, void* request, void* response) {
+UA_Int32 UA_SL_handleCloseSecureChannelRequest(UA_SL_Channel *channel, void const * request, void* response) {
 	UA_Int32 retval = UA_SUCCESS;
 	// 62451 Part 6 Chapter 7.1.4 - The server does not send a CloseSecureChannel response
 	channel->connectionState = connectionState_CLOSE;
@@ -339,10 +353,15 @@ UA_Int32 UA_SL_handleRequest(UA_SL_Channel *channel, UA_ByteString* msg) {
 
 				UA_NodeId_deleteMembers(&responseType);
 				UA_ByteString_deleteMembers(&response);
-				UA_[hrte->responseDataTypeId].delete(responseObj);
 			}
+		} else {
+			// FIXME: send error message
 		}
+		// finally
 		retval |= UA_[hrte->requestDataTypeId].delete(requestObj);
+		if (hrte->responseDataTypeId > 0) {
+			UA_[hrte->responseDataTypeId].delete(responseObj);
+		}
 	}
 	return retval;
 }

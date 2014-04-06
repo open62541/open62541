@@ -68,7 +68,7 @@ void* UA_TL_TCP_reader(void *p) {
 }
 
 /** write to a tcp transport layer connection */
-void* UA_TL_TCP_write(UA_TL_connection* c, UA_ByteString* msg) {
+UA_Int32 UA_TL_TCP_write(struct T_TL_connection* c, UA_ByteString* msg) {
 	UA_ByteString_printx("write data:", msg);
 	int nWritten = 0;
 	while (nWritten < msg->length) {
@@ -82,7 +82,7 @@ void* UA_TL_TCP_write(UA_TL_connection* c, UA_ByteString* msg) {
 			// TODO: error handling
 		}
 	}
-	return UA_NULL;
+	return UA_SUCCESS;
 }
 
 /** the tcp listener thread **/
