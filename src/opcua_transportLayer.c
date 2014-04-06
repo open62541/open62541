@@ -1,9 +1,3 @@
-/*
- * opcua_transportLayer.c
- *
- *  Created on: Dec 19, 2013
- *      Author: opcua
- */
 #include <memory.h> // memset, memcpy
 #include "UA_stack.h"
 #include "UA_connection.h"

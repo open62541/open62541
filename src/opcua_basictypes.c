@@ -1,15 +1,8 @@
-/*
- * opcua_basictypes.c
- *
- *  Created on: 13.03.2014
- *      Author: mrt
- */
 #include <stdio.h>	// printf
 #include <stdlib.h>	// alloc, free
 #include <string.h>
 #include "opcua.h"
 #include "opcua_basictypes.h"
-
 
 UA_Int32 UA_encode(void* const data, UA_Int32 *pos, UA_Int32 type, UA_Byte* dst) {
 	return UA_[type].encode(data,pos,dst);
@@ -24,7 +17,6 @@ UA_Int32 UA_calcSize(void* const data, UA_UInt32 type) {
 }
 
 UA_Int32 UA_Array_calcSize(UA_Int32 nElements, UA_Int32 type, void const ** const data) {
-
 	int length = sizeof(UA_Int32);
 	int i;
 

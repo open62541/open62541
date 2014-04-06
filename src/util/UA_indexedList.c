@@ -1,4 +1,3 @@
-#include "UA_config.h"
 #include "UA_indexedList.h"
 
 void UA_indexedList_defaultFreer(void* payload){

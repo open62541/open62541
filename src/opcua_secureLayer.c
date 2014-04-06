@@ -1,9 +1,3 @@
-/*
- * opcua_secureChannelLayer.c
- *
- *  Created on: Jan 13, 2014
- *      Author: opcua
- */
 #include <stdio.h>
 #include <memory.h> // memcpy
 #include "opcua.h"
@@ -13,7 +7,6 @@
 
 #define SIZE_SECURECHANNEL_HEADER 12
 #define SIZE_SEQHEADER_HEADER 8
-
 
 UA_Int32 SL_send(UA_SL_Channel* channel, UA_ByteString const * responseMessage, UA_Int32 type) {
 	UA_UInt32 sequenceNumber;

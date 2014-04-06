@@ -14,8 +14,6 @@
 #include "UA_connection.h"
 #include "UA_stackInternalTypes.h"
 
-//TODO : Implement this interface
-#include "tcp_layer.h"
 /*------------------Defined Error Codes------------------*/
 //transport errors begin at 1000
 #define UA_ERROR_MULTIPLE_HEL 1000

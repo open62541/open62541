@@ -1,36 +1,25 @@
-/*
- * opcua_stackInternalTypes.h
- *
- *  Created on: Mar 24, 2014
- *      Author: opcua
- */
-
-
 #ifndef OPCUA_STACKINTERNALTYPES_H_
 #define OPCUA_STACKINTERNALTYPES_H_
 
-#include "UA_config.h"
 #include "opcua.h"
 
-
 static const UA_Int32 SL_HEADER_LENGTH = 0;
+
 /* Enums */
-typedef enum
-{
+typedef enum {
 	UA_SECURITYTOKEN_ISSUE = 0,
 	UA_SECURITYTOKEN_RENEW = 1
-}SecurityTokenRequestType;
+} SecurityTokenRequestType;
 
-typedef enum
-{
+typedef enum {
 	UA_SECURITYMODE_INVALID = 0,
 	UA_SECURITYMODE_SIGN = 1,
 	UA_SECURITYMODE_SIGNANDENCRYPT = 2
 
 } securityMode;
+
 /* Structures */
-typedef struct T_SL_Response
-{
+typedef struct T_SL_Response {
 	UA_UInt32 serverProtocolVersion;
 	UA_ChannelSecurityToken securityToken;
 	UA_String serverNonce;
@@ -153,6 +142,5 @@ UA_Int32 UA_SecureConversationMessageAbortBody_encode(UA_SecureConversationMessa
 UA_Int32 UA_SecureConversationMessageAbortBody_decode(UA_Byte const * src, UA_Int32* pos, UA_SecureConversationMessageAbortBody* dst);
 UA_Int32 UA_SecureConversationMessageAbortBody_delete(UA_SecureConversationMessageAbortBody* p);
 UA_Int32 UA_SecureConversationMessageAbortBody_deleteMembers(UA_SecureConversationMessageAbortBody* p);
-
 
 #endif

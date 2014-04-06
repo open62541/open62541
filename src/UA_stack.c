@@ -1,10 +1,3 @@
-/*c
- * UA_stack.c
- *
- *  Created on: 04.04.2014
- *      Author: mrt
- */
-
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -28,8 +21,6 @@ UA_TL_Description UA_TransportLayerDescriptorTcpBinary  = {
 
 // TODO: do we really need a variable global to the module?
 UA_TL_data theTL;
-
-
 
 /** the tcp reader thread **/
 void* UA_TL_TCP_reader(void *p) {

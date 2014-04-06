@@ -1,4 +1,3 @@
-#include "UA_config.h"
 #include "UA_list.h"
 
 void UA_list_defaultFreer(void* payload){
