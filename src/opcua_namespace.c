@@ -2,8 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 
-/* The basic data structure is a hash-map of UA_Node objects.
-
+/* The central data structure is a hash-map of UA_Node objects.
    Entry lookup via Algorithm D from Knuth's TAOCP (no linked lists here).
    Table of primes and mod-functions are from libiberty (licensed under LGPL) */
 
@@ -53,15 +52,17 @@ UA_Int32 create_ns(namespace **result, uint32_t size) {
 	uint32_t sizePrimeIndex = higher_prime_index(size);
 	size = prime_tab[sizePrimeIndex].prime;
 
-	if (UA_alloc((void **)&ns, sizeof(namespace)) != UA_SUCCESS) return UA_ERR_NO_MEMORY;
+	if (UA_alloc((void *)&ns, sizeof(namespace)) != UA_SUCCESS) return UA_ERR_NO_MEMORY;
   
-	if (UA_alloc((void **)&(ns->entries), sizeof(void *)*size) != UA_SUCCESS) {
+	if (UA_alloc((void *)&ns->entries, sizeof(ns_entry) * size) != UA_SUCCESS) {
 		UA_free(ns);
 		return UA_ERR_NO_MEMORY;
 	}
-	
-	for (uint32_t i=0; i<size;i++)
-		ns->entries[i] = UA_NULL;
+
+    /* set entries to zero	
+	ns->entries[i].lock = UA_NUll;
+	ns->entries[i].node = UA_NULL; */
+	memset(ns->entries, 0, size * sizeof(ns_entry));
 
 	ns->size = size;
 	ns->count = 0;
@@ -71,166 +72,82 @@ UA_Int32 create_ns(namespace **result, uint32_t size) {
 }
 
 void empty_ns(namespace *ns) {
-	uint32_t size = ns->size;
-	UA_Node **entries = ns->entries;
-
-	for (uint32_t i = 0; i < size; i++) {
-		if (entries[i] != UA_NULL) {
-			switch(entries[i]->nodeClass) {
-			case UA_NODECLASS_OBJECT:
-				// UA_ObjectNode_delete((UA_ObjectNode *) entries[i]);
-				break;
-			case UA_NODECLASS_VARIABLE:
-				// UA_VariableNode_delete((UA_VariableNode *) entries[i]);
-				break;
-			case UA_NODECLASS_METHOD:
-				// UA_MethodNode_delete((UA_MethodNode *) entries[i]);
-				break;
-			case UA_NODECLASS_OBJECTTYPE:
-				// UA_ObjectTypeNode_delete((UA_ObjectTypeNode *) entries[i]);
-				break;
-			case UA_NODECLASS_VARIABLETYPE:
-				// UA_VariableTypeNode_delete((UA_VariableTypeNode *) entries[i]);
-				break;
-			case UA_NODECLASS_REFERENCETYPE:
-				// UA_ReferenceTypeNode_delete((UA_ReferenceTypeNode *) entries[i]);
-				break;
-			case UA_NODECLASS_DATATYPE:
-				// UA_DataTypeNode_delete((UA_DataTypeNode *) entries[i]);
-				break;
-			case UA_NODECLASS_VIEW:
-				// UA_ViewNode_delete((UA_ViewNode *) entries[i]);
-				break;
-			default:
-				break; // Unspecified nodes are not permitted.
-			}
-		}
-	}	
-
+	clear_ns(ns);
+	
 	/* Downsize the table.  */
-	if (size > 1024*1024 / sizeof (void *)) {
-		int nindex = higher_prime_index (1024 / sizeof (void *));
+	if (ns->size > 1024*1024 / sizeof (ns_entry)) {
+		int nindex = higher_prime_index (1024 / sizeof (ns_entry));
 		int nsize = prime_tab[nindex].prime;
-
 		UA_free(ns->entries);
-		UA_alloc((void **)&(ns->entries), sizeof(void *)*nsize); //FIXME: Check if memory was available
+		UA_alloc((void *)&ns->entries, sizeof(ns_entry) * nsize); //FIXME: Check return value
 		ns->size = nsize;
 		ns->sizePrimeIndex = nindex;
-		ns->count = 0;
-	}
-	else {
-		memset(*(ns->entries), 0, size * sizeof(void *));
-		ns->count = 0;
 	}
 }
 
 /* This function frees all memory allocated for a namespace */
 void delete_ns (namespace *ns) {
-	uint32_t size = ns->size;
-	UA_Node **entries = ns->entries;
-
-	for (uint32_t i = 0; i < size; i++) {
-		if (entries[i] != UA_NULL) {
-			switch(entries[i]->nodeClass) {
-			case UA_NODECLASS_OBJECT:
-				// UA_ObjectNode_delete((UA_ObjectNode *) entries[i]);
-				break;
-			case UA_NODECLASS_VARIABLE:
-				// UA_VariableNode_delete((UA_VariableNode *) entries[i]);
-				break;
-			case UA_NODECLASS_METHOD:
-				// UA_MethodNode_delete((UA_MethodNode *) entries[i]);
-				break;
-			case UA_NODECLASS_OBJECTTYPE:
-				// UA_ObjectTypeNode_delete((UA_ObjectTypeNode *) entries[i]);
-				break;
-			case UA_NODECLASS_VARIABLETYPE:
-				// UA_VariableTypeNode_delete((UA_VariableTypeNode *) entries[i]);
-				break;
-			case UA_NODECLASS_REFERENCETYPE:
-				// UA_ReferenceTypeNode_delete((UA_ReferenceTypeNode *) entries[i]);
-				break;
-			case UA_NODECLASS_DATATYPE:
-				// UA_DataTypeNode_delete((UA_DataTypeNode *) entries[i]);
-				break;
-			case UA_NODECLASS_VIEW:
-				// UA_ViewNode_delete((UA_ViewNode *) entries[i]);
-				break;
-			default:
-				break; // Unspecified nodes are not permitted.
-			}
-		}
-	}	
-
-	UA_free(entries);
+	clear_ns(ns);
+	UA_free(ns->entries);
 	UA_free(ns);
 }
 
-UA_Int32 insert(namespace *ns, UA_Node *node) {
+UA_Int32 insert_node(namespace *ns, UA_Node *node) {
 	if(ns->size * 3 <= ns->count*4) {
 		if(expand(ns) != UA_SUCCESS)
 			return UA_ERROR;
 	}
 		
-	hash_t h = hash(&(node->nodeId));
-	UA_Node **slot = find_empty_slot(ns, h);
-	*slot = node;
+	hash_t h = hash(&node->nodeId);
+	ns_entry *slot = find_empty_slot(ns, h);
+	if (UA_alloc((void *)&slot->lock, sizeof(pthread_rwlock_t)) != UA_SUCCESS)
+		return UA_ERR_NO_MEMORY;
+	pthread_rwlock_init((pthread_rwlock_t *)slot->lock, NULL);
+	slot->node = node;
 	return UA_SUCCESS;
 }
 
-UA_Int32 find(namespace *ns, UA_Node **result, UA_NodeId *nodeid) {
-	UA_Node **slot = UA_NULL;
-	if(find_slot(ns, slot, nodeid) == UA_SUCCESS) {
-		*result = *slot;
+UA_Int32 get_node(namespace *ns, UA_Node  ** const result, ns_lock ** lock, UA_NodeId *nodeid) {
+	ns_entry *slot;
+	if(find_slot(ns, &slot, nodeid) == UA_SUCCESS) {
+		if(pthread_rwlock_rdlock((pthread_rwlock_t *)slot->lock) != 0)
+			return UA_ERROR;
+		*result = slot->node;
+		*lock = slot->lock;
 		return UA_SUCCESS;
 	}
 	return UA_ERROR;
 }
 
-void delete(namespace *ns, UA_NodeId *nodeid) {
-	UA_Node **slot = UA_NULL;
-	if (find_slot(ns, slot, nodeid) != UA_SUCCESS)
-		return;
-
-	UA_Node *node = *slot;
-	*slot = UA_NULL;
-
-	switch(node->nodeClass) {
-	case UA_NODECLASS_OBJECT:
-		// UA_ObjectNode_delete((UA_ObjectNode *) node);
-		break;
-	case UA_NODECLASS_VARIABLE:
-		// UA_VariableNode_delete((UA_VariableNode *) node);
-		break;
-	case UA_NODECLASS_METHOD:
-		// UA_MethodNode_delete((UA_MethodNode *) node);
-		break;
-	case UA_NODECLASS_OBJECTTYPE:
-		// UA_ObjectTypeNode_delete((UA_ObjectTypeNode *) node);
-		break;
-	case UA_NODECLASS_VARIABLETYPE:
-		// UA_VariableTypeNode_delete((UA_VariableTypeNode *) node);
-		break;
-	case UA_NODECLASS_REFERENCETYPE:
-		// UA_ReferenceTypeNode_delete((UA_ReferenceTypeNode *) node);
-		break;
-	case UA_NODECLASS_DATATYPE:
-		// UA_DataTypeNode_delete((UA_DataTypeNode *) node);
-		break;
-	case UA_NODECLASS_VIEW:
-		// UA_ViewNode_delete((UA_ViewNode *) node);
-		break;
-	default:
-		break; // Unspecified nodes are not permitted.
+UA_Int32 get_writable_node(namespace *ns, UA_Node  **result, ns_lock ** lock, UA_NodeId *nodeid) {
+	ns_entry *slot;
+	if(find_slot(ns, &slot, nodeid) == UA_SUCCESS) {
+		if(pthread_rwlock_wrlock((pthread_rwlock_t *)slot->lock) != 0)
+			return UA_ERROR;
+		*result = slot->node;
+		*lock = slot->lock;
+		return UA_SUCCESS;
 	}
-
-	/* Downsize the hashmap if it is very empty */
-	if(ns->count*8 < ns->size && ns->size > 32) {
-		expand(ns);
-	}
+	return UA_ERROR;
 }
 
-/* Hashing inspired by code from from http://www.azillionmonkeys.com/qed/hash.html, licensed under the LGPL 2.1 */
+inline void unlock_node(ns_lock *lock) {
+	pthread_rwlock_unlock((pthread_rwlock_t *)lock);
+}
+
+void delete_node(namespace *ns, UA_NodeId *nodeid) {
+	ns_entry *slot;
+	if (find_slot(ns, &slot, nodeid) != UA_SUCCESS)
+		return;
+	clear_slot(ns, slot);
+
+	/* Downsize the hashmap if it is very empty */
+	if(ns->count*8 < ns->size && ns->size > 32)
+		expand(ns);
+}
+
+/* Hashing inspired by code from from
+   http://www.azillionmonkeys.com/qed/hash.html, licensed under the LGPL 2.1 */
 #undef get16bits
 #if (defined(__GNUC__) && defined(__i386__)) || defined(__WATCOMC__) || defined(_MSC_VER) || defined (__BORLANDC__) || defined (__TURBOC__)
 #define get16bits(d) (*((const uint16_t *) (d)))
@@ -300,7 +217,6 @@ static hash_t hash(const UA_NodeId *n) {
 	case UA_NODEIDTYPE_BYTESTRING:
 		return hash_string((UA_Byte*) n->identifier.byteString.data, n->identifier.byteString.length);
 	default:
-		// Not permitted
 		return 0;
 	}
 }
@@ -318,10 +234,8 @@ static unsigned int higher_prime_index (unsigned long n) {
 			high = mid;
 	}
 
-	// Fixme: If we've run out of primes, abort.
 	/* if (n > prime_tab[low].prime) */
 	/* 	abort ();  */
-  
 	return low;
 }
 
@@ -355,20 +269,67 @@ static inline hash_t mod_m2 (hash_t h, const namespace *ns) {
 	return 1 + mod_1 (h, p->prime - 2, p->inv_m2, p->shift);
 }
 
-static UA_Int32 find_slot (const namespace *ns, UA_Node **slot, UA_NodeId *nodeid) {
+static inline void clear_slot(namespace *ns, ns_entry *slot) {
+	if(slot->node == UA_NULL)
+		return;
+	
+	pthread_rwlock_wrlock((pthread_rwlock_t *) slot->lock); /* Get write lock. */
+	switch(slot->node->nodeClass) {
+	case UA_NODECLASS_OBJECT:
+		UA_ObjectNode_delete((UA_ObjectNode *) slot->node);
+		break;
+	case UA_NODECLASS_VARIABLE:
+		UA_VariableNode_delete((UA_VariableNode *) slot->node);
+		break;
+	case UA_NODECLASS_METHOD:
+		UA_MethodNode_delete((UA_MethodNode *) slot->node);
+		break;
+	case UA_NODECLASS_OBJECTTYPE:
+		UA_ObjectTypeNode_delete((UA_ObjectTypeNode *) slot->node);
+		break;
+	case UA_NODECLASS_VARIABLETYPE:
+		UA_VariableTypeNode_delete((UA_VariableTypeNode *) slot->node);
+		break;
+	case UA_NODECLASS_REFERENCETYPE:
+		UA_ReferenceTypeNode_delete((UA_ReferenceTypeNode *) slot->node);
+		break;
+	case UA_NODECLASS_DATATYPE:
+		UA_DataTypeNode_delete((UA_DataTypeNode *) slot->node);
+		break;
+	case UA_NODECLASS_VIEW:
+		UA_ViewNode_delete((UA_ViewNode *) slot->node);
+		break;
+	default:
+		break;
+	}
+	slot->node = UA_NULL;
+	pthread_rwlock_destroy((pthread_rwlock_t *)slot->lock);
+	UA_free(slot->lock);
+}
+
+/* Delete all entries */
+static void clear_ns(namespace *ns) {
+	uint32_t size = ns->size;
+	ns_entry *entries = ns->entries;
+	for (uint32_t i = 0; i < size; i++)
+		clear_slot(ns, &entries[i]);
+	ns->count = 0;
+}
+
+static UA_Int32 find_slot (const namespace *ns, ns_entry **slot, UA_NodeId *nodeid) {
 	hash_t h = hash(nodeid);
 	hash_t index, hash2;
 	uint32_t size;
-	UA_Node *entry;
+	ns_entry *entry;
 
 	size = ns->size;
 	index = mod(h, ns);
 
-	entry = ns->entries[index];
+	entry = &ns->entries[index];
 	if (entry == UA_NULL)
 		return UA_ERROR;
-	if (UA_NodeId_compare(&(entry->nodeId), nodeid)) {
-		*slot = ns->entries[index];
+	if (UA_NodeId_compare(&entry->node->nodeId, nodeid)) {
+		*slot = entry;
 		return UA_SUCCESS;
 	}
 
@@ -378,11 +339,11 @@ static UA_Int32 find_slot (const namespace *ns, UA_Node **slot, UA_NodeId *nodei
 		if (index >= size)
 			index -= size;
 
-		entry = ns->entries[index];
+		entry = &ns->entries[index];
 		if (entry == UA_NULL)
 			return UA_ERROR;
-		if (UA_NodeId_compare(&(entry->nodeId), nodeid)) {
-			slot = &(ns->entries[index]);
+		if (UA_NodeId_compare(&entry->node->nodeId, nodeid)) {
+			*slot = entry;
 			return UA_SUCCESS;
 		}
     }
@@ -391,43 +352,42 @@ static UA_Int32 find_slot (const namespace *ns, UA_Node **slot, UA_NodeId *nodei
 
 /* Always returns an empty slot. This is inevitable if the entries are not
    completely full. */
-static UA_Node ** find_empty_slot(const namespace *ns, hash_t h) {
+static ns_entry * find_empty_slot(const namespace *ns, hash_t h) {
 	hash_t index = mod(h, ns);
 	uint32_t size = ns->size;
-	UA_Node **slot = ns->entries + index;
+	ns_entry *slot = &ns->entries[index];
 
-	if (*slot == UA_NULL)
+	if (slot->node == UA_NULL)
 		return slot;
 
-	hash_t hash2 = mod_m2 (h, ns);
+	hash_t hash2 = mod_m2(h, ns);
 	for (;;) {
 		index += hash2;
 		if (index >= size)
 			index -= size;
 
-		slot = ns->entries + index;
-		if (*slot == UA_NULL)
+		slot = &ns->entries[index];
+		if (slot->node == UA_NULL)
 			return slot;
 	}
 	return UA_NULL;
 }
 
-/* The following function changes size of memory allocated for the
-   entries and repeatedly inserts the table elements.  The occupancy
-   of the table after the call will be about 50%.  Naturally the hash
-   table must already exist.  Remember also that the place of the
-   table entries is changed.  If memory allocation failures are allowed,
-   this function will return zero, indicating that the table could not be
-   expanded.  If all goes well, it will return a non-zero value.  */
+/* The following function changes size of memory allocated for the entries and
+   repeatedly inserts the table elements. The occupancy of the table after the
+   call will be about 50%. Naturally the hash table must already exist. Remember
+   also that the place of the table entries is changed. If memory allocation
+   failures are allowed, this function will return zero, indicating that the
+   table could not be expanded. If all goes well, it will return a non-zero
+   value. */
 static UA_Int32 expand (namespace *ns) {
-	UA_Node **p;
-	UA_Node **nentries;
+	ns_entry *nentries;
 	int32_t nsize;
 	uint32_t nindex;
 
-	UA_Node **oentries = ns->entries;
+	ns_entry *oentries = ns->entries;
 	int32_t osize = ns->size;
-	UA_Node **olimit = oentries + osize;
+	ns_entry *olimit = &oentries[osize];
 	int32_t count = ns->count;
 
 	/* Resize only when table after removal of unused elements is either too full or too empty.  */
@@ -437,19 +397,17 @@ static UA_Int32 expand (namespace *ns) {
 	}
 	return UA_SUCCESS;
 
-	if (UA_alloc((void **)nentries, sizeof(void *)*nsize) != UA_SUCCESS)
+	if (UA_alloc((void *)nentries, sizeof(ns_entry)*nsize) != UA_SUCCESS)
 		return UA_ERR_NO_MEMORY;
 	ns->entries = nentries;
 	ns->size = nsize;
 	ns->sizePrimeIndex = nindex;
 
-	p = oentries;
+	ns_entry *p = oentries;
 	do {
-		UA_Node *x = *p;
-
-		if (x != UA_NULL) {
-			UA_Node **q = find_empty_slot(ns, hash(&(x->nodeId)));
-			*q = x;
+		if (p->node != UA_NULL) {
+			ns_entry *q = find_empty_slot(ns, hash(&p->node->nodeId));
+			*q = *p;
 		}
 		p++;
 	}
