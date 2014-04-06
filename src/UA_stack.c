@@ -65,7 +65,7 @@ UA_Int32 UA_TL_TCP_write(struct T_TL_connection* c, UA_ByteString* msg) {
 	while (nWritten < msg->length) {
 		int n=0;
 		do {
-			n = write(c->connectionHandle, &(msg->data[n]), msg->length-n);
+			n = write(c->connectionHandle, &(msg->data[nWritten]), msg->length-nWritten);
 		} while (n == -1L && errno == EINTR);
 		if (n >= 0) {
 			nWritten += n;
