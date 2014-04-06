@@ -107,7 +107,7 @@ UA_Int32 insert_node(namespace *ns, UA_Node *node) {
 	return UA_SUCCESS;
 }
 
-UA_Int32 get_node(namespace *ns, UA_Node  ** const result, ns_lock ** lock, UA_NodeId *nodeid) {
+UA_Int32 get_node(namespace *ns, UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock);
 	ns_entry *slot;
 	if(find_slot(ns, &slot, nodeid) == UA_SUCCESS) {
 		if(pthread_rwlock_rdlock((pthread_rwlock_t *)slot->lock) != 0)
@@ -119,7 +119,7 @@ UA_Int32 get_node(namespace *ns, UA_Node  ** const result, ns_lock ** lock, UA_N
 	return UA_ERROR;
 }
 
-UA_Int32 get_writable_node(namespace *ns, UA_Node  **result, ns_lock ** lock, UA_NodeId *nodeid) {
+UA_Int32 get_writable_node(namespace *ns, UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock);
 	ns_entry *slot;
 	if(find_slot(ns, &slot, nodeid) == UA_SUCCESS) {
 		if(pthread_rwlock_wrlock((pthread_rwlock_t *)slot->lock) != 0)
