@@ -2,6 +2,10 @@
 #include <string.h>
 #include <stdio.h>
 
+UA_Int32 init_tc(transaction_context * tc) {
+	return UA_list_init((UA_list_List*) tc);
+}
+
 /* The central data structure is a hash-map of UA_Node objects.
    Entry lookup via Algorithm D from Knuth's TAOCP (no linked lists here).
    Table of primes and mod-functions are from libiberty (licensed under LGPL) */
@@ -107,31 +111,57 @@ UA_Int32 insert_node(namespace *ns, UA_Node *node) {
 	return UA_SUCCESS;
 }
 
-UA_Int32 get_node(namespace *ns, UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock);
+UA_Int32 get_node(namespace *ns, UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock) {
 	ns_entry *slot;
-	if(find_slot(ns, &slot, nodeid) == UA_SUCCESS) {
-		if(pthread_rwlock_rdlock((pthread_rwlock_t *)slot->lock) != 0)
-			return UA_ERROR;
-		*result = slot->node;
-		*lock = slot->lock;
-		return UA_SUCCESS;
-	}
-	return UA_ERROR;
+	if(find_slot(ns, &slot, nodeid) == UA_SUCCESS) return UA_ERROR;
+	if(pthread_rwlock_rdlock((pthread_rwlock_t *)slot->lock) != 0) return UA_ERROR;
+	*result = slot->node;
+	*lock = slot->lock;
+	return UA_SUCCESS;
 }
 
-UA_Int32 get_writable_node(namespace *ns, UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock);
+UA_Int32 get_writable_node(namespace *ns, UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock) {
 	ns_entry *slot;
-	if(find_slot(ns, &slot, nodeid) == UA_SUCCESS) {
-		if(pthread_rwlock_wrlock((pthread_rwlock_t *)slot->lock) != 0)
-			return UA_ERROR;
-		*result = slot->node;
-		*lock = slot->lock;
-		return UA_SUCCESS;
-	}
-	return UA_ERROR;
+	if(find_slot(ns, &slot, nodeid) != UA_SUCCESS) return UA_ERROR;
+	if(pthread_rwlock_wrlock((pthread_rwlock_t *)slot->lock) != 0) return UA_ERROR;
+	*result = slot->node;
+	*lock = slot->lock;
+	return UA_SUCCESS;
 }
 
-inline void unlock_node(ns_lock *lock) {
+static inline void release_context_walker(void * lock) { pthread_rwlock_unlock(lock); }
+
+UA_Int32 get_tc_node(namespace *ns, transaction_context *tc, UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock) {
+	ns_entry *slot;
+	if(find_slot(ns, &slot, nodeid) != UA_SUCCESS) return UA_ERROR;
+	if(pthread_rwlock_tryrdlock((pthread_rwlock_t *)slot->lock) != 0) {
+		/* Transaction failed. Release all acquired locks and bail out. */
+		UA_list_destroy((UA_list_List*) tc, release_context_walker);
+		return UA_ERROR;
+	}
+
+	UA_list_addPayloadToBack((UA_list_List*) tc, slot->lock);
+	*result = slot->node;
+	*lock = slot->lock;
+	return UA_SUCCESS;
+}
+
+UA_Int32 get_tc_writable_node(namespace *ns, transaction_context *tc, UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock) {
+	ns_entry *slot;
+	if(find_slot(ns, &slot, nodeid) != UA_SUCCESS) return UA_ERROR;
+	if(pthread_rwlock_trywrlock((pthread_rwlock_t *)slot->lock) != 0) {
+		/* Transaction failed. Release all acquired locks and bail out. */
+		UA_list_destroy((UA_list_List*) tc, release_context_walker);
+		return UA_ERROR;
+	}
+
+	UA_list_addPayloadToBack((UA_list_List*) tc, slot->lock);
+	*result = slot->node;
+	*lock = slot->lock;
+	return UA_SUCCESS;
+}
+
+inline void release_node(ns_lock *lock) {
 	pthread_rwlock_unlock((pthread_rwlock_t *)lock);
 }
 

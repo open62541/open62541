@@ -3,14 +3,31 @@
 
 /* Defines needed for pthread_rwlock_t */
 #define _XOPEN_SOURCE 500
+#include <pthread.h>
 
 #include "opcua_basictypes.h"
 #include "opcua.h"
-#include <pthread.h>
+#include "UA_list.h"
 
-typedef uint32_t hash_t;
 typedef struct pthread_rwlock_t ns_lock;
 
+/* Poor-man's transactions: If we need multiple locks and at least one of them
+   is a writelock ("transaction"), a deadlock can be introduced in conjunction
+   with a second thread.
+
+   Convention: All nodes in a transaction (read and write) must be locked before
+   the first write. If one write-lock cannot be acquired immediately, bail out
+   and restart the transaction.
+
+   A transaction_context is currently only a linked list of the acquired locks.
+
+   More advanced transaction mechanisms will be established once the runtime
+   behavior can be observed. */
+typedef UA_list_List transaction_context;
+UA_Int32 init_tc(transaction_context * tc);
+
+/* Each namespace is a hash-map of NodeIds to Nodes. Every entry in the hashmap
+   consists of a pointer to a read-write lock and a pointer to the Node. */
 typedef struct ns_entry_t {
 	ns_lock *lock; /* locks are heap-allocated, so we can resize the entry-array online */
 	UA_Node *node;
@@ -30,11 +47,14 @@ void empty_ns(namespace *ns);
 void delete_ns(namespace *ns);
 UA_Int32 insert_node(namespace *ns, UA_Node *node);
 UA_Int32 get_node(namespace *ns, UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock);
-UA_Int32 get_writable_node(namespace *ns, UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock);
-inline void unlock_node(ns_lock *lock);
+UA_Int32 get_writable_node(namespace *ns, UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock); // use only for _single_ writes.
+UA_Int32 get_tc_node(namespace *ns, transaction_context *tc, UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock);
+UA_Int32 get_tc_writable_node(namespace *ns, transaction_context *tc, UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock); // use only for _single_ writes.
+inline void release_node(ns_lock *lock);
 void delete_node(namespace *ns, UA_NodeId *nodeid);
 
 /* Internal */
+typedef uint32_t hash_t;
 static hash_t hash_string(const UA_Byte * data, UA_Int32 len);
 static hash_t hash(const UA_NodeId *n);
 
