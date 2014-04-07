@@ -11,6 +11,11 @@
 *.la
 *.so*
 *.Po
+*.cgen
+*.hgen
+*.pyc
+*.gcno
+*.gcda
 /bin
 m4
 /autom4te.cache
@@ -46,10 +51,6 @@ coverage_report
 /.settings
 .autotools
 test-driver
-tool/opcua.c
-tool/opcua.h
-tool/opcua_namespace_0.c
-tool/opcua_namespace_0.h
 include/opcua.h
 include/opcua_namespace_0.h
 src/opcua.c
