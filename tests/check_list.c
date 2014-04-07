@@ -1,6 +1,5 @@
-#include "UA_config.h"
+#include <stdlib.h> // EXIT_SUCCESS
 #include "UA_list.h"
-
 #include "check.h"
 
 /* global test counters */

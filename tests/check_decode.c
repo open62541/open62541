@@ -20,7 +20,7 @@ START_TEST(decodeByte_test)
 	UA_ByteString rawMessage;
 	UA_Int32 position = 0;
 	//EncodeByte
-		char *mem = malloc(sizeof(UA_Byte));
+		UA_Byte* mem = (UA_Byte*) malloc(sizeof(UA_Byte));
 		UA_Byte val;
 
 		rawMessage.data = mem;
@@ -41,7 +41,7 @@ START_TEST(decodeInt16_test_positives)
 	UA_Int32 p = 0;
 	UA_Int16 val;
 	UA_ByteString rawMessage;
-	char mem[] = {
+	UA_Byte mem[] = {
 			0x00,0x00,	// 0
 			0x01,0x00,	// 1
 			0xFF,0x00,	// 255
@@ -86,7 +86,6 @@ START_TEST(decodeUInt16_test)
 {
 
 	UA_ByteString rawMessage;
-	UA_Int32 position = 0;
 	//EncodeUInt16
 	UA_Byte mem[2] = {0x01,0x00};
 
@@ -109,7 +108,6 @@ END_TEST
 START_TEST(decodeUInt32_test)
 {
 	UA_ByteString rawMessage;
-	UA_Int32 position = 0;
 	//EncodeUInt16
 	UA_Byte mem[4] = {0xFF,0x00,0x00,0x00};
 
@@ -126,7 +124,6 @@ END_TEST
 START_TEST(decodeInt32_test)
 {
 	UA_ByteString rawMessage;
-	UA_Int32 position = 0;
 	//EncodeUInt16
 	UA_Byte mem[4] = {0x00,0xCA,0x9A,0x3B};
 
@@ -144,7 +141,6 @@ END_TEST
 START_TEST(decodeUInt64_test)
 {
 	UA_ByteString rawMessage;
-	UA_Int32 position = 0;
 	UA_UInt64 expectedVal = 0xFF;
 	expectedVal = expectedVal << 56;
 	UA_Byte mem[8] = {00,00,00,00,0x00,0x00,0x00,0xFF};
@@ -162,7 +158,6 @@ END_TEST
 START_TEST(decodeInt64_test)
 {
 	UA_ByteString rawMessage;
-	UA_Int32 position = 0;
 	UA_Int64 expectedVal = 0xFF;
 	expectedVal = expectedVal << 56;
 	UA_Byte mem[8] = {00,00,00,00,0x00,0x00,0x00,0xFF};
@@ -178,7 +173,6 @@ START_TEST(decodeInt64_test)
 END_TEST
 START_TEST(decodeFloat_test)
 {
-	UA_Float expectedValue = -6.5;
 	UA_Int32 pos = 0;
 	UA_Byte buf[4] = {0x00,0x00,0xD0,0xC0};
 
@@ -201,8 +195,7 @@ START_TEST(decodeUAString_test)
 
 	UA_Int32 pos = 0;
 	UA_String string;
-	UA_Int32 l = 12;
-	char binString[12] = {0x08,0x00,0x00,0x00,'A','C','P','L','T',' ','U','A'};
+	UA_Byte binString[12] = {0x08,0x00,0x00,0x00,'A','C','P','L','T',' ','U','A'};
 
 	UA_String_decode(binString, &pos, &string);
 

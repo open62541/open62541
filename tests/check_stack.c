@@ -61,12 +61,13 @@ END_TEST
 START_TEST(encode_builtInDatatypeArray_test_String)
 {
 	UA_Int32 noElements = 2;
-	UA_ByteString s1 = { 6, "OPC UA" };
-	UA_ByteString s2 = { -1, NULL };
+	UA_ByteString s1 = { 6, (UA_Byte*) "OPC UA" };
+	UA_ByteString s2 = { -1, UA_NULL };
 	UA_ByteString* array[] = { &s1, &s2	};
-	UA_Int32 pos = 0, i;
-	char buf[256];
-	char result[] = {
+	UA_Int32 pos = 0;
+	UA_UInt32 i;
+	UA_Byte buf[256];
+	UA_Byte result[] = {
 			0x02, 0x00, 0x00, 0x00,		// noElements
 			0x06, 0x00, 0x00, 0x00,		// s1.Length
 			'O', 'P', 'C', ' ', 'U', 'A', // s1.Data
@@ -78,7 +79,7 @@ START_TEST(encode_builtInDatatypeArray_test_String)
 	// check size
 	ck_assert_int_eq(pos, 4 + 4 + 6 + 4);
 	// check result
-	for (i=0; i< sizeof(result); i++) {
+	for (i=0; i < sizeof(result); i++) {
 		ck_assert_int_eq(buf[i],result[i]);
 	}
 }

@@ -19,7 +19,7 @@
 
 START_TEST(test_Namespace) {
 	namespace *ns = UA_NULL;
-	create_ns(ns, 512);
+	create_ns(&ns, 512);
 	delete_ns(ns);
 }
 END_TEST

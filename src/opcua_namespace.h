@@ -3,6 +3,8 @@
 
 /* Defines needed for pthread_rwlock_t */
 #define _XOPEN_SOURCE 500
+// this one is necessary on my 3.0.0-32-generic machine
+#define __USE_UNIX98
 #include <pthread.h>
 
 #include "opcua_basictypes.h"
@@ -50,7 +52,12 @@ UA_Int32 get_node(namespace *ns, UA_NodeId *nodeid, UA_Node ** const result, ns_
 UA_Int32 get_writable_node(namespace *ns, UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock); // use only for _single_ writes.
 UA_Int32 get_tc_node(namespace *ns, transaction_context *tc, UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock);
 UA_Int32 get_tc_writable_node(namespace *ns, transaction_context *tc, UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock); // use only for _single_ writes.
-inline void release_node(ns_lock *lock);
+
+// inline void release_node(ns_lock *lock);
+// portable solution, see http://www.greenend.org.uk/rjk/tech/inline.html
+static inline void release_node(ns_lock *lock) {
+	pthread_rwlock_unlock((pthread_rwlock_t *)lock);
+}
 void delete_node(namespace *ns, UA_NodeId *nodeid);
 
 /* Internal */

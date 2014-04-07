@@ -19,5 +19,5 @@ int main (void)
 {
 	int number_failed = 0;
 
-	return 0;
+	return (number_failed != 0);
 }

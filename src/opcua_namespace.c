@@ -161,9 +161,9 @@ UA_Int32 get_tc_writable_node(namespace *ns, transaction_context *tc, UA_NodeId 
 	return UA_SUCCESS;
 }
 
-inline void release_node(ns_lock *lock) {
-	pthread_rwlock_unlock((pthread_rwlock_t *)lock);
-}
+//inline void release_node(ns_lock *lock) {
+//	pthread_rwlock_unlock((pthread_rwlock_t *)lock);
+//}
 
 void delete_node(namespace *ns, UA_NodeId *nodeid) {
 	ns_entry *slot;

@@ -279,7 +279,7 @@ END_TEST
 START_TEST(UA_String_calcSizeWithNegativLengthAndValidPointerShallReturnEncodingSize)
 {
 	// given
-	UA_String arg = {-1, "OPC"};
+	UA_String arg = {-1, (UA_Byte*) "OPC"};
 	// when
 	UA_Int32 encodingSize = UA_String_calcSize(&arg);
 	// then
@@ -299,7 +299,7 @@ END_TEST
 START_TEST(UA_String_calcSizeWithZeroLengthAndValidPointerShallReturnEncodingSize)
 {
 	// given
-	UA_String arg = {0, "OPC"};
+	UA_String arg = {0, (UA_Byte*) "OPC"};
 	// when
 	UA_Int32 encodingSize = UA_String_calcSize(&arg);
 	// then
@@ -309,7 +309,7 @@ END_TEST
 START_TEST(UA_String_calcSizeShallReturnEncodingSize)
 {
 	// given
-	UA_String arg = {3, "OPC"};
+	UA_String arg = {3, (UA_Byte*) "OPC"};
 	// when
 	UA_Int32 encodingSize = UA_String_calcSize(&arg);
 	// then
@@ -344,7 +344,7 @@ START_TEST(UA_NodeId_calcSizeEncodingStringShallReturnEncodingSize)
 	UA_NodeId arg;
 	arg.encodingByte = UA_NODEIDTYPE_STRING;
 	arg.identifier.string.length = 3;
-	arg.identifier.string.data = "PLT";
+	arg.identifier.string.data = (UA_Byte*) "PLT";
 	// when
 	UA_Int32 encodingSize = UA_NodeId_calcSize(&arg);
 	// then
@@ -473,7 +473,7 @@ START_TEST(UA_Variant_calcSizeVariableSizeArrayShallReturnEncodingSize)
 #define ARRAY_LEN 3
 	arg.arrayLength = ARRAY_LEN;
 	UA_String s1 = {-1, UA_NULL };
-	UA_String s2 = {3, "PLT" };
+	UA_String s2 = {3, (UA_Byte*) "PLT" };
 	UA_String s3 = {47, UA_NULL };
 	UA_String* data[ARRAY_LEN] = { &s1, &s2, &s3 };
 	arg.data = (void**) &data;
@@ -493,7 +493,7 @@ START_TEST(UA_Variant_calcSizeVariableSizeArrayWithNullPtrWillReturnWrongButLarg
 #define ARRAY_LEN 6
 	arg.arrayLength = ARRAY_LEN;
 	UA_String s1 = {-1, UA_NULL };
-	UA_String s2 = {3, "PLT" };
+	UA_String s2 = {3, (UA_Byte*) "PLT" };
 	UA_String s3 = {47, UA_NULL };
 	UA_String* data[ARRAY_LEN] = { &s1, &s2, &s3 }; // will be filled with null-ptrs
 	arg.data = (void**) &data;
@@ -626,7 +626,7 @@ START_TEST(UA_String_decodeWithZeroSizeShallNotAllocateMemoryAndNullPtr)
 	// given
 	UA_Int32 pos = 0;
 	UA_Byte src[] = {0x00,0x00,0x00,0x00,'A','C','P','L','T',' ','U','A',0xFF,0xFF,0xFF,0xFF,0xFF};
-	UA_String dst = { 2, "XX" };
+	UA_String dst = { 2, (UA_Byte*) "XX" };
 	// when
 	UA_Int32 retval = UA_String_decode(src, &pos, &dst);
 	// then

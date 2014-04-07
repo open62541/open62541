@@ -21,7 +21,7 @@ START_TEST(encodeByte_test)
 	UA_ByteString rawMessage;
 	UA_Int32 position = 0;
 	//EncodeByte
-		char *mem = malloc(sizeof(UA_Byte));
+	UA_Byte *mem = malloc(sizeof(UA_Byte));
 		rawMessage.data = mem;
 		UA_Byte testByte = 0x08;
 		rawMessage.length = 1;
@@ -52,7 +52,7 @@ START_TEST(encodeInt16_test)
 
 	ck_assert_int_eq(position, 2);
 	UA_Int32 p = 0;
-	UA_Int16 val;
+	UA_UInt16 val;
 	UA_UInt16_decode(rawMessage.data, &p, &val);
 	ck_assert_int_eq(val,testUInt16);
 	//ck_assert_int_eq(rawMessage.data[0], 0xAB);
@@ -87,7 +87,6 @@ END_TEST
 START_TEST(encodeUInt32_test)
 {
 	UA_ByteString rawMessage;
-	UA_Int32 position = 0;
 	UA_UInt32 value = 0x0101FF00;
 	//EncodeUInt16
 
@@ -115,7 +114,6 @@ END_TEST
 START_TEST(encodeUInt64_test)
 {
 	UA_ByteString rawMessage;
-	UA_Int32 position = 0;
 	UA_UInt64 value = 0x0101FF00FF00FF00;
 	//EncodeUInt16
 
@@ -141,7 +139,6 @@ END_TEST
 START_TEST(encodeInt64_test)
 {
 	UA_ByteString rawMessage;
-	UA_Int32 position = 0;
 	UA_UInt64 value = 0x0101FF00FF00FF00;
 	//EncodeUInt16
 
@@ -168,7 +165,7 @@ START_TEST(encodeFloat_test)
 {
 	UA_Float value = -6.5;
 	UA_Int32 pos = 0;
-	UA_Byte* buf = (char*)malloc(sizeof(UA_Float));
+	UA_Byte* buf = (UA_Byte*)malloc(sizeof(UA_Float));
 
 	UA_Float_encode(&value,&pos,buf);
 
@@ -197,7 +194,7 @@ START_TEST(encodeUAString_test)
 	UA_String string;
 	UA_Int32 l = 11;
 	UA_Byte mem[11] = "ACPLT OPCUA";
-	UA_Byte *dstBuf = (char*) malloc(sizeof(UA_Int32)+l);
+	UA_Byte *dstBuf = (UA_Byte*) malloc(sizeof(UA_Int32)+l);
 	string.data =  mem;
 	string.length = 11;
 
@@ -213,7 +210,7 @@ START_TEST(encodeDataValue_test)
 {
 	UA_DataValue dataValue;
 	UA_Int32 pos = 0, retval;
-	UA_Byte* buf = (char*) malloc(15);
+	UA_Byte* buf = (UA_Byte*) malloc(15);
 	UA_DateTime dateTime;
 	dateTime = 80;
 	dataValue.serverTimestamp = dateTime;
