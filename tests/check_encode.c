@@ -106,9 +106,36 @@ START_TEST(encodeUInt32_test)
 
 }
 END_TEST
-START_TEST(encodeInt32_test)
+START_TEST(encodeInt32ShallEncodeLittleEndian)
 {
-
+	// given
+	UA_Int32 value = 0x01020304;
+	UA_Byte  buf[4];
+	UA_Int32 p = 0;
+	// when
+	UA_Int32_encode(&value,&p,buf);
+	// then
+	ck_assert_int_eq(p,4);
+	ck_assert_uint_eq(buf[0],0x04);
+	ck_assert_uint_eq(buf[1],0x03);
+	ck_assert_uint_eq(buf[2],0x02);
+	ck_assert_uint_eq(buf[3],0x01);
+}
+END_TEST
+START_TEST(encodeInt32NegativeShallEncodeLittleEndian)
+{
+	// given
+	UA_Int32 value = -1;
+	UA_Byte  buf[4];
+	UA_Int32 p = 0;
+	// when
+	UA_Int32_encode(&value,&p,buf);
+	// then
+	ck_assert_int_eq(p,4);
+	ck_assert_uint_eq(buf[0],0xFF);
+	ck_assert_uint_eq(buf[1],0xFF);
+	ck_assert_uint_eq(buf[2],0xFF);
+	ck_assert_uint_eq(buf[3],0xFF);
 }
 END_TEST
 START_TEST(encodeUInt64_test)
@@ -294,7 +321,8 @@ Suite*testSuite_encodeInt32(void)
 {
 	Suite *s = suite_create("encodeInt32_test");
 	TCase *tc_core = tcase_create("Core");
-	tcase_add_test(tc_core, encodeInt32_test);
+	tcase_add_test(tc_core, encodeInt32ShallEncodeLittleEndian);
+	tcase_add_test(tc_core, encodeInt32NegativeShallEncodeLittleEndian);
 	suite_add_tcase(s,tc_core);
 	return s;
 }

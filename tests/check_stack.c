@@ -65,7 +65,6 @@ START_TEST(encode_builtInDatatypeArray_test_String)
 	UA_ByteString s2 = { -1, UA_NULL };
 	UA_ByteString* array[] = { &s1, &s2	};
 	UA_Int32 pos = 0;
-	UA_UInt32 i;
 	UA_Byte buf[256];
 	UA_Byte result[] = {
 			0x02, 0x00, 0x00, 0x00,		// noElements
@@ -78,10 +77,26 @@ START_TEST(encode_builtInDatatypeArray_test_String)
 
 	// check size
 	ck_assert_int_eq(pos, 4 + 4 + 6 + 4);
+	ck_assert_int_eq(pos, sizeof(result));
 	// check result
-	for (i=0; i < sizeof(result); i++) {
-		ck_assert_int_eq(buf[i],result[i]);
-	}
+	ck_assert_int_eq(buf[0],result[0]);
+	ck_assert_int_eq(buf[1],result[1]);
+	ck_assert_int_eq(buf[2],result[2]);
+	ck_assert_int_eq(buf[3],result[3]);
+	ck_assert_int_eq(buf[4],result[4]);
+	ck_assert_int_eq(buf[5],result[5]);
+	ck_assert_int_eq(buf[6],result[6]);
+	ck_assert_int_eq(buf[7],result[7]);
+	ck_assert_int_eq(buf[8],result[8]);
+	ck_assert_int_eq(buf[9],result[9]);
+	ck_assert_int_eq(buf[10],result[10]);
+	ck_assert_int_eq(buf[11],result[11]);
+	ck_assert_int_eq(buf[12],result[12]);
+	ck_assert_int_eq(buf[13],result[13]);
+	ck_assert_int_eq(buf[14],result[14]);
+	ck_assert_int_eq(buf[15],result[15]);
+	ck_assert_int_eq(buf[16],result[16]);
+	ck_assert_int_eq(buf[17],result[17]);
 }
 END_TEST
 

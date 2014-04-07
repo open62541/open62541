@@ -164,14 +164,13 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_SByte)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_UInt16)
 UA_Int32 UA_UInt16_encode(UA_UInt16 const *src, UA_Int32* pos, UA_Byte * dst) {
-	memcpy(&(dst[*pos]), src, sizeof(UA_UInt16));
-	*pos += sizeof(UA_UInt16);
+	dst[(*pos)++] = (*src & 0x00FF) >> 0;
+	dst[(*pos)++] = (*src & 0xFF00) >> 8;
 	return UA_SUCCESS;
 }
 UA_Int32 UA_UInt16_decode(UA_Byte const * src, UA_Int32* pos, UA_UInt16* dst) {
-	UA_Byte t1 = src[(*pos)++];
-	UA_UInt16 t2 = (UA_UInt16) (src[(*pos)++] << 8);
-	*dst = t1 + t2;
+	*dst =  (UA_UInt16) src[(*pos)++] << 0;
+	*dst |= (UA_UInt16) src[(*pos)++] << 8;
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_UInt16)
@@ -181,14 +180,11 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_UInt16)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Int16)
 UA_Int32 UA_Int16_encode(UA_Int16 const * src, UA_Int32* pos, UA_Byte* dst) {
-	memcpy(&(dst[*pos]), src, sizeof(UA_Int16));
-	*pos += sizeof(UA_Int16);
-	return UA_SUCCESS;
+	return UA_UInt16_encode((UA_UInt16 const *) src,pos,dst);
 }
 UA_Int32 UA_Int16_decode(UA_Byte const * src, UA_Int32* pos, UA_Int16 *dst) {
-	UA_Int16 t1 = (UA_Int16) (((UA_SByte) (src[(*pos)++]) & 0xFF));
-	UA_Int16 t2 = (UA_Int16) (((UA_SByte) (src[(*pos)++]) & 0xFF) << 8);
-	*dst = t1 + t2;
+	*dst  = (UA_Int16) (((UA_SByte) (src[(*pos)++]) & 0xFF) << 0);
+	*dst |= (UA_Int16) (((UA_SByte) (src[(*pos)++]) & 0xFF) << 8);
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_Int16)
@@ -198,16 +194,17 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_Int16)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Int32)
 UA_Int32 UA_Int32_encode(UA_Int32 const * src, UA_Int32* pos, UA_Byte* dst) {
-	memcpy(&(dst[*pos]), src, sizeof(UA_Int32));
-	*pos += sizeof(UA_Int32);
+	dst[(*pos)++] = (*src & 0x000000FF) >> 0;
+	dst[(*pos)++] = (*src & 0x0000FF00) >> 8;
+	dst[(*pos)++] = (*src & 0x00FF0000) >> 16;
+	dst[(*pos)++] = (*src & 0xFF000000) >> 24;
 	return UA_SUCCESS;
 }
 UA_Int32 UA_Int32_decode(UA_Byte const * src, UA_Int32* pos, UA_Int32* dst) {
-	UA_Int32 t1 = (UA_Int32) (((UA_SByte) (src[(*pos)++]) & 0xFF));
-	UA_Int32 t2 = (UA_Int32) (((UA_SByte) (src[(*pos)++]) & 0xFF) << 8);
-	UA_Int32 t3 = (UA_Int32) (((UA_SByte) (src[(*pos)++]) & 0xFF) << 16);
-	UA_Int32 t4 = (UA_Int32) (((UA_SByte) (src[(*pos)++]) & 0xFF) << 24);
-	*dst = t1 + t2 + t3 + t4;
+	*dst  = (UA_Int32) (((UA_SByte) (src[(*pos)++]) & 0xFF) << 0);
+	*dst |= (UA_Int32) (((UA_SByte) (src[(*pos)++]) & 0xFF) << 8);
+	*dst |= (UA_Int32) (((UA_SByte) (src[(*pos)++]) & 0xFF) << 16);
+	*dst |= (UA_Int32) (((UA_SByte) (src[(*pos)++]) & 0xFF) << 24);
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_Int32)
@@ -217,9 +214,7 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_Int32)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_UInt32)
 UA_Int32 UA_UInt32_encode(UA_UInt32 const * src, UA_Int32* pos, UA_Byte* dst) {
-	memcpy(&(dst[*pos]), src, sizeof(UA_UInt32));
-	*pos += sizeof(UA_UInt32);
-	return UA_SUCCESS;
+	return UA_Int32_encode((UA_Int32 const *)src,pos,dst);
 }
 UA_Int32 UA_UInt32_decode(UA_Byte const * src, UA_Int32* pos, UA_UInt32 *dst) {
 	UA_UInt32 t1 = (UA_UInt32)((UA_Byte)(src[(*pos)++] & 0xFF));
@@ -236,20 +231,25 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_UInt32)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Int64)
 UA_Int32 UA_Int64_encode(UA_Int64 const * src, UA_Int32* pos, UA_Byte *dst) {
-	memcpy(&(dst[*pos]), src, sizeof(UA_Int64));
-	*pos += sizeof(UA_Int64);
+	dst[(*pos)++] = (*src & 0x00000000000000FF) >> 0;
+	dst[(*pos)++] = (*src & 0x000000000000FF00) >> 8;
+	dst[(*pos)++] = (*src & 0x0000000000FF0000) >> 16;
+	dst[(*pos)++] = (*src & 0x00000000FF000000) >> 24;
+	dst[(*pos)++] = (*src & 0x000000FF00000000) >> 32;
+	dst[(*pos)++] = (*src & 0x0000FF0000000000) >> 40;
+	dst[(*pos)++] = (*src & 0x00FF000000000000) >> 48;
+	dst[(*pos)++] = (*src & 0xFF00000000000000) >> 56;
 	return UA_SUCCESS;
 }
 UA_Int32 UA_Int64_decode(UA_Byte const * src, UA_Int32* pos, UA_Int64* dst) {
-	UA_Int64 t1 = (UA_Int64) src[(*pos)++];
-	UA_Int64 t2 = (UA_Int64) src[(*pos)++] << 8;
-	UA_Int64 t3 = (UA_Int64) src[(*pos)++] << 16;
-	UA_Int64 t4 = (UA_Int64) src[(*pos)++] << 24;
-	UA_Int64 t5 = (UA_Int64) src[(*pos)++] << 32;
-	UA_Int64 t6 = (UA_Int64) src[(*pos)++] << 40;
-	UA_Int64 t7 = (UA_Int64) src[(*pos)++] << 48;
-	UA_Int64 t8 = (UA_Int64) src[(*pos)++] << 56;
-	*dst = t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8;
+	*dst  = (UA_Int64) src[(*pos)++] << 0;
+	*dst |= (UA_Int64) src[(*pos)++] << 8;
+	*dst |= (UA_Int64) src[(*pos)++] << 16;
+	*dst |= (UA_Int64) src[(*pos)++] << 24;
+	*dst |= (UA_Int64) src[(*pos)++] << 32;
+	*dst |= (UA_Int64) src[(*pos)++] << 40;
+	*dst |= (UA_Int64) src[(*pos)++] << 48;
+	*dst |= (UA_Int64) src[(*pos)++] << 56;
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_DELETE_FREE(UA_Int64)
@@ -259,9 +259,7 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_Int64)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_UInt64)
 UA_Int32 UA_UInt64_encode(UA_UInt64 const * src , UA_Int32* pos, UA_Byte * dst) {
-	memcpy(&(dst[*pos]), src, sizeof(UA_UInt64));
-	*pos += sizeof(UA_UInt64);
-	return UA_SUCCESS;
+	return UA_Int64_encode((UA_Int64 const *)src,pos,dst);
 }
 UA_Int32 UA_UInt64_decode(UA_Byte const * src, UA_Int32* pos, UA_UInt64* dst) {
 	UA_UInt64 t1 = (UA_UInt64) src[(*pos)++];

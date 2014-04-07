@@ -576,8 +576,8 @@ START_TEST(UA_UInt16_decodeShallNotRespectSign)
 	// given
 	UA_Int32 pos = 0;
 	UA_Byte src[] = {
-			0xFF,0xFF,	// -1
-			0x00,0x80,	// -32768
+			0xFF,0xFF,	// (2^16)-1
+			0x00,0x80,	// (2^15)
 	};
 	// when
 	UA_UInt16 val_ff_ff, val_00_80;
@@ -588,6 +588,62 @@ START_TEST(UA_UInt16_decodeShallNotRespectSign)
 	ck_assert_int_eq(pos,4);
 	ck_assert_uint_eq(val_ff_ff, (0x01 << 16)-1);
 	ck_assert_uint_eq(val_00_80, (0x01 << 15));
+}
+END_TEST
+START_TEST(UA_Int32_decodeShallAssumeLittleEndian)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = {
+			0x01,0x00,0x00,0x00,	// 1
+			0x00,0x01,0x00,0x00		// 256
+	};
+	// when
+	UA_Int32 val_01_00, val_00_01;
+	UA_Int32 retval = UA_Int32_decode(src,&pos,&val_01_00);
+	retval |= UA_Int32_decode(src,&pos,&val_00_01);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(val_01_00,1);
+	ck_assert_int_eq(val_00_01,256);
+	ck_assert_int_eq(pos,8);
+}
+END_TEST
+START_TEST(UA_Int32_decodeShallRespectSign)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = {
+			0xFF,0xFF,0xFF,0xFF,	// -1
+			0x00,0x80,0xFF,0xFF		// -32768
+	};
+	// when
+	UA_Int32 val_ff_ff, val_00_80;
+	UA_Int32 retval = UA_Int32_decode(src,&pos,&val_ff_ff);
+	retval |= UA_Int32_decode(src,&pos,&val_00_80);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(val_ff_ff,-1);
+	ck_assert_int_eq(val_00_80,-32768);
+}
+END_TEST
+START_TEST(UA_UInt32_decodeShallNotRespectSign)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = {
+			0xFF,0xFF,0xFF,0xFF,	// (2^32)-1
+			0x00,0x00,0x00,0x80		// (2^31)
+	};
+	// when
+	UA_UInt32 val_ff_ff, val_00_80;
+	UA_Int32 retval = UA_UInt32_decode(src,&pos,&val_ff_ff);
+	retval |= UA_UInt32_decode(src,&pos,&val_00_80);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(pos,8);
+	ck_assert_uint_eq(val_ff_ff, (UA_UInt32) ( (0x01LL << 32 ) - 1 ));
+	ck_assert_uint_eq(val_00_80, (UA_UInt32) (0x01 << 31));
 }
 END_TEST
 START_TEST(UA_String_decodeShallAllocateMemoryAndCopyString)
@@ -836,6 +892,9 @@ Suite *testSuite_builtin(void)
 	tcase_add_test(tc_decode, UA_Int16_decodeShallAssumeLittleEndian);
 	tcase_add_test(tc_decode, UA_Int16_decodeShallRespectSign);
 	tcase_add_test(tc_decode, UA_UInt16_decodeShallNotRespectSign);
+	tcase_add_test(tc_decode, UA_Int32_decodeShallAssumeLittleEndian);
+	tcase_add_test(tc_decode, UA_Int32_decodeShallRespectSign);
+	tcase_add_test(tc_decode, UA_UInt32_decodeShallNotRespectSign);
 	tcase_add_test(tc_decode, UA_String_decodeShallAllocateMemoryAndCopyString);
 	tcase_add_test(tc_decode, UA_String_decodeWithNegativeSizeShallNotAllocateMemoryAndNullPtr);
 	tcase_add_test(tc_decode, UA_String_decodeWithZeroSizeShallNotAllocateMemoryAndNullPtr);
