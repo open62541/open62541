@@ -1,6 +1,7 @@
 #include <stdio.h>	// printf
 #include <stdlib.h>	// alloc, free
 #include <string.h>
+#include <math.h>   // pow
 #include "opcua.h"
 #include "opcua_basictypes.h"
 
@@ -279,10 +280,22 @@ UA_TYPE_METHOD_INIT_DEFAULT(UA_UInt64)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_UInt64)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Float)
-// FIXME: Implement
+// FIXME: Implement NaN, Inf and Zero(s)
 UA_Int32 UA_Float_decode(UA_Byte const * src, UA_Int32* pos, UA_Float* dst) {
-	memcpy(dst, &(src[*pos]), sizeof(UA_Float));
-	*pos += sizeof(UA_Float);
+	UA_Float mantissa;
+	mantissa = (UA_Float) (src[*pos] & 0xFF);							// bits 0-7
+	mantissa = (mantissa / 256.0 ) + (UA_Float) (src[*pos+1] & 0xFF); 	// bits 8-15
+	mantissa = (mantissa / 256.0 ) + (UA_Float) (src[*pos+2] & 0x7F); 	// bits 16-22
+	UA_UInt32 biasedExponent ;
+	biasedExponent  = (src[*pos+2] & 0x80) >>  7;	// bits 23
+	biasedExponent |= (src[*pos+3] & 0x7F) <<  1;	// bits 24-30
+	UA_Float sign = ( src[*pos + 3] & 0x80 ) ? -1.0 : 1.0; // bit 31
+	if (biasedExponent >= 127) {
+		*dst = (UA_Float) sign * (1 << (biasedExponent-127)) * (1.0 + mantissa / 128.0 );
+	} else {
+		*dst = (UA_Float) sign * 2.0 * (1.0 + mantissa / 128.0 ) / ((UA_Float) (biasedExponent-127));
+	}
+	*pos += 4;
 	return UA_SUCCESS;
 }
 // FIXME: Implement
@@ -301,14 +314,32 @@ UA_Int32 UA_Float_init(UA_Float * p){
 UA_TYPE_METHOD_NEW_DEFAULT(UA_Float)
 
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Double)
-// FIXME: Implement
+// FIXME: Implement NaN, Inf and Zero(s)
 UA_Int32 UA_Double_decode(UA_Byte const * src, UA_Int32* pos, UA_Double * dst) {
-	UA_Double tmpDouble;
-	tmpDouble = (UA_Double) (src[*pos]);
-	*pos += sizeof(UA_Double);
-	*dst = tmpDouble;
+	UA_Double mantissa;
+	mantissa = (UA_Double) (src[*pos] & 0xFF);							// bits 0-7
+	mantissa = (mantissa / 256.0 ) + (UA_Double) (src[*pos+1] & 0xFF); 	// bits 8-15
+	mantissa = (mantissa / 256.0 ) + (UA_Double) (src[*pos+2] & 0xFF); 	// bits 16-23
+	mantissa = (mantissa / 256.0 ) + (UA_Double) (src[*pos+3] & 0xFF); 	// bits 24-31
+	mantissa = (mantissa / 256.0 ) + (UA_Double) (src[*pos+4] & 0xFF); 	// bits 32-39
+	mantissa = (mantissa / 256.0 ) + (UA_Double) (src[*pos+5] & 0xFF); 	// bits 40-47
+	mantissa = (mantissa / 256.0 ) + (UA_Double) (src[*pos+6] & 0x0F); 	// bits 48-51
+	printf("mantissa = %f\n", mantissa);
+	UA_UInt32 biasedExponent ;
+	biasedExponent  = (src[*pos+6] & 0xF0) >>  4;				// bits 52-55
+	printf("biasedExponent=%d, src=%d\n", biasedExponent,src[*pos+6]);
+	biasedExponent |= ((UA_UInt32) (src[*pos+7] & 0x7F)) <<  4;	// bits 56-62
+	printf("biasedExponent=%d, src=%d\n", biasedExponent,src[*pos+7]);
+	UA_Double sign = ( src[*pos+7] & 0x80 ) ? -1.0 : 1.0; // bit 63
+	if (biasedExponent >= 1023) {
+		*dst = (UA_Double) sign * (1 << (biasedExponent-1023)) * (1.0 + mantissa / 8.0 );
+	} else {
+		*dst = (UA_Double) sign * 2.0 * (1.0 + mantissa / 8.0 ) / ((UA_Double) (biasedExponent-1023));
+	}
+	*pos += 8;
 	return UA_SUCCESS;
 }
+
 // FIXME: Implement
 UA_Int32 UA_Double_encode(UA_Double const * src, UA_Int32 *pos, UA_Byte* dst) {
 	memcpy(&(dst[*pos]), src, sizeof(UA_Double));

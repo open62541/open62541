@@ -646,6 +646,54 @@ START_TEST(UA_UInt32_decodeShallNotRespectSign)
 	ck_assert_uint_eq(val_00_80, (UA_UInt32) (0x01 << 31));
 }
 END_TEST
+START_TEST(UA_Float_decodeShallWorkOnExample)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = { 0x00,0x00,0xD0,0xC0 }; // -6.5
+	UA_Float dst;
+	// when
+	UA_Int32 retval = UA_Float_decode(src,&pos,&dst);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(pos,4);
+	ck_assert(-6.5000001 < dst);
+	ck_assert(dst < -6.49999999999);
+}
+END_TEST
+
+START_TEST(UA_Double_decodeShallGiveOne)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = { 0x00,0x00,0x00,0x00,0x00,0x00,0xF0,0x3F }; // 1
+	UA_Double dst;
+	// when
+	UA_Int32 retval = UA_Double_decode(src,&pos,&dst);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(pos,8);
+	printf("UA_Double_decodeShallGiveOne %f\n",dst);
+	ck_assert(0.9999999 < dst);
+	ck_assert(dst < 1.00000000001);
+}
+END_TEST
+START_TEST(UA_Double_decodeShallGiveMinusTwo)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = { 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xC0 }; // -2
+	UA_Double dst;
+	// when
+	UA_Int32 retval = UA_Double_decode(src,&pos,&dst);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(pos,8);
+	ck_assert(-1.9999999 > dst);
+	ck_assert(dst > -2.00000000001);
+}
+END_TEST
+
 START_TEST(UA_String_decodeShallAllocateMemoryAndCopyString)
 {
 	// given
@@ -895,6 +943,9 @@ Suite *testSuite_builtin(void)
 	tcase_add_test(tc_decode, UA_Int32_decodeShallAssumeLittleEndian);
 	tcase_add_test(tc_decode, UA_Int32_decodeShallRespectSign);
 	tcase_add_test(tc_decode, UA_UInt32_decodeShallNotRespectSign);
+	tcase_add_test(tc_decode, UA_Float_decodeShallWorkOnExample);
+	tcase_add_test(tc_decode, UA_Double_decodeShallGiveOne);
+	tcase_add_test(tc_decode, UA_Double_decodeShallGiveMinusTwo);
 	tcase_add_test(tc_decode, UA_String_decodeShallAllocateMemoryAndCopyString);
 	tcase_add_test(tc_decode, UA_String_decodeWithNegativeSizeShallNotAllocateMemoryAndNullPtr);
 	tcase_add_test(tc_decode, UA_String_decodeWithZeroSizeShallNotAllocateMemoryAndNullPtr);
