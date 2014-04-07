@@ -26,6 +26,7 @@ typedef void (*UA_list_ElementVisitor)(UA_list_Element* payload);
 
 //typedef Boolean (*UA_list_PayloadMatcher)(void* payload);
 typedef _Bool (*UA_list_PayloadMatcher)(void* payload);
+typedef _Bool (*UA_list_PayloadComparer)(void* payload, void* otherPayload);
 
 void UA_list_defaultFreer(void* payload);
 
@@ -54,6 +55,8 @@ UA_Int32 UA_list_iterateElement(UA_list_List* const list, UA_list_ElementVisitor
 UA_Int32 UA_list_iteratePayload(UA_list_List* const list, UA_list_PayloadVisitor visitor);
 
 UA_list_Element* UA_list_find(UA_list_List* const list, UA_list_PayloadMatcher matcher);
+
+UA_list_Element* UA_list_search(UA_list_List* const list, UA_list_PayloadComparer compare, void* payload);
 
 UA_list_Element* UA_list_getFirst(UA_list_List* const list);
 

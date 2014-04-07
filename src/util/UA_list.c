@@ -205,6 +205,21 @@ UA_list_Element* UA_list_find(UA_list_List* const list, UA_list_PayloadMatcher m
 	return UA_NULL;
 }
 
+UA_list_Element* UA_list_search(UA_list_List* const list, UA_list_PayloadComparer compare, void* payload){
+	if(list==UA_NULL)return UA_NULL;
+	if(compare){
+		UA_list_Element* current = list->first;
+		while(current){
+			if(compare && (*compare)(current->payload, payload)==TRUE){
+				return current;
+			}
+			current=current->next;
+		}
+	}
+	/* nothing found */
+	return UA_NULL;
+}
+
 UA_list_Element* UA_list_getFirst(UA_list_List* const list){
 	if(list==UA_NULL)return UA_NULL;
 	return list->first;

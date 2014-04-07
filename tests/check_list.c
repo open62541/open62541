@@ -18,13 +18,21 @@ void freer(void* payload){
 }
 
 _Bool matcher(void* payload){
-	if(payload == NULL){
+	if(payload == UA_NULL){
 		return FALSE;
 	}
 	if(*((UA_Int32*)payload) == 42){
 		return TRUE;
 	}
 	return FALSE;
+}
+
+_Bool comparer(void* payload, void* otherPayload) {
+	if(payload == UA_NULL || otherPayload == UA_NULL){
+		return UA_FALSE;
+	} else {
+		return ( *((UA_Int32*)payload) == *((UA_Int32*)otherPayload) );
+	}
 }
 
 START_TEST(list_test_basic)
@@ -72,11 +80,78 @@ START_TEST(list_test_basic)
 }
 END_TEST
 
+void myAddPayloadValueToFront(UA_list_List *list, UA_Int32 payloadValue) {
+	UA_Int32* payload;
+	UA_alloc((void**)&payload, sizeof(*payload));
+	*payload = payloadValue;
+	UA_list_addPayloadToFront(list, payload);
+}
+void myAddPayloadVectorToFront(UA_list_List *list, UA_Int32 payloadValues[], UA_Int32 n) {
+	UA_Int32 i = 0;
+	for (;i<n;i++) {
+		myAddPayloadValueToFront(list,payloadValues[i]);
+	}
+}
+
+
+START_TEST(addElementsShallResultInRespectiveSize)
+{
+	// given
+	UA_list_List list;
+	UA_list_init(&list);
+	// when
+	UA_Int32 plv[] = {42,24,1};
+	myAddPayloadVectorToFront(&list,plv,sizeof(plv)/sizeof(UA_Int32));
+	// then
+	ck_assert_int_eq(list.size, 3);
+	// finally
+	UA_list_destroy(&list, freer);
+}
+END_TEST
+
+START_TEST(findElementShallFind42)
+{
+	// given
+	UA_list_List list;
+	UA_list_init(&list);
+	UA_Int32 plv[] = {42,24,1};
+	myAddPayloadVectorToFront(&list,plv,sizeof(plv)/sizeof(UA_Int32));
+	// when
+	UA_list_Element* e = UA_list_find(&list,matcher);
+	// then
+	ck_assert_ptr_ne(e, UA_NULL);
+	ck_assert_int_eq(*(UA_Int32*)(e->payload), 42);
+	// finally
+	UA_list_destroy(&list, freer);
+}
+END_TEST
+
+START_TEST(searchElementShallFind24)
+{
+	// given
+	UA_list_List list;
+	UA_list_init(&list);
+	UA_Int32 plv[] = {42,24,1};
+	myAddPayloadVectorToFront(&list,plv,sizeof(plv)/sizeof(UA_Int32));
+	UA_Int32 payload = 24;
+	// when
+	UA_list_Element* e = UA_list_search(&list,comparer,(void*)&payload);
+	// then
+	ck_assert_ptr_ne(e, UA_NULL);
+	ck_assert_int_eq(*(UA_Int32*)(e->payload), 24);
+	// finally
+	UA_list_destroy(&list, freer);
+}
+END_TEST
+
 Suite*list_testSuite(void)
 {
 	Suite *s = suite_create("list_test");
 	TCase *tc_core = tcase_create("Core");
 	tcase_add_test(tc_core, list_test_basic);
+	tcase_add_test(tc_core, addElementsShallResultInRespectiveSize);
+	tcase_add_test(tc_core, findElementShallFind42);
+	tcase_add_test(tc_core, searchElementShallFind24);
 	suite_add_tcase(s,tc_core);
 	return s;
 }
