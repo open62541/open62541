@@ -1,7 +1,6 @@
 #include <stdio.h>	// printf
 #include <stdlib.h>	// alloc, free
 #include <string.h>
-#include <math.h>   // pow
 #include "opcua.h"
 #include "opcua_basictypes.h"
 

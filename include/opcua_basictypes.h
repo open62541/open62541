@@ -16,7 +16,7 @@
 # undef DBG_ERR
 # define DBG_ERR(expression) expression
 # if defined(VERBOSE)
-#  undef DB_VERBOSE
+#  undef DBG_VERBOSE
 #  define DBG_VERBOSE(expression) expression
 # endif
 #endif

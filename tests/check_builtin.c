@@ -678,6 +678,22 @@ START_TEST(UA_Double_decodeShallGiveOne)
 	ck_assert(dst < 1.00000000001);
 }
 END_TEST
+START_TEST(UA_Double_decodeShallGiveZero)
+{
+	// given
+	UA_Int32 pos = 0;
+	UA_Byte src[] = { 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00 }; // 1
+	UA_Double dst;
+	// when
+	UA_Int32 retval = UA_Double_decode(src,&pos,&dst);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(pos,8);
+	printf("UA_Double_decodeShallGiveZero %f\n",dst);
+	ck_assert(-0.00000001 < dst);
+	ck_assert(dst < 0.000000001);
+}
+END_TEST
 START_TEST(UA_Double_decodeShallGiveMinusTwo)
 {
 	// given
@@ -945,6 +961,7 @@ Suite *testSuite_builtin(void)
 	tcase_add_test(tc_decode, UA_UInt32_decodeShallNotRespectSign);
 	tcase_add_test(tc_decode, UA_Float_decodeShallWorkOnExample);
 	tcase_add_test(tc_decode, UA_Double_decodeShallGiveOne);
+	tcase_add_test(tc_decode, UA_Double_decodeShallGiveZero);
 	tcase_add_test(tc_decode, UA_Double_decodeShallGiveMinusTwo);
 	tcase_add_test(tc_decode, UA_String_decodeShallAllocateMemoryAndCopyString);
 	tcase_add_test(tc_decode, UA_String_decodeWithNegativeSizeShallNotAllocateMemoryAndNullPtr);
