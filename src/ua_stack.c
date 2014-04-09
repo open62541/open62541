@@ -4,10 +4,11 @@
 #include <sys/socketvar.h>
 
 #include <unistd.h> // read, write, close
+#include <stdlib.h> // exit
 #include <errno.h> // errno, EINTR
 
 #include <memory.h> // memset
-#include <pthread.h>
+#include <fcntl.h> // fcntl
 
 #include "ua_stack.h"
 #include "ua_transportLayer.h"
@@ -19,42 +20,76 @@ UA_TL_Description UA_TransportLayerDescriptorTcpBinary  = {
 		{-1,8192,8192,16384,1}
 };
 
-// TODO: do we really need a variable global to the module?
+// TODO: We currently need a variable global to the module!
 UA_TL_data theTL;
 
-/** the tcp reader thread **/
+_Bool connectionComparer(void *p1, void* p2) {
+	UA_TL_connection* c1 = (UA_TL_connection*) p1;
+	UA_TL_connection* c2 = (UA_TL_connection*) p2;
+	return (c1->connectionHandle == c2->connectionHandle);
+}
+
+int UA_TL_TCP_SetNonBlocking(int sock) {
+	int opts = fcntl(sock,F_GETFL);
+	if (opts < 0) {
+		perror("fcntl(F_GETFL)");
+		return -1;
+	}
+	opts = (opts | O_NONBLOCK);
+	if (fcntl(sock,F_SETFL,opts) < 0) {
+		perror("fcntl(F_SETFL)");
+		return -1;
+	}
+	return 0;
+}
+
+/** the tcp reader thread - single shot if single-threaded, looping until CLOSE if multi-threaded
+ */
 void* UA_TL_TCP_reader(void *p) {
 	UA_TL_connection* c = (UA_TL_connection*) p;
 
 	UA_ByteString readBuffer;
 	UA_alloc((void**)&(readBuffer.data),c->localConf.recvBufferSize);
 
-	while (c->connectionState != connectionState_CLOSE) {
-		readBuffer.length = read(c->connectionHandle, readBuffer.data, c->localConf.recvBufferSize);
+	if (c->connectionState != connectionState_CLOSE) {
+		do {
+			printf("UA_TL_TCP_reader - enter read\n");
+			readBuffer.length = read(c->connectionHandle, readBuffer.data, c->localConf.recvBufferSize);
+			printf("UA_TL_TCP_reader - leave read\n");
 
-		printf("UA_TL_TCP_reader - %*.s ",c->remoteEndpointUrl.length,c->remoteEndpointUrl.data);
-		UA_ByteString_printx("received=",&readBuffer);
+			printf("UA_TL_TCP_reader - %*.s ",c->remoteEndpointUrl.length,c->remoteEndpointUrl.data);
+			UA_ByteString_printx("received=",&readBuffer);
 
-		if (readBuffer.length  > 0) {
-			TL_process(c,&readBuffer);
-		} else {
-			c->connectionState = connectionState_CLOSE;
-			perror("ERROR reading from socket1");
-		}
+			if (readBuffer.length  > 0) {
+				TL_process(c,&readBuffer);
+			} else {
+				c->connectionState = connectionState_CLOSE;
+				perror("ERROR reading from socket1");
+			}
+		} while (c->connectionState != connectionState_CLOSE && theTL.threaded == UA_STACK_MULTITHREADED);
 	}
-	// clean up: socket, buffer, connection
-	// free resources allocated with socket
-	printf("UA_TL_TCP_reader - shutdown\n");
-	shutdown(c->connectionHandle,2);
-	close(c->connectionHandle);
-	c->connectionState = connectionState_CLOSED;
-	UA_ByteString_deleteMembers(&readBuffer);
-	// FIXME: standard C has no lambdas, we need a matcher with two arguments
-	// UA_list_Element* lec = UA_list_findFirst(theTL,c,compare);
-	// TODO: can we get get rid of reference to theTL?
-	UA_list_Element* lec = UA_list_find(&theTL.connections,UA_NULL);
-	UA_list_removeElement(lec,UA_NULL);
-	UA_free(c);
+	if (c->connectionState == connectionState_CLOSE) {
+		// clean up: socket, buffer, connection
+		// free resources allocated with socket
+		if (theTL.threaded == UA_STACK_SINGLETHREADED) {
+			printf("UA_TL_TCP_reader - remove handle=%d from fd_set\n",c->connectionHandle);
+			// FD_CLR(c->connectionHandle,&(theTL.readerHandles));
+		}
+		printf("UA_TL_TCP_reader - shutdown\n");
+		printf("UA_TL_TCP_reader - enter shutdown\n");
+		shutdown(c->connectionHandle,2);
+		printf("UA_TL_TCP_reader - enter close\n");
+		close(c->connectionHandle);
+		printf("UA_TL_TCP_reader - leave close\n");
+		c->connectionState = connectionState_CLOSED;
+
+		UA_ByteString_deleteMembers(&readBuffer);
+		printf("UA_TL_TCP_reader - search element to remove\n");
+		UA_list_Element* lec = UA_list_search(&theTL.connections,connectionComparer,c);
+		printf("UA_TL_TCP_reader - remove handle=%d\n",((UA_TL_connection*)lec->payload)->connectionHandle);
+		UA_list_removeElement(lec,UA_NULL);
+		UA_free(c);
+	}
 	return UA_NULL;
 }
 
@@ -65,7 +100,9 @@ UA_Int32 UA_TL_TCP_write(struct T_TL_connection* c, UA_ByteString* msg) {
 	while (nWritten < msg->length) {
 		int n=0;
 		do {
+			printf("UA_TL_TCP_write - enter write\n");
 			n = write(c->connectionHandle, &(msg->data[nWritten]), msg->length-nWritten);
+			printf("UA_TL_TCP_write - leave write with n=%d,errno=%d\n",n,errno);
 		} while (n == -1L && errno == EINTR);
 		if (n >= 0) {
 			nWritten += n;
@@ -76,22 +113,33 @@ UA_Int32 UA_TL_TCP_write(struct T_TL_connection* c, UA_ByteString* msg) {
 	return UA_SUCCESS;
 }
 
-/** the tcp listener thread **/
+/** the tcp listener routine.
+ *  does a single shot if single threaded, runs forever if multithreaded
+ */
 void* UA_TL_TCP_listen(void *p) {
 	UA_TL_data* tld = (UA_TL_data*) p;
 
 	UA_String_printf("open62541-server at ",&(tld->endpointUrl));
-	while (UA_TRUE) {
-		listen(tld->listenerHandle, tld->tld->maxConnections);
+	do {
+		printf("UA_TL_TCP_listen - enter listen\n");
+		int retval = listen(tld->listenerHandle, tld->tld->maxConnections);
+		printf("UA_TL_TCP_listen - leave listen, retval=%d\n",retval);
 
-		// accept only if not max number of connections exceeded
-		if (tld->tld->maxConnections == -1 || tld->connections.size < tld->tld->maxConnections) {
+		if (retval < 0) {
+			// TODO: Error handling
+			printf("UA_TL_TCP_listen retval=%d, errno=%d\n",retval,errno);
+		} else if (tld->tld->maxConnections == -1 || tld->connections.size < tld->tld->maxConnections) {
+			// accept only if not max number of connections exceede
 			struct sockaddr_in cli_addr;
 			socklen_t cli_len = sizeof(cli_addr);
+			printf("UA_TL_TCP_listen - enter accept\n");
 			int newsockfd = accept(tld->listenerHandle, (struct sockaddr *) &cli_addr, &cli_len);
+			printf("UA_TL_TCP_listen - leave accept\n");
 			if (newsockfd < 0) {
+				printf("UA_TL_TCP_listen - accept returns errno=%d\n",errno);
 				perror("ERROR on accept");
 			} else {
+				printf("UA_TL_TCP_listen - new connection on %d\n",newsockfd);
 				UA_TL_connection* c;
 				UA_Int32 retval = UA_SUCCESS;
 				retval |= UA_alloc((void**)&c,sizeof(UA_TL_connection));
@@ -100,14 +148,81 @@ void* UA_TL_TCP_listen(void *p) {
 				c->UA_TL_writer = UA_TL_TCP_write;
 				// add to list
 				UA_list_addPayloadToBack(&(tld->connections),c);
-				// TODO: handle retval of pthread_create
-				pthread_create( &(c->readerThread), NULL, UA_TL_TCP_reader, (void*) c);
+				if (tld->threaded == UA_STACK_MULTITHREADED) {
+					// TODO: handle retval of pthread_create
+					pthread_create( &(c->readerThread), NULL, UA_TL_TCP_reader, (void*) c);
+				} else {
+					UA_TL_TCP_SetNonBlocking(c->connectionHandle);
+				}
 			}
 		} else {
 			// no action necessary to reject connection
 		}
-	}
+	} while (tld->threaded == UA_STACK_MULTITHREADED);
 	return UA_NULL;
+}
+
+void checkFdSet(void* payload) {
+  UA_TL_connection* c = (UA_TL_connection*) payload;
+  if (FD_ISSET(c->connectionHandle, &(theTL.readerHandles))) {
+	  UA_TL_TCP_reader((void*)c);
+  }
+}
+
+int maxHandle;
+void UA_TL_addHandleToSet(UA_Int32 handle) {
+	FD_SET(handle, &(theTL.readerHandles));
+	maxHandle = (handle > maxHandle) ? handle : maxHandle;
+}
+void setFdSet(void* payload) {
+  UA_TL_connection* c = (UA_TL_connection*) payload;
+  UA_TL_addHandleToSet(c->connectionHandle);
+}
+
+UA_Int32 UA_Stack_msgLoop(struct timeval *tv, UA_Int32(*worker)(void*), void *arg)  {
+	UA_Int32 result;
+	while (UA_TRUE) {
+		// determine the largest handle
+		maxHandle = 0;
+		UA_list_iteratePayload(&theTL.connections,setFdSet);
+		UA_TL_addHandleToSet(theTL.listenerHandle);
+		printf("UA_Stack_msgLoop - maxHandle=%d\n", maxHandle);
+
+		// copy tv, some unixes do overwrite and return the remaining time
+		struct timeval tmptv;
+		memcpy(&tmptv,tv,sizeof(struct timeval));
+
+		// and wait
+		printf("UA_Stack_msgLoop - enter select sec=%d,usec=%d\n",(UA_Int32) tmptv.tv_sec, (UA_Int32) tmptv.tv_usec);
+		result = select(maxHandle + 1, &(theTL.readerHandles), UA_NULL, UA_NULL,&tmptv);
+		printf("UA_Stack_msgLoop - leave select result=%d,sec=%d,usec=%d\n",result, (UA_Int32) tmptv.tv_sec, (UA_Int32) tmptv.tv_usec);
+		if (result == 0) {
+			int err = errno;
+			switch (err) {
+			case EBADF:
+				printf("UA_Stack_msgLoop - result=bad file\n"); //FIXME: handle
+				break;
+			case EINTR:
+				printf("UA_Stack_msgLoop - result=interupted\n"); //FIXME: handle
+				break;
+			case EINVAL:
+				printf("UA_Stack_msgLoop - result=bad arguments\n"); //FIXME: handle
+				break;
+			case EAGAIN:
+				printf("UA_Stack_msgLoop - result=do it again\n"); //FIXME: handle
+			default:
+				printf("UA_Stack_msgLoop - result=%d\n",err); //FIXME: handle
+				worker(arg);
+			}
+		} else if (FD_ISSET(theTL.listenerHandle,&theTL.readerHandles)) { // activity on listener port
+			printf("UA_Stack_msgLoop - connection request\n");
+			UA_TL_TCP_listen((void*)&theTL);
+		} else { // activity on client ports
+			printf("UA_Stack_msgLoop - activities on %d handles\n",result);
+			UA_list_iteratePayload(&theTL.connections,checkFdSet);
+		}
+	}
+	return UA_SUCCESS;
 }
 
 UA_Int32 UA_TL_TCP_init(UA_TL_data* tld, UA_Int32 port) {
@@ -115,6 +230,7 @@ UA_Int32 UA_TL_TCP_init(UA_TL_data* tld, UA_Int32 port) {
 	// socket variables
 	int optval = 1;
 	struct sockaddr_in serv_addr;
+
 
 	// create socket for listening to incoming connections
 	tld->listenerHandle = socket(PF_INET, SOCK_STREAM, 0);
@@ -127,8 +243,7 @@ UA_Int32 UA_TL_TCP_init(UA_TL_data* tld, UA_Int32 port) {
 		serv_addr.sin_family = AF_INET;
 		serv_addr.sin_addr.s_addr = INADDR_ANY;
 		serv_addr.sin_port = htons(port);
-		if (setsockopt(tld->listenerHandle, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval)
-				== -1) {
+		if (setsockopt(tld->listenerHandle, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval) == -1 ) {
 			perror("setsockopt");
 			retval = UA_ERROR;
 		} else {
@@ -145,17 +260,23 @@ UA_Int32 UA_TL_TCP_init(UA_TL_data* tld, UA_Int32 port) {
 	}
 	// finally
 	if (retval == UA_SUCCESS) {
-		// TODO: handle retval of pthread_create
-		pthread_create( &tld->listenerThreadHandle, NULL, UA_TL_TCP_listen, (void*) tld);
+		if (tld->threaded == UA_STACK_MULTITHREADED) {
+			// TODO: handle retval of pthread_create
+			pthread_create( &tld->listenerThreadHandle, NULL, UA_TL_TCP_listen, (void*) tld);
+		} else {
+			UA_TL_TCP_SetNonBlocking(tld->listenerHandle);
+			FD_ZERO(&(tld->readerHandles));
+		}
 	}
 	return retval;
 }
 
 /** checks arguments and dispatches to worker or refuses to init */
-UA_Int32 UA_TL_init(UA_TL_Description* tlDesc, UA_Int32 port) {
+UA_Int32 UA_TL_init(UA_TL_Description* tlDesc, UA_Int32 port, UA_Int32 threaded) {
 	UA_Int32 retval = UA_SUCCESS;
 	if (tlDesc->connectionType == UA_TL_CONNECTIONTYPE_TCPV4 && tlDesc->encoding == UA_TL_ENCODING_BINARY) {
 		theTL.tld = tlDesc;
+		theTL.threaded = threaded;
 		UA_list_init(&theTL.connections);
 		retval |= UA_TL_TCP_init(&theTL,port);
 	} else {
@@ -165,8 +286,8 @@ UA_Int32 UA_TL_init(UA_TL_Description* tlDesc, UA_Int32 port) {
 }
 
 /** checks arguments and dispatches to worker or refuses to init */
-UA_Int32 UA_Stack_init(UA_TL_Description* tlDesc, UA_Int32 port) {
+UA_Int32 UA_Stack_init(UA_TL_Description* tlDesc, UA_Int32 port, UA_Int32 threaded) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval = UA_TL_init(tlDesc,port);
+	retval = UA_TL_init(tlDesc,port,threaded);
 	return retval;
 }
