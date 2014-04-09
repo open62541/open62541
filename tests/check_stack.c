@@ -66,6 +66,7 @@ START_TEST(encode_builtInDatatypeArray_test_String)
 	UA_ByteString* array[] = { &s1, &s2	};
 	UA_Int32 pos = 0;
 	UA_Byte buf[256];
+	UA_ByteString dst = { sizeof(buf), buf };
 	UA_Byte result[] = {
 			0x02, 0x00, 0x00, 0x00,		// noElements
 			0x06, 0x00, 0x00, 0x00,		// s1.Length
@@ -73,7 +74,7 @@ START_TEST(encode_builtInDatatypeArray_test_String)
 			0xFF, 0xFF, 0xFF, 0xFF		// s2.Length
 	};
 
-	UA_Array_encode((void const**)array, noElements, UA_BYTESTRING, &pos, buf);
+	UA_Array_encodeBinary((void const**)array, noElements, UA_BYTESTRING, &pos, &dst);
 
 	// check size
 	ck_assert_int_eq(pos, 4 + 4 + 6 + 4);

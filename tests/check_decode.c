@@ -29,7 +29,7 @@ START_TEST(decodeByte_test)
 
 		position = 0;
 
-		UA_Byte_decode(rawMessage.data, &position, &val);
+		UA_Byte_decodeBinary(&rawMessage, &position, &val);
 
 		ck_assert_int_eq(val, 0x08);
 		ck_assert_int_eq(position, 1);
@@ -52,13 +52,13 @@ START_TEST(decodeInt16_test_positives)
 	rawMessage.length = sizeof(mem);
 	ck_assert_int_eq(rawMessage.length,8);
 
-	UA_Int16_decode(rawMessage.data,&p,&val);
+	UA_Int16_decodeBinary(&rawMessage,&p,&val);
 	ck_assert_int_eq(val,0);
-	UA_Int16_decode(rawMessage.data,&p,&val);
+	UA_Int16_decodeBinary(&rawMessage,&p,&val);
 	ck_assert_int_eq(val,1);
-	UA_Int16_decode(rawMessage.data,&p,&val);
+	UA_Int16_decodeBinary(&rawMessage,&p,&val);
 	ck_assert_int_eq(val,255);
-	UA_Int16_decode(rawMessage.data,&p,&val);
+	UA_Int16_decodeBinary(&rawMessage,&p,&val);
 	ck_assert_int_eq(val,256);
 }
 END_TEST
@@ -76,9 +76,9 @@ START_TEST(decodeInt16_test_negatives)
 	rawMessage.length = sizeof(mem);
 	ck_assert_int_eq(rawMessage.length,4);
 
-	UA_Int16_decode(rawMessage.data,&p,&val);
+	UA_Int16_decodeBinary(&rawMessage,&p,&val);
 	ck_assert_int_eq(val,-1);
-	UA_Int16_decode(rawMessage.data,&p,&val);
+	UA_Int16_decodeBinary(&rawMessage,&p,&val);
 	ck_assert_int_eq(val,-32768);
 }
 END_TEST
@@ -97,7 +97,7 @@ START_TEST(decodeUInt16_test)
 
 	UA_Int32 p = 0;
 	UA_UInt16 val;
-	UA_UInt16_decode(rawMessage.data,&p,&val);
+	UA_UInt16_decodeBinary(&rawMessage,&p,&val);
 
 	ck_assert_int_eq(val,1);
 	//ck_assert_int_eq(p, 2);
@@ -116,7 +116,7 @@ START_TEST(decodeUInt32_test)
 
 	UA_Int32 p = 0;
 	UA_UInt32 val;
-	UA_UInt32_decode(rawMessage.data, &p, &val);
+	UA_UInt32_decodeBinary(&rawMessage, &p, &val);
 	ck_assert_uint_eq(val,255);
 
 }
@@ -134,7 +134,7 @@ START_TEST(decodeInt32_test)
 
 	UA_Int32 p = 0;
 	UA_Int32 val;
-	UA_Int32_decode(rawMessage.data, &p, &val);
+	UA_Int32_decodeBinary(&rawMessage, &p, &val);
 	ck_assert_int_eq(val,1000000000);
 }
 END_TEST
@@ -151,7 +151,7 @@ START_TEST(decodeUInt64_test)
 
 	UA_Int32 p = 0;
 	UA_UInt64 val;
-	UA_UInt64_decode(rawMessage.data, &p, &val);
+	UA_UInt64_decodeBinary(&rawMessage, &p, &val);
 	ck_assert_uint_eq(val, expectedVal);
 }
 END_TEST
@@ -167,7 +167,7 @@ START_TEST(decodeInt64_test)
 
 	UA_Int32 p = 0;
 	UA_Int64 val;
-	UA_Int64_decode(rawMessage.data, &p, &val);
+	UA_Int64_decodeBinary(&rawMessage, &p, &val);
 	ck_assert_uint_eq(val, expectedVal);
 }
 END_TEST
@@ -175,11 +175,11 @@ START_TEST(decodeFloat_test)
 {
 	UA_Int32 pos = 0;
 	UA_Byte buf[4] = {0x00,0x00,0xD0,0xC0};
-
+	UA_ByteString src = {4,buf};
 
 	UA_Float fval;
 
-	UA_Float_decode(buf, &pos, &fval);
+	UA_Float_decodeBinary(&src, &pos, &fval);
 	//val should be -6.5
 	UA_Int32 val = (fval > -6.501 && fval < -6.499);
 	ck_assert_int_gt(val,0);
@@ -194,11 +194,14 @@ START_TEST(decodeUAString_test)
 {
 
 	UA_Int32 pos = 0;
+	UA_Int32 retval = UA_SUCCESS;
 	UA_String string;
 	UA_Byte binString[12] = {0x08,0x00,0x00,0x00,'A','C','P','L','T',' ','U','A'};
+	UA_ByteString src = { 12, binString };
 
-	UA_String_decode(binString, &pos, &string);
+	retval = UA_String_decodeBinary(&src, &pos, &string);
 
+	ck_assert_int_eq(retval,UA_SUCCESS);
 	ck_assert_int_eq(string.length,8);
 	ck_assert_ptr_eq(string.data,UA_alloc_lastptr);
 	ck_assert_int_eq(string.data[3],'L');

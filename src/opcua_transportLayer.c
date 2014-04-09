@@ -26,7 +26,7 @@ UA_Int32 TL_check(UA_TL_connection* connection, UA_ByteString* msg, int checkLoc
 
 	DBG_VERBOSE(printf("TL_check - entered \n"));
 
-	UA_Int32_decode(msg->data,&position,&messageLength);
+	UA_Int32_decodeBinary(msg,&position,&messageLength);
 	DBG_VERBOSE(printf("TL_check - messageLength = %d \n",messageLength));
 
 	if (messageLength == -1 || messageLength != msg->length ||
@@ -52,7 +52,7 @@ UA_Int32 UA_TL_handleHello(UA_TL_connection* connection, UA_ByteString* msg, UA_
 
 	if (connection->connectionState == connectionState_CLOSED) {
 		DBG_VERBOSE(printf("TL_process - extracting header information \n"));
-		UA_OPCUATcpHelloMessage_decode(msg->data,pos,&helloMessage);
+		UA_OPCUATcpHelloMessage_decodeBinary(msg,pos,&helloMessage);
 
 		// memorize buffer info and change mode to established
 		connection->remoteConf.protocolVersion = helloMessage.protocolVersion;
@@ -85,8 +85,8 @@ UA_Int32 UA_TL_handleHello(UA_TL_connection* connection, UA_ByteString* msg, UA_
 		ackHeader.messageSize = UA_OPCUATcpAcknowledgeMessage_calcSize(&ackMessage)
 		+ UA_OPCUATcpMessageHeader_calcSize(&ackHeader);
 		UA_ByteString_newMembers(&tmpMessage, ackHeader.messageSize);
-		UA_OPCUATcpMessageHeader_encode(&ackHeader,&tmpPos,tmpMessage.data);
-		UA_OPCUATcpAcknowledgeMessage_encode(&ackMessage,&tmpPos,tmpMessage.data);
+		UA_OPCUATcpMessageHeader_encodeBinary(&ackHeader,&tmpPos,&tmpMessage);
+		UA_OPCUATcpAcknowledgeMessage_encodeBinary(&ackMessage,&tmpPos,&tmpMessage);
 
 		DBG_VERBOSE(printf("TL_process - Size messageToSend = %d, pos=%d\n",ackHeader.messageSize, tmpPos));
 		TL_send(connection, &tmpMessage);
@@ -135,7 +135,7 @@ UA_Int32 TL_process(UA_TL_connection* connection, UA_ByteString* msg)
 
 	DBG_VERBOSE(printf("TL_process - entered \n"));
 
-	if ((retval = UA_OPCUATcpMessageHeader_decode(msg->data, &pos, &tcpMessageHeader)) == UA_SUCCESS) {
+	if ((retval = UA_OPCUATcpMessageHeader_decodeBinary(msg, &pos, &tcpMessageHeader)) == UA_SUCCESS) {
 		printf("TL_process - messageType=%.*s\n",3,msg->data);
 		switch(tcpMessageHeader.messageType) {
 		case UA_MESSAGETYPE_HEL:

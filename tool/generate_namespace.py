@@ -1,5 +1,7 @@
 from __future__ import print_function
 import sys
+import platform
+import getpass
 from collections import OrderedDict
 import time
 import re
@@ -49,10 +51,12 @@ fh = open(sys.argv[2] + ".hgen",'w');
 fc = open(sys.argv[2] + ".cgen",'w');
 
 print('''/**********************************************************
+ * '''+sys.argv[2]+'''.hgen -- do not modify
+ **********************************************************
  * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
- * on node XXX by user XXX at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
- * do not modify
- **********************************************************/ 
+ * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
+ **********************************************************/
+ 
 #ifndef OPCUA_NAMESPACE_0_H_
 #define OPCUA_NAMESPACE_0_H_
 
@@ -64,11 +68,14 @@ extern UA_VTable UA_[];
 enum UA_VTableIndex_enum {''', end='\n', file=fh)
 
 print('''/**********************************************************
+ * '''+sys.argv[2]+'''.cgen -- do not modify
+ **********************************************************
  * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
- * on node XXX by user XXX at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
- * do not modify
+ * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  **********************************************************/
+ 
 #include "opcua.h"
+
 UA_Int32 UA_toIndex(UA_Int32 id) {
     UA_Int32 retval = -1;
     switch (id) { ''', end='\n',file=fc)
@@ -113,7 +120,7 @@ for row in rows2:
 
     print('#define '+name.upper()+'_NS0 '+row[1], file=fh)
 
-    print("\t{" + row[1] + ", (UA_Int32(*)(void const*)) " + name + "_calcSize, (UA_Int32(*)(UA_Byte const*,UA_Int32*,void*)) " + name + "_decode, (UA_Int32(*)(void const*,UA_Int32*,UA_Byte*))" + name + "_encode, (UA_Int32(*)(void **))" + name + "_new, (UA_Int32(*)(void *))" + name + "_delete},",end='\n',file=fc) 
+    print("\t{" + row[1] + ", (UA_Int32(*)(void const*)) " + name + "_calcSize, (UA_Int32(*)(UA_ByteString const*,UA_Int32*,void*)) " + name + "_decodeBinary, (UA_Int32(*)(void const*,UA_Int32*,UA_ByteString*))" + name + "_encodeBinary, (UA_Int32(*)(void **))" + name + "_new, (UA_Int32(*)(void *))" + name + "_delete},",end='\n',file=fc) 
 
 print("\t{0,UA_NULL,UA_NULL,UA_NULL,UA_NULL,UA_NULL}\n};",file=fc)
 print('#endif /* OPCUA_NAMESPACE_0_H_ */', end='\n', file=fh)
@@ -121,3 +128,4 @@ fh.close()
 fc.close()
 f.close()
 
+2222
