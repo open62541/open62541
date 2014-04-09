@@ -1,6 +1,8 @@
 from __future__ import print_function
 import sys
 import time
+import platform
+import getpass
 from collections import OrderedDict
 import re
 from lxml import etree
@@ -88,8 +90,8 @@ def createEnumerated(element):
     print("enum " + name + "_enum { \n\t" + ",\n\t".join(map(lambda (key, value) : key.upper() + " = " + value, valuemap.iteritems())) + "\n};", end='\n', file=fh)
     print("UA_TYPE_METHOD_PROTOTYPES (" + name + ")", end='\n', file=fh)
     print("UA_TYPE_METHOD_CALCSIZE_AS("+name+", UA_UInt32)", end='\n', file=fc)
-    print("UA_TYPE_METHOD_ENCODE_AS("+name+", UA_UInt32)", end='\n', file=fc)
-    print("UA_TYPE_METHOD_DECODE_AS("+name+", UA_UInt32)", end='\n', file=fc)
+    print("UA_TYPE_METHOD_ENCODEBINARY_AS("+name+", UA_UInt32)", end='\n', file=fc)
+    print("UA_TYPE_METHOD_DECODEBINARY_AS("+name+", UA_UInt32)", end='\n', file=fc)
     print("UA_TYPE_METHOD_DELETE_AS("+name+", UA_UInt32)", end='\n', file=fc)
     print("UA_TYPE_METHOD_DELETEMEMBERS_AS("+name+", UA_UInt32)", end='\n', file=fc)
     print("UA_TYPE_METHOD_INIT_AS("+name+", UA_UInt32)", end='\n', file=fc)
@@ -147,9 +149,9 @@ def createStructured(element):
         print("\tUA_Int32 NullRecord; /* avoiding warnings */", end='\n', file=fh)
     print("} " + name + ";", end='\n', file=fh)
 
-    print("UA_Int32 " + name + "_calcSize(" + name + " const * ptr);", end='\n', file=fh)
-    print("UA_Int32 " + name + "_encode(" + name + " const * src, UA_Int32* pos, UA_Byte* dst);", end='\n', file=fh)
-    print("UA_Int32 " + name + "_decode(UA_Byte const * src, UA_Int32* pos, " + name + "* dst);", end='\n', file=fh)
+    print("UA_Int32 " + name + "_calcSize(" + name + " const* ptr);", end='\n', file=fh)
+    print("UA_Int32 " + name + "_encodeBinary(" + name + " const* src, UA_Int32* pos, UA_ByteString* dst);", end='\n', file=fh)
+    print("UA_Int32 " + name + "_decodeBinary(UA_ByteString const* src, UA_Int32* pos, " + name + "* dst);", end='\n', file=fh)
     print("UA_Int32 " + name + "_delete("+ name + "* p);", end='\n', file=fh)
     print("UA_Int32 " + name + "_deleteMembers(" + name + "* p);", end='\n', file=fh)
     print("UA_Int32 " + name + "_init("+ name + " * p);", end='\n', file=fh)
@@ -176,43 +178,43 @@ def createStructured(element):
 
     print("\n\t;\n}\n", end='\n', file=fc)
 
-    print("UA_Int32 "+name+"_encode("+name+" const * src, UA_Int32* pos, UA_Byte* dst) {\n\tUA_Int32 retval = UA_SUCCESS;", end='\n', file=fc)
+    print("UA_Int32 "+name+"_encodeBinary("+name+" const * src, UA_Int32* pos, UA_ByteString* dst) {\n\tUA_Int32 retval = UA_SUCCESS;", end='\n', file=fc)
     # code _encode
     for n,t in valuemap.iteritems():
         if t in elementary_size:
-            print('\tretval |= UA_'+t+'_encode(&(src->'+n+'),pos,dst);', end='\n', file=fc)
+            print('\tretval |= UA_'+t+'_encodeBinary(&(src->'+n+'),pos,dst);', end='\n', file=fc)
         else:
             if t in enum_types:
-                print('\tretval |= UA_'+t+'_encode(&(src->'+n+'),pos,dst);', end='\n', file=fc)
+                print('\tretval |= UA_'+t+'_encodeBinary(&(src->'+n+'),pos,dst);', end='\n', file=fc)
             elif t.find("**") != -1:
-                print('\t//retval |= UA_Int32_encode(&(src->'+n+'Size),pos,dst); // encode size managed by UA_Array_encode', end='\n', file=fc)
-		print("\tretval |= UA_Array_encode((void const**) (src->"+n+"),src->"+n+"Size, UA_" + t[0:t.find("*")].upper()+",pos,dst);", end='\n', file=fc)
+                print('\t//retval |= UA_Int32_encodeBinary(&(src->'+n+'Size),pos,dst); // encode size managed by UA_Array_encodeBinary', end='\n', file=fc)
+		print("\tretval |= UA_Array_encodeBinary((void const**) (src->"+n+"),src->"+n+"Size, UA_" + t[0:t.find("*")].upper()+",pos,dst);", end='\n', file=fc)
             elif t.find("*") != -1:
-                print('\tretval |= UA_' + t[0:t.find("*")] + "_encode(src->" + n + ',pos,dst);', end='\n', file=fc)
+                print('\tretval |= UA_' + t[0:t.find("*")] + "_encodeBinary(src->" + n + ',pos,dst);', end='\n', file=fc)
             else:
-                print('\tretval |= UA_'+t+"_encode(&(src->"+n+"),pos,dst);", end='\n', file=fc)
+                print('\tretval |= UA_'+t+"_encodeBinary(&(src->"+n+"),pos,dst);", end='\n', file=fc)
     print("\treturn retval;\n}\n", end='\n', file=fc)
 
     # code _decode
-    print("UA_Int32 "+name+"_decode(UA_Byte const * src, UA_Int32* pos, " + name + "* dst) {\n\tUA_Int32 retval = UA_SUCCESS;", end='\n', file=fc)
+    print("UA_Int32 "+name+"_decodeBinary(UA_ByteString const * src, UA_Int32* pos, " + name + "* dst) {\n\tUA_Int32 retval = UA_SUCCESS;", end='\n', file=fc)
     for n,t in valuemap.iteritems():
         if t in elementary_size:
-            print('\tretval |= UA_'+t+'_decode(src,pos,&(dst->'+n+'));', end='\n', file=fc)
+            print('\tretval |= UA_'+t+'_decodeBinary(src,pos,&(dst->'+n+'));', end='\n', file=fc)
         else:
             if t in enum_types:
-                print('\tretval |= UA_'+t+'_decode(src,pos,&(dst->'+n+'));', end='\n', file=fc)
+                print('\tretval |= UA_'+t+'_decodeBinary(src,pos,&(dst->'+n+'));', end='\n', file=fc)
             elif t.find("**") != -1:
             	# decode size
-		print('\tretval |= UA_Int32_decode(src,pos,&(dst->'+n+'Size)); // decode size', end='\n', file=fc)
+		print('\tretval |= UA_Int32_decodeBinary(src,pos,&(dst->'+n+'Size)); // decode size', end='\n', file=fc)
 		# allocate memory for array
 		print("\tretval |= UA_Array_new((void**)&(dst->"+n+"),dst->"+n+"Size,UA_"+t[0:t.find("*")].upper()+");", end='\n', file=fc)
-		print("\tretval |= UA_Array_decode(src,dst->"+n+"Size, UA_" + t[0:t.find("*")].upper()+",pos,(void ** const) (dst->"+n+"));", end='\n', file=fc) #not tested
+		print("\tretval |= UA_Array_decodeBinary(src,dst->"+n+"Size, UA_" + t[0:t.find("*")].upper()+",pos,(void ** const) (dst->"+n+"));", end='\n', file=fc) #not tested
             elif t.find("*") != -1:
 		#allocate memory using new
 		print('\tretval |= UA_'+ t[0:t.find("*")] +"_new(&(dst->" + n + "));", end='\n', file=fc)
-		print('\tretval |= UA_' + t[0:t.find("*")] + "_decode(src,pos,dst->"+ n +");", end='\n', file=fc)
+		print('\tretval |= UA_' + t[0:t.find("*")] + "_decodeBinary(src,pos,dst->"+ n +");", end='\n', file=fc)
             else:
-                print('\tretval |= UA_'+t+"_decode(src,pos,&(dst->"+n+"));", end='\n', file=fc)
+                print('\tretval |= UA_'+t+"_decodeBinary(src,pos,&(dst->"+n+"));", end='\n', file=fc)
     print("\treturn retval;\n}\n", end='\n', file=fc)
     
     # code _delete and _deleteMembers
@@ -265,8 +267,8 @@ def createOpaque(element):
     print("typedef UA_ByteString " + name + ";", end='\n', file=fh)
     print("UA_TYPE_METHOD_PROTOTYPES (" + name + ")", end='\n', file=fh)
     print("UA_TYPE_METHOD_CALCSIZE_AS("+name+", UA_ByteString)", end='\n', file=fc)
-    print("UA_TYPE_METHOD_ENCODE_AS("+name+", UA_ByteString)", end='\n', file=fc)
-    print("UA_TYPE_METHOD_DECODE_AS("+name+", UA_ByteString)", end='\n', file=fc)
+    print("UA_TYPE_METHOD_ENCODEBINARY_AS("+name+", UA_ByteString)", end='\n', file=fc)
+    print("UA_TYPE_METHOD_DECODEBINARY_AS("+name+", UA_ByteString)", end='\n', file=fc)
     print("UA_TYPE_METHOD_DELETE_AS("+name+", UA_ByteString)", end='\n', file=fc)
     print("UA_TYPE_METHOD_DELETEMEMBERS_AS("+name+", UA_ByteString)", end='\n', file=fc)
     print("UA_TYPE_METHOD_INIT_AS("+name+", UA_ByteString)", end='\n', file=fc)
@@ -280,10 +282,12 @@ types = tree.xpath("/opc:TypeDictionary/*[not(self::opc:Import)]", namespaces=ns
 fh = open(sys.argv[2] + ".hgen",'w');
 fc = open(sys.argv[2] + ".cgen",'w');
 print('''/**********************************************************
+ * '''+sys.argv[2]+'''.cgen -- do not modify
+ **********************************************************
  * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
- * on node XXX by user XXX at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
- * do not modify
+ * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  **********************************************************/
+ 
 #include "''' + sys.argv[2] + '.h"', end='\n', file=fc);
 
 # types for which we create a vector type
@@ -296,15 +300,17 @@ for field in fields:
 deferred_types = OrderedDict()
 
 print('''/**********************************************************
+ * '''+sys.argv[2]+'''.hgen -- do not modify
+ **********************************************************
  * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
- * on node XXX by user XXX at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
- * do not modify
+ * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  **********************************************************/
-#ifndef OPCUA_H_''', end='\n', file=fh)
-print('#define OPCUA_H_', end='\n', file=fh)
-print('#include "ua_basictypes.h"', end='\n', file=fh)
-print('#include "ua_namespace_0.h"', end='\n', file=fh);
 
+#ifndef OPCUA_H_
+#define OPCUA_H_
+
+#include "ua_basictypes.h"
+#include "ua_namespace_0.h"''', end='\n', file=fh);
 
 #plugin handling
 import os

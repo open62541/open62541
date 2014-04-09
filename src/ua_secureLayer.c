@@ -55,24 +55,24 @@ UA_Int32 SL_send(UA_SL_Channel* channel, UA_ByteString const * responseMessage, 
 	pos += 3;
 	responsePacket.data[3] = 'F';
 	pos += 1;
-	UA_Int32_encode(&packetSize, &pos, responsePacket.data);
-	UA_UInt32_encode(&(channel->securityToken.secureChannelId),
-			&pos, responsePacket.data);
+	UA_Int32_encodeBinary(&packetSize, &pos, &responsePacket);
+	UA_UInt32_encodeBinary(&(channel->securityToken.secureChannelId),
+			&pos, &responsePacket);
 
 	/*---encode Algorithm Security Header ---*/
 	if (isAsym) {
-		UA_AsymmetricAlgorithmSecurityHeader_encode(
+		UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(
 				&(channel->localAsymAlgSettings), &pos,
-				responsePacket.data);
+				&responsePacket);
 	} else {
-		UA_SymmetricAlgorithmSecurityHeader_encode(
+		UA_SymmetricAlgorithmSecurityHeader_encodeBinary(
 				&(channel->securityToken.tokenId), &pos,
-				responsePacket.data);
+				&responsePacket);
 	}
 
 	/*---encode Sequence Header ---*/
-	UA_UInt32_encode(&sequenceNumber, &pos, responsePacket.data);
-	UA_UInt32_encode(&requestId, &pos, responsePacket.data);
+	UA_UInt32_encodeBinary(&sequenceNumber, &pos, &responsePacket);
+	UA_UInt32_encodeBinary(&requestId, &pos, &responsePacket);
 
 	/*---add encoded Message ---*/
 	UA_memcpy(&(responsePacket.data[pos]), responseMessage->data,
@@ -312,7 +312,7 @@ UA_Int32 UA_SL_handleRequest(UA_SL_Channel *channel, UA_ByteString* msg) {
 
 	// Every Message starts with a NodeID which names the serviceRequestType
 	UA_NodeId serviceRequestType;
-	UA_NodeId_decode(msg->data, &pos, &serviceRequestType);
+	UA_NodeId_decodeBinary(msg, &pos, &serviceRequestType);
 	UA_NodeId_printf("SL_processMessage - serviceRequestType=", &serviceRequestType);
 
 	UA_SL_handleRequestTableEntry* hrte = getHRTEntry(serviceRequestType.identifier.numeric);
@@ -324,7 +324,7 @@ UA_Int32 UA_SL_handleRequest(UA_SL_Channel *channel, UA_ByteString* msg) {
 		void * requestObj = UA_NULL;
 		void * responseObj = UA_NULL;
 		UA_[hrte->requestDataTypeId].new(&requestObj);
-		UA_[hrte->requestDataTypeId].decode(msg->data, &pos, requestObj);
+		UA_[hrte->requestDataTypeId].decodeBinary(msg, &pos, requestObj);
 		if (hrte->responseDataTypeId > 0) {
 			UA_[hrte->responseDataTypeId].new(&responseObj);
 			UA_ResponseHeader_initFromRequest((UA_RequestHeader*)requestObj, (UA_ResponseHeader*)responseObj);
@@ -340,8 +340,8 @@ UA_Int32 UA_SL_handleRequest(UA_SL_Channel *channel, UA_ByteString* msg) {
 				UA_ByteString_newMembers(&response, UA_NodeId_calcSize(&responseType) + UA_[hrte->responseDataTypeId].calcSize(responseObj));
 				UA_Int32 pos = 0;
 
-				UA_NodeId_encode(&responseType, &pos, response.data);
-				UA_[hrte->responseDataTypeId].encode(responseObj, &pos, response.data);
+				UA_NodeId_encodeBinary(&responseType, &pos, &response);
+				UA_[hrte->responseDataTypeId].encodeBinary(responseObj, &pos, &response);
 				SL_send(channel, &response, responseType.identifier.numeric);
 
 				UA_NodeId_deleteMembers(&responseType);
@@ -401,11 +401,11 @@ UA_Int32 UA_SL_Channel_new(UA_TL_connection *connection, UA_ByteString* msg, UA_
 	connection->secureChannel = &slc;
 	connection->secureChannel->tlConnection = connection;
 
-	UA_SecureConversationMessageHeader_decode(msg->data, pos, &secureConvHeader);
+	UA_SecureConversationMessageHeader_decodeBinary(msg, pos, &secureConvHeader);
 	// connection->secureChannel->secureChannelId = secureConvHeader.secureChannelId;
-	UA_AsymmetricAlgorithmSecurityHeader_decode(msg->data, pos, &(connection->secureChannel->remoteAsymAlgSettings));
+	UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(msg, pos, &(connection->secureChannel->remoteAsymAlgSettings));
 	//TODO check that the sequence number is smaller than MaxUInt32 - 1024
-	UA_SequenceHeader_decode(msg->data, pos, &(connection->secureChannel->sequenceHeader));
+	UA_SequenceHeader_decodeBinary(msg, pos, &(connection->secureChannel->sequenceHeader));
 
 	connection->secureChannel->securityToken.tokenId = 4711;
 
@@ -451,19 +451,19 @@ UA_Int32 UA_SL_process(UA_SL_Channel* connection, UA_ByteString* msg, UA_Int32* 
 	UA_UInt32 secureChannelId;
 
 	if (connection->connectionState == connectionState_ESTABLISHED) {
-		UA_UInt32_decode(msg->data,pos,&secureChannelId);
+		UA_UInt32_decodeBinary(msg,pos,&secureChannelId);
 
 		//FIXME: we assume SAS, need to check if AAS or SAS
 		UA_SymmetricAlgorithmSecurityHeader symAlgSecHeader;
 //		if (connection->securityMode == UA_MESSAGESECURITYMODE_NONE) {
-			UA_SymmetricAlgorithmSecurityHeader_decode(msg->data, pos, &symAlgSecHeader);
+			UA_SymmetricAlgorithmSecurityHeader_decodeBinary(msg, pos, &symAlgSecHeader);
 //		} else {
 //			// FIXME:
 //		}
 
 		printf("UA_SL_process - securityToken received=%d, expected=%d\n",secureChannelId,connection->securityToken.secureChannelId);
 		if (secureChannelId == connection->securityToken.secureChannelId) {
-			UA_SequenceHeader_decode(msg->data, pos, &(connection->sequenceHeader));
+			UA_SequenceHeader_decodeBinary(msg, pos, &(connection->sequenceHeader));
 			// process message
 			UA_ByteString slMessage;
 			slMessage.data = &(msg->data[*pos]);

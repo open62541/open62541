@@ -33,6 +33,14 @@ typedef int64_t UA_Int64;
 typedef uint64_t UA_UInt64;
 typedef float UA_Float;
 typedef double UA_Double;
+/* ByteString - Part: 6, Chapter: 5.2.2.7, Page: 17 */
+typedef struct T_UA_ByteString
+{
+	UA_Int32 	length;
+	UA_Byte*	data;
+}
+UA_ByteString;
+
 
 /* Function return values */
 #define UA_SUCCESS 0
@@ -65,16 +73,16 @@ UA_Int32 _UA_alloc(void ** dst, int size,char*,int);
 
 /* Array operations */
 UA_Int32 UA_Array_calcSize(UA_Int32 noElements, UA_Int32 type, void const ** const ptr);
-UA_Int32 UA_Array_encode(void const **src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, UA_Byte * dst);
-UA_Int32 UA_Array_decode(UA_Byte const * src,UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void ** const dst);
+UA_Int32 UA_Array_encodeBinary(void const **src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, UA_ByteString * dst);
+UA_Int32 UA_Array_decodeBinary(UA_ByteString const * src,UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void ** const dst);
 UA_Int32 UA_Array_delete(void **p,UA_Int32 noElements, UA_Int32 type);
 UA_Int32 UA_Array_init(void **p,UA_Int32 noElements, UA_Int32 type);
 UA_Int32 UA_Array_new(void **p,UA_Int32 noElements, UA_Int32 type);
 
 #define UA_TYPE_METHOD_PROTOTYPES(TYPE) \
 UA_Int32 TYPE##_calcSize(TYPE const * ptr);\
-UA_Int32 TYPE##_encode(TYPE const * src, UA_Int32* pos, UA_Byte * dst);\
-UA_Int32 TYPE##_decode(UA_Byte const * src, UA_Int32* pos, TYPE * dst);\
+UA_Int32 TYPE##_encodeBinary(TYPE const * src, UA_Int32* pos, UA_ByteString * dst);\
+UA_Int32 TYPE##_decodeBinary(UA_ByteString const * src, UA_Int32* pos, TYPE * dst);\
 UA_Int32 TYPE##_delete(TYPE * p);\
 UA_Int32 TYPE##_deleteMembers(TYPE * p); \
 UA_Int32 TYPE##_init(TYPE * p); \
@@ -107,20 +115,29 @@ UA_Int32 TYPE##_deleteMembers(TYPE * p) { return UA_SUCCESS; }
 #define UA_TYPE_METHOD_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
 UA_Int32 TYPE##_deleteMembers(TYPE * p) { return TYPE_AS##_deleteMembers((TYPE_AS*) p);}
 
-#define UA_TYPE_METHOD_DECODE_AS(TYPE,TYPE_AS) \
-UA_Int32 TYPE##_decode(UA_Byte const * src, UA_Int32* pos, TYPE *dst) { \
-	return TYPE_AS##_decode(src,pos,(TYPE_AS*) dst); \
+#define UA_TYPE_METHOD_DECODEBINARY_AS(TYPE,TYPE_AS) \
+UA_Int32 TYPE##_decodeBinary(UA_ByteString const * src, UA_Int32* pos, TYPE *dst) { \
+	return TYPE_AS##_decodeBinary(src,pos,(TYPE_AS*) dst); \
 }
 
-#define UA_TYPE_METHOD_ENCODE_AS(TYPE,TYPE_AS) \
-UA_Int32 TYPE##_encode(TYPE const * src, UA_Int32* pos, UA_Byte *dst) { \
-	return TYPE_AS##_encode((TYPE_AS*) src,pos,dst); \
+#define UA_TYPE_METHOD_ENCODEBINARY_AS(TYPE,TYPE_AS) \
+UA_Int32 TYPE##_encodeBinary(TYPE const * src, UA_Int32* pos, UA_ByteString *dst) { \
+	return TYPE_AS##_encodeBinary((TYPE_AS*) src,pos,dst); \
 }
 
 #define UA_TYPE_METHOD_INIT_AS(TYPE, TYPE_AS) \
 UA_Int32 TYPE##_init(TYPE * p){ \
 	return TYPE_AS##_init((TYPE_AS*)p); \
 }
+
+#define UA_TYPE_METHOD_PROTOTYPES_AS(TYPE, TYPE_AS) \
+UA_TYPE_METHOD_CALCSIZE_AS(TYPE, TYPE_AS) \
+UA_TYPE_METHOD_ENCODEBINARY_AS(TYPE, TYPE_AS) \
+UA_TYPE_METHOD_DECODEBINARY_AS(TYPE, TYPE_AS) \
+UA_TYPE_METHOD_DELETE_AS(TYPE, TYPE_AS) \
+UA_TYPE_METHOD_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
+UA_TYPE_METHOD_INIT_AS(TYPE, TYPE_AS)
+
 
 #define UA_TYPE_METHOD_NEW_DEFAULT(TYPE) \
 UA_Int32 TYPE##_new(TYPE ** p){ \
@@ -172,8 +189,8 @@ UA_TYPE_METHOD_PROTOTYPES (UA_IntegerId)
 typedef struct T_UA_VTable {
 	UA_UInt32 Id;
 	UA_Int32 (*calcSize)(void const * ptr);
-	UA_Int32 (*decode)(UA_Byte const * src, UA_Int32* pos, void* dst);
-	UA_Int32 (*encode)(void const * src, UA_Int32* pos, UA_Byte* dst);
+	UA_Int32 (*decodeBinary)(UA_ByteString const * src, UA_Int32* pos, void* dst);
+	UA_Int32 (*encodeBinary)(void const * src, UA_Int32* pos, UA_ByteString* dst);
 	UA_Int32 (*new)(void ** p);
 	UA_Int32 (*delete)(void * p);
 } UA_VTable;
@@ -210,12 +227,6 @@ void UA_String_printx(char* label, UA_String* string);
 void UA_String_printx_hex(char* label, UA_String* string);
 
 /* ByteString - Part: 6, Chapter: 5.2.2.7, Page: 17 */
-typedef struct T_UA_ByteString
-{
-	UA_Int32 	length;
-	UA_Byte*	data;
-}
-UA_ByteString;
 UA_TYPE_METHOD_PROTOTYPES (UA_ByteString)
 UA_Int32 UA_ByteString_compare(UA_ByteString *string1, UA_ByteString *string2);
 UA_Int32 UA_ByteString_copy(UA_ByteString const * src, UA_ByteString* dst);
