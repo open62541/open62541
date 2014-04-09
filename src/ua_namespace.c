@@ -1,4 +1,4 @@
-#include "opcua_namespace.h"
+#include "ua_namespace.h"
 #include <string.h>
 #include <stdio.h>
 

@@ -302,8 +302,8 @@ print('''/**********************************************************
  **********************************************************/
 #ifndef OPCUA_H_''', end='\n', file=fh)
 print('#define OPCUA_H_', end='\n', file=fh)
-print('#include "opcua_basictypes.h"', end='\n', file=fh)
-print('#include "opcua_namespace_0.h"', end='\n', file=fh);
+print('#include "ua_basictypes.h"', end='\n', file=fh)
+print('#include "ua_namespace_0.h"', end='\n', file=fh);
 
 
 #plugin handling

@@ -1,9 +1,9 @@
 #include <memory.h> // memset, memcpy
-#include "UA_stack.h"
-#include "UA_connection.h"
-#include "opcua_transportLayer.h"
+#include "ua_stack.h"
+#include "ua_connection.h"
+#include "ua_transportLayer.h"
 
-#include "opcua_secureLayer.h" // SL_process
+#include "ua_secureLayer.h" // SL_process
 
 UA_Int32 TL_Connection_init(UA_TL_connection* c, UA_TL_data* tld)
 {

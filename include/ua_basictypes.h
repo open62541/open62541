@@ -1,5 +1,5 @@
 /*
- * opcua_basictypes.h
+ * ua_basictypes.h
  *
  *  Created on: 13.03.2014
  *      Author: mrt
