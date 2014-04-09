@@ -188,14 +188,6 @@ START_TEST(UA_NodeId_calcSizeWithNullArgumentShallReturnStorageSize)
 	ck_assert_int_eq(storageSize, sizeof(UA_NodeId));
 }
 END_TEST
-START_TEST(UA_ExpandedNodeId_calcSizeShallWorkOnExample)
-{
-	//ToDo: Function needs to be filled
-	UA_Int32 valreal = 300;
-	UA_Int32 valcalc = 0;
-	ck_assert_int_eq(valcalc,valreal);
-}
-END_TEST
 START_TEST(UA_ExpandedNodeId_calcSizeWithNullArgumentShallReturnStorageSize)
 {
 	// given
@@ -724,7 +716,7 @@ START_TEST(UA_UInt32_decodeShallNotRespectSign)
 	ck_assert_uint_eq(val_00_80, (UA_UInt32) (0x01 << 31));
 }
 END_TEST
-/*START_TEST(UA_UInt64_decodeShallNotRespectSign)
+START_TEST(UA_UInt64_decodeShallNotRespectSign)
 {
 	// given
 	UA_ByteString rawMessage;
@@ -736,7 +728,7 @@ END_TEST
 	UA_Int32 p = 0;
 	UA_UInt64 val;
 	// when
-	UA_UInt64_decodeBinary(rawMessage.data, &p, &val);
+	UA_UInt64_decodeBinary(&rawMessage, &p, &val);
 	// then
 	ck_assert_uint_eq(val, expectedVal);
 }
@@ -754,11 +746,11 @@ START_TEST(UA_Int64_decodeShallRespectSign)
 	UA_Int32 p = 0;
 	UA_Int64 val;
 	// when
-	UA_Int64_decodeBinary(rawMessage.data, &p, &val);
+	UA_Int64_decodeBinary(&rawMessage, &p, &val);
 	//then
 	ck_assert_uint_eq(val, expectedVal);
 }
-END_TEST*/
+END_TEST
 START_TEST(UA_Float_decodeShallWorkOnExample)
 {
 	// given
@@ -999,6 +991,7 @@ START_TEST(UA_Variant_decodeWithOutDeleteMembersShallFailInCheckMem)
 	// UA_Variant_deleteMembers(&dst);
 }
 END_TEST
+
 START_TEST(UA_Variant_decodeWithTooSmallSourceShallReturnWithError)
 {
 	// given
@@ -1049,26 +1042,7 @@ START_TEST(UA_Byte_encode_test)
 
 }
 END_TEST
-/*START_TEST(UA_ByteString_encodeShallWorkOnExample)
-{
-	// given
-	UA_ByteString rawMessage;
-	UA_Int32 position = 0;
-	UA_Byte *mem = malloc(sizeof(UA_Byte));
-	rawMessage.data = mem;
-	UA_Byte testByte = 0x08;
-	rawMessage.length = 1;
-	position = 0;
-	// when
-	UA_Byte_encodeBinary(&(testByte), &position, rawMessage.data);
-	// then
-	ck_assert_int_eq(rawMessage.data[0], 0x08);
-	ck_assert_int_eq(rawMessage.length, 1);
-	ck_assert_int_eq(position, 1);
-	// finally
-	free(mem);
-}
-END_TEST
+/*
 START_TEST(UA_Int16_encodeShallWorkOnExample)
 {
 	// given
@@ -1364,7 +1338,6 @@ Suite *testSuite_builtin(void)
 	tcase_add_test(tc_calcSize, UA_NodeId_calcSizeEncodingStringShallReturnEncodingSize);
 	tcase_add_test(tc_calcSize, UA_NodeId_calcSizeEncodingStringNegativLengthShallReturnEncodingSize);
 	tcase_add_test(tc_calcSize, UA_NodeId_calcSizeEncodingStringZeroLengthShallReturnEncodingSize);
-	tcase_add_test(tc_calcSize, UA_ExpandedNodeId_calcSizeShallWorkOnExample);
 	tcase_add_test(tc_calcSize, UA_ExpandedNodeId_calcSizeEncodingStringAndServerIndexShallReturnEncodingSize);
 	tcase_add_test(tc_calcSize, UA_ExpandedNodeId_calcSizeEncodingStringAndNamespaceUriShallReturnEncodingSize);
 	tcase_add_test(tc_calcSize, UA_Guid_calcSizeShallReturnEncodingSize);
@@ -1389,8 +1362,8 @@ Suite *testSuite_builtin(void)
 	tcase_add_test(tc_decode, UA_Int32_decodeShallAssumeLittleEndian);
 	tcase_add_test(tc_decode, UA_Int32_decodeShallRespectSign);
 	tcase_add_test(tc_decode, UA_UInt32_decodeShallNotRespectSign);
-//	tcase_add_test(tc_decode, UA_UInt64_decodeShallNotRespectSign);
-//	tcase_add_test(tc_decode, UA_Int64_decodeShallRespectSign);
+	tcase_add_test(tc_decode, UA_UInt64_decodeShallNotRespectSign);
+	tcase_add_test(tc_decode, UA_Int64_decodeShallRespectSign);
 	tcase_add_test(tc_decode, UA_Float_decodeShallWorkOnExample);
 	tcase_add_test(tc_decode, UA_Double_decodeShallGiveOne);
 	tcase_add_test(tc_decode, UA_Double_decodeShallGiveZero);
@@ -1412,8 +1385,7 @@ Suite *testSuite_builtin(void)
 
 	TCase *tc_encode = tcase_create("encode");
 	tcase_add_test(tc_encode, UA_Byte_encode_test);
-/*	tcase_add_test(tc_encode, UA_ByteString_encodeShallWorkOnExample);
-	tcase_add_test(tc_encode, UA_Int16_encodeShallWorkOnExample);
+/*	tcase_add_test(tc_encode, UA_Int16_encodeShallWorkOnExample);
 	tcase_add_test(tc_encode, UA_UInt16_encodeShallWorkOnExample);
 	tcase_add_test(tc_encode, UA_UInt32_encodeShallWorkOnExample);
 	tcase_add_test(tc_encode, UA_Int32_encodeShallEncodeLittleEndian);
