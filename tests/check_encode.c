@@ -16,7 +16,7 @@
 #include "check.h"
 
 
-START_TEST(encodeByte_test)
+/*START_TEST(encodeByte_test)
 {
 	UA_ByteString rawMessage;
 	UA_Int32 position = 0;
@@ -204,7 +204,7 @@ START_TEST(encodeFloat_test)
 	free(buf);
 }
 END_TEST
-/*START_TEST(encodeDouble_test)
+START_TEST(encodeDouble_test)
 {
 	UA_Double value = -6.5;
 	UA_Int32 pos = 0;
@@ -216,7 +216,7 @@ END_TEST
 	ck_assert_uint_eq(buf[7],0xC0);
 	free(buf);
 }
-END_TEST*/
+END_TEST
 START_TEST(encodeUAString_test)
 {
 
@@ -287,7 +287,8 @@ START_TEST(encodeDataValue_test)
 
 	free(buf);
 }
-END_TEST
+END_TEST*/
+/*
 
 
 Suite *testSuite_encodeByte(void)
@@ -355,14 +356,14 @@ Suite *testSuite_encodeFloat(void)
 	suite_add_tcase(s,tc_core);
 	return s;
 }
-/*Suite *testSuite_encodeDouble(void)
+Suite *testSuite_encodeDouble(void)
 {
 	Suite *s = suite_create("encodeDouble_test");
 	TCase *tc_core = tcase_create("Core");
 	tcase_add_test(tc_core, encodeDouble_test);
 	suite_add_tcase(s,tc_core);
 	return s;
-}*/
+}
 Suite * testSuite_encodeUAString(void)
 {
 	Suite *s = suite_create("encodeUAString_test");
@@ -379,12 +380,14 @@ Suite* testSuite_encodeDataValue()
 	suite_add_tcase(s,tc_core);
 	return s;
 }
+*/
 
 
 int main (void)
 {
 	int number_failed = 0;
 
+/*
 	Suite *s = testSuite_encodeByte();
 	SRunner *sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
@@ -433,11 +436,11 @@ int main (void)
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
 
-/*	s = testSuite_encodeDouble();
+	s = testSuite_encodeDouble();
 	sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
-	srunner_free(sr);*/
+	srunner_free(sr);
 
 	s = testSuite_encodeUAString();
 	sr = srunner_create(s);
@@ -450,6 +453,7 @@ int main (void)
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
+*/
 
 	/* <TESTSUITE_TEMPLATE>
 	s =  <TESTSUITENAME>;

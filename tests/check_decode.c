@@ -15,7 +15,7 @@
 #include "ua_transportLayer.h"
 #include "check.h"
 
-START_TEST(decodeByte_test)
+/*START_TEST(decodeByte_test)
 {
 	UA_ByteString rawMessage;
 	UA_Int32 position = 0;
@@ -104,8 +104,8 @@ START_TEST(decodeUInt16_test)
 	//ck_assert_int_eq(rawMessage.data[0], 0xAB);
 
 }
-END_TEST
-START_TEST(decodeUInt32_test)
+END_TEST*/
+/*START_TEST(decodeUInt32_test)
 {
 	UA_ByteString rawMessage;
 	//EncodeUInt16
@@ -137,8 +137,8 @@ START_TEST(decodeInt32_test)
 	UA_Int32_decodeBinary(&rawMessage, &p, &val);
 	ck_assert_int_eq(val,1000000000);
 }
-END_TEST
-START_TEST(decodeUInt64_test)
+END_TEST*/
+/*START_TEST(decodeUInt64_test)
 {
 	UA_ByteString rawMessage;
 	UA_UInt64 expectedVal = 0xFF;
@@ -170,8 +170,8 @@ START_TEST(decodeInt64_test)
 	UA_Int64_decodeBinary(&rawMessage, &p, &val);
 	ck_assert_uint_eq(val, expectedVal);
 }
-END_TEST
-START_TEST(decodeFloat_test)
+END_TEST*/
+/*START_TEST(decodeFloat_test)
 {
 	UA_Int32 pos = 0;
 	UA_Byte buf[4] = {0x00,0x00,0xD0,0xC0};
@@ -208,8 +208,8 @@ START_TEST(decodeUAString_test)
 
 	UA_String_deleteMembers(&string);
 }
-END_TEST
-
+END_TEST*/
+/*
 Suite *testSuite_decodeByte(void)
 {
 	Suite *s = suite_create("encodeByte_test");
@@ -290,12 +290,13 @@ Suite * testSuite_decodeUAString(void)
 	tcase_add_test(tc_core, decodeUAString_test);
 	suite_add_tcase(s,tc_core);
 	return s;
-}
+}*/
 
 int main (void)
 {
 	int number_failed = 0;
 
+/*
 	Suite *s = testSuite_decodeByte();
 	SRunner *sr = srunner_create(s);
 	srunner_run_all(sr,CK_NORMAL);
@@ -343,6 +344,7 @@ int main (void)
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
+*/
 
 
 	/* <TESTSUITE_TEMPLATE>

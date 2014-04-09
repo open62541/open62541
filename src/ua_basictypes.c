@@ -1249,9 +1249,11 @@ UA_Int32 UA_Variant_decodeBinary(UA_ByteString const * src, UA_Int32 *pos, UA_Va
 	} else {
 		dst->arrayLength = 1;
 	}
-	// allocate array and decode
-	retval |= UA_Array_new((void**)&(dst->data),dst->arrayLength,UA_toIndex(ns0Id));
-	retval |= UA_Array_decodeBinary(src,dst->arrayLength,UA_toIndex(ns0Id),pos,dst->data);
+	if  (retval == UA_SUCCESS) {
+		// allocate array and decode
+		retval |= UA_Array_new((void**)&(dst->data),dst->arrayLength,UA_toIndex(ns0Id));
+		retval |= UA_Array_decodeBinary(src,dst->arrayLength,UA_toIndex(ns0Id),pos,dst->data);
+	}
 
 	if (dst->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) {
 		// TODO: decode array dimension field
