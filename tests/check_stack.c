@@ -12,7 +12,7 @@
 #include <stdlib.h>
 
 #include "opcua.h"
-#include "opcua_transportLayer.h"
+#include "ua_transportLayer.h"
 #include "check.h"
 
 

@@ -1,5 +1,5 @@
 /*
- * UA_stack.h
+ * ua_stack.h
  *
  *  Created on: 04.04.2014
  *      Author: mrt
@@ -9,8 +9,8 @@
 #define UA_STACK_H_
 
 #include "opcua.h"
-#include "UA_connection.h"
-#include "UA_list.h"
+#include "ua_connection.h"
+#include "ua_list.h"
 
 #define UA_TL_MAXCONNECTIONS_DEFAULT 10
 

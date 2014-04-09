@@ -3,7 +3,7 @@
 
 #include "opcua.h"
 /* UA_indexedList reuses many types of UA_list */
-#include "UA_list.h"
+#include "ua_list.h"
 
 /*
  * Integer Indexed List

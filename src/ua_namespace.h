@@ -7,9 +7,9 @@
 #define __USE_UNIX98
 #include <pthread.h>
 
-#include "opcua_basictypes.h"
+#include "ua_basictypes.h"
 #include "opcua.h"
-#include "UA_list.h"
+#include "ua_list.h"
 
 typedef struct pthread_rwlock_t ns_lock;
 

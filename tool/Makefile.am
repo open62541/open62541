@@ -1,7 +1,7 @@
 SRC_DIR = $(top_builddir)/src
 INCLUDE_DIR = $(top_builddir)/include
 AUTO_NAME = opcua
-NS0_NAME = opcua_namespace_0
+NS0_NAME = ua_namespace_0
 
 all-local: $(AUTO_NAME).cgen $(AUTO_NAME).hgen $(NS0_NAME).cgen $(NS0_NAME).hgen
 

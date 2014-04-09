@@ -1,5 +1,5 @@
 #include <stdlib.h> // EXIT_SUCCESS
-#include "UA_list.h"
+#include "ua_list.h"
 #include "check.h"
 
 /* global test counters */

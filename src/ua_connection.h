@@ -1,7 +1,7 @@
 #ifndef OPCUA_CONNECTIONHELPER_H_
 #define OPCUA_CONNECTIONHELPER_H_
 #include "opcua.h"
-#include "UA_stackInternalTypes.h"
+#include "ua_stackInternalTypes.h"
 
 #include <pthread.h>
 

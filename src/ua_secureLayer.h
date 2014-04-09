@@ -1,8 +1,8 @@
 #ifndef OPCUA_SECURECHANNELLAYER_H_
 #define OPCUA_SECURECHANNELLAYER_H_
 #include "opcua.h"
-#include "UA_connection.h"
-#include "UA_stackInternalTypes.h"
+#include "ua_connection.h"
+#include "ua_stackInternalTypes.h"
 
 UA_Int32 SL_initConnectionObject(UA_SL_Channel *connection);
 UA_Int32 SL_openSecureChannel_responseMessage_get(UA_SL_Channel *connection,

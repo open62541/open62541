@@ -1,5 +1,5 @@
 /*
- * opcua_transportLayer.h
+ * ua_transportLayer.h
  *
  *  Created on: Dec 19, 2013
  *      Author: opcua
@@ -10,9 +10,9 @@
 #include <stdio.h>
 
 #include "opcua.h"
-#include "UA_stack.h"
-#include "UA_connection.h"
-#include "UA_stackInternalTypes.h"
+#include "ua_stack.h"
+#include "ua_connection.h"
+#include "ua_stackInternalTypes.h"
 
 /*------------------Defined Error Codes------------------*/
 //transport errors begin at 1000

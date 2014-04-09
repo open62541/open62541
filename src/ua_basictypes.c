@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdarg.h> // va_start, va_end
 #include "opcua.h"
-#include "opcua_basictypes.h"
+#include "ua_basictypes.h"
 
 UA_Int32 UA_encodeBinary(void* const data, UA_Int32 *pos, UA_Int32 type, UA_ByteString* dst) {
 	return UA_[type].encodeBinary(data,pos,dst);

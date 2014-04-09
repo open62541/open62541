@@ -9,8 +9,8 @@
 #include <memory.h> // memset
 #include <pthread.h>
 
-#include "UA_stack.h"
-#include "opcua_transportLayer.h"
+#include "ua_stack.h"
+#include "ua_transportLayer.h"
 
 UA_TL_Description UA_TransportLayerDescriptorTcpBinary  = {
 		UA_TL_ENCODING_BINARY,

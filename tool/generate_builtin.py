@@ -305,13 +305,12 @@ print('''/**********************************************************
  * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
  * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  **********************************************************/
- 
+
 #ifndef OPCUA_H_
 #define OPCUA_H_
 
-#include "opcua_basictypes.h"
-#include "opcua_namespace_0.h"''', end='\n', file=fh);
-
+#include "ua_basictypes.h"
+#include "ua_namespace_0.h"''', end='\n', file=fh);
 
 #plugin handling
 import os
