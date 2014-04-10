@@ -725,8 +725,8 @@ UA_TYPE_END_XXCODEBINARY
 UA_Int32 UA_NodeId_decodeBinary(UA_ByteString const * src, UA_Int32* pos, UA_NodeId *dst) {
 	int retval = UA_SUCCESS;
 	// temporary variables to overcome decoder's non-endian-saveness for datatypes
-	UA_Byte   dstByte;
-	UA_UInt16 dstUInt16;
+	UA_Byte   dstByte = 0;
+	UA_UInt16 dstUInt16 = 0;
 
 	retval |= UA_Byte_decodeBinary(src,pos,&(dst->encodingByte));
 	switch (dst->encodingByte & UA_NODEIDTYPE_MASK) {
