@@ -120,9 +120,15 @@ for row in rows2:
 
     print('#define '+name.upper()+'_NS0 '+row[1], file=fh)
 
-    print("\t{" + row[1] + ", (UA_Int32(*)(void const*)) " + name + "_calcSize, (UA_Int32(*)(UA_ByteString const*,UA_Int32*,void*)) " + name + "_decodeBinary, (UA_Int32(*)(void const*,UA_Int32*,UA_ByteString*))" + name + "_encodeBinary, (UA_Int32(*)(void **))" + name + "_new, (UA_Int32(*)(void *))" + name + "_delete},",end='\n',file=fc) 
+    print("\t{" + row[1] + 
+          ",(UA_Int32(*)(void const*))"+name+"_calcSize" + 
+          ",(UA_Int32(*)(UA_ByteString const*,UA_Int32*,void*))"+name+ "_decodeBinary" +
+          ",(UA_Int32(*)(void const*,UA_Int32*,UA_ByteString*))"+name+"_encodeBinary"+
+          ",(UA_Int32(*)(void **))"+name+"_new"+
+          ",(UA_Int32(*)(void *))"+name+"_delete"+
+          ',(UA_Byte*)"'+name+'"},',end='\n',file=fc) 
 
-print("\t{0,UA_NULL,UA_NULL,UA_NULL,UA_NULL,UA_NULL}\n};",file=fc)
+print('\t{0,UA_NULL,UA_NULL,UA_NULL,UA_NULL,UA_NULL,(UA_Byte*)"undefined"}\n};',file=fc)
 print('#endif /* OPCUA_NAMESPACE_0_H_ */', end='\n', file=fh)
 fh.close()
 fc.close()

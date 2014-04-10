@@ -290,7 +290,9 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_UInt64)
 /** UA_Float - IEE754 32bit float with biased exponent */
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Float)
 // FIXME: Implement NaN, Inf and Zero(s)
+UA_Byte UA_FLOAT_ZERO[] = {0x00,0x00,0x00,0x00};
 UA_TYPE_START_DECODEBINARY(UA_Float)
+	if (memcmp(&(src->data[*pos]),UA_FLOAT_ZERO,4)==0) { return UA_Int32_decodeBinary(src,pos,(UA_Int32*)dst); }
 	UA_Float mantissa;
 	mantissa = (UA_Float) (src->data[*pos] & 0xFF);							// bits 0-7
 	mantissa = (mantissa / 256.0 ) + (UA_Float) (src->data[*pos+1] & 0xFF); 	// bits 8-15
@@ -324,7 +326,9 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_Float)
 /** UA_Float - IEE754 64bit float with biased exponent*/
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Double)
 // FIXME: Implement NaN, Inf and Zero(s)
+UA_Byte UA_DOUBLE_ZERO[] = {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
 UA_TYPE_START_DECODEBINARY(UA_Double)
+	if (memcmp(&(src->data[*pos]),UA_DOUBLE_ZERO,8)==0) { return UA_Int64_decodeBinary(src,pos,(UA_Int64*)dst); }
 	UA_Double mantissa;
 	mantissa = (UA_Double) (src->data[*pos] & 0xFF);							// bits 0-7
 	mantissa = (mantissa / 256.0 ) + (UA_Double) (src->data[*pos+1] & 0xFF); 	// bits 8-15
@@ -847,7 +851,8 @@ UA_Int32 UA_NodeId_compare(UA_NodeId *n1, UA_NodeId *n2) {
 UA_Int32 UA_NodeId_init(UA_NodeId* p){
 	if(p==UA_NULL)return UA_ERROR;
 	p->encodingByte = 0;
-	p->identifier.numeric = 0;
+	p->identifier.string.length = 0;
+	p->identifier.string.data = UA_NULL;
 	p->namespace = 0;
 	return UA_SUCCESS;
 }
@@ -902,7 +907,9 @@ UA_Int32 UA_ExpandedNodeId_deleteMembers(UA_ExpandedNodeId* p) {
 }
 UA_Int32 UA_ExpandedNodeId_init(UA_ExpandedNodeId* p){
 	if(p==UA_NULL)return UA_ERROR;
+	UA_NodeId_init(&(p->nodeId));
 	UA_String_init(&(p->namespaceUri));
+	p->serverIndex = 0;
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_ExpandedNodeId)

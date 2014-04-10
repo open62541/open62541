@@ -193,6 +193,7 @@ typedef struct T_UA_VTable {
 	UA_Int32 (*encodeBinary)(void const * src, UA_Int32* pos, UA_ByteString* dst);
 	UA_Int32 (*new)(void ** p);
 	UA_Int32 (*delete)(void * p);
+	UA_Byte* name;
 } UA_VTable;
 
 /* VariantBinaryEncoding - Part: 6, Chapter: 5.2.2.16, Page: 22 */
