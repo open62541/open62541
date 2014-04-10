@@ -1042,258 +1042,390 @@ START_TEST(UA_Byte_encode_test)
 
 }
 END_TEST
-/*
-START_TEST(UA_Int16_encodeShallWorkOnExample)
+
+START_TEST(UA_UInt16_encodeNegativeShallEncodeLittleEndian)
 {
 	// given
-	UA_ByteString rawMessage;
-	UA_Int32 position = 0;
-	UA_Byte *mem = malloc(sizeof(UA_UInt16));
-	rawMessage.data = mem;
-	UA_UInt16 testUInt16 = 1;
-	rawMessage.length = 2;
-	position = 0;
-	// when
-	UA_UInt16_encodeBinary(&testUInt16, &position, rawMessage.data);
-	// then
-	ck_assert_int_eq(position, 2);
-	UA_Int32 p = 0;
-	UA_UInt16 val;
-	UA_UInt16_decodeBinary(rawMessage.data, &p, &val);
-	ck_assert_int_eq(val,testUInt16);
-	//ck_assert_int_eq(rawMessage.data[0], 0xAB);
-	// finally
-	free(mem);
+	UA_UInt16 src;
+	UA_Byte data[] = { 	0x55,0x55,
+						0x55,0x55
+					};
+	UA_ByteString dst = {4,data};
+
+	UA_Int32 retval, pos = 0;
+
+	// when test 1
+	src = -1;
+	retval = UA_UInt16_encodeBinary(&src, &pos, &dst);
+	// then test 1
+	ck_assert_int_eq(pos, 2);
+	ck_assert_int_eq(dst.data[0], 0xFF);
+	ck_assert_int_eq(dst.data[1], 0xFF);
+	ck_assert_int_eq(retval, UA_SUCCESS);
+
+	// when test 2
+	src = -32768;
+	retval = UA_UInt16_encodeBinary(&src, &pos, &dst);
+	// then test 2
+	ck_assert_int_eq(pos, 4);
+	ck_assert_int_eq(dst.data[2], 0x00);
+	ck_assert_int_eq(dst.data[3], 0x80);
+	ck_assert_int_eq(retval, UA_SUCCESS);
 }
 END_TEST
-START_TEST(UA_UInt16_encodeShallWorkOnExample)
+START_TEST(UA_UInt16_encodeShallEncodeLittleEndian)
 {
 	// given
-	UA_ByteString rawMessage;
-	UA_Int32 position = 0;
-	UA_Byte *mem = (UA_Byte*) malloc(sizeof(UA_UInt16));
-	rawMessage.data = mem;
-	UA_UInt16 testUInt16 = 1;
-	rawMessage.length = 2;
-	position = 0;
-	// when
-	UA_UInt16_encodeBinary(&testUInt16, &position, rawMessage.data);
-	// then
-	ck_assert_int_eq(position, 2);
-	UA_Int32 p = 0;
-	UA_UInt16 val;
-	UA_UInt16_decodeBinary(rawMessage.data, &p, &val);
-	ck_assert_int_eq(val,testUInt16);
-	//ck_assert_int_eq(rawMessage.data[0], 0xAB);
-	// finally
-	free(mem);
+	UA_UInt16 src;
+	UA_Byte data[] = { 	0x55,0x55,
+						0x55,0x55
+					};
+	UA_ByteString dst = {4,data};
+
+	UA_Int32 retval, pos = 0;
+
+	// when test 1
+	src = 0;
+	retval = UA_UInt16_encodeBinary(&src, &pos, &dst);
+	// then test 1
+	ck_assert_int_eq(pos, 2);
+	ck_assert_int_eq(dst.data[0], 0x00);
+	ck_assert_int_eq(dst.data[1], 0x00);
+	ck_assert_int_eq(retval, UA_SUCCESS);
+
+	// when test 2
+	src = 32767;
+	retval = UA_UInt16_encodeBinary(&src, &pos, &dst);
+	// then test 2
+	ck_assert_int_eq(pos, 4);
+	ck_assert_int_eq(dst.data[2], 0xFF);
+	ck_assert_int_eq(dst.data[3], 0x7F);
+	ck_assert_int_eq(retval, UA_SUCCESS);
 }
 END_TEST
-START_TEST(UA_UInt32_encodeShallWorkOnExample)
+START_TEST(UA_UInt32_encodeShallEncodeLittleEndian)
 {
 	// given
-	UA_ByteString rawMessage;
-	UA_UInt32 value = 0x0101FF00;
-	rawMessage.data = (UA_Byte*) malloc(2 * sizeof(UA_UInt32));
-	rawMessage.length = 8;
-	UA_Int32 p = 4;
-	// when
-	UA_UInt32_encodeBinary(&value,&p,rawMessage.data);
-	// then
-	ck_assert_uint_eq(rawMessage.data[4],0x00);
-	ck_assert_uint_eq(rawMessage.data[5],0xFF);
-	ck_assert_uint_eq(rawMessage.data[6],0x01);
-	ck_assert_uint_eq(rawMessage.data[7],0x01);
-	ck_assert_int_eq(p,8);
-	// finally
-	free(rawMessage.data);
+	UA_UInt32 src;
+	UA_Byte data[] = { 	0x55,0x55,0x55,0x55,
+						0x55,0x55,0x55,0x55
+					};
+	UA_ByteString dst = {8,data};
+
+	UA_Int32 retval, pos = 0;
+
+	// when test 1
+	src = -1;
+	retval = UA_UInt32_encodeBinary(&src, &pos, &dst);
+	// then test 1
+	ck_assert_int_eq(pos, 4);
+	ck_assert_int_eq(dst.data[0], 0xFF);
+	ck_assert_int_eq(dst.data[1], 0xFF);
+	ck_assert_int_eq(dst.data[2], 0xFF);
+	ck_assert_int_eq(dst.data[3], 0xFF);
+	ck_assert_int_eq(retval, UA_SUCCESS);
+
+	// when test 2
+	src = 0x0101FF00;
+	retval = UA_UInt32_encodeBinary(&src, &pos, &dst);
+	// then test 2
+	ck_assert_int_eq(pos, 8);
+	ck_assert_int_eq(dst.data[4], 0x00);
+	ck_assert_int_eq(dst.data[5], 0xFF);
+	ck_assert_int_eq(dst.data[6], 0x01);
+	ck_assert_int_eq(dst.data[7], 0x01);
+	ck_assert_int_eq(retval, UA_SUCCESS);
 }
 END_TEST
 START_TEST(UA_Int32_encodeShallEncodeLittleEndian)
 {
 	// given
-	UA_Int32 value = 0x01020304;
-	UA_Byte  buf[4];
-	UA_Int32 p = 0;
-	// when
-	UA_Int32_encodeBinary(&value,&p,buf);
-	// then
-	ck_assert_int_eq(p,4);
-	ck_assert_uint_eq(buf[0],0x04);
-	ck_assert_uint_eq(buf[1],0x03);
-	ck_assert_uint_eq(buf[2],0x02);
-	ck_assert_uint_eq(buf[3],0x01);
+	UA_Int32 src;
+	UA_Byte data[] = { 	0x55,0x55,0x55,0x55,
+						0x55,0x55,0x55,0x55
+					};
+	UA_ByteString dst = {8,data};
+
+	UA_Int32 retval, pos = 0;
+
+	// when test 1
+	src = 1;
+	retval = UA_Int32_encodeBinary(&src, &pos, &dst);
+	// then test 1
+	ck_assert_int_eq(pos, 4);
+	ck_assert_int_eq(dst.data[0], 0x01);
+	ck_assert_int_eq(dst.data[1], 0x00);
+	ck_assert_int_eq(dst.data[2], 0x00);
+	ck_assert_int_eq(dst.data[3], 0x00);
+	ck_assert_int_eq(retval, UA_SUCCESS);
+
+	// when test 2
+	src = 0x7FFFFFFF;
+	retval = UA_Int32_encodeBinary(&src, &pos, &dst);
+	// then test 2
+	ck_assert_int_eq(pos, 8);
+	ck_assert_int_eq(dst.data[4], 0xFF);
+	ck_assert_int_eq(dst.data[5], 0xFF);
+	ck_assert_int_eq(dst.data[6], 0xFF);
+	ck_assert_int_eq(dst.data[7], 0x7F);
+	ck_assert_int_eq(retval, UA_SUCCESS);
 }
 END_TEST
 START_TEST(UA_Int32_encodeNegativeShallEncodeLittleEndian)
 {
 	// given
-	UA_Int32 value = -1;
-	UA_Byte  buf[4];
-	UA_Int32 p = 0;
-	// when
-	UA_Int32_encodeBinary(&value,&p,buf);
-	// then
-	ck_assert_int_eq(p,4);
-	ck_assert_uint_eq(buf[0],0xFF);
-	ck_assert_uint_eq(buf[1],0xFF);
-	ck_assert_uint_eq(buf[2],0xFF);
-	ck_assert_uint_eq(buf[3],0xFF);
+	UA_Int32 src;
+	UA_Byte data[] = { 	0x55,0x55,0x55,0x55,
+						0x55,0x55,0x55,0x55
+					};
+	UA_ByteString dst = {8,data};
+
+	UA_Int32 retval, pos = 0;
+
+	// when test 1
+	src = -1;
+	retval = UA_Int32_encodeBinary(&src, &pos, &dst);
+	// then test 1
+	ck_assert_int_eq(pos, 4);
+	ck_assert_int_eq(dst.data[0], 0xFF);
+	ck_assert_int_eq(dst.data[1], 0xFF);
+	ck_assert_int_eq(dst.data[2], 0xFF);
+	ck_assert_int_eq(dst.data[3], 0xFF);
+	ck_assert_int_eq(retval, UA_SUCCESS);
 }
 END_TEST
 START_TEST(UA_UInt64_encodeShallWorkOnExample)
 {
 	// given
-	UA_ByteString rawMessage;
-	UA_UInt64 value = 0x0101FF00FF00FF00;
-	rawMessage.data = (UA_Byte*) malloc(sizeof(UA_UInt64));
-	rawMessage.length = 8;
-	UA_Int32 p = 0;
-	// when
-	UA_UInt64_encodeBinary(&value, &p,rawMessage.data);
-	// then
-	ck_assert_uint_eq((UA_Byte)rawMessage.data[0],0x00);
-	ck_assert_uint_eq((UA_Byte)rawMessage.data[1],0xFF);
-	ck_assert_uint_eq((UA_Byte)rawMessage.data[2],0x00);
-	ck_assert_uint_eq((UA_Byte)rawMessage.data[3],0xFF);
-	ck_assert_uint_eq((UA_Byte)rawMessage.data[4],0x00);
-	ck_assert_uint_eq((UA_Byte)rawMessage.data[5],0xFF);
-	ck_assert_uint_eq((UA_Byte)rawMessage.data[6],0x01);
-	ck_assert_uint_eq((UA_Byte)rawMessage.data[7],0x01);
-	// finally
-	free(rawMessage.data);
+	UA_UInt64 src;
+	UA_Byte data[] = { 	0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55,
+						0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
+					};
+	UA_ByteString dst = {16,data};
+
+	UA_Int32 retval, pos = 0;
+
+	// when test 1
+	src = -1;
+	retval = UA_UInt64_encodeBinary(&src, &pos, &dst);
+	// then test 1
+	ck_assert_int_eq(pos, 8);
+	ck_assert_int_eq(dst.data[0], 0xFF);
+	ck_assert_int_eq(dst.data[1], 0xFF);
+	ck_assert_int_eq(dst.data[2], 0xFF);
+	ck_assert_int_eq(dst.data[3], 0xFF);
+	ck_assert_int_eq(dst.data[4], 0xFF);
+	ck_assert_int_eq(dst.data[5], 0xFF);
+	ck_assert_int_eq(dst.data[6], 0xFF);
+	ck_assert_int_eq(dst.data[7], 0xFF);
+	ck_assert_int_eq(retval, UA_SUCCESS);
+
+	// when test 2
+	src = 0x7F0033AA44EE6611;
+	retval = UA_UInt64_encodeBinary(&src, &pos, &dst);
+	// then test 2
+	ck_assert_int_eq(pos, 16);
+	ck_assert_int_eq(dst.data[8], 0x11);
+	ck_assert_int_eq(dst.data[9], 0x66);
+	ck_assert_int_eq(dst.data[10], 0xEE);
+	ck_assert_int_eq(dst.data[11], 0x44);
+	ck_assert_int_eq(dst.data[12], 0xAA);
+	ck_assert_int_eq(dst.data[13], 0x33);
+	ck_assert_int_eq(dst.data[14], 0x00);
+	ck_assert_int_eq(dst.data[15], 0x7F);
+	ck_assert_int_eq(retval, UA_SUCCESS);
 }
 END_TEST
-START_TEST(UA_Int64_encodeShallWorkOnExample)
+START_TEST(UA_Int64_encodeShallEncodeLittleEndian)
 {
 	// given
-	UA_ByteString rawMessage;
-	UA_UInt64 value = 0x0101FF00FF00FF00;
-	rawMessage.data = (UA_Byte*) malloc(sizeof(UA_UInt64));
-	rawMessage.length = 8;
-	UA_Int32 p = 0;
-	// when
-	UA_UInt64_encodeBinary(&value, &p,rawMessage.data);
-	// then
-	ck_assert_uint_eq(rawMessage.data[0],0x00);
-	ck_assert_uint_eq(rawMessage.data[1],0xFF);
-	ck_assert_uint_eq(rawMessage.data[2],0x00);
-	ck_assert_uint_eq(rawMessage.data[3],0xFF);
-	ck_assert_uint_eq(rawMessage.data[4],0x00);
-	ck_assert_uint_eq(rawMessage.data[5],0xFF);
-	ck_assert_uint_eq(rawMessage.data[6],0x01);
-	ck_assert_uint_eq(rawMessage.data[7],0x01);
-	// finally
-	free(rawMessage.data);
+	UA_Int64 src;
+	UA_Byte data[] = { 	0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55,
+						0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
+					};
+	UA_ByteString dst = {16,data};
+
+	UA_Int32 retval, pos = 0;
+
+	// when test 1
+	src = 0x7F0033AA44EE6611;
+	retval = UA_Int64_encodeBinary(&src, &pos, &dst);
+	// then test 1
+	ck_assert_int_eq(pos, 8);
+	ck_assert_int_eq(dst.data[0], 0x11);
+	ck_assert_int_eq(dst.data[1], 0x66);
+	ck_assert_int_eq(dst.data[2], 0xEE);
+	ck_assert_int_eq(dst.data[3], 0x44);
+	ck_assert_int_eq(dst.data[4], 0xAA);
+	ck_assert_int_eq(dst.data[5], 0x33);
+	ck_assert_int_eq(dst.data[6], 0x00);
+	ck_assert_int_eq(dst.data[7], 0x7F);
+	ck_assert_int_eq(retval, UA_SUCCESS);
+}
+END_TEST
+START_TEST(UA_Int64_encodeNegativeShallEncodeLittleEndian)
+{
+	// given
+	UA_Int64 src;
+	UA_Byte data[] = { 	0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55,
+						0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
+					};
+	UA_ByteString dst = {16,data};
+
+	UA_Int32 retval, pos = 0;
+
+	// when test 1
+	src = -1;
+	retval = UA_Int64_encodeBinary(&src, &pos, &dst);
+	// then test 1
+	ck_assert_int_eq(pos, 8);
+	ck_assert_int_eq(dst.data[0], 0xFF);
+	ck_assert_int_eq(dst.data[1], 0xFF);
+	ck_assert_int_eq(dst.data[2], 0xFF);
+	ck_assert_int_eq(dst.data[3], 0xFF);
+	ck_assert_int_eq(dst.data[4], 0xFF);
+	ck_assert_int_eq(dst.data[5], 0xFF);
+	ck_assert_int_eq(dst.data[6], 0xFF);
+	ck_assert_int_eq(dst.data[7], 0xFF);
+	ck_assert_int_eq(retval, UA_SUCCESS);
 }
 END_TEST
 START_TEST(UA_Float_encodeShallWorkOnExample)
 {
 	// given
-	UA_Float value = -6.5;
-	UA_Int32 pos = 0;
-	UA_Byte* buf = (UA_Byte*)malloc(sizeof(UA_Float));
-	// when
-	UA_Float_encodeBinary(&value,&pos,buf);
-	// then
-	ck_assert_uint_eq(buf[2],0xD0);
-	ck_assert_uint_eq(buf[3],0xC0);
-	// finally
-	free(buf);
+	UA_Float src;
+	UA_Byte data[] = { 	0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55,
+						0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
+					};
+	UA_ByteString dst = {16,data};
+
+	UA_Int32 retval, pos = 0;
+
+	// when test 1
+	src = -6.5;
+	retval = UA_Float_encodeBinary(&src, &pos, &dst);
+	// then test 1
+	ck_assert_int_eq(pos, 4);
+	ck_assert_int_eq(dst.data[2], 0xD0);
+	ck_assert_int_eq(dst.data[3], 0xC0);
+	ck_assert_int_eq(retval, UA_SUCCESS);
 }
 END_TEST
-START_TEST(encodeDouble_test)
+/*START_TEST(UA_Double_encodeShallWorkOnExample)
 {
-	UA_Double value = -6.5;
-	UA_Int32 pos = 0;
-	UA_Byte* buf = (char*)malloc(sizeof(UA_Double));
+	// given
+	UA_Double src;
+	UA_Byte data[] = { 	0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55,
+						0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
+					};
+	UA_ByteString dst = {16,data};
 
-	UA_Double_encode(&value,&pos,buf);
+	UA_Int32 retval, pos = 0;
 
-	ck_assert_uint_eq(buf[6],0xD0);
-	ck_assert_uint_eq(buf[7],0xC0);
-	free(buf);
+	// when test 1
+	src = -6.5;
+	retval = UA_Double_encodeBinary(&src, &pos, &dst);
+	// then test 1
+	ck_assert_int_eq(pos, 8);
+	ck_assert_int_eq(dst.data[6], 0xD0);
+	ck_assert_int_eq(dst.data[7], 0xC0);
+	ck_assert_int_eq(retval, UA_SUCCESS);
 }
-END_TEST
+END_TEST*/
 START_TEST(UA_String_encodeShallWorkOnExample)
 {
 	// given
-	UA_Int32 pos = 0;
-	UA_String string;
-	UA_Int32 l = 11;
+	UA_String src;
+	src.length = 11;
 	UA_Byte mem[11] = "ACPLT OPCUA";
-	UA_Byte *dstBuf = (UA_Byte*) malloc(sizeof(UA_Int32)+l);
-	string.data =  mem;
-	string.length = 11;
+	src.data = mem;
+
+	UA_Byte data[] = { 	0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55,
+						0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55,
+						0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
+					};
+	UA_ByteString dst = {24,data};
+
+	UA_Int32 retval, pos = 0;
 	// when
-	UA_String_encodeBinary(&string, &pos, dstBuf);
+	retval = UA_String_encodeBinary(&src, &pos, &dst);
 	// then
-	ck_assert_int_eq(dstBuf[0],11);
-	ck_assert_int_eq(dstBuf[0+sizeof(UA_Int32)],'A');
-	// finally
-	free(dstBuf);
+	ck_assert_int_eq(pos, sizeof(UA_Int32)+11);
+	ck_assert_int_eq(dst.data[0], 11);
+	ck_assert_int_eq(dst.data[sizeof(UA_Int32)+0], 'A');
+	ck_assert_int_eq(dst.data[sizeof(UA_Int32)+1], 'C');
+	ck_assert_int_eq(dst.data[sizeof(UA_Int32)+2], 'P');
+	ck_assert_int_eq(dst.data[sizeof(UA_Int32)+3], 'L');
+	ck_assert_int_eq(dst.data[sizeof(UA_Int32)+4], 'T');
+	ck_assert_int_eq(dst.data[sizeof(UA_Int32)+5], 0x20); //Space
+	ck_assert_int_eq(retval, UA_SUCCESS);
 }
 END_TEST
 START_TEST(UA_DataValue_encodeShallWorkOnExampleWithoutVariant)
 {
 	// given
-	UA_DataValue dataValue;
-	UA_Int32 pos = 0;
-	UA_Byte* buf = (UA_Byte*) malloc(15);
-	UA_DateTime dateTime;
-	dateTime = 80;
-	dataValue.serverTimestamp = dateTime;
-	dataValue.encodingMask = UA_DATAVALUE_SERVERTIMPSTAMP; //Only the sourcePicoseconds
+	UA_DataValue src;
+	src.serverTimestamp = 80;
+	src.encodingMask = UA_DATAVALUE_SERVERTIMPSTAMP; //Only the sourcePicoseconds
+
+	UA_Byte data[] = { 	0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55,
+						0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55,
+						0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
+					};
+	UA_ByteString dst = {24,data};
+
+	UA_Int32 retval, pos = 0;
 	// when
-	UA_DataValue_encodeBinary(&dataValue, &pos, buf);
-	//then
+	retval = UA_DataValue_encodeBinary(&src, &pos, &dst);
+	// then
 	ck_assert_int_eq(pos, 9);// represents the length
-	ck_assert_uint_eq(buf[0], 0x08); // encodingMask
-	ck_assert_uint_eq(buf[1], 80); // 8 Byte serverTimestamp
-	ck_assert_uint_eq(buf[2], 0);
-	ck_assert_uint_eq(buf[3], 0);
-	ck_assert_uint_eq(buf[4], 0);
-	ck_assert_uint_eq(buf[5], 0);
-	ck_assert_uint_eq(buf[6], 0);
-	ck_assert_uint_eq(buf[7], 0);
-	ck_assert_uint_eq(buf[8], 0);
-	// finally
-	free(buf);
+	ck_assert_int_eq(dst.data[0], 0x08); // encodingMask
+	ck_assert_int_eq(dst.data[1], 80); // 8 Byte serverTimestamp
+	ck_assert_int_eq(dst.data[2], 0);
+	ck_assert_int_eq(dst.data[3], 0);
+	ck_assert_int_eq(dst.data[4], 0);
+	ck_assert_int_eq(dst.data[5], 0);
+	ck_assert_int_eq(dst.data[6], 0);
+	ck_assert_int_eq(dst.data[7], 0);
+	ck_assert_int_eq(dst.data[8], 0);
+	ck_assert_int_eq(retval, UA_SUCCESS);
 }
 END_TEST
 START_TEST(UA_DataValue_encodeShallWorkOnExampleWithVariant)
 {
 	// given
-	UA_DataValue dataValue;
-	UA_Int32 pos = 0, retval;
-	UA_Byte* buf = (UA_Byte*) malloc(15);
-	dataValue.encodingMask = UA_DATAVALUE_VARIANT | UA_DATAVALUE_SERVERTIMPSTAMP; //Variant & SourvePicoseconds
-	dataValue.value.vt = &UA_[UA_INT32];
-	dataValue.value.arrayLength = 0;
-	dataValue.value.encodingMask = UA_INT32_NS0;
-	UA_DateTime serverTime = 80;
-	dataValue.serverTimestamp = serverTime;
-	UA_Int32 data = 45;
-	UA_Int32* pdata = &data;
-	dataValue.value.data = (void**) &pdata;
-	pos = 0;
+	UA_DataValue src;
+	src.serverTimestamp = 80;
+	src.encodingMask = UA_DATAVALUE_VARIANT | UA_DATAVALUE_SERVERTIMPSTAMP; //Variant & SourvePicoseconds
+	src.value.vt = &UA_[UA_INT32];
+	src.value.arrayLength = 0;
+	src.value.encodingMask = UA_INT32_NS0;
+	UA_Int32 vdata = 45;
+	UA_Int32* pvdata = &vdata;
+	src.value.data = (void**) &pvdata;
+
+	UA_Byte data[] = { 	0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55,
+						0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55,
+						0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55
+					};
+	UA_ByteString dst = {24,data};
+
+	UA_Int32 retval, pos = 0;
 	// when
-	retval = UA_DataValue_encodeBinary(&dataValue, &pos, buf);
+	retval = UA_DataValue_encodeBinary(&src, &pos, &dst);
 	// then
-	ck_assert_int_eq(retval, UA_SUCCESS);
 	ck_assert_int_eq(pos, 1+(1+4)+8);// represents the length
-	ck_assert_uint_eq(buf[0], 0x08 | 0x01); // encodingMask
-	ck_assert_uint_eq(buf[1], 0x06); // Variant's Encoding Mask - INT32
-	ck_assert_uint_eq(buf[2], 45);  // the single value
-	ck_assert_uint_eq(buf[3], 0);
-	ck_assert_uint_eq(buf[4], 0);
-	ck_assert_uint_eq(buf[5], 0);
-	ck_assert_uint_eq(buf[6], 80);  // the server timestamp
-	ck_assert_uint_eq(buf[7], 0);
-	// finally
-	free(buf);
+	ck_assert_int_eq(dst.data[0], 0x08 | 0x01); // encodingMask
+	ck_assert_int_eq(dst.data[1], 0x06); // Variant's Encoding Mask - INT32
+	ck_assert_int_eq(dst.data[2], 45);  // the single value
+	ck_assert_int_eq(dst.data[3], 0);
+	ck_assert_int_eq(dst.data[4], 0);
+	ck_assert_int_eq(dst.data[5], 0);
+	ck_assert_int_eq(dst.data[6], 80);  // the server timestamp
+	ck_assert_int_eq(dst.data[7], 0);
+	ck_assert_int_eq(retval, UA_SUCCESS);
 }
-END_TEST*/
+END_TEST
 
 Suite *testSuite_builtin(void)
 {
@@ -1385,17 +1517,19 @@ Suite *testSuite_builtin(void)
 
 	TCase *tc_encode = tcase_create("encode");
 	tcase_add_test(tc_encode, UA_Byte_encode_test);
-/*	tcase_add_test(tc_encode, UA_Int16_encodeShallWorkOnExample);
-	tcase_add_test(tc_encode, UA_UInt16_encodeShallWorkOnExample);
-	tcase_add_test(tc_encode, UA_UInt32_encodeShallWorkOnExample);
+	tcase_add_test(tc_encode, UA_UInt16_encodeNegativeShallEncodeLittleEndian);
+	tcase_add_test(tc_encode, UA_UInt16_encodeShallEncodeLittleEndian);
+	tcase_add_test(tc_encode, UA_UInt32_encodeShallEncodeLittleEndian);
 	tcase_add_test(tc_encode, UA_Int32_encodeShallEncodeLittleEndian);
 	tcase_add_test(tc_encode, UA_Int32_encodeNegativeShallEncodeLittleEndian);
 	tcase_add_test(tc_encode, UA_UInt64_encodeShallWorkOnExample);
-	tcase_add_test(tc_encode, UA_Int64_encodeShallWorkOnExample);
+	tcase_add_test(tc_encode, UA_Int64_encodeNegativeShallEncodeLittleEndian);
+	tcase_add_test(tc_encode, UA_Int64_encodeShallEncodeLittleEndian);
 	tcase_add_test(tc_encode, UA_Float_encodeShallWorkOnExample);
+	//tcase_add_test(tc_encode, UA_Double_encodeShallWorkOnExample);
 	tcase_add_test(tc_encode, UA_String_encodeShallWorkOnExample);
 	tcase_add_test(tc_encode, UA_DataValue_encodeShallWorkOnExampleWithoutVariant);
-	tcase_add_test(tc_encode, UA_DataValue_encodeShallWorkOnExampleWithVariant);*/
+	tcase_add_test(tc_encode, UA_DataValue_encodeShallWorkOnExampleWithVariant);
 	suite_add_tcase(s,tc_encode);
 
 	return s;

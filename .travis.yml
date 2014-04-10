@@ -1,6 +1,4 @@
 language: c
-notifications:
-  email: true
 before_install:
  - sudo apt-get update -qq
  - sudo apt-get install -qq build-essential subversion git autoconf libtool texinfo python-lxml valgrind
