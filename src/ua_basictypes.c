@@ -1244,7 +1244,7 @@ UA_Int32 UA_Variant_decodeBinary(UA_ByteString const * src, UA_Int32 *pos, UA_Va
 	ns0Id = dst->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK;
 
 	// initialize vTable
-	if (ns0Id < UA_BOOLEAN && ns0Id > UA_DOUBLECOMPLEXNUMBERTYPE) {
+	if (UA_toIndex(ns0Id) == UA_ERR_INVALID_VALUE) {
 		return UA_ERR_INVALID_VALUE;
 	} else {
 		dst->vt = &UA_[UA_toIndex(ns0Id)];

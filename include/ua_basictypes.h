@@ -45,7 +45,7 @@ UA_ByteString;
 /* Function return values */
 #define UA_SUCCESS 0
 #define UA_NO_ERROR UA_SUCCESS
-#define UA_ERROR (0x01)
+#define UA_ERROR (0x01 << 31)
 #define UA_ERR_INCONSISTENT  (UA_ERROR | (0x01 << 1))
 #define UA_ERR_INVALID_VALUE (UA_ERROR | (0x01 << 2))
 #define UA_ERR_NO_MEMORY     (UA_ERROR | (0x01 << 3))
