@@ -3,7 +3,7 @@ TESTS=
 UNIT_TESTS=
 check_PROGRAMS=
 
-UNIT_TESTS += check_stack check_list check_indexedList check_builtin check_namespace check_encode check_decode check_create check_delete
+UNIT_TESTS += check_stack check_list check_indexedList check_builtin check_namespace
 TESTS += $(UNIT_TESTS)
 check_PROGRAMS += $(UNIT_TESTS)
 
