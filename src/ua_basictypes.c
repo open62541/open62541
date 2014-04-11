@@ -323,7 +323,7 @@ UA_Int32 UA_Float_init(UA_Float * p){
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_Float)
 
-/** UA_Float - IEE754 64bit float with biased exponent*/
+/** UA_Float - IEEE754 64bit float with biased exponent*/
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Double)
 // FIXME: Implement NaN, Inf and Zero(s)
 UA_Byte UA_DOUBLE_ZERO[] = {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
@@ -1138,11 +1138,14 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_IntegerId)
 UA_TYPE_METHOD_PROTOTYPES_AS(UA_StatusCode, UA_UInt32)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_StatusCode)
 
+/** QualifiedName - Part 4, Chapter
+ * but see Part 6, Chapter 5.2.2.13 for Binary Encoding
+ */
 UA_Int32 UA_QualifiedName_calcSize(UA_QualifiedName const * p) {
 	UA_Int32 length = 0;
 	if (p == NULL) return sizeof(UA_QualifiedName);
 	length += sizeof(UA_UInt16); //qualifiedName->namespaceIndex
-	length += sizeof(UA_UInt16); //qualifiedName->reserved
+	// length += sizeof(UA_UInt16); //qualifiedName->reserved
 	length += UA_String_calcSize(&(p->name)); //qualifiedName->name
 	return length;
 }
@@ -1150,13 +1153,13 @@ UA_Int32 UA_QualifiedName_decodeBinary(UA_ByteString const * src, UA_Int32 *pos,
 		UA_QualifiedName *dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_UInt16_decodeBinary(src,pos,&(dst->namespaceIndex));
-	retval |= UA_UInt16_decodeBinary(src,pos,&(dst->reserved));
+	//retval |= UA_UInt16_decodeBinary(src,pos,&(dst->reserved));
 	retval |= UA_String_decodeBinary(src,pos,&(dst->name));
 	return retval;
 }
 UA_TYPE_START_ENCODEBINARY(UA_QualifiedName)
 	retval |= UA_UInt16_encodeBinary(&(src->namespaceIndex),pos,dst);
-	retval |= UA_UInt16_encodeBinary(&(src->reserved),pos,dst);
+	//retval |= UA_UInt16_encodeBinary(&(src->reserved),pos,dst);
 	retval |= UA_String_encodeBinary(&(src->name),pos,dst);
 UA_TYPE_END_XXCODEBINARY
 UA_Int32 UA_QualifiedName_delete(UA_QualifiedName  * p) {
