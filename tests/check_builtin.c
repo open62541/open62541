@@ -248,13 +248,13 @@ START_TEST(UA_ExtensionObject_calcSizeShallWorkOnExample)
 	// when
 	extensionObject.typeId.encodingByte = UA_NODEIDTYPE_TWOBYTE;
 	extensionObject.typeId.identifier.numeric = 0;
-	extensionObject.encoding = UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_NOBODYISENCODED;
+	extensionObject.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED;
 	// then
 	ck_assert_int_eq(UA_ExtensionObject_calcSize(&extensionObject), 1 + 1 + 1);
 
 	// ExtensionObject with ByteString-Body
 	// when
-	extensionObject.encoding = UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_BODYISBYTESTRING;
+	extensionObject.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
 	extensionObject.body.data = data;
 	extensionObject.body.length = 3;
 	// then
@@ -265,7 +265,7 @@ START_TEST(UA_DataValue_calcSizeShallWorkOnExample)
 {
 	// given
 	UA_DataValue dataValue;
-	dataValue.encodingMask = UA_DATAVALUE_STATUSCODE |  UA_DATAVALUE_SOURCETIMESTAMP |  UA_DATAVALUE_SOURCEPICOSECONDS;
+	dataValue.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE |  UA_DATAVALUE_ENCODINGMASK_SOURCETIMESTAMP |  UA_DATAVALUE_ENCODINGMASK_SOURCEPICOSECONDS;
 	dataValue.status = 12;
 	UA_DateTime dateTime;
 	dateTime = 80;
@@ -1366,7 +1366,7 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithoutVariant)
 	// given
 	UA_DataValue src;
 	src.serverTimestamp = 80;
-	src.encodingMask = UA_DATAVALUE_SERVERTIMPSTAMP; //Only the sourcePicoseconds
+	src.encodingMask = UA_DATAVALUE_ENCODINGMASK_SERVERTIMESTAMP; //Only the sourcePicoseconds
 
 	UA_Byte data[] = { 	0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55,
 						0x55,0x55,0x55,0x55,0x55,0x55,0x55,0x55,
@@ -1396,7 +1396,7 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithVariant)
 	// given
 	UA_DataValue src;
 	src.serverTimestamp = 80;
-	src.encodingMask = UA_DATAVALUE_VARIANT | UA_DATAVALUE_SERVERTIMPSTAMP; //Variant & SourvePicoseconds
+	src.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT | UA_DATAVALUE_ENCODINGMASK_SERVERTIMESTAMP; //Variant & SourvePicoseconds
 	src.value.vt = &UA_[UA_INT32];
 	src.value.arrayLength = 0;
 	src.value.encodingMask = UA_INT32_NS0;

@@ -99,9 +99,12 @@ for row in rows1:
     print('\tcase '+row[1]+': retval='+name.upper()+'; break; //'+row[2], file=fc)
     i = i+1
 
-print('\tUA_NS0_VTABLE_MAX = 0\n};\n', file=fh)
-print('''\t}\n\treturn retval;
+print('\tUA_INVALIDTYPE = '+str(i)+'\n};\n', file=fh)
+print('''\tcase 0: retval=UA_INVALIDTYPE; break;
+    }
+    return retval;
 }
+
 UA_VTable UA_[] = {''', file=fc)
 
 for row in rows2:
@@ -127,8 +130,16 @@ for row in rows2:
           ",(UA_Int32(*)(void **))"+name+"_new"+
           ",(UA_Int32(*)(void *))"+name+"_delete"+
           ',(UA_Byte*)"'+name+'"},',end='\n',file=fc) 
-
-print('\t{0,UA_NULL,UA_NULL,UA_NULL,UA_NULL,UA_NULL,(UA_Byte*)"undefined"}\n};',file=fc)
+name = "UA_InvalidType"
+print("\t{0" + 
+          ",(UA_Int32(*)(void const*))"+name+"_calcSize" + 
+          ",(UA_Int32(*)(UA_ByteString const*,UA_Int32*,void*))"+name+ "_decodeBinary" +
+          ",(UA_Int32(*)(void const*,UA_Int32*,UA_ByteString*))"+name+"_encodeBinary"+
+          ",(UA_Int32(*)(void **))"+name+"_new"+
+          ",(UA_Int32(*)(void *))"+name+"_delete"+
+          ',(UA_Byte*)"'+name+'"}',end='\n',file=fc)
+print("};", end='\n', file=fc) 
+print('#define '+name.upper()+'_NS0 0', file=fh)
 print('#endif /* OPCUA_NAMESPACE_0_H_ */', end='\n', file=fh)
 fh.close()
 fc.close()

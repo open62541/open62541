@@ -728,7 +728,7 @@ UA_TYPE_END_XXCODEBINARY
 
 UA_Int32 UA_NodeId_decodeBinary(UA_ByteString const * src, UA_Int32* pos, UA_NodeId *dst) {
 	int retval = UA_SUCCESS;
-	// temporary variables to overcome decoder's non-endian-saveness for datatypes
+	// temporary variables to overcome decoder's non-endian-saveness for datatypes with different length
 	UA_Byte   dstByte = 0;
 	UA_UInt16 dstUInt16 = 0;
 
@@ -850,10 +850,9 @@ UA_Int32 UA_NodeId_compare(UA_NodeId *n1, UA_NodeId *n2) {
 }
 UA_Int32 UA_NodeId_init(UA_NodeId* p){
 	if(p==UA_NULL)return UA_ERROR;
-	p->encodingByte = 0;
-	p->identifier.string.length = 0;
-	p->identifier.string.data = UA_NULL;
+	p->encodingByte = UA_NODEIDTYPE_TWOBYTE;
 	p->namespace = 0;
+	memset(&(p->identifier),0,sizeof(p->identifier));
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_NodeId)
@@ -923,10 +922,10 @@ UA_Int32 UA_ExtensionObject_calcSize(UA_ExtensionObject const * p) {
 		length += UA_NodeId_calcSize(&(p->typeId));
 		length += 1; //p->encoding
 		switch (p->encoding) {
-		case UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_BODYISBYTESTRING:
+		case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING:
 			length += UA_ByteString_calcSize(&(p->body));
 			break;
-		case UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_BODYISXML:
+		case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML:
 			length += UA_XmlElement_calcSize((UA_XmlElement*)&(p->body));
 			break;
 		}
@@ -937,10 +936,10 @@ UA_TYPE_START_ENCODEBINARY(UA_ExtensionObject)
 	retval |= UA_NodeId_encodeBinary(&(src->typeId),pos,dst);
 	retval |= UA_Byte_encodeBinary(&(src->encoding),pos,dst);
 	switch (src->encoding) {
-	case UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_NOBODYISENCODED:
+	case UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED:
 		break;
-	case UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_BODYISBYTESTRING:
-	case UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_BODYISXML:
+	case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING:
+	case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML:
 		retval |= UA_ByteString_encodeBinary(&(src->body),pos,dst);
 		break;
 	}
@@ -952,10 +951,10 @@ UA_Int32 UA_ExtensionObject_decodeBinary(UA_ByteString const * src, UA_Int32 *po
 	retval |= UA_Byte_decodeBinary(src,pos,&(dst->encoding));
 	retval |= UA_String_copy(&UA_String_null, (UA_String*) &(dst->body));
 	switch (dst->encoding) {
-	case UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_NOBODYISENCODED:
+	case UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED:
 		break;
-	case UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_BODYISBYTESTRING:
-	case UA_EXTENSIONOBJECT_ENCODINGMASKTYPE_BODYISXML:
+	case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING:
+	case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML:
 		retval |= UA_ByteString_decodeBinary(src,pos,&(dst->body));
 		break;
 	}
@@ -991,26 +990,26 @@ UA_Int32 UA_DiagnosticInfo_calcSize(UA_DiagnosticInfo const * ptr) {
 		for (mask = 0x01; mask <= 0x40; mask *= 2) {
 			switch (mask & (ptr->encodingMask)) {
 
-			case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_SYMBOLICID:
+			case UA_DIAGNOSTICINFO_ENCODINGMASK_SYMBOLICID:
 				//	puts("diagnosticInfo symbolic id");
 				length += sizeof(UA_Int32);
 				break;
-			case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_NAMESPACE:
+			case UA_DIAGNOSTICINFO_ENCODINGMASK_NAMESPACE:
 				length += sizeof(UA_Int32);
 				break;
-			case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_LOCALIZEDTEXT:
+			case UA_DIAGNOSTICINFO_ENCODINGMASK_LOCALIZEDTEXT:
 				length += sizeof(UA_Int32);
 				break;
-			case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_LOCALE:
+			case UA_DIAGNOSTICINFO_ENCODINGMASK_LOCALE:
 				length += sizeof(UA_Int32);
 				break;
-			case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_ADDITIONALINFO:
+			case UA_DIAGNOSTICINFO_ENCODINGMASK_ADDITIONALINFO:
 				length += UA_String_calcSize(&(ptr->additionalInfo));
 				break;
-			case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_INNERSTATUSCODE:
+			case UA_DIAGNOSTICINFO_ENCODINGMASK_INNERSTATUSCODE:
 				length += sizeof(UA_StatusCode);
 				break;
-			case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_INNERDIAGNOSTICINFO:
+			case UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO:
 				length += UA_DiagnosticInfo_calcSize(ptr->innerDiagnosticInfo);
 				break;
 			}
@@ -1027,25 +1026,25 @@ UA_Int32 UA_DiagnosticInfo_decodeBinary(UA_ByteString const * src, UA_Int32 *pos
 	for (i = 0; i < 7; i++) {
 		switch ( (0x01 << i) & dst->encodingMask)  {
 
-		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_SYMBOLICID:
+		case UA_DIAGNOSTICINFO_ENCODINGMASK_SYMBOLICID:
 			 retval |= UA_Int32_decodeBinary(src, pos, &(dst->symbolicId));
 			break;
-		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_NAMESPACE:
+		case UA_DIAGNOSTICINFO_ENCODINGMASK_NAMESPACE:
 			retval |= UA_Int32_decodeBinary(src, pos, &(dst->namespaceUri));
 			break;
-		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_LOCALIZEDTEXT:
+		case UA_DIAGNOSTICINFO_ENCODINGMASK_LOCALIZEDTEXT:
 			retval |= UA_Int32_decodeBinary(src, pos, &(dst->localizedText));
 			break;
-		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_LOCALE:
+		case UA_DIAGNOSTICINFO_ENCODINGMASK_LOCALE:
 			retval |= UA_Int32_decodeBinary(src, pos, &(dst->locale));
 			break;
-		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_ADDITIONALINFO:
+		case UA_DIAGNOSTICINFO_ENCODINGMASK_ADDITIONALINFO:
 			retval |= UA_String_decodeBinary(src, pos, &(dst->additionalInfo));
 			break;
-		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_INNERSTATUSCODE:
+		case UA_DIAGNOSTICINFO_ENCODINGMASK_INNERSTATUSCODE:
 			retval |= UA_StatusCode_decodeBinary(src, pos, &(dst->innerStatusCode));
 			break;
-		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_INNERDIAGNOSTICINFO:
+		case UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO:
 			// innerDiagnosticInfo is a pointer to struct, therefore allocate
 			retval |= UA_alloc((void **) &(dst->innerDiagnosticInfo),UA_DiagnosticInfo_calcSize(UA_NULL));
 			retval |= UA_DiagnosticInfo_decodeBinary(src, pos, dst->innerDiagnosticInfo);
@@ -1059,25 +1058,25 @@ UA_TYPE_START_ENCODEBINARY(UA_DiagnosticInfo)
 	retval |= UA_Byte_encodeBinary(&(src->encodingMask), pos, dst);
 	for (i = 0; i < 7; i++) {
 		switch ( (0x01 << i) & src->encodingMask)  {
-		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_SYMBOLICID:
+		case UA_DIAGNOSTICINFO_ENCODINGMASK_SYMBOLICID:
 			retval |= UA_Int32_encodeBinary(&(src->symbolicId), pos, dst);
 			break;
-		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_NAMESPACE:
+		case UA_DIAGNOSTICINFO_ENCODINGMASK_NAMESPACE:
 			retval |=  UA_Int32_encodeBinary( &(src->namespaceUri), pos, dst);
 			break;
-		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_LOCALIZEDTEXT:
+		case UA_DIAGNOSTICINFO_ENCODINGMASK_LOCALIZEDTEXT:
 			retval |= UA_Int32_encodeBinary(&(src->localizedText), pos, dst);
 			break;
-		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_LOCALE:
+		case UA_DIAGNOSTICINFO_ENCODINGMASK_LOCALE:
 			retval |= UA_Int32_encodeBinary(&(src->locale), pos, dst);
 			break;
-		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_ADDITIONALINFO:
+		case UA_DIAGNOSTICINFO_ENCODINGMASK_ADDITIONALINFO:
 			retval |= UA_String_encodeBinary(&(src->additionalInfo), pos, dst);
 			break;
-		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_INNERSTATUSCODE:
+		case UA_DIAGNOSTICINFO_ENCODINGMASK_INNERSTATUSCODE:
 			retval |= UA_StatusCode_encodeBinary(&(src->innerStatusCode), pos, dst);
 			break;
-		case UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_INNERDIAGNOSTICINFO:
+		case UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO:
 			retval |= UA_DiagnosticInfo_encodeBinary(src->innerDiagnosticInfo, pos, dst);
 			break;
 		}
@@ -1087,7 +1086,7 @@ UA_TYPE_END_XXCODEBINARY
 UA_TYPE_METHOD_DELETE_STRUCT(UA_DiagnosticInfo)
 UA_Int32 UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
 	UA_Int32 retval = UA_SUCCESS;
-	if (p->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_INNERDIAGNOSTICINFO) {
+	if (p->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO) {
 		retval |= UA_DiagnosticInfo_deleteMembers(p->innerDiagnosticInfo);
 		retval |= UA_free(p->innerDiagnosticInfo);
 	}
@@ -1206,7 +1205,11 @@ UA_Int32 UA_Variant_calcSize(UA_Variant const * p) {
 			}
 		}
 	} else { //single value to encode
-		length += p->vt->calcSize(p->data[0]);
+		if (p->data == UA_NULL) {
+			length += p->vt->calcSize(UA_NULL);
+		} else {
+			length += p->vt->calcSize(p->data[0]);
+		}
 	}
 	if (hasDimensions) {
 		//ToDo: tobeInsert: length += the calcSize for dimensions
@@ -1230,7 +1233,15 @@ UA_TYPE_START_ENCODEBINARY(UA_Variant)
 			retval |= src->vt->encodeBinary(src->data[i],pos,dst);
 		}
 	} else {
-		retval |= src->vt->encodeBinary(src->data[i],pos,dst);
+		if (src->data == UA_NULL) {
+			if (src->vt->Id == UA_INVALIDTYPE) {
+				retval = UA_SUCCESS;
+			} else {
+				retval = UA_ERR_NO_MEMORY;
+			}
+		} else {
+			retval |= src->vt->encodeBinary(src->data[i],pos,dst);
+		}
 	}
 	if (src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_ARRAY) { // encode array dimension field
 		// FIXME: encode array dimension field
@@ -1276,10 +1287,10 @@ UA_Int32 UA_Variant_deleteMembers(UA_Variant  * p) {
 }
 UA_Int32 UA_Variant_init(UA_Variant * p){
 	if(p==UA_NULL)return UA_ERROR;
-	p->arrayLength = 0;
+	p->arrayLength = -1; // no element, p->data == UA_NULL
 	p->data = UA_NULL;
 	p->encodingMask = 0;
-	p->vt = UA_NULL;
+	p->vt = &UA_[UA_INVALIDTYPE];
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_Variant)
@@ -1290,25 +1301,25 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_Variant)
 UA_Int32 UA_DataValue_decodeBinary(UA_ByteString const * src, UA_Int32* pos, UA_DataValue* dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_Byte_decodeBinary(src,pos,&(dst->encodingMask));
-	if (dst->encodingMask & UA_DATAVALUE_VARIANT) {
+	if (dst->encodingMask & UA_DATAVALUE_ENCODINGMASK_VARIANT) {
 		retval |= UA_Variant_decodeBinary(src,pos,&(dst->value));
 	}
-	if (dst->encodingMask & UA_DATAVALUE_STATUSCODE) {
+	if (dst->encodingMask & UA_DATAVALUE_ENCODINGMASK_STATUSCODE) {
 		retval |= UA_StatusCode_decodeBinary(src,pos,&(dst->status));
 	}
-	if (dst->encodingMask & UA_DATAVALUE_SOURCETIMESTAMP) {
+	if (dst->encodingMask & UA_DATAVALUE_ENCODINGMASK_SOURCETIMESTAMP) {
 		retval |= UA_DateTime_decodeBinary(src,pos,&(dst->sourceTimestamp));
 	}
-	if (dst->encodingMask & UA_DATAVALUE_SOURCEPICOSECONDS) {
+	if (dst->encodingMask & UA_DATAVALUE_ENCODINGMASK_SOURCEPICOSECONDS) {
 		retval |= UA_Int16_decodeBinary(src,pos,&(dst->sourcePicoseconds));
 		if (dst->sourcePicoseconds > MAX_PICO_SECONDS) {
 			dst->sourcePicoseconds = MAX_PICO_SECONDS;
 		}
 	}
-	if (dst->encodingMask & UA_DATAVALUE_SERVERTIMPSTAMP) {
+	if (dst->encodingMask & UA_DATAVALUE_ENCODINGMASK_SERVERTIMESTAMP) {
 		retval |= UA_DateTime_decodeBinary(src,pos,&(dst->serverTimestamp));
 	}
-	if (dst->encodingMask & UA_DATAVALUE_SERVERPICOSECONDS) {
+	if (dst->encodingMask & UA_DATAVALUE_ENCODINGMASK_SERVERPICOSECONDS) {
 		retval |= UA_Int16_decodeBinary(src,pos,&(dst->serverPicoseconds));
 		if (dst->serverPicoseconds > MAX_PICO_SECONDS) {
 			dst->serverPicoseconds = MAX_PICO_SECONDS;
@@ -1318,22 +1329,22 @@ UA_Int32 UA_DataValue_decodeBinary(UA_ByteString const * src, UA_Int32* pos, UA_
 }
 UA_TYPE_START_ENCODEBINARY(UA_DataValue)
 	retval |= UA_Byte_encodeBinary(&(src->encodingMask),pos,dst);
-	if (src->encodingMask & UA_DATAVALUE_VARIANT) {
+	if (src->encodingMask & UA_DATAVALUE_ENCODINGMASK_VARIANT) {
 		retval |= UA_Variant_encodeBinary(&(src->value),pos,dst);
 	}
-	if (src->encodingMask & UA_DATAVALUE_STATUSCODE) {
+	if (src->encodingMask & UA_DATAVALUE_ENCODINGMASK_STATUSCODE) {
 		retval |= UA_StatusCode_encodeBinary(&(src->status),pos,dst);
 	}
-	if (src->encodingMask & UA_DATAVALUE_SOURCETIMESTAMP) {
+	if (src->encodingMask & UA_DATAVALUE_ENCODINGMASK_SOURCETIMESTAMP) {
 		retval |= UA_DateTime_encodeBinary(&(src->sourceTimestamp),pos,dst);
 	}
-	if (src->encodingMask & UA_DATAVALUE_SOURCEPICOSECONDS) {
+	if (src->encodingMask & UA_DATAVALUE_ENCODINGMASK_SOURCEPICOSECONDS) {
 		retval |= UA_Int16_encodeBinary(&(src->sourcePicoseconds),pos,dst);
 	}
-	if (src->encodingMask & UA_DATAVALUE_SERVERTIMPSTAMP) {
+	if (src->encodingMask & UA_DATAVALUE_ENCODINGMASK_SERVERTIMESTAMP) {
 		retval |= UA_DateTime_encodeBinary(&(src->serverTimestamp),pos,dst);
 	}
-	if (src->encodingMask & UA_DATAVALUE_SERVERPICOSECONDS) {
+	if (src->encodingMask & UA_DATAVALUE_ENCODINGMASK_SERVERPICOSECONDS) {
 		retval |= UA_Int16_encodeBinary(&(src->serverPicoseconds),pos,dst);
 	}
 UA_TYPE_END_XXCODEBINARY
@@ -1344,22 +1355,22 @@ UA_Int32 UA_DataValue_calcSize(UA_DataValue const * p) {
 		length = sizeof(UA_DataValue);
 	} else { // get decoding size
 		length = sizeof(UA_Byte);
-		if (p->encodingMask & UA_DATAVALUE_VARIANT) {
+		if (p->encodingMask & UA_DATAVALUE_ENCODINGMASK_VARIANT) {
 			length += UA_Variant_calcSize(&(p->value));
 		}
-		if (p->encodingMask & UA_DATAVALUE_STATUSCODE) {
+		if (p->encodingMask & UA_DATAVALUE_ENCODINGMASK_STATUSCODE) {
 			length += sizeof(UA_UInt32); //dataValue->status
 		}
-		if (p->encodingMask & UA_DATAVALUE_SOURCETIMESTAMP) {
+		if (p->encodingMask & UA_DATAVALUE_ENCODINGMASK_SOURCETIMESTAMP) {
 			length += sizeof(UA_DateTime); //dataValue->sourceTimestamp
 		}
-		if (p->encodingMask & UA_DATAVALUE_SOURCEPICOSECONDS) {
+		if (p->encodingMask & UA_DATAVALUE_ENCODINGMASK_SOURCEPICOSECONDS) {
 			length += sizeof(UA_Int64); //dataValue->sourcePicoseconds
 		}
-		if (p->encodingMask & UA_DATAVALUE_SERVERTIMPSTAMP) {
+		if (p->encodingMask & UA_DATAVALUE_ENCODINGMASK_SERVERTIMESTAMP) {
 			length += sizeof(UA_DateTime); //dataValue->serverTimestamp
 		}
-		if (p->encodingMask & UA_DATAVALUE_SERVERPICOSECONDS) {
+		if (p->encodingMask & UA_DATAVALUE_ENCODINGMASK_SERVERPICOSECONDS) {
 			length += sizeof(UA_Int64); //dataValue->serverPicoseconds
 		}
 	}
@@ -1384,3 +1395,30 @@ UA_Int32 UA_DataValue_init(UA_DataValue * p){
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_DataValue)
+
+/* UA_InvalidType - internal type necessary to handle inited Variants correctly */
+UA_Int32 UA_InvalidType_calcSize(UA_InvalidType const * p) {
+	return 0;
+}
+UA_TYPE_START_ENCODEBINARY(UA_InvalidType)
+	retval = UA_ERR_INVALID_VALUE;
+UA_TYPE_END_XXCODEBINARY
+
+UA_TYPE_START_DECODEBINARY(UA_InvalidType)
+	retval = UA_ERR_INVALID_VALUE;
+UA_TYPE_END_XXCODEBINARY
+UA_Int32 UA_InvalidType_free(UA_InvalidType* p) {
+	return UA_ERR_INVALID_VALUE;
+}
+UA_Int32 UA_InvalidType_delete(UA_InvalidType* p) {
+	return UA_ERR_INVALID_VALUE;
+}
+UA_Int32 UA_InvalidType_deleteMembers(UA_InvalidType* p) {
+	return UA_ERR_INVALID_VALUE;
+}
+UA_Int32 UA_InvalidType_init(UA_InvalidType* p) {
+	return UA_ERR_INVALID_VALUE;
+}
+UA_Int32 UA_InvalidType_new(UA_InvalidType** p) {
+	return UA_ERR_INVALID_VALUE;
+}
