@@ -134,8 +134,11 @@ END_HANDLER
 
 START_HANDLER(ActivateSession)
 #pragma GCC diagnostic ignored "-Wunused-variable"
-
-	// FIXME: activate session
+// FIXME: activate session
+	UA_NodeId_printf("ActivateSession - authToken=", &(p->requestHeader.authenticationToken));
+	// 321 == AnonymousIdentityToken_Encoding_DefaultBinary
+	UA_NodeId_printf("ActivateSession - uIdToken.type=", &(p->userIdentityToken.typeId));
+	UA_ByteString_printx_hex("ActivateSession - uIdToken.body=", &(p->userIdentityToken.body));
 
 END_HANDLER
 
@@ -151,7 +154,7 @@ START_HANDLER(Browse)
 	UA_NodeId_printf("BrowseService - view=",&(p->view.viewId));
 
 	UA_Int32 i = 0;
-	for (i=0;i<p->nodesToBrowseSize;i++) {
+	for (i=0;p->nodesToBrowseSize > 0 && i<p->nodesToBrowseSize;i++) {
 		UA_NodeId_printf("BrowseService - nodesToBrowse=", &(p->nodesToBrowse[i]->nodeId));
 	}
 END_HANDLER
@@ -159,8 +162,8 @@ END_HANDLER
 START_HANDLER(Read)
 #pragma GCC diagnostic ignored "-Wunused-variable"
 	UA_Int32 i = 0;
-	for (i=0;i<p->nodesToReadSize;i++) {
-		UA_NodeId_printf("ReadService - nodesToRed=", &(p->nodesToRead[i]->nodeId));
+	for (i=0;p->nodesToReadSize > 0 && i < p->nodesToReadSize;i++) {
+		UA_NodeId_printf("ReadService - nodesToRead=", &(p->nodesToRead[i]->nodeId));
 	}
 END_HANDLER
 
@@ -194,7 +197,12 @@ START_HANDLER(Publish)
 
 	// FIXME: Publish
 #pragma GCC diagnostic ignored "-Wunused-variable"
-
+	UA_Int32 i;
+	for (i = 0; p->subscriptionAcknowledgementsSize >0 && i < p->subscriptionAcknowledgementsSize; i++) {
+		printf("UA_handlePublishRequest - subsAck[%d]={sequence=%d,is=%d}\n", i,
+				p->subscriptionAcknowledgements[i]->sequenceNumber,
+				p->subscriptionAcknowledgements[i]->subscriptionId);
+	}
 END_HANDLER
 
 UA_Int32 UA_SL_handleCloseSecureChannelRequest(UA_SL_Channel *channel, void const * request, void* response) {
