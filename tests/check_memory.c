@@ -50,11 +50,11 @@ int main() {
 
 	Suite *s = suite_create("testMemoryHandling");
 	TCase *tc = tcase_create("Empty Objects");
-	tcase_add_loop_test(tc, checkEncodeShallYieldDecode,UA_BOOLEAN,UA_INVALIDTYPE-1);
+	tcase_add_loop_test(tc, checkEncodeShallYieldDecode,23,UA_INVALIDTYPE-1);
 	suite_add_tcase(s,tc);
 
 	sr = srunner_create(s);
-//	srunner_set_fork_status(sr,CK_NOFORK);
+	srunner_set_fork_status(sr,CK_NOFORK);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);

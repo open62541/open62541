@@ -1,5 +1,6 @@
 #ifndef OPCUA_CONNECTIONHELPER_H_
 #define OPCUA_CONNECTIONHELPER_H_
+
 #include "opcua.h"
 #include "ua_stackInternalTypes.h"
 

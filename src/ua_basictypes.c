@@ -1206,7 +1206,11 @@ UA_Int32 UA_Variant_calcSize(UA_Variant const * p) {
 		}
 	} else { //single value to encode
 		if (p->data == UA_NULL) {
-			length += p->vt->calcSize(UA_NULL);
+			if (p->vt->Id != UA_INVALIDTYPE_NS0) {
+				length += p->vt->calcSize(UA_NULL);
+			} else {
+				length += 0;
+			}
 		} else {
 			length += p->vt->calcSize(p->data[0]);
 		}
@@ -1234,7 +1238,7 @@ UA_TYPE_START_ENCODEBINARY(UA_Variant)
 		}
 	} else {
 		if (src->data == UA_NULL) {
-			if (src->vt->Id == UA_INVALIDTYPE) {
+			if (src->vt->Id == UA_INVALIDTYPE_NS0) {
 				retval = UA_SUCCESS;
 			} else {
 				retval = UA_ERR_NO_MEMORY;
@@ -1245,6 +1249,7 @@ UA_TYPE_START_ENCODEBINARY(UA_Variant)
 	}
 	if (src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_ARRAY) { // encode array dimension field
 		// FIXME: encode array dimension field
+		printf("shit happens - encode array dimension field wanted");
 	}
 UA_TYPE_END_XXCODEBINARY
 UA_Int32 UA_Variant_decodeBinary(UA_ByteString const * src, UA_Int32 *pos, UA_Variant *dst) {
@@ -1268,13 +1273,19 @@ UA_Int32 UA_Variant_decodeBinary(UA_ByteString const * src, UA_Int32 *pos, UA_Va
 		dst->arrayLength = 1;
 	}
 	if  (retval == UA_SUCCESS) {
-		// allocate array and decode
-		retval |= UA_Array_new((void**)&(dst->data),dst->arrayLength,UA_toIndex(ns0Id));
-		retval |= UA_Array_decodeBinary(src,dst->arrayLength,UA_toIndex(ns0Id),pos,dst->data);
+		if (ns0Id == UA_INVALIDTYPE_NS0) { // handle NULL-Variant !
+			dst->data = UA_NULL;
+			dst->arrayLength = -1;
+		} else {
+			// allocate array and decode
+			retval |= UA_Array_new((void**)&(dst->data),dst->arrayLength,UA_toIndex(ns0Id));
+			retval |= UA_Array_decodeBinary(src,dst->arrayLength,UA_toIndex(ns0Id),pos,dst->data);
+		}
 	}
 
 	if (dst->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) {
 		// TODO: decode array dimension field
+		printf("shit happens - decode array dimension field wanted");
 	}
 	return retval;
 }

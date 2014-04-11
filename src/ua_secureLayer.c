@@ -233,7 +233,7 @@ START_HANDLER(OpenSecureChannel)
 
 	switch (p->securityMode) {
 	case UA_SECURITYMODE_INVALID:
-		channel->remoteNonce.data = NULL;
+		channel->remoteNonce.data = UA_NULL;
 		channel->remoteNonce.length = -1;
 		printf("SL_processMessage - client demands no security \n");
 	break;
