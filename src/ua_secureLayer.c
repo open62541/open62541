@@ -115,9 +115,9 @@ START_HANDLER(GetEndpoints)
 	r->endpointsSize = 1;
 	UA_Array_new((void**) &(r->endpoints),r->endpointsSize,UA_ENDPOINTDESCRIPTION);
 	UA_String_copy(&(channel->tlConnection->localEndpointUrl),&(r->endpoints[0]->endpointUrl));
-	UA_String_copycstring("http://open62541.info/applications/4711",&(r->endpoints[0]->server.applicationUri));
 	UA_String_copycstring("http://open62541.info/product/release",&(r->endpoints[0]->server.productUri));
-	// FIXME: This should be a feature of the application
+	// FIXME: This information should be provided by the application, preferably in the address space
+	UA_String_copycstring("http://open62541.info/applications/4711",&(r->endpoints[0]->server.applicationUri));
 	UA_LocalizedText_copycstring("The open62541 application",&(r->endpoints[0]->server.applicationName));
 	// FIXME: This should be a feature of the application and an enum
 	r->endpoints[0]->server.applicationType = 0; // Server
@@ -172,22 +172,27 @@ START_HANDLER(CreateSubscription)
 END_HANDLER
 
 START_HANDLER(CreateMonitoredItems)
-
-	// FIXME: Subscription
+	// FIXME: CreateMonitoredItems
 #pragma GCC diagnostic ignored "-Wunused-variable"
-
+	UA_Int32 i;
+	if (p->itemsToCreateSize > 0) {
+		for (i=0;i<p->itemsToCreateSize;i++) {
+			UA_NodeId_printf("CreateMonitoredItems - itemToCreate=",&(p->itemsToCreate[i]->itemToMonitor.nodeId));
+		}
+	}
+	r->resultsSize = -1;
 END_HANDLER
 
 START_HANDLER(SetPublishingMode)
 
-	// FIXME: Subscription
+	// FIXME: SetPublishingMode
 #pragma GCC diagnostic ignored "-Wunused-variable"
 
 END_HANDLER
 
 START_HANDLER(Publish)
 
-	// FIXME: Subscription
+	// FIXME: Publish
 #pragma GCC diagnostic ignored "-Wunused-variable"
 
 END_HANDLER
