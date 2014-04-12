@@ -10,7 +10,8 @@ UA_Int32 TL_Connection_init(UA_TL_connection* c, UA_TL_data* tld)
 	c->connectionHandle = -1;
 	c->connectionState = connectionState_CLOSED;
 	c->readerThread = -1;
-	c->UA_TL_writer = UA_NULL;
+	c->writerCallback = UA_NULL;
+	c->readerCallback = UA_NULL;
 	memcpy(&(c->localConf),&(tld->tld->localConf),sizeof(TL_buffer));
 	memset(&(c->remoteConf),0,sizeof(TL_buffer));
 	UA_String_copy(&(tld->endpointUrl), &(c->localEndpointUrl));
@@ -173,7 +174,7 @@ UA_Int32 TL_send(UA_TL_connection* connection, UA_ByteString* msg)
 	DBG_VERBOSE(printf("TL_send - entered \n"));
 
 	if (TL_check(connection,msg,UA_TL_CHECK_REMOTE) == UA_SUCCESS) {
-		connection->UA_TL_writer(connection,msg);
+		connection->writerCallback(connection,msg);
 	}
 	else
 	{

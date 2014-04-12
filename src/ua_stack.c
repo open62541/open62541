@@ -45,8 +45,7 @@ int UA_TL_TCP_SetNonBlocking(int sock) {
 
 /** the tcp reader thread - single shot if single-threaded, looping until CLOSE if multi-threaded
  */
-void* UA_TL_TCP_reader(void *p) {
-	UA_TL_connection* c = (UA_TL_connection*) p;
+void* UA_TL_TCP_reader(UA_TL_connection *c) {
 
 	UA_ByteString readBuffer;
 	UA_alloc((void**)&(readBuffer.data),c->localConf.recvBufferSize);
@@ -94,7 +93,7 @@ void* UA_TL_TCP_reader(void *p) {
 }
 
 /** write to a tcp transport layer connection */
-UA_Int32 UA_TL_TCP_write(struct T_TL_connection* c, UA_ByteString* msg) {
+UA_Int32 UA_TL_TCP_writer(struct T_TL_connection* c, UA_ByteString* msg) {
 	UA_ByteString_printx("write data:", msg);
 	int nWritten = 0;
 	while (nWritten < msg->length) {
@@ -145,12 +144,13 @@ void* UA_TL_TCP_listen(void *p) {
 				retval |= UA_alloc((void**)&c,sizeof(UA_TL_connection));
 				TL_Connection_init(c, tld);
 				c->connectionHandle = newsockfd;
-				c->UA_TL_writer = UA_TL_TCP_write;
+				c->writerCallback = UA_TL_TCP_writer;
+				c->readerCallback = UA_TL_TCP_reader;
 				// add to list
 				UA_list_addPayloadToBack(&(tld->connections),c);
 				if (tld->threaded == UA_STACK_MULTITHREADED) {
 					// TODO: handle retval of pthread_create
-					pthread_create( &(c->readerThread), NULL, UA_TL_TCP_reader, (void*) c);
+					pthread_create( &(c->readerThread), NULL, (void*(*)(void*)) UA_TL_TCP_reader, (void*) c);
 				} else {
 					UA_TL_TCP_SetNonBlocking(c->connectionHandle);
 				}
@@ -165,7 +165,7 @@ void* UA_TL_TCP_listen(void *p) {
 void checkFdSet(void* payload) {
   UA_TL_connection* c = (UA_TL_connection*) payload;
   if (FD_ISSET(c->connectionHandle, &(theTL.readerHandles))) {
-	  UA_TL_TCP_reader((void*)c);
+	  c->readerCallback((void*)c);
   }
 }
 
@@ -177,6 +177,17 @@ void UA_TL_addHandleToSet(UA_Int32 handle) {
 void setFdSet(void* payload) {
   UA_TL_connection* c = (UA_TL_connection*) payload;
   UA_TL_addHandleToSet(c->connectionHandle);
+}
+
+
+UA_Int32 UA_Stack_addReaderHandle(UA_Int32 handle, UA_TL_reader reader) {
+	UA_Int32 retval = UA_SUCCESS;
+	UA_TL_connection* c;
+	retval = UA_alloc((void**)&c,sizeof(UA_TL_connection));
+	c->connectionHandle = handle;
+	c->connectionState = connectionState_ESTABLISHED;
+	c->readerCallback = reader;
+	return retval;
 }
 
 UA_Int32 UA_Stack_msgLoop(struct timeval *tv, UA_Int32(*worker)(void*), void *arg)  {
@@ -209,9 +220,9 @@ UA_Int32 UA_Stack_msgLoop(struct timeval *tv, UA_Int32(*worker)(void*), void *ar
 				printf("UA_Stack_msgLoop - result=bad arguments\n"); //FIXME: handle
 				break;
 			case EAGAIN:
-				printf("UA_Stack_msgLoop - result=do it again\n"); //FIXME: handle
+				printf("UA_Stack_msgLoop - result=do it again\n");
 			default:
-				printf("UA_Stack_msgLoop - result=%d\n",err); //FIXME: handle
+				printf("UA_Stack_msgLoop - result=%d\n",err);
 				worker(arg);
 			}
 		} else if (FD_ISSET(theTL.listenerHandle,&theTL.readerHandles)) { // activity on listener port

@@ -41,13 +41,18 @@ typedef struct
 }TL_buffer;
 
 /* Transport Layer Connection */
+struct T_TL_connection;		// forward declaration
+typedef void* (*UA_TL_reader)(struct T_TL_connection* c);
+typedef UA_Int32 (*UA_TL_writer)(struct T_TL_connection* c, UA_ByteString* msg);
+
 typedef struct T_TL_connection
 {
 	UA_Int32 connectionHandle;
 	UA_UInt32 connectionState;
 	pthread_t readerThread;
+	UA_TL_reader readerCallback;
 	TL_buffer localConf;
-	UA_Int32 (*UA_TL_writer)(struct T_TL_connection* c, UA_ByteString* msg);
+	UA_TL_writer writerCallback;
 	TL_buffer remoteConf;
 	UA_String localEndpointUrl;
 	UA_String remoteEndpointUrl;
