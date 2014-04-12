@@ -172,14 +172,11 @@ UA_TYPE_METHOD_PROTOTYPES (UA_Double)
 * Part: 6
 * Chapter: 5.2.2.11
 * Page: 20
+* 
+* StatusCodes aren't an enum (=int), since 32 unsigned bits are needed.
+* See also ua_statuscodes.h
 */
-typedef UA_Int32 UA_StatusCode;
-enum UA_StatusCode_enum
-{
-	// Some Values are called the same as previous Enumerations so we need
-	//names that are unique
-	UA_STATUSCODE_GOOD 			= 			0x00
-};
+typedef UA_UInt32 UA_StatusCode;
 UA_TYPE_METHOD_PROTOTYPES (UA_StatusCode)
 
 /** IntegerId - Part: 4, Chapter: 7.13, Page: 118 */

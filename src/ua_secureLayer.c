@@ -4,6 +4,7 @@
 #include "ua_transportLayer.h"
 #include "ua_secureLayer.h"
 #include "ua_stackInternalTypes.h"
+#include "ua_statuscodes.h"
 
 #define SIZE_SECURECHANNEL_HEADER 12
 #define SIZE_SEQHEADER_HEADER 8
