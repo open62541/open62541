@@ -162,9 +162,30 @@ END_HANDLER
 START_HANDLER(Read)
 #pragma GCC diagnostic ignored "-Wunused-variable"
 	UA_Int32 i = 0;
-	for (i=0;p->nodesToReadSize > 0 && i < p->nodesToReadSize;i++) {
-		UA_NodeId_printf("ReadService - nodesToRead=", &(p->nodesToRead[i]->nodeId));
+
+	r->resultsSize = p->nodesToReadSize;
+
+	if (r->resultsSize > 0) {
+		UA_Array_new((void**)&(r->results),r->resultsSize,UA_DATAVALUE);
+		for (i=0;i < r->resultsSize; i++) {
+			UA_NodeId_printf("ReadService - nodesToRead=", &(p->nodesToRead[i]->nodeId));
+			//FIXME: search the object in the namespace
+			if (p->nodesToRead[i]->nodeId.identifier.numeric == 2255) { // Server_NameSpaceArray alias namespace table
+				r->results[i]->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT & UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
+				r->results[i]->status = UA_STATUSCODE_GOOD;
+				r->results[i]->value.encodingMask = UA_INT32_NS0;
+				r->results[i]->value.vt = &UA_[UA_INT32];
+				r->results[i]->value.arrayLength = 1;
+				UA_Array_new((void**)&(r->results[i]->value.data),1,UA_INT32);
+				*(UA_Int32*) (r->results[i]->value.data[0]) = 1;
+			} else {
+				// FIXME: Status Codes
+				// r->results[i]->statusCode = UA_STATUSCODE_BAD_NODEIDUNKNOWN;
+				r->results[i]->status = -1;
+			}
+		}
 	}
+
 END_HANDLER
 
 START_HANDLER(CreateSubscription)
@@ -175,15 +196,23 @@ START_HANDLER(CreateSubscription)
 END_HANDLER
 
 START_HANDLER(CreateMonitoredItems)
-	// FIXME: CreateMonitoredItems
-#pragma GCC diagnostic ignored "-Wunused-variable"
 	UA_Int32 i;
+
 	if (p->itemsToCreateSize > 0) {
-		for (i=0;i<p->itemsToCreateSize;i++) {
+		r->resultsSize = p->itemsToCreateSize;
+		UA_Array_new((void**)&(r->results),r->resultsSize,UA_MONITOREDITEMCREATERESULT);
+		for (i=0;p->itemsToCreateSize > 0 && i < p->itemsToCreateSize;i++) {
 			UA_NodeId_printf("CreateMonitoredItems - itemToCreate=",&(p->itemsToCreate[i]->itemToMonitor.nodeId));
+			//FIXME: search the object in the namespace
+			if (p->itemsToCreate[i]->itemToMonitor.nodeId.identifier.numeric == 2253) { // server
+				r->results[i]->statusCode = UA_STATUSCODE_GOOD;
+				r->results[i]->monitoredItemId = 1024;
+			} else {
+				// r->results[i]->statusCode = UA_STATUSCODE_BAD_NODEIDUNKNOWN;
+				r->results[i]->statusCode = -1;
+			}
 		}
 	}
-	r->resultsSize = -1;
 END_HANDLER
 
 START_HANDLER(SetPublishingMode)
