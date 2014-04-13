@@ -13,7 +13,9 @@
 #include "ua_transportLayer.h"
 #include "ua_list.h"
 
+#ifdef MULTITHREADING
 #include <pthread.h> // pthreadcreate, pthread_t
+#endif
 #include <sys/select.h> // FD_ZERO, FD_SET
 
 #define NL_MAXCONNECTIONS_DEFAULT 10

@@ -7,7 +7,12 @@ __top_builddir__bin_exampleServer_LDADD= $(top_builddir)/lib/libopen62541.a
 
 __top_builddir__bin_exampleServerMT_CFLAGS = -I$(top_builddir)/src -I$(top_builddir)/include
 __top_builddir__bin_exampleServerMT_SOURCES = opcuaServerMT.c networklayer.c
-__top_builddir__bin_exampleServerMT_LDADD= $(top_builddir)/lib/libopen62541.a -lpthread
+if MULTITHREADING
+MT_LDADD = -lpthread
+else
+MT_LDADD =
+endif
+__top_builddir__bin_exampleServerMT_LDADD= $(top_builddir)/lib/libopen62541.a $(MT_LDADD)
 
 __top_builddir__bin_exampleServerACPLT_CFLAGS = -I$(top_builddir)/src -I$(top_builddir)/include
 __top_builddir__bin_exampleServerACPLT_SOURCES = opcuaServerACPLT.c 

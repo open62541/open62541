@@ -1,17 +1,18 @@
 #ifndef __NAMESPACE_H__
 #define __NAMESPACE_H__
 
-/* Defines needed for pthread_rwlock_t */
-#define _XOPEN_SOURCE 500
-// this one is necessary on my 3.0.0-32-generic machine
-#define __USE_UNIX98
-#include <pthread.h>
-
 #include "ua_basictypes.h"
 #include "opcua.h"
 #include "ua_list.h"
 
+#ifdef MULTITHREADING
+#define _XOPEN_SOURCE 500
+#define __USE_UNIX98
+#include <pthread.h>
 typedef struct pthread_rwlock_t ns_lock;
+#else
+typedef void ns_lock;
+#endif
 
 /* Poor-man's transactions: If we need multiple locks and at least one of them
    is a writelock ("transaction"), a deadlock can be introduced in conjunction
@@ -31,7 +32,9 @@ UA_Int32 init_tc(transaction_context * tc);
 /* Each namespace is a hash-map of NodeIds to Nodes. Every entry in the hashmap
    consists of a pointer to a read-write lock and a pointer to the Node. */
 typedef struct ns_entry_t {
+#ifdef MULTITHREADING
 	ns_lock *lock; /* locks are heap-allocated, so we can resize the entry-array online */
+#endif
 	UA_Node *node;
 } ns_entry;
 
@@ -56,7 +59,9 @@ UA_Int32 get_tc_writable_node(namespace *ns, transaction_context *tc, UA_NodeId 
 // inline void release_node(ns_lock *lock);
 // portable solution, see http://www.greenend.org.uk/rjk/tech/inline.html
 static inline void release_node(ns_lock *lock) {
+#ifdef MULTITHREADING
 	pthread_rwlock_unlock((pthread_rwlock_t *)lock);
+#endif
 }
 void delete_node(namespace *ns, UA_NodeId *nodeid);
 
