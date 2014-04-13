@@ -11,11 +11,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "ua_stack.h"
+#include "networklayer.h"
 
 
 int main(int argc, char** argv) {
-	UA_Stack_init(&UA_TransportLayerDescriptorTcpBinary,16664,UA_STACK_MULTITHREADED);
+	NL_init(&NL_Description_TcpBinary,16664,NL_THREADINGTYPE_PTHREAD);
 	while (UA_TRUE) {
 		printf("%s does whatever servers do\n",argv[0]);
 		sleep(2);

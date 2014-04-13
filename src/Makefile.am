@@ -62,8 +62,7 @@ libopen62541_la_SOURCES = opcua.c\
 						ua_secureLayer.c\
 						util/ua_list.c\
 						util/ua_indexedList.c\
-						ua_namespace.c\
-						ua_stack.c
+						ua_namespace.c
 						
 						
 

@@ -11,8 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "ua_stack.h"
-#include <pthread.h> // to get the type for the
+#include "networklayer.h"
 
 UA_Int32 serverCallback(void * arg) {
 	char *name = (char *) arg;
@@ -28,6 +27,6 @@ int pthread_create(pthread_t* newthread, const pthread_attr_t* attr, void *(*sta
 
 int main(int argc, char** argv) {
 	struct timeval tv = {2, 0}; // 2 seconds
-	UA_Stack_init(&UA_TransportLayerDescriptorTcpBinary,16664,UA_STACK_SINGLETHREADED);
-	UA_Stack_msgLoop(&tv,serverCallback,argv[0]);
+	NL_init(&NL_Description_TcpBinary,16664,NL_THREADINGTYPE_SINGLE);
+	NL_msgLoop(&tv,serverCallback,argv[0]);
 }

@@ -1,22 +1,8 @@
 #include <memory.h> // memset, memcpy
-#include "ua_stack.h"
 #include "ua_connection.h"
 #include "ua_transportLayer.h"
 
 #include "ua_secureLayer.h" // SL_process
-
-UA_Int32 TL_Connection_init(UA_TL_connection* c, UA_TL_data* tld)
-{
-	c->connectionHandle = -1;
-	c->connectionState = connectionState_CLOSED;
-	c->readerThread = -1;
-	c->writerCallback = UA_NULL;
-	c->readerCallback = UA_NULL;
-	memcpy(&(c->localConf),&(tld->tld->localConf),sizeof(TL_buffer));
-	memset(&(c->remoteConf),0,sizeof(TL_buffer));
-	UA_String_copy(&(tld->endpointUrl), &(c->localEndpointUrl));
-	return UA_SUCCESS;
-}
 
 UA_Int32 TL_check(UA_TL_connection* connection, UA_ByteString* msg, int checkLocal)
 {

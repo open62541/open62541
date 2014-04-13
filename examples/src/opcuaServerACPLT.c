@@ -13,6 +13,7 @@
 #include <memory.h> // bzero
 
 #include "opcua.h"
+#include "ua_connection.h"
 
 #ifdef LINUX
 
@@ -53,10 +54,12 @@ typedef struct T_Server {
 } Server;
 
 Server server;
-void server_writer(UA_TL_connection connection, UA_ByteString* msg) {
+UA_Int32 server_writer(UA_TL_connection* connection, UA_ByteString* msg) {
 	UA_ByteString_copy(msg,&server.writeData);
 	server.newDataToWrite = 1;
+	return UA_SUCCESS;
 }
+
 void server_run() {
 
 	UA_TL_connection connection;
@@ -124,7 +127,7 @@ void server_run() {
 			if (n > 0) {
 				slMessage.data = buffer;
 				slMessage.length = n;
-				UA_ByteString_printx("server_run - received=",slMessage);
+				UA_ByteString_printx("server_run - received=",&slMessage);
 				TL_process(&connection, &slMessage);
 			} else if (n < 0) {
 				perror("ERROR reading from socket1");
