@@ -4,8 +4,6 @@
 #include "opcua.h"
 #include "ua_stackInternalTypes.h"
 
-#include <pthread.h>
-
 enum UA_MessageType
 {
 	UA_MESSAGETYPE_HEL = 0x48454C, // H E L
@@ -41,16 +39,13 @@ typedef struct
 }TL_buffer;
 
 /* Transport Layer Connection */
-struct T_TL_connection;		// forward declaration
-typedef void* (*UA_TL_reader)(struct T_TL_connection* c);
-typedef UA_Int32 (*UA_TL_writer)(struct T_TL_connection* c, UA_ByteString* msg);
+struct T_UA_TL_connection;		// forward declaration
+typedef UA_Int32 (*UA_TL_writer)(struct T_UA_TL_connection* c, UA_ByteString* msg);
 
-typedef struct T_TL_connection
+typedef struct T_UA_TL_connection
 {
 	UA_Int32 connectionHandle;
 	UA_UInt32 connectionState;
-	pthread_t readerThread;
-	UA_TL_reader readerCallback;
 	TL_buffer localConf;
 	UA_TL_writer writerCallback;
 	TL_buffer remoteConf;
@@ -84,19 +79,5 @@ struct SS_connection
 {
 	UA_Int32 dummy;
 };
-
-//typedef struct T_UA_connection
-//{
-//	TL_connection transportLayer;
-//	struct SL_connection secureLayer;
-//	struct SS_connection serviceLayer;
-//
-//	UA_Boolean newDataToRead;
-//	UA_ByteString readData;
-//	UA_Boolean newDataToWrite;
-//	UA_ByteString writeData;
-//} UA_SL_connection;
-//
-
 
 #endif /* OPCUA_CONNECTIONHELPER_H_ */
