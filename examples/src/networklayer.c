@@ -161,7 +161,9 @@ void* NL_TCP_listen(NL_connection* c) {
 				UA_list_addPayloadToBack(&(tld->connections),cclient);
 				if (tld->threaded == NL_THREADINGTYPE_PTHREAD) {
 					// TODO: handle retval of pthread_create
+#ifdef MULTITHREADING
 					pthread_create( &(cclient->readerThreadHandle), NULL, (void*(*)(void*)) NL_TCP_reader, (void*) cclient);
+#endif
 				} else {
 					NL_TCP_SetNonBlocking(cclient->connection.connectionHandle);
 				}
@@ -271,7 +273,9 @@ UA_Int32 NL_TCP_init(NL_data* tld, UA_Int32 port) {
 		UA_list_addPayloadToBack(&(tld->connections),c);
 		if (tld->threaded == NL_THREADINGTYPE_PTHREAD) {
 			// TODO: handle retval of pthread_create
+#ifdef MULTITHREADING
 			pthread_create( &(c->readerThreadHandle), NULL, (void*(*)(void*)) NL_TCP_listen, (void*) c);
+#endif
 		} else {
 			NL_TCP_SetNonBlocking(c->connection.connectionHandle);
 		}

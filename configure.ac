@@ -32,17 +32,26 @@ AM_COND_IF([TARGET_LINUX],
 AC_ARG_ENABLE(debug,
 AS_HELP_STRING([--enable-debug],
                [enable debugging, default: no]),
-[case "${enableval}" in
-             yes) debug=true ;;
-             no)  debug=false ;;
-             *)   AC_MSG_ERROR([bad value ${enableval} for --enable-debug]) ;;
-esac],
-[debug=false])
-
+			   [case "${enableval}" in
+               		 yes) debug=true ;;
+             		 no)  debug=false ;;
+             		 *)   AC_MSG_ERROR([bad value ${enableval} for --enable-debug]) ;; esac],
+				[debug=false])
 AM_CONDITIONAL(DEBUG, test x"$debug" = x"true")
 AM_COND_IF([DEBUG],
     AC_DEFINE([DEBUG])) #define DEBUG is accessible from pre-processor
 
+AC_ARG_ENABLE(multithreading,
+AS_HELP_STRING([--enable-multithreading],
+               [enable debugging, default: yes]),
+			   [case "${enableval}" in
+               		 yes) multithreading=true ;;
+             		 no)  multithreading=false ;;
+             		 *)   AC_MSG_ERROR([bad value ${enableval} for --enable-multithreading]) ;; esac],
+[multithreading=true])
+AM_CONDITIONAL(MULTITHREADING, test x"$multithreading" = x"true")
+AM_COND_IF([MULTITHREADING],
+    AC_DEFINE([MULTITHREADING])) #define MULTITHREADING is accessible from pre-processor
    
 AC_LIBTOOL_WIN32_DLL
 AC_PROG_LIBTOOL

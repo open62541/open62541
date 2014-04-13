@@ -104,9 +104,11 @@ UA_Int32 insert_node(namespace *ns, UA_Node *node) {
 		
 	hash_t h = hash(&node->nodeId);
 	ns_entry *slot = find_empty_slot(ns, h);
+#ifdef MULTITHREADING
 	if (UA_alloc((void *)&slot->lock, sizeof(pthread_rwlock_t)) != UA_SUCCESS)
 		return UA_ERR_NO_MEMORY;
 	pthread_rwlock_init((pthread_rwlock_t *)slot->lock, NULL);
+#endif
 	slot->node = node;
 	return UA_SUCCESS;
 }
@@ -114,56 +116,60 @@ UA_Int32 insert_node(namespace *ns, UA_Node *node) {
 UA_Int32 get_node(namespace *ns, UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock) {
 	ns_entry *slot;
 	if(find_slot(ns, &slot, nodeid) == UA_SUCCESS) return UA_ERROR;
+#ifdef MULTITHREADING
 	if(pthread_rwlock_rdlock((pthread_rwlock_t *)slot->lock) != 0) return UA_ERROR;
-	*result = slot->node;
 	*lock = slot->lock;
+#endif
+	*result = slot->node;
 	return UA_SUCCESS;
 }
 
 UA_Int32 get_writable_node(namespace *ns, UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock) {
 	ns_entry *slot;
 	if(find_slot(ns, &slot, nodeid) != UA_SUCCESS) return UA_ERROR;
+#ifdef MULTITHREADING
 	if(pthread_rwlock_wrlock((pthread_rwlock_t *)slot->lock) != 0) return UA_ERROR;
-	*result = slot->node;
 	*lock = slot->lock;
+#endif
+	*result = slot->node;
 	return UA_SUCCESS;
 }
 
+#ifdef MULTITHREADING
 static inline void release_context_walker(void * lock) { pthread_rwlock_unlock(lock); }
+#endif
 
 UA_Int32 get_tc_node(namespace *ns, transaction_context *tc, UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock) {
 	ns_entry *slot;
 	if(find_slot(ns, &slot, nodeid) != UA_SUCCESS) return UA_ERROR;
+#ifdef MULTITHREADING
 	if(pthread_rwlock_tryrdlock((pthread_rwlock_t *)slot->lock) != 0) {
 		/* Transaction failed. Release all acquired locks and bail out. */
 		UA_list_destroy((UA_list_List*) tc, release_context_walker);
 		return UA_ERROR;
 	}
-
 	UA_list_addPayloadToBack((UA_list_List*) tc, slot->lock);
-	*result = slot->node;
 	*lock = slot->lock;
+#endif
+	*result = slot->node;
 	return UA_SUCCESS;
 }
 
 UA_Int32 get_tc_writable_node(namespace *ns, transaction_context *tc, UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock) {
 	ns_entry *slot;
 	if(find_slot(ns, &slot, nodeid) != UA_SUCCESS) return UA_ERROR;
+#ifdef MULTITHREADING
 	if(pthread_rwlock_trywrlock((pthread_rwlock_t *)slot->lock) != 0) {
 		/* Transaction failed. Release all acquired locks and bail out. */
 		UA_list_destroy((UA_list_List*) tc, release_context_walker);
 		return UA_ERROR;
 	}
-
 	UA_list_addPayloadToBack((UA_list_List*) tc, slot->lock);
-	*result = slot->node;
 	*lock = slot->lock;
+#endif
+	*result = slot->node;
 	return UA_SUCCESS;
 }
-
-//inline void release_node(ns_lock *lock) {
-//	pthread_rwlock_unlock((pthread_rwlock_t *)lock);
-//}
 
 void delete_node(namespace *ns, UA_NodeId *nodeid) {
 	ns_entry *slot;
@@ -303,7 +309,9 @@ static inline void clear_slot(namespace *ns, ns_entry *slot) {
 	if(slot->node == UA_NULL)
 		return;
 	
+#ifdef MULTITHREADING
 	pthread_rwlock_wrlock((pthread_rwlock_t *) slot->lock); /* Get write lock. */
+#endif
 	switch(slot->node->nodeClass) {
 	case UA_NODECLASS_OBJECT:
 		UA_ObjectNode_delete((UA_ObjectNode *) slot->node);
@@ -333,8 +341,10 @@ static inline void clear_slot(namespace *ns, ns_entry *slot) {
 		break;
 	}
 	slot->node = UA_NULL;
+#ifdef MULTITHREADING
 	pthread_rwlock_destroy((pthread_rwlock_t *)slot->lock);
 	UA_free(slot->lock);
+#endif
 }
 
 /* Delete all entries */
