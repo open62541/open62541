@@ -90,8 +90,8 @@ UA_Int32 UA_Array_new(void **p,UA_Int32 noElements, UA_Int32 type) {
 	return retval;
 }
 
-UA_Int32 _UA_free(void * ptr,char* f,int l){
-	DBG_VERBOSE(printf("UA_free;%p;;%s;%d\n",ptr,f,l); fflush(stdout));
+UA_Int32 _UA_free(void * ptr,char *pname,char* f,int l){
+	DBG_VERBOSE(printf("UA_free;%p;;%s;;%s;%d\n",ptr,pname,f,l); fflush(stdout));
 	if (UA_NULL != ptr) {
 		free(ptr);
 	}
@@ -99,10 +99,10 @@ UA_Int32 _UA_free(void * ptr,char* f,int l){
 }
 
 void const * UA_alloc_lastptr;
-UA_Int32 _UA_alloc(void ** ptr, int size,char* f,int l){
+UA_Int32 _UA_alloc(void ** ptr, int size,char*pname,char*sname,char* f,int l){
 	if(ptr == UA_NULL) return UA_ERR_INVALID_VALUE;
+	DBG_VERBOSE(printf("UA_alloc;%p;%d;%s;%s;%s;%d\n",*ptr,size,pname,sname,f,l); fflush(stdout));
 	UA_alloc_lastptr = *ptr = malloc(size);
-	DBG_VERBOSE(printf("UA_alloc;%p;%d;%s;%d\n",*ptr,size,f,l); fflush(stdout));
 	if(*ptr == UA_NULL) return UA_ERR_NO_MEMORY;
 	return UA_SUCCESS;
 }

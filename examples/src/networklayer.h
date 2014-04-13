@@ -10,6 +10,7 @@
 
 #include "opcua.h"
 #include "ua_connection.h"
+#include "ua_transportLayer.h"
 #include "ua_list.h"
 
 #include <pthread.h> // pthreadcreate, pthread_t
@@ -44,12 +45,21 @@ typedef struct T_NL_data {
 	UA_String endpointUrl;
 	int listenerHandle;
 	pthread_t listenerThreadHandle;
-	UA_list_List connections;
 	UA_Int32 threaded;	// NL_THREADINGTYPE_enum
+	UA_list_List connections;
 	fd_set readerHandles;
+	int maxReaderHandle;
 } NL_data;
 
+struct T_NL_connection;
+typedef void* (*NL_reader)(struct T_NL_connection *c);
+typedef struct T_NL_connection {
+	UA_TL_connection connection;
+	NL_reader reader;
+	pthread_t 	readerThreadHandle;
+	NL_data*    networkLayer;
+} NL_connection;
 
-UA_Int32 NL_init(NL_Description* tlDesc, UA_Int32 port, UA_Int32 threaded);
-UA_Int32 NL_msgLoop(struct timeval* tv,UA_Int32 (*timeoutCallBack)(void*),void *arg);
+NL_data* NL_init(NL_Description* tlDesc, UA_Int32 port, UA_Int32 threaded);
+UA_Int32 NL_msgLoop(NL_data* nl, struct timeval* tv,UA_Int32 (*timeoutCallBack)(void*),void *arg);
 #endif /* NETWORKLAYER_H_ */

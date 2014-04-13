@@ -65,11 +65,11 @@ UA_ByteString;
 /* heap memory functions */
 #define UA_NULL ((void*)0)
 extern void const * UA_alloc_lastptr;
-#define UA_free(ptr) _UA_free(ptr,__FILE__,__LINE__)
-UA_Int32 _UA_free(void * ptr,char*,int);
+#define UA_free(ptr) _UA_free(ptr,#ptr,__FILE__,__LINE__)
+UA_Int32 _UA_free(void * ptr,char*,char*,int);
 UA_Int32 UA_memcpy(void *dst, void const *src, int size);
-#define UA_alloc(ptr,size) _UA_alloc(ptr,size,__FILE__,__LINE__)
-UA_Int32 _UA_alloc(void ** dst, int size,char*,int);
+#define UA_alloc(ptr,size) _UA_alloc(ptr,size,#ptr,#size,__FILE__,__LINE__)
+UA_Int32 _UA_alloc(void ** dst, int size,char*,char*,char*,int);
 
 /* Array operations */
 UA_Int32 UA_Array_calcSize(UA_Int32 noElements, UA_Int32 type, void const ** const ptr);
