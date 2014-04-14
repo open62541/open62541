@@ -780,7 +780,6 @@ START_TEST(UA_Double_decodeShallGiveOne)
 	// then
 	ck_assert_int_eq(retval,UA_SUCCESS);
 	ck_assert_int_eq(pos,8);
-	printf("UA_Double_decodeShallGiveOne %f\n",dst);
 	ck_assert(0.9999999 < dst);
 	ck_assert(dst < 1.00000000001);
 }
@@ -797,7 +796,6 @@ START_TEST(UA_Double_decodeShallGiveZero)
 	// then
 	ck_assert_int_eq(retval,UA_SUCCESS);
 	ck_assert_int_eq(pos,8);
-	printf("UA_Double_decodeShallGiveZero %f\n",dst);
 	ck_assert(-0.00000001 < dst);
 	ck_assert(dst < 0.000000001);
 }

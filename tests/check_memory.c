@@ -44,7 +44,7 @@ START_TEST (encodeShallYieldDecode)
 }
 END_TEST
 
-START_TEST (decodeShallSurviveTruncatedBuffer)
+START_TEST (decodeShallFailWithTruncatedBufferButSurvive)
 {
 	void *obj1 = UA_NULL, *obj2 = UA_NULL;
 	UA_ByteString msg1;
@@ -81,7 +81,7 @@ int main() {
 	tcase_add_loop_test(tc, encodeShallYieldDecode,UA_BOOLEAN,UA_INVALIDTYPE-1);
 	suite_add_tcase(s,tc);
 	tc = tcase_create("Truncated Buffers");
-	tcase_add_loop_test(tc, decodeShallSurviveTruncatedBuffer,UA_BOOLEAN,UA_INVALIDTYPE-1);
+	tcase_add_loop_test(tc, decodeShallFailWithTruncatedBufferButSurvive,UA_BOOLEAN,UA_INVALIDTYPE-1);
 	suite_add_tcase(s,tc);
 
 	sr = srunner_create(s);
