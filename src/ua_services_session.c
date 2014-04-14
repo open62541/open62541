@@ -23,7 +23,7 @@ UA_Int32 service_activatesession(UA_SL_Channel *channel, UA_ActivateSessionReque
 
 UA_Int32 service_closesession(UA_SL_Channel *channel, UA_CloseSessionRequest *request, UA_CloseSessionResponse *response) {
 
-	channel->application = UA_NULL;
+	channel->session = UA_NULL;
 	// FIXME: set response
 	
 	return UA_SUCCESS;

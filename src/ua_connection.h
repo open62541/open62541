@@ -55,10 +55,10 @@ typedef struct T_UA_TL_connection
 	struct T_SL_Channel* secureChannel;
 } UA_TL_connection;
 
-struct UA_Session {
+typedef struct UA_Session_T {
 	UA_Int32 dummy;
 	UA_Application *application;
-}
+} UA_Session;
 
 /* Secure Layer Channel */
 typedef struct T_SL_Channel
