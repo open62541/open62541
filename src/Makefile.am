@@ -38,7 +38,7 @@ libopen62541_la_LDFLAGS = -avoid-version -no-undefined
 #						ua_stackInternalTypes.c\
 #						ua_namespace.h\
 #						ua_namespace.c
-						
+
 #libopen62541_ladir = $(top_builddir)/include . $(top_builddir)/src . $(top_builddir)/src/util					
 
 #libopen62541_la_HEADERS = opcua.h\
@@ -53,7 +53,7 @@ libopen62541_la_LDFLAGS = -avoid-version -no-undefined
 #						ua_stackInternalTypes.h\
 #						ua_list.h\
 #						ua_indexedList.h
-						
+
 libopen62541_la_SOURCES = opcua.c\
 						ua_basictypes.c\
 						ua_namespace_0.c\
@@ -62,9 +62,9 @@ libopen62541_la_SOURCES = opcua.c\
 						ua_secureLayer.c\
 						util/ua_list.c\
 						util/ua_indexedList.c\
-						ua_namespace.c
-						
-						
+						ua_namespace.c\
+						ua_services_attribute.c\
+						ua_services_session.c
 
 #bin_PROGRAMS= $(top_builddir)/bin/open62541.out
 #__top_builddir__bin_libOpen62541_out_SOURCES = opcuaServer.c

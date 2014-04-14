@@ -5,6 +5,7 @@
 #include "ua_secureLayer.h"
 #include "ua_stackInternalTypes.h"
 #include "ua_statuscodes.h"
+#include "ua_services.h"
 
 #define SIZE_SECURECHANNEL_HEADER 12
 #define SIZE_SEQHEADER_HEADER 8
@@ -126,28 +127,15 @@ START_HANDLER(GetEndpoints)
 END_HANDLER
 
 START_HANDLER(CreateSession)
-	UA_String_printf("CreateSession Service - endpointUrl=", &(p->endpointUrl));
-	// FIXME: create session
-	r->sessionId.encodingByte = UA_NODEIDTYPE_FOURBYTE;
-	r->sessionId.namespace = 1;
-	r->sessionId.identifier.numeric = 666;
+	 service_createsession(channel, p, r);
 END_HANDLER
 
 START_HANDLER(ActivateSession)
-#pragma GCC diagnostic ignored "-Wunused-variable"
-// FIXME: activate session
-	UA_NodeId_printf("ActivateSession - authToken=", &(p->requestHeader.authenticationToken));
-	// 321 == AnonymousIdentityToken_Encoding_DefaultBinary
-	UA_NodeId_printf("ActivateSession - uIdToken.type=", &(p->userIdentityToken.typeId));
-	UA_ByteString_printx_hex("ActivateSession - uIdToken.body=", &(p->userIdentityToken.body));
-
+	 service_activatesession(channel, p, r);
 END_HANDLER
 
 START_HANDLER(CloseSession)
-#pragma GCC diagnostic ignored "-Wunused-variable"
-
-	// FIXME: close session
-
+	 service_closesession(channel, p, r);
 END_HANDLER
 
 START_HANDLER(Browse)
@@ -161,32 +149,8 @@ START_HANDLER(Browse)
 END_HANDLER
 
 START_HANDLER(Read)
-#pragma GCC diagnostic ignored "-Wunused-variable"
-	UA_Int32 i = 0;
-
-	r->resultsSize = p->nodesToReadSize;
-
-	if (r->resultsSize > 0) {
-		UA_Array_new((void**)&(r->results),r->resultsSize,UA_DATAVALUE);
-		for (i=0;i < r->resultsSize; i++) {
-			UA_NodeId_printf("ReadService - nodesToRead=", &(p->nodesToRead[i]->nodeId));
-			//FIXME: search the object in the namespace
-			if (p->nodesToRead[i]->nodeId.identifier.numeric == 2255) { // Server_NameSpaceArray alias namespace table
-				r->results[i]->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT & UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
-				r->results[i]->status = UA_STATUSCODE_GOOD;
-				r->results[i]->value.encodingMask = UA_INT32_NS0;
-				r->results[i]->value.vt = &UA_[UA_INT32];
-				r->results[i]->value.arrayLength = 1;
-				UA_Array_new((void**)&(r->results[i]->value.data),1,UA_INT32);
-				*(UA_Int32*) (r->results[i]->value.data[0]) = 1;
-			} else {
-				// FIXME: Status Codes
-				// r->results[i]->statusCode = UA_STATUSCODE_BAD_NODEIDUNKNOWN;
-				r->results[i]->status = -1;
-			}
-		}
-	}
-
+     // FIXME: Check if session is active 
+	 service_read(channel->session->application, p, r);
 END_HANDLER
 
 START_HANDLER(CreateSubscription)
