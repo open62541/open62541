@@ -2,6 +2,7 @@
 #include <stdlib.h>	// alloc, free, vsnprintf
 #include <string.h>
 #include <stdarg.h> // va_start, va_end
+#include <time.h>
 #include "opcua.h"
 #include "ua_basictypes.h"
 
@@ -1126,7 +1127,43 @@ UA_DateTime UA_DateTime_now() {
 			* HUNDRED_NANOSEC_PER_SEC + tv.tv_usec * HUNDRED_NANOSEC_PER_USEC;
 	return dateTime;
 }
+//toDo
+UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time){
+	UA_DateTimeStruct dateTimeStruct;
+	//calcualting the the milli-, micro- and nanoseconds
+	UA_DateTime timeTemp;
+	timeTemp = (time-((time/10)*10))*100; //getting the last digit -> *100 for the 100 nanaseconds resolution
+	dateTimeStruct.nanoSec  = timeTemp;			//123 456 7 -> 700 nanosec;
+	timeTemp = (time-((time/10000)*10000))/10;
+	dateTimeStruct.microSec = timeTemp; 		//123 456 7 -> 456 microsec
+	timeTemp = (time-((time/10000000)*10000000))/10000;
+	dateTimeStruct.milliSec = timeTemp;				//123 456 7 -> 123 millisec
 
+	//calculating the unix time with #include <time.h>
+	time_t timeInSec = time/10000000; //converting the nanoseconds time in unixtime
+	struct tm ts;
+	ts = *gmtime(&timeInSec);
+	//strftime(buf, sizeof(buf), "%a %Y-%m-%d %H:%M:%S %Z", &ts);
+	//printf("%s\n", buf);
+	dateTimeStruct.sec = ts.tm_sec;
+	dateTimeStruct.min = ts.tm_min;
+	dateTimeStruct.hour = ts.tm_hour;
+	dateTimeStruct.day = ts.tm_mday;
+	dateTimeStruct.mounth = ts.tm_mon+1;
+	dateTimeStruct.year = ts.tm_year + 1900;
+
+	return dateTimeStruct;
+}
+
+UA_Int32 UA_DateTime_toString(UA_DateTime time, UA_String* timeString){
+	char *charBuf = (char*)(*timeString).data;
+
+	UA_DateTimeStruct tSt = UA_DateTime_toStruct(time);
+
+	sprintf(charBuf, "%2d/%2d/%4d %2d:%2d:%2d.%3d.%3d.%3d", tSt.mounth, tSt.day, tSt.year, tSt.hour, tSt.min, tSt.sec, tSt.milliSec, tSt.microSec, tSt.nanoSec);
+
+	return UA_SUCCESS;
+}
 
 UA_TYPE_METHOD_PROTOTYPES_AS(UA_XmlElement, UA_ByteString)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_XmlElement)

@@ -265,6 +265,21 @@ UA_Int32 UA_Guid_compare(UA_Guid *g1, UA_Guid *g2);
 typedef UA_Int64 UA_DateTime; //100 nanosecond resolution
 UA_TYPE_METHOD_PROTOTYPES (UA_DateTime)
 UA_DateTime UA_DateTime_now();
+typedef struct T_UA_DateTimeStruct
+{
+	UA_Int16 nanoSec;
+	UA_Int16 microSec;
+	UA_Int16 milliSec;
+	UA_Int16 sec;
+	UA_Int16 min;
+	UA_Int16 hour;
+	UA_Int16 day;
+	UA_Int16 mounth;
+	UA_Int16 year;
+} UA_DateTimeStruct;
+UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time);
+UA_Int32 UA_DateTime_toString(UA_DateTime time, UA_String* timeString);
+
 
 typedef struct T_UA_NodeId
 {

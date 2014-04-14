@@ -1424,6 +1424,54 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithVariant)
 	ck_assert_int_eq(retval, UA_SUCCESS);
 }
 END_TEST
+START_TEST(UA_DateTime_toStructShallWorkOnExample)
+{
+	// given
+	UA_DateTime src = 13974671891234567;
+	//1397467189... is Mon, 14 Apr 2014 09:19:49 GMT
+	//...1234567 are the milli-, micro- and nanoseconds
+	UA_DateTimeStruct dst;
+
+	// when
+	dst = UA_DateTime_toStruct(src);
+	// then
+	ck_assert_int_eq(dst.nanoSec, 700);
+	ck_assert_int_eq(dst.microSec, 456);
+	ck_assert_int_eq(dst.milliSec, 123);
+
+	ck_assert_int_eq(dst.sec, 49);
+	ck_assert_int_eq(dst.min, 19);
+	ck_assert_int_eq(dst.hour, 9);
+
+	ck_assert_int_eq(dst.day, 14);
+	ck_assert_int_eq(dst.mounth, 4);
+	ck_assert_int_eq(dst.year, 2014);
+}
+END_TEST
+START_TEST(UA_DateTime_toStingShallWorkOnExample)
+{
+	// given
+	UA_DateTime src = 13974671891234567;
+	//1397467189... is Mon, 14 Apr 2014 09:19:49 GMT
+	//...1234567 are the milli-, micro- and nanoseconds
+
+	char buf[80] = "80";
+	UA_Byte *byteBuf = (UA_Byte*)buf;
+	UA_String dst = {80, byteBuf};
+
+	// when
+	UA_DateTime_toString(src, &dst);
+	// then
+	ck_assert_int_eq(dst.length, 80);
+	char df = 'a';
+	UA_String_printf(&df, &dst);
+	ck_assert_int_eq(dst.data[0], ' ');
+	ck_assert_int_eq(dst.data[1], '4');
+	ck_assert_int_eq(dst.data[2], '/');
+	ck_assert_int_eq(dst.data[3], '1');
+	ck_assert_int_eq(dst.data[4], '4');
+}
+END_TEST
 
 Suite *testSuite_builtin(void)
 {
@@ -1529,6 +1577,13 @@ Suite *testSuite_builtin(void)
 	tcase_add_test(tc_encode, UA_DataValue_encodeShallWorkOnExampleWithoutVariant);
 	tcase_add_test(tc_encode, UA_DataValue_encodeShallWorkOnExampleWithVariant);
 	suite_add_tcase(s,tc_encode);
+
+
+
+	TCase *tc_convert = tcase_create("convert");
+	tcase_add_test(tc_convert, UA_DateTime_toStructShallWorkOnExample);
+	tcase_add_test(tc_convert, UA_DateTime_toStingShallWorkOnExample);
+	suite_add_tcase(s,tc_convert);
 
 	return s;
 }
