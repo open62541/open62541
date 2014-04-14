@@ -127,28 +127,15 @@ START_HANDLER(GetEndpoints)
 END_HANDLER
 
 START_HANDLER(CreateSession)
-	UA_String_printf("CreateSession Service - endpointUrl=", &(p->endpointUrl));
-	// FIXME: create session
-	r->sessionId.encodingByte = UA_NODEIDTYPE_FOURBYTE;
-	r->sessionId.namespace = 1;
-	r->sessionId.identifier.numeric = 666;
+	 service_createsession(channel, p, r);
 END_HANDLER
 
 START_HANDLER(ActivateSession)
-#pragma GCC diagnostic ignored "-Wunused-variable"
-// FIXME: activate session
-	UA_NodeId_printf("ActivateSession - authToken=", &(p->requestHeader.authenticationToken));
-	// 321 == AnonymousIdentityToken_Encoding_DefaultBinary
-	UA_NodeId_printf("ActivateSession - uIdToken.type=", &(p->userIdentityToken.typeId));
-	UA_ByteString_printx_hex("ActivateSession - uIdToken.body=", &(p->userIdentityToken.body));
-
+	 service_activatesession(channel, p, r);
 END_HANDLER
 
 START_HANDLER(CloseSession)
-#pragma GCC diagnostic ignored "-Wunused-variable"
-
-	// FIXME: close session
-
+	 service_closesession(channel, p, r);
 END_HANDLER
 
 START_HANDLER(Browse)

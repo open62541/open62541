@@ -63,7 +63,8 @@ libopen62541_la_SOURCES = opcua.c\
 						util/ua_list.c\
 						util/ua_indexedList.c\
 						ua_namespace.c\
-						ua_services_attribute.c
+						ua_services_attribute.c\
+						ua_services_session.c
 
 #bin_PROGRAMS= $(top_builddir)/bin/open62541.out
 #__top_builddir__bin_libOpen62541_out_SOURCES = opcuaServer.c

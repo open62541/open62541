@@ -4,6 +4,7 @@
 #include "opcua.h"
 #include "ua_application.h"
 #include "ua_statuscodes.h"
+#include "ua_transportLayer.h"
 
 /* Part 4: 5.4 Discovery Service Set */
 // service_findservers
@@ -15,9 +16,9 @@
 // service_closesecurechannel
 
 /* Part 4: 5.6 Session Service Set */
-// service_createsession
-// service_activatesession
-// service_closesession
+UA_Int32 service_createsession(UA_SL_Channel *channel, UA_CreateSessionRequest *request, UA_CreateSessionResponse *response);
+UA_Int32 service_activatesession(UA_SL_Channel *channel, UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response);
+UA_Int32 service_closesession(UA_SL_Channel *channel, UA_CloseSessionRequest *request, UA_CloseSessionResponse *response);
 // service_cancel
 
 /* Part 4: 5.7 NodeManagement Service Set */
