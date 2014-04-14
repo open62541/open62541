@@ -116,6 +116,14 @@ START_HANDLER(GetEndpoints)
 
 	r->endpointsSize = 1;
 	UA_Array_new((void**) &(r->endpoints),r->endpointsSize,UA_ENDPOINTDESCRIPTION);
+
+	//Security issues:
+	//The policy should be 'http://opcfoundation.org/UA/SecurityPolicy#None'
+	//FIXME String or ByteString
+	UA_String_copy((UA_String*)&(channel->localAsymAlgSettings.securityPolicyUri),&(r->endpoints[0]->securityPolicyUri));
+	//FIXME hard-coded code
+	r->endpoints[0]->securityMode = UA_MESSAGESECURITYMODE_NONE;
+
 	UA_String_copy(&(channel->tlConnection->localEndpointUrl),&(r->endpoints[0]->endpointUrl));
 	UA_String_copycstring("http://open62541.info/product/release",&(r->endpoints[0]->server.productUri));
 	// FIXME: This information should be provided by the application, preferably in the address space
