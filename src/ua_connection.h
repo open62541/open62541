@@ -55,13 +55,17 @@ typedef struct T_UA_TL_connection
 	struct T_SL_Channel* secureChannel;
 } UA_TL_connection;
 
+struct UA_Session {
+	UA_Int32 dummy;
+	UA_Application *application;
+}
 
 /* Secure Layer Channel */
 typedef struct T_SL_Channel
 {
 	UA_String secureChannelId;
 	UA_TL_connection* tlConnection;
-	UA_Application *application; // points to the application iff the session is active.
+	UA_Session *session; // equals UA_Null iff no session is active
 
 	UA_AsymmetricAlgorithmSecurityHeader remoteAsymAlgSettings;
 	UA_AsymmetricAlgorithmSecurityHeader localAsymAlgSettings;

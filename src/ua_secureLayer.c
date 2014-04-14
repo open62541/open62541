@@ -149,7 +149,8 @@ START_HANDLER(Browse)
 END_HANDLER
 
 START_HANDLER(Read)
-	 service_read(channel->application, p, r);
+     // FIXME: Check if session is active 
+	 service_read(channel->session->application, p, r);
 END_HANDLER
 
 START_HANDLER(CreateSubscription)
