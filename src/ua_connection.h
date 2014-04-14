@@ -3,6 +3,7 @@
 
 #include "opcua.h"
 #include "ua_stackInternalTypes.h"
+#include "ua_application.h"
 
 enum UA_MessageType
 {
@@ -60,6 +61,7 @@ typedef struct T_SL_Channel
 {
 	UA_String secureChannelId;
 	UA_TL_connection* tlConnection;
+	UA_Application *application; // points to the application iff the session is active.
 
 	UA_AsymmetricAlgorithmSecurityHeader remoteAsymAlgSettings;
 	UA_AsymmetricAlgorithmSecurityHeader localAsymAlgSettings;
@@ -74,10 +76,5 @@ typedef struct T_SL_Channel
 	UA_UInt32 requestId; // request Id of the current request
 
 } UA_SL_Channel;
-
-struct SS_connection
-{
-	UA_Int32 dummy;
-};
 
 #endif /* OPCUA_CONNECTIONHELPER_H_ */

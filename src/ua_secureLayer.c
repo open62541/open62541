@@ -5,6 +5,7 @@
 #include "ua_secureLayer.h"
 #include "ua_stackInternalTypes.h"
 #include "ua_statuscodes.h"
+#include "ua_services.h"
 
 #define SIZE_SECURECHANNEL_HEADER 12
 #define SIZE_SEQHEADER_HEADER 8
@@ -161,32 +162,7 @@ START_HANDLER(Browse)
 END_HANDLER
 
 START_HANDLER(Read)
-#pragma GCC diagnostic ignored "-Wunused-variable"
-	UA_Int32 i = 0;
-
-	r->resultsSize = p->nodesToReadSize;
-
-	if (r->resultsSize > 0) {
-		UA_Array_new((void**)&(r->results),r->resultsSize,UA_DATAVALUE);
-		for (i=0;i < r->resultsSize; i++) {
-			UA_NodeId_printf("ReadService - nodesToRead=", &(p->nodesToRead[i]->nodeId));
-			//FIXME: search the object in the namespace
-			if (p->nodesToRead[i]->nodeId.identifier.numeric == 2255) { // Server_NameSpaceArray alias namespace table
-				r->results[i]->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT & UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
-				r->results[i]->status = UA_STATUSCODE_GOOD;
-				r->results[i]->value.encodingMask = UA_INT32_NS0;
-				r->results[i]->value.vt = &UA_[UA_INT32];
-				r->results[i]->value.arrayLength = 1;
-				UA_Array_new((void**)&(r->results[i]->value.data),1,UA_INT32);
-				*(UA_Int32*) (r->results[i]->value.data[0]) = 1;
-			} else {
-				// FIXME: Status Codes
-				// r->results[i]->statusCode = UA_STATUSCODE_BAD_NODEIDUNKNOWN;
-				r->results[i]->status = -1;
-			}
-		}
-	}
-
+	 service_read(channel->application, p, r);
 END_HANDLER
 
 START_HANDLER(CreateSubscription)
