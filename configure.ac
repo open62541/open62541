@@ -33,17 +33,22 @@ AC_ARG_ENABLE(debug,
 AS_HELP_STRING([--enable-debug],
                [enable debugging, default: no]),
 			   [case "${enableval}" in
-               		 yes) debug=true ;;
-             		 no)  debug=false ;;
+               		 yes) debug=true, verbose=false ;;
+             		 no)  debug=false, verbose=false ;;
+             		 verbose) debug=true, verbose=true;;
              		 *)   AC_MSG_ERROR([bad value ${enableval} for --enable-debug]) ;; esac],
 				[debug=false])
 AM_CONDITIONAL(DEBUG, test x"$debug" = x"true")
 AM_COND_IF([DEBUG],
     AC_DEFINE([DEBUG])) #define DEBUG is accessible from pre-processor
 
+AM_CONDITIONAL(VERBOSE, test x"$verbose" = x"true")
+AM_COND_IF([VERBOSE],
+    AC_DEFINE([VERBOSE])) #define VERBOSE is accessible from pre-processor
+
 AC_ARG_ENABLE(multithreading,
 AS_HELP_STRING([--enable-multithreading],
-               [enable debugging, default: yes]),
+               [enable multithreading, default: yes]),
 			   [case "${enableval}" in
                		 yes) multithreading=true ;;
              		 no)  multithreading=false ;;

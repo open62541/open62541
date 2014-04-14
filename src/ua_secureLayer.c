@@ -343,7 +343,7 @@ UA_SL_handleRequestTableEntry* getHRTEntry(UA_Int32 methodNodeId) {
 UA_Int32 UA_ResponseHeader_initFromRequest(UA_RequestHeader const * p, UA_ResponseHeader * r) {
 	r->requestHandle = p->requestHandle;
 	r->serviceResult = UA_STATUSCODE_GOOD;
-	r->stringTableSize = 0;
+	r->stringTableSize = -1;
 	r->timestamp = UA_DateTime_now();
 	return UA_SUCCESS;
 }
