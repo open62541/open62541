@@ -1294,16 +1294,16 @@ UA_TYPE_START_ENCODEBINARY(UA_Variant)
 UA_TYPE_END_XXCODEBINARY
 UA_Int32 UA_Variant_decodeBinary(UA_ByteString const * src, UA_Int32 *pos, UA_Variant *dst) {
 	UA_Int32 retval = UA_SUCCESS;
-	UA_Int32 ns0Id;
+	UA_Int32 ns0Id, uaIdx;
 
 	retval |= UA_Byte_decodeBinary(src,pos,&(dst->encodingMask));
 	ns0Id = dst->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK;
 
 	// initialize vTable
-	if (UA_toIndex(ns0Id) == UA_ERR_INVALID_VALUE) {
-		return UA_ERR_INVALID_VALUE;
+	if ((uaIdx = UA_toIndex(ns0Id)) < 0) {
+		return uaIdx;
 	} else {
-		dst->vt = &UA_[UA_toIndex(ns0Id)];
+		dst->vt = &UA_[uaIdx];
 	}
 
 	// get size of array

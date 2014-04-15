@@ -77,7 +77,7 @@ print('''/**********************************************************
 #include "opcua.h"
 
 UA_Int32 UA_toIndex(UA_Int32 id) {
-    UA_Int32 retval = -1;
+    UA_Int32 retval = UA_ERR_INVALID_VALUE;
     switch (id) { ''', end='\n',file=fc)
 
 i = 0

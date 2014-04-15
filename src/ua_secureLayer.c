@@ -135,15 +135,15 @@ START_HANDLER(GetEndpoints)
 END_HANDLER
 
 START_HANDLER(CreateSession)
-	 service_createsession(channel, p, r);
+	 retval = service_createsession(channel, p, r);
 END_HANDLER
 
 START_HANDLER(ActivateSession)
-	 service_activatesession(channel, p, r);
+	 retval = service_activatesession(channel, p, r);
 END_HANDLER
 
 START_HANDLER(CloseSession)
-	 service_closesession(channel, p, r);
+	 retval = service_closesession(channel, p, r);
 END_HANDLER
 
 START_HANDLER(Browse)
@@ -158,7 +158,7 @@ END_HANDLER
 
 START_HANDLER(Read)
      // FIXME: Check if session is active 
-	 service_read(channel->session->application, p, r);
+	 retval = service_read(channel->session->application, p, r);
 END_HANDLER
 
 START_HANDLER(CreateSubscription)

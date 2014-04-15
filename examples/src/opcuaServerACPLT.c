@@ -146,9 +146,12 @@ void server_run() {
 				server.writeData.length = 0;
 			}
 		}
+		shutdown(newsockfd,2);
 		close(newsockfd);
 		connection.connectionState = connectionState_CLOSED;
 	}
+	shutdown(sockfd,2);
+	close(sockfd);
 }
 
 #endif
