@@ -1,8 +1,7 @@
 dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(OPCUAServer, 1.0)
-
+AC_INIT(Open62541, 1.0)
 
 AC_CANONICAL_SYSTEM
 AM_INIT_AUTOMAKE()
@@ -43,19 +42,63 @@ AM_COND_IF([DEBUG],
 
 AC_ARG_ENABLE(multithreading,
 AS_HELP_STRING([--enable-multithreading],
-               [enable debugging, default: yes]),
+               [enable multithreading, default: yes]),
 			   [case "${enableval}" in
                		 yes) multithreading=true ;;
              		 no)  multithreading=false ;;
              		 *)   AC_MSG_ERROR([bad value ${enableval} for --enable-multithreading]) ;; esac],
-[multithreading=true])
+[multithreading=false])
 AM_CONDITIONAL(MULTITHREADING, test x"$multithreading" = x"true")
 AM_COND_IF([MULTITHREADING],
     AC_DEFINE([MULTITHREADING])) #define MULTITHREADING is accessible from pre-processor
+
+AC_ARG_ENABLE(doxygen,
+	AS_HELP_STRING([--enable-doxygen],
+               [enable doxygen, default: no]),
+			   [case "${enableval}" in
+               		 yes) enabledoxygen=true ;;
+             		 no)  enabledoxygen=false ;;
+             		 *)   AC_MSG_ERROR([bad value ${enableval} for --enable-doxygen]) ;; esac],
+[enabledoxygen=false])
+
+AM_CONDITIONAL(ENABLE_DOXYGEN, test x"$enabledoxygen" = x"true")
+AC_CHECK_PROGS([DOXYGEN], [doxygen])
+AM_CONDITIONAL([HAVE_DOXYGEN],[test -n "$DOXYGEN"])
+
+AM_COND_IF([ENABLE_DOXYGEN],[AM_COND_IF([HAVE_DOXYGEN],[usedoxygen=true],[usedoxygen=false])],[usedoxygen=false])
+
+#if ENABLE_DOXYGEN;then
+   # if HAVE_DOXYGEN;then
+   #     usedoxygen = true
+   # else
+  #      usedoxygen = false
+ #  fi
+#else
+ #  usedoxygen = false
+#fi
+AM_CONDITIONAL([USE_DOXYGEN], test x"$usedoxygen" = x"true")
+
+AM_COND_IF([USE_DOXYGEN], [AC_CONFIG_FILES([doc/Doxyfile])])
+
+
+
+
+
+    
+if test -z "$DOXYGEN";then 
+    AC_MSG_WARN([Doxygen not found - continuing without Doxygen support])
+fi
+
+
+
+
+
+
+
    
 AC_LIBTOOL_WIN32_DLL
 AC_PROG_LIBTOOL
 AC_CONFIG_MACRO_DIR([m4])
-AC_CONFIG_FILES(Makefile include/Makefile src/Makefile tool/Makefile tests/Makefile examples/src/Makefile)
+AC_CONFIG_FILES(Makefile include/Makefile src/Makefile tool/Makefile tests/Makefile examples/src/Makefile doc/Makefile)
 AC_OUTPUT
 

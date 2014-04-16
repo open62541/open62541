@@ -7,12 +7,13 @@ endif
 
 export GLOBAL_AM_CFLAGS = $(AM_CFLAGS)
 
+SUBS=tool include src
 if HAVE_CHECK
-    SUBS=tool include src tests
-
-else 
-    SUBS=tool include src
+	SUBS+= tests
 endif
 
+if USE_DOXYGEN
+	SUBS+= doc
+endif
 SUBDIRS = $(SUBS) examples/src	
 
