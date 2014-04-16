@@ -14,7 +14,7 @@ addons:
       name: "acplt/open62541"
       description: "Open-source OPC UA"
     notification_email: 
-    build_command_prepend: "./configure"
+    build_command_prepend: "./autogen && ./configure"
     build_command: "make"
     branch_pattern: master
 
