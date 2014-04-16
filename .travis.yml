@@ -1,4 +1,6 @@
 language: c
+compiler:
+  - gcc
 
 env:
   global:
@@ -12,9 +14,9 @@ addons:
       name: "acplt/open62541"
       description: "Open-source OPC UA"
     notification_email: 
-    build_command_prepend: ./configure
-    build_command: make
-    branch_pattern: coverity_scan
+    build_command_prepend: "./configure"
+    build_command: "make"
+    branch_pattern: master
 
 before_install:
  - sudo apt-get update -qq
