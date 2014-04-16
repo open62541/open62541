@@ -465,7 +465,7 @@ UA_Int32 UA_String_init(UA_String* p){
 }
 
 
-UA_Int32 UA_String_compare(UA_String* string1, UA_String* string2) {
+UA_Int32 UA_String_compare(const UA_String* string1, const UA_String* string2) {
 	UA_Int32 retval;
 
 	if (string1->length == 0 && string2->length == 0) {
@@ -481,11 +481,11 @@ UA_Int32 UA_String_compare(UA_String* string1, UA_String* string2) {
 	}
 	return retval;
 }
-void UA_String_printf(char* label, UA_String* string) {
+void UA_String_printf(char* label, const UA_String* string) {
 	printf("%s {Length=%d, Data=%.*s}\n", label, string->length,
 			string->length, (char*)string->data);
 }
-void UA_String_printx(char* label, UA_String* string) {
+void UA_String_printx(char* label, const UA_String* string) {
 	int i;
 	if (string == UA_NULL) { printf("%s {NULL}\n", label); return; }
 	printf("%s {Length=%d, Data=", label, string->length);
@@ -499,7 +499,7 @@ void UA_String_printx(char* label, UA_String* string) {
 	}
 	printf("}}\n");
 }
-void UA_String_printx_hex(char* label, UA_String* string) {
+void UA_String_printx_hex(char* label, const UA_String* string) {
 	int i;
 	printf("%s {Length=%d, Data=", label, string->length);
 	if (string->length > 0) {
@@ -516,16 +516,16 @@ void UA_String_printx_hex(char* label, UA_String* string) {
 // TODO: should we really handle UA_String and UA_ByteString the same way?
 UA_TYPE_METHOD_PROTOTYPES_AS(UA_ByteString, UA_String)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_ByteString)
-UA_Int32 UA_ByteString_compare(UA_ByteString *string1, UA_ByteString *string2) {
-	return UA_String_compare((UA_String*) string1, (UA_String*) string2);
+UA_Int32 UA_ByteString_compare(const UA_ByteString *string1, const UA_ByteString *string2) {
+	return UA_String_compare((const UA_String*) string1, (const UA_String*) string2);
 }
-void UA_ByteString_printf(char* label, UA_ByteString* string) {
+void UA_ByteString_printf(char* label, const UA_ByteString* string) {
 	UA_String_printf(label, (UA_String*) string);
 }
-void UA_ByteString_printx(char* label, UA_ByteString* string) {
+void UA_ByteString_printx(char* label, const UA_ByteString* string) {
 	UA_String_printx(label, (UA_String*) string);
 }
-void UA_ByteString_printx_hex(char* label, UA_ByteString* string) {
+void UA_ByteString_printx_hex(char* label, const UA_ByteString* string) {
 	UA_String_printx_hex(label, (UA_String*) string);
 }
 
@@ -579,7 +579,7 @@ UA_Int32 UA_Guid_decodeBinary(UA_ByteString const * src, UA_Int32* pos, UA_Guid 
 }
 UA_TYPE_METHOD_DELETE_STRUCT(UA_Guid)
 UA_Int32 UA_Guid_deleteMembers(UA_Guid* p) { return UA_SUCCESS; }
-UA_Int32 UA_Guid_compare(UA_Guid *g1, UA_Guid *g2) {
+UA_Int32 UA_Guid_compare(const UA_Guid *g1, const UA_Guid *g2) {
 	return memcmp(g1, g2, sizeof(UA_Guid));
 }
 UA_Int32 UA_Guid_init(UA_Guid* p){
@@ -788,7 +788,7 @@ UA_Int32 UA_NodeId_deleteMembers(UA_NodeId* p) {
 	return retval;
 }
 
-void UA_NodeId_printf(char* label, UA_NodeId* node) {
+void UA_NodeId_printf(char* label, const UA_NodeId* node) {
 	int l;
 
 	printf("%s {encodingByte=%d, namespace=%d,", label,
@@ -828,7 +828,7 @@ void UA_NodeId_printf(char* label, UA_NodeId* node) {
 	printf("}\n");
 }
 
-UA_Int32 UA_NodeId_compare(UA_NodeId *n1, UA_NodeId *n2) {
+UA_Int32 UA_NodeId_compare(const UA_NodeId *n1, const UA_NodeId *n2) {
 	if (n1->encodingByte != n2->encodingByte || n1->namespace != n2->namespace)
 		return FALSE;
 
