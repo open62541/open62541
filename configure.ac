@@ -77,7 +77,8 @@ AM_COND_IF([ENABLE_DOXYGEN],[AM_COND_IF([HAVE_DOXYGEN],[usedoxygen=true],[usedox
  #  usedoxygen = false
 #fi
 AM_CONDITIONAL([USE_DOXYGEN], test x"$usedoxygen" = x"true")
-#AM_COND_IF([HAVE_DOXYGEN], [AC_CONFIG_FILES([doc/Doxyfile])])
+
+AM_COND_IF([USE_DOXYGEN], [AC_CONFIG_FILES([doc/Doxyfile])])
 
 
 

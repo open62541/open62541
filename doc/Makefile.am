@@ -1,4 +1,4 @@
-if HAVE_DOXYGEN
+if USE_DOXYGEN
 directory = $(top_srcdir)/doc/man/man3/
 
 dist_man_MANS = $(directory)/man_page_1.3 $(directory)/man_page_2.3
