@@ -219,14 +219,14 @@ UA_String;
 UA_TYPE_METHOD_PROTOTYPES (UA_String)
 UA_Int32 UA_String_copy(UA_String const * src, UA_String* dst);
 UA_Int32 UA_String_copycstring(char const * src, UA_String* dst);
-UA_Int32 UA_String_compare(UA_String *string1, UA_String *string2);
-void UA_String_printf(char* label, UA_String* string);
-void UA_String_printx(char* label, UA_String* string);
-void UA_String_printx_hex(char* label, UA_String* string);
+UA_Int32 UA_String_compare(const UA_String *string1, const UA_String *string2);
+void UA_String_printf(char* label, const UA_String* string);
+void UA_String_printx(char* label, const UA_String* string);
+void UA_String_printx_hex(char* label, const UA_String* string);
 
 /* ByteString - Part: 6, Chapter: 5.2.2.7, Page: 17 */
 UA_TYPE_METHOD_PROTOTYPES (UA_ByteString)
-UA_Int32 UA_ByteString_compare(UA_ByteString *string1, UA_ByteString *string2);
+UA_Int32 UA_ByteString_compare(const UA_ByteString *string1, const UA_ByteString *string2);
 UA_Int32 UA_ByteString_copy(UA_ByteString const * src, UA_ByteString* dst);
 UA_Int32 UA_ByteString_newMembers(UA_ByteString* p, UA_Int32 length);
 extern UA_ByteString UA_ByteString_securityPoliceNone;
@@ -246,9 +246,9 @@ typedef struct T_UA_LocalizedText
 UA_LocalizedText;
 UA_TYPE_METHOD_PROTOTYPES (UA_LocalizedText)
 UA_Int32 UA_LocalizedText_copycstring(char const * src, UA_LocalizedText* dst);
-void UA_ByteString_printf(char* label, UA_ByteString* string);
-void UA_ByteString_printx(char* label, UA_ByteString* string);
-void UA_ByteString_printx_hex(char* label, UA_ByteString* string);
+void UA_ByteString_printf(char* label, const UA_ByteString* string);
+void UA_ByteString_printx(char* label, const UA_ByteString* string);
+void UA_ByteString_printx_hex(char* label, const UA_ByteString* string);
 
 /* GuidType - Part: 6, Chapter: 5.2.2.6 Page: 17 */
 typedef struct T_UA_Guid
@@ -259,7 +259,7 @@ typedef struct T_UA_Guid
 	UA_Byte data4[8];
 } UA_Guid;
 UA_TYPE_METHOD_PROTOTYPES (UA_Guid)
-UA_Int32 UA_Guid_compare(UA_Guid *g1, UA_Guid *g2);
+UA_Int32 UA_Guid_compare(const UA_Guid *g1, const UA_Guid *g2);
 
 /* DateTime - Part: 6, Chapter: 5.2.2.5, Page: 16 */
 typedef UA_Int64 UA_DateTime; //100 nanosecond resolution
@@ -296,8 +296,8 @@ typedef struct T_UA_NodeId
     identifier;
 } UA_NodeId;
 UA_TYPE_METHOD_PROTOTYPES (UA_NodeId)
-UA_Int32 UA_NodeId_compare(UA_NodeId *n1, UA_NodeId *n2);
-void UA_NodeId_printf(char* label, UA_NodeId* node);
+UA_Int32 UA_NodeId_compare(const UA_NodeId *n1, const UA_NodeId *n2);
+void UA_NodeId_printf(char* label, const UA_NodeId* node);
 
 /** XmlElement - Part: 6, Chapter: 5.2.2.8, Page: 17 */
 typedef struct T_UA_XmlElement
