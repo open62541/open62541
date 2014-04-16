@@ -139,7 +139,9 @@ void* NL_Connection_init(NL_connection* c, NL_data* tld, UA_Int32 connectionHand
 
 	// network layer
 	c->reader = reader;
+#ifdef MULTITHREADING
 	c->readerThreadHandle = -1;
+#endif
 	c->networkLayer = tld;
 	return UA_NULL;
 }

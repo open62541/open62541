@@ -3,7 +3,6 @@
 
 #include "opcua.h"
 #include "ua_application.h"
-#include "ua_statuscodes.h"
 #include "ua_transport_binary_secure.h"
 
 /* Part 4: 5.4 Discovery Service Set */

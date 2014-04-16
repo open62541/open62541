@@ -1,4 +1,5 @@
 #include "ua_services.h"
+#include "ua_statuscodes.h"
 
 enum UA_AttributeId {
 	UA_ATTRIBUTEID_NODEID = 1,

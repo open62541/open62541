@@ -36,7 +36,9 @@ typedef struct T_NL_data {
 	NL_Description* tld;
 	UA_String endpointUrl;
 	int listenerHandle;
+#ifdef MULTITHREADING
 	pthread_t listenerThreadHandle;
+#endif
 	UA_list_List connections;
 	fd_set readerHandles;
 	int maxReaderHandle;
@@ -47,7 +49,9 @@ typedef void* (*NL_reader)(struct T_NL_connection *c);
 typedef struct T_NL_connection {
 	TL_connection connection;
 	NL_reader reader;
+#ifdef MULTITHREADING
 	pthread_t readerThreadHandle;
+#endif
 	NL_data* networkLayer;
 } NL_connection;
 

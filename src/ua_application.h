@@ -3,7 +3,6 @@
 
 #include "opcua.h"
 #include "ua_namespace.h"
-#include "ua_statuscodes.h"
 #include "ua_indexedList.h"
 
 typedef struct UA_Application_T {
