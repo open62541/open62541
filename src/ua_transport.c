@@ -1,4 +1,4 @@
-#include "ua_stackInternalTypes.h"
+#include "ua_transport.h"
 #include "stdio.h"
 
 UA_Int32 UA_MessageType_calcSize(UA_MessageType const * ptr){

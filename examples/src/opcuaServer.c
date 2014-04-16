@@ -26,7 +26,7 @@ int pthread_create(pthread_t* newthread, const pthread_attr_t* attr, void *(*sta
 }
 
 int main(int argc, char** argv) {
-	NL_data* nl = NL_init(&NL_Description_TcpBinary,16664,NL_THREADINGTYPE_SINGLE);
+	NL_data* nl = NL_init(&NL_Description_TcpBinary,16664);
 	struct timeval tv = {2, 0}; // 2 seconds
 	NL_msgLoop(nl, &tv,serverCallback,argv[0]);
 }

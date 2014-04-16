@@ -1,19 +1,10 @@
-/*
- ============================================================================
- Name : opcuaServer.c
- Author :
- Version :
- Copyright : Your copyright notice
- Description :
- ============================================================================
- */
-
 #include <stdio.h>
 #include <stdlib.h>
-#include <memory.h> // bzero
+#include <memory.h>
 
 #include "opcua.h"
-#include "ua_connection.h"
+#include "ua_transport.h"
+#include "ua_transport_binary.h"
 
 #ifdef LINUX
 
@@ -21,6 +12,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/socketvar.h>
+#include <unistd.h>
 
 void server_init();
 void server_run();
@@ -34,11 +26,11 @@ void server_run();
 int main(void) {
 
 #ifdef LINUX
-	server_init();
-	server_run();
+    server_init();
+    server_run();
 #endif
 
-	return EXIT_SUCCESS;
+return EXIT_SUCCESS;
 
 }
 
@@ -52,19 +44,32 @@ typedef struct T_Server {
 	int newDataToWrite;
 	UA_ByteString writeData;
 } Server;
-
 Server server;
-UA_Int32 server_writer(UA_TL_connection* connection, UA_ByteString* msg) {
-	UA_ByteString_copy(msg,&server.writeData);
+
+UA_Int32 server_writer(TL_connection* connection, UA_ByteString** gather_buf, UA_UInt32 gather_len) {
+	UA_UInt32 total_len = 0;
+	for(UA_UInt32 i=0;i<gather_len;i++) {
+		total_len += gather_buf[i]->length;
+	}
+    UA_ByteString *msg;
+	UA_alloc((void **)&msg, sizeof(UA_ByteString));
+	UA_ByteString_newMembers(msg, total_len);
+
+	UA_UInt32 pos = 0;
+	for(UA_UInt32 i=0;i<gather_len;i++) {
+		memcpy(msg->data+pos, gather_buf[i]->data, gather_buf[i]->length);
+		pos += gather_buf[i]->length;
+	}
+	server.writeData = *msg;
 	server.newDataToWrite = 1;
+	UA_free(msg);
 	return UA_SUCCESS;
 }
 
 void server_run() {
-
-	UA_TL_connection connection;
+	TL_connection connection;
 	connection.connectionState = connectionState_CLOSE;
-	connection.writerCallback = server_writer;
+	connection.writerCallback = (TL_writer)server_writer;
 	connection.localConf.maxChunkCount = 1;
 	connection.localConf.maxMessageSize = BUFFER_SIZE;
 	connection.localConf.protocolVersion = 0;
@@ -87,7 +92,7 @@ void server_run() {
 	}
 
 	/* Initialize socket structure */
-	bzero((void *) &serv_addr, sizeof(serv_addr));
+    memset((void *) &serv_addr, 0, sizeof(serv_addr));
 	portno = PORT;
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_addr.s_addr = INADDR_ANY;
@@ -110,7 +115,7 @@ void server_run() {
 	while (listen(sockfd, 5) != -1) {
 		clilen = sizeof(cli_addr);
 		/* Accept actual connection from the client */
-		newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
+		newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, (socklen_t*) &clilen);
 		if (newsockfd < 0) {
 			perror("ERROR on accept");
 			exit(1);
@@ -120,12 +125,12 @@ void server_run() {
 		/* communication loop */
 		while (connection.connectionState != connectionState_CLOSE) {
 			/* If connection is established then start communicating */
-			bzero(buffer, BUFFER_SIZE);
+            memset(buffer, 0, BUFFER_SIZE);
 
 			n = read(newsockfd, buffer, BUFFER_SIZE);
 
 			if (n > 0) {
-				slMessage.data = buffer;
+                slMessage.data = (UA_Byte*) buffer;
 				slMessage.length = n;
 				UA_ByteString_printx("server_run - received=",&slMessage);
 				TL_process(&connection, &slMessage);

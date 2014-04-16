@@ -25,12 +25,11 @@ enum UA_AttributeId {
 	UA_ATTRIBUTEID_USEREXECUTABLE = 22
 };
 
-static UA_DataValue * service_read_node(UA_Application *app, UA_ReadValueId *id) {
+static UA_DataValue * service_read_node(UA_Application *app, const UA_ReadValueId *id) {
 	UA_DataValue *v;
 	UA_alloc((void **) &v, sizeof(UA_DataValue));
 	
-	UA_NodeId *nodeid = &id->nodeId;
-	namespace *ns = UA_indexedList_findValue(app->namespaces, nodeid->namespace);
+	namespace *ns = UA_indexedList_findValue(app->namespaces, id->nodeId.namespace);
 
 	if (ns == UA_NULL) {
 		v->encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
@@ -40,7 +39,7 @@ static UA_DataValue * service_read_node(UA_Application *app, UA_ReadValueId *id)
 	
 	UA_Node *node = UA_NULL;
 	ns_lock *lock = UA_NULL;
-	UA_Int32 result = get_node(ns, nodeid, &node, &lock);
+	UA_Int32 result = get_node(ns, &id->nodeId, &node, &lock);
 	if(result != UA_SUCCESS) {
 		v->encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
 		v->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -151,17 +150,14 @@ static UA_DataValue * service_read_node(UA_Application *app, UA_ReadValueId *id)
 	return v;
 }
 
-UA_Int32 service_read(UA_Application *app, UA_ReadRequest *request, UA_ReadResponse *response ) {
-	if(app == UA_NULL) {
-		return UA_ERROR; // TODO: Return error message
-	}
+UA_Int32 Service_Read(SL_Channel *channel, const UA_ReadRequest *request, UA_ReadResponse *response ) {
+	if(channel->application == UA_NULL) return UA_ERROR; // TODO: Return error message
 
-	UA_alloc((void **)response, sizeof(UA_ReadResponse));
 	int readsize = request->nodesToReadSize > 0 ? request->nodesToReadSize : 0;
 	response->resultsSize = readsize;
 	UA_alloc((void **)&response->results, sizeof(void *)*readsize);
 	for(int i=0;i<readsize;i++) {
-		response->results[i] = service_read_node(app, request->nodesToRead[i]);
+		response->results[i] = service_read_node(channel->application, request->nodesToRead[i]);
 	}
 	response->diagnosticInfosSize = -1;
 	return UA_SUCCESS;

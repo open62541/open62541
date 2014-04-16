@@ -1,9 +1,22 @@
 #ifndef OPCUA_STACKINTERNALTYPES_H_
 #define OPCUA_STACKINTERNALTYPES_H_
 
+#include "ua_application.h"
 #include "opcua.h"
 
 static const UA_Int32 SL_HEADER_LENGTH = 0;
+
+enum connectionState {
+	connectionState_CLOSED,
+	connectionState_OPENING,
+	connectionState_ESTABLISHED,
+	connectionState_CLOSE,
+};
+
+typedef struct Session_T {
+	UA_Int32 dummy;
+	UA_Application *application;
+} UA_Session;
 
 /* Enums */
 typedef enum {
@@ -15,19 +28,27 @@ typedef enum {
 	UA_SECURITYMODE_INVALID = 0,
 	UA_SECURITYMODE_SIGN = 1,
 	UA_SECURITYMODE_SIGNANDENCRYPT = 2
-
-} securityMode;
+} SecurityMode;
 
 /* Structures */
-typedef struct T_SL_Response {
+typedef struct SL_Response_T {
 	UA_UInt32 serverProtocolVersion;
 	UA_ChannelSecurityToken securityToken;
 	UA_String serverNonce;
-}UA_SL_Response;
-UA_TYPE_METHOD_PROTOTYPES(UA_SL_Response)
+} SL_Response;
+UA_TYPE_METHOD_PROTOTYPES(SL_Response)
 
 /* MessageType */
 typedef UA_Int32 UA_MessageType;
+enum UA_MessageType
+{
+	UA_MESSAGETYPE_HEL = 0x48454C, // H E L
+	UA_MESSAGETYPE_ACK = 0x41434B, // A C k
+	UA_MESSAGETYPE_ERR = 0x455151, // E R R
+	UA_MESSAGETYPE_OPN = 0x4F504E, // O P N
+	UA_MESSAGETYPE_MSG = 0x4D5347, // M S G
+	UA_MESSAGETYPE_CLO = 0x434C4F  // C L O
+};
 UA_Int32 UA_MessageType_calcSize(UA_MessageType const * ptr);
 UA_Int32 UA_MessageType_encodeBinary(UA_MessageType const * src, UA_Int32* pos, UA_ByteString* dst);
 UA_Int32 UA_MessageType_decodeBinary(UA_ByteString const * src, UA_Int32* pos, UA_MessageType* dst);

@@ -4,63 +4,63 @@
 #include "opcua.h"
 #include "ua_application.h"
 #include "ua_statuscodes.h"
-#include "ua_transportLayer.h"
+#include "ua_transport_binary_secure.h"
 
 /* Part 4: 5.4 Discovery Service Set */
-// service_findservers
-// service_getendpoints
-// service_registerserver
+// Service_FindServers
+UA_Int32 Service_GetEndpoints(SL_Channel *channel, const UA_GetEndpointsRequest* request, UA_GetEndpointsResponse *response);
+// Service_RegisterServer
 
 /* Part 4: 5.5 SecureChannel Service Set */
-// service_opensecurechannel
-// service_closesecurechannel
+UA_Int32 Service_OpenSecureChannel(SL_Channel *channel, const UA_OpenSecureChannelRequest* request, UA_OpenSecureChannelResponse* response);
+UA_Int32 Service_CloseSecureChannel(SL_Channel *channel, const UA_CloseSecureChannelRequest *request, UA_CloseSecureChannelResponse *response);
 
 /* Part 4: 5.6 Session Service Set */
-UA_Int32 service_createsession(UA_SL_Channel *channel, UA_CreateSessionRequest *request, UA_CreateSessionResponse *response);
-UA_Int32 service_activatesession(UA_SL_Channel *channel, UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response);
-UA_Int32 service_closesession(UA_SL_Channel *channel, UA_CloseSessionRequest *request, UA_CloseSessionResponse *response);
-// service_cancel
+UA_Int32 Service_CreateSession(SL_Channel *channel, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response);
+UA_Int32 Service_ActivateSession(SL_Channel *channel, const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response);
+UA_Int32 Service_CloseSession(SL_Channel *channel, const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response);
+// Service_Cancel
 
 /* Part 4: 5.7 NodeManagement Service Set */
-// service_addnodes
-// service_addreferences
-// service_deletenodes
-// service_deletereferences
+// Service_AddNodes
+// Service_AddReferences
+// Service_DeleteNodes
+// Service_DeleteReferences
 
 /* Part 4: 5.8 View Service Set */
-// service_browse
-// service_browsenext
-// service_translatebrowsepathstonodeids
-// service_registernodes
-// service_unregisternodes
+UA_Int32 Service_Browse(SL_Channel *channel, const UA_BrowseRequest *request, UA_BrowseResponse *response);
+// Service_BrowseNext
+// Service_TranslateBrowsePathsRoNodeIds
+// Service_RegisterNodes
+// Service_UnregisterNodes
 
 /* Part 4: 5.9 Query Service Set */
-// service_queryfirst
-// service_querynext
+// Service_QueryFirst
+// Service_QueryNext
 
 /* Part 4: 5.10 Attribute Service Set */
-UA_Int32 service_read(UA_Application *app, UA_ReadRequest *request, UA_ReadResponse *response);
-// service_historyread;
-// service_write;
-// service_historyupdate;
+UA_Int32 Service_Read(SL_Channel *channel, const UA_ReadRequest *request, UA_ReadResponse *response);
+// Service_HistoryRead;
+// Service_Write;
+// Service_HistoryUpdate;
 
 /* Part 4: 5.11 Method Service Set */
-// service_call
+// Service_Call
 
 /* Part 4: 5.12 MonitoredItem Service Set */
-// service_createmonitoreditems
-// service_modifymonitoreditems
-// service_setmonitoringmode
-// service_settriggering
-// service_deletemonitoreditems
+// Service_CreateMonitoredItems
+// Service_ModifyMonitoredItems
+// Service_SetMonitoringMode
+// Service_SetTriggering
+// Service_DeleteMonitoredItems
 
 /* Part 4: 5.13 Subscription Service Set */
-// service_createsubscription
-// service_modifysubscription
-// service_setpublishingmode
-// service_publish
-// service_republish
-// service_transfersubscription
-// service_deletesubscription
+// Service_CreateSubscription
+// Service_ModifySubscription
+// Service_SetPublishingMode
+// Service_Publish
+// Service_Republish
+// Service_TransferSubscription
+// Service_DeleteSubscription
 
 #endif
