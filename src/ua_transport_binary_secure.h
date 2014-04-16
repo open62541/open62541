@@ -4,7 +4,6 @@
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
 #include "ua_transport_binary_secure.h"
-#include "ua_application.h"
 
 typedef struct {
 	UA_UInt32 secureChannelId;
@@ -16,7 +15,7 @@ typedef struct {
 typedef struct SL_Channel_T {
 	UA_String secureChannelId;
 	TL_connection* tlConnection;
-	UA_Session *session; // equals UA_Null iff no session is active
+	Session *session; // equals UA_Null iff no session is active
 	UA_AsymmetricAlgorithmSecurityHeader remoteAsymAlgSettings;
 	UA_AsymmetricAlgorithmSecurityHeader localAsymAlgSettings;
 	UA_SequenceHeader sequenceHeader;
@@ -25,8 +24,6 @@ typedef struct SL_Channel_T {
 	UA_ByteString localNonce;
 	UA_UInt32 connectionState;
 	SL_ChannelSecurityToken securityToken;
-
-	UA_Application *application;
 } SL_Channel;
 
 UA_Int32 SL_initConnectionObject(SL_Channel *connection);

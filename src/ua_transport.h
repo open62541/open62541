@@ -1,8 +1,8 @@
 #ifndef OPCUA_STACKINTERNALTYPES_H_
 #define OPCUA_STACKINTERNALTYPES_H_
 
-#include "ua_application.h"
 #include "opcua.h"
+#include "ua_application.h"
 
 static const UA_Int32 SL_HEADER_LENGTH = 0;
 
@@ -14,11 +14,10 @@ enum connectionState {
 };
 
 typedef struct Session_T {
-	UA_Int32 dummy;
-	UA_Application *application;
-} UA_Session;
+	UA_Int32 sessionId;
+	Application *application;
+} Session;
 
-/* Enums */
 typedef enum {
 	UA_SECURITYTOKEN_ISSUE = 0,
 	UA_SECURITYTOKEN_RENEW = 1
@@ -29,14 +28,6 @@ typedef enum {
 	UA_SECURITYMODE_SIGN = 1,
 	UA_SECURITYMODE_SIGNANDENCRYPT = 2
 } SecurityMode;
-
-/* Structures */
-typedef struct SL_Response_T {
-	UA_UInt32 serverProtocolVersion;
-	UA_ChannelSecurityToken securityToken;
-	UA_String serverNonce;
-} SL_Response;
-UA_TYPE_METHOD_PROTOTYPES(SL_Response)
 
 /* MessageType */
 typedef UA_Int32 UA_MessageType;

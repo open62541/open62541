@@ -26,7 +26,7 @@ enum UA_AttributeId {
 	UA_ATTRIBUTEID_USEREXECUTABLE = 22
 };
 
-static UA_DataValue * service_read_node(UA_Application *app, const UA_ReadValueId *id) {
+static UA_DataValue * service_read_node(Application *app, const UA_ReadValueId *id) {
 	UA_DataValue *v;
 	UA_alloc((void **) &v, sizeof(UA_DataValue));
 	
@@ -152,13 +152,13 @@ static UA_DataValue * service_read_node(UA_Application *app, const UA_ReadValueI
 }
 
 UA_Int32 Service_Read(SL_Channel *channel, const UA_ReadRequest *request, UA_ReadResponse *response ) {
-	if(channel->application == UA_NULL) return UA_ERROR; // TODO: Return error message
+	if(channel->session == UA_NULL || channel->session->application == UA_NULL) return UA_ERROR; // TODO: Return error message
 
 	int readsize = request->nodesToReadSize > 0 ? request->nodesToReadSize : 0;
 	response->resultsSize = readsize;
 	UA_alloc((void **)&response->results, sizeof(void *)*readsize);
 	for(int i=0;i<readsize;i++) {
-		response->results[i] = service_read_node(channel->application, request->nodesToRead[i]);
+		response->results[i] = service_read_node(channel->session->application, request->nodesToRead[i]);
 	}
 	response->diagnosticInfosSize = -1;
 	return UA_SUCCESS;

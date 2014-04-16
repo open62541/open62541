@@ -23,7 +23,7 @@ UA_Int32 UA_MessageType_encodeBinary(UA_MessageType const * src, UA_Int32* pos, 
 UA_Int32 UA_MessageType_decodeBinary(UA_ByteString const * src, UA_Int32* pos, UA_MessageType* dst){
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Byte tmpBuf[3];
-	retval |= UA_Byte_decodeBinary(src,pos,&(tmpBuf[0]));//messageType to Byte representation
+	retval |= UA_Byte_decodeBinary(src,pos,&(tmpBuf[0])); //messageType to Byte representation
 	retval |= UA_Byte_decodeBinary(src,pos,&(tmpBuf[1]));
 	retval |= UA_Byte_decodeBinary(src,pos,&(tmpBuf[2]));
 	*dst = (UA_MessageType)((UA_Int32)(tmpBuf[0]<<16) + (UA_Int32)(tmpBuf[1]<<8) + (UA_Int32)(tmpBuf[2]));
