@@ -22,6 +22,19 @@ $ make
 $ sudo make install
 $ sudo ldconfig
 ```
+##### Getting and using Doxygen
+* install the needed packages
+```bash
+sudo apt-get install graphviz doxygen:
+```
+* configure autotools, clean and build:
+```bash
+$ ./configure --enable-doxygen
+$ make clean
+$ make all
+```
+* the output is generated in doc/html/index.htm
+* configure the output of Doxygen with doc/Doxygen.in file
 
 ### Windows
 ##### Getting MinGW and MSYS:
@@ -66,3 +79,8 @@ $ ./configure --enable-debug=yes
 $ make
 $ make check
 ```
+### Configure Options 
+* --enable-debug=(yes|no|verbose) - omit/include debug code
+* --enable-multithreading - enable pthreads (for examples/src/opcuaServerMT)
+* --enable-doxygen - make documentation as well
+* --enable-coverage - profiling with gcov,lcov, make check will generate reports in tests/coverage 

@@ -69,6 +69,7 @@ AM_CONDITIONAL(COVERAGE, test x"$coverage" = x"true")
 AM_COND_IF([COVERAGE],
     AC_DEFINE([COVERAGE])) #define MULTITHREADING is accessible from pre-processor
 
+#doxygen start
 AC_ARG_ENABLE(doxygen,
 AS_HELP_STRING([--enable-doxygen],
                [enable doxygen, default: no]),
@@ -80,37 +81,15 @@ AS_HELP_STRING([--enable-doxygen],
 
 AM_CONDITIONAL(ENABLE_DOXYGEN, test x"$enabledoxygen" = x"true")
 AC_CHECK_PROGS([DOXYGEN], [doxygen])
-AM_CONDITIONAL([HAVE_DOXYGEN],[test -n "$DOXYGEN"])
 
-AM_COND_IF([ENABLE_DOXYGEN],[AM_COND_IF([HAVE_DOXYGEN],[usedoxygen=true],[usedoxygen=false])],[usedoxygen=false])
-
-#if ENABLE_DOXYGEN;then
-   # if HAVE_DOXYGEN;then
-   #     usedoxygen = true
-   # else
-  #      usedoxygen = false
- #  fi
-#else
- #  usedoxygen = false
-#fi
-AM_CONDITIONAL([USE_DOXYGEN], test x"$usedoxygen" = x"true")
-
-AM_COND_IF([USE_DOXYGEN], [AC_CONFIG_FILES([doc/Doxyfile])])
-
-
-
-
-
-    
-if test -z "$DOXYGEN";then 
-    AC_MSG_WARN([Doxygen not found - continuing without Doxygen support])
+#break if doxygen enabled but not present
+if test x"$enabledoxygen" = x"true"; then    
+	if test -z "$DOXYGEN"; then 
+    		AC_MSG_ERROR([Doxygen not found])
+	fi
 fi
-
-
-
-
-
-
+AM_COND_IF([ENABLE_DOXYGEN], [AC_CONFIG_FILES([doc/Doxyfile])])
+#doxygen end
 
    
 AC_LIBTOOL_WIN32_DLL

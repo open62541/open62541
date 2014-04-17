@@ -864,7 +864,7 @@ START_TEST(UA_String_decodeWithZeroSizeShallNotAllocateMemoryAndNullPtr)
 	UA_Int32 retval = UA_String_decodeBinary(&src, &pos, &dst);
 	// then
 	ck_assert_int_eq(retval,UA_SUCCESS);
-	ck_assert_int_eq(dst.length,0);
+	ck_assert_int_eq(dst.length,-1); // shall we keep zero?
 	ck_assert_ptr_eq(dst.data,UA_NULL);
 }
 END_TEST
