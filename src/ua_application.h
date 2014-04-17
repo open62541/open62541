@@ -10,4 +10,6 @@ typedef struct Application_T {
 	UA_indexedList_List *namespaces; // each entry is a namespace
 } Application;
 
+extern Application appMockup;
+void appMockup_init();
 #endif

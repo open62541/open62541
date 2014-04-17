@@ -338,12 +338,12 @@ UA_TYPE_START_DECODEBINARY(UA_Double)
 	mantissa = (mantissa / 256.0 ) + (UA_Double) (src->data[*pos+4] & 0xFF); 	// bits 32-39
 	mantissa = (mantissa / 256.0 ) + (UA_Double) (src->data[*pos+5] & 0xFF); 	// bits 40-47
 	mantissa = (mantissa / 256.0 ) + (UA_Double) (src->data[*pos+6] & 0x0F); 	// bits 48-51
-	printf("mantissa = %f\n", mantissa);
+	DBG_VERBOSE(printf("UA_Double_decodeBinary - mantissa=%f\n", mantissa));
 	UA_UInt32 biasedExponent ;
 	biasedExponent  = (src->data[*pos+6] & 0xF0) >>  4;				// bits 52-55
-	printf("biasedExponent=%d, src=%d\n", biasedExponent,src->data[*pos+6]);
+	DBG_VERBOSE(printf("UA_Double_decodeBinary - biasedExponent52-55=%d, src=%d\n", biasedExponent,src->data[*pos+6]));
 	biasedExponent |= ((UA_UInt32) (src->data[*pos+7] & 0x7F)) <<  4;	// bits 56-62
-	printf("biasedExponent=%d, src=%d\n", biasedExponent,src->data[*pos+7]);
+	DBG_VERBOSE(printf("UA_Double_decodeBinary - biasedExponent56-62=%d, src=%d\n", biasedExponent,src->data[*pos+7]));
 	UA_Double sign = ( src->data[*pos+7] & 0x80 ) ? -1.0 : 1.0; // bit 63
 	if (biasedExponent >= 1023) {
 		*dst = (UA_Double) sign * (1 << (biasedExponent-1023)) * (1.0 + mantissa / 8.0 );
@@ -1294,16 +1294,16 @@ UA_TYPE_START_ENCODEBINARY(UA_Variant)
 UA_TYPE_END_XXCODEBINARY
 UA_Int32 UA_Variant_decodeBinary(UA_ByteString const * src, UA_Int32 *pos, UA_Variant *dst) {
 	UA_Int32 retval = UA_SUCCESS;
-	UA_Int32 ns0Id;
+	UA_Int32 ns0Id, uaIdx;
 
 	retval |= UA_Byte_decodeBinary(src,pos,&(dst->encodingMask));
 	ns0Id = dst->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK;
 
 	// initialize vTable
-	if (UA_toIndex(ns0Id) == UA_ERR_INVALID_VALUE) {
-		return UA_ERR_INVALID_VALUE;
+	if ((uaIdx = UA_toIndex(ns0Id)) < 0) {
+		return uaIdx;
 	} else {
-		dst->vt = &UA_[UA_toIndex(ns0Id)];
+		dst->vt = &UA_[uaIdx];
 	}
 
 	// get size of array

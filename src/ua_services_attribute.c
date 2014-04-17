@@ -33,6 +33,7 @@ static UA_DataValue * service_read_node(Application *app, const UA_ReadValueId *
 	namespace *ns = UA_indexedList_findValue(app->namespaces, id->nodeId.namespace);
 
 	if (ns == UA_NULL) {
+		DBG_VERBOSE(printf("service_read_node - unknown namespace %d\n",id->nodeId.namespace));
 		v->encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
 		v->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
 		return v;
@@ -158,6 +159,8 @@ UA_Int32 Service_Read(SL_Channel *channel, const UA_ReadRequest *request, UA_Rea
 	response->resultsSize = readsize;
 	UA_alloc((void **)&response->results, sizeof(void *)*readsize);
 	for(int i=0;i<readsize;i++) {
+		DBG_VERBOSE(printf("service_read - attributeId=%d\n",request->nodesToRead[i]->attributeId));
+		DBG_VERBOSE(UA_NodeId_printf("service_read - nodeId=",&(request->nodesToRead[i]->nodeId)));
 		response->results[i] = service_read_node(channel->session->application, request->nodesToRead[i]);
 	}
 	response->diagnosticInfosSize = -1;

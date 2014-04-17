@@ -11,7 +11,7 @@
 #include "opcua.h"
 #include "check.h"
 
-START_TEST (checkEncodeShallYieldDecode)
+START_TEST (encodeShallYieldDecode)
 {
 	void *obj1 = UA_NULL, *obj2 = UA_NULL;
 	UA_ByteString msg1, msg2;
@@ -44,17 +44,49 @@ START_TEST (checkEncodeShallYieldDecode)
 }
 END_TEST
 
+START_TEST (decodeShallFailWithTruncatedBufferButSurvive)
+{
+	void *obj1 = UA_NULL, *obj2 = UA_NULL;
+	UA_ByteString msg1;
+	UA_Int32 retval, pos;
+
+	retval = UA_[_i].new(&obj1);
+	UA_ByteString_newMembers(&msg1,UA_[_i].calcSize(obj1));
+	pos = 0;
+	retval = UA_[_i].encodeBinary(obj1, &pos, &msg1);
+	ck_assert_int_eq(retval,UA_SUCCESS);
+
+	UA_[_i].new(&obj2);
+	pos = 0;
+	msg1.length = msg1.length / 2;
+	retval = UA_[_i].decodeBinary(&msg1, &pos, obj2);
+
+	ck_assert_msg(retval!=UA_SUCCESS,"testing %s with half buffer",UA_[_i].name);
+
+	pos = 0;
+	msg1.length = msg1.length / 4;
+	retval = UA_[_i].decodeBinary(&msg1, &pos, obj2);
+
+	ck_assert_msg(retval!=UA_SUCCESS,"testing %s with quarter buffer",UA_[_i].name);
+
+}
+END_TEST
+
 int main() {
 	int number_failed = 0;
 	SRunner *sr;
 
 	Suite *s = suite_create("testMemoryHandling");
 	TCase *tc = tcase_create("Empty Objects");
-	tcase_add_loop_test(tc, checkEncodeShallYieldDecode,23,UA_INVALIDTYPE-1);
+	tcase_add_loop_test(tc, encodeShallYieldDecode,UA_BOOLEAN,UA_INVALIDTYPE-1);
+	suite_add_tcase(s,tc);
+	tc = tcase_create("Truncated Buffers");
+	tcase_add_loop_test(tc, decodeShallFailWithTruncatedBufferButSurvive,UA_BOOLEAN,UA_INVALIDTYPE-1);
 	suite_add_tcase(s,tc);
 
 	sr = srunner_create(s);
-	srunner_set_fork_status(sr,CK_NOFORK);
+	//for debugging puposes only
+	//srunner_set_fork_status(sr,CK_NOFORK);
 	srunner_run_all(sr,CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);

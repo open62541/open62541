@@ -144,6 +144,66 @@ START_TEST(searchElementShallFind24)
 }
 END_TEST
 
+START_TEST(addAndRemoveShallYieldEmptyList)
+{
+	// given
+	UA_list_List list;
+	UA_list_init(&list);
+	UA_Int32 plv[] = {42};
+	myAddPayloadVectorToFront(&list,plv,sizeof(plv)/sizeof(UA_Int32));
+	// when
+	UA_list_Element* e = UA_list_search(&list,comparer,(void*)&plv[0]);
+	UA_list_removeElement(e,UA_NULL);
+	visit_count = 0;
+	UA_list_iteratePayload(&list,visitor);
+	// then
+	ck_assert_int_eq(list.size,0);
+	ck_assert_int_eq(visit_count,0);
+	// finally
+	UA_list_destroy(&list, freer);
+}
+END_TEST
+
+START_TEST(addTwiceAndRemoveFirstShallYieldListWithOneElement)
+{
+	// given
+	UA_list_List list;
+	UA_list_init(&list);
+	UA_Int32 plv[] = {42,24};
+	myAddPayloadVectorToFront(&list,plv,sizeof(plv)/sizeof(UA_Int32));
+	// when
+	UA_list_Element* e = UA_list_search(&list,comparer,(void*)&plv[0]);
+	UA_list_removeElement(e,UA_NULL);
+	visit_count = 0;
+	UA_list_iteratePayload(&list,visitor);
+	// then
+	ck_assert_int_eq(list.size,1);
+	ck_assert_int_eq(visit_count,1);
+	// finally
+	UA_list_destroy(&list, freer);
+}
+END_TEST
+
+START_TEST(addTwiceAndRemoveLastShallYieldListWithOneElement)
+{
+	// given
+	UA_list_List list;
+	UA_list_init(&list);
+	UA_Int32 plv[] = {42,24};
+	myAddPayloadVectorToFront(&list,plv,sizeof(plv)/sizeof(UA_Int32));
+	// when
+	UA_list_Element* e = UA_list_search(&list,comparer,(void*)&plv[1]);
+	UA_list_removeElement(e,UA_NULL);
+	visit_count = 0;
+	UA_list_iteratePayload(&list,visitor);
+	// then
+	ck_assert_int_eq(list.size,1);
+	ck_assert_int_eq(visit_count,1);
+	// finally
+	UA_list_destroy(&list, freer);
+}
+END_TEST
+
 Suite*list_testSuite(void)
 {
 	Suite *s = suite_create("list_test");
@@ -152,6 +212,9 @@ Suite*list_testSuite(void)
 	tcase_add_test(tc_core, addElementsShallResultInRespectiveSize);
 	tcase_add_test(tc_core, findElementShallFind42);
 	tcase_add_test(tc_core, searchElementShallFind24);
+	tcase_add_test(tc_core, addAndRemoveShallYieldEmptyList);
+	tcase_add_test(tc_core, addTwiceAndRemoveFirstShallYieldListWithOneElement);
+	tcase_add_test(tc_core, addTwiceAndRemoveLastShallYieldListWithOneElement);
 	suite_add_tcase(s,tc_core);
 	return s;
 }
