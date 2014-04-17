@@ -13,15 +13,12 @@ static UA_Int32 TL_check(TL_Connection* connection, UA_ByteString* msg) {
 
 static UA_Int32 TL_handleHello(TL_Connection* connection, UA_ByteString* msg, UA_Int32* pos) {
 	UA_Int32 retval = UA_SUCCESS;
-
 	UA_Int32 tmpPos = 0;
-	UA_ByteString tmpMessage;
-	UA_ByteString *tmpMessage_ptr = &tmpMessage;
 	UA_OPCUATcpHelloMessage helloMessage;
-	UA_OPCUATcpAcknowledgeMessage ackMessage;
-	UA_OPCUATcpMessageHeader ackHeader;
 
-	if (connection->connectionState == connectionState_CLOSED) {
+	printf("\nstate: %i", connection->connectionState);
+	printf("\nwanted state: %i", CONNECTIONSTATE_CLOSED);
+	if (connection->connectionState == CONNECTIONSTATE_CLOSED) {
 		DBG_VERBOSE(printf("TL_process - extracting header information \n"));
 		UA_OPCUATcpHelloMessage_decodeBinary(msg,pos,&helloMessage);
 
@@ -32,8 +29,6 @@ static UA_Int32 TL_handleHello(TL_Connection* connection, UA_ByteString* msg, UA
 		connection->remoteConf.maxMessageSize = helloMessage.maxMessageSize;
 		connection->remoteConf.maxChunkCount = helloMessage.maxChunkCount;
 		UA_String_copy(&(helloMessage.endpointUrl), &(connection->remoteEndpointUrl));
-		connection->connectionState = connectionState_ESTABLISHED;
-		// clean up
 		UA_OPCUATcpHelloMessage_deleteMembers(&helloMessage);
 
 		DBG_VERBOSE(printf("TL_process - protocolVersion = %d \n",connection->remoteConf.protocolVersion));
@@ -41,27 +36,34 @@ static UA_Int32 TL_handleHello(TL_Connection* connection, UA_ByteString* msg, UA
 		DBG_VERBOSE(printf("TL_process - sendBufferSize = %d \n",connection->remoteConf.sendBufferSize));
 		DBG_VERBOSE(printf("TL_process - maxMessageSize = %d \n",connection->remoteConf.maxMessageSize));
 		DBG_VERBOSE(printf("TL_process - maxChunkCount = %d \n",connection->remoteConf.maxChunkCount));
+		connection->connectionState = CONNECTIONSTATE_ESTABLISHED;
 
 		// build acknowledge response
+		UA_OPCUATcpAcknowledgeMessage ackMessage;
 		ackMessage.protocolVersion = connection->localConf.protocolVersion;
 		ackMessage.receiveBufferSize = connection->localConf.recvBufferSize;
 		ackMessage.sendBufferSize = connection->localConf.sendBufferSize;
 		ackMessage.maxMessageSize = connection->localConf.maxMessageSize;
 		ackMessage.maxChunkCount = connection->localConf.maxChunkCount;
 
+		UA_OPCUATcpMessageHeader ackHeader;
 		ackHeader.messageType = UA_MESSAGETYPE_ACK;
 		ackHeader.isFinal = 'F';
 
 		// encode header and message to buffer
-		ackHeader.messageSize = UA_OPCUATcpAcknowledgeMessage_calcSize(&ackMessage)
-		+ UA_OPCUATcpMessageHeader_calcSize(&ackHeader);
-		UA_ByteString_newMembers(&tmpMessage, ackHeader.messageSize);
-		UA_OPCUATcpMessageHeader_encodeBinary(&ackHeader,&tmpPos,&tmpMessage);
-		UA_OPCUATcpAcknowledgeMessage_encodeBinary(&ackMessage,&tmpPos,&tmpMessage);
+		tmpPos = 0;
+		ackHeader.messageSize = UA_OPCUATcpAcknowledgeMessage_calcSize(&ackMessage) + UA_OPCUATcpMessageHeader_calcSize(&ackHeader);
+		UA_ByteString *ack_msg;
+		UA_alloc((void **)&ack_msg, sizeof(UA_ByteString));
+		UA_ByteString_newMembers(ack_msg, ackHeader.messageSize);
+		UA_OPCUATcpMessageHeader_encodeBinary(&ackHeader,&tmpPos,ack_msg);
+		UA_OPCUATcpAcknowledgeMessage_encodeBinary(&ackMessage,&tmpPos,ack_msg);
 
 		DBG_VERBOSE(printf("TL_process - Size messageToSend = %d, pos=%d\n",ackHeader.messageSize, tmpPos));
-		TL_Send(connection, &tmpMessage_ptr, 1);
-		UA_ByteString_deleteMembers(&tmpMessage);
+		UA_ByteString_printx("ack: ", ack_msg);
+		TL_Send(connection, &ack_msg, 1);
+		printf("finished wiritng");
+		UA_ByteString_delete(ack_msg);
 	} else {
 		DBG_ERR(printf("TL_process - wrong connection state \n"));
 		retval = UA_ERROR_MULTIPLE_HEL;
@@ -70,7 +72,7 @@ static UA_Int32 TL_handleHello(TL_Connection* connection, UA_ByteString* msg, UA
 }
 
 static UA_Int32 TL_handleOpen(TL_Connection* connection, UA_ByteString* msg, UA_Int32* pos) {
-	if (connection->connectionState == connectionState_ESTABLISHED) {
+	if (connection->connectionState == CONNECTIONSTATE_ESTABLISHED) {
 		return SL_Channel_new(connection,msg,pos); // create new secure channel and associate with this TL connection
 	}
 	return UA_ERR_INVALID_VALUE;
@@ -83,7 +85,7 @@ static UA_Int32 TL_handleMsg(TL_Connection* connection, UA_ByteString* msg, UA_I
 
 static UA_Int32 TL_handleClo(TL_Connection* connection, UA_ByteString* msg, UA_Int32* pos) {
 	SL_Channel* slc = connection->secureChannel;
-	connection->connectionState = connectionState_CLOSE;
+	connection->connectionState = CONNECTIONSTATE_CLOSE;
 	return SL_process(slc,msg,pos);
 }
 
@@ -130,9 +132,9 @@ UA_Int32 TL_Process(TL_Connection* connection, UA_ByteString* msg) {
 UA_Int32 TL_Send(TL_Connection* connection, UA_ByteString** gather_buf, UA_UInt32 gather_len) {
 	UA_Int32 retval = UA_SUCCESS;
 	DBG_VERBOSE(printf("TL_send - entered \n"));
-
 	//	if (TL_check(connection,msg,TL_CHECK_REMOTE) == UA_SUCCESS) {
 	retval = connection->writerCallback(connection, gather_buf, gather_len);
+	DBG_VERBOSE(printf("TL_send - exited \n"));
 		//}
 	/* else */
 	/* { */

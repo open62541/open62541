@@ -9,7 +9,7 @@ UA_Int32 Service_OpenSecureChannel(SL_Channel *channel, const UA_OpenSecureChann
 	UA_UInt32 retval = UA_SUCCESS;
 	switch (request->requestType) {
 	case UA_SECURITYTOKEN_ISSUE:
-		if (channel->connectionState == connectionState_ESTABLISHED) {
+		if (channel->connectionState == CONNECTIONSTATE_ESTABLISHED) {
 			printf("SL_processMessage - multiple security token request");
 			//TODO return ERROR
 			retval = UA_ERROR;
@@ -19,7 +19,7 @@ UA_Int32 Service_OpenSecureChannel(SL_Channel *channel, const UA_OpenSecureChann
 		//	SL_createNewToken(connection);
 		break;
 	case UA_SECURITYTOKEN_RENEW:
-		if (channel->connectionState == connectionState_CLOSED) {
+		if (channel->connectionState == CONNECTIONSTATE_CLOSED) {
 			printf("SL_processMessage - renew token request received, but no secureChannel was established before");
 			//TODO return ERROR
 			retval = UA_ERROR;
@@ -47,7 +47,7 @@ UA_Int32 Service_OpenSecureChannel(SL_Channel *channel, const UA_OpenSecureChann
 		break;
 	}
 
-	channel->connectionState = connectionState_ESTABLISHED;
+	channel->connectionState = CONNECTIONSTATE_ESTABLISHED;
 
 	if (request->requestHeader.returnDiagnostics != 0) {
 		printf("SL_openSecureChannel - diagnostics demanded by the client\n");
@@ -69,6 +69,6 @@ UA_Int32 Service_OpenSecureChannel(SL_Channel *channel, const UA_OpenSecureChann
 
 UA_Int32 Service_CloseSecureChannel(SL_Channel *channel, const UA_CloseSecureChannelRequest *request, UA_CloseSecureChannelResponse *response) {
 	// 62451 Part 6 Chapter 7.1.4 - The server does not send a CloseSecureChannel response
-	channel->connectionState = connectionState_CLOSE;
+	channel->connectionState = CONNECTIONSTATE_CLOSE;
 	return UA_SUCCESS;
 }

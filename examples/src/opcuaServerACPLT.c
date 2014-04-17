@@ -51,24 +51,23 @@ UA_Int32 server_writer(TL_Connection* connection, UA_ByteString** gather_buf, UA
 	for(UA_UInt32 i=0;i<gather_len;i++) {
 		total_len += gather_buf[i]->length;
 	}
-    UA_ByteString *msg;
-	UA_alloc((void **)&msg, sizeof(UA_ByteString));
-	UA_ByteString_newMembers(msg, total_len);
+    UA_ByteString msg;
+	UA_ByteString_newMembers(&msg, total_len);
 
 	UA_UInt32 pos = 0;
 	for(UA_UInt32 i=0;i<gather_len;i++) {
-		memcpy(msg->data+pos, gather_buf[i]->data, gather_buf[i]->length);
+		memcpy(msg.data+pos, gather_buf[i]->data, gather_buf[i]->length);
 		pos += gather_buf[i]->length;
 	}
-	server.writeData = *msg;
+	server.writeData.data = msg.data;
+	server.writeData.length = msg.length;
 	server.newDataToWrite = 1;
-	UA_free(msg);
 	return UA_SUCCESS;
 }
 
 void server_run() {
 	TL_Connection connection;
-	connection.connectionState = connectionState_CLOSE;
+	connection.connectionState = CONNECTIONSTATE_CLOSED;
 	connection.writerCallback = (TL_Writer)server_writer;
 	connection.localConf.maxChunkCount = 1;
 	connection.localConf.maxMessageSize = BUFFER_SIZE;
@@ -121,39 +120,35 @@ void server_run() {
 			exit(1);
 		}
 
-		printf("connection accepted\n");
+		printf("connection accepted: %i, state: %i\n", newsockfd, connection.connectionState);
 		/* communication loop */
-		while (connection.connectionState != connectionState_CLOSE) {
+		int i = 0;
+		do {
 			/* If connection is established then start communicating */
             memset(buffer, 0, BUFFER_SIZE);
 
 			n = read(newsockfd, buffer, BUFFER_SIZE);
-
 			if (n > 0) {
                 slMessage.data = (UA_Byte*) buffer;
 				slMessage.length = n;
 				UA_ByteString_printx("server_run - received=",&slMessage);
 				TL_Process(&connection, &slMessage);
-			} else if (n < 0) {
+			} else if (n <= 0) {
 				perror("ERROR reading from socket1");
 				exit(1);
 			}
-
 			if (server.newDataToWrite) {
 				UA_ByteString_printx("Send data:", &server.writeData);
-				n = write(newsockfd, server.writeData.data,
-						server.writeData.length);
+				n = write(newsockfd, server.writeData.data, server.writeData.length);
 				printf("written %d bytes \n", n);
 				server.newDataToWrite = 0;
 				UA_ByteString_deleteMembers(&server.writeData);
-
-				server.writeData.data = UA_NULL;
-				server.writeData.length = 0;
 			}
-		}
+			i++;
+		} while(connection.connectionState != CONNECTIONSTATE_CLOSE);
 		shutdown(newsockfd,2);
 		close(newsockfd);
-		connection.connectionState = connectionState_CLOSED;
+		connection.connectionState = CONNECTIONSTATE_CLOSED;
 	}
 	shutdown(sockfd,2);
 	close(sockfd);

@@ -52,7 +52,7 @@ void* NL_TCP_reader(NL_Connection *c) {
 	UA_ByteString readBuffer;
 	UA_alloc((void**)&(readBuffer.data),c->connection.localConf.recvBufferSize);
 
-	if (c->connection.connectionState != connectionState_CLOSE) {
+	if (c->connection.connectionState != CONNECTIONSTATE_CLOSE) {
 		do {
 			DBG_VERBOSE(printf("NL_TCP_reader - enter read\n"));
 			readBuffer.length = read(c->connection.connectionHandle, readBuffer.data, c->connection.localConf.recvBufferSize);
@@ -64,18 +64,18 @@ void* NL_TCP_reader(NL_Connection *c) {
 			if (readBuffer.length  > 0) {
 				TL_Process(&(c->connection),&readBuffer);
 			} else {
-				c->connection.connectionState = connectionState_CLOSE;
+				c->connection.connectionState = CONNECTIONSTATE_CLOSE;
 				perror("ERROR reading from socket1");
 			}
-		} while (c->connection.connectionState != connectionState_CLOSE);
+		} while (c->connection.connectionState != CONNECTIONSTATE_CLOSE);
 	}
-	if (c->connection.connectionState == connectionState_CLOSE) {
+	if (c->connection.connectionState == CONNECTIONSTATE_CLOSE) {
 		DBG_VERBOSE(printf("NL_TCP_reader - enter shutdown\n"));
 		shutdown(c->connection.connectionHandle,2);
 		DBG_VERBOSE(printf("NL_TCP_reader - enter close\n"));
 		close(c->connection.connectionHandle);
 		DBG_VERBOSE(printf("NL_TCP_reader - leave close\n"));
-		c->connection.connectionState = connectionState_CLOSED;
+		c->connection.connectionState = CONNECTIONSTATE_CLOSED;
 
 		UA_ByteString_deleteMembers(&readBuffer);
 		DBG_VERBOSE(printf("NL_TCP_reader - search element to remove\n"));
@@ -131,7 +131,7 @@ void* NL_Connection_init(NL_Connection* c, NL_data* tld, UA_Int32 connectionHand
 {
 	// connection layer of UA stack
 	c->connection.connectionHandle = connectionHandle;
-	c->connection.connectionState = connectionState_CLOSED;
+	c->connection.connectionState = CONNECTIONSTATE_CLOSED;
 	c->connection.writerCallback = writer;
 	memcpy(&(c->connection.localConf),&(tld->tld->localConf),sizeof(TL_Buffer));
 	memset(&(c->connection.remoteConf),0,sizeof(TL_Buffer));

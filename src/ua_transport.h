@@ -6,11 +6,11 @@
 
 static const UA_Int32 SL_HEADER_LENGTH = 0;
 
-enum connectionState {
-	connectionState_CLOSED,
-	connectionState_OPENING,
-	connectionState_ESTABLISHED,
-	connectionState_CLOSE,
+enum ConnectionState {
+	CONNECTIONSTATE_CLOSED,
+	CONNECTIONSTATE_OPENING,
+	CONNECTIONSTATE_ESTABLISHED,
+	CONNECTIONSTATE_CLOSE
 };
 
 typedef struct Session_T {

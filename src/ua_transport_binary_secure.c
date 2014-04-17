@@ -150,7 +150,7 @@ UA_Int32 SL_Channel_init(SL_Channel *channel) {
 	UA_alloc((void**)&(channel->localNonce.data), sizeof(UA_Byte));
 	channel->localNonce.length = 1;
 
-	channel->connectionState = connectionState_CLOSED;
+	channel->connectionState = CONNECTIONSTATE_CLOSED;
 
 	channel->sequenceHeader.requestId = 0;
 	channel->sequenceHeader.sequenceNumber = 1;
@@ -223,7 +223,7 @@ UA_Int32 SL_process(SL_Channel* connection, UA_ByteString* msg, UA_Int32* pos) {
 	DBG_VERBOSE(printf("SL_process - entered \n"));
 	UA_UInt32 secureChannelId;
 
-	if (connection->connectionState == connectionState_ESTABLISHED) {
+	if (connection->connectionState == CONNECTIONSTATE_ESTABLISHED) {
 		UA_UInt32_decodeBinary(msg,pos,&secureChannelId);
 
 		//FIXME: we assume SAS, need to check if AAS or SAS
