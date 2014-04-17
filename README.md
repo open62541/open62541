@@ -22,6 +22,19 @@ $ make
 $ sudo make install
 $ sudo ldconfig
 ```
+##### Getting and using Doxygen
+* install the needed packages
+```bash
+sudo apt-get install graphviz doxygen:
+```
+* configure autotools, clean and build:
+```bash
+$ ./configure --enable-doxygen
+$ make clean
+$ make all
+```
+* the output is generated in doc/html/index.htm
+* configure the output of Doxygen with doc/Doxygen.in file
 
 ### Windows
 ##### Getting MinGW and MSYS:
