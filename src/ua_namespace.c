@@ -113,7 +113,7 @@ UA_Int32 insert_node(namespace *ns, UA_Node *node) {
 	return UA_SUCCESS;
 }
 
-UA_Int32 get_node(namespace *ns, UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock) {
+UA_Int32 get_node(namespace *ns, const UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock) {
 	ns_entry *slot;
 	if(find_slot(ns, &slot, nodeid) == UA_SUCCESS) return UA_ERROR;
 #ifdef MULTITHREADING
@@ -124,7 +124,7 @@ UA_Int32 get_node(namespace *ns, UA_NodeId *nodeid, UA_Node ** const result, ns_
 	return UA_SUCCESS;
 }
 
-UA_Int32 get_writable_node(namespace *ns, UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock) {
+UA_Int32 get_writable_node(namespace *ns, const UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock) {
 	ns_entry *slot;
 	if(find_slot(ns, &slot, nodeid) != UA_SUCCESS) return UA_ERROR;
 #ifdef MULTITHREADING
@@ -139,7 +139,7 @@ UA_Int32 get_writable_node(namespace *ns, UA_NodeId *nodeid, UA_Node **result, n
 static inline void release_context_walker(void * lock) { pthread_rwlock_unlock(lock); }
 #endif
 
-UA_Int32 get_tc_node(namespace *ns, transaction_context *tc, UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock) {
+UA_Int32 get_tc_node(namespace *ns, transaction_context *tc, const UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock) {
 	ns_entry *slot;
 	if(find_slot(ns, &slot, nodeid) != UA_SUCCESS) return UA_ERROR;
 #ifdef MULTITHREADING
@@ -155,7 +155,7 @@ UA_Int32 get_tc_node(namespace *ns, transaction_context *tc, UA_NodeId *nodeid, 
 	return UA_SUCCESS;
 }
 
-UA_Int32 get_tc_writable_node(namespace *ns, transaction_context *tc, UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock) {
+UA_Int32 get_tc_writable_node(namespace *ns, transaction_context *tc, const UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock) {
 	ns_entry *slot;
 	if(find_slot(ns, &slot, nodeid) != UA_SUCCESS) return UA_ERROR;
 #ifdef MULTITHREADING
@@ -356,7 +356,7 @@ static void clear_ns(namespace *ns) {
 	ns->count = 0;
 }
 
-static UA_Int32 find_slot (const namespace *ns, ns_entry **slot, UA_NodeId *nodeid) {
+static UA_Int32 find_slot (const namespace *ns, ns_entry **slot, const UA_NodeId *nodeid) {
 	hash_t h = hash(nodeid);
 	hash_t index, hash2;
 	uint32_t size;

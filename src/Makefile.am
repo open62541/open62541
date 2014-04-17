@@ -57,14 +57,17 @@ libopen62541_la_LDFLAGS = -avoid-version -no-undefined
 libopen62541_la_SOURCES = opcua.c\
 						ua_basictypes.c\
 						ua_namespace_0.c\
-						ua_stackInternalTypes.c\
-						ua_transportLayer.c\
-						ua_secureLayer.c\
 						util/ua_list.c\
 						util/ua_indexedList.c\
+						ua_transport.c\
+						ua_transport_binary.c\
+						ua_transport_binary_secure.c\
 						ua_namespace.c\
 						ua_services_attribute.c\
 						ua_services_session.c\
+						ua_services_discovery.c\
+						ua_services_securechannel.c\
+						ua_services_view.c\
 						ua_application.c
 
 #bin_PROGRAMS= $(top_builddir)/bin/open62541.out

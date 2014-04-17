@@ -51,10 +51,10 @@ UA_Int32 create_ns(namespace **result, uint32_t size);
 void empty_ns(namespace *ns);
 void delete_ns(namespace *ns);
 UA_Int32 insert_node(namespace *ns, UA_Node *node);
-UA_Int32 get_node(namespace *ns, UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock);
-UA_Int32 get_writable_node(namespace *ns, UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock); // use only for _single_ writes.
-UA_Int32 get_tc_node(namespace *ns, transaction_context *tc, UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock);
-UA_Int32 get_tc_writable_node(namespace *ns, transaction_context *tc, UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock); // use only for _single_ writes.
+UA_Int32 get_node(namespace *ns, const UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock);
+UA_Int32 get_writable_node(namespace *ns, const UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock); // use only for _single_ writes.
+UA_Int32 get_tc_node(namespace *ns, transaction_context *tc, const UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock);
+UA_Int32 get_tc_writable_node(namespace *ns, transaction_context *tc, const UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock); // use only for _single_ writes.
 
 // inline void release_node(ns_lock *lock);
 // portable solution, see http://www.greenend.org.uk/rjk/tech/inline.html
@@ -76,8 +76,16 @@ static inline hash_t mod(hash_t hash, const namespace *ns);
 static inline hash_t htab_mod_m2(hash_t hash, const namespace *ns);
 static inline void clear_slot(namespace *ns, ns_entry *slot);
 static void clear_ns(namespace *ns);
-static UA_Int32 find_slot(const namespace *ns, ns_entry **slot, UA_NodeId *nodeid);
+static UA_Int32 find_slot(const namespace *ns, ns_entry **slot, const UA_NodeId *nodeid);
 static ns_entry * find_empty_slot(const namespace *ns, hash_t hash);
 static UA_Int32 expand(namespace *ns);
+
+/* We store UA_MethodNode_Callback instead of UA_MethodNode in the namespace.
+   Pointer casting to UA_MethodNode is possible since pointers point to the
+   first element anyway. */
+typedef struct UA_MethodNode_Callback_T {
+	UA_MethodNode *method_node;
+	UA_Int32 (*method_callback)(UA_list_List *input_args, UA_list_List *output_args);
+} UA_MethodNode_Callback;
 
 #endif /* __NAMESPACE_H */

@@ -1,38 +1,22 @@
-#include <memory.h> // memset, memcpy
-#include "ua_connection.h"
-#include "ua_transportLayer.h"
+#include <memory.h>
+#include "ua_transport_binary.h"
+#include "ua_transport.h"
+#include "ua_transport_binary_secure.h"
 
-#include "ua_secureLayer.h" // SL_process
-
-UA_Int32 TL_check(UA_TL_connection* connection, UA_ByteString* msg, int checkLocal)
-{
-	UA_Int32 retval = UA_SUCCESS;
-
-	UA_Int32 position = 4;
-	UA_Int32 messageLength;
-
-	DBG_VERBOSE(printf("TL_check - entered \n"));
-
-	UA_Int32_decodeBinary(msg,&position,&messageLength);
-	DBG_VERBOSE(printf("TL_check - messageLength = %d \n",messageLength));
-
-	if (messageLength == -1 || messageLength != msg->length ||
-			( ( checkLocal == UA_TL_CHECK_LOCAL) && messageLength > (UA_Int32) connection->localConf.maxMessageSize) ||
-			( ( checkLocal == UA_TL_CHECK_REMOTE) && messageLength > (UA_Int32) connection->remoteConf.maxMessageSize))
-	{
+UA_Int32 TL_check(TL_connection* connection, UA_ByteString* msg) {
+	if(msg->length > (UA_Int32) connection->localConf.maxMessageSize || msg->length > (UA_Int32) connection->remoteConf.maxMessageSize) {
 		DBG_ERR(printf("TL_check - length error \n"));
-		retval = UA_ERR_INCONSISTENT;
+		return UA_ERR_INCONSISTENT;
 	}
-	return retval;
+	return UA_SUCCESS;
 }
 
-#define Cmp3Byte(data,pos,a,b,c) (*((Int32*) ((data)+(pos))) & 0xFFFFFF) == (Int32)(((Byte)(a))|((Byte)(b))<<8|((Byte)(c))<<16)
-
-UA_Int32 UA_TL_handleHello(UA_TL_connection* connection, UA_ByteString* msg, UA_Int32* pos) {
+UA_Int32 TL_handleHello(TL_connection* connection, UA_ByteString* msg, UA_Int32* pos) {
 	UA_Int32 retval = UA_SUCCESS;
 
 	UA_Int32 tmpPos = 0;
 	UA_ByteString tmpMessage;
+	UA_ByteString *tmpMessage_ptr = &tmpMessage;
 	UA_OPCUATcpHelloMessage helloMessage;
 	UA_OPCUATcpAcknowledgeMessage ackMessage;
 	UA_OPCUATcpMessageHeader ackHeader;
@@ -76,46 +60,34 @@ UA_Int32 UA_TL_handleHello(UA_TL_connection* connection, UA_ByteString* msg, UA_
 		UA_OPCUATcpAcknowledgeMessage_encodeBinary(&ackMessage,&tmpPos,&tmpMessage);
 
 		DBG_VERBOSE(printf("TL_process - Size messageToSend = %d, pos=%d\n",ackHeader.messageSize, tmpPos));
-		TL_send(connection, &tmpMessage);
+		TL_send(connection, &tmpMessage_ptr, 1);
 		UA_ByteString_deleteMembers(&tmpMessage);
-	}
-	else
-	{
+	} else {
 		DBG_ERR(printf("TL_process - wrong connection state \n"));
 		retval = UA_ERROR_MULTIPLE_HEL;
 	}
 	return retval;
 }
 
-UA_Int32 UA_TL_handleOpen(UA_TL_connection* connection, UA_ByteString* msg, UA_Int32* pos) {
-	UA_Int32 retval = UA_SUCCESS;
-
+UA_Int32 TL_handleOpen(TL_connection* connection, UA_ByteString* msg, UA_Int32* pos) {
 	if (connection->connectionState == connectionState_ESTABLISHED) {
-		// create new secure channel and associate with this TL connection
-		retval |= UA_SL_Channel_new(connection,msg,pos);
-	} else {
-		retval = UA_ERR_INVALID_VALUE;
+		return SL_Channel_new(connection,msg,pos); // create new secure channel and associate with this TL connection
 	}
-	return retval;
+	return UA_ERR_INVALID_VALUE;
 }
 
-UA_Int32 UA_TL_handleMsg(UA_TL_connection* connection, UA_ByteString* msg, UA_Int32* pos) {
-	UA_Int32 retval = UA_SUCCESS;
-	UA_SL_Channel* slc = connection->secureChannel;
-	retval |= UA_SL_process(slc,msg,pos);
-	return retval;
+UA_Int32 TL_handleMsg(TL_connection* connection, UA_ByteString* msg, UA_Int32* pos) {
+	SL_Channel* slc = connection->secureChannel;
+	return SL_process(slc,msg,pos);
 }
 
-UA_Int32 UA_TL_handleClo(UA_TL_connection* connection, UA_ByteString* msg, UA_Int32* pos) {
-	UA_Int32 retval = UA_SUCCESS;
-	UA_SL_Channel* slc = connection->secureChannel;
-	retval |= UA_SL_process(slc,msg,pos);
+UA_Int32 TL_handleClo(TL_connection* connection, UA_ByteString* msg, UA_Int32* pos) {
+	SL_Channel* slc = connection->secureChannel;
 	connection->connectionState = connectionState_CLOSE;
-	return retval;
+	return SL_process(slc,msg,pos);
 }
 
-UA_Int32 TL_process(UA_TL_connection* connection, UA_ByteString* msg)
-{
+UA_Int32 TL_process(TL_connection* connection, UA_ByteString* msg) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 pos = 0;
 	UA_OPCUATcpMessageHeader tcpMessageHeader;
@@ -126,16 +98,16 @@ UA_Int32 TL_process(UA_TL_connection* connection, UA_ByteString* msg)
 		printf("TL_process - messageType=%.*s\n",3,msg->data);
 		switch(tcpMessageHeader.messageType) {
 		case UA_MESSAGETYPE_HEL:
-			retval = UA_TL_handleHello(connection, msg, &pos);
+			retval = TL_handleHello(connection, msg, &pos);
 			break;
 		case UA_MESSAGETYPE_OPN:
-			retval = UA_TL_handleOpen(connection, msg, &pos);
+			retval = TL_handleOpen(connection, msg, &pos);
 			break;
 		case UA_MESSAGETYPE_MSG:
-			retval = UA_TL_handleMsg(connection, msg, &pos);
+			retval = TL_handleMsg(connection, msg, &pos);
 			break;
 		case UA_MESSAGETYPE_CLO:
-			retval = UA_TL_handleClo(connection, msg, &pos);
+			retval = TL_handleClo(connection, msg, &pos);
 			break;
 		default: // dispatch processing to secureLayer
 			retval = UA_ERR_INVALID_VALUE;
@@ -145,8 +117,9 @@ UA_Int32 TL_process(UA_TL_connection* connection, UA_ByteString* msg)
 	if (retval != UA_SUCCESS) {
 		// FIXME: compose real error message
 		UA_ByteString errorMsg;
+		UA_ByteString *errorMsg_ptr = &errorMsg;
 		UA_ByteString_newMembers(&errorMsg,10);
-		TL_send(connection,&errorMsg);
+		TL_send(connection,&errorMsg_ptr, 1);
 		UA_ByteString_deleteMembers(&errorMsg);
 	}
 	UA_OPCUATcpMessageHeader_deleteMembers(&tcpMessageHeader);
@@ -154,18 +127,17 @@ UA_Int32 TL_process(UA_TL_connection* connection, UA_ByteString* msg)
 }
 
 /** respond to client request */
-UA_Int32 TL_send(UA_TL_connection* connection, UA_ByteString* msg)
-{
+UA_Int32 TL_send(TL_connection* connection, UA_ByteString** gather_buf, UA_UInt32 gather_len) {
 	UA_Int32 retval = UA_SUCCESS;
 	DBG_VERBOSE(printf("TL_send - entered \n"));
 
-	if (TL_check(connection,msg,UA_TL_CHECK_REMOTE) == UA_SUCCESS) {
-		connection->writerCallback(connection,msg);
-	}
-	else
-	{
-		DBG_ERR(printf("TL_send - ERROR: packet size greater than remote buffer size"));
-		retval = UA_ERROR;
-	}
+	//	if (TL_check(connection,msg,TL_CHECK_REMOTE) == UA_SUCCESS) {
+	retval = connection->writerCallback(connection, gather_buf, gather_len);
+		//}
+	/* else */
+	/* { */
+	/* 	DBG_ERR(printf("TL_send - ERROR: packet size greater than remote buffer size")); */
+	/* 	retval = UA_ERROR; */
+	/* } */
 	return retval;
 }

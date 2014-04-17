@@ -1,4 +1,23 @@
 language: c
+compiler:
+  - gcc
+
+env:
+  global:
+   # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
+   #   via the "travis encrypt" command using the project repo's public key
+   - secure: "daDBy/1RrqpWonB1RnRlrKSFUsiG4dOPWwBz/2bnhtiULD0Ghf9yvMpN0Ji2ofXyiPQvmf6LO6pCkKtWjvMgUKNzMl7svooXi5xxwSNcpXphoSzI88wpB9ANjzOC4ZrLzQHteodeVsiYr2j7TGaVenRpZRH5SuZjSzSqLnFR6Og="
+
+addons:
+  coverity_scan:
+    project:
+      name: "acplt/open62541"
+      description: "Open-source OPC UA"
+    notification_email: 
+    build_command_prepend: "./autogen.sh && ./configure"
+    build_command: "make"
+    branch_pattern: master
+
 before_install:
  - sudo apt-get update -qq
  - sudo apt-get install -qq build-essential subversion git autoconf libtool texinfo python-lxml valgrind

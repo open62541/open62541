@@ -14,10 +14,10 @@
 #include "networklayer.h"
 
 NL_Description NL_Description_TcpBinary  = {
-		NL_THREADINGTYPE_SINGLE,
-		NL_CONNECTIONTYPE_TCPV4,
-		NL_MAXCONNECTIONS_DEFAULT,
-		{-1,8192,8192,16384,1}
+	NL_UA_ENCODING_BINARY,
+	NL_CONNECTIONTYPE_TCPV4,
+	NL_MAXCONNECTIONS_DEFAULT,
+	{-1,8192,8192,16384,1}
 };
 
 _Bool NL_connectionComparer(void *p1, void* p2) {
@@ -67,7 +67,7 @@ void* NL_TCP_reader(NL_connection *c) {
 				c->connection.connectionState = connectionState_CLOSE;
 				perror("ERROR reading from socket1");
 			}
-		} while (c->connection.connectionState != connectionState_CLOSE && c->networkLayer->threaded == NL_THREADINGTYPE_PTHREAD);
+		} while (c->connection.connectionState != connectionState_CLOSE);
 	}
 	if (c->connection.connectionState == connectionState_CLOSE) {
 		DBG_VERBOSE(printf("NL_TCP_reader - enter shutdown\n"));
@@ -89,18 +89,37 @@ void* NL_TCP_reader(NL_connection *c) {
 }
 
 /** write to a tcp transport layer connection */
-UA_Int32 NL_TCP_writer(UA_TL_connection* c, UA_ByteString* msg) {
-	DBG_VERBOSE(UA_ByteString_printx("NL_TCP_writer - msg=", msg));
-	int nWritten = 0;
-	while (nWritten < msg->length) {
+UA_Int32 NL_TCP_writer(TL_connection* c, UA_ByteString** gather_buf, UA_UInt32 gather_len) {
+
+	struct iovec iov[gather_len];
+	UA_UInt32 total_len = 0;
+	for(UA_UInt32 i=0;i<gather_len;i++) {
+		iov[i].iov_base = gather_buf[i]->data;
+		iov[i].iov_len = gather_buf[i]->length;
+		total_len += gather_buf[i]->length;
+		DBG_VERBOSE(UA_ByteString_printx("NL_TCP_writer - msg=", gather_buf[i]));
+	}
+
+	struct msghdr message;
+	message.msg_name = 0;
+	message.msg_namelen = 0;
+	message.msg_iov = iov;
+	message.msg_iovlen = gather_len;
+	message.msg_control = 0;
+	message.msg_controllen = 0;
+	
+	UA_UInt32 nWritten = 0;
+	while (nWritten < total_len) {
 		int n=0;
 		do {
 			DBG_VERBOSE(printf("NL_TCP_writer - enter write\n"));
-			n = write(c->connectionHandle, &(msg->data[nWritten]), msg->length-nWritten);
+			n = write(c->connectionHandle, &message, 0);
 			DBG_VERBOSE(printf("NL_TCP_writer - leave write with n=%d,errno={%d,%s}\n",n,errno,strerror(errno)));
 		} while (n == -1L && errno == EINTR);
 		if (n >= 0) {
 			nWritten += n;
+			break;
+			// TODO: handle incompletely send messages
 		} else {
 			// TODO: error handling
 		}
@@ -108,7 +127,7 @@ UA_Int32 NL_TCP_writer(UA_TL_connection* c, UA_ByteString* msg) {
 	return UA_SUCCESS;
 }
 
-void* NL_Connection_init(NL_connection* c, NL_data* tld, UA_Int32 connectionHandle, NL_reader reader, UA_TL_writer writer)
+void* NL_Connection_init(NL_connection* c, NL_data* tld, UA_Int32 connectionHandle, NL_reader reader, TL_writer writer)
 {
 	// connection layer of UA stack
 	c->connection.connectionHandle = connectionHandle;
@@ -120,7 +139,9 @@ void* NL_Connection_init(NL_connection* c, NL_data* tld, UA_Int32 connectionHand
 
 	// network layer
 	c->reader = reader;
+#ifdef MULTITHREADING
 	c->readerThreadHandle = -1;
+#endif
 	c->networkLayer = tld;
 	return UA_NULL;
 }
@@ -132,7 +153,6 @@ void* NL_Connection_init(NL_connection* c, NL_data* tld, UA_Int32 connectionHand
 void* NL_TCP_listen(NL_connection* c) {
 	NL_data* tld = c->networkLayer;
 
-	// UA_String_printf("open62541-server listening at endpoint ",&(tld->endpointUrl));
 	do {
 		DBG_VERBOSE(printf("NL_TCP_listen - enter listen\n"));
 		int retval = listen(c->connection.connectionHandle, tld->tld->maxConnections);
@@ -150,28 +170,25 @@ void* NL_TCP_listen(NL_connection* c) {
 			int newsockfd = accept(c->connection.connectionHandle, (struct sockaddr *) &cli_addr, &cli_len);
 			DBG_VERBOSE(printf("NL_TCP_listen - leave accept\n"));
 			if (newsockfd < 0) {
-				DBG_ERR(printf("UA_TL_TCP_listen - accept returns errno={%d,%s}\n",errno,strerror(errno)));
+				DBG_ERR(printf("TL_TCP_listen - accept returns errno={%d,%s}\n",errno,strerror(errno)));
 				perror("ERROR on accept");
 			} else {
 				DBG_VERBOSE(printf("NL_TCP_listen - new connection on %d\n",newsockfd));
 				NL_connection* cclient;
 				UA_Int32 retval = UA_SUCCESS;
 				retval |= UA_alloc((void**)&cclient,sizeof(NL_connection));
-				NL_Connection_init(cclient, tld, newsockfd, NL_TCP_reader, NL_TCP_writer);
+				NL_Connection_init(cclient, tld, newsockfd, NL_TCP_reader, (TL_writer) NL_TCP_writer);
 				UA_list_addPayloadToBack(&(tld->connections),cclient);
-				if (tld->threaded == NL_THREADINGTYPE_PTHREAD) {
-					// TODO: handle retval of pthread_create
 #ifdef MULTITHREADING
 					pthread_create( &(cclient->readerThreadHandle), NULL, (void*(*)(void*)) NL_TCP_reader, (void*) cclient);
-#endif
-				} else {
+#else
 					NL_TCP_SetNonBlocking(cclient->connection.connectionHandle);
-				}
+#endif
 			}
 		} else {
 			// no action necessary to reject connection
 		}
-	} while (tld->threaded == NL_THREADINGTYPE_PTHREAD);
+	} while (1);
 	return UA_NULL;
 }
 
@@ -269,31 +286,27 @@ UA_Int32 NL_TCP_init(NL_data* tld, UA_Int32 port) {
 		NL_connection* c;
 		UA_Int32 retval = UA_SUCCESS;
 		retval |= UA_alloc((void**)&c,sizeof(NL_connection));
-		NL_Connection_init(c, tld, newsockfd, NL_TCP_listen, (UA_TL_writer) UA_NULL);
+		NL_Connection_init(c, tld, newsockfd, NL_TCP_listen, (TL_writer) UA_NULL);
 		UA_list_addPayloadToBack(&(tld->connections),c);
-		if (tld->threaded == NL_THREADINGTYPE_PTHREAD) {
-			// TODO: handle retval of pthread_create
 #ifdef MULTITHREADING
 			pthread_create( &(c->readerThreadHandle), NULL, (void*(*)(void*)) NL_TCP_listen, (void*) c);
-#endif
-		} else {
+#else
 			NL_TCP_SetNonBlocking(c->connection.connectionHandle);
-		}
+#endif
 	}
 	return retval;
 }
 
 
 /** checks arguments and dispatches to worker or refuses to init */
-NL_data* NL_init(NL_Description* tlDesc, UA_Int32 port, UA_Int32 threaded) {
+NL_data* NL_init(NL_Description* tlDesc, UA_Int32 port) {
 	NL_data* nl = UA_NULL;
 	if (tlDesc->connectionType == NL_CONNECTIONTYPE_TCPV4 && tlDesc->encoding == NL_UA_ENCODING_BINARY) {
-		UA_alloc((void**)&nl,sizeof(NL_data));
+		UA_alloc((void**)&nl, sizeof(NL_data));
 		nl->tld = tlDesc;
-		nl->threaded = threaded;
 		FD_ZERO(&(nl->readerHandles));
 		UA_list_init(&(nl->connections));
-		NL_TCP_init(nl,port);
+		NL_TCP_init(nl, port);
 	}
 	return nl;
 }
