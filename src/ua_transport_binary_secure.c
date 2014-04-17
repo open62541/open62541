@@ -97,6 +97,8 @@ static void init_response_header(UA_RequestHeader const * p, UA_ResponseHeader *
     *pos = 0; \
 	UA_ByteString_newMembers(&response_msg, UA_##TYPE##Response_calcSize(&r)); \
 	UA_##TYPE##Response_encodeBinary(&r, pos, &response_msg); \
+	UA_##TYPE##Request_deleteMembers(&p); \
+	UA_##TYPE##Response_deleteMembers(&r); \
 
 /** this function manages all the generic stuff for the request-response game */
 UA_Int32 SL_handleRequest(SL_Channel *channel, const UA_ByteString* msg, UA_Int32 *pos) {
@@ -145,6 +147,7 @@ UA_Int32 SL_handleRequest(SL_Channel *channel, const UA_ByteString* msg, UA_Int3
 	}
 
 	SL_Send(channel, &response_msg, responsetype);
+	UA_ByteString_deleteMembers(&response_msg);
 
 	return retval;
 }
