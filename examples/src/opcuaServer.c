@@ -25,6 +25,6 @@ int main(int argc, char** argv) {
 	// NL_data* nl = NL_init(&NL_Description_TcpBinary,16664,NL_THREADINGTYPE_SINGLE);
 	appMockup_init();
 
-	struct timeval tv = {2, 0}; // 2 seconds
+	struct timeval tv = {20, 0}; // 20 seconds
 	NL_msgLoop(nl, &tv,serverCallback,argv[0]);
 }

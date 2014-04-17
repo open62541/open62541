@@ -17,7 +17,7 @@ static UA_Int32 TL_handleHello(TL_Connection* connection, const UA_ByteString* m
 	UA_OPCUATcpHelloMessage helloMessage;
 
 	if (connection->connectionState == CONNECTIONSTATE_CLOSED) {
-		DBG_VERBOSE(printf("TL_process - extracting header information \n"));
+		DBG_VERBOSE(printf("TL_handleHello - extracting header information \n"));
 		UA_OPCUATcpHelloMessage_decodeBinary(msg,pos,&helloMessage);
 
 		// memorize buffer info and change mode to established
@@ -29,11 +29,11 @@ static UA_Int32 TL_handleHello(TL_Connection* connection, const UA_ByteString* m
 		UA_String_copy(&(helloMessage.endpointUrl), &(connection->remoteEndpointUrl));
 		UA_OPCUATcpHelloMessage_deleteMembers(&helloMessage);
 
-		DBG_VERBOSE(printf("TL_process - protocolVersion = %d \n",connection->remoteConf.protocolVersion));
-		DBG_VERBOSE(printf("TL_process - recvBufferSize = %d \n",connection->remoteConf.recvBufferSize));
-		DBG_VERBOSE(printf("TL_process - sendBufferSize = %d \n",connection->remoteConf.sendBufferSize));
-		DBG_VERBOSE(printf("TL_process - maxMessageSize = %d \n",connection->remoteConf.maxMessageSize));
-		DBG_VERBOSE(printf("TL_process - maxChunkCount = %d \n",connection->remoteConf.maxChunkCount));
+		DBG_VERBOSE(printf("TL_handleHello - protocolVersion = %d \n",connection->remoteConf.protocolVersion));
+		DBG_VERBOSE(printf("TL_handleHello - recvBufferSize = %d \n",connection->remoteConf.recvBufferSize));
+		DBG_VERBOSE(printf("TL_handleHello - sendBufferSize = %d \n",connection->remoteConf.sendBufferSize));
+		DBG_VERBOSE(printf("TL_handleHello - maxMessageSize = %d \n",connection->remoteConf.maxMessageSize));
+		DBG_VERBOSE(printf("TL_handleHello - maxChunkCount = %d \n",connection->remoteConf.maxChunkCount));
 		connection->connectionState = CONNECTIONSTATE_ESTABLISHED;
 
 		// build acknowledge response
@@ -57,11 +57,13 @@ static UA_Int32 TL_handleHello(TL_Connection* connection, const UA_ByteString* m
 		UA_OPCUATcpMessageHeader_encodeBinary(&ackHeader,&tmpPos,ack_msg);
 		UA_OPCUATcpAcknowledgeMessage_encodeBinary(&ackMessage,&tmpPos,ack_msg);
 
-		DBG_VERBOSE(printf("TL_process - Size messageToSend = %d, pos=%d\n",ackHeader.messageSize, tmpPos));
+		DBG_VERBOSE(printf("TL_handleHello - Size messageToSend = %d, pos=%d\n",ackHeader.messageSize, tmpPos));
+		DBG_VERBOSE(UA_ByteString_printx("_handleHello - ack=", ack_msg));
 		TL_Send(connection, (const UA_ByteString **) &ack_msg, 1);
+		DBG_VERBOSE(printf("TL_handleHello - finished writing\n"));
 		UA_ByteString_delete(ack_msg);
 	} else {
-		DBG_ERR(printf("TL_process - wrong connection state \n"));
+		DBG_ERR(printf("TL_handleHello - wrong connection state \n"));
 		retval = UA_ERROR_MULTIPLE_HEL;
 	}
 	return retval;
