@@ -56,9 +56,9 @@ UA_Int32 create_ns(namespace **result, uint32_t size) {
 	uint32_t sizePrimeIndex = higher_prime_index(size);
 	size = prime_tab[sizePrimeIndex].prime;
 
-	if (UA_alloc((void *)&ns, sizeof(namespace)) != UA_SUCCESS) return UA_ERR_NO_MEMORY;
+	if (UA_alloc((void **)&ns, sizeof(namespace)) != UA_SUCCESS) return UA_ERR_NO_MEMORY;
   
-	if (UA_alloc((void *)&ns->entries, sizeof(ns_entry) * size) != UA_SUCCESS) {
+	if (UA_alloc((void **)&ns->entries, sizeof(ns_entry) * size) != UA_SUCCESS) {
 		UA_free(ns);
 		return UA_ERR_NO_MEMORY;
 	}
@@ -83,7 +83,7 @@ void empty_ns(namespace *ns) {
 		int nindex = higher_prime_index (1024 / sizeof (ns_entry));
 		int nsize = prime_tab[nindex].prime;
 		UA_free(ns->entries);
-		UA_alloc((void *)&ns->entries, sizeof(ns_entry) * nsize); //FIXME: Check return value
+		UA_alloc((void **)&ns->entries, sizeof(ns_entry) * nsize); //FIXME: Check return value
 		ns->size = nsize;
 		ns->sizePrimeIndex = nindex;
 	}
@@ -105,7 +105,7 @@ UA_Int32 insert_node(namespace *ns, UA_Node *node) {
 	hash_t h = hash(&node->nodeId);
 	ns_entry *slot = find_empty_slot(ns, h);
 #ifdef MULTITHREADING
-	if (UA_alloc((void *)&slot->lock, sizeof(pthread_rwlock_t)) != UA_SUCCESS)
+	if (UA_alloc((void **)&slot->lock, sizeof(pthread_rwlock_t)) != UA_SUCCESS)
 		return UA_ERR_NO_MEMORY;
 	pthread_rwlock_init((pthread_rwlock_t *)slot->lock, NULL);
 #endif
@@ -438,7 +438,7 @@ static UA_Int32 expand (namespace *ns) {
 	nindex = higher_prime_index (count * 2);
 	nsize = prime_tab[nindex].prime;
 
-	if (UA_alloc((void *)nentries, sizeof(ns_entry)*nsize) != UA_SUCCESS)
+	if (UA_alloc((void **)&nentries, sizeof(ns_entry)*nsize) != UA_SUCCESS)
 		return UA_ERR_NO_MEMORY;
 	ns->entries = nentries;
 	ns->size = nsize;
