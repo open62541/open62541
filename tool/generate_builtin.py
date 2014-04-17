@@ -139,14 +139,14 @@ def createStructured(element):
     # else:
     #    print ("type " + name + " is new UA_Builtin with "),
     print("typedef struct T_" + name + " {", end='\n', file=fh)
-    if len(valuemap) > 0:
-        for n,t in valuemap.iteritems():
-            if t.find("**") != -1:
-	        print("\t" + "UA_Int32 " + n + "Size;", end='\n', file=fh)
-            print("\t" + "UA_" + t + " " + n + ";", end='\n', file=fh)
-    else:
-        print("\t/* null record */", end='\n', file=fh)
-        print("\tUA_Int32 NullRecord; /* avoiding warnings */", end='\n', file=fh)
+    if len(valuemap) == 0:
+        typename = stripTypename(element.get("BaseType"))
+        childname = camlCase2CCase(typename)
+        valuemap[childname] = typename 
+    for n,t in valuemap.iteritems():
+        if t.find("**") != -1:
+            print("\t" + "UA_Int32 " + n + "Size;", end='\n', file=fh)
+        print("\t" + "UA_" + t + " " + n + ";", end='\n', file=fh)
     print("} " + name + ";", end='\n', file=fh)
 
     print("UA_Int32 " + name + "_calcSize(" + name + " const* ptr);", end='\n', file=fh)
