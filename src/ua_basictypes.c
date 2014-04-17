@@ -394,9 +394,15 @@ UA_Int32 UA_String_decodeBinary(UA_ByteString const * src, UA_Int32* pos, UA_Str
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_Int32_decodeBinary(src,pos,&(dst->length));
 	if (dst->length > 0) {
-		retval |= UA_alloc((void**)&(dst->data),dst->length);
-		retval |= UA_memcpy(dst->data,&(src->data[*pos]),dst->length);
-		*pos += dst->length;
+		if (*pos >= 0 && (dst->length <= (src->length - *pos))) { // read beyond end of src is assumed to be an error
+			retval |= UA_alloc((void**)&(dst->data),dst->length);
+			retval |= UA_memcpy(dst->data,&(src->data[*pos]),dst->length);
+			*pos += dst->length;
+		} else {
+			dst->data = UA_NULL;
+			dst->length = -1;
+			retval = UA_ERR_INVALID_VALUE;
+		}
 	} else {
 		dst->data = UA_NULL;
 	}
