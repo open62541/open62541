@@ -368,7 +368,7 @@ static UA_Int32 find_slot (const namespace *ns, ns_entry **slot, const UA_NodeId
 	entry = &ns->entries[index];
 	if (entry == UA_NULL)
 		return UA_ERROR;
-	if (UA_NodeId_compare(&entry->node->nodeId, nodeid)) {
+	if (UA_NodeId_compare(&entry->node->nodeId, nodeid) == UA_EQUAL) {
 		*slot = entry;
 		return UA_SUCCESS;
 	}
@@ -382,7 +382,7 @@ static UA_Int32 find_slot (const namespace *ns, ns_entry **slot, const UA_NodeId
 		entry = &ns->entries[index];
 		if (entry == UA_NULL)
 			return UA_ERROR;
-		if (UA_NodeId_compare(&entry->node->nodeId, nodeid)) {
+		if (UA_NodeId_compare(&entry->node->nodeId, nodeid) == UA_EQUAL) {
 			*slot = entry;
 			return UA_SUCCESS;
 		}
