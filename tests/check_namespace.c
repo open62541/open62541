@@ -24,18 +24,24 @@ START_TEST(test_Namespace) {
 }
 END_TEST
 
+UA_Int32 createNode(UA_Node** p, UA_Int16 nsid, UA_Int32 id) {
+	UA_Node_new(p);
+	(*p)->nodeId.encodingByte = UA_NODEIDTYPE_FOURBYTE;
+	(*p)->nodeId.namespace = nsid;
+	(*p)->nodeId.identifier.numeric = id;
+	return UA_SUCCESS;
+}
+
 START_TEST(findNodeInNamespaceWithSingleEntry) {
 	// given
 	namespace *ns;
 	create_ns(&ns, 512);
-	UA_Node n1 = { (UA_NodeId) { UA_NODEIDTYPE_FOURBYTE, 0, { 2253 }}, 0 };
-	insert_node(ns,&n1);
+	UA_Node* n1; createNode(&n1,0,2253); insert_node(ns,n1);
 	UA_Node* nr = UA_NULL;
 	ns_lock* nl = UA_NULL;
 	UA_Int32 retval;
 	// when
-	UA_NodeId nid1 = { UA_NODEIDTYPE_FOURBYTE, 0, { 2253 }};
-	retval = get_node(ns,&nid1,&nr,&nl);
+	retval = get_node(ns,&(n1->nodeId),&nr,&nl);
 	// then
 	ck_assert_int_eq(retval, UA_SUCCESS);
 	ck_assert_ptr_eq(nr,&n1);
@@ -48,16 +54,14 @@ START_TEST(findNodeInNamespaceWithTwoEntries) {
 	// given
 	namespace *ns;
 	create_ns(&ns, 512);
-	UA_Node n1 = { (UA_NodeId) { UA_NODEIDTYPE_FOURBYTE, 0, { 2253 }}, 0 };
-	UA_Node n2 = { (UA_NodeId) { UA_NODEIDTYPE_FOURBYTE, 0, { 2255 }}, 0 };
-	insert_node(ns,&n1);
-	insert_node(ns,&n2);
+	UA_Node* n1; createNode(&n1,0,2253); insert_node(ns,n1);
+	UA_Node* n2; createNode(&n2,0,2255); insert_node(ns,n2);
+
 	UA_Node* nr = UA_NULL;
 	ns_lock* nl = UA_NULL;
 	UA_Int32 retval;
 	// when
-	UA_NodeId nid1 = { UA_NODEIDTYPE_FOURBYTE, 0, { 2255 }};
-	retval = get_node(ns,&nid1,&nr,&nl);
+	retval = get_node(ns,&(n2->nodeId),&nr,&nl);
 	// then
 	ck_assert_int_eq(retval, UA_SUCCESS);
 	ck_assert_ptr_eq(nr,&n1);

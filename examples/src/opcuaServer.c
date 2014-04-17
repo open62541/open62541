@@ -12,6 +12,7 @@
 #include <stdlib.h>
 
 #include "networklayer.h"
+#include "ua_application.h"
 
 UA_Int32 serverCallback(void * arg) {
 	char *name = (char *) arg;
