@@ -49,7 +49,6 @@ Server server;
 UA_Int32 server_writer(TL_Connection* connection, UA_ByteString** gather_buf, UA_UInt32 gather_len) {
 	UA_UInt32 total_len = 0;
 	for(UA_UInt32 i=0;i<gather_len;i++) {
-	fflush(stdout);
 		total_len += gather_buf[i]->length;
 	}
     UA_ByteString msg;
@@ -60,8 +59,6 @@ UA_Int32 server_writer(TL_Connection* connection, UA_ByteString** gather_buf, UA
 		memcpy(msg.data+pos, gather_buf[i]->data, gather_buf[i]->length);
 		pos += gather_buf[i]->length;
 	}
-	UA_ByteString_printf("new msg: ", &msg);
-	fflush(stdout);
 	server.writeData.data = msg.data;
 	server.writeData.length = msg.length;
 	server.newDataToWrite = 1;

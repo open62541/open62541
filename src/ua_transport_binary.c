@@ -84,6 +84,8 @@ static UA_Int32 TL_handleMsg(TL_Connection* connection, const UA_ByteString* msg
 static UA_Int32 TL_handleClo(TL_Connection* connection, const UA_ByteString* msg, UA_Int32* pos) {
 	SL_Channel* slc = connection->secureChannel;
 	connection->connectionState = CONNECTIONSTATE_CLOSE;
+    connection->secureChannel = UA_NULL;
+    slc->tlConnection = UA_NULL;
 	return UA_SUCCESS;
 }
 
