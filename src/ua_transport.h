@@ -31,8 +31,7 @@ typedef enum {
 
 /* MessageType */
 typedef UA_Int32 UA_MessageType;
-enum UA_MessageType
-{
+enum UA_MessageType {
 	UA_MESSAGETYPE_HEL = 0x48454C, // H E L
 	UA_MESSAGETYPE_ACK = 0x41434B, // A C k
 	UA_MESSAGETYPE_ERR = 0x455151, // E R R

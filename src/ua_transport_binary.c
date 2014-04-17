@@ -11,13 +11,11 @@ static UA_Int32 TL_check(TL_Connection* connection, UA_ByteString* msg) {
 	return UA_SUCCESS;
 }
 
-static UA_Int32 TL_handleHello(TL_Connection* connection, UA_ByteString* msg, UA_Int32* pos) {
+static UA_Int32 TL_handleHello(TL_Connection* connection, const UA_ByteString* msg, UA_Int32* pos) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 tmpPos = 0;
 	UA_OPCUATcpHelloMessage helloMessage;
 
-	printf("\nstate: %i", connection->connectionState);
-	printf("\nwanted state: %i", CONNECTIONSTATE_CLOSED);
 	if (connection->connectionState == CONNECTIONSTATE_CLOSED) {
 		DBG_VERBOSE(printf("TL_process - extracting header information \n"));
 		UA_OPCUATcpHelloMessage_decodeBinary(msg,pos,&helloMessage);
@@ -60,9 +58,7 @@ static UA_Int32 TL_handleHello(TL_Connection* connection, UA_ByteString* msg, UA
 		UA_OPCUATcpAcknowledgeMessage_encodeBinary(&ackMessage,&tmpPos,ack_msg);
 
 		DBG_VERBOSE(printf("TL_process - Size messageToSend = %d, pos=%d\n",ackHeader.messageSize, tmpPos));
-		UA_ByteString_printx("ack: ", ack_msg);
-		TL_Send(connection, &ack_msg, 1);
-		printf("finished wiritng");
+		TL_Send(connection, (const UA_ByteString **) &ack_msg, 1);
 		UA_ByteString_delete(ack_msg);
 	} else {
 		DBG_ERR(printf("TL_process - wrong connection state \n"));
@@ -71,33 +67,33 @@ static UA_Int32 TL_handleHello(TL_Connection* connection, UA_ByteString* msg, UA
 	return retval;
 }
 
-static UA_Int32 TL_handleOpen(TL_Connection* connection, UA_ByteString* msg, UA_Int32* pos) {
+static UA_Int32 TL_handleOpen(TL_Connection* connection, const UA_ByteString* msg, UA_Int32* pos) {
 	if (connection->connectionState == CONNECTIONSTATE_ESTABLISHED) {
-		return SL_Channel_new(connection,msg,pos); // create new secure channel and associate with this TL connection
+		return SL_Channel_new(connection, msg, pos);
 	}
 	return UA_ERR_INVALID_VALUE;
 }
 
-static UA_Int32 TL_handleMsg(TL_Connection* connection, UA_ByteString* msg, UA_Int32* pos) {
+static UA_Int32 TL_handleMsg(TL_Connection* connection, const UA_ByteString* msg, UA_Int32* pos) {
 	SL_Channel* slc = connection->secureChannel;
-	return SL_process(slc,msg,pos);
+	return SL_Process(slc,msg,pos);
 }
 
-static UA_Int32 TL_handleClo(TL_Connection* connection, UA_ByteString* msg, UA_Int32* pos) {
+static UA_Int32 TL_handleClo(TL_Connection* connection, const UA_ByteString* msg, UA_Int32* pos) {
 	SL_Channel* slc = connection->secureChannel;
 	connection->connectionState = CONNECTIONSTATE_CLOSE;
-	return SL_process(slc,msg,pos);
+	return UA_SUCCESS;
 }
 
-UA_Int32 TL_Process(TL_Connection* connection, UA_ByteString* msg) {
+UA_Int32 TL_Process(TL_Connection* connection, const UA_ByteString* msg) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 pos = 0;
 	UA_OPCUATcpMessageHeader tcpMessageHeader;
 
-	DBG_VERBOSE(printf("TL_process - entered \n"));
+	DBG_VERBOSE(printf("TL_Process - entered \n"));
 
 	if ((retval = UA_OPCUATcpMessageHeader_decodeBinary(msg, &pos, &tcpMessageHeader)) == UA_SUCCESS) {
-		printf("TL_process - messageType=%.*s\n",3,msg->data);
+		printf("TL_Process - messageType=%.*s\n",3,msg->data);
 		switch(tcpMessageHeader.messageType) {
 		case UA_MESSAGETYPE_HEL:
 			retval = TL_handleHello(connection, msg, &pos);
@@ -116,20 +112,20 @@ UA_Int32 TL_Process(TL_Connection* connection, UA_ByteString* msg) {
 			break;
 		}
 	}
-	if (retval != UA_SUCCESS) {
-		// FIXME: compose real error message
-		UA_ByteString errorMsg;
-		UA_ByteString *errorMsg_ptr = &errorMsg;
-		UA_ByteString_newMembers(&errorMsg,10);
-		TL_Send(connection,&errorMsg_ptr, 1);
-		UA_ByteString_deleteMembers(&errorMsg);
-	}
+	/* if (retval != UA_SUCCESS) { */
+	/* 	// FIXME: compose real error message */
+	/* 	UA_ByteString errorMsg; */
+	/* 	UA_ByteString *errorMsg_ptr = &errorMsg; */
+	/* 	UA_ByteString_newMembers(&errorMsg,10); */
+	/* 	TL_Send(connection,(const UA_ByteString **)&errorMsg_ptr, 1); */
+	/* 	UA_ByteString_deleteMembers(&errorMsg); */
+	/* } */
 	UA_OPCUATcpMessageHeader_deleteMembers(&tcpMessageHeader);
 	return retval;
 }
 
 /** respond to client request */
-UA_Int32 TL_Send(TL_Connection* connection, UA_ByteString** gather_buf, UA_UInt32 gather_len) {
+UA_Int32 TL_Send(TL_Connection* connection, const UA_ByteString** gather_buf, UA_UInt32 gather_len) {
 	UA_Int32 retval = UA_SUCCESS;
 	DBG_VERBOSE(printf("TL_send - entered \n"));
 	//	if (TL_check(connection,msg,TL_CHECK_REMOTE) == UA_SUCCESS) {

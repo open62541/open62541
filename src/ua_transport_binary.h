@@ -24,7 +24,7 @@ typedef struct {
 
 /* Transport Layer Connection */
 struct TL_Connection_T; // forward declaration
-typedef UA_Int32 (*TL_Writer)(struct TL_Connection_T* connection, UA_ByteString** gather_bufs, UA_Int32 gather_len); // send mutiple buffer concatenated into one msg (zero copy)
+typedef UA_Int32 (*TL_Writer)(struct TL_Connection_T* connection, const UA_ByteString** gather_bufs, UA_Int32 gather_len); // send mutiple buffer concatenated into one msg (zero copy)
 
 typedef struct TL_Connection_T {
 	UA_Int32 connectionHandle;
@@ -37,7 +37,7 @@ typedef struct TL_Connection_T {
 	struct SL_Channel_T* secureChannel;
 } TL_Connection;
 
-UA_Int32 TL_Send(TL_Connection* connection, UA_ByteString** gather_buf, UA_UInt32 gather_len);
-UA_Int32 TL_Process(TL_Connection *connection, UA_ByteString *packet);
+UA_Int32 TL_Send(TL_Connection* connection, const UA_ByteString** gather_buf, UA_UInt32 gather_len);
+UA_Int32 TL_Process(TL_Connection *connection, const UA_ByteString *packet);
 
 #endif /* OPCUA_TRANSPORT_BINARY_H_ */

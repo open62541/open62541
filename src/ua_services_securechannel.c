@@ -1,6 +1,8 @@
 #include "ua_services.h"
+#include "ua_transport_binary_secure.h"
 
 UA_Int32 Service_OpenSecureChannel(SL_Channel *channel, const UA_OpenSecureChannelRequest* request, UA_OpenSecureChannelResponse* response) {
+	
 	if (request->clientProtocolVersion != channel->tlConnection->remoteConf.protocolVersion) {
 		printf("SL_processMessage - error protocol version \n");
 		//TODO ERROR_Bad_ProtocolVersionUnsupported
@@ -62,8 +64,7 @@ UA_Int32 Service_OpenSecureChannel(SL_Channel *channel, const UA_OpenSecureChann
 	response->securityToken.channelId = channel->securityToken.secureChannelId;
 	response->securityToken.tokenId = channel->securityToken.tokenId;
 	response->securityToken.revisedLifetime = channel->securityToken.revisedLifetime;
-
-	UA_ByteString_copy(&(channel->localNonce), &(response->serverNonce));
+	UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
 	return retval;
 }
 
