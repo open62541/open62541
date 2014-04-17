@@ -31,35 +31,52 @@ AM_COND_IF([TARGET_LINUX],
 AC_ARG_ENABLE(debug,
 AS_HELP_STRING([--enable-debug],
                [enable debugging, default: no]),
-			   [case "${enableval}" in
-               		 yes) debug=true ;;
-             		 no)  debug=false ;;
-             		 *)   AC_MSG_ERROR([bad value ${enableval} for --enable-debug]) ;; esac],
-				[debug=false])
+	[case "${enableval}" in
+        	yes) debug=true, verbose=false ;;
+             	no)  debug=false, verbose=false ;;
+             	verbose) debug=true, verbose=true ;;
+             	*)   AC_MSG_ERROR([bad value ${enableval} for --enable-debug]) ;; 
+	esac],[debug=false])
 AM_CONDITIONAL(DEBUG, test x"$debug" = x"true")
 AM_COND_IF([DEBUG],
     AC_DEFINE([DEBUG])) #define DEBUG is accessible from pre-processor
 
+AM_CONDITIONAL(VERBOSE, test x"$verbose" = x"true")
+AM_COND_IF([VERBOSE],
+    AC_DEFINE([VERBOSE])) #define VERBOSE is accessible from pre-processor
+
 AC_ARG_ENABLE(multithreading,
 AS_HELP_STRING([--enable-multithreading],
                [enable multithreading, default: yes]),
-			   [case "${enableval}" in
-               		 yes) multithreading=true ;;
-             		 no)  multithreading=false ;;
-             		 *)   AC_MSG_ERROR([bad value ${enableval} for --enable-multithreading]) ;; esac],
-[multithreading=false])
+	[case "${enableval}" in
+		yes) multithreading=true ;;
+		no)  multithreading=false ;;
+		*)   AC_MSG_ERROR([bad value ${enableval} for --enable-multithreading]) ;; 
+	esac],[multithreading=false])
 AM_CONDITIONAL(MULTITHREADING, test x"$multithreading" = x"true")
 AM_COND_IF([MULTITHREADING],
     AC_DEFINE([MULTITHREADING])) #define MULTITHREADING is accessible from pre-processor
 
+AC_ARG_ENABLE(coverage,
+AS_HELP_STRING([--enable-coverage],
+               [enable coverage, default: no]),
+	[case "${enableval}" in
+		yes) coverage=true ;;
+		no)  coverag=false ;;
+		*)   AC_MSG_ERROR([bad value ${enableval} for --enable-coverage]) ;; 
+	esac],[coverage=false])
+AM_CONDITIONAL(COVERAGE, test x"$coverage" = x"true")
+AM_COND_IF([COVERAGE],
+    AC_DEFINE([COVERAGE])) #define MULTITHREADING is accessible from pre-processor
+
 AC_ARG_ENABLE(doxygen,
-	AS_HELP_STRING([--enable-doxygen],
+AS_HELP_STRING([--enable-doxygen],
                [enable doxygen, default: no]),
-			   [case "${enableval}" in
-               		 yes) enabledoxygen=true ;;
-             		 no)  enabledoxygen=false ;;
-             		 *)   AC_MSG_ERROR([bad value ${enableval} for --enable-doxygen]) ;; esac],
-[enabledoxygen=false])
+	[case "${enableval}" in
+		yes) enabledoxygen=true ;;
+		no)  enabledoxygen=false ;;
+             	*)   AC_MSG_ERROR([bad value ${enableval} for --enable-doxygen]) ;; 
+	esac],[enabledoxygen=false])
 
 AM_CONDITIONAL(ENABLE_DOXYGEN, test x"$enabledoxygen" = x"true")
 AC_CHECK_PROGS([DOXYGEN], [doxygen])
