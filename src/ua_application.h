@@ -11,4 +11,5 @@ typedef struct UA_Application_T {
 	UA_indexedList_List *namespaces; // each entry is a namespace
 } UA_Application;
 
+extern UA_Application appMockup;
 #endif

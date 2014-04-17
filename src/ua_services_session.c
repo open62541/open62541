@@ -1,4 +1,10 @@
 #include "ua_services.h"
+#include "ua_application.h"
+
+UA_Session sessionMockup = {
+		(UA_Int32) 0,
+		&appMockup
+};
 
 UA_Int32 service_createsession(UA_SL_Channel *channel, UA_CreateSessionRequest *request, UA_CreateSessionResponse *response) {
 	UA_String_printf("CreateSession Service - endpointUrl=", &(request->endpointUrl));
@@ -16,8 +22,8 @@ UA_Int32 service_activatesession(UA_SL_Channel *channel, UA_ActivateSessionReque
 	UA_NodeId_printf("ActivateSession - uIdToken.type=", &(request->userIdentityToken.typeId));
 	UA_ByteString_printx_hex("ActivateSession - uIdToken.body=", &(request->userIdentityToken.body));
 
-	// FIXME: channel->application = <Application Ptr>
-	
+	// FIXME: channel->session->application = <Application Ptr>
+	channel->session = &sessionMockup;
 	return UA_SUCCESS;
 }
 

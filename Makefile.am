@@ -5,6 +5,11 @@ else
 AM_CFLAGS += -O2 
 endif
 
+if COVERAGE
+AM_CFLAGS += --coverage
+AM_LDFLAGS = --coverage
+endif
+
 export GLOBAL_AM_CFLAGS = $(AM_CFLAGS)
 
 SUBS=tool include src
