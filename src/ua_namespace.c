@@ -431,11 +431,12 @@ static UA_Int32 expand (namespace *ns) {
 	int32_t count = ns->count;
 
 	/* Resize only when table after removal of unused elements is either too full or too empty.  */
-	if (count * 2 > osize || (count * 8 < osize && osize > 32)) {
-		nindex = higher_prime_index (count * 2);
-		nsize = prime_tab[nindex].prime;
+	if (count * 2 < osize && (count * 8 > osize || osize <= 32)) {
+		return UA_SUCCESS;
 	}
-	return UA_SUCCESS;
+	
+	nindex = higher_prime_index (count * 2);
+	nsize = prime_tab[nindex].prime;
 
 	if (UA_alloc((void *)nentries, sizeof(ns_entry)*nsize) != UA_SUCCESS)
 		return UA_ERR_NO_MEMORY;
