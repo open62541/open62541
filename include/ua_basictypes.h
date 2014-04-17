@@ -221,9 +221,9 @@ UA_Int32 UA_String_copy(UA_String const * src, UA_String* dst);
 UA_Int32 UA_String_copycstring(char const * src, UA_String* dst);
 UA_Int32 UA_String_copyprintf(char const * fmt, UA_String* dst, ...);
 UA_Int32 UA_String_compare(const UA_String *string1, const UA_String *string2);
-void UA_String_printf(char* label, const UA_String* string);
-void UA_String_printx(char* label, const UA_String* string);
-void UA_String_printx_hex(char* label, const UA_String* string);
+void UA_String_printf(char const * label, const UA_String* string);
+void UA_String_printx(char const * label, const UA_String* string);
+void UA_String_printx_hex(char const * label, const UA_String* string);
 
 /* ByteString - Part: 6, Chapter: 5.2.2.7, Page: 17 */
 UA_TYPE_METHOD_PROTOTYPES (UA_ByteString)

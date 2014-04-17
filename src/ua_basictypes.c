@@ -119,16 +119,16 @@ UA_Int32 UA_memcpy(void * dst, void const * src, int size){
 #define UA_TYPE_START_ENCODEBINARY(TYPE) \
 UA_Int32 TYPE##_encodeBinary(TYPE const * src, UA_Int32* pos, UA_ByteString * dst) { \
 	UA_Int32 retval = UA_SUCCESS; \
-	if ( *pos+TYPE##_calcSize(src) > dst->length ) { \
-		return UA_ERR_NO_MEMORY; \
+	if ( *pos < 0 || *pos+TYPE##_calcSize(src) > dst->length ) { \
+		return UA_ERR_INVALID_VALUE; \
 	} else {
 
 // Attention! this macro works only for TYPEs with storageSize = encodingSize
 #define UA_TYPE_START_DECODEBINARY(TYPE) \
 UA_Int32 TYPE##_decodeBinary(UA_ByteString const * src, UA_Int32* pos, TYPE * dst) { \
 	UA_Int32 retval = UA_SUCCESS; \
-	if ( *pos+TYPE##_calcSize(UA_NULL) > src->length ) { \
-		return UA_ERR_NO_MEMORY; \
+	if ( *pos < 0 || *pos+TYPE##_calcSize(UA_NULL) > src->length ) { \
+		return UA_ERR_INVALID_VALUE; \
 	} else {
 
 #define UA_TYPE_END_XXCODEBINARY \
@@ -379,8 +379,8 @@ UA_Int32 UA_String_encodeBinary(UA_String const * src, UA_Int32* pos, UA_ByteStr
 	UA_Int32 retval = UA_SUCCESS;
 	if (src == UA_NULL) {
 		return UA_ERR_INVALID_VALUE;
-	} else if (*pos + UA_String_calcSize(src) > dst->length) {
-		return UA_ERR_NO_MEMORY;
+	} else if (*pos < 0 || *pos + UA_String_calcSize(src) > dst->length) {
+		return UA_ERR_INVALID_VALUE;
 	} else {
 		retval = UA_Int32_encodeBinary(&(src->length),pos,dst);
 		if (src->length > 0) {
@@ -393,7 +393,7 @@ UA_Int32 UA_String_encodeBinary(UA_String const * src, UA_Int32* pos, UA_ByteStr
 UA_Int32 UA_String_decodeBinary(UA_ByteString const * src, UA_Int32* pos, UA_String * dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_Int32_decodeBinary(src,pos,&(dst->length));
-	if (dst->length > 0) {
+	if (retval == UA_SUCCESS && dst->length > 0) {
 		if (*pos >= 0 && (dst->length <= (src->length - *pos))) { // read beyond end of src is assumed to be an error
 			retval |= UA_alloc((void**)&(dst->data),dst->length);
 			retval |= UA_memcpy(dst->data,&(src->data[*pos]),dst->length);
@@ -404,6 +404,7 @@ UA_Int32 UA_String_decodeBinary(UA_ByteString const * src, UA_Int32* pos, UA_Str
 			retval = UA_ERR_INVALID_VALUE;
 		}
 	} else {
+		dst->length = -1;
 		dst->data = UA_NULL;
 	}
 	return retval;
@@ -481,17 +482,17 @@ UA_Int32 UA_String_compare(const UA_String* string1, const UA_String* string2) {
 	} else if (string1->length != string2->length) {
 		retval = UA_NOT_EQUAL;
 	} else {
-		// casts to overcome signed warnings
-		// FIXME: map return of strncmp to UA_EQUAL/UA_NOT_EQUAL
-		retval = strncmp((char const*)string1->data,(char const*)string2->data,string1->length);
+		// casts are needed to overcome signed warnings
+		UA_Int32 is = strncmp((char const*)string1->data,(char const*)string2->data,string1->length);
+		retval = (is == 0) ? UA_EQUAL : UA_NOT_EQUAL;
 	}
 	return retval;
 }
-void UA_String_printf(char* label, const UA_String* string) {
+void UA_String_printf(char const * label, const UA_String* string) {
 	printf("%s {Length=%d, Data=%.*s}\n", label, string->length,
 			string->length, (char*)string->data);
 }
-void UA_String_printx(char* label, const UA_String* string) {
+void UA_String_printx(char const * label, const UA_String* string) {
 	int i;
 	if (string == UA_NULL) { printf("%s {NULL}\n", label); return; }
 	printf("%s {Length=%d, Data=", label, string->length);
@@ -505,7 +506,7 @@ void UA_String_printx(char* label, const UA_String* string) {
 	}
 	printf("}}\n");
 }
-void UA_String_printx_hex(char* label, const UA_String* string) {
+void UA_String_printx_hex(char const * label, const UA_String* string) {
 	int i;
 	printf("%s {Length=%d, Data=", label, string->length);
 	if (string->length > 0) {
@@ -519,7 +520,7 @@ void UA_String_printx_hex(char* label, const UA_String* string) {
 }
 
 
-// TODO: should we really handle UA_String and UA_ByteString the same way?
+// TODO: should we really want to handle UA_String and UA_ByteString the same way?
 UA_TYPE_METHOD_PROTOTYPES_AS(UA_ByteString, UA_String)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_ByteString)
 UA_Int32 UA_ByteString_compare(const UA_ByteString *string1, const UA_ByteString *string2) {
