@@ -64,7 +64,7 @@ START_TEST(findNodeInNamespaceWithTwoEntries) {
 	retval = get_node(ns,&(n2->nodeId),&nr,&nl);
 	// then
 	ck_assert_int_eq(retval, UA_SUCCESS);
-	ck_assert_ptr_eq(nr,&n1);
+	ck_assert_ptr_eq(nr,n2);
 	// finally
 	delete_ns(ns);
 }

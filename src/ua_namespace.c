@@ -115,7 +115,7 @@ UA_Int32 insert_node(namespace *ns, UA_Node *node) {
 
 UA_Int32 get_node(namespace *ns, const UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock) {
 	ns_entry *slot;
-	if(find_slot(ns, &slot, nodeid) == UA_SUCCESS) return UA_ERROR;
+	if(find_slot(ns, &slot, nodeid) != UA_SUCCESS) return UA_ERROR;
 #ifdef MULTITHREADING
 	if(pthread_rwlock_rdlock((pthread_rwlock_t *)slot->lock) != 0) return UA_ERROR;
 	*lock = slot->lock;
