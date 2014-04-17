@@ -17,7 +17,7 @@ if HAVE_CHECK
 	SUBS+= tests
 endif
 
-if USE_DOXYGEN
+if ENABLE_DOXYGEN
 	SUBS+= doc
 endif
 SUBDIRS = $(SUBS) examples/src	
