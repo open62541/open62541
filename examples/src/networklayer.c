@@ -163,7 +163,7 @@ void* NL_TCP_readerThread(NL_Connection *c) {
 #endif
 
 /** write to a tcp transport layer connection */
-UA_Int32 NL_TCP_writer(TL_Connection* c, UA_ByteString** gather_buf, UA_UInt32 gather_len) {
+UA_Int32 NL_TCP_writer(struct TL_Connection_T* c, const UA_ByteString** gather_buf, UA_UInt32 gather_len) {
 
 	struct iovec iov[gather_len];
 	UA_UInt32 total_len = 0;
@@ -196,6 +196,7 @@ UA_Int32 NL_TCP_writer(TL_Connection* c, UA_ByteString** gather_buf, UA_UInt32 g
 			break;
 			// TODO: handle incompletely send messages
 		} else {
+			break;
 			// TODO: error handling
 		}
 	}

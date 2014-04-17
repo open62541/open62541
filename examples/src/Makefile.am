@@ -29,7 +29,7 @@ __top_builddir__bin_exampleServer_LDADD= $(top_builddir)/lib/libopen62541.a $(MT
 __top_builddir__bin_exampleServer_LDFLAGS= $(COV_LDFLAGS)
 
 __top_builddir__bin_exampleServerACPLT_CFLAGS = -I$(top_builddir)/src -I$(top_builddir)/include $(GLOBAL_AM_CFLAGS)
-__top_builddir__bin_exampleServerACPLT_SOURCES = opcuaServerACPLT.c 
+__top_builddir__bin_exampleServerACPLT_SOURCES = opcuaServerACPLT.c networklayer.c
 __top_builddir__bin_exampleServerACPLT_LDADD= $(top_builddir)/lib/libopen62541.a $(MT_LDADD)
 __top_builddir__bin_exampleServerACPLT_LDFLAGS= $(COV_LDFLAGS)
 endif

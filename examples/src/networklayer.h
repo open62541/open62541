@@ -55,5 +55,6 @@ typedef struct NL_Connection_T {
 
 NL_data* NL_init(NL_Description* tlDesc, UA_Int32 port);
 UA_Int32 NL_msgLoop(NL_data* nl, struct timeval* tv,UA_Int32 (*timeoutCallBack)(void*),void *arg);
+UA_Int32 NL_TCP_writer(struct TL_Connection_T* c, const UA_ByteString** gather_buf, UA_UInt32 gather_len);
 
 #endif /* NETWORKLAYER_H_ */
