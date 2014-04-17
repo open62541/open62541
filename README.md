@@ -25,7 +25,7 @@ $ sudo ldconfig
 ##### Getting and using Doxygen
 * install the needed packages
 ```bash
-sudo apt-get install graphviz doxygen:
+sudo apt-get install graphviz doxygen
 ```
 * configure autotools, clean and build:
 ```bash
