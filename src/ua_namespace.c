@@ -438,7 +438,7 @@ static UA_Int32 expand (namespace *ns) {
 	nindex = higher_prime_index (count * 2);
 	nsize = prime_tab[nindex].prime;
 
-	if (UA_alloc((void *)nentries, sizeof(ns_entry)*nsize) != UA_SUCCESS)
+	if (UA_alloc((void **)&nentries, sizeof(ns_entry)*nsize) != UA_SUCCESS)
 		return UA_ERR_NO_MEMORY;
 	ns->entries = nentries;
 	ns->size = nsize;
