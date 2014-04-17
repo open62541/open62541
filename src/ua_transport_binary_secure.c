@@ -62,7 +62,7 @@ static UA_Int32 SL_send(SL_Channel* channel, UA_ByteString const * responseMessa
 	/* encrypt Data*/
 
 	/* send Data */
-    TL_send(channel->tlConnection, (UA_ByteString **) &response_gather, 2);
+    TL_Send(channel->tlConnection, (UA_ByteString **) &response_gather, 2);
 
 	UA_ByteString_deleteMembers(&response_gather[0]);
 	return UA_SUCCESS;
@@ -167,7 +167,7 @@ UA_Int32 SL_Channel_init(SL_Channel *channel) {
 	return UA_SUCCESS;
 }
 
-UA_Int32 SL_Channel_new(TL_connection *connection, UA_ByteString* msg, UA_Int32* pos) {
+UA_Int32 SL_Channel_new(TL_Connection *connection, UA_ByteString* msg, UA_Int32* pos) {
 	UA_Int32 retval = UA_SUCCESS;
 
 	UA_SecureConversationMessageHeader secureConvHeader;

@@ -14,7 +14,7 @@ typedef struct {
 
 typedef struct SL_Channel_T {
 	UA_String secureChannelId;
-	TL_connection* tlConnection;
+	TL_Connection* tlConnection;
 	Session *session; // equals UA_Null iff no session is active
 	UA_AsymmetricAlgorithmSecurityHeader remoteAsymAlgSettings;
 	UA_AsymmetricAlgorithmSecurityHeader localAsymAlgSettings;
@@ -28,6 +28,6 @@ typedef struct SL_Channel_T {
 
 UA_Int32 SL_initConnectionObject(SL_Channel *connection);
 UA_Int32 SL_process(SL_Channel* channel, UA_ByteString* msg, UA_Int32* pos);
-UA_Int32 SL_Channel_new(TL_connection *connection, UA_ByteString* msg, UA_Int32* pos);
+UA_Int32 SL_Channel_new(TL_Connection *connection, UA_ByteString* msg, UA_Int32* pos);
 
 #endif /* OPCUA_TRANSPORT_BINARY_SECURE_H_ */

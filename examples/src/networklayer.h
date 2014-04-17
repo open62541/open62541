@@ -27,7 +27,7 @@ typedef struct T_NL_Description {
 	UA_Int32 encoding;
 	UA_Int32 connectionType;
 	UA_Int32 maxConnections;
-	TL_buffer localConf;
+	TL_Buffer localConf;
 } NL_Description;
 
 extern NL_Description NL_Description_TcpBinary;
@@ -44,16 +44,16 @@ typedef struct T_NL_data {
 	int maxReaderHandle;
 } NL_data;
 
-struct T_NL_connection;
-typedef void* (*NL_reader)(struct T_NL_connection *c);
-typedef struct T_NL_connection {
-	TL_connection connection;
-	NL_reader reader;
+struct NL_Connection_T;
+typedef void* (*NL_Reader)(struct NL_Connection_T *c);
+typedef struct NL_Connection_T {
+	TL_Connection connection;
+	NL_Reader reader;
 #ifdef MULTITHREADING
 	pthread_t readerThreadHandle;
 #endif
 	NL_data* networkLayer;
-} NL_connection;
+} NL_Connection;
 
 NL_data* NL_init(NL_Description* tlDesc, UA_Int32 port);
 UA_Int32 NL_msgLoop(NL_data* nl, struct timeval* tv,UA_Int32 (*timeoutCallBack)(void*),void *arg);

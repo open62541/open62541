@@ -46,7 +46,7 @@ typedef struct T_Server {
 } Server;
 Server server;
 
-UA_Int32 server_writer(TL_connection* connection, UA_ByteString** gather_buf, UA_UInt32 gather_len) {
+UA_Int32 server_writer(TL_Connection* connection, UA_ByteString** gather_buf, UA_UInt32 gather_len) {
 	UA_UInt32 total_len = 0;
 	for(UA_UInt32 i=0;i<gather_len;i++) {
 		total_len += gather_buf[i]->length;
@@ -67,9 +67,9 @@ UA_Int32 server_writer(TL_connection* connection, UA_ByteString** gather_buf, UA
 }
 
 void server_run() {
-	TL_connection connection;
+	TL_Connection connection;
 	connection.connectionState = connectionState_CLOSE;
-	connection.writerCallback = (TL_writer)server_writer;
+	connection.writerCallback = (TL_Writer)server_writer;
 	connection.localConf.maxChunkCount = 1;
 	connection.localConf.maxMessageSize = BUFFER_SIZE;
 	connection.localConf.protocolVersion = 0;
@@ -133,7 +133,7 @@ void server_run() {
                 slMessage.data = (UA_Byte*) buffer;
 				slMessage.length = n;
 				UA_ByteString_printx("server_run - received=",&slMessage);
-				TL_process(&connection, &slMessage);
+				TL_Process(&connection, &slMessage);
 			} else if (n < 0) {
 				perror("ERROR reading from socket1");
 				exit(1);

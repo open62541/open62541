@@ -20,9 +20,9 @@ NL_Description NL_Description_TcpBinary  = {
 	{-1,8192,8192,16384,1}
 };
 
-_Bool NL_connectionComparer(void *p1, void* p2) {
-	NL_connection* c1 = (NL_connection*) p1;
-	NL_connection* c2 = (NL_connection*) p2;
+_Bool NL_ConnectionComparer(void *p1, void* p2) {
+	NL_Connection* c1 = (NL_Connection*) p1;
+	NL_Connection* c2 = (NL_Connection*) p2;
 	return (c1->connection.connectionHandle == c2->connection.connectionHandle);
 }
 
@@ -40,14 +40,14 @@ int NL_TCP_SetNonBlocking(int sock) {
 	return 0;
 }
 
-void NL_connection_printf(void* payload) {
-  NL_connection* c = (NL_connection*) payload;
+void NL_Connection_printf(void* payload) {
+  NL_Connection* c = (NL_Connection*) payload;
   printf("ListElement connectionHandle = %d\n",c->connection.connectionHandle);
 }
 
 /** the tcp reader thread - single shot if single-threaded, looping until CLOSE if multi-threaded
  */
-void* NL_TCP_reader(NL_connection *c) {
+void* NL_TCP_reader(NL_Connection *c) {
 
 	UA_ByteString readBuffer;
 	UA_alloc((void**)&(readBuffer.data),c->connection.localConf.recvBufferSize);
@@ -62,7 +62,7 @@ void* NL_TCP_reader(NL_connection *c) {
 			UA_ByteString_printx("received=",&readBuffer);
 
 			if (readBuffer.length  > 0) {
-				TL_process(&(c->connection),&readBuffer);
+				TL_Process(&(c->connection),&readBuffer);
 			} else {
 				c->connection.connectionState = connectionState_CLOSE;
 				perror("ERROR reading from socket1");
@@ -79,17 +79,17 @@ void* NL_TCP_reader(NL_connection *c) {
 
 		UA_ByteString_deleteMembers(&readBuffer);
 		DBG_VERBOSE(printf("NL_TCP_reader - search element to remove\n"));
-		UA_list_Element* lec = UA_list_search(&(c->networkLayer->connections),NL_connectionComparer,c);
-		DBG_VERBOSE(printf("NL_TCP_reader - remove connection for handle=%d\n",((NL_connection*)lec->payload)->connection.connectionHandle));
+		UA_list_Element* lec = UA_list_search(&(c->networkLayer->connections),NL_ConnectionComparer,c);
+		DBG_VERBOSE(printf("NL_TCP_reader - remove connection for handle=%d\n",((NL_Connection*)lec->payload)->connection.connectionHandle));
 		UA_list_removeElement(lec,UA_NULL);
-		DBG_VERBOSE(UA_list_iteratePayload(&(c->networkLayer->connections),NL_connection_printf));
+		DBG_VERBOSE(UA_list_iteratePayload(&(c->networkLayer->connections),NL_Connection_printf));
 		UA_free(c);
 	}
 	return UA_NULL;
 }
 
 /** write to a tcp transport layer connection */
-UA_Int32 NL_TCP_writer(TL_connection* c, UA_ByteString** gather_buf, UA_UInt32 gather_len) {
+UA_Int32 NL_TCP_writer(TL_Connection* c, UA_ByteString** gather_buf, UA_UInt32 gather_len) {
 
 	struct iovec iov[gather_len];
 	UA_UInt32 total_len = 0;
@@ -127,14 +127,14 @@ UA_Int32 NL_TCP_writer(TL_connection* c, UA_ByteString** gather_buf, UA_UInt32 g
 	return UA_SUCCESS;
 }
 
-void* NL_Connection_init(NL_connection* c, NL_data* tld, UA_Int32 connectionHandle, NL_reader reader, TL_writer writer)
+void* NL_Connection_init(NL_Connection* c, NL_data* tld, UA_Int32 connectionHandle, NL_Reader reader, TL_Writer writer)
 {
 	// connection layer of UA stack
 	c->connection.connectionHandle = connectionHandle;
 	c->connection.connectionState = connectionState_CLOSED;
 	c->connection.writerCallback = writer;
-	memcpy(&(c->connection.localConf),&(tld->tld->localConf),sizeof(TL_buffer));
-	memset(&(c->connection.remoteConf),0,sizeof(TL_buffer));
+	memcpy(&(c->connection.localConf),&(tld->tld->localConf),sizeof(TL_Buffer));
+	memset(&(c->connection.remoteConf),0,sizeof(TL_Buffer));
 	UA_String_copy(&(tld->endpointUrl), &(c->connection.localEndpointUrl));
 
 	// network layer
@@ -150,7 +150,7 @@ void* NL_Connection_init(NL_connection* c, NL_data* tld, UA_Int32 connectionHand
 /** the tcp listener routine.
  *  does a single shot if single threaded, runs forever if multithreaded
  */
-void* NL_TCP_listen(NL_connection* c) {
+void* NL_TCP_listen(NL_Connection* c) {
 	NL_data* tld = c->networkLayer;
 
 	do {
@@ -174,10 +174,10 @@ void* NL_TCP_listen(NL_connection* c) {
 				perror("ERROR on accept");
 			} else {
 				DBG_VERBOSE(printf("NL_TCP_listen - new connection on %d\n",newsockfd));
-				NL_connection* cclient;
+				NL_Connection* cclient;
 				UA_Int32 retval = UA_SUCCESS;
-				retval |= UA_alloc((void**)&cclient,sizeof(NL_connection));
-				NL_Connection_init(cclient, tld, newsockfd, NL_TCP_reader, (TL_writer) NL_TCP_writer);
+				retval |= UA_alloc((void**)&cclient,sizeof(NL_Connection));
+				NL_Connection_init(cclient, tld, newsockfd, NL_TCP_reader, (TL_Writer) NL_TCP_writer);
 				UA_list_addPayloadToBack(&(tld->connections),cclient);
 #ifdef MULTITHREADING
 					pthread_create( &(cclient->readerThreadHandle), NULL, (void*(*)(void*)) NL_TCP_reader, (void*) cclient);
@@ -198,11 +198,11 @@ void NL_addHandleToSet(UA_Int32 handle, NL_data* nl) {
 	nl->maxReaderHandle = (handle > nl->maxReaderHandle) ? handle : nl->maxReaderHandle;
 }
 void NL_setFdSet(void* payload) {
-  NL_connection* c = (NL_connection*) payload;
+  NL_Connection* c = (NL_Connection*) payload;
   NL_addHandleToSet(c->connection.connectionHandle, c->networkLayer);
 }
 void NL_checkFdSet(void* payload) {
-  NL_connection* c = (NL_connection*) payload;
+  NL_Connection* c = (NL_Connection*) payload;
   if (FD_ISSET(c->connection.connectionHandle, &(c->networkLayer->readerHandles))) {
 	  c->reader((void*)c);
   }
@@ -283,10 +283,10 @@ UA_Int32 NL_TCP_init(NL_data* tld, UA_Int32 port) {
 	// finally
 	if (retval == UA_SUCCESS) {
 		DBG_VERBOSE(printf("NL_TCP_init - new listener on %d\n",newsockfd));
-		NL_connection* c;
+		NL_Connection* c;
 		UA_Int32 retval = UA_SUCCESS;
-		retval |= UA_alloc((void**)&c,sizeof(NL_connection));
-		NL_Connection_init(c, tld, newsockfd, NL_TCP_listen, (TL_writer) UA_NULL);
+		retval |= UA_alloc((void**)&c,sizeof(NL_Connection));
+		NL_Connection_init(c, tld, newsockfd, NL_TCP_listen, (TL_Writer) NL_TCP_writer);
 		UA_list_addPayloadToBack(&(tld->connections),c);
 #ifdef MULTITHREADING
 			pthread_create( &(c->readerThreadHandle), NULL, (void*(*)(void*)) NL_TCP_listen, (void*) c);

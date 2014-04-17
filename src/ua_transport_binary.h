@@ -20,25 +20,24 @@ typedef struct {
 	UA_UInt32 recvBufferSize;
 	UA_UInt32 maxMessageSize;
 	UA_UInt32 maxChunkCount;
-} TL_buffer;
+} TL_Buffer;
 
 /* Transport Layer Connection */
-struct TL_connection_T; // forward declaration
-typedef UA_Int32 (*TL_writer)(struct TL_connection_T* connection, UA_ByteString** gather_bufs, UA_Int32 gather_len); // send mutiple buffer concatenated into one msg (zero copy)
+struct TL_Connection_T; // forward declaration
+typedef UA_Int32 (*TL_Writer)(struct TL_Connection_T* connection, UA_ByteString** gather_bufs, UA_Int32 gather_len); // send mutiple buffer concatenated into one msg (zero copy)
 
-typedef struct TL_connection_T {
+typedef struct TL_Connection_T {
 	UA_Int32 connectionHandle;
 	UA_UInt32 connectionState;
-	TL_buffer localConf;
-	TL_writer writerCallback;
-	TL_buffer remoteConf;
+	TL_Buffer localConf;
+	TL_Buffer remoteConf;
+	TL_Writer writerCallback;
 	UA_String localEndpointUrl;
 	UA_String remoteEndpointUrl;
 	struct SL_Channel_T* secureChannel;
-} TL_connection;
+} TL_Connection;
 
-UA_Int32 TL_check(TL_connection *connection, UA_ByteString* msg);
-UA_Int32 TL_send(TL_connection* connection, UA_ByteString** gather_buf, UA_UInt32 gather_len);
-UA_Int32 TL_process(TL_connection *connection, UA_ByteString *packet);
+UA_Int32 TL_Send(TL_Connection* connection, UA_ByteString** gather_buf, UA_UInt32 gather_len);
+UA_Int32 TL_Process(TL_Connection *connection, UA_ByteString *packet);
 
 #endif /* OPCUA_TRANSPORT_BINARY_H_ */
