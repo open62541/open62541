@@ -9,6 +9,7 @@
 #ifdef MULTITHREADING
 #include <pthread.h> // pthreadcreate, pthread_t
 #endif
+
 #include <sys/select.h> // FD_ZERO, FD_SET
 
 #define NL_MAXCONNECTIONS_DEFAULT 10
@@ -36,9 +37,6 @@ typedef struct T_NL_data {
 	NL_Description* tld;
 	UA_String endpointUrl;
 	int listenerHandle;
-#ifdef MULTITHREADING
-	pthread_t listenerThreadHandle;
-#endif
 	UA_list_List connections;
 	fd_set readerHandles;
 	int maxReaderHandle;

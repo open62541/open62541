@@ -120,7 +120,7 @@ void server_run() {
 			exit(1);
 		}
 
-		printf("connection accepted: %i, state: %i\n", newsockfd, connection.connectionState);
+		printf("server_run - connection accepted: %i, state: %i\n", newsockfd, connection.connectionState);
 		/* communication loop */
 		int i = 0;
 		do {
@@ -140,7 +140,7 @@ void server_run() {
 			if (server.newDataToWrite) {
 				UA_ByteString_printx("Send data:", &server.writeData);
 				n = write(newsockfd, server.writeData.data, server.writeData.length);
-				printf("written %d bytes \n", n);
+				printf("server_run - written %d bytes \n\n", n);
 				server.newDataToWrite = 0;
 				UA_ByteString_deleteMembers(&server.writeData);
 			}
