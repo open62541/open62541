@@ -16,7 +16,7 @@ addons:
     notification_email: 
     build_command_prepend: "./autogen.sh && ./configure"
     build_command: "make"
-    branch_pattern: master
+    branch_pattern: coverity_scan
 
 before_install:
  - sudo apt-get update -qq
