@@ -96,6 +96,7 @@ static void init_response_header(UA_RequestHeader const * p, UA_ResponseHeader *
 	UA_##TYPE##Request p; \
 	UA_##TYPE##Response r; \
 	UA_##TYPE##Request_decodeBinary(msg, pos, &p); \
+	UA_##TYPE##Response_init(&r); \
 	init_response_header(&p.requestHeader, &r.responseHeader); \
 	DBG_VERBOSE(printf("Invoke Service: %s\n", #TYPE)); \
 	Service_##TYPE(channel, &p, &r); \
@@ -149,7 +150,16 @@ UA_Int32 SL_handleRequest(SL_Channel *channel, const UA_ByteString* msg, UA_Int3
 	else {
 		printf("SL_processMessage - unknown request, namespace=%d, request=%d\n", serviceRequestType.namespace,serviceRequestType.identifier.numeric);
 		retval = UA_ERROR;
-		responsetype = 0; //FIXME
+		UA_RequestHeader p;
+		UA_ResponseHeader r;
+		UA_RequestHeader_decodeBinary(msg,pos,&p);
+		UA_ResponseHeader_init(&r);
+		r.requestHandle = p.requestHandle;
+		r.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
+		*pos = 0;
+		UA_ByteString_newMembers(&response_msg, UA_ResponseHeader_calcSize(&r));
+		UA_ResponseHeader_encodeBinary(&r, pos, &response_msg);
+		responsetype = UA_RESPONSEHEADER_NS0;
 	}
 
 	SL_Send(channel, &response_msg, responsetype);

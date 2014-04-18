@@ -68,7 +68,7 @@ UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), v
 		// determine the largest handle
 		nl->maxReaderHandle = 0;
 		UA_list_iteratePayload(&(nl->connections),NL_setFdSet);
-		DBG_VERBOSE(printf("UA_Stack_msgLoop - maxHandle=%d\n", nl->maxReaderHandle));
+		DBG_VERBOSE(printf("\n------------\nUA_Stack_msgLoop - maxHandle=%d\n", nl->maxReaderHandle));
 
 		// copy tv, some unixes do overwrite and return the remaining time
 		struct timeval tmptv;
@@ -171,7 +171,8 @@ UA_Int32 NL_TCP_writer(struct TL_Connection_T* c, const UA_ByteString** gather_b
 		iov[i].iov_base = gather_buf[i]->data;
 		iov[i].iov_len = gather_buf[i]->length;
 		total_len += gather_buf[i]->length;
-		DBG_VERBOSE(UA_ByteString_printx("NL_TCP_writer - msg=", gather_buf[i]));
+		DBG_VERBOSE(printf("NL_TCP_writer - gather_buf[%i]",i));
+		DBG_VERBOSE(UA_ByteString_printx("=", gather_buf[i]));
 	}
 
 	struct msghdr message;
@@ -189,7 +190,7 @@ UA_Int32 NL_TCP_writer(struct TL_Connection_T* c, const UA_ByteString** gather_b
 		do {
 			DBG_VERBOSE(printf("NL_TCP_writer - enter write\n"));
 			n = sendmsg(c->connectionHandle, &message, 0);
-			DBG_VERBOSE(printf("NL_TCP_writer - leave write with n=%d,errno={%d,%s}\n",n,errno,strerror(errno)));
+			DBG_VERBOSE(printf("NL_TCP_writer - leave write with n=%d,errno={%d,%s}\n",n,(n>0)?0:errno,(n>0)?"":strerror(errno)));
 		} while (n == -1L && errno == EINTR);
 		if (n >= 0) {
 			nWritten += n;

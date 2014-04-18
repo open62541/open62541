@@ -113,7 +113,7 @@ UA_Int32 insert_node(namespace *ns, UA_Node *node) {
 	return UA_SUCCESS;
 }
 
-UA_Int32 get_node(namespace *ns, const UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock) {
+UA_Int32 get_node(namespace const *ns, const UA_NodeId *nodeid, UA_Node const ** result, ns_lock ** lock) {
 	ns_entry *slot;
 	if(find_slot(ns, &slot, nodeid) != UA_SUCCESS) return UA_ERROR;
 #ifdef MULTITHREADING
@@ -124,7 +124,7 @@ UA_Int32 get_node(namespace *ns, const UA_NodeId *nodeid, UA_Node ** const resul
 	return UA_SUCCESS;
 }
 
-UA_Int32 get_writable_node(namespace *ns, const UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock) {
+UA_Int32 get_writable_node(const namespace *ns, const UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock) {
 	ns_entry *slot;
 	if(find_slot(ns, &slot, nodeid) != UA_SUCCESS) return UA_ERROR;
 #ifdef MULTITHREADING

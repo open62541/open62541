@@ -37,7 +37,7 @@ START_TEST(findNodeInNamespaceWithSingleEntry) {
 	namespace *ns;
 	create_ns(&ns, 512);
 	UA_Node* n1; createNode(&n1,0,2253); insert_node(ns,n1);
-	UA_Node* nr = UA_NULL;
+	const UA_Node* nr = UA_NULL;
 	ns_lock* nl = UA_NULL;
 	UA_Int32 retval;
 	// when
@@ -57,7 +57,7 @@ START_TEST(findNodeInNamespaceWithTwoEntries) {
 	UA_Node* n1; createNode(&n1,0,2253); insert_node(ns,n1);
 	UA_Node* n2; createNode(&n2,0,2255); insert_node(ns,n2);
 
-	UA_Node* nr = UA_NULL;
+	const UA_Node* nr = UA_NULL;
 	ns_lock* nl = UA_NULL;
 	UA_Int32 retval;
 	// when

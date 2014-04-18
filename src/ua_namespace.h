@@ -51,8 +51,8 @@ UA_Int32 create_ns(namespace **result, uint32_t size);
 void empty_ns(namespace *ns);
 void delete_ns(namespace *ns);
 UA_Int32 insert_node(namespace *ns, UA_Node *node);
-UA_Int32 get_node(namespace *ns, const UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock);
-UA_Int32 get_writable_node(namespace *ns, const UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock); // use only for _single_ writes.
+UA_Int32 get_node(namespace const *ns, const UA_NodeId *nodeid, UA_Node const ** result, ns_lock ** lock);
+UA_Int32 get_writable_node(namespace const *ns, const UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock); // use only for _single_ writes.
 UA_Int32 get_tc_node(namespace *ns, transaction_context *tc, const UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock);
 UA_Int32 get_tc_writable_node(namespace *ns, transaction_context *tc, const UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock); // use only for _single_ writes.
 

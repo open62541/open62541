@@ -39,7 +39,7 @@ static UA_DataValue * service_read_node(Application *app, const UA_ReadValueId *
 		return v;
 	}
 	
-	UA_Node *node = UA_NULL;
+	UA_Node const *node = UA_NULL;
 	ns_lock *lock = UA_NULL;
 	UA_Int32 result = get_node(ns, &id->nodeId, &node, &lock);
 	if(result != UA_SUCCESS) {
@@ -47,6 +47,7 @@ static UA_DataValue * service_read_node(Application *app, const UA_ReadValueId *
 		v->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
 		return v;
 	}
+	DBG_VERBOSE(UA_NodeId_printf("service_read_node - found node=",&(node->nodeId)));
 
 	switch(id->attributeId) {
 	case UA_ATTRIBUTEID_NODEID:
