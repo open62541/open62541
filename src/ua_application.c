@@ -7,67 +7,74 @@
 #include "ua_application.h"
 #include "ua_namespace.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+
 UA_indexedList_List nsMockup;
 Application appMockup = {
 		( UA_ApplicationDescription*) UA_NULL,
 		&nsMockup
 };
 
-void appMockup_init() {
-	namespace* ns0;
-	UA_ByteString name_ns0 = { 28, (UA_Byte*) "http://opcfoundation.org/UA/" };
-	namespace* local;
-	UA_ByteString name_local = { 9, (UA_Byte*) "open62541" };
-	create_ns(&ns0,100);
-	ns0->namespaceId = 0;
-	ns0->namespaceUri.length = name_ns0.length;
-	ns0->namespaceUri.data= name_ns0.data;
-	create_ns(&local,100);
-	local->namespaceId = 1;
-	local->namespaceUri.length = name_local.length;
-	local->namespaceUri.data= name_local.data;
+UA_Node* create_node_ns0(UA_Int32 type, UA_Int32 const id, char const * qn, char const * dn, char const * desc) {
+	UA_Node* n; UA_[type].new((void **)&n);
+	n->nodeId.encodingByte = UA_NODEIDTYPE_FOURBYTE;
+	n->nodeId.namespace = 0;
+	n->nodeId.identifier.numeric = id;
+	UA_String_copycstring(qn,&(n->browseName.name));
+	n->displayName.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
+	UA_String_copycstring(dn,&(n->displayName.text));
+	n->description.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
+	UA_String_copycstring(desc,&(n->description.text));
+	return n;
+}
 
+#define C2UA_STRING(s) (UA_String) { sizeof(s)-1, (UA_Byte*) s }
+void appMockup_init() {
+	// create namespaces
+	namespace* ns0; create_ns(&ns0,100);
+	ns0->namespaceId = 0;
+	ns0->namespaceUri = C2UA_STRING("http://opcfoundation.org/UA/");
+
+	namespace* local; create_ns(&local,100);
+	local->namespaceId = 1;
+	local->namespaceUri = C2UA_STRING("http://localhost:16664/open62541/");
+
+	// add to list of namespaces
+	UA_indexedList_init(appMockup.namespaces);
 	UA_indexedList_addValueToFront(appMockup.namespaces,0,ns0);
 	UA_indexedList_addValueToFront(appMockup.namespaces,1,local);
-	UA_Node server = {
-		(UA_NodeId) { UA_NODEIDTYPE_FOURBYTE, 0, { 2253 }}, // nodeId;
-		(UA_NodeClass) UA_NODECLASS_OBJECT, // nodeClass;
-		(UA_QualifiedName) { 0,0, (UA_String) { 6, (UA_Byte*) "Server"}}, // UA_QualifiedName browseName;
-		(UA_LocalizedText)	{ UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT, (UA_String) {-1, UA_NULL }, (UA_String) { 9, (UA_Byte*) "open62541"}}, // 	UA_LocalizedText displayName;
-		(UA_LocalizedText)	{ UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT, (UA_String) {-1, UA_NULL }, (UA_String) { 9, (UA_Byte*) "open62541"}}, // 	UA_LocalizedText description;
-		(UA_UInt32) 0, // writeMask
-		(UA_UInt32) 0, // userWriteMask;
-		(UA_Int32) -1, // referencesSize;
-		(UA_ReferenceNode**) UA_NULL // references;
-	};
 
-	UA_ByteString* name_table[] = { &name_ns0, &name_local};
+	UA_Node* np;
+	np = create_node_ns0(UA_NODE, 2253, "Server", "open62541", "...");
+	insert_node(ns0,np);
 
-	UA_VariableNode server_NamespaceArray = {
-		(UA_NodeId) { UA_NODEIDTYPE_FOURBYTE, 0, { 2255 }}, // nodeId;
-		(UA_NodeClass) UA_NODECLASS_VARIABLE, // nodeClass;
-		(UA_QualifiedName) { 0,0, (UA_String) { 21, (UA_Byte*) "Server_NamespaceArray"}}, // UA_QualifiedName browseName;
-		(UA_LocalizedText)	{ UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT, (UA_String) {-1, UA_NULL }, (UA_String) { 9, (UA_Byte*) "open62541"}}, // 	UA_LocalizedText displayName;
-		(UA_LocalizedText)	{ UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT, (UA_String) {-1, UA_NULL }, (UA_String) { 9, (UA_Byte*) "open62541"}}, // 	UA_LocalizedText description;
-		(UA_UInt32) 0, // writeMask
-		(UA_UInt32) 0, // userWriteMask;
-		(UA_Int32) -1, // referencesSize;
-		(UA_ReferenceNode**) UA_NULL, // references;
-		(UA_Variant) {
-			(UA_VTable*) &UA_[UA_STRING],
-			(UA_Byte) UA_VARIANT_ENCODINGMASKTYPE_ARRAY || UA_STRING_NS0,
-			(UA_Int32) 2,
-			(void**) name_table
-		},
-		(UA_NodeId) { UA_NODEIDTYPE_FOURBYTE, 0, { UA_STRING_NS0 }},//dataType;
-		(UA_Int32) 1,//valueRank;
-		(UA_Int32) -1,//arrayDimensionsSize;
-		(UA_UInt32**) UA_NULL,//arrayDimensions;
-		(UA_Byte) 0,//accessLevel;
-		(UA_Byte) 0,//userAccessLevel;
-		(UA_Double) 1.0,//minimumSamplingInterval;
-		(UA_Boolean) UA_FALSE//historizing;
-	};
-	insert_node(ns0,&server);
-	insert_node(ns0,(UA_Node*) &server_NamespaceArray);
+	np = create_node_ns0(UA_VARIABLENODE, 2255, "Server_NamespaceArray", "open62541", "..." );
+	UA_VariableNode* v = (UA_VariableNode*)np;
+	UA_Array_new((void**)&(v->value.data),2,UA_STRING);
+	v->value.vt = &UA_[UA_STRING];
+	v->value.arrayLength = 2;
+	v->value.encodingMask = UA_VARIANT_ENCODINGMASKTYPE_ARRAY || UA_STRING_NS0;
+	UA_String_copycstring("http://opcfoundation.org/UA/",((UA_String **)(((v)->value).data))[0]);
+	UA_String_copycstring("http://localhost:16664/open62541/",((UA_String **)(((v)->value).data))[1]);
+	v->dataType.encodingByte = UA_NODEIDTYPE_FOURBYTE;
+	v->dataType.identifier.numeric = UA_STRING_NS0;
+	v->valueRank = 1;
+	v->minimumSamplingInterval = 1.0;
+	v->historizing = UA_FALSE;
+
+	insert_node(ns0,np);
+
+//#if defined DEBUG && defined VERBOSE
+	uint32_t i, j;
+	for (i=0, j=0; i < ns0->size && j < ns0->count; i++) {
+		if (ns0->entries[i].node != UA_NULL) {
+			printf("appMockup_init - entries[%d]={",i);
+			UA_NodeId_printf("nodeId=",&(ns0->entries[i].node->nodeId));
+			UA_String_printf(",browseName=",&(ns0->entries[i].node->browseName.name));
+			j++;
+			printf("}\n");
+		}
+	}
+//#endif
 }

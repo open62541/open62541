@@ -110,6 +110,8 @@ UA_Int32 insert_node(namespace *ns, UA_Node *node) {
 	pthread_rwlock_init((pthread_rwlock_t *)slot->lock, NULL);
 #endif
 	slot->node = node;
+	// TODO: @jpfr count vs size, not quite sure
+	ns->count++;
 	return UA_SUCCESS;
 }
 

@@ -21,9 +21,8 @@ UA_Int32 serverCallback(void * arg) {
 }
 
 int main(int argc, char** argv) {
-	NL_data* nl = NL_init(&NL_Description_TcpBinary,16664);
-	// NL_data* nl = NL_init(&NL_Description_TcpBinary,16664,NL_THREADINGTYPE_SINGLE);
 	appMockup_init();
+	NL_data* nl = NL_init(&NL_Description_TcpBinary,16664);
 
 	struct timeval tv = {20, 0}; // 20 seconds
 	NL_msgLoop(nl, &tv,serverCallback,argv[0]);

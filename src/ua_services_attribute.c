@@ -38,10 +38,12 @@ static UA_DataValue * service_read_node(Application *app, const UA_ReadValueId *
 		v->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
 		return v;
 	}
+	DBG_VERBOSE(UA_String_printf("service_read_node - namespaceUri=",&(ns->namespaceUri)));
 	
 	UA_Node const *node = UA_NULL;
 	ns_lock *lock = UA_NULL;
-	UA_Int32 result = get_node(ns, &id->nodeId, &node, &lock);
+	DBG_VERBOSE(UA_NodeId_printf("service_read_node - search for ",&(id->nodeId)));
+	UA_Int32 result = get_node(ns, &(id->nodeId), &node, &lock);
 	if(result != UA_SUCCESS) {
 		v->encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
 		v->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -106,7 +108,10 @@ static UA_DataValue * service_read_node(Application *app, const UA_ReadValueId *
 		}
 		v->encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE | UA_DATAVALUE_ENCODINGMASK_VARIANT;
 		v->status = UA_STATUSCODE_GOOD;
+		// FIXME: delete will be called on all the members of v, so essentially
+		// the item will be removed from the namespace.
 		v->value = ((UA_VariableNode *)node)->value; // be careful not to release the node before encoding the message
+
 		break;
 	case UA_ATTRIBUTEID_DATATYPE:
 		v->encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
