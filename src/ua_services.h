@@ -47,7 +47,7 @@ UA_Int32 Service_Read(SL_Channel *channel, const UA_ReadRequest *request, UA_Rea
 // Service_Call
 
 /* Part 4: 5.12 MonitoredItem Service Set */
-// Service_CreateMonitoredItems
+// UA_Int32 Service_CreateMonitoredItems(SL_Channel *channel, const UA_CreateMonitoredItemsRequest *request, UA_CreateMonitoredItemsResponse *response);
 // Service_ModifyMonitoredItems
 // Service_SetMonitoringMode
 // Service_SetTriggering
