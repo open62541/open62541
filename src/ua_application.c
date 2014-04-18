@@ -57,7 +57,7 @@ void appMockup_init() {
 	UA_Array_new((void**)&(v->value.data),2,UA_STRING);
 	v->value.vt = &UA_[UA_STRING];
 	v->value.arrayLength = 2;
-	v->value.encodingMask = UA_VARIANT_ENCODINGMASKTYPE_ARRAY || UA_STRING_NS0;
+	v->value.encodingMask = UA_VARIANT_ENCODINGMASKTYPE_ARRAY | UA_STRING_NS0;
 	UA_String_copycstring("http://opcfoundation.org/UA/",((UA_String **)(((v)->value).data))[0]);
 	UA_String_copycstring("http://localhost:16664/open62541/",((UA_String **)(((v)->value).data))[1]);
 	v->dataType.encodingByte = UA_NODEIDTYPE_FOURBYTE;

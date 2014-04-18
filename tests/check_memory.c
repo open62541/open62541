@@ -56,62 +56,57 @@ END_TEST
 
 START_TEST (encodeShallYieldDecode)
 {
+	// given
 	void *obj1 = UA_NULL, *obj2 = UA_NULL;
 	UA_ByteString msg1, msg2;
-//	UA_ByteString x;
-	UA_Int32 retval, pos;
-
-//	printf("testing idx=%d,name=%s\n",_i,UA_[_i].name);
-// create src object
+	UA_Int32 retval, pos = 0;
 	retval = UA_[_i].new(&obj1);
-//	printf("retval=%d, ",retval); x.length = UA_[_i].calcSize(UA_NULL); x.data = (UA_Byte*) obj1; UA_ByteString_printx_hex("obj1=",&x);
-
-// encode obj into buffer
 	UA_ByteString_newMembers(&msg1,UA_[_i].calcSize(obj1));
-	pos = 0;
 	retval = UA_[_i].encodeBinary(obj1, &pos, &msg1);
-//	printf("retval=%d, ",retval); x.length = pos; x.data = (UA_Byte*) msg1.data; UA_ByteString_printx_hex("msg1=",&x);
-
-// create dst object
+	// when
 	UA_[_i].new(&obj2);
-	pos = 0;
-	retval = UA_[_i].decodeBinary(&msg1, &pos, obj2);
-//	printf("retval=%d, ",retval); x.length = UA_[_i].calcSize(UA_NULL); x.data = (UA_Byte*) obj2; UA_ByteString_printx_hex("obj2=",&x);
+	pos = 0; retval = UA_[_i].decodeBinary(&msg1, &pos, obj2);
 	UA_ByteString_newMembers(&msg2,UA_[_i].calcSize(obj2));
-	pos = 0;
-	retval = UA_[_i].encodeBinary(obj2, &pos, &msg2);
-//	printf("retval=%d, ",retval); x.length = pos; x.data = (UA_Byte*) msg2.data; UA_ByteString_printx_hex("msg2=",&x);
-
+	pos = 0; retval = UA_[_i].encodeBinary(obj2, &pos, &msg2);
+	// then
 	ck_assert_msg(UA_ByteString_compare(&msg1,&msg2)==0,"messages differ idx=%d,name=%s",_i,UA_[_i].name);
 	ck_assert_int_eq(retval,UA_SUCCESS);
+	// finally
+	UA_[_i].delete(obj1);
+	UA_[_i].delete(obj2);
+	UA_ByteString_deleteMembers(&msg1);
+	UA_ByteString_deleteMembers(&msg2);
 }
 END_TEST
 
 START_TEST (decodeShallFailWithTruncatedBufferButSurvive)
 {
+	// given
 	void *obj1 = UA_NULL, *obj2 = UA_NULL;
 	UA_ByteString msg1;
 	UA_Int32 retval, pos;
-
 	retval = UA_[_i].new(&obj1);
 	UA_ByteString_newMembers(&msg1,UA_[_i].calcSize(obj1));
-	pos = 0;
-	retval = UA_[_i].encodeBinary(obj1, &pos, &msg1);
-	ck_assert_int_eq(retval,UA_SUCCESS);
-
+	pos = 0; retval = UA_[_i].encodeBinary(obj1, &pos, &msg1);
+	// when
 	UA_[_i].new(&obj2);
 	pos = 0;
 	msg1.length = msg1.length / 2;
 	retval = UA_[_i].decodeBinary(&msg1, &pos, obj2);
-
+	//then
 	ck_assert_msg(retval!=UA_SUCCESS,"testing %s with half buffer",UA_[_i].name);
 
+	//when
 	pos = 0;
 	msg1.length = msg1.length / 4;
 	retval = UA_[_i].decodeBinary(&msg1, &pos, obj2);
-
+	//then
 	ck_assert_msg(retval!=UA_SUCCESS,"testing %s with quarter buffer",UA_[_i].name);
 
+	//finally
+	UA_[_i].delete(obj1);
+	UA_[_i].delete(obj2);
+	UA_ByteString_deleteMembers(&msg1);
 }
 END_TEST
 

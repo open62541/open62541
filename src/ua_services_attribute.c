@@ -44,7 +44,7 @@ static UA_DataValue * service_read_node(Application *app, const UA_ReadValueId *
 	ns_lock *lock = UA_NULL;
 	DBG_VERBOSE(UA_NodeId_printf("service_read_node - search for ",&(id->nodeId)));
 	UA_Int32 result = get_node(ns, &(id->nodeId), &node, &lock);
-	if(result != UA_SUCCESS) {
+	if(result != UA_SUCCESS || node == UA_NULL) {
 		v->encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
 		v->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
 		return v;

@@ -855,7 +855,7 @@ void UA_NodeId_printf(char* label, const UA_NodeId* node) {
 }
 
 UA_Int32 UA_NodeId_compare(const UA_NodeId *n1, const UA_NodeId *n2) {
-	if (n1->encodingByte != n2->encodingByte || n1->namespace != n2->namespace)
+	if (n1 == UA_NULL || n2 == UA_NULL || n1->encodingByte != n2->encodingByte || n1->namespace != n2->namespace)
 		return FALSE;
 
 	switch (n1->encodingByte & UA_NODEIDTYPE_MASK) {
@@ -1313,7 +1313,7 @@ UA_TYPE_START_ENCODEBINARY(UA_Variant)
 			retval |= src->vt->encodeBinary(src->data[i],pos,dst);
 		}
 	}
-	if (src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_ARRAY) { // encode array dimension field
+	if (src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) { // encode array dimension field
 		// FIXME: encode array dimension field
 		printf("shit happens - encode array dimension field wanted");
 	}
@@ -1433,6 +1433,7 @@ UA_Int32 UA_DataValue_calcSize(UA_DataValue const * p) {
 	} else { // get decoding size
 		length = sizeof(UA_Byte);
 		if (p->encodingMask & UA_DATAVALUE_ENCODINGMASK_VARIANT) {
+			// FIXME: this one can return with an error value instead of a size
 			length += UA_Variant_calcSize(&(p->value));
 		}
 		if (p->encodingMask & UA_DATAVALUE_ENCODINGMASK_STATUSCODE) {
