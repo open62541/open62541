@@ -111,7 +111,6 @@ static UA_DataValue * service_read_node(Application *app, const UA_ReadValueId *
 		// FIXME: delete will be called on all the members of v, so essentially
 		// the item will be removed from the namespace.
 		v->value = ((UA_VariableNode *)node)->value; // be careful not to release the node before encoding the message
-
 		break;
 	case UA_ATTRIBUTEID_DATATYPE:
 		v->encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;

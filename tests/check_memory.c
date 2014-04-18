@@ -11,6 +11,20 @@
 #include "opcua.h"
 #include "check.h"
 
+START_TEST (newAndEmptyObjectShallBeDeleted)
+{
+	// given
+	UA_Int32 retval;
+	void* obj;
+	// when
+	retval = UA_[_i].new(&obj);
+	retval |= UA_[_i].delete(obj);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+}
+END_TEST
+
+
 START_TEST (encodeShallYieldDecode)
 {
 	void *obj1 = UA_NULL, *obj2 = UA_NULL;
@@ -78,6 +92,7 @@ int main() {
 
 	Suite *s = suite_create("testMemoryHandling");
 	TCase *tc = tcase_create("Empty Objects");
+	tcase_add_loop_test(tc, newAndEmptyObjectShallBeDeleted,UA_BOOLEAN,UA_INVALIDTYPE-1);
 	tcase_add_loop_test(tc, encodeShallYieldDecode,UA_BOOLEAN,UA_INVALIDTYPE-1);
 	suite_add_tcase(s,tc);
 	tc = tcase_create("Truncated Buffers");
