@@ -88,6 +88,7 @@ START_TEST (decodeShallFailWithTruncatedBufferButSurvive)
 	retval = UA_[_i].new(&obj1);
 	UA_ByteString_newMembers(&msg1,UA_[_i].calcSize(obj1));
 	pos = 0; retval = UA_[_i].encodeBinary(obj1, &pos, &msg1);
+	UA_[_i].delete(obj1);
 	// when
 	UA_[_i].new(&obj2);
 	pos = 0;
@@ -95,16 +96,7 @@ START_TEST (decodeShallFailWithTruncatedBufferButSurvive)
 	retval = UA_[_i].decodeBinary(&msg1, &pos, obj2);
 	//then
 	ck_assert_msg(retval!=UA_SUCCESS,"testing %s with half buffer",UA_[_i].name);
-
-	//when
-	pos = 0;
-	msg1.length = msg1.length / 4;
-	retval = UA_[_i].decodeBinary(&msg1, &pos, obj2);
-	//then
-	ck_assert_msg(retval!=UA_SUCCESS,"testing %s with quarter buffer",UA_[_i].name);
-
-	//finally
-	UA_[_i].delete(obj1);
+	// finally
 	UA_[_i].delete(obj2);
 	UA_ByteString_deleteMembers(&msg1);
 }
