@@ -20,6 +20,9 @@ check-mem:
 if COVERAGE
 	$(MAKE) cov-report
 endif
+
+check_memory-mem: check_memory
+	$(MAKE) $(AM_MAKEFLAGS) check TESTS="check_memory" TESTS_ENVIRONMENT=$(TESTS_ENVIRONMENT_MEM)
 	
 clean-local:
 	rm -rf coverage || true;

@@ -24,6 +24,35 @@ START_TEST (newAndEmptyObjectShallBeDeleted)
 }
 END_TEST
 
+START_TEST (arrayCopyShallMakeADeepCopy)
+{
+	// given
+	void **a1; UA_Array_new((void**)&a1,3,UA_STRING);
+	UA_String_copycstring("a",((UA_String **)a1)[0]);
+	UA_String_copycstring("bb",((UA_String **)a1)[1]);
+	UA_String_copycstring("ccc",((UA_String **)a1)[2]);
+	// when
+	void **a2;
+	UA_Int32 retval = UA_Array_copy((void const*const*)&a1,3,UA_STRING,(void**)&a2);
+	// then
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_int_eq(((UA_String **)a1)[0]->length,1);
+	ck_assert_int_eq(((UA_String **)a1)[1]->length,2);
+	ck_assert_int_eq(((UA_String **)a1)[2]->length,3);
+	ck_assert_int_eq(((UA_String **)a1)[0]->length,((UA_String **)a2)[0]->length);
+	ck_assert_int_eq(((UA_String **)a1)[1]->length,((UA_String **)a2)[1]->length);
+	ck_assert_int_eq(((UA_String **)a1)[2]->length,((UA_String **)a2)[2]->length);
+	ck_assert_ptr_ne(((UA_String **)a1)[0]->data,((UA_String **)a2)[0]->data);
+	ck_assert_ptr_ne(((UA_String **)a1)[1]->data,((UA_String **)a2)[1]->data);
+	ck_assert_ptr_ne(((UA_String **)a1)[2]->data,((UA_String **)a2)[2]->data);
+	ck_assert_int_eq(((UA_String **)a1)[0]->data[0],((UA_String **)a2)[0]->data[0]);
+	ck_assert_int_eq(((UA_String **)a1)[1]->data[0],((UA_String **)a2)[1]->data[0]);
+	ck_assert_int_eq(((UA_String **)a1)[2]->data[0],((UA_String **)a2)[2]->data[0]);
+	// finally
+	UA_Array_delete(a1,3,UA_STRING);
+	UA_Array_delete(a2,3,UA_STRING);
+}
+END_TEST
 
 START_TEST (encodeShallYieldDecode)
 {
@@ -93,6 +122,7 @@ int main() {
 	Suite *s = suite_create("testMemoryHandling");
 	TCase *tc = tcase_create("Empty Objects");
 	tcase_add_loop_test(tc, newAndEmptyObjectShallBeDeleted,UA_BOOLEAN,UA_INVALIDTYPE-1);
+	tcase_add_test(tc, arrayCopyShallMakeADeepCopy);
 	tcase_add_loop_test(tc, encodeShallYieldDecode,UA_BOOLEAN,UA_INVALIDTYPE-1);
 	suite_add_tcase(s,tc);
 	tc = tcase_create("Truncated Buffers");

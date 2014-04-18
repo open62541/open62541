@@ -116,7 +116,7 @@ void* NL_TCP_reader(NL_Connection *c) {
 		DBG_VERBOSE(printf("NL_TCP_reader - leave read\n"));
 
 		DBG_VERBOSE(printf("NL_TCP_reader - src={%*.s}, ",c->connection.remoteEndpointUrl.length,c->connection.remoteEndpointUrl.data));
-		UA_ByteString_printx("received=",&readBuffer);
+		DBG(UA_ByteString_printx("NL_TCP_reader - received=",&readBuffer));
 
 		if (readBuffer.length  > 0) {
 			TL_Process(&(c->connection),&readBuffer);
@@ -171,8 +171,8 @@ UA_Int32 NL_TCP_writer(struct TL_Connection_T* c, const UA_ByteString** gather_b
 		iov[i].iov_base = gather_buf[i]->data;
 		iov[i].iov_len = gather_buf[i]->length;
 		total_len += gather_buf[i]->length;
-		DBG_VERBOSE(printf("NL_TCP_writer - gather_buf[%i]",i));
-		DBG_VERBOSE(UA_ByteString_printx("=", gather_buf[i]));
+		DBG(printf("NL_TCP_writer - gather_buf[%i]",i));
+		DBG(UA_ByteString_printx("=", gather_buf[i]));
 	}
 
 	struct msghdr message;

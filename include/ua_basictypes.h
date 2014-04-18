@@ -81,6 +81,7 @@ UA_Int32 UA_Array_decodeBinary(UA_ByteString const * src,UA_Int32 noElements, UA
 UA_Int32 UA_Array_delete(void **p,UA_Int32 noElements, UA_Int32 type);
 UA_Int32 UA_Array_init(void **p,UA_Int32 noElements, UA_Int32 type);
 UA_Int32 UA_Array_new(void **p,UA_Int32 noElements, UA_Int32 type);
+UA_Int32 UA_Array_copy(void const * const *src,UA_Int32 noElements, UA_Int32 type, void **dst);
 
 #define UA_TYPE_METHOD_PROTOTYPES(TYPE) \
 UA_Int32 TYPE##_calcSize(TYPE const * ptr);\

@@ -91,6 +91,25 @@ UA_Int32 UA_Array_new(void **p,UA_Int32 noElements, UA_Int32 type) {
 	return retval;
 }
 
+UA_Int32 UA_Array_copy(void const * const * src,UA_Int32 noElements, UA_Int32 type, void **dst) {
+	UA_Int32 retval = UA_SUCCESS;
+	UA_Int32 i;
+	// Get memory for the pointers
+	retval |= UA_Array_new(dst, noElements, type);
+	void const * const a_src = *src;
+	void * a_dst = *dst;
+	for(i=0; i<noElements; i++) {
+		// FIXME: we only have code to do this for strings yet
+		if (type == UA_STRING || type == UA_BYTESTRING) {
+			UA_String_copy(((UA_String **)a_src)[i],((UA_String **)a_dst)[i]);
+		} else {
+			retval = UA_ERR_INVALID_VALUE;
+			break;
+		}
+	}
+	return retval;
+}
+
 UA_Int32 _UA_free(void * ptr,char *pname,char* f,int l){
 	DBG_VERBOSE(printf("UA_free;%p;;%s;;%s;%d\n",ptr,pname,f,l); fflush(stdout));
 	if (UA_NULL != ptr) {

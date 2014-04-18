@@ -108,12 +108,23 @@ static UA_DataValue * service_read_node(Application *app, const UA_ReadValueId *
 		}
 		v->encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE | UA_DATAVALUE_ENCODINGMASK_VARIANT;
 		v->status = UA_STATUSCODE_GOOD;
+
+		// be careful not to release the node before encoding the message
+
 		UA_VariableNode * vn = (UA_VariableNode*) node;
 		// FIXME: delete will be called later on on on all the members of v, so essentially
 		// the item's data will be removed from the namespace-object. We would need
 		// something like a deep copy function just as we have it for the strings
 		// UA_Variant_copy(UA_Variant* src, UA_Variant* dst);
-		v->value = vn->value; // be careful not to release the node before encoding the message
+
+		// FIXME: mockup code - we know that for 2255 we simply need to copy the array
+		if (node->nodeId.identifier.numeric == 2255) {
+			v->value = vn->value;
+			UA_Array_copy((void const*const*)&(vn->value.data),vn->value.arrayLength,UA_toIndex(vn->value.vt->Id),(void**)&(v->value.data));
+		} else {
+			v->encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
+			v->status = UA_STATUSCODE_BADNOTREADABLE;
+		}
 		break;
 	case UA_ATTRIBUTEID_DATATYPE:
 		v->encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
