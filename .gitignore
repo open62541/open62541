@@ -47,6 +47,7 @@ libtool
 coverage_report
 .project
 .cproject
+.pydevproject
 /INSTALL
 /.settings
 .autotools
@@ -55,4 +56,11 @@ include/opcua.h
 include/ua_namespace_0.h
 src/opcua.c
 src/ua_namespace_0.c
-
+tests/check_builtin
+tests/check_create
+tests/check_decode
+tests/check_delete
+tests/check_encode
+tests/check_memory
+tests/check_namespace
+tests/coverage
