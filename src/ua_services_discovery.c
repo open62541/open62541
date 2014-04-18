@@ -11,8 +11,18 @@ UA_Int32 Service_GetEndpoints(SL_Channel *channel, const UA_GetEndpointsRequest*
 	UA_String_copy((UA_String*)&(channel->localAsymAlgSettings.securityPolicyUri),&(response->endpoints[0]->securityPolicyUri));
 	//FIXME hard-coded code
 	response->endpoints[0]->securityMode = UA_MESSAGESECURITYMODE_NONE;
+	UA_String_copycstring("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary", &response->endpoints[0]->transportProfileUri);
 
-	UA_String_copy(&(channel->tlConnection->localEndpointUrl),&(response->endpoints[0]->endpointUrl));
+	response->endpoints[0]->userIdentityTokensSize = 1;
+	UA_Array_new((void**) &response->endpoints[0]->userIdentityTokens, response->endpoints[0]->userIdentityTokensSize, UA_USERTOKENPOLICY);
+	UA_UserTokenPolicy *token = response->endpoints[0]->userIdentityTokens[0];
+	UA_String_copycstring("my-anonymous-policy", &token->policyId); // defined per server
+	token->tokenType = UA_USERTOKENTYPE_ANONYMOUS;
+	token->issuerEndpointUrl = (UA_String) {-1, UA_NULL};
+	token->issuedTokenType = (UA_String) {-1, UA_NULL};
+	token->securityPolicyUri = (UA_String) {-1, UA_NULL};
+
+	UA_String_copy(&request->endpointUrl,&response->endpoints[0]->endpointUrl);
 	UA_String_copycstring("http://open62541.info/product/release",&(response->endpoints[0]->server.productUri));
 	// FIXME: This information should be provided by the application, preferably in the address space
 	UA_String_copycstring("http://open62541.info/applications/4711",&(response->endpoints[0]->server.applicationUri));

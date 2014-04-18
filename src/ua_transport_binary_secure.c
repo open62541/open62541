@@ -23,10 +23,16 @@ static UA_Int32 SL_Send(SL_Channel* channel, const UA_ByteString * responseMessa
 
 	const UA_ByteString *response_gather[2]; // securechannel_header, seq_header, security_encryption_header, message_length (eventually + padding + size_signature);
 	UA_alloc((void **)&response_gather[0], sizeof(UA_ByteString));
-	UA_ByteString_newMembers((UA_ByteString *)response_gather[0], SIZE_SECURECHANNEL_HEADER + SIZE_SEQHEADER_HEADER +
-							 (isAsym ? UA_AsymmetricAlgorithmSecurityHeader_calcSize(&(channel->localAsymAlgSettings)) :
-							  UA_AsymmetricAlgorithmSecurityHeader_calcSize(&(channel->localAsymAlgSettings))) +
-							 UA_NodeId_calcSize(&resp_nodeid));
+	if(isAsym) {
+		UA_ByteString_newMembers((UA_ByteString *)response_gather[0], SIZE_SECURECHANNEL_HEADER + SIZE_SEQHEADER_HEADER +
+								 UA_AsymmetricAlgorithmSecurityHeader_calcSize(&channel->localAsymAlgSettings) +
+								 UA_NodeId_calcSize(&resp_nodeid));
+	}
+	else {
+		UA_ByteString_newMembers((UA_ByteString *)response_gather[0], 8 + 16 + // normal header + 4*32bit secure channel information
+								 UA_NodeId_calcSize(&resp_nodeid));
+	}
+		
 	
 	// sizePadding = 0;
 	// sizeSignature = 0;
@@ -90,7 +96,7 @@ static void init_response_header(UA_RequestHeader const * p, UA_ResponseHeader *
 	UA_##TYPE##Request p; \
 	UA_##TYPE##Response r; \
 	UA_##TYPE##Request_decodeBinary(msg, pos, &p); \
-	init_response_header((UA_RequestHeader*)&p, (UA_ResponseHeader*)&r); \
+	init_response_header(&p.requestHeader, &r.responseHeader); \
 	DBG_VERBOSE(printf("Invoke Service: %s\n", #TYPE)); \
 	Service_##TYPE(channel, &p, &r); \
 	DBG_VERBOSE(printf("Finished Service: %s\n", #TYPE)); \
