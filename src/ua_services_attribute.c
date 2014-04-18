@@ -27,9 +27,9 @@ enum UA_AttributeId {
 };
 
 static UA_DataValue * service_read_node(Application *app, const UA_ReadValueId *id) {
-	UA_DataValue *v;
-	UA_alloc((void **) &v, sizeof(UA_DataValue));
+	UA_DataValue *v; UA_DataValue_new(&v);
 	
+	DBG(printf("service_read_node - entered with ns=%d,id=%d,attr=%i\n",id->nodeId.namespace, id->nodeId.identifier.numeric, id->attributeId));
 	namespace *ns = UA_indexedList_findValue(app->namespaces, id->nodeId.namespace);
 
 	if (ns == UA_NULL) {
@@ -38,7 +38,7 @@ static UA_DataValue * service_read_node(Application *app, const UA_ReadValueId *
 		v->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
 		return v;
 	}
-	DBG_VERBOSE(UA_String_printf("service_read_node - namespaceUri=",&(ns->namespaceUri)));
+	DBG_VERBOSE(UA_String_printf(",namespaceUri=",&(ns->namespaceUri)));
 	
 	UA_Node const *node = UA_NULL;
 	ns_lock *lock = UA_NULL;
@@ -108,9 +108,12 @@ static UA_DataValue * service_read_node(Application *app, const UA_ReadValueId *
 		}
 		v->encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE | UA_DATAVALUE_ENCODINGMASK_VARIANT;
 		v->status = UA_STATUSCODE_GOOD;
-		// FIXME: delete will be called on all the members of v, so essentially
-		// the item will be removed from the namespace.
-		v->value = ((UA_VariableNode *)node)->value; // be careful not to release the node before encoding the message
+		UA_VariableNode * vn = (UA_VariableNode*) node;
+		// FIXME: delete will be called later on on on all the members of v, so essentially
+		// the item's data will be removed from the namespace-object. We would need
+		// something like a deep copy function just as we have it for the strings
+		// UA_Variant_copy(UA_Variant* src, UA_Variant* dst);
+		v->value = vn->value; // be careful not to release the node before encoding the message
 		break;
 	case UA_ATTRIBUTEID_DATATYPE:
 		v->encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;

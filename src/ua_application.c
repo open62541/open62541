@@ -16,8 +16,8 @@ Application appMockup = {
 		&nsMockup
 };
 
-UA_Node* create_node_ns0(UA_Int32 type, UA_Int32 const id, char const * qn, char const * dn, char const * desc) {
-	UA_Node* n; UA_[type].new((void **)&n);
+UA_Node* create_node_ns0(UA_Int32 class, UA_Int32 nodeClass, UA_Int32 const id, char const * qn, char const * dn, char const * desc) {
+	UA_Node* n; UA_[class].new((void **)&n);
 	n->nodeId.encodingByte = UA_NODEIDTYPE_FOURBYTE;
 	n->nodeId.namespace = 0;
 	n->nodeId.identifier.numeric = id;
@@ -26,6 +26,7 @@ UA_Node* create_node_ns0(UA_Int32 type, UA_Int32 const id, char const * qn, char
 	UA_String_copycstring(dn,&(n->displayName.text));
 	n->description.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
 	UA_String_copycstring(desc,&(n->description.text));
+	n->nodeClass = nodeClass;
 	return n;
 }
 
@@ -46,10 +47,12 @@ void appMockup_init() {
 	UA_indexedList_addValueToFront(appMockup.namespaces,1,local);
 
 	UA_Node* np;
-	np = create_node_ns0(UA_NODE, 2253, "Server", "open62541", "...");
+	np = create_node_ns0(UA_OBJECTNODE, UA_NODECLASS_OBJECT, 2253, "Server", "open62541", "...");
 	insert_node(ns0,np);
+	UA_ObjectNode* o = (UA_ObjectNode*)np;
+	o->eventNotifier = UA_FALSE;
 
-	np = create_node_ns0(UA_VARIABLENODE, 2255, "Server_NamespaceArray", "open62541", "..." );
+	np = create_node_ns0(UA_VARIABLENODE, UA_NODECLASS_VARIABLE, 2255, "Server_NamespaceArray", "open62541", "..." );
 	UA_VariableNode* v = (UA_VariableNode*)np;
 	UA_Array_new((void**)&(v->value.data),2,UA_STRING);
 	v->value.vt = &UA_[UA_STRING];
@@ -65,7 +68,7 @@ void appMockup_init() {
 
 	insert_node(ns0,np);
 
-//#if defined DEBUG && defined VERBOSE
+#if defined(DEBUG) && defined(VERBOSE)
 	uint32_t i, j;
 	for (i=0, j=0; i < ns0->size && j < ns0->count; i++) {
 		if (ns0->entries[i].node != UA_NULL) {
@@ -76,5 +79,5 @@ void appMockup_init() {
 			printf("}\n");
 		}
 	}
-//#endif
+#endif
 }

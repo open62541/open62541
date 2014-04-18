@@ -10,12 +10,15 @@
 
 #include <stdint.h>
 
-#define DBG_VERBOSE(expression) //
-#define DBG_ERR(expression) //
-#if defined(DEBUG) || 1
+#define DBG_VERBOSE(expression) // omit debug code
+#define DBG_ERR(expression) // omit debug code
+#define DBG(expression) // omit debug code
+#if defined(DEBUG) 		// --enable-debug=(yes|verbose)
+# undef DBG
+# define DBG(expression) expression
 # undef DBG_ERR
 # define DBG_ERR(expression) expression
-# if defined(VERBOSE)
+# if defined(VERBOSE) 	// --enable-debug=verbose
 #  undef DBG_VERBOSE
 #  define DBG_VERBOSE(expression) expression
 # endif
