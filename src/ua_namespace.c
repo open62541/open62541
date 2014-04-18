@@ -316,35 +316,27 @@ static inline void clear_slot(namespace *ns, ns_entry *slot) {
 #endif
 	switch(slot->node->nodeClass) {
 	case UA_NODECLASS_OBJECT:
-		UA_ObjectNode_deleteMembers((UA_ObjectNode *) slot->node);
 		UA_ObjectNode_delete((UA_ObjectNode *) slot->node);
 		break;
 	case UA_NODECLASS_VARIABLE:
-		UA_VariableNode_deleteMembers((UA_VariableNode *) slot->node);
 		UA_VariableNode_delete((UA_VariableNode *) slot->node);
 		break;
 	case UA_NODECLASS_METHOD:
-		UA_MethodNode_deleteMembers((UA_MethodNode *) slot->node);
 		UA_MethodNode_delete((UA_MethodNode *) slot->node);
 		break;
 	case UA_NODECLASS_OBJECTTYPE:
-		UA_ObjectTypeNode_deleteMembers((UA_ObjectTypeNode *) slot->node);
 		UA_ObjectTypeNode_delete((UA_ObjectTypeNode *) slot->node);
 		break;
 	case UA_NODECLASS_VARIABLETYPE:
-		UA_VariableTypeNode_deleteMembers((UA_VariableTypeNode *) slot->node);
 		UA_VariableTypeNode_delete((UA_VariableTypeNode *) slot->node);
 		break;
 	case UA_NODECLASS_REFERENCETYPE:
-		UA_ReferenceTypeNode_deleteMembers((UA_ReferenceTypeNode *) slot->node);
 		UA_ReferenceTypeNode_delete((UA_ReferenceTypeNode *) slot->node);
 		break;
 	case UA_NODECLASS_DATATYPE:
-		UA_DataTypeNode_deleteMembers((UA_DataTypeNode *) slot->node);
 		UA_DataTypeNode_delete((UA_DataTypeNode *) slot->node);
 		break;
 	case UA_NODECLASS_VIEW:
-		UA_ViewNode_deleteMembers((UA_ViewNode *) slot->node);
 		UA_ViewNode_delete((UA_ViewNode *) slot->node);
 		break;
 	default:
