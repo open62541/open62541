@@ -75,9 +75,9 @@ UA_Int32 UA_memcpy(void *dst, void const *src, int size);
 UA_Int32 _UA_alloc(void ** dst, int size,char*,char*,char*,int);
 
 /* Array operations */
-UA_Int32 UA_Array_calcSize(UA_Int32 noElements, UA_Int32 type, void const ** const ptr);
-UA_Int32 UA_Array_encodeBinary(void const **src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, UA_ByteString * dst);
-UA_Int32 UA_Array_decodeBinary(UA_ByteString const * src,UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void ** const dst);
+UA_Int32 UA_Array_calcSize(UA_Int32 noElements, UA_Int32 type, void const * const * ptr);
+UA_Int32 UA_Array_encodeBinary(void const * const *src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, UA_ByteString * dst);
+UA_Int32 UA_Array_decodeBinary(UA_ByteString const * src,UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void ** dst);
 UA_Int32 UA_Array_delete(void **p,UA_Int32 noElements, UA_Int32 type);
 UA_Int32 UA_Array_init(void **p,UA_Int32 noElements, UA_Int32 type);
 UA_Int32 UA_Array_new(void **p,UA_Int32 noElements, UA_Int32 type);
@@ -188,7 +188,7 @@ typedef float UA_IntegerId;
 UA_TYPE_METHOD_PROTOTYPES (UA_IntegerId)
 
 typedef struct T_UA_VTable {
-	UA_UInt32 Id;
+	UA_UInt32 ns0Id;
 	UA_Int32 (*calcSize)(void const * ptr);
 	UA_Int32 (*decodeBinary)(UA_ByteString const * src, UA_Int32* pos, void* dst);
 	UA_Int32 (*encodeBinary)(void const * src, UA_Int32* pos, UA_ByteString* dst);

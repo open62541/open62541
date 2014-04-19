@@ -6,19 +6,19 @@
 #include "opcua.h"
 #include "ua_basictypes.h"
 
-UA_Int32 UA_encodeBinary(void* const data, UA_Int32 *pos, UA_Int32 type, UA_ByteString* dst) {
+UA_Int32 UA_encodeBinary(void const * data, UA_Int32 *pos, UA_Int32 type, UA_ByteString* dst) {
 	return UA_[type].encodeBinary(data,pos,dst);
 }
 
-UA_Int32 UA_decodeBinary(UA_ByteString* const data, UA_Int32* pos, UA_Int32 type, void* dst){
+UA_Int32 UA_decodeBinary(UA_ByteString const * data, UA_Int32* pos, UA_Int32 type, void* dst){
 	return UA_[type].decodeBinary(data,pos,dst);
 }
 
-UA_Int32 UA_calcSize(void* const data, UA_UInt32 type) {
+UA_Int32 UA_calcSize(void const * data, UA_UInt32 type) {
 	return (UA_[type].calcSize)(data);
 }
 
-UA_Int32 UA_Array_calcSize(UA_Int32 nElements, UA_Int32 type, void const ** const data) {
+UA_Int32 UA_Array_calcSize(UA_Int32 nElements, UA_Int32 type, void const * const * data) {
 	int length = sizeof(UA_Int32);
 	int i;
 
@@ -30,7 +30,7 @@ UA_Int32 UA_Array_calcSize(UA_Int32 nElements, UA_Int32 type, void const ** cons
 	return length;
 }
 
-UA_Int32 UA_Array_encodeBinary(void const **src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, UA_ByteString* dst) {
+UA_Int32 UA_Array_encodeBinary(void const * const *src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, UA_ByteString* dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 i = 0;
 
@@ -42,7 +42,7 @@ UA_Int32 UA_Array_encodeBinary(void const **src, UA_Int32 noElements, UA_Int32 t
 	return retval;
 }
 
-UA_Int32 UA_Array_decodeBinary(UA_ByteString const * src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void ** const dst) {
+UA_Int32 UA_Array_decodeBinary(UA_ByteString const * src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void ** dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 i = 0;
 
@@ -1254,7 +1254,7 @@ UA_Int32 UA_Variant_calcSize(UA_Variant const * p) {
 	UA_Boolean hasDimensions = p->encodingMask & (0x01 << 6); // Bit 6
 	int i;
 
-	if (p->vt == UA_NULL || ns0Id != p->vt->Id) {
+	if (p->vt == UA_NULL || ns0Id != p->vt->ns0Id) {
 		return UA_ERR_INCONSISTENT;
 	}
 	length += sizeof(UA_Byte); //p->encodingMask
@@ -1272,7 +1272,7 @@ UA_Int32 UA_Variant_calcSize(UA_Variant const * p) {
 		}
 	} else { //single value to encode
 		if (p->data == UA_NULL) {
-			if (p->vt->Id != UA_INVALIDTYPE_NS0) {
+			if (p->vt->ns0Id != UA_INVALIDTYPE_NS0) {
 				length += p->vt->calcSize(UA_NULL);
 			} else {
 				length += 0;
@@ -1289,7 +1289,7 @@ UA_Int32 UA_Variant_calcSize(UA_Variant const * p) {
 UA_TYPE_START_ENCODEBINARY(UA_Variant)
 	int i = 0;
 
-	if (src->vt == UA_NULL || ( src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) != src->vt->Id) {
+	if (src->vt == UA_NULL || ( src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) != src->vt->ns0Id) {
 		return UA_ERR_INCONSISTENT;
 	}
 
@@ -1304,7 +1304,7 @@ UA_TYPE_START_ENCODEBINARY(UA_Variant)
 		}
 	} else {
 		if (src->data == UA_NULL) {
-			if (src->vt->Id == UA_INVALIDTYPE_NS0) {
+			if (src->vt->ns0Id == UA_INVALIDTYPE_NS0) {
 				retval = UA_SUCCESS;
 			} else {
 				retval = UA_ERR_NO_MEMORY;
@@ -1359,7 +1359,7 @@ UA_Int32 UA_Variant_decodeBinary(UA_ByteString const * src, UA_Int32 *pos, UA_Va
 UA_TYPE_METHOD_DELETE_STRUCT(UA_Variant)
 UA_Int32 UA_Variant_deleteMembers(UA_Variant  * p) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_Array_delete(p->data,p->arrayLength,UA_toIndex(p->vt->Id));
+	retval |= UA_Array_delete(p->data,p->arrayLength,UA_toIndex(p->vt->ns0Id));
 	return retval;
 }
 UA_Int32 UA_Variant_init(UA_Variant * p){
