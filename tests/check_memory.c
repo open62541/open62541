@@ -5,6 +5,7 @@
  *      Author: mrt
  */
 
+#define _XOPEN_SOURCE 500
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -102,6 +103,27 @@ START_TEST (decodeShallFailWithTruncatedBufferButSurvive)
 }
 END_TEST
 
+START_TEST (fuzzDecodeWithRandomBuffer)
+{
+	// given
+	void *obj1 = UA_NULL;
+	UA_ByteString msg1;
+	UA_Int32 retval, buflen;
+	buflen = 256;
+	retval = UA_[_i].new(&obj1);
+	UA_ByteString_newMembers(&msg1,buflen); // fixed size
+	// when
+	srandom(42);
+	memset(msg1.data, random(), buflen); // use the same random number throughout
+	//then
+	ck_assert_msg(retval==UA_SUCCESS,"Decoding %s from random buffer",UA_[_i].name);
+	UA_Int32 pos = 0; retval = UA_[_i].decodeBinary(&msg1, &pos, obj1);
+	// finally
+	UA_[_i].delete(obj1);
+	UA_ByteString_deleteMembers(&msg1);
+}
+END_TEST
+
 int main() {
 	int number_failed = 0;
 	SRunner *sr;
@@ -114,6 +136,10 @@ int main() {
 	suite_add_tcase(s,tc);
 	tc = tcase_create("Truncated Buffers");
 	tcase_add_loop_test(tc, decodeShallFailWithTruncatedBufferButSurvive,UA_BOOLEAN,UA_INVALIDTYPE-1);
+	suite_add_tcase(s,tc);
+
+	tc = tcase_create("Fuzzing with Random Buffers");
+	tcase_add_loop_test(tc, fuzzDecodeWithRandomBuffer,UA_BOOLEAN,UA_INVALIDTYPE-1);
 	suite_add_tcase(s,tc);
 
 	sr = srunner_create(s);
