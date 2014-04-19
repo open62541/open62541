@@ -97,8 +97,7 @@ START_TEST (decodeShallFailWithTruncatedBufferButSurvive)
 	//then
 	ck_assert_msg(retval!=UA_SUCCESS,"testing %s with half buffer",UA_[_i].name);
 	// finally
-	// FIXME: this crashes with types 23,77,78,142
-	// UA_[_i].delete(obj2);
+	UA_[_i].delete(obj2);
 	UA_ByteString_deleteMembers(&msg1);
 }
 END_TEST
