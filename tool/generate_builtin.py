@@ -33,14 +33,8 @@ elementary_size["Double"] = 8;
 elementary_size["DateTime"] = 8;
 elementary_size["StatusCode"] = 4;
 
-# indefinite_types = ["NodeId", "ExpandedNodeId", "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue", "Variant", "DiagnosticInfo"]
-# indefinite_types = ["ExpandedNodeId", "QualifiedName", "ExtensionObject", "DataValue", "Variant", "DiagnosticInfo"]
-# LU - pointers only for arrays (ByteString, etc.)
-indefinite_types = []
 enum_types = []
 structured_types = []
-                   
-# indefinite types cannot be directly contained in a record as they don't have a definite size
 printed_types = exclude_types # types that were already printed and which we can use in the structures to come
 
 # types we do not want to autogenerate
@@ -116,18 +110,8 @@ def createStructured(element):
             if child.get("Name") in lengthfields:
                 continue
             childname = camlCase2CCase(child.get("Name"))
-            #if childname in printed_types:
-            #    childname = childname + "_Value" # attributes may not have the name of a type
             typename = stripTypename(child.get("TypeName"))
-            if typename in indefinite_types:
-                valuemap[childname] = typename + "*"
-                if child.get("LengthField"):
-                    valuemap[childname] = typename + "**"
-#            elif typename in structured_types:
-#                valuemap[childname] = typename + "*"
-#                if child.get("LengthField"):
-#                    valuemap[childname] = typename + "**"
-            elif child.get("LengthField"):
+            if child.get("LengthField"):
                 valuemap[childname] = typename + "**"
             else:
                 valuemap[childname] = typename
@@ -197,24 +181,25 @@ def createStructured(element):
 
     # code _decode
     print("UA_Int32 "+name+"_decodeBinary(UA_ByteString const * src, UA_Int32* pos, " + name + "* dst) {\n\tUA_Int32 retval = UA_SUCCESS;", end='\n', file=fc)
+    print('\t'+name+'_init(dst);', end='\n', file=fc)
     for n,t in valuemap.iteritems():
         if t in elementary_size:
-            print('\tretval |= UA_'+t+'_decodeBinary(src,pos,&(dst->'+n+'));', end='\n', file=fc)
+            print('\tCHECKED_DECODE(UA_'+t+'_decodeBinary(src,pos,&(dst->'+n+')), '+name+'_deleteMembers(dst));', end='\n', file=fc)
         else:
             if t in enum_types:
-                print('\tretval |= UA_'+t+'_decodeBinary(src,pos,&(dst->'+n+'));', end='\n', file=fc)
+                print('\tCHECKED_DECODE(UA_'+t+'_decodeBinary(src,pos,&(dst->'+n+')), '+name+'_deleteMembers(dst));', end='\n', file=fc)
             elif t.find("**") != -1:
             	# decode size
-		print('\tretval |= UA_Int32_decodeBinary(src,pos,&(dst->'+n+'Size)); // decode size', end='\n', file=fc)
+		print('\tCHECKED_DECODE(UA_Int32_decodeBinary(src,pos,&(dst->'+n+'Size)), '+name+'_deleteMembers(dst)); // decode size', end='\n', file=fc)
 		# allocate memory for array
-		print("\tretval |= UA_Array_new((void**)&(dst->"+n+"),dst->"+n+"Size,UA_"+t[0:t.find("*")].upper()+");", end='\n', file=fc)
-		print("\tretval |= UA_Array_decodeBinary(src,dst->"+n+"Size, UA_" + t[0:t.find("*")].upper()+",pos,(void ** const) (dst->"+n+"));", end='\n', file=fc) #not tested
+		print("\tCHECKED_DECODE(UA_Array_new((void***)&dst->"+n+", dst->"+n+"Size, UA_"+t[0:t.find("*")].upper()+"), dst->"+n+" = UA_NULL; "+name+'_deleteMembers(dst));', end='\n', file=fc)
+		print("\tCHECKED_DECODE(UA_Array_decodeBinary(src,dst->"+n+"Size, UA_" + t[0:t.find("*")].upper()+",pos,(void *** const) (&dst->"+n+")), "+name+'_deleteMembers(dst));', end='\n', file=fc)
             elif t.find("*") != -1:
 		#allocate memory using new
-		print('\tretval |= UA_'+ t[0:t.find("*")] +"_new(&(dst->" + n + "));", end='\n', file=fc)
-		print('\tretval |= UA_' + t[0:t.find("*")] + "_decodeBinary(src,pos,dst->"+ n +");", end='\n', file=fc)
+		print('\tCHECKED_DECODE(UA_'+ t[0:t.find("*")] +"_new(&(dst->" + n + ")), "+name+'_deleteMembers(dst));', end='\n', file=fc)
+		print('\tCHECKED_DECODE(UA_' + t[0:t.find("*")] + "_decodeBinary(src,pos,dst->"+ n +"), "+name+'_deleteMembers(dst));', end='\n', file=fc)
             else:
-                print('\tretval |= UA_'+t+"_decodeBinary(src,pos,&(dst->"+n+"));", end='\n', file=fc)
+                print('\tCHECKED_DECODE(UA_'+t+"_decodeBinary(src,pos,&(dst->"+n+")), "+name+'_deleteMembers(dst));', end='\n', file=fc)
     print("\treturn retval;\n}\n", end='\n', file=fc)
     
     # code _delete and _deleteMembers
@@ -229,7 +214,7 @@ def createStructured(element):
     for n,t in valuemap.iteritems():
         if t not in elementary_size:
             if t.find("**") != -1:
-		print("\tretval |= UA_Array_delete((void**)p->"+n+",p->"+n+"Size,UA_"+t[0:t.find("*")].upper()+");", end='\n', file=fc) #not tested
+		print("\tretval |= UA_Array_delete((void***)&p->"+n+",p->"+n+"Size,UA_"+t[0:t.find("*")].upper()+"); p->"+n+" = UA_NULL;", end='\n', file=fc) #not tested
             elif t.find("*") != -1:
 		print('\tretval |= UA_' + t[0:t.find("*")] + "_delete(p->"+n+");", end='\n', file=fc)
             else:

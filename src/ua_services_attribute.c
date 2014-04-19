@@ -120,7 +120,7 @@ static UA_DataValue * service_read_node(Application *app, const UA_ReadValueId *
 		// FIXME: mockup code - we know that for 2255 we simply need to copy the array
 		if (node->nodeId.identifier.numeric == 2255) {
 			v->value = vn->value;
-			UA_Array_copy((void const*const*)&(vn->value.data),vn->value.arrayLength,UA_toIndex(vn->value.vt->ns0Id),(void**)&(v->value.data));
+			UA_Array_copy((void const*const*)vn->value.data,vn->value.arrayLength,UA_toIndex(vn->value.vt->ns0Id),(void***)&v->value.data);
 		} else {
 			v->encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
 			v->status = UA_STATUSCODE_BADNOTREADABLE;
