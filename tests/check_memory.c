@@ -5,6 +5,7 @@
  *      Author: mrt
  */
 
+#define _XOPEN_SOURCE 500
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -158,6 +159,10 @@ int main() {
 	suite_add_tcase(s,tc);
 	tc = tcase_create("Truncated Buffers");
 	tcase_add_loop_test(tc, decodeShallFailWithTruncatedBufferButSurvive,UA_BOOLEAN,UA_INVALIDTYPE-1);
+	suite_add_tcase(s,tc);
+
+	tc = tcase_create("Fuzzing with Random Buffers");
+	tcase_add_loop_test(tc, decodeScalarBasicTypeShallSurviveRandomBuffer,UA_BOOLEAN,UA_INVALIDTYPE-1);
 	suite_add_tcase(s,tc);
 
 	sr = srunner_create(s);
