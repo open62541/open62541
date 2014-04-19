@@ -1,20 +1,20 @@
 #include "ua_services.h"
 UA_Int32 Service_GetEndpoints(SL_Channel *channel, const UA_GetEndpointsRequest* request, UA_GetEndpointsResponse *response) {
-	UA_String_printx("endpointUrl=", &(request->endpointUrl));
+	UA_String_printx("endpointUrl=", &request->endpointUrl);
 
 	response->endpointsSize = 1;
-	UA_Array_new((void**) &(response->endpoints),response->endpointsSize,UA_ENDPOINTDESCRIPTION);
+	UA_Array_new((void***) &response->endpoints,response->endpointsSize,UA_ENDPOINTDESCRIPTION);
 
 	//Security issues:
 	//The policy should be 'http://opcfoundation.org/UA/SecurityPolicy#None'
 	//FIXME String or ByteString
-	UA_String_copy((UA_String*)&(channel->localAsymAlgSettings.securityPolicyUri),&(response->endpoints[0]->securityPolicyUri));
+	UA_String_copy((UA_String*)&channel->localAsymAlgSettings.securityPolicyUri,&response->endpoints[0]->securityPolicyUri);
 	//FIXME hard-coded code
 	response->endpoints[0]->securityMode = UA_MESSAGESECURITYMODE_NONE;
 	UA_String_copycstring("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary", &response->endpoints[0]->transportProfileUri);
 
 	response->endpoints[0]->userIdentityTokensSize = 1;
-	UA_Array_new((void**) &response->endpoints[0]->userIdentityTokens, response->endpoints[0]->userIdentityTokensSize, UA_USERTOKENPOLICY);
+	UA_Array_new((void***) &response->endpoints[0]->userIdentityTokens, response->endpoints[0]->userIdentityTokensSize, UA_USERTOKENPOLICY);
 	UA_UserTokenPolicy *token = response->endpoints[0]->userIdentityTokens[0];
 	UA_String_copycstring("my-anonymous-policy", &token->policyId); // defined per server
 	token->tokenType = UA_USERTOKENTYPE_ANONYMOUS;
