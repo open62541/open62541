@@ -157,13 +157,12 @@ void* NL_TCP_readerThread(NL_Connection *c) {
 	} while (c->connection.connectionState != CONNECTIONSTATE_CLOSED);
 	// clean up
 	UA_free(c);
-	c->readerThreadHandle = -1;
 	pthread_exit(UA_NULL);
 }
 #endif
 
-/** write to a tcp transport layer connection */
-UA_Int32 NL_TCP_writer(struct TL_Connection_T* c, const UA_ByteString** gather_buf, UA_UInt32 gather_len) {
+/** write message provided in the gather buffers to a tcp transport layer connection */
+UA_Int32 NL_TCP_writer(struct TL_Connection_T const * c, UA_ByteString const * const * gather_buf, UA_UInt32 gather_len) {
 
 	struct iovec iov[gather_len];
 	UA_UInt32 total_len = 0;
@@ -188,7 +187,7 @@ UA_Int32 NL_TCP_writer(struct TL_Connection_T* c, const UA_ByteString** gather_b
 	while (nWritten < total_len) {
 		int n=0;
 		do {
-			DBG_VERBOSE(printf("NL_TCP_writer - enter write\n"));
+			DBG_VERBOSE(printf("NL_TCP_writer - enter write with %d bytes to write\n",total_len));
 			n = sendmsg(c->connectionHandle, &message, 0);
 			DBG_VERBOSE(printf("NL_TCP_writer - leave write with n=%d,errno={%d,%s}\n",n,(n>0)?0:errno,(n>0)?"":strerror(errno)));
 		} while (n == -1L && errno == EINTR);
@@ -206,7 +205,7 @@ UA_Int32 NL_TCP_writer(struct TL_Connection_T* c, const UA_ByteString** gather_b
 
 void* NL_Connection_init(NL_Connection* c, NL_data* tld, UA_Int32 connectionHandle, NL_Reader reader, TL_Writer writer)
 {
-	// connection layer of UA stack
+	// connection layer of UA stackwriteLock
 	c->connection.connectionHandle = connectionHandle;
 	c->connection.connectionState = CONNECTIONSTATE_CLOSED;
 	c->connection.writerCallback = writer;
