@@ -102,6 +102,50 @@ START_TEST (decodeShallFailWithTruncatedBufferButSurvive)
 }
 END_TEST
 
+START_TEST (decodeScalarBasicTypeShallSurviveRandomBuffer)
+{
+	// given
+	void *obj1 = UA_NULL;
+	UA_ByteString msg1;
+	UA_Int32 retval, buflen;
+	buflen = 256;
+	retval = UA_[_i].new(&obj1);
+	UA_ByteString_newMembers(&msg1,buflen); // fixed size
+	srandom(42);
+	memset(msg1.data, random(), buflen); // use the same random number throughout
+	// when
+	UA_Int32 pos = 0;
+	retval = UA_[_i].decodeBinary(&msg1, &pos, obj1);
+	//then
+	ck_assert_msg(retval==UA_SUCCESS,"Decoding %s from random buffer",UA_[_i].name);
+	// finally
+	UA_[_i].delete(obj1);
+	UA_ByteString_deleteMembers(&msg1);
+}
+END_TEST
+
+START_TEST (decodeComplexTypeShallSurviveRandomBuffer)
+{
+	// given
+	void *obj1 = UA_NULL;
+	UA_ByteString msg1;
+	UA_Int32 retval, buflen;
+	buflen = 256;
+	retval = UA_[_i].new(&obj1);
+	UA_ByteString_newMembers(&msg1,buflen); // fixed size
+	srandom(42);
+	memset(msg1.data, random(), buflen); // use the same random number throughout
+	// when
+	UA_Int32 pos = 0;
+	retval = UA_[_i].decodeBinary(&msg1, &pos, obj1);
+	//then
+	ck_assert_msg(retval==UA_SUCCESS,"Decoding %s from random buffer",UA_[_i].name);
+	// finally
+	UA_[_i].delete(obj1);
+	UA_ByteString_deleteMembers(&msg1);
+}
+END_TEST
+
 int main() {
 	int number_failed = 0;
 	SRunner *sr;
