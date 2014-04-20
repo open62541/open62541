@@ -94,17 +94,17 @@ START_TEST (decodeShallFailWithTruncatedBufferButSurvive)
 	UA_[_i].new(&obj2);
 	pos = 0;
 	msg1.length = msg1.length / 2;
-	fprintf(stderr,"testing %s with half buffer\n",UA_[_i].name);
+	//fprintf(stderr,"testing %s with half buffer\n",UA_[_i].name);
 	UA_[_i].decodeBinary(&msg1, &pos, obj2);
 	//then
 	// finally
-	fprintf(stderr,"delete %s with half buffer\n",UA_[_i].name);
+	//fprintf(stderr,"delete %s with half buffer\n",UA_[_i].name);
 	UA_[_i].delete(obj2);
 	UA_ByteString_deleteMembers(&msg1);
 }
 END_TEST
 
-START_TEST (fuzzDecodeWithRandomBuffer)
+START_TEST (decodeScalarBasicTypeFromRandomBufferShallSucceed)
 {
 	// given
 	void *obj1 = UA_NULL;
@@ -113,29 +113,8 @@ START_TEST (fuzzDecodeWithRandomBuffer)
 	buflen = 256;
 	retval = UA_[_i].new(&obj1);
 	UA_ByteString_newMembers(&msg1,buflen); // fixed size
-	// when
-	srandom(42);
-	memset(msg1.data, random(), buflen); // use the same random number throughout
-	//then
-	ck_assert_msg(retval==UA_SUCCESS,"Decoding %s from random buffer",UA_[_i].name);
-	UA_Int32 pos = 0; retval = UA_[_i].decodeBinary(&msg1, &pos, obj1);
-	// finally
-	UA_[_i].delete(obj1);
-	UA_ByteString_deleteMembers(&msg1);
-}
-END_TEST
-
-START_TEST (decodeScalarBasicTypeShallSurviveRandomBuffer)
-{
-	// given
-	void *obj1 = UA_NULL;
-	UA_ByteString msg1;
-	UA_Int32 retval, buflen;
-	buflen = 256;
-	retval = UA_[_i].new(&obj1);
-	UA_ByteString_newMembers(&msg1,buflen); // fixed size
-	srandom(42);
-	memset(msg1.data, random(), buflen); // use the same random number throughout
+	srandom(42); // use the same random number sequence throughout
+	UA_Int32 i; for(i=0;i<buflen;i++) { msg1.data[i] = (UA_Byte) random(); }
 	// when
 	UA_Int32 pos = 0;
 	retval = UA_[_i].decodeBinary(&msg1, &pos, obj1);
@@ -147,7 +126,7 @@ START_TEST (decodeScalarBasicTypeShallSurviveRandomBuffer)
 }
 END_TEST
 
-START_TEST (decodeComplexTypeShallSurviveRandomBuffer)
+START_TEST (decodeComplexTypeFromRandomBufferShallSurvive)
 {
 	// given
 	void *obj1 = UA_NULL;
@@ -156,13 +135,13 @@ START_TEST (decodeComplexTypeShallSurviveRandomBuffer)
 	buflen = 256;
 	retval = UA_[_i].new(&obj1);
 	UA_ByteString_newMembers(&msg1,buflen); // fixed size
-	srandom(42);
-	memset(msg1.data, random(), buflen); // use the same random number throughout
+	srandom(42); // use the same random number sequence throughout
+	UA_Int32 i; for(i=0;i<buflen;i++) { msg1.data[i] = (UA_Byte) random(); }
 	// when
 	UA_Int32 pos = 0;
 	retval = UA_[_i].decodeBinary(&msg1, &pos, obj1);
 	//then
-	ck_assert_msg(retval==UA_SUCCESS,"Decoding %s from random buffer",UA_[_i].name);
+	ck_assert_msg(retval==UA_SUCCESS||retval==UA_ERROR,"Decoding %s from random buffer",UA_[_i].name);
 	// finally
 	UA_[_i].delete(obj1);
 	UA_ByteString_deleteMembers(&msg1);
@@ -184,8 +163,9 @@ int main() {
 	suite_add_tcase(s,tc);
 
 	tc = tcase_create("Fuzzing with Random Buffers");
-	tcase_add_loop_test(tc, fuzzDecodeWithRandomBuffer,UA_BOOLEAN,UA_DIAGNOSTICINFO);
-	suite_add_tcase(s,tc);
+	tcase_add_loop_test(tc, decodeScalarBasicTypeFromRandomBufferShallSucceed,UA_BOOLEAN,UA_DOUBLE);
+	tcase_add_loop_test(tc, decodeComplexTypeFromRandomBufferShallSurvive,UA_STRING,UA_DIAGNOSTICINFO);
+	tcase_add_loop_test(tc, decodeComplexTypeFromRandomBufferShallSurvive,UA_IDTYPE,UA_INVALIDTYPE);
 
 	sr = srunner_create(s);
 	//for debugging puposes only, will break make check
