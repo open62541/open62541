@@ -127,6 +127,7 @@ for row in rows2:
           ",(UA_Int32(*)(void const*))"+name+"_calcSize" + 
           ",(UA_Int32(*)(UA_ByteString const*,UA_Int32*,void*))"+name+ "_decodeBinary" +
           ",(UA_Int32(*)(void const*,UA_Int32*,UA_ByteString*))"+name+"_encodeBinary"+
+          ",(UA_Int32(*)(void *))"+name+"_init"+
           ",(UA_Int32(*)(void **))"+name+"_new"+
           ",(UA_Int32(*)(void *))"+name+"_delete"+
           ',(UA_Byte*)"'+name+'"},',end='\n',file=fc) 
@@ -135,6 +136,7 @@ print("\t{0" +
           ",(UA_Int32(*)(void const*))"+name+"_calcSize" + 
           ",(UA_Int32(*)(UA_ByteString const*,UA_Int32*,void*))"+name+ "_decodeBinary" +
           ",(UA_Int32(*)(void const*,UA_Int32*,UA_ByteString*))"+name+"_encodeBinary"+
+          ",(UA_Int32(*)(void *))"+name+"_init"+
           ",(UA_Int32(*)(void **))"+name+"_new"+
           ",(UA_Int32(*)(void *))"+name+"_delete"+
           ',(UA_Byte*)"'+name+'"}',end='\n',file=fc)

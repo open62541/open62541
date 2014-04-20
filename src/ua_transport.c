@@ -301,8 +301,8 @@ UA_Int32 UA_SecureConversationMessageFooter_encodeBinary(UA_SecureConversationMe
 UA_Int32 UA_SecureConversationMessageFooter_decodeBinary(UA_ByteString const * src, UA_Int32* pos, UA_SecureConversationMessageFooter* dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_Int32_decodeBinary(src,pos,&(dst->paddingSize)); // decode size
-	retval |= UA_Array_new((void**)&(dst->padding),dst->paddingSize, UA_BYTE);
-	retval |= UA_Array_decodeBinary(src,dst->paddingSize, UA_BYTE,pos,(void ** const) (dst->padding));
+	retval |= UA_Array_new((void***)&dst->padding,dst->paddingSize, UA_BYTE);
+	retval |= UA_Array_decodeBinary(src,dst->paddingSize, UA_BYTE,pos,(void *** const) &dst->padding);
 	retval |= UA_Byte_decodeBinary(src,pos,&(dst->signature));
 	return retval;
 }
@@ -315,7 +315,7 @@ UA_Int32 UA_SecureConversationMessageFooter_delete(UA_SecureConversationMessageF
     }
 UA_Int32 UA_SecureConversationMessageFooter_deleteMembers(UA_SecureConversationMessageFooter* p) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_Array_delete((void**)p->padding,p->paddingSize,UA_BYTE);
+	retval |= UA_Array_delete((void***)&p->padding,p->paddingSize,UA_BYTE);
 	return retval;
 }
 
