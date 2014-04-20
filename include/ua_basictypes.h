@@ -64,7 +64,6 @@ UA_ByteString;
 #define UA_EQUAL 0
 #define UA_NOT_EQUAL (!UA_EQUAL)
 
-
 /* heap memory functions */
 #define UA_NULL ((void*)0)
 extern void const * UA_alloc_lastptr;
@@ -74,23 +73,32 @@ UA_Int32 UA_memcpy(void *dst, void const *src, int size);
 #define UA_alloc(ptr,size) _UA_alloc(ptr,size,#ptr,#size,__FILE__,__LINE__)
 UA_Int32 _UA_alloc(void ** dst, int size,char*,char*,char*,int);
 
+/* Stop decoding at the first failure. Free members that were already allocated.
+   It is assumed that retval is already defined. */
+#define CHECKED_DECODE(DECODE, CLEAN_UP) do { \
+	retval |= DECODE; \
+	if(retval != UA_SUCCESS) { \
+		CLEAN_UP; \
+		return retval; \
+	} } while(0) \
+
 /* Array operations */
 UA_Int32 UA_Array_calcSize(UA_Int32 noElements, UA_Int32 type, void const * const * ptr);
 UA_Int32 UA_Array_encodeBinary(void const * const *src, UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, UA_ByteString * dst);
-UA_Int32 UA_Array_decodeBinary(UA_ByteString const * src,UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void ** dst);
-UA_Int32 UA_Array_delete(void **p,UA_Int32 noElements, UA_Int32 type);
+UA_Int32 UA_Array_decodeBinary(UA_ByteString const * src,UA_Int32 noElements, UA_Int32 type, UA_Int32* pos, void *** dst);
+UA_Int32 UA_Array_delete(void ***p,UA_Int32 noElements, UA_Int32 type);
 UA_Int32 UA_Array_init(void **p,UA_Int32 noElements, UA_Int32 type);
-UA_Int32 UA_Array_new(void **p,UA_Int32 noElements, UA_Int32 type);
-UA_Int32 UA_Array_copy(void const * const *src,UA_Int32 noElements, UA_Int32 type, void **dst);
+UA_Int32 UA_Array_new(void ***p,UA_Int32 noElements, UA_Int32 type);
+UA_Int32 UA_Array_copy(void const * const *src,UA_Int32 noElements, UA_Int32 type, void ***dst);
 
 #define UA_TYPE_METHOD_PROTOTYPES(TYPE) \
-UA_Int32 TYPE##_calcSize(TYPE const * ptr);\
-UA_Int32 TYPE##_encodeBinary(TYPE const * src, UA_Int32* pos, UA_ByteString * dst);\
-UA_Int32 TYPE##_decodeBinary(UA_ByteString const * src, UA_Int32* pos, TYPE * dst);\
-UA_Int32 TYPE##_delete(TYPE * p);\
-UA_Int32 TYPE##_deleteMembers(TYPE * p); \
-UA_Int32 TYPE##_init(TYPE * p); \
-UA_Int32 TYPE##_new(TYPE ** p);
+	UA_Int32 TYPE##_calcSize(TYPE const * ptr);							\
+	UA_Int32 TYPE##_encodeBinary(TYPE const * src, UA_Int32* pos, UA_ByteString * dst);	\
+	UA_Int32 TYPE##_decodeBinary(UA_ByteString const * src, UA_Int32* pos, TYPE * dst);	\
+	UA_Int32 TYPE##_delete(TYPE * p);									\
+	UA_Int32 TYPE##_deleteMembers(TYPE * p);							\
+	UA_Int32 TYPE##_init(TYPE * p);										\
+	UA_Int32 TYPE##_new(TYPE ** p);
 
 
 #define UA_TYPE_METHOD_CALCSIZE_SIZEOF(TYPE) \
@@ -192,6 +200,7 @@ typedef struct T_UA_VTable {
 	UA_Int32 (*calcSize)(void const * ptr);
 	UA_Int32 (*decodeBinary)(UA_ByteString const * src, UA_Int32* pos, void* dst);
 	UA_Int32 (*encodeBinary)(void const * src, UA_Int32* pos, UA_ByteString* dst);
+	UA_Int32 (*init)(void * p);
 	UA_Int32 (*new)(void ** p);
 	UA_Int32 (*delete)(void * p);
 	UA_Byte* name;
