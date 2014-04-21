@@ -6,7 +6,7 @@ NS0_NAME = ua_namespace_0
 bin_PROGRAMS = xml2ns0 
 xml2ns0_SOURCES = xml2ns0.c
 xml2ns0_CFLAGS = -I$(INCLUDE_DIR)
-xml2ns0_LDADD = $(GLOBAL_AM_LDADD)
+xml2ns0_LDADD = $(top_builddir)/lib/libopen62541.a $(GLOBAL_AM_LDADD)
 xml2ns0_LDFLAGS = -lexpat
 
 all-local: $(AUTO_NAME).cgen $(AUTO_NAME).hgen $(NS0_NAME).cgen $(NS0_NAME).hgen
