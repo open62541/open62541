@@ -66,7 +66,7 @@ static inline void release_node(ns_lock *lock) {
 void delete_node(namespace *ns, UA_NodeId *nodeid);
 
 /* Internal */
-typedef uint32_t hash_t;
+typedef UA_UInt32 hash_t;
 static hash_t hash_string(const UA_Byte * data, UA_Int32 len);
 static hash_t hash(const UA_NodeId *n);
 
