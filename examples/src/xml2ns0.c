@@ -62,6 +62,13 @@ void XML_Stack_init(XML_Stack_t* p, cstring_t name) {
 	p->parent[0].name = name;
 }
 
+void XML_Stack_print(XML_Stack_t* s) {
+	UA_Int32 i;
+	for (i=0;i<=s->depth;i++) {
+		printf("%s.",s->parent[i].name);
+	}
+}
+
 // FIXME: we might want to calculate textAttribIdx
 void XML_Stack_handleTextAs(XML_Stack_t* p,cstring_t textAttrib, unsigned int textAttribIdx) {
 	p->parent[p->depth].textAttrib = textAttrib;
@@ -165,7 +172,10 @@ UA_Int32 UA_DataTypeNode_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_DataType
 
 	if (isStart) {
 		// create a new object if called with UA_NULL
-		if (dst == UA_NULL) { UA_DataTypeNode_new(&dst); }
+		if (dst == UA_NULL) {
+			UA_DataTypeNode_new(&dst);
+			s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = (void*) dst;
+		}
 
 		// add the handlers for the child objects
 		if (s->parent[s->depth].len == 0 ) {
@@ -190,7 +200,8 @@ UA_Int32 UA_DataTypeNode_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_DataType
 				UA_String_copycstring(attr[i+1],&(dst->description.text));
 				dst->description.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
 			} else {
-				perror("Unknown attribute");
+				DBG_ERR(XML_Stack_print(s));
+				DBG_ERR(printf("%s - unknown attribute\n",attr[i]));
 			}
 		}
 	}
@@ -204,12 +215,12 @@ UA_Int32 UA_NodeSet_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_NodeSet* dst,
 			XML_Stack_addChildHandler(s,"UADataType",(XML_decoder)UA_DataTypeNode_decodeXML, UA_DATATYPENODE, UA_NULL);
 		}
 	} else {
-		XML_Parent_t* cp = &(s->parent[s->depth]);
-		if (cp->activeChild >= 0) {
-			void* node = cp->children[cp->activeChild].obj;
-			// FIXME: mockup code for debugging, should actually add node to namespace
-			UA_DataTypeNode* dtn = (UA_DataTypeNode*) node;
-			printf("node.browseName=%.*s", dtn->browseName.name.length, dtn->browseName.name.data);
+		// FIXME: mockup code for debugging, should actually add node to namespace
+		if (attr != UA_NULL) {
+			UA_DataTypeNode* dtn = (UA_DataTypeNode*) attr;
+			printf("node.browseName=%.*s\n", dtn->browseName.name.length, dtn->browseName.name.data);
+		} else {
+			DBG_ERR(printf("nodeset endElement called with null-ptr\n"));
 		}
 	}
 	return UA_SUCCESS;
@@ -218,17 +229,14 @@ UA_Int32 UA_NodeSet_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_NodeSet* dst,
 /** lookup if element is a known child of parent, if yes go for it otherwise ignore */
 void startElement(void * data, const char *el, const char **attr) {
   XML_Stack_t* s = (XML_Stack_t*) data;
-  int i, j;
+  int i;
 
   // scan expected children
   XML_Parent_t* cp = &s->parent[s->depth];
   for (i = 0; i < cp->len; i++) {
 	  if (0 == strncmp(cp->children[i].name,el,strlen(cp->children[i].name))) {
-		  printf("processing child ");
-		  for (j=0;j<=s->depth;j++) {
-			  printf("%s.",s->parent[j].name);
-		  }
-		  printf("%s\n",el);
+		  DBG_VERBOSE(XML_Stack_print(s));
+		  DBG_VERBOSE(printf("%s - processing\n",el));
 
 		  cp->activeChild = i;
 
@@ -243,11 +251,8 @@ void startElement(void * data, const char *el, const char **attr) {
 	  }
   }
   // if we come here we rejected the processing of el
-  printf("rejected processing of unexpected child ");
-  for (i=0;i<=s->depth;i++) {
-	  printf("%s.",s->parent[i].name);
-  }
-  printf("%s\n",el);
+  DBG_VERBOSE(XML_Stack_print(s));
+  DBG_VERBOSE(printf("%s - rejected\n",el));
   s->depth++;
   s->parent[s->depth].name = el;
   // this should be sufficient to reject the children as well
@@ -281,7 +286,8 @@ void handleText(void * data, const char *txt, int len) {
 		  cp->children[cp->activeChild].elementHandler(s,UA_NULL,cp->children[cp->activeChild].obj, FALSE);
 		  UA_free(buf);
 	  } else {
-		  perror("ignore text data");
+		  DBG_ERR(XML_Stack_print(s));
+		  DBG_ERR(printf("textData - ignore text data '%.*s'\n",len,txt));
 	  }
   }
 }
@@ -289,19 +295,17 @@ void handleText(void * data, const char *txt, int len) {
 /** if we are an activeChild of a parent we call the child-handler */
 void endElement(void *data, const char *el) {
 	XML_Stack_t* s = (XML_Stack_t*) data;
+
 	// the parent knows the elementHandler, therefore depth-1 !
-	if (s->depth>0) {
+	if (s->depth>1) {
+		// inform parents elementHandler that everything is done
 		XML_Parent_t* cp = &(s->parent[s->depth-1]);
-		if (cp->activeChild >= 0) {
-			cp->children[cp->activeChild].elementHandler(s,UA_NULL,cp->children[cp->activeChild].obj, FALSE);
+		XML_Parent_t* cpp = &(s->parent[s->depth-2]);
+		if (cpp->activeChild >= 0 && cp->activeChild >= 0) {
+			DBG_VERBOSE(XML_Stack_print(s));
+			DBG_VERBOSE(printf(" - inform parent %s\n", cpp->children[cpp->activeChild].name));
+			cpp->children[cpp->activeChild].elementHandler(s,(XML_Attr_t*)cp->children[cp->activeChild].obj,cpp->children[cpp->activeChild].obj, FALSE);
 		}
-//		// child is ready, we should inform the parent node, shouldn't we?
-//		if (s->depth>1) {
-//			XML_Parent_t* cpp = &(s->parent[s->depth-2]);
-//			if (cpp->activeChild >= 0) {
-//				cpp->children[cpp->activeChild].elementHandler(s,UA_NULL,cp->children[cp->activeChild].obj, FALSE);
-//			}
-//		}
 		cp->activeChild = -1;
 	}
 	s->depth--;
