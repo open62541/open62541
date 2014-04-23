@@ -95,6 +95,6 @@ AM_COND_IF([ENABLE_DOXYGEN], [AC_CONFIG_FILES([doc/Doxyfile])])
 AC_LIBTOOL_WIN32_DLL
 AC_PROG_LIBTOOL
 AC_CONFIG_MACRO_DIR([m4])
-AC_CONFIG_FILES(Makefile include/Makefile src/Makefile tool/Makefile tests/Makefile examples/src/Makefile doc/Makefile)
+AC_CONFIG_FILES(Makefile include/Makefile src/Makefile tools/Makefile tests/Makefile examples/src/Makefile doc/Makefile)
 AC_OUTPUT
 
