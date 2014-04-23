@@ -10,7 +10,11 @@ An open-source communication stack implementation of OPC UA (OPC Unified Archite
 ### Ubuntu
 ##### Getting gcc toolchain:
 ```bash
-sudo apt-get install build-essential subversion git autoconf libtool texinfo python-lxml
+sudo apt-get install build-essential subversion git autoconf libtool texinfo python-lxml 
+```
+##### Getting toolchain for tools:
+```bash
+sudo apt-get install gperf libexpat
 ```
 ##### Getting and installing *check* as unit test framework (http://check.sourceforge.net/):
 ```bash

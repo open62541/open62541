@@ -1128,7 +1128,7 @@ UA_TYPE_END_XXCODEBINARY
 UA_TYPE_METHOD_DELETE_STRUCT(UA_DiagnosticInfo)
 UA_Int32 UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
 	UA_Int32 retval = UA_SUCCESS;
-	if (p->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO && p->innerDiagnosticInfo != UA_NULL) {
+	if ((p->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO) && p->innerDiagnosticInfo != UA_NULL) {
 		retval |= UA_DiagnosticInfo_deleteMembers(p->innerDiagnosticInfo);
 		retval |= UA_free(p->innerDiagnosticInfo);
 	}

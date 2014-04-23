@@ -4,7 +4,7 @@ AC_PREREQ(2.59)
 AC_INIT(Open62541, 1.0)
 
 AC_CANONICAL_SYSTEM
-AM_INIT_AUTOMAKE()
+AM_INIT_AUTOMAKE([subdir-objects])
 AC_PROG_MAKE_SET
 #default CFLAGS is -g -02
 #reset it just to -g and make optimization dependend on --enable-debug
