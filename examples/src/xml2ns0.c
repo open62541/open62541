@@ -116,7 +116,7 @@ UA_Int32 UA_Int32_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Int32* dst, _Bo
 		}
 		*dst = atoi(attr[1]);
 	} else {
-		// TODO: I think it is a design flaw that we need to do this here, isn't it?
+		// TODO: It is a design flaw that we need to do this here, isn't it?
 		s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = UA_NULL;
 	}
 	return UA_SUCCESS;
@@ -143,7 +143,7 @@ UA_Int32 UA_String_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_String* dst, _
 			}
 		}
 	} else {
-		// TODO: I think it is a design flaw that we need to do this here, isn't it?
+		// TODO: It is a design flaw that we need to do this here, isn't it?
 		s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = UA_NULL;
 	}
 	return UA_SUCCESS;
@@ -226,7 +226,7 @@ UA_Int32 UA_DataTypeNode_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_DataType
 			}
 		}
 	} else {
-		// TODO: I think it is a design flaw that we need to do this here, isn't it?
+		// TODO: It is a design flaw that we need to do this here, isn't it?
 		s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = UA_NULL;
 	}
 	return UA_SUCCESS;
@@ -239,6 +239,89 @@ void print_node(UA_Node const * node) {
 	}
 }
 
+typedef struct UA_NodeSetAlias_T {
+	UA_String alias;
+	UA_String value;
+} UA_NodeSetAlias;
+
+UA_Int32 UA_NodeSetAlias_new(UA_NodeSetAlias** p) {
+	UA_alloc((void**)p,sizeof(UA_NodeSetAlias));
+	UA_String_init(&((*p)->alias));
+	UA_String_init(&((*p)->value));
+	return UA_SUCCESS;
+}
+
+UA_Int32 UA_NodeSetAlias_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_NodeSetAlias* dst, _Bool isStart) {
+	if (isStart) {
+		// create if necessary
+		if (dst == UA_NULL) {
+			UA_NodeSetAlias_new(&dst);
+			s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = (void*) dst;
+		}
+		// set handlers
+		s->parent[s->depth].len = 0;
+		XML_Stack_addChildHandler(s,"Alias",(XML_decoder) UA_String_decodeXML, UA_STRING, &(dst->alias));
+		XML_Stack_addChildHandler(s,"Value",(XML_decoder) UA_String_decodeXML, UA_STRING, &(dst->value));
+		XML_Stack_handleTextAs(s,"Data",1);
+
+		// set attributes
+		UA_Int32 i;
+		for (i = 0; attr[i]; i += 2) {
+			if (0==strncmp("Alias",attr[i],strlen("Alias"))) {
+				UA_String_copycstring(attr[i+1],&(dst->alias));
+			} else if (0==strncmp("Value",attr[i],strlen("Value"))) {
+				UA_String_copycstring(attr[i+1],&(dst->value));
+			} else {
+				DBG_ERR(XML_Stack_print(s));
+				DBG_ERR(printf("%s - unknown attribute\n",attr[i]));
+			}
+		}
+	} else {
+		// sub element is ready
+		// TODO: It is a design flaw that we need to do this here, isn't it?
+		s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = UA_NULL;
+	}
+	return UA_SUCCESS;
+}
+
+typedef struct UA_NodeSetAliases_T {
+	UA_Int32 size;
+	UA_NodeSetAlias** aliases;
+} UA_NodeSetAliases;
+
+UA_Int32 UA_NodeSetAliases_new(UA_NodeSetAliases** p) {
+	UA_alloc((void**)p,sizeof(UA_NodeSetAliases));
+	(*p)->size = 0;
+	(*p)->aliases = UA_NULL;
+	return UA_SUCCESS;
+}
+
+UA_Int32 UA_NodeSetAliases_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_NodeSetAliases* dst, _Bool isStart) {
+	if (isStart) {
+		if (dst == UA_NULL) {
+			UA_NodeSetAliases_new(&dst);
+			s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = (void*) dst;
+		}
+		s->parent[s->depth].len = 0;
+		XML_Stack_addChildHandler(s,"Aliases",(XML_decoder) UA_NodeSetAlias_decodeXML, UA_INVALIDTYPE, UA_NULL);
+	} else {
+		// sub element is ready, add to array
+		if (dst->size < 0 || dst->size ==  0) {
+			dst->size = 1;
+			UA_alloc((void**)&(dst->aliases), dst->size*sizeof(UA_NodeSetAlias*));
+		} else {
+			dst->size++;
+			dst->aliases = realloc(dst->aliases,dst->size*sizeof(UA_NodeSetAlias*));
+		}
+		// index starts with 0, therefore size-1
+		dst->aliases[dst->size-1] = (UA_NodeSetAlias*) attr;
+		// TODO: It is a design flaw that we need to do this here, isn't it?
+		s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = UA_NULL;
+	}
+	return UA_SUCCESS;
+}
+
+
 UA_Int32 UA_NodeSet_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_NodeSet* dst, _Bool isStart) {
 	if (isStart) {
 		if (dst == UA_NULL) {
@@ -247,6 +330,7 @@ UA_Int32 UA_NodeSet_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_NodeSet* dst,
 		}
 		s->parent[s->depth].len = 0;
 		XML_Stack_addChildHandler(s,"UADataType",(XML_decoder)UA_DataTypeNode_decodeXML, UA_DATATYPENODE, UA_NULL);
+		XML_Stack_addChildHandler(s,"Aliases",(XML_decoder) UA_NodeSetAliases_decodeXML, UA_INVALIDTYPE, UA_NULL);
 	} else {
 		if (attr != UA_NULL) {
 			UA_Node* node = (UA_Node*) attr;
@@ -256,7 +340,7 @@ UA_Int32 UA_NodeSet_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_NodeSet* dst,
 		} else {
 			DBG_ERR(printf("nodeset endElement called with null-ptr\n"));
 		}
-		// TODO: I think it is a design flaw that we need to do this here, isn't it?
+		// TODO: It is a design flaw that we need to do this here, isn't it?
 		s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = UA_NULL;
 	}
 	return UA_SUCCESS;
