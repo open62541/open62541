@@ -95,7 +95,7 @@ UA_Int32 UA_Array_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, void* dst, _Bool i
 
 UA_Int32 UA_Int32_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Int32* dst, _Bool isStart) {
 	if (isStart) {
-		if (dst == UA_NULL) { UA_Int32_new((void**) &dst); }
+		if (dst == UA_NULL) { UA_Int32_new(&dst); }
 		*dst = atoi(attr[1]);
 	}
 	return UA_SUCCESS;
@@ -104,7 +104,7 @@ UA_Int32 UA_Int32_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Int32* dst, _Bo
 UA_Int32 UA_String_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_String* dst, _Bool isStart) {
 	UA_UInt32 i;
 	if (isStart) {
-		if (dst == UA_NULL) { UA_String_new((void**) &dst); }
+		if (dst == UA_NULL) { UA_String_new(&dst); }
 		if (s->parent[s->depth].len == 0 ) {
 			XML_Stack_addChildHandler(s,"Data",(XML_decoder)UA_Array_decodeXML, UA_BYTE, &(dst->data));
 			XML_Stack_addChildHandler(s,"Length",(XML_decoder)UA_Int32_decodeXML, UA_INT32, &(dst->length));
@@ -126,7 +126,7 @@ UA_Int32 UA_LocalizedText_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Localiz
 	UA_UInt32 i;
 	if (isStart) {
 		if (dst == UA_NULL) {
-			UA_LocalizedText_new((void**) &dst);
+			UA_LocalizedText_new(&dst);
 		}
 		if (s->parent[s->depth].len == 0 ) {
 			XML_Stack_addChildHandler(s,"Text",(XML_decoder)UA_String_decodeXML, UA_STRING, &(dst->text));
@@ -135,10 +135,10 @@ UA_Int32 UA_LocalizedText_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Localiz
 		}
 		// set attributes
 		for (i = 0; attr[i]; i += 2) {
-			if (0==strncmp("Text",attr[i],strlen("Data"))) {
+			if (0==strncmp("Text",attr[i],strlen("Text"))) {
 				UA_String_copycstring(attr[i+1],&(dst->text));
 				dst->encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
-			} else if (0==strncmp("Locale",attr[i],strlen("Data"))) {
+			} else if (0==strncmp("Locale",attr[i],strlen("Locale"))) {
 				UA_String_copycstring(attr[i+1],&(dst->locale));
 				dst->encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE;
 			} else {
@@ -165,7 +165,7 @@ UA_Int32 UA_DataTypeNode_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_DataType
 
 	if (isStart) {
 		// create a new object if called with UA_NULL
-		if (dst == UA_NULL) { UA_DataTypeNode_new((void**) &dst); }
+		if (dst == UA_NULL) { UA_DataTypeNode_new(&dst); }
 
 		// add the handlers for the child objects
 		if (s->parent[s->depth].len == 0 ) {
@@ -173,7 +173,7 @@ UA_Int32 UA_DataTypeNode_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_DataType
 			XML_Stack_addChildHandler(s,"Description",(XML_decoder)UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT, &(dst->description));
 		}
 
-		// set missing but implicit attributes
+		// set missing default attributes
 		dst->nodeClass = UA_NODECLASS_DATATYPE;
 
 		// set attributes
@@ -200,36 +200,42 @@ UA_Int32 UA_DataTypeNode_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_DataType
 UA_Int32 UA_NodeSet_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_NodeSet* dst, _Bool isStart) {
 	if (isStart) {
 		if (s->parent[s->depth].len == 0 ) {
+			// FIXME: add the other node types as well
 			XML_Stack_addChildHandler(s,"UADataType",(XML_decoder)UA_DataTypeNode_decodeXML, UA_DATATYPENODE, UA_NULL);
 		}
 	} else {
-		if (dst) {
-			// FIXME: add node to namespace
+		XML_Parent_t* cp = &(s->parent[s->depth]);
+		if (cp->activeChild >= 0) {
+			void* node = cp->children[cp->activeChild].obj;
+			// FIXME: mockup code for debugging, should actually add node to namespace
+			UA_DataTypeNode* dtn = (UA_DataTypeNode*) node;
+			printf("node.browseName=%.*s", dtn->browseName.name.length, dtn->browseName.name.data);
 		}
 	}
 	return UA_SUCCESS;
 }
 
+/** lookup if element is a known child of parent, if yes go for it otherwise ignore */
 void startElement(void * data, const char *el, const char **attr) {
-  XML_Stack_t* p = (XML_Stack_t*) data;
+  XML_Stack_t* s = (XML_Stack_t*) data;
   int i, j;
 
   // scan expected children
-  XML_Parent_t* cp = &p->parent[p->depth];
+  XML_Parent_t* cp = &s->parent[s->depth];
   for (i = 0; i < cp->len; i++) {
 	  if (0 == strncmp(cp->children[i].name,el,strlen(cp->children[i].name))) {
 		  printf("processing child ");
-		  for (j=0;j<=p->depth;j++) {
-			  printf("%s.",p->parent[j].name);
+		  for (j=0;j<=s->depth;j++) {
+			  printf("%s.",s->parent[j].name);
 		  }
 		  printf("%s\n",el);
 
 		  cp->activeChild = i;
 
-		  p->depth++;
-		  p->parent[p->depth].name = el;
-		  p->parent[p->depth].len = 0;
-		  p->parent[p->depth].textAttribIdx = -1;
+		  s->depth++;
+		  s->parent[s->depth].name = el;
+		  s->parent[s->depth].len = 0;
+		  s->parent[s->depth].textAttribIdx = -1;
 
 		  // finally call the elementHandler and return
 		  cp->children[i].elementHandler(data,attr,cp->children[i].obj, TRUE);
@@ -238,14 +244,14 @@ void startElement(void * data, const char *el, const char **attr) {
   }
   // if we come here we rejected the processing of el
   printf("rejected processing of unexpected child ");
-  for (i=0;i<=p->depth;i++) {
-	  printf("%s.",p->parent[i].name);
+  for (i=0;i<=s->depth;i++) {
+	  printf("%s.",s->parent[i].name);
   }
   printf("%s\n",el);
-  p->depth++;
-  p->parent[p->depth].name = el;
+  s->depth++;
+  s->parent[s->depth].name = el;
   // this should be sufficient to reject the children as well
-  p->parent[p->depth].len = 0;
+  s->parent[s->depth].len = 0;
 }
 
 UA_Int32 XML_isSpace(cstring_t s, int len) {
@@ -258,19 +264,21 @@ UA_Int32 XML_isSpace(cstring_t s, int len) {
 	return UA_TRUE;
 }
 
-void handleText(void * data, const char *s, int len) {
-  XML_Stack_t* p = (XML_Stack_t*) data;
+/* simulates startElement, endElement behaviour */
+void handleText(void * data, const char *txt, int len) {
+  XML_Stack_t* s = (XML_Stack_t*) data;
 
-  if (len > 0 && ! XML_isSpace(s,len)) {
-	  XML_Parent_t* cp = &(p->parent[p->depth]);
+  if (len > 0 && ! XML_isSpace(txt,len)) {
+	  XML_Parent_t* cp = &(s->parent[s->depth]);
 	  if (cp->textAttribIdx >= 0) {
 		  cp->activeChild = cp->textAttribIdx;
-		  char* buf; // need to copy s to add 0 as terminator to string
+		  char* buf; // need to copy txt to add 0 as string terminator
 		  UA_alloc((void**)&buf,len+1);
-		  strncpy(buf,s,len);
+		  strncpy(buf,txt,len);
 		  buf[len] = 0;
 		  XML_Attr_t attr[3] = { cp->textAttrib, buf, UA_NULL };
-		  cp->children[cp->activeChild].elementHandler(p,attr,cp->children[cp->activeChild].obj, TRUE);
+		  cp->children[cp->activeChild].elementHandler(s,attr,cp->children[cp->activeChild].obj, TRUE);
+		  cp->children[cp->activeChild].elementHandler(s,UA_NULL,cp->children[cp->activeChild].obj, FALSE);
 		  UA_free(buf);
 	  } else {
 		  perror("ignore text data");
@@ -278,12 +286,22 @@ void handleText(void * data, const char *s, int len) {
   }
 }
 
+/** if we are an activeChild of a parent we call the child-handler */
 void endElement(void *data, const char *el) {
 	XML_Stack_t* s = (XML_Stack_t*) data;
-	// the parent needs to know that we are finished, therefore depth-1 !
-	XML_Parent_t* cp = &(s->parent[s->depth-1]);
-	if (cp->activeChild >= 0) {
-		cp->children[cp->activeChild].elementHandler(s,UA_NULL,cp->children[cp->activeChild].obj, FALSE);
+	// the parent knows the elementHandler, therefore depth-1 !
+	if (s->depth>0) {
+		XML_Parent_t* cp = &(s->parent[s->depth-1]);
+		if (cp->activeChild >= 0) {
+			cp->children[cp->activeChild].elementHandler(s,UA_NULL,cp->children[cp->activeChild].obj, FALSE);
+		}
+//		// child is ready, we should inform the parent node, shouldn't we?
+//		if (s->depth>1) {
+//			XML_Parent_t* cpp = &(s->parent[s->depth-2]);
+//			if (cpp->activeChild >= 0) {
+//				cpp->children[cpp->activeChild].elementHandler(s,UA_NULL,cp->children[cp->activeChild].obj, FALSE);
+//			}
+//		}
 		cp->activeChild = -1;
 	}
 	s->depth--;
@@ -293,12 +311,12 @@ int main()
 {
   char buf[1024];
   int len;   /* len is the number of bytes in the current bufferful of data */
-  XML_Stack_t p;
-  XML_Stack_init(&p, "ROOT");
-  XML_Stack_addChildHandler(&p,"UANodeSet", (XML_decoder) UA_NodeSet_decodeXML, UA_INVALIDTYPE, UA_NULL);
+  XML_Stack_t s;
+  XML_Stack_init(&s, "ROOT");
+  XML_Stack_addChildHandler(&s,"UANodeSet", (XML_decoder) UA_NodeSet_decodeXML, UA_INVALIDTYPE, UA_NULL);
 
   XML_Parser parser = XML_ParserCreate(NULL);
-  XML_SetUserData(parser, &p);
+  XML_SetUserData(parser, &s);
   XML_SetElementHandler(parser, startElement, endElement);
   XML_SetCharacterDataHandler(parser, handleText);
   while ((len = read(0,buf,1024)) > 0) {
