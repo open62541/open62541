@@ -392,6 +392,16 @@ static UA_Int32 find_slot (const namespace *ns, ns_entry **slot, const UA_NodeId
 	return UA_SUCCESS;
 }
 
+UA_Int32 iterate_ns (const namespace *ns, node_visitor visitor) {
+	uint32_t i;
+	for (i=0;i<ns->size;i++) {
+		ns_entry* entry = &ns->entries[i];
+		if (entry != UA_NULL && visitor != UA_NULL)
+			visitor(entry->node);
+    }
+	return UA_SUCCESS;
+}
+
 /* Always returns an empty slot. This is inevitable if the entries are not
    completely full. */
 static ns_entry * find_empty_slot(const namespace *ns, hash_t h) {

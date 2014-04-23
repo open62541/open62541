@@ -85,6 +85,16 @@ void XML_Stack_addChildHandler(XML_Stack_t* p,cstring_t name,XML_decoder handler
 }
 
 
+typedef struct T_UA_NodeSet {
+	namespace* ns;
+} UA_NodeSet;
+
+UA_Int32 UA_NodeSet_new(UA_NodeSet** p) {
+	UA_alloc((void**)&p,sizeof(UA_NodeSet));
+	create_ns(&((*p)->ns),100);
+	return UA_SUCCESS;
+}
+
 UA_Int32 UA_NodeId_copycstring(cstring_t src,UA_NodeId* dst) {
 	dst->encodingByte = UA_NODEIDTYPE_FOURBYTE;
 	dst->namespace = 0;
@@ -93,8 +103,6 @@ UA_Int32 UA_NodeId_copycstring(cstring_t src,UA_NodeId* dst) {
 	return UA_SUCCESS;
 }
 
-typedef struct T_UA_NodeSet { int dummy; } UA_NodeSet;
-
 UA_Int32 UA_Array_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, void* dst, _Bool isStart) {
 	// FIXME: Implement
 	return UA_SUCCESS;
@@ -102,8 +110,14 @@ UA_Int32 UA_Array_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, void* dst, _Bool i
 
 UA_Int32 UA_Int32_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Int32* dst, _Bool isStart) {
 	if (isStart) {
-		if (dst == UA_NULL) { UA_Int32_new(&dst); }
+		if (dst == UA_NULL) {
+			UA_Int32_new(&dst);
+			s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = (void*) dst;
+		}
 		*dst = atoi(attr[1]);
+	} else {
+		// TODO: I think it is a design flaw that we need to do this here, isn't it?
+		s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = UA_NULL;
 	}
 	return UA_SUCCESS;
 }
@@ -111,12 +125,15 @@ UA_Int32 UA_Int32_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Int32* dst, _Bo
 UA_Int32 UA_String_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_String* dst, _Bool isStart) {
 	UA_UInt32 i;
 	if (isStart) {
-		if (dst == UA_NULL) { UA_String_new(&dst); }
-		if (s->parent[s->depth].len == 0 ) {
-			XML_Stack_addChildHandler(s,"Data",(XML_decoder)UA_Array_decodeXML, UA_BYTE, &(dst->data));
-			XML_Stack_addChildHandler(s,"Length",(XML_decoder)UA_Int32_decodeXML, UA_INT32, &(dst->length));
-			XML_Stack_handleTextAs(s,"Data",0);
+		if (dst == UA_NULL) {
+			UA_String_new(&dst);
+			s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = (void*) dst;
 		}
+		s->parent[s->depth].len = 0;
+		XML_Stack_addChildHandler(s,"Data",(XML_decoder)UA_Array_decodeXML, UA_BYTE, &(dst->data));
+		XML_Stack_addChildHandler(s,"Length",(XML_decoder)UA_Int32_decodeXML, UA_INT32, &(dst->length));
+		XML_Stack_handleTextAs(s,"Data",0);
+
 		// set attributes
 		for (i = 0; attr[i]; i += 2) {
 			if (0==strncmp("Data",attr[i],strlen("Data"))) {
@@ -125,6 +142,9 @@ UA_Int32 UA_String_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_String* dst, _
 				perror("Unknown attribute");
 			}
 		}
+	} else {
+		// TODO: I think it is a design flaw that we need to do this here, isn't it?
+		s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = UA_NULL;
 	}
 	return UA_SUCCESS;
 }
@@ -134,12 +154,13 @@ UA_Int32 UA_LocalizedText_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Localiz
 	if (isStart) {
 		if (dst == UA_NULL) {
 			UA_LocalizedText_new(&dst);
+			s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = (void*) dst;
 		}
-		if (s->parent[s->depth].len == 0 ) {
-			XML_Stack_addChildHandler(s,"Text",(XML_decoder)UA_String_decodeXML, UA_STRING, &(dst->text));
-			XML_Stack_addChildHandler(s,"Locale",(XML_decoder)UA_String_decodeXML, UA_STRING, &(dst->locale));
-			XML_Stack_handleTextAs(s,"Data",0);
-		}
+		s->parent[s->depth].len = 0;
+		XML_Stack_addChildHandler(s,"Text",(XML_decoder)UA_String_decodeXML, UA_STRING, &(dst->text));
+		XML_Stack_addChildHandler(s,"Locale",(XML_decoder)UA_String_decodeXML, UA_STRING, &(dst->locale));
+		XML_Stack_handleTextAs(s,"Data",0);
+
 		// set attributes
 		for (i = 0; attr[i]; i += 2) {
 			if (0==strncmp("Text",attr[i],strlen("Text"))) {
@@ -163,6 +184,8 @@ UA_Int32 UA_LocalizedText_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Localiz
 		default:
 			break;
 		}
+		// TODO: I think it is a design flaw that we need to do this here, isn't it?
+		s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = UA_NULL;
 	}
 	return UA_SUCCESS;
 }
@@ -177,11 +200,9 @@ UA_Int32 UA_DataTypeNode_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_DataType
 			s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = (void*) dst;
 		}
 
-		// add the handlers for the child objects
-		if (s->parent[s->depth].len == 0 ) {
-			XML_Stack_addChildHandler(s,"DisplayName",(XML_decoder)UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT, &(dst->displayName));
-			XML_Stack_addChildHandler(s,"Description",(XML_decoder)UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT, &(dst->description));
-		}
+		s->parent[s->depth].len = 0;
+		XML_Stack_addChildHandler(s,"DisplayName",(XML_decoder)UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT, &(dst->displayName));
+		XML_Stack_addChildHandler(s,"Description",(XML_decoder)UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT, &(dst->description));
 
 		// set missing default attributes
 		dst->nodeClass = UA_NODECLASS_DATATYPE;
@@ -204,24 +225,39 @@ UA_Int32 UA_DataTypeNode_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_DataType
 				DBG_ERR(printf("%s - unknown attribute\n",attr[i]));
 			}
 		}
+	} else {
+		// TODO: I think it is a design flaw that we need to do this here, isn't it?
+		s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = UA_NULL;
 	}
 	return UA_SUCCESS;
 }
 
+void print_node(UA_Node const * node) {
+	if (node != UA_NULL) {
+		UA_NodeId_printf("---------------------------\nnode.NodeId=", &(node->nodeId));
+		printf("node.browseName='%.*s'\n", node->browseName.name.length, node->browseName.name.data);
+	}
+}
+
 UA_Int32 UA_NodeSet_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_NodeSet* dst, _Bool isStart) {
 	if (isStart) {
-		if (s->parent[s->depth].len == 0 ) {
-			// FIXME: add the other node types as well
-			XML_Stack_addChildHandler(s,"UADataType",(XML_decoder)UA_DataTypeNode_decodeXML, UA_DATATYPENODE, UA_NULL);
+		if (dst == UA_NULL) {
+			UA_NodeSet_new(&dst);
+			s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = (void*) dst;
 		}
+		s->parent[s->depth].len = 0;
+		XML_Stack_addChildHandler(s,"UADataType",(XML_decoder)UA_DataTypeNode_decodeXML, UA_DATATYPENODE, UA_NULL);
 	} else {
-		// FIXME: mockup code for debugging, should actually add node to namespace
 		if (attr != UA_NULL) {
-			UA_DataTypeNode* dtn = (UA_DataTypeNode*) attr;
-			printf("node.browseName=%.*s\n", dtn->browseName.name.length, dtn->browseName.name.data);
+			UA_Node* node = (UA_Node*) attr;
+			insert_node(dst->ns, node);
+			DBG_VERBOSE(printf("Inserting "));
+			DBG_VERBOSE(print_node(node));
 		} else {
 			DBG_ERR(printf("nodeset endElement called with null-ptr\n"));
 		}
+		// TODO: I think it is a design flaw that we need to do this here, isn't it?
+		s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild].obj = UA_NULL;
 	}
 	return UA_SUCCESS;
 }
@@ -244,6 +280,7 @@ void startElement(void * data, const char *el, const char **attr) {
 		  s->parent[s->depth].name = el;
 		  s->parent[s->depth].len = 0;
 		  s->parent[s->depth].textAttribIdx = -1;
+		  s->parent[s->depth].activeChild = -1;
 
 		  // finally call the elementHandler and return
 		  cp->children[i].elementHandler(data,attr,cp->children[i].obj, TRUE);
@@ -306,10 +343,12 @@ void endElement(void *data, const char *el) {
 			DBG_VERBOSE(printf(" - inform parent %s\n", cpp->children[cpp->activeChild].name));
 			cpp->children[cpp->activeChild].elementHandler(s,(XML_Attr_t*)cp->children[cp->activeChild].obj,cpp->children[cpp->activeChild].obj, FALSE);
 		}
+		// reset
 		cp->activeChild = -1;
 	}
 	s->depth--;
 }
+
 
 int main()
 {
@@ -317,7 +356,9 @@ int main()
   int len;   /* len is the number of bytes in the current bufferful of data */
   XML_Stack_t s;
   XML_Stack_init(&s, "ROOT");
-  XML_Stack_addChildHandler(&s,"UANodeSet", (XML_decoder) UA_NodeSet_decodeXML, UA_INVALIDTYPE, UA_NULL);
+  UA_NodeSet n;
+  create_ns(&(n.ns),100);
+  XML_Stack_addChildHandler(&s,"UANodeSet", (XML_decoder) UA_NodeSet_decodeXML, UA_INVALIDTYPE, &n);
 
   XML_Parser parser = XML_ParserCreate(NULL);
   XML_SetUserData(parser, &s);
@@ -329,5 +370,7 @@ int main()
     }
   }
   XML_ParserFree(parser);
+  iterate_ns(n.ns,print_node);
+  printf("\n");
   return 0;
 }
