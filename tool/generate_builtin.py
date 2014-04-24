@@ -90,7 +90,6 @@ def createEnumerated(element):
     print("UA_TYPE_METHOD_DELETEMEMBERS_AS("+name+", UA_UInt32)", end='\n', file=fc)
     print("UA_TYPE_METHOD_INIT_AS("+name+", UA_UInt32)", end='\n', file=fc)
     print("UA_TYPE_METHOD_NEW_DEFAULT("+name+")\n", end='\n', file=fc)
-    
     return
     
 def createStructured(element):
@@ -140,6 +139,7 @@ def createStructured(element):
     print("UA_Int32 " + name + "_deleteMembers(" + name + "* p);", end='\n', file=fh)
     print("UA_Int32 " + name + "_init("+ name + " * p);", end='\n', file=fh)
     print("UA_Int32 " + name + "_new(" + name + " ** p);", end='\n', file=fh)
+    print("UA_Int32 " + name + "_copy(" + name + " ** p);", end='\n', file=fh)
 
     print("UA_Int32 "  + name + "_calcSize(" + name + " const * ptr) {", end='', file=fc)
     print("\n\tif(ptr==UA_NULL){return sizeof("+ name +");}", end='', file=fc)
@@ -241,7 +241,7 @@ def createStructured(element):
 
     # code _new
     print("UA_TYPE_METHOD_NEW_DEFAULT(" + name + ")", end='\n', file=fc)
-        
+    
 def createOpaque(element):
     name = "UA_" + element.get("Name")
     print("\n/*** " + name + " ***/", end='\n', file=fh)
