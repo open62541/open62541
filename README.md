@@ -88,8 +88,3 @@ $ make check
 * --enable-multithreading - enable pthreads (for examples/src/opcuaServerMT)
 * --enable-doxygen - make documentation as well
 * --enable-coverage - profiling with gcov,lcov, make check will generate reports in tests/coverage 
- 
-
-
-## Current Agenda
-https://docs.google.com/document/d/1hhQm5QEIGzbmlPnWCsSy0k9ZLXDpuFZaHv-3CXoMUek/edit?usp=sharing
