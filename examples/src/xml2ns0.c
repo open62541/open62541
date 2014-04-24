@@ -54,9 +54,9 @@ UA_Int32 UA_NodeSetAliases_println(cstring_t label, UA_NodeSetAliases *p) {
 	UA_Int32 i;
 	for (i = 0; i < p->size; i++) {
 		UA_NodeSetAlias* a = p->aliases[i];
-		printf("Alias addr=%p", (void*)a);
+		printf("Alias addr=%p, ", (void*)a);
 		if (a) {
-			printf("'%.*s'='%.*s", a->alias.length, a->alias.data, a->value.length, a->value.data);
+			printf("alias='%.*s', value='%.*s'", a->alias.length, a->alias.data, a->value.length, a->value.data);
 		}
 		printf("\n");
 	}
@@ -160,6 +160,22 @@ UA_Int32 UA_Array_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, void* dst, _Bool i
 	return UA_SUCCESS;
 }
 
+UA_Int32 UA_Int16_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Int16* dst, _Bool isStart) {
+	DBG_VERBOSE(printf("UA_Int32 entered with dst=%p,isStart=%d\n", (void*) dst,isStart));
+	if (isStart) {
+		if (dst == UA_NULL) {
+			UA_Int16_new(&dst);
+			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
+		}
+		*dst = atoi(attr[1]);
+	} else {
+		// TODO: It is a design flaw that we need to do this here, isn't it?
+		s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj =
+		UA_NULL;
+	}
+	return UA_SUCCESS;
+}
+
 UA_Int32 UA_Int32_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Int32* dst, _Bool isStart) {
 	DBG_VERBOSE(printf("UA_Int32 entered with dst=%p,isStart=%d\n", (void*) dst,isStart));
 	if (isStart) {
@@ -248,6 +264,37 @@ UA_Int32 UA_LocalizedText_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Localiz
 	return UA_SUCCESS;
 }
 
+UA_Int32 UA_QualifiedName_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_QualifiedName* dst, _Bool isStart) {
+	DBG_VERBOSE(printf("UA_QualifiedName entered with dst=%p,isStart=%d\n", (void*) dst,isStart));
+	UA_UInt32 i;
+	if (isStart) {
+		if (dst == UA_NULL) {
+			UA_QualifiedName_new(&dst);
+			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
+		}
+		s->parent[s->depth].len = 0;
+		XML_Stack_addChildHandler(s, "Name", (XML_decoder) UA_String_decodeXML, UA_STRING, &(dst->name));
+		XML_Stack_addChildHandler(s, "NamespaceIndex", (XML_decoder) UA_Int16_decodeXML, UA_STRING, &(dst->namespaceIndex));
+		XML_Stack_handleTextAs(s, "Data", 0);
+
+		// set attributes
+		for (i = 0; attr[i]; i += 2) {
+			if (0 == strncmp("NamespaceIndex", attr[i], strlen("NamespaceIndex"))) {
+				dst->namespaceIndex = atoi(attr[i + 1]);
+			} else if (0 == strncmp("Name", attr[i], strlen("Name"))) {
+				UA_String_copycstring(attr[i + 1], &(dst->name));
+			} else {
+				perror("Unknown attribute");
+			}
+		}
+	} else {
+		// TODO: I think it is a design flaw that we need to do this here, isn't it?
+		DBG_VERBOSE(printf("UA_LocalizedText clears %p\n", (void*) (s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj)));
+		s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL;
+	}
+	return UA_SUCCESS;
+}
+
 UA_Int32 UA_DataTypeNode_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_DataTypeNode* dst, _Bool isStart) {
 	DBG_VERBOSE(printf("UA_DataTypeNode entered with dst=%p,isStart=%d\n", (void*) dst,isStart));
 	UA_UInt32 i;
@@ -262,6 +309,7 @@ UA_Int32 UA_DataTypeNode_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_DataType
 		s->parent[s->depth].len = 0;
 		XML_Stack_addChildHandler(s, "DisplayName", (XML_decoder) UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT, &(dst->displayName));
 		XML_Stack_addChildHandler(s, "Description", (XML_decoder) UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT, &(dst->description));
+		XML_Stack_addChildHandler(s, "BrowseName", (XML_decoder) UA_QualifiedName_decodeXML, UA_QUALIFIEDNAME, &(dst->description));
 
 		// set missing default attributes
 		dst->nodeClass = UA_NODECLASS_DATATYPE;
@@ -292,10 +340,86 @@ UA_Int32 UA_DataTypeNode_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_DataType
 	return UA_SUCCESS;
 }
 
+UA_Int32 UA_VariableNode_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_VariableNode* dst, _Bool isStart) {
+	DBG_VERBOSE(printf("UA_VariableNode entered with dst=%p,isStart=%d\n", (void*) dst,isStart));
+	UA_UInt32 i;
+
+	if (isStart) {
+		// create a new object if called with UA_NULL
+		if (dst == UA_NULL) {
+			UA_VariableNode_new(&dst);
+			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
+		}
+
+		s->parent[s->depth].len = 0;
+		XML_Stack_addChildHandler(s, "DisplayName", (XML_decoder) UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT, &(dst->displayName));
+		XML_Stack_addChildHandler(s, "Description", (XML_decoder) UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT, &(dst->description));
+		// XML_Stack_addChildHandler(s, "DataType", (XML_decoder) UA_NodeId_decodeXML, UA_NODEID, &(dst->dataType));
+		XML_Stack_addChildHandler(s, "ValueRank", (XML_decoder) UA_Int32_decodeXML, UA_INT32, &(dst->valueRank));
+
+		// set missing default attributes
+		dst->nodeClass = UA_NODECLASS_VARIABLE;
+
+		// set attributes
+		for (i = 0; attr[i]; i += 2) {
+			if (0 == strncmp("NodeId", attr[i], strlen("NodeId"))) {
+				UA_NodeId_copycstring(attr[i + 1], &(dst->nodeId), s->aliases);
+			} else if (0 == strncmp("DataType", attr[i], strlen("DataType"))) {
+				UA_NodeId_copycstring(attr[i + 1], &(dst->dataType), s->aliases);
+			} else if (0 == strncmp("ValueRank", attr[i], strlen("ValueRank"))) {
+				dst->valueRank = atoi(attr[i + 1]);
+			} else if (0 == strncmp("ParentNodeId", attr[i], strlen("ParentNodeId"))) {
+				// FIXME: I do not know what to do with this parameter
+			} else if (0 == strncmp("BrowseName", attr[i], strlen("BrowseName"))) {
+				UA_String_copycstring(attr[i + 1], &(dst->browseName.name));
+				dst->browseName.namespaceIndex = 0;
+			} else if (0 == strncmp("DisplayName", attr[i], strlen("DisplayName"))) {
+				UA_String_copycstring(attr[i + 1], &(dst->displayName.text));
+				dst->displayName.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
+			} else if (0 == strncmp("Description", attr[i], strlen("Description"))) {
+				UA_String_copycstring(attr[i + 1], &(dst->description.text));
+				dst->description.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
+			} else {
+				DBG_ERR(XML_Stack_print(s));DBG_ERR(printf("%s - unknown attribute\n",attr[i]));
+			}
+		}
+	} else {
+		// TODO: It is a design flaw that we need to do this here, isn't it?
+		DBG_VERBOSE(printf("UA_DataTypeNode clears %p\n", (void*) (s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj)));
+		s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj =
+		UA_NULL;
+	}
+	return UA_SUCCESS;
+}
+
 void print_node(UA_Node const * node) {
 	if (node != UA_NULL) {
-		UA_NodeId_printf("---------------------------\nnode.NodeId=", &(node->nodeId));
-		printf("node.browseName='%.*s'\n", node->browseName.name.length, node->browseName.name.data);
+		UA_NodeId_printf("--- node.NodeId=", &(node->nodeId));
+		printf("\t.browseName='%.*s'\n", node->browseName.name.length, node->browseName.name.data);
+		printf("\t.DisplayName='%.*s'\n", node->displayName.text.length, node->displayName.text.data);
+		printf("\t.Description='%.*s%s'\n", node->description.text.length > 40 ? 40 : node->description.text.length, node->description.text.data, node->description.text.length > 40 ? "..." : "");
+		printf("\t.nodeClass=%d\n", node->nodeClass );
+		printf("\t.writeMask=%d\n", node->writeMask );
+		printf("\t.userWriteMask=%d\n", node->userWriteMask );
+		printf("\t.referencesSize=%d\n", node->referencesSize );
+		switch (node->nodeClass) {
+		case UA_NODECLASS_VARIABLE:
+			{
+				UA_VariableNode const * p = (UA_VariableNode const *) node;
+				printf("\t----- UA_VariableNode ----- \n");
+				UA_NodeId_printf("\t.dataType=", &(p->dataType));
+				printf("\t.valueRank=%d\n", p->valueRank );
+				printf("\t.accessLevel=%d\n", p->accessLevel );
+				printf("\t.userAccessLevel=%d\n", p->userAccessLevel );
+				printf("\t.arrayDimensionsSize=%d\n", p->arrayDimensionsSize );
+				printf("\t.minimumSamplingInterval=%f\n", p->minimumSamplingInterval );
+				printf("\t.historizing=%d\n", p->historizing);
+			}
+			break;
+		// case UA_NODECLASS_DATATYPE:
+		default:
+			break;
+		}
 	}
 }
 
@@ -374,6 +498,7 @@ UA_Int32 UA_NodeSet_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_NodeSet* dst,
 		s->parent[s->depth].len = 0;
 		XML_Stack_addChildHandler(s, "Aliases", (XML_decoder) UA_NodeSetAliases_decodeXML, UA_INVALIDTYPE, &(dst->aliases));
 		XML_Stack_addChildHandler(s, "UADataType", (XML_decoder) UA_DataTypeNode_decodeXML, UA_DATATYPENODE, UA_NULL);
+		XML_Stack_addChildHandler(s, "UAVariable", (XML_decoder) UA_VariableNode_decodeXML, UA_VARIABLENODE, UA_NULL);
 	} else {
 		switch (s->parent[s->depth - 1].activeChild) {
 		case 0: // Aliases
@@ -384,6 +509,7 @@ UA_Int32 UA_NodeSet_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_NodeSet* dst,
 			}
 			break;
 		case 1:
+		case 2:
 			if (attr != UA_NULL) {
 				UA_Node* node = (UA_Node*) attr;
 				DBG_VERBOSE(printf("finished node: node=%p\n",(void*)node));
@@ -456,9 +582,10 @@ void XML_Stack_handleText(void * data, const char *txt, int len) {
 			UA_alloc((void** )&buf, len + 1);
 			strncpy(buf, txt, len);
 			buf[len] = 0;
-			// XML_Attr_t attr[3] = { cp->textAttrib, buf, UA_NULL };
-			// DBG_VERBOSE(printf("handleText calls start elementHandler %s with dst=%p, attr=%p\n", cp->children[cp->activeChild].name, cp->children[cp->activeChild].obj, (void*) attr));
-			// cp->children[cp->activeChild].elementHandler(s, attr, cp->children[cp->activeChild].obj, TRUE);
+			XML_Attr_t attr[3] = { cp->textAttrib, buf, UA_NULL };
+			DBG_VERBOSE(printf("handleText calls start elementHandler %s with dst=%p, attr=%p\n", cp->children[cp->activeChild].name, cp->children[cp->activeChild].obj, (void*) attr));
+			cp->children[cp->activeChild].elementHandler(s, attr, cp->children[cp->activeChild].obj, TRUE);
+			// FIXME: The indices of this call are simply wrong, so no finishing as of yet
 			// DBG_VERBOSE(printf("handleText calls finish elementHandler %s with dst=%p, attr=(nil)\n", cp->children[cp->activeChild].name, cp->children[cp->activeChild].obj));
 			// cp->children[cp->activeChild].elementHandler(s, UA_NULL, cp->children[cp->activeChild].obj, FALSE);
 			UA_free(buf);
@@ -507,7 +634,7 @@ int main() {
 	}
 	XML_ParserFree(parser);
 	iterate_ns(n.ns, print_node);
-	DBG_VERBOSE(printf("aliases addr=%p\n",(void*)&(n.aliases)));
-	DBG_VERBOSE(UA_NodeSetAliases_println("aliases in nodeset: ",&n.aliases));
+	printf("aliases addr=%p, size=%d\n",(void*)&(n.aliases),n.aliases.size);
+	UA_NodeSetAliases_println("aliases in nodeset: ",&n.aliases);
 	return 0;
 }

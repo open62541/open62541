@@ -841,7 +841,7 @@ void UA_NodeId_printf(char* label, const UA_NodeId* node) {
 	case UA_NODEIDTYPE_TWOBYTE:
 	case UA_NODEIDTYPE_FOURBYTE:
 	case UA_NODEIDTYPE_NUMERIC:
-		printf("identifier=%d\n", node->identifier.numeric);
+		printf("identifier=%d", node->identifier.numeric);
 		break;
 	case UA_NODEIDTYPE_STRING:
 		l = ( node->identifier.string.length < 0 ) ? 0 : node->identifier.string.length;
