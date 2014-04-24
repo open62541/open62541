@@ -111,17 +111,20 @@ START_TEST (decodeScalarBasicTypeFromRandomBufferShallSucceed)
 	UA_ByteString msg1;
 	UA_Int32 retval, buflen;
 	buflen = 256;
-	retval = UA_[_i].new(&obj1);
 	UA_ByteString_newMembers(&msg1,buflen); // fixed size
-	srandom(42); // use the same random number sequence throughout
-	UA_Int32 i; for(i=0;i<buflen;i++) { msg1.data[i] = (UA_Byte) random(); }
-	// when
-	UA_Int32 pos = 0;
-	retval = UA_[_i].decodeBinary(&msg1, &pos, obj1);
-	//then
-	ck_assert_msg(retval==UA_SUCCESS,"Decoding %s from random buffer",UA_[_i].name);
-	// finally
-	UA_[_i].delete(obj1);
+	srandom(42);
+	retval = UA_SUCCESS;
+	for(int n=0;n<100;n++) {
+		retval |= UA_[_i].new(&obj1);
+		UA_Int32 i; for(i=0;i<buflen;i++) { msg1.data[i] = (UA_Byte) random(); }
+		// when
+		UA_Int32 pos = 0;
+		retval |= UA_[_i].decodeBinary(&msg1, &pos, obj1);
+		//then
+		ck_assert_msg(retval==UA_SUCCESS,"Decoding %s from random buffer",UA_[_i].name);
+		// finally
+		UA_[_i].delete(obj1);
+	}
 	UA_ByteString_deleteMembers(&msg1);
 }
 END_TEST
@@ -133,17 +136,20 @@ START_TEST (decodeComplexTypeFromRandomBufferShallSurvive)
 	UA_ByteString msg1;
 	UA_Int32 retval, buflen;
 	buflen = 256;
-	retval = UA_[_i].new(&obj1);
 	UA_ByteString_newMembers(&msg1,buflen); // fixed size
-	srandom(42); // use the same random number sequence throughout
-	UA_Int32 i; for(i=0;i<buflen;i++) { msg1.data[i] = (UA_Byte) random(); }
-	// when
-	UA_Int32 pos = 0;
-	retval = UA_[_i].decodeBinary(&msg1, &pos, obj1);
-	//then
-	ck_assert_msg(retval==UA_SUCCESS||retval==UA_ERROR,"Decoding %s from random buffer",UA_[_i].name);
-	// finally
-	UA_[_i].delete(obj1);
+	srandom(42);
+	retval = UA_SUCCESS;
+	for(int n=0;n<100;n++) {
+		retval |= UA_[_i].new(&obj1);
+		UA_Int32 i; for(i=0;i<buflen;i++) { msg1.data[i] = (UA_Byte) random(); }
+		// when
+		UA_Int32 pos = 0;
+		retval |= UA_[_i].decodeBinary(&msg1, &pos, obj1);
+		//then
+		ck_assert_msg(retval==UA_SUCCESS||retval==UA_ERROR,"Decoding %s from random buffer",UA_[_i].name);
+		// finally
+		UA_[_i].delete(obj1);
+	}
 	UA_ByteString_deleteMembers(&msg1);
 }
 END_TEST
