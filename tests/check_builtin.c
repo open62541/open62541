@@ -1472,6 +1472,15 @@ START_TEST(UA_DateTime_toStingShallWorkOnExample)
 	ck_assert_int_eq(dst.data[4], '4');
 }
 END_TEST
+START_TEST(UA_Byte_copyShallWorkOnExample)
+{
+	UA_Byte *dst = UA_NULL;
+	UA_Byte value = 13;
+
+	UA_Byte_copy(dst,&value);
+	ck_assert_uint_eq(*dst, value);
+}
+END_TEST
 
 Suite *testSuite_builtin(void)
 {
@@ -1585,6 +1594,8 @@ Suite *testSuite_builtin(void)
 	tcase_add_test(tc_convert, UA_DateTime_toStingShallWorkOnExample);
 	suite_add_tcase(s,tc_convert);
 
+	TCase *tc_copy = tcase_create("copy");
+	tcase_add_test(tc_copy, UA_Byte_copyShallWorkOnExample);
 	return s;
 }
 

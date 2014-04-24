@@ -98,7 +98,8 @@ UA_Int32 UA_Array_copy(void const * const *src,UA_Int32 noElements, UA_Int32 typ
 	UA_Int32 TYPE##_delete(TYPE * p);									\
 	UA_Int32 TYPE##_deleteMembers(TYPE * p);							\
 	UA_Int32 TYPE##_init(TYPE * p);										\
-	UA_Int32 TYPE##_new(TYPE ** p);
+	UA_Int32 TYPE##_new(TYPE ** p); 									\
+
 
 
 #define UA_TYPE_METHOD_CALCSIZE_SIZEOF(TYPE) \
@@ -120,7 +121,13 @@ UA_Int32 TYPE##_delete(TYPE *p) { \
 	retval |= UA_free(p); \
 	return retval; \
 }
-
+#define UA_TYPE_METHOD_COPY(TYPE) \
+UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst){ \
+	UA_Int32 retval = UA_SUCCESS; \
+	retval |= UA_alloc((void**)&dst, TYPE##_calcSize(UA_NULL)); \
+	retval |= UA_memcpy(dst, src, TYPE##_calcSize(UA_NULL)); \
+	return retval; \
+}
 #define UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(TYPE) \
 UA_Int32 TYPE##_deleteMembers(TYPE * p) { return UA_SUCCESS; }
 
@@ -165,6 +172,10 @@ UA_Int32 TYPE##_init(TYPE * p){ \
 	*p = (TYPE)0;\
 	return UA_SUCCESS;\
 }
+#define UA_TYPE_COPY_METHOD_PROTOTYPE(TYPE) \
+ UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst);
+
+
 
 /*** Prototypes for basic types **/
 UA_TYPE_METHOD_PROTOTYPES (UA_Boolean)
@@ -179,6 +190,17 @@ UA_TYPE_METHOD_PROTOTYPES (UA_UInt64)
 UA_TYPE_METHOD_PROTOTYPES (UA_Float)
 UA_TYPE_METHOD_PROTOTYPES (UA_Double)
 
+UA_TYPE_COPY_METHOD_PROTOTYPE(UA_Boolean)
+UA_TYPE_COPY_METHOD_PROTOTYPE(UA_Byte)
+UA_TYPE_COPY_METHOD_PROTOTYPE(UA_SByte)
+UA_TYPE_COPY_METHOD_PROTOTYPE(UA_Int16)
+UA_TYPE_COPY_METHOD_PROTOTYPE (UA_UInt16)
+UA_TYPE_COPY_METHOD_PROTOTYPE(UA_Int32)
+UA_TYPE_COPY_METHOD_PROTOTYPE(UA_UInt32)
+UA_TYPE_COPY_METHOD_PROTOTYPE (UA_Int64)
+UA_TYPE_COPY_METHOD_PROTOTYPE (UA_UInt64)
+UA_TYPE_COPY_METHOD_PROTOTYPE(UA_Float)
+UA_TYPE_COPY_METHOD_PROTOTYPE (UA_Double)
 /**
 * StatusCodeBinaryEncoding
 * Part: 6
