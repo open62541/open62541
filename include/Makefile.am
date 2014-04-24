@@ -1,4 +1,4 @@
-TOOL_DIR = ../tool
+TOOL_DIR = ../tools
 
 all-local: opcua.h ua_namespace_0.h
 

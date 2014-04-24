@@ -56,6 +56,9 @@ UA_Int32 get_writable_node(namespace const *ns, const UA_NodeId *nodeid, UA_Node
 UA_Int32 get_tc_node(namespace *ns, transaction_context *tc, const UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock);
 UA_Int32 get_tc_writable_node(namespace *ns, transaction_context *tc, const UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock); // use only for _single_ writes.
 
+typedef void (*node_visitor)(UA_Node const * node);
+UA_Int32 iterate_ns(const namespace *ns, node_visitor visitor);
+
 // inline void release_node(ns_lock *lock);
 // portable solution, see http://www.greenend.org.uk/rjk/tech/inline.html
 static inline void release_node(ns_lock *lock) {

@@ -20,7 +20,7 @@ endif
 export GLOBAL_AM_CFLAGS = $(AM_CFLAGS)
 export GLOBAL_AM_LDADD = $(AM_LDADD)
 
-SUBS=tool include src
+SUBS=tools include src
 if HAVE_CHECK
 	SUBS+= tests
 endif

@@ -4,7 +4,7 @@ AC_PREREQ(2.59)
 AC_INIT(Open62541, 1.0)
 
 AC_CANONICAL_SYSTEM
-AM_INIT_AUTOMAKE()
+AM_INIT_AUTOMAKE([subdir-objects])
 AC_PROG_MAKE_SET
 #default CFLAGS is -g -02
 #reset it just to -g and make optimization dependend on --enable-debug
@@ -16,6 +16,7 @@ AC_PROG_CC
 AC_PROG_LN_S
 AM_PROG_CC_C_O
 AC_CHECK_LIB([m],[exp],,AC_MSG_ERROR([Libm missing]))
+AC_CHECK_LIB([expat],[XML_Parse],,AC_MSG_ERROR([Libexpat missing]))
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.12],[have_check="yes"],AC_MSG_WARN([Check not found or check version lower than 0.9.12; cannot run unit tests!])
 [have_check="no"])
 AM_CONDITIONAL([HAVE_CHECK], [test x"$have_check" = "xyes"])
@@ -95,6 +96,6 @@ AM_COND_IF([ENABLE_DOXYGEN], [AC_CONFIG_FILES([doc/Doxyfile])])
 AC_LIBTOOL_WIN32_DLL
 AC_PROG_LIBTOOL
 AC_CONFIG_MACRO_DIR([m4])
-AC_CONFIG_FILES(Makefile include/Makefile src/Makefile tool/Makefile tests/Makefile examples/src/Makefile doc/Makefile)
+AC_CONFIG_FILES(Makefile include/Makefile src/Makefile tools/Makefile tests/Makefile examples/src/Makefile doc/Makefile)
 AC_OUTPUT
 

@@ -2,7 +2,7 @@
 AM_CFLAGS = $(GLOBAL_AM_CFLAGS) -I$(top_builddir)/include -I$(top_builddir)/src -I. -I$(top_builddir)/src/util
 
 
-TOOL_DIR = ../tool
+TOOL_DIR = ../tools
 #__top_builddir__bin_stackTest_out_SOURCES =	opcuaServer.c\
 #											opcua_builtInDatatypes.c\
 #											opcua_binaryEncDec.c\
