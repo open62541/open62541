@@ -12,8 +12,7 @@ fi
 # E.g. when indenting to the opening braces of an argument list.
 
 indent \
---line-length120 \
---comment-line-length100 \
+--line-length100 \
 --indent-level4 \
 --use-tabs \
 --tab-size4 \
