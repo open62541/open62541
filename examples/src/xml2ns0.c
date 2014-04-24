@@ -200,7 +200,7 @@ void XML_Stack_print(XML_Stack_t* s) {
 }
 
 // FIXME: we might want to calculate textAttribIdx
-void XML_Stack_handleTextAs(XML_Stack_t* p, cstring_t textAttrib, unsigned int textAttribIdx) {
+void XML_Stack_handleTextAsElementOf(XML_Stack_t* p, cstring_t textAttrib, unsigned int textAttribIdx) {
 	p->parent[p->depth].textAttrib = textAttrib;
 	p->parent[p->depth].textAttribIdx = textAttribIdx;
 }
@@ -293,7 +293,7 @@ UA_Int32 UA_String_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_String* dst, _
 		s->parent[s->depth].len = 0;
 		XML_Stack_addChildHandler(s, "Data", (XML_decoder) UA_Array_decodeXML, UA_BYTE, &(dst->data));
 		XML_Stack_addChildHandler(s, "Length", (XML_decoder) UA_Int32_decodeXML, UA_INT32, &(dst->length));
-		XML_Stack_handleTextAs(s, "Data", 0);
+		XML_Stack_handleTextAsElementOf(s, "Data", 0);
 
 		// set attributes
 		for (i = 0; attr[i]; i += 2) {
@@ -324,7 +324,8 @@ UA_Int32 UA_NodeId_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_NodeId* dst, _
 		s->parent[s->depth].len = 0;
 		XML_Stack_addChildHandler(s, "Namespace", (XML_decoder) UA_Int16_decodeXML, UA_INT16, &(dst->namespace));
 		XML_Stack_addChildHandler(s, "Numeric", (XML_decoder) UA_Int32_decodeXML, UA_INT32, &(dst->identifier.numeric));
-		XML_Stack_handleTextAs(s, "Numeric", 1);
+		XML_Stack_addChildHandler(s, "Id", (XML_decoder) UA_String_decodeXML, UA_STRING, UA_NULL);
+		XML_Stack_handleTextAsElementOf(s, "Data", 2);
 
 		// set attributes
 		for (i = 0; attr[i]; i += 2) {
@@ -338,6 +339,13 @@ UA_Int32 UA_NodeId_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_NodeId* dst, _
 			}
 		}
 	} else {
+		switch (s->parent[s->depth - 1].activeChild) {
+		case 2:
+			UA_NodeId_copycstring((cstring_t)((UA_String*)attr)->data,dst,s->aliases);
+			break;
+		default:
+			break;
+		}
 		// TODO: It is a design flaw that we need to do this here, isn't it?
 		DBG_VERBOSE(
 				printf("UA_String clears %p\n",
@@ -359,7 +367,8 @@ UA_Int32 UA_ExpandedNodeId_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Expand
 		XML_Stack_addChildHandler(s, "Namespace", (XML_decoder) UA_Int16_decodeXML, UA_INT16, &(dst->nodeId.namespace));
 		XML_Stack_addChildHandler(s, "Numeric", (XML_decoder) UA_Int32_decodeXML, UA_INT32,
 				&(dst->nodeId.identifier.numeric));
-		XML_Stack_handleTextAs(s, "NodeId", 0);
+		XML_Stack_addChildHandler(s, "Id", (XML_decoder) UA_String_decodeXML, UA_STRING, UA_NULL);
+		XML_Stack_handleTextAsElementOf(s, "Data", 3);
 
 		// set attributes
 		for (i = 0; attr[i]; i += 2) {
@@ -394,7 +403,7 @@ UA_Int32 UA_LocalizedText_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Localiz
 		s->parent[s->depth].len = 0;
 		XML_Stack_addChildHandler(s, "Text", (XML_decoder) UA_String_decodeXML, UA_STRING, &(dst->text));
 		XML_Stack_addChildHandler(s, "Locale", (XML_decoder) UA_String_decodeXML, UA_STRING, &(dst->locale));
-		XML_Stack_handleTextAs(s, "Data", 0);
+		XML_Stack_handleTextAsElementOf(s, "Data", 0);
 
 		// set attributes
 		for (i = 0; attr[i]; i += 2) {
@@ -440,7 +449,7 @@ UA_Int32 UA_QualifiedName_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Qualifi
 		XML_Stack_addChildHandler(s, "Name", (XML_decoder) UA_String_decodeXML, UA_STRING, &(dst->name));
 		XML_Stack_addChildHandler(s, "NamespaceIndex", (XML_decoder) UA_Int16_decodeXML, UA_STRING,
 				&(dst->namespaceIndex));
-		XML_Stack_handleTextAs(s, "Data", 0);
+		XML_Stack_handleTextAsElementOf(s, "Data", 0);
 
 		// set attributes
 		for (i = 0; attr[i]; i += 2) {
@@ -476,7 +485,7 @@ UA_Int32 UA_ReferenceNode_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Referen
 				&(dst->referenceTypeId));
 		XML_Stack_addChildHandler(s, "IsForward", (XML_decoder) UA_Boolean_decodeXML, UA_STRING, &(dst->isInverse));
 		XML_Stack_addChildHandler(s, "Target", (XML_decoder) UA_ExpandedNodeId_decodeXML, UA_STRING, &(dst->targetId));
-		XML_Stack_handleTextAs(s, "Target", 2);
+		XML_Stack_handleTextAsElementOf(s, "NodeId", 2);
 
 		// set attributes
 		UA_Int32 i;
@@ -723,7 +732,7 @@ UA_Int32 UA_NodeSetAlias_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_NodeSetA
 		s->parent[s->depth].len = 0;
 		XML_Stack_addChildHandler(s, "Alias", (XML_decoder) UA_String_decodeXML, UA_STRING, &(dst->alias));
 		XML_Stack_addChildHandler(s, "Value", (XML_decoder) UA_String_decodeXML, UA_STRING, &(dst->value));
-		XML_Stack_handleTextAs(s, "Data", 1);
+		XML_Stack_handleTextAsElementOf(s, "Data", 1);
 
 		// set attributes
 		UA_Int32 i;
