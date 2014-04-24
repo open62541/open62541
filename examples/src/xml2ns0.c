@@ -35,6 +35,34 @@ UA_Int32 UA_NodeSetAlias_new(UA_NodeSetAlias** p) {
 	UA_NodeSetAlias_init(*p);
 	return UA_SUCCESS;
 }
+/* References */
+typedef struct UA_NodeSetReferences_T {
+	UA_Int32 size;
+	UA_ReferenceNode** references;
+} UA_NodeSetReferences;
+UA_Int32 UA_NodeSetReferences_init(UA_NodeSetReferences* p) {
+	p->size = -1;
+	p->references = UA_NULL;
+	return UA_SUCCESS;
+}
+UA_Int32 UA_NodeSetReferences_new(UA_NodeSetReferences** p) {
+	UA_alloc((void** )p, sizeof(UA_NodeSetReferences));
+	UA_NodeSetReferences_init(*p);
+	return UA_SUCCESS;
+}
+UA_Int32 UA_NodeSetReferences_println(cstring_t label, UA_NodeSetReferences *p) {
+	UA_Int32 i;
+	for (i = 0; i < p->size; i++) {
+		UA_ReferenceNode* a = p->references[i];
+		printf("References addr=%p, ", (void*) a);
+		if (a) {
+			printf("referenceType=%d, target=%d, isInverse=%d", a->referenceTypeId.identifier.numeric, a->targetId.nodeId.identifier.numeric, a->isInverse);
+		}
+		printf("\n");
+	}
+	return UA_SUCCESS;
+}
+
 /* The current set of aliases */
 typedef struct UA_NodeSetAliases_T {
 	UA_Int32 size;
@@ -95,6 +123,16 @@ UA_Int32 UA_NodeId_copycstring(cstring_t src, UA_NodeId* dst, UA_NodeSetAliases*
 		}
 	}
 	DBG_VERBOSE(printf("UA_NodeId_copycstring src=%s,id=%d\n", src, dst->identifier.numeric));
+	return UA_SUCCESS;
+}
+
+UA_Int32 UA_ExpandedNodeId_copycstring(cstring_t src, UA_ExpandedNodeId* dst, UA_NodeSetAliases* aliases) {
+	dst->nodeId.encodingByte = UA_NODEIDTYPE_FOURBYTE;
+	dst->nodeId.namespace = 0;
+	dst->nodeId.identifier.numeric = 0;
+	// FIXME: assumes i=nnnn, does not care for aliases as of now
+	UA_NodeId_copycstring(src,&(dst->nodeId), aliases);
+	DBG_VERBOSE(printf("UA_ExpandedNodeId_copycstring src=%s,id=%d\n", src, dst->nodeId.identifier.numeric));
 	return UA_SUCCESS;
 }
 
@@ -171,6 +209,37 @@ UA_Int32 UA_Array_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, void* dst, _Bool i
 	return UA_SUCCESS;
 }
 
+UA_Int32 UA_Boolean_copycstring(cstring_t src, UA_Boolean* dst) {
+	*dst = UA_FALSE;
+	if (0==strncmp(src,"true",4) || 0==strncmp(src,"TRUE",4)) {
+		*dst = UA_TRUE;
+	}
+	return UA_SUCCESS;
+}
+UA_Int32 UA_Boolean_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Boolean* dst, _Bool isStart) {
+	DBG_VERBOSE(printf("UA_Boolean entered with dst=%p,isStart=%d\n", (void* ) dst, isStart));
+	if (isStart) {
+		if (dst == UA_NULL) {
+			UA_Boolean_new(&dst);
+			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
+		}
+		UA_Boolean_copycstring((cstring_t) attr[1], dst);
+	} else {
+		// TODO: It is a design flaw that we need to do this here, isn't it?
+		s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj =
+		UA_NULL;
+	}
+	return UA_SUCCESS;
+}
+
+UA_Int32 UA_Int16_copycstring(cstring_t src, UA_Int16* dst) {
+	*dst = atoi(src);
+	return UA_SUCCESS;
+}
+UA_Int32 UA_UInt16_copycstring(cstring_t src, UA_UInt16* dst) {
+	*dst = atoi(src);
+	return UA_SUCCESS;
+}
 UA_Int32 UA_Int16_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Int16* dst, _Bool isStart) {
 	DBG_VERBOSE(printf("UA_Int32 entered with dst=%p,isStart=%d\n", (void* ) dst, isStart));
 	if (isStart) {
@@ -178,7 +247,7 @@ UA_Int32 UA_Int16_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_Int16* dst, _Bo
 			UA_Int16_new(&dst);
 			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
 		}
-		*dst = atoi(attr[1]);
+		UA_Int16_copycstring((cstring_t)attr[1],dst);
 	} else {
 		// TODO: It is a design flaw that we need to do this here, isn't it?
 		s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj =
@@ -220,6 +289,75 @@ UA_Int32 UA_String_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_String* dst, _
 		for (i = 0; attr[i]; i += 2) {
 			if (0 == strncmp("Data", attr[i], strlen("Data"))) {
 				UA_String_copycstring(attr[i + 1], dst);
+			} else {
+				perror("Unknown attribute");
+			}
+		}
+	} else {
+		// TODO: It is a design flaw that we need to do this here, isn't it?
+		DBG_VERBOSE(
+				printf("UA_String clears %p\n",
+						(void* ) (s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj)));
+		s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL;
+	}
+	return UA_SUCCESS;
+}
+
+UA_Int32 UA_NodeId_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_NodeId* dst, _Bool isStart) {
+	DBG_VERBOSE(printf("UA_NodeId entered with dst=%p,isStart=%d\n", (void* ) dst, isStart));
+	UA_UInt32 i;
+	if (isStart) {
+		if (dst == UA_NULL) {
+			UA_NodeId_new(&dst);
+			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
+		}
+		s->parent[s->depth].len = 0;
+		XML_Stack_addChildHandler(s, "Namespace", (XML_decoder) UA_Int16_decodeXML, UA_INT16, &(dst->namespace));
+		XML_Stack_addChildHandler(s, "Numeric", (XML_decoder) UA_Int32_decodeXML, UA_INT32, &(dst->identifier.numeric));
+		XML_Stack_handleTextAs(s, "Numeric", 1);
+
+		// set attributes
+		for (i = 0; attr[i]; i += 2) {
+			if (0 == strncmp("Namespace", attr[i], strlen("Namespace"))) {
+				dst->namespace = atoi(attr[i+1]);
+			} else if (0 == strncmp("Numeric", attr[i], strlen("Numeric"))) {
+				dst->identifier.numeric = atoi(attr[i+1]);
+				dst->encodingByte = UA_NODEIDTYPE_FOURBYTE;
+			} else {
+				perror("Unknown attribute");
+			}
+		}
+	} else {
+		// TODO: It is a design flaw that we need to do this here, isn't it?
+		DBG_VERBOSE(
+				printf("UA_String clears %p\n",
+						(void* ) (s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj)));
+		s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL;
+	}
+	return UA_SUCCESS;
+}
+UA_Int32 UA_ExpandedNodeId_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_ExpandedNodeId* dst, _Bool isStart) {
+	DBG_VERBOSE(printf("UA_ExpandedNodeId entered with dst=%p,isStart=%d\n", (void* ) dst, isStart));
+	UA_UInt32 i;
+	if (isStart) {
+		if (dst == UA_NULL) {
+			UA_ExpandedNodeId_new(&dst);
+			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
+		}
+		s->parent[s->depth].len = 0;
+		XML_Stack_addChildHandler(s, "NodeId", (XML_decoder) UA_NodeId_decodeXML, UA_NODEID, &(dst->nodeId));
+		XML_Stack_addChildHandler(s, "Namespace", (XML_decoder) UA_Int16_decodeXML, UA_INT16, &(dst->nodeId.namespace));
+		XML_Stack_addChildHandler(s, "Numeric", (XML_decoder) UA_Int32_decodeXML, UA_INT32, &(dst->nodeId.identifier.numeric));
+		XML_Stack_handleTextAs(s, "NodeId", 0);
+
+		// set attributes
+		for (i = 0; attr[i]; i += 2) {
+			if (0 == strncmp("Namespace", attr[i], strlen("Namespace"))) {
+				UA_UInt16_copycstring((cstring_t) attr[i+1], &(dst->nodeId.namespace));
+			} else if (0 == strncmp("Numeric", attr[i], strlen("Numeric"))) {
+				UA_NodeId_copycstring((cstring_t) attr[i+1], &(dst->nodeId), s->aliases);
+			} else if (0 == strncmp("NodeId", attr[i], strlen("NodeId"))) {
+				UA_NodeId_copycstring((cstring_t) attr[i+1], &(dst->nodeId), s->aliases);
 			} else {
 				perror("Unknown attribute");
 			}
@@ -449,6 +587,46 @@ void print_node(UA_Node const * node) {
 		}
 	}
 }
+
+UA_Int32 UA_ReferenceNode_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_ReferenceNode* dst, _Bool isStart) {
+	DBG_VERBOSE(printf("UA_ReferenceNode_decodeXML entered with dst=%p,isStart=%d\n", (void* ) dst, isStart));
+	if (isStart) {
+		// create if necessary
+		if (dst == UA_NULL) {
+			UA_ReferenceNode_new(&dst);
+			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
+		}
+		// set handlers
+		s->parent[s->depth].len = 0;
+		XML_Stack_addChildHandler(s, "ReferenceType", (XML_decoder) UA_NodeId_decodeXML, UA_STRING, &(dst->referenceTypeId));
+		XML_Stack_addChildHandler(s, "IsForward", (XML_decoder) UA_Boolean_decodeXML, UA_STRING, &(dst->isInverse));
+		XML_Stack_addChildHandler(s, "Target", (XML_decoder) UA_ExpandedNodeId_decodeXML, UA_STRING, &(dst->targetId));
+		XML_Stack_handleTextAs(s, "Target", 2);
+
+		// set attributes
+		UA_Int32 i;
+		for (i = 0; attr[i]; i += 2) {
+			if (0 == strncmp("ReferenceType", attr[i], strlen("ReferenceType"))) {
+				UA_NodeId_copycstring(attr[i + 1], &(dst->referenceTypeId), s->aliases);
+			} else if (0 == strncmp("IsForward", attr[i], strlen("IsForward"))) {
+				UA_Boolean_copycstring(attr[i + 1], &(dst->isInverse));
+			} else 	if (0 == strncmp("Target", attr[i], strlen("Target"))) {
+				UA_ExpandedNodeId_copycstring(attr[i + 1], &(dst->targetId), s->aliases);
+			} else {
+				DBG_ERR(XML_Stack_print(s));DBG_ERR(printf("%s - unknown attribute\n", attr[i]));
+			}
+		}
+	} else {
+		// sub element is ready
+		// TODO: It is a design flaw that we need to do this here, isn't it?
+		DBG_VERBOSE(
+				printf("UA_ReferenceNode clears %p\n",
+						(void* ) (s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj)));
+		s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL;
+	}
+	return UA_SUCCESS;
+}
+
 
 UA_Int32 UA_NodeSetAlias_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_NodeSetAlias* dst, _Bool isStart) {
 	DBG_VERBOSE(printf("UA_NodeSetAlias entered with dst=%p,isStart=%d\n", (void* ) dst, isStart));
