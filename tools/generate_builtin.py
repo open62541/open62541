@@ -73,10 +73,10 @@ def createEnumerated(element):
     valuemap = OrderedDict()
     name = "UA_" + element.get("Name")
     enum_types.append(name)
-    print("\n/*** " + name + " ***/", end='\n', file=fh)
+    print("\n/** @name UA_" + name + " */", end='\n', file=fh)
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
-            print("/* " + child.text + " */", end='\n', file=fh)
+            print("/** @brief " + child.text + " */", end='\n', file=fh)
         if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
             valuemap[name + "_" + child.get("Name")] = child.get("Value")
     valuemap = OrderedDict(sorted(valuemap.iteritems(), key=lambda (k,v): int(v)))
@@ -96,7 +96,7 @@ def createEnumerated(element):
 def createStructured(element):
     valuemap = OrderedDict()
     name = "UA_" + element.get("Name")
-    print("\n/*** " + name + " ***/", end='\n', file=fh)
+    print("\n/** @name UA_" + name + " */", end='\n', file=fh)
 
     lengthfields = set()
     for child in element:
@@ -105,7 +105,7 @@ def createStructured(element):
     
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
-            print("/* " + child.text + " */", end='\n', file=fh)
+            print("/** @brief " + child.text + " */", end='\n', file=fh)
         elif child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
             if child.get("Name") in lengthfields:
                 continue
@@ -244,10 +244,10 @@ def createStructured(element):
         
 def createOpaque(element):
     name = "UA_" + element.get("Name")
-    print("\n/*** " + name + " ***/", end='\n', file=fh)
+    print("\n/** @name UA_" + name + " */", end='\n', file=fh)
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
-            print("/* " + child.text + " */", end='\n', file=fh)
+            print("/** @brief " + child.text + " */", end='\n', file=fh)
 
     print("typedef UA_ByteString " + name + ";", end='\n', file=fh)
     print("UA_TYPE_METHOD_PROTOTYPES (" + name + ")", end='\n', file=fh)
