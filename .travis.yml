@@ -17,7 +17,7 @@ addons:
 before_install:
 - sudo apt-get update -qq
 - sudo apt-get install -qq build-essential subversion git autoconf libtool texinfo
-  python-lxml valgrind graphviz doxygen
+  python-lxml graphviz doxygen
 - svn checkout https://svn.code.sf.net/p/check/code/trunk check-code
 - cd check-code
 - autoreconf --install
@@ -29,8 +29,11 @@ before_install:
 script: ./autogen.sh && ./configure --enable-doxygen && make && make check
 after_success:
    - git clone -b gh-pages https://$GITAUTH@github.com/acplt/open62541
-   - cp -r doc/html gh-pages
-   - cd gh-pages
-   - git add --all
+   - git rm open62541/doxygen
+   - cp -r doc/html open62541/doxygen
+   - cd open62541/doxygen
+   - git config --global user.email "open62541-travis-ci@users.noreply.github.com"
+   - git config --global user.name "Open62541 travis-ci"
+   - git add *
    - git commit -am "doxygen updated by travis-ci"
-   - git push
+   - git push https://$GITAUTH@github.com/acplt/open62541
