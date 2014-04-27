@@ -29,7 +29,7 @@ before_install:
 script: ./autogen.sh && ./configure --enable-doxygen && make && make check
 after_success:
    - git clone -b gh-pages https://$GITAUTH@github.com/acplt/open62541
-   - git rm open62541/doxygen
+   - rm -rf open62541/doxygen
    - cp -r doc/html open62541/doxygen
    - cd open62541/doxygen
    - git config --global user.email "open62541-travis-ci@users.noreply.github.com"
