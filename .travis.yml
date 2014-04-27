@@ -1,32 +1,36 @@
 language: c
 compiler:
-  - gcc
-
+- gcc
 env:
   global:
-   # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
-   #   via the "travis encrypt" command using the project repo's public key
-   - secure: "AgDJV7/ubjxZFcxuOlkOizWyo0VLve9Pdh5Xz+3Ec37SeYotfUWAupwMZdMXZdKiDyHkAo1R0GdHgpkJ+Tm12o8WdsxZvTi0JdNtXObrYstNnzleuzf9fTsaY74wRDC2Q2URhBrR+oNcD19Lp6mpoCk6asDBhn2+6CP+dLBtKOE="
-
+  - secure: AgDJV7/ubjxZFcxuOlkOizWyo0VLve9Pdh5Xz+3Ec37SeYotfUWAupwMZdMXZdKiDyHkAo1R0GdHgpkJ+Tm12o8WdsxZvTi0JdNtXObrYstNnzleuzf9fTsaY74wRDC2Q2URhBrR+oNcD19Lp6mpoCk6asDBhn2+6CP+dLBtKOE= 
+  - secure: Tp53B4vuTKhpMsyAFr5zIHzWtD9XoeLS4CzW3bSgUpuzdHUD+SVunwnjileleKzLY6Iqf3v02NK/TqGDNpehdlWGQf9TgSLSqG0GMohLUaipuVj6HS6LD0vAgU+3U1TdBfvDelDIppqK2CCph2g5Vtw0OXvopw6HQdXeBDSOUKE=
 addons:
   coverity_scan:
     project:
-      name: "acplt/open62541"
-      description: "Open-source OPC UA"
+      name: acplt/open62541
+      description: Open-source OPC UA
     notification_email: 
-    build_command_prepend: "./autogen.sh && ./configure"
-    build_command: "make"
+    build_command_prepend: ./autogen.sh && ./configure
+    build_command: make
     branch_pattern: coverity_scan
-
 before_install:
- - sudo apt-get update -qq
- - sudo apt-get install -qq build-essential subversion git autoconf libtool texinfo python-lxml valgrind
- - svn checkout https://svn.code.sf.net/p/check/code/trunk check-code
- - cd check-code
- - autoreconf --install
- - ./configure
- - make
- - sudo make install
- - sudo ldconfig
- - cd ..
-script: ./autogen.sh && ./configure && make && make check
+- sudo apt-get update -qq
+- sudo apt-get install -qq build-essential subversion git autoconf libtool texinfo
+  python-lxml valgrind graphviz doxygen
+- svn checkout https://svn.code.sf.net/p/check/code/trunk check-code
+- cd check-code
+- autoreconf --install
+- ./configure
+- make
+- sudo make install
+- sudo ldconfig
+- cd ..
+script: ./autogen.sh && ./configure --enable-doxygen && make && make check
+after_success:
+   - git clone -b gh-pages https://$GITAUTH@github.com/acplt/open62541
+   - cp -r doc/html gh-pages
+   - cd gh-pages
+   - git add --all
+   - git commit -am "doxygen updated by travis-ci"
+   - git push
