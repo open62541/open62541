@@ -34,6 +34,7 @@ after_success:
    - cd open62541/doxygen
    - git config --global user.email "open62541-travis-ci@users.noreply.github.com"
    - git config --global user.name "Open62541 travis-ci"
+   - git config --global push.default simple
    - git add *
    - git commit -am "doxygen updated by travis-ci"
    - git push https://$GITAUTH@github.com/acplt/open62541
