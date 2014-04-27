@@ -26,6 +26,7 @@ before_install:
 - sudo make install
 - sudo ldconfig
 - cd ..
+- rm -rf check-code
 script: ./autogen.sh && ./configure --enable-doxygen && make && make check
 after_success:
    - git clone -b gh-pages https://$GITAUTH@github.com/acplt/open62541
