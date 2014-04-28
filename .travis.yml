@@ -39,3 +39,4 @@ after_success:
    - git add *
    - git commit -am "doxygen updated by travis-ci"
    - git push https://$GITAUTH@github.com/acplt/open62541
+   - ./coverity.sh
