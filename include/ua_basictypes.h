@@ -99,8 +99,7 @@ UA_Int32 UA_Array_copy(void const * const *src,UA_Int32 noElements, UA_Int32 typ
 	UA_Int32 TYPE##_deleteMembers(TYPE * p);							\
 	UA_Int32 TYPE##_init(TYPE * p);										\
 	UA_Int32 TYPE##_new(TYPE ** p); 									\
-
-
+	UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst);
 
 #define UA_TYPE_METHOD_CALCSIZE_SIZEOF(TYPE) \
 UA_Int32 TYPE##_calcSize(TYPE const * p) { return sizeof(TYPE); }
@@ -121,13 +120,15 @@ UA_Int32 TYPE##_delete(TYPE *p) { \
 	retval |= UA_free(p); \
 	return retval; \
 }
+
 #define UA_TYPE_METHOD_COPY(TYPE) \
 UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst){ \
 	UA_Int32 retval = UA_SUCCESS; \
-	retval |= UA_alloc((void**)&dst, TYPE##_calcSize(UA_NULL)); \
 	retval |= UA_memcpy(dst, src, TYPE##_calcSize(UA_NULL)); \
 	return retval; \
 }
+
+
 #define UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(TYPE) \
 UA_Int32 TYPE##_deleteMembers(TYPE * p) { return UA_SUCCESS; }
 
@@ -148,6 +149,10 @@ UA_Int32 TYPE##_encodeBinary(TYPE const * src, UA_Int32* pos, UA_ByteString *dst
 UA_Int32 TYPE##_init(TYPE * p){ \
 	return TYPE_AS##_init((TYPE_AS*)p); \
 }
+#define UA_TYPE_METHOD_COPY_AS(TYPE, TYPE_AS) \
+UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst) {return TYPE_AS##_copy((TYPE_AS*) src,(TYPE_AS*)dst); \
+}
+
 
 #define UA_TYPE_METHOD_PROTOTYPES_AS(TYPE, TYPE_AS) \
 UA_TYPE_METHOD_CALCSIZE_AS(TYPE, TYPE_AS) \
@@ -155,7 +160,8 @@ UA_TYPE_METHOD_ENCODEBINARY_AS(TYPE, TYPE_AS) \
 UA_TYPE_METHOD_DECODEBINARY_AS(TYPE, TYPE_AS) \
 UA_TYPE_METHOD_DELETE_AS(TYPE, TYPE_AS) \
 UA_TYPE_METHOD_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
-UA_TYPE_METHOD_INIT_AS(TYPE, TYPE_AS)
+UA_TYPE_METHOD_INIT_AS(TYPE, TYPE_AS) \
+UA_TYPE_METHOD_COPY_AS(TYPE, TYPE_AS)
 
 
 #define UA_TYPE_METHOD_NEW_DEFAULT(TYPE) \
@@ -172,8 +178,7 @@ UA_Int32 TYPE##_init(TYPE * p){ \
 	*p = (TYPE)0;\
 	return UA_SUCCESS;\
 }
-#define UA_TYPE_COPY_METHOD_PROTOTYPE(TYPE) \
- UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst);
+//#define UA_TYPE_COPY_METHOD_PROTOTYPE(TYPE) \  UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst);
 
 
 
@@ -189,18 +194,6 @@ UA_TYPE_METHOD_PROTOTYPES (UA_Int64)
 UA_TYPE_METHOD_PROTOTYPES (UA_UInt64)
 UA_TYPE_METHOD_PROTOTYPES (UA_Float)
 UA_TYPE_METHOD_PROTOTYPES (UA_Double)
-
-UA_TYPE_COPY_METHOD_PROTOTYPE(UA_Boolean)
-UA_TYPE_COPY_METHOD_PROTOTYPE(UA_Byte)
-UA_TYPE_COPY_METHOD_PROTOTYPE(UA_SByte)
-UA_TYPE_COPY_METHOD_PROTOTYPE(UA_Int16)
-UA_TYPE_COPY_METHOD_PROTOTYPE (UA_UInt16)
-UA_TYPE_COPY_METHOD_PROTOTYPE(UA_Int32)
-UA_TYPE_COPY_METHOD_PROTOTYPE(UA_UInt32)
-UA_TYPE_COPY_METHOD_PROTOTYPE (UA_Int64)
-UA_TYPE_COPY_METHOD_PROTOTYPE (UA_UInt64)
-UA_TYPE_COPY_METHOD_PROTOTYPE(UA_Float)
-UA_TYPE_COPY_METHOD_PROTOTYPE (UA_Double)
 /**
 * StatusCodeBinaryEncoding
 * Part: 6
@@ -224,6 +217,7 @@ typedef struct T_UA_VTable {
 	UA_Int32 (*encodeBinary)(void const * src, UA_Int32* pos, UA_ByteString* dst);
 	UA_Int32 (*init)(void * p);
 	UA_Int32 (*new)(void ** p);
+	UA_Int32 (*copy)(void const *src,void *dst);
 	UA_Int32 (*delete)(void * p);
 	UA_Byte* name;
 } UA_VTable;
@@ -252,7 +246,7 @@ typedef struct T_UA_String
 }
 UA_String;
 UA_TYPE_METHOD_PROTOTYPES (UA_String)
-UA_Int32 UA_String_copy(UA_String const * src, UA_String* dst);
+//UA_Int32 UA_String_copy(UA_String const * src, UA_String* dst);
 UA_Int32 UA_String_copycstring(char const * src, UA_String* dst);
 UA_Int32 UA_String_copyprintf(char const * fmt, UA_String* dst, ...);
 UA_Int32 UA_String_compare(const UA_String *string1, const UA_String *string2);
@@ -263,7 +257,7 @@ void UA_String_printx_hex(char const * label, const UA_String* string);
 /* ByteString - Part: 6, Chapter: 5.2.2.7, Page: 17 */
 UA_TYPE_METHOD_PROTOTYPES (UA_ByteString)
 UA_Int32 UA_ByteString_compare(const UA_ByteString *string1, const UA_ByteString *string2);
-UA_Int32 UA_ByteString_copy(UA_ByteString const * src, UA_ByteString* dst);
+//UA_Int32 UA_ByteString_copy(UA_ByteString const * src, UA_ByteString* dst);
 UA_Int32 UA_ByteString_newMembers(UA_ByteString* p, UA_Int32 length);
 extern UA_ByteString UA_ByteString_securityPoliceNone;
 
@@ -281,6 +275,7 @@ typedef struct T_UA_LocalizedText
 }
 UA_LocalizedText;
 UA_TYPE_METHOD_PROTOTYPES (UA_LocalizedText)
+
 UA_Int32 UA_LocalizedText_copycstring(char const * src, UA_LocalizedText* dst);
 void UA_ByteString_printf(char* label, const UA_ByteString* string);
 void UA_ByteString_printx(char* label, const UA_ByteString* string);
@@ -300,6 +295,7 @@ UA_Int32 UA_Guid_compare(const UA_Guid *g1, const UA_Guid *g2);
 /* DateTime - Part: 6, Chapter: 5.2.2.5, Page: 16 */
 typedef UA_Int64 UA_DateTime; //100 nanosecond resolution
 UA_TYPE_METHOD_PROTOTYPES (UA_DateTime)
+
 UA_DateTime UA_DateTime_now();
 typedef struct T_UA_DateTimeStruct
 {
@@ -332,6 +328,7 @@ typedef struct T_UA_NodeId
     identifier;
 } UA_NodeId;
 UA_TYPE_METHOD_PROTOTYPES (UA_NodeId)
+
 UA_Int32 UA_NodeId_compare(const UA_NodeId *n1, const UA_NodeId *n2);
 void UA_NodeId_printf(char* label, const UA_NodeId* node);
 
@@ -342,6 +339,7 @@ typedef struct T_UA_XmlElement
 	UA_ByteString data;
 } UA_XmlElement;
 UA_TYPE_METHOD_PROTOTYPES (UA_XmlElement)
+
 
 /* ExpandedNodeId - Part: 6, Chapter: 5.2.2.10, Page: 19 */
 // 62541-6 Chapter 5.2.2.9, Table 5
@@ -360,6 +358,7 @@ UA_TYPE_METHOD_PROTOTYPES(UA_ExpandedNodeId)
 
 typedef UA_Int32 UA_IdentifierType;
 UA_TYPE_METHOD_PROTOTYPES(UA_IdentifierType)
+
 
 /* ExtensionObjectBinaryEncoding - Part: 6, Chapter: 5.2.2.15, Page: 21 */
 typedef struct T_UA_ExtensionObject {

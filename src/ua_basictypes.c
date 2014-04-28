@@ -115,14 +115,14 @@ UA_Int32 UA_Array_copy(void const * const * src, UA_Int32 noElements, UA_Int32 t
 	// Get memory for the pointers
 	CHECKED_DECODE(UA_Array_new(dst, noElements, type), dst = UA_NULL;);
 	void **arr = *dst;
+	UA_Int32 uaIdx = UA_toIndex(type);
+
+	//only namespace zero types atm
+	if(UA_VTable_isValidType(uaIdx) != UA_SUCCESS)
+		return UA_ERROR;
+
 	for(UA_Int32 i=0; i<noElements; i++) {
-		// FIXME: we only have code to do this for strings yet
-		if (type == UA_STRING || type == UA_BYTESTRING) {
-			UA_String_copy((UA_String *)src[i], (UA_String *)arr[i]);
-		} else {
-			retval = UA_ERR_INVALID_VALUE;
-			break;
-		}
+		UA_[type].copy(src[i], arr[i]);
 	}
 	return retval;
 }
@@ -590,9 +590,6 @@ UA_Byte UA_Byte_securityPoliceNoneData[] = "http://opcfoundation.org/UA/Security
 // sizeof()-1 : discard the implicit null-terminator of the c-char-string
 UA_ByteString UA_ByteString_securityPoliceNone = { sizeof(UA_Byte_securityPoliceNoneData)-1, UA_Byte_securityPoliceNoneData };
 
-UA_Int32 UA_ByteString_copy(UA_ByteString const * src, UA_ByteString* dst) {
-	return UA_String_copy((UA_String const*)src,(UA_String*)dst);
-}
 UA_Int32 UA_ByteString_newMembers(UA_ByteString* p, UA_Int32 length) {
 	UA_Int32 retval = UA_SUCCESS;
 	if ((retval |= UA_alloc((void**)&(p->data),length)) == UA_SUCCESS) {
@@ -649,8 +646,13 @@ UA_Int32 UA_Guid_init(UA_Guid* p){
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_Guid)
-UA_TYPE_METHOD_COPY(UA_Guid)
-
+UA_Int32 UA_Guid_copy(UA_Guid const *src, UA_Guid *dst)
+{
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_alloc((void**)&dst,UA_Guid_calcSize(UA_NULL));
+	retval |= UA_memcpy((void*)dst,(void*)src,UA_Guid_calcSize(UA_NULL));
+	return retval;
+}
 UA_Int32 UA_LocalizedText_calcSize(UA_LocalizedText const * p) {
 	UA_Int32 length = 0;
 	if (p==UA_NULL) {
@@ -668,6 +670,7 @@ UA_Int32 UA_LocalizedText_calcSize(UA_LocalizedText const * p) {
 	}
 	return length;
 }
+
 UA_TYPE_START_ENCODEBINARY(UA_LocalizedText)
 	retval |= UA_Byte_encodeBinary(&(src->encodingMask),pos,dst);
 	if (src->encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE) {
@@ -693,10 +696,12 @@ UA_Int32 UA_LocalizedText_decodeBinary(UA_ByteString const * src, UA_Int32 *pos,
 	}
 	return retval;
 }
+
 UA_TYPE_METHOD_DELETE_STRUCT(UA_LocalizedText)
 UA_Int32 UA_LocalizedText_deleteMembers(UA_LocalizedText* p) {
 	return UA_SUCCESS | UA_String_deleteMembers(&p->locale) | UA_String_deleteMembers(&p->text);
 }
+
 UA_Int32 UA_LocalizedText_init(UA_LocalizedText* p){
 	if(p==UA_NULL) return UA_ERROR;
 	p->encodingMask = 0;
@@ -704,7 +709,9 @@ UA_Int32 UA_LocalizedText_init(UA_LocalizedText* p){
 	UA_String_init(&(p->text));
 	return UA_SUCCESS;
 }
+
 UA_TYPE_METHOD_NEW_DEFAULT(UA_LocalizedText)
+
 UA_Int32 UA_LocalizedText_copycstring(char const * src, UA_LocalizedText* dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	if(dst==UA_NULL) return UA_ERROR;
@@ -716,6 +723,7 @@ UA_Int32 UA_LocalizedText_copycstring(char const * src, UA_LocalizedText* dst) {
 UA_Int32 UA_LocalizedText_copy(UA_LocalizedText const *src, UA_LocalizedText* dst)
 {
 	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_alloc((void**)dst,UA_LocalizedText_calcSize(UA_NULL));
 	retval |= UA_Byte_copy(&(src->encodingMask), &(dst->encodingMask));
 	retval |= UA_String_copy(&(src->locale), &(dst->locale));
 	retval |= UA_String_copy(&(src->text), &(dst->text));
@@ -920,10 +928,10 @@ UA_Int32 UA_NodeId_init(UA_NodeId* p){
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_NodeId)
-UA_Int32 UA_NodeId_copy(UA_NodeId *src, UA_NodeId *dst)
+UA_Int32 UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst)
 {
-	UA_Byte_copy(&(src->encodingByte), &(dst->encodingByte));
 	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_Byte_copy(&(src->encodingByte), &(dst->encodingByte));
 
 	switch (src->encodingByte & UA_NODEIDTYPE_MASK) {
 	case UA_NODEIDTYPE_TWOBYTE:
@@ -1000,12 +1008,12 @@ UA_Int32 UA_ExpandedNodeId_init(UA_ExpandedNodeId* p){
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_ExpandedNodeId)
-UA_Int32 UA_ExpandedNodeId_copy(UA_ExpandedNodeId *src, UA_ExpandedNodeId *dst)
+UA_Int32 UA_ExpandedNodeId_copy(UA_ExpandedNodeId const *src, UA_ExpandedNodeId *dst)
 {
 	UA_Int32 retval = UA_SUCCESS;
-	UA_String_copy(&(src->namespaceUri),&(dst->namespaceUri));
-	UA_NodeId_copy(&(src->nodeId),&(dst->nodeId));
-	UA_UInt32_copy(&(src->serverIndex),&(dst->serverIndex));
+	UA_String_copy(&(src->namespaceUri), &(dst->namespaceUri));
+	UA_NodeId_copy(&(src->nodeId), &(dst->nodeId));
+	UA_UInt32_copy(&(src->serverIndex), &(dst->serverIndex));
 	return retval;
 }
 
@@ -1071,9 +1079,10 @@ UA_Int32 UA_ExtensionObject_init(UA_ExtensionObject* p){
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_ExtensionObject)
-UA_Int32 UA_ExtensionObject_copy(UA_ExtensionObject *src, UA_ExtensionObject *dst)
+UA_Int32 UA_ExtensionObject_copy(UA_ExtensionObject const  *src, UA_ExtensionObject *dst)
 {
 	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_ExtensionObject_calcSize(UA_NULL);
 	retval |= UA_Byte_copy(&(src->encoding),&(dst->encoding));
 	retval |= UA_ByteString_copy(&(src->body),&(dst->body));
 	retval |= UA_NodeId_copy(&(src->typeId),&(dst->typeId));
@@ -1207,22 +1216,31 @@ UA_Int32 UA_DiagnosticInfo_init(UA_DiagnosticInfo* p){
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_DiagnosticInfo)
-UA_Int32 UA_DiagnosticInfo_copy(UA_DiagnosticInfo *src, UA_DiagnosticInfo *dst)
+UA_Int32 UA_DiagnosticInfo_copy(UA_DiagnosticInfo const  *src, UA_DiagnosticInfo *dst)
 {
-	UA_Int32 retval = 0;
+	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_String_copy(&(src->additionalInfo), &(dst->additionalInfo));
 	retval |= UA_Byte_copy(&(src->encodingMask), &(dst->encodingMask));
-	retval |= UA_DiagnosticInfo_copy(&(src->innerDiagnosticInfo), &(dst->innerDiagnosticInfo));
-	retval |= UA_String_copy(&(src->innerStatusCode), &(dst->innerStatusCode));
+	retval |= UA_StatusCode_copy(&(src->innerStatusCode), &(dst->innerStatusCode));
+	if(src->innerDiagnosticInfo){
+		retval |= UA_alloc((void**)&(dst->innerDiagnosticInfo),UA_DiagnosticInfo_calcSize(UA_NULL));
+		if(retval == UA_SUCCESS){
+			retval |= UA_DiagnosticInfo_copy(src->innerDiagnosticInfo, dst->innerDiagnosticInfo);
+		}
+	}
+	else{
+		dst->innerDiagnosticInfo = UA_NULL;
+	}
 	retval |= UA_Int32_copy(&(src->locale), &(dst->locale));
 	retval |= UA_Int32_copy(&(src->localizedText), &(dst->localizedText));
 	retval |= UA_Int32_copy(&(src->namespaceUri), &(dst->namespaceUri));
 	retval |= UA_Int32_copy(&(src->symbolicId), &(dst->symbolicId));
+
 	return retval;
 }
 UA_TYPE_METHOD_PROTOTYPES_AS(UA_DateTime,UA_Int64)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_DateTime)
-UA_TYPE_METHOD_COPY(UA_DateTime)
+
 #include <sys/time.h>
 
 // Number of seconds from 1 Jan. 1601 00:00 to 1 Jan 1970 00:00 UTC
@@ -1281,19 +1299,14 @@ UA_Int32 UA_DateTime_toString(UA_DateTime time, UA_String* timeString){
 
 UA_TYPE_METHOD_PROTOTYPES_AS(UA_XmlElement, UA_ByteString)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_XmlElement)
-UA_Int32 UA_XmlElement_copy(UA_XmlElement *src, UA_XmlElement *dst)
-{
-	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_ByteString_copy(&(src->data),&(dst->data));
-	return retval;
-}
+
 /** IntegerId - Part: 4, Chapter: 7.13, Page: 118 */
 UA_TYPE_METHOD_PROTOTYPES_AS(UA_IntegerId, UA_Int32)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_IntegerId)
-UA_TYPE_METHOD_COPY(UA_IntegerId)
+
 UA_TYPE_METHOD_PROTOTYPES_AS(UA_StatusCode, UA_UInt32)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_StatusCode)
-UA_TYPE_METHOD_COPY(UA_StatusCode)
+
 /** QualifiedName - Part 4, Chapter
  * but see Part 6, Chapter 5.2.2.13 for Binary Encoding
  */
@@ -1337,9 +1350,10 @@ UA_Int32 UA_QualifiedName_init(UA_QualifiedName * p){
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_QualifiedName)
-UA_Int32 UA_QualifiedName_copy(UA_QualifiedName *src, UA_QualifiedName *dst)
+UA_Int32 UA_QualifiedName_copy(UA_QualifiedName const *src, UA_QualifiedName *dst)
 {
 	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_alloc((void**)&dst,UA_QualifiedName_calcSize(UA_NULL));
 	retval |= UA_String_copy(&(src->name),&(dst->name));
 	retval |= UA_UInt16_copy(&(src->namespaceIndex),&(dst->namespaceIndex));
 	retval |= UA_UInt16_copy(&(src->reserved),&(dst->reserved));
@@ -1380,6 +1394,7 @@ UA_Int32 UA_Variant_calcSize(UA_Variant const * p) {
 			}
 		} else {
 			length += p->vt->calcSize(p->data[0]);
+
 		}
 	}
 	if (hasDimensions) {
@@ -1449,6 +1464,7 @@ UA_Int32 UA_Variant_decodeBinary(UA_ByteString const * src, UA_Int32 *pos, UA_Va
 	}
 
 	if (dst->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) {
+
 		// TODO: decode array dimension field
 		printf("shit happens - decode array dimension field wanted");
 	}
@@ -1473,12 +1489,28 @@ UA_Int32 UA_Variant_init(UA_Variant * p){
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_Variant)
 
-UA_Int32 UA_Variant_copy(UA_Variant *src, UA_Variant *dst)
+UA_Int32 UA_Variant_copy(UA_Variant const *src, UA_Variant *dst)
 {
-	//UA_Byte_copy(&(src->encodingMask), &(dst->encodingMask));
-	//UA_Int32_copy(&(src->arrayLength), &(dst->arrayLength));
-	//TODO implement me
-	return UA_ERR_NOT_IMPLEMENTED;
+	UA_Int32 retval = UA_SUCCESS;
+	UA_Int32 ns0Id = dst->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK;
+	// initialize vTable
+	UA_Int32 uaIdx = UA_toIndex(ns0Id);
+	if(UA_VTable_isValidType(uaIdx) != UA_SUCCESS){
+		return UA_ERROR;
+	}
+	dst->vt = &UA_[uaIdx];
+	retval |= UA_Int32_copy(&(src->arrayLength), &(dst->arrayLength));
+	retval |= UA_Byte_copy(&(src->encodingMask), &(dst->encodingMask));
+
+	if (src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_ARRAY) {
+
+		retval |=  UA_Array_copy((const void * const *)(src->data),src->arrayLength, uaIdx,(void***)&(dst->data));
+	}
+	else {
+		retval |= src->vt[uaIdx].copy(*src->data,*src->data);
+	}
+
+	return retval;
 }
 
 //TODO: place this define at the server configuration
@@ -1583,6 +1615,19 @@ UA_Int32 UA_DataValue_init(UA_DataValue * p){
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_DataValue)
 
+UA_Int32 UA_DataValue_copy(UA_DataValue const *src, UA_DataValue *dst){
+	UA_Int32 retval = UA_SUCCESS;
+	//TODO can be optimized by direct UA_memcpy call
+	UA_Byte_copy(&(src->encodingMask), &(dst->encodingMask));
+	UA_Int16_copy(&(src->serverPicoseconds),&(dst->serverPicoseconds));
+	UA_DateTime_copy(&(src->serverTimestamp),&(dst->serverTimestamp));
+	UA_Int16_copy(&(src->sourcePicoseconds), &(dst->sourcePicoseconds));
+	UA_DateTime_copy(&(src->sourceTimestamp),&(dst->sourceTimestamp));
+	UA_StatusCode_copy(&(src->status),&(dst->status));
+	UA_Variant_copy(&(src->value),&(dst->value));
+
+	return retval;
+}
 /* UA_InvalidType - internal type necessary to handle inited Variants correctly */
 UA_Int32 UA_InvalidType_calcSize(UA_InvalidType const * p) {
 	return 0;
@@ -1604,6 +1649,9 @@ UA_Int32 UA_InvalidType_deleteMembers(UA_InvalidType* p) {
 	return UA_ERR_INVALID_VALUE;
 }
 UA_Int32 UA_InvalidType_init(UA_InvalidType* p) {
+	return UA_ERR_INVALID_VALUE;
+}
+UA_Int32 UA_InvalidType_copy(UA_InvalidType const* src, UA_InvalidType *dst) {
 	return UA_ERR_INVALID_VALUE;
 }
 UA_Int32 UA_InvalidType_new(UA_InvalidType** p) {

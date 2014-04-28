@@ -1,6 +1,6 @@
 /*
  ============================================================================
- Name        : check_stack.c
+ Name        : check_builtin.c
  Author      :
  Copyright   : Your copyright notice
  Description :
@@ -1472,16 +1472,174 @@ START_TEST(UA_DateTime_toStingShallWorkOnExample)
 	ck_assert_int_eq(dst.data[4], '4');
 }
 END_TEST
-START_TEST(UA_Byte_copyShallWorkOnExample)
+START_TEST(UA_ExtensionObject_copyShallWorkOnExample)
 {
-	UA_Byte *dst = UA_NULL;
-	UA_Byte value = 13;
+	UA_ExtensionObject *value = UA_NULL;
+	UA_ExtensionObject *valueCopied = UA_NULL;
+	UA_Int32 i = 0;
 
-	UA_Byte_copy(dst,&value);
-	ck_assert_uint_eq(*dst, value);
+	// given
+	UA_Byte data[3] = {1,2,3};
+
+
+	UA_ExtensionObject_new(&value);
+	UA_ExtensionObject_new(&valueCopied);
+
+
+	// empty ExtensionObject, handcoded
+	// when
+	value->typeId.encodingByte = UA_NODEIDTYPE_TWOBYTE;
+	value->typeId.identifier.numeric = 0;
+	value->encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED;
+	value->encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
+	value->body.data = data;
+	value->body.length = 3;
+
+
+	UA_ExtensionObject_copy(value,valueCopied);
+
+	for(i=0; i<3; i++){
+		ck_assert_int_eq(valueCopied->body.data[i],value->body.data[i]);
+	}
+
+	ck_assert_int_eq(valueCopied->encoding, value->encoding);
+	ck_assert_int_eq(valueCopied->typeId.encodingByte,value->typeId.encodingByte);
+	ck_assert_int_eq(valueCopied->typeId.identifier.numeric,value->typeId.identifier.numeric);
+
+	UA_free(value);
+	UA_free(valueCopied);
 }
 END_TEST
 
+START_TEST(UA_Array_copyByteArrayShallWorkOnExample)
+{
+	UA_String testString;
+	UA_Byte* *srcArray = UA_NULL;
+	UA_Byte** dstArray;
+	UA_Int32 size = 5;
+	UA_Int32 i = 0;
+	testString.data = UA_NULL;
+	UA_alloc((void**)&testString.data, size);
+	UA_alloc((void*)&srcArray,sizeof(UA_Byte*)*5);
+	testString.data[0] = 'O';
+	testString.data[1] = 'P';
+	testString.data[2] = 'C';
+	testString.data[3] = 'U';
+	testString.data[4] = 'A';
+
+	testString.length = 5;
+
+	srcArray[0] = &(testString.data[0]);
+	srcArray[1] = &testString.data[1];
+	srcArray[2] = &testString.data[2];
+	srcArray[3] = &testString.data[3];
+	srcArray[4] = &testString.data[4];
+
+	UA_Array_copy((const void* const*)srcArray,5,UA_BYTE,(void***)&dstArray);
+	for(i=0;i<size;i++){
+		ck_assert_int_eq(*srcArray[i], *dstArray[i]);
+	}
+
+	//UA_free(testString.data);
+	UA_free(*srcArray);
+	UA_free(*dstArray);
+
+}
+END_TEST
+
+START_TEST(UA_Array_copyUA_StringShallWorkOnExample)
+{
+	// given
+	UA_Int32 i,j;
+	UA_String **srcArray; UA_Array_new((void***)&srcArray,3,UA_STRING);
+	UA_String **dstArray;
+	//init
+	UA_String_copycstring("open",srcArray[0]);
+	UA_String_copycstring("62541",srcArray[1]);
+	UA_String_copycstring("opc ua",srcArray[2]);
+    //action
+	UA_Array_copy((void const*const*)srcArray,3,UA_STRING,(void ***)&dstArray);
+	//check
+	for(i=0;i<3;i++){
+		for(j=0;j<3;j++){
+			ck_assert_int_eq(srcArray[i]->data[j], dstArray[i]->data[j]);
+		}
+		ck_assert_int_eq(srcArray[i]->length, dstArray[i]->length);
+	}
+	//clean up
+	UA_free(*srcArray);
+	UA_free(*dstArray);
+
+}
+END_TEST
+
+
+START_TEST(UA_DiagnosticInfo_copyShallWorkOnExample)
+{
+	UA_DiagnosticInfo *value = UA_NULL;
+	UA_DiagnosticInfo *innerValue = UA_NULL;
+	UA_DiagnosticInfo *valueCopied = UA_NULL;
+	UA_String testString;
+	UA_Int32 size = 5;
+	UA_Int32 i = 0;
+	testString.data = UA_NULL;
+
+	UA_alloc((void**)&testString.data,size);
+	testString.data[0] = 'O';
+	testString.data[1] = 'P';
+	testString.data[2] = 'C';
+	testString.data[3] = 'U';
+	testString.data[4] = 'A';
+	testString.length = size;
+
+	UA_DiagnosticInfo_new(&value);
+	UA_DiagnosticInfo_new(&innerValue);
+	value->encodingMask |= UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO;
+	value->innerDiagnosticInfo = innerValue;
+
+	UA_alloc((void**)&valueCopied,UA_DiagnosticInfo_calcSize(UA_NULL));
+	value->additionalInfo.length = testString.length;
+	value->additionalInfo.data = testString.data;
+
+	UA_DiagnosticInfo_copy(value, valueCopied);
+	/*additional info */
+	for(i=0; i<size; i++){
+		ck_assert_int_eq(valueCopied->additionalInfo.data[i],value->additionalInfo.data[i]);
+	}
+	ck_assert_int_eq(valueCopied->additionalInfo.length, value->additionalInfo.length);
+
+	ck_assert_int_eq(valueCopied->encodingMask, value->encodingMask);
+	ck_assert_int_eq(valueCopied->innerDiagnosticInfo->locale,value->innerDiagnosticInfo->locale);
+	ck_assert_int_eq(valueCopied->innerStatusCode,value->innerStatusCode);
+	ck_assert_int_eq(valueCopied->locale,value->locale);
+	ck_assert_int_eq(valueCopied->localizedText,value->localizedText);
+	ck_assert_int_eq(valueCopied->namespaceUri,value->namespaceUri);
+	ck_assert_int_eq(valueCopied->symbolicId,value->symbolicId);
+
+	UA_free(testString.data);
+	UA_free(value);
+
+}
+END_TEST
+START_TEST(UA_Variant_copyShallWorkOnExample)
+{
+	// given
+	UA_Byte data[] = { UA_INT32_NS0, 0xFF, 0x00, 0x00, 0x00};
+	UA_Variant *value = UA_NULL;
+	UA_Variant *copiedValue = UA_NULL;
+
+	UA_Variant_new(&value);
+	UA_Variant_new(&copiedValue);
+
+	value->arrayLength = 5;
+	value->data = (void**)&data;
+	value->encodingMask = UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
+
+	UA_Variant_copy(value,copiedValue);
+
+	ck_assert_int_eq(value->encodingMask,value->encodingMask);
+}
+END_TEST
 Suite *testSuite_builtin(void)
 {
 	Suite *s = suite_create("Built-in Data Types 62541-6 Table 1");
@@ -1595,7 +1753,12 @@ Suite *testSuite_builtin(void)
 	suite_add_tcase(s,tc_convert);
 
 	TCase *tc_copy = tcase_create("copy");
-	tcase_add_test(tc_copy, UA_Byte_copyShallWorkOnExample);
+	tcase_add_test(tc_copy,UA_Array_copyByteArrayShallWorkOnExample);
+	tcase_add_test(tc_copy,UA_Array_copyUA_StringShallWorkOnExample);
+	tcase_add_test(tc_copy, UA_ExtensionObject_copyShallWorkOnExample);
+	tcase_add_test(tc_copy, UA_Variant_copyShallWorkOnExample);
+	tcase_add_test(tc_copy, UA_DiagnosticInfo_copyShallWorkOnExample);
+	suite_add_tcase(s,tc_copy);
 	return s;
 }
 

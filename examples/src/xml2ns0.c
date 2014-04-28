@@ -456,7 +456,7 @@ void XML_Stack_handleText(void * data, const char *txt, int len) {
 			UA_alloc((void** )&buf, len + 1);
 			strncpy(buf, txt, len);
 			buf[len] = 0;
-			XML_Attr_t attr[3] = { cp->textAttrib, buf, UA_NULL };
+	//		XML_Attr_t attr[3] = { cp->textAttrib, buf, UA_NULL };
 			DBG_VERBOSE(printf("handleText calls start elementHandler %s with dst=%p, attr=%p\n", cp->children[cp->activeChild].name, cp->children[cp->activeChild].obj, (void*) attr));
 			// cp->children[cp->activeChild].elementHandler(s, attr, cp->children[cp->activeChild].obj, TRUE);
 			DBG_VERBOSE(printf("handleText calls finish elementHandler %s with dst=%p, attr=(nil)\n", cp->children[cp->activeChild].name, cp->children[cp->activeChild].obj));

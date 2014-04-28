@@ -34,8 +34,22 @@ int main(void) {
 }
 
 #ifdef LINUX
-
+void tmpTestFunction()
+{
+	// given
+	UA_String **srcArray; UA_Array_new((void***)&srcArray,3,UA_STRING);
+	UA_String_copycstring("abc",srcArray[0]);
+	UA_String_copycstring("def",srcArray[1]);
+	UA_String_copycstring("ghi",srcArray[2]);
+	// when
+	UA_String **dstArray;
+	UA_Array_copy((void const*const*)srcArray,3,UA_STRING,(void ***)&dstArray);
+}
 void server_run() {
+	//just for debugging
+#ifdef DEBUG
+	tmpTestFunction();
+#endif
 	TL_Connection connection;
 	connection.connectionState = CONNECTIONSTATE_CLOSED;
 	connection.writerCallback = (TL_Writer) NL_TCP_writer;
