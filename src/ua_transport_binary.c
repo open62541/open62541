@@ -2,6 +2,7 @@
 #include "ua_transport_binary.h"
 #include "ua_transport.h"
 #include "ua_transport_binary_secure.h"
+#include <stdio.h>
 
 static UA_Int32 TL_check(TL_Connection* connection, UA_ByteString* msg) {
 	if(msg->length > (UA_Int32) connection->localConf.maxMessageSize || msg->length > (UA_Int32) connection->remoteConf.maxMessageSize) {
