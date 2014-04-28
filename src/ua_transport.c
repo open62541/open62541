@@ -36,12 +36,10 @@ void UA_MessageType_printf(char *label, UA_MessageType* p) {
 	printf("%s{%c%c%c}\n", label, b[2],b[1],b[0]);
 }
 
-/* Auto-Generated from here on */
-
 UA_Int32 UA_OPCUATcpMessageHeader_calcSize(UA_OPCUATcpMessageHeader const * ptr) {
 	if(ptr==UA_NULL){return sizeof(UA_OPCUATcpMessageHeader);}
 	return 0
-	 + sizeof(UA_UInt32) // messageType
+	 + UA_MessageType_calcSize(&(ptr->messageType)) // messageType
 	 + sizeof(UA_Byte) // isFinal
 	 + sizeof(UA_UInt32) // messageSize
 	;
@@ -49,7 +47,7 @@ UA_Int32 UA_OPCUATcpMessageHeader_calcSize(UA_OPCUATcpMessageHeader const * ptr)
 
 UA_Int32 UA_OPCUATcpMessageHeader_encodeBinary(UA_OPCUATcpMessageHeader const * src, UA_Int32* pos, UA_ByteString* dst) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_UInt32_encodeBinary(&(src->messageType),pos,dst);
+	retval |= UA_MessageType_encodeBinary(&(src->messageType),pos,dst);
 	retval |= UA_Byte_encodeBinary(&(src->isFinal),pos,dst);
 	retval |= UA_UInt32_encodeBinary(&(src->messageSize),pos,dst);
 	return retval;
@@ -58,7 +56,7 @@ UA_Int32 UA_OPCUATcpMessageHeader_encodeBinary(UA_OPCUATcpMessageHeader const * 
 UA_Int32 UA_OPCUATcpMessageHeader_decodeBinary(UA_ByteString const * src, UA_Int32* pos, UA_OPCUATcpMessageHeader* dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_OPCUATcpMessageHeader_init(dst);
-	CHECKED_DECODE(UA_UInt32_decodeBinary(src,pos,&(dst->messageType)), UA_OPCUATcpMessageHeader_deleteMembers(dst));
+	CHECKED_DECODE(UA_MessageType_decodeBinary(src,pos,&(dst->messageType)), UA_OPCUATcpMessageHeader_deleteMembers(dst));
 	CHECKED_DECODE(UA_Byte_decodeBinary(src,pos,&(dst->isFinal)), UA_OPCUATcpMessageHeader_deleteMembers(dst));
 	CHECKED_DECODE(UA_UInt32_decodeBinary(src,pos,&(dst->messageSize)), UA_OPCUATcpMessageHeader_deleteMembers(dst));
 	return retval;
@@ -77,7 +75,6 @@ UA_Int32 UA_OPCUATcpMessageHeader_deleteMembers(UA_OPCUATcpMessageHeader* p) {
 
 UA_Int32 UA_OPCUATcpMessageHeader_init(UA_OPCUATcpMessageHeader * p) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_UInt32_init(&(p->messageType));
 	retval |= UA_Byte_init(&(p->isFinal));
 	retval |= UA_UInt32_init(&(p->messageSize));
 	return retval;
@@ -200,14 +197,14 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_OPCUATcpAcknowledgeMessage)
 UA_Int32 UA_SecureConversationMessageHeader_calcSize(UA_SecureConversationMessageHeader const * ptr) {
 	if(ptr==UA_NULL){return sizeof(UA_SecureConversationMessageHeader);}
 	return 0
-	 + UA_OPCUATcpMessageHeader_calcSize(&(ptr->messageHeader))
+	 // + UA_OPCUATcpMessageHeader_calcSize(&(ptr->messageHeader))
 	 + sizeof(UA_UInt32) // secureChannelId
 	;
 }
 
 UA_Int32 UA_SecureConversationMessageHeader_encodeBinary(UA_SecureConversationMessageHeader const * src, UA_Int32* pos, UA_ByteString* dst) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_OPCUATcpMessageHeader_encodeBinary(&(src->messageHeader),pos,dst);
+	// retval |= UA_OPCUATcpMessageHeader_encodeBinary(&(src->messageHeader),pos,dst);
 	retval |= UA_UInt32_encodeBinary(&(src->secureChannelId),pos,dst);
 	return retval;
 }
@@ -215,7 +212,7 @@ UA_Int32 UA_SecureConversationMessageHeader_encodeBinary(UA_SecureConversationMe
 UA_Int32 UA_SecureConversationMessageHeader_decodeBinary(UA_ByteString const * src, UA_Int32* pos, UA_SecureConversationMessageHeader* dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_SecureConversationMessageHeader_init(dst);
-	CHECKED_DECODE(UA_OPCUATcpMessageHeader_decodeBinary(src,pos,&(dst->messageHeader)), UA_SecureConversationMessageHeader_deleteMembers(dst));
+	// CHECKED_DECODE(UA_OPCUATcpMessageHeader_decodeBinary(src,pos,&(dst->messageHeader)), UA_SecureConversationMessageHeader_deleteMembers(dst));
 	CHECKED_DECODE(UA_UInt32_decodeBinary(src,pos,&(dst->secureChannelId)), UA_SecureConversationMessageHeader_deleteMembers(dst));
 	return retval;
 }
@@ -228,13 +225,13 @@ UA_Int32 UA_SecureConversationMessageHeader_delete(UA_SecureConversationMessageH
     }
 UA_Int32 UA_SecureConversationMessageHeader_deleteMembers(UA_SecureConversationMessageHeader* p) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_OPCUATcpMessageHeader_deleteMembers(&(p->messageHeader));
+	// retval |= UA_OPCUATcpMessageHeader_deleteMembers(&(p->messageHeader));
 	return retval;
 }
 
 UA_Int32 UA_SecureConversationMessageHeader_init(UA_SecureConversationMessageHeader * p) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_OPCUATcpMessageHeader_init(&(p->messageHeader));
+	// retval |= UA_OPCUATcpMessageHeader_init(&(p->messageHeader));
 	retval |= UA_UInt32_init(&(p->secureChannelId));
 	return retval;
 }
@@ -246,7 +243,7 @@ UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_calcSize(UA_AsymmetricAlgorithmSec
 	 + UA_ByteString_calcSize(&(ptr->securityPolicyUri))
 	 + UA_ByteString_calcSize(&(ptr->senderCertificate))
 	 + UA_ByteString_calcSize(&(ptr->receiverCertificateThumbprint))
-	 + sizeof(UA_UInt32) // requestId
+	 // + sizeof(UA_UInt32) // requestId
 	;
 }
 
@@ -255,7 +252,7 @@ UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(UA_AsymmetricAlgorith
 	retval |= UA_ByteString_encodeBinary(&(src->securityPolicyUri),pos,dst);
 	retval |= UA_ByteString_encodeBinary(&(src->senderCertificate),pos,dst);
 	retval |= UA_ByteString_encodeBinary(&(src->receiverCertificateThumbprint),pos,dst);
-	retval |= UA_UInt32_encodeBinary(&(src->requestId),pos,dst);
+	// retval |= UA_UInt32_encodeBinary(&(src->requestId),pos,dst);
 	return retval;
 }
 
@@ -265,7 +262,7 @@ UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(UA_ByteString const *
 	CHECKED_DECODE(UA_ByteString_decodeBinary(src,pos,&(dst->securityPolicyUri)), UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(dst));
 	CHECKED_DECODE(UA_ByteString_decodeBinary(src,pos,&(dst->senderCertificate)), UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(dst));
 	CHECKED_DECODE(UA_ByteString_decodeBinary(src,pos,&(dst->receiverCertificateThumbprint)), UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(dst));
-	CHECKED_DECODE(UA_UInt32_decodeBinary(src,pos,&(dst->requestId)), UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(dst));
+	// CHECKED_DECODE(UA_UInt32_decodeBinary(src,pos,&(dst->requestId)), UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(dst));
 	return retval;
 }
 
@@ -288,7 +285,7 @@ UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_init(UA_AsymmetricAlgorithmSecurit
 	retval |= UA_ByteString_init(&(p->securityPolicyUri));
 	retval |= UA_ByteString_init(&(p->senderCertificate));
 	retval |= UA_ByteString_init(&(p->receiverCertificateThumbprint));
-	retval |= UA_UInt32_init(&(p->requestId));
+	// retval |= UA_UInt32_init(&(p->requestId));
 	return retval;
 }
 

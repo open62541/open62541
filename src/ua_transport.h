@@ -46,12 +46,10 @@ UA_Int32 UA_MessageType_delete(UA_MessageType* p);
 UA_Int32 UA_MessageType_deleteMembers(UA_MessageType* p);
 void UA_MessageType_printf(char *label, UA_MessageType* p);
 
-/* Auto-Generated from here on */
-
 /** @name UA_UA_OPCUATcpMessageHeader */
 /** @brief TCP Header */
 typedef struct UA_OPCUATcpMessageHeader_T {
-	UA_UInt32 messageType;
+	UA_MessageType messageType; // MessageType instead of UInt32
 	UA_Byte isFinal;
 	UA_UInt32 messageSize;
 } UA_OPCUATcpMessageHeader;
@@ -101,7 +99,7 @@ UA_Int32 UA_OPCUATcpAcknowledgeMessage_new(UA_OPCUATcpAcknowledgeMessage ** p);
 /** @name UA_UA_SecureConversationMessageHeader */
 /** @brief Secure Layer Sequence Header */
 typedef struct UA_SecureConversationMessageHeader_T {
-	UA_OPCUATcpMessageHeader messageHeader;
+	// UA_OPCUATcpMessageHeader messageHeader; // Treated with custom code
 	UA_UInt32 secureChannelId;
 } UA_SecureConversationMessageHeader;
 UA_Int32 UA_SecureConversationMessageHeader_calcSize(UA_SecureConversationMessageHeader const* ptr);
@@ -118,7 +116,7 @@ typedef struct UA_AsymmetricAlgorithmSecurityHeader_T {
 	UA_ByteString securityPolicyUri;
 	UA_ByteString senderCertificate;
 	UA_ByteString receiverCertificateThumbprint;
-	UA_UInt32 requestId;
+	// UA_UInt32 requestId; // Dealt with in the SequenceHeader
 } UA_AsymmetricAlgorithmSecurityHeader;
 UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_calcSize(UA_AsymmetricAlgorithmSecurityHeader const* ptr);
 UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(UA_AsymmetricAlgorithmSecurityHeader const* src, UA_Int32* pos, UA_ByteString* dst);
