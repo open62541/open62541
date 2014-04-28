@@ -48,16 +48,44 @@ typedef struct Namespace_T {
 	UA_UInt32 sizePrimeIndex;	/* Current size, as an index into the table of primes.  */
 } Namespace;
 
+/** @brief Create a new namespace */
 UA_Int32 Namespace_create(Namespace ** result, UA_UInt32 size);
+
+/** @brief Delete all nodes in the namespace */
 void Namespace_empty(Namespace * ns);
+
+/** @brief Delete the namespace and all nodes in it */
 void Namespace_delete(Namespace * ns);
+
+/** @brief Insert a new node into the namespace */
 UA_Int32 Namespace_insert(Namespace * ns, UA_Node * node);
+
+/** @brief Remove a node from the namespace */
 void Namespace_remove(Namespace * ns, UA_NodeId * nodeid);
+
+/** @brief Retrieve a node (read-only) from the namespace. Nodes are identified
+	by their NodeId. After the Node is no longer used, the lock needs to be
+	released. */
 UA_Int32 Namespace_get(Namespace const *ns, const UA_NodeId * nodeid, UA_Node const **result, Namespace_Lock ** lock);
+
+/** @brief Retrieve a node (read and write) from the namespace. Nodes are
+	identified by their NodeId. After the Node is no longer used, the lock needs
+	to be released. */
 UA_Int32 Namespace_getWritable(Namespace const *ns, const UA_NodeId * nodeid, UA_Node ** result, Namespace_Lock ** lock);
+
+/** @brief Retrieve a node (read-only) as part of a transaction. If multiples
+	nodes are to be retrieved as part of a transaction, the transaction context
+	needs to be specified. */
 UA_Int32 Namespace_transactionGet(Namespace * ns, Namespace_TransactionContext * tc, const UA_NodeId * nodeid, UA_Node ** const result, Namespace_Lock ** lock);
+
+/** @brief Retrieve a node (read and write) as part of a transaction. If
+	multiples nodes are to be retrieved as part of a transaction, the
+	transaction context needs to be specified. */
 UA_Int32 Namespace_transactionGetWritable(Namespace * ns, Namespace_TransactionContext * tc, const UA_NodeId * nodeid, UA_Node ** result, Namespace_Lock ** lock);
+
 typedef void (*Namespace_nodeVisitor) (UA_Node const *node);
+
+/** @brief Iterate over all nodes in a namespace */
 UA_Int32 Namespace_iterate(const Namespace * ns, Namespace_nodeVisitor visitor);
 
 #endif /* __NAMESPACE_H */
