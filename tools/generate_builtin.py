@@ -122,7 +122,7 @@ def createStructured(element):
     #    print ("type " + name + " is new Request_Base with "),
     # else:
     #    print ("type " + name + " is new UA_Builtin with "),
-    print("typedef struct T_" + name + " {", end='\n', file=fh)
+    print("typedef struct " + name + "_T {", end='\n', file=fh)
     if len(valuemap) == 0:
         typename = stripTypename(element.get("BaseType"))
         childname = camlCase2CCase(typename)
