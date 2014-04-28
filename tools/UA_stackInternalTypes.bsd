@@ -1,4 +1,16 @@
+<opc:TypeDictionary
+  xmlns:opc="http://opcfoundation.org/BinarySchema/"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:ua="http://opcfoundation.org/UA/"
+  xmlns:tns="http://opcfoundation.org/UA/"
+  DefaultByteOrder="LittleEndian"
+  TargetNamespace="http://opcfoundation.org/UA/"
+>
+
+  <opc:Import Namespace="http://opcfoundation.org/BinarySchema/" />
+
 <!-- 	Types within the Stack Begin  -->
+
    <opc:StructuredType Name="OPCUATcpMessageHeader">
     <opc:Documentation>TCP Header</opc:Documentation>
     <opc:Field Name="MessageType" TypeName="opc:UInt32" />
@@ -64,5 +76,5 @@
     <opc:Field Name="Reason" TypeName="opc:String" />
   </opc:StructuredType>
  
-  
 <!-- Types within the Stack End -->
+</opc:TypeDictionary>

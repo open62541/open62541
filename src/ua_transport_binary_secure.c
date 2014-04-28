@@ -184,7 +184,7 @@ UA_Int32 SL_Channel_new(TL_Connection *connection, const UA_ByteString* msg, UA_
 	UA_String_init(&(channel->secureChannelId));
 	channel->securityMode = UA_SECURITYMODE_INVALID;
 	channel->securityToken.secureChannelId = 25; //TODO set a valid start secureChannelId number
-	channel->securityToken.tokenId = 1; //TODO set a valid start TokenId
+	channel->securityToken.tokenId.tokenId = 1; //TODO set a valid start TokenId
 
 	connection->secureChannel = channel;
 	connection->secureChannel->tlConnection = connection;

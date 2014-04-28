@@ -62,7 +62,7 @@ UA_Int32 Service_OpenSecureChannel(SL_Channel *channel, const UA_OpenSecureChann
 
 	response->serverProtocolVersion = channel->tlConnection->localConf.protocolVersion;
 	response->securityToken.channelId = channel->securityToken.secureChannelId;
-	response->securityToken.tokenId = channel->securityToken.tokenId;
+	response->securityToken.tokenId = channel->securityToken.tokenId.tokenId;
 	response->securityToken.revisedLifetime = channel->securityToken.revisedLifetime;
 	UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
 	return retval;
