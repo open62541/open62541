@@ -1624,20 +1624,43 @@ END_TEST
 START_TEST(UA_Variant_copyShallWorkOnExample)
 {
 	// given
-	UA_Byte data[] = { UA_INT32_NS0, 0xFF, 0x00, 0x00, 0x00};
 	UA_Variant *value = UA_NULL;
 	UA_Variant *copiedValue = UA_NULL;
+
+	UA_Int32 i,j;
+	UA_String **srcArray; UA_Array_new((void***)&srcArray,3,UA_STRING);
+	//init
+	UA_String_copycstring("open",srcArray[0]);
+	UA_String_copycstring("62541",srcArray[1]);
+	UA_String_copycstring("opc ua",srcArray[2]);
+
 
 	UA_Variant_new(&value);
 	UA_Variant_new(&copiedValue);
 
-	value->arrayLength = 5;
-	value->data = (void**)&data;
-	value->encodingMask = UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
+	value->arrayLength = 3;
+	value->data = (void**)srcArray;
+	value->encodingMask |= UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
+	value->encodingMask |= UA_STRING_NS0;
+
+	//value->encodingMask |= UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS;
+
 
 	UA_Variant_copy(value,copiedValue);
 
-	ck_assert_int_eq(value->encodingMask,value->encodingMask);
+	for(i=0;i<3;i++){
+		for(j=0;j<3;j++){
+			ck_assert_int_eq((((UA_String*)(value->data[i])))->data[j],(((UA_String*)(copiedValue->data[i])))->data[j]);
+		}
+		ck_assert_int_eq((((UA_String*)(value->data[i])))->length,(((UA_String*)(copiedValue->data[i])))->length);
+	}
+
+
+	ck_assert_int_eq(value->encodingMask,copiedValue->encodingMask);
+	ck_assert_int_eq(value->arrayDimensionsLength, copiedValue->arrayDimensionsLength);
+	ck_assert_int_eq(value->arrayLength, copiedValue->arrayLength);
+
+
 }
 END_TEST
 Suite *testSuite_builtin(void)

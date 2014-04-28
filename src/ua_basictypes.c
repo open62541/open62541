@@ -1429,9 +1429,16 @@ UA_TYPE_START_ENCODEBINARY(UA_Variant)
 			retval |= src->vt->encodeBinary(src->data[i],pos,dst);
 		}
 	}
-	if (src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) { // encode array dimension field
-		// FIXME: encode array dimension field
-		printf("shit happens - encode array dimension field wanted");
+
+	if (src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) {
+		//encode dimension field
+		UA_Int32_encodeBinary(&(src->arrayDimensionsLength), pos, dst);
+		if(src->arrayDimensionsLength >0){
+			for (i=0;i<src->arrayDimensionsLength;i++) {
+				retval |= UA_Int32_encodeBinary(src->arrayDimensions[i], pos, dst);
+			}
+		}
+
 	}
 UA_TYPE_END_XXCODEBINARY
 
@@ -1462,11 +1469,11 @@ UA_Int32 UA_Variant_decodeBinary(UA_ByteString const * src, UA_Int32 *pos, UA_Va
 		CHECKED_DECODE(UA_Array_new(&dst->data, dst->arrayLength, uaIdx), dst->data = UA_NULL);
 		CHECKED_DECODE(UA_Array_decodeBinary(src, dst->arrayLength, uaIdx, pos, &dst->data), UA_Variant_deleteMembers(dst));
 	}
-
+	//decode the dimension field array if present
 	if (dst->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) {
-
-		// TODO: decode array dimension field
-		printf("shit happens - decode array dimension field wanted");
+		UA_Int32_decodeBinary(src, pos, &dst->arrayDimensionsLength);
+		CHECKED_DECODE(UA_Array_new((void***)&dst->arrayDimensions, dst->arrayDimensionsLength, UA_INT32), dst->arrayDimensions = UA_NULL);
+		CHECKED_DECODE(UA_Array_decodeBinary(src, dst->arrayLength, uaIdx, pos, &dst->data), UA_Variant_deleteMembers(dst));
 	}
 	return retval;
 }
@@ -1476,6 +1483,7 @@ UA_Int32 UA_Variant_deleteMembers(UA_Variant  * p) {
 	UA_Int32 retval = UA_SUCCESS;
 	if(p->data != UA_NULL) {
 		retval |= UA_Array_delete(&p->data,p->arrayLength,UA_toIndex(p->vt->ns0Id));
+		retval |= UA_Array_delete(&p->data,p->arrayDimensionsLength,UA_INT32);
 	}
 	return retval;
 }
@@ -1484,6 +1492,8 @@ UA_Int32 UA_Variant_init(UA_Variant * p){
 	p->arrayLength = -1; // no element, p->data == UA_NULL
 	p->data = UA_NULL;
 	p->encodingMask = 0;
+	p->arrayDimensions = 0;
+	p->arrayDimensionsLength = 0;
 	p->vt = &UA_[UA_INVALIDTYPE];
 	return UA_SUCCESS;
 }
@@ -1492,7 +1502,7 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_Variant)
 UA_Int32 UA_Variant_copy(UA_Variant const *src, UA_Variant *dst)
 {
 	UA_Int32 retval = UA_SUCCESS;
-	UA_Int32 ns0Id = dst->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK;
+	UA_Int32 ns0Id = src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK;
 	// initialize vTable
 	UA_Int32 uaIdx = UA_toIndex(ns0Id);
 	if(UA_VTable_isValidType(uaIdx) != UA_SUCCESS){
@@ -1501,15 +1511,18 @@ UA_Int32 UA_Variant_copy(UA_Variant const *src, UA_Variant *dst)
 	dst->vt = &UA_[uaIdx];
 	retval |= UA_Int32_copy(&(src->arrayLength), &(dst->arrayLength));
 	retval |= UA_Byte_copy(&(src->encodingMask), &(dst->encodingMask));
+	retval |= UA_Int32_copy(&(src->arrayDimensionsLength), &(dst->arrayDimensionsLength));
 
 	if (src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_ARRAY) {
-
 		retval |=  UA_Array_copy((const void * const *)(src->data),src->arrayLength, uaIdx,(void***)&(dst->data));
 	}
 	else {
-		retval |= src->vt[uaIdx].copy(*src->data,*src->data);
+		retval |= src->vt[uaIdx].copy(*src->data, *src->data);
 	}
 
+	if (src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) {
+		retval |=  UA_Array_copy((const void * const *)(src->arrayDimensions),src->arrayLength, UA_toIndex(UA_INT32),(void***)&(dst->arrayDimensions));
+	}
 	return retval;
 }
 

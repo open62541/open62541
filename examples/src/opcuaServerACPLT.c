@@ -37,13 +37,31 @@ int main(void) {
 void tmpTestFunction()
 {
 	// given
+	UA_Variant *value = UA_NULL;
+	UA_Variant *copiedValue = UA_NULL;
+
+
 	UA_String **srcArray; UA_Array_new((void***)&srcArray,3,UA_STRING);
-	UA_String_copycstring("abc",srcArray[0]);
-	UA_String_copycstring("def",srcArray[1]);
-	UA_String_copycstring("ghi",srcArray[2]);
-	// when
-	UA_String **dstArray;
-	UA_Array_copy((void const*const*)srcArray,3,UA_STRING,(void ***)&dstArray);
+	//init
+	UA_String_copycstring("open",srcArray[0]);
+	UA_String_copycstring("62541",srcArray[1]);
+	UA_String_copycstring("opc ua",srcArray[2]);
+
+
+	UA_Variant_new(&value);
+	UA_Variant_new(&copiedValue);
+
+	value->arrayLength = 3;
+	value->data = (void**)srcArray;
+	value->encodingMask |= UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
+	value->encodingMask |= UA_STRING_NS0;
+	UA_Variant_copy(value,copiedValue);
+
+
+
+
+
+
 }
 void server_run() {
 	//just for debugging

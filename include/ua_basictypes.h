@@ -234,6 +234,8 @@ typedef struct T_UA_Variant {
 	UA_VTable* vt;		// internal entry into vTable
 	UA_Byte encodingMask; 	// Type of UA_Variant_EncodingMaskType_enum
 	UA_Int32 arrayLength;	// total number of elements
+	UA_Int32 arrayDimensionsLength;
+	UA_Int32 **arrayDimensions;
 	void** data;
 } UA_Variant;
 UA_TYPE_METHOD_PROTOTYPES (UA_Variant)
