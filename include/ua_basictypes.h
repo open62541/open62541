@@ -1,10 +1,3 @@
-/*
- * ua_basictypes.h
- *
- *  Created on: 13.03.2014
- *      Author: mrt
- */
-
 #ifndef OPCUA_BASICTYPES_H_
 #define OPCUA_BASICTYPES_H_
 
@@ -37,13 +30,10 @@ typedef uint64_t UA_UInt64;
 typedef float UA_Float;
 typedef double UA_Double;
 /* ByteString - Part: 6, Chapter: 5.2.2.7, Page: 17 */
-typedef struct T_UA_ByteString
-{
+typedef struct UA_ByteString_T {
 	UA_Int32 	length;
 	UA_Byte*	data;
-}
-UA_ByteString;
-
+} UA_ByteString;
 
 /* Function return values */
 #define UA_SUCCESS 0
@@ -99,7 +89,6 @@ UA_Int32 UA_Array_copy(void const * const *src,UA_Int32 noElements, UA_Int32 typ
 	UA_Int32 TYPE##_deleteMembers(TYPE * p);							\
 	UA_Int32 TYPE##_init(TYPE * p);										\
 	UA_Int32 TYPE##_new(TYPE ** p);
-
 
 #define UA_TYPE_METHOD_CALCSIZE_SIZEOF(TYPE) \
 UA_Int32 TYPE##_calcSize(TYPE const * p) { return sizeof(TYPE); }
@@ -195,7 +184,7 @@ UA_TYPE_METHOD_PROTOTYPES (UA_StatusCode)
 typedef float UA_IntegerId;
 UA_TYPE_METHOD_PROTOTYPES (UA_IntegerId)
 
-typedef struct T_UA_VTable {
+typedef struct UA_VTable_T {
 	UA_UInt32 ns0Id;
 	UA_Int32 (*calcSize)(void const * ptr);
 	UA_Int32 (*decodeBinary)(UA_ByteString const * src, UA_Int32* pos, void* dst);
@@ -214,7 +203,7 @@ enum UA_VARIANT_ENCODINGMASKTYPE_enum
 	UA_VARIANT_ENCODINGMASKTYPE_ARRAY = ( 0x01 << 7) // bit 7
 };
 
-typedef struct T_UA_Variant {
+typedef struct UA_Variant_T {
 	UA_VTable* vt;		// internal entry into vTable
 	UA_Byte encodingMask; 	// Type of UA_Variant_EncodingMaskType_enum
 	UA_Int32 arrayLength;	// total number of elements
@@ -223,12 +212,10 @@ typedef struct T_UA_Variant {
 UA_TYPE_METHOD_PROTOTYPES (UA_Variant)
 
 /* String - Part: 6, Chapter: 5.2.2.4, Page: 16 */
-typedef struct T_UA_String
-{
+typedef struct UA_String_T {
 	UA_Int32 	length;
 	UA_Byte*	data;
-}
-UA_String;
+} UA_String;
 UA_TYPE_METHOD_PROTOTYPES (UA_String)
 UA_Int32 UA_String_copy(UA_String const * src, UA_String* dst);
 UA_Int32 UA_String_copycstring(char const * src, UA_String* dst);
@@ -251,13 +238,11 @@ enum UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_enum
 	UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE = 0x01,
 	UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT = 0x02
 };
-typedef struct T_UA_LocalizedText
-{
+typedef struct UA_LocalizedText_T {
 	UA_Byte encodingMask;
 	UA_String locale;
 	UA_String text;
-}
-UA_LocalizedText;
+} UA_LocalizedText;
 UA_TYPE_METHOD_PROTOTYPES (UA_LocalizedText)
 UA_Int32 UA_LocalizedText_copycstring(char const * src, UA_LocalizedText* dst);
 void UA_ByteString_printf(char* label, const UA_ByteString* string);
@@ -265,8 +250,7 @@ void UA_ByteString_printx(char* label, const UA_ByteString* string);
 void UA_ByteString_printx_hex(char* label, const UA_ByteString* string);
 
 /* GuidType - Part: 6, Chapter: 5.2.2.6 Page: 17 */
-typedef struct T_UA_Guid
-{
+typedef struct UA_Guid_T {
 	UA_UInt32 data1;
 	UA_UInt16 data2;
 	UA_UInt16 data3;
@@ -279,8 +263,7 @@ UA_Int32 UA_Guid_compare(const UA_Guid *g1, const UA_Guid *g2);
 typedef UA_Int64 UA_DateTime; //100 nanosecond resolution
 UA_TYPE_METHOD_PROTOTYPES (UA_DateTime)
 UA_DateTime UA_DateTime_now();
-typedef struct T_UA_DateTimeStruct
-{
+typedef struct UA_DateTimeStruct_T {
 	UA_Int16 nanoSec;
 	UA_Int16 microSec;
 	UA_Int16 milliSec;
@@ -294,12 +277,9 @@ typedef struct T_UA_DateTimeStruct
 UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time);
 UA_Int32 UA_DateTime_toString(UA_DateTime time, UA_String* timeString);
 
-
-typedef struct T_UA_NodeId
-{
+typedef struct UA_NodeId_T {
 	UA_Byte   encodingByte; //enum BID_NodeIdEncodingValuesType
 	UA_UInt16 namespace;
-
     union
     {
         UA_UInt32 numeric;
@@ -314,8 +294,7 @@ UA_Int32 UA_NodeId_compare(const UA_NodeId *n1, const UA_NodeId *n2);
 void UA_NodeId_printf(char* label, const UA_NodeId* node);
 
 /** XmlElement - Part: 6, Chapter: 5.2.2.8, Page: 17 */
-typedef struct T_UA_XmlElement
-{
+typedef struct UA_XmlElement_T {
 	//TODO Überlegung ob man es direkt als ByteString speichert oder als String
 	UA_ByteString data;
 } UA_XmlElement;
@@ -326,13 +305,11 @@ UA_TYPE_METHOD_PROTOTYPES (UA_XmlElement)
 #define UA_NODEIDTYPE_NAMESPACE_URI_FLAG 0x80
 #define UA_NODEIDTYPE_SERVERINDEX_FLAG   0x40
 #define UA_NODEIDTYPE_MASK (~(UA_NODEIDTYPE_NAMESPACE_URI_FLAG | UA_NODEIDTYPE_SERVERINDEX_FLAG))
-typedef struct T_UA_ExpandedNodeId
-{
+typedef struct UA_ExpandedNodeId_T {
 	UA_NodeId nodeId;
 	UA_String namespaceUri;
 	UA_UInt32 serverIndex;
-}
-UA_ExpandedNodeId;
+} UA_ExpandedNodeId;
 UA_TYPE_METHOD_PROTOTYPES(UA_ExpandedNodeId)
 
 
@@ -340,7 +317,7 @@ typedef UA_Int32 UA_IdentifierType;
 UA_TYPE_METHOD_PROTOTYPES(UA_IdentifierType)
 
 /* ExtensionObjectBinaryEncoding - Part: 6, Chapter: 5.2.2.15, Page: 21 */
-typedef struct T_UA_ExtensionObject {
+typedef struct UA_ExtensionObject_T {
 	UA_NodeId typeId;
 	UA_Byte encoding; //Type of the enum UA_ExtensionObjectEncodingMaskType
 	UA_ByteString body;
@@ -355,7 +332,7 @@ enum UA_ExtensionObject_EncodingMaskType_enum
 };
 
 /* QualifiedNameBinaryEncoding - Part: 6, Chapter: 5.2.2.13, Page: 20 */
-typedef struct T_UA_QualifiedName {
+typedef struct UA_QualifiedName_T {
 	UA_UInt16 namespaceIndex;
 	UA_UInt16 reserved;
 	UA_String name;
@@ -363,7 +340,7 @@ typedef struct T_UA_QualifiedName {
 UA_TYPE_METHOD_PROTOTYPES(UA_QualifiedName)
 
 /* DataValue - Part: 6, Chapter: 5.2.2.17, Page: 23 */
-typedef struct UA_DataValue {
+typedef struct UA_DataValue_T {
 	UA_Byte encodingMask;
 	UA_Variant value;
 	UA_StatusCode status;
@@ -386,7 +363,7 @@ enum UA_DATAVALUE_ENCODINGMASKTYPE_enum
 };
 
 /* DiagnosticInfo - Part: 6, Chapter: 5.2.2.12, Page: 20 */
-typedef struct T_UA_DiagnosticInfo {
+typedef struct UA_DiagnosticInfo_T {
 	UA_Byte encodingMask; //Type of the Enum UA_DIAGNOSTICINFO_ENCODINGMASKTYPE
 	UA_Int32 symbolicId;
 	UA_Int32 namespaceUri;
@@ -394,7 +371,7 @@ typedef struct T_UA_DiagnosticInfo {
 	UA_Int32 locale;
 	UA_String additionalInfo;
 	UA_StatusCode innerStatusCode;
-	struct T_UA_DiagnosticInfo* innerDiagnosticInfo;
+	struct UA_DiagnosticInfo_T* innerDiagnosticInfo;
 } UA_DiagnosticInfo;
 UA_TYPE_METHOD_PROTOTYPES(UA_DiagnosticInfo)
 
