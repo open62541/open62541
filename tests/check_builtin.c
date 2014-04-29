@@ -1683,8 +1683,8 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample)
 	UA_String **srcArray; UA_Array_new((void***)&srcArray,3,UA_STRING);
 
 	UA_alloc((void**)&dimensions,UA_Int32_calcSize(UA_NULL));
-	UA_String_copycstring("open",srcArray[0]);
-	UA_String_copycstring("62541",srcArray[1]);
+	UA_String_copycstring("__open",srcArray[0]);
+	UA_String_copycstring("_62541",srcArray[1]);
 	UA_String_copycstring("opc ua",srcArray[2]);
 
 	dimensions[0]=3;
@@ -1708,11 +1708,14 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample)
 	ck_assert_int_eq(i1,i2);
 
 	for(i=0;i<3;i++){
-		for(j=0;j<3;j++){
+		for(j=0;j<6;j++){
 			ck_assert_int_eq(((UA_String*)(value->data[i]))->data[j],((UA_String*)(copiedValue->data[i]))->data[j]);
 		}
 		ck_assert_int_eq(((UA_String*)(value->data[i]))->length,((UA_String*)(copiedValue->data[i]))->length);
 	}
+	ck_assert_int_eq(((UA_String*)(copiedValue->data[0]))->data[2],'o');
+	ck_assert_int_eq(((UA_String*)(copiedValue->data[0]))->data[3],'p');
+
 
 	ck_assert_int_eq(value->encodingMask,copiedValue->encodingMask);
 	ck_assert_int_eq(value->arrayDimensionsLength, copiedValue->arrayDimensionsLength);
@@ -1722,41 +1725,36 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample)
 	UA_free(copiedValue);
 }
 END_TEST
-/*
+
 START_TEST(UA_Variant_copyShallWorkOn2DArrayExample)
 {
 	// given
 	UA_Variant *value = UA_NULL;
 	UA_Variant *copiedValue = UA_NULL;
 	UA_Int32 **dimensions;
-	UA_Int32 i,j,i1,i2;
+	UA_Int32 i,i1,i2;
+	UA_Int32 dim1,dim2;
 	UA_Int32 **srcArray;
-	UA_Int32 **dstArray;
-	UA_Array_new((void***)&srcArray,9,UA_INT32);
+	UA_Array_new((void***)&srcArray,6,UA_INT32);
 
-	//1st line
-	srcArray[0][0] = 0;
-	srcArray[1][0] = 1;
-	srcArray[2][0] = 2;
-	srcArray[0][1] = 3;
-	//2nd line
-	srcArray[0][1] = 4;
-	srcArray[1][1] = 5;
-	srcArray[2][1] = 6;
-	//3rd line
-	srcArray[0][2] = 7;
-	srcArray[1][2] = 8;
-	srcArray[2][2] = 9;
+	dim1 = 3;
+	dim2 = 2;
+	*srcArray[0] = 0;
+	*srcArray[1] = 1;
+	*srcArray[2] = 2;
+	*srcArray[3] = 3;
+	*srcArray[4] = 4;
+	*srcArray[5] = 5;
 
 	UA_Array_new((void***)&dimensions,2,UA_INT32);
 
-	*(dimensions)[0] = 3;
-	*(dimensions)[1] = 3;
+	*(dimensions)[0] = dim1;
+	*(dimensions)[1] = dim2;
 
 	UA_Variant_new(&value);
 	UA_Variant_new(&copiedValue);
 
-	value->arrayLength = 9;
+	value->arrayLength = 6;
 	value->data = (void**)srcArray;
 	value->arrayDimensionsLength = 2;
 	value->arrayDimensions = dimensions;
@@ -1772,27 +1770,22 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample)
 	i1 = *(value->arrayDimensions)[0],
 	i2 = *(copiedValue->arrayDimensions)[0];
 	ck_assert_int_eq(i1,i2);
+	ck_assert_int_eq(i1, dim1);
 
 
 	//2nd dimension
-	i1 = (value->arrayDimensions)[1][0],
-	i2 = (copiedValue->arrayDimensions)[1][0];
+	i1 = *(value->arrayDimensions)[1];
+	i2 = *(copiedValue->arrayDimensions)[1];
 	ck_assert_int_eq(i1,i2);
+	ck_assert_int_eq(i1, dim2);
 
-	for(i=0;i<9;i++){
+
+	for(i=0;i<6;i++){
 		i1 = *((UA_Int32*)(value->data[i]));
 		i2 = *((UA_Int32*)(copiedValue->data[i]));
 		ck_assert_int_eq(i1,i2);
+		ck_assert_int_eq(i2,i);
 	}
-	dstArray = ((UA_Int32**)(copiedValue->data));
-	for(i=0;i<3;i++){
-		for(j=0;j<3;j++){
-			i1 = srcArray[j][i];
-			i2 = dstArray[j][i];
-			ck_assert_int_eq(i1,i2);
-		}
-	}
-
 
 	ck_assert_int_eq(value->encodingMask,copiedValue->encodingMask);
 	ck_assert_int_eq(value->arrayDimensionsLength, copiedValue->arrayDimensionsLength);
@@ -1803,7 +1796,7 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample)
 
 }
 END_TEST
-*/
+
 Suite *testSuite_builtin(void)
 {
 	Suite *s = suite_create("Built-in Data Types 62541-6 Table 1");
@@ -1923,7 +1916,7 @@ Suite *testSuite_builtin(void)
 
 	tcase_add_test(tc_copy, UA_Variant_copyShallWorkOnSingleValueExample);
 	tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn1DArrayExample);
-	//tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn2DArrayExample);
+	tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn2DArrayExample);
 
 	tcase_add_test(tc_copy, UA_DiagnosticInfo_copyShallWorkOnExample);
 	suite_add_tcase(s,tc_copy);

@@ -70,34 +70,29 @@ void tmpTestFunction()
 	UA_Variant *value = UA_NULL;
 	UA_Variant *copiedValue = UA_NULL;
 	UA_Int32 **dimensions;
-	UA_Int32 i,j,i1,i2;
+	UA_Int32 i,i1,i2;
 	UA_Int32 **srcArray;
-	UA_Int32 **dstArray;
-	UA_Array_new((void***)&srcArray,9,UA_INT32);
+	UA_Array_new((void***)&srcArray,6,UA_INT32);
 
-	//1st line
-	srcArray[0][0] = 0;
-	srcArray[1][0] = 1;
-	srcArray[2][0] = 2;
-	srcArray[0][1] = 3;
-	//2nd line
-	srcArray[0][1] = 4;
-	srcArray[1][1] = 5;
-	srcArray[2][1] = 6;
-	//3rd line
-	srcArray[0][2] = 7;
-	srcArray[1][2] = 8;
-	srcArray[2][2] = 9;
+
+	*srcArray[0] = 0;
+	*srcArray[1] = 1;
+	*srcArray[2] = 2;
+	*srcArray[3] = 3;
+	*srcArray[4] = 4;
+	*srcArray[5] = 5;
+
+
 
 	UA_Array_new((void***)&dimensions,2,UA_INT32);
 
 	*(dimensions)[0] = 3;
-	*(dimensions)[1] = 3;
+	*(dimensions)[1] = 2;
 
 	UA_Variant_new(&value);
 	UA_Variant_new(&copiedValue);
 
-	value->arrayLength = 9;
+	value->arrayLength = 6;
 	value->data = (void**)srcArray;
 	value->arrayDimensionsLength = 2;
 	value->arrayDimensions = dimensions;
@@ -112,28 +107,19 @@ void tmpTestFunction()
 	//1st dimension
 	i1 = *(value->arrayDimensions)[0],
 	i2 = *(copiedValue->arrayDimensions)[0];
-//	ck_assert_int_eq(i1,i2);
-
+	//	ck_assert_int_eq(i1,i2);
 
 	//2nd dimension
-	i1 = (value->arrayDimensions)[1][0],
-	i2 = (copiedValue->arrayDimensions)[1][0];
+	i1 = *(value->arrayDimensions)[1];
+	i2 = *(copiedValue->arrayDimensions)[1];
 	//ck_assert_int_eq(i1,i2);
 
-	for(i=0;i<9;i++){
+	for(i=0;i<6;i++){
 		i1 = *((UA_Int32*)(value->data[i]));
 		i2 = *((UA_Int32*)(copiedValue->data[i]));
 	//	ck_assert_int_eq(i1,i2);
 	}
-	dstArray = ((UA_Int32**)(copiedValue->data));
-	for(i=0;i<3;i++){
-		for(j=0;j<3;j++){
-			i1 = srcArray[j][i];
-			i2 = dstArray[j][i];
-		//	ck_assert_int_eq(i1,i2);
-		}
-	}
-	i1 = i2 * i1;
+
 }
 void server_run() {
 	//just for debugging

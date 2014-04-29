@@ -115,6 +115,7 @@ UA_Int32 UA_Array_copy(void const * const * src, UA_Int32 noElements, UA_Int32 t
 	// Get memory for the pointers
 	CHECKED_DECODE(UA_Array_new(dst, noElements, type), dst = UA_NULL;);
 	void **arr = *dst;
+	//void *srcArr = *src;
 
 	//only namespace zero types atm
 	if(UA_VTable_isValidType(type) != UA_SUCCESS)
@@ -1034,6 +1035,7 @@ UA_Int32 UA_ExtensionObject_calcSize(UA_ExtensionObject const * p) {
 	}
 	return length;
 }
+
 UA_TYPE_START_ENCODEBINARY(UA_ExtensionObject)
 	retval |= UA_NodeId_encodeBinary(&(src->typeId),pos,dst);
 	retval |= UA_Byte_encodeBinary(&(src->encoding),pos,dst);
@@ -1516,15 +1518,13 @@ UA_Int32 UA_Variant_copy(UA_Variant const *src, UA_Variant *dst)
 		retval |=  UA_Array_copy((const void * const *)(src->data),src->arrayLength, uaIdx,(void***)&(dst->data));
 	}
 	else {
-
-		UA_alloc((void**)&pData,UA_[UA_toIndex(ns0Id)].calcSize(UA_NULL));
+		UA_alloc((void**)&pData,UA_[uaIdx].calcSize(UA_NULL));
 		dst->data = &pData;
-
-		UA_[UA_toIndex(ns0Id)].copy(src->data[0], dst->data[0]);
+		UA_[uaIdx].copy(src->data[0], dst->data[0]);
 	}
 
 	if (src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) {
-		retval |=  UA_Array_copy((const void * const *)(src->arrayDimensions),src->arrayDimensionsLength, UA_INT32_NS0,(void***)&(dst->arrayDimensions));
+		retval |=  UA_Array_copy((const void * const *)(src->arrayDimensions),src->arrayDimensionsLength, UA_toIndex(UA_INT32_NS0),(void***)&(dst->arrayDimensions));
 	}
 	return retval;
 }
