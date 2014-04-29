@@ -82,11 +82,15 @@ AS_HELP_STRING([--enable-doxygen],
 
 AM_CONDITIONAL(ENABLE_DOXYGEN, test x"$enabledoxygen" = x"true")
 AC_CHECK_PROGS([DOXYGEN], [doxygen])
+AC_CHECK_PROGS([DOT], [dot])
 
 #break if doxygen enabled but not present
 if test x"$enabledoxygen" = x"true"; then    
 	if test -z "$DOXYGEN"; then 
     		AC_MSG_ERROR([Doxygen not found])
+	fi
+	if test -z "$DOT"; then 
+    		AC_MSG_ERROR([Graphviz not found])
 	fi
 fi
 AM_COND_IF([ENABLE_DOXYGEN], [AC_CONFIG_FILES([doc/Doxyfile])])

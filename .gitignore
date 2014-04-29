@@ -36,6 +36,7 @@ config.log
 /autogen.sh
 /configure
 /missing
+/html
 *~
 GIT_REVISION
 SVN_REVISION

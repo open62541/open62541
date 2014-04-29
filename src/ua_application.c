@@ -27,11 +27,13 @@ UA_Node* create_node_ns0(UA_Int32 class, UA_Int32 nodeClass, UA_Int32 const id, 
 #define C2UA_STRING(s) (UA_String) { sizeof(s)-1, (UA_Byte*) s }
 void appMockup_init() {
 	// create namespaces
-	namespace* ns0; create_ns(&ns0,100);
+	Namespace* ns0;
+	Namespace_create(&ns0,100);
 	ns0->namespaceId = 0;
 	ns0->namespaceUri = C2UA_STRING("http://opcfoundation.org/UA/");
 
-	namespace* local; create_ns(&local,100);
+	Namespace* local;
+	Namespace_create(&local,100);
 	local->namespaceId = 1;
 	local->namespaceUri = C2UA_STRING("http://localhost:16664/open62541/");
 
@@ -42,7 +44,7 @@ void appMockup_init() {
 
 	UA_Node* np;
 	np = create_node_ns0(UA_OBJECTNODE, UA_NODECLASS_OBJECT, 2253, "Server", "open62541", "...");
-	insert_node(ns0,np);
+	Namespace_insert(ns0,np);
 	UA_ObjectNode* o = (UA_ObjectNode*)np;
 	o->eventNotifier = UA_FALSE;
 
@@ -60,7 +62,7 @@ void appMockup_init() {
 	v->minimumSamplingInterval = 1.0;
 	v->historizing = UA_FALSE;
 
-	insert_node(ns0,np);
+	Namespace_insert(ns0,np);
 
 #if defined(DEBUG) && defined(VERBOSE)
 	uint32_t i, j;

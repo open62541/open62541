@@ -3,8 +3,10 @@ Open62541
 
 An open-source communication stack implementation of OPC UA (OPC Unified Architecture) licensed under LGPL + static linking exception.
 
+[![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
 [![Build Status](https://travis-ci.org/acplt/open62541.png?branch=master)](https://travis-ci.org/acplt/open62541)
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/1864/badge.svg)](https://scan.coverity.com/projects/1864)
+
 
 ## Getting dependencies
 ### Ubuntu
@@ -14,7 +16,7 @@ sudo apt-get install build-essential subversion git autoconf libtool texinfo pyt
 ```
 ##### Getting toolchain for tools:
 ```bash
-sudo apt-get install gperf libexpat
+sudo apt-get install expat libexpat1-dev
 ```
 ##### Getting and installing *check* as unit test framework (http://check.sourceforge.net/):
 ```bash

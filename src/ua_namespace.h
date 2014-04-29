@@ -9,86 +9,83 @@
 #define _XOPEN_SOURCE 500
 #define __USE_UNIX98
 #include <pthread.h>
-typedef struct pthread_rwlock_t ns_lock;
+typedef struct pthread_rwlock_t Namespace_Lock;
 #else
-typedef void ns_lock;
+typedef void Namespace_Lock;
 #endif
 
-/* Poor-man's transactions: If we need multiple locks and at least one of them
-   is a writelock ("transaction"), a deadlock can be introduced in conjunction
-   with a second thread.
-
-   Convention: All nodes in a transaction (read and write) must be locked before
-   the first write. If one write-lock cannot be acquired immediately, bail out
-   and restart the transaction.
-
-   A transaction_context is currently only a linked list of the acquired locks.
-
-   More advanced transaction mechanisms will be established once the runtime
-   behavior can be observed. */
-typedef UA_list_List transaction_context;
-UA_Int32 init_tc(transaction_context * tc);
-
-/* Each namespace is a hash-map of NodeIds to Nodes. Every entry in the hashmap
-   consists of a pointer to a read-write lock and a pointer to the Node. */
-typedef struct ns_entry_t {
+static inline void Namespace_Lock_release(Namespace_Lock * lock) {
 #ifdef MULTITHREADING
-	ns_lock *lock; /* locks are heap-allocated, so we can resize the entry-array online */
-#endif
-	UA_Node *node;
-} ns_entry;
-
-typedef struct namespace_t {
-	UA_Int32 namespaceId;
-	UA_String namespaceUri;
-	ns_entry *entries;
-	uint32_t size;
-	uint32_t count;
-	uint32_t sizePrimeIndex; /* Current size, as an index into the table of primes.  */
-} namespace;
-
-UA_Int32 create_ns(namespace **result, uint32_t size);
-void empty_ns(namespace *ns);
-void delete_ns(namespace *ns);
-UA_Int32 insert_node(namespace *ns, UA_Node *node);
-UA_Int32 get_node(namespace const *ns, const UA_NodeId *nodeid, UA_Node const ** result, ns_lock ** lock);
-UA_Int32 get_writable_node(namespace const *ns, const UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock); // use only for _single_ writes.
-UA_Int32 get_tc_node(namespace *ns, transaction_context *tc, const UA_NodeId *nodeid, UA_Node ** const result, ns_lock ** lock);
-UA_Int32 get_tc_writable_node(namespace *ns, transaction_context *tc, const UA_NodeId *nodeid, UA_Node **result, ns_lock ** lock); // use only for _single_ writes.
-
-typedef void (*node_visitor)(UA_Node const * node);
-UA_Int32 iterate_ns(const namespace *ns, node_visitor visitor);
-
-// inline void release_node(ns_lock *lock);
-// portable solution, see http://www.greenend.org.uk/rjk/tech/inline.html
-static inline void release_node(ns_lock *lock) {
-#ifdef MULTITHREADING
-	pthread_rwlock_unlock((pthread_rwlock_t *)lock);
+	pthread_rwlock_unlock((pthread_rwlock_t *) lock);
 #endif
 }
-void delete_node(namespace *ns, UA_NodeId *nodeid);
 
-/* Internal */
-typedef UA_UInt32 hash_t;
-static hash_t hash_string(const UA_Byte * data, UA_Int32 len);
-static hash_t hash(const UA_NodeId *n);
+/* Poor-man's transactions: If we need multiple locks and at least one of them is a writelock
+   ("transaction"), a deadlock can be introduced in conjunction with a second thread.
 
-static unsigned int higher_prime_index (unsigned long n);
-static inline hash_t mod_1(hash_t x, hash_t y, hash_t inv, int shift);
-static inline hash_t mod(hash_t hash, const namespace *ns);
-static inline hash_t htab_mod_m2(hash_t hash, const namespace *ns);
-static inline void clear_slot(namespace *ns, ns_entry *slot);
-static void clear_ns(namespace *ns);
-static UA_Int32 find_slot(const namespace *ns, ns_entry **slot, const UA_NodeId *nodeid);
-static ns_entry * find_empty_slot(const namespace *ns, hash_t hash);
-static UA_Int32 expand(namespace *ns);
+   Convention: All nodes in a transaction (read and write) must be locked before the first write.
+   If one write-lock cannot be acquired immediately, bail out and restart the transaction. A
+   Namespace_TransactionContext is currently only a linked list of the acquired locks. More advanced
+   transaction mechanisms will be established once the runtime behavior can be observed. */
+typedef UA_list_List Namespace_TransactionContext;
+UA_Int32 Namespace_TransactionContext_init(Namespace_TransactionContext * tc);
 
-/* We store UA_MethodNode_Callback instead of UA_MethodNode in the namespace.
-   Pointer casting to UA_MethodNode is possible since pointers point to the
-   first element anyway. */
-typedef struct UA_MethodNode_Callback_T {
-	UA_MethodNode *method_node;
-	UA_Int32 (*method_callback)(UA_list_List *input_args, UA_list_List *output_args);
-} UA_MethodNode_Callback;
+/* Each namespace is a hash-map of NodeIds to Nodes. Every entry in the hashmap consists of a
+   pointer to a read-write lock and a pointer to the Node. */
+typedef struct Namespace_Entry_T {
+#ifdef MULTITHREADING
+	Namespace_Lock *lock;	/* locks are heap-allocated */
+#endif
+	UA_Node *node;
+} Namespace_Entry;
+
+typedef struct Namespace_T {
+	UA_Int32 namespaceId;
+	UA_String namespaceUri;
+	Namespace_Entry *entries;
+	UA_UInt32 size;
+	UA_UInt32 count;
+	UA_UInt32 sizePrimeIndex;	/* Current size, as an index into the table of primes.  */
+} Namespace;
+
+/** @brief Create a new namespace */
+UA_Int32 Namespace_create(Namespace ** result, UA_UInt32 size);
+
+/** @brief Delete all nodes in the namespace */
+void Namespace_empty(Namespace * ns);
+
+/** @brief Delete the namespace and all nodes in it */
+void Namespace_delete(Namespace * ns);
+
+/** @brief Insert a new node into the namespace */
+UA_Int32 Namespace_insert(Namespace * ns, UA_Node * node);
+
+/** @brief Remove a node from the namespace */
+void Namespace_remove(Namespace * ns, UA_NodeId * nodeid);
+
+/** @brief Retrieve a node (read-only) from the namespace. Nodes are identified
+	by their NodeId. After the Node is no longer used, the lock needs to be
+	released. */
+UA_Int32 Namespace_get(Namespace const *ns, const UA_NodeId * nodeid, UA_Node const **result, Namespace_Lock ** lock);
+
+/** @brief Retrieve a node (read and write) from the namespace. Nodes are
+	identified by their NodeId. After the Node is no longer used, the lock needs
+	to be released. */
+UA_Int32 Namespace_getWritable(Namespace const *ns, const UA_NodeId * nodeid, UA_Node ** result, Namespace_Lock ** lock);
+
+/** @brief Retrieve a node (read-only) as part of a transaction. If multiples
+	nodes are to be retrieved as part of a transaction, the transaction context
+	needs to be specified. */
+UA_Int32 Namespace_transactionGet(Namespace * ns, Namespace_TransactionContext * tc, const UA_NodeId * nodeid, UA_Node ** const result, Namespace_Lock ** lock);
+
+/** @brief Retrieve a node (read and write) as part of a transaction. If
+	multiples nodes are to be retrieved as part of a transaction, the
+	transaction context needs to be specified. */
+UA_Int32 Namespace_transactionGetWritable(Namespace * ns, Namespace_TransactionContext * tc, const UA_NodeId * nodeid, UA_Node ** result, Namespace_Lock ** lock);
+
+typedef void (*Namespace_nodeVisitor) (UA_Node const *node);
+
+/** @brief Iterate over all nodes in a namespace */
+UA_Int32 Namespace_iterate(const Namespace * ns, Namespace_nodeVisitor visitor);
 
 #endif /* __NAMESPACE_H */
