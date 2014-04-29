@@ -1448,7 +1448,7 @@ START_TEST(UA_DateTime_toStructShallWorkOnExample)
 	ck_assert_int_eq(dst.year, 2014);
 }
 END_TEST
-START_TEST(UA_DateTime_toStingShallWorkOnExample)
+START_TEST(UA_DateTime_toStringShallWorkOnExample)
 {
 	// given
 	UA_DateTime src = 13974671891234567;
@@ -1495,7 +1495,7 @@ START_TEST(UA_ExtensionObject_copyShallWorkOnExample)
 	value->body.data = data;
 	value->body.length = 3;
 
-
+	//when
 	UA_ExtensionObject_copy(value,valueCopied);
 
 	for(i=0; i<3; i++){
@@ -1505,7 +1505,7 @@ START_TEST(UA_ExtensionObject_copyShallWorkOnExample)
 	ck_assert_int_eq(valueCopied->encoding, value->encoding);
 	ck_assert_int_eq(valueCopied->typeId.encodingByte,value->typeId.encodingByte);
 	ck_assert_int_eq(valueCopied->typeId.identifier.numeric,value->typeId.identifier.numeric);
-
+	//finally
 	UA_free(value);
 	UA_free(valueCopied);
 }
@@ -1513,6 +1513,7 @@ END_TEST
 
 START_TEST(UA_Array_copyByteArrayShallWorkOnExample)
 {
+	//given
 	UA_String testString;
 	UA_Byte* *srcArray = UA_NULL;
 	UA_Byte** dstArray;
@@ -1534,13 +1535,14 @@ START_TEST(UA_Array_copyByteArrayShallWorkOnExample)
 	srcArray[2] = &testString.data[2];
 	srcArray[3] = &testString.data[3];
 	srcArray[4] = &testString.data[4];
-
+	//when
 	UA_Array_copy((const void* const*)srcArray,5,UA_BYTE,(void***)&dstArray);
+	//then
 	for(i=0;i<size;i++){
 		ck_assert_int_eq(*srcArray[i], *dstArray[i]);
 	}
 
-	//UA_free(testString.data);
+	//finally
 	UA_free(*srcArray);
 	UA_free(*dstArray);
 
@@ -1553,20 +1555,20 @@ START_TEST(UA_Array_copyUA_StringShallWorkOnExample)
 	UA_Int32 i,j;
 	UA_String **srcArray; UA_Array_new((void***)&srcArray,3,UA_STRING);
 	UA_String **dstArray;
-	//init
+
 	UA_String_copycstring("open",srcArray[0]);
 	UA_String_copycstring("62541",srcArray[1]);
 	UA_String_copycstring("opc ua",srcArray[2]);
-    //action
+	//when
 	UA_Array_copy((void const*const*)srcArray,3,UA_STRING,(void ***)&dstArray);
-	//check
+	//then
 	for(i=0;i<3;i++){
 		for(j=0;j<3;j++){
 			ck_assert_int_eq(srcArray[i]->data[j], dstArray[i]->data[j]);
 		}
 		ck_assert_int_eq(srcArray[i]->length, dstArray[i]->length);
 	}
-	//clean up
+	//finally
 	UA_free(*srcArray);
 	UA_free(*dstArray);
 
@@ -1576,9 +1578,10 @@ END_TEST
 
 START_TEST(UA_DiagnosticInfo_copyShallWorkOnExample)
 {
+	//given
 	UA_DiagnosticInfo *value = UA_NULL;
 	UA_DiagnosticInfo *innerValue = UA_NULL;
-	UA_DiagnosticInfo *valueCopied = UA_NULL;
+	UA_DiagnosticInfo *copiedValue = UA_NULL;
 	UA_String testString;
 	UA_Int32 size = 5;
 	UA_Int32 i = 0;
@@ -1597,72 +1600,210 @@ START_TEST(UA_DiagnosticInfo_copyShallWorkOnExample)
 	value->encodingMask |= UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO;
 	value->innerDiagnosticInfo = innerValue;
 
-	UA_alloc((void**)&valueCopied,UA_DiagnosticInfo_calcSize(UA_NULL));
+	UA_alloc((void**)&copiedValue,UA_DiagnosticInfo_calcSize(UA_NULL));
 	value->additionalInfo.length = testString.length;
 	value->additionalInfo.data = testString.data;
+	//when
+	UA_DiagnosticInfo_copy(value, copiedValue);
 
-	UA_DiagnosticInfo_copy(value, valueCopied);
-	/*additional info */
+	//then
 	for(i=0; i<size; i++){
-		ck_assert_int_eq(valueCopied->additionalInfo.data[i],value->additionalInfo.data[i]);
+		ck_assert_int_eq(copiedValue->additionalInfo.data[i],value->additionalInfo.data[i]);
 	}
-	ck_assert_int_eq(valueCopied->additionalInfo.length, value->additionalInfo.length);
+	ck_assert_int_eq(copiedValue->additionalInfo.length, value->additionalInfo.length);
 
-	ck_assert_int_eq(valueCopied->encodingMask, value->encodingMask);
-	ck_assert_int_eq(valueCopied->innerDiagnosticInfo->locale,value->innerDiagnosticInfo->locale);
-	ck_assert_int_eq(valueCopied->innerStatusCode,value->innerStatusCode);
-	ck_assert_int_eq(valueCopied->locale,value->locale);
-	ck_assert_int_eq(valueCopied->localizedText,value->localizedText);
-	ck_assert_int_eq(valueCopied->namespaceUri,value->namespaceUri);
-	ck_assert_int_eq(valueCopied->symbolicId,value->symbolicId);
-
-	UA_free(testString.data);
+	ck_assert_int_eq(copiedValue->encodingMask, value->encodingMask);
+	ck_assert_int_eq(copiedValue->innerDiagnosticInfo->locale,value->innerDiagnosticInfo->locale);
+	ck_assert_int_eq(copiedValue->innerStatusCode,value->innerStatusCode);
+	ck_assert_int_eq(copiedValue->locale,value->locale);
+	ck_assert_int_eq(copiedValue->localizedText,value->localizedText);
+	ck_assert_int_eq(copiedValue->namespaceUri,value->namespaceUri);
+	ck_assert_int_eq(copiedValue->symbolicId,value->symbolicId);
+	//finally
+	UA_free(copiedValue);
 	UA_free(value);
 
 }
 END_TEST
-START_TEST(UA_Variant_copyShallWorkOnExample)
+
+START_TEST(UA_Variant_copyShallWorkOnSingleValueExample)
+{
+	//given
+	UA_Variant *value = UA_NULL;
+	UA_Variant *copiedValue = UA_NULL;
+
+	UA_Int32 i = 0;
+	UA_String testString;
+	UA_String* ptestString;
+	UA_String* pCopiedString;
+	testString.length = 5;
+	UA_alloc((void**)&(testString.data),testString.length);
+
+	testString.data[0] = 'O';
+	testString.data[1] = 'P';
+	testString.data[2] = 'C';
+	testString.data[3] = 'U';
+	testString.data[4] = 'A';
+
+	UA_Variant_new(&value);
+	UA_Variant_new(&copiedValue);
+	ptestString = &testString;
+	value->data = (void**)&ptestString;
+	value->encodingMask |= UA_STRING_NS0;
+
+	//value->encodingMask |= UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS;
+
+	//when
+	UA_Variant_copy(value,copiedValue);
+
+
+	//then
+	pCopiedString = *(UA_String**)copiedValue->data;
+	for(i=0;i<3;i++){
+		ck_assert_int_eq(pCopiedString->data[i], pCopiedString->data[i]);
+	}
+	ck_assert_int_eq(pCopiedString->length, pCopiedString->length);
+
+	ck_assert_int_eq(value->encodingMask,copiedValue->encodingMask);
+	ck_assert_int_eq(value->arrayDimensionsLength, copiedValue->arrayDimensionsLength);
+	ck_assert_int_eq(value->arrayLength, copiedValue->arrayLength);
+	//finally
+	UA_free(value);
+	UA_free(copiedValue);
+}
+END_TEST
+
+START_TEST(UA_Variant_copyShallWorkOn1DArrayExample)
 {
 	// given
 	UA_Variant *value = UA_NULL;
 	UA_Variant *copiedValue = UA_NULL;
-
-	UA_Int32 i,j;
+	UA_Int32 *dimensions;
+	UA_Int32 i,j,i1,i2;
 	UA_String **srcArray; UA_Array_new((void***)&srcArray,3,UA_STRING);
-	//init
+
+	UA_alloc((void**)&dimensions,UA_Int32_calcSize(UA_NULL));
 	UA_String_copycstring("open",srcArray[0]);
 	UA_String_copycstring("62541",srcArray[1]);
 	UA_String_copycstring("opc ua",srcArray[2]);
 
-
+	dimensions[0]=3;
 	UA_Variant_new(&value);
 	UA_Variant_new(&copiedValue);
 
 	value->arrayLength = 3;
 	value->data = (void**)srcArray;
+	value->arrayDimensionsLength = 1;
+	value->arrayDimensions = &dimensions;
 	value->encodingMask |= UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
 	value->encodingMask |= UA_STRING_NS0;
+	value->encodingMask |= UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS;
 
-	//value->encodingMask |= UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS;
-
-
+	//when
 	UA_Variant_copy(value,copiedValue);
+
+	//then
+	i1 = *(value->arrayDimensions)[0],
+	i2 = *(copiedValue->arrayDimensions)[0];
+	ck_assert_int_eq(i1,i2);
 
 	for(i=0;i<3;i++){
 		for(j=0;j<3;j++){
-			ck_assert_int_eq((((UA_String*)(value->data[i])))->data[j],(((UA_String*)(copiedValue->data[i])))->data[j]);
+			ck_assert_int_eq(((UA_String*)(value->data[i]))->data[j],((UA_String*)(copiedValue->data[i]))->data[j]);
 		}
-		ck_assert_int_eq((((UA_String*)(value->data[i])))->length,(((UA_String*)(copiedValue->data[i])))->length);
+		ck_assert_int_eq(((UA_String*)(value->data[i]))->length,((UA_String*)(copiedValue->data[i]))->length);
+	}
+
+	ck_assert_int_eq(value->encodingMask,copiedValue->encodingMask);
+	ck_assert_int_eq(value->arrayDimensionsLength, copiedValue->arrayDimensionsLength);
+	ck_assert_int_eq(value->arrayLength, copiedValue->arrayLength);
+	//finally
+	UA_free(value);
+	UA_free(copiedValue);
+}
+END_TEST
+/*
+START_TEST(UA_Variant_copyShallWorkOn2DArrayExample)
+{
+	// given
+	UA_Variant *value = UA_NULL;
+	UA_Variant *copiedValue = UA_NULL;
+	UA_Int32 **dimensions;
+	UA_Int32 i,j,i1,i2;
+	UA_Int32 **srcArray;
+	UA_Int32 **dstArray;
+	UA_Array_new((void***)&srcArray,9,UA_INT32);
+
+	//1st line
+	srcArray[0][0] = 0;
+	srcArray[1][0] = 1;
+	srcArray[2][0] = 2;
+	srcArray[0][1] = 3;
+	//2nd line
+	srcArray[0][1] = 4;
+	srcArray[1][1] = 5;
+	srcArray[2][1] = 6;
+	//3rd line
+	srcArray[0][2] = 7;
+	srcArray[1][2] = 8;
+	srcArray[2][2] = 9;
+
+	UA_Array_new((void***)&dimensions,2,UA_INT32);
+
+	*(dimensions)[0] = 3;
+	*(dimensions)[1] = 3;
+
+	UA_Variant_new(&value);
+	UA_Variant_new(&copiedValue);
+
+	value->arrayLength = 9;
+	value->data = (void**)srcArray;
+	value->arrayDimensionsLength = 2;
+	value->arrayDimensions = dimensions;
+	value->encodingMask |= UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
+	value->encodingMask |= UA_INT32_NS0;
+	value->encodingMask |= UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS;
+
+	//when
+	UA_Variant_copy(value, copiedValue);
+
+	//then
+	//1st dimension
+	i1 = *(value->arrayDimensions)[0],
+	i2 = *(copiedValue->arrayDimensions)[0];
+	ck_assert_int_eq(i1,i2);
+
+
+	//2nd dimension
+	i1 = (value->arrayDimensions)[1][0],
+	i2 = (copiedValue->arrayDimensions)[1][0];
+	ck_assert_int_eq(i1,i2);
+
+	for(i=0;i<9;i++){
+		i1 = *((UA_Int32*)(value->data[i]));
+		i2 = *((UA_Int32*)(copiedValue->data[i]));
+		ck_assert_int_eq(i1,i2);
+	}
+	dstArray = ((UA_Int32**)(copiedValue->data));
+	for(i=0;i<3;i++){
+		for(j=0;j<3;j++){
+			i1 = srcArray[j][i];
+			i2 = dstArray[j][i];
+			ck_assert_int_eq(i1,i2);
+		}
 	}
 
 
 	ck_assert_int_eq(value->encodingMask,copiedValue->encodingMask);
 	ck_assert_int_eq(value->arrayDimensionsLength, copiedValue->arrayDimensionsLength);
 	ck_assert_int_eq(value->arrayLength, copiedValue->arrayLength);
-
+	//finally
+	UA_free(value);
+	UA_free(copiedValue);
 
 }
 END_TEST
+*/
 Suite *testSuite_builtin(void)
 {
 	Suite *s = suite_create("Built-in Data Types 62541-6 Table 1");
@@ -1772,14 +1913,18 @@ Suite *testSuite_builtin(void)
 
 	TCase *tc_convert = tcase_create("convert");
 	tcase_add_test(tc_convert, UA_DateTime_toStructShallWorkOnExample);
-	tcase_add_test(tc_convert, UA_DateTime_toStingShallWorkOnExample);
+	tcase_add_test(tc_convert, UA_DateTime_toStringShallWorkOnExample);
 	suite_add_tcase(s,tc_convert);
 
 	TCase *tc_copy = tcase_create("copy");
 	tcase_add_test(tc_copy,UA_Array_copyByteArrayShallWorkOnExample);
 	tcase_add_test(tc_copy,UA_Array_copyUA_StringShallWorkOnExample);
 	tcase_add_test(tc_copy, UA_ExtensionObject_copyShallWorkOnExample);
-	tcase_add_test(tc_copy, UA_Variant_copyShallWorkOnExample);
+
+	tcase_add_test(tc_copy, UA_Variant_copyShallWorkOnSingleValueExample);
+	tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn1DArrayExample);
+	//tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn2DArrayExample);
+
 	tcase_add_test(tc_copy, UA_DiagnosticInfo_copyShallWorkOnExample);
 	suite_add_tcase(s,tc_copy);
 	return s;

@@ -115,10 +115,9 @@ UA_Int32 UA_Array_copy(void const * const * src, UA_Int32 noElements, UA_Int32 t
 	// Get memory for the pointers
 	CHECKED_DECODE(UA_Array_new(dst, noElements, type), dst = UA_NULL;);
 	void **arr = *dst;
-	UA_Int32 uaIdx = UA_toIndex(type);
 
 	//only namespace zero types atm
-	if(UA_VTable_isValidType(uaIdx) != UA_SUCCESS)
+	if(UA_VTable_isValidType(type) != UA_SUCCESS)
 		return UA_ERROR;
 
 	for(UA_Int32 i=0; i<noElements; i++) {
@@ -1483,7 +1482,7 @@ UA_Int32 UA_Variant_deleteMembers(UA_Variant  * p) {
 	UA_Int32 retval = UA_SUCCESS;
 	if(p->data != UA_NULL) {
 		retval |= UA_Array_delete(&p->data,p->arrayLength,UA_toIndex(p->vt->ns0Id));
-		retval |= UA_Array_delete(&p->data,p->arrayDimensionsLength,UA_INT32);
+		retval |= UA_Array_delete(&p->data,p->arrayDimensionsLength,UA_INT32_NS0);
 	}
 	return retval;
 }
@@ -1503,8 +1502,8 @@ UA_Int32 UA_Variant_copy(UA_Variant const *src, UA_Variant *dst)
 {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 ns0Id = src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK;
-	// initialize vTable
 	UA_Int32 uaIdx = UA_toIndex(ns0Id);
+	void * pData;
 	if(UA_VTable_isValidType(uaIdx) != UA_SUCCESS){
 		return UA_ERROR;
 	}
@@ -1517,11 +1516,15 @@ UA_Int32 UA_Variant_copy(UA_Variant const *src, UA_Variant *dst)
 		retval |=  UA_Array_copy((const void * const *)(src->data),src->arrayLength, uaIdx,(void***)&(dst->data));
 	}
 	else {
-		retval |= src->vt[uaIdx].copy(*src->data, *src->data);
+
+		UA_alloc((void**)&pData,UA_[UA_toIndex(ns0Id)].calcSize(UA_NULL));
+		dst->data = &pData;
+
+		UA_[UA_toIndex(ns0Id)].copy(src->data[0], dst->data[0]);
 	}
 
 	if (src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) {
-		retval |=  UA_Array_copy((const void * const *)(src->arrayDimensions),src->arrayLength, UA_toIndex(UA_INT32),(void***)&(dst->arrayDimensions));
+		retval |=  UA_Array_copy((const void * const *)(src->arrayDimensions),src->arrayDimensionsLength, UA_INT32_NS0,(void***)&(dst->arrayDimensions));
 	}
 	return retval;
 }
