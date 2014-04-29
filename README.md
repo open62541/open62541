@@ -16,7 +16,7 @@ sudo apt-get install build-essential subversion git autoconf libtool texinfo pyt
 ```
 ##### Getting toolchain for tools:
 ```bash
-sudo apt-get install gperf libexpat
+sudo apt-get install expat libexpat1-dev
 ```
 ##### Getting and installing *check* as unit test framework (http://check.sourceforge.net/):
 ```bash

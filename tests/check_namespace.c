@@ -1,13 +1,3 @@
-/*
- ============================================================================
- Name        : check_stack.c
- Author      :
- Version     :
- Copyright   : Your copyright notice
- Description :
- ============================================================================
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -15,12 +5,10 @@
 #include "ua_namespace.h"
 #include "check.h"
 
-
-
 START_TEST(test_Namespace) {
-	namespace *ns = UA_NULL;
-	create_ns(&ns, 512);
-	delete_ns(ns);
+	Namespace *ns = UA_NULL;
+	Namespace_create(&ns, 512);
+	Namespace_delete(ns);
 }
 END_TEST
 
@@ -34,39 +22,39 @@ UA_Int32 createNode(UA_Node** p, UA_Int16 nsid, UA_Int32 id) {
 
 START_TEST(findNodeInNamespaceWithSingleEntry) {
 	// given
-	namespace *ns;
-	create_ns(&ns, 512);
-	UA_Node* n1; createNode(&n1,0,2253); insert_node(ns,n1);
+	Namespace *ns;
+	Namespace_create(&ns, 512);
+	UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns,n1);
 	const UA_Node* nr = UA_NULL;
-	ns_lock* nl = UA_NULL;
+	Namespace_Lock* nl = UA_NULL;
 	UA_Int32 retval;
 	// when
-	retval = get_node(ns,&(n1->nodeId),&nr,&nl);
+	retval = Namespace_get(ns,&(n1->nodeId),&nr,&nl);
 	// then
 	ck_assert_int_eq(retval, UA_SUCCESS);
 	ck_assert_ptr_eq(nr,n1);
 	// finally
-	delete_ns(ns);
+	Namespace_delete(ns);
 }
 END_TEST
 
 START_TEST(findNodeInNamespaceWithTwoEntries) {
 	// given
-	namespace *ns;
-	create_ns(&ns, 512);
-	UA_Node* n1; createNode(&n1,0,2253); insert_node(ns,n1);
-	UA_Node* n2; createNode(&n2,0,2255); insert_node(ns,n2);
+	Namespace *ns;
+	Namespace_create(&ns, 512);
+	UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns,n1);
+	UA_Node* n2; createNode(&n2,0,2255); Namespace_insert(ns,n2);
 
 	const UA_Node* nr = UA_NULL;
-	ns_lock* nl = UA_NULL;
+	Namespace_Lock* nl = UA_NULL;
 	UA_Int32 retval;
 	// when
-	retval = get_node(ns,&(n2->nodeId),&nr,&nl);
+	retval = Namespace_get(ns,&(n2->nodeId),&nr,&nl);
 	// then
 	ck_assert_int_eq(retval, UA_SUCCESS);
 	ck_assert_ptr_eq(nr,n2);
 	// finally
-	delete_ns(ns);
+	Namespace_delete(ns);
 }
 END_TEST
 

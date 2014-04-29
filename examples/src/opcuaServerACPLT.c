@@ -34,8 +34,14 @@ int main(void) {
 }
 
 #ifdef LINUX
-
+void tmpTestFunction()
+{
+}
 void server_run() {
+	//just for debugging
+#ifdef DEBUG
+	tmpTestFunction();
+#endif
 	TL_Connection connection;
 	connection.connectionState = CONNECTIONSTATE_CLOSED;
 	connection.writerCallback = (TL_Writer) NL_TCP_writer;

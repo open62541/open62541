@@ -73,10 +73,10 @@ def createEnumerated(element):
     valuemap = OrderedDict()
     name = "UA_" + element.get("Name")
     enum_types.append(name)
-    print("\n/*** " + name + " ***/", end='\n', file=fh)
+    print("\n/** @name UA_" + name + " */", end='\n', file=fh)
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
-            print("/* " + child.text + " */", end='\n', file=fh)
+            print("/** @brief " + child.text + " */", end='\n', file=fh)
         if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
             valuemap[name + "_" + child.get("Name")] = child.get("Value")
     valuemap = OrderedDict(sorted(valuemap.iteritems(), key=lambda (k,v): int(v)))
@@ -89,14 +89,14 @@ def createEnumerated(element):
     print("UA_TYPE_METHOD_DELETE_AS("+name+", UA_UInt32)", end='\n', file=fc)
     print("UA_TYPE_METHOD_DELETEMEMBERS_AS("+name+", UA_UInt32)", end='\n', file=fc)
     print("UA_TYPE_METHOD_INIT_AS("+name+", UA_UInt32)", end='\n', file=fc)
+    print("UA_TYPE_METHOD_COPY_AS("+name+", UA_UInt32)",'\n', file=fc)  
     print("UA_TYPE_METHOD_NEW_DEFAULT("+name+")\n", end='\n', file=fc)
-    
     return
     
 def createStructured(element):
     valuemap = OrderedDict()
     name = "UA_" + element.get("Name")
-    print("\n/*** " + name + " ***/", end='\n', file=fh)
+    print("\n/** @name UA_" + name + " */", end='\n', file=fh)
 
     lengthfields = set()
     for child in element:
@@ -105,7 +105,7 @@ def createStructured(element):
     
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
-            print("/* " + child.text + " */", end='\n', file=fh)
+            print("/** @brief " + child.text + " */", end='\n', file=fh)
         elif child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
             if child.get("Name") in lengthfields:
                 continue
@@ -122,7 +122,7 @@ def createStructured(element):
     #    print ("type " + name + " is new Request_Base with "),
     # else:
     #    print ("type " + name + " is new UA_Builtin with "),
-    print("typedef struct T_" + name + " {", end='\n', file=fh)
+    print("typedef struct " + name + "_T {", end='\n', file=fh)
     if len(valuemap) == 0:
         typename = stripTypename(element.get("BaseType"))
         childname = camlCase2CCase(typename)
@@ -140,6 +140,7 @@ def createStructured(element):
     print("UA_Int32 " + name + "_deleteMembers(" + name + "* p);", end='\n', file=fh)
     print("UA_Int32 " + name + "_init("+ name + " * p);", end='\n', file=fh)
     print("UA_Int32 " + name + "_new(" + name + " ** p);", end='\n', file=fh)
+    print("UA_Int32 " + name + "_copy(" + name + "* src, " + name + "* dst);", end='\n', file=fh)
 
     print("UA_Int32 "  + name + "_calcSize(" + name + " const * ptr) {", end='', file=fc)
     print("\n\tif(ptr==UA_NULL){return sizeof("+ name +");}", end='', file=fc)
@@ -241,13 +242,29 @@ def createStructured(element):
 
     # code _new
     print("UA_TYPE_METHOD_NEW_DEFAULT(" + name + ")", end='\n', file=fc)
-        
+    # code _copy
+    print("UA_Int32 "+name+"_copy(" + name + " * src," + name + " * dst) {\n\tUA_Int32 retval = UA_SUCCESS;", end='\n', file=fc)
+    for n,t in valuemap.iteritems():
+        if t in elementary_size:
+            print('\tretval |= UA_'+t+'_copy(&(src->'+n+'),&(dst->'+n+'));', end='\n', file=fc)
+        else:
+            if t in enum_types:
+                print('\tretval |= UA_'+t+'_copy(&(src->'+n+'),&(dst->'+n+'));', end='\n', file=fc)
+            elif t.find("**") != -1:
+                print('\tretval |= UA_Int32_copy(&(src->'+n+'Size),&(dst->'+n+'Size)); // size of following array', end='\n', file=fc)
+		print("\tretval |= UA_Array_copy((void const* const*) (src->"+n+"), src->"+n+"Size," + "UA_toIndex(UA_"+t[0:t.find("*")].upper()+")"+",(void***)&(dst->"+n+"));", end='\n', file=fc)
+            elif t.find("*") != -1:
+                print('\tretval |= UA_' + t[0:t.find("*")] + '_copy(src->' + n + ',dst->' + n + ');', end='\n', file=fc)
+            else:
+                print('\tretval |= UA_'+t+"_copy(&(src->"+n+"),&(dst->" + n + '));', end='\n', file=fc)
+    print("\treturn retval;\n}\n", end='\n', file=fc)
+    
 def createOpaque(element):
     name = "UA_" + element.get("Name")
-    print("\n/*** " + name + " ***/", end='\n', file=fh)
+    print("\n/** @name UA_" + name + " */", end='\n', file=fh)
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
-            print("/* " + child.text + " */", end='\n', file=fh)
+            print("/** @brief " + child.text + " */", end='\n', file=fh)
 
     print("typedef UA_ByteString " + name + ";", end='\n', file=fh)
     print("UA_TYPE_METHOD_PROTOTYPES (" + name + ")", end='\n', file=fh)
@@ -257,7 +274,9 @@ def createOpaque(element):
     print("UA_TYPE_METHOD_DELETE_AS("+name+", UA_ByteString)", end='\n', file=fc)
     print("UA_TYPE_METHOD_DELETEMEMBERS_AS("+name+", UA_ByteString)", end='\n', file=fc)
     print("UA_TYPE_METHOD_INIT_AS("+name+", UA_ByteString)", end='\n', file=fc)
+    print("UA_TYPE_METHOD_COPY_AS("+name+", UA_ByteString)", end='\n', file=fc)
     print("UA_TYPE_METHOD_NEW_DEFAULT("+name+")\n", end='\n', file=fc)
+
     return
 
 ns = {"opc": "http://opcfoundation.org/BinarySchema/"}

@@ -167,7 +167,13 @@ UA_Int32 SL_handleRequest(SL_Channel *channel, const UA_ByteString* msg, UA_Int3
 
 	return retval;
 }
-
+/**
+ *
+ * @param connection
+ * @param msg
+ * @param pos
+ * @return
+ */
 UA_Int32 SL_Channel_new(TL_Connection *connection, const UA_ByteString* msg, UA_Int32* pos) {
 	DBG_VERBOSE(printf("SL_Channel_new - entered\n"));
 	UA_Int32 retval = UA_SUCCESS;
@@ -184,7 +190,7 @@ UA_Int32 SL_Channel_new(TL_Connection *connection, const UA_ByteString* msg, UA_
 	UA_String_init(&(channel->secureChannelId));
 	channel->securityMode = UA_SECURITYMODE_INVALID;
 	channel->securityToken.secureChannelId = 25; //TODO set a valid start secureChannelId number
-	channel->securityToken.tokenId = 1; //TODO set a valid start TokenId
+	channel->securityToken.tokenId.tokenId = 1; //TODO set a valid start TokenId
 
 	connection->secureChannel = channel;
 	connection->secureChannel->tlConnection = connection;

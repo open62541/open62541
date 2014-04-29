@@ -101,11 +101,11 @@ UA_Int32 UA_NodeSetAliases_println(cstring_t label, UA_NodeSetAliases *p) {
 
 /* A nodeset consist of a namespace and a list of aliases */
 typedef struct T_UA_NodeSet {
-	namespace* ns;
+	Namespace* ns;
 	UA_NodeSetAliases aliases;
 } UA_NodeSet;
 UA_Int32 UA_NodeSet_init(UA_NodeSet* p) {
-	create_ns(&(p->ns), 100);
+	Namespace_create(&(p->ns), 100);
 	p->aliases.size = -1;
 	p->aliases.aliases = UA_NULL;
 	return UA_SUCCESS;
@@ -820,7 +820,7 @@ UA_Int32 UA_NodeSet_decodeXML(XML_Stack_t* s, XML_Attr_t* attr, UA_NodeSet* dst,
 		if (attr != UA_NULL) {
 			UA_Node* node = (UA_Node*) attr;
 			DBG_VERBOSE(printf("finished node: node=%p\n", (void* )node));
-			insert_node(dst->ns, node);
+			Namespace_insert(dst->ns, node);
 			DBG_VERBOSE(printf("Inserting "));DBG_VERBOSE(print_node(node));
 		}
 			break;
@@ -951,7 +951,7 @@ int main() {
 		}
 	}
 	XML_ParserFree(parser);
-	iterate_ns(n.ns, print_node);
+	Namespace_iterate(n.ns, print_node);
 	printf("aliases addr=%p, size=%d\n", (void*) &(n.aliases), n.aliases.size);
 	UA_NodeSetAliases_println("aliases in nodeset: ", &n.aliases);
 	return 0;
