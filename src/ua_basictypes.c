@@ -1372,6 +1372,12 @@ UA_Int32 UA_Variant_decodeBinary(UA_ByteString const * src, UA_Int32 *pos, UA_Va
 UA_TYPE_METHOD_DELETE_STRUCT(UA_Variant)
 UA_Int32 UA_Variant_deleteMembers(UA_Variant  * p) {
 	UA_Int32 retval = UA_SUCCESS;
+	/**
+	 * Prevent a potential -1 from UA_toIndex to be passed to UA_Array_delete
+	 */
+	if(UA_toIndex(p->vt->ns0Id) == -1){
+		return UA_ERR_INVALID_VALUE;
+	}
 	if(p->data != UA_NULL) {
 		retval |= UA_Array_delete(&p->data,p->arrayLength,UA_toIndex(p->vt->ns0Id));
 	}
