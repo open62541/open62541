@@ -5,7 +5,7 @@
 # of the day to the coverity scan service
 #
 
-COMMITS=`git log --since=yesterday | grep commit | wc -l`
+COMMITS=`git log --since=today.midnight | grep commit | wc -l`
 
 if [[ "$COMMITS" == "1" ]]; then
     #first commit a day - push changes to branch coverity_scan
@@ -21,4 +21,6 @@ if [[ "$COMMITS" == "1" ]]; then
     git push https://$GITAUTH@github.com/acplt/open62541
     cd ..
     rm -rf open62541
+else
+    echo "Not the first commit of the day - no push to coverity required"
 fi
