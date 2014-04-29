@@ -24,7 +24,7 @@ __top_builddir__bin_exampleServerACPLT_SOURCES = opcuaServerACPLT.c networklayer
 __top_builddir__bin_exampleServerACPLT_LDADD= $(top_builddir)/lib/libopen62541.a $(GLOBAL_AM_LDADD)
 
 __top_builddir__bin_exampleServerMini_CFLAGS = -I$(top_builddir)/src -I$(top_builddir)/include $(GLOBAL_AM_CFLAGS)
-__top_builddir__bin_exampleServerMini_SOURCES = opcuaServerMini.c  networklayer.c
-__top_builddir__bin_exampleServerMini_LDADD= $(top_builddir)/lib/libopen62541.a $(GLOBAL_AM_LDADD)
+__top_builddir__bin_exampleServerMini_SOURCES = opcuaServerMini.c 
+__top_builddir__bin_exampleServerMini_LDADD= $(GLOBAL_AM_LDADD)
 
 endif

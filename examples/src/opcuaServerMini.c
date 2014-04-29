@@ -1,6 +1,20 @@
+/**************************************************************
+ * opcuaServerMini is a pathologically unstructured bare bone
+ * implementation of the 62541 communications w/o any structures
+ * or comfort. Furthermore, the implementation assumes a
+ * little endian target and consequently ignores all the rules
+ * of 62541 towards security.
+ *
+ * The nice thing about this approach is that you can easily see
+ * that the memory footprint of a simple server can be held
+ * quite small and memory allocation capabilities is not needed
+ * as long as features are consequently minimized.
+ ****************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
 #include <memory.h>
+#include <errno.h> // errno, EINTR
+
 
 #include "opcua.h"
 #include "ua_statuscodes.h"
@@ -36,11 +50,11 @@ int main(void) {
 
 #ifdef LINUX
 
-UA_Byte ack_msg_buf[] = { 					0x41, 0x43, /*       AC */
-		0x4b, 0x46, 0x1c, 0x00, 0x00, 0x00, 0xff, 0xff, /* KF...... */
-		0xff, 0xff, 0x00, 0x20, 0x00, 0x00, 0x00, 0x20, /* ... ...  */
-		0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x01, 0x00, /* ...@.... */
-		0x00, 0x00                                      /* ..       */
+UA_Byte ack_msg_buf[] = { 			0x41, 0x43, /*       AC */
+0x4b, 0x46, 0x1c, 0x00, 0x00, 0x00, 0xff, 0xff, /* KF...... */
+0xff, 0xff, 0x00, 0x20, 0x00, 0x00, 0x00, 0x20, /* ... ...  */
+0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x01, 0x00, /* ...@.... */
+0x00, 0x00                                      /* ..       */
 };
 UA_ByteString ack_msg = { sizeof(ack_msg_buf), ack_msg_buf };
 UA_ByteString* ack_msg_gb[] = { &ack_msg };
@@ -127,10 +141,32 @@ UA_Byte gep_msg_buf[] = {
 0x75, 0x61, 0x62, 0x69, 0x6e, 0x61, 0x72, 0x79, /* uabinary */
 0x00                                            /* . */
 };
+
+UA_Byte csr_msg_buf[] = {
+		    0x01, 0x01, 0x9a, 0x02, 0x00, 0x00, /*   <XX>.. */ // <X> = sessionID
+0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
+0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, /* ........ */
+0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
+0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, /* ........ */
+0x00, 0x00, 0x00, 0x00                          /* ....     */
+};
+
+UA_Byte asr_msg_buf[] = {
+            0xff, 0xff, 0xff, 0xff, 0x00, 0x00, /*   ...... */
+0x00, 0x00, 0x00, 0x00, 0x00, 0x00              /* ......   */
+};
 UA_ByteString scm_msg = { sizeof(scm_msg_buf), scm_msg_buf };
 UA_ByteString rsp_msg = { sizeof(rsp_msg_buf), rsp_msg_buf };
+UA_ByteString* sf_msg_gb[] = { &scm_msg, &rsp_msg }; // servicefault
+
 UA_ByteString gep_msg = { sizeof(gep_msg_buf), gep_msg_buf };
-UA_ByteString* gep_msg_gb[] = { &scm_msg, &rsp_msg, &gep_msg };
+UA_ByteString* gep_msg_gb[] = { &scm_msg, &rsp_msg, &gep_msg }; //getendpoint response
+
+UA_ByteString csr_msg = { sizeof(csr_msg_buf), csr_msg_buf };
+UA_ByteString* csr_msg_gb[] = { &scm_msg, &rsp_msg, &csr_msg }; // create session response
+
+UA_ByteString asr_msg = { sizeof(asr_msg_buf), asr_msg_buf };
+UA_ByteString* asr_msg_gb[] = { &scm_msg, &rsp_msg, &asr_msg }; // activate session response
 
 UA_Int32 myProcess(TL_Connection* connection, const UA_ByteString* msg) {
 	switch (*((UA_Int32*) &(msg->data[0]))) { // compare first four bytes
@@ -152,23 +188,77 @@ UA_Int32 myProcess(TL_Connection* connection, const UA_ByteString* msg) {
 					*(UA_Int32*) (&rsp_msg_buf[16]) = UA_STATUSCODE_GOOD;
 					connection->writerCallback(connection, (const UA_ByteString**) &gep_msg_gb, 3);
 				break;
-				default: // unknown service - send a simple response header
-					// TODO: This seems not to be the correct answer, client gives up
+				case 461: // CreateSessionRequest
+					printf("server_run - CreateSessionRequest\n");
+					*(UA_Int32*) (&scm_msg_buf[4]) = sizeof(scm_msg_buf) + sizeof(rsp_msg_buf) + sizeof(csr_msg_buf);
+					*(UA_Int16*) (&rsp_msg_buf[2]) = *(UA_Int16*) (&msg->data[26]) + 3;
+					*(UA_Int32*) (&rsp_msg_buf[16]) = UA_STATUSCODE_GOOD;
+					connection->writerCallback(connection, (const UA_ByteString**) &csr_msg_gb, 3);
+				break;
+				case 467: // FIXME: ActivateSessionRequest
+					printf("server_run - ActivateSessionRequest\n");
+					*(UA_Int32*) (&scm_msg_buf[4]) = sizeof(scm_msg_buf) + sizeof(rsp_msg_buf) + sizeof(asr_msg_buf);
+					*(UA_Int16*) (&rsp_msg_buf[2]) = *(UA_Int16*) (&msg->data[26]) + 3;
+					*(UA_Int32*) (&rsp_msg_buf[16]) = UA_STATUSCODE_GOOD;
+					connection->writerCallback(connection, (const UA_ByteString**) &asr_msg_gb, 3);
+				break;
+				default: // unknown service - send a simple response header of type UA_SERVICEFAULT
 					*(UA_Int32*) (&scm_msg_buf[4]) = sizeof(scm_msg_buf) + sizeof(rsp_msg_buf);
-					*(UA_Int16*) (&rsp_msg_buf[2]) = UA_RESPONSEHEADER_NS0;
-					*(UA_Int32*) (&rsp_msg_buf[16]) = UA_STATUSCODE_BADOUTOFSERVICE;
+					*(UA_Int16*) (&rsp_msg_buf[2]) = UA_SERVICEFAULT_NS0 + 2; // encodingBinary
+					*(UA_Int32*) (&rsp_msg_buf[16]) = UA_STATUSCODE_BADNOTIMPLEMENTED;
 					printf("server_run - unknown request %d\n", *((UA_Int16*) &(msg->data[26])));
-					connection->writerCallback(connection, (const UA_ByteString**) &gep_msg_gb, 2);
+					connection->writerCallback(connection, (const UA_ByteString**) &sf_msg_gb, 2);
 				break;
 			}
 		break;
 	}
 	return UA_SUCCESS;
 }
+
+/** write message provided in the gather buffers to a tcp transport layer connection */
+UA_Int32 myWriter(struct TL_Connection_T const * c, UA_ByteString const * const * gather_buf, UA_UInt32 gather_len) {
+
+	struct iovec iov[gather_len];
+	UA_UInt32 total_len = 0;
+	for(UA_UInt32 i=0;i<gather_len;i++) {
+		iov[i].iov_base = gather_buf[i]->data;
+		iov[i].iov_len = gather_buf[i]->length;
+		total_len += gather_buf[i]->length;
+	}
+
+	struct msghdr message;
+	message.msg_name = UA_NULL;
+	message.msg_namelen = 0;
+	message.msg_iov = iov;
+	message.msg_iovlen = gather_len;
+	message.msg_control = UA_NULL;
+	message.msg_controllen = 0;
+	message.msg_flags = 0;
+
+	UA_UInt32 nWritten = 0;
+	while (nWritten < total_len) {
+		int n=0;
+		do {
+			DBG_VERBOSE(printf("myWriter - enter write with %d bytes to write\n",total_len));
+			n = sendmsg(c->connectionHandle, &message, 0);
+			DBG_VERBOSE(printf("myWriter - leave write with n=%d,errno={%d,%s}\n",n,(n>0)?0:errno,(n>0)?"":strerror(errno)));
+		} while (n == -1L && errno == EINTR);
+		if (n >= 0) {
+			nWritten += n;
+			break;
+			// TODO: handle incompletely send messages
+		} else {
+			break;
+			// TODO: error handling
+		}
+	}
+	return UA_SUCCESS;
+}
+
 void server_run() {
 	TL_Connection connection;
 	connection.connectionState = CONNECTIONSTATE_CLOSED;
-	connection.writerCallback = (TL_Writer) NL_TCP_writer;
+	connection.writerCallback = (TL_Writer) myWriter;
 	connection.localConf.maxChunkCount = 1;
 	connection.localConf.maxMessageSize = BUFFER_SIZE;
 	connection.localConf.protocolVersion = 0;
@@ -228,7 +318,7 @@ void server_run() {
 			if (n > 0) {
                 slMessage.data = (UA_Byte*) buffer;
 				slMessage.length = n;
-				UA_ByteString_printx("server_run - received=",&slMessage);
+				DBG(printf("server_run - received=%d\n",n));
 				myProcess(&connection, &slMessage);
 			} else if (n <= 0) {
 				perror("ERROR reading from socket1");
