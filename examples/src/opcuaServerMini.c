@@ -3,6 +3,7 @@
 #include <memory.h>
 
 #include "opcua.h"
+#include "ua_statuscodes.h"
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
 #include "networklayer.h"
@@ -74,10 +75,11 @@ UA_Byte scm_msg_buf[] = {           0x4d, 0x53, /*       MS */
 0x00, 0x00, 0x02, 0x00, 0x00, 0x00              /* ......   */
 };
 UA_Byte rsp_msg_buf[] = {           0x01, 0x00, /* ........ */
-0xaf, 0x01, 0x2c, 0xc1, 0x73, 0x9e, 0xdf, 0x63, /* <>,.s..c */ // <> = response nS0-ID
-0xcf, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ........ */
-0x00, 0x00};
+0xaf, 0x01, 0x2c, 0xc1, 0x73, 0x9e, 0xdf, 0x63, /* <><XXXXX */ // <> = response nS0-ID
+0xcf, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, /* X>....<A */ // <X> = timestamp,
+0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* A>...... */ // <A> = statuscode
+0x00, 0x00                                      /* ..       */
+};
 
 UA_Byte gep_msg_buf[] = {
 		    0x01, 0x00, 0x00, 0x00, 0x1b, 0x00, /*   ...... */
@@ -143,13 +145,20 @@ UA_Int32 myProcess(TL_Connection* connection, const UA_ByteString* msg) {
 		break;
 		case 0x4647534d: // MSGF
 			switch (*((UA_Int16*) &(msg->data[26]))) {
-				case (UA_Int16) 0xAC01: // 428 - GetEndpointsRequest
+				case 428: // GetEndpointsRequest
 					printf("server_run - GetEndpointsRequest\n");
+					*(UA_Int32*) (&scm_msg_buf[4]) = sizeof(scm_msg_buf) + sizeof(rsp_msg_buf) + sizeof(gep_msg_buf);
+					*(UA_Int16*) (&rsp_msg_buf[2]) = *(UA_Int16*) (&msg->data[26]) + 3;
+					*(UA_Int32*) (&rsp_msg_buf[16]) = UA_STATUSCODE_GOOD;
 					connection->writerCallback(connection, (const UA_ByteString**) &gep_msg_gb, 3);
 				break;
-				default:
-					//FIXME: construct and send a real error message
-					connection->writerCallback(connection, (const UA_ByteString**) &gep_msg_gb, 3);
+				default: // unknown service - send a simple response header
+					// TODO: This seems not to be the correct answer, client gives up
+					*(UA_Int32*) (&scm_msg_buf[4]) = sizeof(scm_msg_buf) + sizeof(rsp_msg_buf);
+					*(UA_Int16*) (&rsp_msg_buf[2]) = UA_RESPONSEHEADER_NS0;
+					*(UA_Int32*) (&rsp_msg_buf[16]) = UA_STATUSCODE_BADOUTOFSERVICE;
+					printf("server_run - unknown request %d\n", *((UA_Int16*) &(msg->data[26])));
+					connection->writerCallback(connection, (const UA_ByteString**) &gep_msg_gb, 2);
 				break;
 			}
 		break;
