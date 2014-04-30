@@ -1665,9 +1665,6 @@ START_TEST(UA_ApplicationDescription_copyShallWorkOnExample)
 	gateWayString.length = gateWaySize;
 
 	UA_String **srcArray; UA_Array_new((void***)&srcArray,3,UA_STRING);
-	UA_Int32 *dimensions;
-	dimensions[0]=3;
-	UA_alloc((void**)&dimensions,UA_Int32_calcSize(UA_NULL));
 	UA_String_copycstring("__open",srcArray[0]);
 	UA_String_copycstring("_62541",srcArray[1]);
 	UA_String_copycstring("opc ua",srcArray[2]);
