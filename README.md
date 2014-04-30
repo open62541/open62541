@@ -12,7 +12,7 @@ An open-source communication stack implementation of OPC UA (OPC Unified Archite
 ### Ubuntu
 ##### Getting gcc toolchain:
 ```bash
-sudo apt-get install build-essential subversion git autoconf libtool texinfo
+sudo apt-get install build-essential subversion git autoconf libtool pkg-config texinfo
 ```
 ##### Getting python toolchain for the 62541 structures code generator:
 ```bash
@@ -20,7 +20,7 @@ sudo apt-get install python python-lxml
 ```
 ##### Getting additional libraries:
 ```bash
-sudo apt-get expat libexpat1-dev
+sudo apt-get install expat libexpat1-dev
 ```
 ##### Getting and installing *check* as unit test framework (http://check.sourceforge.net/):
 ```bash
