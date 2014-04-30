@@ -252,7 +252,7 @@ def createStructured(element):
                 print('\tretval |= UA_'+t+'_copy(&(src->'+n+'),&(dst->'+n+'));', end='\n', file=fc)
             elif t.find("**") != -1:
                 print('\tretval |= UA_Int32_copy(&(src->'+n+'Size),&(dst->'+n+'Size)); // size of following array', end='\n', file=fc)
-		print("\tretval |= UA_Array_copy((void const* const*) (src->"+n+"), src->"+n+"Size," + "UA_toIndex(UA_"+t[0:t.find("*")].upper()+")"+",(void***)&(dst->"+n+"));", end='\n', file=fc)
+		print("\tretval |= UA_Array_copy((void const* const*) (src->"+n+"), src->"+n+"Size," + "UA_"+t[0:t.find("*")].upper()+",(void***)&(dst->"+n+"));", end='\n', file=fc)
             elif t.find("*") != -1:
                 print('\tretval |= UA_' + t[0:t.find("*")] + '_copy(src->' + n + ',dst->' + n + ');', end='\n', file=fc)
             else:

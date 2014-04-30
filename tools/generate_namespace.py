@@ -62,7 +62,7 @@ print('''/**********************************************************
 
 #include "opcua.h"  // definition of UA_VTable and basic UA_Types
 
-UA_Int32 UA_toIndex(UA_Int32 id);
+UA_Int32 UA_ns0ToVTableIndex(UA_Int32 id);
 extern UA_VTable UA_[]; 
 
 enum UA_VTableIndex_enum {''', end='\n', file=fh)
@@ -76,7 +76,7 @@ print('''/**********************************************************
  
 #include "opcua.h"
 
-UA_Int32 UA_toIndex(UA_Int32 id) {
+UA_Int32 UA_ns0ToVTableIndex(UA_Int32 id) {
     UA_Int32 retval = UA_ERR_INVALID_VALUE;
     switch (id) { ''', end='\n',file=fc)
 

@@ -1450,7 +1450,7 @@ UA_Int32 UA_Variant_decodeBinary(UA_ByteString const * src, UA_Int32 *pos, UA_Va
 	UA_Int32 ns0Id = dst->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK;
 
 	// initialize vTable
-	UA_Int32 uaIdx = UA_toIndex(ns0Id);
+	UA_Int32 uaIdx = UA_ns0ToVTableIndex(ns0Id);
 	if(UA_VTable_isValidType(uaIdx) != UA_SUCCESS)
 		return UA_ERROR;
 	dst->vt = &UA_[uaIdx];
@@ -1483,7 +1483,7 @@ UA_TYPE_METHOD_DELETE_STRUCT(UA_Variant)
 UA_Int32 UA_Variant_deleteMembers(UA_Variant  * p) {
 	UA_Int32 retval = UA_SUCCESS;
 	if(p->data != UA_NULL) {
-		retval |= UA_Array_delete(&p->data,p->arrayLength,UA_toIndex(p->vt->ns0Id));
+		retval |= UA_Array_delete(&p->data,p->arrayLength,UA_ns0ToVTableIndex(p->vt->ns0Id));
 		retval |= UA_Array_delete(&p->data,p->arrayDimensionsLength,UA_INT32_NS0);
 	}
 	return retval;
@@ -1504,7 +1504,7 @@ UA_Int32 UA_Variant_copy(UA_Variant const *src, UA_Variant *dst)
 {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 ns0Id = src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK;
-	UA_Int32 uaIdx = UA_toIndex(ns0Id);
+	UA_Int32 uaIdx = UA_ns0ToVTableIndex(ns0Id);
 	void * pData;
 	if(UA_VTable_isValidType(uaIdx) != UA_SUCCESS){
 		return UA_ERROR;
@@ -1524,7 +1524,7 @@ UA_Int32 UA_Variant_copy(UA_Variant const *src, UA_Variant *dst)
 	}
 
 	if (src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) {
-		retval |=  UA_Array_copy((const void * const *)(src->arrayDimensions),src->arrayDimensionsLength, UA_toIndex(UA_INT32_NS0),(void***)&(dst->arrayDimensions));
+		retval |=  UA_Array_copy((const void * const *)(src->arrayDimensions),src->arrayDimensionsLength, UA_ns0ToVTableIndex(UA_INT32_NS0),(void***)&(dst->arrayDimensions));
 	}
 	return retval;
 }
