@@ -182,6 +182,8 @@ UA_Int32 myProcess(TL_Connection* connection, const UA_ByteString* msg) {
 		case 0x4647534d: // MSGF
 			switch (*((UA_Int16*) &(msg->data[26]))) {
 				case 428: // GetEndpointsRequest
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstrict-aliasing"
 					printf("server_run - GetEndpointsRequest\n");
 					*(UA_Int32*) (&scm_msg_buf[4]) = sizeof(scm_msg_buf) + sizeof(rsp_msg_buf) + sizeof(gep_msg_buf);
 					*(UA_Int16*) (&rsp_msg_buf[2]) = *(UA_Int16*) (&msg->data[26]) + 3;
@@ -206,6 +208,7 @@ UA_Int32 myProcess(TL_Connection* connection, const UA_ByteString* msg) {
 					*(UA_Int32*) (&scm_msg_buf[4]) = sizeof(scm_msg_buf) + sizeof(rsp_msg_buf);
 					*(UA_Int16*) (&rsp_msg_buf[2]) = UA_SERVICEFAULT_NS0 + 2; // encodingBinary
 					*(UA_Int32*) (&rsp_msg_buf[16]) = UA_STATUSCODE_BADNOTIMPLEMENTED;
+#pragma GCC diagnostic pop
 					printf("server_run - unknown request %d\n", *((UA_Int16*) &(msg->data[26])));
 					connection->writerCallback(connection, (const UA_ByteString**) &sf_msg_gb, 2);
 				break;
