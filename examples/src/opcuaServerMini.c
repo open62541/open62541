@@ -16,7 +16,6 @@
 #include <errno.h> // errno, EINTR
 
 
-#include "opcua.h"
 #include "ua_statuscodes.h"
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
