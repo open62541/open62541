@@ -9,16 +9,16 @@
 
 typedef void (*UA_list_PayloadVisitor)(void* payload);
 
-typedef struct T_UA_list_Element {
-	struct T_UA_list_List* father;
+typedef struct UA_list_Element {
+	struct UA_list_List* father;
 	void *payload;
-    struct T_UA_list_Element* next;
-    struct T_UA_list_Element* prev;
+    struct UA_list_Element* next;
+    struct UA_list_Element* prev;
 }UA_list_Element;
 
-typedef struct T_UA_list_List {
-   struct T_UA_list_Element* first;
-   struct T_UA_list_Element* last;
+typedef struct UA_list_List {
+   struct UA_list_Element* first;
+   struct UA_list_Element* last;
    UA_Int32 size;
 }UA_list_List;
 

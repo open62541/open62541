@@ -100,7 +100,7 @@ UA_Int32 UA_NodeSetAliases_println(cstring label, UA_NodeSetAliases *p) {
 }
 
 /* A nodeset consist of a namespace and a list of aliases */
-typedef struct T_UA_NodeSet {
+typedef struct UA_NodeSet {
 	Namespace* ns;
 	UA_NodeSetAliases aliases;
 } UA_NodeSet;
