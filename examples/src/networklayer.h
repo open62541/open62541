@@ -24,7 +24,7 @@ enum NL_CONNECTIONTYPE_enum {
 	NL_CONNECTIONTYPE_TCPV6 = 1,
 };
 
-typedef struct T_NL_Description {
+typedef struct NL_Description {
 	UA_Int32 encoding;
 	UA_Int32 connectionType;
 	UA_Int32 maxConnections;
@@ -33,7 +33,7 @@ typedef struct T_NL_Description {
 
 extern NL_Description NL_Description_TcpBinary;
 
-typedef struct T_NL_data {
+typedef struct NL_data {
 	NL_Description* tld;
 	UA_String endpointUrl;
 	UA_list_List connections;
@@ -41,9 +41,9 @@ typedef struct T_NL_data {
 	int maxReaderHandle;
 } NL_data;
 
-struct NL_Connection_T;
-typedef void* (*NL_Reader)(struct NL_Connection_T *c);
-typedef struct NL_Connection_T {
+struct NL_Connection;
+typedef void* (*NL_Reader)(struct NL_Connection *c);
+typedef struct NL_Connection {
 	TL_Connection connection;
 	NL_Reader reader;
 #ifdef MULTITHREADING
@@ -54,6 +54,6 @@ typedef struct NL_Connection_T {
 
 NL_data* NL_init(NL_Description* tlDesc, UA_Int32 port);
 UA_Int32 NL_msgLoop(NL_data* nl, struct timeval* tv,UA_Int32 (*timeoutCallBack)(void*),void *arg);
-UA_Int32 NL_TCP_writer(struct TL_Connection_T const * c, UA_ByteString const * const * gather_buf, UA_UInt32 gather_len);
+UA_Int32 NL_TCP_writer(struct TL_Connection const * c, UA_ByteString const * const * gather_buf, UA_UInt32 gather_len);
 
 #endif /* NETWORKLAYER_H_ */

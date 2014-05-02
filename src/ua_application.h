@@ -5,7 +5,7 @@
 #include "ua_namespace.h"
 #include "ua_indexedList.h"
 
-typedef struct Application_T {
+typedef struct Application {
 	UA_ApplicationDescription *description;
 	UA_indexedList_List *namespaces; // each entry is a namespace
 } Application;

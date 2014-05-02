@@ -162,7 +162,7 @@ void* NL_TCP_readerThread(NL_Connection *c) {
 #endif
 
 /** write message provided in the gather buffers to a tcp transport layer connection */
-UA_Int32 NL_TCP_writer(struct TL_Connection_T const * c, UA_ByteString const * const * gather_buf, UA_UInt32 gather_len) {
+UA_Int32 NL_TCP_writer(struct TL_Connection const * c, UA_ByteString const * const * gather_buf, UA_UInt32 gather_len) {
 
 	struct iovec iov[gather_len];
 	UA_UInt32 total_len = 0;

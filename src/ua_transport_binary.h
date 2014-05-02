@@ -14,7 +14,7 @@
 #define TL_SERVER_MAX_CHUNK_COUNT 1
 #define TL_SERVER_MAX_MESSAGE_SIZE  8192
 
-typedef struct {
+typedef struct TL_Buffer {
 	UA_UInt32 protocolVersion;
 	UA_UInt32 sendBufferSize;
 	UA_UInt32 recvBufferSize;
@@ -23,10 +23,10 @@ typedef struct {
 } TL_Buffer;
 
 /* Transport Layer Connection */
-struct TL_Connection_T; // forward declaration
-typedef UA_Int32 (*TL_Writer)(struct TL_Connection_T* connection, const UA_ByteString** gather_bufs, UA_Int32 gather_len); // send mutiple buffer concatenated into one msg (zero copy)
+struct TL_Connection; // forward declaration
+typedef UA_Int32 (*TL_Writer)(struct TL_Connection* connection, const UA_ByteString** gather_bufs, UA_Int32 gather_len); // send mutiple buffer concatenated into one msg (zero copy)
 
-typedef struct TL_Connection_T {
+typedef struct TL_Connection {
 	UA_Int32 connectionHandle;
 	UA_UInt32 connectionState;
 	TL_Buffer localConf;
@@ -34,7 +34,7 @@ typedef struct TL_Connection_T {
 	TL_Writer writerCallback;
 	UA_String localEndpointUrl;
 	UA_String remoteEndpointUrl;
-	struct SL_Channel_T* secureChannel;
+	struct SL_Channel* secureChannel;
 } TL_Connection;
 
 UA_Int32 TL_Send(TL_Connection* connection, const UA_ByteString** gather_buf, UA_UInt32 gather_len);
