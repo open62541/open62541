@@ -12,7 +12,7 @@ typedef struct {
 	UA_Int32 revisedLifetime;
 } SL_ChannelSecurityToken;
 
-typedef struct SL_Channel_T {
+typedef struct SL_Channel {
 	UA_String secureChannelId;
 	TL_Connection* tlConnection;
 	Session *session; // equals UA_Null iff no session is active

@@ -32,14 +32,14 @@ UA_Int32 Namespace_TransactionContext_init(Namespace_TransactionContext * tc);
 
 /* Each namespace is a hash-map of NodeIds to Nodes. Every entry in the hashmap consists of a
    pointer to a read-write lock and a pointer to the Node. */
-typedef struct Namespace_Entry_T {
+typedef struct Namespace_Entry {
 #ifdef MULTITHREADING
 	Namespace_Lock *lock;	/* locks are heap-allocated */
 #endif
 	UA_Node *node;
 } Namespace_Entry;
 
-typedef struct Namespace_T {
+typedef struct Namespace {
 	UA_Int32 namespaceId;
 	UA_String namespaceUri;
 	Namespace_Entry *entries;

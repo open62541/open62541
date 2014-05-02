@@ -37,7 +37,7 @@ typedef uint64_t UA_UInt64;
 typedef float UA_Float;
 typedef double UA_Double;
 /* ByteString - Part: 6, Chapter: 5.2.2.7, Page: 17 */
-typedef struct T_UA_ByteString
+typedef struct UA_ByteString
 {
 	UA_Int32 	length;
 	UA_Byte*	data;
@@ -210,7 +210,7 @@ UA_TYPE_METHOD_PROTOTYPES (UA_StatusCode)
 typedef float UA_IntegerId;
 UA_TYPE_METHOD_PROTOTYPES (UA_IntegerId)
 
-typedef struct T_UA_VTable {
+typedef struct UA_VTable {
 	UA_UInt32 ns0Id;
 	UA_Int32 (*calcSize)(void const * ptr);
 	UA_Int32 (*decodeBinary)(UA_ByteString const * src, UA_Int32* pos, void* dst);
@@ -230,7 +230,7 @@ enum UA_VARIANT_ENCODINGMASKTYPE_enum
 	UA_VARIANT_ENCODINGMASKTYPE_ARRAY = ( 0x01 << 7) // bit 7
 };
 
-typedef struct T_UA_Variant {
+typedef struct UA_Variant {
 	UA_VTable* vt;		// internal entry into vTable
 	UA_Byte encodingMask; 	// Type of UA_Variant_EncodingMaskType_enum
 	UA_Int32 arrayLength;	// total number of elements
@@ -241,7 +241,7 @@ typedef struct T_UA_Variant {
 UA_TYPE_METHOD_PROTOTYPES (UA_Variant)
 
 /* String - Part: 6, Chapter: 5.2.2.4, Page: 16 */
-typedef struct T_UA_String
+typedef struct UA_String
 {
 	UA_Int32 	length;
 	UA_Byte*	data;
@@ -269,7 +269,7 @@ enum UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_enum
 	UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE = 0x01,
 	UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT = 0x02
 };
-typedef struct T_UA_LocalizedText
+typedef struct UA_LocalizedText
 {
 	UA_Byte encodingMask;
 	UA_String locale;
@@ -284,7 +284,7 @@ void UA_ByteString_printx(char* label, const UA_ByteString* string);
 void UA_ByteString_printx_hex(char* label, const UA_ByteString* string);
 
 /* GuidType - Part: 6, Chapter: 5.2.2.6 Page: 17 */
-typedef struct T_UA_Guid
+typedef struct UA_Guid
 {
 	UA_UInt32 data1;
 	UA_UInt16 data2;
@@ -299,7 +299,7 @@ typedef UA_Int64 UA_DateTime; //100 nanosecond resolution
 UA_TYPE_METHOD_PROTOTYPES (UA_DateTime)
 
 UA_DateTime UA_DateTime_now();
-typedef struct T_UA_DateTimeStruct
+typedef struct UA_DateTimeStruct
 {
 	UA_Int16 nanoSec;
 	UA_Int16 microSec;
@@ -315,7 +315,7 @@ UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time);
 UA_Int32 UA_DateTime_toString(UA_DateTime time, UA_String* timeString);
 
 
-typedef struct T_UA_NodeId
+typedef struct UA_NodeId
 {
 	UA_Byte   encodingByte; //enum BID_NodeIdEncodingValuesType
 	UA_UInt16 namespace;
@@ -335,7 +335,7 @@ UA_Int32 UA_NodeId_compare(const UA_NodeId *n1, const UA_NodeId *n2);
 void UA_NodeId_printf(char* label, const UA_NodeId* node);
 
 /** XmlElement - Part: 6, Chapter: 5.2.2.8, Page: 17 */
-typedef struct T_UA_XmlElement
+typedef struct UA_XmlElement
 {
 	//TODO Überlegung ob man es direkt als ByteString speichert oder als String
 	UA_ByteString data;
@@ -348,7 +348,7 @@ UA_TYPE_METHOD_PROTOTYPES (UA_XmlElement)
 #define UA_NODEIDTYPE_NAMESPACE_URI_FLAG 0x80
 #define UA_NODEIDTYPE_SERVERINDEX_FLAG   0x40
 #define UA_NODEIDTYPE_MASK (~(UA_NODEIDTYPE_NAMESPACE_URI_FLAG | UA_NODEIDTYPE_SERVERINDEX_FLAG))
-typedef struct T_UA_ExpandedNodeId
+typedef struct UA_ExpandedNodeId
 {
 	UA_NodeId nodeId;
 	UA_String namespaceUri;
@@ -363,7 +363,7 @@ UA_TYPE_METHOD_PROTOTYPES(UA_IdentifierType)
 
 
 /* ExtensionObjectBinaryEncoding - Part: 6, Chapter: 5.2.2.15, Page: 21 */
-typedef struct T_UA_ExtensionObject {
+typedef struct UA_ExtensionObject {
 	UA_NodeId typeId;
 	UA_Byte encoding; //Type of the enum UA_ExtensionObjectEncodingMaskType
 	UA_ByteString body;
@@ -378,7 +378,7 @@ enum UA_ExtensionObject_EncodingMaskType_enum
 };
 
 /* QualifiedNameBinaryEncoding - Part: 6, Chapter: 5.2.2.13, Page: 20 */
-typedef struct T_UA_QualifiedName {
+typedef struct UA_QualifiedName {
 	UA_UInt16 namespaceIndex;
 	UA_UInt16 reserved;
 	UA_String name;
@@ -409,7 +409,7 @@ enum UA_DATAVALUE_ENCODINGMASKTYPE_enum
 };
 
 /* DiagnosticInfo - Part: 6, Chapter: 5.2.2.12, Page: 20 */
-typedef struct T_UA_DiagnosticInfo {
+typedef struct UA_DiagnosticInfo {
 	UA_Byte encodingMask; //Type of the Enum UA_DIAGNOSTICINFO_ENCODINGMASKTYPE
 	UA_Int32 symbolicId;
 	UA_Int32 namespaceUri;
@@ -417,7 +417,7 @@ typedef struct T_UA_DiagnosticInfo {
 	UA_Int32 locale;
 	UA_String additionalInfo;
 	UA_StatusCode innerStatusCode;
-	struct T_UA_DiagnosticInfo* innerDiagnosticInfo;
+	struct UA_DiagnosticInfo* innerDiagnosticInfo;
 } UA_DiagnosticInfo;
 UA_TYPE_METHOD_PROTOTYPES(UA_DiagnosticInfo)
 
