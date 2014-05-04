@@ -8,7 +8,7 @@
 
 static inline UA_Int32 UA_VTable_isValidType(UA_Int32 type) {
 	if(type < 0 /* UA_BOOLEAN */ || type > 271 /* UA_INVALID */)
-		return UA_ERROR;
+		return UA_INVALIDTYPE;
 	return UA_SUCCESS;
 }
 
@@ -1527,6 +1527,43 @@ UA_Int32 UA_Variant_copy(UA_Variant const *src, UA_Variant *dst)
 		retval |=  UA_Array_copy((const void * const *)(src->arrayDimensions),src->arrayDimensionsLength, UA_ns0ToVTableIndex(UA_INT32_NS0),(void***)&(dst->arrayDimensions));
 	}
 	return retval;
+}
+
+UA_Int32 UA_Variant_setValue(UA_Variant *v, UA_Int32 type_id, const void* value) {
+	v->encodingMask = type_id & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK;
+	if(UA_VTable_isValidType(type_id) != UA_SUCCESS) return UA_INVALIDTYPE;
+	v->vt = &UA_[type_id];
+	v->data = (void*) value;
+	return UA_SUCCESS;
+}
+
+UA_Int32 UA_Variant_copySetValue(UA_Variant *v, UA_Int32 type_id, const void* value) {
+	v->encodingMask = type_id & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK;
+	if(UA_VTable_isValidType(type_id) != UA_SUCCESS) return UA_INVALIDTYPE;
+	v->vt = &UA_[type_id];
+	return v->vt->copy(value, v->data);
+}
+
+UA_Int32 UA_Variant_setArray(UA_Variant *v, UA_Int32 type_id, UA_Int32 arrayLength, const void* array) {
+	v->encodingMask = (type_id & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) | UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
+	if(UA_VTable_isValidType(type_id) != UA_SUCCESS) return UA_INVALIDTYPE;
+	v->vt = &UA_[type_id];
+	v->arrayLength = arrayLength;
+	v->data = (void*) array;
+	return UA_SUCCESS;
+}
+
+UA_Int32 UA_Variant_copySetArray(UA_Variant *v, UA_Int32 type_id, UA_Int32 arrayLength, UA_UInt32 elementSize, const void* array) {
+	v->encodingMask = (type_id & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) | UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
+	if(UA_VTable_isValidType(type_id) != UA_SUCCESS) return UA_INVALIDTYPE;
+	v->vt = &UA_[type_id];
+	v->arrayLength = arrayLength;
+	void *new_arr;
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_alloc(&new_arr, arrayLength * elementSize);
+	retval |= UA_memcpy(new_arr, array, arrayLength * elementSize);
+	v->data = new_arr;
+	return UA_SUCCESS;
 }
 
 //TODO: place this define at the server configuration
