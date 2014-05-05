@@ -73,7 +73,7 @@ def createEnumerated(element):
     valuemap = OrderedDict()
     name = "UA_" + element.get("Name")
     enum_types.append(name)
-    print("\n/** @name UA_" + name + " */", end='\n', file=fh)
+    print("\n", file=fh)
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
             print("/** @brief " + child.text + " */", end='\n', file=fh)
@@ -96,7 +96,7 @@ def createEnumerated(element):
 def createStructured(element):
     valuemap = OrderedDict()
     name = "UA_" + element.get("Name")
-    print("\n/** @name UA_" + name + " */", end='\n', file=fh)
+    print("\n", file=fh)
 
     lengthfields = set()
     for child in element:
@@ -261,7 +261,7 @@ def createStructured(element):
     
 def createOpaque(element):
     name = "UA_" + element.get("Name")
-    print("\n/** @name UA_" + name + " */", end='\n', file=fh)
+    print("\n", file=fh)
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
             print("/** @brief " + child.text + " */", end='\n', file=fh)
