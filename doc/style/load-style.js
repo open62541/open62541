@@ -18,8 +18,15 @@ $( document ).ready(function() {
 	
 	$('img[src="ftv2ns.png"]').replaceWith('<span class="label label-danger">N</span> ');
 	$('img[src="ftv2cl.png"]').replaceWith('<span class="label label-danger">C</span> ');
+
+	// dirty workaround since doxygen 1.7 doesn't set table ids
+	$("table").each(function() {
+		if($(this).find("tbody > tr > td.indexkey").length > 0) {
+			$(this).addClass("table table-striped");
+		}
+	});
 	
-	$("table").addClass("table");
+	$("table.params").addClass("table");
 	$("div.ingroups").wrapInner("<small></small>");
 	$("div.levels").css("margin", "0.5em");
 	$("div.levels > span").addClass("btn btn-default btn-xs");
