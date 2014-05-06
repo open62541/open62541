@@ -19,7 +19,7 @@ $( document ).ready(function() {
 	$('img[src="ftv2ns.png"]').replaceWith('<span class="label label-danger">N</span> ');
 	$('img[src="ftv2cl.png"]').replaceWith('<span class="label label-danger">C</span> ');
 	
-	$("table.params").addClass("table");
+	$("table").addClass("table");
 	$("div.ingroups").wrapInner("<small></small>");
 	$("div.levels").css("margin", "0.5em");
 	$("div.levels > span").addClass("btn btn-default btn-xs");
