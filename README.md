@@ -7,6 +7,9 @@ An open-source communication stack implementation of OPC UA (OPC Unified Archite
 [![Build Status](https://travis-ci.org/acplt/open62541.png?branch=master)](https://travis-ci.org/acplt/open62541)
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/1864/badge.svg)](https://scan.coverity.com/projects/1864)
 
+### Documentation
+Documentation is generated from Doxygen annotations in the source code. The current version can be accessed at http://acplt.github.io/open62541/doxygen/.
+
 
 ## Getting dependencies
 ### Ubuntu
