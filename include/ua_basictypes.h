@@ -1,10 +1,3 @@
-/*
- * ua_basictypes.h
- *
- *  Created on: 13.03.2014
- *      Author: mrt
- */
-
 #ifndef OPCUA_BASICTYPES_H_
 #define OPCUA_BASICTYPES_H_
 
@@ -36,14 +29,12 @@ typedef int64_t UA_Int64;
 typedef uint64_t UA_UInt64;
 typedef float UA_Float;
 typedef double UA_Double;
+
 /* ByteString - Part: 6, Chapter: 5.2.2.7, Page: 17 */
-typedef struct UA_ByteString
-{
+typedef struct UA_ByteString {
 	UA_Int32 	length;
 	UA_Byte*	data;
-}
-UA_ByteString;
-
+} UA_ByteString;
 
 /* Function return values */
 #define UA_SUCCESS 0
@@ -122,12 +113,11 @@ UA_Int32 TYPE##_delete(TYPE *p) { \
 }
 
 #define UA_TYPE_METHOD_COPY(TYPE) \
-UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst){ \
+UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst) { \
 	UA_Int32 retval = UA_SUCCESS; \
 	retval |= UA_memcpy(dst, src, TYPE##_calcSize(UA_NULL)); \
 	return retval; \
 }
-
 
 #define UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(TYPE) \
 UA_Int32 TYPE##_deleteMembers(TYPE * p) { return UA_SUCCESS; }
@@ -146,13 +136,12 @@ UA_Int32 TYPE##_encodeBinary(TYPE const * src, UA_Int32* pos, UA_ByteString *dst
 }
 
 #define UA_TYPE_METHOD_INIT_AS(TYPE, TYPE_AS) \
-UA_Int32 TYPE##_init(TYPE * p){ \
+UA_Int32 TYPE##_init(TYPE * p) { \
 	return TYPE_AS##_init((TYPE_AS*)p); \
 }
 #define UA_TYPE_METHOD_COPY_AS(TYPE, TYPE_AS) \
 UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst) {return TYPE_AS##_copy((TYPE_AS*) src,(TYPE_AS*)dst); \
 }
-
 
 #define UA_TYPE_METHOD_PROTOTYPES_AS(TYPE, TYPE_AS) \
 UA_TYPE_METHOD_CALCSIZE_AS(TYPE, TYPE_AS) \
@@ -163,9 +152,8 @@ UA_TYPE_METHOD_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
 UA_TYPE_METHOD_INIT_AS(TYPE, TYPE_AS) \
 UA_TYPE_METHOD_COPY_AS(TYPE, TYPE_AS)
 
-
 #define UA_TYPE_METHOD_NEW_DEFAULT(TYPE) \
-UA_Int32 TYPE##_new(TYPE ** p){ \
+UA_Int32 TYPE##_new(TYPE ** p) { \
 	UA_Int32 retval = UA_SUCCESS;\
 	retval |= UA_alloc((void**)p, TYPE##_calcSize(UA_NULL));\
 	retval |= TYPE##_init(*p);\
@@ -173,14 +161,12 @@ UA_Int32 TYPE##_new(TYPE ** p){ \
 }
 
 #define UA_TYPE_METHOD_INIT_DEFAULT(TYPE) \
-UA_Int32 TYPE##_init(TYPE * p){ \
+UA_Int32 TYPE##_init(TYPE * p) { \
 	if(p==UA_NULL)return UA_ERROR;\
 	*p = (TYPE)0;\
 	return UA_SUCCESS;\
 }
 //#define UA_TYPE_COPY_METHOD_PROTOTYPE(TYPE) \  UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst);
-
-
 
 /*** Prototypes for basic types **/
 UA_TYPE_METHOD_PROTOTYPES (UA_Boolean)
@@ -223,8 +209,7 @@ typedef struct UA_VTable {
 } UA_VTable;
 
 /* VariantBinaryEncoding - Part: 6, Chapter: 5.2.2.16, Page: 22 */
-enum UA_VARIANT_ENCODINGMASKTYPE_enum
-{
+enum UA_VARIANT_ENCODINGMASKTYPE_enum {
 	UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK = 0x3F,	// bits 0:5
 	UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS = (0x01 << 6), // bit 6
 	UA_VARIANT_ENCODINGMASKTYPE_ARRAY = ( 0x01 << 7) // bit 7
@@ -252,12 +237,10 @@ UA_Int32 UA_Variant_borrowSetValue(UA_Variant *v, UA_Int32 type, const void* dat
 UA_Int32 UA_Variant_borrowSetArray(UA_Variant *v, UA_Int32 type, UA_Int32 arrayLength, const void* data); // Take care not to free the data before the variant.
 
 /* String - Part: 6, Chapter: 5.2.2.4, Page: 16 */
-typedef struct UA_String
-{
+typedef struct UA_String {
 	UA_Int32 	length;
 	UA_Byte*	data;
-}
-UA_String;
+} UA_String;
 UA_TYPE_METHOD_PROTOTYPES (UA_String)
 //UA_Int32 UA_String_copy(UA_String const * src, UA_String* dst);
 UA_Int32 UA_String_copycstring(char const * src, UA_String* dst);
@@ -274,19 +257,17 @@ UA_Int32 UA_ByteString_compare(const UA_ByteString *string1, const UA_ByteString
 UA_Int32 UA_ByteString_newMembers(UA_ByteString* p, UA_Int32 length);
 extern UA_ByteString UA_ByteString_securityPoliceNone;
 
-/** LocalizedTextBinaryEncoding - Part: 6, Chapter: 5.2.2.14, Page: 21 */
-enum UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_enum
-{
+/* LocalizedTextBinaryEncoding - Part: 6, Chapter: 5.2.2.14, Page: 21 */
+enum UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_enum {
 	UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE = 0x01,
 	UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT = 0x02
 };
-typedef struct UA_LocalizedText
-{
+
+typedef struct UA_LocalizedText {
 	UA_Byte encodingMask;
 	UA_String locale;
 	UA_String text;
-}
-UA_LocalizedText;
+} UA_LocalizedText;
 UA_TYPE_METHOD_PROTOTYPES (UA_LocalizedText)
 
 UA_Int32 UA_LocalizedText_copycstring(char const * src, UA_LocalizedText* dst);
@@ -295,8 +276,7 @@ void UA_ByteString_printx(char* label, const UA_ByteString* string);
 void UA_ByteString_printx_hex(char* label, const UA_ByteString* string);
 
 /* GuidType - Part: 6, Chapter: 5.2.2.6 Page: 17 */
-typedef struct UA_Guid
-{
+typedef struct UA_Guid {
 	UA_UInt32 data1;
 	UA_UInt16 data2;
 	UA_UInt16 data3;
@@ -310,8 +290,7 @@ typedef UA_Int64 UA_DateTime; //100 nanosecond resolution
 UA_TYPE_METHOD_PROTOTYPES (UA_DateTime)
 
 UA_DateTime UA_DateTime_now();
-typedef struct UA_DateTimeStruct
-{
+typedef struct UA_DateTimeStruct {
 	UA_Int16 nanoSec;
 	UA_Int16 microSec;
 	UA_Int16 milliSec;
@@ -326,13 +305,11 @@ UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time);
 UA_Int32 UA_DateTime_toString(UA_DateTime time, UA_String* timeString);
 
 
-typedef struct UA_NodeId
-{
+typedef struct UA_NodeId {
 	UA_Byte   encodingByte; //enum BID_NodeIdEncodingValuesType
 	UA_UInt16 namespace;
 
-    union
-    {
+    union {
         UA_UInt32 numeric;
         UA_String string;
         UA_Guid guid;
@@ -345,33 +322,28 @@ UA_TYPE_METHOD_PROTOTYPES (UA_NodeId)
 UA_Int32 UA_NodeId_compare(const UA_NodeId *n1, const UA_NodeId *n2);
 void UA_NodeId_printf(char* label, const UA_NodeId* node);
 
-/** XmlElement - Part: 6, Chapter: 5.2.2.8, Page: 17 */
-typedef struct UA_XmlElement
-{
+/* XmlElement - Part: 6, Chapter: 5.2.2.8, Page: 17 */
+typedef struct UA_XmlElement {
 	//TODO Überlegung ob man es direkt als ByteString speichert oder als String
 	UA_ByteString data;
 } UA_XmlElement;
 UA_TYPE_METHOD_PROTOTYPES (UA_XmlElement)
-
 
 /* ExpandedNodeId - Part: 6, Chapter: 5.2.2.10, Page: 19 */
 // 62541-6 Chapter 5.2.2.9, Table 5
 #define UA_NODEIDTYPE_NAMESPACE_URI_FLAG 0x80
 #define UA_NODEIDTYPE_SERVERINDEX_FLAG   0x40
 #define UA_NODEIDTYPE_MASK (~(UA_NODEIDTYPE_NAMESPACE_URI_FLAG | UA_NODEIDTYPE_SERVERINDEX_FLAG))
-typedef struct UA_ExpandedNodeId
-{
+typedef struct UA_ExpandedNodeId {
 	UA_NodeId nodeId;
 	UA_String namespaceUri;
 	UA_UInt32 serverIndex;
-}
-UA_ExpandedNodeId;
+} UA_ExpandedNodeId;
 UA_TYPE_METHOD_PROTOTYPES(UA_ExpandedNodeId)
 
-
+/* IdentifierType */
 typedef UA_Int32 UA_IdentifierType;
 UA_TYPE_METHOD_PROTOTYPES(UA_IdentifierType)
-
 
 /* ExtensionObjectBinaryEncoding - Part: 6, Chapter: 5.2.2.15, Page: 21 */
 typedef struct UA_ExtensionObject {
@@ -381,11 +353,10 @@ typedef struct UA_ExtensionObject {
 } UA_ExtensionObject;
 UA_TYPE_METHOD_PROTOTYPES(UA_ExtensionObject)
 
-enum UA_ExtensionObject_EncodingMaskType_enum
-{
-	UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED = 	0x00,
+enum UA_ExtensionObject_EncodingMaskType_enum {
+	UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED =   0x00,
 	UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING = 	0x01,
-	UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML = 	0x02
+	UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML =         0x02
 };
 
 /* QualifiedNameBinaryEncoding - Part: 6, Chapter: 5.2.2.13, Page: 20 */
@@ -409,10 +380,9 @@ typedef struct UA_DataValue {
 UA_TYPE_METHOD_PROTOTYPES(UA_DataValue)
 
 /** 62541-6, §5.2.2.17, Table 15 */
-enum UA_DATAVALUE_ENCODINGMASKTYPE_enum
-{
-	UA_DATAVALUE_ENCODINGMASK_VARIANT = 	0x01,
-	UA_DATAVALUE_ENCODINGMASK_STATUSCODE = 	0x02,
+enum UA_DATAVALUE_ENCODINGMASKTYPE_enum {
+	UA_DATAVALUE_ENCODINGMASK_VARIANT = 	        0x01,
+	UA_DATAVALUE_ENCODINGMASK_STATUSCODE = 	        0x02,
 	UA_DATAVALUE_ENCODINGMASK_SOURCETIMESTAMP = 	0x04,
 	UA_DATAVALUE_ENCODINGMASK_SERVERTIMESTAMP = 	0x08,
 	UA_DATAVALUE_ENCODINGMASK_SOURCEPICOSECONDS = 	0x10,
@@ -432,14 +402,13 @@ typedef struct UA_DiagnosticInfo {
 } UA_DiagnosticInfo;
 UA_TYPE_METHOD_PROTOTYPES(UA_DiagnosticInfo)
 
-enum UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_enum
-{
-	UA_DIAGNOSTICINFO_ENCODINGMASK_SYMBOLICID = 			0x01,
-	UA_DIAGNOSTICINFO_ENCODINGMASK_NAMESPACE = 			0x02,
-	UA_DIAGNOSTICINFO_ENCODINGMASK_LOCALIZEDTEXT = 		0x04,
-	UA_DIAGNOSTICINFO_ENCODINGMASK_LOCALE = 				0x08,
-	UA_DIAGNOSTICINFO_ENCODINGMASK_ADDITIONALINFO = 		0x10,
-	UA_DIAGNOSTICINFO_ENCODINGMASK_INNERSTATUSCODE = 	0x20,
+enum UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_enum {
+	UA_DIAGNOSTICINFO_ENCODINGMASK_SYMBOLICID = 		 0x01,
+	UA_DIAGNOSTICINFO_ENCODINGMASK_NAMESPACE = 		     0x02,
+	UA_DIAGNOSTICINFO_ENCODINGMASK_LOCALIZEDTEXT = 	     0x04,
+	UA_DIAGNOSTICINFO_ENCODINGMASK_LOCALE = 			 0x08,
+	UA_DIAGNOSTICINFO_ENCODINGMASK_ADDITIONALINFO =      0x10,
+	UA_DIAGNOSTICINFO_ENCODINGMASK_INNERSTATUSCODE =     0x20,
 	UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO = 0x40
 };
 
