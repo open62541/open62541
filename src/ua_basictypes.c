@@ -1529,10 +1529,10 @@ UA_Int32 UA_Variant_copy(UA_Variant const *src, UA_Variant *dst)
 	return retval;
 }
 
-UA_Int32 UA_Variant_setValue(UA_Variant *v, UA_Int32 type_id, const void* value) {
+UA_Int32 UA_Variant_borrowSetValue(UA_Variant *v, UA_Int32 type_id, const void* value) {
 	v->encodingMask = type_id & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK;
 	if(UA_VTable_isValidType(type_id) != UA_SUCCESS) return UA_INVALIDTYPE;
-	v->vt = &UA_[type_id];
+	v->vt = &UA_noDelete_[type_id];
 	v->data = (void*) value;
 	return UA_SUCCESS;
 }
@@ -1544,10 +1544,10 @@ UA_Int32 UA_Variant_copySetValue(UA_Variant *v, UA_Int32 type_id, const void* va
 	return v->vt->copy(value, v->data);
 }
 
-UA_Int32 UA_Variant_setArray(UA_Variant *v, UA_Int32 type_id, UA_Int32 arrayLength, const void* array) {
+UA_Int32 UA_Variant_borrowSetArray(UA_Variant *v, UA_Int32 type_id, UA_Int32 arrayLength, const void* array) {
 	v->encodingMask = (type_id & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) | UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
 	if(UA_VTable_isValidType(type_id) != UA_SUCCESS) return UA_INVALIDTYPE;
-	v->vt = &UA_[type_id];
+	v->vt = &UA_noDelete_[type_id];
 	v->arrayLength = arrayLength;
 	v->data = (void*) array;
 	return UA_SUCCESS;
