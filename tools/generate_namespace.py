@@ -29,7 +29,7 @@ exclude_types = set(["Number", "Integer", "UInteger", "Enumeration",
 	"YArrayItemType", "XYArrayItemType", "ImageItemType", "CubeItemType", "NDimensionArrayItemType"])
 
 f = open(sys.argv[1])
-input_str = "InvalidType,0,DataType\n" + f.read()
+input_str = f.read() + "\nInvalidType,0,DataType"
 input_str = input_str.replace('\r','')
 rows = map(lambda x:tuple(x.split(',')), input_str.split('\n'))
 f.close()
