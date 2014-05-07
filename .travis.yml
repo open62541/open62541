@@ -15,6 +15,7 @@ addons:
     build_command: make
     branch_pattern: coverity_scan
 before_install:
+- sudo add-apt-repository ppa:libreoffice/ppa -y
 - sudo apt-get update -qq
 - sudo apt-get install -qq build-essential subversion git autoconf libtool texinfo
   python-lxml graphviz doxygen
