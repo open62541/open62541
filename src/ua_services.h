@@ -1,9 +1,23 @@
+/**
+ * @file ua_services.h
+ *
+ * @brief Defines the method signatures for all the standard defined services.
+ */
+
 #ifndef UA_SERVICES_H_
 #define UA_SERVICES_H_
 
 #include "opcua.h"
 #include "ua_application.h"
 #include "ua_transport_binary_secure.h"
+
+/**
+ * @defgroup services Services
+ *
+ * @brief This module describes all the services used to communicate in in OPC UA.
+ *
+ * @{
+ */
 
 /**
  * @name Discovery Service Set
@@ -112,7 +126,7 @@ UA_Int32 Service_CloseSession(SL_Channel *channel, const UA_CloseSessionRequest 
  */ 
 UA_Int32 Service_Browse(SL_Channel *channel, const UA_BrowseRequest *request, UA_BrowseResponse *response);
 // Service_BrowseNext
-// Service_TranslateBrowsePathsRoNodeIds
+// Service_TranslateBrowsePathsToNodeIds
 // Service_RegisterNodes
 // Service_UnregisterNodes
 /** @} */
@@ -208,5 +222,7 @@ UA_Int32 Service_CreateMonitoredItems(SL_Channel *channel, const UA_CreateMonito
 // Service_TransferSubscription
 // Service_DeleteSubscription
 /** @} */
+
+/** @} */ // end of group
 
 #endif
