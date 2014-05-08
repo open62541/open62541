@@ -113,6 +113,7 @@ for row in rows:
           ",(UA_Int32(*)(void **))"+name+"_new"+
 	  ",(UA_Int32(*)(void const * ,void*))"+name+"_copy"+
           ",(UA_Int32(*)(void *))"+name+"_delete"+
+          (",sizeof("+name+")" if (name != "UA_InvalidType") else ",0") +
           ',(UA_Byte*)"'+name+'"},',end='\n',file=fc) 
 
 print("};\n\nUA_VTable UA_noDelete_[] = {", end='\n', file=fc)
@@ -135,6 +136,7 @@ for row in rows:
           ",(UA_Int32(*)(void **))"+name+"_new"+
 	  ",(UA_Int32(*)(void const * ,void*))"+name+"_copy"+
           ",(UA_Int32(*)(void *))phantom_delete"+
+          (",sizeof("+name+")" if (name != "UA_InvalidType") else ",0") +
           ',(UA_Byte*)"'+name+'"},',end='\n',file=fc)
 print("};", end='\n', file=fc) 
 
