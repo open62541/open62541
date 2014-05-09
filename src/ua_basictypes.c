@@ -1313,7 +1313,7 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_StatusCode)
  */
 UA_Int32 UA_QualifiedName_calcSize(UA_QualifiedName const * p) {
 	UA_Int32 length = 0;
-	if (p == NULL) return sizeof(UA_QualifiedName);
+	if (p == UA_NULL) return sizeof(UA_QualifiedName);
 	length += sizeof(UA_UInt16); //qualifiedName->namespaceIndex
 	// length += sizeof(UA_UInt16); //qualifiedName->reserved
 	length += UA_String_calcSize(&(p->name)); //qualifiedName->name
@@ -1347,7 +1347,7 @@ UA_Int32 UA_QualifiedName_init(UA_QualifiedName * p){
 	if(p==UA_NULL)return UA_ERROR;
 	UA_String_init(&(p->name));
 	p->namespaceIndex=0;
-	p->reserved=0;
+	//p->reserved=0;
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_QualifiedName)
@@ -1357,7 +1357,7 @@ UA_Int32 UA_QualifiedName_copy(UA_QualifiedName const *src, UA_QualifiedName *ds
 	retval |= UA_alloc((void**)&dst,UA_QualifiedName_calcSize(UA_NULL));
 	retval |= UA_String_copy(&(src->name),&(dst->name));
 	retval |= UA_UInt16_copy(&(src->namespaceIndex),&(dst->namespaceIndex));
-	retval |= UA_UInt16_copy(&(src->reserved),&(dst->reserved));
+	//retval |= UA_UInt16_copy(&(src->reserved),&(dst->reserved));
 	return retval;
 
 }

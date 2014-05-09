@@ -363,7 +363,7 @@ enum UA_ExtensionObject_EncodingMaskType_enum {
 /* QualifiedNameBinaryEncoding - Part: 6, Chapter: 5.2.2.13, Page: 20 */
 typedef struct UA_QualifiedName {
 	UA_UInt16 namespaceIndex;
-	UA_UInt16 reserved;
+	/*UA_UInt16 reserved; removed by Sten since unclear origin*/
 	UA_String name;
 } UA_QualifiedName;
 UA_TYPE_METHOD_PROTOTYPES(UA_QualifiedName)
