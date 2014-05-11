@@ -125,11 +125,17 @@ UA_Int32 Service_CloseSession(SL_Channel *channel, const UA_CloseSessionRequest 
  * also supports a primitive filtering capability.
  */ 
 UA_Int32 Service_Browse(SL_Channel *channel, const UA_BrowseRequest *request, UA_BrowseResponse *response);
+
+/**
+ * @brief This Service is used to translate textual node paths to their respective ids.
+ */
+UA_Int32 Service_TranslateBrowsePathsToNodeIds(SL_Channel *channel, const UA_TranslateBrowsePathsToNodeIdsRequest *request, UA_TranslateBrowsePathsToNodeIdsResponse *response);
 // Service_BrowseNext
 // Service_TranslateBrowsePathsToNodeIds
 // Service_RegisterNodes
 // Service_UnregisterNodes
 /** @} */
+
 
 /* Part 4: 5.9 Query Service Set */
 /**
