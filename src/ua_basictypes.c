@@ -920,6 +920,7 @@ UA_Int32 UA_NodeId_compare(const UA_NodeId *n1, const UA_NodeId *n2) {
 	}
 	return UA_NOT_EQUAL;
 }
+
 UA_Int32 UA_NodeId_init(UA_NodeId* p){
 	if(p==UA_NULL)return UA_ERROR;
 	p->encodingByte = UA_NODEIDTYPE_TWOBYTE;
@@ -927,6 +928,7 @@ UA_Int32 UA_NodeId_init(UA_NodeId* p){
 	memset(&(p->identifier),0,sizeof(p->identifier));
 	return UA_SUCCESS;
 }
+
 UA_TYPE_METHOD_NEW_DEFAULT(UA_NodeId)
 UA_Int32 UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst)
 {
@@ -953,14 +955,39 @@ UA_Int32 UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst)
 	}
 	return retval;
 }
+
+UA_Boolean UA_NodeId_isNull(const UA_NodeId* p) {
+	switch (p->encodingByte & UA_NODEIDTYPE_MASK) {
+	case UA_NODEIDTYPE_TWOBYTE:
+		if(p->identifier.numeric != 0) return UA_FALSE;
+		break;
+	case UA_NODEIDTYPE_FOURBYTE:
+	case UA_NODEIDTYPE_NUMERIC:
+		if(p->namespace != 0 || p->identifier.numeric != 0) return UA_FALSE;
+		break;
+	case UA_NODEIDTYPE_STRING:
+		if(p->namespace != 0 || p->identifier.string.length != 0) return UA_FALSE;
+		break;
+	case UA_NODEIDTYPE_GUID:
+		if(p->namespace != 0 || memcmp(&p->identifier.guid, (char[sizeof(UA_Guid)]){0}, sizeof(UA_Guid)) != 0) return UA_FALSE;
+		break;
+	case UA_NODEIDTYPE_BYTESTRING:
+		if(p->namespace != 0 || p->identifier.byteString.length != 0) return UA_FALSE;
+		break;
+	default:
+		return UA_FALSE;
+	}
+	return UA_TRUE;
+}
+
 UA_Int32 UA_ExpandedNodeId_calcSize(UA_ExpandedNodeId const * p) {
 	UA_Int32 length = 0;
 	if (p == UA_NULL) {
 		length = sizeof(UA_ExpandedNodeId);
 	} else {
-		length = UA_NodeId_calcSize(&(p->nodeId));
+		length = UA_NodeId_calcSize(&p->nodeId);
 		if (p->nodeId.encodingByte & UA_NODEIDTYPE_NAMESPACE_URI_FLAG) {
-			length += UA_String_calcSize(&(p->namespaceUri)); //p->namespaceUri
+			length += UA_String_calcSize(&p->namespaceUri); //p->namespaceUri
 		}
 		if (p->nodeId.encodingByte & UA_NODEIDTYPE_SERVERINDEX_FLAG) {
 			length += sizeof(UA_UInt32); //p->serverIndex
@@ -968,6 +995,7 @@ UA_Int32 UA_ExpandedNodeId_calcSize(UA_ExpandedNodeId const * p) {
 	}
 	return length;
 }
+
 UA_TYPE_START_ENCODEBINARY(UA_ExpandedNodeId)
 	retval |= UA_NodeId_encodeBinary(&(src->nodeId),pos,dst);
 	if (src->nodeId.encodingByte & UA_NODEIDTYPE_NAMESPACE_URI_FLAG) {
@@ -1015,6 +1043,10 @@ UA_Int32 UA_ExpandedNodeId_copy(UA_ExpandedNodeId const *src, UA_ExpandedNodeId 
 	UA_NodeId_copy(&(src->nodeId), &(dst->nodeId));
 	UA_UInt32_copy(&(src->serverIndex), &(dst->serverIndex));
 	return retval;
+}
+
+UA_Boolean UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId* p) {
+	return UA_NodeId_isNull(&p->nodeId);
 }
 
 UA_Int32 UA_ExtensionObject_calcSize(UA_ExtensionObject const * p) {

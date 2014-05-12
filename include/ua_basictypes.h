@@ -305,23 +305,21 @@ typedef struct UA_DateTimeStruct {
 UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time);
 UA_Int32 UA_DateTime_toString(UA_DateTime time, UA_String* timeString);
 
-
 typedef struct UA_NodeId {
 	UA_Byte   encodingByte; //enum BID_NodeIdEncodingValuesType
 	UA_UInt16 namespace;
-
     union {
         UA_UInt32 numeric;
         UA_String string;
         UA_Guid guid;
         UA_ByteString byteString;
-    }
-    identifier;
+    } identifier;
 } UA_NodeId;
 UA_TYPE_METHOD_PROTOTYPES (UA_NodeId)
 
 UA_Int32 UA_NodeId_compare(const UA_NodeId *n1, const UA_NodeId *n2);
 void UA_NodeId_printf(char* label, const UA_NodeId* node);
+UA_Boolean UA_NodeId_isNull(const UA_NodeId* p);
 
 /* XmlElement - Part: 6, Chapter: 5.2.2.8, Page: 17 */
 typedef struct UA_XmlElement {
@@ -341,6 +339,7 @@ typedef struct UA_ExpandedNodeId {
 	UA_UInt32 serverIndex;
 } UA_ExpandedNodeId;
 UA_TYPE_METHOD_PROTOTYPES(UA_ExpandedNodeId)
+UA_Boolean UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId* p);
 
 /* IdentifierType */
 typedef UA_Int32 UA_IdentifierType;
