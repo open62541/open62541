@@ -60,8 +60,15 @@ void Namespace_delete(Namespace * ns);
 /** @brief Insert a new node into the namespace */
 UA_Int32 Namespace_insert(Namespace * ns, UA_Node * node);
 
+/** @brief Find an unused (numeric) NodeId in the namespace, create a slot under
+ * the NodeId and return both */
+UA_Int32 Namespace_insertUnique(Namespace * ns, UA_Node * node, UA_NodeId * new_nodeid); 
+
 /** @brief Remove a node from the namespace */
 void Namespace_remove(Namespace * ns, UA_NodeId * nodeid);
+
+/** @brief Tests whether the namespace contains an entry for a given NodeId */
+UA_Int32 Namespace_contains(Namespace * ns, UA_NodeId * nodeid);
 
 /** @brief Retrieve a node (read-only) from the namespace. Nodes are identified
 	by their NodeId. After the Node is no longer used, the lock needs to be

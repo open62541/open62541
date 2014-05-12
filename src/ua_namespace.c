@@ -230,14 +230,10 @@ static inline void clear_slot(Namespace * ns, Namespace_Entry * slot) {
 
 static inline UA_Int32 find_slot(const Namespace * ns, Namespace_Entry ** slot, const UA_NodeId * nodeid) {
 	hash_t h = hash(nodeid);
-	hash_t index, hash2;
-	UA_UInt32 size;
-	Namespace_Entry *entry;
+	hash_t index = mod(h, ns);
+	UA_UInt32 size = ns->size;
+	Namespace_Entry *entry = &ns->entries[index];
 
-	size = ns->size;
-	index = mod(h, ns);
-
-	entry = &ns->entries[index];
 	if(entry == UA_NULL)
 		return UA_ERROR;
 	if(UA_NodeId_compare(&entry->node->nodeId, nodeid) == UA_EQUAL) {
@@ -245,7 +241,7 @@ static inline UA_Int32 find_slot(const Namespace * ns, Namespace_Entry ** slot, 
 		return UA_SUCCESS;
 	}
 
-	hash2 = mod_m2(h, ns);
+	hash_t hash2 = mod_m2(h, ns);
 	for(;;) {
 		index += hash2;
 		if(index >= size)
@@ -404,6 +400,45 @@ UA_Int32 Namespace_insert(Namespace * ns, UA_Node * node) {
 	slot->node = node;
 	ns->count++;
 	return UA_SUCCESS;
+}
+
+UA_Int32 Namespace_insertUnique(Namespace * ns, UA_Node * node, UA_NodeId * new_nodeid) {
+	if(ns->size * 3 <= ns->count * 4) {
+		if(expand(ns) != UA_SUCCESS)
+			return UA_ERROR;
+	}
+
+	// find unoccupied numeric nodeid
+	new_nodeid->identifier.numeric = ns->count;
+	Namespace_Entry *slot = UA_NULL;
+
+	hash_t h = hash(new_nodeid);
+	hash_t hash2 = mod_m2(h, ns);
+	UA_UInt32 size = ns->size;
+
+	// change integer pseudo-randomly until a free slot is found
+	while(1) {
+		if(find_slot(ns, &slot, new_nodeid) != UA_SUCCESS)
+			break;
+		new_nodeid->identifier.numeric += hash2;
+		if(new_nodeid->identifier.numeric >= size)
+			new_nodeid->identifier.numeric -= size;
+	}
+
+#ifdef MULTITHREADING
+	if(UA_alloc((void **)&slot->lock, sizeof(pthread_rwlock_t)) != UA_SUCCESS)
+		return UA_ERR_NO_MEMORY;
+	pthread_rwlock_init((pthread_rwlock_t *) slot->lock, NULL);
+#endif
+
+	slot->node = node;
+	ns->count++;
+	return UA_SUCCESS;
+}
+
+UA_Int32 Namespace_contains(Namespace * ns, UA_NodeId * nodeid) {
+	Namespace_Entry *slot;
+	return find_slot(ns, &slot, nodeid);
 }
 
 UA_Int32 Namespace_get(Namespace const *ns, const UA_NodeId * nodeid, UA_Node const **result, Namespace_Lock ** lock) {
