@@ -18,20 +18,8 @@ exclude_types = set(["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UI
                     "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
                      "Variant", "DiagnosticInfo", "IntegerId"])
 
-elementary_size = dict()
-elementary_size["Boolean"] = 1;
-elementary_size["SByte"] = 1;
-elementary_size["Byte"] = 1;
-elementary_size["Int16"] = 2;
-elementary_size["UInt16"] = 2;
-elementary_size["Int32"] = 4;
-elementary_size["UInt32"] = 4;
-elementary_size["Int64"] = 8;
-elementary_size["UInt64"] = 8;
-elementary_size["Float"] = 4;
-elementary_size["Double"] = 8;
-elementary_size["DateTime"] = 8;
-elementary_size["StatusCode"] = 4;
+elementary_size = {"Boolean":1, "SByte":1, "Byte":1, "Int16":2, "UInt16":2, "Int32":4, "UInt32":4,
+                   "Int64":8, "UInt64":8, "Float":4, "Double":8, "DateTime":8, "StatusCode":4}
 
 enum_types = []
 structured_types = []
@@ -48,16 +36,12 @@ def skipType(name):
 def stripTypename(tn):
     return tn[tn.find(":")+1:]
 
-def camlCase2AdaCase(item):
-    (newitem, n) = re.subn("(?<!^)(?<![A-Z])([A-Z])", "_\\1", item)
-    return newitem
-    
 def camlCase2CCase(item):
     if item in ["Float","Double"]:
         return "my" + item
     return item[:1].lower() + item[1:] if item else ''
 
-# are the prerequisites in place? if not, postpone.
+# are the types we need already in place? if not, postpone.
 def printableStructuredType(element):
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
@@ -66,14 +50,13 @@ def printableStructuredType(element):
                 return False
     return True
 
-# There three types of types in the bsd file:
+# There are three types of types in the bsd file:
 # StructuredType, EnumeratedType OpaqueType
 
 def createEnumerated(element):
     valuemap = OrderedDict()
     name = "UA_" + element.get("Name")
     enum_types.append(name)
-    print("\n", file=fh)
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
             print("/** @brief " + child.text + " */", end='\n', file=fh)
@@ -116,12 +99,6 @@ def createStructured(element):
             else:
                 valuemap[childname] = typename
 
-    # if "Response" in name[len(name)-9:]:
-    #    print("type " + name + " is new Response_Base with "),
-    # elif "Request" in name[len(name)-9:]:
-    #    print ("type " + name + " is new Request_Base with "),
-    # else:
-    #    print ("type " + name + " is new UA_Builtin with "),
     print("typedef struct " + name + " {", end='\n', file=fh)
     if len(valuemap) == 0:
         typename = stripTypename(element.get("BaseType"))
@@ -191,10 +168,13 @@ def createStructured(element):
                 print('\tCHECKED_DECODE(UA_'+t+'_decodeBinary(src,pos,&(dst->'+n+')), '+name+'_deleteMembers(dst));', end='\n', file=fc)
             elif t.find("**") != -1:
             	# decode size
-		print('\tCHECKED_DECODE(UA_Int32_decodeBinary(src,pos,&(dst->'+n+'Size)), '+name+'_deleteMembers(dst)); // decode size', end='\n', file=fc)
+		print('\tCHECKED_DECODE(UA_Int32_decodeBinary(src,pos,&(dst->'+n+'Size)), ' +
+                      name + '_deleteMembers(dst)); // decode size', end='\n', file=fc)
 		# allocate memory for array
-		print("\tCHECKED_DECODE(UA_Array_new((void***)&dst->"+n+", dst->"+n+"Size, UA_"+t[0:t.find("*")].upper()+"), dst->"+n+" = UA_NULL; "+name+'_deleteMembers(dst));', end='\n', file=fc)
-		print("\tCHECKED_DECODE(UA_Array_decodeBinary(src,dst->"+n+"Size, UA_" + t[0:t.find("*")].upper()+",pos,(void *** const) (&dst->"+n+")), "+name+'_deleteMembers(dst));', end='\n', file=fc)
+		print("\tCHECKED_DECODE(UA_Array_new((void***)&dst->"+n+", dst->"+n+"Size, UA_"+t[0:t.find("*")].upper()+"), dst->" +
+                      n + " = UA_NULL; "+name+'_deleteMembers(dst));', end='\n', file=fc)
+		print("\tCHECKED_DECODE(UA_Array_decodeBinary(src,dst->"+n+"Size, UA_" + t[0:t.find("*")].upper() +
+                      ",pos,(void *** const) (&dst->"+n+")), "+name+'_deleteMembers(dst));', end='\n', file=fc)
             elif t.find("*") != -1:
 		#allocate memory using new
 		print('\tCHECKED_DECODE(UA_'+ t[0:t.find("*")] +"_new(&(dst->" + n + ")), "+name+'_deleteMembers(dst));', end='\n', file=fc)
@@ -215,7 +195,7 @@ def createStructured(element):
     for n,t in valuemap.iteritems():
         if t not in elementary_size:
             if t.find("**") != -1:
-		print("\tretval |= UA_Array_delete((void***)&p->"+n+",p->"+n+"Size,UA_"+t[0:t.find("*")].upper()+"); p->"+n+" = UA_NULL;", end='\n', file=fc) #not tested
+		print("\tretval |= UA_Array_delete((void***)&p->"+n+",p->"+n+"Size,UA_"+t[0:t.find("*")].upper()+"); p->"+n+" = UA_NULL;", end='\n', file=fc)
             elif t.find("*") != -1:
 		print('\tretval |= UA_' + t[0:t.find("*")] + "_delete(p->"+n+");", end='\n', file=fc)
             else:
@@ -252,7 +232,8 @@ def createStructured(element):
                 print('\tretval |= UA_'+t+'_copy(&(src->'+n+'),&(dst->'+n+'));', end='\n', file=fc)
             elif t.find("**") != -1:
                 print('\tretval |= UA_Int32_copy(&(src->'+n+'Size),&(dst->'+n+'Size)); // size of following array', end='\n', file=fc)
-		print("\tretval |= UA_Array_copy((void const* const*) (src->"+n+"), src->"+n+"Size," + "UA_"+t[0:t.find("*")].upper()+",(void***)&(dst->"+n+"));", end='\n', file=fc)
+		print("\tretval |= UA_Array_copy((void const* const*) (src->"+n+"), src->"+n+"Size," + "UA_" +
+                      t[0:t.find("*")].upper()+",(void***)&(dst->"+n+"));", end='\n', file=fc)
             elif t.find("*") != -1:
                 print('\tretval |= UA_' + t[0:t.find("*")] + '_copy(src->' + n + ',dst->' + n + ');', end='\n', file=fc)
             else:
@@ -285,12 +266,30 @@ types = tree.xpath("/opc:TypeDictionary/*[not(self::opc:Import)]", namespaces=ns
 
 fh = open(sys.argv[2] + ".hgen",'w');
 fc = open(sys.argv[2] + ".cgen",'w');
-print('''/**********************************************************
- * '''+sys.argv[2]+'''.cgen -- do not modify
- **********************************************************
+
+print('''/**
+ * @file '''+sys.argv[2]+'''.h
+ *
+ * @brief Autogenerated data types defined in the UA standard
+ *
  * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
  * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
- **********************************************************/
+ */
+
+#ifndef OPCUA_H_
+#define OPCUA_H_
+
+#include "ua_basictypes.h"
+#include "ua_namespace_0.h"''', end='\n', file=fh);
+
+print('''/**
+ * @file '''+sys.argv[2]+'''.c
+ *
+ * @brief Autogenerated function implementations to manage the data types defined in the UA standard
+ *
+ * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
+ * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
+ */
  
 #include "''' + sys.argv[2] + '.h"', end='\n', file=fc);
 
@@ -302,19 +301,6 @@ for field in fields:
         arraytypes.add(stripTypename(field.get("TypeName")))
 
 deferred_types = OrderedDict()
-
-print('''/**********************************************************
- * '''+sys.argv[2]+'''.hgen -- do not modify
- **********************************************************
- * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
- * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
- **********************************************************/
-
-#ifndef OPCUA_H_
-#define OPCUA_H_
-
-#include "ua_basictypes.h"
-#include "ua_namespace_0.h"''', end='\n', file=fh);
 
 #plugin handling
 import os
