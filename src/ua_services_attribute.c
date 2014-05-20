@@ -50,7 +50,7 @@ static UA_DataValue *service_read_node(Application * app, const UA_ReadValueId *
 	DBG_VERBOSE(UA_String_printf(",namespaceUri=", &(ns->namespaceUri)));
 
 	UA_Node const *node = UA_NULL;
-	Namespace_Lock *lock = UA_NULL;
+	Namespace_Entry_Lock *lock = UA_NULL;
 
 	DBG_VERBOSE(UA_NodeId_printf("service_read_node - search for ", &(id->nodeId)));
 	UA_Int32 result = Namespace_get(ns, &(id->nodeId), &node, &lock);
@@ -175,7 +175,7 @@ static UA_DataValue *service_read_node(Application * app, const UA_ReadValueId *
 		break;
 	}
 
-	Namespace_Lock_release(lock);
+	Namespace_Entry_Lock_release(lock);
 
 	if(retval != UA_SUCCESS) {
 		v->encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;

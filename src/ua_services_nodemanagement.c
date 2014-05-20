@@ -26,16 +26,16 @@ static UA_AddNodesResult * addSingleNode(Application *app, UA_AddNodesItem *item
 	if(nodeid_isnull) ns = parent_ns;
 	else ns = UA_indexedList_findValue(app->namespaces, item->requestedNewNodeId.nodeId.namespace);
 
-	if(ns == UA_NULL || ns->namespaceId == 0) {
+	if(ns == UA_NULL || item->requestedNewNodeId.nodeId.namespace == 0) {
 		result->statusCode = UA_STATUSCODE_BADNODEIDREJECTED;
 		return result;
 	}
 
 	UA_Int32 status = UA_SUCCESS;
-	UA_Node *parent;
-	Namespace_Lock *parent_lock = UA_NULL;
+	const UA_Node *parent;
+	Namespace_Entry_Lock *parent_lock = UA_NULL;
 
-	CHECKED_ACTION(Namespace_getWritable(parent_ns, &item->parentNodeId.nodeId, &parent, &parent_lock),
+	CHECKED_ACTION(Namespace_get(parent_ns, &item->parentNodeId.nodeId, &parent, &parent_lock),
 				   result->statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID, ret);
 
 	if(!nodeid_isnull && Namespace_contains(ns, &item->requestedNewNodeId.nodeId)) {
@@ -62,7 +62,7 @@ static UA_AddNodesResult * addSingleNode(Application *app, UA_AddNodesItem *item
 	 */
 
  ret:
-	Namespace_Lock_release(parent_lock);
+	Namespace_Entry_Lock_release(parent_lock);
 	return result;
 }
 

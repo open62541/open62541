@@ -2,10 +2,30 @@
 #define UA_LIST_H_
 
 #include "opcua.h"
+#include <stddef.h> /* Needed for sys/queue.h */
+#include <sys/queue.h>
 
-/*
- * Double Linked Lists
- */
+
+/**********************/
+/* Singly Linked List */
+/**********************/
+
+#define UA_SLIST_HEAD(name, type) SLIST_HEAD(name, type)
+#define UA_SLIST_HEAD_INITIALIZER(head) SLIST_HEAD_INITILIZER(head)
+#define UA_SLIST_ENTRY(type) SLIST_ENTRY(type)
+#define UA_SLIST_INIT(head) SLIST_INIT(head)
+#define UA_SLIST_INSERT_AFTER(slistelm, elm, field) SLIST_INSERT_AFTER(slistelm, elm, field)
+#define UA_SLIST_INSERT_HEAD(head, elm, field) SLIST_INSERT_HEAD(head, elm, field)
+#define UA_SLIST_REMOVE_HEAD(head, field) SLIST_REMOVE_HEAD(head, field)
+#define UA_SLIST_REMOVE(head, elm, type, field) SLIST_REMOVE(head, elm, type, field)
+#define UA_SLIST_FOREACH(var, head, field) SLIST_FOREACH(var, head, field)
+#define UA_SLIST_EMPTY(head) SLIST_EMPTY(head)
+#define UA_SLIST_FIRST(head) SLIST_FIRST(head)
+#define UA_SLIST_NEXT(elm, field) SLIST_NEXT(elm, field)
+
+/**********************/
+/* Doubly Linked List */
+/**********************/
 
 typedef void (*UA_list_PayloadVisitor)(void* payload);
 

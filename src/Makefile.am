@@ -11,6 +11,7 @@ libopen62541_la_SOURCES = opcua.c \
 						  ua_transport_binary.c \
 						  ua_transport_binary_secure.c \
 						  ua_namespace.c \
+						  ua_namespace_transactions.c \
 						  ua_services_attribute.c \
 						  ua_services_session.c \
 						  ua_services_discovery.c \

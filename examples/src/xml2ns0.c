@@ -105,7 +105,7 @@ typedef struct UA_NodeSet {
 	UA_NodeSetAliases aliases;
 } UA_NodeSet;
 UA_Int32 UA_NodeSet_init(UA_NodeSet* p) {
-	Namespace_create(&(p->ns), 100);
+	Namespace_new(&(p->ns), 100, 9999); // FIXME: Set a correct nsid
 	p->aliases.size = -1;
 	p->aliases.aliases = UA_NULL;
 	return UA_SUCCESS;
