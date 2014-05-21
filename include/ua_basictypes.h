@@ -312,6 +312,7 @@ typedef struct T_UA_DateTimeStruct
 	UA_Int16 year;
 } UA_DateTimeStruct;
 UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time);
+UA_Int32 UA_DateTime_difference_ms(UA_DateTime time1, UA_DateTime time2);
 UA_Int32 UA_DateTime_toString(UA_DateTime time, UA_String* timeString);
 
 

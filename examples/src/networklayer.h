@@ -5,6 +5,7 @@
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
 #include "ua_list.h"
+#include "ua_transport_connection_manager.h"
 
 #ifdef MULTITHREADING
 #include <pthread.h> // pthreadcreate, pthread_t
@@ -44,7 +45,9 @@ typedef struct T_NL_data {
 struct NL_Connection_T;
 typedef void* (*NL_Reader)(struct NL_Connection_T *c);
 typedef struct NL_Connection_T {
-	TL_Connection connection;
+	UA_TL_Connection1 connection;
+	UA_Int32 state;
+	UA_UInt32 connectionHandle;
 	NL_Reader reader;
 #ifdef MULTITHREADING
 	pthread_t readerThreadHandle;
@@ -54,6 +57,6 @@ typedef struct NL_Connection_T {
 
 NL_data* NL_init(NL_Description* tlDesc, UA_Int32 port);
 UA_Int32 NL_msgLoop(NL_data* nl, struct timeval* tv,UA_Int32 (*timeoutCallBack)(void*),void *arg);
-UA_Int32 NL_TCP_writer(struct TL_Connection_T const * c, UA_ByteString const * const * gather_buf, UA_UInt32 gather_len);
+UA_Int32 NL_TCP_writer(UA_Int32 connectionHandle, UA_ByteString const * const * gather_buf, UA_UInt32 gather_len);
 
 #endif /* NETWORKLAYER_H_ */

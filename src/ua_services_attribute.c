@@ -171,16 +171,22 @@ static UA_DataValue * service_read_node(Application *app, const UA_ReadValueId *
 	return v;
 }
 
-UA_Int32 Service_Read(SL_Channel *channel, const UA_ReadRequest *request, UA_ReadResponse *response ) {
-	if(channel->session == UA_NULL || channel->session->application == UA_NULL) return UA_ERROR; // TODO: Return error message
+UA_Int32 Service_Read(const UA_ReadRequest *request, UA_ReadResponse *response ) {
 
-	int readsize = request->nodesToReadSize > 0 ? request->nodesToReadSize : 0;
+	//TODO use request->requestHeader.authenticationToken to get the correct session
+
+	//if(channel->session == UA_NULL || channel->session->application == UA_NULL) return UA_ERROR; // TODO: Return error message
+
+
+	UA_Int32 readsize = request->nodesToReadSize > 0 ? request->nodesToReadSize : 0;
 	response->resultsSize = readsize;
 	UA_alloc((void **)&response->results, sizeof(void *)*readsize);
 	for(int i=0;i<readsize;i++) {
 		DBG_VERBOSE(printf("service_read - attributeId=%d\n",request->nodesToRead[i]->attributeId));
 		DBG_VERBOSE(UA_NodeId_printf("service_read - nodeId=",&(request->nodesToRead[i]->nodeId)));
-		response->results[i] = service_read_node(channel->session->application, request->nodesToRead[i]);
+
+	//TODO provide the part of the adress space which is bound to session
+	//response->results[i] = service_read_node(channel->session->application, request->nodesToRead[i]);
 	}
 	response->diagnosticInfosSize = -1;
 	return UA_SUCCESS;

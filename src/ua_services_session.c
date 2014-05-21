@@ -6,7 +6,7 @@ Session sessionMockup = {
 		&appMockup
 };
 
-UA_Int32 Service_CreateSession(SL_Channel *channel, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response) {
+UA_Int32 Service_CreateSession(const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response) {
 	UA_String_printf("CreateSession Service - endpointUrl=", &(request->endpointUrl));
 	// FIXME: create session
 
@@ -16,7 +16,7 @@ UA_Int32 Service_CreateSession(SL_Channel *channel, const UA_CreateSessionReques
 	return UA_SUCCESS;
 }
 
-UA_Int32 Service_ActivateSession(SL_Channel *channel, const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response) {
+UA_Int32 Service_ActivateSession(const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response) {
 	// FIXME: activate session
 	UA_NodeId_printf("ActivateSession - authToken=", &(request->requestHeader.authenticationToken));
 	// 321 == AnonymousIdentityToken_Encoding_DefaultBinary
@@ -24,12 +24,12 @@ UA_Int32 Service_ActivateSession(SL_Channel *channel, const UA_ActivateSessionRe
 	UA_ByteString_printx_hex("ActivateSession - uIdToken.body=", &(request->userIdentityToken.body));
 
 	// FIXME: channel->session->application = <Application Ptr>
-	channel->session = &sessionMockup;
+	//FIXME channel->session = &sessionMockup;
 	return UA_SUCCESS;
 }
 
-UA_Int32 Service_CloseSession(SL_Channel *channel, const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response) {
-	channel->session = UA_NULL;
+UA_Int32 Service_CloseSession(const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response) {
+	//FIXME channel->session = UA_NULL;
 	// FIXME: set response
 	return UA_SUCCESS;
 }

@@ -68,7 +68,11 @@ libopen62541_la_SOURCES = opcua.c\
 						ua_services_discovery.c\
 						ua_services_securechannel.c\
 						ua_services_view.c\
-						ua_application.c
+						ua_application.c\
+						ua_stack_channel.c\
+						ua_stack_channel_manager.c\
+						ua_transport_connection_manager.c\
+						ua_transport_connection.c
 
 #bin_PROGRAMS= $(top_builddir)/bin/open62541.out
 #__top_builddir__bin_libOpen62541_out_SOURCES = opcuaServer.c

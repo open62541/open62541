@@ -2019,7 +2019,7 @@ Suite *testSuite_builtin(void)
 	tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn2DArrayExample);
 
 	tcase_add_test(tc_copy, UA_DiagnosticInfo_copyShallWorkOnExample);
-//	tcase_add_test(tc_copy, UA_ApplicationDescription_copyShallWorkOnExample);
+	tcase_add_test(tc_copy, UA_ApplicationDescription_copyShallWorkOnExample);
 	suite_add_tcase(s,tc_copy);
 	return s;
 }

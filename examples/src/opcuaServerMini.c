@@ -10,6 +10,7 @@
  * quite small and memory allocation capabilities is not needed
  * as long as features are consequently minimized.
  ****************************************************************/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <memory.h>

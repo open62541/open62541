@@ -28,7 +28,7 @@ NL_Description NL_Description_TcpBinary  = {
 _Bool NL_ConnectionComparer(void *p1, void* p2) {
 	NL_Connection* c1 = (NL_Connection*) p1;
 	NL_Connection* c2 = (NL_Connection*) p2;
-	return (c1->connection.connectionHandle == c2->connection.connectionHandle);
+	return (c1->connectionHandle == c2->connectionHandle);
 }
 int NL_TCP_SetNonBlocking(int sock) {
 	int opts = fcntl(sock,F_GETFL);
@@ -45,20 +45,26 @@ int NL_TCP_SetNonBlocking(int sock) {
 }
 
 void NL_Connection_printf(void* payload) {
+  UA_UInt32 id;
   NL_Connection* c = (NL_Connection*) payload;
-  printf("ListElement connectionHandle = %d\n",c->connection.connectionHandle);
+  UA_TL_Connection_getId(c->connection,&id);
+  printf("ListElement connectionHandle = %d\n",id);
 }
 void NL_addHandleToSet(UA_Int32 handle, NL_data* nl) {
 	FD_SET(handle, &(nl->readerHandles));
 	nl->maxReaderHandle = (handle > nl->maxReaderHandle) ? handle : nl->maxReaderHandle;
 }
 void NL_setFdSet(void* payload) {
+  UA_UInt32 id;
   NL_Connection* c = (NL_Connection*) payload;
-  NL_addHandleToSet(c->connection.connectionHandle, c->networkLayer);
+  UA_TL_Connection_getId(c->connection,&id);
+  NL_addHandleToSet(id, c->networkLayer);
 }
 void NL_checkFdSet(void* payload) {
+	  UA_UInt32 id;
   NL_Connection* c = (NL_Connection*) payload;
-  if (FD_ISSET(c->connection.connectionHandle, &(c->networkLayer->readerHandles))) {
+  UA_TL_Connection_getId(c->connection,&id);
+  if (FD_ISSET(id, &(c->networkLayer->readerHandles))) {
 	  c->reader((void*)c);
   }
 }
@@ -108,31 +114,40 @@ UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), v
 void* NL_TCP_reader(NL_Connection *c) {
 
 	UA_ByteString readBuffer;
-	UA_alloc((void**)&(readBuffer.data),c->connection.localConf.recvBufferSize);
 
-	if (c->connection.connectionState != CONNECTIONSTATE_CLOSE) {
+	TL_Buffer localBuffers;
+	UA_UInt32 connectionId;
+	UA_TL_Connection_getLocalConfiguration(c->connection, &localBuffers);
+	UA_TL_Connection_getId(c->connection, &connectionId);
+	UA_alloc((void**)&(readBuffer.data),localBuffers.recvBufferSize);
+
+
+	if (c->state  != CONNECTIONSTATE_CLOSE) {
 		DBG_VERBOSE(printf("NL_TCP_reader - enter read\n"));
-		readBuffer.length = read(c->connection.connectionHandle, readBuffer.data, c->connection.localConf.recvBufferSize);
+		readBuffer.length = read(connectionId, readBuffer.data, localBuffers.recvBufferSize);
 		DBG_VERBOSE(printf("NL_TCP_reader - leave read\n"));
 
 		DBG_VERBOSE(printf("NL_TCP_reader - src={%*.s}, ",c->connection.remoteEndpointUrl.length,c->connection.remoteEndpointUrl.data));
 		DBG(UA_ByteString_printx("NL_TCP_reader - received=",&readBuffer));
 
 		if (readBuffer.length  > 0) {
-			TL_Process(&(c->connection),&readBuffer);
+
+			TL_Process((c->connection),&readBuffer);
 		} else {
-			c->connection.connectionState = CONNECTIONSTATE_CLOSE;
+//TODO close connection - what does close do?
+			c->state = CONNECTIONSTATE_CLOSE;
+			//c->connection.connectionState = CONNECTIONSTATE_CLOSE;
 			perror("ERROR reading from socket1");
 		}
 	}
 
-	if (c->connection.connectionState == CONNECTIONSTATE_CLOSE) {
+	if (c->state == CONNECTIONSTATE_CLOSE) {
 		DBG_VERBOSE(printf("NL_TCP_reader - enter shutdown\n"));
-		shutdown(c->connection.connectionHandle,2);
+		shutdown(connectionId,2);
 		DBG_VERBOSE(printf("NL_TCP_reader - enter close\n"));
-		close(c->connection.connectionHandle);
+		close(connectionId);
 		DBG_VERBOSE(printf("NL_TCP_reader - leave close\n"));
-		c->connection.connectionState = CONNECTIONSTATE_CLOSED;
+		c->state  = CONNECTIONSTATE_CLOSED;
 
 		UA_ByteString_deleteMembers(&readBuffer);
 
@@ -162,7 +177,7 @@ void* NL_TCP_readerThread(NL_Connection *c) {
 #endif
 
 /** write message provided in the gather buffers to a tcp transport layer connection */
-UA_Int32 NL_TCP_writer(struct TL_Connection_T const * c, UA_ByteString const * const * gather_buf, UA_UInt32 gather_len) {
+UA_Int32 NL_TCP_writer(UA_Int32 connectionHandle, UA_ByteString const * const * gather_buf, UA_UInt32 gather_len) {
 
 	struct iovec iov[gather_len];
 	UA_UInt32 total_len = 0;
@@ -188,7 +203,7 @@ UA_Int32 NL_TCP_writer(struct TL_Connection_T const * c, UA_ByteString const * c
 		int n=0;
 		do {
 			DBG_VERBOSE(printf("NL_TCP_writer - enter write with %d bytes to write\n",total_len));
-			n = sendmsg(c->connectionHandle, &message, 0);
+			n = sendmsg(connectionHandle, &message, 0);
 			DBG_VERBOSE(printf("NL_TCP_writer - leave write with n=%d,errno={%d,%s}\n",n,(n>0)?0:errno,(n>0)?"":strerror(errno)));
 		} while (n == -1L && errno == EINTR);
 		if (n >= 0) {
@@ -205,13 +220,23 @@ UA_Int32 NL_TCP_writer(struct TL_Connection_T const * c, UA_ByteString const * c
 
 void* NL_Connection_init(NL_Connection* c, NL_data* tld, UA_Int32 connectionHandle, NL_Reader reader, TL_Writer writer)
 {
+
+
+	UA_TL_Connection1 connection = UA_NULL;
+	//create new connection object
+	UA_TL_Connection_new(&connection, tld->tld->localConf,writer);
+	//add connection object to list, so stack is aware of its connections
+
+	UA_TL_ConnectionManager_addConnection(&connection);
+
 	// connection layer of UA stackwriteLock
-	c->connection.connectionHandle = connectionHandle;
-	c->connection.connectionState = CONNECTIONSTATE_CLOSED;
-	c->connection.writerCallback = writer;
-	memcpy(&(c->connection.localConf),&(tld->tld->localConf),sizeof(TL_Buffer));
-	memset(&(c->connection.remoteConf),0,sizeof(TL_Buffer));
-	UA_String_copy(&(tld->endpointUrl), &(c->connection.localEndpointUrl));
+
+	//c->connection.connectionHandle = connectionHandle;
+	//c->connection.connectionState = CONNECTIONSTATE_CLOSED;
+	//c->connection.writerCallback = writer;
+	//memcpy(&(c->connection.localConf),&(tld->tld->localConf),sizeof(TL_Buffer));
+	//memset(&(c->connection.remoteConf),0,sizeof(TL_Buffer));
+	//UA_String_copy(&(tld->endpointUrl), &(c->connection.localEndpointUrl));
 
 	// network layer
 	c->reader = reader;
@@ -227,7 +252,7 @@ void* NL_TCP_listen(NL_Connection* c) {
 	NL_data* tld = c->networkLayer;
 
 	DBG_VERBOSE(printf("NL_TCP_listen - enter listen\n"));
-	int retval = listen(c->connection.connectionHandle, tld->tld->maxConnections);
+	int retval = listen(c->connectionHandle, tld->tld->maxConnections);
 	DBG_VERBOSE(printf("NL_TCP_listen - leave listen, retval=%d\n",retval));
 
 	if (retval < 0) {
@@ -239,7 +264,7 @@ void* NL_TCP_listen(NL_Connection* c) {
 		struct sockaddr_in cli_addr;
 		socklen_t cli_len = sizeof(cli_addr);
 		DBG_VERBOSE(printf("NL_TCP_listen - enter accept\n"));
-		int newsockfd = accept(c->connection.connectionHandle, (struct sockaddr *) &cli_addr, &cli_len);
+		int newsockfd = accept(c->connectionHandle, (struct sockaddr *) &cli_addr, &cli_len);
 		DBG_VERBOSE(printf("NL_TCP_listen - leave accept\n"));
 		if (newsockfd < 0) {
 			DBG_ERR(printf("TL_TCP_listen - accept returns errno={%d,%s}\n",errno,strerror(errno)));
@@ -254,7 +279,7 @@ void* NL_TCP_listen(NL_Connection* c) {
 			pthread_create( &(cclient->readerThreadHandle), NULL, (void*(*)(void*)) NL_TCP_readerThread, (void*) cclient);
 #else
 			UA_list_addPayloadToBack(&(tld->connections),cclient);
-			NL_TCP_SetNonBlocking(cclient->connection.connectionHandle);
+			NL_TCP_SetNonBlocking(cclient->connectionHandle);
 #endif
 		}
 	} else {
@@ -317,7 +342,7 @@ UA_Int32 NL_TCP_init(NL_data* tld, UA_Int32 port) {
 		pthread_create( &(c->readerThreadHandle), NULL, (void*(*)(void*)) NL_TCP_listenThread, (void*) c);
 #else
 		UA_list_addPayloadToBack(&(tld->connections),c);
-		NL_TCP_SetNonBlocking(c->connection.connectionHandle);
+		NL_TCP_SetNonBlocking(c->connectionHandle);
 #endif
 	}
 	return retval;

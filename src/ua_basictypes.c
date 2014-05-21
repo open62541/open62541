@@ -1287,7 +1287,10 @@ UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time){
 
 	return dateTimeStruct;
 }
-
+UA_Int32 UA_DateTime_difference_ms(UA_DateTime time1, UA_DateTime time2)
+{
+	return (UA_Int32)(((time1 - time2) / 10000000) &0xFFFFFF);
+}
 UA_Int32 UA_DateTime_toString(UA_DateTime time, UA_String* timeString){
 	char *charBuf = (char*)(*timeString).data;
 

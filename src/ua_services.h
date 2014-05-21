@@ -20,7 +20,7 @@
  * the configuration information required to establish a SecureChannel and a
  * Session.
  */
-UA_Int32 Service_GetEndpoints(SL_Channel *channel, const UA_GetEndpointsRequest* request, UA_GetEndpointsResponse *response);
+UA_Int32 Service_GetEndpoints(const UA_GetEndpointsRequest* request, UA_GetEndpointsResponse *response);
 // Service_RegisterServer
 /** @} */
 
@@ -39,12 +39,12 @@ UA_Int32 Service_GetEndpoints(SL_Channel *channel, const UA_GetEndpointsRequest*
  * to ensure Confidentiality and Integrity for Message exchange during a
  * Session.
  */
-UA_Int32 Service_OpenSecureChannel(SL_Channel *channel, const UA_OpenSecureChannelRequest* request, UA_OpenSecureChannelResponse* response);
+UA_Int32 Service_OpenSecureChannel(SL_secureChannel channel,const UA_OpenSecureChannelRequest* request, UA_OpenSecureChannelResponse* response);
 
 /**
  * @brief This Service is used to terminate a SecureChannel.
  */
-UA_Int32 Service_CloseSecureChannel(SL_Channel *channel, const UA_CloseSecureChannelRequest *request, UA_CloseSecureChannelResponse *response);
+UA_Int32 Service_CloseSecureChannel(const UA_CloseSecureChannelRequest *request, UA_CloseSecureChannelResponse *response);
 /** @} */
 
 /**
@@ -63,7 +63,7 @@ UA_Int32 Service_CloseSecureChannel(SL_Channel *channel, const UA_CloseSecureCha
  * logs and in the Server’s address space. The second is the authenticationToken
  * which is used to associate an incoming request with a Session.
  */
-UA_Int32 Service_CreateSession(SL_Channel *channel, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response);
+UA_Int32 Service_CreateSession(const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response);
 
 /**
  * @brief This Service is used by the Client to submit its SoftwareCertificates
@@ -72,12 +72,12 @@ UA_Int32 Service_CreateSession(SL_Channel *channel, const UA_CreateSessionReques
  * Client before it issues any other Service request after CreateSession.
  * Failure to do so shall cause the Server to close the Session.
  */
-UA_Int32 Service_ActivateSession(SL_Channel *channel, const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response);
+UA_Int32 Service_ActivateSession(const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response);
 
 /**
  * @brief This Service is used to terminate a Session.
  */
-UA_Int32 Service_CloseSession(SL_Channel *channel, const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response);
+UA_Int32 Service_CloseSession(const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response);
 // Service_Cancel
 /** @} */
 
@@ -110,7 +110,7 @@ UA_Int32 Service_CloseSession(SL_Channel *channel, const UA_CloseSessionRequest 
  * The browse can be further limited by the use of a View. This Browse Service
  * also supports a primitive filtering capability.
  */ 
-UA_Int32 Service_Browse(SL_Channel *channel, const UA_BrowseRequest *request, UA_BrowseResponse *response);
+UA_Int32 Service_Browse(const UA_BrowseRequest *request, UA_BrowseResponse *response);
 // Service_BrowseNext
 // Service_TranslateBrowsePathsRoNodeIds
 // Service_RegisterNodes
@@ -152,7 +152,7 @@ UA_Int32 Service_Browse(SL_Channel *channel, const UA_BrowseRequest *request, UA
  * values as a composite, to read individual elements or to read ranges of
  * elements of the composite.
  */
-UA_Int32 Service_Read(SL_Channel *channel, const UA_ReadRequest *request, UA_ReadResponse *response);
+UA_Int32 Service_Read(const UA_ReadRequest *request, UA_ReadResponse *response);
 // Service_HistoryRead
 // Service_Write
 // Service_HistoryUpdate

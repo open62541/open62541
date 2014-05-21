@@ -1,5 +1,5 @@
 #include "ua_services.h"
-UA_Int32 Service_GetEndpoints(SL_Channel *channel, const UA_GetEndpointsRequest* request, UA_GetEndpointsResponse *response) {
+UA_Int32 Service_GetEndpoints(const UA_GetEndpointsRequest* request, UA_GetEndpointsResponse *response) {
 	UA_String_printx("endpointUrl=", &request->endpointUrl);
 
 	response->endpointsSize = 1;
@@ -8,7 +8,10 @@ UA_Int32 Service_GetEndpoints(SL_Channel *channel, const UA_GetEndpointsRequest*
 	//Security issues:
 	//The policy should be 'http://opcfoundation.org/UA/SecurityPolicy#None'
 	//FIXME String or ByteString
-	UA_String_copy((UA_String*)&channel->localAsymAlgSettings.securityPolicyUri,&response->endpoints[0]->securityPolicyUri);
+//TODO get Channel by SessionManager / Session
+//UA_SessionManager_getSession(request->requestHeader->authenticationToken);
+//channel = UA_Session_getChannel(session);
+//UA_String_copy((UA_String*)&channel->localAsymAlgSettings.securityPolicyUri,&response->endpoints[0]->securityPolicyUri);
 	//FIXME hard-coded code
 	response->endpoints[0]->securityMode = UA_MESSAGESECURITYMODE_NONE;
 	UA_String_copycstring("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary", &response->endpoints[0]->transportProfileUri);

@@ -3,7 +3,22 @@
 #include "opcua.h"
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
-#include "ua_transport_binary_secure.h"
+#include "ua_stack_channel.h"
+#include "ua_stack_channel_manager.h"
+#define UA_ERROR_MULTIPLE_HEL 1001
+/*inputs for secure Channel which must be provided once
+endPointUrl
+securityPolicyUrl
+securityMode
+revisedLifetime
+*/
+
+/*inputs for secure Channel Manager which must be provided once
+ maxChannelCount
+
+ */
+
+
 
 typedef struct {
 	UA_UInt32 secureChannelId;
@@ -14,8 +29,8 @@ typedef struct {
 
 typedef struct SL_Channel_T {
 	UA_String secureChannelId;
-	TL_Connection* tlConnection;
-	Session *session; // equals UA_Null iff no session is active
+	UA_TL_Connection1 tlConnection;
+	Session *session; // equals UA_Null if no session is active
 	UA_AsymmetricAlgorithmSecurityHeader remoteAsymAlgSettings;
 	UA_AsymmetricAlgorithmSecurityHeader localAsymAlgSettings;
 	UA_SequenceHeader sequenceHeader;
@@ -26,7 +41,17 @@ typedef struct SL_Channel_T {
 	SL_ChannelSecurityToken securityToken;
 } SL_Channel;
 
-UA_Int32 SL_Process(SL_Channel* channel, const UA_ByteString* msg, UA_Int32* pos);
-UA_Int32 SL_Channel_new(TL_Connection *connection, const UA_ByteString* msg, UA_Int32* pos); // this function is called from the OpenSecureChannel service
 
+UA_Int32 SL_Process(const UA_ByteString* msg, UA_Int32* pos);
+
+/**
+ * @brief Wrapper function, to encapsulate handleRequest for openSecureChannel requests
+ * @param channel A secure Channel structure, which receives the information for the new created secure channel
+ * @param msg Message which holds the binary encoded request
+ * @param pos Position in the message at which the request begins
+ * @return Returns UA_SUCCESS if successful executed, UA_ERROR in any other case
+
+ */
+UA_Int32 SL_ProcessOpenChannel(SL_secureChannel channel, const UA_ByteString* msg,
+		UA_Int32 *pos);
 #endif /* OPCUA_TRANSPORT_BINARY_SECURE_H_ */
