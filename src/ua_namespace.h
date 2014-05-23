@@ -11,19 +11,26 @@
 #include <pthread.h>
 #endif
 
-struct Namespace;
-typedef struct Namespace Namespace;
+/** @brief Namespace entries point to an UA_Node. But the actual data structure
+	is opaque outside of ua_namespace.c */
+struct Namespace_Entry;
+typedef struct Namespace_Entry Namespace_Entry;
 
+/** @brief Namespace datastructure. It mainly serves as a hashmap to UA_Nodes. */
+typedef struct Namespace {
+	UA_UInt32 namespaceId;
+	Namespace_Entry *entries;
+	UA_UInt32 size;
+	UA_UInt32 count;
+	UA_UInt32 sizePrimeIndex;	/* Current size, as an index into the table of primes.  */
+} Namespace;
+
+/** Namespace locks indicate that a thread currently operates on an entry. */
 struct Namespace_Entry_Lock;
 typedef struct Namespace_Entry_Lock Namespace_Entry_Lock;
+
+/** @brief Release a lock on a namespace entry. */
 void Namespace_Entry_Lock_release(Namespace_Entry_Lock * lock);
-
-struct Namespace_Transaction;
-typedef struct Namespace_Transaction Namespace_Transaction;
-
-/*************/
-/* Namespace */
-/*************/
 
 /** @brief Create a new namespace */
 UA_Int32 Namespace_new(Namespace ** result, UA_UInt32 size, UA_UInt32 namespaceId);
@@ -57,35 +64,10 @@ UA_Int32 Namespace_contains(const Namespace * ns, const UA_NodeId * nodeid);
 UA_Int32 Namespace_get(Namespace const *ns, const UA_NodeId * nodeid, UA_Node const **result,
 					   Namespace_Entry_Lock ** lock);
 
+/** @brief A function that can be evaluated on all entries in a namespace via Namespace_iterate */
 typedef void (*Namespace_nodeVisitor) (UA_Node const *node);
 
 /** @brief Iterate over all nodes in a namespace */
 UA_Int32 Namespace_iterate(const Namespace * ns, Namespace_nodeVisitor visitor);
-
-/****************/
-/* Transactions */
-/****************/
-
-/** @brief Create a transaction that operates on a single namespace */
-UA_Int32 Namespace_Transaction_new(Namespace * ns, Namespace_Transaction ** result);
-
-/** @brief Insert a new node into the namespace as part of a transaction */
-UA_Int32 Namespace_Transaction_enqueueInsert(Namespace_Transaction * t, const UA_Node * node);
-
-/** @brief Insert a new node or replace an existing node as part of a transaction */
-UA_Int32 Namespace_Transaction_enqueueInsertOrReplace(Namespace_Transaction * t, const UA_Node * node);
-
-/** @brief Find an unused (numeric) NodeId in the namespace and insert the node as
-	part of a transaction */
-UA_Int32 Namespace_Transaction_enqueueInsertUnique(Namespace_Transaction * t, UA_Node * node);
-
-/** @brief Remove a node from the namespace as part of a transaction */
-UA_Int32 Namespace_Transaction_enqueueRemove(Namespace_Transaction * t, const UA_NodeId * nodeid);
-
-/** @brief Executes a transaction and returns the status */
-UA_Int32 Namespace_Transaction_commit(Namespace_Transaction * t);
-
-/** @brief Frees the transaction and deletes all the member objects */
-UA_Int32 Namespace_Transaction_delete(Namespace_Transaction * t);
 
 #endif /* __NAMESPACE_H */

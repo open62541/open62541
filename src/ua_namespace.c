@@ -6,21 +6,13 @@
 /* Internal (not exported) functionality */
 /*****************************************/
 
-typedef struct Namespace_Entry {
+struct Namespace_Entry {
 	UA_UInt64 status;	/* 2 bits status | 14 bits checkout count | 48 bits timestamp */
 	const UA_Node *node;	/* Nodes are immutable. It is not recommended to change nodes in place */
-} Namespace_Entry;
+};
 
 struct Namespace_Entry_Lock {
 	Namespace_Entry *entry;
-};
-
-struct Namespace {
-	UA_UInt32 namespaceId;
-	Namespace_Entry *entries;
-	UA_UInt32 size;
-	UA_UInt32 count;
-	UA_UInt32 sizePrimeIndex;	/* Current size, as an index into the table of primes.  */
 };
 
 /* The tombstone (entry.node == 0x01) indicates that an entry was deleted at the position in the
@@ -39,8 +31,7 @@ struct prime_ent {
 	hash_t shift;
 };
 
-static
-struct prime_ent const prime_tab[] = {
+static struct prime_ent const prime_tab[] = {
 	{7, 0x24924925, 0x9999999b, 2},
 	{13, 0x3b13b13c, 0x745d1747, 3},
 	{31, 0x08421085, 0x1a7b9612, 4},
@@ -282,8 +273,7 @@ static inline UA_Int32 find_entry(const Namespace * ns, const UA_NodeId * nodeid
    hash table must already exist. Remember also that the place of the table entries is changed. If
    memory allocation failures are allowed, this function will return zero, indicating that the
    table could not be expanded. If all goes well, it will return a non-zero value. */
-static
-UA_Int32 expand(Namespace * ns) {
+static UA_Int32 expand(Namespace * ns) {
 	Namespace_Entry *nentries;
 	int32_t nsize;
 	UA_UInt32 nindex;

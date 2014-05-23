@@ -12,7 +12,7 @@ fi
 # E.g. when indenting to the opening braces of an argument list.
 
 indent \
---line-length160 \
+--line-length120 \
 --comment-line-length100 \
 --indent-level4 \
 --use-tabs \
@@ -43,7 +43,6 @@ indent \
 --declaration-comment-column0 \
 --format-all-comments \
 --line-comments-indentation0 \
---blank-lines-before-block-comments \
 --space-special-semicolon \
 $@
 
