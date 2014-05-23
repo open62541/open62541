@@ -61,11 +61,11 @@ UA_Int32 Namespace_contains(const Namespace * ns, const UA_NodeId * nodeid);
 /** @brief Retrieve a node (read-only) from the namespace. Nodes are identified
 	by their NodeId. After the Node is no longer used, the lock needs to be
 	released. */
-UA_Int32 Namespace_get(Namespace const *ns, const UA_NodeId * nodeid, UA_Node const **result,
+UA_Int32 Namespace_get(const Namespace *ns, const UA_NodeId * nodeid, const UA_Node **result,
 					   Namespace_Entry_Lock ** lock);
 
 /** @brief A function that can be evaluated on all entries in a namespace via Namespace_iterate */
-typedef void (*Namespace_nodeVisitor) (UA_Node const *node);
+typedef void (*Namespace_nodeVisitor) (const UA_Node *node);
 
 /** @brief Iterate over all nodes in a namespace */
 UA_Int32 Namespace_iterate(const Namespace * ns, Namespace_nodeVisitor visitor);

@@ -416,7 +416,7 @@ UA_Int32 Namespace_contains(const Namespace * ns, const UA_NodeId * nodeid) {
 	return find_entry(ns, nodeid, &entry);
 }
 
-UA_Int32 Namespace_get(Namespace const *ns, const UA_NodeId * nodeid, UA_Node const **result,
+UA_Int32 Namespace_get(Namespace const *ns, const UA_NodeId * nodeid, const UA_Node **result,
 					   Namespace_Entry_Lock ** lock) {
 	Namespace_Entry *entry;
 	if(find_entry(ns, nodeid, &entry) != UA_SUCCESS)
