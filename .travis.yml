@@ -43,4 +43,4 @@ after_success:
    - cd ..
    - cd ..
    - rm -rf open62541
-   - ./.coverity.sh
+   - ./tools/.coverity.sh
