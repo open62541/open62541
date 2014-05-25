@@ -70,17 +70,9 @@ $ make all
 $ svn checkout svn://svn.code.sf.net/p/check/code/trunk check-code
 $ cd check-code
 $ autoreconf --install
-$ ./configure --prefix=
+$ ./configure
 $ make
 $ make install
-```
-
-##### Get Pyhton with lxml module
-* [TBD]
-
-## Clone open62541
-```bash
-$ git clone https://github.com/acplt/open62541.git
 ```
 
 ## Building 
@@ -92,6 +84,7 @@ $ ./configure --enable-debug=yes
 $ make
 $ make check
 ```
+
 ### Configure Options 
 * --enable-debug=(yes|no|verbose) - omit/include debug code
 * --enable-multithreading - enable pthreads (for examples/src/opcuaServerMT)
