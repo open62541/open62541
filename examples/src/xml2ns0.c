@@ -32,6 +32,10 @@ void sam_attach(Namespace *ns,UA_Int32 ns0id,UA_Int32 type, void* p) {
 	nodeid.encodingByte = UA_NODEIDTYPE_FOURBYTE;
 	const UA_Node* result;
 	Namespace_get(ns,&nodeid,&result,&lock);
+
+	printf("asked for node with nodeId={i=%d}, got node with nodeId={i=%d},",ns0id, result->nodeId.identifier.numeric);
+	UA_String_printf("BrowseName=",&(result->browseName.name));
+
 	if (result->nodeClass == UA_NODECLASS_VARIABLE) {
 		UA_VariableNode* variable = (UA_VariableNode*) result;
 		if (variable->dataType.identifier.numeric == UA_[type].ns0Id) {
@@ -58,7 +62,7 @@ void sam_attach(Namespace *ns,UA_Int32 ns0id,UA_Int32 type, void* p) {
 				}
 			}
 		} else {
-			printf("wrong nodeId for id=%d, got=%d, expected=%d\n", ns0id, UA_[type].ns0Id, variable->dataType.identifier.numeric);
+			printf("wrong datatype for id=%d, expected=%d, retrieved=%d\n", ns0id, UA_[type].ns0Id, variable->dataType.identifier.numeric);
 		}
 	} else {
 		perror("Namespace_getWritable returned wrong node class");

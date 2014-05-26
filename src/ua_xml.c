@@ -714,7 +714,7 @@ UA_Int32 UA_VariableNode_decodeXML(XML_Stack* s, XML_Attr* attr, UA_VariableNode
 			}
 		}
 	} else {
-		if (s->parent[s->depth - 1].activeChild == 5 && attr != UA_NULL) {
+		if (s->parent[s->depth - 1].activeChild == 5 && attr != UA_NULL) { // References
 			UA_TypedArray* array = (UA_TypedArray*) attr;
 			DBG(printf("UA_VariableNode_decodeXML - finished references=%p, size=%d\n",(void*)array,(array==UA_NULL)?-1:array->size));
 			dst->referencesSize = array->size;
@@ -756,11 +756,29 @@ void print_node(UA_Node const * node) {
 			printf("\t.value.type.name=%s\n", p->value.vt->name);
 			printf("\t.value.array.length=%d\n", p->value.arrayLength);
 			UA_Int32 i;
-			for (i=0;i<p->value.arrayLength;i++) {
-				printf("\t.value.array.element[%d]=%p", i, p->value.data[i]);
-				if (p->value.vt->ns0Id == UA_LOCALIZEDTEXT_NS0) {
-					UA_LocalizedText* ltp = (UA_LocalizedText*) p->value.data[i];
-					printf(",enc=%d,locale={%d,{%.*s}},text={%d,{%.*s}}",ltp->encodingMask,ltp->locale.length,ltp->locale.length,ltp->locale.data,ltp->text.length,ltp->text.length,ltp->text.data);
+			for (i=0;i<p->value.arrayLength || (p->value.arrayLength==-1 && i==0);++i) {
+				printf("\t.value.array.element[%d]=%p", i, (p->value.data == UA_NULL ? UA_NULL : p->value.data[i]));
+				switch (p->value.vt->ns0Id) {
+				case UA_LOCALIZEDTEXT_NS0: {
+					if (p->value.data != UA_NULL) {
+						UA_LocalizedText* ltp = (UA_LocalizedText*) p->value.data[i];
+						printf(",enc=%d,locale={%d,{%.*s}},text={%d,{%.*s}}",ltp->encodingMask,ltp->locale.length,ltp->locale.length,ltp->locale.data,ltp->text.length,ltp->text.length,ltp->text.data);
+					}
+				}
+				break;
+				case UA_EXTENSIONOBJECT_NS0: {
+					if (p->value.data != UA_NULL) {
+						UA_ExtensionObject* eo = (UA_ExtensionObject*) p->value.data[i];
+						if (eo == UA_NULL) {
+							printf(",(null)");
+						} else {
+							printf(",enc=%d,typeId={i=%d}",eo->encoding,eo->typeId.identifier.numeric);
+						}
+					}
+				}
+				break;
+				default:
+				break;
 				}
 				printf("\n");
 			}

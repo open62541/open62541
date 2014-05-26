@@ -357,7 +357,7 @@ UA_TYPE_METHOD_COPY(UA_Float)
 UA_TYPE_METHOD_DECODEXML_NOTIMPL(UA_Float)
 
 
-/** UA_Float - IEEE754 64bit float with biased exponent*/
+/** UA_Double - IEEE754 64bit float with biased exponent*/
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Double)
 // FIXME: Implement NaN, Inf and Zero(s)
 UA_Byte UA_DOUBLE_ZERO[] = {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
@@ -1344,7 +1344,6 @@ UA_Int32 UA_QualifiedName_init(UA_QualifiedName * p) {
 	if(p==UA_NULL)return UA_ERROR;
 	UA_String_init(&(p->name));
 	p->namespaceIndex=0;
-	//p->reserved=0;
 	return UA_SUCCESS;
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_QualifiedName)
@@ -1353,7 +1352,6 @@ UA_Int32 UA_QualifiedName_copy(UA_QualifiedName const *src, UA_QualifiedName *ds
 	retval |= UA_alloc((void**)&dst,UA_QualifiedName_calcSize(UA_NULL));
 	retval |= UA_String_copy(&(src->name),&(dst->name));
 	retval |= UA_UInt16_copy(&(src->namespaceIndex),&(dst->namespaceIndex));
-	//retval |= UA_UInt16_copy(&(src->reserved),&(dst->reserved));
 	return retval;
 
 }
@@ -1361,11 +1359,11 @@ UA_Int32 UA_QualifiedName_copy(UA_QualifiedName const *src, UA_QualifiedName *ds
 UA_Int32 UA_Variant_calcSize(UA_Variant const * p) {
 	UA_Int32 length = 0;
 	if (p == UA_NULL) return sizeof(UA_Variant);
-	UA_UInt32 ns0Id = p->encodingMask & 0x1F; // Bits 1-5
+	UA_UInt32 builtinNs0Id = p->encodingMask & 0x3F; // Bits 0-5
 	UA_Boolean isArray = p->encodingMask & (0x01 << 7); // Bit 7
 	UA_Boolean hasDimensions = p->encodingMask & (0x01 << 6); // Bit 6
 
-	if (p->vt == UA_NULL || ns0Id != p->vt->ns0Id) return UA_ERR_INCONSISTENT;
+	if (p->vt == UA_NULL || builtinNs0Id != p->vt->ns0Id) return UA_ERR_INCONSISTENT;
 	length += sizeof(UA_Byte); //p->encodingMask
 	if (isArray) { // array length is encoded
 		length += sizeof(UA_Int32); //p->arrayLength
