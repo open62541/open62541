@@ -24,50 +24,54 @@ char* buildNumber = "999-" __DATE__ "-001" ;
 	dst.data = (UA_Byte*) src; \
 } while(0)
 
-void sam_attach(Namespace *ns,UA_Int32 ns0id,UA_Int32 type, void* p) {
+void sam_attach(Namespace *ns,UA_UInt32 ns0id,UA_Int32 type, void* p) {
 	Namespace_Entry_Lock* lock;
 	UA_NodeId nodeid;
 	nodeid.namespace = ns->namespaceId;
 	nodeid.identifier.numeric = ns0id;
 	nodeid.encodingByte = UA_NODEIDTYPE_FOURBYTE;
 	const UA_Node* result;
-	Namespace_get(ns,&nodeid,&result,&lock);
-
-	printf("asked for node with nodeId={i=%d}, got node with nodeId={i=%d},",ns0id, result->nodeId.identifier.numeric);
-	UA_String_printf("BrowseName=",&(result->browseName.name));
-
-	if (result->nodeClass == UA_NODECLASS_VARIABLE) {
-		UA_VariableNode* variable = (UA_VariableNode*) result;
-		if (variable->dataType.identifier.numeric == UA_[type].ns0Id) {
-			variable->value.arrayLength = 1;
-			if (variable->value.data == UA_NULL) {
-				UA_alloc((void**)&(variable->value.data), sizeof(void*));
-				variable->value.data[0] = UA_NULL;
-			}
-			if (UA_NodeId_isBuiltinType(&variable->dataType)) {
-				variable->value.data[0] = p;
-			} else {
-				if (variable->value.vt->ns0Id != UA_EXTENSIONOBJECT_NS0) {
-					printf("nodeId for id=%d, type=%d\n should be an extension object", ns0id, type);
-				} else {
-					if (variable->value.data[0] == UA_NULL) {
-						UA_alloc((void**)&(variable->value.data[0]), sizeof(UA_ExtensionObject));
+	UA_Int32 retval;
+	if ((retval = Namespace_get(ns,&nodeid,&result,&lock)) == UA_SUCCESS) {
+		if (result->nodeId.identifier.numeric == ns0id) {
+			if (result->nodeClass == UA_NODECLASS_VARIABLE) {
+				UA_VariableNode* variable = (UA_VariableNode*) result;
+				if (variable->dataType.identifier.numeric == UA_[type].ns0Id) {
+					variable->value.arrayLength = 1;
+					if (variable->value.data == UA_NULL) {
+						UA_alloc((void**)&(variable->value.data), sizeof(void*));
+						variable->value.data[0] = UA_NULL;
 					}
-					UA_ExtensionObject* eo = (UA_ExtensionObject*) variable->value.data[0];
-					eo->typeId = variable->dataType;
-					eo->encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
-					// FIXME: This code is valid for ns0 and numeric identifiers only
-					eo->body.length = UA_[UA_ns0ToVTableIndex(variable->dataType.identifier.numeric)].memSize;
-					eo->body.data = p;
+					if (UA_NodeId_isBuiltinType(&variable->dataType)) {
+						variable->value.data[0] = p;
+					} else {
+						if (variable->value.vt->ns0Id != UA_EXTENSIONOBJECT_NS0) {
+							printf("nodeId for id=%d, type=%d\n should be an extension object", ns0id, type);
+						} else {
+							if (variable->value.data[0] == UA_NULL) {
+								UA_alloc((void**)&(variable->value.data[0]), sizeof(UA_ExtensionObject));
+							}
+							UA_ExtensionObject* eo = (UA_ExtensionObject*) variable->value.data[0];
+							eo->typeId = variable->dataType;
+							eo->encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
+							// FIXME: This code is valid for ns0 and numeric identifiers only
+							eo->body.length = UA_[UA_ns0ToVTableIndex(variable->dataType.identifier.numeric)].memSize;
+							eo->body.data = p;
+						}
+					}
+				} else {
+					printf("wrong datatype for id=%d, expected=%d, retrieved=%d\n", ns0id, UA_[type].ns0Id, variable->dataType.identifier.numeric);
 				}
+			} else {
+				perror("Namespace_getWritable returned wrong node class");
 			}
 		} else {
-			printf("wrong datatype for id=%d, expected=%d, retrieved=%d\n", ns0id, UA_[type].ns0Id, variable->dataType.identifier.numeric);
+			printf("retrieving node={i=%d} returned node={i=%d}\n", ns0id, result->nodeId.identifier.numeric);
 		}
+		Namespace_Entry_Lock_release(lock);
 	} else {
-		perror("Namespace_getWritable returned wrong node class");
+		printf("retrieving node={i=%d} returned error code %d\n",ns0id,retval);
 	}
-	Namespace_Entry_Lock_release(lock);
 }
 
 void sam_init(Namespace* ns) {
@@ -185,7 +189,7 @@ int main() {
 	XML_Stack s;
 	XML_Stack_init(&s, "ROOT");
 	UA_NodeSet n;
-	UA_NodeSet_init(&n, 99); // we don't really need the nsid here
+	UA_NodeSet_init(&n, 0);
 	XML_Stack_addChildHandler(&s, "UANodeSet", strlen("UANodeSet"), (XML_decoder) UA_NodeSet_decodeXML, UA_INVALIDTYPE, &n);
 
 	XML_Parser parser = XML_ParserCreate(NULL);
@@ -224,10 +228,10 @@ int main() {
 		retval |= UAX_NodeId_encodeBinary(n.ns,&nodeid,&pos,&buffer);
 	}
 	UA_DateTime tEnd = UA_DateTime_now();
-	// tStart, tEnd count in 100 ns steps = 10 µs
-	UA_Double tDelta = ( tEnd - tStart ) / ( 10.0 * i);
+	// tStart, tEnd count in 100 ns steps, so 10 steps = 1 µs
+	UA_Double tDelta = ( tEnd - tStart ) / ( 10.0 * i );
 
-	printf("encode server node %d times: time/enc=%f us, retval=%d\n",i, tDelta, retval);
+	printf("encode server node %d times, retval=%d: time/enc=%f us, enc/s=%f\n",i, retval, tDelta, 1.0E6 / tDelta);
 	DBG(buffer.length=pos);
 	DBG(UA_ByteString_printx(", result=", &buffer));
 
