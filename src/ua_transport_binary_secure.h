@@ -3,7 +3,6 @@
 #include "opcua.h"
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
-#include "ua_transport_binary_secure.h"
 
 typedef struct {
 	UA_UInt32 secureChannelId;

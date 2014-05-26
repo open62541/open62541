@@ -6,15 +6,24 @@
 /* Internal (not exported) functionality */
 /*****************************************/
 
-UA_Int32 Namespace_TransactionContext_init(Namespace_TransactionContext * tc) {
-	return UA_list_init((UA_list_List *) tc);
-}
+struct Namespace_Entry {
+	UA_UInt64 status;	/* 2 bits status | 14 bits checkout count | 48 bits timestamp */
+	const UA_Node *node;	/* Nodes are immutable. It is not recommended to change nodes in place */
+};
+
+struct Namespace_Entry_Lock {
+	Namespace_Entry *entry;
+};
+
+/* The tombstone (entry.node == 0x01) indicates that an entry was deleted at the position in the
+   hash-map. This is information is used to decide whether the entire table shall be rehashed so
+   that entries are found faster. */
+#define ENTRY_EMPTY UA_NULL
+#define ENTRY_TOMBSTONE 0x01
 
 /* The central data structure is a hash-map of UA_Node objects. Entry lookup via Algorithm D from
    Knuth's TAOCP (no linked lists here). Table of primes and mod-functions are from libiberty
-   (licensed under LGPL) */
-
-typedef UA_UInt32 hash_t;
+   (licensed under LGPL) */ typedef UA_UInt32 hash_t;
 struct prime_ent {
 	hash_t prime;
 	hash_t inv;
@@ -183,93 +192,58 @@ static inline hash_t mod_m2(hash_t h, const Namespace * ns) {
 	return 1 + mod_1(h, p->prime - 2, p->inv_m2, p->shift);
 }
 
-static inline void clear_slot(Namespace * ns, Namespace_Entry * slot) {
-	if(slot->node == UA_NULL)
+static inline void clear_entry(Namespace * ns, Namespace_Entry * entry) {
+	if(entry->node == UA_NULL)
 		return;
 
-#ifdef MULTITHREADING
-	pthread_rwlock_wrlock((pthread_rwlock_t *) slot->lock);	/* Get write lock. */
-#endif
-
-	switch (slot->node->nodeClass) {
+	switch (entry->node->nodeClass) {
 	case UA_NODECLASS_OBJECT:
-		UA_ObjectNode_delete((UA_ObjectNode *) slot->node);
+		UA_ObjectNode_delete((UA_ObjectNode *) entry->node);
 		break;
 	case UA_NODECLASS_VARIABLE:
-		UA_VariableNode_delete((UA_VariableNode *) slot->node);
+		UA_VariableNode_delete((UA_VariableNode *) entry->node);
 		break;
 	case UA_NODECLASS_METHOD:
-		UA_MethodNode_delete((UA_MethodNode *) slot->node);
+		UA_MethodNode_delete((UA_MethodNode *) entry->node);
 		break;
 	case UA_NODECLASS_OBJECTTYPE:
-		UA_ObjectTypeNode_delete((UA_ObjectTypeNode *) slot->node);
+		UA_ObjectTypeNode_delete((UA_ObjectTypeNode *) entry->node);
 		break;
 	case UA_NODECLASS_VARIABLETYPE:
-		UA_VariableTypeNode_delete((UA_VariableTypeNode *) slot->node);
+		UA_VariableTypeNode_delete((UA_VariableTypeNode *) entry->node);
 		break;
 	case UA_NODECLASS_REFERENCETYPE:
-		UA_ReferenceTypeNode_delete((UA_ReferenceTypeNode *) slot->node);
+		UA_ReferenceTypeNode_delete((UA_ReferenceTypeNode *) entry->node);
 		break;
 	case UA_NODECLASS_DATATYPE:
-		UA_DataTypeNode_delete((UA_DataTypeNode *) slot->node);
+		UA_DataTypeNode_delete((UA_DataTypeNode *) entry->node);
 		break;
 	case UA_NODECLASS_VIEW:
-		UA_ViewNode_delete((UA_ViewNode *) slot->node);
+		UA_ViewNode_delete((UA_ViewNode *) entry->node);
 		break;
 	default:
 		break;
 	}
-	slot->node = UA_NULL;
-
-#ifdef MULTITHREADING
-	pthread_rwlock_destroy((pthread_rwlock_t *) slot->lock);
-	UA_free(slot->lock);
-#endif
-
+	entry->node = UA_NULL;
 }
 
-static inline UA_Int32 find_slot(const Namespace * ns, Namespace_Entry ** slot, const UA_NodeId * nodeid) {
+/* Returns UA_SUCCESS if an entry was found. Otherwise, UA_ERROR is returned and the "entry"
+   argument points to the first free entry under the NodeId. */
+static inline UA_Int32 find_entry(const Namespace * ns, const UA_NodeId * nodeid, Namespace_Entry ** entry) {
 	hash_t h = hash(nodeid);
-	hash_t index, hash2;
-	UA_UInt32 size;
-	Namespace_Entry *entry;
-
-	size = ns->size;
-	index = mod(h, ns);
-
-	entry = &ns->entries[index];
-	if(entry == UA_NULL)
-		return UA_ERROR;
-	if(UA_NodeId_compare(&entry->node->nodeId, nodeid) == UA_EQUAL) {
-		*slot = entry;
-		return UA_SUCCESS;
-	}
-
-	hash2 = mod_m2(h, ns);
-	for(;;) {
-		index += hash2;
-		if(index >= size)
-			index -= size;
-
-		entry = &ns->entries[index];
-		if(entry == UA_NULL)
-			return UA_ERROR;
-		if(UA_NodeId_compare(&entry->node->nodeId, nodeid) == UA_EQUAL) {
-			*slot = entry;
-			return UA_SUCCESS;
-		}
-	}
-	return UA_SUCCESS;
-}
-
-/* Always returns an empty slot. This is inevitable if the entries are not completely full. */
-static Namespace_Entry *find_empty_slot(const Namespace * ns, hash_t h) {
 	hash_t index = mod(h, ns);
 	UA_UInt32 size = ns->size;
-	Namespace_Entry *slot = &ns->entries[index];
+	Namespace_Entry *e = &ns->entries[index];
 
-	if(slot->node == UA_NULL)
-		return slot;
+	if(e->node == UA_NULL) {
+		*entry = e;
+		return UA_ERROR;
+	}
+
+	if(UA_NodeId_compare(&e->node->nodeId, nodeid) == UA_EQUAL) {
+		*entry = e;
+		return UA_SUCCESS;
+	}
 
 	hash_t hash2 = mod_m2(h, ns);
 	for(;;) {
@@ -277,11 +251,21 @@ static Namespace_Entry *find_empty_slot(const Namespace * ns, hash_t h) {
 		if(index >= size)
 			index -= size;
 
-		slot = &ns->entries[index];
-		if(slot->node == UA_NULL)
-			return slot;
+		e = &ns->entries[index];
+
+		if(e->node == UA_NULL) {
+			*entry = e;
+			return UA_ERROR;
+		}
+
+		if(UA_NodeId_compare(&e->node->nodeId, nodeid) == UA_EQUAL) {
+			*entry = e;
+			return UA_SUCCESS;
+		}
 	}
-	return UA_NULL;
+
+	/* NOTREACHED */
+	return UA_SUCCESS;
 }
 
 /* The following function changes size of memory allocated for the entries and repeatedly inserts
@@ -316,8 +300,9 @@ static UA_Int32 expand(Namespace * ns) {
 	Namespace_Entry *p = oentries;
 	do {
 		if(p->node != UA_NULL) {
-			Namespace_Entry *q = find_empty_slot(ns, hash(&p->node->nodeId));
-			*q = *p;
+			Namespace_Entry *e;
+			find_entry(ns, &p->node->nodeId, &e);	/* We know this returns an empty entry here */
+			*e = *p;
 		}
 		p++;
 	} while(p < olimit);
@@ -330,29 +315,23 @@ static UA_Int32 expand(Namespace * ns) {
 /* Exported functions */
 /**********************/
 
-UA_Int32 Namespace_create(Namespace ** result, UA_UInt32 size) {
-	Namespace *ns = UA_NULL;
-	UA_UInt32 sizePrimeIndex = higher_prime_index(size);
-	size = prime_tab[sizePrimeIndex].prime;
-
+UA_Int32 Namespace_new(Namespace ** result, UA_UInt32 size, UA_UInt32 namespaceId) {
+	Namespace *ns;
 	if(UA_alloc((void **)&ns, sizeof(Namespace)) != UA_SUCCESS)
 		return UA_ERR_NO_MEMORY;
 
+	UA_UInt32 sizePrimeIndex = higher_prime_index(size);
+	size = prime_tab[sizePrimeIndex].prime;
 	if(UA_alloc((void **)&ns->entries, sizeof(Namespace_Entry) * size) != UA_SUCCESS) {
 		UA_free(ns);
 		return UA_ERR_NO_MEMORY;
 	}
 
-	/**
-	   set entries to zero:
-	   ns->entries[i].lock = UA_NUll;
-	   ns->entries[i].node = UA_NULL;
-	*/
+	/* set entries to zero */
 	memset(ns->entries, 0, size * sizeof(Namespace_Entry));
 
-	ns->size = size;
-	ns->count = 0;
-	ns->sizePrimeIndex = sizePrimeIndex;
+	*ns = (Namespace) {
+	namespaceId, ns->entries, size, 0, sizePrimeIndex};
 	*result = ns;
 	return UA_SUCCESS;
 }
@@ -361,7 +340,7 @@ static void Namespace_clear(Namespace * ns) {
 	UA_UInt32 size = ns->size;
 	Namespace_Entry *entries = ns->entries;
 	for(UA_UInt32 i = 0; i < size; i++)
-		clear_slot(ns, &entries[i]);
+		clear_entry(ns, &entries[i]);
 	ns->count = 0;
 }
 
@@ -386,110 +365,80 @@ void Namespace_delete(Namespace * ns) {
 	UA_free(ns);
 }
 
-UA_Int32 Namespace_insert(Namespace * ns, UA_Node * node) {
+UA_Int32 Namespace_insert(Namespace * ns, const UA_Node * node) {
 	if(ns->size * 3 <= ns->count * 4) {
 		if(expand(ns) != UA_SUCCESS)
 			return UA_ERROR;
 	}
 
-	hash_t h = hash(&node->nodeId);
-	Namespace_Entry *slot = find_empty_slot(ns, h);
+	Namespace_Entry *entry;
+	UA_Int32 found = find_entry(ns, &node->nodeId, &entry);
 
-#ifdef MULTITHREADING
-	if(UA_alloc((void **)&slot->lock, sizeof(pthread_rwlock_t)) != UA_SUCCESS)
-		return UA_ERR_NO_MEMORY;
-	pthread_rwlock_init((pthread_rwlock_t *) slot->lock, NULL);
-#endif
+	if(found == UA_SUCCESS)
+		return UA_ERROR;	/* There is already an entry for that nodeid */
 
-	slot->node = node;
+	entry->node = node;
 	ns->count++;
 	return UA_SUCCESS;
 }
 
-UA_Int32 Namespace_get(Namespace const *ns, const UA_NodeId * nodeid, UA_Node const **result, Namespace_Lock ** lock) {
-	Namespace_Entry *slot;
-	if(find_slot(ns, &slot, nodeid) != UA_SUCCESS)
-		return UA_ERROR;
-
-#ifdef MULTITHREADING
-	if(pthread_rwlock_rdlock((pthread_rwlock_t *) slot->lock) != 0)
-		return UA_ERROR;
-	*lock = slot->lock;
-#endif
-
-	*result = slot->node;
-	return UA_SUCCESS;
-}
-
-UA_Int32 Namespace_getWritable(const Namespace * ns, const UA_NodeId * nodeid, UA_Node ** result, Namespace_Lock ** lock) {
-	Namespace_Entry *slot;
-	if(find_slot(ns, &slot, nodeid) != UA_SUCCESS)
-		return UA_ERROR;
-
-#ifdef MULTITHREADING
-	if(pthread_rwlock_wrlock((pthread_rwlock_t *) slot->lock) != 0)
-		return UA_ERROR;
-	*lock = slot->lock;
-#endif
-
-	*result = slot->node;
-	return UA_SUCCESS;
-}
-
-#ifdef MULTITHREADING
-static inline void release_context_walker(void *lock) {
-	pthread_rwlock_unlock(lock);
-}
-#endif
-
-UA_Int32 Namespace_transactionGet(Namespace * ns, Namespace_TransactionContext * tc, const UA_NodeId * nodeid, UA_Node ** const result, Namespace_Lock ** lock) {
-	Namespace_Entry *slot;
-	if(find_slot(ns, &slot, nodeid) != UA_SUCCESS)
-		return UA_ERROR;
-
-#ifdef MULTITHREADING
-	if(pthread_rwlock_tryrdlock((pthread_rwlock_t *) slot->lock) != 0) {
-		/* Transaction failed. Release all acquired locks and bail out. */
-		UA_list_destroy((UA_list_List *) tc, release_context_walker);
-		return UA_ERROR;
+UA_Int32 Namespace_insertUnique(Namespace * ns, UA_Node * node) {
+	if(ns->size * 3 <= ns->count * 4) {
+		if(expand(ns) != UA_SUCCESS)
+			return UA_ERROR;
 	}
-	UA_list_addPayloadToBack((UA_list_List *) tc, slot->lock);
-	*lock = slot->lock;
-#endif
+	// find unoccupied numeric nodeid
+	node->nodeId.namespace = ns->namespaceId;
+	node->nodeId.encodingByte = UA_NODEIDTYPE_NUMERIC;
+	node->nodeId.identifier.numeric = ns->count;
 
-	*result = slot->node;
-	return UA_SUCCESS;
-}
+	hash_t h = hash(&node->nodeId);
+	hash_t hash2 = mod_m2(h, ns);
+	UA_UInt32 size = ns->size;
 
-UA_Int32 Namespace_transactionGetWritable(Namespace * ns, Namespace_TransactionContext * tc, const UA_NodeId * nodeid, UA_Node ** result, Namespace_Lock ** lock) {
-	Namespace_Entry *slot;
-	if(find_slot(ns, &slot, nodeid) != UA_SUCCESS)
-		return UA_ERROR;
-
-#ifdef MULTITHREADING
-	if(pthread_rwlock_trywrlock((pthread_rwlock_t *) slot->lock) != 0) {
-		/* Transaction failed. Release all acquired locks and bail out. */
-		UA_list_destroy((UA_list_List *) tc, release_context_walker);
-		return UA_ERROR;
+	// advance integer (hash) until a free entry is found
+	Namespace_Entry *entry = UA_NULL;
+	while(1) {
+		if(find_entry(ns, &node->nodeId, &entry) != UA_SUCCESS)
+			break;
+		node->nodeId.identifier.numeric += hash2;
+		if(node->nodeId.identifier.numeric >= size)
+			node->nodeId.identifier.numeric -= size;
 	}
-	UA_list_addPayloadToBack((UA_list_List *) tc, slot->lock);
-	*lock = slot->lock;
-#endif
 
-	*result = slot->node;
+	entry->node = node;
+	ns->count++;
 	return UA_SUCCESS;
 }
 
-void Namespace_remove(Namespace * ns, UA_NodeId * nodeid) {
-	Namespace_Entry *slot;
-	if(find_slot(ns, &slot, nodeid) != UA_SUCCESS)
-		return;
+UA_Int32 Namespace_contains(const Namespace * ns, const UA_NodeId * nodeid) {
+	Namespace_Entry *entry;
+	return find_entry(ns, nodeid, &entry);
+}
+
+UA_Int32 Namespace_get(Namespace const *ns, const UA_NodeId * nodeid, const UA_Node **result,
+					   Namespace_Entry_Lock ** lock) {
+	Namespace_Entry *entry;
+	if(find_entry(ns, nodeid, &entry) != UA_SUCCESS)
+		return UA_ERROR;
+
+	*result = entry->node;
+	return UA_SUCCESS;
+}
+
+UA_Int32 Namespace_remove(Namespace * ns, const UA_NodeId * nodeid) {
+	Namespace_Entry *entry;
+	if(find_entry(ns, nodeid, &entry) != UA_SUCCESS)
+		return UA_ERROR;
+
 	// TODO: Check if deleting the node makes the Namespace inconsistent.
-	clear_slot(ns, slot);
+	clear_entry(ns, entry);
 
 	/* Downsize the hashmap if it is very empty */
 	if(ns->count * 8 < ns->size && ns->size > 32)
 		expand(ns);
+
+	return UA_SUCCESS;
 }
 
 UA_Int32 Namespace_iterate(const Namespace * ns, Namespace_nodeVisitor visitor) {
@@ -500,4 +449,8 @@ UA_Int32 Namespace_iterate(const Namespace * ns, Namespace_nodeVisitor visitor) 
 			visitor(entry->node);
 	}
 	return UA_SUCCESS;
+}
+
+void Namespace_Entry_Lock_release(Namespace_Entry_Lock * lock) {
+	;
 }

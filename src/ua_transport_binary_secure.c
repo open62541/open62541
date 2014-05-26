@@ -147,6 +147,10 @@ UA_Int32 SL_handleRequest(SL_Channel *channel, const UA_ByteString* msg, UA_Int3
 		INVOKE_SERVICE(Read);
 	    responsetype = UA_READRESPONSE_NS0;
 	}
+	else if(serviceid == UA_TRANSLATEBROWSEPATHSTONODEIDSREQUEST_NS0) {
+		INVOKE_SERVICE(TranslateBrowsePathsToNodeIds);
+	    responsetype = UA_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE_NS0;
+	}
 	else {
 		printf("SL_processMessage - unknown request, namespace=%d, request=%d\n", serviceRequestType.namespace,serviceRequestType.identifier.numeric);
 		retval = UA_ERROR;

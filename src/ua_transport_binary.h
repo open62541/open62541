@@ -3,7 +3,6 @@
 #include <stdio.h>
 
 #include "opcua.h"
-#include "ua_transport_binary.h"
 
 //transport errors begin at 1000
 #define UA_ERROR_MULTIPLE_HEL 1000

@@ -16,6 +16,7 @@
 *.pyc
 *.gcno
 *.gcda
+.dirstamp
 /bin
 m4
 /autom4te.cache
@@ -37,6 +38,9 @@ config.log
 /configure
 /missing
 /html
+/doc/html/*
+/doc/Doxyfile
+/doc/doxyfile.stamp
 *~
 GIT_REVISION
 SVN_REVISION

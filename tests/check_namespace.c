@@ -7,7 +7,7 @@
 
 START_TEST(test_Namespace) {
 	Namespace *ns = UA_NULL;
-	Namespace_create(&ns, 512);
+	Namespace_new(&ns, 512, 99);
 	Namespace_delete(ns);
 }
 END_TEST
@@ -23,10 +23,10 @@ UA_Int32 createNode(UA_Node** p, UA_Int16 nsid, UA_Int32 id) {
 START_TEST(findNodeInNamespaceWithSingleEntry) {
 	// given
 	Namespace *ns;
-	Namespace_create(&ns, 512);
+	Namespace_new(&ns, 512, 99);
 	UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns,n1);
 	const UA_Node* nr = UA_NULL;
-	Namespace_Lock* nl = UA_NULL;
+	Namespace_Entry_Lock* nl = UA_NULL;
 	UA_Int32 retval;
 	// when
 	retval = Namespace_get(ns,&(n1->nodeId),&nr,&nl);
@@ -41,12 +41,12 @@ END_TEST
 START_TEST(findNodeInNamespaceWithTwoEntries) {
 	// given
 	Namespace *ns;
-	Namespace_create(&ns, 512);
+	Namespace_new(&ns, 512, 99);
 	UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns,n1);
 	UA_Node* n2; createNode(&n2,0,2255); Namespace_insert(ns,n2);
 
 	const UA_Node* nr = UA_NULL;
-	Namespace_Lock* nl = UA_NULL;
+	Namespace_Entry_Lock* nl = UA_NULL;
 	UA_Int32 retval;
 	// when
 	retval = Namespace_get(ns,&(n2->nodeId),&nr,&nl);
