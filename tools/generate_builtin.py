@@ -49,12 +49,12 @@ def camlCase2CCase(item):
 
 # are the types we need already in place? if not, postpone.
 def printableStructuredType(element):
-	for child in element:
-		if child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
-			typename = stripTypename(child.get("TypeName"))
-			if typename not in printed_types:
-				return False
-	return True
+    for child in element:
+        if child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
+            typename = stripTypename(child.get("TypeName"))
+            if typename not in printed_types:
+                return False
+    return True
 
 # There are three types of types in the bsd file:
 # StructuredType, EnumeratedType OpaqueType
@@ -86,7 +86,7 @@ def createEnumerated(element):
 def createStructured(element):
     valuemap = OrderedDict()
     name = "UA_" + element.get("Name")
-    print("\n/** @name UA_" + name + " */", end='\n', file=fh)
+    print("\n/** @name " + name + " */\n", file=fh)
 
     lengthfields = set()
     for child in element:
@@ -256,7 +256,7 @@ def createStructured(element):
 	
 def createOpaque(element):
     name = "UA_" + element.get("Name")
-    print("\n/** @name UA_" + name + " */", end='\n', file=fh)
+    print("\n/** @name " + name + " */\n", file=fh)
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
             print("/** @brief " + child.text + " */", end='\n', file=fh)
@@ -303,7 +303,7 @@ print('''/**
  * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
  * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  */
-
+ 
 #include "''' + sys.argv[2] + '.h"', end='\n', file=fc);
 
 # types for which we create a vector type

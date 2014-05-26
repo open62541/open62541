@@ -176,10 +176,6 @@ UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst) {return TYPE_AS##_copy((TYPE_AS
 	UA_TYPE_METHOD_PROTOTYPES_AS_WOXML(TYPE, TYPE_AS) \
 	UA_TYPE_METHOD_DECODEXML_AS(TYPE, TYPE_AS)
 
-#define UA_TYPE_METHOD_PROTOTYPES_AS(TYPE, TYPE_AS) \
-UA_TYPE_METHOD_PROTOTYPES_AS_WOXML(TYPE, TYPE_AS) \
-UA_TYPE_METHOD_DECODEXML_AS(TYPE, TYPE_AS)
-
 #define UA_TYPE_METHOD_NEW_DEFAULT(TYPE) \
 UA_Int32 TYPE##_new(TYPE ** p) { \
 	UA_Int32 retval = UA_SUCCESS;\
@@ -398,7 +394,6 @@ typedef struct XML_Stack {
 } XML_Stack;
 
 typedef struct UA_VTable {
-	UA_Byte* name;
 	UA_UInt32 ns0Id;
 	UA_Int32 (*calcSize)(void const * ptr);
 	UA_Int32 (*decodeBinary)(UA_ByteString const * src, UA_Int32* pos, void* dst);
@@ -409,6 +404,7 @@ typedef struct UA_VTable {
 	UA_Int32 (*copy)(void const *src,void *dst);
 	UA_Int32 (*delete)(void * p);
 	UA_UInt32 memSize; // size of the struct only in memory (no dynamic components)
+	UA_Byte* name;
 } UA_VTable;
 
 /* VariantBinaryEncoding - Part: 6, Chapter: 5.2.2.16, Page: 22 */

@@ -8,7 +8,7 @@
 
 static inline UA_Int32 UA_VTable_isValidType(UA_Int32 type) {
 	if(type < 0 /* UA_BOOLEAN */ || type > 271 /* UA_INVALID */)
-		return UA_INVALIDTYPE;
+		return UA_ERR_INVALID_VALUE;
 	return UA_SUCCESS;
 }
 
@@ -174,6 +174,25 @@ UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Boolean)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_Boolean)
 UA_TYPE_METHOD_COPY(UA_Boolean)
 
+UA_Int32 UA_Boolean_copycstring(cstring src, UA_Boolean* dst) {
+	*dst = UA_FALSE;
+	if (0 == strncmp(src, "true", 4) || 0 == strncmp(src, "TRUE", 4)) {
+		*dst = UA_TRUE;
+	}
+	return UA_SUCCESS;
+}
+UA_Int32 UA_Boolean_decodeXML(XML_Stack* s, XML_Attr* attr, UA_Boolean* dst, _Bool isStart) {
+	DBG_VERBOSE(printf("UA_Boolean entered with dst=%p,isStart=%d\n", (void* ) dst, isStart));
+	if (isStart) {
+		if (dst == UA_NULL) {
+			UA_Boolean_new(&dst);
+			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
+		}
+		UA_Boolean_copycstring((cstring) attr[1], dst);
+	}
+	return UA_SUCCESS;
+}
+
 /* UA_Byte */
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Byte)
 UA_TYPE_ENCODEBINARY(UA_Byte, dst->data[(*pos)++] = *src;)
@@ -183,6 +202,7 @@ UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Byte)
 UA_TYPE_METHOD_INIT_DEFAULT(UA_Byte)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_Byte)
 UA_TYPE_METHOD_COPY(UA_Byte)
+UA_TYPE_METHOD_DECODEXML_NOTIMPL(UA_Byte)
 
 /* UA_SByte */
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_SByte)
@@ -193,6 +213,8 @@ UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_SByte)
 UA_TYPE_METHOD_INIT_DEFAULT(UA_SByte)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_SByte)
 UA_TYPE_METHOD_COPY(UA_SByte)
+UA_TYPE_METHOD_DECODEXML_NOTIMPL(UA_SByte)
+
 
 /* UA_UInt16 */
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_UInt16)
@@ -207,6 +229,7 @@ UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_UInt16)
 UA_TYPE_METHOD_INIT_DEFAULT(UA_UInt16)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_UInt16)
 UA_TYPE_METHOD_COPY(UA_UInt16)
+UA_TYPE_METHOD_DECODEXML_NOTIMPL(UA_UInt16)
 
 /** UA_Int16 - signed integer, 2 bytes */
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Int16)
@@ -252,6 +275,7 @@ UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_UInt32)
 UA_TYPE_METHOD_INIT_DEFAULT(UA_UInt32)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_UInt32)
 UA_TYPE_METHOD_COPY(UA_UInt32)
+UA_TYPE_METHOD_DECODEXML_NOTIMPL(UA_UInt32)
 
 /** UA_Int64 - signed integer, 8 bytes */
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Int64)
@@ -278,6 +302,7 @@ UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Int64)
 UA_TYPE_METHOD_INIT_DEFAULT(UA_Int64)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_Int64)
 UA_TYPE_METHOD_COPY(UA_Int64)
+UA_TYPE_METHOD_DECODEXML_NOTIMPL(UA_Int64)
 
 /** UA_UInt64 - unsigned integer, 8 bytes */
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_UInt64)
@@ -297,6 +322,7 @@ UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_UInt64)
 UA_TYPE_METHOD_INIT_DEFAULT(UA_UInt64)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_UInt64)
 UA_TYPE_METHOD_COPY(UA_UInt64)
+UA_TYPE_METHOD_DECODEXML_NOTIMPL(UA_UInt64)
 
 /** UA_Float - IEE754 32bit float with biased exponent */
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Float)
@@ -328,6 +354,8 @@ UA_Int32 UA_Float_init(UA_Float * p){
 }
 UA_TYPE_METHOD_NEW_DEFAULT(UA_Float)
 UA_TYPE_METHOD_COPY(UA_Float)
+UA_TYPE_METHOD_DECODEXML_NOTIMPL(UA_Float)
+
 
 /** UA_Float - IEEE754 64bit float with biased exponent*/
 UA_TYPE_METHOD_CALCSIZE_SIZEOF(UA_Double)
@@ -362,6 +390,7 @@ UA_TYPE_METHOD_DELETEMEMBERS_NOACTION(UA_Double)
 UA_TYPE_METHOD_INIT_DEFAULT(UA_Double)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_Double)
 UA_TYPE_METHOD_COPY(UA_Double)
+UA_TYPE_METHOD_DECODEXML_NOTIMPL(UA_Double)
 
 /** UA_String */
 UA_Int32 UA_String_calcSize(UA_String const * string) {
@@ -594,6 +623,7 @@ UA_Int32 UA_Guid_copy(UA_Guid const *src, UA_Guid *dst)
 	retval |= UA_memcpy((void*)dst,(void*)src,UA_Guid_calcSize(UA_NULL));
 	return retval;
 }
+UA_TYPE_METHOD_DECODEXML_NOTIMPL(UA_Guid)
 
 /* UA_LocalizedText */
 UA_Int32 UA_LocalizedText_calcSize(UA_LocalizedText const * p) {
@@ -1006,6 +1036,9 @@ UA_TYPE_ENCODEBINARY(UA_ExtensionObject,
 	case UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED:
 		break;
 	case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING:
+		// FIXME: This code is valid for numeric nodeIds in ns0 only!
+		retval |= UA_[UA_ns0ToVTableIndex(src->typeId.identifier.numeric)].encodeBinary(src->body.data,pos,dst);
+		break;
 	case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML:
 		retval |= UA_ByteString_encodeBinary(&(src->body),pos,dst);
 		break;
@@ -1198,7 +1231,10 @@ UA_Int32 UA_DiagnosticInfo_copy(UA_DiagnosticInfo const  *src, UA_DiagnosticInfo
 
 	return retval;
 }
-UA_TYPE_METHOD_PROTOTYPES_AS(UA_DateTime,UA_Int64)
+UA_TYPE_METHOD_DECODEXML_NOTIMPL(UA_DiagnosticInfo)
+
+UA_TYPE_METHOD_PROTOTYPES_AS_WOXML(UA_DateTime,UA_Int64)
+UA_TYPE_METHOD_DECODEXML_NOTIMPL(UA_DateTime)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_DateTime)
 
 #include <sys/time.h>
@@ -1263,8 +1299,12 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_XmlElement)
 UA_TYPE_METHOD_PROTOTYPES_AS(UA_IntegerId, UA_Int32)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_IntegerId)
 
-UA_TYPE_METHOD_PROTOTYPES_AS(UA_StatusCode, UA_UInt32)
+UA_TYPE_METHOD_PROTOTYPES_AS_WOXML(UA_StatusCode, UA_UInt32)
 UA_TYPE_METHOD_NEW_DEFAULT(UA_StatusCode)
+UA_Int32 UA_StatusCode_decodeXML(XML_Stack* s, XML_Attr* attr, UA_StatusCode* dst, _Bool isStart) {
+	DBG_VERBOSE(printf("UA_StatusCode_decodeXML entered with dst=%p,isStart=%d\n", (void* ) dst, isStart));
+	return UA_ERR_NOT_IMPLEMENTED;
+}
 
 /** QualifiedName - Part 4, Chapter
  * but see Part 6, Chapter 5.2.2.13 for Binary Encoding
@@ -1625,6 +1665,8 @@ UA_Int32 UA_DataValue_copy(UA_DataValue const *src, UA_DataValue *dst){
 	UA_Variant_copy(&(src->value),&(dst->value));
 	return retval;
 }
+UA_TYPE_METHOD_DECODEXML_NOTIMPL(UA_DataValue)
+
 
 /* UA_InvalidType - internal type necessary to handle inited Variants correctly */
 UA_Int32 UA_InvalidType_calcSize(UA_InvalidType const * p) { return 0; }
@@ -1636,3 +1678,5 @@ UA_Int32 UA_InvalidType_deleteMembers(UA_InvalidType* p) { return UA_ERR_INVALID
 UA_Int32 UA_InvalidType_init(UA_InvalidType* p) { return UA_ERR_INVALID_VALUE; }
 UA_Int32 UA_InvalidType_copy(UA_InvalidType const* src, UA_InvalidType *dst) { return UA_ERR_INVALID_VALUE; }
 UA_Int32 UA_InvalidType_new(UA_InvalidType** p) { return UA_ERR_INVALID_VALUE; }
+UA_TYPE_METHOD_DECODEXML_NOTIMPL(UA_InvalidType)
+

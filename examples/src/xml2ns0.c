@@ -30,7 +30,7 @@ void sam_attach(Namespace *ns,UA_Int32 ns0id,UA_Int32 type, void* p) {
 	nodeid.namespace = ns->namespaceId;
 	nodeid.identifier.numeric = ns0id;
 	nodeid.encodingByte = UA_NODEIDTYPE_FOURBYTE;
-	const UA_Node *result;
+	const UA_Node* result;
 	Namespace_get(ns,&nodeid,&result,&lock);
 	if (result->nodeClass == UA_NODECLASS_VARIABLE) {
 		UA_VariableNode* variable = (UA_VariableNode*) result;
@@ -213,13 +213,14 @@ int main() {
 	UA_Int32 i=0;
 	UA_Int32 retval=UA_SUCCESS;
 	UA_DateTime tStart = UA_DateTime_now();
-	// encoding takes roundabout 10 ns on my virtual machine with -O0, so 1E5 takes a second
+	// encoding takes roundabout 10 µs on my virtual machine with -O0, so 1E5 takes a second
 	for (i=0;i<1E5 && retval == UA_SUCCESS;i++) {
 		pos = 0;
 		sam.serverStatus.currentTime = UA_DateTime_now();
 		retval |= UAX_NodeId_encodeBinary(n.ns,&nodeid,&pos,&buffer);
 	}
 	UA_DateTime tEnd = UA_DateTime_now();
+	// tStart, tEnd count in 100 ns steps = 10 µs
 	UA_Double tDelta = ( tEnd - tStart ) / ( 10.0 * i);
 
 	printf("encode server node %d times: time/enc=%f us, retval=%d\n",i, tDelta, retval);
