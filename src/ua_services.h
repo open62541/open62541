@@ -186,7 +186,7 @@ a component of an Object.
  * triggered item links to be deleted, but has no effect on the MonitoredItems
  * referenced by the triggered items.
  */
-UA_Int32 Service_CreateMonitoredItems(SL_Channel *channel, const UA_CreateMonitoredItemsRequest *request, UA_CreateMonitoredItemsResponse *response);
+UA_Int32 Service_CreateMonitoredItems(const UA_CreateMonitoredItemsRequest *request, UA_CreateMonitoredItemsResponse *response);
 // Service_ModifyMonitoredItems
 // Service_SetMonitoringMode
 // Service_SetTriggering

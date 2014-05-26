@@ -83,9 +83,10 @@ static UA_Int32 SL_Send(SL_secureChannel channel,
 	if (isAsym)
 	{
 
-		SL_Channel_getLocalAsymAlgSettings(channel, asymAlgSettings);
+		SL_Channel_getLocalAsymAlgSettings(channel, &asymAlgSettings);
 		UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(asymAlgSettings, &pos,
 				header);
+		UA_free(asymAlgSettings);
 	}
 	else
 	{

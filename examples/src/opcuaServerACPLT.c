@@ -55,7 +55,9 @@ void server_run() {
 	localBuffers.recvBufferSize = BUFFER_SIZE;
 
 	/*init secure Channel manager, which handles more than one channel */
-	SL_ChannelManager_init(2, 873);
+	UA_String endpointUrl;
+	UA_String_copycstring("open62541.org",&endpointUrl);
+	SL_ChannelManager_init(2,3600000, 873, 23, &endpointUrl);
 	UA_TL_Connection_new(&connection, localBuffers, (TL_Writer)NL_TCP_writer);
 
 
@@ -120,7 +122,7 @@ void server_run() {
 				perror("ERROR reading from socket1");
 				exit(1);
 			}
-			UA_TL_Connection_getState(connection,&connectionState);
+			UA_TL_Connection_getState(connection, &connectionState);
 		} while(connectionState != CONNECTIONSTATE_CLOSE);
 		shutdown(newsockfd,2);
 		close(newsockfd);

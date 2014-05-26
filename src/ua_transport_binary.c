@@ -120,14 +120,40 @@ static UA_Int32 TL_handleOpen(UA_TL_Connection1 connection, const UA_ByteString*
 	UA_Int32 state;
 	UA_TL_Connection_getState(connection,&state);
 	SL_secureChannel channel = UA_NULL;
+
+	UA_ByteString receiverCertificateThumbprint;
+	UA_ByteString securityPolicyUri;
+	UA_ByteString senderCertificate;
+
 	if (state == CONNECTIONSTATE_ESTABLISHED) {
-	//	return SL_Channel_new(connection, msg, pos);
-		//UA_TL_Connection_getId(connection,connectionId);
 
-		if(SL_Channel_newByRequest(connection, msg, pos, &channel) == UA_SUCCESS)
+
+		UA_alloc((void**)&receiverCertificateThumbprint.data, -1);
+		UA_alloc((void**)&securityPolicyUri.data, 47);
+		UA_alloc((void**)&senderCertificate.data, 0);
+
+		receiverCertificateThumbprint.data = UA_NULL;
+		receiverCertificateThumbprint.length = 0;
+
+		UA_String_copycstring("http://opcfoundation.org/UA/SecurityPolicy#None",(UA_String*)&securityPolicyUri);
+		securityPolicyUri.length = 47;
+
+		senderCertificate.data = UA_NULL;
+		senderCertificate.length = 0;
+
+		SL_Channel_new(&channel,
+				SL_ChannelManager_generateChannelId,
+				SL_ChannelManager_generateToken,
+				&receiverCertificateThumbprint,
+				&securityPolicyUri,
+				&senderCertificate,
+				UA_SECURITYMODE_INVALID);
+
+
+	//return SL_Channel_new(connection, msg, pos);
+	//UA_TL_Connection_getId(connection,connectionId);
+		if(SL_Channel_initByRequest(channel,connection, msg, pos) == UA_SUCCESS)
 		{
-
-			SL_Channel_registerTokenProvider(channel, SL_ChannelManager_generateToken);
 			SL_ProcessOpenChannel(channel, msg, pos);
 			SL_ChannelManager_addChannel(channel);
 		}else

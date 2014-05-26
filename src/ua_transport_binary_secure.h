@@ -26,7 +26,7 @@ typedef struct {
 	UA_DateTime createdAt;
 	UA_Int32 revisedLifetime;
 } SL_ChannelSecurityToken;
-
+/*
 typedef struct SL_Channel_T {
 	UA_String secureChannelId;
 	UA_TL_Connection1 tlConnection;
@@ -39,9 +39,9 @@ typedef struct SL_Channel_T {
 	UA_ByteString localNonce;
 	UA_UInt32 connectionState;
 	SL_ChannelSecurityToken securityToken;
-} SL_Channel;
+} SL_secureChannel;
 
-
+*/
 UA_Int32 SL_Process(const UA_ByteString* msg, UA_Int32* pos);
 
 /**
