@@ -7,13 +7,14 @@
 
 #include "ua_xml.h"
 #include <fcntl.h>
+#include <ctype.h>
 
 
 void sam_declareAttribute(UA_Node const * node) {
 	if (node->nodeClass == UA_NODECLASS_VARIABLE) {
+		printf("\t // i=%d\n",node->nodeId.identifier.numeric);
 		UA_VariableNode* vn = (UA_VariableNode*) node;
-		// printf("\t%s %*.s;\n", vn->value.vt->name, node->browseName.name.length, node->browseName.name.data);
-		printf("\t%s %s;\n", vn->value.vt->name, node->browseName.name.data);
+		printf("\t%s %c%.*s ;\n", UA_[UA_ns0ToVTableIndex(vn->dataType.identifier.numeric)].name, tolower(node->browseName.name.data[0]), node->browseName.name.length-1, &node->browseName.name.data[1]);
 	}
 }
 
@@ -25,7 +26,7 @@ void sam_declareBuffer(UA_Node const * node) {
 		case UA_STRING_NS0:
 		case UA_LOCALIZEDTEXT_NS0:
 		case UA_QUALIFIEDNAME_NS0:
-		printf("\t UA_Byte cstr_%*.s[] = \"\"\n",vn->browseName.name.length, vn->browseName.name.data);
+		printf("\t UA_Byte cstr_%.*s[] = \"\"\n",vn->browseName.name.length, vn->browseName.name.data);
 		break;
 		default:
 		break;
@@ -39,13 +40,13 @@ void sam_assignBuffer(UA_Node const * node) {
 		switch (vn->dataType.identifier.numeric) {
 		case UA_BYTESTRING_NS0:
 		case UA_STRING_NS0:
-		printf("\tSAM_ASSIGN_CSTRING(cstr_%*.s,sam.%*.s);\n",vn->browseName.name.length, vn->browseName.name.data,vn->browseName.name.length, vn->browseName.name.data);
+		printf("\tSAM_ASSIGN_CSTRING(cstr_%.*s,sam.%.*s);\n",vn->browseName.name.length, vn->browseName.name.data,vn->browseName.name.length, vn->browseName.name.data);
 		break;
 		case UA_LOCALIZEDTEXT_NS0:
-		printf("\tSAM_ASSIGN_CSTRING(cstr_%*.s,sam.%*.stext);\n",vn->browseName.name.length, vn->browseName.name.data,vn->browseName.name.length, vn->browseName.name.data);
+		printf("\tSAM_ASSIGN_CSTRING(cstr_%.*s,sam.%.*stext);\n",vn->browseName.name.length, vn->browseName.name.data,vn->browseName.name.length, vn->browseName.name.data);
 		break;
 		case UA_QUALIFIEDNAME_NS0:
-		printf("\tSAM_ASSIGN_CSTRING(cstr_%*.s,sam.%*.s.name);\n",vn->browseName.name.length, vn->browseName.name.data,vn->browseName.name.length, vn->browseName.name.data);
+		printf("\tSAM_ASSIGN_CSTRING(cstr_%.*s,sam.%.*s.name);\n",vn->browseName.name.length, vn->browseName.name.data,vn->browseName.name.length, vn->browseName.name.data);
 		break;
 		default:
 		break;
@@ -56,7 +57,7 @@ void sam_assignBuffer(UA_Node const * node) {
 void sam_attachToNamespace(UA_Node const * node) {
 	if (node->nodeClass == UA_NODECLASS_VARIABLE) {
 		UA_VariableNode* vn = (UA_VariableNode*) node;
-		printf("\tsam_attach(ns,%d,%s,&sam.%*.s);\n",node->nodeId.identifier.numeric,UA_[UA_ns0ToVTableIndex(vn->dataType.identifier.numeric)].name,node->browseName.name.length, node->browseName.name.data);
+		printf("\tsam_attach(ns,%d,%s,&sam.%.*s);\n",node->nodeId.identifier.numeric,UA_[UA_ns0ToVTableIndex(vn->dataType.identifier.numeric)].name,node->browseName.name.length, node->browseName.name.data);
 	}
 }
 
