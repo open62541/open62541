@@ -7,7 +7,7 @@
 
 START_TEST(test_Namespace) {
 	Namespace *ns = UA_NULL;
-	Namespace_new(&ns, 512, 99);
+	Namespace_new(&ns, 512, 0);
 	Namespace_delete(ns);
 }
 END_TEST
@@ -23,7 +23,7 @@ UA_Int32 createNode(UA_Node** p, UA_Int16 nsid, UA_Int32 id) {
 START_TEST(findNodeInNamespaceWithSingleEntry) {
 	// given
 	Namespace *ns;
-	Namespace_new(&ns, 512, 99);
+	Namespace_new(&ns, 512, 0);
 	UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns,n1);
 	const UA_Node* nr = UA_NULL;
 	Namespace_Entry_Lock* nl = UA_NULL;
@@ -41,7 +41,7 @@ END_TEST
 START_TEST(findNodeInNamespaceWithTwoEntries) {
 	// given
 	Namespace *ns;
-	Namespace_new(&ns, 512, 99);
+	Namespace_new(&ns, 512, 0);
 	UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns,n1);
 	UA_Node* n2; createNode(&n2,0,2255); Namespace_insert(ns,n2);
 
@@ -58,10 +58,31 @@ START_TEST(findNodeInNamespaceWithTwoEntries) {
 }
 END_TEST
 
+START_TEST(failToFindNodeInOtherNamespace) {
+	// given
+	Namespace *ns;
+	Namespace_new(&ns, 512, 0);
+	UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns,n1);
+	UA_Node* n2; createNode(&n2,0,2255); Namespace_insert(ns,n2);
+
+	const UA_Node* nr = UA_NULL;
+	Namespace_Entry_Lock* nl = UA_NULL;
+	UA_Int32 retval;
+	// when
+	UA_Node* n; createNode(&n,1,2255);
+	retval = Namespace_get(ns,&(n->nodeId),&nr,&nl);
+	// then
+	ck_assert_int_ne(retval, UA_SUCCESS);
+	// finally
+	UA_free(n);
+	Namespace_delete(ns);
+}
+END_TEST
+
 START_TEST(findNodeInNamespaceWithSeveralEntries) {
 	// given
 	Namespace *ns;
-	Namespace_new(&ns, 512, 99);
+	Namespace_new(&ns, 512, 0);
 	UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns,n1);
 	UA_Node* n2; createNode(&n2,0,2255); Namespace_insert(ns,n2);
 	UA_Node* n3; createNode(&n3,0,2257); Namespace_insert(ns,n3);
@@ -85,7 +106,7 @@ END_TEST
 START_TEST(findNodeInExpandedNamespace) {
 	// given
 	Namespace *ns;
-	Namespace_new(&ns, 10, 99);
+	Namespace_new(&ns, 10, 0);
 	UA_Node* n;
 	for (UA_Int32 i=0; i<200; i++) {
 		createNode(&n,0,i); Namespace_insert(ns,n);
@@ -108,7 +129,7 @@ END_TEST
 START_TEST(failToFindNonExistantNodeInNamespaceWithSeveralEntries) {
 	// given
 	Namespace *ns;
-	Namespace_new(&ns, 512, 99);
+	Namespace_new(&ns, 512, 0);
 	UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns,n1);
 	UA_Node* n2; createNode(&n2,0,2255); Namespace_insert(ns,n2);
 	UA_Node* n3; createNode(&n3,0,2257); Namespace_insert(ns,n3);
@@ -144,10 +165,12 @@ Suite * namespace_suite (void) {
 	tcase_add_test (tc_find, findNodeInNamespaceWithSeveralEntries);
 	tcase_add_test (tc_find, findNodeInExpandedNamespace);
 	tcase_add_test (tc_find, failToFindNonExistantNodeInNamespaceWithSeveralEntries);
+	tcase_add_test (tc_find, failToFindNodeInOtherNamespace);
 	suite_add_tcase (s, tc_find);
 
 	return s;
 }
+
 
 int main (void) {
 	int number_failed =0;
