@@ -225,6 +225,7 @@ static inline void clear_entry(Namespace * ns, Namespace_Entry * entry) {
 		break;
 	}
 	entry->node = UA_NULL;
+	ns->count--;
 }
 
 /* Returns UA_SUCCESS if an entry was found. Otherwise, UA_ERROR is returned and the "entry"
@@ -293,6 +294,8 @@ static UA_Int32 expand(Namespace * ns) {
 
 	if(UA_alloc((void **)&nentries, sizeof(Namespace_Entry) * nsize) != UA_SUCCESS)
 		return UA_ERR_NO_MEMORY;
+
+	memset(nentries, 0, nsize * sizeof(Namespace_Entry));
 	ns->entries = nentries;
 	ns->size = nsize;
 	ns->sizePrimeIndex = nindex;
@@ -330,8 +333,7 @@ UA_Int32 Namespace_new(Namespace ** result, UA_UInt32 size, UA_UInt32 namespaceI
 	/* set entries to zero */
 	memset(ns->entries, 0, size * sizeof(Namespace_Entry));
 
-	*ns = (Namespace) {
-	namespaceId, ns->entries, size, 0, sizePrimeIndex};
+	*ns = (Namespace) {namespaceId, ns->entries, size, 0, sizePrimeIndex};
 	*result = ns;
 	return UA_SUCCESS;
 }
@@ -442,10 +444,10 @@ UA_Int32 Namespace_remove(Namespace * ns, const UA_NodeId * nodeid) {
 }
 
 UA_Int32 Namespace_iterate(const Namespace * ns, Namespace_nodeVisitor visitor) {
-	UA_UInt32 i;
-	for(i = 0; i < ns->size; i++) {
+	if(visitor == UA_NULL) return UA_SUCCESS;
+	for(UA_UInt32 i = 0; i < ns->size; i++) {
 		Namespace_Entry *entry = &ns->entries[i];
-		if(entry != UA_NULL && visitor != UA_NULL)
+		if(entry->node != UA_NULL)
 			visitor(entry->node);
 	}
 	return UA_SUCCESS;
