@@ -9,24 +9,32 @@
 #include <fcntl.h>
 #include <ctype.h>
 
+/** @brief some macros to lowercase the first character without copying around */
+#define F_cls "%c%.*s"
+#define LC_cls(str) tolower((str).data[0]), (str).length-1, &((str).data[1])
 
+/** @brief declares all the top level objects in the server's application memory
+ * FIXME: shall add only top level objects, i.e. those that have no parents
+ */
 void sam_declareAttribute(UA_Node const * node) {
-	if (node->nodeClass == UA_NODECLASS_VARIABLE) {
-		printf("\t // i=%d\n",node->nodeId.identifier.numeric);
+	if (node != UA_NULL && node->nodeClass == UA_NODECLASS_VARIABLE) {
 		UA_VariableNode* vn = (UA_VariableNode*) node;
-		printf("\t%s %c%.*s ;\n", UA_[UA_ns0ToVTableIndex(vn->dataType.identifier.numeric)].name, tolower(node->browseName.name.data[0]), node->browseName.name.length-1, &node->browseName.name.data[1]);
+		printf("\t%s " F_cls "; // i=%d\n", UA_[UA_ns0ToVTableIndex(vn->dataType.identifier.numeric)].name, LC_cls(node->browseName.name), node->nodeId.identifier.numeric);
 	}
 }
 
+/** @brief declares all the buffers for string variables
+ * FIXME: traverse down to top level objects and create a unique name such as cstr_serverState_buildInfo_version
+ */
 void sam_declareBuffer(UA_Node const * node) {
-	if (node->nodeClass == UA_NODECLASS_VARIABLE) {
+	if (node != UA_NULL && node->nodeClass == UA_NODECLASS_VARIABLE) {
 		UA_VariableNode* vn = (UA_VariableNode*) node;
 		switch (vn->dataType.identifier.numeric) {
 		case UA_BYTESTRING_NS0:
 		case UA_STRING_NS0:
 		case UA_LOCALIZEDTEXT_NS0:
 		case UA_QUALIFIEDNAME_NS0:
-		printf("\t UA_Byte cstr_%.*s[] = \"\"\n",vn->browseName.name.length, vn->browseName.name.data);
+		printf("UA_Byte cstr_" F_cls "[] = \"\"\n",LC_cls(vn->browseName.name));
 		break;
 		default:
 		break;
@@ -34,19 +42,22 @@ void sam_declareBuffer(UA_Node const * node) {
 	}
 }
 
+/** @brief assigns the c-strings to the ua type strings.
+ * FIXME: traverse down to top level objects and create a unique name such as cstr_serverState_buildInfo_version
+ */
 void sam_assignBuffer(UA_Node const * node) {
-	if (node->nodeClass == UA_NODECLASS_VARIABLE) {
+	if (node != UA_NULL && node->nodeClass == UA_NODECLASS_VARIABLE) {
 		UA_VariableNode* vn = (UA_VariableNode*) node;
 		switch (vn->dataType.identifier.numeric) {
 		case UA_BYTESTRING_NS0:
 		case UA_STRING_NS0:
-		printf("\tSAM_ASSIGN_CSTRING(cstr_%.*s,sam.%.*s);\n",vn->browseName.name.length, vn->browseName.name.data,vn->browseName.name.length, vn->browseName.name.data);
+		printf("\tSAM_ASSIGN_CSTRING(cstr_" F_cls ",sam." F_cls ");\n",LC_cls(vn->browseName.name),LC_cls(vn->browseName.name));
 		break;
 		case UA_LOCALIZEDTEXT_NS0:
-		printf("\tSAM_ASSIGN_CSTRING(cstr_%.*s,sam.%.*stext);\n",vn->browseName.name.length, vn->browseName.name.data,vn->browseName.name.length, vn->browseName.name.data);
+		printf("\tSAM_ASSIGN_CSTRING(cstr_" F_cls ",sam." F_cls ".text);\n",LC_cls(vn->browseName.name),LC_cls(vn->browseName.name));
 		break;
 		case UA_QUALIFIEDNAME_NS0:
-		printf("\tSAM_ASSIGN_CSTRING(cstr_%.*s,sam.%.*s.name);\n",vn->browseName.name.length, vn->browseName.name.data,vn->browseName.name.length, vn->browseName.name.data);
+		printf("\tSAM_ASSIGN_CSTRING(cstr_" F_cls ",sam." F_cls ".name);\n",LC_cls(vn->browseName.name),LC_cls(vn->browseName.name));
 		break;
 		default:
 		break;
@@ -55,9 +66,9 @@ void sam_assignBuffer(UA_Node const * node) {
 }
 
 void sam_attachToNamespace(UA_Node const * node) {
-	if (node->nodeClass == UA_NODECLASS_VARIABLE) {
+	if (node != UA_NULL && node->nodeClass == UA_NODECLASS_VARIABLE) {
 		UA_VariableNode* vn = (UA_VariableNode*) node;
-		printf("\tsam_attach(ns,%d,%s,&sam.%.*s);\n",node->nodeId.identifier.numeric,UA_[UA_ns0ToVTableIndex(vn->dataType.identifier.numeric)].name,node->browseName.name.length, node->browseName.name.data);
+		printf("\tsam_attach(ns,%d,%s,&sam." F_cls ");\n",node->nodeId.identifier.numeric,UA_[UA_ns0ToVTableIndex(vn->dataType.identifier.numeric)].name, LC_cls(vn->browseName.name));
 	}
 }
 
@@ -67,6 +78,7 @@ typedef struct pattern {
 } pattern;
 
 pattern p[] = {
+{ "/** server application memory - generated but manually adapted */\n",UA_NULL },
 { "#define SAM_ASSIGN_CSTRING(src,dst) do { dst.length = strlen(src)-1; dst.data = (UA_Byte*) src; } while(0)\n",UA_NULL },
 { "struct sam {\n", UA_NULL },
 { UA_NULL, sam_declareAttribute },
