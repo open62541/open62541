@@ -172,32 +172,16 @@ UA_Int32 UAX_NodeId_encodeBinary(Namespace const * ns, UA_NodeId const * id, UA_
 }
 
 int main() {
+	Namespace* ns;
+	UA_Int32 retval;
+
+	retval = Namespace_loadFromFile(&ns, 0, "ROOT", UA_NULL);
+
+	sam_init(ns);
+	// Namespace_iterate(ns, print_node);
+
+	// encoding buffer
 	char buf[1024];
-	int len; /* len is the number of bytes in the current bufferful of data */
-	XML_Stack s;
-	XML_Stack_init(&s, "ROOT");
-	UA_NodeSet n;
-	UA_NodeSet_init(&n, 0);
-	XML_Stack_addChildHandler(&s, "UANodeSet", strlen("UANodeSet"), (XML_decoder) UA_NodeSet_decodeXML, UA_INVALIDTYPE, &n);
-
-	XML_Parser parser = XML_ParserCreate(NULL);
-	XML_SetUserData(parser, &s);
-	XML_SetElementHandler(parser, XML_Stack_startElement, XML_Stack_endElement);
-	XML_SetCharacterDataHandler(parser, XML_Stack_handleText);
-	while ((len = read(0, buf, 1024)) > 0) {
-		if (!XML_Parse(parser, buf, len, (len < 1024))) {
-			return 1;
-		}
-	}
-	XML_ParserFree(parser);
-
-	DBG_VERBOSE(printf("aliases addr=%p, size=%d\n", (void*) &(n.aliases), n.aliases.size));
-	DBG_VERBOSE(UA_NodeSetAliases_println("aliases in nodeset: ", &n.aliases));
-
-	sam_init(n.ns);
-	// Namespace_iterate(n.ns, print_node);
-
-	// Direct encoding
 	UA_ByteString buffer = { 1024, (UA_Byte*) buf };
 	UA_Int32 pos = 0;
 
@@ -207,13 +191,13 @@ int main() {
 	nodeid.identifier.numeric = 2256; // ServerStatus
 
 	UA_Int32 i=0;
-	UA_Int32 retval=UA_SUCCESS;
+	retval=UA_SUCCESS;
 	UA_DateTime tStart = UA_DateTime_now();
 	// encoding takes roundabout 10 µs on my virtual machine with -O0, so 1E5 takes a second
 	for (i=0;i<1E5 && retval == UA_SUCCESS;i++) {
 		pos = 0;
 		sam.serverStatus.currentTime = UA_DateTime_now();
-		retval |= UAX_NodeId_encodeBinary(n.ns,&nodeid,&pos,&buffer);
+		retval |= UAX_NodeId_encodeBinary(ns,&nodeid,&pos,&buffer);
 	}
 	UA_DateTime tEnd = UA_DateTime_now();
 	// tStart, tEnd count in 100 ns steps, so 10 steps = 1 µs

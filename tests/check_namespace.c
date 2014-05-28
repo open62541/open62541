@@ -211,8 +211,6 @@ Suite * namespace_suite (void) {
 	tcase_add_test (tc_cd, test_Namespace);
 	suite_add_tcase (s, tc_cd);
 
-
-
 	TCase* tc_find = tcase_create ("Find");
 	tcase_add_test (tc_find, findNodeInNamespaceWithSingleEntry);
 	tcase_add_test (tc_find, findNodeInNamespaceWithTwoEntries);
@@ -220,10 +218,12 @@ Suite * namespace_suite (void) {
 	tcase_add_test (tc_find, findNodeInExpandedNamespace);
 	tcase_add_test (tc_find, failToFindNonExistantNodeInNamespaceWithSeveralEntries);
 	tcase_add_test (tc_find, failToFindNodeInOtherNamespace);
-	tcase_add_test (tc_find, iterateOverNamespaceShallNotVisitEmptyNodes);
-	tcase_add_test (tc_find, iterateOverExpandedNamespaceShallNotVisitEmptyNodes);
 	suite_add_tcase (s, tc_find);
 
+	TCase* tc_iterate = tcase_create ("Iterate");
+	tcase_add_test (tc_find, iterateOverNamespaceShallNotVisitEmptyNodes);
+	tcase_add_test (tc_find, iterateOverExpandedNamespaceShallNotVisitEmptyNodes);
+	suite_add_tcase (s, tc_iterate);
 
 	return s;
 }

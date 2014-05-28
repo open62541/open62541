@@ -104,4 +104,14 @@ UA_Int32 XML_isSpace(cstring s, int len);
 void XML_Stack_handleText(void * data, const char *txt, int len);
 void XML_Stack_endElement(void *data, const char *el);
 
+/** @brief load a namespace from an XML-File
+ *
+ * @param[in/out] ns the address of the namespace ptr
+ * @param[in] namespaceId the numeric id of the namespace
+ * @param[in] rootName the name of the root element of the hierarchy (not used?)
+ * @param[in] fileName the name of an existing file, e.g. Opc.Ua.NodeSet2.xml
+ */
+UA_Int32 Namespace_loadFromFile(Namespace **ns,UA_UInt32 namespaceId,const char* rootName,const char* fileName);
+
+
 #endif // __UA_XML_H__

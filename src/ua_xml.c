@@ -6,6 +6,8 @@
  */
 
 #include "ua_xml.h"
+#include <fcntl.h> // open, O_RDONLY
+
 
 UA_Int32 UA_TypedArray_init(UA_TypedArray* p) {
 	p->size = -1;
@@ -991,3 +993,41 @@ void XML_Stack_endElement(void *data, const char *el) {
 	}
 	s->depth--;
 }
+
+UA_Int32 Namespace_loadFromFile(Namespace **ns,UA_UInt32 namespaceId,const char* rootName,const char* fileName) {
+	int f;
+	if (fileName == UA_NULL)
+		f = 0; // stdin
+	else if ((f= open(fileName, O_RDONLY)) == -1)
+		return UA_ERR_INVALID_VALUE;
+
+	char buf[1024];
+	int len; /* len is the number of bytes in the current bufferful of data */
+
+	XML_Stack s;
+	XML_Stack_init(&s, rootName);
+
+	UA_NodeSet n;
+	UA_NodeSet_init(&n, 0);
+	XML_Stack_addChildHandler(&s, "UANodeSet", strlen("UANodeSet"), (XML_decoder) UA_NodeSet_decodeXML, UA_INVALIDTYPE, &n);
+
+	XML_Parser parser = XML_ParserCreate(NULL);
+	XML_SetUserData(parser, &s);
+	XML_SetElementHandler(parser, XML_Stack_startElement, XML_Stack_endElement);
+	XML_SetCharacterDataHandler(parser, XML_Stack_handleText);
+	while ((len = read(f, buf, 1024)) > 0) {
+		if (!XML_Parse(parser, buf, len, (len < 1024))) {
+			return 1;
+		}
+	}
+	XML_ParserFree(parser);
+	close(f);
+
+	DBG_VERBOSE(printf("Namespace_loadFromFile - aliases addr=%p, size=%d\n", (void*) &(n.aliases), n.aliases.size));
+	DBG_VERBOSE(UA_NodeSetAliases_println("Namespace_loadFromFile - elements=", &n.aliases));
+
+	// eventually return the namespace object that has been allocated in UA_NodeSet_init
+	*ns = n.ns;
+	return UA_SUCCESS;
+}
+

@@ -6,31 +6,45 @@
  */
 
 #include "ua_xml.h"
-#include <fcntl.h>
-#include <ctype.h>
+#include <ctype.h> // tolower
+
+/** @brief we need a variable global to the module to make it possible for the visitors to access the namespace */
+static Namespace* theNamespace;
+
+/** @brief check if VariableNode is root by searching for parent and checking if this is not a VariableNode */
+_Bool UA_VariableNode_isRoot(const UA_VariableNode* node) {
+	UA_Int32 i;
+	for (i = 0; i < node->referencesSize; i++ ) {
+		UA_Int32 refId = UA_NodeId_getIdentifier(&(node->references[i]->referenceTypeId));
+		UA_Int32 isInverse = node->references[i]->isInverse;
+		if (isInverse && (refId == 47 || refId == 46)) {
+			Namespace_Entry_Lock* lock;
+			const UA_Node* parent;
+			UA_Int32 retval;
+			retval = Namespace_get(theNamespace, &(node->references[i]->targetId.nodeId),&parent,&lock);
+			if (retval != UA_SUCCESS || parent == UA_NULL || parent->nodeClass == UA_NODECLASS_VARIABLE) {
+				if (node->nodeId.identifier.numeric == 2007) {
+					printf("strange 2007 not included retval=%d,parentId=%d,parent=%p\n, ",retval,node->references[i]->targetId.nodeId.identifier.numeric,(void*)parent);
+				}
+				Namespace_Entry_Lock_release(lock);
+				return UA_FALSE;
+			}
+			Namespace_Entry_Lock_release(lock);
+		}
+	}
+	return UA_TRUE;
+}
 
 /** @brief some macros to lowercase the first character without copying around */
 #define F_cls "%c%.*s"
 #define LC_cls(str) tolower((str).data[0]), (str).length-1, &((str).data[1])
 
-/** @brief check if node is root node by scanning it's references for hasProperty
- */
-_Bool UA_Node_isRootNode(const UA_Node* node) {
-	UA_Int32 i;
-	for (i = 0; i < node->referencesSize; i++ ) {
-		UA_Int32 refId = UA_NodeId_getIdentifier(&(node->references[i]->referenceTypeId));
-		UA_Int32 isInverse = node->references[i]->isInverse;
-		if (isInverse && (refId == 47 || refId == 46)) // HasComponent, HasProperty
-			return UA_FALSE;
-	}
-	return UA_TRUE;
-}
 
 /** @brief declares all the top level objects in the server's application memory
  * FIXME: shall add only top level objects, i.e. those that have no parents
  */
 void sam_declareAttribute(UA_Node const * node) {
-	if ((node->nodeClass == UA_NODECLASS_VARIABLE || node->nodeClass == UA_NODECLASS_OBJECT) && UA_Node_isRootNode(node)) {
+	if (node->nodeClass == UA_NODECLASS_VARIABLE && UA_VariableNode_isRoot((UA_VariableNode*)node)) {
 		UA_VariableNode* vn = (UA_VariableNode*) node;
 		printf("\t%s " F_cls "; // i=%d\n", UA_[UA_ns0ToVTableIndex(vn->dataType.identifier.numeric)].name, LC_cls(node->browseName.name), node->nodeId.identifier.numeric);
 	}
@@ -84,26 +98,6 @@ void sam_attachToNamespace(UA_Node const * node) {
 		printf("\tsam_attach(ns,%d,%s,&sam." F_cls ");\n",node->nodeId.identifier.numeric,UA_[UA_ns0ToVTableIndex(vn->dataType.identifier.numeric)].name, LC_cls(vn->browseName.name));
 	}
 }
-
-typedef struct pattern {
-		char* s;
-		Namespace_nodeVisitor v;
-} pattern;
-
-pattern p[] = {
-{ "/** server application memory - generated but manually adapted */\n",UA_NULL },
-{ "#define SAM_ASSIGN_CSTRING(src,dst) do { dst.length = strlen(src)-1; dst.data = (UA_Byte*) src; } while(0)\n",UA_NULL },
-{ "struct sam {\n", UA_NULL },
-{ UA_NULL, sam_declareAttribute },
-{ "} sam;\n", UA_NULL },
-{ UA_NULL, sam_declareBuffer },
-{ "void sam_init(Namespace* ns) {", UA_NULL },
-{ UA_NULL, sam_assignBuffer },
-{ UA_NULL, sam_attachToNamespace },
-{ "}\n", UA_NULL },
-{UA_NULL, UA_NULL}
-};
-
 
 UA_Int32 Namespace_getNumberOfComponents(Namespace const * ns, UA_NodeId const * id, UA_Int32* number) {
 	UA_Int32 retval = UA_SUCCESS;
@@ -177,42 +171,45 @@ UA_Int32 UAX_NodeId_encodeBinary(Namespace const * ns, UA_NodeId const * id, UA_
 	return retval;
 }
 
+
+/** @ brief poor man's text template processor
+ * for p in patterns: print p.s, iterate over namespace with p.v */
+typedef struct pattern {
+		char* s;
+		Namespace_nodeVisitor v;
+} pattern;
+
+pattern p[] = {
+{ "/** server application memory - generated but manually adapted */\n",UA_NULL },
+{ "#define SAM_ASSIGN_CSTRING(src,dst) do { dst.length = strlen(src)-1; dst.data = (UA_Byte*) src; } while(0)\n",UA_NULL },
+{ "struct sam {\n", sam_declareAttribute },
+{ "} sam;\n", UA_NULL },
+{ UA_NULL, sam_declareBuffer },
+{ "void sam_init(Namespace* ns) {\n", sam_assignBuffer },
+{ UA_NULL, sam_attachToNamespace },
+{ "}\n", UA_NULL },
+{UA_NULL, UA_NULL} // terminal node : both elements UA_NULL
+};
+
 int main(int argc, char** argv) {
 	if (argc != 2) {
 		printf("usage: %s filename\n",argv[0]);
 	} else {
-		int f = open(argv[1], O_RDONLY);
-		if (f==-1) {
-			perror("file not found");
-			exit(-1);
-		}
-
-		char buf[1024];
-		int len; /* len is the number of bytes in the current bufferful of data */
-		XML_Stack s;
-		XML_Stack_init(&s, "ROOT");
-		UA_NodeSet n;
-		UA_NodeSet_init(&n, 0);
-		XML_Stack_addChildHandler(&s, "UANodeSet", strlen("UANodeSet"), (XML_decoder) UA_NodeSet_decodeXML, UA_INVALIDTYPE, &n);
-
-		XML_Parser parser = XML_ParserCreate(NULL);
-		XML_SetUserData(parser, &s);
-		XML_SetElementHandler(parser, XML_Stack_startElement, XML_Stack_endElement);
-		XML_SetCharacterDataHandler(parser, XML_Stack_handleText);
-		while ((len = read(f, buf, 1024)) > 0) {
-			if (!XML_Parse(parser, buf, len, (len < 1024))) {
-				return 1;
+		Namespace* ns;
+		if (Namespace_loadFromFile(&ns,0,"ROOT",argv[1]) != UA_SUCCESS) {
+			printf("error loading file {%s}\n", argv[1]);
+		} else {
+			theNamespace = ns;
+			for (pattern* pi = &p[0]; pi->s != UA_NULL || pi->v != UA_NULL; ++pi) {
+				if (pi->s) {
+					printf("%s",pi->s);
+				}
+				if (pi->v) {
+					Namespace_iterate(ns, pi->v);
+				}
 			}
-		}
-		XML_ParserFree(parser);
-		close(f);
-
-		for (pattern* pi = &p[0]; pi->s != UA_NULL || pi->v != UA_NULL; ++pi) {
-			if (pi->v) {
-				Namespace_iterate(n.ns, pi->v);
-			} else {
-				printf("%s\n",pi->s);
-			}
+			// FIXME: crashes with a seg fault
+			// Namespace_delete(ns);
 		}
 	}
 	return 0;
