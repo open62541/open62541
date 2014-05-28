@@ -802,6 +802,17 @@ UA_Int32 UA_NodeId_decodeBinary(UA_ByteString const * src, UA_Int32* pos, UA_Nod
 	}
 	return retval;
 }
+UA_Int16 UA_NodeId_getNamespace(UA_NodeId const * id) {
+	return id->namespace;
+}
+// FIXME: to simple
+UA_Int16 UA_NodeId_getIdentifier(UA_NodeId const * id) {
+	return id->identifier.numeric;
+}
+
+_Bool UA_NodeId_isBasicType(UA_NodeId const * id) {
+	return (UA_NodeId_getNamespace(id) == 0) && (UA_NodeId_getIdentifier(id) <= UA_DIAGNOSTICINFO_NS0);
+}
 
 UA_TYPE_METHOD_DELETE_STRUCT(UA_NodeId)
 UA_Int32 UA_NodeId_deleteMembers(UA_NodeId* p) {

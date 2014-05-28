@@ -99,18 +99,6 @@ void sam_init(Namespace* ns) {
 	sam_attach(ns,2993,UA_LOCALIZEDTEXT,&sam.serverStatus.shutdownReason);
 }
 
-UA_Int16 UA_NodeId_getNamespace(UA_NodeId const * id) {
-	return id->namespace;
-}
-// FIXME: to simple
-UA_Int16 UA_NodeId_getIdentifier(UA_NodeId const * id) {
-	return id->identifier.numeric;
-}
-
-_Bool UA_NodeId_isBasicType(UA_NodeId const * id) {
-	return (UA_NodeId_getNamespace(id) == 0) && (UA_NodeId_getIdentifier(id) <= UA_DIAGNOSTICINFO_NS0);
-}
-
 UA_Int32 Namespace_getNumberOfComponents(Namespace const * ns, UA_NodeId const * id, UA_Int32* number) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Node const * node;

@@ -415,6 +415,7 @@ UA_Int32 UA_ReferenceNode_decodeXML(XML_Stack* s, XML_Attr* attr, UA_ReferenceNo
 				UA_NodeId_copycstring(attr[i + 1], &(dst->referenceTypeId), s->aliases);
 			} else if (0 == strncmp("IsForward", attr[i], strlen("IsForward"))) {
 				UA_Boolean_copycstring(attr[i + 1], &(dst->isInverse));
+				dst->isInverse = !dst->isInverse;
 			} else if (0 == strncmp("Target", attr[i], strlen("Target"))) {
 				UA_ExpandedNodeId_copycstring(attr[i + 1], &(dst->targetId), s->aliases);
 			} else {
@@ -698,7 +699,7 @@ UA_Int32 UA_VariableNode_decodeXML(XML_Stack* s, XML_Attr* attr, UA_VariableNode
 			} else if (0 == strncmp("ValueRank", attr[i], strlen("ValueRank"))) {
 				dst->valueRank = atoi(attr[i + 1]);
 			} else if (0 == strncmp("ParentNodeId", attr[i], strlen("ParentNodeId"))) {
-				// FIXME: I do not know what to do with this parameter
+				// FIXME: this seems to be redundant to the hasProperty-reference
 			} else if (0 == strncmp("BrowseName", attr[i], strlen("BrowseName"))) {
 				UA_String_copycstring(attr[i + 1], &(dst->browseName.name));
 				dst->browseName.namespaceIndex = 0;
@@ -869,7 +870,9 @@ UA_Int32 UA_NodeSet_decodeXML(XML_Stack* s, XML_Attr* attr, UA_NodeSet* dst, _Bo
 		XML_Stack_addChildHandler(s, "Aliases", strlen("Aliases"), (XML_decoder) UA_NodeSetAliases_decodeXML, UA_INVALIDTYPE,
 				&(dst->aliases));
 		XML_Stack_addChildHandler(s, "UADataType", strlen("UADataType"), (XML_decoder) UA_DataTypeNode_decodeXML, UA_DATATYPENODE, UA_NULL);
+		XML_Stack_addChildHandler(s, "UAVariableType", strlen("UAVariableType"), (XML_decoder) UA_VariableTypeNode_decodeXML, UA_VARIABLETYPENODE, UA_NULL);
 		XML_Stack_addChildHandler(s, "UAVariable", strlen("UAVariable"), (XML_decoder) UA_VariableNode_decodeXML, UA_VARIABLENODE, UA_NULL);
+		XML_Stack_addChildHandler(s, "UAObjectType", strlen("UAObjectType"), (XML_decoder) UA_ObjectTypeNode_decodeXML, UA_OBJECTTYPENODE, UA_NULL);
 		XML_Stack_addChildHandler(s, "UAObject", strlen("UAObject"), (XML_decoder) UA_ObjectNode_decodeXML, UA_OBJECTNODE, UA_NULL);
 	} else {
 		if (s->parent[s->depth - 1].activeChild == 0 && attr != UA_NULL) {
@@ -877,7 +880,7 @@ UA_Int32 UA_NodeSet_decodeXML(XML_Stack* s, XML_Attr* attr, UA_NodeSet* dst, _Bo
 			DBG(printf("UA_NodeSet_decodeXML - finished aliases: aliases=%p, size=%d\n",(void*)aliases,(aliases==UA_NULL)?-1:aliases->size));
 			s->aliases = aliases;
 			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL;
-		} else if (s->parent[s->depth - 1].activeChild >= 1 &&  s->parent[s->depth - 1].activeChild <= 3 && attr != UA_NULL) {
+		} else if (attr != UA_NULL && (s->parent[s->depth - 1].activeChild == 3 ||  s->parent[s->depth - 1].activeChild == 5)) {
 			UA_Node* node = (UA_Node*) attr;
 			DBG(printf("UA_NodeSet_decodeXML - finished node: node=%p\n", (void* )node));
 			Namespace_insert(dst->ns, node);

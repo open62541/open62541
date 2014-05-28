@@ -307,6 +307,10 @@ UA_TYPE_METHOD_PROTOTYPES (UA_NodeId)
 UA_Int32 UA_NodeId_compare(const UA_NodeId *n1, const UA_NodeId *n2);
 void UA_NodeId_printf(char* label, const UA_NodeId* node);
 UA_Boolean UA_NodeId_isNull(const UA_NodeId* p);
+UA_Int16 UA_NodeId_getNamespace(UA_NodeId const * id);
+UA_Int16 UA_NodeId_getIdentifier(UA_NodeId const * id);
+_Bool UA_NodeId_isBasicType(UA_NodeId const * id);
+
 
 /* XmlElement - Part: 6, Chapter: 5.2.2.8, Page: 17 */
 typedef struct UA_XmlElement {

@@ -13,11 +13,24 @@
 #define F_cls "%c%.*s"
 #define LC_cls(str) tolower((str).data[0]), (str).length-1, &((str).data[1])
 
+/** @brief check if node is root node by scanning it's references for hasProperty
+ */
+_Bool UA_Node_isRootNode(const UA_Node* node) {
+	UA_Int32 i;
+	for (i = 0; i < node->referencesSize; i++ ) {
+		UA_Int32 refId = UA_NodeId_getIdentifier(&(node->references[i]->referenceTypeId));
+		UA_Int32 isInverse = node->references[i]->isInverse;
+		if (isInverse && (refId == 47 || refId == 46)) // HasComponent, HasProperty
+			return UA_FALSE;
+	}
+	return UA_TRUE;
+}
+
 /** @brief declares all the top level objects in the server's application memory
  * FIXME: shall add only top level objects, i.e. those that have no parents
  */
 void sam_declareAttribute(UA_Node const * node) {
-	if (node != UA_NULL && node->nodeClass == UA_NODECLASS_VARIABLE) {
+	if ((node->nodeClass == UA_NODECLASS_VARIABLE || node->nodeClass == UA_NODECLASS_OBJECT) && UA_Node_isRootNode(node)) {
 		UA_VariableNode* vn = (UA_VariableNode*) node;
 		printf("\t%s " F_cls "; // i=%d\n", UA_[UA_ns0ToVTableIndex(vn->dataType.identifier.numeric)].name, LC_cls(node->browseName.name), node->nodeId.identifier.numeric);
 	}
@@ -91,18 +104,6 @@ pattern p[] = {
 {UA_NULL, UA_NULL}
 };
 
-
-UA_Int16 UA_NodeId_getNamespace(UA_NodeId const * id) {
-	return id->namespace;
-}
-// FIXME: to simple
-UA_Int16 UA_NodeId_getIdentifier(UA_NodeId const * id) {
-	return id->identifier.numeric;
-}
-
-_Bool UA_NodeId_isBasicType(UA_NodeId const * id) {
-	return (UA_NodeId_getNamespace(id) == 0) && (UA_NodeId_getIdentifier(id) <= UA_DIAGNOSTICINFO_NS0);
-}
 
 UA_Int32 Namespace_getNumberOfComponents(Namespace const * ns, UA_NodeId const * id, UA_Int32* number) {
 	UA_Int32 retval = UA_SUCCESS;
