@@ -394,6 +394,7 @@ typedef struct XML_Parent {
 typedef struct XML_Stack {
 	int depth;
 	XML_Parent parent[XML_STACK_MAX_DEPTH];
+	UA_Int32 nsid;
 	UA_NodeSetAliases* aliases; // shall point to the aliases of the NodeSet after reading
 } XML_Stack;
 

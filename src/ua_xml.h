@@ -61,7 +61,7 @@ UA_Int32 UA_NodeSet_decodeXML(XML_Stack* s, XML_Attr* attr, UA_NodeSet* dst, _Bo
 
 UA_Int32 UA_ExpandedNodeId_copycstring(cstring src, UA_ExpandedNodeId* dst, UA_NodeSetAliases* aliases);
 
-void XML_Stack_init(XML_Stack* p, cstring name);
+void XML_Stack_init(XML_Stack* p, UA_UInt32 nsid, cstring name);
 void XML_Stack_print(XML_Stack* s);
 
 /** @brief add a reference to a handler (@see XML_Stack_addChildHandler) for text data

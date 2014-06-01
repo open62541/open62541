@@ -11,47 +11,118 @@
 /** @brief we need a variable global to the module to make it possible for the visitors to access the namespace */
 static Namespace* theNamespace;
 
-/** @brief check if VariableNode is root by searching for parent and checking if this is not a VariableNode */
-_Bool UA_VariableNode_isRoot(const UA_VariableNode* node) {
-	UA_Int32 i;
-	for (i = 0; i < node->referencesSize; i++ ) {
+UA_Int32 UA_Node_getParent(const UA_Node* node, const UA_Node** parent) {
+	UA_Int32 i = 0;
+	DBG_VERBOSE(printf("// UA_Node_getParent - node={i=%d}",UA_NodeId_getIdentifier(&(node->nodeId))));
+	for (; i < node->referencesSize; i++ ) {
 		UA_Int32 refId = UA_NodeId_getIdentifier(&(node->references[i]->referenceTypeId));
 		UA_Int32 isInverse = node->references[i]->isInverse;
 		if (isInverse && (refId == 47 || refId == 46)) {
-			Namespace_Entry_Lock* lock;
-			const UA_Node* parent;
+			Namespace_Entry_Lock* lock = UA_NULL;
 			UA_Int32 retval;
-			retval = Namespace_get(theNamespace, &(node->references[i]->targetId.nodeId),&parent,&lock);
-			if (retval != UA_SUCCESS || parent == UA_NULL || parent->nodeClass == UA_NODECLASS_VARIABLE) {
-				if (node->nodeId.identifier.numeric == 2007) {
-					printf("strange 2007 not included retval=%d,parentId=%d,parent=%p\n, ",retval,node->references[i]->targetId.nodeId.identifier.numeric,(void*)parent);
-				}
-				Namespace_Entry_Lock_release(lock);
-				return UA_FALSE;
-			}
+			retval = Namespace_get(theNamespace, &(node->references[i]->targetId.nodeId),parent,&lock);
 			Namespace_Entry_Lock_release(lock);
+			if (retval == UA_SUCCESS) {
+				DBG_VERBOSE(printf(" has parent={i=%d}\n",UA_NodeId_getIdentifier(&((*parent)->nodeId))));
+			} else {
+				DBG_VERBOSE(printf(" has non-existing parent={i=%d}\n",UA_NodeId_getIdentifier(&(node->references[i]->targetId.nodeId))));
+			}
+			return retval;
 		}
 	}
-	return UA_TRUE;
+	// there is no parent, we are root
+	DBG_VERBOSE(printf(" is root\n"));
+	*parent = UA_NULL;
+	return UA_SUCCESS;
 }
+
+/** @brief recurse down to root and return root node */
+UA_Int32 UA_Node_getRoot(const UA_Node* node, const UA_Node** root) {
+	UA_Int32 retval = UA_SUCCESS;
+	const UA_Node* parent = UA_NULL;
+	if ( (retval = UA_Node_getParent(node,&parent)) == UA_SUCCESS ) {
+		if (parent != UA_NULL) {	// recurse down to root node
+			retval = UA_Node_getRoot(parent,root);
+		} else {					// node is root, terminate recursion
+			*root = node;
+		}
+	}
+	return retval;
+}
+
+/** @brief check if VariableNode needs a memory object. This is the
+ * case if the parent is of type object and the root is type object
+ **/
+_Bool UA_VariableNode_needsObject(const UA_VariableNode* node) {
+	const UA_Node* parent = UA_NULL;
+	if ( UA_Node_getParent((UA_Node*)node,&parent) == UA_SUCCESS ) {
+		if (parent == UA_NULL)
+			return UA_TRUE;
+		if (parent->nodeClass == UA_NODECLASS_OBJECT ) {
+			const UA_Node* root;
+			if (UA_Node_getRoot(parent,&root) == UA_SUCCESS)
+				if (root == UA_NULL || root->nodeClass == UA_NODECLASS_OBJECT )
+					return UA_TRUE;
+		}
+	}
+	return UA_FALSE;
+}
+
+/** @brief recurse down to root and get full qualified name */
+UA_Int32 UA_Node_getPath(const UA_Node* node, UA_list_List* list) {
+	UA_Int32 retval = UA_SUCCESS;
+	const UA_Node* parent = UA_NULL;
+	if ( (retval = UA_Node_getParent(node,&parent)) == UA_SUCCESS ) {
+		if (parent != UA_NULL) {
+			// recurse down to root node
+			UA_Int32 retval = UA_Node_getPath(parent,list);
+			// and add our own name when we come back
+			if (retval == UA_SUCCESS) {
+				UA_list_addPayloadToBack(list,(void*)&(node->browseName.name));
+				printf("// UA_Node_getPath - add id={i=%d},class=%d",UA_NodeId_getIdentifier(&(node->nodeId)),node->nodeClass);
+				UA_String_printf(",name=",&(node->browseName.name));
+			}
+		} else {
+			// node is root, terminate recursion by adding own name
+			UA_list_addPayloadToBack(list,(void*)&node->browseName.name);
+			printf("// UA_Node_getPath - add id={i=%d},class=%d",UA_NodeId_getIdentifier(&(node->nodeId)),node->nodeClass);
+			UA_String_printf(",name=",&(node->browseName.name));
+		}
+	}
+	return retval;
+}
+
 
 /** @brief some macros to lowercase the first character without copying around */
 #define F_cls "%c%.*s"
 #define LC_cls(str) tolower((str).data[0]), (str).length-1, &((str).data[1])
 
+void listPrintName(void * payload) {
+	UA_ByteString* name = (UA_ByteString*) payload;
+	if (name->length > 0) {
+		printf("_" F_cls, LC_cls(*name));
+	}
+}
 
-/** @brief declares all the top level objects in the server's application memory
- * FIXME: shall add only top level objects, i.e. those that have no parents
- */
+/** @brief declares all the top level objects in the server's application memory */
 void sam_declareAttribute(UA_Node const * node) {
-	if (node->nodeClass == UA_NODECLASS_VARIABLE && UA_VariableNode_isRoot((UA_VariableNode*)node)) {
-		UA_VariableNode* vn = (UA_VariableNode*) node;
-		printf("\t%s " F_cls "; // i=%d\n", UA_[UA_ns0ToVTableIndex(vn->dataType.identifier.numeric)].name, LC_cls(node->browseName.name), node->nodeId.identifier.numeric);
+	if (node->nodeClass == UA_NODECLASS_VARIABLE && UA_VariableNode_needsObject((UA_VariableNode*)node)) {
+		UA_list_List list; UA_list_init(&list);
+		UA_Int32 retval = UA_Node_getPath(node,&list);
+		if (retval == UA_SUCCESS) {
+			UA_VariableNode* vn = (UA_VariableNode*) node;
+			printf("\t%s ", UA_[UA_ns0ToVTableIndex(vn->dataType.identifier.numeric)].name);
+			UA_list_iteratePayload(&list,listPrintName);
+			printf("; // i=%d\n", node->nodeId.identifier.numeric);
+		} else {
+			printf("// could not determine path for i=%d\n",node->nodeId.identifier.numeric);
+		}
+		UA_list_destroy(&list,UA_NULL);
 	}
 }
 
 /** @brief declares all the buffers for string variables
- * FIXME: traverse down to top level objects and create a unique name such as cstr_serverState_buildInfo_version
+ * FIXME: shall traverse down to the root object and create a unique name such as cstr_serverState_buildInfo_version
  */
 void sam_declareBuffer(UA_Node const * node) {
 	if (node != UA_NULL && node->nodeClass == UA_NODECLASS_VARIABLE) {

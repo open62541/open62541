@@ -19,13 +19,10 @@ exclude_types = set(["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UI
 					 "Variant", "DiagnosticInfo", "IntegerId"])
 
 # do not forget to get rid of these excludes once it works
-exclude_xml_decode = set(["UA_ReferenceNode", "UA_ObjectNode", "UA_VariableNode", "UA_DataTypeNode"])
+exclude_xml_decode = set(["UA_ReferenceNode", "UA_ObjectNode", "UA_ObjectTypeNode", "UA_VariableNode", "UA_VariableTypeNode", "UA_DataTypeNode"])
 
 elementary_size = {"Boolean":1, "SByte":1, "Byte":1, "Int16":2, "UInt16":2, "Int32":4, "UInt32":4,
                    "Int64":8, "UInt64":8, "Float":4, "Double":8, "DateTime":8, "StatusCode":4}
-
-# do not forget to get rid of these excludes once it works
-exclude_xml_decode = set(["UA_ReferenceNode", "UA_ObjectNode", "UA_VariableNode", "UA_DataTypeNode"])
 
 enum_types = []
 structured_types = []
