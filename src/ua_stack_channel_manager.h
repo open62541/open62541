@@ -17,7 +17,7 @@ typedef struct SL_ChannelManager *SL_secureChannelManager;
 
 
 UA_Int32 SL_ChannelManager_init(UA_UInt32 maxChannelCount,UA_UInt32 tokenLifetime, UA_UInt32 startChannelId, UA_UInt32 startTokenId, UA_String *endpointUrl);
-UA_Int32 SL_ChannelManager_addChannel(SL_secureChannel channel);
+UA_Int32 SL_ChannelManager_addChannel(SL_secureChannel *channel);
 //UA_Int32 SL_ChannelManager_renewChannelToken(UA_Int32 channelId, UA_DateTime requestedLifeTime);
 //UA_Int32 SL_ChannelManager_createChannelToken(SL_secureChannel channel);
 //UA_Int32 SL_ChannelManager_renewChannelToken(SL_secureChannel channel);

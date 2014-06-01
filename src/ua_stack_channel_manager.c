@@ -35,7 +35,7 @@ UA_Int32 SL_ChannelManager_newChannelByRequest(UA_Int32 connectionId, const UA_B
 UA_Int32 SL_ChannelManager_init(UA_UInt32 maxChannelCount,UA_UInt32 tokenLifetime, UA_UInt32 startChannelId, UA_UInt32 startTokenId, UA_String *endpointUrl)
 {
 	UA_alloc((void**)&channelManager,sizeof(SL_ChannelManager));
-	UA_indexedList_init(&(channelManager->channels));
+	UA_list_init(&(channelManager->channels));
 	channelManager->lastChannelId = startChannelId;
 	channelManager->lastTokenId = startTokenId;
 	UA_String_copy(endpointUrl,&channelManager->endpointUrl);
@@ -45,16 +45,23 @@ UA_Int32 SL_ChannelManager_init(UA_UInt32 maxChannelCount,UA_UInt32 tokenLifetim
 	return UA_SUCCESS;
 }
 
-UA_Int32 SL_ChannelManager_addChannel(SL_secureChannel channel)
+UA_Int32 SL_ChannelManager_addChannel(SL_secureChannel *channel)
 {
-	if (channelManager->maxChannelCount < channelManager->currentChannelCount)
+	if (channelManager->maxChannelCount > channelManager->currentChannelCount)
 	{
 //TODO lock access (mulitthreading)------------
-		UA_list_addPayloadToBack(&channelManager->channels,(void*)channel);
+		UA_list_Element *element;
+		UA_alloc((void**)&element, sizeof(UA_list_Element));
+		UA_list_initElement(element);
+		element->payload =(void*) channel;
+
+		UA_list_addElementToBack(&channelManager->channels,element);
+		return UA_SUCCESS;
 		//set id in channel object which was added
 //TODO lock access------------
 	}
-	return UA_SUCCESS;
+	return UA_ERROR;
+
 }
 
 UA_Int32 generateNewTokenId()
@@ -132,7 +139,7 @@ UA_Int32 SL_ChannelManager_updateChannels()
 			//remove channels with expired lifetime, close linked list
 			if (channel)
 			{
-
+				UA_list_addPayloadToBack(&channelManager->channels,(void*)channel);
 				SL_Channel_getRemainingLifetime(*channel,&channelLifetime);
 				if(channelLifetime <= 0)
 				{
@@ -177,25 +184,27 @@ UA_Int32 SL_ChannelManager_getChannelLifeTime(UA_DateTime *lifeTime)
 	return UA_SUCCESS;
 }
 
-UA_Int32 SL_ChannelManager_getChannelsByConnectionId(UA_Int32 connectionId,
+/*UA_Int32 SL_ChannelManager_getChannelsByConnectionId(UA_Int32 connectionId,
 		SL_secureChannel **channels, UA_Int32 *noOfChannels)
 {
-	return UA_SUCCESS;
+	return UA_SUCCESS;UA_list_Element
 }
-
+*/
 UA_Int32 SL_ChannelManager_getChannel(UA_UInt32 channelId, SL_secureChannel *channel)
 {
-	UA_list_Element* current = channelManager->channels.first;
+	UA_UInt32 tmpChannelId;
+ 	UA_list_Element* current = channelManager->channels.first;
 	while (current)
 	{
 		if (current->payload)
 		{
-			UA_indexedList_Element* elem =
-					(UA_indexedList_Element*) current->payload;
-			*channel = (SL_secureChannel) elem->payload;
-
-			return UA_SUCCESS;
-
+			UA_list_Element* elem = (UA_list_Element*) current;
+			*channel = *((SL_secureChannel*) (elem->payload));
+			SL_Channel_getChannelId(*channel, &tmpChannelId);
+		 	if(tmpChannelId == channelId)
+		 	{
+		 		return UA_SUCCESS;
+		 	}
 		}
 	}
 	*channel = UA_NULL;

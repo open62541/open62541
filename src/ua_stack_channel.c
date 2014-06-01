@@ -195,7 +195,9 @@ UA_Int32 SL_Channel_new(SL_secureChannel *channel,
 
 {
 	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_alloc((void**)&channel,sizeof(SL_secureChannel));
 	retval |= UA_alloc((void**)channel,sizeof(SL_Channel1));
+
 	SL_Channel1 *thisChannel = (SL_Channel1*)(*channel);
 
 	thisChannel->channelIdProvider = channelIdProvider;
@@ -254,6 +256,9 @@ UA_Int32 SL_Channel_initByRequest(SL_secureChannel channel,
 
 	channel->lastRequestId = sequenceHeader->requestId;
 	channel->lastSequenceNumber = sequenceHeader->sequenceNumber;
+
+	channel->requestId = channel->lastRequestId;
+	channel->sequenceNumber = channel->lastSequenceNumber;
 
 	channel->state = UA_SL_CHANNEL_CLOSED;
 
@@ -360,7 +365,6 @@ UA_Int32 SL_Channel_processOpenRequest(SL_secureChannel channel,
 			break;
 		}
 	}
-
 	switch (request->securityMode)
 	{
 	case UA_SECURITYMODE_INVALID:
@@ -396,10 +400,8 @@ UA_Int32 SL_Channel_processOpenRequest(SL_secureChannel channel,
 	}
 
 	response->serverProtocolVersion = protocolVersion;
-	SL_Channel_getChannelId(channel,&response->securityToken.channelId);
 
-	SL_Channel_getTokenId(channel, &response->securityToken.tokenId);
-	SL_Channel_getRevisedLifetime(channel, &response->securityToken.revisedLifetime);
+	UA_ChannelSecurityToken_copy(&((SL_Channel1*)(channel))->securityToken, &(response->securityToken));
 
 	UA_ByteString_copy(&thisChannel->localNonce, &response->serverNonce);
 

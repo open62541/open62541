@@ -119,7 +119,9 @@ static UA_Int32 TL_handleHello(TL_Connection* connection, const UA_ByteString* m
 static UA_Int32 TL_handleOpen(UA_TL_Connection1 connection, const UA_ByteString* msg, UA_Int32* pos) {
 	UA_Int32 state;
 	UA_TL_Connection_getState(connection,&state);
-	SL_secureChannel channel = UA_NULL;
+	SL_secureChannel *channel = UA_NULL;
+
+
 
 	UA_ByteString receiverCertificateThumbprint;
 	UA_ByteString securityPolicyUri;
@@ -127,7 +129,7 @@ static UA_Int32 TL_handleOpen(UA_TL_Connection1 connection, const UA_ByteString*
 
 	if (state == CONNECTIONSTATE_ESTABLISHED) {
 
-
+//TODO get this from initialization
 		UA_alloc((void**)&receiverCertificateThumbprint.data, -1);
 		UA_alloc((void**)&securityPolicyUri.data, 47);
 		UA_alloc((void**)&senderCertificate.data, 0);
@@ -141,7 +143,7 @@ static UA_Int32 TL_handleOpen(UA_TL_Connection1 connection, const UA_ByteString*
 		senderCertificate.data = UA_NULL;
 		senderCertificate.length = 0;
 
-		SL_Channel_new(&channel,
+		SL_Channel_new(channel,
 				SL_ChannelManager_generateChannelId,
 				SL_ChannelManager_generateToken,
 				&receiverCertificateThumbprint,
@@ -152,9 +154,9 @@ static UA_Int32 TL_handleOpen(UA_TL_Connection1 connection, const UA_ByteString*
 
 	//return SL_Channel_new(connection, msg, pos);
 	//UA_TL_Connection_getId(connection,connectionId);
-		if(SL_Channel_initByRequest(channel,connection, msg, pos) == UA_SUCCESS)
+		if(SL_Channel_initByRequest(*channel,connection, msg, pos) == UA_SUCCESS)
 		{
-			SL_ProcessOpenChannel(channel, msg, pos);
+			SL_ProcessOpenChannel(*channel, msg, pos);
 			SL_ChannelManager_addChannel(channel);
 		}else
 		{

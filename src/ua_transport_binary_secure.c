@@ -38,6 +38,7 @@ static UA_Int32 SL_Send(SL_secureChannel channel,
 	if (isAsym)
 	{
 
+		SL_Channel_getLocalAsymAlgSettings(channel, &asymAlgSettings);
 		UA_ByteString_newMembers((UA_ByteString *) response_gather[0],
 				SIZE_SECURECHANNEL_HEADER + SIZE_SEQHEADER_HEADER
 						+ UA_AsymmetricAlgorithmSecurityHeader_calcSize(
@@ -54,7 +55,7 @@ static UA_Int32 SL_Send(SL_secureChannel channel,
 	// sizeSignature = 0;
 	UA_ByteString *header = (UA_ByteString *) response_gather[0];
 
-	/*---encode Secure Conversation Message Header ---*/
+	/*---encode Secure Conversation Message HeaService_CreateSessionder ---*/
 	if (isAsym)
 	{
 		header->data[0] = 'O';
@@ -83,7 +84,7 @@ static UA_Int32 SL_Send(SL_secureChannel channel,
 	if (isAsym)
 	{
 
-		SL_Channel_getLocalAsymAlgSettings(channel, &asymAlgSettings);
+
 		UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(asymAlgSettings, &pos,
 				header);
 		UA_free(asymAlgSettings);
@@ -313,7 +314,7 @@ UA_Int32 SL_Process(const UA_ByteString* msg,
 	UA_SymmetricAlgorithmSecurityHeader_decodeBinary(msg, pos,
 			&symAlgSecHeader);
 
-	if (SL_ChannelManager_getChannel(secureChannelId,
+ 	if (SL_ChannelManager_getChannel(secureChannelId,
 			&channel) == UA_SUCCESS)
 	{
 
