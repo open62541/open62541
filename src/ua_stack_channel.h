@@ -26,7 +26,7 @@ typedef UA_Int32 (*SL_ChannelIdProvider)(UA_UInt32*);
 
 
 
-UA_Int32 SL_Channel_new(SL_secureChannel *channel,
+UA_Int32 SL_Channel_new(SL_secureChannel **channel,
 		SL_ChannelIdProvider channelIdProvider,
 		SL_ChannelSecurityTokenProvider tokenProvider,
 		UA_ByteString *receiverCertificateThumbprint,
@@ -63,6 +63,8 @@ UA_Int32 SL_Channel_processCloseRequest(SL_secureChannel channel,
 		const UA_CloseSecureChannelRequest* request);
 UA_Int32 SL_Channel_registerTokenProvider(SL_secureChannel channel,SL_ChannelSecurityTokenProvider provider);
 UA_Int32 SL_Channel_registerChannelIdProvider(SL_ChannelIdProvider provider);
+UA_Int32 SL_Channel_checkRequestId(SL_secureChannel channel, UA_UInt32 requestId);
+
 UA_Int32 SL_Channel_checkSequenceNumber(SL_secureChannel channel, UA_UInt32 sequenceNumber);
 _Bool SL_Channel_equal(void* channel1, void* channel2);
 //getters

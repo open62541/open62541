@@ -15,10 +15,10 @@ typedef struct SL_Channel1 {
 
 	UA_TL_Connection1 connection;
 	UA_UInt32 requestId;
-	UA_UInt32 lastRequestId;
+	//UA_UInt32 lastRequestId;
 
 	UA_UInt32 sequenceNumber;
-	UA_UInt32 lastSequenceNumber;
+	//UA_UInt32 lastSequenceNumber;
 
 	UA_AsymmetricAlgorithmSecurityHeader remoteAsymAlgSettings;
 	UA_AsymmetricAlgorithmSecurityHeader localAsymAlgSettings;
@@ -185,7 +185,7 @@ _Bool SL_Channel_equal(void* channel1, void* channel2)
 	return (((SL_Channel1*)channel1)->channelId == ((SL_Channel1*)channel2)->channelId);
 }
 
-UA_Int32 SL_Channel_new(SL_secureChannel *channel,
+UA_Int32 SL_Channel_new(SL_secureChannel **channel,
 		SL_ChannelIdProvider channelIdProvider,
 		SL_ChannelSecurityTokenProvider tokenProvider,
 		UA_ByteString *receiverCertificateThumbprint,
@@ -195,10 +195,11 @@ UA_Int32 SL_Channel_new(SL_secureChannel *channel,
 
 {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_alloc((void**)&channel,sizeof(SL_secureChannel));
-	retval |= UA_alloc((void**)channel,sizeof(SL_Channel1));
 
-	SL_Channel1 *thisChannel = (SL_Channel1*)(*channel);
+	retval |= UA_alloc((void**)channel,sizeof(SL_secureChannel));
+
+	SL_Channel1 *thisChannel = UA_NULL;
+	retval |= UA_alloc((void**)&thisChannel,sizeof(SL_Channel1));
 
 	thisChannel->channelIdProvider = channelIdProvider;
 	thisChannel->tokenProvider = tokenProvider;
@@ -216,6 +217,7 @@ UA_Int32 SL_Channel_new(SL_secureChannel *channel,
 
 	thisChannel->state = UA_SL_CHANNEL_CLOSED;
 
+	**channel = (SL_secureChannel)thisChannel;
 
 	return UA_SUCCESS;
 }
@@ -254,11 +256,11 @@ UA_Int32 SL_Channel_initByRequest(SL_secureChannel channel,
 
 	//init last requestId and sequenceNumber
 
-	channel->lastRequestId = sequenceHeader->requestId;
-	channel->lastSequenceNumber = sequenceHeader->sequenceNumber;
+	//channel->lastRequestId = sequenceHeader->requestId;
+	//channel->lastSequenceNumber = sequenceHeader->sequenceNumber;
 
-	channel->requestId = channel->lastRequestId;
-	channel->sequenceNumber = channel->lastSequenceNumber;
+	channel->requestId = sequenceHeader->requestId;//channel->lastRequestId;
+	channel->sequenceNumber = sequenceHeader->sequenceNumber;//channel->lastSequenceNumber;
 
 	channel->state = UA_SL_CHANNEL_CLOSED;
 
@@ -296,11 +298,26 @@ UA_Int32 SL_Channel_renewToken(SL_secureChannel channel, UA_UInt32 tokenId,UA_Da
 
 UA_Int32 SL_Channel_checkSequenceNumber(SL_secureChannel channel, UA_UInt32 sequenceNumber)
 {
-	if(((SL_Channel1*)channel)->sequenceNumber == sequenceNumber){
+	if(((SL_Channel1*)channel)->sequenceNumber+1 == sequenceNumber){
+		((SL_Channel1*)channel)->sequenceNumber++;
+
 		return UA_SUCCESS;
 	}
 	printf("SL_Channel_checkSequenceNumber - ERROR, wrong SequenceNumber expected: %i, received: %i",
-			((SL_Channel1*)channel)->sequenceNumber,sequenceNumber);
+			((SL_Channel1*)channel)->sequenceNumber+1,sequenceNumber);
+	return UA_ERROR;
+
+}
+
+UA_Int32 SL_Channel_checkRequestId(SL_secureChannel channel, UA_UInt32 requestId)
+{
+	if(((SL_Channel1*)channel)->requestId+1 == requestId){
+		((SL_Channel1*)channel)->requestId++;
+
+		return UA_SUCCESS;
+	}
+	printf("SL_Channel_requestId - ERROR, wrong requestId expected: %i, received: %i",
+			((SL_Channel1*)channel)->requestId+1,requestId);
 	return UA_ERROR;
 
 }

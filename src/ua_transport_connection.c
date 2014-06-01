@@ -44,7 +44,7 @@ UA_Int32 UA_TL_Connection_delete(UA_TL_Connection1 connection)
 }
 UA_Int32 UA_TL_Connection_close(UA_TL_Connection1 connection)
 {
-	((TL_Connection*)connection)->state = CONNECTIONSTATE_CLOSED;
+	((TL_Connection*)connection)->state = CONNECTIONSTATE_CLOSE;
 	return UA_SUCCESS;
 }
 UA_Int32 UA_TL_Connection_configByHello(UA_TL_Connection1 connection, UA_OPCUATcpHelloMessage *helloMessage)

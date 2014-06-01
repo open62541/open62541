@@ -119,7 +119,7 @@ static UA_Int32 TL_handleHello(TL_Connection* connection, const UA_ByteString* m
 static UA_Int32 TL_handleOpen(UA_TL_Connection1 connection, const UA_ByteString* msg, UA_Int32* pos) {
 	UA_Int32 state;
 	UA_TL_Connection_getState(connection,&state);
-	SL_secureChannel *channel = UA_NULL;
+	SL_secureChannel *channel;
 
 
 
@@ -143,7 +143,7 @@ static UA_Int32 TL_handleOpen(UA_TL_Connection1 connection, const UA_ByteString*
 		senderCertificate.data = UA_NULL;
 		senderCertificate.length = 0;
 
-		SL_Channel_new(channel,
+		SL_Channel_new(&channel,
 				SL_ChannelManager_generateChannelId,
 				SL_ChannelManager_generateToken,
 				&receiverCertificateThumbprint,
@@ -185,6 +185,9 @@ static UA_Int32 TL_handleClo(UA_TL_Connection1 connection, const UA_ByteString* 
 	retval |= SL_ChannelManager_removeChannel(header->secureChannelId);
 
 	retval |= UA_SecureConversationMessageHeader_delete(header);
+
+//TODO remove that
+	UA_TL_Connection_close(connection);
 	return retval;
 }
 

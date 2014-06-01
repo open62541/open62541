@@ -237,7 +237,6 @@ UA_Int32 SL_handleRequest(SL_secureChannel channel, const UA_ByteString* msg,
 		UA_ResponseHeader_encodeBinary(&r, pos, &response_msg);
 		responsetype = UA_RESPONSEHEADER_NS0;
 	}
-
 	SL_Send(channel, &response_msg, responsetype);
 	UA_ByteString_deleteMembers(&response_msg);
 
@@ -326,7 +325,7 @@ UA_Int32 SL_Process(const UA_ByteString* msg,
 		UA_SequenceHeader_decodeBinary(msg, pos,
 				&sequenceHeader);
 		SL_Channel_checkSequenceNumber(channel,sequenceHeader.sequenceNumber);
-
+		SL_Channel_checkRequestId(channel,sequenceHeader.requestId);
 		//request id processing
 
 

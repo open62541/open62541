@@ -120,7 +120,7 @@ void server_run() {
 				TL_Process(connection, &slMessage);
 			} else if (n <= 0) {
 				perror("ERROR reading from socket1");
-				exit(1);
+		//		exit(1);
 			}
 			UA_TL_Connection_getState(connection, &connectionState);
 		} while(connectionState != CONNECTIONSTATE_CLOSE);
