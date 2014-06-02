@@ -13,7 +13,8 @@ static Namespace* theNamespace;
 
 UA_Int32 UA_Node_getParent(const UA_Node* node, const UA_Node** parent) {
 	UA_Int32 i = 0;
-	DBG_VERBOSE(printf("// UA_Node_getParent - node={i=%d}",UA_NodeId_getIdentifier(&(node->nodeId))));
+	DBG(printf("// UA_Node_getParent - node={i=%d}",UA_NodeId_getIdentifier(&(node->nodeId))));
+	// FIXME: the data model is crap! we should have a single memory location which holds the parent NodeId
 	for (; i < node->referencesSize; i++ ) {
 		UA_Int32 refId = UA_NodeId_getIdentifier(&(node->references[i]->referenceTypeId));
 		UA_Int32 isInverse = node->references[i]->isInverse;
@@ -23,15 +24,15 @@ UA_Int32 UA_Node_getParent(const UA_Node* node, const UA_Node** parent) {
 			retval = Namespace_get(theNamespace, &(node->references[i]->targetId.nodeId),parent,&lock);
 			Namespace_Entry_Lock_release(lock);
 			if (retval == UA_SUCCESS) {
-				DBG_VERBOSE(printf(" has parent={i=%d}\n",UA_NodeId_getIdentifier(&((*parent)->nodeId))));
+				DBG(printf(" has parent={i=%d}\n",UA_NodeId_getIdentifier(&((*parent)->nodeId))));
 			} else {
-				DBG_VERBOSE(printf(" has non-existing parent={i=%d}\n",UA_NodeId_getIdentifier(&(node->references[i]->targetId.nodeId))));
+				DBG(printf(" has non-existing parent={i=%d}\n",UA_NodeId_getIdentifier(&(node->references[i]->targetId.nodeId))));
 			}
 			return retval;
 		}
 	}
 	// there is no parent, we are root
-	DBG_VERBOSE(printf(" is root\n"));
+	DBG(printf(" is root\n"));
 	*parent = UA_NULL;
 	return UA_SUCCESS;
 }
@@ -79,14 +80,14 @@ UA_Int32 UA_Node_getPath(const UA_Node* node, UA_list_List* list) {
 			// and add our own name when we come back
 			if (retval == UA_SUCCESS) {
 				UA_list_addPayloadToBack(list,(void*)&(node->browseName.name));
-				printf("// UA_Node_getPath - add id={i=%d},class=%d",UA_NodeId_getIdentifier(&(node->nodeId)),node->nodeClass);
-				UA_String_printf(",name=",&(node->browseName.name));
+				DBG(printf("// UA_Node_getPath - add id={i=%d},class=%d",UA_NodeId_getIdentifier(&(node->nodeId)),node->nodeClass));
+				DBG(UA_String_printf(",name=",&(node->browseName.name)));
 			}
 		} else {
 			// node is root, terminate recursion by adding own name
 			UA_list_addPayloadToBack(list,(void*)&node->browseName.name);
-			printf("// UA_Node_getPath - add id={i=%d},class=%d",UA_NodeId_getIdentifier(&(node->nodeId)),node->nodeClass);
-			UA_String_printf(",name=",&(node->browseName.name));
+			DBG(printf("// UA_Node_getPath - add id={i=%d},class=%d",UA_NodeId_getIdentifier(&(node->nodeId)),node->nodeClass));
+			DBG(UA_String_printf(",name=",&(node->browseName.name)));
 		}
 	}
 	return retval;

@@ -377,7 +377,7 @@ UA_Int32 UA_QualifiedName_decodeXML(XML_Stack* s, XML_Attr* attr, UA_QualifiedNa
 		}
 		s->parent[s->depth].len = 0;
 		XML_Stack_addChildHandler(s, "Name", strlen("Name"), (XML_decoder) UA_String_decodeXML, UA_STRING, &(dst->name));
-		XML_Stack_addChildHandler(s, "NamespaceIndex", strlen("NamespaceIndex"), (XML_decoder) UA_Int16_decodeXML, UA_STRING,
+		XML_Stack_addChildHandler(s, "NamespaceIndex", strlen("NamespaceIndex"), (XML_decoder) UA_Int16_decodeXML, UA_INT16,
 				&(dst->namespaceIndex));
 		XML_Stack_handleTextAsElementOf(s, "Data", 0);
 
@@ -405,10 +405,9 @@ UA_Int32 UA_ReferenceNode_decodeXML(XML_Stack* s, XML_Attr* attr, UA_ReferenceNo
 		}
 		// set handlers
 		s->parent[s->depth].len = 0;
-		XML_Stack_addChildHandler(s, "ReferenceType", strlen("ReferenceType"),(XML_decoder) UA_NodeId_decodeXML, UA_STRING,
-				&(dst->referenceTypeId));
-		XML_Stack_addChildHandler(s, "IsForward", strlen("IsForward"), (XML_decoder) UA_Boolean_decodeXML, UA_STRING, &(dst->isInverse));
-		XML_Stack_addChildHandler(s, "Target", strlen("Target"), (XML_decoder) UA_ExpandedNodeId_decodeXML, UA_STRING, &(dst->targetId));
+		XML_Stack_addChildHandler(s, "ReferenceType", strlen("ReferenceType"),(XML_decoder) UA_NodeId_decodeXML, UA_NODEID, &(dst->referenceTypeId));
+		XML_Stack_addChildHandler(s, "IsForward", strlen("IsForward"), (XML_decoder) UA_Boolean_decodeXML, UA_BOOLEAN, &(dst->isInverse));
+		XML_Stack_addChildHandler(s, "Target", strlen("Target"), (XML_decoder) UA_ExpandedNodeId_decodeXML, UA_EXPANDEDNODEID, &(dst->targetId));
 		XML_Stack_handleTextAsElementOf(s, "NodeId", 2);
 
 		// set attributes
