@@ -60,6 +60,18 @@ $ make all
 * Copy gtk+/share/aclocal/*.m4 files to MinGW/share/aclocal
 * Merge grk+ folder and MinGW\msys\1.0\ folder
 
+##### Get expat
+* start MinGW Installation Manager
+* choose all Packages, mark mingw32-expat and install
+
+##### Get Python and lxml:
+* download Python at https://python.org/downloads
+* install the executable
+* add the install directory (e. g. "c:\python27") to your windows path variable 
+* restart mingw console
+* install lxml by either downloading and installing http://www.lfd.uci.edu/~gohlke/pythonlibs/#lxml (choose the version which fits    to your python installation) or by following the instructions
+  given here: http://lxml.de/installation.html
+
 ##### Get git (IMPORTANT: get 1.8.4, since 1.8.5.2 has a bug):
 * http://code.google.com/p/msysgit/downloads/detail?name=Git-1.8.4-preview20130916.exe&can=2&q=
 
