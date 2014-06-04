@@ -143,6 +143,8 @@ void XML_Stack_init(XML_Stack* p, UA_UInt32 nsid, cstring name) {
 		p->parent[i].activeChild = -1;
 		p->parent[i].textAttrib = UA_NULL;
 		p->parent[i].textAttribIdx = -1;
+		p->parent[i].totalGatherLength = -1;
+		UA_list_init(&(p->parent[i].textGatherList));
 		for (j = 0; j < XML_STACK_MAX_CHILDREN; j++) {
 			p->parent[i].children[j].name = UA_NULL;
 			p->parent[i].children[j].length = -1;
@@ -947,11 +949,6 @@ UA_Int32 UA_NodeSetAlias_decodeXML(XML_Stack* s, XML_Attr* attr, UA_NodeSetAlias
 				DBG_ERR(XML_Stack_print(s));DBG_ERR(printf("%s - unknown attribute\n", attr[i]));
 			}
 		}
-	} else {
-		// sub element is ready
-// TODO: It is a design flaw that we need to do this here, isn't it?
-//		DBG_VERBOSE(printf("UA_NodeSetAlias clears %p\n", (void* ) (s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj)));
-//		s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL;
 	}
 	return UA_SUCCESS;
 }
@@ -1066,44 +1063,67 @@ UA_Int32 XML_isSpace(cstring s, int len) {
 	return UA_TRUE;
 }
 
-/* simulates startElement, endElement behaviour */
+/* gather text */
 void XML_Stack_handleText(void * data, const char *txt, int len) {
 	XML_Stack* s = (XML_Stack*) data;
 
 	if (len > 0 && !XML_isSpace(txt, len)) {
-		XML_Parent* cp = &(s->parent[s->depth]);
-		if (cp->textAttribIdx >= 0) {
-			cp->activeChild = cp->textAttribIdx;
-			char* buf; // need to copy txt to add 0 as string terminator
-			UA_alloc((void** )&buf, len + 1);
-			strncpy(buf, txt, len);
-			buf[len] = 0;
-			XML_Attr attr[3] = { cp->textAttrib, buf, UA_NULL };
-			DBG(printf("handleText @ %s calls start elementHandler %s with dst=%p, buf={%s}\n", XML_Stack_path(s),cp->children[cp->activeChild].name, cp->children[cp->activeChild].obj, buf));
-			cp->children[cp->activeChild].elementHandler(s, attr, cp->children[cp->activeChild].obj, TRUE);
-			// FIXME: The indices of this call are simply wrong
-			// DBG_VERBOSE(printf("handleText calls finish elementHandler %s with dst=%p, attr=(nil)\n", cp->children[cp->activeChild].name, cp->children[cp->activeChild].obj));
-			// cp->children[cp->activeChild].elementHandler(s, UA_NULL, cp->children[cp->activeChild].obj, FALSE);
-
-			if (s->parent[s->depth-1].activeChild > 0) {
-				// FIXME: actually we'd like to have something like the following, won't we?
-				// XML_Stack_endElement(data, cp->children[cp->activeChild].name);
-				XML_child* c = &(s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild]);
-				c->elementHandler(s, UA_NULL, c->obj, FALSE);
-			}
-			UA_free(buf);
+		XML_Parent* cp = &(s->parent[s->depth]); // determine current element
+		UA_ByteString src = { len+1, (UA_Byte*) txt };
+		UA_ByteString *dst;
+		UA_ByteString_new(&dst);	// alloc dst
+		UA_ByteString_copy(&src,dst); // alloc dst->data and copy txt
+		dst->data[len] = 0; // add terminating zero to handle single line efficiently
+		UA_list_addPayloadToBack(&(cp->textGatherList), (void*) dst);
+		if (cp->totalGatherLength == -1) {
+			cp->totalGatherLength = len;
 		} else {
-			DBG_VERBOSE(XML_Stack_print(s));
-			DBG_VERBOSE(printf("textData - ignore text data '%.*s'\n", len, txt));
+			cp->totalGatherLength += len;
 		}
 	}
 }
 
+char* theGatherBuffer;
+void textGatherListTotalLength(void* payload) {
+	UA_ByteString* b = (UA_ByteString*) payload;
+	UA_ByteString_printf("\t",b);
+	UA_memcpy(theGatherBuffer,b->data,b->length-1); // remove trailing zero
+	theGatherBuffer += (b->length-1);
+}
 /** if we are an activeChild of a parent we call the child-handler */
 void XML_Stack_endElement(void *data, const char *el) {
 	XML_Stack* s = (XML_Stack*) data;
 
-// the parent of the parent (pop) of the element knows the elementHandler, therefore depth-2!
+	XML_Parent* ce = &(s->parent[s->depth]);
+	if (ce->textAttribIdx >= 0 && ce->totalGatherLength > 0 ) {
+		ce->activeChild = ce->textAttribIdx;
+		char* buf;
+		if (UA_list_getFirst(&(ce->textGatherList)) == UA_list_getLast(&(ce->textGatherList)) ) {
+			buf = (char*) ((UA_ByteString*) UA_list_getFirst(&(ce->textGatherList))->payload)->data;
+		} else {
+			printf("XML_Stack_endElement - more than one text snippet with total length=%d:\n",ce->totalGatherLength);
+			UA_alloc((void**)&theGatherBuffer,ce->totalGatherLength+1);
+			buf = theGatherBuffer;
+			UA_list_iteratePayload(&(ce->textGatherList), textGatherListTotalLength);
+			buf[ce->totalGatherLength] = 0;
+			printf("XML_Stack_endElement - gatherBuffer %s:\n",buf);
+		}
+		XML_Attr attr[3] = { ce->textAttrib, buf, UA_NULL };
+		DBG(printf("handleText @ %s calls start elementHandler %s with dst=%p, buf={%s}\n", XML_Stack_path(s),ce->children[ce->activeChild].name, ce->children[ce->activeChild].obj, buf));
+		ce->children[ce->activeChild].elementHandler(s, attr, ce->children[ce->activeChild].obj, TRUE);
+		if (s->parent[s->depth-1].activeChild > 0) {
+			XML_child* c = &(s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild]);
+			c->elementHandler(s, UA_NULL, c->obj, FALSE);
+		}
+		if (UA_list_getFirst(&(ce->textGatherList)) != UA_list_getLast(&(ce->textGatherList)) ) {
+			UA_free(buf);
+		}
+		UA_list_destroy(&(ce->textGatherList),(UA_list_PayloadVisitor) UA_ByteString_delete);
+		UA_list_init(&(ce->textGatherList)); // don't know if destroy leaves the list in usable state...
+		ce->totalGatherLength = -1;
+	}
+
+	// the parent of the parent (pop) of the element knows the elementHandler, therefore depth-2!
 	if (s->depth > 1) {
 		// inform parents elementHandler that everything is done
 		XML_Parent* cp = &(s->parent[s->depth - 1]);

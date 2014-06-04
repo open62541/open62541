@@ -81,6 +81,15 @@ START_TEST(loadUserNamespaceWithSingleProcessVariableShallSucceed)
 	UA_NodeId_copycstring("ns=1;i=2",&nodeId,UA_NULL);
 	ck_assert_int_eq(Namespace_contains(ns,&nodeId),UA_TRUE);
 
+	const UA_Node* nr = UA_NULL;
+	Namespace_Entry_Lock* nl = UA_NULL;
+	retval = Namespace_get(ns,&nodeId,&nr,&nl);
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_ptr_ne(nr,UA_NULL);
+	ck_assert_int_eq(nr->references[0]->referenceTypeId.identifier.numeric,40);
+	ck_assert_int_eq(nr->references[0]->targetId.nodeId.identifier.numeric,63);
+
+
 	UA_NodeId_copycstring("i=2",&nodeId,UA_NULL);
 	ck_assert_int_eq(Namespace_contains(ns,&nodeId),UA_FALSE);
 
@@ -119,6 +128,14 @@ START_TEST(loadUserNamespaceWithSingleProcessVariableAndAliasesShallSucceed)
 
 	UA_NodeId_copycstring("ns=1;i=4",&nodeId,UA_NULL);
 	ck_assert_int_eq(Namespace_contains(ns,&nodeId),UA_TRUE);
+
+	const UA_Node* nr = UA_NULL;
+	Namespace_Entry_Lock* nl = UA_NULL;
+	retval = Namespace_get(ns,&nodeId,&nr,&nl);
+	ck_assert_int_eq(retval,UA_SUCCESS);
+	ck_assert_ptr_ne(nr,UA_NULL);
+	ck_assert_int_eq(nr->references[0]->referenceTypeId.identifier.numeric,40);
+	ck_assert_int_eq(nr->references[0]->targetId.nodeId.identifier.numeric,63);
 
 	UA_NodeId_copycstring("ns=1;i=2",&nodeId,UA_NULL);
 	ck_assert_int_eq(Namespace_contains(ns,&nodeId),UA_FALSE);
