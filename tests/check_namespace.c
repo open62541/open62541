@@ -32,8 +32,6 @@ START_TEST(confirmExistenceInNamespaceWithSingleEntry) {
 	Namespace *ns;
 	Namespace_new(&ns, 512, 0);
 	UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns,n1);
-	const UA_Node* nr = UA_NULL;
-	Namespace_Entry_Lock* nl = UA_NULL;
 	UA_Int32 retval;
 	// when
 	retval = Namespace_contains(ns,&(n1->nodeId));
