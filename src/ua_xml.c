@@ -78,25 +78,40 @@ UA_Int32 UA_NodeSet_new(UA_NodeSet** p, UA_UInt32 nsid) {
 	UA_NodeSet_init(*p, nsid);
 	return UA_SUCCESS;
 }
+
 UA_Int32 UA_NodeId_copycstring(cstring src, UA_NodeId* dst, UA_NodeSetAliases* aliases) {
-	dst->encodingByte = UA_NODEIDTYPE_FOURBYTE;
-	dst->namespace = 0;
-	dst->identifier.numeric = 0;
-	// FIXME: assumes i=nnnn
-	if (src[1] == '=') {
-		dst->identifier.numeric = atoi(&src[2]);
-	} else {
-		UA_Int32 i;
-		for (i = 0; i < aliases->size && dst->identifier.numeric == 0; ++i) {
-			if (0
-					== strncmp((char const*) src, (char const*) aliases->aliases[i]->alias.data,
-							aliases->aliases[i]->alias.length)) {
-				dst->identifier.numeric = atoi((char const*) &(aliases->aliases[i]->value.data[2]));
+	UA_Int32 retval = UA_SUCCESS;
+	if (src != UA_NULL && dst != UA_NULL ) {
+		if (src[0] == 'i' && src[1] == '=') { // namespace zero numeric identifier
+			dst->encodingByte = UA_NODEIDTYPE_FOURBYTE;
+			dst->identifier.numeric = atoi(&src[2]);
+		} else if (src[0] == 'n' && src[1] == 's' && src[2] == '=') { // namespace
+			dst->namespace = atoi(&src[3]);
+			src = strchr(&src[3],';');
+			if (src != UA_NULL)
+				retval = UA_NodeId_copycstring(src+1,dst,aliases);
+			else
+				retval = UA_ERR_INVALID_VALUE;
+		} else if (aliases != UA_NULL ) { // try for aliases
+			UA_Int32 i;
+			for (i = 0; i < aliases->size && dst->identifier.numeric == 0; ++i) {
+				if (0
+						== strncmp((char const*) src, (char const*) aliases->aliases[i]->alias.data,
+								aliases->aliases[i]->alias.length)) {
+					dst->identifier.numeric = atoi((char const*) &(aliases->aliases[i]->value.data[2]));
+					dst->encodingByte = UA_NODEIDTYPE_FOURBYTE;
+				}
 			}
+		} else {
+			dst->namespace = 0;
+			dst->identifier.numeric = 0;
+			retval = UA_ERR_NOT_IMPLEMENTED;
 		}
+	} else {
+		retval = UA_ERR_INVALID_VALUE;
 	}
 	DBG_VERBOSE(printf("UA_NodeId_copycstring src=%s,id=%d\n", src, dst->identifier.numeric));
-	return UA_SUCCESS;
+	return retval;
 }
 
 
@@ -1106,14 +1121,11 @@ void XML_Stack_endElement(void *data, const char *el) {
 	s->depth--;
 }
 
-UA_Int32 Namespace_loadFromFile(Namespace **ns,UA_UInt32 nsid,const char* rootName,const char* fileName) {
-	int f;
-	if (fileName == UA_NULL)
-		f = 0; // stdin
-	else if ((f= open(fileName, O_RDONLY)) == -1)
-		return UA_ERR_INVALID_VALUE;
+typedef UA_Int32 (*XML_Stack_Loader) (char* buf, int len);
 
-	char buf[1024];
+#define XML_BUFFER_LEN 1024
+UA_Int32 Namespace_loadXml(Namespace **ns,UA_UInt32 nsid,const char* rootName, XML_Stack_Loader getNextBufferFull) {
+	char buf[XML_BUFFER_LEN];
 	int len; /* len is the number of bytes in the current bufferful of data */
 
 	XML_Stack s;
@@ -1127,19 +1139,52 @@ UA_Int32 Namespace_loadFromFile(Namespace **ns,UA_UInt32 nsid,const char* rootNa
 	XML_SetUserData(parser, &s);
 	XML_SetElementHandler(parser, XML_Stack_startElement, XML_Stack_endElement);
 	XML_SetCharacterDataHandler(parser, XML_Stack_handleText);
-	while ((len = read(f, buf, 1024)) > 0) {
-		if (!XML_Parse(parser, buf, len, (len < 1024))) {
+	while ((len = getNextBufferFull(buf, XML_BUFFER_LEN)) > 0) {
+		if (!XML_Parse(parser, buf, len, (len < XML_BUFFER_LEN))) {
 			return 1;
 		}
 	}
 	XML_ParserFree(parser);
-	close(f);
 
-	DBG_VERBOSE(printf("Namespace_loadFromFile - aliases addr=%p, size=%d\n", (void*) &(n.aliases), n.aliases.size));
-	DBG_VERBOSE(UA_NodeSetAliases_println("Namespace_loadFromFile - elements=", &n.aliases));
+	DBG_VERBOSE(printf("Namespace_loadXml - aliases addr=%p, size=%d\n", (void*) &(n.aliases), n.aliases.size));
+	DBG_VERBOSE(UA_NodeSetAliases_println("Namespace_loadXml - elements=", &n.aliases));
 
 	// eventually return the namespace object that has been allocated in UA_NodeSet_init
 	*ns = n.ns;
 	return UA_SUCCESS;
 }
 
+static int theFile = 0;
+UA_Int32 readFromTheFile(char*buf,int len) {
+	return read(theFile,buf,len);
+}
+
+UA_Int32 Namespace_loadFromFile(Namespace **ns,UA_UInt32 nsid,const char* rootName,const char* fileName) {
+	if (fileName == UA_NULL)
+		theFile = 0; // stdin
+	else if ((theFile = open(fileName, O_RDONLY)) == -1)
+		return UA_ERR_INVALID_VALUE;
+
+	UA_Int32 retval = Namespace_loadXml(ns,nsid,rootName,readFromTheFile);
+	close(theFile);
+	return retval;
+}
+
+static const char* theBuffer = UA_NULL;
+static const char* theBufferEnd = UA_NULL;
+UA_Int32 readFromTheBuffer(char*buf,int len) {
+	if (len == 0) return 0;
+	if (theBuffer + XML_BUFFER_LEN > theBufferEnd)
+		len = theBufferEnd - theBuffer;
+	else
+		len = XML_BUFFER_LEN;
+	memcpy(buf,theBuffer,len);
+	theBuffer = theBuffer + len;
+	return len;
+}
+
+UA_Int32 Namespace_loadFromString(Namespace **ns,UA_UInt32 nsid,const char* rootName,const char* buffer) {
+	theBuffer = buffer;
+	theBufferEnd = buffer + strlen(buffer) - 1;
+	return Namespace_loadXml(ns,nsid,rootName,readFromTheBuffer);
+}
