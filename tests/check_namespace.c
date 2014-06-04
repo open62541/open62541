@@ -27,6 +27,23 @@ UA_Int32 createNode(UA_Node** p, UA_Int16 nsid, UA_Int32 id) {
 	return UA_SUCCESS;
 }
 
+START_TEST(confirmExistenceInNamespaceWithSingleEntry) {
+	// given
+	Namespace *ns;
+	Namespace_new(&ns, 512, 0);
+	UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns,n1);
+	const UA_Node* nr = UA_NULL;
+	Namespace_Entry_Lock* nl = UA_NULL;
+	UA_Int32 retval;
+	// when
+	retval = Namespace_contains(ns,&(n1->nodeId));
+	// then
+	ck_assert_int_eq(retval, UA_TRUE);
+	// finally
+	Namespace_delete(ns);
+}
+END_TEST
+
 START_TEST(findNodeInNamespaceWithSingleEntry) {
 	// given
 	Namespace *ns;
@@ -140,7 +157,8 @@ START_TEST(findNodeInExpandedNamespace) {
 	Namespace *ns;
 	Namespace_new(&ns, 10, 0);
 	UA_Node* n;
-	for (UA_Int32 i=0; i<200; i++) {
+	UA_Int32 i=0;
+	for (; i<200; i++) {
 		createNode(&n,0,i); Namespace_insert(ns,n);
 	}
 	const UA_Node* nr = UA_NULL;
@@ -163,7 +181,8 @@ START_TEST(iterateOverExpandedNamespaceShallNotVisitEmptyNodes) {
 	Namespace *ns;
 	Namespace_new(&ns, 10, 0);
 	UA_Node* n;
-	for (UA_Int32 i=0; i<200; i++) {
+	UA_Int32 i=0;
+	for (; i<200; i++) {
 		createNode(&n,0,i); Namespace_insert(ns,n);
 	}
 	// when
@@ -212,6 +231,7 @@ Suite * namespace_suite (void) {
 	suite_add_tcase (s, tc_cd);
 
 	TCase* tc_find = tcase_create ("Find");
+	tcase_add_test (tc_find, confirmExistenceInNamespaceWithSingleEntry);
 	tcase_add_test (tc_find, findNodeInNamespaceWithSingleEntry);
 	tcase_add_test (tc_find, findNodeInNamespaceWithTwoEntries);
 	tcase_add_test (tc_find, findNodeInNamespaceWithSeveralEntries);

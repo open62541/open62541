@@ -1125,6 +1125,7 @@ typedef UA_Int32 (*XML_Stack_Loader) (char* buf, int len);
 
 #define XML_BUFFER_LEN 1024
 UA_Int32 Namespace_loadXml(Namespace **ns,UA_UInt32 nsid,const char* rootName, XML_Stack_Loader getNextBufferFull) {
+	UA_Int32 retval = UA_SUCCESS;
 	char buf[XML_BUFFER_LEN];
 	int len; /* len is the number of bytes in the current bufferful of data */
 
@@ -1133,15 +1134,17 @@ UA_Int32 Namespace_loadXml(Namespace **ns,UA_UInt32 nsid,const char* rootName, X
 
 	UA_NodeSet n;
 	UA_NodeSet_init(&n, 0);
-	XML_Stack_addChildHandler(&s, "UANodeSet", strlen("UANodeSet"), (XML_decoder) UA_NodeSet_decodeXML, UA_INVALIDTYPE, &n);
+	*ns = n.ns;
 
+	XML_Stack_addChildHandler(&s, "UANodeSet", strlen("UANodeSet"), (XML_decoder) UA_NodeSet_decodeXML, UA_INVALIDTYPE, &n);
 	XML_Parser parser = XML_ParserCreate(NULL);
 	XML_SetUserData(parser, &s);
 	XML_SetElementHandler(parser, XML_Stack_startElement, XML_Stack_endElement);
 	XML_SetCharacterDataHandler(parser, XML_Stack_handleText);
 	while ((len = getNextBufferFull(buf, XML_BUFFER_LEN)) > 0) {
 		if (!XML_Parse(parser, buf, len, (len < XML_BUFFER_LEN))) {
-			return 1;
+			retval = UA_ERR_INVALID_VALUE;
+			break;
 		}
 	}
 	XML_ParserFree(parser);
@@ -1149,9 +1152,7 @@ UA_Int32 Namespace_loadXml(Namespace **ns,UA_UInt32 nsid,const char* rootName, X
 	DBG_VERBOSE(printf("Namespace_loadXml - aliases addr=%p, size=%d\n", (void*) &(n.aliases), n.aliases.size));
 	DBG_VERBOSE(UA_NodeSetAliases_println("Namespace_loadXml - elements=", &n.aliases));
 
-	// eventually return the namespace object that has been allocated in UA_NodeSet_init
-	*ns = n.ns;
-	return UA_SUCCESS;
+	return retval;
 }
 
 static int theFile = 0;
