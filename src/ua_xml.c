@@ -79,32 +79,27 @@ UA_Int32 UA_NodeSet_new(UA_NodeSet** p, UA_UInt32 nsid) {
 	return UA_SUCCESS;
 }
 
-UA_Int32 UA_NodeId_copycstring(cstring src, UA_NodeId* dst, UA_NodeSetAliases* aliases) {
+UA_Int32 _UA_NodeId_copycstring(cstring src, UA_NodeId* dst, UA_NodeSetAliases* aliases) {
 	UA_Int32 retval = UA_SUCCESS;
 	if (src != UA_NULL && dst != UA_NULL ) {
 		if (src[0] == 'i' && src[1] == '=') { // namespace zero numeric identifier
-			dst->encodingByte = UA_NODEIDTYPE_FOURBYTE;
 			dst->identifier.numeric = atoi(&src[2]);
 		} else if (src[0] == 'n' && src[1] == 's' && src[2] == '=') { // namespace
 			dst->namespace = atoi(&src[3]);
 			src = strchr(&src[3],';');
 			if (src != UA_NULL)
-				retval = UA_NodeId_copycstring(src+1,dst,aliases);
+				retval = _UA_NodeId_copycstring(src+1,dst,aliases);  // +1 to start beyond ;
 			else
 				retval = UA_ERR_INVALID_VALUE;
 		} else if (aliases != UA_NULL ) { // try for aliases
 			UA_Int32 i;
 			for (i = 0; i < aliases->size && dst->identifier.numeric == 0; ++i) {
-				if (0
-						== strncmp((char const*) src, (char const*) aliases->aliases[i]->alias.data,
+				if (0 == strncmp((char const*) src, (char const*) aliases->aliases[i]->alias.data,
 								aliases->aliases[i]->alias.length)) {
-					dst->identifier.numeric = atoi((char const*) &(aliases->aliases[i]->value.data[2]));
-					dst->encodingByte = UA_NODEIDTYPE_FOURBYTE;
+					_UA_NodeId_copycstring((cstring)aliases->aliases[i]->alias.data,dst,UA_NULL); // substitute text of alias
 				}
 			}
 		} else {
-			dst->namespace = 0;
-			dst->identifier.numeric = 0;
 			retval = UA_ERR_NOT_IMPLEMENTED;
 		}
 	} else {
@@ -114,6 +109,12 @@ UA_Int32 UA_NodeId_copycstring(cstring src, UA_NodeId* dst, UA_NodeSetAliases* a
 	return retval;
 }
 
+UA_Int32 UA_NodeId_copycstring(cstring src, UA_NodeId* dst, UA_NodeSetAliases* aliases) {
+	dst->encodingByte = UA_NODEIDTYPE_FOURBYTE;
+	dst->namespace = 0;
+	dst->identifier.numeric = 0;
+	return _UA_NodeId_copycstring(src,dst,aliases);
+}
 
 UA_Int32 UA_ReferenceNode_println(cstring label, UA_ReferenceNode *a) {
 	printf("%s{referenceType=%d, target=%d, isInverse=%d}\n",
@@ -1142,7 +1143,7 @@ UA_Int32 Namespace_loadXml(Namespace **ns,UA_UInt32 nsid,const char* rootName, X
 	XML_SetElementHandler(parser, XML_Stack_startElement, XML_Stack_endElement);
 	XML_SetCharacterDataHandler(parser, XML_Stack_handleText);
 	while ((len = getNextBufferFull(buf, XML_BUFFER_LEN)) > 0) {
-		if (!XML_Parse(parser, buf, len, (len < XML_BUFFER_LEN))) {
+		if (XML_Parse(parser, buf, len, (len < XML_BUFFER_LEN)) == XML_STATUS_ERROR) {
 			retval = UA_ERR_INVALID_VALUE;
 			break;
 		}
@@ -1176,7 +1177,7 @@ static const char* theBufferEnd = UA_NULL;
 UA_Int32 readFromTheBuffer(char*buf,int len) {
 	if (len == 0) return 0;
 	if (theBuffer + XML_BUFFER_LEN > theBufferEnd)
-		len = theBufferEnd - theBuffer;
+		len = theBufferEnd - theBuffer + 1;
 	else
 		len = XML_BUFFER_LEN;
 	memcpy(buf,theBuffer,len);
