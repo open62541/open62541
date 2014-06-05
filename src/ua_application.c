@@ -27,15 +27,12 @@ UA_Node* create_node_ns0(UA_Int32 class, UA_Int32 nodeClass, UA_Int32 const id, 
 #define C2UA_STRING(s) (UA_String) { sizeof(s)-1, (UA_Byte*) s }
 void appMockup_init() {
 	// create namespaces
+	// TODO: A table that maps the namespaceUris to Ids
 	Namespace* ns0;
-	Namespace_create(&ns0,100);
-	ns0->namespaceId = 0;
-	ns0->namespaceUri = C2UA_STRING("http://opcfoundation.org/UA/");
+	Namespace_new(&ns0, 100, 0); //C2UA_STRING("http://opcfoundation.org/UA/"));
 
 	Namespace* local;
-	Namespace_create(&local,100);
-	local->namespaceId = 1;
-	local->namespaceUri = C2UA_STRING("http://localhost:16664/open62541/");
+	Namespace_new(&local, 100, 1); //C2UA_STRING("http://localhost:16664/open62541/"));
 
 	// add to list of namespaces
 	UA_indexedList_init(appMockup.namespaces);

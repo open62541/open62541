@@ -175,7 +175,6 @@ void* NL_TCP_readerThread(NL_Connection *c) {
 	pthread_exit(UA_NULL);
 }
 #endif
-
 /** write message provided in the gather buffers to a tcp transport layer connection */
 UA_Int32 NL_TCP_writer(UA_Int32 connectionHandle, UA_ByteString const * const * gather_buf, UA_UInt32 gather_len) {
 

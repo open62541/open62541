@@ -29,4 +29,3 @@ if ENABLE_DOXYGEN
 	SUBS+= doc
 endif
 SUBDIRS = $(SUBS) examples/src	
-

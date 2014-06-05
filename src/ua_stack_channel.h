@@ -24,8 +24,6 @@ typedef struct SL_Channel1 *SL_secureChannel;
 typedef UA_Int32 (*SL_ChannelSecurityTokenProvider)(SL_secureChannel ,UA_Int32 , SecurityTokenRequestType, UA_ChannelSecurityToken*);
 typedef UA_Int32 (*SL_ChannelIdProvider)(UA_UInt32*);
 
-
-
 UA_Int32 SL_Channel_new(SL_secureChannel **channel,
 		SL_ChannelIdProvider channelIdProvider,
 		SL_ChannelSecurityTokenProvider tokenProvider,

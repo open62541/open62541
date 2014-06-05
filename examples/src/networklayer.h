@@ -25,7 +25,7 @@ enum NL_CONNECTIONTYPE_enum {
 	NL_CONNECTIONTYPE_TCPV6 = 1,
 };
 
-typedef struct T_NL_Description {
+typedef struct NL_Description {
 	UA_Int32 encoding;
 	UA_Int32 connectionType;
 	UA_Int32 maxConnections;
@@ -34,7 +34,7 @@ typedef struct T_NL_Description {
 
 extern NL_Description NL_Description_TcpBinary;
 
-typedef struct T_NL_data {
+typedef struct NL_data {
 	NL_Description* tld;
 	UA_String endpointUrl;
 	UA_list_List connections;

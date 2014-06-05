@@ -116,34 +116,34 @@ static UA_Int32 TL_handleHello(TL_Connection* connection, const UA_ByteString* m
 	return retval;
 }
 */
+
+static UA_Int32 TL_securitySettingsMockup_get(UA_ByteString *receiverCertificateThumbprint,UA_ByteString *securityPolicyUri, UA_ByteString *senderCertificate)
+{
+	receiverCertificateThumbprint->data = UA_NULL;
+	receiverCertificateThumbprint->length = 0;
+
+	UA_String_copycstring("http://opcfoundation.org/UA/SecurityPolicy#None",(UA_String*)securityPolicyUri);
+
+	senderCertificate->data = UA_NULL;
+	senderCertificate->length = 0;
+
+	return UA_SUCCESS;
+}
 static UA_Int32 TL_handleOpen(UA_TL_Connection1 connection, const UA_ByteString* msg, UA_Int32* pos) {
+	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 state;
-	UA_TL_Connection_getState(connection,&state);
 	SL_secureChannel *channel;
-
-
 
 	UA_ByteString receiverCertificateThumbprint;
 	UA_ByteString securityPolicyUri;
 	UA_ByteString senderCertificate;
 
+/*TODO place this into a initialization routine, get this from the "stack"-object*/
+	retval |= TL_securitySettingsMockup_get(&receiverCertificateThumbprint, &securityPolicyUri, &senderCertificate);
+
+	retval |= UA_TL_Connection_getState(connection,&state);
 	if (state == CONNECTIONSTATE_ESTABLISHED) {
-
-//TODO get this from initialization
-		UA_alloc((void**)&receiverCertificateThumbprint.data, -1);
-		UA_alloc((void**)&securityPolicyUri.data, 47);
-		UA_alloc((void**)&senderCertificate.data, 0);
-
-		receiverCertificateThumbprint.data = UA_NULL;
-		receiverCertificateThumbprint.length = 0;
-
-		UA_String_copycstring("http://opcfoundation.org/UA/SecurityPolicy#None",(UA_String*)&securityPolicyUri);
-		securityPolicyUri.length = 47;
-
-		senderCertificate.data = UA_NULL;
-		senderCertificate.length = 0;
-
-		SL_Channel_new(&channel,
+		retval |= SL_Channel_new(&channel,
 				SL_ChannelManager_generateChannelId,
 				SL_ChannelManager_generateToken,
 				&receiverCertificateThumbprint,
@@ -151,17 +151,16 @@ static UA_Int32 TL_handleOpen(UA_TL_Connection1 connection, const UA_ByteString*
 				&senderCertificate,
 				UA_SECURITYMODE_INVALID);
 
-
-	//return SL_Channel_new(connection, msg, pos);
-	//UA_TL_Connection_getId(connection,connectionId);
-		if(SL_Channel_initByRequest(*channel,connection, msg, pos) == UA_SUCCESS)
-		{
-			SL_ProcessOpenChannel(*channel, msg, pos);
-			SL_ChannelManager_addChannel(channel);
-		}else
-		{
+		if(SL_Channel_initByRequest(*channel,connection, msg, pos) == UA_SUCCESS){
+			retval |= SL_ProcessOpenChannel(*channel, msg, pos);
+			retval |= SL_ChannelManager_addChannel(channel);
+			return retval;
+		}else{
 			printf("TL_handleOpen - ERROR: could not create new secureChannel");
 		}
+	}
+	else{
+		printf("TL_handleOpen - ERROR: wrong ConnectionState");
 	}
 
 	return UA_ERR_INVALID_VALUE;

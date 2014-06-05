@@ -5,7 +5,7 @@
 #include "ua_transport_binary.h"
 #include "ua_stack_channel.h"
 #include "ua_stack_channel_manager.h"
-#define UA_ERROR_MULTIPLE_HEL 1001
+
 /*inputs for secure Channel which must be provided once
 endPointUrl
 securityPolicyUrl

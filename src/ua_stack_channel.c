@@ -33,6 +33,7 @@ typedef struct SL_Channel1 {
 	SL_ChannelIdProvider channelIdProvider;
 }SL_Channel1;
 
+
 UA_Int32 SL_Channel_registerTokenProvider(SL_secureChannel channel, SL_ChannelSecurityTokenProvider provider)
 {
 	((SL_Channel1*)channel)->tokenProvider = provider;

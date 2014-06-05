@@ -237,6 +237,7 @@ UA_Int32 SL_handleRequest(SL_secureChannel channel, const UA_ByteString* msg,
 		UA_ResponseHeader_encodeBinary(&r, pos, &response_msg);
 		responsetype = UA_RESPONSEHEADER_NS0;
 	}
+
 	SL_Send(channel, &response_msg, responsetype);
 	UA_ByteString_deleteMembers(&response_msg);
 
@@ -248,52 +249,7 @@ UA_Int32 SL_ProcessOpenChannel(SL_secureChannel channel, const UA_ByteString* ms
 {
 	return SL_handleRequest(channel, msg, pos);
 }
-/**
- *
- * @param connection
- * @param msg
- * @param pos
- * @return
- */
-//UA_Int32 SL_Channel_new(TL_Connection *connection, const UA_ByteString* msg,
-//		UA_Int32* pos)
-//{
-//	DBG_VERBOSE(printf("SL_Channel_new - entered\n"));
-//	UA_Int32 retval = UA_SUCCESS;
-//
-//	/* Create New Channel*/
-//	SL_Channel *channel = &slc; // FIXME: generate new secure channel
-//	UA_AsymmetricAlgorithmSecurityHeader_init(&(channel->localAsymAlgSettings));
-//	UA_ByteString_copy(&UA_ByteString_securityPoliceNone,
-//			&(channel->localAsymAlgSettings.securityPolicyUri));
-//	UA_alloc((void** )&(channel->localNonce.data), sizeof(UA_Byte));
-//	channel->localNonce.length = 1;
-//	channel->connectionState = CONNECTIONSTATE_CLOSED; // the state of the channel will be opened in the service
-//	channel->sequenceHeader.requestId = 0;
-//	channel->sequenceHeader.sequenceNumber = 1;
-//	UA_String_init(&(channel->secureChannelId));
-//	channel->securityMode = UA_SECURITYMODE_INVALID;
-//	channel->securityToken.secureChannelId = 25; //TODO set a valid start secureChannelId number
-//	channel->securityToken.tokenId.tokenId = 1; //TODO set a valid start TokenId
-//	connection->secureChannel = channel;
-//	connection->secureChannel->tlConnection = connection;
-/* Read the OPN message headers */
-//	*pos += 4; // skip the securechannelid
-//	UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(msg, pos,
-//			&connection->secureChannel->remoteAsymAlgSettings);
-//	UA_SequenceHeader_decodeBinary(msg, pos,
-//			&connection->secureChannel->sequenceHeader);
-//	//TODO check that the sequence number is smaller than MaxUInt32 - 1024
-//	//TODO check if a OpenSecureChannelRequest follows
-//	retval |= SL_handleRequest(channel, msg, pos);
-//	return retval;
-// FIXME: reject
-//}
-/**
- * process the rest of the header. TL already processed MessageType
- * (OPN,MSG,...), isFinal and MessageSize. SL_process cares for
- * secureChannelId, XASHeader and sequenceHeader
- * */
+
 UA_Int32 SL_Process(const UA_ByteString* msg,
 		UA_Int32* pos)
 {

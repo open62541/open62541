@@ -13,7 +13,7 @@ typedef enum UA_ConnectionState {
 	CONNECTIONSTATE_CLOSE
 }UA_ConnectionState;
 
-typedef struct Session_T {
+typedef struct Session {
 	UA_Int32 sessionId;
 	Application *application;
 } Session;
@@ -48,7 +48,7 @@ void UA_MessageType_printf(char *label, UA_MessageType* p);
 
 /** @name UA_UA_OPCUATcpMessageHeader */
 /** @brief TCP Header */
-typedef struct UA_OPCUATcpMessageHeader_T {
+typedef struct UA_OPCUATcpMessageHeader {
 	UA_MessageType messageType; // MessageType instead of UInt32
 	UA_Byte isFinal;
 	UA_UInt32 messageSize;
@@ -63,7 +63,7 @@ UA_Int32 UA_OPCUATcpMessageHeader_new(UA_OPCUATcpMessageHeader ** p);
 
 /** @name UA_UA_OPCUATcpHelloMessage */
 /** @brief Hello Message */
-typedef struct UA_OPCUATcpHelloMessage_T {
+typedef struct UA_OPCUATcpHelloMessage {
 	UA_UInt32 protocolVersion;
 	UA_UInt32 receiveBufferSize;
 	UA_UInt32 sendBufferSize;
@@ -81,7 +81,7 @@ UA_Int32 UA_OPCUATcpHelloMessage_new(UA_OPCUATcpHelloMessage ** p);
 
 /** @name UA_UA_OPCUATcpAcknowledgeMessage */
 /** @brief Acknowledge Message */
-typedef struct UA_OPCUATcpAcknowledgeMessage_T {
+typedef struct UA_OPCUATcpAcknowledgeMessage {
 	UA_UInt32 protocolVersion;
 	UA_UInt32 receiveBufferSize;
 	UA_UInt32 sendBufferSize;
@@ -98,7 +98,7 @@ UA_Int32 UA_OPCUATcpAcknowledgeMessage_new(UA_OPCUATcpAcknowledgeMessage ** p);
 
 /** @name UA_UA_SecureConversationMessageHeader */
 /** @brief Secure Layer Sequence Header */
-typedef struct UA_SecureConversationMessageHeader_T {
+typedef struct UA_SecureConversationMessageHeader {
 	// UA_OPCUATcpMessageHeader messageHeader; // Treated with custom code
 	UA_UInt32 secureChannelId;
 } UA_SecureConversationMessageHeader;
@@ -112,7 +112,7 @@ UA_Int32 UA_SecureConversationMessageHeader_new(UA_SecureConversationMessageHead
 
 /** @name UA_UA_AsymmetricAlgorithmSecurityHeader */
 /** @brief Security Header> */
-typedef struct UA_AsymmetricAlgorithmSecurityHeader_T {
+typedef struct UA_AsymmetricAlgorithmSecurityHeader {
 	UA_ByteString securityPolicyUri;
 	UA_ByteString senderCertificate;
 	UA_ByteString receiverCertificateThumbprint;
@@ -128,7 +128,7 @@ UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_new(UA_AsymmetricAlgorithmSecurity
 
 /** @name UA_UA_SymmetricAlgorithmSecurityHeader */
 /** @brief Secure Layer Symmetric Algorithm Header */
-typedef struct UA_SymmetricAlgorithmSecurityHeader_T {
+typedef struct UA_SymmetricAlgorithmSecurityHeader {
 	UA_UInt32 tokenId;
 } UA_SymmetricAlgorithmSecurityHeader;
 UA_Int32 UA_SymmetricAlgorithmSecurityHeader_calcSize(UA_SymmetricAlgorithmSecurityHeader const* ptr);
@@ -141,7 +141,7 @@ UA_Int32 UA_SymmetricAlgorithmSecurityHeader_new(UA_SymmetricAlgorithmSecurityHe
 
 /** @name UA_UA_SequenceHeader */
 /** @brief Secure Layer Sequence Header */
-typedef struct UA_SequenceHeader_T {
+typedef struct UA_SequenceHeader {
 	UA_UInt32 sequenceNumber;
 	UA_UInt32 requestId;
 } UA_SequenceHeader;
@@ -155,7 +155,7 @@ UA_Int32 UA_SequenceHeader_new(UA_SequenceHeader ** p);
 
 /** @name UA_UA_SecureConversationMessageFooter */
 /** @brief Secure Conversation Message Footer */
-typedef struct UA_SecureConversationMessageFooter_T {
+typedef struct UA_SecureConversationMessageFooter {
 	UA_Int32 paddingSize;
 	UA_Byte** padding;
 	UA_Byte signature;
@@ -170,7 +170,7 @@ UA_Int32 UA_SecureConversationMessageFooter_new(UA_SecureConversationMessageFoot
 
 /** @name UA_UA_SecureConversationMessageAbortBody */
 /** @brief Secure Conversation Message Abort Body */
-typedef struct UA_SecureConversationMessageAbortBody_T {
+typedef struct UA_SecureConversationMessageAbortBody {
 	UA_UInt32 error;
 	UA_String reason;
 } UA_SecureConversationMessageAbortBody;

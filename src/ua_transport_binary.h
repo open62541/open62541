@@ -6,6 +6,15 @@
 #include "ua_transport_binary.h"
 #include "ua_transport_connection.h"
 
+//transport errors begin at 1000
+#define UA_ERROR_MULTIPLE_HEL 1000
+#define UA_ERROR_RCV_ERROR 1001
+
+//variables which belong to layer
+#define TL_SERVER_PROTOCOL_VERSION  0
+#define TL_SERVER_MAX_CHUNK_COUNT 1
+#define TL_SERVER_MAX_MESSAGE_SIZE  8192
+
 
 /* Transport Layer Connection */
 //struct TL_Connection_T; // forward declaration

@@ -26,12 +26,6 @@ UA_Int32 UA_TL_Connection_new(UA_TL_Connection1 *connection, TL_Buffer localBuff
 	{
 		(*((TL_Connection**)connection))->localConf = localBuffers;
 		(*((TL_Connection**)connection))->writer = writer;
-
-	//	((TL_Connection*)connection)->localConf.maxChunkCount = localBuffers->maxChunkCount;
-	//	((TL_Connection*)connection)->localConf.maxMessageSize = localBuffers->maxMessageSize;
-	//	((TL_Connection*)connection)->localConf.protocolVersion = localBuffers->protocolVersion;
-	//	((TL_Connection*)connection)->localConf.recvBufferSize = localBuffers->recvBufferSize;
-	//	((TL_Connection*)connection)->localConf.sendBufferSize = localBuffers->sendBufferSize;
 	}
 	return retval;
 }

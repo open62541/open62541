@@ -7,12 +7,15 @@ An open-source communication stack implementation of OPC UA (OPC Unified Archite
 [![Build Status](https://travis-ci.org/acplt/open62541.png?branch=master)](https://travis-ci.org/acplt/open62541)
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/1864/badge.svg)](https://scan.coverity.com/projects/1864)
 
+### Documentation
+Documentation is generated from Doxygen annotations in the source code. The current version can be accessed at http://acplt.github.io/open62541/doxygen/.
+
 
 ## Getting dependencies
 ### Ubuntu
 ##### Getting gcc toolchain:
 ```bash
-sudo apt-get install build-essential subversion git autoconf libtool texinfo
+sudo apt-get install build-essential subversion git autoconf libtool pkg-config texinfo
 ```
 ##### Getting python toolchain for the 62541 structures code generator:
 ```bash
@@ -20,7 +23,7 @@ sudo apt-get install python python-lxml
 ```
 ##### Getting additional libraries:
 ```bash
-sudo apt-get expat libexpat1-dev
+sudo apt-get install expat libexpat1-dev
 ```
 ##### Getting and installing *check* as unit test framework (http://check.sourceforge.net/):
 ```bash
@@ -57,6 +60,18 @@ $ make all
 * Copy gtk+/share/aclocal/*.m4 files to MinGW/share/aclocal
 * Merge grk+ folder and MinGW\msys\1.0\ folder
 
+##### Get expat
+* start MinGW Installation Manager
+* choose all Packages, mark mingw32-expat and install
+
+##### Get Python and lxml:
+* download Python at https://python.org/downloads
+* install the executable
+* add the install directory (e. g. "c:\python27") to your windows path variable 
+* restart mingw console
+* install lxml by either downloading and installing http://www.lfd.uci.edu/~gohlke/pythonlibs/#lxml (choose the version which fits    to your python installation) or by following the instructions
+  given here: http://lxml.de/installation.html
+
 ##### Get git (IMPORTANT: get 1.8.4, since 1.8.5.2 has a bug):
 * http://code.google.com/p/msysgit/downloads/detail?name=Git-1.8.4-preview20130916.exe&can=2&q=
 
@@ -67,17 +82,9 @@ $ make all
 $ svn checkout svn://svn.code.sf.net/p/check/code/trunk check-code
 $ cd check-code
 $ autoreconf --install
-$ ./configure --prefix=
+$ ./configure
 $ make
 $ make install
-```
-
-##### Get Pyhton with lxml module
-* [TBD]
-
-## Clone open62541
-```bash
-$ git clone https://github.com/acplt/open62541.git
 ```
 
 ## Building 
@@ -89,6 +96,7 @@ $ ./configure --enable-debug=yes
 $ make
 $ make check
 ```
+
 ### Configure Options 
 * --enable-debug=(yes|no|verbose) - omit/include debug code
 * --enable-multithreading - enable pthreads (for examples/src/opcuaServerMT)

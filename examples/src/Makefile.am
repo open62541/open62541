@@ -5,6 +5,15 @@ __top_builddir__bin_xml2ns0_CFLAGS = -I$(top_builddir)/src -I$(top_builddir)/inc
 __top_builddir__bin_xml2ns0_LDADD = $(top_builddir)/lib/libopen62541.a $(GLOBAL_AM_LDADD)
 __top_builddir__bin_xml2ns0_LDFLAGS = -lexpat
 
+bin_PROGRAMS += $(top_builddir)/bin/generateSam 
+
+__top_builddir__bin_generateSam_SOURCES = generateSam.c
+__top_builddir__bin_generateSam_CFLAGS = -I$(top_builddir)/src -I$(top_builddir)/include $(GLOBAL_AM_CFLAGS)
+__top_builddir__bin_generateSam_LDADD = $(top_builddir)/lib/libopen62541.a $(GLOBAL_AM_LDADD)
+__top_builddir__bin_generateSam_LDFLAGS = -lexpat
+
+
+
 if MULTITHREADING
 bin_PROGRAMS += $(top_builddir)/bin/exampleServerMT 
 

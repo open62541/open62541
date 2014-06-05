@@ -49,6 +49,7 @@ UA_Int32 SL_ChannelManager_addChannel(SL_secureChannel *channel)
 {
 	if (channelManager->maxChannelCount > channelManager->currentChannelCount)
 	{
+
 //TODO lock access (mulitthreading)------------
 		UA_list_Element *element;
 		UA_alloc((void**)&element, sizeof(UA_list_Element));

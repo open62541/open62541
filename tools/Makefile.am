@@ -3,7 +3,7 @@ INCLUDE_DIR = $(top_builddir)/include
 AUTO_NAME = opcua
 NS0_NAME = ua_namespace_0
 
-all-local: $(AUTO_NAME).cgen $(AUTO_NAME).hgen $(NS0_NAME).cgen $(NS0_NAME).hgen
+all-local: $(AUTO_NAME).cgen $(AUTO_NAME).hgen $(NS0_NAME).cgen $(NS0_NAME).hgen $(bin_PROGRAMS)
 
 $(AUTO_NAME).cgen $(AUTO_NAME).hgen: Opc.Ua.Types.bsd generate_builtin.py
 	python generate_builtin.py Opc.Ua.Types.bsd $(AUTO_NAME)
