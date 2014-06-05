@@ -78,27 +78,43 @@ UA_Int32 UA_NodeSet_new(UA_NodeSet** p, UA_UInt32 nsid) {
 	UA_NodeSet_init(*p, nsid);
 	return UA_SUCCESS;
 }
+
+UA_Int32 _UA_NodeId_copycstring(cstring src, UA_NodeId* dst, UA_NodeSetAliases* aliases) {
+	UA_Int32 retval = UA_SUCCESS;
+	if (src != UA_NULL && dst != UA_NULL ) {
+		if (src[0] == 'i' && src[1] == '=') { // namespace zero numeric identifier
+			dst->identifier.numeric = atoi(&src[2]);
+		} else if (src[0] == 'n' && src[1] == 's' && src[2] == '=') { // namespace
+			dst->namespace = atoi(&src[3]);
+			src = strchr(&src[3],';');
+			if (src != UA_NULL)
+				retval = _UA_NodeId_copycstring(src+1,dst,aliases);  // +1 to start beyond ;
+			else
+				retval = UA_ERR_INVALID_VALUE;
+		} else if (aliases != UA_NULL ) { // try for aliases
+			UA_Int32 i;
+			for (i = 0; i < aliases->size && dst->identifier.numeric == 0; ++i) {
+				if (0 == strncmp((char const*) src, (char const*) aliases->aliases[i]->alias.data,
+								aliases->aliases[i]->alias.length)) {
+					_UA_NodeId_copycstring((cstring)aliases->aliases[i]->alias.data,dst,UA_NULL); // substitute text of alias
+				}
+			}
+		} else {
+			retval = UA_ERR_NOT_IMPLEMENTED;
+		}
+	} else {
+		retval = UA_ERR_INVALID_VALUE;
+	}
+	DBG_VERBOSE(printf("UA_NodeId_copycstring src=%s,id=%d\n", src, dst->identifier.numeric));
+	return retval;
+}
+
 UA_Int32 UA_NodeId_copycstring(cstring src, UA_NodeId* dst, UA_NodeSetAliases* aliases) {
 	dst->encodingByte = UA_NODEIDTYPE_FOURBYTE;
 	dst->namespace = 0;
 	dst->identifier.numeric = 0;
-	// FIXME: assumes i=nnnn
-	if (src[1] == '=') {
-		dst->identifier.numeric = atoi(&src[2]);
-	} else {
-		UA_Int32 i;
-		for (i = 0; i < aliases->size && dst->identifier.numeric == 0; ++i) {
-			if (0
-					== strncmp((char const*) src, (char const*) aliases->aliases[i]->alias.data,
-							aliases->aliases[i]->alias.length)) {
-				dst->identifier.numeric = atoi((char const*) &(aliases->aliases[i]->value.data[2]));
-			}
-		}
-	}
-	DBG_VERBOSE(printf("UA_NodeId_copycstring src=%s,id=%d\n", src, dst->identifier.numeric));
-	return UA_SUCCESS;
+	return _UA_NodeId_copycstring(src,dst,aliases);
 }
-
 
 UA_Int32 UA_ReferenceNode_println(cstring label, UA_ReferenceNode *a) {
 	printf("%s{referenceType=%d, target=%d, isInverse=%d}\n",
@@ -127,6 +143,8 @@ void XML_Stack_init(XML_Stack* p, UA_UInt32 nsid, cstring name) {
 		p->parent[i].activeChild = -1;
 		p->parent[i].textAttrib = UA_NULL;
 		p->parent[i].textAttribIdx = -1;
+		p->parent[i].totalGatherLength = -1;
+		UA_list_init(&(p->parent[i].textGatherList));
 		for (j = 0; j < XML_STACK_MAX_CHILDREN; j++) {
 			p->parent[i].children[j].name = UA_NULL;
 			p->parent[i].children[j].length = -1;
@@ -931,11 +949,6 @@ UA_Int32 UA_NodeSetAlias_decodeXML(XML_Stack* s, XML_Attr* attr, UA_NodeSetAlias
 				DBG_ERR(XML_Stack_print(s));DBG_ERR(printf("%s - unknown attribute\n", attr[i]));
 			}
 		}
-	} else {
-		// sub element is ready
-// TODO: It is a design flaw that we need to do this here, isn't it?
-//		DBG_VERBOSE(printf("UA_NodeSetAlias clears %p\n", (void* ) (s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj)));
-//		s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL;
 	}
 	return UA_SUCCESS;
 }
@@ -1050,44 +1063,67 @@ UA_Int32 XML_isSpace(cstring s, int len) {
 	return UA_TRUE;
 }
 
-/* simulates startElement, endElement behaviour */
+/* gather text */
 void XML_Stack_handleText(void * data, const char *txt, int len) {
 	XML_Stack* s = (XML_Stack*) data;
 
 	if (len > 0 && !XML_isSpace(txt, len)) {
-		XML_Parent* cp = &(s->parent[s->depth]);
-		if (cp->textAttribIdx >= 0) {
-			cp->activeChild = cp->textAttribIdx;
-			char* buf; // need to copy txt to add 0 as string terminator
-			UA_alloc((void** )&buf, len + 1);
-			strncpy(buf, txt, len);
-			buf[len] = 0;
-			XML_Attr attr[3] = { cp->textAttrib, buf, UA_NULL };
-			DBG(printf("handleText @ %s calls start elementHandler %s with dst=%p, buf={%s}\n", XML_Stack_path(s),cp->children[cp->activeChild].name, cp->children[cp->activeChild].obj, buf));
-			cp->children[cp->activeChild].elementHandler(s, attr, cp->children[cp->activeChild].obj, TRUE);
-			// FIXME: The indices of this call are simply wrong
-			// DBG_VERBOSE(printf("handleText calls finish elementHandler %s with dst=%p, attr=(nil)\n", cp->children[cp->activeChild].name, cp->children[cp->activeChild].obj));
-			// cp->children[cp->activeChild].elementHandler(s, UA_NULL, cp->children[cp->activeChild].obj, FALSE);
-
-			if (s->parent[s->depth-1].activeChild > 0) {
-				// FIXME: actually we'd like to have something like the following, won't we?
-				// XML_Stack_endElement(data, cp->children[cp->activeChild].name);
-				XML_child* c = &(s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild]);
-				c->elementHandler(s, UA_NULL, c->obj, FALSE);
-			}
-			UA_free(buf);
+		XML_Parent* cp = &(s->parent[s->depth]); // determine current element
+		UA_ByteString src = { len+1, (UA_Byte*) txt };
+		UA_ByteString *dst;
+		UA_ByteString_new(&dst);	// alloc dst
+		UA_ByteString_copy(&src,dst); // alloc dst->data and copy txt
+		dst->data[len] = 0; // add terminating zero to handle single line efficiently
+		UA_list_addPayloadToBack(&(cp->textGatherList), (void*) dst);
+		if (cp->totalGatherLength == -1) {
+			cp->totalGatherLength = len;
 		} else {
-			DBG_VERBOSE(XML_Stack_print(s));
-			DBG_VERBOSE(printf("textData - ignore text data '%.*s'\n", len, txt));
+			cp->totalGatherLength += len;
 		}
 	}
 }
 
+char* theGatherBuffer;
+void textGatherListTotalLength(void* payload) {
+	UA_ByteString* b = (UA_ByteString*) payload;
+	UA_ByteString_printf("\t",b);
+	UA_memcpy(theGatherBuffer,b->data,b->length-1); // remove trailing zero
+	theGatherBuffer += (b->length-1);
+}
 /** if we are an activeChild of a parent we call the child-handler */
 void XML_Stack_endElement(void *data, const char *el) {
 	XML_Stack* s = (XML_Stack*) data;
 
-// the parent of the parent (pop) of the element knows the elementHandler, therefore depth-2!
+	XML_Parent* ce = &(s->parent[s->depth]);
+	if (ce->textAttribIdx >= 0 && ce->totalGatherLength > 0 ) {
+		ce->activeChild = ce->textAttribIdx;
+		char* buf;
+		if (UA_list_getFirst(&(ce->textGatherList)) == UA_list_getLast(&(ce->textGatherList)) ) {
+			buf = (char*) ((UA_ByteString*) UA_list_getFirst(&(ce->textGatherList))->payload)->data;
+		} else {
+			printf("XML_Stack_endElement - more than one text snippet with total length=%d:\n",ce->totalGatherLength);
+			UA_alloc((void**)&theGatherBuffer,ce->totalGatherLength+1);
+			buf = theGatherBuffer;
+			UA_list_iteratePayload(&(ce->textGatherList), textGatherListTotalLength);
+			buf[ce->totalGatherLength] = 0;
+			printf("XML_Stack_endElement - gatherBuffer %s:\n",buf);
+		}
+		XML_Attr attr[3] = { ce->textAttrib, buf, UA_NULL };
+		DBG(printf("handleText @ %s calls start elementHandler %s with dst=%p, buf={%s}\n", XML_Stack_path(s),ce->children[ce->activeChild].name, ce->children[ce->activeChild].obj, buf));
+		ce->children[ce->activeChild].elementHandler(s, attr, ce->children[ce->activeChild].obj, TRUE);
+		if (s->parent[s->depth-1].activeChild > 0) {
+			XML_child* c = &(s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild]);
+			c->elementHandler(s, UA_NULL, c->obj, FALSE);
+		}
+		if (UA_list_getFirst(&(ce->textGatherList)) != UA_list_getLast(&(ce->textGatherList)) ) {
+			UA_free(buf);
+		}
+		UA_list_destroy(&(ce->textGatherList),(UA_list_PayloadVisitor) UA_ByteString_delete);
+		UA_list_init(&(ce->textGatherList)); // don't know if destroy leaves the list in usable state...
+		ce->totalGatherLength = -1;
+	}
+
+	// the parent of the parent (pop) of the element knows the elementHandler, therefore depth-2!
 	if (s->depth > 1) {
 		// inform parents elementHandler that everything is done
 		XML_Parent* cp = &(s->parent[s->depth - 1]);
@@ -1106,14 +1142,12 @@ void XML_Stack_endElement(void *data, const char *el) {
 	s->depth--;
 }
 
-UA_Int32 Namespace_loadFromFile(Namespace **ns,UA_UInt32 nsid,const char* rootName,const char* fileName) {
-	int f;
-	if (fileName == UA_NULL)
-		f = 0; // stdin
-	else if ((f= open(fileName, O_RDONLY)) == -1)
-		return UA_ERR_INVALID_VALUE;
+typedef UA_Int32 (*XML_Stack_Loader) (char* buf, int len);
 
-	char buf[1024];
+#define XML_BUFFER_LEN 1024
+UA_Int32 Namespace_loadXml(Namespace **ns,UA_UInt32 nsid,const char* rootName, XML_Stack_Loader getNextBufferFull) {
+	UA_Int32 retval = UA_SUCCESS;
+	char buf[XML_BUFFER_LEN];
 	int len; /* len is the number of bytes in the current bufferful of data */
 
 	XML_Stack s;
@@ -1121,25 +1155,58 @@ UA_Int32 Namespace_loadFromFile(Namespace **ns,UA_UInt32 nsid,const char* rootNa
 
 	UA_NodeSet n;
 	UA_NodeSet_init(&n, 0);
-	XML_Stack_addChildHandler(&s, "UANodeSet", strlen("UANodeSet"), (XML_decoder) UA_NodeSet_decodeXML, UA_INVALIDTYPE, &n);
+	*ns = n.ns;
 
+	XML_Stack_addChildHandler(&s, "UANodeSet", strlen("UANodeSet"), (XML_decoder) UA_NodeSet_decodeXML, UA_INVALIDTYPE, &n);
 	XML_Parser parser = XML_ParserCreate(NULL);
 	XML_SetUserData(parser, &s);
 	XML_SetElementHandler(parser, XML_Stack_startElement, XML_Stack_endElement);
 	XML_SetCharacterDataHandler(parser, XML_Stack_handleText);
-	while ((len = read(f, buf, 1024)) > 0) {
-		if (!XML_Parse(parser, buf, len, (len < 1024))) {
-			return 1;
+	while ((len = getNextBufferFull(buf, XML_BUFFER_LEN)) > 0) {
+		if (XML_Parse(parser, buf, len, (len < XML_BUFFER_LEN)) == XML_STATUS_ERROR) {
+			retval = UA_ERR_INVALID_VALUE;
+			break;
 		}
 	}
 	XML_ParserFree(parser);
-	close(f);
 
-	DBG_VERBOSE(printf("Namespace_loadFromFile - aliases addr=%p, size=%d\n", (void*) &(n.aliases), n.aliases.size));
-	DBG_VERBOSE(UA_NodeSetAliases_println("Namespace_loadFromFile - elements=", &n.aliases));
+	DBG_VERBOSE(printf("Namespace_loadXml - aliases addr=%p, size=%d\n", (void*) &(n.aliases), n.aliases.size));
+	DBG_VERBOSE(UA_NodeSetAliases_println("Namespace_loadXml - elements=", &n.aliases));
 
-	// eventually return the namespace object that has been allocated in UA_NodeSet_init
-	*ns = n.ns;
-	return UA_SUCCESS;
+	return retval;
 }
 
+static int theFile = 0;
+UA_Int32 readFromTheFile(char*buf,int len) {
+	return read(theFile,buf,len);
+}
+
+UA_Int32 Namespace_loadFromFile(Namespace **ns,UA_UInt32 nsid,const char* rootName,const char* fileName) {
+	if (fileName == UA_NULL)
+		theFile = 0; // stdin
+	else if ((theFile = open(fileName, O_RDONLY)) == -1)
+		return UA_ERR_INVALID_VALUE;
+
+	UA_Int32 retval = Namespace_loadXml(ns,nsid,rootName,readFromTheFile);
+	close(theFile);
+	return retval;
+}
+
+static const char* theBuffer = UA_NULL;
+static const char* theBufferEnd = UA_NULL;
+UA_Int32 readFromTheBuffer(char*buf,int len) {
+	if (len == 0) return 0;
+	if (theBuffer + XML_BUFFER_LEN > theBufferEnd)
+		len = theBufferEnd - theBuffer + 1;
+	else
+		len = XML_BUFFER_LEN;
+	memcpy(buf,theBuffer,len);
+	theBuffer = theBuffer + len;
+	return len;
+}
+
+UA_Int32 Namespace_loadFromString(Namespace **ns,UA_UInt32 nsid,const char* rootName,const char* buffer) {
+	theBuffer = buffer;
+	theBufferEnd = buffer + strlen(buffer) - 1;
+	return Namespace_loadXml(ns,nsid,rootName,readFromTheBuffer);
+}

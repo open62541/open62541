@@ -1,7 +1,7 @@
 #ifndef UA_LIST_H_
 #define UA_LIST_H_
 
-#include "opcua.h"
+#include "ua_types.h"
 #include <stddef.h> /* Needed for sys/queue.h */
 #include <sys/queue.h>
 
