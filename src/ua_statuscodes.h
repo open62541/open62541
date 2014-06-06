@@ -1,7 +1,7 @@
 #ifndef OPCUA_STATUSCODES_H_
 #define OPCUA_STATUSCODES_H_
 
-#include "ua_basictypes.h"
+#include "ua_types.h"
 
 static const UA_StatusCode UA_STATUSCODE_GOOD = 0x00;
 static const UA_StatusCode UA_STATUSCODE_BADUNEXPECTEDERROR = 0x80010000; // An unexpected error occurred.

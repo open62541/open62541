@@ -1,4 +1,5 @@
 #include "ua_list.h"
+#include "ua_util.h"
 
 void UA_list_defaultFreer(void* payload){
 	if(payload){

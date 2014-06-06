@@ -1,9 +1,13 @@
-AM_CFLAGS = $(GLOBAL_AM_CFLAGS) -I$(top_builddir)/include -I$(top_builddir)/src -I. -I$(top_builddir)/src/util
+AM_CFLAGS = $(GLOBAL_AM_CFLAGS) -I$(top_builddir)/src -I. -I$(top_builddir)/src/util
 TOOL_DIR = ../tools
+SCHEMA_DIR = ../schema
 lib_LTLIBRARIES = libopen62541.la
+lib_LTLIBRARIES: generate_types generate_namespace_0
 libopen62541_la_LDFLAGS = -avoid-version -no-undefined
-libopen62541_la_SOURCES = opcua.c \
-						  ua_basictypes.c \
+libopen62541_la_SOURCES = ua_types.c \
+						  ua_types_generated.c \
+						  ua_types_encoding_binary.c \
+						  ua_types_encoding_xml.c \
 						  ua_namespace_0.c \
 						  util/ua_list.c \
 						  util/ua_indexedList.c \
@@ -20,9 +24,15 @@ libopen62541_la_SOURCES = opcua.c \
 						  ua_application.c \
 						  ua_xml.c
 
-.PHONY: convenience-link clean-convenience-link
+generate_types: $(SCHEMA_DIR)/Opc.Ua.Types.bsd $(TOOL_DIR)/generate_builtin.py
+	python $(TOOL_DIR)/generate_builtin.py $(SCHEMA_DIR)/Opc.Ua.Types.bsd ua_types_generated
 
-convenience-link: $(lib_LTLIBRARIES)
+generate_namespace_0: $(SCHEMA_DIR)/NodeIds.csv $(TOOL_DIR)/generate_namespace.py
+	python $(TOOL_DIR)/generate_namespace.py $(SCHEMA_DIR)/NodeIds.csv ua_namespace_0
+
+.PHONY: convenience-link clean-convenience-link generate_types generate_namespace_0
+
+convenience-link: $(lib_LTLIBRARIES) 
 	@test -e $(top_builddir)/lib || mkdir $(top_builddir)/lib
 	@for soname in `echo | $(EGREP) "^dlname=" $^ | $(SED) -e "s|^dlname='\(.*\)'|\1|"`; do  \
 		echo "$$soname: creating convenience link from $(abs_builddir)/.libs to $(top_builddir)/lib"; \

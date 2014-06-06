@@ -7,7 +7,7 @@
 #ifndef UA_SERVICES_H_
 #define UA_SERVICES_H_
 
-#include "opcua.h"
+#include "ua_types.h"
 #include "ua_application.h"
 #include "ua_transport_binary_secure.h"
 

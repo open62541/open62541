@@ -11,7 +11,7 @@ Application appMockup = {
 };
 
 UA_Node* create_node_ns0(UA_Int32 class, UA_Int32 nodeClass, UA_Int32 const id, char const * qn, char const * dn, char const * desc) {
-	UA_Node* n; UA_[class].new((void **)&n);
+	UA_Node* n; UA_.types[class].new((void **)&n);
 	n->nodeId.encodingByte = UA_NODEIDTYPE_FOURBYTE;
 	n->nodeId.namespace = 0;
 	n->nodeId.identifier.numeric = id;
@@ -47,8 +47,8 @@ void appMockup_init() {
 
 	np = create_node_ns0(UA_VARIABLENODE, UA_NODECLASS_VARIABLE, 2255, "Server_NamespaceArray", "open62541", "..." );
 	UA_VariableNode* v = (UA_VariableNode*)np;
-	UA_Array_new((void***)&v->value.data,2,UA_STRING);
-	v->value.vt = &UA_[UA_STRING];
+	UA_Array_new((void**)&v->value.data, 2, UA_STRING);
+	v->value.vt = &UA_.types[UA_STRING];
 	v->value.arrayLength = 2;
 	v->value.encodingMask = UA_VARIANT_ENCODINGMASKTYPE_ARRAY | UA_STRING_NS0;
 	UA_String_copycstring("http://opcfoundation.org/UA/",((UA_String **)(((v)->value).data))[0]);

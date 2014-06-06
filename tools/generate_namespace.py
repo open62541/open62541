@@ -34,8 +34,8 @@ input_str = input_str.replace('\r','')
 rows = map(lambda x:tuple(x.split(',')), input_str.split('\n'))
 f.close()
 
-fh = open(sys.argv[2] + ".hgen",'w')
-fc = open(sys.argv[2] + ".cgen",'w')
+fh = open(sys.argv[2] + ".h",'w')
+fc = open(sys.argv[2] + ".c",'w')
 
 print('''/**********************************************************
  * '''+sys.argv[2]+'''.hgen -- do not modify
@@ -44,10 +44,12 @@ print('''/**********************************************************
  * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  **********************************************************/
  
-#ifndef OPCUA_NAMESPACE_0_H_
-#define OPCUA_NAMESPACE_0_H_
+#ifndef ''' + sys.argv[2].upper() + '''_H_
+#define ''' + sys.argv[2].upper() + '''_H_
 
-#include "ua_basictypes.h"  // definition of UA_VTable and basic UA_Types
+#include "ua_util.h"
+#include "ua_types.h"  // definition of UA_VTable and basic UA_Types
+#include "ua_types_generated.h"
 
 /**
  * @brief maps namespace zero nodeId to index into UA_VTable
@@ -57,11 +59,13 @@ print('''/**********************************************************
  * @retval UA_ERR_INVALID_VALUE whenever ns0Id could not be mapped
  * @retval the corresponding index into UA_VTable
  */
-UA_Int32 UA_ns0ToVTableIndex(UA_Int32 id);
-extern UA_VTable UA_[]; 
+
+UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id);
+
+extern UA_VTable UA_; 
 
 static UA_Int32 phantom_delete(void * p) { return UA_SUCCESS; }
-extern UA_VTable UA_noDelete_[];
+extern UA_VTable UA_borrowed_;
 
 /**
  * @brief the set of possible indices into UA_VTable
@@ -77,11 +81,12 @@ print('''/**********************************************************
  * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  **********************************************************/
  
-#include "opcua.h"
+#include "''' + sys.argv[2] + '''.h"
 
-UA_Int32 UA_ns0ToVTableIndex(UA_Int32 ns0Id) {
+UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id) {
 	UA_Int32 retval = UA_ERR_INVALID_VALUE;
-	switch (ns0Id) { ''', end='\n',file=fc)
+        if(id->namespace != 0) return retval;
+	switch (id->identifier.numeric) { ''', end='\n',file=fc)
 
 i = 0
 for row in rows:
@@ -104,7 +109,9 @@ print('''
     return retval;
 }
 
-UA_VTable UA_[] = {''', file=fc)
+UA_VTable UA_ = {
+\t.getTypeIndex = UA_ns0ToVTableIndex,
+\t.types = (UA_VTable_Entry[]){''', file=fc)
 
 for row in rows:
     if row[0] == "" or row[0] in exclude_types or row[2] in exclude_kinds:
@@ -118,19 +125,28 @@ for row in rows:
 
     print('#define '+name.upper()+'_NS0 '+row[1], file=fh)
 
-    print("\t{" + row[1] + 
-          ",(UA_Int32(*)(void const*))"+name+"_calcSize" + 
-          ",(UA_Int32(*)(UA_ByteString const*,UA_Int32*,void*))"+name+ "_decodeBinary" +
-          ",(UA_Int32(*)(void const*,UA_Int32*,UA_ByteString*))"+name+"_encodeBinary"+
-          ",(UA_Int32(*)(XML_Stack*,XML_Attr*,void*,_Bool))"+ name + "_decodeXML" +
-          ",(UA_Int32(*)(void *))"+name+"_init"+
-          ",(UA_Int32(*)(void **))"+name+"_new"+
-          ",(UA_Int32(*)(void const * ,void*))"+name+"_copy"+
-          ",(UA_Int32(*)(void *))"+name+"_delete"+
-          (",sizeof("+name+")" if (name != "UA_InvalidType") else ",0") +
-          ',(UA_Byte*)"'+name+'"},',end='\n',file=fc) 
+    print("\t{.typeId={UA_NODEIDTYPE_FOURBYTE,0,.identifier.numeric=" + row[1] +"}"+ 
+          ",.name=(UA_Byte*)&\""+name+"\""+
+          ",.new=(UA_Int32(*)(void **))"+name+"_new"+
+          ",.init=(UA_Int32(*)(void *))"+name+"_init"+
+          ",.copy=(UA_Int32(*)(void const * ,void*))"+name+"_copy"+
+          ",.delete=(UA_Int32(*)(void *))"+name+"_delete"+
+          ",.deleteMembers=(UA_Int32(*)(void *))"+name+"_deleteMembers"+
+          ",.memSize=" + ("sizeof("+name+")" if (name != "UA_InvalidType") else "0") +
+          ",.encodings={(UA_Encoding){.calcSize=(UA_calcSize)"+ name +"_calcSizeBinary" +
+          ",.encode=(UA_encode)"+name+ "_encodeBinary" +
+          ",.decode=(UA_decode)"+name+"_decodeBinary}"+
+          ",(UA_Encoding){.calcSize=(UA_calcSize)"+ name +"_calcSizeXml" +
+          ",.encode=(UA_encode)"+name+ "_encodeXml" +
+          ",.decode=(UA_decode)"+name+"_decodeXml}"+
+          "}},",
+          end='\n',file=fc) 
 
-print("};\n\nUA_VTable UA_noDelete_[] = {", end='\n', file=fc)
+print('''}};
+
+UA_VTable UA_noDelete_ = {
+\t.getTypeIndex=UA_ns0ToVTableIndex,
+\t.types = (UA_VTable_Entry[]){''', end='\n', file=fc)
 
 for row in rows:
     if row[0] == "" or row[0] in exclude_types or row[2] in exclude_kinds:
@@ -142,18 +158,25 @@ for row in rows:
     else:	
 	name = "UA_" + row[0]
 
-    print("\t{" + row[1] +
-          ",(UA_Int32(*)(void const*))"+name+"_calcSize" + 
-          ",(UA_Int32(*)(UA_ByteString const*,UA_Int32*,void*))"+name+ "_decodeBinary" +
-          ",(UA_Int32(*)(void const*,UA_Int32*,UA_ByteString*))"+name+"_encodeBinary"+
-          ",(UA_Int32(*)(XML_Stack*,XML_Attr*,void*,_Bool))" + name + "_decodeXML" +          
-          ",(UA_Int32(*)(void *))"+name+"_init"+
-          ",(UA_Int32(*)(void **))"+name+"_new"+
-          ",(UA_Int32(*)(void const * ,void*))"+name+"_copy"+
-          ",(UA_Int32(*)(void *))phantom_delete"+
-          (",sizeof("+name+")" if (name != "UA_InvalidType") else ",0") +
-          ',(UA_Byte*)"'+name+'"},',end='\n',file=fc)
-print("};", end='\n', file=fc) 
+    print("\t{.typeId={UA_NODEIDTYPE_FOURBYTE,0,.identifier.numeric=" + row[1] +"}"+ 
+          ",.name=(UA_Byte*)&\""+name+"\""+
+          ",.new=(UA_Int32(*)(void **))"+name+"_new"+
+          ",.init=(UA_Int32(*)(void *))"+name+"_init"+
+          ",.copy=(UA_Int32(*)(void const * ,void*))"+name+"_copy"+
+          ",.delete=(UA_Int32(*)(void *))phantom_delete"+
+          ",.deleteMembers=(UA_Int32(*)(void *))phantom_delete"+
+          ",.memSize=" + ("sizeof("+name+")" if (name != "UA_InvalidType") else "0") +
+          ",.encodings={(UA_Encoding){.calcSize=(UA_calcSize)"+ name +"_calcSizeBinary" +
+          ",.encode=(UA_encode)"+name+ "_encodeBinary" +
+          ",.decode=(UA_decode)"+name+"_decodeBinary}"+
+          ",(UA_Encoding){.calcSize=(UA_calcSize)"+ name +"_calcSizeXml" +
+          ",.encode=(UA_encode)"+name+ "_encodeXml" +
+          ",.decode=(UA_decode)"+name+"_decodeXml}"+
+          "}},",
+          end='\n',file=fc) 
+
+
+print("}};", end='\n', file=fc) 
 
 print('\n#endif /* OPCUA_NAMESPACE_0_H_ */', end='\n', file=fh)
 

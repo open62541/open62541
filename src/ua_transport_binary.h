@@ -2,7 +2,7 @@
 #define OPCUA_TRANSPORT_BINARY_H_
 #include <stdio.h>
 
-#include "opcua.h"
+#include "ua_types.h"
 
 //transport errors begin at 1000
 #define UA_ERROR_MULTIPLE_HEL 1000

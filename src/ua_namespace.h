@@ -1,8 +1,8 @@
 #ifndef __NAMESPACE_H__
 #define __NAMESPACE_H__
 
-#include "ua_basictypes.h"
-#include "opcua.h"
+#include "ua_types.h"
+#include "ua_types_generated.h"
 #include "ua_list.h"
 
 #ifdef MULTITHREADING

@@ -1,6 +1,6 @@
 #ifndef OPCUA_TRANSPORT_BINARY_SECURE_H_
 #define OPCUA_TRANSPORT_BINARY_SECURE_H_
-#include "opcua.h"
+#include "ua_types.h"
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
 
@@ -25,7 +25,7 @@ typedef struct SL_Channel {
 	SL_ChannelSecurityToken securityToken;
 } SL_Channel;
 
-UA_Int32 SL_Process(SL_Channel* channel, const UA_ByteString* msg, UA_Int32* pos);
-UA_Int32 SL_Channel_new(TL_Connection *connection, const UA_ByteString* msg, UA_Int32* pos); // this function is called from the OpenSecureChannel service
+UA_Int32 SL_Process(SL_Channel* channel, const UA_ByteString* msg, UA_UInt32* offset);
+UA_Int32 SL_Channel_new(TL_Connection *connection, const UA_ByteString* msg, UA_UInt32* offset); // this function is called from the OpenSecureChannel service
 
 #endif /* OPCUA_TRANSPORT_BINARY_SECURE_H_ */

@@ -9,14 +9,14 @@
 		goto GOTO; \
 	} } while(0) \
 
-static UA_AddNodesResult * addSingleNode(Application *app, UA_AddNodesItem *item) {
-	UA_AddNodesResult *result;
-	UA_AddNodesResult_new(&result);
+static UA_AddNodesResult addSingleNode(Application *app, UA_AddNodesItem *item) {
+	UA_AddNodesResult result;
+	UA_AddNodesResult_init(&result);
 
 	Namespace *parent_ns = UA_indexedList_findValue(app->namespaces, item->parentNodeId.nodeId.namespace);
 	// TODO: search for namespaceUris and not only ns-ids.
 	if(parent_ns == UA_NULL) {
-		result->statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID;
+		result.statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID;
 		return result;
 	}
 
@@ -27,7 +27,7 @@ static UA_AddNodesResult * addSingleNode(Application *app, UA_AddNodesItem *item
 	else ns = UA_indexedList_findValue(app->namespaces, item->requestedNewNodeId.nodeId.namespace);
 
 	if(ns == UA_NULL || item->requestedNewNodeId.nodeId.namespace == 0) {
-		result->statusCode = UA_STATUSCODE_BADNODEIDREJECTED;
+		result.statusCode = UA_STATUSCODE_BADNODEIDREJECTED;
 		return result;
 	}
 
@@ -36,10 +36,10 @@ static UA_AddNodesResult * addSingleNode(Application *app, UA_AddNodesItem *item
 	Namespace_Entry_Lock *parent_lock = UA_NULL;
 
 	CHECKED_ACTION(Namespace_get(parent_ns, &item->parentNodeId.nodeId, &parent, &parent_lock),
-				   result->statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID, ret);
+				   result.statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID, ret);
 
 	if(!nodeid_isnull && Namespace_contains(ns, &item->requestedNewNodeId.nodeId)) {
-		result->statusCode = UA_STATUSCODE_BADNODEIDEXISTS;
+		result.statusCode = UA_STATUSCODE_BADNODEIDEXISTS;
 		goto ret;
 	}
 
@@ -80,8 +80,8 @@ UA_Int32 Service_AddNodes(SL_Channel *channel, const UA_AddNodesRequest *request
 	response->resultsSize = nodestoaddsize;
 	UA_alloc((void **)&response->results, sizeof(void *) * nodestoaddsize);
 	for(int i = 0; i < nodestoaddsize; i++) {
-		DBG_VERBOSE(UA_QualifiedName_printf("service_addnodes - name=", &(request->nodesToAdd[i]->browseName)));
-		response->results[i] = addSingleNode(channel->session->application, request->nodesToAdd[i]);
+		DBG_VERBOSE(UA_QualifiedName_printf("service_addnodes - name=", &(request->nodesToAdd[i].browseName)));
+		response->results[i] = addSingleNode(channel->session->application, &request->nodesToAdd[i]);
 	}
 	response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
 	response->diagnosticInfosSize = -1;
