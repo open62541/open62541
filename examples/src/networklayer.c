@@ -11,7 +11,7 @@
 #include <fcntl.h> // fcntl
 
 #include "networklayer.h"
-
+#include "ua_transport_connection.h"
 NL_Description NL_Description_TcpBinary  = {
 	NL_UA_ENCODING_BINARY,
 	NL_CONNECTIONTYPE_TCPV4,
@@ -116,6 +116,7 @@ void* NL_TCP_reader(NL_Connection *c) {
 	UA_ByteString readBuffer;
 
 	TL_Buffer localBuffers;
+
 	UA_UInt32 connectionId;
 	UA_TL_Connection_getLocalConfiguration(c->connection, &localBuffers);
 	UA_TL_Connection_getId(c->connection, &connectionId);

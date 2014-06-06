@@ -7,6 +7,7 @@
 #include "ua_transport_binary.h"
 #include "networklayer.h"
 #include "ua_stack_channel_manager.h"
+#include "ua_transport_connection.h"
 
 #ifdef LINUX
 

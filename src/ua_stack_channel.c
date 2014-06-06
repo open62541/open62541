@@ -270,7 +270,8 @@ UA_Int32 SL_Channel_initByRequest(SL_secureChannel channel,
 
 UA_Int32 SL_Channel_delete(SL_secureChannel channel)
 {
-	//TODO implement me!
+	//TODO implement me
+	//((SL_Channel1*)channel)->
 	return UA_SUCCESS;
 }
 
