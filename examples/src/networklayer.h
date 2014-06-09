@@ -1,7 +1,7 @@
 #ifndef NETWORKLAYER_H_
 #define NETWORKLAYER_H_
 
-#include "opcua.h"
+#include "ua_types.h"
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
 #include "ua_list.h"

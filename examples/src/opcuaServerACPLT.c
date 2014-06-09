@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <memory.h>
 
-#include "opcua.h"
+#include "ua_types.h"
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
 #include "networklayer.h"

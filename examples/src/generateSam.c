@@ -1,11 +1,7 @@
-/*
- * xml2ns0.c
- *
- *  Created on: 21.04.2014
- *      Author: mrt
- */
-
 #include "ua_xml.h"
+#include "ua_namespace.h"
+#include "ua_namespace_xml.h"
+#include "ua_types_generated.h"
 #include <ctype.h> // tolower
 
 /** @brief we need a variable global to the module to make it possible for the visitors to access the namespace */
@@ -15,16 +11,16 @@ static Namespace* theNamespace;
 _Bool UA_VariableNode_isRoot(const UA_VariableNode* node) {
 	UA_Int32 i;
 	for (i = 0; i < node->referencesSize; i++ ) {
-		UA_Int32 refId = UA_NodeId_getIdentifier(&(node->references[i]->referenceTypeId));
-		UA_Int32 isInverse = node->references[i]->isInverse;
+		UA_Int32 refId = node->references[i].referenceTypeId.identifier.numeric;
+		UA_Int32 isInverse = node->references[i].isInverse;
 		if (isInverse && (refId == 47 || refId == 46)) {
 			Namespace_Entry_Lock* lock;
 			const UA_Node* parent;
 			UA_Int32 retval;
-			retval = Namespace_get(theNamespace, &(node->references[i]->targetId.nodeId),&parent,&lock);
+			retval = Namespace_get(theNamespace, &(node->references[i].targetId.nodeId),&parent,&lock);
 			if (retval != UA_SUCCESS || parent == UA_NULL || parent->nodeClass == UA_NODECLASS_VARIABLE) {
 				if (node->nodeId.identifier.numeric == 2007) {
-					printf("strange 2007 not included retval=%d,parentId=%d,parent=%p\n, ",retval,node->references[i]->targetId.nodeId.identifier.numeric,(void*)parent);
+					printf("strange 2007 not included retval=%d,parentId=%d,parent=%p\n, ",retval,node->references[i].targetId.nodeId.identifier.numeric,(void*)parent);
 				}
 				Namespace_Entry_Lock_release(lock);
 				return UA_FALSE;
@@ -46,7 +42,7 @@ _Bool UA_VariableNode_isRoot(const UA_VariableNode* node) {
 void sam_declareAttribute(UA_Node const * node) {
 	if (node->nodeClass == UA_NODECLASS_VARIABLE && UA_VariableNode_isRoot((UA_VariableNode*)node)) {
 		UA_VariableNode* vn = (UA_VariableNode*) node;
-		printf("\t%s " F_cls "; // i=%d\n", UA_[UA_ns0ToVTableIndex(vn->dataType.identifier.numeric)].name, LC_cls(node->browseName.name), node->nodeId.identifier.numeric);
+		printf("\t%s " F_cls "; // i=%d\n", UA_.types[UA_ns0ToVTableIndex(&vn->dataType)].name, LC_cls(node->browseName.name), node->nodeId.identifier.numeric);
 	}
 }
 
@@ -95,7 +91,7 @@ void sam_assignBuffer(UA_Node const * node) {
 void sam_attachToNamespace(UA_Node const * node) {
 	if (node != UA_NULL && node->nodeClass == UA_NODECLASS_VARIABLE) {
 		UA_VariableNode* vn = (UA_VariableNode*) node;
-		printf("\tsam_attach(ns,%d,%s,&sam." F_cls ");\n",node->nodeId.identifier.numeric,UA_[UA_ns0ToVTableIndex(vn->dataType.identifier.numeric)].name, LC_cls(vn->browseName.name));
+		printf("\tsam_attach(ns,%d,%s,&sam." F_cls ");\n",node->nodeId.identifier.numeric,UA_.types[UA_ns0ToVTableIndex(&vn->dataType)].name, LC_cls(vn->browseName.name));
 	}
 }
 
@@ -108,7 +104,7 @@ UA_Int32 Namespace_getNumberOfComponents(Namespace const * ns, UA_NodeId const *
 		return UA_ERR_INVALID_VALUE;
 	UA_Int32 i, n;
 	for (i = 0, n = 0; i < node->referencesSize; i++ ) {
-		if (node->references[i]->referenceTypeId.identifier.numeric == 47 && node->references[i]->isInverse != UA_TRUE) {
+		if (node->references[i].referenceTypeId.identifier.numeric == 47 && node->references[i].isInverse != UA_TRUE) {
 			n++;
 		}
 	}
@@ -125,10 +121,10 @@ UA_Int32 Namespace_getComponent(Namespace const * ns, UA_NodeId const * id, UA_I
 
 	UA_Int32 i, n;
 	for (i = 0, n = 0; i < node->referencesSize; i++ ) {
-		if (node->references[i]->referenceTypeId.identifier.numeric == 47 && node->references[i]->isInverse != UA_TRUE) {
+		if (node->references[i].referenceTypeId.identifier.numeric == 47 && node->references[i].isInverse != UA_TRUE) {
 			n++;
 			if (n == idx) {
-				*result = &(node->references[i]->targetId.nodeId);
+				*result = &(node->references[i].targetId.nodeId);
 				return retval;
 			}
 		}
@@ -137,13 +133,13 @@ UA_Int32 Namespace_getComponent(Namespace const * ns, UA_NodeId const * id, UA_I
 }
 
 
-UA_Int32 UAX_NodeId_encodeBinaryByMetaData(Namespace const * ns, UA_NodeId const * id, UA_Int32* pos, UA_ByteString *dst) {
+UA_Int32 UAX_NodeId_encodeBinaryByMetaData(Namespace const * ns, UA_NodeId const * id, UA_UInt32* pos, UA_ByteString *dst) {
 	UA_Int32 i, retval = UA_SUCCESS;
 	if (UA_NodeId_isBasicType(id)) {
 		UA_Node const * result;
 		Namespace_Entry_Lock* lock;
 		if ((retval = Namespace_get(ns,id,&result,&lock)) == UA_SUCCESS)
-			UA_Variant_encodeBinary(&((UA_VariableNode *) result)->value,pos,dst);
+			UA_Variant_encodeBinary(&((UA_VariableNode *) result)->value,dst,pos);
 	} else {
 		UA_Int32 nComp = 0;
 		if ((retval = Namespace_getNumberOfComponents(ns,id,&nComp)) == UA_SUCCESS) {
@@ -157,14 +153,14 @@ UA_Int32 UAX_NodeId_encodeBinaryByMetaData(Namespace const * ns, UA_NodeId const
 	return retval;
 }
 
-UA_Int32 UAX_NodeId_encodeBinary(Namespace const * ns, UA_NodeId const * id, UA_Int32* pos, UA_ByteString *dst) {
+UA_Int32 UAX_NodeId_encodeBinary(Namespace const * ns, UA_NodeId const * id, UA_ByteString *dst, UA_UInt32* offset) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Node const * node;
 	Namespace_Entry_Lock* lock;
 
 	if ((retval = Namespace_get(ns,id,&node,&lock)) == UA_SUCCESS) {
 		if (node->nodeClass == UA_NODECLASS_VARIABLE) {
-			retval = UA_Variant_encodeBinary(&((UA_VariableNode*) node)->value,pos,dst);
+			retval = UA_Variant_encodeBinary(&((UA_VariableNode*) node)->value,dst,offset);
 		}
 		Namespace_Entry_Lock_release(lock);
 	}
@@ -192,25 +188,25 @@ pattern p[] = {
 };
 
 int main(int argc, char** argv) {
-	if (argc != 2) {
-		printf("usage: %s filename\n",argv[0]);
-	} else {
-		Namespace* ns;
-		if (Namespace_loadFromFile(&ns,0,"ROOT",argv[1]) != UA_SUCCESS) {
-			printf("error loading file {%s}\n", argv[1]);
-		} else {
-			theNamespace = ns;
-			for (pattern* pi = &p[0]; pi->s != UA_NULL || pi->v != UA_NULL; ++pi) {
-				if (pi->s) {
-					printf("%s",pi->s);
-				}
-				if (pi->v) {
-					Namespace_iterate(ns, pi->v);
-				}
-			}
-			// FIXME: crashes with a seg fault
-			// Namespace_delete(ns);
-		}
-	}
+	/* if (argc != 2) { */
+	/* 	printf("usage: %s filename\n",argv[0]); */
+	/* } else { */
+	/* 	Namespace* ns; */
+	/* 	if (Namespace_loadFromFile(&ns,0,"ROOT",argv[1]) != UA_SUCCESS) { */
+	/* 		printf("error loading file {%s}\n", argv[1]); */
+	/* 	} else { */
+	/* 		theNamespace = ns; */
+	/* 		for (pattern* pi = &p[0]; pi->s != UA_NULL || pi->v != UA_NULL; ++pi) { */
+	/* 			if (pi->s) { */
+	/* 				printf("%s",pi->s); */
+	/* 			} */
+	/* 			if (pi->v) { */
+	/* 				Namespace_iterate(ns, pi->v); */
+	/* 			} */
+	/* 		} */
+	/* 		// FIXME: crashes with a seg fault */
+	/* 		// Namespace_delete(ns); */
+	/* 	} */
+	/* } */
 	return 0;
 }

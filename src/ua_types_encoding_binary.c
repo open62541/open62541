@@ -55,7 +55,7 @@ UA_Int32 UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 * offset, UA_
 #define UA_TYPE_ENCODEBINARY(TYPE, CODE)                                                \
     UA_Int32 TYPE##_encodeBinary(TYPE const *src, UA_ByteString * dst, UA_UInt32 *offset) { \
 		UA_Int32 retval = UA_SUCCESS;                                                   \
-		if(*offset < 0 || (UA_Int32) (*offset + TYPE##_calcSizeBinary(src)) > dst->length ) { \
+		if((UA_Int32) (*offset + TYPE##_calcSizeBinary(src)) > dst->length ) { \
 			return UA_ERR_INVALID_VALUE;                                                \
 		} else {                                                                        \
 			CODE                                                                        \
@@ -67,7 +67,7 @@ UA_Int32 UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 * offset, UA_
 #define UA_TYPE_DECODEBINARY(TYPE, CODE)                                                \
     UA_Int32 TYPE##_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, TYPE * dst) { \
 		UA_Int32 retval = UA_SUCCESS;                                                   \
-		if( *offset< 0 || (UA_Int32) (*offset + TYPE##_calcSizeBinary(UA_NULL)) > src->length ) { \
+		if((UA_Int32) (*offset + TYPE##_calcSizeBinary(UA_NULL)) > src->length ) { \
 			return UA_ERR_INVALID_VALUE;                                                \
 		} else {                                                                        \
 			CODE                                                                        \
@@ -258,8 +258,7 @@ UA_Int32 UA_String_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA_
 }
 
 /* DateTime */
-UA_TYPE_ENCODEBINARY_AS(UA_DateTime, UA_Int64)
-UA_TYPE_DECODEBINARY_AS(UA_DateTime, UA_Int64)
+UA_TYPE_BINARY_ENCODING_AS(UA_DateTime, UA_Int64)
 
 /* Guid */
 UA_Int32 UA_Guid_calcSizeBinary(UA_Guid const *p) {
@@ -285,12 +284,10 @@ UA_TYPE_DECODEBINARY(UA_Guid,
 						 CHECKED_DECODE(UA_Byte_decodeBinary(src, offset, &dst->data4[i]),; ); )
 
 /* ByteString */
-UA_TYPE_ENCODEBINARY_AS(UA_ByteString, UA_String)
-UA_TYPE_DECODEBINARY_AS(UA_ByteString, UA_String)
+UA_TYPE_BINARY_ENCODING_AS(UA_ByteString, UA_String)
 
 /* XmlElement */
-UA_TYPE_ENCODEBINARY_AS(UA_XmlElement, UA_String)
-UA_TYPE_DECODEBINARY_AS(UA_XmlElement, UA_String)
+UA_TYPE_BINARY_ENCODING_AS(UA_XmlElement, UA_String)
 
 /* NodeId */
 UA_Int32 UA_NodeId_calcSizeBinary(UA_NodeId const *p) {
@@ -456,6 +453,7 @@ UA_Int32 UA_ExpandedNodeId_decodeBinary(UA_ByteString const *src, UA_UInt32 *off
 }
 
 /* StatusCode */
+UA_TYPE_BINARY_ENCODING_AS(UA_StatusCode, UA_UInt32)
 
 /* QualifiedName */
 UA_Int32 UA_QualifiedName_calcSizeBinary(UA_QualifiedName const *p) {

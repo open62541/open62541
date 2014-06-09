@@ -29,11 +29,21 @@
 	UA_Int32 TYPE##_decodeXml(UA_ByteString *src, UA_UInt32 *offset, TYPE *dst) { \
         return UA_ERR_NOT_IMPLEMENTED;									\
 	}																	\
- UA_Int32 TYPE##_decodeXMLFromStack(XML_Stack* s, XML_Attr* attr, TYPE* dst, UA_Boolean isStart) { \
+																		\
+ UA_Int32 TYPE##_decodeXmlFromStack(XML_Stack* s, XML_Attr* attr, TYPE* dst, UA_Boolean isStart) { \
      DBG_VERBOSE(printf(#TYPE "_decodeXML entered with dst=%p,isStart=%d\n", (void* ) dst, isStart)); \
-     return UA_ERR_NOT_IMPLEMENTED;\
+     return UA_ERR_NOT_IMPLEMENTED; \
  }
 
+#define UA_TYPE_ENCODEXML_FROM_BYTESTRING(TYPE) \
+	UA_Int32 TYPE##_decodeXml(UA_ByteString *src, UA_UInt32 *offset, TYPE *dst) { \
+	/* // Init Stack here \
+	UA_Stack *stack; \
+	UA_Attr *attr; \
+	TYPE##decodeXmlFromStack(stack, attr, dst, UA_TRUE); \
+	*/ \
+	return UA_ERR_NOT_IMPLEMENTED; \
+} 
 
 UA_TYPE_XML_ENCODING(UA_Boolean)
 UA_TYPE_XML_ENCODING(UA_SByte)

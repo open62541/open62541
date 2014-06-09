@@ -101,7 +101,6 @@ def createOpaque(element):
 UA_TYPE_METHOD_ENCODEXML_NOTIMPL(%(name)s)
 UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)\n''')
 
-    
 def createStructured(element):
     name = "UA_" + element.get("Name")
 

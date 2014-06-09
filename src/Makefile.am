@@ -5,8 +5,9 @@ lib_LTLIBRARIES = libopen62541.la
 lib_LTLIBRARIES: generate_types generate_namespace_0
 libopen62541_la_LDFLAGS = -avoid-version -no-undefined
 libopen62541_la_SOURCES = ua_types.c \
-						  ua_types_generated.c \
+						  ua_util.c \
 						  ua_types_encoding_binary.c \
+						  ua_types_generated.c \
 						  ua_types_encoding_xml.c \
 						  ua_namespace_0.c \
 						  util/ua_list.c \

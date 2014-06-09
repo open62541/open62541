@@ -1,4 +1,5 @@
 from __future__ import print_function
+import inspect
 import sys
 import platform
 import getpass
@@ -28,6 +29,22 @@ exclude_types = set(["Number", "Integer", "UInteger", "Enumeration",
 	"ConditionVariableType", "MultiStateValueDiscreteType", "OptionSetType", "ArrayItemType",
 	"YArrayItemType", "XYArrayItemType", "ImageItemType", "CubeItemType", "NDimensionArrayItemType"])
 
+fixed_size = ['UA_DeadbandType', 'UA_DataChangeTrigger', 'UA_Guid', 'UA_ApplicationType',
+              'UA_ComplexNumberType', 'UA_EnumeratedTestType', 'UA_BrowseResultMask',
+              'UA_TimeZoneDataType', 'UA_NodeClass', 'UA_IdType', 'UA_ServiceCounterDataType',
+              'UA_Float', 'UA_ModelChangeStructureVerbMask', 'UA_EndpointConfiguration',
+              'UA_NodeAttributesMask', 'UA_DataChangeFilter', 'UA_StatusCode', 'UA_MonitoringFilterResult',
+              'UA_OpenFileMode', 'UA_SecurityTokenRequestType', 'UA_ServerDiagnosticsSummaryDataType',
+              'UA_ElementOperand', 'UA_AggregateConfiguration', 'UA_UInt64', 'UA_FilterOperator',
+              'UA_ReadRawModifiedDetails', 'UA_ServerState', 'UA_FilterOperand', 'UA_SubscriptionAcknowledgement',
+              'UA_AttributeWriteMask', 'UA_SByte', 'UA_Int32', 'UA_Range', 'UA_Byte', 'UA_TimestampsToReturn',
+              'UA_UserTokenType', 'UA_Int16', 'UA_XVType', 'UA_AggregateFilterResult', 'UA_Boolean',
+              'UA_MessageSecurityMode', 'UA_AxisScaleEnumeration', 'UA_PerformUpdateType', 'UA_UInt16',
+              'UA_NotificationData', 'UA_DoubleComplexNumberType', 'UA_HistoryUpdateType', 'UA_MonitoringFilter',
+              'UA_NodeIdType', 'UA_BrowseDirection', 'UA_SamplingIntervalDiagnosticsDataType', 'UA_UInt32',
+              'UA_ChannelSecurityToken', 'UA_RedundancySupport', 'UA_MonitoringMode', 'UA_HistoryReadDetails',
+              'UA_ExceptionDeviationFormat', 'UA_ComplianceLevel', 'UA_DateTime', 'UA_Int64', 'UA_Double']
+
 f = open(sys.argv[1])
 input_str = f.read() + "\nInvalidType,0,DataType"
 input_str = input_str.replace('\r','')
@@ -36,21 +53,23 @@ f.close()
 
 fh = open(sys.argv[2] + ".h",'w')
 fc = open(sys.argv[2] + ".c",'w')
+def printh(string):
+    print(string % inspect.currentframe().f_back.f_locals, end='\n', file=fh)
 
-print('''/**********************************************************
+def printc(string):
+    print(string % inspect.currentframe().f_back.f_locals, end='\n', file=fc)
+
+printh('''/**********************************************************
  * '''+sys.argv[2]+'''.hgen -- do not modify
  **********************************************************
  * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
  * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
- **********************************************************/
- 
+ **********************************************************/\n 
 #ifndef ''' + sys.argv[2].upper() + '''_H_
-#define ''' + sys.argv[2].upper() + '''_H_
-
+#define ''' + sys.argv[2].upper() + '''_H_\n
 #include "ua_util.h"
 #include "ua_types.h"  // definition of UA_VTable and basic UA_Types
-#include "ua_types_generated.h"
-
+#include "ua_types_generated.h"\n
 /**
  * @brief maps namespace zero nodeId to index into UA_VTable
  *
@@ -58,35 +77,29 @@ print('''/**********************************************************
  *
  * @retval UA_ERR_INVALID_VALUE whenever ns0Id could not be mapped
  * @retval the corresponding index into UA_VTable
- */
-
-UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id);
-
-extern UA_VTable UA_; 
-
+ */\n
+UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id);\n
+extern const UA_VTable UA_;\n
 static UA_Int32 phantom_delete(void * p) { return UA_SUCCESS; }
-extern UA_VTable UA_borrowed_;
-
+extern const UA_VTable UA_borrowed_;\n
 /**
  * @brief the set of possible indices into UA_VTable
  *
  * Enumerated type to define the types that the open62541 stack can handle
  */
-enum UA_VTableIndex_enum {''', end='\n', file=fh)
+enum UA_VTableIndex_enum {''')
 
-print('''/**********************************************************
+printc('''/**********************************************************
  * '''+sys.argv[2]+'''.cgen -- do not modify
  **********************************************************
  * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
  * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
- **********************************************************/
- 
-#include "''' + sys.argv[2] + '''.h"
-
+ **********************************************************/\n
+#include "''' + sys.argv[2] + '''.h"\n
 UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id) {
 	UA_Int32 retval = UA_ERR_INVALID_VALUE;
         if(id->namespace != 0) return retval;
-	switch (id->identifier.numeric) { ''', end='\n',file=fc)
+	switch (id->identifier.numeric) {''')
 
 i = 0
 for row in rows:
@@ -99,19 +112,15 @@ for row in rows:
     else:
         name = "UA_" + row[0]
 	
-    print("\t"+name.upper()+" = "+str(i)+",", file=fh)
-    print('\tcase '+row[1]+': retval='+name.upper()+'; break; //'+row[2], file=fc)
+    printh("\t"+name.upper()+" = "+str(i)+",")
+    printc('\tcase '+row[1]+': retval='+name.upper()+'; break; //'+row[2])
     i = i+1
 
-print("};\n", file=fh)
-print('''
-    }
-    return retval;
-}
-
-UA_VTable UA_ = {
+printh("};\n")
+printc('''\n}\nreturn retval;\n}\n
+const UA_VTable UA_ = {
 \t.getTypeIndex = UA_ns0ToVTableIndex,
-\t.types = (UA_VTable_Entry[]){''', file=fc)
+\t.types = (UA_VTable_Entry[]){''')
 
 for row in rows:
     if row[0] == "" or row[0] in exclude_types or row[2] in exclude_kinds:
@@ -123,9 +132,9 @@ for row in rows:
     else:
 	name = "UA_" + row[0]
 
-    print('#define '+name.upper()+'_NS0 '+row[1], file=fh)
+    printh('#define '+name.upper()+'_NS0 '+row[1])
 
-    print("\t{.typeId={UA_NODEIDTYPE_FOURBYTE,0,.identifier.numeric=" + row[1] +"}"+ 
+    printc("\t{.typeId={UA_NODEIDTYPE_FOURBYTE,0,.identifier.numeric=" + row[1] +"}"+ 
           ",.name=(UA_Byte*)&\""+name+"\""+
           ",.new=(UA_Int32(*)(void **))"+name+"_new"+
           ",.init=(UA_Int32(*)(void *))"+name+"_init"+
@@ -133,20 +142,20 @@ for row in rows:
           ",.delete=(UA_Int32(*)(void *))"+name+"_delete"+
           ",.deleteMembers=(UA_Int32(*)(void *))"+name+"_deleteMembers"+
           ",.memSize=" + ("sizeof("+name+")" if (name != "UA_InvalidType") else "0") +
-          ",.encodings={(UA_Encoding){.calcSize=(UA_calcSize)"+ name +"_calcSizeBinary" +
+          ",.dynMembers=" + ("UA_FALSE" if (name in fixed_size) else "UA_TRUE") +
+          ",.encodings={{.calcSize=(UA_calcSize)"+ name +"_calcSizeBinary" +
           ",.encode=(UA_encode)"+name+ "_encodeBinary" +
           ",.decode=(UA_decode)"+name+"_decodeBinary}"+
-          ",(UA_Encoding){.calcSize=(UA_calcSize)"+ name +"_calcSizeXml" +
+          ",{.calcSize=(UA_calcSize)"+ name +"_calcSizeXml" +
           ",.encode=(UA_encode)"+name+ "_encodeXml" +
           ",.decode=(UA_decode)"+name+"_decodeXml}"+
-          "}},",
-          end='\n',file=fc) 
+          "}},")
 
-print('''}};
+printc('''}};
 
-UA_VTable UA_noDelete_ = {
+const UA_VTable UA_noDelete_ = {
 \t.getTypeIndex=UA_ns0ToVTableIndex,
-\t.types = (UA_VTable_Entry[]){''', end='\n', file=fc)
+\t.types = (UA_VTable_Entry[]){''')
 
 for row in rows:
     if row[0] == "" or row[0] in exclude_types or row[2] in exclude_kinds:
@@ -158,7 +167,7 @@ for row in rows:
     else:	
 	name = "UA_" + row[0]
 
-    print("\t{.typeId={UA_NODEIDTYPE_FOURBYTE,0,.identifier.numeric=" + row[1] +"}"+ 
+    printc("\t{.typeId={UA_NODEIDTYPE_FOURBYTE,0,.identifier.numeric=" + row[1] +"}"+ 
           ",.name=(UA_Byte*)&\""+name+"\""+
           ",.new=(UA_Int32(*)(void **))"+name+"_new"+
           ",.init=(UA_Int32(*)(void *))"+name+"_init"+
@@ -166,19 +175,17 @@ for row in rows:
           ",.delete=(UA_Int32(*)(void *))phantom_delete"+
           ",.deleteMembers=(UA_Int32(*)(void *))phantom_delete"+
           ",.memSize=" + ("sizeof("+name+")" if (name != "UA_InvalidType") else "0") +
-          ",.encodings={(UA_Encoding){.calcSize=(UA_calcSize)"+ name +"_calcSizeBinary" +
+          ",.dynMembers=" + ("UA_FALSE" if (name in fixed_size) else "UA_TRUE") +
+          ",.encodings={{.calcSize=(UA_calcSize)"+ name +"_calcSizeBinary" +
           ",.encode=(UA_encode)"+name+ "_encodeBinary" +
           ",.decode=(UA_decode)"+name+"_decodeBinary}"+
-          ",(UA_Encoding){.calcSize=(UA_calcSize)"+ name +"_calcSizeXml" +
+          ",{.calcSize=(UA_calcSize)"+ name +"_calcSizeXml" +
           ",.encode=(UA_encode)"+name+ "_encodeXml" +
           ",.decode=(UA_decode)"+name+"_decodeXml}"+
-          "}},",
-          end='\n',file=fc) 
+          "}},")
 
-
-print("}};", end='\n', file=fc) 
-
-print('\n#endif /* OPCUA_NAMESPACE_0_H_ */', end='\n', file=fh)
+printc("}};")
+printh('\n#endif /* OPCUA_NAMESPACE_0_H_ */')
 
 fh.close()
 fc.close()

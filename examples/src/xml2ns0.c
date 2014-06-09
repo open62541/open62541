@@ -3,7 +3,9 @@
 #include "ua_types_generated.h"
 #include "ua_namespace.h"
 #include "ua_xml.h"
-#include "ua_xml_namespace.h"
+#include "ua_namespace_xml.h"
+#include "ua_types_encoding_xml.h"
+#include "ua_util.h"
 
 typedef UA_Int32 (*XML_Stack_Loader) (char* buf, int len);
 
@@ -20,7 +22,7 @@ UA_Int32 Namespace_loadXml(Namespace **ns,UA_UInt32 nsid,const char* rootName, X
 	UA_NodeSet_init(&n, 0);
 	*ns = n.ns;
 
-	XML_Stack_addChildHandler(&s, "UANodeSet", strlen("UANodeSet"), (XML_decoder) UA_NodeSet_decodeXML, UA_INVALIDTYPE, &n);
+	XML_Stack_addChildHandler(&s, "UANodeSet", strlen("UANodeSet"), (XML_decoder) UA_NodeSet_decodeXmlFromStack, UA_INVALIDTYPE, &n);
 	XML_Parser parser = XML_ParserCreate(NULL);
 	XML_SetUserData(parser, &s);
 	XML_SetElementHandler(parser, XML_Stack_startElement, XML_Stack_endElement);

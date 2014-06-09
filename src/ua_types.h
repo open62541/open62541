@@ -3,6 +3,34 @@
 
 #include <stdint.h>
 
+/**
+ * @defgroup types Datatypes
+ *
+ * @brief This module describes the datatypes used in OPC UA. There is a
+ * division into built-in datatypes (integers, strings, etc.) and more complex
+ * datatypes that are comprise of built-in datatypes (structs defined in the OPC
+ * UA standard).
+ *
+ * All datatypes follow the same schema in the naming of relevant functions.
+ *
+ * - <type>_init: Sets all values to a "safe" standard. For example, if the
+ *     datatype contains a string-element, its size will be set to zero.
+ *
+ * - <type>_new: Allocates the memory for the type and runs <type>_init on the
+ *     returned pointer.
+ *
+ * - <type>_copy: Copies a datatype. This performs a deep copy that iterates
+ *    over the members.
+ *
+ * - <type>_delete: Frees the memory where the datatype was stored.
+ *
+ * - <type>_deleteMembers: Frees the memory of dynamically sized members (e.g. a
+     string) of a datatype. This is useful when the datatype was allocated on
+     the stack, whereas the dynamically sized members is heap-allocated.
+ *
+ * @{
+ */
+
 /* Function return values */
 #define UA_SUCCESS 0
 #define UA_NO_ERROR UA_SUCCESS
@@ -143,12 +171,12 @@ typedef struct UA_VTable_Entry UA_VTable_Entry;
 
 /** @brief A union of all of the types specified above. */
 typedef struct UA_Variant {
-	UA_VTable_Entry *vt;            // internal entry into vTable
-	UA_Byte     encodingMask;  // Type of UA_Variant_EncodingMaskType_enum
-	UA_Int32    arrayLength;   // total number of elements
-	UA_Int32    arrayDimensionsLength;
-	UA_Int32  *arrayDimensions;
-	void      *data;
+	UA_VTable_Entry *vt;          // internal entry into vTable
+	UA_Byte encodingMask;         // Type of UA_Variant_EncodingMaskType_enum
+	UA_Int32         arrayLength; // total number of elements
+	UA_Int32         arrayDimensionsLength;
+	UA_Int32        *arrayDimensions;
+	void *data;
 } UA_Variant;
 
 /* VariantBinaryEncoding - Part: 6, Chapter: 5.2.2.16, Page: 22 */
@@ -207,7 +235,7 @@ typedef void UA_InvalidType;
 /* Functions */
 /*************/
 
-#define UA_TYPE_PROTOTYPES(TYPE)      \
+#define UA_TYPE_PROTOTYPES(TYPE)             \
     UA_Int32 TYPE##_new(TYPE **p);           \
     UA_Int32 TYPE##_init(TYPE * p);          \
     UA_Int32 TYPE##_delete(TYPE * p);        \
@@ -294,12 +322,13 @@ UA_Int32 UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);
 UA_Int32 UA_Variant_copySetValue(UA_Variant *v, UA_Int32 type, const void *data);
 UA_Int32 UA_Variant_copySetArray(UA_Variant *v, UA_Int32 type_id, UA_Int32 arrayLength, UA_UInt32 elementSize,
                                  const void *array);
+
 /** @brief Functions UA_Variant_borrowSetValue and ..Array allow to define
    variants whose payload will not be deleted. This is achieved by a second
    vtable. The functionality can be used e.g. when UA_VariableNodes point into a
    "father" structured object that is stored in an UA_VariableNode itself. */
-UA_Int32 UA_Variant_borrowSetValue(UA_Variant *v, UA_Int32 type, const void *data);                       // Take care not to free the data before the variant.
-UA_Int32 UA_Variant_borrowSetArray(UA_Variant *v, UA_Int32 type, UA_Int32 arrayLength, const void *data); // Take care not to free the data before the variant.
+UA_Int32 UA_Variant_borrowSetValue(UA_Variant *v, UA_Int32 type, const void *data);
+UA_Int32 UA_Variant_borrowSetArray(UA_Variant *v, UA_Int32 type, UA_Int32 arrayLength, const void *data);
 
 /* Array operations */
 UA_Int32 UA_Array_new(void **p, UA_Int32 noElements, UA_Int32 type);
@@ -314,7 +343,7 @@ UA_Int32 UA_Array_copy(const void *src, UA_Int32 noElements, UA_Int32 type, void
 /**********/
 
 /* @brief Returns the size of the encoded element.*/
-typedef UA_Int32 (*UA_calcSize)(const void * p);
+typedef UA_Int32 (*UA_calcSize)(const void *p);
 
 /* @brief The encoding function allocates the target bytestring. */
 typedef UA_Int32 (*UA_encode)(const void *src, UA_ByteString *dst, UA_UInt32 *offset);
@@ -324,45 +353,48 @@ typedef UA_Int32 (*UA_decode)(UA_ByteString *src, UA_UInt32 *offset, void *dst);
 
 typedef struct UA_Encoding {
 	UA_calcSize calcSize;
-	UA_encode encode;
-	UA_decode decode;
+	UA_encode   encode;
+	UA_decode   decode;
 } UA_Encoding;
 
 struct UA_VTable_Entry {
-	UA_NodeId     typeId;
-	UA_Byte      *name;
-	UA_Int32      (*new)(void **p);
-	UA_Int32      (*init)(void *p);
-	UA_Int32      (*copy)(void const *src, void *dst);
-	UA_Int32      (*delete)(void *p);
-	UA_Int32      (*deleteMembers)(void *p);
-	UA_UInt32     memSize;   // size of the struct only in memory (no dynamic components)
+	UA_NodeId   typeId;
+	UA_Byte    *name;
+	UA_Int32    (*new)(void **p);
+	UA_Int32    (*init)(void *p);
+	UA_Int32    (*copy)(void const *src, void *dst);
+	UA_Int32    (*delete)(void *p);
+	UA_Int32    (*deleteMembers)(void *p);
+	UA_UInt32   memSize;      // size of the struct only in memory (no dynamic components)
+	UA_Boolean  dynMembers;   // does the type contain members that are dynamically
+	                          // allocated (strings, ..)? Otherwise, the size on
+	                          // the wire == size in memory.
 	UA_Encoding encodings[2]; // binary, xml, ...
 };
 
 typedef UA_Int32 (*UA_nodeIdToVTableIndex)(const UA_NodeId *id);
 typedef struct UA_VTable {
 	UA_nodeIdToVTableIndex getTypeIndex;
-	UA_VTable_Entry *types;
+	UA_VTable_Entry       *types;
 } UA_VTable;
 
 /***********************************/
 /* Macros for type implementations */
 /***********************************/
 
-#define UA_TYPE_DEFAULT(TYPE)					\
-	UA_TYPE_DELETE_DEFAULT(TYPE)				\
-	UA_TYPE_DELETEMEMBERS_NOACTION(TYPE)		\
-	UA_TYPE_INIT_DEFAULT(TYPE)					\
-	UA_TYPE_NEW_DEFAULT(TYPE)					\
-	UA_TYPE_COPY_DEFAULT(TYPE)					\
+#define UA_TYPE_DEFAULT(TYPE)            \
+    UA_TYPE_DELETE_DEFAULT(TYPE)         \
+    UA_TYPE_DELETEMEMBERS_NOACTION(TYPE) \
+    UA_TYPE_INIT_DEFAULT(TYPE)           \
+    UA_TYPE_NEW_DEFAULT(TYPE)            \
+    UA_TYPE_COPY_DEFAULT(TYPE)           \
 
-#define UA_TYPE_NEW_DEFAULT(TYPE)                                 \
-    UA_Int32 TYPE##_new(TYPE **p) {                               \
-		UA_Int32 retval = UA_SUCCESS;                             \
-		retval |= UA_alloc((void **)p, sizeof(TYPE));			  \
-		retval |= TYPE##_init(*p);                                \
-		return retval;                                            \
+#define UA_TYPE_NEW_DEFAULT(TYPE)                     \
+    UA_Int32 TYPE##_new(TYPE **p) {                   \
+		UA_Int32 retval = UA_SUCCESS;                 \
+		retval |= UA_alloc((void **)p, sizeof(TYPE)); \
+		retval |= TYPE##_init(*p);                    \
+		return retval;                                \
 	}
 
 #define UA_TYPE_INIT_DEFAULT(TYPE)         \
@@ -377,7 +409,7 @@ typedef struct UA_VTable {
 		return TYPE_AS##_init((TYPE_AS *)p); \
 	}
 
-#define UA_TYPE_DELETE_DEFAULT(TYPE)	   \
+#define UA_TYPE_DELETE_DEFAULT(TYPE)       \
     UA_Int32 TYPE##_delete(TYPE *p) {      \
 		UA_Int32 retval = UA_SUCCESS;      \
 		retval |= TYPE##_deleteMembers(p); \
@@ -395,23 +427,25 @@ typedef struct UA_VTable {
     UA_Int32 TYPE##_deleteMembers(TYPE * p) { return TYPE_AS##_deleteMembers((TYPE_AS *)p); }
 
 /* Use only when the type has no arrays. Otherwise, implement deep copy */
-#define UA_TYPE_COPY_DEFAULT(TYPE)										\
-    UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst) {					\
-		UA_Int32 retval = UA_SUCCESS;									\
-		retval |= UA_memcpy(dst, src, sizeof(TYPE));					\
-		return retval;													\
+#define UA_TYPE_COPY_DEFAULT(TYPE)                     \
+    UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst) { \
+		UA_Int32 retval = UA_SUCCESS;                  \
+		retval |= UA_memcpy(dst, src, sizeof(TYPE));   \
+		return retval;                                 \
 	}
 
-#define UA_TYPE_COPY_AS(TYPE, TYPE_AS)									\
-    UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst) {					\
-		return TYPE_AS##_copy((TYPE_AS *)src, (TYPE_AS *)dst);			\
+#define UA_TYPE_COPY_AS(TYPE, TYPE_AS)                         \
+    UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst) {         \
+		return TYPE_AS##_copy((TYPE_AS *)src, (TYPE_AS *)dst); \
 	}
 
-#define UA_TYPE_AS(TYPE, TYPE_AS)			\
-	UA_TYPE_NEW_DEFAULT(TYPE)				\
-	UA_TYPE_INIT_AS(TYPE, TYPE_AS)			\
-	UA_TYPE_DELETE_AS(TYPE, TYPE_AS)		\
-	UA_TYPE_DELETEMEMBERS_AS(TYPE, TYPE_AS)	\
-	UA_TYPE_COPY_AS(TYPE, TYPE_AS)
+#define UA_TYPE_AS(TYPE, TYPE_AS)           \
+    UA_TYPE_NEW_DEFAULT(TYPE)               \
+    UA_TYPE_INIT_AS(TYPE, TYPE_AS)          \
+    UA_TYPE_DELETE_AS(TYPE, TYPE_AS)        \
+    UA_TYPE_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
+    UA_TYPE_COPY_AS(TYPE, TYPE_AS)
+
+/// @} /* end of group */
 
 #endif /* UA_TYPES_H_ */

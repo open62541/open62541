@@ -13,6 +13,7 @@ $( document ).ready(function() {
 	$("ul.tablist").css("margin-bottom", "0.5em");
 	$("li.current").addClass("active");
 	$(".contents").wrapInner("<div class='panel panel-default' style='margin-top:1em;'><div class='panel-body'></div></div>");
+	$(".contents").find("h2.groupheader:first").remove();
 
 	$("iframe").attr("scrolling", "yes");
 	

@@ -1,5 +1,9 @@
-#include "ua_namespace.h"
+#ifndef __UA_NAMESPACE_XML_H
+#define __UA_NAMESPACE_XML_H
+
 #include "ua_xml.h"
+#include "ua_types_generated.h"
+#include "ua_namespace.h"
 
 void print_node(UA_Node const * node);
 UA_Int32 UA_NodeSetAlias_init(UA_NodeSetAlias* p);
@@ -20,7 +24,7 @@ typedef struct UA_NodeSet {
 UA_Int32 UA_NodeSet_init(UA_NodeSet* p, UA_UInt32 nsid);
 UA_Int32 UA_NodeSet_new(UA_NodeSet** p, UA_UInt32 nsid);
 UA_Int32 UA_NodeId_copycstring(cstring src, UA_NodeId* dst, UA_NodeSetAliases* aliases);
-UA_Int32 UA_NodeSet_decodeXML(XML_Stack* s, XML_Attr* attr, UA_NodeSet* dst, _Bool isStart);
+UA_Int32 UA_NodeSet_decodeXmlFromStack(XML_Stack* s, XML_Attr* attr, UA_NodeSet* dst, _Bool isStart);
 
 UA_Int32 UA_ExpandedNodeId_copycstring(cstring src, UA_ExpandedNodeId* dst, UA_NodeSetAliases* aliases);
 
@@ -33,3 +37,4 @@ UA_Int32 UA_ExpandedNodeId_copycstring(cstring src, UA_ExpandedNodeId* dst, UA_N
  */
 UA_Int32 Namespace_loadFromFile(Namespace **ns,UA_UInt32 namespaceId,const char* rootName,const char* fileName);
 
+#endif /* __UA_NAMESPACE_XML_H */
