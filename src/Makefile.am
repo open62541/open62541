@@ -7,6 +7,7 @@ libopen62541_la_SOURCES = opcua.c \
 						  ua_namespace_0.c \
 						  util/ua_list.c \
 						  util/ua_indexedList.c \
+						  util/ua_base64.c \
 						  ua_transport.c \
 						  ua_transport_binary.c \
 						  ua_transport_binary_secure.c \
