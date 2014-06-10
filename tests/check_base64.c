@@ -27,6 +27,8 @@ START_TEST(base64_test_basic)
 	ck_assert_int_eq(decodedData[6], '5');
 	ck_assert_int_eq(decodedData[7], '4');
 	ck_assert_int_eq(decodedData[8], '1');
+
+	free(decodedData);
 }
 END_TEST
 
