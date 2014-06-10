@@ -6,6 +6,8 @@
 #include "ua_transport.h"
 #include "ua_statuscodes.h"
 #include "ua_services.h"
+#include "ua_stack_session_manager.h"
+#include "ua_stack_session.h"
 
 #define SIZE_SECURECHANNEL_HEADER 12
 #define SIZE_SEQHEADER_HEADER 8
@@ -135,6 +137,7 @@ static void init_response_header(UA_RequestHeader const * p,
 #define INVOKE_SERVICE(TYPE) \
 	UA_##TYPE##Request p; \
 	UA_##TYPE##Response r; \
+	UA_NodeId authenticationToken; \
 	UA_##TYPE##Request_decodeBinary(msg, pos, &p); \
 	UA_##TYPE##Response_init(&r); \
 	init_response_header(&p.requestHeader, &r.responseHeader); \
