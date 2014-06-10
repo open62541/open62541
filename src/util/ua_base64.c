@@ -41,8 +41,12 @@ UA_Int32 UA_base64_getDecodedSize(UA_String* const base64EncodedData){
 	UA_Int32 temp = base64EncodedData->length * 3 / 4;
 
 	//subtract padding
-	if(base64EncodedData->data[base64EncodedData->length-1] == '=') temp--;
-	if(base64EncodedData->data[base64EncodedData->length-2] == '=') temp--;
+	if(base64EncodedData->data[base64EncodedData->length-1] == '=') {
+		temp--;
+		if(base64EncodedData->data[base64EncodedData->length-2] == '=') {
+			temp--;
+		}
+	}
 
 	return temp;
 }
