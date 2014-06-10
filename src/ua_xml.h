@@ -77,6 +77,32 @@ UA_Int32 UA_TypedArray_new(UA_TypedArray **p);
 UA_Int32 UA_TypedArray_setType(UA_TypedArray *p, UA_Int32 type);
 UA_Int32 UA_TypedArray_decodeXML(XML_Stack *s, XML_Attr *attr, UA_TypedArray *dst, UA_Boolean isStart);
 
+UA_Int32 UA_NodeSetAlias_init(UA_NodeSetAlias* p);
+UA_Int32 UA_NodeSetAlias_new(UA_NodeSetAlias** p);
+UA_Int32 UA_NodeSetAlias_decodeXML(XML_Stack* s, XML_Attr* attr, UA_NodeSetAlias* dst, _Bool isStart);
+
+UA_Int32 UA_NodeSetAliases_init(UA_NodeSetAliases* p);
+UA_Int32 UA_NodeSetAliases_new(UA_NodeSetAliases** p);
+UA_Int32 UA_NodeSetAliases_println(cstring label, UA_NodeSetAliases *p);
+UA_Int32 UA_NodeSetAliases_decodeXML(XML_Stack* s, XML_Attr* attr, UA_NodeSetAliases* dst, _Bool isStart);
+
+typedef struct UA_NodeSet {
+	Namespace* ns;
+	UA_NodeSetAliases aliases;
+} UA_NodeSet;
+
+/** @brief init typed array with size=-1 and an UA_INVALIDTYPE */
+UA_Int32 UA_NodeSet_init(UA_NodeSet* p, UA_UInt32 nsid);
+UA_Int32 UA_NodeSet_new(UA_NodeSet** p, UA_UInt32 nsid);
+UA_Int32 UA_NodeId_copycstring(cstring src, UA_NodeId* dst, UA_NodeSetAliases* aliases);
+UA_Int32 UA_NodeSet_decodeXML(XML_Stack* s, XML_Attr* attr, UA_NodeSet* dst, _Bool isStart);
+
+UA_Int32 UA_ExpandedNodeId_copycstring(cstring src, UA_ExpandedNodeId* dst, UA_NodeSetAliases* aliases);
+
+void XML_Stack_init(XML_Stack* p, UA_UInt32 nsid, cstring name);
+void XML_Stack_print(XML_Stack* s);
+>>>>>>> 1c491aac41da6e3cbd906b5bb0b0905a0e66431c
+
 /** @brief add a reference to a handler (@see XML_Stack_addChildHandler) for text data
  *
  * Assume a XML structure such as
@@ -117,7 +143,6 @@ void XML_Stack_startElement(void *data, const char *el, const char **attr);
 UA_Int32 XML_isSpace(cstring s, int len);
 void XML_Stack_handleText(void *data, const char *txt, int len);
 void XML_Stack_endElement(void *data, const char *el);
-
 
 UA_Int32 UA_Text_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_Byte **dst, _Bool isStart);
 UA_Int32 UA_NodeId_copycstring(cstring src, UA_NodeId *dst, UA_NodeSetAliases *aliases);

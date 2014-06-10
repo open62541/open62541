@@ -12,6 +12,7 @@ libopen62541_la_SOURCES = ua_types.c \
 						  ua_namespace_0.c \
 						  util/ua_list.c \
 						  util/ua_indexedList.c \
+						  util/ua_base64.c \
 						  ua_transport.c \
 						  ua_transport_binary.c \
 						  ua_transport_binary_secure.c \
@@ -33,21 +34,21 @@ generate_namespace_0: $(SCHEMA_DIR)/NodeIds.csv $(TOOL_DIR)/generate_namespace.p
 
 .PHONY: convenience-link clean-convenience-link generate_types generate_namespace_0
 
-convenience-link: $(lib_LTLIBRARIES) 
-	@test -e $(top_builddir)/lib || mkdir $(top_builddir)/lib
+convenience-link: $(lib_LTLIBRARIES)
+	@test -e "$(top_builddir)/lib" || mkdir "$(top_builddir)/lib"
 	@for soname in `echo | $(EGREP) "^dlname=" $^ | $(SED) -e "s|^dlname='\(.*\)'|\1|"`; do  \
 		echo "$$soname: creating convenience link from $(abs_builddir)/.libs to $(top_builddir)/lib"; \
 		rm -f $(top_builddir)/lib/$$soname ; \
-		test -e $(abs_builddir)/.libs/$$soname && \
-		cd $(top_builddir)/lib && \
-		$(LN_S) $(abs_builddir)/.libs/$$soname $$soname || true;\
+		test -e "$(abs_builddir)/.libs/$$soname" && \
+		cd "$(top_builddir)/lib" && \
+		$(LN_S) "$(abs_builddir)/.libs/$$soname" "$$soname" || true;\
 	done
 	@for aname in `echo | $(EGREP) "^dlname=" $^ | $(SED) -e "s|^dlname='\(.*\)\.\(.*\)'|\1\.a|"`; do  \
 		echo "$$aname: creating convenience link from $(abs_builddir)/.libs to $(top_builddir)/lib"; \
-		rm -f $(top_builddir)/lib/$$aname ; \
-		test -e $(abs_builddir)/.libs/$$aname && \
-		cd $(top_builddir)/lib && \
-		$(LN_S) $(abs_builddir)/.libs/$$aname $$aname || true;\
+		rm -f "$(top_builddir)/lib/$$aname" ; \
+		test -e "$(abs_builddir)/.libs/$$aname" && \
+		cd "$(top_builddir)/lib" && \
+		$(LN_S) "$(abs_builddir)/.libs/$$aname" "$$aname" || true;\
 	done
 
 clean-convenience-link:

@@ -188,7 +188,8 @@ static inline hash_t mod(hash_t h, const Namespace * ns) {
 }
 
 static inline hash_t mod_m2(hash_t h, const Namespace * ns) {
-	const struct prime_ent *p = &prime_tab[ns->sizePrimeIndex];
+	const struct prime_ent *p = &prime_tab[ns->sizePrimeIndex];	// eventually return the namespace object that has been allocated in UA_NodeSet_init
+
 	return 1 + mod_1(h, p->prime - 2, p->inv_m2, p->shift);
 }
 
@@ -415,7 +416,7 @@ UA_Int32 Namespace_insertUnique(Namespace * ns, UA_Node * node) {
 
 UA_Int32 Namespace_contains(const Namespace * ns, const UA_NodeId * nodeid) {
 	Namespace_Entry *entry;
-	return find_entry(ns, nodeid, &entry);
+	return (find_entry(ns, nodeid, &entry) == UA_SUCCESS ? UA_TRUE : UA_FALSE);
 }
 
 UA_Int32 Namespace_get(Namespace const *ns, const UA_NodeId * nodeid, const UA_Node **result,
