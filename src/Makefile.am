@@ -1,4 +1,3 @@
-#optimization levels depending on debug
 AM_CFLAGS = $(GLOBAL_AM_CFLAGS) -I$(top_builddir)/include -I$(top_builddir)/src -I. -I$(top_builddir)/src/util
 TOOL_DIR = ../tools
 lib_LTLIBRARIES = libopen62541.la
@@ -28,20 +27,20 @@ libopen62541_la_SOURCES = opcua.c \
 .PHONY: convenience-link clean-convenience-link
 
 convenience-link: $(lib_LTLIBRARIES)
-	@test -e $(top_builddir)/lib || mkdir $(top_builddir)/lib
-	@for soname in `echo | $(EGREP) "^dlname=" $^ | $(SED) -e "s|^dlname='\(.*\)'|\1|"`; do \
+	@test -e "$(top_builddir)/lib" || mkdir "$(top_builddir)/lib"
+	@for soname in `echo | $(EGREP) "^dlname=" $^ | $(SED) -e "s|^dlname='\(.*\)'|\1|"`; do  \
 		echo "$$soname: creating convenience link from $(abs_builddir)/.libs to $(top_builddir)/lib"; \
 		rm -f $(top_builddir)/lib/$$soname ; \
-		test -e $(abs_builddir)/.libs/$$soname && \
-		cd $(top_builddir)/lib && \
-		$(LN_S) $(abs_builddir)/.libs/$$soname $$soname || true;\
-		done
-	@for aname in `echo | $(EGREP) "^dlname=" $^ | $(SED) -e "s|^dlname='\(.*\)\.\(.*\)'|\1\.a|"`; do \
+		test -e "$(abs_builddir)/.libs/$$soname" && \
+		cd "$(top_builddir)/lib" && \
+		$(LN_S) "$(abs_builddir)/.libs/$$soname" "$$soname" || true;\
+	done
+	@for aname in `echo | $(EGREP) "^dlname=" $^ | $(SED) -e "s|^dlname='\(.*\)\.\(.*\)'|\1\.a|"`; do  \
 		echo "$$aname: creating convenience link from $(abs_builddir)/.libs to $(top_builddir)/lib"; \
-		rm -f $(top_builddir)/lib/$$aname ; \
-		test -e $(abs_builddir)/.libs/$$aname && \
-		cd $(top_builddir)/lib && \
-		$(LN_S) $(abs_builddir)/.libs/$$aname $$aname || true;\
+		rm -f "$(top_builddir)/lib/$$aname" ; \
+		test -e "$(abs_builddir)/.libs/$$aname" && \
+		cd "$(top_builddir)/lib" && \
+		$(LN_S) "$(abs_builddir)/.libs/$$aname" "$$aname" || true;\
 	done
 
 clean-convenience-link:

@@ -18,11 +18,13 @@
 typedef struct UA_SessionManagerType *UA_SessionManager;
 
 
-UA_Int32 UA_SessionManager_init(UA_UInt32 maxSessionCount,UA_UInt32 tokenLifetime, UA_UInt32 startChannelId, UA_UInt32 startTokenId, UA_String *endpointUrl);
-UA_Int32 UA_SessionManager_addSession(SL_secureChannel *channel);
-UA_Int32 UA_SessionManager_removeSession(UA_Int32 channelId);
+UA_Int32 UA_SessionManager_init(UA_UInt32 maxSessionCount,UA_UInt32 sessionLifetime, UA_UInt32 startSessionId);
+UA_Int32 UA_SessionManager_addSession(UA_Session *session);
+UA_Int32 UA_SessionManager_removeSession(UA_Int32 sessionId);
 
-UA_Int32 UA_SessionManager_getSession(UA_UInt32 sessionId, UA_Session *session);
+UA_Int32 UA_SessionManager_getSessionById(UA_NodeId sessionId, UA_Session *session);
+UA_Int32 UA_SessionManager_getSessionByToken(UA_NodeId sessionId, UA_Session *session);
+
 UA_Int32 UA_SessionManager_updateSessions();
 
 UA_Int32 UA_SessionManager_getSessionLifeTime(UA_DateTime *lifeTime);
