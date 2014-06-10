@@ -36,12 +36,21 @@ end library headers
 
 #include "ua_base64.h"
 
-UA_Int32 UA_base64_getDecodedSizeUB(UA_String* const base64EncodedData){
+UA_Int32 UA_base64_getDecodedSize(UA_String* const base64EncodedData){
 	//note that base64-encoded data length is always divisible by 4
-	return base64EncodedData->length * 3 / 4;
+	UA_Int32 temp = base64EncodedData->length * 3 / 4;
+
+	//subtract padding
+	if(base64EncodedData->data[base64EncodedData->length-1] == '=') temp--;
+	if(base64EncodedData->data[base64EncodedData->length-2] == '=') temp--;
+
+	return temp;
 }
 
 UA_Int32 UA_base64_decode(UA_String* const base64EncodedData, UA_Byte* target){
+	if(target == UA_NULL){
+		return UA_ERROR;
+	}
 	base64_decodestate state;
 	base64_init_decodestate(&state);
 	//FIXME: The (void*)(char*) was was perfomed to get rid of "differ in signedness" warnings. Can be a potential problem since the library code expects 'char' but we have 'unsigned char' in UA_String
