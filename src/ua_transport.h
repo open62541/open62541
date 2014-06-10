@@ -46,7 +46,7 @@ void UA_MessageType_printf(char *label, UA_MessageType* p);
 
 /** @brief TCP Header */
 typedef struct UA_OPCUATcpMessageHeader {
-	UA_UInt32 messageType;
+	UA_MessageType messageType;
 	UA_Byte isFinal;
 	UA_UInt32 messageSize;
 } UA_OPCUATcpMessageHeader;
@@ -54,7 +54,7 @@ UA_TYPE_PROTOTYPES(UA_OPCUATcpMessageHeader)
 UA_TYPE_BINARY_ENCODING(UA_OPCUATcpMessageHeader)
 
 /** @brief Hello Message */
-typedef struct UA_OPCUATcpHelloMessage {
+typedef struct UA_OPCUATcpHelloMesage {
 	UA_UInt32 protocolVersion;
 	UA_UInt32 receiveBufferSize;
 	UA_UInt32 sendBufferSize;

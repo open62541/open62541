@@ -64,13 +64,14 @@ void appMockup_init() {
 #if defined(DEBUG) && defined(VERBOSE)
 	uint32_t i, j;
 	for (i=0, j=0; i < ns0->size && j < ns0->count; i++) {
-		if (ns0->entries[i].node != UA_NULL) {
-			printf("appMockup_init - entries[%d]={",i);
-			UA_NodeId_printf("nodeId=",&(ns0->entries[i].node->nodeId));
-			UA_String_printf(",browseName=",&(ns0->entries[i].node->browseName.name));
-			j++;
-			printf("}\n");
-		}
+		// Namespace_Entry is opaque. The content cannot be accessed from here.
+		/* if (ns0->entries[i] != UA_NULL) { */
+		/* 	printf("appMockup_init - entries[%d]={",i); */
+		/* 	UA_NodeId_printf("nodeId=",&(ns0->entries[i].node->nodeId)); */
+		/* 	UA_String_printf(",browseName=",&(ns0->entries[i].node->browseName.name)); */
+		/* 	j++; */
+		/* 	printf("}\n"); */
+		/* } */
 	}
 #endif
 }

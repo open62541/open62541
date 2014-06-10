@@ -29,6 +29,10 @@ UA_Int32 UA_Array_encodeBinary(const void *src, UA_Int32 noElements, UA_Int32 ty
 
 UA_Int32 UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 * offset, UA_Int32 noElements, UA_Int32 type, void **dst) {
 	UA_Int32 retval = UA_SUCCESS;
+	if(noElements <= 0) {
+		*dst = UA_NULL;
+		return retval;
+	}
 	retval |= UA_Array_new(dst, noElements, type);
 
 	UA_Byte *arr    = (UA_Byte *) *dst;
@@ -39,8 +43,11 @@ UA_Int32 UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 * offset, UA_
 	}
 
 	/* If dynamically sized elements have already been decoded into the array. */
-	if(retval != UA_SUCCESS)
-		UA_Array_delete(dst, i, type);
+	if(retval != UA_SUCCESS) {
+		i--; // undo last increase
+		UA_Array_delete(*dst, i, type);
+		*dst = UA_NULL;
+	}
 
 	return retval;
 }
@@ -640,22 +647,21 @@ UA_Int32 UA_DataValue_calcSizeBinary(UA_DataValue const *p) {
 
 /* Variant */
 UA_Int32 UA_Variant_calcSizeBinary(UA_Variant const *p) {
-	UA_Int32   length        = 0;
-	if(p == UA_NULL) return sizeof(UA_Variant);
-	UA_UInt32  builtinNs0Id  = p->encodingMask & 0x3F;        // Bits 0-5
+	if(p == UA_NULL)
+		return sizeof(UA_Variant);
+	// only ns0 supported.
+	// UA_UInt32  builtinNs0Id  = p->encodingMask & 0x3F;        // Bits 0-5
 	UA_Boolean isArray       = p->encodingMask & (0x01 << 7); // Bit 7
 	UA_Boolean hasDimensions = p->encodingMask & (0x01 << 6); // Bit 6
 
-	if(p->vt == UA_NULL || builtinNs0Id != p->vt->typeId.namespace) return UA_ERR_INCONSISTENT;
+	if(p->vt == UA_NULL || 0 != p->vt->typeId.namespace)
+		return UA_ERR_INCONSISTENT;
+
+	UA_Int32   length        = 0;
 	length += sizeof(UA_Byte);      //p->encodingMask
 	if(isArray) {                   // array length is encoded
 		length += sizeof(UA_Int32); //p->arrayLength
 		if(p->arrayLength > 0) {
-			// TODO: add suggestions of @jfpr to not iterate over arrays with fixed len elements
-			// FIXME: the concept of calcSizeBinary delivering the storageSize given an UA_Null argument
-			// fails for arrays with null-ptrs, see test case
-			// UA_Variant_calcSizeBinaryVariableSizeArrayWithNullPtrWillReturnWrongEncodingSize
-			// Simply do not allow?
 			UA_Byte *cdata = (UA_Byte*)p->data;
 			for(UA_Int32 i = 0;i < p->arrayLength;i++) {
 				length += p->vt->encodings[0].calcSize(cdata);

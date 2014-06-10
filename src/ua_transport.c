@@ -40,7 +40,7 @@ void UA_MessageType_printf(char *label, UA_MessageType* p) {
 UA_Int32 UA_OPCUATcpMessageHeader_calcSizeBinary(UA_OPCUATcpMessageHeader const * ptr) {
     	if(ptr==UA_NULL) return sizeof(UA_OPCUATcpMessageHeader);
     	return 0
-	 + sizeof(UA_UInt32) // messageType
+	 + 3 // messageType
 	 + sizeof(UA_Byte) // isFinal
 	 + sizeof(UA_UInt32) // messageSize
 	;
@@ -48,7 +48,7 @@ UA_Int32 UA_OPCUATcpMessageHeader_calcSizeBinary(UA_OPCUATcpMessageHeader const 
 
 UA_Int32 UA_OPCUATcpMessageHeader_encodeBinary(UA_OPCUATcpMessageHeader const * src, UA_ByteString* dst, UA_UInt32 *offset) {
     	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_UInt32_encodeBinary(&src->messageType,dst,offset);
+	retval |= UA_MessageType_encodeBinary(&src->messageType,dst,offset);
 	retval |= UA_Byte_encodeBinary(&src->isFinal,dst,offset);
 	retval |= UA_UInt32_encodeBinary(&src->messageSize,dst,offset);
 	return retval;
@@ -57,7 +57,7 @@ UA_Int32 UA_OPCUATcpMessageHeader_encodeBinary(UA_OPCUATcpMessageHeader const * 
 UA_Int32 UA_OPCUATcpMessageHeader_decodeBinary(UA_ByteString const * src, UA_UInt32 *offset, UA_OPCUATcpMessageHeader * dst) {
     	UA_Int32 retval = UA_SUCCESS;
 	UA_OPCUATcpMessageHeader_init(dst);
-	CHECKED_DECODE(UA_UInt32_decodeBinary(src,offset,&dst->messageType), UA_OPCUATcpMessageHeader_deleteMembers(dst));
+	CHECKED_DECODE(UA_MessageType_decodeBinary(src,offset,&dst->messageType), UA_OPCUATcpMessageHeader_deleteMembers(dst));
 	CHECKED_DECODE(UA_Byte_decodeBinary(src,offset,&dst->isFinal), UA_OPCUATcpMessageHeader_deleteMembers(dst));
 	CHECKED_DECODE(UA_UInt32_decodeBinary(src,offset,&dst->messageSize), UA_OPCUATcpMessageHeader_deleteMembers(dst));
 	return retval;
@@ -77,7 +77,6 @@ UA_Int32 UA_OPCUATcpMessageHeader_deleteMembers(UA_OPCUATcpMessageHeader *p) {
 
 UA_Int32 UA_OPCUATcpMessageHeader_init(UA_OPCUATcpMessageHeader *p) {
     	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_UInt32_init(&p->messageType);
 	retval |= UA_Byte_init(&p->isFinal);
 	retval |= UA_UInt32_init(&p->messageSize);
 	return retval;
@@ -465,7 +464,7 @@ UA_Int32 UA_SecureConversationMessageFooter_delete(UA_SecureConversationMessageF
 
 UA_Int32 UA_SecureConversationMessageFooter_deleteMembers(UA_SecureConversationMessageFooter *p) {
     	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_Array_delete((void**)&p->padding,p->paddingSize,UA_BYTE);
+	retval |= UA_Array_delete((void*)p->padding,p->paddingSize,UA_BYTE);
 	return retval;
 }
 

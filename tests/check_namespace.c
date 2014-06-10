@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "opcua.h"
+#include "ua_types.h"
 #include "ua_namespace.h"
 #include "check.h"
 

@@ -273,7 +273,7 @@ UA_TYPE_PROTOTYPES(UA_InvalidType)
 /* String */
 UA_Int32 UA_String_copycstring(char const *src, UA_String *dst);
 UA_Int32 UA_String_copyprintf(char const *fmt, UA_String *dst, ...);
-UA_Int32 UA_String_compare(const UA_String *string1, const UA_String *string2);
+UA_Int32 UA_String_equal(const UA_String *string1, const UA_String *string2);
 void UA_String_printf(char const *label, const UA_String *string);
 void UA_String_printx(char const *label, const UA_String *string);
 void UA_String_printx_hex(char const *label, const UA_String *string);
@@ -305,7 +305,7 @@ void UA_ByteString_printx(char *label, const UA_ByteString *string);
 void UA_ByteString_printx_hex(char *label, const UA_ByteString *string);
 
 /* NodeId */
-UA_Int32 UA_NodeId_compare(const UA_NodeId *n1, const UA_NodeId *n2);
+UA_Int32 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 void UA_NodeId_printf(char *label, const UA_NodeId *node);
 UA_Boolean UA_NodeId_isNull(const UA_NodeId *p);
 UA_Int16 UA_NodeId_getNamespace(UA_NodeId const *id);
@@ -314,6 +314,9 @@ UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id);
 
 /* ExpandedNodeId */
 UA_Boolean UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
+
+/* QualifiedName */
+void UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn);
 
 /* LocalizedText */
 UA_Int32 UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);

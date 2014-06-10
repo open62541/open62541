@@ -21,7 +21,7 @@
         return UA_ERR_NOT_IMPLEMENTED; \
 	}																	\
 	UA_Int32 TYPE##_encodeXmlToStack(const TYPE *src, XML_Stack *s, XML_Attr *attr) { \
-     DBG_VERBOSE(printf(#TYPE "_encodeXML entered with src=%p,isStart=%d\n", (void* ) src)); \
+																					 DBG_VERBOSE(printf(#TYPE "_encodeXML entered with src=%p\n", (void* ) src)); \
      return UA_ERR_NOT_IMPLEMENTED;\
  }
 
@@ -31,7 +31,7 @@
 	}																	\
 																		\
  UA_Int32 TYPE##_decodeXmlFromStack(XML_Stack* s, XML_Attr* attr, TYPE* dst, UA_Boolean isStart) { \
-     DBG_VERBOSE(printf(#TYPE "_decodeXML entered with dst=%p,isStart=%d\n", (void* ) dst, isStart)); \
+																								  DBG_VERBOSE(printf(#TYPE "_decodeXML entered with dst=%p,isStart=%d\n", (void* ) dst, (_Bool) isStart)); \
      return UA_ERR_NOT_IMPLEMENTED; \
  }
 

@@ -47,7 +47,6 @@ static UA_DataValue service_read_node(Application * app, const UA_ReadValueId * 
 		v.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
 		return v;
 	}
-	DBG_VERBOSE(UA_String_printf(",namespaceUri=", &(ns->namespaceUri)));
 
 	UA_Node const *node = UA_NULL;
 	Namespace_Entry_Lock *lock = UA_NULL;
@@ -200,8 +199,8 @@ UA_Int32 Service_Read(SL_Channel * channel, const UA_ReadRequest * request, UA_R
 	response->resultsSize = readsize;
 	UA_alloc((void **)&response->results, sizeof(UA_DataValue) * readsize);
 	for(int i = 0; i < readsize; i++) {
-		DBG_VERBOSE(printf("service_read - attributeId=%d\n", request->nodesToRead[i]->attributeId));
-		DBG_VERBOSE(UA_NodeId_printf("service_read - nodeId=", &(request->nodesToRead[i]->nodeId)));
+		DBG_VERBOSE(printf("service_read - attributeId=%d\n", request->nodesToRead[i].attributeId));
+		DBG_VERBOSE(UA_NodeId_printf("service_read - nodeId=", &(request->nodesToRead[i].nodeId)));
 		response->results[i] = service_read_node(channel->session->application, &request->nodesToRead[i]);
 	}
 	response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;

@@ -241,7 +241,7 @@ static inline UA_Int32 find_entry(const Namespace * ns, const UA_NodeId * nodeid
 		return UA_ERROR;
 	}
 
-	if(UA_NodeId_compare(&e->node->nodeId, nodeid) == UA_EQUAL) {
+	if(UA_NodeId_equal(&e->node->nodeId, nodeid) == UA_EQUAL) {
 		*entry = e;
 		return UA_SUCCESS;
 	}
@@ -259,7 +259,7 @@ static inline UA_Int32 find_entry(const Namespace * ns, const UA_NodeId * nodeid
 			return UA_ERROR;
 		}
 
-		if(UA_NodeId_compare(&e->node->nodeId, nodeid) == UA_EQUAL) {
+		if(UA_NodeId_equal(&e->node->nodeId, nodeid) == UA_EQUAL) {
 			*entry = e;
 			return UA_SUCCESS;
 		}

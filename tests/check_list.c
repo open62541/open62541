@@ -1,4 +1,5 @@
 #include <stdlib.h> // EXIT_SUCCESS
+#include "ua_util.h"
 #include "ua_list.h"
 #include "check.h"
 

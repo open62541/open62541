@@ -9,7 +9,7 @@ echo "Please install uncrustify first."
 fi
 
 TOOL_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-uncrustify -c $TOOL_DIR/open62541.uncrustify.cfg -l C --replace $@
+uncrustify -c $TOOL_DIR/uncrustify.cfg -l C --replace $@
 
 # Remove trailing whitespace
 for file in $@; do

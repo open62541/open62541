@@ -1,6 +1,7 @@
 #ifndef UA_UTILITY_H_
 #define UA_UTILITY_H_
 
+#include <stdio.h>  // printf
 #include <stdlib.h> // malloc, free
 #include <string.h> // memcpy
 #include "ua_types.h"
@@ -22,6 +23,7 @@
 
 /* Global Variables */
 extern UA_ByteString UA_ByteString_securityPoliceNone;
+void const *UA_alloc_lastptr;
 
 /* Heap memory functions */
 #define UA_NULL ((void *)0)

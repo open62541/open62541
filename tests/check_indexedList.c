@@ -1,6 +1,6 @@
 #include <stdlib.h> // EXIT_SUCCESS
 #include "ua_indexedList.h"
-
+#include "ua_util.h"
 #include "check.h"
 
 /* global test counters */

@@ -1,6 +1,5 @@
 #include "ua_util.h"
 
-void const *UA_alloc_lastptr;
 
 UA_Int32 _UA_free(void *ptr, char *pname, char *f, UA_Int32 l) {
 	DBG_VERBOSE(printf("UA_free;%p;;%s;;%s;%d\n", ptr, pname, f, l); fflush(stdout));
