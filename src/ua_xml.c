@@ -251,7 +251,6 @@ UA_Int32 UA_Text_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_Byte **dst,
 
 UA_Int32 UA_TypedArray_decodeXmlFromStack(XML_Stack* s, XML_Attr* attr, UA_TypedArray* dst, _Bool isStart) {
 	UA_Int32 type = s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].type;
-	cstring names  = s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].name;
 	/* DBG_VERBOSE(printf("UA_TypedArray_decodeXML - entered with dst=%p,isStart=%d,type={%d,%s},name=%s\n", (void* ) dst, isStart,type,UA_[type].name, names)); */
 	if (isStart) {
 		if (dst == UA_NULL) {
@@ -263,16 +262,17 @@ UA_Int32 UA_TypedArray_decodeXmlFromStack(XML_Stack* s, XML_Attr* attr, UA_Typed
 		// References - Reference
 		// Aliases - Alias
 		// ListOfXX - XX
-		UA_Int32 length = 0;
-		if (0 == strncmp("ListOf",names,strlen("ListOf"))) {
-			names = &names[strlen("ListOf")];
-			length = strlen(names);
-		} else if ( 0 == strncmp("References",names,strlen("References"))){
-			length = strlen(names) - 1;
-		} else if ( 0 == strncmp("Aliases",names,strlen("Aliases"))){
-			length = strlen(names) - 2;
-		}
-		DBG(printf("UA_TypedArray_decodeXML - add handler for {%.*s}\n", length, names));
+		DBG(UA_Int32 length = 0;
+			cstring names  = s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].name;
+			if (0 == strncmp("ListOf",names,strlen("ListOf"))) {
+				names = &names[strlen("ListOf")];
+				length = strlen(names);
+			} else if ( 0 == strncmp("References",names,strlen("References"))){
+				length = strlen(names) - 1;
+			} else if ( 0 == strncmp("Aliases",names,strlen("Aliases"))){
+				length = strlen(names) - 2;
+			}
+			printf("UA_TypedArray_decodeXML - add handler for {%.*s}\n", length, names));
 		// this is problematic as the standard encoding functions in the vtable take a bytestring as the input
 		/* XML_Stack_addChildHandler(s, names, length, (XML_decoder) UA_.types[type].encodings[1].decode, type, UA_NULL); */
 	} else {
