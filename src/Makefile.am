@@ -20,7 +20,7 @@ libopen62541_la_SOURCES = opcua.c \
 			ua_application.c \
 			ua_xml.c\
 			ua_stack_session.c\
-			ua_stack_sessionManager.c\
+			ua_stack_session_manager.c\
 			ua_stack_channel.c \
 			ua_stack_channel_manager.c \
 			ua_transport_connection_manager.c \

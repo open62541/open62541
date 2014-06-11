@@ -18,7 +18,7 @@ UA_Int32 Service_OpenSecureChannel(SL_secureChannel channel,
 	return retval;
 }
 
-UA_Int32 Service_CloseSecureChannel(const UA_CloseSecureChannelRequest *request,
+UA_Int32 Service_CloseSecureChannel(UA_Session session, const UA_CloseSecureChannelRequest *request,
 		UA_CloseSecureChannelResponse *response)
 {
 	UA_Int32 retval = UA_SUCCESS;

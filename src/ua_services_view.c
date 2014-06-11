@@ -1,7 +1,7 @@
 #include "ua_services.h"
 #include "ua_statuscodes.h"
 
-UA_Int32 Service_Browse(const UA_BrowseRequest *request, UA_BrowseResponse *response) {
+UA_Int32 Service_Browse(UA_Session session, const UA_BrowseRequest *request, UA_BrowseResponse *response) {
 	UA_Int32 retval = UA_SUCCESS;
 	DBG_VERBOSE(UA_NodeId_printf("BrowseService - view=",&(request->view.viewId)));
 	UA_Int32 i = 0;
@@ -11,7 +11,7 @@ UA_Int32 Service_Browse(const UA_BrowseRequest *request, UA_BrowseResponse *resp
 	return retval;
 }
 
-UA_Int32 Service_TranslateBrowsePathsToNodeIds(const UA_TranslateBrowsePathsToNodeIdsRequest *request, UA_TranslateBrowsePathsToNodeIdsResponse *response)
+UA_Int32 Service_TranslateBrowsePathsToNodeIds(UA_Session session, const UA_TranslateBrowsePathsToNodeIdsRequest *request, UA_TranslateBrowsePathsToNodeIdsResponse *response)
 {
 	UA_Int32 retval = UA_SUCCESS;
 

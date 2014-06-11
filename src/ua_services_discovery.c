@@ -1,5 +1,5 @@
 #include "ua_services.h"
-UA_Int32 Service_GetEndpoints(const UA_GetEndpointsRequest* request, UA_GetEndpointsResponse *response) {
+UA_Int32 Service_GetEndpoints(UA_Session session, const UA_GetEndpointsRequest* request, UA_GetEndpointsResponse *response) {
 	UA_String_printx("endpointUrl=", &request->endpointUrl);
 	response->endpointsSize = 1;
 	UA_Array_new((void***) &response->endpoints,response->endpointsSize,UA_ENDPOINTDESCRIPTION);

@@ -47,7 +47,7 @@ UA_Int32 UA_SessionManager_removeSession(UA_Int32 sessionId);
  * @param session the session object is returned if no error occurs
  * @return error code if all goes well UA_SUCCESS is returned
  */
-UA_Int32 UA_SessionManager_getSessionById(UA_NodeId sessionId, UA_Session *session);
+UA_Int32 UA_SessionManager_getSessionById(UA_NodeId *sessionId, UA_Session *session);
 
 /**
  * @brief

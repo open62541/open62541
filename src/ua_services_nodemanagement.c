@@ -66,7 +66,7 @@ static UA_AddNodesResult * addSingleNode(Application *app, UA_AddNodesItem *item
 	return result;
 }
 
-UA_Int32 Service_AddNodes(const UA_AddNodesRequest *request, UA_AddNodesResponse *response) {
+UA_Int32 Service_AddNodes(UA_Session session, const UA_AddNodesRequest *request, UA_AddNodesResponse *response) {
 //TODO GET SESSION HERE	if(channel->session == UA_NULL || channel->session->application == UA_NULL)
 //		return UA_ERROR;	// TODO: Return error message
 

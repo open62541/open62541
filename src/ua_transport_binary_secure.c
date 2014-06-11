@@ -137,12 +137,13 @@ static void init_response_header(UA_RequestHeader const * p,
 #define INVOKE_SERVICE(TYPE) \
 	UA_##TYPE##Request p; \
 	UA_##TYPE##Response r; \
-	UA_NodeId authenticationToken; \
+	UA_Session *session = UA_NULL; \
 	UA_##TYPE##Request_decodeBinary(msg, pos, &p); \
 	UA_##TYPE##Response_init(&r); \
 	init_response_header(&p.requestHeader, &r.responseHeader); \
+	UA_SessionManager_getSessionByToken(&p.requestHeader.authenticationToken, session); \
 	DBG_VERBOSE(printf("Invoke Service: %s\n", #TYPE)); \
-	Service_##TYPE(&p, &r); \
+	Service_##TYPE(*session, &p, &r); \
 	DBG_VERBOSE(printf("Finished Service: %s\n", #TYPE)); \
     *pos = 0; \
 	UA_ByteString_newMembers(&response_msg, UA_##TYPE##Response_calcSize(&r)); \

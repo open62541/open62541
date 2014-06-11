@@ -43,8 +43,7 @@ UA_Boolean UA_SessionManager_sessionExists(UA_Session *session)
 
 UA_Int32 UA_SessionManager_getSessionById(UA_NodeId *sessionId, UA_Session *session)
 {
-	UA_UInt32 tmpSessionId;
- 	UA_list_Element* current = sessionManager->sessions.first;
+ 	UA_list_Element* current = sessionManager->sessions->first;
 	while (current)
 	{
 		if (current->payload)

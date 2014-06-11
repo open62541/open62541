@@ -185,7 +185,7 @@ static UA_DataValue *service_read_node(Application * app, const UA_ReadValueId *
 	return v;
 }
 
-UA_Int32 Service_Read(const UA_ReadRequest * request, UA_ReadResponse * response) {
+UA_Int32 Service_Read(UA_Session session, const UA_ReadRequest * request, UA_ReadResponse * response) {
 //TODO GET SESSION HERE//if(channel->session == UA_NULL || channel->session->application == UA_NULL)
 	//	return UA_ERROR;	// TODO: Return error message
 

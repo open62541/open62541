@@ -3,7 +3,7 @@
 #if 0
 /* Activate once the infrastructure for pushing events is in place. */
 
-UA_Int32 Service_CreateMonitoredItems(SL_Channel *channel, const UA_CreateMonitoredItemsRequest *request, UA_CreateMonitoredItemsResponse *response) {
+UA_Int32 Service_CreateMonitoredItems(UA_Session session, const UA_CreateMonitoredItemsRequest *request, UA_CreateMonitoredItemsResponse *response) {
 	if (request->itemsToCreateSize > 0) {
 		response->resultsSize = request->itemsToCreateSize;
 		UA_Array_new((void**)&(response->results),response->resultsSize,UA_MONITOREDITEMCREATERESULT);

@@ -22,7 +22,9 @@ UA_Boolean UA_Session_compare(UA_Session session1, UA_Session session2)
 {
 	if(session1 && session2)
 	{
-		return (UA_Guid_compare(((UA_SessionType*)session1)->sessionId.identifier,((UA_SessionType*)session2)->sessionId.identifier) == 0);
+
+		return UA_NodeId_compare(&((UA_SessionType*)session1)->sessionId,
+				&((UA_SessionType*)session2)->sessionId) == 0;
 	}
 	return UA_FALSE;
 }
