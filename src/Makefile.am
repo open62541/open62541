@@ -26,6 +26,8 @@ libopen62541_la_SOURCES = ua_types.c \
 						  ua_services_view.c \
 						  ua_application.c \
 						  ua_xml.c
+ua_types.c: ua_namespace_0.h
+ua_namespace_0.h: ua_types_generated.h
 
 ua_types_generated.c ua_types_generated.h: $(SCHEMA_DIR)/Opc.Ua.Types.bsd $(TOOL_DIR)/generate_builtin.py
 	python $(TOOL_DIR)/generate_builtin.py $(SCHEMA_DIR)/Opc.Ua.Types.bsd ua_types_generated
