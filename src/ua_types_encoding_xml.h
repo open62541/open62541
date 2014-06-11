@@ -35,7 +35,7 @@
      return UA_ERR_NOT_IMPLEMENTED; \
  }
 
-#define UA_TYPE_ENCODEXML_FROM_BYTESTRING(TYPE) \
+#define UA_TYPE_DECODEXML_FROM_BYTESTRING(TYPE) \
 	UA_Int32 TYPE##_decodeXml(UA_ByteString *src, UA_UInt32 *offset, TYPE *dst) { \
 	/* // Init Stack here \
 	UA_Stack *stack; \

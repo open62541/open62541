@@ -26,7 +26,7 @@ UA_Int32 UA_Boolean_decodeXML(XML_Stack *s, XML_Attr *attr, UA_Boolean *dst, _Bo
 	return UA_SUCCESS;
 }
 
-UA_TYPE_ENCODEXML_FROM_BYTESTRING(UA_Boolean)
+UA_TYPE_DECODEXML_FROM_BYTESTRING(UA_Boolean)
 
 /* SByte */
 UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(UA_SByte)
@@ -64,7 +64,7 @@ UA_Int32 UA_Int16_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_Int16 *dst
 	return UA_SUCCESS;
 }
 
-UA_TYPE_ENCODEXML_FROM_BYTESTRING(UA_Int16)
+UA_TYPE_DECODEXML_FROM_BYTESTRING(UA_Int16)
 
 /* UInt16 */
 UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(UA_UInt16)
@@ -86,7 +86,7 @@ UA_Int32 UA_Int32_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_Int32 *dst
 	}
 	return UA_SUCCESS;
 }
-UA_TYPE_ENCODEXML_FROM_BYTESTRING(UA_Int32)
+UA_TYPE_DECODEXML_FROM_BYTESTRING(UA_Int32)
 
 /* UInt32 */
 UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(UA_UInt32)
@@ -150,7 +150,7 @@ UA_Int32 UA_String_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_String *d
 	return UA_SUCCESS;
 }
 
-UA_TYPE_ENCODEXML_FROM_BYTESTRING(UA_String)
+UA_TYPE_DECODEXML_FROM_BYTESTRING(UA_String)
 
 /* DateTime */
 UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(UA_DateTime)
@@ -212,7 +212,7 @@ UA_Int32 UA_NodeId_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_NodeId *d
 	return UA_SUCCESS;
 }
 
-UA_TYPE_ENCODEXML_FROM_BYTESTRING(UA_NodeId)
+UA_TYPE_DECODEXML_FROM_BYTESTRING(UA_NodeId)
 
 /* ExpandedNodeId */
 UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(UA_ExpandedNodeId)
@@ -252,7 +252,7 @@ UA_Int32 UA_ExpandedNodeId_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_E
 	return UA_SUCCESS;
 }
 
-UA_TYPE_ENCODEXML_FROM_BYTESTRING(UA_ExpandedNodeId)
+UA_TYPE_DECODEXML_FROM_BYTESTRING(UA_ExpandedNodeId)
 
 /* StatusCode */
 UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(UA_StatusCode)
@@ -261,7 +261,7 @@ UA_Int32 UA_StatusCode_decodeXML(XML_Stack *s, XML_Attr *attr, UA_StatusCode *ds
 	DBG_VERBOSE(printf("UA_StatusCode_decodeXML entered with dst=%p,isStart=%d\n", (void * )dst, isStart));
 	return UA_ERR_NOT_IMPLEMENTED;
 }
-UA_TYPE_ENCODEXML_FROM_BYTESTRING(UA_StatusCode)
+UA_TYPE_DECODEXML_FROM_BYTESTRING(UA_StatusCode)
 
 /* QualifiedName */
 UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(UA_QualifiedName)
@@ -296,7 +296,7 @@ UA_Int32 UA_QualifiedName_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_Qu
 	return UA_SUCCESS;
 }
 
-UA_TYPE_ENCODEXML_FROM_BYTESTRING(UA_QualifiedName)
+UA_TYPE_DECODEXML_FROM_BYTESTRING(UA_QualifiedName)
 
 /* LocalizedText */
 UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(UA_LocalizedText)
@@ -345,7 +345,7 @@ UA_Int32 UA_LocalizedText_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_Lo
 	return UA_SUCCESS;
 }
 
-UA_TYPE_ENCODEXML_FROM_BYTESTRING(UA_LocalizedText)
+UA_TYPE_DECODEXML_FROM_BYTESTRING(UA_LocalizedText)
 
 /* ExtensionObject */
 UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(UA_ExtensionObject)
@@ -378,7 +378,7 @@ UA_Int32 UA_ExtensionObject_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_
 	return UA_SUCCESS;
 }
 
-UA_TYPE_ENCODEXML_FROM_BYTESTRING(UA_ExtensionObject)
+UA_TYPE_DECODEXML_FROM_BYTESTRING(UA_ExtensionObject)
 
 /* DataValue */
 UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(UA_DataValue)
@@ -439,7 +439,7 @@ UA_Int32 UA_Variant_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_Variant 
 	return UA_SUCCESS;
 }
 
-UA_TYPE_ENCODEXML_FROM_BYTESTRING(UA_Variant)
+UA_TYPE_DECODEXML_FROM_BYTESTRING(UA_Variant)
 
 /* DiagnosticInfo */
 UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(UA_DiagnosticInfo)
