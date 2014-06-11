@@ -4,7 +4,7 @@
 #include <stdarg.h> // va_start, va_end
 #include <time.h>
 #include <sys/time.h>
-#include "ua_util.h"
+#include "util/ua_util.h"
 #include "ua_types.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_namespace_0.h"

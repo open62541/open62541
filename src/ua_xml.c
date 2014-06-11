@@ -143,8 +143,8 @@ void XML_Stack_init(XML_Stack* p, UA_UInt32 nsid, cstring name) {
 		p->parent[i].activeChild   = -1;
 		p->parent[i].textAttrib    = UA_NULL;
 		p->parent[i].textAttribIdx = -1;
-		p->parent[i].totalGatherLength = -1;
-		UA_list_init(&(p->parent[i].textGatherList));
+		/* p->parent[i].totalGatherLength = -1; */
+		/* UA_list_init(&(p->parent[i].textGatherList)); */
 		for (j = 0; j < XML_STACK_MAX_CHILDREN; j++) {
 			p->parent[i].children[j].name = UA_NULL;
 			p->parent[i].children[j].length         = -1;
@@ -153,7 +153,7 @@ void XML_Stack_init(XML_Stack* p, UA_UInt32 nsid, cstring name) {
 			p->parent[i].children[j].obj = UA_NULL;
 		}
 	}
-	p->nsid = nsid;
+	/* p->nsid = nsid; */
 	p->parent[0].name = name;
 }
 
@@ -215,112 +215,44 @@ UA_Int32 UA_Text_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_Byte **dst,
 	return UA_SUCCESS;
 }
 
-UA_Int32 UA_LocalizedText_decodeXML(XML_Stack* s, XML_Attr* attr, UA_LocalizedText* dst, _Bool isStart) {
-	DBG_VERBOSE(printf("UA_LocalizedText entered with dst=%p,isStart=%d\n", (void* ) dst, isStart));
-	UA_UInt32 i;
-	if (isStart) {
-		if (dst == UA_NULL) {
-			UA_LocalizedText_new(&dst);
-			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
-		}
-		// s->parent[s->depth].len = 0;
-		XML_Stack_addChildHandler(s, "Text", strlen("Text"), (XML_decoder) UA_String_decodeXML, UA_STRING, &(dst->text));
-		XML_Stack_addChildHandler(s, "Locale", strlen("Locale"), (XML_decoder) UA_String_decodeXML, UA_STRING, &(dst->locale));
-		XML_Stack_handleTextAsElementOf(s, "Data", 0);
+// Gets generated in ua_types_generated.h and .c. But currently only as stubs
+/* UA_Int32 UA_ReferenceNode_decodeXmlFromStack(XML_Stack* s, XML_Attr* attr, UA_ReferenceNode* dst, _Bool isStart) { */
+/* 	DBG_VERBOSE(printf("UA_ReferenceNode_decodeXML entered with dst=%p,isStart=%d\n", (void* ) dst, isStart)); */
+/* 	if (isStart) { */
+/* 		// create if necessary */
+/* 		if (dst == UA_NULL) { */
+/* 			UA_ReferenceNode_new(&dst); */
+/* 			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst; */
+/* 		} */
+/* 		// set handlers */
+/* 		s->parent[s->depth].len = 0; */
+/* 		XML_Stack_addChildHandler(s, "ReferenceType", strlen("ReferenceType"),(XML_decoder) UA_NodeId_decodeXmlFromStack, UA_NODEID, &(dst->referenceTypeId)); */
+/* 		XML_Stack_addChildHandler(s, "IsForward", strlen("IsForward"), (XML_decoder) UA_Boolean_decodeXmlFromStack, UA_BOOLEAN, &(dst->isInverse)); */
+/* 		XML_Stack_addChildHandler(s, "Target", strlen("Target"), (XML_decoder) UA_ExpandedNodeId_decodeXmlFromStack, UA_EXPANDEDNODEID, &(dst->targetId)); */
+/* 		XML_Stack_handleTextAsElementOf(s, "NodeId", 2); */
 
-		// set attributes
-		for (i = 0; attr[i]; i += 2) {
-			if (0 == strncmp("Text", attr[i], strlen("Text"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->text));
-				dst->encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
-			} else if (0 == strncmp("Locale", attr[i], strlen("Locale"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->locale));
-				dst->encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE;
-			} else {
-				perror("Unknown attribute");
-			}
-		}
-	} else {
-		switch (s->parent[s->depth - 1].activeChild) {
-		case 0:
-			dst->encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
-			break;
-		case 1:
-			dst->encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE;
-			break;
-		default:
-			break;
-		}
-	}
-	return UA_SUCCESS;
-}
+/* 		// set attributes */
+/* 		UA_Int32 i; */
+/* 		for (i = 0; attr[i]; i += 2) { */
+/* 			if (0 == strncmp("ReferenceType", attr[i], strlen("ReferenceType"))) { */
+/* 				UA_NodeId_copycstring(attr[i + 1], &(dst->referenceTypeId), s->aliases); */
+/* 			} else if (0 == strncmp("IsForward", attr[i], strlen("IsForward"))) { */
+/* 				UA_Boolean_copycstring(attr[i + 1], &(dst->isInverse)); */
+/* 				dst->isInverse = !dst->isInverse; */
+/* 			} else if (0 == strncmp("Target", attr[i], strlen("Target"))) { */
+/* 				UA_ExpandedNodeId_copycstring(attr[i + 1], &(dst->targetId), s->aliases); */
+/* 			} else { */
+/* 				DBG_ERR(XML_Stack_print(s));DBG_ERR(printf("%s - unknown attribute\n", attr[i])); */
+/* 			} */
+/* 		} */
+/* 	} */
+/* 	return UA_SUCCESS; */
+/* } */
 
-UA_Int32 UA_QualifiedName_decodeXML(XML_Stack* s, XML_Attr* attr, UA_QualifiedName* dst, _Bool isStart) {
-	DBG_VERBOSE(printf("UA_QualifiedName entered with dst=%p,isStart=%d\n", (void* ) dst, isStart));
-	UA_UInt32 i;
-	if (isStart) {
-		if (dst == UA_NULL) {
-			UA_QualifiedName_new(&dst);
-			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
-		}
-		s->parent[s->depth].len = 0;
-		XML_Stack_addChildHandler(s, "Name", strlen("Name"), (XML_decoder) UA_String_decodeXML, UA_STRING, &(dst->name));
-		XML_Stack_addChildHandler(s, "NamespaceIndex", strlen("NamespaceIndex"), (XML_decoder) UA_Int16_decodeXML, UA_INT16,
-				&(dst->namespaceIndex));
-		XML_Stack_handleTextAsElementOf(s, "Data", 0);
-
-		// set attributes
-		for (i = 0; attr[i]; i += 2) {
-			if (0 == strncmp("NamespaceIndex", attr[i], strlen("NamespaceIndex"))) {
-				dst->namespaceIndex = atoi(attr[i + 1]);
-			} else if (0 == strncmp("Name", attr[i], strlen("Name"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->name));
-			} else {
-				perror("Unknown attribute");
-			}
-		}
-	}
-	return UA_SUCCESS;
-}
-
-UA_Int32 UA_ReferenceNode_decodeXML(XML_Stack* s, XML_Attr* attr, UA_ReferenceNode* dst, _Bool isStart) {
-	DBG_VERBOSE(printf("UA_ReferenceNode_decodeXML entered with dst=%p,isStart=%d\n", (void* ) dst, isStart));
-	if (isStart) {
-		// create if necessary
-		if (dst == UA_NULL) {
-			UA_ReferenceNode_new(&dst);
-			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
-		}
-		// set handlers
-		s->parent[s->depth].len = 0;
-		XML_Stack_addChildHandler(s, "ReferenceType", strlen("ReferenceType"),(XML_decoder) UA_NodeId_decodeXML, UA_NODEID, &(dst->referenceTypeId));
-		XML_Stack_addChildHandler(s, "IsForward", strlen("IsForward"), (XML_decoder) UA_Boolean_decodeXML, UA_BOOLEAN, &(dst->isInverse));
-		XML_Stack_addChildHandler(s, "Target", strlen("Target"), (XML_decoder) UA_ExpandedNodeId_decodeXML, UA_EXPANDEDNODEID, &(dst->targetId));
-		XML_Stack_handleTextAsElementOf(s, "NodeId", 2);
-
-		// set attributes
-		UA_Int32 i;
-		for (i = 0; attr[i]; i += 2) {
-			if (0 == strncmp("ReferenceType", attr[i], strlen("ReferenceType"))) {
-				UA_NodeId_copycstring(attr[i + 1], &(dst->referenceTypeId), s->aliases);
-			} else if (0 == strncmp("IsForward", attr[i], strlen("IsForward"))) {
-				UA_Boolean_copycstring(attr[i + 1], &(dst->isInverse));
-				dst->isInverse = !dst->isInverse;
-			} else if (0 == strncmp("Target", attr[i], strlen("Target"))) {
-				UA_ExpandedNodeId_copycstring(attr[i + 1], &(dst->targetId), s->aliases);
-			} else {
-				DBG_ERR(XML_Stack_print(s));DBG_ERR(printf("%s - unknown attribute\n", attr[i]));
-			}
-		}
-	}
-	return UA_SUCCESS;
-}
-
-
-UA_Int32 UA_TypedArray_decodeXML(XML_Stack* s, XML_Attr* attr, UA_TypedArray* dst, _Bool isStart) {
+UA_Int32 UA_TypedArray_decodeXmlFromStack(XML_Stack* s, XML_Attr* attr, UA_TypedArray* dst, _Bool isStart) {
 	UA_Int32 type = s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].type;
 	cstring names  = s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].name;
-	DBG_VERBOSE(printf("UA_TypedArray_decodeXML - entered with dst=%p,isStart=%d,type={%d,%s},name=%s\n", (void* ) dst, isStart,type,UA_[type].name, names));
+	/* DBG_VERBOSE(printf("UA_TypedArray_decodeXML - entered with dst=%p,isStart=%d,type={%d,%s},name=%s\n", (void* ) dst, isStart,type,UA_[type].name, names)); */
 	if (isStart) {
 		if (dst == UA_NULL) {
 			UA_TypedArray_new(&dst);
@@ -341,7 +273,8 @@ UA_Int32 UA_TypedArray_decodeXML(XML_Stack* s, XML_Attr* attr, UA_TypedArray* ds
 			length = strlen(names) - 2;
 		}
 		DBG(printf("UA_TypedArray_decodeXML - add handler for {%.*s}\n", length, names));
-		XML_Stack_addChildHandler(s, names, length, (XML_decoder) UA_[type].decodeXML, type, UA_NULL);
+		// this is problematic as the standard encoding functions in the vtable take a bytestring as the input
+		/* XML_Stack_addChildHandler(s, names, length, (XML_decoder) UA_.types[type].encodings[1].decode, type, UA_NULL); */
 	} else {
 		// sub element is ready, add to array
 		if (dst->size < 0 || dst->size == 0) {
@@ -355,303 +288,309 @@ UA_Int32 UA_TypedArray_decodeXML(XML_Stack* s, XML_Attr* attr, UA_TypedArray* ds
 		}
 		// index starts with 0, therefore size-1
 		DBG_VERBOSE(printf("UA_TypedArray_decodeXML - assign element[%d], src=%p\n", dst->size - 1, (void* )attr));
-		dst->elements[dst->size - 1] = (void*) attr;
+		/* dst->elements[dst->size - 1] = (void*) attr; */
 		DBG_VERBOSE(printf("UA_TypedArray_decodeXML - clear %p\n",(void* ) (s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj)));
 		s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL;
 	}
 	return UA_SUCCESS;
 }
 
-UA_Int32 UA_DataTypeNode_decodeXML(XML_Stack* s, XML_Attr* attr, UA_DataTypeNode* dst, _Bool isStart) {
-	DBG_VERBOSE(printf("UA_DataTypeNode entered with dst=%p,isStart=%d\n", (void* ) dst, isStart));
-	UA_UInt32 i;
+// Gets generated in ua_types_generated.h and .c. But currently only as stubs
+/* UA_Int32 UA_DataTypeNode_decodeXmlFromStack(XML_Stack* s, XML_Attr* attr, UA_DataTypeNode* dst, _Bool isStart) { */
+/* 	DBG_VERBOSE(printf("UA_DataTypeNode entered with dst=%p,isStart=%d\n", (void* ) dst, isStart)); */
+/* 	UA_UInt32 i; */
 
-	if (isStart) {
-		// create a new object if called with UA_NULL
-		if (dst == UA_NULL) {
-			UA_DataTypeNode_new(&dst);
-			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
-		}
+/* 	if (isStart) { */
+/* 		// create a new object if called with UA_NULL */
+/* 		if (dst == UA_NULL) { */
+/* 			UA_DataTypeNode_new(&dst); */
+/* 			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst; */
+/* 		} */
 
-		s->parent[s->depth].len = 0;
-		XML_Stack_addChildHandler(s, "DisplayName", strlen("DisplayName"), (XML_decoder) UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT, &(dst->displayName));
-		XML_Stack_addChildHandler(s, "Description", strlen("Description"),(XML_decoder) UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT, &(dst->description));
-		XML_Stack_addChildHandler(s, "BrowseName", strlen("BrowseName"),(XML_decoder) UA_QualifiedName_decodeXML, UA_QUALIFIEDNAME, &(dst->description));
-		XML_Stack_addChildHandler(s, "IsAbstract", strlen("IsAbstract"),(XML_decoder) UA_Boolean_decodeXML, UA_BOOLEAN, &(dst->description));
-		XML_Stack_addChildHandler(s, "References", strlen("References"),(XML_decoder) UA_TypedArray_decodeXML, UA_REFERENCENODE, UA_NULL);
+/* 		s->parent[s->depth].len = 0; */
+/* 		XML_Stack_addChildHandler(s, "DisplayName", strlen("DisplayName"), (XML_decoder) UA_LocalizedText_decodeXmlFromStack, UA_LOCALIZEDTEXT, &(dst->displayName)); */
+/* 		XML_Stack_addChildHandler(s, "Description", strlen("Description"),(XML_decoder) UA_LocalizedText_decodeXmlFromStack, UA_LOCALIZEDTEXT, &(dst->description)); */
+/* 		XML_Stack_addChildHandler(s, "BrowseName", strlen("BrowseName"),(XML_decoder) UA_QualifiedName_decodeXmlFromStack, UA_QUALIFIEDNAME, &(dst->description)); */
+/* 		XML_Stack_addChildHandler(s, "IsAbstract", strlen("IsAbstract"),(XML_decoder) UA_Boolean_decodeXmlFromStack, UA_BOOLEAN, &(dst->description)); */
+/* 		XML_Stack_addChildHandler(s, "References", strlen("References"),(XML_decoder) UA_TypedArray_decodeXmlFromStack, UA_REFERENCENODE, UA_NULL); */
 
-		// set missing default attributes
-		dst->nodeClass = UA_NODECLASS_DATATYPE;
+/* 		// set missing default attributes */
+/* 		dst->nodeClass = UA_NODECLASS_DATATYPE; */
 
-		// set attributes
-		for (i = 0; attr[i]; i += 2) {
-			if (0 == strncmp("NodeId", attr[i], strlen("NodeId"))) {
-				UA_NodeId_copycstring(attr[i + 1], &(dst->nodeId), s->aliases);
-			} else if (0 == strncmp("BrowseName", attr[i], strlen("BrowseName"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->browseName.name));
-				dst->browseName.namespaceIndex = 0;
-			} else if (0 == strncmp("DisplayName", attr[i], strlen("DisplayName"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->displayName.text));
-				dst->displayName.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
-			} else if (0 == strncmp("IsAbstract", attr[i], strlen("IsAbstract"))) {
-				UA_Boolean_copycstring(attr[i + 1], &(dst->isAbstract));
-				dst->displayName.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
-			} else if (0 == strncmp("Description", attr[i], strlen("Description"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->description.text));
-				dst->description.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
-			} else {
-				DBG_ERR(XML_Stack_print(s));DBG_ERR(printf("%s - unknown attribute\n", attr[i]));
-			}
-		}
-	} else {
-		switch (s->parent[s->depth - 1].activeChild) {
-		case 4: // References
-			if (attr != UA_NULL) {
-				UA_TypedArray* array = (UA_TypedArray *) attr;
-				DBG_VERBOSE(printf("finished aliases: references=%p, size=%d\n",(void*)array,(array==UA_NULL)?-1:array->size));
-				dst->referencesSize = array->size;
-				dst->references = (UA_ReferenceNode**) array->elements;
-			}
-		break;
-		}
-	}
-	return UA_SUCCESS;
-}
+/* 		// set attributes */
+/* 		for (i = 0; attr[i]; i += 2) { */
+/* 			if (0 == strncmp("NodeId", attr[i], strlen("NodeId"))) { */
+/* 				UA_NodeId_copycstring(attr[i + 1], &(dst->nodeId), s->aliases); */
+/* 			} else if (0 == strncmp("BrowseName", attr[i], strlen("BrowseName"))) { */
+/* 				UA_String_copycstring(attr[i + 1], &(dst->browseName.name)); */
+/* 				dst->browseName.namespaceIndex = 0; */
+/* 			} else if (0 == strncmp("DisplayName", attr[i], strlen("DisplayName"))) { */
+/* 				UA_String_copycstring(attr[i + 1], &(dst->displayName.text)); */
+/* 				dst->displayName.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT; */
+/* 			} else if (0 == strncmp("IsAbstract", attr[i], strlen("IsAbstract"))) { */
+/* 				UA_Boolean_copycstring(attr[i + 1], &(dst->isAbstract)); */
+/* 				dst->displayName.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT; */
+/* 			} else if (0 == strncmp("Description", attr[i], strlen("Description"))) { */
+/* 				UA_String_copycstring(attr[i + 1], &(dst->description.text)); */
+/* 				dst->description.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT; */
+/* 			} else { */
+/* 				DBG_ERR(XML_Stack_print(s));DBG_ERR(printf("%s - unknown attribute\n", attr[i])); */
+/* 			} */
+/* 		} */
+/* 	} else { */
+/* 		switch (s->parent[s->depth - 1].activeChild) { */
+/* 		case 4: // References */
+/* 			if (attr != UA_NULL) { */
+/* 				UA_TypedArray* array = (UA_TypedArray *) attr; */
+/* 				DBG_VERBOSE(printf("finished aliases: references=%p, size=%d\n",(void*)array,(array==UA_NULL)?-1:array->size)); */
+/* 				dst->referencesSize = array->size; */
+/* 				/\* dst->references = (UA_ReferenceNode**) array->elements; *\/ */
+/* 			} */
+/* 		break; */
+/* 		} */
+/* 	} */
+/* 	return UA_SUCCESS; */
+/* } */
 
-UA_Int32 UA_ObjectTypeNode_decodeXML(XML_Stack* s, XML_Attr* attr, UA_ObjectTypeNode* dst, _Bool isStart) {
-	DBG_VERBOSE(printf("UA_DataTypeNode entered with dst=%p,isStart=%d\n", (void* ) dst, isStart));
-	UA_UInt32 i;
+// Gets generated in ua_types_generated.h and .c. But currently only as stubs
+/* UA_Int32 UA_ObjectTypeNode_decodeXmlFromStack(XML_Stack* s, XML_Attr* attr, UA_ObjectTypeNode* dst, _Bool isStart) { */
+/* 	DBG_VERBOSE(printf("UA_DataTypeNode entered with dst=%p,isStart=%d\n", (void* ) dst, isStart)); */
+/* 	UA_UInt32 i; */
 
-	if (isStart) {
-		// create a new object if called with UA_NULL
-		if (dst == UA_NULL) {
-			UA_ObjectTypeNode_new(&dst);
-			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
-		}
+/* 	if (isStart) { */
+/* 		// create a new object if called with UA_NULL */
+/* 		if (dst == UA_NULL) { */
+/* 			UA_ObjectTypeNode_new(&dst); */
+/* 			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst; */
+/* 		} */
 
-		s->parent[s->depth].len = 0;
-		XML_Stack_addChildHandler(s, "DisplayName", strlen("DisplayName"), (XML_decoder) UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT, &(dst->displayName));
-		XML_Stack_addChildHandler(s, "Description", strlen("Description"),(XML_decoder) UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT, &(dst->description));
-		XML_Stack_addChildHandler(s, "BrowseName", strlen("BrowseName"),(XML_decoder) UA_QualifiedName_decodeXML, UA_QUALIFIEDNAME, &(dst->description));
-		XML_Stack_addChildHandler(s, "IsAbstract", strlen("IsAbstract"),(XML_decoder) UA_Boolean_decodeXML, UA_BOOLEAN, &(dst->description));
-		XML_Stack_addChildHandler(s, "References", strlen("References"),(XML_decoder) UA_TypedArray_decodeXML, UA_REFERENCENODE, UA_NULL);
+/* 		s->parent[s->depth].len = 0; */
+/* 		XML_Stack_addChildHandler(s, "DisplayName", strlen("DisplayName"), (XML_decoder) UA_LocalizedText_decodeXmlFromStack, UA_LOCALIZEDTEXT, &(dst->displayName)); */
+/* 		XML_Stack_addChildHandler(s, "Description", strlen("Description"),(XML_decoder) UA_LocalizedText_decodeXmlFromStack, UA_LOCALIZEDTEXT, &(dst->description)); */
+/* 		XML_Stack_addChildHandler(s, "BrowseName", strlen("BrowseName"),(XML_decoder) UA_QualifiedName_decodeXmlFromStack, UA_QUALIFIEDNAME, &(dst->description)); */
+/* 		XML_Stack_addChildHandler(s, "IsAbstract", strlen("IsAbstract"),(XML_decoder) UA_Boolean_decodeXmlFromStack, UA_BOOLEAN, &(dst->description)); */
+/* 		XML_Stack_addChildHandler(s, "References", strlen("References"),(XML_decoder) UA_TypedArray_decodeXmlFromStack, UA_REFERENCENODE, UA_NULL); */
 
-		// set missing default attributes
-		dst->nodeClass = UA_NODECLASS_OBJECTTYPE;
+/* 		// set missing default attributes */
+/* 		dst->nodeClass = UA_NODECLASS_OBJECTTYPE; */
 
-		// set attributes
-		for (i = 0; attr[i]; i += 2) {
-			if (0 == strncmp("NodeId", attr[i], strlen("NodeId"))) {
-				UA_NodeId_copycstring(attr[i + 1], &(dst->nodeId), s->aliases);
-			} else if (0 == strncmp("BrowseName", attr[i], strlen("BrowseName"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->browseName.name));
-				dst->browseName.namespaceIndex = 0;
-			} else if (0 == strncmp("DisplayName", attr[i], strlen("DisplayName"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->displayName.text));
-				dst->displayName.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
-			} else if (0 == strncmp("IsAbstract", attr[i], strlen("IsAbstract"))) {
-				UA_Boolean_copycstring(attr[i + 1], &(dst->isAbstract));
-				dst->displayName.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
-			} else if (0 == strncmp("Description", attr[i], strlen("Description"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->description.text));
-				dst->description.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
-			} else {
-				DBG_ERR(XML_Stack_print(s));DBG_ERR(printf("%s - unknown attribute\n", attr[i]));
-			}
-		}
-	} else {
-		switch (s->parent[s->depth - 1].activeChild) {
-		case 4: // References
-			if (attr != UA_NULL) {
-				UA_TypedArray* array = (UA_TypedArray *) attr;
-				DBG_VERBOSE(printf("finished aliases: references=%p, size=%d\n",(void*)array,(array==UA_NULL)?-1:array->size));
-				dst->referencesSize = array->size;
-				dst->references = (UA_ReferenceNode**) array->elements;
-			}
-		break;
-		}
-	}
-	return UA_SUCCESS;
-}
+/* 		// set attributes */
+/* 		for (i = 0; attr[i]; i += 2) { */
+/* 			if (0 == strncmp("NodeId", attr[i], strlen("NodeId"))) { */
+/* 				UA_NodeId_copycstring(attr[i + 1], &(dst->nodeId), s->aliases); */
+/* 			} else if (0 == strncmp("BrowseName", attr[i], strlen("BrowseName"))) { */
+/* 				UA_String_copycstring(attr[i + 1], &(dst->browseName.name)); */
+/* 				dst->browseName.namespaceIndex = 0; */
+/* 			} else if (0 == strncmp("DisplayName", attr[i], strlen("DisplayName"))) { */
+/* 				UA_String_copycstring(attr[i + 1], &(dst->displayName.text)); */
+/* 				dst->displayName.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT; */
+/* 			} else if (0 == strncmp("IsAbstract", attr[i], strlen("IsAbstract"))) { */
+/* 				UA_Boolean_copycstring(attr[i + 1], &(dst->isAbstract)); */
+/* 				dst->displayName.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT; */
+/* 			} else if (0 == strncmp("Description", attr[i], strlen("Description"))) { */
+/* 				UA_String_copycstring(attr[i + 1], &(dst->description.text)); */
+/* 				dst->description.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT; */
+/* 			} else { */
+/* 				DBG_ERR(XML_Stack_print(s));DBG_ERR(printf("%s - unknown attribute\n", attr[i])); */
+/* 			} */
+/* 		} */
+/* 	} else { */
+/* 		switch (s->parent[s->depth - 1].activeChild) { */
+/* 		case 4: // References */
+/* 			if (attr != UA_NULL) { */
+/* 				UA_TypedArray* array = (UA_TypedArray *) attr; */
+/* 				DBG_VERBOSE(printf("finished aliases: references=%p, size=%d\n",(void*)array,(array==UA_NULL)?-1:array->size)); */
+/* 				dst->referencesSize = array->size; */
+/* 				/\* dst->references = (UA_ReferenceNode**) array->elements; *\/ */
+/* 			} */
+/* 		break; */
+/* 		} */
+/* 	} */
+/* 	return UA_SUCCESS; */
+/* } */
 
-UA_Int32 UA_VariableTypeNode_decodeXML(XML_Stack* s, XML_Attr* attr, UA_VariableTypeNode* dst, _Bool isStart) {
-	DBG_VERBOSE(printf("UA_DataTypeNode entered with dst=%p,isStart=%d\n", (void* ) dst, isStart));
-	UA_UInt32 i;
+// Gets generated in ua_types_generated.h and .c. But currently only as stubs
+/* UA_Int32 UA_VariableTypeNode_decodeXmlFromStack(XML_Stack* s, XML_Attr* attr, UA_VariableTypeNode* dst, _Bool isStart) { */
+/* 	DBG_VERBOSE(printf("UA_DataTypeNode entered with dst=%p,isStart=%d\n", (void* ) dst, isStart)); */
+/* 	UA_UInt32 i; */
 
-	if (isStart) {
-		// create a new object if called with UA_NULL
-		if (dst == UA_NULL) {
-			UA_VariableTypeNode_new(&dst);
-			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
-		}
+/* 	if (isStart) { */
+/* 		// create a new object if called with UA_NULL */
+/* 		if (dst == UA_NULL) { */
+/* 			UA_VariableTypeNode_new(&dst); */
+/* 			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst; */
+/* 		} */
 
-		s->parent[s->depth].len = 0;
-		XML_Stack_addChildHandler(s, "DisplayName", strlen("DisplayName"), (XML_decoder) UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT, &(dst->displayName));
-		XML_Stack_addChildHandler(s, "Description", strlen("Description"),(XML_decoder) UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT, &(dst->description));
-		XML_Stack_addChildHandler(s, "BrowseName", strlen("BrowseName"),(XML_decoder) UA_QualifiedName_decodeXML, UA_QUALIFIEDNAME, &(dst->description));
-		XML_Stack_addChildHandler(s, "IsAbstract", strlen("IsAbstract"),(XML_decoder) UA_Boolean_decodeXML, UA_BOOLEAN, &(dst->description));
-		XML_Stack_addChildHandler(s, "References", strlen("References"),(XML_decoder) UA_TypedArray_decodeXML, UA_REFERENCENODE, UA_NULL);
+/* 		s->parent[s->depth].len = 0; */
+/* 		XML_Stack_addChildHandler(s, "DisplayName", strlen("DisplayName"), (XML_decoder) UA_LocalizedText_decodeXmlFromStack, UA_LOCALIZEDTEXT, &(dst->displayName)); */
+/* 		XML_Stack_addChildHandler(s, "Description", strlen("Description"),(XML_decoder) UA_LocalizedText_decodeXmlFromStack, UA_LOCALIZEDTEXT, &(dst->description)); */
+/* 		XML_Stack_addChildHandler(s, "BrowseName", strlen("BrowseName"),(XML_decoder) UA_QualifiedName_decodeXmlFromStack, UA_QUALIFIEDNAME, &(dst->description)); */
+/* 		XML_Stack_addChildHandler(s, "IsAbstract", strlen("IsAbstract"),(XML_decoder) UA_Boolean_decodeXmlFromStack, UA_BOOLEAN, &(dst->description)); */
+/* 		XML_Stack_addChildHandler(s, "References", strlen("References"),(XML_decoder) UA_TypedArray_decodeXmlFromStack, UA_REFERENCENODE, UA_NULL); */
 
-		// set missing default attributes
-		dst->nodeClass = UA_NODECLASS_VARIABLETYPE;
+/* 		// set missing default attributes */
+/* 		dst->nodeClass = UA_NODECLASS_VARIABLETYPE; */
 
-		// set attributes
-		for (i = 0; attr[i]; i += 2) {
-			if (0 == strncmp("NodeId", attr[i], strlen("NodeId"))) {
-				UA_NodeId_copycstring(attr[i + 1], &(dst->nodeId), s->aliases);
-			} else if (0 == strncmp("BrowseName", attr[i], strlen("BrowseName"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->browseName.name));
-				dst->browseName.namespaceIndex = 0;
-			} else if (0 == strncmp("DisplayName", attr[i], strlen("DisplayName"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->displayName.text));
-				dst->displayName.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
-			} else if (0 == strncmp("IsAbstract", attr[i], strlen("IsAbstract"))) {
-				UA_Boolean_copycstring(attr[i + 1], &(dst->isAbstract));
-				dst->displayName.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
-			} else if (0 == strncmp("Description", attr[i], strlen("Description"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->description.text));
-				dst->description.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
-			} else {
-				DBG_ERR(XML_Stack_print(s));DBG_ERR(printf("%s - unknown attribute\n", attr[i]));
-			}
-		}
-	} else {
-		switch (s->parent[s->depth - 1].activeChild) {
-		case 4: // References
-			if (attr != UA_NULL) {
-				UA_TypedArray* array = (UA_TypedArray *) attr;
-				DBG_VERBOSE(printf("finished aliases: references=%p, size=%d\n",(void*)array,(array==UA_NULL)?-1:array->size));
-				dst->referencesSize = array->size;
-				dst->references = (UA_ReferenceNode**) array->elements;
-			}
-		break;
-		}
-	}
-	return UA_SUCCESS;
-}
+/* 		// set attributes */
+/* 		for (i = 0; attr[i]; i += 2) { */
+/* 			if (0 == strncmp("NodeId", attr[i], strlen("NodeId"))) { */
+/* 				UA_NodeId_copycstring(attr[i + 1], &(dst->nodeId), s->aliases); */
+/* 			} else if (0 == strncmp("BrowseName", attr[i], strlen("BrowseName"))) { */
+/* 				UA_String_copycstring(attr[i + 1], &(dst->browseName.name)); */
+/* 				dst->browseName.namespaceIndex = 0; */
+/* 			} else if (0 == strncmp("DisplayName", attr[i], strlen("DisplayName"))) { */
+/* 				UA_String_copycstring(attr[i + 1], &(dst->displayName.text)); */
+/* 				dst->displayName.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT; */
+/* 			} else if (0 == strncmp("IsAbstract", attr[i], strlen("IsAbstract"))) { */
+/* 				UA_Boolean_copycstring(attr[i + 1], &(dst->isAbstract)); */
+/* 				dst->displayName.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT; */
+/* 			} else if (0 == strncmp("Description", attr[i], strlen("Description"))) { */
+/* 				UA_String_copycstring(attr[i + 1], &(dst->description.text)); */
+/* 				dst->description.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT; */
+/* 			} else { */
+/* 				DBG_ERR(XML_Stack_print(s));DBG_ERR(printf("%s - unknown attribute\n", attr[i])); */
+/* 			} */
+/* 		} */
+/* 	} else { */
+/* 		switch (s->parent[s->depth - 1].activeChild) { */
+/* 		case 4: // References */
+/* 			if (attr != UA_NULL) { */
+/* 				UA_TypedArray* array = (UA_TypedArray *) attr; */
+/* 				DBG_VERBOSE(printf("finished aliases: references=%p, size=%d\n",(void*)array,(array==UA_NULL)?-1:array->size)); */
+/* 				dst->referencesSize = array->size; */
+/* 				/\* dst->references = (UA_ReferenceNode**) array->elements; *\/ */
+/* 			} */
+/* 		break; */
+/* 		} */
+/* 	} */
+/* 	return UA_SUCCESS; */
+/* } */
 
-UA_Int32 UA_ObjectNode_decodeXML(XML_Stack* s, XML_Attr* attr, UA_ObjectNode* dst, _Bool isStart) {
-	DBG_VERBOSE(printf("UA_ObjectNode entered with dst=%p,isStart=%d\n", (void* ) dst, isStart));
-	UA_UInt32 i;
+// Gets generated in ua_types_generated.h and .c. But currently only as stubs
+/* UA_Int32 UA_ObjectNode_decodeXmlFromStack(XML_Stack* s, XML_Attr* attr, UA_ObjectNode* dst, _Bool isStart) { */
+/* 	DBG_VERBOSE(printf("UA_ObjectNode entered with dst=%p,isStart=%d\n", (void* ) dst, isStart)); */
+/* 	UA_UInt32 i; */
 
-	if (isStart) {
-		// create a new object if called with UA_NULL
-		if (dst == UA_NULL) {
-			UA_ObjectNode_new(&dst);
-			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
-		}
+/* 	if (isStart) { */
+/* 		// create a new object if called with UA_NULL */
+/* 		if (dst == UA_NULL) { */
+/* 			UA_ObjectNode_new(&dst); */
+/* 			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst; */
+/* 		} */
 
-		XML_Stack_addChildHandler(s, "DisplayName", strlen("DisplayName"), (XML_decoder) UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT, &(dst->displayName));
-		XML_Stack_addChildHandler(s, "Description", strlen("Description"), (XML_decoder) UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT, &(dst->description));
-		XML_Stack_addChildHandler(s, "BrowseName", strlen("BrowseName"), (XML_decoder) UA_QualifiedName_decodeXML, UA_QUALIFIEDNAME, &(dst->browseName));
-		XML_Stack_addChildHandler(s, "SymbolicName", strlen("SymbolicName"), (XML_decoder) UA_QualifiedName_decodeXML, UA_QUALIFIEDNAME,&(dst->browseName));
-		XML_Stack_addChildHandler(s, "References", strlen("References"), (XML_decoder) UA_TypedArray_decodeXML, UA_REFERENCENODE, UA_NULL);
+/* 		XML_Stack_addChildHandler(s, "DisplayName", strlen("DisplayName"), (XML_decoder) UA_LocalizedText_decodeXmlFromStack, UA_LOCALIZEDTEXT, &(dst->displayName)); */
+/* 		XML_Stack_addChildHandler(s, "Description", strlen("Description"), (XML_decoder) UA_LocalizedText_decodeXmlFromStack, UA_LOCALIZEDTEXT, &(dst->description)); */
+/* 		XML_Stack_addChildHandler(s, "BrowseName", strlen("BrowseName"), (XML_decoder) UA_QualifiedName_decodeXmlFromStack, UA_QUALIFIEDNAME, &(dst->browseName)); */
+/* 		XML_Stack_addChildHandler(s, "SymbolicName", strlen("SymbolicName"), (XML_decoder) UA_QualifiedName_decodeXmlFromStack, UA_QUALIFIEDNAME,&(dst->browseName)); */
+/* 		XML_Stack_addChildHandler(s, "References", strlen("References"), (XML_decoder) UA_TypedArray_decodeXmlFromStack, UA_REFERENCENODE, UA_NULL); */
 
-		// set missing default attributes
-		dst->nodeClass = UA_NODECLASS_OBJECT;
+/* 		// set missing default attributes */
+/* 		dst->nodeClass = UA_NODECLASS_OBJECT; */
 
-		// set attributes
-		for (i = 0; attr[i]; i += 2) {
-			if (0 == strncmp("NodeId", attr[i], strlen("NodeId"))) {
-				UA_NodeId_copycstring(attr[i + 1], &(dst->nodeId), s->aliases);
-			} else if (0 == strncmp("SymbolicName", attr[i], strlen("SymbolicName"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->browseName.name));
-				dst->browseName.namespaceIndex = 0;
-			} else if (0 == strncmp("BrowseName", attr[i], strlen("BrowseName"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->browseName.name));
-				dst->browseName.namespaceIndex = 0;
-			} else if (0 == strncmp("DisplayName", attr[i], strlen("DisplayName"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->displayName.text));
-				dst->displayName.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
-			} else if (0 == strncmp("Description", attr[i], strlen("Description"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->description.text));
-				dst->description.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
-			} else {
-				DBG_ERR(XML_Stack_print(s));DBG_ERR(printf("%s - unknown attribute\n", attr[i]));
-			}
-		}
-	} else {
-		if (s->parent[s->depth - 1].activeChild == 4 && attr != UA_NULL ) { // References Array
-			UA_TypedArray* array = (UA_TypedArray*) attr;
-			DBG(printf("UA_ObjectNode_decodeXML finished references: references=%p, size=%d\n",(void*)array,(array==UA_NULL)?-1:array->size));
-			dst->referencesSize = array->size;
-			dst->references = (UA_ReferenceNode**) array->elements;
-			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL;
-		}
-	}
-	return UA_SUCCESS;
-}
+/* 		// set attributes */
+/* 		for (i = 0; attr[i]; i += 2) { */
+/* 			if (0 == strncmp("NodeId", attr[i], strlen("NodeId"))) { */
+/* 				UA_NodeId_copycstring(attr[i + 1], &(dst->nodeId), s->aliases); */
+/* 			} else if (0 == strncmp("SymbolicName", attr[i], strlen("SymbolicName"))) { */
+/* 				UA_String_copycstring(attr[i + 1], &(dst->browseName.name)); */
+/* 				dst->browseName.namespaceIndex = 0; */
+/* 			} else if (0 == strncmp("BrowseName", attr[i], strlen("BrowseName"))) { */
+/* 				UA_String_copycstring(attr[i + 1], &(dst->browseName.name)); */
+/* 				dst->browseName.namespaceIndex = 0; */
+/* 			} else if (0 == strncmp("DisplayName", attr[i], strlen("DisplayName"))) { */
+/* 				UA_String_copycstring(attr[i + 1], &(dst->displayName.text)); */
+/* 				dst->displayName.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT; */
+/* 			} else if (0 == strncmp("Description", attr[i], strlen("Description"))) { */
+/* 				UA_String_copycstring(attr[i + 1], &(dst->description.text)); */
+/* 				dst->description.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT; */
+/* 			} else { */
+/* 				DBG_ERR(XML_Stack_print(s));DBG_ERR(printf("%s - unknown attribute\n", attr[i])); */
+/* 			} */
+/* 		} */
+/* 	} else { */
+/* 		if (s->parent[s->depth - 1].activeChild == 4 && attr != UA_NULL ) { // References Array */
+/* 			UA_TypedArray* array = (UA_TypedArray*) attr; */
+/* 			DBG(printf("UA_ObjectNode_decodeXML finished references: references=%p, size=%d\n",(void*)array,(array==UA_NULL)?-1:array->size)); */
+/* 			dst->referencesSize = array->size; */
+/* 			/\* dst->references = (UA_ReferenceNode**) array->elements; *\/ */
+/* 			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL; */
+/* 		} */
+/* 	} */
+/* 	return UA_SUCCESS; */
+/* } */
 
 
-UA_Int32 UA_Variant_decodeXML(XML_Stack* s, XML_Attr* attr, UA_Variant* dst, _Bool isStart) {
-	DBG_VERBOSE(printf("UA_Variant entered with dst=%p,isStart=%d\n", (void* ) dst, isStart));
-	UA_UInt32 i;
+// Gets generated in ua_types_generated.h and .c. But currently only as stubs
+/* UA_Int32 UA_Variant_decodeXmlFromStack(XML_Stack* s, XML_Attr* attr, UA_Variant* dst, _Bool isStart) { */
+/* 	DBG_VERBOSE(printf("UA_Variant entered with dst=%p,isStart=%d\n", (void* ) dst, isStart)); */
+/* 	UA_UInt32 i; */
 
-	if (isStart) {
-		// create a new object if called with UA_NULL
-		if (dst == UA_NULL) {
-			UA_Variant_new(&dst);
-			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
-		}
+/* 	if (isStart) { */
+/* 		// create a new object if called with UA_NULL */
+/* 		if (dst == UA_NULL) { */
+/* 			UA_Variant_new(&dst); */
+/* 			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst; */
+/* 		} */
 
-		s->parent[s->depth].len = 0;
-		XML_Stack_addChildHandler(s, "ListOfExtensionObject", strlen("ListOfExtensionObject"), (XML_decoder) UA_TypedArray_decodeXML, UA_EXTENSIONOBJECT, UA_NULL);
-		XML_Stack_addChildHandler(s, "ListOfLocalizedText", strlen("ListOfLocalizedText"), (XML_decoder) UA_TypedArray_decodeXML, UA_LOCALIZEDTEXT, UA_NULL);
+/* 		s->parent[s->depth].len = 0; */
+/* 		XML_Stack_addChildHandler(s, "ListOfExtensionObject", strlen("ListOfExtensionObject"), (XML_decoder) UA_TypedArray_decodeXmlFromStack, UA_EXTENSIONOBJECT, UA_NULL); */
+/* 		XML_Stack_addChildHandler(s, "ListOfLocalizedText", strlen("ListOfLocalizedText"), (XML_decoder) UA_TypedArray_decodeXmlFromStack, UA_LOCALIZEDTEXT, UA_NULL); */
 
-		// set attributes
-		for (i = 0; attr[i]; i += 2) {
-			{
-				DBG_ERR(XML_Stack_print(s));
-				DBG_ERR(printf("%s - unknown attribute\n", attr[i]));
-			}
-		}
-	} else {
-		if (s->parent[s->depth - 1].activeChild == 0 && attr != UA_NULL ) { // ExtensionObject
-			UA_TypedArray* array = (UA_TypedArray*) attr;
-			DBG_VERBOSE(printf("UA_Variant_decodeXML - finished array: references=%p, size=%d\n",(void*)array,(array==UA_NULL)?-1:array->size));
-			dst->arrayLength = array->size;
-			dst->data = array->elements;
-			dst->vt = &UA_[UA_EXTENSIONOBJECT];
-			dst->encodingMask = UA_EXTENSIONOBJECT_NS0 & UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
-			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL;
-		} else if (s->parent[s->depth - 1].activeChild == 1 && attr != UA_NULL ) { // LocalizedText
-			UA_TypedArray* array = (UA_TypedArray*) attr;
-			DBG_VERBOSE(printf("UA_Variant_decodeXML - finished array: references=%p, size=%d\n",(void*)array,(array==UA_NULL)?-1:array->size));
-			dst->arrayLength = array->size;
-			dst->data = array->elements;
-			dst->vt = &UA_[UA_LOCALIZEDTEXT];
-			dst->encodingMask = UA_LOCALIZEDTEXT_NS0 & UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
-			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL;
-		}
-	}
-	return UA_SUCCESS;
-}
+/* 		// set attributes */
+/* 		for (i = 0; attr[i]; i += 2) { */
+/* 			{ */
+/* 				DBG_ERR(XML_Stack_print(s)); */
+/* 				DBG_ERR(printf("%s - unknown attribute\n", attr[i])); */
+/* 			} */
+/* 		} */
+/* 	} else { */
+/* 		if (s->parent[s->depth - 1].activeChild == 0 && attr != UA_NULL ) { // ExtensionObject */
+/* 			UA_TypedArray* array = (UA_TypedArray*) attr; */
+/* 			DBG_VERBOSE(printf("UA_Variant_decodeXML - finished array: references=%p, size=%d\n",(void*)array,(array==UA_NULL)?-1:array->size)); */
+/* 			dst->arrayLength = array->size; */
+/* 			dst->data = array->elements; */
+/* 			dst->vt = &UA_.types[UA_EXTENSIONOBJECT]; */
+/* 			dst->encodingMask = UA_EXTENSIONOBJECT_NS0 & UA_VARIANT_ENCODINGMASKTYPE_ARRAY; */
+/* 			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL; */
+/* 		} else if (s->parent[s->depth - 1].activeChild == 1 && attr != UA_NULL ) { // LocalizedText */
+/* 			UA_TypedArray* array = (UA_TypedArray*) attr; */
+/* 			DBG_VERBOSE(printf("UA_Variant_decodeXML - finished array: references=%p, size=%d\n",(void*)array,(array==UA_NULL)?-1:array->size)); */
+/* 			dst->arrayLength = array->size; */
+/* 			dst->data = array->elements; */
+/* 			dst->vt = &UA_.types[UA_LOCALIZEDTEXT]; */
+/* 			dst->encodingMask = UA_LOCALIZEDTEXT_NS0 & UA_VARIANT_ENCODINGMASKTYPE_ARRAY; */
+/* 			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL; */
+/* 		} */
+/* 	} */
+/* 	return UA_SUCCESS; */
+/* } */
 
-UA_Int32 UA_ExtensionObject_decodeXML(XML_Stack* s, XML_Attr* attr, UA_ExtensionObject* dst, _Bool isStart) {
-	DBG_VERBOSE(printf("UA_ExtensionObject entered with dst=%p,isStart=%d\n", (void* ) dst, isStart));
-	UA_UInt32 i;
+// Gets generated in ua_types_generated.h and .c. But currently only as stubs
+/* UA_Int32 UA_ExtensionObject_decodeXmlFromStack(XML_Stack* s, XML_Attr* attr, UA_ExtensionObject* dst, _Bool isStart) { */
+/* 	DBG_VERBOSE(printf("UA_ExtensionObject entered with dst=%p,isStart=%d\n", (void* ) dst, isStart)); */
+/* 	UA_UInt32 i; */
 
-	if (isStart) {
-		// create a new object if called with UA_NULL
-		if (dst == UA_NULL) {
-			UA_ExtensionObject_new(&dst);
-			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
-		}
+/* 	if (isStart) { */
+/* 		// create a new object if called with UA_NULL */
+/* 		if (dst == UA_NULL) { */
+/* 			UA_ExtensionObject_new(&dst); */
+/* 			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst; */
+/* 		} */
 
-		s->parent[s->depth].len = 0;
-		XML_Stack_addChildHandler(s, "TypeId", strlen("TypeId"), (XML_decoder) UA_NodeId_decodeXML, UA_NODEID, &(dst->typeId));
-		// XML_Stack_addChildHandler(s, "Body", strlen("Body"), (XML_decoder) UA_Body_decodeXML, UA_LOCALIZEDTEXT, UA_NULL);
+/* 		s->parent[s->depth].len = 0; */
+/* 		XML_Stack_addChildHandler(s, "TypeId", strlen("TypeId"), (XML_decoder) UA_NodeId_decodeXmlFromStack, UA_NODEID, &(dst->typeId)); */
+/* 		// XML_Stack_addChildHandler(s, "Body", strlen("Body"), (XML_decoder) UA_Body_decodeXML, UA_LOCALIZEDTEXT, UA_NULL); */
 
-		// set attributes
-		for (i = 0; attr[i]; i += 2) {
-			{
-				DBG_ERR(XML_Stack_print(s));
-				DBG_ERR(printf("%s - unknown attribute\n", attr[i]));
-			}
-		}
-	}
-	return UA_SUCCESS;
-}
+/* 		// set attributes */
+/* 		for (i = 0; attr[i]; i += 2) { */
+/* 			{ */
+/* 				DBG_ERR(XML_Stack_print(s)); */
+/* 				DBG_ERR(printf("%s - unknown attribute\n", attr[i])); */
+/* 			} */
+/* 		} */
+/* 	} */
+/* 	return UA_SUCCESS; */
+/* } */
 
 _Bool UA_NodeId_isBuiltinType(UA_NodeId* nodeid) {
 	return (nodeid->namespace == 0 &&
@@ -660,73 +599,74 @@ _Bool UA_NodeId_isBuiltinType(UA_NodeId* nodeid) {
 			);
 }
 
-UA_Int32 UA_VariableNode_decodeXML(XML_Stack* s, XML_Attr* attr, UA_VariableNode* dst, _Bool isStart) {
-	DBG_VERBOSE(printf("UA_VariableNode entered with dst=%p,isStart=%d\n", (void* ) dst, isStart));
-	UA_UInt32 i;
+// Gets generated in ua_types_generated.h and .c. But currently only as stubs
+/* UA_Int32 UA_VariableNode_decodeXmlFromStack(XML_Stack* s, XML_Attr* attr, UA_VariableNode* dst, _Bool isStart) { */
+/* 	DBG_VERBOSE(printf("UA_VariableNode entered with dst=%p,isStart=%d\n", (void* ) dst, isStart)); */
+/* 	UA_UInt32 i; */
 
-	if (isStart) {
-		// create a new object if called with UA_NULL
-		if (dst == UA_NULL) {
-			UA_VariableNode_new(&dst);
-			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst;
-		}
+/* 	if (isStart) { */
+/* 		// create a new object if called with UA_NULL */
+/* 		if (dst == UA_NULL) { */
+/* 			UA_VariableNode_new(&dst); */
+/* 			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void*) dst; */
+/* 		} */
 
-		s->parent[s->depth].len = 0;
-		XML_Stack_addChildHandler(s, "DisplayName", strlen("DisplayName"), (XML_decoder) UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT,
-				&(dst->displayName));
-		XML_Stack_addChildHandler(s, "Description", strlen("Description"),(XML_decoder) UA_LocalizedText_decodeXML, UA_LOCALIZEDTEXT,
-				&(dst->description));
-		XML_Stack_addChildHandler(s, "DataType", strlen("DataType"),(XML_decoder) UA_NodeId_decodeXML, UA_NODEID, &(dst->dataType));
-		XML_Stack_addChildHandler(s, "ValueRank", strlen("ValueRank"),(XML_decoder) UA_Int32_decodeXML, UA_INT32, &(dst->valueRank));
-		XML_Stack_addChildHandler(s, "Value", strlen("Value"),(XML_decoder) UA_Variant_decodeXML, UA_VARIANT, &(dst->value));
-		XML_Stack_addChildHandler(s, "References", strlen("References"), (XML_decoder) UA_TypedArray_decodeXML, UA_REFERENCENODE,
-		UA_NULL);
+/* 		s->parent[s->depth].len = 0; */
+/* 		XML_Stack_addChildHandler(s, "DisplayName", strlen("DisplayName"), (XML_decoder) UA_LocalizedText_decodeXmlFromStack, UA_LOCALIZEDTEXT, */
+/* 				&(dst->displayName)); */
+/* 		XML_Stack_addChildHandler(s, "Description", strlen("Description"),(XML_decoder) UA_LocalizedText_decodeXmlFromStack, UA_LOCALIZEDTEXT, */
+/* 				&(dst->description)); */
+/* 		XML_Stack_addChildHandler(s, "DataType", strlen("DataType"),(XML_decoder) UA_NodeId_decodeXmlFromStack, UA_NODEID, &(dst->dataType)); */
+/* 		XML_Stack_addChildHandler(s, "ValueRank", strlen("ValueRank"),(XML_decoder) UA_Int32_decodeXmlFromStack, UA_INT32, &(dst->valueRank)); */
+/* 		XML_Stack_addChildHandler(s, "Value", strlen("Value"),(XML_decoder) UA_Variant_decodeXmlFromStack, UA_VARIANT, &(dst->value)); */
+/* 		XML_Stack_addChildHandler(s, "References", strlen("References"), (XML_decoder) UA_TypedArray_decodeXmlFromStack, UA_REFERENCENODE, */
+/* 		UA_NULL); */
 
-		// set missing default attributes
-		dst->nodeClass = UA_NODECLASS_VARIABLE;
+/* 		// set missing default attributes */
+/* 		dst->nodeClass = UA_NODECLASS_VARIABLE; */
 
-		// set attributes
-		for (i = 0; attr[i]; i += 2) {
-			if (0 == strncmp("NodeId", attr[i], strlen("NodeId"))) {
-				UA_NodeId_copycstring(attr[i + 1], &(dst->nodeId), s->aliases);
-			} else if (0 == strncmp("DataType", attr[i], strlen("DataType"))) {
-				UA_NodeId_copycstring(attr[i + 1], &(dst->dataType), s->aliases);
-				if (UA_NodeId_isBuiltinType(&(dst->dataType))) {
-					dst->value.encodingMask = dst->dataType.identifier.numeric;
-					dst->value.vt = &UA_[UA_ns0ToVTableIndex(dst->dataType.identifier.numeric)];
-				} else {
-					dst->value.encodingMask = UA_EXTENSIONOBJECT_NS0;
-					dst->value.vt = &UA_[UA_EXTENSIONOBJECT];
-				}
-			} else if (0 == strncmp("ValueRank", attr[i], strlen("ValueRank"))) {
-				dst->valueRank = atoi(attr[i + 1]);
-			} else if (0 == strncmp("ParentNodeId", attr[i], strlen("ParentNodeId"))) {
-				// FIXME: this seems to be redundant to the hasProperty-reference
-			} else if (0 == strncmp("BrowseName", attr[i], strlen("BrowseName"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->browseName.name));
-				dst->browseName.namespaceIndex = 0;
-			} else if (0 == strncmp("DisplayName", attr[i], strlen("DisplayName"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->displayName.text));
-				dst->displayName.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
-			} else if (0 == strncmp("Description", attr[i], strlen("Description"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->description.text));
-				dst->description.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
-			} else {
-				DBG_ERR(XML_Stack_print(s));
-				DBG_ERR(printf("%s - unknown attribute\n", attr[i]));
-			}
-		}
-	} else {
-		if (s->parent[s->depth - 1].activeChild == 5 && attr != UA_NULL) { // References
-			UA_TypedArray* array = (UA_TypedArray*) attr;
-			DBG(printf("UA_VariableNode_decodeXML - finished references=%p, size=%d\n",(void*)array,(array==UA_NULL)?-1:array->size));
-			dst->referencesSize = array->size;
-			dst->references = (UA_ReferenceNode**) array->elements;
-			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL;
-		}
-	}
-	return UA_SUCCESS;
-}
+/* 		// set attributes */
+/* 		for (i = 0; attr[i]; i += 2) { */
+/* 			if (0 == strncmp("NodeId", attr[i], strlen("NodeId"))) { */
+/* 				UA_NodeId_copycstring(attr[i + 1], &(dst->nodeId), s->aliases); */
+/* 			} else if (0 == strncmp("DataType", attr[i], strlen("DataType"))) { */
+/* 				UA_NodeId_copycstring(attr[i + 1], &(dst->dataType), s->aliases); */
+/* 				if (UA_NodeId_isBuiltinType(&(dst->dataType))) { */
+/* 					dst->value.encodingMask = dst->dataType.identifier.numeric; */
+/* 					dst->value.vt = &UA_.types[UA_ns0ToVTableIndex(&dst->dataType)]; */
+/* 				} else { */
+/* 					dst->value.encodingMask = UA_EXTENSIONOBJECT_NS0; */
+/* 					dst->value.vt = &UA_.types[UA_EXTENSIONOBJECT]; */
+/* 				} */
+/* 			} else if (0 == strncmp("ValueRank", attr[i], strlen("ValueRank"))) { */
+/* 				dst->valueRank = atoi(attr[i + 1]); */
+/* 			} else if (0 == strncmp("ParentNodeId", attr[i], strlen("ParentNodeId"))) { */
+/* 				// FIXME: this seems to be redundant to the hasProperty-reference */
+/* 			} else if (0 == strncmp("BrowseName", attr[i], strlen("BrowseName"))) { */
+/* 				UA_String_copycstring(attr[i + 1], &(dst->browseName.name)); */
+/* 				dst->browseName.namespaceIndex = 0; */
+/* 			} else if (0 == strncmp("DisplayName", attr[i], strlen("DisplayName"))) { */
+/* 				UA_String_copycstring(attr[i + 1], &(dst->displayName.text)); */
+/* 				dst->displayName.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT; */
+/* 			} else if (0 == strncmp("Description", attr[i], strlen("Description"))) { */
+/* 				UA_String_copycstring(attr[i + 1], &(dst->description.text)); */
+/* 				dst->description.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT; */
+/* 			} else { */
+/* 				DBG_ERR(XML_Stack_print(s)); */
+/* 				DBG_ERR(printf("%s - unknown attribute\n", attr[i])); */
+/* 			} */
+/* 		} */
+/* 	} else { */
+/* 		if (s->parent[s->depth - 1].activeChild == 5 && attr != UA_NULL) { // References */
+/* 			UA_TypedArray* array = (UA_TypedArray*) attr; */
+/* 			DBG(printf("UA_VariableNode_decodeXML - finished references=%p, size=%d\n",(void*)array,(array==UA_NULL)?-1:array->size)); */
+/* 			dst->referencesSize = array->size; */
+/* 			/\* dst->references = (UA_ReferenceNode**) array->elements; *\/ */
+/* 			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL; */
+/* 		} */
+/* 	} */
+/* 	return UA_SUCCESS; */
+/* } */
 
 void print_node(UA_Node const * node) {
 	if (node != UA_NULL) {
@@ -960,21 +900,21 @@ UA_Int32 XML_isSpace(cstring s, int len) {
 
 /* gather text */
 void XML_Stack_handleText(void * data, const char *txt, int len) {
-	XML_Stack* s = (XML_Stack*) data;
+	/* XML_Stack* s = (XML_Stack*) data; */
 
 	if (len > 0 && !XML_isSpace(txt, len)) {
-		XML_Parent* cp = &(s->parent[s->depth]); // determine current element
+		/* XML_Parent* cp = &(s->parent[s->depth]); // determine current element */
 		UA_ByteString src = { len+1, (UA_Byte*) txt };
 		UA_ByteString *dst;
 		UA_ByteString_new(&dst);	// alloc dst
 		UA_ByteString_copy(&src,dst); // alloc dst->data and copy txt
 		dst->data[len] = 0; // add terminating zero to handle single line efficiently
-		UA_list_addPayloadToBack(&(cp->textGatherList), (void*) dst);
-		if (cp->totalGatherLength == -1) {
-			cp->totalGatherLength = len;
-		} else {
-			cp->totalGatherLength += len;
-		}
+		/* UA_list_addPayloadToBack(&(cp->textGatherList), (void*) dst); */
+		/* if (cp->totalGatherLength == -1) { */
+		/* 	cp->totalGatherLength = len; */
+		/* } else { */
+		/* 	cp->totalGatherLength += len; */
+		/* } */
 	}
 }
 
@@ -987,121 +927,52 @@ void textGatherListTotalLength(void* payload) {
 }
 /** if we are an activeChild of a parent we call the child-handler */
 void XML_Stack_endElement(void *data, const char *el) {
-	XML_Stack *s = (XML_Stack *)data;
+	/* XML_Stack *s = (XML_Stack *)data; */
 
-	XML_Parent* ce = &(s->parent[s->depth]);
-	if (ce->textAttribIdx >= 0 && ce->totalGatherLength > 0 ) {
-		ce->activeChild = ce->textAttribIdx;
-		char* buf;
-		if (UA_list_getFirst(&(ce->textGatherList)) == UA_list_getLast(&(ce->textGatherList)) ) {
-			buf = (char*) ((UA_ByteString*) UA_list_getFirst(&(ce->textGatherList))->payload)->data;
-		} else {
-			printf("XML_Stack_endElement - more than one text snippet with total length=%d:\n",ce->totalGatherLength);
-			UA_alloc((void**)&theGatherBuffer,ce->totalGatherLength+1);
-			buf = theGatherBuffer;
-			UA_list_iteratePayload(&(ce->textGatherList), textGatherListTotalLength);
-			buf[ce->totalGatherLength] = 0;
-			printf("XML_Stack_endElement - gatherBuffer %s:\n",buf);
-		}
-		XML_Attr attr[3] = { ce->textAttrib, buf, UA_NULL };
-		DBG(printf("handleText @ %s calls start elementHandler %s with dst=%p, buf={%s}\n", XML_Stack_path(s),ce->children[ce->activeChild].name, ce->children[ce->activeChild].obj, buf));
-		ce->children[ce->activeChild].elementHandler(s, attr, ce->children[ce->activeChild].obj, TRUE);
-		if (s->parent[s->depth-1].activeChild > 0) {
-			XML_child* c = &(s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild]);
-			c->elementHandler(s, UA_NULL, c->obj, FALSE);
-		}
-		if (UA_list_getFirst(&(ce->textGatherList)) != UA_list_getLast(&(ce->textGatherList)) ) {
-			UA_free(buf);
-		}
-		UA_list_destroy(&(ce->textGatherList),(UA_list_PayloadVisitor) UA_ByteString_delete);
-		UA_list_init(&(ce->textGatherList)); // don't know if destroy leaves the list in usable state...
-		ce->totalGatherLength = -1;
-	}
+	/* XML_Parent* ce = &(s->parent[s->depth]); */
+	/* if (ce->textAttribIdx >= 0 && ce->totalGatherLength > 0 ) { */
+	/* 	ce->activeChild = ce->textAttribIdx; */
+	/* 	char* buf; */
+	/* 	if (UA_list_getFirst(&(ce->textGatherList)) == UA_list_getLast(&(ce->textGatherList)) ) { */
+	/* 		buf = (char*) ((UA_ByteString*) UA_list_getFirst(&(ce->textGatherList))->payload)->data; */
+	/* 	} else { */
+	/* 		printf("XML_Stack_endElement - more than one text snippet with total length=%d:\n",ce->totalGatherLength); */
+	/* 		UA_alloc((void**)&theGatherBuffer,ce->totalGatherLength+1); */
+	/* 		buf = theGatherBuffer; */
+	/* 		UA_list_iteratePayload(&(ce->textGatherList), textGatherListTotalLength); */
+	/* 		buf[ce->totalGatherLength] = 0; */
+	/* 		printf("XML_Stack_endElement - gatherBuffer %s:\n",buf); */
+	/* 	} */
+	/* 	XML_Attr attr[3] = { ce->textAttrib, buf, UA_NULL }; */
+	/* 	DBG(printf("handleText @ %s calls start elementHandler %s with dst=%p, buf={%s}\n", XML_Stack_path(s),ce->children[ce->activeChild].name, ce->children[ce->activeChild].obj, buf)); */
+	/* 	ce->children[ce->activeChild].elementHandler(s, attr, ce->children[ce->activeChild].obj, TRUE); */
+	/* 	if (s->parent[s->depth-1].activeChild > 0) { */
+	/* 		XML_child* c = &(s->parent[s->depth-1].children[s->parent[s->depth-1].activeChild]); */
+	/* 		c->elementHandler(s, UA_NULL, c->obj, FALSE); */
+	/* 	} */
+	/* 	if (UA_list_getFirst(&(ce->textGatherList)) != UA_list_getLast(&(ce->textGatherList)) ) { */
+	/* 		UA_free(buf); */
+	/* 	} */
+	/* 	UA_list_destroy(&(ce->textGatherList),(UA_list_PayloadVisitor) UA_ByteString_delete); */
+	/* 	UA_list_init(&(ce->textGatherList)); // don't know if destroy leaves the list in usable state... */
+	/* 	ce->totalGatherLength = -1; */
+	/* } */
 
-	// the parent of the parent (pop) of the element knows the elementHandler, therefore depth-2!
-	if (s->depth > 1) {
-		// inform parents elementHandler that everything is done
-		XML_Parent *cp  = &(s->parent[s->depth - 1]);
-		XML_Parent *cpp = &(s->parent[s->depth - 2]);
-		if(cpp->activeChild >= 0 && cp->activeChild >= 0) {
-			DBG_VERBOSE(XML_Stack_print(s));
-			DBG_VERBOSE(
-			    printf(" - inform pop %s, arg=%p\n", cpp->children[cpp->activeChild].name,
-			           (void * )cp->children[cp->activeChild].obj));
-			cpp->children[cpp->activeChild].elementHandler(s, (XML_Attr *)cp->children[cp->activeChild].obj,
-			                                               cpp->children[cpp->activeChild].obj, FALSE);
-		}
-		// reset
-		cp->activeChild = -1;
-	}
-	s->depth--;
-}
-
-typedef UA_Int32 (*XML_Stack_Loader) (char* buf, int len);
-
-#define XML_BUFFER_LEN 1024
-UA_Int32 Namespace_loadXml(Namespace **ns,UA_UInt32 nsid,const char* rootName, XML_Stack_Loader getNextBufferFull) {
-	UA_Int32 retval = UA_SUCCESS;
-	char buf[XML_BUFFER_LEN];
-	int len; /* len is the number of bytes in the current bufferful of data */
-
-	XML_Stack s;
-	XML_Stack_init(&s, nsid, rootName);
-
-	UA_NodeSet n;
-	UA_NodeSet_init(&n, 0);
-	*ns = n.ns;
-
-	XML_Stack_addChildHandler(&s, "UANodeSet", strlen("UANodeSet"), (XML_decoder) UA_NodeSet_decodeXML, UA_INVALIDTYPE, &n);
-	XML_Parser parser = XML_ParserCreate(NULL);
-	XML_SetUserData(parser, &s);
-	XML_SetElementHandler(parser, XML_Stack_startElement, XML_Stack_endElement);
-	XML_SetCharacterDataHandler(parser, XML_Stack_handleText);
-	while ((len = getNextBufferFull(buf, XML_BUFFER_LEN)) > 0) {
-		if (XML_Parse(parser, buf, len, (len < XML_BUFFER_LEN)) == XML_STATUS_ERROR) {
-			retval = UA_ERR_INVALID_VALUE;
-			break;
-		}
-	}
-	XML_ParserFree(parser);
-
-	DBG_VERBOSE(printf("Namespace_loadXml - aliases addr=%p, size=%d\n", (void*) &(n.aliases), n.aliases.size));
-	DBG_VERBOSE(UA_NodeSetAliases_println("Namespace_loadXml - elements=", &n.aliases));
-
-	return retval;
-}
-
-static int theFile = 0;
-UA_Int32 readFromTheFile(char*buf,int len) {
-	return read(theFile,buf,len);
-}
-
-UA_Int32 Namespace_loadFromFile(Namespace **ns,UA_UInt32 nsid,const char* rootName,const char* fileName) {
-	if (fileName == UA_NULL)
-		theFile = 0; // stdin
-	else if ((theFile = open(fileName, O_RDONLY)) == -1)
-		return UA_ERR_INVALID_VALUE;
-
-	UA_Int32 retval = Namespace_loadXml(ns,nsid,rootName,readFromTheFile);
-	close(theFile);
-	return retval;
-}
-
-static const char* theBuffer = UA_NULL;
-static const char* theBufferEnd = UA_NULL;
-UA_Int32 readFromTheBuffer(char*buf,int len) {
-	if (len == 0) return 0;
-	if (theBuffer + XML_BUFFER_LEN > theBufferEnd)
-		len = theBufferEnd - theBuffer + 1;
-	else
-		len = XML_BUFFER_LEN;
-	memcpy(buf,theBuffer,len);
-	theBuffer = theBuffer + len;
-	return len;
-}
-
-UA_Int32 Namespace_loadFromString(Namespace **ns,UA_UInt32 nsid,const char* rootName,const char* buffer) {
-	theBuffer = buffer;
-	theBufferEnd = buffer + strlen(buffer) - 1;
-	return Namespace_loadXml(ns,nsid,rootName,readFromTheBuffer);
+	/* // the parent of the parent (pop) of the element knows the elementHandler, therefore depth-2! */
+	/* if (s->depth > 1) { */
+	/* 	// inform parents elementHandler that everything is done */
+	/* 	XML_Parent *cp  = &(s->parent[s->depth - 1]); */
+	/* 	XML_Parent *cpp = &(s->parent[s->depth - 2]); */
+	/* 	if(cpp->activeChild >= 0 && cp->activeChild >= 0) { */
+	/* 		DBG_VERBOSE(XML_Stack_print(s)); */
+	/* 		DBG_VERBOSE( */
+	/* 		    printf(" - inform pop %s, arg=%p\n", cpp->children[cpp->activeChild].name, */
+	/* 		           (void * )cp->children[cp->activeChild].obj)); */
+	/* 		cpp->children[cpp->activeChild].elementHandler(s, (XML_Attr *)cp->children[cp->activeChild].obj, */
+	/* 		                                               cpp->children[cpp->activeChild].obj, FALSE); */
+	/* 	} */
+	/* 	// reset */
+	/* 	cp->activeChild = -1; */
+	/* } */
+	/* s->depth--; */
 }

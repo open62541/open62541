@@ -8,7 +8,8 @@
 #ifndef UA_BASE64_H_
 #define UA_BASE64_H_
 
-#include "ua_basictypes.h"
+#include "ua_types.h"
+#include "ua_util.h"
 
 /** @brief calculates the exact size for the binary data that is encoded in base64 encoded string */
 UA_Int32 UA_base64_getDecodedSize(UA_String* const base64EncodedData);

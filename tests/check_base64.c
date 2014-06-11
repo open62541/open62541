@@ -1,12 +1,9 @@
 #include <stdlib.h> // EXIT_SUCCESS
-#include "ua_base64.h"
-
+#include "util/ua_base64.h"
 #include "check.h"
-
 
 START_TEST(base64_test_2padding)
 {
-
 	//this is base64'd ASCII string "open62541!"
 	UA_String encodedString = {16, (UA_Byte*)"b3BlbjYyNTQxIQ=="};
 

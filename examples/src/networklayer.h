@@ -4,7 +4,7 @@
 #include "ua_types.h"
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
-#include "ua_list.h"
+#include "util/ua_list.h"
 
 #ifdef MULTITHREADING
 #include <pthread.h> // pthreadcreate, pthread_t

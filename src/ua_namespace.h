@@ -3,7 +3,7 @@
 
 #include "ua_types.h"
 #include "ua_types_generated.h"
-#include "ua_list.h"
+#include "util/ua_list.h"
 
 #ifdef MULTITHREADING
 #define _XOPEN_SOURCE 500

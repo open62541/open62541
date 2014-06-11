@@ -9,20 +9,20 @@ static Namespace* theNamespace;
 
 UA_Int32 UA_Node_getParent(const UA_Node* node, const UA_Node** parent) {
 	UA_Int32 i = 0;
-	DBG(printf("// UA_Node_getParent - node={i=%d}",UA_NodeId_getIdentifier(&(node->nodeId))));
+	DBG(printf("// UA_Node_getParent - node={i=%d}",node->nodeId.identifier.numeric));
 	// FIXME: the data model is crap! we should have a single memory location which holds the parent NodeId
 	for (; i < node->referencesSize; i++ ) {
-		UA_Int32 refId = UA_NodeId_getIdentifier(&(node->references[i]->referenceTypeId));
-		UA_Int32 isInverse = node->references[i]->isInverse;
+		UA_Int32 refId = node->references[i].referenceTypeId.identifier.numeric;
+		UA_Int32 isInverse = node->references[i].isInverse;
 		if (isInverse && (refId == 47 || refId == 46)) {
 			Namespace_Entry_Lock* lock = UA_NULL;
 			UA_Int32 retval;
 			retval = Namespace_get(theNamespace, &(node->references[i].targetId.nodeId),parent,&lock);
 			Namespace_Entry_Lock_release(lock);
 			if (retval == UA_SUCCESS) {
-				DBG(printf(" has parent={i=%d}\n",UA_NodeId_getIdentifier(&((*parent)->nodeId))));
+				DBG(printf(" has parent={i=%d}\n",(*parent)->nodeId.identifier.numeric));
 			} else {
-				DBG(printf(" has non-existing parent={i=%d}\n",UA_NodeId_getIdentifier(&(node->references[i]->targetId.nodeId))));
+				DBG(printf(" has non-existing parent={i=%d}\n", node->references[i].targetId.nodeId.identifier.numeric));
 			}
 			return retval;
 		}
@@ -76,13 +76,13 @@ UA_Int32 UA_Node_getPath(const UA_Node* node, UA_list_List* list) {
 			// and add our own name when we come back
 			if (retval == UA_SUCCESS) {
 				UA_list_addPayloadToBack(list,(void*)&(node->browseName.name));
-				DBG(printf("// UA_Node_getPath - add id={i=%d},class=%d",UA_NodeId_getIdentifier(&(node->nodeId)),node->nodeClass));
+				DBG(printf("// UA_Node_getPath - add id={i=%d},class=%d",node->nodeId.identifier.numeric,node->nodeClass));
 				DBG(UA_String_printf(",name=",&(node->browseName.name)));
 			}
 		} else {
 			// node is root, terminate recursion by adding own name
 			UA_list_addPayloadToBack(list,(void*)&node->browseName.name);
-			DBG(printf("// UA_Node_getPath - add id={i=%d},class=%d",UA_NodeId_getIdentifier(&(node->nodeId)),node->nodeClass));
+			DBG(printf("// UA_Node_getPath - add id={i=%d},class=%d",node->nodeId.identifier.numeric,node->nodeClass));
 			DBG(UA_String_printf(",name=",&(node->browseName.name)));
 		}
 	}
@@ -108,7 +108,7 @@ void sam_declareAttribute(UA_Node const * node) {
 		UA_Int32 retval = UA_Node_getPath(node,&list);
 		if (retval == UA_SUCCESS) {
 			UA_VariableNode* vn = (UA_VariableNode*) node;
-			printf("\t%s ", UA_.types[UA_ns0ToVTableIndex(vn->typeId)].name);
+			printf("\t%s ", UA_.types[UA_ns0ToVTableIndex(&vn->nodeId)].name);
 			UA_list_iteratePayload(&list,listPrintName);
 			printf("; // i=%d\n", node->nodeId.identifier.numeric);
 		} else {

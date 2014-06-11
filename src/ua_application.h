@@ -3,7 +3,7 @@
 
 #include "ua_types.h"
 #include "ua_namespace.h"
-#include "ua_indexedList.h"
+#include "util/ua_indexedList.h"
 
 typedef struct Application {
 	UA_ApplicationDescription *description;

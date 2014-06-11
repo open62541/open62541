@@ -266,7 +266,7 @@ printc('''/**
  
 #include "''' + sys.argv[2] + '.h"\n')
 #include "ua_types_encoding_binary.h"
-#include "ua_util.h"
+#include "util/ua_util.h"
 
 # types for which we create a vector type
 arraytypes = set()

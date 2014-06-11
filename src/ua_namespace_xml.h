@@ -36,5 +36,6 @@ UA_Int32 UA_ExpandedNodeId_copycstring(cstring src, UA_ExpandedNodeId* dst, UA_N
  * @param[in] fileName the name of an existing file, e.g. Opc.Ua.NodeSet2.xml
  */
 UA_Int32 Namespace_loadFromFile(Namespace **ns,UA_UInt32 namespaceId,const char* rootName,const char* fileName);
+UA_Int32 Namespace_loadFromString(Namespace **ns,UA_UInt32 nsid,const char* rootName,const char* buffer);
 
 #endif /* __UA_NAMESPACE_XML_H */

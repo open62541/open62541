@@ -67,7 +67,7 @@ printh('''/**********************************************************
  **********************************************************/\n 
 #ifndef ''' + sys.argv[2].upper() + '''_H_
 #define ''' + sys.argv[2].upper() + '''_H_\n
-#include "ua_util.h"
+#include "util/ua_util.h"
 #include "ua_types.h"  // definition of UA_VTable and basic UA_Types
 #include "ua_types_generated.h"\n
 /**

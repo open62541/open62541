@@ -1,16 +1,9 @@
-/*
- * check_memory.c
- *
- *  Created on: 10.04.2014
- *      Author: mrt
- */
-
 #define _XOPEN_SOURCE 500
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "ua_types.h"
-#include "ua_util.h"
+#include "util/ua_util.h"
 #include "ua_namespace_0.h"
 #include "check.h"
 
