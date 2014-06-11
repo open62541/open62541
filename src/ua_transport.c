@@ -440,7 +440,6 @@ UA_Int32 UA_SecureConversationMessageFooter_calcSizeBinary(UA_SecureConversation
 
 UA_Int32 UA_SecureConversationMessageFooter_encodeBinary(UA_SecureConversationMessageFooter const * src, UA_ByteString* dst, UA_UInt32 *offset) {
     	UA_Int32 retval = UA_SUCCESS;
-		retval |= UA_Int32_encodeBinary(&src->paddingSize,dst, offset);
 	retval |= UA_Array_encodeBinary(&src->padding,src->paddingSize,UA_BYTE,dst,offset);
 	retval |= UA_Byte_encodeBinary(&src->signature,dst,offset);
 	return retval;
