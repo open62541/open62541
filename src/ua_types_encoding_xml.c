@@ -423,7 +423,6 @@ UA_Int32 UA_Variant_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_Variant 
 			dst->arrayLength  = array->size;
 			dst->data         = array->elements;
 			dst->vt = &UA_.types[UA_EXTENSIONOBJECT];
-			dst->encodingMask = UA_EXTENSIONOBJECT_NS0 & UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
 			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL;
 		} else if(s->parent[s->depth - 1].activeChild == 1 && attr != UA_NULL ) {  // LocalizedText
 			UA_TypedArray *array = (UA_TypedArray *)attr;
@@ -432,7 +431,6 @@ UA_Int32 UA_Variant_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_Variant 
 			dst->arrayLength  = array->size;
 			dst->data         = array->elements;
 			dst->vt = &UA_.types[UA_LOCALIZEDTEXT];
-			dst->encodingMask = UA_LOCALIZEDTEXT_NS0 & UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
 			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL;
 		}
 	}

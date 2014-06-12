@@ -172,7 +172,7 @@ typedef struct UA_VTable_Entry UA_VTable_Entry;
 /** @brief A union of all of the types specified above. */
 typedef struct UA_Variant {
 	UA_VTable_Entry *vt;          // internal entry into vTable
-	UA_Byte encodingMask;         // Type of UA_Variant_EncodingMaskType_enum
+	//UA_Byte encodingMask;       // Type of UA_Variant_EncodingMaskType_enum .. is generated, not set.
 	UA_Int32         arrayLength; // total number of elements
 	UA_Int32         arrayDimensionsLength;
 	UA_Int32        *arrayDimensions;
@@ -334,12 +334,12 @@ UA_Int32 UA_Variant_borrowSetValue(UA_Variant *v, UA_Int32 type, const void *dat
 UA_Int32 UA_Variant_borrowSetArray(UA_Variant *v, UA_Int32 type, UA_Int32 arrayLength, const void *data);
 
 /* Array operations */
-UA_Int32 UA_Array_new(void **p, UA_Int32 noElements, UA_Int32 type);
-UA_Int32 UA_Array_init(void *p, UA_Int32 noElements, UA_Int32 type);
-UA_Int32 UA_Array_delete(void *p, UA_Int32 noElements, UA_Int32 type);
+UA_Int32 UA_Array_new(void **p, UA_Int32 noElements, UA_VTable_Entry *vt);
+UA_Int32 UA_Array_init(void *p, UA_Int32 noElements, UA_VTable_Entry *vt);
+UA_Int32 UA_Array_delete(void *p, UA_Int32 noElements, UA_VTable_Entry *vt);
 
 /* @brief The destination array is allocated according to noElements. */
-UA_Int32 UA_Array_copy(const void *src, UA_Int32 noElements, UA_Int32 type, void **dst);
+UA_Int32 UA_Array_copy(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt, void **dst);
 
 /**********/
 /* VTable */
@@ -352,13 +352,16 @@ typedef UA_Int32 (*UA_calcSize)(const void *p);
 typedef UA_Int32 (*UA_encode)(const void *src, UA_ByteString *dst, UA_UInt32 *offset);
 
 /* @brief The decoding function decodes a ByteString into an UA datatype. */
-typedef UA_Int32 (*UA_decode)(UA_ByteString *src, UA_UInt32 *offset, void *dst);
+typedef UA_Int32 (*UA_decode)(const UA_ByteString *src, UA_UInt32 *offset, void *dst);
 
 typedef struct UA_Encoding {
 	UA_calcSize calcSize;
 	UA_encode   encode;
 	UA_decode   decode;
 } UA_Encoding;
+
+#define UA_ENCODING_BINARY 0
+#define UA_ENCODING_XML 1
 
 struct UA_VTable_Entry {
 	UA_NodeId   typeId;

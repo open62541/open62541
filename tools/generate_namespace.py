@@ -97,7 +97,7 @@ printc('''/**********************************************************
  **********************************************************/\n
 #include "''' + sys.argv[2] + '''.h"\n
 UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id) {
-	UA_Int32 retval = UA_ERR_INVALID_VALUE;
+	UA_Int32 retval = 0; // InvalidType
         if(id->namespace != 0) return retval;
 	switch (id->identifier.numeric) {''')
 

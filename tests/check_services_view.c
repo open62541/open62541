@@ -25,7 +25,7 @@ START_TEST(Service_TranslateBrowsePathsToNodeIds_SmokeTest)
 	UA_TranslateBrowsePathsToNodeIdsResponse_init(&response);
 
 	request.browsePathsSize = 1;
-	UA_Array_new((void**)&request.browsePaths,request.browsePathsSize, UA_BROWSEPATH);
+	UA_Array_new((void**)&request.browsePaths,request.browsePathsSize, &UA_.types[UA_BROWSEPATH]);
 
 	Service_TranslateBrowsePathsToNodeIds(UA_NULL,&request,&response);
 

@@ -151,7 +151,8 @@ def createStructured(element):
         if t in fixed_size:
             printc('\t + sizeof(%(t)s) // %(n)s')
         elif t.find("*") != -1:
-            printc('\t + UA_Array_calcSizeBinary(ptr->%(n)sSize,'+ t[0:t.find("*")].upper() + ",ptr->%(n)s)")
+            printc('\t + UA_Array_calcSizeBinary(ptr->%(n)sSize,&UA_.types['+ t[0:t.find("*")].upper() +
+                   "],ptr->%(n)s)")
             has_fixed_size = False
         else:
             printc('\t + %(t)s_calcSizeBinary(&ptr->%(n)s)')
@@ -165,8 +166,8 @@ def createStructured(element):
     \tUA_Int32 retval = UA_SUCCESS;''')
     for n,t in membermap.iteritems():
         if t.find("*") != -1:
-            printc("\tretval |= UA_Array_encodeBinary(src->%(n)s,src->%(n)sSize," +
-                   t[0:t.find("*")].upper() + ",dst,offset);")
+            printc("\tretval |= UA_Array_encodeBinary(src->%(n)s,src->%(n)sSize,&UA_.types[" +
+                   t[0:t.find("*")].upper() + "],dst,offset);")
         else:
             printc('\tretval |= %(t)s_encodeBinary(&src->%(n)s,dst,offset);')
     printc("\treturn retval;\n}\n")
@@ -179,8 +180,8 @@ def createStructured(element):
         if t.find("*") != -1:
             printc('\tCHECKED_DECODE(UA_Int32_decodeBinary(src,offset,&dst->%(n)sSize),' +
                    '%(name)s_deleteMembers(dst));')
-            printc('\tCHECKED_DECODE(UA_Array_decodeBinary(src,offset,dst->%(n)sSize,' + t[0:t.find("*")].upper() +
-                   ',(void**)&dst->%(n)s), %(name)s_deleteMembers(dst));')
+            printc('\tCHECKED_DECODE(UA_Array_decodeBinary(src,offset,dst->%(n)sSize,&UA_.types[' +
+                   t[0:t.find("*")].upper() + '],(void**)&dst->%(n)s), %(name)s_deleteMembers(dst));')
         else:
             printc('\tCHECKED_DECODE(%(t)s_decodeBinary(src,offset,&dst->%(n)s), %(name)s_deleteMembers(dst));')
     printc("\treturn retval;\n}\n")
@@ -203,8 +204,8 @@ def createStructured(element):
     for n,t in membermap.iteritems():
         if not t in fixed_size: # dynamic size on the wire
             if t.find("*") != -1:
-		printc("\tretval |= UA_Array_delete((void*)p->%(n)s,p->%(n)sSize," +
-                       t[0:t.find("*")].upper()+");")
+		printc("\tretval |= UA_Array_delete((void*)p->%(n)s,p->%(n)sSize,&UA_.types[" +
+                       t[0:t.find("*")].upper()+"]);")
             else:
 		printc('\tretval |= %(t)s_deleteMembers(&p->%(n)s);')
     printc("\treturn retval;\n}\n")
@@ -231,8 +232,8 @@ def createStructured(element):
     for n,t in membermap.iteritems():
         if t.find("*") != -1:
             printc('\tdst->%(n)s = src->%(n)s;')
-            printc("\tretval |= UA_Array_copy(src->%(n)s, src->%(n)sSize," +
-                      t[0:t.find("*")].upper()+",(void**)&dst->%(n)s);")
+            printc("\tretval |= UA_Array_copy(src->%(n)s, src->%(n)sSize,&UA_.types[" +
+                      t[0:t.find("*")].upper()+"],(void**)&dst->%(n)s);")
             continue
         if not t in fixed_size: # there are members of variable size    
             printc('\tretval |= %(t)s_copy(&src->%(n)s,&dst->%(n)s);')

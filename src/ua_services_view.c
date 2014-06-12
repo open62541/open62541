@@ -17,7 +17,7 @@ UA_Int32 Service_TranslateBrowsePathsToNodeIds(SL_Channel *channel, const UA_Tra
 
 	DBG_VERBOSE(printf("TranslateBrowsePathsToNodeIdsService - %i path(s)", request->browsePathsSize));
 	//Allocate space for a correct answer
-	UA_Array_new((void**)&response->results, request->browsePathsSize, UA_BROWSEPATHRESULT);
+	UA_Array_new((void**)&response->results, request->browsePathsSize, &UA_.types[UA_BROWSEPATHRESULT]);
 
 	response->resultsSize = request->browsePathsSize;
 

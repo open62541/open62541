@@ -433,14 +433,14 @@ UA_Int32 UA_SequenceHeader_copy(const UA_SequenceHeader *src,UA_SequenceHeader *
 UA_Int32 UA_SecureConversationMessageFooter_calcSizeBinary(UA_SecureConversationMessageFooter const * ptr) {
     	if(ptr==UA_NULL) return sizeof(UA_SecureConversationMessageFooter);
     	return 0
-		+ UA_Array_calcSizeBinary(ptr->paddingSize,UA_BYTE,ptr->padding)
+		+ UA_Array_calcSizeBinary(ptr->paddingSize,&UA_.types[UA_BYTE],ptr->padding)
 	 + sizeof(UA_Byte) // signature
 	;
 }
 
 UA_Int32 UA_SecureConversationMessageFooter_encodeBinary(UA_SecureConversationMessageFooter const * src, UA_ByteString* dst, UA_UInt32 *offset) {
     	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_Array_encodeBinary(&src->padding,src->paddingSize,UA_BYTE,dst,offset);
+	retval |= UA_Array_encodeBinary(&src->padding,src->paddingSize,&UA_.types[UA_BYTE],dst,offset);
 	retval |= UA_Byte_encodeBinary(&src->signature,dst,offset);
 	return retval;
 }
@@ -449,7 +449,7 @@ UA_Int32 UA_SecureConversationMessageFooter_decodeBinary(UA_ByteString const * s
     	UA_Int32 retval = UA_SUCCESS;
 	UA_SecureConversationMessageFooter_init(dst);
 	CHECKED_DECODE(UA_Int32_decodeBinary(src,offset,&dst->paddingSize),UA_SecureConversationMessageFooter_deleteMembers(dst));
-	CHECKED_DECODE(UA_Array_decodeBinary(src,offset,dst->paddingSize,UA_BYTE,(void**)&dst->padding), UA_SecureConversationMessageFooter_deleteMembers(dst));
+	CHECKED_DECODE(UA_Array_decodeBinary(src,offset,dst->paddingSize,&UA_.types[UA_BYTE],(void**)&dst->padding), UA_SecureConversationMessageFooter_deleteMembers(dst));
 	CHECKED_DECODE(UA_Byte_decodeBinary(src,offset,&dst->signature), UA_SecureConversationMessageFooter_deleteMembers(dst));
 	return retval;
 }
@@ -463,7 +463,7 @@ UA_Int32 UA_SecureConversationMessageFooter_delete(UA_SecureConversationMessageF
 
 UA_Int32 UA_SecureConversationMessageFooter_deleteMembers(UA_SecureConversationMessageFooter *p) {
     	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_Array_delete((void*)p->padding,p->paddingSize,UA_BYTE);
+	retval |= UA_Array_delete((void*)p->padding,p->paddingSize,&UA_.types[UA_BYTE]);
 	return retval;
 }
 
@@ -481,7 +481,7 @@ UA_Int32 UA_SecureConversationMessageFooter_copy(const UA_SecureConversationMess
     	UA_Int32 retval = UA_SUCCESS;
 	memcpy(dst, src, sizeof(UA_SecureConversationMessageFooter));
 	dst->padding = src->padding;
-	retval |= UA_Array_copy(&src->padding, src->paddingSize,UA_BYTE,(void**)&dst->padding);
+	retval |= UA_Array_copy(&src->padding, src->paddingSize,&UA_.types[UA_BYTE],(void**)&dst->padding);
 	return retval;
 }
 

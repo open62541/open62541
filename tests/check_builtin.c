@@ -458,7 +458,7 @@ END_TEST
 START_TEST(UA_Variant_calcSizeFixedSizeArrayShallReturnEncodingSize) {
 	// given
 	UA_Variant arg;
-	arg.encodingMask = UA_INT32_NS0 | UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
+	UA_Variant_init(&arg);
 	arg.vt = &UA_.types[UA_INT32];
 #define ARRAY_LEN 8
 	arg.arrayLength = ARRAY_LEN;
@@ -476,7 +476,7 @@ END_TEST
 START_TEST(UA_Variant_calcSizeVariableSizeArrayShallReturnEncodingSize) {
 	// given
 	UA_Variant arg;
-	arg.encodingMask = UA_STRING_NS0 | UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
+	UA_Variant_init(&arg);
 	arg.vt = &UA_.types[UA_STRING];
 #define ARRAY_LEN 3
 	arg.arrayLength = ARRAY_LEN;
@@ -850,7 +850,6 @@ START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArr
 	// then
 	ck_assert_int_eq(retval, UA_SUCCESS);
 	ck_assert_int_eq(pos, 5);
-	ck_assert_uint_eq(dst.encodingMask, UA_INT32_NS0);
 	ck_assert_ptr_eq(dst.vt, &UA_.types[UA_INT32]);
 	ck_assert_int_eq(dst.arrayLength, 1);
 	ck_assert_ptr_eq(dst.data, UA_alloc_lastptr);
@@ -874,8 +873,6 @@ START_TEST(UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray)
 	// then
 	ck_assert_int_eq(retval, UA_SUCCESS);
 	ck_assert_int_eq(pos, 1+4+2*4);
-	ck_assert_uint_eq(dst.encodingMask & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK, UA_INT32_NS0);
-	ck_assert_uint_eq(dst.encodingMask & UA_VARIANT_ENCODINGMASKTYPE_ARRAY, UA_VARIANT_ENCODINGMASKTYPE_ARRAY);
 	ck_assert_ptr_eq(dst.vt, &UA_.types[UA_INT32]);
 	ck_assert_int_eq(dst.arrayLength, 2);
 	ck_assert_ptr_eq(dst.data, UA_alloc_lastptr);
@@ -1299,9 +1296,9 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithVariant) {
 	UA_DataValue src;
 	src.serverTimestamp    = 80;
 	src.encodingMask       = UA_DATAVALUE_ENCODINGMASK_VARIANT | UA_DATAVALUE_ENCODINGMASK_SERVERTIMESTAMP; //Variant & SourvePicoseconds
+	UA_Variant_init(&src.value);
 	src.value.vt           = &UA_.types[UA_INT32];
-	src.value.arrayLength  = 0;
-	src.value.encodingMask = UA_INT32_NS0;
+	src.value.arrayLength  = 1; // one element (encoded as not an array)
 	UA_Int32  vdata  = 45;
 	src.value.data = (void *)&vdata;
 
@@ -1419,7 +1416,7 @@ START_TEST(UA_Array_copyByteArrayShallWorkOnExample) {
 	testString.length  = 5;
 
 	//when
-	UA_Array_copy((const void *)testString.data, 5, UA_BYTE, (void **)&dstArray);
+	UA_Array_copy((const void *)testString.data, 5, &UA_.types[UA_BYTE], (void **)&dstArray);
 	//then
 	for(i = 0;i < size;i++)
 		ck_assert_int_eq(testString.data[i], dstArray[i]);
@@ -1435,14 +1432,14 @@ START_TEST(UA_Array_copyUA_StringShallWorkOnExample) {
 	// given
 	UA_Int32   i, j;
 	UA_String *srcArray;
-	UA_Array_new((void **)&srcArray, 3, UA_STRING);
+	UA_Array_new((void **)&srcArray, 3, &UA_.types[UA_STRING]);
 	UA_String *dstArray;
 
 	UA_String_copycstring("open", &srcArray[0]);
 	UA_String_copycstring("62541", &srcArray[1]);
 	UA_String_copycstring("opc ua", &srcArray[2]);
 	//when
-	UA_Array_copy((const void *)srcArray, 3, UA_STRING, (void **)&dstArray);
+	UA_Array_copy((const void *)srcArray, 3, &UA_.types[UA_STRING], (void **)&dstArray);
 	//then
 	for(i = 0;i < 3;i++) {
 		for(j = 0;j < 3;j++)
@@ -1450,8 +1447,8 @@ START_TEST(UA_Array_copyUA_StringShallWorkOnExample) {
 		ck_assert_int_eq(srcArray[i].length, dstArray[i].length);
 	}
 	//finally
-	UA_Array_delete(srcArray, 3, UA_STRING);
-	UA_Array_delete(dstArray, 3, UA_STRING);
+	UA_Array_delete(srcArray, 3, &UA_.types[UA_STRING]);
+	UA_Array_delete(dstArray, 3, &UA_.types[UA_STRING]);
 }
 END_TEST
 
@@ -1554,8 +1551,8 @@ START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
 	UA_Variant_init(&copiedValue);
 	UA_alloc((void**)&value.data, sizeof(UA_String));
 	*((UA_String*)value.data) = testString;
-	value.encodingMask = UA_STRING_NS0;
 	value.vt = &UA_.types[UA_STRING];
+	value.arrayLength = 1;
 
 	//when
 	UA_Variant_copy(&value, &copiedValue);
@@ -1566,7 +1563,6 @@ START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
 		ck_assert_int_eq(copiedString.data[i], testString.data[i]);
 	ck_assert_int_eq(copiedString.length, testString.length);
 
-	ck_assert_int_eq(value.encodingMask, copiedValue.encodingMask);
 	ck_assert_int_eq(value.arrayDimensionsLength, copiedValue.arrayDimensionsLength);
 	ck_assert_int_eq(value.arrayLength, copiedValue.arrayLength);
 
@@ -1580,7 +1576,7 @@ END_TEST
 START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
 	// given
 	UA_String *srcArray;
-	UA_Array_new((void **)&srcArray, 3, UA_STRING);
+	UA_Array_new((void **)&srcArray, 3, &UA_.types[UA_STRING]);
 	UA_String_copycstring("__open", &srcArray[0]);
 	UA_String_copycstring("_62541", &srcArray[1]);
 	UA_String_copycstring("opc ua", &srcArray[2]);
@@ -1597,8 +1593,6 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
 	value.data        = (void **)srcArray;
 	value.arrayDimensionsLength = 1;
 	value.arrayDimensions       = dimensions;
-	value.encodingMask          = UA_VARIANT_ENCODINGMASKTYPE_ARRAY | UA_STRING_NS0 |
-	                              UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS;
 	value.vt = &UA_.types[UA_STRING];
 
 	//when
@@ -1617,7 +1611,6 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
 	ck_assert_int_eq(((UA_String *)copiedValue.data)[0].data[2], 'o');
 	ck_assert_int_eq(((UA_String *)copiedValue.data)[0].data[3], 'p');
 
-	ck_assert_int_eq(value.encodingMask, copiedValue.encodingMask);
 	ck_assert_int_eq(value.arrayDimensionsLength, copiedValue.arrayDimensionsLength);
 	ck_assert_int_eq(value.arrayLength, copiedValue.arrayLength);
 
@@ -1630,7 +1623,7 @@ END_TEST
 START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
 	// given
 	UA_Int32 *srcArray;
-	UA_Array_new((void **)&srcArray, 6, UA_INT32);
+	UA_Array_new((void **)&srcArray, 6, &UA_.types[UA_INT32]);
 	srcArray[0] = 0;
 	srcArray[1] = 1;
 	srcArray[2] = 2;
@@ -1639,7 +1632,7 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
 	srcArray[5] = 5;
 
 	UA_Int32 *dimensions;
-	UA_Array_new((void **)&dimensions, 2, UA_INT32);
+	UA_Array_new((void **)&dimensions, 2, &UA_.types[UA_INT32]);
 	UA_Int32  dim1 = 3;
 	UA_Int32  dim2 = 2;
 	dimensions[0] = dim1;
@@ -1653,8 +1646,7 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
 	value.data        = (void **)srcArray;
 	value.arrayDimensionsLength = 2;
 	value.arrayDimensions       = dimensions;
-	value.encodingMask         |= UA_VARIANT_ENCODINGMASKTYPE_ARRAY | UA_INT32_NS0 |
-	                              UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS;
+	value.vt = &UA_.types[UA_INT32];
 
 	//when
 	UA_Variant_copy(&value, &copiedValue);
@@ -1681,7 +1673,6 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
 		ck_assert_int_eq(i2, i);
 	}
 
-	ck_assert_int_eq(value.encodingMask, copiedValue.encodingMask);
 	ck_assert_int_eq(value.arrayDimensionsLength, copiedValue.arrayDimensionsLength);
 	ck_assert_int_eq(value.arrayLength, copiedValue.arrayLength);
 

@@ -630,15 +630,14 @@ UA_Int32 UA_Variant_deleteMembers(UA_Variant *p) {
 	UA_Int32 retval = UA_SUCCESS;
 	if(p == UA_NULL) return retval;
 
+	UA_Boolean hasDimensions = p->arrayDimensions != UA_NULL;
+
 	if(p->data != UA_NULL) {
-		if(p->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_ARRAY)
-			retval |= UA_Array_delete(p->data, p->arrayLength, UA_ns0ToVTableIndex(&p->vt->typeId));
-		else
-			retval |= p->vt->delete(p->data);
+		retval |= UA_Array_delete(p->data, p->arrayLength, p->vt);
 		p->data = UA_NULL;
 	}
-	if(p->arrayDimensions != UA_NULL) {
-		retval |= UA_Array_delete(p->arrayDimensions, p->arrayDimensionsLength, UA_INT32);
+	if(hasDimensions) {
+		UA_free(p->arrayDimensions);
 		p->arrayDimensions = UA_NULL;
 	}
 	return retval;
@@ -648,7 +647,6 @@ UA_Int32 UA_Variant_init(UA_Variant *p) {
 	if(p == UA_NULL) return UA_ERROR;
 	p->arrayLength  = -1; // no element, p->data == UA_NULL
 	p->data         = UA_NULL;
-	p->encodingMask = 0;
 	p->arrayDimensions       = UA_NULL;
 	p->arrayDimensionsLength = -1;
 	p->vt = &UA_.types[UA_INVALIDTYPE];
@@ -657,29 +655,18 @@ UA_Int32 UA_Variant_init(UA_Variant *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_Variant)
 UA_Int32 UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
-	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
+	if(src == UA_NULL || dst == UA_NULL)
+		return UA_ERROR;
+
 	UA_Int32  retval = UA_SUCCESS;
-	// Variants are always with types from ns0 or an extensionobject.
-	UA_NodeId typeId =
-	{ UA_NODEIDTYPE_FOURBYTE, 0, .identifier.numeric = (src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) };
-	UA_Int32  uaIdx  = UA_ns0ToVTableIndex(&typeId);
-	if(UA_VTable_isValidType(uaIdx) != UA_SUCCESS) return UA_ERROR;
-	dst->vt = &UA_.types[uaIdx];
+	dst->vt = src->vt;
 	retval |= UA_Int32_copy(&src->arrayLength, &dst->arrayLength);
-	retval |= UA_Byte_copy(&src->encodingMask, &dst->encodingMask);
 	retval |= UA_Int32_copy(&src->arrayDimensionsLength, &dst->arrayDimensionsLength);
-
-	if(src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_ARRAY)
-		retval |=  UA_Array_copy(src->data, src->arrayLength, uaIdx, &dst->data);
-	else {
-		UA_alloc(&dst->data, UA_.types[uaIdx].memSize);
-		UA_.types[uaIdx].copy(src->data, dst->data);
-	}
-
-	if(src->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) {
+	retval |=  UA_Array_copy(src->data, src->arrayLength, src->vt, &dst->data);
+	UA_Boolean hasDimensions = src->arrayDimensions != UA_NULL;
+	if(hasDimensions)
 		retval |= UA_Array_copy(src->arrayDimensions, src->arrayDimensionsLength,
-		                        UA_INT32, (void **)&dst->arrayDimensions);
-	}
+		                        &UA_.types[UA_INT32], (void **)&dst->arrayDimensions);
 	return retval;
 }
 
@@ -798,40 +785,28 @@ UA_Int32 UA_InvalidType_new(UA_InvalidType **p) {
 /* Array */
 /*********/
 
-UA_Int32 UA_Array_delete(void *p, UA_Int32 noElements, UA_Int32 type) {
-	UA_Int32 retval = UA_SUCCESS;
-	if(p == UA_NULL) return UA_SUCCESS;
-	char    *cp     = (char *)p; // so compilers allow pointer arithmetic
-	for(UA_Int32 i = 0;i < noElements;i++) {
-		retval |= UA_.types[type].deleteMembers(cp);
-		cp     += UA_.types[type].memSize;
-	}
-	UA_free(p);
-	return retval;
-}
-
-UA_Int32 UA_Array_new(void **p, UA_Int32 noElements, UA_Int32 type) {
+UA_Int32 UA_Array_new(void **p, UA_Int32 noElements, UA_VTable_Entry *vt) {
+	if(vt == UA_NULL)
+		return UA_ERROR;
+			
 	if(noElements <= 0) {
 		*p = UA_NULL;
 		return UA_SUCCESS;
 	}
 
-	// FIXME!
-	// Arrays cannot be larger than 2**20
+	// FIXME! Arrays cannot be larger than 2**20.
 	// This was randomly chosen so that the development VM does not blow up.
 	if(noElements > 1048576) {
 		*p = UA_NULL;
 		return UA_ERROR;
 	}
 	
-	UA_Int32 retval = UA_VTable_isValidType(type);
-	if(retval != UA_SUCCESS) return retval;
-	retval = UA_alloc(p, UA_.types[type].memSize * noElements);
-	if(retval != UA_SUCCESS) {
-		*p = UA_NULL;
+	UA_Int32 retval = UA_SUCCESS;
+	retval = UA_alloc(p, vt->memSize * noElements);
+	if(retval != UA_SUCCESS)
 		return retval;
-	}
-	retval = UA_Array_init(*p, noElements, type);
+
+	retval = UA_Array_init(*p, noElements, vt);
 	if(retval != UA_SUCCESS) {
 		UA_free(*p);
 		*p = UA_NULL;
@@ -839,22 +814,42 @@ UA_Int32 UA_Array_new(void **p, UA_Int32 noElements, UA_Int32 type) {
 	return retval;
 }
 
-UA_Int32 UA_Array_init(void *p, UA_Int32 noElements, UA_Int32 type) {
+UA_Int32 UA_Array_init(void *p, UA_Int32 noElements, UA_VTable_Entry *vt) {
+	if(p == UA_NULL || vt == UA_NULL)
+		return UA_ERROR;
+
 	UA_Int32 retval = UA_SUCCESS;
 	char    *cp     = (char *)p; // so compilers allow pointer arithmetic
+	UA_UInt32 memSize = vt->memSize;
 	for(UA_Int32 i = 0;i < noElements && retval == UA_SUCCESS;i++) {
-		retval |= UA_.types[type].init(cp);
-		cp     += UA_.types[type].memSize;
+		retval |= vt->init(cp);
+		cp     += memSize;
 	}
 	return retval;
 }
 
-UA_Int32 UA_Array_copy(const void *src, UA_Int32 noElements, UA_Int32 type, void **dst) {
-	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
-	if(UA_VTable_isValidType(type) != UA_SUCCESS)
+UA_Int32 UA_Array_delete(void *p, UA_Int32 noElements, UA_VTable_Entry *vt) {
+	if(p == UA_NULL)
+		return UA_SUCCESS;
+	if(vt == UA_NULL)
 		return UA_ERROR;
 
-	UA_Int32 retval = UA_Array_new(dst, noElements, type);
+	char    *cp     = (char *)p; // so compilers allow pointer arithmetic
+	UA_UInt32 memSize = vt->memSize;
+	UA_Int32 retval = UA_SUCCESS;
+	for(UA_Int32 i = 0;i < noElements;i++) {
+		retval |= vt->deleteMembers(cp);
+		cp     += memSize;
+	}
+	UA_free(p);
+	return retval;
+}
+
+UA_Int32 UA_Array_copy(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt, void **dst) {
+	if(src == UA_NULL || dst == UA_NULL || vt == UA_NULL)
+		return UA_ERROR;
+
+	UA_Int32 retval = UA_Array_new(dst, noElements, vt);
 	if(retval != UA_SUCCESS){
 		*dst = UA_NULL;
 		return retval;
@@ -862,16 +857,17 @@ UA_Int32 UA_Array_copy(const void *src, UA_Int32 noElements, UA_Int32 type, void
 
 	char *csrc = (char *)src; // so compilers allow pointer arithmetic
 	char *cdst = (char *)*dst;
+	UA_UInt32 memSize = vt->memSize;
 	UA_Int32 i = 0;
 	for(;i < noElements && retval == UA_SUCCESS;i++) {
-		retval |= UA_.types[type].copy(csrc, cdst);
-		csrc   += UA_.types[type].memSize;
-		cdst   += UA_.types[type].memSize;
+		retval |= vt->copy(csrc, cdst);
+		csrc   += memSize;
+		cdst   += memSize;
 	}
 
 	if(retval != UA_SUCCESS) {
 		i--; // undo last increase
-		UA_Array_delete(*dst, i, type);
+		UA_Array_delete(*dst, i, vt);
 		*dst = UA_NULL;
 	}
 
