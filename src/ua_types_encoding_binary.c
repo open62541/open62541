@@ -741,13 +741,11 @@ UA_Int32 UA_Variant_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA
 		dst->arrayLength = -1;
 	} else {
 		// allocate array and decode
-		CHECKED_DECODE(UA_Array_new(&dst->data, dst->arrayLength, uaIdx), dst->data = UA_NULL);
 		CHECKED_DECODE(UA_Array_decodeBinary(src, offset, dst->arrayLength, uaIdx, &dst->data), UA_Variant_deleteMembers(dst));
 	}
 	//decode the dimension field array if present
 	if(dst->encodingMask & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) {
 		UA_Int32_decodeBinary(src, offset, &dst->arrayDimensionsLength);
-		CHECKED_DECODE(UA_Array_new((void **)&dst->arrayDimensions, dst->arrayDimensionsLength, UA_INT32), dst->arrayDimensions = UA_NULL);
 		CHECKED_DECODE(UA_Array_decodeBinary(src, offset, dst->arrayLength, uaIdx,
 		                                     &dst->data), UA_Variant_deleteMembers(dst));
 	}

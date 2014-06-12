@@ -1458,88 +1458,46 @@ END_TEST
 
 START_TEST(UA_DiagnosticInfo_copyShallWorkOnExample) {
 	//given
-	UA_DiagnosticInfo *value = UA_NULL;
-	UA_DiagnosticInfo *innerValue  = UA_NULL;
-	UA_DiagnosticInfo *copiedValue = UA_NULL;
-	UA_String testString;
-	UA_Int32  size = 5;
-	UA_Int32  i    = 0;
-	testString.data = UA_NULL;
+	UA_DiagnosticInfo value, innerValue, copiedValue;
+	UA_String testString = (UA_String){5, (UA_Byte*)"OPCUA"};
 
-	UA_alloc((void **)&testString.data, size);
-	testString.data[0] = 'O';
-	testString.data[1] = 'P';
-	testString.data[2] = 'C';
-	testString.data[3] = 'U';
-	testString.data[4] = 'A';
-	testString.length  = size;
+	UA_DiagnosticInfo_init(&value);
+	UA_DiagnosticInfo_init(&innerValue);
+	value.encodingMask |= UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO;
+	value.innerDiagnosticInfo = &innerValue;
+	value.additionalInfo = testString;
 
-	UA_DiagnosticInfo_new(&value);
-	UA_DiagnosticInfo_new(&innerValue);
-	value->encodingMask |= UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO;
-	value->innerDiagnosticInfo = innerValue;
-
-	UA_alloc((void **)&copiedValue, UA_DiagnosticInfo_calcSizeBinary(UA_NULL));
-	value->additionalInfo.length = testString.length;
-	value->additionalInfo.data   = testString.data;
 	//when
-	UA_DiagnosticInfo_copy(value, copiedValue);
+	UA_DiagnosticInfo_copy(&value, &copiedValue);
 
 	//then
-	for(i = 0;i < size;i++)
-		ck_assert_int_eq(copiedValue->additionalInfo.data[i], value->additionalInfo.data[i]);
-	ck_assert_int_eq(copiedValue->additionalInfo.length, value->additionalInfo.length);
+	for(UA_Int32 i = 0;i < testString.length;i++)
+		ck_assert_int_eq(copiedValue.additionalInfo.data[i], value.additionalInfo.data[i]);
+	ck_assert_int_eq(copiedValue.additionalInfo.length, value.additionalInfo.length);
 
-	ck_assert_int_eq(copiedValue->encodingMask, value->encodingMask);
-	ck_assert_int_eq(copiedValue->innerDiagnosticInfo->locale, value->innerDiagnosticInfo->locale);
-	ck_assert_int_eq(copiedValue->innerStatusCode, value->innerStatusCode);
-	ck_assert_int_eq(copiedValue->locale, value->locale);
-	ck_assert_int_eq(copiedValue->localizedText, value->localizedText);
-	ck_assert_int_eq(copiedValue->namespaceUri, value->namespaceUri);
-	ck_assert_int_eq(copiedValue->symbolicId, value->symbolicId);
+	ck_assert_int_eq(copiedValue.encodingMask, value.encodingMask);
+	ck_assert_int_eq(copiedValue.innerDiagnosticInfo->locale, value.innerDiagnosticInfo->locale);
+	ck_assert_int_eq(copiedValue.innerStatusCode, value.innerStatusCode);
+	ck_assert_int_eq(copiedValue.locale, value.locale);
+	ck_assert_int_eq(copiedValue.localizedText, value.localizedText);
+	ck_assert_int_eq(copiedValue.namespaceUri, value.namespaceUri);
+	ck_assert_int_eq(copiedValue.symbolicId, value.symbolicId);
+
 	//finally
-	UA_free(copiedValue);
-	UA_free(value);
+	value.additionalInfo.data = UA_NULL; // do not delete the static string
+	value.innerDiagnosticInfo = UA_NULL; // do not delete the static innerdiagnosticinfo
+	UA_DiagnosticInfo_deleteMembers(&value);
+	UA_DiagnosticInfo_deleteMembers(&copiedValue);
 
 }
 END_TEST
 START_TEST(UA_ApplicationDescription_copyShallWorkOnExample) {
 	//given
 
-	UA_Int32  retval = 0;
-	UA_String appString;
-	UA_String discString;
-	UA_String gateWayString;
-	UA_Int32  appSize     = 3;
-	UA_Int32  discSize    = 4;
-	UA_Int32  gateWaySize = 7;
-	UA_Int32  i, j;
-	appString.data     = UA_NULL;
-	discString.data    = UA_NULL;
-	gateWayString.data = UA_NULL;
-
-	UA_alloc((void **)&appString.data, appSize);
-	appString.data[0] = 'A';
-	appString.data[1] = 'P';
-	appString.data[2] = 'P';
-	appString.length  = appSize;
-
-	UA_alloc((void **)&discString.data, discSize);
-	discString.data[0] = 'D';
-	discString.data[1] = 'I';
-	discString.data[2] = 'S';
-	discString.data[3] = 'C';
-	discString.length  = discSize;
-
-	UA_alloc((void **)&gateWayString.data, gateWaySize);
-	gateWayString.data[0] = 'G';
-	gateWayString.data[1] = 'A';
-	gateWayString.data[2] = 'T';
-	gateWayString.data[3] = 'E';
-	gateWayString.data[4] = 'W';
-	gateWayString.data[5] = 'A';
-	gateWayString.data[6] = 'Y';
-	gateWayString.length  = gateWaySize;
+	UA_Int32  retval = UA_SUCCESS;
+	UA_String appString = (UA_String){3, (UA_Byte*)"APP"};
+	UA_String discString = (UA_String){4, (UA_Byte*)"DISC"};
+	UA_String gateWayString = (UA_String){7, (UA_Byte*)"GATEWAY"};
 
 	UA_String srcArray[3];
 	srcArray[0] = (UA_String){ 6, (UA_Byte*)"__open" };
@@ -1548,12 +1506,9 @@ START_TEST(UA_ApplicationDescription_copyShallWorkOnExample) {
 
 	UA_ApplicationDescription value, copiedValue;
 	UA_ApplicationDescription_init(&value);
-	value.applicationUri.length = appString.length;
-	value.applicationUri.data   = appString.data;
-	value.discoveryProfileUri.length = discString.length;
-	value.discoveryProfileUri.data   = discString.data;
-	value.gatewayServerUri.length    = gateWayString.length;
-	value.gatewayServerUri.data      = gateWayString.data;
+	value.applicationUri = appString;
+	value.discoveryProfileUri = discString;
+	value.gatewayServerUri = gateWayString;
 	value.discoveryUrlsSize = 3;
 	value.discoveryUrls     = srcArray;
 
@@ -1563,47 +1518,44 @@ START_TEST(UA_ApplicationDescription_copyShallWorkOnExample) {
 	//then
 	ck_assert_int_eq(retval, UA_SUCCESS);
 
-	for(i = 0;i < appSize;i++)
+	for(UA_Int32 i = 0;i < appString.length;i++)
 		ck_assert_int_eq(copiedValue.applicationUri.data[i], value.applicationUri.data[i]);
 	ck_assert_int_eq(copiedValue.applicationUri.length, value.applicationUri.length);
 
-	for(i = 0;i < discSize;i++)
+	for(UA_Int32 i = 0;i < discString.length;i++)
 		ck_assert_int_eq(copiedValue.discoveryProfileUri.data[i], value.discoveryProfileUri.data[i]);
 	ck_assert_int_eq(copiedValue.discoveryProfileUri.length, value.discoveryProfileUri.length);
 
-	for(i = 0;i < gateWaySize;i++)
+	for(UA_Int32 i = 0;i < gateWayString.length;i++)
 		ck_assert_int_eq(copiedValue.gatewayServerUri.data[i], value.gatewayServerUri.data[i]);
 	ck_assert_int_eq(copiedValue.gatewayServerUri.length, value.gatewayServerUri.length);
 
 	//String Array Test
-	for(i = 0;i < 3;i++) {
-		for(j = 0;j < 6;j++)
+	for(UA_Int32 i = 0;i < 3;i++) {
+		for(UA_Int32 j = 0;j < 6;j++)
 			ck_assert_int_eq(value.discoveryUrls[i].data[j], copiedValue.discoveryUrls[i].data[j]);
 		ck_assert_int_eq(value.discoveryUrls[i].length, copiedValue.discoveryUrls[i].length);
 	}
 	ck_assert_int_eq(copiedValue.discoveryUrls[0].data[2], 'o');
 	ck_assert_int_eq(copiedValue.discoveryUrls[0].data[3], 'p');
 	ck_assert_int_eq(copiedValue.discoveryUrlsSize, value.discoveryUrlsSize);
+
+	//finally
+	// UA_ApplicationDescription_deleteMembers(&value); // do not free the members as they are statically allocated
+	UA_ApplicationDescription_deleteMembers(&copiedValue);
 }
 END_TEST
 
 START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
 	//given
-	UA_String testString;
-	testString.length  = 5;
-	UA_alloc((void **)&testString.data, testString.length);
-	testString.data[0] = 'O';
-	testString.data[1] = 'P';
-	testString.data[2] = 'C';
-	testString.data[3] = 'U';
-	testString.data[4] = 'A';
-
+	UA_String testString = (UA_String){5, (UA_Byte*)"OPCUA"};
 	UA_Variant value, copiedValue;
 	UA_Variant_init(&value);
 	UA_Variant_init(&copiedValue);
 	UA_alloc((void**)&value.data, sizeof(UA_String));
 	*((UA_String*)value.data) = testString;
 	value.encodingMask = UA_STRING_NS0;
+	value.vt = &UA_.types[UA_STRING];
 
 	//when
 	UA_Variant_copy(&value, &copiedValue);
@@ -1619,6 +1571,7 @@ START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
 	ck_assert_int_eq(value.arrayLength, copiedValue.arrayLength);
 
 	//finally
+	((UA_String*)value.data)->data = UA_NULL; // the string is statically allocated. do not free it.
 	UA_Variant_deleteMembers(&value);
 	UA_Variant_deleteMembers(&copiedValue);
 }
@@ -1646,6 +1599,7 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
 	value.arrayDimensions       = dimensions;
 	value.encodingMask          = UA_VARIANT_ENCODINGMASKTYPE_ARRAY | UA_STRING_NS0 |
 	                              UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS;
+	value.vt = &UA_.types[UA_STRING];
 
 	//when
 	UA_Variant_copy(&value, &copiedValue);
@@ -1864,6 +1818,7 @@ int main(void) {
 
 	s  = testSuite_builtin();
 	sr = srunner_create(s);
+	//srunner_set_fork_status(sr, CK_NOFORK);
 	srunner_run_all(sr, CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);

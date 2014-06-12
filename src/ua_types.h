@@ -432,6 +432,7 @@ typedef struct UA_VTable {
 /* Use only when the type has no arrays. Otherwise, implement deep copy */
 #define UA_TYPE_COPY_DEFAULT(TYPE)                     \
     UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst) { \
+    	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR; \
 		UA_Int32 retval = UA_SUCCESS;                  \
 		retval |= UA_memcpy(dst, src, sizeof(TYPE));   \
 		return retval;                                 \
