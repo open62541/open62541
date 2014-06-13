@@ -670,43 +670,45 @@ UA_Int32 UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
 	return retval;
 }
 
-// FIXME! ns0type vs typeid
-UA_Int32 UA_Variant_borrowSetValue(UA_Variant *v, UA_Int32 ns0type_id, const void *value) {
-	/* v->encodingMask = type_id & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK; */
-	/* if(UA_VTable_isValidType(type_id) != UA_SUCCESS) return UA_INVALIDTYPE; */
-	/* v->vt = &UA_borrowed_.types[type_id]; */
-	/* v->data   = (void *)value; */
+UA_Int32 UA_Variant_copySetValue(UA_Variant *v, UA_VTable_Entry *vt, const void *value) {
+	if(v == UA_NULL || vt == UA_NULL || value == UA_NULL)
+		return UA_ERROR;
+	UA_Variant_init(v);
+	v->vt = vt;
+	v->arrayLength = 1; // no array but a single entry
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= vt->new(&v->data);
+	if(retval == UA_SUCCESS)
+		retval |= vt->copy(value, v->data);
+	return retval;
+}
+
+UA_Int32 UA_Variant_copySetArray(UA_Variant *v, UA_VTable_Entry *vt, UA_Int32 arrayLength, const void *array) {
+	if(v == UA_NULL || vt == UA_NULL || array == UA_NULL)
+		return UA_ERROR;
+	UA_Variant_init(v);
+	v->vt = vt;
+	v->arrayLength = arrayLength;
+	return UA_Array_copy(array, arrayLength, vt, &v->data);
+}
+
+UA_Int32 UA_Variant_borrowSetValue(UA_Variant *v, UA_VTable_Entry *vt, const void *value) {
+	if(v == UA_NULL || vt == UA_NULL || value == UA_NULL)
+		return UA_ERROR;
+	UA_Variant_init(v);
+	v->vt = &UA_borrowed_.types[UA_ns0ToVTableIndex(&vt->typeId)];
+	v->arrayLength = 1; // no array but a single entry
+	v->data = (void *)value;
 	return UA_SUCCESS;
 }
 
-UA_Int32 UA_Variant_copySetValue(UA_Variant *v, UA_Int32 ns0type_id, const void *value) {
-	/* v->encodingMask = type_id & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK; */
-	/* if(UA_VTable_isValidType(type_id) != UA_SUCCESS) return UA_INVALIDTYPE; */
-	/* v->vt = &UA_.types[type_id]; */
-	return v->vt->copy(value, v->data);
-}
-
-UA_Int32 UA_Variant_borrowSetArray(UA_Variant *v, UA_Int32 type_id, UA_Int32 arrayLength, const void *array) {
-	/* v->encodingMask = (type_id & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) | UA_VARIANT_ENCODINGMASKTYPE_ARRAY; */
-	/* if(UA_VTable_isValidType(type_id) != UA_SUCCESS) return UA_INVALIDTYPE; */
-	/* v->vt = &UA_borrowed_.types[type_id]; */
-	/* v->arrayLength  = arrayLength; */
-	/* v->data         = (void *)array; */
-	return UA_SUCCESS;
-}
-
-UA_Int32 UA_Variant_copySetArray(UA_Variant *v, UA_Int32 type_id, UA_Int32 arrayLength, UA_UInt32 elementSize,
-                                 const void *array) {
-	/* v->encodingMask = (type_id & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) | UA_VARIANT_ENCODINGMASKTYPE_ARRAY; */
-	/* if(UA_VTable_isValidType(type_id) != UA_SUCCESS) return UA_INVALIDTYPE; */
-	/* v->vt = &UA_.types[type_id]; */
-	/* v->arrayLength  = arrayLength; */
-	/* void    *new_arr; */
-	/* UA_Int32 retval = UA_SUCCESS; */
-	/* retval |= UA_alloc(&new_arr, arrayLength * elementSize); */
-	/* retval |= UA_memcpy(new_arr, array, arrayLength * elementSize); */
-	/* v->data = new_arr; */
-	return UA_SUCCESS;
+UA_Int32 UA_Variant_borrowSetArray(UA_Variant *v, UA_VTable_Entry *vt, UA_Int32 arrayLength, const void *array) {
+	if(v == UA_NULL || vt == UA_NULL || array == UA_NULL)
+		return UA_ERROR;
+	UA_Variant_init(v);
+	v->vt = &UA_borrowed_.types[UA_ns0ToVTableIndex(&vt->typeId)];
+	v->arrayLength = arrayLength;
+	return UA_Array_copy(array, arrayLength, v->vt, &v->data);
 }
 
 /* DiagnosticInfo */

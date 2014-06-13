@@ -6,44 +6,51 @@ import getpass
 import time
 
 if len(sys.argv) != 3:
-	print("Usage: python generate_namespace.py <path/to/NodeIds.csv> <outfile w/o extension>", file=sys.stdout)
-	exit(0)
+    print("Usage: python generate_namespace.py <path/to/NodeIds.csv> <outfile w/o extension>",
+          file=sys.stdout)
+    exit(0)
 
 # types that are to be excluded
 exclude_kinds = set(["Object","ObjectType","Variable","Method","ReferenceType"])
-exclude_types = set(["Number", "Integer", "UInteger", "Enumeration",
-	"Image", "ImageBMP", "ImageGIF", "ImageJPG", "ImagePNG",
-	"References", "BaseVariableType", "BaseDataVariableType", 
-	"PropertyType", "DataTypeDescriptionType", "DataTypeDictionaryType", "NamingRuleType",
-	"IntegerId","Counter","Duration","NumericRange","Time","Date",
-	"UtcTime", "LocaleId","UserTokenType",
-	"ApplicationType","ApplicationInstanceCertificate",
-	"ServerVendorCapabilityType","ServerStatusType","ServerDiagnosticsSummaryType",
-	"SamplingIntervalDiagnosticsArrayType", "SamplingIntervalDiagnosticsType", 
-	"SubscriptionDiagnosticsArrayType", "SubscriptionDiagnosticsType",
-	"SessionDiagnosticsArrayType", "SessionDiagnosticsVariableType", 
-	"SessionSecurityDiagnosticsArrayType", "SessionSecurityDiagnosticsType", 
-	"DataItemType", "AnalogItemType", "DiscreteItemType", "TwoStateDiscreteType",
-	"MultiStateDiscreteType", "ProgramDiagnosticType", "StateVariableType", "FiniteStateVariableType",
-	"TransitionVariableType", "FiniteTransitionVariableType", "BuildInfoType", "TwoStateVariableType",
-	"ConditionVariableType", "MultiStateValueDiscreteType", "OptionSetType", "ArrayItemType",
-	"YArrayItemType", "XYArrayItemType", "ImageItemType", "CubeItemType", "NDimensionArrayItemType"])
+exclude_types = set(["Number", "Integer", "UInteger", "Enumeration", "Image", "ImageBMP",
+                     "ImageGIF", "ImageJPG", "ImagePNG", "References", "BaseVariableType",
+                     "BaseDataVariableType", "PropertyType", "DataTypeDescriptionType",
+                     "DataTypeDictionaryType", "NamingRuleType", "IntegerId", "Counter",
+                     "Duration", "NumericRange", "Time", "Date", "UtcTime", "LocaleId",
+                     "UserTokenType", "ApplicationType", "ApplicationInstanceCertificate",
+                     "ServerVendorCapabilityType", "ServerStatusType",
+                     "ServerDiagnosticsSummaryType", "SamplingIntervalDiagnosticsArrayType",
+                     "SamplingIntervalDiagnosticsType", "SubscriptionDiagnosticsArrayType",
+                     "SubscriptionDiagnosticsType", "SessionDiagnosticsArrayType",
+                     "SessionDiagnosticsVariableType", "SessionSecurityDiagnosticsArrayType",
+                     "SessionSecurityDiagnosticsType", "DataItemType", "AnalogItemType",
+                     "DiscreteItemType", "TwoStateDiscreteType", "MultiStateDiscreteType",
+                     "ProgramDiagnosticType", "StateVariableType", "FiniteStateVariableType",
+                     "TransitionVariableType", "FiniteTransitionVariableType", "BuildInfoType",
+                     "TwoStateVariableType", "ConditionVariableType",
+                     "MultiStateValueDiscreteType", "OptionSetType", "ArrayItemType",
+                     "YArrayItemType", "XYArrayItemType", "ImageItemType", "CubeItemType",
+                     "NDimensionArrayItemType"])
 
 fixed_size = ['UA_DeadbandType', 'UA_DataChangeTrigger', 'UA_Guid', 'UA_ApplicationType',
               'UA_ComplexNumberType', 'UA_EnumeratedTestType', 'UA_BrowseResultMask',
               'UA_TimeZoneDataType', 'UA_NodeClass', 'UA_IdType', 'UA_ServiceCounterDataType',
               'UA_Float', 'UA_ModelChangeStructureVerbMask', 'UA_EndpointConfiguration',
-              'UA_NodeAttributesMask', 'UA_DataChangeFilter', 'UA_StatusCode', 'UA_MonitoringFilterResult',
-              'UA_OpenFileMode', 'UA_SecurityTokenRequestType', 'UA_ServerDiagnosticsSummaryDataType',
-              'UA_ElementOperand', 'UA_AggregateConfiguration', 'UA_UInt64', 'UA_FilterOperator',
-              'UA_ReadRawModifiedDetails', 'UA_ServerState', 'UA_FilterOperand', 'UA_SubscriptionAcknowledgement',
-              'UA_AttributeWriteMask', 'UA_SByte', 'UA_Int32', 'UA_Range', 'UA_Byte', 'UA_TimestampsToReturn',
-              'UA_UserTokenType', 'UA_Int16', 'UA_XVType', 'UA_AggregateFilterResult', 'UA_Boolean',
-              'UA_MessageSecurityMode', 'UA_AxisScaleEnumeration', 'UA_PerformUpdateType', 'UA_UInt16',
-              'UA_NotificationData', 'UA_DoubleComplexNumberType', 'UA_HistoryUpdateType', 'UA_MonitoringFilter',
-              'UA_NodeIdType', 'UA_BrowseDirection', 'UA_SamplingIntervalDiagnosticsDataType', 'UA_UInt32',
-              'UA_ChannelSecurityToken', 'UA_RedundancySupport', 'UA_MonitoringMode', 'UA_HistoryReadDetails',
-              'UA_ExceptionDeviationFormat', 'UA_ComplianceLevel', 'UA_DateTime', 'UA_Int64', 'UA_Double']
+              'UA_NodeAttributesMask', 'UA_DataChangeFilter', 'UA_StatusCode',
+              'UA_MonitoringFilterResult', 'UA_OpenFileMode', 'UA_SecurityTokenRequestType',
+              'UA_ServerDiagnosticsSummaryDataType', 'UA_ElementOperand',
+              'UA_AggregateConfiguration', 'UA_UInt64', 'UA_FilterOperator',
+              'UA_ReadRawModifiedDetails', 'UA_ServerState', 'UA_FilterOperand',
+              'UA_SubscriptionAcknowledgement', 'UA_AttributeWriteMask', 'UA_SByte', 'UA_Int32',
+              'UA_Range', 'UA_Byte', 'UA_TimestampsToReturn', 'UA_UserTokenType', 'UA_Int16',
+              'UA_XVType', 'UA_AggregateFilterResult', 'UA_Boolean', 'UA_MessageSecurityMode',
+              'UA_AxisScaleEnumeration', 'UA_PerformUpdateType', 'UA_UInt16',
+              'UA_NotificationData', 'UA_DoubleComplexNumberType', 'UA_HistoryUpdateType',
+              'UA_MonitoringFilter', 'UA_NodeIdType', 'UA_BrowseDirection',
+              'UA_SamplingIntervalDiagnosticsDataType', 'UA_UInt32', 'UA_ChannelSecurityToken',
+              'UA_RedundancySupport', 'UA_MonitoringMode', 'UA_HistoryReadDetails',
+              'UA_ExceptionDeviationFormat', 'UA_ComplianceLevel', 'UA_DateTime', 'UA_Int64',
+              'UA_Double']
 
 f = open(sys.argv[1])
 input_str = f.read() + "\nInvalidType,0,DataType"
@@ -63,7 +70,8 @@ printh('''/**********************************************************
  * '''+sys.argv[2]+'''.hgen -- do not modify
  **********************************************************
  * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
- * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
+ * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+
+       time.strftime("%Y-%m-%d %I:%M:%S")+'''
  **********************************************************/\n 
 #ifndef ''' + sys.argv[2].upper() + '''_H_
 #define ''' + sys.argv[2].upper() + '''_H_\n
@@ -93,7 +101,8 @@ printc('''/**********************************************************
  * '''+sys.argv[2]+'''.cgen -- do not modify
  **********************************************************
  * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
- * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
+ * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser() +
+       ''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  **********************************************************/\n
 #include "''' + sys.argv[2] + '''.h"\n
 UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id) {
@@ -134,26 +143,26 @@ for row in rows:
 
     printh('#define '+name.upper()+'_NS0 '+row[1])
 
-    printc("\t{.typeId={UA_NODEIDTYPE_FOURBYTE,0,.identifier.numeric=" + row[1] +"}"+ 
-          ",.name=(UA_Byte*)&\""+name+"\""+
-          ",.new=(UA_Int32(*)(void **))"+name+"_new"+
-          ",.init=(UA_Int32(*)(void *))"+name+"_init"+
-          ",.copy=(UA_Int32(*)(void const * ,void*))"+name+"_copy"+
-          ",.delete=(UA_Int32(*)(void *))"+name+"_delete"+
-          ",.deleteMembers=(UA_Int32(*)(void *))"+name+"_deleteMembers"+
-          ",.memSize=" + ("sizeof("+name+")" if (name != "UA_InvalidType") else "0") +
+    printc("\t{.typeId={UA_NODEIDTYPE_FOURBYTE,0,.identifier.numeric=" + row[1] + "}" + 
+          ",.name=(UA_Byte*)&\"%(name)s\"" +
+          ",.new=(UA_Int32(*)(void **))%(name)s_new" +
+          ",.init=(UA_Int32(*)(void *))%(name)s_init"+
+          ",.copy=(UA_Int32(*)(void const * ,void*))%(name)s_copy" +
+          ",.delete=(UA_Int32(*)(void *))%(name)s_delete" +
+          ",.deleteMembers=(UA_Int32(*)(void *))%(name)s_deleteMembers" +
+          ",.memSize=" + ("sizeof(%(name)s)" if (name != "UA_InvalidType") else "0") +
           ",.dynMembers=" + ("UA_FALSE" if (name in fixed_size) else "UA_TRUE") +
-          ",.encodings={{.calcSize=(UA_calcSize)"+ name +"_calcSizeBinary" +
-          ",.encode=(UA_encode)"+name+ "_encodeBinary" +
-          ",.decode=(UA_decode)"+name+"_decodeBinary}"+
-          ",{.calcSize=(UA_calcSize)"+ name +"_calcSizeXml" +
-          ",.encode=(UA_encode)"+name+ "_encodeXml" +
-          ",.decode=(UA_decode)"+name+"_decodeXml}"+
+          ",.encodings={{.calcSize=(UA_calcSize)%(name)s_calcSizeBinary" +
+          ",.encode=(UA_encode)%(name)s_encodeBinary" +
+          ",.decode=(UA_decode)%(name)s_decodeBinary}" +
+          ",{.calcSize=(UA_calcSize)%(name)s_calcSizeXml" +
+          ",.encode=(UA_encode)%(name)s_encodeXml" +
+          ",.decode=(UA_decode)%(name)s_decodeXml}" +
           "}},")
 
 printc('''}};
 
-const UA_VTable UA_noDelete_ = {
+const UA_VTable UA_borrowed_ = {
 \t.getTypeIndex=UA_ns0ToVTableIndex,
 \t.types = (UA_VTable_Entry[]){''')
 
@@ -167,21 +176,21 @@ for row in rows:
     else:	
 	name = "UA_" + row[0]
 
-    printc("\t{.typeId={UA_NODEIDTYPE_FOURBYTE,0,.identifier.numeric=" + row[1] +"}"+ 
-          ",.name=(UA_Byte*)&\""+name+"\""+
-          ",.new=(UA_Int32(*)(void **))"+name+"_new"+
-          ",.init=(UA_Int32(*)(void *))"+name+"_init"+
-          ",.copy=(UA_Int32(*)(void const * ,void*))"+name+"_copy"+
-          ",.delete=(UA_Int32(*)(void *))phantom_delete"+
-          ",.deleteMembers=(UA_Int32(*)(void *))phantom_delete"+
-          ",.memSize=" + ("sizeof("+name+")" if (name != "UA_InvalidType") else "0") +
+    printc("\t{.typeId={UA_NODEIDTYPE_FOURBYTE,0,.identifier.numeric=" + row[1] + "}" + 
+          ",.name=(UA_Byte*)&\"%(name)s\"" +
+          ",.new=(UA_Int32(*)(void **))%(name)s_new" +
+          ",.init=(UA_Int32(*)(void *))%(name)s_init" +
+          ",.copy=(UA_Int32(*)(void const * ,void*))%(name)s_copy" +
+          ",.delete=(UA_Int32(*)(void *))phantom_delete" +
+          ",.deleteMembers=(UA_Int32(*)(void *))phantom_delete" +
+          ",.memSize=" + ("sizeof(%(name)s)" if (name != "UA_InvalidType") else "0") +
           ",.dynMembers=" + ("UA_FALSE" if (name in fixed_size) else "UA_TRUE") +
-          ",.encodings={{.calcSize=(UA_calcSize)"+ name +"_calcSizeBinary" +
-          ",.encode=(UA_encode)"+name+ "_encodeBinary" +
-          ",.decode=(UA_decode)"+name+"_decodeBinary}"+
-          ",{.calcSize=(UA_calcSize)"+ name +"_calcSizeXml" +
-          ",.encode=(UA_encode)"+name+ "_encodeXml" +
-          ",.decode=(UA_decode)"+name+"_decodeXml}"+
+          ",.encodings={{.calcSize=(UA_calcSize)" + name +"_calcSizeBinary" +
+          ",.encode=(UA_encode)%(name)s_encodeBinary" +
+          ",.decode=(UA_decode)%(name)s_decodeBinary}" +
+          ",{.calcSize=(UA_calcSize)%(name)s_calcSizeXml" +
+          ",.encode=(UA_encode)%(name)s_encodeXml" +
+          ",.decode=(UA_decode)%(name)s_decodeXml}" +
           "}},")
 
 printc("}};")
