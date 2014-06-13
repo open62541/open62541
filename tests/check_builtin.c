@@ -425,13 +425,13 @@ START_TEST(UA_LocalizedText_calcSizeTextOnlyShallReturnEncodingSize) {
 	// given
 	UA_LocalizedText arg;
 	UA_LocalizedText_init(&arg);
-	UA_String_new(&arg.text);
-	arg.text->length  = 42;
+	arg.text = (UA_String) {8, (UA_Byte *)"12345678"};
 	// when
 	UA_UInt32 encodingSize = UA_LocalizedText_calcSizeBinary(&arg);
 	// then
-	ck_assert_int_eq(encodingSize, 1+4+42);
+	ck_assert_int_eq(encodingSize, 1+4+8);
 	// finally
+	UA_LocalizedText_init(&arg); // do not delete text
 	UA_LocalizedText_deleteMembers(&arg);
 }
 END_TEST
@@ -439,12 +439,12 @@ START_TEST(UA_LocalizedText_calcSizeLocaleOnlyShallReturnEncodingSize) {
 	// given
 	UA_LocalizedText arg;
 	UA_LocalizedText_init(&arg);
-	UA_String_new(&arg.locale);
-	arg.locale->length = 11;
+	arg.locale = (UA_String) {8, (UA_Byte *)"12345678"};
 	// when
 	UA_UInt32 encodingSize = UA_LocalizedText_calcSizeBinary(&arg);
 	// then
-	ck_assert_int_eq(encodingSize, 1+4+11);
+	ck_assert_int_eq(encodingSize, 1+4+8);
+	UA_LocalizedText_init(&arg); // do not delete locale
 	UA_LocalizedText_deleteMembers(&arg);
 }
 END_TEST
@@ -452,14 +452,13 @@ START_TEST(UA_LocalizedText_calcSizeTextAndLocaleShallReturnEncodingSize) {
 	// given
 	UA_LocalizedText arg;
 	UA_LocalizedText_init(&arg);
-	UA_String_new(&arg.text);
-	UA_String_new(&arg.locale);
-	arg.text->length   = 47;
-	arg.locale->length = 11;
+	arg.locale = (UA_String) {8, (UA_Byte *)"12345678"};
+	arg.text = (UA_String) {8, (UA_Byte *)"12345678"};
 	// when
 	UA_UInt32 encodingSize = UA_LocalizedText_calcSizeBinary(&arg);
 	// then
-	ck_assert_int_eq(encodingSize, 1+4+11+4+47);
+	ck_assert_int_eq(encodingSize, 1+4+8+4+8);
+	UA_LocalizedText_init(&arg); // do not delete locale and text
 	UA_LocalizedText_deleteMembers(&arg);
 }
 END_TEST

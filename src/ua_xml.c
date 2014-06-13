@@ -672,9 +672,9 @@ void print_node(UA_Node const * node) {
 	if (node != UA_NULL) {
 		UA_NodeId_printf("node.nodeId=", &(node->nodeId));
 		printf("\t.browseName='%.*s'\n", node->browseName.name.length, node->browseName.name.data);
-		printf("\t.displayName='%.*s'\n", node->displayName.text->length, node->displayName.text->data);
-		printf("\t.description='%.*s%s'\n", node->description.text->length > 40 ? 40 : node->description.text->length,
-		       node->description.text->data, node->description.text->length > 40 ? "..." : "");
+		printf("\t.displayName='%.*s'\n", node->displayName.text.length, node->displayName.text.data);
+		printf("\t.description='%.*s%s'\n", node->description.text.length > 40 ? 40 : node->description.text.length,
+		       node->description.text.data, node->description.text.length > 40 ? "..." : "");
 		printf("\t.nodeClass=%d\n", node->nodeClass);
 		printf("\t.writeMask=%d\n", node->writeMask);
 		printf("\t.userWriteMask=%d\n", node->userWriteMask);
@@ -709,8 +709,9 @@ void print_node(UA_Node const * node) {
 				{
 					if(p->value.data != UA_NULL) {
 						UA_LocalizedText *ltp = (UA_LocalizedText *)currentData;
-						printf(",locale={%d,{%.*s}},text={%d,{%.*s}}", ltp->locale->length, ltp->locale->length,
-							   ltp->locale->data, ltp->text->length, ltp->text->length, ltp->text->data);
+						printf(",locale={%d,{%.*s}},text={%d,{%.*s}}", ltp->locale.length,
+							   ltp->locale.length, ltp->locale.data, ltp->text.length,
+							   ltp->text.length, ltp->text.data);
 					}
 				}
 				break;

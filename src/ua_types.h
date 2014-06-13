@@ -143,8 +143,8 @@ typedef struct UA_QualifiedName {
 
 /** @brief Human readable text with an optional locale identifier. */
 typedef struct UA_LocalizedText {
-	UA_String *locale;
-	UA_String *text;
+	UA_String locale;
+	UA_String text;
 } UA_LocalizedText;
 
 enum UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_enum {

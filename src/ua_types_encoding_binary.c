@@ -501,35 +501,35 @@ UA_Int32 UA_LocalizedText_calcSizeBinary(UA_LocalizedText const *p) {
 	UA_Int32 length = 1; // for encodingMask
 	if(p == UA_NULL)
 		return sizeof(UA_LocalizedText);
-	if(p->locale != UA_NULL)
-		length += UA_String_calcSizeBinary(p->locale);
-	if(p->text != UA_NULL)
-		length += UA_String_calcSizeBinary(p->text);
+	if(p->locale.data != UA_NULL)
+		length += UA_String_calcSizeBinary(&p->locale);
+	if(p->text.data != UA_NULL)
+		length += UA_String_calcSizeBinary(&p->text);
 	return length;
 }
 
 UA_TYPE_ENCODEBINARY(UA_LocalizedText,
 					 UA_Byte encodingMask = 0;
-					 if(src->locale != UA_NULL)
+					 if(src->locale.data != UA_NULL)
 						 encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE;
-					 if(src->text != UA_NULL)
+					 if(src->text.data != UA_NULL)
 						 encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
                      retval |= UA_Byte_encodeBinary(&encodingMask, dst, offset);
                      if(encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE)
-						 retval |= UA_String_encodeBinary(src->locale, dst, offset);
+						 retval |= UA_String_encodeBinary(&src->locale, dst, offset);
                      if(encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT)
-						 retval |= UA_String_encodeBinary(src->text, dst, offset); )
+						 retval |= UA_String_encodeBinary(&src->text, dst, offset); )
 
 UA_Int32 UA_LocalizedText_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA_LocalizedText *dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_LocalizedText_init(dst);
-	UA_Byte encodingMask;
+	UA_Byte encodingMask = 0;
 	CHECKED_DECODE(UA_Byte_decodeBinary(src, offset, &encodingMask),; );
 	if(encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE)
-		CHECKED_DECODE(UA_String_new(&dst->locale); UA_String_decodeBinary(src, offset, dst->locale),
+		CHECKED_DECODE(UA_String_decodeBinary(src, offset, &dst->locale),
 					   UA_LocalizedText_deleteMembers(dst));
 	if(encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT)
-		CHECKED_DECODE(UA_String_new(&dst->text); UA_String_decodeBinary(src, offset, dst->text),
+		CHECKED_DECODE(UA_String_decodeBinary(src, offset, &dst->text),
 					   UA_LocalizedText_deleteMembers(dst));
 	return retval;
 }

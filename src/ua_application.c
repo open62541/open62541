@@ -16,8 +16,8 @@ UA_Node* create_node_ns0(UA_Int32 class, UA_Int32 nodeClass, UA_Int32 const id, 
 	n->nodeId.namespace = 0;
 	n->nodeId.identifier.numeric = id;
 	UA_String_copycstring(qn,&(n->browseName.name));
-	UA_String_copycstring(dn,n->displayName.text);
-	UA_String_copycstring(desc,n->description.text);
+	UA_String_copycstring(dn,&n->displayName.text);
+	UA_String_copycstring(desc,&n->description.text);
 	n->nodeClass = nodeClass;
 	return n;
 }

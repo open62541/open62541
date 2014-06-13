@@ -529,33 +529,27 @@ UA_TYPE_DELETE_DEFAULT(UA_LocalizedText)
 UA_Int32 UA_LocalizedText_deleteMembers(UA_LocalizedText *p) {
 	if(p == UA_NULL) return UA_SUCCESS;
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_String_delete(p->locale);
-	p->locale = UA_NULL;
-	retval |= UA_String_delete(p->text);
-	p->text = UA_NULL;
+	retval |= UA_String_deleteMembers(&p->locale);
+	retval |= UA_String_deleteMembers(&p->text);
 	return retval;
 }
 
 UA_Int32 UA_LocalizedText_init(UA_LocalizedText *p) {
 	if(p == UA_NULL) return UA_ERROR;
-	p->locale = UA_NULL;
-	p->text = UA_NULL;
+	UA_String_init(&p->locale);
+	UA_String_init(&p->text);
 	return UA_SUCCESS;
 }
 
 UA_TYPE_NEW_DEFAULT(UA_LocalizedText)
 UA_Int32 UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst) {
 	if(dst == UA_NULL) return UA_ERROR;
-	UA_Int32 retval = UA_SUCCESS;
+	UA_LocalizedText_init(dst);
 
-	retval |= UA_LocalizedText_init(dst);
-	retval |= UA_String_new(&dst->locale);
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_String_copycstring("EN", &dst->locale); // TODO: Are language codes upper case?
 	if(retval != UA_SUCCESS) return retval;
-	retval |= UA_String_copycstring("EN", dst->locale); // TODO: Are language codes upper case?
-	if(retval != UA_SUCCESS) return retval;
-	retval |= UA_String_new(&dst->text);
-	if(retval != UA_SUCCESS) return retval;
-	retval |= UA_String_copycstring(src, dst->text);
+	retval |= UA_String_copycstring(src, &dst->text);
 	return retval;
 }
 
@@ -564,17 +558,9 @@ UA_Int32 UA_LocalizedText_copy(UA_LocalizedText const *src, UA_LocalizedText *ds
 	UA_Int32 retval = UA_SUCCESS;
 
 	retval |= UA_LocalizedText_init(dst);
-	if(src->locale != UA_NULL) {
-		retval |= UA_String_new(&dst->locale);
-		if(retval != UA_SUCCESS) return retval;
-		retval |= UA_String_copy(src->locale, dst->locale);
-		if(retval != UA_SUCCESS) return retval;
-	}
-	if(src->text != UA_NULL) {
-		retval |= UA_String_new(&dst->text);
-		if(retval != UA_SUCCESS) return retval;
-		retval |= UA_String_copy(src->text, dst->text);
-	}
+	retval |= UA_String_copy(&src->locale, &dst->locale);
+	if(retval != UA_SUCCESS) return retval;
+	retval |= UA_String_copy(&src->text, &dst->text);
 	return retval;
 }
 

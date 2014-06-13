@@ -320,9 +320,9 @@ UA_Int32 UA_LocalizedText_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_Lo
 		// set attributes
 		for(i = 0;attr[i];i += 2) {
 			if(0 == strncmp("Text", attr[i], strlen("Text"))) {
-				UA_String_copycstring(attr[i + 1], dst->text);
+				UA_String_copycstring(attr[i + 1], &dst->text);
 			} else if(0 == strncmp("Locale", attr[i], strlen("Locale"))) {
-				UA_String_copycstring(attr[i + 1], dst->locale);
+				UA_String_copycstring(attr[i + 1], &dst->locale);
 			} else
 				perror("Unknown attribute");
 		}
