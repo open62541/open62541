@@ -291,7 +291,7 @@ UA_Int32 UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length) {
 	if((retval |= UA_alloc((void **)&p->data, length)) == UA_SUCCESS)
 		p->length = length;
 	else {
-		p->length = length;
+		p->length = -1;
 		p->data   = UA_NULL;
 	}
 	return retval;

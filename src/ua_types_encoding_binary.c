@@ -7,7 +7,7 @@
 
 UA_Int32 UA_Array_calcSizeBinary(UA_Int32 nElements, UA_VTable_Entry *vt, const void *data) {
 	if(vt == UA_NULL || data == UA_NULL)
-		return UA_ERROR;
+		return 0; // do not return error as the result will be used to allocate memory
 
 	UA_Int32  length     = sizeof(UA_Int32);
 	UA_UInt32 memSize    = vt->memSize;
