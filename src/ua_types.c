@@ -708,7 +708,8 @@ UA_Int32 UA_Variant_borrowSetArray(UA_Variant *v, UA_VTable_Entry *vt, UA_Int32 
 	UA_Variant_init(v);
 	v->vt = &UA_borrowed_.types[UA_ns0ToVTableIndex(&vt->typeId)];
 	v->arrayLength = arrayLength;
-	return UA_Array_copy(array, arrayLength, v->vt, &v->data);
+	vt->data = array;
+	return UA_SUCCESS;
 }
 
 /* DiagnosticInfo */
