@@ -498,39 +498,39 @@ UA_TYPE_ENCODEBINARY(UA_QualifiedName,
 
 /* LocalizedText */
 UA_Int32 UA_LocalizedText_calcSizeBinary(UA_LocalizedText const *p) {
-	UA_Int32 length = 0;
-	if(p == UA_NULL) {
-		// size for UA_memalloc
-		length = sizeof(UA_LocalizedText);
-	} else {
-		// size for binary encoding
-		length += 1; // p->encodingMask;
-		if(p->encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE)
-			length += UA_String_calcSizeBinary(&p->locale);
-		if(p->encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT)
-			length += UA_String_calcSizeBinary(&p->text);
-	}
+	UA_Int32 length = 1; // for encodingMask
+	if(p == UA_NULL)
+		return sizeof(UA_LocalizedText);
+	if(p->locale != UA_NULL)
+		length += UA_String_calcSizeBinary(p->locale);
+	if(p->text != UA_NULL)
+		length += UA_String_calcSizeBinary(p->text);
 	return length;
 }
 
 UA_TYPE_ENCODEBINARY(UA_LocalizedText,
-                     retval |= UA_Byte_encodeBinary(&src->encodingMask, dst, offset);
-                     if(src->encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE)
-						 retval |= UA_String_encodeBinary(&src->locale, dst, offset);
-                     if(src->encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT)
-						 retval |= UA_String_encodeBinary(&src->text, dst, offset); )
+					 UA_Byte encodingMask = 0;
+					 if(src->locale != UA_NULL)
+						 encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE;
+					 if(src->text != UA_NULL)
+						 encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
+                     retval |= UA_Byte_encodeBinary(&encodingMask, dst, offset);
+                     if(encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE)
+						 retval |= UA_String_encodeBinary(src->locale, dst, offset);
+                     if(encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT)
+						 retval |= UA_String_encodeBinary(src->text, dst, offset); )
 
 UA_Int32 UA_LocalizedText_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA_LocalizedText *dst) {
 	UA_Int32 retval = UA_SUCCESS;
-
-	retval |= UA_String_init(&dst->locale);
-	retval |= UA_String_init(&dst->text);
-
-	CHECKED_DECODE(UA_Byte_decodeBinary(src, offset, &dst->encodingMask),; );
-	if(dst->encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE)
-		CHECKED_DECODE(UA_String_decodeBinary(src, offset, &dst->locale), UA_LocalizedText_deleteMembers(dst));
-	if(dst->encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT)
-		CHECKED_DECODE(UA_String_decodeBinary(src, offset, &dst->text), UA_LocalizedText_deleteMembers(dst));
+	retval |= UA_LocalizedText_init(dst);
+	UA_Byte encodingMask;
+	CHECKED_DECODE(UA_Byte_decodeBinary(src, offset, &encodingMask),; );
+	if(encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE)
+		CHECKED_DECODE(UA_String_new(&dst->locale); UA_String_decodeBinary(src, offset, dst->locale),
+					   UA_LocalizedText_deleteMembers(dst));
+	if(encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT)
+		CHECKED_DECODE(UA_String_new(&dst->text); UA_String_decodeBinary(src, offset, dst->text),
+					   UA_LocalizedText_deleteMembers(dst));
 	return retval;
 }
 

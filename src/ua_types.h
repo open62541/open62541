@@ -143,9 +143,8 @@ typedef struct UA_QualifiedName {
 
 /** @brief Human readable text with an optional locale identifier. */
 typedef struct UA_LocalizedText {
-	UA_Byte   encodingMask;
-	UA_String locale;
-	UA_String text;
+	UA_String *locale;
+	UA_String *text;
 } UA_LocalizedText;
 
 enum UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_enum {
@@ -153,7 +152,8 @@ enum UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_enum {
 	UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT   = 0x02
 };
 
-/** @brief A structure that contains an application specific data type that may not be recognized by the receiver. */
+/** @brief A structure that contains an application specific data type that may
+	not be recognized by the receiver. */
 typedef struct UA_ExtensionObject {
 	UA_NodeId     typeId;
 	UA_Byte       encoding;     // Type of the enum UA_ExtensionObjectEncodingMaskType

@@ -320,22 +320,20 @@ UA_Int32 UA_LocalizedText_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_Lo
 		// set attributes
 		for(i = 0;attr[i];i += 2) {
 			if(0 == strncmp("Text", attr[i], strlen("Text"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->text));
-				dst->encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
+				UA_String_copycstring(attr[i + 1], dst->text);
 			} else if(0 == strncmp("Locale", attr[i], strlen("Locale"))) {
-				UA_String_copycstring(attr[i + 1], &(dst->locale));
-				dst->encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE;
+				UA_String_copycstring(attr[i + 1], dst->locale);
 			} else
 				perror("Unknown attribute");
 		}
 	} else {
 		switch(s->parent[s->depth - 1].activeChild) {
 		case 0:
-			dst->encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
+			//dst->encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
 			break;
 
 		case 1:
-			dst->encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE;
+			//dst->encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE;
 			break;
 
 		default:

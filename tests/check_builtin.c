@@ -424,35 +424,43 @@ END_TEST
 START_TEST(UA_LocalizedText_calcSizeTextOnlyShallReturnEncodingSize) {
 	// given
 	UA_LocalizedText arg;
-	arg.encodingMask = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
-	arg.text.length  = 42;
+	UA_LocalizedText_init(&arg);
+	UA_String_new(&arg.text);
+	arg.text->length  = 42;
 	// when
 	UA_UInt32 encodingSize = UA_LocalizedText_calcSizeBinary(&arg);
 	// then
 	ck_assert_int_eq(encodingSize, 1+4+42);
+	// finally
+	UA_LocalizedText_deleteMembers(&arg);
 }
 END_TEST
 START_TEST(UA_LocalizedText_calcSizeLocaleOnlyShallReturnEncodingSize) {
 	// given
 	UA_LocalizedText arg;
-	arg.encodingMask  = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE;
-	arg.locale.length = 11;
+	UA_LocalizedText_init(&arg);
+	UA_String_new(&arg.locale);
+	arg.locale->length = 11;
 	// when
 	UA_UInt32 encodingSize = UA_LocalizedText_calcSizeBinary(&arg);
 	// then
 	ck_assert_int_eq(encodingSize, 1+4+11);
+	UA_LocalizedText_deleteMembers(&arg);
 }
 END_TEST
 START_TEST(UA_LocalizedText_calcSizeTextAndLocaleShallReturnEncodingSize) {
 	// given
 	UA_LocalizedText arg;
-	arg.encodingMask  = UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE | UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
-	arg.text.length   = 47;
-	arg.locale.length = 11;
+	UA_LocalizedText_init(&arg);
+	UA_String_new(&arg.text);
+	UA_String_new(&arg.locale);
+	arg.text->length   = 47;
+	arg.locale->length = 11;
 	// when
 	UA_UInt32 encodingSize = UA_LocalizedText_calcSizeBinary(&arg);
 	// then
 	ck_assert_int_eq(encodingSize, 1+4+11+4+47);
+	UA_LocalizedText_deleteMembers(&arg);
 }
 END_TEST
 START_TEST(UA_Variant_calcSizeFixedSizeArrayShallReturnEncodingSize) {

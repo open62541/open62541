@@ -114,7 +114,7 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
 	UA_Int32 buflen = 256;
 	UA_ByteString_newMembers(&msg1, buflen); // fixed size
 	srandom(42);
-	for(int n = 0;n < 1000;n++) {
+	for(int n = 0;n < 100;n++) {
 		for(UA_Int32 i = 0;i < buflen;i++) msg1.data[i] = (UA_Byte)random();  // when
 		UA_UInt32 pos = 0;
 		retval |= UA_.types[_i].new(&obj1);
@@ -137,7 +137,7 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
 	UA_ByteString_newMembers(&msg1, buflen); // fixed size
 	srandom(42);
 	// when
-	for(int n = 0;n < 1000;n++) {
+	for(int n = 0;n < 100;n++) {
 		for(UA_Int32 i = 0;i < buflen;i++) msg1.data[i] = (UA_Byte)random();
 		UA_UInt32 pos = 0;
 		retval |= UA_.types[_i].new(&obj1);
