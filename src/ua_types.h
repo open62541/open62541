@@ -101,13 +101,10 @@ typedef struct UA_Guid {
 } UA_Guid;
 
 /** @brief A sequence of octets. */
-typedef struct UA_ByteString {
-	UA_Int32 length;
-	UA_Byte *data;
-} UA_ByteString;
+typedef struct UA_String UA_ByteString;
 
 /** @brief An XML element. */
-typedef struct UA_ByteString UA_XmlElement;
+typedef struct UA_String UA_XmlElement;
 
 /** @brief An identifier for a node in the address space of an OPC UA Server. */
 typedef struct UA_NodeId {
@@ -153,7 +150,7 @@ enum UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_enum {
 };
 
 /** @brief A structure that contains an application specific data type that may
-	not be recognized by the receiver. */
+    not be recognized by the receiver. */
 typedef struct UA_ExtensionObject {
 	UA_NodeId     typeId;
 	UA_Byte       encoding;     // Type of the enum UA_ExtensionObjectEncodingMaskType
@@ -172,11 +169,10 @@ typedef struct UA_VTable_Entry UA_VTable_Entry;
 /** @brief A union of all of the types specified above. */
 typedef struct UA_Variant {
 	UA_VTable_Entry *vt;          // internal entry into vTable
-	//UA_Byte encodingMask;       // Type of UA_Variant_EncodingMaskType_enum .. is generated, not set.
-	UA_Int32         arrayLength; // total number of elements
-	UA_Int32         arrayDimensionsLength;
-	UA_Int32        *arrayDimensions;
-	void *data;
+	UA_Int32  arrayLength;        // total number of elements
+	void     *data;
+	UA_Int32  arrayDimensionsLength;
+	UA_Int32 *arrayDimensions;
 } UA_Variant;
 
 /* VariantBinaryEncoding - Part: 6, Chapter: 5.2.2.16, Page: 22 */
@@ -330,7 +326,8 @@ UA_Int32 UA_Variant_copySetArray(UA_Variant *v, UA_VTable_Entry *vt, UA_Int32 ar
    vtable. The functionality can be used e.g. when UA_VariableNodes point into a
    "father" structured object that is stored in an UA_VariableNode itself. */
 UA_Int32 UA_Variant_borrowSetValue(UA_Variant *v, UA_VTable_Entry *vt, const void *value);
-UA_Int32 UA_Variant_borrowSetArray(UA_Variant *v, UA_VTable_Entry *vt, UA_Int32 arrayLength, const void *array);
+UA_Int32 UA_Variant_borrowSetArray(UA_Variant *v, UA_VTable_Entry *vt, UA_Int32 arrayLength,
+                                   const void *array);
 
 /* Array operations */
 UA_Int32 UA_Array_new(void **p, UA_Int32 noElements, UA_VTable_Entry *vt);
@@ -363,15 +360,15 @@ typedef struct UA_Encoding {
 #define UA_ENCODING_XML 1
 
 struct UA_VTable_Entry {
-	UA_NodeId   typeId;
-	UA_Byte    *name;
-	UA_Int32    (*new)(void **p);
-	UA_Int32    (*init)(void *p);
-	UA_Int32    (*copy)(void const *src, void *dst);
-	UA_Int32    (*delete)(void *p);
-	UA_Int32    (*deleteMembers)(void *p);
-	UA_UInt32   memSize;      // size of the struct only in memory (no dynamic components)
-	UA_Boolean  dynMembers;   // does the type contain members that are dynamically
+	UA_NodeId  typeId;
+	UA_Byte   *name;
+	UA_Int32   (*new)(void **p);
+	UA_Int32   (*init)(void *p);
+	UA_Int32   (*copy)(void const *src, void *dst);
+	UA_Int32   (*delete)(void *p);
+	UA_Int32   (*deleteMembers)(void *p);
+	UA_UInt32  memSize;       // size of the struct only in memory (no dynamic components)
+	UA_Boolean dynMembers;    // does the type contain members that are dynamically
 	                          // allocated (strings, ..)? Otherwise, the size on
 	                          // the wire == size in memory.
 	UA_Encoding encodings[2]; // binary, xml, ...
@@ -432,12 +429,12 @@ typedef struct UA_VTable {
     UA_Int32 TYPE##_deleteMembers(TYPE * p) { return TYPE_AS##_deleteMembers((TYPE_AS *)p); }
 
 /* Use only when the type has no arrays. Otherwise, implement deep copy */
-#define UA_TYPE_COPY_DEFAULT(TYPE)                     \
-    UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst) { \
-    	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR; \
-		UA_Int32 retval = UA_SUCCESS;                  \
-		retval |= UA_memcpy(dst, src, sizeof(TYPE));   \
-		return retval;                                 \
+#define UA_TYPE_COPY_DEFAULT(TYPE)                             \
+    UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst) {         \
+		if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;  \
+		UA_Int32 retval = UA_SUCCESS;                          \
+		retval |= UA_memcpy(dst, src, sizeof(TYPE));           \
+		return retval;                                         \
 	}
 
 #define UA_TYPE_COPY_AS(TYPE, TYPE_AS)                         \
