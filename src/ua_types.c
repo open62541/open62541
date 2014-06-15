@@ -138,7 +138,11 @@ UA_Int32 UA_String_copy(UA_String const *src, UA_String *dst) {
 
 void UA_String_print(const UA_String *p, FILE *stream) {
 	if(p == UA_NULL || stream == UA_NULL) return;
-	fprintf(stream, "(UA_String){%d, \"%.*s\"}", p->length, p->length, p->data);
+	fprintf(stream, "(UA_String){%d,", p->length);
+	if(p->data != UA_NULL)
+		fprintf(stream, "\"%.*s\"}", p->length, p->data);
+	else
+		fprintf(stream, "UA_NULL}");
 }
 
 UA_Int32 UA_String_copycstring(char const *src, UA_String *dst) {
@@ -427,6 +431,7 @@ void UA_NodeId_print(const UA_NodeId *p, FILE *stream) {
 		break;
 	case UA_NODEIDTYPE_FOURBYTE:
 		fprintf(stream, "UA_NODEIDTYPE_FOURBYTE");
+		break;
 	case UA_NODEIDTYPE_NUMERIC:
 		fprintf(stream, "UA_NODEIDTYPE_NUMERIC");
 		break;
