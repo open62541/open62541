@@ -1,6 +1,7 @@
 #ifndef UA_TYPES_H_
 #define UA_TYPES_H_
 
+#include <stdio.h>
 #include <stdint.h>
 
 /**
@@ -25,8 +26,8 @@
  * - <type>_delete: Frees the memory where the datatype was stored.
  *
  * - <type>_deleteMembers: Frees the memory of dynamically sized members (e.g. a
-     string) of a datatype. This is useful when the datatype was allocated on
-     the stack, whereas the dynamically sized members is heap-allocated.
+ *   string) of a datatype. This is useful when the datatype was allocated on
+ *   the stack, whereas the dynamically sized members is heap-allocated.
  *
  * @{
  */
@@ -166,7 +167,10 @@ enum UA_ExtensionObject_EncodingMaskType_enum {
 struct UA_VTable_Entry; // forwards declaration
 typedef struct UA_VTable_Entry UA_VTable_Entry;
 
-/** @brief A union of all of the types specified above. */
+/** @brief A union of all of the types specified above.
+ *
+ * Variants store (arrays of) built-in types. If you want to store a more
+ * complex (or self-defined) type, you have to use an UA_ExtensionObject.*/
 typedef struct UA_Variant {
 	UA_VTable_Entry *vt;          // internal entry into vTable
 	UA_Int32  arrayLength;        // total number of elements
@@ -236,7 +240,8 @@ typedef void UA_InvalidType;
     UA_Int32 TYPE##_init(TYPE * p);          \
     UA_Int32 TYPE##_delete(TYPE * p);        \
     UA_Int32 TYPE##_deleteMembers(TYPE * p); \
-    UA_Int32 TYPE##_copy(const TYPE *src, TYPE *dst);
+    UA_Int32 TYPE##_copy(const TYPE *src, TYPE *dst); \
+	void TYPE##_print(const TYPE *p, FILE *stream);
 
 /* Functions for all types */
 UA_TYPE_PROTOTYPES(UA_Boolean)
@@ -336,6 +341,7 @@ UA_Int32 UA_Array_delete(void *p, UA_Int32 noElements, UA_VTable_Entry *vt);
 
 /* @brief The destination array is allocated according to noElements. */
 UA_Int32 UA_Array_copy(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt, void **dst);
+void UA_Array_print(const void *p, UA_Int32 noElements, UA_VTable_Entry *vt, FILE *stream);
 
 /**********/
 /* VTable */
@@ -367,6 +373,7 @@ struct UA_VTable_Entry {
 	UA_Int32   (*copy)(void const *src, void *dst);
 	UA_Int32   (*delete)(void *p);
 	UA_Int32   (*deleteMembers)(void *p);
+	void       (*print)(const void *p, FILE *stream);
 	UA_UInt32  memSize;       // size of the struct only in memory (no dynamic components)
 	UA_Boolean dynMembers;    // does the type contain members that are dynamically
 	                          // allocated (strings, ..)? Otherwise, the size on
@@ -442,12 +449,18 @@ typedef struct UA_VTable {
 		return TYPE_AS##_copy((TYPE_AS *)src, (TYPE_AS *)dst); \
 	}
 
+#define UA_TYPE_PRINT_AS(TYPE, TYPE_AS)                        \
+    void TYPE##_print(TYPE const *p, FILE *stream) {		   \
+		TYPE_AS##_print((TYPE_AS *)p, stream);				   \
+	}
+
 #define UA_TYPE_AS(TYPE, TYPE_AS)           \
     UA_TYPE_NEW_DEFAULT(TYPE)               \
     UA_TYPE_INIT_AS(TYPE, TYPE_AS)          \
     UA_TYPE_DELETE_AS(TYPE, TYPE_AS)        \
     UA_TYPE_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
-    UA_TYPE_COPY_AS(TYPE, TYPE_AS)
+    UA_TYPE_COPY_AS(TYPE, TYPE_AS)			\
+	UA_TYPE_PRINT_AS(TYPE, TYPE_AS)
 
 /// @} /* end of group */
 

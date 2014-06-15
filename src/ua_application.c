@@ -48,8 +48,8 @@ void appMockup_init() {
 	UA_Array_new((void**)&v->value.data, 2, &UA_.types[UA_STRING]);
 	v->value.vt = &UA_.types[UA_STRING];
 	v->value.arrayLength = 2;
-	UA_String_copycstring("http://opcfoundation.org/UA/",((UA_String **)(((v)->value).data))[0]);
-	UA_String_copycstring("http://localhost:16664/open62541/",((UA_String **)(((v)->value).data))[1]);
+	UA_String_copycstring("http://opcfoundation.org/UA/",&((UA_String *)((v->value).data))[0]);
+	UA_String_copycstring("http://localhost:16664/open62541/",&((UA_String *)(((v)->value).data))[1]);
 	v->dataType.encodingByte = UA_NODEIDTYPE_FOURBYTE;
 	v->dataType.identifier.numeric = UA_STRING_NS0;
 	v->valueRank = 1;
@@ -59,16 +59,13 @@ void appMockup_init() {
 	Namespace_insert(ns0,np);
 
 #if defined(DEBUG) && defined(VERBOSE)
-	uint32_t i, j;
-	for (i=0, j=0; i < ns0->size && j < ns0->count; i++) {
-		// Namespace_Entry is opaque. The content cannot be accessed from here.
-		/* if (ns0->entries[i] != UA_NULL) { */
-		/* 	printf("appMockup_init - entries[%d]={",i); */
-		/* 	UA_NodeId_printf("nodeId=",&(ns0->entries[i].node->nodeId)); */
-		/* 	UA_String_printf(",browseName=",&(ns0->entries[i].node->browseName.name)); */
-		/* 	j++; */
-		/* 	printf("}\n"); */
-		/* } */
+	uint32_t i;
+	for (i=0;i < ns0->size;i++) {
+		if (ns0->entries[i].node != UA_NULL) {
+			printf("appMockup_init - entries[%d]={",i);
+			UA_Node_print(ns0->entries[i].node, stdout);
+			printf("}\n");
+		}
 	}
 #endif
 }

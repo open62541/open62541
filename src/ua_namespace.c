@@ -6,11 +6,6 @@
 /* Internal (not exported) functionality */
 /*****************************************/
 
-struct Namespace_Entry {
-	UA_UInt64 status;	/* 2 bits status | 14 bits checkout count | 48 bits timestamp */
-	const UA_Node *node;	/* Nodes are immutable. It is not recommended to change nodes in place */
-};
-
 struct Namespace_Entry_Lock {
 	Namespace_Entry *entry;
 };

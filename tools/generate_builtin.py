@@ -144,8 +144,8 @@ def createStructured(element):
 
     # 4) CalcSizeBinary
     printc('''UA_Int32 %(name)s_calcSizeBinary(%(name)s const * ptr) {
-    \tif(ptr==UA_NULL) return sizeof(%(name)s);
-    \treturn 0''')
+    if(ptr==UA_NULL) return sizeof(%(name)s);
+    return 0''')
     has_fixed_size = True
     for n,t in membermap.iteritems():
         if t in fixed_size:
@@ -163,7 +163,7 @@ def createStructured(element):
 
     # 5) EncodeBinary
     printc('''UA_Int32 %(name)s_encodeBinary(%(name)s const * src, UA_ByteString* dst, UA_UInt32 *offset) {
-    \tUA_Int32 retval = UA_SUCCESS;''')
+    UA_Int32 retval = UA_SUCCESS;''')
     for n,t in membermap.iteritems():
         if t.find("*") != -1:
             printc("\tretval |= UA_Array_encodeBinary(src->%(n)s,src->%(n)sSize,&UA_.types[" +
@@ -174,7 +174,7 @@ def createStructured(element):
 
     # 6) DecodeBinary
     printc('''UA_Int32 %(name)s_decodeBinary(UA_ByteString const * src, UA_UInt32 *offset, %(name)s * dst) {
-    \tUA_Int32 retval = UA_SUCCESS;''')
+    UA_Int32 retval = UA_SUCCESS;''')
     printc('\t'+name+'_init(dst);')
     for n,t in membermap.iteritems():
         if t.find("*") != -1:
@@ -200,7 +200,7 @@ def createStructured(element):
 	
     # 9) DeleteMembers
     printc('''UA_Int32 %(name)s_deleteMembers(%(name)s *p) {
-    \tUA_Int32 retval = UA_SUCCESS;''')
+    UA_Int32 retval = UA_SUCCESS;''')
     for n,t in membermap.iteritems():
         if not t in fixed_size: # dynamic size on the wire
             if t.find("*") != -1:
@@ -212,7 +212,7 @@ def createStructured(element):
 
     # 10) Init
     printc('''UA_Int32 %(name)s_init(%(name)s *p) {
-    \tUA_Int32 retval = UA_SUCCESS;''')
+    UA_Int32 retval = UA_SUCCESS;''')
     for n,t in membermap.iteritems():
         if t.find("*") != -1:
             printc('\tp->%(n)sSize = 0;')
@@ -226,8 +226,8 @@ def createStructured(element):
 
     # 12) Copy
     printc('''UA_Int32 %(name)s_copy(const %(name)s *src,%(name)s *dst) {
-    \tif(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
-    \tUA_Int32 retval = UA_SUCCESS;''')
+    if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
+    UA_Int32 retval = UA_SUCCESS;''')
     printc("\tmemcpy(dst, src, sizeof(%(name)s));")
     for n,t in membermap.iteritems():
         if t.find("*") != -1:
@@ -238,6 +238,21 @@ def createStructured(element):
         if not t in fixed_size: # there are members of variable size    
             printc('\tretval |= %(t)s_copy(&src->%(n)s,&dst->%(n)s);')
     printc("\treturn retval;\n}\n")
+
+    # 13) Print
+    printc('''void %(name)s_print(const %(name)s *p, FILE *stream) {
+    fprintf(stream, "(%(name)s){");''')
+    for i,(n,t) in enumerate(membermap.iteritems()):
+        if t.find("*") != -1:
+            printc('\tUA_Int32_print(&p->%(n)sSize, stream);')
+            printc("\tUA_Array_print(p->%(n)s, p->%(n)sSize, &UA_.types[" + t[0:t.find("*")].upper()+"], stream);")
+        else:
+            printc('\t%(t)s_print(&p->%(n)s,stream);')
+        if i == len(membermap)-1:
+            continue
+	printc('\tfprintf(stream, ",");')
+    printc('''\tfprintf(stream, "}");\n}\n''')
+    
 	
 printh('''/**
  * @file '''+sys.argv[2]+'''.h

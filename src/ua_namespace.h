@@ -13,8 +13,11 @@
 
 /** @brief Namespace entries point to an UA_Node. But the actual data structure
 	is opaque outside of ua_namespace.c */
-struct Namespace_Entry;
-typedef struct Namespace_Entry Namespace_Entry;
+
+typedef struct Namespace_Entry {
+	UA_UInt64 status;	/* 2 bits status | 14 bits checkout count | 48 bits timestamp */
+	const UA_Node *node;	/* Nodes are immutable. It is not recommended to change nodes in place */
+} Namespace_Entry;
 
 /** @brief Namespace datastructure. It mainly serves as a hashmap to UA_Nodes. */
 typedef struct Namespace {

@@ -24,47 +24,92 @@ UA_TYPE_DELETE_DEFAULT(UA_Boolean)
 UA_TYPE_DELETEMEMBERS_NOACTION(UA_Boolean)
 UA_TYPE_NEW_DEFAULT(UA_Boolean)
 UA_TYPE_COPY_DEFAULT(UA_Boolean)
+void UA_Boolean_print(const UA_Boolean *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	if(*p) fprintf(stream, "UA_TRUE");
+	else fprintf(stream, "UA_FALSE");
+}
 
 /* SByte */
 UA_TYPE_DEFAULT(UA_SByte)
+void UA_SByte_print(const UA_SByte *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	UA_SByte x = *p;
+	fprintf(stream, "%s%x\n", x<0?"-":"", x<0?-x:x);
+}
 
 /* Byte */
 UA_TYPE_DEFAULT(UA_Byte)
+void UA_Byte_print(const UA_Byte *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "%x", *p);
+}
 
 /* Int16 */
 UA_TYPE_DEFAULT(UA_Int16)
+void UA_Int16_print(const UA_Int16 *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "%d", *p);
+}
 
 /* UInt16 */
 UA_TYPE_DEFAULT(UA_UInt16)
+void UA_UInt16_print(const UA_UInt16 *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "%u", *p);
+}
 
 /* Int32 */
 UA_TYPE_DEFAULT(UA_Int32)
+void UA_Int32_print(const UA_Int32 *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "%d", *p);
+}
 
 /* UInt32 */
 UA_TYPE_DEFAULT(UA_UInt32)
+void UA_UInt32_print(const UA_UInt32 *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "%u", *p);
+}
 
 /* Int64 */
 UA_TYPE_DEFAULT(UA_Int64)
+void UA_Int64_print(const UA_Int64 *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "%ld", *p);
+}
 
 /* UInt64 */
 UA_TYPE_DEFAULT(UA_UInt64)
+void UA_UInt64_print(const UA_UInt64 *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "%lu", *p);
+}
 
 /* Float */
-UA_TYPE_DELETE_DEFAULT(UA_Float)
-UA_TYPE_DELETEMEMBERS_NOACTION(UA_Float)
-UA_Int32 UA_Float_init(UA_Float *p) {
-	if(p == UA_NULL) return UA_ERROR;
-	*p = (UA_Float)0.0;
-	return UA_SUCCESS;
+UA_TYPE_DEFAULT(UA_Float)
+void UA_Float_print(const UA_Float *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "%f", *p);
 }
-UA_TYPE_NEW_DEFAULT(UA_Float)
-UA_TYPE_COPY_DEFAULT(UA_Float)
 
 /* Double */
 UA_TYPE_DEFAULT(UA_Double)
+void UA_Double_print(const UA_Double *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "%f", *p);
+}
 
 /* String */
 UA_TYPE_NEW_DEFAULT(UA_String)
+UA_Int32 UA_String_init(UA_String *p) {
+	if(p == UA_NULL) return UA_ERROR;
+	p->length = -1;
+	p->data   = UA_NULL;
+	return UA_SUCCESS;
+}
+
 UA_TYPE_DELETE_DEFAULT(UA_String)
 UA_Int32 UA_String_deleteMembers(UA_String *p) {
 	UA_Int32 retval = UA_SUCCESS;
@@ -75,6 +120,7 @@ UA_Int32 UA_String_deleteMembers(UA_String *p) {
 	}
 	return retval;
 }
+
 UA_Int32 UA_String_copy(UA_String const *src, UA_String *dst) {
 	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	UA_Int32 retval = UA_SUCCESS;
@@ -89,6 +135,12 @@ UA_Int32 UA_String_copy(UA_String const *src, UA_String *dst) {
 	}
 	return retval;
 }
+
+void UA_String_print(const UA_String *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "(UA_String){%d, \"%.*s\"}", p->length, p->length, p->data);
+}
+
 UA_Int32 UA_String_copycstring(char const *src, UA_String *dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	dst->length = strlen(src);
@@ -126,13 +178,6 @@ UA_Int32 UA_String_copyprintf(char const *fmt, UA_String *dst, ...) {
 			retval |= UA_memcpy((void *)dst->data, src, dst->length);
 	}
 	return retval;
-}
-
-UA_Int32 UA_String_init(UA_String *p) {
-	if(p == UA_NULL) return UA_ERROR;
-	p->length = -1;
-	p->data   = UA_NULL;
-	return UA_SUCCESS;
 }
 
 UA_Int32 UA_String_equal(const UA_String *string1, const UA_String *string2) {
@@ -263,6 +308,12 @@ UA_Int32 UA_Guid_copy(UA_Guid const *src, UA_Guid *dst) {
 	return retval;
 }
 
+void UA_Guid_print(const UA_Guid *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "(UA_Guid){%u, %u %u {%x,%x,%x,%x,%x,%x,%x,%x}}", p->data1, p->data2, p->data3, p->data4[0],
+			p->data4[1], p->data4[2], p->data4[3], p->data4[4], p->data4[5], p->data4[6], p->data4[7]);
+}
+
 /* ByteString */
 UA_TYPE_AS(UA_ByteString, UA_String)
 UA_Int32 UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2) {
@@ -283,8 +334,7 @@ void UA_ByteString_printx_hex(char *label, const UA_ByteString *string) {
 
 UA_Byte       UA_Byte_securityPoliceNoneData[] = "http://opcfoundation.org/UA/SecurityPolicy#None";
 // sizeof()-1 : discard the implicit null-terminator of the c-char-string
-UA_ByteString UA_ByteString_securityPoliceNone =
-{ sizeof(UA_Byte_securityPoliceNoneData)-1, UA_Byte_securityPoliceNoneData };
+UA_ByteString UA_ByteString_securityPoliceNone = { sizeof(UA_Byte_securityPoliceNoneData)-1, UA_Byte_securityPoliceNoneData };
 
 UA_Int32 UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length) {
 	UA_Int32 retval = UA_SUCCESS;
@@ -301,6 +351,43 @@ UA_Int32 UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length) {
 UA_TYPE_AS(UA_XmlElement, UA_ByteString)
 
 /* NodeId */
+UA_Int32 UA_NodeId_init(UA_NodeId *p) {
+	if(p == UA_NULL) return UA_ERROR;
+	p->encodingByte = UA_NODEIDTYPE_TWOBYTE;
+	p->namespace    = 0;
+	memset(&p->identifier, 0, sizeof(p->identifier));
+	return UA_SUCCESS;
+}
+
+UA_TYPE_NEW_DEFAULT(UA_NodeId)
+UA_Int32 UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst) {
+	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_Byte_copy(&src->encodingByte, &dst->encodingByte);
+
+	switch(src->encodingByte & UA_NODEIDTYPE_MASK) {
+	case UA_NODEIDTYPE_TWOBYTE:
+	case UA_NODEIDTYPE_FOURBYTE:
+	case UA_NODEIDTYPE_NUMERIC:
+		// nothing to do
+		retval |= UA_UInt16_copy(&src->namespace, &dst->namespace);
+		retval |= UA_UInt32_copy(&src->identifier.numeric, &dst->identifier.numeric);
+		break;
+
+	case UA_NODEIDTYPE_STRING: // Table 6, second entry
+		retval |= UA_String_copy(&src->identifier.string, &dst->identifier.string);
+		break;
+
+	case UA_NODEIDTYPE_GUID: // Table 6, third entry
+		retval |= UA_Guid_copy(&src->identifier.guid, &dst->identifier.guid);
+		break;
+
+	case UA_NODEIDTYPE_BYTESTRING: // Table 6, "OPAQUE"
+		retval |= UA_ByteString_copy(&src->identifier.byteString, &dst->identifier.byteString);
+		break;
+	}
+	return retval;
+}
 UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id) {
 	return (id->namespace == 0 && id->identifier.numeric <= UA_DIAGNOSTICINFO);
 }
@@ -329,6 +416,54 @@ UA_Int32 UA_NodeId_deleteMembers(UA_NodeId *p) {
 		break;
 	}
 	return retval;
+}
+
+void UA_NodeId_print(const UA_NodeId *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "(UA_NodeId){");
+	switch(p->encodingByte & UA_NODEIDTYPE_MASK) {
+	case UA_NODEIDTYPE_TWOBYTE:
+		fprintf(stream, "UA_NODEIDTYPE_TWOBYTE");
+		break;
+	case UA_NODEIDTYPE_FOURBYTE:
+		fprintf(stream, "UA_NODEIDTYPE_FOURBYTE");
+	case UA_NODEIDTYPE_NUMERIC:
+		fprintf(stream, "UA_NODEIDTYPE_NUMERIC");
+		break;
+	case UA_NODEIDTYPE_STRING:
+		fprintf(stream, "UA_NODEIDTYPE_STRING");
+		break;
+	case UA_NODEIDTYPE_BYTESTRING:
+		fprintf(stream, "UA_NODEIDTYPE_BYTESTRING");
+		break;
+	case UA_NODEIDTYPE_GUID:
+		fprintf(stream, "UA_NODEIDTYPE_GUID");
+		break;
+	default:
+		fprintf(stream, "ERROR");
+		break;
+	}
+	fprintf(stream,",%u,", p->namespace);
+	switch(p->encodingByte & UA_NODEIDTYPE_MASK) {
+	case UA_NODEIDTYPE_TWOBYTE:
+	case UA_NODEIDTYPE_FOURBYTE:
+	case UA_NODEIDTYPE_NUMERIC:
+		fprintf(stream, ".identifier.numeric=%u", p->identifier.numeric);
+		break;
+	case UA_NODEIDTYPE_STRING:
+		fprintf(stream, ".identifier.string=%.*s", p->identifier.string.length, p->identifier.string.data);
+	case UA_NODEIDTYPE_BYTESTRING:
+		fprintf(stream, ".identifier.byteString=%.*s", p->identifier.byteString.length, p->identifier.byteString.data);
+		break;
+	case UA_NODEIDTYPE_GUID:
+		fprintf(stream, ".identifer.guid=");
+		UA_Guid_print(&p->identifier.guid, stream);
+		break;
+	default:
+		fprintf(stream, "ERROR");
+		break;
+	}
+	fprintf(stream, "}");
 }
 
 void UA_NodeId_printf(char *label, const UA_NodeId *node) {
@@ -390,44 +525,6 @@ UA_Int32 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
 	return UA_NOT_EQUAL;
 }
 
-UA_Int32 UA_NodeId_init(UA_NodeId *p) {
-	if(p == UA_NULL) return UA_ERROR;
-	p->encodingByte = UA_NODEIDTYPE_TWOBYTE;
-	p->namespace    = 0;
-	memset(&p->identifier, 0, sizeof(p->identifier));
-	return UA_SUCCESS;
-}
-
-UA_TYPE_NEW_DEFAULT(UA_NodeId)
-UA_Int32 UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst) {
-	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
-	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_Byte_copy(&src->encodingByte, &dst->encodingByte);
-
-	switch(src->encodingByte & UA_NODEIDTYPE_MASK) {
-	case UA_NODEIDTYPE_TWOBYTE:
-	case UA_NODEIDTYPE_FOURBYTE:
-	case UA_NODEIDTYPE_NUMERIC:
-		// nothing to do
-		retval |= UA_UInt16_copy(&src->namespace, &dst->namespace);
-		retval |= UA_UInt32_copy(&src->identifier.numeric, &dst->identifier.numeric);
-		break;
-
-	case UA_NODEIDTYPE_STRING: // Table 6, second entry
-		retval |= UA_String_copy(&src->identifier.string, &dst->identifier.string);
-		break;
-
-	case UA_NODEIDTYPE_GUID: // Table 6, third entry
-		retval |= UA_Guid_copy(&src->identifier.guid, &dst->identifier.guid);
-		break;
-
-	case UA_NODEIDTYPE_BYTESTRING: // Table 6, "OPAQUE"
-		retval |= UA_ByteString_copy(&src->identifier.byteString, &dst->identifier.byteString);
-		break;
-	}
-	return retval;
-}
-
 UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
 	switch(p->encodingByte & UA_NODEIDTYPE_MASK) {
 	case UA_NODEIDTYPE_TWOBYTE:
@@ -486,6 +583,17 @@ UA_Int32 UA_ExpandedNodeId_copy(UA_ExpandedNodeId const *src, UA_ExpandedNodeId 
 	return retval;
 }
 
+void UA_ExpandedNodeId_print(const UA_ExpandedNodeId *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "(UA_ExpandedNodeId){");
+	UA_NodeId_print(&p->nodeId, stream);
+	fprintf(stream, ",");
+	UA_String_print(&p->namespaceUri, stream);
+	fprintf(stream, ",");
+	UA_UInt32_print(&p->serverIndex, stream);
+	fprintf(stream, "}");
+}
+
 UA_Boolean UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p) {
 	return UA_NodeId_isNull(&p->nodeId);
 }
@@ -517,6 +625,15 @@ UA_Int32 UA_QualifiedName_copy(UA_QualifiedName const *src, UA_QualifiedName *ds
 	retval |= UA_UInt16_copy(&src->namespaceIndex, &dst->namespaceIndex);
 	return retval;
 
+}
+
+void UA_QualifiedName_print(const UA_QualifiedName *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "(UA_QualifiedName){");
+	UA_UInt16_print(&p->namespaceIndex, stream);
+	fprintf(stream, ",");
+	UA_String_print(&p->name, stream);
+	fprintf(stream, "}");
 }
 
 void UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn) {
@@ -564,6 +681,15 @@ UA_Int32 UA_LocalizedText_copy(UA_LocalizedText const *src, UA_LocalizedText *ds
 	return retval;
 }
 
+void UA_LocalizedText_print(const UA_LocalizedText *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "(UA_LocalizedText){");
+	UA_String_print(&p->locale, stream);
+	fprintf(stream, ",");
+	UA_String_print(&p->text, stream);
+	fprintf(stream, "}");
+}
+
 /* ExtensionObject */
 UA_TYPE_DELETE_DEFAULT(UA_ExtensionObject)
 UA_Int32 UA_ExtensionObject_deleteMembers(UA_ExtensionObject *p) {
@@ -590,6 +716,21 @@ UA_Int32 UA_ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObje
 	retval |= UA_ByteString_copy(&src->body, &dst->body);
 	retval |= UA_NodeId_copy(&src->typeId, &dst->typeId);
 	return retval;
+}
+
+void UA_ExtensionObject_print(const UA_ExtensionObject *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "(UA_ExtensionObject){");
+	UA_NodeId_print(&p->typeId, stream);
+	if(p->encoding == UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING){
+		fprintf(stream, ",UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING,");
+	} else if(p->encoding == UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML) {
+		fprintf(stream, ",UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML,");
+	} else {
+		fprintf(stream, ",UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED,");
+	}
+	UA_ByteString_print(&p->body, stream);
+	fprintf(stream, "}");
 }
 
 /* DataValue */
@@ -625,6 +766,25 @@ UA_Int32 UA_DataValue_copy(UA_DataValue const *src, UA_DataValue *dst) {
 	UA_StatusCode_copy(&src->status, &dst->status);
 	UA_Variant_copy(&src->value, &dst->value);
 	return retval;
+}
+
+void UA_DataValue_print(const UA_DataValue *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "(UA_DataValue){");
+	UA_Byte_print(&p->encodingMask, stream);
+	fprintf(stream, ",");
+	UA_Variant_print(&p->value, stream);
+	fprintf(stream, ",");
+	UA_StatusCode_print(&p->status, stream);
+	fprintf(stream, ",");
+	UA_DateTime_print(&p->sourceTimestamp, stream);
+	fprintf(stream, ",");
+	UA_Int16_print(&p->sourcePicoseconds, stream);
+	fprintf(stream, ",");
+	UA_DateTime_print(&p->serverTimestamp, stream);
+	fprintf(stream, ",");
+	UA_Int16_print(&p->serverPicoseconds, stream);
+	fprintf(stream, "}");
 }
 
 /* Variant */
@@ -671,6 +831,26 @@ UA_Int32 UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
 		retval |= UA_Array_copy(src->arrayDimensions, src->arrayDimensionsLength,
 		                        &UA_.types[UA_INT32], (void **)&dst->arrayDimensions);
 	return retval;
+}
+
+void UA_Variant_print(const UA_Variant *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	UA_UInt32 ns0id = UA_ns0ToVTableIndex(&p->vt->typeId);
+	fprintf(stream, "(UA_Variant){/*%s*/", p->vt->name);
+	if(p->vt == &UA_.types[ns0id])
+		fprintf(stream, "UA_.types[%d]", ns0id);
+	else if(p->vt == &UA_borrowed_.types[ns0id])
+		fprintf(stream, "UA_borrowed_.types[%d]", ns0id);
+	else
+		fprintf(stream, "ERROR (not a builtin type)");
+	UA_Int32_print(&p->arrayLength, stream);
+	fprintf(stream, ",");
+	UA_Array_print(p->data, p->arrayLength, p->vt, stream);
+	fprintf(stream, ",");
+	UA_Int32_print(&p->arrayDimensionsLength, stream);
+	fprintf(stream, ",");
+	UA_Array_print(p->arrayDimensions, p->arrayDimensionsLength, &UA_.types[UA_INT32], stream);
+	fprintf(stream, "}");
 }
 
 UA_Int32 UA_Variant_copySetValue(UA_Variant *v, UA_VTable_Entry *vt, const void *value) {
@@ -762,6 +942,32 @@ UA_Int32 UA_DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo 
 	return retval;
 }
 
+void UA_DiagnosticInfo_print(const UA_DiagnosticInfo *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "(UA_DiagnosticInfo){");
+	UA_Byte_print(&p->encodingMask, stream);
+	fprintf(stream, ",");
+	UA_Int32_print(&p->symbolicId, stream);
+	fprintf(stream, ",");
+	UA_Int32_print(&p->namespaceUri, stream);
+	fprintf(stream, ",");
+	UA_Int32_print(&p->localizedText, stream);
+	fprintf(stream, ",");
+	UA_Int32_print(&p->locale, stream);
+	fprintf(stream, ",");
+	UA_String_print(&p->additionalInfo, stream);
+	fprintf(stream, ",");
+	UA_StatusCode_print(&p->innerStatusCode, stream);
+	fprintf(stream, ",");
+	if(p->innerDiagnosticInfo != UA_NULL) {
+		fprintf(stream, "&");
+		UA_DiagnosticInfo_print(p->innerDiagnosticInfo, stream);
+	} else {
+		fprintf(stream, "UA_NULL");
+	}
+	fprintf(stream, "}");
+}
+
 /* InvalidType */
 UA_Int32 UA_InvalidType_free(UA_InvalidType *p) {
 	return UA_ERR_INVALID_VALUE;
@@ -785,6 +991,11 @@ UA_Int32 UA_InvalidType_copy(UA_InvalidType const *src, UA_InvalidType *dst) {
 
 UA_Int32 UA_InvalidType_new(UA_InvalidType **p) {
 	return UA_ERR_INVALID_VALUE;
+}
+
+void UA_InvalidType_print(const UA_InvalidType *p, FILE *stream) {
+	if(p == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "(UA_InvalidType){ERROR (invalid type)}");
 }
 
 /*********/
@@ -878,4 +1089,16 @@ UA_Int32 UA_Array_copy(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt
 	}
 
 	return retval;
+}
+
+void UA_Array_print(const void *p, UA_Int32 noElements, UA_VTable_Entry *vt, FILE *stream) {
+	if(p == UA_NULL || vt == UA_NULL || stream == UA_NULL) return;
+	fprintf(stream, "(%s){", vt->name);
+	char *cp = (char *)p; // so compilers allow pointer arithmetic
+	UA_UInt32 memSize = vt->memSize;
+	for(UA_Int32 i=0;i < noElements;i++) {
+		vt->print(cp, stream);
+		fprintf(stream, ",");
+		cp += memSize;
+	}
 }

@@ -150,6 +150,7 @@ for row in rows:
           ",.copy=(UA_Int32(*)(void const * ,void*))%(name)s_copy" +
           ",.delete=(UA_Int32(*)(void *))%(name)s_delete" +
           ",.deleteMembers=(UA_Int32(*)(void *))%(name)s_deleteMembers" +
+          ",.print=(void(*)(const void *, FILE *))%(name)s_print" +
           ",.memSize=" + ("sizeof(%(name)s)" if (name != "UA_InvalidType") else "0") +
           ",.dynMembers=" + ("UA_FALSE" if (name in fixed_size) else "UA_TRUE") +
           ",.encodings={{.calcSize=(UA_calcSize)%(name)s_calcSizeBinary" +
@@ -183,6 +184,7 @@ for row in rows:
           ",.copy=(UA_Int32(*)(void const * ,void*))%(name)s_copy" +
           ",.delete=(UA_Int32(*)(void *))phantom_delete" +
           ",.deleteMembers=(UA_Int32(*)(void *))phantom_delete" +
+          ",.print=(void(*)(const void *, FILE *))%(name)s_print" +
           ",.memSize=" + ("sizeof(%(name)s)" if (name != "UA_InvalidType") else "0") +
           ",.dynMembers=" + ("UA_FALSE" if (name in fixed_size) else "UA_TRUE") +
           ",.encodings={{.calcSize=(UA_calcSize)" + name +"_calcSizeBinary" +
