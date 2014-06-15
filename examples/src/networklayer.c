@@ -47,7 +47,7 @@ int NL_TCP_SetNonBlocking(int sock) {
 void NL_Connection_printf(void* payload) {
   UA_UInt32 id;
   NL_Connection* c = (NL_Connection*) payload;
-  UA_TL_Connection_getId(c->connection,&id);
+  UA_TL_Connection_getHandle(c->connection,&id);
   printf("ListElement connectionHandle = %d\n",id);
 }
 void NL_addHandleToSet(UA_Int32 handle, NL_data* nl) {
@@ -57,13 +57,13 @@ void NL_addHandleToSet(UA_Int32 handle, NL_data* nl) {
 void NL_setFdSet(void* payload) {
   UA_UInt32 id;
   NL_Connection* c = (NL_Connection*) payload;
-  UA_TL_Connection_getId(c->connection,&id);
+  UA_TL_Connection_getHandle(c->connection,&id);
   NL_addHandleToSet(id, c->networkLayer);
 }
 void NL_checkFdSet(void* payload) {
 	  UA_UInt32 id;
   NL_Connection* c = (NL_Connection*) payload;
-  UA_TL_Connection_getId(c->connection,&id);
+  UA_TL_Connection_getHandle(c->connection,&id);
   if (FD_ISSET(id, &(c->networkLayer->readerHandles))) {
 	  c->reader((void*)c);
   }
@@ -119,7 +119,7 @@ void* NL_TCP_reader(NL_Connection *c) {
 
 	UA_UInt32 connectionId;
 	UA_TL_Connection_getLocalConfiguration(c->connection, &localBuffers);
-	UA_TL_Connection_getId(c->connection, &connectionId);
+	UA_TL_Connection_getHandle(c->connection, &connectionId);
 	UA_alloc((void**)&(readBuffer.data),localBuffers.recvBufferSize);
 
 

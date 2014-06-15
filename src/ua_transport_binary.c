@@ -185,6 +185,7 @@ static UA_Int32 TL_handleClo(UA_TL_Connection1 connection, const UA_ByteString* 
 
 	retval |= UA_SecureConversationMessageHeader_delete(header);
 
+
 //TODO remove that
 	UA_TL_Connection_close(connection);
 	return retval;

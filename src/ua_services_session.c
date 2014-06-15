@@ -1,4 +1,5 @@
 #include "ua_services.h"
+#include "ua_stack_session_manager.h"
 #include "ua_application.h"
 
 Session sessionMockup = {
@@ -8,14 +9,17 @@ Session sessionMockup = {
 
 UA_Int32 Service_CreateSession(UA_Session session, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response) {
 	UA_String_printf("CreateSession Service - endpointUrl=", &(request->endpointUrl));
-	// FIXME: create session
+
 	UA_Session *newSession;
 
-	UA_Session_new(newSession);
-	UA_Session_init(*newSession, &request->sessionName,request->requestedSessionTimeout);
+	UA_Session_new(&newSession);
+	//TODO get maxResponseMessageSize
+	UA_Session_init(*newSession, (UA_String*)&request->sessionName, request->requestedSessionTimeout,request->maxResponseMessageSize,500);
 
-	UA_SessionManager_addSession(session);
+	UA_SessionManager_addSession(newSession);
 	UA_Session_getId(*newSession, &response->sessionId);
+
+
 
 	return UA_SUCCESS;
 }

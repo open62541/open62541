@@ -214,8 +214,6 @@ UA_Int32 SL_Channel_new(SL_secureChannel **channel,
 	retval |= UA_ByteString_copy(senderCertificate,
 			&thisChannel->localAsymAlgSettings.senderCertificate);
 
-
-
 	thisChannel->state = UA_SL_CHANNEL_CLOSED;
 
 	**channel = (SL_secureChannel)thisChannel;
@@ -238,14 +236,7 @@ UA_Int32 SL_Channel_initByRequest(SL_secureChannel channel,
 
 	((SL_Channel1*)channel)->connection = connection;
 
-//	channel->createdAt = UA_DateTime_now();
-
-//	channel->localAsymAlgSettings.receiverCertificateThumbprint
-
-
 	SL_Channel_generateNonce(&channel->localNonce);
-
-
 
 	*pos += 4; // skip the securechannelid
 	UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(msg, pos,

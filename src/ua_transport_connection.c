@@ -26,6 +26,7 @@ UA_Int32 UA_TL_Connection_new(UA_TL_Connection1 *connection, TL_Buffer localBuff
 	{
 		(*((TL_Connection**)connection))->localConf = localBuffers;
 		(*((TL_Connection**)connection))->writer = writer;
+		(*((TL_Connection**)connection))->state = CONNECTIONSTATE_CLOSED;
 	}
 	return retval;
 }
@@ -102,14 +103,14 @@ UA_Int32 UA_TL_Connection_getLocalConfiguration(UA_TL_Connection1 connection, TL
 		return UA_ERROR;
 	}
 }
-UA_Int32 UA_TL_Connection_getId(UA_TL_Connection1 connection, UA_UInt32 *connectionId)
+UA_Int32 UA_TL_Connection_getHandle(UA_TL_Connection1 connection, UA_UInt32 *connectionHandle)
 {
 	if(connection)
 	{
-		*connectionId = ((TL_Connection*)connection)->connectionHandle;
+		*connectionHandle = ((TL_Connection*)connection)->connectionHandle;
 		return UA_SUCCESS;
 	}else{
-			connectionId = 0;
+			connectionHandle = 0;
 			return UA_ERROR;
 		}
 }

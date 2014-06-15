@@ -26,6 +26,9 @@ UA_Int32 UA_SessionManager_init(UA_UInt32 maxSessionCount,UA_UInt32 sessionLifet
 {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_alloc((void**)&sessionManager,sizeof(UA_SessionManagerType));
+
+	retval |= UA_list_init(sessionManager->sessions);
+
 	sessionManager->maxSessionCount = maxSessionCount;
 	sessionManager->lastSessionId = startSessionId;
 	sessionManager->sessionLifetime = sessionLifetime;
@@ -62,17 +65,20 @@ UA_Int32 UA_SessionManager_getSessionById(UA_NodeId *sessionId, UA_Session *sess
 
 UA_Int32 UA_SessionManager_getSessionByToken(UA_NodeId *token, UA_Session *session)
 {
- 	UA_list_Element* current = sessionManager->sessions->first;
-	while (current)
+	if(sessionManager->sessions)
 	{
-		if (current->payload)
+		UA_list_Element* current = sessionManager->sessions->first;
+		while (current)
 		{
-			UA_list_Element* elem = (UA_list_Element*) current;
-			*session = *((UA_Session*) (elem->payload));
-		 	if(UA_Session_compareByToken(*session,token))
-		 	{
-		 		return UA_SUCCESS;
-		 	}
+			if (current->payload)
+			{
+				UA_list_Element* elem = (UA_list_Element*) current;
+				*session = *((UA_Session*) (elem->payload));
+				if(UA_Session_compareByToken(*session,token))
+				{
+					return UA_SUCCESS;
+				}
+			}
 		}
 	}
 	*session = UA_NULL;

@@ -16,23 +16,36 @@ typedef struct UA_SessionType
 	Application *application;
 	UA_list_List pendingRequests;
 	SL_secureChannel channel;
+	UA_UInt32 maxRequestMessageSize;
+	UA_UInt32 maxResponseMessageSize;
+
 }UA_SessionType;
 
-UA_Int32 UA_Session_new(UA_Session *newSession)
+UA_Int32 UA_Session_new(UA_Session **newSession)
 {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_alloc((void**)&newSession,sizeof(UA_SessionType));
+	UA_Session *session;
+
+	retval |= UA_alloc((void**)&session,sizeof(UA_Session));
+
+	retval |= UA_alloc((void**)session,sizeof(UA_SessionType));
+	*newSession = session;
+	**newSession = *session;
 	//get memory for request list
 	return retval;
 }
 
-UA_Int32 UA_Session_init(UA_Session session, UA_String *sessionName, UA_Double requestedSessionTimeout)
+UA_Int32 UA_Session_init(UA_Session session, UA_String *sessionName, UA_Double requestedSessionTimeout, UA_UInt32 maxRequestMessageSize, UA_UInt32 maxResponseMessageSize)
 {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_String_copy(sessionName, &((UA_SessionType*)session)->name);
+	((UA_SessionType*)session)->maxRequestMessageSize = maxRequestMessageSize;
+	((UA_SessionType*)session)->maxResponseMessageSize = maxResponseMessageSize;
+
 	//TODO handle requestedSessionTimeout
 	return retval;
 }
+
 UA_Boolean UA_Session_compare(UA_Session session1, UA_Session session2)
 {
 	if(session1 && session2){

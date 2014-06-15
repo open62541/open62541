@@ -37,7 +37,7 @@ UA_Int32 UA_TL_ConnectionManager_init(UA_UInt32 maxConnectionCount)
 UA_Int32 UA_TL_ConnectionManager_addConnection(UA_TL_Connection1 *connection)
 {
 	UA_UInt32 connectionId;
-	UA_TL_Connection_getId(*connection, &connectionId);
+	UA_TL_Connection_getHandle(*connection, &connectionId);
 	return UA_indexedList_addValue(&(connectionManager->connections), connectionId, connection);
 }
 
@@ -45,11 +45,11 @@ UA_Int32 UA_TL_ConnectionManager_addConnection(UA_TL_Connection1 *connection)
 UA_Int32 UA_TL_ConnectionManager_removeConnection(UA_TL_Connection1 connection)
 {
 	UA_UInt32 connectionId;
-	UA_TL_Connection_getId(connection, &connectionId);
+	UA_TL_Connection_getHandle(connection, &connectionId);
 	UA_TL_Connection1 foundValue = UA_indexedList_findValue(&connectionManager->connections,connectionId);
 	if(foundValue)
 	{
-		//remove connection
+		UA_TL_Connection_delete(connection);//remove connection
 	}
 	return UA_SUCCESS;
 }

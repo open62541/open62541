@@ -8,6 +8,7 @@
 #include "networklayer.h"
 #include "ua_stack_channel_manager.h"
 #include "ua_transport_connection.h"
+#include "ua_stack_session_manager.h"
 
 #ifdef LINUX
 
@@ -59,7 +60,10 @@ void server_run() {
 	UA_String endpointUrl;
 	UA_String_copycstring("open62541.org",&endpointUrl);
 	SL_ChannelManager_init(2,3600000, 873, 23, &endpointUrl);
-	UA_TL_Connection_new(&connection, localBuffers, (TL_Writer)NL_TCP_writer);
+
+	UA_SessionManager_init(2,300000,5);
+
+
 
 
 
@@ -96,9 +100,13 @@ void server_run() {
 		exit(1);
 	}
 
+	//UA_TL_Connection_new(&connection, localBuffers, (TL_Writer)NL_TCP_writer);
+
 	/* Now start listening for the clients, here process will
 	 * go in sleep mode and will wait for the incoming connection
 	 */
+	UA_TL_Connection1 tmpConnection;
+
 	while (listen(sockfd, 5) != -1) {
 		clilen = sizeof(cli_addr);
 		/* Accept actual connection from the client */
@@ -107,8 +115,16 @@ void server_run() {
 			perror("ERROR on accept");
 			exit(1);
 		}
+
+		UA_TL_ConnectionManager_getConnectionById(newsockfd, &tmpConnection);
+		if(tmpConnection == UA_NULL)
+		{
+			UA_TL_Connection_new(&connection, localBuffers, (TL_Writer)NL_TCP_writer);
+		}
 		UA_TL_Connection_getState(connection, &connectionState);
+
 		printf("server_run - connection accepted: %i, state: %i\n", newsockfd, connectionState);
+
 		UA_TL_Connection_bind(connection, newsockfd);
 		//connection.connectionHandle = newsockfd;
 		do {
@@ -127,8 +143,8 @@ void server_run() {
 		} while(connectionState != CONNECTIONSTATE_CLOSE);
 		shutdown(newsockfd,2);
 		close(newsockfd);
-		UA_TL_Connection_close(connection);
-
+		UA_TL_ConnectionManager_getConnectionById(newsockfd, &tmpConnection);
+		UA_TL_ConnectionManager_removeConnection(tmpConnection);
 	}
 	shutdown(sockfd,2);
 	close(sockfd);

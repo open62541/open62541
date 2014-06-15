@@ -31,13 +31,12 @@ UA_Int32 UA_TL_Connection_delete(UA_TL_Connection1 connection);
 UA_Int32 UA_TL_Connection_callWriter(UA_TL_Connection1 connection, const UA_ByteString** gather_bufs, UA_Int32 gather_len);
 
 UA_Int32 UA_TL_Connection_close(UA_TL_Connection1 connection);
-UA_Int32 UA_TL_Connection_new(
-		UA_TL_Connection1 *connection,
+UA_Int32 UA_TL_Connection_new(UA_TL_Connection1 *connection,
 		TL_Buffer localBuffers,TL_Writer writer);
 UA_Int32 UA_TL_Connection_bind(UA_TL_Connection1 connection, UA_Int32 handle);
 
 //getter
-UA_Int32 UA_TL_Connection_getId(UA_TL_Connection1 connection, UA_UInt32 *connectionId);
+UA_Int32 UA_TL_Connection_getHandle(UA_TL_Connection1 connection, UA_UInt32 *connectionId);
 UA_Int32 UA_TL_Connection_getProtocolVersion(UA_TL_Connection1 connection, UA_UInt32 *protocolVersion);
 
 UA_Int32 UA_TL_Connection_getState(UA_TL_Connection1 connection, UA_Int32 *connectionState);
