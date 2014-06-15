@@ -62,8 +62,7 @@ UA_Int32 UA_SessionManager_getSessionById(UA_NodeId *sessionId, UA_Session *sess
 
 UA_Int32 UA_SessionManager_getSessionByToken(UA_NodeId *token, UA_Session *session)
 {
-	UA_UInt32 tmpSessionId;
- 	UA_list_Element* current = sessionManager->sessions.first;
+ 	UA_list_Element* current = sessionManager->sessions->first;
 	while (current)
 	{
 		if (current->payload)
@@ -85,7 +84,7 @@ UA_Int32 UA_SessionManager_addSession(UA_Session *session)
 	UA_Int32 retval = UA_SUCCESS;
 	if(!UA_SessionManager_sessionExists(session))
 	{
-		retval |= UA_list_addElementToBack(sessionManager->sessions,session);
+		retval |= UA_list_addElementToBack(sessionManager->sessions,(void*)session);
 		return retval;
 	}
 	else
