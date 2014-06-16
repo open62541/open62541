@@ -13,7 +13,6 @@ typedef struct UA_SessionType
 	UA_NodeId authenticationToken;
 	UA_NodeId sessionId;
 	UA_String name;
-	void *applicationPayload;
 	Application *application;
 	UA_list_List pendingRequests;
 	SL_secureChannel channel;
@@ -52,6 +51,18 @@ UA_Int32 UA_Session_generateAuthenticationToken(UA_NodeId *newToken)
 
 	return retval;
 }
+
+UA_Int32 UA_Session_bind(UA_Session session, SL_secureChannel channel)
+{
+
+	if(channel && session)
+	{
+		((UA_SessionType*)session)->channel = channel;
+		return UA_SUCCESS;
+	}
+	return UA_ERROR;
+}
+
 UA_Int32 UA_Session_new(UA_Session **newSession)
 {
 	UA_Int32 retval = UA_SUCCESS;
@@ -63,6 +74,13 @@ UA_Int32 UA_Session_new(UA_Session **newSession)
 	*newSession = session;
 	**newSession = *session;
 	//get memory for request list
+	return retval;
+}
+
+UA_Int32 UA_Session_delete(UA_Session *session)
+{
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_free((UA_SessionType*)(*session));
 	return retval;
 }
 

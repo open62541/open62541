@@ -36,10 +36,10 @@ UA_Int32 UA_SessionManager_addSession(UA_Session *session);
 
 /**
  * @brief removes a session from the manager list
- * @param sessionId removes a session by its id
+ * @param sessionId id which assign to a session
  * @return error code if all goes well UA_SUCCESS is returned
  */
-UA_Int32 UA_SessionManager_removeSession(UA_Int32 sessionId);
+UA_Int32 UA_SessionManager_removeSession(UA_NodeId *sessionId);
 
 /**
  * @brief finds the session which is identified by the sessionId

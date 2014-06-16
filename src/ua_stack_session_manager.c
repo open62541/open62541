@@ -118,7 +118,16 @@ UA_Int32 UA_SessionManager_addSession(UA_Session *session)
 }
 
 
-/*UA_Int32 UA_SessionManager_removeSession(UA_Int32 channelId);
+UA_Int32 UA_SessionManager_removeSession(UA_NodeId *sessionId)
+{
+	UA_Int32 retval = UA_SUCCESS;
+	UA_list_Element *element = UA_list_search(&sessionManager->sessions,(UA_list_PayloadComparer)UA_Session_compare,sessionId);
+	if(element)
+	{
+		retval |= UA_list_removeElement(element,(UA_list_PayloadVisitor)UA_Session_delete);
+	}
+	return retval;
+}
 
 UA_Int32 UA_SessionManager_getSession(UA_UInt32 sessionId, UA_Session *session);
 
@@ -129,4 +138,4 @@ UA_Int32 UA_SessionManager_getSessionLifeTime(UA_DateTime *lifeTime);
 UA_Int32 SL_UA_SessionManager_generateToken(SL_secureChannel channel, UA_Int32 requestedLifeTime, SecurityTokenRequestType requestType, UA_ChannelSecurityToken* newToken);
 
 UA_Int32 SL_UA_SessionManager_generateSessionId(UA_UInt32 *newChannelId);
-*/
+
