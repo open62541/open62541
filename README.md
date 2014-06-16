@@ -10,7 +10,6 @@ An open-source communication stack implementation of OPC UA (OPC Unified Archite
 ### Documentation
 Documentation is generated from Doxygen annotations in the source code. The current version can be accessed at http://acplt.github.io/open62541/doxygen/.
 
-
 ## Getting dependencies
 ### Ubuntu
 ##### Getting gcc toolchain:
