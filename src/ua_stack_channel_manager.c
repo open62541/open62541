@@ -51,12 +51,12 @@ UA_Int32 SL_ChannelManager_addChannel(SL_secureChannel *channel)
 	{
 
 //TODO lock access (mulitthreading)------------
-		UA_list_Element *element;
-		UA_alloc((void**)&element, sizeof(UA_list_Element));
-		UA_list_initElement(element);
-		element->payload =(void*) channel;
-
-		UA_list_addElementToBack(&channelManager->channels,element);
+	//	UA_list_Element *element;
+	//	UA_alloc((void**)&element, sizeof(UA_list_Element));
+	//	UA_list_initElement(element);
+	//	element->payload =(void*) channel;
+		UA_list_addPayloadToBack(&channelManager->channels,(void*)channel);
+	//	UA_list_addElementToBack(&channelManager->channels,element);
 		return UA_SUCCESS;
 		//set id in channel object which was added
 //TODO lock access------------
@@ -165,10 +165,14 @@ UA_Int32 SL_ChannelManager_removeChannel(UA_Int32 channelId)
 {
 	//TODO lock access
 	SL_secureChannel channel;
+	UA_Int32 retval = UA_SUCCESS;
 	SL_ChannelManager_getChannel(channelId, &channel);
-	UA_list_Element *element =  UA_list_search(&channelManager->channels, SL_Channel_equal, channel);
-
-	if (element)
+	UA_list_Element *element =  UA_list_search(&channelManager->channels, SL_Channel_equal, &channel);
+	if(element){
+		retval |= UA_list_removeElement(element,(UA_list_PayloadVisitor)SL_Channel_delete);
+		return retval;
+	}
+	/*if (element)
 	{
 		element->next->prev = element->prev;
 		element->prev->next = element->next;
@@ -176,6 +180,7 @@ UA_Int32 SL_ChannelManager_removeChannel(UA_Int32 channelId)
 		SL_Channel_delete((SL_secureChannel)element->payload);
 		//TODO notify server application that secureChannel has been closed part 6 - §7.1.4
 	}
+	*/
 	//channel not found
 	return UA_ERROR;
 }
@@ -207,6 +212,7 @@ UA_Int32 SL_ChannelManager_getChannel(UA_UInt32 channelId, SL_secureChannel *cha
 		 		return UA_SUCCESS;
 		 	}
 		}
+		current = current->next;
 	}
 	*channel = UA_NULL;
 	return UA_ERROR;

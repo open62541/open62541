@@ -14,11 +14,15 @@ UA_Int32 Service_CreateSession(UA_Session session, const UA_CreateSessionRequest
 
 	UA_Session_new(&newSession);
 	//TODO get maxResponseMessageSize
-	UA_Session_init(*newSession, (UA_String*)&request->sessionName, request->requestedSessionTimeout,request->maxResponseMessageSize,500);
+	UA_Session_init(*newSession, (UA_String*)&request->sessionName,
+			request->requestedSessionTimeout,
+			request->maxResponseMessageSize,
+			9999,
+			(UA_Session_idProvider)UA_SessionManager_generateSessionId);
 
 	UA_SessionManager_addSession(newSession);
 	UA_Session_getId(*newSession, &response->sessionId);
-
+	UA_Session_getToken(*newSession, &(response->authenticationToken));
 
 
 	return UA_SUCCESS;
@@ -31,7 +35,7 @@ UA_Int32 Service_ActivateSession(UA_Session session, const UA_ActivateSessionReq
 	// 321 == AnonymousIdentityToken_Encoding_DefaultBinary
 	UA_NodeId_printf("ActivateSession - uIdToken.type=", &(request->userIdentityToken.typeId));
 	UA_ByteString_printx_hex("ActivateSession - uIdToken.body=", &(request->userIdentityToken.body));
-
+	UA_Session_setApplicationPointer(session,&appMockup);
 	// FIXME: channel->session->application = <Application Ptr>
 	//FIXME channel->session = &sessionMockup;
 	return UA_SUCCESS;

@@ -37,11 +37,26 @@ UA_Int32 UA_TL_Connection_delete(UA_TL_Connection1 connection)
 	retval |= UA_free((void*)connection);
 	return retval;
 }
+
 UA_Int32 UA_TL_Connection_close(UA_TL_Connection1 connection)
 {
 	((TL_Connection*)connection)->state = CONNECTIONSTATE_CLOSE;
 	return UA_SUCCESS;
 }
+
+UA_Boolean UA_TL_Connection_compare(UA_TL_Connection1 *connection1, UA_TL_Connection1 *connection2)
+{
+	if(connection1 && connection2)
+	{
+		if ((*(TL_Connection**)connection1)->connectionHandle == (*(TL_Connection**)connection2)->connectionHandle)
+		{
+			return UA_TRUE;
+		}
+	}
+	return UA_FALSE;
+}
+
+
 UA_Int32 UA_TL_Connection_configByHello(UA_TL_Connection1 connection, UA_OPCUATcpHelloMessage *helloMessage)
 {
 	UA_Int32 retval = UA_SUCCESS;

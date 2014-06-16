@@ -619,7 +619,7 @@ UA_TYPE_METHOD_NEW_DEFAULT(UA_Guid)
 UA_Int32 UA_Guid_copy(UA_Guid const *src, UA_Guid *dst)
 {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_alloc((void**)&dst,UA_Guid_calcSize(UA_NULL));
+	//retval |= UA_alloc((void**)&dst,UA_Guid_calcSize(UA_NULL));
 	retval |= UA_memcpy((void*)dst,(void*)src,UA_Guid_calcSize(UA_NULL));
 	return retval;
 }

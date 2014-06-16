@@ -18,8 +18,6 @@ revisedLifetime
 
  */
 
-
-
 typedef struct {
 	UA_UInt32 secureChannelId;
 	UA_SymmetricAlgorithmSecurityHeader tokenId;

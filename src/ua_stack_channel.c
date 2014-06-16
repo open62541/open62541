@@ -6,7 +6,8 @@
  */
 
 #include "ua_stack_channel.h"
-
+#include <time.h>
+#include <stdlib.h>
 
 typedef struct SL_Channel1 {
 	SL_channelState state;

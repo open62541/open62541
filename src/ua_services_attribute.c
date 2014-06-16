@@ -186,26 +186,42 @@ static UA_DataValue *service_read_node(Application * app, const UA_ReadValueId *
 }
 
 UA_Int32 Service_Read(UA_Session session, const UA_ReadRequest * request, UA_ReadResponse * response) {
-//TODO GET SESSION HERE//if(channel->session == UA_NULL || channel->session->application == UA_NULL)
-	//	return UA_ERROR;	// TODO: Return error message
+	if(session)
+	{
 
-	int readsize = request->nodesToReadSize;
-	/* NothingTodo */
-	if(readsize <= 0) {
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-		response->resultsSize = 0;
+		//if(channel->session == UA_NULL || channel->session->application == UA_NULL)
+		//	return UA_ERROR;	// TODO: Return error message
+		Application *application = UA_NULL;
+		int readsize = request->nodesToReadSize;
+		/* NothingTodo */
+		if(readsize <= 0) {
+			response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+			response->resultsSize = 0;
+			return UA_SUCCESS;
+		}
+
+		response->resultsSize = readsize;
+		UA_alloc((void **)&response->results, sizeof(void *)*readsize);
+		for(int i=0;i<readsize;i++) {
+			DBG_VERBOSE(printf("service_read - attributeId=%d\n",request->nodesToRead[i]->attributeId));
+			DBG_VERBOSE(UA_NodeId_printf("service_read - nodeId=",&(request->nodesToRead[i]->nodeId)));
+
+			UA_Session_getApplicationPointer(session,&application);
+			if(application){
+				response->results[i] = service_read_node(application, request->nodesToRead[i]);
+			}
+			else
+			{
+				printf("Service_Read - ERROR: no valid application pointer");
+				return UA_ERROR;
+			}
+
+		}
+		response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
+		response->diagnosticInfosSize = -1;
 		return UA_SUCCESS;
 	}
-
-	response->resultsSize = readsize;
-	UA_alloc((void **)&response->results, sizeof(void *)*readsize);
-	for(int i=0;i<readsize;i++) {
-		DBG_VERBOSE(printf("service_read - attributeId=%d\n",request->nodesToRead[i]->attributeId));
-		DBG_VERBOSE(UA_NodeId_printf("service_read - nodeId=",&(request->nodesToRead[i]->nodeId)));
-//TODO GET SESSION HERE//response->results[i] = service_read_node(channel->session->application, request->nodesToRead[i]);
-	}
-	response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
-	response->diagnosticInfosSize = -1;
-	return UA_SUCCESS;
+	printf("Service_Read - ERROR: no valid session object");
+	return UA_ERROR;
 }
 

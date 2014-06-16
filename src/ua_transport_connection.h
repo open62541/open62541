@@ -34,7 +34,7 @@ UA_Int32 UA_TL_Connection_close(UA_TL_Connection1 connection);
 UA_Int32 UA_TL_Connection_new(UA_TL_Connection1 *connection,
 		TL_Buffer localBuffers,TL_Writer writer);
 UA_Int32 UA_TL_Connection_bind(UA_TL_Connection1 connection, UA_Int32 handle);
-
+UA_Boolean UA_TL_Connection_compare(UA_TL_Connection1 *connection1, UA_TL_Connection1 *connection2);
 //getter
 UA_Int32 UA_TL_Connection_getHandle(UA_TL_Connection1 connection, UA_UInt32 *connectionId);
 UA_Int32 UA_TL_Connection_getProtocolVersion(UA_TL_Connection1 connection, UA_UInt32 *protocolVersion);

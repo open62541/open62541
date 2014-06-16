@@ -59,6 +59,7 @@ UA_Int32 UA_SessionManager_getSessionByToken(UA_NodeId *token, UA_Session *sessi
 
 UA_Int32 UA_SessionManager_updateSessions();
 
+
 UA_Int32 UA_SessionManager_getSessionLifeTime(UA_DateTime *lifeTime);
 
 //UA_Int32 UA_SessionManager_generateToken(UA_Session session, UA_Int32 requestedLifeTime, SecurityTokenRequestType requestType, UA_ChannelSecurityToken* newToken);

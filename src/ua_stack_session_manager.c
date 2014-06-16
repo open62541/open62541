@@ -10,7 +10,7 @@
 
 typedef struct UA_SessionManagerType
 {
-	UA_list_List *sessions;
+	UA_list_List sessions;
 
 
 	UA_UInt32 maxSessionCount;
@@ -22,12 +22,21 @@ typedef struct UA_SessionManagerType
 }UA_SessionManagerType;
 
 static UA_SessionManagerType *sessionManager;
+
+UA_Int32 UA_SessionManager_generateSessionId(UA_NodeId *sessionId)
+{
+	sessionId->encodingByte = 0x00;
+	sessionId->namespace = 0;
+	sessionId->identifier.numeric = sessionManager->lastSessionId++;
+	return UA_SUCCESS;
+}
+
 UA_Int32 UA_SessionManager_init(UA_UInt32 maxSessionCount,UA_UInt32 sessionLifetime, UA_UInt32 startSessionId)
 {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_alloc((void**)&sessionManager,sizeof(UA_SessionManagerType));
 
-	retval |= UA_list_init(sessionManager->sessions);
+	retval |= UA_list_init(&sessionManager->sessions);
 
 	sessionManager->maxSessionCount = maxSessionCount;
 	sessionManager->lastSessionId = startSessionId;
@@ -37,7 +46,7 @@ UA_Int32 UA_SessionManager_init(UA_UInt32 maxSessionCount,UA_UInt32 sessionLifet
 
 UA_Boolean UA_SessionManager_sessionExists(UA_Session *session)
 {
-	if(UA_list_search(sessionManager->sessions,(UA_list_PayloadComparer)UA_Session_compare,(void*)session))
+	if(UA_list_search(&sessionManager->sessions,(UA_list_PayloadComparer)UA_Session_compare,(void*)session))
 	{
 		return UA_TRUE;
 	}
@@ -46,18 +55,19 @@ UA_Boolean UA_SessionManager_sessionExists(UA_Session *session)
 
 UA_Int32 UA_SessionManager_getSessionById(UA_NodeId *sessionId, UA_Session *session)
 {
- 	UA_list_Element* current = sessionManager->sessions->first;
+ 	UA_list_Element* current = sessionManager->sessions.first;
 	while (current)
 	{
 		if (current->payload)
 		{
 			UA_list_Element* elem = (UA_list_Element*) current;
 			*session = *((UA_Session*) (elem->payload));
-		 	if(UA_Session_compareById(*session,sessionId))
+		 	if(UA_Session_compareById(*session,sessionId) == UA_EQUAL)
 		 	{
 		 		return UA_SUCCESS;
 		 	}
 		}
+		current = current->next;
 	}
 	*session = UA_NULL;
 	return UA_ERROR;
@@ -65,21 +75,23 @@ UA_Int32 UA_SessionManager_getSessionById(UA_NodeId *sessionId, UA_Session *sess
 
 UA_Int32 UA_SessionManager_getSessionByToken(UA_NodeId *token, UA_Session *session)
 {
-	if(sessionManager->sessions)
+	if(sessionManager->sessions.first)
 	{
-		UA_list_Element* current = sessionManager->sessions->first;
+		UA_list_Element* current = sessionManager->sessions.first;
 		while (current)
 		{
 			if (current->payload)
 			{
 				UA_list_Element* elem = (UA_list_Element*) current;
 				*session = *((UA_Session*) (elem->payload));
-				if(UA_Session_compareByToken(*session,token))
+				if(UA_Session_compareByToken(*session,token) == UA_EQUAL)
 				{
 					return UA_SUCCESS;
 				}
 			}
+			current = current->next;
 		}
+
 	}
 	*session = UA_NULL;
 	return UA_ERROR;
@@ -88,9 +100,14 @@ UA_Int32 UA_SessionManager_getSessionByToken(UA_NodeId *token, UA_Session *sessi
 UA_Int32 UA_SessionManager_addSession(UA_Session *session)
 {
 	UA_Int32 retval = UA_SUCCESS;
+	UA_NodeId sessionId;
 	if(!UA_SessionManager_sessionExists(session))
 	{
-		retval |= UA_list_addElementToBack(sessionManager->sessions,(void*)session);
+		retval |= UA_list_addPayloadToBack(&sessionManager->sessions,(void*)session);
+		UA_Session_getId(*session, &sessionId);
+
+		printf("UA_SessionManager_addSession - added session with id = %d \n",sessionId.identifier.numeric);
+
 		return retval;
 	}
 	else

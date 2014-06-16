@@ -116,7 +116,7 @@ void server_run() {
 			exit(1);
 		}
 
-		UA_TL_ConnectionManager_getConnectionById(newsockfd, &tmpConnection);
+		UA_TL_ConnectionManager_getConnectionByHandle(newsockfd, &tmpConnection);
 		if(tmpConnection == UA_NULL)
 		{
 			UA_TL_Connection_new(&connection, localBuffers, (TL_Writer)NL_TCP_writer);
@@ -143,7 +143,7 @@ void server_run() {
 		} while(connectionState != CONNECTIONSTATE_CLOSE);
 		shutdown(newsockfd,2);
 		close(newsockfd);
-		UA_TL_ConnectionManager_getConnectionById(newsockfd, &tmpConnection);
+		UA_TL_ConnectionManager_getConnectionByHandle(newsockfd, &tmpConnection);
 		UA_TL_ConnectionManager_removeConnection(tmpConnection);
 	}
 	shutdown(sockfd,2);
