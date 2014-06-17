@@ -119,6 +119,9 @@ typedef struct UA_NodeId {
 	} identifier;
 } UA_NodeId;
 
+#define NS0NODEID(NUMERIC_ID) \
+	(UA_NodeId){.encodingByte = 1 /*UA_NODEIDTYPE_FOURBYTE*/, .namespace = 0, .identifier.numeric = NUMERIC_ID}
+
 #define UA_NODEIDTYPE_NAMESPACE_URI_FLAG 0x80
 #define UA_NODEIDTYPE_SERVERINDEX_FLAG 0x40
 #define UA_NODEIDTYPE_MASK (~(UA_NODEIDTYPE_NAMESPACE_URI_FLAG | UA_NODEIDTYPE_SERVERINDEX_FLAG))
@@ -129,6 +132,9 @@ typedef struct UA_ExpandedNodeId {
 	UA_String namespaceUri;
 	UA_UInt32 serverIndex;
 } UA_ExpandedNodeId;
+
+#define NS0EXPANDEDNODEID(NUMERIC_ID) \
+	(UA_ExpandedNodeId){.nodeId = NS0NODEID(NUMERIC_ID), .namespaceUri = {-1, UA_NULL}, .serverIndex = 0}
 
 /** @brief A numeric identifier for a error or condition that is associated with a value or an operation. */
 typedef UA_UInt32 UA_StatusCode; // StatusCodes aren't an enum(=int) since 32 unsigned bits are needed. See also ua_statuscodes.h */
