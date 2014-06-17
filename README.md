@@ -62,6 +62,10 @@ $ make all
 ##### Get expat
 * start MinGW Installation Manager
 * choose all Packages, mark mingw32-expat and install
+* open msys and install libexpat
+```bash
+$ mingw-get install libexpat
+```
 
 ##### Get Python and lxml:
 * download Python at https://python.org/downloads
