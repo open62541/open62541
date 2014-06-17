@@ -6,9 +6,12 @@
 /*********/
 
 UA_Int32 UA_Array_calcSizeBinary(UA_Int32 nElements, UA_VTable_Entry *vt, const void *data) {
-	if(vt == UA_NULL || data == UA_NULL)
+	if(vt == UA_NULL){
 		return 0; // do not return error as the result will be used to allocate memory
-
+	}
+	if(data == UA_NULL){ //NULL Arrays are encoded as length = -1
+		return sizeof(UA_Int32);
+	}
 	UA_Int32  length     = sizeof(UA_Int32);
 	UA_UInt32 memSize    = vt->memSize;
 	const UA_Byte *cdata = (const UA_Byte *)data;
@@ -21,9 +24,12 @@ UA_Int32 UA_Array_calcSizeBinary(UA_Int32 nElements, UA_VTable_Entry *vt, const 
 
 UA_Int32 UA_Array_encodeBinary(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt, UA_ByteString *dst,
                                UA_UInt32 *offset) {
-	if(vt == UA_NULL || src == UA_NULL || dst == UA_NULL || offset == UA_NULL)
+	if(vt == UA_NULL || dst == UA_NULL || offset == UA_NULL)
 		return UA_ERROR;
-
+	if(src == UA_NULL) //Null Arrays are encoded with length = -1 // part 6 - §5.24
+	{
+		noElements = -1;
+	}
 	UA_Int32 retval     = UA_SUCCESS;
 	retval = UA_Int32_encodeBinary(&noElements, dst, offset);
 	const UA_Byte *csrc = (const UA_Byte *)src;
