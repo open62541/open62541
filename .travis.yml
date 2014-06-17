@@ -10,7 +10,7 @@ addons:
     project:
       name: acplt/open62541
       description: Open-source OPC UA
-    notification_email: s.gruener@plt.rwth-aachen.de
+    notification_email: null@plt.rwth-aachen.de
     build_command_prepend: ./autogen.sh && ./configure
     build_command: make
     branch_pattern: coverity_scan
