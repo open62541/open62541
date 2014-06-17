@@ -140,8 +140,9 @@ static UA_DataValue service_read_node(Application *app, const UA_ReadValueId *id
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
 		// TODO: Ensure that the borrowed value is not freed prematurely (multithreading)
-		retval |= UA_Variant_borrowSetValue(&v.value, &UA_.types[UA_VARIANT],
-		                                    &((UA_VariableNode *)node)->value);
+		/* retval |= UA_Variant_borrowSetValue(&v.value, &UA_.types[UA_VARIANT], */
+		/*                                     &((UA_VariableNode *)node)->value); */
+		retval |= UA_Variant_copy(&((UA_VariableNode *)node)->value, &v.value);
 		break;
 
 	case UA_ATTRIBUTEID_DATATYPE:

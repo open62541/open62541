@@ -146,6 +146,9 @@ UA_Int32 SL_handleRequest(SL_Channel *channel, const UA_ByteString *msg, UA_UInt
 	}else if(serviceid == UA_BROWSEREQUEST_NS0) {
 		INVOKE_SERVICE(Browse);
 		responsetype = UA_BROWSERESPONSE_NS0;
+	}else if(serviceid == UA_CREATESUBSCRIPTIONREQUEST_NS0) {
+		INVOKE_SERVICE(CreateSubscription);
+		responsetype = UA_CREATESUBSCRIPTIONRESPONSE_NS0;
 	}else{
 		printf("SL_processMessage - unknown request, namespace=%d, request=%d\n",
 		       serviceRequestType.namespace,

@@ -225,6 +225,8 @@ UA_Int32 Service_CreateMonitoredItems(SL_Channel *channel, const UA_CreateMonito
  * @{
  */
 // Service_CreateSubscription
+UA_Int32 Service_CreateSubscription(SL_Channel *channel, const UA_CreateSubscriptionRequest *request,
+                                   UA_CreateSubscriptionResponse *response);
 // Service_ModifySubscription
 // Service_SetPublishingMode
 // Service_Publish

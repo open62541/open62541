@@ -62,14 +62,19 @@ $ make all
 ##### Get expat
 * start MinGW Installation Manager
 * choose all Packages, mark mingw32-expat and install
+* Open MinGW\msys\1.0\msys.bat
+```bash
+$ mingw-get install libexpat
+```
 
 ##### Get Python and lxml:
-* download Python at https://python.org/downloads
+* download Python at https://python.org/downloads (recommended version: 3.4.x)
 * install the executable
-* add the install directory (e. g. "c:\python27") to your windows path variable 
+* add the install directory (e. g. "c:\python34") to your windows path variable [Selectable in the setup-options]
 * restart mingw console
 * install lxml by either downloading and installing http://www.lfd.uci.edu/~gohlke/pythonlibs/#lxml (choose the version which fits    to your python installation) or by following the instructions
-  given here: http://lxml.de/installation.html
+  given here: http://lxml.de/installation.html 
+* [HINT for Windows x64 Users]: To use the first option to install lxml, it is necessary to edit the registry: The install path of python needs to be copyed in an other registry directroy: [FROM]: HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Python\PythonCore\3.4\InstallPath [TO]: HKEY_LOCAL_MACHINE\SOFTWARE\Python\PythonCore\3.4\InstallPath
 
 ##### Get git (IMPORTANT: get 1.8.4, since 1.8.5.2 has a bug):
 * http://code.google.com/p/msysgit/downloads/detail?name=Git-1.8.4-preview20130916.exe&can=2&q=

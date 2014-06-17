@@ -49,8 +49,8 @@ void appMockup_init() {
 	/* UA_NodeId RefTypeId_HasDescription = NS0NODEID(39); */
 	UA_NodeId RefTypeId_HasTypeDefinition = NS0NODEID(40);
 	/* UA_NodeId RefTypeId_HasSubtype = NS0NODEID(45); */
-//	UA_NodeId RefTypeId_HasProperty = NS0NODEID(46);
-//	UA_NodeId RefTypeId_HasComponent = NS0NODEID(47);
+	UA_NodeId RefTypeId_HasProperty = NS0NODEID(46);
+	UA_NodeId RefTypeId_HasComponent = NS0NODEID(47);
 	/* UA_NodeId RefTypeId_HasNotifier = NS0NODEID(48); */
 
     // ObjectTypes (Ids only)
@@ -61,6 +61,10 @@ void appMockup_init() {
 	UA_ExpandedNodeId ObjId_TypesFolder = NS0EXPANDEDNODEID(86);
 	UA_ExpandedNodeId ObjId_ViewsFolder = NS0EXPANDEDNODEID(87);
 	UA_ExpandedNodeId ObjId_Server = NS0EXPANDEDNODEID(2253);
+	UA_ExpandedNodeId ObjId_ServerArray = NS0EXPANDEDNODEID(2254);
+	UA_ExpandedNodeId ObjId_NamespaceArray = NS0EXPANDEDNODEID(2255);
+	UA_ExpandedNodeId ObjId_ServerStatus = NS0EXPANDEDNODEID(2256);
+	UA_ExpandedNodeId ObjId_ServerCapabilities = NS0EXPANDEDNODEID(2268);
 
 	// Root
 	UA_ObjectNode *root;
@@ -77,6 +81,8 @@ void appMockup_init() {
 		{RefTypeId_Organizes, UA_FALSE, ObjId_TypesFolder},
 		{RefTypeId_Organizes, UA_FALSE, ObjId_ViewsFolder}};
 
+	Namespace_insert(ns0,(UA_Node*)root);
+
 	// Objects
 	UA_ObjectNode *objects;
 	UA_ObjectNode_new(&objects);
@@ -90,6 +96,8 @@ void appMockup_init() {
 		{RefTypeId_HasTypeDefinition, UA_FALSE, ObjTypeId_FolderType},
 		{RefTypeId_Organizes, UA_FALSE, ObjId_Server}};
 
+	Namespace_insert(ns0,(UA_Node*)objects);
+
 	// Views
 	UA_ObjectNode *views;
 	UA_ObjectNode_new(&views);
@@ -102,7 +110,7 @@ void appMockup_init() {
 	views->references = (UA_ReferenceNode[1]){
 		{RefTypeId_HasTypeDefinition, UA_FALSE, ObjTypeId_FolderType}};
 
-
+	Namespace_insert(ns0,(UA_Node*)views);
 
 	// Server
 	UA_ObjectNode *server;
@@ -113,37 +121,37 @@ void appMockup_init() {
 	server->displayName = (UA_LocalizedText){{2,"EN"},{6, "Server"}};
 	server->description = (UA_LocalizedText){{2,"EN"},{6, "Server"}};
 	server->referencesSize = 0;
-	server->references = UA_NULL;
-	/*(UA_ReferenceNode[4]){
-		{RefTypeId_HasComponent, UA_FALSE, ObjId_Server},
-		{RefTypeId_HasComponent, UA_FALSE, ObjTypeId_FolderType},
-		{RefTypeId_HasProperty, UA_FALSE, ObjTypeId_FolderType},
-		{RefTypeId_HasProperty, UA_FALSE, ObjTypeId_FolderType}};
+	server->references = (UA_ReferenceNode[4]){
+		{RefTypeId_HasComponent, UA_FALSE, ObjId_ServerCapabilities},
+		{RefTypeId_HasComponent, UA_FALSE, ObjId_NamespaceArray},
+		{RefTypeId_HasProperty, UA_FALSE, ObjId_ServerStatus},
+		{RefTypeId_HasProperty, UA_FALSE, ObjId_ServerArray}};
 
-	AddReference(ObjectID::Server, forward, ReferenceID::HasComponent, ObjectID::ServerCapabilities, Names::ServerCapabilities, NodeClass::Variable, ObjectID::PropertyType);
-	AddReference(ObjectID::Server, forward, ReferenceID::HasComponent, ObjectID::NamespaceArray, Names::NamespaceArray, NodeClass::Variable, ObjectID::PropertyType);
-	AddReference(ObjectID::Server, forward, ReferenceID::HasProperty, ObjectID::ServerStatus, Names::ServerStatus, NodeClass::Variable, ObjectID::ServerStatusType);
-	AddReference(ObjectID::Server, forward, ReferenceID::HasProperty, ObjectID::ServerArray, Names::ServerArray, NodeClass::Variable, ObjectID::PropertyType);
-*/
-
-	//Types
-	UA_ObjectNode *types;
-	UA_ObjectNode_new(&types);
-	types->nodeId = ObjId_TypesFolder.nodeId;
-
-	types->nodeClass = UA_NODECLASS_OBJECT;
-	types->browseName = (UA_QualifiedName){0, {6, "Types"}};
-	types->displayName = (UA_LocalizedText){{2,"EN"},{6, "Types"}};
-	types->description = (UA_LocalizedText){{2,"EN"},{6, "Types"}};
-	types->referencesSize = 0;
-	types->references = UA_NULL; // TODO. Fill up here.
-
-	
-	Namespace_insert(ns0,(UA_Node*)root);
-	Namespace_insert(ns0,(UA_Node*)objects);
-	Namespace_insert(ns0,(UA_Node*)views);
 	Namespace_insert(ns0,(UA_Node*)server);
-	Namespace_insert(ns0,(UA_Node*)types);
+
+	// NamespaceArray
+	UA_VariableNode *namespaceArray;
+	UA_VariableNode_new(&namespaceArray);
+	namespaceArray->nodeId = ObjId_NamespaceArray.nodeId;
+	namespaceArray->nodeClass = UA_NODECLASS_VARIABLE; //FIXME: this should go into _new?
+	namespaceArray->browseName = (UA_QualifiedName){0, {6, "NamespaceArray"}};
+	namespaceArray->displayName = (UA_LocalizedText){{2,"EN"},{6, "NamespaceArray"}};
+	namespaceArray->description = (UA_LocalizedText){{2,"EN"},{6, "NamespaceArray"}};
+	//FIXME: can we avoid new here?
+	UA_Array_new((void**)&namespaceArray->value.data, 2, &UA_.types[UA_STRING]);
+	namespaceArray->value.vt = &UA_.types[UA_STRING];
+	namespaceArray->value.arrayLength = 2;
+	UA_String_copycstring("http://opcfoundation.org/UA/",&((UA_String *)((namespaceArray->value).data))[0]);
+	UA_String_copycstring("http://localhost:16664/open62541/",&((UA_String *)(((namespaceArray)->value).data))[1]);
+	namespaceArray->dataType.encodingByte = UA_NODEIDTYPE_FOURBYTE;
+	namespaceArray->dataType.identifier.numeric = UA_STRING_NS0;
+	namespaceArray->valueRank = 1;
+	namespaceArray->minimumSamplingInterval = 1.0;
+	namespaceArray->historizing = UA_FALSE;
+
+	Namespace_insert(ns0,(UA_Node*)namespaceArray);
+
+	//TODO: free(namespaceArray->value.data) later or forget it
 
 
 	/* UA_VariableNode* v = (UA_VariableNode*)np; */
