@@ -62,7 +62,7 @@ $ make all
 ##### Get expat
 * start MinGW Installation Manager
 * choose all Packages, mark mingw32-expat and install
-* open msys and install libexpat
+* Open MinGW\msys\1.0\msys.bat
 ```bash
 $ mingw-get install libexpat
 ```
