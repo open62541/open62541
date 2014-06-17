@@ -97,6 +97,7 @@ $ make check
 ```
 
 ### Configure Options 
+
 * --enable-debug=(yes|no|verbose) - omit/include debug code
 * --enable-multithreading - enable pthreads (for examples/src/opcuaServerMT)
 * --enable-doxygen - make documentation as well
