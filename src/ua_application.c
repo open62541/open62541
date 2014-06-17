@@ -37,26 +37,103 @@ void appMockup_init() {
 	UA_indexedList_addValueToFront(appMockup.namespaces,0,ns0);
 	UA_indexedList_addValueToFront(appMockup.namespaces,1,local);
 
-	UA_Node* np;
-	np = create_node_ns0(UA_OBJECTNODE, UA_NODECLASS_OBJECT, 2253, "Server", "open62541", "...");
-	Namespace_insert(ns0,np);
-	UA_ObjectNode* o = (UA_ObjectNode*)np;
-	o->eventNotifier = UA_FALSE;
+    /***************/
+    /* Namespace 0 */
+    /***************/
 
-	np = create_node_ns0(UA_VARIABLENODE, UA_NODECLASS_VARIABLE, 2255, "Server_NamespaceArray", "open62541", "..." );
-	UA_VariableNode* v = (UA_VariableNode*)np;
-	UA_Array_new((void**)&v->value.data, 2, &UA_.types[UA_STRING]);
-	v->value.vt = &UA_.types[UA_STRING];
-	v->value.arrayLength = 2;
-	UA_String_copycstring("http://opcfoundation.org/UA/",&((UA_String *)((v->value).data))[0]);
-	UA_String_copycstring("http://localhost:16664/open62541/",&((UA_String *)(((v)->value).data))[1]);
-	v->dataType.encodingByte = UA_NODEIDTYPE_FOURBYTE;
-	v->dataType.identifier.numeric = UA_STRING_NS0;
-	v->valueRank = 1;
-	v->minimumSamplingInterval = 1.0;
-	v->historizing = UA_FALSE;
+    // ReferenceTypes
+	UA_NodeId RefTypeId_Organizes = NS0NODEID(35);
+	/* UA_NodeId RefTypeId_HasEventSource = NS0NODEID(36); */
+	/* UA_NodeId RefTypeId_HasModellingRule = NS0NODEID(37); */
+	/* UA_NodeId RefTypeId_HasEncoding = NS0NODEID(38); */
+	/* UA_NodeId RefTypeId_HasDescription = NS0NODEID(39); */
+	UA_NodeId RefTypeId_HasTypeDefinition = NS0NODEID(40);
+	/* UA_NodeId RefTypeId_HasSubtype = NS0NODEID(45); */
+	/* UA_NodeId RefTypeId_HasProperty = NS0NODEID(46); */
+	/* UA_NodeId RefTypeId_HasComponent = NS0NODEID(47); */
+	/* UA_NodeId RefTypeId_HasNotifier = NS0NODEID(48); */
 
-	Namespace_insert(ns0,np);
+    // ObjectTypes (Ids only)
+	UA_ExpandedNodeId ObjTypeId_FolderType = NS0EXPANDEDNODEID(61);
+
+	// Objects (Ids only)
+	UA_ExpandedNodeId ObjId_ObjectsFolder = NS0EXPANDEDNODEID(85);
+	UA_ExpandedNodeId ObjId_TypesFolder = NS0EXPANDEDNODEID(86);
+	UA_ExpandedNodeId ObjId_ViewsFolder = NS0EXPANDEDNODEID(87);
+	UA_ExpandedNodeId ObjId_Server = NS0EXPANDEDNODEID(2253);
+
+	// Root
+	UA_ObjectNode *root;
+	UA_ObjectNode_new(&root);
+	root->nodeId = NS0NODEID(84);
+	root->nodeClass = UA_NODECLASS_OBJECT; // I should not have to set this manually
+	root->browseName = (UA_QualifiedName){0, {4, "Root"}};
+	root->displayName = (UA_LocalizedText){{2,"EN"},{4, "Root"}};
+	root->description = (UA_LocalizedText){{2,"EN"},{4, "Root"}};
+	root->referencesSize = 4;
+	root->references = (UA_ReferenceNode[4]){
+		{RefTypeId_HasTypeDefinition, UA_FALSE, ObjTypeId_FolderType},
+		{RefTypeId_Organizes, UA_FALSE, ObjId_ObjectsFolder},
+		{RefTypeId_Organizes, UA_FALSE, ObjId_TypesFolder},
+		{RefTypeId_Organizes, UA_FALSE, ObjId_ViewsFolder}};
+
+	// Objects
+	UA_ObjectNode *objects;
+	UA_ObjectNode_new(&objects);
+	objects->nodeId = ObjId_ObjectsFolder.nodeId;
+	objects->nodeClass = UA_NODECLASS_OBJECT;
+	objects->browseName = (UA_QualifiedName){0, {7, "Objects"}};
+	objects->displayName = (UA_LocalizedText){{2,"EN"},{7, "Objects"}};
+	objects->description = (UA_LocalizedText){{2,"EN"},{7, "Objects"}};
+	objects->referencesSize = 2;
+	objects->references = (UA_ReferenceNode[2]){
+		{RefTypeId_HasTypeDefinition, UA_FALSE, ObjTypeId_FolderType},
+		{RefTypeId_Organizes, UA_FALSE, ObjId_Server}};
+
+	// Views
+	UA_ObjectNode *views;
+	UA_ObjectNode_new(&views);
+	views->nodeId = ObjId_ViewsFolder.nodeId;
+	views->nodeClass = UA_NODECLASS_OBJECT;
+	views->browseName = (UA_QualifiedName){0, {5, "Views"}};
+	views->displayName = (UA_LocalizedText){{2,"EN"},{5, "Views"}};
+	views->description = (UA_LocalizedText){{2,"EN"},{5, "Views"}};
+	views->referencesSize = 1;
+	views->references = (UA_ReferenceNode[1]){
+		{RefTypeId_HasTypeDefinition, UA_FALSE, ObjTypeId_FolderType}};
+
+	// Server
+	UA_ObjectNode *server;
+	UA_ObjectNode_new(&server);
+	server->nodeId = ObjId_Server.nodeId;
+	server->nodeClass = UA_NODECLASS_OBJECT;
+	server->browseName = (UA_QualifiedName){0, {6, "Server"}};
+	server->displayName = (UA_LocalizedText){{2,"EN"},{6, "Server"}};
+	server->description = (UA_LocalizedText){{2,"EN"},{6, "Server"}};
+	server->referencesSize = 0;
+	server->references = UA_NULL; // TODO. Fill up here.
+	
+	Namespace_insert(ns0,(UA_Node*)root);
+	Namespace_insert(ns0,(UA_Node*)objects);
+	Namespace_insert(ns0,(UA_Node*)views);
+	Namespace_insert(ns0,(UA_Node*)server);
+
+	/* UA_VariableNode* v = (UA_VariableNode*)np; */
+	/* UA_Array_new((void**)&v->value.data, 2, &UA_.types[UA_STRING]); */
+	/* v->value.vt = &UA_.types[UA_STRING]; */
+	/* v->value.arrayLength = 2; */
+	/* UA_String_copycstring("http://opcfoundation.org/UA/",&((UA_String *)((v->value).data))[0]); */
+	/* UA_String_copycstring("http://localhost:16664/open62541/",&((UA_String *)(((v)->value).data))[1]); */
+	/* v->dataType.encodingByte = UA_NODEIDTYPE_FOURBYTE; */
+	/* v->dataType.identifier.numeric = UA_STRING_NS0; */
+	/* v->valueRank = 1; */
+	/* v->minimumSamplingInterval = 1.0; */
+	/* v->historizing = UA_FALSE; */
+	/* Namespace_insert(ns0,np); */
+
+    /*******************/
+    /* Namespace local */
+    /*******************/
 
 #if defined(DEBUG) && defined(VERBOSE)
 	uint32_t i;
