@@ -25,6 +25,7 @@ libopen62541_la_SOURCES = ua_types.c \
 						  ua_services_nodemanagement.c \
 						  ua_services_view.c \
 						  ua_services_subscription.c\
+						  ua_services_monitoreditems.c\
 						  ua_application.c \
 						  ua_xml.c
 ua_types.c: ua_namespace_0.h
