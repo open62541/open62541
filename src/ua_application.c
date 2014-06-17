@@ -49,8 +49,8 @@ void appMockup_init() {
 	/* UA_NodeId RefTypeId_HasDescription = NS0NODEID(39); */
 	UA_NodeId RefTypeId_HasTypeDefinition = NS0NODEID(40);
 	/* UA_NodeId RefTypeId_HasSubtype = NS0NODEID(45); */
-	/* UA_NodeId RefTypeId_HasProperty = NS0NODEID(46); */
-	/* UA_NodeId RefTypeId_HasComponent = NS0NODEID(47); */
+//	UA_NodeId RefTypeId_HasProperty = NS0NODEID(46);
+//	UA_NodeId RefTypeId_HasComponent = NS0NODEID(47);
 	/* UA_NodeId RefTypeId_HasNotifier = NS0NODEID(48); */
 
     // ObjectTypes (Ids only)
@@ -102,6 +102,8 @@ void appMockup_init() {
 	views->references = (UA_ReferenceNode[1]){
 		{RefTypeId_HasTypeDefinition, UA_FALSE, ObjTypeId_FolderType}};
 
+
+
 	// Server
 	UA_ObjectNode *server;
 	UA_ObjectNode_new(&server);
@@ -111,12 +113,38 @@ void appMockup_init() {
 	server->displayName = (UA_LocalizedText){{2,"EN"},{6, "Server"}};
 	server->description = (UA_LocalizedText){{2,"EN"},{6, "Server"}};
 	server->referencesSize = 0;
-	server->references = UA_NULL; // TODO. Fill up here.
+	server->references = UA_NULL;
+	/*(UA_ReferenceNode[4]){
+		{RefTypeId_HasComponent, UA_FALSE, ObjId_Server},
+		{RefTypeId_HasComponent, UA_FALSE, ObjTypeId_FolderType},
+		{RefTypeId_HasProperty, UA_FALSE, ObjTypeId_FolderType},
+		{RefTypeId_HasProperty, UA_FALSE, ObjTypeId_FolderType}};
+
+	AddReference(ObjectID::Server, forward, ReferenceID::HasComponent, ObjectID::ServerCapabilities, Names::ServerCapabilities, NodeClass::Variable, ObjectID::PropertyType);
+	AddReference(ObjectID::Server, forward, ReferenceID::HasComponent, ObjectID::NamespaceArray, Names::NamespaceArray, NodeClass::Variable, ObjectID::PropertyType);
+	AddReference(ObjectID::Server, forward, ReferenceID::HasProperty, ObjectID::ServerStatus, Names::ServerStatus, NodeClass::Variable, ObjectID::ServerStatusType);
+	AddReference(ObjectID::Server, forward, ReferenceID::HasProperty, ObjectID::ServerArray, Names::ServerArray, NodeClass::Variable, ObjectID::PropertyType);
+*/
+
+	//Types
+	UA_ObjectNode *types;
+	UA_ObjectNode_new(&types);
+	types->nodeId = ObjId_TypesFolder.nodeId;
+
+	types->nodeClass = UA_NODECLASS_OBJECT;
+	types->browseName = (UA_QualifiedName){0, {6, "Types"}};
+	types->displayName = (UA_LocalizedText){{2,"EN"},{6, "Types"}};
+	types->description = (UA_LocalizedText){{2,"EN"},{6, "Types"}};
+	types->referencesSize = 0;
+	types->references = UA_NULL; // TODO. Fill up here.
+
 	
 	Namespace_insert(ns0,(UA_Node*)root);
 	Namespace_insert(ns0,(UA_Node*)objects);
 	Namespace_insert(ns0,(UA_Node*)views);
 	Namespace_insert(ns0,(UA_Node*)server);
+	Namespace_insert(ns0,(UA_Node*)types);
+
 
 	/* UA_VariableNode* v = (UA_VariableNode*)np; */
 	/* UA_Array_new((void**)&v->value.data, 2, &UA_.types[UA_STRING]); */
