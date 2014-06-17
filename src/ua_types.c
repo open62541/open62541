@@ -8,6 +8,7 @@
 #include "ua_types.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_namespace_0.h"
+#include "inttypes.h"
 
 /************/
 /* Built-In */
@@ -77,14 +78,14 @@ void UA_UInt32_print(const UA_UInt32 *p, FILE *stream) {
 UA_TYPE_DEFAULT(UA_Int64)
 void UA_Int64_print(const UA_Int64 *p, FILE *stream) {
 	if(p == UA_NULL || stream == UA_NULL) return;
-	fprintf(stream, "%ld", *p);
+	fprintf(stream, "%" PRIi64, *p);
 }
 
 /* UInt64 */
 UA_TYPE_DEFAULT(UA_UInt64)
 void UA_UInt64_print(const UA_UInt64 *p, FILE *stream) {
 	if(p == UA_NULL || stream == UA_NULL) return;
-	fprintf(stream, "%lu", *p);
+	fprintf(stream, "%" PRIu64, *p);
 }
 
 /* Float */
@@ -457,6 +458,7 @@ void UA_NodeId_print(const UA_NodeId *p, FILE *stream) {
 		break;
 	case UA_NODEIDTYPE_STRING:
 		fprintf(stream, ".identifier.string=%.*s", p->identifier.string.length, p->identifier.string.data);
+		break;
 	case UA_NODEIDTYPE_BYTESTRING:
 		fprintf(stream, ".identifier.byteString=%.*s", p->identifier.byteString.length, p->identifier.byteString.data);
 		break;
