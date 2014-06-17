@@ -105,9 +105,9 @@ UA_Boolean UA_Session_compare(UA_Session session1, UA_Session session2)
 {
 	if(session1 && session2){
 		return UA_NodeId_compare(&((UA_SessionType*)session1)->sessionId,
-				&((UA_SessionType*)session2)->sessionId) == 0;
+				&((UA_SessionType*)session2)->sessionId);
 	}
-	return UA_FALSE;
+	return UA_NOT_EQUAL;
 }
 
 UA_Boolean UA_Session_compareByToken(UA_Session session, UA_NodeId *token)
@@ -115,7 +115,7 @@ UA_Boolean UA_Session_compareByToken(UA_Session session, UA_NodeId *token)
 	if(session && token){
 		return UA_NodeId_compare(&((UA_SessionType*)session)->authenticationToken, token);
 	}
-	return UA_FALSE;
+	return UA_NOT_EQUAL;
 }
 
 UA_Boolean UA_Session_compareById(UA_Session session, UA_NodeId *sessionId)
@@ -123,7 +123,7 @@ UA_Boolean UA_Session_compareById(UA_Session session, UA_NodeId *sessionId)
 	if(session && sessionId){
 		return UA_NodeId_compare(&((UA_SessionType*)session)->sessionId, sessionId);
 	}
-	return UA_FALSE;
+	return UA_NOT_EQUAL;
 }
 
 UA_Int32 UA_Session_getId(UA_Session session, UA_NodeId *sessionId)
@@ -154,6 +154,16 @@ UA_Int32 UA_Session_getChannel(UA_Session session, SL_secureChannel *channel)
 	return UA_ERROR;
 }
 
+UA_Boolean UA_Session_verifyChannel(UA_Session session, SL_secureChannel channel)
+{
+	if(session && channel)
+	{
+		if(SL_Channel_compare(((UA_SessionType*)session)->channel, channel) == UA_EQUAL) {
+				return UA_TRUE;
+		}
+	}
+	return UA_FALSE;
+}
 UA_Int32 UA_Session_getApplicationPointer(UA_Session session, Application** application)
 {
 	if(session)

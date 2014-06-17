@@ -185,7 +185,7 @@ static UA_DataValue *service_read_node(Application * app, const UA_ReadValueId *
 	return v;
 }
 
-UA_Int32 Service_Read(UA_Session session, const UA_ReadRequest * request, UA_ReadResponse * response) {
+UA_Int32 Service_Read(UA_Session *session, const UA_ReadRequest * request, UA_ReadResponse * response) {
 	if(session)
 	{
 
@@ -206,7 +206,7 @@ UA_Int32 Service_Read(UA_Session session, const UA_ReadRequest * request, UA_Rea
 			DBG_VERBOSE(printf("service_read - attributeId=%d\n",request->nodesToRead[i]->attributeId));
 			DBG_VERBOSE(UA_NodeId_printf("service_read - nodeId=",&(request->nodesToRead[i]->nodeId)));
 
-			UA_Session_getApplicationPointer(session,&application);
+			UA_Session_getApplicationPointer(*session,&application);
 			if(application){
 				response->results[i] = service_read_node(application, request->nodesToRead[i]);
 			}

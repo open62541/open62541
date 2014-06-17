@@ -182,9 +182,10 @@ UA_Int32 SL_Channel_generateNonce(UA_ByteString *nonce)
 	return UA_SUCCESS;
 }
 
-_Bool SL_Channel_equal(void* channel1, void* channel2)
+UA_Boolean SL_Channel_compare(SL_secureChannel channel1, SL_secureChannel channel2)
 {
-	return (((SL_Channel1*)channel1)->channelId == ((SL_Channel1*)channel2)->channelId);
+	return (((SL_Channel1*)channel1)->channelId == ((SL_Channel1*)channel2)->channelId)
+			? UA_EQUAL : UA_NOT_EQUAL;
 }
 
 UA_Int32 SL_Channel_new(SL_secureChannel **channel,

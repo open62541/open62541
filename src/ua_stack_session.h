@@ -26,10 +26,15 @@ UA_Boolean UA_Session_compare(UA_Session session1, UA_Session session2);
 UA_Boolean UA_Session_compareByToken(UA_Session session, UA_NodeId *token);
 UA_Boolean UA_Session_compareById(UA_Session session, UA_NodeId *sessionId);
 UA_Int32 UA_Session_bind(UA_Session session, SL_secureChannel channel);
+UA_Boolean UA_Session_verifyChannel(UA_Session session, SL_secureChannel channel);
+
 UA_Int32 UA_Session_getId(UA_Session session, UA_NodeId *sessionId);
 UA_Int32 UA_Session_getToken(UA_Session session, UA_NodeId *authenticationToken);
 UA_Int32 UA_Session_getChannel(UA_Session session, SL_secureChannel *channel);
+
 UA_Int32 UA_Session_getApplicationPointer(UA_Session session, Application** application);
 
 UA_Int32 UA_Session_setApplicationPointer(UA_Session session, Application* application);
+
+
 #endif /* UA_STACK_SESSION_H_ */

@@ -64,7 +64,7 @@ UA_Int32 SL_Channel_registerChannelIdProvider(SL_ChannelIdProvider provider);
 UA_Int32 SL_Channel_checkRequestId(SL_secureChannel channel, UA_UInt32 requestId);
 
 UA_Int32 SL_Channel_checkSequenceNumber(SL_secureChannel channel, UA_UInt32 sequenceNumber);
-UA_Boolean SL_Channel_equal(void* channel1, void* channel2);
+UA_Boolean SL_Channel_compare(SL_secureChannel channel1, SL_secureChannel channel2);
 //getters
 UA_Int32 SL_Channel_getChannelId(SL_secureChannel channel, UA_UInt32 *channelId);
 UA_Int32 SL_Channel_getTokenId(SL_secureChannel channel, UA_UInt32 *tokenlId);

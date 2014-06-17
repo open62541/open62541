@@ -167,7 +167,8 @@ UA_Int32 SL_ChannelManager_removeChannel(UA_Int32 channelId)
 	SL_secureChannel channel;
 	UA_Int32 retval = UA_SUCCESS;
 	SL_ChannelManager_getChannel(channelId, &channel);
-	UA_list_Element *element =  UA_list_search(&channelManager->channels, SL_Channel_equal, &channel);
+
+	UA_list_Element *element =  UA_list_search(&channelManager->channels, (UA_list_PayloadComparer)SL_Channel_compare, &channel);
 	if(element){
 		retval |= UA_list_removeElement(element,(UA_list_PayloadVisitor)SL_Channel_delete);
 		return retval;

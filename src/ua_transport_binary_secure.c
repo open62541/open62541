@@ -133,6 +133,15 @@ static void init_response_header(UA_RequestHeader const * p,
 	r->stringTableSize = 0;
 	r->timestamp = UA_DateTime_now();
 }
+#define RESPONSE_PREPARE(TYPE) \
+	UA_##TYPE##Request p; \
+	UA_##TYPE##Response r; \
+	UA_Session session = UA_NULL; \
+	UA_##TYPE##Request_decodeBinary(msg, pos, &p); \
+	UA_##TYPE##Response_init(&r); \
+	init_response_header(&p.requestHeader, &r.responseHeader); \
+	UA_SessionManager_getSessionByToken(&p.requestHeader.authenticationToken, &session); \
+	DBG_VERBOSE(printf("Invoke Service: %s\n", #TYPE)); \
 
 #define INVOKE_SERVICE(TYPE) \
 	UA_##TYPE##Request p; \
@@ -150,7 +159,19 @@ static void init_response_header(UA_RequestHeader const * p,
 	UA_##TYPE##Response_encodeBinary(&r, pos, &response_msg); \
 	UA_##TYPE##Request_deleteMembers(&p); \
 	UA_##TYPE##Response_deleteMembers(&r); \
-
+/*
+#define INVOKE_SERVICE(TYPE) \
+		DBG_VERBOSE(printf("Invoke Service: %s\n", #TYPE)); \
+		Service_##TYPE(session, &p, &r); \
+		DBG_VERBOSE(printf("Finished Service: %s\n", #TYPE)); \
+*/
+#define RESPONSE_CLEANUP(TYPE) \
+	DBG_VERBOSE(printf("Finished Service: %s\n", #TYPE)); \
+	*pos = 0; \
+	UA_ByteString_newMembers(&response_msg, UA_##TYPE##Response_calcSize(&r)); \
+	UA_##TYPE##Response_encodeBinary(&r, pos, &response_msg); \
+	UA_##TYPE##Request_deleteMembers(&p); \
+	UA_##TYPE##Response_deleteMembers(&r); \
 /** this function manages all the generic stuff for the request-response game */
 //UA_Int32 SL_handleRequest(SL_Channel *channel, const UA_ByteString* msg,
 //		UA_Int32 *pos)
@@ -169,58 +190,69 @@ UA_Int32 SL_handleRequest(SL_secureChannel channel, const UA_ByteString* msg,
 	UA_ByteString response_msg;
 	UA_Int32 serviceid = serviceRequestType.identifier.numeric - 2; // binary encoding has 2 added to the id
 	UA_Int32 responsetype;
+	//services which need a channel as parameter
 	if (serviceid == UA_GETENDPOINTSREQUEST_NS0)
 	{
-		INVOKE_SERVICE(GetEndpoints);
+		RESPONSE_PREPARE(GetEndpoints);
+		Service_GetEndpoints(channel,&p, &r);
+		RESPONSE_CLEANUP(GetEndpoints);
+		//INVOKE_SERVICE(GetEndpoints);
 		responsetype = UA_GETENDPOINTSRESPONSE_NS0;
 	}
 	else if (serviceid == UA_OPENSECURECHANNELREQUEST_NS0)
 	{
-		//I see at the moment no other way to handle this
-		UA_OpenSecureChannelRequest p;
-		UA_OpenSecureChannelResponse r;
-		UA_OpenSecureChannelRequest_decodeBinary(msg, pos, &p);
-		UA_OpenSecureChannelResponse_init(&r);
-		init_response_header(&p.requestHeader, &r.responseHeader);
-		DBG_VERBOSE(printf("Invoke Service: %s\n", #TYPE));
+		RESPONSE_PREPARE(OpenSecureChannel);
 		Service_OpenSecureChannel(channel,&p, &r);
-		DBG_VERBOSE(printf("Finished Service: %s\n", #TYPE));
-	    *pos = 0; \
-		UA_ByteString_newMembers(&response_msg, UA_OpenSecureChannelResponse_calcSize(&r));
-		UA_OpenSecureChannelResponse_encodeBinary(&r, pos, &response_msg);
-		UA_OpenSecureChannelRequest_deleteMembers(&p);
-		UA_OpenSecureChannelResponse_deleteMembers(&r);
-
-		//INVOKE_SERVICE(OpenSecureChannel);
+		RESPONSE_CLEANUP(OpenSecureChannel);
 		responsetype = UA_OPENSECURECHANNELRESPONSE_NS0;
 	}
 	else if (serviceid == UA_CLOSESECURECHANNELREQUEST_NS0)
 	{
-		INVOKE_SERVICE(CloseSecureChannel);
+		RESPONSE_PREPARE(CloseSecureChannel);
+		Service_CloseSecureChannel(&p,&r);
+		RESPONSE_CLEANUP(CloseSecureChannel);
 		responsetype = UA_CLOSESECURECHANNELRESPONSE_NS0;
 	}
 	else if (serviceid == UA_CREATESESSIONREQUEST_NS0)
 	{
-		//TODO prepare userdefined implementation
-		INVOKE_SERVICE(CreateSession);
+		RESPONSE_PREPARE(CreateSession);
+		Service_CreateSession(&session,&p, &r);
+		RESPONSE_CLEANUP(CreateSession);
 		responsetype = UA_CREATESESSIONRESPONSE_NS0;
 	}
 	else if (serviceid == UA_ACTIVATESESSIONREQUEST_NS0)
 	{
-		//TODO prepare userdefined implementation
-		INVOKE_SERVICE(ActivateSession);
+		RESPONSE_PREPARE(ActivateSession);
+		Service_ActivateSession(channel,&session,&p, &r);
+		RESPONSE_CLEANUP(ActivateSession);
+
 		responsetype = UA_ACTIVATESESSIONRESPONSE_NS0;
 	}
 	else if (serviceid == UA_CLOSESESSIONREQUEST_NS0)
 	{
-		//TODO prepare userdefined implementation
-		INVOKE_SERVICE(CloseSession);
+		RESPONSE_PREPARE(CloseSession);
+		Service_CloseSession(&session,&p, &r);
+		RESPONSE_CLEANUP(CloseSession);
+
 		responsetype = UA_CLOSESESSIONRESPONSE_NS0;
 	}
 	else if (serviceid == UA_READREQUEST_NS0)
 	{
+
+		RESPONSE_PREPARE(Read);
+		DBG_VERBOSE(printf("Finished Service: %s\n", Read));
+		if (UA_Session_verifyChannel(session,channel)){
+			Service_Read(&session,&p, &r);
+		}
+		else
+		{
+			DBG_VERBOSE(printf("Finished Service: %s\n", Read));
+			//TODO return error, session does not belong to channel or vice versa
+		}
+		DBG_VERBOSE(printf("Finished Service: %s\n", Read));
+		RESPONSE_CLEANUP(Read);
 		//TODO prepare userdefined implementation
-		INVOKE_SERVICE(Read);
+	//	INVOKE_SERVICE(Read);
 		responsetype = UA_READRESPONSE_NS0;
 	}
 	else
