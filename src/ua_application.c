@@ -163,13 +163,15 @@ void appMockup_init() {
 	namespaceArray->displayName = (UA_LocalizedText){{2,"EN"},{13, "NamespaceArray"}};
 	namespaceArray->description = (UA_LocalizedText){{2,"EN"},{13, "NamespaceArray"}};
 	//FIXME: can we avoid new here?
-	UA_Array_new((void**)&namespaceArray->value.data, 1, &UA_.types[UA_STRING]);
+	UA_Array_new((void**)&namespaceArray->value.data, 2, &UA_.types[UA_STRING]);
 	namespaceArray->value.vt = &UA_.types[UA_STRING];
-	namespaceArray->value.arrayLength = 1;
+	namespaceArray->value.arrayLength = 2;
 	UA_String_copycstring("http://opcfoundation.org/UA/",&((UA_String *)((namespaceArray->value).data))[0]);
-	//UA_String_copycstring("http://localhost:16664/open62541/",&((UA_String *)(((namespaceArray)->value).data))[1]);
-	namespaceArray->dataType.encodingByte = UA_NODEIDTYPE_FOURBYTE;
-	namespaceArray->dataType.identifier.numeric = UA_STRING_NS0;
+	UA_String_copycstring("http://localhost:16664/open62541/",&((UA_String *)(((namespaceArray)->value).data))[1]);
+	namespaceArray->arrayDimensionsSize = 1;
+	UA_Int32 dimensions = 2;
+	namespaceArray->arrayDimensions = &dimensions;
+	namespaceArray->dataType = NS0NODEID(UA_STRING_NS0);
 	namespaceArray->valueRank = 1;
 	namespaceArray->minimumSamplingInterval = 1.0;
 	namespaceArray->historizing = UA_FALSE;
