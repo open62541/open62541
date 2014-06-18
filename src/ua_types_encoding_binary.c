@@ -1,6 +1,10 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_namespace_0.h"
 
+static inline UA_Boolean is_builtin(UA_NodeId *typeid) {
+	return (typeid->namespace == 0 && 1 <= typeid->identifier.numeric && typeid->identifier.numeric <= 25);
+}
+
 /*********/
 /* Array */
 /*********/
@@ -22,23 +26,68 @@ UA_Int32 UA_Array_calcSizeBinary(UA_Int32 nElements, UA_VTable_Entry *vt, const 
 	return length;
 }
 
+static UA_Int32 UA_Array_calcSizeBinary_asExtensionObject(UA_Int32 nElements, UA_VTable_Entry *vt,
+														   const void *data) {
+	if(vt == UA_NULL){
+		return 0; // do not return error as the result will be used to allocate memory
+	}
+	if(data == UA_NULL){ //NULL Arrays are encoded as length = -1
+		return sizeof(UA_Int32);
+	}
+	UA_Int32  length     = sizeof(UA_Int32);
+	UA_UInt32 memSize    = vt->memSize;
+	UA_Boolean isBuiltin = is_builtin(&vt->typeId);
+	const UA_Byte *cdata = (const UA_Byte *)data;
+	for(UA_Int32 i = 0;i < nElements;i++) {
+		length += vt->encodings[UA_ENCODING_BINARY].calcSize(cdata);
+		cdata  += memSize;
+	}
+	if(isBuiltin)
+		length += 9*nElements; // extensionobject header for each element
+	return length;
+}
+
 UA_Int32 UA_Array_encodeBinary(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt, UA_ByteString *dst,
                                UA_UInt32 *offset) {
 	if(vt == UA_NULL || dst == UA_NULL || offset == UA_NULL || (src == UA_NULL && noElements > 0))
 		return UA_ERROR;
 
-
-//	if(src == UA_NULL && noElements >) //Null Arrays are encoded with length = -1 // part 6 - §5.24
-//	{
-//		noElements = -1;
-//	}
-
+	//Null Arrays are encoded with length = -1 // part 6 - §5.24
+	if(noElements < -1) noElements = -1;
 
 	UA_Int32 retval     = UA_SUCCESS;
 	retval = UA_Int32_encodeBinary(&noElements, dst, offset);
 	const UA_Byte *csrc = (const UA_Byte *)src;
 	UA_UInt32 memSize   = vt->memSize;
 	for(UA_Int32 i = 0;i < noElements && retval == UA_SUCCESS;i++) {
+		retval |= vt->encodings[UA_ENCODING_BINARY].encode(csrc, dst, offset);
+		csrc   += memSize;
+	}
+	return retval;
+}
+
+static UA_Int32 UA_Array_encodeBinary_asExtensionObject(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt,
+														UA_ByteString *dst, UA_UInt32 *offset) {
+	if(vt == UA_NULL || dst == UA_NULL || offset == UA_NULL || (src == UA_NULL && noElements > 0))
+		return UA_ERROR;
+
+	//Null Arrays are encoded with length = -1 // part 6 - §5.24
+	if(noElements < -1) noElements = -1;
+
+	UA_Int32 retval     = UA_SUCCESS;
+	retval = UA_Int32_encodeBinary(&noElements, dst, offset);
+	const UA_Byte *csrc = (const UA_Byte *)src;
+	UA_UInt32 memSize   = vt->memSize;
+	UA_Boolean isBuiltin = is_builtin(&vt->typeId);
+	for(UA_Int32 i = 0;i < noElements && retval == UA_SUCCESS;i++) {
+		if(!isBuiltin) {
+			// print the extensionobject header
+			UA_NodeId_encodeBinary(&vt->typeId, dst, offset);
+			UA_Byte eoEncoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
+			UA_Byte_encodeBinary(&eoEncoding, dst, offset);
+			UA_Int32 eoEncodingLength = vt->encodings[UA_ENCODING_BINARY].calcSize(csrc);
+			UA_Int32_encodeBinary(&eoEncodingLength, dst, offset);
+		}
 		retval |= vt->encodings[UA_ENCODING_BINARY].encode(csrc, dst, offset);
 		csrc   += memSize;
 	}
@@ -673,28 +722,42 @@ UA_Int32 UA_DataValue_calcSizeBinary(UA_DataValue const *p) {
 }
 
 /* Variant */
-UA_Int32 UA_Variant_calcSizeBinary(UA_Variant const *p) {
-	if(p == UA_NULL)
-		return sizeof(UA_Variant);
+/* We can store all data types in a variant internally. But for communication we
+ * encode them in an ExtensionObject if they are not one of the built in types.
+ * Officially, only builtin types are contained in a variant.
+ *
+ * Every ExtensionObject incurrs an overhead of 4 byte (nodeid) + 1 byte (encoding) */
+UA_Int32 UA_Variant_calcSizeBinary(UA_Variant const *p) { if(p == UA_NULL)
+   return sizeof(UA_Variant);
 
 	if(p->vt == UA_NULL)
 		return UA_ERR_INCONSISTENT;
+	UA_Int32 arrayLength = p->arrayLength;
+	if(p->data == UA_NULL)
+		arrayLength = -1;
 
-	UA_Boolean isArray = p->arrayLength != 1;       // a single element is not an array
+	UA_Boolean isArray = arrayLength != 1;       // a single element is not an array
 	UA_Boolean hasDimensions = isArray && p->arrayDimensions != UA_NULL;
+	UA_Boolean isBuiltin = is_builtin(&p->vt->typeId);
 
 	UA_Int32   length        = sizeof(UA_Byte); //p->encodingMask
 	if(isArray) {
 		// array length + the array itself
-		length += UA_Array_calcSizeBinary(p->arrayLength, p->vt, p->data);
+		length += UA_Array_calcSizeBinary(arrayLength, p->vt, p->data);
 	} else {
-		// if p->data is null, encoding will return an error anyway.
-		if(p->data != UA_NULL)
-			length += p->vt->encodings[UA_ENCODING_BINARY].calcSize(p->data);
+		length += p->vt->encodings[UA_ENCODING_BINARY].calcSize(p->data);
+		if(!isBuiltin)
+			length += 9; // 4 byte nodeid + 1 byte encoding + 4 byte bytestring length
 	}
 
-	if(hasDimensions)
-		length += UA_Array_calcSizeBinary(p->arrayDimensionsLength, &UA_.types[UA_INT32], p->arrayDimensions);
+	if(hasDimensions) {
+		if(isBuiltin)
+			length += UA_Array_calcSizeBinary(p->arrayDimensionsLength, &UA_.types[UA_INT32], p->arrayDimensions);
+		else
+			length += UA_Array_calcSizeBinary_asExtensionObject(p->arrayDimensionsLength, &UA_.types[UA_INT32],
+																p->arrayDimensions);
+	}
+			
 
 	return length;
 }
@@ -705,29 +768,49 @@ UA_TYPE_ENCODEBINARY(UA_Variant,
 
                      UA_Boolean isArray       = src->arrayLength != 1;  // a single element is not an array
                      UA_Boolean hasDimensions = isArray && src->arrayDimensions != UA_NULL;
+					 UA_Boolean isBuiltin = is_builtin(&src->vt->typeId);
 
                      UA_Byte encodingByte = 0;
                      if(isArray) {
-                         encodingByte |= (0x01 << 7);
+                         encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
                          if(hasDimensions)
-							 encodingByte |= (0x01 << 6);
+							 encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS;
 					 }
-                     encodingByte |= 0x3F & (UA_Byte)src->vt->typeId.identifier.numeric;;
+
+					 if(isBuiltin) {
+						 encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (UA_Byte)src->vt->typeId.identifier.numeric;
+					 } else
+						 encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (UA_Byte)22; // ExtensionObject
+					 
                      retval |= UA_Byte_encodeBinary(&encodingByte, dst, offset);
 
                      if(isArray)
 						 retval |= UA_Array_encodeBinary(src->data, src->arrayLength, src->vt, dst, offset);
-                     else {
-                         if(src->data == UA_NULL)
+                     else if(src->data == UA_NULL)
 							 retval = UA_ERROR;       // an array can be empty. a single element must be present.
-                         retval |= src->vt->encodings[UA_ENCODING_BINARY].encode(src->data, dst, offset);
+					 else {
+						 if(!isBuiltin) {
+							 // print the extensionobject header
+							 UA_NodeId_encodeBinary(&src->vt->typeId, dst, offset);
+							 UA_Byte eoEncoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
+							 UA_Byte_encodeBinary(&eoEncoding, dst, offset);
+							 UA_Int32 eoEncodingLength = src->vt->encodings[UA_ENCODING_BINARY].calcSize(src->data);
+							 UA_Int32_encodeBinary(&eoEncodingLength, dst, offset);
+						 }
+						 retval |= src->vt->encodings[UA_ENCODING_BINARY].encode(src->data, dst, offset);
 					 }
 
-                     if(hasDimensions)
-						 retval |= UA_Array_encodeBinary(src->arrayDimensions, src->arrayDimensionsLength,
-						                                 &UA_.types[UA_INT32], dst, offset);
-                     )
+                     if(hasDimensions) {
+						 if(isBuiltin)
+							 retval |= UA_Array_encodeBinary(src->arrayDimensions, src->arrayDimensionsLength,
+															 &UA_.types[UA_INT32], dst, offset);
+						 else
+							 retval |= UA_Array_encodeBinary_asExtensionObject(src->arrayDimensions,
+																			   src->arrayDimensionsLength,
+																			   &UA_.types[UA_INT32], dst, offset);
+					 })
 
+/* For decoding, we read extensionobects as is. */
 UA_Int32 UA_Variant_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA_Variant * dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Variant_init(dst);

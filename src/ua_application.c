@@ -65,6 +65,7 @@ void appMockup_init() {
 	UA_ExpandedNodeId ObjId_NamespaceArray = NS0EXPANDEDNODEID(2255);
 	UA_ExpandedNodeId ObjId_ServerStatus = NS0EXPANDEDNODEID(2256);
 	UA_ExpandedNodeId ObjId_ServerCapabilities = NS0EXPANDEDNODEID(2268);
+	UA_ExpandedNodeId ObjId_State = NS0EXPANDEDNODEID(2259);
 
 	// Root
 	UA_ObjectNode *root;
@@ -134,9 +135,9 @@ void appMockup_init() {
 	UA_VariableNode_new(&namespaceArray);
 	namespaceArray->nodeId = ObjId_NamespaceArray.nodeId;
 	namespaceArray->nodeClass = UA_NODECLASS_VARIABLE; //FIXME: this should go into _new?
-	namespaceArray->browseName = (UA_QualifiedName){0, {6, "NamespaceArray"}};
-	namespaceArray->displayName = (UA_LocalizedText){{2,"EN"},{6, "NamespaceArray"}};
-	namespaceArray->description = (UA_LocalizedText){{2,"EN"},{6, "NamespaceArray"}};
+	namespaceArray->browseName = (UA_QualifiedName){0, {13, "NamespaceArray"}};
+	namespaceArray->displayName = (UA_LocalizedText){{2,"EN"},{13, "NamespaceArray"}};
+	namespaceArray->description = (UA_LocalizedText){{2,"EN"},{13, "NamespaceArray"}};
 	//FIXME: can we avoid new here?
 	UA_Array_new((void**)&namespaceArray->value.data, 2, &UA_.types[UA_STRING]);
 	namespaceArray->value.vt = &UA_.types[UA_STRING];
@@ -150,6 +151,42 @@ void appMockup_init() {
 	namespaceArray->historizing = UA_FALSE;
 
 	Namespace_insert(ns0,(UA_Node*)namespaceArray);
+
+	// ServerStatus
+	UA_VariableNode *serverstatus;
+	UA_VariableNode_new(&serverstatus);
+	serverstatus->nodeId = ObjId_ServerStatus.nodeId;
+	serverstatus->nodeClass = UA_NODECLASS_VARIABLE;
+	serverstatus->browseName = (UA_QualifiedName){0, {12, "ServerStatus"}};
+	serverstatus->displayName = (UA_LocalizedText){{2,"EN"},{12, "ServerStatus"}};
+	serverstatus->description = (UA_LocalizedText){{2,"EN"},{12, "ServerStatus"}};
+	UA_ServerStatusDataType *status;
+	UA_ServerStatusDataType_new(&status);
+	status->startTime = UA_DateTime_now();
+	status->startTime = UA_DateTime_now();
+	status->state = UA_SERVERSTATE_RUNNING;
+	status->buildInfo = (UA_BuildInfo){{13,"open62541.org"}, {9,"open62541"}, {9,"open62541"},
+									  {3, "0.0"}, {3, "0.0"}, UA_DateTime_now()};
+	status->secondsTillShutdown = 99999999;
+	status->shutdownReason = (UA_LocalizedText){{2,"EN"},{7, "because"}};
+	serverstatus->value.vt = &UA_.types[UA_SERVERSTATUSDATATYPE]; // gets encoded as an extensionobject
+	serverstatus->value.arrayLength = 1;
+	serverstatus->value.data = status;
+ 
+	Namespace_insert(ns0,(UA_Node*)serverstatus);
+
+	// State (Component of ServerStatus)
+	UA_VariableNode *state;
+	UA_VariableNode_new(&state);
+	state->nodeId = ObjId_State.nodeId;
+	state->nodeClass = UA_NODECLASS_VARIABLE;
+	state->browseName = (UA_QualifiedName){0, {5, "State"}};
+	state->displayName = (UA_LocalizedText){{2,"EN"},{5, "State"}};
+	state->description = (UA_LocalizedText){{2,"EN"},{5, "State"}};
+	state->value.vt = &UA_borrowed_.types[UA_SERVERSTATE];
+	state->value.arrayLength = 1;
+	state->value.data = &status->state; // points into the other object.
+	Namespace_insert(ns0,(UA_Node*)state);
 
 	//TODO: free(namespaceArray->value.data) later or forget it
 
