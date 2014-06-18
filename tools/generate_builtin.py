@@ -73,15 +73,15 @@ def createEnumerated(element):
         if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
             valuemap[name + "_" + child.get("Name")] = child.get("Value")
     valuemap = OrderedDict(sorted(valuemap.iteritems(), key=lambda (k,v): int(v)))
-    printh("typedef UA_UInt32 " + name + ";")
+    printh("typedef UA_Int32 " + name + ";")
     printh("enum " + name + "_enum { \n\t" +
            ",\n\t".join(map(lambda (key, value) : key.upper() + " = " + value, valuemap.iteritems())) +
            "\n};")
     printh("UA_TYPE_PROTOTYPES (" + name + ")")
     printh("UA_TYPE_BINARY_ENCODING(" + name + ")")
     printh("UA_TYPE_XML_ENCODING(" + name + ")\n")
-    printc("UA_TYPE_AS(" + name + ", UA_UInt32)")
-    printc("UA_TYPE_BINARY_ENCODING_AS(" + name + ", UA_UInt32)")
+    printc("UA_TYPE_AS(" + name + ", UA_Int32)")
+    printc("UA_TYPE_BINARY_ENCODING_AS(" + name + ", UA_Int32)")
     printc('''UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(%(name)s)
 UA_TYPE_METHOD_ENCODEXML_NOTIMPL(%(name)s)
 UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s\n)''')
