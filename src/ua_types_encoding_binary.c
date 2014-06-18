@@ -24,12 +24,16 @@ UA_Int32 UA_Array_calcSizeBinary(UA_Int32 nElements, UA_VTable_Entry *vt, const 
 
 UA_Int32 UA_Array_encodeBinary(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt, UA_ByteString *dst,
                                UA_UInt32 *offset) {
-	if(vt == UA_NULL || dst == UA_NULL || offset == UA_NULL)
+	if(vt == UA_NULL || dst == UA_NULL || offset == UA_NULL || (src == UA_NULL && noElements > 0))
 		return UA_ERROR;
-	if(src == UA_NULL) //Null Arrays are encoded with length = -1 // part 6 - §5.24
-	{
-		noElements = -1;
-	}
+
+
+//	if(src == UA_NULL && noElements >) //Null Arrays are encoded with length = -1 // part 6 - §5.24
+//	{
+//		noElements = -1;
+//	}
+
+
 	UA_Int32 retval     = UA_SUCCESS;
 	retval = UA_Int32_encodeBinary(&noElements, dst, offset);
 	const UA_Byte *csrc = (const UA_Byte *)src;

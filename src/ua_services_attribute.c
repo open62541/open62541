@@ -247,6 +247,6 @@ UA_Int32 Service_Read(SL_Channel *channel, const UA_ReadRequest *request,
 		                                         &request->nodesToRead[i]);
 	}
 	response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
-	response->diagnosticInfosSize = -1;
+	response->diagnosticInfosSize = 0;
 	return UA_SUCCESS;
 }
