@@ -43,10 +43,10 @@ static UA_DataValue service_read_node(Application *app, const UA_ReadValueId *id
 	Namespace *ns = UA_indexedList_findValue(app->namespaces, id->nodeId.namespace);
 
 	if(ns == UA_NULL) {
-	DBG_VERBOSE(printf("service_read_node - unknown namespace %d\n", id->nodeId.namespace));
-	v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
-	v.status       = UA_STATUSCODE_BADNODEIDUNKNOWN;
-	return v;
+		DBG_VERBOSE(printf("service_read_node - unknown namespace %d\n", id->nodeId.namespace));
+		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
+		v.status       = UA_STATUSCODE_BADNODEIDUNKNOWN;
+		return v;
 	}
 
 	UA_Node const *node = UA_NULL;
@@ -55,9 +55,9 @@ static UA_DataValue service_read_node(Application *app, const UA_ReadValueId *id
 	DBG_VERBOSE(UA_NodeId_printf("service_read_node - search for ", &(id->nodeId)));
 	UA_Int32 result = Namespace_get(ns, &(id->nodeId), &node, &lock);
 	if(result != UA_SUCCESS || node == UA_NULL) {
-	v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
-	v.status       = UA_STATUSCODE_BADNODEIDUNKNOWN;
-	return v;
+		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
+		v.status       = UA_STATUSCODE_BADNODEIDUNKNOWN;
+		return v;
 	}
 	DBG_VERBOSE(UA_NodeId_printf("service_read_node - found node=", &(node->nodeId)));
 
