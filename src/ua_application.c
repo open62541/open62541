@@ -67,6 +67,19 @@ void appMockup_init() {
 	UA_ExpandedNodeId ObjId_ServerCapabilities = NS0EXPANDEDNODEID(2268);
 	UA_ExpandedNodeId ObjId_State = NS0EXPANDEDNODEID(2259);
 
+	// FolderType
+	UA_ObjectNode *folderType;
+	UA_ObjectNode_new(&folderType);
+	folderType->nodeId = NS0NODEID(61);
+	folderType->nodeClass = UA_NODECLASS_OBJECT; // I should not have to set this manually
+	folderType->browseName = (UA_QualifiedName){0, {4, "FolderType"}};
+	folderType->displayName = (UA_LocalizedText){{2,"EN"},{4, "FolderType"}};
+	folderType->description = (UA_LocalizedText){{2,"EN"},{4, "FolderType"}};
+	folderType->referencesSize = 0;
+	folderType->references = UA_NULL;
+
+	Namespace_insert(ns0,(UA_Node*)folderType);
+
 	// Root
 	UA_ObjectNode *root;
 	UA_ObjectNode_new(&root);

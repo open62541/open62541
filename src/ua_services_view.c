@@ -5,7 +5,7 @@ UA_Int32 Service_Browse(SL_Channel *channel, const UA_BrowseRequest *request,
 		UA_BrowseResponse *response) {
 	UA_Int32 retval = UA_SUCCESS;
 	DBG_VERBOSE(UA_NodeId_printf("BrowseService - view=", &request->view.viewId));
-	UA_Int32 i = 0;
+/*	UA_Int32 i = 0;
 
 	UA_Array_new((void**)&(response->results), request->nodesToBrowseSize, &UA_.types[UA_BROWSERESULT]);
 	response->resultsSize = request->nodesToBrowseSize;
@@ -78,8 +78,9 @@ UA_Int32 Service_Browse(SL_Channel *channel, const UA_BrowseRequest *request,
 						} else {
 							//rd->typeDefinition = UA_NULL;
 						}
+
 						UA_list_addPayloadToBack(&referencesToReturn,
-								&node->references[k]);
+								rd);
 
 						j++;
 					}
@@ -98,7 +99,9 @@ UA_Int32 Service_Browse(SL_Channel *channel, const UA_BrowseRequest *request,
 		}
 		UA_list_destroy(&referencesToReturn,(UA_list_PayloadVisitor)UA_ReferenceDescription_delete);
 	}
+*/
 return retval;
+
 }
 								//UA_BrowseResult br;
 								//UA_ReferenceNode rn;
