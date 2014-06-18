@@ -120,7 +120,7 @@ typedef struct UA_NodeId {
 } UA_NodeId;
 
 #define NS0NODEID(NUMERIC_ID) \
-	(UA_NodeId){.encodingByte = 1 /*UA_NODEIDTYPE_FOURBYTE*/, .namespace = 0, .identifier.numeric = NUMERIC_ID}
+	(UA_NodeId){.encodingByte = 0 /*UA_NODEIDTYPE_TWOBYTE*/, .namespace = 0, .identifier.numeric = NUMERIC_ID}
 
 #define UA_NODEIDTYPE_NAMESPACE_URI_FLAG 0x80
 #define UA_NODEIDTYPE_SERVERINDEX_FLAG 0x40
