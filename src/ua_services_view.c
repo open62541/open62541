@@ -47,8 +47,8 @@ UA_Int32 Service_Browse(SL_Channel *channel, const UA_BrowseRequest *request,
 							&targetNode, &lock1);
 
 					if (ret==UA_SUCCESS &&targetNode
-							&& (request->nodesToBrowse->nodeClassMask
-									& targetNode->nodeClass)) {
+							&& ((request->nodesToBrowse->nodeClassMask
+									& targetNode->nodeClass) || (request->nodesToBrowse->nodeClassMask == 0))) {
 						UA_UInt32 mask = 0;
 						rd->resultMask = 0;
 						for (mask = 0x01; mask <= 0x40; mask *= 2) {
@@ -88,9 +88,10 @@ UA_Int32 Service_Browse(SL_Channel *channel, const UA_BrowseRequest *request,
 								}
 								break;
 							}
-							UA_list_addPayloadToBack(&referencesToReturn, rd);
-							j++;
 						}
+						UA_list_addPayloadToBack(&referencesToReturn, rd);
+						j++;
+
 					}
 				}
 				k++;

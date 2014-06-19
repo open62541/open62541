@@ -97,18 +97,6 @@ void appMockup_init() {
 		{RefTypeId_Organizes, UA_FALSE, ObjId_ViewsFolder}};
 
 	Namespace_insert(ns0,(UA_Node*)root);
-	/*TEST */
-	const UA_Node * foundNode1;
-	const UA_Node * foundNode2;
-	Namespace_Entry_Lock *lock1;
-
-	Namespace_get(ns0, &root->nodeId,
-			&foundNode1, &lock1);
-
-	Namespace_get(ns0, &foundNode1->references[0].targetId.nodeId,
-			&foundNode2, &lock1);
-
-	/*TEST END*/
 	// Objects
 	UA_ObjectNode *objects;
 	UA_ObjectNode_new(&objects);
@@ -236,9 +224,26 @@ void appMockup_init() {
 	/* v->historizing = UA_FALSE; */
 	/* Namespace_insert(ns0,np); */
 
+
+	/*TEST */
+	const UA_Node * foundNode1;
+	const UA_Node * foundNode2;
+	Namespace_Entry_Lock *lock1;
+
+	Namespace_get(ns0, &root->nodeId,
+			&foundNode1, &lock1);
+
+	Namespace_get(ns0, &foundNode1->references[0].targetId.nodeId,
+			&foundNode2, &lock1);
+
+	/*TEST END*/
+
+
     /*******************/
     /* Namespace local */
     /*******************/
+
+
 
 #if defined(DEBUG) && defined(VERBOSE)
 	uint32_t i;
