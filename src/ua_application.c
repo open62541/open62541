@@ -158,6 +158,8 @@ void appMockup_init() {
 	UA_VariableNode *namespaceArray;
 	UA_VariableNode_new(&namespaceArray);
 	namespaceArray->nodeId = ObjId_NamespaceArray.nodeId;
+	//FIXME: this is a workaround for different encodingBytes as noted in #91
+	namespaceArray->nodeId.encodingByte = 1;
 	namespaceArray->nodeClass = UA_NODECLASS_VARIABLE; //FIXME: this should go into _new?
 	namespaceArray->browseName = (UA_QualifiedName){0, {13, "NamespaceArray"}};
 	namespaceArray->displayName = (UA_LocalizedText){{2,"EN"},{13, "NamespaceArray"}};
