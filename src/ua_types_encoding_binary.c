@@ -49,7 +49,7 @@ static UA_Int32 UA_Array_calcSizeBinary_asExtensionObject(UA_Int32 nElements, UA
 
 UA_Int32 UA_Array_encodeBinary(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt, UA_ByteString *dst,
                                UA_UInt32 *offset) {
-	if(vt == UA_NULL || dst == UA_NULL || offset == UA_NULL || (src == UA_NULL && noElements > 0))
+	if(vt == UA_NULL || dst == UA_NULL || offset == UA_NULL || ((src == UA_NULL) && (noElements > 0)))
 		return UA_ERROR;
 
 	//Null Arrays are encoded with length = -1 // part 6 - §5.24
@@ -994,6 +994,7 @@ UA_Int32 UA_ReferenceDescription_calcSizeBinary(UA_ReferenceDescription const *p
 	if(p == UA_NULL) // internal size for UA_memalloc
 		return sizeof(UA_ReferenceDescription);
 	UA_Int32 length = 0;
+	length += UA_ExpandedNodeId_calcSizeBinary(&p->nodeId);
 	if((p->resultMask & 0x01) != 0) // UA_BROWSERESULTMASK_REFERENCETYPEID = 1
 		length += UA_NodeId_calcSizeBinary(&p->referenceTypeId);
 	if((p->resultMask & 0x02) != 0) // UA_BROWSERESULTMASK_ISFORWARD = 2
@@ -1016,12 +1017,15 @@ UA_Int32 UA_ReferenceDescription_encodeBinary(UA_ReferenceDescription const *src
 		retval |= UA_NodeId_encodeBinary(&src->referenceTypeId, dst, offset);
 	if((src->resultMask & 0x02) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_ISFORWARD = 2
 		retval |= UA_Boolean_encodeBinary(&src->isForward, dst, offset);
-	if((src->resultMask & 0x04) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_NODECLASS = 4
-		retval |= UA_NodeClass_encodeBinary(&src->nodeClass, dst, offset);
+
+	UA_ExpandedNodeId_encodeBinary(&src->nodeId,dst,offset);
 	if((src->resultMask & 0x08) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_BROWSENAME = 8
 		retval |= UA_QualifiedName_encodeBinary(&src->browseName, dst, offset);
 	if((src->resultMask & 0x10) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_DISPLAYNAME = 16
 		retval |= UA_LocalizedText_encodeBinary(&src->displayName, dst, offset);
+
+	if((src->resultMask & 0x04) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_NODECLASS = 4
+		retval |= UA_NodeClass_encodeBinary(&src->nodeClass, dst, offset);
 	if((src->resultMask & 0x20) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_TYPEDEFINITION = 32
 		retval |= UA_ExpandedNodeId_encodeBinary(&src->typeDefinition, dst, offset);
 	return retval;
@@ -1040,12 +1044,13 @@ UA_Int32 UA_ReferenceDescription_decodeBinary(UA_String const *src, UA_UInt32 *o
 		retval |= UA_NodeId_decodeBinary(src, offset, &dst->referenceTypeId);
 	if((resultMask & 0x02) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_ISFORWARD = 2
 		retval |= UA_Boolean_decodeBinary(src, offset, &dst->isForward);
-	if((resultMask & 0x04) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_NODECLASS = 4
-		retval |= UA_NodeClass_decodeBinary(src, offset, &dst->nodeClass);
+	retval |= UA_ExpandedNodeId_decodeBinary(src,offset,&dst->nodeId);
 	if((resultMask & 0x08) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_BROWSENAME = 8
 		retval |= UA_QualifiedName_decodeBinary(src, offset, &dst->browseName);
 	if((resultMask & 0x10) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_DISPLAYNAME = 16
 		retval |= UA_LocalizedText_decodeBinary(src, offset, &dst->displayName);
+	if((resultMask & 0x04) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_NODECLASS = 4
+		retval |= UA_NodeClass_decodeBinary(src, offset, &dst->nodeClass);
 	if((resultMask & 0x20) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_TYPEDEFINITION = 32
 		retval |= UA_ExpandedNodeId_decodeBinary(src, offset, &dst->typeDefinition);
 	return retval;

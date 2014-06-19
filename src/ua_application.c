@@ -73,9 +73,9 @@ void appMockup_init() {
 	UA_ObjectNode_new(&folderType);
 	folderType->nodeId = NS0NODEID(61);
 	folderType->nodeClass = UA_NODECLASS_OBJECT; // I should not have to set this manually
-	folderType->browseName = (UA_QualifiedName){0, {4, "FolderType"}};
-	folderType->displayName = (UA_LocalizedText){{2,"EN"},{4, "FolderType"}};
-	folderType->description = (UA_LocalizedText){{2,"EN"},{4, "FolderType"}};
+	folderType->browseName = (UA_QualifiedName){0, {10, "FolderType"}};
+	folderType->displayName = (UA_LocalizedText){{2,"EN"},{10, "FolderType"}};
+	folderType->description = (UA_LocalizedText){{2,"EN"},{10, "FolderType"}};
 	folderType->referencesSize = 0;
 	folderType->references = UA_NULL;
 
