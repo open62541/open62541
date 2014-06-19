@@ -190,7 +190,7 @@ void appMockup_init() {
 	UA_ServerStatusDataType *status;
 	UA_ServerStatusDataType_new(&status);
 	status->startTime = UA_DateTime_now();
-	status->startTime = UA_DateTime_now();
+	status->currentTime = UA_DateTime_now();
 	status->state = UA_SERVERSTATE_RUNNING;
 	status->buildInfo = (UA_BuildInfo){{13,"open62541.org"}, {9,"open62541"}, {9,"open62541"},
 									  {3, "0.0"}, {3, "0.0"}, UA_DateTime_now()};

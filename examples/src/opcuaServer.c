@@ -17,6 +17,18 @@
 UA_Int32 serverCallback(void * arg) {
 	char *name = (char *) arg;
 	printf("%s does whatever servers do\n",name);
+
+	Namespace* ns0 = (Namespace*)UA_indexedList_find(appMockup.namespaces, 0)->payload;
+	UA_Int32 retval;
+	UA_Node const * node;
+	UA_ExpandedNodeId serverStatusNodeId = NS0EXPANDEDNODEID(2256);
+	retval = Namespace_get(ns0, &(serverStatusNodeId.nodeId),&node, UA_NULL);
+	if(retval != UA_SUCCESS || node == UA_NULL){
+		((UA_ServerStatusDataType*)(((UA_VariableNode*)node)->value.data))->currentTime = UA_DateTime_now();
+	}
+
+	//FIXME: add the I/O code for raspberry pi here
+
 	return UA_SUCCESS;
 }
 
@@ -24,6 +36,6 @@ int main(int argc, char** argv) {
 	appMockup_init();
 	NL_data* nl = NL_init(&NL_Description_TcpBinary,16664);
 
-	struct timeval tv = {20, 0}; // 20 seconds
-	NL_msgLoop(nl, &tv,serverCallback,argv[0]);
+	struct timeval tv = {1, 0}; // 1 second
+	NL_msgLoop(nl, &tv, serverCallback,argv[0]);
 }
