@@ -11,7 +11,7 @@ UA_Int32 Service_CreateSubscription(SL_Channel *channel, const UA_CreateSubscrip
 {
 
 	response->subscriptionId = 42;
-	response->revisedPublishingInterval = 10000;
+	response->revisedPublishingInterval = 100000;
 	response->revisedLifetimeCount = 120000;
 	response->revisedMaxKeepAliveCount = 50;
 	return UA_SUCCESS;

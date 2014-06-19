@@ -67,6 +67,7 @@ void appMockup_init() {
 	UA_ExpandedNodeId ObjId_ServerCapabilities = NS0EXPANDEDNODEID(2268);
 	UA_ExpandedNodeId ObjId_State = NS0EXPANDEDNODEID(2259);
 
+
 	// FolderType
 	UA_ObjectNode *folderType;
 	UA_ObjectNode_new(&folderType);
@@ -201,6 +202,8 @@ void appMockup_init() {
  
 	Namespace_insert(ns0,(UA_Node*)serverstatus);
 
+
+
 	// State (Component of ServerStatus)
 	UA_VariableNode *state;
 	UA_VariableNode_new(&state);
@@ -212,6 +215,9 @@ void appMockup_init() {
 	state->value.vt = &UA_borrowed_.types[UA_SERVERSTATE];
 	state->value.arrayLength = 1;
 	state->value.data = &status->state; // points into the other object.
+
+	state->referencesSize = 0;
+	state->references = UA_NULL;
 	Namespace_insert(ns0,(UA_Node*)state);
 
 	//TODO: free(namespaceArray->value.data) later or forget it
