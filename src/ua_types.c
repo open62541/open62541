@@ -511,7 +511,7 @@ void UA_NodeId_printf(char *label, const UA_NodeId *node) {
 }
 
 UA_Int32 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
-	if(n1 == UA_NULL || n2 == UA_NULL || n1->encodingByte != n2->encodingByte || n1->namespace != n2->namespace)
+	if(n1 == UA_NULL || n2 == UA_NULL || n1->namespace != n2->namespace)
 		return UA_NOT_EQUAL;
 
 	switch(n1->encodingByte & UA_NODEIDTYPE_MASK) {
