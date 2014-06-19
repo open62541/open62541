@@ -237,6 +237,35 @@ enum UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_enum {
 /** @brief Type use internally to denote an invalid datatype. */
 typedef void UA_InvalidType;
 
+/* Not a built-in type. But needed for UA_ReferenceDescription. */
+/** @brief A mask specifying the class of the node. */
+typedef UA_Int32 UA_NodeClass;
+enum UA_NodeClass_enum { 
+	UA_NODECLASS_UNSPECIFIED = 0,
+	UA_NODECLASS_OBJECT = 1,
+	UA_NODECLASS_VARIABLE = 2,
+	UA_NODECLASS_METHOD = 4,
+	UA_NODECLASS_OBJECTTYPE = 8,
+	UA_NODECLASS_VARIABLETYPE = 16,
+	UA_NODECLASS_REFERENCETYPE = 32,
+	UA_NODECLASS_DATATYPE = 64,
+	UA_NODECLASS_VIEW = 128
+};
+
+/* UA_ReferenceDescription is not a built-in type. But we need it here as we add
+   the resultMask field and custom en/decoding. */
+/** @brief The description of a reference. */
+typedef struct UA_ReferenceDescription {
+	UA_UInt32 resultMask; // not present in the encoding
+	UA_NodeId referenceTypeId;
+	UA_Boolean isForward;
+	UA_ExpandedNodeId nodeId;
+	UA_QualifiedName browseName;
+	UA_LocalizedText displayName;
+	UA_NodeClass nodeClass;
+	UA_ExpandedNodeId typeDefinition;
+} UA_ReferenceDescription;
+
 /*************/
 /* Functions */
 /*************/
@@ -275,7 +304,11 @@ UA_TYPE_PROTOTYPES(UA_ExtensionObject)
 UA_TYPE_PROTOTYPES(UA_DataValue)
 UA_TYPE_PROTOTYPES(UA_Variant)
 UA_TYPE_PROTOTYPES(UA_DiagnosticInfo)
+
+/* Not built-in types */
 UA_TYPE_PROTOTYPES(UA_InvalidType)
+UA_TYPE_PROTOTYPES (UA_NodeClass)
+UA_TYPE_PROTOTYPES(UA_ReferenceDescription)
 
 /* String */
 UA_Int32 UA_String_copycstring(char const *src, UA_String *dst);

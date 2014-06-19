@@ -985,3 +985,68 @@ UA_Int32 UA_InvalidType_calcSizeBinary(UA_InvalidType const *p) {
 }
 UA_TYPE_ENCODEBINARY(UA_InvalidType, retval = UA_ERR_INVALID_VALUE; )
 UA_TYPE_DECODEBINARY(UA_InvalidType, retval = UA_ERR_INVALID_VALUE; )
+
+/* NodeClass */
+UA_TYPE_BINARY_ENCODING_AS(UA_NodeClass, UA_Int32)
+
+/* ReferenceDescription */
+UA_Int32 UA_ReferenceDescription_calcSizeBinary(UA_ReferenceDescription const *p) {
+	if(p == UA_NULL) // internal size for UA_memalloc
+		return sizeof(UA_ReferenceDescription);
+	UA_Int32 length = 0;
+	if((p->resultMask & 0x01) != 0) // UA_BROWSERESULTMASK_REFERENCETYPEID = 1
+		length += UA_NodeId_calcSizeBinary(&p->referenceTypeId);
+	if((p->resultMask & 0x02) != 0) // UA_BROWSERESULTMASK_ISFORWARD = 2
+		length += UA_Boolean_calcSizeBinary(&p->isForward);
+	if((p->resultMask & 0x04) != 0) // UA_BROWSERESULTMASK_NODECLASS = 4
+		length += UA_NodeClass_calcSizeBinary(&p->nodeClass);
+	if((p->resultMask & 0x08) != 0) // UA_BROWSERESULTMASK_BROWSENAME = 8
+		length += UA_QualifiedName_calcSizeBinary(&p->browseName);
+	if((p->resultMask & 0x10) != 0) // UA_BROWSERESULTMASK_DISPLAYNAME = 16
+		length += UA_LocalizedText_calcSizeBinary(&p->displayName);
+	if((p->resultMask & 0x20) != 0) // UA_BROWSERESULTMASK_TYPEDEFINITION = 32
+		length += UA_ExpandedNodeId_calcSizeBinary(&p->typeDefinition);
+	return length;
+}
+
+UA_Int32 UA_ReferenceDescription_encodeBinary(UA_ReferenceDescription const *src, UA_String *dst, UA_UInt32 *offset) {
+	if(src == UA_NULL) return UA_ERR_INVALID_VALUE;
+	UA_Int32 retval = UA_SUCCESS;
+	if((src->resultMask & 0x01) != 0) // UA_BROWSERESULTMASK_REFERENCETYPEID = 1
+		retval |= UA_NodeId_encodeBinary(&src->referenceTypeId, dst, offset);
+	if((src->resultMask & 0x02) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_ISFORWARD = 2
+		retval |= UA_Boolean_encodeBinary(&src->isForward, dst, offset);
+	if((src->resultMask & 0x04) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_NODECLASS = 4
+		retval |= UA_NodeClass_encodeBinary(&src->nodeClass, dst, offset);
+	if((src->resultMask & 0x08) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_BROWSENAME = 8
+		retval |= UA_QualifiedName_encodeBinary(&src->browseName, dst, offset);
+	if((src->resultMask & 0x10) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_DISPLAYNAME = 16
+		retval |= UA_LocalizedText_encodeBinary(&src->displayName, dst, offset);
+	if((src->resultMask & 0x20) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_TYPEDEFINITION = 32
+		retval |= UA_ExpandedNodeId_encodeBinary(&src->typeDefinition, dst, offset);
+	return retval;
+}
+
+/* Decoding is nonstandard. We assume that the destination object has the
+   resultMask field correctly set and interpret it. */
+UA_Int32 UA_ReferenceDescription_decodeBinary(UA_String const *src, UA_UInt32 *offset, UA_ReferenceDescription *dst) {
+	if(src == UA_NULL || offset == UA_NULL || dst == UA_NULL) return UA_ERR_INVALID_VALUE;
+	UA_Int32 retval = UA_SUCCESS;
+	UA_UInt32 resultMask = dst->resultMask;
+	UA_ReferenceDescription_init(dst);
+	dst->resultMask = resultMask;
+
+	if((resultMask & 0x01) != 0) // UA_BROWSERESULTMASK_REFERENCETYPEID = 1
+		retval |= UA_NodeId_decodeBinary(src, offset, &dst->referenceTypeId);
+	if((resultMask & 0x02) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_ISFORWARD = 2
+		retval |= UA_Boolean_decodeBinary(src, offset, &dst->isForward);
+	if((resultMask & 0x04) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_NODECLASS = 4
+		retval |= UA_NodeClass_decodeBinary(src, offset, &dst->nodeClass);
+	if((resultMask & 0x08) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_BROWSENAME = 8
+		retval |= UA_QualifiedName_decodeBinary(src, offset, &dst->browseName);
+	if((resultMask & 0x10) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_DISPLAYNAME = 16
+		retval |= UA_LocalizedText_decodeBinary(src, offset, &dst->displayName);
+	if((resultMask & 0x20) != 0 && retval == UA_SUCCESS) // UA_BROWSERESULTMASK_TYPEDEFINITION = 32
+		retval |= UA_ExpandedNodeId_decodeBinary(src, offset, &dst->typeDefinition);
+	return retval;
+}
