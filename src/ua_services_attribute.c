@@ -71,7 +71,7 @@ static UA_DataValue service_read_node(Application *app, const UA_ReadValueId *id
 
 	case UA_ATTRIBUTEID_NODECLASS:
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_.types[UA_UINT32], &node->nodeClass);
+		retval |= UA_Variant_copySetValue(&v.value, &UA_.types[UA_INT32], &node->nodeClass);
 		break;
 
 	case UA_ATTRIBUTEID_BROWSENAME:
@@ -86,8 +86,9 @@ static UA_DataValue service_read_node(Application *app, const UA_ReadValueId *id
 		break;
 
 	case UA_ATTRIBUTEID_DESCRIPTION:
-		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
-		v.status       = UA_STATUSCODE_BADNOTREADABLE;
+		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
+		retval |= UA_Variant_copySetValue(&v.value, &UA_.types[UA_LOCALIZEDTEXT],
+		                                  &node->description);
 		break;
 
 	case UA_ATTRIBUTEID_WRITEMASK:
