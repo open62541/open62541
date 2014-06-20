@@ -1,63 +1,53 @@
 #include "ua_services.h"
 #include "ua_statuscodes.h"
 
-UA_Int32 Service_Browse_getReferenceDescription(Namespace *ns,UA_ReferenceNode* reference,
-		UA_UInt32 nodeClassMask ,UA_UInt32 resultMask, UA_ReferenceDescription* referenceDescription)
-{
-	const UA_Node* foundNode = UA_NULL;
+UA_Int32 Service_Browse_getReferenceDescription(Namespace *ns,UA_ReferenceNode* reference, UA_UInt32 nodeClassMask,
+												UA_UInt32 resultMask, UA_ReferenceDescription* referenceDescription) {
+	const UA_Node* foundNode;
 	Namespace_Entry_Lock *lock;
-	if(Namespace_get(ns,&reference->targetId.nodeId,&foundNode, &lock)==UA_SUCCESS && foundNode != UA_NULL)
-	{
-		UA_UInt32 mask = 0;
-		referenceDescription->resultMask = 0;
-		for (mask = 0x01; mask <= 0x40; mask *= 2) {
-			switch (mask & (resultMask)) {
-			case UA_BROWSERESULTMASK_REFERENCETYPEID:
-				UA_NodeId_copy(
-						&reference->referenceTypeId,
-						&referenceDescription->referenceTypeId);
-				referenceDescription->resultMask |= UA_BROWSERESULTMASK_REFERENCETYPEID;
-				break;
-			case UA_BROWSERESULTMASK_ISFORWARD:
-				referenceDescription->isForward = !reference->isInverse;
-				referenceDescription->resultMask |= UA_BROWSERESULTMASK_ISFORWARD;
-				break;
-			case UA_BROWSERESULTMASK_NODECLASS:
-				UA_NodeClass_copy(&foundNode->nodeClass,
-						&referenceDescription->nodeClass);
-				referenceDescription->resultMask |= UA_BROWSERESULTMASK_NODECLASS;
-				break;
-			case UA_BROWSERESULTMASK_BROWSENAME:
-				UA_QualifiedName_copy(&foundNode->browseName,
-						&referenceDescription->browseName);
-				referenceDescription->resultMask |= UA_BROWSERESULTMASK_BROWSENAME;
-				break;
-			case UA_BROWSERESULTMASK_DISPLAYNAME:
-				UA_LocalizedText_copy(&foundNode->displayName,
-						&referenceDescription->displayName);
-				referenceDescription->resultMask |= UA_BROWSERESULTMASK_DISPLAYNAME;
-				break;
-			case UA_BROWSERESULTMASK_TYPEDEFINITION:
-				if (referenceDescription->nodeClass == UA_NODECLASS_OBJECT
-						|| referenceDescription->nodeClass
-								== UA_NODECLASS_VARIABLE) {
-					UA_NodeId_copy(&foundNode->nodeId,
-							&referenceDescription->typeDefinition.nodeId);
-					//TODO mockup
-					referenceDescription->typeDefinition.serverIndex = 0;
-					referenceDescription->typeDefinition.namespaceUri.length = 0;
+	if(Namespace_get(ns,&reference->targetId.nodeId,&foundNode, &lock) != UA_SUCCESS )
+		return UA_ERROR;
 
-					referenceDescription->resultMask |= UA_BROWSERESULTMASK_TYPEDEFINITION;
-				}
-				break;
+	UA_UInt32 mask = 0;
+	referenceDescription->resultMask = 0;
+	for (mask = 0x01; mask <= 0x40; mask *= 2) {
+		switch (mask & (resultMask)) {
+		case UA_BROWSERESULTMASK_REFERENCETYPEID:
+			UA_NodeId_copy(&reference->referenceTypeId, &referenceDescription->referenceTypeId);
+			referenceDescription->resultMask |= UA_BROWSERESULTMASK_REFERENCETYPEID;
+			break;
+		case UA_BROWSERESULTMASK_ISFORWARD:
+			referenceDescription->isForward = !reference->isInverse;
+			referenceDescription->resultMask |= UA_BROWSERESULTMASK_ISFORWARD;
+			break;
+		case UA_BROWSERESULTMASK_NODECLASS:
+			UA_NodeClass_copy(&foundNode->nodeClass, &referenceDescription->nodeClass);
+			referenceDescription->resultMask |= UA_BROWSERESULTMASK_NODECLASS;
+			break;
+		case UA_BROWSERESULTMASK_BROWSENAME:
+			UA_QualifiedName_copy(&foundNode->browseName, &referenceDescription->browseName);
+			referenceDescription->resultMask |= UA_BROWSERESULTMASK_BROWSENAME;
+			break;
+		case UA_BROWSERESULTMASK_DISPLAYNAME:
+			UA_LocalizedText_copy(&foundNode->displayName, &referenceDescription->displayName);
+			referenceDescription->resultMask |= UA_BROWSERESULTMASK_DISPLAYNAME;
+			break;
+		case UA_BROWSERESULTMASK_TYPEDEFINITION:
+			if (referenceDescription->nodeClass == UA_NODECLASS_OBJECT ||
+				referenceDescription->nodeClass == UA_NODECLASS_VARIABLE) {
+				UA_NodeId_copy(&foundNode->nodeId, &referenceDescription->typeDefinition.nodeId);
+				//TODO mockup
+				referenceDescription->typeDefinition.serverIndex = 0;
+				referenceDescription->typeDefinition.namespaceUri.length = 0;
+
+				referenceDescription->resultMask |= UA_BROWSERESULTMASK_TYPEDEFINITION;
 			}
+			break;
 		}
-		return UA_SUCCESS;
 	}
-	return UA_ERROR;
+	return UA_SUCCESS;
 }
-UA_Boolean Service_Browse_returnReference(UA_BrowseDescription *browseDescription, UA_ReferenceNode* reference)
-{
+UA_Boolean Service_Browse_returnReference(UA_BrowseDescription *browseDescription, UA_ReferenceNode* reference) {
 	UA_Boolean c = UA_FALSE;
 
 	c = c || ((reference->isInverse == UA_TRUE) && (browseDescription->browseDirection == UA_BROWSEDIRECTION_INVERSE));
@@ -68,8 +58,7 @@ UA_Boolean Service_Browse_returnReference(UA_BrowseDescription *browseDescriptio
 	//TODO subtypes
 	return c;
 }
-UA_Int32 Service_Browse_getBrowseResult(Namespace *ns,UA_BrowseDescription *browseDescription,UA_UInt32 requestedMaxReferencesPerNode, UA_BrowseResult *browseResult)
-{
+UA_Int32 Service_Browse_getBrowseResult(Namespace *ns,UA_BrowseDescription *browseDescription,UA_UInt32 requestedMaxReferencesPerNode, UA_BrowseResult *browseResult) {
 	UA_Int32 retval = UA_SUCCESS;
 	const UA_Node* foundNode = UA_NULL;
 	Namespace_Entry_Lock *lock;
@@ -112,8 +101,7 @@ UA_Int32 Service_Browse_getBrowseResult(Namespace *ns,UA_BrowseDescription *brow
 	}
 	return UA_ERROR;
 }
-UA_Int32 Service_Browse(SL_Channel *channel, const UA_BrowseRequest *request,
-		UA_BrowseResponse *response) {
+UA_Int32 Service_Browse(SL_Channel *channel, const UA_BrowseRequest *request, UA_BrowseResponse *response) {
 	UA_Int32 retval = UA_SUCCESS;
 	DBG_VERBOSE(UA_NodeId_printf("BrowseService - view=", &request->view.viewId));
 	UA_Int32 i = 0;
@@ -121,14 +109,12 @@ UA_Int32 Service_Browse(SL_Channel *channel, const UA_BrowseRequest *request,
 			channel->session->application->namespaces,
 			request->nodesToBrowse[i].nodeId.namespace);
 	//TODO request->view not used atm
-	if(ns)
-	{
+	if(ns) {
 		UA_Array_new((void**) &(response->results), request->nodesToBrowseSize,
 				&UA_.types[UA_BROWSERESULT]);
 		response->resultsSize = request->nodesToBrowseSize;
 
-		for(i=0; i < request->nodesToBrowseSize; i++)
-		{
+		for(i=0; i < request->nodesToBrowseSize; i++) {
 			retval |= Service_Browse_getBrowseResult(ns,
 					request->nodesToBrowse,
 					request->requestedMaxReferencesPerNode,
