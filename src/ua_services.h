@@ -229,7 +229,9 @@ UA_Int32 Service_CreateSubscription(SL_Channel *channel, const UA_CreateSubscrip
                                    UA_CreateSubscriptionResponse *response);
 // Service_ModifySubscription
 // Service_SetPublishingMode
-// Service_Publish
+UA_Int32 Service_Publish(SL_Channel *channel, const UA_PublishRequest *request,
+                                   UA_PublishResponse *response);
+
 // Service_Republish
 // Service_TransferSubscription
 // Service_DeleteSubscription

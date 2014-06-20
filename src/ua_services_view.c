@@ -144,7 +144,7 @@ UA_Int32 Service_TranslateBrowsePathsToNodeIds(SL_Channel *channel,
 	for (UA_Int32 i = 0; i < request->browsePathsSize; i++) {
 		UA_BrowsePathResult_init(&response->results[i]);
 //FIXME: implement
-		response->results[i].statusCode = UA_STATUSCODE_BADQUERYTOOCOMPLEX;
+		response->results[i].statusCode = UA_STATUSCODE_BADNOMATCH;
 	}
 
 	return retval;
