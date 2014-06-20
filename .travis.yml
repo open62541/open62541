@@ -30,7 +30,7 @@ before_install:
 - rm -rf check-code
 script: ./autogen.sh && ./configure --enable-doxygen && make && make check
 after_success:
-   - git clone -b gh-pages https://$GITAUTH@github.com/acplt/open62541
+   - git clone -b gh-pages --single-branch https://$GITAUTH@github.com/acplt/open62541
    - rm -rf open62541/doxygen
    - cp -r doc/html open62541/doxygen
    - cd open62541/doxygen

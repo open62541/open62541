@@ -30,7 +30,7 @@ START_TEST(Service_TranslateBrowsePathsToNodeIds_SmokeTest)
 	Service_TranslateBrowsePathsToNodeIds(UA_NULL,&request,&response);
 
 	ck_assert_int_eq(response.resultsSize,request.browsePathsSize);
-	ck_assert_int_eq(response.results[0].statusCode,UA_STATUSCODE_BADQUERYTOOCOMPLEX);
+	ck_assert_int_eq(response.results[0].statusCode,UA_STATUSCODE_BADNOMATCH);
 
 	//finally
 	UA_TranslateBrowsePathsToNodeIdsRequest_deleteMembers(&request);
