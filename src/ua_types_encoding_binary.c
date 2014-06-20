@@ -819,7 +819,7 @@ UA_Int32 UA_Variant_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA
 	CHECKED_DECODE(UA_Byte_decodeBinary(src, offset, &encodingByte),; );
 
 	UA_Boolean isArray = encodingByte & (0x01 << 7);                             // Bit 7
-	UA_Boolean hasDimensions = isArray && encodingByte & (0x01 << 6);            // Bit 6
+	UA_Boolean hasDimensions = isArray && (encodingByte & (0x01 << 6));            // Bit 6
 
 	UA_NodeId typeid = { .encodingByte = (UA_Byte)UA_NODEIDTYPE_FOURBYTE, .namespace= 0,
 						 .identifier.numeric = encodingByte & 0x3F };
