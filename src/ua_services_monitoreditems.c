@@ -12,10 +12,13 @@ UA_Int32 Service_CreateMonitoredItems(SL_Channel *channel, const UA_CreateMonito
 		for (int i=0;request->itemsToCreateSize > 0 && i < request->itemsToCreateSize;i++) {
 			UA_NodeId_printf("CreateMonitoredItems - itemToCreate=",&(request->itemsToCreate[i].itemToMonitor.nodeId));
 			//FIXME: search the object in the namespace
+
 			if (request->itemsToCreate[i].itemToMonitor.nodeId.identifier.numeric == 2253) { // server
 
 				response->results[i].statusCode = UA_STATUSCODE_GOOD;
 				response->results[i].monitoredItemId = 1024;
+				response->results[i].revisedSamplingInterval = 100000;
+				response->results[i].revisedQueueSize = 1;
 			} else {
 				// response->results[i]->statusCode = UA_STATUSCODE_BAD_NODEIDUNKNOWN;
 
