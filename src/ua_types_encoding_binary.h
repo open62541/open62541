@@ -93,8 +93,6 @@ UA_TYPE_BINARY_ENCODING(UA_DiagnosticInfo)
 
 /* Not built-in types */
 UA_TYPE_BINARY_ENCODING(UA_InvalidType)
-UA_TYPE_BINARY_ENCODING(UA_NodeClass)
-UA_TYPE_BINARY_ENCODING(UA_ReferenceDescription)
 
 /*********/
 /* Array */

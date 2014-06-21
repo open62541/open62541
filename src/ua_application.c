@@ -90,13 +90,16 @@ void appMockup_init() {
 	root->displayName = (UA_LocalizedText){{2,"EN"},{4, "Root"}};
 	root->description = (UA_LocalizedText){{2,"EN"},{4, "Root"}};
 	root->referencesSize = 4;
-	root->references = (UA_ReferenceNode[4]){
+	UA_alloc((void**) &root->references, sizeof(UA_ReferenceNode)*4);
+	UA_ReferenceNode *static_nodes = (UA_ReferenceNode[4]){
 		{RefTypeId_HasTypeDefinition, UA_FALSE, ObjTypeId_FolderType},
 		{RefTypeId_Organizes, UA_FALSE, ObjId_ObjectsFolder},
 		{RefTypeId_Organizes, UA_FALSE, ObjId_TypesFolder},
 		{RefTypeId_Organizes, UA_FALSE, ObjId_ViewsFolder}};
+	UA_memcpy(root->references, static_nodes, sizeof(UA_ReferenceNode)*4);
 
 	Namespace_insert(ns0,(UA_Node*)root);
+	
 	// Objects
 	UA_ObjectNode *objects;
 	UA_ObjectNode_new(&objects);

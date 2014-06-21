@@ -73,7 +73,5 @@ UA_TYPE_XML_ENCODING(UA_DiagnosticInfo)
 
 /* Not built-in types */
 UA_TYPE_XML_ENCODING(UA_InvalidType)
-UA_TYPE_XML_ENCODING(UA_ReferenceDescription)
-UA_TYPE_XML_ENCODING(UA_NodeClass)
 
 #endif /* UA_TYPES_ENCODING_XML_H_ */

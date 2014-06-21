@@ -32,11 +32,11 @@ existing_types = set(["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "U
                       "Int64", "UInt64", "Float", "Double", "String", "DateTime", "Guid",
                       "ByteString", "XmlElement", "NodeId", "ExpandedNodeId", "StatusCode", 
                       "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
-                      "Variant", "DiagnosticInfo", "NodeClass", "ReferenceDescription"])
+                      "Variant", "DiagnosticInfo"])
 
 fixed_size = set(["UA_Boolean", "UA_SByte", "UA_Byte", "UA_Int16", "UA_UInt16",
                   "UA_Int32", "UA_UInt32", "UA_Int64", "UA_UInt64", "UA_Float",
-                  "UA_Double", "UA_DateTime", "UA_Guid", "UA_StatusCode", "NodeClass"])
+                  "UA_Double", "UA_DateTime", "UA_Guid", "UA_StatusCode"])
 
 # types we do not want to autogenerate
 def skipType(name):
