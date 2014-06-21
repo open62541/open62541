@@ -109,7 +109,12 @@ UA_Int32 Service_CloseSession(SL_Channel *channel, const UA_CloseSessionRequest 
  * @brief This Service is used to add one or more Nodes into the AddressSpace hierarchy.
  */
 UA_Int32 Service_AddNodes(SL_Channel *channel, const UA_AddNodesRequest *request, UA_AddNodesResponse *response);
-// Service_AddReferences
+
+/**
+ * @brief This Service is used to add one or more References to one or more Nodes
+ */
+UA_Int32 Service_AddReferences(SL_Channel *channel, const UA_AddReferencesRequest *request, UA_AddReferencesResponse *response);
+
 // Service_DeleteNodes
 // Service_DeleteReferences
 /** @} */

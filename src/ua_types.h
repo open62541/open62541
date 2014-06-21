@@ -275,13 +275,12 @@ UA_TYPE_PROTOTYPES(UA_ExtensionObject)
 UA_TYPE_PROTOTYPES(UA_DataValue)
 UA_TYPE_PROTOTYPES(UA_Variant)
 UA_TYPE_PROTOTYPES(UA_DiagnosticInfo)
-
-/* Not built-in types */
 UA_TYPE_PROTOTYPES(UA_InvalidType)
-/* UA_TYPE_PROTOTYPES (UA_NodeClass) */
-/* UA_TYPE_PROTOTYPES(UA_ReferenceDescription) */
 
 /* String */
+#define UA_STRING_NULL (UA_String){-1, UA_NULL}
+#define UA_STRING_STATIC(STRING) (UA_String){sizeof(STRING)-1, (UA_Byte*)STRING}
+
 UA_Int32 UA_String_copycstring(char const *src, UA_String *dst);
 UA_Int32 UA_String_copyprintf(char const *fmt, UA_String *dst, ...);
 UA_Int32 UA_String_equal(const UA_String *string1, const UA_String *string2);
@@ -327,9 +326,12 @@ UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id);
 UA_Boolean UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 
 /* QualifiedName */
+#define UA_QUALIFIEDNAME_STATIC(STRING) \
+	(UA_QualifiedName){0, {sizeof(STRING)-1, (UA_Byte*)STRING}}
 void UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn);
 
 /* LocalizedText */
+#define UA_LOCALIZEDTEXT_STATIC(STRING) (UA_LocalizedText){{2, (UA_Byte*)"en"}, UA_STRING_STATIC(STRING)}
 UA_Int32 UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);
 
 /* Variant */

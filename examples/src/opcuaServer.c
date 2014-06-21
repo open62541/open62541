@@ -23,7 +23,7 @@ UA_Int32 serverCallback(void * arg) {
 	UA_Node const * node;
 	UA_ExpandedNodeId serverStatusNodeId = NS0EXPANDEDNODEID(2256);
 	retval = Namespace_get(ns0, &(serverStatusNodeId.nodeId),&node, UA_NULL);
-	if(retval != UA_SUCCESS || node == UA_NULL){
+	if(retval == UA_SUCCESS){
 		((UA_ServerStatusDataType*)(((UA_VariableNode*)node)->value.data))->currentTime = UA_DateTime_now();
 	}
 
