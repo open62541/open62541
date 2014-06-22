@@ -441,7 +441,6 @@ void appMockup_init() {
 	types->displayName = UA_LOCALIZEDTEXT_STATIC("Types");
 	types->description = UA_LOCALIZEDTEXT_STATIC("Types");
 	AddReference((UA_Node*)types, &(UA_ReferenceNode){RefTypeId_HasTypeDefinition, UA_FALSE, ObjTypeId_FolderType}, ns0);
-	AddReference((UA_Node*)types, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_Server}, ns0);
 	Namespace_insert(ns0,(UA_Node*)types);
 
 	// Views
