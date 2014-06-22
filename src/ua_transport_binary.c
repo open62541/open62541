@@ -94,26 +94,28 @@ UA_Int32 TL_Process(TL_Connection* connection, const UA_ByteString* msg) {
 	UA_OPCUATcpMessageHeader tcpMessageHeader;
 
 	DBG_VERBOSE(printf("TL_Process - entered \n"));
-	if ((retval = UA_OPCUATcpMessageHeader_decodeBinary(msg,&pos,&tcpMessageHeader)) == UA_SUCCESS) {
-		printf("TL_Process - messageType=%.*s\n",3,msg->data);
-		switch(tcpMessageHeader.messageType) {
-		case UA_MESSAGETYPE_HEL:
-			retval = TL_handleHello(connection, msg, &pos);
-			break;
-		case UA_MESSAGETYPE_OPN:
-			retval = TL_handleOpen(connection, msg, &pos);
-			break;
-		case UA_MESSAGETYPE_MSG:
-			retval = TL_handleMsg(connection, msg, &pos);
-			break;
-		case UA_MESSAGETYPE_CLO:
-			retval = TL_handleClo(connection, msg, &pos);
-			break;
-		default: // dispatch processing to secureLayer
-			retval = UA_ERR_INVALID_VALUE;
-			break;
+	do{
+		if ((retval = UA_OPCUATcpMessageHeader_decodeBinary(msg,&pos,&tcpMessageHeader)) == UA_SUCCESS) {
+			printf("TL_Process - messageType=%.*s\n",3,msg->data);
+			switch(tcpMessageHeader.messageType) {
+			case UA_MESSAGETYPE_HEL:
+				retval = TL_handleHello(connection, msg, &pos);
+				break;
+			case UA_MESSAGETYPE_OPN:
+				retval = TL_handleOpen(connection, msg, &pos);
+				break;
+			case UA_MESSAGETYPE_MSG:
+				retval = TL_handleMsg(connection, msg, &pos);
+				break;
+			case UA_MESSAGETYPE_CLO:
+				retval = TL_handleClo(connection, msg, &pos);
+				break;
+			default: // dispatch processing to secureLayer
+				retval = UA_ERR_INVALID_VALUE;
+				break;
+			}
 		}
-	}
+	}while(msg->length > (UA_Int32)pos);
 	/* if (retval != UA_SUCCESS) { */
 	/* 	// FIXME: compose real error message */
 	/* 	UA_ByteString errorMsg; */

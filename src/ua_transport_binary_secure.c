@@ -101,9 +101,9 @@ static void init_response_header(UA_RequestHeader const *p, UA_ResponseHeader *r
     DBG_VERBOSE(printf("Invoke Service: %s\n", # TYPE));                             \
     Service_##TYPE(channel, &p, &r);                                                 \
     DBG_VERBOSE(printf("Finished Service: %s\n", # TYPE));                           \
-    *offset = 0;                                                                     \
+    UA_UInt32 sending_offset = 0;													 \
     UA_ByteString_newMembers(&response_msg, UA_##TYPE##Response_calcSizeBinary(&r)); \
-    UA_##TYPE##Response_encodeBinary(&r, &response_msg, offset);                     \
+    UA_##TYPE##Response_encodeBinary(&r, &response_msg, &sending_offset);            \
     UA_##TYPE##Request_deleteMembers(&p);                                            \
     UA_##TYPE##Response_deleteMembers(&r);                                           \
 
