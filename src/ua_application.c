@@ -470,6 +470,11 @@ void appMockup_init() {
 	namespaceArray->value.arrayLength = 2;
 	UA_String_copycstring("http://opcfoundation.org/UA/",&((UA_String *)((namespaceArray->value).data))[0]);
 	UA_String_copycstring("http://localhost:16664/open62541/",&((UA_String *)(((namespaceArray)->value).data))[1]);
+	namespaceArray->arrayDimensionsSize = 1;
+	UA_UInt32* dimensions = UA_NULL;
+	UA_alloc((void**)&dimensions, sizeof(UA_UInt32));
+	*dimensions = 2;
+	namespaceArray->arrayDimensions = dimensions;
 	namespaceArray->dataType = NS0NODEID(UA_STRING_NS0);
 	namespaceArray->valueRank = 1;
 	namespaceArray->minimumSamplingInterval = 1.0;
