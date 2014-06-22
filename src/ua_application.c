@@ -432,6 +432,18 @@ void appMockup_init() {
 	AddReference((UA_Node*)objects, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_Server}, ns0);
 	Namespace_insert(ns0,(UA_Node*)objects);
 
+	// Types
+	UA_ObjectNode *types;
+	UA_ObjectNode_new(&types);
+	types->nodeId = ObjId_TypesFolder.nodeId;
+	types->nodeClass = UA_NODECLASS_OBJECT;
+	types->browseName = UA_QUALIFIEDNAME_STATIC("Types");
+	types->displayName = UA_LOCALIZEDTEXT_STATIC("Types");
+	types->description = UA_LOCALIZEDTEXT_STATIC("Types");
+	AddReference((UA_Node*)types, &(UA_ReferenceNode){RefTypeId_HasTypeDefinition, UA_FALSE, ObjTypeId_FolderType}, ns0);
+	AddReference((UA_Node*)types, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_Server}, ns0);
+	Namespace_insert(ns0,(UA_Node*)types);
+
 	// Views
 	UA_ObjectNode *views;
 	UA_ObjectNode_new(&views);
