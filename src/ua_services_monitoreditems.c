@@ -16,9 +16,9 @@ UA_Int32 Service_CreateMonitoredItems(SL_Channel *channel, const UA_CreateMonito
 			if (request->itemsToCreate[i].itemToMonitor.nodeId.identifier.numeric == 2253) { // server
 
 				response->results[i].statusCode = UA_STATUSCODE_GOOD;
-				response->results[i].monitoredItemId = 1024;
-				response->results[i].revisedSamplingInterval = 100000;
-				response->results[i].revisedQueueSize = 1;
+				response->results[i].monitoredItemId = 1;
+				response->results[i].revisedSamplingInterval = 4294967295;
+				response->results[i].revisedQueueSize = 0;
 			} else {
 				// response->results[i]->statusCode = UA_STATUSCODE_BAD_NODEIDUNKNOWN;
 
