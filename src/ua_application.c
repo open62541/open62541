@@ -552,25 +552,25 @@ void appMockup_init() {
 	/* Namespace local */
 	/*******************/
 
-	//UA_ExpandedNodeId ObjId_led1 = (UA_ExpandedNodeId){.nodeId = (UA_NodeId){.encodingByte = UA_NODEIDTYPE_TWOBYTE, .namespace = 1, .identifier.numeric = 1}, .namespaceUri = {-1, ((void *)0)}, .serverIndex = 0};
+	UA_ExpandedNodeId ObjId_led1 = (UA_ExpandedNodeId){.nodeId = (UA_NodeId){.encodingByte = UA_NODEIDTYPE_TWOBYTE, .namespace = 0, .identifier.numeric = 1}, .namespaceUri = {-1, ((void *)0)}, .serverIndex = 0};
 
-	// ServerStatus
-	UA_VariableNode *led1;
-	UA_VariableNode_new(&led1);
-	serverstatus->nodeId = (UA_NodeId){.encodingByte = UA_NODEIDTYPE_TWOBYTE, .namespace = 1, .identifier.numeric = 1};
-	serverstatus->nodeClass = UA_NODECLASS_VARIABLE;
-	serverstatus->browseName = UA_QUALIFIEDNAME_STATIC("led1");
-	serverstatus->displayName = UA_LOCALIZEDTEXT_STATIC("led1");
-	serverstatus->description = UA_LOCALIZEDTEXT_STATIC("led1");
+// LED1
+UA_VariableNode *led1;
+UA_VariableNode_new(&led1);
+led1->nodeId = ObjId_led1.nodeId;
+led1->nodeClass = UA_NODECLASS_VARIABLE;
+led1->browseName = UA_QUALIFIEDNAME_STATIC("led1");
+led1->displayName = UA_LOCALIZEDTEXT_STATIC("led1");
+led1->description = UA_LOCALIZEDTEXT_STATIC("led1");
 
-	//FIXME: these two give - "Browse failed with error 'UncertainNotAllNodesAvailable'."
-	//AddReference((UA_Node*)led1, &(UA_ReferenceNode){RefTypeId_Organizes, UA_TRUE, NS0EXPANDEDNODEID(84)}, ns0);
-	//AddReference((UA_Node*)root, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_led1}, ns0);
+//FIXME: these two give - "Browse failed with error 'UncertainNotAllNodesAvailable'."
+//AddReference((UA_Node*)led1, &(UA_ReferenceNode){RefTypeId_Organizes, UA_TRUE, NS0EXPANDEDNODEID(84)}, ns0);
+AddReference((UA_Node*)root, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_led1}, ns0);
 
-	//FIXME: this give no error, but also also does not show the node
-	AddReference((UA_Node*)led1, &(UA_ReferenceNode){RefTypeId_Organizes, UA_TRUE, NS0EXPANDEDNODEID(84)}, local);
+//FIXME: this give no error, but also also does not show the node
+AddReference((UA_Node*)led1, &(UA_ReferenceNode){RefTypeId_Organizes, UA_TRUE, NS0EXPANDEDNODEID(84)}, ns0);
 
-	Namespace_insert(local,(UA_Node*)led1);
+Namespace_insert(ns0,(UA_Node*)led1);
 
 
 

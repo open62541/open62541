@@ -5,6 +5,7 @@ UA_Int32 Service_Browse_getReferenceDescription(Namespace *ns, UA_ReferenceNode*
 												UA_UInt32 resultMask, UA_ReferenceDescription* referenceDescription) {
 	const UA_Node* foundNode;
 	Namespace_Entry_Lock *lock;
+
 	if(Namespace_get(ns,&reference->targetId.nodeId,&foundNode, &lock) != UA_SUCCESS)
 		return UA_ERROR;
 
