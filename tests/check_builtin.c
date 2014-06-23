@@ -1566,7 +1566,7 @@ START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
 
 	//then
 	UA_String copiedString = *(UA_String*)(copiedValue.data);
-	for(UA_Int32 i = 0;i < 3;i++)
+	for(UA_Int32 i = 0;i < 5;i++)
 		ck_assert_int_eq(copiedString.data[i], testString.data[i]);
 	ck_assert_int_eq(copiedString.length, testString.length);
 

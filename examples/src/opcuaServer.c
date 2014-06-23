@@ -14,6 +14,11 @@
 #include "networklayer.h"
 #include "ua_application.h"
 
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include "raspberrypi_io.h"
 UA_Int32 serverCallback(void * arg) {
 	char *name = (char *) arg;
 	printf("%s does whatever servers do\n",name);
@@ -27,7 +32,39 @@ UA_Int32 serverCallback(void * arg) {
 		((UA_ServerStatusDataType*)(((UA_VariableNode*)node)->value.data))->currentTime = UA_DateTime_now();
 	}
 
+
 	//FIXME: add the I/O code for raspberry pi here
+#ifdef raspi
+	static float *temperature;
+
+	UA_Node *foundNode = UA_NULL;
+	Namespace_Entry_Lock *lock;
+	//node which should be filled with data (float value)
+	UA_NodeId tmpNodeId;
+
+	tmpNodeId.encodingByte = UA_NODEIDTYPE_TWOBYTE;
+	tmpNodeId.identifier.numeric = 110;
+	tmpNodeId.namespace 0;
+
+	// build up the mapped memory
+    temperature = mmap(NULL, sizeof *temperature, PROT_READ | PROT_WRITE,
+                    MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+
+	Namespace_get(ns0,&tmpNodeId,&foundNode,&lock);
+	((UA_VariableNode *)foundNode)->value.data = temperature;
+
+    if (fork() == 0) {
+    	while(1){
+    		readTemp(temperature);
+    		sleep(500);
+    	}
+
+    } else {
+        wait(UA_NULL);
+        printf("%d\n", *temperature);
+        munmap(temperature, sizeof *temperature);
+    }
+#endif
 
 	return UA_SUCCESS;
 }
