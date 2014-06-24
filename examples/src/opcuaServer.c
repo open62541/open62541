@@ -19,16 +19,12 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include "raspberrypi_io.h"
+#ifdef RASPI
+	#include "raspberrypi_io.h"
+#endif
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #define MAXMYMEM 4
-void readTemp1(float *temp)
-{
-	*temp = *temp + 0.3772f;
-
-}
-
 
 
 
@@ -45,14 +41,6 @@ UA_Int32 serverCallback(void * arg) {
 		((UA_ServerStatusDataType*)(((UA_VariableNode*)node)->value.data))->currentTime = UA_DateTime_now();
 	}
 
-
-	//FIXME: add the I/O code for raspberry pi here
-//#ifdef RASPI
-
-
-
-
-
 	const UA_Node *foundNode = UA_NULL;
 	Namespace_Entry_Lock *lock;
 	//node which should be filled with data (float value)
@@ -63,36 +51,13 @@ UA_Int32 serverCallback(void * arg) {
 	tmpNodeId.namespace =  0;
 
 	if(Namespace_get(ns0,&tmpNodeId, &foundNode,&lock) == UA_SUCCESS){
-		int shID;
-		char *myPtr;
-		int processId;
-
-		shID = shmget(2404, MAXMYMEM, IPC_CREAT | 0666);
-		if (shID >= 0) {
-			myPtr = shmat(shID, 0, 0);
-			if(myPtr!=(void*)-1)
-			{
-				((UA_VariableNode *)foundNode)->value.data = myPtr;
-				if((processId = fork()) < 0) {
-					printf("serverCallback - ERROR: process not created");
-				}
-				else if(processId == 0) {
-
-					while(1){
-						(*(float*)myPtr) = (*(float*)myPtr) + 0.3312f;
 	#ifdef RASPI
-						readTemp((float*)myPtr);
+		readTemp((float*)((UA_VariableNode *)foundNode)->value.data);
+	#else
+		*((float*)((UA_VariableNode *)foundNode)->value.data) = *((float*)((UA_VariableNode *)foundNode)->value.data) + 0.2f;
 	#endif
-						sleep(100);
-					}
-				}
-			}
-		} else {
-			printf("serverCallback - ERROR: no shared memory allocated");
-		}
+
 	}
-
-
 
 	return UA_SUCCESS;
 }

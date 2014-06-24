@@ -7,12 +7,13 @@
 
 #ifndef RASPBERRYPI_IO_H_
 #define RASPBERRYPI_IO_H_
-#ifdef RASPI
-	#include <wiringPi.h>
-#endif
+
+#include <wiringPi.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "string.h"
 int readTemp(float *temp);
 int writeLEDred(int state);
 

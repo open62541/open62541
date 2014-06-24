@@ -556,19 +556,19 @@ void appMockup_init() {
 UA_ExpandedNodeId ObjId_led1 = (UA_ExpandedNodeId){.nodeId = (UA_NodeId){.encodingByte = UA_NODEIDTYPE_TWOBYTE, .namespace = 0, .identifier.numeric = 110}, .namespaceUri = {-1, ((void *)0)}, .serverIndex = 0};
 
 // LED1
-UA_VariableNode *led1;
-UA_VariableNode_new(&led1);
-led1->nodeId = ObjId_led1.nodeId;
-led1->nodeClass = UA_NODECLASS_VARIABLE;
-led1->browseName = UA_QUALIFIEDNAME_STATIC("led1");
-led1->displayName = UA_LOCALIZEDTEXT_STATIC("led1");
-led1->description = UA_LOCALIZEDTEXT_STATIC("led1");
+UA_VariableNode *temperature1;
+UA_VariableNode_new(&temperature1);
+temperature1->nodeId = ObjId_led1.nodeId;
+temperature1->nodeClass = UA_NODECLASS_VARIABLE;
+temperature1->browseName = UA_QUALIFIEDNAME_STATIC("temperature1");
+temperature1->displayName = UA_LOCALIZEDTEXT_STATIC("temperature1");
+temperature1->description = UA_LOCALIZEDTEXT_STATIC("temperature1");
 
 //Set node value
 UA_Variant *tmpNodeValue;
 UA_Float *tmpFloat;
 UA_Float_new(&tmpFloat);
-*tmpFloat = 0;
+*tmpFloat = -133.2f;
 UA_Variant_new(&tmpNodeValue);
 tmpNodeValue->arrayDimensionsLength = 0;
 tmpNodeValue->arrayLength = 1;
@@ -576,40 +576,18 @@ tmpNodeValue->data = (void*)tmpFloat;
 
 tmpNodeValue->vt = &UA_.types[UA_FLOAT];
 
-UA_Variant_copy(tmpNodeValue, &led1->value);
+UA_Variant_copy(tmpNodeValue, &temperature1->value);
 
 //FIXME: these two give - "Browse failed with error 'UncertainNotAllNodesAvailable'."
 //AddReference((UA_Node*)led1, &(UA_ReferenceNode){RefTypeId_Organizes, UA_TRUE, NS0EXPANDEDNODEID(84)}, ns0);
 AddReference((UA_Node*)root, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_led1}, ns0);
 
 //FIXME: this give no error, but also also does not show the node
-AddReference((UA_Node*)led1, &(UA_ReferenceNode){RefTypeId_Organizes, UA_TRUE, NS0EXPANDEDNODEID(84)}, ns0);
+AddReference((UA_Node*)temperature1, &(UA_ReferenceNode){RefTypeId_Organizes, UA_TRUE, NS0EXPANDEDNODEID(84)}, ns0);
 
-Namespace_insert(ns0,(UA_Node*)led1);
+Namespace_insert(ns0,(UA_Node*)temperature1);
 
-/* NOT WORKING
 
-UA_ExpandedNodeId ObjId_led1 = (UA_ExpandedNodeId){.nodeId = (UA_NodeId){.encodingByte = UA_NODEIDTYPE_TWOBYTE, .namespace = 1, .identifier.numeric = 110}, .namespaceUri = {-1, ((void *)0)}, .serverIndex = 0};
-
-// LED1
-UA_VariableNode *led1;
-UA_VariableNode_new(&led1);
-led1->nodeId = ObjId_led1.nodeId;
-led1->nodeClass = UA_NODECLASS_VARIABLE;
-led1->browseName = UA_QUALIFIEDNAME_STATIC("led1");
-led1->displayName = UA_LOCALIZEDTEXT_STATIC("led1");
-led1->description = UA_LOCALIZEDTEXT_STATIC("led1");
-
-//FIXME: these two give - "Browse failed with error 'UncertainNotAllNodesAvailable'."
-//AddReference((UA_Node*)led1, &(UA_ReferenceNode){RefTypeId_Organizes, UA_TRUE, NS0EXPANDEDNODEID(84)}, ns0);
-AddReference((UA_Node*)root, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_led1}, local);
-
-//FIXME: this give no error, but also also does not show the node
-AddReference((UA_Node*)led1, &(UA_ReferenceNode){RefTypeId_Organizes, UA_TRUE, NS0EXPANDEDNODEID(84)}, ns0);
-
-Namespace_insert(local,(UA_Node*)led1);
-
-*/
 
 #if defined(DEBUG) && defined(VERBOSE)
 	uint32_t i;
