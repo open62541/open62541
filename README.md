@@ -91,6 +91,11 @@ $ make
 $ make install
 ```
 
+##### Adjusting MinGW
+* open the file c:\WinGW\include\io.h and replace every off64_t with _off64_t (4x should off64_t appear)
+* open the file c:\MinGW\include\unistd.h and replace every off_t with _off_t (2x should off_t appear)
+* download the queue.h header @ http://cvsweb.netbsd.org/bsdweb.cgi/src/sys/sys/queue.h and copy it to c:\MinGW\include\sys
+
 ## Building 
 * use autogen.sh only first time and whenever aclocal.m4 or configure.ac were modified
 ```bash
