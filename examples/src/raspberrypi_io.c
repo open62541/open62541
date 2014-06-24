@@ -27,9 +27,9 @@ int readTemp(float *temp){
 
 	fgets(buf, 1000, ptr_file);
 
-	ptr_temp = strtok(buf, (char*)delimiter);
+	ptr_temp = strtok(buf, (char*) delimiter);
 
-	ptr_temp = strtok((void*)0, (char*)delimiter);
+	ptr_temp = strtok((void*)0, (char*) delimiter);
 
 	temperaturInmC = atol(ptr_temp);
 
