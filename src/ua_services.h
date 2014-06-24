@@ -183,7 +183,14 @@ UA_Int32 Service_TranslateBrowsePathsToNodeIds(SL_Channel *channel, const UA_Tra
  */
 UA_Int32 Service_Read(SL_Channel *channel, const UA_ReadRequest *request, UA_ReadResponse *response);
 // Service_HistoryRead
-// Service_Write
+/**
+ * @brief This Service is used to write one or more Attributes of one or more
+ *  Nodes. For constructed Attribute values whose elements are indexed, such as
+ *  an array, this Service allows Clients to write the entire set of indexed
+ *  values as a composite, to write individual elements or to write ranges of
+ *  elements of the composite.
+ */
+UA_Int32 Service_Write(SL_Channel *channel, const UA_WriteRequest *request,UA_WriteResponse *response);
 // Service_HistoryUpdate
 /** @} */
 

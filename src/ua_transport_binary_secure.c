@@ -140,6 +140,10 @@ UA_Int32 SL_handleRequest(SL_Channel *channel, const UA_ByteString *msg, UA_UInt
 	}else if(serviceid == UA_READREQUEST_NS0) {
 		INVOKE_SERVICE(Read);
 		responsetype = UA_READRESPONSE_NS0;
+	}else if(serviceid == UA_WRITEREQUEST_NS0)
+	{
+		INVOKE_SERVICE(Write);
+		responsetype = UA_WRITERESPONSE_NS0;
 	}else if(serviceid == UA_TRANSLATEBROWSEPATHSTONODEIDSREQUEST_NS0) {
 		INVOKE_SERVICE(TranslateBrowsePathsToNodeIds);
 		responsetype = UA_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE_NS0;

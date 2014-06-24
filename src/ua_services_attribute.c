@@ -231,7 +231,7 @@ UA_Int32 Service_Read(SL_Channel *channel, const UA_ReadRequest *request,
 	if(channel->session == UA_NULL || channel->session->application == UA_NULL)
 		return UA_ERROR;    // TODO: Return error message
 
-	int readsize = request->nodesToReadSize;
+	UA_Int32 readsize = request->nodesToReadSize;
 	/* NothingTodo */
 	if(readsize <= 0) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
@@ -241,7 +241,7 @@ UA_Int32 Service_Read(SL_Channel *channel, const UA_ReadRequest *request,
 
 	response->resultsSize = readsize;
 	UA_alloc((void **)&response->results, sizeof(UA_DataValue) * readsize);
-	for(int i = 0;i < readsize;i++) {
+	for(UA_Int32 i = 0;i < readsize;i++) {
 		DBG_VERBOSE(printf("service_read - attributeId=%d\n", request->nodesToRead[i].attributeId));
 		DBG_VERBOSE(UA_NodeId_printf("service_read - nodeId=", &(request->nodesToRead[i].nodeId)));
 		response->results[i] = service_read_node(channel->session->application,
@@ -250,4 +250,204 @@ UA_Int32 Service_Read(SL_Channel *channel, const UA_ReadRequest *request,
 	response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
 	response->diagnosticInfosSize = 0;
 	return UA_SUCCESS;
+}
+
+UA_Int32 Service_Write_writeNode(Application *app, UA_WriteValue *writeValue,UA_StatusCode *result)
+{
+	UA_Int32 retval = UA_SUCCESS;
+	Namespace *ns = UA_indexedList_findValue(app->namespaces, writeValue->nodeId.namespace);
+	if(ns==UA_NULL)
+	{
+		*result = UA_STATUSCODE_BADNODEIDINVALID;
+		return UA_ERROR;
+	}
+	Namespace_Entry_Lock *lock;
+	const UA_Node *node;
+
+	if(Namespace_get(ns, &writeValue->nodeId,&node, &lock) != UA_SUCCESS){
+		return UA_ERROR;
+	}
+
+
+
+	switch(writeValue->attributeId) {
+	case UA_ATTRIBUTEID_NODEID:
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){
+
+		}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		return UA_ERROR;
+		break;
+
+	case UA_ATTRIBUTEID_NODECLASS:
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){
+
+		}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		return UA_ERROR;
+		break;
+
+	case UA_ATTRIBUTEID_BROWSENAME:
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		return UA_ERROR;
+		break;
+
+	case UA_ATTRIBUTEID_DISPLAYNAME:
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){
+		}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		return UA_ERROR;
+		break;
+
+	case UA_ATTRIBUTEID_DESCRIPTION:
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		return UA_ERROR;
+		break;
+
+	case UA_ATTRIBUTEID_WRITEMASK:
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){}
+		break;
+
+	case UA_ATTRIBUTEID_USERWRITEMASK:
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		return UA_ERROR;
+		break;
+
+	case UA_ATTRIBUTEID_ISABSTRACT:
+
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+
+		break;
+
+	case UA_ATTRIBUTEID_SYMMETRIC:
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		return UA_ERROR;
+		break;
+
+	case UA_ATTRIBUTEID_INVERSENAME:
+
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+
+		break;
+
+	case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
+
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		return UA_ERROR;
+		break;
+
+	case UA_ATTRIBUTEID_EVENTNOTIFIER:
+
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+
+		break;
+
+	case UA_ATTRIBUTEID_VALUE:
+
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){
+		// TODO: Ensure that the borrowed value is not freed prematurely (multithreading)
+		/* retval |= UA_Variant_borrowSetValue(&v.value, &UA_.types[UA_VARIANT], */
+		/*                                     &((UA_VariableNode *)node)->value); */
+		retval |= UA_Variant_copy(&writeValue->value.value, &((UA_VariableNode *)node)->value);
+		*result = UA_STATUSCODE_GOOD;
+
+		}
+
+		break;
+
+	case UA_ATTRIBUTEID_DATATYPE:
+
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+
+		break;
+
+	case UA_ATTRIBUTEID_VALUERANK:
+
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+
+		break;
+
+	case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
+
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+
+		break;
+
+	case UA_ATTRIBUTEID_ACCESSLEVEL:
+
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+
+		break;
+
+	case UA_ATTRIBUTEID_USERACCESSLEVEL:
+
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		return UA_ERROR;
+		break;
+
+	case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
+
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+
+		break;
+
+	case UA_ATTRIBUTEID_HISTORIZING:
+
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+
+		break;
+
+	case UA_ATTRIBUTEID_EXECUTABLE:
+
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+
+		break;
+
+	case UA_ATTRIBUTEID_USEREXECUTABLE:
+
+		if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){}
+		*result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+
+		break;
+
+	default:
+
+		*result      = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+		break;
+	}
+
+	Namespace_Entry_Lock_release(lock);
+	return retval;
+
+}
+UA_Int32 Service_Write(SL_Channel *channel, const UA_WriteRequest *request,
+                      UA_WriteResponse *response) {
+	UA_Int32 retval = UA_SUCCESS;
+	UA_Int32 i;
+	if(channel->session == UA_NULL || channel->session->application == UA_NULL)
+		return UA_ERROR;    // TODO: Return error message
+	response->resultsSize = request->nodesToWriteSize;
+
+	UA_Array_new((void**)&response->results,response->resultsSize,&UA_.types[UA_STATUSCODE]);
+	for(i=0; i < request->nodesToWriteSize; i++){
+		Service_Write_writeNode(channel->session->application ,&request->nodesToWrite[i], &response->results[i]);
+	}
+
+	return retval;
 }
