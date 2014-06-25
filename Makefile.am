@@ -35,5 +35,8 @@ endif
 if ENABLE_DOXYGEN
 	SUBS+= doc
 endif
-#SUBDIRS = $(SUBS) examples/src		
-#under Windows this is not possible because of include <sys/select.h> in open62541\example\scr\networklayer.h
+	
+if TARGET_WIN
+else
+SUBDIRS = $(SUBS) examples/src	
+endif
