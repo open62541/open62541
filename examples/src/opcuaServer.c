@@ -19,6 +19,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <fcntl.h>
+
 #ifdef RASPI
 	#include "raspberrypi_io.h"
 #endif
@@ -41,25 +42,39 @@ UA_Int32 serverCallback(void * arg) {
 		((UA_ServerStatusDataType*)(((UA_VariableNode*)node)->value.data))->currentTime = UA_DateTime_now();
 	}
 
-	const UA_Node *foundNode = UA_NULL;
+	const UA_Node *foundNode1 = UA_NULL;
+	const UA_Node *foundNode2 = UA_NULL;
 	Namespace_Entry_Lock *lock;
 	//node which should be filled with data (float value)
-	UA_NodeId tmpNodeId;
+	UA_NodeId tmpNodeId1;
+	UA_NodeId tmpNodeId2;
 
-	tmpNodeId.encodingByte = UA_NODEIDTYPE_TWOBYTE;
-	tmpNodeId.identifier.numeric = 110;
-	tmpNodeId.namespace =  0;
+	tmpNodeId1.encodingByte = UA_NODEIDTYPE_TWOBYTE;
+	tmpNodeId1.identifier.numeric = 110;
+	tmpNodeId1.namespace =  0;
 
-	if(Namespace_get(ns0,&tmpNodeId, &foundNode,&lock) == UA_SUCCESS){
-	#ifdef RASPI
-		readTemp((float*)((UA_VariableNode *)foundNode)->value.data);
-	#else
-		*((float*)((UA_VariableNode *)foundNode)->value.data) = *((float*)((UA_VariableNode *)foundNode)->value.data) + 0.2f;
-	#endif
+	tmpNodeId2.encodingByte = UA_NODEIDTYPE_TWOBYTE;
+	tmpNodeId2.identifier.numeric = 111;
+	tmpNodeId2.namespace =  0;
 
+	if(Namespace_get(ns0,&tmpNodeId1, &foundNode1,&lock) != UA_SUCCESS){
+		return UA_ERROR;
 	}
 
-	return UA_SUCCESS;
+	if(Namespace_get(ns0,&tmpNodeId2, &foundNode2,&lock) != UA_SUCCESS){
+		return UA_ERROR;
+	}
+
+	#ifdef RASPI
+		readTemp((float*)((UA_VariableNode *)foundNode1)->value.data);
+		writeLEDred(*((UA_Boolean*)((UA_VariableNode *)foundNode2)->value.data));
+	#else
+		*((float*)((UA_VariableNode *)foundNode1)->value.data) = *((float*)((UA_VariableNode *)foundNode1)->value.data) + 0.2f;
+	#endif
+
+
+
+		return UA_SUCCESS;
 }
 
 int main(int argc, char** argv) {

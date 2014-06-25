@@ -39,14 +39,16 @@ int readTemp(float *temp){
 	return 0;
 }
 
-int writeLEDred(int state){
+int writeLEDred(_Bool state){
 	if (wiringPiSetup() == -1){
 		return 1;
 	}
 	pinMode(0, OUTPUT);
-
-	digitalWrite(0, state);
-
+	if(state){
+		digitalWrite(0, 1);
+	}else{
+		digitalWrite(0, 0);
+	}
 	return 0;
 }
 #endif

@@ -443,10 +443,10 @@ UA_Int32 Service_Write(SL_Channel *channel, const UA_WriteRequest *request,
 	if(channel->session == UA_NULL || channel->session->application == UA_NULL)
 		return UA_ERROR;    // TODO: Return error message
 	response->resultsSize = request->nodesToWriteSize;
-
+	//TODO evalutate diagnostic info within the request
 	UA_Array_new((void**)&response->results,response->resultsSize,&UA_.types[UA_STATUSCODE]);
 	for(i=0; i < request->nodesToWriteSize; i++){
-		Service_Write_writeNode(channel->session->application ,&request->nodesToWrite[i], &response->results[i]);
+		retval |= Service_Write_writeNode(channel->session->application ,&request->nodesToWrite[i], &response->results[i]);
 	}
 
 	return retval;
