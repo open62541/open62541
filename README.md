@@ -80,6 +80,10 @@ $ mingw-get install libexpat
 ##### Get git (IMPORTANT: get 1.8.4, since 1.8.5.2 has a bug):
 * http://code.google.com/p/msysgit/downloads/detail?name=Git-1.8.4-preview20130916.exe&can=2&q=
 
+##### SVN:
+* download: http://tortoisesvn.net/downloads.html
+* install svn @ c:\MinGW\
+
 ##### Getting and installing *check* as unit testing framework (http://check.sourceforge.net/):
 * Open MinGW\msys\1.0\msys.bat
 
@@ -93,7 +97,7 @@ $ make install
 ```
 
 ##### Adjusting MinGW
-* open the file c:\WinGW\include\io.h and replace every off64_t with _off64_t (4x should off64_t appear)
+* open the file c:\MinGW\include\io.h and replace every off64_t with _off64_t (4x should off64_t appear)
 * open the file c:\MinGW\include\unistd.h and replace every off_t with _off_t (2x should off_t appear)
 * download the queue.h header @ http://cvsweb.netbsd.org/bsdweb.cgi/src/sys/sys/queue.h and copy it to c:\MinGW\include\sys
 
