@@ -44,10 +44,12 @@ UA_Int32 serverCallback(void * arg) {
 
 	const UA_Node *foundNode1 = UA_NULL;
 	const UA_Node *foundNode2 = UA_NULL;
+	const UA_Node *foundNode3 = UA_NULL;
 	Namespace_Entry_Lock *lock;
 	//node which should be filled with data (float value)
 	UA_NodeId tmpNodeId1;
 	UA_NodeId tmpNodeId2;
+	UA_NodeId tmpNodeId3;
 
 	tmpNodeId1.encodingByte = UA_NODEIDTYPE_TWOBYTE;
 	tmpNodeId1.identifier.numeric = 110;
@@ -57,6 +59,10 @@ UA_Int32 serverCallback(void * arg) {
 	tmpNodeId2.identifier.numeric = 111;
 	tmpNodeId2.namespace =  0;
 
+	tmpNodeId3.encodingByte = UA_NODEIDTYPE_TWOBYTE;
+	tmpNodeId3.identifier.numeric = 112;
+	tmpNodeId3.namespace =  0;
+
 	if(Namespace_get(ns0,&tmpNodeId1, &foundNode1,&lock) != UA_SUCCESS){
 		return UA_ERROR;
 	}
@@ -65,9 +71,14 @@ UA_Int32 serverCallback(void * arg) {
 		return UA_ERROR;
 	}
 
+	if(Namespace_get(ns0,&tmpNodeId2, &foundNode3,&lock) != UA_SUCCESS){
+		return UA_ERROR;
+	}
+
 	#ifdef RASPI
 		readTemp((float*)((UA_VariableNode *)foundNode1)->value.data);
-		writeLEDred(*((UA_Boolean*)((UA_VariableNode *)foundNode2)->value.data));
+		writePin(*((UA_Boolean*)((UA_VariableNode *)foundNode2)->value.data),0);
+		writePin(*((UA_Boolean*)((UA_VariableNode *)foundNode3)->value.data),2);
 	#else
 		*((float*)((UA_VariableNode *)foundNode1)->value.data) = *((float*)((UA_VariableNode *)foundNode1)->value.data) + 0.2f;
 	#endif

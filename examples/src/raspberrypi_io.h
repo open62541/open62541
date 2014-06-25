@@ -16,6 +16,6 @@
 
 #include "string.h"
 int readTemp(float *temp);
-int writeLEDred(_Bool state);
+int writePin(_Bool state);
 
 #endif /* RASPBERRYPI_IO_H_ */

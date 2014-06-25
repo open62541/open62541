@@ -252,7 +252,7 @@ UA_Int32 Service_Read(SL_Channel *channel, const UA_ReadRequest *request,
 	return UA_SUCCESS;
 }
 
-UA_Int32 Service_Write_writeNode(Application *app, UA_WriteValue *writeValue,UA_StatusCode *result)
+UA_Int32 Service_Write_writeNode(Application *app, UA_WriteValue *writeValue, UA_StatusCode *result)
 {
 	UA_Int32 retval = UA_SUCCESS;
 	Namespace *ns = UA_indexedList_findValue(app->namespaces, writeValue->nodeId.namespace);
@@ -356,6 +356,7 @@ UA_Int32 Service_Write_writeNode(Application *app, UA_WriteValue *writeValue,UA_
 		// TODO: Ensure that the borrowed value is not freed prematurely (multithreading)
 		/* retval |= UA_Variant_borrowSetValue(&v.value, &UA_.types[UA_VARIANT], */
 		/*                                     &((UA_VariableNode *)node)->value); */
+
 		retval |= UA_Variant_copy(&writeValue->value.value, &((UA_VariableNode *)node)->value);
 		*result = UA_STATUSCODE_GOOD;
 
@@ -446,7 +447,7 @@ UA_Int32 Service_Write(SL_Channel *channel, const UA_WriteRequest *request,
 	//TODO evalutate diagnostic info within the request
 	UA_Array_new((void**)&response->results,response->resultsSize,&UA_.types[UA_STATUSCODE]);
 	for(i=0; i < request->nodesToWriteSize; i++){
-		retval |= Service_Write_writeNode(channel->session->application ,&request->nodesToWrite[i], &response->results[i]);
+		retval |= Service_Write_writeNode(channel->session->application, &request->nodesToWrite[i], &response->results[i],);
 	}
 
 	return retval;
