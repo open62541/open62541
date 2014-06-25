@@ -74,6 +74,7 @@ $ mingw-get install libexpat
 * restart mingw console
 * install lxml by either downloading and installing http://www.lfd.uci.edu/~gohlke/pythonlibs/#lxml (choose the version which fits    to your python installation (x86 version)) or by following the instructions
   given here: http://lxml.de/installation.html 
+* add ("C:\Python27\Tools\Scripts") to your windows path variable
 
 
 ##### Get git (IMPORTANT: get 1.8.4, since 1.8.5.2 has a bug):
