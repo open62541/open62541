@@ -318,8 +318,6 @@ void UA_ByteString_printx_hex(char *label, const UA_ByteString *string);
 UA_Int32 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 void UA_NodeId_printf(char *label, const UA_NodeId *node);
 UA_Boolean UA_NodeId_isNull(const UA_NodeId *p);
-UA_Int16 UA_NodeId_getNamespace(UA_NodeId const *id);
-UA_Int16 UA_NodeId_getIdentifier(UA_NodeId const *id);
 UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id);
 
 /* ExpandedNodeId */

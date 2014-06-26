@@ -78,38 +78,37 @@ int main(int argc, char** argv) {
     if (i == 0)
     {
     	Namespace* ns0 = (Namespace*)UA_indexedList_find(appMockup.namespaces, 0)->payload;
+		const UA_Node *foundNode1 = UA_NULL;
+		const UA_Node *foundNode2 = UA_NULL;
+		const UA_Node *foundNode3 = UA_NULL;
+		Namespace_Entry_Lock *lock;
+		//node which should be filled with data (float value)
+		UA_NodeId tmpNodeId1;
+		UA_NodeId tmpNodeId2;
+		UA_NodeId tmpNodeId3;
+
+		tmpNodeId1.encodingByte = UA_NODEIDTYPE_TWOBYTE;
+		tmpNodeId1.identifier.numeric = 108;
+		tmpNodeId1.namespace =  0;
+
+		tmpNodeId2.encodingByte = UA_NODEIDTYPE_TWOBYTE;
+		tmpNodeId2.identifier.numeric = 109;
+		tmpNodeId2.namespace =  0;
+
+		tmpNodeId3.encodingByte = UA_NODEIDTYPE_TWOBYTE;
+		tmpNodeId3.identifier.numeric = 110;
+		tmpNodeId3.namespace =  0;
     	while(1){
-			const UA_Node *foundNode1 = UA_NULL;
-			const UA_Node *foundNode2 = UA_NULL;
-			const UA_Node *foundNode3 = UA_NULL;
-			Namespace_Entry_Lock *lock;
-			//node which should be filled with data (float value)
-			UA_NodeId tmpNodeId1;
-			UA_NodeId tmpNodeId2;
-			UA_NodeId tmpNodeId3;
-
-			tmpNodeId1.encodingByte = UA_NODEIDTYPE_TWOBYTE;
-			tmpNodeId1.identifier.numeric = 108;
-			tmpNodeId1.namespace =  0;
-
-			tmpNodeId2.encodingByte = UA_NODEIDTYPE_TWOBYTE;
-			tmpNodeId2.identifier.numeric = 109;
-			tmpNodeId2.namespace =  0;
-
-			tmpNodeId3.encodingByte = UA_NODEIDTYPE_TWOBYTE;
-			tmpNodeId3.identifier.numeric = 110;
-			tmpNodeId3.namespace =  0;
-
 			if(Namespace_get(ns0,&tmpNodeId1, &foundNode1,&lock) != UA_SUCCESS){
-				return UA_ERROR;
+				_exit(1);
 			}
 
 			if(Namespace_get(ns0,&tmpNodeId2, &foundNode2,&lock) != UA_SUCCESS){
-				return UA_ERROR;
+				_exit(1);
 			}
 
 			if(Namespace_get(ns0,&tmpNodeId3, &foundNode3,&lock) != UA_SUCCESS){
-				return UA_ERROR;
+				_exit(1);
 			}
 			readTemp((float*)((UA_VariableNode *)foundNode1)->value.data);
 			writePin(*((UA_Boolean*)((UA_VariableNode *)foundNode2)->value.data),0);

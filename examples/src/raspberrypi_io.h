@@ -17,5 +17,6 @@
 #include "string.h"
 int readTemp(float *temp);
 int writePin(_Bool state, int pin);
+int initIO();
 
 #endif /* RASPBERRYPI_IO_H_ */

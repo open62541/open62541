@@ -16,8 +16,8 @@ ns = {"opc": "http://opcfoundation.org/BinarySchema/"}
 tree = etree.parse(sys.argv[1])
 types = tree.xpath("/opc:TypeDictionary/*[not(self::opc:Import)]", namespaces=ns)
 
-fh = open(sys.argv[2] + ".h",'w');
-fc = open(sys.argv[2] + ".c",'w');
+fh = open(sys.argv[2] + ".h",'w')
+fc = open(sys.argv[2] + ".c",'w')
 
 # dirty hack. we go up the call frames to access local variables of the calling
 # function. this allows to shorten code and get %()s replaces with less clutter.
