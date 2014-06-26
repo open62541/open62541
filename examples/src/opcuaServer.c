@@ -9,7 +9,6 @@
  */
 #define _XOPEN_SOURCE 1 //TODO HACK
 #include <stdio.h>
-#include <stdlib.h>
 
 #include "networklayer.h"
 #include "ua_application.h"
