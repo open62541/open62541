@@ -390,10 +390,10 @@ void appMockup_init() {
 	UA_ExpandedNodeId ObjId_TypesFolder = NS0EXPANDEDNODEID(86);
 	UA_ExpandedNodeId ObjId_ViewsFolder = NS0EXPANDEDNODEID(87);
 	UA_ExpandedNodeId ObjId_Server = NS0EXPANDEDNODEID(2253);
-	//UA_ExpandedNodeId ObjId_ServerArray = NS0EXPANDEDNODEID(2254);
+	UA_ExpandedNodeId ObjId_ServerArray = NS0EXPANDEDNODEID(2254);
 	UA_ExpandedNodeId ObjId_NamespaceArray = NS0EXPANDEDNODEID(2255);
 	UA_ExpandedNodeId ObjId_ServerStatus = NS0EXPANDEDNODEID(2256);
-	//UA_ExpandedNodeId ObjId_ServerCapabilities = NS0EXPANDEDNODEID(2268);
+	UA_ExpandedNodeId ObjId_ServerCapabilities = NS0EXPANDEDNODEID(2268);
 	UA_ExpandedNodeId ObjId_State = NS0EXPANDEDNODEID(2259);
 
 	// FolderType
@@ -462,10 +462,10 @@ void appMockup_init() {
 	server->browseName = UA_QUALIFIEDNAME_STATIC("Server");
 	server->displayName = UA_LOCALIZEDTEXT_STATIC("Server");
 	server->description = UA_LOCALIZEDTEXT_STATIC("Server");
-	//AddReference((UA_Node*)server, &(UA_ReferenceNode){RefTypeId_HasComponent, UA_FALSE, ObjId_ServerCapabilities}, ns0);
-	//AddReference((UA_Node*)server, &(UA_ReferenceNode){RefTypeId_HasComponent, UA_FALSE, ObjId_NamespaceArray}, ns0);
-	//AddReference((UA_Node*)server, &(UA_ReferenceNode){RefTypeId_HasProperty, UA_FALSE, ObjId_ServerStatus}, ns0);
-	//AddReference((UA_Node*)server, &(UA_ReferenceNode){RefTypeId_HasProperty, UA_FALSE, ObjId_ServerArray}, ns0);
+	AddReference((UA_Node*)server, &(UA_ReferenceNode){RefTypeId_HasComponent, UA_FALSE, ObjId_ServerCapabilities}, ns0);
+	AddReference((UA_Node*)server, &(UA_ReferenceNode){RefTypeId_HasComponent, UA_FALSE, ObjId_NamespaceArray}, ns0);
+	AddReference((UA_Node*)server, &(UA_ReferenceNode){RefTypeId_HasProperty, UA_FALSE, ObjId_ServerStatus}, ns0);
+	AddReference((UA_Node*)server, &(UA_ReferenceNode){RefTypeId_HasProperty, UA_FALSE, ObjId_ServerArray}, ns0);
 	Namespace_insert(ns0,(UA_Node*)server);
 
 	// NamespaceArray
@@ -553,7 +553,7 @@ void appMockup_init() {
 	/*******************/
 
 	// WORKS
-	UA_ExpandedNodeId ObjId_temperature1 = (UA_ExpandedNodeId){.nodeId = (UA_NodeId){.encodingByte = UA_NODEIDTYPE_TWOBYTE, .namespace = 0, .identifier.numeric = 110}, .namespaceUri = {-1, ((void *)0)}, .serverIndex = 0};
+	UA_ExpandedNodeId ObjId_temperature1 = (UA_ExpandedNodeId){.nodeId = (UA_NodeId){.encodingByte = UA_NODEIDTYPE_TWOBYTE, .namespace = 0, .identifier.numeric = 108}, .namespaceUri = {-1, ((void *)0)}, .serverIndex = 0};
 
 	// temperature sensor
 	UA_VariableNode *temperature1;
@@ -581,7 +581,7 @@ void appMockup_init() {
 	Namespace_insert(ns0,(UA_Node*)temperature1);
 
 
-	UA_ExpandedNodeId ObjId_redLED = (UA_ExpandedNodeId){.nodeId = (UA_NodeId){.encodingByte = UA_NODEIDTYPE_TWOBYTE, .namespace = 0, .identifier.numeric = 111}, .namespaceUri = {-1, ((void *)0)}, .serverIndex = 0};
+	UA_ExpandedNodeId ObjId_redLED = (UA_ExpandedNodeId){.nodeId = (UA_NodeId){.encodingByte = UA_NODEIDTYPE_TWOBYTE, .namespace = 0, .identifier.numeric = 109}, .namespaceUri = {-1, ((void *)0)}, .serverIndex = 0};
 	// redLED sensor
 	UA_VariableNode *redLED;
 	UA_VariableNode_new(&redLED);
@@ -607,11 +607,11 @@ void appMockup_init() {
 	Namespace_insert(ns0,(UA_Node*)redLED);
 
 
-	UA_ExpandedNodeId ObjId_yellowLED = (UA_ExpandedNodeId){.nodeId = (UA_NodeId){.encodingByte = UA_NODEIDTYPE_TWOBYTE, .namespace = 0, .identifier.numeric = 112}, .namespaceUri = {-1, ((void *)0)}, .serverIndex = 0};
+	UA_ExpandedNodeId ObjId_yellowLED = (UA_ExpandedNodeId){.nodeId = (UA_NodeId){.encodingByte = UA_NODEIDTYPE_TWOBYTE, .namespace = 0, .identifier.numeric = 110}, .namespaceUri = {-1, ((void *)0)}, .serverIndex = 0};
 	// yellowLED sensor
 	UA_VariableNode *yellowLED;
 	UA_VariableNode_new(&yellowLED);
-	yellowLED->nodeId = ObjId_redLED.nodeId;
+	yellowLED->nodeId = ObjId_yellowLED.nodeId;
 	yellowLED->nodeClass = UA_NODECLASS_VARIABLE;
 	yellowLED->browseName = UA_QUALIFIEDNAME_STATIC("yellowLED");
 	yellowLED->displayName = UA_LOCALIZEDTEXT_STATIC("yellowLED");
@@ -631,6 +631,7 @@ void appMockup_init() {
 
 	AddReference((UA_Node*)root, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_yellowLED}, ns0);
 	Namespace_insert(ns0,(UA_Node*)yellowLED);
+
 #if defined(DEBUG) && defined(VERBOSE)
 	uint32_t i;
 	for (i=0;i < ns0->size;i++) {

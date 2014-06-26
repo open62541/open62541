@@ -10,6 +10,16 @@
 
 
 #ifdef RASPI
+static _Bool initialized = 0;
+int initIO()
+{
+	if (wiringPiSetup() == -1){
+		initialized = 0;
+		return 1;
+	}
+	initialized = 1;
+	return 0;
+}
 int readTemp(float *temp){
 	FILE *ptr_file;
 	char buf[1000];
@@ -40,15 +50,16 @@ int readTemp(float *temp){
 }
 
 int writePin(_Bool state, int pin){
-	if (wiringPiSetup() == -1){
-		return 1;
+	if(initialized)
+	{
+		pinMode(0, OUTPUT);
+		if(state){
+			digitalWrite(pin, 1);
+		}else{
+			digitalWrite(pin, 0);
+		}
+		return 0;
 	}
-	pinMode(0, OUTPUT);
-	if(state){
-		digitalWrite(pin, 1);
-	}else{
-		digitalWrite(pin, 0);
-	}
-	return 0;
+	return 1; //ERROR
 }
 #endif
