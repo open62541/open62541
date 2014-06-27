@@ -1,4 +1,4 @@
-Open62541
+open62541
 =========
 
 An open-source communication stack implementation of OPC UA (OPC Unified Architecture) licensed under LGPL + static linking exception.
