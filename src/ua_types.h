@@ -119,6 +119,9 @@ typedef struct UA_NodeId {
 	} identifier;
 } UA_NodeId;
 
+#define NS0NODEID(NUMERIC_ID) \
+	(UA_NodeId){.encodingByte = 0 /*UA_NODEIDTYPE_TWOBYTE*/, .namespace = 0, .identifier.numeric = NUMERIC_ID}
+
 #define UA_NODEIDTYPE_NAMESPACE_URI_FLAG 0x80
 #define UA_NODEIDTYPE_SERVERINDEX_FLAG 0x40
 #define UA_NODEIDTYPE_MASK (~(UA_NODEIDTYPE_NAMESPACE_URI_FLAG | UA_NODEIDTYPE_SERVERINDEX_FLAG))
@@ -129,6 +132,9 @@ typedef struct UA_ExpandedNodeId {
 	UA_String namespaceUri;
 	UA_UInt32 serverIndex;
 } UA_ExpandedNodeId;
+
+#define NS0EXPANDEDNODEID(NUMERIC_ID) \
+	(UA_ExpandedNodeId){.nodeId = NS0NODEID(NUMERIC_ID), .namespaceUri = {-1, UA_NULL}, .serverIndex = 0}
 
 /** @brief A numeric identifier for a error or condition that is associated with a value or an operation. */
 typedef UA_UInt32 UA_StatusCode; // StatusCodes aren't an enum(=int) since 32 unsigned bits are needed. See also ua_statuscodes.h */
@@ -272,6 +278,9 @@ UA_TYPE_PROTOTYPES(UA_DiagnosticInfo)
 UA_TYPE_PROTOTYPES(UA_InvalidType)
 
 /* String */
+#define UA_STRING_NULL (UA_String){-1, UA_NULL}
+#define UA_STRING_STATIC(STRING) (UA_String){sizeof(STRING)-1, (UA_Byte*)STRING}
+
 UA_Int32 UA_String_copycstring(char const *src, UA_String *dst);
 UA_Int32 UA_String_copyprintf(char const *fmt, UA_String *dst, ...);
 UA_Int32 UA_String_equal(const UA_String *string1, const UA_String *string2);
@@ -309,17 +318,18 @@ void UA_ByteString_printx_hex(char *label, const UA_ByteString *string);
 UA_Int32 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 void UA_NodeId_printf(char *label, const UA_NodeId *node);
 UA_Boolean UA_NodeId_isNull(const UA_NodeId *p);
-UA_Int16 UA_NodeId_getNamespace(UA_NodeId const *id);
-UA_Int16 UA_NodeId_getIdentifier(UA_NodeId const *id);
 UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id);
 
 /* ExpandedNodeId */
 UA_Boolean UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 
 /* QualifiedName */
+#define UA_QUALIFIEDNAME_STATIC(STRING) \
+	(UA_QualifiedName){0, {sizeof(STRING)-1, (UA_Byte*)STRING}}
 void UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn);
 
 /* LocalizedText */
+#define UA_LOCALIZEDTEXT_STATIC(STRING) (UA_LocalizedText){{2, (UA_Byte*)"en"}, UA_STRING_STATIC(STRING)}
 UA_Int32 UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);
 
 /* Variant */

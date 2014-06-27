@@ -70,6 +70,8 @@ UA_TYPE_XML_ENCODING(UA_ExtensionObject)
 UA_TYPE_XML_ENCODING(UA_DataValue)
 UA_TYPE_XML_ENCODING(UA_Variant)
 UA_TYPE_XML_ENCODING(UA_DiagnosticInfo)
+
+/* Not built-in types */
 UA_TYPE_XML_ENCODING(UA_InvalidType)
 
 #endif /* UA_TYPES_ENCODING_XML_H_ */

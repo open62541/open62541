@@ -5,7 +5,7 @@
 START_TEST(base64_test_2padding)
 {
 	//this is base64'd ASCII string "open62541!"
-	UA_String encodedString = {16, "b3BlbjYyNTQxIQ=="};
+	UA_String encodedString = UA_STRING_STATIC("b3BlbjYyNTQxIQ==");
 
 	//assure that we allocate exactly 10 bytes
 	ck_assert_int_eq(UA_base64_getDecodedSize(&encodedString), 10);
@@ -34,7 +34,7 @@ START_TEST(base64_test_1padding)
 {
 
 	//this is base64'd ASCII string "open62541!!"
-	UA_String encodedString = {16, "b3BlbjYyNTQxISE="};
+	UA_String encodedString = UA_STRING_STATIC("b3BlbjYyNTQxISE=");
 
 	//assure that we allocate exactly 11 bytes
 	ck_assert_int_eq(UA_base64_getDecodedSize(&encodedString), 11);
@@ -64,7 +64,7 @@ START_TEST(base64_test_0padding)
 {
 
 	//this is base64'd ASCII string "open62541"
-	UA_String encodedString = {12, "b3BlbjYyNTQx"};
+	UA_String encodedString = UA_STRING_STATIC("b3BlbjYyNTQx");
 
 	//assure that we allocate exactly 9 bytes
 	ck_assert_int_eq(UA_base64_getDecodedSize(&encodedString), 9);

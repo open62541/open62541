@@ -16,7 +16,7 @@ NL_Description NL_Description_TcpBinary  = {
 	NL_UA_ENCODING_BINARY,
 	NL_CONNECTIONTYPE_TCPV4,
 	NL_MAXCONNECTIONS_DEFAULT,
-	{-1,8192,8192,16384,1}
+	{0,8192,8192,16384,1}
 };
 
 /* If we do not have multitasking, we implement a dispatcher-Pattern. All Connections
@@ -91,14 +91,18 @@ UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), v
 			default:
 				DBG_VERBOSE(printf("UA_Stack_msgLoop - errno={%d,%s}\n", errno, strerror(errno)));
 				DBG_VERBOSE(printf("UA_Stack_msgLoop - call worker\n"));
-				worker(arg);
+
 				DBG_VERBOSE(printf("UA_Stack_msgLoop - return from worker\n"));
 			}
 		} else { // activity on listener or client ports
 			DBG_VERBOSE(printf("UA_Stack_msgLoop - activities on %d handles\n",result));
 			UA_list_iteratePayload(&(nl->connections),NL_checkFdSet);
+
 		}
+		worker(arg);
+
 	}
+
 	return UA_SUCCESS;
 }
 #endif
@@ -209,7 +213,9 @@ void* NL_Connection_init(NL_Connection* c, NL_data* tld, UA_Int32 connectionHand
 	c->connection.connectionHandle = connectionHandle;
 	c->connection.connectionState = CONNECTIONSTATE_CLOSED;
 	c->connection.writerCallback = writer;
+
 	memcpy(&(c->connection.localConf),&(tld->tld->localConf),sizeof(TL_Buffer));
+
 	memset(&(c->connection.remoteConf),0,sizeof(TL_Buffer));
 	UA_String_copy(&(tld->endpointUrl), &(c->connection.localEndpointUrl));
 

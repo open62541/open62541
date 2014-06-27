@@ -101,9 +101,9 @@ static void init_response_header(UA_RequestHeader const *p, UA_ResponseHeader *r
     DBG_VERBOSE(printf("Invoke Service: %s\n", # TYPE));                             \
     Service_##TYPE(channel, &p, &r);                                                 \
     DBG_VERBOSE(printf("Finished Service: %s\n", # TYPE));                           \
-    *offset = 0;                                                                     \
+    UA_UInt32 sending_offset = 0;													 \
     UA_ByteString_newMembers(&response_msg, UA_##TYPE##Response_calcSizeBinary(&r)); \
-    UA_##TYPE##Response_encodeBinary(&r, &response_msg, offset);                     \
+    UA_##TYPE##Response_encodeBinary(&r, &response_msg, &sending_offset);            \
     UA_##TYPE##Request_deleteMembers(&p);                                            \
     UA_##TYPE##Response_deleteMembers(&r);                                           \
 
@@ -140,10 +140,26 @@ UA_Int32 SL_handleRequest(SL_Channel *channel, const UA_ByteString *msg, UA_UInt
 	}else if(serviceid == UA_READREQUEST_NS0) {
 		INVOKE_SERVICE(Read);
 		responsetype = UA_READRESPONSE_NS0;
+	}else if(serviceid == UA_WRITEREQUEST_NS0)
+	{
+		INVOKE_SERVICE(Write);
+		responsetype = UA_WRITERESPONSE_NS0;
 	}else if(serviceid == UA_TRANSLATEBROWSEPATHSTONODEIDSREQUEST_NS0) {
 		INVOKE_SERVICE(TranslateBrowsePathsToNodeIds);
 		responsetype = UA_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE_NS0;
-	}else {
+	}else if(serviceid == UA_BROWSEREQUEST_NS0) {
+		INVOKE_SERVICE(Browse);
+		responsetype = UA_BROWSERESPONSE_NS0;
+	}else if(serviceid == UA_CREATESUBSCRIPTIONREQUEST_NS0) {
+		INVOKE_SERVICE(CreateSubscription);
+		responsetype = UA_CREATESUBSCRIPTIONRESPONSE_NS0;
+	}else if(serviceid == UA_CREATEMONITOREDITEMSREQUEST_NS0) {
+		INVOKE_SERVICE(CreateMonitoredItems);
+		responsetype = UA_CREATEMONITOREDITEMSRESPONSE_NS0;
+	}else if(serviceid == UA_PUBLISHREQUEST_NS0) {
+		INVOKE_SERVICE(Publish);
+		responsetype = UA_PUBLISHRESPONSE_NS0;
+	}else{
 		printf("SL_processMessage - unknown request, namespace=%d, request=%d\n",
 		       serviceRequestType.namespace,
 		       serviceRequestType.identifier.numeric);

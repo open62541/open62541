@@ -69,6 +69,19 @@ AS_HELP_STRING([--enable-coverage],
 AM_CONDITIONAL(COVERAGE, test x"$coverage" = x"true")
 AM_COND_IF([COVERAGE],
     AC_DEFINE([COVERAGE])) #define MULTITHREADING is accessible from pre-processor
+    
+#raspberry pi
+AC_ARG_ENABLE(raspi,
+AS_HELP_STRING([--enable-raspi],
+               [enable raspi, default: no]),
+	[case "${enableval}" in
+		yes) raspi=true ;;
+		no)  raspi=false ;;
+		*)   AC_MSG_ERROR([bad value ${enableval} for --enable-raspi]) ;; 
+	esac],[raspi=false])
+AM_CONDITIONAL(RASPI, test x"$raspi" = x"true")
+AM_COND_IF([RASPI],
+    AC_DEFINE([RASPI])) #define MULTITHREADING is accessible from pre-processor
 
 #doxygen start
 AC_ARG_ENABLE(doxygen,

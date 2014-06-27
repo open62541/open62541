@@ -16,8 +16,8 @@ ns = {"opc": "http://opcfoundation.org/BinarySchema/"}
 tree = etree.parse(sys.argv[1])
 types = tree.xpath("/opc:TypeDictionary/*[not(self::opc:Import)]", namespaces=ns)
 
-fh = open(sys.argv[2] + ".h",'w');
-fc = open(sys.argv[2] + ".c",'w');
+fh = open(sys.argv[2] + ".h",'w')
+fc = open(sys.argv[2] + ".c",'w')
 
 # dirty hack. we go up the call frames to access local variables of the calling
 # function. this allows to shorten code and get %()s replaces with less clutter.
@@ -29,10 +29,10 @@ def printc(string):
 
 # types that are coded manually 
 existing_types = set(["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
-                     "Int64", "UInt64", "Float", "Double", "String", "DateTime", "Guid",
-                     "ByteString", "XmlElement", "NodeId", "ExpandedNodeId", "StatusCode", 
-                     "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
-                     "Variant", "DiagnosticInfo"])
+                      "Int64", "UInt64", "Float", "Double", "String", "DateTime", "Guid",
+                      "ByteString", "XmlElement", "NodeId", "ExpandedNodeId", "StatusCode", 
+                      "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
+                      "Variant", "DiagnosticInfo"])
 
 fixed_size = set(["UA_Boolean", "UA_SByte", "UA_Byte", "UA_Int16", "UA_UInt16",
                   "UA_Int32", "UA_UInt32", "UA_Int64", "UA_UInt64", "UA_Float",
@@ -73,15 +73,15 @@ def createEnumerated(element):
         if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
             valuemap[name + "_" + child.get("Name")] = child.get("Value")
     valuemap = OrderedDict(sorted(valuemap.iteritems(), key=lambda (k,v): int(v)))
-    printh("typedef UA_UInt32 " + name + ";")
+    printh("typedef UA_Int32 " + name + ";")
     printh("enum " + name + "_enum { \n\t" +
            ",\n\t".join(map(lambda (key, value) : key.upper() + " = " + value, valuemap.iteritems())) +
            "\n};")
     printh("UA_TYPE_PROTOTYPES (" + name + ")")
     printh("UA_TYPE_BINARY_ENCODING(" + name + ")")
     printh("UA_TYPE_XML_ENCODING(" + name + ")\n")
-    printc("UA_TYPE_AS(" + name + ", UA_UInt32)")
-    printc("UA_TYPE_BINARY_ENCODING_AS(" + name + ", UA_UInt32)")
+    printc("UA_TYPE_AS(" + name + ", UA_Int32)")
+    printc("UA_TYPE_BINARY_ENCODING_AS(" + name + ", UA_Int32)")
     printc('''UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(%(name)s)
 UA_TYPE_METHOD_ENCODEXML_NOTIMPL(%(name)s)
 UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s\n)''')
