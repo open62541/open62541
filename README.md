@@ -68,16 +68,21 @@ $ mingw-get install libexpat
 ```
 
 ##### Get Python and lxml:
-* download Python at https://python.org/downloads (recommended version: 3.4.x)
+* download Python (Windows x86 MSI Installer) at https://python.org/downloads (necessary version: 2.7.x)
 * install the executable
-* add the install directory (e. g. "c:\python34") to your windows path variable [Selectable in the setup-options]
+* add the install directory (e. g. "c:\python27") to your windows path variable [Selectable in the setup-options]
 * restart mingw console
-* install lxml by either downloading and installing http://www.lfd.uci.edu/~gohlke/pythonlibs/#lxml (choose the version which fits    to your python installation) or by following the instructions
+* install lxml by either downloading and installing http://www.lfd.uci.edu/~gohlke/pythonlibs/#lxml (choose the version which fits    to your python installation (x86 version)) or by following the instructions
   given here: http://lxml.de/installation.html 
-* [HINT for Windows x64 Users]: To use the first option to install lxml, it is necessary to edit the registry: The install path of python needs to be copyed in an other registry directroy: [FROM]: HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Python\PythonCore\3.4\InstallPath [TO]: HKEY_LOCAL_MACHINE\SOFTWARE\Python\PythonCore\3.4\InstallPath
+* add ("C:\Python27\Tools\Scripts") to your windows path variable
+
 
 ##### Get git (IMPORTANT: get 1.8.4, since 1.8.5.2 has a bug):
 * http://code.google.com/p/msysgit/downloads/detail?name=Git-1.8.4-preview20130916.exe&can=2&q=
+
+##### SVN:
+* download: http://tortoisesvn.net/downloads.html
+* install svn @ c:\MinGW\
 
 ##### Getting and installing *check* as unit testing framework (http://check.sourceforge.net/):
 * Open MinGW\msys\1.0\msys.bat
@@ -90,6 +95,11 @@ $ ./configure
 $ make
 $ make install
 ```
+
+##### Adjusting MinGW
+* open the file c:\MinGW\include\io.h and replace every off64_t with _off64_t (4x should off64_t appear)
+* open the file c:\MinGW\include\unistd.h and replace every off_t with _off_t (2x should off_t appear)
+* download the queue.h header @ http://cvsweb.netbsd.org/bsdweb.cgi/src/sys/sys/queue.h and copy it to c:\MinGW\include\sys
 
 ## Building 
 * use autogen.sh only first time and whenever aclocal.m4 or configure.ac were modified
