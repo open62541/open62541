@@ -29,6 +29,7 @@ AM_COND_IF([TARGET_WIN],
 AM_COND_IF([TARGET_LINUX],
     AC_DEFINE([LINUX]))
    
+#debugging
 AC_ARG_ENABLE(debug,
 AS_HELP_STRING([--enable-debug],
                [enable debugging, default: no]),
@@ -46,6 +47,7 @@ AM_CONDITIONAL(VERBOSE, test x"$verbose" = x"true")
 AM_COND_IF([VERBOSE],
     AC_DEFINE([VERBOSE])) #define VERBOSE is accessible from pre-processor
 
+#multithreading
 AC_ARG_ENABLE(multithreading,
 AS_HELP_STRING([--enable-multithreading],
                [enable multithreading, default: yes]),
@@ -58,6 +60,7 @@ AM_CONDITIONAL(MULTITHREADING, test x"$multithreading" = x"true")
 AM_COND_IF([MULTITHREADING],
     AC_DEFINE([MULTITHREADING])) #define MULTITHREADING is accessible from pre-processor
 
+#coverage
 AC_ARG_ENABLE(coverage,
 AS_HELP_STRING([--enable-coverage],
                [enable coverage, default: no]),
@@ -81,7 +84,7 @@ AS_HELP_STRING([--enable-raspi],
 	esac],[raspi=false])
 AM_CONDITIONAL(RASPI, test x"$raspi" = x"true")
 AM_COND_IF([RASPI],
-    AC_DEFINE([RASPI])) #define MULTITHREADING is accessible from pre-processor
+    AC_DEFINE([RASPI]))
 
 #doxygen start
 AC_ARG_ENABLE(doxygen,
@@ -109,10 +112,34 @@ fi
 AM_COND_IF([ENABLE_DOXYGEN], [AC_CONFIG_FILES([doc/Doxyfile])])
 #doxygen end
 
-   
+#language wrappers
+AC_ARG_ENABLE(python_wrapper,
+AS_HELP_STRING([--enable-python-wrapper],
+               [build python-wrapper, default: no]),
+	[case "${enableval}" in
+		yes) python_wrapper=true ;;
+		no)  python_wrapper=false ;;
+		*)   AC_MSG_ERROR([bad value ${enableval} for --enable-python-wrapper]) ;; 
+	esac],[python_wrapper=false])
+AM_CONDITIONAL(PYTHON_WRAPPER, test x"$python_wrapper" = x"true")
+AM_COND_IF([PYTHON_WRAPPER],
+    AC_DEFINE([PYTHON_WRAPPER]))
+
+AC_ARG_ENABLE(lua_wrapper,
+AS_HELP_STRING([--enable-lua-wrapper],
+               [build lua-wrapper, default: no]),
+	[case "${enableval}" in
+		yes) lua_wrapper=true ;;
+		no)  lua_wrapper=false ;;
+		*)   AC_MSG_ERROR([bad value ${enableval} for --enable-lua-wrapper]) ;; 
+	esac],[lua_wrapper=false])
+AM_CONDITIONAL(LUA_WRAPPER, test x"$lua_wrapper" = x"true")
+AM_COND_IF([LUA_WRAPPER],
+    AC_DEFINE([LUA_WRAPPER]))
+
 AC_LIBTOOL_WIN32_DLL
 AC_PROG_LIBTOOL
 AC_CONFIG_MACRO_DIR([m4])
-AC_CONFIG_FILES(Makefile src/Makefile tests/Makefile examples/src/Makefile doc/Makefile)
+AC_CONFIG_FILES(Makefile src/Makefile tests/Makefile examples/src/Makefile doc/Makefile wrappers/python/Makefile wrappers/lua/Makefile)
 AC_OUTPUT
 

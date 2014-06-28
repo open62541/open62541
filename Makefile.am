@@ -1,5 +1,4 @@
-#AM_CFLAGS  = -std=c99 -pedantic -pipe -fPIC -fno-exceptions -fstack-protector -Wl,-z,relro -Wl,-z,now -fvisibility=hidden -W -Wall -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wformat -Wreturn-type -Wsign-compare -Wmultichar -Wformat-nonliteral -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -Werror
-AM_CFLAGS  = -std=c99 -pedantic -pipe -funsigned-char -Wno-pointer-sign -fno-exceptions -fstack-protector -fvisibility=hidden -W -Wall -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wformat -Wreturn-type -Wsign-compare -Wmultichar -Wformat-nonliteral -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -Werror
+AM_CFLAGS  = -std=c99 -pedantic -pipe -funsigned-char -Wno-pointer-sign -fno-exceptions -fstack-protector -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wformat -Wreturn-type -Wsign-compare -Wmultichar -Wformat-nonliteral -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -Werror
 AM_LDFLAGS =
 AM_LDADD =
 
@@ -27,16 +26,24 @@ endif
 export GLOBAL_AM_CFLAGS = $(AM_CFLAGS)
 export GLOBAL_AM_LDADD = $(AM_LDADD)
 
-SUBS=src
+SUBDIRS=src
 if HAVE_CHECK
-	SUBS+= tests
+	SUBDIRS+= tests
 endif
 
 if ENABLE_DOXYGEN
-	SUBS+= doc
+	SUBDIRS+= doc
 endif
-	
+
 if TARGET_WIN
 else
-SUBDIRS = $(SUBS) examples/src	
+SUBDIRS += examples/src	
+endif
+
+if PYTHON_WRAPPER
+SUBDIRS += wrappers/python
+endif
+
+if LUA_WRAPPER
+SUBDIRS += wrappers/lua
 endif
