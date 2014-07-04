@@ -45,4 +45,4 @@ after_success:
    - cd ..
    - rm -rf open62541
    - ./tools/.coverity.sh
-   - coveralls -b src --exclude doc --exclude examples --exclude tests --exclude wrappers --exclude src/.libs --exclude src/util/.libs
+   - coveralls -b src --exclude doc --exclude examples --exclude tests --exclude wrappers --exclude src/.libs --exclude src/util/.libs -E '.*\.h' 
