@@ -45,4 +45,6 @@ after_success:
    - cd ..
    - rm -rf open62541
    - ./tools/.coverity.sh
-   - coveralls --exclude examples --exclude tests --exclude wrappers
+   - cd src
+   - coveralls
+   - cd ..
