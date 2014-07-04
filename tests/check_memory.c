@@ -13,6 +13,7 @@ START_TEST(newAndEmptyObjectShallBeDeleted) {
 	void    *obj;
 	// when
 	retval  = UA_.types[_i].new(&obj);
+	UA_.types[_i].print(obj, stdout);
 	retval |= UA_.types[_i].delete(obj);
 	// then
 	ck_assert_int_eq(retval, UA_SUCCESS);
