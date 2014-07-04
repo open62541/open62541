@@ -45,6 +45,4 @@ after_success:
    - cd ..
    - rm -rf open62541
    - ./tools/.coverity.sh
-   - cd src
-   - coveralls
-   - cd ..
+   - coveralls -b src -e doc -e examples -e tests -e wrappers
