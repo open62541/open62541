@@ -45,4 +45,4 @@ after_success:
    - cd ..
    - rm -rf open62541
    - ./tools/.coverity.sh
-   - coveralls -b src -e doc -e examples -e tests -e wrappers -E --exclude-pattern '.*\.libs.*'
+   - coveralls -b src -exclude doc -exclude examples -exclude tests -exclude wrappers --exclude-pattern '.*\.libs.*'
