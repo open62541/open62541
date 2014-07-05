@@ -28,6 +28,29 @@ _Bool matcher(void* payload){
 	return FALSE;
 }
 
+START_TEST(linkedList_test_destroyemptylist)
+{
+	UA_indexedList_List list;
+	UA_indexedList_init(&list);
+	ck_assert_int_eq(list.size, 0);
+	UA_indexedList_destroy(&list, UA_indexedList_defaultFreer);
+	ck_assert_int_eq(list.size, 0);
+}
+END_TEST
+
+START_TEST(linkedList_test_destroysingle)
+{
+	UA_indexedList_List list;
+	UA_indexedList_init(&list);
+	ck_assert_int_eq(list.size, 0);
+	UA_Int32* payload = (UA_Int32*)malloc(sizeof(*payload));
+	*payload = 10;
+	UA_indexedList_addValue(&list, 1, payload);
+	UA_indexedList_destroy(&list, UA_indexedList_defaultFreer);
+	ck_assert_int_eq(list.size, 0);
+}
+END_TEST
+	
 START_TEST(linkedList_test_basic)
 {
 
@@ -76,6 +99,7 @@ START_TEST(linkedList_test_basic)
 
 	ck_assert_int_eq(free_count, 2);
 	ck_assert_int_eq(list.size, 0);
+	
 }
 END_TEST
 
@@ -84,6 +108,8 @@ Suite*linkedList_testSuite(void)
 	Suite *s = suite_create("linkedList_test");
 	TCase *tc_core = tcase_create("Core");
 	tcase_add_test(tc_core, linkedList_test_basic);
+	tcase_add_test(tc_core, linkedList_test_destroyemptylist);
+	tcase_add_test(tc_core, linkedList_test_destroysingle);
 	suite_add_tcase(s,tc_core);
 	return s;
 }
