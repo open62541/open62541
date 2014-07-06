@@ -138,6 +138,13 @@ UA_Byte pkt_OPN[] = {
 	0x00, 0x00, 0x00, 0x80, 0xee, 0x36, 0x00        /* .....6. */
 };
 
+UA_Byte pkt_CLO[] = {
+	0x43, 0x4c, 0x4f, 0x46, 0x39, 0x00, 0x00, 0x00, 0x19, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,  /* CLOF9........... */ /*19 here assusmes channelid=25 ! */
+	0xea, 0x00, 0x00, 0x00, 0xb8, 0x00, 0x00, 0x00, 0x01, 0x00, 0xc4, 0x01, 0x00, 0x00, 0x4d, 0x65,  /* ..............Me */
+	0x16, 0x3b, 0x47, 0x99, 0xcf, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff,  /* .;G............. */
+	0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00                                             /* ......... */
+};
+
 UA_Byte pkt_MSG_CreateSession[] = {
 	0x4d, 0x53, 0x47, 0x46, 0xb4, 0x05, 0x00, 0x00, /* MSGF.... */
 	0x19, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, /* QQ...... // assumes fixed secureChannelID=25 ! */
@@ -382,6 +389,27 @@ START_TEST(validOpeningSequenceShallCreateChannel) {
 }
 END_TEST
 
+START_TEST(validOpeningCloseSequence) {
+	// given
+	UA_Int32 handle = stackTestFixture_create(responseMsg);
+
+	UA_ByteString message_001 = { sizeof(pkt_HEL), pkt_HEL };
+	UA_ByteString message_002 = { sizeof(pkt_OPN), pkt_OPN };
+	UA_ByteString message_003 = { sizeof(pkt_CLO), pkt_CLO };
+
+	// when
+	indicateMsg(handle, &message_001);
+	indicateMsg(handle, &message_002);
+	indicateMsg(handle, &message_003);
+
+	// then
+	ck_assert_int_eq(stackTestFixture_getFixture(handle)->connection.connectionState, CONNECTIONSTATE_CLOSE);
+
+	// finally
+	stackTestFixture_delete(handle);
+}
+END_TEST
+
 START_TEST(validCreateSessionShallCreateSession) {
 	// given
 	UA_Int32 handle = stackTestFixture_create(responseMsg);
@@ -416,6 +444,7 @@ Suite *testSuite() {
 	tcase_add_test(tc_core, emptyIndicationShallYieldNoResponse);
 	tcase_add_test(tc_core, validHELIndicationShallYieldACKResponse);
 	tcase_add_test(tc_core, validOpeningSequenceShallCreateChannel);
+	tcase_add_test(tc_core, validOpeningCloseSequence);
 	tcase_add_test(tc_core, validCreateSessionShallCreateSession);
 	suite_add_tcase(s, tc_core);
 	return s;
