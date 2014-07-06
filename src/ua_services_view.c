@@ -142,7 +142,7 @@ static void Service_Browse_getBrowseResult(Namespace *ns, UA_BrowseDescription *
 
 	// discover the relevant subtypes
 	UA_NodeId *relevantReferenceTypes;
-	UA_UInt32 relevantReferenceTypesCount;
+	UA_UInt32 relevantReferenceTypesCount=0;
 	if(!browseDescription->includeSubtypes ||
 	   findSubReferenceTypes(ns, &browseDescription->referenceTypeId, &relevantReferenceTypes, &relevantReferenceTypesCount) != UA_SUCCESS) {
 		UA_alloc((void**)&relevantReferenceTypes, sizeof(UA_NodeId));
