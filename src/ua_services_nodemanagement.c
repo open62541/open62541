@@ -111,6 +111,7 @@ static UA_Int32 AddSingleReference(UA_Node *node, UA_ReferenceNode *reference) {
 	
 	node->references = new_refs;
 	node->referencesSize = count+1;
+	UA_free(old_refs);
 	return retval;
 }
 

@@ -565,19 +565,17 @@ void appMockup_init() {
 	temperature1->description = UA_LOCALIZEDTEXT_STATIC("temperature1");
 
 	//Set node value
-	UA_Variant *tmpNodeValue;
+	UA_Variant *tmpNodeValue = &temperature1->value;
+	UA_Variant_init(tmpNodeValue);
 	UA_Float *tmpFloat;
 	UA_Float_new(&tmpFloat);
 	*tmpFloat = -273.15f;
-	UA_Variant_new(&tmpNodeValue);
 	tmpNodeValue->arrayDimensionsLength = 0;
 	tmpNodeValue->arrayLength = 1;
 	tmpNodeValue->data = (void*)tmpFloat;
 	tmpNodeValue->vt = &UA_.types[UA_FLOAT];
-	UA_Variant_copy(tmpNodeValue, &temperature1->value);
 
 	AddReference((UA_Node*)root, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_temperature1}, ns0);
-
 	Namespace_insert(ns0,(UA_Node*)temperature1);
 
 
@@ -592,16 +590,15 @@ void appMockup_init() {
 	redLED->description = UA_LOCALIZEDTEXT_STATIC("redLED");
 
 	//Set node value
-	UA_Variant *tmpNodeValue1;
+	UA_Variant *tmpNodeValue1 = &redLED->value;
+	UA_Variant_init(tmpNodeValue1);
 	UA_Boolean *ledVal;
 	UA_Boolean_new(&ledVal);
 	*ledVal = UA_FALSE;
-	UA_Variant_new(&tmpNodeValue1);
 	tmpNodeValue1->arrayDimensionsLength = 0;
 	tmpNodeValue1->arrayLength = 1;
 	tmpNodeValue1->data = (void*)ledVal;
 	tmpNodeValue1->vt = &UA_.types[UA_BOOLEAN];
-	UA_Variant_copy(tmpNodeValue1, &redLED->value);
 
 	AddReference((UA_Node*)root, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_redLED}, ns0);
 	Namespace_insert(ns0,(UA_Node*)redLED);
@@ -618,16 +615,15 @@ void appMockup_init() {
 	yellowLED->description = UA_LOCALIZEDTEXT_STATIC("yellowLED");
 
 	//Set node value
-	UA_Variant *tmpNodeValue2;
+	UA_Variant *tmpNodeValue2 = &yellowLED->value;
+	UA_Variant_init(tmpNodeValue2);
 	UA_Boolean *ledVal1;
 	UA_Boolean_new(&ledVal1);
 	*ledVal1 = UA_FALSE;
-	UA_Variant_new(&tmpNodeValue2);
 	tmpNodeValue2->arrayDimensionsLength = 0;
 	tmpNodeValue2->arrayLength = 1;
 	tmpNodeValue2->data = (void*)ledVal1;
 	tmpNodeValue2->vt = &UA_.types[UA_BOOLEAN];
-	UA_Variant_copy(tmpNodeValue2, &yellowLED->value);
 
 	AddReference((UA_Node*)root, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_yellowLED}, ns0);
 	Namespace_insert(ns0,(UA_Node*)yellowLED);
