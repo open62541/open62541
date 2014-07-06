@@ -144,11 +144,11 @@ void* NL_TCP_reader(NL_Connection *c) {
 		DBG_VERBOSE(printf("NL_TCP_reader - remove connection for handle=%d\n",((NL_Connection*)lec->payload)->connection.connectionHandle));
 		UA_list_removeElement(lec,UA_NULL);
 		DBG_VERBOSE(UA_list_iteratePayload(&(c->networkLayer->connections),NL_Connection_printf));
+		UA_free(c);
 #endif
 	}
 	
 	UA_ByteString_deleteMembers(&readBuffer);
-	UA_free(c);
 	return UA_NULL;
 }
 
