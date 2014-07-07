@@ -11,7 +11,7 @@ endif
 if DEBUG
 AM_CFLAGS += -g3 -O0
 else
-AM_CFLAGS += -O2 
+AM_CFLAGS += -Os
 endif
 
 if COVERAGE
@@ -41,9 +41,9 @@ SUBDIRS += examples/src
 endif
 
 if PYTHON_WRAPPER
-SUBDIRS += wrappers/python
+SUBDIRS += wrappers wrappers/python
 endif
 
 if LUA_WRAPPER
-SUBDIRS += wrappers/lua
+SUBDIRS += wrappers wrappers/lua
 endif
