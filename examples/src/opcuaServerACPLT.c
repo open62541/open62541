@@ -104,7 +104,9 @@ void server_run() {
 			if (n > 0) {
                 slMessage.data = (UA_Byte*) buffer;
 				slMessage.length = n;
+#ifdef DEBUG
 				UA_ByteString_printx("server_run - received=",&slMessage);
+#endif
 				TL_Process(&connection, &slMessage);
 			} else if (n <= 0) {
 				perror("ERROR reading from socket1");

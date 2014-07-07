@@ -114,7 +114,9 @@ UA_Int32 SL_handleRequest(SL_Channel *channel, const UA_ByteString *msg, UA_UInt
 	// Every Message starts with a NodeID which names the serviceRequestType
 	UA_NodeId serviceRequestType;
 	UA_NodeId_decodeBinary(msg, offset, &serviceRequestType);
+#ifdef DEBUG
 	UA_NodeId_printf("SL_processMessage - serviceRequestType=", &serviceRequestType);
+#endif
 
 	UA_ByteString response_msg;
 	int serviceid = serviceRequestType.identifier.numeric-2; // binary encoding has 2 added to the id

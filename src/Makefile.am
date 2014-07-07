@@ -64,3 +64,5 @@ all-local: convenience-link
 clean-local: clean-convenience-link
 	rm -rf ua_types_generated.c ua_types_generated.h || true;
 	rm -rf ua_namespace_0.c ua_namespace_0.h || true;
+	rm -rf *.gcov || true;
+	rm -rf util/*.gcov || true;

@@ -126,8 +126,9 @@ for row in rows:
     i = i+1
 
 printh("};\n")
-printc('''\n}\nreturn retval;\n}\n
-const UA_VTable UA_ = {
+printc('''\n}\nreturn retval;\n}\n''');
+
+printc('''const UA_VTable UA_ = {
 \t.getTypeIndex = UA_ns0ToVTableIndex,
 \t.types = (UA_VTable_Entry[]){''')
 
@@ -144,21 +145,23 @@ for row in rows:
     printh('#define '+name.upper()+'_NS0 '+row[1])
 
     printc("\t{.typeId={UA_NODEIDTYPE_FOURBYTE,0,.identifier.numeric=" + row[1] + "}" + 
-          ",.name=(UA_Byte*)&\"%(name)s\"" +
-          ",.new=(UA_Int32(*)(void **))%(name)s_new" +
-          ",.init=(UA_Int32(*)(void *))%(name)s_init"+
-          ",.copy=(UA_Int32(*)(void const * ,void*))%(name)s_copy" +
-          ",.delete=(UA_Int32(*)(void *))%(name)s_delete" +
-          ",.deleteMembers=(UA_Int32(*)(void *))%(name)s_deleteMembers" +
-          ",.print=(void(*)(const void *, FILE *))%(name)s_print" +
-          ",.memSize=" + ("sizeof(%(name)s)" if (name != "UA_InvalidType") else "0") +
-          ",.dynMembers=" + ("UA_FALSE" if (name in fixed_size) else "UA_TRUE") +
-          ",.encodings={{.calcSize=(UA_calcSize)%(name)s_calcSizeBinary" +
-          ",.encode=(UA_encode)%(name)s_encodeBinary" +
-          ",.decode=(UA_decode)%(name)s_decodeBinary}" +
-          ",{.calcSize=(UA_calcSize)%(name)s_calcSizeXml" +
-          ",.encode=(UA_encode)%(name)s_encodeXml" +
-          ",.decode=(UA_decode)%(name)s_decodeXml}" +
+          ",\n.name=(UA_Byte*)&\"%(name)s\"" +
+          ",\n.new=(UA_Int32(*)(void **))%(name)s_new" +
+          ",\n.init=(UA_Int32(*)(void *))%(name)s_init"+
+          ",\n.copy=(UA_Int32(*)(void const * ,void*))%(name)s_copy" +
+          ",\n.delete=(UA_Int32(*)(void *))%(name)s_delete" +
+          ",\n.deleteMembers=(UA_Int32(*)(void *))%(name)s_deleteMembers" +
+          ",\n#ifdef DEBUG //FIXME: seems to be okay atm, however a pointer to a noop function would be more safe" + 
+          "\n.print=(void(*)(const void *, FILE *))%(name)s_print," +
+          "\n#endif" + 
+          "\n.memSize=" + ("sizeof(%(name)s)" if (name != "UA_InvalidType") else "0") +
+          ",\n.dynMembers=" + ("UA_FALSE" if (name in fixed_size) else "UA_TRUE") +
+          ",\n.encodings={{.calcSize=(UA_calcSize)%(name)s_calcSizeBinary" +
+          ",\n.encode=(UA_encode)%(name)s_encodeBinary" +
+          ",\n.decode=(UA_decode)%(name)s_decodeBinary}" +
+          ",\n{.calcSize=(UA_calcSize)%(name)s_calcSizeXml" +
+          ",\n.encode=(UA_encode)%(name)s_encodeXml" +
+          ",\n.decode=(UA_decode)%(name)s_decodeXml}" +
           "}},")
 
 printc('''}};
@@ -178,21 +181,23 @@ for row in rows:
 	name = "UA_" + row[0]
 
     printc("\t{.typeId={UA_NODEIDTYPE_FOURBYTE,0,.identifier.numeric=" + row[1] + "}" + 
-          ",.name=(UA_Byte*)&\"%(name)s\"" +
-          ",.new=(UA_Int32(*)(void **))%(name)s_new" +
-          ",.init=(UA_Int32(*)(void *))%(name)s_init" +
-          ",.copy=(UA_Int32(*)(void const * ,void*))%(name)s_copy" +
-          ",.delete=(UA_Int32(*)(void *))phantom_delete" +
-          ",.deleteMembers=(UA_Int32(*)(void *))phantom_delete" +
-          ",.print=(void(*)(const void *, FILE *))%(name)s_print" +
-          ",.memSize=" + ("sizeof(%(name)s)" if (name != "UA_InvalidType") else "0") +
-          ",.dynMembers=" + ("UA_FALSE" if (name in fixed_size) else "UA_TRUE") +
-          ",.encodings={{.calcSize=(UA_calcSize)" + name +"_calcSizeBinary" +
-          ",.encode=(UA_encode)%(name)s_encodeBinary" +
-          ",.decode=(UA_decode)%(name)s_decodeBinary}" +
-          ",{.calcSize=(UA_calcSize)%(name)s_calcSizeXml" +
-          ",.encode=(UA_encode)%(name)s_encodeXml" +
-          ",.decode=(UA_decode)%(name)s_decodeXml}" +
+          ",\n.name=(UA_Byte*)&\"%(name)s\"" +
+          ",\n.new=(UA_Int32(*)(void **))%(name)s_new" +
+          ",\n.init=(UA_Int32(*)(void *))%(name)s_init" +
+          ",\n.copy=(UA_Int32(*)(void const * ,void*))%(name)s_copy" +
+          ",\n.delete=(UA_Int32(*)(void *))phantom_delete" +
+          ",\n.deleteMembers=(UA_Int32(*)(void *))phantom_delete" +
+          ",\n#ifdef DEBUG //FIXME: seems to be okay atm, however a pointer to a noop function would be more safe" + 
+          "\n.print=(void(*)(const void *, FILE *))%(name)s_print," +
+          "\n#endif" + 
+          "\n.memSize=" + ("sizeof(%(name)s)" if (name != "UA_InvalidType") else "0") +
+          ",\n.dynMembers=" + ("UA_FALSE" if (name in fixed_size) else "UA_TRUE") +
+          ",\n.encodings={{.calcSize=(UA_calcSize)" + name +"_calcSizeBinary" +
+          ",\n.encode=(UA_encode)%(name)s_encodeBinary" +
+          ",\n.decode=(UA_decode)%(name)s_decodeBinary}" +
+          ",\n{.calcSize=(UA_calcSize)%(name)s_calcSizeXml" +
+          ",\n.encode=(UA_encode)%(name)s_encodeXml" +
+          ",\n.decode=(UA_decode)%(name)s_decodeXml}" +
           "}},")
 
 printc("}};")

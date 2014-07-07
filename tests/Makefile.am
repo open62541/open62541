@@ -26,8 +26,8 @@ check_memory-mem: check_memory
 	
 clean-local:
 	rm -rf coverage || true;
-	rm -rf *.gcda *.gcdo *.gcno 
-	lcov --directory . --zerocounters
+	rm -rf *.gcda *.gcdo *.gcno *.o *.gcov *.log *.trs
+	lcov --directory . --zerocounters || true;
 	
 # --- no changes beyond this line needed ---
 INCLUDE = @CHECK_CFLAGS@ -I$(top_builddir)/src -I$(top_builddir)/include

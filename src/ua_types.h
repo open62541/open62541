@@ -383,7 +383,9 @@ struct UA_VTable_Entry {
 	UA_Int32   (*copy)(void const *src, void *dst);
 	UA_Int32   (*delete)(void *p);
 	UA_Int32   (*deleteMembers)(void *p);
+#ifdef DEBUG
 	void       (*print)(const void *p, FILE *stream);
+#endif
 	UA_UInt32  memSize;       // size of the struct only in memory (no dynamic components)
 	UA_Boolean dynMembers;    // does the type contain members that are dynamically
 	                          // allocated (strings, ..)? Otherwise, the size on
@@ -462,8 +464,9 @@ typedef struct UA_VTable {
 #define UA_TYPE_PRINT_AS(TYPE, TYPE_AS)                        \
     void TYPE##_print(TYPE const *p, FILE *stream) {		   \
 		TYPE_AS##_print((TYPE_AS *)p, stream);				   \
-	}
+	}														   \
 
+#ifdef DEBUG //print functions only in debug mode
 #define UA_TYPE_AS(TYPE, TYPE_AS)           \
     UA_TYPE_NEW_DEFAULT(TYPE)               \
     UA_TYPE_INIT_AS(TYPE, TYPE_AS)          \
@@ -471,6 +474,14 @@ typedef struct UA_VTable {
     UA_TYPE_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
     UA_TYPE_COPY_AS(TYPE, TYPE_AS)			\
 	UA_TYPE_PRINT_AS(TYPE, TYPE_AS)
+#else
+#define UA_TYPE_AS(TYPE, TYPE_AS)           \
+    UA_TYPE_NEW_DEFAULT(TYPE)               \
+    UA_TYPE_INIT_AS(TYPE, TYPE_AS)          \
+    UA_TYPE_DELETE_AS(TYPE, TYPE_AS)        \
+    UA_TYPE_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
+    UA_TYPE_COPY_AS(TYPE, TYPE_AS)
+#endif
 
 /// @} /* end of group */
 

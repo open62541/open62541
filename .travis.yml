@@ -29,7 +29,14 @@ before_install:
 - cd ..
 - rm -rf check-code
 - sudo pip install cpp-coveralls
-script: ./autogen.sh && ./configure --enable-doxygen --enable-coverage && make && make check
+script: 
+   - ./autogen.sh 
+   - ./configure 
+   - echo "Production build + checks"
+   - make && make check && make clean
+   - echo "Extended debug build + checks + coverage + doxygen"
+   - ./configure --enable-debug --enable-coverage --enable-doxygen
+   - make all && make check
 after_success:
    - git clone --depth=50 -b gh-pages https://$GITAUTH@github.com/acplt/open62541
    - rm -rf open62541/doxygen

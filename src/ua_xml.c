@@ -668,6 +668,7 @@ _Bool UA_NodeId_isBuiltinType(UA_NodeId* nodeid) {
 /* 	return UA_SUCCESS; */
 /* } */
 
+#ifdef DEBUG
 void print_node(UA_Node const * node) {
 	if (node != UA_NULL) {
 		UA_NodeId_printf("node.nodeId=", &(node->nodeId));
@@ -742,6 +743,7 @@ void print_node(UA_Node const * node) {
 		}
 	}
 }
+#endif
 
 UA_Int32 UA_NodeSetAlias_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_NodeSetAlias *dst, _Bool isStart) {
 	DBG_VERBOSE(printf("UA_NodeSetAlias entered with dst=%p,isStart=%d\n", (void * )dst, isStart));
@@ -921,7 +923,9 @@ void XML_Stack_handleText(void * data, const char *txt, int len) {
 char* theGatherBuffer;
 void textGatherListTotalLength(void* payload) {
 	UA_ByteString* b = (UA_ByteString*) payload;
+	#ifdef DEBUG
 	UA_ByteString_printf("\t",b);
+	#endif
 	UA_memcpy(theGatherBuffer,b->data,b->length-1); // remove trailing zero
 	theGatherBuffer += (b->length-1);
 }

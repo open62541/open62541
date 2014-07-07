@@ -240,6 +240,7 @@ def createStructured(element):
     printc("\treturn retval;\n}\n")
 
     # 13) Print
+    printc('''#ifdef DEBUG''') 
     printc('''void %(name)s_print(const %(name)s *p, FILE *stream) {
     fprintf(stream, "(%(name)s){");''')
     for i,(n,t) in enumerate(membermap.iteritems()):
@@ -251,7 +252,9 @@ def createStructured(element):
         if i == len(membermap)-1:
             continue
 	printc('\tfprintf(stream, ",");')
-    printc('''\tfprintf(stream, "}");\n}\n''')
+    printc('''\tfprintf(stream, "}");\n}''')
+    printc('#endif');
+    printc('''\n''')
     
 	
 printh('''/**

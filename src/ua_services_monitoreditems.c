@@ -10,7 +10,9 @@ UA_Int32 Service_CreateMonitoredItems(SL_Channel *channel, const UA_CreateMonito
 
 		UA_Array_new((void**)&(response->results),response->resultsSize,&UA_.types[UA_MONITOREDITEMCREATERESULT]);
 		for (int i=0;request->itemsToCreateSize > 0 && i < request->itemsToCreateSize;i++) {
+#ifdef DEBUG
 			UA_NodeId_printf("CreateMonitoredItems - itemToCreate=",&(request->itemsToCreate[i].itemToMonitor.nodeId));
+#endif
 			//FIXME: search the object in the namespace
 
 			if (request->itemsToCreate[i].itemToMonitor.nodeId.identifier.numeric == 2253) { // server

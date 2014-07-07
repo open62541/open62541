@@ -1,6 +1,8 @@
 #include "ua_services.h"
 UA_Int32 Service_GetEndpoints(SL_Channel *channel, const UA_GetEndpointsRequest* request, UA_GetEndpointsResponse *response) {
+#ifdef DEBUG
 	UA_String_printx("endpointUrl=", &request->endpointUrl);
+#endif
 
 	response->endpointsSize = 1;
 	UA_Array_new((void**) &response->endpoints,response->endpointsSize,&UA_.types[UA_ENDPOINTDESCRIPTION]);

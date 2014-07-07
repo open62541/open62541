@@ -7,7 +7,9 @@ Session sessionMockup = {
 };
 
 UA_Int32 Service_CreateSession(SL_Channel *channel, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response) {
+#ifdef DEBUG
 	UA_String_printf("CreateSession Service - endpointUrl=", &(request->endpointUrl));
+#endif
 	// FIXME: create session
 
 	response->sessionId.encodingByte = UA_NODEIDTYPE_FOURBYTE;
@@ -18,10 +20,12 @@ UA_Int32 Service_CreateSession(SL_Channel *channel, const UA_CreateSessionReques
 
 UA_Int32 Service_ActivateSession(SL_Channel *channel, const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response) {
 	// FIXME: activate session
+#ifdef DEBUG
 	UA_NodeId_printf("ActivateSession - authToken=", &(request->requestHeader.authenticationToken));
 	// 321 == AnonymousIdentityToken_Encoding_DefaultBinary
 	UA_NodeId_printf("ActivateSession - uIdToken.type=", &(request->userIdentityToken.typeId));
 	UA_ByteString_printx_hex("ActivateSession - uIdToken.body=", &(request->userIdentityToken.body));
+#endif
 
 	// FIXME: channel->session->application = <Application Ptr>
 	channel->session = &sessionMockup;
