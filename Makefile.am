@@ -11,7 +11,7 @@ endif
 if DEBUG
 AM_CFLAGS += -g3 -O0
 else
-AM_CFLAGS += -Os
+AM_CFLAGS += -O2
 endif
 
 if COVERAGE
