@@ -241,6 +241,7 @@ typedef void UA_InvalidType;
 /* Functions */
 /*************/
 
+#ifdef DEBUG
 #define UA_TYPE_PROTOTYPES(TYPE)             \
     UA_Int32 TYPE##_new(TYPE **p);           \
     UA_Int32 TYPE##_init(TYPE * p);          \
@@ -248,6 +249,14 @@ typedef void UA_InvalidType;
     UA_Int32 TYPE##_deleteMembers(TYPE * p); \
     UA_Int32 TYPE##_copy(const TYPE *src, TYPE *dst); \
 	void TYPE##_print(const TYPE *p, FILE *stream);
+#else
+#define UA_TYPE_PROTOTYPES(TYPE)             \
+    UA_Int32 TYPE##_new(TYPE **p);           \
+    UA_Int32 TYPE##_init(TYPE * p);          \
+    UA_Int32 TYPE##_delete(TYPE * p);        \
+    UA_Int32 TYPE##_deleteMembers(TYPE * p); \
+    UA_Int32 TYPE##_copy(const TYPE *src, TYPE *dst);
+#endif
 
 /* Functions for all types */
 UA_TYPE_PROTOTYPES(UA_Boolean)
