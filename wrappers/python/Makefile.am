@@ -16,5 +16,5 @@ _open62541.so: networklayer.so open62541_wrap_python.o
 
 all: open62541.py _open62541.so
 
-clean:
-	rm networklayer.so open62541.py open62541.pyc _open62541.so open62541_wrap_python.c open62541_wrap_python.o
+clean-local:
+	rm -rf networklayer.so open62541.py open62541.pyc _open62541.so open62541_wrap_python.c open62541_wrap_python.o || true;

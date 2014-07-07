@@ -16,5 +16,5 @@ open62541.so: networklayer.so open62541_wrap_lua.o
 
 all: open62541.lua open62541.so
 
-clean:
-	rm networklayer.so open62541.lua open62541.so open62541_wrap_lua.c open62541_wrap_lua.o
+clean-local:
+	rm -rf networklayer.so open62541.lua open62541.so open62541_wrap_lua.c open62541_wrap_lua.o || true;
