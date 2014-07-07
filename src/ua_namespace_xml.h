@@ -8,12 +8,12 @@
 void print_node(UA_Node const * node);
 UA_Int32 UA_NodeSetAlias_init(UA_NodeSetAlias* p);
 UA_Int32 UA_NodeSetAlias_new(UA_NodeSetAlias** p);
-UA_Int32 UA_NodeSetAlias_decodeXML(XML_Stack* s, XML_Attr* attr, UA_NodeSetAlias* dst, _Bool isStart);
+//UA_Int32 UA_NodeSetAlias_decodeXML(XML_Stack* s, XML_Attr* attr, UA_NodeSetAlias* dst, _Bool isStart);
 
 UA_Int32 UA_NodeSetAliases_init(UA_NodeSetAliases* p);
 UA_Int32 UA_NodeSetAliases_new(UA_NodeSetAliases** p);
 UA_Int32 UA_NodeSetAliases_println(cstring label, UA_NodeSetAliases *p);
-UA_Int32 UA_NodeSetAliases_decodeXML(XML_Stack* s, XML_Attr* attr, UA_NodeSetAliases* dst, _Bool isStart);
+//UA_Int32 UA_NodeSetAliases_decodeXML(XML_Stack* s, XML_Attr* attr, UA_NodeSetAliases* dst, _Bool isStart);
 
 typedef struct UA_NodeSet {
 	Namespace* ns;

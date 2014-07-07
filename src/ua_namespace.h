@@ -49,7 +49,7 @@ void Namespace_delete(Namespace * ns);
 UA_Int32 Namespace_insert(Namespace * ns, const UA_Node * node);
 
 /** @brief Insert a new node or replace an existing node if an entry has the same NodeId. */
-UA_Int32 Namespace_insertOrReplace(Namespace * ns, const UA_Node * node);
+// UA_Int32 Namespace_insertOrReplace(Namespace * ns, const UA_Node * node);
 
 /** @brief Find an unused (numeric) NodeId in the namespace and insert the node.
 	The node is modified to contain the new nodeid after insertion. */

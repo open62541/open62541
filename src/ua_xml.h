@@ -22,14 +22,14 @@ typedef struct UA_NodeSetAlias {
 	UA_String alias;
 	UA_String value;
 } UA_NodeSetAlias;
-UA_TYPE_PROTOTYPES(UA_NodeSetAlias)
+//UA_TYPE_PROTOTYPES(UA_NodeSetAlias)
 
 /** @brief UA_NodeSetAliases - a list of aliases */
 typedef struct UA_NodeSetAliases {
 	UA_Int32 size;
 	UA_NodeSetAlias **aliases;
 } UA_NodeSetAliases;
-UA_TYPE_PROTOTYPES(UA_NodeSetAliases)
+//UA_TYPE_PROTOTYPES(UA_NodeSetAliases)
 
 typedef struct XML_child {
 	cstring     name;
@@ -72,16 +72,14 @@ UA_Int32 UA_TypedArray_init(UA_TypedArray *p);
 /** @brief allocate memory for the array header only */
 UA_Int32 UA_TypedArray_new(UA_TypedArray **p);
 UA_Int32 UA_TypedArray_setType(UA_TypedArray *p, UA_Int32 type);
-UA_Int32 UA_TypedArray_decodeXML(XML_Stack *s, XML_Attr *attr, UA_TypedArray *dst, UA_Boolean isStart);
+//UA_Int32 UA_TypedArray_decodeXML(XML_Stack *s, XML_Attr *attr, UA_TypedArray *dst, UA_Boolean isStart);
 
 UA_Int32 UA_NodeSetAlias_init(UA_NodeSetAlias* p);
 UA_Int32 UA_NodeSetAlias_new(UA_NodeSetAlias** p);
-UA_Int32 UA_NodeSetAlias_decodeXML(XML_Stack* s, XML_Attr* attr, UA_NodeSetAlias* dst, _Bool isStart);
 
 UA_Int32 UA_NodeSetAliases_init(UA_NodeSetAliases* p);
 UA_Int32 UA_NodeSetAliases_new(UA_NodeSetAliases** p);
 UA_Int32 UA_NodeSetAliases_println(cstring label, UA_NodeSetAliases *p);
-UA_Int32 UA_NodeSetAliases_decodeXML(XML_Stack* s, XML_Attr* attr, UA_NodeSetAliases* dst, _Bool isStart);
 
 UA_Int32 UA_ExpandedNodeId_copycstring(cstring src, UA_ExpandedNodeId* dst, UA_NodeSetAliases* aliases);
 

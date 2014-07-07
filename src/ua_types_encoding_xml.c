@@ -14,19 +14,18 @@ UA_Int32 UA_Boolean_copycstring(cstring src, UA_Boolean *dst) {
 
 UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(UA_Boolean)
 UA_TYPE_METHOD_ENCODEXML_NOTIMPL(UA_Boolean)
-UA_Int32 UA_Boolean_decodeXML(XML_Stack *s, XML_Attr *attr, UA_Boolean *dst, _Bool isStart) {
-	DBG_VERBOSE(printf("UA_Boolean entered with dst=%p,isStart=%d\n", (void * )dst, isStart));
-	if(isStart) {
-		if(dst == UA_NULL) {
-			UA_Boolean_new(&dst);
-			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void *)dst;
-		}
-		UA_Boolean_copycstring((cstring)attr[1], dst);
-	}
-	return UA_SUCCESS;
-}
-
-UA_TYPE_DECODEXML_FROM_BYTESTRING(UA_Boolean)
+UA_TYPE_METHOD_DECODEXML_NOTIMPL(UA_Boolean)
+/* UA_Int32 UA_Boolean_decodeXML(XML_Stack *s, XML_Attr *attr, UA_Boolean *dst, _Bool isStart) { */
+/* 	DBG_VERBOSE(printf("UA_Boolean entered with dst=%p,isStart=%d\n", (void * )dst, isStart)); */
+/* 	if(isStart) { */
+/* 		if(dst == UA_NULL) { */
+/* 			UA_Boolean_new(&dst); */
+/* 			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = (void *)dst; */
+/* 		} */
+/* 		UA_Boolean_copycstring((cstring)attr[1], dst); */
+/* 	} */
+/* 	return UA_SUCCESS; */
+/* } */
 
 /* SByte */
 UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(UA_SByte)
@@ -257,11 +256,11 @@ UA_TYPE_DECODEXML_FROM_BYTESTRING(UA_ExpandedNodeId)
 /* StatusCode */
 UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(UA_StatusCode)
 UA_TYPE_METHOD_ENCODEXML_NOTIMPL(UA_StatusCode)
-UA_Int32 UA_StatusCode_decodeXML(XML_Stack *s, XML_Attr *attr, UA_StatusCode *dst, _Bool isStart) {
-	DBG_VERBOSE(printf("UA_StatusCode_decodeXML entered with dst=%p,isStart=%d\n", (void * )dst, isStart));
-	return UA_ERR_NOT_IMPLEMENTED;
-}
-UA_TYPE_DECODEXML_FROM_BYTESTRING(UA_StatusCode)
+UA_TYPE_METHOD_DECODEXML_NOTIMPL(UA_StatusCode)
+/* UA_Int32 UA_StatusCode_decodeXML(XML_Stack *s, XML_Attr *attr, UA_StatusCode *dst, _Bool isStart) { */
+/* 	DBG_VERBOSE(printf("UA_StatusCode_decodeXML entered with dst=%p,isStart=%d\n", (void * )dst, isStart)); */
+/* 	return UA_ERR_NOT_IMPLEMENTED; */
+/* } */
 
 /* QualifiedName */
 UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(UA_QualifiedName)
