@@ -9,7 +9,7 @@ AC_PROG_MAKE_SET
 #default CFLAGS is -g -02
 #reset it just to -g and make optimization dependend on --enable-debug
 if test -z $CFLAGS; then
-    CFLAGS='-g'
+   CFLAGS=''
 fi
 AM_PATH_PYTHON
 AC_PROG_CC
