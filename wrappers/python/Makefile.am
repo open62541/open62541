@@ -10,7 +10,7 @@ open62541_wrap_python.o: open62541_wrap_python.c
 	gcc -c $(subst -pedantic, , $(AM_CFLAGS)) -I/usr/include/python2.7 open62541_wrap_python.c
 
 _open62541.so: open62541_wrap_python.o
-	ld -shared open62541_wrap_python.o $(top_builddir)/lib/libopen62541.a -o _open62541.so
+	ld -shared open62541_wrap_python.o $(top_builddir)/lib/libopen62541.a -lexpat -o _open62541.so
 
 all: open62541.py _open62541.so
 
