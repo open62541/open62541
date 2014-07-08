@@ -12,13 +12,14 @@ if [[ "$COMMITS" == "1" ]]; then
     git clone -b coverity_scan https://$GITAUTH@github.com/acplt/open62541
     cd open62541
     git fetch origin
-    git merge origin/master
+    git merge origin/master --no-commit -X theirs
     git config --global user.email "open62541-travis-ci@users.noreply.github.com"
     git config --global user.name "Open62541 travis-ci"
     git config --global push.default simple
     git add *
-    git commit -am "push to coverity scan by travis-ci"
-    git push https://$GITAUTH@github.com/acplt/open62541
+    git commit -am "automated merge"
+    git reset $(git commit-tree HEAD^{tree} -m "push to coverity scan by travis-ci")
+    git push https://$GITAUTH@github.com/acplt/open62541 --force
     cd ..
     rm -rf open62541
 else
