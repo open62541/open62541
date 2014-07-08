@@ -1549,7 +1549,39 @@ START_TEST(UA_ApplicationDescription_copyShallWorkOnExample) {
 	UA_ApplicationDescription_deleteMembers(&copiedValue);
 }
 END_TEST
+START_TEST(UA_Guid_copyShallWorkOnInputExample) {
+	//given
+	const UA_Guid src = {3, 45, 1222, {8, 7, 6, 5, 4, 3, 2, 1}};
 
+	UA_Guid dst;
+	UA_Int32 ret;
+
+	//when
+	ret = UA_Guid_copy(&src, &dst);
+
+	//then
+	ck_assert_int_eq(ret, UA_SUCCESS);
+	ck_assert_int_eq(src.data1, dst.data1);
+	ck_assert_int_eq(src.data3, dst.data3);
+	ck_assert_int_eq(src.data4[4], dst.data4[4]);
+	//finally
+}
+END_TEST
+START_TEST(UA_Guid_copyWithNullArgumentShallReturn) {
+	//given
+	UA_Guid *src = UA_NULL;
+	UA_Guid *dst = UA_NULL;
+	UA_Int32 ret;
+
+	//when
+	ret = UA_Guid_copy(src, dst);
+
+	//then
+	ck_assert_int_eq(ret, UA_ERROR);
+
+	//finally
+}
+END_TEST
 START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
 	//given
 	UA_String testString = (UA_String){5, (UA_Byte*)"OPCUA"};
@@ -1804,6 +1836,9 @@ Suite *testSuite_builtin(void) {
 
 	tcase_add_test(tc_copy, UA_DiagnosticInfo_copyShallWorkOnExample);
 	tcase_add_test(tc_copy, UA_ApplicationDescription_copyShallWorkOnExample);
+
+	tcase_add_test(tc_copy, UA_Guid_copyWithNullArgumentShallReturn);
+	tcase_add_test(tc_copy, UA_Guid_copyShallWorkOnInputExample);
 	suite_add_tcase(s, tc_copy);
 	return s;
 }
