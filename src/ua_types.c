@@ -138,8 +138,7 @@ UA_Int32 UA_String_deleteMembers(UA_String *p) {
 	UA_Int32 retval = UA_SUCCESS;
 	if(p!= UA_NULL && p->data != UA_NULL) {
 		retval   |= UA_free(p->data);
-		p->data   = UA_NULL;
-		p->length = -1;
+		retval   |= UA_String_init(p);
 	}
 	return retval;
 }
