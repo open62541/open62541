@@ -184,6 +184,7 @@ def createStructured(element):
             printc('if(retval != UA_SUCCESS) { dst->%(n)sSize = -1; return retval; }') # arrays clean up internally. But the size needs to be set here for the eventual deleteMembers.
         else:
             printc('\tretval |= %(t)s_decodeBinary(src,offset,&dst->%(n)s);')
+    printc("\tif(retval != UA_SUCCESS) %(name)s_deleteMembers(dst);")
     printc("\treturn retval;\n}\n")
 
     # 7) Xml
