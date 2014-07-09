@@ -331,7 +331,7 @@ UA_Int32 UA_Guid_init(UA_Guid *p) {
 	p->data1 = 0;
 	p->data2 = 0;
 	p->data3 = 0;
-	memset(p->data4, 8, sizeof(UA_Byte));
+	memset(p->data4, 0, sizeof(UA_Byte)*8);
 	return UA_SUCCESS;
 }
 

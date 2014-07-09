@@ -178,12 +178,12 @@ def createStructured(element):
     printc('\t'+name+'_init(dst);')
     for n,t in membermap.iteritems():
         if t.find("*") != -1:
-            printc('\tCHECKED_DECODE(UA_Int32_decodeBinary(src,offset,&dst->%(n)sSize),' +
-                   '%(name)s_deleteMembers(dst));')
-            printc('\tCHECKED_DECODE(UA_Array_decodeBinary(src,offset,dst->%(n)sSize,&UA_.types[' +
-                   t[0:t.find("*")].upper() + '],(void**)&dst->%(n)s), %(name)s_deleteMembers(dst));')
+            printc('\tretval |= UA_Int32_decodeBinary(src,offset,&dst->%(n)sSize);')
+            printc('\tretval |= UA_Array_decodeBinary(src,offset,dst->%(n)sSize,&UA_.types[' +
+                   t[0:t.find("*")].upper() + '],(void**)&dst->%(n)s);')
+            printc('if(retval != UA_SUCCESS) { dst->%(n)sSize = -1; return retval; }') # arrays clean up internally. But the size needs to be set here for the eventual deleteMembers.
         else:
-            printc('\tCHECKED_DECODE(%(t)s_decodeBinary(src,offset,&dst->%(n)s), %(name)s_deleteMembers(dst));')
+            printc('\tretval |= %(t)s_decodeBinary(src,offset,&dst->%(n)s);')
     printc("\treturn retval;\n}\n")
 
     # 7) Xml

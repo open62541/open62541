@@ -57,7 +57,7 @@ START_TEST(encodeShallYieldDecode) {
 	UA_Int32      retval;
 	UA_UInt32     pos = 0;
 	retval = UA_.types[_i].new(&obj1);
-	UA_ByteString_newMembers(&msg1, UA_.types[_i].encodings[0].calcSize(obj1));
+	UA_ByteString_newMembers(&msg1, UA_.types[_i].encodings[UA_ENCODING_BINARY].calcSize(obj1));
 	retval |= UA_.types[_i].encodings[UA_ENCODING_BINARY].encode(obj1, &msg1, &pos);
 	if(retval != UA_SUCCESS) {
 		// this happens, e.g. when we encode a variant (with UA_.types[UA_INVALIDTYPE] in the vtable)
