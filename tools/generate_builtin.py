@@ -181,7 +181,7 @@ def createStructured(element):
             printc('\tretval |= UA_Int32_decodeBinary(src,offset,&dst->%(n)sSize);')
             printc('\tretval |= UA_Array_decodeBinary(src,offset,dst->%(n)sSize,&UA_.types[' +
                    t[0:t.find("*")].upper() + '],(void**)&dst->%(n)s);')
-            printc('if(retval != UA_SUCCESS) { dst->%(n)sSize = -1; return retval; }') # arrays clean up internally. But the size needs to be set here for the eventual deleteMembers.
+            printc('\tif(retval != UA_SUCCESS) { dst->%(n)sSize = -1; }') # arrays clean up internally. But the size needs to be set here for the eventual deleteMembers.
         else:
             printc('\tretval |= %(t)s_decodeBinary(src,offset,&dst->%(n)s);')
     printc("\tif(retval != UA_SUCCESS) %(name)s_deleteMembers(dst);")
