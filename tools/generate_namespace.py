@@ -132,6 +132,7 @@ printc('''const UA_VTable UA_ = {
 \t.getTypeIndex = UA_ns0ToVTableIndex,
 \t.types = (UA_VTable_Entry[]){''')
 
+i = 0
 for row in rows:
     if row[0] == "" or row[0] in exclude_types or row[2] in exclude_kinds:
         continue
@@ -141,7 +142,7 @@ for row in rows:
         name = "UA_ExtensionObject"
     else:
 	name = "UA_" + row[0]
-
+	i=i+1
     printh('#define '+name.upper()+'_NS0 '+row[1])
 
     printc("\t{.typeId={UA_NODEIDTYPE_FOURBYTE,0,.identifier.numeric=" + row[1] + "}" + 
@@ -164,43 +165,16 @@ for row in rows:
           ",\n.decode=(UA_decode)%(name)s_decodeXml}" +
           "}},")
 
-printc('''}};
+printc('''}};''')
 
-const UA_VTable UA_borrowed_ = {
-\t.getTypeIndex=UA_ns0ToVTableIndex,
-\t.types = (UA_VTable_Entry[]){''')
+printc("UA_VTable_Entry borrowed_types[" + str(i) + "];");
+printc("const UA_VTable UA_borrowed_ = {\n"+
+"\t.getTypeIndex=UA_ns0ToVTableIndex,\n"+
+"\t.types = borrowed_types\n"+
+"};")
 
-for row in rows:
-    if row[0] == "" or row[0] in exclude_types or row[2] in exclude_kinds:
-        continue
-    if row[0] == "BaseDataType":
-        name = "UA_Variant"
-    elif row[0] == "Structure":
-        name = "UA_ExtensionObject"
-    else:	
-	name = "UA_" + row[0]
+printh('\n#define SIZE_UA_VTABLE '+str(i));
 
-    printc("\t{.typeId={UA_NODEIDTYPE_FOURBYTE,0,.identifier.numeric=" + row[1] + "}" + 
-          ",\n.name=(UA_Byte*)&\"%(name)s\"" +
-          ",\n.new=(UA_Int32(*)(void **))%(name)s_new" +
-          ",\n.init=(UA_Int32(*)(void *))%(name)s_init" +
-          ",\n.copy=(UA_Int32(*)(void const * ,void*))%(name)s_copy" +
-          ",\n.delete=(UA_Int32(*)(void *))phantom_delete" +
-          ",\n.deleteMembers=(UA_Int32(*)(void *))phantom_delete" +
-          ",\n#ifdef DEBUG //FIXME: seems to be okay atm, however a pointer to a noop function would be more safe" + 
-          "\n.print=(void(*)(const void *, FILE *))%(name)s_print," +
-          "\n#endif" + 
-          "\n.memSize=" + ("sizeof(%(name)s)" if (name != "UA_InvalidType") else "0") +
-          ",\n.dynMembers=" + ("UA_FALSE" if (name in fixed_size) else "UA_TRUE") +
-          ",\n.encodings={{.calcSize=(UA_calcSize)" + name +"_calcSizeBinary" +
-          ",\n.encode=(UA_encode)%(name)s_encodeBinary" +
-          ",\n.decode=(UA_decode)%(name)s_decodeBinary}" +
-          ",\n{.calcSize=(UA_calcSize)%(name)s_calcSizeXml" +
-          ",\n.encode=(UA_encode)%(name)s_encodeXml" +
-          ",\n.decode=(UA_decode)%(name)s_decodeXml}" +
-          "}},")
-
-printc("}};")
 printh('\n#endif /* OPCUA_NAMESPACE_0_H_ */')
 
 fh.close()

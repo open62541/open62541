@@ -24,6 +24,13 @@ UA_Node* create_node_ns0(UA_Int32 class, UA_Int32 nodeClass, UA_Int32 const id, 
 }
 
 void appMockup_init() {
+	//fill the UA_borrowed_ table that has been declaed in ua_namespace.c
+	for(UA_Int32 i=0;i<SIZE_UA_VTABLE;i++){
+		UA_borrowed_.types[i] = UA_.types[i];
+		UA_borrowed_.types[i].delete=(UA_Int32(*)(void *))phantom_delete;
+		UA_borrowed_.types[i].deleteMembers=(UA_Int32(*)(void *))phantom_delete;
+	}
+
 	// create namespaces
 	// TODO: A table that maps the namespaceUris to Ids
 	Namespace* ns0;
