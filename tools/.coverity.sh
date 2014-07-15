@@ -7,7 +7,7 @@
 
 COMMITS=`git log --since=today.midnight | grep commit | wc -l`
 
-if [[ "$COMMITS" == "1" ]]; then
+if [[ "$COMMITS" -le "1" ]]; then
     #first commit a day - push changes to branch coverity_scan
     git clone -b coverity_scan https://$GITAUTH@github.com/acplt/open62541
     cd open62541
