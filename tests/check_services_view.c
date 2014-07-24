@@ -11,28 +11,30 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "opcua.h"
+#include "ua_types.h"
 #include "ua_services.h"
 #include "ua_statuscodes.h"
 #include "check.h"
 
-
-
 START_TEST(Service_TranslateBrowsePathsToNodeIds_SmokeTest)
 {
-	UA_TranslateBrowsePathsToNodeIdsRequest* request;
-	UA_TranslateBrowsePathsToNodeIdsRequest_new(&request);
+	UA_TranslateBrowsePathsToNodeIdsRequest request;
+	UA_TranslateBrowsePathsToNodeIdsRequest_init(&request);
 
-	UA_TranslateBrowsePathsToNodeIdsResponse* response;
-	UA_TranslateBrowsePathsToNodeIdsResponse_new(&response);
+	UA_TranslateBrowsePathsToNodeIdsResponse response;
+	UA_TranslateBrowsePathsToNodeIdsResponse_init(&response);
 
-	request->browsePathsSize = 1;
-	UA_Array_new((void***)&(request->browsePaths),request->browsePathsSize,UA_BROWSEPATH);
+	request.browsePathsSize = 1;
+	UA_Array_new((void**)&request.browsePaths,request.browsePathsSize, &UA_.types[UA_BROWSEPATH]);
 
-	Service_TranslateBrowsePathsToNodeIds(UA_NULL,request,response);
+	Service_TranslateBrowsePathsToNodeIds(UA_NULL,&request,&response);
 
-	ck_assert_int_eq(response->resultsSize,request->browsePathsSize);
-	ck_assert_int_eq(response->results[0]->statusCode,UA_STATUSCODE_BADQUERYTOOCOMPLEX);
+	ck_assert_int_eq(response.resultsSize,request.browsePathsSize);
+	ck_assert_int_eq(response.results[0].statusCode,UA_STATUSCODE_BADNOMATCH);
+
+	//finally
+	UA_TranslateBrowsePathsToNodeIdsRequest_deleteMembers(&request);
+	UA_TranslateBrowsePathsToNodeIdsResponse_deleteMembers(&response);
 }
 END_TEST
 

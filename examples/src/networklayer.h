@@ -1,10 +1,10 @@
 #ifndef NETWORKLAYER_H_
 #define NETWORKLAYER_H_
 
-#include "opcua.h"
+#include "ua_types.h"
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
-#include "ua_list.h"
+#include "util/ua_list.h"
 #include "ua_transport_connection_manager.h"
 
 #ifdef MULTITHREADING
@@ -42,9 +42,9 @@ typedef struct NL_data {
 	int maxReaderHandle;
 } NL_data;
 
-struct NL_Connection_T;
-typedef void* (*NL_Reader)(struct NL_Connection_T *c);
-typedef struct NL_Connection_T {
+struct NL_Connection;
+typedef void* (*NL_Reader)(struct NL_Connection *c);
+typedef struct NL_Connection {
 	UA_TL_Connection1 connection;
 	UA_Int32 state;
 	UA_UInt32 connectionHandle;

@@ -2,7 +2,7 @@
 #define OPCUA_TRANSPORT_BINARY_H_
 #include <stdio.h>
 
-#include "opcua.h"
+
 #include "ua_transport_binary.h"
 #include "ua_transport_connection.h"
 
@@ -14,6 +14,7 @@
 #define TL_SERVER_PROTOCOL_VERSION  0
 #define TL_SERVER_MAX_CHUNK_COUNT 1
 #define TL_SERVER_MAX_MESSAGE_SIZE  8192
+
 
 
 /* Transport Layer Connection */

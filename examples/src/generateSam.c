@@ -1,11 +1,7 @@
-/*
- * xml2ns0.c
- *
- *  Created on: 21.04.2014
- *      Author: mrt
- */
-
 #include "ua_xml.h"
+#include "ua_namespace.h"
+#include "ua_namespace_xml.h"
+#include "ua_types_generated.h"
 #include <ctype.h> // tolower
 
 /** @brief we need a variable global to the module to make it possible for the visitors to access the namespace */
@@ -13,20 +9,20 @@ static Namespace* theNamespace;
 
 UA_Int32 UA_Node_getParent(const UA_Node* node, const UA_Node** parent) {
 	UA_Int32 i = 0;
-	DBG(printf("// UA_Node_getParent - node={i=%d}",UA_NodeId_getIdentifier(&(node->nodeId))));
+	DBG(printf("// UA_Node_getParent - node={i=%d}",node->nodeId.identifier.numeric));
 	// FIXME: the data model is crap! we should have a single memory location which holds the parent NodeId
 	for (; i < node->referencesSize; i++ ) {
-		UA_Int32 refId = UA_NodeId_getIdentifier(&(node->references[i]->referenceTypeId));
-		UA_Int32 isInverse = node->references[i]->isInverse;
+		UA_Int32 refId = node->references[i].referenceTypeId.identifier.numeric;
+		UA_Int32 isInverse = node->references[i].isInverse;
 		if (isInverse && (refId == 47 || refId == 46)) {
 			Namespace_Entry_Lock* lock = UA_NULL;
 			UA_Int32 retval;
-			retval = Namespace_get(theNamespace, &(node->references[i]->targetId.nodeId),parent,&lock);
+			retval = Namespace_get(theNamespace, &(node->references[i].targetId.nodeId),parent,&lock);
 			Namespace_Entry_Lock_release(lock);
 			if (retval == UA_SUCCESS) {
-				DBG(printf(" has parent={i=%d}\n",UA_NodeId_getIdentifier(&((*parent)->nodeId))));
+				DBG(printf(" has parent={i=%d}\n",(*parent)->nodeId.identifier.numeric));
 			} else {
-				DBG(printf(" has non-existing parent={i=%d}\n",UA_NodeId_getIdentifier(&(node->references[i]->targetId.nodeId))));
+				DBG(printf(" has non-existing parent={i=%d}\n", node->references[i].targetId.nodeId.identifier.numeric));
 			}
 			return retval;
 		}
@@ -80,13 +76,13 @@ UA_Int32 UA_Node_getPath(const UA_Node* node, UA_list_List* list) {
 			// and add our own name when we come back
 			if (retval == UA_SUCCESS) {
 				UA_list_addPayloadToBack(list,(void*)&(node->browseName.name));
-				DBG(printf("// UA_Node_getPath - add id={i=%d},class=%d",UA_NodeId_getIdentifier(&(node->nodeId)),node->nodeClass));
+				DBG(printf("// UA_Node_getPath - add id={i=%d},class=%d",node->nodeId.identifier.numeric,node->nodeClass));
 				DBG(UA_String_printf(",name=",&(node->browseName.name)));
 			}
 		} else {
 			// node is root, terminate recursion by adding own name
 			UA_list_addPayloadToBack(list,(void*)&node->browseName.name);
-			DBG(printf("// UA_Node_getPath - add id={i=%d},class=%d",UA_NodeId_getIdentifier(&(node->nodeId)),node->nodeClass));
+			DBG(printf("// UA_Node_getPath - add id={i=%d},class=%d",node->nodeId.identifier.numeric,node->nodeClass));
 			DBG(UA_String_printf(",name=",&(node->browseName.name)));
 		}
 	}
@@ -112,7 +108,7 @@ void sam_declareAttribute(UA_Node const * node) {
 		UA_Int32 retval = UA_Node_getPath(node,&list);
 		if (retval == UA_SUCCESS) {
 			UA_VariableNode* vn = (UA_VariableNode*) node;
-			printf("\t%s ", UA_[UA_ns0ToVTableIndex(vn->dataType.identifier.numeric)].name);
+			printf("\t%s ", UA_.types[UA_ns0ToVTableIndex(&vn->nodeId)].name);
 			UA_list_iteratePayload(&list,listPrintName);
 			printf("; // i=%d\n", node->nodeId.identifier.numeric);
 		} else {
@@ -167,7 +163,7 @@ void sam_assignBuffer(UA_Node const * node) {
 void sam_attachToNamespace(UA_Node const * node) {
 	if (node != UA_NULL && node->nodeClass == UA_NODECLASS_VARIABLE) {
 		UA_VariableNode* vn = (UA_VariableNode*) node;
-		printf("\tsam_attach(ns,%d,%s,&sam." F_cls ");\n",node->nodeId.identifier.numeric,UA_[UA_ns0ToVTableIndex(vn->dataType.identifier.numeric)].name, LC_cls(vn->browseName.name));
+		printf("\tsam_attach(ns,%d,%s,&sam." F_cls ");\n",node->nodeId.identifier.numeric,UA_.types[UA_ns0ToVTableIndex(&vn->dataType)].name, LC_cls(vn->browseName.name));
 	}
 }
 
@@ -180,7 +176,7 @@ UA_Int32 Namespace_getNumberOfComponents(Namespace const * ns, UA_NodeId const *
 		return UA_ERR_INVALID_VALUE;
 	UA_Int32 i, n;
 	for (i = 0, n = 0; i < node->referencesSize; i++ ) {
-		if (node->references[i]->referenceTypeId.identifier.numeric == 47 && node->references[i]->isInverse != UA_TRUE) {
+		if (node->references[i].referenceTypeId.identifier.numeric == 47 && node->references[i].isInverse != UA_TRUE) {
 			n++;
 		}
 	}
@@ -197,10 +193,10 @@ UA_Int32 Namespace_getComponent(Namespace const * ns, UA_NodeId const * id, UA_I
 
 	UA_Int32 i, n;
 	for (i = 0, n = 0; i < node->referencesSize; i++ ) {
-		if (node->references[i]->referenceTypeId.identifier.numeric == 47 && node->references[i]->isInverse != UA_TRUE) {
+		if (node->references[i].referenceTypeId.identifier.numeric == 47 && node->references[i].isInverse != UA_TRUE) {
 			n++;
 			if (n == idx) {
-				*result = &(node->references[i]->targetId.nodeId);
+				*result = &(node->references[i].targetId.nodeId);
 				return retval;
 			}
 		}
@@ -209,13 +205,13 @@ UA_Int32 Namespace_getComponent(Namespace const * ns, UA_NodeId const * id, UA_I
 }
 
 
-UA_Int32 UAX_NodeId_encodeBinaryByMetaData(Namespace const * ns, UA_NodeId const * id, UA_Int32* pos, UA_ByteString *dst) {
+UA_Int32 UAX_NodeId_encodeBinaryByMetaData(Namespace const * ns, UA_NodeId const * id, UA_UInt32* pos, UA_ByteString *dst) {
 	UA_Int32 i, retval = UA_SUCCESS;
 	if (UA_NodeId_isBasicType(id)) {
 		UA_Node const * result;
 		Namespace_Entry_Lock* lock;
 		if ((retval = Namespace_get(ns,id,&result,&lock)) == UA_SUCCESS)
-			UA_Variant_encodeBinary(&((UA_VariableNode *) result)->value,pos,dst);
+			UA_Variant_encodeBinary(&((UA_VariableNode *) result)->value,dst,pos);
 	} else {
 		UA_Int32 nComp = 0;
 		if ((retval = Namespace_getNumberOfComponents(ns,id,&nComp)) == UA_SUCCESS) {
@@ -229,14 +225,14 @@ UA_Int32 UAX_NodeId_encodeBinaryByMetaData(Namespace const * ns, UA_NodeId const
 	return retval;
 }
 
-UA_Int32 UAX_NodeId_encodeBinary(Namespace const * ns, UA_NodeId const * id, UA_Int32* pos, UA_ByteString *dst) {
+UA_Int32 UAX_NodeId_encodeBinary(Namespace const * ns, UA_NodeId const * id, UA_ByteString *dst, UA_UInt32* offset) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Node const * node;
 	Namespace_Entry_Lock* lock;
 
 	if ((retval = Namespace_get(ns,id,&node,&lock)) == UA_SUCCESS) {
 		if (node->nodeClass == UA_NODECLASS_VARIABLE) {
-			retval = UA_Variant_encodeBinary(&((UA_VariableNode*) node)->value,pos,dst);
+			retval = UA_Variant_encodeBinary(&((UA_VariableNode*) node)->value,dst,offset);
 		}
 		Namespace_Entry_Lock_release(lock);
 	}

@@ -5,9 +5,9 @@
 #include "ua_transport_connection.h"
 
 
-static UA_Int32 TL_handleHello1(UA_TL_Connection1 connection, const UA_ByteString* msg, UA_Int32* pos){
+static UA_Int32 TL_handleHello1(UA_TL_Connection1 connection, const UA_ByteString* msg, UA_UInt32* pos){
 	UA_Int32 retval = UA_SUCCESS;
-	UA_Int32 tmpPos = 0;
+	UA_UInt32 tmpPos = 0;
 	UA_Int32 connectionState;
 	UA_OPCUATcpHelloMessage helloMessage;
 	UA_TL_Connection_getState(connection, &connectionState);
@@ -38,12 +38,13 @@ static UA_Int32 TL_handleHello1(UA_TL_Connection1 connection, const UA_ByteStrin
 
 		// encode header and message to buffer
 		tmpPos = 0;
-		ackHeader.messageSize = UA_OPCUATcpAcknowledgeMessage_calcSize(&ackMessage) + UA_OPCUATcpMessageHeader_calcSize(&ackHeader);
+
+		ackHeader.messageSize = UA_OPCUATcpAcknowledgeMessage_calcSizeBinary(&ackMessage) + UA_OPCUATcpMessageHeader_calcSizeBinary(&ackHeader);
 		UA_ByteString *ack_msg;
 		UA_alloc((void **)&ack_msg, sizeof(UA_ByteString));
 		UA_ByteString_newMembers(ack_msg, ackHeader.messageSize);
-		UA_OPCUATcpMessageHeader_encodeBinary(&ackHeader,&tmpPos,ack_msg);
-		UA_OPCUATcpAcknowledgeMessage_encodeBinary(&ackMessage,&tmpPos,ack_msg);
+		UA_OPCUATcpMessageHeader_encodeBinary(&ackHeader,ack_msg,&tmpPos);
+		UA_OPCUATcpAcknowledgeMessage_encodeBinary(&ackMessage, ack_msg,&tmpPos);
 
 		DBG_VERBOSE(printf("TL_handleHello - Size messageToSend = %d, pos=%d\n",ackHeader.messageSize, tmpPos));
 		DBG_VERBOSE(UA_ByteString_printx("_handleHello - ack=", ack_msg));
@@ -129,7 +130,7 @@ static UA_Int32 TL_securitySettingsMockup_get(UA_ByteString *receiverCertificate
 
 	return UA_SUCCESS;
 }
-static UA_Int32 TL_handleOpen(UA_TL_Connection1 connection, const UA_ByteString* msg, UA_Int32* pos) {
+static UA_Int32 TL_handleOpen(UA_TL_Connection1 connection, const UA_ByteString* msg, UA_UInt32* pos) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 state;
 	SL_secureChannel *channel;
@@ -166,16 +167,16 @@ static UA_Int32 TL_handleOpen(UA_TL_Connection1 connection, const UA_ByteString*
 	return UA_ERR_INVALID_VALUE;
 }
 
-static UA_Int32 TL_handleMsg(UA_TL_Connection1 connection, const UA_ByteString* msg, UA_Int32* pos) {
+static UA_Int32 TL_handleMsg(UA_TL_Connection1 connection, const UA_ByteString* msg, UA_UInt32* pos) {
 	UA_Int32 state;
 	UA_TL_Connection_getState(connection,&state);
 	if (state == CONNECTIONSTATE_ESTABLISHED) {
-		return SL_Process(msg,pos);
+		return SL_Process(msg, pos);
 	}
 	return UA_ERR_INVALID_VALUE;
 }
 
-static UA_Int32 TL_handleClo(UA_TL_Connection1 connection, const UA_ByteString* msg, UA_Int32* pos) {
+static UA_Int32 TL_handleClo(UA_TL_Connection1 connection, const UA_ByteString* msg, UA_UInt32* pos) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_SecureConversationMessageHeader *header;
 	retval |= UA_SecureConversationMessageHeader_new(&header);
@@ -193,7 +194,7 @@ static UA_Int32 TL_handleClo(UA_TL_Connection1 connection, const UA_ByteString* 
 
 UA_Int32 TL_Process(UA_TL_Connection1 connection, const UA_ByteString* msg) {
 	UA_Int32 retval = UA_SUCCESS;
-	UA_Int32 pos = 0;
+	UA_UInt32 pos = 0;
 	UA_OPCUATcpMessageHeader tcpMessageHeader;
 
 	DBG_VERBOSE(printf("TL_Process - entered \n"));

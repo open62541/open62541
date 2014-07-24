@@ -7,7 +7,7 @@
 #ifndef UA_SERVICES_H_
 #define UA_SERVICES_H_
 
-#include "opcua.h"
+#include "ua_types.h"
 #include "ua_application.h"
 #include "ua_transport_binary_secure.h"
 #include "ua_stack_session.h"
@@ -53,12 +53,12 @@ UA_Int32 Service_GetEndpoints(SL_secureChannel channel, const UA_GetEndpointsReq
  * to ensure Confidentiality and Integrity for Message exchange during a
  * Session.
  */
-UA_Int32 Service_OpenSecureChannel(SL_secureChannel channel,const UA_OpenSecureChannelRequest* request, UA_OpenSecureChannelResponse* response);
+UA_Int32 Service_OpenSecureChannel(SL_secureChannel channel, const UA_OpenSecureChannelRequest* request, UA_OpenSecureChannelResponse* response);
 
 /**
  * @brief This Service is used to terminate a SecureChannel.
  */
-UA_Int32 Service_CloseSecureChannel(const UA_CloseSecureChannelRequest *request, UA_CloseSecureChannelResponse *response);
+UA_Int32 Service_CloseSecureChannel(SL_secureChannel channel, const UA_CloseSecureChannelRequest *request, UA_CloseSecureChannelResponse *response);
 /** @} */
 
 /**
@@ -77,7 +77,7 @@ UA_Int32 Service_CloseSecureChannel(const UA_CloseSecureChannelRequest *request,
  * logs and in the Server’s address space. The second is the authenticationToken
  * which is used to associate an incoming request with a Session.
  */
-UA_Int32 Service_CreateSession(UA_Session *session, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response);
+UA_Int32 Service_CreateSession(SL_secureChannel channel, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response);
 
 /**
  * @brief This Service is used by the Client to submit its SoftwareCertificates
@@ -86,12 +86,12 @@ UA_Int32 Service_CreateSession(UA_Session *session, const UA_CreateSessionReques
  * Client before it issues any other Service request after CreateSession.
  * Failure to do so shall cause the Server to close the Session.
  */
-UA_Int32 Service_ActivateSession(SL_secureChannel channel, UA_Session *session, const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response);
+UA_Int32 Service_ActivateSession(SL_secureChannel channel, UA_Session session, const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response);
 
 /**
  * @brief This Service is used to terminate a Session.
  */
-UA_Int32 Service_CloseSession(UA_Session *session, const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response);
+UA_Int32 Service_CloseSession(UA_Session session, const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response);
 // Service_Cancel
 /** @} */
 
@@ -108,8 +108,13 @@ UA_Int32 Service_CloseSession(UA_Session *session, const UA_CloseSessionRequest 
 /**
  * @brief This Service is used to add one or more Nodes into the AddressSpace hierarchy.
  */
-UA_Int32 Service_AddNodes(UA_Session *session, const UA_AddNodesRequest *request, UA_AddNodesResponse *response);
-// Service_AddReferences
+UA_Int32 Service_AddNodes(UA_Session session, const UA_AddNodesRequest *request, UA_AddNodesResponse *response);
+
+/**
+ * @brief This Service is used to add one or more References to one or more Nodes
+ */
+UA_Int32 Service_AddReferences(UA_Session session, const UA_AddReferencesRequest *request, UA_AddReferencesResponse *response);
+
 // Service_DeleteNodes
 // Service_DeleteReferences
 /** @} */
@@ -128,12 +133,12 @@ UA_Int32 Service_AddNodes(UA_Session *session, const UA_AddNodesRequest *request
  * The browse can be further limited by the use of a View. This Browse Service
  * also supports a primitive filtering capability.
  */ 
-UA_Int32 Service_Browse(UA_Session *session, const UA_BrowseRequest *request, UA_BrowseResponse *response);
+UA_Int32 Service_Browse(UA_Session session, const UA_BrowseRequest *request, UA_BrowseResponse *response);
 
 /**
  * @brief This Service is used to translate textual node paths to their respective ids.
  */
-UA_Int32 Service_TranslateBrowsePathsToNodeIds(UA_Session *session,  const UA_TranslateBrowsePathsToNodeIdsRequest *request, UA_TranslateBrowsePathsToNodeIdsResponse *response);
+UA_Int32 Service_TranslateBrowsePathsToNodeIds(UA_Session session, const UA_TranslateBrowsePathsToNodeIdsRequest *request, UA_TranslateBrowsePathsToNodeIdsResponse *response);
 // Service_BrowseNext
 // Service_TranslateBrowsePathsToNodeIds
 // Service_RegisterNodes
@@ -176,9 +181,16 @@ UA_Int32 Service_TranslateBrowsePathsToNodeIds(UA_Session *session,  const UA_Tr
  * values as a composite, to read individual elements or to read ranges of
  * elements of the composite.
  */
-UA_Int32 Service_Read(UA_Session *session, const UA_ReadRequest *request, UA_ReadResponse *response);
+UA_Int32 Service_Read(UA_Session session, const UA_ReadRequest *request, UA_ReadResponse *response);
 // Service_HistoryRead
-// Service_Write
+/**
+ * @brief This Service is used to write one or more Attributes of one or more
+ *  Nodes. For constructed Attribute values whose elements are indexed, such as
+ *  an array, this Service allows Clients to write the entire set of indexed
+ *  values as a composite, to write individual elements or to write ranges of
+ *  elements of the composite.
+ */
+UA_Int32 Service_Write(UA_Session session, const UA_WriteRequest *request,UA_WriteResponse *response);
 // Service_HistoryUpdate
 /** @} */
 
@@ -210,7 +222,7 @@ a component of an Object.
  * triggered item links to be deleted, but has no effect on the MonitoredItems
  * referenced by the triggered items.
  */
-UA_Int32 Service_CreateMonitoredItems(UA_Session *session, const UA_CreateMonitoredItemsRequest *request, UA_CreateMonitoredItemsResponse *response);
+UA_Int32 Service_CreateMonitoredItems(UA_Session session, const UA_CreateMonitoredItemsRequest *request, UA_CreateMonitoredItemsResponse *response);
 // Service_ModifyMonitoredItems
 // Service_SetMonitoringMode
 // Service_SetTriggering
@@ -225,9 +237,13 @@ UA_Int32 Service_CreateMonitoredItems(UA_Session *session, const UA_CreateMonito
  * @{
  */
 // Service_CreateSubscription
+UA_Int32 Service_CreateSubscription(UA_Session session, const UA_CreateSubscriptionRequest *request,
+                                   UA_CreateSubscriptionResponse *response);
 // Service_ModifySubscription
 // Service_SetPublishingMode
-// Service_Publish
+UA_Int32 Service_Publish(UA_Session session, const UA_PublishRequest *request,
+                                   UA_PublishResponse *response);
+
 // Service_Republish
 // Service_TransferSubscription
 // Service_DeleteSubscription

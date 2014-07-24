@@ -10,7 +10,7 @@ addons:
     project:
       name: acplt/open62541
       description: Open-source OPC UA
-    notification_email: 
+    notification_email: null@plt.rwth-aachen.de
     build_command_prepend: ./autogen.sh && ./configure
     build_command: make
     branch_pattern: coverity_scan
@@ -28,9 +28,17 @@ before_install:
 - sudo ldconfig
 - cd ..
 - rm -rf check-code
-script: ./autogen.sh && ./configure --enable-doxygen && make && make check
+- sudo pip install cpp-coveralls
+script: 
+   - ./autogen.sh 
+   - ./configure 
+   - echo "Production build + checks"
+   - make && make check && make clean
+   - echo "Extended debug build + checks + coverage + doxygen"
+   - ./configure --enable-debug --enable-coverage --enable-doxygen
+   - make all && make check
 after_success:
-   - git clone -b gh-pages https://$GITAUTH@github.com/acplt/open62541
+   - git clone --depth=50 -b gh-pages https://$GITAUTH@github.com/acplt/open62541
    - rm -rf open62541/doxygen
    - cp -r doc/html open62541/doxygen
    - cd open62541/doxygen
@@ -44,3 +52,4 @@ after_success:
    - cd ..
    - rm -rf open62541
    - ./tools/.coverity.sh
+   - coveralls -b src --exclude doc --exclude examples --exclude tests --exclude wrappers --exclude src/.libs --exclude src/util/.libs -E '.*\.h' 

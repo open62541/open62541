@@ -1,11 +1,11 @@
-/*
- * xml2ns0.c
- *
- *  Created on: 21.04.2014
- *      Author: mrt
- */
-
+#include <fcntl.h> // open, O_RDONLY
+#include "ua_types.h"
+//#include "ua_types_generated.h"
+#include "ua_namespace.h"
 #include "ua_xml.h"
+#include "ua_namespace_xml.h"
+#include "ua_types_encoding_xml.h"
+#include "util/ua_util.h"
 
 // FIXME: most of the following code should be generated as a template from the ns0-defining xml-files
 /** @brief sam (abbr. for server_application_memory) is a flattened memory structure of the UAVariables in ns0 */
@@ -36,43 +36,32 @@ void sam_attach(Namespace *ns,UA_UInt32 ns0id,UA_Int32 type, void* p) {
 		if (result->nodeId.identifier.numeric == ns0id) {
 			if (result->nodeClass == UA_NODECLASS_VARIABLE) {
 				UA_VariableNode* variable = (UA_VariableNode*) result;
-				if (variable->dataType.identifier.numeric == UA_[type].ns0Id) {
+				if (variable->dataType.identifier.numeric == UA_.types[type].typeId.identifier.numeric) {
 					variable->value.arrayLength = 1;
-					if (variable->value.data == UA_NULL) {
-						UA_alloc((void**)&(variable->value.data), sizeof(void*));
-						variable->value.data[0] = UA_NULL;
-					}
-					if (UA_NodeId_isBuiltinType(&variable->dataType)) {
-						variable->value.data[0] = p;
-					} else {
-						if (variable->value.vt->ns0Id != UA_EXTENSIONOBJECT_NS0) {
-							printf("nodeId for id=%d, type=%d\n should be an extension object", ns0id, type);
-						} else {
-							if (variable->value.data[0] == UA_NULL) {
-								UA_alloc((void**)&(variable->value.data[0]), sizeof(UA_ExtensionObject));
-							}
-							UA_ExtensionObject* eo = (UA_ExtensionObject*) variable->value.data[0];
-							eo->typeId = variable->dataType;
-							eo->encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
-							// FIXME: This code is valid for ns0 and numeric identifiers only
-							eo->body.length = UA_[UA_ns0ToVTableIndex(variable->dataType.identifier.numeric)].memSize;
-							eo->body.data = p;
-						}
-					}
+					variable->value.data = p;
 				} else {
-					printf("wrong datatype for id=%d, expected=%d, retrieved=%d\n", ns0id, UA_[type].ns0Id, variable->dataType.identifier.numeric);
+					UA_alloc((void**)&variable->value.data, sizeof(UA_ExtensionObject));
+					UA_ExtensionObject* eo = (UA_ExtensionObject*) variable->value.data;
+					eo->typeId = variable->dataType;
+					eo->encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
+					// FIXME: This code is valid for ns0 and numeric identifiers only
+					eo->body.length = UA_.types[UA_ns0ToVTableIndex(&variable->dataType)].memSize;
+					eo->body.data = p;
 				}
-			} else {
-				perror("Namespace_getWritable returned wrong node class");
 			}
-		} else {
-			printf("retrieving node={i=%d} returned node={i=%d}\n", ns0id, result->nodeId.identifier.numeric);
 		}
-		Namespace_Entry_Lock_release(lock);
-	} else {
-		printf("retrieving node={i=%d} returned error code %d\n",ns0id,retval);
 	}
 }
+	/* 	} else { */
+	/* 		perror("Namespace_getWritable returned wrong node class"); */
+	/* 	} */
+	/* } else { */
+	/* 	printf("retrieving node={i=%d} returned node={i=%d}\n", ns0id, result->nodeId.identifier.numeric); */
+	/* } */
+	/*        Namespace_Entry_Lock_release(lock); */
+	/* 	} else { */
+	/* 	printf("retrieving node={i=%d} returned error code %d\n",ns0id,retval); */
+	/* } */
 
 void sam_init(Namespace* ns) {
 	// Initialize the strings
@@ -108,7 +97,7 @@ UA_Int32 Namespace_getNumberOfComponents(Namespace const * ns, UA_NodeId const *
 		return UA_ERR_INVALID_VALUE;
 	UA_Int32 i, n;
 	for (i = 0, n = 0; i < node->referencesSize; i++ ) {
-		if (node->references[i]->referenceTypeId.identifier.numeric == 47 && node->references[i]->isInverse != UA_TRUE) {
+		if (node->references[i].referenceTypeId.identifier.numeric == 47 && node->references[i].isInverse != UA_TRUE) {
 			n++;
 		}
 	}
@@ -125,10 +114,10 @@ UA_Int32 Namespace_getComponent(Namespace const * ns, UA_NodeId const * id, UA_I
 
 	UA_Int32 i, n;
 	for (i = 0, n = 0; i < node->referencesSize; i++ ) {
-		if (node->references[i]->referenceTypeId.identifier.numeric == 47 && node->references[i]->isInverse != UA_TRUE) {
+		if (node->references[i].referenceTypeId.identifier.numeric == 47 && node->references[i].isInverse != UA_TRUE) {
 			n++;
 			if (n == idx) {
-				*result = &(node->references[i]->targetId.nodeId);
+				*result = &(node->references[i].targetId.nodeId);
 				return retval;
 			}
 		}
@@ -137,34 +126,34 @@ UA_Int32 Namespace_getComponent(Namespace const * ns, UA_NodeId const * id, UA_I
 }
 
 
-UA_Int32 UAX_NodeId_encodeBinaryByMetaData(Namespace const * ns, UA_NodeId const * id, UA_Int32* pos, UA_ByteString *dst) {
+UA_Int32 UAX_NodeId_encodeBinaryByMetaData(Namespace const * ns, UA_NodeId const * id, UA_ByteString *dst, UA_UInt32* offset) {
 	UA_Int32 i, retval = UA_SUCCESS;
 	if (UA_NodeId_isBasicType(id)) {
 		UA_Node const * result;
 		Namespace_Entry_Lock* lock;
 		if ((retval = Namespace_get(ns,id,&result,&lock)) == UA_SUCCESS)
-			UA_Variant_encodeBinary(&((UA_VariableNode *) result)->value,pos,dst);
+			UA_Variant_encodeBinary(&((UA_VariableNode *) result)->value,dst,offset);
 	} else {
 		UA_Int32 nComp = 0;
 		if ((retval = Namespace_getNumberOfComponents(ns,id,&nComp)) == UA_SUCCESS) {
 			for (i=0; i < nComp; i++) {
 				UA_NodeId* comp = UA_NULL;
 				Namespace_getComponent(ns,id,i,&comp);
-				UAX_NodeId_encodeBinaryByMetaData(ns,comp, pos, dst);
+				UAX_NodeId_encodeBinaryByMetaData(ns,comp, dst, offset);
 			}
 		}
 	}
 	return retval;
 }
 
-UA_Int32 UAX_NodeId_encodeBinary(Namespace const * ns, UA_NodeId const * id, UA_Int32* pos, UA_ByteString *dst) {
+UA_Int32 UAX_NodeId_encodeBinary(Namespace const * ns, UA_NodeId const * id, UA_ByteString *dst, UA_UInt32* offset) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Node const * node;
 	Namespace_Entry_Lock* lock;
 
 	if ((retval = Namespace_get(ns,id,&node,&lock)) == UA_SUCCESS) {
 		if (node->nodeClass == UA_NODECLASS_VARIABLE) {
-			retval = UA_Variant_encodeBinary(&((UA_VariableNode*) node)->value,pos,dst);
+			retval = UA_Variant_encodeBinary(&((UA_VariableNode*) node)->value,dst,offset);
 		}
 		Namespace_Entry_Lock_release(lock);
 	}
@@ -183,7 +172,7 @@ int main() {
 	// encoding buffer
 	char buf[1024];
 	UA_ByteString buffer = { 1024, (UA_Byte*) buf };
-	UA_Int32 pos = 0;
+	UA_UInt32 pos = 0;
 
 	UA_NodeId nodeid;
 	nodeid.encodingByte = UA_NODEIDTYPE_FOURBYTE;
@@ -197,7 +186,7 @@ int main() {
 	for (i=0;i<1E5 && retval == UA_SUCCESS;i++) {
 		pos = 0;
 		sam.serverStatus.currentTime = UA_DateTime_now();
-		retval |= UAX_NodeId_encodeBinary(ns,&nodeid,&pos,&buffer);
+		retval |= UAX_NodeId_encodeBinary(ns,&nodeid,&buffer,&pos);
 	}
 	UA_DateTime tEnd = UA_DateTime_now();
 	// tStart, tEnd count in 100 ns steps, so 10 steps = 1 µs

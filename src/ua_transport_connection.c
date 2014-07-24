@@ -82,7 +82,21 @@ UA_Int32 UA_TL_Connection_setWriter(UA_TL_Connection1 connection, TL_Writer writ
 	((TL_Connection*)connection)->writer = writer;
 	return UA_SUCCESS;
 }
-
+UA_Int32 UA_TL_Connection_setConnectionHandle(UA_TL_Connection1 connection, UA_Int32 connectionHandle)
+{
+	((TL_Connection*)connection)->connectionHandle = connectionHandle;
+	return UA_SUCCESS;
+}
+UA_Int32 UA_TL_Connection_setState(UA_TL_Connection1 connection, UA_Int32 connectionState)
+{
+	if(connection)
+	{
+		((TL_Connection*)connection)->state = connectionState;
+		return UA_SUCCESS;
+	}else{
+		return UA_ERROR;
+	}
+}
 //getters
 UA_Int32 UA_TL_Connection_getState(UA_TL_Connection1 connection, UA_Int32 *connectionState)
 {

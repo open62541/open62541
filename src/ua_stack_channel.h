@@ -10,7 +10,7 @@
 
 #include <stdio.h>
 #include <memory.h> // memcpy
-#include "opcua.h"
+
 #include "ua_transport_connection.h"
 
 typedef enum ChannelState {
@@ -38,7 +38,7 @@ UA_Int32 SL_Channel_init(SL_secureChannel channel,
 		UA_ByteString *senderCertificate, UA_MessageSecurityMode securityMode);
 
 UA_Int32 SL_Channel_initByRequest(SL_secureChannel channel, UA_TL_Connection1 connection, const UA_ByteString* msg,
-		UA_Int32* pos);
+		UA_UInt32* pos);
 
 UA_Int32 SL_Channel_initMembers(SL_secureChannel channel,
 		UA_TL_Connection1 *connection,

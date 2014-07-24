@@ -1,4 +1,5 @@
 #include "ua_list.h"
+#include "ua_util.h"
 
 void UA_list_defaultFreer(void* payload){
 	if(payload){
@@ -108,6 +109,7 @@ UA_Int32 UA_list_removeLast(UA_list_List* list, UA_list_PayloadVisitor visitor){
 			(*visitor)(list->last->payload);
 		}
 		UA_free(list->last);
+		temp->next = UA_NULL;
 		list->last = temp;
 		list->size--;
 		if(list->size == 1){

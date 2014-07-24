@@ -1,9 +1,9 @@
 #ifndef __NAMESPACE_H__
 #define __NAMESPACE_H__
 
-#include "ua_basictypes.h"
-#include "opcua.h"
-#include "ua_list.h"
+#include "ua_types.h"
+#include "ua_types_generated.h"
+#include "util/ua_list.h"
 
 #ifdef MULTITHREADING
 #define _XOPEN_SOURCE 500
@@ -13,8 +13,11 @@
 
 /** @brief Namespace entries point to an UA_Node. But the actual data structure
 	is opaque outside of ua_namespace.c */
-struct Namespace_Entry;
-typedef struct Namespace_Entry Namespace_Entry;
+
+typedef struct Namespace_Entry {
+	UA_UInt64 status;	/* 2 bits status | 14 bits checkout count | 48 bits timestamp */
+	const UA_Node *node;	/* Nodes are immutable. It is not recommended to change nodes in place */
+} Namespace_Entry;
 
 /** @brief Namespace datastructure. It mainly serves as a hashmap to UA_Nodes. */
 typedef struct Namespace {
@@ -46,7 +49,7 @@ void Namespace_delete(Namespace * ns);
 UA_Int32 Namespace_insert(Namespace * ns, const UA_Node * node);
 
 /** @brief Insert a new node or replace an existing node if an entry has the same NodeId. */
-UA_Int32 Namespace_insertOrReplace(Namespace * ns, const UA_Node * node);
+// UA_Int32 Namespace_insertOrReplace(Namespace * ns, const UA_Node * node);
 
 /** @brief Find an unused (numeric) NodeId in the namespace and insert the node.
 	The node is modified to contain the new nodeid after insertion. */

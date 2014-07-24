@@ -1,6 +1,6 @@
 #ifndef OPCUA_TRANSPORT_BINARY_SECURE_H_
 #define OPCUA_TRANSPORT_BINARY_SECURE_H_
-#include "opcua.h"
+
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
 #include "ua_stack_channel.h"
@@ -40,7 +40,7 @@ typedef struct SL_Channel_T {
 } SL_secureChannel;
 
 */
-UA_Int32 SL_Process(const UA_ByteString* msg, UA_Int32* pos);
+UA_Int32 SL_Process(const UA_ByteString* msg, UA_UInt32* pos);
 
 /**
  * @brief Wrapper function, to encapsulate handleRequest for openSecureChannel requests
@@ -51,5 +51,5 @@ UA_Int32 SL_Process(const UA_ByteString* msg, UA_Int32* pos);
 
  */
 UA_Int32 SL_ProcessOpenChannel(SL_secureChannel channel, const UA_ByteString* msg,
-		UA_Int32 *pos);
+		UA_UInt32 *pos);
 #endif /* OPCUA_TRANSPORT_BINARY_SECURE_H_ */

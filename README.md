@@ -1,15 +1,15 @@
-Open62541
+open62541
 =========
 
 An open-source communication stack implementation of OPC UA (OPC Unified Architecture) licensed under LGPL + static linking exception.
 
 [![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
 [![Build Status](https://travis-ci.org/acplt/open62541.png?branch=master)](https://travis-ci.org/acplt/open62541)
+[![Coverage Status](https://coveralls.io/repos/acplt/open62541/badge.png?branch=master)](https://coveralls.io/r/acplt/open62541?branch=master)
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/1864/badge.svg)](https://scan.coverity.com/projects/1864)
 
 ### Documentation
-Documentation is generated from Doxygen annotations in the source code. The current version can be accessed at http://acplt.github.io/open62541/doxygen/.
-
+Documentation is generated from Doxygen annotations in the source code. The current version can be accessed at [http://open62541.org/doxygen/](http://open62541.org/doxygen/).
 
 ## Getting dependencies
 ### Ubuntu
@@ -63,17 +63,27 @@ $ make all
 ##### Get expat
 * start MinGW Installation Manager
 * choose all Packages, mark mingw32-expat and install
+* Open MinGW\msys\1.0\msys.bat
+```bash
+$ mingw-get install libexpat
+```
 
 ##### Get Python and lxml:
-* download Python at https://python.org/downloads
+* download Python (Windows x86 MSI Installer) at https://python.org/downloads (necessary version: 2.7.x)
 * install the executable
-* add the install directory (e. g. "c:\python27") to your windows path variable 
+* add the install directory (e. g. "c:\python27") to your windows path variable [Selectable in the setup-options]
 * restart mingw console
-* install lxml by either downloading and installing http://www.lfd.uci.edu/~gohlke/pythonlibs/#lxml (choose the version which fits    to your python installation) or by following the instructions
-  given here: http://lxml.de/installation.html
+* install lxml by either downloading and installing http://www.lfd.uci.edu/~gohlke/pythonlibs/#lxml (choose the version which fits    to your python installation (x86 version)) or by following the instructions
+  given here: http://lxml.de/installation.html 
+* add ("C:\Python27\Tools\Scripts") to your windows path variable
+
 
 ##### Get git (IMPORTANT: get 1.8.4, since 1.8.5.2 has a bug):
 * http://code.google.com/p/msysgit/downloads/detail?name=Git-1.8.4-preview20130916.exe&can=2&q=
+
+##### SVN:
+* download: http://tortoisesvn.net/downloads.html
+* install svn @ c:\MinGW\
 
 ##### Getting and installing *check* as unit testing framework (http://check.sourceforge.net/):
 * Open MinGW\msys\1.0\msys.bat
@@ -87,6 +97,11 @@ $ make
 $ make install
 ```
 
+##### Adjusting MinGW
+* open the file c:\MinGW\include\io.h and replace every off64_t with _off64_t (4x should off64_t appear)
+* open the file c:\MinGW\include\unistd.h and replace every off_t with _off_t (2x should off_t appear)
+* download the queue.h header @ http://cvsweb.netbsd.org/bsdweb.cgi/src/sys/sys/queue.h and copy it to c:\MinGW\include\sys
+
 ## Building 
 * use autogen.sh only first time and whenever aclocal.m4 or configure.ac were modified
 ```bash
@@ -98,6 +113,7 @@ $ make check
 ```
 
 ### Configure Options 
+
 * --enable-debug=(yes|no|verbose) - omit/include debug code
 * --enable-multithreading - enable pthreads (for examples/src/opcuaServerMT)
 * --enable-doxygen - make documentation as well

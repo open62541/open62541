@@ -2,23 +2,23 @@
 #include "ua_stack_session_manager.h"
 #include "ua_application.h"
 
-Session sessionMockup = {
-		(UA_Int32) 0,
-		&appMockup
-};
+//Session sessionMockup = {
+//		(UA_Int32) 0,
+//		&appMockup
+//};
 
-UA_Int32 Service_CreateSession(UA_Session *session, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response) {
-	UA_String_printf("CreateSession Service - endpointUrl=", &(request->endpointUrl));
+UA_Int32 Service_CreateSession(SL_secureChannel channel, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response) {
+UA_String_printf("CreateSession Service - endpointUrl=", &(request->endpointUrl));
 
 	UA_Session *newSession;
 
 	UA_Session_new(&newSession);
 	//TODO get maxResponseMessageSize
 	UA_Session_init(*newSession, (UA_String*)&request->sessionName,
-			request->requestedSessionTimeout,
-			request->maxResponseMessageSize,
-			9999,
-			(UA_Session_idProvider)UA_SessionManager_generateSessionId);
+	request->requestedSessionTimeout,
+	request->maxResponseMessageSize,
+	9999,
+	(UA_Session_idProvider)UA_SessionManager_generateSessionId);
 
 	UA_SessionManager_addSession(newSession);
 	UA_Session_getId(*newSession, &response->sessionId);
@@ -28,11 +28,13 @@ UA_Int32 Service_CreateSession(UA_Session *session, const UA_CreateSessionReques
 	return UA_SUCCESS;
 }
 
-UA_Int32 Service_ActivateSession(SL_secureChannel channel, UA_Session *session, const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response) {
+UA_Int32 Service_ActivateSession(SL_secureChannel channel,UA_Session session,
+		const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response)
+{
 
+	UA_Session_bind(session, channel);
 
-	UA_Session_bind(*session,channel);
-	UA_Session_setApplicationPointer(*session,&appMockup);
+	UA_Session_setApplicationPointer(session, &appMockup);
 
 	UA_NodeId_printf("ActivateSession - authToken=", &(request->requestHeader.authenticationToken));
 	// 321 == AnonymousIdentityToken_Encoding_DefaultBinary
@@ -42,8 +44,8 @@ UA_Int32 Service_ActivateSession(SL_secureChannel channel, UA_Session *session, 
 	return UA_SUCCESS;
 }
 
-UA_Int32 Service_CloseSession(UA_Session *session, const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response) {
-	//FIXME channel->session = UA_NULL;
-	// FIXME: set response
-	return UA_SUCCESS;
+UA_Int32 Service_CloseSession(UA_Session session, const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response) {
+//FIXME channel->session = UA_NULL;
+// FIXME: set response
+return UA_SUCCESS;
 }

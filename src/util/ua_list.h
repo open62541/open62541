@@ -5,7 +5,6 @@
 #include <stddef.h> /* Needed for sys/queue.h */
 #include <sys/queue.h>
 
-
 /**********************/
 /* Singly Linked List */
 /**********************/

@@ -1,19 +1,10 @@
-/****************************************************************************
- Name        : check_xml.c
- Author      : uleon @ open62541
- Version     : 0.1
- Copyright   : Your copyright notice
- Description : test cases to check different aspects of the
- xml-processing
-
-
-*****************************************************************************/
-
 #include <stdio.h>
 #include <stdlib.h>
-
 #include "ua_xml.h"
-
+#include "util/ua_util.h"
+#include "ua_types_generated.h"
+#include "ua_namespace.h"
+#include "ua_namespace_xml.h"
 #include "check.h"
 
 START_TEST(parseNumericNodeIdWithoutNsIdShallYieldNs0NodeId)
@@ -86,8 +77,8 @@ START_TEST(loadUserNamespaceWithSingleProcessVariableShallSucceed)
 	retval = Namespace_get(ns,&nodeId,&nr,&nl);
 	ck_assert_int_eq(retval,UA_SUCCESS);
 	ck_assert_ptr_ne(nr,UA_NULL);
-	ck_assert_int_eq(nr->references[0]->referenceTypeId.identifier.numeric,40);
-	ck_assert_int_eq(nr->references[0]->targetId.nodeId.identifier.numeric,63);
+	ck_assert_int_eq(nr->references[0].referenceTypeId.identifier.numeric,40);
+	ck_assert_int_eq(nr->references[0].targetId.nodeId.identifier.numeric,63);
 
 
 	UA_NodeId_copycstring("i=2",&nodeId,UA_NULL);
@@ -134,8 +125,8 @@ START_TEST(loadUserNamespaceWithSingleProcessVariableAndAliasesShallSucceed)
 	retval = Namespace_get(ns,&nodeId,&nr,&nl);
 	ck_assert_int_eq(retval,UA_SUCCESS);
 	ck_assert_ptr_ne(nr,UA_NULL);
-	ck_assert_int_eq(nr->references[0]->referenceTypeId.identifier.numeric,40);
-	ck_assert_int_eq(nr->references[0]->targetId.nodeId.identifier.numeric,63);
+	ck_assert_int_eq(nr->references[0].referenceTypeId.identifier.numeric,40);
+	ck_assert_int_eq(nr->references[0].targetId.nodeId.identifier.numeric,63);
 
 	UA_NodeId_copycstring("ns=1;i=2",&nodeId,UA_NULL);
 	ck_assert_int_eq(Namespace_contains(ns,&nodeId),UA_FALSE);

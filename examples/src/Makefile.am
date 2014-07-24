@@ -27,6 +27,10 @@ bin_PROGRAMS += $(top_builddir)/bin/exampleServer $(top_builddir)/bin/exampleSer
 __top_builddir__bin_exampleServer_CFLAGS = -I$(top_builddir)/src -I$(top_builddir)/include $(GLOBAL_AM_CFLAGS)
 __top_builddir__bin_exampleServer_SOURCES = opcuaServer.c networklayer.c
 __top_builddir__bin_exampleServer_LDADD= $(top_builddir)/lib/libopen62541.a $(GLOBAL_AM_LDADD)
+if RASPI
+__top_builddir__bin_exampleServer_LDFLAGS = -lwiringPi
+__top_builddir__bin_exampleServer_SOURCES += raspberrypi_io.c
+endif
 
 __top_builddir__bin_exampleServerACPLT_CFLAGS = -I$(top_builddir)/src -I$(top_builddir)/include $(GLOBAL_AM_CFLAGS)
 __top_builddir__bin_exampleServerACPLT_SOURCES = opcuaServerACPLT.c networklayer.c

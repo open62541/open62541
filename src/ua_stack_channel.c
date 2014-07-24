@@ -45,8 +45,15 @@ UA_Int32 SL_Channel_getRemainingLifetime(SL_secureChannel channel, UA_Int32 *lif
 {
 	if(channel)
 	{
-		*lifetime = UA_DateTime_difference_ms(((SL_Channel1*)channel)->securityToken.createdAt,UA_DateTime_now());
-	return UA_SUCCESS;
+		UA_Int64 diffInMS = (((SL_Channel1*)channel)->securityToken.createdAt - UA_DateTime_now()) / 1e7;
+		if(diffInMS > UA_INT32_MAX)
+		{
+			*lifetime = UA_INT32_MAX;
+		}else
+		{
+			*lifetime = (UA_Int32)diffInMS;
+		}
+			return UA_SUCCESS;
 	}
 	else
 	{
@@ -79,7 +86,7 @@ UA_Int32 SL_Channel_getLocalAsymAlgSettings(SL_secureChannel channel, UA_Asymmet
 {
 	UA_Int32 retval = 0;
 
-	retval |= UA_alloc((void**)asymAlgSettings,UA_AsymmetricAlgorithmSecurityHeader_calcSize(UA_NULL));
+	retval |= UA_alloc((void**)asymAlgSettings,UA_AsymmetricAlgorithmSecurityHeader_calcSizeBinary(UA_NULL));
 
 	retval |= UA_ByteString_copy(&(channel->localAsymAlgSettings.receiverCertificateThumbprint),
 			&(*asymAlgSettings)->receiverCertificateThumbprint);
@@ -175,7 +182,7 @@ UA_Int32 SL_Channel_init(SL_secureChannel channel,
 //TODO implement real nonce generator - DUMMY function
 UA_Int32 SL_Channel_generateNonce(UA_ByteString *nonce)
 {
-	UA_ByteString_new(&nonce);
+	//UA_ByteString_new(&nonce);
 	UA_alloc((void**)&(nonce->data),1);
 	nonce->length = 1;
 	nonce->data[0] = 'a';
@@ -225,7 +232,7 @@ UA_Int32 SL_Channel_new(SL_secureChannel **channel,
 UA_Int32 SL_Channel_initByRequest(SL_secureChannel channel,
 		UA_TL_Connection1 connection,
 		const UA_ByteString* msg,
-		UA_Int32* pos)
+		UA_UInt32* pos)
 {
 
 	UA_SequenceHeader *sequenceHeader;
@@ -293,6 +300,9 @@ UA_Int32 SL_Channel_renewToken(SL_secureChannel channel, UA_UInt32 tokenId,UA_Da
 
 UA_Int32 SL_Channel_checkSequenceNumber(SL_secureChannel channel, UA_UInt32 sequenceNumber)
 {
+	((SL_Channel1*)channel)->sequenceNumber = sequenceNumber; //TODO mock up, to be removed;
+	return UA_SUCCESS;
+
 	if(((SL_Channel1*)channel)->sequenceNumber+1 == sequenceNumber){
 		((SL_Channel1*)channel)->sequenceNumber++;
 
@@ -306,6 +316,8 @@ UA_Int32 SL_Channel_checkSequenceNumber(SL_secureChannel channel, UA_UInt32 sequ
 
 UA_Int32 SL_Channel_checkRequestId(SL_secureChannel channel, UA_UInt32 requestId)
 {
+	((SL_Channel1*)channel)->requestId = requestId; //TODO mock up, to be removed;
+	return UA_SUCCESS;
 	if(((SL_Channel1*)channel)->requestId+1 == requestId){
 		((SL_Channel1*)channel)->requestId++;
 

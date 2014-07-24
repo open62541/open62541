@@ -8,8 +8,8 @@
 #ifndef UA_STACK_SESSION_MANAGER_H_
 #define UA_STACK_SESSION_MANAGER_H_
 
-#include "../include/opcua.h"
-#include "../include/ua_list.h"
+
+
 #include "ua_stack_session.h"
 
 

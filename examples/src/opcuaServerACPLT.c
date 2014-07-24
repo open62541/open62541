@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <memory.h>
 
-#include "opcua.h"
+#include "ua_types.h"
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
 #include "networklayer.h"
@@ -60,12 +60,7 @@ void server_run() {
 	UA_String endpointUrl;
 	UA_String_copycstring("open62541.org",&endpointUrl);
 	SL_ChannelManager_init(2,3600000, 873, 23, &endpointUrl);
-
 	UA_SessionManager_init(2,300000,5);
-
-
-
-
 
 	UA_ByteString slMessage = { -1, UA_NULL };
 
@@ -100,8 +95,6 @@ void server_run() {
 		exit(1);
 	}
 
-	//UA_TL_Connection_new(&connection, localBuffers, (TL_Writer)NL_TCP_writer);
-
 	/* Now start listening for the clients, here process will
 	 * go in sleep mode and will wait for the incoming connection
 	 */
@@ -133,6 +126,7 @@ void server_run() {
 			if (n > 0) {
                 slMessage.data = (UA_Byte*) buffer;
 				slMessage.length = n;
+#ifdef DEBUG
 				UA_ByteString_printx("server_run - received=",&slMessage);
 				TL_Process(connection, &slMessage);
 			} else if (n <= 0) {
@@ -150,4 +144,5 @@ void server_run() {
 	close(sockfd);
 }
 
+#endif
 #endif

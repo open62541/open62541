@@ -8,7 +8,7 @@
 #ifndef UA_STACK_SESSION_H_
 #define UA_STACK_SESSION_H_
 
-#include "../include/opcua.h"
+
 #include "ua_stack_channel.h"
 
 
