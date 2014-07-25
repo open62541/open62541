@@ -1549,6 +1549,38 @@ START_TEST(UA_ApplicationDescription_copyShallWorkOnExample) {
 	UA_ApplicationDescription_deleteMembers(&copiedValue);
 }
 END_TEST
+START_TEST(UA_QualifiedName_copyShallWorkOnInputExample) {
+	// given
+	UA_String srcName = (UA_String){8, (UA_Byte*)"tEsT123!"};
+	UA_QualifiedName src = {5, srcName};
+
+	UA_QualifiedName dst;
+	UA_Int32 ret;
+
+	// when
+	ret = UA_QualifiedName_copy(&src, &dst);
+	// then
+	ck_assert_int_eq(ret, UA_SUCCESS);
+	ck_assert_int_eq('E', dst.name.data[1]);
+	ck_assert_int_eq('!', dst.name.data[7]);
+	ck_assert_int_eq(8, dst.name.length);
+	ck_assert_int_eq(5, dst.namespaceIndex);
+}
+END_TEST
+START_TEST(UA_QualifiedName_copyNULLInput) {
+	// given
+	UA_QualifiedName *src;
+	src = UA_NULL;
+
+	UA_QualifiedName dst;
+	UA_Int32 ret;
+
+	// when
+	ret = UA_QualifiedName_copy(src, &dst);
+	// then
+	ck_assert_int_eq(ret, UA_ERROR);
+}
+END_TEST
 START_TEST(UA_Guid_copyShallWorkOnInputExample) {
 	//given
 	const UA_Guid src = {3, 45, 1222, {8, 7, 6, 5, 4, 3, 2, 1}};
@@ -1582,6 +1614,56 @@ START_TEST(UA_Guid_copyWithNullArgumentShallReturn) {
 	//finally
 }
 END_TEST
+START_TEST(UA_LocalizedText_copycstringShallWorkOnInputExample) {
+	// given
+	const char src[7] = {'t', 'e', 'X', 't', '1', '2', '3'};
+
+	UA_LocalizedText dst;
+	UA_Int32 ret;
+
+	// when
+	ret = UA_LocalizedText_copycstring(src, &dst);
+	// then
+	ck_assert_int_eq(ret, UA_SUCCESS);
+	ck_assert_int_eq('E', dst.locale.data[0]);
+	ck_assert_int_eq('N', dst.locale.data[1]);
+	ck_assert_int_eq('1', dst.text.data[4]);
+	ck_assert_int_eq(2, dst.locale.length);
+	ck_assert_int_eq(7, dst.text.length);
+}
+END_TEST
+START_TEST(UA_LocalizedText_copycstringNULLInput) {
+	// given
+	const char src[7] = {'t', 'e', 'X', 't', '1', '2', '3'};
+
+	UA_LocalizedText *dst = UA_NULL;
+	UA_Int32 ret;
+
+	// when
+	ret = UA_LocalizedText_copycstring(src, dst);
+	// then
+	ck_assert_int_eq(ret, UA_ERROR);
+}
+END_TEST
+START_TEST(UA_DataValue_copyShallWorkOnInputExample) {
+	// given
+	UA_Variant srcVariant;
+	UA_Variant_init(&srcVariant);
+	UA_DataValue src = {5, srcVariant, 44, 4, 77, 58, 8};
+
+	UA_DataValue dst;
+	UA_Int32 ret;
+
+	// when
+	ret = UA_DataValue_copy(&src, &dst);
+	// then
+	ck_assert_int_eq(ret, UA_SUCCESS);
+	ck_assert_int_eq(5, dst.encodingMask);
+	ck_assert_int_eq(4, dst.sourceTimestamp);
+	ck_assert_int_eq(77, dst.sourcePicoseconds);
+	ck_assert_int_eq(8, dst.serverPicoseconds);
+}
+END_TEST
 START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
 	//given
 	UA_String testString = (UA_String){5, (UA_Byte*)"OPCUA"};
@@ -1611,7 +1693,6 @@ START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
 	UA_Variant_deleteMembers(&copiedValue);
 }
 END_TEST
-
 START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
 	// given
 	UA_String *srcArray;
@@ -1658,7 +1739,6 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
 	UA_Variant_deleteMembers(&copiedValue);
 }
 END_TEST
-
 START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
 	// given
 	UA_Int32 *srcArray;
@@ -1836,9 +1916,13 @@ Suite *testSuite_builtin(void) {
 
 	tcase_add_test(tc_copy, UA_DiagnosticInfo_copyShallWorkOnExample);
 	tcase_add_test(tc_copy, UA_ApplicationDescription_copyShallWorkOnExample);
-
+	tcase_add_test(tc_copy, UA_QualifiedName_copyShallWorkOnInputExample);
+	tcase_add_test(tc_copy, UA_QualifiedName_copyNULLInput);
 	tcase_add_test(tc_copy, UA_Guid_copyWithNullArgumentShallReturn);
 	tcase_add_test(tc_copy, UA_Guid_copyShallWorkOnInputExample);
+	tcase_add_test(tc_copy, UA_LocalizedText_copycstringShallWorkOnInputExample);
+	tcase_add_test(tc_copy, UA_LocalizedText_copycstringNULLInput);
+	tcase_add_test(tc_copy, UA_DataValue_copyShallWorkOnInputExample);
 	suite_add_tcase(s, tc_copy);
 	return s;
 }
