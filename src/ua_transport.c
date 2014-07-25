@@ -482,6 +482,7 @@ UA_Int32 UA_SecureConversationMessageFooter_copy(const UA_SecureConversationMess
 	memcpy(dst, src, sizeof(UA_SecureConversationMessageFooter));
 	dst->padding = src->padding;
 	retval |= UA_Array_copy(&src->padding, src->paddingSize,&UA_.types[UA_BYTE],(void**)&dst->padding);
+	*(dst->padding) = *(src->padding);
 	return retval;
 }
 
