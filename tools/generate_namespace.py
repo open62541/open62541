@@ -4,11 +4,14 @@ import sys
 import platform
 import getpass
 import time
+import re
+import argparse
 
-if len(sys.argv) != 3:
-    print("Usage: python generate_namespace.py <path/to/NodeIds.csv> <outfile w/o extension>",
-          file=sys.stdout)
-    exit(0)
+parser = argparse.ArgumentParser()
+parser.add_argument('nodeids', help='path/to/NodeIds.csv')
+parser.add_argument('outfile', help='outfile w/o extension')
+parser.add_argument('--with-xml', action='store_true', help='generate xml encoding')
+args = parser.parse_args()
 
 # types that are to be excluded
 exclude_kinds = set(["Object","ObjectType","Variable","Method","ReferenceType"])
@@ -52,14 +55,23 @@ fixed_size = ['UA_DeadbandType', 'UA_DataChangeTrigger', 'UA_Guid', 'UA_Applicat
               'UA_ExceptionDeviationFormat', 'UA_ComplianceLevel', 'UA_DateTime', 'UA_Int64',
               'UA_Double']
 
-f = open(sys.argv[1])
+def skipType(row):
+    if row[0] == "" or row[0] in exclude_types or row[2] in exclude_kinds:
+        return True
+    if "Test" in row[0]:
+        return True
+    if re.search("Attributes$", row[0]) != None:
+        return True
+    return False
+
+f = open(args.nodeids)
 input_str = f.read() + "\nInvalidType,0,DataType"
 input_str = input_str.replace('\r','')
 rows = map(lambda x:tuple(x.split(',')), input_str.split('\n'))
 f.close()
 
-fh = open(sys.argv[2] + ".h",'w')
-fc = open(sys.argv[2] + ".c",'w')
+fh = open(args.outfile + ".h",'w')
+fc = open(args.outfile + ".c",'w')
 def printh(string):
     print(string % inspect.currentframe().f_back.f_locals, end='\n', file=fh)
 
@@ -67,14 +79,14 @@ def printc(string):
     print(string % inspect.currentframe().f_back.f_locals, end='\n', file=fc)
 
 printh('''/**********************************************************
- * '''+sys.argv[2]+'''.hgen -- do not modify
+ * '''+args.outfile+'''.hgen -- do not modify
  **********************************************************
- * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
+ * Generated from '''+args.nodeids+''' with script '''+sys.argv[0]+'''
  * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+
        time.strftime("%Y-%m-%d %I:%M:%S")+'''
  **********************************************************/\n 
-#ifndef ''' + sys.argv[2].upper() + '''_H_
-#define ''' + sys.argv[2].upper() + '''_H_\n
+#ifndef ''' + args.outfile.upper() + '''_H_
+#define ''' + args.outfile.upper() + '''_H_\n
 #include "util/ua_util.h"
 #include "ua_types.h"  // definition of UA_VTable and basic UA_Types
 #include "ua_types_generated.h"\n
@@ -98,13 +110,13 @@ extern const UA_VTable UA_borrowed_;\n
 enum UA_VTableIndex_enum {''')
 
 printc('''/**********************************************************
- * '''+sys.argv[2]+'''.cgen -- do not modify
+ * '''+args.outfile+'''.cgen -- do not modify
  **********************************************************
- * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
+ * Generated from '''+args.nodeids+''' with script '''+sys.argv[0]+'''
  * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser() +
        ''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  **********************************************************/\n
-#include "''' + sys.argv[2] + '''.h"\n
+#include "''' + args.outfile + '''.h"\n
 UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id) {
 	UA_Int32 retval = 0; // InvalidType
         if(id->namespace != 0) return retval;
@@ -112,7 +124,7 @@ UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id) {
 
 i = 0
 for row in rows:
-    if row[0] == "" or row[0] in exclude_types or row[2] in exclude_kinds:
+    if skipType(row):
         continue
     if row[0] == "BaseDataType":
     	name = "UA_Variant"
@@ -134,7 +146,7 @@ printc('''const UA_VTable UA_ = {
 
 i = 0
 for row in rows:
-    if row[0] == "" or row[0] in exclude_types or row[2] in exclude_kinds:
+    if skipType(row):
         continue
     if row[0] == "BaseDataType":
         name = "UA_Variant"
@@ -160,9 +172,9 @@ for row in rows:
           ",\n.encodings={{.calcSize=(UA_calcSize)%(name)s_calcSizeBinary" +
           ",\n.encode=(UA_encode)%(name)s_encodeBinary" +
           ",\n.decode=(UA_decode)%(name)s_decodeBinary}" +
-          ",\n{.calcSize=(UA_calcSize)%(name)s_calcSizeXml" +
-          ",\n.encode=(UA_encode)%(name)s_encodeXml" +
-          ",\n.decode=(UA_decode)%(name)s_decodeXml}" +
+           (",\n{.calcSize=(UA_calcSize)%(name)s_calcSizeXml" +
+            ",\n.encode=(UA_encode)%(name)s_encodeXml" +
+            ",\n.decode=(UA_decode)%(name)s_decodeXml}" if (args.with_xml) else "") +
           "}},")
 
 printc('''}};''')

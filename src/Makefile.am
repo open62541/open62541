@@ -7,7 +7,6 @@ libopen62541_la_LDFLAGS = -avoid-version -no-undefined
 libopen62541_la_SOURCES = ua_types.c \
 						  ua_types_encoding_binary.c \
 						  ua_types_generated.c \
-						  ua_types_encoding_xml.c \
 						  ua_namespace_0.c \
 						  util/ua_util.c \
 						  util/ua_list.c \
@@ -17,7 +16,6 @@ libopen62541_la_SOURCES = ua_types.c \
 						  ua_transport_binary.c \
 						  ua_transport_binary_secure.c \
 						  ua_namespace.c \
-						  ua_namespace_xml.c \
 						  ua_services_attribute.c \
 						  ua_services_session.c \
 						  ua_services_discovery.c \
@@ -26,16 +24,24 @@ libopen62541_la_SOURCES = ua_types.c \
 						  ua_services_view.c \
 						  ua_services_subscription.c\
 						  ua_services_monitoreditems.c\
-						  ua_application.c \
-						  ua_xml.c
+						  ua_application.c
+
+WITH_XML =
+if UA_ENCODING_XML
+libopen62541_la_SOURCES += ua_types_encoding_xml.c \
+						   ua_namespace_xml.c \
+						   ua_xml.c
+WITH_XML = --with-xml
+endif
+
 ua_types.c: ua_namespace_0.h
 ua_namespace_0.h: ua_types_generated.h
 
 ua_types_generated.c ua_types_generated.h: $(SCHEMA_DIR)/Opc.Ua.Types.bsd $(TOOL_DIR)/generate_builtin.py
-	python $(TOOL_DIR)/generate_builtin.py $(SCHEMA_DIR)/Opc.Ua.Types.bsd ua_types_generated
+	python $(TOOL_DIR)/generate_builtin.py $(SCHEMA_DIR)/Opc.Ua.Types.bsd ua_types_generated $(WITH_XML)
 
 ua_namespace_0.c ua_namespace_0.h: $(SCHEMA_DIR)/NodeIds.csv $(TOOL_DIR)/generate_namespace.py
-	python $(TOOL_DIR)/generate_namespace.py $(SCHEMA_DIR)/NodeIds.csv ua_namespace_0
+	python $(TOOL_DIR)/generate_namespace.py $(SCHEMA_DIR)/NodeIds.csv ua_namespace_0 $(WITH_XML)
 
 .PHONY: convenience-link clean-convenience-link
 
