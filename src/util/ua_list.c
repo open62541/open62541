@@ -90,6 +90,7 @@ UA_Int32 UA_list_removeFirst(UA_list_List* list, UA_list_PayloadVisitor visitor)
 		}
 		UA_free(list->first);
 		list->first = temp;
+		temp->prev = UA_NULL;
 		list->size--;
 		if(list->size == 1){
 			list->last = temp;
@@ -110,6 +111,7 @@ UA_Int32 UA_list_removeLast(UA_list_List* list, UA_list_PayloadVisitor visitor){
 		}
 		UA_free(list->last);
 		list->last = temp;
+		temp->next = UA_NULL;
 		list->size--;
 		if(list->size == 1){
 			list->first = temp;
