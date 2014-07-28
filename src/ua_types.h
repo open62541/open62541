@@ -109,7 +109,7 @@ typedef struct UA_String UA_XmlElement;
 
 /** @brief An identifier for a node in the address space of an OPC UA Server. */
 typedef struct UA_NodeId {
-	UA_Byte encodingByte;       //enum BID_NodeIdEncodingValuesType
+	UA_Byte encodingByte;
 	UA_UInt16 namespace;
 	union {
 		UA_UInt32     numeric;
