@@ -536,24 +536,67 @@ START_TEST(UA_SecureConversationMessageFooter_copyShallWorkOnInputExample) {
 	// given
 	UA_SecureConversationMessageFooter src;
 	UA_SecureConversationMessageFooter_init(&src);
-	UA_Byte srcByte = 84;
-	src.padding = &srcByte;
-	src.paddingSize = 1345;
+	UA_Byte srcByte[3] = {24, 57, 87};
+	src.padding = srcByte;
+	src.paddingSize = 3;
 	src.signature = 5;
 
 	const UA_SecureConversationMessageFooter srcConst = src;
 
 	UA_SecureConversationMessageFooter dst;
-	UA_SecureConversationMessageFooter_init(&dst);
 	UA_Int32 ret;
 
 	// when
 	ret = UA_SecureConversationMessageFooter_copy(&srcConst, &dst);
 	// then
 	ck_assert_int_eq(ret, UA_SUCCESS);
-	ck_assert_int_eq(84, *(dst.padding));
-	ck_assert_int_eq(1345, dst.paddingSize);
 	ck_assert_int_eq(5, dst.signature);
+	ck_assert_int_eq(3, dst.paddingSize);
+	ck_assert_int_eq(24, dst.padding[0]);
+	ck_assert_int_eq(57, dst.padding[1]);
+	ck_assert_int_eq(87, dst.padding[2]);
+}
+END_TEST
+START_TEST(UA_SecureConversationMessageFooter_calcSizeBinaryShallWorkOnInputExample) {
+	// given
+	UA_SecureConversationMessageFooter src;
+	UA_SecureConversationMessageFooter_init(&src);
+	UA_Byte srcByte[3] = {24, 57, 87};
+	src.padding = srcByte;
+	src.paddingSize = 3;
+	src.signature = 5;
+
+	const UA_SecureConversationMessageFooter srcConst = src;
+
+	UA_Int32 ret;
+
+	// when
+	ret = UA_SecureConversationMessageFooter_calcSizeBinary(&srcConst);
+	// then
+	ck_assert_int_eq(ret, 8);
+}
+END_TEST
+START_TEST(UA_SecureConversationMessageFooter_encodeBinaryShallWorkOnInputExample) {
+//	// given
+//	UA_SecureConversationMessageFooter src = {3, (UA_Byte*)"447", 5};;
+//
+//	UA_Int32 ret;
+//	UA_UInt32 offset = 0;
+//	UA_ByteString dst = (UA_ByteString){15, (UA_Byte*)"123456789abcdef"};
+//
+//	// when
+//	ret = UA_SecureConversationMessageFooter_encodeBinary(&src, &dst, &offset);
+//	// then
+//	ck_assert_int_eq(ret, UA_SUCCESS);
+//	ck_assert_int_eq(dst.length, 8);
+//	ck_assert_int_eq(dst.data[0], 0);
+//	ck_assert_int_eq(dst.data[1], 0);
+//	ck_assert_int_eq(dst.data[2], 0);
+//	ck_assert_int_eq(dst.data[3], 3);
+//	ck_assert_int_eq(dst.data[4], 24);
+//	ck_assert_int_eq(dst.data[5], 57);
+//	ck_assert_int_eq(dst.data[6], 87);
+//	ck_assert_int_eq(dst.data[7], 6);
 }
 END_TEST
 START_TEST(UA_SecureConversationMessageAbortBody_copyShallWorkOnInputExample) {
@@ -594,6 +637,8 @@ Suite *testSuite() {
 	tcase_add_test(tc_transport, UA_SecureConversationMessageHeader_copyShallWorkOnInputExample);
 	tcase_add_test(tc_transport, UA_SequenceHeader_copyShallWorkOnInputExample);
 	tcase_add_test(tc_transport, UA_SecureConversationMessageFooter_copyShallWorkOnInputExample);
+	tcase_add_test(tc_transport, UA_SecureConversationMessageFooter_calcSizeBinaryShallWorkOnInputExample);
+	tcase_add_test(tc_transport, UA_SecureConversationMessageFooter_encodeBinaryShallWorkOnInputExample);
 	tcase_add_test(tc_transport, UA_SecureConversationMessageAbortBody_copyShallWorkOnInputExample);
 	suite_add_tcase(s, tc_transport);
 	return s;

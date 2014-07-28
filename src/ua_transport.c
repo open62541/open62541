@@ -440,8 +440,9 @@ UA_Int32 UA_SecureConversationMessageFooter_calcSizeBinary(UA_SecureConversation
 
 UA_Int32 UA_SecureConversationMessageFooter_encodeBinary(UA_SecureConversationMessageFooter const * src, UA_ByteString* dst, UA_UInt32 *offset) {
     	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_Array_encodeBinary(&src->padding,src->paddingSize,&UA_.types[UA_BYTE],dst,offset);
+	retval |= UA_Array_encodeBinary(src->padding,src->paddingSize,&UA_.types[UA_BYTE],dst,offset);
 	retval |= UA_Byte_encodeBinary(&src->signature,dst,offset);
+
 	return retval;
 }
 
@@ -480,9 +481,8 @@ UA_Int32 UA_SecureConversationMessageFooter_copy(const UA_SecureConversationMess
     	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
     	UA_Int32 retval = UA_SUCCESS;
 	memcpy(dst, src, sizeof(UA_SecureConversationMessageFooter));
-	dst->padding = src->padding;
-	retval |= UA_Array_copy(&src->padding, src->paddingSize,&UA_.types[UA_BYTE],(void**)&dst->padding);
-	*(dst->padding) = *(src->padding);
+
+	retval |= UA_Array_copy(src->padding, src->paddingSize,&UA_.types[UA_BYTE],(void**)&dst->padding);
 	return retval;
 }
 
