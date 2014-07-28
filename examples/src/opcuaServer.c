@@ -11,6 +11,13 @@
 #include <time.h>
 #include <fcntl.h>
 
+#include <signal.h>
+
+UA_Boolean running = UA_TRUE;
+
+void stopHandler(int sign) {
+	running = UA_FALSE;
+}
 
 UA_Int32 serverCallback(void * arg) {
 	char *name = (char *) arg;
@@ -18,9 +25,9 @@ UA_Int32 serverCallback(void * arg) {
 
 	Namespace* ns0 = (Namespace*)UA_indexedList_find(appMockup.namespaces, 0)->payload;
 	UA_Int32 retval;
-	UA_Node const * node;
+	const UA_Node * node;
 	UA_ExpandedNodeId serverStatusNodeId = NS0EXPANDEDNODEID(2256);
-	retval = Namespace_get(ns0, &(serverStatusNodeId.nodeId),&node, UA_NULL);
+	retval = Namespace_get(ns0, &serverStatusNodeId.nodeId, &node);
 	if(retval == UA_SUCCESS){
 		((UA_ServerStatusDataType*)(((UA_VariableNode*)node)->value.data))->currentTime = UA_DateTime_now();
 	}
@@ -28,12 +35,17 @@ UA_Int32 serverCallback(void * arg) {
 	return UA_SUCCESS;
 }
 
-
 int main(int argc, char** argv) {
+
+	/* gets called at ctrl-c */
+	signal(SIGINT, stopHandler);
+	
 	appMockup_init();
-	NL_data* nl = NL_init(&NL_Description_TcpBinary,16664);
+	NL_data* nl = NL_init(&NL_Description_TcpBinary, 16664);
 
 	struct timeval tv = {1, 0}; // 1 second
-  	NL_msgLoop(nl, &tv, serverCallback, argv[0]);
+  	NL_msgLoop(nl, &tv, serverCallback, argv[0], &running);
 
+	printf("Shutting down after Ctrl-C.\n");
+	exit(0);
 }

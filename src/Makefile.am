@@ -5,9 +5,9 @@ lib_LTLIBRARIES = libopen62541.la
 lib_LTLIBRARIES: generate_types generate_namespace_0
 libopen62541_la_LDFLAGS = -avoid-version -no-undefined
 libopen62541_la_SOURCES = ua_types.c \
+						  ua_namespace_0.c \
 						  ua_types_encoding_binary.c \
 						  ua_types_generated.c \
-						  ua_namespace_0.c \
 						  util/ua_util.c \
 						  util/ua_list.c \
 						  util/ua_indexedList.c \
@@ -15,7 +15,6 @@ libopen62541_la_SOURCES = ua_types.c \
 						  ua_transport.c \
 						  ua_transport_binary.c \
 						  ua_transport_binary_secure.c \
-						  ua_namespace.c \
 						  ua_services_attribute.c \
 						  ua_services_session.c \
 						  ua_services_discovery.c \
@@ -25,6 +24,12 @@ libopen62541_la_SOURCES = ua_types.c \
 						  ua_services_subscription.c\
 						  ua_services_monitoreditems.c\
 						  ua_application.c
+
+if MULTITHREADING
+libopen62541_la_SOURCES += ua_namespace_concurrent.c
+else
+libopen62541_la_SOURCES += ua_namespace.c
+endif
 
 WITH_XML =
 if UA_ENCODING_XML

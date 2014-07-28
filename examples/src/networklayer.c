@@ -62,9 +62,9 @@ void NL_checkFdSet(void* payload) {
 	  c->reader((void*)c);
   }
 }
-UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), void *arg)  {
+UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), void *arg, UA_Boolean *running)  {
 	UA_Int32 result;
-	while (UA_TRUE) {
+	while (*running) {
 		// determine the largest handle
 		nl->maxReaderHandle = 0;
 		UA_list_iteratePayload(&(nl->connections),NL_setFdSet);
@@ -100,9 +100,7 @@ UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), v
 
 		}
 		worker(arg);
-
 	}
-
 	return UA_SUCCESS;
 }
 #endif

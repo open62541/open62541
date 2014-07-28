@@ -19,7 +19,7 @@ AM_LDFLAGS += --coverage
 endif
 
 if MULTITHREADING
-AM_LDADD += -lpthread
+AM_LDADD += -lpthread -lurcu-cds -lurcu
 endif
 
 UA_ENCODING_AMOUNT = 1
@@ -33,12 +33,13 @@ export GLOBAL_AM_CFLAGS = $(AM_CFLAGS)
 export GLOBAL_AM_LDADD = $(AM_LDADD)
 
 SUBDIRS=src
+
 if HAVE_CHECK
-	SUBDIRS+= tests
+	SUBDIRS += tests
 endif
 
 if ENABLE_DOXYGEN
-	SUBDIRS+= doc
+	SUBDIRS += doc
 endif
 
 if TARGET_WIN
