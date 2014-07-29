@@ -15,10 +15,12 @@ typedef struct TL_Connection{
 	TL_Writer writer;
 	UA_String localEndpointUrl;
 	UA_String remoteEndpointUrl;
+	TL_Closer closeCallback;
+	void *networkLayerData;
 } TL_Connection;
 
 
-UA_Int32 UA_TL_Connection_new(UA_TL_Connection1 *connection, TL_Buffer localBuffers,TL_Writer writer)
+UA_Int32 UA_TL_Connection_new(UA_TL_Connection1 *connection, TL_Buffer localBuffers,TL_Writer writer, TL_Closer closeCallback, void* networkLayerData)
 {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_alloc((void**)connection,sizeof(TL_Connection));
@@ -26,7 +28,9 @@ UA_Int32 UA_TL_Connection_new(UA_TL_Connection1 *connection, TL_Buffer localBuff
 	{
 		(*((TL_Connection**)connection))->localConf = localBuffers;
 		(*((TL_Connection**)connection))->writer = writer;
+		(*((TL_Connection**)connection))->closeCallback = closeCallback;
 		(*((TL_Connection**)connection))->state = CONNECTIONSTATE_CLOSED;
+		(*((TL_Connection**)connection))->networkLayerData = networkLayerData;
 	}
 	return retval;
 }
@@ -41,6 +45,7 @@ UA_Int32 UA_TL_Connection_delete(UA_TL_Connection1 connection)
 UA_Int32 UA_TL_Connection_close(UA_TL_Connection1 connection)
 {
 	((TL_Connection*)connection)->state = CONNECTIONSTATE_CLOSE;
+	((TL_Connection*)connection)->closeCallback(connection);
 	return UA_SUCCESS;
 }
 
@@ -110,6 +115,18 @@ UA_Int32 UA_TL_Connection_getState(UA_TL_Connection1 connection, UA_Int32 *conne
 	}
 }
 
+UA_Int32 UA_TL_Connection_getNetworkLayerData(UA_TL_Connection1 connection,void** networkLayerData)
+{
+	if(connection)
+	{
+		*networkLayerData = ((TL_Connection*)connection)->networkLayerData;
+		return UA_SUCCESS;
+	}else{
+		*networkLayerData = UA_NULL;
+		return UA_ERROR;
+	}
+}
+
 UA_Int32 UA_TL_Connection_getProtocolVersion(UA_TL_Connection1 connection, UA_UInt32 *protocolVersion)
 {
 	if(connection)
@@ -148,7 +165,6 @@ UA_Int32 UA_TL_Connection_bind(UA_TL_Connection1 connection, UA_Int32 handle)
 {
 	if(connection)
 	{
-
 		((TL_Connection*)connection)->connectionHandle = handle;
 		return UA_SUCCESS;
 	}else{

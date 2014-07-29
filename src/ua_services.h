@@ -241,6 +241,9 @@ UA_Int32 Service_CreateSubscription(UA_Session session, const UA_CreateSubscript
                                    UA_CreateSubscriptionResponse *response);
 // Service_ModifySubscription
 // Service_SetPublishingMode
+UA_Int32 Service_SetPublishingMode(UA_Session session, const UA_SetPublishingModeRequest *request,
+                                   UA_SetPublishingModeResponse *response);
+
 UA_Int32 Service_Publish(UA_Session session, const UA_PublishRequest *request,
                                    UA_PublishResponse *response);
 

@@ -437,6 +437,9 @@ UA_Int32 SL_Channel_processCloseRequest(SL_secureChannel channel,
 		const UA_CloseSecureChannelRequest* request)
 {
 	SL_Channel_setState(channel,UA_SL_CHANNEL_CLOSED);
+	UA_TL_Connection1 connection;
+	SL_Channel_getConnection(channel, &connection);
+	UA_TL_Connection_close(connection);
 	return UA_SUCCESS;
 }
 

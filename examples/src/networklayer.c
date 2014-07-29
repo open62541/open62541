@@ -28,11 +28,9 @@ NL_Description NL_Description_TcpBinary  = {
 _Bool NL_ConnectionComparer(void *p1, void* p2) {
 	NL_Connection* c1 = (NL_Connection*) p1;
 	NL_Connection* c2 = (NL_Connection*) p2;
-	UA_UInt32 h1,h2;
-	UA_TL_Connection_getHandle(c1->connection,&h1);
-	UA_TL_Connection_getHandle(c2->connection,&h2);
 
-	return (h1 == h2);
+	return (c1->connectionHandle == c2->connectionHandle)
+
 }
 int NL_TCP_SetNonBlocking(int sock) {
 	int opts = fcntl(sock,F_GETFL);
@@ -135,15 +133,27 @@ void* NL_TCP_reader(NL_Connection *c) {
 
 
 	if (c->state  != CONNECTIONSTATE_CLOSE) {
-		DBG_VERBOSE(printf("NL_TCP_reader - enter read\n"));
+	//	DBG_VERBOSE(printf("NL_TCP_reader - enter read\n"));
 		readBuffer.length = read(connectionHandle, readBuffer.data, localBuffers.recvBufferSize);
-		DBG_VERBOSE(printf("NL_TCP_reader - leave read\n"));
+	//	DBG_VERBOSE(printf("NL_TCP_reader - leave read\n"));
 
-		DBG_VERBOSE(printf("NL_TCP_reader - src={%*.s}, ",c->connection.remoteEndpointUrl.length,c->connection.remoteEndpointUrl.data));
-		DBG(UA_ByteString_printx("NL_TCP_reader - received=",&readBuffer));
+	//	DBG_VERBOSE(printf("NL_TCP_reader - src={%*.s}, ",c->connection.remoteEndpointUrl.length,c->connection.remoteEndpointUrl.data));
+	//	DBG(UA_ByteString_printx("NL_TCP_reader - received=",&readBuffer));
 
 		if (readBuffer.length  > 0) {
-
+#ifdef DEBUG
+#include "ua_transport_binary_secure.h"
+			UA_UInt32 pos = 0;
+			UA_OPCUATcpMessageHeader header;
+			UA_OPCUATcpMessageHeader_decodeBinary(&readBuffer, &pos, &header);
+			pos = 24;
+			if(header.messageType == UA_MESSAGETYPE_MSG)
+			{
+				UA_NodeId serviceRequestType;
+				UA_NodeId_decodeBinary(&readBuffer, &pos,&serviceRequestType);
+				UA_NodeId_printf("Service Type\n",&serviceRequestType);
+			}
+#endif
 			TL_Process((c->connection),&readBuffer);
 		} else {
 //TODO close connection - what does close do?
@@ -154,12 +164,7 @@ void* NL_TCP_reader(NL_Connection *c) {
 	}
 	UA_TL_Connection_getState(c->connection, &connectionState);
 	if (connectionState == CONNECTIONSTATE_CLOSE) {
-		DBG_VERBOSE(printf("NL_TCP_reader - enter shutdown\n"));
-		shutdown(connectionHandle,2);
-		DBG_VERBOSE(printf("NL_TCP_reader - enter close\n"));
-		close(connectionHandle);
-		DBG_VERBOSE(printf("NL_TCP_reader - leave close\n"));
-		UA_TL_Connection_setState(c->connection,CONNECTIONSTATE_CLOSED);
+		UA_TL_Connection_close(c->connection);
 
 		//c->state  = CONNECTIONSTATE_CLOSED;
 
@@ -204,8 +209,8 @@ UA_Int32 NL_TCP_writer(UA_Int32 connectionHandle, UA_ByteString const * const * 
 		iov[i].iov_base = gather_buf[i]->data;
 		iov[i].iov_len = gather_buf[i]->length;
 		total_len += gather_buf[i]->length;
-		DBG(printf("NL_TCP_writer - gather_buf[%i]",i));
-		DBG(UA_ByteString_printx("=", gather_buf[i]));
+//		DBG(printf("NL_TCP_writer - gather_buf[%i]",i));
+//		DBG(UA_ByteString_printx("=", gather_buf[i]));
 	}
 
 	struct msghdr message;
@@ -236,18 +241,33 @@ UA_Int32 NL_TCP_writer(UA_Int32 connectionHandle, UA_ByteString const * const * 
 	}
 	return UA_SUCCESS;
 }
-
+//callback function which is called when the UA_TL_Connection_close() function is initiated
+UA_Int32 NL_Connection_close(UA_TL_Connection1 connection)
+{
+	NL_Connection *networkLayerData = UA_NULL;
+	UA_TL_Connection_getNetworkLayerData(connection, (void**)&networkLayerData);
+	if(networkLayerData != UA_NULL){
+		DBG_VERBOSE(printf("NL_Connection_close - enter shutdown\n"));
+		shutdown(networkLayerData->connectionHandle,2);
+		DBG_VERBOSE(printf("NL_Connection_close - enter close\n"));
+		close(networkLayerData->connectionHandle);
+		DBG_VERBOSE(printf("NL_Connection_close - leave close\n"));
+		return UA_SUCCESS;
+	}
+    DBG_VERBOSE(printf("NL_Connection_close - ERROR: connection object invalid \n"));
+	return UA_ERROR;
+}
 void* NL_Connection_init(NL_Connection* c, NL_data* tld, UA_Int32 connectionHandle, NL_Reader reader, TL_Writer writer)
 {
 
 
 	UA_TL_Connection1 connection = UA_NULL;
 	//create new connection object
-	UA_TL_Connection_new(&connection, tld->tld->localConf,writer);
+	UA_TL_Connection_new(&connection, tld->tld->localConf, writer, NL_Connection_close,c);
 	//add connection object to list, so stack is aware of its connections
 	UA_TL_Connection_setConnectionHandle(connection,connectionHandle);
 
-	UA_TL_ConnectionManager_addConnection(&connection);
+//	UA_TL_ConnectionManager_addConnection(&connection);
 
 	// connection layer of UA stackwriteLock
 	c->connection = connection;
@@ -322,7 +342,6 @@ void* NL_TCP_listenThread(NL_Connection* c) {
 }
 #endif
 
-
 UA_Int32 NL_TCP_init(NL_data* tld, UA_Int32 port) {
 	UA_Int32 retval = UA_SUCCESS;
 	// socket variables
@@ -385,3 +404,4 @@ NL_data* NL_init(NL_Description* tlDesc, UA_Int32 port) {
 	}
 	return nl;
 }
+

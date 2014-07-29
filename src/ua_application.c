@@ -527,8 +527,6 @@ void appMockup_init() {
 	Namespace_insert(ns0,(UA_Node*)serverstatus);
 
 	// State (Component of ServerStatus)
-	UA_Int32 *stateVal;
-	UA_Int32_new(&stateVal);
 	UA_VariableNode *state;
 	UA_VariableNode_new(&state);
 	state->nodeId = ObjId_State.nodeId;

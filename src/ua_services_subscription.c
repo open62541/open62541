@@ -28,3 +28,11 @@ UA_Int32 Service_Publish(UA_Session session, const UA_PublishRequest *request,
 	return UA_SUCCESS;
 }
 
+UA_Int32 Service_SetPublishingMode(UA_Session session, const UA_SetPublishingModeRequest *request,
+                                   UA_SetPublishingModeResponse *response)
+{
+	response->diagnosticInfos = UA_NULL;
+	response->results = UA_NULL;
+	response->resultsSize = 0;
+	return UA_SUCCESS;
+}

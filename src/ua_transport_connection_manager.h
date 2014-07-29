@@ -11,7 +11,7 @@
 #include "ua_transport_connection.h"
 
 
-
+UA_Int32 UA_TL_ConnectionManager_init(UA_UInt32 maxConnectionCount);
 UA_Int32 UA_TL_ConnectionManager_addConnection(UA_TL_Connection1 *connection);
 UA_Int32 UA_TL_ConnectionManager_removeConnection(UA_TL_Connection1 connection);
 //getter

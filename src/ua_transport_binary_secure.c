@@ -345,6 +345,23 @@ UA_Int32 SL_handleRequest(SL_secureChannel channel, const UA_ByteString* msg,
 
 		responsetype = UA_CREATEMONITOREDITEMSRESPONSE_NS0;
 	}
+	else if (serviceid == UA_SETPUBLISHINGMODEREQUEST_NS0)
+	{
+		RESPONSE_PREPARE(SetPublishingMode);
+		DBG_VERBOSE(printf("Finished Service: %s\n",SetPublishingMode));
+		if (UA_Session_verifyChannel(session,channel)){
+			Service_SetPublishingMode(session, &p, &r);
+		}
+		else
+		{
+			DBG_VERBOSE(printf("session does not match secure channel"));
+		}
+		DBG_VERBOSE(printf("Finished Service: %s\n", SetPublishingMode));
+		RESPONSE_CLEANUP(SetPublishingMode);
+		//TODO prepare userdefined implementation
+
+		responsetype = UA_SETPUBLISHINGMODERESPONSE_NS0;
+	}
 	else
 	{
 		printf(

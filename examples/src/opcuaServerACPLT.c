@@ -112,7 +112,7 @@ void server_run() {
 		UA_TL_ConnectionManager_getConnectionByHandle(newsockfd, &tmpConnection);
 		if(tmpConnection == UA_NULL)
 		{
-			UA_TL_Connection_new(&connection, localBuffers, (TL_Writer)NL_TCP_writer);
+			UA_TL_Connection_new(&connection, localBuffers, (TL_Writer)NL_TCP_writer,NL_Connection_close,UA_NULL);
 		}
 		UA_TL_Connection_getState(connection, &connectionState);
 

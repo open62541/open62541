@@ -21,7 +21,7 @@ typedef struct TL_Buffer{
 
 typedef struct TL_Connection *UA_TL_Connection1;
 
-
+typedef UA_Int32 (*TL_Closer)(UA_TL_Connection1);
 typedef UA_Int32 (*TL_Writer)(UA_Int32 connectionHandle, const UA_ByteString** gather_bufs, UA_Int32 gather_len); // send mutiple buffer concatenated into one msg (zero copy)
 
 
@@ -31,8 +31,7 @@ UA_Int32 UA_TL_Connection_delete(UA_TL_Connection1 connection);
 UA_Int32 UA_TL_Connection_callWriter(UA_TL_Connection1 connection, const UA_ByteString** gather_bufs, UA_Int32 gather_len);
 
 UA_Int32 UA_TL_Connection_close(UA_TL_Connection1 connection);
-UA_Int32 UA_TL_Connection_new(UA_TL_Connection1 *connection,
-		TL_Buffer localBuffers,TL_Writer writer);
+UA_Int32 UA_TL_Connection_new(UA_TL_Connection1 *connection, TL_Buffer localBuffers,TL_Writer writer, TL_Closer closeCallback, void* networkLayerData);
 UA_Int32 UA_TL_Connection_bind(UA_TL_Connection1 connection, UA_Int32 handle);
 UA_Boolean UA_TL_Connection_compare(UA_TL_Connection1 *connection1, UA_TL_Connection1 *connection2);
 
@@ -46,6 +45,7 @@ UA_Int32 UA_TL_Connection_getHandle(UA_TL_Connection1 connection, UA_UInt32 *con
 UA_Int32 UA_TL_Connection_getProtocolVersion(UA_TL_Connection1 connection, UA_UInt32 *protocolVersion);
 UA_Int32 UA_TL_Connection_getState(UA_TL_Connection1 connection, UA_Int32 *connectionState);
 UA_Int32 UA_TL_Connection_getLocalConfiguration(UA_TL_Connection1 connection, TL_Buffer *localConfiguration);
+UA_Int32 UA_TL_Connection_getNetworkLayerData(UA_TL_Connection1 connection,void** networkLayerData);
 
 
 #endif /* UA_TRANSPORT_CONNECTION_H_ */
