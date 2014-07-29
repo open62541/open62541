@@ -7,7 +7,6 @@ else
 AM_CFLAGS += -fPIC
 endif
 
-
 if DEBUG
 AM_CFLAGS += -g3 -O0
 else
@@ -22,6 +21,13 @@ endif
 if MULTITHREADING
 AM_LDADD += -lpthread
 endif
+
+UA_ENCODING_AMOUNT = 1
+if UA_ENCODING_XML
+UA_ENCODING_AMOUNT := $$(echo $(UA_ENCODING_AMOUNT)+1 | bc)
+endif
+
+AM_CFLAGS += -D UA_ENCODING_AMOUNT=$(UA_ENCODING_AMOUNT)
 
 export GLOBAL_AM_CFLAGS = $(AM_CFLAGS)
 export GLOBAL_AM_LDADD = $(AM_LDADD)

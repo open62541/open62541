@@ -118,7 +118,7 @@ typedef struct UA_String UA_XmlElement;
 
 /** @brief An identifier for a node in the address space of an OPC UA Server. */
 typedef struct UA_NodeId {
-	UA_Byte encodingByte;       //enum BID_NodeIdEncodingValuesType
+	UA_Byte encodingByte;
 	UA_UInt16 namespace;
 	union {
 		UA_UInt32     numeric;
@@ -400,8 +400,8 @@ typedef struct UA_Encoding {
 	UA_decode   decode;
 } UA_Encoding;
 
-#define UA_ENCODING_BINARY 0
-#define UA_ENCODING_XML 1
+#define UA_ENCODING_BINARY 0 // Binary encoding is always available
+// #define UA_ENCODING_XML 1 // This is set by the build script.
 
 struct UA_VTable_Entry {
 	UA_NodeId  typeId;
@@ -418,7 +418,7 @@ struct UA_VTable_Entry {
 	UA_Boolean dynMembers;    // does the type contain members that are dynamically
 	                          // allocated (strings, ..)? Otherwise, the size on
 	                          // the wire == size in memory.
-	UA_Encoding encodings[2]; // binary, xml, ...
+	UA_Encoding encodings[UA_ENCODING_AMOUNT]; // binary, xml, ... UA_ENCODING_AMOUNT is set by the build script
 };
 
 typedef UA_Int32 (*UA_nodeIdToVTableIndex)(const UA_NodeId *id);

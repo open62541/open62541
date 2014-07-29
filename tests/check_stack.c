@@ -438,6 +438,189 @@ START_TEST(validCreateSessionShallCreateSession) {
 }
 END_TEST
 
+START_TEST(UA_OPCUATcpMessageHeader_copyShallWorkOnInputExample) {
+	// given
+	UA_OPCUATcpMessageHeader src;
+	UA_OPCUATcpMessageHeader_init(&src);
+	src.isFinal = 2;
+	src.messageSize = 43;
+	src.messageType = UA_MESSAGETYPE_MSG;
+	const UA_OPCUATcpMessageHeader srcConst = src;
+
+	UA_OPCUATcpMessageHeader dst;
+	UA_Int32 ret;
+
+	// when
+	ret = UA_OPCUATcpMessageHeader_copy(&srcConst, &dst);
+	// then
+	ck_assert_int_eq(ret, UA_SUCCESS);
+	ck_assert_int_eq(UA_MESSAGETYPE_MSG, dst.messageType);
+	ck_assert_int_eq(43, dst.messageSize);
+	ck_assert_int_eq(2, dst.isFinal);
+}
+END_TEST
+START_TEST(UA_AsymmetricAlgorithmSecurityHeader_copyShallWorkOnInputExample) {
+	// given
+	UA_AsymmetricAlgorithmSecurityHeader src;
+	UA_AsymmetricAlgorithmSecurityHeader_init(&src);
+	src.receiverCertificateThumbprint = (UA_String){10, (UA_Byte*)"thumbprint"};
+	src.securityPolicyUri = (UA_String){6, (UA_Byte*)"policy"};
+	src.senderCertificate = (UA_String){8, (UA_Byte*)"tEsT123!"};
+	src.requestId = 99;
+	const UA_AsymmetricAlgorithmSecurityHeader srcConst = src;
+
+	UA_AsymmetricAlgorithmSecurityHeader dst;
+	UA_Int32 ret;
+
+	// when
+	ret = UA_AsymmetricAlgorithmSecurityHeader_copy(&srcConst, &dst);
+	// then
+	ck_assert_int_eq(ret, UA_SUCCESS);
+	ck_assert_int_eq('m', dst.receiverCertificateThumbprint.data[3]);
+	ck_assert_int_eq(10, dst.receiverCertificateThumbprint.length);
+	ck_assert_int_eq('o', dst.securityPolicyUri.data[1]);
+	ck_assert_int_eq(6, dst.securityPolicyUri.length);
+	ck_assert_int_eq('t', dst.senderCertificate.data[0]);
+	ck_assert_int_eq(8, dst.senderCertificate.length);
+	ck_assert_int_eq(99, dst.requestId);
+}
+END_TEST
+START_TEST(UA_SecureConversationMessageHeader_copyShallWorkOnInputExample) {
+	// given
+	UA_SecureConversationMessageHeader src;
+	UA_SecureConversationMessageHeader_init(&src);
+	src.secureChannelId = 84;
+	UA_OPCUATcpMessageHeader srcHeader;
+	UA_OPCUATcpMessageHeader_init(&srcHeader);
+	srcHeader.isFinal = 4;
+	srcHeader.messageSize = 765;
+	srcHeader.messageType = UA_MESSAGETYPE_CLO;
+	src.messageHeader = srcHeader;
+
+	const UA_SecureConversationMessageHeader srcConst = src;
+
+	UA_SecureConversationMessageHeader dst;
+	UA_Int32 ret;
+
+	// when
+	ret = UA_SecureConversationMessageHeader_copy(&srcConst, &dst);
+	// then
+	ck_assert_int_eq(ret, UA_SUCCESS);
+	ck_assert_int_eq(84, dst.secureChannelId);
+	ck_assert_int_eq(4, dst.messageHeader.isFinal);
+	ck_assert_int_eq(765, dst.messageHeader.messageSize);
+	ck_assert_int_eq(UA_MESSAGETYPE_CLO, dst.messageHeader.messageType);
+}
+END_TEST
+START_TEST(UA_SequenceHeader_copyShallWorkOnInputExample) {
+	// given
+	UA_SequenceHeader src;
+	UA_SequenceHeader_init(&src);
+	src.requestId = 84;
+	src.sequenceNumber = 1345;
+
+	const UA_SequenceHeader srcConst = src;
+
+	UA_SequenceHeader dst;
+	UA_Int32 ret;
+
+	// when
+	ret = UA_SequenceHeader_copy(&srcConst, &dst);
+	// then
+	ck_assert_int_eq(ret, UA_SUCCESS);
+	ck_assert_int_eq(84, dst.requestId);
+	ck_assert_int_eq(1345, dst.sequenceNumber);
+}
+END_TEST
+START_TEST(UA_SecureConversationMessageFooter_copyShallWorkOnInputExample) {
+	// given
+	UA_SecureConversationMessageFooter src;
+	UA_SecureConversationMessageFooter_init(&src);
+	UA_Byte srcByte[3] = {24, 57, 87};
+	src.padding = srcByte;
+	src.paddingSize = 3;
+	src.signature = 5;
+
+	const UA_SecureConversationMessageFooter srcConst = src;
+
+	UA_SecureConversationMessageFooter dst;
+	UA_Int32 ret;
+
+	// when
+	ret = UA_SecureConversationMessageFooter_copy(&srcConst, &dst);
+	// then
+	ck_assert_int_eq(ret, UA_SUCCESS);
+	ck_assert_int_eq(5, dst.signature);
+	ck_assert_int_eq(3, dst.paddingSize);
+	ck_assert_int_eq(24, dst.padding[0]);
+	ck_assert_int_eq(57, dst.padding[1]);
+	ck_assert_int_eq(87, dst.padding[2]);
+}
+END_TEST
+START_TEST(UA_SecureConversationMessageFooter_calcSizeBinaryShallWorkOnInputExample) {
+	// given
+	UA_SecureConversationMessageFooter src;
+	UA_SecureConversationMessageFooter_init(&src);
+	UA_Byte srcByte[3] = {24, 57, 87};
+	src.padding = srcByte;
+	src.paddingSize = 3;
+	src.signature = 5;
+
+	const UA_SecureConversationMessageFooter srcConst = src;
+
+	UA_Int32 ret;
+
+	// when
+	ret = UA_SecureConversationMessageFooter_calcSizeBinary(&srcConst);
+	// then
+	ck_assert_int_eq(ret, 8);
+}
+END_TEST
+START_TEST(UA_SecureConversationMessageFooter_encodeBinaryShallWorkOnInputExample) {
+//	// given
+//	UA_SecureConversationMessageFooter src = {3, (UA_Byte*)"447", 5};;
+//
+//	UA_Int32 ret;
+//	UA_UInt32 offset = 0;
+//	UA_ByteString dst = (UA_ByteString){15, (UA_Byte*)"123456789abcdef"};
+//
+//	// when
+//	ret = UA_SecureConversationMessageFooter_encodeBinary(&src, &dst, &offset);
+//	// then
+//	ck_assert_int_eq(ret, UA_SUCCESS);
+//	ck_assert_int_eq(dst.length, 8);
+//	ck_assert_int_eq(dst.data[0], 0);
+//	ck_assert_int_eq(dst.data[1], 0);
+//	ck_assert_int_eq(dst.data[2], 0);
+//	ck_assert_int_eq(dst.data[3], 3);
+//	ck_assert_int_eq(dst.data[4], 24);
+//	ck_assert_int_eq(dst.data[5], 57);
+//	ck_assert_int_eq(dst.data[6], 87);
+//	ck_assert_int_eq(dst.data[7], 6);
+}
+END_TEST
+START_TEST(UA_SecureConversationMessageAbortBody_copyShallWorkOnInputExample) {
+	// given
+	UA_SecureConversationMessageAbortBody src;
+	UA_SecureConversationMessageAbortBody_init(&src);
+	src.error = 5478;
+	src.reason = (UA_String){6, (UA_Byte*)"reAson"};
+
+	const UA_SecureConversationMessageAbortBody srcConst = src;
+
+	UA_SecureConversationMessageAbortBody dst;
+	UA_Int32 ret;
+
+	// when
+	ret = UA_SecureConversationMessageAbortBody_copy(&srcConst, &dst);
+	// then
+	ck_assert_int_eq(ret, UA_SUCCESS);
+	ck_assert_int_eq(5478, dst.error);
+	ck_assert_int_eq('A', dst.reason.data[2]);
+	ck_assert_int_eq(6, dst.reason.length);
+}
+END_TEST
+
 Suite *testSuite() {
 	Suite *s = suite_create("Stack Test");
 	TCase *tc_core = tcase_create("Core");
@@ -447,6 +630,17 @@ Suite *testSuite() {
 	tcase_add_test(tc_core, validOpeningCloseSequence);
 	tcase_add_test(tc_core, validCreateSessionShallCreateSession);
 	suite_add_tcase(s, tc_core);
+
+	TCase *tc_transport = tcase_create("Transport");
+	tcase_add_test(tc_transport, UA_OPCUATcpMessageHeader_copyShallWorkOnInputExample);
+	tcase_add_test(tc_transport, UA_AsymmetricAlgorithmSecurityHeader_copyShallWorkOnInputExample);
+	tcase_add_test(tc_transport, UA_SecureConversationMessageHeader_copyShallWorkOnInputExample);
+	tcase_add_test(tc_transport, UA_SequenceHeader_copyShallWorkOnInputExample);
+	tcase_add_test(tc_transport, UA_SecureConversationMessageFooter_copyShallWorkOnInputExample);
+	tcase_add_test(tc_transport, UA_SecureConversationMessageFooter_calcSizeBinaryShallWorkOnInputExample);
+	tcase_add_test(tc_transport, UA_SecureConversationMessageFooter_encodeBinaryShallWorkOnInputExample);
+	tcase_add_test(tc_transport, UA_SecureConversationMessageAbortBody_copyShallWorkOnInputExample);
+	suite_add_tcase(s, tc_transport);
 	return s;
 }
 

@@ -7,17 +7,21 @@ from collections import OrderedDict
 import re
 from lxml import etree
 import inspect
+import argparse
 
-if len(sys.argv) != 3:
-	print("Usage: python generate_builtin.py <path/to/Opc.Ua.Types.bsd> <outfile w/o extension>", file=sys.stdout)
-	exit(0)
-
+parser = argparse.ArgumentParser()
+parser.add_argument('types', help='path/to/Opc.Ua.Types.bsd')
+parser.add_argument('outfile', help='outfile w/o extension')
+parser.add_argument('--with-xml', action='store_true', help='generate xml encoding')
+parser.add_argument('--only-nano', action='store_true', help='generate only the types for the nano profile')
+args = parser.parse_args()
+        
 ns = {"opc": "http://opcfoundation.org/BinarySchema/"}
-tree = etree.parse(sys.argv[1])
+tree = etree.parse(args.types)
 types = tree.xpath("/opc:TypeDictionary/*[not(self::opc:Import)]", namespaces=ns)
 
-fh = open(sys.argv[2] + ".h",'w')
-fc = open(sys.argv[2] + ".c",'w')
+fh = open(args.outfile + ".h",'w')
+fc = open(args.outfile + ".c",'w')
 
 # dirty hack. we go up the call frames to access local variables of the calling
 # function. this allows to shorten code and get %()s replaces with less clutter.
@@ -41,6 +45,10 @@ fixed_size = set(["UA_Boolean", "UA_SByte", "UA_Byte", "UA_Int16", "UA_UInt16",
 # types we do not want to autogenerate
 def skipType(name):
     if name in existing_types:
+        return True
+    if "Test" in name:
+        return True
+    if re.search("Attributes$", name) != None:
         return True
     if re.search("NodeId$", name) != None:
         return True
@@ -79,10 +87,11 @@ def createEnumerated(element):
            "\n};")
     printh("UA_TYPE_PROTOTYPES (" + name + ")")
     printh("UA_TYPE_BINARY_ENCODING(" + name + ")")
-    printh("UA_TYPE_XML_ENCODING(" + name + ")\n")
     printc("UA_TYPE_AS(" + name + ", UA_Int32)")
     printc("UA_TYPE_BINARY_ENCODING_AS(" + name + ", UA_Int32)")
-    printc('''UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(%(name)s)
+    if args.with_xml:
+        printh("UA_TYPE_XML_ENCODING(" + name + ")\n")
+        printc('''UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(%(name)s)
 UA_TYPE_METHOD_ENCODEXML_NOTIMPL(%(name)s)
 UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s\n)''')
 
@@ -94,10 +103,11 @@ def createOpaque(element):
     printh("typedef UA_ByteString %(name)s;")
     printh("UA_TYPE_PROTOTYPES(%(name)s)")
     printh("UA_TYPE_BINARY_ENCODING(%(name)s)")
-    printh("UA_TYPE_XML_ENCODING(" + name + ")\n")
     printc("UA_TYPE_AS(%(name)s, UA_ByteString)")
     printc("UA_TYPE_BINARY_ENCODING_AS(%(name)s, UA_ByteString)")
-    printc('''UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(%(name)s)
+    if args.with_xml:
+        printh("UA_TYPE_XML_ENCODING(" + name + ")\n")
+        printc('''UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(%(name)s)
 UA_TYPE_METHOD_ENCODEXML_NOTIMPL(%(name)s)
 UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)\n''')
 
@@ -140,7 +150,8 @@ def createStructured(element):
     # 3) function prototypes
     printh("UA_TYPE_PROTOTYPES(" + name + ")")
     printh("UA_TYPE_BINARY_ENCODING(" + name + ")")
-    printh("UA_TYPE_XML_ENCODING(" + name + ")\n")
+    if args.with_xml:
+        printh("UA_TYPE_XML_ENCODING(" + name + ")\n")
 
     # 4) CalcSizeBinary
     printc('''UA_Int32 %(name)s_calcSizeBinary(%(name)s const * ptr) {
@@ -188,9 +199,10 @@ def createStructured(element):
     printc("\treturn retval;\n}\n")
 
     # 7) Xml
-    printc('''UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(%(name)s)
-    UA_TYPE_METHOD_ENCODEXML_NOTIMPL(%(name)s)
-    UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
+    if args.with_xml:
+        printc('''UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(%(name)s)
+UA_TYPE_METHOD_ENCODEXML_NOTIMPL(%(name)s)
+UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
     
     # 8) Delete
     printc('''UA_Int32 %(name)s_delete(%(name)s *p) {
