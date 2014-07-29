@@ -137,7 +137,7 @@ static void init_response_header(UA_RequestHeader const * p,
 	UA_##TYPE##Request p; \
 	UA_##TYPE##Response r; \
 	UA_Session session = UA_NULL; \
-	UA_##TYPE##Request_decodeBinary(msg, pos, &p); \
+	UA_##TYPE##Request_decodeBinary(msg, &recvOffset, &p); \
 	UA_##TYPE##Response_init(&r); \
 	init_response_header(&p.requestHeader, &r.responseHeader); \
 	UA_SessionManager_getSessionByToken(&p.requestHeader.authenticationToken, &session); \
@@ -147,16 +147,16 @@ static void init_response_header(UA_RequestHeader const * p,
 	UA_##TYPE##Request p; \
 	UA_##TYPE##Response r; \
 	UA_Session session = UA_NULL; \
-	UA_##TYPE##Request_decodeBinary(msg, pos, &p); \
+	UA_##TYPE##Request_decodeBinary(msg, &recvOffset, &p); \
 	UA_##TYPE##Response_init(&r); \
 	init_response_header(&p.requestHeader, &r.responseHeader); \
 	UA_SessionManager_getSessionByToken(&p.requestHeader.authenticationToken, &session); \
 	DBG_VERBOSE(printf("Invoke Service: %s\n", #TYPE)); \
 	Service_##TYPE(session, &p, &r); \
 	DBG_VERBOSE(printf("Finished Service: %s\n", #TYPE)); \
-    *pos = 0; \
+    sendOffset = 0; \
 	UA_ByteString_newMembers(&response_msg, UA_##TYPE##Response_calcSizeBinary(&r)); \
-	UA_##TYPE##Response_encodeBinary(&r, pos, &response_msg); \
+	UA_##TYPE##Response_encodeBinary(&r, &sendOffset, &response_msg); \
 	UA_##TYPE##Request_deleteMembers(&p); \
 	UA_##TYPE##Response_deleteMembers(&r); \
 /*
@@ -167,9 +167,9 @@ static void init_response_header(UA_RequestHeader const * p,
 */
 #define RESPONSE_CLEANUP(TYPE) \
 	DBG_VERBOSE(printf("Finished Service: %s\n", #TYPE)); \
-	*pos = 0; \
+	sendOffset = 0; \
 	UA_ByteString_newMembers(&response_msg, UA_##TYPE##Response_calcSizeBinary(&r)); \
-	UA_##TYPE##Response_encodeBinary(&r, &response_msg,pos); \
+	UA_##TYPE##Response_encodeBinary(&r, &response_msg,&sendOffset); \
 	UA_##TYPE##Request_deleteMembers(&p); \
 	UA_##TYPE##Response_deleteMembers(&r); \
 
@@ -178,10 +178,11 @@ UA_Int32 SL_handleRequest(SL_secureChannel channel, const UA_ByteString* msg,
 		UA_UInt32 *pos)
 {
 	UA_Int32 retval = UA_SUCCESS;
-
+	UA_UInt32 recvOffset = *pos;
+	UA_UInt32 sendOffset = 0;
 	// Every Message starts with a NodeID which names the serviceRequestType
 	UA_NodeId serviceRequestType;
-	UA_NodeId_decodeBinary(msg, pos,&serviceRequestType);
+	UA_NodeId_decodeBinary(msg, &recvOffset,&serviceRequestType);
 #ifdef DEBUG
 	UA_NodeId_printf("SL_processMessage - serviceRequestType=",
 			&serviceRequestType);
@@ -255,6 +256,24 @@ UA_Int32 SL_handleRequest(SL_secureChannel channel, const UA_ByteString* msg,
 		//TODO prepare userdefined implementation
 
 		responsetype = UA_READRESPONSE_NS0;
+	}
+	else if (serviceid == UA_WRITEREQUEST_NS0)
+	{
+
+		RESPONSE_PREPARE(Write);
+		DBG_VERBOSE(printf("Finished Service: %s\n", Write));
+		if (UA_Session_verifyChannel(session,channel)){
+			Service_Write(session,&p, &r);
+		}
+		else
+		{
+			DBG_VERBOSE(printf("session does not match secure channel"));
+		}
+		DBG_VERBOSE(printf("Finished Service: %s\n", Write));
+		RESPONSE_CLEANUP(Write);
+		//TODO prepare userdefined implementation
+
+		responsetype = UA_WRITERESPONSE_NS0;
 	}
 	else if (serviceid == UA_BROWSEREQUEST_NS0)
 	{
@@ -372,19 +391,19 @@ UA_Int32 SL_handleRequest(SL_secureChannel channel, const UA_ByteString* msg,
 		UA_RequestHeader p;
 		UA_ResponseHeader r;
 
-		UA_RequestHeader_decodeBinary(msg, pos, &p);
+		UA_RequestHeader_decodeBinary(msg, &recvOffset, &p);
 		UA_ResponseHeader_init(&r);
 		r.requestHandle = p.requestHandle;
 		r.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
-		*pos = 0;
+		sendOffset = 0;
 		UA_ByteString_newMembers(&response_msg, UA_ResponseHeader_calcSizeBinary(&r));
-		UA_ResponseHeader_encodeBinary(&r, &response_msg,pos);
+		UA_ResponseHeader_encodeBinary(&r, &response_msg,&sendOffset);
 		responsetype = UA_RESPONSEHEADER_NS0;
 	}
 
 	SL_Send(channel, &response_msg, responsetype);
 	UA_ByteString_deleteMembers(&response_msg);
-
+	*pos = recvOffset;
 	return retval;
 }
 /**
@@ -400,7 +419,11 @@ UA_Int32 SL_ProcessOpenChannel(SL_secureChannel channel, const UA_ByteString* ms
 {
 	return SL_handleRequest(channel, msg, pos);
 }
-
+UA_Int32 SL_ProcessCloseChannel(SL_secureChannel channel, const UA_ByteString* msg,
+		UA_UInt32 *pos)
+{
+	return SL_handleRequest(channel, msg, pos);
+}
 UA_Int32 SL_Process(const UA_ByteString* msg,
 		UA_UInt32* pos)
 {

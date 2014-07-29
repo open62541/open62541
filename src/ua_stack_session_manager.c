@@ -46,7 +46,8 @@ UA_Int32 UA_SessionManager_init(UA_UInt32 maxSessionCount,UA_UInt32 sessionLifet
 
 UA_Boolean UA_SessionManager_sessionExists(UA_Session *session)
 {
-	if(UA_list_search(&sessionManager->sessions,(UA_list_PayloadComparer)UA_Session_compare,(void*)session))
+
+	if(sessionManager && UA_list_search(&sessionManager->sessions,(UA_list_PayloadComparer)UA_Session_compare,(void*)session))
 	{
 		return UA_TRUE;
 	}
@@ -55,19 +56,22 @@ UA_Boolean UA_SessionManager_sessionExists(UA_Session *session)
 
 UA_Int32 UA_SessionManager_getSessionById(UA_NodeId *sessionId, UA_Session *session)
 {
- 	UA_list_Element* current = sessionManager->sessions.first;
-	while (current)
+	if(sessionManager != UA_NULL)
 	{
-		if (current->payload)
+		UA_list_Element* current = sessionManager->sessions.first;
+		while (current)
 		{
-			UA_list_Element* elem = (UA_list_Element*) current;
-			*session = *((UA_Session*) (elem->payload));
-		 	if(UA_Session_compareById(*session,sessionId) == UA_EQUAL)
-		 	{
-		 		return UA_SUCCESS;
-		 	}
+			if (current->payload)
+			{
+				UA_list_Element* elem = (UA_list_Element*) current;
+				*session = *((UA_Session*) (elem->payload));
+				if(UA_Session_compareById(*session,sessionId) == UA_EQUAL)
+				{
+					return UA_SUCCESS;
+				}
+			}
+			current = current->next;
 		}
-		current = current->next;
 	}
 	*session = UA_NULL;
 	return UA_ERROR;
@@ -75,7 +79,7 @@ UA_Int32 UA_SessionManager_getSessionById(UA_NodeId *sessionId, UA_Session *sess
 
 UA_Int32 UA_SessionManager_getSessionByToken(UA_NodeId *token, UA_Session *session)
 {
-	if(sessionManager->sessions.first)
+	if(sessionManager != UA_NULL)
 	{
 		UA_list_Element* current = sessionManager->sessions.first;
 		while (current)

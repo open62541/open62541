@@ -24,18 +24,13 @@ libopen62541_la_SOURCES = ua_types.c \
 						  ua_services_view.c \
 						  ua_services_subscription.c\
 						  ua_services_monitoreditems.c\
-<<<<<<< HEAD
 						  ua_application.c \
 			              ua_stack_session.c\
 			              ua_stack_session_manager.c\
 			              ua_stack_channel.c \
 						  ua_stack_channel_manager.c \
 						  ua_transport_connection_manager.c \
-						  ua_transport_connection.c\
-						  ua_xml.c
-=======
-						  ua_application.c
-
+						  ua_transport_connection.c
 WITH_XML =
 if UA_ENCODING_XML
 libopen62541_la_SOURCES += ua_types_encoding_xml.c \
@@ -44,7 +39,6 @@ libopen62541_la_SOURCES += ua_types_encoding_xml.c \
 WITH_XML = --with-xml
 endif
 
->>>>>>> origin/master
 ua_types.c: ua_namespace_0.h
 ua_namespace_0.h: ua_types_generated.h
 

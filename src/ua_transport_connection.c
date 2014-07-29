@@ -138,7 +138,7 @@ UA_Int32 UA_TL_Connection_getProtocolVersion(UA_TL_Connection1 connection, UA_UI
 		return UA_ERROR;
 	}
 }
-UA_Int32 UA_TL_Connection_getLocalConfiguration(UA_TL_Connection1 connection, TL_Buffer *localConfiguration)
+UA_Int32 UA_TL_Connection_getLocalConfig(UA_TL_Connection1 connection, TL_Buffer *localConfiguration)
 {
 	if(connection)
 	{

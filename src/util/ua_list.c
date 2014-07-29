@@ -119,17 +119,12 @@ UA_Int32 UA_list_removeLast(UA_list_List* list, UA_list_PayloadVisitor visitor){
 		UA_free(list->last);
 		temp->next = UA_NULL;
 		list->last = temp;
-<<<<<<< HEAD
-		list->last->next = UA_NULL;
-=======
 		if(temp){
 			temp->next = UA_NULL;
 		}
->>>>>>> origin/master
 		list->size--;
 		if(list->size == 1){
 			list->first = temp;
-			list->first->next = UA_NULL;
 		}else if(list->size==0){
 			list->first = UA_NULL;
 		}

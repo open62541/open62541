@@ -25,7 +25,7 @@ static UA_Int32 TL_handleHello(UA_TL_Connection1 connection, const UA_ByteString
 		// build acknowledge response
 		UA_OPCUATcpAcknowledgeMessage ackMessage;
 		TL_Buffer localConfig;
-		UA_TL_Connection_getLocalConfiguration(connection, &localConfig);
+		UA_TL_Connection_getLocalConfig(connection, &localConfig);
 		ackMessage.protocolVersion = localConfig.protocolVersion;
 		ackMessage.receiveBufferSize = localConfig.recvBufferSize;
 		ackMessage.sendBufferSize = localConfig.sendBufferSize;
@@ -94,6 +94,7 @@ static UA_Int32 TL_handleOpen(UA_TL_Connection1 connection, const UA_ByteString*
 				UA_SECURITYMODE_INVALID);
 
 		if(SL_Channel_initByRequest(*channel,connection, msg, pos) == UA_SUCCESS){
+			//TODO remove SL_ProcessOpenChannel (only a special case in SL_Process)
 			retval |= SL_ProcessOpenChannel(*channel, msg, pos);
 			retval |= SL_ChannelManager_addChannel(channel);
 			return retval;
@@ -119,16 +120,8 @@ static UA_Int32 TL_handleMsg(UA_TL_Connection1 connection, const UA_ByteString* 
 
 static UA_Int32 TL_handleClo(UA_TL_Connection1 connection, const UA_ByteString* msg, UA_UInt32* pos) {
 	UA_Int32 retval = UA_SUCCESS;
-	UA_SecureConversationMessageHeader *header;
-	retval |= UA_SecureConversationMessageHeader_new(&header);
-	retval |= UA_SecureConversationMessageHeader_decodeBinary(msg,pos,header);
+	SL_Process(msg,pos);
 
-	retval |= SL_ChannelManager_removeChannel(header->secureChannelId);
-
-	retval |= UA_SecureConversationMessageHeader_delete(header);
-
-
-//TODO remove that
 	UA_TL_Connection_close(connection);
 	return retval;
 }
@@ -139,8 +132,10 @@ UA_Int32 TL_Process(UA_TL_Connection1 connection, const UA_ByteString* msg) {
 	UA_OPCUATcpMessageHeader tcpMessageHeader;
 
 	DBG_VERBOSE(printf("TL_Process - entered \n"));
+	UA_Int32 messageCounter = 0;
 
 	do{
+
 		if ((retval = UA_OPCUATcpMessageHeader_decodeBinary(msg,&pos,&tcpMessageHeader)) == UA_SUCCESS) {
 			printf("TL_Process - messageType=%.*s\n",3,msg->data);
 			switch(tcpMessageHeader.messageType) {
@@ -157,10 +152,21 @@ UA_Int32 TL_Process(UA_TL_Connection1 connection, const UA_ByteString* msg) {
 				retval = TL_handleClo(connection, msg, &pos);
 				break;
 			default: // dispatch processing to secureLayer
+				//Invalid packet was received which could have led to a wrong offset (pos).
+				//It was not possible to extract the following packet from the buffer
 				retval = UA_ERR_INVALID_VALUE;
 				break;
 			}
 		}
+		else
+		{
+			printf("TL_Process - ERROR:decoding of header failed \n");
+		}
+
+		messageCounter++;
+		printf("TL_Process - multipleMessage in Buffer: %i \n",messageCounter);
+
+
 	}while(msg->length > (UA_Int32)pos);
 	/* if (retval != UA_SUCCESS) { */
 	/* 	// FIXME: compose real error message */

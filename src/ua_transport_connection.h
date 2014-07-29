@@ -44,7 +44,7 @@ UA_Int32 UA_TL_Connection_setConnectionHandle(UA_TL_Connection1 connection, UA_I
 UA_Int32 UA_TL_Connection_getHandle(UA_TL_Connection1 connection, UA_UInt32 *connectionId);
 UA_Int32 UA_TL_Connection_getProtocolVersion(UA_TL_Connection1 connection, UA_UInt32 *protocolVersion);
 UA_Int32 UA_TL_Connection_getState(UA_TL_Connection1 connection, UA_Int32 *connectionState);
-UA_Int32 UA_TL_Connection_getLocalConfiguration(UA_TL_Connection1 connection, TL_Buffer *localConfiguration);
+UA_Int32 UA_TL_Connection_getLocalConfig(UA_TL_Connection1 connection, TL_Buffer *localConfiguration);
 UA_Int32 UA_TL_Connection_getNetworkLayerData(UA_TL_Connection1 connection,void** networkLayerData);
 
 

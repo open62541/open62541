@@ -29,7 +29,7 @@ _Bool NL_ConnectionComparer(void *p1, void* p2) {
 	NL_Connection* c1 = (NL_Connection*) p1;
 	NL_Connection* c2 = (NL_Connection*) p2;
 
-	return (c1->connectionHandle == c2->connectionHandle)
+	return (c1->connectionHandle == c2->connectionHandle);
 
 }
 int NL_TCP_SetNonBlocking(int sock) {
@@ -47,33 +47,27 @@ int NL_TCP_SetNonBlocking(int sock) {
 }
 
 void NL_Connection_printf(void* payload) {
-  UA_UInt32 id;
   NL_Connection* c = (NL_Connection*) payload;
-  UA_TL_Connection_getHandle(c->connection,&id);
-  printf("ListElement connectionHandle = %d\n",id);
+  printf("ListElement connectionHandle = %d\n",c->connectionHandle);
 }
 void NL_addHandleToSet(UA_Int32 handle, NL_data* nl) {
 	FD_SET(handle, &(nl->readerHandles));
 	nl->maxReaderHandle = (handle > nl->maxReaderHandle) ? handle : nl->maxReaderHandle;
 }
 void NL_setFdSet(void* payload) {
-  UA_UInt32 h;
   NL_Connection* c = (NL_Connection*) payload;
-  UA_TL_Connection_getHandle(c->connection,&h);
-
-  NL_addHandleToSet(h, c->networkLayer);
+  NL_addHandleToSet(c->connectionHandle, c->networkLayer);
 }
 void NL_checkFdSet(void* payload) {
-  UA_UInt32 h;
   NL_Connection* c = (NL_Connection*) payload;
-  UA_TL_Connection_getHandle(c->connection,&h);
-  if (FD_ISSET(h, &(c->networkLayer->readerHandles))) {
+  if (FD_ISSET(c->connectionHandle, &(c->networkLayer->readerHandles))) {
 	  c->reader((void*)c);
   }
 }
 UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), void *arg)  {
 	UA_Int32 result;
 	while (UA_TRUE) {
+		//sleep(1);
 		// determine the largest handle
 		nl->maxReaderHandle = 0;
 
@@ -127,20 +121,23 @@ void* NL_TCP_reader(NL_Connection *c) {
 	TL_Buffer localBuffers;
 	UA_Int32 connectionState;
 	UA_UInt32 connectionHandle;
-	UA_TL_Connection_getLocalConfiguration(c->connection, &localBuffers);
+	UA_TL_Connection_getLocalConfig(c->connection, &localBuffers);
 	UA_TL_Connection_getHandle(c->connection, &connectionHandle);
 	UA_alloc((void**)&(readBuffer.data),localBuffers.recvBufferSize);
 
 
 	if (c->state  != CONNECTIONSTATE_CLOSE) {
-	//	DBG_VERBOSE(printf("NL_TCP_reader - enter read\n"));
-		readBuffer.length = read(connectionHandle, readBuffer.data, localBuffers.recvBufferSize);
-	//	DBG_VERBOSE(printf("NL_TCP_reader - leave read\n"));
+		DBG_VERBOSE(printf("NL_TCP_reader - enter read\n"));
 
-	//	DBG_VERBOSE(printf("NL_TCP_reader - src={%*.s}, ",c->connection.remoteEndpointUrl.length,c->connection.remoteEndpointUrl.data));
-	//	DBG(UA_ByteString_printx("NL_TCP_reader - received=",&readBuffer));
+
+		readBuffer.length = read(connectionHandle, readBuffer.data, localBuffers.recvBufferSize);
+		DBG_VERBOSE(printf("NL_TCP_reader - leave read\n"));
+
+		DBG_VERBOSE(printf("NL_TCP_reader - src={%*.s}, ",c->connection.remoteEndpointUrl.length,c->connection.remoteEndpointUrl.data));
+		DBG(UA_ByteString_printx("NL_TCP_reader - received=",&readBuffer));
 
 		if (readBuffer.length  > 0) {
+
 #ifdef DEBUG
 #include "ua_transport_binary_secure.h"
 			UA_UInt32 pos = 0;
@@ -154,6 +151,7 @@ void* NL_TCP_reader(NL_Connection *c) {
 				UA_NodeId_printf("Service Type\n",&serviceRequestType);
 			}
 #endif
+
 			TL_Process((c->connection),&readBuffer);
 		} else {
 //TODO close connection - what does close do?
