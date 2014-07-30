@@ -20,18 +20,7 @@ typedef struct SL_ChannelManager {
 	UA_UInt32 lastTokenId;
 }SL_ChannelManager;
 static SL_ChannelManager *channelManager;
-/*
-UA_Int32 SL_ChannelManager_newChannelByRequest(UA_Int32 connectionId, const UA_ByteString* msg,
-		UA_Int32* pos, SL_secureChannel *newChannel)
-{
-	UA_UInt32 channelId = 0;
-	SL_Channel_newChannelByRequest(connectionId, msg, pos, newChannel);
 
-	SL_ChannelManager_addChannel(newChannel, &channelId);
-	SL_Channel_setId(newChannel, channelId);
-	return UA_SUCCESS;
-}
-*/
 UA_Int32 SL_ChannelManager_init(UA_UInt32 maxChannelCount,UA_UInt32 tokenLifetime, UA_UInt32 startChannelId, UA_UInt32 startTokenId, UA_String *endpointUrl)
 {
 	UA_alloc((void**)&channelManager,sizeof(SL_ChannelManager));
@@ -45,7 +34,7 @@ UA_Int32 SL_ChannelManager_init(UA_UInt32 maxChannelCount,UA_UInt32 tokenLifetim
 	return UA_SUCCESS;
 }
 
-UA_Int32 SL_ChannelManager_addChannel(SL_secureChannel *channel)
+UA_Int32 SL_ChannelManager_addChannel(SL_Channel *channel)
 {
 	if (channelManager->maxChannelCount > channelManager->currentChannelCount)
 	{
@@ -86,7 +75,7 @@ UA_UInt32 SL_ChannelManager_generateNewTokenId()
 	return channelManager->lastTokenId++;
 }
 
-UA_Int32 SL_ChannelManager_generateToken(SL_secureChannel channel, UA_Int32 requestedLifeTime,
+UA_Int32 SL_ChannelManager_generateToken(SL_Channel channel, UA_Int32 requestedLifeTime,
 		SecurityTokenRequestType requestType,
 		UA_ChannelSecurityToken* newToken)
 {
@@ -116,14 +105,6 @@ UA_Int32 SL_ChannelManager_generateToken(SL_secureChannel channel, UA_Int32 requ
 	return UA_ERROR;
 }
 
-UA_Int32 SL_ChannelManager_processOpenRequest(SL_secureChannel channel,
-		const UA_OpenSecureChannelRequest* request, UA_OpenSecureChannelResponse* response)
-{
-
-
-	return UA_SUCCESS;
-}
-
 UA_Int32 SL_ChannelManager_updateChannels()
 {
 	//TODO lock access
@@ -136,7 +117,7 @@ UA_Int32 SL_ChannelManager_updateChannels()
 		{
 			UA_indexedList_Element* elem =
 					(UA_indexedList_Element*) current->payload;
-			SL_secureChannel *channel = (SL_secureChannel*) elem->payload;
+			SL_Channel *channel = (SL_Channel*) elem->payload;
 			//remove channels with expired lifetime, close linked list
 			if (channel)
 			{
@@ -164,7 +145,7 @@ UA_Int32 SL_ChannelManager_updateChannels()
 UA_Int32 SL_ChannelManager_removeChannel(UA_Int32 channelId)
 {
 	//TODO lock access
-	SL_secureChannel channel;
+	SL_Channel channel;
 	UA_Int32 retval = UA_SUCCESS;
 	SL_ChannelManager_getChannel(channelId, &channel);
 
@@ -173,16 +154,8 @@ UA_Int32 SL_ChannelManager_removeChannel(UA_Int32 channelId)
 		retval |= UA_list_removeElement(element,(UA_list_PayloadVisitor)SL_Channel_delete);
 		return retval;
 	}
-	/*if (element)
-	{
-		element->next->prev = element->prev;
-		element->prev->next = element->next;
-
-		SL_Channel_delete((SL_secureChannel)element->payload);
 		//TODO notify server application that secureChannel has been closed part 6 - §7.1.4
-	}
-	*/
-	//channel not found
+
 	return UA_ERROR;
 }
 UA_Int32 SL_ChannelManager_getChannelLifeTime(UA_DateTime *lifeTime)
@@ -197,7 +170,7 @@ UA_Int32 SL_ChannelManager_getChannelLifeTime(UA_DateTime *lifeTime)
 	return UA_SUCCESS;UA_list_Element
 }
 */
-UA_Int32 SL_ChannelManager_getChannel(UA_UInt32 channelId, SL_secureChannel *channel)
+UA_Int32 SL_ChannelManager_getChannel(UA_UInt32 channelId, SL_Channel *channel)
 {
 	UA_UInt32 tmpChannelId;
  	UA_list_Element* current = channelManager->channels.first;
@@ -206,7 +179,7 @@ UA_Int32 SL_ChannelManager_getChannel(UA_UInt32 channelId, SL_secureChannel *cha
 		if (current->payload)
 		{
 			UA_list_Element* elem = (UA_list_Element*) current;
-			*channel = *((SL_secureChannel*) (elem->payload));
+			*channel = *((SL_Channel*) (elem->payload));
 			SL_Channel_getChannelId(*channel, &tmpChannelId);
 		 	if(tmpChannelId == channelId)
 		 	{

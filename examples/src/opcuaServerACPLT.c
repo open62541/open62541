@@ -45,7 +45,7 @@ void server_run() {
 #ifdef DEBUG
 	tmpTestFunction();
 #endif
-	UA_TL_Connection1 connection;// = UA_NULL;
+	UA_TL_Connection connection;// = UA_NULL;
 	TL_Buffer localBuffers;
 	UA_Int32 connectionState;
 	//connection.connectionState = CONNECTIONSTATE_CLOSED;
@@ -98,7 +98,7 @@ void server_run() {
 	/* Now start listening for the clients, here process will
 	 * go in sleep mode and will wait for the incoming connection
 	 */
-	UA_TL_Connection1 tmpConnection;
+	UA_TL_Connection tmpConnection;
 
 	while (listen(sockfd, 5) != -1) {
 		clilen = sizeof(cli_addr);

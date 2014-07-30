@@ -8,21 +8,23 @@
 #include <stdlib.h>
 
 #include "ua_stack_session.h"
-typedef struct UA_SessionType
+typedef struct UA_SessionStruct
 {
 	UA_NodeId authenticationToken;
 	UA_NodeId sessionId;
 	UA_String name;
 	Application *application;
-	UA_list_List pendingRequests;
-	SL_secureChannel channel;
+//	UA_list_List pendingRequests;
+	SL_Channel channel;
 	UA_UInt32 maxRequestMessageSize;
 	UA_UInt32 maxResponseMessageSize;
+	UA_Int64 timeout;
+	UA_DateTime validTill;
 
 }UA_SessionType;
 
 /* mock up function to generate tokens for authentication */
-UA_Int32 UA_Session_generateAuthenticationToken(UA_NodeId *newToken)
+UA_Int32 UA_Session_generateToken(UA_NodeId *newToken)
 {
 	//Random token generation
 	UA_Int32 retval = UA_SUCCESS;
@@ -52,7 +54,7 @@ UA_Int32 UA_Session_generateAuthenticationToken(UA_NodeId *newToken)
 	return retval;
 }
 
-UA_Int32 UA_Session_bind(UA_Session session, SL_secureChannel channel)
+UA_Int32 UA_Session_bind(UA_Session session, SL_Channel channel)
 {
 
 	if(channel && session)
@@ -76,28 +78,37 @@ UA_Int32 UA_Session_new(UA_Session **newSession)
 	//get memory for request list
 	return retval;
 }
-
+UA_Int32 UA_Session_deleteMembers(UA_Session session)
+{
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_NodeId_deleteMembers(&((UA_SessionType*)session)->authenticationToken);
+	retval |= UA_String_deleteMembers(&((UA_SessionType*)session)->name);
+	retval |= UA_NodeId_deleteMembers(&((UA_SessionType*)session)->sessionId);
+	return retval;
+}
 UA_Int32 UA_Session_delete(UA_Session *session)
 {
 	UA_Int32 retval = UA_SUCCESS;
+	UA_Session_deleteMembers(*session);
 	retval |= UA_free((UA_SessionType*)(*session));
 	return retval;
 }
-
 UA_Int32 UA_Session_init(UA_Session session, UA_String *sessionName, UA_Double requestedSessionTimeout,
 		UA_UInt32 maxRequestMessageSize,
 		UA_UInt32 maxResponseMessageSize,
-		UA_Session_idProvider idProvider){
+		UA_Session_idProvider idProvider,
+		UA_Int64 timeout){
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_String_copy(sessionName, &((UA_SessionType*)session)->name);
 	((UA_SessionType*)session)->maxRequestMessageSize = maxRequestMessageSize;
 	((UA_SessionType*)session)->maxResponseMessageSize = maxResponseMessageSize;
 
-	UA_Session_generateAuthenticationToken(&((UA_SessionType*)session)->authenticationToken);
+	UA_Session_generateToken(&((UA_SessionType*)session)->authenticationToken);
 
 	idProvider(&((UA_SessionType*)session)->sessionId);
+	((UA_SessionType*)session)->timeout = requestedSessionTimeout > timeout ? timeout : requestedSessionTimeout;
 
-	//TODO handle requestedSessionTimeout
+	UA_Session_updateLifetime(session);
 	return retval;
 }
 
@@ -144,8 +155,17 @@ UA_Int32 UA_Session_getToken(UA_Session session, UA_NodeId *authenticationToken)
 	}
 	return UA_ERROR;
 }
-
-UA_Int32 UA_Session_getChannel(UA_Session session, SL_secureChannel *channel)
+UA_Int32 UA_Session_updateLifetime(UA_Session session)
+{
+	if(session)
+	{
+		((UA_SessionType*)session)->validTill = UA_DateTime_now() +
+				((UA_SessionType*)session)->timeout * 100000; //timeout in ms
+		return UA_SUCCESS;
+	}
+	return UA_ERROR;
+}
+UA_Int32 UA_Session_getChannel(UA_Session session, SL_Channel *channel)
 {
 	if(session)
 	{
@@ -154,8 +174,17 @@ UA_Int32 UA_Session_getChannel(UA_Session session, SL_secureChannel *channel)
 	}
 	return UA_ERROR;
 }
+UA_Int32 UA_Session_getPendingLifetime(UA_Session session, UA_Double *pendingLifetime_ms)
+{
+	if(session)
+	{
+		*pendingLifetime_ms = (((UA_SessionType*)session)->validTill- UA_DateTime_now() ) / 10000000; //difference in ms
+		return UA_SUCCESS;
+	}
+	return UA_ERROR;
+}
 
-UA_Boolean UA_Session_verifyChannel(UA_Session session, SL_secureChannel channel)
+UA_Boolean UA_Session_verifyChannel(UA_Session session, SL_Channel channel)
 {
 	if(session && channel)
 	{

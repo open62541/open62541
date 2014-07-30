@@ -1,5 +1,5 @@
 #include "ua_services.h"
-UA_Int32 Service_GetEndpoints(SL_secureChannel channel, const UA_GetEndpointsRequest* request, UA_GetEndpointsResponse *response) {
+UA_Int32 Service_GetEndpoints(SL_Channel channel, const UA_GetEndpointsRequest* request, UA_GetEndpointsResponse *response) {
 #ifdef DEBUG
 	UA_String_printx("endpointUrl=", &request->endpointUrl);
 #endif

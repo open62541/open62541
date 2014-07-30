@@ -40,8 +40,8 @@ int main(int argc, char** argv) {
 	struct timeval tv = {1, 0}; // 1 second
 
 	SL_ChannelManager_init(2,3600000, 873, 23, &nl->endpointUrl);
-	UA_SessionManager_init(2,300000,5);
-
+	UA_SessionManager_init(2,30000,5);
+	//UA_TL_ConnectionManager_init(10);
   	NL_msgLoop(nl, &tv, serverCallback, argv[0]);
 
 }

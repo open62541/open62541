@@ -240,7 +240,7 @@ UA_Int32 NL_TCP_writer(UA_Int32 connectionHandle, UA_ByteString const * const * 
 	return UA_SUCCESS;
 }
 //callback function which is called when the UA_TL_Connection_close() function is initiated
-UA_Int32 NL_Connection_close(UA_TL_Connection1 connection)
+UA_Int32 NL_Connection_close(UA_TL_Connection connection)
 {
 	NL_Connection *networkLayerData = UA_NULL;
 	UA_TL_Connection_getNetworkLayerData(connection, (void**)&networkLayerData);
@@ -259,7 +259,7 @@ void* NL_Connection_init(NL_Connection* c, NL_data* tld, UA_Int32 connectionHand
 {
 
 
-	UA_TL_Connection1 connection = UA_NULL;
+	UA_TL_Connection connection = UA_NULL;
 	//create new connection object
 	UA_TL_Connection_new(&connection, tld->tld->localConf, writer, NL_Connection_close,c);
 	//add connection object to list, so stack is aware of its connections

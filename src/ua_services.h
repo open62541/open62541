@@ -34,7 +34,7 @@
  * the configuration information required to establish a SecureChannel and a
  * Session.
  */
-UA_Int32 Service_GetEndpoints(SL_secureChannel channel, const UA_GetEndpointsRequest* request, UA_GetEndpointsResponse *response);
+UA_Int32 Service_GetEndpoints(SL_Channel channel, const UA_GetEndpointsRequest* request, UA_GetEndpointsResponse *response);
 // Service_RegisterServer
 /** @} */
 
@@ -53,12 +53,12 @@ UA_Int32 Service_GetEndpoints(SL_secureChannel channel, const UA_GetEndpointsReq
  * to ensure Confidentiality and Integrity for Message exchange during a
  * Session.
  */
-UA_Int32 Service_OpenSecureChannel(SL_secureChannel channel, const UA_OpenSecureChannelRequest* request, UA_OpenSecureChannelResponse* response);
+UA_Int32 Service_OpenSecureChannel(SL_Channel channel, const UA_OpenSecureChannelRequest* request, UA_OpenSecureChannelResponse* response);
 
 /**
  * @brief This Service is used to terminate a SecureChannel.
  */
-UA_Int32 Service_CloseSecureChannel(SL_secureChannel channel, const UA_CloseSecureChannelRequest *request, UA_CloseSecureChannelResponse *response);
+UA_Int32 Service_CloseSecureChannel(SL_Channel channel, const UA_CloseSecureChannelRequest *request, UA_CloseSecureChannelResponse *response);
 /** @} */
 
 /**
@@ -77,7 +77,7 @@ UA_Int32 Service_CloseSecureChannel(SL_secureChannel channel, const UA_CloseSecu
  * logs and in the Server’s address space. The second is the authenticationToken
  * which is used to associate an incoming request with a Session.
  */
-UA_Int32 Service_CreateSession(SL_secureChannel channel, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response);
+UA_Int32 Service_CreateSession(SL_Channel channel, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response);
 
 /**
  * @brief This Service is used by the Client to submit its SoftwareCertificates
@@ -86,7 +86,7 @@ UA_Int32 Service_CreateSession(SL_secureChannel channel, const UA_CreateSessionR
  * Client before it issues any other Service request after CreateSession.
  * Failure to do so shall cause the Server to close the Session.
  */
-UA_Int32 Service_ActivateSession(SL_secureChannel channel, UA_Session session, const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response);
+UA_Int32 Service_ActivateSession(SL_Channel channel, UA_Session session, const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response);
 
 /**
  * @brief This Service is used to terminate a Session.

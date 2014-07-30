@@ -50,8 +50,8 @@ UA_Int32 SL_Process(const UA_ByteString* msg, UA_UInt32* pos);
  * @return Returns UA_SUCCESS if successful executed, UA_ERROR in any other case
 
  */
-UA_Int32 SL_ProcessOpenChannel(SL_secureChannel channel, const UA_ByteString* msg,
+UA_Int32 SL_ProcessOpenChannel(SL_Channel channel, const UA_ByteString* msg,
 		UA_UInt32 *pos);
-UA_Int32 SL_ProcessCloseChannel(SL_secureChannel channel, const UA_ByteString* msg,
+UA_Int32 SL_ProcessCloseChannel(SL_Channel channel, const UA_ByteString* msg,
 		UA_UInt32 *pos);
 #endif /* OPCUA_TRANSPORT_BINARY_SECURE_H_ */

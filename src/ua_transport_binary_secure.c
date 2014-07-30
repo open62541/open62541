@@ -12,7 +12,7 @@
 #define SIZE_SECURECHANNEL_HEADER 12
 #define SIZE_SEQHEADER_HEADER 8
 
-static UA_Int32 SL_Send(SL_secureChannel channel,
+static UA_Int32 SL_Send(SL_Channel channel,
 		const UA_ByteString * responseMessage, UA_Int32 type)
 {
 
@@ -25,7 +25,7 @@ static UA_Int32 SL_Send(SL_secureChannel channel,
 	UA_UInt32 channelId;
 	UA_UInt32 sequenceNumber;
 	UA_UInt32 requestId;
-	UA_TL_Connection1 connection;
+	UA_TL_Connection connection;
 	UA_NodeId resp_nodeid;
 	UA_AsymmetricAlgorithmSecurityHeader *asymAlgSettings = UA_NULL;
 
@@ -57,7 +57,7 @@ static UA_Int32 SL_Send(SL_secureChannel channel,
 	// sizeSignature = 0;
 	UA_ByteString *header = (UA_ByteString *) response_gather[0];
 
-	/*---encode Secure Conversation Message HeaService_CreateSessionder ---*/
+	/*---encode Secure Conversation Message Header  ---*/
 	if (isAsym)
 	{
 		header->data[0] = 'O';
@@ -174,7 +174,7 @@ static void init_response_header(UA_RequestHeader const * p,
 	UA_##TYPE##Response_deleteMembers(&r); \
 
 
-UA_Int32 SL_handleRequest(SL_secureChannel channel, const UA_ByteString* msg,
+UA_Int32 SL_handleRequest(SL_Channel channel, const UA_ByteString* msg,
 		UA_UInt32 *pos)
 {
 	UA_Int32 retval = UA_SUCCESS;
@@ -226,6 +226,7 @@ UA_Int32 SL_handleRequest(SL_secureChannel channel, const UA_ByteString* msg,
 	else if (serviceid == UA_ACTIVATESESSIONREQUEST_NS0)
 	{
 		RESPONSE_PREPARE(ActivateSession);
+		UA_Session_updateLifetime(session); //renew session timeout
 		Service_ActivateSession(channel, session,&p, &r);
 		RESPONSE_CLEANUP(ActivateSession);
 
@@ -234,17 +235,25 @@ UA_Int32 SL_handleRequest(SL_secureChannel channel, const UA_ByteString* msg,
 	else if (serviceid == UA_CLOSESESSIONREQUEST_NS0)
 	{
 		RESPONSE_PREPARE(CloseSession);
-		Service_CloseSession(session,&p, &r);
+		if (UA_Session_verifyChannel(session,channel)){
+			UA_Session_updateLifetime(session); //renew session timeout
+			Service_CloseSession(session,&p, &r);
 		RESPONSE_CLEANUP(CloseSession);
-
+		}
+		else
+		{
+			DBG_VERBOSE(printf("session does not match secure channel"));
+		}
 		responsetype = UA_CLOSESESSIONRESPONSE_NS0;
 	}
 	else if (serviceid == UA_READREQUEST_NS0)
 	{
 
 		RESPONSE_PREPARE(Read);
+		UA_Session_updateLifetime(session); //renew session timeout
 		DBG_VERBOSE(printf("Finished Service: %s\n", Read));
 		if (UA_Session_verifyChannel(session,channel)){
+			UA_Session_updateLifetime(session); //renew session timeout
 			Service_Read(session,&p, &r);
 		}
 		else
@@ -253,7 +262,6 @@ UA_Int32 SL_handleRequest(SL_secureChannel channel, const UA_ByteString* msg,
 		}
 		DBG_VERBOSE(printf("Finished Service: %s\n", Read));
 		RESPONSE_CLEANUP(Read);
-		//TODO prepare userdefined implementation
 
 		responsetype = UA_READRESPONSE_NS0;
 	}
@@ -263,6 +271,7 @@ UA_Int32 SL_handleRequest(SL_secureChannel channel, const UA_ByteString* msg,
 		RESPONSE_PREPARE(Write);
 		DBG_VERBOSE(printf("Finished Service: %s\n", Write));
 		if (UA_Session_verifyChannel(session,channel)){
+			UA_Session_updateLifetime(session); //renew session timeout
 			Service_Write(session,&p, &r);
 		}
 		else
@@ -400,8 +409,9 @@ UA_Int32 SL_handleRequest(SL_secureChannel channel, const UA_ByteString* msg,
 		UA_ResponseHeader_encodeBinary(&r, &response_msg,&sendOffset);
 		responsetype = UA_RESPONSEHEADER_NS0;
 	}
-
-	SL_Send(channel, &response_msg, responsetype);
+	if(serviceid != UA_CLOSESECURECHANNELREQUEST_NS0){
+		SL_Send(channel, &response_msg, responsetype);
+	}
 	UA_ByteString_deleteMembers(&response_msg);
 	*pos = recvOffset;
 	return retval;
@@ -414,12 +424,12 @@ UA_Int32 SL_handleRequest(SL_secureChannel channel, const UA_ByteString* msg,
  * @return
  */
 
-UA_Int32 SL_ProcessOpenChannel(SL_secureChannel channel, const UA_ByteString* msg,
+UA_Int32 SL_ProcessOpenChannel(SL_Channel channel, const UA_ByteString* msg,
 		UA_UInt32 *pos)
 {
 	return SL_handleRequest(channel, msg, pos);
 }
-UA_Int32 SL_ProcessCloseChannel(SL_secureChannel channel, const UA_ByteString* msg,
+UA_Int32 SL_ProcessCloseChannel(SL_Channel channel, const UA_ByteString* msg,
 		UA_UInt32 *pos)
 {
 	return SL_handleRequest(channel, msg, pos);
@@ -431,7 +441,7 @@ UA_Int32 SL_Process(const UA_ByteString* msg,
 	DBG_VERBOSE(printf("SL_process - entered \n"));
 	UA_UInt32 secureChannelId;
 	UA_UInt32 foundChannelId;
-	SL_secureChannel channel;
+	SL_Channel channel;
 	UA_SequenceHeader sequenceHeader;
 
 

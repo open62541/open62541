@@ -5,7 +5,7 @@
 #include "ua_transport_connection.h"
 
 
-static UA_Int32 TL_handleHello(UA_TL_Connection1 connection, const UA_ByteString* msg, UA_UInt32* pos){
+static UA_Int32 TL_handleHello(UA_TL_Connection connection, const UA_ByteString* msg, UA_UInt32* pos){
 	UA_Int32 retval = UA_SUCCESS;
 	UA_UInt32 tmpPos = 0;
 	UA_Int32 connectionState;
@@ -71,10 +71,10 @@ static UA_Int32 TL_securitySettingsMockup_get(UA_ByteString *receiverCertificate
 
 	return UA_SUCCESS;
 }
-static UA_Int32 TL_handleOpen(UA_TL_Connection1 connection, const UA_ByteString* msg, UA_UInt32* pos) {
+static UA_Int32 TL_handleOpen(UA_TL_Connection connection, const UA_ByteString* msg, UA_UInt32* pos) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 state;
-	SL_secureChannel *channel;
+	SL_Channel *channel;
 
 	UA_ByteString receiverCertificateThumbprint;
 	UA_ByteString securityPolicyUri;
@@ -109,7 +109,7 @@ static UA_Int32 TL_handleOpen(UA_TL_Connection1 connection, const UA_ByteString*
 	return UA_ERR_INVALID_VALUE;
 }
 
-static UA_Int32 TL_handleMsg(UA_TL_Connection1 connection, const UA_ByteString* msg, UA_UInt32* pos) {
+static UA_Int32 TL_handleMsg(UA_TL_Connection connection, const UA_ByteString* msg, UA_UInt32* pos) {
 	UA_Int32 state;
 	UA_TL_Connection_getState(connection,&state);
 	if (state == CONNECTIONSTATE_ESTABLISHED) {
@@ -118,7 +118,7 @@ static UA_Int32 TL_handleMsg(UA_TL_Connection1 connection, const UA_ByteString* 
 	return UA_ERR_INVALID_VALUE;
 }
 
-static UA_Int32 TL_handleClo(UA_TL_Connection1 connection, const UA_ByteString* msg, UA_UInt32* pos) {
+static UA_Int32 TL_handleClo(UA_TL_Connection connection, const UA_ByteString* msg, UA_UInt32* pos) {
 	UA_Int32 retval = UA_SUCCESS;
 	SL_Process(msg,pos);
 
@@ -126,7 +126,7 @@ static UA_Int32 TL_handleClo(UA_TL_Connection1 connection, const UA_ByteString* 
 	return retval;
 }
 
-UA_Int32 TL_Process(UA_TL_Connection1 connection, const UA_ByteString* msg) {
+UA_Int32 TL_Process(UA_TL_Connection connection, const UA_ByteString* msg) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_UInt32 pos = 0;
 	UA_OPCUATcpMessageHeader tcpMessageHeader;
@@ -181,7 +181,7 @@ UA_Int32 TL_Process(UA_TL_Connection1 connection, const UA_ByteString* msg) {
 }
 
 /** respond to client request */
-UA_Int32 TL_Send(UA_TL_Connection1 connection, const UA_ByteString** gather_buf, UA_UInt32 gather_len) {
+UA_Int32 TL_Send(UA_TL_Connection connection, const UA_ByteString** gather_buf, UA_UInt32 gather_len) {
 	UA_Int32 retval = UA_SUCCESS;
 
 
