@@ -15,11 +15,6 @@
 static UA_Int32 SL_Send(SL_Channel channel,
 		const UA_ByteString * responseMessage, UA_Int32 type)
 {
-
-	//access function for SL_secureChannel
-	//SL_Channel_getId(secureChannel)
-	//SL_Channel_getSequenceNumber(secureChannel)
-
 	UA_UInt32 pos = 0;
 	UA_Int32 isAsym = (type == UA_OPENSECURECHANNELRESPONSE_NS0); // FIXME: this is a to dumb method to determine asymmetric algorithm setting
 	UA_UInt32 channelId;
@@ -28,8 +23,6 @@ static UA_Int32 SL_Send(SL_Channel channel,
 	UA_TL_Connection connection;
 	UA_NodeId resp_nodeid;
 	UA_AsymmetricAlgorithmSecurityHeader *asymAlgSettings = UA_NULL;
-
-	//UA_AsymmetricAlgorithmSecurityHeader_new((void**)(&asymAlgSettings));
 
 	resp_nodeid.encodingByte = UA_NODEIDTYPE_FOURBYTE;
 	resp_nodeid.namespace = 0;
@@ -191,7 +184,6 @@ UA_Int32 SL_handleRequest(SL_Channel channel, const UA_ByteString* msg,
 	UA_Int32 serviceid = serviceRequestType.identifier.numeric - 2; // binary encoding has 2 added to the id
 	UA_Int32 responsetype;
 /* stack related services which only need information about the secure Channel */
-	//services which need a channel as parameter
 	if (serviceid == UA_GETENDPOINTSREQUEST_NS0)
 	{
 		RESPONSE_PREPARE(GetEndpoints);
@@ -280,7 +272,7 @@ UA_Int32 SL_handleRequest(SL_Channel channel, const UA_ByteString* msg,
 		}
 		DBG_VERBOSE(printf("Finished Service: %s\n", Write));
 		RESPONSE_CLEANUP(Write);
-		//TODO prepare userdefined implementation
+
 
 		responsetype = UA_WRITERESPONSE_NS0;
 	}
@@ -298,7 +290,7 @@ UA_Int32 SL_handleRequest(SL_Channel channel, const UA_ByteString* msg,
 		}
 		DBG_VERBOSE(printf("Finished Service: %s\n", Browse));
 		RESPONSE_CLEANUP(Browse);
-		//TODO prepare userdefined implementation
+
 
 		responsetype = UA_BROWSERESPONSE_NS0;
 	}
@@ -316,8 +308,6 @@ UA_Int32 SL_handleRequest(SL_Channel channel, const UA_ByteString* msg,
 		}
 		DBG_VERBOSE(printf("Finished Service: %s\n", CreateSubscription));
 		RESPONSE_CLEANUP(CreateSubscription);
-		//TODO prepare userdefined implementation
-
 		responsetype = UA_CREATESUBSCRIPTIONRESPONSE_NS0;
 	}
 	else if (serviceid == UA_TRANSLATEBROWSEPATHSTONODEIDSREQUEST_NS0)
@@ -334,8 +324,6 @@ UA_Int32 SL_handleRequest(SL_Channel channel, const UA_ByteString* msg,
 		}
 		DBG_VERBOSE(printf("Finished Service: %s\n", TranslateBrowsePathsToNodeIds));
 		RESPONSE_CLEANUP(TranslateBrowsePathsToNodeIds);
-		//TODO prepare userdefined implementation
-
 		responsetype = UA_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE_NS0;
 	}
 	else if (serviceid == UA_PUBLISHREQUEST_NS0)
@@ -352,8 +340,6 @@ UA_Int32 SL_handleRequest(SL_Channel channel, const UA_ByteString* msg,
 		}
 		DBG_VERBOSE(printf("Finished Service: %s\n", Publish));
 		RESPONSE_CLEANUP(Publish);
-		//TODO prepare userdefined implementation
-
 		responsetype = UA_PUBLISHRESPONSE_NS0;
 	}
 	else if (serviceid == UA_CREATEMONITOREDITEMSREQUEST_NS0)
@@ -369,8 +355,6 @@ UA_Int32 SL_handleRequest(SL_Channel channel, const UA_ByteString* msg,
 		}
 		DBG_VERBOSE(printf("Finished Service: %s\n", CreateMonitoredItems));
 		RESPONSE_CLEANUP(CreateMonitoredItems);
-		//TODO prepare userdefined implementation
-
 		responsetype = UA_CREATEMONITOREDITEMSRESPONSE_NS0;
 	}
 	else if (serviceid == UA_SETPUBLISHINGMODEREQUEST_NS0)
@@ -386,8 +370,6 @@ UA_Int32 SL_handleRequest(SL_Channel channel, const UA_ByteString* msg,
 		}
 		DBG_VERBOSE(printf("Finished Service: %s\n", SetPublishingMode));
 		RESPONSE_CLEANUP(SetPublishingMode);
-		//TODO prepare userdefined implementation
-
 		responsetype = UA_SETPUBLISHINGMODERESPONSE_NS0;
 	}
 	else
@@ -416,18 +398,20 @@ UA_Int32 SL_handleRequest(SL_Channel channel, const UA_ByteString* msg,
 	*pos = recvOffset;
 	return retval;
 }
-/**
- *
- * @param connection
- * @param msg
- * @param pos
- * @return
- */
 
 UA_Int32 SL_ProcessOpenChannel(SL_Channel channel, const UA_ByteString* msg,
 		UA_UInt32 *pos)
 {
-	return SL_handleRequest(channel, msg, pos);
+	UA_Int32 retval = UA_SUCCESS;
+	UA_SequenceHeader sequenceHeader;
+	UA_AsymmetricAlgorithmSecurityHeader asymHeader;
+	*pos+=4; //skip secure channel id
+	UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(msg,pos,&asymHeader);
+	UA_SequenceHeader_decodeBinary(msg,pos,&sequenceHeader);
+
+	//init remote security settings from the security header
+	SL_Channel_setRemoteSecuritySettings(channel,&asymHeader,&sequenceHeader);
+	return SL_handleRequest(channel, msg, pos) | retval;
 }
 UA_Int32 SL_ProcessCloseChannel(SL_Channel channel, const UA_ByteString* msg,
 		UA_UInt32 *pos)

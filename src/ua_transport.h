@@ -89,7 +89,6 @@ typedef struct UA_AsymmetricAlgorithmSecurityHeader {
 	UA_ByteString securityPolicyUri;
 	UA_ByteString senderCertificate;
 	UA_ByteString receiverCertificateThumbprint;
-	UA_UInt32 requestId;
 } UA_AsymmetricAlgorithmSecurityHeader;
 UA_TYPE_PROTOTYPES(UA_AsymmetricAlgorithmSecurityHeader)
 UA_TYPE_BINARY_ENCODING(UA_AsymmetricAlgorithmSecurityHeader)

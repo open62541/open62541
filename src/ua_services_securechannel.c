@@ -6,10 +6,7 @@ const UA_OpenSecureChannelRequest* request,
 UA_OpenSecureChannelResponse* response)
 {
 	UA_Int32 retval = UA_SUCCESS;
-
-
 	SL_channelState channelState;
-
 	//channel takes care of opening process
 	retval |= SL_Channel_processOpenRequest(channel, request,response);
 	retval |= SL_Channel_getState(channel, &channelState);

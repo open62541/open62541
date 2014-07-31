@@ -58,52 +58,23 @@ static UA_Int32 TL_handleHello(UA_TL_Connection connection, const UA_ByteString*
 	return retval;
 }
 
-
-static UA_Int32 TL_securitySettingsMockup_get(UA_ByteString *receiverCertificateThumbprint,UA_ByteString *securityPolicyUri, UA_ByteString *senderCertificate)
-{
-	receiverCertificateThumbprint->data = UA_NULL;
-	receiverCertificateThumbprint->length = 0;
-
-	UA_String_copycstring("http://opcfoundation.org/UA/SecurityPolicy#None",(UA_String*)securityPolicyUri);
-
-	senderCertificate->data = UA_NULL;
-	senderCertificate->length = 0;
-
-	return UA_SUCCESS;
-}
 static UA_Int32 TL_handleOpen(UA_TL_Connection connection, const UA_ByteString* msg, UA_UInt32* pos) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 state;
 	SL_Channel *channel;
 
-	UA_ByteString receiverCertificateThumbprint;
-	UA_ByteString securityPolicyUri;
-	UA_ByteString senderCertificate;
-
-/*TODO place this into a initialization routine, get this from the "stack"-object*/
-	retval |= TL_securitySettingsMockup_get(&receiverCertificateThumbprint, &securityPolicyUri, &senderCertificate);
-
 	retval |= UA_TL_Connection_getState(connection,&state);
 	if (state == CONNECTIONSTATE_ESTABLISHED) {
-		retval |= SL_Channel_new(&channel,
+		retval |= SL_Channel_new(&channel);//just create channel
+		retval |= SL_Channel_init(*channel,connection,
 				SL_ChannelManager_generateChannelId,
-				SL_ChannelManager_generateToken,
-				&receiverCertificateThumbprint,
-				&securityPolicyUri,
-				&senderCertificate,
-				UA_SECURITYMODE_INVALID);
-
-		if(SL_Channel_initByRequest(*channel,connection, msg, pos) == UA_SUCCESS){
-			//TODO remove SL_ProcessOpenChannel (only a special case in SL_Process)
-			retval |= SL_ProcessOpenChannel(*channel, msg, pos);
-			retval |= SL_ChannelManager_addChannel(channel);
-			return retval;
-		}else{
-			printf("TL_handleOpen - ERROR: could not create new secureChannel");
-		}
-	}
-	else{
-		printf("TL_handleOpen - ERROR: wrong ConnectionState");
+			SL_ChannelManager_generateToken);
+		retval |= SL_Channel_bind(*channel,connection);
+		retval |= SL_ProcessOpenChannel(*channel, msg, pos);
+		retval |= SL_ChannelManager_addChannel(channel);
+		return retval;
+	}else{
+		printf("TL_handleOpen - ERROR: could not create new secureChannel");
 	}
 
 	return UA_ERR_INVALID_VALUE;

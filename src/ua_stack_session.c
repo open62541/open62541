@@ -188,7 +188,7 @@ UA_Boolean UA_Session_verifyChannel(UA_Session session, SL_Channel channel)
 {
 	if(session && channel)
 	{
-		if(SL_Channel_compare(((UA_SessionType*)session)->channel, channel) == UA_EQUAL) {
+		if(SL_Channel_equal(((UA_SessionType*)session)->channel, channel) == UA_EQUAL) {
 				return UA_TRUE;
 		}
 	}
