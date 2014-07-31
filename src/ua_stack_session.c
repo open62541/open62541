@@ -116,10 +116,12 @@ UA_Boolean UA_Session_compare(UA_Session session1, UA_Session session2)
 {
 	if(session1 && session2){
 
-		return UA_NodeId_equal(&((UA_SessionType*)session1)->sessionId,
-				&((UA_SessionType*)session2)->sessionId);
+		if (UA_NodeId_equal(&((UA_SessionType*)session1)->sessionId,
+				&((UA_SessionType*)session2)->sessionId) == UA_EQUAL){
+			return UA_TRUE;
+		}
 	}
-	return UA_NOT_EQUAL;
+	return UA_FALSE;
 }
 
 UA_Boolean UA_Session_compareByToken(UA_Session session, UA_NodeId *token)
@@ -188,7 +190,7 @@ UA_Boolean UA_Session_verifyChannel(UA_Session session, SL_Channel channel)
 {
 	if(session && channel)
 	{
-		if(SL_Channel_equal(((UA_SessionType*)session)->channel, channel) == UA_EQUAL) {
+		if(SL_Channel_compare(((UA_SessionType*)session)->channel, channel) == UA_TRUE) {
 				return UA_TRUE;
 		}
 	}

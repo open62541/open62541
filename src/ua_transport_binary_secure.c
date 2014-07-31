@@ -457,6 +457,8 @@ UA_Int32 SL_Process(const UA_ByteString* msg,
 	}
 	else
 	{
+		printf("SL_process - ERROR could not find channel with id: %i \n",
+				secureChannelId);
 		//TODO generate ERROR_Bad_SecureChannelUnkown
 	}
 

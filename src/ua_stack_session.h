@@ -41,7 +41,7 @@ UA_Int32 UA_Session_delete(UA_Session *session);
  * @brief compares two session objects
  * @param session1
  * @param session2
- * @return UA_EQUAL if it is the same session, UA_NOT_EQUAL else
+ * @return UA_TRUE if it is the same session, UA_FALSE else
  */
 UA_Boolean UA_Session_compare(UA_Session session1, UA_Session session2);
 /**

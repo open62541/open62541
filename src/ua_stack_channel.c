@@ -226,11 +226,11 @@ UA_Int32 SL_Channel_setState(SL_Channel channel, SL_channelState channelState) {
 
 
 
-UA_Boolean SL_Channel_equal(SL_Channel channel1, SL_Channel channel2) {
+UA_Boolean SL_Channel_compare(SL_Channel channel1, SL_Channel channel2) {
 	return (((SL_ChannelType*) channel1)->channelId
 			== ((SL_ChannelType*) channel2)->channelId) ?
-	UA_EQUAL :
-															UA_NOT_EQUAL;
+	UA_TRUE :
+															UA_FALSE;
 }
 
 UA_Int32 SL_Channel_bind(SL_Channel channel, UA_TL_Connection connection) {

@@ -11,8 +11,6 @@
 typedef struct UA_SessionManagerType
 {
 	UA_list_List sessions;
-
-
 	UA_UInt32 maxSessionCount;
 	UA_Int32 lastSessionId;
 	UA_UInt32 currentSessionCount;

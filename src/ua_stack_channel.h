@@ -52,7 +52,7 @@ UA_Int32 SL_Channel_checkRequestId(SL_Channel channel, UA_UInt32 requestId);
 
 UA_Int32 SL_Channel_checkSequenceNumber(SL_Channel channel,
 		UA_UInt32 sequenceNumber);
-UA_Boolean SL_Channel_equal(SL_Channel channel1, SL_Channel channel2);
+UA_Boolean SL_Channel_compare(SL_Channel channel1, SL_Channel channel2);
 //getters
 UA_Int32 SL_Channel_getChannelId(SL_Channel channel, UA_UInt32 *channelId);
 UA_Int32 SL_Channel_getTokenId(SL_Channel channel, UA_UInt32 *tokenlId);

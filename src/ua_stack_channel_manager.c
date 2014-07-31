@@ -149,7 +149,7 @@ UA_Int32 SL_ChannelManager_removeChannel(UA_Int32 channelId)
 	UA_Int32 retval = UA_SUCCESS;
 	SL_ChannelManager_getChannel(channelId, &channel);
 
-	UA_list_Element *element =  UA_list_search(&channelManager->channels, (UA_list_PayloadComparer)SL_Channel_equal, &channel);
+	UA_list_Element *element =  UA_list_search(&channelManager->channels, (UA_list_PayloadComparer)SL_Channel_compare, &channel);
 	if(element){
 		retval |= UA_list_removeElement(element,(UA_list_PayloadVisitor)SL_Channel_delete);
 		return retval;
@@ -173,6 +173,10 @@ UA_Int32 SL_ChannelManager_getChannelLifeTime(UA_DateTime *lifeTime)
 UA_Int32 SL_ChannelManager_getChannel(UA_UInt32 channelId, SL_Channel *channel)
 {
 	UA_UInt32 tmpChannelId;
+	if(channelManager==UA_NULL){
+		*channel = UA_NULL;
+		return UA_ERROR;
+	}
  	UA_list_Element* current = channelManager->channels.first;
 	while (current)
 	{
@@ -188,6 +192,16 @@ UA_Int32 SL_ChannelManager_getChannel(UA_UInt32 channelId, SL_Channel *channel)
 		}
 		current = current->next;
 	}
+	SL_Channel c1 = *(SL_Channel*)(channelManager->channels.first->payload);
+	SL_Channel c2 = *(SL_Channel*)(channelManager->channels.last->payload);
+	UA_UInt32 id1,id2;
+
+	SL_Channel_getChannelId(c1,&id1);
+	SL_Channel_getChannelId(c2,&id2);
+
+	printf("SL_ChannelManager_getChannel c1: %i \n",id1);
+	printf("SL_ChannelManager_getChannel c2: %i \n",id2);
+
 	*channel = UA_NULL;
 	return UA_ERROR;
 }
