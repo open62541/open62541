@@ -38,7 +38,7 @@ UA_Int32 Namespace_delete(Namespace *ns);
     With the UNIQUE flag, the node is only inserted if the nodeid does not
     already exist. With the GETMANAGED flag, the node pointer is replaced with
     the managed pointer. Otherwise, it is set to UA_NULL. */
-UA_Int32 Namespace_insert(Namespace *ns, const UA_Node **node, UA_Byte flags);
+UA_Int32 Namespace_insert(Namespace *ns, UA_Node **node, UA_Byte flags);
 
 /** @brief Remove a node from the namespace. Always succeeds, even if the node
 	was not found. */
