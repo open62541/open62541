@@ -69,11 +69,11 @@ START_TEST(failToFindNodeInOtherNamespace) {
    	rcu_register_thread();
 #endif
 	// given
-	Namespace *ns;
+	Namespace *ns = UA_NULL;
 	Namespace_new(&ns, 0);
 
-	const UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns, &n1, 0);
-	const UA_Node* n2; createNode(&n1,0,2253); Namespace_insert(ns, &n2, 0);
+	const UA_Node* n1 = UA_NULL; createNode(&n1,0,2253); Namespace_insert(ns, &n1, 0);
+	const UA_Node* n2 = UA_NULL; createNode(&n1,0,2253); Namespace_insert(ns, &n2, 0);
 
 	const UA_Node* nr = UA_NULL;
 	UA_Int32 retval;
