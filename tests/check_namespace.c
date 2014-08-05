@@ -241,6 +241,11 @@ START_TEST(failToFindNonExistantNodeInNamespaceWithSeveralEntries) {
 }
 END_TEST
 
+/************************************/
+/* Performance Profiling Test Cases */
+/************************************/
+
+#ifdef MULTITHREADING
 struct NamespaceProfileTest {
 	Namespace *ns;
 	UA_Int32 min_val;
@@ -266,6 +271,7 @@ void *profileGetThread(void *arg) {
 	
 	return UA_NULL;
 }
+#endif
 
 START_TEST(profileGetDelete) {
 #ifdef MULTITHREADING
