@@ -15,10 +15,7 @@ UA_Int32 UA_Node_getParent(const UA_Node* node, const UA_Node** parent) {
 		UA_Int32 refId = node->references[i].referenceTypeId.identifier.numeric;
 		UA_Int32 isInverse = node->references[i].isInverse;
 		if (isInverse && (refId == 47 || refId == 46)) {
-			Namespace_Entry_Lock* lock = UA_NULL;
-			UA_Int32 retval;
-			retval = Namespace_get(theNamespace, &(node->references[i].targetId.nodeId),parent,&lock);
-			Namespace_Entry_Lock_release(lock);
+			UA_Int32 retval = Namespace_get(theNamespace, &(node->references[i].targetId.nodeId),parent);
 			if (retval == UA_SUCCESS) {
 				DBG(printf(" has parent={i=%d}\n",(*parent)->nodeId.identifier.numeric));
 			} else {
@@ -170,9 +167,7 @@ void sam_attachToNamespace(UA_Node const * node) {
 UA_Int32 Namespace_getNumberOfComponents(Namespace const * ns, UA_NodeId const * id, UA_Int32* number) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Node const * node;
-	if ((retval = Namespace_get(ns,id,&node,UA_NULL)) != UA_SUCCESS)
-		return retval;
-	if (node == UA_NULL)
+	if ((retval = Namespace_get(ns,id,&node)) != UA_SUCCESS)
 		return UA_ERR_INVALID_VALUE;
 	UA_Int32 i, n;
 	for (i = 0, n = 0; i < node->referencesSize; i++ ) {
@@ -180,6 +175,7 @@ UA_Int32 Namespace_getNumberOfComponents(Namespace const * ns, UA_NodeId const *
 			n++;
 		}
 	}
+	Namespace_releaseManagedNode(node);
 	*number = n;
 	return retval;
 }
@@ -188,7 +184,7 @@ UA_Int32 Namespace_getComponent(Namespace const * ns, UA_NodeId const * id, UA_I
 	UA_Int32 retval = UA_SUCCESS;
 
 	UA_Node const * node;
-	if ((retval = Namespace_get(ns,id,&node,UA_NULL)) != UA_SUCCESS)
+	if ((retval = Namespace_get(ns,id,&node)) != UA_SUCCESS)
 		return retval;
 
 	UA_Int32 i, n;
@@ -197,10 +193,12 @@ UA_Int32 Namespace_getComponent(Namespace const * ns, UA_NodeId const * id, UA_I
 			n++;
 			if (n == idx) {
 				*result = &(node->references[i].targetId.nodeId);
+				Namespace_releaseManagedNode(node);
 				return retval;
 			}
 		}
 	}
+	Namespace_releaseManagedNode(node);
 	return UA_ERR_INVALID_VALUE;
 }
 
@@ -208,10 +206,11 @@ UA_Int32 Namespace_getComponent(Namespace const * ns, UA_NodeId const * id, UA_I
 UA_Int32 UAX_NodeId_encodeBinaryByMetaData(Namespace const * ns, UA_NodeId const * id, UA_UInt32* pos, UA_ByteString *dst) {
 	UA_Int32 i, retval = UA_SUCCESS;
 	if (UA_NodeId_isBasicType(id)) {
-		UA_Node const * result;
-		Namespace_Entry_Lock* lock;
-		if ((retval = Namespace_get(ns,id,&result,&lock)) == UA_SUCCESS)
+		const UA_Node * result;
+		if ((retval = Namespace_get(ns,id,&result)) == UA_SUCCESS) {
 			UA_Variant_encodeBinary(&((UA_VariableNode *) result)->value,dst,pos);
+			Namespace_releaseManagedNode(result);
+		}
 	} else {
 		UA_Int32 nComp = 0;
 		if ((retval = Namespace_getNumberOfComponents(ns,id,&nComp)) == UA_SUCCESS) {
@@ -228,13 +227,11 @@ UA_Int32 UAX_NodeId_encodeBinaryByMetaData(Namespace const * ns, UA_NodeId const
 UA_Int32 UAX_NodeId_encodeBinary(Namespace const * ns, UA_NodeId const * id, UA_ByteString *dst, UA_UInt32* offset) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Node const * node;
-	Namespace_Entry_Lock* lock;
-
-	if ((retval = Namespace_get(ns,id,&node,&lock)) == UA_SUCCESS) {
+	if ((retval = Namespace_get(ns,id,&node)) == UA_SUCCESS) {
 		if (node->nodeClass == UA_NODECLASS_VARIABLE) {
 			retval = UA_Variant_encodeBinary(&((UA_VariableNode*) node)->value,dst,offset);
 		}
-		Namespace_Entry_Lock_release(lock);
+		Namespace_releaseManagedNode(node);
 	}
 	return retval;
 }
