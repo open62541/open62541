@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "ua_types.h"
 #include "ua_namespace.h"
 #include "check.h"
 
 #ifdef MULTITHREADING
+#include <pthread.h>
 #include <urcu.h>
 #endif
 
@@ -239,6 +241,81 @@ START_TEST(failToFindNonExistantNodeInNamespaceWithSeveralEntries) {
 }
 END_TEST
 
+struct NamespaceProfileTest {
+	Namespace *ns;
+	UA_Int32 min_val;
+	UA_Int32 max_val;
+	UA_Int32 rounds;
+};
+
+void *profileGetThread(void *arg) {
+   	rcu_register_thread();
+	struct NamespaceProfileTest *test = (struct NamespaceProfileTest*) arg;
+	UA_NodeId id = NS0NODEID(0);
+	const UA_Node *cn;
+	UA_Int32 max_val = test->max_val;
+	Namespace *ns = test->ns;
+	for(UA_Int32 x = 0; x<test->rounds; x++) {
+		for (UA_Int32 i=test->min_val; i<max_val; i++) {
+			id.identifier.numeric = i;
+			Namespace_get(ns,&id, &cn);
+			Namespace_releaseManagedNode(cn);
+		}
+	}
+	rcu_unregister_thread();
+	
+	return UA_NULL;
+}
+
+START_TEST(profileGetDelete) {
+#ifdef MULTITHREADING
+   	rcu_register_thread();
+#endif
+
+#define N 1000000
+	Namespace *ns;
+	Namespace_new(&ns, 0);
+	UA_Int32 i=0;
+	UA_Node *n;
+	for (; i<N; i++) {
+		createNode(&n,0,i); Namespace_insert(ns, &n, 0);
+	}
+	clock_t begin, end;
+	begin = clock();
+#ifdef MULTITHREADING
+#define THREADS 4
+    pthread_t t[THREADS];
+	struct NamespaceProfileTest p[THREADS];
+	for (int i = 0; i < THREADS; i++) {
+		p[i] = (struct NamespaceProfileTest){ns, i*(N/THREADS), (i+1)*(N/THREADS), 50};
+		pthread_create(&t[i], NULL, profileGetThread, &p[i]);
+	}
+	for (int i = 0; i < THREADS; i++)
+		pthread_join(t[i], NULL);
+	end = clock();
+	printf("Time for %d create/get/delete on %d threads in a namespace: %fs.\n", N, THREADS, (double)(end - begin) / CLOCKS_PER_SEC);
+#else
+	const UA_Node *cn;
+	UA_NodeId id = NS0NODEID(0);
+	for(UA_Int32 x = 0; x<50; x++) {
+	    for(i=0; i<N; i++) {
+	        id.identifier.numeric = i;
+			Namespace_get(ns,&id, &cn);
+			Namespace_releaseManagedNode(cn);
+        }
+    }
+	end = clock();
+	printf("Time for single-threaded %d create/get/delete in a namespace: %fs.\n", N, (double)(end - begin) / CLOCKS_PER_SEC);
+#endif
+
+	Namespace_delete(ns);
+
+#ifdef MULTITHREADING
+	rcu_unregister_thread();
+#endif
+}
+END_TEST
+
 Suite * namespace_suite (void) {
 	Suite *s = suite_create ("Namespace");
 
@@ -258,6 +335,10 @@ Suite * namespace_suite (void) {
 	tcase_add_test (tc_iterate, iterateOverNamespaceShallNotVisitEmptyNodes);
 	tcase_add_test (tc_iterate, iterateOverExpandedNamespaceShallNotVisitEmptyNodes);
 	suite_add_tcase (s, tc_iterate);
+	
+	/* TCase* tc_profile = tcase_create ("Profile"); */
+	/* tcase_add_test (tc_profile, profileGetDelete); */
+	/* suite_add_tcase (s, tc_profile); */
 
 	return s;
 }
@@ -267,7 +348,7 @@ int main (void) {
 	int number_failed =0;
 	Suite *s = namespace_suite ();
 	SRunner *sr = srunner_create (s);
-	srunner_set_fork_status(sr,CK_NOFORK);
+	//srunner_set_fork_status(sr,CK_NOFORK);
 	srunner_run_all (sr, CK_NORMAL);
 	number_failed += srunner_ntests_failed (sr);
 	srunner_free (sr);
