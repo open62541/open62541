@@ -1,7 +1,7 @@
 dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(Open62541, 1.0)
+AC_INIT(open62541, 0.1)
 
 AC_CANONICAL_SYSTEM
 AM_INIT_AUTOMAKE([subdir-objects])
