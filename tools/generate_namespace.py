@@ -8,9 +8,10 @@ import re
 import argparse
 
 parser = argparse.ArgumentParser()
+parser.add_argument('--with-xml', action='store_true', help='generate xml encoding')
+parser.add_argument('--with-json', action='store_true', help='generate json encoding')
 parser.add_argument('nodeids', help='path/to/NodeIds.csv')
 parser.add_argument('outfile', help='outfile w/o extension')
-parser.add_argument('--with-xml', action='store_true', help='generate xml encoding')
 args = parser.parse_args()
 
 # types that are to be excluded
