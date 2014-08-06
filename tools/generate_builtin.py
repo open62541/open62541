@@ -280,8 +280,8 @@ printh('''/**
  * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  */
 
-#ifndef ''' + args.outfile.upper() + '''_H_
-#define ''' + args.outfile.upper() + '''_H_
+#ifndef ''' + args.outfile.upper().split("/")[-1] + '''_H_
+#define ''' + args.outfile.upper().split("/")[-1] + '''_H_
 
 #include "ua_types.h"
 #include "ua_types_encoding_binary.h"
@@ -297,7 +297,7 @@ printc('''/**
  * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  */
  
-#include "''' + args.outfile + '.h"\n')
+#include "''' + args.outfile.split("/")[-1] + '.h"\n')
 #include "ua_types_encoding_binary.h"
 #include "util/ua_util.h"
 
