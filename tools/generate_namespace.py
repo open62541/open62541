@@ -86,8 +86,8 @@ printh('''/**********************************************************
  * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+
        time.strftime("%Y-%m-%d %I:%M:%S")+'''
  **********************************************************/\n 
-#ifndef ''' + args.outfile.upper() + '''_H_
-#define ''' + args.outfile.upper() + '''_H_\n
+#ifndef ''' + args.outfile.upper().split("/")[-1] + '''_H_
+#define ''' + args.outfile.upper().split("/")[-1] + '''_H_\n
 #include "util/ua_util.h"
 #include "ua_types.h"  // definition of UA_VTable and basic UA_Types
 #include "ua_types_generated.h"\n
@@ -111,13 +111,13 @@ extern const UA_VTable UA_borrowed_;\n
 enum UA_VTableIndex_enum {''')
 
 printc('''/**********************************************************
- * '''+args.outfile+'''.cgen -- do not modify
+ * '''+args.outfile.split("/")[-1]+'''.cgen -- do not modify
  **********************************************************
  * Generated from '''+args.nodeids+''' with script '''+sys.argv[0]+'''
  * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser() +
        ''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  **********************************************************/\n
-#include "''' + args.outfile + '''.h"\n
+#include "''' + args.outfile.split("/")[-1] + '''.h"\n
 UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id) {
 	UA_Int32 retval = 0; // InvalidType
         if(id->namespace != 0) return retval;

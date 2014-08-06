@@ -1,6 +1,7 @@
 #ifndef UA_TYPES_H_
 #define UA_TYPES_H_
 
+#include "ua_config.h"
 #include <stdio.h>
 #include <stdint.h>
 
