@@ -4,7 +4,9 @@ set (open62541_VERSION_MAJOR 0)
 set (open62541_VERSION_MINOR 1)
 
 # set (CMAKE_VERBOSE_MAKEFILE on )
+if (CMAKE_COMPILER_IS_GNUCC)
 set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -pedantic -pipe -fstack-protector -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wformat -Wreturn-type -Wsign-compare -Wmultichar -Wformat-nonliteral -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -Werror -ffunction-sections -fdata-sections -Wl,--gc-sections")
+endif (CMAKE_COMPILER_IS_GNUCC)
 
 # multithreading
 set (MULTITHREADING OFF CACHE BOOL "Enable multithreading")

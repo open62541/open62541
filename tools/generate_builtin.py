@@ -284,9 +284,10 @@ printh('''/**
 #define ''' + args.outfile.upper().split("/")[-1] + '''_H_
 
 #include "ua_types.h"
-#include "ua_types_encoding_binary.h"
-#include "ua_types_encoding_xml.h"
-#include "ua_namespace_0.h"\n''')
+#include "ua_types_encoding_binary.h"''')
+if args.with_xml:
+	printh('#include "ua_types_encoding_xml.h"')
+printh('#include "ua_namespace_0.h"\n')
 
 printc('''/**
  * @file '''+sys.argv[2]+'''.c
