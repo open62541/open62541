@@ -240,8 +240,8 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
 
     # 12) Copy
     printc('''UA_Int32 %(name)s_copy(const %(name)s *src,%(name)s *dst) {
-    if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
-    UA_Int32 retval = UA_SUCCESS;''')
+	UA_Int32 retval = UA_SUCCESS;
+    if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;''')
     printc("\tmemcpy(dst, src, sizeof(%(name)s));")
     for n,t in membermap.iteritems():
         if t.find("*") != -1:

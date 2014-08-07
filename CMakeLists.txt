@@ -3,7 +3,7 @@ project (open62541)
 set (open62541_VERSION_MAJOR 0)
 set (open62541_VERSION_MINOR 1)
 
-# set (CMAKE_VERBOSE_MAKEFILE on )
+set (CMAKE_VERBOSE_MAKEFILE on )
 if (CMAKE_COMPILER_IS_GNUCC)
 set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -pedantic -pipe -fstack-protector -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wformat -Wreturn-type -Wsign-compare -Wmultichar -Wformat-nonliteral -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -Werror -ffunction-sections -fdata-sections -Wl,--gc-sections")
 endif (CMAKE_COMPILER_IS_GNUCC)
@@ -17,14 +17,14 @@ endif (MULTITHREADING)
 # encodings
 set (UA_ENCODING_AMOUNT 1) # binary encoding
 
-set (UA_ENCODING_XML ON CACHE BOOL "Enable XML-encoding of the UA types")
+set (UA_ENCODING_XML OFF CACHE BOOL "Enable XML-encoding of the UA types")
 if (UA_ENCODING_XML)
     MATH(EXPR UA_ENCODING_AMOUNT "${UA_ENCODING_AMOUNT}+1")
     find_package (EXPAT REQUIRED)
     if (EXPAT_FOUND)
         include_directories (${EXPAT_INCLUDE_DIRS})
     else (EXPAT_FOUND)
-        message (fatal_error "Expat library not found.")
+        message (FATAL_ERROR "Expat library not found.")
     endif (EXPAT_FOUND)
 endif (UA_ENCODING_XML)
 
@@ -81,7 +81,7 @@ if (UA_ENCODING_JSON)
     set (generate_options "${generate_options}--with-json")
 endif (UA_ENCODING_JSON)
 
-add_library(open62541 ${lib_sources})
+add_library (open62541 ${lib_sources})
 
 # generate data structures
 add_custom_command (OUTPUT ${PROJECT_BINARY_DIR}/ua_types_generated.c
@@ -95,6 +95,18 @@ add_custom_command (OUTPUT ${PROJECT_BINARY_DIR}/ua_namespace_0.c
                     COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_namespace.py ${generate_options} ${PROJECT_SOURCE_DIR}/schema/NodeIds.csv ${PROJECT_BINARY_DIR}/ua_namespace_0
                     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_namespace.py
                             ${CMAKE_CURRENT_SOURCE_DIR}/schema/NodeIds.csv)
+
+# download queue.h if required
+if (WIN32)
+	if (NOT EXISTS "${PROJECT_BINARY_DIR}/queue.h")
+        file (DOWNLOAD "http://openbsd.cs.toronto.edu/cgi-bin/cvsweb/~checkout~/src/sys/sys/queue.h" "${PROJECT_BINARY_DIR}/queue.h" STATUS result)
+		list (GET result 0 download_ok)
+		if (NOT ${download_ok} MATCHES 0)
+			execute_process (COMMAND rm "${PROJECT_BINARY_DIR}/queue.h") # remove empty file if created
+			message (FATAL_ERROR "queue.h could not be downloaded")
+		endif ()
+	endif ()
+endif (WIN32)
 
 # build example implementations
 add_executable(exampleServer examples/src/opcuaServer.c

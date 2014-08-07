@@ -84,8 +84,9 @@ UA_Int32 UA_OPCUATcpMessageHeader_init(UA_OPCUATcpMessageHeader *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_OPCUATcpMessageHeader)
 UA_Int32 UA_OPCUATcpMessageHeader_copy(const UA_OPCUATcpMessageHeader *src,UA_OPCUATcpMessageHeader *dst) {
-    	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
-    	UA_Int32 retval = UA_SUCCESS;
+	UA_Int32 retval = UA_SUCCESS;
+    if(src == UA_NULL || dst == UA_NULL)
+		return UA_ERROR;
 	memcpy(dst, src, sizeof(UA_OPCUATcpMessageHeader));
 	return retval;
 }
@@ -151,8 +152,8 @@ UA_Int32 UA_OPCUATcpHelloMessage_init(UA_OPCUATcpHelloMessage *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_OPCUATcpHelloMessage)
 UA_Int32 UA_OPCUATcpHelloMessage_copy(const UA_OPCUATcpHelloMessage *src,UA_OPCUATcpHelloMessage *dst) {
-    	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
-    	UA_Int32 retval = UA_SUCCESS;
+	UA_Int32 retval = UA_SUCCESS;
+    if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	memcpy(dst, src, sizeof(UA_OPCUATcpHelloMessage));
 	retval |= UA_String_copy(&src->endpointUrl,&dst->endpointUrl);
 	return retval;
@@ -214,8 +215,8 @@ UA_Int32 UA_OPCUATcpAcknowledgeMessage_init(UA_OPCUATcpAcknowledgeMessage *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_OPCUATcpAcknowledgeMessage)
 UA_Int32 UA_OPCUATcpAcknowledgeMessage_copy(const UA_OPCUATcpAcknowledgeMessage *src,UA_OPCUATcpAcknowledgeMessage *dst) {
-    	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
-    	UA_Int32 retval = UA_SUCCESS;
+	UA_Int32 retval = UA_SUCCESS;
+    if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	memcpy(dst, src, sizeof(UA_OPCUATcpAcknowledgeMessage));
 	return retval;
 }
@@ -264,8 +265,8 @@ UA_Int32 UA_SecureConversationMessageHeader_init(UA_SecureConversationMessageHea
 
 UA_TYPE_NEW_DEFAULT(UA_SecureConversationMessageHeader)
 UA_Int32 UA_SecureConversationMessageHeader_copy(const UA_SecureConversationMessageHeader *src,UA_SecureConversationMessageHeader *dst) {
-    	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
-    	UA_Int32 retval = UA_SUCCESS;
+	UA_Int32 retval = UA_SUCCESS;
+    if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	memcpy(dst, src, sizeof(UA_SecureConversationMessageHeader));
 	return retval;
 }
@@ -321,8 +322,8 @@ UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_init(UA_AsymmetricAlgorithmSecurit
 
 UA_TYPE_NEW_DEFAULT(UA_AsymmetricAlgorithmSecurityHeader)
 UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_copy(const UA_AsymmetricAlgorithmSecurityHeader *src,UA_AsymmetricAlgorithmSecurityHeader *dst) {
-    	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
-    	UA_Int32 retval = UA_SUCCESS;
+	UA_Int32 retval = UA_SUCCESS;
+    if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	memcpy(dst, src, sizeof(UA_AsymmetricAlgorithmSecurityHeader));
 	retval |= UA_ByteString_copy(&src->securityPolicyUri,&dst->securityPolicyUri);
 	retval |= UA_ByteString_copy(&src->senderCertificate,&dst->senderCertificate);
@@ -370,8 +371,8 @@ UA_Int32 UA_SymmetricAlgorithmSecurityHeader_init(UA_SymmetricAlgorithmSecurityH
 
 UA_TYPE_NEW_DEFAULT(UA_SymmetricAlgorithmSecurityHeader)
 UA_Int32 UA_SymmetricAlgorithmSecurityHeader_copy(const UA_SymmetricAlgorithmSecurityHeader *src,UA_SymmetricAlgorithmSecurityHeader *dst) {
-    	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
-    	UA_Int32 retval = UA_SUCCESS;
+	UA_Int32 retval = UA_SUCCESS;
+    if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	memcpy(dst, src, sizeof(UA_SymmetricAlgorithmSecurityHeader));
 	return retval;
 }
@@ -420,8 +421,8 @@ UA_Int32 UA_SequenceHeader_init(UA_SequenceHeader *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_SequenceHeader)
 UA_Int32 UA_SequenceHeader_copy(const UA_SequenceHeader *src,UA_SequenceHeader *dst) {
-    	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
-    	UA_Int32 retval = UA_SUCCESS;
+	UA_Int32 retval = UA_SUCCESS;
+    if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	memcpy(dst, src, sizeof(UA_SequenceHeader));
 	return retval;
 }
@@ -474,8 +475,8 @@ UA_Int32 UA_SecureConversationMessageFooter_init(UA_SecureConversationMessageFoo
 
 UA_TYPE_NEW_DEFAULT(UA_SecureConversationMessageFooter)
 UA_Int32 UA_SecureConversationMessageFooter_copy(const UA_SecureConversationMessageFooter *src,UA_SecureConversationMessageFooter *dst) {
-    	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
-    	UA_Int32 retval = UA_SUCCESS;
+	UA_Int32 retval = UA_SUCCESS;
+    if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	memcpy(dst, src, sizeof(UA_SecureConversationMessageFooter));
 
 
@@ -528,8 +529,8 @@ UA_Int32 UA_SecureConversationMessageAbortBody_init(UA_SecureConversationMessage
 
 UA_TYPE_NEW_DEFAULT(UA_SecureConversationMessageAbortBody)
 UA_Int32 UA_SecureConversationMessageAbortBody_copy(const UA_SecureConversationMessageAbortBody *src,UA_SecureConversationMessageAbortBody *dst) {
-    	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
-    	UA_Int32 retval = UA_SUCCESS;
+	UA_Int32 retval = UA_SUCCESS;
+    if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	memcpy(dst, src, sizeof(UA_SecureConversationMessageAbortBody));
 	retval |= UA_String_copy(&src->reason,&dst->reason);
 	return retval;

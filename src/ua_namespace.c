@@ -21,10 +21,10 @@ static hash_t const primes[] = {
 	134217689, 268435399, 536870909, 1073741789, 2147483647, 4294967291
 };
 
-static inline hash_t mod(hash_t h, hash_t size) { return h % size; }
-static inline hash_t mod2(hash_t h, hash_t size) { return 1 + (h % (size - 2)); }
+static INLINE hash_t mod(hash_t h, hash_t size) { return h % size; }
+static INLINE hash_t mod2(hash_t h, hash_t size) { return 1 + (h % (size - 2)); }
 
-static inline UA_Int16 higher_prime_index(hash_t n) {
+static INLINE UA_Int16 higher_prime_index(hash_t n) {
 	UA_UInt16 low  = 0;
 	UA_UInt16 high = sizeof(primes) / sizeof(hash_t);
 	while(low != high) {
@@ -38,7 +38,10 @@ static inline UA_Int16 higher_prime_index(hash_t n) {
 }
 
 /* Based on Murmur-Hash 3 by Austin Appleby (public domain, freely usable) */
-static inline hash_t hash_array(const UA_Byte *data, UA_UInt32 len) {
+static INLINE hash_t hash_array(const UA_Byte *data, UA_UInt32 len) {
+	const int32_t nblocks = len / 4;
+	const uint32_t *blocks;
+
 	static const uint32_t c1 = 0xcc9e2d51;
 	static const uint32_t c2 = 0x1b873593;
 	static const uint32_t r1 = 15;
@@ -47,10 +50,10 @@ static inline hash_t hash_array(const UA_Byte *data, UA_UInt32 len) {
 	static const uint32_t n  = 0xe6546b64;
 	hash_t hash = len;
 
-	if(data == UA_NULL) return 0;
+	if(data == UA_NULL)
+		return 0;
 
-	const int32_t   nblocks = len / 4;
-	const uint32_t *blocks  = (const uint32_t *)data;
+	blocks  = (const uint32_t *)data;
 	for(int32_t i = 0;i < nblocks;i++) {
 		uint32_t k = blocks[i];
 		k    *= c1;
@@ -86,7 +89,7 @@ static inline hash_t hash_array(const UA_Byte *data, UA_UInt32 len) {
 	return hash;
 }
 
-static inline hash_t hash(const UA_NodeId *n) {
+static INLINE hash_t hash(const UA_NodeId *n) {
 	switch(n->encodingByte) {
 	case UA_NODEIDTYPE_TWOBYTE:
 	case UA_NODEIDTYPE_FOURBYTE:
@@ -104,11 +107,12 @@ static inline hash_t hash(const UA_NodeId *n) {
 	}
 }
 
-static inline void clear_entry(Namespace * ns, const UA_Node ** entry) {
+static INLINE void clear_entry(Namespace * ns, const UA_Node ** entry) {
+	const UA_Node *node;
 	if(entry == UA_NULL || *entry == UA_NULL)
 		return;
 
-	const UA_Node *node = *entry;
+	node = *entry;
 	switch (node->nodeClass) {
 	case UA_NODECLASS_OBJECT:
 		UA_ObjectNode_delete((UA_ObjectNode *) node);
@@ -143,7 +147,7 @@ static inline void clear_entry(Namespace * ns, const UA_Node ** entry) {
 
 /* Returns UA_SUCCESS if an entry was found. Otherwise, UA_ERROR is returned and the "entry"
    argument points to the first free entry under the NodeId. */
-static inline UA_Int32 find_entry(const Namespace * ns, const UA_NodeId * nodeid, const UA_Node *** entry) {
+static INLINE UA_Int32 find_entry(const Namespace * ns, const UA_NodeId * nodeid, const UA_Node *** entry) {
 	hash_t h = hash(nodeid);
 	UA_UInt32 size = ns->size;
 	hash_t index = mod(h, size);
@@ -232,11 +236,12 @@ static UA_Int32 expand(Namespace * ns) {
 
 UA_Int32 Namespace_new(Namespace ** result, UA_UInt32 namespaceId) {
 	Namespace *ns;
+	UA_UInt32 sizePrimeIndex, size;
 	if(UA_alloc((void **)&ns, sizeof(Namespace)) != UA_SUCCESS)
 		return UA_ERR_NO_MEMORY;
 
-	UA_UInt32 sizePrimeIndex = higher_prime_index(32);
-	UA_UInt32 size = primes[sizePrimeIndex];
+	sizePrimeIndex = higher_prime_index(32);
+	size = primes[sizePrimeIndex];
 	if(UA_alloc((void **)&ns->entries, sizeof(UA_Node *) * size) != UA_SUCCESS) {
 		UA_free(ns);
 		return UA_ERR_NO_MEMORY;
@@ -294,9 +299,10 @@ UA_Int32 Namespace_insert(Namespace *ns, UA_Node **node, UA_Byte flags) {
 }
 
 UA_Int32 Namespace_get(const Namespace *ns, const UA_NodeId *nodeid, const UA_Node **managedNode) {
+	const UA_Node **entry;
 	if(ns == UA_NULL || nodeid == UA_NULL || managedNode == UA_NULL)
 		return UA_ERROR;
-	const UA_Node **entry;
+
 	if(find_entry(ns, nodeid, &entry) != UA_SUCCESS)
 		return UA_ERROR;
 

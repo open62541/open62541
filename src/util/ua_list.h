@@ -3,7 +3,11 @@
 
 #include "ua_types.h"
 #include <stddef.h> /* Needed for sys/queue.h */
+#ifndef MSVC
 #include <sys/queue.h>
+#else
+#include "queue.h"
+#endif
 
 /**********************/
 /* Singly Linked List */
