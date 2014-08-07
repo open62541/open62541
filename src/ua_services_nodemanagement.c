@@ -90,13 +90,13 @@ UA_Int32 Service_AddNodes(SL_Channel *channel, const UA_AddNodesRequest *request
 
 static UA_Int32 AddSingleReference(UA_Node *node, UA_ReferenceNode *reference) {
 	// TODO: Check if reference already exists
-
+	UA_Int32 retval;
 	UA_Int32 count = node->referencesSize;
-	if(count < 0) count = 0;
 	UA_ReferenceNode *old_refs = node->references;
 	UA_ReferenceNode *new_refs;
+	if(count < 0) count = 0; 
 
-	UA_Int32 retval = UA_alloc((void **)&new_refs, sizeof(UA_ReferenceNode)*(count+1));
+	retval = UA_alloc((void **)&new_refs, sizeof(UA_ReferenceNode)*(count+1));
 	if(retval != UA_SUCCESS)
 		return UA_ERROR;
 	UA_memcpy(new_refs, old_refs, sizeof(UA_ReferenceNode)*count);
@@ -115,18 +115,20 @@ static UA_Int32 AddSingleReference(UA_Node *node, UA_ReferenceNode *reference) {
 
 UA_Int32 AddReference(UA_Node *node, UA_ReferenceNode *reference, Namespace *targetns) {
 	UA_Int32 retval = AddSingleReference(node, reference);
+	UA_Node *targetnode;
+	UA_ReferenceNode inversereference;
 	if(retval != UA_SUCCESS || targetns == UA_NULL)
 		return retval;
 
-	UA_Node *targetnode;
 	// Do a copy every time?
 	if(Namespace_get(targetns, &reference->targetId.nodeId, (const UA_Node**)&targetnode) != UA_SUCCESS)
 		return UA_ERROR;
 
-	UA_ReferenceNode inversereference;
 	inversereference.referenceTypeId = reference->referenceTypeId;
 	inversereference.isInverse = !reference->isInverse;
-	inversereference.targetId = (UA_ExpandedNodeId){node->nodeId, UA_STRING_NULL, 0};	
+	inversereference.targetId.nodeId = node->nodeId;
+	inversereference.targetId.namespaceUri = UA_STRING_NULL;
+	inversereference.targetId.serverIndex = 0;
 	retval = AddSingleReference(targetnode, &inversereference);
 	Namespace_releaseManagedNode(targetnode);
 

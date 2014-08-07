@@ -2,8 +2,14 @@
 #include <stdlib.h> // alloc, free, vsnprintf
 #include <string.h>
 #include <stdarg.h> // va_start, va_end
+
+#ifdef WIN32
+#include <windows.h>
 #include <time.h>
+#else
 #include <sys/time.h>
+#endif
+
 #include "util/ua_util.h"
 #include "ua_types.h"
 #include "ua_types_encoding_binary.h"
@@ -144,8 +150,8 @@ UA_Int32 UA_String_deleteMembers(UA_String *p) {
 }
 
 UA_Int32 UA_String_copy(UA_String const *src, UA_String *dst) {
-	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	UA_Int32 retval = UA_SUCCESS;
+	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	dst->data   = UA_NULL;
 	dst->length = -1;
 	if(src->length > 0) {
@@ -295,8 +301,6 @@ UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time) {
 	time_t    timeInSec = time/10000000; //converting the nanoseconds time in unixtime
 	struct tm ts;
 	ts = *gmtime(&timeInSec);
-	//strftime(buf, sizeof(buf), "%a %Y-%m-%d %H:%M:%S %Z", &ts);
-	//printf("%s\n", buf);
 	dateTimeStruct.sec    = ts.tm_sec;
 	dateTimeStruct.min    = ts.tm_min;
 	dateTimeStruct.hour   = ts.tm_hour;
@@ -336,8 +340,8 @@ UA_Int32 UA_Guid_init(UA_Guid *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_Guid)
 UA_Int32 UA_Guid_copy(UA_Guid const *src, UA_Guid *dst) {
-	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	UA_Int32 retval = UA_SUCCESS;
+	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	retval |= UA_memcpy((void *)dst, (void *)src, sizeof(UA_Guid));
 	return retval;
 }
@@ -403,8 +407,8 @@ UA_Int32 UA_NodeId_init(UA_NodeId *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_NodeId)
 UA_Int32 UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst) {
-	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	UA_Int32 retval = UA_SUCCESS;
+	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	retval |= UA_Byte_copy(&src->encodingByte, &dst->encodingByte);
 
 	switch(src->encodingByte & UA_NODEIDTYPE_MASK) {
@@ -623,8 +627,8 @@ UA_Int32 UA_ExpandedNodeId_init(UA_ExpandedNodeId *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_ExpandedNodeId)
 UA_Int32 UA_ExpandedNodeId_copy(UA_ExpandedNodeId const *src, UA_ExpandedNodeId *dst) {
-	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	UA_Int32 retval = UA_SUCCESS;
+	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	UA_String_copy(&src->namespaceUri, &dst->namespaceUri);
 	UA_NodeId_copy(&src->nodeId, &dst->nodeId);
 	UA_UInt32_copy(&src->serverIndex, &dst->serverIndex);
@@ -669,8 +673,8 @@ UA_Int32 UA_QualifiedName_init(UA_QualifiedName *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_QualifiedName)
 UA_Int32 UA_QualifiedName_copy(UA_QualifiedName const *src, UA_QualifiedName *dst) {
-	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	UA_Int32 retval = UA_SUCCESS;
+	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	retval |= UA_String_copy(&src->name, &dst->name);
 	retval |= UA_UInt16_copy(&src->namespaceIndex, &dst->namespaceIndex);
 	return retval;
@@ -698,8 +702,8 @@ void UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn) {
 /* LocalizedText */
 UA_TYPE_DELETE_DEFAULT(UA_LocalizedText)
 UA_Int32 UA_LocalizedText_deleteMembers(UA_LocalizedText *p) {
-	if(p == UA_NULL) return UA_SUCCESS;
 	UA_Int32 retval = UA_SUCCESS;
+	if(p == UA_NULL) return UA_SUCCESS;
 	retval |= UA_String_deleteMembers(&p->locale);
 	retval |= UA_String_deleteMembers(&p->text);
 	return retval;
@@ -725,9 +729,8 @@ UA_Int32 UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst) {
 }
 
 UA_Int32 UA_LocalizedText_copy(UA_LocalizedText const *src, UA_LocalizedText *dst) {
-	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	UA_Int32 retval = UA_SUCCESS;
-
+	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	retval |= UA_LocalizedText_init(dst);
 	retval |= UA_String_copy(&src->locale, &dst->locale);
 	if(retval != UA_SUCCESS) return retval;
@@ -766,8 +769,8 @@ UA_Int32 UA_ExtensionObject_init(UA_ExtensionObject *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_ExtensionObject)
 UA_Int32 UA_ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst) {
-	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	UA_Int32 retval = UA_SUCCESS;
+	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	retval |= UA_Byte_copy(&src->encoding, &dst->encoding);
 	retval |= UA_ByteString_copy(&src->body, &dst->body);
 	retval |= UA_NodeId_copy(&src->typeId, &dst->typeId);
@@ -814,8 +817,8 @@ UA_Int32 UA_DataValue_init(UA_DataValue *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_DataValue)
 UA_Int32 UA_DataValue_copy(UA_DataValue const *src, UA_DataValue *dst) {
-	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	UA_Int32 retval = UA_SUCCESS;
+	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	UA_Byte_copy(&src->encodingMask, &dst->encodingMask);
 	UA_Int16_copy(&src->serverPicoseconds, &dst->serverPicoseconds);
 	UA_DateTime_copy(&src->serverTimestamp, &dst->serverTimestamp);
@@ -851,9 +854,10 @@ void UA_DataValue_print(const UA_DataValue *p, FILE *stream) {
 UA_TYPE_DELETE_DEFAULT(UA_Variant)
 UA_Int32 UA_Variant_deleteMembers(UA_Variant *p) {
 	UA_Int32 retval = UA_SUCCESS;
+	UA_Boolean hasDimensions;
 	if(p == UA_NULL) return retval;
 
-	UA_Boolean hasDimensions = p->arrayDimensions != UA_NULL;
+	hasDimensions = p->arrayDimensions != UA_NULL;
 
 	if(p->data != UA_NULL) {
 		retval |= UA_Array_delete(p->data, p->arrayLength, p->vt);
@@ -878,10 +882,9 @@ UA_Int32 UA_Variant_init(UA_Variant *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_Variant)
 UA_Int32 UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
+	UA_Int32  retval = UA_SUCCESS;
 	if(src == UA_NULL || dst == UA_NULL)
 		return UA_ERROR;
-
-	UA_Int32  retval = UA_SUCCESS;
 	dst->vt = src->vt;
 	retval |= UA_Int32_copy(&src->arrayLength, &dst->arrayLength);
 	retval |= UA_Int32_copy(&src->arrayDimensionsLength, &dst->arrayDimensionsLength);
@@ -985,8 +988,8 @@ UA_Int32 UA_DiagnosticInfo_init(UA_DiagnosticInfo *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_DiagnosticInfo)
 UA_Int32 UA_DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst) {
-	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	UA_Int32 retval = UA_SUCCESS;
+	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
 	retval |= UA_String_copy(&src->additionalInfo, &dst->additionalInfo);
 	retval |= UA_Byte_copy(&src->encodingMask, &dst->encodingMask);
 	retval |= UA_StatusCode_copy(&src->innerStatusCode, &dst->innerStatusCode);
@@ -1098,10 +1101,9 @@ UA_Int32 UA_Array_new(void **p, UA_Int32 noElements, UA_VTable_Entry *vt) {
 }
 
 UA_Int32 UA_Array_init(void *p, UA_Int32 noElements, UA_VTable_Entry *vt) {
+	UA_Int32 retval = UA_SUCCESS;
 	if(p == UA_NULL || vt == UA_NULL)
 		return UA_ERROR;
-
-	UA_Int32 retval = UA_SUCCESS;
 	char    *cp     = (char *)p; // so compilers allow pointer arithmetic
 	UA_UInt32 memSize = vt->memSize;
 	for(UA_Int32 i = 0;i < noElements && retval == UA_SUCCESS;i++) {
@@ -1129,10 +1131,11 @@ UA_Int32 UA_Array_delete(void *p, UA_Int32 noElements, UA_VTable_Entry *vt) {
 }
 
 UA_Int32 UA_Array_copy(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt, void **dst) {
+	UA_Int32 retval;
 	if(src == UA_NULL || dst == UA_NULL || vt == UA_NULL)
 		return UA_ERROR;
 
-	UA_Int32 retval = UA_Array_new(dst, noElements, vt);
+	retval = UA_Array_new(dst, noElements, vt);
 	if(retval != UA_SUCCESS){
 		*dst = UA_NULL;
 		return retval;

@@ -84,6 +84,7 @@ UA_UInt32 walkReferenceTree(Namespace *ns, const UA_ReferenceTypeNode *current, 
 /* We do not search across namespaces so far. The id of the father-referencetype is returned in the array also. */
 static UA_Int32 findSubReferenceTypes(Namespace *ns, UA_NodeId *rootReferenceType, UA_NodeId **ids, UA_UInt32 *idcount) {
 	struct SubRefTypeIdList list;
+	UA_UInt32 count;
 	UA_SLIST_INIT(&list);
 
 	// walk the tree
@@ -91,7 +92,7 @@ static UA_Int32 findSubReferenceTypes(Namespace *ns, UA_NodeId *rootReferenceTyp
 	if(Namespace_get(ns, rootReferenceType, (const UA_Node**)&root) != UA_SUCCESS ||
 	   root->nodeClass != UA_NODECLASS_REFERENCETYPE)
 		return UA_ERROR;
-	UA_UInt32 count = walkReferenceTree(ns, root, &list);
+	count = walkReferenceTree(ns, root, &list);
 	Namespace_releaseManagedNode((const UA_Node*) root);
 
 	// copy results into an array
@@ -108,7 +109,7 @@ static UA_Int32 findSubReferenceTypes(Namespace *ns, UA_NodeId *rootReferenceTyp
 }
 
 /* is this a relevant reference? */
-static inline UA_Boolean Service_Browse_returnReference(UA_BrowseDescription *browseDescription, UA_ReferenceNode* reference,
+static INLINE UA_Boolean Service_Browse_returnReference(UA_BrowseDescription *browseDescription, UA_ReferenceNode* reference,
 														UA_NodeId *relevantRefTypes, UA_UInt32 relevantRefTypesCount) {
 	if (reference->isInverse == UA_TRUE && browseDescription->browseDirection == UA_BROWSEDIRECTION_FORWARD)
 		return UA_FALSE;
@@ -125,6 +126,8 @@ static inline UA_Boolean Service_Browse_returnReference(UA_BrowseDescription *br
 static void Service_Browse_getBrowseResult(Namespace *ns, UA_BrowseDescription *browseDescription,
 										   UA_UInt32 maxReferences, UA_BrowseResult *browseResult) {
 	const UA_Node* node;
+	UA_NodeId *relevantReferenceTypes;
+	UA_UInt32 relevantReferenceTypesCount = 0;
 	if(Namespace_get(ns, &browseDescription->nodeId, &node) != UA_SUCCESS) {
 		browseResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
 		return;
@@ -135,8 +138,6 @@ static void Service_Browse_getBrowseResult(Namespace *ns, UA_BrowseDescription *
 		maxReferences = node->referencesSize;
 
 	// discover the relevant subtypes
-	UA_NodeId *relevantReferenceTypes;
-	UA_UInt32 relevantReferenceTypesCount=0;
 	if(!browseDescription->includeSubtypes ||
 	   findSubReferenceTypes(ns, &browseDescription->referenceTypeId, &relevantReferenceTypes, &relevantReferenceTypesCount) != UA_SUCCESS) {
 		UA_alloc((void**)&relevantReferenceTypes, sizeof(UA_NodeId));

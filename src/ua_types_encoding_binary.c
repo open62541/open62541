@@ -1,7 +1,7 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_namespace_0.h"
 
-static inline UA_Boolean is_builtin(UA_NodeId *typeid) {
+static INLINE UA_Boolean is_builtin(UA_NodeId *typeid) {
 	return (typeid->namespace == 0 && 1 <= typeid->identifier.numeric && typeid->identifier.numeric <= 25);
 }
 
@@ -49,13 +49,13 @@ static UA_Int32 UA_Array_calcSizeBinary_asExtensionObject(UA_Int32 nElements, UA
 
 UA_Int32 UA_Array_encodeBinary(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt, UA_ByteString *dst,
                                UA_UInt32 *offset) {
+	UA_Int32 retval = UA_SUCCESS;
 	if(vt == UA_NULL || dst == UA_NULL || offset == UA_NULL || ((src == UA_NULL) && (noElements > 0)))
 		return UA_ERROR;
 
 	//Null Arrays are encoded with length = -1 // part 6 - §5.24
 	if(noElements < -1) noElements = -1;
 
-	UA_Int32 retval     = UA_SUCCESS;
 	retval = UA_Int32_encodeBinary(&noElements, dst, offset);
 	const UA_Byte *csrc = (const UA_Byte *)src;
 	UA_UInt32 memSize   = vt->memSize;
@@ -68,13 +68,14 @@ UA_Int32 UA_Array_encodeBinary(const void *src, UA_Int32 noElements, UA_VTable_E
 
 static UA_Int32 UA_Array_encodeBinary_asExtensionObject(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt,
 														UA_ByteString *dst, UA_UInt32 *offset) {
+	UA_Int32 retval = UA_SUCCESS;
 	if(vt == UA_NULL || dst == UA_NULL || offset == UA_NULL || (src == UA_NULL && noElements > 0))
 		return UA_ERROR;
 
 	//Null Arrays are encoded with length = -1 // part 6 - §5.24
-	if(noElements < -1) noElements = -1;
+	if(noElements < -1)
+		noElements = -1;
 
-	UA_Int32 retval     = UA_SUCCESS;
 	retval = UA_Int32_encodeBinary(&noElements, dst, offset);
 	const UA_Byte *csrc = (const UA_Byte *)src;
 	UA_UInt32 memSize   = vt->memSize;
@@ -96,10 +97,10 @@ static UA_Int32 UA_Array_encodeBinary_asExtensionObject(const void *src, UA_Int3
 
 UA_Int32 UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, UA_Int32 noElements, UA_VTable_Entry *vt,
                                void **dst) {
+	UA_Int32 retval = UA_SUCCESS;
 	if(vt == UA_NULL || src == UA_NULL || dst == UA_NULL || offset == UA_NULL)
 		return UA_ERROR;
 
-	UA_Int32 retval = UA_SUCCESS;
 	if(noElements <= 0) {
 		*dst = UA_NULL;
 		return retval;
@@ -250,15 +251,18 @@ UA_TYPE_CALCSIZEBINARY_SIZEOF(UA_Float)
 // FIXME: Implement NaN, Inf and Zero(s)
 UA_Byte UA_FLOAT_ZERO[] = { 0x00, 0x00, 0x00, 0x00 };
 UA_TYPE_DECODEBINARY(UA_Float,
+					 UA_Float mantissa;
+					 UA_UInt32 biasedExponent;
+					 UA_Float sign;
                      if(memcmp(&src->data[*offset], UA_FLOAT_ZERO,
-                               4) == 0) return UA_Int32_decodeBinary(src, offset, (UA_Int32 *)dst); UA_Float mantissa;
+                               4) == 0) return UA_Int32_decodeBinary(src, offset, (UA_Int32 *)dst);
+					 
                      mantissa = (UA_Float)(src->data[*offset] & 0xFF);                         // bits 0-7
                      mantissa = (mantissa / 256.0 ) + (UA_Float)(src->data[*offset+1] & 0xFF); // bits 8-15
                      mantissa = (mantissa / 256.0 ) + (UA_Float)(src->data[*offset+2] & 0x7F); // bits 16-22
-                     UA_UInt32 biasedExponent;
                      biasedExponent  = (src->data[*offset+2] & 0x80) >>  7;                   // bits 23
                      biasedExponent |= (src->data[*offset+3] & 0x7F) <<  1;                   // bits 24-30
-                     UA_Float sign = ( src->data[*offset+ 3] & 0x80 ) ? -1.0 : 1.0;           // bit 31
+                     sign = ( src->data[*offset+ 3] & 0x80 ) ? -1.0 : 1.0;           // bit 31
                      if(biasedExponent >= 127)
 						 *dst = (UA_Float)sign * (1 << (biasedExponent-127)) * (1.0 + mantissa / 128.0 );
                      else
@@ -270,9 +274,12 @@ UA_TYPE_ENCODEBINARY(UA_Float, return UA_UInt32_encodeBinary((UA_UInt32 *)src, d
 UA_TYPE_CALCSIZEBINARY_SIZEOF(UA_Double)
 // FIXME: Implement NaN, Inf and Zero(s)
 UA_Byte UA_DOUBLE_ZERO[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-UA_TYPE_DECODEBINARY(UA_Double,
+					 UA_TYPE_DECODEBINARY(UA_Double,
+				     UA_Double sign;
+					 UA_Double mantissa;
+					 UA_UInt32 biasedExponent;
                      if(memcmp(&src->data[*offset], UA_DOUBLE_ZERO,
-                               8) == 0) return UA_Int64_decodeBinary(src, offset, (UA_Int64 *)dst); UA_Double mantissa;
+                               8) == 0) return UA_Int64_decodeBinary(src, offset, (UA_Int64 *)dst);
                      mantissa = (UA_Double)(src->data[*offset] & 0xFF);                         // bits 0-7
                      mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+1] & 0xFF); // bits 8-15
                      mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+2] & 0xFF); // bits 16-23
@@ -281,14 +288,13 @@ UA_TYPE_DECODEBINARY(UA_Double,
                      mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+5] & 0xFF); // bits 40-47
                      mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+6] & 0x0F); // bits 48-51
                      DBG_VERBOSE(printf("UA_Double_decodeBinary - mantissa=%f\n", mantissa));
-                     UA_UInt32 biasedExponent;
                      biasedExponent  = (src->data[*offset+6] & 0xF0) >>  4; // bits 52-55
                      DBG_VERBOSE(printf("UA_Double_decodeBinary - biasedExponent52-55=%d, src=%d\n", biasedExponent,
                                         src->data[*offset+6]));
                      biasedExponent |= ((UA_UInt32)(src->data[*offset+7] & 0x7F)) <<  4; // bits 56-62
                      DBG_VERBOSE(printf("UA_Double_decodeBinary - biasedExponent56-62=%d, src=%d\n", biasedExponent,
                                         src->data[*offset+7]));
-                     UA_Double sign = ( src->data[*offset+7] & 0x80 ) ? -1.0 : 1.0; // bit 63
+                     sign = ( src->data[*offset+7] & 0x80 ) ? -1.0 : 1.0; // bit 63
                      if(biasedExponent >= 1023)
 						 *dst = (UA_Double)sign * (1 << (biasedExponent-1023)) * (1.0 + mantissa / 8.0 );
                      else
@@ -727,20 +733,23 @@ UA_Int32 UA_DataValue_calcSizeBinary(UA_DataValue const *p) {
  * Officially, only builtin types are contained in a variant.
  *
  * Every ExtensionObject incurrs an overhead of 4 byte (nodeid) + 1 byte (encoding) */
-UA_Int32 UA_Variant_calcSizeBinary(UA_Variant const *p) { if(p == UA_NULL)
-   return sizeof(UA_Variant);
+UA_Int32 UA_Variant_calcSizeBinary(UA_Variant const *p) {
+	UA_Int32 arrayLength, length;
+	UA_Boolean isArray, hasDimensions, isBuiltin;
+	if(p == UA_NULL)
+		return sizeof(UA_Variant);
 
 	if(p->vt == UA_NULL)
 		return UA_ERR_INCONSISTENT;
-	UA_Int32 arrayLength = p->arrayLength;
+	arrayLength = p->arrayLength;
 	if(p->data == UA_NULL)
 		arrayLength = -1;
 
-	UA_Boolean isArray = arrayLength != 1;       // a single element is not an array
-	UA_Boolean hasDimensions = isArray && p->arrayDimensions != UA_NULL;
-	UA_Boolean isBuiltin = is_builtin(&p->vt->typeId);
+	isArray = arrayLength != 1;       // a single element is not an array
+	hasDimensions = isArray && p->arrayDimensions != UA_NULL;
+	isBuiltin = is_builtin(&p->vt->typeId);
 
-	UA_Int32   length        = sizeof(UA_Byte); //p->encodingMask
+	length = sizeof(UA_Byte); //p->encodingMask
 	if(isArray) {
 		// array length + the array itself
 		length += UA_Array_calcSizeBinary(arrayLength, p->vt, p->data);
@@ -763,14 +772,19 @@ UA_Int32 UA_Variant_calcSizeBinary(UA_Variant const *p) { if(p == UA_NULL)
 }
 
 UA_TYPE_ENCODEBINARY(UA_Variant,
+	                 UA_Byte encodingByte;
+					 UA_Boolean isArray;
+					 UA_Boolean hasDimensions;
+					 UA_Boolean isBuiltin;
+
                      if(src == UA_NULL || src->vt == UA_NULL || src->vt->typeId.namespace != 0)
 						 return UA_ERROR;
 
-                     UA_Boolean isArray       = src->arrayLength != 1;  // a single element is not an array
-                     UA_Boolean hasDimensions = isArray && src->arrayDimensions != UA_NULL;
-					 UA_Boolean isBuiltin = is_builtin(&src->vt->typeId);
+                     isArray       = src->arrayLength != 1;  // a single element is not an array
+                     hasDimensions = isArray && src->arrayDimensions != UA_NULL;
+					 isBuiltin = is_builtin(&src->vt->typeId);
 
-                     UA_Byte encodingByte = 0;
+                     encodingByte = 0;
                      if(isArray) {
                          encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
                          if(hasDimensions)

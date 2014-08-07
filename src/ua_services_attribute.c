@@ -226,10 +226,11 @@ static UA_DataValue service_read_node(Application *app, const UA_ReadValueId *id
 
 UA_Int32 Service_Read(SL_Channel *channel, const UA_ReadRequest *request,
                       UA_ReadResponse *response) {
-	if(channel->session == UA_NULL || channel->session->application == UA_NULL)
+	UA_Int32 readsize;
+	if (channel->session == UA_NULL || channel->session->application == UA_NULL)
 		return UA_ERROR;    // TODO: Return error message
 
-	UA_Int32 readsize = request->nodesToReadSize;
+	readsize = request->nodesToReadSize;
 	/* NothingTodo */
 	if(readsize <= 0) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;

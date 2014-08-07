@@ -120,9 +120,6 @@ typedef struct UA_NodeId {
 	} identifier;
 } UA_NodeId;
 
-#define NS0NODEID(NUMERIC_ID) \
-	(UA_NodeId){.encodingByte = 0 /*UA_NODEIDTYPE_TWOBYTE*/, .namespace = 0, .identifier.numeric = NUMERIC_ID}
-
 #define UA_NODEIDTYPE_NAMESPACE_URI_FLAG 0x80
 #define UA_NODEIDTYPE_SERVERINDEX_FLAG 0x40
 #define UA_NODEIDTYPE_MASK (~(UA_NODEIDTYPE_NAMESPACE_URI_FLAG | UA_NODEIDTYPE_SERVERINDEX_FLAG))
@@ -133,9 +130,6 @@ typedef struct UA_ExpandedNodeId {
 	UA_String namespaceUri;
 	UA_UInt32 serverIndex;
 } UA_ExpandedNodeId;
-
-#define NS0EXPANDEDNODEID(NUMERIC_ID) \
-	(UA_ExpandedNodeId){.nodeId = NS0NODEID(NUMERIC_ID), .namespaceUri = {-1, UA_NULL}, .serverIndex = 0}
 
 /** @brief A numeric identifier for a error or condition that is associated with a value or an operation. */
 typedef UA_UInt32 UA_StatusCode; // StatusCodes aren't an enum(=int) since 32 unsigned bits are needed. See also ua_statuscodes.h */
@@ -289,7 +283,9 @@ UA_TYPE_PROTOTYPES(UA_InvalidType)
 
 /* String */
 #define UA_STRING_NULL (UA_String){-1, UA_NULL}
-#define UA_STRING_STATIC(STRING) (UA_String){sizeof(STRING)-1, (UA_Byte*)STRING}
+#define UA_STRING_STATIC(VARIABLE, STRING) do { \
+	VARIABLE.length = sizeof(STRING)-1; \
+	VARIABLE.data = (UA_Byte*)STRING; } while (0)
 
 UA_Int32 UA_String_copycstring(char const *src, UA_String *dst);
 UA_Int32 UA_String_copyprintf(char const *fmt, UA_String *dst, ...);
@@ -336,18 +332,30 @@ void UA_NodeId_printf(char *label, const UA_NodeId *node);
 UA_Boolean UA_NodeId_isNull(const UA_NodeId *p);
 UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id);
 
+#define NS0NODEID(NUMERIC_ID) \
+	(UA_NodeId){ .encodingByte = 0 /*UA_NODEIDTYPE_TWOBYTE*/, .namespace = 0, .identifier.numeric = NUMERIC_ID }
+
 /* ExpandedNodeId */
 UA_Boolean UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 
+#define NS0EXPANDEDNODEID(VARIABLE, NUMERIC_ID) do { \
+	VARIABLE.nodeId = NS0NODEID(NUMERIC_ID); \
+	VARIABLE.namespaceUri = UA_STRING_NULL; \
+	VARIABLE.serverIndex = 0; } while(0)
+
 /* QualifiedName */
-#define UA_QUALIFIEDNAME_STATIC(STRING) \
-	(UA_QualifiedName){0, {sizeof(STRING)-1, (UA_Byte*)STRING}}
+#define UA_QUALIFIEDNAME_STATIC(VARIABLE, STRING) do {\
+	VARIABLE.namespaceIndex = 0; \
+	UA_STRING_STATIC(VARIABLE.name, STRING); } while (0)
 #ifdef DEBUG
 void UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn);
 #endif
 
 /* LocalizedText */
-#define UA_LOCALIZEDTEXT_STATIC(STRING) (UA_LocalizedText){{2, (UA_Byte*)"en"}, UA_STRING_STATIC(STRING)}
+#define UA_LOCALIZEDTEXT_STATIC(VARIABLE, STRING) do {\
+	UA_STRING_STATIC(VARIABLE.locale, "end"); \
+	UA_STRING_STATIC(VARIABLE.text, STRING); } while (0)
+
 UA_Int32 UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);
 
 /* Variant */
@@ -471,9 +479,9 @@ typedef struct UA_VTable {
 #define UA_TYPE_COPY_DEFAULT(TYPE)                             \
     UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst) {         \
 		if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;  \
-		UA_Int32 retval = UA_SUCCESS;                          \
-		retval |= UA_memcpy(dst, src, sizeof(TYPE));           \
-		return retval;                                         \
+{UA_Int32 retval = UA_SUCCESS;                          \
+	retval |= UA_memcpy(dst, src, sizeof(TYPE));           \
+	return retval;    }                                     \
 	}
 
 #define UA_TYPE_COPY_AS(TYPE, TYPE_AS)                         \
