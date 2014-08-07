@@ -3,8 +3,7 @@ compiler:
 - gcc
 env:
   global:
-  - secure: AgDJV7/ubjxZFcxuOlkOizWyo0VLve9Pdh5Xz+3Ec37SeYotfUWAupwMZdMXZdKiDyHkAo1R0GdHgpkJ+Tm12o8WdsxZvTi0JdNtXObrYstNnzleuzf9fTsaY74wRDC2Q2URhBrR+oNcD19Lp6mpoCk6asDBhn2+6CP+dLBtKOE= 
-  - secure: Tp53B4vuTKhpMsyAFr5zIHzWtD9XoeLS4CzW3bSgUpuzdHUD+SVunwnjileleKzLY6Iqf3v02NK/TqGDNpehdlWGQf9TgSLSqG0GMohLUaipuVj6HS6LD0vAgU+3U1TdBfvDelDIppqK2CCph2g5Vtw0OXvopw6HQdXeBDSOUKE=
+  - secure: "nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo="
 addons:
   coverity_scan:
     project:

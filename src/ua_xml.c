@@ -67,7 +67,7 @@ UA_Int32 UA_NodeSetAliases_println(cstring label, UA_NodeSetAliases *p) {
 }
 
 UA_Int32 UA_NodeSet_init(UA_NodeSet *p, UA_UInt32 nsid) {
-	Namespace_new(&(p->ns), 100, nsid);
+	Namespace_new(&(p->ns), nsid);
 	p->aliases.size    = -1;
 	p->aliases.aliases = UA_NULL;
 	return UA_SUCCESS;
@@ -848,9 +848,8 @@ UA_Int32 UA_NodeSet_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_NodeSet 
 		} else {
 			UA_Node* node = (UA_Node*) attr;
 			DBG(printf("UA_NodeSet_decodeXML - finished node: node=%p\n", (void* )node));
-			Namespace_insert(dst->ns, node);
+			Namespace_insert(dst->ns, &node, 0);
 			DBG(printf("UA_NodeSet_decodeXml - Inserting "));
-			DBG(print_node(node));
 			s->parent[s->depth - 1].children[s->parent[s->depth - 1].activeChild].obj = UA_NULL;
 		}
 	}

@@ -102,9 +102,7 @@ UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), v
 
 		}
 		worker(arg);
-
 	}
-
 	return UA_SUCCESS;
 }
 #endif

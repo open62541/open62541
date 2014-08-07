@@ -1,7 +1,7 @@
 dnl Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(Open62541, 1.0)
+AC_INIT(open62541, 0.1)
 
 AC_CANONICAL_SYSTEM
 AM_INIT_AUTOMAKE([subdir-objects])
@@ -50,21 +50,28 @@ AM_COND_IF([VERBOSE],
 # 100: nano
 # 200: embedded
 # 900: all available features
+# 1500: all including custom extensions to the standard
 AC_ARG_ENABLE(profile,
 AS_HELP_STRING([--enable-profile], [select supported features, default: all]),
 	[case "${enableval}" in
         	nano) profile=100;;
             embedded) profile=200;;
             all) profile=900;;
+			extended) profile=1500;;
             *) AC_MSG_ERROR([bad value ${enableval} for --enable-profile]);; 
 	esac],[profile=900])
 AC_DEFINE([PROFILE], [x"$profile"])
 
 #xml encoding
-AM_CONDITIONAL(UA_ENCODING_XML, test x"$profile" -ge 200)
+AM_CONDITIONAL(UA_ENCODING_XML, test "$profile" -ge 200)
 AM_COND_IF([UA_ENCODING_XML],
     AC_DEFINE([UA_ENCODING_XML], [1])
     AC_CHECK_LIB([expat],[XML_Parse],,AC_MSG_ERROR([Libexpat missing])))
+
+#json encoding
+AM_CONDITIONAL(UA_ENCODING_JSON, test "$profile" -ge 1500)
+AM_COND_IF([UA_ENCODING_JSON],
+    AC_DEFINE([UA_ENCODING_JSON], [2])) # if JSON without xml should allowed, the index needs to be computed dynamically
 
 #multithreading
 AC_ARG_ENABLE(multithreading,

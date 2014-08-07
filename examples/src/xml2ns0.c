@@ -25,14 +25,13 @@ char* buildNumber = "999-" __DATE__ "-001" ;
 } while(0)
 
 void sam_attach(Namespace *ns,UA_UInt32 ns0id,UA_Int32 type, void* p) {
-	Namespace_Entry_Lock* lock;
 	UA_NodeId nodeid;
-	nodeid.namespace = ns->namespaceId;
+	nodeid.namespace = 0; // we cannot access ns->namespaceId;
 	nodeid.identifier.numeric = ns0id;
 	nodeid.encodingByte = UA_NODEIDTYPE_FOURBYTE;
 	const UA_Node* result;
-	UA_Int32 retval;
-	if ((retval = Namespace_get(ns,&nodeid,&result,&lock)) == UA_SUCCESS) {
+	UA_Int32 retval = Namespace_get(ns,&nodeid,&result);
+	if (retval == UA_SUCCESS) {
 		if (result->nodeId.identifier.numeric == ns0id) {
 			if (result->nodeClass == UA_NODECLASS_VARIABLE) {
 				UA_VariableNode* variable = (UA_VariableNode*) result;
@@ -50,6 +49,7 @@ void sam_attach(Namespace *ns,UA_UInt32 ns0id,UA_Int32 type, void* p) {
 				}
 			}
 		}
+		Namespace_releaseManagedNode(result);
 	}
 }
 	/* 	} else { */
@@ -91,7 +91,7 @@ void sam_init(Namespace* ns) {
 UA_Int32 Namespace_getNumberOfComponents(Namespace const * ns, UA_NodeId const * id, UA_Int32* number) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Node const * node;
-	if ((retval = Namespace_get(ns,id,&node,UA_NULL)) != UA_SUCCESS)
+	if ((retval = Namespace_get(ns,id,&node)) != UA_SUCCESS)
 		return retval;
 	if (node == UA_NULL)
 		return UA_ERR_INVALID_VALUE;
@@ -101,6 +101,7 @@ UA_Int32 Namespace_getNumberOfComponents(Namespace const * ns, UA_NodeId const *
 			n++;
 		}
 	}
+	Namespace_releaseManagedNode(node);
 	*number = n;
 	return retval;
 }
@@ -109,7 +110,7 @@ UA_Int32 Namespace_getComponent(Namespace const * ns, UA_NodeId const * id, UA_I
 	UA_Int32 retval = UA_SUCCESS;
 
 	UA_Node const * node;
-	if ((retval = Namespace_get(ns,id,&node,UA_NULL)) != UA_SUCCESS)
+	if ((retval = Namespace_get(ns,id,&node)) != UA_SUCCESS)
 		return retval;
 
 	UA_Int32 i, n;
@@ -118,10 +119,13 @@ UA_Int32 Namespace_getComponent(Namespace const * ns, UA_NodeId const * id, UA_I
 			n++;
 			if (n == idx) {
 				*result = &(node->references[i].targetId.nodeId);
+				Namespace_releaseManagedNode(node);
 				return retval;
 			}
 		}
 	}
+
+	Namespace_releaseManagedNode(node);
 	return UA_ERR_INVALID_VALUE;
 }
 
@@ -130,9 +134,10 @@ UA_Int32 UAX_NodeId_encodeBinaryByMetaData(Namespace const * ns, UA_NodeId const
 	UA_Int32 i, retval = UA_SUCCESS;
 	if (UA_NodeId_isBasicType(id)) {
 		UA_Node const * result;
-		Namespace_Entry_Lock* lock;
-		if ((retval = Namespace_get(ns,id,&result,&lock)) == UA_SUCCESS)
+		if ((retval = Namespace_get(ns,id,&result)) == UA_SUCCESS) {
 			UA_Variant_encodeBinary(&((UA_VariableNode *) result)->value,dst,offset);
+			Namespace_releaseManagedNode(result);
+		}
 	} else {
 		UA_Int32 nComp = 0;
 		if ((retval = Namespace_getNumberOfComponents(ns,id,&nComp)) == UA_SUCCESS) {
@@ -149,13 +154,11 @@ UA_Int32 UAX_NodeId_encodeBinaryByMetaData(Namespace const * ns, UA_NodeId const
 UA_Int32 UAX_NodeId_encodeBinary(Namespace const * ns, UA_NodeId const * id, UA_ByteString *dst, UA_UInt32* offset) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Node const * node;
-	Namespace_Entry_Lock* lock;
-
-	if ((retval = Namespace_get(ns,id,&node,&lock)) == UA_SUCCESS) {
+	if ((retval = Namespace_get(ns,id,&node)) == UA_SUCCESS) {
 		if (node->nodeClass == UA_NODECLASS_VARIABLE) {
 			retval = UA_Variant_encodeBinary(&((UA_VariableNode*) node)->value,dst,offset);
 		}
-		Namespace_Entry_Lock_release(lock);
+		Namespace_releaseManagedNode(node);
 	}
 	return retval;
 }

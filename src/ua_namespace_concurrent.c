@@ -9,6 +9,7 @@
 #define ALIVE_BIT (1 << 15) /* Alive bit in the readcount */
 typedef struct Namespace_Entry {
 	struct cds_lfht_node htn; /* contains next-ptr for urcu-hashmap */
+	struct rcu_head rcu_head; /* For call-rcu */
 	UA_UInt16 readcount;      /* Counts the amount of readers on it [alive-bit, 15 counter-bits] */
 	UA_Node   node;           /* Might be cast from any _bigger_ UA_Node* type. Allocate enough memory! */
 } Namespace_Entry;
@@ -152,7 +153,8 @@ static int compare(struct cds_lfht_node *htn, const void *orig) {
    all readers using the node for a longer time (outside the rcu critical
    section) increased the readcount, we only need to wait for the readcount
    to reach zero. */
-static void markDead(Namespace_Entry *entry) {
+static void markDead(struct rcu_head *head) {
+	Namespace_Entry *entry = caa_container_of(head, Namespace_Entry, rcu_head);
 	if(uatomic_sub_return(&entry->readcount, ALIVE_BIT) > 0)
 		return;
 
@@ -166,7 +168,7 @@ void Namespace_releaseManagedNode(const UA_Node *managed) {
 	if(managed == UA_NULL)
 		return;
 	
-	Namespace_Entry *entry = caa_container_of(managed, Namespace_Entry, htn); // pointer to the first entry
+	Namespace_Entry *entry = caa_container_of(managed, Namespace_Entry, node); // pointer to the first entry
 	if(uatomic_sub_return(&entry->readcount, 1) > 0)
 		return;
 
@@ -204,8 +206,10 @@ UA_Int32 Namespace_delete(Namespace *ns) {
 	cds_lfht_first(ht, &iter);
 	while(iter.node != UA_NULL) {
 		found_htn = cds_lfht_iter_get_node(&iter);
-		if(!cds_lfht_del(ht, found_htn))
-			call_rcu(found_htn, markDead);
+		if(!cds_lfht_del(ht, found_htn)) {
+			Namespace_Entry *entry = caa_container_of(found_htn, Namespace_Entry, htn);
+			call_rcu(&entry->rcu_head, markDead);
+		}
 		cds_lfht_next(ht, &iter);
 	}
 	rcu_read_unlock();
@@ -218,7 +222,7 @@ UA_Int32 Namespace_delete(Namespace *ns) {
 		return UA_ERROR;
 }
 
-UA_Int32 Namespace_insert(Namespace *ns, const UA_Node **node, UA_Byte flags) {
+UA_Int32 Namespace_insert(Namespace *ns, UA_Node **node, UA_Byte flags) {
 	if(ns == UA_NULL || node == UA_NULL || *node == UA_NULL || (*node)->nodeId.namespace != ns->namespaceId)
 		return UA_ERROR;
 
@@ -262,7 +266,7 @@ UA_Int32 Namespace_insert(Namespace *ns, const UA_Node **node, UA_Byte flags) {
 	}
 
 	Namespace_Entry *entry;
-	if(UA_alloc((void **)&entry, sizeof(struct cds_lfht_node) + sizeof(UA_UInt16) + nodesize))
+	if(UA_alloc((void **)&entry, sizeof(Namespace_Entry) - sizeof(UA_Node) + nodesize))
 		return UA_ERR_NO_MEMORY;
 	memcpy(&entry->node, *node, nodesize);
 
@@ -287,8 +291,10 @@ UA_Int32 Namespace_insert(Namespace *ns, const UA_Node **node, UA_Byte flags) {
 		rcu_read_lock();
 		result = cds_lfht_add_replace(ns->ht, nhash, compare, &(*node)->nodeId, &entry->htn);
 		/* If an entry got replaced, mark it as dead. */
-		if(result)
-			call_rcu(markDead, result);      /* Queue this for the next time when no readers are on the entry.*/
+		if(result) {
+			Namespace_Entry *entry = caa_container_of(result, Namespace_Entry, htn);
+			call_rcu(&entry->rcu_head, markDead);      /* Queue this for the next time when no readers are on the entry.*/
+		}
 		rcu_read_unlock();
 	}
 
@@ -307,15 +313,16 @@ UA_Int32 Namespace_remove(Namespace *ns, const UA_NodeId *nodeid) {
 
 	rcu_read_lock();
 	cds_lfht_lookup(ns->ht, nhash, compare, &nodeid, &iter);
-	struct cds_lfht_node *found_node = cds_lfht_iter_get_node(&iter);
+	struct cds_lfht_node *found_htn = cds_lfht_iter_get_node(&iter);
 
 	/* If this fails, then the node has already been removed. */
-	if(!found_node || cds_lfht_del(ns->ht, found_node) != 0) {
+	if(!found_htn || cds_lfht_del(ns->ht, found_htn) != 0) {
 		rcu_read_unlock();
 		return UA_ERROR;
 	}
 	
-	call_rcu(markDead, found_node);
+	Namespace_Entry *entry = caa_container_of(found_htn, Namespace_Entry, htn);
+	call_rcu(&entry->rcu_head, markDead);
 	rcu_read_unlock();
 
 	return UA_SUCCESS;

@@ -10,10 +10,11 @@ import inspect
 import argparse
 
 parser = argparse.ArgumentParser()
+parser.add_argument('--with-xml', action='store_true', help='generate xml encoding')
+parser.add_argument('--with-json', action='store_true', help='generate json encoding')
+parser.add_argument('--only-nano', action='store_true', help='generate only the types for the nano profile')
 parser.add_argument('types', help='path/to/Opc.Ua.Types.bsd')
 parser.add_argument('outfile', help='outfile w/o extension')
-parser.add_argument('--with-xml', action='store_true', help='generate xml encoding')
-parser.add_argument('--only-nano', action='store_true', help='generate only the types for the nano profile')
 args = parser.parse_args()
         
 ns = {"opc": "http://opcfoundation.org/BinarySchema/"}
@@ -279,8 +280,8 @@ printh('''/**
  * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  */
 
-#ifndef ''' + sys.argv[2].upper() + '''_H_
-#define ''' + sys.argv[2].upper() + '''_H_
+#ifndef ''' + args.outfile.upper() + '''_H_
+#define ''' + args.outfile.upper() + '''_H_
 
 #include "ua_types.h"
 #include "ua_types_encoding_binary.h"
@@ -296,7 +297,7 @@ printc('''/**
  * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  */
  
-#include "''' + sys.argv[2] + '.h"\n')
+#include "''' + args.outfile + '.h"\n')
 #include "ua_types_encoding_binary.h"
 #include "util/ua_util.h"
 

@@ -2,11 +2,9 @@
 #define NETWORKLAYER_H_
 
 #include "ua_types.h"
-#include "ua_types_generated.h"
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
 #include "util/ua_list.h"
-#include "ua_transport_connection_manager.h"
 
 #ifdef MULTITHREADING
 #include <pthread.h> // pthreadcreate, pthread_t

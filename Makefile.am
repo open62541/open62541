@@ -22,13 +22,19 @@ if MULTITHREADING
 AM_LDADD += -lpthread -lurcu-cds -lurcu
 endif
 
+# additional encodings
 UA_ENCODING_AMOUNT = 1
 if UA_ENCODING_XML
-UA_ENCODING_AMOUNT := $$(echo $(UA_ENCODING_AMOUNT)+1 | bc)
+UA_ENCODING_AMOUNT = 2 #$$(echo $(UA_ENCODING_AMOUNT)+1 | bc)
 endif
 
-AM_CFLAGS += -D UA_ENCODING_AMOUNT=$(UA_ENCODING_AMOUNT)
+if UA_ENCODING_JSON
+UA_ENCODING_AMOUNT = 3 #$$(echo $(UA_ENCODING_AMOUNT)+1 | bc)
+endif
 
+AM_CFLAGS += -DUA_ENCODING_AMOUNT=$(UA_ENCODING_AMOUNT)
+
+# export flags for sub-makefiles
 export GLOBAL_AM_CFLAGS = $(AM_CFLAGS)
 export GLOBAL_AM_LDADD = $(AM_LDADD)
 

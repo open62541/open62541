@@ -38,7 +38,7 @@ UA_Int32 serverCallback(void * arg) {
 }
 
 
-int main(int argc, char** argv) {
+int main(int argc, char** arsgv) {
 
 	/* gets called at ctrl-c */
 	signal(SIGINT, stopHandler);
@@ -47,12 +47,6 @@ int main(int argc, char** argv) {
 	NL_data* nl = NL_init(&NL_Description_TcpBinary, 16664);
 
 	struct timeval tv = {1, 0}; // 1 second
+  	NL_msgLoop(nl, &tv, serverCallback, argv[0]);
 
-	SL_ChannelManager_init(6,3600000, 873, 23, &nl->endpointUrl);
-	UA_SessionManager_init(2,30000,5);
-	//UA_TL_ConnectionManager_init(10);
-   NL_msgLoop(nl, &tv, serverCallback, argv[0], &running);
-
-	printf("Shutting down after Ctrl-C.\n");
-	exit(0);
 }

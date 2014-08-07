@@ -5,61 +5,72 @@
 #include "ua_types_generated.h"
 #include "util/ua_list.h"
 
-/**
-   @defgroup namespace Namespace
+#ifdef MULTITHREADING
+#define _XOPEN_SOURCE 500
+#define __USE_UNIX98
+#include <pthread.h>
+#endif
 
-   @brief The namespace is the central storage for nodes in the UA address
-   space. Internally, the namespace is realised as hash-map where nodes are
-   stored and retrieved with their nodeid.
+/** @brief Namespace entries point to an UA_Node. But the actual data structure
+	is opaque outside of ua_namespace.c */
 
-   The nodes in the namespace are immutable. To change the content of a node, it
-   needs to be replaced as a whole. When a node is inserted into the namespace,
-   it gets replaced with a pointer to a managed node. Managed nodes shall never
-   be freed by the user. This is done by the namespace when the node is removed
-   and no readers (in other threads) access the node.
+typedef struct Namespace_Entry {
+	UA_UInt64 status;	/* 2 bits status | 14 bits checkout count | 48 bits timestamp */
+	const UA_Node *node;	/* Nodes are immutable. It is not recommended to change nodes in place */
+} Namespace_Entry;
 
-   @{
- */
+/** @brief Namespace datastructure. It mainly serves as a hashmap to UA_Nodes. */
+typedef struct Namespace {
+	UA_UInt32 namespaceId;
+	Namespace_Entry *entries;
+	UA_UInt32 size;
+	UA_UInt32 count;
+	UA_UInt32 sizePrimeIndex;	/* Current size, as an index into the table of primes.  */
+} Namespace;
 
-/** @brief Namespace datastructure. Mainly a hashmap to UA_Nodes */
-struct Namespace;
-typedef struct Namespace Namespace;
+/** Namespace locks indicate that a thread currently operates on an entry. */
+struct Namespace_Entry_Lock;
+typedef struct Namespace_Entry_Lock Namespace_Entry_Lock;
+
+/** @brief Release a lock on a namespace entry. */
+void Namespace_Entry_Lock_release(Namespace_Entry_Lock * lock);
 
 /** @brief Create a new namespace */
-UA_Int32 Namespace_new(Namespace **result, UA_UInt32 namespaceId);
+UA_Int32 Namespace_new(Namespace ** result, UA_UInt32 size, UA_UInt32 namespaceId);
+
+/** @brief Delete all nodes in the namespace */
+void Namespace_empty(Namespace * ns);
 
 /** @brief Delete the namespace and all nodes in it */
-UA_Int32 Namespace_delete(Namespace *ns);
+void Namespace_delete(Namespace * ns);
 
-#define NAMESPACE_INSERT_UNIQUE 1
-#define NAMESPACE_INSERT_GETMANAGED 2
-/** @brief Insert a new node into the namespace
+/** @brief Insert a new node into the namespace. Abort an entry with the same
+	NodeId is already present */
+UA_Int32 Namespace_insert(Namespace * ns, const UA_Node * node);
 
-    With the UNIQUE flag, the node is only inserted if the nodeid does not
-    already exist. With the GETMANAGED flag, the node pointer is replaced with
-    the managed pointer. Otherwise, it is set to UA_NULL. */
-UA_Int32 Namespace_insert(Namespace *ns, const UA_Node **node, UA_Byte flags);
+/** @brief Insert a new node or replace an existing node if an entry has the same NodeId. */
+// UA_Int32 Namespace_insertOrReplace(Namespace * ns, const UA_Node * node);
 
-/** @brief Remove a node from the namespace. Always succeeds, even if the node
-	was not found. */
-UA_Int32 Namespace_remove(Namespace *ns, const UA_NodeId *nodeid);
+/** @brief Find an unused (numeric) NodeId in the namespace and insert the node.
+	The node is modified to contain the new nodeid after insertion. */
+UA_Int32 Namespace_insertUnique(Namespace * ns, UA_Node * node);
 
-/** @brief Retrieve a node (read-only) from the namespace. Nodes are immutable.
-    They can only be replaced. After the Node is no longer used, the locked
-    entry needs to be released. */
-UA_Int32 Namespace_get(const Namespace *ns, const UA_NodeId *nodeid, const UA_Node **managedNode);
+/** @brief Remove a node from the namespace */
+UA_Int32 Namespace_remove(Namespace * ns, const UA_NodeId * nodeid);
 
-/** @brief Release a managed node. Do never insert a node that isn't stored in a
-	namespace. */
-void Namespace_releaseManagedNode(const UA_Node *managed);
+/** @brief Tests whether the namespace contains an entry for a given NodeId */
+UA_Int32 Namespace_contains(const Namespace * ns, const UA_NodeId * nodeid);
 
-/** @brief A function that can be evaluated on all entries in a namespace via
-	Namespace_iterate. Note that the visitor is read-only on the nodes. */
-typedef void (*Namespace_nodeVisitor)(const UA_Node *node);
+/** @brief Retrieve a node (read-only) from the namespace. Nodes are identified
+	by their NodeId. After the Node is no longer used, the lock needs to be
+	released. */
+UA_Int32 Namespace_get(const Namespace *ns, const UA_NodeId * nodeid, const UA_Node **result,
+					   Namespace_Entry_Lock ** lock);
 
-/** @brief Iterate over all nodes in a namespace. */
-UA_Int32 Namespace_iterate(const Namespace *ns, Namespace_nodeVisitor visitor);
+/** @brief A function that can be evaluated on all entries in a namespace via Namespace_iterate */
+typedef void (*Namespace_nodeVisitor) (const UA_Node *node);
 
-/// @} /* end of group */
+/** @brief Iterate over all nodes in a namespace */
+UA_Int32 Namespace_iterate(const Namespace * ns, Namespace_nodeVisitor visitor);
 
 #endif /* __NAMESPACE_H */
