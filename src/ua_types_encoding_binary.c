@@ -10,12 +10,12 @@ static INLINE UA_Boolean is_builtin(UA_NodeId *typeid) {
 /*********/
 
 UA_Int32 UA_Array_calcSizeBinary(UA_Int32 nElements, UA_VTable_Entry *vt, const void *data) {
-	if(vt == UA_NULL){
+	if(vt == UA_NULL)
 		return 0; // do not return error as the result will be used to allocate memory
-	}
-	if(data == UA_NULL){ //NULL Arrays are encoded as length = -1
+
+	if(data == UA_NULL) //NULL Arrays are encoded as length = -1
 		return sizeof(UA_Int32);
-	}
+
 	UA_Int32  length     = sizeof(UA_Int32);
 	UA_UInt32 memSize    = vt->memSize;
 	const UA_Byte *cdata = (const UA_Byte *)data;
@@ -26,14 +26,13 @@ UA_Int32 UA_Array_calcSizeBinary(UA_Int32 nElements, UA_VTable_Entry *vt, const 
 	return length;
 }
 
-static UA_Int32 UA_Array_calcSizeBinary_asExtensionObject(UA_Int32 nElements, UA_VTable_Entry *vt,
-														   const void *data) {
-	if(vt == UA_NULL){
+static UA_Int32 UA_Array_calcSizeBinary_asExtensionObject(UA_Int32 nElements, UA_VTable_Entry *vt, const void *data) {
+	if(vt == UA_NULL)
 		return 0; // do not return error as the result will be used to allocate memory
-	}
-	if(data == UA_NULL){ //NULL Arrays are encoded as length = -1
+	
+	if(data == UA_NULL) //NULL Arrays are encoded as length = -1
 		return sizeof(UA_Int32);
-	}
+	
 	UA_Int32  length     = sizeof(UA_Int32);
 	UA_UInt32 memSize    = vt->memSize;
 	UA_Boolean isBuiltin = is_builtin(&vt->typeId);
@@ -47,14 +46,14 @@ static UA_Int32 UA_Array_calcSizeBinary_asExtensionObject(UA_Int32 nElements, UA
 	return length;
 }
 
-UA_Int32 UA_Array_encodeBinary(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt, UA_ByteString *dst,
-                               UA_UInt32 *offset) {
+UA_Int32 UA_Array_encodeBinary(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt, UA_ByteString *dst, UA_UInt32 *offset) {
 	UA_Int32 retval = UA_SUCCESS;
 	if(vt == UA_NULL || dst == UA_NULL || offset == UA_NULL || ((src == UA_NULL) && (noElements > 0)))
 		return UA_ERROR;
 
 	//Null Arrays are encoded with length = -1 // part 6 - §5.24
-	if(noElements < -1) noElements = -1;
+	if(noElements < -1)
+		noElements = -1;
 
 	retval = UA_Int32_encodeBinary(&noElements, dst, offset);
 	const UA_Byte *csrc = (const UA_Byte *)src;
@@ -315,8 +314,12 @@ UA_Int32 UA_String_calcSizeBinary(UA_String const *string) {
 }
 UA_Int32 UA_String_encodeBinary(UA_String const *src, UA_ByteString *dst, UA_UInt32 *offset) {
 	UA_Int32 retval = UA_SUCCESS;
-	if(src == UA_NULL) return UA_ERR_INVALID_VALUE;
-	if((UA_Int32)(*offset+ UA_String_calcSizeBinary(src)) > dst->length) return UA_ERR_INVALID_VALUE;
+	if(src == UA_NULL)
+		return UA_ERR_INVALID_VALUE;
+
+	if((UA_Int32)(*offset+ UA_String_calcSizeBinary(src)) > dst->length)
+		return UA_ERR_INVALID_VALUE;
+
 	retval |= UA_Int32_encodeBinary(&src->length, dst, offset);
 	if(src->length > 0) {
 		retval  |= UA_memcpy(&dst->data[*offset], src->data, src->length);
@@ -328,8 +331,10 @@ UA_Int32 UA_String_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA_
 	UA_Int32 retval = UA_SUCCESS;
 	UA_String_init(dst);
 	retval |= UA_Int32_decodeBinary(src, offset, &dst->length);
+
 	if(dst->length > (UA_Int32)(src->length - *offset))
 		retval = UA_ERR_INVALID_VALUE;
+
 	if(retval != UA_SUCCESS || dst->length <= 0) {
 		dst->length = -1;
 		dst->data   = UA_NULL;
@@ -347,10 +352,7 @@ UA_TYPE_BINARY_ENCODING_AS(UA_DateTime, UA_Int64)
 
 /* Guid */
 UA_Int32 UA_Guid_calcSizeBinary(UA_Guid const *p) {
-	if(p == UA_NULL)
-		return sizeof(UA_Guid);
-	else
-		return 16;
+	return 16;
 }
 
 UA_TYPE_ENCODEBINARY(UA_Guid,
@@ -522,6 +524,7 @@ UA_TYPE_ENCODEBINARY(UA_ExpandedNodeId,
                      if(src->nodeId.encodingByte & UA_NODEIDTYPE_SERVERINDEX_FLAG)
 						 retval |= UA_UInt32_encodeBinary(&src->serverIndex, dst, offset);
                      )
+
 UA_Int32 UA_ExpandedNodeId_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA_ExpandedNodeId *dst) {
 	UA_UInt32 retval = UA_SUCCESS;
 	UA_ExpandedNodeId_init(dst);
