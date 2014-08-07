@@ -278,6 +278,22 @@ UA_TYPE_AS(UA_DateTime, UA_Int64)
 #define HUNDRED_NANOSEC_PER_USEC 10LL
 #define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
 
+#ifdef WIN32
+static const unsigned __int64 epoch = 116444736000000000;
+int gettimeofday(struct timeval * tp, struct timezone * tzp) {
+	FILETIME ft;
+	SYSTEMTIME st;
+	ULARGE_INTEGER ul;
+	GetSystemTime(&st);
+	SystemTimeToFileTime(&st, &ft);
+	ul.LowPart = ft.dwLowDateTime;
+	ul.HighPart = ft.dwHighDateTime;
+	tp->tv_sec = (ul.QuadPart - epoch) / 10000000L;
+	tp->tv_usec = st.wMilliseconds * 1000;
+	return 0;
+}
+#endif
+
 // IEC 62541-6 §5.2.2.5  A DateTime value shall be encoded as a 64-bit signed integer
 // which represents the number of 100 nanosecond intervals since January 1, 1601 (UTC).
 UA_DateTime UA_DateTime_now() {

@@ -255,7 +255,6 @@ UA_Int32 Namespace_new(Namespace ** result, UA_UInt32 namespaceId) {
 	return UA_SUCCESS;
 }
 
-
 UA_Int32 Namespace_delete(Namespace * ns) {
 	UA_UInt32 size = ns->size;
 	const UA_Node **entries = ns->entries;
