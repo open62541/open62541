@@ -23,7 +23,7 @@ sudo apt-get install python python-lxml
 ```
 ##### Getting additional libraries:
 ```bash
-sudo apt-get install expat libexpat1-dev
+sudo apt-get install expat libexpat1-dev liburcu-dev
 ```
 ##### Getting and installing *check* as unit test framework (http://check.sourceforge.net/):
 ```bash

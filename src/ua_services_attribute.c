@@ -50,10 +50,8 @@ static UA_DataValue service_read_node(Application *app, const UA_ReadValueId *id
 	}
 
 	UA_Node const *node = UA_NULL;
-	Namespace_Entry_Lock *lock = UA_NULL;
-
 	DBG_VERBOSE(UA_NodeId_printf("service_read_node - search for ", &(id->nodeId)));
-	UA_Int32 result = Namespace_get(ns, &(id->nodeId), &node, &lock);
+	UA_Int32 result = Namespace_get(ns, &(id->nodeId), &node);
 	if(result != UA_SUCCESS || node == UA_NULL) {
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
 		v.status       = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -216,7 +214,7 @@ static UA_DataValue service_read_node(Application *app, const UA_ReadValueId *id
 		break;
 	}
 
-	Namespace_Entry_Lock_release(lock);
+	Namespace_releaseManagedNode(node);
 
 	if(retval != UA_SUCCESS) {
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
@@ -266,14 +264,11 @@ UA_Int32 Service_Write_writeNode(Application *app, UA_WriteValue *writeValue, UA
 		*result = UA_STATUSCODE_BADNODEIDINVALID;
 		return UA_ERROR;
 	}
-	Namespace_Entry_Lock *lock;
-	const UA_Node *node;
 
-	if(Namespace_get(ns, &writeValue->nodeId,&node, &lock) != UA_SUCCESS){
+	const UA_Node *node;
+	if(Namespace_get(ns, &writeValue->nodeId, &node) != UA_SUCCESS){
 		return UA_ERROR;
 	}
-
-
 
 	switch(writeValue->attributeId) {
 	case UA_ATTRIBUTEID_NODEID:
@@ -444,7 +439,7 @@ UA_Int32 Service_Write_writeNode(Application *app, UA_WriteValue *writeValue, UA
 		break;
 	}
 
-	Namespace_Entry_Lock_release(lock);
+	Namespace_releaseManagedNode(node);
 	return retval;
 
 }

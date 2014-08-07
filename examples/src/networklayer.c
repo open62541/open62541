@@ -64,13 +64,11 @@ void NL_checkFdSet(void* payload) {
 	  c->reader((void*)c);
   }
 }
-UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), void *arg)  {
+UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), void *arg, UA_Boolean *running)  {
 	UA_Int32 result;
-	while (UA_TRUE) {
-		//sleep(1);
+	while (*running) {
 		// determine the largest handle
 		nl->maxReaderHandle = 0;
-
 		UA_list_iteratePayload(&(nl->connections),NL_setFdSet);
 		DBG_VERBOSE(printf("\n------------\nUA_Stack_msgLoop - maxHandle=%d\n", nl->maxReaderHandle));
 
@@ -95,7 +93,7 @@ UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), v
 			default:
 				DBG_VERBOSE(printf("UA_Stack_msgLoop - errno={%d,%s}\n", errno, strerror(errno)));
 				DBG_VERBOSE(printf("UA_Stack_msgLoop - call worker\n"));
-				worker(arg);
+
 				DBG_VERBOSE(printf("UA_Stack_msgLoop - return from worker\n"));
 			}
 		} else { // activity on listener or client ports
@@ -114,7 +112,6 @@ UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), v
 
 /** the tcp reader function */
 void* NL_TCP_reader(NL_Connection *c) {
-
 
 	UA_ByteString readBuffer;
 
@@ -168,19 +165,15 @@ void* NL_TCP_reader(NL_Connection *c) {
 
 
 #ifndef MULTITHREADING
-		//connection list before deletion
-		//UA_list_iteratePayload(&(c->networkLayer->connections),NL_Connection_printf);
 		DBG_VERBOSE(printf("NL_TCP_reader - search element to remove\n"));
 		UA_list_Element* lec = UA_list_search(&(c->networkLayer->connections),NL_ConnectionComparer,c);
-
 		DBG_VERBOSE(printf("NL_TCP_reader - remove connection for handle=%d\n",((NL_Connection*)lec->payload)->connection.connectionHandle));
 		UA_list_removeElement(lec,UA_NULL);
 		DBG_VERBOSE(UA_list_iteratePayload(&(c->networkLayer->connections),NL_Connection_printf));
-		//connection list after deletion
-		//UA_list_iteratePayload(&(c->networkLayer->connections),NL_Connection_printf);
 		UA_free(c);
 #endif
 	}
+	
 	UA_ByteString_deleteMembers(&readBuffer);
 	return UA_NULL;
 }
@@ -340,6 +333,7 @@ void* NL_TCP_listenThread(NL_Connection* c) {
 }
 #endif
 
+
 UA_Int32 NL_TCP_init(NL_data* tld, UA_Int32 port) {
 	UA_Int32 retval = UA_SUCCESS;
 	// socket variables
@@ -402,4 +396,3 @@ NL_data* NL_init(NL_Description* tlDesc, UA_Int32 port) {
 	}
 	return nl;
 }
-

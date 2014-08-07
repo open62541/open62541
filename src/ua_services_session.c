@@ -1,11 +1,11 @@
 #include "ua_services.h"
-#include "ua_stack_session_manager.h"
 #include "ua_application.h"
 
 
 UA_Int32 Service_CreateSession(SL_Channel channel, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response) {
-UA_String_printf("CreateSession Service - endpointUrl=", &(request->endpointUrl));
-
+#ifdef DEBUG
+	UA_String_printf("CreateSession Service - endpointUrl=", &(request->endpointUrl));
+#endif
 	UA_Session *newSession;
 	UA_Int64 timeout;
 
@@ -34,7 +34,6 @@ UA_Int32 Service_ActivateSession(SL_Channel channel,UA_Session session,
 	UA_Session_bind(session, channel);
 
 	UA_Session_setApplicationPointer(session, &appMockup);
-
 	UA_NodeId_printf("ActivateSession - authToken=", &(request->requestHeader.authenticationToken));
 	// 321 == AnonymousIdentityToken_Encoding_DefaultBinary
 	UA_NodeId_printf("ActivateSession - uIdToken.type=", &(request->userIdentityToken.typeId));

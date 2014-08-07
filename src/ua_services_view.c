@@ -4,9 +4,7 @@
 UA_Int32 Service_Browse_getReferenceDescription(Namespace *ns, UA_ReferenceNode* reference, UA_UInt32 nodeClassMask,
 												UA_UInt32 resultMask, UA_ReferenceDescription* referenceDescription) {
 	const UA_Node* foundNode;
-	Namespace_Entry_Lock *lock;
-
-	if(Namespace_get(ns,&reference->targetId.nodeId,&foundNode, &lock) != UA_SUCCESS)
+	if(Namespace_get(ns,&reference->targetId.nodeId,&foundNode) != UA_SUCCESS)
 		return UA_ERROR;
 
 	UA_NodeId_copy(&foundNode->nodeId, &referenceDescription->nodeId.nodeId);
@@ -48,7 +46,7 @@ UA_Int32 Service_Browse_getReferenceDescription(Namespace *ns, UA_ReferenceNode*
 		}
 	}
 	
-	Namespace_Entry_Lock_release(lock);
+	Namespace_releaseManagedNode(foundNode);
 	return UA_SUCCESS;
 }
 
@@ -59,7 +57,7 @@ struct SubRefTypeId {
 };
 UA_SLIST_HEAD(SubRefTypeIdList, SubRefTypeId);
 
-UA_UInt32 walkReferenceTree(Namespace *ns, UA_ReferenceTypeNode *current, struct SubRefTypeIdList *list) {
+UA_UInt32 walkReferenceTree(Namespace *ns, const UA_ReferenceTypeNode *current, struct SubRefTypeIdList *list) {
 	// insert the current referencetype
 	struct SubRefTypeId *element;
 	UA_alloc((void**)&element, sizeof(struct SubRefTypeId));
@@ -73,11 +71,10 @@ UA_UInt32 walkReferenceTree(Namespace *ns, UA_ReferenceTypeNode *current, struct
 		if(current->references[i].referenceTypeId.identifier.numeric == 45 /* HasSubtype */ &&
 		   current->references[i].isInverse == UA_FALSE) {
 			const UA_Node *node;
-			Namespace_Entry_Lock *lock;
-			if(Namespace_get(ns, &current->references[i].targetId.nodeId, &node, &lock) == UA_SUCCESS &&
+			if(Namespace_get(ns, &current->references[i].targetId.nodeId, &node) == UA_SUCCESS &&
 			   node->nodeClass == UA_NODECLASS_REFERENCETYPE) {
 				count += walkReferenceTree(ns,(UA_ReferenceTypeNode*)node, list);
-				Namespace_Entry_Lock_release(lock);
+				Namespace_releaseManagedNode(node);
 			}
 		}
 	}
@@ -90,13 +87,12 @@ static UA_Int32 findSubReferenceTypes(Namespace *ns, UA_NodeId *rootReferenceTyp
 	UA_SLIST_INIT(&list);
 
 	// walk the tree
-	UA_ReferenceTypeNode *root;
-	Namespace_Entry_Lock *lock;
-	if(Namespace_get(ns, rootReferenceType, (const UA_Node**)&root, &lock) != UA_SUCCESS ||
+	const UA_ReferenceTypeNode *root;
+	if(Namespace_get(ns, rootReferenceType, (const UA_Node**)&root) != UA_SUCCESS ||
 	   root->nodeClass != UA_NODECLASS_REFERENCETYPE)
 		return UA_ERROR;
 	UA_UInt32 count = walkReferenceTree(ns, root, &list);
-	Namespace_Entry_Lock_release(lock);
+	Namespace_releaseManagedNode((const UA_Node*) root);
 
 	// copy results into an array
 	UA_alloc((void**) ids, sizeof(UA_NodeId)*count);
@@ -129,9 +125,7 @@ static inline UA_Boolean Service_Browse_returnReference(UA_BrowseDescription *br
 static void Service_Browse_getBrowseResult(Namespace *ns, UA_BrowseDescription *browseDescription,
 										   UA_UInt32 maxReferences, UA_BrowseResult *browseResult) {
 	const UA_Node* node;
-	Namespace_Entry_Lock *lock;
-
-	if(Namespace_get(ns, &browseDescription->nodeId, &node, &lock) != UA_SUCCESS) {
+	if(Namespace_get(ns, &browseDescription->nodeId, &node) != UA_SUCCESS) {
 		browseResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
 		return;
 	}
@@ -185,7 +179,7 @@ static void Service_Browse_getBrowseResult(Namespace *ns, UA_BrowseDescription *
 		// Todo. Set the Statuscode and the continuation point.
 	}
 	
-	Namespace_Entry_Lock_release(lock);
+	Namespace_releaseManagedNode(node);
 	UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesCount, &UA_.types[UA_NODEID]);
 }
 

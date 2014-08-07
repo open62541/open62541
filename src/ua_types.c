@@ -139,7 +139,7 @@ UA_Int32 UA_String_init(UA_String *p) {
 UA_TYPE_DELETE_DEFAULT(UA_String)
 UA_Int32 UA_String_deleteMembers(UA_String *p) {
 	UA_Int32 retval = UA_SUCCESS;
-	if(p!= UA_NULL && p->data != UA_NULL) {
+	if(p != UA_NULL && p->length > 0 && p->data != UA_NULL) {
 		retval   |= UA_free(p->data);
 		retval   |= UA_String_init(p);
 	}

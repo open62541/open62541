@@ -34,15 +34,13 @@ static UA_AddNodesResult addSingleNode(Application *app, UA_AddNodesItem *item) 
 
 	UA_Int32 status = UA_SUCCESS;
 	const UA_Node *parent;
-	Namespace_Entry_Lock *parent_lock = UA_NULL;
-
-	CHECKED_ACTION(Namespace_get(parent_ns, &item->parentNodeId.nodeId, &parent, &parent_lock),
+	CHECKED_ACTION(Namespace_get(parent_ns, &item->parentNodeId.nodeId, &parent),
 				   result.statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID, ret);
 
-	if(!nodeid_isnull && Namespace_contains(ns, &item->requestedNewNodeId.nodeId)) {
-		result.statusCode = UA_STATUSCODE_BADNODEIDEXISTS;
-		goto ret;
-	}
+	/* if(!nodeid_isnull && Namespace_contains(ns, &item->requestedNewNodeId.nodeId)) { */
+	/* 	result.statusCode = UA_STATUSCODE_BADNODEIDEXISTS; */
+	/* 	goto ret; */
+	/* } */
 
 	/**
 	   TODO:
@@ -63,7 +61,7 @@ static UA_AddNodesResult addSingleNode(Application *app, UA_AddNodesItem *item) 
 	 */
 
  ret:
-	Namespace_Entry_Lock_release(parent_lock);
+	Namespace_releaseManagedNode(parent);
 	return result;
 }
 
@@ -126,10 +124,8 @@ UA_Int32 AddReference(UA_Node *node, UA_ReferenceNode *reference, Namespace *tar
 		return retval;
 
 	UA_Node *targetnode;
-	Namespace_Entry_Lock *lock;
-	// TODO: Nodes in the namespace are immutable (for lockless multithreading).
 	// Do a copy every time?
-	if(Namespace_get(targetns, &reference->targetId.nodeId, (const UA_Node**)&targetnode, &lock) != UA_SUCCESS)
+	if(Namespace_get(targetns, &reference->targetId.nodeId, (const UA_Node**)&targetnode) != UA_SUCCESS)
 		return UA_ERROR;
 
 	UA_ReferenceNode inversereference;
@@ -137,7 +133,7 @@ UA_Int32 AddReference(UA_Node *node, UA_ReferenceNode *reference, Namespace *tar
 	inversereference.isInverse = !reference->isInverse;
 	inversereference.targetId = (UA_ExpandedNodeId){node->nodeId, UA_STRING_NULL, 0};	
 	retval = AddSingleReference(targetnode, &inversereference);
-	Namespace_Entry_Lock_release(lock);
+	Namespace_releaseManagedNode(targetnode);
 
 	return retval;
 }

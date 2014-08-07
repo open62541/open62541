@@ -2,6 +2,7 @@
 #define NETWORKLAYER_H_
 
 #include "ua_types.h"
+#include "ua_types_generated.h"
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
 #include "util/ua_list.h"
@@ -57,7 +58,7 @@ typedef struct NL_Connection {
 
 NL_data* NL_init(NL_Description* tlDesc, UA_Int32 port);
 UA_Int32 NL_Connection_close(UA_TL_Connection connection);
-UA_Int32 NL_msgLoop(NL_data* nl, struct timeval* tv,UA_Int32 (*timeoutCallBack)(void*),void *arg);
+UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), void *arg, UA_Boolean *running);
 UA_Int32 NL_TCP_writer(UA_Int32 connectionHandle, UA_ByteString const * const * gather_buf, UA_UInt32 gather_len);
 
 #endif /* NETWORKLAYER_H_ */

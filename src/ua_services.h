@@ -8,9 +8,11 @@
 #define UA_SERVICES_H_
 
 #include "ua_types.h"
+#include "ua_types_generated.h"
 #include "ua_application.h"
 #include "ua_transport_binary_secure.h"
-#include "ua_stack_session.h"
+#include "ua_stack_session_manager.h"
+#include "ua_stack_channel_manager.h"
 /**
  * @defgroup services Services
  *

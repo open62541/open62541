@@ -34,10 +34,10 @@ void appMockup_init() {
 	// create namespaces
 	// TODO: A table that maps the namespaceUris to Ids
 	Namespace* ns0;
-	Namespace_new(&ns0, 100, 0); //C2UA_STRING("http://opcfoundation.org/UA/"));
+	Namespace_new(&ns0, 0); //C2UA_STRING("http://opcfoundation.org/UA/"));
 
 	Namespace* local;
-	Namespace_new(&local, 100, 1); //C2UA_STRING("http://localhost:16664/open62541/"));
+	Namespace_new(&local, 1); //C2UA_STRING("http://localhost:16664/open62541/"));
 
 	// add to list of namespaces
 	UA_indexedList_init(appMockup.namespaces);
@@ -82,7 +82,7 @@ void appMockup_init() {
 	references->description = UA_LOCALIZEDTEXT_STATIC("References");
 	references->isAbstract = UA_TRUE;
 	references->symmetric = UA_TRUE;
-	Namespace_insert(ns0,(UA_Node*)references);
+	Namespace_insert(ns0,(const UA_Node**)&references, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *hierarchicalreferences;
 	UA_ReferenceTypeNode_new(&hierarchicalreferences);
@@ -95,7 +95,7 @@ void appMockup_init() {
 	hierarchicalreferences->symmetric = UA_FALSE;
 	AddReference((UA_Node*)hierarchicalreferences, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_References, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)hierarchicalreferences);
+	Namespace_insert(ns0,(const UA_Node**)&hierarchicalreferences, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *nonhierarchicalreferences;
 	UA_ReferenceTypeNode_new(&nonhierarchicalreferences);
@@ -108,7 +108,7 @@ void appMockup_init() {
 	nonhierarchicalreferences->symmetric = UA_FALSE;
 	AddReference((UA_Node*)nonhierarchicalreferences, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_References, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)nonhierarchicalreferences);
+	Namespace_insert(ns0,(const UA_Node**)&nonhierarchicalreferences, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *haschild;
 	UA_ReferenceTypeNode_new(&haschild);
@@ -121,7 +121,7 @@ void appMockup_init() {
 	haschild->symmetric = UA_FALSE;
 	AddReference((UA_Node*)haschild, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_HierarchicalReferences, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)haschild);
+	Namespace_insert(ns0,(const UA_Node**)&haschild, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *organizes;
 	UA_ReferenceTypeNode_new(&organizes);
@@ -135,7 +135,7 @@ void appMockup_init() {
 	organizes->inverseName = UA_LOCALIZEDTEXT_STATIC("OrganizedBy");
 	AddReference((UA_Node*)organizes, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_HierarchicalReferences, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)organizes);
+	Namespace_insert(ns0,(const UA_Node**)&organizes, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *haseventsource;
 	UA_ReferenceTypeNode_new(&haseventsource);
@@ -149,7 +149,7 @@ void appMockup_init() {
 	haseventsource->inverseName = UA_LOCALIZEDTEXT_STATIC("EventSourceOf");
 	AddReference((UA_Node*)haseventsource, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_HierarchicalReferences, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)haseventsource);
+	Namespace_insert(ns0,(const UA_Node**)&haseventsource, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *hasmodellingrule;
 	UA_ReferenceTypeNode_new(&hasmodellingrule);
@@ -163,7 +163,7 @@ void appMockup_init() {
 	hasmodellingrule->inverseName = UA_LOCALIZEDTEXT_STATIC("ModellingRuleOf");
 	AddReference((UA_Node*)hasmodellingrule, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_NonHierarchicalReferences, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)hasmodellingrule);
+	Namespace_insert(ns0,(const UA_Node**)&hasmodellingrule, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *hasencoding;
 	UA_ReferenceTypeNode_new(&hasencoding);
@@ -177,7 +177,7 @@ void appMockup_init() {
 	hasencoding->inverseName = UA_LOCALIZEDTEXT_STATIC("EncodingOf");
 	AddReference((UA_Node*)hasencoding, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_NonHierarchicalReferences, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)hasencoding);
+	Namespace_insert(ns0,(const UA_Node**)&hasencoding, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *hasdescription;
 	UA_ReferenceTypeNode_new(&hasdescription);
@@ -191,7 +191,7 @@ void appMockup_init() {
 	hasdescription->inverseName = UA_LOCALIZEDTEXT_STATIC("DescriptionOf");
 	AddReference((UA_Node*)hasdescription, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_NonHierarchicalReferences, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)hasdescription);
+	Namespace_insert(ns0,(const UA_Node**)&hasdescription, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *hastypedefinition;
 	UA_ReferenceTypeNode_new(&hastypedefinition);
@@ -205,7 +205,7 @@ void appMockup_init() {
 	hastypedefinition->inverseName = UA_LOCALIZEDTEXT_STATIC("TypeDefinitionOf");
 	AddReference((UA_Node*)hastypedefinition, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_NonHierarchicalReferences, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)hastypedefinition);
+	Namespace_insert(ns0,(const UA_Node**)&hastypedefinition, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *generatesevent;
 	UA_ReferenceTypeNode_new(&generatesevent);
@@ -219,7 +219,7 @@ void appMockup_init() {
 	generatesevent->inverseName = UA_LOCALIZEDTEXT_STATIC("GeneratedBy");
 	AddReference((UA_Node*)generatesevent, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_NonHierarchicalReferences, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)generatesevent);
+	Namespace_insert(ns0,(const UA_Node**)&generatesevent, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *aggregates;
 	UA_ReferenceTypeNode_new(&aggregates);
@@ -232,7 +232,7 @@ void appMockup_init() {
 	aggregates->symmetric = UA_FALSE;
 	AddReference((UA_Node*)aggregates, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_HasChild, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)aggregates);
+	Namespace_insert(ns0,(const UA_Node**)&aggregates, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *hassubtype;
 	UA_ReferenceTypeNode_new(&hassubtype);
@@ -243,10 +243,10 @@ void appMockup_init() {
 	hassubtype->description = UA_LOCALIZEDTEXT_STATIC("HasSubtype");
 	hassubtype->isAbstract = UA_FALSE;
 	hassubtype->symmetric = UA_FALSE;
-	generatesevent->inverseName = UA_LOCALIZEDTEXT_STATIC("SubtypeOf");
+	hassubtype->inverseName = UA_LOCALIZEDTEXT_STATIC("SubtypeOf");
 	AddReference((UA_Node*)hassubtype, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_HasChild, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)hassubtype);
+	Namespace_insert(ns0,(const UA_Node**)&hassubtype, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *hasproperty;
 	UA_ReferenceTypeNode_new(&hasproperty);
@@ -257,10 +257,10 @@ void appMockup_init() {
 	hasproperty->description = UA_LOCALIZEDTEXT_STATIC("HasProperty");
 	hasproperty->isAbstract = UA_FALSE;
 	hasproperty->symmetric = UA_FALSE;
-	generatesevent->inverseName = UA_LOCALIZEDTEXT_STATIC("PropertyOf");
+	hasproperty->inverseName = UA_LOCALIZEDTEXT_STATIC("PropertyOf");
 	AddReference((UA_Node*)hasproperty, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_Aggregates, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)hasproperty);
+	Namespace_insert(ns0,(const UA_Node**)&hasproperty, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *hascomponent;
 	UA_ReferenceTypeNode_new(&hascomponent);
@@ -271,10 +271,10 @@ void appMockup_init() {
 	hascomponent->description = UA_LOCALIZEDTEXT_STATIC("HasComponent");
 	hascomponent->isAbstract = UA_FALSE;
 	hascomponent->symmetric = UA_FALSE;
-	generatesevent->inverseName = UA_LOCALIZEDTEXT_STATIC("ComponentOf");
+	hascomponent->inverseName = UA_LOCALIZEDTEXT_STATIC("ComponentOf");
 	AddReference((UA_Node*)hascomponent, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_Aggregates, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)hascomponent);
+	Namespace_insert(ns0,(const UA_Node**)&hascomponent, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *hasnotifier;
 	UA_ReferenceTypeNode_new(&hasnotifier);
@@ -285,10 +285,10 @@ void appMockup_init() {
 	hasnotifier->description = UA_LOCALIZEDTEXT_STATIC("HasNotifier");
 	hasnotifier->isAbstract = UA_FALSE;
 	hasnotifier->symmetric = UA_FALSE;
-	generatesevent->inverseName = UA_LOCALIZEDTEXT_STATIC("NotifierOf");
+	hasnotifier->inverseName = UA_LOCALIZEDTEXT_STATIC("NotifierOf");
 	AddReference((UA_Node*)hasnotifier, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_HasEventSource, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)hasnotifier);
+	Namespace_insert(ns0,(const UA_Node**)&hasnotifier, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *hasorderedcomponent;
 	UA_ReferenceTypeNode_new(&hasorderedcomponent);
@@ -299,10 +299,10 @@ void appMockup_init() {
 	hasorderedcomponent->description = UA_LOCALIZEDTEXT_STATIC("HasOrderedComponent");
 	hasorderedcomponent->isAbstract = UA_FALSE;
 	hasorderedcomponent->symmetric = UA_FALSE;
-	generatesevent->inverseName = UA_LOCALIZEDTEXT_STATIC("OrderedComponentOf");
+	hasorderedcomponent->inverseName = UA_LOCALIZEDTEXT_STATIC("OrderedComponentOf");
 	AddReference((UA_Node*)hasorderedcomponent, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_HasComponent, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)hasorderedcomponent);
+	Namespace_insert(ns0,(const UA_Node**)&hasorderedcomponent, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *hasmodelparent;
 	UA_ReferenceTypeNode_new(&hasmodelparent);
@@ -313,10 +313,10 @@ void appMockup_init() {
 	hasmodelparent->description = UA_LOCALIZEDTEXT_STATIC("HasModelParent");
 	hasmodelparent->isAbstract = UA_FALSE;
 	hasmodelparent->symmetric = UA_FALSE;
-	generatesevent->inverseName = UA_LOCALIZEDTEXT_STATIC("ModelParentOf");
+	hasmodelparent->inverseName = UA_LOCALIZEDTEXT_STATIC("ModelParentOf");
 	AddReference((UA_Node*)hasmodelparent, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_NonHierarchicalReferences, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)hasmodelparent);
+	Namespace_insert(ns0,(const UA_Node**)&hasmodelparent, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *fromstate;
 	UA_ReferenceTypeNode_new(&fromstate);
@@ -327,10 +327,10 @@ void appMockup_init() {
 	fromstate->description = UA_LOCALIZEDTEXT_STATIC("FromState");
 	fromstate->isAbstract = UA_FALSE;
 	fromstate->symmetric = UA_FALSE;
-	generatesevent->inverseName = UA_LOCALIZEDTEXT_STATIC("ToTransition");
+	fromstate->inverseName = UA_LOCALIZEDTEXT_STATIC("ToTransition");
 	AddReference((UA_Node*)fromstate, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_NonHierarchicalReferences, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)fromstate);
+	Namespace_insert(ns0,(const UA_Node**)&fromstate, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *tostate;
 	UA_ReferenceTypeNode_new(&tostate);
@@ -341,10 +341,10 @@ void appMockup_init() {
 	tostate->description = UA_LOCALIZEDTEXT_STATIC("ToState");
 	tostate->isAbstract = UA_FALSE;
 	tostate->symmetric = UA_FALSE;
-	generatesevent->inverseName = UA_LOCALIZEDTEXT_STATIC("FromTransition");
+	tostate->inverseName = UA_LOCALIZEDTEXT_STATIC("FromTransition");
 	AddReference((UA_Node*)tostate, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_NonHierarchicalReferences, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)tostate);
+	Namespace_insert(ns0,(const UA_Node**)&tostate, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *hascause;
 	UA_ReferenceTypeNode_new(&hascause);
@@ -355,10 +355,10 @@ void appMockup_init() {
 	hascause->description = UA_LOCALIZEDTEXT_STATIC("HasCause");
 	hascause->isAbstract = UA_FALSE;
 	hascause->symmetric = UA_FALSE;
-	generatesevent->inverseName = UA_LOCALIZEDTEXT_STATIC("MayBeCausedBy");
+	hascause->inverseName = UA_LOCALIZEDTEXT_STATIC("MayBeCausedBy");
 	AddReference((UA_Node*)hascause, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_NonHierarchicalReferences, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)hascause);
+	Namespace_insert(ns0,(const UA_Node**)&hascause, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *haseffect;
 	UA_ReferenceTypeNode_new(&haseffect);
@@ -369,10 +369,10 @@ void appMockup_init() {
 	haseffect->description = UA_LOCALIZEDTEXT_STATIC("HasEffect");
 	haseffect->isAbstract = UA_FALSE;
 	haseffect->symmetric = UA_FALSE;
-	generatesevent->inverseName = UA_LOCALIZEDTEXT_STATIC("MayBeEffectedBy");
+	haseffect->inverseName = UA_LOCALIZEDTEXT_STATIC("MayBeEffectedBy");
 	AddReference((UA_Node*)haseffect, &(UA_ReferenceNode){RefTypeId_HasSubtype, UA_TRUE,
 		(UA_ExpandedNodeId){RefTypeId_NonHierarchicalReferences, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)haseffect);
+	Namespace_insert(ns0,(const UA_Node**)&haseffect, NAMESPACE_INSERT_UNIQUE);
 
 	UA_ReferenceTypeNode *hashistoricalconfiguration;
 	UA_ReferenceTypeNode_new(&hashistoricalconfiguration);
@@ -383,10 +383,10 @@ void appMockup_init() {
 	hashistoricalconfiguration->description = UA_LOCALIZEDTEXT_STATIC("HasHistoricalConfiguration");
 	hashistoricalconfiguration->isAbstract = UA_FALSE;
 	hashistoricalconfiguration->symmetric = UA_FALSE;
-	generatesevent->inverseName = UA_LOCALIZEDTEXT_STATIC("HistoricalConfigurationOf");
+	hashistoricalconfiguration->inverseName = UA_LOCALIZEDTEXT_STATIC("HistoricalConfigurationOf");
 	AddReference((UA_Node*)hashistoricalconfiguration, &(UA_ReferenceNode){RefTypeId_HasSubtype,
 		UA_TRUE, (UA_ExpandedNodeId){RefTypeId_Aggregates, UA_STRING_NULL, 0}}, ns0);
-	Namespace_insert(ns0,(UA_Node*)hashistoricalconfiguration);
+	Namespace_insert(ns0,(const UA_Node**)&hashistoricalconfiguration, NAMESPACE_INSERT_UNIQUE);
 
 
 	// ObjectTypes (Ids only)
@@ -411,7 +411,7 @@ void appMockup_init() {
 	folderType->browseName = UA_QUALIFIEDNAME_STATIC("FolderType");
 	folderType->displayName = UA_LOCALIZEDTEXT_STATIC("FolderType");
 	folderType->description = UA_LOCALIZEDTEXT_STATIC("FolderType");
-	Namespace_insert(ns0,(UA_Node*)folderType);
+	Namespace_insert(ns0,(const UA_Node**)&folderType, NAMESPACE_INSERT_UNIQUE);
 
 	// Root
 	UA_ObjectNode *root;
@@ -425,7 +425,8 @@ void appMockup_init() {
 	AddReference((UA_Node*)root, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_ObjectsFolder}, ns0);
 	AddReference((UA_Node*)root, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_TypesFolder}, ns0);
 	AddReference((UA_Node*)root, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_ViewsFolder}, ns0);
-	Namespace_insert(ns0,(UA_Node*)root);
+	/* root becomes a managed node. we need to release it at the end.*/
+	Namespace_insert(ns0,(const UA_Node**)&root, NAMESPACE_INSERT_UNIQUE | NAMESPACE_INSERT_GETMANAGED);
 
 	// Objects
 	UA_ObjectNode *objects;
@@ -437,7 +438,7 @@ void appMockup_init() {
 	objects->description = UA_LOCALIZEDTEXT_STATIC("Objects");
 	AddReference((UA_Node*)objects, &(UA_ReferenceNode){RefTypeId_HasTypeDefinition, UA_FALSE, ObjTypeId_FolderType}, ns0);
 	AddReference((UA_Node*)objects, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_Server}, ns0);
-	Namespace_insert(ns0,(UA_Node*)objects);
+	Namespace_insert(ns0,(const UA_Node**)&objects, NAMESPACE_INSERT_UNIQUE);
 
 	// Types
 	UA_ObjectNode *types;
@@ -448,7 +449,7 @@ void appMockup_init() {
 	types->displayName = UA_LOCALIZEDTEXT_STATIC("Types");
 	types->description = UA_LOCALIZEDTEXT_STATIC("Types");
 	AddReference((UA_Node*)types, &(UA_ReferenceNode){RefTypeId_HasTypeDefinition, UA_FALSE, ObjTypeId_FolderType}, ns0);
-	Namespace_insert(ns0,(UA_Node*)types);
+	Namespace_insert(ns0,(const UA_Node**)&types, NAMESPACE_INSERT_UNIQUE);
 
 	// Views
 	UA_ObjectNode *views;
@@ -459,7 +460,7 @@ void appMockup_init() {
 	views->displayName = UA_LOCALIZEDTEXT_STATIC("Views");
 	views->description = UA_LOCALIZEDTEXT_STATIC("Views");
 	AddReference((UA_Node*)views, &(UA_ReferenceNode){RefTypeId_HasTypeDefinition, UA_FALSE, ObjTypeId_FolderType}, ns0);
-	Namespace_insert(ns0,(UA_Node*)views);
+	Namespace_insert(ns0,(const UA_Node**)&views, NAMESPACE_INSERT_UNIQUE);
 
 	// Server
 	UA_ObjectNode *server;
@@ -473,7 +474,7 @@ void appMockup_init() {
 	AddReference((UA_Node*)server, &(UA_ReferenceNode){RefTypeId_HasComponent, UA_FALSE, ObjId_NamespaceArray}, ns0);
 	AddReference((UA_Node*)server, &(UA_ReferenceNode){RefTypeId_HasProperty, UA_FALSE, ObjId_ServerStatus}, ns0);
 	AddReference((UA_Node*)server, &(UA_ReferenceNode){RefTypeId_HasProperty, UA_FALSE, ObjId_ServerArray}, ns0);
-	Namespace_insert(ns0,(UA_Node*)server);
+	Namespace_insert(ns0,(const UA_Node**)&server, NAMESPACE_INSERT_UNIQUE);
 
 	// NamespaceArray
 	UA_VariableNode *namespaceArray;
@@ -497,7 +498,7 @@ void appMockup_init() {
 	namespaceArray->valueRank = 1;
 	namespaceArray->minimumSamplingInterval = 1.0;
 	namespaceArray->historizing = UA_FALSE;
-	Namespace_insert(ns0,(UA_Node*)namespaceArray);
+	Namespace_insert(ns0,(const UA_Node**)&namespaceArray, NAMESPACE_INSERT_UNIQUE);
 
 	// ServerStatus
 	UA_VariableNode *serverstatus;
@@ -524,7 +525,7 @@ void appMockup_init() {
 	serverstatus->value.vt = &UA_.types[UA_SERVERSTATUSDATATYPE]; // gets encoded as an extensionobject
 	serverstatus->value.arrayLength = 1;
 	serverstatus->value.data = status;
-	Namespace_insert(ns0,(UA_Node*)serverstatus);
+	Namespace_insert(ns0,(const UA_Node**)&serverstatus, NAMESPACE_INSERT_UNIQUE);
 
 	// State (Component of ServerStatus)
 	UA_VariableNode *state;
@@ -537,7 +538,7 @@ void appMockup_init() {
 	state->value.vt = &UA_borrowed_.types[UA_SERVERSTATE];
 	state->value.arrayLength = 1;
 	state->value.data = &status->state; // points into the other object.
-	Namespace_insert(ns0,(UA_Node*)state);
+	Namespace_insert(ns0,(const UA_Node**)&state, NAMESPACE_INSERT_UNIQUE);
 
 	//TODO: free(namespaceArray->value.data) later or forget it
 
@@ -583,7 +584,7 @@ void appMockup_init() {
 	tmpNodeValue->vt = &UA_.types[UA_FLOAT];
 
 	AddReference((UA_Node*)root, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_temperature1}, ns0);
-	Namespace_insert(ns0,(UA_Node*)temperature1);
+	Namespace_insert(ns0,(const UA_Node**)&temperature1, NAMESPACE_INSERT_UNIQUE);
 
 
 	UA_ExpandedNodeId ObjId_redLED = (UA_ExpandedNodeId){.nodeId = (UA_NodeId){.encodingByte = UA_NODEIDTYPE_TWOBYTE, .namespace = 0, .identifier.numeric = 109}, .namespaceUri = {-1, ((void *)0)}, .serverIndex = 0};
@@ -608,7 +609,7 @@ void appMockup_init() {
 	tmpNodeValue1->vt = &UA_.types[UA_BOOLEAN];
 
 	AddReference((UA_Node*)root, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_redLED}, ns0);
-	Namespace_insert(ns0,(UA_Node*)redLED);
+	Namespace_insert(ns0,(const UA_Node**)&redLED, NAMESPACE_INSERT_UNIQUE);
 
 
 	UA_ExpandedNodeId ObjId_yellowLED = (UA_ExpandedNodeId){.nodeId = (UA_NodeId){.encodingByte = UA_NODEIDTYPE_TWOBYTE, .namespace = 0, .identifier.numeric = 110}, .namespaceUri = {-1, ((void *)0)}, .serverIndex = 0};
@@ -633,7 +634,9 @@ void appMockup_init() {
 	tmpNodeValue2->vt = &UA_.types[UA_BOOLEAN];
 
 	AddReference((UA_Node*)root, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_yellowLED}, ns0);
-	Namespace_insert(ns0,(UA_Node*)yellowLED);
+	Namespace_insert(ns0,(const UA_Node**)&yellowLED, NAMESPACE_INSERT_UNIQUE);
+	
+	Namespace_releaseManagedNode((const UA_Node*)root);
 
 #if defined(DEBUG) && defined(VERBOSE)
 	uint32_t i;

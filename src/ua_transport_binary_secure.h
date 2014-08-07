@@ -1,6 +1,6 @@
 #ifndef OPCUA_TRANSPORT_BINARY_SECURE_H_
 #define OPCUA_TRANSPORT_BINARY_SECURE_H_
-
+#include "ua_types.h"
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
 #include "ua_stack_channel.h"
