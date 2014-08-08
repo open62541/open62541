@@ -28,7 +28,7 @@ UA_Int32 serverCallback(void * arg) {
 	Namespace* ns0 = (Namespace*)UA_indexedList_find(appMockup.namespaces, 0)->payload;
 	UA_Int32 retval;
 	const UA_Node * node;
-	UA_ExpandedNodeId serverStatusNodeId = NS0EXPANDEDNODEID(2256);
+	UA_ExpandedNodeId serverStatusNodeId; NS0EXPANDEDNODEID(serverStatusNodeId, 2256);
 	retval = Namespace_get(ns0, &serverStatusNodeId.nodeId, &node);
 	if(retval == UA_SUCCESS){
 		((UA_ServerStatusDataType*)(((UA_VariableNode*)node)->value.data))->currentTime = UA_DateTime_now();
