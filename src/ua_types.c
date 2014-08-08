@@ -3,9 +3,9 @@
 #include <string.h>
 #include <stdarg.h> // va_start, va_end
 
+#include <time.h>
 #ifdef WIN32
 #include <windows.h>
-#include <time.h>
 #else
 #include <sys/time.h>
 #endif
