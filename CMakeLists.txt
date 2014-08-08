@@ -33,12 +33,15 @@ if (UA_ENCODING_JSON)
     MATH(EXPR UA_ENCODING_AMOUNT "${UA_ENCODING_AMOUNT}+1")
 endif (UA_ENCODING_JSON)
 
-# build the library
-configure_file ("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/ua_config.h")
+# directory for generated source files
+file (MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
+include_directories ("${PROJECT_BINARY_DIR}/src_generated") 
 
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/util")
-include_directories("${PROJECT_BINARY_DIR}") # generated header file
+# build the library
+configure_file ("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
+
+include_directories ("${CMAKE_CURRENT_SOURCE_DIR}/src")
+include_directories ("${CMAKE_CURRENT_SOURCE_DIR}/src/util")
 
 set (lib_sources src/ua_types.c
                  src/ua_types_encoding_binary.c
@@ -58,8 +61,8 @@ set (lib_sources src/ua_types.c
 				 src/util/ua_list.c
 				 src/util/ua_indexedList.c
 				 src/util/ua_base64.c
-				 ${PROJECT_BINARY_DIR}/ua_types_generated.c
-				 ${PROJECT_BINARY_DIR}/ua_namespace_0.c) # do not pollute the src dir with generated files
+				 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
+				 ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_0.c)
 
 if (MULTITHREADING)
     list (APPEND lib_sources src/ua_namespace_concurrent.c)
@@ -84,25 +87,25 @@ endif (UA_ENCODING_JSON)
 add_library (open62541 ${lib_sources})
 
 # generate data structures
-add_custom_command (OUTPUT ${PROJECT_BINARY_DIR}/ua_types_generated.c
-                           ${PROJECT_BINARY_DIR}/ua_types_generated.h
-                    COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_builtin.py ${generate_options} ${PROJECT_SOURCE_DIR}/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/ua_types_generated
+add_custom_command (OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
+                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
+                    COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_builtin.py ${generate_options} ${PROJECT_SOURCE_DIR}/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated
                     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_builtin.py
                             ${CMAKE_CURRENT_SOURCE_DIR}/schema/Opc.Ua.Types.bsd)
 
-add_custom_command (OUTPUT ${PROJECT_BINARY_DIR}/ua_namespace_0.c
-                           ${PROJECT_BINARY_DIR}/ua_namespace_0.h
-                    COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_namespace.py ${generate_options} ${PROJECT_SOURCE_DIR}/schema/NodeIds.csv ${PROJECT_BINARY_DIR}/ua_namespace_0
+add_custom_command (OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_0.c
+                           ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_0.h
+                    COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_namespace.py ${generate_options} ${PROJECT_SOURCE_DIR}/schema/NodeIds.csv ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_0
                     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_namespace.py
                             ${CMAKE_CURRENT_SOURCE_DIR}/schema/NodeIds.csv)
 
 # download queue.h if required
 if (WIN32)
-	if (NOT EXISTS "${PROJECT_BINARY_DIR}/queue.h")
-        file (DOWNLOAD "http://openbsd.cs.toronto.edu/cgi-bin/cvsweb/~checkout~/src/sys/sys/queue.h" "${PROJECT_BINARY_DIR}/queue.h" STATUS result)
+	if (NOT EXISTS "${PROJECT_BINARY_DIR}/src_generated/queue.h")
+        file (DOWNLOAD "http://openbsd.cs.toronto.edu/cgi-bin/cvsweb/~checkout~/src/sys/sys/queue.h" "${PROJECT_BINARY_DIR}/src_generated/queue.h" STATUS result)
 		list (GET result 0 download_ok)
 		if (NOT ${download_ok} MATCHES 0)
-			execute_process (COMMAND rm "${PROJECT_BINARY_DIR}/queue.h") # remove empty file if created
+			file (REMOVE "${PROJECT_BINARY_DIR}/src_generated/queue.h") # remove empty file if created
 			message (FATAL_ERROR "queue.h could not be downloaded")
 		endif ()
 	endif ()
