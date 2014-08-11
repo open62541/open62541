@@ -1,6 +1,6 @@
 #include <fcntl.h> // open, O_RDONLY
 #include "ua_types.h"
-#include "ua_types_generated.h"
+//#include "ua_types_generated.h"
 #include "ua_namespace.h"
 #include "ua_xml.h"
 #include "ua_namespace_xml.h"

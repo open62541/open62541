@@ -5,6 +5,7 @@
 #include <urcu/uatomic.h>
 #include <urcu/rculfhash.h>
 
+
 #define ALIVE_BIT (1 << 15) /* Alive bit in the readcount */
 typedef struct Namespace_Entry {
 	struct cds_lfht_node htn; /* contains next-ptr for urcu-hashmap */

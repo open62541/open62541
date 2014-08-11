@@ -5,6 +5,9 @@
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
 #include "ua_transport_binary_secure.h"
+#include "ua_transport_connection.h"
+#include "ua_stack_channel_manager.h"
+#include "ua_stack_session_manager.h"
 #include "check.h"
 
 #define MAXMSG 512
@@ -17,7 +20,8 @@ typedef struct stackTestFixture {
 	/** @brief the management structure (initialized to point to respMsgBuffer in create */
 	UA_ByteString respMsg;
 	/** @brief the management data structure for the fake connection */
-	TL_Connection connection;
+	UA_TL_Connection connection;
+
 } stackTestFixture;
 
 
@@ -50,23 +54,31 @@ UA_Int32 stackTestFixture_markHandleAsFree(UA_Int32 fixtureHandle) {
 	}
 	return UA_ERR_INVALID_VALUE;
 }
-
+UA_Int32 closerCallback(UA_TL_Connection connection)
+{
+	return UA_SUCCESS;
+}
 /** @brief get a handle to a free slot and create a new stackTestFixture */
-UA_Int32 stackTestFixture_create(TL_Writer writerCallback) {
+UA_Int32 stackTestFixture_create(TL_Writer writerCallback, TL_Closer closerCallback) {
+	UA_String endpointUrl;
+	UA_String_copycstring("no url",&endpointUrl);
+	SL_ChannelManager_init(4,36000,25,22,&endpointUrl);
+	UA_SessionManager_init(4,220000,222);
+
 	UA_UInt32 fixtureHandle = stackTestFixture_getAndMarkFreeHandle();
 	if(fixtureHandle < MAX_FIXTURES) {
 		UA_alloc((void **)&fixtures[fixtureHandle], sizeof(stackTestFixture));
 		stackTestFixture *fixture = fixtures[fixtureHandle];
 		fixture->respMsg.data   = fixture->respMsgBuffer;
 		fixture->respMsg.length = 0;
-		fixture->connection.connectionState = CONNECTIONSTATE_CLOSED;
-		fixture->connection.writerCallback  = writerCallback;
-		fixture->connection.localConf.maxChunkCount   = 1;
-		fixture->connection.localConf.maxMessageSize  = BUFFER_SIZE;
-		fixture->connection.localConf.protocolVersion = 0;
-		fixture->connection.localConf.recvBufferSize  = BUFFER_SIZE;
-		fixture->connection.localConf.recvBufferSize  = BUFFER_SIZE;
-		fixture->connection.connectionHandle = fixtureHandle;
+		TL_Buffer buffer;
+		buffer.maxChunkCount   = 1;
+		buffer.maxMessageSize  = BUFFER_SIZE;
+		buffer.protocolVersion = 0;
+		buffer.recvBufferSize  = BUFFER_SIZE;
+		buffer.recvBufferSize  = BUFFER_SIZE;
+		UA_TL_Connection_new(&fixture->connection,buffer,writerCallback,closerCallback,fixtureHandle,UA_NULL);
+
 	}
 	return fixtureHandle;
 }
@@ -88,8 +100,9 @@ stackTestFixture *stackTestFixture_getFixture(UA_UInt32 fixtureHandle) {
 }
 
 /** @brief write message provided in the gather buffers to the buffer of the fixture */
-UA_Int32 responseMsg(struct TL_Connection *c, UA_ByteString const **gather_buf, UA_Int32 gather_len) {
-	stackTestFixture *fixture = stackTestFixture_getFixture(c->connectionHandle);
+UA_Int32 responseMsg(UA_Int32 connectionHandle, UA_ByteString const **gather_buf, UA_Int32 gather_len) {
+
+	stackTestFixture *fixture = stackTestFixture_getFixture(connectionHandle);
 	UA_Int32  retval    = UA_SUCCESS;
 	UA_UInt32 total_len = 0;
 
@@ -105,7 +118,8 @@ UA_Int32 responseMsg(struct TL_Connection *c, UA_ByteString const **gather_buf, 
 }
 
 void indicateMsg(UA_Int32 handle, UA_ByteString *slMessage) {
-	printf("indicate: %d", TL_Process(&(stackTestFixture_getFixture(handle)->connection), slMessage));
+
+	printf("indicate: %d", TL_Process((stackTestFixture_getFixture(handle)->connection), slMessage));
 }
 
 UA_Byte pkt_HEL[] = {
@@ -333,7 +347,7 @@ UA_Byte pkt_MSG_CreateSession[] = {
 
 START_TEST(emptyIndicationShallYieldNoResponse) {
 	// given
-	UA_Int32 handle = stackTestFixture_create(responseMsg);
+	UA_Int32 handle = stackTestFixture_create(responseMsg, closerCallback);
 	UA_ByteString message = { -1, (UA_Byte *)UA_NULL };
 
 	// when
@@ -350,7 +364,7 @@ END_TEST
 
 START_TEST(validHELIndicationShallYieldACKResponse) {
 	// given
-	UA_Int32 handle = stackTestFixture_create(responseMsg);
+	UA_Int32 handle = stackTestFixture_create(responseMsg, closerCallback);
 	UA_ByteString message_001 = { sizeof(pkt_HEL), pkt_HEL };
 
 	// when
@@ -369,20 +383,20 @@ END_TEST
 
 START_TEST(validOpeningSequenceShallCreateChannel) {
 	// given
-	UA_Int32 handle = stackTestFixture_create(responseMsg);
+	UA_Int32 handle = stackTestFixture_create(responseMsg,closerCallback);
 
 	UA_ByteString message_001 = { sizeof(pkt_HEL), pkt_HEL };
 	UA_ByteString message_002 = { sizeof(pkt_OPN), pkt_OPN };
-
+	UA_Int32 connectionState;
 	// when
 	indicateMsg(handle, &message_001);
 	indicateMsg(handle, &message_002);
-
+	UA_TL_Connection_getState(stackTestFixture_getFixture(handle)->connection, &connectionState);
 	// then
 	ck_assert_int_eq(stackTestFixture_getFixture(handle)->respMsg.data[0], 'O');
 	ck_assert_int_eq(stackTestFixture_getFixture(handle)->respMsg.data[1], 'P');
 	ck_assert_int_eq(stackTestFixture_getFixture(handle)->respMsg.data[2], 'N');
-	ck_assert_int_eq(stackTestFixture_getFixture(handle)->connection.connectionState, CONNECTIONSTATE_ESTABLISHED);
+	ck_assert_int_eq(connectionState, CONNECTIONSTATE_ESTABLISHED);
 
 	// finally
 	stackTestFixture_delete(handle);
@@ -391,19 +405,19 @@ END_TEST
 
 START_TEST(validOpeningCloseSequence) {
 	// given
-	UA_Int32 handle = stackTestFixture_create(responseMsg);
+	UA_Int32 handle = stackTestFixture_create(responseMsg,closerCallback);
 
 	UA_ByteString message_001 = { sizeof(pkt_HEL), pkt_HEL };
 	UA_ByteString message_002 = { sizeof(pkt_OPN), pkt_OPN };
 	UA_ByteString message_003 = { sizeof(pkt_CLO), pkt_CLO };
-
+	UA_Int32 connectionState;
 	// when
 	indicateMsg(handle, &message_001);
 	indicateMsg(handle, &message_002);
 	indicateMsg(handle, &message_003);
-
+	UA_TL_Connection_getState(stackTestFixture_getFixture(handle)->connection, &connectionState);
 	// then
-	ck_assert_int_eq(stackTestFixture_getFixture(handle)->connection.connectionState, CONNECTIONSTATE_CLOSE);
+	ck_assert_int_eq(connectionState, CONNECTIONSTATE_CLOSE);
 
 	// finally
 	stackTestFixture_delete(handle);
@@ -412,8 +426,8 @@ END_TEST
 
 START_TEST(validCreateSessionShallCreateSession) {
 	// given
-	UA_Int32 handle = stackTestFixture_create(responseMsg);
-
+	UA_Int32 handle = stackTestFixture_create(responseMsg,closerCallback);
+	SL_Channel channel;
 	UA_ByteString message_001 = { sizeof(pkt_HEL), pkt_HEL };
 	UA_ByteString message_002 = { sizeof(pkt_OPN), pkt_OPN };
 	UA_ByteString message_003 = { sizeof(pkt_MSG_CreateSession), pkt_MSG_CreateSession };
@@ -421,19 +435,21 @@ START_TEST(validCreateSessionShallCreateSession) {
 	// when
 	indicateMsg(handle, &message_001);
 	indicateMsg(handle, &message_002);
-	UA_UInt32 pos = 8;
-	UA_UInt32 secureChannelId =
-	    stackTestFixture_getFixture(handle)->connection.secureChannel->securityToken.secureChannelId;
-	UA_UInt32_encodeBinary(&secureChannelId, &message_003, &pos);
 	indicateMsg(handle, &message_003);
 
 	// then
 	ck_assert_int_eq(stackTestFixture_getFixture(handle)->respMsg.data[0], 'M');
 	ck_assert_int_eq(stackTestFixture_getFixture(handle)->respMsg.data[1], 'S');
 	ck_assert_int_eq(stackTestFixture_getFixture(handle)->respMsg.data[2], 'G');
-	ck_assert_ptr_ne(stackTestFixture_getFixture(handle)->connection.secureChannel, UA_NULL);
+
+
+	SL_ChannelManager_getChannel(25,&channel);
+	ck_assert_ptr_ne(channel,UA_NULL);
+
+
 
 	// finally
+	SL_ChannelManager_removeChannel(25);
 	stackTestFixture_delete(handle);
 }
 END_TEST
@@ -466,7 +482,7 @@ START_TEST(UA_AsymmetricAlgorithmSecurityHeader_copyShallWorkOnInputExample) {
 	src.receiverCertificateThumbprint = (UA_String){10, (UA_Byte*)"thumbprint"};
 	src.securityPolicyUri = (UA_String){6, (UA_Byte*)"policy"};
 	src.senderCertificate = (UA_String){8, (UA_Byte*)"tEsT123!"};
-	src.requestId = 99;
+
 	const UA_AsymmetricAlgorithmSecurityHeader srcConst = src;
 
 	UA_AsymmetricAlgorithmSecurityHeader dst;
@@ -482,7 +498,7 @@ START_TEST(UA_AsymmetricAlgorithmSecurityHeader_copyShallWorkOnInputExample) {
 	ck_assert_int_eq(6, dst.securityPolicyUri.length);
 	ck_assert_int_eq('t', dst.senderCertificate.data[0]);
 	ck_assert_int_eq(8, dst.senderCertificate.length);
-	ck_assert_int_eq(99, dst.requestId);
+
 }
 END_TEST
 START_TEST(UA_SecureConversationMessageHeader_copyShallWorkOnInputExample) {
@@ -653,6 +669,7 @@ int main(void) {
 	s  = testSuite();
 	sr = srunner_create(s);
 	//srunner_set_fork_status (sr, CK_NOFORK);
+	//srunner_run_all(sr, CK_NOFORK);
 	srunner_run_all(sr, CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);

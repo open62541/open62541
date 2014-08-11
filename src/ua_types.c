@@ -61,6 +61,8 @@ void UA_Int16_print(const UA_Int16 *p, FILE *stream) {
 }
 #endif
 
+
+
 /* UInt16 */
 UA_TYPE_DEFAULT(UA_UInt16)
 #ifdef DEBUG
@@ -77,6 +79,7 @@ void UA_Int32_print(const UA_Int32 *p, FILE *stream) {
 	if(p == UA_NULL || stream == UA_NULL) return;
 	fprintf(stream, "%d", *p);
 }
+
 #endif
 
 /* UInt32 */

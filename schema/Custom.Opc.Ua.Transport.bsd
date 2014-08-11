@@ -49,7 +49,6 @@
     <opc:Field Name="SecurityPolicyUri" TypeName="opc:ByteString" />
     <opc:Field Name="SenderCertificate" TypeName="opc:ByteString" />
     <opc:Field Name="ReceiverCertificateThumbprint" TypeName="opc:ByteString" />
-    <opc:Field Name="RequestId" TypeName="opc:UInt32"/>
   </opc:StructuredType>
   
   <opc:StructuredType Name="SymmetricAlgorithmSecurityHeader">

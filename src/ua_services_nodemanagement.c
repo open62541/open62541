@@ -2,7 +2,7 @@
 #include "ua_statuscodes.h"
 #include "ua_namespace.h"
 #include "ua_services_internal.h"
-
+#include "ua_stack_session.h"
 #define CHECKED_ACTION(ACTION, CLEAN_UP, GOTO) do {	\
 	status |= ACTION; \
 	if(status != UA_SUCCESS) { \
@@ -65,11 +65,16 @@ static UA_AddNodesResult addSingleNode(Application *app, UA_AddNodesItem *item) 
 	return result;
 }
 
-UA_Int32 Service_AddNodes(SL_Channel *channel, const UA_AddNodesRequest *request, UA_AddNodesResponse *response) {
-	if(channel->session == UA_NULL || channel->session->application == UA_NULL)
-		return UA_ERROR;	// TODO: Return error message
+UA_Int32 Service_AddNodes(UA_Session session, const UA_AddNodesRequest *request, UA_AddNodesResponse *response) {
 
-	int nodestoaddsize = request->nodesToAddSize;
+	Application *application;
+	if(session == UA_NULL)
+		return UA_ERROR;	// TODO: Return error message
+	UA_Session_getApplicationPointer(session,&application);
+	if(application == UA_NULL)
+		return UA_ERROR;
+
+	UA_Int32 nodestoaddsize = request->nodesToAddSize;
 	if(nodestoaddsize <= 0) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
 		response->resultsSize = 0;
@@ -80,7 +85,7 @@ UA_Int32 Service_AddNodes(SL_Channel *channel, const UA_AddNodesRequest *request
 	UA_alloc((void **)&response->results, sizeof(void *) * nodestoaddsize);
 	for(int i = 0; i < nodestoaddsize; i++) {
 		DBG_VERBOSE(UA_QualifiedName_printf("service_addnodes - name=", &(request->nodesToAdd[i].browseName)));
-		response->results[i] = addSingleNode(channel->session->application, &request->nodesToAdd[i]);
+		response->results[i] = addSingleNode(application, &request->nodesToAdd[i]);
 	}
 	response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
 	response->diagnosticInfosSize = -1;
@@ -133,6 +138,6 @@ UA_Int32 AddReference(UA_Node *node, UA_ReferenceNode *reference, Namespace *tar
 	return retval;
 }
 
-UA_Int32 Service_AddReferences(SL_Channel *channel, const UA_AddReferencesRequest *request, UA_AddReferencesResponse *response) {
+UA_Int32 Service_AddReferences(UA_Session session, const UA_AddReferencesRequest *request, UA_AddReferencesResponse *response) {
 	return UA_ERROR;
 }
