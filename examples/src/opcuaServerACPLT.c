@@ -134,6 +134,7 @@ void server_run() {
 				slMessage.length = n;
 #ifdef DEBUG
 				UA_ByteString_printx("server_run - received=",&slMessage);
+#endif
 				TL_Process(connection, &slMessage);
 			} else if (n <= 0) {
 				perror("ERROR reading from socket1");
@@ -150,5 +151,5 @@ void server_run() {
 	close(sockfd);
 }
 
-#endif
+
 #endif

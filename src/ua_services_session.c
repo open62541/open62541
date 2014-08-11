@@ -34,10 +34,12 @@ UA_Int32 Service_ActivateSession(SL_Channel channel,UA_Session session,
 	UA_Session_bind(session, channel);
 
 	UA_Session_setApplicationPointer(session, &appMockup);
+#ifdef DEBUG
 	UA_NodeId_printf("ActivateSession - authToken=", &(request->requestHeader.authenticationToken));
 	// 321 == AnonymousIdentityToken_Encoding_DefaultBinary
 	UA_NodeId_printf("ActivateSession - uIdToken.type=", &(request->userIdentityToken.typeId));
 	UA_ByteString_printx_hex("ActivateSession - uIdToken.body=", &(request->userIdentityToken.body));
+#endif
 	//TODO fill results
 	return UA_SUCCESS;
 }
