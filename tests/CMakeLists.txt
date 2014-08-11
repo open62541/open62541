@@ -1,0 +1,8 @@
+enable_testing()
+find_package(Check REQUIRED)
+include_directories(${CHECK_INCLUDE_DIRS})
+set(LIBS ${LIBS} ${CHECK_LIBRARIES} isti_clib)
+include_directories(. ../src)
+add_executable(test_isti_str test_isti_str.c)
+target_link_libraries(test_isti_str ${LIBS})
+add_test(test_isti_str ${CMAKE_CURRENT_BINARY_DIR}/test_isti_str)
