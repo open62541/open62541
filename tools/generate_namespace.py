@@ -94,7 +94,7 @@ printh('''/**********************************************************
 /**
  * @brief maps namespace zero nodeId to index into UA_VTable
  *
- * @param[in] ns0Id The namespace zero nodeId
+ * @param[in] id The namespace zero nodeId
  *
  * @retval UA_ERR_INVALID_VALUE whenever ns0Id could not be mapped
  * @retval the corresponding index into UA_VTable
