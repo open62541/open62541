@@ -7,10 +7,7 @@
 #include "check.h"
 
 #ifdef MULTITHREADING
-<<<<<<< HEAD
-=======
 #include <pthread.h>
->>>>>>> origin/master
 #include <urcu.h>
 #endif
 
@@ -32,23 +29,12 @@ START_TEST(test_Namespace) {
 }
 END_TEST
 
-<<<<<<< HEAD
-UA_Int32 createNode(const UA_Node** p, UA_Int16 nsid, UA_Int32 id) {
-	UA_VariableNode * p2;
-	UA_VariableNode_new(&p2);
-	p2->nodeId.encodingByte = UA_NODEIDTYPE_FOURBYTE;
-	p2->nodeId.namespace = nsid;
-	p2->nodeId.identifier.numeric = id;
-	p2->nodeClass = UA_NODECLASS_VARIABLE;
-	*p = (const UA_Node *)p2;
-=======
 UA_Int32 createNode(UA_Node** p, UA_Int16 nsid, UA_Int32 id) {
 	UA_VariableNode_new((UA_VariableNode **)p);
 	(*p)->nodeId.encodingByte = UA_NODEIDTYPE_FOURBYTE;
 	(*p)->nodeId.namespace = nsid;
 	(*p)->nodeId.identifier.numeric = id;
 	(*p)->nodeClass = UA_NODECLASS_VARIABLE;
->>>>>>> origin/master
 	return UA_SUCCESS;
 }
 
@@ -59,20 +45,12 @@ START_TEST(findNodeInNamespaceWithSingleEntry) {
 	// given
 	Namespace *ns;
 	Namespace_new(&ns, 0);
-<<<<<<< HEAD
-	const UA_Node* n1; createNode(&n1,0,2253);
-=======
 	UA_Node* n1; createNode(&n1,0,2253);
->>>>>>> origin/master
 	Namespace_insert(ns, &n1, NAMESPACE_INSERT_UNIQUE | NAMESPACE_INSERT_GETMANAGED);
 	const UA_Node* nr = UA_NULL;
 	UA_Int32 retval;
 	// when
-<<<<<<< HEAD
-	retval = Namespace_get(ns,&(n1->nodeId),&nr);
-=======
 	retval = Namespace_get(ns,&n1->nodeId,&nr);
->>>>>>> origin/master
 	// then
 	ck_assert_int_eq(retval, UA_SUCCESS);
 	ck_assert_ptr_eq(nr,n1);
@@ -94,20 +72,6 @@ START_TEST(failToFindNodeInOtherNamespace) {
 	Namespace *ns = UA_NULL;
 	Namespace_new(&ns, 0);
 
-<<<<<<< HEAD
-	const UA_Node* n1 = UA_NULL; createNode(&n1,0,2253); Namespace_insert(ns, &n1, 0);
-	const UA_Node* n2 = UA_NULL; createNode(&n1,0,2253); Namespace_insert(ns, &n2, 0);
-
-	const UA_Node* nr = UA_NULL;
-	UA_Int32 retval;
-	// when
-	const UA_Node* n; createNode(&n,1,2255);
-	retval = Namespace_get(ns,&(n->nodeId), &nr);
-	// then
-	ck_assert_int_ne(retval, UA_SUCCESS);
-	// finally
-	UA_free((void *)n);
-=======
 	UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns, &n1, 0);
 	UA_Node* n2; createNode(&n2,0,2253); Namespace_insert(ns, &n2, 0);
 
@@ -119,7 +83,6 @@ START_TEST(failToFindNodeInOtherNamespace) {
 	ck_assert_int_ne(retval, UA_SUCCESS);
 	// finally
 	UA_Node_delete(n);
->>>>>>> origin/master
 	Namespace_releaseManagedNode(nr);
 	Namespace_delete(ns);
 #ifdef MULTITHREADING
@@ -135,21 +98,12 @@ START_TEST(findNodeInNamespaceWithSeveralEntries) {
 	// given
 	Namespace *ns;
 	Namespace_new(&ns, 0);
-<<<<<<< HEAD
-	const UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns, &n1, 0);
-	const UA_Node* n2; createNode(&n2,0,2255); Namespace_insert(ns, &n2, 0);
-	const UA_Node* n3; createNode(&n3,0,2257); Namespace_insert(ns, &n3, NAMESPACE_INSERT_GETMANAGED);
-	const UA_Node* n4; createNode(&n4,0,2200); Namespace_insert(ns, &n4, 0);
-	const UA_Node* n5; createNode(&n5,0,1); Namespace_insert(ns, &n5, 0);
-	const UA_Node* n6; createNode(&n6,0,12); Namespace_insert(ns, &n6, 0);
-=======
 	UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns, &n1, 0);
 	UA_Node* n2; createNode(&n2,0,2255); Namespace_insert(ns, &n2, 0);
 	UA_Node* n3; createNode(&n3,0,2257); Namespace_insert(ns, &n3, NAMESPACE_INSERT_GETMANAGED);
 	UA_Node* n4; createNode(&n4,0,2200); Namespace_insert(ns, &n4, 0);
 	UA_Node* n5; createNode(&n5,0,1); Namespace_insert(ns, &n5, 0);
 	UA_Node* n6; createNode(&n6,0,12); Namespace_insert(ns, &n6, 0);
->>>>>>> origin/master
 
 	const UA_Node* nr = UA_NULL;
 	UA_Int32 retval;
@@ -175,21 +129,12 @@ START_TEST(iterateOverNamespaceShallNotVisitEmptyNodes) {
 	// given
 	Namespace *ns;
 	Namespace_new(&ns, 0);
-<<<<<<< HEAD
-	const UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns, &n1, 0);
-	const UA_Node* n2; createNode(&n2,0,2255); Namespace_insert(ns, &n2, 0);
-	const UA_Node* n3; createNode(&n3,0,2257); Namespace_insert(ns, &n3, 0);
-	const UA_Node* n4; createNode(&n4,0,2200); Namespace_insert(ns, &n4, 0);
-	const UA_Node* n5; createNode(&n5,0,1); Namespace_insert(ns, &n5, 0);
-	const UA_Node* n6; createNode(&n6,0,12); Namespace_insert(ns, &n6, 0);
-=======
 	UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns, &n1, 0);
 	UA_Node* n2; createNode(&n2,0,2255); Namespace_insert(ns, &n2, 0);
 	UA_Node* n3; createNode(&n3,0,2257); Namespace_insert(ns, &n3, 0);
 	UA_Node* n4; createNode(&n4,0,2200); Namespace_insert(ns, &n4, 0);
 	UA_Node* n5; createNode(&n5,0,1); Namespace_insert(ns, &n5, 0);
 	UA_Node* n6; createNode(&n6,0,12); Namespace_insert(ns, &n6, 0);
->>>>>>> origin/master
 
 	UA_Int32 retval;
 	// when
@@ -215,11 +160,7 @@ START_TEST(findNodeInExpandedNamespace) {
 	// given
 	Namespace *ns;
 	Namespace_new(&ns, 0);
-<<<<<<< HEAD
-	const UA_Node* n;
-=======
 	UA_Node* n;
->>>>>>> origin/master
 	UA_Int32 i=0;
 	for (; i<200; i++) {
 		createNode(&n,0,i); Namespace_insert(ns, &n, 0);
@@ -249,11 +190,7 @@ START_TEST(iterateOverExpandedNamespaceShallNotVisitEmptyNodes) {
 	// given
 	Namespace *ns;
 	Namespace_new(&ns, 0);
-<<<<<<< HEAD
-	const UA_Node* n;
-=======
 	UA_Node* n;
->>>>>>> origin/master
 	UA_Int32 i=0;
 	for (; i<200; i++) {
 		createNode(&n,0,i); Namespace_insert(ns, &n, 0);
@@ -282,21 +219,12 @@ START_TEST(failToFindNonExistantNodeInNamespaceWithSeveralEntries) {
 	// given
 	Namespace *ns;
 	Namespace_new(&ns, 0);
-<<<<<<< HEAD
-	const UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns, &n1, 0);
-	const UA_Node* n2; createNode(&n2,0,2255); Namespace_insert(ns, &n2, 0);
-	const UA_Node* n3; createNode(&n3,0,2257); Namespace_insert(ns, &n3, 0);
-	const UA_Node* n4; createNode(&n4,0,2200); Namespace_insert(ns, &n4, 0);
-	const UA_Node* n5; createNode(&n5,0,1); Namespace_insert(ns, &n5, 0);
-	const UA_Node* n6; createNode(&n6,0,12); 
-=======
 	UA_Node* n1; createNode(&n1,0,2253); Namespace_insert(ns, &n1, 0);
 	UA_Node* n2; createNode(&n2,0,2255); Namespace_insert(ns, &n2, 0);
 	UA_Node* n3; createNode(&n3,0,2257); Namespace_insert(ns, &n3, 0);
 	UA_Node* n4; createNode(&n4,0,2200); Namespace_insert(ns, &n4, 0);
 	UA_Node* n5; createNode(&n5,0,1); Namespace_insert(ns, &n5, 0);
 	UA_Node* n6; createNode(&n6,0,12); 
->>>>>>> origin/master
 
 	const UA_Node* nr = UA_NULL;
 	UA_Int32 retval;
@@ -310,8 +238,6 @@ START_TEST(failToFindNonExistantNodeInNamespaceWithSeveralEntries) {
 #ifdef MULTITHREADING
 	rcu_unregister_thread();
 #endif
-<<<<<<< HEAD
-=======
 }
 END_TEST
 
@@ -393,7 +319,6 @@ START_TEST(profileGetDelete) {
 #ifdef MULTITHREADING
 	rcu_unregister_thread();
 #endif
->>>>>>> origin/master
 }
 END_TEST
 

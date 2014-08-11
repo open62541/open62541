@@ -38,15 +38,18 @@ UA_Int32 serverCallback(void * arg) {
 }
 
 
-int main(int argc, char** arsgv) {
+int main(int argc, char** argv) {
 
 	/* gets called at ctrl-c */
 	signal(SIGINT, stopHandler);
 	
 	appMockup_init();
 	NL_data* nl = NL_init(&NL_Description_TcpBinary, 16664);
-
+	UA_String endpointUrl;
+	UA_String_copycstring("no endpoint url",&endpointUrl);
+	SL_ChannelManager_init(4,36000,244,2,&endpointUrl);
+	UA_SessionManager_init(10,3600000,25);
 	struct timeval tv = {1, 0}; // 1 second
-  	NL_msgLoop(nl, &tv, serverCallback, argv[0]);
+	NL_msgLoop(nl, &tv, serverCallback, argv[0], &running);
 
 }

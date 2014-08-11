@@ -108,16 +108,10 @@ UA_Int32 UA_list_removeLast(UA_list_List* list, UA_list_PayloadVisitor visitor){
 	UA_list_Element* temp = UA_NULL;
 	if(list->last){
 		temp = list->last->prev;
-		if(temp == UA_NULL)
-		{
-			return UA_ERROR;
-		}
-
 		if(visitor){
 			(*visitor)(list->last->payload);
 		}
 		UA_free(list->last);
-		temp->next = UA_NULL;
 		list->last = temp;
 		if(temp){
 			temp->next = UA_NULL;

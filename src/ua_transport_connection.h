@@ -31,14 +31,14 @@ UA_Int32 UA_TL_Connection_delete(UA_TL_Connection connection);
 UA_Int32 UA_TL_Connection_callWriter(UA_TL_Connection connection, const UA_ByteString** gather_bufs, UA_Int32 gather_len);
 
 UA_Int32 UA_TL_Connection_close(UA_TL_Connection connection);
-UA_Int32 UA_TL_Connection_new(UA_TL_Connection *connection, TL_Buffer localBuffers,TL_Writer writer, TL_Closer closeCallback, void* networkLayerData);
+UA_Int32 UA_TL_Connection_new(UA_TL_Connection *connection, TL_Buffer localBuffers,TL_Writer writer, TL_Closer closeCallback,UA_Int32 handle, void* networkLayerData);
 UA_Int32 UA_TL_Connection_bind(UA_TL_Connection connection, UA_Int32 handle);
 UA_Boolean UA_TL_Connection_compare(UA_TL_Connection *connection1, UA_TL_Connection *connection2);
 
 //setters
 UA_Int32 UA_TL_Connection_setState(UA_TL_Connection connection, UA_Int32 connectionState);
 UA_Int32 UA_TL_Connection_setWriter(UA_TL_Connection connection, TL_Writer writer);
-UA_Int32 UA_TL_Connection_setConnectionHandle(UA_TL_Connection connection, UA_Int32 connectionHandle);
+//UA_Int32 UA_TL_Connection_setConnectionHandle(UA_TL_Connection connection, UA_Int32 connectionHandle);
 
 //getters
 UA_Int32 UA_TL_Connection_getHandle(UA_TL_Connection connection, UA_UInt32 *connectionId);

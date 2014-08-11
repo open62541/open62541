@@ -115,9 +115,8 @@ void* NL_TCP_reader(NL_Connection *c) {
 
 	TL_Buffer localBuffers;
 	UA_Int32 connectionState;
-	UA_UInt32 connectionHandle;
+
 	UA_TL_Connection_getLocalConfig(c->connection, &localBuffers);
-	UA_TL_Connection_getHandle(c->connection, &connectionHandle);
 	UA_alloc((void**)&(readBuffer.data),localBuffers.recvBufferSize);
 
 
@@ -125,7 +124,7 @@ void* NL_TCP_reader(NL_Connection *c) {
 		DBG_VERBOSE(printf("NL_TCP_reader - enter read\n"));
 
 
-		readBuffer.length = read(connectionHandle, readBuffer.data, localBuffers.recvBufferSize);
+		readBuffer.length = read(c->connectionHandle, readBuffer.data, localBuffers.recvBufferSize);
 		DBG_VERBOSE(printf("NL_TCP_reader - leave read\n"));
 
 		DBG_VERBOSE(printf("NL_TCP_reader - src={%*.s}, ",c->connection.remoteEndpointUrl.length,c->connection.remoteEndpointUrl.data));
@@ -248,28 +247,12 @@ UA_Int32 NL_Connection_close(UA_TL_Connection connection)
 }
 void* NL_Connection_init(NL_Connection* c, NL_data* tld, UA_Int32 connectionHandle, NL_Reader reader, TL_Writer writer)
 {
-
-
 	UA_TL_Connection connection = UA_NULL;
 	//create new connection object
-	UA_TL_Connection_new(&connection, tld->tld->localConf, writer, NL_Connection_close,c);
-	//add connection object to list, so stack is aware of its connections
-	UA_TL_Connection_setConnectionHandle(connection,connectionHandle);
+	UA_TL_Connection_new(&connection, tld->tld->localConf, writer, NL_Connection_close,connectionHandle,c);
 
-//	UA_TL_ConnectionManager_addConnection(&connection);
-
-	// connection layer of UA stackwriteLock
 	c->connection = connection;
 	c->connectionHandle = connectionHandle;
-
-
-	//c->connection.connectionHandle = connectionHandle;
-	//c->connection.connectionState = CONNECTIONSTATE_CLOSED;
-	//c->connection.writerCallback = writer;
-	//memcpy(&(c->connection.localConf),&(tld->tld->localConf),sizeof(TL_Buffer));
-	//memset(&(c->connection.remoteConf),0,sizeof(TL_Buffer));
-	//UA_String_copy(&(tld->endpointUrl), &(c->connection.localEndpointUrl));
-
 	// network layer
 	c->reader = reader;
 #ifdef MULTITHREADING

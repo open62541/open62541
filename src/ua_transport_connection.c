@@ -20,12 +20,13 @@ typedef struct TL_ConnectionStruct{
 } TL_ConnectionType;
 
 
-UA_Int32 UA_TL_Connection_new(UA_TL_Connection *connection, TL_Buffer localBuffers,TL_Writer writer, TL_Closer closeCallback, void* networkLayerData)
+UA_Int32 UA_TL_Connection_new(UA_TL_Connection *connection, TL_Buffer localBuffers,TL_Writer writer, TL_Closer closeCallback,UA_Int32 handle, void* networkLayerData)
 {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_alloc((void**)connection,sizeof(TL_ConnectionType));
 	if(retval == UA_SUCCESS)
 	{
+		(*((TL_ConnectionType**)connection))->connectionHandle = handle;
 		(*((TL_ConnectionType**)connection))->localConf = localBuffers;
 		(*((TL_ConnectionType**)connection))->writer = writer;
 		(*((TL_ConnectionType**)connection))->closeCallback = closeCallback;
@@ -87,11 +88,13 @@ UA_Int32 UA_TL_Connection_setWriter(UA_TL_Connection connection, TL_Writer write
 	((TL_ConnectionType*)connection)->writer = writer;
 	return UA_SUCCESS;
 }
+/*
 UA_Int32 UA_TL_Connection_setConnectionHandle(UA_TL_Connection connection, UA_Int32 connectionHandle)
 {
 	((TL_ConnectionType*)connection)->connectionHandle = connectionHandle;
 	return UA_SUCCESS;
 }
+*/
 UA_Int32 UA_TL_Connection_setState(UA_TL_Connection connection, UA_Int32 connectionState)
 {
 	if(connection)

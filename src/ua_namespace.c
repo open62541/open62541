@@ -263,11 +263,7 @@ UA_Int32 Namespace_delete(Namespace * ns) {
 	return UA_SUCCESS;
 }
 
-<<<<<<< HEAD
-UA_Int32 Namespace_insert(Namespace *ns, const UA_Node **node, UA_Byte flags) {
-=======
 UA_Int32 Namespace_insert(Namespace *ns, UA_Node **node, UA_Byte flags) {
->>>>>>> origin/master
 	if(ns == UA_NULL || node == UA_NULL || *node == UA_NULL)
 		return UA_ERROR;
 	

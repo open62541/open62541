@@ -9,9 +9,8 @@
 #include "ua_stack_channel_manager.h"
 
 typedef struct SL_ChannelManager {
-	UA_UInt32 maxChannelCount;
+	UA_Int32 maxChannelCount;
 	UA_Int32 lastChannelId;
-	UA_UInt32 currentChannelCount;
 	UA_DateTime maxChannelLifeTime;
 	UA_list_List channels;
 	UA_MessageSecurityMode securityMode;
@@ -36,18 +35,13 @@ UA_Int32 SL_ChannelManager_init(UA_UInt32 maxChannelCount,UA_UInt32 tokenLifetim
 
 UA_Int32 SL_ChannelManager_addChannel(SL_Channel *channel)
 {
-	if (channelManager->maxChannelCount > channelManager->currentChannelCount)
+	if (channelManager && (channelManager->maxChannelCount > channelManager->channels.size))
 	{
 
 //TODO lock access (mulitthreading)------------
-	//	UA_list_Element *element;
-	//	UA_alloc((void**)&element, sizeof(UA_list_Element));
-	//	UA_list_initElement(element);
-	//	element->payload =(void*) channel;
 		UA_list_addPayloadToBack(&channelManager->channels,(void*)channel);
-	//	UA_list_addElementToBack(&channelManager->channels,element);
 		return UA_SUCCESS;
-		//set id in channel object which was added
+
 //TODO lock access------------
 	}
 	return UA_ERROR;
@@ -192,16 +186,18 @@ UA_Int32 SL_ChannelManager_getChannel(UA_UInt32 channelId, SL_Channel *channel)
 		}
 		current = current->next;
 	}
-	SL_Channel c1 = *(SL_Channel*)(channelManager->channels.first->payload);
-	SL_Channel c2 = *(SL_Channel*)(channelManager->channels.last->payload);
-	UA_UInt32 id1,id2;
+#ifdef DEBUG
 
-	SL_Channel_getChannelId(c1,&id1);
-	SL_Channel_getChannelId(c2,&id2);
+//	SL_Channel c1 = *(SL_Channel*)(channelManager->channels.first->payload);
+//	SL_Channel c2 = *(SL_Channel*)(channelManager->channels.last->payload);
+//	UA_UInt32 id1,id2;
 
-	printf("SL_ChannelManager_getChannel c1: %i \n",id1);
-	printf("SL_ChannelManager_getChannel c2: %i \n",id2);
-
+//	SL_Channel_getChannelId(c1,&id1);
+//	SL_Channel_getChannelId(c2,&id2);
+//
+//	printf("SL_ChannelManager_getChannel c1: %i \n",id1);
+//	printf("SL_ChannelManager_getChannel c2: %i \n",id2);
+#endif
 	*channel = UA_NULL;
 	return UA_ERROR;
 }

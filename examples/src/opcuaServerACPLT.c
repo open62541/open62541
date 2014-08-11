@@ -8,6 +8,7 @@
 #include "networklayer.h"
 #include "ua_stack_channel_manager.h"
 #include "ua_transport_connection.h"
+#include "ua_transport_connection_manager.h"
 #include "ua_stack_session_manager.h"
 
 #ifdef LINUX
@@ -26,6 +27,8 @@ void server_run();
 #define MAXMSG 512
 #define BUFFER_SIZE 8192
 
+
+
 int main(void) {
 
 #ifdef LINUX
@@ -39,10 +42,13 @@ int main(void) {
 #ifdef LINUX
 void tmpTestFunction()
 {
+
 }
 void server_run() {
 	//just for debugging
 #ifdef DEBUG
+
+
 	tmpTestFunction();
 #endif
 	UA_TL_Connection connection;// = UA_NULL;
@@ -112,7 +118,7 @@ void server_run() {
 		UA_TL_ConnectionManager_getConnectionByHandle(newsockfd, &tmpConnection);
 		if(tmpConnection == UA_NULL)
 		{
-			UA_TL_Connection_new(&connection, localBuffers, (TL_Writer)NL_TCP_writer,NL_Connection_close,UA_NULL);
+			UA_TL_Connection_new(&connection, localBuffers, (TL_Writer)NL_TCP_writer,NL_Connection_close,newsockfd,UA_NULL);
 		}
 		UA_TL_Connection_getState(connection, &connectionState);
 

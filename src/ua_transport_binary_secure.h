@@ -18,28 +18,6 @@ revisedLifetime
 
  */
 
-typedef struct {
-	UA_UInt32 secureChannelId;
-	UA_SymmetricAlgorithmSecurityHeader tokenId;
-	UA_DateTime createdAt;
-	UA_Int32 revisedLifetime;
-} SL_ChannelSecurityToken;
-/*
-typedef struct SL_Channel_T {
-	UA_String secureChannelId;
-	UA_TL_Connection1 tlConnection;
-	Session *session; // equals UA_Null if no session is active
-	UA_AsymmetricAlgorithmSecurityHeader remoteAsymAlgSettings;
-	UA_AsymmetricAlgorithmSecurityHeader localAsymAlgSettings;
-	UA_SequenceHeader sequenceHeader;
-	UA_UInt32 securityMode;
-	UA_ByteString remoteNonce;
-	UA_ByteString localNonce;
-	UA_UInt32 connectionState;
-	SL_ChannelSecurityToken securityToken;
-} SL_secureChannel;
-
-*/
 UA_Int32 SL_Process(const UA_ByteString* msg, UA_UInt32* pos);
 
 /**

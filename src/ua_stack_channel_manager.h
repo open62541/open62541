@@ -12,8 +12,8 @@
 
 
 
-//hide internal data of channelManager
-typedef struct SL_ChannelManager *SL_secureChannelManager;
+
+
 
 
 UA_Int32 SL_ChannelManager_init(UA_UInt32 maxChannelCount,UA_UInt32 tokenLifetime, UA_UInt32 startChannelId, UA_UInt32 startTokenId, UA_String *endpointUrl);

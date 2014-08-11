@@ -65,11 +65,9 @@ UA_Int32 UA_SessionManager_getSessionByToken(UA_NodeId *token, UA_Session *sessi
  * @return error code
  */
 UA_Int32 UA_SessionManager_getSessionTimeout(UA_Int64 *timeout_ms);
-/**
- * @brief updates all session
- * @return
- */
-UA_Int32 UA_SessionManager_updateSessions();
+
+
+//UA_Int32 UA_SessionManager_updateSessions();
 
 
 //UA_Int32 UA_SessionManager_generateToken(UA_Session session, UA_Int32 requestedLifeTime, SecurityTokenRequestType requestType, UA_ChannelSecurityToken* newToken);
