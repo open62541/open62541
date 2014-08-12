@@ -44,7 +44,9 @@ typedef struct NL_data {
 struct NL_Connection;
 typedef void* (*NL_Reader)(struct NL_Connection *c);
 typedef struct NL_Connection {
-	TL_Connection connection;
+	UA_TL_Connection connection;
+	UA_Int32 state;
+	UA_UInt32 connectionHandle;
 	NL_Reader reader;
 #ifdef MULTITHREADING
 	pthread_t readerThreadHandle;
@@ -53,7 +55,8 @@ typedef struct NL_Connection {
 } NL_Connection;
 
 NL_data* NL_init(NL_Description* tlDesc, UA_Int32 port);
-UA_Int32 NL_msgLoop(NL_data* nl, struct timeval* tv,UA_Int32 (*timeoutCallBack)(void*),void *arg, UA_Boolean *running);
-UA_Int32 NL_TCP_writer(struct TL_Connection const * c, UA_ByteString const * const * gather_buf, UA_UInt32 gather_len);
+UA_Int32 NL_Connection_close(UA_TL_Connection connection);
+UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), void *arg, UA_Boolean *running);
+UA_Int32 NL_TCP_writer(UA_Int32 connectionHandle, UA_ByteString const * const * gather_buf, UA_UInt32 gather_len);
 
 #endif /* NETWORKLAYER_H_ */

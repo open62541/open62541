@@ -39,6 +39,7 @@ export GLOBAL_AM_CFLAGS = $(AM_CFLAGS)
 export GLOBAL_AM_LDADD = $(AM_LDADD)
 
 SUBDIRS=src
+
 if HAVE_CHECK
 	SUBDIRS += tests
 endif

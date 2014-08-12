@@ -6,6 +6,10 @@
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
 #include "networklayer.h"
+#include "ua_stack_channel_manager.h"
+#include "ua_transport_connection.h"
+#include "ua_transport_connection_manager.h"
+#include "ua_stack_session_manager.h"
 
 #ifdef LINUX
 
@@ -23,6 +27,8 @@ void server_run();
 #define MAXMSG 512
 #define BUFFER_SIZE 8192
 
+
+
 int main(void) {
 
 #ifdef LINUX
@@ -36,20 +42,31 @@ int main(void) {
 #ifdef LINUX
 void tmpTestFunction()
 {
+
 }
 void server_run() {
 	//just for debugging
 #ifdef DEBUG
+
+
 	tmpTestFunction();
 #endif
-	TL_Connection connection;
-	connection.connectionState = CONNECTIONSTATE_CLOSED;
-	connection.writerCallback = (TL_Writer) NL_TCP_writer;
-	connection.localConf.maxChunkCount = 1;
-	connection.localConf.maxMessageSize = BUFFER_SIZE;
-	connection.localConf.protocolVersion = 0;
-	connection.localConf.recvBufferSize = BUFFER_SIZE;
-	connection.localConf.recvBufferSize = BUFFER_SIZE;
+	UA_TL_Connection connection;// = UA_NULL;
+	TL_Buffer localBuffers;
+	UA_Int32 connectionState;
+	//connection.connectionState = CONNECTIONSTATE_CLOSED;
+	//connection.writerCallback = (TL_Writer) NL_TCP_writer;
+	localBuffers.maxChunkCount = 1;
+	localBuffers.maxMessageSize = BUFFER_SIZE;
+	localBuffers.protocolVersion = 0;
+	localBuffers.recvBufferSize = BUFFER_SIZE;
+	localBuffers.recvBufferSize = BUFFER_SIZE;
+
+	/*init secure Channel manager, which handles more than one channel */
+	UA_String endpointUrl;
+	UA_String_copycstring("open62541.org",&endpointUrl);
+	SL_ChannelManager_init(2,3600000, 873, 23, &endpointUrl);
+	UA_SessionManager_init(2,300000,5);
 
 	UA_ByteString slMessage = { -1, UA_NULL };
 
@@ -87,6 +104,8 @@ void server_run() {
 	/* Now start listening for the clients, here process will
 	 * go in sleep mode and will wait for the incoming connection
 	 */
+	UA_TL_Connection tmpConnection;
+
 	while (listen(sockfd, 5) != -1) {
 		clilen = sizeof(cli_addr);
 		/* Accept actual connection from the client */
@@ -96,8 +115,17 @@ void server_run() {
 			exit(1);
 		}
 
-		printf("server_run - connection accepted: %i, state: %i\n", newsockfd, connection.connectionState);
-		connection.connectionHandle = newsockfd;
+		UA_TL_ConnectionManager_getConnectionByHandle(newsockfd, &tmpConnection);
+		if(tmpConnection == UA_NULL)
+		{
+			UA_TL_Connection_new(&connection, localBuffers, (TL_Writer)NL_TCP_writer,NL_Connection_close,newsockfd,UA_NULL);
+		}
+		UA_TL_Connection_getState(connection, &connectionState);
+
+		printf("server_run - connection accepted: %i, state: %i\n", newsockfd, connectionState);
+
+		UA_TL_Connection_bind(connection, newsockfd);
+		//connection.connectionHandle = newsockfd;
 		do {
             memset(buffer, 0, BUFFER_SIZE);
 			n = read(newsockfd, buffer, BUFFER_SIZE);
@@ -107,18 +135,21 @@ void server_run() {
 #ifdef DEBUG
 				UA_ByteString_printx("server_run - received=",&slMessage);
 #endif
-				TL_Process(&connection, &slMessage);
+				TL_Process(connection, &slMessage);
 			} else if (n <= 0) {
 				perror("ERROR reading from socket1");
-				exit(1);
+		//		exit(1);
 			}
-		} while(connection.connectionState != CONNECTIONSTATE_CLOSE);
+			UA_TL_Connection_getState(connection, &connectionState);
+		} while(connectionState != CONNECTIONSTATE_CLOSE);
 		shutdown(newsockfd,2);
 		close(newsockfd);
-		connection.connectionState = CONNECTIONSTATE_CLOSED;
+		UA_TL_ConnectionManager_getConnectionByHandle(newsockfd, &tmpConnection);
+		UA_TL_ConnectionManager_removeConnection(tmpConnection);
 	}
 	shutdown(sockfd,2);
 	close(sockfd);
 }
+
 
 #endif

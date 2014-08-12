@@ -183,8 +183,18 @@ static void Service_Browse_getBrowseResult(Namespace *ns, UA_BrowseDescription *
 	UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesCount, &UA_.types[UA_NODEID]);
 }
 
-UA_Int32 Service_Browse(SL_Channel *channel, const UA_BrowseRequest *request, UA_BrowseResponse *response) {
+UA_Int32 Service_Browse(UA_Session session, const UA_BrowseRequest *request, UA_BrowseResponse *response) {
 	UA_Int32 retval = UA_SUCCESS;
+	Application *application;
+	if(session == UA_NULL)
+	{
+		return UA_ERROR;
+	}
+	UA_Session_getApplicationPointer(session, &application);
+	if(application == UA_NULL)
+	{
+		return UA_ERROR;
+	}
 	DBG_VERBOSE(UA_NodeId_printf("BrowseService - view=", &request->view.viewId));
 
 	//TODO request->view not used atm
@@ -192,7 +202,7 @@ UA_Int32 Service_Browse(SL_Channel *channel, const UA_BrowseRequest *request, UA
 	response->resultsSize = request->nodesToBrowseSize;
 
 	for(UA_Int32 i=0; i < request->nodesToBrowseSize; i++) {
-		Namespace *ns = UA_indexedList_findValue(channel->session->application->namespaces,
+		Namespace *ns = UA_indexedList_findValue(application->namespaces,
 												 request->nodesToBrowse[i].nodeId.namespace);
 		if(ns == UA_NULL) {
 			response->results[i].statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -210,7 +220,8 @@ UA_Int32 Service_Browse(SL_Channel *channel, const UA_BrowseRequest *request, UA
 	return retval;
 }
 
-UA_Int32 Service_TranslateBrowsePathsToNodeIds(SL_Channel *channel, const UA_TranslateBrowsePathsToNodeIdsRequest *request,
+
+UA_Int32 Service_TranslateBrowsePathsToNodeIds(UA_Session session, const UA_TranslateBrowsePathsToNodeIdsRequest *request,
 											   UA_TranslateBrowsePathsToNodeIdsResponse *response) {
 	UA_Int32 retval = UA_SUCCESS;
 	DBG_VERBOSE(printf("TranslateBrowsePathsToNodeIdsService - %i path(s)", request->browsePathsSize));

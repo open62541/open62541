@@ -276,7 +276,6 @@ UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_calcSizeBinary(UA_AsymmetricAlgori
 	 + UA_ByteString_calcSizeBinary(&ptr->securityPolicyUri)
 	 + UA_ByteString_calcSizeBinary(&ptr->senderCertificate)
 	 + UA_ByteString_calcSizeBinary(&ptr->receiverCertificateThumbprint)
-			//	 + sizeof(UA_UInt32) // requestId
 	;
 }
 
@@ -285,7 +284,6 @@ UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(UA_AsymmetricAlgorith
 	retval |= UA_ByteString_encodeBinary(&src->securityPolicyUri,dst,offset);
 	retval |= UA_ByteString_encodeBinary(&src->senderCertificate,dst,offset);
 	retval |= UA_ByteString_encodeBinary(&src->receiverCertificateThumbprint,dst,offset);
-	//	retval |= UA_UInt32_encodeBinary(&src->requestId,dst,offset);
 	return retval;
 }
 
@@ -295,7 +293,6 @@ UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(UA_ByteString const *
 	CHECKED_DECODE(UA_ByteString_decodeBinary(src,offset,&dst->securityPolicyUri), UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(dst));
 	CHECKED_DECODE(UA_ByteString_decodeBinary(src,offset,&dst->senderCertificate), UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(dst));
 	CHECKED_DECODE(UA_ByteString_decodeBinary(src,offset,&dst->receiverCertificateThumbprint), UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(dst));
-	//	CHECKED_DECODE(UA_UInt32_decodeBinary(src,offset,&dst->requestId), UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(dst));
 	return retval;
 }
 
@@ -319,7 +316,6 @@ UA_Int32 UA_AsymmetricAlgorithmSecurityHeader_init(UA_AsymmetricAlgorithmSecurit
 	retval |= UA_ByteString_init(&p->securityPolicyUri);
 	retval |= UA_ByteString_init(&p->senderCertificate);
 	retval |= UA_ByteString_init(&p->receiverCertificateThumbprint);
-	//retval |= UA_UInt32_init(&p->requestId);
 	return retval;
 }
 
@@ -481,6 +477,7 @@ UA_Int32 UA_SecureConversationMessageFooter_copy(const UA_SecureConversationMess
     	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
     	UA_Int32 retval = UA_SUCCESS;
 	memcpy(dst, src, sizeof(UA_SecureConversationMessageFooter));
+
 
 	retval |= UA_Array_copy(src->padding, src->paddingSize,&UA_.types[UA_BYTE],(void**)&dst->padding);
 	return retval;

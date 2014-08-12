@@ -54,30 +54,39 @@
 /** @brief A two-state logical value (true or false). */
 typedef _Bool UA_Boolean;
 
+
 /** @brief An integer value between −128 and 127. */
 typedef int8_t UA_SByte;
-
+#define UA_SBYTE_MAX -128
+#define UA_SBYTE_MIN 127
 /** @brief An integer value between 0 and 256. */
 typedef uint8_t UA_Byte;
-
+#define UA_BYTE_MAX 256
+#define UA_BYTE_MIN 0
 /** @brief An integer value between −32 768 and 32 767. */
 typedef int16_t UA_Int16;
-
+#define UA_INT16_MAX 32767
+#define UA_INT16_MIN -32768
 /** @brief An integer value between 0 and 65 535. */
 typedef uint16_t UA_UInt16;
-
+#define UA_UINT16_MAX  65535
+#define UA_UINT16_MIN  0
 /** @brief An integer value between −2 147 483 648 and 2 147 483 647. */
 typedef int32_t UA_Int32;
-
+#define UA_INT32_MAX  2147483647
+#define UA_INT32_MIN  −2147483648
 /** @brief An integer value between 0 and 429 4967 295. */
 typedef uint32_t UA_UInt32;
-
+#define UA_UINT32_MAX  4294967295;
+#define UA_UINT32_MIN  0;
 /** @brief An integer value between −9 223 372 036 854 775 808 and 9 223 372 036 854 775 807 */
 typedef int64_t UA_Int64;
-
+#define UA_INT64_MAX  9223372036854775807
+#define UA_INT64_MIN  −9223372036854775808
 /** @brief An integer value between 0 and 18 446 744 073 709 551 615. */
 typedef uint64_t UA_UInt64;
-
+#define UA_UINT64_MAX = 18446744073709551615
+#define UA_UINT64_MIN = 0
 /** @brief An IEEE single precision (32 bit) floating point value. */
 typedef float UA_Float;
 

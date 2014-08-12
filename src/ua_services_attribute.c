@@ -223,10 +223,15 @@ static UA_DataValue service_read_node(Application *app, const UA_ReadValueId *id
 
 	return v;
 }
-
-UA_Int32 Service_Read(SL_Channel *channel, const UA_ReadRequest *request,
+UA_Int32 Service_Read(UA_Session session, const UA_ReadRequest *request,
                       UA_ReadResponse *response) {
-	if(channel->session == UA_NULL || channel->session->application == UA_NULL)
+	Application *application = UA_NULL;
+	if(session == UA_NULL)
+	{
+		return UA_ERROR;
+	}
+	UA_Session_getApplicationPointer(session,&application);
+	if( application == UA_NULL)
 		return UA_ERROR;    // TODO: Return error message
 
 	UA_Int32 readsize = request->nodesToReadSize;
@@ -242,7 +247,7 @@ UA_Int32 Service_Read(SL_Channel *channel, const UA_ReadRequest *request,
 	for(UA_Int32 i = 0;i < readsize;i++) {
 		DBG_VERBOSE(printf("service_read - attributeId=%d\n", request->nodesToRead[i].attributeId));
 		DBG_VERBOSE(UA_NodeId_printf("service_read - nodeId=", &(request->nodesToRead[i].nodeId)));
-		response->results[i] = service_read_node(channel->session->application,
+		response->results[i] = service_read_node(application,
 		                                         &request->nodesToRead[i]);
 	}
 	response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
@@ -438,17 +443,19 @@ UA_Int32 Service_Write_writeNode(Application *app, UA_WriteValue *writeValue, UA
 	return retval;
 
 }
-UA_Int32 Service_Write(SL_Channel *channel, const UA_WriteRequest *request,
+UA_Int32 Service_Write(UA_Session session, const UA_WriteRequest *request,
                       UA_WriteResponse *response) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 i;
-	if(channel->session == UA_NULL || channel->session->application == UA_NULL)
+	Application *application = UA_NULL;
+	UA_Session_getApplicationPointer(session, &application);
+	if(session == UA_NULL || application == UA_NULL)
 		return UA_ERROR;    // TODO: Return error message
 	response->resultsSize = request->nodesToWriteSize;
 	//TODO evalutate diagnostic info within the request
 	UA_Array_new((void**)&response->results,response->resultsSize,&UA_.types[UA_STATUSCODE]);
 	for(i=0; i < request->nodesToWriteSize; i++){
-		retval |= Service_Write_writeNode(channel->session->application, &request->nodesToWrite[i], &response->results[i]);
+		retval |= Service_Write_writeNode(application, &request->nodesToWrite[i], &response->results[i]);
 	}
 
 	return retval;

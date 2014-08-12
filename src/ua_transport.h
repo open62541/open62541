@@ -7,19 +7,19 @@
 
 static const UA_Int32 SL_HEADER_LENGTH = 0;
 
-enum ConnectionState {
+typedef enum UA_ConnectionState {
 	CONNECTIONSTATE_CLOSED,
 	CONNECTIONSTATE_OPENING,
 	CONNECTIONSTATE_ESTABLISHED,
 	CONNECTIONSTATE_CLOSE
-};
+}UA_ConnectionState;
 
 typedef struct Session {
 	UA_Int32 sessionId;
 	Application *application;
 } Session;
 
-typedef enum {
+typedef enum SecurityTokenRequestType{
 	UA_SECURITYTOKEN_ISSUE = 0,
 	UA_SECURITYTOKEN_RENEW = 1
 } SecurityTokenRequestType;
@@ -89,7 +89,6 @@ typedef struct UA_AsymmetricAlgorithmSecurityHeader {
 	UA_ByteString securityPolicyUri;
 	UA_ByteString senderCertificate;
 	UA_ByteString receiverCertificateThumbprint;
-	UA_UInt32 requestId;
 } UA_AsymmetricAlgorithmSecurityHeader;
 UA_TYPE_PROTOTYPES(UA_AsymmetricAlgorithmSecurityHeader)
 UA_TYPE_BINARY_ENCODING(UA_AsymmetricAlgorithmSecurityHeader)
