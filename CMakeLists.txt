@@ -5,7 +5,11 @@ project(open62541)
 set(open62541_VERSION_MAJOR 0)
 set(open62541_VERSION_MINOR 1)
 
-set(CMAKE_VERBOSE_MAKEFILE on )
+# set(CMAKE_VERBOSE_MAKEFILE on )
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
+
+# compiler options
 if(CMAKE_COMPILER_IS_GNUCC)
 add_definitions(-std=c99 -pedantic -pipe -fstack-protector -Wall -Wextra
                  -Wno-unused-parameter -Wno-unused-function -Wno-unused-label
@@ -151,3 +155,10 @@ if(GENERATE_DOCUMENTATION)
                       WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
                       COMMENT "Generating API documentation with Doxygen")
 endif(GENERATE_DOCUMENTATION)
+
+# run unit tests
+option(UNIT_TESTS "Run unit tests after building" OFF)
+if(UNIT_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif(UNIT_TESTS)
