@@ -73,6 +73,12 @@ set(lib_sources src/ua_types.c
                 src/ua_services_view.c
                 src/ua_services_subscription.c
                 src/ua_services_monitoreditems.c
+                src/ua_stack_channel.c
+                src/ua_stack_channel_manager.c
+                src/ua_stack_session_manager.c
+                src/ua_stack_session.c
+                src/ua_transport_connection.c
+                src/ua_transport_connection_manager.c
                 src/util/ua_util.c
                 src/util/ua_list.c
                 src/util/ua_indexedList.c
