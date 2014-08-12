@@ -39,9 +39,10 @@ UA_Int32 SL_Channel_setRemoteSecuritySettings(SL_Channel channel,
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_AsymmetricAlgorithmSecurityHeader_copy(asymSecHeader,
 			&((SL_ChannelType*) channel)->remoteAsymAlgSettings);
-
+	//set starting sequence number from remote partner
 	((SL_ChannelType*) channel)->sequenceNumber =
 			sequenceHeader->sequenceNumber;
+	//set starting request id from remote partner
 	((SL_ChannelType*) channel)->requestId = sequenceHeader->requestId;
 	return retval;
 }
@@ -268,6 +269,7 @@ UA_Int32 SL_Channel_processTokenRequest(SL_Channel channel,
 		return ((SL_ChannelType*) channel)->tokenProvider(channel,
 				requestedLifetime, requestType,
 				&((SL_ChannelType*) channel)->securityToken);
+
 	}
 	printf("SL_Channel_processTokenRequest - no Token provider registered");
 	return UA_ERROR;
@@ -283,10 +285,8 @@ UA_Int32 SL_Channel_renewToken(SL_Channel channel, UA_UInt32 tokenId,
 
 UA_Int32 SL_Channel_checkSequenceNumber(SL_Channel channel,
 		UA_UInt32 sequenceNumber) {
-	((SL_ChannelType*) channel)->sequenceNumber = sequenceNumber; //TODO mock up, to be removed;
-	return UA_SUCCESS;
-
-	if (((SL_ChannelType*) channel)->sequenceNumber + 1 == sequenceNumber) {
+	//TODO review checking of sequence
+	if (((SL_ChannelType*) channel)->sequenceNumber+1  == sequenceNumber) {
 		((SL_ChannelType*) channel)->sequenceNumber++;
 
 		return UA_SUCCESS;
@@ -299,9 +299,8 @@ UA_Int32 SL_Channel_checkSequenceNumber(SL_Channel channel,
 }
 
 UA_Int32 SL_Channel_checkRequestId(SL_Channel channel, UA_UInt32 requestId) {
-	((SL_ChannelType*) channel)->requestId = requestId; //TODO mock up, to be removed;
-	return UA_SUCCESS;
-	if (((SL_ChannelType*) channel)->requestId + 1 == requestId) {
+	//TODO review checking of request id
+	if (((SL_ChannelType*) channel)->requestId+1  == requestId) {
 		((SL_ChannelType*) channel)->requestId++;
 
 		return UA_SUCCESS;
@@ -357,10 +356,11 @@ UA_Int32 SL_Channel_processOpenRequest(SL_Channel channel,
 					request->requestedLifetime, request->requestType);
 			if (retval != UA_SUCCESS) {
 				printf(
-						"SL_Channel_processOpenRequest - creating new token for an existing SecureChannel\n");
+						"SL_Channel_processOpenRequest - cannot create new token for an existing SecureChannel\n");
+
 			} else {
 				printf(
-						"SL_Channel_processOpenRequest - cannot create new token for an existing SecureChannel\n");
+						"SL_Channel_processOpenRequest - creating new token for an existing SecureChannel\n");
 			}
 
 			break;

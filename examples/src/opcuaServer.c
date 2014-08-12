@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
 	NL_data* nl = NL_init(&NL_Description_TcpBinary, 16664);
 	UA_String endpointUrl;
 	UA_String_copycstring("no endpoint url",&endpointUrl);
-	SL_ChannelManager_init(4,36000,244,2,&endpointUrl);
+	SL_ChannelManager_init(10,36000,244,2,&endpointUrl);
 	UA_SessionManager_init(10,3600000,25);
 	struct timeval tv = {1, 0}; // 1 second
 	NL_msgLoop(nl, &tv, serverCallback, argv[0], &running);

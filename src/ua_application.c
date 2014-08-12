@@ -536,6 +536,7 @@ void appMockup_init() {
 	state->displayName = UA_LOCALIZEDTEXT_STATIC("State");
 	state->description = UA_LOCALIZEDTEXT_STATIC("State");
 	state->value.vt = &UA_borrowed_.types[UA_SERVERSTATE];
+	state->value.arrayDimensionsLength = 1; // added to ensure encoding in readreponse
 	state->value.arrayLength = 1;
 	state->value.data = &status->state; // points into the other object.
 	Namespace_insert(ns0,(UA_Node**)&state, NAMESPACE_INSERT_UNIQUE);

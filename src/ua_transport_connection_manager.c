@@ -22,18 +22,16 @@ static UA_TL_ConnectionManager *connectionManager = UA_NULL;
 UA_Int32 UA_TL_ConnectionManager_init(UA_UInt32 maxConnectionCount)
 {
 	UA_Int32 retval = UA_SUCCESS;
-	if(connectionManager)
+	if(connectionManager == UA_NULL)
 	{
-		//connectionManager already exists;
-	}
-	else
-	{
-		retval |= UA_alloc((void**)connectionManager,sizeof(UA_TL_ConnectionManager));
+		retval |= UA_alloc((void**)&connectionManager,sizeof(UA_TL_ConnectionManager));
 		connectionManager->maxConnectionCount = maxConnectionCount;
 		connectionManager->currentConnectionCount = 0;
 		retval |= UA_indexedList_init(&connectionManager->connections);
+		return UA_SUCCESS;
 	}
-	return UA_SUCCESS;
+	return UA_ERROR; //connection Manager already exists
+
 }
 UA_Int32 UA_TL_ConnectionManager_addConnection(UA_TL_Connection *connection)
 {

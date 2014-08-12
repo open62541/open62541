@@ -51,7 +51,7 @@ void server_run() {
 
 	tmpTestFunction();
 #endif
-	UA_TL_Connection connection;// = UA_NULL;
+//	UA_TL_Connection connection;// = UA_NULL;
 	TL_Buffer localBuffers;
 	UA_Int32 connectionState;
 	//connection.connectionState = CONNECTIONSTATE_CLOSED;
@@ -118,14 +118,15 @@ void server_run() {
 		UA_TL_ConnectionManager_getConnectionByHandle(newsockfd, &tmpConnection);
 		if(tmpConnection == UA_NULL)
 		{
-			UA_TL_Connection_new(&connection, localBuffers, (TL_Writer)NL_TCP_writer,NL_Connection_close,newsockfd,UA_NULL);
+			UA_TL_Connection_new(&tmpConnection, localBuffers, (TL_Writer)NL_TCP_writer,NL_Connection_close,newsockfd,UA_NULL);
 		}
-		UA_TL_Connection_getState(connection, &connectionState);
+
+		UA_TL_Connection_getState(tmpConnection, &connectionState);
 
 		printf("server_run - connection accepted: %i, state: %i\n", newsockfd, connectionState);
 
-		UA_TL_Connection_bind(connection, newsockfd);
-		//connection.connectionHandle = newsockfd;
+		UA_TL_Connection_bind(tmpConnection, newsockfd);
+
 		do {
             memset(buffer, 0, BUFFER_SIZE);
 			n = read(newsockfd, buffer, BUFFER_SIZE);
@@ -135,12 +136,12 @@ void server_run() {
 #ifdef DEBUG
 				UA_ByteString_printx("server_run - received=",&slMessage);
 #endif
-				TL_Process(connection, &slMessage);
+				TL_Process(tmpConnection, &slMessage);
 			} else if (n <= 0) {
 				perror("ERROR reading from socket1");
 		//		exit(1);
 			}
-			UA_TL_Connection_getState(connection, &connectionState);
+			UA_TL_Connection_getState(tmpConnection, &connectionState);
 		} while(connectionState != CONNECTIONSTATE_CLOSE);
 		shutdown(newsockfd,2);
 		close(newsockfd);
