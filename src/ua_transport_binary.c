@@ -61,17 +61,27 @@ static UA_Int32 TL_handleHello(UA_TL_Connection connection, const UA_ByteString*
 static UA_Int32 TL_handleOpen(UA_TL_Connection connection, const UA_ByteString* msg, UA_UInt32* pos) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 state;
-	SL_Channel *channel;
-
+	SL_Channel channel;
+	UA_UInt32 secureChannelId;
 	retval |= UA_TL_Connection_getState(connection,&state);
 	if (state == CONNECTIONSTATE_ESTABLISHED) {
-		retval |= SL_Channel_new(&channel);//just create channel
-		retval |= SL_Channel_init(*channel,connection,
-				SL_ChannelManager_generateChannelId,
-			SL_ChannelManager_generateToken);
-		retval |= SL_Channel_bind(*channel,connection);
-		retval |= SL_ProcessOpenChannel(*channel, msg, pos);
-		retval |= SL_ChannelManager_addChannel(channel);
+		UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
+		SL_ChannelManager_getChannel(secureChannelId, &channel);
+		if(channel == UA_NULL)
+		{
+			SL_Channel *newChannel;
+			//create new channel
+			retval |= SL_Channel_new(&newChannel);//just create channel
+			retval |= SL_Channel_init(*newChannel,connection,
+					SL_ChannelManager_generateChannelId,
+				SL_ChannelManager_generateToken);
+			retval |= SL_Channel_bind(*newChannel,connection);
+			retval |= SL_ProcessOpenChannel(*newChannel, msg, pos);
+			retval |= SL_ChannelManager_addChannel(newChannel);
+			return retval;
+		}
+		// channel already exists, renew token?
+		retval |= SL_ProcessOpenChannel(channel, msg, pos);
 		return retval;
 	}else{
 		printf("TL_handleOpen - ERROR: could not create new secureChannel");

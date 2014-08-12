@@ -67,7 +67,7 @@ UA_Boolean UA_SessionManager_sessionExists(UA_Session *session)
 
 UA_Int32 UA_SessionManager_getSessionById(UA_NodeId *sessionId, UA_Session *session)
 {
-	if(sessionManager != UA_NULL)
+	if(sessionManager == UA_NULL)
 	{
 		*session = UA_NULL;
 		return UA_ERROR;

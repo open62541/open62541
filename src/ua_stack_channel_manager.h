@@ -26,7 +26,7 @@ UA_Int32 SL_ChannelManager_addChannel(SL_Channel *channel);
 UA_Int32 SL_ChannelManager_removeChannel(UA_Int32 channelId);
 UA_Int32 SL_ChannelManager_getChannel(UA_UInt32 channelId, SL_Channel *channel);
 
-UA_Int32 SL_ChannelManager_updateChannels();
+
 
 UA_Int32 SL_ChannelManager_getChannelLifeTime(UA_DateTime *lifeTime);
 

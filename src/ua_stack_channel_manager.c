@@ -99,43 +99,6 @@ UA_Int32 SL_ChannelManager_generateToken(SL_Channel channel, UA_Int32 requestedL
 	return UA_ERROR;
 }
 
-UA_Int32 SL_ChannelManager_updateChannels()
-{
-	//TODO lock access
-	UA_Int32 channelLifetime;
-	UA_UInt32 channelId;
-	UA_list_Element* current = channelManager->channels.first;
-	while (current)
-	{
-		if (current->payload)
-		{
-			UA_indexedList_Element* elem =
-					(UA_indexedList_Element*) current->payload;
-			SL_Channel *channel = (SL_Channel*) elem->payload;
-			//remove channels with expired lifetime, close linked list
-			if (channel)
-			{
-				UA_list_addPayloadToBack(&channelManager->channels,(void*)channel);
-				SL_Channel_getRemainingLifetime(*channel,&channelLifetime);
-				if(channelLifetime <= 0)
-				{
-					//removeChannel
-				}
-			}
-			else
-			{
-				SL_Channel_getChannelId(*channel, &channelId);
-				//not possible to remove channel
-				printf(
-						"UA_SL_ChannelManager_updateChannels - could not remove channel with id: %i \n",
-						channelId);
-				return UA_SUCCESS;
-			}
-		}
-	}
-	return UA_SUCCESS;
-}
-
 UA_Int32 SL_ChannelManager_removeChannel(UA_Int32 channelId)
 {
 	//TODO lock access

@@ -405,7 +405,6 @@ UA_Int32 SL_ProcessOpenChannel(SL_Channel channel, const UA_ByteString* msg,
 	UA_Int32 retval = UA_SUCCESS;
 	UA_SequenceHeader sequenceHeader;
 	UA_AsymmetricAlgorithmSecurityHeader asymHeader;
-	*pos+=4; //skip secure channel id
 	UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(msg,pos,&asymHeader);
 	UA_SequenceHeader_decodeBinary(msg,pos,&sequenceHeader);
 
@@ -413,11 +412,12 @@ UA_Int32 SL_ProcessOpenChannel(SL_Channel channel, const UA_ByteString* msg,
 	SL_Channel_setRemoteSecuritySettings(channel,&asymHeader,&sequenceHeader);
 	return SL_handleRequest(channel, msg, pos) | retval;
 }
-UA_Int32 SL_ProcessCloseChannel(SL_Channel channel, const UA_ByteString* msg,
-		UA_UInt32 *pos)
-{
-	return SL_handleRequest(channel, msg, pos);
-}
+/* not used anymore */
+//UA_Int32 SL_ProcessCloseChannel(SL_Channel channel, const UA_ByteString* msg,
+//		UA_UInt32 *pos)
+//{
+//	return SL_handleRequest(channel, msg, pos);
+//}
 UA_Int32 SL_Process(const UA_ByteString* msg,
 		UA_UInt32* pos)
 {
