@@ -44,14 +44,15 @@ if(UA_ENCODING_JSON)
     MATH(EXPR UA_ENCODING_AMOUNT "${UA_ENCODING_AMOUNT}+1")
 endif(UA_ENCODING_JSON)
 
-# gcov
-option(USE_GCOV "Enable gcov support" OFF)
-if(USE_GCOV)
+# coverage
+option(ENABLE_COVERAGE "Enable gcov coverage" OFF)
+if(ENABLE_COVERAGE)
     message(STATUS "Enabling gcov support")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --coverage")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage")
-endif()
+	set(CMAKE_BUILD_TYPE DEBUG)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
+endif(ENABLE_COVERAGE)
 
 # directory for generated source files
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
