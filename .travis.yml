@@ -18,7 +18,9 @@ addons:
     branch_pattern: coverity_scan
 before_install:
    - sudo apt-get update -qq
-   - sudo apt-get install -qq build-essential cmake python-lxml graphviz doxygen check
+   - sudo apt-get install -qq --no-install-recommends build-essential cmake python-lxml graphviz doxygen wget
+   - wget http://security.ubuntu.com/ubuntu/pool/main/c/check/check_0.9.10-6ubuntu3_amd64.deb
+   - sudo dpkg -i check_0.9.10-6ubuntu3_amd64.deb
    - sudo pip install cpp-coveralls
 script: 
    - mkdir build
