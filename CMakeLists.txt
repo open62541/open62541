@@ -5,7 +5,7 @@ project(open62541)
 set(open62541_VERSION_MAJOR 0)
 set(open62541_VERSION_MINOR 1)
 
-# set(CMAKE_VERBOSE_MAKEFILE on )
+set(CMAKE_VERBOSE_MAKEFILE on )
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
 
@@ -138,8 +138,8 @@ if(WIN32)
 endif(WIN32)
 
 # build example implementations
-add_executable(exampleServer examples/src/opcuaServer.c
-                              examples/src/networklayer.c)
+add_executable(exampleServer examples/opcuaServer.c
+                             examples/networklayer.c)
 target_link_libraries(exampleServer open62541) 
 
 # generate documentation

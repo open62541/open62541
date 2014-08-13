@@ -8,50 +8,41 @@ env:
    # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
    - secure: "ehswgymGXPM3UINhOOnfSByMnrRNTixeT2vEV+z3kXy3WHew/O1yt9GxaYGrUhJPg4+5chAQgjYmezO1x3/CUKFgeHQUmVTFWEzfy1kL1JVjO+ufYyJDnbY+x3OmyNmMYcef2J5MAuUS2C1KFvIxtLsljVK+gpe4LcylkCIF/3Y="
 addons:
-  coverity_scan:
-    project:
-      name: acplt/open62541
-      description: Open-source OPC UA
-    notification_email: null@plt.rwth-aachen.de
-    build_command_prepend: ./autogen.sh && ./configure
-    build_command: make
-    branch_pattern: coverity_scan
+#  coverity_scan:
+#    project:
+#      name: acplt/open62541
+#      description: Open-source OPC UA
+#    notification_email: null@plt.rwth-aachen.de
+#    build_command_prepend: ./autogen.sh && ./configure
+#    build_command: make
+#    branch_pattern: coverity_scan
 before_install:
-- sudo add-apt-repository ppa:libreoffice/ppa -y
-- sudo apt-get update -qq
-- sudo apt-get install -qq build-essential subversion git autoconf libtool texinfo
-  python-lxml graphviz doxygen
-- svn checkout https://svn.code.sf.net/p/check/code/trunk check-code
-- cd check-code
-- autoreconf --install
-- ./configure
-- make
-- sudo make install
-- sudo ldconfig
-- cd ..
-- rm -rf check-code
-- sudo pip install cpp-coveralls
+   - sudo apt-get update -qq
+   - sudo apt-get install -qq build-essential cmake python-lxml graphviz doxygen check
+   - sudo pip install cpp-coveralls
 script: 
-   - ./autogen.sh 
-   - ./configure 
-   - echo "Production build + checks"
-   - make && make check && make clean
-   - echo "Extended debug build + checks + coverage + doxygen"
-   - ./configure --enable-debug --enable-coverage --enable-doxygen
-   - make all && make check
+   - mkdir build
+   - cd build
+   - cmake .. 
+   - make
+#   - echo "Production build + checks"
+#   - make && make check && make clean
+#   - echo "Extended debug build + checks + coverage + doxygen"
+#   - ./configure --enable-debug --enable-coverage --enable-doxygen
+#   - make all && make check
 after_success:
-   - git clone --depth=50 -b gh-pages https://$GITAUTH@github.com/acplt/open62541
-   - rm -rf open62541/doxygen
-   - cp -r doc/html open62541/doxygen
-   - cd open62541/doxygen
-   - git config --global user.email "open62541-travis-ci@users.noreply.github.com"
-   - git config --global user.name "Open62541 travis-ci"
-   - git config --global push.default simple
-   - git add *
-   - git commit -am "doxygen updated by travis-ci"
-   - git push https://$GITAUTH@github.com/acplt/open62541
-   - cd ..
-   - cd ..
-   - rm -rf open62541
-   - ./tools/.coverity.sh
-   - coveralls -b src --exclude doc --exclude examples --exclude tests --exclude wrappers --exclude src/.libs --exclude src/util/.libs -E '.*\.h' 
+#   - git clone --depth=50 -b gh-pages https://$GITAUTH@github.com/acplt/open62541
+#   - rm -rf open62541/doxygen
+#   - cp -r doc/html open62541/doxygen
+#   - cd open62541/doxygen
+#   - git config --global user.email "open62541-travis-ci@users.noreply.github.com"
+#   - git config --global user.name "Open62541 travis-ci"
+#   - git config --global push.default simple
+#   - git add *
+#   - git commit -am "doxygen updated by travis-ci"
+#   - git push https://$GITAUTH@github.com/acplt/open62541
+#   - cd ..
+#   - cd ..
+#   - rm -rf open62541
+#   - ./tools/.coverity.sh
+#   - coveralls -b src --exclude doc --exclude examples --exclude tests --exclude wrappers --exclude src/.libs --exclude src/util/.libs -E '.*\.h' 
