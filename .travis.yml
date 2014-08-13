@@ -50,6 +50,6 @@ after_success:
    - git push https://$GITAUTH@github.com/acplt/open62541
    - cd .. && cd ..
    - rm -rf open62541
-   - coveralls -r ./CMakeFiles/open62541.dir 
+   - coveralls --gcov /usr/bin/gcov-4.8 -r ./CMakeFiles/open62541.dir 
    - cd ..
    - ./tools/.coverity.sh
