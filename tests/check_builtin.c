@@ -5,7 +5,6 @@
 #include "ua_transport.h"
 #include "check.h"
 
-
 START_TEST(UA_Boolean_calcSizeWithNullArgumentShallReturnStorageSize) {
 	// given
 	UA_Boolean *arg = UA_NULL;

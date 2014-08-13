@@ -33,6 +33,7 @@ sudo apt-get install graphviz doxygen # for documentation generation
 
 ccmake .. # to select features for compilation. Use "cmake-gui .." for more eye-candy
 make
+make check # unit tests
 ```
 
 ### Windows (Visual Studio)

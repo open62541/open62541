@@ -36,7 +36,7 @@ script:
    - echo "Debug build and unit tests"
    - make clean
    - cmake -DCMAKE_BUILD_TYPE=Debug -DUNIT_TESTS=ON -DENABLE_COVERAGE=ON .. 
-   - make && make test
+   - make && make check
 after_success:
    - git clone --depth=50 -b gh-pages https://$GITAUTH@github.com/acplt/open62541
    - rm -rf open62541/doxygen
@@ -50,6 +50,6 @@ after_success:
    - git push https://$GITAUTH@github.com/acplt/open62541
    - cd .. && cd ..
    - rm -rf open62541
-   - coveralls --gcov /usr/bin/gcov-4.8 -r ../
+   - coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -r ../
    - cd ..
    - ./tools/.coverity.sh
