@@ -14,12 +14,15 @@ Documentation is generated from Doxygen annotations in the source code. The curr
 ## Build Procedure
 ### Ubuntu
 ```bash
-sudo apt-get install git build-essential gcc cmake python python-lxml # install build infrastructure
+# install build infrastructure
+sudo apt-get install git build-essential gcc cmake python python-lxml
 
+# build
 git clone https://github.com/acplt/open62541.git
 cd open62541
 mkdir build
 cmake .. # generate the build scripts
+# Optionally create an Eclipse project: cmake -G "Eclipse CDT4 - Unix Makefiles" .. 
 make # creates executables in the build directory
 
 # enable additional features
@@ -39,7 +42,7 @@ make
 * Add the folder with the python executable to the Windows PATH (System Settings)
 * Download https://bootstrap.pypa.io/get-pip.py
 * Open a command shell (cmd) and run
-```bash
+```Batchfile
 python <path-to>\get-pip.py
 python -m pip install lxml
 cd <path-to>\open62541
@@ -55,12 +58,12 @@ open "build\open62541.sln" in Visual Studio 2013 and build as usual
    * Select following packages: mingw-developer-toolkit, mingw32-base, msys-base
    * After install, run MinGW\msys\1.0\postinstall\pi.bat
 * The cmake command changes to
-```bash
+```Batchfile
 <path-to>\cmake.exe .. -G "MinGW Makefiles"
 ```
 * Then run (still in the build folder)
-```bash
-<path-to>/mingw32-make.exe
+```Batchfile
+<path-to>\mingw32-make.exe
 ```
 
 #### Get expat
