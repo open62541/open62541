@@ -27,12 +27,14 @@ before_install:
 script: 
    - mkdir build
    - cd build
+   - export CC=/usr/bin/gcc-4.8
    - cmake -DGENERATE_DOCUMENTATION=ON .. 
    - echo "Production build"
    - make
    - echo "Generate documentation"
    - make doc
    - echo "Debug build and unit tests"
+   - make clean
    - cmake -DCMAKE_BUILD_TYPE=Debug -DUNIT_TESTS=ON -DUSE_GCOV=ON .. 
    - make && make test
 after_success:
