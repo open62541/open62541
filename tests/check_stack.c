@@ -20,7 +20,7 @@ typedef struct stackTestFixture {
 	/** @brief the management structure (initialized to point to respMsgBuffer in create */
 	UA_ByteString respMsg;
 	/** @brief the management data structure for the fake connection */
-	UA_TL_Connection connection;
+	UA_TL_Connection *connection;
 
 } stackTestFixture;
 
@@ -54,7 +54,7 @@ UA_Int32 stackTestFixture_markHandleAsFree(UA_Int32 fixtureHandle) {
 	}
 	return UA_ERR_INVALID_VALUE;
 }
-UA_Int32 closerCallback(UA_TL_Connection connection)
+UA_Int32 closerCallback(UA_TL_Connection *connection)
 {
 	return UA_SUCCESS;
 }
@@ -427,7 +427,7 @@ END_TEST
 START_TEST(validCreateSessionShallCreateSession) {
 	// given
 	UA_Int32 handle = stackTestFixture_create(responseMsg,closerCallback);
-	SL_Channel channel;
+	SL_Channel *channel;
 	UA_ByteString message_001 = { sizeof(pkt_HEL), pkt_HEL };
 	UA_ByteString message_002 = { sizeof(pkt_OPN), pkt_OPN };
 	UA_ByteString message_003 = { sizeof(pkt_MSG_CreateSession), pkt_MSG_CreateSession };
