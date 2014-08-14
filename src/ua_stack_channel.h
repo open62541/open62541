@@ -19,8 +19,11 @@ typedef enum ChannelState {
 	UA_SL_CHANNEL_OPENING,
 	UA_SL_CHANNEL_OPEN
 } SL_channelState;
+
 //hide object behind typedef
-typedef struct SL_ChannelStruct *SL_Channel;
+struct SL_Channel;
+typedef struct SL_Channel SL_Channel;
+
 
 typedef UA_Int32 (*SL_ChannelSecurityTokenProvider)(SL_Channel, UA_Int32,
 		SecurityTokenRequestType, UA_ChannelSecurityToken*);

@@ -17,7 +17,7 @@ typedef struct SL_ChannelManager {
 	UA_String endpointUrl;
 	UA_DateTime channelLifeTime;
 	UA_UInt32 lastTokenId;
-}SL_ChannelManager;
+};
 static SL_ChannelManager *channelManager;
 
 UA_Int32 SL_ChannelManager_init(UA_UInt32 maxChannelCount,UA_UInt32 tokenLifetime, UA_UInt32 startChannelId, UA_UInt32 startTokenId, UA_String *endpointUrl)

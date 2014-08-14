@@ -8,7 +8,7 @@
 #include "ua_stack_session_manager.h"
 
 
-typedef struct UA_SessionManagerType
+struct UA_SessionManager
 {
 	UA_list_List sessions;
 	UA_UInt32 maxSessionCount;
@@ -17,9 +17,9 @@ typedef struct UA_SessionManagerType
 	UA_DateTime maxSessionLifeTime;
 
 	UA_DateTime sessionTimeout;
-}UA_SessionManagerType;
+};
 
-static UA_SessionManagerType *sessionManager;
+static UA_SessionManager *sessionManager;
 
 UA_Int32 UA_SessionManager_generateSessionId(UA_NodeId *sessionId)
 {
@@ -32,10 +32,9 @@ UA_Int32 UA_SessionManager_generateSessionId(UA_NodeId *sessionId)
 UA_Int32 UA_SessionManager_init(UA_UInt32 maxSessionCount,UA_UInt32 sessionTimeout, UA_UInt32 startSessionId)
 {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_alloc((void**)&sessionManager,sizeof(UA_SessionManagerType));
+	retval |= UA_alloc((void**)&sessionManager,sizeof(UA_SessionManager));
 
 	retval |= UA_list_init(&sessionManager->sessions);
-
 	sessionManager->maxSessionCount = maxSessionCount;
 	sessionManager->lastSessionId = startSessionId;
 	sessionManager->sessionTimeout = sessionTimeout;

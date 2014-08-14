@@ -15,7 +15,10 @@
 
 
 //hide internal data of channelManager
-typedef struct UA_SessionManagerType *UA_SessionManager;
+struct UA_SessionManager;
+typedef struct UA_SessionManager UA_SessionManager;
+
+//typedef struct UA_SessionManagerType *UA_SessionManager;
 
 /**
  * @brief initializes the session manager

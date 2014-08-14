@@ -18,8 +18,8 @@ typedef struct TL_Buffer{
 	UA_UInt32 maxMessageSize;
 	UA_UInt32 maxChunkCount;
 } TL_Buffer;
-
-typedef struct UA_ConnectionStruct *UA_TL_Connection;
+struct UA_TL_Connection;
+typedef struct UA_TL_Connection UA_TL_Connection;
 
 typedef UA_Int32 (*TL_Closer)(UA_TL_Connection);
 typedef UA_Int32 (*TL_Writer)(UA_Int32 connectionHandle, const UA_ByteString** gather_bufs, UA_Int32 gather_len); // send mutiple buffer concatenated into one msg (zero copy)

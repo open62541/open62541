@@ -11,8 +11,8 @@
 
 #include "ua_stack_channel.h"
 
-
-typedef struct UA_SessionStruct *UA_Session;
+struct UA_Session;
+typedef struct UA_Session UA_Session;
 typedef UA_Int32(*UA_Session_idProvider)(UA_NodeId *newSessionId);
 /**
  * @brief creates a session object
