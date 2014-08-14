@@ -8,7 +8,7 @@
 
 #include "ua_stack_channel_manager.h"
 
-typedef struct SL_ChannelManager {
+struct SL_ChannelManager {
 	UA_Int32 maxChannelCount;
 	UA_Int32 lastChannelId;
 	UA_DateTime maxChannelLifeTime;
@@ -69,7 +69,7 @@ UA_UInt32 SL_ChannelManager_generateNewTokenId()
 	return channelManager->lastTokenId++;
 }
 
-UA_Int32 SL_ChannelManager_generateToken(SL_Channel channel, UA_Int32 requestedLifeTime,
+UA_Int32 SL_ChannelManager_generateToken(SL_Channel *channel, UA_Int32 requestedLifeTime,
 		SecurityTokenRequestType requestType,
 		UA_ChannelSecurityToken* newToken)
 {
@@ -102,7 +102,7 @@ UA_Int32 SL_ChannelManager_generateToken(SL_Channel channel, UA_Int32 requestedL
 UA_Int32 SL_ChannelManager_removeChannel(UA_Int32 channelId)
 {
 	//TODO lock access
-	SL_Channel channel;
+	SL_Channel *channel;
 	UA_Int32 retval = UA_SUCCESS;
 	SL_ChannelManager_getChannel(channelId, &channel);
 
@@ -127,7 +127,7 @@ UA_Int32 SL_ChannelManager_getChannelLifeTime(UA_DateTime *lifeTime)
 	return UA_SUCCESS;UA_list_Element
 }
 */
-UA_Int32 SL_ChannelManager_getChannel(UA_UInt32 channelId, SL_Channel *channel)
+UA_Int32 SL_ChannelManager_getChannel(UA_UInt32 channelId, SL_Channel **channel)
 {
 	UA_UInt32 tmpChannelId;
 	if(channelManager==UA_NULL){
@@ -140,7 +140,7 @@ UA_Int32 SL_ChannelManager_getChannel(UA_UInt32 channelId, SL_Channel *channel)
 		if (current->payload)
 		{
 			UA_list_Element* elem = (UA_list_Element*) current;
-			*channel = *((SL_Channel*) (elem->payload));
+			*channel = ((SL_Channel*) (elem->payload));
 			SL_Channel_getChannelId(*channel, &tmpChannelId);
 		 	if(tmpChannelId == channelId)
 		 	{

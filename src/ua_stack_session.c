@@ -15,7 +15,7 @@ struct UA_Session
 	UA_String name;
 	Application *application;
 //	UA_list_List pendingRequests;
-	SL_Channel channel;
+	SL_Channel *channel;
 	UA_UInt32 maxRequestMessageSize;
 	UA_UInt32 maxResponseMessageSize;
 	UA_Int64 timeout;
@@ -54,7 +54,7 @@ UA_Int32 UA_Session_generateToken(UA_NodeId *newToken)
 	return retval;
 }
 
-UA_Int32 UA_Session_bind(UA_Session session, SL_Channel channel)
+UA_Int32 UA_Session_bind(UA_Session *session, SL_Channel *channel)
 {
 
 	if(channel && session)
@@ -78,7 +78,7 @@ UA_Int32 UA_Session_new(UA_Session **newSession)
 	//get memory for request list
 	return retval;
 }
-UA_Int32 UA_Session_deleteMembers(UA_Session session)
+UA_Int32 UA_Session_deleteMembers(UA_Session *session)
 {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_NodeId_deleteMembers(&session->authenticationToken);
@@ -89,11 +89,11 @@ UA_Int32 UA_Session_deleteMembers(UA_Session session)
 UA_Int32 UA_Session_delete(UA_Session *session)
 {
 	UA_Int32 retval = UA_SUCCESS;
-	UA_Session_deleteMembers(*session);
-	retval |= UA_free((UA_Session*)(*session));
+	UA_Session_deleteMembers(session);
+	retval |= UA_free(session);
 	return retval;
 }
-UA_Int32 UA_Session_init(UA_Session session, UA_String *sessionName, UA_Double requestedSessionTimeout,
+UA_Int32 UA_Session_init(UA_Session *session, UA_String *sessionName, UA_Double requestedSessionTimeout,
 		UA_UInt32 maxRequestMessageSize,
 		UA_UInt32 maxResponseMessageSize,
 		UA_Session_idProvider idProvider,
@@ -112,7 +112,7 @@ UA_Int32 UA_Session_init(UA_Session session, UA_String *sessionName, UA_Double r
 	return retval;
 }
 
-UA_Boolean UA_Session_compare(UA_Session session1, UA_Session session2)
+UA_Boolean UA_Session_compare(UA_Session *session1, UA_Session *session2)
 {
 	if(session1 && session2){
 
@@ -124,7 +124,7 @@ UA_Boolean UA_Session_compare(UA_Session session1, UA_Session session2)
 	return UA_FALSE;
 }
 
-UA_Boolean UA_Session_compareByToken(UA_Session session, UA_NodeId *token)
+UA_Boolean UA_Session_compareByToken(UA_Session *session, UA_NodeId *token)
 {
 	if(session && token){
 		return UA_NodeId_equal(&session->authenticationToken, token);
@@ -132,7 +132,7 @@ UA_Boolean UA_Session_compareByToken(UA_Session session, UA_NodeId *token)
 	return UA_NOT_EQUAL;
 }
 
-UA_Boolean UA_Session_compareById(UA_Session session, UA_NodeId *sessionId)
+UA_Boolean UA_Session_compareById(UA_Session *session, UA_NodeId *sessionId)
 {
 	if(session && sessionId){
 		return UA_NodeId_equal(&session->sessionId, sessionId);
@@ -140,7 +140,7 @@ UA_Boolean UA_Session_compareById(UA_Session session, UA_NodeId *sessionId)
 	return UA_NOT_EQUAL;
 }
 
-UA_Int32 UA_Session_getId(UA_Session session, UA_NodeId *sessionId)
+UA_Int32 UA_Session_getId(UA_Session *session, UA_NodeId *sessionId)
 {
 	if(session)
 	{
@@ -149,7 +149,7 @@ UA_Int32 UA_Session_getId(UA_Session session, UA_NodeId *sessionId)
 	return UA_ERROR;
 }
 
-UA_Int32 UA_Session_getToken(UA_Session session, UA_NodeId *authenticationToken)
+UA_Int32 UA_Session_getToken(UA_Session *session, UA_NodeId *authenticationToken)
 {
 	if(session)
 	{
@@ -157,7 +157,7 @@ UA_Int32 UA_Session_getToken(UA_Session session, UA_NodeId *authenticationToken)
 	}
 	return UA_ERROR;
 }
-UA_Int32 UA_Session_updateLifetime(UA_Session session)
+UA_Int32 UA_Session_updateLifetime(UA_Session *session)
 {
 	if(session)
 	{
@@ -167,7 +167,7 @@ UA_Int32 UA_Session_updateLifetime(UA_Session session)
 	}
 	return UA_ERROR;
 }
-UA_Int32 UA_Session_getChannel(UA_Session session, SL_Channel *channel)
+UA_Int32 UA_Session_getChannel(UA_Session *session, SL_Channel **channel)
 {
 	if(session)
 	{
@@ -176,7 +176,7 @@ UA_Int32 UA_Session_getChannel(UA_Session session, SL_Channel *channel)
 	}
 	return UA_ERROR;
 }
-UA_Int32 UA_Session_getPendingLifetime(UA_Session session, UA_Double *pendingLifetime_ms)
+UA_Int32 UA_Session_getPendingLifetime(UA_Session *session, UA_Double *pendingLifetime_ms)
 {
 	if(session)
 	{
@@ -186,7 +186,7 @@ UA_Int32 UA_Session_getPendingLifetime(UA_Session session, UA_Double *pendingLif
 	return UA_ERROR;
 }
 
-UA_Boolean UA_Session_verifyChannel(UA_Session session, SL_Channel channel)
+UA_Boolean UA_Session_verifyChannel(UA_Session *session, SL_Channel *channel)
 {
 	if(session && channel)
 	{
@@ -196,7 +196,7 @@ UA_Boolean UA_Session_verifyChannel(UA_Session session, SL_Channel channel)
 	}
 	return UA_FALSE;
 }
-UA_Int32 UA_Session_getApplicationPointer(UA_Session session, Application** application)
+UA_Int32 UA_Session_getApplicationPointer(UA_Session *session, Application** application)
 {
 	if(session)
 	{
@@ -207,7 +207,7 @@ UA_Int32 UA_Session_getApplicationPointer(UA_Session session, Application** appl
 	return UA_ERROR;
 }
 
-UA_Int32 UA_Session_setApplicationPointer(UA_Session session, Application* application)
+UA_Int32 UA_Session_setApplicationPointer(UA_Session *session, Application* application)
 {
 	if(session)
 	{

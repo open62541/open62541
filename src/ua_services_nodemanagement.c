@@ -65,7 +65,7 @@ static UA_AddNodesResult addSingleNode(Application *app, UA_AddNodesItem *item) 
 	return result;
 }
 
-UA_Int32 Service_AddNodes(UA_Session session, const UA_AddNodesRequest *request, UA_AddNodesResponse *response) {
+UA_Int32 Service_AddNodes(UA_Session *session, const UA_AddNodesRequest *request, UA_AddNodesResponse *response) {
 
 	Application *application;
 	if(session == UA_NULL)
@@ -140,6 +140,6 @@ UA_Int32 AddReference(UA_Node *node, UA_ReferenceNode *reference, Namespace *tar
 	return retval;
 }
 
-UA_Int32 Service_AddReferences(UA_Session session, const UA_AddReferencesRequest *request, UA_AddReferencesResponse *response) {
+UA_Int32 Service_AddReferences(UA_Session *session, const UA_AddReferencesRequest *request, UA_AddReferencesResponse *response) {
 	return UA_ERROR;
 }

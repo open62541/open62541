@@ -155,8 +155,8 @@ void* NL_TCP_reader(NL_Connection *c) {
 		}
 	}
 	UA_TL_Connection_getState(c->connection, &connectionState);
-	if (connectionState == CONNECTIONSTATE_CLOSE) {
-		UA_TL_Connection_close(c->connection);
+	if (connectionState == CONNECTIONSTATE_CLOSED) {
+		//UA_TL_Connection_close(c->connection);
 
 		//c->state  = CONNECTIONSTATE_CLOSED;
 
@@ -230,7 +230,7 @@ UA_Int32 NL_TCP_writer(UA_Int32 connectionHandle, UA_ByteString const * const * 
 	return UA_SUCCESS;
 }
 //callback function which is called when the UA_TL_Connection_close() function is initiated
-UA_Int32 NL_Connection_close(UA_TL_Connection connection)
+UA_Int32 NL_Connection_close(UA_TL_Connection *connection)
 {
 	NL_Connection *networkLayerData = UA_NULL;
 	UA_TL_Connection_getNetworkLayerData(connection, (void**)&networkLayerData);
@@ -247,7 +247,7 @@ UA_Int32 NL_Connection_close(UA_TL_Connection connection)
 }
 void* NL_Connection_init(NL_Connection* c, NL_data* tld, UA_Int32 connectionHandle, NL_Reader reader, TL_Writer writer)
 {
-	UA_TL_Connection connection = UA_NULL;
+	UA_TL_Connection *connection = UA_NULL;
 	//create new connection object
 	UA_TL_Connection_new(&connection, tld->tld->localConf, writer, NL_Connection_close,connectionHandle,c);
 

@@ -2,7 +2,7 @@
 #include "ua_application.h"
 
 
-UA_Int32 Service_CreateSession(SL_Channel channel, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response) {
+UA_Int32 Service_CreateSession(SL_Channel *channel, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response) {
 #ifdef DEBUG
 	UA_String_printf("CreateSession Service - endpointUrl=", &(request->endpointUrl));
 #endif
@@ -12,7 +12,7 @@ UA_Int32 Service_CreateSession(SL_Channel channel, const UA_CreateSessionRequest
 	UA_SessionManager_getSessionTimeout(&timeout);
 	UA_Session_new(&newSession);
 	//TODO get maxResponseMessageSize
-	UA_Session_init(*newSession, (UA_String*)&request->sessionName,
+	UA_Session_init(newSession, (UA_String*)&request->sessionName,
 	request->requestedSessionTimeout,
 	request->maxResponseMessageSize,
 	9999,
@@ -20,14 +20,14 @@ UA_Int32 Service_CreateSession(SL_Channel channel, const UA_CreateSessionRequest
 	timeout);
 
 	UA_SessionManager_addSession(newSession);
-	UA_Session_getId(*newSession, &response->sessionId);
-	UA_Session_getToken(*newSession, &(response->authenticationToken));
+	UA_Session_getId(newSession, &response->sessionId);
+	UA_Session_getToken(newSession, &(response->authenticationToken));
 	response->revisedSessionTimeout = timeout;
 	//TODO fill results
 	return UA_SUCCESS;
 }
 
-UA_Int32 Service_ActivateSession(SL_Channel channel,UA_Session session,
+UA_Int32 Service_ActivateSession(SL_Channel *channel, UA_Session *session,
 		const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response)
 {
 
@@ -44,7 +44,7 @@ UA_Int32 Service_ActivateSession(SL_Channel channel,UA_Session session,
 	return UA_SUCCESS;
 }
 
-UA_Int32 Service_CloseSession(UA_Session session, const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response) {
+UA_Int32 Service_CloseSession(UA_Session *session, const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response) {
 	UA_NodeId sessionId;
 	UA_Session_getId(session,&sessionId);
 

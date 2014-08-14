@@ -50,7 +50,7 @@ UA_Int32 UA_SessionManager_removeSession(UA_NodeId *sessionId);
  * @param session the session object is returned if no error occurs
  * @return error code
  */
-UA_Int32 UA_SessionManager_getSessionById(UA_NodeId *sessionId, UA_Session *session);
+UA_Int32 UA_SessionManager_getSessionById(UA_NodeId *sessionId, UA_Session **session);
 
 /**
  * @brief
@@ -58,7 +58,7 @@ UA_Int32 UA_SessionManager_getSessionById(UA_NodeId *sessionId, UA_Session *sess
  * @param session output, session object which is identified by the authentication token
  * @return error code
  */
-UA_Int32 UA_SessionManager_getSessionByToken(UA_NodeId *token, UA_Session *session);
+UA_Int32 UA_SessionManager_getSessionByToken(UA_NodeId *token, UA_Session **session);
 
 
 /**

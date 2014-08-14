@@ -36,13 +36,13 @@ UA_Int32 UA_TL_ConnectionManager_init(UA_UInt32 maxConnectionCount)
 UA_Int32 UA_TL_ConnectionManager_addConnection(UA_TL_Connection *connection)
 {
 	UA_UInt32 connectionId;
-	UA_TL_Connection_getHandle(*connection, &connectionId);
+	UA_TL_Connection_getHandle(connection, &connectionId);
 	printf("UA_TL_ConnectionManager_addConnection - added connection with handle = %d \n", connectionId);
 	return UA_list_addPayloadToBack(&(connectionManager->connections), (void*)connection);
 }
 
 
-UA_Int32 UA_TL_ConnectionManager_removeConnection(UA_TL_Connection connection)
+UA_Int32 UA_TL_ConnectionManager_removeConnection(UA_TL_Connection *connection)
 {
 	UA_list_Element *element =  UA_list_find(&connectionManager->connections, (UA_list_PayloadMatcher)UA_TL_Connection_compare);
 
@@ -53,7 +53,7 @@ UA_Int32 UA_TL_ConnectionManager_removeConnection(UA_TL_Connection connection)
 	return UA_SUCCESS;
 }
 
-UA_Int32 UA_TL_ConnectionManager_getConnectionByHandle(UA_UInt32 connectionId, UA_TL_Connection *connection)
+UA_Int32 UA_TL_ConnectionManager_getConnectionByHandle(UA_UInt32 connectionId, UA_TL_Connection **connection)
 {
 	UA_UInt32 tmpConnectionHandle;
 	if(connectionManager)
@@ -64,7 +64,7 @@ UA_Int32 UA_TL_ConnectionManager_getConnectionByHandle(UA_UInt32 connectionId, U
 			if (current->payload)
 			{
 				UA_list_Element* elem = (UA_list_Element*) current;
-				*connection = *((UA_TL_Connection*) (elem->payload));
+				*connection = ((UA_TL_Connection*) (elem->payload));
 				UA_TL_Connection_getHandle(*connection, &tmpConnectionHandle);
 
 				if(tmpConnectionHandle == connectionId)

@@ -223,7 +223,7 @@ static UA_DataValue service_read_node(Application *app, const UA_ReadValueId *id
 
 	return v;
 }
-UA_Int32 Service_Read(UA_Session session, const UA_ReadRequest *request,
+UA_Int32 Service_Read(UA_Session *session, const UA_ReadRequest *request,
                       UA_ReadResponse *response) {
 	Application *application = UA_NULL;
 	UA_Int32 readsize;
@@ -444,7 +444,7 @@ UA_Int32 Service_Write_writeNode(Application *app, UA_WriteValue *writeValue, UA
 	return retval;
 
 }
-UA_Int32 Service_Write(UA_Session session, const UA_WriteRequest *request,
+UA_Int32 Service_Write(UA_Session *session, const UA_WriteRequest *request,
                       UA_WriteResponse *response) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 i;

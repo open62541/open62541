@@ -7,7 +7,7 @@
 #include "ua_services.h"
 #include "ua_statuscodes.h"
 
-UA_Int32 Service_CreateSubscription(UA_Session session, const UA_CreateSubscriptionRequest *request,
+UA_Int32 Service_CreateSubscription(UA_Session *session, const UA_CreateSubscriptionRequest *request,
                                    UA_CreateSubscriptionResponse *response)
 {
 
@@ -18,7 +18,7 @@ UA_Int32 Service_CreateSubscription(UA_Session session, const UA_CreateSubscript
 	return UA_SUCCESS;
 }
 
-UA_Int32 Service_Publish(UA_Session session, const UA_PublishRequest *request,
+UA_Int32 Service_Publish(UA_Session *session, const UA_PublishRequest *request,
                                    UA_PublishResponse *response)
 {
 
@@ -28,7 +28,7 @@ UA_Int32 Service_Publish(UA_Session session, const UA_PublishRequest *request,
 	return UA_SUCCESS;
 }
 
-UA_Int32 Service_SetPublishingMode(UA_Session session, const UA_SetPublishingModeRequest *request,
+UA_Int32 Service_SetPublishingMode(UA_Session *session, const UA_SetPublishingModeRequest *request,
                                    UA_SetPublishingModeResponse *response)
 {
 	response->diagnosticInfos = UA_NULL;

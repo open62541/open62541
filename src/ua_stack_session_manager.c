@@ -52,19 +52,19 @@ UA_Boolean UA_SessionManager_sessionExists(UA_Session *session)
 	if(UA_list_search(&sessionManager->sessions,(UA_list_PayloadComparer)UA_Session_compare,(void*)session))
 	{
 		UA_Double pendingLifetime;
-		UA_Session_getPendingLifetime(*session,&pendingLifetime);
+		UA_Session_getPendingLifetime(session,&pendingLifetime);
 		if(pendingLifetime>0){
 			return UA_TRUE;
 		}
 		//timeout of session reached so remove it
 		UA_NodeId sessionId;
-		UA_Session_getId(*session,&sessionId);
+		UA_Session_getId(session,&sessionId);
 		UA_SessionManager_removeSession(&sessionId);
 	}
 	return UA_FALSE;
 }
 
-UA_Int32 UA_SessionManager_getSessionById(UA_NodeId *sessionId, UA_Session *session)
+UA_Int32 UA_SessionManager_getSessionById(UA_NodeId *sessionId, UA_Session **session)
 {
 	if(sessionManager == UA_NULL)
 	{
@@ -78,7 +78,7 @@ UA_Int32 UA_SessionManager_getSessionById(UA_NodeId *sessionId, UA_Session *sess
 		if (current->payload)
 		{
 			UA_list_Element* elem = (UA_list_Element*) current;
-			*session = *((UA_Session*) (elem->payload));
+			*session = ((UA_Session*) (elem->payload));
 			if(UA_Session_compareById(*session,sessionId) == UA_EQUAL){
 				UA_Double pendingLifetime;
 				UA_Session_getPendingLifetime(*session, &pendingLifetime);
@@ -97,7 +97,7 @@ UA_Int32 UA_SessionManager_getSessionById(UA_NodeId *sessionId, UA_Session *sess
 	return UA_ERROR;
 }
 
-UA_Int32 UA_SessionManager_getSessionByToken(UA_NodeId *token, UA_Session *session)
+UA_Int32 UA_SessionManager_getSessionByToken(UA_NodeId *token, UA_Session **session)
 {
 	if(sessionManager == UA_NULL)
 	{
@@ -111,7 +111,7 @@ UA_Int32 UA_SessionManager_getSessionByToken(UA_NodeId *token, UA_Session *sessi
 		if (current->payload)
 		{
 			UA_list_Element* elem = (UA_list_Element*) current;
-			*session = *((UA_Session*) (elem->payload));
+			*session = ((UA_Session*) (elem->payload));
 
 			if(UA_Session_compareByToken(*session,token) == UA_EQUAL){
 				UA_Double pendingLifetime;
@@ -138,7 +138,7 @@ UA_Int32 UA_SessionManager_addSession(UA_Session *session)
 	if(!UA_SessionManager_sessionExists(session))
 	{
 		retval |= UA_list_addPayloadToBack(&sessionManager->sessions,(void*)session);
-		UA_Session_getId(*session, &sessionId);
+		UA_Session_getId(session, &sessionId);
 
 		printf("UA_SessionManager_addSession - added session with id = %d \n",sessionId.identifier.numeric);
 		printf("UA_SessionManager_addSession - current session count: %i \n",sessionManager->sessions.size);
@@ -162,7 +162,7 @@ UA_Int32 UA_SessionManager_removeSession(UA_NodeId *sessionId)
 
 	return retval;
 }
-
+/*
 UA_Int32 UA_SessionManager_updateSessions()
 {
 	if(sessionManager == UA_NULL)
@@ -175,7 +175,7 @@ UA_Int32 UA_SessionManager_updateSessions()
 		if (current->payload)
 		{
 			UA_list_Element* elem = (UA_list_Element*) current;
-			UA_Session session = *((UA_Session*) (elem->payload));
+			UA_Session *session = ((UA_Session*) (elem->payload));
 			UA_Double pendingLifetime;
 			UA_Session_getPendingLifetime(session, &pendingLifetime);
 
@@ -189,7 +189,7 @@ UA_Int32 UA_SessionManager_updateSessions()
 	}
 	return UA_SUCCESS;
 }
-
+*/
 UA_Int32 UA_SessionManager_getSessionTimeout(UA_Int64 *timeout_ms)
 {
 	if(sessionManager)

@@ -184,7 +184,7 @@ static void Service_Browse_getBrowseResult(Namespace *ns, UA_BrowseDescription *
 	UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesCount, &UA_.types[UA_NODEID]);
 }
 
-UA_Int32 Service_Browse(UA_Session session, const UA_BrowseRequest *request, UA_BrowseResponse *response) {
+UA_Int32 Service_Browse(UA_Session *session, const UA_BrowseRequest *request, UA_BrowseResponse *response) {
 	UA_Int32 retval = UA_SUCCESS;
 	Application *application;
 	if(session == UA_NULL)
@@ -222,7 +222,7 @@ UA_Int32 Service_Browse(UA_Session session, const UA_BrowseRequest *request, UA_
 }
 
 
-UA_Int32 Service_TranslateBrowsePathsToNodeIds(UA_Session session, const UA_TranslateBrowsePathsToNodeIdsRequest *request,
+UA_Int32 Service_TranslateBrowsePathsToNodeIds(UA_Session *session, const UA_TranslateBrowsePathsToNodeIdsRequest *request,
 											   UA_TranslateBrowsePathsToNodeIdsResponse *response) {
 	UA_Int32 retval = UA_SUCCESS;
 	DBG_VERBOSE(printf("TranslateBrowsePathsToNodeIdsService - %i path(s)", request->browsePathsSize));

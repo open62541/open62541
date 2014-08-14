@@ -1,15 +1,16 @@
+#include "ua_transport_connection.h"
 #include <memory.h>
 #include "ua_transport_binary.h"
 #include "ua_transport.h"
 #include "ua_transport_binary_secure.h"
-#include "ua_transport_connection.h"
 
 
-static UA_Int32 TL_handleHello(UA_TL_Connection connection, const UA_ByteString* msg, UA_UInt32* pos){
+static UA_Int32 TL_handleHello(UA_TL_Connection *connection, const UA_ByteString* msg, UA_UInt32* pos){
 	UA_Int32 retval = UA_SUCCESS;
 	UA_UInt32 tmpPos = 0;
 	UA_Int32 connectionState;
 	UA_OPCUATcpHelloMessage helloMessage;
+
 	UA_TL_Connection_getState(connection, &connectionState);
 	if (connectionState == CONNECTIONSTATE_CLOSED){
 		DBG_VERBOSE(printf("TL_handleHello - extracting header information \n"));
@@ -58,12 +59,12 @@ static UA_Int32 TL_handleHello(UA_TL_Connection connection, const UA_ByteString*
 	return retval;
 }
 
-static UA_Int32 TL_handleOpen(UA_TL_Connection connection, const UA_ByteString* msg, UA_UInt32* pos) {
+static UA_Int32 TL_handleOpen(UA_TL_Connection *connection, const UA_ByteString* msg, UA_UInt32* pos) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 state;
-	SL_Channel channel;
+	SL_Channel *channel;
 	UA_UInt32 secureChannelId;
-	retval |= UA_TL_Connection_getState(connection,&state);
+	retval |= UA_TL_Connection_getState(connection, &state);
 	if (state == CONNECTIONSTATE_ESTABLISHED) {
 		UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
 		SL_ChannelManager_getChannel(secureChannelId, &channel);
@@ -72,11 +73,9 @@ static UA_Int32 TL_handleOpen(UA_TL_Connection connection, const UA_ByteString* 
 			SL_Channel *newChannel;
 			//create new channel
 			retval |= SL_Channel_new(&newChannel);//just create channel
-			retval |= SL_Channel_init(*newChannel,connection,
-					SL_ChannelManager_generateChannelId,
-				SL_ChannelManager_generateToken);
-			retval |= SL_Channel_bind(*newChannel,connection);
-			retval |= SL_ProcessOpenChannel(*newChannel, msg, pos);
+			retval |= SL_Channel_init(newChannel, connection,SL_ChannelManager_generateChannelId, SL_ChannelManager_generateToken);
+			retval |= SL_Channel_bind(newChannel,connection);
+			retval |= SL_ProcessOpenChannel(newChannel, msg, pos);
 			retval |= SL_ChannelManager_addChannel(newChannel);
 			return retval;
 		}
@@ -90,7 +89,7 @@ static UA_Int32 TL_handleOpen(UA_TL_Connection connection, const UA_ByteString* 
 	return UA_ERR_INVALID_VALUE;
 }
 
-static UA_Int32 TL_handleMsg(UA_TL_Connection connection, const UA_ByteString* msg, UA_UInt32* pos) {
+static UA_Int32 TL_handleMsg(UA_TL_Connection *connection, const UA_ByteString* msg, UA_UInt32* pos) {
 	UA_Int32 state;
 	UA_TL_Connection_getState(connection,&state);
 	if (state == CONNECTIONSTATE_ESTABLISHED) {
@@ -99,7 +98,7 @@ static UA_Int32 TL_handleMsg(UA_TL_Connection connection, const UA_ByteString* m
 	return UA_ERR_INVALID_VALUE;
 }
 
-static UA_Int32 TL_handleClo(UA_TL_Connection connection, const UA_ByteString* msg, UA_UInt32* pos) {
+static UA_Int32 TL_handleClo(UA_TL_Connection *connection, const UA_ByteString* msg, UA_UInt32* pos) {
 	UA_Int32 retval = UA_SUCCESS;
 	SL_Process(msg,pos);
 
@@ -107,7 +106,7 @@ static UA_Int32 TL_handleClo(UA_TL_Connection connection, const UA_ByteString* m
 	return retval;
 }
 
-UA_Int32 TL_Process(UA_TL_Connection connection, const UA_ByteString* msg) {
+UA_Int32 TL_Process(UA_TL_Connection *connection, const UA_ByteString* msg) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_UInt32 pos = 0;
 	UA_OPCUATcpMessageHeader tcpMessageHeader;
@@ -162,7 +161,7 @@ UA_Int32 TL_Process(UA_TL_Connection connection, const UA_ByteString* msg) {
 }
 
 /** respond to client request */
-UA_Int32 TL_Send(UA_TL_Connection connection, const UA_ByteString** gather_buf, UA_UInt32 gather_len) {
+UA_Int32 TL_Send(UA_TL_Connection *connection, const UA_ByteString** gather_buf, UA_UInt32 gather_len) {
 	UA_Int32 retval = UA_SUCCESS;
 
 

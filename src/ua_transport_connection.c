@@ -7,7 +7,7 @@
 
 #include "ua_transport_connection.h"
 #include "ua_transport.h"
-typedef struct UA_TL_Connection{
+struct UA_TL_Connection{
 	UA_Int32 connectionHandle;
 	UA_UInt32 state;
 	TL_Buffer localConf;
@@ -20,30 +20,30 @@ typedef struct UA_TL_Connection{
 };
 
 
-UA_Int32 UA_TL_Connection_new(UA_TL_Connection *connection, TL_Buffer localBuffers,TL_Writer writer, TL_Closer closeCallback,UA_Int32 handle, void* networkLayerData)
+UA_Int32 UA_TL_Connection_new(UA_TL_Connection **connection, TL_Buffer localBuffers,TL_Writer writer, TL_Closer closeCallback,UA_Int32 handle, void* networkLayerData)
 {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_alloc((void**)connection,sizeof(UA_TL_Connection));
 	if(retval == UA_SUCCESS)
 	{
-		connection->connectionHandle = handle;
-		connection->localConf = localBuffers;
-		connection->writer = writer;
-		connection->closeCallback = closeCallback;
-		connection->state = CONNECTIONSTATE_CLOSED;
-		connection->networkLayerData = networkLayerData;
+		(*connection)->connectionHandle = handle;
+		(*connection)->localConf = localBuffers;
+		(*connection)->writer = writer;
+		(*connection)->closeCallback = closeCallback;
+		(*connection)->state = CONNECTIONSTATE_CLOSED;
+		(*connection)->networkLayerData = networkLayerData;
 	}
 	return retval;
 }
 
-UA_Int32 UA_TL_Connection_delete(UA_TL_Connection connection)
+UA_Int32 UA_TL_Connection_delete(UA_TL_Connection *connection)
 {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_free((void*)connection);
 	return retval;
 }
 
-UA_Int32 UA_TL_Connection_close(UA_TL_Connection connection)
+UA_Int32 UA_TL_Connection_close(UA_TL_Connection *connection)
 {
 	connection->state = CONNECTIONSTATE_CLOSED;
 	connection->closeCallback(connection);
@@ -63,7 +63,7 @@ UA_Boolean UA_TL_Connection_compare(UA_TL_Connection *connection1, UA_TL_Connect
 }
 
 
-UA_Int32 UA_TL_Connection_configByHello(UA_TL_Connection connection, UA_OPCUATcpHelloMessage *helloMessage)
+UA_Int32 UA_TL_Connection_configByHello(UA_TL_Connection *connection, UA_OPCUATcpHelloMessage *helloMessage)
 {
 	UA_Int32 retval = UA_SUCCESS;
 	connection->remoteConf.maxChunkCount = helloMessage->maxChunkCount;
@@ -77,25 +77,25 @@ UA_Int32 UA_TL_Connection_configByHello(UA_TL_Connection connection, UA_OPCUATcp
 	return UA_SUCCESS;
 }
 
-UA_Int32 UA_TL_Connection_callWriter(UA_TL_Connection connection, const UA_ByteString** gather_bufs, UA_Int32 gather_len)
+UA_Int32 UA_TL_Connection_callWriter(UA_TL_Connection *connection, const UA_ByteString** gather_bufs, UA_Int32 gather_len)
 {
 	return connection->writer(connection->connectionHandle,gather_bufs, gather_len);
 }
 
 //setters
-UA_Int32 UA_TL_Connection_setWriter(UA_TL_Connection connection, TL_Writer writer)
+UA_Int32 UA_TL_Connection_setWriter(UA_TL_Connection *connection, TL_Writer writer)
 {
 	connection->writer = writer;
 	return UA_SUCCESS;
 }
 /*
-UA_Int32 UA_TL_Connection_setConnectionHandle(UA_TL_Connection connection, UA_Int32 connectionHandle)
+UA_Int32 UA_TL_Connection_setConnectionHandle(UA_TL_Connection *connection, UA_Int32 connectionHandle)
 {
 	connection->connectionHandle = connectionHandle;
 	return UA_SUCCESS;
 }
 */
-UA_Int32 UA_TL_Connection_setState(UA_TL_Connection connection, UA_Int32 connectionState)
+UA_Int32 UA_TL_Connection_setState(UA_TL_Connection *connection, UA_Int32 connectionState)
 {
 	if(connection)
 	{
@@ -106,7 +106,7 @@ UA_Int32 UA_TL_Connection_setState(UA_TL_Connection connection, UA_Int32 connect
 	}
 }
 //getters
-UA_Int32 UA_TL_Connection_getState(UA_TL_Connection connection, UA_Int32 *connectionState)
+UA_Int32 UA_TL_Connection_getState(UA_TL_Connection *connection, UA_Int32 *connectionState)
 {
 	if(connection)
 	{
@@ -118,7 +118,7 @@ UA_Int32 UA_TL_Connection_getState(UA_TL_Connection connection, UA_Int32 *connec
 	}
 }
 
-UA_Int32 UA_TL_Connection_getNetworkLayerData(UA_TL_Connection connection,void** networkLayerData)
+UA_Int32 UA_TL_Connection_getNetworkLayerData(UA_TL_Connection *connection,void** networkLayerData)
 {
 	if(connection)
 	{
@@ -130,7 +130,7 @@ UA_Int32 UA_TL_Connection_getNetworkLayerData(UA_TL_Connection connection,void**
 	}
 }
 
-UA_Int32 UA_TL_Connection_getProtocolVersion(UA_TL_Connection connection, UA_UInt32 *protocolVersion)
+UA_Int32 UA_TL_Connection_getProtocolVersion(UA_TL_Connection *connection, UA_UInt32 *protocolVersion)
 {
 	if(connection)
 	{
@@ -141,7 +141,7 @@ UA_Int32 UA_TL_Connection_getProtocolVersion(UA_TL_Connection connection, UA_UIn
 		return UA_ERROR;
 	}
 }
-UA_Int32 UA_TL_Connection_getLocalConfig(UA_TL_Connection connection, TL_Buffer *localConfiguration)
+UA_Int32 UA_TL_Connection_getLocalConfig(UA_TL_Connection *connection, TL_Buffer *localConfiguration)
 {
 	if(connection)
 	{
@@ -152,7 +152,7 @@ UA_Int32 UA_TL_Connection_getLocalConfig(UA_TL_Connection connection, TL_Buffer 
 		return UA_ERROR;
 	}
 }
-UA_Int32 UA_TL_Connection_getHandle(UA_TL_Connection connection, UA_UInt32 *connectionHandle)
+UA_Int32 UA_TL_Connection_getHandle(UA_TL_Connection *connection, UA_UInt32 *connectionHandle)
 {
 	if(connection)
 	{
@@ -164,7 +164,7 @@ UA_Int32 UA_TL_Connection_getHandle(UA_TL_Connection connection, UA_UInt32 *conn
 		}
 }
 
-UA_Int32 UA_TL_Connection_bind(UA_TL_Connection connection, UA_Int32 handle)
+UA_Int32 UA_TL_Connection_bind(UA_TL_Connection *connection, UA_Int32 handle)
 {
 	if(connection)
 	{

@@ -12,7 +12,7 @@
 #define SIZE_SECURECHANNEL_HEADER 12
 #define SIZE_SEQHEADER_HEADER 8
 
-static UA_Int32 SL_Send(SL_Channel channel,
+static UA_Int32 SL_Send(SL_Channel *channel,
 		const UA_ByteString * responseMessage, UA_Int32 type)
 {
 	UA_UInt32 pos = 0;
@@ -20,8 +20,8 @@ static UA_Int32 SL_Send(SL_Channel channel,
 	UA_UInt32 channelId;
 	UA_UInt32 sequenceNumber;
 	UA_UInt32 requestId;
-	UA_TL_Connection connection;
 	UA_NodeId resp_nodeid;
+	UA_TL_Connection *connection;
 	UA_AsymmetricAlgorithmSecurityHeader *asymAlgSettings = UA_NULL;
 
 	resp_nodeid.encodingByte = UA_NODEIDTYPE_FOURBYTE;
@@ -129,7 +129,7 @@ static void init_response_header(UA_RequestHeader const * p,
 #define RESPONSE_PREPARE(TYPE) \
 	UA_##TYPE##Request p; \
 	UA_##TYPE##Response r; \
-	UA_Session session = UA_NULL; \
+	UA_Session *session = UA_NULL; \
 	UA_##TYPE##Request_decodeBinary(msg, &recvOffset, &p); \
 	UA_##TYPE##Response_init(&r); \
 	init_response_header(&p.requestHeader, &r.responseHeader); \
@@ -167,7 +167,7 @@ static void init_response_header(UA_RequestHeader const * p,
 	UA_##TYPE##Response_deleteMembers(&r); \
 
 
-UA_Int32 SL_handleRequest(SL_Channel channel, const UA_ByteString* msg,
+UA_Int32 SL_handleRequest(SL_Channel *channel, const UA_ByteString* msg,
 		UA_UInt32 *pos)
 {
 	UA_Int32 retval = UA_SUCCESS;
@@ -399,7 +399,7 @@ UA_Int32 SL_handleRequest(SL_Channel channel, const UA_ByteString* msg,
 	return retval;
 }
 
-UA_Int32 SL_ProcessOpenChannel(SL_Channel channel, const UA_ByteString* msg,
+UA_Int32 SL_ProcessOpenChannel(SL_Channel *channel, const UA_ByteString* msg,
 		UA_UInt32 *pos)
 {
 	UA_Int32 retval = UA_SUCCESS;
@@ -413,7 +413,7 @@ UA_Int32 SL_ProcessOpenChannel(SL_Channel channel, const UA_ByteString* msg,
 	return SL_handleRequest(channel, msg, pos) | retval;
 }
 /* not used anymore */
-//UA_Int32 SL_ProcessCloseChannel(SL_Channel channel, const UA_ByteString* msg,
+//UA_Int32 SL_ProcessCloseChannel(SL_Channel *channel, const UA_ByteString* msg,
 //		UA_UInt32 *pos)
 //{
 //	return SL_handleRequest(channel, msg, pos);
@@ -425,7 +425,7 @@ UA_Int32 SL_Process(const UA_ByteString* msg,
 	DBG_VERBOSE(printf("SL_process - entered \n"));
 	UA_UInt32 secureChannelId;
 	UA_UInt32 foundChannelId;
-	SL_Channel channel;
+	SL_Channel *channel;
 	UA_SequenceHeader sequenceHeader;
 
 

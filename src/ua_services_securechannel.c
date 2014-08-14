@@ -1,7 +1,7 @@
 #include "ua_services.h"
 #include "ua_transport_binary_secure.h"
 
-UA_Int32 Service_OpenSecureChannel(SL_Channel channel,
+UA_Int32 Service_OpenSecureChannel(SL_Channel *channel,
 const UA_OpenSecureChannelRequest* request,
 UA_OpenSecureChannelResponse* response)
 {
@@ -13,7 +13,7 @@ UA_OpenSecureChannelResponse* response)
 	return retval;
 }
 
-UA_Int32 Service_CloseSecureChannel(SL_Channel channel, const UA_CloseSecureChannelRequest *request,
+UA_Int32 Service_CloseSecureChannel(SL_Channel *channel, const UA_CloseSecureChannelRequest *request,
 UA_CloseSecureChannelResponse *response)
 {
 	UA_Int32 retval = UA_SUCCESS;

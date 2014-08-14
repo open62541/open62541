@@ -34,7 +34,7 @@ typedef struct TL_Connection_T {
 } TL_Connection;
 */
 
-UA_Int32 TL_Send(UA_TL_Connection connection, const UA_ByteString** gather_buf, UA_UInt32 gather_len);
-UA_Int32 TL_Process(UA_TL_Connection connection, const UA_ByteString* msg);
+UA_Int32 TL_Send(UA_TL_Connection *connection, const UA_ByteString** gather_buf, UA_UInt32 gather_len);
+UA_Int32 TL_Process(UA_TL_Connection *connection, const UA_ByteString* msg);
 
 #endif /* OPCUA_TRANSPORT_BINARY_H_ */

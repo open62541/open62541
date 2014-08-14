@@ -9,12 +9,12 @@
 #include <time.h>
 #include <stdlib.h>
 
-typedef struct SL_Channel {
+struct SL_Channel {
 	SL_channelState state;
 	UA_UInt32 channelId;
 	//TL_Connection* tlConnection;
 
-	UA_TL_Connection connection;
+	UA_TL_Connection *connection;
 	UA_UInt32 requestId;
 	//UA_UInt32 lastRequestId;
 
@@ -33,7 +33,7 @@ typedef struct SL_Channel {
 	SL_ChannelIdProvider channelIdProvider;
 };
 
-UA_Int32 SL_Channel_setRemoteSecuritySettings(SL_Channel channel,
+UA_Int32 SL_Channel_setRemoteSecuritySettings(SL_Channel *channel,
 		UA_AsymmetricAlgorithmSecurityHeader *asymSecHeader,
 		UA_SequenceHeader *sequenceHeader) {
 	UA_Int32 retval = UA_SUCCESS;
@@ -47,7 +47,7 @@ UA_Int32 SL_Channel_setRemoteSecuritySettings(SL_Channel channel,
 	return retval;
 }
 /*
-UA_Int32 SL_Channel_initLocalSecuritySettings(SL_Channel channel)
+UA_Int32 SL_Channel_initLocalSecuritySettings(SL_Channel *channel)
 {
 	UA_Int32 retval = UA_SUCCESS;
 	channel->localAsymAlgSettings.receiverCertificateThumbprint.data = UA_NULL;
@@ -65,7 +65,7 @@ UA_Int32 SL_Channel_new(SL_Channel **channel) {
 	retval |= UA_alloc((void** )channel, sizeof(SL_Channel));
 	SL_Channel *thisChannel = UA_NULL;
 	retval |= UA_alloc((void** )&thisChannel, sizeof(SL_Channel));
-	**channel = (SL_Channel) thisChannel;
+	*channel = thisChannel;
 	return retval;
 }
 
@@ -78,7 +78,7 @@ UA_Int32 SL_Channel_generateNonce(UA_ByteString *nonce) {
 	return UA_SUCCESS;
 }
 
-UA_Int32 SL_Channel_init(SL_Channel channel, UA_TL_Connection connection,
+UA_Int32 SL_Channel_init(SL_Channel *channel, UA_TL_Connection *connection,
 		SL_ChannelIdProvider channelIdProvider,
 		SL_ChannelSecurityTokenProvider tokenProvider) {
 
@@ -109,13 +109,13 @@ UA_Int32 SL_Channel_init(SL_Channel channel, UA_TL_Connection connection,
 	return retval;
 }
 
-UA_Int32 SL_Channel_registerTokenProvider(SL_Channel channel,
+UA_Int32 SL_Channel_registerTokenProvider(SL_Channel *channel,
 		SL_ChannelSecurityTokenProvider provider) {
 	channel->tokenProvider = provider;
 	return UA_SUCCESS;
 }
 
-UA_Int32 SL_Channel_getRemainingLifetime(SL_Channel channel, UA_Int32 *lifetime) {
+UA_Int32 SL_Channel_getRemainingLifetime(SL_Channel *channel, UA_Int32 *lifetime) {
 	if (channel) {
 		UA_Int64 diffInMS =
 				(channel->securityToken.createdAt
@@ -133,7 +133,7 @@ UA_Int32 SL_Channel_getRemainingLifetime(SL_Channel channel, UA_Int32 *lifetime)
 	}
 }
 
-UA_Int32 SL_Channel_getChannelId(SL_Channel channel, UA_UInt32 *channelId) {
+UA_Int32 SL_Channel_getChannelId(SL_Channel *channel, UA_UInt32 *channelId) {
 	if (channel) {
 		*channelId = channel->channelId;
 		return UA_SUCCESS;
@@ -141,7 +141,7 @@ UA_Int32 SL_Channel_getChannelId(SL_Channel channel, UA_UInt32 *channelId) {
 	return UA_ERROR;
 }
 
-UA_Int32 SL_Channel_getTokenId(SL_Channel channel, UA_UInt32 *tokenId) {
+UA_Int32 SL_Channel_getTokenId(SL_Channel *channel, UA_UInt32 *tokenId) {
 	if (channel) {
 		*tokenId = channel->securityToken.tokenId;
 		return UA_SUCCESS;
@@ -149,7 +149,7 @@ UA_Int32 SL_Channel_getTokenId(SL_Channel channel, UA_UInt32 *tokenId) {
 	return UA_ERROR;
 }
 
-UA_Int32 SL_Channel_getLocalAsymAlgSettings(SL_Channel channel,
+UA_Int32 SL_Channel_getLocalAsymAlgSettings(SL_Channel *channel,
 		UA_AsymmetricAlgorithmSecurityHeader **asymAlgSettings) {
 	UA_Int32 retval = 0;
 
@@ -172,22 +172,22 @@ UA_Int32 SL_Channel_getLocalAsymAlgSettings(SL_Channel channel,
 	return UA_SUCCESS;
 }
 
-UA_Int32 SL_Channel_getConnection(SL_Channel channel,
-		UA_TL_Connection *connection) {
+UA_Int32 SL_Channel_getConnection(SL_Channel *channel,
+		UA_TL_Connection **connection) {
 	if (channel) {
 		*connection = channel->connection;
 		return UA_SUCCESS;
 	}
 	return UA_ERROR;
 }
-UA_Int32 SL_Channel_getRequestId(SL_Channel channel, UA_UInt32 *requestId) {
+UA_Int32 SL_Channel_getRequestId(SL_Channel *channel, UA_UInt32 *requestId) {
 	if (channel) {
 		*requestId = channel->requestId;
 		return UA_SUCCESS;
 	}
 	return UA_ERROR;
 }
-UA_Int32 SL_Channel_getSequenceNumber(SL_Channel channel,
+UA_Int32 SL_Channel_getSequenceNumber(SL_Channel *channel,
 		UA_UInt32 *sequenceNumber) {
 	if (channel) {
 		*sequenceNumber = channel->sequenceNumber;
@@ -195,7 +195,7 @@ UA_Int32 SL_Channel_getSequenceNumber(SL_Channel channel,
 	}
 	return UA_ERROR;
 }
-UA_Int32 SL_Channel_getState(SL_Channel channel, SL_channelState *channelState) {
+UA_Int32 SL_Channel_getState(SL_Channel *channel, SL_channelState *channelState) {
 	if (channel) {
 		*channelState = channel->state;
 		return UA_SUCCESS;
@@ -203,7 +203,7 @@ UA_Int32 SL_Channel_getState(SL_Channel channel, SL_channelState *channelState) 
 	return UA_ERROR;
 }
 
-UA_Int32 SL_Channel_getRevisedLifetime(SL_Channel channel,
+UA_Int32 SL_Channel_getRevisedLifetime(SL_Channel *channel,
 		UA_UInt32 *revisedLifetime) {
 	if (channel) {
 		*revisedLifetime =
@@ -214,27 +214,27 @@ UA_Int32 SL_Channel_getRevisedLifetime(SL_Channel channel,
 }
 
 //setters
-UA_Int32 SL_Channel_setId(SL_Channel channel, UA_UInt32 id) {
+UA_Int32 SL_Channel_setId(SL_Channel *channel, UA_UInt32 id) {
 	channel->channelId = id;
 	return UA_SUCCESS;
 }
 
 //private function
-UA_Int32 SL_Channel_setState(SL_Channel channel, SL_channelState channelState) {
+UA_Int32 SL_Channel_setState(SL_Channel *channel, SL_channelState channelState) {
 	channel->state = channelState;
 	return UA_SUCCESS;
 }
 
 
 
-UA_Boolean SL_Channel_compare(SL_Channel channel1, SL_Channel channel2) {
+UA_Boolean SL_Channel_compare(SL_Channel *channel1, SL_Channel *channel2) {
 	return (((SL_Channel*) channel1)->channelId
 			== ((SL_Channel*) channel2)->channelId) ?
 	UA_TRUE :
 															UA_FALSE;
 }
 
-UA_Int32 SL_Channel_bind(SL_Channel channel, UA_TL_Connection connection) {
+UA_Int32 SL_Channel_bind(SL_Channel *channel, UA_TL_Connection *connection) {
 	if (channel && connection) {
 		channel->connection = connection;
 		return UA_SUCCESS;
@@ -242,7 +242,7 @@ UA_Int32 SL_Channel_bind(SL_Channel channel, UA_TL_Connection connection) {
 	return UA_ERROR;
 }
 
-UA_Int32 SL_Channel_deleteMembers(SL_Channel channel) {
+UA_Int32 SL_Channel_deleteMembers(SL_Channel *channel) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(
 			&channel->localAsymAlgSettings);
@@ -258,12 +258,12 @@ UA_Int32 SL_Channel_deleteMembers(SL_Channel channel) {
 }
 UA_Int32 SL_Channel_delete(SL_Channel *channel) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval = SL_Channel_deleteMembers(*channel);
-	retval = UA_free(*channel);
+	retval = SL_Channel_deleteMembers(channel);
+	retval = UA_free(channel);
 	return retval;
 }
 
-UA_Int32 SL_Channel_processTokenRequest(SL_Channel channel,
+UA_Int32 SL_Channel_processTokenRequest(SL_Channel *channel,
 		UA_UInt32 requestedLifetime, UA_SecurityTokenRequestType requestType) {
 	if (channel->tokenProvider) {
 		return channel->tokenProvider(channel,
@@ -274,7 +274,7 @@ UA_Int32 SL_Channel_processTokenRequest(SL_Channel channel,
 	printf("SL_Channel_processTokenRequest - no Token provider registered");
 	return UA_ERROR;
 }
-UA_Int32 SL_Channel_renewToken(SL_Channel channel, UA_UInt32 tokenId,
+UA_Int32 SL_Channel_renewToken(SL_Channel *channel, UA_UInt32 tokenId,
 		UA_DateTime revisedLifetime, UA_DateTime createdAt) {
 	channel->securityToken.tokenId = tokenId;
 	channel->securityToken.createdAt = createdAt;
@@ -283,7 +283,7 @@ UA_Int32 SL_Channel_renewToken(SL_Channel channel, UA_UInt32 tokenId,
 	return UA_SUCCESS;
 }
 
-UA_Int32 SL_Channel_checkSequenceNumber(SL_Channel channel,
+UA_Int32 SL_Channel_checkSequenceNumber(SL_Channel *channel,
 		UA_UInt32 sequenceNumber) {
 	//TODO review checking of sequence
 	if (channel->sequenceNumber+1  == sequenceNumber) {
@@ -298,7 +298,7 @@ UA_Int32 SL_Channel_checkSequenceNumber(SL_Channel channel,
 
 }
 
-UA_Int32 SL_Channel_checkRequestId(SL_Channel channel, UA_UInt32 requestId) {
+UA_Int32 SL_Channel_checkRequestId(SL_Channel *channel, UA_UInt32 requestId) {
 	//TODO review checking of request id
 	if (channel->requestId+1  == requestId) {
 		channel->requestId++;
@@ -312,7 +312,7 @@ UA_Int32 SL_Channel_checkRequestId(SL_Channel channel, UA_UInt32 requestId) {
 
 }
 
-UA_Int32 SL_Channel_processOpenRequest(SL_Channel channel,
+UA_Int32 SL_Channel_processOpenRequest(SL_Channel *channel,
 		const UA_OpenSecureChannelRequest* request,
 		UA_OpenSecureChannelResponse* response) {
 	UA_UInt32 protocolVersion;
@@ -407,7 +407,7 @@ UA_Int32 SL_Channel_processOpenRequest(SL_Channel channel,
 	return retval;
 }
 
-UA_Int32 SL_Channel_processCloseRequest(SL_Channel channel,
+UA_Int32 SL_Channel_processCloseRequest(SL_Channel *channel,
 		const UA_CloseSecureChannelRequest* request) {
 	SL_Channel_setState(channel, UA_SL_CHANNEL_CLOSED);
 	return UA_SUCCESS;
