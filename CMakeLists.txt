@@ -84,6 +84,7 @@ set(lib_sources src/ua_types.c
                 src/ua_stack_session.c
                 src/ua_transport_connection.c
                 src/ua_transport_connection_manager.c
+				src/ua_server.c
                 src/util/ua_util.c
                 src/util/ua_list.c
                 src/util/ua_indexedList.c

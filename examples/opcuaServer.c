@@ -14,6 +14,7 @@
 #include <signal.h>
 #include "ua_stack_channel_manager.h"
 #include "ua_stack_session_manager.h"
+#include "ua_server.h"
 
 UA_Boolean running = UA_TRUE;
 
