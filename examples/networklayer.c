@@ -1,9 +1,23 @@
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <sys/socketvar.h>
 
-#include <unistd.h> // read, write, close
+#ifdef WIN32
+#pragma comment (lib,"ws2_32.lib")
+#include <sys/types.h>
+	#include <winsock2.h>
+	#include <Windows.h>
+	#include <ws2tcpip.h>
+
+    #define CLOSESOCKET(S) closesocket(S) \
+	WSACleanup();
+	#define IOCTLSOCKET ioctlsocket
+#else
+#define CLOSESOCKET(S) close(S)
+	#define IOCTLSOCKET ioctl
+	#include <sys/socket.h>
+	#include <netinet/in.h>
+	#include <sys/socketvar.h>
+	#include <unistd.h> // read, write, close
+#endif
+
 #include <stdlib.h> // exit
 #include <errno.h> // errno, EINTR
 
@@ -32,7 +46,16 @@ _Bool NL_ConnectionComparer(void *p1, void* p2) {
 	return (c1->connectionHandle == c2->connectionHandle);
 
 }
+
 int NL_TCP_SetNonBlocking(int sock) {
+#ifdef WIN32
+	UA_Int64 iMode = 1;
+	int opts = IOCTLSOCKET(sock, FIONBIO, &iMode);
+	if (opts != NO_ERROR){
+		printf("ioctlsocket failed with error: %ld\n", opts);
+		return - 1;
+	}
+#else
 	int opts = fcntl(sock,F_GETFL);
 	if (opts < 0) {
 		perror("fcntl(F_GETFL)");
@@ -43,6 +66,7 @@ int NL_TCP_SetNonBlocking(int sock) {
 		perror("fcntl(F_SETFL)");
 		return -1;
 	}
+#endif
 	return 0;
 }
 
@@ -52,6 +76,9 @@ void NL_Connection_printf(void* payload) {
 }
 void NL_addHandleToSet(UA_Int32 handle, NL_data* nl) {
 	FD_SET(handle, &(nl->readerHandles));
+#ifdef WIN32
+	int err = WSAGetLastError();
+#endif
 	nl->maxReaderHandle = (handle > nl->maxReaderHandle) ? handle : nl->maxReaderHandle;
 }
 void NL_setFdSet(void* payload) {
@@ -79,9 +106,17 @@ UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), v
 		// and wait
 		DBG_VERBOSE(printf("UA_Stack_msgLoop - enter select sec=%d,usec=%d\n",(UA_Int32) tmptv.tv_sec, (UA_Int32) tmptv.tv_usec));
 		result = select(nl->maxReaderHandle + 1, &(nl->readerHandles), UA_NULL, UA_NULL, &tmptv);
+
 		DBG_VERBOSE(printf("UA_Stack_msgLoop - leave select result=%d,sec=%d,usec=%d\n",result, (UA_Int32) tmptv.tv_sec, (UA_Int32) tmptv.tv_usec));
+#ifdef WIN32
+		if (result == -1) {
+			DBG_ERR(printf("UA_Stack_msgLoop - errno = { %d, %s }\n", WSAGetLastError()));
+		}
+		else if (result >= 0){ // activity on listener or client ports
+#else
 		if (result == 0) {
-			int err = errno;
+			UA_Int32 err = errno;
+
 			switch (err) {
 			case EBADF:
 			case EINTR:
@@ -96,13 +131,16 @@ UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), v
 
 				DBG_VERBOSE(printf("UA_Stack_msgLoop - return from worker\n"));
 			}
-		} else { // activity on listener or client ports
+		}
+
+		else if (result > 0){ // activity on listener or client ports
+#endif
 			DBG_VERBOSE(printf("UA_Stack_msgLoop - activities on %d handles\n",result));
 			UA_list_iteratePayload(&(nl->connections),NL_checkFdSet);
-
 		}
 		worker(arg);
 	}
+
 	return UA_SUCCESS;
 }
 #endif
@@ -123,8 +161,11 @@ void* NL_TCP_reader(NL_Connection *c) {
 	if (c->state  != CONNECTIONSTATE_CLOSE) {
 		DBG_VERBOSE(printf("NL_TCP_reader - enter read\n"));
 
-
+#ifdef WIN32
+		readBuffer.length = recv(c->connectionHandle, readBuffer.data, localBuffers.recvBufferSize, 0);
+#else
 		readBuffer.length = read(c->connectionHandle, readBuffer.data, localBuffers.recvBufferSize);
+#endif
 		DBG_VERBOSE(printf("NL_TCP_reader - leave read\n"));
 
 		DBG_VERBOSE(printf("NL_TCP_reader - src={%*.s}, ",c->connection.remoteEndpointUrl.length,c->connection.remoteEndpointUrl.data));
@@ -155,12 +196,8 @@ void* NL_TCP_reader(NL_Connection *c) {
 		}
 	}
 	UA_TL_Connection_getState(c->connection, &connectionState);
-	if (connectionState == CONNECTIONSTATE_CLOSED) {
-		//UA_TL_Connection_close(c->connection);
-
-		//c->state  = CONNECTIONSTATE_CLOSED;
-
-
+	if (connectionState == CONNECTIONSTATE_CLOSE) {
+		UA_TL_Connection_close(c->connection);
 #ifndef MULTITHREADING
 		DBG_VERBOSE(printf("NL_TCP_reader - search element to remove\n"));
 		UA_list_Element* lec = UA_list_search(&(c->networkLayer->connections),NL_ConnectionComparer,c);
@@ -170,7 +207,6 @@ void* NL_TCP_reader(NL_Connection *c) {
 		UA_free(c);
 #endif
 	}
-	
 	UA_ByteString_deleteMembers(&readBuffer);
 	return UA_NULL;
 }
@@ -191,8 +227,19 @@ void* NL_TCP_readerThread(NL_Connection *c) {
 /** write message provided in the gather buffers to a tcp transport layer connection */
 UA_Int32 NL_TCP_writer(UA_Int32 connectionHandle, UA_ByteString const * const * gather_buf, UA_UInt32 gather_len) {
 
-	struct iovec iov[gather_len];
 	UA_UInt32 total_len = 0;
+#ifdef WIN32
+	WSABUF *buf = malloc(gather_len * sizeof(WSABUF));
+	int result = 0;
+	for (UA_UInt32 i = 0; i<gather_len; i++) {
+		buf[i].buf = gather_buf[i]->data;
+		buf[i].len = gather_buf[i]->length;
+		total_len += gather_buf[i]->length;
+		//		DBG(printf("NL_TCP_writer - gather_buf[%i]",i));
+		//		DBG(UA_ByteString_printx("=", gather_buf[i]));
+	}
+#else
+	struct iovec iov[gather_len];
 	for(UA_UInt32 i=0;i<gather_len;i++) {
 		iov[i].iov_base = gather_buf[i]->data;
 		iov[i].iov_len = gather_buf[i]->length;
@@ -200,7 +247,6 @@ UA_Int32 NL_TCP_writer(UA_Int32 connectionHandle, UA_ByteString const * const * 
 //		DBG(printf("NL_TCP_writer - gather_buf[%i]",i));
 //		DBG(UA_ByteString_printx("=", gather_buf[i]));
 	}
-
 	struct msghdr message;
 	message.msg_name = UA_NULL;
 	message.msg_namelen = 0;
@@ -209,13 +255,25 @@ UA_Int32 NL_TCP_writer(UA_Int32 connectionHandle, UA_ByteString const * const * 
 	message.msg_control = UA_NULL;
 	message.msg_controllen = 0;
 	message.msg_flags = 0;
-	
+#endif
+
+
 	UA_UInt32 nWritten = 0;
 	while (nWritten < total_len) {
 		int n=0;
 		do {
 			DBG_VERBOSE(printf("NL_TCP_writer - enter write with %d bytes to write\n",total_len));
+
+#ifdef WIN32
+			//result = WSASendMsg(connectionHandle,&message,0,&n,UA_NULL,UA_NULL);
+			result = WSASend(connectionHandle, buf, gather_len , &n, 0, NULL, NULL);
+			if(result != 0)
+			{
+				printf("NL_TCP_Writer - Error WSASend, code: %d \n", WSAGetLastError());
+			}
+#else
 			n = sendmsg(connectionHandle, &message, 0);
+#endif
 			DBG_VERBOSE(printf("NL_TCP_writer - leave write with n=%d,errno={%d,%s}\n",n,(n>0)?0:errno,(n>0)?"":strerror(errno)));
 		} while (n == -1L && errno == EINTR);
 		if (n >= 0) {
@@ -227,6 +285,9 @@ UA_Int32 NL_TCP_writer(UA_Int32 connectionHandle, UA_ByteString const * const * 
 			// TODO: error handling
 		}
 	}
+#ifdef WIN32
+	free(buf);
+#endif
 	return UA_SUCCESS;
 }
 //callback function which is called when the UA_TL_Connection_close() function is initiated
@@ -238,7 +299,8 @@ UA_Int32 NL_Connection_close(UA_TL_Connection *connection)
 		DBG_VERBOSE(printf("NL_Connection_close - enter shutdown\n"));
 		shutdown(networkLayerData->connectionHandle,2);
 		DBG_VERBOSE(printf("NL_Connection_close - enter close\n"));
-		close(networkLayerData->connectionHandle);
+		CLOSESOCKET(networkLayerData->connectionHandle);
+		FD_CLR(networkLayerData->connectionHandle, &networkLayerData->networkLayer->readerHandles);
 		DBG_VERBOSE(printf("NL_Connection_close - leave close\n"));
 		return UA_SUCCESS;
 	}
@@ -267,6 +329,7 @@ void* NL_TCP_listen(NL_Connection* c) {
 	NL_data* tld = c->networkLayer;
 
 	DBG_VERBOSE(printf("NL_TCP_listen - enter listen\n"));
+
 
 	int retval = listen(c->connectionHandle, tld->tld->maxConnections);
 	DBG_VERBOSE(printf("NL_TCP_listen - leave listen, retval=%d\n",retval));
@@ -319,30 +382,52 @@ UA_Int32 NL_TCP_init(NL_data* tld, UA_Int32 port) {
 	UA_Int32 retval = UA_SUCCESS;
 	// socket variables
 	int newsockfd;
-	int optval = 1;
+
 	struct sockaddr_in serv_addr;
 
 
 	// create socket for listening to incoming connections
+#ifdef WIN32
+	WORD wVersionRequested;
+	WSADATA wsaData;
+	int err;
+
+	/* Use the MAKEWORD(lowbyte, highbyte) macro declared in Windef.h */
+	wVersionRequested = MAKEWORD(2, 2);
+
+	err = WSAStartup(wVersionRequested, &wsaData);
+	newsockfd = socket(PF_INET, SOCK_STREAM,0);
+	if (newsockfd == INVALID_SOCKET){
+		UA_Int32 lasterror = WSAGetLastError();
+		printf("ERROR opening socket, code: %d\n",WSAGetLastError());
+#else
 	newsockfd = socket(PF_INET, SOCK_STREAM, 0);
 	if (newsockfd < 0) {
+#endif
+
+
 		perror("ERROR opening socket");
 		retval = UA_ERROR;
-	} else {
+	}
+	else {
 		// set port number, options and bind
-		memset((void *) &serv_addr, sizeof(serv_addr),1);
+		memset((void *)&serv_addr, sizeof(serv_addr), 1);
 		serv_addr.sin_family = AF_INET;
 		serv_addr.sin_addr.s_addr = INADDR_ANY;
 		serv_addr.sin_port = htons(port);
-		if (setsockopt(newsockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval) == -1 ) {
+
+		int optval = 1;
+		if (setsockopt(newsockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval) == -1) {
 			perror("setsockopt");
 			retval = UA_ERROR;
-		} else {
+		}
+		else {
 			// bind to port
 			if (bind(newsockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
 				perror("ERROR on binding");
 				retval = UA_ERROR;
-			} else {
+			}
+			else {
 				UA_String_copyprintf("opc.tcp://localhost:%d/", &(tld->endpointUrl), port);
 			}
 		}
@@ -359,6 +444,9 @@ UA_Int32 NL_TCP_init(NL_data* tld, UA_Int32 port) {
 #else
 		UA_list_addPayloadToBack(&(tld->connections),c);
 		NL_TCP_SetNonBlocking(c->connectionHandle);
+#ifdef WIN32
+		listen(c->connectionHandle, 0);
+#endif /*WIN32*/
 #endif
 	}
 	return retval;
