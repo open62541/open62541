@@ -38,7 +38,7 @@ make doc # generate documentation
 ```
 
 ### Windows (Visual Studio)
-* Get and install Python and CMake: https://python.org/downloads, http://www.cmake.org/cmake/resources/software.html
+* Get and install Python 2.7.x and CMake: https://python.org/downloads, http://www.cmake.org/cmake/resources/software.html
 * Get and install Visual Studio 2013 (Express): http://www.microsoft.com/en-US/download/details.aspx?id=40787
 * Download the open62541 sources (using git or as a zipfile from github)
 * Add the folder with the python executable to the Windows PATH (System Settings)

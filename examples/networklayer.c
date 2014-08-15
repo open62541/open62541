@@ -1,14 +1,14 @@
+#include "networklayer.h"
+#include "ua_transport_connection.h"
 
 #ifdef WIN32
 #pragma comment (lib,"ws2_32.lib")
-#include <sys/types.h>
-	#include <winsock2.h>
-	#include <Windows.h>
-	#include <ws2tcpip.h>
-
-    #define CLOSESOCKET(S) closesocket(S) \
+#define CLOSESOCKET(S) closesocket(S); \
 	WSACleanup();
 	#define IOCTLSOCKET ioctlsocket
+	#include <sys/types.h>
+	#include <Windows.h>
+	#include <ws2tcpip.h>
 #else
 #define CLOSESOCKET(S) close(S)
 	#define IOCTLSOCKET ioctl
@@ -24,8 +24,6 @@
 #include <memory.h> // memset
 #include <fcntl.h> // fcntl
 
-#include "networklayer.h"
-#include "ua_transport_connection.h"
 NL_Description NL_Description_TcpBinary  = {
 	NL_UA_ENCODING_BINARY,
 	NL_CONNECTIONTYPE_TCPV4,
@@ -324,21 +322,11 @@ void* NL_Connection_init(NL_Connection* c, NL_data* tld, UA_Int32 connectionHand
 	return UA_NULL;
 }
 
-/** the tcp listener routine */
-void* NL_TCP_listen(NL_Connection* c) {
+/** the tcp accept routine */
+void* NL_TCP_accept(NL_Connection* c) {
 	NL_data* tld = c->networkLayer;
 
-	DBG_VERBOSE(printf("NL_TCP_listen - enter listen\n"));
-
-
-	int retval = listen(c->connectionHandle, tld->tld->maxConnections);
-	DBG_VERBOSE(printf("NL_TCP_listen - leave listen, retval=%d\n",retval));
-
-	if (retval < 0) {
-		// TODO: Error handling
-		perror("NL_TCP_listen");
-		DBG_ERR(printf("NL_TCP_listen retval=%d, errno={%d,%s}\n",retval,errno,strerror(errno)));
-	} else if (tld->tld->maxConnections == -1 || tld->connections.size < tld->tld->maxConnections) {
+	if (tld->tld->maxConnections == -1 || tld->connections.size < tld->tld->maxConnections) {
 		// accept only if not max number of connections exceeded
 		struct sockaddr_in cli_addr;
 		socklen_t cli_len = sizeof(cli_addr);
@@ -369,8 +357,19 @@ void* NL_TCP_listen(NL_Connection* c) {
 
 #ifdef MULTITHREADING
 void* NL_TCP_listenThread(NL_Connection* c) {
+	NL_data* tld = c->networkLayer;
 	do {
-		NL_TCP_listen(c);
+		DBG_VERBOSE(printf("NL_TCP_listenThread - enter listen\n"));
+		int retval = listen(c->connectionHandle, tld->tld->maxConnections);
+		DBG_VERBOSE(printf("NL_TCP_listenThread - leave listen, retval=%d\n", retval));
+
+		if (retval < 0) {
+			// TODO: Error handling
+			perror("NL_TCP_listen");
+			DBG_ERR(printf("NL_TCP_listen retval=%d, errno={%d,%s}\n", retval, errno, strerror(errno)));
+		} else {
+			NL_TCP_accept(c);
+		}
 	} while (UA_TRUE);
 	UA_free(c);
 	pthread_exit(UA_NULL);
@@ -438,15 +437,13 @@ UA_Int32 NL_TCP_init(NL_data* tld, UA_Int32 port) {
 		NL_Connection* c;
 		UA_Int32 retval = UA_SUCCESS;
 		retval |= UA_alloc((void**)&c,sizeof(NL_Connection));
-		NL_Connection_init(c, tld, newsockfd, NL_TCP_listen, (TL_Writer) NL_TCP_writer);
+		NL_Connection_init(c, tld, newsockfd, NL_TCP_accept, (TL_Writer) NL_TCP_writer);
 #ifdef MULTITHREADING
 		pthread_create( &(c->readerThreadHandle), NULL, (void*(*)(void*)) NL_TCP_listenThread, (void*) c);
 #else
 		UA_list_addPayloadToBack(&(tld->connections),c);
 		NL_TCP_SetNonBlocking(c->connectionHandle);
-#ifdef WIN32
-		listen(c->connectionHandle, 0);
-#endif /*WIN32*/
+		listen(c->connectionHandle, tld->tld->maxConnections);
 #endif
 	}
 	return retval;

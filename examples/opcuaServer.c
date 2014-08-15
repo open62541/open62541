@@ -4,10 +4,13 @@
 #include "networklayer.h"
 #include "ua_application.h"
 
+#ifdef WIN32
+#else
 #include <sys/mman.h>
-#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
+#include <sys/types.h>
 #include <time.h>
 #include <fcntl.h>
 
@@ -40,7 +43,7 @@ UA_Int32 serverCallback(void * arg) {
 
 
 int main(int argc, char** argv) {
-
+	UA_Int32 retval;
 	/* gets called at ctrl-c */
 	signal(SIGINT, stopHandler);
 	
@@ -51,6 +54,8 @@ int main(int argc, char** argv) {
 	SL_ChannelManager_init(10,36000,244,2,&endpointUrl);
 	UA_SessionManager_init(10,3600000,25);
 	struct timeval tv = {1, 0}; // 1 second
-	NL_msgLoop(nl, &tv, serverCallback, argv[0], &running);
 
+	retval = NL_msgLoop(nl, &tv, serverCallback, argv[0], &running);
+
+	return retval == UA_SUCCESS ? 0 : retval;
 }

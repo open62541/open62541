@@ -10,7 +10,12 @@
 #include <pthread.h> // pthreadcreate, pthread_t
 #endif
 
-#include <sys/select.h> // FD_ZERO, FD_SET
+// fd_set, FD_ZERO, FD_SET
+#ifdef WIN32
+#include <winsock2.h>
+#else
+#include <sys/select.h> 
+#endif
 
 #define NL_MAXCONNECTIONS_DEFAULT 10
 
