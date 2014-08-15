@@ -36,7 +36,7 @@ script:
    - echo "Debug build and unit tests"
    - make clean
    - cmake -DCMAKE_BUILD_TYPE=Debug -DUNIT_TESTS=ON -DENABLE_COVERAGE=ON .. 
-   - make && make check
+   - make && make test
 after_success:
    - git clone --depth=50 -b gh-pages https://$GITAUTH@github.com/acplt/open62541
    - rm -rf open62541/doxygen
