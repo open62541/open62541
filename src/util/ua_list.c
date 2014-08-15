@@ -171,14 +171,16 @@ UA_Int32 UA_list_destroy(UA_list_List* list, UA_list_PayloadVisitor visitor) {
 
 UA_Int32 UA_list_iterateElement(UA_list_List* const list, UA_list_ElementVisitor visitor) {
 	UA_list_Element* current;
+	UA_list_Element* next = UA_NULL;
 	if(list==UA_NULL)
 		return UA_ERROR;
 	current = list->first;
 	while(current){
+		next=current->next;
 		if(visitor){
 			(*visitor)(current);
 		}
-		current=current->next;
+		current = next;
 	}
 	return UA_NO_ERROR;
 }
@@ -196,14 +198,16 @@ UA_Int32 UA_list_iterateElement(UA_list_List* const list, UA_list_ElementVisitor
 /** ANSI C forbids function nesting - reworked ugly version **/
 UA_Int32 UA_list_iteratePayload(UA_list_List* const list, UA_list_PayloadVisitor visitor){
 	UA_list_Element* current;
+	UA_list_Element* next = UA_NULL;
 	if(list==UA_NULL)
 		return UA_ERROR;
 	current = list->first;
 	while(current){
+		next = current->next;
 		if(visitor){
 			(*visitor)(current->payload);
 		}
-		current=current->next;
+		current = next;
 	}
 	return UA_NO_ERROR;
 }
