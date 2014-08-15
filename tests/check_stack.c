@@ -417,7 +417,7 @@ START_TEST(validOpeningCloseSequence) {
 	indicateMsg(handle, &message_003);
 	UA_TL_Connection_getState(stackTestFixture_getFixture(handle)->connection, &connectionState);
 	// then
-	ck_assert_int_eq(connectionState, CONNECTIONSTATE_CLOSE);
+	ck_assert_int_eq(connectionState, CONNECTIONSTATE_CLOSED);
 
 	// finally
 	stackTestFixture_delete(handle);
@@ -668,9 +668,9 @@ int main(void) {
 
 	s  = testSuite();
 	sr = srunner_create(s);
-	//srunner_set_fork_status (sr, CK_NOFORK);
-	//srunner_run_all(sr, CK_NOFORK);
-	srunner_run_all(sr, CK_NORMAL);
+	srunner_set_fork_status (sr, CK_NOFORK);
+	srunner_run_all(sr, CK_NOFORK);
+	//srunner_run_all(sr, CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
 
