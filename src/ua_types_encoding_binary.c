@@ -605,6 +605,9 @@ UA_TYPE_ENCODEBINARY(UA_QualifiedName,
                      retval |= UA_String_encodeBinary(&src->name, dst, offset); )
 
 /* LocalizedText */
+#define UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE 0x01
+#define UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT 0x02
+
 UA_Int32 UA_LocalizedText_calcSizeBinary(UA_LocalizedText const *p) {
 	UA_Int32 length = 1; // for encodingMask
 	if(p == UA_NULL)
@@ -646,35 +649,36 @@ UA_Int32 UA_LocalizedText_decodeBinary(UA_ByteString const *src, UA_UInt32 *offs
 UA_Int32 UA_ExtensionObject_calcSizeBinary(UA_ExtensionObject const *p) {
 	UA_Int32 length = 0;
 	if(p == UA_NULL)
-		length = sizeof(UA_ExtensionObject);
-	else {
-		length += UA_NodeId_calcSizeBinary(&p->typeId);
-		length += 1; //p->encoding
-		switch(p->encoding) {
-		case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING:
-			length += UA_ByteString_calcSizeBinary(&p->body);
-			break;
+		return sizeof(UA_ExtensionObject);
 
-		case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML:
-			length += UA_XmlElement_calcSizeBinary((UA_XmlElement *)&p->body);
-			break;
-		}
+	length += UA_NodeId_calcSizeBinary(&p->typeId);
+	length += 1; // encoding
+	switch(p->encoding) {
+	case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING:
+		length += UA_ByteString_calcSizeBinary(&p->body);
+		break;
+
+	case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML:
+		length += UA_XmlElement_calcSizeBinary((UA_XmlElement *)&p->body);
+		break;
+
+	default:
+		break;
 	}
 	return length;
 }
 
 UA_TYPE_ENCODEBINARY(UA_ExtensionObject,
                      retval |= UA_NodeId_encodeBinary(&src->typeId, dst, offset);
-                     retval |= UA_Byte_encodeBinary(&src->encoding, dst, offset);
+					 UA_Byte encoding = src->encoding;
+                     retval |= UA_Byte_encodeBinary(&encoding, dst, offset);
                      switch(src->encoding) {
 					 case UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED:
 						 break;
 
 					 case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING:
 						 // FIXME: This code is valid for numeric nodeIds in ns0 only!
-						 retval |=
-						     UA_.types[UA_ns0ToVTableIndex(&src->typeId)].encodings[0].encode(src->body.data, dst,
-						                                                                      offset);
+						 retval |= UA_.types[UA_ns0ToVTableIndex(&src->typeId)].encodings[UA_ENCODING_BINARY].encode(src->body.data, dst, offset);
 						 break;
 
 					 case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML:
@@ -685,9 +689,11 @@ UA_TYPE_ENCODEBINARY(UA_ExtensionObject,
 
 UA_Int32 UA_ExtensionObject_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA_ExtensionObject *dst) {
 	UA_Int32 retval = UA_SUCCESS;
+	UA_Byte encoding;
 	UA_ExtensionObject_init(dst);
 	CHECKED_DECODE(UA_NodeId_decodeBinary(src, offset, &dst->typeId), UA_ExtensionObject_deleteMembers(dst));
-	CHECKED_DECODE(UA_Byte_decodeBinary(src, offset, &dst->encoding), UA_ExtensionObject_deleteMembers(dst));
+	CHECKED_DECODE(UA_Byte_decodeBinary(src, offset, &encoding), UA_ExtensionObject_deleteMembers(dst));
+	dst->encoding = encoding;
 	CHECKED_DECODE(UA_String_copy(&UA_STRING_NULL, (UA_String *)&dst->body), UA_ExtensionObject_deleteMembers(dst));
 	switch(dst->encoding) {
 	case UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED:
@@ -697,6 +703,10 @@ UA_Int32 UA_ExtensionObject_decodeBinary(UA_ByteString const *src, UA_UInt32 *of
 	case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML:
 		CHECKED_DECODE(UA_ByteString_decodeBinary(src, offset, &dst->body), UA_ExtensionObject_deleteMembers(dst));
 		break;
+
+	default:
+		UA_ExtensionObject_deleteMembers(dst);
+		return UA_ERROR;
 	}
 	return retval;
 }
@@ -875,19 +885,18 @@ UA_Int32 UA_Variant_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA
 	UA_Byte encodingByte;
 	CHECKED_DECODE(UA_Byte_decodeBinary(src, offset, &encodingByte),; );
 
-	UA_Boolean isArray = encodingByte & (0x01 << 7);                             // Bit 7
-	UA_Boolean hasDimensions = isArray && (encodingByte & (0x01 << 6));            // Bit 6
+	UA_Boolean isArray = encodingByte & UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
+	UA_Boolean hasDimensions = isArray && (encodingByte & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS);
 
 	UA_NodeId typeid = { .nodeIdType = UA_NODEIDTYPE_NUMERIC, .namespace= 0,
-						 .identifier.numeric = encodingByte & 0x3F };
+						 .identifier.numeric = encodingByte & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK };
 	UA_Int32 typeNs0Id = UA_ns0ToVTableIndex(&typeid );
 	dst->vt = &UA_.types[typeNs0Id];
 
 	if(isArray) {
 	CHECKED_DECODE(UA_Int32_decodeBinary(src, offset, &dst->arrayLength),; );
-	CHECKED_DECODE(UA_Array_decodeBinary(src, offset, dst->arrayLength, dst->vt,
-	                                     &dst->data), UA_Variant_deleteMembers(dst));
-	}else {
+	CHECKED_DECODE(UA_Array_decodeBinary(src, offset, dst->arrayLength, dst->vt, &dst->data), UA_Variant_deleteMembers(dst));
+	} else {
 		dst->arrayLength = 1;
 		UA_alloc(&dst->data, dst->vt->memSize);
 		dst->vt->encodings[UA_ENCODING_BINARY].decode(src, offset, dst->data);

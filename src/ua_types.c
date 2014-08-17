@@ -749,7 +749,7 @@ UA_TYPE_NEW_DEFAULT(UA_ExtensionObject)
 UA_Int32 UA_ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
-	retval |= UA_Byte_copy(&src->encoding, &dst->encoding);
+	dst->encoding = src->encoding;
 	retval |= UA_ByteString_copy(&src->body, &dst->body);
 	retval |= UA_NodeId_copy(&src->typeId, &dst->typeId);
 	return retval;

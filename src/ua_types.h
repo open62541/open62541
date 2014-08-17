@@ -166,24 +166,17 @@ typedef struct UA_LocalizedText {
 	UA_String text;
 } UA_LocalizedText;
 
-enum UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_enum {
-	UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE = 0x01,
-	UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT   = 0x02
-};
-
 /** @brief A structure that contains an application specific data type that may
     not be recognized by the receiver. */
 typedef struct UA_ExtensionObject {
-	UA_NodeId     typeId;
-	UA_Byte       encoding;     // Type of the enum UA_ExtensionObjectEncodingMaskType
+	UA_NodeId typeId;
+	enum {
+		UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED  = 0x00,
+		UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING = 0x01,
+		UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML        = 0x02
+	} encoding;
 	UA_ByteString body;         // contains either the bytestring or a pointer to the memory-object
 } UA_ExtensionObject;
-
-enum UA_ExtensionObject_EncodingMaskType_enum {
-	UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED  = 0x00,
-	UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING = 0x01,
-	UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML        = 0x02
-};
 
 struct UA_VTable_Entry; // forwards declaration
 typedef struct UA_VTable_Entry UA_VTable_Entry;
