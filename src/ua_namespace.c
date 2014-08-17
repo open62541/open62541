@@ -90,9 +90,7 @@ static INLINE hash_t hash_array(const UA_Byte *data, UA_UInt32 len) {
 }
 
 static INLINE hash_t hash(const UA_NodeId *n) {
-	switch(n->encodingByte) {
-	case UA_NODEIDTYPE_TWOBYTE:
-	case UA_NODEIDTYPE_FOURBYTE:
+	switch(n->nodeIdType) {
 	case UA_NODEIDTYPE_NUMERIC:
 		/*  Knuth's multiplicative hashing */
 		return n->identifier.numeric * 2654435761;   // mod(2^32) is implicit

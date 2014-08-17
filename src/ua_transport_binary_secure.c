@@ -24,15 +24,13 @@ static UA_Int32 SL_Send(SL_Channel *channel,
 	UA_TL_Connection *connection;
 	UA_AsymmetricAlgorithmSecurityHeader *asymAlgSettings = UA_NULL;
 
-	resp_nodeid.encodingByte = UA_NODEIDTYPE_FOURBYTE;
+	resp_nodeid.nodeIdType = UA_NODEIDTYPE_NUMERIC;
 	resp_nodeid.namespace = 0;
 	resp_nodeid.identifier.numeric = type + 2; // binary encoding
 
 	const UA_ByteString *response_gather[2]; // securechannel_header, seq_header, security_encryption_header, message_length (eventually + padding + size_signature);
 	UA_alloc((void ** )&response_gather[0], sizeof(UA_ByteString));
-	if (isAsym)
-	{
-
+	if (isAsym) {
 		SL_Channel_getLocalAsymAlgSettings(channel, &asymAlgSettings);
 		UA_ByteString_newMembers((UA_ByteString *) response_gather[0],
 				SIZE_SECURECHANNEL_HEADER + SIZE_SEQHEADER_HEADER

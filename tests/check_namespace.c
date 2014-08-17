@@ -31,7 +31,7 @@ END_TEST
 
 UA_Int32 createNode(UA_Node** p, UA_Int16 nsid, UA_Int32 id) {
 	UA_VariableNode_new((UA_VariableNode **)p);
-	(*p)->nodeId.encodingByte = UA_NODEIDTYPE_FOURBYTE;
+	(*p)->nodeId.nodeIdType = UA_NODEIDTYPE_NUMERIC;
 	(*p)->nodeId.namespace = nsid;
 	(*p)->nodeId.identifier.numeric = id;
 	(*p)->nodeClass = UA_NODECLASS_VARIABLE;

@@ -418,7 +418,7 @@ UA_TYPE_AS(UA_XmlElement, UA_ByteString)
 /* NodeId */
 UA_Int32 UA_NodeId_init(UA_NodeId *p) {
 	if(p == UA_NULL) return UA_ERROR;
-	p->encodingByte = UA_NODEIDTYPE_TWOBYTE;
+	p->nodeIdType = UA_NODEIDTYPE_NUMERIC;
 	p->namespace    = 0;
 	memset(&p->identifier, 0, sizeof(p->identifier));
 	return UA_SUCCESS;
@@ -427,16 +427,13 @@ UA_Int32 UA_NodeId_init(UA_NodeId *p) {
 UA_TYPE_NEW_DEFAULT(UA_NodeId)
 UA_Int32 UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst) {
 	UA_Int32 retval = UA_SUCCESS;
-	if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
-	retval |= UA_Byte_copy(&src->encodingByte, &dst->encodingByte);
+	if(src == UA_NULL || dst == UA_NULL)
+		return UA_ERROR;
 
-	switch(src->encodingByte & UA_NODEIDTYPE_MASK) {
-	case UA_NODEIDTYPE_TWOBYTE:
-	case UA_NODEIDTYPE_FOURBYTE:
+	switch(src->nodeIdType) {
 	case UA_NODEIDTYPE_NUMERIC:
-		// nothing to do
-		retval |= UA_UInt16_copy(&src->namespace, &dst->namespace);
-		retval |= UA_UInt32_copy(&src->identifier.numeric, &dst->identifier.numeric);
+		*dst = *src;
+		return UA_SUCCESS;
 		break;
 
 	case UA_NODEIDTYPE_STRING: // Table 6, second entry
@@ -451,19 +448,22 @@ UA_Int32 UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst) {
 		retval |= UA_ByteString_copy(&src->identifier.byteString, &dst->identifier.byteString);
 		break;
 	}
+	dst->nodeIdType = src->nodeIdType;
 	return retval;
 }
+
 UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id) {
-	return (id->namespace == 0 && id->identifier.numeric <= UA_DIAGNOSTICINFO);
+	return (id->namespace == 0 &&
+			id->nodeIdType == UA_NODEIDTYPE_NUMERIC &&
+			id->identifier.numeric <= UA_DIAGNOSTICINFO);
 }
 
 UA_TYPE_DELETE_DEFAULT(UA_NodeId)
 UA_Int32 UA_NodeId_deleteMembers(UA_NodeId *p) {
 	UA_Int32 retval = UA_SUCCESS;
 	if(p == UA_NULL) return retval;
-	switch(p->encodingByte & UA_NODEIDTYPE_MASK) {
-	case UA_NODEIDTYPE_TWOBYTE:
-	case UA_NODEIDTYPE_FOURBYTE:
+
+	switch(p->nodeIdType) {
 	case UA_NODEIDTYPE_NUMERIC:
 		// nothing to do
 		break;
@@ -485,48 +485,50 @@ UA_Int32 UA_NodeId_deleteMembers(UA_NodeId *p) {
 
 #ifdef DEBUG
 void UA_NodeId_print(const UA_NodeId *p, FILE *stream) {
-	if(p == UA_NULL || stream == UA_NULL) return;
+	if(p == UA_NULL || stream == UA_NULL)
+		return;
+
 	fprintf(stream, "(UA_NodeId){");
-	switch(p->encodingByte & UA_NODEIDTYPE_MASK) {
-	case UA_NODEIDTYPE_TWOBYTE:
-		fprintf(stream, "UA_NODEIDTYPE_TWOBYTE");
-		break;
-	case UA_NODEIDTYPE_FOURBYTE:
-		fprintf(stream, "UA_NODEIDTYPE_FOURBYTE");
-		break;
+	switch(p->nodeIdType) {
 	case UA_NODEIDTYPE_NUMERIC:
 		fprintf(stream, "UA_NODEIDTYPE_NUMERIC");
 		break;
+
 	case UA_NODEIDTYPE_STRING:
 		fprintf(stream, "UA_NODEIDTYPE_STRING");
 		break;
+
 	case UA_NODEIDTYPE_BYTESTRING:
 		fprintf(stream, "UA_NODEIDTYPE_BYTESTRING");
 		break;
+
 	case UA_NODEIDTYPE_GUID:
 		fprintf(stream, "UA_NODEIDTYPE_GUID");
 		break;
+
 	default:
 		fprintf(stream, "ERROR");
 		break;
 	}
 	fprintf(stream,",%u,", p->namespace);
-	switch(p->encodingByte & UA_NODEIDTYPE_MASK) {
-	case UA_NODEIDTYPE_TWOBYTE:
-	case UA_NODEIDTYPE_FOURBYTE:
+	switch(p->nodeIdType & UA_NODEIDTYPE_MASK) {
 	case UA_NODEIDTYPE_NUMERIC:
 		fprintf(stream, ".identifier.numeric=%u", p->identifier.numeric);
 		break;
+
 	case UA_NODEIDTYPE_STRING:
 		fprintf(stream, ".identifier.string=%.*s", p->identifier.string.length, p->identifier.string.data);
 		break;
+
 	case UA_NODEIDTYPE_BYTESTRING:
 		fprintf(stream, ".identifier.byteString=%.*s", p->identifier.byteString.length, p->identifier.byteString.data);
 		break;
+
 	case UA_NODEIDTYPE_GUID:
 		fprintf(stream, ".identifer.guid=");
 		UA_Guid_print(&p->identifier.guid, stream);
 		break;
+
 	default:
 		fprintf(stream, "ERROR");
 		break;
@@ -535,61 +537,23 @@ void UA_NodeId_print(const UA_NodeId *p, FILE *stream) {
 }
 #endif
 
-#ifdef DEBUG
-void UA_NodeId_printf(char *label, const UA_NodeId *node) {
-	UA_Int32 l;
-
-	printf("%s {encodingByte=%d, namespace=%d,", label, (int)( node->encodingByte), (int)(node->namespace));
-	switch(node->encodingByte & UA_NODEIDTYPE_MASK) {
-	case UA_NODEIDTYPE_TWOBYTE:
-	case UA_NODEIDTYPE_FOURBYTE:
-	case UA_NODEIDTYPE_NUMERIC:
-		printf("identifier=%d\n", node->identifier.numeric);
-		break;
-	case UA_NODEIDTYPE_STRING:
-		l = ( node->identifier.string.length < 0 ) ? 0 : node->identifier.string.length;
-		printf("identifier={length=%d, data=%.*s}",
-			   node->identifier.string.length, l,
-			   (char *)(node->identifier.string.data));
-		break;
-	case UA_NODEIDTYPE_BYTESTRING:
-		l = ( node->identifier.byteString.length < 0 ) ? 0 : node->identifier.byteString.length;
-		printf("identifier={Length=%d, data=%.*s}",
-			   node->identifier.byteString.length, l,
-			   (char *)(node->identifier.byteString.data));
-		break;
-	case UA_NODEIDTYPE_GUID:
-		printf(
-			   "guid={data1=%d, data2=%d, data3=%d, data4={length=%d, data=%.*s}}",
-			   node->identifier.guid.data1, node->identifier.guid.data2,
-			   node->identifier.guid.data3, 8,
-			   8,
-			   (char *)(node->identifier.guid.data4));
-		break;
-	default:
-		printf("ups! shit happens");
-		break;
-	}
-	printf("}\n");
-}
-#endif
-
 UA_Int32 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
 	if(n1 == UA_NULL || n2 == UA_NULL || n1->namespace != n2->namespace)
 		return UA_NOT_EQUAL;
 
-	switch(n1->encodingByte & UA_NODEIDTYPE_MASK) {
-	case UA_NODEIDTYPE_TWOBYTE:
-	case UA_NODEIDTYPE_FOURBYTE:
+	switch(n1->nodeIdType) {
 	case UA_NODEIDTYPE_NUMERIC:
 		if(n1->identifier.numeric == n2->identifier.numeric)
 			return UA_EQUAL;
 		else
 			return UA_NOT_EQUAL;
+
 	case UA_NODEIDTYPE_STRING:
 		return UA_String_equal(&n1->identifier.string, &n2->identifier.string);
+
 	case UA_NODEIDTYPE_GUID:
 		return UA_Guid_equal(&n1->identifier.guid, &n2->identifier.guid);
+
 	case UA_NODEIDTYPE_BYTESTRING:
 		return UA_ByteString_equal(&n1->identifier.byteString, &n2->identifier.byteString);
 	}
@@ -597,12 +561,7 @@ UA_Int32 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
 }
 
 UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
-	switch(p->encodingByte & UA_NODEIDTYPE_MASK) {
-	case UA_NODEIDTYPE_TWOBYTE:
-		if(p->identifier.numeric != 0) return UA_FALSE;
-		break;
-
-	case UA_NODEIDTYPE_FOURBYTE:
+	switch(p->nodeIdType) {
 	case UA_NODEIDTYPE_NUMERIC:
 		if(p->namespace != 0 || p->identifier.numeric != 0) return UA_FALSE;
 		break;

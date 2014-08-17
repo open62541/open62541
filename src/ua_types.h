@@ -55,39 +55,46 @@
 /** @brief A two-state logical value (true or false). */
 typedef _Bool UA_Boolean;
 
-
 /** @brief An integer value between −128 and 127. */
 typedef int8_t UA_SByte;
 #define UA_SBYTE_MAX -128
 #define UA_SBYTE_MIN 127
+
 /** @brief An integer value between 0 and 256. */
 typedef uint8_t UA_Byte;
 #define UA_BYTE_MAX 256
 #define UA_BYTE_MIN 0
+
 /** @brief An integer value between −32 768 and 32 767. */
 typedef int16_t UA_Int16;
 #define UA_INT16_MAX 32767
 #define UA_INT16_MIN -32768
+
 /** @brief An integer value between 0 and 65 535. */
 typedef uint16_t UA_UInt16;
 #define UA_UINT16_MAX  65535
 #define UA_UINT16_MIN  0
+
 /** @brief An integer value between −2 147 483 648 and 2 147 483 647. */
 typedef int32_t UA_Int32;
 #define UA_INT32_MAX  2147483647
 #define UA_INT32_MIN  −2147483648
+
 /** @brief An integer value between 0 and 429 4967 295. */
 typedef uint32_t UA_UInt32;
 #define UA_UINT32_MAX  4294967295;
 #define UA_UINT32_MIN  0;
+
 /** @brief An integer value between −9 223 372 036 854 775 808 and 9 223 372 036 854 775 807 */
 typedef int64_t UA_Int64;
 #define UA_INT64_MAX  9223372036854775807
 #define UA_INT64_MIN  −9223372036854775808
+
 /** @brief An integer value between 0 and 18 446 744 073 709 551 615. */
 typedef uint64_t UA_UInt64;
 #define UA_UINT64_MAX = 18446744073709551615
 #define UA_UINT64_MIN = 0
+
 /** @brief An IEEE single precision (32 bit) floating point value. */
 typedef float UA_Float;
 
@@ -119,7 +126,15 @@ typedef struct UA_String UA_XmlElement;
 
 /** @brief An identifier for a node in the address space of an OPC UA Server. */
 typedef struct UA_NodeId {
-	UA_Byte encodingByte;
+	enum {
+		/* The shortened numeric types are introduced during encoding.
+		   UA_NODEIDTYPE_TWOBYTE = 0,
+		   UA_NODEIDTYPE_FOURBYTE = 1, */
+		UA_NODEIDTYPE_NUMERIC = 2,
+		UA_NODEIDTYPE_STRING = 3,
+		UA_NODEIDTYPE_GUID = 4,
+		UA_NODEIDTYPE_BYTESTRING = 5
+	} nodeIdType;
 	UA_UInt16 namespace;
 	union {
 		UA_UInt32     numeric;
@@ -129,15 +144,11 @@ typedef struct UA_NodeId {
 	} identifier;
 } UA_NodeId;
 
-#define UA_NODEIDTYPE_NAMESPACE_URI_FLAG 0x80
-#define UA_NODEIDTYPE_SERVERINDEX_FLAG 0x40
-#define UA_NODEIDTYPE_MASK (~(UA_NODEIDTYPE_NAMESPACE_URI_FLAG | UA_NODEIDTYPE_SERVERINDEX_FLAG))
-
 /** @brief A NodeId that allows the namespace URI to be specified instead of an index. */
 typedef struct UA_ExpandedNodeId {
 	UA_NodeId nodeId;
-	UA_String namespaceUri;
-	UA_UInt32 serverIndex;
+	UA_String namespaceUri; // not encoded if length=-1
+	UA_UInt32 serverIndex; // not encoded if 0
 } UA_ExpandedNodeId;
 
 /** @brief A numeric identifier for a error or condition that is associated with a value or an operation. */
@@ -335,14 +346,11 @@ void UA_ByteString_printx_hex(char *label, const UA_ByteString *string);
 
 /* NodeId */
 UA_Int32 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
-#ifdef DEBUG
-void UA_NodeId_printf(char *label, const UA_NodeId *node);
-#endif
 UA_Boolean UA_NodeId_isNull(const UA_NodeId *p);
 UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id);
 
 #define NS0NODEID(NUMERIC_ID) \
-	(UA_NodeId){ .encodingByte = 0 /*UA_NODEIDTYPE_TWOBYTE*/, .namespace = 0, .identifier.numeric = NUMERIC_ID }
+	(UA_NodeId){ .nodeIdType = UA_NODEIDTYPE_NUMERIC, .namespace = 0, .identifier.numeric = NUMERIC_ID }
 
 /* ExpandedNodeId */
 UA_Boolean UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
@@ -353,7 +361,7 @@ UA_Boolean UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 	VARIABLE.serverIndex = 0; } while(0)
 
 /* QualifiedName */
-#define UA_QUALIFIEDNAME_STATIC(VARIABLE, STRING) do {\
+#define UA_QUALIFIEDNAME_STATIC(VARIABLE, STRING) do { \
 	VARIABLE.namespaceIndex = 0; \
 	UA_STRING_STATIC(VARIABLE.name, STRING); } while (0)
 #ifdef DEBUG
@@ -361,7 +369,7 @@ void UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn);
 #endif
 
 /* LocalizedText */
-#define UA_LOCALIZEDTEXT_STATIC(VARIABLE, STRING) do {\
+#define UA_LOCALIZEDTEXT_STATIC(VARIABLE, STRING) do { \
 	UA_STRING_STATIC(VARIABLE.locale, "end"); \
 	UA_STRING_STATIC(VARIABLE.text, STRING); } while (0)
 

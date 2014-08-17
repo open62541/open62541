@@ -214,7 +214,7 @@ START_TEST(UA_ExtensionObject_calcSizeShallWorkOnExample) {
 
 	// empty ExtensionObject, handcoded
 	// when
-	extensionObject.typeId.encodingByte = UA_NODEIDTYPE_TWOBYTE;
+	extensionObject.typeId.nodeIdType = UA_NODEIDTYPE_NUMERIC;
 	extensionObject.typeId.identifier.numeric = 0;
 	extensionObject.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED;
 	// then
@@ -337,7 +337,9 @@ END_TEST
 START_TEST(UA_NodeId_calcSizeEncodingTwoByteShallReturnEncodingSize) {
 	// given
 	UA_NodeId arg;
-	arg.encodingByte = UA_NODEIDTYPE_TWOBYTE;
+	arg.nodeIdType = UA_NODEIDTYPE_NUMERIC;
+	arg.namespace = 0;
+	arg.identifier.numeric = 1;
 	// when
 	UA_UInt32 encodingSize = UA_NodeId_calcSizeBinary(&arg);
 	// then
@@ -347,7 +349,9 @@ END_TEST
 START_TEST(UA_NodeId_calcSizeEncodingFourByteShallReturnEncodingSize) {
 	// given
 	UA_NodeId arg;
-	arg.encodingByte = UA_NODEIDTYPE_FOURBYTE;
+	arg.nodeIdType = UA_NODEIDTYPE_NUMERIC;
+	arg.namespace = 1;
+	arg.identifier.numeric = 1;
 	// when
 	UA_UInt32 encodingSize = UA_NodeId_calcSizeBinary(&arg);
 	// then
@@ -357,7 +361,7 @@ END_TEST
 START_TEST(UA_NodeId_calcSizeEncodingStringShallReturnEncodingSize) {
 	// given
 	UA_NodeId arg;
-	arg.encodingByte = UA_NODEIDTYPE_STRING;
+	arg.nodeIdType = UA_NODEIDTYPE_STRING;
 	arg.identifier.string.length = 3;
 	arg.identifier.string.data   = (UA_Byte *)"PLT";
 	// when
@@ -369,7 +373,7 @@ END_TEST
 START_TEST(UA_NodeId_calcSizeEncodingStringNegativLengthShallReturnEncodingSize) {
 	// given
 	UA_NodeId arg;
-	arg.encodingByte = UA_NODEIDTYPE_STRING;
+	arg.nodeIdType = UA_NODEIDTYPE_STRING;
 	arg.identifier.string.length = -1;
 	// when
 	UA_UInt32 encodingSize = UA_NodeId_calcSizeBinary(&arg);
@@ -380,7 +384,7 @@ END_TEST
 START_TEST(UA_NodeId_calcSizeEncodingStringZeroLengthShallReturnEncodingSize) {
 	// given
 	UA_NodeId arg;
-	arg.encodingByte = UA_NODEIDTYPE_STRING;
+	arg.nodeIdType = UA_NODEIDTYPE_STRING;
 	arg.identifier.string.length = 0;
 	// when
 	UA_UInt32 encodingSize = UA_NodeId_calcSizeBinary(&arg);
@@ -391,7 +395,9 @@ END_TEST
 START_TEST(UA_ExpandedNodeId_calcSizeEncodingStringAndServerIndexShallReturnEncodingSize) {
 	// given
 	UA_ExpandedNodeId arg;
-	arg.nodeId.encodingByte = UA_NODEIDTYPE_STRING | UA_NODEIDTYPE_SERVERINDEX_FLAG;
+	UA_ExpandedNodeId_init(&arg);
+	arg.nodeId.nodeIdType = UA_NODEIDTYPE_STRING;
+	arg.serverIndex = 1;
 	arg.nodeId.identifier.string.length = 3;
 	// when
 	UA_UInt32 encodingSize = UA_ExpandedNodeId_calcSizeBinary(&arg);
@@ -402,7 +408,8 @@ END_TEST
 START_TEST(UA_ExpandedNodeId_calcSizeEncodingStringAndNamespaceUriShallReturnEncodingSize) {
 	// given
 	UA_ExpandedNodeId arg;
-	arg.nodeId.encodingByte = UA_NODEIDTYPE_STRING | UA_NODEIDTYPE_NAMESPACE_URI_FLAG;
+	UA_ExpandedNodeId_init(&arg);
+	arg.nodeId.nodeIdType = UA_NODEIDTYPE_STRING;
 	arg.nodeId.identifier.string.length = 3;
 	arg.namespaceUri.length = 7;
 	// when
@@ -793,7 +800,7 @@ END_TEST
 START_TEST(UA_NodeId_decodeTwoByteShallReadTwoBytesAndSetNamespaceToZero) {
 	// given
 	UA_UInt32     pos    = 0;
-	UA_Byte       data[] = { UA_NODEIDTYPE_TWOBYTE, 0x10 };
+	UA_Byte       data[] = { 0 /* UA_NODEIDTYPE_TWOBYTE */, 0x10 };
 	UA_ByteString src    = { 2, data };
 
 	UA_NodeId     dst;
@@ -802,7 +809,7 @@ START_TEST(UA_NodeId_decodeTwoByteShallReadTwoBytesAndSetNamespaceToZero) {
 	// then
 	ck_assert_int_eq(retval, UA_SUCCESS);
 	ck_assert_int_eq(pos, 2);
-	ck_assert_int_eq(dst.encodingByte, UA_NODEIDTYPE_TWOBYTE);
+	ck_assert_int_eq(dst.nodeIdType, UA_NODEIDTYPE_NUMERIC);
 	ck_assert_int_eq(dst.identifier.numeric, 16);
 	ck_assert_int_eq(dst.namespace, 0);
 }
@@ -810,7 +817,7 @@ END_TEST
 START_TEST(UA_NodeId_decodeFourByteShallReadFourBytesAndRespectNamespace) {
 	// given
 	UA_UInt32     pos    = 0;
-	UA_Byte       data[] = { UA_NODEIDTYPE_FOURBYTE, 0x01, 0x00, 0x01 };
+	UA_Byte       data[] = { 1 /* UA_NODEIDTYPE_FOURBYTE */, 0x01, 0x00, 0x01 };
 	UA_ByteString src    = { 4, data };
 
 	UA_NodeId     dst;
@@ -819,7 +826,7 @@ START_TEST(UA_NodeId_decodeFourByteShallReadFourBytesAndRespectNamespace) {
 	// then
 	ck_assert_int_eq(retval, UA_SUCCESS);
 	ck_assert_int_eq(pos, 4);
-	ck_assert_int_eq(dst.encodingByte, UA_NODEIDTYPE_FOURBYTE);
+	ck_assert_int_eq(dst.nodeIdType, UA_NODEIDTYPE_NUMERIC);
 	ck_assert_int_eq(dst.identifier.numeric, 256);
 	ck_assert_int_eq(dst.namespace, 1);
 }
@@ -836,7 +843,7 @@ START_TEST(UA_NodeId_decodeStringShallAllocateMemory) {
 	// then
 	ck_assert_int_eq(retval, UA_SUCCESS);
 	ck_assert_int_eq(pos, 10);
-	ck_assert_int_eq(dst.encodingByte, UA_NODEIDTYPE_STRING);
+	ck_assert_int_eq(dst.nodeIdType, UA_NODEIDTYPE_STRING);
 	ck_assert_int_eq(dst.namespace, 1);
 	ck_assert_int_eq(dst.identifier.string.length, 3);
 	ck_assert_ptr_eq(dst.identifier.string.data, UA_alloc_lastptr);
@@ -1383,7 +1390,7 @@ START_TEST(UA_ExtensionObject_copyShallWorkOnExample) {
 	UA_ExtensionObject_init(&value);
 	UA_ExtensionObject_init(&valueCopied);
 
-	value.typeId.encodingByte = UA_NODEIDTYPE_TWOBYTE;
+	value.typeId.nodeIdType = UA_NODEIDTYPE_NUMERIC;
 	value.typeId.identifier.numeric = UA_BYTE;
 	value.encoding    = UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED;
 	value.encoding    = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
@@ -1397,7 +1404,7 @@ START_TEST(UA_ExtensionObject_copyShallWorkOnExample) {
 		ck_assert_int_eq(valueCopied.body.data[i], value.body.data[i]);
 
 	ck_assert_int_eq(valueCopied.encoding, value.encoding);
-	ck_assert_int_eq(valueCopied.typeId.encodingByte, value.typeId.encodingByte);
+	ck_assert_int_eq(valueCopied.typeId.nodeIdType, value.typeId.nodeIdType);
 	ck_assert_int_eq(valueCopied.typeId.identifier.numeric, value.typeId.identifier.numeric);
 
 	//finally
