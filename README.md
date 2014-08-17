@@ -20,7 +20,7 @@ sudo apt-get install git build-essential gcc cmake python python-lxml
 ```
 
 #####  Notes on older systems e.g. 12.04 LTS
-* Manual install of check framework
+* Manual install of check framework 0.9.10 (symptonms like "error: implicit declaration of function ‘ck_assert_ptr_eq’")
 ```bash
 wget http://security.ubuntu.com/ubuntu/pool/main/c/check/check_0.9.10-6ubuntu3_amd64.deb
 sudo dpkg -i check_0.9.10-6ubuntu3_amd64.deb
@@ -30,7 +30,7 @@ or for i386
 wget http://security.ubuntu.com/ubuntu/pool/main/c/check/check_0.9.10-6ubuntu3_i386.deb
 sudo dpkg -i check_0.9.10-6ubuntu3_386.deb
 ```
-* Manuall install of gcc-4.8
+* Manuall install of gcc-4.8 (symptonms like "error: initialization discards ‘const’ qualifier from pointer target type [-Werror]")
 ```bash
 sudo add-apt-repository ppa:ubuntu-toolchain-r/test
 sudo apt-get update; sudo apt-get install gcc-4.8
