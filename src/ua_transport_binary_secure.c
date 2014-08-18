@@ -115,15 +115,13 @@ static UA_Int32 SL_Send(SL_Channel *channel,
 	return UA_SUCCESS;
 }
 
-static void init_response_header(UA_RequestHeader const * p,
-		UA_ResponseHeader * r)
-{
-	memset((void*) r, 0, sizeof(UA_ResponseHeader));
+static void init_response_header(UA_RequestHeader const * p, UA_ResponseHeader * r) {
 	r->requestHandle = p->requestHandle;
 	r->serviceResult = UA_STATUSCODE_GOOD;
 	r->stringTableSize = 0;
 	r->timestamp = UA_DateTime_now();
 }
+
 #define RESPONSE_PREPARE(TYPE) \
 	UA_##TYPE##Request p; \
 	UA_##TYPE##Response r; \
