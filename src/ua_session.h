@@ -1,7 +1,7 @@
-#ifndef UA_STACK_SESSION_H_
-#define UA_STACK_SESSION_H_
+#ifndef UA_SESSION_H_
+#define UA_SESSION_H_
 
-#include "ua_stack_channel.h"
+#include "ua_channel.h"
 
 struct UA_Session;
 typedef struct UA_Session UA_Session;
@@ -128,4 +128,4 @@ UA_Int32 UA_Session_getApplicationPointer(UA_Session *session, Application** app
  */
 UA_Int32 UA_Session_setApplicationPointer(UA_Session *session, Application* application);
 
-#endif /* UA_STACK_SESSION_H_ */
+#endif /* UA_SESSION_H_ */

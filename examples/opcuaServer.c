@@ -4,8 +4,7 @@
 #include "networklayer.h"
 #include "ua_application.h"
 
-#ifdef WIN32
-#else
+#ifndef WIN32
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -15,8 +14,8 @@
 #include <fcntl.h>
 
 #include <signal.h>
-#include "ua_stack_channel_manager.h"
-#include "ua_stack_session_manager.h"
+#include "ua_channel_manager.h"
+#include "ua_session_manager.h"
 #include "ua_server.h"
 
 UA_Boolean running = UA_TRUE;

@@ -221,7 +221,7 @@ UA_Int32 Namespace_delete(Namespace *ns) {
 }
 
 UA_Int32 Namespace_insert(Namespace *ns, UA_Node **node, UA_Byte flags) {
-	if(ns == UA_NULL || node == UA_NULL || *node == UA_NULL || (*node)->nodeId.namespace != ns->namespaceId)
+	if(ns == UA_NULL || node == UA_NULL || *node == UA_NULL || (*node)->nodeId.ns != ns->namespaceId)
 		return UA_ERROR;
 
 	UA_UInt32 nodesize;

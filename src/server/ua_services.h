@@ -11,8 +11,9 @@
 #include "ua_types_generated.h"
 #include "ua_application.h"
 #include "ua_transport_binary_secure.h"
-#include "ua_stack_session_manager.h"
-#include "ua_stack_channel_manager.h"
+#include "ua_session_manager.h"
+#include "ua_channel_manager.h"
+
 /**
  * @defgroup services Services
  *

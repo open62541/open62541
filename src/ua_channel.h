@@ -1,5 +1,5 @@
-#ifndef UA_STACK_CHANNEL_H_
-#define UA_STACK_CHANNEL_H_
+#ifndef UA_CHANNEL_H_
+#define UA_CHANNEL_H_
 
 #include <stdio.h>
 #include <memory.h> // memcpy
@@ -62,4 +62,4 @@ UA_Int32 SL_Channel_getRevisedLifetime(SL_Channel *channel, UA_UInt32 *revisedLi
 //setters
 UA_Int32 SL_Channel_setId(SL_Channel *channel, UA_UInt32 id);
 
-#endif /* UA_STACK_CHANNEL_H_ */
+#endif /* UA_CHANNEL_H_ */

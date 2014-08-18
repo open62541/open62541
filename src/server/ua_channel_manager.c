@@ -1,4 +1,4 @@
-#include "ua_stack_channel_manager.h"
+#include "ua_channel_manager.h"
 
 struct SL_ChannelManager {
 	UA_Int32 maxChannelCount;

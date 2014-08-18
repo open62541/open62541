@@ -6,8 +6,8 @@
 #include "ua_transport_binary.h"
 #include "ua_transport_binary_secure.h"
 #include "ua_transport_connection.h"
-#include "ua_stack_channel_manager.h"
-#include "ua_stack_session_manager.h"
+#include "ua_channel_manager.h"
+#include "ua_session_manager.h"
 #include "check.h"
 
 #define MAXMSG 512

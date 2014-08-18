@@ -1,13 +1,8 @@
-/*
- * ua_stack_session.c
- *
- *  Created on: 05.06.2014
- *      Author: root
- */
 #include <time.h>
 #include <stdlib.h>
 
-#include "ua_stack_session.h"
+#include "ua_session.h"
+
 struct UA_Session {
 	UA_NodeId authenticationToken;
 	UA_NodeId sessionId;
@@ -185,5 +180,3 @@ UA_Int32 UA_Session_setApplicationPointer(UA_Session *session, Application* appl
 	session->application = application;
 	return UA_SUCCESS;
 }
-
-

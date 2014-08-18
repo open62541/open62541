@@ -65,6 +65,7 @@ include_directories("${PROJECT_BINARY_DIR}/src_generated")
 configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/server")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/util")
 
 file(GLOB_RECURSE headers "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
@@ -72,45 +73,45 @@ file(GLOB generated_headers "${PROJECT_BINARY_DIR}/src_generated/*.h")
 
 set(lib_sources src/ua_types.c
                 src/ua_types_encoding_binary.c
-                src/ua_application.c
+                ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
+                ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_0.c
                 src/ua_transport.c
                 src/ua_transport_binary.c
                 src/ua_transport_binary_secure.c
-                src/ua_services_attribute.c
-                src/ua_services_session.c
-                src/ua_services_discovery.c
-                src/ua_services_securechannel.c
-                src/ua_services_nodemanagement.c
-                src/ua_services_view.c
-                src/ua_services_subscription.c
-                src/ua_services_monitoreditems.c
-                src/ua_stack_channel.c
-                src/ua_stack_channel_manager.c
-                src/ua_stack_session_manager.c
-                src/ua_stack_session.c
+                src/ua_channel.c
+                src/ua_session.c
                 src/ua_transport_connection.c
-                src/ua_transport_connection_manager.c
-				src/ua_server.c
+                src/server/ua_services_attribute.c
+                src/server/ua_services_session.c
+                src/server/ua_services_discovery.c
+                src/server/ua_services_securechannel.c
+                src/server/ua_services_nodemanagement.c
+                src/server/ua_services_view.c
+                src/server/ua_services_subscription.c
+                src/server/ua_services_monitoreditems.c
+                src/server/ua_channel_manager.c
+                src/server/ua_session_manager.c
+                src/server/ua_transport_connection_manager.c
+				src/server/ua_server.c
+                src/server/ua_application.c
                 src/util/ua_util.c
                 src/util/ua_list.c
                 src/util/ua_indexedList.c
                 src/util/ua_base64.c
-                ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
-                ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_0.c
 				${headers}
 				${generated_headers})
 
 if(MULTITHREADING)
-    list(APPEND lib_sources src/ua_namespace_concurrent.c)
+    list(APPEND lib_sources src/server/ua_namespace_concurrent.c)
 else()
-    list(APPEND lib_sources src/ua_namespace.c)
+    list(APPEND lib_sources src/server/ua_namespace.c)
 endif(MULTITHREADING)
 
 set(generate_src_options "")
 
 if(UA_ENCODING_XML)
     list(APPEND lib_sources src/ua_types_encoding_xml.c
-                            src/ua_namespace_xml.c
+                            src/server/ua_namespace_xml.c
                             src/ua_xml.c)
     set(generate_src_options "${generate_src_options}--with-xml")
 endif(UA_ENCODING_XML)
@@ -154,6 +155,9 @@ target_link_libraries(exampleServer open62541)
 if(WIN32)
     target_link_libraries(exampleServer ws2_32)
 endif(WIN32)
+if(MULTITHREADING)
+    target_link_libraries(exampleServer urcu-cds urcu)
+endif(MULTITHREADING)
 
 # generate documentation
 option(GENERATE_DOCUMENTATION "Generate doxygen documentation" OFF)

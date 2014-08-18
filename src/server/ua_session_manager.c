@@ -1,4 +1,4 @@
-#include "ua_stack_session_manager.h"
+#include "ua_session_manager.h"
 
 struct UA_SessionManager {
 	UA_list_List sessions;

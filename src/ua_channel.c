@@ -1,4 +1,4 @@
-#include "ua_stack_channel.h"
+#include "ua_channel.h"
 #include <time.h>
 #include <stdlib.h>
 

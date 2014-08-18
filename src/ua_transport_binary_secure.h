@@ -3,8 +3,8 @@
 #include "ua_types.h"
 #include "ua_transport.h"
 #include "ua_transport_binary.h"
-#include "ua_stack_channel.h"
-#include "ua_stack_channel_manager.h"
+#include "ua_channel.h"
+#include "ua_channel_manager.h"
 
 /*inputs for secure Channel which must be provided once
 endPointUrl

@@ -1,7 +1,7 @@
-#ifndef UA_STACK_SESSION_MANAGER_H_
-#define UA_STACK_SESSION_MANAGER_H_
+#ifndef UA_SESSION_MANAGER_H_
+#define UA_SESSION_MANAGER_H_
 
-#include "ua_stack_session.h"
+#include "ua_session.h"
 
 struct UA_SessionManager;
 typedef struct UA_SessionManager UA_SessionManager;
@@ -57,4 +57,4 @@ UA_Int32 UA_SessionManager_getSessionTimeout(UA_Int64 *timeout_ms);
 //UA_Int32 UA_SessionManager_generateToken(UA_Session session, UA_Int32 requestedLifeTime, SecurityTokenRequestType requestType, UA_ChannelSecurityToken* newToken);
 UA_Int32 UA_SessionManager_generateSessionId(UA_NodeId *newSessionId);
 
-#endif /* UA_STACK_SESSION_MANAGER_H_ */
+#endif /* UA_SESSION_MANAGER_H_ */

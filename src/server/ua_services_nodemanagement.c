@@ -2,7 +2,8 @@
 #include "ua_statuscodes.h"
 #include "ua_namespace.h"
 #include "ua_services_internal.h"
-#include "ua_stack_session.h"
+#include "ua_session.h"
+
 #define CHECKED_ACTION(ACTION, CLEAN_UP, GOTO) do {	\
 	status |= ACTION; \
 	if(status != UA_SUCCESS) { \
