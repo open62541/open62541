@@ -126,7 +126,7 @@ typedef struct UA_String UA_XmlElement;
 
 /** @brief An identifier for a node in the address space of an OPC UA Server. */
 typedef struct UA_NodeId {
-	UA_UInt16 ns;
+	UA_UInt16 namespaceId;
 	enum {
 		/* The shortened numeric types are introduced during encoding.
 		   UA_NODEIDTYPE_TWOBYTE = 0,
@@ -343,7 +343,7 @@ UA_Boolean UA_NodeId_isNull(const UA_NodeId *p);
 UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id);
 
 #define NS0NODEID(NUMERIC_ID) \
-	(UA_NodeId){ .ns = 0, .nodeIdType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = NUMERIC_ID }
+	(UA_NodeId){ .namespaceId = 0, .nodeIdType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = NUMERIC_ID }
 
 /* ExpandedNodeId */
 UA_Boolean UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);

@@ -204,7 +204,7 @@ UA_Int32 Service_Browse(UA_Session *session, const UA_BrowseRequest *request, UA
 
 	for(UA_Int32 i=0; i < request->nodesToBrowseSize; i++) {
 		Namespace *ns = UA_indexedList_findValue(application->namespaces,
-												 request->nodesToBrowse[i].nodeId.ns);
+												 request->nodesToBrowse[i].nodeId.namespaceId);
 		if(ns == UA_NULL) {
 			response->results[i].statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
 			continue;

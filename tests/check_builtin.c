@@ -339,7 +339,7 @@ START_TEST(UA_NodeId_calcSizeEncodingTwoByteShallReturnEncodingSize) {
 	// given
 	UA_NodeId arg;
 	arg.nodeIdType = UA_NODEIDTYPE_NUMERIC;
-	arg.ns = 0;
+	arg.namespaceId = 0;
 	arg.identifier.numeric = 1;
 	// when
 	UA_UInt32 encodingSize = UA_NodeId_calcSizeBinary(&arg);
@@ -351,7 +351,7 @@ START_TEST(UA_NodeId_calcSizeEncodingFourByteShallReturnEncodingSize) {
 	// given
 	UA_NodeId arg;
 	arg.nodeIdType = UA_NODEIDTYPE_NUMERIC;
-	arg.ns = 1;
+	arg.namespaceId = 1;
 	arg.identifier.numeric = 1;
 	// when
 	UA_UInt32 encodingSize = UA_NodeId_calcSizeBinary(&arg);
@@ -812,7 +812,7 @@ START_TEST(UA_NodeId_decodeTwoByteShallReadTwoBytesAndSetNamespaceToZero) {
 	ck_assert_int_eq(pos, 2);
 	ck_assert_int_eq(dst.nodeIdType, UA_NODEIDTYPE_NUMERIC);
 	ck_assert_int_eq(dst.identifier.numeric, 16);
-	ck_assert_int_eq(dst.ns, 0);
+	ck_assert_int_eq(dst.namespaceId, 0);
 }
 END_TEST
 START_TEST(UA_NodeId_decodeFourByteShallReadFourBytesAndRespectNamespace) {
@@ -829,7 +829,7 @@ START_TEST(UA_NodeId_decodeFourByteShallReadFourBytesAndRespectNamespace) {
 	ck_assert_int_eq(pos, 4);
 	ck_assert_int_eq(dst.nodeIdType, UA_NODEIDTYPE_NUMERIC);
 	ck_assert_int_eq(dst.identifier.numeric, 256);
-	ck_assert_int_eq(dst.ns, 1);
+	ck_assert_int_eq(dst.namespaceId, 1);
 }
 END_TEST
 START_TEST(UA_NodeId_decodeStringShallAllocateMemory) {
@@ -845,7 +845,7 @@ START_TEST(UA_NodeId_decodeStringShallAllocateMemory) {
 	ck_assert_int_eq(retval, UA_SUCCESS);
 	ck_assert_int_eq(pos, 10);
 	ck_assert_int_eq(dst.nodeIdType, UA_NODEIDTYPE_STRING);
-	ck_assert_int_eq(dst.ns, 1);
+	ck_assert_int_eq(dst.namespaceId, 1);
 	ck_assert_int_eq(dst.identifier.string.length, 3);
 	ck_assert_ptr_eq(dst.identifier.string.data, UA_alloc_lastptr);
 	ck_assert_int_eq(dst.identifier.string.data[1], 'L');

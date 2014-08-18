@@ -15,7 +15,7 @@ static UA_AddNodesResult addSingleNode(Application *app, UA_AddNodesItem *item) 
 	UA_AddNodesResult result;
 	UA_AddNodesResult_init(&result);
 
-	Namespace *parent_ns = UA_indexedList_findValue(app->namespaces, item->parentNodeId.nodeId.ns);
+	Namespace *parent_ns = UA_indexedList_findValue(app->namespaces, item->parentNodeId.nodeId.namespaceId);
 	// TODO: search for namespaceUris and not only ns-ids.
 	if(parent_ns == UA_NULL) {
 		result.statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID;
@@ -26,9 +26,9 @@ static UA_AddNodesResult addSingleNode(Application *app, UA_AddNodesItem *item) 
 	UA_Boolean nodeid_isnull = UA_NodeId_isNull(&item->requestedNewNodeId.nodeId);
 
 	if(nodeid_isnull) ns = parent_ns;
-	else ns = UA_indexedList_findValue(app->namespaces, item->requestedNewNodeId.nodeId.ns);
+	else ns = UA_indexedList_findValue(app->namespaces, item->requestedNewNodeId.nodeId.namespaceId);
 
-	if(ns == UA_NULL || item->requestedNewNodeId.nodeId.ns == 0) {
+	if(ns == UA_NULL || item->requestedNewNodeId.nodeId.namespaceId == 0) {
 		result.statusCode = UA_STATUSCODE_BADNODEIDREJECTED;
 		return result;
 	}
