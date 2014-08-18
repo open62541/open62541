@@ -11,7 +11,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
 
 # compiler options
 if(CMAKE_COMPILER_IS_GNUCC)
-add_definitions(-std=c99 -pedantic -pipe -fstack-protector -Wall -Wextra
+add_definitions(-std=c99 -g -pedantic -pipe -fstack-protector -Wall -Wextra
                  -Wno-unused-parameter -Wno-unused-function -Wno-unused-label
                  -Wpointer-arith -Wformat -Wreturn-type -Wsign-compare -Wmultichar
                  -Wformat-nonliteral -Winit-self -Wuninitialized -Wno-deprecated
