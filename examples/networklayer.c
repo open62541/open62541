@@ -116,17 +116,19 @@ UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), v
 			UA_Int32 err = errno;
 
 			switch (err) {
+			// handle known errors
 			case EBADF:
 			case EINTR:
 			case EINVAL:
-				//FIXME: handle errors
+				// FIXME: handle errors
 				DBG_ERR(printf("UA_Stack_msgLoop - errno={%d,%s}\n", errno, strerror(errno)));
 				break;
+			// we've got a timeout
 			case EAGAIN:
 			default:
 				DBG_VERBOSE(printf("UA_Stack_msgLoop - errno={%d,%s}\n", errno, strerror(errno)));
 				DBG_VERBOSE(printf("UA_Stack_msgLoop - call worker\n"));
-
+				worker(arg);
 				DBG_VERBOSE(printf("UA_Stack_msgLoop - return from worker\n"));
 			}
 		}
@@ -136,6 +138,7 @@ UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), v
 			DBG_VERBOSE(printf("UA_Stack_msgLoop - activities on %d handles\n",result));
 			UA_list_iteratePayload(&(nl->connections),NL_checkFdSet);
 		}
+		// FIXME: Seems to be a conceptional flaw to call the worker here...
 		worker(arg);
 	}
 
