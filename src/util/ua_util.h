@@ -4,6 +4,7 @@
 #include <stdio.h>  // printf
 #include <stdlib.h> // malloc, free
 #include <string.h> // memcpy
+#include <assert.h> // assert
 #include "ua_types.h"
 
 /* Debug macros */
@@ -34,5 +35,7 @@ UA_Int32 UA_VTable_isValidType(UA_Int32 type);
 
 #define UA_free(ptr) _UA_free(ptr, # ptr, __FILE__, __LINE__)
 #define UA_alloc(ptr, size) _UA_alloc(ptr, size, # ptr, # size, __FILE__, __LINE__)
+
+#define UA_assert(ignore) assert(ignore)
 
 #endif /* UA_UTILITY_H_ */

@@ -171,11 +171,11 @@ typedef struct UA_LocalizedText {
 typedef struct UA_ExtensionObject {
 	UA_NodeId typeId;
 	enum {
-		UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED  = 0x00,
-		UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING = 0x01,
-		UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML        = 0x02
+		UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED  = 0,
+		UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING = 1,
+		UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML        = 2
 	} encoding;
-	UA_ByteString body;         // contains either the bytestring or a pointer to the memory-object
+	UA_ByteString body; // contains either the bytestring or a pointer to the memory-object
 } UA_ExtensionObject;
 
 struct UA_VTable_Entry; // forwards declaration

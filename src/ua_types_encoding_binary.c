@@ -410,7 +410,7 @@ UA_Int32 UA_NodeId_calcSizeBinary(UA_NodeId const *p) {
 			break;
 
 		default:
-			break; // calcSize does not return errors. But the encoding function will.
+			UA_assert(UA_FALSE); // this must never happen
 		}
 	}
 	return length;
@@ -466,7 +466,7 @@ UA_TYPE_ENCODEBINARY(UA_NodeId,
 						 break;
 
 					 default:
-						 retval = UA_ERROR;
+						 UA_assert(UA_FALSE); // must never happen
 					 }
                      )
 
@@ -521,7 +521,7 @@ UA_Int32 UA_NodeId_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA_
 		break;
 
 	default:
-		retval = UA_ERROR;
+		retval = UA_ERROR; // the client sends an encodingByte we do not recognize
 	}
 	return retval;
 }
@@ -684,6 +684,9 @@ UA_TYPE_ENCODEBINARY(UA_ExtensionObject,
 					 case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML:
 						 retval |= UA_ByteString_encodeBinary(&src->body, dst, offset);
 						 break;
+
+					 default:
+						 UA_assert(UA_FALSE);
 					 }
                      )
 
