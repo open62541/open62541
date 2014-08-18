@@ -64,6 +64,9 @@ configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_conf
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/util")
 
+file(GLOB_RECURSE headers "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
+file(GLOB generated_headers "${PROJECT_BINARY_DIR}/src_generated/*.h")
+
 set(lib_sources src/ua_types.c
                 src/ua_types_encoding_binary.c
                 src/ua_application.c
@@ -90,7 +93,9 @@ set(lib_sources src/ua_types.c
                 src/util/ua_indexedList.c
                 src/util/ua_base64.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
-                ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_0.c)
+                ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_0.c
+				${headers}
+				${generated_headers})
 
 if(MULTITHREADING)
     list(APPEND lib_sources src/ua_namespace_concurrent.c)
