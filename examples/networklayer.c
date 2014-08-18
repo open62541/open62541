@@ -195,10 +195,10 @@ void* NL_TCP_reader(NL_Connection *c) {
 	}
 
 	UA_TL_Connection_getState(c->connection, &connectionState);
-	printf("NL_TCP_reader - connectionState=%d\n",connectionState);
+	DBG_VERBOSE(printf("NL_TCP_reader - connectionState=%d\n",connectionState));
 	if (connectionState == CONNECTIONSTATE_CLOSE) {
-		printf("NL_TCP_reader - closing connection");
-		// set connection's state to CONNECTIONSTATE_CLOSED and call callback
+		DBG_VERBOSE(printf("NL_TCP_reader - closing connection"));
+		// set connection's state to CONNECTIONSTATE_CLOSED and call callback to actually close
 		UA_TL_Connection_close(c->connection);
 #ifndef MULTITHREADING
 		DBG_VERBOSE(printf("NL_TCP_reader - search element to remove\n"));
