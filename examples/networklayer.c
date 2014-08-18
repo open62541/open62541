@@ -6,8 +6,7 @@
 #include <sys/types.h>
 #include <Windows.h>
 #include <ws2tcpip.h>
-#define CLOSESOCKET(S) closesocket(S); \
-	WSACleanup();
+#define CLOSESOCKET(S) closesocket(S)
 #define IOCTLSOCKET ioctlsocket
 #else
 #include <sys/socket.h>
@@ -75,7 +74,7 @@ void NL_Connection_printf(void* payload) {
 void NL_addHandleToSet(UA_Int32 handle, NL_data* nl) {
 	FD_SET(handle, &(nl->readerHandles));
 #ifdef WIN32
-	int err = WSAGetLastError();
+	// int err = WSAGetLastError();
 #endif
 	nl->maxReaderHandle = (handle > nl->maxReaderHandle) ? handle : nl->maxReaderHandle;
 }
@@ -89,13 +88,29 @@ void NL_checkFdSet(void* payload) {
 	  c->reader((void*)c);
   }
 }
+
+
+
+
+#if 0 
+char _str_error[256];
+char* strerror(int errno) {
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL, errno,
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		&_str_error[0], 256, NULL);
+	return &_str_error[0];
+}
+#endif
+
 UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), void *arg, UA_Boolean *running)  {
 	UA_Int32 result;
+	UA_Int32 err;
 	while (*running) {
 		// determine the largest handle
 		nl->maxReaderHandle = 0;
 		UA_list_iteratePayload(&(nl->connections),NL_setFdSet);
-		DBG_VERBOSE(printf("\n------------\nUA_Stack_msgLoop - maxHandle=%d\n", nl->maxReaderHandle));
+		printf("\n------------\nUA_Stack_msgLoop - maxHandle=%d\n", nl->maxReaderHandle);
 
 		// copy tv, some unixes do overwrite and return the remaining time
 		struct timeval tmptv;
@@ -104,47 +119,57 @@ UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), v
 		// and wait
 		DBG_VERBOSE(printf("UA_Stack_msgLoop - enter select sec=%d,usec=%d\n",(UA_Int32) tmptv.tv_sec, (UA_Int32) tmptv.tv_usec));
 		result = select(nl->maxReaderHandle + 1, &(nl->readerHandles), UA_NULL, UA_NULL, &tmptv);
+		// printf("UA_Stack_msgLoop - leave select result=%d,sec=%d,usec=%d\n",result, (UA_Int32) tmptv.tv_sec, (UA_Int32) tmptv.tv_usec);
 
-		DBG_VERBOSE(printf("UA_Stack_msgLoop - leave select result=%d,sec=%d,usec=%d\n",result, (UA_Int32) tmptv.tv_sec, (UA_Int32) tmptv.tv_usec));
+		// handle timeout (winsock: result=0, unix: result=0,errno=0||EAGAIN) 
+		// and errors (winsock: result=SOCKET_ERROR (-1), unix: result = 0)
+		if (result <= 0) {
 #ifdef WIN32
-		if (result == -1) {
-			DBG_ERR(printf("UA_Stack_msgLoop - errno = { %d, %s }\n", WSAGetLastError()));
-		}
-		else if (result >= 0){ // activity on listener or client ports
+			err = (result == SOCKET_ERROR) ? WSAGetLastError() : 0;
 #else
-		if (result == 0) {
-			UA_Int32 err = errno;
-
+			err = errno;
+#endif
 			switch (err) {
-			// handle known errors
+				// handle known errors
+#ifdef WIN32
+			case WSANOTINITIALISED:
+			case WSAEFAULT:
+			case WSAENETDOWN:
+			case WSAEINVAL:
+			case WSAEINTR:
+			case WSAEINPROGRESS:
+			case WSAENOTSOCK:
+#else
 			case EBADF:
 			case EINTR:
 			case EINVAL:
+#endif
 				// FIXME: handle errors
-				DBG_ERR(printf("UA_Stack_msgLoop - errno={%d,%s}\n", errno, strerror(errno)));
+				printf("UA_Stack_msgLoop - result=%d, errno={%d,%s}\n", result, errno, strerror(errno));
 				break;
 			// we've got a timeout
-			case EAGAIN:
-			default:
-				DBG_VERBOSE(printf("UA_Stack_msgLoop - errno={%d,%s}\n", errno, strerror(errno)));
-				DBG_VERBOSE(printf("UA_Stack_msgLoop - call worker\n"));
-				worker(arg);
-				DBG_VERBOSE(printf("UA_Stack_msgLoop - return from worker\n"));
-			}
-		}
-
-		else if (result > 0){ // activity on listener or client ports
+#ifndef WIN32
+	        case EAGAIN:
 #endif
-			DBG_VERBOSE(printf("UA_Stack_msgLoop - activities on %d handles\n",result));
+			default:
+					DBG(printf("UA_Stack_msgLoop - result=%d, errno={%d,%s}\n", result, errno, strerror(errno)));
+					DBG(printf("UA_Stack_msgLoop - call worker\n"));
+					worker(arg);
+					DBG(printf("UA_Stack_msgLoop - return from worker\n"));
+			}
+		} else { // activity on listener or client ports
+			printf("UA_Stack_msgLoop - activities on %d handles\n",result);
 			UA_list_iteratePayload(&(nl->connections),NL_checkFdSet);
 		}
 		// FIXME: Seems to be a conceptional flaw to call the worker here...
-		worker(arg);
+		// worker(arg);
 	}
-
+#ifdef WIN32
+	WSACleanup();
+#endif
 	return UA_SUCCESS;
 }
-#endif
+#endif /* MULTITASKING */
 
 
 /** the tcp reader function */
@@ -196,7 +221,7 @@ void* NL_TCP_reader(NL_Connection *c) {
 	}
 
 	UA_TL_Connection_getState(c->connection, &connectionState);
-	DBG_VERBOSE(printf("NL_TCP_reader - connectionState=%d\n",connectionState));
+	printf("NL_TCP_reader - connectionState=%d\n",connectionState);
 	if (connectionState == CONNECTIONSTATE_CLOSE) {
 		// set connection's state to CONNECTIONSTATE_CLOSED and call callback to actually close
 		UA_TL_Connection_close(c->connection);
