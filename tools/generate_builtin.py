@@ -39,6 +39,9 @@ existing_types = set(["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "U
                       "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
                       "Variant", "DiagnosticInfo"])
 
+# some types are omitted (pretend they exist already)
+existing_types.add("NodeIdType")
+
 fixed_size = set(["UA_Boolean", "UA_SByte", "UA_Byte", "UA_Int16", "UA_UInt16",
                   "UA_Int32", "UA_UInt32", "UA_Int64", "UA_UInt64", "UA_Float",
                   "UA_Double", "UA_DateTime", "UA_Guid", "UA_StatusCode"])

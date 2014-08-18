@@ -34,7 +34,7 @@ UA_Int32 UA_Session_generateToken(UA_NodeId *newToken)
 	UA_Int32 r = 0;
 	//retval |= UA_NodeId_new(newToken);
 
-	newToken->encodingByte = 0x04; //GUID
+	newToken->nodeIdType = UA_NODEIDTYPE_GUID;
 	newToken->namespace = 0; // where else?
 	newToken->identifier.guid.data1 = rand();
 	r = rand();

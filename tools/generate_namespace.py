@@ -158,7 +158,7 @@ for row in rows:
 	i=i+1
     printh('#define '+name.upper()+'_NS0 '+row[1])
 
-    printc("\t{.typeId={.encodingByte = UA_NODEIDTYPE_TWOBYTE, .namespace = 0,.identifier.numeric=" + row[1] + "}" + 
+    printc("\t{.typeId={.nodeIdType = UA_NODEIDTYPE_NUMERIC, .namespace = 0,.identifier.numeric=" + row[1] + "}" + 
           ",\n.name=(UA_Byte*)&\"%(name)s\"" +
           ",\n.new=(UA_Int32(*)(void **))%(name)s_new" +
           ",\n.init=(UA_Int32(*)(void *))%(name)s_init"+

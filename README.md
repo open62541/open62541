@@ -13,11 +13,34 @@ Documentation is generated from Doxygen annotations in the source code. The curr
 
 ## Build Procedure
 ### Ubuntu
-```bash
-# install build infrastructure
-sudo apt-get install git build-essential gcc cmake python python-lxml
 
-# build
+#### Install build infrastructure
+```bash
+sudo apt-get install git build-essential gcc cmake python python-lxml
+```
+
+#####  Notes on older systems e.g. 12.04 LTS
+* Manual install of check framework 0.9.10 (symptoms like "error: implicit declaration of function ‘ck_assert_ptr_eq’")
+```bash
+wget http://security.ubuntu.com/ubuntu/pool/main/c/check/check_0.9.10-6ubuntu3_amd64.deb
+sudo dpkg -i check_0.9.10-6ubuntu3_amd64.deb
+```
+or for i386
+```bash
+wget http://security.ubuntu.com/ubuntu/pool/main/c/check/check_0.9.10-6ubuntu3_i386.deb
+sudo dpkg -i check_0.9.10-6ubuntu3_386.deb
+```
+* Manuall install of gcc-4.8 (symptoms like "error: initialization discards ‘const’ qualifier from pointer target type [-Werror]")
+```bash
+sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+sudo apt-get update; sudo apt-get install gcc-4.8
+sudo update-alternatives --remove-all gcc 
+sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
+sudo update-alternatives --config gcc
+```
+
+#### Build
+```bash
 git clone https://github.com/acplt/open62541.git
 cd open62541
 mkdir build
