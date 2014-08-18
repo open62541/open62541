@@ -89,9 +89,6 @@ void NL_checkFdSet(void* payload) {
   }
 }
 
-
-
-
 #if 0 
 char _str_error[256];
 char* strerror(int errno) {
@@ -110,16 +107,18 @@ UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), v
 		// determine the largest handle
 		nl->maxReaderHandle = 0;
 		UA_list_iteratePayload(&(nl->connections),NL_setFdSet);
-		printf("\n------------\nUA_Stack_msgLoop - maxHandle=%d\n", nl->maxReaderHandle);
+		DBG_VERBOSE(printf("\n------------\nUA_Stack_msgLoop - maxHandle=%d\n", nl->maxReaderHandle));
 
 		// copy tv, some unixes do overwrite and return the remaining time
+		// FIXME: actually we might want to do this ourselves to call the
+		// worker on a more regular cyclic basis
 		struct timeval tmptv;
 		memcpy(&tmptv,tv,sizeof(struct timeval));
 
 		// and wait
 		DBG_VERBOSE(printf("UA_Stack_msgLoop - enter select sec=%d,usec=%d\n",(UA_Int32) tmptv.tv_sec, (UA_Int32) tmptv.tv_usec));
 		result = select(nl->maxReaderHandle + 1, &(nl->readerHandles), UA_NULL, UA_NULL, &tmptv);
-		// printf("UA_Stack_msgLoop - leave select result=%d,sec=%d,usec=%d\n",result, (UA_Int32) tmptv.tv_sec, (UA_Int32) tmptv.tv_usec);
+		DBG_VERBOSE(printf("UA_Stack_msgLoop - leave select result=%d,sec=%d,usec=%d\n",result, (UA_Int32) tmptv.tv_sec, (UA_Int32) tmptv.tv_usec));
 
 		// handle timeout (winsock: result=0, unix: result=0,errno=0||EAGAIN) 
 		// and errors (winsock: result=SOCKET_ERROR (-1), unix: result = 0)
@@ -147,24 +146,25 @@ UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), v
 				// FIXME: handle errors
 				printf("UA_Stack_msgLoop - result=%d, errno={%d,%s}\n", result, errno, strerror(errno));
 				break;
-			// we've got a timeout
+			// otherwise we've got a timeout and call the worker
 #ifndef WIN32
 	        case EAGAIN:
 #endif
 			default:
-					DBG(printf("UA_Stack_msgLoop - result=%d, errno={%d,%s}\n", result, errno, strerror(errno)));
-					DBG(printf("UA_Stack_msgLoop - call worker\n"));
+					DBG_VERBOSE(printf("UA_Stack_msgLoop - result=%d, errno={%d,%s}\n", result, errno, strerror(errno)));
 					worker(arg);
-					DBG(printf("UA_Stack_msgLoop - return from worker\n"));
 			}
 		} else { // activity on listener or client ports
-			printf("UA_Stack_msgLoop - activities on %d handles\n",result);
+			DBG_VERBOSE(printf("UA_Stack_msgLoop - activities on %d handles\n",result));
 			UA_list_iteratePayload(&(nl->connections),NL_checkFdSet);
+			// FIXME: Thought it would be a conceptional flaw to call the worker
+			// here. However, there is no guarantee that the timeout would be
+			// triggered, so we call it in this branch as well.
+			worker(arg);
 		}
-		// FIXME: Seems to be a conceptional flaw to call the worker here...
-		// worker(arg);
 	}
 #ifdef WIN32
+	// finally we should clean up the winsock.dll
 	WSACleanup();
 #endif
 	return UA_SUCCESS;
@@ -209,13 +209,13 @@ void* NL_TCP_reader(NL_Connection *c) {
 			{
 				UA_NodeId serviceRequestType;
 				UA_NodeId_decodeBinary(&readBuffer, &pos,&serviceRequestType);
-				UA_NodeId_printf("Service Type\n",&serviceRequestType);
+				UA_NodeId_printf("NL_TCP_reader - Service Type\n",&serviceRequestType);
 			}
 #endif
 
 			TL_Process((c->connection),&readBuffer);
 		} else {
-			perror("ERROR reading from socket1");
+			perror("NL_TCP_reader - ERROR reading from socket");
 			UA_TL_Connection_setState(c->connection, CONNECTIONSTATE_CLOSE);
 		}
 	}
