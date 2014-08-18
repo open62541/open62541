@@ -1,7 +1,10 @@
 find_package(Check REQUIRED)
 find_package(Threads REQUIRED)
 
-set(LIBS open62541 ${CHECK_LIBRARIES} m rt pthread)
+set(LIBS open62541 ${CHECK_LIBRARIES} m)
+if(NOT WIN32)
+    list(APPEND LIBS rt pthread)
+endif(NOT WIN32)
 
 add_executable(check_builtin check_builtin.c)
 target_link_libraries(check_builtin ${LIBS})
