@@ -146,7 +146,6 @@ static UA_DataValue service_read_node(Application *app, const UA_ReadValueId *id
 	case UA_ATTRIBUTEID_DATATYPE:
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		printf("xxxx: %d", node->nodeClass & (UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE));
 		retval |= UA_Variant_copySetValue(&v.value, &UA_.types[UA_NODEID],
 		                                  &((UA_VariableTypeNode *)node)->dataType);
 		break;
