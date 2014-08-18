@@ -24,7 +24,6 @@ before_install:
    - wget http://security.ubuntu.com/ubuntu/pool/main/c/check/check_0.9.10-6ubuntu3_amd64.deb
    - sudo dpkg -i check_0.9.10-6ubuntu3_amd64.deb
    - sudo pip install cpp-coveralls
-   - sudo update-alternatives --remove-all gcc 
    - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
    - sudo update-alternatives --config gcc
 script: 
