@@ -278,7 +278,7 @@ UA_TYPE_AS(UA_DateTime, UA_Int64)
 #define HUNDRED_NANOSEC_PER_USEC 10LL
 #define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
 
-#ifdef WIN32
+#ifdef MSVC
 static const unsigned __int64 epoch = 116444736000000000;
 int gettimeofday(struct timeval * tp, struct timezone * tzp) {
 	FILETIME ft;
@@ -419,7 +419,7 @@ UA_TYPE_AS(UA_XmlElement, UA_ByteString)
 UA_Int32 UA_NodeId_init(UA_NodeId *p) {
 	if(p == UA_NULL) return UA_ERROR;
 	p->nodeIdType = UA_NODEIDTYPE_NUMERIC;
-	p->namespace    = 0;
+	p->ns    = 0;
 	memset(&p->identifier, 0, sizeof(p->identifier));
 	return UA_SUCCESS;
 }
@@ -453,7 +453,7 @@ UA_Int32 UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst) {
 }
 
 UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id) {
-	return (id->namespace == 0 &&
+	return (id->ns == 0 &&
 			id->nodeIdType == UA_NODEIDTYPE_NUMERIC &&
 			id->identifier.numeric <= UA_DIAGNOSTICINFO);
 }
@@ -510,7 +510,7 @@ void UA_NodeId_print(const UA_NodeId *p, FILE *stream) {
 		fprintf(stream, "ERROR");
 		break;
 	}
-	fprintf(stream,",%u,", p->namespace);
+	fprintf(stream,",%u,", p->ns);
 	switch(p->nodeIdType & UA_NODEIDTYPE_MASK) {
 	case UA_NODEIDTYPE_NUMERIC:
 		fprintf(stream, ".identifier.numeric=%u", p->identifier.numeric);
@@ -538,7 +538,7 @@ void UA_NodeId_print(const UA_NodeId *p, FILE *stream) {
 #endif
 
 UA_Int32 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
-	if(n1 == UA_NULL || n2 == UA_NULL || n1->namespace != n2->namespace)
+	if(n1 == UA_NULL || n2 == UA_NULL || n1->ns != n2->ns)
 		return UA_NOT_EQUAL;
 
 	switch(n1->nodeIdType) {
@@ -563,20 +563,20 @@ UA_Int32 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
 UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
 	switch(p->nodeIdType) {
 	case UA_NODEIDTYPE_NUMERIC:
-		if(p->namespace != 0 || p->identifier.numeric != 0) return UA_FALSE;
+		if(p->ns != 0 || p->identifier.numeric != 0) return UA_FALSE;
 		break;
 
 	case UA_NODEIDTYPE_STRING:
-		if(p->namespace != 0 || p->identifier.string.length != 0) return UA_FALSE;
+		if(p->ns != 0 || p->identifier.string.length != 0) return UA_FALSE;
 		break;
 
 	case UA_NODEIDTYPE_GUID:
-		if(p->namespace != 0 ||
+		if(p->ns != 0 ||
 		   memcmp(&p->identifier.guid, (char[sizeof(UA_Guid)]) { 0 }, sizeof(UA_Guid)) != 0) return UA_FALSE;
 		break;
 
 	case UA_NODEIDTYPE_BYTESTRING:
-		if(p->namespace != 0 || p->identifier.byteString.length != 0) return UA_FALSE;
+		if(p->ns != 0 || p->identifier.byteString.length != 0) return UA_FALSE;
 		break;
 
 	default:

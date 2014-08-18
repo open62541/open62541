@@ -116,9 +116,21 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 buflen = 256;
 	UA_ByteString_newMembers(&msg1, buflen); // fixed size
+#ifdef WIN32
+	srand(42);
+#else
 	srandom(42);
+#endif
 	for(int n = 0;n < 100;n++) {
-		for(UA_Int32 i = 0;i < buflen;i++) msg1.data[i] = (UA_Byte)random();  // when
+		for(UA_Int32 i = 0;i < buflen;i++) {
+#ifdef WIN32
+			UA_UInt32 rnd;
+			rnd = rand();
+			msg1.data[i] = rnd;
+#else
+			msg1.data[i] = (UA_Byte)random();  // when
+#endif
+		}
 		UA_UInt32 pos = 0;
 		retval |= UA_.types[_i].new(&obj1);
 		retval |= UA_.types[_i].encodings[0].decode(&msg1, &pos, obj1);
@@ -138,10 +150,22 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 buflen = 256;
 	UA_ByteString_newMembers(&msg1, buflen); // fixed size
+#ifdef WIN32
+	srand(42);
+#else
 	srandom(42);
+#endif
 	// when
 	for(int n = 0;n < 100;n++) {
-		for(UA_Int32 i = 0;i < buflen;i++) msg1.data[i] = (UA_Byte)random();
+		for(UA_Int32 i = 0;i < buflen;i++){
+#ifdef WIN32
+			UA_UInt32 rnd;
+			rnd = rand();
+			msg1.data[i] = rnd;
+#else
+			msg1.data[i] = (UA_Byte)random();  // when
+#endif
+		}
 		UA_UInt32 pos = 0;
 		retval |= UA_.types[_i].new(&obj1);
 		retval |= UA_.types[_i].encodings[0].decode(&msg1, &pos, obj1);

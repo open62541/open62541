@@ -14,7 +14,7 @@ Application appMockup = {
 UA_Node* create_node_ns0(UA_Int32 class, UA_Int32 nodeClass, UA_Int32 const id, char const * qn, char const * dn, char const * desc) {
 	UA_Node* n; UA_.types[class].new((void **)&n);
 	n->nodeId.nodeIdType = UA_NODEIDTYPE_NUMERIC;
-	n->nodeId.namespace = 0;
+	n->nodeId.ns = 0;
 	n->nodeId.identifier.numeric = id;
 	UA_String_copycstring(qn,&(n->browseName.name));
 	UA_String_copycstring(dn,&n->displayName.text);

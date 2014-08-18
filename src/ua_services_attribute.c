@@ -38,12 +38,12 @@ static UA_DataValue service_read_node(Application *app, const UA_ReadValueId *id
 	UA_DataValue v;
 	UA_DataValue_init(&v);
 
-	DBG(printf("service_read_node - entered with ns=%d,id=%d,attr=%i\n", id->nodeId.namespace,
+	DBG(printf("service_read_node - entered with ns=%d,id=%d,attr=%i\n", id->nodeId.ns,
 	           id->nodeId.identifier.numeric, id->attributeId));
-	Namespace *ns = UA_indexedList_findValue(app->namespaces, id->nodeId.namespace);
+	Namespace *ns = UA_indexedList_findValue(app->namespaces, id->nodeId.ns);
 
 	if(ns == UA_NULL) {
-		DBG_VERBOSE(printf("service_read_node - unknown namespace %d\n", id->nodeId.namespace));
+		DBG_VERBOSE(printf("service_read_node - unknown namespace %d\n", id->nodeId.ns));
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
 		v.status       = UA_STATUSCODE_BADNODEIDUNKNOWN;
 		return v;
@@ -259,7 +259,7 @@ UA_Int32 Service_Read(UA_Session *session, const UA_ReadRequest *request,
 UA_Int32 Service_Write_writeNode(Application *app, UA_WriteValue *writeValue, UA_StatusCode *result)
 {
 	UA_Int32 retval = UA_SUCCESS;
-	Namespace *ns = UA_indexedList_findValue(app->namespaces, writeValue->nodeId.namespace);
+	Namespace *ns = UA_indexedList_findValue(app->namespaces, writeValue->nodeId.ns);
 	if(ns==UA_NULL)
 	{
 		*result = UA_STATUSCODE_BADNODEIDINVALID;

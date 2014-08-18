@@ -17,6 +17,9 @@ add_definitions(-std=c99 -pedantic -pipe -fstack-protector -Wall -Wextra
                  -Wformat-nonliteral -Winit-self -Wuninitialized -Wno-deprecated
                  -Wformat-security -Werror -ffunction-sections -fdata-sections
                  -Wl,--gc-sections)
+	if(WIN32)
+	    add_definitions(-fno-stack-protector)
+	endif(WIN32)
 endif(CMAKE_COMPILER_IS_GNUCC)
 
 # multithreading

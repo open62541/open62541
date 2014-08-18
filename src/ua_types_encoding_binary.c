@@ -2,7 +2,7 @@
 #include "ua_namespace_0.h"
 
 static INLINE UA_Boolean is_builtin(UA_NodeId *typeid) {
-	return (typeid->namespace == 0 && 1 <= typeid->identifier.numeric && typeid->identifier.numeric <= 25);
+	return (typeid->ns == 0 && 1 <= typeid->identifier.numeric && typeid->identifier.numeric <= 25);
 }
 
 /*********/
@@ -389,9 +389,9 @@ UA_Int32 UA_NodeId_calcSizeBinary(UA_NodeId const *p) {
 	else {
 		switch(p->nodeIdType) {
 		case UA_NODEIDTYPE_NUMERIC:
-			if(p->identifier.numeric > UA_UINT16_MAX || p->namespace > UA_BYTE_MAX)
+			if(p->identifier.numeric > UA_UINT16_MAX || p->ns > UA_BYTE_MAX)
 				length = sizeof(UA_Byte) + sizeof(UA_UInt16) + sizeof(UA_UInt32);
-			else if(p->identifier.numeric > UA_BYTE_MAX || p->namespace > 0)
+			else if(p->identifier.numeric > UA_BYTE_MAX || p->ns > 0)
 				length = 4; /* UA_NODEIDTYPE_FOURBYTE */
 			else
 				length = 2; /* UA_NODEIDTYPE_TWOBYTE*/
@@ -424,15 +424,15 @@ UA_TYPE_ENCODEBINARY(UA_NodeId,
                      UA_Int32 retval = UA_SUCCESS;
                      switch(src->nodeIdType) {
 					 case UA_NODEIDTYPE_NUMERIC:
-						 if(src->identifier.numeric > UA_UINT16_MAX || src->namespace > UA_BYTE_MAX) {
+						 if(src->identifier.numeric > UA_UINT16_MAX || src->ns > UA_BYTE_MAX) {
 							 srcByte = UA_NODEIDTYPE_NUMERIC;
 							 retval |= UA_Byte_encodeBinary(&srcByte, dst, offset);
-							 retval |= UA_UInt16_encodeBinary(&src->namespace, dst, offset);
+							 retval |= UA_UInt16_encodeBinary(&src->ns, dst, offset);
 							 retval |= UA_UInt32_encodeBinary(&src->identifier.numeric, dst, offset);
-						 } else if(src->identifier.numeric > UA_BYTE_MAX || src->namespace > 0) { /* UA_NODEIDTYPE_FOURBYTE */
+						 } else if(src->identifier.numeric > UA_BYTE_MAX || src->ns > 0) { /* UA_NODEIDTYPE_FOURBYTE */
 							 srcByte = UA_NODEIDTYPE_FOURBYTE;
 							 retval |= UA_Byte_encodeBinary(&srcByte, dst, offset);
-							 srcByte = src->namespace;
+							 srcByte = src->ns;
 							 srcUInt16 = src->identifier.numeric;
 							 retval |= UA_Byte_encodeBinary(&srcByte, dst, offset);
 							 retval |= UA_UInt16_encodeBinary(&srcUInt16, dst, offset);
@@ -447,21 +447,21 @@ UA_TYPE_ENCODEBINARY(UA_NodeId,
 					 case UA_NODEIDTYPE_STRING:
 						 srcByte = UA_NODEIDTYPE_STRING;
 						 retval |= UA_Byte_encodeBinary(&srcByte, dst, offset);
-						 retval |= UA_UInt16_encodeBinary(&src->namespace, dst, offset);
+						 retval |= UA_UInt16_encodeBinary(&src->ns, dst, offset);
 						 retval |= UA_String_encodeBinary(&src->identifier.string, dst, offset);
 						 break;
 
 					 case UA_NODEIDTYPE_GUID:
 						 srcByte = UA_NODEIDTYPE_GUID;
 						 retval |= UA_Byte_encodeBinary(&srcByte, dst, offset);
-						 retval |= UA_UInt16_encodeBinary(&src->namespace, dst, offset);
+						 retval |= UA_UInt16_encodeBinary(&src->ns, dst, offset);
 						 retval |= UA_Guid_encodeBinary(&src->identifier.guid, dst, offset);
 						 break;
 
 					 case UA_NODEIDTYPE_BYTESTRING:
 						 srcByte = UA_NODEIDTYPE_BYTESTRING;
 						 retval |= UA_Byte_encodeBinary(&srcByte, dst, offset);
-						 retval |= UA_UInt16_encodeBinary(&src->namespace, dst, offset);
+						 retval |= UA_UInt16_encodeBinary(&src->ns, dst, offset);
 						 retval |= UA_ByteString_encodeBinary(&src->identifier.byteString, dst, offset);
 						 break;
 
@@ -485,38 +485,38 @@ UA_Int32 UA_NodeId_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA_
 		dst->nodeIdType = UA_NODEIDTYPE_NUMERIC;
 		CHECKED_DECODE(UA_Byte_decodeBinary(src, offset, &dstByte),; );
 		dst->identifier.numeric = dstByte;
-		dst->namespace = 0; // default namespace
+		dst->ns = 0; // default namespace
 		break;
 
 	case UA_NODEIDTYPE_FOURBYTE: // Table 8
 		dst->nodeIdType = UA_NODEIDTYPE_NUMERIC;
 		CHECKED_DECODE(UA_Byte_decodeBinary(src, offset, &dstByte),; );
-		dst->namespace = dstByte;
+		dst->ns = dstByte;
 		CHECKED_DECODE(UA_UInt16_decodeBinary(src, offset, &dstUInt16),; );
 		dst->identifier.numeric = dstUInt16;
 		break;
 
 	case UA_NODEIDTYPE_NUMERIC: // Table 6, first entry
 		dst->nodeIdType = UA_NODEIDTYPE_NUMERIC;
-		CHECKED_DECODE(UA_UInt16_decodeBinary(src, offset, &dst->namespace),; );
+		CHECKED_DECODE(UA_UInt16_decodeBinary(src, offset, &dst->ns),; );
 		CHECKED_DECODE(UA_UInt32_decodeBinary(src, offset, &dst->identifier.numeric),; );
 		break;
 
 	case UA_NODEIDTYPE_STRING: // Table 6, second entry
 		dst->nodeIdType = UA_NODEIDTYPE_STRING;
-		CHECKED_DECODE(UA_UInt16_decodeBinary(src, offset, &dst->namespace),; );
+		CHECKED_DECODE(UA_UInt16_decodeBinary(src, offset, &dst->ns),; );
 		CHECKED_DECODE(UA_String_decodeBinary(src, offset, &dst->identifier.string),; );
 		break;
 
 	case UA_NODEIDTYPE_GUID: // Table 6, third entry
 		dst->nodeIdType = UA_NODEIDTYPE_GUID;
-		CHECKED_DECODE(UA_UInt16_decodeBinary(src, offset, &dst->namespace),; );
+		CHECKED_DECODE(UA_UInt16_decodeBinary(src, offset, &dst->ns),; );
 		CHECKED_DECODE(UA_Guid_decodeBinary(src, offset, &dst->identifier.guid),; );
 		break;
 
 	case UA_NODEIDTYPE_BYTESTRING: // Table 6, "OPAQUE"
 		dst->nodeIdType = UA_NODEIDTYPE_BYTESTRING;
-		CHECKED_DECODE(UA_UInt16_decodeBinary(src, offset, &dst->namespace),; );
+		CHECKED_DECODE(UA_UInt16_decodeBinary(src, offset, &dst->ns),; );
 		CHECKED_DECODE(UA_ByteString_decodeBinary(src, offset, &dst->identifier.byteString),; );
 		break;
 
@@ -573,7 +573,7 @@ UA_Int32 UA_ExpandedNodeId_decodeBinary(UA_ByteString const *src, UA_UInt32 *off
 	
 	CHECKED_DECODE(UA_NodeId_decodeBinary(src, offset, &dst->nodeId), UA_ExpandedNodeId_deleteMembers(dst));
 	if(encodingByte & UA_EXPANDEDNODEID_NAMESPACEURI_FLAG) {
-		dst->nodeId.namespace = 0;
+		dst->nodeId.ns = 0;
 		CHECKED_DECODE(UA_String_decodeBinary(src, offset, &dst->namespaceUri), UA_ExpandedNodeId_deleteMembers(dst));
 	}
 	if(encodingByte & UA_EXPANDEDNODEID_SERVERINDEX_FLAG)
@@ -830,7 +830,7 @@ UA_TYPE_ENCODEBINARY(UA_Variant,
 					 UA_Boolean hasDimensions;
 					 UA_Boolean isBuiltin;
 
-                     if(src == UA_NULL || src->vt == UA_NULL || src->vt->typeId.namespace != 0)
+                     if(src == UA_NULL || src->vt == UA_NULL || src->vt->typeId.ns != 0)
 						 return UA_ERROR;
 
                      isArray       = src->arrayLength != 1;  // a single element is not an array
@@ -888,7 +888,7 @@ UA_Int32 UA_Variant_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA
 	UA_Boolean isArray = encodingByte & UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
 	UA_Boolean hasDimensions = isArray && (encodingByte & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS);
 
-	UA_NodeId typeid = { .nodeIdType = UA_NODEIDTYPE_NUMERIC, .namespace= 0,
+	UA_NodeId typeid = { .ns= 0, .nodeIdType = UA_NODEIDTYPE_NUMERIC,
 						 .identifier.numeric = encodingByte & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK };
 	UA_Int32 typeNs0Id = UA_ns0ToVTableIndex(&typeid );
 	dst->vt = &UA_.types[typeNs0Id];

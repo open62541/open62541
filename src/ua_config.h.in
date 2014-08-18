@@ -1,6 +1,7 @@
 /* Definitions to be set by cmake. */
 #define UA_ENCODING_AMOUNT @UA_ENCODING_AMOUNT@
 #cmakedefine MSVC
+#cmakedefine WIN32
 
 #ifndef MSVC
 #define INLINE inline

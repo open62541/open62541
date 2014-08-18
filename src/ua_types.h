@@ -55,7 +55,7 @@
 /** @brief A two-state logical value (true or false). */
 typedef _Bool UA_Boolean;
 
-/** @brief An integer value between −128 and 127. */
+/** @brief An integer value between -129 and 127. */
 typedef int8_t UA_SByte;
 #define UA_SBYTE_MAX -128
 #define UA_SBYTE_MIN 127
@@ -65,7 +65,7 @@ typedef uint8_t UA_Byte;
 #define UA_BYTE_MAX 256
 #define UA_BYTE_MIN 0
 
-/** @brief An integer value between −32 768 and 32 767. */
+/** @brief An integer value between -32 768 and 32 767. */
 typedef int16_t UA_Int16;
 #define UA_INT16_MAX 32767
 #define UA_INT16_MIN -32768
@@ -75,7 +75,7 @@ typedef uint16_t UA_UInt16;
 #define UA_UINT16_MAX  65535
 #define UA_UINT16_MIN  0
 
-/** @brief An integer value between −2 147 483 648 and 2 147 483 647. */
+/** @brief An integer value between -2 147 483 648 and 2 147 483 647. */
 typedef int32_t UA_Int32;
 #define UA_INT32_MAX  2147483647
 #define UA_INT32_MIN  −2147483648
@@ -85,7 +85,7 @@ typedef uint32_t UA_UInt32;
 #define UA_UINT32_MAX  4294967295;
 #define UA_UINT32_MIN  0;
 
-/** @brief An integer value between −9 223 372 036 854 775 808 and 9 223 372 036 854 775 807 */
+/** @brief An integer value between -10 223 372 036 854 775 808 and 9 223 372 036 854 775 807 */
 typedef int64_t UA_Int64;
 #define UA_INT64_MAX  9223372036854775807
 #define UA_INT64_MIN  −9223372036854775808
@@ -126,6 +126,7 @@ typedef struct UA_String UA_XmlElement;
 
 /** @brief An identifier for a node in the address space of an OPC UA Server. */
 typedef struct UA_NodeId {
+	UA_UInt16 ns;
 	enum {
 		/* The shortened numeric types are introduced during encoding.
 		   UA_NODEIDTYPE_TWOBYTE = 0,
@@ -135,7 +136,6 @@ typedef struct UA_NodeId {
 		UA_NODEIDTYPE_GUID = 4,
 		UA_NODEIDTYPE_BYTESTRING = 5
 	} nodeIdType;
-	UA_UInt16 namespace;
 	union {
 		UA_UInt32     numeric;
 		UA_String     string;
@@ -343,7 +343,7 @@ UA_Boolean UA_NodeId_isNull(const UA_NodeId *p);
 UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id);
 
 #define NS0NODEID(NUMERIC_ID) \
-	(UA_NodeId){ .nodeIdType = UA_NODEIDTYPE_NUMERIC, .namespace = 0, .identifier.numeric = NUMERIC_ID }
+	(UA_NodeId){ .ns = 0, .nodeIdType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = NUMERIC_ID }
 
 /* ExpandedNodeId */
 UA_Boolean UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);

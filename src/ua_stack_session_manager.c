@@ -24,7 +24,7 @@ static UA_SessionManager *sessionManager;
 UA_Int32 UA_SessionManager_generateSessionId(UA_NodeId *sessionId)
 {
 	sessionId->nodeIdType = UA_NODEIDTYPE_NUMERIC;
-	sessionId->namespace = 0;
+	sessionId->ns = 0;
 	sessionId->identifier.numeric = sessionManager->lastSessionId++;
 	return UA_SUCCESS;
 }
