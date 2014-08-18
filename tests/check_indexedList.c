@@ -54,6 +54,13 @@ END_TEST
 START_TEST(linkedList_test_basic)
 {
 
+	ck_assert_int_eq(UA_indexedList_addValue(UA_NULL, 0, UA_NULL), UA_ERROR);
+	ck_assert_int_eq(UA_indexedList_addValueToFront(UA_NULL, 0, UA_NULL), UA_ERROR);
+	ck_assert_int_eq(UA_indexedList_destroy(UA_NULL, UA_NULL), UA_ERROR);
+	ck_assert_int_eq(UA_indexedList_find(UA_NULL, 0), UA_NULL);
+	ck_assert_int_eq(UA_indexedList_iterateValues(UA_NULL, UA_NULL), UA_ERROR);
+	ck_assert_int_eq(UA_indexedList_removeElement(UA_NULL, 0, UA_NULL), UA_ERROR);
+
 	UA_indexedList_List list;
 	UA_indexedList_init(&list);
 
