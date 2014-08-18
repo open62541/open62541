@@ -91,6 +91,11 @@ open "build\open62541.sln" in Visual Studio 2013 and build as usual
 <path-to>\mingw32-make.exe
 ```
 
+#### Install pkg-config (for CMake)
+* Download http://win32builder.gnome.org/packages/3.6/pkg-config_0.28-1_win32.zip and unpack bin/pkg-config.exe to <MinGW-path>/bin
+* Download http://ftp.gnome.org/pub/gnome/binaries/win32/glib/2.28/glib_2.28.8-1_win32.zip and unzip bin/libglib-2.0-0.dll to <MinGW-path>/bin
+* Download http://ftp.gnome.org/pub/gnome/binaries/win32/dependencies/gettext-runtime_0.18.1.1-2_win32.zip and unzip bin/intl.dll to <MinGW-path>/bin
+
 #### Get expat
 * Start MinGW Installation Manager ```mingw-get.exe```
 * Choose all Packages, mark mingw32-expat and install
@@ -101,7 +106,8 @@ open "build\open62541.sln" in Visual Studio 2013 and build as usual
 ```bash
 cd check-code
 autoreconf --install
-./configure
+mount c:/<MinGW-path> /mingw
+./configure --prefix=/mingw CC=mingw32-gcc
 make
 make install
 ```
