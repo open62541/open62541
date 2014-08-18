@@ -156,7 +156,6 @@ void* NL_TCP_reader(NL_Connection *c) {
 	UA_TL_Connection_getLocalConfig(c->connection, &localBuffers);
 	UA_alloc((void**)&(readBuffer.data),localBuffers.recvBufferSize);
 
-
 	UA_TL_Connection_getState(c->connection, &connectionState);
 	if (connectionState  != CONNECTIONSTATE_CLOSE) {
 		DBG_VERBOSE(printf("NL_TCP_reader - enter read\n"));
@@ -171,8 +170,10 @@ void* NL_TCP_reader(NL_Connection *c) {
 		DBG_VERBOSE(printf("NL_TCP_reader - src={%*.s}, ",c->connection.remoteEndpointUrl.length,c->connection.remoteEndpointUrl.data));
 		DBG(UA_ByteString_printx("NL_TCP_reader - received=",&readBuffer));
 
-		if (readBuffer.length  > 0) {
-
+		if (errno != 0) {
+			perror("NL_TCP_reader - ERROR reading from socket1");
+			UA_TL_Connection_setState(c->connection, CONNECTIONSTATE_CLOSE);
+		} else if (readBuffer.length  > 0) {
 #ifdef DEBUG
 #include "ua_transport_binary_secure.h"
 			UA_UInt32 pos = 0;
@@ -186,11 +187,7 @@ void* NL_TCP_reader(NL_Connection *c) {
 				UA_NodeId_printf("NL_TCP_reader - Service Type\n",&serviceRequestType);
 			}
 #endif
-
 			TL_Process((c->connection),&readBuffer);
-		} else {
-			perror("NL_TCP_reader - ERROR reading from socket1");
-			UA_TL_Connection_setState(c->connection, CONNECTIONSTATE_CLOSE);
 		}
 	}
 
