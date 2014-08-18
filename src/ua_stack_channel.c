@@ -1,10 +1,3 @@
-/*
- * ua_stack_channel.c
- *
- *  Created on: 09.05.2014
- *      Author: root
- */
-
 #include "ua_stack_channel.h"
 #include <time.h>
 #include <stdlib.h>
@@ -46,8 +39,8 @@ UA_Int32 SL_Channel_setRemoteSecuritySettings(SL_Channel *channel,
 	channel->requestId = sequenceHeader->requestId;
 	return retval;
 }
-/*
-UA_Int32 SL_Channel_initLocalSecuritySettings(SL_Channel *channel)
+
+/* UA_Int32 SL_Channel_initLocalSecuritySettings(SL_Channel *channel)
 {
 	UA_Int32 retval = UA_SUCCESS;
 	channel->localAsymAlgSettings.receiverCertificateThumbprint.data = UA_NULL;
@@ -58,8 +51,8 @@ UA_Int32 SL_Channel_initLocalSecuritySettings(SL_Channel *channel)
 	channel->localAsymAlgSettings.senderCertificate.data = UA_NULL;
 	channel->localAsymAlgSettings.senderCertificate.length = 0;
 	return retval;
-}
-*/
+} */
+
 UA_Int32 SL_Channel_new(SL_Channel **channel) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_alloc((void** )channel, sizeof(SL_Channel));
@@ -117,9 +110,7 @@ UA_Int32 SL_Channel_registerTokenProvider(SL_Channel *channel,
 
 UA_Int32 SL_Channel_getRemainingLifetime(SL_Channel *channel, UA_Int32 *lifetime) {
 	if (channel) {
-		UA_Int64 diffInMS =
-				(channel->securityToken.createdAt
-						- UA_DateTime_now()) / 1e7;
+		UA_Int64 diffInMS = (channel->securityToken.createdAt - UA_DateTime_now()) / 1e7;
 		if (diffInMS > UA_INT32_MAX) {
 			*lifetime = UA_INT32_MAX;
 		} else {
@@ -180,6 +171,7 @@ UA_Int32 SL_Channel_getConnection(SL_Channel *channel,
 	}
 	return UA_ERROR;
 }
+
 UA_Int32 SL_Channel_getRequestId(SL_Channel *channel, UA_UInt32 *requestId) {
 	if (channel) {
 		*requestId = channel->requestId;
@@ -187,6 +179,7 @@ UA_Int32 SL_Channel_getRequestId(SL_Channel *channel, UA_UInt32 *requestId) {
 	}
 	return UA_ERROR;
 }
+
 UA_Int32 SL_Channel_getSequenceNumber(SL_Channel *channel,
 		UA_UInt32 *sequenceNumber) {
 	if (channel) {
@@ -195,6 +188,7 @@ UA_Int32 SL_Channel_getSequenceNumber(SL_Channel *channel,
 	}
 	return UA_ERROR;
 }
+
 UA_Int32 SL_Channel_getState(SL_Channel *channel, SL_channelState *channelState) {
 	if (channel) {
 		*channelState = channel->state;
@@ -203,14 +197,12 @@ UA_Int32 SL_Channel_getState(SL_Channel *channel, SL_channelState *channelState)
 	return UA_ERROR;
 }
 
-UA_Int32 SL_Channel_getRevisedLifetime(SL_Channel *channel,
-		UA_UInt32 *revisedLifetime) {
-	if (channel) {
-		*revisedLifetime =
-				channel->securityToken.revisedLifetime;
-		return UA_SUCCESS;
-	}
-	return UA_ERROR;
+UA_Int32 SL_Channel_getRevisedLifetime(SL_Channel *channel, UA_UInt32 *revisedLifetime) {
+	if(!channel)
+		return UA_ERROR;
+
+	*revisedLifetime = channel->securityToken.revisedLifetime;
+	return UA_SUCCESS;
 }
 
 //setters
@@ -228,32 +220,25 @@ UA_Int32 SL_Channel_setState(SL_Channel *channel, SL_channelState channelState) 
 
 
 UA_Boolean SL_Channel_compare(SL_Channel *channel1, SL_Channel *channel2) {
-	return (((SL_Channel*) channel1)->channelId
-			== ((SL_Channel*) channel2)->channelId) ?
-	UA_TRUE :
-															UA_FALSE;
+	return (((SL_Channel*) channel1)->channelId == ((SL_Channel*) channel2)->channelId) ?
+			UA_TRUE : UA_FALSE;
 }
 
 UA_Int32 SL_Channel_bind(SL_Channel *channel, UA_TL_Connection *connection) {
-	if (channel && connection) {
-		channel->connection = connection;
-		return UA_SUCCESS;
-	}
-	return UA_ERROR;
+	if (!channel || !connection)
+		return UA_ERROR;
+
+	channel->connection = connection;
+	return UA_SUCCESS;
 }
 
 UA_Int32 SL_Channel_deleteMembers(SL_Channel *channel) {
 	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(
-			&channel->localAsymAlgSettings);
-	retval |= UA_ByteString_deleteMembers(
-			&channel->localNonce);
-	retval |= UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(
-			&channel->remoteAsymAlgSettings);
-	retval |= UA_ByteString_deleteMembers(
-			&channel->remoteNonce);
-	retval |= UA_ChannelSecurityToken_deleteMembers(
-			&channel->securityToken);
+	retval |= UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&channel->localAsymAlgSettings);
+	retval |= UA_ByteString_deleteMembers(&channel->localNonce);
+	retval |= UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&channel->remoteAsymAlgSettings);
+	retval |= UA_ByteString_deleteMembers(&channel->remoteNonce);
+	retval |= UA_ChannelSecurityToken_deleteMembers(&channel->securityToken);
 	return retval;
 }
 UA_Int32 SL_Channel_delete(SL_Channel *channel) {
@@ -263,14 +248,9 @@ UA_Int32 SL_Channel_delete(SL_Channel *channel) {
 	return retval;
 }
 
-UA_Int32 SL_Channel_processTokenRequest(SL_Channel *channel,
-		UA_UInt32 requestedLifetime, UA_SecurityTokenRequestType requestType) {
-	if (channel->tokenProvider) {
-		return channel->tokenProvider(channel,
-				requestedLifetime, requestType,
-				&channel->securityToken);
-
-	}
+UA_Int32 SL_Channel_processTokenRequest(SL_Channel *channel, UA_UInt32 requestedLifetime, UA_SecurityTokenRequestType requestType) {
+	if (channel->tokenProvider)
+		return channel->tokenProvider(channel, requestedLifetime, requestType, &channel->securityToken);
 	printf("SL_Channel_processTokenRequest - no Token provider registered");
 	return UA_ERROR;
 }
@@ -278,21 +258,17 @@ UA_Int32 SL_Channel_renewToken(SL_Channel *channel, UA_UInt32 tokenId,
 		UA_DateTime revisedLifetime, UA_DateTime createdAt) {
 	channel->securityToken.tokenId = tokenId;
 	channel->securityToken.createdAt = createdAt;
-	channel->securityToken.revisedLifetime =
-			revisedLifetime;
+	channel->securityToken.revisedLifetime = revisedLifetime;
 	return UA_SUCCESS;
 }
 
-UA_Int32 SL_Channel_checkSequenceNumber(SL_Channel *channel,
-		UA_UInt32 sequenceNumber) {
+UA_Int32 SL_Channel_checkSequenceNumber(SL_Channel *channel, UA_UInt32 sequenceNumber) {
 	//TODO review checking of sequence
 	if (channel->sequenceNumber+1  == sequenceNumber) {
 		channel->sequenceNumber++;
-
 		return UA_SUCCESS;
 	}
-	printf(
-			"SL_Channel_checkSequenceNumber - ERROR, wrong SequenceNumber expected: %i, received: %i",
+	printf("SL_Channel_checkSequenceNumber - ERROR, wrong SequenceNumber expected: %i, received: %i",
 			channel->sequenceNumber + 1, sequenceNumber);
 	return UA_ERROR;
 
@@ -302,26 +278,20 @@ UA_Int32 SL_Channel_checkRequestId(SL_Channel *channel, UA_UInt32 requestId) {
 	//TODO review checking of request id
 	if (channel->requestId+1  == requestId) {
 		channel->requestId++;
-
 		return UA_SUCCESS;
 	}
-	printf(
-			"SL_Channel_requestId - ERROR, wrong requestId expected: %i, received: %i",
+	printf("SL_Channel_requestId - ERROR, wrong requestId expected: %i, received: %i",
 			channel->requestId + 1, requestId);
 	return UA_ERROR;
-
 }
 
-UA_Int32 SL_Channel_processOpenRequest(SL_Channel *channel,
-		const UA_OpenSecureChannelRequest* request,
-		UA_OpenSecureChannelResponse* response) {
+UA_Int32 SL_Channel_processOpenRequest(SL_Channel *channel, const UA_OpenSecureChannelRequest* request,
+									   UA_OpenSecureChannelResponse* response) {
 	UA_UInt32 protocolVersion;
 	SL_Channel* thisChannel = channel;
 	UA_Int32 retval = UA_SUCCESS;
 
-	UA_TL_Connection_getProtocolVersion(thisChannel->connection,
-			&protocolVersion);
-
+	UA_TL_Connection_getProtocolVersion(thisChannel->connection, &protocolVersion);
 
 	if (request->clientProtocolVersion != protocolVersion) {
 		printf("SL_Channel_processOpenRequest - error protocol version \n");
@@ -398,10 +368,7 @@ UA_Int32 SL_Channel_processOpenRequest(SL_Channel *channel,
 	}
 
 	response->serverProtocolVersion = protocolVersion;
-
-	UA_ChannelSecurityToken_copy(&channel->securityToken,
-			&(response->securityToken));
-
+	UA_ChannelSecurityToken_copy(&channel->securityToken, &(response->securityToken));
 	UA_ByteString_copy(&thisChannel->localNonce, &response->serverNonce);
 
 	return retval;

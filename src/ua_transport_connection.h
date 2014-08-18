@@ -1,13 +1,5 @@
-/*
- * ua_transport_connection.h
- *
- *  Created on: 10.05.2014
- *      Author: open62541
- */
-
 #ifndef UA_TRANSPORT_CONNECTION_H_
 #define UA_TRANSPORT_CONNECTION_H_
-
 
 #include "ua_transport.h"
 
@@ -24,12 +16,9 @@ typedef struct UA_TL_Connection UA_TL_Connection;
 typedef UA_Int32 (*TL_Closer)(UA_TL_Connection*);
 typedef UA_Int32 (*TL_Writer)(UA_Int32 connectionHandle, const UA_ByteString** gather_bufs, UA_Int32 gather_len); // send mutiple buffer concatenated into one msg (zero copy)
 
-
 UA_Int32 UA_TL_Connection_configByHello(UA_TL_Connection *connection, UA_OPCUATcpHelloMessage *helloMessage);
-
 UA_Int32 UA_TL_Connection_delete(UA_TL_Connection *connection);
 UA_Int32 UA_TL_Connection_callWriter(UA_TL_Connection *connection, const UA_ByteString** gather_bufs, UA_Int32 gather_len);
-
 UA_Int32 UA_TL_Connection_close(UA_TL_Connection *connection);
 UA_Int32 UA_TL_Connection_new(UA_TL_Connection **connection, TL_Buffer localBuffers,TL_Writer writer, TL_Closer closeCallback,UA_Int32 handle, void* networkLayerData);
 UA_Int32 UA_TL_Connection_bind(UA_TL_Connection *connection, UA_Int32 handle);
@@ -46,6 +35,5 @@ UA_Int32 UA_TL_Connection_getProtocolVersion(UA_TL_Connection *connection, UA_UI
 UA_Int32 UA_TL_Connection_getState(UA_TL_Connection *connection, UA_Int32 *connectionState);
 UA_Int32 UA_TL_Connection_getLocalConfig(UA_TL_Connection *connection, TL_Buffer *localConfiguration);
 UA_Int32 UA_TL_Connection_getNetworkLayerData(UA_TL_Connection *connection,void** networkLayerData);
-
 
 #endif /* UA_TRANSPORT_CONNECTION_H_ */

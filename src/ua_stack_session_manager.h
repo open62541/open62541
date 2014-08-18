@@ -1,24 +1,10 @@
-/*
- * ua_stack_session_manager.h
- *
- *  Created on: 05.06.2014
- *      Author: root
- */
-
 #ifndef UA_STACK_SESSION_MANAGER_H_
 #define UA_STACK_SESSION_MANAGER_H_
 
-
-
 #include "ua_stack_session.h"
 
-
-
-//hide internal data of channelManager
 struct UA_SessionManager;
 typedef struct UA_SessionManager UA_SessionManager;
-
-//typedef struct UA_SessionManagerType *UA_SessionManager;
 
 /**
  * @brief initializes the session manager
@@ -27,8 +13,7 @@ typedef struct UA_SessionManager UA_SessionManager;
  * @param startSessionId the start id of the session identifiers, newer sessions get higher ids
  * @return error code
  */
-UA_Int32 UA_SessionManager_init(UA_UInt32 maxSessionCount,UA_UInt32 sessionLifetime,
-		UA_UInt32 startSessionId);
+UA_Int32 UA_SessionManager_init(UA_UInt32 maxSessionCount,UA_UInt32 sessionLifetime, UA_UInt32 startSessionId);
 
 /**
  * @brief adds a session to the manager list
@@ -60,7 +45,6 @@ UA_Int32 UA_SessionManager_getSessionById(UA_NodeId *sessionId, UA_Session **ses
  */
 UA_Int32 UA_SessionManager_getSessionByToken(UA_NodeId *token, UA_Session **session);
 
-
 /**
  * @brief gets the session timeout value which should be assigned to
  * all sessions handled by the manager
@@ -69,12 +53,8 @@ UA_Int32 UA_SessionManager_getSessionByToken(UA_NodeId *token, UA_Session **sess
  */
 UA_Int32 UA_SessionManager_getSessionTimeout(UA_Int64 *timeout_ms);
 
-
 //UA_Int32 UA_SessionManager_updateSessions();
-
-
 //UA_Int32 UA_SessionManager_generateToken(UA_Session session, UA_Int32 requestedLifeTime, SecurityTokenRequestType requestType, UA_ChannelSecurityToken* newToken);
-
 UA_Int32 UA_SessionManager_generateSessionId(UA_NodeId *newSessionId);
 
 #endif /* UA_STACK_SESSION_MANAGER_H_ */

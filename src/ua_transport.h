@@ -12,14 +12,14 @@ typedef enum UA_ConnectionState {
 	CONNECTIONSTATE_OPENING,
 	CONNECTIONSTATE_ESTABLISHED,
 	CONNECTIONSTATE_CLOSE
-}UA_ConnectionState;
+} UA_ConnectionState;
 
 typedef struct Session {
 	UA_Int32 sessionId;
 	Application *application;
 } Session;
 
-typedef enum SecurityTokenRequestType{
+typedef enum SecurityTokenRequestType {
 	UA_SECURITYTOKEN_ISSUE = 0,
 	UA_SECURITYTOKEN_RENEW = 1
 } SecurityTokenRequestType;
