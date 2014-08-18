@@ -101,8 +101,10 @@ static UA_Int32 TL_handleMsg(UA_TL_Connection *connection, const UA_ByteString* 
 static UA_Int32 TL_handleClo(UA_TL_Connection *connection, const UA_ByteString* msg, UA_UInt32* pos) {
 	UA_Int32 retval = UA_SUCCESS;
 	SL_Process(msg,pos);
-
-	UA_TL_Connection_close(connection);
+	// actually closing the connection should be handled elsewhere
+	// UA_TL_Connection_close(connection);
+	// here we only need to tell that we want to close
+	UA_TL_Connection_setState(connection, CONNECTIONSTATE_CLOSE);
 	return retval;
 }
 
