@@ -765,10 +765,8 @@ UA_Int32 UA_DataValue_calcSizeBinary(UA_DataValue const *p) {
 		length = sizeof(UA_DataValue);
 	else {           // get decoding size
 		length = sizeof(UA_Byte);
-		if(p->encodingMask & UA_DATAVALUE_ENCODINGMASK_VARIANT) {
-			// FIXME: this one can return with an error value instead of a size
+		if(p->encodingMask & UA_DATAVALUE_ENCODINGMASK_VARIANT)
 			length += UA_Variant_calcSizeBinary(&p->value);
-		}
 		if(p->encodingMask & UA_DATAVALUE_ENCODINGMASK_STATUSCODE)
 			length += sizeof(UA_UInt32);   //dataValue->status
 		if(p->encodingMask & UA_DATAVALUE_ENCODINGMASK_SOURCETIMESTAMP)

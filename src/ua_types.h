@@ -363,7 +363,7 @@ void UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn);
 
 /* LocalizedText */
 #define UA_LOCALIZEDTEXT_STATIC(VARIABLE, STRING) do { \
-	UA_STRING_STATIC(VARIABLE.locale, "end"); \
+	UA_STRING_STATIC(VARIABLE.locale, "en"); \
 	UA_STRING_STATIC(VARIABLE.text, STRING); } while (0)
 
 UA_Int32 UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);
