@@ -13,7 +13,7 @@ addons:
       name: acplt/open62541
       description: Open-source OPC UA
     notification_email: null@plt.rwth-aachen.de
-    build_command_prepend: mkdir build && cd build && cmake ..
+    build_command_prepend: cmake .
     build_command: make
     branch_pattern: coverity_scan
 before_install:
