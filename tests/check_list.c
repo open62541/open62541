@@ -32,6 +32,16 @@ _Bool matcher(void* payload){
 	return FALSE;
 }
 
+_Bool matcher2(void* payload){
+	if(payload == UA_NULL){
+		return FALSE;
+	}
+	if(*((UA_Int32*)payload) == 43){
+		return TRUE;
+	}
+	return FALSE;
+}
+
 _Bool comparer(void* payload, void* otherPayload) {
 	if(payload == UA_NULL || otherPayload == UA_NULL){
 		return UA_FALSE;
@@ -45,6 +55,18 @@ START_TEST(list_test_basic)
 
 	UA_list_List list;
 	UA_list_init(&list);
+
+
+	ck_assert_int_eq(UA_list_addPayloadToFront(UA_NULL, UA_NULL), UA_ERROR);
+	ck_assert_int_eq(UA_list_addElementToBack(UA_NULL, UA_NULL), UA_ERROR);
+	ck_assert_int_eq(UA_list_addElementToFront(UA_NULL, UA_NULL), UA_ERROR);
+	ck_assert_int_eq(UA_list_addPayloadToBack(UA_NULL, UA_NULL), UA_ERROR);
+	ck_assert_int_eq(UA_list_removeFirst(UA_NULL, UA_NULL), UA_ERROR);
+	ck_assert_int_eq(UA_list_removeLast(UA_NULL, UA_NULL), UA_ERROR);
+	ck_assert_int_eq(UA_list_removeElement(UA_NULL, UA_NULL), UA_ERROR);
+	ck_assert_int_eq(UA_list_destroy(UA_NULL, UA_NULL), UA_ERROR);
+	ck_assert_int_eq(UA_list_iterateElement(UA_NULL, UA_NULL), UA_ERROR);
+	ck_assert_int_eq(UA_list_iteratePayload(UA_NULL, UA_NULL), UA_ERROR);
 
 	ck_assert_int_eq(list.size, 0);
 
@@ -64,8 +86,12 @@ START_TEST(list_test_basic)
 
 	ck_assert_int_eq(list.size, 3);
 
+	visit_count = 0;
 	UA_list_iteratePayload(&list, visitor);
+	ck_assert_int_eq(visit_count, 3);
 
+	visit_count = 0;
+	UA_list_iterateElement(&list, elementVisitor);
 	ck_assert_int_eq(visit_count, 3);
 
 	UA_list_Element* elem = NULL;
@@ -79,6 +105,10 @@ START_TEST(list_test_basic)
 	}else{
 		fail("Element 42 not found");
 	}
+
+	//search for a non-existent element
+	ck_assert_ptr_eq((UA_list_find(&list, matcher2)), UA_NULL);
+
 	UA_list_destroy(&list, freer);
 
 	ck_assert_int_eq(free_count, 2);
