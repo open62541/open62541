@@ -2,7 +2,6 @@
 #include "ua_transport_connection.h"
 
 #ifdef WIN32
-#pragma comment (lib,"ws2_32.lib")
 #include <sys/types.h>
 #include <Windows.h>
 #include <ws2tcpip.h>
@@ -46,7 +45,7 @@ _Bool NL_ConnectionComparer(void *p1, void* p2) {
 
 int NL_TCP_SetNonBlocking(int sock) {
 #ifdef WIN32
-	UA_Int64 iMode = 1;
+	u_long iMode = 1;
 	int opts = IOCTLSOCKET(sock, FIONBIO, &iMode);
 	if (opts != NO_ERROR){
 		printf("ioctlsocket failed with error: %ld\n", opts);
@@ -188,7 +187,7 @@ void* NL_TCP_reader(NL_Connection *c) {
 		DBG_VERBOSE(printf("NL_TCP_reader - enter read\n"));
 
 #ifdef WIN32
-		readBuffer.length = recv(c->connectionHandle, readBuffer.data, localBuffers.recvBufferSize, 0);
+		readBuffer.length = recv(c->connectionHandle, (char *)readBuffer.data, localBuffers.recvBufferSize, 0);
 #else
 		readBuffer.length = read(c->connectionHandle, readBuffer.data, localBuffers.recvBufferSize);
 #endif
@@ -262,7 +261,7 @@ UA_Int32 NL_TCP_writer(UA_Int32 connectionHandle, UA_ByteString const * const * 
 	WSABUF *buf = malloc(gather_len * sizeof(WSABUF));
 	int result = 0;
 	for (UA_UInt32 i = 0; i<gather_len; i++) {
-		buf[i].buf = gather_buf[i]->data;
+		buf[i].buf = (char*)gather_buf[i]->data;
 		buf[i].len = gather_buf[i]->length;
 		total_len += gather_buf[i]->length;
 		//		DBG(printf("NL_TCP_writer - gather_buf[%i]",i));
@@ -288,32 +287,39 @@ UA_Int32 NL_TCP_writer(UA_Int32 connectionHandle, UA_ByteString const * const * 
 #endif
 
 
+#ifdef WIN32
 	UA_UInt32 nWritten = 0;
 	while (nWritten < total_len) {
-		int n=0;
+		UA_UInt32 n=0;
 		do {
 			DBG_VERBOSE(printf("NL_TCP_writer - enter write with %d bytes to write\n",total_len));
 
-#ifdef WIN32
 			//result = WSASendMsg(connectionHandle,&message,0,&n,UA_NULL,UA_NULL);
-			result = WSASend(connectionHandle, buf, gather_len , &n, 0, NULL, NULL);
+			result = WSASend(connectionHandle, buf, gather_len , (LPDWORD)&n, 0, NULL, NULL);
 			if(result != 0)
-			{
 				printf("NL_TCP_Writer - Error WSASend, code: %d \n", WSAGetLastError());
-			}
+			DBG_VERBOSE(printf("NL_TCP_writer - leave write with n=%d,errno={%d,%s}\n",n,(n>0)?0:errno,(n>0)?"":strerror(errno)));
+		} while (errno == EINTR);
+		nWritten += n;
 #else
+	UA_Int32 nWritten = 0;
+	while (nWritten < total_len) {
+		UA_UInt32 n=0;
+		do {
+			DBG_VERBOSE(printf("NL_TCP_writer - enter write with %d bytes to write\n",total_len));
 			n = sendmsg(connectionHandle, &message, 0);
-#endif
 			DBG_VERBOSE(printf("NL_TCP_writer - leave write with n=%d,errno={%d,%s}\n",n,(n>0)?0:errno,(n>0)?"":strerror(errno)));
 		} while (n == -1L && errno == EINTR);
+
 		if (n >= 0) {
 			nWritten += n;
 			break;
 			// TODO: handle incompletely send messages
 		} else {
-			break;
 			// TODO: error handling
+			break;
 		}
+#endif
 	}
 #ifdef WIN32
 	free(buf);
@@ -412,7 +418,7 @@ void* NL_TCP_listenThread(NL_Connection* c) {
 UA_Int32 NL_TCP_init(NL_data* tld, UA_Int32 port) {
 	UA_Int32 retval = UA_SUCCESS;
 	// socket variables
-	int newsockfd;
+	unsigned int newsockfd;
 
 	struct sockaddr_in serv_addr;
 
@@ -421,15 +427,14 @@ UA_Int32 NL_TCP_init(NL_data* tld, UA_Int32 port) {
 #ifdef WIN32
 	WORD wVersionRequested;
 	WSADATA wsaData;
-	int err;
 
 	/* Use the MAKEWORD(lowbyte, highbyte) macro declared in Windef.h */
 	wVersionRequested = MAKEWORD(2, 2);
 
-	err = WSAStartup(wVersionRequested, &wsaData);
+	WSAStartup(wVersionRequested, &wsaData);
 	newsockfd = socket(PF_INET, SOCK_STREAM,0);
 	if (newsockfd == INVALID_SOCKET){
-		UA_Int32 lasterror = WSAGetLastError();
+		//UA_Int32 lasterror = WSAGetLastError();
 		printf("ERROR opening socket, code: %d\n",WSAGetLastError());
 #else
 	newsockfd = socket(PF_INET, SOCK_STREAM, 0);
@@ -447,7 +452,7 @@ UA_Int32 NL_TCP_init(NL_data* tld, UA_Int32 port) {
 		serv_addr.sin_addr.s_addr = INADDR_ANY;
 		serv_addr.sin_port = htons(port);
 
-		int optval = 1;
+		char optval = 1;
 		if (setsockopt(newsockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval) == -1) {
 			perror("setsockopt");
 			retval = UA_ERROR;

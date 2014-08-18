@@ -150,7 +150,10 @@ endif(WIN32)
 # build example implementations
 add_executable(exampleServer examples/opcuaServer.c
                              examples/networklayer.c)
-target_link_libraries(exampleServer open62541) 
+target_link_libraries(exampleServer open62541)
+if(WIN32)
+    target_link_libraries(exampleServer ws2_32)
+endif(WIN32)
 
 # generate documentation
 option(GENERATE_DOCUMENTATION "Generate doxygen documentation" OFF)
