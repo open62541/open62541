@@ -3,20 +3,20 @@
 
 #ifdef WIN32
 #pragma comment (lib,"ws2_32.lib")
+#include <sys/types.h>
+#include <Windows.h>
+#include <ws2tcpip.h>
 #define CLOSESOCKET(S) closesocket(S); \
 	WSACleanup();
-	#define IOCTLSOCKET ioctlsocket
-	#include <sys/types.h>
-	#include <Windows.h>
-	#include <ws2tcpip.h>
+#define IOCTLSOCKET ioctlsocket
 #else
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <sys/socketvar.h>
+#include <unistd.h> // read, write, close
 #define CLOSESOCKET(S) close(S)
-	#define IOCTLSOCKET ioctl
-	#include <sys/socket.h>
-	#include <netinet/in.h>
-	#include <sys/socketvar.h>
-	#include <unistd.h> // read, write, close
-#endif
+#define IOCTLSOCKET ioctl
+#endif /* WIN32 */
 
 #include <stdlib.h> // exit
 #include <errno.h> // errno, EINTR
@@ -122,11 +122,11 @@ UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), v
 				//FIXME: handle errors
 				DBG_ERR(printf("UA_Stack_msgLoop - errno={%d,%s}\n", errno, strerror(errno)));
 				break;
-			case EAGAIN:
-			default:
+			case EAGAIN: // timer due, call worker
+			default: //
 				DBG_VERBOSE(printf("UA_Stack_msgLoop - errno={%d,%s}\n", errno, strerror(errno)));
 				DBG_VERBOSE(printf("UA_Stack_msgLoop - call worker\n"));
-
+				worker(arg);
 				DBG_VERBOSE(printf("UA_Stack_msgLoop - return from worker\n"));
 			}
 		}
@@ -136,7 +136,8 @@ UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), v
 			DBG_VERBOSE(printf("UA_Stack_msgLoop - activities on %d handles\n",result));
 			UA_list_iteratePayload(&(nl->connections),NL_checkFdSet);
 		}
-		worker(arg);
+		// Calling worker here would execute worker any times we had received something or were interrupted
+		// worker(arg);
 	}
 
 	return UA_SUCCESS;
@@ -155,8 +156,8 @@ void* NL_TCP_reader(NL_Connection *c) {
 	UA_TL_Connection_getLocalConfig(c->connection, &localBuffers);
 	UA_alloc((void**)&(readBuffer.data),localBuffers.recvBufferSize);
 
-
-	if (c->state  != CONNECTIONSTATE_CLOSE) {
+	UA_TL_Connection_getState(c->connection, &connectionState);
+	if (connectionState  != CONNECTIONSTATE_CLOSE) {
 		DBG_VERBOSE(printf("NL_TCP_reader - enter read\n"));
 
 #ifdef WIN32
@@ -169,8 +170,10 @@ void* NL_TCP_reader(NL_Connection *c) {
 		DBG_VERBOSE(printf("NL_TCP_reader - src={%*.s}, ",c->connection.remoteEndpointUrl.length,c->connection.remoteEndpointUrl.data));
 		DBG(UA_ByteString_printx("NL_TCP_reader - received=",&readBuffer));
 
-		if (readBuffer.length  > 0) {
-
+		if (errno != 0) {
+			perror("NL_TCP_reader - ERROR reading from socket1");
+			UA_TL_Connection_setState(c->connection, CONNECTIONSTATE_CLOSE);
+		} else if (readBuffer.length  > 0) {
 #ifdef DEBUG
 #include "ua_transport_binary_secure.h"
 			UA_UInt32 pos = 0;
@@ -181,20 +184,18 @@ void* NL_TCP_reader(NL_Connection *c) {
 			{
 				UA_NodeId serviceRequestType;
 				UA_NodeId_decodeBinary(&readBuffer, &pos,&serviceRequestType);
-				UA_NodeId_printf("Service Type\n",&serviceRequestType);
+				UA_NodeId_printf("NL_TCP_reader - Service Type\n",&serviceRequestType);
 			}
 #endif
-
 			TL_Process((c->connection),&readBuffer);
-		} else {
-//TODO close connection - what does close do?
-			c->state = CONNECTIONSTATE_CLOSE;
-			//c->connection.connectionState = CONNECTIONSTATE_CLOSE;
-			perror("ERROR reading from socket1");
 		}
 	}
+
 	UA_TL_Connection_getState(c->connection, &connectionState);
+	DBG_VERBOSE(printf("NL_TCP_reader - connectionState=%d\n",connectionState));
 	if (connectionState == CONNECTIONSTATE_CLOSE) {
+		DBG_VERBOSE(printf("NL_TCP_reader - closing connection"));
+		// set connection's state to CONNECTIONSTATE_CLOSED and call callback to actually close
 		UA_TL_Connection_close(c->connection);
 #ifndef MULTITHREADING
 		DBG_VERBOSE(printf("NL_TCP_reader - search element to remove\n"));
@@ -213,9 +214,11 @@ void* NL_TCP_reader(NL_Connection *c) {
 /** the tcp reader thread */
 void* NL_TCP_readerThread(NL_Connection *c) {
 	// just loop, NL_TCP_Reader will call the stack
+	UA_Int32 connectionState;
 	do {
 		NL_TCP_reader(c);
-	} while (c->connection.connectionState != CONNECTIONSTATE_CLOSED);
+		UA_TL_Connection_getState(c->connection, &connectionState);
+	} while (connectionState != CONNECTIONSTATE_CLOSED);
 	// clean up
 	UA_free(c);
 	pthread_exit(UA_NULL);
@@ -358,16 +361,16 @@ void* NL_TCP_accept(NL_Connection* c) {
 #ifdef MULTITHREADING
 void* NL_TCP_listenThread(NL_Connection* c) {
 	NL_data* tld = c->networkLayer;
-	do {
-		DBG_VERBOSE(printf("NL_TCP_listenThread - enter listen\n"));
-		int retval = listen(c->connectionHandle, tld->tld->maxConnections);
-		DBG_VERBOSE(printf("NL_TCP_listenThread - leave listen, retval=%d\n", retval));
 
-		if (retval < 0) {
-			// TODO: Error handling
-			perror("NL_TCP_listen");
-			DBG_ERR(printf("NL_TCP_listen retval=%d, errno={%d,%s}\n", retval, errno, strerror(errno)));
-		} else {
+	DBG_VERBOSE(printf("NL_TCP_listenThread - enter listen\n"));
+	int retval = listen(c->connectionHandle, tld->tld->maxConnections);
+	DBG_VERBOSE(printf("NL_TCP_listenThread - leave listen, retval=%d\n", retval));
+	if (retval < 0) {
+		// TODO: Error handling
+		perror("NL_TCP_listen");
+		DBG_ERR(printf("NL_TCP_listen retval=%d, errno={%d,%s}\n", retval, errno, strerror(errno)));
+	} else {
+		do {
 			NL_TCP_accept(c);
 		}
 	} while (UA_TRUE);

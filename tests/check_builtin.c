@@ -214,6 +214,7 @@ START_TEST(UA_ExtensionObject_calcSizeShallWorkOnExample) {
 
 	// empty ExtensionObject, handcoded
 	// when
+	UA_ExtensionObject_init(&extensionObject);
 	extensionObject.typeId.nodeIdType = UA_NODEIDTYPE_NUMERIC;
 	extensionObject.typeId.identifier.numeric = 0;
 	extensionObject.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED;
