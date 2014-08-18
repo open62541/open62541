@@ -3,19 +3,19 @@
 
 #ifdef WIN32
 #pragma comment (lib,"ws2_32.lib")
+#include <sys/types.h>
+#include <Windows.h>
+#include <ws2tcpip.h>
 #define CLOSESOCKET(S) closesocket(S); \
 	WSACleanup();
-	#define IOCTLSOCKET ioctlsocket
-	#include <sys/types.h>
-	#include <Windows.h>
-	#include <ws2tcpip.h>
+#define IOCTLSOCKET ioctlsocket
 #else
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <sys/socketvar.h>
+#include <unistd.h> // read, write, close
 #define CLOSESOCKET(S) close(S)
-	#define IOCTLSOCKET ioctl
-	#include <sys/socket.h>
-	#include <netinet/in.h>
-	#include <sys/socketvar.h>
-	#include <unistd.h> // read, write, close
+#define IOCTLSOCKET ioctl
 #endif
 
 #include <stdlib.h> // exit
@@ -155,8 +155,8 @@ void* NL_TCP_reader(NL_Connection *c) {
 	UA_TL_Connection_getLocalConfig(c->connection, &localBuffers);
 	UA_alloc((void**)&(readBuffer.data),localBuffers.recvBufferSize);
 
-
-	if (c->state  != CONNECTIONSTATE_CLOSE) {
+	UA_TL_Connection_getState(c->connection, &connectionState);
+	if (connectionState  != CONNECTIONSTATE_CLOSE) {
 		DBG_VERBOSE(printf("NL_TCP_reader - enter read\n"));
 
 #ifdef WIN32
@@ -187,14 +187,15 @@ void* NL_TCP_reader(NL_Connection *c) {
 
 			TL_Process((c->connection),&readBuffer);
 		} else {
-//TODO close connection - what does close do?
-			c->state = CONNECTIONSTATE_CLOSE;
-			//c->connection.connectionState = CONNECTIONSTATE_CLOSE;
 			perror("ERROR reading from socket1");
+			UA_TL_Connection_setState(c->connection, CONNECTIONSTATE_CLOSE);
 		}
 	}
+
 	UA_TL_Connection_getState(c->connection, &connectionState);
+	DBG_VERBOSE(printf("NL_TCP_reader - connectionState=%d\n",connectionState));
 	if (connectionState == CONNECTIONSTATE_CLOSE) {
+		// set connection's state to CONNECTIONSTATE_CLOSED and call callback to actually close
 		UA_TL_Connection_close(c->connection);
 #ifndef MULTITHREADING
 		DBG_VERBOSE(printf("NL_TCP_reader - search element to remove\n"));
@@ -213,9 +214,11 @@ void* NL_TCP_reader(NL_Connection *c) {
 /** the tcp reader thread */
 void* NL_TCP_readerThread(NL_Connection *c) {
 	// just loop, NL_TCP_Reader will call the stack
+	UA_Int32 connectionState;
 	do {
 		NL_TCP_reader(c);
-	} while (c->connection.connectionState != CONNECTIONSTATE_CLOSED);
+		UA_TL_Connection_getState(c->connection, &connectionState);
+	} while (connectionState != CONNECTIONSTATE_CLOSED);
 	// clean up
 	UA_free(c);
 	pthread_exit(UA_NULL);

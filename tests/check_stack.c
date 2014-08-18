@@ -417,7 +417,7 @@ START_TEST(validOpeningCloseSequence) {
 	indicateMsg(handle, &message_003);
 	UA_TL_Connection_getState(stackTestFixture_getFixture(handle)->connection, &connectionState);
 	// then
-	ck_assert_int_eq(connectionState, CONNECTIONSTATE_CLOSED);
+	ck_assert_int_eq(connectionState, CONNECTIONSTATE_CLOSE);
 
 	// finally
 	stackTestFixture_delete(handle);
