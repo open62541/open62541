@@ -419,7 +419,7 @@ UA_TYPE_AS(UA_XmlElement, UA_ByteString)
 UA_Int32 UA_NodeId_init(UA_NodeId *p) {
 	if(p == UA_NULL) return UA_ERROR;
 	p->nodeIdType = UA_NODEIDTYPE_NUMERIC;
-	p->ns    = 0;
+	p->ns = 0;
 	memset(&p->identifier, 0, sizeof(p->identifier));
 	return UA_SUCCESS;
 }
@@ -739,9 +739,9 @@ UA_Int32 UA_ExtensionObject_deleteMembers(UA_ExtensionObject *p) {
 
 UA_Int32 UA_ExtensionObject_init(UA_ExtensionObject *p) {
 	if(p == UA_NULL) return UA_ERROR;
-	UA_ByteString_init(&p->body);
-	p->encoding = 0;
 	UA_NodeId_init(&p->typeId);
+	p->encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED;
+	UA_ByteString_init(&p->body);
 	return UA_SUCCESS;
 }
 
