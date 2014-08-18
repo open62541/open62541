@@ -287,8 +287,8 @@ UA_Int32 NL_TCP_writer(UA_Int32 connectionHandle, UA_ByteString const * const * 
 #endif
 
 
-#ifdef WIN32
 	UA_UInt32 nWritten = 0;
+#ifdef WIN32
 	while (nWritten < total_len) {
 		UA_UInt32 n=0;
 		do {
@@ -302,9 +302,8 @@ UA_Int32 NL_TCP_writer(UA_Int32 connectionHandle, UA_ByteString const * const * 
 		} while (errno == EINTR);
 		nWritten += n;
 #else
-	UA_Int32 nWritten = 0;
 	while (nWritten < total_len) {
-		UA_UInt32 n=0;
+		UA_Int32 n=0;
 		do {
 			DBG_VERBOSE(printf("NL_TCP_writer - enter write with %d bytes to write\n",total_len));
 			n = sendmsg(connectionHandle, &message, 0);
@@ -418,7 +417,11 @@ void* NL_TCP_listenThread(NL_Connection* c) {
 UA_Int32 NL_TCP_init(NL_data* tld, UA_Int32 port) {
 	UA_Int32 retval = UA_SUCCESS;
 	// socket variables
+#ifdef WIN32
 	unsigned int newsockfd;
+#else
+	int newsockfd;
+#endif
 
 	struct sockaddr_in serv_addr;
 
@@ -440,8 +443,6 @@ UA_Int32 NL_TCP_init(NL_data* tld, UA_Int32 port) {
 	newsockfd = socket(PF_INET, SOCK_STREAM, 0);
 	if (newsockfd < 0) {
 #endif
-
-
 		perror("ERROR opening socket");
 		retval = UA_ERROR;
 	}
@@ -452,12 +453,14 @@ UA_Int32 NL_TCP_init(NL_data* tld, UA_Int32 port) {
 		serv_addr.sin_addr.s_addr = INADDR_ANY;
 		serv_addr.sin_port = htons(port);
 
+#ifdef WIN32
 		char optval = 1;
 		if (setsockopt(newsockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval) == -1) {
 			perror("setsockopt");
 			retval = UA_ERROR;
 		}
 		else {
+#endif
 			// bind to port
 			if (bind(newsockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
 				perror("ERROR on binding");
@@ -466,7 +469,9 @@ UA_Int32 NL_TCP_init(NL_data* tld, UA_Int32 port) {
 			else {
 				UA_String_copyprintf("opc.tcp://localhost:%d/", &(tld->endpointUrl), port);
 			}
+#ifdef WIN32
 		}
+#endif
 	}
 	// finally
 	if (retval == UA_SUCCESS) {
