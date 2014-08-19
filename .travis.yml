@@ -59,6 +59,6 @@ after_success:
    - git push https://$GITAUTH@github.com/acplt/open62541
    - cd .. && cd ..
    - rm -rf open62541
-   - coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId.cpp' -r ../
+   - coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../
    - cd ..
    - ./tools/.coverity.sh
