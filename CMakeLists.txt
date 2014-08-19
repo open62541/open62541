@@ -47,11 +47,14 @@ if(UA_ENCODING_JSON)
     MATH(EXPR UA_ENCODING_AMOUNT "${UA_ENCODING_AMOUNT}+1")
 endif(UA_ENCODING_JSON)
 
+#included types
+set(TYPES_ONLY_NEEDED OFF CACHE BOOL "Inlcude only compile-needed types")
+
 # coverage
 option(ENABLE_COVERAGE "Enable gcov coverage" OFF)
 if(ENABLE_COVERAGE)
     message(STATUS "Enabling gcov support")
-	set(CMAKE_BUILD_TYPE DEBUG)
+    set(CMAKE_BUILD_TYPE DEBUG)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
@@ -92,14 +95,14 @@ set(lib_sources src/ua_types.c
                 src/server/ua_channel_manager.c
                 src/server/ua_session_manager.c
                 src/server/ua_transport_connection_manager.c
-				src/server/ua_server.c
+		src/server/ua_server.c
                 src/server/ua_application.c
                 src/util/ua_util.c
                 src/util/ua_list.c
                 src/util/ua_indexedList.c
                 src/util/ua_base64.c
-				${headers}
-				${generated_headers})
+		${headers}
+		${generated_headers})
 
 if(MULTITHREADING)
     list(APPEND lib_sources src/server/ua_namespace_concurrent.c)
@@ -108,6 +111,12 @@ else()
 endif(MULTITHREADING)
 
 set(generate_src_options "")
+
+#types
+if(TYPES_ONLY_NEEDED)
+    set(generate_src_options "${generate_src_options}--only-needed")
+endif(TYPES_ONLY_NEEDED)
+
 
 if(UA_ENCODING_XML)
     list(APPEND lib_sources src/ua_types_encoding_xml.c

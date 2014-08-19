@@ -29,6 +29,13 @@ before_install:
 script: 
    - mkdir -p build
    - cd build
+   - echo "Only needed profile"
+   - cmake -DTYPES_ONLY_NEEDED ..
+   - make
+   - cd ..
+   - rm build -rf
+   - mkdir -p build
+   - cd build
    - cmake -DGENERATE_DOCUMENTATION=ON .. 
    - echo "Production build"
    - make
@@ -38,6 +45,7 @@ script:
    - make clean
    - cmake -DCMAKE_BUILD_TYPE=Debug -DUNIT_TESTS=ON -DENABLE_COVERAGE=ON .. 
    - make && make test
+
 after_success:
    - git clone --depth=50 -b gh-pages https://$GITAUTH@github.com/acplt/open62541
    - rm -rf open62541/doxygen

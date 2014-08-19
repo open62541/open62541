@@ -10,9 +10,13 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--with-xml', action='store_true', help='generate xml encoding')
 parser.add_argument('--with-json', action='store_true', help='generate json encoding')
+parser.add_argument('--only-needed', action='store_true', help='generate only types needed for compile')
 parser.add_argument('nodeids', help='path/to/NodeIds.csv')
 parser.add_argument('outfile', help='outfile w/o extension')
 args = parser.parse_args()
+
+# whitelist for "only needed" profile
+from type_lists import only_needed_types
 
 # types that are to be excluded
 exclude_kinds = set(["Object","ObjectType","Variable","Method","ReferenceType"])
@@ -62,6 +66,8 @@ def skipType(row):
     if "Test" in row[0]:
         return True
     if re.search("Attributes$", row[0]) != None:
+        return True
+    if args.only_needed and not(row[0] in only_needed_types):
         return True
     return False
 

@@ -13,6 +13,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--with-xml', action='store_true', help='generate xml encoding')
 parser.add_argument('--with-json', action='store_true', help='generate json encoding')
 parser.add_argument('--only-nano', action='store_true', help='generate only the types for the nano profile')
+parser.add_argument('--only-needed', action='store_true', help='generate only types needed for compile')
 parser.add_argument('types', help='path/to/Opc.Ua.Types.bsd')
 parser.add_argument('outfile', help='outfile w/o extension')
 args = parser.parse_args()
@@ -32,12 +33,12 @@ def printh(string):
 def printc(string):
     print(string % inspect.currentframe().f_back.f_locals, end='\n', file=fc)
 
+
 # types that are coded manually 
-existing_types = set(["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
-                      "Int64", "UInt64", "Float", "Double", "String", "DateTime", "Guid",
-                      "ByteString", "XmlElement", "NodeId", "ExpandedNodeId", "StatusCode", 
-                      "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
-                      "Variant", "DiagnosticInfo"])
+from type_lists import existing_types
+
+# whitelist for "only needed" profile
+from type_lists import only_needed_types
 
 # some types are omitted (pretend they exist already)
 existing_types.add("NodeIdType")
@@ -50,11 +51,13 @@ fixed_size = set(["UA_Boolean", "UA_SByte", "UA_Byte", "UA_Int16", "UA_UInt16",
 def skipType(name):
     if name in existing_types:
         return True
-    if "Test" in name:
+    if "Test" in name: #skip all Test types
         return True
     if re.search("Attributes$", name) != None:
         return True
     if re.search("NodeId$", name) != None:
+        return True
+    if args.only_needed and not(name in only_needed_types):
         return True
     return False
     
@@ -334,7 +337,6 @@ for element in types:
 	name = element.get("Name")
 	if skipType(name):
 		continue
-		
 	if element.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedType":
 		createEnumerated(element)
 		existing_types.add(name)
