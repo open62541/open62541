@@ -186,7 +186,7 @@ UA_Int32 UA_NodeId_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_NodeId *d
 		s->parent[s->depth].len = 0;
 		XML_Stack_addChildHandler(s, "Namespace", strlen(
 		                              "Namespace"), (XML_decoder)UA_Int16_decodeXmlFromStack, UA_INT16,
-		                          &(dst->namespaceId));
+		                          &(dst->namespaceIndex));
 		XML_Stack_addChildHandler(s, "Numeric", strlen(
 		                              "Numeric"), (XML_decoder)UA_Int32_decodeXmlFromStack, UA_INT32,
 		                          &(dst->identifier.numeric));
@@ -197,10 +197,10 @@ UA_Int32 UA_NodeId_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_NodeId *d
 		// set attributes
 		for(i = 0; attr[i]; i += 2) {
 		if(0 == strncmp("Namespace", attr[i], strlen("Namespace")))
-			dst->namespaceId = atoi(attr[i + 1]);
+			dst->namespaceIndex = atoi(attr[i + 1]);
 		else if(0 == strncmp("Numeric", attr[i], strlen("Numeric"))) {
-		dst->identifier.numeric = atoi(attr[i + 1]);
-		dst->nodeIdType = UA_NODEIDTYPE_NUMERIC;
+			dst->identifierType = UA_NODEIDTYPE_NUMERIC;
+			dst->identifier.numeric = atoi(attr[i + 1]);
 		} else
 			printf("UA_NodeId_decodeXml - Unknown attribute name=%s, value=%s\n", attr[i], attr[i+1]);
 		}
@@ -230,7 +230,7 @@ UA_Int32 UA_ExpandedNodeId_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_E
 		                              "NodeId"), (XML_decoder)UA_NodeId_decodeXmlFromStack, UA_NODEID, &(dst->nodeId));
 		XML_Stack_addChildHandler(s, "Namespace", strlen("Namespace"),
 								  (XML_decoder)UA_Int16_decodeXmlFromStack, UA_INT16,
-		                          &(dst->nodeId.namespaceId));
+		                          &(dst->nodeId.namespaceIndex));
 		XML_Stack_addChildHandler(s, "Numeric", strlen("Numeric"), (XML_decoder)UA_Int32_decodeXmlFromStack, UA_INT32,
 		                          &(dst->nodeId.identifier.numeric));
 		XML_Stack_addChildHandler(s, "Id", strlen("Id"), (XML_decoder)UA_String_decodeXmlFromStack, UA_STRING, UA_NULL);
@@ -239,7 +239,7 @@ UA_Int32 UA_ExpandedNodeId_decodeXmlFromStack(XML_Stack *s, XML_Attr *attr, UA_E
 		// set attributes
 		for(i = 0; attr[i]; i += 2) {
 		if(0 == strncmp("Namespace", attr[i], strlen("Namespace")))
-			UA_UInt16_copycstring((cstring)attr[i + 1], &(dst->nodeId.namespaceId));
+			UA_UInt16_copycstring((cstring)attr[i + 1], &(dst->nodeId.namespaceIndex));
 		else if(0 == strncmp("Numeric", attr[i], strlen("Numeric"))) {
 		UA_NodeId_copycstring((cstring)attr[i + 1], &(dst->nodeId), s->aliases);
 		} else if(0 == strncmp("NodeId", attr[i], strlen("NodeId")))

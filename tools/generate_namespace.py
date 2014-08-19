@@ -126,7 +126,7 @@ printc('''/**********************************************************
 #include "''' + args.outfile.split("/")[-1] + '''.h"\n
 UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id) {
 	UA_Int32 retval = 0; // InvalidType
-        if(id->namespaceId != 0) return retval;
+        if(id->namespaceIndex != 0) return retval;
 	switch (id->identifier.numeric) {''')
 
 i = 0
@@ -164,7 +164,7 @@ for row in rows:
 	i=i+1
     printh('#define '+name.upper()+'_NS0 '+row[1])
 
-    printc("\t{.typeId={.namespaceId = 0, .nodeIdType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric=" + row[1] + "}" + 
+    printc("\t{.typeId={.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric=" + row[1] + "}" + 
           ",\n.name=(UA_Byte*)&\"%(name)s\"" +
           ",\n.new=(UA_Int32(*)(void **))%(name)s_new" +
           ",\n.init=(UA_Int32(*)(void *))%(name)s_init"+

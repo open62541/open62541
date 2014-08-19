@@ -26,7 +26,7 @@ char* buildNumber = "999-" __DATE__ "-001" ;
 
 void sam_attach(Namespace *ns,UA_UInt32 ns0id,UA_Int32 type, void* p) {
 	UA_NodeId nodeid;
-	nodeid.namespace = 0; // we cannot access ns->namespaceId;
+	nodeid.namespace = 0; // we cannot access ns->namespaceIndex;
 	nodeid.identifier.numeric = ns0id;
 	nodeid.encodingByte = UA_NODEIDTYPE_FOURBYTE;
 	const UA_Node* result;

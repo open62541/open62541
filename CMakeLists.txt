@@ -110,11 +110,11 @@ else()
     list(APPEND lib_sources src/server/ua_namespace.c)
 endif(MULTITHREADING)
 
-set(generate_src_options "")
+set(generate_src_options)
 
 #types
 if(TYPES_ONLY_NEEDED)
-    set(generate_src_options "${generate_src_options}--only-needed")
+    list(APPEND generate_src_options "--only-needed")
 endif(TYPES_ONLY_NEEDED)
 
 
@@ -122,12 +122,12 @@ if(UA_ENCODING_XML)
     list(APPEND lib_sources src/ua_types_encoding_xml.c
                             src/server/ua_namespace_xml.c
                             src/ua_xml.c)
-    set(generate_src_options "${generate_src_options}--with-xml")
+    list(APPEND generate_src_options "--with-xml")
 endif(UA_ENCODING_XML)
 
 if(UA_ENCODING_JSON)
     list(APPEND lib_sources src/ua_types_encoding_json.c)
-    set(generate_src_options "${generate_src_options}--with-json")
+    list(APPEND generate_src_options "--with-json")
 endif(UA_ENCODING_JSON)
 
 add_library(open62541 ${lib_sources})

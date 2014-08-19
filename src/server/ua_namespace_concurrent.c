@@ -15,7 +15,7 @@ typedef struct Namespace_Entry {
 } Namespace_Entry;
 
 struct Namespace {
-	UA_UInt32       namespaceId;
+	UA_UInt32       namespaceIndex;
 	struct cds_lfht *ht; /* Hash table */
 };
 
@@ -77,7 +77,7 @@ static inline hash_t hash_array(const UA_Byte *data, UA_UInt32 len) {
 }
 
 static inline hash_t hash(const UA_NodeId *n) {
-	switch(n->nodeIdType) {
+	switch(n->identifierType) {
 	case UA_NODEIDTYPE_NUMERIC:
 		/*  Knuth's multiplicative hashing */
 		return n->identifier.numeric * 2654435761;   // mod(2^32) is implicit
@@ -175,7 +175,7 @@ void Namespace_releaseManagedNode(const UA_Node *managed) {
 	return;
 }
 
-UA_Int32 Namespace_new(Namespace **result, UA_UInt32 namespaceId) {
+UA_Int32 Namespace_new(Namespace **result, UA_UInt32 namespaceIndex) {
 	Namespace *ns;
 	if(UA_alloc((void **)&ns, sizeof(Namespace)) != UA_SUCCESS)
 		return UA_ERR_NO_MEMORY;
@@ -187,7 +187,7 @@ UA_Int32 Namespace_new(Namespace **result, UA_UInt32 namespaceId) {
 		return UA_ERR_NO_MEMORY;
 	}
 
-	ns->namespaceId = namespaceId;
+	ns->namespaceIndex = namespaceIndex;
 	*result = ns;
 	return UA_SUCCESS;
 }
@@ -221,7 +221,7 @@ UA_Int32 Namespace_delete(Namespace *ns) {
 }
 
 UA_Int32 Namespace_insert(Namespace *ns, UA_Node **node, UA_Byte flags) {
-	if(ns == UA_NULL || node == UA_NULL || *node == UA_NULL || (*node)->nodeId.namespaceId != ns->namespaceId)
+	if(ns == UA_NULL || node == UA_NULL || *node == UA_NULL || (*node)->nodeId.namespaceIndex != ns->namespaceIndex)
 		return UA_ERROR;
 
 	UA_UInt32 nodesize;

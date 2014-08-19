@@ -85,7 +85,7 @@ UA_Int32 _UA_NodeId_copycstring(cstring src, UA_NodeId* dst, UA_NodeSetAliases* 
 		if (src[0] == 'i' && src[1] == '=') { // namespace zero numeric identifier
 			dst->identifier.numeric = atoi(&src[2]);
 		} else if (src[0] == 'n' && src[1] == 's' && src[2] == '=') { // namespace
-			dst->namespaceId = atoi(&src[3]);
+			dst->namespaceIndex = atoi(&src[3]);
 			src = strchr(&src[3],';');
 			if (src != UA_NULL)
 				retval = _UA_NodeId_copycstring(src+1,dst,aliases);  // +1 to start beyond ;
@@ -110,8 +110,8 @@ UA_Int32 _UA_NodeId_copycstring(cstring src, UA_NodeId* dst, UA_NodeSetAliases* 
 }
 
 UA_Int32 UA_NodeId_copycstring(cstring src, UA_NodeId* dst, UA_NodeSetAliases* aliases) {
-	dst->nodeIdType = UA_NODEIDTYPE_NUMERIC;
-	dst->namespaceId = 0;
+	dst->identifierType = UA_NODEIDTYPE_NUMERIC;
+	dst->namespaceIndex = 0;
 	dst->identifier.numeric = 0;
 	return _UA_NodeId_copycstring(src,dst,aliases);
 }
@@ -126,8 +126,8 @@ UA_Int32 UA_ReferenceNode_println(cstring label, UA_ReferenceNode *a) {
 }
 
 UA_Int32 UA_ExpandedNodeId_copycstring(cstring src, UA_ExpandedNodeId *dst, UA_NodeSetAliases *aliases) {
-	dst->nodeId.nodeIdType         = UA_NODEIDTYPE_NUMERIC;
-	dst->nodeId.namespaceId        = 0;
+	dst->nodeId.namespaceIndex     = 0;
+	dst->nodeId.identifierType     = UA_NODEIDTYPE_NUMERIC;
 	dst->nodeId.identifier.numeric = 0;
 	UA_NodeId_copycstring(src, &(dst->nodeId), aliases);
 	DBG_VERBOSE(printf("UA_ExpandedNodeId_copycstring src=%s,id=%d\n", src, dst->nodeId.identifier.numeric));
@@ -593,7 +593,7 @@ UA_Int32 UA_TypedArray_decodeXmlFromStack(XML_Stack* s, XML_Attr* attr, UA_Typed
 /* } */
 
 _Bool UA_NodeId_isBuiltinType(UA_NodeId* nodeid) {
-	return (nodeid->namespaceId == 0 && nodeid->identifier.numeric >= UA_BOOLEAN_NS0 &&
+	return (nodeid->namespaceIndex == 0 && nodeid->identifier.numeric >= UA_BOOLEAN_NS0 &&
 			nodeid->identifier.numeric <= UA_DIAGNOSTICINFO_NS0
 			);
 }

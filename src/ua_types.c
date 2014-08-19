@@ -418,8 +418,8 @@ UA_TYPE_AS(UA_XmlElement, UA_ByteString)
 /* NodeId */
 UA_Int32 UA_NodeId_init(UA_NodeId *p) {
 	if(p == UA_NULL) return UA_ERROR;
-	p->nodeIdType = UA_NODEIDTYPE_NUMERIC;
-	p->namespaceId = 0;
+	p->identifierType = UA_NODEIDTYPE_NUMERIC;
+	p->namespaceIndex = 0;
 	memset(&p->identifier, 0, sizeof(p->identifier));
 	return UA_SUCCESS;
 }
@@ -430,7 +430,7 @@ UA_Int32 UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst) {
 	if(src == UA_NULL || dst == UA_NULL)
 		return UA_ERROR;
 
-	switch(src->nodeIdType) {
+	switch(src->identifierType) {
 	case UA_NODEIDTYPE_NUMERIC:
 		*dst = *src;
 		return UA_SUCCESS;
@@ -448,13 +448,13 @@ UA_Int32 UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst) {
 		retval |= UA_ByteString_copy(&src->identifier.byteString, &dst->identifier.byteString);
 		break;
 	}
-	dst->nodeIdType = src->nodeIdType;
+	dst->identifierType = src->identifierType;
 	return retval;
 }
 
 UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id) {
-	return (id->namespaceId == 0 &&
-			id->nodeIdType == UA_NODEIDTYPE_NUMERIC &&
+	return (id->namespaceIndex == 0 &&
+			id->identifierType == UA_NODEIDTYPE_NUMERIC &&
 			id->identifier.numeric <= UA_DIAGNOSTICINFO);
 }
 
@@ -463,7 +463,7 @@ UA_Int32 UA_NodeId_deleteMembers(UA_NodeId *p) {
 	UA_Int32 retval = UA_SUCCESS;
 	if(p == UA_NULL) return retval;
 
-	switch(p->nodeIdType) {
+	switch(p->identifierType) {
 	case UA_NODEIDTYPE_NUMERIC:
 		// nothing to do
 		break;
@@ -489,7 +489,7 @@ void UA_NodeId_print(const UA_NodeId *p, FILE *stream) {
 		return;
 
 	fprintf(stream, "(UA_NodeId){");
-	switch(p->nodeIdType) {
+	switch(p->identifierType) {
 	case UA_NODEIDTYPE_NUMERIC:
 		fprintf(stream, "UA_NODEIDTYPE_NUMERIC");
 		break;
@@ -510,8 +510,8 @@ void UA_NodeId_print(const UA_NodeId *p, FILE *stream) {
 		fprintf(stream, "ERROR");
 		break;
 	}
-	fprintf(stream,",%u,", p->namespaceId);
-	switch(p->nodeIdType & UA_NODEIDTYPE_MASK) {
+	fprintf(stream,",%u,", p->namespaceIndex);
+	switch(p->identifierType & UA_NODEIDTYPE_MASK) {
 	case UA_NODEIDTYPE_NUMERIC:
 		fprintf(stream, ".identifier.numeric=%u", p->identifier.numeric);
 		break;
@@ -538,10 +538,10 @@ void UA_NodeId_print(const UA_NodeId *p, FILE *stream) {
 #endif
 
 UA_Int32 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
-	if(n1 == UA_NULL || n2 == UA_NULL || n1->namespaceId != n2->namespaceId)
+	if(n1 == UA_NULL || n2 == UA_NULL || n1->namespaceIndex != n2->namespaceIndex)
 		return UA_NOT_EQUAL;
 
-	switch(n1->nodeIdType) {
+	switch(n1->identifierType) {
 	case UA_NODEIDTYPE_NUMERIC:
 		if(n1->identifier.numeric == n2->identifier.numeric)
 			return UA_EQUAL;
@@ -561,22 +561,22 @@ UA_Int32 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
 }
 
 UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
-	switch(p->nodeIdType) {
+	switch(p->identifierType) {
 	case UA_NODEIDTYPE_NUMERIC:
-		if(p->namespaceId != 0 || p->identifier.numeric != 0) return UA_FALSE;
+		if(p->namespaceIndex != 0 || p->identifier.numeric != 0) return UA_FALSE;
 		break;
 
 	case UA_NODEIDTYPE_STRING:
-		if(p->namespaceId != 0 || p->identifier.string.length != 0) return UA_FALSE;
+		if(p->namespaceIndex != 0 || p->identifier.string.length != 0) return UA_FALSE;
 		break;
 
 	case UA_NODEIDTYPE_GUID:
-		if(p->namespaceId != 0 ||
+		if(p->namespaceIndex != 0 ||
 		   memcmp(&p->identifier.guid, (char[sizeof(UA_Guid)]) { 0 }, sizeof(UA_Guid)) != 0) return UA_FALSE;
 		break;
 
 	case UA_NODEIDTYPE_BYTESTRING:
-		if(p->namespaceId != 0 || p->identifier.byteString.length != 0) return UA_FALSE;
+		if(p->namespaceIndex != 0 || p->identifier.byteString.length != 0) return UA_FALSE;
 		break;
 
 	default:

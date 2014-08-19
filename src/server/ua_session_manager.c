@@ -12,8 +12,8 @@ struct UA_SessionManager {
 static UA_SessionManager *sessionManager;
 
 UA_Int32 UA_SessionManager_generateSessionId(UA_NodeId *sessionId) {
-	sessionId->nodeIdType = UA_NODEIDTYPE_NUMERIC;
-	sessionId->namespaceId = 0;
+	sessionId->namespaceIndex = 0;
+	sessionId->identifierType = UA_NODEIDTYPE_NUMERIC;
 	sessionId->identifier.numeric = sessionManager->lastSessionId++;
 	return UA_SUCCESS;
 }

@@ -26,8 +26,8 @@ UA_Int32 UA_Session_generateToken(UA_NodeId *newToken) {
 	UA_Int32 r = 0;
 	//retval |= UA_NodeId_new(newToken);
 
-	newToken->nodeIdType = UA_NODEIDTYPE_GUID;
-	newToken->namespaceId = 0; // where else?
+	newToken->namespaceIndex = 0; // where else?
+	newToken->identifierType = UA_NODEIDTYPE_GUID;
 	newToken->identifier.guid.data1 = rand();
 	r = rand();
 	newToken->identifier.guid.data2 = (UA_UInt16)((r>>16) );

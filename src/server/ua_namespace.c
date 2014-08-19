@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 struct Namespace {
-	UA_UInt32 namespaceId;
+	UA_UInt32 namespaceIndex;
 	const UA_Node ** entries;
 	UA_UInt32 size;
 	UA_UInt32 count;
@@ -90,7 +90,7 @@ static INLINE hash_t hash_array(const UA_Byte *data, UA_UInt32 len) {
 }
 
 static INLINE hash_t hash(const UA_NodeId *n) {
-	switch(n->nodeIdType) {
+	switch(n->identifierType) {
 	case UA_NODEIDTYPE_NUMERIC:
 		/*  Knuth's multiplicative hashing */
 		return n->identifier.numeric * 2654435761;   // mod(2^32) is implicit
@@ -232,7 +232,7 @@ static UA_Int32 expand(Namespace * ns) {
 /* Exported functions */
 /**********************/
 
-UA_Int32 Namespace_new(Namespace ** result, UA_UInt32 namespaceId) {
+UA_Int32 Namespace_new(Namespace ** result, UA_UInt32 namespaceIndex) {
 	Namespace *ns;
 	UA_UInt32 sizePrimeIndex, size;
 	if(UA_alloc((void **)&ns, sizeof(Namespace)) != UA_SUCCESS)
@@ -248,7 +248,7 @@ UA_Int32 Namespace_new(Namespace ** result, UA_UInt32 namespaceId) {
 	/* set entries to zero */
 	memset(ns->entries, 0, size * sizeof(UA_Node *));
 
-	*ns = (Namespace) {namespaceId, ns->entries, size, 0, sizePrimeIndex};
+	*ns = (Namespace) {namespaceIndex, ns->entries, size, 0, sizePrimeIndex};
 	*result = ns;
 	return UA_SUCCESS;
 }

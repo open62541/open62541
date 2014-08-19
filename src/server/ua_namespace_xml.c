@@ -43,7 +43,7 @@ UA_Int32 readFromTheFile(char*buf,int len) {
 /** @brief load a namespace from an XML-File
  *
  * @param[in/out] ns the address of the namespace ptr
- * @param[in] namespaceId the numeric id of the namespace
+ * @param[in] namespaceIndex the numeric id of the namespace
  * @param[in] rootName the name of the root element of the hierarchy (not used?)
  * @param[in] fileName the name of an existing file, e.g. Opc.Ua.NodeSet2.xml
  */
@@ -74,7 +74,7 @@ UA_Int32 readFromTheBuffer(char*buf,int len) {
 /** @brief load a namespace from a string
  *
  * @param[in/out] ns the address of the namespace ptr
- * @param[in] namespaceId the numeric id of the namespace
+ * @param[in] namespaceIndex the numeric id of the namespace
  * @param[in] rootName the name of the root element of the hierarchy (not used?)
  * @param[in] buffer the xml string
  */

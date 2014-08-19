@@ -13,8 +13,8 @@ Application appMockup = {
 
 UA_Node* create_node_ns0(UA_Int32 class, UA_Int32 nodeClass, UA_Int32 const id, char const * qn, char const * dn, char const * desc) {
 	UA_Node* n; UA_.types[class].new((void **)&n);
-	n->nodeId.nodeIdType = UA_NODEIDTYPE_NUMERIC;
-	n->nodeId.namespaceId = 0;
+	n->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
+	n->nodeId.namespaceIndex = 0;
 	n->nodeId.identifier.numeric = id;
 	UA_String_copycstring(qn,&(n->browseName.name));
 	UA_String_copycstring(dn,&n->displayName.text);
@@ -545,7 +545,7 @@ void appMockup_init() {
 	/* v->value.arrayLength = 2; */
 	/* UA_String_copycstring("http://opcfoundation.org/UA/",&((UA_String *)((v->value).data))[0]); */
 	/* UA_String_copycstring("http://localhost:16664/open62541/",&((UA_String *)(((v)->value).data))[1]); */
-	/* v->dataType.nodeIdType = UA_NODEIDTYPE_FOURBYTE; */
+	/* v->dataType.identifierType = UA_NODEIDTYPE_FOURBYTE; */
 	/* v->dataType.identifier.numeric = UA_STRING_NS0; */
 	/* v->valueRank = 1; */
 	/* v->minimumSamplingInterval = 1.0; */

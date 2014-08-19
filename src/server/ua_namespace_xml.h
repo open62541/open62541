@@ -31,11 +31,11 @@ UA_Int32 UA_ExpandedNodeId_copycstring(cstring src, UA_ExpandedNodeId* dst, UA_N
 /** @brief load a namespace from an XML-File
  *
  * @param[in/out] ns the address of the namespace ptr
- * @param[in] namespaceId the numeric id of the namespace
+ * @param[in] namespaceIndex the numeric id of the namespace
  * @param[in] rootName the name of the root element of the hierarchy (not used?)
  * @param[in] fileName the name of an existing file, e.g. Opc.Ua.NodeSet2.xml
  */
-UA_Int32 Namespace_loadFromFile(Namespace **ns,UA_UInt32 namespaceId,const char* rootName,const char* fileName);
+UA_Int32 Namespace_loadFromFile(Namespace **ns,UA_UInt32 namespaceIndex,const char* rootName,const char* fileName);
 UA_Int32 Namespace_loadFromString(Namespace **ns,UA_UInt32 nsid,const char* rootName,const char* buffer);
 
 #endif /* __UA_NAMESPACE_XML_H */

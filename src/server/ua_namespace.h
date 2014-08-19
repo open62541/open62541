@@ -26,7 +26,7 @@ struct Namespace;
 typedef struct Namespace Namespace;
 
 /** @brief Create a new namespace */
-UA_Int32 Namespace_new(Namespace **result, UA_UInt32 namespaceId);
+UA_Int32 Namespace_new(Namespace **result, UA_UInt32 namespaceIndex);
 
 /** @brief Delete the namespace and all nodes in it */
 UA_Int32 Namespace_delete(Namespace *ns);
