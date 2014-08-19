@@ -25,6 +25,12 @@
 # endif
 #endif
 
+#ifdef MSVC
+#define INLINE __inline
+#else
+#define INLINE inline
+#endif
+
 /* Global Variables */
 extern UA_ByteString UA_ByteString_securityPoliceNone;
 void const *UA_alloc_lastptr;
@@ -32,13 +38,13 @@ void const *UA_alloc_lastptr;
 /* Heap memory functions */
 #define UA_NULL ((void *)0)
 
-inline UA_Int32 _UA_free(void *ptr, char *pname, char *f, UA_Int32 l) {
+INLINE UA_Int32 _UA_free(void *ptr, char *pname, char *f, UA_Int32 l) {
 	DBG_VERBOSE(printf("UA_free;%p;;%s;;%s;%d\n", ptr, pname, f, l); fflush(stdout));
 	free(ptr); // checks if ptr != NULL in the background
 	return UA_SUCCESS;
 }
 
-inline UA_Int32 _UA_alloc(void **ptr, UA_Int32 size, char *pname, char *sname, char *f, UA_Int32 l) {
+INLINE UA_Int32 _UA_alloc(void **ptr, UA_Int32 size, char *pname, char *sname, char *f, UA_Int32 l) {
 	if(ptr == UA_NULL)
 		return UA_ERR_INVALID_VALUE;
 	UA_alloc_lastptr = *ptr = malloc(size);
@@ -48,7 +54,7 @@ inline UA_Int32 _UA_alloc(void **ptr, UA_Int32 size, char *pname, char *sname, c
 	return UA_SUCCESS;
 }
 
-inline UA_Int32 _UA_alloca(void **ptr, UA_Int32 size, char *pname, char *sname, char *f, UA_Int32 l) {
+INLINE UA_Int32 _UA_alloca(void **ptr, UA_Int32 size, char *pname, char *sname, char *f, UA_Int32 l) {
 	if(ptr == UA_NULL)
 		return UA_ERR_INVALID_VALUE;
 #ifdef WIN32
