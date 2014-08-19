@@ -30,7 +30,7 @@ script:
    - mkdir -p build
    - cd build
    - echo "Only needed profile"
-   - cmake -DTYPES_ONLY_NEEDED ..
+   - cmake -DTYPES_ONLY_NEEDED=ON ..
    - make
    - cd ..
    - rm build -rf
