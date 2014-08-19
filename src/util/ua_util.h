@@ -5,8 +5,13 @@
 #include <stdlib.h> // malloc, free
 #include <string.h> // memcpy
 #include <assert.h> // assert
+#include "ua_config.h"
+#ifndef MSVC
 #ifndef WIN32
 #include <alloca.h> // alloca
+#else
+#include <malloc.h> // MinGW alloca
+#endif
 #endif
 #include "ua_types.h"
 
@@ -57,7 +62,7 @@ INLINE UA_Int32 _UA_alloc(void **ptr, UA_Int32 size, char *pname, char *sname, c
 INLINE UA_Int32 _UA_alloca(void **ptr, UA_Int32 size, char *pname, char *sname, char *f, UA_Int32 l) {
 	if(ptr == UA_NULL)
 		return UA_ERR_INVALID_VALUE;
-#ifdef WIN32
+#ifdef MSVC
 	*ptr = _alloca(size);
 #else
 	*ptr = alloca(size);
