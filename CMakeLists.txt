@@ -169,14 +169,14 @@ if(MULTITHREADING)
 endif(MULTITHREADING)
 
 # build api server specificaion
-add_executable(api-design examples/api-design/server.c)
-target_link_libraries(api-design open62541)
-if(WIN32)
-    target_link_libraries(api-design ws2_32)
-endif(WIN32)
-if(MULTITHREADING)
-    target_link_libraries(api-design urcu-cds urcu)
-endif(MULTITHREADING)
+#add_executable(api-design examples/api-design/server.c)
+#target_link_libraries(api-design open62541)
+#if(WIN32)
+#    target_link_libraries(api-design ws2_32)
+#endif(WIN32)
+#if(MULTITHREADING)
+#    target_link_libraries(api-design urcu-cds urcu)
+#endif(MULTITHREADING)
 
 # generate documentation
 option(GENERATE_DOCUMENTATION "Generate doxygen documentation" OFF)
