@@ -453,25 +453,26 @@ UA_Int32 NL_TCP_init(NL_data* tld, UA_Int32 port) {
 		serv_addr.sin_addr.s_addr = INADDR_ANY;
 		serv_addr.sin_port = htons(port);
 
-#ifdef WIN32
-		char optval = 1;
-		if (setsockopt(newsockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof optval) == -1) {
+		int  optval = 1;
+
+		if (setsockopt(newsockfd, SOL_SOCKET, SO_REUSEADDR, (const char *)&optval, sizeof(optval)) == -1) {
 			perror("setsockopt");
+			close(newsockfd);
 			retval = UA_ERROR;
 		}
 		else {
-#endif
 			// bind to port
 			if (bind(newsockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
 				perror("ERROR on binding");
+				close(newsockfd);
 				retval = UA_ERROR;
 			}
 			else {
 				UA_String_copyprintf("opc.tcp://localhost:%d/", &(tld->endpointUrl), port);
 			}
-#ifdef WIN32
+//#ifdef WIN32
 		}
-#endif
+//#endif
 	}
 	// finally
 	if (retval == UA_SUCCESS) {
