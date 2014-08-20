@@ -2,6 +2,8 @@
 #include "open62541-server.h"
 #include "open62541-tcp.h"
 
+#include "open62541-ns0-pico.h" // UA_NamespaceZero_Static
+
 int main(int argc, char ** argv) {
 	UA_Server *server;
 	UA_Server_new(&server);
@@ -12,7 +14,8 @@ int main(int argc, char ** argv) {
 
 	UA_Application *application;
 	UA_Application_new(&application, UA_STRING_STATIC("MyApplication"));
-	UA_Application_addNamespace(application, 1);
+	UA_Application_addNamespace(application, 0, &UA_NamespaceZero_Static);
+	UA_Application_addNamespace(application, 1, UA_NULL);
 	UA_Server_addApplication(server, application);
 
 	UA_Int32 myInteger = 0;
