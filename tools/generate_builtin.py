@@ -145,13 +145,13 @@ def createStructured(element):
     # 3) Print structure
     if len(membermap) > 0:
         printh("typedef struct %(name)s {")
-        #execute struct hook if registered
-        if "structuredObject"+name in plugin_hooks:
-            exec package_for_hook["structuredObject"+name][0]+"."+"structInsert(element, fc, fh)"
         for n,t in membermap.iteritems():
 	    if t.find("*") != -1:
 	        printh("\t" + "UA_Int32 " + n + "Size;")
             printh("\t%(t)s %(n)s;")
+        #execute struct hook if registered
+        if "structuredObject"+name in plugin_hooks:
+            exec package_for_hook["structuredObject"+name][0]+"."+"structInsert(element, fc, fh)"
         printh("} %(name)s;")
     else:
         printh("typedef void* %(name)s;")
@@ -239,15 +239,15 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
     # 10) Init
     printc('''UA_Int32 %(name)s_init(%(name)s *p) {
     UA_Int32 retval = UA_SUCCESS;''')
-    #execute init hook if registered
-    if "structuredObject"+name in plugin_hooks:
-        exec package_for_hook["structuredObject"+name][0]+"."+"initInsert(element, fc, fh)"
     for n,t in membermap.iteritems():
         if t.find("*") != -1:
             printc('\tp->%(n)sSize = 0;')
             printc('\tp->%(n)s = UA_NULL;')
         else:
             printc('\tretval |= %(t)s_init(&p->%(n)s);')
+    #execute init hook if registered
+    if "structuredObject"+name in plugin_hooks:
+        exec package_for_hook["structuredObject"+name][0]+"."+"initInsert(element, fc, fh)"
     printc("\treturn retval;\n}\n")
 
     # 11) New
