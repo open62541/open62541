@@ -6,10 +6,6 @@
 #include <stdlib.h>
 
 UA_indexedList_List nsMockup;
-Application appMockup = {
-		( UA_ApplicationDescription*) UA_NULL,
-		&nsMockup
-};
 
 UA_Node* create_node_ns0(UA_Int32 class, UA_Int32 nodeClass, UA_Int32 const id, char const * qn, char const * dn, char const * desc) {
 	UA_Node* n; UA_.types[class].new((void **)&n);
@@ -23,7 +19,7 @@ UA_Node* create_node_ns0(UA_Int32 class, UA_Int32 nodeClass, UA_Int32 const id, 
 	return n;
 }
 
-void appMockup_init() {
+void UA_Application_init(UA_Application *application) {
 	//fill the UA_borrowed_ table that has been declaed in ua_namespace.c
 	for(UA_Int32 i=0;i<SIZE_UA_VTABLE;i++){
 		UA_borrowed_.types[i] = UA_.types[i];
@@ -40,9 +36,9 @@ void appMockup_init() {
 	Namespace_new(&local, 1); //C2UA_STRING("http://localhost:16664/open62541/"));
 
 	// add to list of namespaces
-	UA_indexedList_init(appMockup.namespaces);
-	UA_indexedList_addValueToFront(appMockup.namespaces,0,ns0);
-	UA_indexedList_addValueToFront(appMockup.namespaces,1,local);
+	UA_indexedList_init(application->namespaces);
+	UA_indexedList_addValueToFront(application->namespaces,0,ns0);
+	UA_indexedList_addValueToFront(application->namespaces,1,local);
 
 	/**************/
 	/* References */
@@ -562,7 +558,7 @@ void appMockup_init() {
 	uint32_t i;
 	for (i=0;i < ns0->size;i++) {
 		if (ns0->entries[i].node != UA_NULL) {
-			printf("appMockup_init - entries[%d]={",i);
+			printf("application_init - entries[%d]={",i);
 			UA_Node_print(ns0->entries[i].node, stdout);
 			printf("}\n");
 		}

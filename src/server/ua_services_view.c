@@ -186,7 +186,7 @@ static void Service_Browse_getBrowseResult(Namespace *ns, UA_BrowseDescription *
 
 UA_Int32 Service_Browse(UA_Session *session, const UA_BrowseRequest *request, UA_BrowseResponse *response) {
 	UA_Int32 retval = UA_SUCCESS;
-	Application *application;
+	UA_Application *application;
 	if(session == UA_NULL)
 	{
 		return UA_ERROR;

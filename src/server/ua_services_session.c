@@ -1,8 +1,7 @@
 #include "ua_services.h"
-#include "ua_application.h"
+#include "ua_server.h"
 
-
-UA_Int32 Service_CreateSession(SL_Channel *channel, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response) {
+UA_Int32 Service_CreateSession(SL_Channel *channel, UA_Server *server, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response) {
 #ifdef DEBUG
 	UA_String_printf("CreateSession Service - endpointUrl=", &(request->endpointUrl));
 #endif
@@ -12,6 +11,7 @@ UA_Int32 Service_CreateSession(SL_Channel *channel, const UA_CreateSessionReques
 	UA_SessionManager_getSessionTimeout(&timeout);
 	UA_Session_new(&newSession);
 	//TODO get maxResponseMessageSize
+	UA_Session_setApplicationPointer(newSession, server->application); // todo: select application according to the endpointurl in the request
 	UA_Session_init(newSession, (UA_String*)&request->sessionName,
 	request->requestedSessionTimeout,
 	request->maxResponseMessageSize,
@@ -27,13 +27,8 @@ UA_Int32 Service_CreateSession(SL_Channel *channel, const UA_CreateSessionReques
 	return UA_SUCCESS;
 }
 
-UA_Int32 Service_ActivateSession(SL_Channel *channel, UA_Session *session,
-		const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response)
-{
-
+UA_Int32 Service_ActivateSession(SL_Channel *channel, UA_Session *session, const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response) {
 	UA_Session_bind(session, channel);
-
-	UA_Session_setApplicationPointer(session, &appMockup);
 #ifdef DEBUG
 	UA_NodeId_printf("ActivateSession - authToken=", &(request->requestHeader.authenticationToken));
 	// 321 == AnonymousIdentityToken_Encoding_DefaultBinary

@@ -118,7 +118,7 @@ UA_Int32 UA_Session_getPendingLifetime(UA_Session *session,UA_Double *pendingLif
  * @param application return value
  * @return  error code
  */
-UA_Int32 UA_Session_getApplicationPointer(UA_Session *session, Application** application);
+UA_Int32 UA_Session_getApplicationPointer(UA_Session *session, UA_Application** application);
 
 /**
  * @brief Sets the application pointer to the application
@@ -126,6 +126,6 @@ UA_Int32 UA_Session_getApplicationPointer(UA_Session *session, Application** app
  * @param application return value
  * @return error code
  */
-UA_Int32 UA_Session_setApplicationPointer(UA_Session *session, Application* application);
+UA_Int32 UA_Session_setApplicationPointer(UA_Session *session, UA_Application* application);
 
 #endif /* UA_SESSION_H_ */

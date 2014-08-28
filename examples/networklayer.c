@@ -26,6 +26,8 @@
 #include <pthread.h>
 #endif
 
+static UA_Server *global_server; // this is bad!!!!
+
 NL_Description NL_Description_TcpBinary  = {
 	NL_UA_ENCODING_BINARY,
 	NL_CONNECTIONTYPE_TCPV4,
@@ -103,9 +105,10 @@ char* strerror(int errno) {
 }
 #endif
 
-UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), void *arg, UA_Boolean *running)  {
+UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Server *server, UA_Int32(*worker)(void*), void *arg, UA_Boolean *running) {
 	UA_Int32 result;
 	UA_Int32 err;
+	global_server = server;
 	while (*running) {
 		// determine the largest handle
 		nl->maxReaderHandle = 0;
@@ -217,7 +220,7 @@ void* NL_TCP_reader(NL_Connection *c) {
 				UA_NodeId_printf("NL_TCP_reader - Service Type\n",&serviceRequestType);
 			}
 #endif
-			TL_Process((c->connection),&readBuffer);
+			TL_Process((c->connection),global_server, &readBuffer);
 		} else {
 			perror("NL_TCP_reader - ERROR reading from socket");
 			UA_TL_Connection_setState(c->connection, CONNECTIONSTATE_CLOSE);

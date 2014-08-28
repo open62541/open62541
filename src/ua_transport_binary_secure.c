@@ -148,7 +148,7 @@ static void init_response_header(UA_RequestHeader const * p, UA_ResponseHeader *
 	UA_##TYPE##Response_deleteMembers(&r); \
 
 
-UA_Int32 SL_handleRequest(SL_Channel *channel, const UA_ByteString* msg, UA_UInt32 *pos) {
+UA_Int32 SL_handleRequest(SL_Channel *channel, UA_Server *server, const UA_ByteString* msg, UA_UInt32 *pos) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_UInt32 recvOffset = *pos;
 	UA_UInt32 sendOffset = 0;
@@ -181,7 +181,7 @@ UA_Int32 SL_handleRequest(SL_Channel *channel, const UA_ByteString* msg, UA_UInt
 		responsetype = UA_CLOSESECURECHANNELRESPONSE_NS0;
 	} else if (serviceid == UA_CREATESESSIONREQUEST_NS0) {
 		RESPONSE_PREPARE(CreateSession);
-		Service_CreateSession(channel,&p, &r);
+		Service_CreateSession(channel, server, &p, &r);
 		RESPONSE_CLEANUP(CreateSession);
 		responsetype = UA_CREATESESSIONRESPONSE_NS0;
 	}
@@ -322,7 +322,7 @@ UA_Int32 SL_handleRequest(SL_Channel *channel, const UA_ByteString* msg, UA_UInt
 	return retval;
 }
 
-UA_Int32 SL_ProcessOpenChannel(SL_Channel *channel, const UA_ByteString* msg, UA_UInt32 *pos) {
+UA_Int32 SL_ProcessOpenChannel(SL_Channel *channel, UA_Server *server, const UA_ByteString* msg, UA_UInt32 *pos) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_SequenceHeader sequenceHeader;
 	UA_AsymmetricAlgorithmSecurityHeader asymHeader;
@@ -331,7 +331,7 @@ UA_Int32 SL_ProcessOpenChannel(SL_Channel *channel, const UA_ByteString* msg, UA
 
 	//init remote security settings from the security header
 	SL_Channel_setRemoteSecuritySettings(channel,&asymHeader,&sequenceHeader);
-	return SL_handleRequest(channel, msg, pos) | retval;
+	return SL_handleRequest(channel, server, msg, pos) | retval;
 }
 
 /* not used anymore */
@@ -341,7 +341,7 @@ UA_Int32 SL_ProcessOpenChannel(SL_Channel *channel, const UA_ByteString* msg, UA
 //	return SL_handleRequest(channel, msg, pos);
 //}
 
-UA_Int32 SL_Process(const UA_ByteString* msg, UA_UInt32* pos) {
+UA_Int32 SL_Process(UA_Server *server, const UA_ByteString* msg, UA_UInt32* pos) {
 	DBG_VERBOSE(printf("SL_process - entered \n"));
 	UA_UInt32 secureChannelId;
 	UA_UInt32 foundChannelId;
@@ -353,21 +353,19 @@ UA_Int32 SL_Process(const UA_ByteString* msg, UA_UInt32* pos) {
 	//FIXME: we assume SAS, need to check if AAS or SAS
 	UA_SymmetricAlgorithmSecurityHeader symAlgSecHeader;
 	// if (connection->securityMode == UA_MESSAGESECURITYMODE_NONE) {
-	UA_SymmetricAlgorithmSecurityHeader_decodeBinary(msg, pos,
-			&symAlgSecHeader);
+	UA_SymmetricAlgorithmSecurityHeader_decodeBinary(msg, pos, &symAlgSecHeader);
 
  	if (SL_ChannelManager_getChannel(secureChannelId, &channel) == UA_SUCCESS) {
 		SL_Channel_getChannelId(channel, &foundChannelId);
 		printf("SL_process - received msg, with channel id: %i \n", foundChannelId);
 
 		//sequence number processing
-		UA_SequenceHeader_decodeBinary(msg, pos,
-				&sequenceHeader);
+		UA_SequenceHeader_decodeBinary(msg, pos, &sequenceHeader);
 		SL_Channel_checkSequenceNumber(channel,sequenceHeader.sequenceNumber);
 		SL_Channel_checkRequestId(channel,sequenceHeader.requestId);
 		//request id processing
 
-		SL_handleRequest(channel, msg, pos);
+		SL_handleRequest(channel, server, msg, pos);
 	} else {
 		printf("SL_process - ERROR could not find channel with id: %i \n",
 				secureChannelId);

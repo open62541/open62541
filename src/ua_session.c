@@ -7,7 +7,7 @@ struct UA_Session {
 	UA_NodeId authenticationToken;
 	UA_NodeId sessionId;
 	UA_String name;
-	Application *application;
+	UA_Application *application;
 //	UA_list_List pendingRequests;
 	SL_Channel *channel;
 	UA_UInt32 maxRequestMessageSize;
@@ -163,7 +163,7 @@ UA_Boolean UA_Session_verifyChannel(UA_Session *session, SL_Channel *channel) {
 	return SL_Channel_compare(session->channel, channel);
 }
 
-UA_Int32 UA_Session_getApplicationPointer(UA_Session *session, Application** application) {
+UA_Int32 UA_Session_getApplicationPointer(UA_Session *session, UA_Application** application) {
 	if(!session) {
 		*application = UA_NULL;
 		return UA_ERROR;
@@ -173,7 +173,7 @@ UA_Int32 UA_Session_getApplicationPointer(UA_Session *session, Application** app
 	return UA_SUCCESS;
 }
 
-UA_Int32 UA_Session_setApplicationPointer(UA_Session *session, Application* application) {
+UA_Int32 UA_Session_setApplicationPointer(UA_Session *session, UA_Application* application) {
 	if(!session)
 		return UA_ERROR;
 

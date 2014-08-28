@@ -16,7 +16,7 @@ typedef enum UA_ConnectionState {
 
 typedef struct Session {
 	UA_Int32 sessionId;
-	Application *application;
+	UA_Application *application;
 } Session;
 
 typedef enum SecurityTokenRequestType {

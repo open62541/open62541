@@ -33,7 +33,7 @@ enum UA_AttributeId {
 		break;													   \
 	}															   \
 
-static UA_DataValue service_read_node(Application *app, const UA_ReadValueId *id) {
+static UA_DataValue service_read_node(UA_Application *app, const UA_ReadValueId *id) {
 	UA_DataValue v;
 	UA_DataValue_init(&v);
 
@@ -224,7 +224,7 @@ static UA_DataValue service_read_node(Application *app, const UA_ReadValueId *id
 }
 UA_Int32 Service_Read(UA_Session *session, const UA_ReadRequest *request,
                       UA_ReadResponse *response) {
-	Application *application = UA_NULL;
+	UA_Application *application = UA_NULL;
 	UA_Int32 readsize;
 	if(session == UA_NULL)
 		return UA_ERROR;
@@ -254,7 +254,7 @@ UA_Int32 Service_Read(UA_Session *session, const UA_ReadRequest *request,
 	return UA_SUCCESS;
 }
 
-UA_Int32 Service_Write_writeNode(Application *app, UA_WriteValue *writeValue, UA_StatusCode *result)
+UA_Int32 Service_Write_writeNode(UA_Application *app, UA_WriteValue *writeValue, UA_StatusCode *result)
 {
 	UA_Int32 retval = UA_SUCCESS;
 	Namespace *ns = UA_indexedList_findValue(app->namespaces, writeValue->nodeId.namespaceIndex);
@@ -408,7 +408,7 @@ UA_Int32 Service_Write(UA_Session *session, const UA_WriteRequest *request,
                       UA_WriteResponse *response) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 i;
-	Application *application = UA_NULL;
+	UA_Application *application = UA_NULL;
 	UA_Session_getApplicationPointer(session, &application);
 	if(session == UA_NULL || application == UA_NULL)
 		return UA_ERROR;    // TODO: Return error message

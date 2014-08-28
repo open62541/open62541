@@ -5,11 +5,10 @@
 #include "ua_namespace.h"
 #include "util/ua_indexedList.h"
 
-typedef struct Application {
+typedef struct UA_Application {
 	UA_ApplicationDescription *description;
 	UA_indexedList_List *namespaces; // each entry is a namespace
-} Application;
+} UA_Application;
 
-extern Application appMockup;
-void appMockup_init();
+void UA_Application_init(UA_Application *application);
 #endif

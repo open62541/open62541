@@ -9,7 +9,7 @@
 
 #include "ua_types.h"
 #include "ua_types_generated.h"
-#include "ua_application.h"
+#include "ua_server.h"
 #include "ua_transport_binary_secure.h"
 #include "ua_session_manager.h"
 #include "ua_channel_manager.h"
@@ -80,7 +80,7 @@ UA_Int32 Service_CloseSecureChannel(SL_Channel *channel, const UA_CloseSecureCha
  * logs and in the Server’s address space. The second is the authenticationToken
  * which is used to associate an incoming request with a Session.
  */
-UA_Int32 Service_CreateSession(SL_Channel *channel, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response);
+UA_Int32 Service_CreateSession(SL_Channel *channel, UA_Server *server, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response);
 
 /**
  * @brief This Service is used by the Client to submit its SoftwareCertificates

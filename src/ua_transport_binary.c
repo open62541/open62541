@@ -4,7 +4,6 @@
 #include "ua_transport.h"
 #include "ua_transport_binary_secure.h"
 
-
 static UA_Int32 TL_handleHello(UA_TL_Connection *connection, const UA_ByteString* msg, UA_UInt32* pos){
 	UA_Int32 retval = UA_SUCCESS;
 	UA_UInt32 tmpPos = 0;
@@ -59,7 +58,7 @@ static UA_Int32 TL_handleHello(UA_TL_Connection *connection, const UA_ByteString
 	return retval;
 }
 
-static UA_Int32 TL_handleOpen(UA_TL_Connection *connection, const UA_ByteString* msg, UA_UInt32* pos) {
+static UA_Int32 TL_handleOpen(UA_TL_Connection *connection, UA_Server *server, const UA_ByteString* msg, UA_UInt32* pos) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 state;
 	SL_Channel *channel;
@@ -75,12 +74,12 @@ static UA_Int32 TL_handleOpen(UA_TL_Connection *connection, const UA_ByteString*
 			retval |= SL_Channel_new(&newChannel);//just create channel
 			retval |= SL_Channel_init(newChannel, connection,SL_ChannelManager_generateChannelId, SL_ChannelManager_generateToken);
 			retval |= SL_Channel_bind(newChannel,connection);
-			retval |= SL_ProcessOpenChannel(newChannel, msg, pos);
+			retval |= SL_ProcessOpenChannel(newChannel, server, msg, pos);
 			retval |= SL_ChannelManager_addChannel(newChannel);
 			return retval;
 		}
 		// channel already exists, renew token?
-		retval |= SL_ProcessOpenChannel(channel, msg, pos);
+		retval |= SL_ProcessOpenChannel(channel, server, msg, pos);
 		return retval;
 	}else{
 		printf("TL_handleOpen - ERROR: could not create new secureChannel");
@@ -89,25 +88,25 @@ static UA_Int32 TL_handleOpen(UA_TL_Connection *connection, const UA_ByteString*
 	return UA_ERR_INVALID_VALUE;
 }
 
-static UA_Int32 TL_handleMsg(UA_TL_Connection *connection, const UA_ByteString* msg, UA_UInt32* pos) {
+static UA_Int32 TL_handleMsg(UA_TL_Connection *connection, UA_Server *server, const UA_ByteString* msg, UA_UInt32* pos) {
 	UA_Int32 state;
 	UA_TL_Connection_getState(connection,&state);
 	if (state == CONNECTIONSTATE_ESTABLISHED) {
-		return SL_Process(msg, pos);
+		return SL_Process(server, msg, pos);
 	}
 	return UA_ERR_INVALID_VALUE;
 }
 
-static UA_Int32 TL_handleClo(UA_TL_Connection *connection, const UA_ByteString* msg, UA_UInt32* pos) {
+static UA_Int32 TL_handleClo(UA_TL_Connection *connection, UA_Server *server, const UA_ByteString* msg, UA_UInt32* pos) {
 	UA_Int32 retval = UA_SUCCESS;
-	SL_Process(msg,pos);
+	SL_Process(server, msg,pos);
 	// just prepare closing, closing and freeing structures is done elsewhere
 	// UA_TL_Connection_close(connection);
 	UA_TL_Connection_setState(connection, CONNECTIONSTATE_CLOSE);
 	return retval;
 }
 
-UA_Int32 TL_Process(UA_TL_Connection *connection, const UA_ByteString* msg) {
+UA_Int32 TL_Process(UA_TL_Connection *connection, UA_Server *server, const UA_ByteString* msg) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_UInt32 pos = 0;
 	UA_OPCUATcpMessageHeader tcpMessageHeader;
@@ -124,13 +123,13 @@ UA_Int32 TL_Process(UA_TL_Connection *connection, const UA_ByteString* msg) {
 				retval = TL_handleHello(connection, msg, &pos);
 				break;
 			case UA_MESSAGETYPE_OPN:
-				retval = TL_handleOpen(connection, msg, &pos);
+				retval = TL_handleOpen(connection, server, msg, &pos);
 				break;
 			case UA_MESSAGETYPE_MSG:
-				retval = TL_handleMsg(connection, msg, &pos);
+				retval = TL_handleMsg(connection, server, msg, &pos);
 				break;
 			case UA_MESSAGETYPE_CLO:
-				retval = TL_handleClo(connection, msg, &pos);
+				retval = TL_handleClo(connection, server, msg, &pos);
 				break;
 			default: // dispatch processing to secureLayer
 				//Invalid packet was received which could have led to a wrong offset (pos).

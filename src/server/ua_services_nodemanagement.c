@@ -11,7 +11,7 @@
 		goto GOTO; \
 	} } while(0) \
 
-static UA_AddNodesResult addSingleNode(Application *app, UA_AddNodesItem *item) {
+static UA_AddNodesResult addSingleNode(UA_Application *app, UA_AddNodesItem *item) {
 	UA_AddNodesResult result;
 	UA_AddNodesResult_init(&result);
 
@@ -68,7 +68,7 @@ static UA_AddNodesResult addSingleNode(Application *app, UA_AddNodesItem *item) 
 
 UA_Int32 Service_AddNodes(UA_Session *session, const UA_AddNodesRequest *request, UA_AddNodesResponse *response) {
 
-	Application *application;
+	UA_Application *application;
 	if(session == UA_NULL)
 		return UA_ERROR;	// TODO: Return error message
 	UA_Session_getApplicationPointer(session,&application);
