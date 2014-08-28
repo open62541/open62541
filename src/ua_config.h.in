@@ -1,5 +1,7 @@
-/* Definitions to be set by cmake. */
+/* Buid options and configuration (set by cmake) */
 #define UA_ENCODING_AMOUNT @UA_ENCODING_AMOUNT@
+#cmakedefine ENABLE_MULTITHREADING
+
 #cmakedefine MSVC
 #cmakedefine WIN32
 

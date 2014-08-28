@@ -22,6 +22,10 @@
 #include <memory.h> // memset
 #include <fcntl.h> // fcntl
 
+#ifdef ENABLE_MULTITHREADING
+#include <pthread.h>
+#endif
+
 NL_Description NL_Description_TcpBinary  = {
 	NL_UA_ENCODING_BINARY,
 	NL_CONNECTIONTYPE_TCPV4,
@@ -34,7 +38,7 @@ NL_Description NL_Description_TcpBinary  = {
  * for activities. We then iterate over the list, check if we've got some activites
  * and call the corresponding callback (reader, listener).
  */
-#ifndef MULTITASKING
+#ifndef ENABLE_MULTITHREADING
 _Bool NL_ConnectionComparer(void *p1, void* p2) {
 	NL_Connection* c1 = (NL_Connection*) p1;
 	NL_Connection* c2 = (NL_Connection*) p2;
@@ -168,7 +172,7 @@ UA_Int32 NL_msgLoop(NL_data* nl, struct timeval *tv, UA_Int32(*worker)(void*), v
 #endif
 	return UA_SUCCESS;
 }
-#endif /* MULTITASKING */
+#endif /* ENABLE_MULTITHREADING */
 
 
 /** the tcp reader function */
@@ -225,7 +229,7 @@ void* NL_TCP_reader(NL_Connection *c) {
 	if (connectionState == CONNECTIONSTATE_CLOSE) {
 		// set connection's state to CONNECTIONSTATE_CLOSED and call callback to actually close
 		UA_TL_Connection_close(c->connection);
-#ifndef MULTITHREADING
+#ifndef ENABLE_MULTITHREADING
 		DBG_VERBOSE(printf("NL_TCP_reader - search element to remove\n"));
 		UA_list_Element* lec = UA_list_search(&(c->networkLayer->connections),NL_ConnectionComparer,c);
 		DBG_VERBOSE(printf("NL_TCP_reader - remove connection for handle=%d\n",((NL_Connection*)lec->payload)->connection.connectionHandle));
@@ -238,7 +242,7 @@ void* NL_TCP_reader(NL_Connection *c) {
 	return UA_NULL;
 }
 
-#ifdef MULTITHREADING
+#ifdef ENABLE_MULTITHREADING
 /** the tcp reader thread */
 void* NL_TCP_readerThread(NL_Connection *c) {
 	// just loop, NL_TCP_Reader will call the stack
@@ -379,7 +383,7 @@ void* NL_TCP_accept(NL_Connection* c) {
 			UA_Int32 retval = UA_SUCCESS;
 			retval |= UA_alloc((void**)&cclient,sizeof(NL_Connection));
 			NL_Connection_init(cclient, tld, newsockfd, NL_TCP_reader, (TL_Writer) NL_TCP_writer);
-#ifdef MULTITHREADING
+#ifdef ENABLE_MULTITHREADING
 			pthread_create( &(cclient->readerThreadHandle), NULL, (void*(*)(void*)) NL_TCP_readerThread, (void*) cclient);
 #else
 			UA_list_addPayloadToBack(&(tld->connections),cclient);
@@ -392,7 +396,7 @@ void* NL_TCP_accept(NL_Connection* c) {
 	return UA_NULL;
 }
 
-#ifdef MULTITHREADING
+#ifdef ENABLE_MULTITHREADING
 void* NL_TCP_listenThread(NL_Connection* c) {
 	NL_data* tld = c->networkLayer;
 
