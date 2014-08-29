@@ -41,11 +41,7 @@ set(lib_sources src/ua_types.c
                 ${headers}
                 ${generated_headers})
 
-# build settings
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
-set(generate_src_options) # the options for the tools that generate code from xml-schema definitions
-
-## compiler flags
+# compiler flags
 if(CMAKE_COMPILER_IS_GNUCC)
 add_definitions(-std=c99 -pedantic -pipe -fstack-protector -Wall -Wextra
                 -Wno-unused-parameter -Wno-unused-function -Wno-unused-label
@@ -57,6 +53,10 @@ add_definitions(-std=c99 -pedantic -pipe -fstack-protector -Wall -Wextra
 	    add_definitions(-fno-stack-protector)
 	endif(WIN32)
 endif(CMAKE_COMPILER_IS_GNUCC)
+
+# build settings
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
+set(generate_src_options) # the options for the tools that generate code from xml-schema definitions
 
 ## auto-generate all types or only the relevant subset?
 option(TYPES_ONLY_NEEDED "Include only compile-needed types" OFF)
@@ -102,7 +102,10 @@ else()
     list(APPEND lib_sources src/server/ua_namespace.c)
 endif(ENABLE_MULTITHREADING)
 
-add_library(open62541 ${lib_sources})
+add_library(open62541 ${lib_sources}) # we can add more files to lib_sources later on
+
+## logging
+set(UA_LOGLEVEL 400 CACHE STRING "Level at which logs shall be reported")
 
 ## coverage
 option(ENABLE_COVERAGE "Enable gcov coverage" OFF)
