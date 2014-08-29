@@ -176,12 +176,12 @@ for row in rows:
           "\n#endif" + 
           "\n.memSize=" + ("sizeof(%(name)s)" if (name != "UA_InvalidType") else "0") +
           ",\n.dynMembers=" + ("UA_FALSE" if (name in fixed_size) else "UA_TRUE") +
-          ",\n.encodings={{.calcSize=(UA_calcSize)%(name)s_calcSizeBinary" +
-          ",\n.encode=(UA_encode)%(name)s_encodeBinary" +
-          ",\n.decode=(UA_decode)%(name)s_decodeBinary}" +
-           (",\n{.calcSize=(UA_calcSize)%(name)s_calcSizeXml" +
-            ",\n.encode=(UA_encode)%(name)s_encodeXml" +
-            ",\n.decode=(UA_decode)%(name)s_decodeXml}" if (args.with_xml) else "") +
+           ",\n.encodings={{.calcSize=(UA_Int32(*)(const void*))%(name)s_calcSizeBinary" +
+           ",\n.encode=(UA_Int32(*)(const void*,UA_ByteString*,UA_UInt32*))%(name)s_encodeBinary" +
+           ",\n.decode=(UA_Int32(*)(const UA_ByteString*,UA_UInt32*,void*))%(name)s_decodeBinary}" +
+           (",\n{.calcSize=(UA_Int32(*)(const void*))%(name)s_calcSizeXml" +
+            ",\n.encode=(UA_Int32(*)(const void*,UA_ByteString*,UA_UInt32*))%(name)s_encodeXml" +
+            ",\n.decode=(UA_Int32(*)(const UA_ByteString*,UA_UInt32*,void*))%(name)s_decodeXml}" if (args.with_xml) else "") +
           "}},")
 
 printc('''}};''')
