@@ -36,39 +36,39 @@ typedef struct UA_Logger {
 static UA_Logger logger;
 
 #if UA_LOGLEVEL <= 100
-#define LOG_TRACE(CATEGORY, MSG, ...) do{ logger.log_trace(CATEGORY, MSG, __VA_ARGS__); } while
+#define LOG_TRACE(CATEGORY, MSG, ...) do{ logger.log_trace(CATEGORY, MSG, __VA_ARGS__); } while(0)
 #else
-#define LOG_TRACE(CATEGORY, MSG, ...) do {} while;
+#define LOG_TRACE(CATEGORY, MSG, ...) do {} while(0)
 #endif
 
 #if UA_LOGLEVEL <= 200
-#define LOG_DEBUG(CATEGORY, MSG, ...) do{ logger.log_debug(CATEGORY, MSG, __VA_ARGS__); } while
+#define LOG_DEBUG(CATEGORY, MSG, ...) do{ logger.log_debug(CATEGORY, MSG, __VA_ARGS__); } while(0)
 #else
-#define LOG_DEBUG(CATEGORY, MSG, ...) do {} while;
+#define LOG_DEBUG(CATEGORY, MSG, ...) do {} while(0)
 #endif
 
 #if UA_LOGLEVEL <= 300
-#define LOG_INFO(CATEGORY, MSG, ...) do{ logger.log_info(CATEGORY, MSG, __VA_ARGS__); } while
+#define LOG_INFO(CATEGORY, MSG, ...) do{ logger.log_info(CATEGORY, MSG, __VA_ARGS__); } while(0)
 #else
-#define LOG_INFO(CATEGORY, MSG, ...) do {} while;
+#define LOG_INFO(CATEGORY, MSG, ...) do {} while(0)
 #endif
 
 #if UA_LOGLEVEL <= 400
-#define LOG_WARNING(CATEGORY, MSG, ...) do{ logger.log_warning(CATEGORY, MSG, __VA_ARGS__); } while
+#define LOG_WARNING(CATEGORY, MSG, ...) do{ logger.log_warning(CATEGORY, MSG, __VA_ARGS__); } while(0)
 #else
-#define LOG_WARNING(CATEGORY, MSG, ...) do {} while;
+#define LOG_WARNING(CATEGORY, MSG, ...) do {} while(0)
 #endif
 
 #if UA_LOGLEVEL <= 500
-#define LOG_ERROR(CATEGORY, MSG, ...) do{ logger.log_error(CATEGORY, MSG, __VA_ARGS__); } while
+#define LOG_ERROR(CATEGORY, MSG, ...) do{ logger.log_error(CATEGORY, MSG, __VA_ARGS__); } while(0)
 #else
-#define LOG_ERROR(CATEGORY, MSG, ...) do {} while;
+#define LOG_ERROR(CATEGORY, MSG, ...) do {} while(0)
 #endif
 
 #if UA_LOGLEVEL <= 600
-#define LOG_FATAL(CATEGORY, MSG, ...) do{ logger.log_fatal(CATEGORY, MSG, __VA_ARGS__); } while
+#define LOG_FATAL(CATEGORY, MSG, ...) do{ logger.log_fatal(CATEGORY, MSG, __VA_ARGS__); } while(0)
 #else
-#define LOG_FATAL(CATEGORY, MSG, ...) do {} while;
+#define LOG_FATAL(CATEGORY, MSG, ...) do {} while(0)
 #endif
 
 #endif /* UA_LOG_H_ */

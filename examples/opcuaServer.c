@@ -49,8 +49,10 @@ int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler);
 
 	UA_Server server;
-	UA_alloc((void**)&server.application, sizeof(UA_Application));
-	UA_Application_init(server.application);
+	UA_alloc((void**)&server.applications, sizeof(UA_Application));
+	server.applicationsSize = 1;
+	server.logger_init = Logger_Stdout_init;
+	UA_Application_init(server.applications);
 	
 	NL_data* nl = NL_init(&NL_Description_TcpBinary, 16664);
 	UA_String endpointUrl;

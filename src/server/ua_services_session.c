@@ -11,7 +11,7 @@ UA_Int32 Service_CreateSession(SL_Channel *channel, UA_Server *server, const UA_
 	UA_SessionManager_getSessionTimeout(&timeout);
 	UA_Session_new(&newSession);
 	//TODO get maxResponseMessageSize
-	UA_Session_setApplicationPointer(newSession, server->application); // todo: select application according to the endpointurl in the request
+	UA_Session_setApplicationPointer(newSession, &server->applications[0]); // todo: select application according to the endpointurl in the request
 	UA_Session_init(newSession, (UA_String*)&request->sessionName,
 	request->requestedSessionTimeout,
 	request->maxResponseMessageSize,

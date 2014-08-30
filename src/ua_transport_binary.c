@@ -3,6 +3,7 @@
 #include "ua_transport_binary.h"
 #include "ua_transport.h"
 #include "ua_transport_binary_secure.h"
+#include "ua_log.h"
 
 static UA_Int32 TL_handleHello(UA_TL_Connection *connection, const UA_ByteString* msg, UA_UInt32* pos){
 	UA_Int32 retval = UA_SUCCESS;
@@ -12,7 +13,7 @@ static UA_Int32 TL_handleHello(UA_TL_Connection *connection, const UA_ByteString
 
 	UA_TL_Connection_getState(connection, &connectionState);
 	if (connectionState == CONNECTIONSTATE_CLOSED){
-		DBG_VERBOSE(printf("TL_handleHello - extracting header information \n"));
+		LOG_DEBUG(UA_LOGGERCATEGORY_CONNECTION, "TL_handleHello - extracting header information",1);
 		UA_OPCUATcpHelloMessage_decodeBinary(msg,pos,&helloMessage);
 
 		UA_TL_Connection_configByHello(connection, &helloMessage);
