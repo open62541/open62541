@@ -14,21 +14,21 @@
    output medium (file, stdout, ..).
 */
 
-enum UA_LoggerCategory {
+typedef enum UA_LoggerCategory {
 	UA_LOGGERCATEGORY_CONNECTION,
 	UA_LOGGERCATEGORY_SESSION,
 	UA_LOGGERCATEGORY_SUBSCRIPTION,
 	UA_LOGGERCATEGORY_MAINTENANCE,
 	UA_LOGGERCATEGORY_LOAD,
-}
+} UA_LoggerCategory;
 
 typedef struct UA_Logger {
-	log_trace(UA_LoggerCategory category, const char *msg, ...);
-	log_debug(UA_LoggerCategory category, const char *msg, ...);
-	log_info(UA_LoggerCategory category, const char *msg, ...);
-	log_warning(UA_LoggerCategory category, const char *msg, ...);
-	log_error(UA_LoggerCategory category, const char *msg, ...);
-	log_fatal(UA_LoggerCategory category, const char *msg, ...);
+	void (*log_trace)(UA_LoggerCategory category, const char *msg, ...);
+	void (*log_debug)(UA_LoggerCategory category, const char *msg, ...);
+	void (*log_info)(UA_LoggerCategory category, const char *msg, ...);
+	void (*log_warning)(UA_LoggerCategory category, const char *msg, ...);
+	void (*log_error)(UA_LoggerCategory category, const char *msg, ...);
+	void (*log_fatal)(UA_LoggerCategory category, const char *msg, ...);
 } UA_Logger;
 
 /** The logger is a global variable on the stack. So every thread needs to
