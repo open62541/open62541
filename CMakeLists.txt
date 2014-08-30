@@ -134,6 +134,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_0.c
 
 # build example server
 add_executable(exampleServer examples/opcuaServer.c
+                             examples/logger_stdout.c
                              examples/networklayer.c)
 target_link_libraries(exampleServer open62541)
 if(WIN32)

@@ -1,9 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "networklayer.h"
-#include "ua_application.h"
-
 #ifndef WIN32
 #include <sys/mman.h>
 #include <sys/wait.h>
@@ -12,8 +9,11 @@
 #include <sys/types.h>
 #include <time.h>
 #include <fcntl.h>
-
 #include <signal.h>
+
+#include "logger_stdout.h"
+#include "networklayer.h"
+#include "ua_application.h"
 #include "ua_channel_manager.h"
 #include "ua_session_manager.h"
 #include "ua_server.h"
