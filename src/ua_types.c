@@ -1151,3 +1151,11 @@ void UA_Array_print(const void *p, UA_Int32 noElements, UA_VTable_Entry *vt, FIL
 	}
 }
 #endif
+
+/***********************************/
+/* Structs for internal node-data  */
+/***********************************/
+void UA_Open62541Data_init(UA_Open62541Data *p){
+	p->readCallback = UA_NULL;
+	p->writeCallback = UA_NULL;
+}
