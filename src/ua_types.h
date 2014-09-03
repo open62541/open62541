@@ -395,23 +395,16 @@ void UA_Array_print(const void *p, UA_Int32 noElements, UA_VTable_Entry *vt, FIL
 /* VTable */
 /**********/
 
-/* @brief Returns the size of the encoded element.*/
-typedef UA_Int32 (*UA_calcSize)(const void *p);
-
-/* @brief The encoding function allocates the target bytestring. */
-typedef UA_Int32 (*UA_encode)(const void *src, UA_ByteString *dst, UA_UInt32 *offset);
-
-/* @brief The decoding function decodes a ByteString into an UA datatype. */
-typedef UA_Int32 (*UA_decode)(const UA_ByteString *src, UA_UInt32 *offset, void *dst);
-
 typedef struct UA_Encoding {
-	UA_calcSize calcSize;
-	UA_encode   encode;
-	UA_decode   decode;
+	/**  Returns the size of the encoded element.*/
+	UA_Int32 (*calcSize)(const void *p);
+	/** Encodes the type into the destination bytestring. */
+	UA_Int32 (*encode)(const void *src, UA_ByteString *dst, UA_UInt32 *offset);
+	/** Decodes a ByteString into an UA datatype. */
+	UA_Int32 (*decode)(const UA_ByteString *src, UA_UInt32 *offset, void *dst);
 } UA_Encoding;
 
 #define UA_ENCODING_BINARY 0 // Binary encoding is always available
-// #define UA_ENCODING_XML 1 // This is set by the build script.
 
 struct UA_VTable_Entry {
 	UA_NodeId  typeId;

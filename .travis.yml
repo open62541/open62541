@@ -43,7 +43,7 @@ script:
    - make doc
    - echo "Debug build and unit tests"
    - make clean
-   - cmake -DCMAKE_BUILD_TYPE=Debug -DUNIT_TESTS=ON -DENABLE_COVERAGE=ON .. 
+   - cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_UNIT_TESTS=ON -DENABLE_COVERAGE=ON .. 
    - make && make test
 
 after_success:
