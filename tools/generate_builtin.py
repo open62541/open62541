@@ -149,6 +149,9 @@ def createStructured(element):
 	    if t.find("*") != -1:
 	        printh("\t" + "UA_Int32 " + n + "Size;")
             printh("\t%(t)s %(n)s;")
+        #execute struct hook if registered
+        if "structuredObject"+name in plugin_hooks:
+            exec package_for_hook["structuredObject"+name][0]+"."+"structInsert(element, fc, fh)"
         printh("} %(name)s;")
     else:
         printh("typedef void* %(name)s;")
@@ -161,8 +164,11 @@ def createStructured(element):
         printh("UA_TYPE_XML_ENCODING(" + name + ")\n")
 
     # 4) CalcSizeBinary
-    printc('''UA_Int32 %(name)s_calcSizeBinary(%(name)s const * ptr) {
-    if(ptr==UA_NULL) return sizeof(%(name)s);
+    printc('''UA_Int32 %(name)s_calcSizeBinary(%(name)s const * ptr) {\n''')
+    #execute struct hook if registered
+    if "structuredObject"+name in plugin_hooks:
+        exec package_for_hook["structuredObject"+name][0]+"."+"calcSizeBinaryInsert(element, fc, fh)"
+    printc('''    if(ptr==UA_NULL) return sizeof(%(name)s);
     return 0''')
     has_fixed_size = True
     for n,t in membermap.iteritems():
@@ -239,6 +245,9 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
             printc('\tp->%(n)s = UA_NULL;')
         else:
             printc('\tretval |= %(t)s_init(&p->%(n)s);')
+    #execute init hook if registered
+    if "structuredObject"+name in plugin_hooks:
+        exec package_for_hook["structuredObject"+name][0]+"."+"initInsert(element, fc, fh)"
     printc("\treturn retval;\n}\n")
 
     # 11) New
@@ -319,18 +328,19 @@ deferred_types = OrderedDict()
 
 #plugin handling
 import os
-files = [f for f in os.listdir('.') if os.path.isfile(f) and f[-3:] == ".py" and f[:7] == "plugin_"]
-plugin_types = []
-packageForType = OrderedDict()
+files = [f for f in os.listdir(os.path.dirname(__file__)) if f[-3:] == ".py" and f[:7] == "plugin_"]
+plugin_hooks = []
+package_for_hook = OrderedDict()
 
 for f in files:
 	package = f[:-3]
 	exec "import " + package
 	exec "pluginSetup = " + package + ".setup()"
 	if pluginSetup["pluginType"] == "structuredObject":
-		plugin_types.append(pluginSetup["tagName"])
-		packageForType[pluginSetup["tagName"]] = [package,pluginSetup]
-		print("Custom object creation for tag " + pluginSetup["tagName"] + " imported from package " + package)
+		plugin_hooks.append(pluginSetup["pluginType"]+pluginSetup["tagName"])
+		package_for_hook[pluginSetup["pluginType"]+pluginSetup["tagName"]] = [package,pluginSetup]
+		
+	print("Plugin type " + pluginSetup["pluginType"] + " imported from package " + package)
 #end plugin handling
 
 for element in types:
@@ -352,15 +362,8 @@ for element in types:
 		existing_types.add(name)
 
 for name, element in deferred_types.iteritems():
-    if name in plugin_types:
-        #execute plugin if registered
-	exec "ret = " + packageForType[name][0]+"."+packageForType[name][1]["functionCall"]
-	if ret == "default":
-            createStructured(element)
-            existing_types.add(name)
-    else:
 	createStructured(element)
-        existing_types.add(name)
+	existing_types.add(name)
 
 printh('#endif')
 
