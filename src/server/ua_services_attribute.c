@@ -99,7 +99,7 @@ static UA_DataValue service_read_node(Application *app, const UA_ReadValueId *id
 		break;
 
 	case UA_ATTRIBUTEID_ISABSTRACT:
-		CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE);
+		CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE | UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE | UA_NODECLASS_DATATYPE);
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
 		retval |=
 		    UA_Variant_copySetValue(&v.value, &UA_.types[UA_BOOLEAN],
@@ -128,14 +128,14 @@ static UA_DataValue service_read_node(Application *app, const UA_ReadValueId *id
 		break;
 
 	case UA_ATTRIBUTEID_EVENTNOTIFIER:
-		CHECK_NODECLASS(UA_NODECLASS_VIEW);
+		CHECK_NODECLASS(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT);
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
 		retval |= UA_Variant_copySetValue(&v.value, &UA_.types[UA_BYTE],
 		                                  &((UA_ViewNode *)node)->eventNotifier);
 		break;
 
 	case UA_ATTRIBUTEID_VALUE:
-		CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
+		CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
 		// TODO: Ensure that the borrowed value is not freed prematurely (multithreading)
 		/* retval |= UA_Variant_borrowSetValue(&v.value, &UA_.types[UA_VARIANT], */

@@ -168,8 +168,9 @@ def createStructured(element):
     #execute struct hook if registered
     if "structuredObject"+name in plugin_hooks:
         exec package_for_hook["structuredObject"+name][0]+"."+"calcSizeBinaryInsert(element, fc, fh)"
-    printc('''    if(ptr==UA_NULL) return sizeof(%(name)s);
-    return 0''')
+    else:
+    	printc('''    if(ptr==UA_NULL) return sizeof(%(name)s);''')
+    printc('''return 0''')
     has_fixed_size = True
     for n,t in membermap.iteritems():
         if t in fixed_size:

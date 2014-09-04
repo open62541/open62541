@@ -518,14 +518,8 @@ typedef struct UA_VTable {
 /* Internal node-data  			   */
 /***********************************/
 
-/** @brief Struct to hold internal data that is not seen on the wire */
-typedef struct UA_Open62541Data {
-	//enum or union to come
-	UA_Int32(*readCallback)(const UA_NodeId* nodeid, UA_Int32 typeId, const UA_Variant* value);
-	UA_Int32(*writeCallback)(const UA_NodeId* nodeid, UA_Int32 typeId, const UA_Variant* value);
-} UA_Open62541Data;
-
-void UA_Open62541Data_init(UA_Open62541Data *p);
+/** @brief Forward-declaration of a struct to hold internal data that is not seen on the wire */
+typedef struct UA_Open62541Data UA_Open62541Data;
 
 /// @} /* end of group */
 

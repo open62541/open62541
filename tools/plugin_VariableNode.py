@@ -7,13 +7,14 @@ def setup():
 	return config
 
 def structInsert(element, fc, fh):
-	print("\tUA_Open62541Data Open62541Data;", end='\n', file=fh)
+	print("\t//I will not be seen on the wire, I will not be freed by _destroy", end='\n', file=fh)
+	print("\tUA_Open62541Data* Open62541Data;", end='\n', file=fh)
 	return
 
 def initInsert(element, fc, fh):
-    print("\tUA_Open62541Data_init(&(p->Open62541Data));", end='\n', file=fc)
+    print("\tp->Open62541Data = UA_NULL;", end='\n', file=fc)
     return
 
 def calcSizeBinaryInsert(element, fc, fh):
-    print("\tif(ptr==UA_NULL) return sizeof(UA_"+element.get("Name")+")-sizeof(UA_Open62541Data);", end='\n', file=fc)
+    print("\tif(ptr==UA_NULL) return sizeof(UA_"+element.get("Name")+")-sizeof(void*);", end='\n', file=fc)
     return
