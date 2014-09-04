@@ -2,7 +2,6 @@
 #include <stdarg.h>
 
 #include "logger_stdout.h"
-#include "ua_log.h"
 #include "ua_types.h"
 
 void print_time() {
@@ -32,8 +31,8 @@ LOG_FUNCTION(warning)
 LOG_FUNCTION(error)
 LOG_FUNCTION(fatal)
 
-void Logger_Stdout_init(void *config) {
-	logger = (UA_Logger){
+void Logger_Stdout_init(UA_Logger *logger) {
+	*logger = (UA_Logger){
 		.log_trace = log_trace,
 		.log_debug = log_debug,
 		.log_info = log_info,

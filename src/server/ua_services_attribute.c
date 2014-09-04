@@ -33,31 +33,31 @@ enum UA_AttributeId {
 		break;													   \
 	}															   \
 
-static UA_DataValue service_read_node(UA_Application *app, const UA_ReadValueId *id) {
+static UA_DataValue service_read_node(UA_Server *server, const UA_ReadValueId *id) {
 	UA_DataValue v;
 	UA_DataValue_init(&v);
 
-	DBG(printf("service_read_node - entered with ns=%d,id=%d,attr=%i\n", id->nodeId.namespaceIndex,
-	           id->nodeId.identifier.numeric, id->attributeId));
-	Namespace *ns = UA_indexedList_findValue(app->namespaces, id->nodeId.namespaceIndex);
+	UA_Namespace *ns = UA_NULL;
+	for(UA_UInt32 i=0; i<server->namespacesSize;i++) {
+		if(server->namespaces[i].namespaceIndex == id->nodeId.namespaceIndex) {
+			ns = server->namespaces[i].namespace;
+			break;
+		}
+	}
 
 	if(ns == UA_NULL) {
-		DBG_VERBOSE(printf("service_read_node - unknown namespace %d\n", id->nodeId.namespaceIndex));
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
 		v.status       = UA_STATUSCODE_BADNODEIDUNKNOWN;
 		return v;
 	}
 
 	UA_Node const *node = UA_NULL;
-	DBG_VERBOSE(UA_NodeId_printf("service_read_node - search for ", &(id->nodeId)));
-	UA_Int32 result = Namespace_get(ns, &(id->nodeId), &node);
+	UA_Int32 result = UA_Namespace_get(ns, &(id->nodeId), &node);
 	if(result != UA_SUCCESS || node == UA_NULL) {
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
 		v.status       = UA_STATUSCODE_BADNODEIDUNKNOWN;
 		return v;
 	}
-	DBG_VERBOSE(UA_NodeId_printf("service_read_node - found node=", &(node->nodeId)));
-
 	UA_Int32 retval = UA_SUCCESS;
 
 	switch(id->attributeId) {
@@ -213,26 +213,21 @@ static UA_DataValue service_read_node(UA_Application *app, const UA_ReadValueId 
 		break;
 	}
 
-	Namespace_releaseManagedNode(node);
+	UA_Namespace_releaseManagedNode(node);
 
 	if(retval != UA_SUCCESS) {
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
 		v.status       = UA_STATUSCODE_BADNOTREADABLE;
 	}
 
+
 	return v;
 }
-UA_Int32 Service_Read(UA_Session *session, const UA_ReadRequest *request,
-                      UA_ReadResponse *response) {
-	UA_Application *application = UA_NULL;
+UA_Int32 Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request,
+					  UA_ReadResponse *response) {
 	UA_Int32 readsize;
-	if(session == UA_NULL)
+	if(server == UA_NULL || session == UA_NULL)
 		return UA_ERROR;
-
-	UA_Session_getApplicationPointer(session,&application);
-
-	if( application == UA_NULL)
-		return UA_ERROR;    // TODO: Return error message
 
 	readsize = request->nodesToReadSize;
 	/* NothingTodo */
@@ -247,24 +242,32 @@ UA_Int32 Service_Read(UA_Session *session, const UA_ReadRequest *request,
 	for(UA_Int32 i = 0;i < readsize;i++) {
 		DBG_VERBOSE(printf("service_read - attributeId=%d\n", request->nodesToRead[i].attributeId));
 		DBG_VERBOSE(UA_NodeId_printf("service_read - nodeId=", &(request->nodesToRead[i].nodeId)));
-		response->results[i] = service_read_node(application, &request->nodesToRead[i]);
+		response->results[i] = service_read_node(server, &request->nodesToRead[i]);
 	}
 	response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
 	response->diagnosticInfosSize = 0;
 	return UA_SUCCESS;
 }
 
-UA_Int32 Service_Write_writeNode(UA_Application *app, UA_WriteValue *writeValue, UA_StatusCode *result)
-{
+UA_Int32 Service_Write_writeNode(UA_Server *server, UA_WriteValue *writeValue,
+								 UA_StatusCode *result) {
 	UA_Int32 retval = UA_SUCCESS;
-	Namespace *ns = UA_indexedList_findValue(app->namespaces, writeValue->nodeId.namespaceIndex);
+
+	UA_Namespace *ns = UA_NULL;
+	for(UA_UInt32 i=0; i<server->namespacesSize;i++) {
+		if(server->namespaces[i].namespaceIndex == writeValue->nodeId.namespaceIndex) {
+			ns = server->namespaces[i].namespace;
+			break;
+		}
+	}
+	
 	if(ns==UA_NULL) {
 		*result = UA_STATUSCODE_BADNODEIDINVALID;
 		return UA_ERROR;
 	}
 
 	const UA_Node *node;
-	if(Namespace_get(ns, &writeValue->nodeId, &node) != UA_SUCCESS) {
+	if(UA_Namespace_get(ns, &writeValue->nodeId, &node) != UA_SUCCESS) {
 		return UA_ERROR;
 	}
 
@@ -400,23 +403,22 @@ UA_Int32 Service_Write_writeNode(UA_Application *app, UA_WriteValue *writeValue,
 		break;
 	}
 
-	Namespace_releaseManagedNode(node);
+	UA_Namespace_releaseManagedNode(node);
 	return retval;
 
 }
-UA_Int32 Service_Write(UA_Session *session, const UA_WriteRequest *request,
-                      UA_WriteResponse *response) {
+
+UA_Int32 Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,
+					   UA_WriteResponse *response) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Int32 i;
-	UA_Application *application = UA_NULL;
-	UA_Session_getApplicationPointer(session, &application);
-	if(session == UA_NULL || application == UA_NULL)
+	if(session == UA_NULL || server == UA_NULL)
 		return UA_ERROR;    // TODO: Return error message
 	response->resultsSize = request->nodesToWriteSize;
 	//TODO evalutate diagnostic info within the request
 	UA_Array_new((void**)&response->results,response->resultsSize,&UA_.types[UA_STATUSCODE]);
 	for(i=0; i < request->nodesToWriteSize; i++){
-		retval |= Service_Write_writeNode(application, &request->nodesToWrite[i], &response->results[i]);
+		retval |= Service_Write_writeNode(server, &request->nodesToWrite[i], &response->results[i]);
 	}
 
 	return retval;

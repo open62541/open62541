@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "ua_types.h"
 #include "ua_types_encoding_binary.h"
+#include "ua_namespace_0.h"
 #include "ua_transport.h"
 #include "check.h"
 

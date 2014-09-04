@@ -5,17 +5,15 @@
 #include <urcu/uatomic.h>
 #include <urcu/rculfhash.h>
 
-
 #define ALIVE_BIT (1 << 15) /* Alive bit in the readcount */
-typedef struct Namespace_Entry {
+typedef struct UA_Namespace_Entry {
 	struct cds_lfht_node htn; /* contains next-ptr for urcu-hashmap */
 	struct rcu_head rcu_head; /* For call-rcu */
 	UA_UInt16 readcount;      /* Counts the amount of readers on it [alive-bit, 15 counter-bits] */
 	UA_Node   node;           /* Might be cast from any _bigger_ UA_Node* type. Allocate enough memory! */
-} Namespace_Entry;
+} UA_Namespace_Entry;
 
-struct Namespace {
-	UA_UInt32       namespaceIndex;
+struct UA_Namespace {
 	struct cds_lfht *ht; /* Hash table */
 };
 
@@ -97,7 +95,7 @@ static inline hash_t hash(const UA_NodeId *n) {
 }
 
 /*************/
-/* Namespace */
+/* UA_Namespace */
 /*************/
 
 static inline void node_deleteMembers(const UA_Node *node) {
@@ -142,7 +140,7 @@ static inline void node_deleteMembers(const UA_Node *node) {
 /* We are in a rcu_read lock. So the node will not be freed under our feet. */
 static int compare(struct cds_lfht_node *htn, const void *orig) {
 	UA_NodeId *origid = (UA_NodeId*)orig;
-	UA_NodeId   *newid  = &((Namespace_Entry *)htn)->node.nodeId; /* The htn is first in the entry structure. */
+	UA_NodeId   *newid  = &((UA_Namespace_Entry *)htn)->node.nodeId; /* The htn is first in the entry structure. */
 
 	return UA_NodeId_equal(newid, origid) == UA_EQUAL;
 }
@@ -152,7 +150,7 @@ static int compare(struct cds_lfht_node *htn, const void *orig) {
    section) increased the readcount, we only need to wait for the readcount
    to reach zero. */
 static void markDead(struct rcu_head *head) {
-	Namespace_Entry *entry = caa_container_of(head, Namespace_Entry, rcu_head);
+	UA_Namespace_Entry *entry = caa_container_of(head, UA_Namespace_Entry, rcu_head);
 	if(uatomic_sub_return(&entry->readcount, ALIVE_BIT) > 0)
 		return;
 
@@ -162,11 +160,11 @@ static void markDead(struct rcu_head *head) {
 }
 
 /* Free the entry if it is dead and nobody uses it anymore */
-void Namespace_releaseManagedNode(const UA_Node *managed) {
+void UA_Namespace_releaseManagedNode(const UA_Node *managed) {
 	if(managed == UA_NULL)
 		return;
 	
-	Namespace_Entry *entry = caa_container_of(managed, Namespace_Entry, node); // pointer to the first entry
+	UA_Namespace_Entry *entry = caa_container_of(managed, UA_Namespace_Entry, node); // pointer to the first entry
 	if(uatomic_sub_return(&entry->readcount, 1) > 0)
 		return;
 
@@ -175,9 +173,9 @@ void Namespace_releaseManagedNode(const UA_Node *managed) {
 	return;
 }
 
-UA_Int32 Namespace_new(Namespace **result, UA_UInt32 namespaceIndex) {
-	Namespace *ns;
-	if(UA_alloc((void **)&ns, sizeof(Namespace)) != UA_SUCCESS)
+UA_Int32 UA_Namespace_new(UA_Namespace **result, UA_UInt32 namespaceIndex) {
+	UA_Namespace *ns;
+	if(UA_alloc((void **)&ns, sizeof(UA_Namespace)) != UA_SUCCESS)
 		return UA_ERR_NO_MEMORY;
 
 	/* 32 is the minimum size for the hashtable. */
@@ -192,7 +190,7 @@ UA_Int32 Namespace_new(Namespace **result, UA_UInt32 namespaceIndex) {
 	return UA_SUCCESS;
 }
 
-UA_Int32 Namespace_delete(Namespace *ns) {
+UA_Int32 UA_Namespace_delete(UA_Namespace *ns) {
 	if(ns == UA_NULL)
 		return UA_ERROR;
 
@@ -205,7 +203,7 @@ UA_Int32 Namespace_delete(Namespace *ns) {
 	while(iter.node != UA_NULL) {
 		found_htn = cds_lfht_iter_get_node(&iter);
 		if(!cds_lfht_del(ht, found_htn)) {
-			Namespace_Entry *entry = caa_container_of(found_htn, Namespace_Entry, htn);
+			UA_Namespace_Entry *entry = caa_container_of(found_htn, UA_Namespace_Entry, htn);
 			call_rcu(&entry->rcu_head, markDead);
 		}
 		cds_lfht_next(ht, &iter);
@@ -220,7 +218,7 @@ UA_Int32 Namespace_delete(Namespace *ns) {
 		return UA_ERROR;
 }
 
-UA_Int32 Namespace_insert(Namespace *ns, UA_Node **node, UA_Byte flags) {
+UA_Int32 UA_Namespace_insert(UA_Namespace *ns, UA_Node **node, UA_Byte flags) {
 	if(ns == UA_NULL || node == UA_NULL || *node == UA_NULL || (*node)->nodeId.namespaceIndex != ns->namespaceIndex)
 		return UA_ERROR;
 
@@ -263,19 +261,19 @@ UA_Int32 Namespace_insert(Namespace *ns, UA_Node **node, UA_Byte flags) {
 		return UA_ERROR;
 	}
 
-	Namespace_Entry *entry;
-	if(UA_alloc((void **)&entry, sizeof(Namespace_Entry) - sizeof(UA_Node) + nodesize))
+	UA_Namespace_Entry *entry;
+	if(UA_alloc((void **)&entry, sizeof(UA_Namespace_Entry) - sizeof(UA_Node) + nodesize))
 		return UA_ERR_NO_MEMORY;
 	memcpy(&entry->node, *node, nodesize);
 
 	cds_lfht_node_init(&entry->htn);
 	entry->readcount = ALIVE_BIT;
-	if(flags & NAMESPACE_INSERT_GETMANAGED)
+	if(flags & UA_NAMESPACE_INSERT_GETMANAGED)
 		entry->readcount++;
 
 	hash_t nhash = hash(&(*node)->nodeId);
 	struct cds_lfht_node *result;
-	if(flags & NAMESPACE_INSERT_UNIQUE) {
+	if(flags & UA_NAMESPACE_INSERT_UNIQUE) {
 		rcu_read_lock();
 		result = cds_lfht_add_unique(ns->ht, nhash, compare, &entry->node.nodeId, &entry->htn);
 		rcu_read_unlock();
@@ -290,14 +288,14 @@ UA_Int32 Namespace_insert(Namespace *ns, UA_Node **node, UA_Byte flags) {
 		result = cds_lfht_add_replace(ns->ht, nhash, compare, &(*node)->nodeId, &entry->htn);
 		/* If an entry got replaced, mark it as dead. */
 		if(result) {
-			Namespace_Entry *entry = caa_container_of(result, Namespace_Entry, htn);
+			UA_Namespace_Entry *entry = caa_container_of(result, UA_Namespace_Entry, htn);
 			call_rcu(&entry->rcu_head, markDead);      /* Queue this for the next time when no readers are on the entry.*/
 		}
 		rcu_read_unlock();
 	}
 
 	UA_free((UA_Node*)*node);     /* The old node is replaced by a managed node. */
-	if(flags & NAMESPACE_INSERT_GETMANAGED)
+	if(flags & UA_NAMESPACE_INSERT_GETMANAGED)
 		*node = &entry->node;
 	else
 		*node = UA_NULL;
@@ -305,7 +303,7 @@ UA_Int32 Namespace_insert(Namespace *ns, UA_Node **node, UA_Byte flags) {
 	return UA_SUCCESS;
 }
 
-UA_Int32 Namespace_remove(Namespace *ns, const UA_NodeId *nodeid) {
+UA_Int32 UA_Namespace_remove(UA_Namespace *ns, const UA_NodeId *nodeid) {
 	hash_t nhash = hash(nodeid);
 	struct cds_lfht_iter iter;
 
@@ -319,20 +317,20 @@ UA_Int32 Namespace_remove(Namespace *ns, const UA_NodeId *nodeid) {
 		return UA_ERROR;
 	}
 	
-	Namespace_Entry *entry = caa_container_of(found_htn, Namespace_Entry, htn);
+	UA_Namespace_Entry *entry = caa_container_of(found_htn, UA_Namespace_Entry, htn);
 	call_rcu(&entry->rcu_head, markDead);
 	rcu_read_unlock();
 
 	return UA_SUCCESS;
 }
 
-UA_Int32 Namespace_get(const Namespace *ns, const UA_NodeId *nodeid, const UA_Node **managedNode) {
+UA_Int32 UA_Namespace_get(const UA_Namespace *ns, const UA_NodeId *nodeid, const UA_Node **managedNode) {
 	hash_t nhash     = hash(nodeid);
 	struct cds_lfht_iter iter;
 
 	rcu_read_lock();
 	cds_lfht_lookup(ns->ht, nhash, compare, nodeid, &iter);
-	Namespace_Entry *found_entry = (Namespace_Entry *)cds_lfht_iter_get_node(&iter);
+	UA_Namespace_Entry *found_entry = (UA_Namespace_Entry *)cds_lfht_iter_get_node(&iter);
 
 	if(!found_entry) {
 		rcu_read_unlock();
@@ -347,7 +345,7 @@ UA_Int32 Namespace_get(const Namespace *ns, const UA_NodeId *nodeid, const UA_No
 	return UA_SUCCESS;
 }
 
-UA_Int32 Namespace_iterate(const Namespace *ns, Namespace_nodeVisitor visitor) {
+UA_Int32 UA_Namespace_iterate(const UA_Namespace *ns, UA_Namespace_nodeVisitor visitor) {
 	if(ns == UA_NULL || visitor == UA_NULL)
 		return UA_ERROR;
 	
@@ -357,12 +355,12 @@ UA_Int32 Namespace_iterate(const Namespace *ns, Namespace_nodeVisitor visitor) {
 	rcu_read_lock();
 	cds_lfht_first(ht, &iter);
 	while(iter.node != UA_NULL) {
-		Namespace_Entry *found_entry = (Namespace_Entry *)cds_lfht_iter_get_node(&iter);
+		UA_Namespace_Entry *found_entry = (UA_Namespace_Entry *)cds_lfht_iter_get_node(&iter);
 		uatomic_inc(&found_entry->readcount);
 		const UA_Node *node = &found_entry->node;
 		rcu_read_unlock();
 		visitor(node);
-		Namespace_releaseManagedNode((UA_Node *)node);
+		UA_Namespace_releaseManagedNode((UA_Node *)node);
 		rcu_read_lock();
 		cds_lfht_next(ht, &iter);
 	}

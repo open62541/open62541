@@ -2,8 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 
-struct Namespace {
-	UA_UInt32 namespaceIndex;
+struct UA_Namespace {
 	const UA_Node ** entries;
 	UA_UInt32 size;
 	UA_UInt32 count;
@@ -105,7 +104,7 @@ static INLINE hash_t hash(const UA_NodeId *n) {
 	}
 }
 
-static INLINE void clear_entry(Namespace * ns, const UA_Node ** entry) {
+static INLINE void clear_entry(UA_Namespace * ns, const UA_Node ** entry) {
 	const UA_Node *node;
 	if(entry == UA_NULL || *entry == UA_NULL)
 		return;
@@ -145,7 +144,7 @@ static INLINE void clear_entry(Namespace * ns, const UA_Node ** entry) {
 
 /* Returns UA_SUCCESS if an entry was found. Otherwise, UA_ERROR is returned and the "entry"
    argument points to the first free entry under the NodeId. */
-static INLINE UA_Int32 find_entry(const Namespace * ns, const UA_NodeId * nodeid, const UA_Node *** entry) {
+static INLINE UA_Int32 find_entry(const UA_Namespace * ns, const UA_NodeId * nodeid, const UA_Node *** entry) {
 	hash_t h = hash(nodeid);
 	UA_UInt32 size = ns->size;
 	hash_t index = mod(h, size);
@@ -188,7 +187,7 @@ static INLINE UA_Int32 find_entry(const Namespace * ns, const UA_NodeId * nodeid
    repeatedly inserts the table elements. The occupancy of the table after the
    call will be about 50%. If memory allocation failures occur, this function
    will return UA_ERROR. */
-static UA_Int32 expand(Namespace * ns) {
+static UA_Int32 expand(UA_Namespace * ns) {
 	const UA_Node **nentries;
 	int32_t nsize;
 	UA_UInt32 nindex;
@@ -232,10 +231,10 @@ static UA_Int32 expand(Namespace * ns) {
 /* Exported functions */
 /**********************/
 
-UA_Int32 Namespace_new(Namespace ** result, UA_UInt32 namespaceIndex) {
-	Namespace *ns;
+UA_Int32 UA_Namespace_new(UA_Namespace ** result) {
+	UA_Namespace *ns;
 	UA_UInt32 sizePrimeIndex, size;
-	if(UA_alloc((void **)&ns, sizeof(Namespace)) != UA_SUCCESS)
+	if(UA_alloc((void **)&ns, sizeof(UA_Namespace)) != UA_SUCCESS)
 		return UA_ERR_NO_MEMORY;
 
 	sizePrimeIndex = higher_prime_index(32);
@@ -248,12 +247,12 @@ UA_Int32 Namespace_new(Namespace ** result, UA_UInt32 namespaceIndex) {
 	/* set entries to zero */
 	memset(ns->entries, 0, size * sizeof(UA_Node *));
 
-	*ns = (Namespace) {namespaceIndex, ns->entries, size, 0, sizePrimeIndex};
+	*ns = (UA_Namespace) {ns->entries, size, 0, sizePrimeIndex};
 	*result = ns;
 	return UA_SUCCESS;
 }
 
-UA_Int32 Namespace_delete(Namespace * ns) {
+UA_Int32 UA_Namespace_delete(UA_Namespace * ns) {
 	UA_UInt32 size = ns->size;
 	const UA_Node **entries = ns->entries;
 
@@ -265,7 +264,7 @@ UA_Int32 Namespace_delete(Namespace * ns) {
 	return UA_SUCCESS;
 }
 
-UA_Int32 Namespace_insert(Namespace *ns, UA_Node **node, UA_Byte flags) {
+UA_Int32 UA_Namespace_insert(UA_Namespace *ns, UA_Node **node, UA_Byte flags) {
 	if(ns == UA_NULL || node == UA_NULL || *node == UA_NULL)
 		return UA_ERROR;
 	
@@ -277,7 +276,7 @@ UA_Int32 Namespace_insert(Namespace *ns, UA_Node **node, UA_Byte flags) {
 	const UA_Node ** entry;
 	UA_Int32 found = find_entry(ns, &(*node)->nodeId, &entry);
 
-	if(flags & NAMESPACE_INSERT_UNIQUE) {
+	if(flags & UA_NAMESPACE_INSERT_UNIQUE) {
 		if(found == UA_SUCCESS)
 			return UA_ERROR;	/* There is already an entry for that nodeid */
 		else
@@ -288,14 +287,14 @@ UA_Int32 Namespace_insert(Namespace *ns, UA_Node **node, UA_Byte flags) {
 		*entry = *node;
 	}
 
-	if(!(flags & NAMESPACE_INSERT_GETMANAGED))
+	if(!(flags & UA_NAMESPACE_INSERT_GETMANAGED))
 		*node = UA_NULL;
 	
 	ns->count++;
 	return UA_SUCCESS;
 }
 
-UA_Int32 Namespace_get(const Namespace *ns, const UA_NodeId *nodeid, const UA_Node **managedNode) {
+UA_Int32 UA_Namespace_get(const UA_Namespace *ns, const UA_NodeId *nodeid, const UA_Node **managedNode) {
 	const UA_Node **entry;
 	if(ns == UA_NULL || nodeid == UA_NULL || managedNode == UA_NULL)
 		return UA_ERROR;
@@ -307,12 +306,12 @@ UA_Int32 Namespace_get(const Namespace *ns, const UA_NodeId *nodeid, const UA_No
 	return UA_SUCCESS;
 }
 
-UA_Int32 Namespace_remove(Namespace * ns, const UA_NodeId * nodeid) {
+UA_Int32 UA_Namespace_remove(UA_Namespace * ns, const UA_NodeId * nodeid) {
 	const UA_Node **entry;
 	if(find_entry(ns, nodeid, &entry) != UA_SUCCESS)
 		return UA_ERROR;
 
-	// Check before if deleting the node makes the Namespace inconsistent.
+	// Check before if deleting the node makes the UA_Namespace inconsistent.
 	clear_entry(ns, entry);
 
 	/* Downsize the hashmap if it is very empty */
@@ -322,7 +321,7 @@ UA_Int32 Namespace_remove(Namespace * ns, const UA_NodeId * nodeid) {
 	return UA_SUCCESS;
 }
 
-UA_Int32 Namespace_iterate(const Namespace * ns, Namespace_nodeVisitor visitor) {
+UA_Int32 UA_Namespace_iterate(const UA_Namespace * ns, UA_Namespace_nodeVisitor visitor) {
 	if(ns == UA_NULL || visitor == UA_NULL)
 		return UA_ERROR;
 	
@@ -334,6 +333,6 @@ UA_Int32 Namespace_iterate(const Namespace * ns, Namespace_nodeVisitor visitor) 
 	return UA_SUCCESS;
 }
 
-void Namespace_releaseManagedNode(const UA_Node *managed) {
+void UA_Namespace_releaseManagedNode(const UA_Node *managed) {
 	;
 }

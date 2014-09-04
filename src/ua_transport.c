@@ -1,15 +1,15 @@
+#include <stdio.h>
 #include "ua_transport.h"
-#include "ua_types_encoding_binary.h"
-#include "stdio.h"
+#include "ua_namespace_0.h" // for the vtable UA_
 
 UA_TYPE_DEFAULT(UA_MessageType)
-UA_Int32 UA_MessageType_calcSize(UA_MessageType const * ptr){
-	if(ptr==UA_NULL){return sizeof(UA_MessageType);}
+UA_Int32 UA_MessageType_calcSize(UA_MessageType const * ptr) {
+	if(ptr==UA_NULL) {return sizeof(UA_MessageType);}
 	return 0
 	 + 3 * sizeof(UA_Byte);
 }
 
-UA_Int32 UA_MessageType_encodeBinary(UA_MessageType const * src, UA_ByteString* dst, UA_UInt32 *offset){
+UA_Int32 UA_MessageType_encodeBinary(UA_MessageType const * src, UA_ByteString* dst, UA_UInt32 *offset) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Byte tmpBuf[3];
 	tmpBuf[0] = (UA_Byte)((((UA_Int32)*src) >> 16) );
@@ -22,7 +22,7 @@ UA_Int32 UA_MessageType_encodeBinary(UA_MessageType const * src, UA_ByteString* 
 	return retval;
 }
 
-UA_Int32 UA_MessageType_decodeBinary(UA_ByteString const * src, UA_UInt32 *offset, UA_MessageType* dst){
+UA_Int32 UA_MessageType_decodeBinary(UA_ByteString const * src, UA_UInt32 *offset, UA_MessageType* dst) {
 	UA_Int32 retval = UA_SUCCESS;
 	UA_Byte tmpBuf[3];
 	retval |= UA_Byte_decodeBinary(src,offset,&(tmpBuf[0])); //messageType to Byte representation
@@ -429,8 +429,7 @@ UA_Int32 UA_SequenceHeader_copy(const UA_SequenceHeader *src,UA_SequenceHeader *
 
 UA_Int32 UA_SecureConversationMessageFooter_calcSizeBinary(UA_SecureConversationMessageFooter const * ptr) {
     	if(ptr==UA_NULL) return sizeof(UA_SecureConversationMessageFooter);
-    	return 0
-		+ UA_Array_calcSizeBinary(ptr->paddingSize,&UA_.types[UA_BYTE],ptr->padding)
+    	return 0 + UA_Array_calcSizeBinary(ptr->paddingSize, &UA_.types[UA_BYTE],ptr->padding)
 	 + sizeof(UA_Byte) // signature
 	;
 }

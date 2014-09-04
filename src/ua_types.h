@@ -125,12 +125,10 @@ typedef struct UA_String UA_ByteString;
 typedef struct UA_String UA_XmlElement;
 
 /** @brief An identifier for a node in the address space of an OPC UA Server. */
+/* The shortened numeric types are introduced during encoding. */
 typedef struct UA_NodeId {
 	UA_UInt16 namespaceIndex;
 	enum {
-		/* The shortened numeric types are introduced during encoding.
-		   UA_NODEIDTYPE_TWOBYTE = 0,
-		   UA_NODEIDTYPE_FOURBYTE = 1, */
 		UA_NODEIDTYPE_NUMERIC = 2,
 		UA_NODEIDTYPE_STRING = 3,
 		UA_NODEIDTYPE_GUID = 4,

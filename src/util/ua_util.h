@@ -13,6 +13,14 @@
 #include <malloc.h> // MinGW alloca
 #endif
 #endif
+
+#include <stddef.h> /* Needed for sys/queue.h */
+#ifndef MSVC
+#include <sys/queue.h>
+#else
+#include "queue.h"
+#endif
+
 #include "ua_types.h"
 
 /* Debug macros */

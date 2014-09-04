@@ -3,21 +3,6 @@
 
 #include "ua_types.h"
 #include "ua_types_encoding_binary.h"
-#include "ua_application.h"
-
-static const UA_Int32 SL_HEADER_LENGTH = 0;
-
-typedef enum UA_ConnectionState {
-	CONNECTIONSTATE_CLOSED,
-	CONNECTIONSTATE_OPENING,
-	CONNECTIONSTATE_ESTABLISHED,
-	CONNECTIONSTATE_CLOSE
-} UA_ConnectionState;
-
-typedef struct Session {
-	UA_Int32 sessionId;
-	UA_Application *application;
-} Session;
 
 typedef enum SecurityTokenRequestType {
 	UA_SECURITYTOKEN_ISSUE = 0,
@@ -26,7 +11,7 @@ typedef enum SecurityTokenRequestType {
 
 typedef enum {
 	UA_SECURITYMODE_INVALID = 0,
-	UA_SECURITYMODE_SIGN = 1,
+	UA_SECURITYMODE_NONE = 1,
 	UA_SECURITYMODE_SIGNANDENCRYPT = 2
 } SecurityMode;
 

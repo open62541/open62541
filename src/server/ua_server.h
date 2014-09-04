@@ -1,19 +1,34 @@
 #ifndef UA_SERVER_H_
 #define UA_SERVER_H_
 
-#include "ua_application.h"
+#include "ua_types.h"
+#include "ua_types_generated.h"
+#include "ua_namespace.h"
+#include "ua_securechannel_manager.h"
+#include "ua_session_manager.h"
+#include "util/ua_log.h"
 
-struct UA_Server;
+/**
+   @defgroup server
+*/
+
+typedef struct UA_IndexedNamespace {
+	UA_UInt32 namespaceIndex;
+	UA_Namespace *namespace;
+} UA_IndexedNamespace;
+
 typedef struct UA_Server {
-	// SL_ChannelManager *cm;
-	// UA_SessionManager sm;
-	UA_UInt32 applicationsSize;
-	UA_Application *applications;
-	/** Every thread needs to init its logger variable. The server-object stores a
-		function pointer and logger configuration for that purpose. */
-	void (*logger_init)(void *config);
-	/** Configuration for the logger */
-	void *logger_configuration;
+	UA_ApplicationDescription description;
+	UA_SecureChannelManager *secureChannelManager;
+	UA_SessionManager *sessionManager;
+	UA_UInt32 namespacesSize;
+	UA_IndexedNamespace *namespaces;
+	UA_Logger logger;
 } UA_Server;
+
+void UA_Server_init(UA_Server *server, UA_String *endpointUrl);
+UA_Int32 UA_Server_deleteMembers(UA_Server *server);
+UA_Int32 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
+										const UA_ByteString* msg);
 
 #endif /* UA_SERVER_H_ */

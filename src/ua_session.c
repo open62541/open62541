@@ -3,18 +3,13 @@
 
 #include "ua_session.h"
 
-struct UA_Session {
-	UA_NodeId authenticationToken;
-	UA_NodeId sessionId;
-	UA_String name;
-	UA_Application *application;
-//	UA_list_List pendingRequests;
-	SL_Channel *channel;
-	UA_UInt32 maxRequestMessageSize;
-	UA_UInt32 maxResponseMessageSize;
-	UA_Int64 timeout;
-	UA_DateTime validTill;
-};
+UA_Int32 UA_Session_new(UA_Session **session) {
+	UA_Int32 retval = UA_SUCCESS;
+	retval |= UA_alloc((void**)session, sizeof(UA_Session));
+	if(retval == UA_SUCCESS)
+		UA_Session_init(*session);
+	return retval;
+}
 
 /* mock up function to generate tokens for authentication */
 UA_Int32 UA_Session_generateToken(UA_NodeId *newToken) {
@@ -43,31 +38,27 @@ UA_Int32 UA_Session_generateToken(UA_NodeId *newToken) {
 	return retval;
 }
 
-UA_Int32 UA_Session_bind(UA_Session *session, SL_Channel *channel) {
-	if(!channel || !session)
+UA_Int32 UA_Session_init(UA_Session *session){
+	if(!session)
 		return UA_ERROR;
-
-	session->channel = channel;
+	
+	UA_NodeId_init(&session->authenticationToken);
+	UA_NodeId_init(&session->sessionId);
+	UA_String_init(&session->sessionName);
+	session->maxRequestMessageSize = 0;
+	session->maxResponseMessageSize = 0;
+	session->timeout = 0;
+	UA_DateTime_init(&session->validTill);
+	session->channel = UA_NULL;
 	return UA_SUCCESS;
-}
-
-UA_Int32 UA_Session_new(UA_Session **newSession) {
-	UA_Int32 retval = UA_SUCCESS;
-	UA_Session *session;
-
-	retval |= UA_alloc((void**)&session,sizeof(UA_Session));
-	retval |= UA_alloc((void**)session,sizeof(UA_Session));
-	*newSession = session;
-	**newSession = *session;
-	//get memory for request list
-	return retval;
 }
 
 UA_Int32 UA_Session_deleteMembers(UA_Session *session) {
 	UA_Int32 retval = UA_SUCCESS;
 	retval |= UA_NodeId_deleteMembers(&session->authenticationToken);
-	retval |= UA_String_deleteMembers(&session->name);
 	retval |= UA_NodeId_deleteMembers(&session->sessionId);
+	retval |= UA_String_deleteMembers(&session->sessionName);
+	session->channel = UA_NULL;
 	return retval;
 }
 
@@ -78,58 +69,11 @@ UA_Int32 UA_Session_delete(UA_Session *session) {
 	return retval;
 }
 
-UA_Int32 UA_Session_init(UA_Session *session, UA_String *sessionName, UA_Double requestedSessionTimeout,
-		UA_UInt32 maxRequestMessageSize,
-		UA_UInt32 maxResponseMessageSize,
-		UA_Session_idProvider idProvider,
-		UA_Int64 timeout){
-	UA_Int32 retval = UA_SUCCESS;
-	retval |= UA_String_copy(sessionName, &session->name);
-	session->maxRequestMessageSize = maxRequestMessageSize;
-	session->maxResponseMessageSize = maxResponseMessageSize;
-
-	UA_Session_generateToken(&session->authenticationToken);
-
-	idProvider(&session->sessionId);
-	session->timeout = requestedSessionTimeout > timeout ? timeout : requestedSessionTimeout;
-
-	UA_Session_updateLifetime(session);
-	return retval;
-}
-
 UA_Boolean UA_Session_compare(UA_Session *session1, UA_Session *session2) {
-	if(session1 && session2) {
-		if (UA_NodeId_equal(&session1->sessionId, &session2->sessionId) == UA_EQUAL) {
+	if(session1 && session2 &&
+	   UA_NodeId_equal(&session1->sessionId, &session2->sessionId) == UA_EQUAL)
 			return UA_TRUE;
-		}
-	}
 	return UA_FALSE;
-}
-
-UA_Boolean UA_Session_compareByToken(UA_Session *session, UA_NodeId *token) {
-	if(session && token) {
-		return UA_NodeId_equal(&session->authenticationToken, token);
-	}
-	return UA_NOT_EQUAL;
-}
-
-UA_Boolean UA_Session_compareById(UA_Session *session, UA_NodeId *sessionId) {
-	if(session && sessionId) {
-		return UA_NodeId_equal(&session->sessionId, sessionId);
-	}
-	return UA_NOT_EQUAL;
-}
-
-UA_Int32 UA_Session_getId(UA_Session *session, UA_NodeId *sessionId) {
-	if(!session)
-		return UA_ERROR;
-	return UA_NodeId_copy(&session->sessionId, sessionId);
-}
-
-UA_Int32 UA_Session_getToken(UA_Session *session, UA_NodeId *authenticationToken) {
-	if(!session)
-		return UA_ERROR;
-	return UA_NodeId_copy(&session->authenticationToken, authenticationToken);
 }
 
 UA_Int32 UA_Session_updateLifetime(UA_Session *session) {
@@ -140,43 +84,10 @@ UA_Int32 UA_Session_updateLifetime(UA_Session *session) {
 	return UA_SUCCESS;
 }
 
-UA_Int32 UA_Session_getChannel(UA_Session *session, SL_Channel **channel) {
-	if(!session)
-		return UA_ERROR;
-
-	*channel = session->channel;
-	return UA_SUCCESS;
-}
-
 UA_Int32 UA_Session_getPendingLifetime(UA_Session *session, UA_Double *pendingLifetime_ms) {
 	if(!session)
 		return UA_ERROR;
 
-	*pendingLifetime_ms = (session->validTill- UA_DateTime_now() ) / 10000000; //difference in ms
-	return UA_SUCCESS;
-}
-
-UA_Boolean UA_Session_verifyChannel(UA_Session *session, SL_Channel *channel) {
-	if(!session || !channel)
-		return UA_FALSE;
-
-	return SL_Channel_compare(session->channel, channel);
-}
-
-UA_Int32 UA_Session_getApplicationPointer(UA_Session *session, UA_Application** application) {
-	if(!session) {
-		*application = UA_NULL;
-		return UA_ERROR;
-	}
-
-	*application = session->application;
-	return UA_SUCCESS;
-}
-
-UA_Int32 UA_Session_setApplicationPointer(UA_Session *session, UA_Application* application) {
-	if(!session)
-		return UA_ERROR;
-
-	session->application = application;
+	*pendingLifetime_ms = (session->validTill - UA_DateTime_now())/10000000; //difference in ms
 	return UA_SUCCESS;
 }

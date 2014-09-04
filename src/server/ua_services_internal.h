@@ -13,4 +13,4 @@
  * @param The reference itself
  * @param The namespace where the target node is looked up for the reverse reference (this is omitted if targetns is UA_NULL)
  */
-UA_Int32 AddReference(UA_Node *node, UA_ReferenceNode *reference, Namespace *targetns);
+UA_Int32 AddReference(UA_Node *node, UA_ReferenceNode *reference, UA_Namespace *targetns);

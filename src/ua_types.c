@@ -1,4 +1,3 @@
-#include <stdio.h>  // printf
 #include <stdlib.h> // alloc, free, vsnprintf
 #include <string.h>
 #include <stdarg.h> // va_start, va_end
@@ -14,7 +13,6 @@
 #include "ua_types.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_namespace_0.h"
-#include "inttypes.h"
 
 /************/
 /* Built-In */

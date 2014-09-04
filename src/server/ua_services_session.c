@@ -1,11 +1,10 @@
 #include "ua_services.h"
 #include "ua_server.h"
 
-UA_Int32 Service_CreateSession(SL_Channel *channel, UA_Server *server, const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response) {
-#ifdef DEBUG
-	UA_String_printf("CreateSession Service - endpointUrl=", &(request->endpointUrl));
-#endif
-	UA_Session *newSession;
+UA_Int32 Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
+							   const UA_CreateSessionRequest *request,
+							   UA_CreateSessionResponse *response) {
+	/* UA_Session *newSession;
 	UA_Int64 timeout;
 
 	UA_SessionManager_getSessionTimeout(&timeout);
@@ -22,28 +21,26 @@ UA_Int32 Service_CreateSession(SL_Channel *channel, UA_Server *server, const UA_
 	UA_SessionManager_addSession(newSession);
 	UA_Session_getId(newSession, &response->sessionId);
 	UA_Session_getToken(newSession, &(response->authenticationToken));
-	response->revisedSessionTimeout = timeout;
+	response->revisedSessionTimeout = timeout; */
 	//TODO fill results
 	return UA_SUCCESS;
 }
 
-UA_Int32 Service_ActivateSession(SL_Channel *channel, UA_Session *session, const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response) {
-	UA_Session_bind(session, channel);
-#ifdef DEBUG
-	UA_NodeId_printf("ActivateSession - authToken=", &(request->requestHeader.authenticationToken));
-	// 321 == AnonymousIdentityToken_Encoding_DefaultBinary
-	UA_NodeId_printf("ActivateSession - uIdToken.type=", &(request->userIdentityToken.typeId));
-	UA_ByteString_printx_hex("ActivateSession - uIdToken.body=", &(request->userIdentityToken.body));
-#endif
+UA_Int32 Service_ActivateSession(UA_Server *server, UA_Session *session,
+								 const UA_ActivateSessionRequest *request,
+								 UA_ActivateSessionResponse *response) {
+	//UA_Session_bind(session, channel);
 	//TODO fill results
 	return UA_SUCCESS;
 }
 
-UA_Int32 Service_CloseSession(UA_Session *session, const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response) {
-	UA_NodeId sessionId;
-	UA_Session_getId(session,&sessionId);
+UA_Int32 Service_CloseSession(UA_Server *server, UA_Session *session,
+							  const UA_CloseSessionRequest *request,
+							  UA_CloseSessionResponse *response) {
+	/* UA_NodeId sessionId; */
+	/* UA_Session_getId(session,&sessionId); */
 
-	UA_SessionManager_removeSession(&sessionId);
-// FIXME: set response
-return UA_SUCCESS;
+	/* UA_SessionManager_removeSession(&sessionId); */
+	// FIXME: set response
+	return UA_SUCCESS;
 }
