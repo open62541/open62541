@@ -99,7 +99,7 @@ static UA_DataValue service_read_node(Application *app, const UA_ReadValueId *id
 		break;
 
 	case UA_ATTRIBUTEID_ISABSTRACT:
-		CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE);
+		CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE | UA_NODECLASS_OBJECTTYPE);
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
 		retval |=
 		    UA_Variant_copySetValue(&v.value, &UA_.types[UA_BOOLEAN],
@@ -128,7 +128,7 @@ static UA_DataValue service_read_node(Application *app, const UA_ReadValueId *id
 		break;
 
 	case UA_ATTRIBUTEID_EVENTNOTIFIER:
-		CHECK_NODECLASS(UA_NODECLASS_VIEW);
+		CHECK_NODECLASS(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT);
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
 		retval |= UA_Variant_copySetValue(&v.value, &UA_.types[UA_BYTE],
 		                                  &((UA_ViewNode *)node)->eventNotifier);
