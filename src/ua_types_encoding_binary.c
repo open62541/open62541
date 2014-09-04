@@ -411,6 +411,7 @@ UA_Int32 UA_NodeId_calcSizeBinary(UA_NodeId const *p) {
 
 		default:
 			UA_assert(UA_FALSE); // this must never happen
+			break;
 		}
 	}
 	return length;
@@ -522,6 +523,7 @@ UA_Int32 UA_NodeId_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA_
 
 	default:
 		retval = UA_ERROR; // the client sends an encodingByte we do not recognize
+		break;
 	}
 	return retval;
 }
