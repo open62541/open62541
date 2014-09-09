@@ -3,26 +3,20 @@
 
 #include "ua_types.h"
 #include "ua_types_generated.h"
-#include "ua_namespace.h"
+#include "ua_nodestore.h"
 #include "ua_securechannel_manager.h"
 #include "ua_session_manager.h"
 #include "util/ua_log.h"
 
 /**
-   @defgroup server
+   @defgroup server Server
  */
-
-typedef struct UA_IndexedNamespace {
-    UA_UInt32 namespaceIndex;
-    UA_Namespace *namespace;
-} UA_IndexedNamespace;
 
 typedef struct UA_Server {
     UA_ApplicationDescription description;
-    UA_SecureChannelManager  *secureChannelManager;
-    UA_SessionManager   *sessionManager;
-    UA_UInt32 namespacesSize;
-    UA_IndexedNamespace *namespaces;
+    UA_SecureChannelManager *secureChannelManager;
+    UA_SessionManager *sessionManager;
+    UA_NodeStore *nodestore;
     UA_Logger logger;
 } UA_Server;
 

@@ -37,22 +37,8 @@ static UA_DataValue service_read_node(UA_Server *server, const UA_ReadValueId *i
     UA_DataValue v;
     UA_DataValue_init(&v);
 
-    UA_Namespace *ns = UA_NULL;
-    for(UA_UInt32 i = 0;i < server->namespacesSize;i++) {
-        if(server->namespaces[i].namespaceIndex == id->nodeId.namespaceIndex) {
-            ns = server->namespaces[i].namespace;
-            break;
-        }
-    }
-
-    if(ns == UA_NULL) {
-    v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
-    v.status       = UA_STATUSCODE_BADNODEIDUNKNOWN;
-    return v;
-    }
-
     UA_Node const *node   = UA_NULL;
-    UA_Int32       result = UA_Namespace_get(ns, &(id->nodeId), &node);
+    UA_Int32       result = UA_NodeStore_get(server->nodestore, &(id->nodeId), &node);
     if(result != UA_SUCCESS || node == UA_NULL) {
         v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
         v.status       = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -215,7 +201,7 @@ static UA_DataValue service_read_node(UA_Server *server, const UA_ReadValueId *i
         break;
     }
 
-    UA_Namespace_releaseManagedNode(node);
+    UA_NodeStore_releaseManagedNode(node);
 
     if(retval != UA_SUCCESS) {
         v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
@@ -253,23 +239,9 @@ UA_Int32 Service_Read(UA_Server *server, UA_Session *session, const UA_ReadReque
 
 UA_Int32 Service_Write_writeNode(UA_Server *server, UA_WriteValue *writeValue,
                                  UA_StatusCode *result) {
-    UA_Int32      retval = UA_SUCCESS;
-
-    UA_Namespace *ns     = UA_NULL;
-    for(UA_UInt32 i = 0;i < server->namespacesSize;i++) {
-        if(server->namespaces[i].namespaceIndex == writeValue->nodeId.namespaceIndex) {
-            ns = server->namespaces[i].namespace;
-            break;
-        }
-    }
-
-    if(ns == UA_NULL) {
-    *result = UA_STATUSCODE_BADNODEIDINVALID;
-    return UA_ERROR;
-    }
-
+    UA_Int32 retval = UA_SUCCESS;
     const UA_Node *node;
-    if(UA_Namespace_get(ns, &writeValue->nodeId, &node) != UA_SUCCESS)
+    if(UA_NodeStore_get(server->nodestore, &writeValue->nodeId, &node) != UA_SUCCESS)
         return UA_ERROR;
 
     switch(writeValue->attributeId) {
@@ -404,7 +376,7 @@ UA_Int32 Service_Write_writeNode(UA_Server *server, UA_WriteValue *writeValue,
         break;
     }
 
-    UA_Namespace_releaseManagedNode(node);
+    UA_NodeStore_releaseManagedNode(node);
     return retval;
 
 }

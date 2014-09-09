@@ -1,6 +1,6 @@
-#include "ua_namespace.h"
+#include "ua_nodestore.h"
 
-struct UA_Namespace {
+struct UA_NodeStore {
     const UA_Node **entries;
     UA_UInt32       size;
     UA_UInt32       count;
@@ -39,9 +39,9 @@ static INLINE UA_Int16 higher_prime_index(hash_t n) {
 }
 
 /* Based on Murmur-Hash 3 by Austin Appleby (public domain, freely usable) */
-static INLINE hash_t hash_array(const UA_Byte *data, UA_UInt32 len) {
-    const int32_t         nblocks = len / 4;
-    const uint32_t       *blocks;
+static INLINE hash_t hash_array(const UA_Byte *data, UA_UInt32 len, UA_UInt32 seed) {
+    const int32_t   nblocks = len / 4;
+    const uint32_t *blocks;
 
     static const uint32_t c1 = 0xcc9e2d51;
     static const uint32_t c2 = 0x1b873593;
@@ -49,7 +49,7 @@ static INLINE hash_t hash_array(const UA_Byte *data, UA_UInt32 len) {
     static const uint32_t r2 = 13;
     static const uint32_t m  = 5;
     static const uint32_t n  = 0xe6546b64;
-    hash_t hash = len;
+    hash_t hash = seed;
 
     if(data == UA_NULL)
         return 0;
@@ -96,23 +96,24 @@ static INLINE hash_t hash(const UA_NodeId *n) {
     switch(n->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         /*  Knuth's multiplicative hashing */
-        return n->identifier.numeric * 2654435761;   // mod(2^32) is implicit
+        return (n->identifier.numeric + n->namespaceIndex) * 2654435761;   // mod(2^32) is implicit
 
     case UA_NODEIDTYPE_STRING:
-        return hash_array(n->identifier.string.data, n->identifier.string.length);
+        return hash_array(n->identifier.string.data, n->identifier.string.length, n->namespaceIndex);
 
     case UA_NODEIDTYPE_GUID:
-        return hash_array((UA_Byte *)&(n->identifier.guid), sizeof(UA_Guid));
+        return hash_array((UA_Byte *)&(n->identifier.guid), sizeof(UA_Guid), n->namespaceIndex);
 
     case UA_NODEIDTYPE_BYTESTRING:
-        return hash_array((UA_Byte *)n->identifier.byteString.data, n->identifier.byteString.length);
+        return hash_array((UA_Byte *)n->identifier.byteString.data, n->identifier.byteString.length, n->namespaceIndex);
 
     default:
+        UA_assert(UA_FALSE);
         return 0;
     }
 }
 
-static INLINE void clear_entry(UA_Namespace *ns, const UA_Node **entry) {
+static INLINE void clear_entry(UA_NodeStore *ns, const UA_Node **entry) {
     const UA_Node *node;
     if(entry == UA_NULL || *entry == UA_NULL)
         return;
@@ -152,6 +153,7 @@ static INLINE void clear_entry(UA_Namespace *ns, const UA_Node **entry) {
         break;
 
     default:
+        UA_assert(UA_FALSE);
         break;
     }
     entry = UA_NULL;
@@ -160,7 +162,7 @@ static INLINE void clear_entry(UA_Namespace *ns, const UA_Node **entry) {
 
 /* Returns UA_SUCCESS if an entry was found. Otherwise, UA_ERROR is returned and the "entry"
    argument points to the first free entry under the NodeId. */
-static INLINE UA_Int32 find_entry(const UA_Namespace *ns, const UA_NodeId *nodeid, const UA_Node ***entry) {
+static INLINE UA_Int32 find_entry(const UA_NodeStore *ns, const UA_NodeId *nodeid, const UA_Node ***entry) {
     hash_t          h     = hash(nodeid);
     UA_UInt32       size  = ns->size;
     hash_t          index = mod(h, size);
@@ -203,7 +205,7 @@ static INLINE UA_Int32 find_entry(const UA_Namespace *ns, const UA_NodeId *nodei
    repeatedly inserts the table elements. The occupancy of the table after the
    call will be about 50%. If memory allocation failures occur, this function
    will return UA_ERROR. */
-static UA_Int32 expand(UA_Namespace *ns) {
+static UA_Int32 expand(UA_NodeStore *ns) {
     const UA_Node **nentries;
     int32_t nsize;
     UA_UInt32       nindex;
@@ -246,10 +248,10 @@ static UA_Int32 expand(UA_Namespace *ns) {
 /* Exported functions */
 /**********************/
 
-UA_Int32 UA_Namespace_new(UA_Namespace **result) {
-    UA_Namespace *ns;
+UA_Int32 UA_NodeStore_new(UA_NodeStore **result) {
+    UA_NodeStore *ns;
     UA_UInt32     sizePrimeIndex, size;
-    if(UA_alloc((void **)&ns, sizeof(UA_Namespace)) != UA_SUCCESS)
+    if(UA_alloc((void **)&ns, sizeof(UA_NodeStore)) != UA_SUCCESS)
         return UA_ERR_NO_MEMORY;
 
     sizePrimeIndex = higher_prime_index(32);
@@ -262,12 +264,12 @@ UA_Int32 UA_Namespace_new(UA_Namespace **result) {
     /* set entries to zero */
     memset(ns->entries, 0, size * sizeof(UA_Node *));
 
-    *ns     = (UA_Namespace) {ns->entries, size, 0, sizePrimeIndex };
+    *ns     = (UA_NodeStore) {ns->entries, size, 0, sizePrimeIndex };
     *result = ns;
     return UA_SUCCESS;
 }
 
-UA_Int32 UA_Namespace_delete(UA_Namespace *ns) {
+UA_Int32 UA_NodeStore_delete(UA_NodeStore *ns) {
     UA_UInt32       size    = ns->size;
     const UA_Node **entries = ns->entries;
 
@@ -279,7 +281,7 @@ UA_Int32 UA_Namespace_delete(UA_Namespace *ns) {
     return UA_SUCCESS;
 }
 
-UA_Int32 UA_Namespace_insert(UA_Namespace *ns, UA_Node **node, UA_Byte flags) {
+UA_Int32 UA_NodeStore_insert(UA_NodeStore *ns, UA_Node **node, UA_Byte flags) {
     if(ns == UA_NULL || node == UA_NULL || *node == UA_NULL)
         return UA_ERROR;
 
@@ -291,7 +293,7 @@ UA_Int32 UA_Namespace_insert(UA_Namespace *ns, UA_Node **node, UA_Byte flags) {
     const UA_Node **entry;
     UA_Int32 found = find_entry(ns, &(*node)->nodeId, &entry);
 
-    if(flags & UA_NAMESPACE_INSERT_UNIQUE) {
+    if(flags & UA_NODESTORE_INSERT_UNIQUE) {
         if(found == UA_SUCCESS)
             return UA_ERROR;    /* There is already an entry for that nodeid */
         else
@@ -302,14 +304,14 @@ UA_Int32 UA_Namespace_insert(UA_Namespace *ns, UA_Node **node, UA_Byte flags) {
         *entry = *node;
     }
 
-    if(!(flags & UA_NAMESPACE_INSERT_GETMANAGED))
+    if(!(flags & UA_NODESTORE_INSERT_GETMANAGED))
         *node = UA_NULL;
 
     ns->count++;
     return UA_SUCCESS;
 }
 
-UA_Int32 UA_Namespace_get(const UA_Namespace *ns, const UA_NodeId *nodeid, const UA_Node **managedNode) {
+UA_Int32 UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid, const UA_Node **managedNode) {
     const UA_Node **entry;
     if(ns == UA_NULL || nodeid == UA_NULL || managedNode == UA_NULL)
         return UA_ERROR;
@@ -321,12 +323,12 @@ UA_Int32 UA_Namespace_get(const UA_Namespace *ns, const UA_NodeId *nodeid, const
     return UA_SUCCESS;
 }
 
-UA_Int32 UA_Namespace_remove(UA_Namespace *ns, const UA_NodeId *nodeid) {
+UA_Int32 UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     const UA_Node **entry;
     if(find_entry(ns, nodeid, &entry) != UA_SUCCESS)
         return UA_ERROR;
 
-    // Check before if deleting the node makes the UA_Namespace inconsistent.
+    // Check before if deleting the node makes the UA_NodeStore inconsistent.
     clear_entry(ns, entry);
 
     /* Downsize the hashmap if it is very empty */
@@ -336,7 +338,7 @@ UA_Int32 UA_Namespace_remove(UA_Namespace *ns, const UA_NodeId *nodeid) {
     return UA_SUCCESS;
 }
 
-UA_Int32 UA_Namespace_iterate(const UA_Namespace *ns, UA_Namespace_nodeVisitor visitor) {
+UA_Int32 UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
     if(ns == UA_NULL || visitor == UA_NULL)
         return UA_ERROR;
 
@@ -348,6 +350,6 @@ UA_Int32 UA_Namespace_iterate(const UA_Namespace *ns, UA_Namespace_nodeVisitor v
     return UA_SUCCESS;
 }
 
-void UA_Namespace_releaseManagedNode(const UA_Node *managed) {
+void UA_NodeStore_releaseManagedNode(const UA_Node *managed) {
     ;
 }

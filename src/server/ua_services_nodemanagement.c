@@ -1,6 +1,6 @@
 #include "ua_services.h"
 #include "ua_statuscodes.h"
-#include "ua_namespace.h"
+#include "ua_nodestore.h"
 #include "ua_services_internal.h"
 #include "ua_session.h"
 
@@ -16,43 +16,19 @@ static UA_AddNodesResult addSingleNode(UA_Server *server, UA_AddNodesItem *item)
     UA_AddNodesResult_init(&result);
 
     // TODO: search for namespaceUris and not only ns-ids.
-    UA_Namespace *parent_ns = UA_NULL;
-    for(UA_UInt32 i = 0;i < server->namespacesSize;i++) {
-        if(server->namespaces[i].namespaceIndex == item->parentNodeId.nodeId.namespaceIndex) {
-            parent_ns = server->namespaces[i].namespace;
-            break;
-        }
-    }
+    /* UA_Boolean    nodeid_isnull = UA_NodeId_isNull(&item->requestedNewNodeId.nodeId); */
 
-    if(parent_ns == UA_NULL) {
-    result.statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID;
-    return result;
-    }
-
-    UA_Namespace *ns = UA_NULL;
-    UA_Boolean    nodeid_isnull = UA_NodeId_isNull(&item->requestedNewNodeId.nodeId);
-
-    if(nodeid_isnull) ns = parent_ns;
-    else {
-        for(UA_UInt32 i = 0;i < server->namespacesSize;i++) {
-            if(server->namespaces[i].namespaceIndex == item->requestedNewNodeId.nodeId.namespaceIndex) {
-                parent_ns = server->namespaces[i].namespace;
-                break;
-            }
-        }
-    }
-
-    if(ns == UA_NULL || item->requestedNewNodeId.nodeId.namespaceIndex == 0) {
-    result.statusCode = UA_STATUSCODE_BADNODEIDREJECTED;
-    return result;
+    if(item->requestedNewNodeId.nodeId.namespaceIndex == 0) {
+        result.statusCode = UA_STATUSCODE_BADNODEIDREJECTED;
+        return result;
     }
 
     UA_Int32       status = UA_SUCCESS;
     const UA_Node *parent;
-    CHECKED_ACTION(UA_Namespace_get(parent_ns, &item->parentNodeId.nodeId, &parent),
+    CHECKED_ACTION(UA_NodeStore_get(server->nodestore, &item->parentNodeId.nodeId, &parent),
                    result.statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID, ret);
 
-    /* if(!nodeid_isnull && Namespace_contains(ns, &item->requestedNewNodeId.nodeId)) { */
+    /* if(!nodeid_isnull && NodeStore_contains(ns, &item->requestedNewNodeId.nodeId)) { */
     /*  result.statusCode = UA_STATUSCODE_BADNODEIDEXISTS; */
     /*  goto ret; */
     /* } */
@@ -76,7 +52,7 @@ static UA_AddNodesResult addSingleNode(UA_Server *server, UA_AddNodesItem *item)
      */
 
 ret:
-    UA_Namespace_releaseManagedNode(parent);
+    UA_NodeStore_releaseManagedNode(parent);
     return result;
 }
 
@@ -129,7 +105,7 @@ static UA_Int32 AddSingleReference(UA_Node *node, UA_ReferenceNode *reference) {
     return retval;
 }
 
-UA_Int32 AddReference(UA_Node *node, UA_ReferenceNode *reference, UA_Namespace *targetns) {
+UA_Int32 AddReference(UA_NodeStore *targetns, UA_Node *node, UA_ReferenceNode *reference) {
     UA_Int32 retval = AddSingleReference(node, reference);
     UA_Node *targetnode;
     UA_ReferenceNode inversereference;
@@ -137,7 +113,7 @@ UA_Int32 AddReference(UA_Node *node, UA_ReferenceNode *reference, UA_Namespace *
         return retval;
 
     // Do a copy every time?
-    if(UA_Namespace_get(targetns, &reference->targetId.nodeId, (const UA_Node **)&targetnode) != UA_SUCCESS)
+    if(UA_NodeStore_get(targetns, &reference->targetId.nodeId, (const UA_Node **)&targetnode) != UA_SUCCESS)
         return UA_ERROR;
 
     inversereference.referenceTypeId       = reference->referenceTypeId;
@@ -146,7 +122,7 @@ UA_Int32 AddReference(UA_Node *node, UA_ReferenceNode *reference, UA_Namespace *
     inversereference.targetId.namespaceUri = UA_STRING_NULL;
     inversereference.targetId.serverIndex  = 0;
     retval = AddSingleReference(targetnode, &inversereference);
-    UA_Namespace_releaseManagedNode(targetnode);
+    UA_NodeStore_releaseManagedNode(targetnode);
 
     return retval;
 }

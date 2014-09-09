@@ -20,7 +20,6 @@ set(lib_sources src/ua_types.c
                 src/util/ua_util.c
                 src/util/ua_list.c
                 src/util/ua_base64.c
-                src/server/ua_namespace.c
                 src/server/ua_server.c
                 src/server/ua_securechannel_manager.c
                 src/server/ua_session_manager.c
@@ -94,9 +93,9 @@ configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_conf
 option(ENABLE_MULTITHREADING "Enable multithreading" OFF)
 if(ENABLE_MULTITHREADING)
     find_package(Threads REQUIRED)
-    list(APPEND lib_sources src/server/ua_namespace_concurrent.c)
+    list(APPEND lib_sources src/server/ua_nodestore_concurrent.c)
 else()
-    list(APPEND lib_sources src/server/ua_namespace.c)
+    list(APPEND lib_sources src/server/ua_nodestore.c)
 endif(ENABLE_MULTITHREADING)
 
 add_library(open62541 ${lib_sources}) # we can add more files to lib_sources later on
