@@ -7,7 +7,7 @@
 
 /**
    @ingroup server
-   
+
    @defgroup namespace Namespace
 
    @brief The namespace is the central storage for nodes in the UA address
@@ -43,21 +43,21 @@ UA_Int32 UA_Namespace_delete(UA_Namespace *ns);
 UA_Int32 UA_Namespace_insert(UA_Namespace *ns, UA_Node **node, UA_Byte flags);
 
 /** @brief Remove a node from the namespace. Always succeeds, even if the node
-	was not found. */
+    was not found. */
 UA_Int32 UA_Namespace_remove(UA_Namespace *ns, const UA_NodeId *nodeid);
 
 /** @brief Retrieve a node (read-only) from the namespace. Nodes are immutable.
     They can only be replaced. After the Node is no longer used, the locked
     entry needs to be released. */
 UA_Int32 UA_Namespace_get(const UA_Namespace *ns, const UA_NodeId *nodeid,
-						  const UA_Node **managedNode);
+                          const UA_Node **managedNode);
 
 /** @brief Release a managed node. Do never insert a node that isn't stored in a
-	namespace. */
+    namespace. */
 void UA_Namespace_releaseManagedNode(const UA_Node *managed);
 
 /** @brief A function that can be evaluated on all entries in a namespace via
-	UA_Namespace_iterate. Note that the visitor is read-only on the nodes. */
+    UA_Namespace_iterate. Note that the visitor is read-only on the nodes. */
 typedef void (*UA_Namespace_nodeVisitor)(const UA_Node *node);
 
 /** @brief Iterate over all nodes in a namespace. */

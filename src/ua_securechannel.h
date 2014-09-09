@@ -18,16 +18,16 @@ struct UA_Session;
 typedef struct UA_Session UA_Session;
 
 struct UA_SecureChannel {
-	UA_MessageSecurityMode securityMode;
-	UA_ChannelSecurityToken securityToken; // the channelId is contained in the securityToken
-	UA_AsymmetricAlgorithmSecurityHeader clientAsymAlgSettings;
-	UA_AsymmetricAlgorithmSecurityHeader serverAsymAlgSettings;
-	UA_ByteString clientNonce;
-	UA_ByteString serverNonce;
-	UA_UInt32 requestId;
-	UA_UInt32 sequenceNumber;
-	UA_Connection *connection; // make this more generic when http connections exist
-	UA_Session *session;
+    UA_MessageSecurityMode  securityMode;
+    UA_ChannelSecurityToken securityToken; // the channelId is contained in the securityToken
+    UA_AsymmetricAlgorithmSecurityHeader clientAsymAlgSettings;
+    UA_AsymmetricAlgorithmSecurityHeader serverAsymAlgSettings;
+    UA_ByteString  clientNonce;
+    UA_ByteString  serverNonce;
+    UA_UInt32      requestId;
+    UA_UInt32      sequenceNumber;
+    UA_Connection *connection; // make this more generic when http connections exist
+    UA_Session    *session;
 };
 
 UA_Int32 UA_SecureChannel_init(UA_SecureChannel *channel);
