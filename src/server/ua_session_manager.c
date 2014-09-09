@@ -13,6 +13,8 @@ UA_Int32 UA_SessionManager_new(UA_SessionManager **sessionManager, UA_UInt32 max
                                UA_UInt32 sessionTimeout, UA_UInt32 startSessionId) {
     UA_Int32 retval = UA_SUCCESS;
     retval |= UA_alloc((void **)sessionManager, sizeof(UA_SessionManager));
+    if(retval != UA_SUCCESS)
+        return UA_ERROR;
     retval |= UA_list_init(&(*sessionManager)->sessions);
     (*sessionManager)->maxSessionCount = maxSessionCount;
     (*sessionManager)->lastSessionId   = startSessionId;

@@ -52,7 +52,10 @@ typedef struct TCPConnectionHandle {
 
 UA_Int32 NetworklayerTCP_new(NetworklayerTCP **newlayer, UA_ConnectionConfig localConf,
 							 UA_UInt32 port) {
-	UA_alloc((void**)newlayer, sizeof(NetworklayerTCP));
+    UA_UInt32 retval = UA_SUCCESS;
+    retval |= UA_alloc((void**)newlayer, sizeof(NetworklayerTCP));
+    if(retval != UA_SUCCESS)
+        return UA_ERROR;
 	(*newlayer)->localConf = localConf;
 	(*newlayer)->port = port;
 	(*newlayer)->connectionsSize = 0;
@@ -135,9 +138,9 @@ UA_Int32 writeHandle(TCPConnectionHandle *handle, UA_ByteStringArray gather_buf)
 		} while (n == -1L && errno == EINTR);
 
 		if (n >= 0) {
-			nWritten += n;
-			break;
 			// TODO: handle incompletely send messages
+			/* nWritten += n; */
+			break;
 		} else {
 			// TODO: error handling
 			break;

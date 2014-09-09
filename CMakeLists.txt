@@ -87,8 +87,6 @@ if(ENABLE_JSON_ENCODING)
     list(APPEND generate_src_options "--with-json")
 endif(ENABLE_JSON_ENCODING)
 
-configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
-
 ## multithreading
 option(ENABLE_MULTITHREADING "Enable multithreading" OFF)
 if(ENABLE_MULTITHREADING)
@@ -112,6 +110,8 @@ if(ENABLE_COVERAGE)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
 endif(ENABLE_COVERAGE)
+
+configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
 
 # build generated code
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
