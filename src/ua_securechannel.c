@@ -23,8 +23,8 @@ UA_Int32 UA_SecureChannel_deleteMembers(UA_SecureChannel *channel) {
 }
 UA_Int32 UA_SecureChannel_delete(UA_SecureChannel *channel) {
     UA_Int32 retval = UA_SUCCESS;
-    retval = UA_SecureChannel_deleteMembers(channel);
-    retval = UA_free(channel);
+    retval |= UA_SecureChannel_deleteMembers(channel);
+    retval |= UA_free(channel);
     return retval;
 }
 

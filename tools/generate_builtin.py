@@ -232,6 +232,7 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
 
     # 10) Init
     printc('''UA_Int32 %(name)s_init(%(name)s *p) {
+    if(!p) return UA_ERROR;
     UA_Int32 retval = UA_SUCCESS;''')
     for n,t in membermap.iteritems():
         if t.find("*") != -1:

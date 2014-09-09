@@ -530,6 +530,7 @@ UA_Int32 UA_SecureConversationMessageFooter_deleteMembers(UA_SecureConversationM
 }
 
 UA_Int32 UA_SecureConversationMessageFooter_init(UA_SecureConversationMessageFooter *p) {
+    if(!p) return UA_ERROR;
     UA_Int32 retval = UA_SUCCESS;
     p->paddingSize = 0;
     p->padding     = UA_NULL;

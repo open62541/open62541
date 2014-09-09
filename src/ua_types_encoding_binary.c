@@ -139,6 +139,7 @@ UA_Int32 UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, UA_I
 
 #define UA_TYPE_ENCODEBINARY(TYPE, CODE)                                                    \
     UA_Int32 TYPE##_encodeBinary(TYPE const *src, UA_ByteString * dst, UA_UInt32 *offset) { \
+        if(!src) return UA_ERROR;                                                           \
         UA_Int32 retval = UA_SUCCESS;                                                       \
         if((UA_Int32)(*offset + TYPE##_calcSizeBinary(src)) > dst->length ) {               \
             return UA_ERR_INVALID_VALUE;                                                    \
