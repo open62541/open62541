@@ -25,10 +25,6 @@ add_executable(check_list check_list.c)
 target_link_libraries(check_list ${LIBS})
 add_test(list ${CMAKE_CURRENT_BINARY_DIR}/check_list)
 
-add_executable(check_indexedList check_indexedList.c)
-target_link_libraries(check_indexedList ${LIBS})
-add_test(indexedList ${CMAKE_CURRENT_BINARY_DIR}/check_indexedList)
-
 add_executable(check_base64 check_base64.c)
 target_link_libraries(check_base64 ${LIBS})
 add_test(base64 ${CMAKE_CURRENT_BINARY_DIR}/check_base64)
