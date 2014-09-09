@@ -1,3 +1,8 @@
+/*
+ * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
+ */
+
 #ifdef WIN32
 #include <winsock2.h>
 #include <sys/types.h>
