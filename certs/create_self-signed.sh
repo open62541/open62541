@@ -14,7 +14,7 @@ openssl req \
     -new \
     -newkey rsa:1024 \
     -nodes \
-    -subj "/C=DE/ST=/L=/O=open62541/CN=www.open62541.org" \
+    -subj "/C=DE/ST=/L=/O=open62541/CN=open62541Server@localhost" \
     -config localhost.cnf \
     -keyout localhost.key \
     -out localhost.csr

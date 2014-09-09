@@ -58,6 +58,18 @@ endif(CMAKE_COMPILER_IS_GNUCC)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
 set(generate_src_options) # the options for the tools that generate code from xml-schema definitions
 
+## self-signed certificates
+option(ENABLE_SELFSIGNED "Enable self-signed certificates" OFF)
+if(ENABLE_SELFSIGNED)
+    message(STATUS "Enabling self-signed certificates")
+    SET(lib_sources ${lib_sources} ${PROJECT_BINARY_DIR}/localhost.der)
+    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/localhost.der
+                   COMMAND sh ${PROJECT_SOURCE_DIR}/certs/create_self-signed.sh ${PROJECT_BINARY_DIR}
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/certs/create_self-signed.sh
+                           ${CMAKE_CURRENT_SOURCE_DIR}/certs/localhost.cnf)
+endif(ENABLE_SELFSIGNED)
+
+
 ## auto-generate all types or only the relevant subset?
 option(TYPES_ONLY_NEEDED "Include only compile-needed types" OFF)
 if(TYPES_ONLY_NEEDED)
