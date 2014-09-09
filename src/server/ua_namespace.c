@@ -1,6 +1,4 @@
 #include "ua_namespace.h"
-#include <string.h>
-#include <stdio.h>
 
 struct UA_Namespace {
     const UA_Node **entries;

@@ -1,7 +1,6 @@
 #ifndef UA_TYPES_ENCODING_BINARY_H_
 #define UA_TYPES_ENCODING_BINARY_H_
 
-#include "util/ua_util.h"
 #include "ua_types.h"
 
 /**

@@ -1,9 +1,6 @@
 #ifndef UA_SECURECHANNEL_H_
 #define UA_SECURECHANNEL_H_
 
-#include <stdio.h>
-#include <memory.h> // memcpy
-
 #include "ua_types_generated.h"
 #include "ua_transport.h"
 #include "ua_connection.h"

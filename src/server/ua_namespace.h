@@ -3,7 +3,6 @@
 
 #include "ua_types.h"
 #include "ua_types_generated.h"
-#include "util/ua_list.h"
 
 /**
    @ingroup server
