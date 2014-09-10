@@ -86,6 +86,7 @@ UA_Int32 NetworklayerTCP_remove(NetworklayerTCP *layer, UA_Int32 sockfd) {
 void NetworklayerTCP_delete(NetworklayerTCP *layer) {
 	for(UA_UInt32 index = 0;index < layer->connectionsSize;index++) {
 		shutdown(layer->connections[index].sockfd, 2);
+        UA_Connection_deleteMembers(&layer->connections[index].connection);
 		CLOSESOCKET(layer->connections[index].sockfd);
 	}
 	UA_free(layer->connections);
@@ -93,14 +94,14 @@ void NetworklayerTCP_delete(NetworklayerTCP *layer) {
 }
 
 /** Callback function */
-void closeHandle(TCPConnectionHandle *handle) {
+void closeCallback(TCPConnectionHandle *handle) {
 	shutdown(handle->sockfd,2);
 	CLOSESOCKET(handle->sockfd);
 	NetworklayerTCP_remove(handle->layer, handle->sockfd);
 }
 
 /** Callback function */
-UA_Int32 writeHandle(TCPConnectionHandle *handle, UA_ByteStringArray gather_buf) {
+UA_Int32 writeCallback(TCPConnectionHandle *handle, UA_ByteStringArray gather_buf) {
 	UA_UInt32 total_len = 0;
 	UA_UInt32 nWritten = 0;
 #ifdef WIN32
@@ -151,19 +152,17 @@ UA_Int32 writeHandle(TCPConnectionHandle *handle, UA_ByteStringArray gather_buf)
 }
 
 UA_Int32 NetworklayerTCP_add(NetworklayerTCP *layer, UA_Int32 newsockfd) {
-	layer->connections = realloc(layer->connections,
-								 sizeof(TCPConnection) * layer->connectionsSize);
-	TCPConnection *newconnection = &layer->connections[layer->connectionsSize];
+    layer->connectionsSize++;
+	layer->connections = realloc(layer->connections, sizeof(TCPConnection) * layer->connectionsSize);
+	TCPConnection *newconnection = &layer->connections[layer->connectionsSize-1];
 	newconnection->sockfd = newsockfd;
-	layer->connectionsSize++;
 
 	struct TCPConnectionHandle *callbackhandle;
 	UA_alloc((void**)&callbackhandle, sizeof(struct TCPConnectionHandle));
 	callbackhandle->layer = layer;
 	callbackhandle->sockfd = newsockfd;
 	UA_Connection_init(&newconnection->connection, layer->localConf, callbackhandle,
-					   (UA_Int32 (*)(void*))closeHandle,
-					   (UA_Int32 (*)(void*, UA_ByteStringArray*))writeHandle);
+					   (UA_Connection_closeCallback)closeCallback, (UA_Connection_writeCallback)writeCallback);
 	return UA_SUCCESS;
 }
 
@@ -242,54 +241,48 @@ void setFDSet(NetworklayerTCP *layer) {
 		if(layer->connections[i].sockfd > layer->highestfd)
 			layer->highestfd = layer->connections[i].sockfd;
 	}
+    layer->highestfd++;
 }
 
 UA_Int32 NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, struct timeval tv,
 							   void(*worker)(UA_Server*), UA_Boolean *running) {
-	struct sockaddr_in serv_addr;
-	//UA_String_copyprintf("opc.tcp://localhost:%d/", &(tld->endpointUrl), port);
-
 #ifdef WIN32
-	unsigned int newsockfd;
 	WORD wVersionRequested;
 	WSADATA wsaData;
 	wVersionRequested = MAKEWORD(2, 2);
 	WSAStartup(wVersionRequested, &wsaData);
-	newsockfd = socket(PF_INET, SOCK_STREAM,0);
-	if (newsockfd == INVALID_SOCKET) {
+	if((layer->serversockfd = socket(PF_INET, SOCK_STREAM,0)) == INVALID_SOCKET) {
 		printf("ERROR opening socket, code: %d\n", WSAGetLastError());
 		return UA_ERROR;
 	}
 #else
-	int newsockfd;
-	newsockfd = socket(PF_INET, SOCK_STREAM, 0);
-	if (newsockfd < 0) {
+    if((layer->serversockfd = socket(PF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("ERROR opening socket");
 		return UA_ERROR;
 	} 
 #endif
+	struct sockaddr_in serv_addr;
 	memset((void *)&serv_addr, sizeof(serv_addr), 1);
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_addr.s_addr = INADDR_ANY;
 	serv_addr.sin_port = htons(layer->port);
 
 	int optval = 1;
-	if(setsockopt(newsockfd, SOL_SOCKET, SO_REUSEADDR, (const char *)&optval,
-				  sizeof(optval)) == -1) {
+	if(setsockopt(layer->serversockfd, SOL_SOCKET, SO_REUSEADDR, (const char *)&optval, sizeof(optval)) == -1) {
 		perror("setsockopt");
-		close(newsockfd);
+		close(layer->serversockfd);
 		return UA_ERROR;
 	}
 		
-	if(bind(newsockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
+	if(bind(layer->serversockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
 		perror("binding");
-		close(newsockfd);
+		close(layer->serversockfd);
 		return UA_ERROR;
 	}
 
 #define MAXBACKLOG 10
-	setNonBlocking(newsockfd);
-	listen(newsockfd, MAXBACKLOG);
+	setNonBlocking(layer->serversockfd);
+	listen(layer->serversockfd, MAXBACKLOG);
 
 	while (*running) {
 		setFDSet(layer);

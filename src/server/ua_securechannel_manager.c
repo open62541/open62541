@@ -88,6 +88,8 @@ UA_Int32 UA_SecureChannelManager_open(UA_SecureChannelManager           *cm,
     UA_ByteString_copy(&entry->channel.serverNonce, &response->serverNonce);
     UA_ChannelSecurityToken_copy(&entry->channel.securityToken, &response->securityToken);
 
+    conn->channel = &entry->channel;
+
     return UA_SUCCESS;
 }
 
@@ -100,12 +102,15 @@ UA_Int32 UA_SecureChannelManager_renew(UA_SecureChannelManager           *cm,
     if(channel == UA_NULL)
         return UA_ERROR;
 
-
-    // TODO write response
-
+    channel->securityToken.tokenId         = cm->lastTokenId++;
     channel->securityToken.createdAt       = UA_DateTime_now(); // todo: is wanted?
     channel->securityToken.revisedLifetime = request->requestedLifetime > cm->maxChannelLifetime ?
                                              cm->maxChannelLifetime : request->requestedLifetime;
+
+    UA_SecureChannel_generateNonce(&channel->serverNonce);
+    UA_ByteString_copy(&channel->serverNonce, &response->serverNonce);
+    UA_ChannelSecurityToken_copy(&channel->securityToken, &response->securityToken);
+
     return UA_SUCCESS;
 }
 

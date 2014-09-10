@@ -14,10 +14,6 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_namespace_0.h"
 
-/************/
-/* Built-In */
-/************/
-
 /* Boolean */
 UA_Int32 UA_Boolean_init(UA_Boolean *p) {
     if(p == UA_NULL) return UA_ERROR;
@@ -64,8 +60,6 @@ void UA_Int16_print(const UA_Int16 *p, FILE *stream) {
     fprintf(stream, "%d", *p);
 }
 #endif
-
-
 
 /* UInt16 */
 UA_TYPE_DEFAULT(UA_UInt16)

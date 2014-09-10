@@ -33,7 +33,7 @@ extern UA_ConnectionConfig UA_ConnectionConfig_standard;
 struct UA_SecureChannel;
 typedef struct UA_SecureChannel UA_SecureChannel;
 
-typedef UA_Int32 (*UA_Connection_writeCallback)(void *handle, UA_ByteStringArray *buf);
+typedef UA_Int32 (*UA_Connection_writeCallback)(void *handle, UA_ByteStringArray buf);
 typedef UA_Int32 (*UA_Connection_closeCallback)(void *handle);
 
 typedef struct UA_Connection {
@@ -46,9 +46,8 @@ typedef struct UA_Connection {
     UA_Connection_closeCallback close;
 } UA_Connection;
 
-UA_Int32 UA_Connection_init(UA_Connection *connection, UA_ConnectionConfig localConf,
-                            void *callbackHandle, UA_Int32 (*close)(void *handle),
-                            UA_Int32 (*write)(void *handle, UA_ByteStringArray *buf));
+UA_Int32 UA_Connection_init(UA_Connection *connection, UA_ConnectionConfig localConf, void *callbackHandle,
+                            UA_Connection_closeCallback close, UA_Connection_writeCallback write);
 UA_Int32 UA_Connection_deleteMembers(UA_Connection *connection);
 
 // todo: closing a binaryconnection that was closed on the network level

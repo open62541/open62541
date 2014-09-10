@@ -21,15 +21,11 @@ UA_Int32 UA_ByteStringArray_deleteMembers(UA_ByteStringArray *stringarray) {
         return UA_ERROR;
     for(UA_UInt32 i = 0;i < stringarray->stringsSize;i++)
         UA_String_deleteMembers(&stringarray->strings[i]);
-    UA_free(stringarray);
     return UA_SUCCESS;
 }
 
-UA_Int32 UA_Connection_init(UA_Connection *connection,
-                            UA_ConnectionConfig localConf,
-                            void *callbackHandle,
-                            UA_Int32 (*close)(void *handle),
-                            UA_Int32 (*write)(void *handle, UA_ByteStringArray *buf)) {
+UA_Int32 UA_Connection_init(UA_Connection *connection, UA_ConnectionConfig localConf, void *callbackHandle,
+                            UA_Connection_closeCallback close, UA_Connection_writeCallback write) {
     connection->state          = UA_CONNECTION_OPENING;
     connection->localConf      = localConf;
     connection->channel        = UA_NULL;
