@@ -552,6 +552,20 @@ void appMockup_init() {
 	/* v->historizing = UA_FALSE; */
 	/* Namespace_insert(ns0,np); */
 
+	//FIXME: not tested
+	//we will probably need to source out the definition into a ua_opaque types.c,
+	//since it will be used on different places: here and at least once in the binaryEncode
+	//function, just before encoding the value, or in the service just before reading, dunno yet
+	/*
+	 struct UA_Open62541Data{
+	 //FIXME: enum or union to come
+	 	UA_Int32(*readCallback)(const UA_NodeId* nodeid, UA_Int32 typeId, const UA_Variant* value);
+		UA_Int32(*writeCallback)(const UA_NodeId* nodeid, UA_Int32 typeId, const UA_Variant* value);
+	 };
+	 v->Open62541Data = (UA_Open62541Data*)malloc(sizeof(UA_Open62541Data));
+	 free(namespaceArray->value.data)
+	 */
+
 	/*******************/
 	/* Namespace local */
 	/*******************/

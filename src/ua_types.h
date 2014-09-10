@@ -514,6 +514,13 @@ typedef struct UA_VTable {
     UA_TYPE_COPY_AS(TYPE, TYPE_AS)
 #endif
 
+/***********************************/
+/* Internal node-data  			   */
+/***********************************/
+
+/** @brief Forward-declaration of a struct to hold internal data that is not seen on the wire */
+typedef struct UA_Open62541Data UA_Open62541Data;
+
 /// @} /* end of group */
 
 #endif /* UA_TYPES_H_ */
