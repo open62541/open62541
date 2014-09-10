@@ -1,6 +1,6 @@
 #include "ua_services.h"
 #include "errno.h"
-#include "ua_base64.h"
+
 UA_Int32 Service_GetEndpoints(SL_Channel *channel,
 		const UA_GetEndpointsRequest* request,
 		UA_GetEndpointsResponse *response) {
