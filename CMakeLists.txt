@@ -62,11 +62,12 @@ set(generate_src_options) # the options for the tools that generate code from xm
 option(ENABLE_SELFSIGNED "Enable self-signed certificates" OFF)
 if(ENABLE_SELFSIGNED)
     message(STATUS "Enabling self-signed certificates")
-    SET(lib_sources ${lib_sources} ${PROJECT_BINARY_DIR}/localhost.der)
+    SET(lib_sources ${lib_sources} ${PROJECT_BINARY_DIR}/localhost.der ${PROJECT_BINARY_DIR}/ca.crt)
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/localhost.der
-                   COMMAND sh ${PROJECT_SOURCE_DIR}/certs/create_self-signed.sh ${PROJECT_BINARY_DIR}
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/certs/create_self-signed.sh
-                           ${CMAKE_CURRENT_SOURCE_DIR}/certs/localhost.cnf)
+                              ${PROJECT_BINARY_DIR}/ca.crt
+                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${PROJECT_BINARY_DIR}
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/create_self-signed.py
+                           ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/localhost.cnf)
 endif(ENABLE_SELFSIGNED)
 
 
