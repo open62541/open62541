@@ -7,12 +7,14 @@ UA_Int32 UA_Server_deleteMembers(UA_Server *server) {
     UA_SecureChannelManager_delete(server->secureChannelManager);
     UA_SessionManager_delete(server->sessionManager);
     UA_NodeStore_delete(server->nodestore);
+    UA_ByteString_deleteMembers(&server->serverCertificate);
     UA_free(server);
     return UA_SUCCESS;
 }
 
 void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_ApplicationDescription_init(&server->description);
+    UA_ByteString_init(&server->serverCertificate);
 #define MAXCHANNELCOUNT 100
 #define STARTCHANNELID 1
 #define TOKENLIFETIME 10000

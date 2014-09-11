@@ -18,6 +18,7 @@ typedef struct UA_Server {
     UA_SessionManager *sessionManager;
     UA_NodeStore *nodestore;
     UA_Logger logger;
+    UA_ByteString serverCertificate;
 } UA_Server;
 
 void UA_Server_init(UA_Server *server, UA_String *endpointUrl);

@@ -25,6 +25,10 @@ UA_Int32 Service_GetEndpoints(UA_Server                    *server,
 
     // server description
     UA_String_copy(&request->endpointUrl, &response->endpoints[0].endpointUrl);
+    /* The standard says "the HostName specified in the Server Certificate is the
+       same as the HostName contained in the endpointUrl provided in the
+       EndpointDescription */
+    UA_String_copy(&server->serverCertificate, &response->endpoints[0].serverCertificate);
     UA_String_copycstring("http://open62541.info/product/release", &(response->endpoints[0].server.productUri));
     // FIXME: This information should be provided by the application, preferably in the address space
     UA_String_copycstring("http://open62541.info/applications/4711",
@@ -33,5 +37,5 @@ UA_Int32 Service_GetEndpoints(UA_Server                    *server,
     // FIXME: This should be a feature of the application and an enum
     response->endpoints[0].server.applicationType = UA_APPLICATIONTYPE_SERVER;
 
-    return UA_SUCCESS;
+	return UA_SUCCESS;
 }

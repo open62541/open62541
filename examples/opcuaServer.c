@@ -28,6 +28,26 @@ void serverCallback(UA_Server *server) {
 	printf("does whatever servers do\n");
 }
 
+UA_ByteString loadCertificate() {
+    UA_ByteString certificate = UA_STRING_NULL;
+	FILE *fp = UA_NULL;
+	//FIXME: a potiential bug of locating the certificate, we need to get the path from the server's config
+	fp=fopen("localhost.der", "rb");
+
+	if(fp == UA_NULL)
+        return certificate;
+
+    fseek(fp, 0, SEEK_END);
+    certificate.length = ftell(fp);
+    UA_alloc((void**)&certificate.data, certificate.length*sizeof(UA_Byte));
+
+    fseek(fp, 0, SEEK_SET);
+    fread(certificate.data, sizeof(UA_Byte), certificate.length, fp);
+    fclose(fp);
+
+    return certificate;
+}
+
 int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
 
@@ -36,6 +56,7 @@ int main(int argc, char** argv) {
 	UA_String_copycstring("no endpoint url",&endpointUrl);
 	UA_Server_init(&server, &endpointUrl);
 	Logger_Stdout_init(&server.logger);
+    server.serverCertificate = loadCertificate();
 	
 	NetworklayerTCP* nl;
 	NetworklayerTCP_new(&nl, UA_ConnectionConfig_standard, 16664);
