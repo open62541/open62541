@@ -434,20 +434,20 @@ START_TEST(validCreateSessionShallCreateSession) {
 }
 END_TEST
 
-START_TEST(UA_OPCUATcpMessageHeader_copyShallWorkOnInputExample) {
+START_TEST(UA_TcpMessageHeader_copyShallWorkOnInputExample) {
 	// given
-	UA_OPCUATcpMessageHeader src;
-	UA_OPCUATcpMessageHeader_init(&src);
+	UA_TcpMessageHeader src;
+	UA_TcpMessageHeader_init(&src);
 	src.isFinal = 2;
 	src.messageSize = 43;
 	src.messageType = UA_MESSAGETYPE_MSG;
-	const UA_OPCUATcpMessageHeader srcConst = src;
+	const UA_TcpMessageHeader srcConst = src;
 
-	UA_OPCUATcpMessageHeader dst;
+	UA_TcpMessageHeader dst;
 	UA_Int32 ret;
 
 	// when
-	ret = UA_OPCUATcpMessageHeader_copy(&srcConst, &dst);
+	ret = UA_TcpMessageHeader_copy(&srcConst, &dst);
 	// then
 	ck_assert_int_eq(ret, UA_SUCCESS);
 	ck_assert_int_eq(UA_MESSAGETYPE_MSG, dst.messageType);
@@ -488,8 +488,8 @@ START_TEST(UA_SecureConversationMessageHeader_copyShallWorkOnInputExample) {
 	UA_SecureConversationMessageHeader src;
 	UA_SecureConversationMessageHeader_init(&src);
 	src.secureChannelId = 84;
-	UA_OPCUATcpMessageHeader srcHeader;
-	UA_OPCUATcpMessageHeader_init(&srcHeader);
+	UA_TcpMessageHeader srcHeader;
+	UA_TcpMessageHeader_init(&srcHeader);
 	srcHeader.isFinal = 4;
 	srcHeader.messageSize = 765;
 	srcHeader.messageType = UA_MESSAGETYPE_CLO;
@@ -634,7 +634,7 @@ Suite *testSuite() {
 	suite_add_tcase(s, tc_core);
 
 	TCase *tc_transport = tcase_create("Transport");
-	tcase_add_test(tc_transport, UA_OPCUATcpMessageHeader_copyShallWorkOnInputExample);
+	tcase_add_test(tc_transport, UA_TcpMessageHeader_copyShallWorkOnInputExample);
 	tcase_add_test(tc_transport, UA_AsymmetricAlgorithmSecurityHeader_copyShallWorkOnInputExample);
 	tcase_add_test(tc_transport, UA_SecureConversationMessageHeader_copyShallWorkOnInputExample);
 	tcase_add_test(tc_transport, UA_SequenceHeader_copyShallWorkOnInputExample);
