@@ -1,4 +1,5 @@
 #include "ua_services.h"
+#include "ua_namespace_0.h"
 
 UA_Int32 Service_GetEndpoints(UA_Server                    *server,
                               const UA_GetEndpointsRequest *request,

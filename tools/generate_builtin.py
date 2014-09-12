@@ -295,7 +295,6 @@ printh('''/**
 #include "ua_types_encoding_binary.h"''')
 if args.with_xml:
 	printh('#include "ua_types_encoding_xml.h"')
-printh('#include "ua_namespace_0.h"')
 if args.additional_includes:
     for incl in args.additional_includes.split(","):
         printh("#include \"" + incl + "\"")
@@ -311,6 +310,7 @@ printc('''/**
  */
  
 #include "''' + args.outfile.split("/")[-1] + '''.h"
+#include "ua_namespace_0.h"
 #include "util/ua_util.h"\n''')
 
 # types for which we create a vector type

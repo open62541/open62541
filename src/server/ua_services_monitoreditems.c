@@ -1,4 +1,5 @@
 #include "ua_services.h"
+#include "ua_namespace_0.h"
 #include "ua_statuscodes.h"
 
 //#if 0
