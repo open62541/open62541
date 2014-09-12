@@ -115,7 +115,7 @@ UA_Int32 writeCallback(TCPConnectionHandle *handle, UA_ByteStringArray gather_bu
 	while (nWritten < total_len) {
 		UA_UInt32 n=0;
 		do {
-			result = WSASend(handle->sockfd, buf, gather_len , (LPDWORD)&n, 0, NULL, NULL);
+			result = WSASend(handle->sockfd, buf, gather_buf.stringsSize , (LPDWORD)&n, 0, NULL, NULL);
 			if(result != 0)
 				printf("NL_TCP_Writer - Error WSASend, code: %d \n", WSAGetLastError());
 		} while (errno == EINTR);
@@ -290,7 +290,7 @@ UA_Int32 NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, struct t
 		UA_Int32 resultsize = select(layer->highestfd, &layer->fdset, UA_NULL, UA_NULL, &tmptv);
 		if (resultsize <= 0) {
 #ifdef WIN32
-			UA_Int32 err = (result == SOCKET_ERROR) ? WSAGetLastError() : 0;
+			UA_Int32 err = (resultsize == SOCKET_ERROR) ? WSAGetLastError() : 0;
 			switch (err) {
 			case WSANOTINITIALISED:
 			case WSAEFAULT:

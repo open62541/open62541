@@ -8,9 +8,11 @@
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <sys/time.h>
+#else
+#include "winsock2.h"
 #endif
 #include <sys/types.h>
-#include <sys/time.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <errno.h> // errno, EINTR
