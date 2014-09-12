@@ -371,6 +371,7 @@ UA_Boolean UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 #define UA_QUALIFIEDNAME_STATIC(VARIABLE, STRING) do { \
         VARIABLE.namespaceIndex = 0;                   \
         UA_STRING_STATIC(VARIABLE.name, STRING); } while(0)
+UA_Int32 UA_QualifiedName_copycstring(char const *src, UA_QualifiedName *dst);
 #ifdef DEBUG
 void UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn);
 #endif
@@ -386,13 +387,11 @@ UA_Int32 UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);
 UA_Int32 UA_Variant_copySetValue(UA_Variant *v, UA_VTable_Entry *vt, const void *value);
 UA_Int32 UA_Variant_copySetArray(UA_Variant *v, UA_VTable_Entry *vt, UA_Int32 arrayLength, const void *array);
 
-/** @brief Functions UA_Variant_borrowSetValue and ..Array allow to define
-   variants whose payload will not be deleted. This is achieved by a second
-   vtable. The functionality can be used e.g. when UA_VariableNodes point into a
-   "father" structured object that is stored in an UA_VariableNode itself. */
+/** @brief Allows to define variants whose payload will not be deleted. This is
+   achieved by a second vtable. The functionality can be used e.g. when
+   UA_VariableNodes point into a "father" structured object that is stored in an
+   UA_VariableNode itself. This is not possible for arrays so far. */
 UA_Int32 UA_Variant_borrowSetValue(UA_Variant *v, UA_VTable_Entry *vt, const void *value);
-UA_Int32 UA_Variant_borrowSetArray(UA_Variant *v, UA_VTable_Entry *vt, UA_Int32 arrayLength,
-                                   const void *array);
 
 /* Array operations */
 UA_Int32 UA_Array_new(void **p, UA_Int32 noElements, UA_VTable_Entry *vt);

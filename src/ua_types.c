@@ -654,6 +654,11 @@ UA_Int32 UA_QualifiedName_copy(UA_QualifiedName const *src, UA_QualifiedName *ds
 
 }
 
+UA_Int32 UA_QualifiedName_copycstring(char const *src, UA_QualifiedName *dst) {
+    dst->namespaceIndex = 0;
+    return UA_String_copycstring(src, &dst->name);
+}
+
 #ifdef DEBUG
 void UA_QualifiedName_print(const UA_QualifiedName *p, FILE *stream) {
     if(p == UA_NULL || stream == UA_NULL) return;
@@ -695,7 +700,7 @@ UA_Int32 UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst) {
     UA_LocalizedText_init(dst);
 
     UA_Int32 retval = UA_SUCCESS;
-    retval |= UA_String_copycstring("EN", &dst->locale); // TODO: Are language codes upper case?
+    retval |= UA_String_copycstring("en", &dst->locale); // TODO: Are language codes upper case?
     if(retval != UA_SUCCESS) return retval;
     retval |= UA_String_copycstring(src, &dst->text);
     return retval;
@@ -832,7 +837,10 @@ UA_Int32 UA_Variant_deleteMembers(UA_Variant *p) {
     hasDimensions = p->arrayDimensions != UA_NULL;
 
     if(p->data != UA_NULL) {
-        retval |= UA_Array_delete(p->data, p->arrayLength, p->vt);
+        if(p->arrayLength == 1)
+            retval |= p->vt->delete(p->data);
+        else
+            retval |= UA_Array_delete(p->data, p->arrayLength, p->vt);
         p->data = UA_NULL;
     }
     if(hasDimensions) {
@@ -920,17 +928,6 @@ UA_Int32 UA_Variant_borrowSetValue(UA_Variant *v, UA_VTable_Entry *vt, const voi
     v->vt   = &UA_borrowed_.types[UA_ns0ToVTableIndex(&vt->typeId)];
     v->arrayLength = 1; // no array but a single entry
     v->data = (void *)value;
-    return UA_SUCCESS;
-}
-
-UA_Int32 UA_Variant_borrowSetArray(UA_Variant *v, UA_VTable_Entry *vt, UA_Int32 arrayLength,
-                                   const void *array) {
-    if(v == UA_NULL || vt == UA_NULL || array == UA_NULL)
-        return UA_ERROR;
-    UA_Variant_init(v);
-    v->vt   = &UA_borrowed_.types[UA_ns0ToVTableIndex(&vt->typeId)];
-    v->arrayLength = arrayLength;
-    v->data = (void *)array;
     return UA_SUCCESS;
 }
 
