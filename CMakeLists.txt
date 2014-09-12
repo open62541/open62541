@@ -7,8 +7,6 @@ set(open62541_VERSION_MINOR 1)
 
 # main sources of libopen62541
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/server")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/util")
 file(GLOB_RECURSE headers "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
 file(GLOB generated_headers "${PROJECT_BINARY_DIR}/src_generated/*.h")
 set(lib_sources src/ua_types.c
@@ -16,11 +14,17 @@ set(lib_sources src/ua_types.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_0.c
                 src/ua_transport.c
-                src/ua_transport_binary.c
-                src/ua_transport_binary_secure.c
-                src/ua_channel.c
+                ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
+				src/ua_connection.c
+                src/ua_securechannel.c
                 src/ua_session.c
-                src/ua_transport_connection.c
+                src/util/ua_util.c
+                src/util/ua_list.c
+                #src/util/ua_base64.c
+                src/server/ua_server.c
+                src/server/ua_securechannel_manager.c
+                src/server/ua_session_manager.c
+                src/server/ua_server_binary.c
                 src/server/ua_services_attribute.c
                 src/server/ua_services_session.c
                 src/server/ua_services_discovery.c
@@ -29,15 +33,6 @@ set(lib_sources src/ua_types.c
                 src/server/ua_services_view.c
                 src/server/ua_services_subscription.c
                 src/server/ua_services_monitoreditems.c
-                src/server/ua_channel_manager.c
-                src/server/ua_session_manager.c
-                src/server/ua_transport_connection_manager.c
-                src/server/ua_server.c
-                src/server/ua_application.c
-                src/util/ua_util.c
-                src/util/ua_list.c
-                src/util/ua_indexedList.c
-                src/util/ua_base64.c
                 ${headers}
                 ${generated_headers})
 
@@ -90,9 +85,10 @@ if(ENABLE_XML_ENCODING)
     else(EXPAT_FOUND)
         message(FATAL_ERROR "Expat library not found.")
     endif(EXPAT_FOUND)
-    list(APPEND lib_sources src/ua_types_encoding_xml.c
-                            src/server/ua_namespace_xml.c
-                            src/ua_xml.c)
+	include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/ongoing")
+    list(APPEND lib_sources src/ongoing/ua_types_encoding_xml.c
+                            src/ongoing/ua_namespace_xml.c
+                            src/ongoing/ua_xml.c)
     list(APPEND generate_src_options "--with-xml")
 endif(ENABLE_XML_ENCODING)
 
@@ -100,19 +96,18 @@ endif(ENABLE_XML_ENCODING)
 option(ENABLE_JSON_ENCODING "Enable JSON-encoding of the UA types" OFF)
 if(ENABLE_JSON_ENCODING)
     MATH(EXPR UA_ENCODING_AMOUNT "${UA_ENCODING_AMOUNT}+1")
-    list(APPEND lib_sources src/ua_types_encoding_json.c)
+	include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/ongoing")
+    list(APPEND lib_sources src/ongoing/ua_types_encoding_json.c)
     list(APPEND generate_src_options "--with-json")
 endif(ENABLE_JSON_ENCODING)
-
-configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
 
 ## multithreading
 option(ENABLE_MULTITHREADING "Enable multithreading" OFF)
 if(ENABLE_MULTITHREADING)
     find_package(Threads REQUIRED)
-    list(APPEND lib_sources src/server/ua_namespace_concurrent.c)
+    list(APPEND lib_sources src/server/ua_nodestore_concurrent.c)
 else()
-    list(APPEND lib_sources src/server/ua_namespace.c)
+    list(APPEND lib_sources src/server/ua_nodestore.c)
 endif(ENABLE_MULTITHREADING)
 
 add_library(open62541 ${lib_sources}) # we can add more files to lib_sources later on
@@ -130,6 +125,8 @@ if(ENABLE_COVERAGE)
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
 endif(ENABLE_COVERAGE)
 
+configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
+
 # build generated code
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 include_directories("${PROJECT_BINARY_DIR}/src_generated") 
@@ -145,10 +142,16 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_0.c
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_namespace.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/schema/NodeIds.csv)
 
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
+                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_builtin.py --additional-includes=ua_transport.h ${PROJECT_SOURCE_DIR}/schema/Custom.Opc.Ua.Transport.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_namespace.py
+                           ${CMAKE_CURRENT_SOURCE_DIR}/schema/Custom.Opc.Ua.Transport.bsd)
+
 # build example server
 add_executable(exampleServer examples/opcuaServer.c
                              examples/logger_stdout.c
-                             examples/networklayer.c)
+                             examples/networklayer_tcp.c)
 target_link_libraries(exampleServer open62541)
 if(WIN32)
     target_link_libraries(exampleServer ws2_32)

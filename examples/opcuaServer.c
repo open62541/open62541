@@ -1,22 +1,23 @@
-#include <stdio.h>
-#include <stdlib.h>
+/*
+ * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
+ */
 
+#include <stdio.h>
 #ifndef WIN32
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
 #include <sys/types.h>
-#include <time.h>
+#include <sys/time.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <errno.h> // errno, EINTR
 
+#include "server/ua_server.h"
 #include "logger_stdout.h"
-#include "networklayer.h"
-#include "ua_application.h"
-#include "ua_channel_manager.h"
-#include "ua_session_manager.h"
-#include "ua_server.h"
+#include "networklayer_tcp.h"
 
 UA_Boolean running = UA_TRUE;
 
@@ -24,37 +25,49 @@ void stopHandler(int sign) {
 	running = UA_FALSE;
 }
 
-UA_Int32 serverCallback(void * arg) {
-	char *name = (char *) arg;
-	printf("%s does whatever servers do\n",name);
-
-	Namespace* ns0 = (Namespace*)UA_indexedList_find(appMockup.namespaces, 0)->payload;
-	UA_Int32 retval;
-	const UA_Node * node;
-	UA_ExpandedNodeId serverStatusNodeId; NS0EXPANDEDNODEID(serverStatusNodeId, 2256);
-	retval = Namespace_get(ns0, &serverStatusNodeId.nodeId, &node);
-	if(retval == UA_SUCCESS){
-		((UA_ServerStatusDataType*)(((UA_VariableNode*)node)->value.data))->currentTime = UA_DateTime_now();
-	}
-
-	return UA_SUCCESS;
+void serverCallback(UA_Server *server) {
+	printf("does whatever servers do\n");
 }
 
+UA_ByteString loadCertificate() {
+    UA_ByteString certificate = UA_STRING_NULL;
+	FILE *fp = UA_NULL;
+	//FIXME: a potiential bug of locating the certificate, we need to get the path from the server's config
+	fp=fopen("localhost.der", "rb");
+
+	if(!fp) {
+        errno = 0; // otherwise we think sth went wrong on the tcp socket level
+        return certificate;
+    }
+
+    fseek(fp, 0, SEEK_END);
+    certificate.length = ftell(fp);
+    UA_alloc((void**)&certificate.data, certificate.length*sizeof(UA_Byte));
+
+    fseek(fp, 0, SEEK_SET);
+    if(fread(certificate.data, sizeof(UA_Byte), certificate.length, fp) < (size_t)certificate.length)
+        UA_ByteString_deleteMembers(&certificate); // error reading the cert
+    fclose(fp);
+
+    return certificate;
+}
 
 int main(int argc, char** argv) {
-	UA_Int32 retval;
-	/* gets called at ctrl-c */
-	signal(SIGINT, stopHandler);
-	
-	appMockup_init();
-	NL_data* nl = NL_init(&NL_Description_TcpBinary, 16664);
+	signal(SIGINT, stopHandler); /* catches ctrl-c */
+
+	UA_Server server;
 	UA_String endpointUrl;
 	UA_String_copycstring("no endpoint url",&endpointUrl);
-	SL_ChannelManager_init(10,36000,244,2,&endpointUrl);
-	UA_SessionManager_init(10,3600000,25);
-	struct timeval tv = {1, 0}; // 1 second
-
-	retval = NL_msgLoop(nl, &tv, serverCallback, argv[0], &running);
-
+	UA_Server_init(&server, &endpointUrl);
+	Logger_Stdout_init(&server.logger);
+    server.serverCertificate = loadCertificate();
+	
+	NetworklayerTCP* nl;
+	NetworklayerTCP_new(&nl, UA_ConnectionConfig_standard, 16664);
+	struct timeval callback_interval = {1, 0}; // 1 second
+	UA_Int32 retval = NetworkLayerTCP_run(nl, &server, callback_interval,
+										  serverCallback, &running);
+	NetworklayerTCP_delete(nl);
+	UA_Server_deleteMembers(&server);
 	return retval == UA_SUCCESS ? 0 : retval;
 }

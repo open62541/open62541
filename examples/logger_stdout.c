@@ -1,8 +1,12 @@
+/*
+ * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
+ */
+
 #include <stdio.h>
 #include <stdarg.h>
 
 #include "logger_stdout.h"
-#include "ua_log.h"
 #include "ua_types.h"
 
 void print_time() {
@@ -32,8 +36,8 @@ LOG_FUNCTION(warning)
 LOG_FUNCTION(error)
 LOG_FUNCTION(fatal)
 
-void Logger_Stdout_init(void *config) {
-	logger = (UA_Logger){
+void Logger_Stdout_init(UA_Logger *logger) {
+	*logger = (UA_Logger){
 		.log_trace = log_trace,
 		.log_debug = log_debug,
 		.log_info = log_info,

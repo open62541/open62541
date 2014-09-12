@@ -9,16 +9,16 @@
 
   <opc:Import Namespace="http://opcfoundation.org/BinarySchema/" />
 
-<!-- 	Types within the Stack Begin  -->
+<!-- Transport types begin  -->
 
-   <opc:StructuredType Name="OPCUATcpMessageHeader">
+   <opc:StructuredType Name="TcpMessageHeader">
     <opc:Documentation>TCP Header</opc:Documentation>
-    <opc:Field Name="MessageType" TypeName="opc:UInt32" />
+    <opc:Field Name="MessageType" TypeName="opc:MessageType" /> <!-- The MessageType type is custom and implemented by hand -->
     <opc:Field Name="IsFinal" TypeName="opc:Byte" />
     <opc:Field Name="MessageSize" TypeName="opc:UInt32" />
   </opc:StructuredType>
   
-   <opc:StructuredType Name="OPCUATcpHelloMessage">
+   <opc:StructuredType Name="TcpHelloMessage">
     <opc:Documentation>Hello Message</opc:Documentation>
     <opc:Field Name="ProtocolVersion" TypeName="opc:UInt32" />
     <opc:Field Name="ReceiveBufferSize" TypeName="opc:UInt32" />
@@ -28,7 +28,7 @@
     <opc:Field Name="EndpointUrl" TypeName="opc:String" />
   </opc:StructuredType>
   
-   <opc:StructuredType Name="OPCUATcpAcknowledgeMessage">
+   <opc:StructuredType Name="TcpAcknowledgeMessage">
     <opc:Documentation>Acknowledge Message</opc:Documentation>
     <opc:Field Name="ProtocolVersion" TypeName="opc:UInt32" />
     <opc:Field Name="ReceiveBufferSize" TypeName="opc:UInt32" />
@@ -37,10 +37,9 @@
 	<opc:Field Name="MaxChunkCount" TypeName="opc:UInt32" />
   </opc:StructuredType>
   
-  
   <opc:StructuredType Name="SecureConversationMessageHeader">
     <opc:Documentation>Secure Layer Sequence Header</opc:Documentation>
-    <opc:Field Name="MessageHeader" TypeName="opc:OPCUATcpMessageHeader" />
+    <opc:Field Name="MessageHeader" TypeName="opc:TcpMessageHeader" />
     <opc:Field Name="SecureChannelId" TypeName="opc:UInt32" />
   </opc:StructuredType>
   
@@ -75,5 +74,6 @@
     <opc:Field Name="Reason" TypeName="opc:String" />
   </opc:StructuredType>
  
-<!-- Types within the Stack End -->
+<!-- Transport types end -->
+
 </opc:TypeDictionary>

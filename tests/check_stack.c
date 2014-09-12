@@ -3,11 +3,9 @@
 
 #include "ua_types.h"
 #include "ua_transport.h"
-#include "ua_transport_binary.h"
-#include "ua_transport_binary_secure.h"
-#include "ua_transport_connection.h"
-#include "ua_channel_manager.h"
-#include "ua_session_manager.h"
+#include "ua_connection.h"
+#include "server/ua_securechannel_manager.h"
+#include "server/ua_session_manager.h"
 #include "check.h"
 
 #define MAXMSG 512
@@ -20,10 +18,8 @@ typedef struct stackTestFixture {
 	/** @brief the management structure (initialized to point to respMsgBuffer in create */
 	UA_ByteString respMsg;
 	/** @brief the management data structure for the fake connection */
-	UA_TL_Connection *connection;
-
+	UA_Connection *connection;
 } stackTestFixture;
-
 
 /** @brief the maximum number of parallel fixtures.
  * ( MAX_FIXTURES needs to match the number of bytes of fixturesMap )*/
@@ -35,9 +31,8 @@ stackTestFixture *fixtures[MAX_FIXTURES];
 
 /** @brief search first free handle, set and return */
 UA_Int32 stackTestFixture_getAndMarkFreeHandle() {
-	UA_Int32 freeFixtureHandle = 0;
-
-	for(freeFixtureHandle = 0;freeFixtureHandle < MAX_FIXTURES;++freeFixtureHandle) {
+	UA_UInt32 freeFixtureHandle = 0;
+	for(freeFixtureHandle = 0;freeFixtureHandle < MAX_FIXTURES;freeFixtureHandle++) {
 		if(!(fixturesMap & (1 << freeFixtureHandle))) { // when free
 			fixturesMap |= (1 << freeFixtureHandle);    // then set
 			return freeFixtureHandle;
@@ -54,34 +49,22 @@ UA_Int32 stackTestFixture_markHandleAsFree(UA_Int32 fixtureHandle) {
 	}
 	return UA_ERR_INVALID_VALUE;
 }
-UA_Int32 closerCallback(UA_TL_Connection *connection)
-{
+
+UA_Int32 closerCallback(UA_Connection *connection) {
 	return UA_SUCCESS;
 }
+
 /** @brief get a handle to a free slot and create a new stackTestFixture */
-UA_Int32 stackTestFixture_create(TL_Writer writerCallback, TL_Closer closerCallback) {
-	UA_String endpointUrl;
-	UA_String_copycstring("no url",&endpointUrl);
-	SL_ChannelManager_init(4,36000,25,22,&endpointUrl);
-	UA_SessionManager_init(4,220000,222);
-
+UA_Int32 stackTestFixture_create(UA_Connection_writeCallback write, UA_Connection_closeCallback close) {
 	UA_UInt32 fixtureHandle = stackTestFixture_getAndMarkFreeHandle();
-	if(fixtureHandle < MAX_FIXTURES) {
-		UA_alloc((void **)&fixtures[fixtureHandle], sizeof(stackTestFixture));
-		stackTestFixture *fixture = fixtures[fixtureHandle];
-		fixture->respMsg.data   = fixture->respMsgBuffer;
-		fixture->respMsg.length = 0;
-		TL_Buffer buffer;
-		buffer.maxChunkCount   = 1;
-		buffer.maxMessageSize  = BUFFER_SIZE;
-		buffer.protocolVersion = 0;
-		buffer.recvBufferSize  = BUFFER_SIZE;
-		buffer.recvBufferSize  = BUFFER_SIZE;
-		UA_TL_Connection_new(&fixture->connection,buffer,writerCallback,closerCallback,fixtureHandle,UA_NULL);
-
-	}
+	stackTestFixture *fixture = fixtures[fixtureHandle];
+	UA_alloc((void**)&fixture->connection, sizeof(UA_Connection));
+	fixture->respMsg.data   = fixture->respMsgBuffer;
+	fixture->respMsg.length = 0;
+	UA_Connection_init(fixture->connection, UA_ConnectionConfig_standard, fixture, close, write);
 	return fixtureHandle;
 }
+
 /** @brief free the allocated memory of the stackTestFixture associated with the handle */
 UA_Int32 stackTestFixture_delete(UA_UInt32 fixtureHandle) {
 	if(fixtureHandle < MAX_FIXTURES) {
@@ -101,7 +84,6 @@ stackTestFixture *stackTestFixture_getFixture(UA_UInt32 fixtureHandle) {
 
 /** @brief write message provided in the gather buffers to the buffer of the fixture */
 UA_Int32 responseMsg(UA_Int32 connectionHandle, UA_ByteString const **gather_buf, UA_Int32 gather_len) {
-
 	stackTestFixture *fixture = stackTestFixture_getFixture(connectionHandle);
 	UA_Int32  retval    = UA_SUCCESS;
 	UA_UInt32 total_len = 0;
@@ -118,7 +100,6 @@ UA_Int32 responseMsg(UA_Int32 connectionHandle, UA_ByteString const **gather_buf
 }
 
 void indicateMsg(UA_Int32 handle, UA_ByteString *slMessage) {
-
 	printf("indicate: %d", TL_Process((stackTestFixture_getFixture(handle)->connection), slMessage));
 }
 
@@ -361,7 +342,6 @@ START_TEST(emptyIndicationShallYieldNoResponse) {
 }
 END_TEST
 
-
 START_TEST(validHELIndicationShallYieldACKResponse) {
 	// given
 	UA_Int32 handle = stackTestFixture_create(responseMsg, closerCallback);
@@ -454,20 +434,20 @@ START_TEST(validCreateSessionShallCreateSession) {
 }
 END_TEST
 
-START_TEST(UA_OPCUATcpMessageHeader_copyShallWorkOnInputExample) {
+START_TEST(UA_TcpMessageHeader_copyShallWorkOnInputExample) {
 	// given
-	UA_OPCUATcpMessageHeader src;
-	UA_OPCUATcpMessageHeader_init(&src);
+	UA_TcpMessageHeader src;
+	UA_TcpMessageHeader_init(&src);
 	src.isFinal = 2;
 	src.messageSize = 43;
 	src.messageType = UA_MESSAGETYPE_MSG;
-	const UA_OPCUATcpMessageHeader srcConst = src;
+	const UA_TcpMessageHeader srcConst = src;
 
-	UA_OPCUATcpMessageHeader dst;
+	UA_TcpMessageHeader dst;
 	UA_Int32 ret;
 
 	// when
-	ret = UA_OPCUATcpMessageHeader_copy(&srcConst, &dst);
+	ret = UA_TcpMessageHeader_copy(&srcConst, &dst);
 	// then
 	ck_assert_int_eq(ret, UA_SUCCESS);
 	ck_assert_int_eq(UA_MESSAGETYPE_MSG, dst.messageType);
@@ -475,6 +455,7 @@ START_TEST(UA_OPCUATcpMessageHeader_copyShallWorkOnInputExample) {
 	ck_assert_int_eq(2, dst.isFinal);
 }
 END_TEST
+
 START_TEST(UA_AsymmetricAlgorithmSecurityHeader_copyShallWorkOnInputExample) {
 	// given
 	UA_AsymmetricAlgorithmSecurityHeader src;
@@ -501,13 +482,14 @@ START_TEST(UA_AsymmetricAlgorithmSecurityHeader_copyShallWorkOnInputExample) {
 
 }
 END_TEST
+
 START_TEST(UA_SecureConversationMessageHeader_copyShallWorkOnInputExample) {
 	// given
 	UA_SecureConversationMessageHeader src;
 	UA_SecureConversationMessageHeader_init(&src);
 	src.secureChannelId = 84;
-	UA_OPCUATcpMessageHeader srcHeader;
-	UA_OPCUATcpMessageHeader_init(&srcHeader);
+	UA_TcpMessageHeader srcHeader;
+	UA_TcpMessageHeader_init(&srcHeader);
 	srcHeader.isFinal = 4;
 	srcHeader.messageSize = 765;
 	srcHeader.messageType = UA_MESSAGETYPE_CLO;
@@ -528,6 +510,7 @@ START_TEST(UA_SecureConversationMessageHeader_copyShallWorkOnInputExample) {
 	ck_assert_int_eq(UA_MESSAGETYPE_CLO, dst.messageHeader.messageType);
 }
 END_TEST
+
 START_TEST(UA_SequenceHeader_copyShallWorkOnInputExample) {
 	// given
 	UA_SequenceHeader src;
@@ -548,6 +531,7 @@ START_TEST(UA_SequenceHeader_copyShallWorkOnInputExample) {
 	ck_assert_int_eq(1345, dst.sequenceNumber);
 }
 END_TEST
+
 START_TEST(UA_SecureConversationMessageFooter_copyShallWorkOnInputExample) {
 	// given
 	UA_SecureConversationMessageFooter src;
@@ -573,6 +557,7 @@ START_TEST(UA_SecureConversationMessageFooter_copyShallWorkOnInputExample) {
 	ck_assert_int_eq(87, dst.padding[2]);
 }
 END_TEST
+
 START_TEST(UA_SecureConversationMessageFooter_calcSizeBinaryShallWorkOnInputExample) {
 	// given
 	UA_SecureConversationMessageFooter src;
@@ -592,6 +577,7 @@ START_TEST(UA_SecureConversationMessageFooter_calcSizeBinaryShallWorkOnInputExam
 	ck_assert_int_eq(ret, 8);
 }
 END_TEST
+
 START_TEST(UA_SecureConversationMessageFooter_encodeBinaryShallWorkOnInputExample) {
 //	// given
 //	UA_SecureConversationMessageFooter src = {3, (UA_Byte*)"447", 5};;
@@ -615,6 +601,7 @@ START_TEST(UA_SecureConversationMessageFooter_encodeBinaryShallWorkOnInputExampl
 //	ck_assert_int_eq(dst.data[7], 6);
 }
 END_TEST
+
 START_TEST(UA_SecureConversationMessageAbortBody_copyShallWorkOnInputExample) {
 	// given
 	UA_SecureConversationMessageAbortBody src;
@@ -623,7 +610,6 @@ START_TEST(UA_SecureConversationMessageAbortBody_copyShallWorkOnInputExample) {
 	src.reason = (UA_String){6, (UA_Byte*)"reAson"};
 
 	const UA_SecureConversationMessageAbortBody srcConst = src;
-
 	UA_SecureConversationMessageAbortBody dst;
 	UA_Int32 ret;
 
@@ -648,7 +634,7 @@ Suite *testSuite() {
 	suite_add_tcase(s, tc_core);
 
 	TCase *tc_transport = tcase_create("Transport");
-	tcase_add_test(tc_transport, UA_OPCUATcpMessageHeader_copyShallWorkOnInputExample);
+	tcase_add_test(tc_transport, UA_TcpMessageHeader_copyShallWorkOnInputExample);
 	tcase_add_test(tc_transport, UA_AsymmetricAlgorithmSecurityHeader_copyShallWorkOnInputExample);
 	tcase_add_test(tc_transport, UA_SecureConversationMessageHeader_copyShallWorkOnInputExample);
 	tcase_add_test(tc_transport, UA_SequenceHeader_copyShallWorkOnInputExample);
@@ -662,7 +648,6 @@ Suite *testSuite() {
 
 int main(void) {
 	int      number_failed = 0;
-
 	Suite   *s;
 	SRunner *sr;
 
@@ -676,5 +661,3 @@ int main(void) {
 
 	return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
-
-
