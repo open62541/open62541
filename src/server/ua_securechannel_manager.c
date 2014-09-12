@@ -51,6 +51,7 @@ UA_Int32 UA_SecureChannelManager_open(UA_SecureChannelManager           *cm,
                                       UA_OpenSecureChannelResponse      *response) {
     struct channel_list_entry *entry;
     UA_alloc((void **)&entry, sizeof(struct channel_list_entry));
+    UA_SecureChannel_init(&entry->channel);
 
     entry->channel.connection = conn;
     entry->channel.securityToken.channelId       = cm->lastChannelId++;
@@ -67,10 +68,6 @@ UA_Int32 UA_SecureChannelManager_open(UA_SecureChannelManager           *cm,
 
     case UA_SECURITYMODE_NONE:
         UA_ByteString_copy(&request->clientNonce, &entry->channel.clientNonce);
-        entry->channel.clientAsymAlgSettings.receiverCertificateThumbprint.data   = UA_NULL;
-        entry->channel.clientAsymAlgSettings.receiverCertificateThumbprint.length = -1;
-        entry->channel.clientAsymAlgSettings.senderCertificate.data   = UA_NULL;
-        entry->channel.clientAsymAlgSettings.senderCertificate.length = -1;
         break;
 
     case UA_SECURITYMODE_SIGNANDENCRYPT:

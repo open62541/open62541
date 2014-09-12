@@ -175,7 +175,7 @@ void UA_NodeStore_releaseManagedNode(const UA_Node *managed) {
     return;
 }
 
-UA_Int32 UA_NodeStore_new(UA_NodeStore **result, UA_UInt32 namespaceIndex) {
+UA_Int32 UA_NodeStore_new(UA_NodeStore **result) {
     UA_NodeStore *ns;
     if(UA_alloc((void **)&ns, sizeof(UA_NodeStore)) != UA_SUCCESS)
         return UA_ERR_NO_MEMORY;
@@ -187,7 +187,6 @@ UA_Int32 UA_NodeStore_new(UA_NodeStore **result, UA_UInt32 namespaceIndex) {
         return UA_ERR_NO_MEMORY;
     }
 
-    ns->namespaceIndex = namespaceIndex;
     *result = ns;
     return UA_SUCCESS;
 }
@@ -220,8 +219,7 @@ UA_Int32 UA_NodeStore_delete(UA_NodeStore *ns) {
 }
 
 UA_Int32 UA_NodeStore_insert(UA_NodeStore *ns, UA_Node **node, UA_Byte flags) {
-    if(ns == UA_NULL || node == UA_NULL || *node == UA_NULL || (*node)->nodeId.namespaceIndex !=
-       ns->namespaceIndex)
+    if(ns == UA_NULL || node == UA_NULL || *node == UA_NULL)
         return UA_ERROR;
 
     UA_UInt32 nodesize;
