@@ -1,8 +1,7 @@
 #ifndef UA_NODESTORE_H_
 #define UA_NODESTORE_H_
 
-#include "ua_types.h"
-#include "ua_types_generated.h"
+#include "ua_server.h"
 
 /**
    @ingroup server
@@ -21,10 +20,6 @@
 
    @{
  */
-
-/** @brief UA_NodeStore datastructure. Mainly a hashmap to UA_Nodes */
-struct UA_NodeStore;
-typedef struct UA_NodeStore UA_NodeStore;
 
 /** @brief Create a new namespace */
 UA_Int32 UA_NodeStore_new(UA_NodeStore **result);

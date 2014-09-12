@@ -4,6 +4,7 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_namespace_0.h"
 #include "ua_transport.h"
+#include "util/ua_util.h"
 #include "check.h"
 
 START_TEST(UA_Boolean_calcSizeWithNullArgumentShallReturnStorageSize) {
@@ -761,7 +762,6 @@ START_TEST(UA_String_decodeShallAllocateMemoryAndCopyString) {
 	// then
 	ck_assert_int_eq(retval, UA_SUCCESS);
 	ck_assert_int_eq(dst.length, 8);
-	ck_assert_ptr_eq(dst.data, UA_alloc_lastptr);
 	ck_assert_int_eq(dst.data[3], 'L');
 	// finally
 	UA_String_deleteMembers(&dst);
@@ -848,7 +848,6 @@ START_TEST(UA_NodeId_decodeStringShallAllocateMemory) {
 	ck_assert_int_eq(dst.identifierType, UA_NODEIDTYPE_STRING);
 	ck_assert_int_eq(dst.namespaceIndex, 1);
 	ck_assert_int_eq(dst.identifier.string.length, 3);
-	ck_assert_ptr_eq(dst.identifier.string.data, UA_alloc_lastptr);
 	ck_assert_int_eq(dst.identifier.string.data[1], 'L');
 	// finally
 	UA_NodeId_deleteMembers(&dst);
@@ -867,7 +866,6 @@ START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArr
 	ck_assert_int_eq(pos, 5);
 	ck_assert_ptr_eq(dst.vt, &UA_.types[UA_INT32]);
 	ck_assert_int_eq(dst.arrayLength, 1);
-	ck_assert_ptr_eq(dst.data, UA_alloc_lastptr);
 	ck_assert_int_eq(*(UA_Int32 *)dst.data, 255);
 	// finally
 	UA_Variant_deleteMembers(&dst);
@@ -890,7 +888,6 @@ START_TEST(UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray)
 	ck_assert_int_eq(pos, 1+4+2*4);
 	ck_assert_ptr_eq(dst.vt, &UA_.types[UA_INT32]);
 	ck_assert_int_eq(dst.arrayLength, 2);
-	ck_assert_ptr_eq(dst.data, UA_alloc_lastptr);
 	ck_assert_int_eq(((UA_Int32 *)dst.data)[0], 255);
 	ck_assert_int_eq(((UA_Int32 *)dst.data)[1], -1);
 	// finally

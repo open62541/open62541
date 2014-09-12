@@ -1,6 +1,8 @@
 #include "ua_server.h"
 #include "ua_services.h"
 #include "ua_statuscodes.h"
+#include "util/ua_util.h"
+#include "ua_securechannel_manager.h"
 
 static void processHello(UA_Connection *connection, const UA_ByteString *msg,
                          UA_UInt32 *pos) {

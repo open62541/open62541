@@ -1,10 +1,8 @@
 #ifndef UA_SESSION_MANAGER_H_
 #define UA_SESSION_MANAGER_H_
 
+#include "ua_server.h"
 #include "ua_session.h"
-
-struct UA_SessionManager;
-typedef struct UA_SessionManager UA_SessionManager;
 
 UA_Int32 UA_SessionManager_new(UA_SessionManager **sessionManager, UA_UInt32 maxSessionCount,
                                UA_UInt32 sessionLifetime, UA_UInt32 startSessionId);

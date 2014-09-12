@@ -94,7 +94,6 @@ printh('''/**********************************************************
  **********************************************************/\n 
 #ifndef ''' + args.outfile.upper().split("/")[-1] + '''_H_
 #define ''' + args.outfile.upper().split("/")[-1] + '''_H_\n
-#include "util/ua_util.h"
 #include "ua_types.h"  // definition of UA_VTable and basic UA_Types
 #include "ua_types_generated.h"\n
 /**
@@ -124,6 +123,7 @@ printc('''/**********************************************************
        ''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  **********************************************************/\n
 #include "''' + args.outfile.split("/")[-1] + '''.h"\n
+#include "util/ua_util.h"
 UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id) {
 	UA_Int32 retval = 0; // InvalidType
         if(id->namespaceIndex != 0) return retval;

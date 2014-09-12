@@ -1,4 +1,5 @@
 #include "ua_nodestore.h"
+#include "util/ua_util.h"
 
 struct UA_NodeStore {
     const UA_Node **entries;

@@ -4,6 +4,7 @@
 
 #include "ua_types.h"
 #include "server/ua_nodestore.h"
+#include "util/ua_util.h"
 #include "check.h"
 
 #ifdef MULTITHREADING

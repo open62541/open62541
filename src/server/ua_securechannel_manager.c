@@ -1,4 +1,5 @@
 #include "ua_securechannel_manager.h"
+#include "util/ua_util.h"
 
 struct channel_list_entry {
     UA_SecureChannel channel;

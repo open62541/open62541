@@ -11,3 +11,32 @@
 #else
 #define INLINE __inline
 #endif
+
+/* Visibility */
+#ifdef MSVC
+#define INLINE __inline
+#else
+#define INLINE inline
+#endif
+
+#if defined(_WIN32) || defined(__CYGWIN__)
+  #ifdef open62541_EXPORTS
+    #ifdef __GNUC__
+      #define UA_LIBEXPORT __attribute__ ((dllexport))
+    #else
+      #define UA_LIBEXPORT __declspec(dllexport)
+    #endif
+  #else
+    #ifdef __GNUC__
+      #define UA_LIBEXPORT __attribute__ ((dllimport))
+    #else
+      #define UA_LIBEXPORT __declspec(dllimport)
+    #endif
+  #endif
+#else
+  #if __GNUC__ >= 4 || __clang__
+    #define UA_LIBEXPORT __attribute__ ((visibility ("default")))
+  #else
+    #define UA_LIBEXPORT
+  #endif
+#endif

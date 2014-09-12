@@ -12,9 +12,3 @@ UA_Int32 UA_memcpy(void *dst, void const *src, UA_Int32 size) {
     memcpy(dst, src, size);
     return UA_SUCCESS;
 }
-
-UA_Int32 UA_VTable_isValidType(UA_Int32 type) {
-    if(type < 0 /* UA_BOOLEAN */ || type > 271 /* UA_INVALID */)
-        return UA_ERR_INVALID_VALUE;
-    return UA_SUCCESS;
-}

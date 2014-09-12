@@ -4,6 +4,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h> 
 #ifndef WIN32
 #include <sys/mman.h>
 #include <sys/wait.h>
@@ -44,7 +45,7 @@ UA_ByteString loadCertificate() {
 
     fseek(fp, 0, SEEK_END);
     certificate.length = ftell(fp);
-    UA_alloc((void**)&certificate.data, certificate.length*sizeof(UA_Byte));
+    certificate.data = malloc(certificate.length*sizeof(UA_Byte));
 
     fseek(fp, 0, SEEK_SET);
     if(fread(certificate.data, sizeof(UA_Byte), certificate.length, fp) < (size_t)certificate.length)

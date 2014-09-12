@@ -310,9 +310,8 @@ printc('''/**
  * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  */
  
-#include "''' + args.outfile.split("/")[-1] + '.h"\n')
-#include "ua_types_encoding_binary.h"
-#include "util/ua_util.h"
+#include "''' + args.outfile.split("/")[-1] + '''.h"
+#include "util/ua_util.h"\n''')
 
 # types for which we create a vector type
 arraytypes = set()

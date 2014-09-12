@@ -1,4 +1,5 @@
 #include "ua_services.h"
+#include "ua_securechannel_manager.h"
 
 UA_Int32 Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
                                    const UA_OpenSecureChannelRequest *request,

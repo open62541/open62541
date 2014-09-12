@@ -1,6 +1,9 @@
 #include "ua_server.h"
 #include "ua_services_internal.h" // AddReferences
 #include "ua_namespace_0.h"
+#include "ua_securechannel_manager.h"
+#include "ua_session_manager.h"
+#include "util/ua_util.h"
 
 UA_Int32 UA_Server_deleteMembers(UA_Server *server) {
     UA_ApplicationDescription_deleteMembers(&server->description);

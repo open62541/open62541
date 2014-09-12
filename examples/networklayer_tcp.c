@@ -53,7 +53,7 @@ typedef struct TCPConnectionHandle {
 UA_Int32 NetworklayerTCP_new(NetworklayerTCP **newlayer, UA_ConnectionConfig localConf,
 							 UA_UInt32 port) {
     UA_UInt32 retval = UA_SUCCESS;
-    retval |= UA_alloc((void**)newlayer, sizeof(NetworklayerTCP));
+    newlayer = malloc(sizeof(NetworklayerTCP));
     if(retval != UA_SUCCESS)
         return UA_ERROR;
 	(*newlayer)->localConf = localConf;
@@ -74,10 +74,10 @@ UA_Int32 NetworklayerTCP_remove(NetworklayerTCP *layer, UA_Int32 sockfd) {
 	UA_Connection_deleteMembers(&layer->connections[index].connection);
 
 	TCPConnection *newconnections;
-	UA_alloc((void**)&newconnections, sizeof(TCPConnection) * (layer->connectionsSize-1));
-	UA_memcpy(newconnections, &layer->connections, sizeof(TCPConnection) * index);
-	UA_memcpy(&newconnections[index], &layer->connections[index+1],
-			  sizeof(TCPConnection) * (layer->connectionsSize - index - 1));
+    newconnections = malloc(sizeof(TCPConnection) * (layer->connectionsSize-1));
+	memcpy(newconnections, &layer->connections, sizeof(TCPConnection) * index);
+	memcpy(&newconnections[index], &layer->connections[index+1],
+           sizeof(TCPConnection) * (layer->connectionsSize - index - 1));
 	layer->connections = newconnections;
 	layer->connectionsSize--;
 	return UA_SUCCESS;
@@ -89,8 +89,8 @@ void NetworklayerTCP_delete(NetworklayerTCP *layer) {
         UA_Connection_deleteMembers(&layer->connections[index].connection);
 		CLOSESOCKET(layer->connections[index].sockfd);
 	}
-	UA_free(layer->connections);
-	UA_free(layer);
+	free(layer->connections);
+	free(layer);
 }
 
 /** Callback function */
@@ -158,7 +158,7 @@ UA_Int32 NetworklayerTCP_add(NetworklayerTCP *layer, UA_Int32 newsockfd) {
 	newconnection->sockfd = newsockfd;
 
 	struct TCPConnectionHandle *callbackhandle;
-	UA_alloc((void**)&callbackhandle, sizeof(struct TCPConnectionHandle));
+    callbackhandle = malloc(sizeof(struct TCPConnectionHandle));
 	callbackhandle->layer = layer;
 	callbackhandle->sockfd = newsockfd;
 	UA_Connection_init(&newconnection->connection, layer->localConf, callbackhandle,
@@ -192,7 +192,7 @@ UA_Int32 setNonBlocking(int sockid) {
 
 void readConnection(NetworklayerTCP *layer, UA_Server *server, TCPConnection *entry) {
 	UA_ByteString readBuffer;
-	UA_alloc((void**)&readBuffer.data, layer->localConf.recvBufferSize);
+    readBuffer.data = malloc(layer->localConf.recvBufferSize);
 #ifdef WIN32
 	readBuffer.length = recv(entry->sockfd, (char *)readBuffer.data,
 							 layer->localConf.recvBufferSize, 0);

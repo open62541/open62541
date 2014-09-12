@@ -16,6 +16,10 @@
 #ifndef UA_TYPES_H_
 #define UA_TYPES_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "ua_config.h"
 #include <stdio.h>
 #include <stdint.h>
@@ -47,6 +51,8 @@
  *
  * @{
  */
+
+#define UA_NULL ((void *)0)
 
 /* Function return values */
 #define UA_SUCCESS 0
@@ -264,19 +270,19 @@ typedef void UA_InvalidType;
 
 #ifdef DEBUG
 #define UA_TYPE_PROTOTYPES(TYPE)                      \
-    UA_Int32 TYPE##_new(TYPE **p);                    \
-    UA_Int32 TYPE##_init(TYPE * p);                   \
-    UA_Int32 TYPE##_delete(TYPE * p);                 \
-    UA_Int32 TYPE##_deleteMembers(TYPE * p);          \
-    UA_Int32 TYPE##_copy(const TYPE *src, TYPE *dst); \
-    void     TYPE##_print(const TYPE *p, FILE *stream);
+    UA_Int32 UA_LIBEXPORT TYPE##_new(TYPE **p);                    \
+    UA_Int32 UA_LIBEXPORT TYPE##_init(TYPE * p);                   \
+    UA_Int32 UA_LIBEXPORT TYPE##_delete(TYPE * p);                 \
+    UA_Int32 UA_LIBEXPORT TYPE##_deleteMembers(TYPE * p);          \
+    UA_Int32 UA_LIBEXPORT TYPE##_copy(const TYPE *src, TYPE *dst); \
+    void     UA_LIBEXPORT TYPE##_print(const TYPE *p, FILE *stream);
 #else
 #define UA_TYPE_PROTOTYPES(TYPE)             \
-    UA_Int32 TYPE##_new(TYPE **p);           \
-    UA_Int32 TYPE##_init(TYPE * p);          \
-    UA_Int32 TYPE##_delete(TYPE * p);        \
-    UA_Int32 TYPE##_deleteMembers(TYPE * p); \
-    UA_Int32 TYPE##_copy(const TYPE *src, TYPE *dst);
+    UA_Int32 UA_LIBEXPORT TYPE##_new(TYPE **p);           \
+    UA_Int32 UA_LIBEXPORT TYPE##_init(TYPE * p);          \
+    UA_Int32 UA_LIBEXPORT TYPE##_delete(TYPE * p);        \
+    UA_Int32 UA_LIBEXPORT TYPE##_deleteMembers(TYPE * p); \
+    UA_Int32 UA_LIBEXPORT TYPE##_copy(const TYPE *src, TYPE *dst);
 #endif
 
 /* Functions for all types */
@@ -313,17 +319,17 @@ UA_TYPE_PROTOTYPES(UA_InvalidType)
         VARIABLE.length = sizeof(STRING)-1;     \
         VARIABLE.data   = (UA_Byte *)STRING; } while(0)
 
-UA_Int32 UA_String_copycstring(char const *src, UA_String *dst);
-UA_Int32 UA_String_copyprintf(char const *fmt, UA_String *dst, ...);
-UA_Int32 UA_String_equal(const UA_String *string1, const UA_String *string2);
+UA_Int32 UA_LIBEXPORT UA_String_copycstring(char const *src, UA_String *dst);
+UA_Int32 UA_LIBEXPORT UA_String_copyprintf(char const *fmt, UA_String *dst, ...);
+UA_Int32 UA_LIBEXPORT UA_String_equal(const UA_String *string1, const UA_String *string2);
 #ifdef DEBUG
-void UA_String_printf(char const *label, const UA_String *string);
-void UA_String_printx(char const *label, const UA_String *string);
-void UA_String_printx_hex(char const *label, const UA_String *string);
+void UA_LIBEXPORT UA_String_printf(char const *label, const UA_String *string);
+void UA_LIBEXPORT UA_String_printx(char const *label, const UA_String *string);
+void UA_LIBEXPORT UA_String_printx_hex(char const *label, const UA_String *string);
 #endif
 
 /* DateTime */
-UA_DateTime UA_DateTime_now();
+UA_DateTime UA_LIBEXPORT UA_DateTime_now();
 typedef struct UA_DateTimeStruct {
     UA_Int16 nanoSec;
     UA_Int16 microSec;
@@ -335,32 +341,32 @@ typedef struct UA_DateTimeStruct {
     UA_Int16 mounth;
     UA_Int16 year;
 } UA_DateTimeStruct;
-UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time);
-UA_Int32 UA_DateTime_toString(UA_DateTime time, UA_String *timeString);
+UA_DateTimeStruct UA_LIBEXPORT UA_DateTime_toStruct(UA_DateTime time);
+UA_Int32 UA_LIBEXPORT UA_DateTime_toString(UA_DateTime time, UA_String *timeString);
 
 /* Guid */
-UA_Int32 UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
+UA_Int32 UA_LIBEXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
 
 /* ByteString */
-UA_Int32 UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2);
-UA_Int32 UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length);
+UA_Int32 UA_LIBEXPORT UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2);
+UA_Int32 UA_LIBEXPORT UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length);
 #ifdef DEBUG
-void UA_ByteString_printf(char *label, const UA_ByteString *string);
-void UA_ByteString_printx(char *label, const UA_ByteString *string);
-void UA_ByteString_printx_hex(char *label, const UA_ByteString *string);
+void UA_LIBEXPORT UA_ByteString_printf(char *label, const UA_ByteString *string);
+void UA_LIBEXPORT UA_ByteString_printx(char *label, const UA_ByteString *string);
+void UA_LIBEXPORT UA_ByteString_printx_hex(char *label, const UA_ByteString *string);
 #endif
 
 /* NodeId */
-UA_Int32 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
-UA_Boolean UA_NodeId_isNull(const UA_NodeId *p);
-UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id);
+UA_Int32 UA_LIBEXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
+UA_Boolean UA_LIBEXPORT UA_NodeId_isNull(const UA_NodeId *p);
+UA_Boolean UA_LIBEXPORT UA_NodeId_isBasicType(UA_NodeId const *id);
 
 #define NS0NODEID(NUMERIC_ID)                                                                        \
     (UA_NodeId) {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = \
                      NUMERIC_ID }
 
 /* ExpandedNodeId */
-UA_Boolean UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
+UA_Boolean UA_LIBEXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 
 #define NS0EXPANDEDNODEID(VARIABLE, NUMERIC_ID) do {   \
         VARIABLE.nodeId       = NS0NODEID(NUMERIC_ID); \
@@ -371,9 +377,9 @@ UA_Boolean UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 #define UA_QUALIFIEDNAME_STATIC(VARIABLE, STRING) do { \
         VARIABLE.namespaceIndex = 0;                   \
         UA_STRING_STATIC(VARIABLE.name, STRING); } while(0)
-UA_Int32 UA_QualifiedName_copycstring(char const *src, UA_QualifiedName *dst);
+UA_Int32 UA_LIBEXPORT UA_QualifiedName_copycstring(char const *src, UA_QualifiedName *dst);
 #ifdef DEBUG
-void UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn);
+void UA_LIBEXPORT UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn);
 #endif
 
 /* LocalizedText */
@@ -381,27 +387,27 @@ void UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn);
         UA_STRING_STATIC(VARIABLE.locale, "en");       \
         UA_STRING_STATIC(VARIABLE.text, STRING); } while(0)
 
-UA_Int32 UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);
+UA_Int32 UA_LIBEXPORT UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);
 
 /* Variant */
-UA_Int32 UA_Variant_copySetValue(UA_Variant *v, UA_VTable_Entry *vt, const void *value);
-UA_Int32 UA_Variant_copySetArray(UA_Variant *v, UA_VTable_Entry *vt, UA_Int32 arrayLength, const void *array);
+UA_Int32 UA_LIBEXPORT UA_Variant_copySetValue(UA_Variant *v, UA_VTable_Entry *vt, const void *value);
+UA_Int32 UA_LIBEXPORT UA_Variant_copySetArray(UA_Variant *v, UA_VTable_Entry *vt, UA_Int32 arrayLength, const void *array);
 
 /** @brief Allows to define variants whose payload will not be deleted. This is
    achieved by a second vtable. The functionality can be used e.g. when
    UA_VariableNodes point into a "father" structured object that is stored in an
    UA_VariableNode itself. This is not possible for arrays so far. */
-UA_Int32 UA_Variant_borrowSetValue(UA_Variant *v, UA_VTable_Entry *vt, const void *value);
+UA_Int32 UA_LIBEXPORT UA_Variant_borrowSetValue(UA_Variant *v, UA_VTable_Entry *vt, const void *value);
 
 /* Array operations */
-UA_Int32 UA_Array_new(void **p, UA_Int32 noElements, UA_VTable_Entry *vt);
-UA_Int32 UA_Array_init(void *p, UA_Int32 noElements, UA_VTable_Entry *vt);
-UA_Int32 UA_Array_delete(void *p, UA_Int32 noElements, UA_VTable_Entry *vt);
+UA_Int32 UA_LIBEXPORT UA_Array_new(void **p, UA_Int32 noElements, UA_VTable_Entry *vt);
+UA_Int32 UA_LIBEXPORT UA_Array_init(void *p, UA_Int32 noElements, UA_VTable_Entry *vt);
+UA_Int32 UA_LIBEXPORT UA_Array_delete(void *p, UA_Int32 noElements, UA_VTable_Entry *vt);
 
 /* @brief The destination array is allocated according to noElements. */
-UA_Int32 UA_Array_copy(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt, void **dst);
+UA_Int32 UA_LIBEXPORT UA_Array_copy(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt, void **dst);
 #ifdef DEBUG
-void UA_Array_print(const void *p, UA_Int32 noElements, UA_VTable_Entry *vt, FILE *stream);
+void UA_LIBEXPORT UA_Array_print(const void *p, UA_Int32 noElements, UA_VTable_Entry *vt, FILE *stream);
 #endif
 
 /**********/
@@ -528,5 +534,9 @@ typedef struct UA_VTable {
 #endif
 
 /// @} /* end of group */
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_TYPES_H_ */

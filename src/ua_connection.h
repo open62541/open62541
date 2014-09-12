@@ -27,7 +27,7 @@ typedef struct UA_ConnectionConfig {
     UA_UInt32 maxChunkCount;
 } UA_ConnectionConfig;
 
-extern UA_ConnectionConfig UA_ConnectionConfig_standard;
+extern UA_LIBEXPORT UA_ConnectionConfig UA_ConnectionConfig_standard;
 
 /* Forward declaration */
 struct UA_SecureChannel;
@@ -46,9 +46,9 @@ typedef struct UA_Connection {
     UA_Connection_closeCallback close;
 } UA_Connection;
 
-UA_Int32 UA_Connection_init(UA_Connection *connection, UA_ConnectionConfig localConf, void *callbackHandle,
-                            UA_Connection_closeCallback close, UA_Connection_writeCallback write);
-UA_Int32 UA_Connection_deleteMembers(UA_Connection *connection);
+UA_Int32 UA_LIBEXPORT UA_Connection_init(UA_Connection *connection, UA_ConnectionConfig localConf, void *callbackHandle,
+                                       UA_Connection_closeCallback close, UA_Connection_writeCallback write);
+UA_Int32 UA_LIBEXPORT UA_Connection_deleteMembers(UA_Connection *connection);
 
 // todo: closing a binaryconnection that was closed on the network level
 

@@ -32,6 +32,5 @@ void UA_MessageType_printf(char *label, UA_MessageType *p);
 #endif
 
 /* All other transport types are auto-generated from a schema definition. */
-#include "ua_transport_generated.h"
 
 #endif /* UA_TRANSPORT_H_ */

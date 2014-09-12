@@ -1,11 +1,6 @@
-/*
- * ua_services_subscription.c
- *
- *  Created on: 18.06.2014
- *      Author: root
- */
 #include "ua_services.h"
 #include "ua_statuscodes.h"
+#include "util/ua_util.h"
 
 UA_Int32 Service_CreateSubscription(UA_Server *server, UA_Session *session,
                                     const UA_CreateSubscriptionRequest *request,

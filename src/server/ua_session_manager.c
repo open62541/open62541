@@ -1,4 +1,5 @@
 #include "ua_session_manager.h"
+#include "util/ua_util.h"
 #include "util/ua_list.h"
 
 struct UA_SessionManager {
@@ -9,6 +10,7 @@ struct UA_SessionManager {
     UA_DateTime  maxSessionLifeTime;
     UA_DateTime  sessionTimeout;
 };
+
 UA_Int32 UA_SessionManager_new(UA_SessionManager **sessionManager, UA_UInt32 maxSessionCount,
                                UA_UInt32 sessionTimeout, UA_UInt32 startSessionId) {
     UA_Int32 retval = UA_SUCCESS;

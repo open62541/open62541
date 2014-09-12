@@ -4,6 +4,7 @@
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_server.h"
+#include "ua_session.h"
 
 /**
  * @defgroup services Services

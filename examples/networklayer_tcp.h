@@ -6,7 +6,6 @@
 #ifndef NETWORKLAYERTCP_H_
 #define NETWORKLAYERTCP_H_
 
-#include <time.h>
 #include "server/ua_server.h"
 
 struct NetworklayerTCP;

@@ -1,5 +1,5 @@
-#ifndef UA_UTILITY_H_
-#define UA_UTILITY_H_
+#ifndef UA_UTIL_H_
+#define UA_UTIL_H_
 
 #include <stdio.h>  // printf
 #include <stdlib.h> // malloc, free
@@ -38,19 +38,9 @@
 # endif
 #endif
 
-#ifdef MSVC
-#define INLINE __inline
-#else
-#define INLINE inline
-#endif
-
-/* Global Variables */
-extern UA_ByteString UA_ByteString_securityPoliceNone;
-void const *UA_alloc_lastptr;
+#define UA_assert(ignore) assert(ignore)
 
 /* Heap memory functions */
-#define UA_NULL ((void *)0)
-
 INLINE UA_Int32 _UA_free(void *ptr, char *pname, char *f, UA_Int32 l) {
     DBG_VERBOSE(printf("UA_free;%p;;%s;;%s;%d\n", ptr, pname, f, l); fflush(stdout));
     free(ptr); // checks if ptr != NULL in the background
@@ -60,7 +50,7 @@ INLINE UA_Int32 _UA_free(void *ptr, char *pname, char *f, UA_Int32 l) {
 INLINE UA_Int32 _UA_alloc(void **ptr, UA_Int32 size, char *pname, char *sname, char *f, UA_Int32 l) {
     if(ptr == UA_NULL)
         return UA_ERR_INVALID_VALUE;
-    UA_alloc_lastptr = *ptr = malloc(size);
+    *ptr = malloc(size);
     DBG_VERBOSE(printf("UA_alloc - %p;%d;%s;%s;%s;%d\n", *ptr, size, pname, sname, f, l); fflush(stdout));
     if(*ptr == UA_NULL)
         return UA_ERR_NO_MEMORY;
@@ -80,7 +70,6 @@ INLINE UA_Int32 _UA_alloca(void **ptr, UA_Int32 size, char *pname, char *sname, 
 }
 
 UA_Int32 UA_memcpy(void *dst, void const *src, UA_Int32 size);
-UA_Int32 UA_VTable_isValidType(UA_Int32 type);
 
 #define UA_free(ptr) _UA_free(ptr, # ptr, __FILE__, __LINE__)
 #define UA_alloc(ptr, size) _UA_alloc(ptr, size, # ptr, # size, __FILE__, __LINE__)
@@ -92,6 +81,4 @@ UA_Int32 UA_VTable_isValidType(UA_Int32 type);
     proper UA_alloc. */
 #define UA_alloca(ptr, size) _UA_alloca(ptr, size, # ptr, # size, __FILE__, __LINE__)
 
-#define UA_assert(ignore) assert(ignore)
-
-#endif /* UA_UTILITY_H_ */
+#endif /* UA_UTIL_H_ */

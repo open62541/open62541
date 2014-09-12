@@ -1,11 +1,8 @@
 #ifndef UA_CHANNEL_MANAGER_H_
 #define UA_CHANNEL_MANAGER_H_
 
-#include "ua_types_generated.h"
+#include "ua_server.h"
 #include "ua_securechannel.h"
-
-struct UA_SecureChannelManager;
-typedef struct UA_SecureChannelManager UA_SecureChannelManager;
 
 UA_Int32 UA_SecureChannelManager_new(UA_SecureChannelManager **cm, UA_UInt32 maxChannelCount,
                                      UA_UInt32 tokenLifetime, UA_UInt32 startChannelId,

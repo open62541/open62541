@@ -1,5 +1,7 @@
 #include "ua_services.h"
 #include "ua_statuscodes.h"
+#include "ua_nodestore.h"
+#include "util/ua_util.h"
 
 UA_Int32 Service_Browse_getReferenceDescription(UA_NodeStore *ns, UA_ReferenceNode *reference,
                                                 UA_UInt32 nodeClassMask, UA_UInt32 resultMask,

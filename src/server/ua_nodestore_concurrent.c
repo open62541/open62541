@@ -1,4 +1,5 @@
 #include "ua_nodestore.h"
+#include "util/ua_util.h"
 
 #include <urcu.h>
 #include <urcu/compiler.h> // for caa_container_of

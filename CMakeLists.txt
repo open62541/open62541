@@ -5,6 +5,8 @@ project(open62541)
 set(open62541_VERSION_MAJOR 0)
 set(open62541_VERSION_MINOR 1)
 
+set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+
 # main sources of libopen62541
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src")
 file(GLOB_RECURSE headers "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
@@ -37,17 +39,18 @@ set(lib_sources src/ua_types.c
                 ${generated_headers})
 
 # compiler flags
-if(CMAKE_COMPILER_IS_GNUCC)
-add_definitions(-std=c99 -pedantic -pipe -fstack-protector -Wall -Wextra
-                -Wno-unused-parameter -Wno-unused-function -Wno-unused-label
-                -Wpointer-arith -Wformat -Wreturn-type -Wsign-compare -Wmultichar
-                -Wformat-nonliteral -Winit-self -Wuninitialized -Wno-deprecated
-                -Wformat-security -Werror -ffunction-sections -fdata-sections
-                -Wl,--gc-sections)
-	if(WIN32)
-	    add_definitions(-fno-stack-protector)
-	endif(WIN32)
-endif(CMAKE_COMPILER_IS_GNUCC)
+if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+add_definitions(-std=c99 -pedantic -pipe -fvisibility=hidden -Wall -Wextra -Werror -Wformat
+                -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
+                -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -ffunction-sections -fdata-sections)
+    if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+        add_definitions(-Wformat-nonliteral -Wl,--gc-sections)
+    endif()
+	if(NOT WIN32)
+	    add_definitions(-fstack-protector)
+	endif()
+endif()
+add_definitions(-Dopen62541_EXPORTS) # dllexport/dllimport differentiation in ua_config.h when building the lib on windows
 
 # build settings
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
@@ -63,14 +66,14 @@ if(ENABLE_SELFSIGNED)
                    COMMAND python ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${PROJECT_BINARY_DIR}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/create_self-signed.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/localhost.cnf)
-endif(ENABLE_SELFSIGNED)
+endif()
 
 
 ## auto-generate all types or only the relevant subset?
 option(TYPES_ONLY_NEEDED "Include only compile-needed types" OFF)
 if(TYPES_ONLY_NEEDED)
     list(APPEND generate_src_options "--only-needed")
-endif(TYPES_ONLY_NEEDED)
+endif()
 
 ## encodings
 set(UA_ENCODING_AMOUNT 1) # binary encoding
@@ -90,7 +93,7 @@ if(ENABLE_XML_ENCODING)
                             src/ongoing/ua_namespace_xml.c
                             src/ongoing/ua_xml.c)
     list(APPEND generate_src_options "--with-xml")
-endif(ENABLE_XML_ENCODING)
+endif()
 
 ### json
 option(ENABLE_JSON_ENCODING "Enable JSON-encoding of the UA types" OFF)
@@ -108,7 +111,7 @@ if(ENABLE_MULTITHREADING)
     list(APPEND lib_sources src/server/ua_nodestore_concurrent.c)
 else()
     list(APPEND lib_sources src/server/ua_nodestore.c)
-endif(ENABLE_MULTITHREADING)
+endif()
 
 add_library(open62541 ${lib_sources}) # we can add more files to lib_sources later on
 
@@ -123,7 +126,7 @@ if(ENABLE_COVERAGE)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
-endif(ENABLE_COVERAGE)
+endif()
 
 configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
 
@@ -149,23 +152,29 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_gener
                            ${CMAKE_CURRENT_SOURCE_DIR}/schema/Custom.Opc.Ua.Transport.bsd)
 
 # build example server
-add_executable(exampleServer examples/opcuaServer.c
-                             examples/logger_stdout.c
-                             examples/networklayer_tcp.c)
+set(server_sources examples/opcuaServer.c
+                   examples/logger_stdout.c)
+# if(NOT ENABLE_MULTITHREADING)
+    list(APPEND server_sources examples/networklayer_tcp.c)
+# else()
+#    list(APPEND server_sources examples/networklayer_tcp_concurrent.c)
+# endif()
+add_executable(exampleServer ${server_sources})
 target_link_libraries(exampleServer open62541)
 if(WIN32)
     target_link_libraries(exampleServer ws2_32)
 endif(WIN32)
 if(ENABLE_MULTITHREADING)
-    target_link_libraries(exampleServer urcu-cds urcu)
-endif(ENABLE_MULTITHREADING)
+    find_package(LibUV REQUIRED)
+    target_link_libraries(exampleServer urcu-cds urcu uv)
+endif()
 
 # build unit tests
 option(ENABLE_UNIT_TESTS "Run unit tests after building" OFF)
 if(ENABLE_UNIT_TESTS)
     enable_testing()
     add_subdirectory(tests)
-endif(ENABLE_UNIT_TESTS)
+endif()
 
 # build documentation
 option(GENERATE_DOCUMENTATION "Generate doxygen documentation" OFF)
@@ -179,7 +188,7 @@ if(GENERATE_DOCUMENTATION)
                       ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
                       WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
                       COMMENT "Generating API documentation with Doxygen")
-endif(GENERATE_DOCUMENTATION)
+endif()
 
 # download queue.h if required
 if(WIN32)
