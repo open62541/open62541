@@ -13,6 +13,7 @@
 #include <sys/time.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <errno.h> // errno, EINTR
 
 #include "server/ua_server.h"
 #include "logger_stdout.h"
@@ -34,15 +35,18 @@ UA_ByteString loadCertificate() {
 	//FIXME: a potiential bug of locating the certificate, we need to get the path from the server's config
 	fp=fopen("localhost.der", "rb");
 
-	if(fp == UA_NULL)
+	if(!fp) {
+        errno = 0; // otherwise we think sth went wrong on the tcp socket level
         return certificate;
+    }
 
     fseek(fp, 0, SEEK_END);
     certificate.length = ftell(fp);
     UA_alloc((void**)&certificate.data, certificate.length*sizeof(UA_Byte));
 
     fseek(fp, 0, SEEK_SET);
-    fread(certificate.data, sizeof(UA_Byte), certificate.length, fp);
+    if(fread(certificate.data, sizeof(UA_Byte), certificate.length, fp) < (size_t)certificate.length)
+        UA_ByteString_deleteMembers(&certificate); // error reading the cert
     fclose(fp);
 
     return certificate;
