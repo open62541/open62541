@@ -26,7 +26,6 @@
 #include <fcntl.h> // fcntl
 
 #include "networklayer_tcp.h"
-#include "ua_transport.h"
 
 typedef struct TCPConnection {
 	UA_Int32 sockfd;
