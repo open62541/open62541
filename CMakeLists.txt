@@ -14,12 +14,13 @@ set(lib_sources src/ua_types.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_0.c
                 src/ua_transport.c
+                ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
 				src/ua_connection.c
                 src/ua_securechannel.c
                 src/ua_session.c
                 src/util/ua_util.c
                 src/util/ua_list.c
-                src/util/ua_base64.c
+                #src/util/ua_base64.c
                 src/server/ua_server.c
                 src/server/ua_securechannel_manager.c
                 src/server/ua_session_manager.c
@@ -140,6 +141,12 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_0.c
                    COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_namespace.py ${generate_src_options} ${PROJECT_SOURCE_DIR}/schema/NodeIds.csv ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_0
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_namespace.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/schema/NodeIds.csv)
+
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
+                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_builtin.py --additional-includes=ua_transport.h ${PROJECT_SOURCE_DIR}/schema/Custom.Opc.Ua.Transport.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_namespace.py
+                           ${CMAKE_CURRENT_SOURCE_DIR}/schema/Custom.Opc.Ua.Transport.bsd)
 
 # build example server
 add_executable(exampleServer examples/opcuaServer.c

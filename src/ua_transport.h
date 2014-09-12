@@ -27,87 +27,11 @@ enum UA_MessageType {
 };
 UA_TYPE_PROTOTYPES(UA_MessageType)
 UA_TYPE_BINARY_ENCODING(UA_MessageType)
+#ifdef DEBUG
 void UA_MessageType_printf(char *label, UA_MessageType *p);
+#endif
 
-/** @brief TCP Header */
-typedef struct UA_OPCUATcpMessageHeader {
-    UA_MessageType messageType;
-    UA_Byte isFinal;
-    UA_UInt32      messageSize;
-} UA_OPCUATcpMessageHeader;
-UA_TYPE_PROTOTYPES(UA_OPCUATcpMessageHeader)
-UA_TYPE_BINARY_ENCODING(UA_OPCUATcpMessageHeader)
-
-/** @brief Hello Message */
-typedef struct UA_OPCUATcpHelloMesage {
-    UA_UInt32 protocolVersion;
-    UA_UInt32 receiveBufferSize;
-    UA_UInt32 sendBufferSize;
-    UA_UInt32 maxMessageSize;
-    UA_UInt32 maxChunkCount;
-    UA_String endpointUrl;
-} UA_OPCUATcpHelloMessage;
-UA_TYPE_PROTOTYPES(UA_OPCUATcpHelloMessage)
-UA_TYPE_BINARY_ENCODING(UA_OPCUATcpHelloMessage)
-
-/** @brief Acknowledge Message */
-typedef struct UA_OPCUATcpAcknowledgeMessage {
-    UA_UInt32 protocolVersion;
-    UA_UInt32 receiveBufferSize;
-    UA_UInt32 sendBufferSize;
-    UA_UInt32 maxMessageSize;
-    UA_UInt32 maxChunkCount;
-} UA_OPCUATcpAcknowledgeMessage;
-UA_TYPE_PROTOTYPES(UA_OPCUATcpAcknowledgeMessage)
-UA_TYPE_BINARY_ENCODING(UA_OPCUATcpAcknowledgeMessage)
-
-/** @brief Secure Layer Sequence Header */
-typedef struct UA_SecureConversationMessageHeader {
-    UA_OPCUATcpMessageHeader messageHeader;
-    UA_UInt32 secureChannelId;
-} UA_SecureConversationMessageHeader;
-UA_TYPE_PROTOTYPES(UA_SecureConversationMessageHeader)
-UA_TYPE_BINARY_ENCODING(UA_SecureConversationMessageHeader)
-
-/** @brief Security Header> */
-typedef struct UA_AsymmetricAlgorithmSecurityHeader {
-    UA_ByteString securityPolicyUri;
-    UA_ByteString senderCertificate;
-    UA_ByteString receiverCertificateThumbprint;
-} UA_AsymmetricAlgorithmSecurityHeader;
-UA_TYPE_PROTOTYPES(UA_AsymmetricAlgorithmSecurityHeader)
-UA_TYPE_BINARY_ENCODING(UA_AsymmetricAlgorithmSecurityHeader)
-
-/** @brief Secure Layer Symmetric Algorithm Header */
-typedef struct UA_SymmetricAlgorithmSecurityHeader {
-    UA_UInt32 tokenId;
-} UA_SymmetricAlgorithmSecurityHeader;
-UA_TYPE_PROTOTYPES(UA_SymmetricAlgorithmSecurityHeader)
-UA_TYPE_BINARY_ENCODING(UA_SymmetricAlgorithmSecurityHeader)
-
-/** @brief Secure Layer Sequence Header */
-typedef struct UA_SequenceHeader {
-    UA_UInt32 sequenceNumber;
-    UA_UInt32 requestId;
-} UA_SequenceHeader;
-UA_TYPE_PROTOTYPES(UA_SequenceHeader)
-UA_TYPE_BINARY_ENCODING(UA_SequenceHeader)
-
-/** @brief Secure Conversation Message Footer */
-typedef struct UA_SecureConversationMessageFooter {
-    UA_Int32 paddingSize;
-    UA_Byte *padding;
-    UA_Byte  signature;
-} UA_SecureConversationMessageFooter;
-UA_TYPE_PROTOTYPES(UA_SecureConversationMessageFooter)
-UA_TYPE_BINARY_ENCODING(UA_SecureConversationMessageFooter)
-
-/** @brief Secure Conversation Message Abort Body */
-typedef struct UA_SecureConversationMessageAbortBody {
-    UA_UInt32 error;
-    UA_String reason;
-} UA_SecureConversationMessageAbortBody;
-UA_TYPE_PROTOTYPES(UA_SecureConversationMessageAbortBody)
-UA_TYPE_BINARY_ENCODING(UA_SecureConversationMessageAbortBody)
+/* All other transport types are auto-generated from a schema definition. */
+#include "ua_transport_generated.h"
 
 #endif /* UA_TRANSPORT_H_ */

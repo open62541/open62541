@@ -4,8 +4,8 @@
 
 static void processHello(UA_Connection *connection, const UA_ByteString *msg,
                          UA_UInt32 *pos) {
-    UA_OPCUATcpHelloMessage helloMessage;
-    if(UA_OPCUATcpHelloMessage_decodeBinary(msg, pos, &helloMessage) != UA_SUCCESS) {
+    UA_TcpHelloMessage helloMessage;
+    if(UA_TcpHelloMessage_decodeBinary(msg, pos, &helloMessage) != UA_SUCCESS) {
         connection->close(connection->callbackHandle);
         return;
     }
@@ -18,24 +18,24 @@ static void processHello(UA_Connection *connection, const UA_ByteString *msg,
     connection->state = UA_CONNECTION_ESTABLISHED;
 
     // build acknowledge response
-    UA_OPCUATcpAcknowledgeMessage ackMessage;
+    UA_TcpAcknowledgeMessage ackMessage;
     ackMessage.protocolVersion   = connection->localConf.protocolVersion;
     ackMessage.receiveBufferSize = connection->localConf.recvBufferSize;
     ackMessage.sendBufferSize    = connection->localConf.sendBufferSize;
     ackMessage.maxMessageSize    = connection->localConf.maxMessageSize;
     ackMessage.maxChunkCount     = connection->localConf.maxChunkCount;
 
-    UA_OPCUATcpMessageHeader ackHeader;
+    UA_TcpMessageHeader ackHeader;
     ackHeader.messageType = UA_MESSAGETYPE_ACK;
     ackHeader.isFinal     = 'F';
-    ackHeader.messageSize = UA_OPCUATcpAcknowledgeMessage_calcSizeBinary(&ackMessage) +
-                            UA_OPCUATcpMessageHeader_calcSizeBinary(&ackHeader);
+    ackHeader.messageSize = UA_TcpAcknowledgeMessage_calcSizeBinary(&ackMessage) +
+                            UA_TcpMessageHeader_calcSizeBinary(&ackHeader);
 
     UA_ByteString ack_msg;
     UA_UInt32 tmpPos = 0;
     UA_ByteString_newMembers(&ack_msg, ackHeader.messageSize);
-    UA_OPCUATcpMessageHeader_encodeBinary(&ackHeader, &ack_msg, &tmpPos);
-    UA_OPCUATcpAcknowledgeMessage_encodeBinary(&ackMessage, &ack_msg, &tmpPos);
+    UA_TcpMessageHeader_encodeBinary(&ackHeader, &ack_msg, &tmpPos);
+    UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &ack_msg, &tmpPos);
     UA_ByteStringArray answer_buf = { .stringsSize = 1, .strings = &ack_msg };
     connection->write(connection->callbackHandle, answer_buf);
     UA_ByteString_deleteMembers(&ack_msg);
@@ -75,7 +75,7 @@ static void processOpen(UA_Connection *connection, UA_Server *server,
     Service_OpenSecureChannel(server, connection, &r, &p);
 
     // response
-    UA_OPCUATcpMessageHeader respHeader;
+    UA_TcpMessageHeader respHeader;
     respHeader.messageType = UA_MESSAGETYPE_OPN;
     respHeader.isFinal     = 'F';
     respHeader.messageSize = 8+4; //header + securechannelid
@@ -91,7 +91,7 @@ static void processOpen(UA_Connection *connection, UA_Server *server,
     UA_ByteString resp_msg;
     UA_UInt32 tmpPos = 0;
     UA_ByteString_newMembers(&resp_msg, respHeader.messageSize);
-    UA_OPCUATcpMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
+    UA_TcpMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
     UA_UInt32_encodeBinary(&p.securityToken.channelId, &resp_msg, &tmpPos);
     UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &resp_msg, &tmpPos); // just mirror back
     UA_SequenceHeader_encodeBinary(&seqHeader, &resp_msg, &tmpPos); // just mirror back
@@ -265,11 +265,11 @@ static void processMessage(UA_Connection *connection, UA_Server *server,
     UA_UInt32 rpos = 0;
 
     // header
-    UA_OPCUATcpMessageHeader respHeader;
+    UA_TcpMessageHeader respHeader;
     respHeader.messageType = UA_MESSAGETYPE_MSG;
     respHeader.isFinal     = 'F';
     respHeader.messageSize = header->length + responseBuf.strings[1].length;
-    UA_OPCUATcpMessageHeader_encodeBinary(&respHeader, header, &rpos);
+    UA_TcpMessageHeader_encodeBinary(&respHeader, header, &rpos);
 
     // channel id
     UA_UInt32_encodeBinary(&channel->securityToken.channelId, header, &rpos);
@@ -312,10 +312,10 @@ UA_Int32 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connec
                                         const UA_ByteString *msg) {
     UA_Int32  retval = UA_SUCCESS;
     UA_UInt32 pos    = 0;
-    UA_OPCUATcpMessageHeader tcpMessageHeader;
+    UA_TcpMessageHeader tcpMessageHeader;
     // todo: test how far pos advanced must be equal to what is said in the messageheader
     do {
-        retval = UA_OPCUATcpMessageHeader_decodeBinary(msg, &pos, &tcpMessageHeader);
+        retval = UA_TcpMessageHeader_decodeBinary(msg, &pos, &tcpMessageHeader);
         if(retval == UA_SUCCESS) {
             // none of the process-functions returns an error its all contained inside.
             switch(tcpMessageHeader.messageType) {
@@ -341,7 +341,7 @@ UA_Int32 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connec
                 connection->close(connection->callbackHandle);
                 return retval;
             }
-            UA_OPCUATcpMessageHeader_deleteMembers(&tcpMessageHeader);
+            UA_TcpMessageHeader_deleteMembers(&tcpMessageHeader);
         } else {
             printf("TL_Process - ERROR: decoding of header failed \n");
             connection->state = UA_CONNECTION_CLOSING;

@@ -14,6 +14,7 @@ parser.add_argument('--with-xml', action='store_true', help='generate xml encodi
 parser.add_argument('--with-json', action='store_true', help='generate json encoding')
 parser.add_argument('--only-nano', action='store_true', help='generate only the types for the nano profile')
 parser.add_argument('--only-needed', action='store_true', help='generate only types needed for compile')
+parser.add_argument('--additional-includes', action='store', help='include additional header files (separated by comma)')
 parser.add_argument('types', help='path/to/Opc.Ua.Types.bsd')
 parser.add_argument('outfile', help='outfile w/o extension')
 args = parser.parse_args()
@@ -294,7 +295,11 @@ printh('''/**
 #include "ua_types_encoding_binary.h"''')
 if args.with_xml:
 	printh('#include "ua_types_encoding_xml.h"')
-printh('#include "ua_namespace_0.h"\n')
+printh('#include "ua_namespace_0.h"')
+if args.additional_includes:
+    for incl in args.additional_includes.split(","):
+        printh("#include \"" + incl + "\"")
+printh("") # newline
 
 printc('''/**
  * @file '''+sys.argv[2]+'''.c
