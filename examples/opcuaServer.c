@@ -18,7 +18,7 @@
 #include <signal.h>
 #include <errno.h> // errno, EINTR
 
-#include "server/ua_server.h"
+#include "ua_server.h"
 #include "logger_stdout.h"
 #include "networklayer_tcp.h"
 

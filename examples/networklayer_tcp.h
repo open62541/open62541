@@ -6,7 +6,7 @@
 #ifndef NETWORKLAYERTCP_H_
 #define NETWORKLAYERTCP_H_
 
-#include "server/ua_server.h"
+#include "ua_server.h"
 
 struct NetworklayerTCP;
 typedef struct NetworklayerTCP NetworklayerTCP;

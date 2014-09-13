@@ -1,17 +1,35 @@
+/*
+ * Copyright (C) 2014 the contributors as stated in the AUTHORS file
+ *
+ * This file is part of open62541. open62541 is free software: you can
+ * redistribute it and/or modify it under the terms of the GNU Lesser General
+ * Public License, version 3 (as published by the Free Software Foundation) with
+ * a static linking exception as stated in the LICENSE file provided with
+ * open62541.
+ *
+ * open62541 is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+ * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+
 #ifndef UA_CONNECTION_H_
 #define UA_CONNECTION_H_
 
-#include "ua_transport.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-/* used for zero-copy communication. the array of bytestrings is sent over the
+#include "ua_types.h"
+
+/** @defgroup connection Connection */
+
+/** Used for zero-copy communication. The array of bytestrings is sent over the
    network as a single buffer. */
 typedef struct UA_ByteStringArray {
     UA_UInt32      stringsSize;
     UA_ByteString *strings;
 } UA_ByteStringArray;
-
-UA_Int32 UA_ByteStringArray_init(UA_ByteStringArray *stringarray, UA_UInt32 length);
-UA_Int32 UA_ByteStringArray_deleteMembers(UA_ByteStringArray *stringarray);
 
 typedef enum UA_ConnectionState {
     UA_CONNECTION_OPENING,
@@ -51,5 +69,9 @@ UA_Int32 UA_LIBEXPORT UA_Connection_init(UA_Connection *connection, UA_Connectio
 UA_Int32 UA_LIBEXPORT UA_Connection_deleteMembers(UA_Connection *connection);
 
 // todo: closing a binaryconnection that was closed on the network level
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_CONNECTION_H_ */

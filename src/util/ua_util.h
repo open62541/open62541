@@ -5,6 +5,7 @@
 #include <stdlib.h> // malloc, free
 #include <string.h> // memcpy
 #include <assert.h> // assert
+
 #include "ua_config.h"
 #ifndef MSVC
 #ifndef WIN32

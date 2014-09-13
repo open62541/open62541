@@ -1,12 +1,14 @@
-#include <stdlib.h> // alloc, free, vsnprintf
-#include <string.h>
 #include <stdarg.h> // va_start, va_end
-
 #include <time.h>
+
 #ifdef WIN32
 #include <windows.h>
 #else
 #include <sys/time.h>
+#endif
+
+#ifdef DEBUG
+#include <stdio.h>
 #endif
 
 #include "util/ua_util.h"

@@ -21,6 +21,7 @@
 #endif /* WIN32 */
 
 #include <stdlib.h> // exit
+#include <stdio.h>
 #include <errno.h> // errno, EINTR
 #include <memory.h> // memset
 #include <fcntl.h> // fcntl

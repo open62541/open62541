@@ -1,11 +1,32 @@
+/*
+ * Copyright (C) 2014 the contributors as stated in the AUTHORS file
+ *
+ * This file is part of open62541. open62541 is free software: you can
+ * redistribute it and/or modify it under the terms of the GNU Lesser General
+ * Public License, version 3 (as published by the Free Software Foundation) with
+ * a static linking exception as stated in the LICENSE file provided with
+ * open62541.
+ *
+ * open62541 is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+ * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+
 #ifndef UA_LOG_H_
 #define UA_LOG_H_
 
-/**
-   @defgroup logging Logging
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-   @brief Logging functionality is externally provided to the open62541 libary.
-   The server contains a logger-struct with function callbacks
+#include "ua_config.h"
+
+/**
+ * @defgroup logging Logging
+ *
+ * @brief Logging functionality is externally provided to the open62541 libary.
+ * The server contains a logger-struct with function callbacks
  */
 
 typedef enum UA_LoggerCategory {
@@ -58,6 +79,10 @@ typedef struct UA_Logger {
 #define UA_LOG_FATAL(CATEGORY, MSG, ...) do { logger.log_fatal(CATEGORY, MSG, __VA_ARGS__); } while(0)
 #else
 #define UA_LOG_FATAL(CATEGORY, MSG, ...) do {} while(0)
+#endif
+
+#ifdef __cplusplus
+} // extern "C"
 #endif
 
 #endif /* UA_LOG_H_ */

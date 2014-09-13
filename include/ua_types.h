@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 {contributors}
+ * Copyright (C) 2014 the contributors as stated in the AUTHORS file
  *
  * This file is part of open62541. open62541 is free software: you can
  * redistribute it and/or modify it under the terms of the GNU Lesser General
@@ -20,9 +20,8 @@
 extern "C" {
 #endif
 
-#include "ua_config.h"
-#include <stdio.h>
 #include <stdint.h>
+#include "ua_config.h"
 
 /**
  * @defgroup types Datatypes
