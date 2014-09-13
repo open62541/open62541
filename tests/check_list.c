@@ -24,22 +24,22 @@ void freer(void* payload){
 
 _Bool matcher(void* payload){
 	if(payload == UA_NULL){
-		return FALSE;
+		return UA_FALSE;
 	}
 	if(*((UA_Int32*)payload) == 42){
-		return TRUE;
+		return UA_TRUE;
 	}
-	return FALSE;
+	return UA_FALSE;
 }
 
 _Bool matcher2(void* payload){
 	if(payload == UA_NULL){
-		return FALSE;
+		return UA_FALSE;
 	}
 	if(*((UA_Int32*)payload) == 43){
-		return TRUE;
+		return UA_TRUE;
 	}
-	return FALSE;
+	return UA_FALSE;
 }
 
 _Bool comparer(void* payload, void* otherPayload) {

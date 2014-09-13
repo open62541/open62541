@@ -65,9 +65,9 @@ extern "C" {
 
 /* Boolean values and null */
 #define UA_TRUE (42 == 42)
-#define TRUE UA_TRUE
+//#define TRUE UA_TRUE
 #define UA_FALSE (!UA_TRUE)
-#define FALSE UA_FALSE
+//#define FALSE UA_FALSE
 
 /* Compare values */
 #define UA_EQUAL 0

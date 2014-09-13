@@ -202,7 +202,7 @@ UA_list_Element *UA_list_find(UA_list_List *const list, UA_list_PayloadMatcher m
     if(matcher) {
         UA_list_Element *current = list->first;
         while(current) {
-            if(matcher && (*matcher)(current->payload) == TRUE)
+            if(matcher && (*matcher)(current->payload) == UA_TRUE)
                 return current;
             current = current->next;
         }
@@ -216,7 +216,7 @@ UA_list_Element *UA_list_search(UA_list_List *const list, UA_list_PayloadCompare
     if(compare) {
         UA_list_Element *current = list->first;
         while(current) {
-            if(compare && (*compare)(current->payload, payload) == TRUE)
+            if(compare && (*compare)(current->payload, payload) == UA_TRUE)
                 return current;
             current = current->next;
         }

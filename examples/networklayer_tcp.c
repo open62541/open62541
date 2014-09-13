@@ -51,9 +51,8 @@ typedef struct TCPConnectionHandle {
 
 UA_Int32 NetworklayerTCP_new(NetworklayerTCP **newlayer, UA_ConnectionConfig localConf,
 							 UA_UInt32 port) {
-    UA_UInt32 retval = UA_SUCCESS;
-    newlayer = malloc(sizeof(NetworklayerTCP));
-    if(retval != UA_SUCCESS)
+    *newlayer = malloc(sizeof(NetworklayerTCP));
+    if(newlayer == UA_NULL)
         return UA_ERROR;
 	(*newlayer)->localConf = localConf;
 	(*newlayer)->port = port;
