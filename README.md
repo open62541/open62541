@@ -8,6 +8,14 @@ An open-source communication stack implementation of OPC UA (OPC Unified Archite
 [![Coverage Status](https://coveralls.io/repos/acplt/open62541/badge.png?branch=master)](https://coveralls.io/r/acplt/open62541?branch=master)
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/1864/badge.svg)](https://scan.coverity.com/projects/1864)
 
+### What is currently working?
+The project is in an early stage. We retain the right to break APIs until a first stable release.
+- Binary serialization of all data types: 100%
+- Node storage and setup of a minimal namespace zero: 100%
+- Standard OPC UA Clients can connect/open a SecureChannel/open a Session: 100%
+- Browsing/reading and writing attributes: 100%
+- Advanced SecureChannel and Session Management: 75%
+
 ### Documentation
 Documentation is generated from Doxygen annotations in the source code. The current version can be accessed at [http://open62541.org/doxygen/](http://open62541.org/doxygen/).
 
