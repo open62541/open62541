@@ -29,7 +29,7 @@ void stopHandler(int sign) {
 }
 
 void serverCallback(UA_Server *server) {
-	printf("does whatever servers do\n");
+    //	printf("does whatever servers do\n");
 }
 
 UA_ByteString loadCertificate() {

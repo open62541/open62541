@@ -238,9 +238,9 @@ static void processMessage(UA_Connection *connection, UA_Server *server,
         INVOKE_SERVICE(Browse);
         break;
 
-    case UA_CREATESUBSCRIPTIONREQUEST_NS0:
-        INVOKE_SERVICE(CreateSubscription);
-        break;
+    /* case UA_CREATESUBSCRIPTIONREQUEST_NS0: */
+    /*     INVOKE_SERVICE(CreateSubscription); */
+    /*     break; */
 
     case UA_TRANSLATEBROWSEPATHSTONODEIDSREQUEST_NS0:
         INVOKE_SERVICE(TranslateBrowsePathsToNodeIds);
