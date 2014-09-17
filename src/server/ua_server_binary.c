@@ -338,6 +338,7 @@ UA_Int32 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connec
     // todo: test how far pos advanced must be equal to what is said in the messageheader
     do {
         retval = UA_TcpMessageHeader_decodeBinary(msg, &pos, &tcpMessageHeader);
+        UA_UInt32 targetpos = pos - 8 + tcpMessageHeader.messageSize;
         if(retval == UA_SUCCESS) {
             // none of the process-functions returns an error its all contained inside.
             switch(tcpMessageHeader.messageType) {
@@ -371,6 +372,10 @@ UA_Int32 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connec
             connection->close(connection->callbackHandle);
         }
         // todo: more than one message at once..
+        if(pos != targetpos) {
+            printf("the message size was not as announced!\n");
+            pos = targetpos;
+        }
     } while(msg->length > (UA_Int32)pos);
     return retval;
 }
