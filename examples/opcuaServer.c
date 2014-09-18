@@ -17,7 +17,6 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <errno.h> // errno, EINTR
-
 #include "ua_server.h"
 #include "logger_stdout.h"
 #include "networklayer_tcp.h"
@@ -65,8 +64,10 @@ int main(int argc, char** argv) {
 	Logger_Stdout_init(&server.logger);
     server.serverCertificate = loadCertificate();
 	
+	#define PORT 16664
 	NetworklayerTCP* nl;
-	NetworklayerTCP_new(&nl, UA_ConnectionConfig_standard, 16664);
+	NetworklayerTCP_new(&nl, UA_ConnectionConfig_standard, PORT);
+	printf("Server started, connect to to opc.tcp://127.0.0.1:%i\n", PORT);
 	struct timeval callback_interval = {1, 0}; // 1 second
 	UA_Int32 retval = NetworkLayerTCP_run(nl, &server, callback_interval,
 										  serverCallback, &running);
