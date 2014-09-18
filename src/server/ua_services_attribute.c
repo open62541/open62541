@@ -217,14 +217,15 @@ static UA_DataValue service_read_node(UA_Server *server, const UA_ReadValueId *i
 UA_Int32 Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request,
                       UA_ReadResponse *response) {
     UA_Int32 readsize;
-    if(server == UA_NULL || session == UA_NULL)
+    if(session == UA_NULL) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         return UA_ERROR;
+    }
 
     readsize = request->nodesToReadSize;
     /* NothingTodo */
     if(readsize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-        response->resultsSize = 0;
         return UA_SUCCESS;
     }
 

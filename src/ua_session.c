@@ -43,6 +43,7 @@ UA_Int32 UA_Session_init(UA_Session *session) {
     if(!session)
         return UA_ERROR;
 
+    UA_ApplicationDescription_init(&session->clientDescription);
     UA_NodeId_init(&session->authenticationToken);
     UA_NodeId_init(&session->sessionId);
     UA_String_init(&session->sessionName);
@@ -56,6 +57,7 @@ UA_Int32 UA_Session_init(UA_Session *session) {
 
 UA_Int32 UA_Session_deleteMembers(UA_Session *session) {
     UA_Int32 retval = UA_SUCCESS;
+    UA_ApplicationDescription_deleteMembers(&session->clientDescription);
     retval |= UA_NodeId_deleteMembers(&session->authenticationToken);
     retval |= UA_NodeId_deleteMembers(&session->sessionId);
     retval |= UA_String_deleteMembers(&session->sessionName);

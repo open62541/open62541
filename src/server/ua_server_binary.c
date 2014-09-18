@@ -3,6 +3,7 @@
 #include "ua_statuscodes.h"
 #include "ua_namespace_0.h"
 #include "ua_securechannel_manager.h"
+#include "ua_session_manager.h"
 #include "util/ua_util.h"
 
 static UA_Int32 UA_ByteStringArray_init(UA_ByteStringArray *stringarray, UA_UInt32 length) {
@@ -197,8 +198,7 @@ static void processMessage(UA_Connection *connection, UA_Server *server,
         UA_GetEndpointsResponse_init(&r);
         init_response_header(&p.requestHeader, &r.responseHeader);
         Service_GetEndpoints(server, &p, &r);
-        UA_ByteString_newMembers(&responseBuf.strings[1],
-                                 UA_GetEndpointsResponse_calcSizeBinary(&r));
+        UA_ByteString_newMembers(&responseBuf.strings[1], UA_GetEndpointsResponse_calcSizeBinary(&r));
         UA_GetEndpointsResponse_encodeBinary(&r, &responseBuf.strings[1], &sendOffset);
         UA_GetEndpointsRequest_deleteMembers(&p);
         UA_GetEndpointsResponse_deleteMembers(&r);
@@ -213,8 +213,7 @@ static void processMessage(UA_Connection *connection, UA_Server *server,
         UA_CreateSessionResponse_init(&r);
         init_response_header(&p.requestHeader, &r.responseHeader);
         Service_CreateSession(server, channel,  &p, &r);
-        UA_ByteString_newMembers(&responseBuf.strings[1],
-                                 UA_CreateSessionResponse_calcSizeBinary(&r));
+        UA_ByteString_newMembers(&responseBuf.strings[1], UA_CreateSessionResponse_calcSizeBinary(&r));
         UA_CreateSessionResponse_encodeBinary(&r, &responseBuf.strings[1], &sendOffset);
         UA_CreateSessionRequest_deleteMembers(&p);
         UA_CreateSessionResponse_deleteMembers(&r);
@@ -222,8 +221,19 @@ static void processMessage(UA_Connection *connection, UA_Server *server,
         break;
     }
 
-    case UA_ACTIVATESESSIONREQUEST_NS0:
-        INVOKE_SERVICE(ActivateSession);
+    case UA_ACTIVATESESSIONREQUEST_NS0: {
+        UA_ActivateSessionRequest  p;
+        UA_ActivateSessionResponse r;
+        CHECK_PROCESS(UA_ActivateSessionRequest_decodeBinary(msg, pos, &p),; );
+        UA_ActivateSessionResponse_init(&r);
+        init_response_header(&p.requestHeader, &r.responseHeader);
+        Service_ActivateSession(server, channel->session,  &p, &r);
+        UA_ByteString_newMembers(&responseBuf.strings[1], UA_ActivateSessionResponse_calcSizeBinary(&r));
+        UA_ActivateSessionResponse_encodeBinary(&r, &responseBuf.strings[1], &sendOffset);
+        UA_ActivateSessionRequest_deleteMembers(&p);
+        UA_ActivateSessionResponse_deleteMembers(&r);
+        responseType = requestType.nodeId.identifier.numeric + 3;
+    }
         break;
 
     case UA_READREQUEST_NS0:

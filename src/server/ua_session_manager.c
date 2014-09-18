@@ -29,15 +29,6 @@ UA_Int32 UA_SessionManager_delete(UA_SessionManager *sessionManager) {
     return UA_SUCCESS;
 }
 
-
-UA_Int32 UA_SessionManager_generateSessionId(UA_SessionManager *sessionManager,
-                                             UA_NodeId         *sessionId) {
-    sessionId->namespaceIndex     = 0;
-    sessionId->identifierType     = UA_NODEIDTYPE_NUMERIC;
-    sessionId->identifier.numeric = sessionManager->lastSessionId++;
-    return UA_SUCCESS;
-}
-
 UA_Boolean UA_SessionManager_sessionExists(UA_SessionManager *sessionManager,
                                            UA_Session        *session) {
     if(sessionManager == UA_NULL)
@@ -122,18 +113,21 @@ UA_Int32 UA_SessionManager_getSessionByToken(UA_SessionManager *sessionManager,
 }
 
 /** Creates and adds a session. */
-UA_Int32 UA_SessionManager_addSession(UA_SessionManager *sessionManager,
-                                      UA_SecureChannel *channel, UA_Session **session) {
+UA_Int32 UA_SessionManager_createSession(UA_SessionManager *sessionManager,
+                                         UA_SecureChannel *channel, UA_Session **session) {
     UA_Int32 retval = UA_SUCCESS;
     if(sessionManager->currentSessionCount >= sessionManager->maxSessionCount)
         return UA_ERROR;
     UA_Session_new(session);
     (*session)->sessionId = (UA_NodeId) {.namespaceIndex     = 1, .identifierType = UA_NODEIDTYPE_NUMERIC,
                                          .identifier.numeric = sessionManager->lastSessionId++ };
+    (*session)->authenticationToken = (UA_NodeId) {.namespaceIndex = 1,
+                                                   .identifierType = UA_NODEIDTYPE_NUMERIC,
+                                                   .identifier.numeric = sessionManager->lastSessionId };
     (*session)->channel   = channel;
-    channel->session      = *session;
-
+    (*session)->timeout = 3600 * 000; // 1h
     sessionManager->currentSessionCount++;
+    UA_list_addPayloadToFront(&sessionManager->sessions, *session);
     return retval;
 }
 
@@ -144,21 +138,9 @@ UA_Int32 UA_SessionManager_removeSession(UA_SessionManager *sessionManager,
         UA_list_search(&sessionManager->sessions, (UA_list_PayloadComparer)UA_Session_compare,
                        sessionId);
     if(element) {
-        UA_Session *session = element->payload;
-        session->channel->session = UA_NULL;
         retval |= UA_list_removeElement(element, (UA_list_PayloadVisitor)UA_Session_delete);
         printf("UA_SessionManager_removeSession - session removed, current count: %i \n",
                sessionManager->sessions.size);
     }
     return retval;
-}
-
-UA_Int32 UA_SessionManager_getSessionTimeout(UA_SessionManager *sessionManager,
-                                             UA_Int64          *timeout_ms) {
-    if(sessionManager) {
-        *timeout_ms = sessionManager->sessionTimeout;
-        return UA_SUCCESS;
-    }
-    *timeout_ms = 0;
-    return UA_ERROR;
 }
