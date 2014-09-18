@@ -283,6 +283,7 @@ static void processMessage(UA_Connection *connection, UA_Server *server,
         UA_ResponseHeader_deleteMembers(&r);
         responseType = UA_RESPONSEHEADER_NS0 + 2;
         }
+    	break;
     }
 
     // 5) Build the header
@@ -361,6 +362,7 @@ UA_Int32 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connec
                 break;
 
             case UA_MESSAGETYPE_MSG:
+            	//no break
                 // if this fails, the connection is closed (no break on the case)
                 if(connection->state == UA_CONNECTION_ESTABLISHED &&
                    connection->channel != UA_NULL) {
@@ -383,7 +385,7 @@ UA_Int32 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connec
         }
         // todo: more than one message at once..
         if(pos != targetpos) {
-            printf("the message size was not as announced!\n");
+            printf("The message size was not as announced or an error occurred while processing, skipping to the end of the message.\n");
             pos = targetpos;
         }
     } while(msg->length > (UA_Int32)pos);
