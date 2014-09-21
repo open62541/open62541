@@ -7,25 +7,45 @@ UA_Int32 Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                                UA_CreateSessionResponse *response) {
     // creates a session and adds a pointer to the channel. Only when the
     // session is activated will the channel point to the session as well
-    UA_Session *newSession;
-    UA_SessionManager_createSession(server->sessionManager, channel, &newSession);
-
+    UA_Int32 retval = UA_SUCCESS;
+	UA_Session *newSession;
+    retval |= UA_SessionManager_createSession(server->sessionManager, channel, &newSession);
+	if(retval != UA_SUCCESS)
+	{
+		return retval;
+	}
     //TODO get maxResponseMessageSize
     UA_String_copy(&request->sessionName, &newSession->sessionName);
     newSession->maxResponseMessageSize = request->maxResponseMessageSize;
-
+    
     response->sessionId = newSession->sessionId;
     response->revisedSessionTimeout = newSession->timeout;
     response->authenticationToken = newSession->authenticationToken;
-    channel->session = newSession;
-    return UA_SUCCESS;
+    //channel->session = newSession;
+    return retval;
 }
 
 UA_Int32 Service_ActivateSession(UA_Server *server, UA_Session *session,
                                  const UA_ActivateSessionRequest *request,
                                  UA_ActivateSessionResponse *response) {
     // make the channel know about the session
-    //session->channel->session = session;
+	UA_Session *foundSession;
+	if(session == UA_NULL)
+	{
+		return UA_ERROR;
+	}
+	UA_SessionManager_getSessionById(server->sessionManager,&session->sessionId,&foundSession);
+	if(foundSession == UA_NULL)
+	{
+		return UA_ERROR;
+	}
+	//channel at creation must be the same at activation
+	if(foundSession->channel != session->channel)
+	{
+		return UA_ERROR;
+	}
+    session->channel->session = session;
+
     return UA_SUCCESS;
 }
 
