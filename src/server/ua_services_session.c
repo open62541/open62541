@@ -25,26 +25,24 @@ UA_Int32 Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     return retval;
 }
 
-UA_Int32 Service_ActivateSession(UA_Server *server, UA_Session *session,
+UA_Int32 Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
                                  const UA_ActivateSessionRequest *request,
                                  UA_ActivateSessionResponse *response) {
     // make the channel know about the session
 	UA_Session *foundSession;
-	if(session == UA_NULL)
-	{
-		return UA_ERROR;
-	}
-	UA_SessionManager_getSessionById(server->sessionManager,&session->sessionId,&foundSession);
+
+	UA_SessionManager_getSessionByToken(server->sessionManager,(UA_NodeId*)&request->requestHeader.authenticationToken,&foundSession);
+
 	if(foundSession == UA_NULL)
 	{
 		return UA_ERROR;
 	}
 	//channel at creation must be the same at activation
-	if(foundSession->channel != session->channel)
+	if(foundSession->channel !=channel)
 	{
 		return UA_ERROR;
 	}
-    session->channel->session = session;
+    channel->session = foundSession;
 
     return UA_SUCCESS;
 }

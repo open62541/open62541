@@ -79,7 +79,7 @@ UA_Boolean UA_Session_compare(UA_Session *session1, UA_Session *session2) {
     return UA_FALSE;
 }
 
-UA_Int32 UA_Session_updateLifetime(UA_Session *session) {
+UA_Int32 UA_Session_setExpirationDate(UA_Session *session) {
     if(!session)
         return UA_ERROR;
 

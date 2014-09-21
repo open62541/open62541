@@ -125,7 +125,8 @@ UA_Int32 UA_SessionManager_createSession(UA_SessionManager *sessionManager,
                                                    .identifierType = UA_NODEIDTYPE_NUMERIC,
                                                    .identifier.numeric = sessionManager->lastSessionId };
     (*session)->channel   = channel;
-    (*session)->timeout = 3600 * 000; // 1h
+    (*session)->timeout = 3600 * 1000; // 1h
+    UA_Session_setExpirationDate((*session));
     sessionManager->currentSessionCount++;
     UA_list_addPayloadToFront(&sessionManager->sessions, *session);
     return retval;

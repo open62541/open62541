@@ -227,7 +227,8 @@ static void processMessage(UA_Connection *connection, UA_Server *server,
         CHECK_PROCESS(UA_ActivateSessionRequest_decodeBinary(msg, pos, &p),; );
         UA_ActivateSessionResponse_init(&r);
         init_response_header(&p.requestHeader, &r.responseHeader);
-        Service_ActivateSession(server, channel->session,  &p, &r);
+
+        Service_ActivateSession(server, channel,  &p, &r);
         UA_ByteString_newMembers(&responseBuf.strings[1], UA_ActivateSessionResponse_calcSizeBinary(&r));
         UA_ActivateSessionResponse_encodeBinary(&r, &responseBuf.strings[1], &sendOffset);
         UA_ActivateSessionRequest_deleteMembers(&p);

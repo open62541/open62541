@@ -85,7 +85,7 @@ UA_Int32 Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
  * Client before it issues any other Service request after CreateSession.
  * Failure to do so shall cause the Server to close the Session.
  */
-UA_Int32 Service_ActivateSession(UA_Server *server, UA_Session *session,
+UA_Int32 Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                  const UA_ActivateSessionRequest *request,
                                  UA_ActivateSessionResponse *response);
 
