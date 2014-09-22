@@ -39,10 +39,8 @@ UA_Int32 UA_Session_generateToken(UA_NodeId *newToken) {
     return retval;
 }
 
-UA_Int32 UA_Session_init(UA_Session *session) {
-    if(!session)
-        return UA_ERROR;
-
+void UA_Session_init(UA_Session *session) {
+    if(!session) return;
     UA_ApplicationDescription_init(&session->clientDescription);
     UA_NodeId_init(&session->authenticationToken);
     UA_NodeId_init(&session->sessionId);
@@ -52,24 +50,19 @@ UA_Int32 UA_Session_init(UA_Session *session) {
     session->timeout = 0;
     UA_DateTime_init(&session->validTill);
     session->channel = UA_NULL;
-    return UA_SUCCESS;
 }
 
-UA_Int32 UA_Session_deleteMembers(UA_Session *session) {
-    UA_Int32 retval = UA_SUCCESS;
+void UA_Session_deleteMembers(UA_Session *session) {
     UA_ApplicationDescription_deleteMembers(&session->clientDescription);
-    retval |= UA_NodeId_deleteMembers(&session->authenticationToken);
-    retval |= UA_NodeId_deleteMembers(&session->sessionId);
-    retval |= UA_String_deleteMembers(&session->sessionName);
+    UA_NodeId_deleteMembers(&session->authenticationToken);
+    UA_NodeId_deleteMembers(&session->sessionId);
+    UA_String_deleteMembers(&session->sessionName);
     session->channel = UA_NULL;
-    return retval;
 }
 
-UA_Int32 UA_Session_delete(UA_Session *session) {
-    UA_Int32 retval = UA_SUCCESS;
+void UA_Session_delete(UA_Session *session) {
     UA_Session_deleteMembers(session);
-    retval |= UA_free(session);
-    return retval;
+    UA_free(session);
 }
 
 UA_Boolean UA_Session_compare(UA_Session *session1, UA_Session *session2) {

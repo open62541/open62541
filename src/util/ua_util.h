@@ -70,7 +70,10 @@ INLINE UA_Int32 _UA_alloca(void **ptr, UA_Int32 size, char *pname, char *sname, 
     return UA_SUCCESS;
 }
 
-UA_Int32 UA_memcpy(void *dst, void const *src, UA_Int32 size);
+INLINE void UA_memcpy(void *dst, void const *src, UA_Int32 size) {
+    DBG_VERBOSE(printf("UA_memcpy - %p;%p;%d\n", dst, src, size));
+    memcpy(dst, src, size);
+}
 
 #define UA_free(ptr) _UA_free(ptr, # ptr, __FILE__, __LINE__)
 #define UA_alloc(ptr, size) _UA_alloc(ptr, size, # ptr, # size, __FILE__, __LINE__)

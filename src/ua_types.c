@@ -17,10 +17,9 @@
 #include "ua_namespace_0.h"
 
 /* Boolean */
-UA_Int32 UA_Boolean_init(UA_Boolean *p) {
-    if(p == UA_NULL) return UA_ERROR;
+void UA_Boolean_init(UA_Boolean *p) {
+    if(!p) return;
     *p = UA_FALSE;
-    return UA_SUCCESS;
 }
 
 UA_TYPE_DELETE_DEFAULT(UA_Boolean)
@@ -129,35 +128,30 @@ void UA_Double_print(const UA_Double *p, FILE *stream) {
 
 /* String */
 UA_TYPE_NEW_DEFAULT(UA_String)
-UA_Int32 UA_String_init(UA_String *p) {
-    if(p == UA_NULL) return UA_ERROR;
+void UA_String_init(UA_String *p) {
+    if(!p) return;
     p->length = -1;
     p->data   = UA_NULL;
-    return UA_SUCCESS;
 }
 
 UA_TYPE_DELETE_DEFAULT(UA_String)
-UA_Int32 UA_String_deleteMembers(UA_String *p) {
-    UA_Int32 retval = UA_SUCCESS;
-    if(p != UA_NULL && p->length > 0 && p->data != UA_NULL) {
-        retval |= UA_free(p->data);
-        retval |= UA_String_init(p);
+void UA_String_deleteMembers(UA_String *p) {
+    if(p && p->length > 0 && p->data != UA_NULL) {
+        UA_free(p->data);
+        UA_String_init(p);
     }
-    return retval;
 }
 
 UA_Int32 UA_String_copy(UA_String const *src, UA_String *dst) {
     UA_Int32 retval = UA_SUCCESS;
-    if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
-    dst->data   = UA_NULL;
-    dst->length = -1;
+    if(!src || !dst) return UA_ERROR;
     if(src->length > 0) {
         retval |= UA_alloc((void **)&dst->data, src->length);
-        if(retval == UA_SUCCESS) {
-            retval     |= UA_memcpy((void *)dst->data, src->data, src->length);
-            dst->length = src->length;
-        }
+        if(retval != UA_SUCCESS)
+            return retval;
+        UA_memcpy((void *)dst->data, src->data, src->length);
     }
+    dst->length = src->length;
     return retval;
 }
 
@@ -179,7 +173,7 @@ UA_Int32 UA_String_copycstring(char const *src, UA_String *dst) {
     if(dst->length > 0) {
         retval |= UA_alloc((void **)&dst->data, dst->length);
         if(retval == UA_SUCCESS)
-            retval |= UA_memcpy((void *)dst->data, src, dst->length);
+            UA_memcpy((void *)dst->data, src, dst->length);
     }
     return retval;
 }
@@ -206,25 +200,20 @@ UA_Int32 UA_String_copyprintf(char const *fmt, UA_String *dst, ...) {
         dst->length = ( len > UA_STRING_COPYPRINTF_BUFSIZE ? UA_STRING_COPYPRINTF_BUFSIZE : len );
         retval     |= UA_alloc((void **)&dst->data, dst->length);
         if(retval == UA_SUCCESS)
-            retval |= UA_memcpy((void *)dst->data, src, dst->length);
+            UA_memcpy((void *)dst->data, src, dst->length);
     }
     return retval;
 }
 
-UA_Int32 UA_String_equal(const UA_String *string1, const UA_String *string2) {
-    UA_Int32 retval;
-    if(string1->length == 0 && string2->length == 0)
-        retval = UA_EQUAL;
-    else if(string1->length == -1 && string2->length == -1)
-        retval = UA_EQUAL;
-    else if(string1->length != string2->length)
-        retval = UA_NOT_EQUAL;
-    else {
-        // casts are needed to overcome signed warnings
-        UA_Int32 is = strncmp((char const *)string1->data, (char const *)string2->data, string1->length);
-        retval = (is == 0) ? UA_EQUAL : UA_NOT_EQUAL;
-    }
-    return retval;
+UA_EQUALITY UA_String_equal(const UA_String *string1, const UA_String *string2) {
+    if(string1->length <= 0 && string2->length <= 0)
+        return UA_EQUAL;
+    if(string1->length != string2->length)
+        return UA_NOT_EQUAL;
+
+    // casts are needed to overcome signed warnings
+    UA_Int32 is = strncmp((char const *)string1->data, (char const *)string2->data, string1->length);
+    return (is == 0) ? UA_EQUAL : UA_NOT_EQUAL;
 }
 
 #ifdef DEBUG
@@ -334,29 +323,27 @@ UA_Int32 UA_DateTime_toString(UA_DateTime time, UA_String *timeString) {
 
 /* Guid */
 UA_TYPE_DELETE_DEFAULT(UA_Guid)
-UA_Int32 UA_Guid_deleteMembers(UA_Guid *p) {
-    return UA_SUCCESS;
+UA_TYPE_DELETEMEMBERS_NOACTION(UA_Guid)
+
+UA_EQUALITY UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
+    if(memcmp(g1, g2, sizeof(UA_Guid)) == 0)
+        return UA_EQUAL;
+    return UA_NOT_EQUAL;
 }
 
-UA_Int32 UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
-    return memcmp(g1, g2, sizeof(UA_Guid));
-}
-
-UA_Int32 UA_Guid_init(UA_Guid *p) {
-    if(p == UA_NULL) return UA_ERROR;
+void UA_Guid_init(UA_Guid *p) {
+    if(!p) return;
     p->data1 = 0;
     p->data2 = 0;
     p->data3 = 0;
     memset(p->data4, 0, sizeof(UA_Byte)*8);
-    return UA_SUCCESS;
 }
 
 UA_TYPE_NEW_DEFAULT(UA_Guid)
 UA_Int32 UA_Guid_copy(UA_Guid const *src, UA_Guid *dst) {
-    UA_Int32 retval = UA_SUCCESS;
     if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
-    retval |= UA_memcpy((void *)dst, (void *)src, sizeof(UA_Guid));
-    return retval;
+    UA_memcpy((void *)dst, (void *)src, sizeof(UA_Guid));
+    return UA_SUCCESS;
 }
 
 #ifdef DEBUG
@@ -370,7 +357,7 @@ void UA_Guid_print(const UA_Guid *p, FILE *stream) {
 
 /* ByteString */
 UA_TYPE_AS(UA_ByteString, UA_String)
-UA_Int32 UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2) {
+UA_EQUALITY UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2) {
     return UA_String_equal((const UA_String *)string1, (const UA_String *)string2);
 }
 
@@ -399,7 +386,7 @@ UA_ByteString UA_ByteString_securityPoliceNone =
 
 UA_Int32 UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length) {
     UA_Int32 retval = UA_SUCCESS;
-    if((retval |= UA_alloc((void **)&p->data, length)) == UA_SUCCESS)
+    if(length > 0 && (retval |= UA_alloc((void **)&p->data, length)) == UA_SUCCESS)
         p->length = length;
     else {
         p->length = -1;
@@ -412,12 +399,11 @@ UA_Int32 UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length) {
 UA_TYPE_AS(UA_XmlElement, UA_ByteString)
 
 /* NodeId */
-UA_Int32 UA_NodeId_init(UA_NodeId *p) {
-    if(p == UA_NULL) return UA_ERROR;
+void UA_NodeId_init(UA_NodeId *p) {
+    if(!p) return;
     p->identifierType = UA_NODEIDTYPE_NUMERIC;
     p->namespaceIndex = 0;
     memset(&p->identifier, 0, sizeof(p->identifier));
-    return UA_SUCCESS;
 }
 
 UA_TYPE_NEW_DEFAULT(UA_NodeId)
@@ -455,28 +441,25 @@ UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id) {
 }
 
 UA_TYPE_DELETE_DEFAULT(UA_NodeId)
-UA_Int32 UA_NodeId_deleteMembers(UA_NodeId *p) {
-    UA_Int32 retval = UA_SUCCESS;
-    if(p == UA_NULL) return retval;
+void UA_NodeId_deleteMembers(UA_NodeId *p) {
+    if(!p) return;
 
     switch(p->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         // nothing to do
         break;
-
     case UA_NODEIDTYPE_STRING: // Table 6, second entry
-        retval |= UA_String_deleteMembers(&p->identifier.string);
+        UA_String_deleteMembers(&p->identifier.string);
         break;
 
     case UA_NODEIDTYPE_GUID: // Table 6, third entry
-        retval |= UA_Guid_deleteMembers(&p->identifier.guid);
+        UA_Guid_deleteMembers(&p->identifier.guid);
         break;
 
     case UA_NODEIDTYPE_BYTESTRING: // Table 6, "OPAQUE"
-        retval |= UA_ByteString_deleteMembers(&p->identifier.byteString);
+        UA_ByteString_deleteMembers(&p->identifier.byteString);
         break;
     }
-    return retval;
 }
 
 #ifdef DEBUG
@@ -534,7 +517,7 @@ void UA_NodeId_print(const UA_NodeId *p, FILE *stream) {
 }
 #endif
 
-UA_Int32 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
+UA_EQUALITY UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
     if(n1 == UA_NULL || n2 == UA_NULL || n1->namespaceIndex != n2->namespaceIndex)
         return UA_NOT_EQUAL;
 
@@ -584,20 +567,17 @@ UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
 
 /* ExpandedNodeId */
 UA_TYPE_DELETE_DEFAULT(UA_ExpandedNodeId)
-UA_Int32 UA_ExpandedNodeId_deleteMembers(UA_ExpandedNodeId *p) {
-    UA_Int32 retval = UA_SUCCESS;
-    if(p == UA_NULL) return retval;
-    retval |= UA_NodeId_deleteMembers(&p->nodeId);
-    retval |= UA_String_deleteMembers(&p->namespaceUri);
-    return retval;
+void UA_ExpandedNodeId_deleteMembers(UA_ExpandedNodeId *p) {
+    if(!p) return;
+    UA_NodeId_deleteMembers(&p->nodeId);
+    UA_String_deleteMembers(&p->namespaceUri);
 }
 
-UA_Int32 UA_ExpandedNodeId_init(UA_ExpandedNodeId *p) {
-    if(p == UA_NULL) return UA_ERROR;
+void UA_ExpandedNodeId_init(UA_ExpandedNodeId *p) {
+    if(!p) return;
     UA_NodeId_init(&p->nodeId);
     UA_String_init(&p->namespaceUri);
     p->serverIndex = 0;
-    return UA_SUCCESS;
 }
 
 UA_TYPE_NEW_DEFAULT(UA_ExpandedNodeId)
@@ -632,18 +612,15 @@ UA_TYPE_AS(UA_StatusCode, UA_UInt32)
 
 /* QualifiedName */
 UA_TYPE_DELETE_DEFAULT(UA_QualifiedName)
-UA_Int32 UA_QualifiedName_deleteMembers(UA_QualifiedName *p) {
-    UA_Int32 retval = UA_SUCCESS;
-    if(p == UA_NULL) return retval;
-    retval |= UA_String_deleteMembers(&p->name);
-    return retval;
+void UA_QualifiedName_deleteMembers(UA_QualifiedName *p) {
+    if(!p) return;
+    UA_String_deleteMembers(&p->name);
 }
 
-UA_Int32 UA_QualifiedName_init(UA_QualifiedName *p) {
-    if(p == UA_NULL) return UA_ERROR;
+void UA_QualifiedName_init(UA_QualifiedName *p) {
+    if(!p) return;
     UA_String_init(&p->name);
     p->namespaceIndex = 0;
-    return UA_SUCCESS;
 }
 
 UA_TYPE_NEW_DEFAULT(UA_QualifiedName)
@@ -681,19 +658,16 @@ void UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn) {
 
 /* LocalizedText */
 UA_TYPE_DELETE_DEFAULT(UA_LocalizedText)
-UA_Int32 UA_LocalizedText_deleteMembers(UA_LocalizedText *p) {
-    UA_Int32 retval = UA_SUCCESS;
-    if(p == UA_NULL) return UA_SUCCESS;
-    retval |= UA_String_deleteMembers(&p->locale);
-    retval |= UA_String_deleteMembers(&p->text);
-    return retval;
+void UA_LocalizedText_deleteMembers(UA_LocalizedText *p) {
+    if(!p) return;
+    UA_String_deleteMembers(&p->locale);
+    UA_String_deleteMembers(&p->text);
 }
 
-UA_Int32 UA_LocalizedText_init(UA_LocalizedText *p) {
-    if(p == UA_NULL) return UA_ERROR;
+void UA_LocalizedText_init(UA_LocalizedText *p) {
+    if(!p) return;
     UA_String_init(&p->locale);
     UA_String_init(&p->text);
-    return UA_SUCCESS;
 }
 
 UA_TYPE_NEW_DEFAULT(UA_LocalizedText)
@@ -710,8 +684,8 @@ UA_Int32 UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst) {
 
 UA_Int32 UA_LocalizedText_copy(UA_LocalizedText const *src, UA_LocalizedText *dst) {
     UA_Int32 retval = UA_SUCCESS;
-    if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;
-    retval |= UA_LocalizedText_init(dst);
+    if(!src || !dst) return UA_ERROR;
+    UA_LocalizedText_init(dst);
     retval |= UA_String_copy(&src->locale, &dst->locale);
     if(retval != UA_SUCCESS) return retval;
     retval |= UA_String_copy(&src->text, &dst->text);
@@ -731,20 +705,17 @@ void UA_LocalizedText_print(const UA_LocalizedText *p, FILE *stream) {
 
 /* ExtensionObject */
 UA_TYPE_DELETE_DEFAULT(UA_ExtensionObject)
-UA_Int32 UA_ExtensionObject_deleteMembers(UA_ExtensionObject *p) {
-    UA_Int32 retval = UA_SUCCESS;
-    if(p == UA_NULL) return retval;
-    retval |= UA_NodeId_deleteMembers(&p->typeId);
-    retval |= UA_ByteString_deleteMembers(&p->body);
-    return retval;
+void UA_ExtensionObject_deleteMembers(UA_ExtensionObject *p) {
+    if(!p) return;
+    UA_NodeId_deleteMembers(&p->typeId);
+    UA_ByteString_deleteMembers(&p->body);
 }
 
-UA_Int32 UA_ExtensionObject_init(UA_ExtensionObject *p) {
-    if(p == UA_NULL) return UA_ERROR;
+void UA_ExtensionObject_init(UA_ExtensionObject *p) {
+    if(!p) return;
     UA_NodeId_init(&p->typeId);
     p->encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED;
     UA_ByteString_init(&p->body);
-    return UA_SUCCESS;
 }
 
 UA_TYPE_NEW_DEFAULT(UA_ExtensionObject)
@@ -775,15 +746,13 @@ void UA_ExtensionObject_print(const UA_ExtensionObject *p, FILE *stream) {
 
 /* DataValue */
 UA_TYPE_DELETE_DEFAULT(UA_DataValue)
-UA_Int32 UA_DataValue_deleteMembers(UA_DataValue *p) {
-    UA_Int32 retval = UA_SUCCESS;
-    if(p == UA_NULL) return retval;
+void UA_DataValue_deleteMembers(UA_DataValue *p) {
+    if(!p) return;
     UA_Variant_deleteMembers(&p->value);
-    return retval;
 }
 
-UA_Int32 UA_DataValue_init(UA_DataValue *p) {
-    if(p == UA_NULL) return UA_ERROR;
+void UA_DataValue_init(UA_DataValue *p) {
+    if(!p) return;
     p->encodingMask      = 0;
     p->serverPicoseconds = 0;
     UA_DateTime_init(&p->serverTimestamp);
@@ -791,7 +760,6 @@ UA_Int32 UA_DataValue_init(UA_DataValue *p) {
     UA_DateTime_init(&p->sourceTimestamp);
     UA_StatusCode_init(&p->status);
     UA_Variant_init(&p->value);
-    return UA_SUCCESS;
 }
 
 UA_TYPE_NEW_DEFAULT(UA_DataValue)
@@ -831,51 +799,106 @@ void UA_DataValue_print(const UA_DataValue *p, FILE *stream) {
 
 /* Variant */
 UA_TYPE_DELETE_DEFAULT(UA_Variant)
-UA_Int32 UA_Variant_deleteMembers(UA_Variant *p) {
-    UA_Int32   retval = UA_SUCCESS;
-    UA_Boolean hasDimensions;
-    if(p == UA_NULL) return retval;
+void UA_Variant_deleteMembers(UA_Variant *p) {
+    if(p->storageType == UA_VARIANT_DATA) {
+        if(p->storage.data.dataPtr != UA_NULL) {
+            if(p->storage.data.arrayLength == 1)
+                p->vt->delete(p->storage.data.dataPtr);
+            else
+                UA_Array_delete(p->storage.data.dataPtr, p->storage.data.arrayLength, p->vt);
+            p->storage.data.dataPtr = UA_NULL;
+        }
 
-    hasDimensions = p->arrayDimensions != UA_NULL;
-
-    if(p->data != UA_NULL) {
-        if(p->arrayLength == 1)
-            retval |= p->vt->delete(p->data);
-        else
-            retval |= UA_Array_delete(p->data, p->arrayLength, p->vt);
-        p->data = UA_NULL;
+        if(p->storage.data.arrayDimensions) {
+            UA_free(p->storage.data.arrayDimensions);
+            p->storage.data.arrayDimensions = UA_NULL;
+        }
+        return;
     }
-    if(hasDimensions) {
-        UA_free(p->arrayDimensions);
-        p->arrayDimensions = UA_NULL;
-    }
-    return retval;
-}
 
-UA_Int32 UA_Variant_init(UA_Variant *p) {
-    if(p == UA_NULL) return UA_ERROR;
-    p->arrayLength = -1;  // no element, p->data == UA_NULL
-    p->data        = UA_NULL;
-    p->arrayDimensions       = UA_NULL;
-    p->arrayDimensionsLength = -1;
-    p->vt = &UA_.types[UA_INVALIDTYPE];
-    return UA_SUCCESS;
+    if(p->storageType == UA_VARIANT_DATASOURCE) {
+        p->storage.datasource.delete(p->storage.datasource.identifier);
+    }
 }
 
 UA_TYPE_NEW_DEFAULT(UA_Variant)
+void UA_Variant_init(UA_Variant *p) {
+    if(!p) return;
+    p->storageType = UA_VARIANT_DATA;
+    p->storage.data.arrayLength = -1;  // no element, p->data == UA_NULL
+    p->storage.data.dataPtr        = UA_NULL;
+    p->storage.data.arrayDimensions       = UA_NULL;
+    p->storage.data.arrayDimensionsLength = -1;
+    p->vt = &UA_.types[UA_INVALIDTYPE];
+}
+
+/** It is not allowed to copy into a variant that points to an external data source. */
 UA_Int32 UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
+    if(!src || !dst || dst->storageType == UA_VARIANT_DATASOURCE) return UA_ERROR;
     UA_Int32 retval = UA_SUCCESS;
-    if(src == UA_NULL || dst == UA_NULL)
-        return UA_ERROR;
+
+    UA_VariantData *dstdata = &dst->storage.data;
+    const UA_VariantData *srcdata;
+    if(src->storageType == UA_VARIANT_DATA || src->storageType == UA_VARIANT_DATA_NODELETE)
+        srcdata = &src->storage.data;
+    else {
+        retval |= src->storage.datasource.get(src->storage.datasource.identifier, &srcdata);
+        if(retval != UA_SUCCESS)
+            return retval;
+    }
+
+    // now copy from srcdata to dstdata.
     dst->vt = src->vt;
-    retval |= UA_Int32_copy(&src->arrayLength, &dst->arrayLength);
-    retval |= UA_Int32_copy(&src->arrayDimensionsLength, &dst->arrayDimensionsLength);
-    retval |=  UA_Array_copy(src->data, src->arrayLength, src->vt, &dst->data);
-    UA_Boolean hasDimensions = src->arrayDimensions != UA_NULL;
-    if(hasDimensions)
-        retval |= UA_Array_copy(src->arrayDimensions, src->arrayDimensionsLength,
-                                &UA_.types[UA_INT32], (void **)&dst->arrayDimensions);
+    retval |= UA_Array_copy(srcdata->dataPtr, srcdata->arrayLength, src->vt, &dstdata->dataPtr);
+    if(retval != UA_SUCCESS)
+        goto clean_up;
+    dstdata->arrayLength = srcdata->arrayLength;
+    if(srcdata->arrayDimensions != UA_NULL) {
+        retval |= UA_Array_copy(srcdata->arrayDimensions, srcdata->arrayDimensionsLength, &UA_.types[UA_INT32], (void **)&dstdata->arrayDimensions);
+        if(retval != UA_SUCCESS)
+            goto clean_up2;
+        dstdata->arrayDimensionsLength = srcdata->arrayDimensionsLength;
+    }
+
+    // release the src variant if necessary
+    if(src->storageType == UA_VARIANT_DATASOURCE)
+        src->storage.datasource.release(src->storage.datasource.identifier, srcdata);
+
     return retval;
+
+    // clean ups are falling through to the "lower levels"
+ clean_up2:
+    if(dstdata->arrayDimensions != UA_NULL)
+        UA_Array_delete(dstdata->dataPtr, dstdata->arrayLength, src->vt);
+    
+ clean_up:
+    if(src->storageType == UA_VARIANT_DATASOURCE)
+        src->storage.datasource.release(src->storage.datasource.identifier, srcdata);
+
+    return retval;
+}
+
+/** Copies data into a variant. The target variant has always a storagetype UA_VARIANT_DATA */
+UA_Int32 UA_Variant_copySetValue(UA_Variant *v, UA_VTable_Entry *vt, const void *value) {
+    if(v == UA_NULL || vt == UA_NULL || value == UA_NULL)
+        return UA_ERROR;
+    UA_Variant_init(v);
+    v->vt = vt;
+    v->storage.data.arrayLength = 1; // no array but a single entry
+    UA_Int32 retval = UA_SUCCESS;
+    retval |= vt->new(&v->storage.data.dataPtr);
+    if(retval == UA_SUCCESS)
+        retval |= vt->copy(value, v->storage.data.dataPtr);
+    return retval;
+}
+UA_Int32 UA_Variant_copySetArray(UA_Variant *v, UA_VTable_Entry *vt, UA_Int32 arrayLength,
+                                 const void *array) {
+    if(v == UA_NULL || vt == UA_NULL || array == UA_NULL)
+        return UA_ERROR;
+    UA_Variant_init(v);
+    v->vt = vt;
+    v->storage.data.arrayLength = arrayLength;
+    return UA_Array_copy(array, arrayLength, vt, &v->storage.data.dataPtr);
 }
 
 #ifdef DEBUG
@@ -900,55 +923,19 @@ void UA_Variant_print(const UA_Variant *p, FILE *stream) {
 }
 #endif
 
-UA_Int32 UA_Variant_copySetValue(UA_Variant *v, UA_VTable_Entry *vt, const void *value) {
-    if(v == UA_NULL || vt == UA_NULL || value == UA_NULL)
-        return UA_ERROR;
-    UA_Variant_init(v);
-    v->vt = vt;
-    v->arrayLength = 1; // no array but a single entry
-    UA_Int32 retval = UA_SUCCESS;
-    retval |= vt->new(&v->data);
-    if(retval == UA_SUCCESS)
-        retval |= vt->copy(value, v->data);
-    return retval;
-}
-
-UA_Int32 UA_Variant_copySetArray(UA_Variant *v, UA_VTable_Entry *vt, UA_Int32 arrayLength,
-                                 const void *array) {
-    if(v == UA_NULL || vt == UA_NULL || array == UA_NULL)
-        return UA_ERROR;
-    UA_Variant_init(v);
-    v->vt = vt;
-    v->arrayLength = arrayLength;
-    return UA_Array_copy(array, arrayLength, vt, &v->data);
-}
-
-UA_Int32 UA_Variant_borrowSetValue(UA_Variant *v, UA_VTable_Entry *vt, const void *value) {
-    if(v == UA_NULL || vt == UA_NULL || value == UA_NULL)
-        return UA_ERROR;
-    UA_Variant_init(v);
-    v->vt   = &UA_borrowed_.types[UA_ns0ToVTableIndex(&vt->typeId)];
-    v->arrayLength = 1; // no array but a single entry
-    v->data = (void *)value;
-    return UA_SUCCESS;
-}
-
 /* DiagnosticInfo */
 UA_TYPE_DELETE_DEFAULT(UA_DiagnosticInfo)
-UA_Int32 UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
-    UA_Int32 retval = UA_SUCCESS;
-    if(p == UA_NULL) return retval;
-    if((p->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO) && p->innerDiagnosticInfo !=
-       UA_NULL) {
-        retval |= UA_DiagnosticInfo_delete(p->innerDiagnosticInfo);
-        retval |= UA_String_deleteMembers(&p->additionalInfo);
+void UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
+    if(!p) return;
+    UA_String_deleteMembers(&p->additionalInfo);
+    if((p->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO) && p->innerDiagnosticInfo) {
+        UA_DiagnosticInfo_delete(p->innerDiagnosticInfo);
         p->innerDiagnosticInfo = UA_NULL;
     }
-    return retval;
 }
 
-UA_Int32 UA_DiagnosticInfo_init(UA_DiagnosticInfo *p) {
-    if(p == UA_NULL) return UA_ERROR;
+void UA_DiagnosticInfo_init(UA_DiagnosticInfo *p) {
+    if(!p) return;
     UA_String_init(&p->additionalInfo);
     p->encodingMask = 0;
     p->innerDiagnosticInfo = UA_NULL;
@@ -957,7 +944,6 @@ UA_Int32 UA_DiagnosticInfo_init(UA_DiagnosticInfo *p) {
     p->localizedText       = 0;
     p->namespaceUri        = 0;
     p->symbolicId          = 0;
-    return UA_SUCCESS;
 }
 
 UA_TYPE_NEW_DEFAULT(UA_DiagnosticInfo)
@@ -1009,20 +995,16 @@ void UA_DiagnosticInfo_print(const UA_DiagnosticInfo *p, FILE *stream) {
 #endif
 
 /* InvalidType */
-UA_Int32 UA_InvalidType_free(UA_InvalidType *p) {
-    return UA_ERR_INVALID_VALUE;
+void UA_InvalidType_delete(UA_InvalidType *p) {
+    return;
 }
 
-UA_Int32 UA_InvalidType_delete(UA_InvalidType *p) {
-    return UA_ERR_INVALID_VALUE;
+void UA_InvalidType_deleteMembers(UA_InvalidType *p) {
+    return;
 }
 
-UA_Int32 UA_InvalidType_deleteMembers(UA_InvalidType *p) {
-    return UA_ERR_INVALID_VALUE;
-}
-
-UA_Int32 UA_InvalidType_init(UA_InvalidType *p) {
-    return UA_ERR_INVALID_VALUE;
+void UA_InvalidType_init(UA_InvalidType *p) {
+    return;
 }
 
 UA_Int32 UA_InvalidType_copy(UA_InvalidType const *src, UA_InvalidType *dst) {
@@ -1065,42 +1047,29 @@ UA_Int32 UA_Array_new(void **p, UA_Int32 noElements, UA_VTable_Entry *vt) {
     if(retval != UA_SUCCESS)
         return retval;
 
-    retval = UA_Array_init(*p, noElements, vt);
-    if(retval != UA_SUCCESS) {
-        UA_free(*p);
-        *p = UA_NULL;
-    }
-    return retval;
+    UA_Array_init(*p, noElements, vt);
+    return UA_SUCCESS;
 }
 
-UA_Int32 UA_Array_init(void *p, UA_Int32 noElements, UA_VTable_Entry *vt) {
-    UA_Int32 retval = UA_SUCCESS;
-    if(p == UA_NULL || vt == UA_NULL)
-        return UA_ERROR;
-    char     *cp      = (char *)p; // so compilers allow pointer arithmetic
+void UA_Array_init(void *p, UA_Int32 noElements, UA_VTable_Entry *vt) {
+    if(!p || !vt) return;
+    char *cp = (char *)p; // so compilers allow pointer arithmetic
     UA_UInt32 memSize = vt->memSize;
-    for(UA_Int32 i = 0;i < noElements && retval == UA_SUCCESS;i++) {
-        retval |= vt->init(cp);
-        cp     += memSize;
+    for(UA_Int32 i = 0;i<noElements;i++) {
+        vt->init(cp);
+        cp += memSize;
     }
-    return retval;
 }
 
-UA_Int32 UA_Array_delete(void *p, UA_Int32 noElements, UA_VTable_Entry *vt) {
-    if(p == UA_NULL)
-        return UA_SUCCESS;
-    if(vt == UA_NULL)
-        return UA_ERROR;
-
+void UA_Array_delete(void *p, UA_Int32 noElements, UA_VTable_Entry *vt) {
+    if(!p || !vt || noElements <= 0) return;
     char     *cp      = (char *)p; // so compilers allow pointer arithmetic
     UA_UInt32 memSize = vt->memSize;
-    UA_Int32  retval  = UA_SUCCESS;
-    for(UA_Int32 i = 0;i < noElements;i++) {
-        retval |= vt->deleteMembers(cp);
-        cp     += memSize;
+    for(UA_Int32 i = 0;i<noElements;i++) {
+        vt->deleteMembers(cp);
+        cp += memSize;
     }
     UA_free(p);
-    return retval;
 }
 
 UA_Int32 UA_Array_copy(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt, void **dst) {

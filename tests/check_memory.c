@@ -16,7 +16,7 @@ START_TEST(newAndEmptyObjectShallBeDeleted) {
 #ifdef DEBUG //no print functions if not in debug mode
 	UA_.types[_i].print(obj, stdout);
 #endif
-	retval |= UA_.types[_i].delete(obj);
+	UA_.types[_i].delete(obj);
 	// then
 	ck_assert_int_eq(retval, UA_SUCCESS);
 }

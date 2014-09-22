@@ -40,7 +40,10 @@ extern "C" {
  *     returned pointer.
  *
  * - <type>_copy: Copies a datatype. This performs a deep copy that iterates
- *    over the members.
+ *    over the members. The copy function assumes that the target structure can
+ *    be overwritten (do a deleteMembers before if necessary). With one
+ *    exception: copying into a variant that points to an external datasource is
+ *    not permitted.
  *
  * - <type>_delete: Frees the memory where the datatype was stored.
  *
@@ -64,13 +67,13 @@ extern "C" {
 
 /* Boolean values and null */
 #define UA_TRUE (42 == 42)
-//#define TRUE UA_TRUE
 #define UA_FALSE (!UA_TRUE)
-//#define FALSE UA_FALSE
 
 /* Compare values */
-#define UA_EQUAL 0
-#define UA_NOT_EQUAL (!UA_EQUAL)
+typedef enum UA_EQUALITY {
+    UA_EQUAL,
+    UA_NOT_EQUAL
+} UA_EQUALITY;
 
 /** @brief A two-state logical value (true or false). */
 typedef _Bool UA_Boolean;
@@ -199,24 +202,50 @@ typedef struct UA_ExtensionObject {
 struct UA_VTable_Entry; // forwards declaration
 typedef struct UA_VTable_Entry UA_VTable_Entry;
 
+/* Variant */
+/** @defgroup variant Variant
+ *
+ * @brief Variants may contain (arrays of) any other datatype.
+ *
+ * For that, we provide a reference to the utility functions of the type as well
+ * as possible encoding by pointing an entry in the vtable of types. References
+ * may either contain a structure with the variants data, or a datasource where
+ * this structure may be obtained (using reference counting for async access).
+ */
+
+typedef struct UA_VariantData {
+    UA_Int32  arrayLength;        // total number of elements in the data-pointer
+    void     *dataPtr;
+    UA_Int32  arrayDimensionsLength;
+    UA_Int32 *arrayDimensions;
+} UA_VariantData;
+
+typedef struct UA_VariantDataSource {
+    const void *identifier; // whatever id the datasource uses internally. Some provide custom get/write/release functions and don't use this.
+    UA_Int32 (*get)(const void *identifier, const UA_VariantData **); // get the variantdata provided by the datasource. when it is no longer used, it has to be relased.
+    UA_Int32 (*set)(const void **identifier, const UA_VariantData *); // replace the variant data in the datasource. and replace the identifier in the variant for lookups. The VariantData pointer shall no longer be used afterwards
+    void (*release)(const void *identifier, const UA_VariantData *); // release data after every get when the request is finished. so we can have async access to data and free it when the reference count drops to zero
+    void (*delete)(const void *identifier);
+} UA_VariantDataSource;
+
 /** @brief A union of all of the types specified above.
  *
  * Variants store (arrays of) built-in types. If you want to store a more
  * complex (or self-defined) type, you have to use an UA_ExtensionObject.*/
 typedef struct UA_Variant {
-    UA_VTable_Entry *vt;          // internal entry into vTable
-    UA_Int32  arrayLength;        // total number of elements
-    void     *data;
-    UA_Int32  arrayDimensionsLength;
-    UA_Int32 *arrayDimensions;
+    UA_VTable_Entry *vt; // internal entry into vTable
+    enum {
+        UA_VARIANT_DATA,
+        UA_VARIANT_DATA_NODELETE, // do not free the data (e.g. because it is "borrowed" and points into a larger structure)
+        UA_VARIANT_DATASOURCE
+    } storageType;
+    union {
+        UA_VariantData       data;
+        UA_VariantDataSource datasource;
+    } storage;
 } UA_Variant;
 
-/* VariantBinaryEncoding - Part: 6, Chapter: 5.2.2.16, Page: 22 */
-enum UA_VARIANT_ENCODINGMASKTYPE_enum {
-    UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK = 0x3F,            // bits 0:5
-    UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS  = (0x01 << 6),     // bit 6
-    UA_VARIANT_ENCODINGMASKTYPE_ARRAY       = (0x01 << 7)      // bit 7
-};
+/** @endgroup */
 
 /** @brief A data value with an associated status code and timestamps. */
 typedef struct UA_DataValue {
@@ -268,19 +297,19 @@ typedef void UA_InvalidType;
 /*************/
 
 #ifdef DEBUG
-#define UA_TYPE_PROTOTYPES(TYPE)                      \
+#define UA_TYPE_PROTOTYPES(TYPE)                                   \
     UA_Int32 UA_LIBEXPORT TYPE##_new(TYPE **p);                    \
-    UA_Int32 UA_LIBEXPORT TYPE##_init(TYPE * p);                   \
-    UA_Int32 UA_LIBEXPORT TYPE##_delete(TYPE * p);                 \
-    UA_Int32 UA_LIBEXPORT TYPE##_deleteMembers(TYPE * p);          \
+    void UA_LIBEXPORT     TYPE##_init(TYPE * p);                   \
+    void UA_LIBEXPORT     TYPE##_delete(TYPE * p);                 \
+    void UA_LIBEXPORT     TYPE##_deleteMembers(TYPE * p);          \
     UA_Int32 UA_LIBEXPORT TYPE##_copy(const TYPE *src, TYPE *dst); \
-    void     UA_LIBEXPORT TYPE##_print(const TYPE *p, FILE *stream);
+    void UA_LIBEXPORT     TYPE##_print(const TYPE *p, FILE *stream);
 #else
-#define UA_TYPE_PROTOTYPES(TYPE)             \
+#define UA_TYPE_PROTOTYPES(TYPE)                          \
     UA_Int32 UA_LIBEXPORT TYPE##_new(TYPE **p);           \
-    UA_Int32 UA_LIBEXPORT TYPE##_init(TYPE * p);          \
-    UA_Int32 UA_LIBEXPORT TYPE##_delete(TYPE * p);        \
-    UA_Int32 UA_LIBEXPORT TYPE##_deleteMembers(TYPE * p); \
+    void UA_LIBEXPORT     TYPE##_init(TYPE * p);          \
+    void UA_LIBEXPORT     TYPE##_delete(TYPE * p);        \
+    void UA_LIBEXPORT     TYPE##_deleteMembers(TYPE * p); \
     UA_Int32 UA_LIBEXPORT TYPE##_copy(const TYPE *src, TYPE *dst);
 #endif
 
@@ -320,7 +349,7 @@ UA_TYPE_PROTOTYPES(UA_InvalidType)
 
 UA_Int32 UA_LIBEXPORT UA_String_copycstring(char const *src, UA_String *dst);
 UA_Int32 UA_LIBEXPORT UA_String_copyprintf(char const *fmt, UA_String *dst, ...);
-UA_Int32 UA_LIBEXPORT UA_String_equal(const UA_String *string1, const UA_String *string2);
+UA_EQUALITY UA_LIBEXPORT UA_String_equal(const UA_String *string1, const UA_String *string2);
 #ifdef DEBUG
 void UA_LIBEXPORT UA_String_printf(char const *label, const UA_String *string);
 void UA_LIBEXPORT UA_String_printx(char const *label, const UA_String *string);
@@ -344,10 +373,10 @@ UA_DateTimeStruct UA_LIBEXPORT UA_DateTime_toStruct(UA_DateTime time);
 UA_Int32 UA_LIBEXPORT UA_DateTime_toString(UA_DateTime time, UA_String *timeString);
 
 /* Guid */
-UA_Int32 UA_LIBEXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
+UA_EQUALITY UA_LIBEXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
 
 /* ByteString */
-UA_Int32 UA_LIBEXPORT UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2);
+UA_EQUALITY UA_LIBEXPORT UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2);
 UA_Int32 UA_LIBEXPORT UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length);
 #ifdef DEBUG
 void UA_LIBEXPORT UA_ByteString_printf(char *label, const UA_ByteString *string);
@@ -356,7 +385,7 @@ void UA_LIBEXPORT UA_ByteString_printx_hex(char *label, const UA_ByteString *str
 #endif
 
 /* NodeId */
-UA_Int32 UA_LIBEXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
+UA_EQUALITY UA_LIBEXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 UA_Boolean UA_LIBEXPORT UA_NodeId_isNull(const UA_NodeId *p);
 UA_Boolean UA_LIBEXPORT UA_NodeId_isBasicType(UA_NodeId const *id);
 
@@ -392,16 +421,10 @@ UA_Int32 UA_LIBEXPORT UA_LocalizedText_copycstring(char const *src, UA_Localized
 UA_Int32 UA_LIBEXPORT UA_Variant_copySetValue(UA_Variant *v, UA_VTable_Entry *vt, const void *value);
 UA_Int32 UA_LIBEXPORT UA_Variant_copySetArray(UA_Variant *v, UA_VTable_Entry *vt, UA_Int32 arrayLength, const void *array);
 
-/** @brief Allows to define variants whose payload will not be deleted. This is
-   achieved by a second vtable. The functionality can be used e.g. when
-   UA_VariableNodes point into a "father" structured object that is stored in an
-   UA_VariableNode itself. This is not possible for arrays so far. */
-UA_Int32 UA_LIBEXPORT UA_Variant_borrowSetValue(UA_Variant *v, UA_VTable_Entry *vt, const void *value);
-
 /* Array operations */
 UA_Int32 UA_LIBEXPORT UA_Array_new(void **p, UA_Int32 noElements, UA_VTable_Entry *vt);
-UA_Int32 UA_LIBEXPORT UA_Array_init(void *p, UA_Int32 noElements, UA_VTable_Entry *vt);
-UA_Int32 UA_LIBEXPORT UA_Array_delete(void *p, UA_Int32 noElements, UA_VTable_Entry *vt);
+void UA_LIBEXPORT UA_Array_init(void *p, UA_Int32 noElements, UA_VTable_Entry *vt);
+void UA_LIBEXPORT UA_Array_delete(void *p, UA_Int32 noElements, UA_VTable_Entry *vt);
 
 /* @brief The destination array is allocated according to noElements. */
 UA_Int32 UA_LIBEXPORT UA_Array_copy(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt, void **dst);
@@ -428,10 +451,10 @@ struct UA_VTable_Entry {
     UA_NodeId  typeId;
     UA_Byte   *name;
     UA_Int32   (*new)(void **p);
-    UA_Int32   (*init)(void *p);
+    void       (*init)(void *p);
     UA_Int32   (*copy)(void const *src, void *dst);
-    UA_Int32   (*delete)(void *p);
-    UA_Int32   (*deleteMembers)(void *p);
+    void       (*delete)(void *p);
+    void       (*deleteMembers)(void *p);
 #ifdef DEBUG
     void       (*print)(const void *p, FILE *stream);
 #endif
@@ -459,50 +482,49 @@ typedef struct UA_VTable {
     UA_TYPE_NEW_DEFAULT(TYPE)            \
     UA_TYPE_COPY_DEFAULT(TYPE)           \
 
-#define UA_TYPE_NEW_DEFAULT(TYPE)                     \
-    UA_Int32 TYPE##_new(TYPE **p) {                   \
-        UA_Int32 retval = UA_SUCCESS;                 \
-        retval |= UA_alloc((void **)p, sizeof(TYPE)); \
-        retval |= TYPE##_init(*p);                    \
-        return retval;                                \
+#define UA_TYPE_NEW_DEFAULT(TYPE)                            \
+    UA_Int32 TYPE##_new(TYPE **p) {                          \
+        if(UA_alloc((void **)p, sizeof(TYPE)) != UA_SUCCESS) \
+            return UA_ERROR;                                 \
+        TYPE##_init(*p);                                     \
+        return UA_SUCCESS;                                   \
     }
 
-#define UA_TYPE_INIT_DEFAULT(TYPE)         \
-    UA_Int32 TYPE##_init(TYPE * p) {       \
-        if(p == UA_NULL) return UA_ERROR;  \
-        *p = (TYPE)0;                      \
-        return UA_SUCCESS;                 \
+#define UA_TYPE_INIT_DEFAULT(TYPE) \
+    void TYPE##_init(TYPE * p) {   \
+        if(!p) return;             \
+        *p = (TYPE)0;              \
     }
 
-#define UA_TYPE_INIT_AS(TYPE, TYPE_AS)       \
-    UA_Int32 TYPE##_init(TYPE * p) {         \
-        return TYPE_AS##_init((TYPE_AS *)p); \
+#define UA_TYPE_INIT_AS(TYPE, TYPE_AS) \
+    void TYPE##_init(TYPE * p) {       \
+        TYPE_AS##_init((TYPE_AS *)p);  \
     }
 
-#define UA_TYPE_DELETE_DEFAULT(TYPE)       \
-    UA_Int32 TYPE##_delete(TYPE *p) {      \
-        UA_Int32 retval = UA_SUCCESS;      \
-        retval |= TYPE##_deleteMembers(p); \
-        retval |= UA_free(p);              \
-        return retval;                     \
+#define UA_TYPE_DELETE_DEFAULT(TYPE) \
+    void TYPE##_delete(TYPE *p) {    \
+        if(!p) return;               \
+        TYPE##_deleteMembers(p);     \
+        UA_free(p);                  \
     }
 
 #define UA_TYPE_DELETE_AS(TYPE, TYPE_AS) \
-    UA_Int32 TYPE##_delete(TYPE * p) { return TYPE_AS##_delete((TYPE_AS *)p); }
+    void TYPE##_delete(TYPE * p) {       \
+        TYPE_AS##_delete((TYPE_AS *)p);  \
+    }
 
 #define UA_TYPE_DELETEMEMBERS_NOACTION(TYPE) \
-    UA_Int32 TYPE##_deleteMembers(TYPE * p) { return UA_SUCCESS; }
+    void TYPE##_deleteMembers(TYPE * p) { return; }
 
 #define UA_TYPE_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
-    UA_Int32 TYPE##_deleteMembers(TYPE * p) { return TYPE_AS##_deleteMembers((TYPE_AS *)p); }
+    void TYPE##_deleteMembers(TYPE * p) { TYPE_AS##_deleteMembers((TYPE_AS *)p); }
 
 /* Use only when the type has no arrays. Otherwise, implement deep copy */
 #define UA_TYPE_COPY_DEFAULT(TYPE)                             \
     UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst) {         \
         if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;  \
-        { UA_Int32 retval = UA_SUCCESS;                        \
-          retval |= UA_memcpy(dst, src, sizeof(TYPE));         \
-          return retval;    }                                  \
+        *dst = *src;                                           \
+        return UA_SUCCESS;                                     \
     }
 
 #define UA_TYPE_COPY_AS(TYPE, TYPE_AS)                         \

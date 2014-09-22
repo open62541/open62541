@@ -34,8 +34,8 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     // fill the UA_borrowed_ table that has been declaed in ua_namespace.c
     for(UA_Int32 i = 0;i < SIZE_UA_VTABLE;i++) {
         UA_borrowed_.types[i] = UA_.types[i];
-        UA_borrowed_.types[i].delete = (UA_Int32 (*)(void *))phantom_delete;
-        UA_borrowed_.types[i].deleteMembers = (UA_Int32 (*)(void *))phantom_delete;
+        UA_borrowed_.types[i].delete = (void (*)(void *))phantom_delete;
+        UA_borrowed_.types[i].deleteMembers = (void (*)(void *))phantom_delete;
     }
 
     UA_NodeStore_new(&server->nodestore);
@@ -469,12 +469,11 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_QualifiedName_copycstring("NodeStoreArray", &namespaceArray->browseName);
     UA_LocalizedText_copycstring("NodeStoreArray", &namespaceArray->displayName);
     UA_LocalizedText_copycstring("NodeStoreArray", &namespaceArray->description);
-    UA_Array_new((void **)&namespaceArray->value.data, 2, &UA_.types[UA_STRING]);
+    UA_Array_new((void **)&namespaceArray->value.storage.data.dataPtr, 2, &UA_.types[UA_STRING]);
     namespaceArray->value.vt = &UA_.types[UA_STRING];
-    namespaceArray->value.arrayLength = 2;
-    UA_String_copycstring("http://opcfoundation.org/UA/", &((UA_String *)((namespaceArray->value).data))[0]);
-    UA_String_copycstring("http://localhost:16664/open62541/",
-                          &((UA_String *)(((namespaceArray)->value).data))[1]);
+    namespaceArray->value.storage.data.arrayLength = 2;
+    UA_String_copycstring("http://opcfoundation.org/UA/", &((UA_String *)(namespaceArray->value.storage.data.dataPtr))[0]);
+    UA_String_copycstring("http://localhost:16664/open62541/", &((UA_String *)(namespaceArray->value.storage.data.dataPtr))[1]);
     namespaceArray->arrayDimensionsSize = 1;
     UA_UInt32 *dimensions = UA_NULL;
     UA_alloc((void **)&dimensions, sizeof(UA_UInt32));
@@ -508,8 +507,8 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     status->secondsTillShutdown     = 99999999;
     UA_LocalizedText_copycstring("because", &status->shutdownReason);
     serverstatus->value.vt          = &UA_.types[UA_SERVERSTATUSDATATYPE]; // gets encoded as an extensionobject
-    serverstatus->value.arrayLength = 1;
-    serverstatus->value.data        = status;
+    serverstatus->value.storage.data.arrayLength = 1;
+    serverstatus->value.storage.data.dataPtr        = status;
     UA_NodeStore_insert(server->nodestore, (UA_Node**)&serverstatus, UA_NODESTORE_INSERT_UNIQUE);
 
     // State (Component of ServerStatus)
@@ -521,9 +520,9 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_LocalizedText_copycstring("State", &state->displayName);
     UA_LocalizedText_copycstring("State", &state->description);
     state->value.vt = &UA_borrowed_.types[UA_SERVERSTATE];
-    state->value.arrayDimensionsLength = 1; // added to ensure encoding in readreponse
-    state->value.arrayLength = 1;
-    state->value.data = &status->state; // points into the other object.
+    state->value.storage.data.arrayDimensionsLength = 1; // added to ensure encoding in readreponse
+    state->value.storage.data.arrayLength = 1;
+    state->value.storage.data.dataPtr = &status->state; // points into the other object.
     UA_NodeStore_insert(server->nodestore, (UA_Node**)&state, UA_NODESTORE_INSERT_UNIQUE);
 
     //TODO: free(namespaceArray->value.data) later or forget it

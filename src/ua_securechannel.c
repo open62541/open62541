@@ -3,30 +3,26 @@
 #include "ua_securechannel.h"
 #include "util/ua_util.h"
 
-UA_Int32 UA_SecureChannel_init(UA_SecureChannel *channel) {
+void UA_SecureChannel_init(UA_SecureChannel *channel) {
     UA_AsymmetricAlgorithmSecurityHeader_init(&channel->clientAsymAlgSettings);
     UA_AsymmetricAlgorithmSecurityHeader_init(&channel->serverAsymAlgSettings);
     UA_ByteString_init(&channel->clientNonce);
     UA_ByteString_init(&channel->serverNonce);
     channel->connection = UA_NULL;
     channel->session    = UA_NULL;
-    return UA_SUCCESS;
 }
 
-UA_Int32 UA_SecureChannel_deleteMembers(UA_SecureChannel *channel) {
-    UA_Int32 retval = UA_SUCCESS;
-    retval |= UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&channel->serverAsymAlgSettings);
-    retval |= UA_ByteString_deleteMembers(&channel->serverNonce);
-    retval |= UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&channel->clientAsymAlgSettings);
-    retval |= UA_ByteString_deleteMembers(&channel->clientNonce);
-    retval |= UA_ChannelSecurityToken_deleteMembers(&channel->securityToken);
-    return retval;
+void UA_SecureChannel_deleteMembers(UA_SecureChannel *channel) {
+    UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&channel->serverAsymAlgSettings);
+    UA_ByteString_deleteMembers(&channel->serverNonce);
+    UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&channel->clientAsymAlgSettings);
+    UA_ByteString_deleteMembers(&channel->clientNonce);
+    UA_ChannelSecurityToken_deleteMembers(&channel->securityToken);
 }
-UA_Int32 UA_SecureChannel_delete(UA_SecureChannel *channel) {
-    UA_Int32 retval = UA_SUCCESS;
-    retval |= UA_SecureChannel_deleteMembers(channel);
-    retval |= UA_free(channel);
-    return retval;
+
+void UA_SecureChannel_delete(UA_SecureChannel *channel) {
+    UA_SecureChannel_deleteMembers(channel);
+    UA_free(channel);
 }
 
 UA_Boolean UA_SecureChannel_compare(UA_SecureChannel *sc1, UA_SecureChannel *sc2) {

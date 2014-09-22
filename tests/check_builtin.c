@@ -7,6 +7,13 @@
 #include "util/ua_util.h"
 #include "check.h"
 
+/* copied here from encoding_binary.c */
+enum UA_VARIANT_ENCODINGMASKTYPE_enum {
+    UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK = 0x3F,            // bits 0:5
+    UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS  = (0x01 << 6),     // bit 6
+    UA_VARIANT_ENCODINGMASKTYPE_ARRAY       = (0x01 << 7)      // bit 7
+};
+
 START_TEST(UA_Boolean_calcSizeWithNullArgumentShallReturnStorageSize) {
 	// given
 	UA_Boolean *arg = UA_NULL;
@@ -260,15 +267,6 @@ START_TEST(UA_DataValue_calcSizeWithNullArgumentShallReturnStorageSize) {
 	ck_assert_int_eq(storageSize, sizeof(UA_DataValue));
 }
 END_TEST
-START_TEST(UA_Variant_calcSizeWithNullArgumentShallReturnStorageSize) {
-	// given
-	UA_Variant *arg = UA_NULL;
-	// when
-	UA_UInt32   storageSize = UA_Variant_calcSizeBinary(arg);
-	// then
-	ck_assert_int_eq(storageSize, sizeof(UA_Variant));
-}
-END_TEST
 START_TEST(UA_DiagnosticInfo_calcSizeShallWorkOnExample) {
 	// given
 	UA_DiagnosticInfo diagnosticInfo;
@@ -477,9 +475,9 @@ START_TEST(UA_Variant_calcSizeFixedSizeArrayShallReturnEncodingSize) {
 	UA_Variant_init(&arg);
 	arg.vt = &UA_.types[UA_INT32];
 #define ARRAY_LEN 8
-	arg.arrayLength = ARRAY_LEN;
+	arg.storage.data.arrayLength = ARRAY_LEN;
 	UA_Int32 *data[ARRAY_LEN];
-	arg.data = (void *)data;
+	arg.storage.data.dataPtr = (void *)data;
 
 	// when
 	UA_UInt32 encodingSize = UA_Variant_calcSizeBinary(&arg);
@@ -495,12 +493,12 @@ START_TEST(UA_Variant_calcSizeVariableSizeArrayShallReturnEncodingSize) {
 	UA_Variant_init(&arg);
 	arg.vt = &UA_.types[UA_STRING];
 #define ARRAY_LEN 3
-	arg.arrayLength = ARRAY_LEN;
+	arg.storage.data.arrayLength = ARRAY_LEN;
 	UA_String strings[3];
 	strings[0] = (UA_String) {-1, UA_NULL };
 	strings[1] = (UA_String) {3, (UA_Byte *)"PLT" };
 	strings[2] = (UA_String) {47, UA_NULL };
-	arg.data   = (void *)strings;
+	arg.storage.data.dataPtr   = (void *)strings;
 	// when
 	UA_UInt32 encodingSize = UA_Variant_calcSizeBinary(&arg);
 	// then
@@ -865,8 +863,8 @@ START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArr
 	ck_assert_int_eq(retval, UA_SUCCESS);
 	ck_assert_int_eq(pos, 5);
 	ck_assert_ptr_eq(dst.vt, &UA_.types[UA_INT32]);
-	ck_assert_int_eq(dst.arrayLength, 1);
-	ck_assert_int_eq(*(UA_Int32 *)dst.data, 255);
+	ck_assert_int_eq(dst.storage.data.arrayLength, 1);
+	ck_assert_int_eq(*(UA_Int32 *)dst.storage.data.dataPtr, 255);
 	// finally
 	UA_Variant_deleteMembers(&dst);
 }
@@ -887,9 +885,9 @@ START_TEST(UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray)
 	ck_assert_int_eq(retval, UA_SUCCESS);
 	ck_assert_int_eq(pos, 1+4+2*4);
 	ck_assert_ptr_eq(dst.vt, &UA_.types[UA_INT32]);
-	ck_assert_int_eq(dst.arrayLength, 2);
-	ck_assert_int_eq(((UA_Int32 *)dst.data)[0], 255);
-	ck_assert_int_eq(((UA_Int32 *)dst.data)[1], -1);
+	ck_assert_int_eq(dst.storage.data.arrayLength, 2);
+	ck_assert_int_eq(((UA_Int32 *)dst.storage.data.dataPtr)[0], 255);
+	ck_assert_int_eq(((UA_Int32 *)dst.storage.data.dataPtr)[1], -1);
 	// finally
 	UA_Variant_deleteMembers(&dst);
 }
@@ -1310,9 +1308,9 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithVariant) {
 	src.encodingMask       = UA_DATAVALUE_ENCODINGMASK_VARIANT | UA_DATAVALUE_ENCODINGMASK_SERVERTIMESTAMP; //Variant & SourvePicoseconds
 	UA_Variant_init(&src.value);
 	src.value.vt           = &UA_.types[UA_INT32];
-	src.value.arrayLength  = 1; // one element (encoded as not an array)
+	src.value.storage.data.arrayLength  = 1; // one element (encoded as not an array)
 	UA_Int32  vdata  = 45;
-	src.value.data = (void *)&vdata;
+	src.value.storage.data.dataPtr = (void *)&vdata;
 
 	UA_Byte data[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		               0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -1675,25 +1673,25 @@ START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
 	UA_Variant value, copiedValue;
 	UA_Variant_init(&value);
 	UA_Variant_init(&copiedValue);
-	UA_alloc((void**)&value.data, sizeof(UA_String));
-	*((UA_String*)value.data) = testString;
+	UA_alloc((void**)&value.storage.data.dataPtr, sizeof(UA_String));
+	*((UA_String*)value.storage.data.dataPtr) = testString;
 	value.vt = &UA_.types[UA_STRING];
-	value.arrayLength = 1;
+	value.storage.data.arrayLength = 1;
 
 	//when
 	UA_Variant_copy(&value, &copiedValue);
 
 	//then
-	UA_String copiedString = *(UA_String*)(copiedValue.data);
+	UA_String copiedString = *(UA_String*)(copiedValue.storage.data.dataPtr);
 	for(UA_Int32 i = 0;i < 5;i++)
 		ck_assert_int_eq(copiedString.data[i], testString.data[i]);
 	ck_assert_int_eq(copiedString.length, testString.length);
 
-	ck_assert_int_eq(value.arrayDimensionsLength, copiedValue.arrayDimensionsLength);
-	ck_assert_int_eq(value.arrayLength, copiedValue.arrayLength);
+	ck_assert_int_eq(value.storage.data.arrayDimensionsLength, copiedValue.storage.data.arrayDimensionsLength);
+	ck_assert_int_eq(value.storage.data.arrayLength, copiedValue.storage.data.arrayLength);
 
 	//finally
-	((UA_String*)value.data)->data = UA_NULL; // the string is statically allocated. do not free it.
+	((UA_String*)value.storage.data.dataPtr)->data = UA_NULL; // the string is statically allocated. do not free it.
 	UA_Variant_deleteMembers(&value);
 	UA_Variant_deleteMembers(&copiedValue);
 }
@@ -1714,30 +1712,30 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
 	UA_Variant_init(&value);
 	UA_Variant_init(&copiedValue);
 
-	value.arrayLength = 3;
-	value.data        = (void **)srcArray;
-	value.arrayDimensionsLength = 1;
-	value.arrayDimensions       = dimensions;
+	value.storage.data.arrayLength = 3;
+	value.storage.data.dataPtr        = (void **)srcArray;
+	value.storage.data.arrayDimensionsLength = 1;
+	value.storage.data.arrayDimensions       = dimensions;
 	value.vt = &UA_.types[UA_STRING];
 
 	//when
 	UA_Variant_copy(&value, &copiedValue);
 
 	//then
-	UA_Int32 i1 = value.arrayDimensions[0];
-	UA_Int32 i2 = copiedValue.arrayDimensions[0];
+	UA_Int32 i1 = value.storage.data.arrayDimensions[0];
+	UA_Int32 i2 = copiedValue.storage.data.arrayDimensions[0];
 	ck_assert_int_eq(i1, i2);
 
 	for(UA_Int32 i = 0;i < 3;i++) {
 		for(UA_Int32 j = 0;j < 6;j++)
-			ck_assert_int_eq(((UA_String *)value.data)[i].data[j], ((UA_String *)copiedValue.data)[i].data[j]);
-		ck_assert_int_eq(((UA_String *)value.data)[i].length, ((UA_String *)copiedValue.data)[i].length);
+			ck_assert_int_eq(((UA_String *)value.storage.data.dataPtr)[i].data[j], ((UA_String *)copiedValue.storage.data.dataPtr)[i].data[j]);
+		ck_assert_int_eq(((UA_String *)value.storage.data.dataPtr)[i].length, ((UA_String *)copiedValue.storage.data.dataPtr)[i].length);
 	}
-	ck_assert_int_eq(((UA_String *)copiedValue.data)[0].data[2], 'o');
-	ck_assert_int_eq(((UA_String *)copiedValue.data)[0].data[3], 'p');
+	ck_assert_int_eq(((UA_String *)copiedValue.storage.data.dataPtr)[0].data[2], 'o');
+	ck_assert_int_eq(((UA_String *)copiedValue.storage.data.dataPtr)[0].data[3], 'p');
 
-	ck_assert_int_eq(value.arrayDimensionsLength, copiedValue.arrayDimensionsLength);
-	ck_assert_int_eq(value.arrayLength, copiedValue.arrayLength);
+	ck_assert_int_eq(value.storage.data.arrayDimensionsLength, copiedValue.storage.data.arrayDimensionsLength);
+	ck_assert_int_eq(value.storage.data.arrayLength, copiedValue.storage.data.arrayLength);
 
 	//finally
 	UA_Variant_deleteMembers(&value);
@@ -1766,10 +1764,10 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
 	UA_Variant_init(&value);
 	UA_Variant_init(&copiedValue);
 
-	value.arrayLength = 6;
-	value.data        = (void **)srcArray;
-	value.arrayDimensionsLength = 2;
-	value.arrayDimensions       = dimensions;
+	value.storage.data.arrayLength = 6;
+	value.storage.data.dataPtr        = (void **)srcArray;
+	value.storage.data.arrayDimensionsLength = 2;
+	value.storage.data.arrayDimensions       = dimensions;
 	value.vt = &UA_.types[UA_INT32];
 
 	//when
@@ -1777,28 +1775,28 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
 
 	//then
 	//1st dimension
-	UA_Int32 i1 = value.arrayDimensions[0];
-	UA_Int32 i2 = copiedValue.arrayDimensions[0];
+	UA_Int32 i1 = value.storage.data.arrayDimensions[0];
+	UA_Int32 i2 = copiedValue.storage.data.arrayDimensions[0];
 	ck_assert_int_eq(i1, i2);
 	ck_assert_int_eq(i1, dim1);
 
 
 	//2nd dimension
-	i1 = value.arrayDimensions[1];
-	i2 = copiedValue.arrayDimensions[1];
+	i1 = value.storage.data.arrayDimensions[1];
+	i2 = copiedValue.storage.data.arrayDimensions[1];
 	ck_assert_int_eq(i1, i2);
 	ck_assert_int_eq(i1, dim2);
 
 
 	for(UA_Int32 i = 0;i < 6;i++) {
-		i1 = ((UA_Int32 *)value.data)[i];
-		i2 = ((UA_Int32 *)copiedValue.data)[i];
+		i1 = ((UA_Int32 *)value.storage.data.dataPtr)[i];
+		i2 = ((UA_Int32 *)copiedValue.storage.data.dataPtr)[i];
 		ck_assert_int_eq(i1, i2);
 		ck_assert_int_eq(i2, i);
 	}
 
-	ck_assert_int_eq(value.arrayDimensionsLength, copiedValue.arrayDimensionsLength);
-	ck_assert_int_eq(value.arrayLength, copiedValue.arrayLength);
+	ck_assert_int_eq(value.storage.data.arrayDimensionsLength, copiedValue.storage.data.arrayDimensionsLength);
+	ck_assert_int_eq(value.storage.data.arrayLength, copiedValue.storage.data.arrayLength);
 
 	//finally
 	UA_Variant_deleteMembers(&value);
@@ -1835,7 +1833,6 @@ Suite *testSuite_builtin(void) {
 	tcase_add_test(tc_calcSize, UA_ExtensionObject_calcSizeWithNullArgumentShallReturnStorageSize);
 	tcase_add_test(tc_calcSize, UA_DataValue_calcSizeShallWorkOnExample);
 	tcase_add_test(tc_calcSize, UA_DataValue_calcSizeWithNullArgumentShallReturnStorageSize);
-	tcase_add_test(tc_calcSize, UA_Variant_calcSizeWithNullArgumentShallReturnStorageSize);
 	tcase_add_test(tc_calcSize, UA_DiagnosticInfo_calcSizeShallWorkOnExample);
 	tcase_add_test(tc_calcSize, UA_DiagnosticInfo_calcSizeWithNullArgumentShallReturnStorageSize);
 	tcase_add_test(tc_calcSize, UA_String_calcSizeShallReturnEncodingSize);

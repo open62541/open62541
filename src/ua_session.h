@@ -23,9 +23,9 @@ struct UA_Session {
 };
 
 UA_Int32 UA_Session_new(UA_Session **session);
-UA_Int32 UA_Session_init(UA_Session *session);
-UA_Int32 UA_Session_delete(UA_Session *session);
-UA_Int32 UA_Session_deleteMembers(UA_Session *session);
+void UA_Session_init(UA_Session *session);
+void UA_Session_delete(UA_Session *session);
+void UA_Session_deleteMembers(UA_Session *session);
 
 /** Compares two session objects */
 UA_Boolean UA_Session_compare(UA_Session *session1, UA_Session *session2);
