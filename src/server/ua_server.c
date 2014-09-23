@@ -30,14 +30,6 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_SessionManager_new(&server->sessionManager, MAXSESSIONCOUNT, SESSIONLIFETIME,
                           STARTSESSIONID);
 
-    // todo: get this out of here!!!
-    // fill the UA_borrowed_ table that has been declaed in ua_namespace.c
-    for(UA_Int32 i = 0;i < SIZE_UA_VTABLE;i++) {
-        UA_borrowed_.types[i] = UA_.types[i];
-        UA_borrowed_.types[i].delete = (void (*)(void *))phantom_delete;
-        UA_borrowed_.types[i].deleteMembers = (void (*)(void *))phantom_delete;
-    }
-
     UA_NodeStore_new(&server->nodestore);
     //ns0: C2UA_STRING("http://opcfoundation.org/UA/"));
     //ns1: C2UA_STRING("http://localhost:16664/open62541/"));
@@ -519,10 +511,11 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_QualifiedName_copycstring("State", &state->browseName);
     UA_LocalizedText_copycstring("State", &state->displayName);
     UA_LocalizedText_copycstring("State", &state->description);
-    state->value.vt = &UA_borrowed_.types[UA_SERVERSTATE];
+    state->value.vt = &UA_.types[UA_SERVERSTATE];
     state->value.storage.data.arrayDimensionsLength = 1; // added to ensure encoding in readreponse
     state->value.storage.data.arrayLength = 1;
     state->value.storage.data.dataPtr = &status->state; // points into the other object.
+    state->value.storageType = UA_VARIANT_DATA_NODELETE;
     UA_NodeStore_insert(server->nodestore, (UA_Node**)&state, UA_NODESTORE_INSERT_UNIQUE);
 
     //TODO: free(namespaceArray->value.data) later or forget it

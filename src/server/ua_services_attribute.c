@@ -128,10 +128,7 @@ static UA_DataValue service_read_node(UA_Server *server, const UA_ReadValueId *i
     case UA_ATTRIBUTEID_VALUE:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-        // TODO: Ensure that the borrowed value is not freed prematurely (multithreading)
-        /* retval |= UA_Variant_borrowSetValue(&v.value, &UA_.types[UA_VARIANT], */
-        /*                                     &((UA_VariableNode *)node)->value); */
-        retval |= UA_Variant_copy(&((UA_VariableNode *)node)->value, &v.value);
+        retval |= UA_Variant_copy(&((UA_VariableNode *)node)->value, &v.value); // todo: zero-copy
         break;
 
     case UA_ATTRIBUTEID_DATATYPE:
@@ -320,10 +317,7 @@ UA_Int32 Service_Write_writeNode(UA_Server *server, UA_WriteValue *writeValue,
 
     case UA_ATTRIBUTEID_VALUE:
         if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT) {
-            // TODO: Ensure that the borrowed value is not freed prematurely (multithreading)
-            /* retval |= UA_Variant_borrowSetValue(&v.value, &UA_.types[UA_VARIANT], */
-            /*                                     &((UA_VariableNode *)node)->value); */
-            retval |= UA_Variant_copy(&writeValue->value.value, &((UA_VariableNode *)node)->value);
+            retval |= UA_Variant_copy(&writeValue->value.value, &((UA_VariableNode *)node)->value); // todo: zero-copy
             *result = UA_STATUSCODE_GOOD;
         }
 

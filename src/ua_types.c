@@ -908,8 +908,6 @@ void UA_Variant_print(const UA_Variant *p, FILE *stream) {
     fprintf(stream, "(UA_Variant){/*%s*/", p->vt->name);
     if(p->vt == &UA_.types[ns0id])
         fprintf(stream, "UA_.types[%d]", ns0id);
-    else if(p->vt == &UA_borrowed_.types[ns0id])
-        fprintf(stream, "UA_borrowed_.types[%d]", ns0id);
     else
         fprintf(stream, "ERROR (not a builtin type)");
     UA_Int32_print(&p->arrayLength, stream);

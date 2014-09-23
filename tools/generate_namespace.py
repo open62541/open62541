@@ -105,9 +105,8 @@ printh('''/**********************************************************
  * @retval the corresponding index into UA_VTable
  */\n
 UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id);\n
-extern const UA_VTable UA_;\n
-static UA_Int32 phantom_delete(void * p) { return UA_SUCCESS; }
-extern const UA_VTable UA_borrowed_;\n
+extern const UA_VTable UA_;
+
 /**
  * @brief the set of possible indices into UA_VTable
  *
@@ -185,12 +184,6 @@ for row in rows:
           "}},")
 
 printc('''}};''')
-
-printc("UA_VTable_Entry borrowed_types[" + str(i) + "];");
-printc("const UA_VTable UA_borrowed_ = {\n"+
-"\t.getTypeIndex=UA_ns0ToVTableIndex,\n"+
-"\t.types = borrowed_types\n"+
-"};")
 
 printh('\n#define SIZE_UA_VTABLE '+str(i));
 
