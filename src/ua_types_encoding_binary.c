@@ -832,7 +832,7 @@ UA_Int32 UA_Variant_calcSizeBinary(UA_Variant const *p) {
     if(p->storageType == UA_VARIANT_DATA)
         data = &p->storage.data;
     else {
-        if(p->storage.datasource.get(p->storage.datasource.identifier, &data) != UA_SUCCESS)
+        if(p->storage.datasource.read(p->storage.datasource.identifier, &data) != UA_SUCCESS)
             return 0;
     }
         
@@ -876,7 +876,7 @@ UA_TYPE_ENCODEBINARY(UA_Variant,
                      if(src->storageType == UA_VARIANT_DATA)
                          data = &src->storage.data;
                      else {
-                         if(src->storage.datasource.get(src->storage.datasource.identifier, &data) != UA_SUCCESS)
+                         if(src->storage.datasource.read(src->storage.datasource.identifier, &data) != UA_SUCCESS)
                              return UA_ERROR;
                      }
 

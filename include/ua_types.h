@@ -211,6 +211,8 @@ typedef struct UA_VTable_Entry UA_VTable_Entry;
  * as possible encoding by pointing an entry in the vtable of types. References
  * may either contain a structure with the variants data, or a datasource where
  * this structure may be obtained (using reference counting for async access).
+ *
+ * @{
  */
 
 typedef struct UA_VariantData {
@@ -220,12 +222,17 @@ typedef struct UA_VariantData {
     UA_Int32 *arrayDimensions;
 } UA_VariantData;
 
+/** @brief A datasource is the interface to interact with a local data provider.
+ *
+ *  Implementors of datasources need to provide functions for the callbacks in
+ *  this structure. As a rule, datasources are never copied, but only their
+ *  content. The only way to write into a datasource is via the write-service. */
 typedef struct UA_VariantDataSource {
-    const void *identifier; // whatever id the datasource uses internally. Some provide custom get/write/release functions and don't use this.
-    UA_Int32 (*get)(const void *identifier, const UA_VariantData **); // get the variantdata provided by the datasource. when it is no longer used, it has to be relased.
-    UA_Int32 (*set)(const void **identifier, const UA_VariantData *); // replace the variant data in the datasource. and replace the identifier in the variant for lookups. The VariantData pointer shall no longer be used afterwards
-    void (*release)(const void *identifier, const UA_VariantData *); // release data after every get when the request is finished. so we can have async access to data and free it when the reference count drops to zero
-    void (*delete)(const void *identifier);
+    const void *identifier; /**< whatever id the datasource uses internally. Can be ignored if the datasource functions do not use it. */
+    UA_Int32 (*read)(const void *identifier, const UA_VariantData **); /**< Get the current data from the datasource. When it is no longer used, the data has to be relased. */
+    void (*release)(const void *identifier, const UA_VariantData *); /**< For concurrent access, the datasource needs to know when the last reader releases replaced/deleted data. Release decreases the reference count. */
+    UA_Int32 (*write)(const void **identifier, const UA_VariantData *); /**< Replace the data in the datasource. Also used to replace the identifier pointer for lookups. Do not free the variantdata afterwards! */
+    void (*delete)(const void *identifier); /**< Indicates that the node with the datasource was removed from the namespace. */
 } UA_VariantDataSource;
 
 /** @brief A union of all of the types specified above.
@@ -245,7 +252,7 @@ typedef struct UA_Variant {
     } storage;
 } UA_Variant;
 
-/** @endgroup */
+/** @} */
 
 /** @brief A data value with an associated status code and timestamps. */
 typedef struct UA_DataValue {

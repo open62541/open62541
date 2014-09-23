@@ -842,7 +842,7 @@ UA_Int32 UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
     if(src->storageType == UA_VARIANT_DATA || src->storageType == UA_VARIANT_DATA_NODELETE)
         srcdata = &src->storage.data;
     else {
-        retval |= src->storage.datasource.get(src->storage.datasource.identifier, &srcdata);
+        retval |= src->storage.datasource.read(src->storage.datasource.identifier, &srcdata);
         if(retval != UA_SUCCESS)
             return retval;
     }
