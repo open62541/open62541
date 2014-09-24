@@ -2,7 +2,7 @@
 #include "ua_statuscodes.h"
 #include "ua_nodestore.h"
 #include "ua_namespace_0.h"
-#include "util/ua_util.h"
+#include "ua_util.h"
 
 enum UA_AttributeId {
     UA_ATTRIBUTEID_NODEID = 1,

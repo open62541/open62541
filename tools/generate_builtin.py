@@ -320,7 +320,7 @@ printc('''/**
  
 #include "''' + args.outfile.split("/")[-1] + '''.h"
 #include "ua_namespace_0.h"
-#include "util/ua_util.h"\n''')
+#include "ua_util.h"\n''')
 
 # types for which we create a vector type
 arraytypes = set()

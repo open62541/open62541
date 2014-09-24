@@ -3,7 +3,7 @@
 #include "ua_nodestore.h"
 #include "ua_services_internal.h"
 #include "ua_session.h"
-#include "util/ua_util.h"
+#include "ua_util.h"
 
 #define CHECKED_ACTION(ACTION, CLEAN_UP, GOTO) do { \
         status |= ACTION;                           \

@@ -4,7 +4,7 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_namespace_0.h"
 #include "ua_transport.h"
-#include "util/ua_util.h"
+#include "ua_util.h"
 #include "check.h"
 
 /* copied here from encoding_binary.c */

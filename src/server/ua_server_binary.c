@@ -4,7 +4,7 @@
 #include "ua_namespace_0.h"
 #include "ua_securechannel_manager.h"
 #include "ua_session_manager.h"
-#include "util/ua_util.h"
+#include "ua_util.h"
 
 static UA_Int32 UA_ByteStringArray_init(UA_ByteStringArray *stringarray, UA_UInt32 length) {
     if(!stringarray || length == 0)

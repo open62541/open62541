@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 #include "ua_types.h"
-#include "util/ua_util.h"
+#include "ua_util.h"
 #include "ua_namespace_0.h"
 #include "check.h"
 

@@ -122,7 +122,7 @@ printc('''/**********************************************************
        ''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  **********************************************************/\n
 #include "''' + args.outfile.split("/")[-1] + '''.h"\n
-#include "util/ua_util.h"
+#include "ua_util.h"
 UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id) {
 	UA_Int32 retval = 0; // InvalidType
         if(id->namespaceIndex != 0) return retval;

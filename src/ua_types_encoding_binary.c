@@ -1,5 +1,5 @@
 #include "ua_types_encoding_binary.h"
-#include "util/ua_util.h"
+#include "ua_util.h"
 #include "ua_namespace_0.h"
 
 static INLINE UA_Boolean is_builtin(UA_NodeId *typeid ) {

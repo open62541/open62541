@@ -25,7 +25,6 @@ UA_Int32 UA_SessionManager_getSessionById(UA_SessionManager *sessionManager,
                                           UA_NodeId *sessionId, UA_Session **session);
 
 /**
- * @brief
  * @param token authentication token which is used to get the session object
  * @param session output, session object which is identified by the authentication token
  * @return error code

@@ -1,5 +1,5 @@
 #include "ua_connection.h"
-#include "util/ua_util.h"
+#include "ua_util.h"
 
 UA_ConnectionConfig UA_ConnectionConfig_standard = { .protocolVersion = 0,    .sendBufferSize = 8192,
                                                      .recvBufferSize  = 8192, .maxMessageSize = 8192,
