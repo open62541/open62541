@@ -240,7 +240,7 @@ typedef struct UA_VariantDataSource {
  * Variants store (arrays of) built-in types. If you want to store a more
  * complex (or self-defined) type, you have to use an UA_ExtensionObject.*/
 typedef struct UA_Variant {
-    UA_VTable_Entry *vt; // internal entry into vTable
+    const UA_VTable_Entry *vt; // internal entry into vTable
     enum {
         UA_VARIANT_DATA,
         UA_VARIANT_DATA_NODELETE, // do not free the data (e.g. because it is "borrowed" and points into a larger structure)
@@ -425,18 +425,18 @@ void UA_LIBEXPORT UA_QualifiedName_printf(char const *label, const UA_QualifiedN
 UA_Int32 UA_LIBEXPORT UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);
 
 /* Variant */
-UA_Int32 UA_LIBEXPORT UA_Variant_copySetValue(UA_Variant *v, UA_VTable_Entry *vt, const void *value);
-UA_Int32 UA_LIBEXPORT UA_Variant_copySetArray(UA_Variant *v, UA_VTable_Entry *vt, UA_Int32 arrayLength, const void *array);
+UA_Int32 UA_LIBEXPORT UA_Variant_copySetValue(UA_Variant *v, const UA_VTable_Entry *vt, const void *value);
+UA_Int32 UA_LIBEXPORT UA_Variant_copySetArray(UA_Variant *v, const UA_VTable_Entry *vt, UA_Int32 arrayLength, const void *array);
 
 /* Array operations */
-UA_Int32 UA_LIBEXPORT UA_Array_new(void **p, UA_Int32 noElements, UA_VTable_Entry *vt);
-void UA_LIBEXPORT UA_Array_init(void *p, UA_Int32 noElements, UA_VTable_Entry *vt);
-void UA_LIBEXPORT UA_Array_delete(void *p, UA_Int32 noElements, UA_VTable_Entry *vt);
+UA_Int32 UA_LIBEXPORT UA_Array_new(void **p, UA_Int32 noElements, const UA_VTable_Entry *vt);
+void UA_LIBEXPORT UA_Array_init(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt);
+void UA_LIBEXPORT UA_Array_delete(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt);
 
 /* @brief The destination array is allocated according to noElements. */
-UA_Int32 UA_LIBEXPORT UA_Array_copy(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt, void **dst);
+UA_Int32 UA_LIBEXPORT UA_Array_copy(const void *src, UA_Int32 noElements, const UA_VTable_Entry *vt, void **dst);
 #ifdef DEBUG
-void UA_LIBEXPORT UA_Array_print(const void *p, UA_Int32 noElements, UA_VTable_Entry *vt, FILE *stream);
+void UA_LIBEXPORT UA_Array_print(const void *p, UA_Int32 noElements, const UA_VTable_Entry *vt, FILE *stream);
 #endif
 
 /**********/
@@ -471,12 +471,6 @@ struct UA_VTable_Entry {
                                                // the wire == size in memory.
     UA_Encoding encodings[UA_ENCODING_AMOUNT]; // binary, xml, ... UA_ENCODING_AMOUNT is set by the build script
 };
-
-typedef UA_Int32 (*UA_nodeIdToVTableIndex)(const UA_NodeId *id);
-typedef struct UA_VTable {
-    UA_nodeIdToVTableIndex getTypeIndex;
-    UA_VTable_Entry       *types;
-} UA_VTable;
 
 /***********************************/
 /* Macros for type implementations */

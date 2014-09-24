@@ -2,7 +2,7 @@
 #include "ua_util.h"
 #include "ua_namespace_0.h"
 
-static INLINE UA_Boolean is_builtin(UA_NodeId *typeid ) {
+static INLINE UA_Boolean is_builtin(const UA_NodeId *typeid ) {
     return typeid ->namespaceIndex == 0 && 1 <= typeid ->identifier.numeric && typeid ->identifier.numeric <=
            25;
 }
@@ -11,7 +11,7 @@ static INLINE UA_Boolean is_builtin(UA_NodeId *typeid ) {
 /* Array */
 /*********/
 
-UA_Int32 UA_Array_calcSizeBinary(UA_Int32 nElements, UA_VTable_Entry *vt, const void *data) {
+UA_Int32 UA_Array_calcSizeBinary(UA_Int32 nElements, const UA_VTable_Entry *vt, const void *data) {
     if(vt == UA_NULL)
         return 0;  // do not return error as the result will be used to allocate memory
 
@@ -28,7 +28,7 @@ UA_Int32 UA_Array_calcSizeBinary(UA_Int32 nElements, UA_VTable_Entry *vt, const 
     return length;
 }
 
-static UA_Int32 UA_Array_calcSizeBinary_asExtensionObject(UA_Int32 nElements, UA_VTable_Entry *vt,
+static UA_Int32 UA_Array_calcSizeBinary_asExtensionObject(UA_Int32 nElements, const UA_VTable_Entry *vt,
                                                           const void *data) {
     if(vt == UA_NULL)
         return 0;  // do not return error as the result will be used to allocate memory
@@ -49,8 +49,8 @@ static UA_Int32 UA_Array_calcSizeBinary_asExtensionObject(UA_Int32 nElements, UA
     return length;
 }
 
-UA_Int32 UA_Array_encodeBinary(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt, UA_ByteString *dst,
-                               UA_UInt32 *offset) {
+UA_Int32 UA_Array_encodeBinary(const void *src, UA_Int32 noElements, const UA_VTable_Entry *vt,
+                               UA_ByteString *dst, UA_UInt32 *offset) {
     UA_Int32 retval = UA_SUCCESS;
     if(vt == UA_NULL || dst == UA_NULL || offset == UA_NULL || ((src == UA_NULL) && (noElements > 0)))
         return UA_ERROR;
@@ -70,7 +70,7 @@ UA_Int32 UA_Array_encodeBinary(const void *src, UA_Int32 noElements, UA_VTable_E
 }
 
 static UA_Int32 UA_Array_encodeBinary_asExtensionObject(const void *src, UA_Int32 noElements,
-                                                        UA_VTable_Entry *vt,
+                                                        const UA_VTable_Entry *vt,
                                                         UA_ByteString *dst,
                                                         UA_UInt32 *offset) {
     UA_Int32 retval = UA_SUCCESS;
@@ -101,7 +101,7 @@ static UA_Int32 UA_Array_encodeBinary_asExtensionObject(const void *src, UA_Int3
 }
 
 UA_Int32 UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, UA_Int32 noElements,
-                               UA_VTable_Entry *vt,
+                               const UA_VTable_Entry *vt,
                                void **dst) {
     UA_Int32 retval = UA_SUCCESS;
     if(vt == UA_NULL || src == UA_NULL || dst == UA_NULL || offset == UA_NULL)
@@ -697,11 +697,7 @@ UA_TYPE_ENCODEBINARY(UA_ExtensionObject,
 
                      case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING:
                          // FIXME: This code is valid for numeric nodeIds in ns0 only!
-                         retval |= UA_.types[UA_ns0ToVTableIndex(
-                                                 &src->typeId)].encodings[UA_ENCODING_BINARY].encode(src->
-                                                                                                     body.
-                                                                                                     data,
-                                                                                                     dst, offset);
+                         retval |= UA_[UA_ns0ToVTableIndex(&src->typeId)].encodings[UA_ENCODING_BINARY].encode(src-> body. data, dst, offset);
                          break;
 
                      case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML:
@@ -852,9 +848,9 @@ UA_Int32 UA_Variant_calcSizeBinary(UA_Variant const *p) {
 
     if(arrayLength != 1 && data->arrayDimensions != UA_NULL) {
         if(is_builtin(&p->vt->typeId))
-            length += UA_Array_calcSizeBinary(data->arrayDimensionsLength, &UA_.types[UA_INT32], data->arrayDimensions);
+            length += UA_Array_calcSizeBinary(data->arrayDimensionsLength, &UA_[UA_INT32], data->arrayDimensions);
         else
-            length += UA_Array_calcSizeBinary_asExtensionObject(data->arrayDimensionsLength, &UA_.types[UA_INT32], data->arrayDimensions);
+            length += UA_Array_calcSizeBinary_asExtensionObject(data->arrayDimensionsLength, &UA_[UA_INT32], data->arrayDimensions);
     }
     
     if(p->storageType == UA_VARIANT_DATASOURCE)
@@ -916,9 +912,9 @@ UA_TYPE_ENCODEBINARY(UA_Variant,
 
                      if(hasDimensions) {
                          if(isBuiltin)
-                             retval |= UA_Array_encodeBinary(data->arrayDimensions, data->arrayDimensionsLength, &UA_.types[UA_INT32], dst, offset);
+                             retval |= UA_Array_encodeBinary(data->arrayDimensions, data->arrayDimensionsLength, &UA_[UA_INT32], dst, offset);
                          else
-                             retval |= UA_Array_encodeBinary_asExtensionObject(data->arrayDimensions, data->arrayDimensionsLength, &UA_.types[UA_INT32], dst, offset);
+                             retval |= UA_Array_encodeBinary_asExtensionObject(data->arrayDimensions, data->arrayDimensionsLength, &UA_[UA_INT32], dst, offset);
                      }
 
                      if(src->storageType == UA_VARIANT_DATASOURCE)
@@ -942,7 +938,7 @@ UA_Int32 UA_Variant_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA
     UA_NodeId typeid = { .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
                          .identifier.numeric = encodingByte & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK };
     UA_Int32 typeNs0Id = UA_ns0ToVTableIndex(&typeid );
-    dst->vt = &UA_.types[typeNs0Id];
+    dst->vt = &UA_[typeNs0Id];
 
     if(!isArray) {
         if(UA_alloc(&data->dataPtr, dst->vt->memSize) != UA_SUCCESS) return UA_ERROR;
@@ -963,7 +959,7 @@ UA_Int32 UA_Variant_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA
     if(hasDimensions && retval == UA_SUCCESS) {
         retval |= UA_Int32_decodeBinary(src, offset, &data->arrayDimensionsLength);
         if(retval == UA_SUCCESS)
-            retval |= UA_Array_decodeBinary(src, offset, data->arrayDimensionsLength, &UA_.types[UA_INT32], &data->dataPtr);
+            retval |= UA_Array_decodeBinary(src, offset, data->arrayDimensionsLength, &UA_[UA_INT32], &data->dataPtr);
         if(retval != UA_SUCCESS)
             data->arrayLength = -1; // for deleteMembers
     }

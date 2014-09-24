@@ -183,7 +183,7 @@ static void Service_Browse_getBrowseResult(UA_NodeStore         *ns,
     }
 
     browseResult->referencesSize = refs;
-    UA_Array_new((void **)&browseResult->references, refs, &UA_.types[UA_REFERENCEDESCRIPTION]);
+    UA_Array_new((void **)&browseResult->references, refs, &UA_[UA_REFERENCEDESCRIPTION]);
 
     for(UA_UInt32 i = 0, j = 0;j < refs;i++) {
         if(!Service_Browse_returnReference(browseDescription, &node->references[i], relevantReferenceTypes,
@@ -202,7 +202,7 @@ static void Service_Browse_getBrowseResult(UA_NodeStore         *ns,
     }
 
     UA_NodeStore_releaseManagedNode(node);
-    UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesCount, &UA_.types[UA_NODEID]);
+    UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesCount, &UA_[UA_NODEID]);
 }
 
 UA_Int32 Service_Browse(UA_Server *server, UA_Session *session,
@@ -212,7 +212,7 @@ UA_Int32 Service_Browse(UA_Server *server, UA_Session *session,
         return UA_ERROR;
 
     //TODO request->view not used atm
-    UA_Array_new((void **)&(response->results), request->nodesToBrowseSize, &UA_.types[UA_BROWSERESULT]);
+    UA_Array_new((void **)&(response->results), request->nodesToBrowseSize, &UA_[UA_BROWSERESULT]);
     response->resultsSize = request->nodesToBrowseSize;
 
     for(UA_Int32 i = 0;i < request->nodesToBrowseSize;i++) {
@@ -238,7 +238,7 @@ UA_Int32 Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *se
     // Allocate space for a correct answer
     response->resultsSize = request->browsePathsSize;
     // _init of the elements is done in Array_new
-    UA_Array_new((void **)&response->results, request->browsePathsSize, &UA_.types[UA_BROWSEPATHRESULT]);
+    UA_Array_new((void **)&response->results, request->browsePathsSize, &UA_[UA_BROWSEPATHRESULT]);
 
     for(UA_Int32 i = 0;i < request->browsePathsSize;i++) {
         //FIXME: implement
