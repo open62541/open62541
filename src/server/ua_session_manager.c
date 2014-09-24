@@ -120,5 +120,6 @@ UA_Int32 UA_SessionManager_removeSession(UA_SessionManager *sessionManager, UA_N
         return UA_ERROR;
 
     LIST_REMOVE(current, pointers);
+    UA_free(current);
     return UA_SUCCESS;
 }
