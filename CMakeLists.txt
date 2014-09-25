@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.6)
 # set(CMAKE_VERBOSE_MAKEFILE on )
 
-project(open62541)
+project(open62541 C)
 set(open62541_VERSION_MAJOR 0)
 set(open62541_VERSION_MINOR 1)
 
