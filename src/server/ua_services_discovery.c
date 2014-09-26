@@ -6,7 +6,7 @@ UA_Int32 Service_GetEndpoints(UA_Server                    *server,
                               UA_GetEndpointsResponse      *response) {
     UA_GetEndpointsResponse_init(response);
     response->endpointsSize = 1;
-    UA_Array_new((void **)&response->endpoints, response->endpointsSize, &UA_.types[UA_ENDPOINTDESCRIPTION]);
+    UA_Array_new((void **)&response->endpoints, response->endpointsSize, &UA_[UA_ENDPOINTDESCRIPTION]);
 
     // security policy
     response->endpoints[0].securityMode = UA_MESSAGESECURITYMODE_NONE;
@@ -18,7 +18,7 @@ UA_Int32 Service_GetEndpoints(UA_Server                    *server,
     // usertoken policy
     response->endpoints[0].userIdentityTokensSize = 1;
     UA_Array_new((void **)&response->endpoints[0].userIdentityTokens,
-                 response->endpoints[0].userIdentityTokensSize, &UA_.types[UA_USERTOKENPOLICY]);
+                 response->endpoints[0].userIdentityTokensSize, &UA_[UA_USERTOKENPOLICY]);
     UA_UserTokenPolicy *token = &response->endpoints[0].userIdentityTokens[0];
     UA_UserTokenPolicy_init(token);
     UA_String_copycstring("my-anonymous-policy", &token->policyId); // defined per server

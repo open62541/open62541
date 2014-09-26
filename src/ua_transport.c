@@ -2,7 +2,7 @@
 #include <stdio.h>
 #endif
 #include "ua_transport.h"
-#include "util/ua_util.h"
+#include "ua_util.h"
 
 UA_TYPE_DEFAULT(UA_MessageType)
 UA_Int32 UA_MessageType_calcSizeBinary(UA_MessageType const *ptr) {

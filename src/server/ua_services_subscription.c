@@ -1,11 +1,10 @@
 #include "ua_services.h"
 #include "ua_statuscodes.h"
-#include "util/ua_util.h"
+#include "ua_util.h"
 
 UA_Int32 Service_CreateSubscription(UA_Server *server, UA_Session *session,
                                     const UA_CreateSubscriptionRequest *request,
                                     UA_CreateSubscriptionResponse *response) {
-
     response->subscriptionId            = 42;
     response->revisedPublishingInterval = 100000;
     response->revisedLifetimeCount      = 120000;
@@ -13,10 +12,8 @@ UA_Int32 Service_CreateSubscription(UA_Server *server, UA_Session *session,
     return UA_SUCCESS;
 }
 
-UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
-                         const UA_PublishRequest *request,
+UA_Int32 Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishRequest *request,
                          UA_PublishResponse *response) {
-
     response->subscriptionId = 42;
     response->notificationMessage.sequenceNumber = 1;
     response->notificationMessage.publishTime    = UA_DateTime_now();

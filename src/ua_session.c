@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 #include "ua_session.h"
-#include "util/ua_util.h"
+#include "ua_util.h"
 
 UA_Int32 UA_Session_new(UA_Session **session) {
     UA_Int32 retval = UA_SUCCESS;

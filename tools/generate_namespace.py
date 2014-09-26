@@ -103,9 +103,10 @@ printh('''/**********************************************************
  *
  * @retval UA_ERR_INVALID_VALUE whenever ns0Id could not be mapped
  * @retval the corresponding index into UA_VTable
- */\n
+ */
+
 UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id);\n
-extern const UA_VTable UA_;
+extern const UA_VTable_Entry *UA_;
 
 /**
  * @brief the set of possible indices into UA_VTable
@@ -122,7 +123,7 @@ printc('''/**********************************************************
        ''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  **********************************************************/\n
 #include "''' + args.outfile.split("/")[-1] + '''.h"\n
-#include "util/ua_util.h"
+#include "ua_util.h"
 UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id) {
 	UA_Int32 retval = 0; // InvalidType
         if(id->namespaceIndex != 0) return retval;
@@ -146,10 +147,7 @@ for row in rows:
 printh("};\n")
 printc('''\n}\nreturn retval;\n}\n''');
 
-printc('''const UA_VTable UA_ = {
-\t.getTypeIndex = UA_ns0ToVTableIndex,
-\t.types = (UA_VTable_Entry[]){''')
-
+printc('''const UA_VTable_Entry *UA_ = (UA_VTable_Entry[]){''')
 i = 0
 for row in rows:
     if skipType(row):
@@ -183,7 +181,7 @@ for row in rows:
             ",\n.decode=(UA_Int32(*)(const UA_ByteString*,UA_UInt32*,void*))%(name)s_decodeXml}" if (args.with_xml) else "") +
           "}},")
 
-printc('''}};''')
+printc('};')
 
 printh('\n#define SIZE_UA_VTABLE '+str(i));
 

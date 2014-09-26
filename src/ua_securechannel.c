@@ -1,7 +1,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include "ua_securechannel.h"
-#include "util/ua_util.h"
+#include "ua_util.h"
 
 void UA_SecureChannel_init(UA_SecureChannel *channel) {
     UA_AsymmetricAlgorithmSecurityHeader_init(&channel->clientAsymAlgSettings);

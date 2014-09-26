@@ -11,7 +11,7 @@
 #include <stdio.h>
 #endif
 
-#include "util/ua_util.h"
+#include "ua_util.h"
 #include "ua_types.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_namespace_0.h"
@@ -829,7 +829,7 @@ void UA_Variant_init(UA_Variant *p) {
     p->storage.data.dataPtr        = UA_NULL;
     p->storage.data.arrayDimensions       = UA_NULL;
     p->storage.data.arrayDimensionsLength = -1;
-    p->vt = &UA_.types[UA_INVALIDTYPE];
+    p->vt = &UA_[UA_INVALIDTYPE];
 }
 
 /** It is not allowed to copy into a variant that points to an external data source. */
@@ -854,7 +854,7 @@ UA_Int32 UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
         goto clean_up;
     dstdata->arrayLength = srcdata->arrayLength;
     if(srcdata->arrayDimensions != UA_NULL) {
-        retval |= UA_Array_copy(srcdata->arrayDimensions, srcdata->arrayDimensionsLength, &UA_.types[UA_INT32], (void **)&dstdata->arrayDimensions);
+        retval |= UA_Array_copy(srcdata->arrayDimensions, srcdata->arrayDimensionsLength, &UA_[UA_INT32], (void **)&dstdata->arrayDimensions);
         if(retval != UA_SUCCESS)
             goto clean_up2;
         dstdata->arrayDimensionsLength = srcdata->arrayDimensionsLength;
@@ -879,7 +879,7 @@ UA_Int32 UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
 }
 
 /** Copies data into a variant. The target variant has always a storagetype UA_VARIANT_DATA */
-UA_Int32 UA_Variant_copySetValue(UA_Variant *v, UA_VTable_Entry *vt, const void *value) {
+UA_Int32 UA_Variant_copySetValue(UA_Variant *v, const UA_VTable_Entry *vt, const void *value) {
     if(v == UA_NULL || vt == UA_NULL || value == UA_NULL)
         return UA_ERROR;
     UA_Variant_init(v);
@@ -891,7 +891,7 @@ UA_Int32 UA_Variant_copySetValue(UA_Variant *v, UA_VTable_Entry *vt, const void 
         retval |= vt->copy(value, v->storage.data.dataPtr);
     return retval;
 }
-UA_Int32 UA_Variant_copySetArray(UA_Variant *v, UA_VTable_Entry *vt, UA_Int32 arrayLength,
+UA_Int32 UA_Variant_copySetArray(UA_Variant *v, const UA_VTable_Entry *vt, UA_Int32 arrayLength,
                                  const void *array) {
     if(v == UA_NULL || vt == UA_NULL || array == UA_NULL)
         return UA_ERROR;
@@ -906,8 +906,8 @@ void UA_Variant_print(const UA_Variant *p, FILE *stream) {
     if(p == UA_NULL || stream == UA_NULL) return;
     UA_UInt32 ns0id = UA_ns0ToVTableIndex(&p->vt->typeId);
     fprintf(stream, "(UA_Variant){/*%s*/", p->vt->name);
-    if(p->vt == &UA_.types[ns0id])
-        fprintf(stream, "UA_.types[%d]", ns0id);
+    if(p->vt == &UA_[ns0id])
+        fprintf(stream, "UA_[%d]", ns0id);
     else
         fprintf(stream, "ERROR (not a builtin type)");
     UA_Int32_print(&p->arrayLength, stream);
@@ -916,7 +916,7 @@ void UA_Variant_print(const UA_Variant *p, FILE *stream) {
     fprintf(stream, ",");
     UA_Int32_print(&p->arrayDimensionsLength, stream);
     fprintf(stream, ",");
-    UA_Array_print(p->arrayDimensions, p->arrayDimensionsLength, &UA_.types[UA_INT32], stream);
+    UA_Array_print(p->arrayDimensions, p->arrayDimensionsLength, &UA_[UA_INT32], stream);
     fprintf(stream, "}");
 }
 #endif
@@ -1024,7 +1024,7 @@ void UA_InvalidType_print(const UA_InvalidType *p, FILE *stream) {
 /* Array */
 /*********/
 
-UA_Int32 UA_Array_new(void **p, UA_Int32 noElements, UA_VTable_Entry *vt) {
+UA_Int32 UA_Array_new(void **p, UA_Int32 noElements, const UA_VTable_Entry *vt) {
     if(vt == UA_NULL)
         return UA_ERROR;
 
@@ -1049,7 +1049,7 @@ UA_Int32 UA_Array_new(void **p, UA_Int32 noElements, UA_VTable_Entry *vt) {
     return UA_SUCCESS;
 }
 
-void UA_Array_init(void *p, UA_Int32 noElements, UA_VTable_Entry *vt) {
+void UA_Array_init(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt) {
     if(!p || !vt) return;
     char *cp = (char *)p; // so compilers allow pointer arithmetic
     UA_UInt32 memSize = vt->memSize;
@@ -1059,7 +1059,7 @@ void UA_Array_init(void *p, UA_Int32 noElements, UA_VTable_Entry *vt) {
     }
 }
 
-void UA_Array_delete(void *p, UA_Int32 noElements, UA_VTable_Entry *vt) {
+void UA_Array_delete(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt) {
     if(!p || !vt || noElements <= 0) return;
     char     *cp      = (char *)p; // so compilers allow pointer arithmetic
     UA_UInt32 memSize = vt->memSize;
@@ -1070,7 +1070,7 @@ void UA_Array_delete(void *p, UA_Int32 noElements, UA_VTable_Entry *vt) {
     UA_free(p);
 }
 
-UA_Int32 UA_Array_copy(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt, void **dst) {
+UA_Int32 UA_Array_copy(const void *src, UA_Int32 noElements, const UA_VTable_Entry *vt, void **dst) {
     UA_Int32 retval;
     if(src == UA_NULL || dst == UA_NULL || vt == UA_NULL)
         return UA_ERROR;
@@ -1101,7 +1101,7 @@ UA_Int32 UA_Array_copy(const void *src, UA_Int32 noElements, UA_VTable_Entry *vt
 }
 
 #ifdef DEBUG
-void UA_Array_print(const void *p, UA_Int32 noElements, UA_VTable_Entry *vt, FILE *stream) {
+void UA_Array_print(const void *p, UA_Int32 noElements, const UA_VTable_Entry *vt, FILE *stream) {
     if(p == UA_NULL || vt == UA_NULL || stream == UA_NULL) return;
     fprintf(stream, "(%s){", vt->name);
     char     *cp      = (char *)p; // so compilers allow pointer arithmetic
