@@ -11,7 +11,7 @@ C ECHO client example using sockets
 #include "ua_namespace_0.h"
 
 
-UA_Int32 sendHello(UA_Int32 sock)
+UA_Int32 sendHello(UA_Int32 sock,UA_String *endpointURL)
 {
 	UA_ByteString *message;
 	UA_ByteString_new(&message);
@@ -19,8 +19,8 @@ UA_Int32 sendHello(UA_Int32 sock)
 
 	UA_UInt32 offset = 0;
 	UA_String endpointUrl;
+	UA_String_copy(endpointURL,&endpointUrl);
 
-	UA_String_copycstring("opc.tcp://134.130.125.48:16663",&endpointUrl);
 	UA_TcpMessageHeader messageHeader;
 	UA_TcpHelloMessage hello;
 	messageHeader.isFinal = 'F';
@@ -127,14 +127,130 @@ int sendOpenSecureChannel(UA_Int32 sock)
 	}
 	return 0;
 }
+
+UA_Int32 sendCreateSession(UA_Int32 sock,UA_UInt32 channelId,UA_UInt32 tokenId, UA_UInt32 sequenceNumber, UA_UInt32 requestId,UA_String *endpointUrl)
+{
+	UA_ByteString *message;
+	UA_ByteString_new(&message);
+	UA_ByteString_newMembers(message,65536);
+	UA_UInt32 tmpChannelId = channelId;
+	UA_UInt32 offset = 0;
+
+
+	UA_TcpMessageHeader msghdr;
+	msghdr.isFinal = 'F';
+	msghdr.messageType = UA_MESSAGETYPE_MSG;
+	msghdr.messageSize = 162;
+
+	UA_TcpMessageHeader_encodeBinary(&msghdr,message,&offset);
+
+	UA_UInt32_encodeBinary(&tmpChannelId,message,&offset);
+	UA_UInt32_encodeBinary(&tokenId,message,&offset);
+	UA_UInt32_encodeBinary(&sequenceNumber,message,&offset);
+	UA_UInt32_encodeBinary(&requestId,message,&offset);
+
+	UA_NodeId type;
+	type.identifier.numeric = 461;
+	type.identifierType = UA_NODEIDTYPE_NUMERIC;
+	type.namespaceIndex = 0;
+	UA_NodeId_encodeBinary(&type, message, &offset);
+
+	UA_CreateSessionRequest rq;
+	UA_RequestHeader_init(&rq.requestHeader);
+	rq.requestHeader.authenticationToken.identifier.numeric = 0;
+	rq.requestHeader.authenticationToken.identifierType = UA_NODEIDTYPE_NUMERIC;
+	rq.requestHeader.authenticationToken.namespaceIndex = 0;
+	rq.requestHeader.requestHandle = 1;
+	rq.requestHeader.timestamp = UA_DateTime_now();
+	rq.requestHeader.timeoutHint = 10000;
+	rq.requestHeader.auditEntryId.length = -1;
+	UA_String_copy(endpointUrl,&rq.endpointUrl);
+	rq.clientDescription.applicationName.locale.length = -1;
+	rq.clientDescription.applicationName.text.length = -1;
+
+	rq.clientDescription.applicationUri.length = -1;
+	rq.clientDescription.discoveryProfileUri.length = -1;
+	rq.clientDescription.discoveryUrls = UA_NULL;
+	rq.clientDescription.discoveryUrlsSize = -1;
+	rq.clientDescription.gatewayServerUri.length = -1;
+	rq.clientDescription.productUri.length = -1;
+
+	UA_String_copycstring("mysession",&rq.sessionName);
+
+	UA_String_copycstring("abcd",&rq.clientCertificate);
+
+	UA_ByteString_newMembers(&rq.clientNonce,1);
+	rq.clientNonce.data[0] = 0;
+
+	rq.requestedSessionTimeout = 1200000;
+	rq.maxResponseMessageSize = UA_INT32_MAX;
+
+	UA_CreateSessionRequest_encodeBinary(&rq,message, &offset);
+
+	UA_Int32 sendret = send(sock , message->data, offset , 0);
+	UA_ByteString_delete(message);
+	free(rq.sessionName.data);
+	free(rq.clientCertificate.data);
+	if(sendret<0)
+	{
+		printf("send opensecurechannel failed");
+		return 1;
+	}
+	return 0;
+}
+UA_Int32 sendActivateSession(UA_Int32 sock,UA_UInt32 channelId,UA_UInt32 tokenId, UA_UInt32 sequenceNumber, UA_UInt32 requestId)
+{
+	UA_ByteString *message;
+	UA_ByteString_new(&message);
+	UA_ByteString_newMembers(message,65536);
+	UA_UInt32 tmpChannelId = channelId;
+	UA_UInt32 offset = 0;
+
+
+	UA_TcpMessageHeader msghdr;
+	msghdr.isFinal = 'F';
+	msghdr.messageType = UA_MESSAGETYPE_MSG;
+	msghdr.messageSize = 84;
+
+	UA_TcpMessageHeader_encodeBinary(&msghdr,message,&offset);
+
+	UA_UInt32_encodeBinary(&tmpChannelId,message,&offset);
+	UA_UInt32_encodeBinary(&tokenId,message,&offset);
+	UA_UInt32_encodeBinary(&sequenceNumber,message,&offset);
+	UA_UInt32_encodeBinary(&requestId,message,&offset);
+
+	UA_NodeId type;
+	type.identifier.numeric = 467;
+	type.identifierType = UA_NODEIDTYPE_NUMERIC;
+	type.namespaceIndex = 0;
+	UA_NodeId_encodeBinary(&type, message, &offset);
+
+
+	UA_ActivateSessionRequest rq;
+	UA_ActivateSessionRequest_init(&rq);
+
+	UA_ActivateSessionRequest_encodeBinary(&rq, message, &offset);
+	UA_Int32 sendret = send(sock , message->data, offset , 0);
+	UA_ByteString_delete(message);
+
+	if(sendret<0)
+	{
+		printf("send opensecurechannel failed");
+		return 1;
+	}
+	return 0;
+
+}
 int main(int argc , char *argv[])
 {
 int sock;
 struct sockaddr_in server;
 
 
+UA_ByteString *reply;
+UA_ByteString_new(&reply);
+UA_ByteString_newMembers(reply, 65536);
 
-UA_Byte server_reply[2000];
 
 //Create socket
 sock = socket(AF_INET , SOCK_STREAM , 0);
@@ -148,16 +264,28 @@ server.sin_port = htons( 16663 );
 //Connect to remote server
 if (connect(sock , (struct sockaddr *)&server , sizeof(server)) < 0)
 {
-perror("connect failed. Error");
-return 1;
+	perror("connect failed. Error");
+	return 1;
 }
+UA_String *endpointUrl;
+UA_String_new(&endpointUrl);
 
-sendHello(sock);
-int received = recv(sock , server_reply , 2000 , 0);
+UA_String_copycstring("opc.tcp://134.130.125.48:16663",endpointUrl);
+sendHello(sock,endpointUrl);
+int received = recv(sock ,reply->data , reply->length , 0);
 sendOpenSecureChannel(sock);
+received = recv(sock , reply->data, reply->length , 0);
 
+UA_UInt32 recvOffset = 0;
+UA_TcpMessageHeader msghdr;
+UA_TcpMessageHeader_decodeBinary(reply,&recvOffset,&msghdr);
+UA_UInt32 secureChannelId;
+UA_UInt32_decodeBinary(reply,&recvOffset,&secureChannelId);
 
-
+sendCreateSession(sock,secureChannelId,1,52,2,endpointUrl);
+received = recv(sock , reply->data, reply->length , 0);
+sendActivateSession(sock,secureChannelId,1,53,3);
+received = recv(sock , reply->data, reply->length , 0);
 
 /*
 UA_TcpMessageHeader reqTcpHeader;
@@ -207,7 +335,7 @@ UA_ReadRequest_encodeBinary(&req, &message, &messagepos);
 //Send some data
 
 //Receive a reply from the server
-received = recv(sock , server_reply , 2000 , 0);
+received = recv(sock ,reply->data , 2000 , 0);
 if(received < 0)
 {
 puts("recv failed");
@@ -215,8 +343,8 @@ return 1;
 }
 for(int i=0;i<received;i++){
 //show only printable ascii
-if(server_reply[i] >= 32 && server_reply[i]<= 126)
-printf("%c",server_reply[i]);
+if(reply->data[i] >= 32 && reply->data[i]<= 126)
+printf("%c",reply->data[i]);
 }
 printf("\n");
 
