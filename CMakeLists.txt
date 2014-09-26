@@ -152,6 +152,15 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_gener
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_namespace.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
 
+# build example client
+option(CLIENT "Build a test client" OFF)
+if(CLIENT)
+message(STATUS "Extensions: enabling client")
+
+add_executable(exampleClient examples/opcuaClient.c)
+target_link_libraries(exampleClient open62541)
+endif()
+
 # build example server
 set(server_sources examples/opcuaServer.c
                    examples/logger_stdout.c)
