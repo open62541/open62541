@@ -77,6 +77,7 @@ UA_Int32 NetworklayerTCP_remove(NetworklayerTCP *layer, UA_Int32 sockfd) {
 	memcpy(newconnections, &layer->connections, sizeof(TCPConnection) * index);
 	memcpy(&newconnections[index], &layer->connections[index+1],
            sizeof(TCPConnection) * (layer->connectionsSize - index - 1));
+    free(layer->connections);
 	layer->connections = newconnections;
 	layer->connectionsSize--;
 	return UA_SUCCESS;
@@ -147,6 +148,8 @@ UA_Int32 writeCallback(TCPConnectionHandle *handle, UA_ByteStringArray gather_bu
 		}
 	}
 #endif
+    for(UA_UInt32 i=0;i<gather_buf.stringsSize;i++)
+        free(gather_buf.strings[i].data);
 	return UA_SUCCESS;
 }
 

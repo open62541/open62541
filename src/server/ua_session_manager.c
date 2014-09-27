@@ -35,7 +35,16 @@ UA_Int32 UA_SessionManager_new(UA_SessionManager **sessionManager, UA_UInt32 max
 }
 
 UA_Int32 UA_SessionManager_delete(UA_SessionManager *sessionManager) {
-    // todo
+    struct session_list_entry *current = LIST_FIRST(&sessionManager->sessions);
+    while(current) {
+        LIST_REMOVE(current, pointers);
+        if(current->session.channel)
+            current->session.channel->session = UA_NULL; // the channel is no longer attached to a session
+        UA_Session_deleteMembers(&current->session);
+        UA_free(current);
+        current = LIST_FIRST(&sessionManager->sessions);
+    }
+    UA_free(sessionManager);
     return UA_SUCCESS;
 }
 
@@ -120,6 +129,9 @@ UA_Int32 UA_SessionManager_removeSession(UA_SessionManager *sessionManager, UA_N
         return UA_ERROR;
 
     LIST_REMOVE(current, pointers);
+    if(current->session.channel)
+        current->session.channel->session = UA_NULL; // the channel is no longer attached to a session
+    UA_Session_deleteMembers(&current->session);
     UA_free(current);
     return UA_SUCCESS;
 }

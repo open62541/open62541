@@ -73,5 +73,6 @@ int main(int argc, char** argv) {
 										  serverCallback, &running);
 	NetworklayerTCP_delete(nl);
 	UA_Server_deleteMembers(&server);
+    UA_String_deleteMembers(&endpointUrl);
 	return retval == UA_SUCCESS ? 0 : retval;
 }
