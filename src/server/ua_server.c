@@ -379,7 +379,6 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_ExpandedNodeId ObjId_ServerStatus; NS0EXPANDEDNODEID(ObjId_ServerStatus, 2256);
     UA_ExpandedNodeId ObjId_ServerCapabilities; NS0EXPANDEDNODEID(ObjId_ServerCapabilities, 2268);
     UA_ExpandedNodeId ObjId_State; NS0EXPANDEDNODEID(ObjId_State, 2259);
-#define BENCHMARK
 #ifdef BENCHMARK
     UA_UInt32 nodeCount = 500;
     UA_VariableNode *tmpNodes;
@@ -442,11 +441,13 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     ADDREFERENCE(root, RefTypeId_Organizes, UA_FALSE, ObjId_ObjectsFolder);
     ADDREFERENCE(root, RefTypeId_Organizes, UA_FALSE, ObjId_TypesFolder);
     ADDREFERENCE(root, RefTypeId_Organizes, UA_FALSE, ObjId_ViewsFolder);
+#ifdef BENCHMARK
     for(UA_UInt32 i = 0; i<nodeCount;i++){
     	//AddReference((UA_Node*)root, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_redLED}, ns0);
     	UA_ExpandedNodeId tmpNodeId = tmpNodeIds[i];
     	ADDREFERENCE(root, RefTypeId_Organizes, UA_FALSE, tmpNodeId);
     }
+#endif
     /* root becomes a managed node. we need to release it at the end.*/
     UA_NodeStore_insert(server->nodestore, (UA_Node**)&root, UA_NODESTORE_INSERT_UNIQUE | UA_NODESTORE_INSERT_GETMANAGED);
 
