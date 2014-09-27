@@ -51,8 +51,8 @@ extern UA_LIBEXPORT UA_ConnectionConfig UA_ConnectionConfig_standard;
 struct UA_SecureChannel;
 typedef struct UA_SecureChannel UA_SecureChannel;
 
-typedef UA_Int32 (*UA_Connection_writeCallback)(void *handle, UA_ByteStringArray buf);
-typedef UA_Int32 (*UA_Connection_closeCallback)(void *handle);
+typedef void (*UA_Connection_writeCallback)(void *handle, const UA_ByteStringArray buf);
+typedef void (*UA_Connection_closeCallback)(void *handle);
 
 typedef struct UA_Connection {
     UA_ConnectionState  state;
@@ -65,7 +65,7 @@ typedef struct UA_Connection {
 } UA_Connection;
 
 UA_Int32 UA_LIBEXPORT UA_Connection_init(UA_Connection *connection, UA_ConnectionConfig localConf, void *callbackHandle,
-                                       UA_Connection_closeCallback close, UA_Connection_writeCallback write);
+                                         UA_Connection_closeCallback close, UA_Connection_writeCallback write);
 UA_Int32 UA_LIBEXPORT UA_Connection_deleteMembers(UA_Connection *connection);
 
 // todo: closing a binaryconnection that was closed on the network level

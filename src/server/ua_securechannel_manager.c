@@ -1,4 +1,5 @@
 #include "ua_securechannel_manager.h"
+#include "ua_session.h"
 #include "ua_util.h"
 
 struct channel_list_entry {
@@ -34,10 +35,11 @@ UA_Int32 UA_SecureChannelManager_new(UA_SecureChannelManager **cm, UA_UInt32 max
 UA_Int32 UA_SecureChannelManager_delete(UA_SecureChannelManager *cm) {
     struct channel_list_entry *entry;
     LIST_FOREACH(entry, &cm->channels, pointers) {
-        // deleting a securechannel means closing the connection
-        // delete the binaryconnction beforehand. so there is no pointer
-        // todo: unbind entry->channel.connection;
         LIST_REMOVE(entry, pointers);
+        if(entry->channel.session)
+            entry->channel.session->channel = UA_NULL;
+        if(entry->channel.connection)
+            entry->channel.connection->channel = UA_NULL;
         UA_SecureChannel_deleteMembers(&entry->channel);
         UA_free(entry);
     }
