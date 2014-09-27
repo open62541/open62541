@@ -37,11 +37,7 @@ UA_Int32 Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
 	{
 		return UA_ERROR;
 	}
-	//channel at creation must be the same at activation
-	if(foundSession->channel !=channel)
-	{
-		return UA_ERROR;
-	}
+
     channel->session = foundSession;
 
     return UA_SUCCESS;

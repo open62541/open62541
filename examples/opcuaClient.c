@@ -16,15 +16,16 @@ UA_Int32 sendHello(UA_Int32 sock, UA_String *endpointURL) {
 	UA_ByteString_newMembers(message, 1000);
 
 	UA_UInt32 offset = 0;
-	UA_String endpointUrl;
-	UA_String_copy(endpointURL, &endpointUrl);
+
+
 
 	UA_TcpMessageHeader messageHeader;
 	UA_TcpHelloMessage hello;
 	messageHeader.isFinal = 'F';
 	messageHeader.messageType = UA_MESSAGETYPE_HEL;
 
-	hello.endpointUrl = endpointUrl;
+	UA_String_copy(endpointURL, &hello.endpointUrl);
+
 	hello.maxChunkCount = 1;
 	hello.maxMessageSize = 16777216;
 	hello.protocolVersion = 0;
@@ -45,7 +46,7 @@ UA_Int32 sendHello(UA_Int32 sock, UA_String *endpointURL) {
 
 	UA_ByteString_delete(message);
 
-	free(endpointUrl.data);
+	free(hello.endpointUrl.data);
 	if (sendret < 0) {
 		return 1;
 	}
@@ -136,20 +137,15 @@ UA_Int32 sendCreateSession(UA_Int32 sock, UA_UInt32 channelId,
 	UA_TcpMessageHeader msghdr;
 	msghdr.isFinal = 'F';
 	msghdr.messageType = UA_MESSAGETYPE_MSG;
-	msghdr.messageSize = 164;
 
-	UA_TcpMessageHeader_encodeBinary(&msghdr, message, &offset);
 
-	UA_UInt32_encodeBinary(&tmpChannelId, message, &offset);
-	UA_UInt32_encodeBinary(&tokenId, message, &offset);
-	UA_UInt32_encodeBinary(&sequenceNumber, message, &offset);
-	UA_UInt32_encodeBinary(&requestId, message, &offset);
+
 
 	UA_NodeId type;
 	type.identifier.numeric = 461;
 	type.identifierType = UA_NODEIDTYPE_NUMERIC;
 	type.namespaceIndex = 0;
-	UA_NodeId_encodeBinary(&type, message, &offset);
+
 
 	UA_CreateSessionRequest rq;
 	UA_RequestHeader_init(&rq.requestHeader);
@@ -182,6 +178,16 @@ UA_Int32 sendCreateSession(UA_Int32 sock, UA_UInt32 channelId,
 	rq.requestedSessionTimeout = 1200000;
 	rq.maxResponseMessageSize = UA_INT32_MAX;
 
+
+
+	msghdr.messageSize = 16 + UA_TcpMessageHeader_calcSizeBinary(&msghdr) + UA_NodeId_calcSizeBinary(&type) + UA_CreateSessionRequest_calcSizeBinary(&rq);
+	UA_TcpMessageHeader_encodeBinary(&msghdr, message, &offset);
+
+	UA_UInt32_encodeBinary(&tmpChannelId, message, &offset);
+	UA_UInt32_encodeBinary(&tokenId, message, &offset);
+	UA_UInt32_encodeBinary(&sequenceNumber, message, &offset);
+	UA_UInt32_encodeBinary(&requestId, message, &offset);
+	UA_NodeId_encodeBinary(&type, message, &offset);
 	UA_CreateSessionRequest_encodeBinary(&rq, message, &offset);
 
 	UA_Int32 sendret = send(sock, message->data, offset, 0);
@@ -195,7 +201,7 @@ UA_Int32 sendCreateSession(UA_Int32 sock, UA_UInt32 channelId,
 	return 0;
 }
 UA_Int32 sendActivateSession(UA_Int32 sock, UA_UInt32 channelId,
-		UA_UInt32 tokenId, UA_UInt32 sequenceNumber, UA_UInt32 requestId) {
+		UA_UInt32 tokenId, UA_UInt32 sequenceNumber, UA_UInt32 requestId, UA_NodeId *authenticationToken) {
 	UA_ByteString *message;
 	UA_ByteString_new(&message);
 	UA_ByteString_newMembers(message, 65536);
@@ -224,9 +230,9 @@ UA_Int32 sendActivateSession(UA_Int32 sock, UA_UInt32 channelId,
 	UA_ActivateSessionRequest_init(&rq);
 	rq.requestHeader.requestHandle = 2;
 
-	rq.requestHeader.authenticationToken.identifier.numeric = 10;
-	rq.requestHeader.authenticationToken.identifierType = UA_NODEIDTYPE_NUMERIC;
-	rq.requestHeader.authenticationToken.namespaceIndex = 10;
+	rq.requestHeader.authenticationToken.identifier.numeric = authenticationToken->identifier.numeric;
+	rq.requestHeader.authenticationToken.identifierType = authenticationToken->identifierType;
+	rq.requestHeader.authenticationToken.namespaceIndex = authenticationToken->namespaceIndex;
 
 	UA_ActivateSessionRequest_encodeBinary(&rq, message, &offset);
 	UA_Int32 sendret = send(sock, message->data, offset, 0);
@@ -240,8 +246,8 @@ UA_Int32 sendActivateSession(UA_Int32 sock, UA_UInt32 channelId,
 
 }
 
-UA_Int32 sendReadRequest(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId,
-		UA_UInt32 sequenceNumber, UA_UInt32 requestId) {
+UA_Int64 sendReadRequest(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId,
+		UA_UInt32 sequenceNumber, UA_UInt32 requestId,UA_NodeId *authenticationToken, UA_Int32 nodeIds_size,UA_NodeId* nodeIds) {
 	UA_ByteString *message;
 	UA_ByteString_new(&message);
 	UA_ByteString_newMembers(message, 65536);
@@ -251,51 +257,58 @@ UA_Int32 sendReadRequest(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId,
 	UA_TcpMessageHeader msghdr;
 	msghdr.isFinal = 'F';
 	msghdr.messageType = UA_MESSAGETYPE_MSG;
-	msghdr.messageSize = 91;
 
-	UA_TcpMessageHeader_encodeBinary(&msghdr, message, &offset);
-
-	UA_UInt32_encodeBinary(&tmpChannelId, message, &offset);
-	UA_UInt32_encodeBinary(&tokenId, message, &offset);
-	UA_UInt32_encodeBinary(&sequenceNumber, message, &offset);
-	UA_UInt32_encodeBinary(&requestId, message, &offset);
 
 	UA_NodeId type;
 	type.identifier.numeric = 631;
 	type.identifierType = UA_NODEIDTYPE_NUMERIC;
 	type.namespaceIndex = 0;
-	UA_NodeId_encodeBinary(&type, message, &offset);
+
 
 	UA_ReadRequest rq;
 	UA_ReadRequest_init(&rq);
 
 	rq.maxAge = 0;
 
-	UA_Array_new((void **) &rq.nodesToRead, 1, &UA_[UA_READVALUEID]);
-	rq.nodesToReadSize = 1;
-	UA_ReadValueId_init(&(rq.nodesToRead[0]));
-	rq.nodesToRead[0].attributeId = 13; //UA_ATTRIBUTEID_VALUE
-	UA_NodeId_init(&(rq.nodesToRead[0].nodeId));
-	rq.nodesToRead[0].nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
-	rq.nodesToRead[0].nodeId.identifier.numeric = 2255;
-	UA_QualifiedName_init(&(rq.nodesToRead[0].dataEncoding));
+	UA_Array_new((void **) &rq.nodesToRead, nodeIds_size, &UA_[UA_READVALUEID]);
+	rq.nodesToReadSize = nodeIds_size;
+	for(UA_Int32 i=0;i<nodeIds_size;i++)
+	{
+		UA_ReadValueId_init(&(rq.nodesToRead[0]));
+		rq.nodesToRead[i].attributeId = 13; //UA_ATTRIBUTEID_VALUE
+		UA_NodeId_init(&(rq.nodesToRead[i].nodeId));
+		rq.nodesToRead[i].nodeId = nodeIds[i];
+		UA_QualifiedName_init(&(rq.nodesToRead[0].dataEncoding));
+	}
 	rq.requestHeader.timeoutHint = 10000;
 	rq.requestHeader.timestamp = UA_DateTime_now();
+	rq.requestHeader.authenticationToken.identifier.numeric = authenticationToken->identifier.numeric;
+	rq.requestHeader.authenticationToken.identifierType = authenticationToken->identifierType;
+	rq.requestHeader.authenticationToken.namespaceIndex = authenticationToken->namespaceIndex;
+
 	rq.timestampsToReturn = 0x03;
+	msghdr.messageSize = 16 +UA_TcpMessageHeader_calcSizeBinary(&msghdr) + UA_NodeId_calcSizeBinary(&type) + UA_ReadRequest_calcSizeBinary(&rq);
+	UA_TcpMessageHeader_encodeBinary(&msghdr,message,&offset);
+	UA_UInt32_encodeBinary(&tmpChannelId, message, &offset);
+	UA_UInt32_encodeBinary(&tokenId, message, &offset);
+	UA_UInt32_encodeBinary(&sequenceNumber, message, &offset);
+	UA_UInt32_encodeBinary(&requestId, message, &offset);
+	UA_NodeId_encodeBinary(&type,message,&offset);
 	UA_ReadRequest_encodeBinary(&rq, message, &offset);
+
+	UA_DateTime tic = UA_DateTime_now();
 	UA_Int32 sendret = send(sock, message->data, offset, 0);
+	UA_Array_delete(rq.nodesToRead,nodeIds_size,&UA_[UA_READVALUEID]);
 	UA_ByteString_delete(message);
 
-	rq.requestHeader.authenticationToken.identifier.numeric = 10;
-	rq.requestHeader.authenticationToken.identifierType = UA_NODEIDTYPE_NUMERIC;
-	rq.requestHeader.authenticationToken.namespaceIndex = 10;
+
 
 	rq.requestHeader.requestHandle = 3;
 	if (sendret < 0) {
 		printf("send opensecurechannel failed");
 		return 1;
 	}
-	return 0;
+	return tic;
 }
 int main(int argc, char *argv[]) {
 	int sock;
@@ -310,7 +323,7 @@ int main(int argc, char *argv[]) {
 	if (sock == -1) {
 		printf("Could not create socket");
 	}
-	server.sin_addr.s_addr = inet_addr("134.130.125.98");
+	server.sin_addr.s_addr = inet_addr("192.168.0.205");
 	server.sin_family = AF_INET;
 	server.sin_port = htons(16664);
 //Connect to remote server
@@ -321,7 +334,7 @@ int main(int argc, char *argv[]) {
 	UA_String *endpointUrl;
 	UA_String_new(&endpointUrl);
 
-	UA_String_copycstring("opc.tcp://134.130.125.48:16663", endpointUrl);
+	UA_String_copycstring("opc.tcp://blablablub.com:16664", endpointUrl);
 	sendHello(sock, endpointUrl);
 	int received = recv(sock, reply->data, reply->length, 0);
 	sendOpenSecureChannel(sock);
@@ -335,76 +348,49 @@ int main(int argc, char *argv[]) {
 
 	sendCreateSession(sock, secureChannelId, 1, 52, 2, endpointUrl);
 	received = recv(sock, reply->data, reply->length, 0);
-	sendActivateSession(sock, secureChannelId, 1, 53, 3);
+	UA_NodeId messageType;
+	recvOffset = 24;
+	UA_NodeId_decodeBinary(reply,&recvOffset,&messageType);
+	UA_CreateSessionResponse createSessionResponse;
+	UA_CreateSessionResponse_decodeBinary(reply,&recvOffset,&createSessionResponse);
+
+	sendActivateSession(sock, secureChannelId, 1, 53, 3,&createSessionResponse.authenticationToken);
 	received = recv(sock, reply->data, reply->length, 0);
+
+    UA_NodeId *nodesToRead;
+    UA_UInt32 nodesToReadSize = atoi(argv[1]);
+    UA_Array_new((void**)&nodesToRead,nodesToReadSize,&UA_[UA_NODEID]);
+	for(UA_UInt32 i = 0; i<nodesToReadSize; i++){
+		UA_NodeId_new((UA_NodeId**)&nodesToRead[i]);
+		nodesToRead[i].identifier.numeric = i + 19000;
+		nodesToRead[i].identifierType = UA_NODEIDTYPE_NUMERIC;
+		nodesToRead[i].namespaceIndex = 0;
+	}
+
 	UA_DateTime tic, toc;
-	for (UA_Int32 i = 0; i < 100; i++) {
-		tic = UA_DateTime_now();
-		sendReadRequest(sock, secureChannelId, 1+i, 54+i, 4+i);
-		toc = UA_DateTime_now() - tic;
+	UA_Double *timeDiffs;
+	UA_UInt32 tries = (UA_UInt32)atoi(argv[2]);
+	UA_Array_new((void**)&timeDiffs,tries,&UA_[UA_DOUBLE]);
+	UA_Double sum = 0;
+	for (UA_UInt32 i = 0; i < tries; i++) {
+
+		tic = sendReadRequest(sock, secureChannelId, 1+i, 54+i, 4+i,&createSessionResponse.authenticationToken,nodesToReadSize,nodesToRead);
+
 		received = recv(sock, reply->data, 2000, 0);
-		UA_Int64 diff = ((UA_Int64) toc );
-		printf("read req took: %llu  \n", diff);
-	}
+		toc = UA_DateTime_now() - tic;
 
-	/*
-	 UA_TcpMessageHeader reqTcpHeader;
-	 UA_UInt32 reqSecureChannelId = 0;
-	 UA_UInt32 reqTokenId = 0;
-	 UA_SequenceHeader reqSequenceHeader;
-	 UA_NodeId reqRequestType;
-	 UA_ReadRequest req;
-	 UA_RequestHeader reqHeader;
-	 UA_NodeId reqHeaderAuthToken;
-	 UA_ExtensionObject reqHeaderAdditionalHeader;
-	 UA_NodeId_init(&reqRequestType);
-	 reqRequestType.identifierType = UA_NODEIDTYPE_NUMERIC;
-	 reqRequestType.identifier.numeric = 631; //read request
-	 UA_ReadRequest_init(&req);
-	 req.requestHeader = reqHeader;
-	 UA_RequestHeader_init(&(req.requestHeader));
-	 req.requestHeader.authenticationToken = reqHeaderAuthToken;
-	 UA_NodeId_init(&(req.requestHeader.authenticationToken));
-	 req.requestHeader.additionalHeader = reqHeaderAdditionalHeader;
-	 UA_ExtensionObject_init(&(req.requestHeader.additionalHeader));
-	 UA_Array_new((void **)&req.nodesToRead, 1, &UA_.types[UA_READVALUEID]);
-	 req.nodesToReadSize = 1;
-	 UA_ReadValueId_init(&(req.nodesToRead[0]));
-	 req.nodesToRead[0].attributeId = 13; //UA_ATTRIBUTEID_VALUE
-	 UA_NodeId_init(&(req.nodesToRead[0].nodeId));
-	 req.nodesToRead[0].nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
-	 req.nodesToRead[0].nodeId.identifier.numeric = 2255;
-	 UA_QualifiedName_init(&(req.nodesToRead[0].dataEncoding));
-	 messageEncodedLength = UA_TcpMessageHeader_calcSizeBinary(&reqTcpHeader) +
-	 UA_UInt32_calcSizeBinary(&reqSecureChannelId)+
-	 UA_UInt32_calcSizeBinary(&reqTokenId)+
-	 UA_SequenceHeader_calcSizeBinary(&reqSequenceHeader)+
-	 UA_NodeId_calcSizeBinary(&reqRequestType) +
-	 UA_ReadRequest_calcSizeBinary(&req);
-	 UA_TcpMessageHeader_init(&reqTcpHeader);
-	 reqTcpHeader.messageType = UA_MESSAGETYPE_MSG;
-	 reqTcpHeader.messageSize = messageEncodedLength;
-	 reqTcpHeader.isFinal = 'F';
-	 UA_TcpMessageHeader_encodeBinary(&reqTcpHeader, &message, &messagepos);
-	 UA_UInt32_encodeBinary(&reqSecureChannelId, &message, &messagepos);
-	 UA_UInt32_encodeBinary(&reqTokenId, &message, &messagepos);
-	 UA_SequenceHeader_encodeBinary(&reqSequenceHeader, &message, &messagepos);
-	 UA_NodeId_encodeBinary(&reqRequestType, &message, &messagepos);
-	 UA_ReadRequest_encodeBinary(&req, &message, &messagepos);
-	 */
-//Send some data
-//Receive a reply from the server
-	if (received < 0) {
-		puts("recv failed");
-		return 1;
+		timeDiffs[i] = (UA_Double)toc/(UA_Double)10e4;
+		sum = sum + timeDiffs[i];
+		printf("read request took: %16.10f ms \n",timeDiffs[i]);
 	}
-	for (int i = 0; i < received; i++) {
-//show only printable ascii
-		if (reply->data[i] >= 32 && reply->data[i] <= 126)
-			printf("%c", reply->data[i]);
+	UA_Double mean = sum / tries;
+	printf("mean time for handling request: %16.10f ms \n",mean);
+	if(received>0)//dummy
+	{
+		printf("%i",received);
 	}
-	printf("\n");
-
+	UA_Array_delete(nodesToRead,nodesToReadSize,&UA_[UA_NODEID]);
 	close(sock);
 	return 0;
+
 }

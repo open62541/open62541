@@ -203,7 +203,9 @@ void readConnection(NetworklayerTCP *layer, UA_Server *server, TCPConnection *en
 		CLOSESOCKET(entry->sockfd);
 		NetworklayerTCP_remove(layer, entry->sockfd);
 	} else {
-		UA_Server_processBinaryMessage(server, &entry->connection, &readBuffer);
+		if(readBuffer.length>0){ //data received to process?
+			UA_Server_processBinaryMessage(server, &entry->connection, &readBuffer);
+		}
 	}
 	UA_ByteString_deleteMembers(&readBuffer);
 }

@@ -154,10 +154,10 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_gener
 # build example client
 option(CLIENT "Build a test client" OFF)
 if(CLIENT)
-message(STATUS "Extensions: enabling client")
-
-add_executable(exampleClient examples/opcuaClient.c)
-target_link_libraries(exampleClient open62541)
+	message(STATUS "Extensions: enabling client")
+	add_definitions( -DBENCHMARK=1 )
+	add_executable(exampleClient examples/opcuaClient.c)
+	target_link_libraries(exampleClient open62541)
 endif()
 
 # build example server

@@ -379,6 +379,18 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_ExpandedNodeId ObjId_ServerStatus; NS0EXPANDEDNODEID(ObjId_ServerStatus, 2256);
     UA_ExpandedNodeId ObjId_ServerCapabilities; NS0EXPANDEDNODEID(ObjId_ServerCapabilities, 2268);
     UA_ExpandedNodeId ObjId_State; NS0EXPANDEDNODEID(ObjId_State, 2259);
+#define BENCHMARK
+#ifdef BENCHMARK
+    UA_UInt32 nodeCount = 500;
+    UA_VariableNode *tmpNodes;
+    UA_ExpandedNodeId *tmpNodeIds;
+    UA_Array_new((void**)&tmpNodes,nodeCount,&UA_[UA_VARIABLENODE]);
+    UA_Array_new((void**)&tmpNodeIds,nodeCount,&UA_[UA_EXPANDEDNODEID]);
+    for(UA_UInt32 i = 0; i<nodeCount;i++){
+    	UA_ExpandedNodeId_new((UA_ExpandedNodeId**)&tmpNodeIds[i]);
+    	 NS0EXPANDEDNODEID(tmpNodeIds[i], 19000+i);
+    }
+#endif
 
     // FolderType
     UA_ObjectNode *folderType;
@@ -390,6 +402,34 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_LocalizedText_copycstring("FolderType", &folderType->description);
     UA_NodeStore_insert(server->nodestore, (UA_Node**)&folderType, UA_NODESTORE_INSERT_UNIQUE);
 
+#ifdef BENCHMARK
+    for(UA_UInt32 i = 0;i<nodeCount;i++){
+
+    UA_NodeId_new((UA_NodeId**)&tmpNodes[i]);
+    tmpNodes[i].nodeId   = tmpNodeIds[i].nodeId;
+
+    tmpNodes[i].nodeClass = UA_NODECLASS_VARIABLE;
+
+    UA_Int32 data = 42;
+    char str[15];
+    UA_alloc((void*)str,15);
+    sprintf(str,"%d",i);
+    UA_QualifiedName_copycstring((char*)&str,&tmpNodes[i].browseName);
+    UA_LocalizedText_copycstring((char*)&str,&tmpNodes[i].displayName);
+
+    UA_LocalizedText_copycstring("integer value", &tmpNodes[i].description);
+    tmpNodes[i].value.vt = &UA_[UA_INT32];
+    tmpNodes[i].value.storage.data.arrayDimensionsLength = 1; // added to ensure encoding in readreponse
+    tmpNodes[i].value.storage.data.arrayLength = 1;
+    tmpNodes[i].value.storage.data.dataPtr = &data;//&status->state; // points into the other object.
+    tmpNodes[i].value.storageType = UA_VARIANT_DATA_NODELETE;
+    UA_VariableNode *tmpNode = (UA_VariableNode*)&tmpNodes[i];
+
+    //ADDREFERENCE(tmpNode, RefTypeId_Organizes, UA_FALSE, ObjId_ObjectsFolder);
+    UA_NodeStore_insert(server->nodestore, (UA_Node**)& tmpNode, UA_NODESTORE_INSERT_UNIQUE);
+
+}
+#endif
     // Root
     UA_ObjectNode *root;
     UA_ObjectNode_new(&root);
@@ -402,6 +442,11 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     ADDREFERENCE(root, RefTypeId_Organizes, UA_FALSE, ObjId_ObjectsFolder);
     ADDREFERENCE(root, RefTypeId_Organizes, UA_FALSE, ObjId_TypesFolder);
     ADDREFERENCE(root, RefTypeId_Organizes, UA_FALSE, ObjId_ViewsFolder);
+    for(UA_UInt32 i = 0; i<nodeCount;i++){
+    	//AddReference((UA_Node*)root, &(UA_ReferenceNode){RefTypeId_Organizes, UA_FALSE, ObjId_redLED}, ns0);
+    	UA_ExpandedNodeId tmpNodeId = tmpNodeIds[i];
+    	ADDREFERENCE(root, RefTypeId_Organizes, UA_FALSE, tmpNodeId);
+    }
     /* root becomes a managed node. we need to release it at the end.*/
     UA_NodeStore_insert(server->nodestore, (UA_Node**)&root, UA_NODESTORE_INSERT_UNIQUE | UA_NODESTORE_INSERT_GETMANAGED);
 
@@ -518,6 +563,14 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     state->value.storageType = UA_VARIANT_DATA_NODELETE;
     UA_NodeStore_insert(server->nodestore, (UA_Node**)&state, UA_NODESTORE_INSERT_UNIQUE);
 
+
+
+
+#ifdef BENCHMARK
+
+
+
+#endif
     //TODO: free(namespaceArray->value.data) later or forget it
 
     /* UA_VariableNode* v = (UA_VariableNode*)np; */
