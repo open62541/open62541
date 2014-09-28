@@ -318,12 +318,30 @@ int main(int argc, char *argv[]) {
 	UA_ByteString_new(&reply);
 	UA_ByteString_newMembers(reply, 65536);
 
-//Create socket
+	//start parameters
+	UA_UInt32 nodesToReadSize;
+	UA_UInt32 tries;
+
+	if(argv[1] == UA_NULL){
+		nodesToReadSize = 1;
+	}else{
+		nodesToReadSize = atoi(argv[1]);
+	}
+
+	if(argv[2] == UA_NULL){
+		tries= 2;
+	}else{
+		tries = (UA_UInt32) atoi(argv[2]);
+	}
+
+
+
+	//Create socket
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock == -1) {
 		printf("Could not create socket");
 	}
-	server.sin_addr.s_addr = inet_addr("192.168.0.205");
+	server.sin_addr.s_addr = inet_addr("127.0.0.1");
 	server.sin_family = AF_INET;
 	server.sin_port = htons(16664);
 //Connect to remote server
@@ -340,14 +358,16 @@ int main(int argc, char *argv[]) {
 	sendOpenSecureChannel(sock);
 	received = recv(sock, reply->data, reply->length, 0);
 
+
 	UA_UInt32 recvOffset = 0;
 	UA_TcpMessageHeader msghdr;
 	UA_TcpMessageHeader_decodeBinary(reply, &recvOffset, &msghdr);
 	UA_UInt32 secureChannelId;
 	UA_UInt32_decodeBinary(reply, &recvOffset, &secureChannelId);
-
 	sendCreateSession(sock, secureChannelId, 1, 52, 2, endpointUrl);
 	received = recv(sock, reply->data, reply->length, 0);
+
+
 	UA_NodeId messageType;
 	recvOffset = 24;
 	UA_NodeId_decodeBinary(reply,&recvOffset,&messageType);
@@ -358,20 +378,21 @@ int main(int argc, char *argv[]) {
 	received = recv(sock, reply->data, reply->length, 0);
 
     UA_NodeId *nodesToRead;
-    UA_UInt32 nodesToReadSize = atoi(argv[1]);
+
     UA_Array_new((void**)&nodesToRead,nodesToReadSize,&UA_[UA_NODEID]);
 	for(UA_UInt32 i = 0; i<nodesToReadSize; i++){
 		UA_NodeId_new((UA_NodeId**)&nodesToRead[i]);
-		nodesToRead[i].identifier.numeric = i + 19000;
+		nodesToRead[i].identifier.numeric = 2255; //ask always the same node
 		nodesToRead[i].identifierType = UA_NODEIDTYPE_NUMERIC;
 		nodesToRead[i].namespaceIndex = 0;
 	}
 
 	UA_DateTime tic, toc;
 	UA_Double *timeDiffs;
-	UA_UInt32 tries = (UA_UInt32)atoi(argv[2]);
+
 	UA_Array_new((void**)&timeDiffs,tries,&UA_[UA_DOUBLE]);
 	UA_Double sum = 0;
+
 	for (UA_UInt32 i = 0; i < tries; i++) {
 
 		tic = sendReadRequest(sock, secureChannelId, 1+i, 54+i, 4+i,&createSessionResponse.authenticationToken,nodesToReadSize,nodesToRead);
@@ -379,16 +400,34 @@ int main(int argc, char *argv[]) {
 		received = recv(sock, reply->data, 2000, 0);
 		toc = UA_DateTime_now() - tic;
 
-		timeDiffs[i] = (UA_Double)toc/(UA_Double)10e4;
+		timeDiffs[i] = (UA_Double)toc/(UA_Double)10e3;
 		sum = sum + timeDiffs[i];
 		printf("read request took: %16.10f ms \n",timeDiffs[i]);
 	}
+
 	UA_Double mean = sum / tries;
 	printf("mean time for handling request: %16.10f ms \n",mean);
+
 	if(received>0)//dummy
 	{
 		printf("%i",received);
 	}
+	//save to file
+	char data[100];
+	const char flag = 'a';
+	FILE* fHandle =  fopen("measurement",&flag);
+	//header
+
+	UA_Int32 bytesToWrite = sprintf(data,"measurement %s, nodesToRead %d \n",argv[3],nodesToReadSize);
+
+	fwrite(data,1,bytesToWrite,fHandle);
+
+	for(UA_UInt32 i=0;i<tries;i++){
+		bytesToWrite = sprintf(data,"t%d,%16.10f \n",i,timeDiffs[i]);
+		fwrite(data,1,bytesToWrite,fHandle);
+	}
+	fclose(fHandle);
+	UA_String_delete(endpointUrl);
 	UA_Array_delete(nodesToRead,nodesToReadSize,&UA_[UA_NODEID]);
 	close(sock);
 	return 0;
