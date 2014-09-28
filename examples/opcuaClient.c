@@ -158,15 +158,16 @@ UA_Int32 sendCreateSession(UA_Int32 sock, UA_UInt32 channelId,
 	rq.requestHeader.authenticationToken.identifierType = UA_NODEIDTYPE_NUMERIC;
 	rq.requestHeader.authenticationToken.namespaceIndex = 10;
 	UA_String_copy(endpointUrl, &rq.endpointUrl);
-	rq.clientDescription.applicationName.locale.length = -1;
-	rq.clientDescription.applicationName.text.length = -1;
-
-	rq.clientDescription.applicationUri.length = -1;
-	rq.clientDescription.discoveryProfileUri.length = -1;
+	rq.clientDescription.applicationName.locale.length = 0;
+	rq.clientDescription.applicationName.text.length = 0;
+	rq.serverUri.length = 0;
+	rq.serverUri.data = UA_NULL;
+	rq.clientDescription.applicationUri.length = 0;
+	rq.clientDescription.discoveryProfileUri.length = 0;
 	rq.clientDescription.discoveryUrls = UA_NULL;
-	rq.clientDescription.discoveryUrlsSize = -1;
-	rq.clientDescription.gatewayServerUri.length = -1;
-	rq.clientDescription.productUri.length = -1;
+	rq.clientDescription.discoveryUrlsSize = 0;
+	rq.clientDescription.gatewayServerUri.length = 0;
+	rq.clientDescription.productUri.length = 0;
 
 	UA_String_copycstring("mysession", &rq.sessionName);
 
@@ -225,7 +226,8 @@ UA_Int32 sendActivateSession(UA_Int32 sock, UA_UInt32 channelId,
 	UA_ActivateSessionRequest_init(&rq);
 	rq.requestHeader.requestHandle = 2;
 	rq.requestHeader.authenticationToken = authenticationToken;
-
+	rq.requestHeader.timestamp = UA_DateTime_now();
+	rq.requestHeader.timeoutHint = 10000;
 	msghdr.messageSize  = 16 +UA_TcpMessageHeader_calcSizeBinary(&msghdr) + UA_NodeId_calcSizeBinary(&type) + UA_ActivateSessionRequest_calcSizeBinary(&rq);
 
 	UA_TcpMessageHeader_encodeBinary(&msghdr, message, &offset);
@@ -277,7 +279,7 @@ UA_Int64 sendReadRequest(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId,
 	for(UA_Int32 i=0;i<nodeIds_size;i++)
 	{
 		UA_ReadValueId_init(&(rq.nodesToRead[i]));
-		rq.nodesToRead[i].attributeId = 13; //UA_ATTRIBUTEID_VALUE
+		rq.nodesToRead[i].attributeId = 6; //WriteMask
 		UA_NodeId_init(&(rq.nodesToRead[i].nodeId));
 		rq.nodesToRead[i].nodeId = nodeIds[i];
 		UA_QualifiedName_init(&(rq.nodesToRead[0].dataEncoding));
@@ -353,7 +355,12 @@ int main(int argc, char *argv[]) {
 	{
 		alwaysSameNode = UA_FALSE;
 	}
-
+	/*UA_Int32 pid;
+	if((pid = fork()) < 0) {
+	    printf("no fork possible");
+	    return 0;
+	}
+	else*/{
 
 
 	//Create socket
@@ -383,8 +390,17 @@ int main(int argc, char *argv[]) {
 	UA_TcpMessageHeader msghdr;
 	UA_TcpMessageHeader_decodeBinary(reply, &recvOffset, &msghdr);
 	UA_UInt32 secureChannelId;
+	UA_AsymmetricAlgorithmSecurityHeader asymHeader;
+	UA_SequenceHeader seqHeader;
+	UA_NodeId rspType;
+	UA_OpenSecureChannelResponse openSecChannelRsp;
 	UA_UInt32_decodeBinary(reply, &recvOffset, &secureChannelId);
-	sendCreateSession(sock, secureChannelId, 1, 52, 2, endpointUrl);
+	UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(reply,&recvOffset,&asymHeader);
+	UA_SequenceHeader_decodeBinary(reply,&recvOffset,&seqHeader);
+	UA_NodeId_decodeBinary(reply,&recvOffset,&rspType);
+	UA_OpenSecureChannelResponse_decodeBinary(reply,&recvOffset,&openSecChannelRsp);
+
+	sendCreateSession(sock, secureChannelId, openSecChannelRsp.securityToken.tokenId, 52, 2, endpointUrl);
 	received = recv(sock, reply->data, reply->length, 0);
 
 
@@ -394,16 +410,17 @@ int main(int argc, char *argv[]) {
 	UA_CreateSessionResponse createSessionResponse;
 	UA_CreateSessionResponse_decodeBinary(reply,&recvOffset,&createSessionResponse);
 
-	sendActivateSession(sock, secureChannelId, 1, 53, 3,createSessionResponse.authenticationToken);
+	sendActivateSession(sock, secureChannelId, openSecChannelRsp.securityToken.tokenId, 53, 3,createSessionResponse.authenticationToken);
 	received = recv(sock, reply->data, reply->length, 0);
 
     UA_NodeId *nodesToRead;
 
     UA_Array_new((void**)&nodesToRead,nodesToReadSize,&UA_[UA_NODEID]);
+
 	for(UA_UInt32 i = 0; i<nodesToReadSize; i++){
 		UA_NodeId_new((UA_NodeId**)&nodesToRead[i]);
 		if(alwaysSameNode){
-			nodesToRead[i].identifier.numeric = 2255; //ask always the same node
+			nodesToRead[i].identifier.numeric = 2253; //ask always the same node
 		}
 		else{
 			nodesToRead[i].identifier.numeric = 19000 +i;
@@ -415,19 +432,21 @@ int main(int argc, char *argv[]) {
 	UA_DateTime tic, toc;
 	UA_Double *timeDiffs;
 
+
+
 	UA_Array_new((void**)&timeDiffs,tries,&UA_[UA_DOUBLE]);
 	UA_Double sum = 0;
 
 	for (UA_UInt32 i = 0; i < tries; i++) {
 
-		tic = sendReadRequest(sock, secureChannelId, 1+i, 54+i, 4+i,createSessionResponse.authenticationToken,nodesToReadSize,nodesToRead);
+		tic = sendReadRequest(sock, secureChannelId, openSecChannelRsp.securityToken.tokenId, 54+i, 4+i,createSessionResponse.authenticationToken,nodesToReadSize,nodesToRead);
 
 		received = recv(sock, reply->data, 2000, 0);
 		toc = UA_DateTime_now() - tic;
 
 		timeDiffs[i] = (UA_Double)toc/(UA_Double)10e3;
 		sum = sum + timeDiffs[i];
-		printf("read request took: %16.10f ms \n",timeDiffs[i]);
+		//printf("read request took: %16.10f ms \n",timeDiffs[i]);
 	}
 
 	UA_Double mean = sum / tries;
@@ -437,24 +456,27 @@ int main(int argc, char *argv[]) {
 	{
 		printf("%i",received);
 	}
+
 	//save to file
 	char data[100];
 	const char flag = 'a';
-	FILE* fHandle =  fopen("measurement",&flag);
+	FILE* fHandle =  fopen(argv[3],&flag);
 	//header
 
-	UA_Int32 bytesToWrite = sprintf(data,"measurement %s, nodesToRead %d \n",argv[3],nodesToReadSize);
+	UA_Int32 bytesToWrite = sprintf(data,"measurement %s in ms, nodesToRead %d \n",argv[3],nodesToReadSize);
 
 	fwrite(data,1,bytesToWrite,fHandle);
 
 	for(UA_UInt32 i=0;i<tries;i++){
-		bytesToWrite = sprintf(data,"t%d,%16.10f \n",i,timeDiffs[i]);
+		bytesToWrite = sprintf(data,"%16.10f \n",timeDiffs[i]);
 		fwrite(data,1,bytesToWrite,fHandle);
 	}
 	fclose(fHandle);
+
 	UA_String_delete(endpointUrl);
 	UA_Array_delete(nodesToRead,nodesToReadSize,&UA_[UA_NODEID]);
 	close(sock);
 	return 0;
+	}
 
 }
