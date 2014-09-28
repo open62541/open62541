@@ -201,7 +201,7 @@ UA_Int32 sendCreateSession(UA_Int32 sock, UA_UInt32 channelId,
 	return 0;
 }
 UA_Int32 sendActivateSession(UA_Int32 sock, UA_UInt32 channelId,
-		UA_UInt32 tokenId, UA_UInt32 sequenceNumber, UA_UInt32 requestId, UA_NodeId *authenticationToken) {
+		UA_UInt32 tokenId, UA_UInt32 sequenceNumber, UA_UInt32 requestId, UA_NodeId authenticationToken) {
 	UA_ByteString *message;
 	UA_ByteString_new(&message);
 	UA_ByteString_newMembers(message, 65536);
@@ -224,10 +224,7 @@ UA_Int32 sendActivateSession(UA_Int32 sock, UA_UInt32 channelId,
 	UA_ActivateSessionRequest rq;
 	UA_ActivateSessionRequest_init(&rq);
 	rq.requestHeader.requestHandle = 2;
-
-	rq.requestHeader.authenticationToken.identifier.numeric = authenticationToken->identifier.numeric;
-	rq.requestHeader.authenticationToken.identifierType = authenticationToken->identifierType;
-	rq.requestHeader.authenticationToken.namespaceIndex = authenticationToken->namespaceIndex;
+	rq.requestHeader.authenticationToken = authenticationToken;
 
 	msghdr.messageSize  = 16 +UA_TcpMessageHeader_calcSizeBinary(&msghdr) + UA_NodeId_calcSizeBinary(&type) + UA_ActivateSessionRequest_calcSizeBinary(&rq);
 
@@ -252,7 +249,7 @@ UA_Int32 sendActivateSession(UA_Int32 sock, UA_UInt32 channelId,
 }
 
 UA_Int64 sendReadRequest(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId,
-		UA_UInt32 sequenceNumber, UA_UInt32 requestId,UA_NodeId *authenticationToken, UA_Int32 nodeIds_size,UA_NodeId* nodeIds) {
+		UA_UInt32 sequenceNumber, UA_UInt32 requestId,UA_NodeId authenticationToken, UA_Int32 nodeIds_size,UA_NodeId* nodeIds) {
 	UA_ByteString *message;
 	UA_ByteString_new(&message);
 	UA_ByteString_newMembers(message, 65536);
@@ -279,7 +276,7 @@ UA_Int64 sendReadRequest(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId,
 	rq.nodesToReadSize = nodeIds_size;
 	for(UA_Int32 i=0;i<nodeIds_size;i++)
 	{
-		UA_ReadValueId_init(&(rq.nodesToRead[0]));
+		UA_ReadValueId_init(&(rq.nodesToRead[i]));
 		rq.nodesToRead[i].attributeId = 13; //UA_ATTRIBUTEID_VALUE
 		UA_NodeId_init(&(rq.nodesToRead[i].nodeId));
 		rq.nodesToRead[i].nodeId = nodeIds[i];
@@ -287,11 +284,9 @@ UA_Int64 sendReadRequest(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId,
 	}
 	rq.requestHeader.timeoutHint = 10000;
 	rq.requestHeader.timestamp = UA_DateTime_now();
-	rq.requestHeader.authenticationToken.identifier.numeric = authenticationToken->identifier.numeric;
-	rq.requestHeader.authenticationToken.identifierType = authenticationToken->identifierType;
-	rq.requestHeader.authenticationToken.namespaceIndex = authenticationToken->namespaceIndex;
-
+	rq.requestHeader.authenticationToken = authenticationToken;
 	rq.timestampsToReturn = 0x03;
+	rq.requestHeader.requestHandle = 1 + requestId;
 	msghdr.messageSize = 16 +UA_TcpMessageHeader_calcSizeBinary(&msghdr) + UA_NodeId_calcSizeBinary(&type) + UA_ReadRequest_calcSizeBinary(&rq);
 	UA_TcpMessageHeader_encodeBinary(&msghdr,message,&offset);
 	UA_UInt32_encodeBinary(&tmpChannelId, message, &offset);
@@ -308,9 +303,9 @@ UA_Int64 sendReadRequest(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId,
 
 
 
-	rq.requestHeader.requestHandle = 3;
+
 	if (sendret < 0) {
-		printf("send opensecurechannel failed");
+		printf("send readrequest failed");
 		return 1;
 	}
 	return tic;
@@ -324,12 +319,14 @@ int main(int argc, char *argv[]) {
 	UA_ByteString_newMembers(reply, 65536);
 
 	//start parameters
-	if(argc < 5)
+	if(argc < 7)
 	{
 		printf("1st parameter: number of nodes to read \n");
 		printf("2nd parameter: number of read-tries \n");
 		printf("3rd parameter: name of the file to save measurement data \n");
 		printf("4th parameter: 1 = read same node, 0 = read different nodes \n");
+		printf("5th parameter: ip adress \n");
+		printf("6th parameter: port \n");
 		return 0;
 	}
 
@@ -364,9 +361,9 @@ int main(int argc, char *argv[]) {
 	if (sock == -1) {
 		printf("Could not create socket");
 	}
-	server.sin_addr.s_addr = inet_addr("134.130.125.48");
+	server.sin_addr.s_addr = inet_addr(argv[5]);
 	server.sin_family = AF_INET;
-	server.sin_port = htons(16663);
+	server.sin_port = htons(atoi(argv[6]));
 //Connect to remote server
 	if (connect(sock, (struct sockaddr *) &server, sizeof(server)) < 0) {
 		perror("connect failed. Error");
@@ -375,7 +372,7 @@ int main(int argc, char *argv[]) {
 	UA_String *endpointUrl;
 	UA_String_new(&endpointUrl);
 
-	UA_String_copycstring("opc.tcp://blablablub.com:16664", endpointUrl);
+	UA_String_copycstring("opc.tcp://blabla.com:1234", endpointUrl);
 	sendHello(sock, endpointUrl);
 	int received = recv(sock, reply->data, reply->length, 0);
 	sendOpenSecureChannel(sock);
@@ -397,7 +394,7 @@ int main(int argc, char *argv[]) {
 	UA_CreateSessionResponse createSessionResponse;
 	UA_CreateSessionResponse_decodeBinary(reply,&recvOffset,&createSessionResponse);
 
-	sendActivateSession(sock, secureChannelId, 1, 53, 3,&createSessionResponse.authenticationToken);
+	sendActivateSession(sock, secureChannelId, 1, 53, 3,createSessionResponse.authenticationToken);
 	received = recv(sock, reply->data, reply->length, 0);
 
     UA_NodeId *nodesToRead;
@@ -423,7 +420,7 @@ int main(int argc, char *argv[]) {
 
 	for (UA_UInt32 i = 0; i < tries; i++) {
 
-		tic = sendReadRequest(sock, secureChannelId, 1+i, 54+i, 4+i,&createSessionResponse.authenticationToken,nodesToReadSize,nodesToRead);
+		tic = sendReadRequest(sock, secureChannelId, 1+i, 54+i, 4+i,createSessionResponse.authenticationToken,nodesToReadSize,nodesToRead);
 
 		received = recv(sock, reply->data, 2000, 0);
 		toc = UA_DateTime_now() - tic;
