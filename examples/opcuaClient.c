@@ -213,18 +213,13 @@ UA_Int32 sendActivateSession(UA_Int32 sock, UA_UInt32 channelId,
 	msghdr.messageType = UA_MESSAGETYPE_MSG;
 	msghdr.messageSize = 86;
 
-	UA_TcpMessageHeader_encodeBinary(&msghdr, message, &offset);
 
-	UA_UInt32_encodeBinary(&tmpChannelId, message, &offset);
-	UA_UInt32_encodeBinary(&tokenId, message, &offset);
-	UA_UInt32_encodeBinary(&sequenceNumber, message, &offset);
-	UA_UInt32_encodeBinary(&requestId, message, &offset);
 
 	UA_NodeId type;
 	type.identifier.numeric = 467;
 	type.identifierType = UA_NODEIDTYPE_NUMERIC;
 	type.namespaceIndex = 0;
-	UA_NodeId_encodeBinary(&type, message, &offset);
+
 
 	UA_ActivateSessionRequest rq;
 	UA_ActivateSessionRequest_init(&rq);
@@ -234,7 +229,17 @@ UA_Int32 sendActivateSession(UA_Int32 sock, UA_UInt32 channelId,
 	rq.requestHeader.authenticationToken.identifierType = authenticationToken->identifierType;
 	rq.requestHeader.authenticationToken.namespaceIndex = authenticationToken->namespaceIndex;
 
+	msghdr.messageSize  = 16 +UA_TcpMessageHeader_calcSizeBinary(&msghdr) + UA_NodeId_calcSizeBinary(&type) + UA_ActivateSessionRequest_calcSizeBinary(&rq);
+
+	UA_TcpMessageHeader_encodeBinary(&msghdr, message, &offset);
+
+	UA_UInt32_encodeBinary(&tmpChannelId, message, &offset);
+	UA_UInt32_encodeBinary(&tokenId, message, &offset);
+	UA_UInt32_encodeBinary(&sequenceNumber, message, &offset);
+	UA_UInt32_encodeBinary(&requestId, message, &offset);
+	UA_NodeId_encodeBinary(&type, message, &offset);
 	UA_ActivateSessionRequest_encodeBinary(&rq, message, &offset);
+
 	UA_Int32 sendret = send(sock, message->data, offset, 0);
 	UA_ByteString_delete(message);
 
@@ -359,9 +364,9 @@ int main(int argc, char *argv[]) {
 	if (sock == -1) {
 		printf("Could not create socket");
 	}
-	server.sin_addr.s_addr = inet_addr("127.0.0.1");
+	server.sin_addr.s_addr = inet_addr("134.130.125.48");
 	server.sin_family = AF_INET;
-	server.sin_port = htons(16664);
+	server.sin_port = htons(16663);
 //Connect to remote server
 	if (connect(sock, (struct sockaddr *) &server, sizeof(server)) < 0) {
 		perror("connect failed. Error");
