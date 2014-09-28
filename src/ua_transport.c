@@ -24,6 +24,8 @@ UA_Int32 UA_MessageType_encodeBinary(UA_MessageType const *src, UA_ByteString *d
 }
 
 UA_Int32 UA_MessageType_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA_MessageType *dst) {
+    if(*offset+3 > (UA_UInt32)src->length)
+        return UA_ERROR;
     UA_Int32 retval = UA_SUCCESS;
     UA_Byte  tmpBuf[3];
     retval |= UA_Byte_decodeBinary(src, offset, &(tmpBuf[0])); //messageType to Byte representation
