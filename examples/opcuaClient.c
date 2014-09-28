@@ -319,9 +319,19 @@ int main(int argc, char *argv[]) {
 	UA_ByteString_newMembers(reply, 65536);
 
 	//start parameters
+	if(argc < 5)
+	{
+		printf("1st parameter: number of nodes to read \n");
+		printf("2nd parameter: number of read-tries \n");
+		printf("3rd parameter: name of the file to save measurement data \n");
+		printf("4th parameter: 1 = read same node, 0 = read different nodes \n");
+		return 0;
+	}
+
+
 	UA_UInt32 nodesToReadSize;
 	UA_UInt32 tries;
-
+	UA_Boolean alwaysSameNode;
 	if(argv[1] == UA_NULL){
 		nodesToReadSize = 1;
 	}else{
@@ -332,6 +342,14 @@ int main(int argc, char *argv[]) {
 		tries= 2;
 	}else{
 		tries = (UA_UInt32) atoi(argv[2]);
+	}
+	if(atoi(argv[4]) != 0)
+	{
+		alwaysSameNode = UA_TRUE;
+	}
+	else
+	{
+		alwaysSameNode = UA_FALSE;
 	}
 
 
@@ -382,7 +400,12 @@ int main(int argc, char *argv[]) {
     UA_Array_new((void**)&nodesToRead,nodesToReadSize,&UA_[UA_NODEID]);
 	for(UA_UInt32 i = 0; i<nodesToReadSize; i++){
 		UA_NodeId_new((UA_NodeId**)&nodesToRead[i]);
-		nodesToRead[i].identifier.numeric = 2255; //ask always the same node
+		if(alwaysSameNode){
+			nodesToRead[i].identifier.numeric = 2255; //ask always the same node
+		}
+		else{
+			nodesToRead[i].identifier.numeric = 19000 +i;
+		}
 		nodesToRead[i].identifierType = UA_NODEIDTYPE_NUMERIC;
 		nodesToRead[i].namespaceIndex = 0;
 	}
