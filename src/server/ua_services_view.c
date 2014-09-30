@@ -143,7 +143,7 @@ static void Service_Browse_getBrowseResult(UA_NodeStore         *ns,
                                            UA_UInt32             maxReferences,
                                            UA_BrowseResult      *browseResult) {
     const UA_Node *node;
-    UA_NodeId     *relevantReferenceTypes;
+    UA_NodeId     *relevantReferenceTypes = UA_NULL;
     UA_UInt32      relevantReferenceTypesCount = 0;
     if(UA_NodeStore_get(ns, &browseDescription->nodeId, &node) != UA_SUCCESS) {
         browseResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
