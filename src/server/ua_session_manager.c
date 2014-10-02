@@ -31,6 +31,7 @@ UA_Int32 UA_SessionManager_new(UA_SessionManager **sessionManager, UA_UInt32 max
     (*sessionManager)->maxSessionCount = maxSessionCount;
     (*sessionManager)->lastSessionId   = startSessionId;
     (*sessionManager)->sessionTimeout  = sessionTimeout;
+    (*sessionManager)->currentSessionCount = 0;
     return retval;
 }
 
