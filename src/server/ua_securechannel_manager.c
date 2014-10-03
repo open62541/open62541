@@ -33,8 +33,8 @@ UA_Int32 UA_SecureChannelManager_new(UA_SecureChannelManager **cm, UA_UInt32 max
 }
 
 UA_Int32 UA_SecureChannelManager_delete(UA_SecureChannelManager *cm) {
-    struct channel_list_entry *entry;
-    LIST_FOREACH(entry, &cm->channels, pointers) {
+    struct channel_list_entry *entry = LIST_FIRST(&cm->channels);
+    while(entry) {
         LIST_REMOVE(entry, pointers);
         if(entry->channel.session)
             entry->channel.session->channel = UA_NULL;
@@ -42,6 +42,7 @@ UA_Int32 UA_SecureChannelManager_delete(UA_SecureChannelManager *cm) {
             entry->channel.connection->channel = UA_NULL;
         UA_SecureChannel_deleteMembers(&entry->channel);
         UA_free(entry);
+        entry = LIST_FIRST(&cm->channels);
     }
     UA_String_deleteMembers(&cm->endpointUrl);
     UA_free(cm);
