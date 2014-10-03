@@ -15,6 +15,7 @@ struct NetworklayerTCP {
     UA_Server *server;
     uv_loop_t *uvloop;
     uv_tcp_t uvserver;
+    UA_Boolean *running;
 	UA_ConnectionConfig localConf;
 	UA_UInt32 port;
 	UA_UInt32 connectionsSize;
@@ -140,6 +141,12 @@ static void on_connection(uv_stream_t *server, int status) {
     assert(uv_read_start((uv_stream_t*)stream, read_alloc, handle_message) == 0);
 }
 
+void check_running(uv_timer_t* handle, int status) {
+    NetworklayerTCP *layer = (NetworklayerTCP*)handle->loop->data;
+    if(!*layer->running)
+        uv_stop(layer->uvloop);
+}
+
 UA_Int32 NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, struct timeval tv, void(*worker)(UA_Server*), UA_Boolean *running) {
     layer->uvloop = uv_default_loop();
     layer->server = server;
@@ -160,7 +167,12 @@ UA_Int32 NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, struct t
         return UA_ERROR;
     }
     layer->uvloop->data = (void*)layer; // so we can get the pointer to the server
+    layer->running = running;
+    
+    uv_timer_t timer_check_running;
+    uv_timer_init(layer->uvloop, &timer_check_running);
+    uv_timer_start(&timer_check_running, check_running, 0, 500);
+    
     uv_run(layer->uvloop, UV_RUN_DEFAULT);
-    uv_loop_delete(layer->uvloop);
     return UA_SUCCESS;
 }
