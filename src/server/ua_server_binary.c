@@ -250,17 +250,17 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
         INVOKE_SERVICE(TranslateBrowsePathsToNodeIds);
         break;
 
-    case UA_PUBLISHREQUEST_NS0:
-        INVOKE_SERVICE(Publish);
-        break;
+    /* case UA_PUBLISHREQUEST_NS0: */
+    /*     INVOKE_SERVICE(Publish); */
+    /*     break; */
 
-    case UA_CREATEMONITOREDITEMSREQUEST_NS0:
-        INVOKE_SERVICE(CreateMonitoredItems);
-        break;
+    /* case UA_CREATEMONITOREDITEMSREQUEST_NS0: */
+    /*     INVOKE_SERVICE(CreateMonitoredItems); */
+    /*     break; */
 
-    case UA_SETPUBLISHINGMODEREQUEST_NS0:
-        INVOKE_SERVICE(SetPublishingMode);
-        break;
+    /* case UA_SETPUBLISHINGMODEREQUEST_NS0: */
+    /*     INVOKE_SERVICE(SetPublishingMode); */
+    /*     break; */
 
     default: {
         printf("SL_processMessage - unknown request, namespace=%d, request=%d\n",

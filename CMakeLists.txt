@@ -33,7 +33,7 @@ set(lib_sources src/ua_types.c
                 src/server/ua_services_securechannel.c
                 src/server/ua_services_nodemanagement.c
                 src/server/ua_services_view.c
-                src/server/ua_services_subscription.c
+                #src/server/ua_services_subscription.c
                 src/server/ua_services_monitoreditems.c
                 ${headers}
                 ${generated_headers})
