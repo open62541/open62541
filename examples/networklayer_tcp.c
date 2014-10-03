@@ -52,6 +52,7 @@ typedef struct TCPConnectionHandle {
 
 UA_Int32 NetworklayerTCP_new(NetworklayerTCP **newlayer, UA_ConnectionConfig localConf,
 							 UA_UInt32 port) {
+    if(!*newlayer) return UA_ERROR;
     *newlayer = malloc(sizeof(NetworklayerTCP));
     if(newlayer == UA_NULL)
         return UA_ERROR;
@@ -210,6 +211,7 @@ void readConnection(NetworklayerTCP *layer, UA_Server *server, TCPConnection *en
 			UA_Server_processBinaryMessage(server, &entry->connection, &readBuffer);
 		}
 	}
+    readBuffer.length = layer->localConf.recvBufferSize; // because this was malloc'd. Length=0 would lead to errors.
 	UA_ByteString_deleteMembers(&readBuffer);
 }
 

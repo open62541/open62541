@@ -1,8 +1,8 @@
 #include "ua_connection.h"
 #include "ua_util.h"
 
-UA_ConnectionConfig UA_ConnectionConfig_standard = { .protocolVersion = 0,    .sendBufferSize = 8192,
-                                                     .recvBufferSize  = 8192, .maxMessageSize = 8192,
+UA_ConnectionConfig UA_ConnectionConfig_standard = { .protocolVersion = 0,    .sendBufferSize = 65536,
+                                                     .recvBufferSize  = 65536, .maxMessageSize = 65536,
                                                      .maxChunkCount   = 1 };
 
 UA_Int32 UA_Connection_init(UA_Connection *connection, UA_ConnectionConfig localConf, void *callbackHandle,

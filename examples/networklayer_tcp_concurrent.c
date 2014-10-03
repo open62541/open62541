@@ -114,8 +114,8 @@ static void handle_message(uv_stream_t* handle, ssize_t nread, uv_buf_t buf) {
 }
 
 static uv_buf_t read_alloc(uv_handle_t * handle, size_t suggested_size) {
-    //UA_Server *server = (UA_Server*)handle->loop->data;
-    UA_UInt32 receive_bufsize = 2048; // todo: server->layer.localConf.recvBufferSize;
+    NetworklayerTCP *layer = (NetworklayerTCP*)handle->loop->data;
+    UA_UInt32 receive_bufsize = layer->localConf.recvBufferSize;
 	char* buf = malloc(sizeof(char)*receive_bufsize);
     return uv_buf_init(buf, receive_bufsize);
 }
