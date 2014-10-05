@@ -71,8 +71,8 @@ int main(int argc, char** argv) {
 	struct timeval callback_interval = {1, 0}; // 1 second
 	UA_Int32 retval = NetworkLayerTCP_run(nl, &server, callback_interval,
 										  serverCallback, &running);
-	NetworklayerTCP_delete(nl);
 	UA_Server_deleteMembers(&server);
+	NetworklayerTCP_delete(nl);
     UA_String_deleteMembers(&endpointUrl);
 	return retval == UA_SUCCESS ? 0 : retval;
 }
