@@ -4,6 +4,7 @@
 #include "ua_securechannel_manager.h"
 #include "ua_session_manager.h"
 #include "ua_util.h"
+#include "ua_services.h"
 
 UA_Int32 UA_Server_deleteMembers(UA_Server *server) {
     UA_ApplicationDescription_deleteMembers(&server->description);
@@ -565,4 +566,15 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     /* UA_NodeStore_insert(server->nodestore,np); */
 
     UA_NodeStore_releaseManagedNode((const UA_Node *)root);
+}
+
+
+void Server_addNodes(UA_Server *server, const UA_AddNodesRequest *request,
+                     UA_AddNodesResponse *response) {
+    Service_AddNodes(server, &adminSession, request, response);
+}
+
+void Server_addReferences(UA_Server *server, const UA_AddReferencesRequest *request,
+                          UA_AddReferencesResponse *response) {
+    Service_AddReferences(server, &adminSession, request, response);
 }

@@ -9,8 +9,8 @@ UA_Int32 UA_SessionManager_new(UA_SessionManager **sessionManager, UA_UInt32 max
 
 UA_Int32 UA_SessionManager_delete(UA_SessionManager *sessionManager);
 
-UA_Int32 UA_SessionManager_createSession(UA_SessionManager *sessionManager,
-                                         UA_SecureChannel *channel, UA_Session **session);
+UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager,
+                                              UA_SecureChannel *channel, UA_Session **session);
 
 UA_Int32 UA_SessionManager_removeSession(UA_SessionManager *sessionManager,
                                          UA_NodeId         *sessionId);

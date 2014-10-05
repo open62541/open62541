@@ -1,4 +1,5 @@
 #include "ua_session_manager.h"
+#include "ua_statuscodes.h"
 #include "ua_util.h"
 
 /**
@@ -96,18 +97,20 @@ UA_Int32 UA_SessionManager_getSessionByToken(UA_SessionManager *sessionManager, 
 }
 
 /** Creates and adds a session. */
-UA_Int32 UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_SecureChannel *channel, UA_Session **session) {
+UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_SecureChannel *channel,
+                                              UA_Session **session) {
     if(sessionManager->currentSessionCount >= sessionManager->maxSessionCount)
-        return UA_ERROR;
+        return UA_STATUSCODE_BADTOOMANYSESSIONS;
 
     struct session_list_entry *newentry;
     if(UA_alloc((void **)&newentry, sizeof(struct session_list_entry)) != UA_SUCCESS)
-        return UA_ERROR;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_Session_init(&newentry->session);
     newentry->session.sessionId = (UA_NodeId) {.namespaceIndex = 1, .identifierType = UA_NODEIDTYPE_NUMERIC,
                                                .identifier.numeric = sessionManager->lastSessionId++ };
-    newentry->session.authenticationToken = (UA_NodeId) {.namespaceIndex = 1, .identifierType = UA_NODEIDTYPE_NUMERIC,
+    newentry->session.authenticationToken = (UA_NodeId) {.namespaceIndex = 1,
+                                                         .identifierType = UA_NODEIDTYPE_NUMERIC,
                                                          .identifier.numeric = sessionManager->lastSessionId };
     newentry->session.channel = channel;
     newentry->session.timeout = 3600 * 1000; // 1h
@@ -116,7 +119,7 @@ UA_Int32 UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_S
     sessionManager->currentSessionCount++;
     LIST_INSERT_HEAD(&sessionManager->sessions, newentry, pointers);
     *session = &newentry->session;
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_Int32 UA_SessionManager_removeSession(UA_SessionManager *sessionManager, UA_NodeId  *sessionId) {

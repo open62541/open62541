@@ -158,7 +158,10 @@ static void Service_Browse_getBrowseResult(UA_NodeStore         *ns,
     if(!browseDescription->includeSubtypes ||
        findSubReferenceTypes(ns, &browseDescription->referenceTypeId, &relevantReferenceTypes,
                              &relevantReferenceTypesCount) != UA_SUCCESS) {
-        UA_alloc((void **)&relevantReferenceTypes, sizeof(UA_NodeId));
+        if(UA_alloc((void **)&relevantReferenceTypes, sizeof(UA_NodeId)) != UA_SUCCESS) {
+
+            return;
+        }
         UA_NodeId_copy(&browseDescription->referenceTypeId, relevantReferenceTypes);
         relevantReferenceTypesCount = 1;
     }
@@ -205,45 +208,47 @@ static void Service_Browse_getBrowseResult(UA_NodeStore         *ns,
     UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesCount, &UA_[UA_NODEID]);
 }
 
-UA_Int32 Service_Browse(UA_Server *server, UA_Session *session,
-                        const UA_BrowseRequest *request, UA_BrowseResponse *response) {
-    UA_Int32 retval = UA_SUCCESS;
-    if(server == UA_NULL || session == UA_NULL)
-        return UA_ERROR;
+void Service_Browse(UA_Server *server, UA_Session *session,
+                    const UA_BrowseRequest *request, UA_BrowseResponse *response) {
+    UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
 
-    //TODO request->view not used atm
-    UA_Array_new((void **)&(response->results), request->nodesToBrowseSize, &UA_[UA_BROWSERESULT]);
-    response->resultsSize = request->nodesToBrowseSize;
-
-    for(UA_Int32 i = 0;i < request->nodesToBrowseSize;i++) {
-        // Service_Browse_getBrowseResult has no return value. All errors are resolved internally.
-        Service_Browse_getBrowseResult(server->nodestore, &request->nodesToBrowse[i],
-                                       request->requestedMaxReferencesPerNode,
-                                       &response->results[i]);
+    if(request->nodesToBrowseSize <= 0) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+        return;
     }
 
-    //TODO fill Diagnostic info array
-    response->diagnosticInfosSize = 0;
-    response->diagnosticInfos     = UA_NULL;
-    return retval;
+    if(UA_Array_new((void **)&(response->results), request->nodesToBrowseSize, &UA_[UA_BROWSERESULT])
+       != UA_SUCCESS) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+        
+    response->resultsSize = request->nodesToBrowseSize;
+    for(UA_Int32 i = 0;i < request->nodesToBrowseSize;i++)
+        Service_Browse_getBrowseResult(server->nodestore, &request->nodesToBrowse[i],
+                                       request->requestedMaxReferencesPerNode, &response->results[i]);
 }
 
 
-UA_Int32 Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
-                                               const UA_TranslateBrowsePathsToNodeIdsRequest *request,
-                                               UA_TranslateBrowsePathsToNodeIdsResponse *response) {
-    UA_Int32 retval = UA_SUCCESS;
-    DBG_VERBOSE(printf("TranslateBrowsePathsToNodeIdsService - %i path(s)", request->browsePathsSize));
+void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
+                                           const UA_TranslateBrowsePathsToNodeIdsRequest *request,
+                                           UA_TranslateBrowsePathsToNodeIdsResponse *response) {
+    UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
+
+    if(request->browsePathsSize <= 0) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+        return;
+    }
 
     // Allocate space for a correct answer
     response->resultsSize = request->browsePathsSize;
     // _init of the elements is done in Array_new
-    UA_Array_new((void **)&response->results, request->browsePathsSize, &UA_[UA_BROWSEPATHRESULT]);
-
-    for(UA_Int32 i = 0;i < request->browsePathsSize;i++) {
-        //FIXME: implement
-        response->results[i].statusCode = UA_STATUSCODE_BADNOMATCH;
+    if(UA_Array_new((void **)&response->results, request->browsePathsSize, &UA_[UA_BROWSEPATHRESULT])
+       != UA_SUCCESS) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
     }
 
-    return retval;
+    for(UA_Int32 i = 0;i < request->browsePathsSize;i++)
+        response->results[i].statusCode = UA_STATUSCODE_BADNOMATCH; //FIXME: implement
 }

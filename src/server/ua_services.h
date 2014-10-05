@@ -29,9 +29,8 @@
  * the configuration information required to establish a SecureChannel and a
  * Session.
  */
-UA_Int32 Service_GetEndpoints(UA_Server                    *server,
-                              const UA_GetEndpointsRequest *request,
-                              UA_GetEndpointsResponse      *response);
+void Service_GetEndpoints(UA_Server                    *server,
+                          const UA_GetEndpointsRequest *request, UA_GetEndpointsResponse *response);
 // Service_RegisterServer
 /** @} */
 
@@ -48,14 +47,14 @@ UA_Int32 Service_GetEndpoints(UA_Server                    *server,
 /** @brief This Service is used to open or renew a SecureChannel that can be
    used to ensure Confidentiality and Integrity for Message exchange during a
    Session. */
-UA_Int32 Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
-                                   const UA_OpenSecureChannelRequest *request,
-                                   UA_OpenSecureChannelResponse *response);
+void Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
+                               const UA_OpenSecureChannelRequest *request,
+                               UA_OpenSecureChannelResponse *response);
 
 /** @brief This Service is used to terminate a SecureChannel. */
-UA_Int32 Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel,
-                                    const UA_CloseSecureChannelRequest *request,
-                                    UA_CloseSecureChannelResponse *response);
+void Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                                const UA_CloseSecureChannelRequest *request,
+                                UA_CloseSecureChannelResponse *response);
 /** @} */
 
 /**
@@ -74,9 +73,8 @@ UA_Int32 Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel
  * logs and in the Server’s address space. The second is the authenticationToken
  * which is used to associate an incoming request with a Session.
  */
-UA_Int32 Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
-                               const UA_CreateSessionRequest *request,
-                               UA_CreateSessionResponse *response);
+void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
+                           const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response);
 
 /**
  * @brief This Service is used by the Client to submit its SoftwareCertificates
@@ -85,16 +83,14 @@ UA_Int32 Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
  * Client before it issues any other Service request after CreateSession.
  * Failure to do so shall cause the Server to close the Session.
  */
-UA_Int32 Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
-                                 const UA_ActivateSessionRequest *request,
-                                 UA_ActivateSessionResponse *response);
+void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
+                             const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response);
 
 /**
  * @brief This Service is used to terminate a Session.
  */
-UA_Int32 Service_CloseSession(UA_Server *server, UA_Session *session,
-                              const UA_CloseSessionRequest *request,
-                              UA_CloseSessionResponse *response);
+void Service_CloseSession(UA_Server *server, UA_Session *session,
+                          const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response);
 // Service_Cancel
 /** @} */
 
@@ -111,15 +107,14 @@ UA_Int32 Service_CloseSession(UA_Server *server, UA_Session *session,
 /**
  * @brief This Service is used to add one or more Nodes into the AddressSpace hierarchy.
  */
-UA_Int32 Service_AddNodes(UA_Server *server, UA_Session *session,
-                          const UA_AddNodesRequest *request, UA_AddNodesResponse *response);
+void Service_AddNodes(UA_Server *server, UA_Session *session,
+                      const UA_AddNodesRequest *request, UA_AddNodesResponse *response);
 
 /**
  * @brief This Service is used to add one or more References to one or more Nodes
  */
-UA_Int32 Service_AddReferences(UA_Server *server, UA_Session *session,
-                               const UA_AddReferencesRequest *request,
-                               UA_AddReferencesResponse *response);
+void Service_AddReferences(UA_Server *server, UA_Session *session,
+                           const UA_AddReferencesRequest *request, UA_AddReferencesResponse *response);
 
 // Service_DeleteNodes
 // Service_DeleteReferences
@@ -139,15 +134,15 @@ UA_Int32 Service_AddReferences(UA_Server *server, UA_Session *session,
  * The browse can be further limited by the use of a View. This Browse Service
  * also supports a primitive filtering capability.
  */
-UA_Int32 Service_Browse(UA_Server *server, UA_Session *session,
-                        const UA_BrowseRequest *request, UA_BrowseResponse *response);
+void Service_Browse(UA_Server *server, UA_Session *session,
+                    const UA_BrowseRequest *request, UA_BrowseResponse *response);
 
 /**
  * @brief This Service is used to translate textual node paths to their respective ids.
  */
-UA_Int32 Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
-                                               const UA_TranslateBrowsePathsToNodeIdsRequest *request,
-                                               UA_TranslateBrowsePathsToNodeIdsResponse *response);
+void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
+                                           const UA_TranslateBrowsePathsToNodeIdsRequest *request,
+                                           UA_TranslateBrowsePathsToNodeIdsResponse *response);
 // Service_BrowseNext
 // Service_TranslateBrowsePathsToNodeIds
 // Service_RegisterNodes
@@ -190,8 +185,8 @@ UA_Int32 Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *se
  * values as a composite, to read individual elements or to read ranges of
  * elements of the composite.
  */
-UA_Int32 Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request,
-                      UA_ReadResponse *response);
+void Service_Read(UA_Server *server, UA_Session *session,
+                  const UA_ReadRequest *request, UA_ReadResponse *response);
 // Service_HistoryRead
 /**
  * @brief This Service is used to write one or more Attributes of one or more
@@ -200,8 +195,8 @@ UA_Int32 Service_Read(UA_Server *server, UA_Session *session, const UA_ReadReque
  *  values as a composite, to write individual elements or to write ranges of
  *  elements of the composite.
  */
-UA_Int32 Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,
-                       UA_WriteResponse *response);
+void Service_Write(UA_Server *server, UA_Session *session,
+                   const UA_WriteRequest *request, UA_WriteResponse *response);
 // Service_HistoryUpdate
 /** @} */
 

@@ -1,4 +1,5 @@
 #include "ua_services.h"
+#include "ua_namespace_0.h"
 #include "ua_statuscodes.h"
 #include "ua_nodestore.h"
 #include "ua_services_internal.h"
@@ -57,28 +58,24 @@ ret:
     return result;
 }
 
-UA_Int32 Service_AddNodes(UA_Server *server, UA_Session *session,
-                          const UA_AddNodesRequest *request, UA_AddNodesResponse *response) {
-    if(session == UA_NULL)
-        return UA_ERROR;    // TODO: Return error message
+void Service_AddNodes(UA_Server *server, UA_Session *session,
+                      const UA_AddNodesRequest *request, UA_AddNodesResponse *response) {
+    UA_assert(server != UA_NULL && session != UA_NULL);
 
-    UA_Int32 nodestoaddsize = request->nodesToAddSize;
-    if(nodestoaddsize <= 0) {
+    if(request->nodesToAddSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-        response->resultsSize = 0;
-        return UA_SUCCESS;
+        return;
     }
 
-    response->resultsSize = nodestoaddsize;
-    UA_alloc((void **)&response->results, sizeof(void *) * nodestoaddsize);
-    for(int i = 0;i < nodestoaddsize;i++) {
-        DBG_VERBOSE(UA_QualifiedName_printf("service_addnodes - name=", &(request->nodesToAdd[i].browseName)));
+    if(UA_Array_new((void **)&response->results, request->nodesToAddSize, &UA_[UA_ADDNODESRESULT])
+       != UA_SUCCESS) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+    
+    response->resultsSize = request->nodesToAddSize;
+    for(int i = 0;i < request->nodesToAddSize;i++)
         response->results[i] = addSingleNode(server, &request->nodesToAdd[i]);
-    }
-    response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
-    response->diagnosticInfosSize = -1;
-    return UA_SUCCESS;
-
 }
 
 static UA_Int32 AddSingleReference(UA_Node *node, UA_ReferenceNode *reference) {
@@ -128,8 +125,8 @@ UA_Int32 AddReference(UA_NodeStore *targetns, UA_Node *node, UA_ReferenceNode *r
     return retval;
 }
 
-UA_Int32 Service_AddReferences(UA_Server *server, UA_Session *session,
-                               const UA_AddReferencesRequest *request,
-                               UA_AddReferencesResponse *response) {
-    return UA_ERROR;
+void Service_AddReferences(UA_Server *server, UA_Session *session,
+                           const UA_AddReferencesRequest *request,
+                           UA_AddReferencesResponse *response) {
+    response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
