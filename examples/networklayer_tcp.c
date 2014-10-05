@@ -71,16 +71,20 @@ UA_Int32 NetworklayerTCP_remove(NetworklayerTCP *layer, UA_Int32 sockfd) {
 		if(layer->connections[index].sockfd == sockfd)
 			break;
 	}
+
+    if(index == layer->connectionsSize)
+        return UA_ERROR;
+
 	UA_Connection_deleteMembers(&layer->connections[index].connection);
 
+    layer->connectionsSize--;
 	TCPConnection *newconnections;
-    newconnections = malloc(sizeof(TCPConnection) * (layer->connectionsSize-1));
+    newconnections = malloc(sizeof(TCPConnection) * layer->connectionsSize);
 	memcpy(newconnections, &layer->connections, sizeof(TCPConnection) * index);
 	memcpy(&newconnections[index], &layer->connections[index+1],
-           sizeof(TCPConnection) * (layer->connectionsSize - index - 1));
+           sizeof(TCPConnection) * (layer->connectionsSize - index));
     free(layer->connections);
 	layer->connections = newconnections;
-	layer->connectionsSize--;
 	return UA_SUCCESS;
 }
 
@@ -251,7 +255,7 @@ void setFDSet(NetworklayerTCP *layer) {
 }
 
 UA_Int32 NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, struct timeval tv,
-							   void(*worker)(UA_Server*), UA_Boolean *running) {
+                             void(*worker)(UA_Server*), UA_Boolean *running) {
 #ifdef WIN32
 	WORD wVersionRequested;
 	WSADATA wsaData;

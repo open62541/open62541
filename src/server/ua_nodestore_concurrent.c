@@ -215,7 +215,7 @@ UA_Int32 UA_NodeStore_delete(UA_NodeStore *ns) {
     if(!cds_lfht_destroy(ht, UA_NULL)) {
         UA_free(ns);
         return UA_SUCCESS;
-    }else
+    } else
         return UA_ERROR;
 }
 
