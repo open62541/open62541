@@ -54,7 +54,7 @@ UA_Int32 NetworklayerTCP_new(NetworklayerTCP **newlayer, UA_ConnectionConfig loc
 							 UA_UInt32 port) {
     if(!newlayer) return UA_ERROR;
     *newlayer = malloc(sizeof(NetworklayerTCP));
-    if(newlayer == UA_NULL)
+    if(*newlayer == UA_NULL)
         return UA_ERROR;
 	(*newlayer)->localConf = localConf;
 	(*newlayer)->port = port;
