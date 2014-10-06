@@ -314,9 +314,13 @@ UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time) {
 }
 
 UA_Int32 UA_DateTime_toString(UA_DateTime time, UA_String *timeString) {
-    char *charBuf = (char *)(*timeString).data;
+    // length of the string is 31 (incl. \0 at the end)
+    if(UA_alloc((void**)&timeString->data, 31) != UA_SUCCESS)
+        return UA_ERROR;
+    timeString->length = 30;
+
     UA_DateTimeStruct tSt = UA_DateTime_toStruct(time);
-    sprintf(charBuf, "%2d/%2d/%4d %2d:%2d:%2d.%3d.%3d.%3d", tSt.mounth, tSt.day, tSt.year,
+    sprintf((char*)timeString->data, "%2d/%2d/%4d %2d:%2d:%2d.%3d.%3d.%3d", tSt.mounth, tSt.day, tSt.year,
             tSt.hour, tSt.min, tSt.sec, tSt.milliSec, tSt.microSec, tSt.nanoSec);
     return UA_SUCCESS;
 }
