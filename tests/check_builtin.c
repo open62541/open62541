@@ -1364,14 +1364,11 @@ START_TEST(UA_DateTime_toStringShallWorkOnExample) {
 	//1397467189... is Mon, 14 Apr 2014 09:19:49 GMT
 	//...1234567 are the milli-, micro- and nanoseconds
 
-	char      buf[80] = "80";
-	UA_Byte  *byteBuf = (UA_Byte *)buf;
-	UA_String dst     = { 80, byteBuf };
+	UA_String dst;
 
 	// when
 	UA_DateTime_toString(src, &dst);
 	// then
-	ck_assert_int_eq(dst.length, 80);
 	ck_assert_int_eq(dst.data[0], ' ');
 	ck_assert_int_eq(dst.data[1], '4');
 	ck_assert_int_eq(dst.data[2], '/');
