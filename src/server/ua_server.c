@@ -16,6 +16,12 @@ UA_Int32 UA_Server_deleteMembers(UA_Server *server) {
 }
 
 void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
+    UA_ExpandedNodeId_init(&server->objectsNodeId);
+    server->objectsNodeId.nodeId.identifier.numeric = 85;
+
+    UA_NodeId_init(&server->hasComponentReferenceTypeId);
+    server->hasComponentReferenceTypeId.identifier.numeric = 47;
+    
     UA_ApplicationDescription_init(&server->description);
     UA_ByteString_init(&server->serverCertificate);
 #define MAXCHANNELCOUNT 100
@@ -530,4 +536,21 @@ UA_AddNodesResult UA_Server_addNode(UA_Server *server, UA_Node **node, UA_Expand
 void UA_Server_addReference(UA_Server *server, const UA_AddReferencesRequest *request,
                             UA_AddReferencesResponse *response) {
     Service_AddReferences(server, &adminSession, request, response);
+}
+
+UA_AddNodesResult UA_Server_addScalarVariableNode(UA_Server *server, UA_String *browseName, void *value,
+                                                  const UA_VTable_Entry *vt, UA_ExpandedNodeId *parentNodeId,
+                                                  UA_NodeId *referenceTypeId ) {
+    UA_VariableNode *tmpNode;
+    UA_VariableNode_new(&tmpNode);
+    UA_String_copy(browseName, &tmpNode->browseName.name);
+    UA_String_copy(browseName, &tmpNode->displayName.text);
+    /* UA_LocalizedText_copycstring("integer value", &tmpNode->description); */
+    tmpNode->nodeClass = UA_NODECLASS_VARIABLE;
+    tmpNode->valueRank = -1;
+    tmpNode->value.vt = vt;
+    tmpNode->value.storage.data.dataPtr = value;
+    tmpNode->value.storageType = UA_VARIANT_DATA_NODELETE;
+    tmpNode->value.storage.data.arrayLength = 1;
+    return UA_Server_addNode(server, (UA_Node**)&tmpNode, parentNodeId, referenceTypeId);
 }
