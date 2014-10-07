@@ -5,13 +5,13 @@
 
 #include <stdio.h>
 #include <stdlib.h> 
-#ifndef WIN32
-#include <sys/mman.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#include <sys/time.h>
+#ifdef WIN32
+  #include "winsock2.h"
 #else
-#include "winsock2.h"
+  #include <sys/mman.h>
+  #include <sys/wait.h>
+  #include <unistd.h>
+  #include <sys/time.h>
 #endif
 #include <sys/types.h>
 #include <fcntl.h>
@@ -20,6 +20,7 @@
 #include "ua_server.h"
 #include "logger_stdout.h"
 #include "networklayer_tcp.h"
+#include "ua_namespace_0.h"
 
 UA_Boolean running = UA_TRUE;
 
@@ -63,6 +64,37 @@ int main(int argc, char** argv) {
 	UA_Server_init(&server, &endpointUrl);
 	Logger_Stdout_init(&server.logger);
     server.serverCertificate = loadCertificate();
+
+#ifdef BENCHMARK
+    UA_UInt32 nodeCount = 500;
+    UA_VariableNode *tmpNode;
+
+    UA_ExpandedNodeId objectNodeId;
+    UA_ExpandedNodeId_init(&objectNodeId);
+    objectNodeId.nodeId.identifier.numeric = 85;
+
+    UA_NodeId hasComponentReferenceId;
+    UA_NodeId_init(&hasComponentReferenceId);
+    hasComponentReferenceId.identifier.numeric = 47;
+
+    UA_Int32 data = 42;
+    char str[15];
+    for(UA_UInt32 i = 0;i<nodeCount;i++) {
+        UA_VariableNode_new(&tmpNode);
+        sprintf(str,"%d",i);
+        UA_QualifiedName_copycstring(str,&tmpNode->browseName);
+        UA_LocalizedText_copycstring(str,&tmpNode->displayName);
+        UA_LocalizedText_copycstring("integer value", &tmpNode->description);
+        tmpNode->nodeId.identifier.numeric = 19000+i;
+        tmpNode->nodeClass = UA_NODECLASS_VARIABLE;
+        //tmpNode->valueRank = -1;
+        tmpNode->value.vt = &UA_[UA_INT32];
+        tmpNode->value.storage.data.dataPtr = &data;
+        tmpNode->value.storageType = UA_VARIANT_DATA_NODELETE;
+        tmpNode->value.storage.data.arrayLength = 1;
+        UA_Server_addNode(&server, (UA_Node**)&tmpNode, &objectNodeId, &hasComponentReferenceId);
+    }
+#endif
 	
 	#define PORT 16664
 	NetworklayerTCP* nl;

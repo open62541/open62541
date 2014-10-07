@@ -375,7 +375,8 @@ void Service_Write(UA_Server *server, UA_Session *session,
                    const UA_WriteRequest *request, UA_WriteResponse *response) {
     UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
 
-    if(UA_Array_new((void **)&response->results, response->resultsSize, &UA_[UA_STATUSCODE]) != UA_SUCCESS) {
+    if(UA_Array_new((void **)&response->results, request->nodesToWriteSize, &UA_[UA_STATUSCODE])
+       != UA_SUCCESS) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }

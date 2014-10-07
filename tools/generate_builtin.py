@@ -54,8 +54,6 @@ def skipType(name):
         return True
     if "Test" in name: #skip all Test types
         return True
-    if re.search("Attributes$", name) != None:
-        return True
     if re.search("NodeId$", name) != None:
         return True
     if args.only_needed and not(name in only_needed_types):
@@ -233,7 +231,7 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
     if(!p) return;''')
     for n,t in membermap.iteritems():
         if t.find("*") != -1:
-            printc('\tp->%(n)sSize = 0;')
+            printc('\tp->%(n)sSize = -1;')
             printc('\tp->%(n)s = UA_NULL;')
         else:
             printc('\t%(t)s_init(&p->%(n)s);')

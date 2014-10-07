@@ -50,10 +50,10 @@ UA_Int32 UA_LIBEXPORT UA_Server_deleteMembers(UA_Server *server);
 UA_Int32 UA_LIBEXPORT UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
 
 /* Services for local use */
-void Server_addNodes(UA_Server *server, const UA_AddNodesRequest *request,
-                     UA_AddNodesResponse *response);
-void Server_addReferences(UA_Server *server, const UA_AddReferencesRequest *request,
-                          UA_AddReferencesResponse *response);
+UA_AddNodesResult UA_Server_addNode(UA_Server *server, UA_Node **node, UA_ExpandedNodeId *parentNodeId,
+                                    UA_NodeId *referenceTypeId);
+void UA_Server_addReferences(UA_Server *server, const UA_AddReferencesRequest *request,
+                             UA_AddReferencesResponse *response);
 
 #ifdef __cplusplus
 } // extern "C"

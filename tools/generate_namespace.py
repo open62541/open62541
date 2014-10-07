@@ -65,8 +65,6 @@ def skipType(row):
         return True
     if "Test" in row[0]:
         return True
-    if re.search("Attributes$", row[0]) != None:
-        return True
     if args.only_needed and not(row[0] in only_needed_types):
         return True
     return False
