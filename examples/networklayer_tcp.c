@@ -26,6 +26,7 @@
 #include <memory.h> // memset
 #include <fcntl.h> // fcntl
 
+#include "ua_securechannel.h"
 #include "networklayer_tcp.h"
 
 typedef struct TCPConnection {
@@ -75,6 +76,9 @@ UA_Int32 NetworklayerTCP_remove(NetworklayerTCP *layer, UA_Int32 sockfd) {
     if(index == layer->connectionsSize)
         return UA_ERROR;
 
+    if(layer->connections[index].connection.channel)
+        layer->connections[index].connection.channel->connection = UA_NULL;
+
 	UA_Connection_deleteMembers(&layer->connections[index].connection);
 
     layer->connectionsSize--;
@@ -91,6 +95,8 @@ UA_Int32 NetworklayerTCP_remove(NetworklayerTCP *layer, UA_Int32 sockfd) {
 void NetworklayerTCP_delete(NetworklayerTCP *layer) {
 	for(UA_UInt32 index = 0;index < layer->connectionsSize;index++) {
 		shutdown(layer->connections[index].sockfd, 2);
+        if(layer->connections[index].connection.channel)
+            layer->connections[index].connection.channel->connection = UA_NULL;
         UA_Connection_deleteMembers(&layer->connections[index].connection);
 		CLOSESOCKET(layer->connections[index].sockfd);
 	}
@@ -280,13 +286,13 @@ UA_Int32 NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, struct t
 	int optval = 1;
 	if(setsockopt(layer->serversockfd, SOL_SOCKET, SO_REUSEADDR, (const char *)&optval, sizeof(optval)) == -1) {
 		perror("setsockopt");
-		close(layer->serversockfd);
+		CLOSESOCKET(layer->serversockfd);
 		return UA_ERROR;
 	}
 		
 	if(bind(layer->serversockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
 		perror("binding");
-		close(layer->serversockfd);
+		CLOSESOCKET(layer->serversockfd);
 		return UA_ERROR;
 	}
 
