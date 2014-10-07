@@ -230,6 +230,13 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     }
         break;
 
+    //FIXME: Sten handle closeseesionrequests
+    //being curious: our constant gives 471 while clients query for 473
+    /** case UA_CLOSESESSIONREQUEST_NS0: {
+    }
+    break;
+    **/
+
     case UA_READREQUEST_NS0:
         INVOKE_SERVICE(Read);
         break;
@@ -318,6 +325,11 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
 static void processClose(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, UA_UInt32 *pos) {
     // just read in the sequenceheader
 
+    UA_UInt32 secureChannelId;
+    UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
+
+	//the two last parameter is ignored since no answer is needed
+	Service_CloseSecureChannel(server, secureChannelId);
 }
 
 UA_Int32 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg) {

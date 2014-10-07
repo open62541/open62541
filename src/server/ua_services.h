@@ -52,9 +52,7 @@ void Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
                                UA_OpenSecureChannelResponse *response);
 
 /** @brief This Service is used to terminate a SecureChannel. */
-void Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel,
-                                const UA_CloseSecureChannelRequest *request,
-                                UA_CloseSecureChannelResponse *response);
+void Service_CloseSecureChannel(UA_Server *server, UA_Int32 channelId);
 /** @} */
 
 /**

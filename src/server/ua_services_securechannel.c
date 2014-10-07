@@ -11,9 +11,8 @@ void Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
         UA_SecureChannelManager_renew(server->secureChannelManager, connection, request, response);
 }
 
-void Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel,
-                                const UA_CloseSecureChannelRequest *request,
-                                UA_CloseSecureChannelResponse *response) {
-    UA_SecureChannelManager_close(server->secureChannelManager, channel->securityToken.channelId);
+void Service_CloseSecureChannel(UA_Server *server, UA_Int32 channelId) {
+	//Sten: this service is a bit assymmetric to OpenSecureChannel since CloseSecureChannelRequest does not contain any indormation
+    UA_SecureChannelManager_close(server->secureChannelManager, channelId);
     // 62451 Part 6 Chapter 7.1.4 - The server does not send a CloseSecureChannel response
 }
