@@ -39,7 +39,7 @@ set(lib_sources src/ua_types.c
 
 # compiler flags
 if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-add_definitions(-std=c99 -pedantic -pipe -fvisibility=hidden -Wall -Wextra -Werror -Wformat
+add_definitions(-std=c99 -pedantic -pipe -fvisibility=hidden -fPIC -Wall -Wextra -Werror -Wformat
                 -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
                 -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -ffunction-sections -fdata-sections)
     if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
@@ -111,7 +111,8 @@ else()
     list(APPEND lib_sources src/server/ua_nodestore.c)
 endif()
 
-add_library(open62541 SHARED ${lib_sources}) # we can add more files to lib_sources later on
+add_library(open62541-objects OBJECT ${lib_sources}) # static version that exports all symbols
+add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-objects>)
 
 ## logging
 set(UA_LOGLEVEL 400 CACHE STRING "Level at which logs shall be reported")
@@ -154,8 +155,9 @@ option(CLIENT "Build a test client" OFF)
 if(CLIENT)
 	message(STATUS "Extensions: enabling client")
 	add_definitions( -DBENCHMARK=1 )
-	add_executable(exampleClient examples/opcuaClient.c)
-	target_link_libraries(exampleClient open62541)
+    # the client is built directly with the .o files as it currently uses
+    # internal functions that are not exported to the shared lib.
+	add_executable(exampleClient $<TARGET_OBJECTS:open62541-objects> examples/opcuaClient.c)
 endif()
 
 # build example server
