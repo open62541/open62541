@@ -55,7 +55,7 @@ void Service_CloseSession(UA_Server *server, const UA_CloseSessionRequest *reque
 	if(UA_SessionManager_removeSession(server->sessionManager, &foundSession->sessionId) == UA_SUCCESS){
 		response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
 	}else{
-		//FIXME: this is probably not the correct statuscode -> look up in the standard
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+		//still not 100% sure about the return code
+		response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURECHANNELIDINVALID;
 	}
 }
