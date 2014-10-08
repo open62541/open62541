@@ -181,9 +181,9 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     UA_ByteString *header = &responseBufs[0];
     UA_ByteString *message = &responseBufs[1];
 
-    //subtract 2 for binary encoding
     UA_UInt32 sendOffset = 0;
-    switch(requestType.nodeId.identifier.numeric - 2) {
+    //subtract UA_ENCODINGOFFSET_BINARY for binary encoding
+    switch(requestType.nodeId.identifier.numeric - UA_ENCODINGOFFSET_BINARY) {
     case UA_GETENDPOINTSREQUEST_NS0: {
         UA_GetEndpointsRequest  p;
         UA_GetEndpointsResponse r;
@@ -230,12 +230,22 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     }
         break;
 
-    //FIXME: Sten handle closeseesionrequests
-    //being curious: our constant gives 471 while clients query for 473
-    /** case UA_CLOSESESSIONREQUEST_NS0: {
+    case UA_CLOSESESSIONREQUEST_NS0: {
+        UA_CloseSessionRequest  p;
+        UA_CloseSessionResponse r;
+        CHECK_PROCESS(UA_CloseSessionRequest_decodeBinary(msg, pos, &p),; );
+        UA_CloseSessionResponse_init(&r);
+        init_response_header(&p.requestHeader, &r.responseHeader);
+
+        Service_CloseSession(server, &p, &r);
+        UA_ByteString_newMembers(message, UA_CloseSessionResponse_calcSizeBinary(&r));
+        UA_CloseSessionResponse_encodeBinary(&r, message, &sendOffset);
+        UA_CloseSessionRequest_deleteMembers(&p);
+        UA_CloseSessionResponse_deleteMembers(&r);
+        responseType = requestType.nodeId.identifier.numeric + 3;
     }
     break;
-    **/
+
 
     case UA_READREQUEST_NS0:
         INVOKE_SERVICE(Read);

@@ -87,8 +87,7 @@ void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 /**
  * @brief This Service is used to terminate a Session.
  */
-void Service_CloseSession(UA_Server *server, UA_Session *session,
-                          const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response);
+void Service_CloseSession(UA_Server *server, const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response);
 // Service_Cancel
 /** @} */
 

@@ -27,6 +27,10 @@ extern "C" {
 
 /** @defgroup server Server */
 
+//identifier numbers are different for XML and binary, so we have to substract an offset for comparison
+#define UA_ENCODINGOFFSET_XML 1
+#define UA_ENCODINGOFFSET_BINARY 2
+
 struct UA_SecureChannelManager;
 typedef struct UA_SecureChannelManager UA_SecureChannelManager;
 

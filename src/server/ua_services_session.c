@@ -39,14 +39,23 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
         channel->session = foundSession;
 }
 
-void Service_CloseSession(UA_Server *server, UA_Session *session,
-                              const UA_CloseSessionRequest *request,
+void Service_CloseSession(UA_Server *server, const UA_CloseSessionRequest *request,
                               UA_CloseSessionResponse *response) {
-    session->channel->session = UA_NULL;
-    UA_SessionManager_removeSession(server->sessionManager, &session->sessionId);
-    /* UA_NodeId sessionId; */
-    /* UA_Session_getId(session,&sessionId); */
+	UA_Session *foundSession;
+	UA_SessionManager_getSessionByToken(server->sessionManager,
+			(UA_NodeId*)&request->requestHeader.authenticationToken,
+			&foundSession);
 
-    /* UA_SessionManager_removeSession(&sessionId); */
-    // FIXME: set response
+	if(foundSession == UA_NULL){
+		response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+		return;
+	}
+
+
+	if(UA_SessionManager_removeSession(server->sessionManager, &foundSession->sessionId) == UA_SUCCESS){
+		response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
+	}else{
+		//FIXME: this is probably not the correct statuscode -> look up in the standard
+		response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+	}
 }
