@@ -104,7 +104,7 @@ printh('''/**********************************************************
  */
 
 UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id);\n
-extern const UA_VTable_Entry *UA_;
+extern const UA_VTable_Entry UA_EXPORT *UA_;
 
 /**
  * @brief the set of possible indices into UA_VTable

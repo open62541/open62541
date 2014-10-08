@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 2.6)
 project(open62541 C)
 set(open62541_VERSION_MAJOR 0)
 set(open62541_VERSION_MINOR 1)
+set(CMAKE_C_FLAGS_DEBUG "-DDEBUG")
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -22,7 +23,6 @@ set(lib_sources src/ua_types.c
                 src/ua_securechannel.c
                 src/ua_session.c
                 src/ua_util.c
-                #src/util/ua_base64.c
                 src/server/ua_server.c
                 src/server/ua_securechannel_manager.c
                 src/server/ua_session_manager.c
@@ -33,7 +33,6 @@ set(lib_sources src/ua_types.c
                 src/server/ua_services_securechannel.c
                 src/server/ua_services_nodemanagement.c
                 src/server/ua_services_view.c
-                #src/server/ua_services_subscription.c
                 src/server/ua_services_monitoreditems.c
                 ${headers}
                 ${generated_headers})
@@ -67,7 +66,6 @@ if(ENABLE_SELFSIGNED)
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/create_self-signed.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/localhost.cnf)
 endif()
-
 
 ## auto-generate all types or only the relevant subset?
 option(TYPES_ONLY_NEEDED "Include only compile-needed types" OFF)
@@ -113,7 +111,7 @@ else()
     list(APPEND lib_sources src/server/ua_nodestore.c)
 endif()
 
-add_library(open62541 ${lib_sources}) # we can add more files to lib_sources later on
+add_library(open62541 SHARED ${lib_sources}) # we can add more files to lib_sources later on
 
 ## logging
 set(UA_LOGLEVEL 400 CACHE STRING "Level at which logs shall be reported")
@@ -220,4 +218,3 @@ endif(WIN32)
 #if(MULTITHREADING)
 #    target_link_libraries(api-design urcu-cds urcu)
 #endif(MULTITHREADING)
-

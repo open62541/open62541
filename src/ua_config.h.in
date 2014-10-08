@@ -6,12 +6,6 @@
 #cmakedefine MSVC
 #cmakedefine WIN32
 
-#ifndef MSVC
-#define INLINE inline
-#else
-#define INLINE __inline
-#endif
-
 /* Visibility */
 #ifdef MSVC
 #define INLINE __inline
@@ -22,21 +16,21 @@
 #if defined(_WIN32) || defined(__CYGWIN__)
   #ifdef open62541_EXPORTS
     #ifdef __GNUC__
-      #define UA_LIBEXPORT __attribute__ ((dllexport))
+      #define UA_EXPORT __attribute__ ((dllexport))
     #else
-      #define UA_LIBEXPORT __declspec(dllexport)
+      #define UA_EXPORT __declspec(dllexport)
     #endif
   #else
     #ifdef __GNUC__
-      #define UA_LIBEXPORT __attribute__ ((dllimport))
+      #define UA_EXPORT __attribute__ ((dllimport))
     #else
-      #define UA_LIBEXPORT __declspec(dllimport)
+      #define UA_EXPORT __declspec(dllimport)
     #endif
   #endif
 #else
   #if __GNUC__ >= 4 || __clang__
-    #define UA_LIBEXPORT __attribute__ ((visibility ("default")))
+    #define UA_EXPORT __attribute__ ((visibility ("default")))
   #else
-    #define UA_LIBEXPORT
+    #define UA_EXPORT
   #endif
 #endif

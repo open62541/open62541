@@ -39,7 +39,11 @@
 # endif
 #endif
 
+#ifdef DEBUG
 #define UA_assert(ignore) assert(ignore)
+#else
+#define UA_assert(ignore)
+#endif
 
 /* Heap memory functions */
 INLINE UA_Int32 _UA_free(void *ptr, char *pname, char *f, UA_Int32 l) {

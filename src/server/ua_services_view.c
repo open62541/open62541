@@ -66,8 +66,8 @@ struct SubRefTypeId {
 };
 SLIST_HEAD(SubRefTypeIdList, SubRefTypeId);
 
-UA_UInt32 walkReferenceTree(UA_NodeStore *ns, const UA_ReferenceTypeNode *current,
-                            struct SubRefTypeIdList *list) {
+static UA_UInt32 walkReferenceTree(UA_NodeStore *ns, const UA_ReferenceTypeNode *current,
+                                   struct SubRefTypeIdList *list) {
     // insert the current referencetype
     struct SubRefTypeId *element;
     UA_alloc((void **)&element, sizeof(struct SubRefTypeId));

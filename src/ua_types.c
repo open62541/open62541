@@ -8,7 +8,7 @@
 #endif
 
 #ifdef DEBUG
-#include <stdio.h>
+#include <inttypes.h>
 #endif
 
 #include "ua_util.h"
@@ -494,7 +494,7 @@ void UA_NodeId_print(const UA_NodeId *p, FILE *stream) {
         break;
     }
     fprintf(stream, ",%u,", p->namespaceIndex);
-    switch(p->identifierType & UA_NODEIDTYPE_MASK) {
+    switch(p->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         fprintf(stream, ".identifier.numeric=%u", p->identifier.numeric);
         break;
@@ -909,18 +909,23 @@ UA_Int32 UA_Variant_copySetArray(UA_Variant *v, const UA_VTable_Entry *vt, UA_In
 void UA_Variant_print(const UA_Variant *p, FILE *stream) {
     if(p == UA_NULL || stream == UA_NULL) return;
     UA_UInt32 ns0id = UA_ns0ToVTableIndex(&p->vt->typeId);
+    if(p->storageType == UA_VARIANT_DATASOURCE) {
+        fprintf(stream, "Variant from a Datasource");
+        return;
+    }
     fprintf(stream, "(UA_Variant){/*%s*/", p->vt->name);
     if(p->vt == &UA_[ns0id])
         fprintf(stream, "UA_[%d]", ns0id);
     else
         fprintf(stream, "ERROR (not a builtin type)");
-    UA_Int32_print(&p->arrayLength, stream);
+    UA_Int32_print(&p->storage.data.arrayLength, stream);
     fprintf(stream, ",");
-    UA_Array_print(p->data, p->arrayLength, p->vt, stream);
+    UA_Array_print(p->storage.data.dataPtr, p->storage.data.arrayLength, p->vt, stream);
     fprintf(stream, ",");
-    UA_Int32_print(&p->arrayDimensionsLength, stream);
+    UA_Int32_print(&p->storage.data.arrayDimensionsLength, stream);
     fprintf(stream, ",");
-    UA_Array_print(p->arrayDimensions, p->arrayDimensionsLength, &UA_[UA_INT32], stream);
+    UA_Array_print(p->storage.data.arrayDimensions, p->storage.data.arrayDimensionsLength,
+                   &UA_[UA_INT32], stream);
     fprintf(stream, "}");
 }
 #endif

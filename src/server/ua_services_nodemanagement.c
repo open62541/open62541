@@ -166,7 +166,7 @@ static void addNodeFromAttributes(UA_Server *server, UA_Session *session, UA_Add
     }
 
     UA_Node *newNode;
-    const UA_VTable_Entry *newNodeVT;
+    const UA_VTable_Entry *newNodeVT = UA_NULL;
     if(item->nodeClass == UA_NODECLASS_VARIABLE)
         result->statusCode = parseVariableNode(&item->nodeAttributes, &newNode, &newNodeVT);
     else // add more node types here..
