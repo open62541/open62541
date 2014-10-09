@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 2.8.8)
 # set(CMAKE_VERBOSE_MAKEFILE on )
 
 project(open62541 C)
@@ -43,7 +43,7 @@ add_definitions(-std=c99 -pedantic -pipe -fvisibility=hidden -fPIC -Wall -Wextra
                 -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
                 -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -ffunction-sections -fdata-sections)
     if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-        add_definitions(-Wformat-nonliteral -Wl,--gc-sections)
+        add_definitions(-flto -Wformat-nonliteral -Wl,--gc-sections)
     endif()
 	if(NOT WIN32)
 	    add_definitions(-fstack-protector)
