@@ -7,13 +7,6 @@
 #include <assert.h> // assert
 
 #include "ua_config.h"
-#ifndef MSVC
-#ifndef WIN32
-#include <alloca.h> // alloca
-#else
-#include <malloc.h> // MinGW alloca
-#endif
-#endif
 
 #include <stddef.h> /* Needed for sys/queue.h */
 #ifndef MSVC
@@ -46,47 +39,29 @@
 #endif
 
 /* Heap memory functions */
+#define UA_free(ptr) _UA_free(ptr, # ptr, __FILE__, __LINE__)
 INLINE UA_Int32 _UA_free(void *ptr, char *pname, char *f, UA_Int32 l) {
     DBG_VERBOSE(printf("UA_free;%p;;%s;;%s;%d\n", ptr, pname, f, l); fflush(stdout));
     free(ptr); // checks if ptr != NULL in the background
     return UA_SUCCESS;
 }
 
-INLINE UA_Int32 _UA_alloc(void **ptr, UA_Int32 size, char *pname, char *sname, char *f, UA_Int32 l) {
-    if(ptr == UA_NULL)
-        return UA_ERR_INVALID_VALUE;
-    *ptr = malloc(size);
-    DBG_VERBOSE(printf("UA_alloc - %p;%d;%s;%s;%s;%d\n", *ptr, size, pname, sname, f, l); fflush(stdout));
-    if(*ptr == UA_NULL)
-        return UA_ERR_NO_MEMORY;
-    return UA_SUCCESS;
+#ifdef DEBUG
+#define UA_alloc(size) _UA_alloc(size, __FILE__, __LINE__) 
+INLINE void * _UA_alloc(UA_Int32 size, char *file, UA_Int32 line) {
+    DBG_VERBOSE(printf("UA_alloc - %d;%s;%d\n", size, file, line); fflush(stdout));
+    return malloc(size);
 }
-
-INLINE UA_Int32 _UA_alloca(void **ptr, UA_Int32 size, char *pname, char *sname, char *f, UA_Int32 l) {
-    if(ptr == UA_NULL)
-        return UA_ERR_INVALID_VALUE;
-#ifdef MSVC
-    *ptr = _alloca(size);
 #else
-    *ptr = alloca(size);
-#endif
-    DBG_VERBOSE(printf("UA_alloca - %p;%d;%s;%s;%s;%d\n", *ptr, size, pname, sname, f, l); fflush(stdout));
-    return UA_SUCCESS;
+#define UA_alloc(size) _UA_alloc(size) 
+INLINE void * _UA_alloc(UA_Int32 size) {
+    return malloc(size);
 }
+#endif
 
 INLINE void UA_memcpy(void *dst, void const *src, UA_Int32 size) {
     DBG_VERBOSE(printf("UA_memcpy - %p;%p;%d\n", dst, src, size));
     memcpy(dst, src, size);
 }
-
-#define UA_free(ptr) _UA_free(ptr, # ptr, __FILE__, __LINE__)
-#define UA_alloc(ptr, size) _UA_alloc(ptr, size, # ptr, # size, __FILE__, __LINE__)
-
-/** @brief UA_alloca assigns memory on the stack instead of the heap. It is a
-    very fast alternative to standard malloc. The memory is automatically
-    returned ('freed') when the current function returns. Use this only for
-    small temporary values. For more than 100Byte, it is more reasonable to use
-    proper UA_alloc. */
-#define UA_alloca(ptr, size) _UA_alloca(ptr, size, # ptr, # size, __FILE__, __LINE__)
 
 #endif /* UA_UTIL_H_ */

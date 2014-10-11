@@ -4,9 +4,9 @@ cmake_minimum_required(VERSION 2.8.8)
 project(open62541 C)
 set(open62541_VERSION_MAJOR 0)
 set(open62541_VERSION_MINOR 1)
-set(CMAKE_C_FLAGS_DEBUG "-DDEBUG")
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+set(CMAKE_C_FLAGS_DEBUG "-g -DDEBUG")
 
 # main sources of libopen62541
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")

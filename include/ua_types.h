@@ -176,8 +176,9 @@ typedef struct UA_ExpandedNodeId {
     UA_UInt32 serverIndex;  // not encoded if 0
 } UA_ExpandedNodeId;
 
+#include "ua_statuscodes.h"
 /** @brief A numeric identifier for a error or condition that is associated with a value or an operation. */
-typedef UA_UInt32 UA_StatusCode; // StatusCodes aren't an enum(=int) since 32 unsigned bits are needed. See also ua_statuscodes.h */
+typedef enum UA_StatusCode UA_StatusCode; // StatusCodes aren't an enum(=int) since 32 unsigned bits are needed. See also ua_statuscodes.h */
 
 /** @brief A name qualified by a namespace. */
 typedef struct UA_QualifiedName {
@@ -489,7 +490,7 @@ struct UA_VTable_Entry {
 
 #define UA_TYPE_NEW_DEFAULT(TYPE)                            \
     UA_Int32 TYPE##_new(TYPE **p) {                          \
-        if(UA_alloc((void **)p, sizeof(TYPE)) != UA_SUCCESS) \
+        if(!(*p = UA_alloc(sizeof(TYPE))))                    \
             return UA_ERROR;                                 \
         TYPE##_init(*p);                                     \
         return UA_SUCCESS;                                   \

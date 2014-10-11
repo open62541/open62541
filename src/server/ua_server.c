@@ -475,7 +475,7 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_String_copycstring("http://localhost:16664/open62541/", &((UA_String *)(namespaceArray->value.storage.data.dataPtr))[1]);
     namespaceArray->arrayDimensionsSize = 1;
     UA_UInt32 *dimensions = UA_NULL;
-    UA_alloc((void **)&dimensions, sizeof(UA_UInt32));
+    dimensions = UA_alloc(sizeof(UA_UInt32));
     *dimensions = 2;
     namespaceArray->arrayDimensions = dimensions;
     namespaceArray->dataType = NS0NODEID(UA_STRING_NS0);

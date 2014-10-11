@@ -202,27 +202,25 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
 
 static UA_Int32 AddSingleReference(UA_Node *node, UA_ReferenceNode *reference) {
     // TODO: Check if reference already exists
-    UA_Int32 retval;
     UA_Int32 count = node->referencesSize;
     UA_ReferenceNode *old_refs = node->references;
     UA_ReferenceNode *new_refs;
+
     if(count < 0) count = 0;
 
-    retval = UA_alloc((void **)&new_refs, sizeof(UA_ReferenceNode)*(count+1));
-    if(retval != UA_SUCCESS)
-        return UA_ERROR;
-    UA_memcpy(new_refs, old_refs, sizeof(UA_ReferenceNode)*count);
-    retval |= UA_ReferenceNode_copy(reference, &new_refs[count]);
+    if(!(new_refs = UA_alloc(sizeof(UA_ReferenceNode)*(count+1))))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    if(retval != UA_SUCCESS) {
+    UA_memcpy(new_refs, old_refs, sizeof(UA_ReferenceNode)*count);
+    if(UA_ReferenceNode_copy(reference, &new_refs[count]) != UA_SUCCESS) {
         UA_free(new_refs);
-        return retval;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     node->references     = new_refs;
     node->referencesSize = count+1;
     UA_free(old_refs);
-    return retval;
+    return UA_SUCCESS;
 }
 
 UA_Int32 AddReference(UA_NodeStore *nodestore, UA_Node *node, UA_ReferenceNode *reference) {

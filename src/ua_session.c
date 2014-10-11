@@ -3,6 +3,7 @@
 
 #include "ua_session.h"
 #include "ua_util.h"
+#include "ua_statuscodes.h"
 
 UA_Session anonymousSession = {
     .clientDescription =  {.applicationUri = {-1, UA_NULL},
@@ -41,11 +42,10 @@ UA_Session adminSession = {
     .channel = UA_NULL};
 
 UA_Int32 UA_Session_new(UA_Session **session) {
-    UA_Int32 retval = UA_SUCCESS;
-    retval |= UA_alloc((void **)session, sizeof(UA_Session));
-    if(retval == UA_SUCCESS)
-        UA_Session_init(*session);
-    return retval;
+    if(!(*session = UA_alloc(sizeof(UA_Session))))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_Session_init(*session);
+    return UA_SUCCESS;
 }
 
 /* mock up function to generate tokens for authentication */

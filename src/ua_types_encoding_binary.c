@@ -1,6 +1,7 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_util.h"
 #include "ua_namespace_0.h"
+#include "ua_statuscodes.h"
 
 static INLINE UA_Boolean is_builtin(const UA_NodeId *typeid ) {
     return typeid ->namespaceIndex == 0 && 1 <= typeid ->identifier.numeric && typeid ->identifier.numeric <=
@@ -341,22 +342,24 @@ UA_Int32 UA_String_encodeBinary(UA_String const *src, UA_ByteString *dst, UA_UIn
     return retval;
 }
 UA_Int32 UA_String_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA_String *dst) {
-    UA_Int32 retval = UA_SUCCESS;
     UA_String_init(dst);
-    retval |= UA_Int32_decodeBinary(src, offset, &dst->length);
+    UA_Int32 length;
+    if(UA_Int32_decodeBinary(src, offset, &length) != UA_SUCCESS)
+        return UA_ERROR;
 
-    if(dst->length > (UA_Int32)(src->length - *offset))
-        retval = UA_ERR_INVALID_VALUE;
+    if(length <= 0)
+        return UA_SUCCESS;
+        
+    if(length > (UA_Int32)(src->length - *offset))
+        return UA_ERR_INVALID_VALUE;
+    
+    if(!(dst->data = UA_alloc(length)))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    if(retval != UA_SUCCESS || dst->length <= 0) {
-        dst->length = -1;
-        dst->data   = UA_NULL;
-    } else {
-        CHECKED_DECODE(UA_alloc((void **)&dst->data, dst->length), dst->length = -1);
-        UA_memcpy(dst->data, &src->data[*offset], dst->length);
-        *offset += dst->length;
-    }
-    return retval;
+    UA_memcpy(dst->data, &src->data[*offset], length);
+    dst->length = length;
+    *offset += length;
+    return UA_SUCCESS;
 }
 
 /* DateTime */
@@ -922,7 +925,7 @@ UA_TYPE_ENCODEBINARY(UA_Variant,
                      
                      )
 
-/* For decoding, we read extensionobects as is. The resulting variant always has the storagetype UA_VARIANT_DATA. */
+/* For decoding, we read extensionobjects as is. The resulting variant always has the storagetype UA_VARIANT_DATA. */
 UA_Int32 UA_Variant_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA_Variant *dst) {
     UA_Int32 retval = UA_SUCCESS;
     UA_Variant_init(dst);
@@ -941,7 +944,8 @@ UA_Int32 UA_Variant_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA
     dst->vt = &UA_[typeNs0Id];
 
     if(!isArray) {
-        if(UA_alloc(&data->dataPtr, dst->vt->memSize) != UA_SUCCESS) return UA_ERROR;
+        if(!(data->dataPtr = UA_alloc(dst->vt->memSize)))
+            return UA_STATUSCODE_BADOUTOFMEMORY;
         retval |= dst->vt->encodings[UA_ENCODING_BINARY].decode(src, offset, data->dataPtr);
         if(retval != UA_SUCCESS) {
             UA_free(data->dataPtr);
@@ -1051,10 +1055,11 @@ UA_Int32 UA_DiagnosticInfo_decodeBinary(UA_ByteString const *src, UA_UInt32 *off
 
         case UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO:
             // innerDiagnosticInfo is a pointer to struct, therefore allocate
-            CHECKED_DECODE(UA_alloc((void **)&dst->innerDiagnosticInfo,
-                                    UA_DiagnosticInfo_calcSizeBinary(UA_NULL)),; );
-            CHECKED_DECODE(UA_DiagnosticInfo_decodeBinary(src, offset,
-                                                          dst->innerDiagnosticInfo),
+            if(!(dst->innerDiagnosticInfo = UA_alloc(sizeof(UA_DiagnosticInfo)))) {
+                retval |= UA_STATUSCODE_BADOUTOFMEMORY;
+                return retval;
+            }
+            CHECKED_DECODE(UA_DiagnosticInfo_decodeBinary(src, offset, dst->innerDiagnosticInfo),
                            UA_DiagnosticInfo_deleteMembers(dst));
             break;
         }

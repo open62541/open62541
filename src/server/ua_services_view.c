@@ -69,8 +69,7 @@ SLIST_HEAD(SubRefTypeIdList, SubRefTypeId);
 static UA_UInt32 walkReferenceTree(UA_NodeStore *ns, const UA_ReferenceTypeNode *current,
                                    struct SubRefTypeIdList *list) {
     // insert the current referencetype
-    struct SubRefTypeId *element;
-    UA_alloc((void **)&element, sizeof(struct SubRefTypeId));
+    struct SubRefTypeId *element = UA_alloc(sizeof(struct SubRefTypeId));
     element->id = current->nodeId;
     SLIST_INSERT_HEAD(list, element, next);
 
@@ -107,7 +106,7 @@ static UA_Int32 findSubReferenceTypes(UA_NodeStore *ns, UA_NodeId *rootReference
     UA_NodeStore_releaseManagedNode((const UA_Node *)root);
 
     // copy results into an array
-    UA_alloc((void **)ids, sizeof(UA_NodeId)*count);
+    *ids = UA_alloc(sizeof(UA_NodeId)*count);
     for(UA_UInt32 i = 0;i < count;i++) {
         struct SubRefTypeId *element = SLIST_FIRST(&list);
         UA_NodeId_copy(&element->id, &(*ids)[i]);
@@ -158,8 +157,7 @@ static void Service_Browse_getBrowseResult(UA_NodeStore         *ns,
     if(!browseDescription->includeSubtypes ||
        findSubReferenceTypes(ns, &browseDescription->referenceTypeId, &relevantReferenceTypes,
                              &relevantReferenceTypesCount) != UA_SUCCESS) {
-        if(UA_alloc((void **)&relevantReferenceTypes, sizeof(UA_NodeId)) != UA_SUCCESS) {
-
+        if(!(relevantReferenceTypes = UA_alloc(sizeof(UA_NodeId)))) {
             return;
         }
         UA_NodeId_copy(&browseDescription->referenceTypeId, relevantReferenceTypes);

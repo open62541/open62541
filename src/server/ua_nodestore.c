@@ -1,5 +1,6 @@
 #include "ua_nodestore.h"
 #include "ua_util.h"
+#include "ua_statuscodes.h"
 
 struct UA_NodeStore {
     const UA_Node **entries;
@@ -223,8 +224,8 @@ static UA_Int32 expand(UA_NodeStore *ns) {
     nindex = higher_prime_index(count * 2);
     nsize  = primes[nindex];
 
-    if(UA_alloc((void **)&nentries, sizeof(UA_Node *) * nsize) != UA_SUCCESS)
-        return UA_ERR_NO_MEMORY;
+    if(!(nentries = UA_alloc(sizeof(UA_Node *) * nsize)))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
     memset(nentries, 0, nsize * sizeof(UA_Node *));
     ns->entries = nentries;
@@ -252,14 +253,14 @@ static UA_Int32 expand(UA_NodeStore *ns) {
 UA_Int32 UA_NodeStore_new(UA_NodeStore **result) {
     UA_NodeStore *ns;
     UA_UInt32     sizePrimeIndex, size;
-    if(UA_alloc((void **)&ns, sizeof(UA_NodeStore)) != UA_SUCCESS)
-        return UA_ERR_NO_MEMORY;
+    if(!(ns = UA_alloc(sizeof(UA_NodeStore))))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
     sizePrimeIndex = higher_prime_index(32);
     size = primes[sizePrimeIndex];
-    if(UA_alloc((void **)&ns->entries, sizeof(UA_Node *) * size) != UA_SUCCESS) {
+    if(!(ns->entries = UA_alloc(sizeof(UA_Node *) * size))) {
         UA_free(ns);
-        return UA_ERR_NO_MEMORY;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     /* set entries to zero */

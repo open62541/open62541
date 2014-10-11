@@ -121,7 +121,7 @@ START_TEST(UA_String_calcSizeWithNullArgumentShallReturnStorageSize) {
 	UA_UInt32  storageSize = UA_String_calcSizeBinary(arg);
 	// then
 	ck_assert_int_eq(storageSize, sizeof(UA_String));
-	ck_assert_int_ge(storageSize, UA_Int32_calcSizeBinary(UA_NULL) + sizeof(UA_NULL));
+	ck_assert_int_ge(storageSize, sizeof(UA_Int32) + sizeof(UA_NULL));
 }
 END_TEST
 START_TEST(UA_DateTime_calcSizeWithNullArgumentShallReturnStorageSize) {
@@ -149,7 +149,7 @@ START_TEST(UA_ByteString_calcSizeWithNullArgumentShallReturnStorageSize) {
 	UA_UInt32 storageSize = UA_ByteString_calcSizeBinary(arg);
 	// then
 	ck_assert_int_eq(storageSize, sizeof(UA_ByteString));
-	ck_assert_int_ge(storageSize, UA_Int32_calcSizeBinary(UA_NULL)+sizeof(UA_NULL));
+	ck_assert_int_ge(storageSize, sizeof(UA_Int32)+sizeof(UA_NULL));
 }
 END_TEST
 START_TEST(UA_XmlElement_calcSizeWithNullArgumentShallReturnStorageSize) {
@@ -159,7 +159,7 @@ START_TEST(UA_XmlElement_calcSizeWithNullArgumentShallReturnStorageSize) {
 	UA_UInt32 storageSize = UA_XmlElement_calcSizeBinary(arg);
 	// then
 	ck_assert_int_eq(storageSize, sizeof(UA_XmlElement));
-	ck_assert_int_ge(storageSize, UA_Int32_calcSizeBinary(UA_NULL)+sizeof(UA_NULL));
+	ck_assert_int_ge(storageSize, sizeof(UA_Int32)+sizeof(UA_NULL));
 }
 END_TEST
 START_TEST(UA_NodeId_calcSizeWithNullArgumentShallReturnStorageSize) {
@@ -1414,7 +1414,7 @@ START_TEST(UA_Array_copyByteArrayShallWorkOnExample) {
 	UA_Byte  *dstArray;
 	UA_Int32  size = 5;
 	UA_Int32  i    = 0;
-	UA_alloc((void **)&testString.data, size);
+	testString.data = UA_alloc(size);
 	testString.data[0] = 'O';
 	testString.data[1] = 'P';
 	testString.data[2] = 'C';
@@ -1670,7 +1670,7 @@ START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
 	UA_Variant value, copiedValue;
 	UA_Variant_init(&value);
 	UA_Variant_init(&copiedValue);
-	UA_alloc((void**)&value.storage.data.dataPtr, sizeof(UA_String));
+	value.storage.data.dataPtr = UA_alloc(sizeof(UA_String));
 	*((UA_String*)value.storage.data.dataPtr) = testString;
 	value.vt = &UA_[UA_STRING];
 	value.storage.data.arrayLength = 1;
@@ -1702,7 +1702,7 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
 	UA_String_copycstring("opc ua", &srcArray[2]);
 
 	UA_Int32 *dimensions;
-	UA_alloc((void **)&dimensions, UA_Int32_calcSizeBinary(UA_NULL));
+	dimensions = UA_alloc(sizeof(UA_Int32));
 	dimensions[0] = 3;
 
 	UA_Variant value, copiedValue;

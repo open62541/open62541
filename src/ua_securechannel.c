@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "ua_securechannel.h"
 #include "ua_util.h"
+#include "ua_statuscodes.h"
 
 void UA_SecureChannel_init(UA_SecureChannel *channel) {
     UA_AsymmetricAlgorithmSecurityHeader_init(&channel->clientAsymAlgSettings);
@@ -32,8 +33,8 @@ UA_Boolean UA_SecureChannel_compare(UA_SecureChannel *sc1, UA_SecureChannel *sc2
 
 //TODO implement real nonce generator - DUMMY function
 UA_Int32 UA_SecureChannel_generateNonce(UA_ByteString *nonce) {
-    //UA_ByteString_new(&nonce);
-    UA_alloc((void ** )&nonce->data, 1);
+    if(!(nonce->data = UA_alloc(1)))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     nonce->length  = 1;
     nonce->data[0] = 'a';
     return UA_SUCCESS;
