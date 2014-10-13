@@ -23,6 +23,10 @@ extern "C" {
 #include <stdint.h>
 #include "ua_config.h"
 
+#ifdef DEBUG
+#include <stdio.h>
+#endif
+
 /**
  * @defgroup types Datatypes
  *
@@ -172,8 +176,9 @@ typedef struct UA_ExpandedNodeId {
     UA_UInt32 serverIndex;  // not encoded if 0
 } UA_ExpandedNodeId;
 
+#include "ua_statuscodes.h"
 /** @brief A numeric identifier for a error or condition that is associated with a value or an operation. */
-typedef UA_UInt32 UA_StatusCode; // StatusCodes aren't an enum(=int) since 32 unsigned bits are needed. See also ua_statuscodes.h */
+typedef enum UA_StatusCode UA_StatusCode; // StatusCodes aren't an enum(=int) since 32 unsigned bits are needed. See also ua_statuscodes.h */
 
 /** @brief A name qualified by a namespace. */
 typedef struct UA_QualifiedName {
@@ -305,19 +310,19 @@ typedef void UA_InvalidType;
 
 #ifdef DEBUG
 #define UA_TYPE_PROTOTYPES(TYPE)                                   \
-    UA_Int32 UA_LIBEXPORT TYPE##_new(TYPE **p);                    \
-    void UA_LIBEXPORT     TYPE##_init(TYPE * p);                   \
-    void UA_LIBEXPORT     TYPE##_delete(TYPE * p);                 \
-    void UA_LIBEXPORT     TYPE##_deleteMembers(TYPE * p);          \
-    UA_Int32 UA_LIBEXPORT TYPE##_copy(const TYPE *src, TYPE *dst); \
-    void UA_LIBEXPORT     TYPE##_print(const TYPE *p, FILE *stream);
+    UA_Int32 UA_EXPORT TYPE##_new(TYPE **p);                    \
+    void UA_EXPORT     TYPE##_init(TYPE * p);                   \
+    void UA_EXPORT     TYPE##_delete(TYPE * p);                 \
+    void UA_EXPORT     TYPE##_deleteMembers(TYPE * p);          \
+    UA_Int32 UA_EXPORT TYPE##_copy(const TYPE *src, TYPE *dst); \
+    void UA_EXPORT     TYPE##_print(const TYPE *p, FILE *stream);
 #else
 #define UA_TYPE_PROTOTYPES(TYPE)                          \
-    UA_Int32 UA_LIBEXPORT TYPE##_new(TYPE **p);           \
-    void UA_LIBEXPORT     TYPE##_init(TYPE * p);          \
-    void UA_LIBEXPORT     TYPE##_delete(TYPE * p);        \
-    void UA_LIBEXPORT     TYPE##_deleteMembers(TYPE * p); \
-    UA_Int32 UA_LIBEXPORT TYPE##_copy(const TYPE *src, TYPE *dst);
+    UA_Int32 UA_EXPORT TYPE##_new(TYPE **p);           \
+    void UA_EXPORT     TYPE##_init(TYPE * p);          \
+    void UA_EXPORT     TYPE##_delete(TYPE * p);        \
+    void UA_EXPORT     TYPE##_deleteMembers(TYPE * p); \
+    UA_Int32 UA_EXPORT TYPE##_copy(const TYPE *src, TYPE *dst);
 #endif
 
 /* Functions for all types */
@@ -354,17 +359,17 @@ UA_TYPE_PROTOTYPES(UA_InvalidType)
         VARIABLE.length = sizeof(STRING)-1;     \
         VARIABLE.data   = (UA_Byte *)STRING; } while(0)
 
-UA_Int32 UA_LIBEXPORT UA_String_copycstring(char const *src, UA_String *dst);
-UA_Int32 UA_LIBEXPORT UA_String_copyprintf(char const *fmt, UA_String *dst, ...);
-UA_EQUALITY UA_LIBEXPORT UA_String_equal(const UA_String *string1, const UA_String *string2);
+UA_Int32 UA_EXPORT UA_String_copycstring(char const *src, UA_String *dst);
+UA_Int32 UA_EXPORT UA_String_copyprintf(char const *fmt, UA_String *dst, ...);
+UA_EQUALITY UA_EXPORT UA_String_equal(const UA_String *string1, const UA_String *string2);
 #ifdef DEBUG
-void UA_LIBEXPORT UA_String_printf(char const *label, const UA_String *string);
-void UA_LIBEXPORT UA_String_printx(char const *label, const UA_String *string);
-void UA_LIBEXPORT UA_String_printx_hex(char const *label, const UA_String *string);
+void UA_EXPORT UA_String_printf(char const *label, const UA_String *string);
+void UA_EXPORT UA_String_printx(char const *label, const UA_String *string);
+void UA_EXPORT UA_String_printx_hex(char const *label, const UA_String *string);
 #endif
 
 /* DateTime */
-UA_DateTime UA_LIBEXPORT UA_DateTime_now();
+UA_DateTime UA_EXPORT UA_DateTime_now();
 typedef struct UA_DateTimeStruct {
     UA_Int16 nanoSec;
     UA_Int16 microSec;
@@ -376,32 +381,32 @@ typedef struct UA_DateTimeStruct {
     UA_Int16 mounth;
     UA_Int16 year;
 } UA_DateTimeStruct;
-UA_DateTimeStruct UA_LIBEXPORT UA_DateTime_toStruct(UA_DateTime time);
-UA_Int32 UA_LIBEXPORT UA_DateTime_toString(UA_DateTime time, UA_String *timeString);
+UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime time);
+UA_Int32 UA_EXPORT UA_DateTime_toString(UA_DateTime time, UA_String *timeString);
 
 /* Guid */
-UA_EQUALITY UA_LIBEXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
+UA_EQUALITY UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
 
 /* ByteString */
-UA_EQUALITY UA_LIBEXPORT UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2);
-UA_Int32 UA_LIBEXPORT UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length);
+UA_EQUALITY UA_EXPORT UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2);
+UA_Int32 UA_EXPORT UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length);
 #ifdef DEBUG
-void UA_LIBEXPORT UA_ByteString_printf(char *label, const UA_ByteString *string);
-void UA_LIBEXPORT UA_ByteString_printx(char *label, const UA_ByteString *string);
-void UA_LIBEXPORT UA_ByteString_printx_hex(char *label, const UA_ByteString *string);
+void UA_EXPORT UA_ByteString_printf(char *label, const UA_ByteString *string);
+void UA_EXPORT UA_ByteString_printx(char *label, const UA_ByteString *string);
+void UA_EXPORT UA_ByteString_printx_hex(char *label, const UA_ByteString *string);
 #endif
 
 /* NodeId */
-UA_EQUALITY UA_LIBEXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
-UA_Boolean UA_LIBEXPORT UA_NodeId_isNull(const UA_NodeId *p);
-UA_Boolean UA_LIBEXPORT UA_NodeId_isBasicType(UA_NodeId const *id);
+UA_EQUALITY UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
+UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
+UA_Boolean UA_EXPORT UA_NodeId_isBasicType(UA_NodeId const *id);
 
 #define NS0NODEID(NUMERIC_ID)                                                                        \
     (UA_NodeId) {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = \
                      NUMERIC_ID }
 
 /* ExpandedNodeId */
-UA_Boolean UA_LIBEXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
+UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 
 #define NS0EXPANDEDNODEID(VARIABLE, NUMERIC_ID) do {   \
         VARIABLE.nodeId       = NS0NODEID(NUMERIC_ID); \
@@ -412,9 +417,9 @@ UA_Boolean UA_LIBEXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 #define UA_QUALIFIEDNAME_STATIC(VARIABLE, STRING) do { \
         VARIABLE.namespaceIndex = 0;                   \
         UA_STRING_STATIC(VARIABLE.name, STRING); } while(0)
-UA_Int32 UA_LIBEXPORT UA_QualifiedName_copycstring(char const *src, UA_QualifiedName *dst);
+UA_Int32 UA_EXPORT UA_QualifiedName_copycstring(char const *src, UA_QualifiedName *dst);
 #ifdef DEBUG
-void UA_LIBEXPORT UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn);
+void UA_EXPORT UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn);
 #endif
 
 /* LocalizedText */
@@ -422,21 +427,21 @@ void UA_LIBEXPORT UA_QualifiedName_printf(char const *label, const UA_QualifiedN
         UA_STRING_STATIC(VARIABLE.locale, "en");       \
         UA_STRING_STATIC(VARIABLE.text, STRING); } while(0)
 
-UA_Int32 UA_LIBEXPORT UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);
+UA_Int32 UA_EXPORT UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);
 
 /* Variant */
-UA_Int32 UA_LIBEXPORT UA_Variant_copySetValue(UA_Variant *v, const UA_VTable_Entry *vt, const void *value);
-UA_Int32 UA_LIBEXPORT UA_Variant_copySetArray(UA_Variant *v, const UA_VTable_Entry *vt, UA_Int32 arrayLength, const void *array);
+UA_Int32 UA_EXPORT UA_Variant_copySetValue(UA_Variant *v, const UA_VTable_Entry *vt, const void *value);
+UA_Int32 UA_EXPORT UA_Variant_copySetArray(UA_Variant *v, const UA_VTable_Entry *vt, UA_Int32 arrayLength, const void *array);
 
 /* Array operations */
-UA_Int32 UA_LIBEXPORT UA_Array_new(void **p, UA_Int32 noElements, const UA_VTable_Entry *vt);
-void UA_LIBEXPORT UA_Array_init(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt);
-void UA_LIBEXPORT UA_Array_delete(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt);
+UA_Int32 UA_EXPORT UA_Array_new(void **p, UA_Int32 noElements, const UA_VTable_Entry *vt);
+void UA_EXPORT UA_Array_init(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt);
+void UA_EXPORT UA_Array_delete(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt);
 
 /* @brief The destination array is allocated according to noElements. */
-UA_Int32 UA_LIBEXPORT UA_Array_copy(const void *src, UA_Int32 noElements, const UA_VTable_Entry *vt, void **dst);
+UA_Int32 UA_EXPORT UA_Array_copy(const void *src, UA_Int32 noElements, const UA_VTable_Entry *vt, void **dst);
 #ifdef DEBUG
-void UA_LIBEXPORT UA_Array_print(const void *p, UA_Int32 noElements, const UA_VTable_Entry *vt, FILE *stream);
+void UA_EXPORT UA_Array_print(const void *p, UA_Int32 noElements, const UA_VTable_Entry *vt, FILE *stream);
 #endif
 
 /**********/
@@ -485,7 +490,7 @@ struct UA_VTable_Entry {
 
 #define UA_TYPE_NEW_DEFAULT(TYPE)                            \
     UA_Int32 TYPE##_new(TYPE **p) {                          \
-        if(UA_alloc((void **)p, sizeof(TYPE)) != UA_SUCCESS) \
+        if(!(*p = UA_alloc(sizeof(TYPE))))                    \
             return UA_ERROR;                                 \
         TYPE##_init(*p);                                     \
         return UA_SUCCESS;                                   \

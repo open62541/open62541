@@ -3,13 +3,49 @@
 
 #include "ua_session.h"
 #include "ua_util.h"
+#include "ua_statuscodes.h"
+
+UA_Session anonymousSession = {
+    .clientDescription =  {.applicationUri = {-1, UA_NULL},
+                           .productUri = {-1, UA_NULL},
+                           .applicationName = {.locale = {-1, UA_NULL}, .text = {-1, UA_NULL}},
+                           .applicationType = UA_APPLICATIONTYPE_CLIENT,
+                           .gatewayServerUri = {-1, UA_NULL},
+                           .discoveryProfileUri = {-1, UA_NULL},
+                           .discoveryUrlsSize = -1,
+                           .discoveryUrls = UA_NULL},
+    .sessionName = {sizeof("Anonymous Session")-1, (UA_Byte*)"Anonymous Session"},
+    .authenticationToken = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, // is never used, as this session is not stored in the sessionmanager
+    .sessionId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0},
+    .maxRequestMessageSize = UA_UINT32_MAX,
+    .maxResponseMessageSize = UA_UINT32_MAX,
+    .timeout = UA_INT64_MAX,
+    .validTill = UA_INT64_MAX,
+    .channel = UA_NULL};
+
+UA_Session adminSession = {
+    .clientDescription =  {.applicationUri = {-1, UA_NULL},
+                           .productUri = {-1, UA_NULL},
+                           .applicationName = {.locale = {-1, UA_NULL}, .text = {-1, UA_NULL}},
+                           .applicationType = UA_APPLICATIONTYPE_CLIENT,
+                           .gatewayServerUri = {-1, UA_NULL},
+                           .discoveryProfileUri = {-1, UA_NULL},
+                           .discoveryUrlsSize = -1,
+                           .discoveryUrls = UA_NULL},
+    .sessionName = {sizeof("Administrator Session")-1, (UA_Byte*)"Administrator Session"},
+    .authenticationToken = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 1}, // is never used, as this session is not stored in the sessionmanager
+    .sessionId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 1},
+    .maxRequestMessageSize = UA_UINT32_MAX,
+    .maxResponseMessageSize = UA_UINT32_MAX,
+    .timeout = UA_INT64_MAX,
+    .validTill = UA_INT64_MAX,
+    .channel = UA_NULL};
 
 UA_Int32 UA_Session_new(UA_Session **session) {
-    UA_Int32 retval = UA_SUCCESS;
-    retval |= UA_alloc((void **)session, sizeof(UA_Session));
-    if(retval == UA_SUCCESS)
-        UA_Session_init(*session);
-    return retval;
+    if(!(*session = UA_alloc(sizeof(UA_Session))))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_Session_init(*session);
+    return UA_SUCCESS;
 }
 
 /* mock up function to generate tokens for authentication */

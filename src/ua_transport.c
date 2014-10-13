@@ -36,8 +36,8 @@ UA_Int32 UA_MessageType_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset
 }
 
 #ifdef DEBUG
-void UA_MessageType_printf(char *label, UA_MessageType *p) {
+void UA_MessageType_print(const UA_MessageType *p, FILE *stream) {
     UA_Byte *b = (UA_Byte *)p;
-    printf("%s{%c%c%c}\n", label, b[2], b[1], b[0]);
+    fprintf(stream, "%c%c%c", b[2], b[1], b[0]);
 }
 #endif

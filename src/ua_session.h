@@ -22,6 +22,9 @@ struct UA_Session {
     UA_SecureChannel *channel;
 };
 
+extern UA_Session anonymousSession; ///< If anonymous access is allowed, this session is used internally (Session ID: 0)
+extern UA_Session adminSession; ///< Local access to the services (for startup and maintenance) uses this Session with all possible access rights (Session ID: 1)
+
 UA_Int32 UA_Session_new(UA_Session **session);
 void UA_Session_init(UA_Session *session);
 void UA_Session_delete(UA_Session *session);

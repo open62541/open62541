@@ -1,9 +1,9 @@
 #include "ua_services.h"
 #include "ua_namespace_0.h"
 
-UA_Int32 Service_GetEndpoints(UA_Server                    *server,
-                              const UA_GetEndpointsRequest *request,
-                              UA_GetEndpointsResponse      *response) {
+void Service_GetEndpoints(UA_Server                    *server,
+                          const UA_GetEndpointsRequest *request,
+                          UA_GetEndpointsResponse      *response) {
     UA_GetEndpointsResponse_init(response);
     response->endpointsSize = 1;
     UA_Array_new((void **)&response->endpoints, response->endpointsSize, &UA_[UA_ENDPOINTDESCRIPTION]);
@@ -37,6 +37,4 @@ UA_Int32 Service_GetEndpoints(UA_Server                    *server,
     UA_LocalizedText_copycstring("The open62541 application", &(response->endpoints[0].server.applicationName));
     // FIXME: This should be a feature of the application and an enum
     response->endpoints[0].server.applicationType = UA_APPLICATIONTYPE_SERVER;
-
-	return UA_SUCCESS;
 }

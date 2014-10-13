@@ -181,9 +181,9 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     UA_ByteString *header = &responseBufs[0];
     UA_ByteString *message = &responseBufs[1];
 
-    //subtract 2 for binary encoding
     UA_UInt32 sendOffset = 0;
-    switch(requestType.nodeId.identifier.numeric - 2) {
+    //subtract UA_ENCODINGOFFSET_BINARY for binary encoding
+    switch(requestType.nodeId.identifier.numeric - UA_ENCODINGOFFSET_BINARY) {
     case UA_GETENDPOINTSREQUEST_NS0: {
         UA_GetEndpointsRequest  p;
         UA_GetEndpointsResponse r;
@@ -230,6 +230,23 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     }
         break;
 
+    case UA_CLOSESESSIONREQUEST_NS0: {
+        UA_CloseSessionRequest  p;
+        UA_CloseSessionResponse r;
+        CHECK_PROCESS(UA_CloseSessionRequest_decodeBinary(msg, pos, &p),; );
+        UA_CloseSessionResponse_init(&r);
+        init_response_header(&p.requestHeader, &r.responseHeader);
+
+        Service_CloseSession(server, &p, &r);
+        UA_ByteString_newMembers(message, UA_CloseSessionResponse_calcSizeBinary(&r));
+        UA_CloseSessionResponse_encodeBinary(&r, message, &sendOffset);
+        UA_CloseSessionRequest_deleteMembers(&p);
+        UA_CloseSessionResponse_deleteMembers(&r);
+        responseType = requestType.nodeId.identifier.numeric + 3;
+    }
+    break;
+
+
     case UA_READREQUEST_NS0:
         INVOKE_SERVICE(Read);
         break;
@@ -250,17 +267,17 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
         INVOKE_SERVICE(TranslateBrowsePathsToNodeIds);
         break;
 
-    case UA_PUBLISHREQUEST_NS0:
-        INVOKE_SERVICE(Publish);
-        break;
+    /* case UA_PUBLISHREQUEST_NS0: */
+    /*     INVOKE_SERVICE(Publish); */
+    /*     break; */
 
-    case UA_CREATEMONITOREDITEMSREQUEST_NS0:
-        INVOKE_SERVICE(CreateMonitoredItems);
-        break;
+    /* case UA_CREATEMONITOREDITEMSREQUEST_NS0: */
+    /*     INVOKE_SERVICE(CreateMonitoredItems); */
+    /*     break; */
 
-    case UA_SETPUBLISHINGMODEREQUEST_NS0:
-        INVOKE_SERVICE(SetPublishingMode);
-        break;
+    /* case UA_SETPUBLISHINGMODEREQUEST_NS0: */
+    /*     INVOKE_SERVICE(SetPublishingMode); */
+    /*     break; */
 
     default: {
         printf("SL_processMessage - unknown request, namespace=%d, request=%d\n",
@@ -318,6 +335,11 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
 static void processClose(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, UA_UInt32 *pos) {
     // just read in the sequenceheader
 
+    UA_UInt32 secureChannelId;
+    UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
+
+	//the two last parameter is ignored since no answer is needed
+	Service_CloseSecureChannel(server, secureChannelId);
 }
 
 UA_Int32 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg) {

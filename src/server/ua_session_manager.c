@@ -1,4 +1,5 @@
 #include "ua_session_manager.h"
+#include "ua_statuscodes.h"
 #include "ua_util.h"
 
 /**
@@ -24,13 +25,13 @@ struct UA_SessionManager {
 UA_Int32 UA_SessionManager_new(UA_SessionManager **sessionManager, UA_UInt32 maxSessionCount,
                                UA_UInt32 sessionTimeout, UA_UInt32 startSessionId) {
     UA_Int32 retval = UA_SUCCESS;
-    retval |= UA_alloc((void **)sessionManager, sizeof(UA_SessionManager));
-    if(retval != UA_SUCCESS)
-        return UA_ERROR;
+    if(!(*sessionManager = UA_alloc(sizeof(UA_SessionManager))))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     LIST_INIT(&(*sessionManager)->sessions);
     (*sessionManager)->maxSessionCount = maxSessionCount;
     (*sessionManager)->lastSessionId   = startSessionId;
     (*sessionManager)->sessionTimeout  = sessionTimeout;
+    (*sessionManager)->currentSessionCount = 0;
     return retval;
 }
 
@@ -95,18 +96,20 @@ UA_Int32 UA_SessionManager_getSessionByToken(UA_SessionManager *sessionManager, 
 }
 
 /** Creates and adds a session. */
-UA_Int32 UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_SecureChannel *channel, UA_Session **session) {
+UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_SecureChannel *channel,
+                                              UA_Session **session) {
     if(sessionManager->currentSessionCount >= sessionManager->maxSessionCount)
-        return UA_ERROR;
+        return UA_STATUSCODE_BADTOOMANYSESSIONS;
 
-    struct session_list_entry *newentry;
-    if(UA_alloc((void **)&newentry, sizeof(struct session_list_entry)) != UA_SUCCESS)
-        return UA_ERROR;
+    struct session_list_entry *newentry = UA_alloc(sizeof(struct session_list_entry));
+    if(!newentry)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_Session_init(&newentry->session);
     newentry->session.sessionId = (UA_NodeId) {.namespaceIndex = 1, .identifierType = UA_NODEIDTYPE_NUMERIC,
                                                .identifier.numeric = sessionManager->lastSessionId++ };
-    newentry->session.authenticationToken = (UA_NodeId) {.namespaceIndex = 1, .identifierType = UA_NODEIDTYPE_NUMERIC,
+    newentry->session.authenticationToken = (UA_NodeId) {.namespaceIndex = 1,
+                                                         .identifierType = UA_NODEIDTYPE_NUMERIC,
                                                          .identifier.numeric = sessionManager->lastSessionId };
     newentry->session.channel = channel;
     newentry->session.timeout = 3600 * 1000; // 1h
@@ -115,7 +118,7 @@ UA_Int32 UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_S
     sessionManager->currentSessionCount++;
     LIST_INSERT_HEAD(&sessionManager->sessions, newentry, pointers);
     *session = &newentry->session;
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_Int32 UA_SessionManager_removeSession(UA_SessionManager *sessionManager, UA_NodeId  *sessionId) {

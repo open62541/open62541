@@ -8,13 +8,14 @@
 #endif
 
 #ifdef DEBUG
-#include <stdio.h>
+#include <inttypes.h>
 #endif
 
 #include "ua_util.h"
 #include "ua_types.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_namespace_0.h"
+#include "ua_statuscodes.h"
 
 /* Boolean */
 void UA_Boolean_init(UA_Boolean *p) {
@@ -143,16 +144,14 @@ void UA_String_deleteMembers(UA_String *p) {
 }
 
 UA_Int32 UA_String_copy(UA_String const *src, UA_String *dst) {
-    UA_Int32 retval = UA_SUCCESS;
     if(!src || !dst) return UA_ERROR;
     if(src->length > 0) {
-        retval |= UA_alloc((void **)&dst->data, src->length);
-        if(retval != UA_SUCCESS)
-            return retval;
+        if(!(dst->data = UA_alloc(src->length)))
+            return UA_STATUSCODE_BADOUTOFMEMORY;
         UA_memcpy((void *)dst->data, src->data, src->length);
     }
     dst->length = src->length;
-    return retval;
+    return UA_SUCCESS;
 }
 
 #ifdef DEBUG
@@ -167,15 +166,14 @@ void UA_String_print(const UA_String *p, FILE *stream) {
 #endif
 
 UA_Int32 UA_String_copycstring(char const *src, UA_String *dst) {
-    UA_Int32 retval = UA_SUCCESS;
-    dst->length = strlen(src);
     dst->data   = UA_NULL;
+    dst->length = strlen(src);
     if(dst->length > 0) {
-        retval |= UA_alloc((void **)&dst->data, dst->length);
-        if(retval == UA_SUCCESS)
-            UA_memcpy((void *)dst->data, src, dst->length);
+        if(!(dst->data = UA_alloc(dst->length)))
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_memcpy((void *)dst->data, src, dst->length);
     }
-    return retval;
+    return UA_SUCCESS;
 }
 
 #define UA_STRING_COPYPRINTF_BUFSIZE 1024
@@ -198,9 +196,10 @@ UA_Int32 UA_String_copyprintf(char const *fmt, UA_String *dst, ...) {
     } else {
         // since glibc 2.1 vsnprintf returns len that would have resulted if buf were large enough
         dst->length = ( len > UA_STRING_COPYPRINTF_BUFSIZE ? UA_STRING_COPYPRINTF_BUFSIZE : len );
-        retval     |= UA_alloc((void **)&dst->data, dst->length);
-        if(retval == UA_SUCCESS)
+        if((dst->data = UA_alloc(dst->length)))
             UA_memcpy((void *)dst->data, src, dst->length);
+        else
+            retval = UA_STATUSCODE_BADOUTOFMEMORY;
     }
     return retval;
 }
@@ -314,9 +313,13 @@ UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time) {
 }
 
 UA_Int32 UA_DateTime_toString(UA_DateTime time, UA_String *timeString) {
-    char *charBuf = (char *)(*timeString).data;
+    // length of the string is 31 (incl. \0 at the end)
+    if(!(timeString->data = UA_alloc(31)))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    timeString->length = 30;
+
     UA_DateTimeStruct tSt = UA_DateTime_toStruct(time);
-    sprintf(charBuf, "%2d/%2d/%4d %2d:%2d:%2d.%3d.%3d.%3d", tSt.mounth, tSt.day, tSt.year,
+    sprintf((char*)timeString->data, "%2d/%2d/%4d %2d:%2d:%2d.%3d.%3d.%3d", tSt.mounth, tSt.day, tSt.year,
             tSt.hour, tSt.min, tSt.sec, tSt.milliSec, tSt.microSec, tSt.nanoSec);
     return UA_SUCCESS;
 }
@@ -386,12 +389,15 @@ UA_ByteString UA_ByteString_securityPoliceNone =
 
 UA_Int32 UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length) {
     UA_Int32 retval = UA_SUCCESS;
-    if(length > 0 && (retval |= UA_alloc((void **)&p->data, length)) == UA_SUCCESS)
-        p->length = length;
-    else {
-        p->length = -1;
-        p->data   = UA_NULL;
+    if(length > 0) {
+        if((p->data = UA_alloc(length))) {
+            p->length = length;
+            return retval;
+        }
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
     }
+    p->length = -1;
+    p->data   = UA_NULL;
     return retval;
 }
 
@@ -490,7 +496,7 @@ void UA_NodeId_print(const UA_NodeId *p, FILE *stream) {
         break;
     }
     fprintf(stream, ",%u,", p->namespaceIndex);
-    switch(p->identifierType & UA_NODEIDTYPE_MASK) {
+    switch(p->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         fprintf(stream, ".identifier.numeric=%u", p->identifier.numeric);
         break;
@@ -905,18 +911,23 @@ UA_Int32 UA_Variant_copySetArray(UA_Variant *v, const UA_VTable_Entry *vt, UA_In
 void UA_Variant_print(const UA_Variant *p, FILE *stream) {
     if(p == UA_NULL || stream == UA_NULL) return;
     UA_UInt32 ns0id = UA_ns0ToVTableIndex(&p->vt->typeId);
+    if(p->storageType == UA_VARIANT_DATASOURCE) {
+        fprintf(stream, "Variant from a Datasource");
+        return;
+    }
     fprintf(stream, "(UA_Variant){/*%s*/", p->vt->name);
     if(p->vt == &UA_[ns0id])
         fprintf(stream, "UA_[%d]", ns0id);
     else
         fprintf(stream, "ERROR (not a builtin type)");
-    UA_Int32_print(&p->arrayLength, stream);
+    UA_Int32_print(&p->storage.data.arrayLength, stream);
     fprintf(stream, ",");
-    UA_Array_print(p->data, p->arrayLength, p->vt, stream);
+    UA_Array_print(p->storage.data.dataPtr, p->storage.data.arrayLength, p->vt, stream);
     fprintf(stream, ",");
-    UA_Int32_print(&p->arrayDimensionsLength, stream);
+    UA_Int32_print(&p->storage.data.arrayDimensionsLength, stream);
     fprintf(stream, ",");
-    UA_Array_print(p->arrayDimensions, p->arrayDimensionsLength, &UA_[UA_INT32], stream);
+    UA_Array_print(p->storage.data.arrayDimensions, p->storage.data.arrayDimensionsLength,
+                   &UA_[UA_INT32], stream);
     fprintf(stream, "}");
 }
 #endif
@@ -952,9 +963,10 @@ UA_Int32 UA_DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo 
     retval |= UA_Byte_copy(&src->encodingMask, &dst->encodingMask);
     retval |= UA_StatusCode_copy(&src->innerStatusCode, &dst->innerStatusCode);
     if(src->innerDiagnosticInfo) {
-        retval |= UA_alloc((void **)&dst->innerDiagnosticInfo, sizeof(UA_DiagnosticInfo));
-        if(retval == UA_SUCCESS)
+        if((dst->innerDiagnosticInfo = UA_alloc(sizeof(UA_DiagnosticInfo))))
             retval |= UA_DiagnosticInfo_copy(src->innerDiagnosticInfo, dst->innerDiagnosticInfo);
+        else
+            retval |= UA_STATUSCODE_BADOUTOFMEMORY;
     } else
         dst->innerDiagnosticInfo = UA_NULL;
     retval |= UA_Int32_copy(&src->locale, &dst->locale);
@@ -1040,10 +1052,8 @@ UA_Int32 UA_Array_new(void **p, UA_Int32 noElements, const UA_VTable_Entry *vt) 
         return UA_ERROR;
     }
 
-    UA_Int32 retval = UA_SUCCESS;
-    retval = UA_alloc(p, vt->memSize * noElements);
-    if(retval != UA_SUCCESS)
-        return retval;
+    if(!(*p = UA_alloc(vt->memSize * noElements)))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_Array_init(*p, noElements, vt);
     return UA_SUCCESS;

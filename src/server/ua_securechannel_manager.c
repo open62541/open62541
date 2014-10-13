@@ -1,6 +1,7 @@
 #include "ua_securechannel_manager.h"
 #include "ua_session.h"
 #include "ua_util.h"
+#include "ua_statuscodes.h"
 
 struct channel_list_entry {
     UA_SecureChannel channel;
@@ -21,7 +22,8 @@ struct UA_SecureChannelManager {
 UA_Int32 UA_SecureChannelManager_new(UA_SecureChannelManager **cm, UA_UInt32 maxChannelCount,
                                      UA_UInt32 tokenLifetime, UA_UInt32 startChannelId,
                                      UA_UInt32 startTokenId, UA_String *endpointUrl) {
-    UA_alloc((void **)cm, sizeof(UA_SecureChannelManager));
+    if(!(*cm = UA_alloc(sizeof(UA_SecureChannelManager))))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_SecureChannelManager *channelManager = *cm;
     LIST_INIT(&channelManager->channels);
     channelManager->lastChannelId      = startChannelId;
@@ -33,8 +35,8 @@ UA_Int32 UA_SecureChannelManager_new(UA_SecureChannelManager **cm, UA_UInt32 max
 }
 
 UA_Int32 UA_SecureChannelManager_delete(UA_SecureChannelManager *cm) {
-    struct channel_list_entry *entry;
-    LIST_FOREACH(entry, &cm->channels, pointers) {
+    struct channel_list_entry *entry = LIST_FIRST(&cm->channels);
+    while(entry) {
         LIST_REMOVE(entry, pointers);
         if(entry->channel.session)
             entry->channel.session->channel = UA_NULL;
@@ -42,6 +44,7 @@ UA_Int32 UA_SecureChannelManager_delete(UA_SecureChannelManager *cm) {
             entry->channel.connection->channel = UA_NULL;
         UA_SecureChannel_deleteMembers(&entry->channel);
         UA_free(entry);
+        entry = LIST_FIRST(&cm->channels);
     }
     UA_String_deleteMembers(&cm->endpointUrl);
     UA_free(cm);
@@ -52,8 +55,7 @@ UA_Int32 UA_SecureChannelManager_open(UA_SecureChannelManager           *cm,
                                       UA_Connection                     *conn,
                                       const UA_OpenSecureChannelRequest *request,
                                       UA_OpenSecureChannelResponse      *response) {
-    struct channel_list_entry *entry;
-    UA_alloc((void **)&entry, sizeof(struct channel_list_entry));
+    struct channel_list_entry *entry = UA_alloc(sizeof(struct channel_list_entry));
     UA_SecureChannel_init(&entry->channel);
 
     entry->channel.connection = conn;

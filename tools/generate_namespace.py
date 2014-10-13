@@ -65,8 +65,6 @@ def skipType(row):
         return True
     if "Test" in row[0]:
         return True
-    if re.search("Attributes$", row[0]) != None:
-        return True
     if args.only_needed and not(row[0] in only_needed_types):
         return True
     return False
@@ -106,7 +104,7 @@ printh('''/**********************************************************
  */
 
 UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id);\n
-extern const UA_VTable_Entry *UA_;
+extern const UA_VTable_Entry UA_EXPORT *UA_;
 
 /**
  * @brief the set of possible indices into UA_VTable

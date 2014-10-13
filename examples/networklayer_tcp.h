@@ -6,6 +6,15 @@
 #ifndef NETWORKLAYERTCP_H_
 #define NETWORKLAYERTCP_H_
 
+#ifdef WIN32
+  #include "winsock2.h"
+#else
+  #include <sys/mman.h>
+  #include <sys/wait.h>
+  #include <unistd.h>
+  #include <sys/time.h>
+#endif
+
 #include "ua_server.h"
 
 struct NetworklayerTCP;

@@ -5,19 +5,14 @@
 
 #include <stdio.h>
 #include <stdlib.h> 
-#ifndef WIN32
-#include <sys/mman.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#include <sys/time.h>
-#else
-#include "winsock2.h"
-#endif
-#include <sys/types.h>
-#include <fcntl.h>
 #include <signal.h>
 #include <errno.h> // errno, EINTR
+
+// provided by the open62541 lib
 #include "ua_server.h"
+#include "ua_namespace_0.h"
+
+// provided by the user, implementations available in the /examples folder
 #include "logger_stdout.h"
 #include "networklayer_tcp.h"
 
@@ -63,6 +58,36 @@ int main(int argc, char** argv) {
 	UA_Server_init(&server, &endpointUrl);
 	Logger_Stdout_init(&server.logger);
     server.serverCertificate = loadCertificate();
+
+    UA_Int32 myInteger = 42;
+    UA_String myIntegerName;
+    UA_STRING_STATIC(myIntegerName, "The Answer");
+    UA_Server_addScalarVariableNode(&server, &myIntegerName, (void*)&myInteger, &UA_[UA_INT32],
+                                    &server.objectsNodeId, &server.hasComponentReferenceTypeId);
+
+#ifdef BENCHMARK
+    UA_UInt32 nodeCount = 500;
+    UA_VariableNode *tmpNode;
+
+    UA_Int32 data = 42;
+    char str[15];
+    for(UA_UInt32 i = 0;i<nodeCount;i++) {
+        UA_VariableNode_new(&tmpNode);
+        sprintf(str,"%d",i);
+        UA_QualifiedName_copycstring(str,&tmpNode->browseName);
+        UA_LocalizedText_copycstring(str,&tmpNode->displayName);
+        UA_LocalizedText_copycstring("integer value", &tmpNode->description);
+        tmpNode->nodeId.identifier.numeric = 19000+i;
+        tmpNode->nodeClass = UA_NODECLASS_VARIABLE;
+        //tmpNode->valueRank = -1;
+        tmpNode->value.vt = &UA_[UA_INT32];
+        tmpNode->value.storage.data.dataPtr = &data;
+        tmpNode->value.storageType = UA_VARIANT_DATA_NODELETE;
+        tmpNode->value.storage.data.arrayLength = 1;
+        UA_Server_addNode(&server, (UA_Node**)&tmpNode, &server.objectsNodeId,
+                          &server.hasComponentReferenceTypeId);
+    }
+#endif
 	
 	#define PORT 16664
 	NetworklayerTCP* nl;
@@ -71,8 +96,8 @@ int main(int argc, char** argv) {
 	struct timeval callback_interval = {1, 0}; // 1 second
 	UA_Int32 retval = NetworkLayerTCP_run(nl, &server, callback_interval,
 										  serverCallback, &running);
-	NetworklayerTCP_delete(nl);
 	UA_Server_deleteMembers(&server);
+	NetworklayerTCP_delete(nl);
     UA_String_deleteMembers(&endpointUrl);
 	return retval == UA_SUCCESS ? 0 : retval;
 }

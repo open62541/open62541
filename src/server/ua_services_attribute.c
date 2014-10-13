@@ -5,9 +5,9 @@
 #include "ua_util.h"
 
 enum UA_AttributeId {
-    UA_ATTRIBUTEID_NODEID = 1,
-    UA_ATTRIBUTEID_NODECLASS = 2,
-    UA_ATTRIBUTEID_BROWSENAME = 3,
+    UA_ATTRIBUTEID_NODEID                  = 1,
+    UA_ATTRIBUTEID_NODECLASS               = 2,
+    UA_ATTRIBUTEID_BROWSENAME              = 3,
     UA_ATTRIBUTEID_DISPLAYNAME             = 4,
     UA_ATTRIBUTEID_DESCRIPTION             = 5,
     UA_ATTRIBUTEID_WRITEMASK               = 6,
@@ -211,31 +211,23 @@ static UA_DataValue service_read_node(UA_Server *server, const UA_ReadValueId *i
 
     return v;
 }
-UA_Int32 Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request,
-                      UA_ReadResponse *response) {
-    UA_Int32 readsize;
-    if(session == UA_NULL) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-        return UA_ERROR;
-    }
+void Service_Read(UA_Server *server, UA_Session *session,
+                  const UA_ReadRequest *request, UA_ReadResponse *response) {
+    UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
 
-    readsize = request->nodesToReadSize;
-    /* NothingTodo */
-    if(readsize <= 0) {
+    if(request->nodesToReadSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-        return UA_SUCCESS;
+        return;
     }
 
-    response->resultsSize = readsize;
-    UA_alloc((void **)&response->results, sizeof(UA_DataValue) * readsize);
-    for(UA_Int32 i = 0;i < readsize;i++) {
-        DBG_VERBOSE(printf("service_read - attributeId=%d\n", request->nodesToRead[i].attributeId));
-        DBG_VERBOSE(UA_NodeId_printf("service_read - nodeId=", &(request->nodesToRead[i].nodeId)));
-        response->results[i] = service_read_node(server, &request->nodesToRead[i]);
+    if(UA_Array_new((void **)&response->results, request->nodesToReadSize, &UA_[UA_DATAVALUE]) != UA_SUCCESS) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
     }
-    response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
-    response->diagnosticInfosSize = 0;
-    return UA_SUCCESS;
+
+    response->resultsSize = request->nodesToReadSize;
+    for(UA_Int32 i = 0;i < response->resultsSize;i++)
+        response->results[i] = service_read_node(server, &request->nodesToRead[i]);
 }
 
 UA_Int32 Service_Write_writeNode(UA_Server *server, UA_WriteValue *writeValue,
@@ -379,17 +371,17 @@ UA_Int32 Service_Write_writeNode(UA_Server *server, UA_WriteValue *writeValue,
 
 }
 
-UA_Int32 Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,
-                       UA_WriteResponse *response) {
-    UA_Int32 retval = UA_SUCCESS;
-    UA_Int32 i;
-    if(session == UA_NULL || server == UA_NULL)
-        return UA_ERROR;    // TODO: Return error message
-    response->resultsSize = request->nodesToWriteSize;
-    //TODO evalutate diagnostic info within the request
-    UA_Array_new((void **)&response->results, response->resultsSize, &UA_[UA_STATUSCODE]);
-    for(i = 0;i < request->nodesToWriteSize;i++)
-        retval |= Service_Write_writeNode(server, &request->nodesToWrite[i], &response->results[i]);
+void Service_Write(UA_Server *server, UA_Session *session,
+                   const UA_WriteRequest *request, UA_WriteResponse *response) {
+    UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
 
-    return retval;
+    if(UA_Array_new((void **)&response->results, request->nodesToWriteSize, &UA_[UA_STATUSCODE])
+       != UA_SUCCESS) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+    
+    response->resultsSize = request->nodesToWriteSize;
+    for(UA_Int32 i = 0;i < request->nodesToWriteSize;i++)
+        Service_Write_writeNode(server, &request->nodesToWrite[i], &response->results[i]);
 }

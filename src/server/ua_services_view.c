@@ -66,11 +66,10 @@ struct SubRefTypeId {
 };
 SLIST_HEAD(SubRefTypeIdList, SubRefTypeId);
 
-UA_UInt32 walkReferenceTree(UA_NodeStore *ns, const UA_ReferenceTypeNode *current,
-                            struct SubRefTypeIdList *list) {
+static UA_UInt32 walkReferenceTree(UA_NodeStore *ns, const UA_ReferenceTypeNode *current,
+                                   struct SubRefTypeIdList *list) {
     // insert the current referencetype
-    struct SubRefTypeId *element;
-    UA_alloc((void **)&element, sizeof(struct SubRefTypeId));
+    struct SubRefTypeId *element = UA_alloc(sizeof(struct SubRefTypeId));
     element->id = current->nodeId;
     SLIST_INSERT_HEAD(list, element, next);
 
@@ -107,7 +106,7 @@ static UA_Int32 findSubReferenceTypes(UA_NodeStore *ns, UA_NodeId *rootReference
     UA_NodeStore_releaseManagedNode((const UA_Node *)root);
 
     // copy results into an array
-    UA_alloc((void **)ids, sizeof(UA_NodeId)*count);
+    *ids = UA_alloc(sizeof(UA_NodeId)*count);
     for(UA_UInt32 i = 0;i < count;i++) {
         struct SubRefTypeId *element = SLIST_FIRST(&list);
         UA_NodeId_copy(&element->id, &(*ids)[i]);
@@ -143,7 +142,7 @@ static void Service_Browse_getBrowseResult(UA_NodeStore         *ns,
                                            UA_UInt32             maxReferences,
                                            UA_BrowseResult      *browseResult) {
     const UA_Node *node;
-    UA_NodeId     *relevantReferenceTypes;
+    UA_NodeId     *relevantReferenceTypes = UA_NULL;
     UA_UInt32      relevantReferenceTypesCount = 0;
     if(UA_NodeStore_get(ns, &browseDescription->nodeId, &node) != UA_SUCCESS) {
         browseResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -158,7 +157,9 @@ static void Service_Browse_getBrowseResult(UA_NodeStore         *ns,
     if(!browseDescription->includeSubtypes ||
        findSubReferenceTypes(ns, &browseDescription->referenceTypeId, &relevantReferenceTypes,
                              &relevantReferenceTypesCount) != UA_SUCCESS) {
-        UA_alloc((void **)&relevantReferenceTypes, sizeof(UA_NodeId));
+        if(!(relevantReferenceTypes = UA_alloc(sizeof(UA_NodeId)))) {
+            return;
+        }
         UA_NodeId_copy(&browseDescription->referenceTypeId, relevantReferenceTypes);
         relevantReferenceTypesCount = 1;
     }
@@ -205,45 +206,47 @@ static void Service_Browse_getBrowseResult(UA_NodeStore         *ns,
     UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesCount, &UA_[UA_NODEID]);
 }
 
-UA_Int32 Service_Browse(UA_Server *server, UA_Session *session,
-                        const UA_BrowseRequest *request, UA_BrowseResponse *response) {
-    UA_Int32 retval = UA_SUCCESS;
-    if(server == UA_NULL || session == UA_NULL)
-        return UA_ERROR;
+void Service_Browse(UA_Server *server, UA_Session *session,
+                    const UA_BrowseRequest *request, UA_BrowseResponse *response) {
+    UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
 
-    //TODO request->view not used atm
-    UA_Array_new((void **)&(response->results), request->nodesToBrowseSize, &UA_[UA_BROWSERESULT]);
-    response->resultsSize = request->nodesToBrowseSize;
-
-    for(UA_Int32 i = 0;i < request->nodesToBrowseSize;i++) {
-        // Service_Browse_getBrowseResult has no return value. All errors are resolved internally.
-        Service_Browse_getBrowseResult(server->nodestore, &request->nodesToBrowse[i],
-                                       request->requestedMaxReferencesPerNode,
-                                       &response->results[i]);
+    if(request->nodesToBrowseSize <= 0) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+        return;
     }
 
-    //TODO fill Diagnostic info array
-    response->diagnosticInfosSize = 0;
-    response->diagnosticInfos     = UA_NULL;
-    return retval;
+    if(UA_Array_new((void **)&(response->results), request->nodesToBrowseSize, &UA_[UA_BROWSERESULT])
+       != UA_SUCCESS) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+        
+    response->resultsSize = request->nodesToBrowseSize;
+    for(UA_Int32 i = 0;i < request->nodesToBrowseSize;i++)
+        Service_Browse_getBrowseResult(server->nodestore, &request->nodesToBrowse[i],
+                                       request->requestedMaxReferencesPerNode, &response->results[i]);
 }
 
 
-UA_Int32 Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
-                                               const UA_TranslateBrowsePathsToNodeIdsRequest *request,
-                                               UA_TranslateBrowsePathsToNodeIdsResponse *response) {
-    UA_Int32 retval = UA_SUCCESS;
-    DBG_VERBOSE(printf("TranslateBrowsePathsToNodeIdsService - %i path(s)", request->browsePathsSize));
+void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
+                                           const UA_TranslateBrowsePathsToNodeIdsRequest *request,
+                                           UA_TranslateBrowsePathsToNodeIdsResponse *response) {
+    UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
+
+    if(request->browsePathsSize <= 0) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+        return;
+    }
 
     // Allocate space for a correct answer
     response->resultsSize = request->browsePathsSize;
     // _init of the elements is done in Array_new
-    UA_Array_new((void **)&response->results, request->browsePathsSize, &UA_[UA_BROWSEPATHRESULT]);
-
-    for(UA_Int32 i = 0;i < request->browsePathsSize;i++) {
-        //FIXME: implement
-        response->results[i].statusCode = UA_STATUSCODE_BADNOMATCH;
+    if(UA_Array_new((void **)&response->results, request->browsePathsSize, &UA_[UA_BROWSEPATHRESULT])
+       != UA_SUCCESS) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
     }
 
-    return retval;
+    for(UA_Int32 i = 0;i < request->browsePathsSize;i++)
+        response->results[i].statusCode = UA_STATUSCODE_BADNOMATCH; //FIXME: implement
 }

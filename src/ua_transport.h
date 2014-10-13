@@ -27,9 +27,6 @@ enum UA_MessageType {
 };
 UA_TYPE_PROTOTYPES(UA_MessageType)
 UA_TYPE_BINARY_ENCODING(UA_MessageType)
-#ifdef DEBUG
-void UA_MessageType_printf(char *label, UA_MessageType *p);
-#endif
 
 /* All other transport types are auto-generated from a schema definition. */
 

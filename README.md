@@ -19,6 +19,62 @@ The project is in an early stage. We retain the right to break APIs until a firs
 ### Documentation
 Documentation is generated from Doxygen annotations in the source code. The current version can be accessed at [http://open62541.org/doxygen/](http://open62541.org/doxygen/).
 
+### Example Server Implementation
+```c
+#include <stdio.h>
+#include <signal.h>
+
+// provided by the open62541 lib
+#include "ua_server.h"
+#include "ua_namespace_0.h"
+
+// provided by the user, implementations available in the /examples folder
+#include "logger_stdout.h"
+#include "networklayer_tcp.h"
+
+UA_Boolean running = UA_TRUE;
+void stopHandler(int sign) {
+	running = UA_FALSE;
+}
+
+void serverCallback(UA_Server *server) {
+    // add your maintenance functionality here
+    printf("does whatever servers do\n");
+}
+
+int main(int argc, char** argv) {
+	signal(SIGINT, stopHandler); /* catches ctrl-c */
+
+	#define PORT 16664
+	UA_String endpointUrl;
+	UA_String_copyprintf("opc.tpc://127.0.0.1:%i", endpointUrl, PORT);
+    
+	UA_Server server;
+	UA_Server_init(&server, &endpointUrl);
+	Logger_Stdout_init(&server.logger);
+
+    UA_Int32 myInteger = 42;
+    UA_String myIntegerName;
+    UA_STRING_STATIC(myIntegerName, "The Answer");
+    // Adds the integer variable as a child (HasComponent) to the "Objects" node.
+    UA_Server_addScalarVariableNode(&server, &myIntegerName, (void*)&myInteger,
+                                    &UA_[UA_INT32], &server.objectsNodeId,
+                                    &server.hasComponentReferenceTypeId);
+
+	NetworklayerTCP* nl;
+	NetworklayerTCP_new(&nl, UA_ConnectionConfig_standard, PORT);
+	printf("Server started, connect to to opc.tcp://127.0.0.1:%i\n", PORT);
+	struct timeval callback_interval = {5, 0}; // run serverCallback every 5 seconds
+	UA_Int32 retval = NetworkLayerTCP_run(nl, &server, callback_interval,
+										  serverCallback, &running);
+                                          
+	UA_Server_deleteMembers(&server);
+	NetworklayerTCP_delete(nl);
+    UA_String_deleteMembers(&endpointUrl);
+	return retval == UA_SUCCESS ? 0 : retval;
+}
+```
+
 ## Build Procedure
 ### Ubuntu
 

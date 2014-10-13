@@ -27,6 +27,10 @@ extern "C" {
 
 /** @defgroup server Server */
 
+//identifier numbers are different for XML and binary, so we have to substract an offset for comparison
+#define UA_ENCODINGOFFSET_XML 1
+#define UA_ENCODINGOFFSET_BINARY 2
+
 struct UA_SecureChannelManager;
 typedef struct UA_SecureChannelManager UA_SecureChannelManager;
 
@@ -43,11 +47,24 @@ typedef struct UA_Server {
     UA_NodeStore *nodestore;
     UA_Logger logger;
     UA_ByteString serverCertificate;
+
+    // todo: move these somewhere sane
+    UA_ExpandedNodeId objectsNodeId;
+    UA_NodeId hasComponentReferenceTypeId;
 } UA_Server;
 
-void UA_LIBEXPORT UA_Server_init(UA_Server *server, UA_String *endpointUrl);
-UA_Int32 UA_LIBEXPORT UA_Server_deleteMembers(UA_Server *server);
-UA_Int32 UA_LIBEXPORT UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
+void UA_EXPORT UA_Server_init(UA_Server *server, UA_String *endpointUrl);
+UA_Int32 UA_EXPORT UA_Server_deleteMembers(UA_Server *server);
+UA_Int32 UA_EXPORT UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
+
+/* Services for local use */
+UA_AddNodesResult UA_EXPORT UA_Server_addScalarVariableNode(UA_Server *server, UA_String *browseName, void *value,
+                                                            const UA_VTable_Entry *vt, UA_ExpandedNodeId *parentNodeId,
+                                                            UA_NodeId *referenceTypeId );
+UA_AddNodesResult UA_EXPORT UA_Server_addNode(UA_Server *server, UA_Node **node, UA_ExpandedNodeId *parentNodeId,
+                                              UA_NodeId *referenceTypeId);
+void UA_EXPORT UA_Server_addReferences(UA_Server *server, const UA_AddReferencesRequest *request,
+                                       UA_AddReferencesResponse *response);
 
 #ifdef __cplusplus
 } // extern "C"
