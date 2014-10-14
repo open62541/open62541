@@ -24,6 +24,7 @@ extern "C" {
 #include "ua_types_generated.h"
 #include "ua_connection.h"
 #include "ua_log.h"
+//not good, is it?
 
 /** @defgroup server Server */
 
@@ -40,6 +41,9 @@ typedef struct UA_SessionManager UA_SessionManager;
 struct UA_NodeStore;
 typedef struct UA_NodeStore UA_NodeStore;
 
+struct ServiceFunctionpointers;
+typedef struct ServiceFunctionpointers ServiceFunctionpointers;
+
 typedef struct UA_Server {
     UA_ApplicationDescription description;
     UA_SecureChannelManager *secureChannelManager;
@@ -51,6 +55,7 @@ typedef struct UA_Server {
     // todo: move these somewhere sane
     UA_ExpandedNodeId objectsNodeId;
     UA_NodeId hasComponentReferenceTypeId;
+    ServiceFunctionpointers *serviceImplementations;
 } UA_Server;
 
 void UA_EXPORT UA_Server_init(UA_Server *server, UA_String *endpointUrl);

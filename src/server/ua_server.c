@@ -16,14 +16,23 @@ UA_Int32 UA_Server_deleteMembers(UA_Server *server) {
 }
 
 void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
-    UA_ExpandedNodeId_init(&server->objectsNodeId);
+
+	server->serviceImplementations = (ServiceFunctionpointers*)UA_alloc(sizeof(ServiceFunctionpointers));
+
+	UA_ExpandedNodeId_init(&server->objectsNodeId);
     server->objectsNodeId.nodeId.identifier.numeric = 85;
 
     UA_NodeId_init(&server->hasComponentReferenceTypeId);
     server->hasComponentReferenceTypeId.identifier.numeric = 47;
-    
+
     UA_ApplicationDescription_init(&server->description);
     UA_ByteString_init(&server->serverCertificate);
+
+
+
+
+
+
 #define MAXCHANNELCOUNT 100
 #define STARTCHANNELID 1
 #define TOKENLIFETIME 10000
@@ -535,7 +544,8 @@ UA_AddNodesResult UA_Server_addNode(UA_Server *server, UA_Node **node, UA_Expand
 
 void UA_Server_addReference(UA_Server *server, const UA_AddReferencesRequest *request,
                             UA_AddReferencesResponse *response) {
-    Service_AddReferences(server, &adminSession, request, response);
+
+	server->serviceImplementations->AddReferences(server, &adminSession, request, response);
 }
 
 UA_AddNodesResult UA_Server_addScalarVariableNode(UA_Server *server, UA_String *browseName, void *value,

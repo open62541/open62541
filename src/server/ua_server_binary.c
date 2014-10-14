@@ -6,6 +6,10 @@
 #include "ua_session_manager.h"
 #include "ua_util.h"
 
+
+
+
+
 static UA_Int32 UA_ByteStringArray_deleteMembers(UA_ByteStringArray *stringarray) {
     if(!stringarray)
         return UA_ERROR;
@@ -21,6 +25,7 @@ static void processHello(UA_Connection *connection, const UA_ByteString *msg,
         connection->close(connection->callbackHandle);
         return;
     }
+
     connection->remoteConf.maxChunkCount   = helloMessage.maxChunkCount;
     connection->remoteConf.maxMessageSize  = helloMessage.maxMessageSize;
     connection->remoteConf.protocolVersion = helloMessage.protocolVersion;
@@ -84,7 +89,7 @@ static void processOpen(UA_Connection *connection, UA_Server *server,
     // perform request
     UA_OpenSecureChannelResponse p;
     UA_OpenSecureChannelResponse_init(&p);
-    Service_OpenSecureChannel(server, connection, &r, &p);
+    server->serviceImplementations->OpenSecureChannel(server, connection, &r, &p);
 
     // response
     UA_TcpMessageHeader respHeader;
@@ -131,20 +136,36 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
             return;                  \
         } } while(0)
 
-#define INVOKE_SERVICE(TYPE) do {                                                                         \
-        UA_##TYPE##Request p;                                                                             \
-        UA_##TYPE##Response r;                                                                            \
-        CHECK_PROCESS(UA_##TYPE##Request_decodeBinary(msg, pos, &p),; );                                  \
-        UA_##TYPE##Response_init(&r);                                                                     \
-        init_response_header(&p.requestHeader, &r.responseHeader);                                        \
-        DBG_VERBOSE(printf("Invoke Service: %s\n", # TYPE));                                              \
-        Service_##TYPE(server, channel->session, &p, &r);                                                 \
-        DBG_VERBOSE(printf("Finished Service: %s\n", # TYPE));                                            \
-        UA_ByteString_newMembers(message, UA_##TYPE##Response_calcSizeBinary(&r)); \
-        UA_##TYPE##Response_encodeBinary(&r, message, &sendOffset);     \
-        UA_##TYPE##Request_deleteMembers(&p);                                                             \
-        UA_##TYPE##Response_deleteMembers(&r);                                                            \
-        responseType = requestType.nodeId.identifier.numeric + 3;                                         \
+#define INVOKE_SERVICE(TYPE) do {  \
+        if(server->serviceImplementations->TYPE != UA_NULL){ \
+			UA_##TYPE##Request p;  \
+			UA_##TYPE##Response r; \
+			CHECK_PROCESS(UA_##TYPE##Request_decodeBinary(msg, pos, &p),; );                                  \
+			UA_##TYPE##Response_init(&r);                                                                     \
+			init_response_header(&p.requestHeader, &r.responseHeader);                                        \
+			DBG_VERBOSE(printf("Invoke Service: %s\n", # TYPE));    \
+			server->serviceImplementations->TYPE(server, channel->session, &p, &r);  \
+			DBG_VERBOSE(printf("Finished Service: %s\n", # TYPE));                                            \
+			UA_ByteString_newMembers(message, UA_##TYPE##Response_calcSizeBinary(&r)); \
+			UA_##TYPE##Response_encodeBinary(&r, message, &sendOffset);     \
+			UA_##TYPE##Request_deleteMembers(&p);                                                             \
+			UA_##TYPE##Response_deleteMembers(&r);                                                            \
+			responseType = requestType.nodeId.identifier.numeric + 3; \
+		}else { \
+	        printf("SL_processMessage - unknown request, namespace=%d, request=%d\n", \
+	               requestType.nodeId.namespaceIndex, requestType.nodeId.identifier.numeric); \
+	        UA_RequestHeader  p; \
+	        UA_ResponseHeader r; \
+	        CHECK_PROCESS(UA_RequestHeader_decodeBinary(msg, pos, &p),; ); \
+	        UA_ResponseHeader_init(&r); \
+	        r.requestHandle = p.requestHandle; \
+	        r.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED; \
+	        UA_ByteString_newMembers(message, UA_ResponseHeader_calcSizeBinary(&r)); \
+	        UA_ResponseHeader_encodeBinary(&r, message, &sendOffset); \
+	        UA_RequestHeader_deleteMembers(&p); \
+	        UA_ResponseHeader_deleteMembers(&r); \
+	        responseType = UA_RESPONSEHEADER_NS0 + 2; \
+		}\
 } while(0)
 
 static void processMessage(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, UA_UInt32 *pos) {
@@ -163,7 +184,7 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
 
     channel->sequenceNumber = sequenceHeader.sequenceNumber;
     channel->requestId = sequenceHeader.requestId;
-    // todo
+    // todogo
     //UA_SecureChannel_checkSequenceNumber(channel,sequenceHeader.sequenceNumber);
     //UA_SecureChannel_checkRequestId(channel,sequenceHeader.requestId);
 
@@ -190,7 +211,7 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
         CHECK_PROCESS(UA_GetEndpointsRequest_decodeBinary(msg, pos, &p),; );
         UA_GetEndpointsResponse_init(&r);
         init_response_header(&p.requestHeader, &r.responseHeader);
-        Service_GetEndpoints(server, &p, &r);
+        server->serviceImplementations->GetEndpoints(server, &p, &r);
         UA_ByteString_newMembers(message, UA_GetEndpointsResponse_calcSizeBinary(&r));
         UA_GetEndpointsResponse_encodeBinary(&r, message, &sendOffset);
         UA_GetEndpointsRequest_deleteMembers(&p);
@@ -205,7 +226,8 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
         CHECK_PROCESS(UA_CreateSessionRequest_decodeBinary(msg, pos, &p),; );
         UA_CreateSessionResponse_init(&r);
         init_response_header(&p.requestHeader, &r.responseHeader);
-        Service_CreateSession(server, channel,  &p, &r);
+        server->serviceImplementations->CreateSession(server, channel, &p, &r);
+        //Service_CreateSession(server, channel,  &p, &r);
         UA_ByteString_newMembers(message, UA_CreateSessionResponse_calcSizeBinary(&r));
         UA_CreateSessionResponse_encodeBinary(&r, message, &sendOffset);
         UA_CreateSessionRequest_deleteMembers(&p);
@@ -221,7 +243,7 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
         UA_ActivateSessionResponse_init(&r);
         init_response_header(&p.requestHeader, &r.responseHeader);
 
-        Service_ActivateSession(server, channel,  &p, &r);
+        server->serviceImplementations->ActivateSession(server, channel,  &p, &r);
         UA_ByteString_newMembers(message, UA_ActivateSessionResponse_calcSizeBinary(&r));
         UA_ActivateSessionResponse_encodeBinary(&r, message, &sendOffset);
         UA_ActivateSessionRequest_deleteMembers(&p);
@@ -236,8 +258,7 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
         CHECK_PROCESS(UA_CloseSessionRequest_decodeBinary(msg, pos, &p),; );
         UA_CloseSessionResponse_init(&r);
         init_response_header(&p.requestHeader, &r.responseHeader);
-
-        Service_CloseSession(server, &p, &r);
+        server->serviceImplementations->CloseSession(server, &p, &r);
         UA_ByteString_newMembers(message, UA_CloseSessionResponse_calcSizeBinary(&r));
         UA_CloseSessionResponse_encodeBinary(&r, message, &sendOffset);
         UA_CloseSessionRequest_deleteMembers(&p);
@@ -339,7 +360,8 @@ static void processClose(UA_Connection *connection, UA_Server *server, const UA_
     UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
 
 	//the two last parameter is ignored since no answer is needed
-	Service_CloseSecureChannel(server, secureChannelId);
+    server->serviceImplementations->CloseSecureChannel(server,secureChannelId);
+	//Service_CloseSecureChannel(server, secureChannelId);
 }
 
 UA_Int32 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg) {
