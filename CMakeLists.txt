@@ -39,14 +39,14 @@ set(lib_sources src/ua_types.c
 
 # compiler flags
 if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-add_definitions(-std=c99 -pedantic -pipe -fvisibility=hidden -fPIC -Wall -Wextra -Werror -Wformat
+add_definitions(-std=c99 -pedantic -pipe -Wall -Wextra -Werror -Wformat
                 -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
                 -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -ffunction-sections -fdata-sections)
     if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
         add_definitions(-Wformat-nonliteral -Wl,--gc-sections)
     endif()
 	if(NOT WIN32)
-	    add_definitions(-fstack-protector)
+	    add_definitions(-fstack-protector -fPIC -fvisibility=hidden)
 	endif()
 endif()
 add_definitions(-Dopen62541_EXPORTS) # dllexport/dllimport differentiation in ua_config.h when building the lib on windows
@@ -161,6 +161,8 @@ if(CLIENT)
 endif()
 
 # build example server
+option(EXAMPLESERVER "Build a test server" OFF)
+if(EXAMPLESERVER)
 set(server_sources examples/opcuaServer.c
                    examples/logger_stdout.c)
 if(NOT ENABLE_MULTITHREADING)
@@ -177,6 +179,8 @@ if(ENABLE_MULTITHREADING)
     find_package(LibUV REQUIRED)
     target_link_libraries(exampleServer urcu-cds urcu uv)
 endif()
+endif()
+
 
 # build unit tests
 option(ENABLE_UNIT_TESTS "Run unit tests after building" OFF)
