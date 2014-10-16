@@ -42,12 +42,12 @@ static UA_DataValue service_read_node(UA_Server *server, const UA_ReadValueId *i
 
     UA_Node const *node   = UA_NULL;
     UA_Int32       result = UA_NodeStore_get(server->nodestore, &(id->nodeId), &node);
-    if(result != UA_SUCCESS || node == UA_NULL) {
+    if(result != UA_STATUSCODE_GOOD || node == UA_NULL) {
         v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
         v.status       = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return v;
     }
-    UA_Int32 retval = UA_SUCCESS;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     switch(id->attributeId) {
     case UA_ATTRIBUTEID_NODEID:
@@ -203,7 +203,7 @@ static UA_DataValue service_read_node(UA_Server *server, const UA_ReadValueId *i
 
     UA_NodeStore_releaseManagedNode(node);
 
-    if(retval != UA_SUCCESS) {
+    if(retval != UA_STATUSCODE_GOOD) {
         v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
         v.status       = UA_STATUSCODE_BADNOTREADABLE;
     }
@@ -220,7 +220,7 @@ void Service_Read(UA_Server *server, UA_Session *session,
         return;
     }
 
-    if(UA_Array_new((void **)&response->results, request->nodesToReadSize, &UA_[UA_DATAVALUE]) != UA_SUCCESS) {
+    if(UA_Array_new((void **)&response->results, request->nodesToReadSize, &UA_[UA_DATAVALUE]) != UA_STATUSCODE_GOOD) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
@@ -230,139 +230,127 @@ void Service_Read(UA_Server *server, UA_Session *session,
         response->results[i] = service_read_node(server, &request->nodesToRead[i]);
 }
 
-UA_Int32 Service_Write_writeNode(UA_Server *server, UA_WriteValue *writeValue,
-                                 UA_StatusCode *result) {
-    UA_Int32 retval = UA_SUCCESS;
+static UA_StatusCode Service_Write_writeNode(UA_Server *server, UA_WriteValue *writeValue) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     const UA_Node *node;
-    if(UA_NodeStore_get(server->nodestore, &writeValue->nodeId, &node) != UA_SUCCESS)
-        return UA_ERROR;
+    retval = UA_NodeStore_get(server->nodestore, &writeValue->nodeId, &node);
+    if(retval)
+        return retval;
 
     switch(writeValue->attributeId) {
     case UA_ATTRIBUTEID_NODEID:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        return UA_ERROR;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_NODECLASS:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        return UA_ERROR;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_BROWSENAME:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        return UA_ERROR;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_DISPLAYNAME:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        return UA_ERROR;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_DESCRIPTION:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        return UA_ERROR;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_WRITEMASK:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_USERWRITEMASK:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        return UA_ERROR;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_ISABSTRACT:
-
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_SYMMETRIC:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        return UA_ERROR;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_INVERSENAME:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        return UA_ERROR;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_EVENTNOTIFIER:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_VALUE:
         if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT) {
             retval |= UA_Variant_copy(&writeValue->value.value, &((UA_VariableNode *)node)->value); // todo: zero-copy
-            *result = UA_STATUSCODE_GOOD;
         }
-
         break;
 
     case UA_ATTRIBUTEID_DATATYPE:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_VALUERANK:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_ACCESSLEVEL:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_USERACCESSLEVEL:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        return UA_ERROR;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_HISTORIZING:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_EXECUTABLE:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     case UA_ATTRIBUTEID_USEREXECUTABLE:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
 
     default:
-        *result = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         break;
     }
 
@@ -375,13 +363,12 @@ void Service_Write(UA_Server *server, UA_Session *session,
                    const UA_WriteRequest *request, UA_WriteResponse *response) {
     UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
 
-    if(UA_Array_new((void **)&response->results, request->nodesToWriteSize, &UA_[UA_STATUSCODE])
-       != UA_SUCCESS) {
+    if(UA_Array_new((void **)&response->results, request->nodesToWriteSize, &UA_[UA_STATUSCODE])) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
     
     response->resultsSize = request->nodesToWriteSize;
     for(UA_Int32 i = 0;i < request->nodesToWriteSize;i++)
-        Service_Write_writeNode(server, &request->nodesToWrite[i], &response->results[i]);
+        response->results[i] = Service_Write_writeNode(server, &request->nodesToWrite[i]);
 }

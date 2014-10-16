@@ -9,6 +9,7 @@
 #include <stdlib.h> // pulls in declaration of malloc, free
 #include "ua_transport_generated.h"
 #include "ua_namespace_0.h"
+#include "ua_util.h"
 
 UA_Int32 sendHello(UA_Int32 sock, UA_String *endpointURL) {
 	UA_ByteString *message;

@@ -51,22 +51,21 @@ typedef struct TCPConnectionHandle {
 	NetworklayerTCP *layer;
 } TCPConnectionHandle;
 
-UA_Int32 NetworklayerTCP_new(NetworklayerTCP **newlayer, UA_ConnectionConfig localConf,
-							 UA_UInt32 port) {
-    if(!newlayer) return UA_ERROR;
+UA_StatusCode NetworklayerTCP_new(NetworklayerTCP **newlayer, UA_ConnectionConfig localConf,
+                                  UA_UInt32 port) {
     *newlayer = malloc(sizeof(NetworklayerTCP));
     if(*newlayer == UA_NULL)
-        return UA_ERROR;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 	(*newlayer)->localConf = localConf;
 	(*newlayer)->port = port;
 	(*newlayer)->connectionsSize = 0;
 	(*newlayer)->connections = UA_NULL;
-	return UA_SUCCESS;
+	return UA_STATUSCODE_GOOD;
 }
 
 // copy the array of connections, but _loose_ one. This does not close the
 // actual socket.
-UA_Int32 NetworklayerTCP_remove(NetworklayerTCP *layer, UA_Int32 sockfd) {
+static UA_StatusCode NetworklayerTCP_remove(NetworklayerTCP *layer, UA_Int32 sockfd) {
 	UA_UInt32 index;
 	for(index = 0;index < layer->connectionsSize;index++) {
 		if(layer->connections[index].sockfd == sockfd)
@@ -74,7 +73,7 @@ UA_Int32 NetworklayerTCP_remove(NetworklayerTCP *layer, UA_Int32 sockfd) {
 	}
 
     if(index == layer->connectionsSize)
-        return UA_ERROR;
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     if(layer->connections[index].connection.channel)
         layer->connections[index].connection.channel->connection = UA_NULL;
@@ -89,7 +88,7 @@ UA_Int32 NetworklayerTCP_remove(NetworklayerTCP *layer, UA_Int32 sockfd) {
            sizeof(TCPConnection) * (layer->connectionsSize - index));
     free(layer->connections);
 	layer->connections = newconnections;
-	return UA_SUCCESS;
+	return UA_STATUSCODE_GOOD;
 }
 
 void NetworklayerTCP_delete(NetworklayerTCP *layer) {
@@ -112,7 +111,7 @@ void closeCallback(TCPConnectionHandle *handle) {
 }
 
 /** Callback function */
-UA_Int32 writeCallback(TCPConnectionHandle *handle, UA_ByteStringArray gather_buf) {
+void writeCallback(TCPConnectionHandle *handle, UA_ByteStringArray gather_buf) {
 	UA_UInt32 total_len = 0;
 	UA_UInt32 nWritten = 0;
 #ifdef WIN32
@@ -161,10 +160,9 @@ UA_Int32 writeCallback(TCPConnectionHandle *handle, UA_ByteStringArray gather_bu
 #endif
     for(UA_UInt32 i=0;i<gather_buf.stringsSize;i++)
         free(gather_buf.strings[i].data);
-	return UA_SUCCESS;
 }
 
-UA_Int32 NetworklayerTCP_add(NetworklayerTCP *layer, UA_Int32 newsockfd) {
+static UA_StatusCode NetworklayerTCP_add(NetworklayerTCP *layer, UA_Int32 newsockfd) {
     layer->connectionsSize++;
 	layer->connections = realloc(layer->connections, sizeof(TCPConnection) * layer->connectionsSize);
 	TCPConnection *newconnection = &layer->connections[layer->connectionsSize-1];
@@ -172,34 +170,36 @@ UA_Int32 NetworklayerTCP_add(NetworklayerTCP *layer, UA_Int32 newsockfd) {
 
 	struct TCPConnectionHandle *callbackhandle;
     callbackhandle = malloc(sizeof(struct TCPConnectionHandle));
-	callbackhandle->layer = layer;
+    if(!callbackhandle)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    callbackhandle->layer = layer;
 	callbackhandle->sockfd = newsockfd;
 	UA_Connection_init(&newconnection->connection, layer->localConf, callbackhandle,
 					   (UA_Connection_closeCallback)closeCallback, (UA_Connection_writeCallback)writeCallback);
-	return UA_SUCCESS;
+	return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 setNonBlocking(int sockid) {
+static UA_StatusCode setNonBlocking(int sockid) {
 #ifdef WIN32
 	u_long iMode = 1;
 	int opts = IOCTLSOCKET(sockid, FIONBIO, &iMode);
 	if (opts != NO_ERROR){
 		printf("ioctlsocket failed with error: %ld\n", opts);
-		return - 1;
+		return UA_STATUSCODE_BADINTERNALERROR;
 	}
-	return 0;
+	return UA_STATUSCODE_GOOD;
 #else
 	int opts = fcntl(sockid,F_GETFL);
 	if (opts < 0) {
 		perror("fcntl(F_GETFL)");
-		return -1;
+		return UA_STATUSCODE_BADINTERNALERROR;
 	}
 	opts = (opts | O_NONBLOCK);
 	if (fcntl(sockid,F_SETFL,opts) < 0) {
 		perror("fcntl(F_SETFL)");
-		return -1;
+		return UA_STATUSCODE_BADINTERNALERROR;
 	}
-	return 0;
+	return UA_STATUSCODE_GOOD;
 #endif
 }
 
@@ -260,8 +260,8 @@ void setFDSet(NetworklayerTCP *layer) {
     layer->highestfd++;
 }
 
-UA_Int32 NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, struct timeval tv,
-                             void(*worker)(UA_Server*), UA_Boolean *running) {
+UA_StatusCode NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, struct timeval tv,
+                                  void(*worker)(UA_Server*), UA_Boolean *running) {
 #ifdef WIN32
 	WORD wVersionRequested;
 	WSADATA wsaData;
@@ -269,12 +269,12 @@ UA_Int32 NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, struct t
 	WSAStartup(wVersionRequested, &wsaData);
 	if((layer->serversockfd = socket(PF_INET, SOCK_STREAM,0)) == INVALID_SOCKET) {
 		printf("ERROR opening socket, code: %d\n", WSAGetLastError());
-		return UA_ERROR;
+		return UA_STATUSCODE_BADINTERNALERROR;
 	}
 #else
     if((layer->serversockfd = socket(PF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("ERROR opening socket");
-		return UA_ERROR;
+		return UA_STATUSCODE_BADINTERNALERROR;
 	} 
 #endif
 	struct sockaddr_in serv_addr;
@@ -287,13 +287,13 @@ UA_Int32 NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, struct t
 	if(setsockopt(layer->serversockfd, SOL_SOCKET, SO_REUSEADDR, (const char *)&optval, sizeof(optval)) == -1) {
 		perror("setsockopt");
 		CLOSESOCKET(layer->serversockfd);
-		return UA_ERROR;
+		return UA_STATUSCODE_BADINTERNALERROR;
 	}
 		
 	if(bind(layer->serversockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
 		perror("binding");
 		CLOSESOCKET(layer->serversockfd);
-		return UA_ERROR;
+		return UA_STATUSCODE_BADINTERNALERROR;
 	}
 
 #define MAXBACKLOG 10
@@ -337,5 +337,5 @@ UA_Int32 NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, struct t
 #ifdef WIN32
 	WSACleanup();
 #endif
-	return UA_SUCCESS;
+	return UA_STATUSCODE_GOOD;
 }

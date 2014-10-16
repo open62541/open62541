@@ -54,8 +54,8 @@ typedef struct UA_Server {
 } UA_Server;
 
 void UA_EXPORT UA_Server_init(UA_Server *server, UA_String *endpointUrl);
-UA_Int32 UA_EXPORT UA_Server_deleteMembers(UA_Server *server);
-UA_Int32 UA_EXPORT UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
+UA_StatusCode UA_EXPORT UA_Server_deleteMembers(UA_Server *server);
+void UA_EXPORT UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
 
 /* Services for local use */
 UA_AddNodesResult UA_EXPORT UA_Server_addScalarVariableNode(UA_Server *server, UA_String *browseName, void *value,

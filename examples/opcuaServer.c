@@ -16,10 +16,10 @@
 #include "logger_stdout.h"
 #include "networklayer_tcp.h"
 
-UA_Boolean running = UA_TRUE;
+UA_Boolean running = 1;
 
 void stopHandler(int sign) {
-	running = UA_FALSE;
+	running = 0;
 }
 
 void serverCallback(UA_Server *server) {
@@ -28,7 +28,7 @@ void serverCallback(UA_Server *server) {
 
 UA_ByteString loadCertificate() {
     UA_ByteString certificate = UA_STRING_NULL;
-	FILE *fp = UA_NULL;
+	FILE *fp = NULL;
 	//FIXME: a potiential bug of locating the certificate, we need to get the path from the server's config
 	fp=fopen("localhost.der", "rb");
 
@@ -99,5 +99,5 @@ int main(int argc, char** argv) {
 	UA_Server_deleteMembers(&server);
 	NetworklayerTCP_delete(nl);
     UA_String_deleteMembers(&endpointUrl);
-	return retval == UA_SUCCESS ? 0 : retval;
+	return retval == UA_STATUSCODE_GOOD ? 0 : retval;
 }

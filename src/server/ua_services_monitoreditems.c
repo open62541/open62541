@@ -2,11 +2,11 @@
 #include "ua_namespace_0.h"
 #include "ua_statuscodes.h"
 
-UA_Int32 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
-                                      const UA_CreateMonitoredItemsRequest *request,
-                                      UA_CreateMonitoredItemsResponse *response) {
+void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
+                                  const UA_CreateMonitoredItemsRequest *request,
+                                  UA_CreateMonitoredItemsResponse *response) {
     if(request->itemsToCreateSize <= 0)
-        return UA_SUCCESS;
+        return;
 
     //mock up
     response->resultsSize = request->itemsToCreateSize;
@@ -24,5 +24,4 @@ UA_Int32 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
             response->results[i].statusCode = -1;
         }
     }
-    return UA_SUCCESS;
 }

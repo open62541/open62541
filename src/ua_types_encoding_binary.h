@@ -8,17 +8,22 @@
  * @defgroup encoding Datatype Encoding
  *
  * @brief Datatypes can have several encodings. The methods defined for
- * encodings and their signature are fixed.
+ * encodings and their signature are fixed. When supplied with an inappropriate
+ * null-pointer, these functions _will crash_. Exceptions are documented for the
+ * individual functions.
  *
  * - CalcSize: Returns the size of the (encoded) variable in bytes. This
- *    function is mainly used to allocate the bytestring into which the encoding
- *    is done.
+ *   function is mainly used to allocate the bytestring into which the encoding
+ *   is done.
  *
- * - Encode: Encodes a variable into a bytestring.
+ * - Encode: Encodes a variable into a bytestring. If an error occurs
+ *   (indicated by the return value), the bytestring may be left in an
+ *   inconsistent state.
  *
- * - Decode: Decodes a variable stored in a bytestring. It is assumed that the
- *   input variable (dst) is allocated in memory, but not its dynamically sized
- *   members.
+ * - Decode: Decodes a variable stored in a bytestring. The destination is
+ *   assumed to be clean (after an _init) before decoding into it. If an error
+ *   occurs (indicated by the return value), the destination value is cleaned
+ *   up (deleteMembers) before returning.
  */
 
 /**
@@ -31,27 +36,18 @@
  * @{
  */
 
-/* Stop decoding at the first failure. Free members that were already allocated.
-   It is assumed that retval is already defined. */
-#define CHECKED_DECODE(DECODE, CLEAN_UP) do { \
-        retval |= DECODE;                     \
-        if(retval != UA_SUCCESS) {            \
-            CLEAN_UP;                         \
-            return retval;                    \
-        } } while(0)
-
 #define UA_TYPE_CALCSIZEBINARY_AS(TYPE, TYPE_AS)       \
-    UA_Int32 TYPE##_calcSizeBinary(TYPE const *p) {    \
+    UA_UInt32 TYPE##_calcSizeBinary(TYPE const *p) {    \
         return TYPE_AS##_calcSizeBinary((TYPE_AS *)p); \
     }
 
-#define UA_TYPE_ENCODEBINARY_AS(TYPE, TYPE_AS)                                             \
-    UA_Int32 TYPE##_encodeBinary(TYPE const *src, UA_ByteString *dst, UA_UInt32 *offset) { \
-        return TYPE_AS##_encodeBinary((TYPE_AS *)src, dst, offset);                        \
+#define UA_TYPE_ENCODEBINARY_AS(TYPE, TYPE_AS)                          \
+    UA_StatusCode TYPE##_encodeBinary(TYPE const *src, UA_ByteString *dst, UA_UInt32 *offset) { \
+        return TYPE_AS##_encodeBinary((TYPE_AS *)src, dst, offset);     \
     }
 
 #define UA_TYPE_DECODEBINARY_AS(TYPE, TYPE_AS)                                             \
-    UA_Int32 TYPE##_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, TYPE *dst) { \
+    UA_StatusCode TYPE##_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, TYPE *dst) { \
         return TYPE_AS##_decodeBinary(src, offset, (TYPE_AS *)dst);                        \
     }
 #define UA_TYPE_BINARY_ENCODING_AS(TYPE, TYPE_AS) \
@@ -60,9 +56,9 @@
     UA_TYPE_DECODEBINARY_AS(TYPE, TYPE_AS)
 
 #define UA_TYPE_BINARY_ENCODING(TYPE)                                                     \
-    UA_Int32 TYPE##_calcSizeBinary(TYPE const *p);                                        \
-    UA_Int32 TYPE##_encodeBinary(TYPE const *src, UA_ByteString *dst, UA_UInt32 *offset); \
-    UA_Int32 TYPE##_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, TYPE *dst);
+    UA_UInt32 TYPE##_calcSizeBinary(TYPE const *p);                                        \
+    UA_StatusCode TYPE##_encodeBinary(TYPE const *src, UA_ByteString *dst, UA_UInt32 *offset); \
+    UA_StatusCode TYPE##_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, TYPE *dst);
 
 UA_TYPE_BINARY_ENCODING(UA_Boolean)
 UA_TYPE_BINARY_ENCODING(UA_SByte)
@@ -98,15 +94,15 @@ UA_TYPE_BINARY_ENCODING(UA_InvalidType)
 /*********/
 
 /* Computes the size of an array (incl. length field) in a binary blob. */
-UA_Int32 UA_Array_calcSizeBinary(UA_Int32 nElements, const UA_VTable_Entry *vt, const void *data);
+UA_UInt32 UA_Array_calcSizeBinary(UA_Int32 length, const UA_VTable_Entry *vt, const void *data);
 
 /* @brief Encodes an array into a binary blob. The array size is printed as well. */
-UA_Int32 UA_Array_encodeBinary(const void *src, UA_Int32 noElements, const UA_VTable_Entry *vt,
-                               UA_ByteString *dst, UA_UInt32 *offset);
+UA_StatusCode UA_Array_encodeBinary(const void *src, UA_Int32 length, const UA_VTable_Entry *vt,
+                                    UA_ByteString *dst, UA_UInt32 *offset);
 
 /* @brief Decodes an array from a binary blob. The array is allocated automatically before decoding. */
-UA_Int32 UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, UA_Int32 noElements,
-                               const UA_VTable_Entry *vt, void **dst);
+UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, UA_Int32 length,
+                                    const UA_VTable_Entry *vt, void **dst);
 
 /// @} /* end of group */
 

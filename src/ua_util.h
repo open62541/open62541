@@ -39,12 +39,18 @@
 #endif
 
 /* Heap memory functions */
+#ifdef DEBUG
 #define UA_free(ptr) _UA_free(ptr, # ptr, __FILE__, __LINE__)
-INLINE UA_Int32 _UA_free(void *ptr, char *pname, char *f, UA_Int32 l) {
+INLINE void _UA_free(void *ptr, char *pname, char *f, UA_Int32 l) {
     DBG_VERBOSE(printf("UA_free;%p;;%s;;%s;%d\n", ptr, pname, f, l); fflush(stdout));
     free(ptr); // checks if ptr != NULL in the background
-    return UA_SUCCESS;
 }
+#else
+#define UA_free(ptr) _UA_free(ptr)
+INLINE void _UA_free(void *ptr) {
+    free(ptr); // checks if ptr != NULL in the background
+}
+#endif
 
 #ifdef DEBUG
 #define UA_alloc(size) _UA_alloc(size, __FILE__, __LINE__) 
