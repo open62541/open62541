@@ -119,11 +119,11 @@ void UA_EXPORT UA_Server_addReferences(UA_Server *server, const UA_AddReferences
                                        UA_AddReferencesResponse *response);
 
 
-UA_Int32 UA_Server_addNamespace(UA_Server *server, UA_UInt16 namespaceIndex, UA_NodeStore *nodeStore);
+UA_Int32 UA_EXPORT UA_Server_addNamespace(UA_Server *server, UA_UInt16 namespaceIndex, UA_NodeStore *nodeStore);
 
-UA_Int32 UA_Server_removeNamespace(UA_Server *server, UA_UInt16 namespaceIndex);
+UA_Int32 UA_EXPORT UA_Server_removeNamespace(UA_Server *server, UA_UInt16 namespaceIndex);
 
-UA_Int32 UA_Server_setNodeStore(UA_Server *server, UA_UInt16 namespaceIndex, UA_NodeStore *nodeStore);
+UA_Int32 UA_EXPORT UA_Server_setNodeStore(UA_Server *server, UA_UInt16 namespaceIndex, UA_NodeStore *nodeStore);
 
 #ifdef __cplusplus
 } // extern "C"

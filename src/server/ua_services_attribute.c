@@ -2,7 +2,7 @@
 #include "ua_nodestoreExample.h"
 #include "ua_statuscodes.h"
 #include "ua_nodestore.h"
-
+#include "ua_namespace_manager.h"
 #include "ua_namespace_0.h"
 #include "ua_util.h"
 
@@ -229,8 +229,22 @@ void Service_Read(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->nodesToReadSize;
     for(UA_Int32 i = 0;i < response->resultsSize;i++){
-    	//server->nodestore->readNode(&request->nodesToRead[i],&response->results[i],request->timestampsToReturn, &response->diagnosticInfos[i])
-		response->results[i] = service_read_node(server, &request->nodesToRead[i]);
+    	UA_Namespace *tmpNamespace;
+    	UA_NamespaceManager_getNamespace(server->namespaceManager,
+    			request->nodesToRead[i].nodeId.namespaceIndex, &tmpNamespace);
+
+    	//(UA_ReadValueId *readValueIds,UA_UInt32 sizeReadValueIds, UA_DataValue *value, UA_Boolean timeStampToReturn, UA_DiagnosticInfo *diagnosticInfo);
+
+
+    	if(tmpNamespace!=UA_NULL){
+    		tmpNamespace->nodeStore->readNodes(&request->nodesToRead[i],
+    				request->nodesToReadSize,
+    				&response->results[i],
+    				request->timestampsToReturn,
+    				&response->diagnosticInfos[i]);
+
+			//	response->results[i] = service_read_node(server, &request->nodesToRead[i]);
+    	}
     }
 
 

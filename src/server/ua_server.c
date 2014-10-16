@@ -3,6 +3,7 @@
 #include "ua_services_internal.h" // AddReferences
 #include "ua_namespace_0.h"
 #include "ua_securechannel_manager.h"
+#include "ua_namespace_manager.h"
 #include "ua_session_manager.h"
 #include "ua_util.h"
 #include "ua_services.h"
@@ -22,7 +23,7 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
 
     UA_NodeId_init(&server->hasComponentReferenceTypeId);
     server->hasComponentReferenceTypeId.identifier.numeric = 47;
-
+    UA_NamespaceManager_new(&server->namespaceManager);
     UA_ApplicationDescription_init(&server->description);
     UA_ByteString_init(&server->serverCertificate);
 #define MAXCHANNELCOUNT 100
@@ -554,4 +555,9 @@ UA_AddNodesResult UA_Server_addScalarVariableNode(UA_Server *server, UA_String *
     tmpNode->value.storageType = UA_VARIANT_DATA_NODELETE;
     tmpNode->value.storage.data.arrayLength = 1;
     return UA_Server_addNode(server, (UA_Node**)&tmpNode, parentNodeId, referenceTypeId);
+}
+
+UA_Int32 UA_Server_addNamespace(UA_Server *server, UA_UInt16 namespaceIndex, UA_NodeStore *nodeStore)
+{
+	return UA_NamespaceManager_addNamespace(server->namespaceManager,namespaceIndex,nodeStore);
 }

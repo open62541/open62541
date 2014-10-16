@@ -41,7 +41,7 @@ UA_Int32 UA_NodeStore_registerDeleteReferencesOperation(UA_NodeStore *nodeStore,
 }
 
 
-UA_Int32 UA_NodeStore_registerReadOperation(UA_NodeStore *nodeStore, UA_NodeStore_readNodes readNodes)
+UA_Int32 UA_NodeStore_registerReadNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_readNodes readNodes)
 {
 	if(nodeStore==UA_NULL){
 		return UA_ERROR;

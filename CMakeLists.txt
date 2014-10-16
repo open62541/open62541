@@ -166,7 +166,8 @@ endif()
 
 # build example server
 set(server_sources examples/opcuaServer.c
-                   examples/logger_stdout.c)
+                   examples/logger_stdout.c
+ 		   examples/nodestoreAccessExample.c)
 if(NOT ENABLE_MULTITHREADING)
     list(APPEND server_sources examples/networklayer_tcp.c)
 else()

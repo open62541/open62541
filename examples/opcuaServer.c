@@ -16,6 +16,9 @@
 #include "logger_stdout.h"
 #include "networklayer_tcp.h"
 
+#include "nodestoreAccessExample.h"
+#include "../src/server/ua_nodestore.h"
+#include "../src/server/ua_namespace_manager.h"
 UA_Boolean running = UA_TRUE;
 
 void stopHandler(int sign) {
@@ -56,6 +59,11 @@ int main(int argc, char** argv) {
 	UA_String endpointUrl;
 	UA_String_copycstring("no endpoint url",&endpointUrl);
 	UA_Server_init(&server, &endpointUrl);
+	UA_NodeStore newNodeStore;
+
+	UA_Server_addNamespace(&server,0,&newNodeStore);
+	UA_NodeStore_registerReadNodesOperation(&newNodeStore,readNodes);
+
 	Logger_Stdout_init(&server.logger);
     server.serverCertificate = loadCertificate();
 
