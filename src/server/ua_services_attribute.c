@@ -1,6 +1,8 @@
 #include "ua_services.h"
+#include "ua_nodestoreExample.h"
 #include "ua_statuscodes.h"
 #include "ua_nodestore.h"
+
 #include "ua_namespace_0.h"
 #include "ua_util.h"
 
@@ -41,7 +43,7 @@ static UA_DataValue service_read_node(UA_Server *server, const UA_ReadValueId *i
     UA_DataValue_init(&v);
 
     UA_Node const *node   = UA_NULL;
-    UA_Int32       result = UA_NodeStore_get(server->nodestore, &(id->nodeId), &node);
+    UA_Int32       result = UA_NodeStoreExample_get(server->nodestore, &(id->nodeId), &node);
     if(result != UA_SUCCESS || node == UA_NULL) {
         v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
         v.status       = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -201,7 +203,7 @@ static UA_DataValue service_read_node(UA_Server *server, const UA_ReadValueId *i
         break;
     }
 
-    UA_NodeStore_releaseManagedNode(node);
+    UA_NodeStoreExample_releaseManagedNode(node);
 
     if(retval != UA_SUCCESS) {
         v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
@@ -211,6 +213,7 @@ static UA_DataValue service_read_node(UA_Server *server, const UA_ReadValueId *i
 
     return v;
 }
+
 void Service_Read(UA_Server *server, UA_Session *session,
                   const UA_ReadRequest *request, UA_ReadResponse *response) {
     UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
@@ -224,17 +227,20 @@ void Service_Read(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-
     response->resultsSize = request->nodesToReadSize;
-    for(UA_Int32 i = 0;i < response->resultsSize;i++)
-        response->results[i] = service_read_node(server, &request->nodesToRead[i]);
+    for(UA_Int32 i = 0;i < response->resultsSize;i++){
+    	//server->nodestore->readNode(&request->nodesToRead[i],&response->results[i],request->timestampsToReturn, &response->diagnosticInfos[i])
+		response->results[i] = service_read_node(server, &request->nodesToRead[i]);
+    }
+
+
 }
 
 UA_Int32 Service_Write_writeNode(UA_Server *server, UA_WriteValue *writeValue,
                                  UA_StatusCode *result) {
     UA_Int32 retval = UA_SUCCESS;
     const UA_Node *node;
-    if(UA_NodeStore_get(server->nodestore, &writeValue->nodeId, &node) != UA_SUCCESS)
+    if(UA_NodeStoreExample_get(server->nodestore, &writeValue->nodeId, &node) != UA_SUCCESS)
         return UA_ERROR;
 
     switch(writeValue->attributeId) {
@@ -243,7 +249,6 @@ UA_Int32 Service_Write_writeNode(UA_Server *server, UA_WriteValue *writeValue,
         *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         return UA_ERROR;
         break;
-
     case UA_ATTRIBUTEID_NODECLASS:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
         *result = UA_STATUSCODE_BADWRITENOTSUPPORTED;
@@ -366,7 +371,7 @@ UA_Int32 Service_Write_writeNode(UA_Server *server, UA_WriteValue *writeValue,
         break;
     }
 
-    UA_NodeStore_releaseManagedNode(node);
+    UA_NodeStoreExample_releaseManagedNode(node);
     return retval;
 
 }
