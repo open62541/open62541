@@ -27,8 +27,7 @@ void UA_SecureChannel_delete(UA_SecureChannel *channel) {
 }
 
 UA_Boolean UA_SecureChannel_compare(UA_SecureChannel *sc1, UA_SecureChannel *sc2) {
-    return (sc1->securityToken.channelId == sc2->securityToken.channelId) ?
-           UA_TRUE : UA_FALSE;
+    return (sc1->securityToken.channelId == sc2->securityToken.channelId);
 }
 
 //TODO implement real nonce generator - DUMMY function

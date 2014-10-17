@@ -356,12 +356,6 @@ int main(int argc, char *argv[]) {
 	{
 		alwaysSameNode = UA_FALSE;
 	}
-	/*UA_Int32 pid;
-	if((pid = fork()) < 0) {
-	    printf("no fork possible");
-	    return 0;
-	}
-	else*/{
 
 
 	//Create socket
@@ -408,10 +402,11 @@ int main(int argc, char *argv[]) {
 	UA_NodeId messageType;
 	recvOffset = 24;
 	UA_NodeId_decodeBinary(reply,&recvOffset,&messageType);
-	UA_CreateSessionResponse createSessionResponse;
-	UA_CreateSessionResponse_decodeBinary(reply,&recvOffset,&createSessionResponse);
+	UA_CreateSessionResponse *createSessionResponse;
+	createSessionResponse = (UA_CreateSessionResponse*)&(reply->data[recvOffset]);
+	//UA_CreateSessionResponse_decodeBinary(reply,&recvOffset,&createSessionResponse);
 
-	sendActivateSession(sock, secureChannelId, openSecChannelRsp.securityToken.tokenId, 53, 3,createSessionResponse.authenticationToken);
+	sendActivateSession(sock, secureChannelId, openSecChannelRsp.securityToken.tokenId, 53, 3,createSessionResponse->authenticationToken);
 	received = recv(sock, reply->data, reply->length, 0);
 
     UA_NodeId *nodesToRead;
@@ -440,12 +435,12 @@ int main(int argc, char *argv[]) {
 
 	for (UA_UInt32 i = 0; i < tries; i++) {
 
-		tic = sendReadRequest(sock, secureChannelId, openSecChannelRsp.securityToken.tokenId, 54+i, 4+i,createSessionResponse.authenticationToken,nodesToReadSize,nodesToRead);
+		tic = sendReadRequest(sock, secureChannelId, openSecChannelRsp.securityToken.tokenId, 54+i, 4+i,createSessionResponse->authenticationToken,nodesToReadSize,nodesToRead);
 
 		received = recv(sock, reply->data, 2000, 0);
 		toc = UA_DateTime_now() - tic;
 
-		timeDiffs[i] = (UA_Double)toc/(UA_Double)10e3;
+		timeDiffs[i] = (UA_Double)toc/(UA_Double)1e4;
 		sum = sum + timeDiffs[i];
 		//printf("read request took: %16.10f ms \n",timeDiffs[i]);
 	}
@@ -478,6 +473,6 @@ int main(int argc, char *argv[]) {
 	UA_Array_delete(nodesToRead,nodesToReadSize,&UA_[UA_NODEID]);
 	close(sock);
 	return 0;
-	}
+
 
 }

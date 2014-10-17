@@ -9,7 +9,7 @@
 #include "ua_config.h"
 
 #include <stddef.h> /* Needed for sys/queue.h */
-#ifndef MSVC
+#if !defined(MSVC) && !defined(__MINGW32__)
 #include <sys/queue.h>
 #else
 #include "queue.h"
