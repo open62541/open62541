@@ -250,8 +250,10 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
             printc('\tretval |= %(t)s_copy(&src->%(n)s,&dst->%(n)s);')
             continue
         printc("\tdst->%(n)s = src->%(n)s;")
-    printc('''if(retval)
-    %(name)s_deleteMembers(dst);''')
+    printc('''if(retval) {
+    %(name)s_deleteMembers(dst);
+    %(name)s_init(dst);
+    }''')
     printc("\treturn retval;\n}\n")
 
     # 13) Print

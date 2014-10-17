@@ -19,7 +19,6 @@
 
 /* Boolean */
 void UA_Boolean_init(UA_Boolean *p) {
-    if(!p) return;
     *p = UA_FALSE;
 }
 
@@ -29,7 +28,6 @@ UA_TYPE_NEW_DEFAULT(UA_Boolean)
 UA_TYPE_COPY_DEFAULT(UA_Boolean)
 #ifdef DEBUG
 void UA_Boolean_print(const UA_Boolean *p, FILE *stream) {
-    if(!p || !stream) return;
     if(*p) fprintf(stream, "UA_TRUE");
     else fprintf(stream, "UA_FALSE");
 }
@@ -130,22 +128,17 @@ void UA_Double_print(const UA_Double *p, FILE *stream) {
 /* String */
 UA_TYPE_NEW_DEFAULT(UA_String)
 void UA_String_init(UA_String *p) {
-    if(!p) return;
     p->length = -1;
     p->data   = UA_NULL;
 }
 
 UA_TYPE_DELETE_DEFAULT(UA_String)
 void UA_String_deleteMembers(UA_String *p) {
-    if(p->data != UA_NULL) {
-        UA_free(p->data);
-        UA_String_init(p);
-    }
+    UA_free(p->data);
+    UA_String_init(p);
 }
 
 UA_StatusCode UA_String_copy(UA_String const *src, UA_String *dst) {
-    if(!src || !dst)
-        return UA_STATUSCODE_BADINTERNALERROR;
     if(src->length > 0) {
         if(!(dst->data = UA_alloc(src->length)))
             return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -157,8 +150,6 @@ UA_StatusCode UA_String_copy(UA_String const *src, UA_String *dst) {
 
 #ifdef DEBUG
 void UA_String_print(const UA_String *p, FILE *stream) {
-    if(!p || !stream)
-        return;
     fprintf(stream, "(UA_String){%d,", p->length);
     if(p->data)
         fprintf(stream, "\"%.*s\"}", p->length, p->data);
@@ -180,30 +171,24 @@ UA_Int32 UA_String_copycstring(char const *src, UA_String *dst) {
 
 #define UA_STRING_COPYPRINTF_BUFSIZE 1024
 UA_StatusCode UA_String_copyprintf(char const *fmt, UA_String *dst, ...) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    char          src[UA_STRING_COPYPRINTF_BUFSIZE];
-    UA_Int32      len;
-    va_list       ap;
+    char src[UA_STRING_COPYPRINTF_BUFSIZE];
+    va_list ap;
     va_start(ap, dst);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
     // vsnprintf should only take a literal and no variable to be secure
-    len = vsnprintf(src, UA_STRING_COPYPRINTF_BUFSIZE, fmt, ap);
+    UA_Int32 len = vsnprintf(src, UA_STRING_COPYPRINTF_BUFSIZE, fmt, ap);
 #pragma GCC diagnostic pop
     va_end(ap);
-    if(len < 0) {  // FIXME: old glibc 2.0 would return -1 when truncated
-        dst->length = 0;
-        dst->data   = UA_NULL;
-        retval      = UA_STATUSCODE_BADINTERNALERROR;
-    } else {
-        // since glibc 2.1 vsnprintf returns len that would have resulted if buf were large enough
-        dst->length = ( len > UA_STRING_COPYPRINTF_BUFSIZE ? UA_STRING_COPYPRINTF_BUFSIZE : len );
-        if((dst->data = UA_alloc(dst->length)))
-            UA_memcpy((void *)dst->data, src, dst->length);
-        else
-            retval = UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    return retval;
+    if(len < 0)  // FIXME: old glibc 2.0 would return -1 when truncated
+        return UA_STATUSCODE_BADINTERNALERROR;
+    // since glibc 2.1 vsnprintf returns len that would have resulted if buf were large enough
+    len = ( len > UA_STRING_COPYPRINTF_BUFSIZE ? UA_STRING_COPYPRINTF_BUFSIZE : len );
+    if(!(dst->data = UA_alloc(dst->length)))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_memcpy((void *)dst->data, src, len);
+    dst->length = len;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_EQUALITY UA_String_equal(const UA_String *string1, const UA_String *string2) {
@@ -226,10 +211,6 @@ void UA_String_printf(char const *label, const UA_String *string) {
 
 #ifdef DEBUG
 void UA_String_printx(char const *label, const UA_String *string) {
-    if(!string) {
-        printf("%s {NULL}\n", label);
-        return;
-    }
     printf("%s {Length=%d, Data=", label, string->length);
     if(string->length > 0) {
         for(UA_Int32 i = 0;i < string->length;i++) {
@@ -338,7 +319,6 @@ UA_EQUALITY UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
 }
 
 void UA_Guid_init(UA_Guid *p) {
-    if(!p) return;
     p->data1 = 0;
     p->data2 = 0;
     p->data3 = 0;
@@ -347,15 +327,12 @@ void UA_Guid_init(UA_Guid *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_Guid)
 UA_StatusCode UA_Guid_copy(UA_Guid const *src, UA_Guid *dst) {
-    if(!src || !dst)
-        return UA_STATUSCODE_BADINTERNALERROR;
     UA_memcpy((void *)dst, (void *)src, sizeof(UA_Guid));
     return UA_STATUSCODE_GOOD;
 }
 
 #ifdef DEBUG
 void UA_Guid_print(const UA_Guid *p, FILE *stream) {
-    if(!p || !stream) return;
     fprintf(stream, "(UA_Guid){%u, %u %u {%x,%x,%x,%x,%x,%x,%x,%x}}", p->data1, p->data2, p->data3, p->data4[0],
             p->data4[1], p->data4[2], p->data4[3], p->data4[4], p->data4[5], p->data4[6], p->data4[7]);
 }
@@ -390,6 +367,7 @@ UA_Byte       UA_Byte_securityPoliceNoneData[] = "http://opcfoundation.org/UA/Se
 UA_ByteString UA_ByteString_securityPoliceNone =
 { sizeof(UA_Byte_securityPoliceNoneData)-1, UA_Byte_securityPoliceNoneData };
 
+/** Creates a ByteString of the indicated length. The content is not set to zero. */
 UA_StatusCode UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(length > 0) {
@@ -410,7 +388,6 @@ UA_TYPE_AS(UA_XmlElement, UA_ByteString)
 
 /* NodeId */
 void UA_NodeId_init(UA_NodeId *p) {
-    if(!p) return;
     p->identifierType = UA_NODEIDTYPE_NUMERIC;
     p->namespaceIndex = 0;
     memset(&p->identifier, 0, sizeof(p->identifier));
@@ -419,9 +396,6 @@ void UA_NodeId_init(UA_NodeId *p) {
 UA_TYPE_NEW_DEFAULT(UA_NodeId)
 UA_StatusCode UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(!src || !dst)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
     switch(src->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         *dst = *src;
@@ -441,6 +415,10 @@ UA_StatusCode UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst) {
         break;
     }
     dst->identifierType = src->identifierType;
+    if(retval) {
+        UA_NodeId_deleteMembers(dst);
+        UA_NodeId_init(dst);
+    }
     return retval;
 }
 
@@ -452,8 +430,6 @@ UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id) {
 
 UA_TYPE_DELETE_DEFAULT(UA_NodeId)
 void UA_NodeId_deleteMembers(UA_NodeId *p) {
-    if(!p) return;
-
     switch(p->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         // nothing to do
@@ -474,8 +450,6 @@ void UA_NodeId_deleteMembers(UA_NodeId *p) {
 
 #ifdef DEBUG
 void UA_NodeId_print(const UA_NodeId *p, FILE *stream) {
-    if(!p || !stream) return;
-
     fprintf(stream, "(UA_NodeId){");
     switch(p->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
@@ -527,7 +501,7 @@ void UA_NodeId_print(const UA_NodeId *p, FILE *stream) {
 #endif
 
 UA_EQUALITY UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
-    if(!n1 || !n2 || n1->namespaceIndex != n2->namespaceIndex)
+    if(n1->namespaceIndex != n2->namespaceIndex)
         return UA_NOT_EQUAL;
 
     switch(n1->identifierType) {
@@ -581,13 +555,11 @@ UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
 /* ExpandedNodeId */
 UA_TYPE_DELETE_DEFAULT(UA_ExpandedNodeId)
 void UA_ExpandedNodeId_deleteMembers(UA_ExpandedNodeId *p) {
-    if(!p) return;
     UA_NodeId_deleteMembers(&p->nodeId);
     UA_String_deleteMembers(&p->namespaceUri);
 }
 
 void UA_ExpandedNodeId_init(UA_ExpandedNodeId *p) {
-    if(!p) return;
     UA_NodeId_init(&p->nodeId);
     UA_String_init(&p->namespaceUri);
     p->serverIndex = 0;
@@ -596,19 +568,18 @@ void UA_ExpandedNodeId_init(UA_ExpandedNodeId *p) {
 UA_TYPE_NEW_DEFAULT(UA_ExpandedNodeId)
 UA_StatusCode UA_ExpandedNodeId_copy(UA_ExpandedNodeId const *src, UA_ExpandedNodeId *dst) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(!src || !dst)
-        return UA_STATUSCODE_BADINTERNALERROR;
     retval |= UA_String_copy(&src->namespaceUri, &dst->namespaceUri);
     retval |= UA_NodeId_copy(&src->nodeId, &dst->nodeId);
     dst->serverIndex = src->serverIndex;
-    if(retval)
+    if(retval) {
         UA_ExpandedNodeId_deleteMembers(dst);
+        UA_ExpandedNodeId_init(dst);
+    }
     return retval;
 }
 
 #ifdef DEBUG
 void UA_ExpandedNodeId_print(const UA_ExpandedNodeId *p, FILE *stream) {
-    if(!p || !stream) return;
     fprintf(stream, "(UA_ExpandedNodeId){");
     UA_NodeId_print(&p->nodeId, stream);
     fprintf(stream, ",");
@@ -629,25 +600,22 @@ UA_TYPE_AS(UA_StatusCode, UA_UInt32)
 /* QualifiedName */
 UA_TYPE_DELETE_DEFAULT(UA_QualifiedName)
 void UA_QualifiedName_deleteMembers(UA_QualifiedName *p) {
-    if(!p) return;
     UA_String_deleteMembers(&p->name);
 }
 
 void UA_QualifiedName_init(UA_QualifiedName *p) {
-    if(!p) return;
     UA_String_init(&p->name);
     p->namespaceIndex = 0;
 }
 
 UA_TYPE_NEW_DEFAULT(UA_QualifiedName)
 UA_StatusCode UA_QualifiedName_copy(UA_QualifiedName const *src, UA_QualifiedName *dst) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(!src || !dst)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    retval |= UA_String_copy(&src->name, &dst->name);
+    UA_StatusCode retval = UA_String_copy(&src->name, &dst->name);
     dst->namespaceIndex = src->namespaceIndex;
-    if(retval)
+    if(retval) {
         UA_QualifiedName_deleteMembers(dst);
+        UA_QualifiedName_init(dst);
+    }
     return retval;
 
 }
@@ -659,7 +627,6 @@ UA_StatusCode UA_QualifiedName_copycstring(char const *src, UA_QualifiedName *ds
 
 #ifdef DEBUG
 void UA_QualifiedName_print(const UA_QualifiedName *p, FILE *stream) {
-    if(!p || !stream) return;
     fprintf(stream, "(UA_QualifiedName){");
     UA_UInt16_print(&p->namespaceIndex, stream);
     fprintf(stream, ",");
@@ -678,45 +645,38 @@ void UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn) {
 /* LocalizedText */
 UA_TYPE_DELETE_DEFAULT(UA_LocalizedText)
 void UA_LocalizedText_deleteMembers(UA_LocalizedText *p) {
-    if(!p) return;
     UA_String_deleteMembers(&p->locale);
     UA_String_deleteMembers(&p->text);
 }
 
 void UA_LocalizedText_init(UA_LocalizedText *p) {
-    if(!p) return;
     UA_String_init(&p->locale);
     UA_String_init(&p->text);
 }
 
 UA_TYPE_NEW_DEFAULT(UA_LocalizedText)
 UA_StatusCode UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(!dst)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_LocalizedText_init(dst);
-    retval |= UA_String_copycstring("en", &dst->locale); // TODO: Are language codes upper case?
+    UA_StatusCode retval = UA_String_copycstring("en", &dst->locale); // TODO: Are language codes upper case?
     retval |= UA_String_copycstring(src, &dst->text);
-    if(retval)
+    if(retval) {
         UA_LocalizedText_deleteMembers(dst);
+        UA_LocalizedText_init(dst);
+    }
     return retval;
 }
 
 UA_StatusCode UA_LocalizedText_copy(UA_LocalizedText const *src, UA_LocalizedText *dst) {
-    UA_Int32 retval = UA_STATUSCODE_GOOD;
-    if(!src || !dst)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_LocalizedText_init(dst);
-    retval |= UA_String_copy(&src->locale, &dst->locale);
+    UA_Int32 retval = UA_String_copy(&src->locale, &dst->locale);
     retval |= UA_String_copy(&src->text, &dst->text);
-    if(retval)
+    if(retval) {
         UA_LocalizedText_deleteMembers(dst);
+        UA_LocalizedText_init(dst);
+    }
     return retval;
 }
 
 #ifdef DEBUG
 void UA_LocalizedText_print(const UA_LocalizedText *p, FILE *stream) {
-    if(!p || !stream) return;
     fprintf(stream, "(UA_LocalizedText){");
     UA_String_print(&p->locale, stream);
     fprintf(stream, ",");
@@ -728,13 +688,11 @@ void UA_LocalizedText_print(const UA_LocalizedText *p, FILE *stream) {
 /* ExtensionObject */
 UA_TYPE_DELETE_DEFAULT(UA_ExtensionObject)
 void UA_ExtensionObject_deleteMembers(UA_ExtensionObject *p) {
-    if(!p) return;
     UA_NodeId_deleteMembers(&p->typeId);
     UA_ByteString_deleteMembers(&p->body);
 }
 
 void UA_ExtensionObject_init(UA_ExtensionObject *p) {
-    if(!p) return;
     UA_NodeId_init(&p->typeId);
     p->encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED;
     UA_ByteString_init(&p->body);
@@ -742,20 +700,18 @@ void UA_ExtensionObject_init(UA_ExtensionObject *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_ExtensionObject)
 UA_StatusCode UA_ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(!src || !dst)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    dst->encoding = src->encoding;
-    retval |= UA_ByteString_copy(&src->body, &dst->body);
+    UA_StatusCode retval = UA_ByteString_copy(&src->body, &dst->body);
     retval |= UA_NodeId_copy(&src->typeId, &dst->typeId);
-    if(retval)
+    dst->encoding = src->encoding;
+    if(retval) {
         UA_ExtensionObject_deleteMembers(dst);
+        UA_ExtensionObject_init(dst);
+    }
     return retval;
 }
 
 #ifdef DEBUG
 void UA_ExtensionObject_print(const UA_ExtensionObject *p, FILE *stream) {
-    if(!p || !stream) return;
     fprintf(stream, "(UA_ExtensionObject){");
     UA_NodeId_print(&p->typeId, stream);
     if(p->encoding == UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING)
@@ -772,12 +728,10 @@ void UA_ExtensionObject_print(const UA_ExtensionObject *p, FILE *stream) {
 /* DataValue */
 UA_TYPE_DELETE_DEFAULT(UA_DataValue)
 void UA_DataValue_deleteMembers(UA_DataValue *p) {
-    if(!p) return;
     UA_Variant_deleteMembers(&p->value);
 }
 
 void UA_DataValue_init(UA_DataValue *p) {
-    if(!p) return;
     p->encodingMask      = 0;
     p->serverPicoseconds = 0;
     UA_DateTime_init(&p->serverTimestamp);
@@ -789,24 +743,22 @@ void UA_DataValue_init(UA_DataValue *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_DataValue)
 UA_StatusCode UA_DataValue_copy(UA_DataValue const *src, UA_DataValue *dst) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(!src || !dst)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_StatusCode retval = UA_DateTime_copy(&src->serverTimestamp, &dst->serverTimestamp);
+    retval |= UA_DateTime_copy(&src->sourceTimestamp, &dst->sourceTimestamp);
+    retval |= UA_Variant_copy(&src->value, &dst->value);
     dst->encodingMask = src->encodingMask;
     dst->serverPicoseconds = src->serverPicoseconds;
-    retval |= UA_DateTime_copy(&src->serverTimestamp, &dst->serverTimestamp);
     dst->sourcePicoseconds = src->sourcePicoseconds;
-    retval |= UA_DateTime_copy(&src->sourceTimestamp, &dst->sourceTimestamp);
     dst->status = src->status;
-    retval |= UA_Variant_copy(&src->value, &dst->value);
-    if(retval)
+    if(retval) {
         UA_DataValue_deleteMembers(dst);
+        UA_DataValue_init(dst);
+    }
     return retval;
 }
 
 #ifdef DEBUG
 void UA_DataValue_print(const UA_DataValue *p, FILE *stream) {
-    if(!p || !stream) return;
     fprintf(stream, "(UA_DataValue){");
     UA_Byte_print(&p->encodingMask, stream);
     fprintf(stream, ",");
@@ -851,7 +803,6 @@ void UA_Variant_deleteMembers(UA_Variant *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_Variant)
 void UA_Variant_init(UA_Variant *p) {
-    if(!p) return;
     p->storageType = UA_VARIANT_DATA;
     p->storage.data.arrayLength = -1;  // no element, p->data == UA_NULL
     p->storage.data.dataPtr        = UA_NULL;
@@ -860,44 +811,38 @@ void UA_Variant_init(UA_Variant *p) {
     p->vt = &UA_[UA_INVALIDTYPE];
 }
 
-/** It is not allowed to copy into a variant that points to an external data source. */
+/** This function performs a deep copy. The resulting StorageType is UA_VARIANT_DATA. */
 UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(!src || !dst || dst->storageType == UA_VARIANT_DATASOURCE)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
+    // get the data
     UA_VariantData *dstdata = &dst->storage.data;
     const UA_VariantData *srcdata;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(src->storageType == UA_VARIANT_DATA || src->storageType == UA_VARIANT_DATA_NODELETE)
         srcdata = &src->storage.data;
     else {
         retval |= src->storage.datasource.read(src->storage.datasource.identifier, &srcdata);
-        if(retval) return retval;
+        if(retval)
+            return retval;
     }
 
-    // now copy from srcdata to dstdata.
-    dst->vt = src->vt;
+    // now copy the data to the destination
     retval |= UA_Array_copy(srcdata->dataPtr, srcdata->arrayLength, src->vt, &dstdata->dataPtr);
-    if(retval) goto clean_up;
-    dstdata->arrayLength = srcdata->arrayLength;
-    if(srcdata->arrayDimensions) {
-        retval |= UA_Array_copy(srcdata->arrayDimensions, srcdata->arrayDimensionsLength, &UA_[UA_INT32], (void **)&dstdata->arrayDimensions);
-        if(retval) goto clean_up2;
-        dstdata->arrayDimensionsLength = srcdata->arrayDimensionsLength;
-    }
+    if(retval == UA_STATUSCODE_GOOD) {
+        dst->storageType = UA_VARIANT_DATASOURCE;
+        dst->vt = src->vt;
+        dstdata->arrayLength = srcdata->arrayLength;
+        if(srcdata->arrayDimensions) {
+            retval |= UA_Array_copy(srcdata->arrayDimensions, srcdata->arrayDimensionsLength, &UA_[UA_INT32], (void **)&dstdata->arrayDimensions);
+            if(retval == UA_STATUSCODE_GOOD)
+                dstdata->arrayDimensionsLength = srcdata->arrayDimensionsLength;
+            else {
+                UA_Variant_deleteMembers(dst);
+                UA_Variant_init(dst);
+            }
+        }
+    } 
 
-    // release the src variant if necessary
-    if(src->storageType == UA_VARIANT_DATASOURCE)
-        src->storage.datasource.release(src->storage.datasource.identifier, srcdata);
-
-    return retval;
-
-    // clean ups are falling through to the "lower levels"
- clean_up2:
-    if(dstdata->arrayDimensions)
-        UA_Array_delete(dstdata->dataPtr, dstdata->arrayLength, src->vt);
-    
- clean_up:
+    // release the data source if necessary
     if(src->storageType == UA_VARIANT_DATASOURCE)
         src->storage.datasource.release(src->storage.datasource.identifier, srcdata);
 
@@ -906,35 +851,31 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
 
 /** Copies data into a variant. The target variant has always a storagetype UA_VARIANT_DATA */
 UA_StatusCode UA_Variant_copySetValue(UA_Variant *v, const UA_VTable_Entry *vt, const void *value) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(!v || !vt || !value)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_Variant_init(v);
     v->vt = vt;
     v->storage.data.arrayLength = 1; // no array but a single entry
-    retval |= vt->new(&v->storage.data.dataPtr);
-    retval |= vt->copy(value, v->storage.data.dataPtr);
-    if(retval)
+    UA_StatusCode retval = vt->new(&v->storage.data.dataPtr);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval |= vt->copy(value, v->storage.data.dataPtr);
+    if(retval) {
         UA_Variant_deleteMembers(v);
+        UA_Variant_init(v);
+    }
     return retval;
 }
-UA_StatusCode UA_Variant_copySetArray(UA_Variant *v, const UA_VTable_Entry *vt, UA_Int32 arrayLength,
-                                      const void *array) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(!v || !vt || !array)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_Variant_init(v);
+
+UA_StatusCode UA_Variant_copySetArray(UA_Variant *v, const UA_VTable_Entry *vt, UA_Int32 arrayLength, const void *array) {
     v->vt = vt;
     v->storage.data.arrayLength = arrayLength;
-    retval = UA_Array_copy(array, arrayLength, vt, &v->storage.data.dataPtr);
-    if(retval)
+    UA_StatusCode retval = UA_Array_copy(array, arrayLength, vt, &v->storage.data.dataPtr);
+    if(retval) {
         UA_Variant_deleteMembers(v);
+        UA_Variant_init(v);
+    }
     return retval;
 }
 
 #ifdef DEBUG
 void UA_Variant_print(const UA_Variant *p, FILE *stream) {
-    if(!p || !stream) return;
     UA_UInt32 ns0id = UA_ns0ToVTableIndex(&p->vt->typeId);
     if(p->storageType == UA_VARIANT_DATASOURCE) {
         fprintf(stream, "Variant from a Datasource");
@@ -960,7 +901,6 @@ void UA_Variant_print(const UA_Variant *p, FILE *stream) {
 /* DiagnosticInfo */
 UA_TYPE_DELETE_DEFAULT(UA_DiagnosticInfo)
 void UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
-    if(!p) return;
     UA_String_deleteMembers(&p->additionalInfo);
     if((p->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO) && p->innerDiagnosticInfo) {
         UA_DiagnosticInfo_delete(p->innerDiagnosticInfo);
@@ -969,7 +909,6 @@ void UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
 }
 
 void UA_DiagnosticInfo_init(UA_DiagnosticInfo *p) {
-    if(!p) return;
     UA_String_init(&p->additionalInfo);
     p->encodingMask = 0;
     p->innerDiagnosticInfo = UA_NULL;
@@ -982,11 +921,7 @@ void UA_DiagnosticInfo_init(UA_DiagnosticInfo *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_DiagnosticInfo)
 UA_StatusCode UA_DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(!src || !dst)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_DiagnosticInfo_deleteMembers(dst);
-    retval |= UA_String_copy(&src->additionalInfo, &dst->additionalInfo);
+    UA_StatusCode retval = UA_String_copy(&src->additionalInfo, &dst->additionalInfo);
     dst->encodingMask = src->encodingMask;
     retval |= UA_StatusCode_copy(&src->innerStatusCode, &dst->innerStatusCode);
     if(src->innerDiagnosticInfo) {
@@ -999,14 +934,15 @@ UA_StatusCode UA_DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_Diagnostic
     dst->localizedText = src->localizedText;
     dst->namespaceUri = src->namespaceUri;
     dst->symbolicId = src->symbolicId;
-    if(retval)
+    if(retval) {
         UA_DiagnosticInfo_deleteMembers(dst);
+        UA_DiagnosticInfo_init(dst);
+    }
     return retval;
 }
 
 #ifdef DEBUG
 void UA_DiagnosticInfo_print(const UA_DiagnosticInfo *p, FILE *stream) {
-    if(!p || !stream) return;
     fprintf(stream, "(UA_DiagnosticInfo){");
     UA_Byte_print(&p->encodingMask, stream);
     fprintf(stream, ",");
@@ -1054,7 +990,6 @@ UA_StatusCode UA_InvalidType_new(UA_InvalidType **p) {
 
 #ifdef DEBUG
 void UA_InvalidType_print(const UA_InvalidType *p, FILE *stream) {
-    if(!p || !stream) return;
     fprintf(stream, "(UA_InvalidType){ERROR (invalid type)}");
 }
 #endif
@@ -1064,8 +999,6 @@ void UA_InvalidType_print(const UA_InvalidType *p, FILE *stream) {
 /*********/
 
 UA_StatusCode UA_Array_new(void **p, UA_Int32 noElements, const UA_VTable_Entry *vt) {
-    if(!vt) return UA_STATUSCODE_BADINTERNALERROR;
-
     if(noElements <= 0) {
         *p = UA_NULL;
         return UA_STATUSCODE_GOOD;
@@ -1086,7 +1019,6 @@ UA_StatusCode UA_Array_new(void **p, UA_Int32 noElements, const UA_VTable_Entry 
 }
 
 void UA_Array_init(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt) {
-    if(!p || !vt) return;
     char *cp = (char *)p; // so compilers allow pointer arithmetic
     UA_UInt32 memSize = vt->memSize;
     for(UA_Int32 i = 0;i<noElements;i++) {
@@ -1096,8 +1028,7 @@ void UA_Array_init(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt) {
 }
 
 void UA_Array_delete(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt) {
-    if(!p || !vt || noElements <= 0) return;
-    char     *cp      = (char *)p; // so compilers allow pointer arithmetic
+    char *cp = (char *)p; // so compilers allow pointer arithmetic
     UA_UInt32 memSize = vt->memSize;
     for(UA_Int32 i = 0;i<noElements;i++) {
         vt->deleteMembers(cp);
@@ -1107,11 +1038,7 @@ void UA_Array_delete(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt) {
 }
 
 UA_StatusCode UA_Array_copy(const void *src, UA_Int32 noElements, const UA_VTable_Entry *vt, void **dst) {
-    UA_Int32 retval;
-    if(!src || !dst || !vt)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    retval = UA_Array_new(dst, noElements, vt);
+    UA_StatusCode retval = UA_Array_new(dst, noElements, vt);
     if(retval) {
         *dst = UA_NULL;
         return retval;
@@ -1138,7 +1065,6 @@ UA_StatusCode UA_Array_copy(const void *src, UA_Int32 noElements, const UA_VTabl
 
 #ifdef DEBUG
 void UA_Array_print(const void *p, UA_Int32 noElements, const UA_VTable_Entry *vt, FILE *stream) {
-    if(!p || !vt || !stream) return;
     fprintf(stream, "(%s){", vt->name);
     char     *cp      = (char *)p; // so compilers allow pointer arithmetic
     UA_UInt32 memSize = vt->memSize;

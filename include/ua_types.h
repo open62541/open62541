@@ -47,23 +47,28 @@ typedef enum UA_EQUALITY {
  *
  * All datatypes follow the same schema in the naming of relevant functions.
  *
- * - <type>_init: Sets all values to a "safe" standard. For example, if the
- *     datatype contains a string-element, its size will be set to zero.
+ * DO NOT CALL THESE FUNCTIONS WITH NULL-POINTERS IF IT IS NOT EXPLICITLY
+ * PERMITTED.
  *
  * - <type>_new: Allocates the memory for the type and runs <type>_init on the
- *     returned pointer.
+ *     returned variable.
+ *
+ * - <type>_init: Sets all members to a "safe" standard, usually zero. Arrays
+ *   (e.g. for strings) are set to a length of -1.
  *
  * - <type>_copy: Copies a datatype. This performs a deep copy that iterates
- *    over the members. The copy function assumes that the target structure can
- *    be overwritten (do a deleteMembers before if necessary). With one
- *    exception: copying into a variant that points to an external datasource is
- *    not permitted.
+ *    over the members. The copy function assumes that the destination is clean
+ *    (after an _init). Copying into variants with an external data source is
+ *    not permitted. If copying fails, the destination is returned clean.
  *
- * - <type>_delete: Frees the memory where the datatype was stored.
+ * - <type>_delete: Frees the memory where the datatype was stored. This
+ *   performs an _deleteMembers internally if required.
  *
  * - <type>_deleteMembers: Frees the memory of dynamically sized members (e.g. a
  *   string) of a datatype. This is useful when the datatype was allocated on
- *   the stack, whereas the dynamically sized members is heap-allocated.
+ *   the stack, whereas the dynamically sized members is heap-allocated. To
+ *   reuse the variable, the remaining members (not dynamically allocated) need
+ *   to be cleaned up with an _init.
  *
  * @{
  */
@@ -487,7 +492,6 @@ struct UA_VTable_Entry {
 
 #define UA_TYPE_INIT_DEFAULT(TYPE) \
     void TYPE##_init(TYPE * p) {   \
-        if(!p) return;             \
         *p = (TYPE)0;              \
     }
 
@@ -498,7 +502,6 @@ struct UA_VTable_Entry {
 
 #define UA_TYPE_DELETE_DEFAULT(TYPE) \
     void TYPE##_delete(TYPE *p) {    \
-        if(!p) return;               \
         TYPE##_deleteMembers(p);     \
         UA_free(p);                  \
     }
@@ -517,14 +520,12 @@ struct UA_VTable_Entry {
 /* Use only when the type has no arrays. Otherwise, implement deep copy */
 #define UA_TYPE_COPY_DEFAULT(TYPE)                             \
     UA_StatusCode TYPE##_copy(TYPE const *src, TYPE *dst) {    \
-        if(src == UA_NULL || dst == UA_NULL)                   \
-            return UA_STATUSCODE_BADOUTOFMEMORY;               \
         *dst = *src;                                           \
         return UA_STATUSCODE_GOOD;                             \
     }
 
 #define UA_TYPE_COPY_AS(TYPE, TYPE_AS)                         \
-    UA_Int32 TYPE##_copy(TYPE const *src, TYPE *dst) {         \
+    UA_StatusCode TYPE##_copy(TYPE const *src, TYPE *dst) {         \
         return TYPE_AS##_copy((TYPE_AS *)src, (TYPE_AS *)dst); \
     }
 
