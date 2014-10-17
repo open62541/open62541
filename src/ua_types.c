@@ -139,6 +139,7 @@ void UA_String_deleteMembers(UA_String *p) {
 }
 
 UA_StatusCode UA_String_copy(UA_String const *src, UA_String *dst) {
+    UA_String_init(dst);
     if(src->length > 0) {
         if(!(dst->data = UA_alloc(src->length)))
             return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -369,18 +370,19 @@ UA_ByteString UA_ByteString_securityPoliceNone =
 
 /** Creates a ByteString of the indicated length. The content is not set to zero. */
 UA_StatusCode UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(length > 0) {
-        if((p->data = UA_alloc(length))) {
-            p->length = length;
-            return retval;
-        }
-        retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        if(!(p->data = UA_alloc(length)))
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        p->length = length;
+        return UA_STATUSCODE_GOOD;
     }
+
+    p->data   = UA_NULL;
     if(length < 0)
         p->length = -1;
-    p->data   = UA_NULL;
-    return retval;
+    else
+        p->length = 0;
+    return UA_STATUSCODE_GOOD;
 }
 
 /* XmlElement */
@@ -413,12 +415,14 @@ UA_StatusCode UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst) {
     case UA_NODEIDTYPE_BYTESTRING: // Table 6, "OPAQUE"
         retval |= UA_ByteString_copy(&src->identifier.byteString, &dst->identifier.byteString);
         break;
+
+    default:
+        UA_NodeId_init(dst);
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
     dst->identifierType = src->identifierType;
-    if(retval) {
+    if(retval)
         UA_NodeId_deleteMembers(dst);
-        UA_NodeId_init(dst);
-    }
     return retval;
 }
 
@@ -571,10 +575,8 @@ UA_StatusCode UA_ExpandedNodeId_copy(UA_ExpandedNodeId const *src, UA_ExpandedNo
     retval |= UA_String_copy(&src->namespaceUri, &dst->namespaceUri);
     retval |= UA_NodeId_copy(&src->nodeId, &dst->nodeId);
     dst->serverIndex = src->serverIndex;
-    if(retval) {
+    if(retval)
         UA_ExpandedNodeId_deleteMembers(dst);
-        UA_ExpandedNodeId_init(dst);
-    }
     return retval;
 }
 
@@ -612,10 +614,8 @@ UA_TYPE_NEW_DEFAULT(UA_QualifiedName)
 UA_StatusCode UA_QualifiedName_copy(UA_QualifiedName const *src, UA_QualifiedName *dst) {
     UA_StatusCode retval = UA_String_copy(&src->name, &dst->name);
     dst->namespaceIndex = src->namespaceIndex;
-    if(retval) {
+    if(retval)
         UA_QualifiedName_deleteMembers(dst);
-        UA_QualifiedName_init(dst);
-    }
     return retval;
 
 }
@@ -668,10 +668,8 @@ UA_StatusCode UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *ds
 UA_StatusCode UA_LocalizedText_copy(UA_LocalizedText const *src, UA_LocalizedText *dst) {
     UA_Int32 retval = UA_String_copy(&src->locale, &dst->locale);
     retval |= UA_String_copy(&src->text, &dst->text);
-    if(retval) {
+    if(retval)
         UA_LocalizedText_deleteMembers(dst);
-        UA_LocalizedText_init(dst);
-    }
     return retval;
 }
 
@@ -703,10 +701,8 @@ UA_StatusCode UA_ExtensionObject_copy(UA_ExtensionObject const *src, UA_Extensio
     UA_StatusCode retval = UA_ByteString_copy(&src->body, &dst->body);
     retval |= UA_NodeId_copy(&src->typeId, &dst->typeId);
     dst->encoding = src->encoding;
-    if(retval) {
+    if(retval)
         UA_ExtensionObject_deleteMembers(dst);
-        UA_ExtensionObject_init(dst);
-    }
     return retval;
 }
 
@@ -750,10 +746,8 @@ UA_StatusCode UA_DataValue_copy(UA_DataValue const *src, UA_DataValue *dst) {
     dst->serverPicoseconds = src->serverPicoseconds;
     dst->sourcePicoseconds = src->sourcePicoseconds;
     dst->status = src->status;
-    if(retval) {
+    if(retval)
         UA_DataValue_deleteMembers(dst);
-        UA_DataValue_init(dst);
-    }
     return retval;
 }
 
@@ -813,6 +807,7 @@ void UA_Variant_init(UA_Variant *p) {
 
 /** This function performs a deep copy. The resulting StorageType is UA_VARIANT_DATA. */
 UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
+    UA_Variant_init(dst);
     // get the data
     UA_VariantData *dstdata = &dst->storage.data;
     const UA_VariantData *srcdata;
@@ -828,11 +823,12 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
     // now copy the data to the destination
     retval |= UA_Array_copy(srcdata->dataPtr, srcdata->arrayLength, src->vt, &dstdata->dataPtr);
     if(retval == UA_STATUSCODE_GOOD) {
-        dst->storageType = UA_VARIANT_DATASOURCE;
+        dst->storageType = UA_VARIANT_DATA;
         dst->vt = src->vt;
         dstdata->arrayLength = srcdata->arrayLength;
         if(srcdata->arrayDimensions) {
-            retval |= UA_Array_copy(srcdata->arrayDimensions, srcdata->arrayDimensionsLength, &UA_[UA_INT32], (void **)&dstdata->arrayDimensions);
+            retval |= UA_Array_copy(srcdata->arrayDimensions, srcdata->arrayDimensionsLength, &UA_[UA_INT32],
+                                    (void **)&dstdata->arrayDimensions);
             if(retval == UA_STATUSCODE_GOOD)
                 dstdata->arrayDimensionsLength = srcdata->arrayDimensionsLength;
             else {
@@ -851,6 +847,7 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
 
 /** Copies data into a variant. The target variant has always a storagetype UA_VARIANT_DATA */
 UA_StatusCode UA_Variant_copySetValue(UA_Variant *v, const UA_VTable_Entry *vt, const void *value) {
+    UA_Variant_init(v);
     v->vt = vt;
     v->storage.data.arrayLength = 1; // no array but a single entry
     UA_StatusCode retval = vt->new(&v->storage.data.dataPtr);
@@ -864,6 +861,7 @@ UA_StatusCode UA_Variant_copySetValue(UA_Variant *v, const UA_VTable_Entry *vt, 
 }
 
 UA_StatusCode UA_Variant_copySetArray(UA_Variant *v, const UA_VTable_Entry *vt, UA_Int32 arrayLength, const void *array) {
+    UA_Variant_init(v);
     v->vt = vt;
     v->storage.data.arrayLength = arrayLength;
     UA_StatusCode retval = UA_Array_copy(array, arrayLength, vt, &v->storage.data.dataPtr);
@@ -921,10 +919,11 @@ void UA_DiagnosticInfo_init(UA_DiagnosticInfo *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_DiagnosticInfo)
 UA_StatusCode UA_DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst) {
+    UA_DiagnosticInfo_init(dst);
     UA_StatusCode retval = UA_String_copy(&src->additionalInfo, &dst->additionalInfo);
     dst->encodingMask = src->encodingMask;
     retval |= UA_StatusCode_copy(&src->innerStatusCode, &dst->innerStatusCode);
-    if(src->innerDiagnosticInfo) {
+    if((src->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO) && src->innerDiagnosticInfo) {
         if((dst->innerDiagnosticInfo = UA_alloc(sizeof(UA_DiagnosticInfo))))
             retval |= UA_DiagnosticInfo_copy(src->innerDiagnosticInfo, dst->innerDiagnosticInfo);
         else
@@ -1004,9 +1003,9 @@ UA_StatusCode UA_Array_new(void **p, UA_Int32 noElements, const UA_VTable_Entry 
         return UA_STATUSCODE_GOOD;
     }
 
-    // FIXME! Arrays cannot be larger than 2**20.
+    // FIXME! Arrays cannot be larger than 100MB.
     // This was randomly chosen so that the development VM does not blow up.
-    if(noElements > 1048576) {
+    if(noElements > (2^16)) {
         *p = UA_NULL;
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -1019,7 +1018,7 @@ UA_StatusCode UA_Array_new(void **p, UA_Int32 noElements, const UA_VTable_Entry 
 }
 
 void UA_Array_init(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt) {
-    char *cp = (char *)p; // so compilers allow pointer arithmetic
+    UA_Byte *cp = (UA_Byte *)p; // so compilers allow pointer arithmetic
     UA_UInt32 memSize = vt->memSize;
     for(UA_Int32 i = 0;i<noElements;i++) {
         vt->init(cp);
@@ -1028,13 +1027,14 @@ void UA_Array_init(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt) {
 }
 
 void UA_Array_delete(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt) {
-    char *cp = (char *)p; // so compilers allow pointer arithmetic
+    UA_Byte *cp = (UA_Byte *)p; // so compilers allow pointer arithmetic
     UA_UInt32 memSize = vt->memSize;
     for(UA_Int32 i = 0;i<noElements;i++) {
         vt->deleteMembers(cp);
         cp += memSize;
     }
-    UA_free(p);
+    if(noElements > 0)
+        UA_free(p);
 }
 
 UA_StatusCode UA_Array_copy(const void *src, UA_Int32 noElements, const UA_VTable_Entry *vt, void **dst) {
@@ -1044,8 +1044,8 @@ UA_StatusCode UA_Array_copy(const void *src, UA_Int32 noElements, const UA_VTabl
         return retval;
     }
 
-    char     *csrc    = (char *)src; // so compilers allow pointer arithmetic
-    char     *cdst    = (char *)*dst;
+    UA_Byte *csrc = (UA_Byte *)src; // so compilers allow pointer arithmetic
+    UA_Byte *cdst = (UA_Byte *)*dst;
     UA_UInt32 memSize = vt->memSize;
     UA_Int32  i       = 0;
     for(;i < noElements && retval == UA_STATUSCODE_GOOD;i++) {

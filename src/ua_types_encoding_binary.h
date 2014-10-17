@@ -21,9 +21,9 @@
  *   inconsistent state.
  *
  * - Decode: Decodes a variable stored in a bytestring. The destination is
- *   assumed to be clean (after an _init) before decoding into it. If an error
- *   occurs (indicated by the return value), the destination value is cleaned
- *   up (deleteMembers) before returning.
+ *   cleaned up (init) before decoding into it. If an error occurs (indicated by
+ *   the return value), the destination is cleaned up (deleteMembers, but no
+ *   init) before returning.
  */
 
 /**

@@ -189,7 +189,8 @@ def createStructured(element):
 
     # 6) DecodeBinary
     printc('''UA_StatusCode %(name)s_decodeBinary(UA_ByteString const * src, UA_UInt32 *offset, %(name)s * dst) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;''')
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    %(name)s_init(dst);''')
     printc('\t'+name+'_init(dst);')
     for n,t in membermap.iteritems():
         if t.find("*") != -1:
@@ -217,11 +218,10 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
     for n,t in membermap.iteritems():
         if not t in fixed_size: # dynamic size on the wire
             if t.find("*") != -1:
-		printc("\tUA_Array_delete((void*)p->%(n)s,p->%(n)sSize,&UA_[" +
-                       t[0:t.find("*")].upper()+"]);")
+		printc("\tUA_Array_delete((void*)p->%(n)s,p->%(n)sSize,&UA_["+t[0:t.find("*")].upper()+"]);")
             else:
 		printc('\t%(t)s_deleteMembers(&p->%(n)s);')
-    printc("\n}\n")
+    printc("}\n")
 
     # 10) Init
     printc('''void %(name)s_init(%(name)s *p) {
@@ -232,7 +232,7 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
             printc('\tp->%(n)s = UA_NULL;')
         else:
             printc('\t%(t)s_init(&p->%(n)s);')
-    printc("\n}\n")
+    printc("}\n")
 
     # 11) New
     printc("UA_TYPE_NEW_DEFAULT(%(name)s)")
@@ -250,10 +250,8 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
             printc('\tretval |= %(t)s_copy(&src->%(n)s,&dst->%(n)s);')
             continue
         printc("\tdst->%(n)s = src->%(n)s;")
-    printc('''if(retval) {
-    %(name)s_deleteMembers(dst);
-    %(name)s_init(dst);
-    }''')
+    printc('''\tif(retval)
+    \t%(name)s_deleteMembers(dst);''')
     printc("\treturn retval;\n}\n")
 
     # 13) Print

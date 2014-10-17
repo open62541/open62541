@@ -1345,17 +1345,6 @@ START_TEST(UA_QualifiedName_copyShallWorkOnInputExample) {
 	ck_assert_int_eq(5, dst.namespaceIndex);
 }
 END_TEST
-START_TEST(UA_QualifiedName_copyNULLInput) {
-	// given
-	UA_QualifiedName *src = UA_NULL;
-	UA_QualifiedName dst;
-
-	// when
-	UA_StatusCode ret = UA_QualifiedName_copy(src, &dst);
-	// then
-	ck_assert_int_eq(ret, UA_STATUSCODE_BADINTERNALERROR);
-}
-END_TEST
 START_TEST(UA_Guid_copyShallWorkOnInputExample) {
 	//given
 	const UA_Guid src = {3, 45, 1222, {8, 7, 6, 5, 4, 3, 2, 1}};
@@ -1386,19 +1375,6 @@ START_TEST(UA_LocalizedText_copycstringShallWorkOnInputExample) {
 	ck_assert_int_eq('1', dst.text.data[4]);
 	ck_assert_int_eq(2, dst.locale.length);
 	ck_assert_int_eq(7, dst.text.length);
-}
-END_TEST
-START_TEST(UA_LocalizedText_copycstringNULLInput) {
-	// given
-	const char src[7] = {'t', 'e', 'X', 't', '1', '2', '3'};
-
-	UA_LocalizedText *dst = UA_NULL;
-	UA_Int32 ret;
-
-	// when
-	ret = UA_LocalizedText_copycstring(src, dst);
-	// then
-	ck_assert_int_eq(ret, UA_STATUSCODE_BADINTERNALERROR);
 }
 END_TEST
 START_TEST(UA_DataValue_copyShallWorkOnInputExample) {
@@ -1646,10 +1622,8 @@ Suite *testSuite_builtin(void) {
 	tcase_add_test(tc_copy, UA_DiagnosticInfo_copyShallWorkOnExample);
 	tcase_add_test(tc_copy, UA_ApplicationDescription_copyShallWorkOnExample);
 	tcase_add_test(tc_copy, UA_QualifiedName_copyShallWorkOnInputExample);
-	tcase_add_test(tc_copy, UA_QualifiedName_copyNULLInput);
 	tcase_add_test(tc_copy, UA_Guid_copyShallWorkOnInputExample);
 	tcase_add_test(tc_copy, UA_LocalizedText_copycstringShallWorkOnInputExample);
-	tcase_add_test(tc_copy, UA_LocalizedText_copycstringNULLInput);
 	tcase_add_test(tc_copy, UA_DataValue_copyShallWorkOnInputExample);
 	suite_add_tcase(s, tc_copy);
 	return s;
@@ -1663,7 +1637,7 @@ int main(void) {
 
 	s  = testSuite_builtin();
 	sr = srunner_create(s);
-	//srunner_set_fork_status(sr, CK_NOFORK);
+	// srunner_set_fork_status(sr, CK_NOFORK);
 	srunner_run_all(sr, CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);

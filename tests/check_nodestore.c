@@ -36,7 +36,7 @@ UA_Int32 createNode(UA_Node** p, UA_Int16 nsid, UA_Int32 id) {
 	(*p)->nodeId.namespaceIndex = nsid;
 	(*p)->nodeId.identifier.numeric = id;
 	(*p)->nodeClass = UA_NODECLASS_VARIABLE;
-	return UA_SUCCESS;
+	return UA_STATUSCODE_GOOD;
 }
 
 START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
@@ -53,7 +53,7 @@ START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
 	// when
 	retval = UA_NodeStore_get(ns,&n1->nodeId,&nr);
 	// then
-	ck_assert_int_eq(retval, UA_SUCCESS);
+	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	ck_assert_ptr_eq(nr,n1);
 	// finally
 	UA_NodeStore_releaseManagedNode(n1);
@@ -81,7 +81,7 @@ START_TEST(failToFindNodeInOtherUA_NodeStore) {
 	UA_Node* n; createNode(&n,1,2255);
 	UA_Int32 retval = UA_NodeStore_get(ns,&n->nodeId, &nr);
 	// then
-	ck_assert_int_ne(retval, UA_SUCCESS);
+	ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
 	// finally
 	UA_Node_delete(n);
 	UA_NodeStore_releaseManagedNode(nr);
@@ -111,7 +111,7 @@ START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
 	// when
 	retval = UA_NodeStore_get(ns,&(n3->nodeId),&nr);
 	// then
-	ck_assert_int_eq(retval, UA_SUCCESS);
+	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	ck_assert_ptr_eq(nr,n3);
 	// finally
 	UA_NodeStore_releaseManagedNode(n3);
@@ -137,13 +137,11 @@ START_TEST(iterateOverUA_NodeStoreShallNotVisitEmptyNodes) {
 	UA_Node* n5; createNode(&n5,0,1); UA_NodeStore_insert(ns, &n5, 0);
 	UA_Node* n6; createNode(&n6,0,12); UA_NodeStore_insert(ns, &n6, 0);
 
-	UA_Int32 retval;
 	// when
 	zeroCnt = 0;
 	visitCnt = 0;
-	retval = UA_NodeStore_iterate(ns,checkZeroVisitor);
+	UA_NodeStore_iterate(ns,checkZeroVisitor);
 	// then
-	ck_assert_int_eq(retval, UA_SUCCESS);
 	ck_assert_int_eq(zeroCnt, 0);
 	ck_assert_int_eq(visitCnt, 6);
 	// finally
@@ -172,7 +170,7 @@ START_TEST(findNodeInExpandedNamespace) {
 	createNode(&n,0,25);
 	retval = UA_NodeStore_get(ns,&(n->nodeId),&nr);
 	// then
-	ck_assert_int_eq(retval, UA_SUCCESS);
+	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	ck_assert_int_eq(nr->nodeId.identifier.numeric,n->nodeId.identifier.numeric);
 	// finally
 	UA_free((void*)n);
@@ -197,12 +195,10 @@ START_TEST(iterateOverExpandedNamespaceShallNotVisitEmptyNodes) {
 		createNode(&n,0,i); UA_NodeStore_insert(ns, &n, 0);
 	}
 	// when
-	UA_Int32 retval;
 	zeroCnt = 0;
 	visitCnt = 0;
-	retval = UA_NodeStore_iterate(ns,checkZeroVisitor);
+	UA_NodeStore_iterate(ns,checkZeroVisitor);
 	// then
-	ck_assert_int_eq(retval, UA_SUCCESS);
 	ck_assert_int_eq(zeroCnt, 0);
 	ck_assert_int_eq(visitCnt, 200);
 	// finally
@@ -232,7 +228,7 @@ START_TEST(failToFindNonExistantNodeInUA_NodeStoreWithSeveralEntries) {
 	// when
 	retval = UA_NodeStore_get(ns, &(n6->nodeId), &nr);
 	// then
-	ck_assert_int_ne(retval, UA_SUCCESS);
+	ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
 	// finally
 	UA_free((void *)n6);
 	UA_NodeStore_delete(ns);

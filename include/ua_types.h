@@ -57,9 +57,9 @@ typedef enum UA_EQUALITY {
  *   (e.g. for strings) are set to a length of -1.
  *
  * - <type>_copy: Copies a datatype. This performs a deep copy that iterates
- *    over the members. The copy function assumes that the destination is clean
- *    (after an _init). Copying into variants with an external data source is
- *    not permitted. If copying fails, the destination is returned clean.
+ *    over the members. Copying into variants with an external data source is
+ *    not permitted. If copying fails, a deleteMembers is performed and an error
+ *    code returned.
  *
  * - <type>_delete: Frees the memory where the datatype was stored. This
  *   performs an _deleteMembers internally if required.
