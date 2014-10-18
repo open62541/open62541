@@ -293,7 +293,7 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node **node, UA_Byte flag
 
     if(flags & UA_NODESTORE_INSERT_UNIQUE) {
         if(found == UA_STATUSCODE_GOOD)
-            return UA_STATUSCODE_BADINTERNALERROR;    /* There is already an entry for that nodeid */
+            return UA_STATUSCODE_BADNODEIDEXISTS;
         else
             *entry = *node;
     } else {
@@ -312,7 +312,7 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node **node, UA_Byte flag
 UA_StatusCode UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid, const UA_Node **managedNode) {
     const UA_Node **entry;
     if(find_entry(ns, nodeid, &entry) != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
     *managedNode = *entry;
     return UA_STATUSCODE_GOOD;
@@ -321,14 +321,14 @@ UA_StatusCode UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid, 
 UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     const UA_Node **entry;
     if(find_entry(ns, nodeid, &entry) != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
     // Check before if deleting the node makes the UA_NodeStore inconsistent.
     clear_entry(ns, entry);
 
     /* Downsize the hashmap if it is very empty */
     if(ns->count * 8 < ns->size && ns->size > 32)
-        expand(ns);
+        expand(ns); // this can fail. we just continue with the bigger hashmap.
 
     return UA_STATUSCODE_GOOD;
 }
