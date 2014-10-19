@@ -227,25 +227,78 @@ void Service_Read(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
+
+    if(UA_Array_new((void **)&response->diagnosticInfos, request->nodesToReadSize, &UA_[UA_DIAGNOSTICINFO]) != UA_SUCCESS) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
     response->resultsSize = request->nodesToReadSize;
-    for(UA_Int32 i = 0;i < response->resultsSize;i++){
-    	UA_Namespace *tmpNamespace;
-    	UA_NamespaceManager_getNamespace(server->namespaceManager,
-    			request->nodesToRead[i].nodeId.namespaceIndex, &tmpNamespace);
 
-    	//(UA_ReadValueId *readValueIds,UA_UInt32 sizeReadValueIds, UA_DataValue *value, UA_Boolean timeStampToReturn, UA_DiagnosticInfo *diagnosticInfo);
+    UA_Int32 *numberOfFoundIndices;
+    UA_Int16 *associatedIndices;
+    UA_UInt32 differentNamespaceIndexCount = 0;
+    if(UA_Array_new((void **)&numberOfFoundIndices,request->nodesToReadSize,&UA_[UA_UINT32]) != UA_SUCCESS){
+    	response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+    	return ;
+    }
 
+    if(UA_Array_new((void **)&associatedIndices,request->nodesToReadSize,&UA_[UA_UINT16]) != UA_SUCCESS){
+    	response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+    	return ;
+    }
+    // find out count of different namespace indices
 
-    	if(tmpNamespace!=UA_NULL){
-    		tmpNamespace->nodeStore->readNodes(&request->nodesToRead[i],
-    				request->nodesToReadSize,
-    				&response->results[i],
-    				request->timestampsToReturn,
-    				&response->diagnosticInfos[i]);
+   for(UA_Int32 i = 0; i<request->nodesToReadSize; i++){
 
-			//	response->results[i] = service_read_node(server, &request->nodesToRead[i]);
+    	for(UA_UInt32 j = 0; j <= differentNamespaceIndexCount; j++){
+    		if( associatedIndices[j] == request->nodesToRead[i].nodeId.namespaceIndex){
+    			numberOfFoundIndices[j]++;
+    			break;
+    		}
+    		else if(j == (differentNamespaceIndexCount - 1)){
+    			associatedIndices[j] = request->nodesToRead[i].nodeId.namespaceIndex;
+    			associatedIndices[j] = 1;
+    			differentNamespaceIndexCount++;
+    		}
     	}
     }
+
+	UA_UInt32 *readValueIdIndices;
+    if(UA_Array_new((void **)&readValueIdIndices,request->nodesToReadSize,&UA_[UA_UINT32]) != UA_SUCCESS){
+    	response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+    	return ;
+    }
+
+    for(UA_UInt32 i = 0; i < differentNamespaceIndexCount; i++){
+    	UA_Namespace *tmpNamespace;
+    	UA_NamespaceManager_getNamespace(server->namespaceManager,associatedIndices[i],&tmpNamespace);
+    	if(tmpNamespace != UA_NULL){
+
+    	    //build up index array for each read operation onto a different namespace
+    	    UA_UInt32 n = 0;
+    	    for(UA_Int32 j = 0; j < request->nodesToReadSize; j++){
+    	    	if(request->nodesToRead[j].nodeId.namespaceIndex == associatedIndices[i]){
+    	    		readValueIdIndices[n] = j;
+    	    	}
+    	    }
+    	    //call read for every namespace
+    		tmpNamespace->nodeStore->readNodes(request->nodesToRead,
+    				readValueIdIndices,
+    				numberOfFoundIndices[i],
+    				response->results,
+    				request->timestampsToReturn,
+    				response->diagnosticInfos);
+
+    	}
+    }
+    UA_free(readValueIdIndices);
+
+    /*
+    for(UA_Int32 i = 0;i < response->resultsSize;i++){
+				response->results[i] = service_read_node(server, &request->nodesToRead[i]);
+    	}
+    }
+    */
 
 
 }
@@ -404,3 +457,4 @@ void Service_Write(UA_Server *server, UA_Session *session,
     for(UA_Int32 i = 0;i < request->nodesToWriteSize;i++)
         Service_Write_writeNode(server, &request->nodesToWrite[i], &response->results[i]);
 }
+
