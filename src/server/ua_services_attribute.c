@@ -227,6 +227,7 @@ void Service_Read(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
+
     response->resultsSize = request->nodesToReadSize;
     for(UA_Int32 i = 0;i < response->resultsSize;i++){
     	UA_Namespace *tmpNamespace;
