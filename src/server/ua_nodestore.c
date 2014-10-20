@@ -50,7 +50,7 @@ UA_Int32 UA_NodeStore_registerReadNodesOperation(UA_NodeStore *nodeStore, UA_Nod
 	return UA_SUCCESS;
 }
 
-UA_Int32 UA_NodeStore_registerWriteOperation(UA_NodeStore *nodeStore, UA_NodeStore_writeNodes writeNodes)
+UA_Int32 UA_NodeStore_registerWriteNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_writeNodes writeNodes)
 {
 	if(nodeStore==UA_NULL){
 		return UA_ERROR;
@@ -59,7 +59,7 @@ UA_Int32 UA_NodeStore_registerWriteOperation(UA_NodeStore *nodeStore, UA_NodeSto
 	return UA_SUCCESS;
 }
 
-UA_Int32 UA_NodeStore_registerBrowseOperation(UA_NodeStore *nodeStore, UA_NodeStore_browseNodes browseNodes)
+UA_Int32 UA_NodeStore_registerBrowseNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_browseNodes browseNodes)
 {
 	if(nodeStore==UA_NULL){
 		return UA_ERROR;

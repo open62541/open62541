@@ -62,7 +62,10 @@ int main(int argc, char** argv) {
 	UA_NodeStore newNodeStore;
 
 	UA_Server_addNamespace(&server,0,&newNodeStore);
+
+	initMyNode();
 	UA_NodeStore_registerReadNodesOperation(&newNodeStore,readNodes);
+	UA_NodeStore_registerWriteNodesOperation(&newNodeStore,writeNodes);
 
 	Logger_Stdout_init(&server.logger);
     server.serverCertificate = loadCertificate();

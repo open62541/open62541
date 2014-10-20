@@ -12,7 +12,7 @@ UA_Int32 UA_EXPORT UA_NodeStore_registerDeleteNodesOperation(UA_NodeStore *nodeS
 UA_Int32 UA_EXPORT UA_NodeStore_registerDeleteReferencesOperation(UA_NodeStore *nodeStore, UA_NodeStore_deleteReferences deleteReference);
 UA_Int32 UA_EXPORT UA_NodeStore_registerReadNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_readNodes readNode);
 UA_Int32 UA_EXPORT UA_NodeStore_registerWriteNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_writeNodes writeNode);
-UA_Int32 UA_EXPORT UA_NodeStore_registerBrowseOperation(UA_NodeStore *nodeStore, UA_NodeStore_browseNodes browseNode);
+UA_Int32 UA_EXPORT UA_NodeStore_registerBrowseNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_browseNodes browseNode);
 
 #define UA_NODESTORE_INSERT_UNIQUE 1
 #define UA_NODESTORE_INSERT_GETMANAGED 2
