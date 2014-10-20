@@ -25,7 +25,7 @@ struct UA_Session {
 extern UA_Session anonymousSession; ///< If anonymous access is allowed, this session is used internally (Session ID: 0)
 extern UA_Session adminSession; ///< Local access to the services (for startup and maintenance) uses this Session with all possible access rights (Session ID: 1)
 
-UA_Int32 UA_Session_new(UA_Session **session);
+UA_StatusCode UA_Session_new(UA_Session **session);
 void UA_Session_init(UA_Session *session);
 void UA_Session_delete(UA_Session *session);
 void UA_Session_deleteMembers(UA_Session *session);
@@ -34,10 +34,10 @@ void UA_Session_deleteMembers(UA_Session *session);
 UA_Boolean UA_Session_compare(UA_Session *session1, UA_Session *session2);
 
 /** If any activity on a session happens, the timeout must be extended */
-UA_Int32 UA_Session_updateLifetime(UA_Session *session);
+UA_StatusCode UA_Session_updateLifetime(UA_Session *session);
 /** Set up the point in time till the session is valid */
-UA_Int32 UA_Session_setExpirationDate(UA_Session *session);
+UA_StatusCode UA_Session_setExpirationDate(UA_Session *session);
 /** Gets the sessions pending lifetime (calculated from the timeout which was set) */
-UA_Int32 UA_Session_getPendingLifetime(UA_Session *session, UA_Double *pendingLifetime);
+UA_StatusCode UA_Session_getPendingLifetime(UA_Session *session, UA_Double *pendingLifetime);
 
 #endif /* UA_SESSION_H_ */

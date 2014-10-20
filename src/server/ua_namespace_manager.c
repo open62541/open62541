@@ -8,6 +8,7 @@
 #include "ua_namespace_manager.h"
 
 
+
 struct namespace_list_entry {
     UA_Namespace namespace;
     LIST_ENTRY(namespace_list_entry) pointers;
@@ -25,7 +26,7 @@ void UA_NamespaceManager_new(UA_NamespaceManager** namespaceManager)
 
 }
 
-UA_Int32 UA_NamespaceManager_addNamespace(UA_NamespaceManager *namespaceManager, UA_UInt16 index, UA_NodeStore *nodeStore)
+UA_StatusCode UA_NamespaceManager_addNamespace(UA_NamespaceManager *namespaceManager, UA_UInt16 index, UA_NodeStore *nodeStore)
 {
 	if(namespaceManager->currentNamespaceCount<UA_UINT16_MAX){
 		namespaceManager->currentNamespaceCount++;
@@ -33,17 +34,17 @@ UA_Int32 UA_NamespaceManager_addNamespace(UA_NamespaceManager *namespaceManager,
 		newentry->namespace.index = index;
 		newentry->namespace.nodeStore = nodeStore;
 		LIST_INSERT_HEAD(&namespaceManager->namespaces, newentry, pointers);
-		return UA_SUCCESS;
+		return UA_STATUSCODE_GOOD;
 	}
-	return UA_ERROR;
+	return UA_STATUSCODE_BADNOTFOUND;
 }
 
-UA_Int32 UA_NamespaceManager_removeNamespace(UA_NamespaceManager *namespaceManager,UA_UInt16 index)
+UA_StatusCode UA_NamespaceManager_removeNamespace(UA_NamespaceManager *namespaceManager,UA_UInt16 index)
 {
 	UA_Namespace *namespace;
 	UA_NamespaceManager_getNamespace(namespaceManager,index,&namespace);
 	if(namespace == UA_NULL)
-		return UA_ERROR;
+		return UA_STATUSCODE_BADNOTFOUND;
 
     struct namespace_list_entry *current = UA_NULL;
     LIST_FOREACH(current, &namespaceManager->namespaces, pointers) {
@@ -52,10 +53,10 @@ UA_Int32 UA_NamespaceManager_removeNamespace(UA_NamespaceManager *namespaceManag
     }
 
     if(!current)
-        return UA_ERROR;
+        return UA_STATUSCODE_BADNOTFOUND;
 	LIST_REMOVE(current, pointers);
 
-	return UA_SUCCESS;
+	return UA_STATUSCODE_GOOD;
 }
 
 UA_Int32 UA_NamespaceManager_getNamespace(UA_NamespaceManager *namespaceManager, UA_UInt16 index, UA_Namespace **ns)
@@ -68,10 +69,10 @@ UA_Int32 UA_NamespaceManager_getNamespace(UA_NamespaceManager *namespaceManager,
     }
     if(!current) {
         *ns = UA_NULL;
-        return UA_ERROR;
+        return UA_STATUSCODE_BADNOTFOUND;
     }
     *ns = &current->namespace;
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_Int32 UA_NamespaceManager_setNodeStore(UA_NamespaceManager *namespaceManager,UA_UInt16 index, UA_NodeStore *nodeStore)
@@ -80,8 +81,8 @@ UA_Int32 UA_NamespaceManager_setNodeStore(UA_NamespaceManager *namespaceManager,
 	UA_NamespaceManager_getNamespace(namespaceManager,index,&namespace);
 	if(namespace == UA_NULL)
 	{
-		return UA_ERROR;
+		return UA_STATUSCODE_BADNOTFOUND;
 	}
 	namespace->nodeStore = nodeStore;
-	return UA_SUCCESS;
+	return UA_STATUSCODE_GOOD;
 }

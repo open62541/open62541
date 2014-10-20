@@ -29,11 +29,11 @@ static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node *
     UA_VariableAttributes attr;
     UA_UInt32 pos = 0;
     // todo return more informative error codes from decodeBinary
-    if(UA_VariableAttributes_decodeBinary(&attributes->body, &pos, &attr) != UA_SUCCESS)
+    if(UA_VariableAttributes_decodeBinary(&attributes->body, &pos, &attr) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
 
     UA_VariableNode *vnode;
-    if(UA_VariableNode_new(&vnode) != UA_SUCCESS) {
+    if(UA_VariableNode_new(&vnode) != UA_STATUSCODE_GOOD) {
         UA_VariableAttributes_deleteMembers(&attr);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -94,13 +94,13 @@ UA_AddNodesResult AddNode(UA_Server *server, UA_Session *session, UA_Node **node
     UA_AddNodesResult_init(&result);
 
     const UA_Node *parent;
-    if(UA_NodeStoreExample_get(server->nodestore, &parentNodeId->nodeId, &parent) != UA_SUCCESS) {
+    if(UA_NodeStoreExample_get(server->nodestore, &parentNodeId->nodeId, &parent) != UA_STATUSCODE_GOOD) {
         result.statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID;
         return result;
     }
 
     const UA_ReferenceTypeNode *referenceType;
-    if(UA_NodeStoreExample_get(server->nodestore, referenceTypeId, (const UA_Node**)&referenceType) != UA_SUCCESS) {
+    if(UA_NodeStoreExample_get(server->nodestore, referenceTypeId, (const UA_Node**)&referenceType) != UA_STATUSCODE_GOOD) {
         result.statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
         goto ret;
     }
@@ -119,24 +119,24 @@ UA_AddNodesResult AddNode(UA_Server *server, UA_Session *session, UA_Node **node
 
     if(UA_NodeId_isNull(&(*node)->nodeId)) {
         if(UA_NodeStoreExample_insert(server->nodestore, node,
-                               UA_NODESTORE_INSERT_UNIQUE | UA_NODESTORE_INSERT_GETMANAGED) != UA_SUCCESS) {
+                               UA_NODESTORE_INSERT_UNIQUE | UA_NODESTORE_INSERT_GETMANAGED) != UA_STATUSCODE_GOOD) {
             result.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
             goto ret2;
         }
         result.addedNodeId = (*node)->nodeId; // cannot fail as unique nodeids are numeric
     } else {
-        if(UA_NodeId_copy(&(*node)->nodeId, &result.addedNodeId) != UA_SUCCESS) {
+        if(UA_NodeId_copy(&(*node)->nodeId, &result.addedNodeId) != UA_STATUSCODE_GOOD) {
             result.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
             goto ret2;
         }
 
-        if(UA_NodeStoreExample_insert(server->nodestore, node, UA_NODESTORE_INSERT_GETMANAGED) != UA_SUCCESS) {
+        if(UA_NodeStoreExample_insert(server->nodestore, node, UA_NODESTORE_INSERT_GETMANAGED) != UA_STATUSCODE_GOOD) {
             result.statusCode = UA_STATUSCODE_BADNODEIDEXISTS;  // todo: differentiate out of memory
             UA_NodeId_deleteMembers(&result.addedNodeId);
             goto ret2;
         }
     }
-
+    
     UA_ReferenceNode ref;
     UA_ReferenceNode_init(&ref);
     ref.referenceTypeId = referenceType->nodeId; // is numeric
@@ -190,11 +190,11 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
     }
 
     if(UA_Array_new((void **)&response->results, request->nodesToAddSize, &UA_[UA_ADDNODESRESULT])
-       != UA_SUCCESS) {
+       != UA_STATUSCODE_GOOD) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-
+    
     response->resultsSize = request->nodesToAddSize;
     for(int i = 0;i < request->nodesToAddSize;i++)
         addNodeFromAttributes(server, session, &request->nodesToAdd[i], &response->results[i]);
@@ -212,7 +212,7 @@ static UA_Int32 AddSingleReference(UA_Node *node, UA_ReferenceNode *reference) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_memcpy(new_refs, old_refs, sizeof(UA_ReferenceNode)*count);
-    if(UA_ReferenceNode_copy(reference, &new_refs[count]) != UA_SUCCESS) {
+    if(UA_ReferenceNode_copy(reference, &new_refs[count]) != UA_STATUSCODE_GOOD) {
         UA_free(new_refs);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -220,19 +220,19 @@ static UA_Int32 AddSingleReference(UA_Node *node, UA_ReferenceNode *reference) {
     node->references     = new_refs;
     node->referencesSize = count+1;
     UA_free(old_refs);
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_Int32 AddReference(UA_NodeStoreExample *nodestore, UA_Node *node, UA_ReferenceNode *reference) {
     UA_Int32 retval = AddSingleReference(node, reference);
     UA_Node *targetnode;
     UA_ReferenceNode inversereference;
-    if(retval != UA_SUCCESS || nodestore == UA_NULL)
+    if(retval != UA_STATUSCODE_GOOD || nodestore == UA_NULL)
         return retval;
 
     // Do a copy every time?
-    if(UA_NodeStoreExample_get(nodestore, &reference->targetId.nodeId, (const UA_Node **)&targetnode) != UA_SUCCESS)
-        return UA_ERROR;
+    if(UA_NodeStoreExample_get(nodestore, &reference->targetId.nodeId, (const UA_Node **)&targetnode) != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     inversereference.referenceTypeId       = reference->referenceTypeId;
     inversereference.isInverse             = !reference->isInverse;

@@ -2,6 +2,7 @@
 #include "ua_server.h"
 #include "ua_session_manager.h"
 #include "ua_statuscodes.h"
+#include "ua_util.h"
 
 void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                            const UA_CreateSessionRequest *request,
@@ -52,7 +53,7 @@ void Service_CloseSession(UA_Server *server, const UA_CloseSessionRequest *reque
 	}
 
 
-	if(UA_SessionManager_removeSession(server->sessionManager, &foundSession->sessionId) == UA_SUCCESS){
+	if(UA_SessionManager_removeSession(server->sessionManager, &foundSession->sessionId) == UA_STATUSCODE_GOOD){
 		response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
 	}else{
 		//still not 100% sure about the return code

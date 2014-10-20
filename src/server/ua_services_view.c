@@ -8,55 +8,43 @@ UA_Int32 Service_Browse_getReferenceDescription(UA_NodeStoreExample *ns, UA_Refe
                                                 UA_UInt32 nodeClassMask, UA_UInt32 resultMask,
                                                 UA_ReferenceDescription *referenceDescription) {
     const UA_Node *foundNode;
-    if(UA_NodeStoreExample_get(ns, &reference->targetId.nodeId, &foundNode) != UA_SUCCESS)
-        return UA_ERROR;
+    if(UA_NodeStoreExample_get(ns, &reference->targetId.nodeId, &foundNode) != UA_STATUSCODE_GOOD)
+    	return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_NodeId_copy(&foundNode->nodeId, &referenceDescription->nodeId.nodeId);
     //TODO ExpandedNodeId is a mockup
     referenceDescription->nodeId.serverIndex = 0;
     referenceDescription->nodeId.namespaceUri.length = -1;
 
-    UA_UInt32 mask = 0;
-    for(mask = 0x01;mask <= 0x40;mask *= 2) {
-        switch(mask & (resultMask)) {
-        case UA_BROWSERESULTMASK_REFERENCETYPEID:
-            UA_NodeId_copy(&reference->referenceTypeId, &referenceDescription->referenceTypeId);
-            break;
-
-        case UA_BROWSERESULTMASK_ISFORWARD:
-            referenceDescription->isForward = !reference->isInverse;
-            break;
-
-        case UA_BROWSERESULTMASK_NODECLASS:
-            UA_NodeClass_copy(&foundNode->nodeClass, &referenceDescription->nodeClass);
-            break;
-
-        case UA_BROWSERESULTMASK_BROWSENAME:
-            UA_QualifiedName_copy(&foundNode->browseName, &referenceDescription->browseName);
-            break;
-
-        case UA_BROWSERESULTMASK_DISPLAYNAME:
-            UA_LocalizedText_copy(&foundNode->displayName, &referenceDescription->displayName);
-            break;
-
-        case UA_BROWSERESULTMASK_TYPEDEFINITION:
-            if(foundNode->nodeClass != UA_NODECLASS_OBJECT &&
-               foundNode->nodeClass != UA_NODECLASS_VARIABLE)
-                break;
-
-            for(UA_Int32 i = 0;i < foundNode->referencesSize;i++) {
-                UA_ReferenceNode *ref = &foundNode->references[i];
-                if(ref->referenceTypeId.identifier.numeric == 40 /* hastypedefinition */) {
-                    UA_ExpandedNodeId_copy(&ref->targetId, &referenceDescription->typeDefinition);
-                    break;
-                }
+    /* UA_UInt32 mask = 0; */
+    /* for(mask = 0x01;mask <= 0x40;mask *= 2) { */
+    /*     switch(mask & (resultMask)) { */
+    if(resultMask & UA_BROWSERESULTMASK_REFERENCETYPEID)
+        UA_NodeId_copy(&reference->referenceTypeId, &referenceDescription->referenceTypeId);
+    if(resultMask & UA_BROWSERESULTMASK_ISFORWARD)
+        referenceDescription->isForward = !reference->isInverse;
+    if(resultMask & UA_BROWSERESULTMASK_NODECLASS)
+        UA_NodeClass_copy(&foundNode->nodeClass, &referenceDescription->nodeClass);
+    if(resultMask & UA_BROWSERESULTMASK_BROWSENAME)
+        UA_QualifiedName_copy(&foundNode->browseName, &referenceDescription->browseName);
+    if(resultMask & UA_BROWSERESULTMASK_DISPLAYNAME)
+        UA_LocalizedText_copy(&foundNode->displayName, &referenceDescription->displayName);
+    if(resultMask & UA_BROWSERESULTMASK_TYPEDEFINITION) {
+        if(foundNode->nodeClass != UA_NODECLASS_OBJECT &&
+           foundNode->nodeClass != UA_NODECLASS_VARIABLE)
+            goto end;
+        
+        for(UA_Int32 i = 0;i < foundNode->referencesSize;i++) {
+            UA_ReferenceNode *ref = &foundNode->references[i];
+            if(ref->referenceTypeId.identifier.numeric == 40 /* hastypedefinition */) {
+                UA_ExpandedNodeId_copy(&ref->targetId, &referenceDescription->typeDefinition);
+                goto end;
             }
-            break;
         }
     }
-
+ end:
     UA_NodeStoreExample_releaseManagedNode(foundNode);
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
 /* singly-linked list */
@@ -80,8 +68,7 @@ static UA_UInt32 walkReferenceTree(UA_NodeStoreExample *ns, const UA_ReferenceTy
         if(current->references[i].referenceTypeId.identifier.numeric == 45 /* HasSubtype */ &&
            current->references[i].isInverse == UA_FALSE) {
             const UA_Node *node;
-
-            if(UA_NodeStoreExample_get(ns, &current->references[i].targetId.nodeId, &node) == UA_SUCCESS
+            if(UA_NodeStoreExample_get(ns, &current->references[i].targetId.nodeId, &node) == UA_STATUSCODE_GOOD
                && node->nodeClass == UA_NODECLASS_REFERENCETYPE) {
                 count += walkReferenceTree(ns, (UA_ReferenceTypeNode *)node, list);
                 UA_NodeStoreExample_releaseManagedNode(node);
@@ -101,9 +88,9 @@ static UA_Int32 findSubReferenceTypes(UA_NodeStoreExample *ns, UA_NodeId *rootRe
     // walk the tree
     const UA_ReferenceTypeNode *root;
 
-    if(UA_NodeStoreExample_get(ns, rootReferenceType, (const UA_Node **)&root) != UA_SUCCESS ||
+    if(UA_NodeStoreExample_get(ns, rootReferenceType, (const UA_Node **)&root) != UA_STATUSCODE_GOOD ||
        root->nodeClass != UA_NODECLASS_REFERENCETYPE)
-        return UA_ERROR;
+        return UA_STATUSCODE_BADINTERNALERROR;
     count = walkReferenceTree(ns, root, &list);
     UA_NodeStoreExample_releaseManagedNode((const UA_Node *)root);
 
@@ -117,7 +104,7 @@ static UA_Int32 findSubReferenceTypes(UA_NodeStoreExample *ns, UA_NodeId *rootRe
     }
     *idcount = count;
 
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
 /* is this a relevant reference? */
@@ -146,7 +133,7 @@ static void Service_Browse_getBrowseResult(UA_NodeStoreExample         *ns,
     const UA_Node *node;
     UA_NodeId     *relevantReferenceTypes = UA_NULL;
     UA_UInt32      relevantReferenceTypesCount = 0;
-    if(UA_NodeStoreExample_get(ns, &browseDescription->nodeId, &node) != UA_SUCCESS) {
+    if(UA_NodeStoreExample_get(ns, &browseDescription->nodeId, &node) != UA_STATUSCODE_GOOD) {
         browseResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
@@ -158,7 +145,7 @@ static void Service_Browse_getBrowseResult(UA_NodeStoreExample         *ns,
     // discover the relevant subtypes
     if(!browseDescription->includeSubtypes ||
        findSubReferenceTypes(ns, &browseDescription->referenceTypeId, &relevantReferenceTypes,
-                             &relevantReferenceTypesCount) != UA_SUCCESS) {
+                             &relevantReferenceTypesCount) != UA_STATUSCODE_GOOD) {
         if(!(relevantReferenceTypes = UA_alloc(sizeof(UA_NodeId)))) {
             return;
         }
@@ -194,8 +181,7 @@ static void Service_Browse_getBrowseResult(UA_NodeStoreExample         *ns,
             continue;
 
         if(Service_Browse_getReferenceDescription(ns, &node->references[i], browseDescription->nodeClassMask,
-                                                  browseDescription->resultMask,
-                                                  &browseResult->references[j]) != UA_SUCCESS)
+                                                  browseDescription->resultMask, &browseResult->references[j]) != UA_STATUSCODE_GOOD)
             browseResult->statusCode = UA_STATUSCODE_UNCERTAINNOTALLNODESAVAILABLE;
         j++;
     }
@@ -218,22 +204,15 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     }
 
     if(UA_Array_new((void **)&(response->results), request->nodesToBrowseSize, &UA_[UA_BROWSERESULT])
-       != UA_SUCCESS) {
+       != UA_STATUSCODE_GOOD) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
 
     response->resultsSize = request->nodesToBrowseSize;
-
-
-
-
-
-    for(UA_Int32 i = 0;i < request->nodesToBrowseSize;i++){
+    for(UA_Int32 i = 0;i < request->nodesToBrowseSize;i++)
         Service_Browse_getBrowseResult(server->nodestore, &request->nodesToBrowse[i],
                                        request->requestedMaxReferencesPerNode, &response->results[i]);
-    }
-
 }
 
 
@@ -251,7 +230,7 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
     response->resultsSize = request->browsePathsSize;
     // _init of the elements is done in Array_new
     if(UA_Array_new((void **)&response->results, request->browsePathsSize, &UA_[UA_BROWSEPATHRESULT])
-       != UA_SUCCESS) {
+       != UA_STATUSCODE_GOOD) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }

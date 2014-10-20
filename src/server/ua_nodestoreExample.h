@@ -22,10 +22,10 @@
  */
 
 /** @brief Create a new namespace */
-UA_Int32 UA_NodeStoreExample_new(UA_NodeStoreExample **result);
+UA_StatusCode UA_NodeStoreExample_new(UA_NodeStoreExample **result);
 
 /** @brief Delete the namespace and all nodes in it */
-UA_Int32 UA_NodeStoreExample_delete(UA_NodeStoreExample *ns);
+void UA_NodeStoreExample_delete(UA_NodeStoreExample *ns);
 
 #define UA_NODESTORE_INSERT_UNIQUE 1
 #define UA_NODESTORE_INSERT_GETMANAGED 2
@@ -34,16 +34,16 @@ UA_Int32 UA_NodeStoreExample_delete(UA_NodeStoreExample *ns);
     With the UNIQUE flag, the node is only inserted if the nodeid does not
     already exist. With the GETMANAGED flag, the node pointer is replaced with
     the managed pointer. Otherwise, it is set to UA_NULL. */
-UA_Int32 UA_NodeStoreExample_insert(UA_NodeStoreExample *ns, UA_Node **node, UA_Byte flags);
+UA_StatusCode UA_NodeStoreExample_insert(UA_NodeStoreExample *ns, UA_Node **node, UA_Byte flags);
 
 /** @brief Remove a node from the namespace. Always succeeds, even if the node
     was not found. */
-UA_Int32 UA_NodeStoreExample_remove(UA_NodeStoreExample *ns, const UA_NodeId *nodeid);
+UA_StatusCode UA_NodeStoreExample_remove(UA_NodeStoreExample *ns, const UA_NodeId *nodeid);
 
 /** @brief Retrieve a node (read-only) from the namespace. Nodes are immutable.
     They can only be replaced. After the Node is no longer used, the locked
     entry needs to be released. */
-UA_Int32 UA_NodeStoreExample_get(const UA_NodeStoreExample *ns, const UA_NodeId *nodeid,
+UA_StatusCode UA_NodeStoreExample_get(const UA_NodeStoreExample *ns, const UA_NodeId *nodeid,
                           const UA_Node **managedNode);
 
 /** @brief Release a managed node. Do never insert a node that isn't stored in a
@@ -55,7 +55,7 @@ void UA_NodeStoreExample_releaseManagedNode(const UA_Node *managed);
 typedef void (*UA_NodeStore_nodeVisitor)(const UA_Node *node);
 
 /** @brief Iterate over all nodes in a namespace. */
-UA_Int32 UA_NodeStoreExample_iterate(const UA_NodeStoreExample *ns, UA_NodeStore_nodeVisitor visitor);
+void UA_NodeStoreExample_iterate(const UA_NodeStoreExample *ns, UA_NodeStore_nodeVisitor visitor);
 
 /// @} /* end of group */
 

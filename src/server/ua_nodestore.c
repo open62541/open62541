@@ -4,68 +4,68 @@
 
 
 
-UA_Int32 UA_NodeStore_registerAddNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_addNodes addNodes)
+UA_StatusCode UA_NodeStore_registerAddNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_addNodes addNodes)
 {
 	if(nodeStore==UA_NULL){
-		return UA_ERROR;
+		return UA_STATUSCODE_BADNOTFOUND;
 	}
 	nodeStore->addNodes = addNodes;
-	return UA_SUCCESS;
+	return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_NodeStore_registerAddReferencesOperation(UA_NodeStore *nodeStore, UA_NodeStore_addReferences addReferences)
+UA_StatusCode UA_NodeStore_registerAddReferencesOperation(UA_NodeStore *nodeStore, UA_NodeStore_addReferences addReferences)
 {
 	if(nodeStore==UA_NULL){
-		return UA_ERROR;
+		return UA_STATUSCODE_BADNOTFOUND;
 	}
 	nodeStore->addReferences = addReferences;
-	return UA_SUCCESS;
+	return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_NodeStore_registerDeleteNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_deleteNodes deleteNodes)
+UA_StatusCode UA_NodeStore_registerDeleteNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_deleteNodes deleteNodes)
 {
 	if(nodeStore==UA_NULL){
-		return UA_ERROR;
+		return UA_STATUSCODE_BADNOTFOUND;
 	}
 	nodeStore->deleteNodes = deleteNodes;
-	return UA_SUCCESS;
+	return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_NodeStore_registerDeleteReferencesOperation(UA_NodeStore *nodeStore, UA_NodeStore_deleteReferences deleteReferences)
+UA_StatusCode UA_NodeStore_registerDeleteReferencesOperation(UA_NodeStore *nodeStore, UA_NodeStore_deleteReferences deleteReferences)
 {
 	if(nodeStore==UA_NULL){
-		return UA_ERROR;
+		return UA_STATUSCODE_BADNOTFOUND;
 	}
 	nodeStore->deleteReferences = deleteReferences;
-	return UA_SUCCESS;
+	return UA_STATUSCODE_GOOD;
 }
 
 
-UA_Int32 UA_NodeStore_registerReadNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_readNodes readNodes)
+UA_StatusCode UA_NodeStore_registerReadNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_readNodes readNodes)
 {
 	if(nodeStore==UA_NULL){
-		return UA_ERROR;
+		return UA_STATUSCODE_BADNOTFOUND;
 	}
 	nodeStore->readNodes = readNodes;
-	return UA_SUCCESS;
+	return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_NodeStore_registerWriteNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_writeNodes writeNodes)
+UA_StatusCode UA_NodeStore_registerWriteNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_writeNodes writeNodes)
 {
 	if(nodeStore==UA_NULL){
-		return UA_ERROR;
+		return UA_STATUSCODE_BADNOTFOUND;
 	}
 	nodeStore->writeNodes = writeNodes;
-	return UA_SUCCESS;
+	return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_NodeStore_registerBrowseNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_browseNodes browseNodes)
+UA_StatusCode UA_NodeStore_registerBrowseNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_browseNodes browseNodes)
 {
 	if(nodeStore==UA_NULL){
-		return UA_ERROR;
+		return UA_STATUSCODE_BADNOTFOUND;
 	}
 	nodeStore->browseNodes = browseNodes;
-	return UA_SUCCESS;
+	return UA_STATUSCODE_GOOD;
 }
 /*
 UA_Boolean UA_NodeStore_nodeExists(UA_NodeStore* nodestore, const UA_NodeId *nodeId)

@@ -41,23 +41,20 @@ UA_Session adminSession = {
     .validTill = UA_INT64_MAX,
     .channel = UA_NULL};
 
-UA_Int32 UA_Session_new(UA_Session **session) {
+UA_StatusCode UA_Session_new(UA_Session **session) {
     if(!(*session = UA_alloc(sizeof(UA_Session))))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_Session_init(*session);
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
 /* mock up function to generate tokens for authentication */
-UA_Int32 UA_Session_generateToken(UA_NodeId *newToken) {
+UA_StatusCode UA_Session_generateToken(UA_NodeId *newToken) {
     //Random token generation
-    UA_Int32 retval = UA_SUCCESS;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     srand(time(NULL));
 
-    UA_Int32 i = 0;
-    UA_Int32 r = 0;
-    //retval |= UA_NodeId_new(newToken);
-
+    UA_Int32 i, r = 0;
     newToken->namespaceIndex = 0; // where else?
     newToken->identifierType = UA_NODEIDTYPE_GUID;
     newToken->identifier.guid.data1 = rand();
@@ -108,18 +105,18 @@ UA_Boolean UA_Session_compare(UA_Session *session1, UA_Session *session2) {
     return UA_FALSE;
 }
 
-UA_Int32 UA_Session_setExpirationDate(UA_Session *session) {
+UA_StatusCode UA_Session_setExpirationDate(UA_Session *session) {
     if(!session)
-        return UA_ERROR;
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     session->validTill = UA_DateTime_now() + session->timeout * 100000; //timeout in ms
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_Session_getPendingLifetime(UA_Session *session, UA_Double *pendingLifetime_ms) {
+UA_StatusCode UA_Session_getPendingLifetime(UA_Session *session, UA_Double *pendingLifetime_ms) {
     if(!session)
-        return UA_ERROR;
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     *pendingLifetime_ms = (session->validTill - UA_DateTime_now())/10000000; //difference in ms
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }

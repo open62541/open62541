@@ -24,10 +24,9 @@ typedef struct NetworklayerTCP NetworklayerTCP;
 #define BINARYCONNECTION_MAX_CHUNK_COUNT 1
 #define BINARYCONNECTION_MAX_MESSAGE_SIZE 8192
 
-UA_Int32 NetworklayerTCP_new(NetworklayerTCP **newlayer, UA_ConnectionConfig localConf,
-							 UA_UInt32 port);
+UA_StatusCode NetworklayerTCP_new(NetworklayerTCP **newlayer, UA_ConnectionConfig localConf, UA_UInt32 port);
 void NetworklayerTCP_delete(NetworklayerTCP *layer);
-UA_Int32 NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, struct timeval tv,
-							   void(*worker)(UA_Server*), UA_Boolean *running);
+UA_StatusCode NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, struct timeval tv,
+                                  void(*worker)(UA_Server*), UA_Boolean *running);
 
 #endif /* NETWORKLAYERTCP_H_ */
