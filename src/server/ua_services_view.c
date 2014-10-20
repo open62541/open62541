@@ -222,11 +222,18 @@ void Service_Browse(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-        
+
     response->resultsSize = request->nodesToBrowseSize;
-    for(UA_Int32 i = 0;i < request->nodesToBrowseSize;i++)
+
+
+
+
+
+    for(UA_Int32 i = 0;i < request->nodesToBrowseSize;i++){
         Service_Browse_getBrowseResult(server->nodestore, &request->nodesToBrowse[i],
                                        request->requestedMaxReferencesPerNode, &response->results[i]);
+    }
+
 }
 
 
