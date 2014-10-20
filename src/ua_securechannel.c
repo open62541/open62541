@@ -31,30 +31,26 @@ UA_Boolean UA_SecureChannel_compare(UA_SecureChannel *sc1, UA_SecureChannel *sc2
 }
 
 //TODO implement real nonce generator - DUMMY function
-UA_Int32 UA_SecureChannel_generateNonce(UA_ByteString *nonce) {
+UA_StatusCode UA_SecureChannel_generateNonce(UA_ByteString *nonce) {
     if(!(nonce->data = UA_alloc(1)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     nonce->length  = 1;
     nonce->data[0] = 'a';
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_SecureChannel_updateRequestId(UA_SecureChannel *channel, UA_UInt32 requestId) {
+UA_StatusCode UA_SecureChannel_updateRequestId(UA_SecureChannel *channel, UA_UInt32 requestId) {
     //TODO review checking of request id
-    if(channel->requestId+1  == requestId) {
-        channel->requestId++;
-        return UA_SUCCESS;
-    }
-    return UA_ERROR;
+    if(channel->requestId+1 != requestId)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    channel->requestId++;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_SecureChannel_updateSequenceNumber(UA_SecureChannel *channel,
-                                               UA_UInt32         sequenceNumber) {
+UA_Int32 UA_SecureChannel_updateSequenceNumber(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
     //TODO review checking of sequence
-    if(channel->sequenceNumber+1  == sequenceNumber) {
-        channel->sequenceNumber++;
-        return UA_SUCCESS;
-    }
-    return UA_ERROR;
-
+    if(channel->sequenceNumber+1  != sequenceNumber)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    channel->sequenceNumber++;
+    return UA_STATUSCODE_GOOD;
 }

@@ -22,9 +22,8 @@ struct UA_SessionManager {
     UA_DateTime  sessionTimeout;
 };
 
-UA_Int32 UA_SessionManager_new(UA_SessionManager **sessionManager, UA_UInt32 maxSessionCount,
-                               UA_UInt32 sessionTimeout, UA_UInt32 startSessionId) {
-    UA_Int32 retval = UA_SUCCESS;
+UA_StatusCode UA_SessionManager_new(UA_SessionManager **sessionManager, UA_UInt32 maxSessionCount,
+                                    UA_UInt32 sessionTimeout, UA_UInt32 startSessionId) {
     if(!(*sessionManager = UA_alloc(sizeof(UA_SessionManager))))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     LIST_INIT(&(*sessionManager)->sessions);
@@ -32,10 +31,10 @@ UA_Int32 UA_SessionManager_new(UA_SessionManager **sessionManager, UA_UInt32 max
     (*sessionManager)->lastSessionId   = startSessionId;
     (*sessionManager)->sessionTimeout  = sessionTimeout;
     (*sessionManager)->currentSessionCount = 0;
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_SessionManager_delete(UA_SessionManager *sessionManager) {
+void UA_SessionManager_delete(UA_SessionManager *sessionManager) {
     struct session_list_entry *current = LIST_FIRST(&sessionManager->sessions);
     while(current) {
         LIST_REMOVE(current, pointers);
@@ -46,13 +45,12 @@ UA_Int32 UA_SessionManager_delete(UA_SessionManager *sessionManager) {
         current = LIST_FIRST(&sessionManager->sessions);
     }
     UA_free(sessionManager);
-    return UA_SUCCESS;
 }
 
-UA_Int32 UA_SessionManager_getSessionById(UA_SessionManager *sessionManager, UA_NodeId *sessionId, UA_Session **session) {
+UA_StatusCode UA_SessionManager_getSessionById(UA_SessionManager *sessionManager, UA_NodeId *sessionId, UA_Session **session) {
     if(sessionManager == UA_NULL) {
         *session = UA_NULL;
-        return UA_ERROR;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     struct session_list_entry *current = UA_NULL;
@@ -63,19 +61,19 @@ UA_Int32 UA_SessionManager_getSessionById(UA_SessionManager *sessionManager, UA_
 
     if(!current) {
         *session = UA_NULL;
-        return UA_ERROR;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     // Lifetime handling is not done here, but in a regular cleanup by the
     // server. If the session still exists, then it is valid.
     *session = &current->session;
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_SessionManager_getSessionByToken(UA_SessionManager *sessionManager, UA_NodeId *token, UA_Session **session) {
+UA_StatusCode UA_SessionManager_getSessionByToken(UA_SessionManager *sessionManager, UA_NodeId *token, UA_Session **session) {
     if(sessionManager == UA_NULL) {
         *session = UA_NULL;
-        return UA_ERROR;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     struct session_list_entry *current = UA_NULL;
@@ -86,13 +84,13 @@ UA_Int32 UA_SessionManager_getSessionByToken(UA_SessionManager *sessionManager, 
 
     if(!current) {
         *session = UA_NULL;
-        return UA_ERROR;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     // Lifetime handling is not done here, but in a regular cleanup by the
     // server. If the session still exists, then it is valid.
     *session = &current->session;
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
 /** Creates and adds a session. */
@@ -121,7 +119,7 @@ UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_SessionManager_removeSession(UA_SessionManager *sessionManager, UA_NodeId  *sessionId) {
+UA_StatusCode UA_SessionManager_removeSession(UA_SessionManager *sessionManager, UA_NodeId  *sessionId) {
     struct session_list_entry *current = UA_NULL;
     LIST_FOREACH(current, &sessionManager->sessions, pointers) {
         if(UA_NodeId_equal(&current->session.sessionId, sessionId) == UA_EQUAL)
@@ -129,12 +127,12 @@ UA_Int32 UA_SessionManager_removeSession(UA_SessionManager *sessionManager, UA_N
     }
 
     if(!current)
-        return UA_ERROR;
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     LIST_REMOVE(current, pointers);
     if(current->session.channel)
         current->session.channel->session = UA_NULL; // the channel is no longer attached to a session
     UA_Session_deleteMembers(&current->session);
     UA_free(current);
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }

@@ -6,18 +6,18 @@
 #include "ua_session_manager.h"
 #include "ua_util.h"
 
-static UA_Int32 UA_ByteStringArray_deleteMembers(UA_ByteStringArray *stringarray) {
+static UA_StatusCode UA_ByteStringArray_deleteMembers(UA_ByteStringArray *stringarray) {
     if(!stringarray)
-        return UA_ERROR;
+        return UA_STATUSCODE_BADINTERNALERROR;
     for(UA_UInt32 i = 0;i < stringarray->stringsSize;i++)
         UA_String_deleteMembers(&stringarray->strings[i]);
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
 static void processHello(UA_Connection *connection, const UA_ByteString *msg,
                          UA_UInt32 *pos) {
     UA_TcpHelloMessage helloMessage;
-    if(UA_TcpHelloMessage_decodeBinary(msg, pos, &helloMessage) != UA_SUCCESS) {
+    if(UA_TcpHelloMessage_decodeBinary(msg, pos, &helloMessage) != UA_STATUSCODE_GOOD) {
         connection->close(connection->callbackHandle);
         return;
     }
@@ -126,7 +126,7 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
 }
 
 #define CHECK_PROCESS(CODE, CLEANUP) \
-    do { if(CODE != UA_SUCCESS) {    \
+    do { if(CODE != UA_STATUSCODE_GOOD) {    \
             CLEANUP;                 \
             return;                  \
         } } while(0)
@@ -246,7 +246,6 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     }
     break;
 
-
     case UA_READREQUEST_NS0:
         INVOKE_SERVICE(Read);
         break;
@@ -342,15 +341,15 @@ static void processClose(UA_Connection *connection, UA_Server *server, const UA_
 	Service_CloseSecureChannel(server, secureChannelId);
 }
 
-UA_Int32 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg) {
-    UA_Int32  retval = UA_SUCCESS;
+void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg) {
+    UA_Int32  retval = UA_STATUSCODE_GOOD;
     UA_UInt32 pos    = 0;
     UA_TcpMessageHeader tcpMessageHeader;
     // todo: test how far pos advanced must be equal to what is said in the messageheader
     do {
         retval = UA_TcpMessageHeader_decodeBinary(msg, &pos, &tcpMessageHeader);
         UA_UInt32 targetpos = pos - 8 + tcpMessageHeader.messageSize;
-        if(retval == UA_SUCCESS) {
+        if(retval == UA_STATUSCODE_GOOD) {
             // none of the process-functions returns an error its all contained inside.
             switch(tcpMessageHeader.messageType) {
             case UA_MESSAGETYPE_HEL:
@@ -374,7 +373,7 @@ UA_Int32 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connec
                 connection->state = UA_CONNECTION_CLOSING;
                 processClose(connection, server, msg, &pos);
                 connection->close(connection->callbackHandle);
-                return retval;
+                return;
             }
             UA_TcpMessageHeader_deleteMembers(&tcpMessageHeader);
         } else {
@@ -389,5 +388,4 @@ UA_Int32 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connec
             pos = targetpos;
         }
     } while(msg->length > (UA_Int32)pos);
-    return retval;
 }

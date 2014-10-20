@@ -160,8 +160,7 @@ def createStructured(element):
         printh("UA_TYPE_XML_ENCODING(" + name + ")\n")
 
     # 4) CalcSizeBinary
-    printc('''UA_Int32 %(name)s_calcSizeBinary(%(name)s const * ptr) {
-    if(!ptr) return 0;
+    printc('''UA_UInt32 %(name)s_calcSizeBinary(%(name)s const * ptr) {
     return 0''')
     has_fixed_size = True
     for n,t in membermap.iteritems():
@@ -179,29 +178,28 @@ def createStructured(element):
         fixed_size.add(name)
 
     # 5) EncodeBinary
-    printc('''UA_Int32 %(name)s_encodeBinary(%(name)s const * src, UA_ByteString* dst, UA_UInt32 *offset) {
-    UA_Int32 retval = UA_SUCCESS;''')
+    printc('''UA_StatusCode %(name)s_encodeBinary(%(name)s const * src, UA_ByteString* dst, UA_UInt32 *offset) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;''')
     for n,t in membermap.iteritems():
         if t.find("*") != -1:
-            printc("\tretval |= UA_Array_encodeBinary(src->%(n)s,src->%(n)sSize,&UA_[" +
-                   t[0:t.find("*")].upper() + "],dst,offset);")
+            printc("\tretval |= UA_Array_encodeBinary(src->%(n)s,src->%(n)sSize,&UA_[" + t[0:t.find("*")].upper() + "],dst,offset);")
         else:
             printc('\tretval |= %(t)s_encodeBinary(&src->%(n)s,dst,offset);')
     printc("\treturn retval;\n}\n")
 
     # 6) DecodeBinary
-    printc('''UA_Int32 %(name)s_decodeBinary(UA_ByteString const * src, UA_UInt32 *offset, %(name)s * dst) {
-    UA_Int32 retval = UA_SUCCESS;''')
+    printc('''UA_StatusCode %(name)s_decodeBinary(UA_ByteString const * src, UA_UInt32 *offset, %(name)s * dst) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    %(name)s_init(dst);''')
     printc('\t'+name+'_init(dst);')
     for n,t in membermap.iteritems():
         if t.find("*") != -1:
             printc('\tretval |= UA_Int32_decodeBinary(src,offset,&dst->%(n)sSize);')
-            printc('\tretval |= UA_Array_decodeBinary(src,offset,dst->%(n)sSize,&UA_[' +
-                   t[0:t.find("*")].upper() + '],(void**)&dst->%(n)s);')
-            printc('\tif(retval != UA_SUCCESS) { dst->%(n)sSize = -1; %(name)s_deleteMembers(dst); return retval;}') # arrays clean up internally. But the size needs to be set here for the eventual deleteMembers.
+            printc('\tif(!retval) { retval |= UA_Array_decodeBinary(src,offset,dst->%(n)sSize,&UA_[' + t[0:t.find("*")].upper() + '],(void**)&dst->%(n)s); }')
+            printc('\tif(retval) { dst->%(n)sSize = -1; }') # arrays clean up internally. But the size needs to be set here for the eventual deleteMembers.
         else:
             printc('\tretval |= %(t)s_decodeBinary(src,offset,&dst->%(n)s);')
-    printc("\tif(retval != UA_SUCCESS) %(name)s_deleteMembers(dst);")
+    printc("\tif(retval) %(name)s_deleteMembers(dst);")
     printc("\treturn retval;\n}\n")
 
     # 7) Xml
@@ -220,11 +218,10 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
     for n,t in membermap.iteritems():
         if not t in fixed_size: # dynamic size on the wire
             if t.find("*") != -1:
-		printc("\tUA_Array_delete((void*)p->%(n)s,p->%(n)sSize,&UA_[" +
-                       t[0:t.find("*")].upper()+"]);")
+		printc("\tUA_Array_delete((void*)p->%(n)s,p->%(n)sSize,&UA_["+t[0:t.find("*")].upper()+"]);")
             else:
 		printc('\t%(t)s_deleteMembers(&p->%(n)s);')
-    printc("\n}\n")
+    printc("}\n")
 
     # 10) Init
     printc('''void %(name)s_init(%(name)s *p) {
@@ -235,15 +232,14 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
             printc('\tp->%(n)s = UA_NULL;')
         else:
             printc('\t%(t)s_init(&p->%(n)s);')
-    printc("\n}\n")
+    printc("}\n")
 
     # 11) New
     printc("UA_TYPE_NEW_DEFAULT(%(name)s)")
 
     # 12) Copy
-    printc('''UA_Int32 %(name)s_copy(const %(name)s *src,%(name)s *dst) {
-	UA_Int32 retval = UA_SUCCESS;
-    if(src == UA_NULL || dst == UA_NULL) return UA_ERROR;''')
+    printc('''UA_StatusCode %(name)s_copy(const %(name)s *src,%(name)s *dst) {
+	UA_StatusCode retval = UA_STATUSCODE_GOOD;''')
     printc("\t%(name)s_init(dst);")
     for n,t in membermap.iteritems():
         if t.find("*") != -1:
@@ -254,8 +250,8 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
             printc('\tretval |= %(t)s_copy(&src->%(n)s,&dst->%(n)s);')
             continue
         printc("\tdst->%(n)s = src->%(n)s;")
-    printc('''if(retval != UA_SUCCESS)
-    %(name)s_deleteMembers(dst);''')
+    printc('''\tif(retval)
+    \t%(name)s_deleteMembers(dst);''')
     printc("\treturn retval;\n}\n")
 
     # 13) Print

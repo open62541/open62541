@@ -64,9 +64,9 @@ typedef struct UA_Connection {
     UA_Connection_closeCallback close;
 } UA_Connection;
 
-UA_Int32 UA_EXPORT UA_Connection_init(UA_Connection *connection, UA_ConnectionConfig localConf, void *callbackHandle,
+UA_StatusCode UA_EXPORT UA_Connection_init(UA_Connection *connection, UA_ConnectionConfig localConf, void *callbackHandle,
                                          UA_Connection_closeCallback close, UA_Connection_writeCallback write);
-UA_Int32 UA_EXPORT UA_Connection_deleteMembers(UA_Connection *connection);
+void UA_EXPORT UA_Connection_deleteMembers(UA_Connection *connection);
 
 // todo: closing a binaryconnection that was closed on the network level
 

@@ -19,9 +19,9 @@ struct UA_SecureChannelManager {
     UA_UInt32   lastTokenId;
 };
 
-UA_Int32 UA_SecureChannelManager_new(UA_SecureChannelManager **cm, UA_UInt32 maxChannelCount,
-                                     UA_UInt32 tokenLifetime, UA_UInt32 startChannelId,
-                                     UA_UInt32 startTokenId, UA_String *endpointUrl) {
+UA_StatusCode UA_SecureChannelManager_new(UA_SecureChannelManager **cm, UA_UInt32 maxChannelCount,
+                                          UA_UInt32 tokenLifetime, UA_UInt32 startChannelId,
+                                          UA_UInt32 startTokenId, UA_String *endpointUrl) {
     if(!(*cm = UA_alloc(sizeof(UA_SecureChannelManager))))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_SecureChannelManager *channelManager = *cm;
@@ -31,10 +31,10 @@ UA_Int32 UA_SecureChannelManager_new(UA_SecureChannelManager **cm, UA_UInt32 max
     UA_String_copy(endpointUrl, &channelManager->endpointUrl);
     channelManager->maxChannelLifetime = tokenLifetime;
     channelManager->maxChannelCount    = maxChannelCount;
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_SecureChannelManager_delete(UA_SecureChannelManager *cm) {
+void UA_SecureChannelManager_delete(UA_SecureChannelManager *cm) {
     struct channel_list_entry *entry = LIST_FIRST(&cm->channels);
     while(entry) {
         LIST_REMOVE(entry, pointers);
@@ -48,13 +48,12 @@ UA_Int32 UA_SecureChannelManager_delete(UA_SecureChannelManager *cm) {
     }
     UA_String_deleteMembers(&cm->endpointUrl);
     UA_free(cm);
-    return UA_SUCCESS;
 }
 
-UA_Int32 UA_SecureChannelManager_open(UA_SecureChannelManager           *cm,
-                                      UA_Connection                     *conn,
-                                      const UA_OpenSecureChannelRequest *request,
-                                      UA_OpenSecureChannelResponse      *response) {
+UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager           *cm,
+                                           UA_Connection                     *conn,
+                                           const UA_OpenSecureChannelRequest *request,
+                                           UA_OpenSecureChannelResponse      *response) {
     struct channel_list_entry *entry = UA_alloc(sizeof(struct channel_list_entry));
     UA_SecureChannel_init(&entry->channel);
 
@@ -92,17 +91,17 @@ UA_Int32 UA_SecureChannelManager_open(UA_SecureChannelManager           *cm,
 
     conn->channel = &entry->channel;
 
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_SecureChannelManager_renew(UA_SecureChannelManager           *cm,
-                                       UA_Connection                     *conn,
-                                       const UA_OpenSecureChannelRequest *request,
-                                       UA_OpenSecureChannelResponse      *response) {
+UA_StatusCode UA_SecureChannelManager_renew(UA_SecureChannelManager           *cm,
+                                            UA_Connection                     *conn,
+                                            const UA_OpenSecureChannelRequest *request,
+                                            UA_OpenSecureChannelResponse      *response) {
 
     UA_SecureChannel *channel = conn->channel;
     if(channel == UA_NULL)
-        return UA_ERROR;
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     channel->securityToken.tokenId         = cm->lastTokenId++;
     channel->securityToken.createdAt       = UA_DateTime_now(); // todo: is wanted?
@@ -113,23 +112,23 @@ UA_Int32 UA_SecureChannelManager_renew(UA_SecureChannelManager           *cm,
     UA_ByteString_copy(&channel->serverNonce, &response->serverNonce);
     UA_ChannelSecurityToken_copy(&channel->securityToken, &response->securityToken);
 
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_UInt32 channelId,
-                                     UA_SecureChannel **channel) {
+UA_StatusCode UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_UInt32 channelId,
+                                          UA_SecureChannel **channel) {
     struct channel_list_entry *entry;
     LIST_FOREACH(entry, &cm->channels, pointers) {
         if(entry->channel.securityToken.channelId == channelId) {
             *channel = &entry->channel;
-            return UA_SUCCESS;
+            return UA_STATUSCODE_GOOD;
         }
     }
     *channel = UA_NULL;
-    return UA_ERROR;
+    return UA_STATUSCODE_BADINTERNALERROR;
 }
 
-UA_Int32 UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
+UA_StatusCode UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
     //TODO lock access
     // TODO: close the binaryconnection if it is still open. So we dö not have stray pointers..
     struct channel_list_entry *entry;
@@ -138,9 +137,9 @@ UA_Int32 UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 ch
             UA_SecureChannel_deleteMembers(&entry->channel);
             LIST_REMOVE(entry, pointers);
             UA_free(entry);
-            return UA_SUCCESS;
+            return UA_STATUSCODE_GOOD;
         }
     }
     //TODO notify server application that secureChannel has been closed part 6 - §7.1.4
-    return UA_ERROR;
+    return UA_STATUSCODE_BADINTERNALERROR;
 }

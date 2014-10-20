@@ -162,9 +162,10 @@ static INLINE void clear_entry(UA_NodeStore *ns, const UA_Node **entry) {
     ns->count--;
 }
 
-/* Returns UA_SUCCESS if an entry was found. Otherwise, UA_ERROR is returned and the "entry"
-   argument points to the first free entry under the NodeId. */
-static INLINE UA_Int32 find_entry(const UA_NodeStore *ns, const UA_NodeId *nodeid, const UA_Node ***entry) {
+/* Returns UA_STATUSCODE_GOOD if an entry was found. Otherwise, An error code is
+   returned and the "entry" argument points to the first free entry under the
+   NodeId. */
+static INLINE UA_StatusCode find_entry(const UA_NodeStore *ns, const UA_NodeId *nodeid, const UA_Node ***entry) {
     hash_t          h     = hash(nodeid);
     UA_UInt32       size  = ns->size;
     hash_t          index = mod(h, size);
@@ -172,12 +173,12 @@ static INLINE UA_Int32 find_entry(const UA_NodeStore *ns, const UA_NodeId *nodei
 
     if(*e == UA_NULL) {
         *entry = e;
-        return UA_ERROR;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     if(UA_NodeId_equal(&(*e)->nodeId, nodeid) == UA_EQUAL) {
         *entry = e;
-        return UA_SUCCESS;
+        return UA_STATUSCODE_GOOD;
     }
 
     hash_t hash2 = mod2(h, size);
@@ -190,27 +191,26 @@ static INLINE UA_Int32 find_entry(const UA_NodeStore *ns, const UA_NodeId *nodei
 
         if(*e == UA_NULL) {
             *entry = e;
-            return UA_ERROR;
+            return UA_STATUSCODE_BADINTERNALERROR;
         }
 
         if(UA_NodeId_equal(&(*e)->nodeId, nodeid) == UA_EQUAL) {
             *entry = e;
-            return UA_SUCCESS;
+            return UA_STATUSCODE_GOOD;
         }
     }
 
     /* NOTREACHED */
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
 /* The following function changes size of memory allocated for the entries and
    repeatedly inserts the table elements. The occupancy of the table after the
-   call will be about 50%. If memory allocation failures occur, this function
-   will return UA_ERROR. */
-static UA_Int32 expand(UA_NodeStore *ns) {
+   call will be about 50%. */
+static UA_StatusCode expand(UA_NodeStore *ns) {
     const UA_Node **nentries;
     int32_t nsize;
-    UA_UInt32       nindex;
+    UA_UInt32 nindex;
 
     const UA_Node **oentries = ns->entries;
     int32_t osize = ns->size;
@@ -219,7 +219,7 @@ static UA_Int32 expand(UA_NodeStore *ns) {
 
     /* Resize only when table after removal of unused elements is either too full or too empty.  */
     if(count * 2 < osize && (count * 8 > osize || osize <= 32))
-        return UA_SUCCESS;
+        return UA_STATUSCODE_GOOD;
 
     nindex = higher_prime_index(count * 2);
     nsize  = primes[nindex];
@@ -243,14 +243,14 @@ static UA_Int32 expand(UA_NodeStore *ns) {
     } while(p < olimit);
 
     UA_free(oentries);
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
 /**********************/
 /* Exported functions */
 /**********************/
 
-UA_Int32 UA_NodeStore_new(UA_NodeStore **result) {
+UA_StatusCode UA_NodeStore_new(UA_NodeStore **result) {
     UA_NodeStore *ns;
     UA_UInt32     sizePrimeIndex, size;
     if(!(ns = UA_alloc(sizeof(UA_NodeStore))))
@@ -268,10 +268,10 @@ UA_Int32 UA_NodeStore_new(UA_NodeStore **result) {
 
     *ns     = (UA_NodeStore) {ns->entries, size, 0, sizePrimeIndex };
     *result = ns;
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_NodeStore_delete(UA_NodeStore *ns) {
+void UA_NodeStore_delete(UA_NodeStore *ns) {
     UA_UInt32       size    = ns->size;
     const UA_Node **entries = ns->entries;
 
@@ -280,28 +280,24 @@ UA_Int32 UA_NodeStore_delete(UA_NodeStore *ns) {
 
     UA_free(ns->entries);
     UA_free(ns);
-    return UA_SUCCESS;
 }
 
-UA_Int32 UA_NodeStore_insert(UA_NodeStore *ns, UA_Node **node, UA_Byte flags) {
-    if(ns == UA_NULL || node == UA_NULL || *node == UA_NULL)
-        return UA_ERROR;
-
+UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node **node, UA_Byte flags) {
     if(ns->size * 3 <= ns->count * 4) {
-        if(expand(ns) != UA_SUCCESS)
-            return UA_ERROR;
+        if(expand(ns) != UA_STATUSCODE_GOOD)
+            return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     const UA_Node **entry;
     UA_Int32 found = find_entry(ns, &(*node)->nodeId, &entry);
 
     if(flags & UA_NODESTORE_INSERT_UNIQUE) {
-        if(found == UA_SUCCESS)
-            return UA_ERROR;    /* There is already an entry for that nodeid */
+        if(found == UA_STATUSCODE_GOOD)
+            return UA_STATUSCODE_BADNODEIDEXISTS;
         else
             *entry = *node;
     } else {
-        if(found == UA_SUCCESS)
+        if(found == UA_STATUSCODE_GOOD)
             clear_entry(ns, entry);
         *entry = *node;
     }
@@ -310,46 +306,39 @@ UA_Int32 UA_NodeStore_insert(UA_NodeStore *ns, UA_Node **node, UA_Byte flags) {
         *node = UA_NULL;
 
     ns->count++;
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid, const UA_Node **managedNode) {
+UA_StatusCode UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid, const UA_Node **managedNode) {
     const UA_Node **entry;
-    if(ns == UA_NULL || nodeid == UA_NULL || managedNode == UA_NULL)
-        return UA_ERROR;
-
-    if(find_entry(ns, nodeid, &entry) != UA_SUCCESS)
-        return UA_ERROR;
+    if(find_entry(ns, nodeid, &entry) != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
     *managedNode = *entry;
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
+UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     const UA_Node **entry;
-    if(find_entry(ns, nodeid, &entry) != UA_SUCCESS)
-        return UA_ERROR;
+    if(find_entry(ns, nodeid, &entry) != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
     // Check before if deleting the node makes the UA_NodeStore inconsistent.
     clear_entry(ns, entry);
 
     /* Downsize the hashmap if it is very empty */
     if(ns->count * 8 < ns->size && ns->size > 32)
-        expand(ns);
+        expand(ns); // this can fail. we just continue with the bigger hashmap.
 
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
-    if(ns == UA_NULL || visitor == UA_NULL)
-        return UA_ERROR;
-
+void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
     for(UA_UInt32 i = 0;i < ns->size;i++) {
         const UA_Node *node = ns->entries[i];
         if(node != UA_NULL)
             visitor(node);
     }
-    return UA_SUCCESS;
 }
 
 void UA_NodeStore_releaseManagedNode(const UA_Node *managed) {

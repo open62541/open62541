@@ -6,7 +6,7 @@ set(open62541_VERSION_MAJOR 0)
 set(open62541_VERSION_MINOR 1)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
-set(CMAKE_C_FLAGS_DEBUG "-g -DDEBUG")
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG")
 
 # main sources of libopen62541
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")

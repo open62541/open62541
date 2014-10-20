@@ -6,13 +6,13 @@
 #include "ua_util.h"
 #include "ua_services.h"
 
-UA_Int32 UA_Server_deleteMembers(UA_Server *server) {
+UA_StatusCode UA_Server_deleteMembers(UA_Server *server) {
     UA_ApplicationDescription_deleteMembers(&server->description);
     UA_SecureChannelManager_delete(server->secureChannelManager);
     UA_SessionManager_delete(server->sessionManager);
     UA_NodeStore_delete(server->nodestore);
     UA_ByteString_deleteMembers(&server->serverCertificate);
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
 
 void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
