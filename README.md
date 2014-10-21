@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
 	UA_Server_deleteMembers(&server);
 	NetworklayerTCP_delete(nl);
     UA_String_deleteMembers(&endpointUrl);
-	return retval == UA_SUCCESS ? 0 : retval;
+	return retval == UA_STATUSCODE_GOOD ? 0 : retval;
 }
 ```
 
