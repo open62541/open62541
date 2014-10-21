@@ -297,6 +297,7 @@ void Service_Read(UA_Server *server, UA_Session *session,
     }
     UA_free(readValueIdIndices);
     UA_free(numberOfFoundIndices);
+    UA_free(associatedIndices);
     /*
     for(UA_Int32 i = 0;i < response->resultsSize;i++){
 				response->results[i] = service_read_node(server, &request->nodesToRead[i]);
