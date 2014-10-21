@@ -64,12 +64,12 @@ typedef UA_Int32 (*UA_NodeStore_addNodes)(UA_AddNodesItem *nodesToAdd,UA_UInt32 
 typedef UA_Int32 (*UA_NodeStore_addReferences)(UA_AddReferencesItem* referencesToAdd,UA_UInt32 *indices,UA_UInt32 indicesSize, UA_StatusCode *addReferencesResults, UA_DiagnosticInfo diagnosticInfos);
 
 typedef UA_Int32 (*UA_NodeStore_deleteNodes)(UA_DeleteNodesItem *nodesToDelete,UA_UInt32 *indices,UA_UInt32 indicesSize, UA_StatusCode *deleteNodesResults, UA_DiagnosticInfo *diagnosticInfos);
-typedef UA_Int32 (*UA_NodeStore_deleteReferences)(UA_DeleteReferencesItem referenceToDelete,UA_UInt32 *indices, UA_UInt32 indicesSize,UA_StatusCode deleteReferencesresults, UA_DiagnosticInfo diagnosticInfos);
+typedef UA_Int32 (*UA_NodeStore_deleteReferences)(UA_DeleteReferencesItem *referenceToDelete,UA_UInt32 *indices, UA_UInt32 indicesSize,UA_StatusCode deleteReferencesresults, UA_DiagnosticInfo diagnosticInfos);
 
 
 typedef UA_Int32 (*UA_NodeStore_readNodes)(UA_ReadValueId *readValueIds,UA_UInt32 *indices,UA_UInt32 indicesSize,UA_DataValue *readNodesResults, UA_Boolean timeStampToReturn, UA_DiagnosticInfo *diagnosticInfos);
 typedef UA_Int32 (*UA_NodeStore_writeNodes)(UA_WriteValue *writeValues,UA_UInt32 *indices ,UA_UInt32 indicesSize, UA_StatusCode *writeNodesResults, UA_DiagnosticInfo *diagnosticInfo);
-typedef UA_Int32 (*UA_NodeStore_browseNodes)(UA_UInt32 requestedMaxReferencesPerNode, UA_BrowseDescription *browseDescriptions,UA_Int32 *indices,UA_UInt32 indicesSize, UA_BrowseResult *browseResults, UA_DiagnosticInfo *diagnosticInfos);
+typedef UA_Int32 (*UA_NodeStore_browseNodes)(UA_BrowseDescription *browseDescriptions,UA_Int32 *indices,UA_UInt32 indicesSize, UA_UInt32 requestedMaxReferencesPerNode, UA_BrowseResult *browseResults, UA_DiagnosticInfo *diagnosticInfos);
 
 
 
