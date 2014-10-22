@@ -208,13 +208,11 @@ static UA_DataValue service_read_node(UA_Server *server, const UA_ReadValueId *i
         v.status       = UA_STATUSCODE_BADNOTREADABLE;
     }
 
-
     return v;
 }
-void Service_Read(UA_Server *server, UA_Session *session,
-                  const UA_ReadRequest *request, UA_ReadResponse *response) {
-    UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
 
+void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request,
+                  UA_ReadResponse *response) {
     if(request->nodesToReadSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;

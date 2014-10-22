@@ -83,7 +83,7 @@ static UA_StatusCode NetworklayerTCP_remove(NetworklayerTCP *layer, UA_Int32 soc
     layer->connectionsSize--;
 	TCPConnection *newconnections;
     newconnections = malloc(sizeof(TCPConnection) * layer->connectionsSize);
-	memcpy(newconnections, &layer->connections, sizeof(TCPConnection) * index);
+	memcpy(newconnections, layer->connections, sizeof(TCPConnection) * index);
 	memcpy(&newconnections[index], &layer->connections[index+1],
            sizeof(TCPConnection) * (layer->connectionsSize - index));
     free(layer->connections);

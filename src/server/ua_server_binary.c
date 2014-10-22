@@ -140,8 +140,8 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
         DBG_VERBOSE(printf("Invoke Service: %s\n", # TYPE));                                              \
         Service_##TYPE(server, channel->session, &p, &r);                                                 \
         DBG_VERBOSE(printf("Finished Service: %s\n", # TYPE));                                            \
-        UA_ByteString_newMembers(message, UA_##TYPE##Response_calcSizeBinary(&r)); \
-        UA_##TYPE##Response_encodeBinary(&r, message, &sendOffset);     \
+        UA_ByteString_newMembers(message, UA_##TYPE##Response_calcSizeBinary(&r));                        \
+        UA_##TYPE##Response_encodeBinary(&r, message, &sendOffset);                                       \
         UA_##TYPE##Request_deleteMembers(&p);                                                             \
         UA_##TYPE##Response_deleteMembers(&r);                                                            \
         responseType = requestType.nodeId.identifier.numeric + 3;                                         \
@@ -227,8 +227,8 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
         UA_ActivateSessionRequest_deleteMembers(&p);
         UA_ActivateSessionResponse_deleteMembers(&r);
         responseType = requestType.nodeId.identifier.numeric + 3;
-    }
         break;
+    }
 
     case UA_CLOSESESSIONREQUEST_NS0: {
         UA_CloseSessionRequest  p;
@@ -243,8 +243,8 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
         UA_CloseSessionRequest_deleteMembers(&p);
         UA_CloseSessionResponse_deleteMembers(&r);
         responseType = requestType.nodeId.identifier.numeric + 3;
+        break;
     }
-    break;
 
     case UA_READREQUEST_NS0:
         INVOKE_SERVICE(Read);

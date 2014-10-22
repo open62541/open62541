@@ -159,13 +159,15 @@ void UA_String_print(const UA_String *p, FILE *stream) {
 }
 #endif
 
+/* The c-string needs to be null-terminated. */
 UA_Int32 UA_String_copycstring(char const *src, UA_String *dst) {
-    dst->data   = UA_NULL;
     dst->length = strlen(src);
     if(dst->length > 0) {
-        if(!(dst->data = UA_alloc(dst->length)))
+        if(!(dst->data = UA_alloc(dst->length))) {
+            dst->length = -1;
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        UA_memcpy((void *)dst->data, src, dst->length);
+        }
+        UA_memcpy(dst->data, src, dst->length);
     }
     return UA_STATUSCODE_GOOD;
 }

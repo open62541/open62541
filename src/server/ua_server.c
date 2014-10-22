@@ -473,11 +473,12 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     namespaceArray->value.storage.data.arrayLength = 2;
     UA_String_copycstring("http://opcfoundation.org/UA/", &((UA_String *)(namespaceArray->value.storage.data.dataPtr))[0]);
     UA_String_copycstring("http://localhost:16664/open62541/", &((UA_String *)(namespaceArray->value.storage.data.dataPtr))[1]);
-    namespaceArray->arrayDimensionsSize = 1;
-    UA_UInt32 *dimensions = UA_NULL;
-    dimensions = UA_alloc(sizeof(UA_UInt32));
-    *dimensions = 2;
-    namespaceArray->arrayDimensions = dimensions;
+    UA_UInt32 *dimensions = UA_alloc(sizeof(UA_UInt32));
+    if(dimensions) {
+        *dimensions = 2;
+        namespaceArray->arrayDimensions = dimensions;
+        namespaceArray->arrayDimensionsSize = 1;
+    }
     namespaceArray->dataType = NS0NODEID(UA_STRING_NS0);
     namespaceArray->valueRank       = 1;
     namespaceArray->minimumSamplingInterval = 1.0;
