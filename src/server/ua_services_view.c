@@ -3,7 +3,7 @@
 #include "ua_nodestoreExample.h"
 #include "ua_namespace_0.h"
 #include "ua_util.h"
-
+#include "ua_namespace_manager.h"
 UA_Int32 Service_Browse_getReferenceDescription(UA_NodeStoreExample *ns, UA_ReferenceNode *reference,
                                                 UA_UInt32 nodeClassMask, UA_UInt32 resultMask,
                                                 UA_ReferenceDescription *referenceDescription) {
@@ -209,10 +209,83 @@ void Service_Browse(UA_Server *server, UA_Session *session,
         return;
     }
 
+
+
+
+
+
     response->resultsSize = request->nodesToBrowseSize;
-    for(UA_Int32 i = 0;i < request->nodesToBrowseSize;i++)
-        Service_Browse_getBrowseResult(server->nodestore, &request->nodesToBrowse[i],
-                                       request->requestedMaxReferencesPerNode, &response->results[i]);
+
+    UA_Int32 *numberOfFoundIndices;
+    UA_UInt16 *associatedIndices;
+    UA_UInt32 differentNamespaceIndexCount = 0;
+    if(UA_Array_new((void **)&numberOfFoundIndices,request->nodesToBrowseSize,&UA_[UA_UINT32]) != UA_STATUSCODE_GOOD){
+    	response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+    	return ;
+    }
+
+    if(UA_Array_new((void **)&associatedIndices,request->nodesToBrowseSize,&UA_[UA_UINT16]) != UA_STATUSCODE_GOOD){
+    	response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+    	return ;
+    }
+    // find out count of different namespace indices
+
+   for(UA_Int32 i = 0; i<request->nodesToBrowseSize; i++){
+
+    	for(UA_UInt32 j = 0; j <= differentNamespaceIndexCount; j++){
+    		if(associatedIndices[j] == request->nodesToBrowse[i].nodeId.namespaceIndex){
+    			if(j==0){
+    				differentNamespaceIndexCount++;
+    			}
+				numberOfFoundIndices[j]++;
+				break;
+    		}
+    		else if(j == (differentNamespaceIndexCount - 1)){
+    			associatedIndices[j] = request->nodesToBrowse[i].nodeId.namespaceIndex;
+    			associatedIndices[j] = 1;
+    			differentNamespaceIndexCount++;
+    		}
+    	}
+    }
+
+	UA_UInt32 *readValueIdIndices;
+    if(UA_Array_new((void **)&readValueIdIndices,request->nodesToBrowseSize,&UA_[UA_UINT32]) != UA_STATUSCODE_GOOD){
+    	response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+    	return ;
+    }
+
+    for(UA_UInt32 i = 0; i < differentNamespaceIndexCount; i++){
+    	UA_Namespace *tmpNamespace;
+    	UA_NamespaceManager_getNamespace(server->namespaceManager,associatedIndices[i],&tmpNamespace);
+    	if(tmpNamespace != UA_NULL){
+
+    	    //build up index array for each read operation onto a different namespace
+    	    UA_UInt32 n = 0;
+    	    for(UA_Int32 j = 0; j < request->nodesToBrowseSize; j++){
+    	    	if(request->nodesToBrowse[j].nodeId.namespaceIndex == associatedIndices[i]){
+    	    		readValueIdIndices[n] = j;
+    	    	}
+    	    }
+
+
+    	    //call read for every namespace
+    		tmpNamespace->nodeStore->browseNodes(
+    				request->nodesToBrowse,
+    				readValueIdIndices,
+    				numberOfFoundIndices[i],
+    				request->requestedMaxReferencesPerNode,
+    				response->results,
+    				&response->diagnosticInfos[i]);
+
+			//	response->results[i] = service_read_node(server, &request->nodesToRead[i]);
+    	}
+    }
+    UA_free();
+    UA_free(numberOfFoundIndices);
+    UA_free(associatedIndices);
+    // for(UA_Int32 i = 0;i < request->nodesToBrowseSize;i++)
+    //    Service_Browse_getBrowseResult(server->nodestore, &request->nodesToBrowse[i],
+     //                                  request->requestedMaxReferencesPerNode, &response->results[i]);
 }
 
 
