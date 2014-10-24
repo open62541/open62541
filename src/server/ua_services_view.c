@@ -89,8 +89,8 @@ static UA_Boolean isRelevantTargetNode(UA_NodeStore *ns, const UA_BrowseDescript
 
 /* We do not search across namespaces so far. The id of the root-referencetype
    is returned in the array also. */
-static UA_Int32 findRelevantReferenceTypes(UA_NodeStore *ns, const UA_NodeId *rootReferenceType,
-                                           UA_NodeId **referenceTypes, UA_UInt32 *referenceTypesSize) {
+static UA_StatusCode findRelevantReferenceTypes(UA_NodeStore *ns, const UA_NodeId *rootReferenceType,
+                                                UA_NodeId **referenceTypes, UA_UInt32 *referenceTypesSize) {
     /* The references form a tree. We walk the tree by adding new nodes to the end of the array. */
     UA_UInt32 currentIndex = 0;
     UA_UInt32 currentLastIndex = 0;
