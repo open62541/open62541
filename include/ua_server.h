@@ -42,18 +42,21 @@ typedef struct UA_NodeStore UA_NodeStore;
 
 typedef struct UA_Server {
     UA_ApplicationDescription description;
+    UA_Int32 endpointDescriptionsSize;
+    UA_EndpointDescription *endpointDescriptions;
+    UA_ByteString serverCertificate;
+    
     UA_SecureChannelManager *secureChannelManager;
     UA_SessionManager *sessionManager;
     UA_NodeStore *nodestore;
     UA_Logger logger;
-    UA_ByteString serverCertificate;
 
     // todo: move these somewhere sane
     UA_ExpandedNodeId objectsNodeId;
     UA_NodeId hasComponentReferenceTypeId;
 } UA_Server;
 
-void UA_EXPORT UA_Server_init(UA_Server *server, UA_String *endpointUrl);
+void UA_EXPORT UA_Server_init(UA_Server *server, UA_String *endpointUrl, UA_ByteString *serverCertificate);
 UA_StatusCode UA_EXPORT UA_Server_deleteMembers(UA_Server *server);
 void UA_EXPORT UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
 

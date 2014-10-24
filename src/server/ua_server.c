@@ -15,15 +15,46 @@ UA_StatusCode UA_Server_deleteMembers(UA_Server *server) {
     return UA_STATUSCODE_GOOD;
 }
 
-void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
+void UA_Server_init(UA_Server *server, UA_String *endpointUrl, UA_ByteString *serverCertificate) {
     UA_ExpandedNodeId_init(&server->objectsNodeId);
     server->objectsNodeId.nodeId.identifier.numeric = 85;
 
     UA_NodeId_init(&server->hasComponentReferenceTypeId);
     server->hasComponentReferenceTypeId.identifier.numeric = 47;
     
+    // mockup application description
     UA_ApplicationDescription_init(&server->description);
+    UA_String_copycstring("urn:servername:open62541:application", &server->description.productUri);
+    UA_String_copycstring("http://open62541.info/applications/4711", &server->description.applicationUri);
+    UA_LocalizedText_copycstring("The open62541 application", &server->description.applicationName);
+    server->description.applicationType = UA_APPLICATIONTYPE_SERVER;
+
     UA_ByteString_init(&server->serverCertificate);
+    if(serverCertificate)
+        UA_ByteString_copy(serverCertificate, &server->serverCertificate);
+
+    // mockup endpoint description
+    server->endpointDescriptionsSize = 1;
+    UA_EndpointDescription *endpoint = UA_alloc(sizeof(UA_EndpointDescription)); // todo: check return code
+
+    endpoint->securityMode = UA_MESSAGESECURITYMODE_NONE;
+    UA_String_copycstring("http://opcfoundation.org/UA/SecurityPolicy#None", &endpoint->securityPolicyUri);
+    UA_String_copycstring("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary", &endpoint->transportProfileUri);
+
+    endpoint->userIdentityTokensSize = 1;
+    endpoint->userIdentityTokens = UA_alloc(sizeof(UA_UserTokenPolicy));
+    UA_UserTokenPolicy_init(endpoint->userIdentityTokens);
+    UA_String_copycstring("my-anonymous-policy", &endpoint->userIdentityTokens->policyId); // defined per server
+    endpoint->userIdentityTokens->tokenType = UA_USERTOKENTYPE_ANONYMOUS;
+
+    UA_String_copy(endpointUrl, &endpoint->endpointUrl);
+    /* The standard says "the HostName specified in the Server Certificate is the
+       same as the HostName contained in the endpointUrl provided in the
+       EndpointDescription */
+    UA_String_copy(&server->serverCertificate, &endpoint->serverCertificate);
+    UA_ApplicationDescription_copy(&server->description, &endpoint->server);
+    server->endpointDescriptions = endpoint;
+
 #define MAXCHANNELCOUNT 100
 #define STARTCHANNELID 1
 #define TOKENLIFETIME 10000
@@ -38,8 +69,6 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
                           STARTSESSIONID);
 
     UA_NodeStore_new(&server->nodestore);
-    //ns0: C2UA_STRING("http://opcfoundation.org/UA/"));
-    //ns1: C2UA_STRING("http://localhost:16664/open62541/"));
 
     /**************/
     /* References */

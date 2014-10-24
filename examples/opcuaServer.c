@@ -54,10 +54,10 @@ int main(int argc, char** argv) {
 
 	UA_Server server;
 	UA_String endpointUrl;
-	UA_String_copycstring("no endpoint url",&endpointUrl);
-	UA_Server_init(&server, &endpointUrl);
+	UA_String_copycstring("opc.tcp://192.168.56.101:16664",&endpointUrl);
+    UA_ByteString certificate = loadCertificate();
+	UA_Server_init(&server, &endpointUrl, &certificate);
 	Logger_Stdout_init(&server.logger);
-    server.serverCertificate = loadCertificate();
 
     UA_Int32 myInteger = 42;
     UA_String myIntegerName;

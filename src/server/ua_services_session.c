@@ -22,7 +22,12 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->sessionId = newSession->sessionId;
     response->revisedSessionTimeout = newSession->timeout;
     response->authenticationToken = newSession->authenticationToken;
-    //channel->session = newSession;
+    UA_ByteString_copy(&server->serverCertificate, &response->serverCertificate);
+
+    response->serverEndpointsSize = 1;
+    response->serverEndpoints = UA_alloc(sizeof(UA_EndpointDescription));
+    UA_EndpointDescription_copy(server->endpointDescriptions, response->serverEndpoints);
+    
 }
 
 void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
