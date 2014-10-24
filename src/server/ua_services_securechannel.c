@@ -5,7 +5,7 @@ void Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
                                const UA_OpenSecureChannelRequest *request,
                                UA_OpenSecureChannelResponse *response) {
     // todo: if(request->clientProtocolVersion != protocolVersion)
-    if(request->requestType == UA_SECURITYTOKEN_ISSUE)
+    if(request->requestType == UA_SECURITYTOKENREQUESTTYPE_ISSUE)
         UA_SecureChannelManager_open(server->secureChannelManager, connection, request, response);
     else
         UA_SecureChannelManager_renew(server->secureChannelManager, connection, request, response);

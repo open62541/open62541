@@ -66,15 +66,16 @@ UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager           *cm
         cm->maxChannelLifetime : request->requestedLifetime;
 
     switch(request->securityMode) {
-    case UA_SECURITYMODE_INVALID:
+    case UA_MESSAGESECURITYMODE_INVALID:
         printf("UA_SecureChannel_processOpenRequest - client demands invalid \n");
         break;
 
-    case UA_SECURITYMODE_NONE:
+    case UA_MESSAGESECURITYMODE_NONE:
         UA_ByteString_copy(&request->clientNonce, &entry->channel.clientNonce);
         break;
 
-    case UA_SECURITYMODE_SIGNANDENCRYPT:
+    case UA_MESSAGESECURITYMODE_SIGN:
+    case UA_MESSAGESECURITYMODE_SIGNANDENCRYPT:
         printf("UA_SecureChannel_processOpenRequest - client demands signed & encrypted \n");
         //TODO check if senderCertificate and ReceiverCertificateThumbprint are present
         break;

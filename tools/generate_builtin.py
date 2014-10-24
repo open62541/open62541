@@ -81,16 +81,17 @@ def createEnumerated(element):
     valuemap = OrderedDict()
     name = "UA_" + element.get("Name")
     fixed_size.add(name)
+    printh("") # newline
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
             printh("/** @brief " + child.text + " */")
         if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
             valuemap[name + "_" + child.get("Name")] = child.get("Value")
     valuemap = OrderedDict(sorted(valuemap.iteritems(), key=lambda (k,v): int(v)))
-    printh("typedef UA_Int32 " + name + ";")
-    printh("enum " + name + "_enum { \n\t" +
+    # printh("typedef UA_Int32 " + name + ";")
+    printh("typedef enum " + name + " { \n\t" +
            ",\n\t".join(map(lambda (key, value) : key.upper() + " = " + value, valuemap.iteritems())) +
-           "\n};")
+           "\n} " + name + ";")
     printh("UA_TYPE_PROTOTYPES (" + name + ")")
     printh("UA_TYPE_BINARY_ENCODING(" + name + ")")
     printc("UA_TYPE_AS(" + name + ", UA_Int32)")
@@ -103,6 +104,7 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s\n)''')
 
 def createOpaque(element):
     name = "UA_" + element.get("Name")
+    printh("") # newline
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
             printh("/** @brief " + child.text + " */")
@@ -128,6 +130,7 @@ def createStructured(element):
 
     # 2) Store members in membermap (name->type).
     membermap = OrderedDict()
+    printh("") # newline
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
             printh("/** @brief " + child.text + " */")
@@ -152,7 +155,6 @@ def createStructured(element):
     else:
         printh("typedef void* %(name)s;")
         
-
     # 3) function prototypes
     printh("UA_TYPE_PROTOTYPES(" + name + ")")
     printh("UA_TYPE_BINARY_ENCODING(" + name + ")")
@@ -301,7 +303,6 @@ if args.with_xml:
 if args.additional_includes:
     for incl in args.additional_includes.split(","):
         printh("#include \"" + incl + "\"")
-printh("") # newline
 
 printc('''/**
  * @file '''+sys.argv[2]+'''.c
