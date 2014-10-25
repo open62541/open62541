@@ -55,6 +55,9 @@ UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager           *cm
                                            const UA_OpenSecureChannelRequest *request,
                                            UA_OpenSecureChannelResponse      *response) {
     struct channel_list_entry *entry = UA_alloc(sizeof(struct channel_list_entry));
+    if(!entry)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
     UA_SecureChannel_init(&entry->channel);
 
     entry->channel.connection = conn;

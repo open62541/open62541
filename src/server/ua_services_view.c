@@ -175,7 +175,7 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
     const UA_Node *parentNode;
     if(UA_NodeStore_get(ns, &browseDescription->nodeId, &parentNode) != UA_STATUSCODE_GOOD) {
         browseResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
-        if(!returnAll)
+        if(!returnAll && browseDescription->includeSubtypes)
             UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesSize, &UA_[UA_NODEID]);
         return;
     }
