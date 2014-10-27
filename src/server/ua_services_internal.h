@@ -4,7 +4,7 @@
  */
 
 #include "ua_session.h"
-#include "ua_nodestore.h"
+#include "nodestore/ua_nodestore.h"
 #include "ua_types_generated.h"
 
 /* @brief Add a reference (and the inverse reference to the target node).

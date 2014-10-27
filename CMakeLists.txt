@@ -19,7 +19,7 @@ set(lib_sources src/ua_types.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_0.c
                 src/ua_transport.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
-		src/ua_connection.c
+				src/ua_connection.c
                 src/ua_securechannel.c
                 src/ua_session.c
                 src/ua_util.c
@@ -27,7 +27,7 @@ set(lib_sources src/ua_types.c
                 src/server/ua_securechannel_manager.c
                 src/server/ua_session_manager.c
                 src/server/ua_namespace_manager.c
-		src/server/ua_server_binary.c
+				src/server/ua_server_binary.c
                 src/server/ua_services_attribute.c
                 src/server/ua_services_session.c
                 src/server/ua_services_discovery.c
@@ -35,7 +35,9 @@ set(lib_sources src/ua_types.c
                 src/server/ua_services_nodemanagement.c
                 src/server/ua_services_view.c
                 src/server/ua_services_monitoreditems.c
-		
+				src/server/nodestore/open62541_nodestore_view.c
+				src/server/nodestore/open62541_nodestore_attribute.c
+				src/server/nodestore/open62541_nodestore.c
                 ${headers}
                 ${generated_headers})
 
@@ -110,8 +112,8 @@ if(ENABLE_MULTITHREADING)
     find_package(Threads REQUIRED)
     list(APPEND lib_sources src/server/ua_nodestore_concurrent.c)
 else()
-    list(APPEND lib_sources src/server/ua_nodestore.c)
-    list(APPEND lib_sources src/server/ua_nodestoreExample.c)
+    list(APPEND lib_sources src/server/nodestore/ua_nodestore.c)
+    list(APPEND lib_sources src/server/nodestore/ua_nodestoreExample.c)
 endif()
 
 add_library(open62541-objects OBJECT ${lib_sources}) # static version that exports all symbols

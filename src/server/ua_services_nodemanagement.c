@@ -1,7 +1,7 @@
 #include "ua_services.h"
 #include "ua_namespace_0.h"
 #include "ua_statuscodes.h"
-#include "ua_nodestoreExample.h"
+#include "nodestore/ua_nodestoreExample.h"
 #include "ua_services_internal.h"
 #include "ua_session.h"
 #include "ua_util.h"

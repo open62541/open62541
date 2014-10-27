@@ -102,6 +102,19 @@ depend:
 .PHONY : depend
 
 #=============================================================================
+# Target rules for targets named exampleServer
+
+# Build rule for target.
+exampleServer: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 exampleServer
+.PHONY : exampleServer
+
+# fast build rule for target.
+exampleServer/fast:
+	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/build
+.PHONY : exampleServer/fast
+
+#=============================================================================
 # Target rules for targets named open62541
 
 # Build rule for target.
@@ -127,6 +140,222 @@ open62541-objects/fast:
 	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/build
 .PHONY : open62541-objects/fast
 
+examples/logger_stdout.o: examples/logger_stdout.c.o
+.PHONY : examples/logger_stdout.o
+
+# target to build an object file
+examples/logger_stdout.c.o:
+	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/examples/logger_stdout.c.o
+.PHONY : examples/logger_stdout.c.o
+
+examples/logger_stdout.i: examples/logger_stdout.c.i
+.PHONY : examples/logger_stdout.i
+
+# target to preprocess a source file
+examples/logger_stdout.c.i:
+	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/examples/logger_stdout.c.i
+.PHONY : examples/logger_stdout.c.i
+
+examples/logger_stdout.s: examples/logger_stdout.c.s
+.PHONY : examples/logger_stdout.s
+
+# target to generate assembly for a file
+examples/logger_stdout.c.s:
+	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/examples/logger_stdout.c.s
+.PHONY : examples/logger_stdout.c.s
+
+examples/networklayer_tcp.o: examples/networklayer_tcp.c.o
+.PHONY : examples/networklayer_tcp.o
+
+# target to build an object file
+examples/networklayer_tcp.c.o:
+	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/examples/networklayer_tcp.c.o
+.PHONY : examples/networklayer_tcp.c.o
+
+examples/networklayer_tcp.i: examples/networklayer_tcp.c.i
+.PHONY : examples/networklayer_tcp.i
+
+# target to preprocess a source file
+examples/networklayer_tcp.c.i:
+	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/examples/networklayer_tcp.c.i
+.PHONY : examples/networklayer_tcp.c.i
+
+examples/networklayer_tcp.s: examples/networklayer_tcp.c.s
+.PHONY : examples/networklayer_tcp.s
+
+# target to generate assembly for a file
+examples/networklayer_tcp.c.s:
+	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/examples/networklayer_tcp.c.s
+.PHONY : examples/networklayer_tcp.c.s
+
+examples/nodestoreAccessExample.o: examples/nodestoreAccessExample.c.o
+.PHONY : examples/nodestoreAccessExample.o
+
+# target to build an object file
+examples/nodestoreAccessExample.c.o:
+	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/examples/nodestoreAccessExample.c.o
+.PHONY : examples/nodestoreAccessExample.c.o
+
+examples/nodestoreAccessExample.i: examples/nodestoreAccessExample.c.i
+.PHONY : examples/nodestoreAccessExample.i
+
+# target to preprocess a source file
+examples/nodestoreAccessExample.c.i:
+	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/examples/nodestoreAccessExample.c.i
+.PHONY : examples/nodestoreAccessExample.c.i
+
+examples/nodestoreAccessExample.s: examples/nodestoreAccessExample.c.s
+.PHONY : examples/nodestoreAccessExample.s
+
+# target to generate assembly for a file
+examples/nodestoreAccessExample.c.s:
+	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/examples/nodestoreAccessExample.c.s
+.PHONY : examples/nodestoreAccessExample.c.s
+
+examples/opcuaServer.o: examples/opcuaServer.c.o
+.PHONY : examples/opcuaServer.o
+
+# target to build an object file
+examples/opcuaServer.c.o:
+	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/examples/opcuaServer.c.o
+.PHONY : examples/opcuaServer.c.o
+
+examples/opcuaServer.i: examples/opcuaServer.c.i
+.PHONY : examples/opcuaServer.i
+
+# target to preprocess a source file
+examples/opcuaServer.c.i:
+	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/examples/opcuaServer.c.i
+.PHONY : examples/opcuaServer.c.i
+
+examples/opcuaServer.s: examples/opcuaServer.c.s
+.PHONY : examples/opcuaServer.s
+
+# target to generate assembly for a file
+examples/opcuaServer.c.s:
+	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/examples/opcuaServer.c.s
+.PHONY : examples/opcuaServer.c.s
+
+src/server/nodestore/open62541_nodestore.o: src/server/nodestore/open62541_nodestore.c.o
+.PHONY : src/server/nodestore/open62541_nodestore.o
+
+# target to build an object file
+src/server/nodestore/open62541_nodestore.c.o:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore.c.o
+.PHONY : src/server/nodestore/open62541_nodestore.c.o
+
+src/server/nodestore/open62541_nodestore.i: src/server/nodestore/open62541_nodestore.c.i
+.PHONY : src/server/nodestore/open62541_nodestore.i
+
+# target to preprocess a source file
+src/server/nodestore/open62541_nodestore.c.i:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore.c.i
+.PHONY : src/server/nodestore/open62541_nodestore.c.i
+
+src/server/nodestore/open62541_nodestore.s: src/server/nodestore/open62541_nodestore.c.s
+.PHONY : src/server/nodestore/open62541_nodestore.s
+
+# target to generate assembly for a file
+src/server/nodestore/open62541_nodestore.c.s:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore.c.s
+.PHONY : src/server/nodestore/open62541_nodestore.c.s
+
+src/server/nodestore/open62541_nodestore_attribute.o: src/server/nodestore/open62541_nodestore_attribute.c.o
+.PHONY : src/server/nodestore/open62541_nodestore_attribute.o
+
+# target to build an object file
+src/server/nodestore/open62541_nodestore_attribute.c.o:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore_attribute.c.o
+.PHONY : src/server/nodestore/open62541_nodestore_attribute.c.o
+
+src/server/nodestore/open62541_nodestore_attribute.i: src/server/nodestore/open62541_nodestore_attribute.c.i
+.PHONY : src/server/nodestore/open62541_nodestore_attribute.i
+
+# target to preprocess a source file
+src/server/nodestore/open62541_nodestore_attribute.c.i:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore_attribute.c.i
+.PHONY : src/server/nodestore/open62541_nodestore_attribute.c.i
+
+src/server/nodestore/open62541_nodestore_attribute.s: src/server/nodestore/open62541_nodestore_attribute.c.s
+.PHONY : src/server/nodestore/open62541_nodestore_attribute.s
+
+# target to generate assembly for a file
+src/server/nodestore/open62541_nodestore_attribute.c.s:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore_attribute.c.s
+.PHONY : src/server/nodestore/open62541_nodestore_attribute.c.s
+
+src/server/nodestore/open62541_nodestore_view.o: src/server/nodestore/open62541_nodestore_view.c.o
+.PHONY : src/server/nodestore/open62541_nodestore_view.o
+
+# target to build an object file
+src/server/nodestore/open62541_nodestore_view.c.o:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore_view.c.o
+.PHONY : src/server/nodestore/open62541_nodestore_view.c.o
+
+src/server/nodestore/open62541_nodestore_view.i: src/server/nodestore/open62541_nodestore_view.c.i
+.PHONY : src/server/nodestore/open62541_nodestore_view.i
+
+# target to preprocess a source file
+src/server/nodestore/open62541_nodestore_view.c.i:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore_view.c.i
+.PHONY : src/server/nodestore/open62541_nodestore_view.c.i
+
+src/server/nodestore/open62541_nodestore_view.s: src/server/nodestore/open62541_nodestore_view.c.s
+.PHONY : src/server/nodestore/open62541_nodestore_view.s
+
+# target to generate assembly for a file
+src/server/nodestore/open62541_nodestore_view.c.s:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore_view.c.s
+.PHONY : src/server/nodestore/open62541_nodestore_view.c.s
+
+src/server/nodestore/ua_nodestore.o: src/server/nodestore/ua_nodestore.c.o
+.PHONY : src/server/nodestore/ua_nodestore.o
+
+# target to build an object file
+src/server/nodestore/ua_nodestore.c.o:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/ua_nodestore.c.o
+.PHONY : src/server/nodestore/ua_nodestore.c.o
+
+src/server/nodestore/ua_nodestore.i: src/server/nodestore/ua_nodestore.c.i
+.PHONY : src/server/nodestore/ua_nodestore.i
+
+# target to preprocess a source file
+src/server/nodestore/ua_nodestore.c.i:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/ua_nodestore.c.i
+.PHONY : src/server/nodestore/ua_nodestore.c.i
+
+src/server/nodestore/ua_nodestore.s: src/server/nodestore/ua_nodestore.c.s
+.PHONY : src/server/nodestore/ua_nodestore.s
+
+# target to generate assembly for a file
+src/server/nodestore/ua_nodestore.c.s:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/ua_nodestore.c.s
+.PHONY : src/server/nodestore/ua_nodestore.c.s
+
+src/server/nodestore/ua_nodestoreExample.o: src/server/nodestore/ua_nodestoreExample.c.o
+.PHONY : src/server/nodestore/ua_nodestoreExample.o
+
+# target to build an object file
+src/server/nodestore/ua_nodestoreExample.c.o:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/ua_nodestoreExample.c.o
+.PHONY : src/server/nodestore/ua_nodestoreExample.c.o
+
+src/server/nodestore/ua_nodestoreExample.i: src/server/nodestore/ua_nodestoreExample.c.i
+.PHONY : src/server/nodestore/ua_nodestoreExample.i
+
+# target to preprocess a source file
+src/server/nodestore/ua_nodestoreExample.c.i:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/ua_nodestoreExample.c.i
+.PHONY : src/server/nodestore/ua_nodestoreExample.c.i
+
+src/server/nodestore/ua_nodestoreExample.s: src/server/nodestore/ua_nodestoreExample.c.s
+.PHONY : src/server/nodestore/ua_nodestoreExample.s
+
+# target to generate assembly for a file
+src/server/nodestore/ua_nodestoreExample.c.s:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/ua_nodestoreExample.c.s
+.PHONY : src/server/nodestore/ua_nodestoreExample.c.s
+
 src/server/ua_namespace_manager.o: src/server/ua_namespace_manager.c.o
 .PHONY : src/server/ua_namespace_manager.o
 
@@ -150,54 +379,6 @@ src/server/ua_namespace_manager.s: src/server/ua_namespace_manager.c.s
 src/server/ua_namespace_manager.c.s:
 	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/ua_namespace_manager.c.s
 .PHONY : src/server/ua_namespace_manager.c.s
-
-src/server/ua_nodestore.o: src/server/ua_nodestore.c.o
-.PHONY : src/server/ua_nodestore.o
-
-# target to build an object file
-src/server/ua_nodestore.c.o:
-	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/ua_nodestore.c.o
-.PHONY : src/server/ua_nodestore.c.o
-
-src/server/ua_nodestore.i: src/server/ua_nodestore.c.i
-.PHONY : src/server/ua_nodestore.i
-
-# target to preprocess a source file
-src/server/ua_nodestore.c.i:
-	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/ua_nodestore.c.i
-.PHONY : src/server/ua_nodestore.c.i
-
-src/server/ua_nodestore.s: src/server/ua_nodestore.c.s
-.PHONY : src/server/ua_nodestore.s
-
-# target to generate assembly for a file
-src/server/ua_nodestore.c.s:
-	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/ua_nodestore.c.s
-.PHONY : src/server/ua_nodestore.c.s
-
-src/server/ua_nodestoreExample.o: src/server/ua_nodestoreExample.c.o
-.PHONY : src/server/ua_nodestoreExample.o
-
-# target to build an object file
-src/server/ua_nodestoreExample.c.o:
-	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/ua_nodestoreExample.c.o
-.PHONY : src/server/ua_nodestoreExample.c.o
-
-src/server/ua_nodestoreExample.i: src/server/ua_nodestoreExample.c.i
-.PHONY : src/server/ua_nodestoreExample.i
-
-# target to preprocess a source file
-src/server/ua_nodestoreExample.c.i:
-	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/ua_nodestoreExample.c.i
-.PHONY : src/server/ua_nodestoreExample.c.i
-
-src/server/ua_nodestoreExample.s: src/server/ua_nodestoreExample.c.s
-.PHONY : src/server/ua_nodestoreExample.s
-
-# target to generate assembly for a file
-src/server/ua_nodestoreExample.c.s:
-	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/ua_nodestoreExample.c.s
-.PHONY : src/server/ua_nodestoreExample.c.s
 
 src/server/ua_securechannel_manager.o: src/server/ua_securechannel_manager.c.o
 .PHONY : src/server/ua_securechannel_manager.o
@@ -710,18 +891,40 @@ help:
 	@echo "... clean"
 	@echo "... depend"
 	@echo "... edit_cache"
+	@echo "... exampleServer"
 	@echo "... open62541"
 	@echo "... open62541-objects"
 	@echo "... rebuild_cache"
+	@echo "... examples/logger_stdout.o"
+	@echo "... examples/logger_stdout.i"
+	@echo "... examples/logger_stdout.s"
+	@echo "... examples/networklayer_tcp.o"
+	@echo "... examples/networklayer_tcp.i"
+	@echo "... examples/networklayer_tcp.s"
+	@echo "... examples/nodestoreAccessExample.o"
+	@echo "... examples/nodestoreAccessExample.i"
+	@echo "... examples/nodestoreAccessExample.s"
+	@echo "... examples/opcuaServer.o"
+	@echo "... examples/opcuaServer.i"
+	@echo "... examples/opcuaServer.s"
+	@echo "... src/server/nodestore/open62541_nodestore.o"
+	@echo "... src/server/nodestore/open62541_nodestore.i"
+	@echo "... src/server/nodestore/open62541_nodestore.s"
+	@echo "... src/server/nodestore/open62541_nodestore_attribute.o"
+	@echo "... src/server/nodestore/open62541_nodestore_attribute.i"
+	@echo "... src/server/nodestore/open62541_nodestore_attribute.s"
+	@echo "... src/server/nodestore/open62541_nodestore_view.o"
+	@echo "... src/server/nodestore/open62541_nodestore_view.i"
+	@echo "... src/server/nodestore/open62541_nodestore_view.s"
+	@echo "... src/server/nodestore/ua_nodestore.o"
+	@echo "... src/server/nodestore/ua_nodestore.i"
+	@echo "... src/server/nodestore/ua_nodestore.s"
+	@echo "... src/server/nodestore/ua_nodestoreExample.o"
+	@echo "... src/server/nodestore/ua_nodestoreExample.i"
+	@echo "... src/server/nodestore/ua_nodestoreExample.s"
 	@echo "... src/server/ua_namespace_manager.o"
 	@echo "... src/server/ua_namespace_manager.i"
 	@echo "... src/server/ua_namespace_manager.s"
-	@echo "... src/server/ua_nodestore.o"
-	@echo "... src/server/ua_nodestore.i"
-	@echo "... src/server/ua_nodestore.s"
-	@echo "... src/server/ua_nodestoreExample.o"
-	@echo "... src/server/ua_nodestoreExample.i"
-	@echo "... src/server/ua_nodestoreExample.s"
 	@echo "... src/server/ua_securechannel_manager.o"
 	@echo "... src/server/ua_securechannel_manager.i"
 	@echo "... src/server/ua_securechannel_manager.s"

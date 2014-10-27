@@ -82,7 +82,7 @@ UA_Int32 initMyNode()
 UA_Int32 readNodes(UA_ReadValueId * readValueIds, UA_UInt32 *readValueIdIndices, UA_UInt32 readValueIdsSize, UA_DataValue *v, UA_Boolean timeStampToReturn, UA_DiagnosticInfo *diagnosticInfo)
 {
 	UA_ReadValueId *id;
-	UA_Int32 retval = UA_SUCCESS;
+	UA_Int32 retval = UA_STATUSCODE_GOOD;;
 	for(UA_UInt32 i = 0; i<readValueIdsSize; i++){
 		id = &readValueIds[readValueIdIndices[i]];
 
@@ -246,7 +246,7 @@ UA_Int32 readNodes(UA_ReadValueId * readValueIds, UA_UInt32 *readValueIdIndices,
 			break;
 		}
 
-		if(retval != UA_SUCCESS) {
+		if(retval != UA_STATUSCODE_GOOD) {
 			v[readValueIdIndices[i]].encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
 			v[readValueIdIndices[i]].status       = UA_STATUSCODE_BADNOTREADABLE;
 		}
@@ -257,36 +257,36 @@ UA_Int32 readNodes(UA_ReadValueId * readValueIds, UA_UInt32 *readValueIdIndices,
 
 UA_Int32 writeNodes(UA_WriteValue *writeValues,UA_UInt32 *indices ,UA_UInt32 indicesSize, UA_StatusCode *writeNodesResults, UA_DiagnosticInfo *diagnosticInfos)
 {
-    UA_Int32 retval = UA_SUCCESS;
+    UA_Int32 retval = UA_STATUSCODE_GOOD;
     for(UA_UInt32 i=0;i<indicesSize;i++){
 		switch(writeValues[indices[i]].attributeId) {
 		case UA_ATTRIBUTEID_NODEID:
 			/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
 			writeNodesResults[indices[i]] = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-			return UA_ERROR;
+			return UA_STATUSCODE_BADINTERNALERROR;
 			break;
 		case UA_ATTRIBUTEID_NODECLASS:
 			/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
 			writeNodesResults[indices[i]] = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-			return UA_ERROR;
+			return UA_STATUSCODE_BADINTERNALERROR;
 			break;
 
 		case UA_ATTRIBUTEID_BROWSENAME:
 			/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
 			writeNodesResults[indices[i]] = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-			return UA_ERROR;
+			return UA_STATUSCODE_BADINTERNALERROR;
 			break;
 
 		case UA_ATTRIBUTEID_DISPLAYNAME:
 			/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
 			writeNodesResults[indices[i]] = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-			return UA_ERROR;
+			return UA_STATUSCODE_BADINTERNALERROR;
 			break;
 
 		case UA_ATTRIBUTEID_DESCRIPTION:
 			/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
 			writeNodesResults[indices[i]] = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-			return UA_ERROR;
+			return UA_STATUSCODE_BADINTERNALERROR;
 			break;
 
 		case UA_ATTRIBUTEID_WRITEMASK:
@@ -296,7 +296,7 @@ UA_Int32 writeNodes(UA_WriteValue *writeValues,UA_UInt32 *indices ,UA_UInt32 ind
 		case UA_ATTRIBUTEID_USERWRITEMASK:
 			/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
 			writeNodesResults[indices[i]] = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-			return UA_ERROR;
+			return UA_STATUSCODE_BADINTERNALERROR;
 			break;
 
 		case UA_ATTRIBUTEID_ISABSTRACT:
@@ -309,7 +309,7 @@ UA_Int32 writeNodes(UA_WriteValue *writeValues,UA_UInt32 *indices ,UA_UInt32 ind
 		case UA_ATTRIBUTEID_SYMMETRIC:
 			/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
 			writeNodesResults[indices[i]] = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-			return UA_ERROR;
+			return UA_STATUSCODE_BADINTERNALERROR;
 			break;
 
 		case UA_ATTRIBUTEID_INVERSENAME:
@@ -320,7 +320,7 @@ UA_Int32 writeNodes(UA_WriteValue *writeValues,UA_UInt32 *indices ,UA_UInt32 ind
 		case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
 			/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
 			writeNodesResults[indices[i]] = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-			return UA_ERROR;
+			return UA_STATUSCODE_BADINTERNALERROR;
 			break;
 
 		case UA_ATTRIBUTEID_EVENTNOTIFIER:
@@ -359,7 +359,7 @@ UA_Int32 writeNodes(UA_WriteValue *writeValues,UA_UInt32 *indices ,UA_UInt32 ind
 		case UA_ATTRIBUTEID_USERACCESSLEVEL:
 			/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
 			writeNodesResults[indices[i]]   = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-			return UA_ERROR;
+			return UA_STATUSCODE_BADINTERNALERROR;
 			break;
 
 		case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:

@@ -17,10 +17,11 @@
 #include "networklayer_tcp.h"
 
 #include "nodestoreAccessExample.h"
-#include "../src/server/ua_nodestore.h"
+#include "../src/server/nodestore/ua_nodestore.h"
 #include "../src/server/ua_namespace_manager.h"
+#include "../src/server/nodestore/open62541_nodestore.h"
 UA_Boolean running = UA_TRUE;
-UA_Boolean running = 1;
+
 
 void stopHandler(int sign) {
 	running = 0;
@@ -65,7 +66,9 @@ int main(int argc, char** argv) {
 	UA_Server_addNamespace(&server,0,&newNodeStore);
 
 	initMyNode();
-	UA_NodeStore_registerReadNodesOperation(&newNodeStore,readNodes);
+	UA_NodeStore_registerReadNodesOperation(&newNodeStore,open62541NodeStore_ReadNodes);
+	UA_NodeStore_registerBrowseNodesOperation(&newNodeStore,open62541NodeStore_BrowseNodes);
+
 	UA_NodeStore_registerWriteNodesOperation(&newNodeStore,writeNodes);
 
 	Logger_Stdout_init(&server.logger);
