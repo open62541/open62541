@@ -69,7 +69,7 @@ typedef UA_Int32 (*UA_NodeStore_deleteReferences)(UA_DeleteReferencesItem *refer
 
 typedef UA_Int32 (*UA_NodeStore_readNodes)(UA_ReadValueId *readValueIds,UA_UInt32 *indices,UA_UInt32 indicesSize,UA_DataValue *readNodesResults, UA_Boolean timeStampToReturn, UA_DiagnosticInfo *diagnosticInfos);
 typedef UA_Int32 (*UA_NodeStore_writeNodes)(UA_WriteValue *writeValues,UA_UInt32 *indices ,UA_UInt32 indicesSize, UA_StatusCode *writeNodesResults, UA_DiagnosticInfo *diagnosticInfo);
-typedef UA_Int32 (*UA_NodeStore_browseNodes)(UA_BrowseDescription *browseDescriptions,UA_Int32 *indices,UA_UInt32 indicesSize, UA_UInt32 requestedMaxReferencesPerNode, UA_BrowseResult *browseResults, UA_DiagnosticInfo *diagnosticInfos);
+typedef UA_Int32 (*UA_NodeStore_browseNodes)(UA_BrowseDescription *browseDescriptions,UA_UInt32 *indices,UA_UInt32 indicesSize, UA_UInt32 requestedMaxReferencesPerNode, UA_BrowseResult *browseResults, UA_DiagnosticInfo *diagnosticInfos);
 
 
 

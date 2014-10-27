@@ -42,10 +42,10 @@ EQUALS = =
 CMAKE_EDIT_COMMAND = /usr/bin/cmake-gui
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/opcua/Downloads/AcpltDevelopmentKit/acplt/dev/iec62541/open62541
+CMAKE_SOURCE_DIR = /home/opcua/Downloads/open62541_external_datasource
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/opcua/Downloads/AcpltDevelopmentKit/acplt/dev/iec62541/open62541
+CMAKE_BINARY_DIR = /home/opcua/Downloads/open62541_external_datasource
 
 #=============================================================================
 # Targets provided globally by CMake.
@@ -72,9 +72,9 @@ rebuild_cache/fast: rebuild_cache
 
 # The main all target
 all: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/opcua/Downloads/AcpltDevelopmentKit/acplt/dev/iec62541/open62541/CMakeFiles /home/opcua/Downloads/AcpltDevelopmentKit/acplt/dev/iec62541/open62541/CMakeFiles/progress.marks
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/opcua/Downloads/open62541_external_datasource/CMakeFiles /home/opcua/Downloads/open62541_external_datasource/CMakeFiles/progress.marks
 	$(MAKE) -f CMakeFiles/Makefile2 all
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/opcua/Downloads/AcpltDevelopmentKit/acplt/dev/iec62541/open62541/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/opcua/Downloads/open62541_external_datasource/CMakeFiles 0
 .PHONY : all
 
 # The main clean target

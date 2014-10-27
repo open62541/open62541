@@ -248,8 +248,8 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     	}
     }
 
-	UA_UInt32 *readValueIdIndices;
-    if(UA_Array_new((void **)&readValueIdIndices,request->nodesToBrowseSize,&UA_[UA_UINT32]) != UA_STATUSCODE_GOOD){
+	UA_UInt32 *browseDescriptionIndices;
+    if(UA_Array_new((void **)&browseDescriptionIndices,request->nodesToBrowseSize,&UA_[UA_UINT32]) != UA_STATUSCODE_GOOD){
     	response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
     	return ;
     }
@@ -263,7 +263,7 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     	    UA_UInt32 n = 0;
     	    for(UA_Int32 j = 0; j < request->nodesToBrowseSize; j++){
     	    	if(request->nodesToBrowse[j].nodeId.namespaceIndex == associatedIndices[i]){
-    	    		readValueIdIndices[n] = j;
+    	    		browseDescriptionIndices[n] = j;
     	    	}
     	    }
 
@@ -271,16 +271,16 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     	    //call read for every namespace
     		tmpNamespace->nodeStore->browseNodes(
     				request->nodesToBrowse,
-    				readValueIdIndices,
+    				browseDescriptionIndices,
     				numberOfFoundIndices[i],
     				request->requestedMaxReferencesPerNode,
     				response->results,
-    				&response->diagnosticInfos[i]);
+    				response->diagnosticInfos);
 
 			//	response->results[i] = service_read_node(server, &request->nodesToRead[i]);
     	}
     }
-    UA_free();
+    UA_free(browseDescriptionIndices);
     UA_free(numberOfFoundIndices);
     UA_free(associatedIndices);
     // for(UA_Int32 i = 0;i < request->nodesToBrowseSize;i++)
