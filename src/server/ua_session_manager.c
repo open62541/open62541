@@ -55,7 +55,7 @@ UA_StatusCode UA_SessionManager_getSessionById(UA_SessionManager *sessionManager
 
     struct session_list_entry *current = UA_NULL;
     LIST_FOREACH(current, &sessionManager->sessions, pointers) {
-        if(UA_NodeId_equal(&current->session.sessionId, sessionId) == UA_EQUAL)
+        if(UA_NodeId_equal(&current->session.sessionId, sessionId))
             break;
     }
 
@@ -78,7 +78,7 @@ UA_StatusCode UA_SessionManager_getSessionByToken(UA_SessionManager *sessionMana
 
     struct session_list_entry *current = UA_NULL;
     LIST_FOREACH(current, &sessionManager->sessions, pointers) {
-        if(UA_NodeId_equal(&current->session.authenticationToken, token) == UA_EQUAL)
+        if(UA_NodeId_equal(&current->session.authenticationToken, token))
             break;
     }
 
@@ -122,7 +122,7 @@ UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager,
 UA_StatusCode UA_SessionManager_removeSession(UA_SessionManager *sessionManager, UA_NodeId  *sessionId) {
     struct session_list_entry *current = UA_NULL;
     LIST_FOREACH(current, &sessionManager->sessions, pointers) {
-        if(UA_NodeId_equal(&current->session.sessionId, sessionId) == UA_EQUAL)
+        if(UA_NodeId_equal(&current->session.sessionId, sessionId))
             break;
     }
 

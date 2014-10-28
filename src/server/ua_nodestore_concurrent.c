@@ -146,7 +146,7 @@ static int compare(struct cds_lfht_node *htn, const void *orig) {
     UA_NodeId *origid = (UA_NodeId *)orig;
     UA_NodeId *newid  = &((UA_NodeStore_Entry *)htn)->node.nodeId;   /* The htn is first in the entry structure. */
 
-    return UA_NodeId_equal(newid, origid) == UA_EQUAL;
+    return UA_NodeId_equal(newid, origid);
 }
 
 /* The entry was removed from the hashtable. No more readers can get it. Since

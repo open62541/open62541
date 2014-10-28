@@ -76,7 +76,7 @@ START_TEST(encodeShallYieldDecode) {
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
 	// then
-	ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == 0, "messages differ idx=%d,name=%s", _i, UA_[_i].name);
+	ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == UA_TRUE, "messages differ idx=%d,name=%s", _i, UA_[_i].name);
 
 	// finally
 	UA_[_i].delete(obj1);

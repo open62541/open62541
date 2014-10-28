@@ -198,15 +198,15 @@ UA_StatusCode UA_String_copyprintf(char const *fmt, UA_String *dst, ...) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_EQUALITY UA_String_equal(const UA_String *string1, const UA_String *string2) {
+UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
     if(string1->length <= 0 && string2->length <= 0)
-        return UA_EQUAL;
+        return UA_TRUE;
     if(string1->length != string2->length)
-        return UA_NOT_EQUAL;
+        return UA_FALSE;
 
     // casts are needed to overcome signed warnings
     UA_Int32 is = strncmp((char const *)string1->data, (char const *)string2->data, string1->length);
-    return (is == 0) ? UA_EQUAL : UA_NOT_EQUAL;
+    return (is == 0) ? UA_TRUE : UA_FALSE;
 }
 
 #ifdef DEBUG
@@ -319,10 +319,10 @@ UA_StatusCode UA_DateTime_toString(UA_DateTime time, UA_String *timeString) {
 UA_TYPE_DELETE_DEFAULT(UA_Guid)
 UA_TYPE_DELETEMEMBERS_NOACTION(UA_Guid)
 
-UA_EQUALITY UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
+UA_Boolean UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
     if(memcmp(g1, g2, sizeof(UA_Guid)) == 0)
-        return UA_EQUAL;
-    return UA_NOT_EQUAL;
+        return UA_TRUE;
+    return UA_FALSE;
 }
 
 void UA_Guid_init(UA_Guid *p) {
@@ -347,7 +347,7 @@ void UA_Guid_print(const UA_Guid *p, FILE *stream) {
 
 /* ByteString */
 UA_TYPE_AS(UA_ByteString, UA_String)
-UA_EQUALITY UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2) {
+UA_Boolean UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2) {
     return UA_String_equal((const UA_String *)string1, (const UA_String *)string2);
 }
 
@@ -510,16 +510,16 @@ void UA_NodeId_print(const UA_NodeId *p, FILE *stream) {
 }
 #endif
 
-UA_EQUALITY UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
+UA_Boolean UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
     if(n1->namespaceIndex != n2->namespaceIndex)
-        return UA_NOT_EQUAL;
+        return UA_FALSE;
 
     switch(n1->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         if(n1->identifier.numeric == n2->identifier.numeric)
-            return UA_EQUAL;
+            return UA_TRUE;
         else
-            return UA_NOT_EQUAL;
+            return UA_FALSE;
 
     case UA_NODEIDTYPE_STRING:
         return UA_String_equal(&n1->identifier.string, &n2->identifier.string);
@@ -530,7 +530,7 @@ UA_EQUALITY UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
     case UA_NODEIDTYPE_BYTESTRING:
         return UA_ByteString_equal(&n1->identifier.byteString, &n2->identifier.byteString);
     }
-    return UA_NOT_EQUAL;
+    return UA_FALSE;
 }
 
 UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {

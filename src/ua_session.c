@@ -99,8 +99,7 @@ void UA_Session_delete(UA_Session *session) {
 }
 
 UA_Boolean UA_Session_compare(UA_Session *session1, UA_Session *session2) {
-    if(session1 && session2 &&
-       UA_NodeId_equal(&session1->sessionId, &session2->sessionId) == UA_EQUAL)
+    if(session1 && session2 && UA_NodeId_equal(&session1->sessionId, &session2->sessionId))
         return UA_TRUE;
     return UA_FALSE;
 }

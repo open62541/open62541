@@ -176,7 +176,7 @@ static INLINE UA_StatusCode find_entry(const UA_NodeStore *ns, const UA_NodeId *
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    if(UA_NodeId_equal(&(*e)->nodeId, nodeid) == UA_EQUAL) {
+    if(UA_NodeId_equal(&(*e)->nodeId, nodeid)) {
         *entry = e;
         return UA_STATUSCODE_GOOD;
     }
@@ -194,7 +194,7 @@ static INLINE UA_StatusCode find_entry(const UA_NodeStore *ns, const UA_NodeId *
             return UA_STATUSCODE_BADINTERNALERROR;
         }
 
-        if(UA_NodeId_equal(&(*e)->nodeId, nodeid) == UA_EQUAL) {
+        if(UA_NodeId_equal(&(*e)->nodeId, nodeid)) {
             *entry = e;
             return UA_STATUSCODE_GOOD;
         }

@@ -64,7 +64,7 @@ static UA_Boolean isRelevantTargetNode(UA_NodeStore *ns, const UA_BrowseDescript
     UA_Boolean isRelevant = returnAll;
     if(!isRelevant) {
         for(UA_UInt32 i = 0;i < relevantRefTypesCount;i++) {
-            if(UA_NodeId_equal(&reference->referenceTypeId, &relevantRefTypes[i]) == UA_EQUAL)
+            if(UA_NodeId_equal(&reference->referenceTypeId, &relevantRefTypes[i]))
                 isRelevant = UA_TRUE;
         }
         if(!isRelevant)

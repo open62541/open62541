@@ -21,21 +21,11 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include "ua_config.h"
-
 #ifdef DEBUG
 #include <stdio.h>
 #endif
 
-/* For internal use */
-#define UA_NULL ((void *)0)
-#define UA_TRUE (42 == 42)
-#define UA_FALSE (!UA_TRUE)
-
-typedef enum UA_EQUALITY {
-    UA_EQUAL,
-    UA_NOT_EQUAL
-} UA_EQUALITY;
+#include "ua_config.h"
     
 /**
  * @defgroup types Datatypes
@@ -355,14 +345,14 @@ UA_TYPE_PROTOTYPES(UA_DiagnosticInfo)
 UA_TYPE_PROTOTYPES(UA_InvalidType)
 
 /* String */
-#define UA_STRING_NULL (UA_String) {-1, UA_NULL }
+#define UA_STRING_NULL (UA_String) {-1, (UA_Byte*)0 }
 #define UA_STRING_STATIC(VARIABLE, STRING) do { \
         VARIABLE.length = sizeof(STRING)-1;     \
         VARIABLE.data   = (UA_Byte *)STRING; } while(0)
 
 UA_StatusCode UA_EXPORT UA_String_copycstring(char const *src, UA_String *dst);
 UA_StatusCode UA_EXPORT UA_String_copyprintf(char const *fmt, UA_String *dst, ...);
-UA_EQUALITY UA_EXPORT UA_String_equal(const UA_String *string1, const UA_String *string2);
+UA_Boolean UA_EXPORT UA_String_equal(const UA_String *string1, const UA_String *string2);
 #ifdef DEBUG
 void UA_EXPORT UA_String_printf(char const *label, const UA_String *string);
 void UA_EXPORT UA_String_printx(char const *label, const UA_String *string);
@@ -386,10 +376,10 @@ UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime time);
 UA_StatusCode UA_EXPORT UA_DateTime_toString(UA_DateTime time, UA_String *timeString);
 
 /* Guid */
-UA_EQUALITY UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
+UA_Boolean UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
 
 /* ByteString */
-UA_EQUALITY UA_EXPORT UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2);
+UA_Boolean UA_EXPORT UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2);
 UA_StatusCode UA_EXPORT UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length);
 #ifdef DEBUG
 void UA_EXPORT UA_ByteString_printf(char *label, const UA_ByteString *string);
@@ -398,7 +388,7 @@ void UA_EXPORT UA_ByteString_printx_hex(char *label, const UA_ByteString *string
 #endif
 
 /* NodeId */
-UA_EQUALITY UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
+UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 UA_Boolean UA_EXPORT UA_NodeId_isBasicType(UA_NodeId const *id);
 
