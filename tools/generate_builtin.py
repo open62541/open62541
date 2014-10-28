@@ -10,6 +10,7 @@ import inspect
 import argparse
 
 parser = argparse.ArgumentParser()
+parser.add_argument('--export-prototypes', action='store_true', help='make the prototypes (init, delete, copy, ..) of generated types visible for users of the library')
 parser.add_argument('--with-xml', action='store_true', help='generate xml encoding')
 parser.add_argument('--with-json', action='store_true', help='generate json encoding')
 parser.add_argument('--only-nano', action='store_true', help='generate only the types for the nano profile')
@@ -92,7 +93,10 @@ def createEnumerated(element):
     printh("typedef enum " + name + " { \n\t" +
            ",\n\t".join(map(lambda (key, value) : key.upper() + " = " + value, valuemap.iteritems())) +
            "\n} " + name + ";")
-    printh("UA_TYPE_PROTOTYPES (" + name + ")")
+    if args.export_prototypes:
+        printh("UA_TYPE_PROTOTYPES(" + name + ")")
+    else:
+        printh("UA_TYPE_PROTOTYPES_NOEXPORT(" + name + ")")
     printh("UA_TYPE_BINARY_ENCODING(" + name + ")")
     printc("UA_TYPE_AS(" + name + ", UA_Int32)")
     printc("UA_TYPE_BINARY_ENCODING_AS(" + name + ", UA_Int32)")

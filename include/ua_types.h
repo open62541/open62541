@@ -303,21 +303,28 @@ typedef void UA_InvalidType;
 /*************/
 
 #ifdef DEBUG
+#define PRINTTYPE(TYPE) void UA_EXPORT TYPE##_print(const TYPE *p, FILE *stream);
+#define PRINTTYPE_NOEXPORT(TYPE) void TYPE##_print(const TYPE *p, FILE *stream);
+#else
+#define PRINTTYPE(TYPE)
+#define PRINTTYPE_NOEXPORT(TYPE)
+#endif
+    
 #define UA_TYPE_PROTOTYPES(TYPE)                                     \
     UA_StatusCode UA_EXPORT TYPE##_new(TYPE **p);                    \
     void UA_EXPORT TYPE##_init(TYPE * p);                            \
     void UA_EXPORT TYPE##_delete(TYPE * p);                          \
     void UA_EXPORT TYPE##_deleteMembers(TYPE * p);                   \
     UA_StatusCode UA_EXPORT TYPE##_copy(const TYPE *src, TYPE *dst); \
-    void UA_EXPORT TYPE##_print(const TYPE *p, FILE *stream);
-#else
-#define UA_TYPE_PROTOTYPES(TYPE)                                        \
-    UA_StatusCode UA_EXPORT TYPE##_new(TYPE **p);                       \
-    void UA_EXPORT TYPE##_init(TYPE * p);                               \
-    void UA_EXPORT TYPE##_delete(TYPE * p);                             \
-    void UA_EXPORT TYPE##_deleteMembers(TYPE * p);                      \
-    UA_StatusCode UA_EXPORT TYPE##_copy(const TYPE *src, TYPE *dst);
-#endif
+    PRINTTYPE(TYPE)
+
+#define UA_TYPE_PROTOTYPES_NOEXPORT(TYPE)                            \
+    UA_StatusCode TYPE##_new(TYPE **p);                              \
+    void TYPE##_init(TYPE * p);                                      \
+    void TYPE##_delete(TYPE * p);                                    \
+    void TYPE##_deleteMembers(TYPE * p);                             \
+    UA_StatusCode TYPE##_copy(const TYPE *src, TYPE *dst);           \
+    PRINTTYPE_NOEXPORT(TYPE)
 
 /* Functions for all types */
 UA_TYPE_PROTOTYPES(UA_Boolean)
