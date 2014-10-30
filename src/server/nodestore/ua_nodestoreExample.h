@@ -2,7 +2,7 @@
 #define UA_NODESTORE_H_
 
 #include "ua_server.h"
-
+#include "ua_config.h"
 /**
    @ingroup server
 
@@ -22,7 +22,7 @@
  */
 
 /** @brief Create a new namespace */
-UA_StatusCode UA_NodeStoreExample_new(UA_NodeStoreExample **result);
+UA_StatusCode UA_EXPORT UA_NodeStoreExample_new(UA_NodeStoreExample **result);
 
 /** @brief Delete the namespace and all nodes in it */
 void UA_NodeStoreExample_delete(UA_NodeStoreExample *ns);

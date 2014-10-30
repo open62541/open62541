@@ -1,12 +1,12 @@
 #ifndef UA_NODESTORE_H_
 #define UA_NODESTORE_H_
 
+
+
 #include "ua_server.h"
 
 
-
-
-UA_StatusCode UA_EXPORT UA_NodeStore_registerAddNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_addNodes addNode);
+UA_StatusCode UA_EXPORT UA_NodeStore_registerAddNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_addNodes addNodes);
 UA_StatusCode UA_EXPORT UA_NodeStore_registerAddReferenceOperation(UA_NodeStore *nodeStore, UA_NodeStore_addReferences addReference);
 UA_StatusCode UA_EXPORT UA_NodeStore_registerDeleteNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_deleteNodes deleteNode);
 UA_StatusCode UA_EXPORT UA_NodeStore_registerDeleteReferencesOperation(UA_NodeStore *nodeStore, UA_NodeStore_deleteReferences deleteReference);

@@ -266,7 +266,7 @@ void Service_Read(UA_Server *server, UA_Session *session,
     				numberOfFoundIndices[i],
     				response->results,
     				request->timestampsToReturn,
-    				&response->diagnosticInfos[i]);
+    				response->diagnosticInfos);
 
 			//	response->results[i] = service_read_node(server, &request->nodesToRead[i]);
     	}

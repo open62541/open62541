@@ -16,14 +16,29 @@ UA_StatusCode UA_Server_deleteMembers(UA_Server *server) {
     UA_ByteString_deleteMembers(&server->serverCertificate);
     return UA_STATUSCODE_GOOD;
 }
-
+void addSingleReference(UA_Namespace *namespace,UA_AddReferencesItem *addReferencesItem){
+	UA_UInt32 indices = 1;
+	UA_UInt32 indicesSize = 1;
+	UA_DiagnosticInfo diagnosticInfo;
+	UA_StatusCode result;
+	namespace->nodeStore->addReferences(addReferencesItem,&indices,indicesSize,&result,&diagnosticInfo);
+}
+void addSingleNode(UA_Namespace *namespace, UA_AddNodesItem *addNodesItem){
+	UA_UInt32 indices = 0;
+	UA_UInt32 indicesSize = 1;
+	UA_DiagnosticInfo diagnosticInfo;
+	UA_AddNodesResult result;
+	namespace->nodeStore->addNodes(addNodesItem, &indices, indicesSize, &result, &diagnosticInfo);
+}
 void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_ExpandedNodeId_init(&server->objectsNodeId);
     server->objectsNodeId.nodeId.identifier.numeric = 85;
 
     UA_NodeId_init(&server->hasComponentReferenceTypeId);
     server->hasComponentReferenceTypeId.identifier.numeric = 47;
-    UA_NamespaceManager_new(&server->namespaceManager);
+
+
+
     UA_ApplicationDescription_init(&server->description);
     UA_ByteString_init(&server->serverCertificate);
 #define MAXCHANNELCOUNT 100
@@ -39,7 +54,7 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_SessionManager_new(&server->sessionManager, MAXSESSIONCOUNT, SESSIONLIFETIME,
                           STARTSESSIONID);
 
-    UA_NodeStoreExample_new(&server->nodestore);
+
     //ns0: C2UA_STRING("http://opcfoundation.org/UA/"));
     //ns1: C2UA_STRING("http://localhost:16664/open62541/"));
 
@@ -72,6 +87,43 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_ExpandedNodeId RefTypeId_HasEffect; NS0EXPANDEDNODEID(RefTypeId_HasEffect, 54);
     UA_ExpandedNodeId RefTypeId_HasHistoricalConfiguration; NS0EXPANDEDNODEID(RefTypeId_HasHistoricalConfiguration, 56);
 
+
+
+#define ADD_REFTYPENODE_NS0(REFTYPE_NODEID,REQ_NODEID_NUMERIC_IDENTIFIER,PARENTNODEID_NUMERIC_IDENTIFIER,REFTYPE_BROWSENAME,REFTYPE_DISPLAYNAME,REFTYPE_DESCRIPTION, IS_ABSTRACT, IS_SYMMETRIC) do{\
+	UA_AddNodesItem addNodesItem; \
+    UA_Namespace *ns0; \
+    UA_NamespaceManager_getNamespace(server->namespaceManager,0,&ns0); \
+	UA_ReferenceTypeAttributes refTypeAttr; \
+    addNodesItem.parentNodeId.nodeId.identifier.numeric = PARENTNODEID_NUMERIC_IDENTIFIER;\
+    addNodesItem.parentNodeId.nodeId.namespaceIndex = 0; \
+    addNodesItem.parentNodeId.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC; \
+    addNodesItem.requestedNewNodeId.nodeId.identifier.numeric = REQ_NODEID_NUMERIC_IDENTIFIER; \
+    addNodesItem.requestedNewNodeId.nodeId.namespaceIndex = 0; \
+    addNodesItem.requestedNewNodeId.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC; \
+    addNodesItem.referenceTypeId = REFTYPE_NODEID; \
+    addNodesItem.nodeClass = UA_NODECLASS_REFERENCETYPE; \
+    UA_QualifiedName_copycstring(REFTYPE_BROWSENAME, &addNodesItem.browseName); \
+    UA_LocalizedText_copycstring(REFTYPE_DISPLAYNAME, &refTypeAttr.displayName); \
+    UA_LocalizedText_copycstring(REFTYPE_DESCRIPTION, &refTypeAttr.description); \
+    refTypeAttr.isAbstract = IS_ABSTRACT; \
+    refTypeAttr.symmetric  = IS_SYMMETRIC; \
+    refTypeAttr.userWriteMask = 0; \
+    refTypeAttr.writeMask = 0; \
+    refTypeAttr.inverseName.locale.length = 0; \
+    refTypeAttr.inverseName.text.length = 0; \
+    refTypeAttr.specifiedAttributes |= UA_ATTRIBUTEID_BROWSENAME; \
+    refTypeAttr.specifiedAttributes |= UA_ATTRIBUTEID_DISPLAYNAME; \
+    refTypeAttr.specifiedAttributes |= UA_ATTRIBUTEID_DESCRIPTION; \
+    refTypeAttr.specifiedAttributes |= UA_ATTRIBUTEID_ISABSTRACT; \
+    refTypeAttr.specifiedAttributes |= UA_ATTRIBUTEID_SYMMETRIC; \
+    UA_UInt32 offset = 0; \
+    UA_ByteString_newMembers(&addNodesItem.nodeAttributes.body,UA_ReferenceTypeAttributes_calcSizeBinary(&refTypeAttr));\
+    UA_ReferenceTypeAttributes_encodeBinary(&refTypeAttr,&addNodesItem.nodeAttributes.body,&offset); \
+    addSingleNode(ns0,&addNodesItem);\
+}while(1==0);
+
+
+
 #define ADDREFERENCE(NODE, REFTYPE, INVERSE, TARGET_NODEID) do { \
     static struct UA_ReferenceNode NODE##REFTYPE##TARGET_NODEID;    \
     UA_ReferenceNode_init(&NODE##REFTYPE##TARGET_NODEID);       \
@@ -80,6 +132,13 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     NODE##REFTYPE##TARGET_NODEID.targetId = TARGET_NODEID; \
     AddReference(server->nodestore, (UA_Node *)NODE, &NODE##REFTYPE##TARGET_NODEID); \
     } while(0)
+
+
+
+
+
+    ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,32,84,"NonHierarchicalReferences","NonHierarchicalReferences","NonHierarchicalReferences",UA_TRUE,UA_FALSE);
+    ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,33,32,"HierarchicalReferences","HierarchicalReferences","HierarchicalReferences",UA_TRUE,UA_FALSE);
 
     UA_ReferenceTypeNode *references;
     UA_ReferenceTypeNode_new(&references);
@@ -92,6 +151,10 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     references->symmetric  = UA_TRUE;
     UA_NodeStoreExample_insert(server->nodestore, (UA_Node**)&references, UA_NODESTORE_INSERT_UNIQUE);
 
+
+
+    //addSingleNode()
+
     UA_ReferenceTypeNode *hierarchicalreferences;
     UA_ReferenceTypeNode_new(&hierarchicalreferences);
     hierarchicalreferences->nodeId    = RefTypeId_HierarchicalReferences.nodeId;
@@ -101,7 +164,10 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_LocalizedText_copycstring("HierarchicalReferences", &hierarchicalreferences->description);
     hierarchicalreferences->isAbstract = UA_TRUE;
     hierarchicalreferences->symmetric  = UA_FALSE;
+
     ADDREFERENCE(hierarchicalreferences, RefTypeId_HasSubtype, UA_TRUE, RefTypeId_References);
+
+
     UA_NodeStoreExample_insert(server->nodestore, (UA_Node**)&hierarchicalreferences, UA_NODESTORE_INSERT_UNIQUE);
 
     UA_ReferenceTypeNode *nonhierarchicalreferences;
@@ -414,6 +480,8 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     /* root becomes a managed node. we need to release it at the end.*/
     UA_NodeStoreExample_insert(server->nodestore, (UA_Node**)&root, UA_NODESTORE_INSERT_UNIQUE | UA_NODESTORE_INSERT_GETMANAGED);
 
+
+
     // Objects
     UA_ObjectNode *objects;
     UA_ObjectNode_new(&objects);
@@ -528,6 +596,92 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_NodeStoreExample_insert(server->nodestore, (UA_Node**)&state, UA_NODESTORE_INSERT_UNIQUE);
 
     UA_NodeStoreExample_releaseManagedNode((const UA_Node *)root);
+
+
+
+    UA_Namespace *namespace;
+    UA_NamespaceManager_getNamespace(server->namespaceManager,0,&namespace);
+
+
+
+
+
+/*****
+     UA_Namespace *namespace;
+    UA_NamespaceManager_getNamespace(server->namespaceManager,0,&namespace);
+
+    UA_AddNodesItem addNodesItem;
+    UA_ReferenceTypeAttributes refTypeAttr;
+
+
+    addNodesItem.parentNodeId.nodeId = root->nodeId;
+
+    addNodesItem.requestedNewNodeId.nodeId.identifier.numeric = 999;
+    addNodesItem.requestedNewNodeId.nodeId.namespaceIndex = 0;
+    addNodesItem.requestedNewNodeId.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
+    addNodesItem.referenceTypeId = RefTypeId_Organizes.nodeId;
+    addNodesItem.nodeClass = UA_NODECLASS_REFERENCETYPE;
+
+    UA_QualifiedName_copycstring("myNewNode", &addNodesItem.browseName);
+    UA_LocalizedText_copycstring("myNewNode", &refTypeAttr.displayName);
+    UA_LocalizedText_copycstring("myNewNode", &refTypeAttr.description);
+    refTypeAttr.isAbstract = UA_TRUE;
+    refTypeAttr.symmetric  = UA_TRUE;
+    refTypeAttr.userWriteMask = 0;
+    refTypeAttr.writeMask = 0;
+
+    refTypeAttr.inverseName.locale.length = 0;
+    refTypeAttr.inverseName.text.length = 0;
+
+    refTypeAttr.specifiedAttributes |= UA_ATTRIBUTEID_BROWSENAME;
+    refTypeAttr.specifiedAttributes |= UA_ATTRIBUTEID_DISPLAYNAME;
+    refTypeAttr.specifiedAttributes |= UA_ATTRIBUTEID_DESCRIPTION;
+    refTypeAttr.specifiedAttributes |= UA_ATTRIBUTEID_ISABSTRACT;
+    refTypeAttr.specifiedAttributes |= UA_ATTRIBUTEID_SYMMETRIC;
+    refTypeAttr.specifiedAttributes |= UA_ATTRIBUTEID_INVERSENAME;
+
+    UA_UInt32 offset = 0;
+
+    UA_ByteString_newMembers(&addNodesItem.nodeAttributes.body,UA_ReferenceTypeAttributes_calcSizeBinary(&refTypeAttr));
+
+    UA_ReferenceTypeAttributes_encodeBinary(&refTypeAttr,&addNodesItem.nodeAttributes.body,&offset);
+
+    addSingleNode(namespace,&addNodesItem);
+ */
+    UA_ObjectAttributes objAttr;
+    UA_AddNodesItem addNodesItem;
+    addNodesItem.parentNodeId.nodeId = root->nodeId;
+    addNodesItem.requestedNewNodeId.nodeId.identifier.numeric = 222;
+    addNodesItem.requestedNewNodeId.nodeId.namespaceIndex = 0;
+    addNodesItem.requestedNewNodeId.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
+    addNodesItem.referenceTypeId = RefTypeId_Organizes.nodeId;
+    addNodesItem.nodeClass = UA_NODECLASS_OBJECT;
+
+    UA_QualifiedName_copycstring("myNewNodeObject", &addNodesItem.browseName);
+    UA_LocalizedText_copycstring("myNewNodeObject", &objAttr.displayName);
+    UA_LocalizedText_copycstring("myNewNodeObject", &objAttr.description);
+
+    objAttr.userWriteMask = 0;
+    objAttr.writeMask = 0;
+
+    objAttr.specifiedAttributes |= UA_ATTRIBUTEID_BROWSENAME;
+    objAttr.specifiedAttributes |= UA_ATTRIBUTEID_DISPLAYNAME;
+    objAttr.specifiedAttributes |= UA_ATTRIBUTEID_DESCRIPTION;
+    UA_UInt32 offset = 0;
+
+    UA_ByteString_newMembers(&addNodesItem.nodeAttributes.body,UA_ObjectAttributes_calcSizeBinary(&objAttr));
+
+    UA_ObjectAttributes_encodeBinary(&objAttr, &addNodesItem.nodeAttributes.body,&offset);
+
+    UA_Namespace *ns0;
+    UA_NamespaceManager_getNamespace(server->namespaceManager,0,&ns0);
+    addSingleNode(ns0,&addNodesItem);
+
+
+
+
+
+
 }
 
 UA_AddNodesResult UA_Server_addNode(UA_Server *server, UA_Node **node, UA_ExpandedNodeId *parentNodeId,

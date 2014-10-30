@@ -37,6 +37,7 @@ set(lib_sources src/ua_types.c
                 src/server/ua_services_monitoreditems.c
 				src/server/nodestore/open62541_nodestore_view.c
 				src/server/nodestore/open62541_nodestore_attribute.c
+				src/server/nodestore/open62541_nodestore_nodemanagement.c
 				src/server/nodestore/open62541_nodestore.c
                 ${headers}
                 ${generated_headers})

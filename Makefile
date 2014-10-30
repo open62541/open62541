@@ -284,6 +284,30 @@ src/server/nodestore/open62541_nodestore_attribute.c.s:
 	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore_attribute.c.s
 .PHONY : src/server/nodestore/open62541_nodestore_attribute.c.s
 
+src/server/nodestore/open62541_nodestore_nodemanagement.o: src/server/nodestore/open62541_nodestore_nodemanagement.c.o
+.PHONY : src/server/nodestore/open62541_nodestore_nodemanagement.o
+
+# target to build an object file
+src/server/nodestore/open62541_nodestore_nodemanagement.c.o:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore_nodemanagement.c.o
+.PHONY : src/server/nodestore/open62541_nodestore_nodemanagement.c.o
+
+src/server/nodestore/open62541_nodestore_nodemanagement.i: src/server/nodestore/open62541_nodestore_nodemanagement.c.i
+.PHONY : src/server/nodestore/open62541_nodestore_nodemanagement.i
+
+# target to preprocess a source file
+src/server/nodestore/open62541_nodestore_nodemanagement.c.i:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore_nodemanagement.c.i
+.PHONY : src/server/nodestore/open62541_nodestore_nodemanagement.c.i
+
+src/server/nodestore/open62541_nodestore_nodemanagement.s: src/server/nodestore/open62541_nodestore_nodemanagement.c.s
+.PHONY : src/server/nodestore/open62541_nodestore_nodemanagement.s
+
+# target to generate assembly for a file
+src/server/nodestore/open62541_nodestore_nodemanagement.c.s:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore_nodemanagement.c.s
+.PHONY : src/server/nodestore/open62541_nodestore_nodemanagement.c.s
+
 src/server/nodestore/open62541_nodestore_view.o: src/server/nodestore/open62541_nodestore_view.c.o
 .PHONY : src/server/nodestore/open62541_nodestore_view.o
 
@@ -913,6 +937,9 @@ help:
 	@echo "... src/server/nodestore/open62541_nodestore_attribute.o"
 	@echo "... src/server/nodestore/open62541_nodestore_attribute.i"
 	@echo "... src/server/nodestore/open62541_nodestore_attribute.s"
+	@echo "... src/server/nodestore/open62541_nodestore_nodemanagement.o"
+	@echo "... src/server/nodestore/open62541_nodestore_nodemanagement.i"
+	@echo "... src/server/nodestore/open62541_nodestore_nodemanagement.s"
 	@echo "... src/server/nodestore/open62541_nodestore_view.o"
 	@echo "... src/server/nodestore/open62541_nodestore_view.i"
 	@echo "... src/server/nodestore/open62541_nodestore_view.s"
