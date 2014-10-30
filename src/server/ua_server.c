@@ -63,9 +63,9 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     /**************/
 
     // ReferenceType Ids
-    UA_ExpandedNodeId RefTypeId_References; NS0EXPANDEDNODEID(RefTypeId_References, 31);
-    UA_ExpandedNodeId RefTypeId_NonHierarchicalReferences; NS0EXPANDEDNODEID(RefTypeId_NonHierarchicalReferences, 32);
-    UA_ExpandedNodeId RefTypeId_HierarchicalReferences; NS0EXPANDEDNODEID(RefTypeId_HierarchicalReferences, 33);
+   UA_ExpandedNodeId RefTypeId_References; NS0EXPANDEDNODEID(RefTypeId_References, 31);
+   UA_ExpandedNodeId RefTypeId_NonHierarchicalReferences; NS0EXPANDEDNODEID(RefTypeId_NonHierarchicalReferences, 32);
+   UA_ExpandedNodeId RefTypeId_HierarchicalReferences; NS0EXPANDEDNODEID(RefTypeId_HierarchicalReferences, 33);
     UA_ExpandedNodeId RefTypeId_HasChild; NS0EXPANDEDNODEID(RefTypeId_HasChild, 34);
     UA_ExpandedNodeId RefTypeId_Organizes; NS0EXPANDEDNODEID(RefTypeId_Organizes, 35);
     UA_ExpandedNodeId RefTypeId_HasEventSource; NS0EXPANDEDNODEID(RefTypeId_HasEventSource, 36);
@@ -88,18 +88,40 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_ExpandedNodeId RefTypeId_HasHistoricalConfiguration; NS0EXPANDEDNODEID(RefTypeId_HasHistoricalConfiguration, 56);
 
 
+#define ADD_OBJECTNODE_NSO(REFTYPE_NODEID,REQ_NODEID_NUMERIC_IDENTIFIER,PARENTNODEID_NUMERIC_IDENTIFIER,BROWSENAME,DISPLAYNAME,DESCRIPTION) do{ \
+	    UA_ObjectAttributes objAttr;\
+	    UA_AddNodesItem addNodesItem;\
+	    UA_Namespace *ns0 = UA_NULL;\
+	    UA_NamespaceManager_getNamespace(server->namespaceManager,0,&ns0); \
+	    addNodesItem.parentNodeId.nodeId.identifier.numeric = PARENTNODEID_NUMERIC_IDENTIFIER;\
+	    addNodesItem.parentNodeId.nodeId.namespaceIndex = 0; \
+    	addNodesItem.parentNodeId.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC; \
+	    addNodesItem.requestedNewNodeId.nodeId.identifier.numeric = REQ_NODEID_NUMERIC_IDENTIFIER;\
+	    addNodesItem.requestedNewNodeId.nodeId.namespaceIndex = 0;\
+	    addNodesItem.requestedNewNodeId.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;\
+	    addNodesItem.referenceTypeId = RefTypeId_Organizes.nodeId;\
+	    addNodesItem.nodeClass = UA_NODECLASS_OBJECT;\
+	    UA_QualifiedName_copycstring(BROWSENAME, &addNodesItem.browseName);\
+	    UA_LocalizedText_copycstring(DISPLAYNAME, &objAttr.displayName);\
+	    UA_LocalizedText_copycstring(DESCRIPTION, &objAttr.description);\
+	    objAttr.userWriteMask = 0;\
+	    objAttr.writeMask = 0;\
+	    objAttr.specifiedAttributes |= UA_ATTRIBUTEID_BROWSENAME;\
+	    objAttr.specifiedAttributes |= UA_ATTRIBUTEID_DISPLAYNAME;\
+	    objAttr.specifiedAttributes |= UA_ATTRIBUTEID_DESCRIPTION;\
+	    UA_UInt32 offset = 0;\
+	    UA_ByteString_newMembers(&addNodesItem.nodeAttributes.body,UA_ObjectAttributes_calcSizeBinary(&objAttr));\
+	    UA_ObjectAttributes_encodeBinary(&objAttr, &addNodesItem.nodeAttributes.body,&offset); \
+	    addSingleNode(ns0,&addNodesItem);\
+}while(0);
 
-#define ADD_REFTYPENODE_NS0(REFTYPE_NODEID,REQ_NODEID_NUMERIC_IDENTIFIER,PARENTNODEID_NUMERIC_IDENTIFIER,REFTYPE_BROWSENAME,REFTYPE_DISPLAYNAME,REFTYPE_DESCRIPTION, IS_ABSTRACT, IS_SYMMETRIC) do{\
+#define ADD_REFTYPENODE_NS0(REFTYPE_NODEID,REQ_NODEID,PARENTNODEID,REFTYPE_BROWSENAME,REFTYPE_DISPLAYNAME,REFTYPE_DESCRIPTION, IS_ABSTRACT, IS_SYMMETRIC) do{\
 	UA_AddNodesItem addNodesItem; \
     UA_Namespace *ns0; \
     UA_NamespaceManager_getNamespace(server->namespaceManager,0,&ns0); \
 	UA_ReferenceTypeAttributes refTypeAttr; \
-    addNodesItem.parentNodeId.nodeId.identifier.numeric = PARENTNODEID_NUMERIC_IDENTIFIER;\
-    addNodesItem.parentNodeId.nodeId.namespaceIndex = 0; \
-    addNodesItem.parentNodeId.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC; \
-    addNodesItem.requestedNewNodeId.nodeId.identifier.numeric = REQ_NODEID_NUMERIC_IDENTIFIER; \
-    addNodesItem.requestedNewNodeId.nodeId.namespaceIndex = 0; \
-    addNodesItem.requestedNewNodeId.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC; \
+    addNodesItem.parentNodeId= PARENTNODEID;\
+    addNodesItem.requestedNewNodeId = REQ_NODEID; \
     addNodesItem.referenceTypeId = REFTYPE_NODEID; \
     addNodesItem.nodeClass = UA_NODECLASS_REFERENCETYPE; \
     UA_QualifiedName_copycstring(REFTYPE_BROWSENAME, &addNodesItem.browseName); \
@@ -134,13 +156,63 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     } while(0)
 
 
+    UA_ExpandedNodeId rootNode;
+    NS0EXPANDEDNODEID(rootNode, 84);
+
+    ADD_OBJECTNODE_NSO(RefTypeId_Organizes.nodeId,84,0,"Root","Root","Root");
+	ADD_REFTYPENODE_NS0(RefTypeId_Organizes.nodeId,RefTypeId_References,rootNode,
+		"References","References","References",UA_TRUE,UA_TRUE);
+    	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_NonHierarchicalReferences,RefTypeId_References,
+    		"NonHierarchicalReferences","NonHierarchicalReferences","NonHierarchicalReferences",UA_TRUE,UA_TRUE);
+
+    		ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_HasModelParent,RefTypeId_NonHierarchicalReferences,
+    				"HasModelParent","HasModelParent","HasModelParent",UA_TRUE,UA_TRUE);
+    		ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_GeneratesEvent,RefTypeId_NonHierarchicalReferences,
+    			"GeneratesEvent","GeneratesEvent","GeneratesEvent",UA_TRUE,UA_TRUE);
+      		ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_GeneratesEvent,RefTypeId_NonHierarchicalReferences,
+        			"GeneratesEvent","GeneratesEvent","GeneratesEvent",UA_TRUE,UA_TRUE);
+      		ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_HasEncoding,RefTypeId_NonHierarchicalReferences,
+        			"HasEncoding","HasEncoding","HasEncoding",UA_TRUE,UA_TRUE);
+      		ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_HasModellingRule,RefTypeId_NonHierarchicalReferences,
+        			"HasModellingRule","HasModellingRule","HasModellingRule",UA_TRUE,UA_TRUE);
+      		ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_HasDescription,RefTypeId_NonHierarchicalReferences,
+        			"HasDescription","HasDescription","HasDescription",UA_TRUE,UA_TRUE);
+      		ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_HasTypeDefinition,RefTypeId_NonHierarchicalReferences,
+        			"HasTypeDefinition","HasTypeDefinition","HasTypeDefinition",UA_TRUE,UA_TRUE);
+      		ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_FromState,RefTypeId_NonHierarchicalReferences,
+        			"FromState","FromState","FromState",UA_TRUE,UA_TRUE);
+      		ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_ToState,RefTypeId_NonHierarchicalReferences,
+      		        			"ToState","ToState","ToState",UA_TRUE,UA_TRUE);
+      		ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_HasCause,RefTypeId_NonHierarchicalReferences,
+      		        			"HasCause","HasCause","HasCause",UA_TRUE,UA_TRUE);
+      		ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_HasEffect,RefTypeId_NonHierarchicalReferences,
+      		        			"HasEffect","HasEffect","HasEffect",UA_TRUE,UA_TRUE);
+      		ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_HasHistoricalConfiguration,RefTypeId_NonHierarchicalReferences,
+      		        			"HasHistoricalConfiguration","HasHistoricalConfiguration","HasHistoricalConfiguration",UA_TRUE,UA_TRUE);
+
+    	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_HierarchicalReferences,RefTypeId_References,
+    			"HierarchicalReferences","HierarchicalReferences","HierarchicalReferences",UA_TRUE,UA_TRUE);
+    		ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_HasEventSource,RefTypeId_HierarchicalReferences,
+    	    				"HasEventSource","HasEventSource","HasEventSource",UA_TRUE,UA_TRUE);
+    			ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_HasNotifier,RefTypeId_HasEventSource,
+    		    	    				"HasEventSource","HasEventSource","HasEventSource",UA_TRUE,UA_TRUE);
+    		ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_HasChild,RefTypeId_HierarchicalReferences,
+    	    				"HasChild","HasChild","HasChild",UA_TRUE,UA_TRUE);
+    			ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_Aggregates,RefTypeId_HasChild,
+    		    	    				"Aggregates","Aggregates","Aggregates",UA_TRUE,UA_TRUE);
+    				ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_HasProperty,RefTypeId_Aggregates,
+    		    	    					"HasProperty","HasProperty","HasProperty",UA_TRUE,UA_TRUE);
+    				ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_HasComponent,RefTypeId_Aggregates,
+    				    		    	    "HasComponent","HasComponent","HasComponent",UA_TRUE,UA_TRUE);
+    					ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_HasOrderedComponent,RefTypeId_HasComponent,
+    				    				    	"HasOrderedComponent","HasOrderedComponent","HasOrderedComponent",UA_TRUE,UA_TRUE);
+    			ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_HasSubtype,RefTypeId_HasChild,
+    			    		    	    "HasSubtype","HasSubtype","HasSubtype",UA_TRUE,UA_TRUE);
+    		ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_Organizes,RefTypeId_HierarchicalReferences,
+    	    				"Organizes","Organizes","Organizes",UA_TRUE,UA_TRUE);
 
 
-
-    ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,32,84,"NonHierarchicalReferences","NonHierarchicalReferences","NonHierarchicalReferences",UA_TRUE,UA_FALSE);
-    ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,33,32,"HierarchicalReferences","HierarchicalReferences","HierarchicalReferences",UA_TRUE,UA_FALSE);
-
-    UA_ReferenceTypeNode *references;
+    		/*UA_ReferenceTypeNode *references;
     UA_ReferenceTypeNode_new(&references);
     references->nodeId    = RefTypeId_References.nodeId;
     references->nodeClass = UA_NODECLASS_REFERENCETYPE;
@@ -440,7 +512,7 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     ADDREFERENCE(hashistoricalconfiguration, RefTypeId_HasSubtype, UA_TRUE, RefTypeId_Aggregates);
     UA_NodeStoreExample_insert(server->nodestore, (UA_Node**)&hashistoricalconfiguration, UA_NODESTORE_INSERT_UNIQUE);
 
-
+*/
     // ObjectTypes (Ids only)
     UA_ExpandedNodeId ObjTypeId_FolderType; NS0EXPANDEDNODEID(ObjTypeId_FolderType, 61);
 
