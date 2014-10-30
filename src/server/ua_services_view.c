@@ -224,9 +224,9 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
         return;
     }
 
-    if(UA_Array_new((void **)&(response->results), request->nodesToBrowseSize, &UA_[UA_BROWSERESULT])
-       != UA_STATUSCODE_GOOD) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_StatusCode retval = UA_Array_new((void**)&response->results, request->nodesToBrowseSize, &UA_[UA_BROWSERESULT]);
+    if(retval) {
+        response->responseHeader.serviceResult = retval;
         return;
     }
         
@@ -244,14 +244,13 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
         return;
     }
 
-    response->resultsSize = request->browsePathsSize;
-    // _init of the elements is done in Array_new
-    if(UA_Array_new((void **)&response->results, request->browsePathsSize, &UA_[UA_BROWSEPATHRESULT])
-       != UA_STATUSCODE_GOOD) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_StatusCode retval = UA_Array_new((void**)&response->results, request->browsePathsSize, &UA_[UA_BROWSEPATHRESULT]);
+    if(retval) {
+        response->responseHeader.serviceResult = retval;
         return;
     }
 
-    for(UA_Int32 i = 0;i < request->browsePathsSize;i++)
+    response->resultsSize = request->browsePathsSize;
+    for(UA_Int32 i = 0;i < response->resultsSize;i++)
         response->results[i].statusCode = UA_STATUSCODE_BADNOMATCH; //FIXME: implement
 }

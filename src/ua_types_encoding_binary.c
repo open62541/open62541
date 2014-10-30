@@ -84,13 +84,13 @@ UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset,
         return UA_STATUSCODE_GOOD;
     }
 
-    UA_StatusCode retval  = UA_Array_new(dst, length, vt);
+    UA_StatusCode retval = UA_Array_new(dst, length, vt);
     if(retval)
         return retval;
-        
-    UA_Byte      *arr     = (UA_Byte *)*dst;
-    UA_Int32      i       = 0;
-    UA_UInt32     memSize = vt->memSize;
+    
+    UA_Byte  *arr     = (UA_Byte *)*dst;
+    UA_Int32  i       = 0;
+    UA_UInt32 memSize = vt->memSize;
     for(;i < length && !retval;i++) {
         retval |= vt->encodings[UA_ENCODING_BINARY].decode(src, offset, arr);
         arr    += memSize;

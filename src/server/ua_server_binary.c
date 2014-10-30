@@ -53,8 +53,7 @@ static void processHello(UA_Connection *connection, const UA_ByteString *msg,
     UA_TcpHelloMessage_deleteMembers(&helloMessage);
 }
 
-static void processOpen(UA_Connection *connection, UA_Server *server,
-                        const UA_ByteString *msg, UA_UInt32 *pos) {
+static void processOpen(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, UA_UInt32 *pos) {
     if(connection->state != UA_CONNECTION_ESTABLISHED) {
         // was hello exchanged before?
         if(connection->state == UA_CONNECTION_OPENING)

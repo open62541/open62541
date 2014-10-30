@@ -32,8 +32,8 @@ static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node *
     if(UA_VariableAttributes_decodeBinary(&attributes->body, &pos, &attr) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
 
-    UA_VariableNode *vnode;
-    if(UA_VariableNode_new(&vnode) != UA_STATUSCODE_GOOD) {
+    UA_VariableNode *vnode = UA_VariableNode_new();
+    if(!vnode) {
         UA_VariableAttributes_deleteMembers(&attr);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -182,16 +182,14 @@ static void addNodeFromAttributes(UA_Server *server, UA_Session *session, UA_Add
 
 void Service_AddNodes(UA_Server *server, UA_Session *session,
                       const UA_AddNodesRequest *request, UA_AddNodesResponse *response) {
-    UA_assert(server != UA_NULL && session != UA_NULL);
-
     if(request->nodesToAddSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }
 
-    if(UA_Array_new((void **)&response->results, request->nodesToAddSize, &UA_[UA_ADDNODESRESULT])
-       != UA_STATUSCODE_GOOD) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_StatusCode retval = UA_Array_new((void**)&response->results, request->nodesToAddSize, &UA_[UA_ADDNODESRESULT]);
+    if(retval) {
+        response->responseHeader.serviceResult = retval;
         return;
     }
     

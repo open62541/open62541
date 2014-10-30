@@ -160,24 +160,24 @@ for row in rows:
     printh('#define '+name.upper()+'_NS0 '+row[1])
 
     printc("\t{.typeId={.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric=" + row[1] + "}" + 
-          ",\n.name=(UA_Byte*)&\"%(name)s\"" +
-          ",\n.new=(UA_Int32(*)(void **))%(name)s_new" +
-          ",\n.init=(void(*)(void *))%(name)s_init"+
-          ",\n.copy=(UA_Int32(*)(void const * ,void*))%(name)s_copy" +
-          ",\n.delete=(void(*)(void *))%(name)s_delete" +
-          ",\n.deleteMembers=(void(*)(void *))%(name)s_deleteMembers" +
-          ",\n#ifdef DEBUG //FIXME: seems to be okay atm, however a pointer to a noop function would be more safe" + 
-          "\n.print=(void(*)(const void *, FILE *))%(name)s_print," +
-          "\n#endif" + 
-          "\n.memSize=" + ("sizeof(%(name)s)" if (name != "UA_InvalidType") else "0") +
-          ",\n.dynMembers=" + ("UA_FALSE" if (name in fixed_size) else "UA_TRUE") +
+           ",\n.name=(UA_Byte*)&\"%(name)s\"" +
+           ",\n.new=(void *(*)())%(name)s_new" +
+           ",\n.init=(void(*)(void *))%(name)s_init"+
+           ",\n.copy=(UA_Int32(*)(void const * ,void*))%(name)s_copy" +
+           ",\n.delete=(void(*)(void *))%(name)s_delete" +
+           ",\n.deleteMembers=(void(*)(void *))%(name)s_deleteMembers" +
+           ",\n#ifdef DEBUG //FIXME: seems to be okay atm, however a pointer to a noop function would be more safe" + 
+           "\n.print=(void(*)(const void *, FILE *))%(name)s_print," +
+           "\n#endif" + 
+           "\n.memSize=" + ("sizeof(%(name)s)" if (name != "UA_InvalidType") else "0") +
+           ",\n.dynMembers=" + ("UA_FALSE" if (name in fixed_size) else "UA_TRUE") +
            ",\n.encodings={{.calcSize=(UA_Int32(*)(const void*))%(name)s_calcSizeBinary" +
            ",\n.encode=(UA_Int32(*)(const void*,UA_ByteString*,UA_UInt32*))%(name)s_encodeBinary" +
            ",\n.decode=(UA_Int32(*)(const UA_ByteString*,UA_UInt32*,void*))%(name)s_decodeBinary}" +
            (",\n{.calcSize=(UA_Int32(*)(const void*))%(name)s_calcSizeXml" +
             ",\n.encode=(UA_Int32(*)(const void*,UA_ByteString*,UA_UInt32*))%(name)s_encodeXml" +
             ",\n.decode=(UA_Int32(*)(const UA_ByteString*,UA_UInt32*,void*))%(name)s_decodeXml}" if (args.with_xml) else "") +
-          "}},")
+           "}},")
 
 printc('};')
 

@@ -30,8 +30,8 @@ START_TEST(test_UA_NodeStore) {
 }
 END_TEST
 
-UA_Int32 createNode(UA_Node** p, UA_Int16 nsid, UA_Int32 id) {
-	UA_VariableNode_new((UA_VariableNode **)p);
+UA_StatusCode createNode(UA_Node** p, UA_Int16 nsid, UA_Int32 id) {
+	*p = (UA_Node *)UA_VariableNode_new();
 	(*p)->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
 	(*p)->nodeId.namespaceIndex = nsid;
 	(*p)->nodeId.identifier.numeric = id;
@@ -54,7 +54,7 @@ START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
 	retval = UA_NodeStore_get(ns,&n1->nodeId,&nr);
 	// then
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-	ck_assert_ptr_eq(nr,n1);
+	ck_assert_ptr_eq((void*)nr, (void*)n1);
 	// finally
 	UA_NodeStore_releaseManagedNode(n1);
 	UA_NodeStore_releaseManagedNode(nr);
@@ -112,7 +112,7 @@ START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
 	retval = UA_NodeStore_get(ns,&(n3->nodeId),&nr);
 	// then
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-	ck_assert_ptr_eq(nr,n3);
+	ck_assert_ptr_eq((void*)nr, (void*)n3);
 	// finally
 	UA_NodeStore_releaseManagedNode(n3);
 	UA_NodeStore_releaseManagedNode(nr);
@@ -351,7 +351,7 @@ int main (void) {
 	int number_failed =0;
 	Suite *s = namespace_suite ();
 	SRunner *sr = srunner_create (s);
-	//srunner_set_fork_status(sr,CK_NOFORK);
+	srunner_set_fork_status(sr,CK_NOFORK);
 	srunner_run_all (sr, CK_NORMAL);
 	number_failed += srunner_ntests_failed (sr);
 	srunner_free (sr);

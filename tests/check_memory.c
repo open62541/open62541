@@ -9,16 +9,15 @@
 
 START_TEST(newAndEmptyObjectShallBeDeleted) {
 	// given
-	UA_Int32 retval;
-	void    *obj;
+	void *obj = UA_[_i].new();
 	// when
-	retval  = UA_[_i].new(&obj);
 #ifdef DEBUG //no print functions if not in debug mode
 	UA_[_i].print(obj, stdout);
 #endif
-	UA_[_i].delete(obj);
 	// then
-	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+	ck_assert_ptr_ne(obj, UA_NULL);
+    // finally
+	UA_[_i].delete(obj);
 }
 END_TEST
 
@@ -52,13 +51,11 @@ END_TEST
 
 START_TEST(encodeShallYieldDecode) {
 	// given
-	void         *obj1 = UA_NULL, *obj2 = UA_NULL;
 	UA_ByteString msg1, msg2;
-	UA_Int32      retval;
 	UA_UInt32     pos = 0;
-	retval = UA_[_i].new(&obj1);
+	void *obj1 = UA_[_i].new();
 	UA_ByteString_newMembers(&msg1, UA_[_i].encodings[UA_ENCODING_BINARY].calcSize(obj1));
-	retval |= UA_[_i].encodings[UA_ENCODING_BINARY].encode(obj1, &msg1, &pos);
+	UA_StatusCode retval = UA_[_i].encodings[UA_ENCODING_BINARY].encode(obj1, &msg1, &pos);
 	if(retval != UA_STATUSCODE_GOOD) {
 		// this happens, e.g. when we encode a variant (with UA_[UA_INVALIDTYPE] in the vtable)
 		UA_[_i].delete(obj1);
@@ -67,7 +64,7 @@ START_TEST(encodeShallYieldDecode) {
 	}
 
 	// when
-	UA_[_i].new(&obj2);
+	void *obj2 = UA_[_i].new();
 	pos = 0; retval = UA_[_i].encodings[UA_ENCODING_BINARY].decode(&msg1, &pos, obj2);
 	ck_assert_msg(retval == UA_STATUSCODE_GOOD, "messages differ idx=%d,name=%s", _i, UA_[_i].name);
 	retval = UA_ByteString_newMembers(&msg2, UA_[_i].encodings[UA_ENCODING_BINARY].calcSize(obj2));
@@ -88,15 +85,14 @@ END_TEST
 
 START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
 	// given
-	void *obj1 = UA_NULL, *obj2 = UA_NULL;
 	UA_ByteString msg1;
 	UA_UInt32 pos;
-	UA_[_i].new(&obj1);
+	void *obj1 = UA_[_i].new();
 	UA_ByteString_newMembers(&msg1, UA_[_i].encodings[0].calcSize(obj1));
 	pos = 0; UA_[_i].encodings[0].encode(obj1, &msg1, &pos);
 	UA_[_i].delete(obj1);
 	// when
-	UA_[_i].new(&obj2);
+	void *obj2 = UA_[_i].new();
 	pos = 0;
 	msg1.length = msg1.length / 2;
 	//fprintf(stderr,"testing %s with half buffer\n",UA_[_i].name);
@@ -134,7 +130,7 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
 #endif
 		}
 		UA_UInt32 pos = 0;
-		retval |= UA_[_i].new(&obj1);
+		obj1 = UA_[_i].new();
 		retval |= UA_[_i].encodings[0].decode(&msg1, &pos, obj1);
 		//then
 		ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Decoding %s from random buffer", UA_[_i].name);
@@ -147,7 +143,6 @@ END_TEST
 
 START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
 	// given
-	void    *obj1 = UA_NULL;
 	UA_ByteString msg1;
 	UA_Int32 retval = UA_STATUSCODE_GOOD;
 	UA_Int32 buflen = 256;
@@ -169,7 +164,7 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
 #endif
 		}
 		UA_UInt32 pos = 0;
-		retval |= UA_[_i].new(&obj1);
+		void *obj1 = UA_[_i].new();
 		retval |= UA_[_i].encodings[0].decode(&msg1, &pos, obj1);
 		UA_[_i].delete(obj1);
 	}

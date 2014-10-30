@@ -41,7 +41,7 @@ extern "C" {
  * PERMITTED.
  *
  * - <type>_new: Allocates the memory for the type and runs <type>_init on the
- *     returned variable.
+ *     returned variable. Returns null if no memory could be allocated.
  *
  * - <type>_init: Sets all members to a "safe" standard, usually zero. Arrays
  *   (e.g. for strings) are set to a length of -1.
@@ -301,7 +301,7 @@ typedef void UA_InvalidType;
 #endif
     
 #define UA_TYPE_PROTOTYPES(TYPE)                                     \
-    UA_StatusCode UA_EXPORT TYPE##_new(TYPE **p);                    \
+    TYPE UA_EXPORT * TYPE##_new();                                   \
     void UA_EXPORT TYPE##_init(TYPE * p);                            \
     void UA_EXPORT TYPE##_delete(TYPE * p);                          \
     void UA_EXPORT TYPE##_deleteMembers(TYPE * p);                   \
@@ -309,7 +309,7 @@ typedef void UA_InvalidType;
     PRINTTYPE(TYPE)
 
 #define UA_TYPE_PROTOTYPES_NOEXPORT(TYPE)                            \
-    UA_StatusCode TYPE##_new(TYPE **p);                              \
+    TYPE * TYPE##_new();                                             \
     void TYPE##_init(TYPE * p);                                      \
     void TYPE##_delete(TYPE * p);                                    \
     void TYPE##_deleteMembers(TYPE * p);                             \
@@ -453,7 +453,7 @@ typedef struct UA_Encoding {
 struct UA_VTable_Entry {
     UA_NodeId     typeId;
     UA_Byte       *name;
-    UA_StatusCode (*new)(void **p);
+    void *        (*new)();
     void          (*init)(void *p);
     UA_StatusCode (*copy)(void const *src, void *dst);
     void          (*delete)(void *p);
@@ -480,11 +480,10 @@ struct UA_VTable_Entry {
     UA_TYPE_COPY_DEFAULT(TYPE)           \
     
 #define UA_TYPE_NEW_DEFAULT(TYPE)                             \
-    UA_StatusCode TYPE##_new(TYPE **p) {                      \
-        if(!(*p = UA_alloc(sizeof(TYPE))))                    \
-            return UA_STATUSCODE_BADOUTOFMEMORY;              \
-        TYPE##_init(*p);                                      \
-        return UA_STATUSCODE_GOOD;                            \
+    TYPE * TYPE##_new() {                                     \
+        TYPE *p = UA_alloc(sizeof(TYPE));                     \
+        if(p) TYPE##_init(p);                                 \
+        return p;                                             \
     }
 
 #define UA_TYPE_INIT_DEFAULT(TYPE) \
@@ -522,16 +521,19 @@ struct UA_VTable_Entry {
     }
 
 #define UA_TYPE_COPY_AS(TYPE, TYPE_AS)                         \
-    UA_StatusCode TYPE##_copy(TYPE const *src, TYPE *dst) {         \
+    UA_StatusCode TYPE##_copy(TYPE const *src, TYPE *dst) {    \
         return TYPE_AS##_copy((TYPE_AS *)src, (TYPE_AS *)dst); \
     }
 
+#ifdef DEBUG //print functions only in debug mode
 #define UA_TYPE_PRINT_AS(TYPE, TYPE_AS)              \
     void TYPE##_print(TYPE const *p, FILE *stream) { \
         TYPE_AS##_print((TYPE_AS *)p, stream);       \
-    }                                                \
+    }
+#else
+#define UA_TYPE_PRINT_AS(TYPE, TYPE_AS)
+#endif
 
-#ifdef DEBUG //print functions only in debug mode
 #define UA_TYPE_AS(TYPE, TYPE_AS)           \
     UA_TYPE_NEW_DEFAULT(TYPE)               \
     UA_TYPE_INIT_AS(TYPE, TYPE_AS)          \
@@ -539,14 +541,6 @@ struct UA_VTable_Entry {
     UA_TYPE_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
     UA_TYPE_COPY_AS(TYPE, TYPE_AS)          \
     UA_TYPE_PRINT_AS(TYPE, TYPE_AS)
-#else
-#define UA_TYPE_AS(TYPE, TYPE_AS)           \
-    UA_TYPE_NEW_DEFAULT(TYPE)               \
-    UA_TYPE_INIT_AS(TYPE, TYPE_AS)          \
-    UA_TYPE_DELETE_AS(TYPE, TYPE_AS)        \
-    UA_TYPE_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
-    UA_TYPE_COPY_AS(TYPE, TYPE_AS)
-#endif
 
 /// @} /* end of group */
 

@@ -34,7 +34,7 @@ add_test(services_view ${CMAKE_CURRENT_BINARY_DIR}/check_services_view)
 
 add_executable(check_nodestore $<TARGET_OBJECTS:open62541-objects> check_nodestore.c)
 target_link_libraries(check_nodestore ${LIBS})
-add_test(namespace ${CMAKE_CURRENT_BINARY_DIR}/check_nodestore)
+add_test(nodestore ${CMAKE_CURRENT_BINARY_DIR}/check_nodestore)
 
 # add_executable(check_startup check_startup.c)
 # target_link_libraries(check_startup ${LIBS})

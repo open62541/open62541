@@ -159,15 +159,18 @@ void UA_String_print(const UA_String *p, FILE *stream) {
 }
 #endif
 
-/* The c-string needs to be null-terminated. */
+/* The c-string needs to be null-terminated. the string cannot be smaller than zero. */
 UA_Int32 UA_String_copycstring(char const *src, UA_String *dst) {
-    dst->length = strlen(src);
-    if(dst->length > 0) {
-        if(!(dst->data = UA_alloc(dst->length))) {
-            dst->length = -1;
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
-        UA_memcpy(dst->data, src, dst->length);
+    UA_Int32 length = strlen(src);
+    if(length == 0) {
+        dst->length = 0;
+        dst->data = UA_NULL;
+    } else if((dst->data = UA_alloc(length)) != UA_NULL) {
+        memcpy(dst->data, src, length);
+        dst->length = length;
+    } else {
+        dst->length = -1;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -305,9 +308,9 @@ UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time) {
 
 UA_StatusCode UA_DateTime_toString(UA_DateTime time, UA_String *timeString) {
     // length of the string is 31 (incl. \0 at the end)
-    if(!(timeString->data = UA_alloc(31)))
+    if(!(timeString->data = UA_alloc(32)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    timeString->length = 30;
+    timeString->length = 31;
 
     UA_DateTimeStruct tSt = UA_DateTime_toStruct(time);
     sprintf((char*)timeString->data, "%2d/%2d/%4d %2d:%2d:%2d.%3d.%3d.%3d", tSt.mounth, tSt.day, tSt.year,
@@ -856,9 +859,11 @@ UA_StatusCode UA_Variant_copySetValue(UA_Variant *v, const UA_VTable_Entry *vt, 
     UA_Variant_init(v);
     v->vt = vt;
     v->storage.data.arrayLength = 1; // no array but a single entry
-    UA_StatusCode retval = vt->new(&v->storage.data.dataPtr);
-    if(retval == UA_STATUSCODE_GOOD)
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if((v->storage.data.dataPtr = vt->new()))
         retval |= vt->copy(value, v->storage.data.dataPtr);
+    else
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
     if(retval) {
         UA_Variant_deleteMembers(v);
         UA_Variant_init(v);
@@ -989,8 +994,8 @@ UA_StatusCode UA_InvalidType_copy(UA_InvalidType const *src, UA_InvalidType *dst
     return UA_STATUSCODE_BADINTERNALERROR;
 }
 
-UA_StatusCode UA_InvalidType_new(UA_InvalidType **p) {
-    return UA_STATUSCODE_BADINTERNALERROR;
+UA_InvalidType * UA_InvalidType_new() {
+    return UA_NULL;
 }
 
 #ifdef DEBUG
@@ -1008,12 +1013,12 @@ UA_StatusCode UA_Array_new(void **p, UA_Int32 noElements, const UA_VTable_Entry 
         *p = UA_NULL;
         return UA_STATUSCODE_GOOD;
     }
-
-    // FIXME! Arrays cannot be larger than 100MB.
-    // This was randomly chosen so that the development VM does not blow up.
-    if(noElements > (2^16)) {
+    
+    // Arrays cannot be larger than 2^16 elements. This was randomly chosen so
+    // that the development VM does not blow up during fuzzing tests.
+    if(noElements > (1<<15)) {
         *p = UA_NULL;
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     if(!(*p = UA_alloc(vt->memSize * noElements)))
@@ -1045,10 +1050,8 @@ void UA_Array_delete(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt) {
 
 UA_StatusCode UA_Array_copy(const void *src, UA_Int32 noElements, const UA_VTable_Entry *vt, void **dst) {
     UA_StatusCode retval = UA_Array_new(dst, noElements, vt);
-    if(retval) {
-        *dst = UA_NULL;
+    if(retval)
         return retval;
-    }
 
     UA_Byte *csrc = (UA_Byte *)src; // so compilers allow pointer arithmetic
     UA_Byte *cdst = (UA_Byte *)*dst;

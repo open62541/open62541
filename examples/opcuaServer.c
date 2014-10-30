@@ -67,12 +67,10 @@ int main(int argc, char** argv) {
 
 #ifdef BENCHMARK
     UA_UInt32 nodeCount = 500;
-    UA_VariableNode *tmpNode;
-
     UA_Int32 data = 42;
     char str[15];
     for(UA_UInt32 i = 0;i<nodeCount;i++) {
-        UA_VariableNode_new(&tmpNode);
+        UA_VariableNode *tmpNode = UA_VariableNode_new();
         sprintf(str,"%d",i);
         UA_QualifiedName_copycstring(str,&tmpNode->browseName);
         UA_LocalizedText_copycstring(str,&tmpNode->displayName);
