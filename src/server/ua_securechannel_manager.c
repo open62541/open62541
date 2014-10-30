@@ -138,6 +138,10 @@ UA_StatusCode UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt
     struct channel_list_entry *entry;
     LIST_FOREACH(entry, &cm->channels, pointers) {
         if(entry->channel.securityToken.channelId == channelId) {
+            if(entry->channel.connection)
+                entry->channel.connection->channel = UA_NULL; // remove pointer back to the channel
+            if(entry->channel.session)
+                entry->channel.session->channel = UA_NULL; // remove ponter back to the channel
             UA_SecureChannel_deleteMembers(&entry->channel);
             LIST_REMOVE(entry, pointers);
             UA_free(entry);
