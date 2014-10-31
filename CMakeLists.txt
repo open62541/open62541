@@ -11,6 +11,7 @@ set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG")
 # main sources of libopen62541
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src")
+file(GLOB_RECURSE exported_headers "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h")
 file(GLOB_RECURSE headers "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
 file(GLOB generated_headers "${PROJECT_BINARY_DIR}/src_generated/*.h")
 set(lib_sources src/ua_types.c
@@ -33,8 +34,9 @@ set(lib_sources src/ua_types.c
                 src/server/ua_services_securechannel.c
                 src/server/ua_services_nodemanagement.c
                 src/server/ua_services_view.c
-                ${headers}
-                ${generated_headers})
+				${exported_headers}
+				${generated_headers}
+                ${headers})
 
 # compiler flags
 if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
@@ -48,7 +50,6 @@ add_definitions(-std=c99 -pedantic -pipe -Wall -Wextra -Werror -Wformat
 	    add_definitions(-fstack-protector -fPIC -fvisibility=hidden)
 	endif()
 endif()
-add_definitions(-Dopen62541_EXPORTS) # dllexport/dllimport differentiation in ua_config.h when building the lib on windows
 
 # build settings
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
@@ -112,6 +113,9 @@ endif()
 
 add_library(open62541-objects OBJECT ${lib_sources}) # static version that exports all symbols
 add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-objects>)
+target_compile_definitions(open62541 INTERFACE
+  $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,SHARED_LIBRARY>:open62541_EXPORTS> # the UA_EXPORT macro is different when building the lib or using the lib
+)
 
 ## logging
 set(UA_LOGLEVEL 400 CACHE STRING "Level at which logs shall be reported")
@@ -169,7 +173,7 @@ if(NOT ENABLE_MULTITHREADING)
 else()
     list(APPEND server_sources examples/networklayer_tcp_concurrent.c)
 endif()
-add_executable(exampleServer ${server_sources})
+add_executable(exampleServer ${server_sources} ${exported_headers} ${generated_headers})
 target_link_libraries(exampleServer open62541)
 if(WIN32)
     target_link_libraries(exampleServer ws2_32)
@@ -179,7 +183,6 @@ if(ENABLE_MULTITHREADING)
     target_link_libraries(exampleServer urcu-cds urcu uv)
 endif()
 endif()
-
 
 # build unit tests
 option(ENABLE_UNIT_TESTS "Run unit tests after building" OFF)
