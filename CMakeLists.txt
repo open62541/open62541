@@ -44,7 +44,9 @@ add_definitions(-std=c99 -pedantic -pipe -Wall -Wextra -Werror -Wformat
                 -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
                 -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -ffunction-sections -fdata-sections)
     if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-        add_definitions(-Wformat-nonliteral -Wl,--gc-sections)
+        add_definitions(-Wformat-nonliteral)
+        set (CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
+        set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
     endif()
 	if(NOT WIN32)
 	    add_definitions(-fstack-protector -fPIC -fvisibility=hidden)
