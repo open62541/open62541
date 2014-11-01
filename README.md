@@ -46,8 +46,9 @@ int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
 
     /* init the server */
+	#define PORT 16664
 	UA_String endpointUrl;
-	UA_String_copycstring("opc.tcp://192.168.56.101:16664",&endpointUrl);
+	UA_String_copyprintf("opc.tcp://127.0.0.1:%i", &endpointUrl, PORT);
 	UA_Server *server = UA_Server_new(&endpointUrl, NULL);
 
     /* add a variable node */
@@ -65,12 +66,11 @@ int main(int argc, char** argv) {
                                     &UA_NODEIDS[UA_HASCOMPONENT]);
 
     /* attach a network layer */
-	#define PORT 16664
 	NetworklayerTCP* nl = NetworklayerTCP_new(UA_ConnectionConfig_standard, PORT);
 	printf("Server started, connect to to opc.tcp://127.0.0.1:%i\n", PORT);
-	struct timeval callback_interval = {1, 0}; // 1 second
 
     /* run the server loop */
+	struct timeval callback_interval = {1, 0}; // 1 second
 	NetworkLayerTCP_run(nl, server, callback_interval, serverCallback, &running);
     
     /* clean up */
