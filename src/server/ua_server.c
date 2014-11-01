@@ -37,8 +37,6 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_NodeId_init(&server->hasComponentReferenceTypeId);
     server->hasComponentReferenceTypeId.identifier.numeric = 47;
 
-
-
     UA_ApplicationDescription_init(&server->description);
     UA_ByteString_init(&server->serverCertificate);
 #define MAXCHANNELCOUNT 100
@@ -88,18 +86,14 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_ExpandedNodeId RefTypeId_HasHistoricalConfiguration; NS0EXPANDEDNODEID(RefTypeId_HasHistoricalConfiguration, 56);
 
 
-#define ADD_OBJECTNODE_NSO(REFTYPE_NODEID,REQ_NODEID_NUMERIC_IDENTIFIER,PARENTNODEID_NUMERIC_IDENTIFIER,BROWSENAME,DISPLAYNAME,DESCRIPTION) do{ \
+#define ADD_OBJECTNODE_NSO(REFTYPE_NODEID,REQ_NODEID,PARENTNODEID,BROWSENAME,DISPLAYNAME,DESCRIPTION) do{ \
 	    UA_ObjectAttributes objAttr;\
 	    UA_AddNodesItem addNodesItem;\
 	    UA_Namespace *ns0 = UA_NULL;\
 	    UA_NamespaceManager_getNamespace(server->namespaceManager,0,&ns0); \
-	    addNodesItem.parentNodeId.nodeId.identifier.numeric = PARENTNODEID_NUMERIC_IDENTIFIER;\
-	    addNodesItem.parentNodeId.nodeId.namespaceIndex = 0; \
-    	addNodesItem.parentNodeId.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC; \
-	    addNodesItem.requestedNewNodeId.nodeId.identifier.numeric = REQ_NODEID_NUMERIC_IDENTIFIER;\
-	    addNodesItem.requestedNewNodeId.nodeId.namespaceIndex = 0;\
-	    addNodesItem.requestedNewNodeId.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;\
-	    addNodesItem.referenceTypeId = RefTypeId_Organizes.nodeId;\
+	    addNodesItem.parentNodeId = PARENTNODEID;;\
+	    addNodesItem.requestedNewNodeId = REQ_NODEID;\
+	    addNodesItem.referenceTypeId = REFTYPE_NODEID;\
 	    addNodesItem.nodeClass = UA_NODECLASS_OBJECT;\
 	    UA_QualifiedName_copycstring(BROWSENAME, &addNodesItem.browseName);\
 	    UA_LocalizedText_copycstring(DISPLAYNAME, &objAttr.displayName);\
@@ -156,12 +150,42 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     } while(0)
 
 
-    UA_ExpandedNodeId rootNode;
-    NS0EXPANDEDNODEID(rootNode, 84);
 
-    ADD_OBJECTNODE_NSO(RefTypeId_Organizes.nodeId,84,0,"Root","Root","Root");
-	ADD_REFTYPENODE_NS0(RefTypeId_Organizes.nodeId,RefTypeId_References,rootNode,
-		"References","References","References",UA_TRUE,UA_TRUE);
+
+    // ObjectTypes (Ids only)
+    UA_ExpandedNodeId ObjTypeId_FolderType; NS0EXPANDEDNODEID(ObjTypeId_FolderType, 61);
+
+    // Objects (Ids only)
+    UA_ExpandedNodeId ObjId_Null; NS0EXPANDEDNODEID(ObjId_Null, 0);
+    UA_ExpandedNodeId ObjId_Root; NS0EXPANDEDNODEID(ObjId_Root, 84);
+    UA_ExpandedNodeId ObjId_ObjectsFolder; NS0EXPANDEDNODEID(ObjId_ObjectsFolder, 85);
+    UA_ExpandedNodeId ObjId_TypesFolder; NS0EXPANDEDNODEID(ObjId_TypesFolder, 86);
+    UA_ExpandedNodeId ObjId_ViewsFolder; NS0EXPANDEDNODEID(ObjId_ViewsFolder, 87);
+    UA_ExpandedNodeId ObjId_ReferenceTypesFolder; NS0EXPANDEDNODEID(ObjId_ReferenceTypesFolder, 91);
+    UA_ExpandedNodeId ObjId_Server; NS0EXPANDEDNODEID(ObjId_Server, 2253);
+    UA_ExpandedNodeId ObjId_ServerArray; NS0EXPANDEDNODEID(ObjId_ServerArray, 2254);
+    UA_ExpandedNodeId ObjId_NamespaceArray; NS0EXPANDEDNODEID(ObjId_NamespaceArray, 2255);
+    UA_ExpandedNodeId ObjId_ServerStatus; NS0EXPANDEDNODEID(ObjId_ServerStatus, 2256);
+    UA_ExpandedNodeId ObjId_ServerCapabilities; NS0EXPANDEDNODEID(ObjId_ServerCapabilities, 2268);
+    UA_ExpandedNodeId ObjId_State; NS0EXPANDEDNODEID(ObjId_State, 2259);
+
+
+
+
+    ADD_OBJECTNODE_NSO(RefTypeId_Organizes.nodeId,ObjId_Root,ObjId_Null,"Root","Root","Root");
+
+    ADD_OBJECTNODE_NSO(RefTypeId_Organizes.nodeId,ObjId_ObjectsFolder,ObjId_Root,"Objects","Objects","Objects");
+
+    ADD_OBJECTNODE_NSO(RefTypeId_Organizes.nodeId,ObjId_TypesFolder,ObjId_Root,"Types","Types","Types");
+
+    	ADD_OBJECTNODE_NSO(RefTypeId_Organizes.nodeId,ObjId_TypesFolder,ObjId_Root,"Types","Types","Types");
+    		ADD_OBJECTNODE_NSO(RefTypeId_Organizes.nodeId,ObjId_ReferenceTypesFolder,ObjId_TypesFolder,"ReferenceTypes","ReferenceTypes","ReferenceTypes");
+    			ADD_REFTYPENODE_NS0(RefTypeId_Organizes.nodeId,RefTypeId_References,ObjId_ReferenceTypesFolder,
+    				"References","References","References",UA_TRUE,UA_TRUE);
+
+    	ADD_OBJECTNODE_NSO(RefTypeId_Organizes.nodeId,ObjId_ViewsFolder,ObjId_Root,"Views","Views","Views");
+
+
     	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_NonHierarchicalReferences,RefTypeId_References,
     		"NonHierarchicalReferences","NonHierarchicalReferences","NonHierarchicalReferences",UA_TRUE,UA_TRUE);
 
@@ -210,6 +234,9 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     			    		    	    "HasSubtype","HasSubtype","HasSubtype",UA_TRUE,UA_TRUE);
     		ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,RefTypeId_Organizes,RefTypeId_HierarchicalReferences,
     	    				"Organizes","Organizes","Organizes",UA_TRUE,UA_TRUE);
+
+
+
 
 
     		/*UA_ReferenceTypeNode *references;
@@ -513,19 +540,7 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_NodeStoreExample_insert(server->nodestore, (UA_Node**)&hashistoricalconfiguration, UA_NODESTORE_INSERT_UNIQUE);
 
 */
-    // ObjectTypes (Ids only)
-    UA_ExpandedNodeId ObjTypeId_FolderType; NS0EXPANDEDNODEID(ObjTypeId_FolderType, 61);
 
-    // Objects (Ids only)
-    UA_ExpandedNodeId ObjId_ObjectsFolder; NS0EXPANDEDNODEID(ObjId_ObjectsFolder, 85);
-    UA_ExpandedNodeId ObjId_TypesFolder; NS0EXPANDEDNODEID(ObjId_TypesFolder, 86);
-    UA_ExpandedNodeId ObjId_ViewsFolder; NS0EXPANDEDNODEID(ObjId_ViewsFolder, 87);
-    UA_ExpandedNodeId ObjId_Server; NS0EXPANDEDNODEID(ObjId_Server, 2253);
-    UA_ExpandedNodeId ObjId_ServerArray; NS0EXPANDEDNODEID(ObjId_ServerArray, 2254);
-    UA_ExpandedNodeId ObjId_NamespaceArray; NS0EXPANDEDNODEID(ObjId_NamespaceArray, 2255);
-    UA_ExpandedNodeId ObjId_ServerStatus; NS0EXPANDEDNODEID(ObjId_ServerStatus, 2256);
-    UA_ExpandedNodeId ObjId_ServerCapabilities; NS0EXPANDEDNODEID(ObjId_ServerCapabilities, 2268);
-    UA_ExpandedNodeId ObjId_State; NS0EXPANDEDNODEID(ObjId_State, 2259);
 
     // FolderType
     UA_ObjectNode *folderType;

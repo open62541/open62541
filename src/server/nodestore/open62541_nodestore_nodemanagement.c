@@ -9,39 +9,160 @@
 #include "open62541_nodestore.h"
 #include "ua_namespace_0.h"
 #include "ua_util.h"
-/*
 
-    // ReferenceType Ids
-    UA_ExpandedNodeId RefTypeId_References; NS0EXPANDEDNODEID(RefTypeId_References, 31);
-    UA_ExpandedNodeId RefTypeId_NonHierarchicalReferences; NS0EXPANDEDNODEID(RefTypeId_NonHierarchicalReferences, 32);
-    UA_ExpandedNodeId RefTypeId_HierarchicalReferences; NS0EXPANDEDNODEID(RefTypeId_HierarchicalReferences, 33);
-    UA_ExpandedNodeId RefTypeId_HasChild; NS0EXPANDEDNODEID(RefTypeId_HasChild, 34);
-    UA_ExpandedNodeId RefTypeId_Organizes; NS0EXPANDEDNODEID(RefTypeId_Organizes, 35);
-    UA_ExpandedNodeId RefTypeId_HasEventSource; NS0EXPANDEDNODEID(RefTypeId_HasEventSource, 36);
-    UA_ExpandedNodeId RefTypeId_HasModellingRule; NS0EXPANDEDNODEID(RefTypeId_HasModellingRule, 37);
-    UA_ExpandedNodeId RefTypeId_HasEncoding; NS0EXPANDEDNODEID(RefTypeId_HasEncoding, 38);
-    UA_ExpandedNodeId RefTypeId_HasDescription; NS0EXPANDEDNODEID(RefTypeId_HasDescription, 39);
-    UA_ExpandedNodeId RefTypeId_HasTypeDefinition; NS0EXPANDEDNODEID(RefTypeId_HasTypeDefinition, 40);
-    UA_ExpandedNodeId RefTypeId_GeneratesEvent; NS0EXPANDEDNODEID(RefTypeId_GeneratesEvent, 41);
-    UA_ExpandedNodeId RefTypeId_Aggregates; NS0EXPANDEDNODEID(RefTypeId_Aggregates, 44);
-    UA_ExpandedNodeId RefTypeId_HasSubtype; NS0EXPANDEDNODEID(RefTypeId_HasSubtype, 45);
-    UA_ExpandedNodeId RefTypeId_HasProperty; NS0EXPANDEDNODEID(RefTypeId_HasProperty, 46);
-    UA_ExpandedNodeId RefTypeId_HasComponent; NS0EXPANDEDNODEID(RefTypeId_HasComponent, 47);
-    UA_ExpandedNodeId RefTypeId_HasNotifier; NS0EXPANDEDNODEID(RefTypeId_HasNotifier, 48);
-    UA_ExpandedNodeId RefTypeId_HasOrderedComponent; NS0EXPANDEDNODEID(RefTypeId_HasOrderedComponent, 49);
-    UA_ExpandedNodeId RefTypeId_HasModelParent; NS0EXPANDEDNODEID(RefTypeId_HasModelParent, 50);
-    UA_ExpandedNodeId RefTypeId_FromState; NS0EXPANDEDNODEID(RefTypeId_FromState, 51);
-    UA_ExpandedNodeId RefTypeId_ToState; NS0EXPANDEDNODEID(RefTypeId_ToState, 52);
-    UA_ExpandedNodeId RefTypeId_HasCause; NS0EXPANDEDNODEID(RefTypeId_HasCause, 53);
-    UA_ExpandedNodeId RefTypeId_HasEffect; NS0EXPANDEDNODEID(RefTypeId_HasEffect, 54);
-    UA_ExpandedNodeId RefTypeId_HasHistoricalConfiguration; NS0EXPANDEDNODEID(RefTypeId_HasHistoricalConfiguration, 56);
 
-*/
+static UA_Int32 AddSingleReference(UA_Node *node, UA_ReferenceNode *reference) {
+	// TODO: Check if reference already exists
+	UA_Int32 count = node->referencesSize;
+	UA_ReferenceNode *old_refs = node->references;
+	UA_ReferenceNode *new_refs;
+
+	if (count < 0)
+		count = 0;
+
+	if (!(new_refs = UA_alloc(sizeof(UA_ReferenceNode) * (count + 1))))
+		return UA_STATUSCODE_BADOUTOFMEMORY;
+
+	UA_memcpy(new_refs, old_refs, sizeof(UA_ReferenceNode) * count);
+	if (UA_ReferenceNode_copy(reference, &new_refs[count])
+			!= UA_STATUSCODE_GOOD) {
+		UA_free(new_refs);
+		return UA_STATUSCODE_BADOUTOFMEMORY;
+	}
+
+	node->references = new_refs;
+	node->referencesSize = count + 1;
+	UA_free(old_refs);
+	return UA_STATUSCODE_GOOD;
+}
+
+static UA_Int32 AddReference(UA_NodeStoreExample *nodestore, UA_Node *node,
+		UA_ReferenceNode *reference) {
+	UA_Int32 retval = AddSingleReference(node, reference);
+	UA_Node *targetnode;
+	UA_ReferenceNode inversereference;
+	if (retval != UA_STATUSCODE_GOOD || nodestore == UA_NULL)
+		return retval;
+
+	// Do a copy every time?
+	if (UA_NodeStoreExample_get(nodestore, &reference->targetId.nodeId,
+			(const UA_Node **) &targetnode) != UA_STATUSCODE_GOOD)
+		return UA_STATUSCODE_BADINTERNALERROR;
+
+	inversereference.referenceTypeId = reference->referenceTypeId;
+	inversereference.isInverse = !reference->isInverse;
+	inversereference.targetId.nodeId = node->nodeId;
+	inversereference.targetId.namespaceUri = UA_STRING_NULL;
+	inversereference.targetId.serverIndex = 0;
+	retval = AddSingleReference(targetnode, &inversereference);
+	UA_NodeStoreExample_releaseManagedNode(targetnode);
+
+	return retval;
+}
+
+//TODO export to types, maybe?
+void UA_String_setToNULL(UA_String* string){
+	string->data = NULL;
+	string->length = -1;
+}
+
+void UA_Node_setAttributes(UA_NodeAttributes *nodeAttributes, UA_Node *node){
+
+	if(nodeAttributes->specifiedAttributes & UA_ATTRIBUTEID_DISPLAYNAME){
+		node->displayName =  nodeAttributes->displayName;
+		UA_String_setToNULL(&nodeAttributes->displayName.locale);
+		UA_String_setToNULL(&nodeAttributes->displayName.text);
+	}
+	if(nodeAttributes->specifiedAttributes & UA_ATTRIBUTEID_DESCRIPTION){
+		node->description =  nodeAttributes->description;
+		UA_String_setToNULL(&nodeAttributes->description.locale);
+		UA_String_setToNULL(&nodeAttributes->description.text);
+	}
+	if(nodeAttributes->specifiedAttributes & UA_ATTRIBUTEID_WRITEMASK){
+			node->writeMask = nodeAttributes->writeMask;
+	}
+	if(nodeAttributes->specifiedAttributes & UA_ATTRIBUTEID_USERWRITEMASK){
+		node->userWriteMask = nodeAttributes->userWriteMask;
+	}
+}
+void UA_ObjectNode_setAttributes(UA_ObjectAttributes *objectAttributes, UA_ObjectNode *node){
+	UA_Node_setAttributes((UA_NodeAttributes*)objectAttributes,(UA_Node*)node);
+
+	if(objectAttributes->specifiedAttributes & UA_ATTRIBUTEID_EVENTNOTIFIER){
+			node->eventNotifier = objectAttributes->eventNotifier;
+	}
+}
+
+void UA_ReferenceTypeNode_setAttributes(UA_ReferenceTypeAttributes *referenceTypeAttributes, UA_ReferenceTypeNode *node){
+	UA_Node_setAttributes((UA_NodeAttributes*)referenceTypeAttributes,(UA_Node*)node);
+
+	if(referenceTypeAttributes->specifiedAttributes & UA_ATTRIBUTEID_ISABSTRACT){
+			node->isAbstract = referenceTypeAttributes->isAbstract;
+	}
+	if(referenceTypeAttributes->specifiedAttributes & UA_ATTRIBUTEID_SYMMETRIC){
+				node->symmetric = referenceTypeAttributes->symmetric;
+	}
+	if(referenceTypeAttributes->specifiedAttributes & UA_ATTRIBUTEID_INVERSENAME){
+		node->inverseName = referenceTypeAttributes->inverseName;
+		UA_String_setToNULL(&referenceTypeAttributes->inverseName.locale);
+		UA_String_setToNULL(&referenceTypeAttributes->inverseName.text);
+	}
+}
+void UA_ObjectTypeNode_setAttributes(UA_ObjectTypeAttributes *objectTypeAttributes, UA_ObjectTypeNode *node){
+	UA_Node_setAttributes((UA_NodeAttributes*)objectTypeAttributes,(UA_Node*)node);
+
+	if(objectTypeAttributes->specifiedAttributes & UA_ATTRIBUTEID_ISABSTRACT){
+			node->isAbstract = objectTypeAttributes->isAbstract;
+	}
+}
+
+void UA_VariableNode_setAttributes(UA_VariableAttributes *variableAttributes, UA_VariableNode *node){
+	UA_Node_setAttributes((UA_NodeAttributes*)variableAttributes,(UA_Node*)node);
+
+	if(variableAttributes->specifiedAttributes & UA_ATTRIBUTEID_VALUE){
+			UA_Variant_copy(&variableAttributes->value,&node->value);
+	}
+	if(variableAttributes->specifiedAttributes & UA_ATTRIBUTEID_DATATYPE){
+				UA_NodeId_copy(&variableAttributes->dataType,&node->dataType);
+	}
+	if(variableAttributes->specifiedAttributes & UA_ATTRIBUTEID_VALUERANK){
+		node->valueRank = variableAttributes->valueRank;
+	}
+	if(variableAttributes->specifiedAttributes & UA_ATTRIBUTEID_ARRAYDIMENSIONS){
+		node->arrayDimensions = variableAttributes->arrayDimensions;
+		variableAttributes->arrayDimensions = NULL;
+	}
+	if(variableAttributes->specifiedAttributes & UA_ATTRIBUTEID_ACCESSLEVEL){
+		node->accessLevel = variableAttributes->accessLevel;
+	}
+	if(variableAttributes->specifiedAttributes & UA_ATTRIBUTEID_USERACCESSLEVEL){
+		node->userAccessLevel = variableAttributes->userAccessLevel;
+	}
+	if(variableAttributes->specifiedAttributes & UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL){
+		node->minimumSamplingInterval = variableAttributes->minimumSamplingInterval;
+	}
+	if(variableAttributes->specifiedAttributes & UA_ATTRIBUTEID_HISTORIZING){
+		node->historizing = variableAttributes->historizing;
+	}
+}
+void UA_ViewNode_setAttributes(UA_ViewAttributes *viewAttributes, UA_ViewNode *node){
+	UA_Node_setAttributes((UA_NodeAttributes*)viewAttributes,(UA_Node*)node);
+	if(viewAttributes->specifiedAttributes & UA_ATTRIBUTEID_CONTAINSNOLOOPS){
+			node->containsNoLoops = viewAttributes->containsNoLoops;
+	}
+	if(viewAttributes->specifiedAttributes & UA_ATTRIBUTEID_EVENTNOTIFIER){
+				node->eventNotifier = viewAttributes->eventNotifier;
+	}
+}
+void open62541Nodestore_getNewNodeId(UA_ExpandedNodeId *requestedNodeId){
+	//check nodeId here
+	return;
+}
+
 UA_Int32 open62541NodeStore_addReferences(UA_AddReferencesItem* referencesToAdd,
 		UA_UInt32 *indices,UA_UInt32 indicesSize, UA_StatusCode *addReferencesResults,
 		UA_DiagnosticInfo *diagnosticInfos)
 {
-
 	for(UA_UInt32 i = 0;i<indicesSize;i++){
 		UA_Node *node = UA_NULL;
 		UA_NodeStoreExample *ns = Nodestore_get();
@@ -68,156 +189,119 @@ UA_Int32 open62541NodeStore_addReferences(UA_AddReferencesItem* referencesToAdd,
 	    UA_NodeId_copy(&referencesToAdd[indices[i]].referenceTypeId,&reference->referenceTypeId);
 	    UA_ExpandedNodeId_copy(&referencesToAdd[indices[i]].targetNodeId,&reference->targetId);
 
-	    if(UA_ReferenceNode_copy(reference, &new_refs[count]) != UA_STATUSCODE_GOOD) {
-	        UA_free(new_refs);
-	        addReferencesResults[indices[i]] = UA_STATUSCODE_BADOUTOFMEMORY;
-	    }
-	    node->references     = new_refs;
-	    node->referencesSize = count+1;
-	    UA_free(old_refs);
-	    addReferencesResults[indices[i]] =  UA_STATUSCODE_GOOD;
+	    addReferencesResults[indices[i]] =  AddReference(ns,node,reference);
 	    UA_ReferenceNode_delete(reference); //FIXME to be removed
 	    //TODO fill diagnostic info if needed
 	}
 
 	return UA_STATUSCODE_GOOD;
 }
-
+UA_Boolean isRootNode(UA_NodeId *nodeId){
+	return nodeId->identifierType == UA_NODEIDTYPE_NUMERIC && nodeId->namespaceIndex == 0 && nodeId->identifier.numeric == 84;
+}
 UA_Int32 open62541Nodestore_addNodes(UA_AddNodesItem *nodesToAdd,UA_UInt32 *indices,
 		UA_UInt32 indicesSize, UA_AddNodesResult* addNodesResults,
 		UA_DiagnosticInfo *diagnosticInfos){
 
 	UA_Node *node = UA_NULL;
 	for(UA_UInt32 i=0;i<indicesSize;i++){
+
+		const UA_Node *parent;
+		//todo what if node is in another namespace, readrequest to test, if it exists?
 		UA_NodeStoreExample *ns = Nodestore_get();
-		UA_NodeStoreExample_get((const UA_NodeStoreExample*)ns, (const UA_NodeId*)&nodesToAdd[indices[i]].requestedNewNodeId.nodeId , (const UA_Node**)&node);
-		if(node==UA_NULL){
-			switch(nodesToAdd[indices[i]].nodeClass){
-				case UA_NODECLASS_DATATYPE:
-				{
-					break;
-				}
-				case UA_NODECLASS_METHOD:
-				{
-
-					break;
-				}
-				case UA_NODECLASS_OBJECT:
-				{
-					UA_ObjectNode *newNode;
-					UA_ObjectNode_new(&newNode);
-					newNode->nodeId    = nodesToAdd[indices[i]].requestedNewNodeId.nodeId;
-					newNode->nodeClass = nodesToAdd[indices[i]].nodeClass;
-					UA_QualifiedName_copy(&nodesToAdd[indices[i]].browseName, &newNode->browseName);
-
-					UA_UInt32 offset = 0;
-					UA_ObjectAttributes objType;
-
-					UA_ObjectAttributes_decodeBinary(&nodesToAdd[indices[i]].nodeAttributes.body,&offset,&objType);
-					if(objType.specifiedAttributes & UA_ATTRIBUTEID_DISPLAYNAME){
-						UA_LocalizedText_copy(&objType.displayName, &newNode->displayName);
-					}
-
-					if(objType.specifiedAttributes & UA_ATTRIBUTEID_DESCRIPTION){
-						UA_LocalizedText_copy(&objType.description, &newNode->description);
-					}
-					if(objType.specifiedAttributes & UA_ATTRIBUTEID_EVENTNOTIFIER){
-						newNode->eventNotifier =  objType.eventNotifier;
-					}
-					if(objType.specifiedAttributes & UA_ATTRIBUTEID_WRITEMASK){
-						newNode->writeMask = objType.writeMask;
-					}
-
-					UA_AddReferencesItem addRefItem;
-					addRefItem.isForward = UA_TRUE;
-
-					addRefItem.referenceTypeId = nodesToAdd[indices[i]].referenceTypeId;
-					addRefItem.sourceNodeId =  nodesToAdd[indices[i]].parentNodeId.nodeId;
-					addRefItem.targetNodeId.nodeId = newNode->nodeId;
-					addRefItem.targetNodeId.namespaceUri.length = 0;
-					addRefItem.targetServerUri.length = 0;
-					addRefItem.targetNodeClass = newNode->nodeClass;
-
-					UA_UInt32 ind = 0;
-					UA_UInt32 indSize = 1;
-					UA_StatusCode result;
-					UA_DiagnosticInfo diagnosticInfo;
-					UA_NodeStoreExample_insert(ns, (UA_Node**)&newNode, UA_NODESTORE_INSERT_UNIQUE);
-					if(!(
-							nodesToAdd[indices[i]].requestedNewNodeId.nodeId.identifier.numeric == 84 &&
-							nodesToAdd[indices[i]].requestedNewNodeId.nodeId.namespaceIndex ==  0)){
-						open62541NodeStore_addReferences(&addRefItem, &ind, indSize, &result, &diagnosticInfo);
-					}
-					break;
-				}
-				case UA_NODECLASS_OBJECTTYPE:
-				{
-
-					break;
-				}
-				case UA_NODECLASS_REFERENCETYPE:
-				{
-					UA_ReferenceTypeNode *newNode;
-					UA_ReferenceTypeNode_new(&newNode);
-					newNode->nodeId    = nodesToAdd[indices[i]].requestedNewNodeId.nodeId;
-					newNode->nodeClass = nodesToAdd[indices[i]].nodeClass;
-					UA_QualifiedName_copy(&nodesToAdd[indices[i]].browseName, &newNode->browseName);
-					UA_UInt32 offset = 0;
-					UA_ReferenceTypeAttributes refType;
-					UA_ReferenceTypeAttributes_decodeBinary(&nodesToAdd[indices[i]].nodeAttributes.body,&offset,&refType);
-					if(refType.specifiedAttributes & UA_ATTRIBUTEID_DISPLAYNAME){
-						UA_LocalizedText_copy(&refType.displayName, &newNode->displayName);
-					}
-
-					if(refType.specifiedAttributes & UA_ATTRIBUTEID_DESCRIPTION){
-						UA_LocalizedText_copy(&refType.description, &newNode->description);
-					}
-
-					if(refType.specifiedAttributes & UA_ATTRIBUTEID_ISABSTRACT){
-						newNode->isAbstract = refType.isAbstract;
-					}
-
-					if(refType.specifiedAttributes & UA_ATTRIBUTEID_SYMMETRIC){
-						newNode->symmetric = refType.symmetric;
-					}
-					//ADDREFERENCE(haschild, RefTypeId_HasSubtype, UA_TRUE, RefTypeId_HierarchicalReferences);
-
-					UA_AddReferencesItem addRefItem;
-					addRefItem.isForward = UA_TRUE;
-
-					addRefItem.referenceTypeId = nodesToAdd[indices[i]].referenceTypeId;
-					addRefItem.sourceNodeId =  nodesToAdd[indices[i]].parentNodeId.nodeId;
-					addRefItem.targetNodeId.nodeId = newNode->nodeId;
-					addRefItem.targetNodeId.namespaceUri.length = 0;
-					addRefItem.targetServerUri.length = 0;
-					addRefItem.targetNodeClass = newNode->nodeClass;
-
-					UA_UInt32 ind = 0;
-					UA_UInt32 indSize = 1;
-					UA_StatusCode result;
-					UA_DiagnosticInfo diagnosticInfo;
-					UA_NodeStoreExample_insert(ns, (UA_Node**)&newNode, UA_NODESTORE_INSERT_UNIQUE);
-					open62541NodeStore_addReferences(&addRefItem, &ind, indSize, &result, &diagnosticInfo);
-
-
-					break;
-				}
-				case UA_NODECLASS_VARIABLE:
-				{
-
-					break;
-				}
-				case UA_NODECLASS_VARIABLETYPE:
-				{
-
-					break;
-				}
-				default:
-				{
-					break;
-				}
-			}
+		if (UA_NodeStoreExample_get(ns, &nodesToAdd->parentNodeId.nodeId,
+				&parent) != UA_STATUSCODE_GOOD && !isRootNode(&nodesToAdd->parentNodeId.nodeId)) {
+			addNodesResults[indices[i]].statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID;
+			continue;
 		}
+
+
+		UA_NodeStoreExample_get((const UA_NodeStoreExample*)ns, (const UA_NodeId*)&nodesToAdd[indices[i]].requestedNewNodeId.nodeId , (const UA_Node**)&node);
+
+
+		if(node!=UA_NULL){
+			//todo or overwrite existing node?
+			continue;
+		}
+		UA_Node *newNode = UA_NULL;
+		UA_UInt32 offset = 0;
+		switch(nodesToAdd[indices[i]].nodeClass){
+			case UA_NODECLASS_DATATYPE:
+			{
+				continue;
+				break;
+			}
+			case UA_NODECLASS_METHOD:
+			{
+				continue;
+				break;
+			}
+			case UA_NODECLASS_OBJECT:
+			{
+				UA_ObjectAttributes attributes;
+				UA_ObjectNode_new((UA_ObjectNode**)&newNode);
+				UA_ObjectAttributes_decodeBinary(&nodesToAdd[indices[i]].nodeAttributes.body,&offset,&attributes);
+				UA_ObjectNode_setAttributes((UA_ObjectAttributes*)&attributes, (UA_ObjectNode*)newNode);
+				break;
+			}
+			case UA_NODECLASS_OBJECTTYPE:
+			{
+				continue;
+				break;
+			}
+			case UA_NODECLASS_REFERENCETYPE:
+			{
+				UA_ReferenceTypeAttributes attributes;
+				UA_ReferenceTypeNode_new((UA_ReferenceTypeNode**)&newNode);
+				UA_ReferenceTypeAttributes_decodeBinary(&nodesToAdd[indices[i]].nodeAttributes.body,&offset,&attributes);
+				UA_ReferenceTypeNode_setAttributes((UA_ReferenceTypeAttributes*)&attributes,(UA_ReferenceTypeNode*)newNode);
+				break;
+			}
+			case UA_NODECLASS_VARIABLE:
+			{
+				continue;
+				break;
+			}
+			case UA_NODECLASS_VARIABLETYPE:
+			{
+				continue;
+				break;
+			}
+			default:
+			{
+				continue;
+				break;
+			}
+
+		}
+		open62541Nodestore_getNewNodeId(&nodesToAdd[indices[i]].requestedNewNodeId);
+					newNode->nodeId    = nodesToAdd[indices[i]].requestedNewNodeId.nodeId;
+		UA_QualifiedName_copy(&nodesToAdd[indices[i]].browseName,
+				&newNode->browseName);
+
+		UA_AddReferencesItem addRefItem;
+		addRefItem.isForward = UA_TRUE;
+		addRefItem.referenceTypeId = nodesToAdd[indices[i]].referenceTypeId;
+		addRefItem.sourceNodeId = nodesToAdd[indices[i]].parentNodeId.nodeId;
+		addRefItem.targetNodeId.nodeId = newNode->nodeId;
+		addRefItem.targetNodeId.namespaceUri.length = 0;
+		addRefItem.targetServerUri.length = 0;
+		addRefItem.targetNodeClass = newNode->nodeClass;
+
+		UA_UInt32 ind = 0;
+		UA_UInt32 indSize = 1;
+		UA_StatusCode result;
+		UA_DiagnosticInfo diagnosticInfo;
+		UA_NodeStoreExample_insert(ns, (UA_Node**) &newNode,
+				UA_NODESTORE_INSERT_UNIQUE);
+		if (!(nodesToAdd[indices[i]].requestedNewNodeId.nodeId.identifier.numeric
+				== 84
+				&& nodesToAdd[indices[i]].requestedNewNodeId.nodeId.namespaceIndex
+						== 0)) {
+			open62541NodeStore_addReferences(&addRefItem, &ind, indSize,
+					&result, &diagnosticInfo);
+		}
+
 	}
 	return UA_STATUSCODE_GOOD;
 }
