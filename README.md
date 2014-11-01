@@ -55,13 +55,13 @@ int main(int argc, char** argv) {
     UA_String myIntegerName;
     UA_STRING_STATIC(myIntegerName, "The Answer");
     UA_Server_addScalarVariableNode(server,
-                                    /* The browse name, the value and the datatype's vtable*/
+                                    /* browse name, the value and the datatype's vtable */
                                     &myIntegerName, (void*)&myInteger, &UA_TYPES[UA_INT32],
 
-                                    /* The parent node to which the variable shall be attached */
+                                    /* the parent node where the variable shall be attached */
                                     &UA_NODEIDS[UA_OBJECTSFOLDER],
                                     
-                                    /* The (hierarchical) reference type from the "parent" node*/
+                                    /* the (hierarchical) referencetype from the parent */
                                     &UA_NODEIDS[UA_HASCOMPONENT]);
 
     /* attach a network layer */
