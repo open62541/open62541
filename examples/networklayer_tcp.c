@@ -51,16 +51,15 @@ typedef struct TCPConnectionHandle {
 	NetworklayerTCP *layer;
 } TCPConnectionHandle;
 
-UA_StatusCode NetworklayerTCP_new(NetworklayerTCP **newlayer, UA_ConnectionConfig localConf,
-                                  UA_UInt32 port) {
-    *newlayer = malloc(sizeof(NetworklayerTCP));
-    if(*newlayer == NULL)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-	(*newlayer)->localConf = localConf;
-	(*newlayer)->port = port;
-	(*newlayer)->connectionsSize = 0;
-	(*newlayer)->connections = NULL;
-	return UA_STATUSCODE_GOOD;
+NetworklayerTCP *NetworklayerTCP_new(UA_ConnectionConfig localConf, UA_UInt32 port) {
+    NetworklayerTCP *newlayer = malloc(sizeof(NetworklayerTCP));
+    if(newlayer == NULL)
+        return NULL;
+	newlayer->localConf = localConf;
+	newlayer->port = port;
+	newlayer->connectionsSize = 0;
+	newlayer->connections = NULL;
+	return newlayer;
 }
 
 // copy the array of connections, but _loose_ one. This does not close the

@@ -1,3 +1,4 @@
+#include "ua_server_internal.h"
 #include "ua_services.h"
 #include "ua_namespace_0.h"
 #include "ua_statuscodes.h"
@@ -77,7 +78,7 @@ static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node *
     UA_VariableAttributes_deleteMembers(&attr);
 
     *new_node = (UA_Node*)vnode;
-    *vt = &UA_[UA_VARIABLENODE];
+    *vt = &UA_TYPES[UA_VARIABLENODE];
     return UA_STATUSCODE_GOOD;
 }
 
@@ -89,7 +90,7 @@ UA_Int32 AddReference(UA_NodeStore *nodestore, UA_Node *node, UA_ReferenceNode *
    returned in the AddNodesResult.
  */
 UA_AddNodesResult AddNode(UA_Server *server, UA_Session *session, UA_Node **node,
-                          UA_ExpandedNodeId *parentNodeId, UA_NodeId *referenceTypeId) {
+                          const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId) {
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
     
@@ -146,13 +147,13 @@ UA_AddNodesResult AddNode(UA_Server *server, UA_Session *session, UA_Node **node
 
     // todo: error handling. remove new node from nodestore
 
-    UA_NodeStore_releaseManagedNode(*node);
+    UA_NodeStore_release(*node);
     *node = UA_NULL;
     
  ret2:
-    UA_NodeStore_releaseManagedNode((UA_Node*)referenceType);
+    UA_NodeStore_release((UA_Node*)referenceType);
  ret:
-    UA_NodeStore_releaseManagedNode(parent);
+    UA_NodeStore_release(parent);
 
     return result;
 }
@@ -187,7 +188,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
         return;
     }
 
-    UA_StatusCode retval = UA_Array_new((void**)&response->results, request->nodesToAddSize, &UA_[UA_ADDNODESRESULT]);
+    UA_StatusCode retval = UA_Array_new((void**)&response->results, request->nodesToAddSize, &UA_TYPES[UA_ADDNODESRESULT]);
     if(retval) {
         response->responseHeader.serviceResult = retval;
         return;
@@ -238,7 +239,7 @@ UA_Int32 AddReference(UA_NodeStore *nodestore, UA_Node *node, UA_ReferenceNode *
     inversereference.targetId.namespaceUri = UA_STRING_NULL;
     inversereference.targetId.serverIndex  = 0;
     retval = AddSingleReference(targetnode, &inversereference);
-    UA_NodeStore_releaseManagedNode(targetnode);
+    UA_NodeStore_release(targetnode);
 
     return retval;
 }

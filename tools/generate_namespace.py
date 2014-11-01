@@ -104,14 +104,10 @@ printh('''/**********************************************************
  */
 
 UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id);\n
-extern const UA_VTable_Entry UA_EXPORT *UA_;
+extern const UA_VTable_Entry UA_EXPORT *UA_TYPES;
+extern const UA_NodeId UA_EXPORT *UA_NODEIDS;
 
-/**
- * @brief the set of possible indices into UA_VTable
- *
- * Enumerated type to define the types that the open62541 stack can handle
- */
-enum UA_VTableIndex_enum {''')
+/** The entries of UA_TYPES can be accessed with the following indices */ ''')
 
 printc('''/**********************************************************
  * '''+args.outfile.split("/")[-1]+'''.cgen -- do not modify
@@ -138,15 +134,27 @@ for row in rows:
     else:
         name = "UA_" + row[0]
 	
-    printh("\t"+name.upper()+" = "+str(i)+",")
+    printh("#define "+name.upper()+" "+str(i))
     printc('\tcase '+row[1]+': retval='+name.upper()+'; break; //'+row[2])
     i = i+1
 
-printh("};\n")
+printh('\n#define SIZE_UA_VTABLE '+str(i));
+printh("") # newline
+printh("/** In UA_NODEIDS are the nodeids of the types, referencetypes and objects */")
+# assign indices to the reference types afterwards
+for row in rows:
+    if row[0] == "" or (row[2] != "ReferenceType" and (row[2] != "Object" or "_Encoding_Default" in row[0])):
+        continue
+    name = "UA_" + row[0]
+    printh("#define "+name.upper()+" "+str(i))
+    i=i+1
+
 printc('''\n}\nreturn retval;\n}\n''');
 
-printc('''const UA_VTable_Entry *UA_ = (UA_VTable_Entry[]){''')
-i = 0
+printh("") # newline
+printh("/** These are the actual (numeric) nodeids of the types, not the indices to the vtable */")
+
+printc('''const UA_VTable_Entry *UA_TYPES = (UA_VTable_Entry[]){''')
 for row in rows:
     if skipType(row):
         continue
@@ -156,7 +164,6 @@ for row in rows:
         name = "UA_ExtensionObject"
     else:
 	name = "UA_" + row[0]
-	i=i+1
     printh('#define '+name.upper()+'_NS0 '+row[1])
 
     printc("\t{.typeId={.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric=" + row[1] + "}" + 
@@ -181,7 +188,25 @@ for row in rows:
 
 printc('};')
 
-printh('\n#define SIZE_UA_VTABLE '+str(i));
+# make the nodeids available as well
+printc('''const UA_NodeId *UA_NODEIDS = (UA_NodeId[]){''')
+for row in rows:
+    if skipType(row):
+        continue
+    if row[0] == "BaseDataType":
+        name = "UA_Variant"
+    elif row[0] == "Structure":
+        name = "UA_ExtensionObject"
+    else:
+	name = "UA_" + row[0]
+    printc("\t{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = " + row[1] + "},")
+
+for row in rows:
+    if row[0] == "" or (row[2] != "ReferenceType" and (row[2] != "Object" or "_Encoding_Default" in row[0])):
+        continue
+    printc("\t{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = " + row[1] + "},")
+
+printc('};')
 
 printh('\n#endif /* OPCUA_NAMESPACE_0_H_ */')
 

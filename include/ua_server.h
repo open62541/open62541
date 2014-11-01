@@ -27,47 +27,22 @@ extern "C" {
 
 /** @defgroup server Server */
 
-//identifier numbers are different for XML and binary, so we have to substract an offset for comparison
-#define UA_ENCODINGOFFSET_XML 1
-#define UA_ENCODINGOFFSET_BINARY 2
-
-struct UA_SecureChannelManager;
-typedef struct UA_SecureChannelManager UA_SecureChannelManager;
-
-struct UA_SessionManager;
-typedef struct UA_SessionManager UA_SessionManager;
-
 struct UA_NodeStore;
 typedef struct UA_NodeStore UA_NodeStore;
 
-typedef struct UA_Server {
-    UA_ApplicationDescription description;
-    UA_Int32 endpointDescriptionsSize;
-    UA_EndpointDescription *endpointDescriptions;
-    UA_ByteString serverCertificate;
-    
-    UA_SecureChannelManager *secureChannelManager;
-    UA_SessionManager *sessionManager;
-    UA_NodeStore *nodestore;
-    UA_Logger logger;
+struct UA_Server;
+typedef struct UA_Server UA_Server;
 
-    // todo: move these somewhere sane
-    UA_ExpandedNodeId objectsNodeId;
-    UA_NodeId hasComponentReferenceTypeId;
-} UA_Server;
-
-void UA_EXPORT UA_Server_init(UA_Server *server, UA_String *endpointUrl, UA_ByteString *serverCertificate);
-UA_StatusCode UA_EXPORT UA_Server_deleteMembers(UA_Server *server);
+UA_Server UA_EXPORT * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertificate);
+void UA_EXPORT UA_Server_delete(UA_Server *server);
 void UA_EXPORT UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
 
 /* Services for local use */
+UA_AddNodesResult UA_EXPORT UA_Server_addNode(UA_Server *server, UA_Node **node, const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId);
+void UA_EXPORT UA_Server_addReference(UA_Server *server, const UA_AddReferencesRequest *request, UA_AddReferencesResponse *response);
 UA_AddNodesResult UA_EXPORT UA_Server_addScalarVariableNode(UA_Server *server, UA_String *browseName, void *value,
-                                                            const UA_VTable_Entry *vt, UA_ExpandedNodeId *parentNodeId,
-                                                            UA_NodeId *referenceTypeId );
-UA_AddNodesResult UA_EXPORT UA_Server_addNode(UA_Server *server, UA_Node **node, UA_ExpandedNodeId *parentNodeId,
-                                              UA_NodeId *referenceTypeId);
-void UA_EXPORT UA_Server_addReferences(UA_Server *server, const UA_AddReferencesRequest *request,
-                                       UA_AddReferencesResponse *response);
+                                                            const UA_VTable_Entry *vt, const UA_NodeId *parentNodeId,
+                                                            const UA_NodeId *referenceTypeId );
 
 #ifdef __cplusplus
 } // extern "C"

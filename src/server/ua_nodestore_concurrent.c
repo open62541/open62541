@@ -164,10 +164,7 @@ static void markDead(struct rcu_head *head) {
 }
 
 /* Free the entry if it is dead and nobody uses it anymore */
-void UA_NodeStore_releaseManagedNode(const UA_Node *managed) {
-    if(managed == UA_NULL)
-        return;
-
+void UA_NodeStore_release(const UA_Node *managed) {
     UA_NodeStore_Entry *entry = caa_container_of(managed, UA_NodeStore_Entry, node); // pointer to the first entry
     if(uatomic_sub_return(&entry->readcount, 1) > 0)
         return;
@@ -350,7 +347,7 @@ void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visit
         const UA_Node      *node = &found_entry->node;
         rcu_read_unlock();
         visitor(node);
-        UA_NodeStore_releaseManagedNode((UA_Node *)node);
+        UA_NodeStore_release((UA_Node *)node);
         rcu_read_lock();
         cds_lfht_next(ht, &iter);
     }

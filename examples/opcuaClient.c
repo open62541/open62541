@@ -229,7 +229,7 @@ UA_Int64 sendReadRequest(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId, 
 	UA_ReadRequest rq;
 	UA_ReadRequest_init(&rq);
 	rq.maxAge = 0;
-	UA_Array_new((void **)&rq.nodesToRead, nodeIds_size, &UA_[UA_READVALUEID]);
+	UA_Array_new((void **)&rq.nodesToRead, nodeIds_size, &UA_TYPES[UA_READVALUEID]);
 	rq.nodesToReadSize = nodeIds_size;
 	for(UA_Int32 i=0;i<nodeIds_size;i++) {
 		UA_ReadValueId_init(&(rq.nodesToRead[i]));
@@ -257,7 +257,7 @@ UA_Int64 sendReadRequest(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId, 
 
 	UA_DateTime tic = UA_DateTime_now();
 	UA_Int32 sendret = send(sock, message->data, offset, 0);
-	UA_Array_delete(rq.nodesToRead,nodeIds_size,&UA_[UA_READVALUEID]);
+	UA_Array_delete(rq.nodesToRead,nodeIds_size,&UA_TYPES[UA_READVALUEID]);
 	UA_ByteString_delete(message);
 
 	if (sendret < 0) {
@@ -355,7 +355,7 @@ int main(int argc, char *argv[]) {
 	received = recv(sock, reply.data, reply.length, 0);
 
     UA_NodeId *nodesToRead;
-    UA_Array_new((void**)&nodesToRead,nodesToReadSize,&UA_[UA_NODEID]);
+    UA_Array_new((void**)&nodesToRead,nodesToReadSize,&UA_TYPES[UA_NODEID]);
 
 	for(UA_UInt32 i = 0; i<nodesToReadSize; i++) {
 		if(alwaysSameNode)
@@ -369,7 +369,7 @@ int main(int argc, char *argv[]) {
 	UA_DateTime tic, toc;
 	UA_Double *timeDiffs;
 
-	UA_Array_new((void**)&timeDiffs,tries,&UA_[UA_DOUBLE]);
+	UA_Array_new((void**)&timeDiffs,tries,&UA_TYPES[UA_DOUBLE]);
 	UA_Double sum = 0;
 
 	for(UA_UInt32 i = 0; i < tries; i++) {
@@ -404,7 +404,7 @@ int main(int argc, char *argv[]) {
     UA_OpenSecureChannelResponse_deleteMembers(&openSecChannelRsp);
 	UA_String_delete(endpointUrl);
 	UA_String_deleteMembers(&reply);
-	UA_Array_delete(nodesToRead,nodesToReadSize,&UA_[UA_NODEID]);
+	UA_Array_delete(nodesToRead,nodesToReadSize,&UA_TYPES[UA_NODEID]);
     UA_free(timeDiffs);
 	UA_CreateSessionResponse_deleteMembers(&createSessionResponse);
 

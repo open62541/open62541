@@ -1,4 +1,4 @@
-#include "ua_server.h"
+#include "ua_server_internal.h"
 #include "ua_services_internal.h" // AddReferences
 #include "ua_namespace_0.h"
 #include "ua_securechannel_manager.h"
@@ -6,22 +6,20 @@
 #include "ua_util.h"
 #include "ua_services.h"
 
-UA_StatusCode UA_Server_deleteMembers(UA_Server *server) {
+void UA_Server_delete(UA_Server *server) {
     UA_ApplicationDescription_deleteMembers(&server->description);
-    UA_SecureChannelManager_delete(server->secureChannelManager);
-    UA_SessionManager_delete(server->sessionManager);
+    UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
+    UA_SessionManager_deleteMembers(&server->sessionManager);
     UA_NodeStore_delete(server->nodestore);
     UA_ByteString_deleteMembers(&server->serverCertificate);
-    UA_Array_delete(server->endpointDescriptions, server->endpointDescriptionsSize, &UA_[UA_ENDPOINTDESCRIPTION]);
-    return UA_STATUSCODE_GOOD;
+    UA_Array_delete(server->endpointDescriptions, server->endpointDescriptionsSize, &UA_TYPES[UA_ENDPOINTDESCRIPTION]);
+    UA_free(server);
 }
 
-void UA_Server_init(UA_Server *server, UA_String *endpointUrl, UA_ByteString *serverCertificate) {
-    UA_ExpandedNodeId_init(&server->objectsNodeId);
-    server->objectsNodeId.nodeId.identifier.numeric = 85;
-
-    UA_NodeId_init(&server->hasComponentReferenceTypeId);
-    server->hasComponentReferenceTypeId.identifier.numeric = 47;
+UA_Server * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertificate) {
+    UA_Server *server = UA_alloc(sizeof(UA_Server));
+    if(!server)
+        return server;
     
     // mockup application description
     UA_ApplicationDescription_init(&server->description);
@@ -60,14 +58,13 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl, UA_ByteString *se
 #define STARTCHANNELID 1
 #define TOKENLIFETIME 10000
 #define STARTTOKENID 1
-    UA_SecureChannelManager_new(&server->secureChannelManager, MAXCHANNELCOUNT,
-                                TOKENLIFETIME, STARTCHANNELID, STARTTOKENID, endpointUrl);
+    UA_SecureChannelManager_init(&server->secureChannelManager, MAXCHANNELCOUNT,
+                                 TOKENLIFETIME, STARTCHANNELID, STARTTOKENID, endpointUrl);
 
 #define MAXSESSIONCOUNT 1000
 #define SESSIONLIFETIME 10000
 #define STARTSESSIONID 1
-    UA_SessionManager_new(&server->sessionManager, MAXSESSIONCOUNT, SESSIONLIFETIME,
-                          STARTSESSIONID);
+    UA_SessionManager_init(&server->sessionManager, MAXSESSIONCOUNT, SESSIONLIFETIME, STARTSESSIONID);
 
     UA_NodeStore_new(&server->nodestore);
 
@@ -468,8 +465,8 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl, UA_ByteString *se
     UA_QualifiedName_copycstring("NodeStoreArray", &namespaceArray->browseName);
     UA_LocalizedText_copycstring("NodeStoreArray", &namespaceArray->displayName);
     UA_LocalizedText_copycstring("NodeStoreArray", &namespaceArray->description);
-    UA_Array_new(&namespaceArray->value.storage.data.dataPtr, 2, &UA_[UA_STRING]);
-    namespaceArray->value.vt = &UA_[UA_STRING];
+    UA_Array_new(&namespaceArray->value.storage.data.dataPtr, 2, &UA_TYPES[UA_STRING]);
+    namespaceArray->value.vt = &UA_TYPES[UA_STRING];
     namespaceArray->value.storage.data.arrayLength = 2;
     UA_String_copycstring("http://opcfoundation.org/UA/", &((UA_String *)(namespaceArray->value.storage.data.dataPtr))[0]);
     UA_String_copycstring("http://localhost:16664/open62541/", &((UA_String *)(namespaceArray->value.storage.data.dataPtr))[1]);
@@ -504,7 +501,7 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl, UA_ByteString *se
     status->buildInfo.buildDate     = UA_DateTime_now();
     status->secondsTillShutdown     = 99999999;
     UA_LocalizedText_copycstring("because", &status->shutdownReason);
-    serverstatus->value.vt          = &UA_[UA_SERVERSTATUSDATATYPE]; // gets encoded as an extensionobject
+    serverstatus->value.vt          = &UA_TYPES[UA_SERVERSTATUSDATATYPE]; // gets encoded as an extensionobject
     serverstatus->value.storage.data.arrayLength = 1;
     serverstatus->value.storage.data.dataPtr        = status;
     UA_NodeStore_insert(server->nodestore, (UA_Node**)&serverstatus, UA_NODESTORE_INSERT_UNIQUE);
@@ -516,19 +513,24 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl, UA_ByteString *se
     UA_QualifiedName_copycstring("State", &state->browseName);
     UA_LocalizedText_copycstring("State", &state->displayName);
     UA_LocalizedText_copycstring("State", &state->description);
-    state->value.vt = &UA_[UA_SERVERSTATE];
+    state->value.vt = &UA_TYPES[UA_SERVERSTATE];
     state->value.storage.data.arrayDimensionsLength = 1; // added to ensure encoding in readreponse
     state->value.storage.data.arrayLength = 1;
     state->value.storage.data.dataPtr = &status->state; // points into the other object.
     state->value.storageType = UA_VARIANT_DATA_NODELETE;
     UA_NodeStore_insert(server->nodestore, (UA_Node**)&state, UA_NODESTORE_INSERT_UNIQUE);
 
-    UA_NodeStore_releaseManagedNode((const UA_Node *)root);
+    UA_NodeStore_release((const UA_Node *)root);
+
+    return server;
 }
 
-UA_AddNodesResult UA_Server_addNode(UA_Server *server, UA_Node **node, UA_ExpandedNodeId *parentNodeId,
-                                    UA_NodeId *referenceTypeId) {
-    return AddNode(server, &adminSession, node, parentNodeId, referenceTypeId);
+UA_AddNodesResult UA_Server_addNode(UA_Server *server, UA_Node **node, const UA_NodeId *parentNodeId,
+                                    const UA_NodeId *referenceTypeId) {
+    UA_ExpandedNodeId expParentNodeId;
+    UA_ExpandedNodeId_init(&expParentNodeId);
+    UA_NodeId_copy(parentNodeId, &expParentNodeId.nodeId);
+    return AddNode(server, &adminSession, node, &expParentNodeId, referenceTypeId);
 }
 
 void UA_Server_addReference(UA_Server *server, const UA_AddReferencesRequest *request,
@@ -537,8 +539,11 @@ void UA_Server_addReference(UA_Server *server, const UA_AddReferencesRequest *re
 }
 
 UA_AddNodesResult UA_Server_addScalarVariableNode(UA_Server *server, UA_String *browseName, void *value,
-                                                  const UA_VTable_Entry *vt, UA_ExpandedNodeId *parentNodeId,
-                                                  UA_NodeId *referenceTypeId ) {
+                                                  const UA_VTable_Entry *vt, const UA_NodeId *parentNodeId,
+                                                  const UA_NodeId *referenceTypeId ) {
+    UA_ExpandedNodeId expParentNodeId;
+    UA_ExpandedNodeId_init(&expParentNodeId);
+    UA_NodeId_copy(parentNodeId, &expParentNodeId.nodeId);
     UA_VariableNode *tmpNode = UA_VariableNode_new();
     UA_String_copy(browseName, &tmpNode->browseName.name);
     UA_String_copy(browseName, &tmpNode->displayName.text);
@@ -549,5 +554,5 @@ UA_AddNodesResult UA_Server_addScalarVariableNode(UA_Server *server, UA_String *
     tmpNode->value.storage.data.dataPtr = value;
     tmpNode->value.storageType = UA_VARIANT_DATA_NODELETE;
     tmpNode->value.storage.data.arrayLength = 1;
-    return UA_Server_addNode(server, (UA_Node**)&tmpNode, parentNodeId, referenceTypeId);
+    return AddNode(server, &adminSession, (UA_Node**)&tmpNode, &expParentNodeId, referenceTypeId);
 }

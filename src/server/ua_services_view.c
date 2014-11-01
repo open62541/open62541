@@ -1,3 +1,4 @@
+#include "ua_server_internal.h"
 #include "ua_services.h"
 #include "ua_statuscodes.h"
 #include "ua_nodestore.h"
@@ -41,7 +42,7 @@ static UA_StatusCode fillReferenceDescription(UA_NodeStore *ns, const UA_Node *c
     }
 
     if(currentNode)
-        UA_NodeStore_releaseManagedNode(currentNode);
+        UA_NodeStore_release(currentNode);
     if(retval)
         UA_ReferenceDescription_deleteMembers(referenceDescription);
     return retval;
@@ -79,7 +80,7 @@ static UA_Boolean isRelevantTargetNode(UA_NodeStore *ns, const UA_BrowseDescript
         return UA_FALSE;
 
     if(((*currentNode)->nodeClass & browseDescription->nodeClassMask) == 0) {
-        UA_NodeStore_releaseManagedNode(*currentNode);
+        UA_NodeStore_release(*currentNode);
         return UA_FALSE;
     }
 
@@ -139,11 +140,11 @@ static UA_StatusCode findRelevantReferenceTypes(UA_NodeStore *ns, const UA_NodeI
             if(retval)
                 currentLastIndex--; // undo if we need to delete the typeArray
         }
-        UA_NodeStore_releaseManagedNode((UA_Node*)node);
+        UA_NodeStore_release((UA_Node*)node);
     } while(++currentIndex <= currentLastIndex && retval == UA_STATUSCODE_GOOD);
 
     if(retval)
-        UA_Array_delete(typeArray, currentLastIndex, &UA_[UA_NODEID]);
+        UA_Array_delete(typeArray, currentLastIndex, &UA_TYPES[UA_NODEID]);
     else {
         *referenceTypes = typeArray;
         *referenceTypesSize = currentLastIndex + 1;
@@ -176,7 +177,7 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
     if(UA_NodeStore_get(ns, &browseDescription->nodeId, &parentNode) != UA_STATUSCODE_GOOD) {
         browseResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         if(!returnAll && browseDescription->includeSubtypes)
-            UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesSize, &UA_[UA_NODEID]);
+            UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesSize, &UA_TYPES[UA_NODEID]);
         return;
     }
 
@@ -202,7 +203,7 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
             // 2) Fill the reference description. This also releases the current node.
             if(fillReferenceDescription(ns, currentNode, &parentNode->references[i], browseDescription->resultMask,
                                         &browseResult->references[currentRefs]) != UA_STATUSCODE_GOOD) {
-                UA_Array_delete(browseResult->references, currentRefs, &UA_[UA_REFERENCEDESCRIPTION]);
+                UA_Array_delete(browseResult->references, currentRefs, &UA_TYPES[UA_REFERENCEDESCRIPTION]);
                 currentRefs = 0;
                 browseResult->references = UA_NULL;
                 browseResult->statusCode = UA_STATUSCODE_UNCERTAINNOTALLNODESAVAILABLE;
@@ -213,9 +214,9 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
         browseResult->referencesSize = currentRefs;
     }
 
-    UA_NodeStore_releaseManagedNode(parentNode);
+    UA_NodeStore_release(parentNode);
     if(!returnAll && browseDescription->includeSubtypes)
-        UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesSize, &UA_[UA_NODEID]);
+        UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesSize, &UA_TYPES[UA_NODEID]);
 }
 
 void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseRequest *request, UA_BrowseResponse *response) {
@@ -224,7 +225,7 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
         return;
     }
 
-    UA_StatusCode retval = UA_Array_new((void**)&response->results, request->nodesToBrowseSize, &UA_[UA_BROWSERESULT]);
+    UA_StatusCode retval = UA_Array_new((void**)&response->results, request->nodesToBrowseSize, &UA_TYPES[UA_BROWSERESULT]);
     if(retval) {
         response->responseHeader.serviceResult = retval;
         return;
@@ -244,7 +245,7 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
         return;
     }
 
-    UA_StatusCode retval = UA_Array_new((void**)&response->results, request->browsePathsSize, &UA_[UA_BROWSEPATHRESULT]);
+    UA_StatusCode retval = UA_Array_new((void**)&response->results, request->browsePathsSize, &UA_TYPES[UA_BROWSEPATHRESULT]);
     if(retval) {
         response->responseHeader.serviceResult = retval;
         return;

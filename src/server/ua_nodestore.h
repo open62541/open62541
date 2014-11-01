@@ -48,7 +48,7 @@ UA_StatusCode UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid,
 
 /** @brief Release a managed node. Do never insert a node that isn't stored in a
     namespace. */
-void UA_NodeStore_releaseManagedNode(const UA_Node *managed);
+void UA_NodeStore_release(const UA_Node *managed);
 
 /** @brief A function that can be evaluated on all entries in a namespace via
     UA_NodeStore_iterate. Note that the visitor is read-only on the nodes. */

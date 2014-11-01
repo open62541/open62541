@@ -1,5 +1,5 @@
 #include "ua_services.h"
-#include "ua_server.h"
+#include "ua_server_internal.h"
 #include "ua_session_manager.h"
 #include "ua_statuscodes.h"
 #include "ua_util.h"
@@ -10,8 +10,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     // creates a session and adds a pointer to the channel. Only when the
     // session is activated will the channel point to the session as well
 	UA_Session *newSession;
-    response->responseHeader.serviceResult = UA_SessionManager_createSession(server->sessionManager,
-                                                                             channel, &newSession);
+    response->responseHeader.serviceResult = UA_SessionManager_createSession(&server->sessionManager, channel, &newSession);
 	if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
 		return;
 
@@ -35,7 +34,7 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
                              UA_ActivateSessionResponse *response) {
     // make the channel know about the session
 	UA_Session *foundSession;
-	UA_SessionManager_getSessionByToken(server->sessionManager,
+	UA_SessionManager_getSessionByToken(&server->sessionManager,
                                         (UA_NodeId*)&request->requestHeader.authenticationToken,
                                         &foundSession);
 
@@ -48,7 +47,7 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
 void Service_CloseSession(UA_Server *server, const UA_CloseSessionRequest *request,
                               UA_CloseSessionResponse *response) {
 	UA_Session *foundSession;
-	UA_SessionManager_getSessionByToken(server->sessionManager,
+	UA_SessionManager_getSessionByToken(&server->sessionManager,
 			(UA_NodeId*)&request->requestHeader.authenticationToken,
 			&foundSession);
 
@@ -58,7 +57,7 @@ void Service_CloseSession(UA_Server *server, const UA_CloseSessionRequest *reque
 	}
 
 
-	if(UA_SessionManager_removeSession(server->sessionManager, &foundSession->sessionId) == UA_STATUSCODE_GOOD){
+	if(UA_SessionManager_removeSession(&server->sessionManager, &foundSession->sessionId) == UA_STATUSCODE_GOOD){
 		response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
 	}else{
 		//still not 100% sure about the return code

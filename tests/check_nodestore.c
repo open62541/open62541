@@ -56,8 +56,8 @@ START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	ck_assert_ptr_eq((void*)nr, (void*)n1);
 	// finally
-	UA_NodeStore_releaseManagedNode(n1);
-	UA_NodeStore_releaseManagedNode(nr);
+	UA_NodeStore_release(n1);
+	UA_NodeStore_release(nr);
 	UA_NodeStore_delete(ns);
 #ifdef MULTITHREADING
 	rcu_unregister_thread();
@@ -84,7 +84,7 @@ START_TEST(failToFindNodeInOtherUA_NodeStore) {
 	ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
 	// finally
 	UA_Node_delete(n);
-	UA_NodeStore_releaseManagedNode(nr);
+	UA_NodeStore_release(nr);
 	UA_NodeStore_delete(ns);
 #ifdef MULTITHREADING
 	rcu_unregister_thread();
@@ -114,8 +114,8 @@ START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	ck_assert_ptr_eq((void*)nr, (void*)n3);
 	// finally
-	UA_NodeStore_releaseManagedNode(n3);
-	UA_NodeStore_releaseManagedNode(nr);
+	UA_NodeStore_release(n3);
+	UA_NodeStore_release(nr);
 	UA_NodeStore_delete(ns);
 #ifdef MULTITHREADING
 	rcu_unregister_thread();
@@ -174,7 +174,7 @@ START_TEST(findNodeInExpandedNamespace) {
 	ck_assert_int_eq(nr->nodeId.identifier.numeric,n->nodeId.identifier.numeric);
 	// finally
 	UA_free((void*)n);
-	UA_NodeStore_releaseManagedNode(nr);
+	UA_NodeStore_release(nr);
 	UA_NodeStore_delete(ns);
 #ifdef MULTITHREADING
 	rcu_unregister_thread();
@@ -261,7 +261,7 @@ void *profileGetThread(void *arg) {
 		for (UA_Int32 i=test->min_val; i<max_val; i++) {
 			id.identifier.numeric = i;
 			UA_NodeStore_get(ns,&id, &cn);
-			UA_NodeStore_releaseManagedNode(cn);
+			UA_NodeStore_release(cn);
 		}
 	}
 	rcu_unregister_thread();
@@ -304,7 +304,7 @@ START_TEST(profileGetDelete) {
 	    for(i=0; i<N; i++) {
 	        id.identifier.numeric = i;
 			UA_NodeStore_get(ns,&id, &cn);
-			UA_NodeStore_releaseManagedNode(cn);
+			UA_NodeStore_release(cn);
         }
     }
 	end = clock();

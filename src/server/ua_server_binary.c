@@ -1,4 +1,4 @@
-#include "ua_server.h"
+#include "ua_server_internal.h"
 #include "ua_services.h"
 #include "ua_statuscodes.h"
 #include "ua_namespace_0.h"
@@ -152,7 +152,7 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
 
     UA_SecureChannel *channel;
-    UA_SecureChannelManager_get(server->secureChannelManager, secureChannelId, &channel);
+    UA_SecureChannelManager_get(&server->secureChannelManager, secureChannelId, &channel);
 
     // 2) Read the security header
     UA_UInt32 tokenId;

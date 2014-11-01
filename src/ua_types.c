@@ -811,7 +811,7 @@ void UA_Variant_init(UA_Variant *p) {
     p->storage.data.dataPtr        = UA_NULL;
     p->storage.data.arrayDimensions       = UA_NULL;
     p->storage.data.arrayDimensionsLength = -1;
-    p->vt = &UA_[UA_INVALIDTYPE];
+    p->vt = &UA_TYPES[UA_INVALIDTYPE];
 }
 
 /** This function performs a deep copy. The resulting StorageType is UA_VARIANT_DATA. */
@@ -836,7 +836,7 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
         dst->vt = src->vt;
         dstdata->arrayLength = srcdata->arrayLength;
         if(srcdata->arrayDimensions) {
-            retval |= UA_Array_copy(srcdata->arrayDimensions, srcdata->arrayDimensionsLength, &UA_[UA_INT32],
+            retval |= UA_Array_copy(srcdata->arrayDimensions, srcdata->arrayDimensionsLength, &UA_TYPES[UA_INT32],
                                     (void **)&dstdata->arrayDimensions);
             if(retval == UA_STATUSCODE_GOOD)
                 dstdata->arrayDimensionsLength = srcdata->arrayDimensionsLength;
@@ -891,8 +891,8 @@ void UA_Variant_print(const UA_Variant *p, FILE *stream) {
         return;
     }
     fprintf(stream, "(UA_Variant){/*%s*/", p->vt->name);
-    if(p->vt == &UA_[ns0id])
-        fprintf(stream, "UA_[%d]", ns0id);
+    if(p->vt == &UA_TYPES[ns0id])
+        fprintf(stream, "UA_TYPES[%d]", ns0id);
     else
         fprintf(stream, "ERROR (not a builtin type)");
     UA_Int32_print(&p->storage.data.arrayLength, stream);
@@ -902,7 +902,7 @@ void UA_Variant_print(const UA_Variant *p, FILE *stream) {
     UA_Int32_print(&p->storage.data.arrayDimensionsLength, stream);
     fprintf(stream, ",");
     UA_Array_print(p->storage.data.arrayDimensions, p->storage.data.arrayDimensionsLength,
-                   &UA_[UA_INT32], stream);
+                   &UA_TYPES[UA_INT32], stream);
     fprintf(stream, "}");
 }
 #endif

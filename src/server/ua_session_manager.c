@@ -13,28 +13,17 @@ struct session_list_entry {
     LIST_ENTRY(session_list_entry) pointers;
 };
 
-struct UA_SessionManager {
-    LIST_HEAD(session_list, session_list_entry) sessions;
-    UA_UInt32    maxSessionCount;
-    UA_Int32     lastSessionId;
-    UA_UInt32    currentSessionCount;
-    UA_DateTime  maxSessionLifeTime;
-    UA_DateTime  sessionTimeout;
-};
-
-UA_StatusCode UA_SessionManager_new(UA_SessionManager **sessionManager, UA_UInt32 maxSessionCount,
+UA_StatusCode UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt32 maxSessionCount,
                                     UA_UInt32 sessionTimeout, UA_UInt32 startSessionId) {
-    if(!(*sessionManager = UA_alloc(sizeof(UA_SessionManager))))
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    LIST_INIT(&(*sessionManager)->sessions);
-    (*sessionManager)->maxSessionCount = maxSessionCount;
-    (*sessionManager)->lastSessionId   = startSessionId;
-    (*sessionManager)->sessionTimeout  = sessionTimeout;
-    (*sessionManager)->currentSessionCount = 0;
+    LIST_INIT(&sessionManager->sessions);
+    sessionManager->maxSessionCount = maxSessionCount;
+    sessionManager->lastSessionId   = startSessionId;
+    sessionManager->sessionTimeout  = sessionTimeout;
+    sessionManager->currentSessionCount = 0;
     return UA_STATUSCODE_GOOD;
 }
 
-void UA_SessionManager_delete(UA_SessionManager *sessionManager) {
+void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager) {
     struct session_list_entry *current = LIST_FIRST(&sessionManager->sessions);
     while(current) {
         LIST_REMOVE(current, pointers);
@@ -44,7 +33,6 @@ void UA_SessionManager_delete(UA_SessionManager *sessionManager) {
         UA_free(current);
         current = LIST_FIRST(&sessionManager->sessions);
     }
-    UA_free(sessionManager);
 }
 
 UA_StatusCode UA_SessionManager_getSessionById(UA_SessionManager *sessionManager, UA_NodeId *sessionId, UA_Session **session) {

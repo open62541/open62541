@@ -52,18 +52,17 @@ UA_ByteString loadCertificate() {
 int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-	UA_Server server;
 	UA_String endpointUrl;
 	UA_String_copycstring("opc.tcp://192.168.56.101:16664",&endpointUrl);
     UA_ByteString certificate = loadCertificate();
-	UA_Server_init(&server, &endpointUrl, &certificate);
-	Logger_Stdout_init(&server.logger);
+	UA_Server *server = UA_Server_new(&endpointUrl, &certificate);
+	//Logger_Stdout_init(&server->logger);
 
     UA_Int32 myInteger = 42;
     UA_String myIntegerName;
     UA_STRING_STATIC(myIntegerName, "The Answer");
-    UA_Server_addScalarVariableNode(&server, &myIntegerName, (void*)&myInteger, &UA_[UA_INT32],
-                                    &server.objectsNodeId, &server.hasComponentReferenceTypeId);
+    UA_Server_addScalarVariableNode(server, &myIntegerName, (void*)&myInteger, &UA_TYPES[UA_INT32],
+                                    &UA_NODEIDS[UA_OBJECTSFOLDER], &UA_NODEIDS[UA_HASCOMPONENT]);
 
 #ifdef BENCHMARK
     UA_UInt32 nodeCount = 500;
@@ -78,23 +77,20 @@ int main(int argc, char** argv) {
         tmpNode->nodeId.identifier.numeric = 19000+i;
         tmpNode->nodeClass = UA_NODECLASS_VARIABLE;
         //tmpNode->valueRank = -1;
-        tmpNode->value.vt = &UA_[UA_INT32];
+        tmpNode->value.vt = &UA_TYPES[UA_INT32];
         tmpNode->value.storage.data.dataPtr = &data;
         tmpNode->value.storageType = UA_VARIANT_DATA_NODELETE;
         tmpNode->value.storage.data.arrayLength = 1;
-        UA_Server_addNode(&server, (UA_Node**)&tmpNode, &server.objectsNodeId,
-                          &server.hasComponentReferenceTypeId);
+        UA_Server_addNode(server, (UA_Node**)&tmpNode, &UA_NODEIDS[UA_OBJECTSFOLDER], &UA_NODEIDS[UA_HASCOMPONENT]);
     }
 #endif
 	
 	#define PORT 16664
-	NetworklayerTCP* nl;
-	NetworklayerTCP_new(&nl, UA_ConnectionConfig_standard, PORT);
+	NetworklayerTCP* nl = NetworklayerTCP_new(UA_ConnectionConfig_standard, PORT);
 	printf("Server started, connect to to opc.tcp://127.0.0.1:%i\n", PORT);
 	struct timeval callback_interval = {1, 0}; // 1 second
-	UA_Int32 retval = NetworkLayerTCP_run(nl, &server, callback_interval,
-										  serverCallback, &running);
-	UA_Server_deleteMembers(&server);
+	UA_Int32 retval = NetworkLayerTCP_run(nl, server, callback_interval, serverCallback, &running);
+	UA_Server_delete(server);
 	NetworklayerTCP_delete(nl);
     UA_String_deleteMembers(&endpointUrl);
 	return retval == UA_STATUSCODE_GOOD ? 0 : retval;

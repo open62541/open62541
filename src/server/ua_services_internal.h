@@ -15,4 +15,4 @@
  */
 UA_Int32 AddReference(UA_NodeStore *nodestore, UA_Node *node, UA_ReferenceNode *reference);
 UA_AddNodesResult AddNode(UA_Server *server, UA_Session *session, UA_Node **node,
-                          UA_ExpandedNodeId *parentNodeId, UA_NodeId *referenceTypeId);
+                          const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId);

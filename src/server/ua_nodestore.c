@@ -341,6 +341,6 @@ void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visit
     }
 }
 
-void UA_NodeStore_releaseManagedNode(const UA_Node *managed) {
+void UA_NodeStore_release(const UA_Node *managed) {
     ;
 }
