@@ -56,14 +56,12 @@ int main(int argc, char** argv) {
     UA_String myIntegerName;
     UA_STRING_STATIC(myIntegerName, "The Answer");
     UA_Server_addScalarVariableNode(server,
-                                    /* browse name, the value and the datatype's vtable */
-                                    &myIntegerName, (void*)&myInteger, &UA_TYPES[UA_INT32],
-
-                                    /* the parent node where the variable shall be attached */
-                                    &UA_NODEIDS[UA_OBJECTSFOLDER],
-                                    
-                                    /* the (hierarchical) referencetype from the parent */
-                                    &UA_NODEIDS[UA_HASCOMPONENT]);
+                 /* browse name, the value and the datatype's vtable */
+                 &myIntegerName, (void*)&myInteger, &UA_TYPES[UA_INT32],
+                 /* the parent node where the variable shall be attached */
+                 &UA_NODEIDS[UA_OBJECTSFOLDER],
+                 /* the (hierarchical) referencetype from the parent */
+                 &UA_NODEIDS[UA_HASCOMPONENT]);
 
     /* attach a network layer */
 	NetworklayerTCP* nl = NetworklayerTCP_new(UA_ConnectionConfig_standard, PORT);
