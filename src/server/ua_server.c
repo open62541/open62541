@@ -100,9 +100,9 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
 	    UA_LocalizedText_copycstring(DESCRIPTION, &objAttr.description);\
 	    objAttr.userWriteMask = 0;\
 	    objAttr.writeMask = 0;\
-	    objAttr.specifiedAttributes |= UA_ATTRIBUTEID_BROWSENAME;\
-	    objAttr.specifiedAttributes |= UA_ATTRIBUTEID_DISPLAYNAME;\
-	    objAttr.specifiedAttributes |= UA_ATTRIBUTEID_DESCRIPTION;\
+	    objAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_BROWSENAME;\
+	    objAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;\
+	    objAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DESCRIPTION;\
 	    UA_UInt32 offset = 0;\
 	    UA_ByteString_newMembers(&addNodesItem.nodeAttributes.body,UA_ObjectAttributes_calcSizeBinary(&objAttr));\
 	    UA_ObjectAttributes_encodeBinary(&objAttr, &addNodesItem.nodeAttributes.body,&offset); \
@@ -127,17 +127,16 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     refTypeAttr.writeMask = 0; \
     refTypeAttr.inverseName.locale.length = 0; \
     refTypeAttr.inverseName.text.length = 0; \
-    refTypeAttr.specifiedAttributes |= UA_ATTRIBUTEID_BROWSENAME; \
-    refTypeAttr.specifiedAttributes |= UA_ATTRIBUTEID_DISPLAYNAME; \
-    refTypeAttr.specifiedAttributes |= UA_ATTRIBUTEID_DESCRIPTION; \
-    refTypeAttr.specifiedAttributes |= UA_ATTRIBUTEID_ISABSTRACT; \
-    refTypeAttr.specifiedAttributes |= UA_ATTRIBUTEID_SYMMETRIC; \
+    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_BROWSENAME; \
+    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME; \
+    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DESCRIPTION; \
+    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_ISABSTRACT; \
+    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_SYMMETRIC; \
     UA_UInt32 offset = 0; \
     UA_ByteString_newMembers(&addNodesItem.nodeAttributes.body,UA_ReferenceTypeAttributes_calcSizeBinary(&refTypeAttr));\
     UA_ReferenceTypeAttributes_encodeBinary(&refTypeAttr,&addNodesItem.nodeAttributes.body,&offset); \
     addSingleNode(ns0,&addNodesItem);\
 }while(1==0);
-
 
 
 #define ADDREFERENCE(NODE, REFTYPE, INVERSE, TARGET_NODEID) do { \

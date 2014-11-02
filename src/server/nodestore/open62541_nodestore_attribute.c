@@ -40,6 +40,7 @@ static UA_DataValue service_read_node(UA_Server *server, const UA_ReadValueId *i
     case UA_ATTRIBUTEID_NODECLASS:
         v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
         retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_INT32], &node->nodeClass);
+
         break;
 
     case UA_ATTRIBUTEID_BROWSENAME:
@@ -197,7 +198,7 @@ static UA_DataValue service_read_node(UA_Server *server, const UA_ReadValueId *i
 UA_Int32 open62541NodeStore_ReadNodes(UA_ReadValueId *readValueIds,UA_UInt32 *indices,UA_UInt32 indicesSize,UA_DataValue *readNodesResults, UA_Boolean timeStampToReturn, UA_DiagnosticInfo *diagnosticInfos)
 {
 	for(UA_UInt32 i = 0; i< indicesSize; i++){
-			service_read_node(UA_NULL,&readValueIds[indices[i]]);
+		readNodesResults[indices[i]] = service_read_node(UA_NULL,&readValueIds[indices[i]]);
 	}
 	return UA_STATUSCODE_GOOD;
 }

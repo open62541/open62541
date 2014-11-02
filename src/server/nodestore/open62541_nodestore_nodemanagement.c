@@ -68,27 +68,27 @@ void UA_String_setToNULL(UA_String* string){
 
 void UA_Node_setAttributes(UA_NodeAttributes *nodeAttributes, UA_Node *node){
 
-	if(nodeAttributes->specifiedAttributes & UA_ATTRIBUTEID_DISPLAYNAME){
+	if(nodeAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_DISPLAYNAME){
 		node->displayName =  nodeAttributes->displayName;
 		UA_String_setToNULL(&nodeAttributes->displayName.locale);
 		UA_String_setToNULL(&nodeAttributes->displayName.text);
 	}
-	if(nodeAttributes->specifiedAttributes & UA_ATTRIBUTEID_DESCRIPTION){
+	if(nodeAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_DESCRIPTION){
 		node->description =  nodeAttributes->description;
 		UA_String_setToNULL(&nodeAttributes->description.locale);
 		UA_String_setToNULL(&nodeAttributes->description.text);
 	}
-	if(nodeAttributes->specifiedAttributes & UA_ATTRIBUTEID_WRITEMASK){
+	if(nodeAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_WRITEMASK){
 			node->writeMask = nodeAttributes->writeMask;
 	}
-	if(nodeAttributes->specifiedAttributes & UA_ATTRIBUTEID_USERWRITEMASK){
+	if(nodeAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_USERWRITEMASK){
 		node->userWriteMask = nodeAttributes->userWriteMask;
 	}
 }
 void UA_ObjectNode_setAttributes(UA_ObjectAttributes *objectAttributes, UA_ObjectNode *node){
 	UA_Node_setAttributes((UA_NodeAttributes*)objectAttributes,(UA_Node*)node);
 
-	if(objectAttributes->specifiedAttributes & UA_ATTRIBUTEID_EVENTNOTIFIER){
+	if(objectAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_EVENTNOTIFIER){
 			node->eventNotifier = objectAttributes->eventNotifier;
 	}
 }
@@ -96,13 +96,13 @@ void UA_ObjectNode_setAttributes(UA_ObjectAttributes *objectAttributes, UA_Objec
 void UA_ReferenceTypeNode_setAttributes(UA_ReferenceTypeAttributes *referenceTypeAttributes, UA_ReferenceTypeNode *node){
 	UA_Node_setAttributes((UA_NodeAttributes*)referenceTypeAttributes,(UA_Node*)node);
 
-	if(referenceTypeAttributes->specifiedAttributes & UA_ATTRIBUTEID_ISABSTRACT){
+	if(referenceTypeAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_ISABSTRACT){
 			node->isAbstract = referenceTypeAttributes->isAbstract;
 	}
-	if(referenceTypeAttributes->specifiedAttributes & UA_ATTRIBUTEID_SYMMETRIC){
+	if(referenceTypeAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_SYMMETRIC){
 				node->symmetric = referenceTypeAttributes->symmetric;
 	}
-	if(referenceTypeAttributes->specifiedAttributes & UA_ATTRIBUTEID_INVERSENAME){
+	if(referenceTypeAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_INVERSENAME){
 		node->inverseName = referenceTypeAttributes->inverseName;
 		UA_String_setToNULL(&referenceTypeAttributes->inverseName.locale);
 		UA_String_setToNULL(&referenceTypeAttributes->inverseName.text);
@@ -111,7 +111,7 @@ void UA_ReferenceTypeNode_setAttributes(UA_ReferenceTypeAttributes *referenceTyp
 void UA_ObjectTypeNode_setAttributes(UA_ObjectTypeAttributes *objectTypeAttributes, UA_ObjectTypeNode *node){
 	UA_Node_setAttributes((UA_NodeAttributes*)objectTypeAttributes,(UA_Node*)node);
 
-	if(objectTypeAttributes->specifiedAttributes & UA_ATTRIBUTEID_ISABSTRACT){
+	if(objectTypeAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_ISABSTRACT){
 			node->isAbstract = objectTypeAttributes->isAbstract;
 	}
 }
@@ -119,38 +119,38 @@ void UA_ObjectTypeNode_setAttributes(UA_ObjectTypeAttributes *objectTypeAttribut
 void UA_VariableNode_setAttributes(UA_VariableAttributes *variableAttributes, UA_VariableNode *node){
 	UA_Node_setAttributes((UA_NodeAttributes*)variableAttributes,(UA_Node*)node);
 
-	if(variableAttributes->specifiedAttributes & UA_ATTRIBUTEID_VALUE){
+	if(variableAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_VALUE){
 			UA_Variant_copy(&variableAttributes->value,&node->value);
 	}
-	if(variableAttributes->specifiedAttributes & UA_ATTRIBUTEID_DATATYPE){
+	if(variableAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_DATATYPE){
 				UA_NodeId_copy(&variableAttributes->dataType,&node->dataType);
 	}
-	if(variableAttributes->specifiedAttributes & UA_ATTRIBUTEID_VALUERANK){
+	if(variableAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_VALUERANK){
 		node->valueRank = variableAttributes->valueRank;
 	}
-	if(variableAttributes->specifiedAttributes & UA_ATTRIBUTEID_ARRAYDIMENSIONS){
+	if(variableAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_ARRAYDIMENSIONS){
 		node->arrayDimensions = variableAttributes->arrayDimensions;
 		variableAttributes->arrayDimensions = NULL;
 	}
-	if(variableAttributes->specifiedAttributes & UA_ATTRIBUTEID_ACCESSLEVEL){
+	if(variableAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_ACCESSLEVEL){
 		node->accessLevel = variableAttributes->accessLevel;
 	}
-	if(variableAttributes->specifiedAttributes & UA_ATTRIBUTEID_USERACCESSLEVEL){
+	if(variableAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_USERACCESSLEVEL){
 		node->userAccessLevel = variableAttributes->userAccessLevel;
 	}
-	if(variableAttributes->specifiedAttributes & UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL){
+	if(variableAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_MINIMUMSAMPLINGINTERVAL){
 		node->minimumSamplingInterval = variableAttributes->minimumSamplingInterval;
 	}
-	if(variableAttributes->specifiedAttributes & UA_ATTRIBUTEID_HISTORIZING){
+	if(variableAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_HISTORIZING){
 		node->historizing = variableAttributes->historizing;
 	}
 }
 void UA_ViewNode_setAttributes(UA_ViewAttributes *viewAttributes, UA_ViewNode *node){
 	UA_Node_setAttributes((UA_NodeAttributes*)viewAttributes,(UA_Node*)node);
-	if(viewAttributes->specifiedAttributes & UA_ATTRIBUTEID_CONTAINSNOLOOPS){
+	if(viewAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_CONTAINSNOLOOPS){
 			node->containsNoLoops = viewAttributes->containsNoLoops;
 	}
-	if(viewAttributes->specifiedAttributes & UA_ATTRIBUTEID_EVENTNOTIFIER){
+	if(viewAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_EVENTNOTIFIER){
 				node->eventNotifier = viewAttributes->eventNotifier;
 	}
 }
@@ -228,11 +228,13 @@ UA_Int32 open62541Nodestore_addNodes(UA_AddNodesItem *nodesToAdd,UA_UInt32 *indi
 		switch(nodesToAdd[indices[i]].nodeClass){
 			case UA_NODECLASS_DATATYPE:
 			{
+				addNodesResults[indices[i]].statusCode = UA_STATUSCODE_BADNOTIMPLEMENTED;
 				continue;
 				break;
 			}
 			case UA_NODECLASS_METHOD:
 			{
+				addNodesResults[indices[i]].statusCode = UA_STATUSCODE_BADNOTIMPLEMENTED;
 				continue;
 				break;
 			}
@@ -240,6 +242,7 @@ UA_Int32 open62541Nodestore_addNodes(UA_AddNodesItem *nodesToAdd,UA_UInt32 *indi
 			{
 				UA_ObjectAttributes attributes;
 				UA_ObjectNode_new((UA_ObjectNode**)&newNode);
+				newNode->nodeClass = UA_NODECLASS_OBJECT;
 				UA_ObjectAttributes_decodeBinary(&nodesToAdd[indices[i]].nodeAttributes.body,&offset,&attributes);
 				UA_ObjectNode_setAttributes((UA_ObjectAttributes*)&attributes, (UA_ObjectNode*)newNode);
 				break;
@@ -253,22 +256,26 @@ UA_Int32 open62541Nodestore_addNodes(UA_AddNodesItem *nodesToAdd,UA_UInt32 *indi
 			{
 				UA_ReferenceTypeAttributes attributes;
 				UA_ReferenceTypeNode_new((UA_ReferenceTypeNode**)&newNode);
+				newNode->nodeClass = UA_NODECLASS_REFERENCETYPE;
 				UA_ReferenceTypeAttributes_decodeBinary(&nodesToAdd[indices[i]].nodeAttributes.body,&offset,&attributes);
 				UA_ReferenceTypeNode_setAttributes((UA_ReferenceTypeAttributes*)&attributes,(UA_ReferenceTypeNode*)newNode);
 				break;
 			}
 			case UA_NODECLASS_VARIABLE:
 			{
+				addNodesResults[indices[i]].statusCode = UA_STATUSCODE_BADNOTIMPLEMENTED;
 				continue;
 				break;
 			}
 			case UA_NODECLASS_VARIABLETYPE:
 			{
+				addNodesResults[indices[i]].statusCode = UA_STATUSCODE_BADNOTIMPLEMENTED;
 				continue;
 				break;
 			}
 			default:
 			{
+				addNodesResults[indices[i]].statusCode = UA_STATUSCODE_BADNOTIMPLEMENTED;
 				continue;
 				break;
 			}
@@ -288,16 +295,14 @@ UA_Int32 open62541Nodestore_addNodes(UA_AddNodesItem *nodesToAdd,UA_UInt32 *indi
 		addRefItem.targetServerUri.length = 0;
 		addRefItem.targetNodeClass = newNode->nodeClass;
 
-		UA_UInt32 ind = 0;
-		UA_UInt32 indSize = 1;
-		UA_StatusCode result;
-		UA_DiagnosticInfo diagnosticInfo;
+
 		UA_NodeStoreExample_insert(ns, (UA_Node**) &newNode,
 				UA_NODESTORE_INSERT_UNIQUE);
-		if (!(nodesToAdd[indices[i]].requestedNewNodeId.nodeId.identifier.numeric
-				== 84
-				&& nodesToAdd[indices[i]].requestedNewNodeId.nodeId.namespaceIndex
-						== 0)) {
+		if (!isRootNode(&nodesToAdd[indices[i]].requestedNewNodeId.nodeId)) {
+			UA_UInt32 ind = 0;
+			UA_UInt32 indSize = 1;
+			UA_StatusCode result;
+			UA_DiagnosticInfo diagnosticInfo;
 			open62541NodeStore_addReferences(&addRefItem, &ind, indSize,
 					&result, &diagnosticInfo);
 		}
