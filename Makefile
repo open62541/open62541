@@ -103,6 +103,19 @@ depend:
 .PHONY : depend
 
 #=============================================================================
+# Target rules for targets named exampleClient
+
+# Build rule for target.
+exampleClient: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 exampleClient
+.PHONY : exampleClient
+
+# fast build rule for target.
+exampleClient/fast:
+	$(MAKE) -f CMakeFiles/exampleClient.dir/build.make CMakeFiles/exampleClient.dir/build
+.PHONY : exampleClient/fast
+
+#=============================================================================
 # Target rules for targets named exampleServer
 
 # Build rule for target.
@@ -212,6 +225,30 @@ examples/nodestoreAccessExample.s: examples/nodestoreAccessExample.c.s
 examples/nodestoreAccessExample.c.s:
 	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/examples/nodestoreAccessExample.c.s
 .PHONY : examples/nodestoreAccessExample.c.s
+
+examples/opcuaClient.o: examples/opcuaClient.c.o
+.PHONY : examples/opcuaClient.o
+
+# target to build an object file
+examples/opcuaClient.c.o:
+	$(MAKE) -f CMakeFiles/exampleClient.dir/build.make CMakeFiles/exampleClient.dir/examples/opcuaClient.c.o
+.PHONY : examples/opcuaClient.c.o
+
+examples/opcuaClient.i: examples/opcuaClient.c.i
+.PHONY : examples/opcuaClient.i
+
+# target to preprocess a source file
+examples/opcuaClient.c.i:
+	$(MAKE) -f CMakeFiles/exampleClient.dir/build.make CMakeFiles/exampleClient.dir/examples/opcuaClient.c.i
+.PHONY : examples/opcuaClient.c.i
+
+examples/opcuaClient.s: examples/opcuaClient.c.s
+.PHONY : examples/opcuaClient.s
+
+# target to generate assembly for a file
+examples/opcuaClient.c.s:
+	$(MAKE) -f CMakeFiles/exampleClient.dir/build.make CMakeFiles/exampleClient.dir/examples/opcuaClient.c.s
+.PHONY : examples/opcuaClient.c.s
 
 examples/opcuaServer.o: examples/opcuaServer.c.o
 .PHONY : examples/opcuaServer.o
@@ -917,6 +954,7 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
+	@echo "... exampleClient"
 	@echo "... open62541"
 	@echo "... exampleServer"
 	@echo "... open62541-objects"
@@ -929,6 +967,9 @@ help:
 	@echo "... examples/nodestoreAccessExample.o"
 	@echo "... examples/nodestoreAccessExample.i"
 	@echo "... examples/nodestoreAccessExample.s"
+	@echo "... examples/opcuaClient.o"
+	@echo "... examples/opcuaClient.i"
+	@echo "... examples/opcuaClient.s"
 	@echo "... examples/opcuaServer.o"
 	@echo "... examples/opcuaServer.i"
 	@echo "... examples/opcuaServer.s"
