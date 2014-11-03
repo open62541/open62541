@@ -48,6 +48,7 @@ typedef struct open62541NodeStore open62541NodeStore;
 typedef struct UA_Namespace
 {
 	UA_UInt16 index;
+	UA_String url;
 	UA_NodeStore *nodeStore;
 }UA_Namespace;
 

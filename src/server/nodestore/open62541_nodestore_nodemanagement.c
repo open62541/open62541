@@ -210,7 +210,7 @@ UA_Int32 open62541NodeStore_AddNodes(UA_AddNodesItem *nodesToAdd,UA_UInt32 *indi
 		//todo what if node is in another namespace, readrequest to test, if it exists?
 		open62541NodeStore *ns = open62541NodeStore_getNodeStore();
 		if (open62541NodeStore_get(ns, &nodesToAdd->parentNodeId.nodeId,
-				&parent) != UA_STATUSCODE_GOOD && !isRootNode(&nodesToAdd->parentNodeId.nodeId)) {
+				&parent) != UA_STATUSCODE_GOOD && !isRootNode(&nodesToAdd->requestedNewNodeId.nodeId)) {
 			addNodesResults[indices[i]].statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID;
 			continue;
 		}
@@ -263,8 +263,11 @@ UA_Int32 open62541NodeStore_AddNodes(UA_AddNodesItem *nodesToAdd,UA_UInt32 *indi
 			}
 			case UA_NODECLASS_VARIABLE:
 			{
-				addNodesResults[indices[i]].statusCode = UA_STATUSCODE_BADNOTIMPLEMENTED;
-				continue;
+				UA_VariableAttributes attributes;
+				UA_VariableNode_new((UA_VariableNode**)&newNode);
+				newNode->nodeClass = UA_NODECLASS_VARIABLE;
+				UA_VariableAttributes_decodeBinary(&nodesToAdd[indices[i]].nodeAttributes.body,&offset,&attributes);
+				UA_VariableNode_setAttributes((UA_VariableAttributes*)&attributes,(UA_VariableNode*)newNode);
 				break;
 			}
 			case UA_NODECLASS_VARIABLETYPE:

@@ -71,6 +71,7 @@ int main(int argc, char** argv) {
 	UA_NodeStore_registerReadNodesOperation(&newNodeStore,open62541NodeStore_ReadNodes);
 	UA_NodeStore_registerBrowseNodesOperation(&newNodeStore,open62541NodeStore_BrowseNodes);
 	UA_NodeStore_registerAddNodesOperation(&newNodeStore,open62541NodeStore_AddNodes);
+	//register more operations/ services
 	//UA_NodeStore_registerWriteNodesOperation(&newNodeStore,writeNodes);
 	UA_Server_init(&server, &endpointUrl);
 
