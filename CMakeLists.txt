@@ -38,7 +38,7 @@ set(lib_sources src/ua_types.c
 				src/server/nodestore/open62541_nodestore_view.c
 				src/server/nodestore/open62541_nodestore_attribute.c
 				src/server/nodestore/open62541_nodestore_nodemanagement.c
-				src/server/nodestore/open62541_nodestore.c
+				src/server/nodestore/open62541_nodestore_core.c
 				src/server/ua_nodestore_interface.c
                 ${headers}
                 ${generated_headers})
@@ -112,9 +112,9 @@ endif(ENABLE_JSON_ENCODING)
 option(ENABLE_MULTITHREADING "Enable multithreading" OFF)
 if(ENABLE_MULTITHREADING)
     find_package(Threads REQUIRED)
-    list(APPEND lib_sources src/server/ua_nodestore_concurrent.c)
+    list(APPEND lib_sources src/server/ua_nodestore_concurrent_core.c)
 else()
-    list(APPEND lib_sources src/server/nodestore/open62541_nodestore.c)
+    list(APPEND lib_sources src/server/nodestore/open62541_nodestore_core.c)
 endif()
 
 add_library(open62541-objects OBJECT ${lib_sources}) # static version that exports all symbols

@@ -67,26 +67,8 @@ UA_StatusCode UA_NodeStore_registerBrowseNodesOperation(UA_NodeStore *nodeStore,
 	nodeStore->browseNodes = browseNodes;
 	return UA_STATUSCODE_GOOD;
 }
-/*
-UA_Boolean UA_NodeStore_nodeExists(UA_NodeStore* nodestore, const UA_NodeId *nodeId)
-{
-	UA_DataValue *value;
-	UA_ReadValueId readValueId;
-	readValueId.attributeId = UA_ATTRIBUTEWRITEMASK_NODEID;
-	readValueId.nodeId = nodeId;
-	readValueId.indexRange.data = UA_NULL;
-	readValueId.indexRange.length = 0;
-	UA_NodeStore_readNode r;
 
-	if(nodestore->readNodes(nodeId,readValueId,&value) == UA_SUCCESS &&
-			value->value.storage.data.dataPtr != UA_NULL){
-		return UA_TRUE;
-	}
-	return UA_FALSE;
-
-}
-*/
-
+//add method to add a 'delete nodestore'
 
 
 

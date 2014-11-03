@@ -233,30 +233,6 @@ examples/opcuaServer.c.s:
 	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/examples/opcuaServer.c.s
 .PHONY : examples/opcuaServer.c.s
 
-src/server/nodestore/open62541_nodestore.o: src/server/nodestore/open62541_nodestore.c.o
-.PHONY : src/server/nodestore/open62541_nodestore.o
-
-# target to build an object file
-src/server/nodestore/open62541_nodestore.c.o:
-	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore.c.o
-.PHONY : src/server/nodestore/open62541_nodestore.c.o
-
-src/server/nodestore/open62541_nodestore.i: src/server/nodestore/open62541_nodestore.c.i
-.PHONY : src/server/nodestore/open62541_nodestore.i
-
-# target to preprocess a source file
-src/server/nodestore/open62541_nodestore.c.i:
-	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore.c.i
-.PHONY : src/server/nodestore/open62541_nodestore.c.i
-
-src/server/nodestore/open62541_nodestore.s: src/server/nodestore/open62541_nodestore.c.s
-.PHONY : src/server/nodestore/open62541_nodestore.s
-
-# target to generate assembly for a file
-src/server/nodestore/open62541_nodestore.c.s:
-	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore.c.s
-.PHONY : src/server/nodestore/open62541_nodestore.c.s
-
 src/server/nodestore/open62541_nodestore_attribute.o: src/server/nodestore/open62541_nodestore_attribute.c.o
 .PHONY : src/server/nodestore/open62541_nodestore_attribute.o
 
@@ -280,6 +256,30 @@ src/server/nodestore/open62541_nodestore_attribute.s: src/server/nodestore/open6
 src/server/nodestore/open62541_nodestore_attribute.c.s:
 	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore_attribute.c.s
 .PHONY : src/server/nodestore/open62541_nodestore_attribute.c.s
+
+src/server/nodestore/open62541_nodestore_core.o: src/server/nodestore/open62541_nodestore_core.c.o
+.PHONY : src/server/nodestore/open62541_nodestore_core.o
+
+# target to build an object file
+src/server/nodestore/open62541_nodestore_core.c.o:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore_core.c.o
+.PHONY : src/server/nodestore/open62541_nodestore_core.c.o
+
+src/server/nodestore/open62541_nodestore_core.i: src/server/nodestore/open62541_nodestore_core.c.i
+.PHONY : src/server/nodestore/open62541_nodestore_core.i
+
+# target to preprocess a source file
+src/server/nodestore/open62541_nodestore_core.c.i:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore_core.c.i
+.PHONY : src/server/nodestore/open62541_nodestore_core.c.i
+
+src/server/nodestore/open62541_nodestore_core.s: src/server/nodestore/open62541_nodestore_core.c.s
+.PHONY : src/server/nodestore/open62541_nodestore_core.s
+
+# target to generate assembly for a file
+src/server/nodestore/open62541_nodestore_core.c.s:
+	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/nodestore/open62541_nodestore_core.c.s
+.PHONY : src/server/nodestore/open62541_nodestore_core.c.s
 
 src/server/nodestore/open62541_nodestore_nodemanagement.o: src/server/nodestore/open62541_nodestore_nodemanagement.c.o
 .PHONY : src/server/nodestore/open62541_nodestore_nodemanagement.o
@@ -904,12 +904,12 @@ help:
 	@echo "... examples/opcuaServer.o"
 	@echo "... examples/opcuaServer.i"
 	@echo "... examples/opcuaServer.s"
-	@echo "... src/server/nodestore/open62541_nodestore.o"
-	@echo "... src/server/nodestore/open62541_nodestore.i"
-	@echo "... src/server/nodestore/open62541_nodestore.s"
 	@echo "... src/server/nodestore/open62541_nodestore_attribute.o"
 	@echo "... src/server/nodestore/open62541_nodestore_attribute.i"
 	@echo "... src/server/nodestore/open62541_nodestore_attribute.s"
+	@echo "... src/server/nodestore/open62541_nodestore_core.o"
+	@echo "... src/server/nodestore/open62541_nodestore_core.i"
+	@echo "... src/server/nodestore/open62541_nodestore_core.s"
 	@echo "... src/server/nodestore/open62541_nodestore_nodemanagement.o"
 	@echo "... src/server/nodestore/open62541_nodestore_nodemanagement.i"
 	@echo "... src/server/nodestore/open62541_nodestore_nodemanagement.s"

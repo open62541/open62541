@@ -80,4 +80,7 @@ UA_Int32 UA_EXPORT open62541NodeStore_AddNodes(UA_AddNodesItem *nodesToAdd,
 		UA_UInt32 *indices, UA_UInt32 indicesSize,
 		UA_AddNodesResult* addNodesResults, UA_DiagnosticInfo *diagnosticInfos);
 
+UA_Int32 UA_EXPORT open62541NodeStore_WriteNodes(UA_WriteValue *writeValues,
+		UA_UInt32 *indices, UA_UInt32 indicesSize,
+		UA_StatusCode *writeNodesResults, UA_DiagnosticInfo *diagnosticInfo);
 #endif /* UA_OPEN62541_NODESTORE_H_ */

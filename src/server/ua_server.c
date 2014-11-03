@@ -1,5 +1,5 @@
 #include "ua_server.h"
-//#include "nodestore/ua_nodestoreExample.h"
+
 #include "ua_services_internal.h" // AddReferences
 #include "ua_namespace_0.h"
 #include "ua_securechannel_manager.h"

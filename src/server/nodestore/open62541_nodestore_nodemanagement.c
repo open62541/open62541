@@ -249,6 +249,7 @@ UA_Int32 open62541NodeStore_AddNodes(UA_AddNodesItem *nodesToAdd,UA_UInt32 *indi
 			}
 			case UA_NODECLASS_OBJECTTYPE:
 			{
+				addNodesResults[indices[i]].statusCode = UA_STATUSCODE_BADNOTIMPLEMENTED;
 				continue;
 				break;
 			}

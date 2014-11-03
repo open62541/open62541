@@ -334,17 +334,18 @@ static UA_StatusCode Service_Write_writeNode(open62541NodeStore *nodestore, UA_W
     return retval;
 
 }
+UA_Int32 UA_EXPORT open62541NodeStore_WriteNodes(UA_WriteValue *writeValues,
+		UA_UInt32 *indices, UA_UInt32 indicesSize,
+		UA_StatusCode *writeNodesResults, UA_DiagnosticInfo *diagnosticInfo){
+	open62541NodeStore *nodestore = UA_NULL;
+	nodestore = open62541NodeStore_getNodeStore();
+	if(nodestore == UA_NULL){
+		return UA_STATUSCODE_BADINTERNALERROR;
+	}
 
-//void Service_Write(UA_Server *server, UA_Session *session,
-//                   const UA_WriteRequest *request, UA_WriteResponse *response) {
- //   UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
-//
-    //if(UA_Array_new((void **)&response->results, request->nodesToWriteSize, &UA_[UA_STATUSCODE])) {
-    //    response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-    //    return;
-    //}
+	for(UA_UInt32 i =0; i<indicesSize; i++){
+		writeNodesResults[indices[i]] =  Service_Write_writeNode(open62541NodeStore_getNodeStore(),&writeValues[indices[i]]);
+	}
+	return UA_STATUSCODE_GOOD; //
+}
 
-   // response->resultsSize = request->nodesToWriteSize;
-   // for(UA_Int32 i = 0;i < request->nodesToWriteSize;i++)
-     //   response->results[i] = Service_Write_writeNode(server, &request->nodesToWrite[i]);
-//}
