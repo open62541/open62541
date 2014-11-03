@@ -4,7 +4,7 @@
  *  Created on: Oct 27, 2014
  *      Author: opcua
  */
-#include "ua_nodestoreExample.h"
+
 #include "../ua_services.h"
 #include "open62541_nodestore.h"
 #include "ua_namespace_0.h"
@@ -22,8 +22,8 @@ static UA_DataValue service_read_node(UA_Server *server, const UA_ReadValueId *i
     UA_DataValue_init(&v);
 
     UA_Node const *node   = UA_NULL;
-    UA_NodeStoreExample *ns =  Nodestore_get();
-    UA_Int32       result = UA_NodeStoreExample_get(ns, &(id->nodeId), &node);
+    open62541NodeStore *ns =  open62541NodeStore_getNodeStore();
+    UA_Int32       result = open62541NodeStore_get(ns, &(id->nodeId), &node);
     if(result != UA_STATUSCODE_GOOD || node == UA_NULL) {
         v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
         v.status       = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -38,9 +38,9 @@ static UA_DataValue service_read_node(UA_Server *server, const UA_ReadValueId *i
         break;
 
     case UA_ATTRIBUTEID_NODECLASS:
-        v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-        retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_INT32], &node->nodeClass);
 
+        retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_INT32], &node->nodeClass);
+        v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
         break;
 
     case UA_ATTRIBUTEID_BROWSENAME:
@@ -184,7 +184,7 @@ static UA_DataValue service_read_node(UA_Server *server, const UA_ReadValueId *i
         break;
     }
 
-    UA_NodeStoreExample_releaseManagedNode(node);
+    open62541NodeStore_releaseManagedNode(node);
 
     if(retval != UA_STATUSCODE_GOOD) {
         v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
@@ -204,10 +204,10 @@ UA_Int32 open62541NodeStore_ReadNodes(UA_ReadValueId *readValueIds,UA_UInt32 *in
 }
 
 
-static UA_StatusCode Service_Write_writeNode(UA_NodeStoreExample *nodestore, UA_WriteValue *writeValue) {
+static UA_StatusCode Service_Write_writeNode(open62541NodeStore *nodestore, UA_WriteValue *writeValue) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     const UA_Node *node;
-    retval = UA_NodeStoreExample_get(nodestore, &writeValue->nodeId, &node);
+    retval = open62541NodeStore_get(nodestore, &writeValue->nodeId, &node);
     if(retval)
         return retval;
 
@@ -330,7 +330,7 @@ static UA_StatusCode Service_Write_writeNode(UA_NodeStoreExample *nodestore, UA_
         break;
     }
 
-    UA_NodeStoreExample_releaseManagedNode(node);
+    open62541NodeStore_releaseManagedNode(node);
     return retval;
 
 }

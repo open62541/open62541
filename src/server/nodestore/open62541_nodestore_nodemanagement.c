@@ -4,7 +4,7 @@
  *  Created on: Oct 27, 2014
  *      Author: opcua
  */
-#include "ua_nodestoreExample.h"
+
 #include "../ua_services.h"
 #include "open62541_nodestore.h"
 #include "ua_namespace_0.h"
@@ -36,7 +36,7 @@ static UA_Int32 AddSingleReference(UA_Node *node, UA_ReferenceNode *reference) {
 	return UA_STATUSCODE_GOOD;
 }
 
-static UA_Int32 AddReference(UA_NodeStoreExample *nodestore, UA_Node *node,
+static UA_Int32 AddReference(open62541NodeStore *nodestore, UA_Node *node,
 		UA_ReferenceNode *reference) {
 	UA_Int32 retval = AddSingleReference(node, reference);
 	UA_Node *targetnode;
@@ -45,7 +45,7 @@ static UA_Int32 AddReference(UA_NodeStoreExample *nodestore, UA_Node *node,
 		return retval;
 
 	// Do a copy every time?
-	if (UA_NodeStoreExample_get(nodestore, &reference->targetId.nodeId,
+	if (open62541NodeStore_get(nodestore, &reference->targetId.nodeId,
 			(const UA_Node **) &targetnode) != UA_STATUSCODE_GOOD)
 		return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -55,7 +55,7 @@ static UA_Int32 AddReference(UA_NodeStoreExample *nodestore, UA_Node *node,
 	inversereference.targetId.namespaceUri = UA_STRING_NULL;
 	inversereference.targetId.serverIndex = 0;
 	retval = AddSingleReference(targetnode, &inversereference);
-	UA_NodeStoreExample_releaseManagedNode(targetnode);
+	open62541NodeStore_releaseManagedNode(targetnode);
 
 	return retval;
 }
@@ -165,8 +165,8 @@ UA_Int32 open62541NodeStore_addReferences(UA_AddReferencesItem* referencesToAdd,
 {
 	for(UA_UInt32 i = 0;i<indicesSize;i++){
 		UA_Node *node = UA_NULL;
-		UA_NodeStoreExample *ns = Nodestore_get();
-		UA_NodeStoreExample_get((const UA_NodeStoreExample*)ns,(const UA_NodeId*)&referencesToAdd[indices[i]].sourceNodeId, (const UA_Node**)&node);
+		open62541NodeStore *ns = open62541NodeStore_getNodeStore();
+		open62541NodeStore_get((const open62541NodeStore*)ns,(const UA_NodeId*)&referencesToAdd[indices[i]].sourceNodeId, (const UA_Node**)&node);
 		if(node == UA_NULL){
 			addReferencesResults[indices[i]] = UA_STATUSCODE_BADSOURCENODEIDINVALID;
 			continue;
@@ -199,7 +199,7 @@ UA_Int32 open62541NodeStore_addReferences(UA_AddReferencesItem* referencesToAdd,
 UA_Boolean isRootNode(UA_NodeId *nodeId){
 	return nodeId->identifierType == UA_NODEIDTYPE_NUMERIC && nodeId->namespaceIndex == 0 && nodeId->identifier.numeric == 84;
 }
-UA_Int32 open62541Nodestore_addNodes(UA_AddNodesItem *nodesToAdd,UA_UInt32 *indices,
+UA_Int32 open62541NodeStore_AddNodes(UA_AddNodesItem *nodesToAdd,UA_UInt32 *indices,
 		UA_UInt32 indicesSize, UA_AddNodesResult* addNodesResults,
 		UA_DiagnosticInfo *diagnosticInfos){
 
@@ -208,15 +208,15 @@ UA_Int32 open62541Nodestore_addNodes(UA_AddNodesItem *nodesToAdd,UA_UInt32 *indi
 
 		const UA_Node *parent;
 		//todo what if node is in another namespace, readrequest to test, if it exists?
-		UA_NodeStoreExample *ns = Nodestore_get();
-		if (UA_NodeStoreExample_get(ns, &nodesToAdd->parentNodeId.nodeId,
+		open62541NodeStore *ns = open62541NodeStore_getNodeStore();
+		if (open62541NodeStore_get(ns, &nodesToAdd->parentNodeId.nodeId,
 				&parent) != UA_STATUSCODE_GOOD && !isRootNode(&nodesToAdd->parentNodeId.nodeId)) {
 			addNodesResults[indices[i]].statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID;
 			continue;
 		}
 
 
-		UA_NodeStoreExample_get((const UA_NodeStoreExample*)ns, (const UA_NodeId*)&nodesToAdd[indices[i]].requestedNewNodeId.nodeId , (const UA_Node**)&node);
+		open62541NodeStore_get((const open62541NodeStore*)ns, (const UA_NodeId*)&nodesToAdd[indices[i]].requestedNewNodeId.nodeId , (const UA_Node**)&node);
 
 
 		if(node!=UA_NULL){
@@ -296,7 +296,7 @@ UA_Int32 open62541Nodestore_addNodes(UA_AddNodesItem *nodesToAdd,UA_UInt32 *indi
 		addRefItem.targetNodeClass = newNode->nodeClass;
 
 
-		UA_NodeStoreExample_insert(ns, (UA_Node**) &newNode,
+		open62541NodeStore_insert(ns, (UA_Node**) &newNode,
 				UA_NODESTORE_INSERT_UNIQUE);
 		if (!isRootNode(&nodesToAdd[indices[i]].requestedNewNodeId.nodeId)) {
 			UA_UInt32 ind = 0;

@@ -1,6 +1,6 @@
 #include "ua_services.h"
 #include "ua_statuscodes.h"
-#include "nodestore/ua_nodestoreExample.h"
+
 #include "ua_namespace_0.h"
 #include "ua_util.h"
 #include "ua_namespace_manager.h"
@@ -34,23 +34,27 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     	return ;
     }
     // find out count of different namespace indices
-   for(UA_Int32 i = 0; i<request->nodesToBrowseSize; i++){
-
-    	for(UA_UInt32 j = 0; j <= differentNamespaceIndexCount; j++){
-    		if(associatedIndices[j] == request->nodesToBrowse[i].nodeId.namespaceIndex){
-    			if(j==0){
-    				differentNamespaceIndexCount++;
-    			}
+	for (UA_Int32 i = 0; i < request->nodesToBrowseSize; i++) {
+		//for(UA_UInt32 j = 0; j <= differentNamespaceIndexCount; j++){
+		UA_UInt32 j = 0;
+		do {
+			if (associatedIndices[j]
+					== request->nodesToBrowse[i].nodeId.namespaceIndex) {
+				if (differentNamespaceIndexCount == 0) {
+					differentNamespaceIndexCount++;
+				}
 				numberOfFoundIndices[j]++;
 				break;
-    		}
-    		else if(j == (differentNamespaceIndexCount - 1)){
-    			associatedIndices[j] = request->nodesToBrowse[i].nodeId.namespaceIndex;
-    			associatedIndices[j] = 1;
-    			differentNamespaceIndexCount++;
-    		}
-    	}
-    }
+			} else if (j == (differentNamespaceIndexCount - 1)) {
+				associatedIndices[j + 1] =
+						request->nodesToBrowse[i].nodeId.namespaceIndex;
+				associatedIndices[j + 1] = 1;
+				differentNamespaceIndexCount++;
+				break;
+			}
+			j++;
+		} while (j <= differentNamespaceIndexCount);
+	}
 
 	UA_UInt32 *browseDescriptionIndices;
     if(UA_Array_new((void **)&browseDescriptionIndices,request->nodesToBrowseSize,&UA_[UA_UINT32]) != UA_STATUSCODE_GOOD){
@@ -68,6 +72,7 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     	    for(UA_Int32 j = 0; j < request->nodesToBrowseSize; j++){
     	    	if(request->nodesToBrowse[j].nodeId.namespaceIndex == associatedIndices[i]){
     	    		browseDescriptionIndices[n] = j;
+					n++;
     	    	}
     	    }
     	    //call read for every namespace

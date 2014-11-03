@@ -1,11 +1,11 @@
 #include "ua_services.h"
-#include "nodestore/ua_nodestoreExample.h"
+
 #include "ua_statuscodes.h"
-#include "nodestore/ua_nodestore.h"
+
 #include "ua_namespace_manager.h"
 #include "ua_namespace_0.h"
 #include "ua_util.h"
-
+/*
 #define CHECK_NODECLASS(CLASS)                                 \
     if(!(node->nodeClass & (CLASS))) {                         \
         v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE; \
@@ -208,7 +208,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 
 	return v;
 }
-
+*/
 void Service_Read(UA_Server *server, UA_Session *session,
 		const UA_ReadRequest *request, UA_ReadResponse *response) {
 	UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
@@ -252,208 +252,213 @@ void Service_Read(UA_Server *server, UA_Session *session,
 		//for(UA_UInt32 j = 0; j <= differentNamespaceIndexCount; j++){
 		UA_UInt32 j = 0;
 		do {
-			if(associatedIndices[j] == request->nodesToRead[i].nodeId.namespaceIndex) {
-				if(differentNamespaceIndexCount == 0){
+			if (associatedIndices[j]
+					== request->nodesToRead[i].nodeId.namespaceIndex) {
+				if (differentNamespaceIndexCount == 0) {
 					differentNamespaceIndexCount++;
 				}
 				numberOfFoundIndices[j]++;
 				break;
-			}
-			else if(j == (differentNamespaceIndexCount - 1)) {
-				associatedIndices[j+1] = request->nodesToRead[i].nodeId.namespaceIndex;
-				associatedIndices[j+1] = 1;
+			} else if (j == (differentNamespaceIndexCount - 1)) {
+				associatedIndices[j + 1] =
+						request->nodesToRead[i].nodeId.namespaceIndex;
+				associatedIndices[j + 1] = 1;
 				differentNamespaceIndexCount++;
 				break;
 			}
 			j++;
-		}while(j<=differentNamespaceIndexCount);
+		} while (j <= differentNamespaceIndexCount);
 	}
 
-UA_UInt32 *readValueIdIndices;
-if (UA_Array_new((void **) &readValueIdIndices, request->nodesToReadSize,
-		&UA_[UA_UINT32]) != UA_STATUSCODE_GOOD) {
-	response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-	return;
-}
+	UA_UInt32 *readValueIdIndices;
+	if (UA_Array_new((void **) &readValueIdIndices, request->nodesToReadSize,
+			&UA_[UA_UINT32]) != UA_STATUSCODE_GOOD) {
+		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+		return;
+	}
 
-for (UA_UInt32 i = 0; i < differentNamespaceIndexCount; i++) {
-	UA_Namespace *tmpNamespace;
-	UA_NamespaceManager_getNamespace(server->namespaceManager,
-			associatedIndices[i], &tmpNamespace);
-	if (tmpNamespace != UA_NULL) {
+	for (UA_UInt32 i = 0; i < differentNamespaceIndexCount; i++) {
+		UA_Namespace *tmpNamespace;
+		UA_NamespaceManager_getNamespace(server->namespaceManager,
+				associatedIndices[i], &tmpNamespace);
+		if (tmpNamespace != UA_NULL) {
 
-		//build up index array for each read operation onto a different namespace
-		UA_UInt32 n = 0;
-		for (UA_Int32 j = 0; j < request->nodesToReadSize; j++) {
-			if (request->nodesToRead[j].nodeId.namespaceIndex
-					== associatedIndices[i]) {
-				readValueIdIndices[n] = j;
+			//build up index array for each read operation onto a different namespace
+			UA_UInt32 n = 0;
+			for (UA_Int32 j = 0; j < request->nodesToReadSize; j++) {
+				if (request->nodesToRead[j].nodeId.namespaceIndex
+						== associatedIndices[i]) {
+					readValueIdIndices[n] = j;
+					n++;
+				}
 			}
+			//call read for every namespace
+			tmpNamespace->nodeStore->readNodes(request->nodesToRead,
+					readValueIdIndices, numberOfFoundIndices[i],
+					response->results, request->timestampsToReturn,
+					response->diagnosticInfos);
+
+			//	response->results[i] = service_read_node(server, &request->nodesToRead[i]);
 		}
-		//call read for every namespace
-		tmpNamespace->nodeStore->readNodes(request->nodesToRead,
-				readValueIdIndices, numberOfFoundIndices[i], response->results,
-				request->timestampsToReturn, response->diagnosticInfos);
-
-		//	response->results[i] = service_read_node(server, &request->nodesToRead[i]);
 	}
+	UA_free(readValueIdIndices);
+	UA_free(numberOfFoundIndices);
+	UA_free(associatedIndices);
+
+//	 for(UA_Int32 i = 0;i < response->resultsSize;i++){
+//	 response->results[i] = service_read_node(server, &request->nodesToRead[i]);
+//	 }
+
+
 }
-UA_free(readValueIdIndices);
-UA_free(numberOfFoundIndices);
-UA_free(associatedIndices);
 /*
- for(UA_Int32 i = 0;i < response->resultsSize;i++){
- response->results[i] = service_read_node(server, &request->nodesToRead[i]);
- }
- }
- */
-
-}
-
 static UA_StatusCode Service_Write_writeNode(UA_Server *server,
-UA_WriteValue *writeValue) {
-UA_StatusCode retval = UA_STATUSCODE_GOOD;
-const UA_Node *node;
-retval = UA_NodeStoreExample_get(server->nodestore, &writeValue->nodeId, &node);
-if (retval)
-return retval;
+		UA_WriteValue *writeValue) {
+	UA_StatusCode retval = UA_STATUSCODE_GOOD;
+	const UA_Node *node;
+	retval = UA_NodeStoreExample_get(server->nodestore, &writeValue->nodeId,
+			&node);
+	if (retval)
+		return retval;
 
-switch (writeValue->attributeId) {
-case UA_ATTRIBUTEID_NODEID:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
+	switch (writeValue->attributeId) {
+	case UA_ATTRIBUTEID_NODEID:
+	*/
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		//		break;
 
-case UA_ATTRIBUTEID_NODECLASS:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_BROWSENAME:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_DISPLAYNAME:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_DESCRIPTION:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_WRITEMASK:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_USERWRITEMASK:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_ISABSTRACT:
-
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_SYMMETRIC:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_INVERSENAME:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_EVENTNOTIFIER:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_VALUE:
-if (writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT) {
-	retval |= UA_Variant_copy(&writeValue->value.value,
-			&((UA_VariableNode *) node)->value); // todo: zero-copy
-}
-break;
-
-case UA_ATTRIBUTEID_DATATYPE:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_VALUERANK:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_ACCESSLEVEL:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_USERACCESSLEVEL:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_HISTORIZING:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_EXECUTABLE:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-case UA_ATTRIBUTEID_USEREXECUTABLE:
-/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-break;
-
-default:
-retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
-break;
-}
-
-UA_NodeStoreExample_releaseManagedNode(node);
-return retval;
-
-}
+//	case UA_ATTRIBUTEID_NODECLASS:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_BROWSENAME:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_DISPLAYNAME:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_DESCRIPTION:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_WRITEMASK:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_USERWRITEMASK:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_ISABSTRACT:
+//
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_SYMMETRIC:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_INVERSENAME:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_EVENTNOTIFIER:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_VALUE:
+//		if (writeValue->value.encodingMask
+//				== UA_DATAVALUE_ENCODINGMASK_VARIANT) {
+//			retval |= UA_Variant_copy(&writeValue->value.value,
+//					&((UA_VariableNode *) node)->value); // todo: zero-copy
+//		}
+//		break;
+//
+//	case UA_ATTRIBUTEID_DATATYPE:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_VALUERANK:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_ACCESSLEVEL:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_USERACCESSLEVEL:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_HISTORIZING:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_EXECUTABLE:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	case UA_ATTRIBUTEID_USEREXECUTABLE:
+//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+//		break;
+//
+//	default:
+//		retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+//		break;
+//	}
+//
+//	UA_NodeStoreExample_releaseManagedNode(node);
+//	return retval;
+//
+//}
 
 void Service_Write(UA_Server *server, UA_Session *session,
-const UA_WriteRequest *request, UA_WriteResponse *response) {
-UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
+		const UA_WriteRequest *request, UA_WriteResponse *response) {
+	UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
 
-if (UA_Array_new((void **) &response->results, request->nodesToWriteSize,
-	&UA_[UA_STATUSCODE])) {
-response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-return;
-}
+	if (UA_Array_new((void **) &response->results, request->nodesToWriteSize,
+			&UA_[UA_STATUSCODE])) {
+		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+		return;
+	}
 
-response->resultsSize = request->nodesToWriteSize;
-for (UA_Int32 i = 0; i < request->nodesToWriteSize; i++)
-response->results[i] = Service_Write_writeNode(server,
-		&request->nodesToWrite[i]);
+	response->resultsSize = request->nodesToWriteSize;
+	for (UA_Int32 i = 0; i < request->nodesToWriteSize; i++){}
+	//	response->results[i] = Service_Write_writeNode(server,
+	//			&request->nodesToWrite[i]);
 }

@@ -4,18 +4,16 @@
  *  Created on: Oct 27, 2014
  *      Author: opcua
  */
-#include "ua_nodestoreExample.h"
-#include "../ua_services.h"
 #include "open62541_nodestore.h"
 #include "../ua_services.h"
 #include "ua_namespace_0.h"
 #include "ua_util.h"
 
-UA_Int32 Service_Browse_getReferenceDescription(UA_NodeStoreExample *ns, UA_ReferenceNode *reference,
+UA_Int32 Service_Browse_getReferenceDescription(open62541NodeStore *ns, UA_ReferenceNode *reference,
                                                 UA_UInt32 nodeClassMask, UA_UInt32 resultMask,
                                                 UA_ReferenceDescription *referenceDescription) {
     const UA_Node *foundNode;
-    if(UA_NodeStoreExample_get(ns, &reference->targetId.nodeId, &foundNode) != UA_STATUSCODE_GOOD)
+    if(open62541NodeStore_get(ns, &reference->targetId.nodeId, &foundNode) != UA_STATUSCODE_GOOD)
     	return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_NodeId_copy(&foundNode->nodeId, &referenceDescription->nodeId.nodeId);
@@ -50,7 +48,7 @@ UA_Int32 Service_Browse_getReferenceDescription(UA_NodeStoreExample *ns, UA_Refe
         }
     }
  end:
-    UA_NodeStoreExample_releaseManagedNode(foundNode);
+    open62541NodeStore_releaseManagedNode(foundNode);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -61,7 +59,7 @@ struct SubRefTypeId {
 };
 SLIST_HEAD(SubRefTypeIdList, SubRefTypeId);
 
-static UA_UInt32 walkReferenceTree(UA_NodeStoreExample *ns, const UA_ReferenceTypeNode *current,
+static UA_UInt32 walkReferenceTree(open62541NodeStore *ns, const UA_ReferenceTypeNode *current,
                                    struct SubRefTypeIdList *list) {
     // insert the current referencetype
     struct SubRefTypeId *element = UA_alloc(sizeof(struct SubRefTypeId));
@@ -75,10 +73,10 @@ static UA_UInt32 walkReferenceTree(UA_NodeStoreExample *ns, const UA_ReferenceTy
         if(current->references[i].referenceTypeId.identifier.numeric == 45 /* HasSubtype */ &&
            current->references[i].isInverse == UA_FALSE) {
             const UA_Node *node;
-            if(UA_NodeStoreExample_get(ns, &current->references[i].targetId.nodeId, &node) == UA_STATUSCODE_GOOD
+            if(open62541NodeStore_get(ns, &current->references[i].targetId.nodeId, &node) == UA_STATUSCODE_GOOD
                && node->nodeClass == UA_NODECLASS_REFERENCETYPE) {
                 count += walkReferenceTree(ns, (UA_ReferenceTypeNode *)node, list);
-                UA_NodeStoreExample_releaseManagedNode(node);
+                open62541NodeStore_releaseManagedNode(node);
             }
         }
     }
@@ -86,7 +84,7 @@ static UA_UInt32 walkReferenceTree(UA_NodeStoreExample *ns, const UA_ReferenceTy
 }
 
 /* We do not search across namespaces so far. The id of the father-referencetype is returned in the array also. */
-static UA_Int32 findSubReferenceTypes(UA_NodeStoreExample *ns, UA_NodeId *rootReferenceType,
+static UA_Int32 findSubReferenceTypes(open62541NodeStore *ns, UA_NodeId *rootReferenceType,
                                       UA_NodeId **ids, UA_UInt32 *idcount) {
     struct SubRefTypeIdList list;
     UA_UInt32 count;
@@ -95,11 +93,11 @@ static UA_Int32 findSubReferenceTypes(UA_NodeStoreExample *ns, UA_NodeId *rootRe
     // walk the tree
     const UA_ReferenceTypeNode *root;
 
-    if(UA_NodeStoreExample_get(ns, rootReferenceType, (const UA_Node **)&root) != UA_STATUSCODE_GOOD ||
+    if(open62541NodeStore_get(ns, rootReferenceType, (const UA_Node **)&root) != UA_STATUSCODE_GOOD ||
        root->nodeClass != UA_NODECLASS_REFERENCETYPE)
         return UA_STATUSCODE_BADINTERNALERROR;
     count = walkReferenceTree(ns, root, &list);
-    UA_NodeStoreExample_releaseManagedNode((const UA_Node *)root);
+    open62541NodeStore_releaseManagedNode((const UA_Node *)root);
 
     // copy results into an array
     *ids = UA_alloc(sizeof(UA_NodeId)*count);
@@ -133,14 +131,14 @@ static INLINE UA_Boolean Service_Browse_returnReference(UA_BrowseDescription *br
 }
 
 /* Return results to a single browsedescription. */
-static void NodeStore_Browse_getBrowseResult(UA_NodeStoreExample         *ns,
+static void NodeStore_Browse_getBrowseResult(open62541NodeStore         *ns,
                                            UA_BrowseDescription *browseDescription,
                                            UA_UInt32             maxReferences,
                                            UA_BrowseResult      *browseResult) {
     const UA_Node *node;
     UA_NodeId     *relevantReferenceTypes = UA_NULL;
     UA_UInt32      relevantReferenceTypesCount = 0;
-    if(UA_NodeStoreExample_get(ns, &browseDescription->nodeId, &node) != UA_STATUSCODE_GOOD) {
+    if(open62541NodeStore_get(ns, &browseDescription->nodeId, &node) != UA_STATUSCODE_GOOD) {
         browseResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
@@ -197,7 +195,7 @@ static void NodeStore_Browse_getBrowseResult(UA_NodeStoreExample         *ns,
         // Todo. Set the Statuscode and the continuation point.
     }
 
-    UA_NodeStoreExample_releaseManagedNode(node);
+    open62541NodeStore_releaseManagedNode(node);
     UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesCount, &UA_[UA_NODEID]);
 }
 
@@ -207,7 +205,7 @@ UA_Int32 open62541NodeStore_BrowseNodes(UA_BrowseDescription *browseDescriptions
 
 
 	for(UA_UInt32 i = 0; i < indicesSize; i++){
-		NodeStore_Browse_getBrowseResult(Nodestore_get(),&browseDescriptions[indices[i]],requestedMaxReferencesPerNode, &browseResults[indices[i]]);
+		NodeStore_Browse_getBrowseResult(open62541NodeStore_getNodeStore(),&browseDescriptions[indices[i]],requestedMaxReferencesPerNode, &browseResults[indices[i]]);
 	}
 	return UA_STATUSCODE_GOOD;
 }

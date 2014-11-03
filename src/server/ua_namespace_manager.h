@@ -8,7 +8,7 @@
 #ifndef UA_NAMESPACE_MANAGER_H_
 #define UA_NAMESPACE_MANAGER_H_
 #include "ua_server.h"
-#include "nodestore/ua_nodestore.h"
+#include "ua_nodestore_interface.h"
 
 
 void UA_EXPORT UA_NamespaceManager_new(UA_NamespaceManager** namespaceManager);

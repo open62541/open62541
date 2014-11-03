@@ -1,5 +1,5 @@
 #include "ua_server.h"
-#include "nodestore/ua_nodestoreExample.h"
+//#include "nodestore/ua_nodestoreExample.h"
 #include "ua_services_internal.h" // AddReferences
 #include "ua_namespace_0.h"
 #include "ua_securechannel_manager.h"
@@ -12,7 +12,7 @@ UA_StatusCode UA_Server_deleteMembers(UA_Server *server) {
     UA_ApplicationDescription_deleteMembers(&server->description);
     UA_SecureChannelManager_delete(server->secureChannelManager);
     UA_SessionManager_delete(server->sessionManager);
-    UA_NodeStoreExample_delete(server->nodestore);
+ //   UA_NodeStoreExample_delete(server->nodestore);
     UA_ByteString_deleteMembers(&server->serverCertificate);
     return UA_STATUSCODE_GOOD;
 }
@@ -138,7 +138,7 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     addSingleNode(ns0,&addNodesItem);\
 }while(1==0);
 
-
+/*
 #define ADDREFERENCE(NODE, REFTYPE, INVERSE, TARGET_NODEID) do { \
     static struct UA_ReferenceNode NODE##REFTYPE##TARGET_NODEID;    \
     UA_ReferenceNode_init(&NODE##REFTYPE##TARGET_NODEID);       \
@@ -149,10 +149,10 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     } while(0)
 
 
-
+*/
 
     // ObjectTypes (Ids only)
-    UA_ExpandedNodeId ObjTypeId_FolderType; NS0EXPANDEDNODEID(ObjTypeId_FolderType, 61);
+//    UA_ExpandedNodeId ObjTypeId_FolderType; NS0EXPANDEDNODEID(ObjTypeId_FolderType, 61);
 
     // Objects (Ids only)
     UA_ExpandedNodeId ObjId_Null; NS0EXPANDEDNODEID(ObjId_Null, 0);
@@ -161,12 +161,12 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_ExpandedNodeId ObjId_TypesFolder; NS0EXPANDEDNODEID(ObjId_TypesFolder, 86);
     UA_ExpandedNodeId ObjId_ViewsFolder; NS0EXPANDEDNODEID(ObjId_ViewsFolder, 87);
     UA_ExpandedNodeId ObjId_ReferenceTypesFolder; NS0EXPANDEDNODEID(ObjId_ReferenceTypesFolder, 91);
-    UA_ExpandedNodeId ObjId_Server; NS0EXPANDEDNODEID(ObjId_Server, 2253);
-    UA_ExpandedNodeId ObjId_ServerArray; NS0EXPANDEDNODEID(ObjId_ServerArray, 2254);
-    UA_ExpandedNodeId ObjId_NamespaceArray; NS0EXPANDEDNODEID(ObjId_NamespaceArray, 2255);
-    UA_ExpandedNodeId ObjId_ServerStatus; NS0EXPANDEDNODEID(ObjId_ServerStatus, 2256);
-    UA_ExpandedNodeId ObjId_ServerCapabilities; NS0EXPANDEDNODEID(ObjId_ServerCapabilities, 2268);
-    UA_ExpandedNodeId ObjId_State; NS0EXPANDEDNODEID(ObjId_State, 2259);
+//    UA_ExpandedNodeId ObjId_Server; NS0EXPANDEDNODEID(ObjId_Server, 2253);
+//    UA_ExpandedNodeId ObjId_ServerArray; NS0EXPANDEDNODEID(ObjId_ServerArray, 2254);
+//    UA_ExpandedNodeId ObjId_NamespaceArray; NS0EXPANDEDNODEID(ObjId_NamespaceArray, 2255);
+//    UA_ExpandedNodeId ObjId_ServerStatus; NS0EXPANDEDNODEID(ObjId_ServerStatus, 2256);
+//    UA_ExpandedNodeId ObjId_ServerCapabilities; NS0EXPANDEDNODEID(ObjId_ServerCapabilities, 2268);
+//    UA_ExpandedNodeId ObjId_State; NS0EXPANDEDNODEID(ObjId_State, 2259);
 
 
 
@@ -539,7 +539,7 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_NodeStoreExample_insert(server->nodestore, (UA_Node**)&hashistoricalconfiguration, UA_NODESTORE_INSERT_UNIQUE);
 
 */
-
+/*
 
     // FolderType
     UA_ObjectNode *folderType;
@@ -563,8 +563,10 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     ADDREFERENCE(root, RefTypeId_Organizes, UA_FALSE, ObjId_ObjectsFolder);
     ADDREFERENCE(root, RefTypeId_Organizes, UA_FALSE, ObjId_TypesFolder);
     ADDREFERENCE(root, RefTypeId_Organizes, UA_FALSE, ObjId_ViewsFolder);
-    /* root becomes a managed node. we need to release it at the end.*/
-    UA_NodeStoreExample_insert(server->nodestore, (UA_Node**)&root, UA_NODESTORE_INSERT_UNIQUE | UA_NODESTORE_INSERT_GETMANAGED);
+ */
+    		 /* root becomes a managed node. we need to release it at the end.*/
+ /*
+    		UA_NodeStoreExample_insert(server->nodestore, (UA_Node**)&root, UA_NODESTORE_INSERT_UNIQUE | UA_NODESTORE_INSERT_GETMANAGED);
 
 
 
@@ -687,7 +689,7 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
 
     UA_Namespace *namespace;
     UA_NamespaceManager_getNamespace(server->namespaceManager,0,&namespace);
-
+*/
 
 
 
@@ -734,7 +736,7 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
 
     addSingleNode(namespace,&addNodesItem);
  */
-    UA_ObjectAttributes objAttr;
+ /*   UA_ObjectAttributes objAttr;
     UA_AddNodesItem addNodesItem;
     addNodesItem.parentNodeId.nodeId = root->nodeId;
     addNodesItem.requestedNewNodeId.nodeId.identifier.numeric = 222;
@@ -762,7 +764,7 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
     UA_Namespace *ns0;
     UA_NamespaceManager_getNamespace(server->namespaceManager,0,&ns0);
     addSingleNode(ns0,&addNodesItem);
-
+*/
 
 
 
@@ -770,32 +772,32 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
 
 }
 
-UA_AddNodesResult UA_Server_addNode(UA_Server *server, UA_Node **node, UA_ExpandedNodeId *parentNodeId,
-                                    UA_NodeId *referenceTypeId) {
-    return AddNode(server, &adminSession, node, parentNodeId, referenceTypeId);
-}
+//UA_AddNodesResult UA_Server_addNode(UA_Server *server, UA_Node **node, UA_ExpandedNodeId *parentNodeId,
+//                                    UA_NodeId *referenceTypeId) {
+//    return AddNode(server, &adminSession, node, parentNodeId, referenceTypeId);
+//}
 
-void UA_Server_addReference(UA_Server *server, const UA_AddReferencesRequest *request,
-                            UA_AddReferencesResponse *response) {
-    Service_AddReferences(server, &adminSession, request, response);
-}
+//void UA_Server_addReference(UA_Server *server, const UA_AddReferencesRequest *request,
+//                            UA_AddReferencesResponse *response) {
+//    Service_AddReferences(server, &adminSession, request, response);
+//}
 
-UA_AddNodesResult UA_Server_addScalarVariableNode(UA_Server *server, UA_String *browseName, void *value,
-                                                  const UA_VTable_Entry *vt, UA_ExpandedNodeId *parentNodeId,
-                                                  UA_NodeId *referenceTypeId ) {
-    UA_VariableNode *tmpNode;
-    UA_VariableNode_new(&tmpNode);
-    UA_String_copy(browseName, &tmpNode->browseName.name);
-    UA_String_copy(browseName, &tmpNode->displayName.text);
-    /* UA_LocalizedText_copycstring("integer value", &tmpNode->description); */
-    tmpNode->nodeClass = UA_NODECLASS_VARIABLE;
-    tmpNode->valueRank = -1;
-    tmpNode->value.vt = vt;
-    tmpNode->value.storage.data.dataPtr = value;
-    tmpNode->value.storageType = UA_VARIANT_DATA_NODELETE;
-    tmpNode->value.storage.data.arrayLength = 1;
-    return UA_Server_addNode(server, (UA_Node**)&tmpNode, parentNodeId, referenceTypeId);
-}
+//UA_AddNodesResult UA_Server_addScalarVariableNode(UA_Server *server, UA_String *browseName, void *value,
+//                                                  const UA_VTable_Entry *vt, UA_ExpandedNodeId *parentNodeId,
+//                                                  UA_NodeId *referenceTypeId ) {
+//    UA_VariableNode *tmpNode;
+//    UA_VariableNode_new(&tmpNode);
+//    UA_String_copy(browseName, &tmpNode->browseName.name);
+//    UA_String_copy(browseName, &tmpNode->displayName.text);
+//    /* UA_LocalizedText_copycstring("integer value", &tmpNode->description); */
+//    tmpNode->nodeClass = UA_NODECLASS_VARIABLE;
+//    tmpNode->valueRank = -1;
+//    tmpNode->value.vt = vt;
+//    tmpNode->value.storage.data.dataPtr = value;
+//    tmpNode->value.storageType = UA_VARIANT_DATA_NODELETE;
+//    tmpNode->value.storage.data.arrayLength = 1;
+//    return UA_Server_addNode(server, (UA_Node**)&tmpNode, parentNodeId, referenceTypeId);
+//}
 
 UA_Int32 UA_Server_addNamespace(UA_Server *server, UA_UInt16 namespaceIndex, UA_NodeStore *nodeStore)
 {

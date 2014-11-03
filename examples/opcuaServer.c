@@ -17,10 +17,10 @@
 #include "networklayer_tcp.h"
 
 
-#include "../src/server/nodestore/ua_nodestore.h"
+#include "../src/server/ua_nodestore_interface.h"
 #include "../src/server/ua_namespace_manager.h"
 #include "../src/server/nodestore/open62541_nodestore.h"
-#include "../src/server/nodestore/ua_nodestoreExample.h"
+
 UA_Boolean running = UA_TRUE;
 
 
@@ -54,7 +54,7 @@ UA_ByteString loadCertificate() {
 
     return certificate;
 }
-UA_StatusCode UA_EXPORT UA_NodeStoreExample_new(UA_NodeStoreExample **result);
+UA_StatusCode UA_EXPORT open62541NodeStore_new(open62541NodeStore **result);
 
 int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
@@ -63,14 +63,14 @@ int main(int argc, char** argv) {
 	UA_String endpointUrl;
 	UA_String_copycstring("no endpoint url",&endpointUrl);
 	UA_NodeStore newNodeStore;
-	UA_NodeStoreExample_new(&server.nodestore);
+	open62541NodeStore_new(&server.nodestore);
 
-	Nodestore_set(server.nodestore);
+	open62541NodeStore_setNodeStore(server.nodestore);
 	UA_NamespaceManager_new(&server.namespaceManager);
 	UA_NamespaceManager_addNamespace(server.namespaceManager,0, &newNodeStore);
 	UA_NodeStore_registerReadNodesOperation(&newNodeStore,open62541NodeStore_ReadNodes);
 	UA_NodeStore_registerBrowseNodesOperation(&newNodeStore,open62541NodeStore_BrowseNodes);
-	UA_NodeStore_registerAddNodesOperation(&newNodeStore,open62541Nodestore_addNodes);
+	UA_NodeStore_registerAddNodesOperation(&newNodeStore,open62541NodeStore_AddNodes);
 	//UA_NodeStore_registerWriteNodesOperation(&newNodeStore,writeNodes);
 	UA_Server_init(&server, &endpointUrl);
 
@@ -79,11 +79,11 @@ int main(int argc, char** argv) {
 	Logger_Stdout_init(&server.logger);
     server.serverCertificate = loadCertificate();
 
-    UA_Int32 myInteger = 42;
-    UA_String myIntegerName;
-    UA_STRING_STATIC(myIntegerName, "The Answer");
-    UA_Server_addScalarVariableNode(&server, &myIntegerName, (void*)&myInteger, &UA_[UA_INT32],
-                                    &server.objectsNodeId, &server.hasComponentReferenceTypeId);
+//    UA_Int32 myInteger = 42;
+//    UA_String myIntegerName;
+//    UA_STRING_STATIC(myIntegerName, "The Answer");
+//    UA_Server_addScalarVariableNode(&server, &myIntegerName, (void*)&myInteger, &UA_[UA_INT32],
+//                                    &server.objectsNodeId, &server.hasComponentReferenceTypeId);
 
 #ifdef BENCHMARK
     UA_UInt32 nodeCount = 500;

@@ -1,4 +1,4 @@
-#include "ua_nodestore.h"
+#include "ua_nodestore_interface.h"
 #include "ua_util.h"
 #include "ua_statuscodes.h"
 

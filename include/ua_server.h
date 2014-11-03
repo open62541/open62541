@@ -40,8 +40,8 @@ typedef struct UA_SessionManager UA_SessionManager;
 struct UA_NodeStore;
 typedef struct UA_NodeStore UA_NodeStore;
 
-struct UA_NodeStoreExample;
-typedef struct UA_NodeStoreExample UA_NodeStoreExample;
+struct open62541NodeStore;
+typedef struct open62541NodeStore open62541NodeStore;
 
 //struct UA_Namespace;
 //typedef struct UA_Namespace UA_Namespace;
@@ -80,7 +80,7 @@ typedef struct UA_Server {
 	UA_SecureChannelManager *secureChannelManager;
 	UA_SessionManager *sessionManager;
 	UA_NamespaceManager* namespaceManager;
-	UA_NodeStoreExample *nodestore;
+	open62541NodeStore *nodestore;
 	UA_Logger logger;
 	UA_ByteString serverCertificate;
 
@@ -98,10 +98,10 @@ void UA_EXPORT UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *
 UA_AddNodesResult UA_EXPORT UA_Server_addScalarVariableNode(UA_Server *server, UA_String *browseName, void *value,
 		const UA_VTable_Entry *vt, UA_ExpandedNodeId *parentNodeId,
 		UA_NodeId *referenceTypeId );
-UA_AddNodesResult UA_EXPORT UA_Server_addNode(UA_Server *server, UA_Node **node, UA_ExpandedNodeId *parentNodeId,
-		UA_NodeId *referenceTypeId);
-void UA_EXPORT UA_Server_addReferences(UA_Server *server, const UA_AddReferencesRequest *request,
-		UA_AddReferencesResponse *response);
+//UA_AddNodesResult UA_EXPORT UA_Server_addNode(UA_Server *server, UA_Node **node, UA_ExpandedNodeId *parentNodeId,
+//		UA_NodeId *referenceTypeId);
+//void UA_EXPORT UA_Server_addReferences(UA_Server *server, const UA_AddReferencesRequest *request,
+//		UA_AddReferencesResponse *response);
 
 UA_Int32 UA_EXPORT UA_Server_addNamespace(UA_Server *server, UA_UInt16 namespaceIndex, UA_NodeStore *nodeStore);
 
