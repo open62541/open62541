@@ -54,7 +54,7 @@ UA_ByteString loadCertificate() {
 
     return certificate;
 }
-UA_StatusCode UA_EXPORT open62541NodeStore_new(open62541NodeStore **result);
+
 
 int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
 	UA_NodeStore_registerBrowseNodesOperation(&newNodeStore,open62541NodeStore_BrowseNodes);
 	UA_NodeStore_registerAddNodesOperation(&newNodeStore,open62541NodeStore_AddNodes);
 	UA_NodeStore_registerWriteNodesOperation(&newNodeStore,open62541NodeStore_WriteNodes);
-	//register more operations/ services
+	//register more operations/ services here
 
 	UA_Server_init(&server, &endpointUrl);
 
@@ -81,11 +81,13 @@ int main(int argc, char** argv) {
 	Logger_Stdout_init(&server.logger);
     server.serverCertificate = loadCertificate();
 
-//    UA_Int32 myInteger = 42;
-//    UA_String myIntegerName;
-//    UA_STRING_STATIC(myIntegerName, "The Answer");
-//    UA_Server_addScalarVariableNode(&server, &myIntegerName, (void*)&myInteger, &UA_[UA_INT32],
-//                                    &server.objectsNodeId, &server.hasComponentReferenceTypeId);
+    UA_Int32 myInteger = 42;
+    UA_QualifiedName *myIntegerName;
+    UA_QualifiedName_new(&myIntegerName);
+    UA_QualifiedName_copycstring("the answer is",myIntegerName);
+
+    UA_Server_addScalarVariableNode(&server, myIntegerName, (void*)&myInteger, &UA_[UA_INT32],
+                                   &server.objectsNodeId, &server.hasComponentReferenceTypeId);
 
 #ifdef BENCHMARK
     UA_UInt32 nodeCount = 500;

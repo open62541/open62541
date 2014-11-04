@@ -62,7 +62,7 @@ void ns0_addObjectNode(UA_Server *server, UA_NodeId REFTYPE_NODEID,
 }
 void ns0_addVariableNode(UA_Server *server, UA_NodeId REFTYPE_NODEID,
 		UA_ExpandedNodeId REQ_NODEID, UA_ExpandedNodeId PARENTNODEID,
-		char* BROWSENAME, char* DISPLAYNAME, char* DESCRIPTION,
+		UA_QualifiedName browseName, UA_LocalizedText displayName, UA_LocalizedText description,
 		UA_DataValue *dataValue, UA_Int32 valueRank) {
 	UA_VariableAttributes varAttr;
 	UA_AddNodesItem addNodesItem;
@@ -72,9 +72,9 @@ void ns0_addVariableNode(UA_Server *server, UA_NodeId REFTYPE_NODEID,
 	addNodesItem.requestedNewNodeId = REQ_NODEID;
 	addNodesItem.referenceTypeId = REFTYPE_NODEID;
 	addNodesItem.nodeClass = UA_NODECLASS_VARIABLE;
-	UA_QualifiedName_copycstring(BROWSENAME, &addNodesItem.browseName);
-	UA_LocalizedText_copycstring(DISPLAYNAME, &varAttr.displayName);
-	UA_LocalizedText_copycstring(DESCRIPTION, &varAttr.description);
+	addNodesItem.browseName = browseName;
+	varAttr.displayName = displayName ;
+	varAttr.description = description;
 	varAttr.value = dataValue->value;
 	varAttr.userWriteMask = 0;
 	varAttr.writeMask = 0;
@@ -272,8 +272,20 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
 	serverArrayValue->value.storage.data.arrayDimensionsLength = 1; // added to ensure encoding in readreponse
 	serverArrayValue->value.storage.data.arrayLength = 1;
 	serverArrayValue->value.storageType = UA_VARIANT_DATA;
-	ns0_addVariableNode(server,RefTypeId_HasComponent.nodeId,VarId_NamespaceArray,ObjId_Server, "NamespaceArray", "NamespaceArray", "NamespaceArray",serverArrayValue,1);
+	 {
+		 UA_QualifiedName *browseName;
+		 UA_QualifiedName_new(&browseName);
+		 UA_LocalizedText *description;
+		 UA_LocalizedText_new(&description);
+		 UA_LocalizedText *displayName;
+		 UA_LocalizedText_new(&displayName);
 
+		 UA_QualifiedName_copycstring("NamespaceArray",browseName);
+		 UA_LocalizedText_copycstring("NamespaceArray",description);
+		 UA_LocalizedText_copycstring("NamespaceArray",displayName);
+
+		 ns0_addVariableNode(server,RefTypeId_HasComponent.nodeId,VarId_NamespaceArray,ObjId_Server, *browseName,*description, *displayName,serverArrayValue,1);
+	 }
 
 
 
@@ -298,9 +310,20 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
 	 serverStatusValue->value.storage.data.arrayLength = 0;
 	 serverStatusValue->value.storage.data.dataPtr        = status;
 	 serverStatusValue->value.storage.data.arrayDimensionsLength = 0;
+	 {
+		 UA_QualifiedName *browseName;
+		 UA_QualifiedName_new(&browseName);
+		 UA_LocalizedText *description;
+		 UA_LocalizedText_new(&description);
+		 UA_LocalizedText *displayName;
+		 UA_LocalizedText_new(&displayName);
 
-	 ns0_addVariableNode(server,RefTypeId_HasComponent.nodeId,VarId_ServerStatus,ObjId_Server, "ServerStatus", "ServerStatus", "ServerStatus",serverStatusValue,-1);
+		 UA_QualifiedName_copycstring("ServerStatus",browseName);
+		 UA_LocalizedText_copycstring("ServerStatus",description);
+		 UA_LocalizedText_copycstring("ServerStatus",displayName);
 
+		 ns0_addVariableNode(server,RefTypeId_HasComponent.nodeId,VarId_ServerStatus,ObjId_Server, *browseName, *description, *displayName ,serverStatusValue,-1);
+	}
 
 	 // State (Component of ServerStatus)
 
@@ -313,19 +336,20 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
 	 sateValue->value.storage.data.dataPtr = &status->state; // points into the other object.
 	 sateValue->value.storageType = UA_VARIANT_DATA;
 
+	 {
+		 UA_QualifiedName *browseName;
+		 UA_QualifiedName_new(&browseName);
+		 UA_LocalizedText *description;
+		 UA_LocalizedText_new(&description);
+		 UA_LocalizedText *displayName;
+		 UA_LocalizedText_new(&displayName);
 
-	 ns0_addVariableNode(server,RefTypeId_HasComponent.nodeId,VarId_State,ObjId_Server, "State", "State", "State",sateValue,-1);
+		 UA_QualifiedName_copycstring("State",browseName);
+		 UA_LocalizedText_copycstring("State",description);
+		 UA_LocalizedText_copycstring("State",displayName);
 
-
-
-
-
-
-
-
-
-
-
+		 ns0_addVariableNode(server,RefTypeId_HasComponent.nodeId,VarId_State,ObjId_Server, *browseName, *description,*displayName ,sateValue,-1);
+	 }
 
 	ns0_addObjectNode(server,RefTypeId_Organizes.nodeId, ObjId_TypesFolder, ObjId_Root,
 			"Types", "Types", "Types");
@@ -954,22 +978,38 @@ void UA_Server_init(UA_Server *server, UA_String *endpointUrl) {
 //    Service_AddReferences(server, &adminSession, request, response);
 //}
 
-//UA_AddNodesResult UA_Server_addScalarVariableNode(UA_Server *server, UA_String *browseName, void *value,
-//                                                  const UA_VTable_Entry *vt, UA_ExpandedNodeId *parentNodeId,
-//                                                  UA_NodeId *referenceTypeId ) {
-//    UA_VariableNode *tmpNode;
-//    UA_VariableNode_new(&tmpNode);
-//    UA_String_copy(browseName, &tmpNode->browseName.name);
-//    UA_String_copy(browseName, &tmpNode->displayName.text);
-//    /* UA_LocalizedText_copycstring("integer value", &tmpNode->description); */
-//    tmpNode->nodeClass = UA_NODECLASS_VARIABLE;
-//    tmpNode->valueRank = -1;
-//    tmpNode->value.vt = vt;
-//    tmpNode->value.storage.data.dataPtr = value;
-//    tmpNode->value.storageType = UA_VARIANT_DATA_NODELETE;
-//    tmpNode->value.storage.data.arrayLength = 1;
-//    return UA_Server_addNode(server, (UA_Node**)&tmpNode, parentNodeId, referenceTypeId);
-//}
+void UA_Server_addScalarVariableNode(UA_Server *server, UA_QualifiedName *browseName, void *value,
+                                                  const UA_VTable_Entry *vt, UA_ExpandedNodeId *parentNodeId,
+                                                  UA_NodeId *referenceTypeId ) {
+    UA_VariableNode *tmpNode;
+    UA_VariableNode_new(&tmpNode);
+    UA_DataValue *dataValue;
+    UA_DataValue_new(&dataValue);
+
+    /*UA_LocalizedText_copycstring("integer value", &tmpNode->description); */
+    UA_LocalizedText *displayName;
+    UA_LocalizedText *description;
+
+    UA_LocalizedText_new(&displayName);
+    UA_LocalizedText_new(&description);
+    displayName->locale.length = 0;
+    description->locale.length = 0;
+
+    UA_String_copy(&browseName->name, &displayName->text);
+    UA_String_copy(&browseName->name, &description->text);
+
+    dataValue->value.vt = vt;
+    dataValue->value.storage.data.dataPtr = value;
+    dataValue->value.storageType = UA_VARIANT_DATA;
+    dataValue->value.storage.data.arrayLength = 1;
+    UA_ExpandedNodeId reqNodeId;
+    reqNodeId.namespaceUri.length = 0;
+    reqNodeId.nodeId.namespaceIndex = 0;
+    UA_String_copy(&browseName->name,&reqNodeId.nodeId.identifier.string);
+    reqNodeId.nodeId.identifierType = UA_NODEIDTYPE_STRING;
+    ns0_addVariableNode(server,*referenceTypeId,reqNodeId, *parentNodeId,*browseName,*displayName,*description,dataValue,-1);
+   // return UA_Server_addNode(server, (UA_Node**)&tmpNode, parentNodeId, referenceTypeId);
+}
 
 UA_Int32 UA_Server_addNamespace(UA_Server *server, UA_UInt16 namespaceIndex,
 		UA_NodeStore *nodeStore) {

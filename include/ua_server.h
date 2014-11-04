@@ -96,9 +96,9 @@ UA_StatusCode UA_EXPORT UA_Server_deleteMembers(UA_Server *server);
 void UA_EXPORT UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
 
 /* Services for local use */
-UA_AddNodesResult UA_EXPORT UA_Server_addScalarVariableNode(UA_Server *server, UA_String *browseName, void *value,
-		const UA_VTable_Entry *vt, UA_ExpandedNodeId *parentNodeId,
-		UA_NodeId *referenceTypeId );
+void UA_EXPORT UA_Server_addScalarVariableNode(UA_Server *server, UA_QualifiedName *browseName, void *value,
+                                                  const UA_VTable_Entry *vt, UA_ExpandedNodeId *parentNodeId,
+                                                  UA_NodeId *referenceTypeId );
 //UA_AddNodesResult UA_EXPORT UA_Server_addNode(UA_Server *server, UA_Node **node, UA_ExpandedNodeId *parentNodeId,
 //		UA_NodeId *referenceTypeId);
 //void UA_EXPORT UA_Server_addReferences(UA_Server *server, const UA_AddReferencesRequest *request,
