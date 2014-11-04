@@ -1,11 +1,14 @@
-#include "ua_services.h"
-
-#include "ua_statuscodes.h"
-#include "ua_server_internal.h"
-#include "ua_namespace_manager.h"
-#include "ua_namespace_0.h"
-#include "ua_util.h"
 /*
+ * nodestore_attribute.c
+ *
+ *  Created on: Oct 27, 2014
+ *      Author: opcua
+ */
+
+#include "../ua_services.h"
+#include "open62541_nodestore.h"
+#include "ua_namespace_0.h"
+
 #define CHECK_NODECLASS(CLASS)                                 \
     if(!(node->nodeClass & (CLASS))) {                         \
         v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE; \
@@ -18,10 +21,10 @@ static UA_DataValue service_read_node(UA_Server *server,
 	UA_DataValue v;
 	UA_DataValue_init(&v);
 
-	UA_Node const *node = UA_NULL;
-	UA_Int32 result = UA_NodeStoreExample_get(server->nodestore, &(id->nodeId),
-			&node);
-	if (result != UA_STATUSCODE_GOOD || node == UA_NULL) {
+	UA_Node const *node = NULL;
+	open62541NodeStore *ns = open62541NodeStore_getNodeStore();
+	UA_Int32 result = open62541NodeStore_get(ns, &(id->nodeId), &node);
+	if (result != UA_STATUSCODE_GOOD || node == NULL) {
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
 		v.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
 		return v;
@@ -36,9 +39,10 @@ static UA_DataValue service_read_node(UA_Server *server,
 		break;
 
 	case UA_ATTRIBUTEID_NODECLASS:
-		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
+
 		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_INT32],
 				&node->nodeClass);
+		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
 		break;
 
 	case UA_ATTRIBUTEID_BROWSENAME:
@@ -199,7 +203,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		break;
 	}
 
-	UA_NodeStoreExample_releaseManagedNode(node);
+	open62541NodeStore_releaseManagedNode(node);
 
 	if (retval != UA_STATUSCODE_GOOD) {
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
@@ -208,167 +212,165 @@ static UA_DataValue service_read_node(UA_Server *server,
 
 	return v;
 }
-*/
-void Service_Read(UA_Server *server, UA_Session *session,
-		const UA_ReadRequest *request, UA_ReadResponse *response) {
-	UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
 
-	if (request->nodesToReadSize <= 0) {
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-		return;
+UA_Int32 open62541NodeStore_ReadNodes(const UA_RequestHeader *requestHeader,
+		UA_ReadValueId *readValueIds,
+		UA_UInt32 *indices, UA_UInt32 indicesSize,
+		UA_DataValue *readNodesResults, UA_Boolean timeStampToReturn,
+		UA_DiagnosticInfo *diagnosticInfos) {
+	for (UA_UInt32 i = 0; i < indicesSize; i++) {
+		readNodesResults[indices[i]] = service_read_node(NULL,
+				&readValueIds[indices[i]]);
 	}
-	if (UA_Array_new((void **) &response->results, request->nodesToReadSize,
-			&UA_TYPES[UA_DATAVALUE]) != UA_STATUSCODE_GOOD) {
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-		return;
-	}
-
-	if (UA_Array_new((void **) &response->diagnosticInfos,
-			request->nodesToReadSize, &UA_TYPES[UA_DIAGNOSTICINFO])
-			!= UA_STATUSCODE_GOOD) {
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-		return;
-	}
-	response->resultsSize = request->nodesToReadSize;
-
-	UA_Int32 *numberOfFoundIndices;
-	UA_UInt16 *associatedIndices;
-	UA_UInt32 differentNamespaceIndexCount = 0;
-	if (UA_Array_new((void **) &numberOfFoundIndices, request->nodesToReadSize,
-			&UA_TYPES[UA_UINT32]) != UA_STATUSCODE_GOOD) {
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-		return;
-	}
-
-	if (UA_Array_new((void **) &associatedIndices, request->nodesToReadSize,
-			&UA_TYPES[UA_UINT16]) != UA_STATUSCODE_GOOD) {
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-		return;
-	}
-	// find out count of different namespace indices
-	BUILD_INDEX_ARRAYS(request->nodesToReadSize,request->nodesToRead,nodeId,differentNamespaceIndexCount,associatedIndices,numberOfFoundIndices);
-
-
-	UA_UInt32 *readValueIdIndices;
-	if (UA_Array_new((void **) &readValueIdIndices, request->nodesToReadSize,
-			&UA_TYPES[UA_UINT32]) != UA_STATUSCODE_GOOD) {
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-		return;
-	}
-
-	for (UA_UInt32 i = 0; i < differentNamespaceIndexCount; i++) {
-		UA_Namespace *tmpNamespace;
-		UA_NamespaceManager_getNamespace(server->namespaceManager,
-				associatedIndices[i], &tmpNamespace);
-		if (tmpNamespace != UA_NULL) {
-
-			//build up index array for each read operation onto a different namespace
-			UA_UInt32 n = 0;
-			for (UA_Int32 j = 0; j < request->nodesToReadSize; j++) {
-				if (request->nodesToRead[j].nodeId.namespaceIndex
-						== associatedIndices[i]) {
-					readValueIdIndices[n] = j;
-					n++;
-				}
-			}
-			//call read for every namespace
-			tmpNamespace->nodeStore->readNodes(&request->requestHeader, request->nodesToRead,
-					readValueIdIndices, numberOfFoundIndices[i],
-					response->results, request->timestampsToReturn,
-					response->diagnosticInfos);
-
-			//	response->results[i] = service_read_node(server, &request->nodesToRead[i]);
-		}
-	}
-	UA_free(readValueIdIndices);
-	UA_free(numberOfFoundIndices);
-	UA_free(associatedIndices);
-
-//	 for(UA_Int32 i = 0;i < response->resultsSize;i++){
-//	 response->results[i] = service_read_node(server, &request->nodesToRead[i]);
-//	 }
+	return UA_STATUSCODE_GOOD;
 }
 
-void Service_Write(UA_Server *server, UA_Session *session,
-		const UA_WriteRequest *request, UA_WriteResponse *response) {
-	UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
+static UA_StatusCode Service_Write_writeNode(open62541NodeStore *nodestore,
+		UA_WriteValue *writeValue) {
+	UA_StatusCode retval = UA_STATUSCODE_GOOD;
+	const UA_Node *node;
+	retval = open62541NodeStore_get(nodestore, &writeValue->nodeId, &node);
+	if (retval)
+		return retval;
 
-	response->resultsSize = request->nodesToWriteSize;
+	switch (writeValue->attributeId) {
+	case UA_ATTRIBUTEID_NODEID:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
 
-	if (UA_Array_new((void **) &response->results, request->nodesToWriteSize,
-			&UA_TYPES[UA_STATUSCODE])) {
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-		return;
-	}
+	case UA_ATTRIBUTEID_NODECLASS:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
 
-	if (request->nodesToWriteSize <= 0) {
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-		return;
-	}
+	case UA_ATTRIBUTEID_BROWSENAME:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
 
-	if (UA_Array_new((void **) &response->results, request->nodesToWriteSize,
-			&UA_TYPES[UA_DATAVALUE]) != UA_STATUSCODE_GOOD) {
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-		return;
-	}
+	case UA_ATTRIBUTEID_DISPLAYNAME:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
 
-	if (UA_Array_new((void **) &response->diagnosticInfos,
-			request->nodesToWriteSize, &UA_TYPES[UA_DIAGNOSTICINFO])
-			!= UA_STATUSCODE_GOOD) {
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-		return;
-	}
+	case UA_ATTRIBUTEID_DESCRIPTION:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
 
+	case UA_ATTRIBUTEID_WRITEMASK:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
 
-	UA_Int32 *numberOfFoundIndices;
-	UA_UInt16 *associatedIndices;
-	UA_UInt32 differentNamespaceIndexCount = 0;
-	if (UA_Array_new((void **) &numberOfFoundIndices, request->nodesToWriteSize,
-			&UA_TYPES[UA_UINT32]) != UA_STATUSCODE_GOOD) {
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-		return;
-	}
+	case UA_ATTRIBUTEID_USERWRITEMASK:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
 
-	if (UA_Array_new((void **) &associatedIndices, request->nodesToWriteSize,
-			&UA_TYPES[UA_UINT16]) != UA_STATUSCODE_GOOD) {
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-		return;
-	}
-	// find out count of different namespace indices
-	BUILD_INDEX_ARRAYS(request->nodesToWriteSize,request->nodesToWrite,nodeId,differentNamespaceIndexCount,associatedIndices,numberOfFoundIndices);
+	case UA_ATTRIBUTEID_ISABSTRACT:
 
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
 
-	UA_UInt32 *writeValues;
-	if (UA_Array_new((void **) &writeValues, request->nodesToWriteSize,
-			&UA_TYPES[UA_UINT32]) != UA_STATUSCODE_GOOD) {
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-		return;
-	}
+	case UA_ATTRIBUTEID_SYMMETRIC:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
 
-	for (UA_UInt32 i = 0; i < differentNamespaceIndexCount; i++) {
-		UA_Namespace *tmpNamespace;
-		UA_NamespaceManager_getNamespace(server->namespaceManager,
-				associatedIndices[i], &tmpNamespace);
-		if (tmpNamespace != UA_NULL) {
+	case UA_ATTRIBUTEID_INVERSENAME:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
 
-			//build up index array for each read operation onto a different namespace
-			UA_UInt32 n = 0;
-			for (UA_Int32 j = 0; j < request->nodesToWriteSize; j++) {
-				if (request->nodesToWrite[j].nodeId.namespaceIndex
-						== associatedIndices[i]) {
-					writeValues[n] = j;
-					n++;
-				}
-			}
-			//call read for every namespace
-			tmpNamespace->nodeStore->writeNodes(&request->requestHeader,request->nodesToWrite,
-					writeValues, numberOfFoundIndices[i],
-					response->results,
-					response->diagnosticInfos);
+	case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
+
+	case UA_ATTRIBUTEID_EVENTNOTIFIER:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
+
+	case UA_ATTRIBUTEID_VALUE:
+		if (writeValue->value.encodingMask
+				== UA_DATAVALUE_ENCODINGMASK_VARIANT) {
+			retval |= UA_Variant_copy(&writeValue->value.value,
+					&((UA_VariableNode *) node)->value); // todo: zero-copy
 		}
+		break;
+
+	case UA_ATTRIBUTEID_DATATYPE:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
+
+	case UA_ATTRIBUTEID_VALUERANK:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
+
+	case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
+
+	case UA_ATTRIBUTEID_ACCESSLEVEL:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
+
+	case UA_ATTRIBUTEID_USERACCESSLEVEL:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
+
+	case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
+
+	case UA_ATTRIBUTEID_HISTORIZING:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
+
+	case UA_ATTRIBUTEID_EXECUTABLE:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
+
+	case UA_ATTRIBUTEID_USEREXECUTABLE:
+		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
+
+	default:
+		retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+		break;
 	}
-	UA_free(writeValues);
-	UA_free(numberOfFoundIndices);
-	UA_free(associatedIndices);
+
+	open62541NodeStore_releaseManagedNode(node);
+	return retval;
 
 }
+UA_Int32 UA_EXPORT open62541NodeStore_WriteNodes(
+		const UA_RequestHeader *requestHeader, UA_WriteValue *writeValues,
+		UA_UInt32 *indices, UA_UInt32 indicesSize,
+		UA_StatusCode *writeNodesResults, UA_DiagnosticInfo *diagnosticInfo) {
+	open62541NodeStore *nodestore = NULL;
+	nodestore = open62541NodeStore_getNodeStore();
+	if (nodestore == NULL) {
+		return UA_STATUSCODE_BADINTERNALERROR;
+	}
+
+	for (UA_UInt32 i = 0; i < indicesSize; i++) {
+		writeNodesResults[indices[i]] = Service_Write_writeNode(
+				open62541NodeStore_getNodeStore(), &writeValues[indices[i]]);
+	}
+	return UA_STATUSCODE_GOOD; //
+}
+

@@ -3,6 +3,7 @@
 
 #include "ua_server.h"
 #include "ua_session_manager.h"
+#include "ua_namespace_manager.h"
 #include "ua_securechannel_manager.h"
 
 struct UA_Server {
@@ -10,7 +11,7 @@ struct UA_Server {
     UA_Int32 endpointDescriptionsSize;
     UA_EndpointDescription *endpointDescriptions;
     UA_ByteString serverCertificate;
-    
+    UA_NamespaceManager *namespaceManager;
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;
     UA_NodeStore *nodestore;
