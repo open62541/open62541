@@ -217,7 +217,6 @@ void Service_Read(UA_Server *server, UA_Session *session,
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
 		return;
 	}
-
 	if (UA_Array_new((void **) &response->results, request->nodesToReadSize,
 			&UA_[UA_DATAVALUE]) != UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -273,7 +272,7 @@ void Service_Read(UA_Server *server, UA_Session *session,
 				}
 			}
 			//call read for every namespace
-			tmpNamespace->nodeStore->readNodes(request->nodesToRead,
+			tmpNamespace->nodeStore->readNodes(&request->requestHeader, request->nodesToRead,
 					readValueIdIndices, numberOfFoundIndices[i],
 					response->results, request->timestampsToReturn,
 					response->diagnosticInfos);
@@ -362,7 +361,7 @@ void Service_Write(UA_Server *server, UA_Session *session,
 				}
 			}
 			//call read for every namespace
-			tmpNamespace->nodeStore->writeNodes(request->nodesToWrite,
+			tmpNamespace->nodeStore->writeNodes(&request->requestHeader,request->nodesToWrite,
 					writeValues, numberOfFoundIndices[i],
 					response->results,
 					response->diagnosticInfos);

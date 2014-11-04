@@ -66,21 +66,29 @@ void open62541NodeStore_iterate(const open62541NodeStore *ns,
 /// @} /* end of group */
 
 //service implementations
-UA_Int32 UA_EXPORT open62541NodeStore_ReadNodes(UA_ReadValueId *readValueIds,
+UA_Int32 UA_EXPORT open62541NodeStore_ReadNodes(const UA_RequestHeader *requestHeader,
+		UA_ReadValueId *readValueIds,
 		UA_UInt32 *indices, UA_UInt32 indicesSize,
 		UA_DataValue *readNodesResults, UA_Boolean timeStampToReturn,
 		UA_DiagnosticInfo *diagnosticInfos);
 
-UA_Int32 UA_EXPORT open62541NodeStore_BrowseNodes(
+UA_Int32 UA_EXPORT open62541NodeStore_WriteNodes(const UA_RequestHeader *requestHeader,
+		UA_WriteValue *writeValues,
+		UA_UInt32 *indices, UA_UInt32 indicesSize,
+		UA_StatusCode *writeNodesResults, UA_DiagnosticInfo *diagnosticInfo);
+
+UA_Int32 UA_EXPORT open62541NodeStore_BrowseNodes(const UA_RequestHeader *requestHeader,
 		UA_BrowseDescription *browseDescriptions, UA_UInt32 *indices,
 		UA_UInt32 indicesSize, UA_UInt32 requestedMaxReferencesPerNode,
 		UA_BrowseResult *browseResults, UA_DiagnosticInfo *diagnosticInfos);
 
-UA_Int32 UA_EXPORT open62541NodeStore_AddNodes(UA_AddNodesItem *nodesToAdd,
+UA_Int32 UA_EXPORT open62541NodeStore_AddNodes(const UA_RequestHeader *requestHeader,
+		UA_AddNodesItem *nodesToAdd,
 		UA_UInt32 *indices, UA_UInt32 indicesSize,
 		UA_AddNodesResult* addNodesResults, UA_DiagnosticInfo *diagnosticInfos);
 
-UA_Int32 UA_EXPORT open62541NodeStore_WriteNodes(UA_WriteValue *writeValues,
-		UA_UInt32 *indices, UA_UInt32 indicesSize,
-		UA_StatusCode *writeNodesResults, UA_DiagnosticInfo *diagnosticInfo);
+UA_Int32 UA_EXPORT open62541NodeStore_AddReferences(const UA_RequestHeader *requestHeader, UA_AddReferencesItem* referencesToAdd,
+		UA_UInt32 *indices,UA_UInt32 indicesSize, UA_StatusCode *addReferencesResults,
+		UA_DiagnosticInfo *diagnosticInfos);
+
 #endif /* UA_OPEN62541_NODESTORE_H_ */

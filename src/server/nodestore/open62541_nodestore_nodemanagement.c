@@ -159,7 +159,7 @@ void open62541Nodestore_getNewNodeId(UA_ExpandedNodeId *requestedNodeId){
 	return;
 }
 
-UA_Int32 open62541NodeStore_addReferences(UA_AddReferencesItem* referencesToAdd,
+UA_Int32 open62541NodeStore_AddReferences(const UA_RequestHeader *requestHeader, UA_AddReferencesItem* referencesToAdd,
 		UA_UInt32 *indices,UA_UInt32 indicesSize, UA_StatusCode *addReferencesResults,
 		UA_DiagnosticInfo *diagnosticInfos)
 {
@@ -199,7 +199,7 @@ UA_Int32 open62541NodeStore_addReferences(UA_AddReferencesItem* referencesToAdd,
 UA_Boolean isRootNode(UA_NodeId *nodeId){
 	return nodeId->identifierType == UA_NODEIDTYPE_NUMERIC && nodeId->namespaceIndex == 0 && nodeId->identifier.numeric == 84;
 }
-UA_Int32 open62541NodeStore_AddNodes(UA_AddNodesItem *nodesToAdd,UA_UInt32 *indices,
+UA_Int32 open62541NodeStore_AddNodes(const UA_RequestHeader *requestHeader,UA_AddNodesItem *nodesToAdd,UA_UInt32 *indices,
 		UA_UInt32 indicesSize, UA_AddNodesResult* addNodesResults,
 		UA_DiagnosticInfo *diagnosticInfos){
 
@@ -307,7 +307,7 @@ UA_Int32 open62541NodeStore_AddNodes(UA_AddNodesItem *nodesToAdd,UA_UInt32 *indi
 			UA_UInt32 indSize = 1;
 			UA_StatusCode result;
 			UA_DiagnosticInfo diagnosticInfo;
-			open62541NodeStore_addReferences(&addRefItem, &ind, indSize,
+			open62541NodeStore_AddReferences(requestHeader, &addRefItem, &ind, indSize,
 					&result, &diagnosticInfo);
 		}
 

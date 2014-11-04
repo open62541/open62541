@@ -22,7 +22,8 @@ void addSingleReference(UA_Namespace *namespace,
 	UA_UInt32 indicesSize = 1;
 	UA_DiagnosticInfo diagnosticInfo;
 	UA_StatusCode result;
-	namespace->nodeStore->addReferences(addReferencesItem, &indices,
+	UA_RequestHeader tmpRequestHeader;
+	namespace->nodeStore->addReferences(&tmpRequestHeader,addReferencesItem, &indices,
 			indicesSize, &result, &diagnosticInfo);
 }
 void addSingleNode(UA_Namespace *namespace, UA_AddNodesItem *addNodesItem) {
@@ -30,7 +31,9 @@ void addSingleNode(UA_Namespace *namespace, UA_AddNodesItem *addNodesItem) {
 	UA_UInt32 indicesSize = 1;
 	UA_DiagnosticInfo diagnosticInfo;
 	UA_AddNodesResult result;
-	namespace->nodeStore->addNodes(addNodesItem, &indices, indicesSize, &result,
+	UA_RequestHeader tmpRequestHeader;
+
+	namespace->nodeStore->addNodes(&tmpRequestHeader,addNodesItem, &indices, indicesSize, &result,
 			&diagnosticInfo);
 }
 

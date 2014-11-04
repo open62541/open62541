@@ -199,7 +199,7 @@ static void NodeStore_Browse_getBrowseResult(open62541NodeStore         *ns,
     UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesCount, &UA_[UA_NODEID]);
 }
 
-UA_Int32 open62541NodeStore_BrowseNodes(UA_BrowseDescription *browseDescriptions,UA_UInt32 *indices,UA_UInt32 indicesSize, UA_UInt32 requestedMaxReferencesPerNode,
+UA_Int32 open62541NodeStore_BrowseNodes(const UA_RequestHeader *requestHeader,UA_BrowseDescription *browseDescriptions,UA_UInt32 *indices,UA_UInt32 indicesSize, UA_UInt32 requestedMaxReferencesPerNode,
 		UA_BrowseResult *browseResults,
 		UA_DiagnosticInfo *diagnosticInfos){
 

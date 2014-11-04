@@ -71,7 +71,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
 				}
 			}
 			//call read for every namespace
-			tmpNamespace->nodeStore->addNodes(request->nodesToAdd,
+			tmpNamespace->nodeStore->addNodes(&request->requestHeader,request->nodesToAdd,
 					addNodesIndices, numberOfFoundIndices[i],
 					response->results, response->diagnosticInfos);
 		}
@@ -149,7 +149,7 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
 				}
 			}
 			//call read for every namespace
-			tmpNamespace->nodeStore->addReferences(request->referencesToAdd,
+			tmpNamespace->nodeStore->addReferences(&request->requestHeader,request->referencesToAdd,
 					readValueIdIndices, numberOfFoundIndices[i],
 					response->results, response->diagnosticInfos);
 

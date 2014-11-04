@@ -170,8 +170,7 @@ endif()
 option(EXAMPLESERVER "Build a test server" OFF)
 if(EXAMPLESERVER)
 set(server_sources examples/opcuaServer.c
-                   examples/logger_stdout.c
- 		   examples/nodestoreAccessExample.c)
+                   examples/logger_stdout.c)
 if(NOT ENABLE_MULTITHREADING)
     list(APPEND server_sources examples/networklayer_tcp.c)
 else()

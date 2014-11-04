@@ -56,7 +56,7 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     	    	}
     	    }
     	    //call read for every namespace
-    		tmpNamespace->nodeStore->browseNodes(
+    		tmpNamespace->nodeStore->browseNodes(&request->requestHeader,
     				request->nodesToBrowse,
     				browseDescriptionIndices,
     				numberOfFoundIndices[i],

@@ -188,30 +188,6 @@ examples/networklayer_tcp.c.s:
 	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/examples/networklayer_tcp.c.s
 .PHONY : examples/networklayer_tcp.c.s
 
-examples/nodestoreAccessExample.o: examples/nodestoreAccessExample.c.o
-.PHONY : examples/nodestoreAccessExample.o
-
-# target to build an object file
-examples/nodestoreAccessExample.c.o:
-	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/examples/nodestoreAccessExample.c.o
-.PHONY : examples/nodestoreAccessExample.c.o
-
-examples/nodestoreAccessExample.i: examples/nodestoreAccessExample.c.i
-.PHONY : examples/nodestoreAccessExample.i
-
-# target to preprocess a source file
-examples/nodestoreAccessExample.c.i:
-	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/examples/nodestoreAccessExample.c.i
-.PHONY : examples/nodestoreAccessExample.c.i
-
-examples/nodestoreAccessExample.s: examples/nodestoreAccessExample.c.s
-.PHONY : examples/nodestoreAccessExample.s
-
-# target to generate assembly for a file
-examples/nodestoreAccessExample.c.s:
-	$(MAKE) -f CMakeFiles/exampleServer.dir/build.make CMakeFiles/exampleServer.dir/examples/nodestoreAccessExample.c.s
-.PHONY : examples/nodestoreAccessExample.c.s
-
 examples/opcuaServer.o: examples/opcuaServer.c.o
 .PHONY : examples/opcuaServer.o
 
@@ -901,9 +877,6 @@ help:
 	@echo "... examples/networklayer_tcp.o"
 	@echo "... examples/networklayer_tcp.i"
 	@echo "... examples/networklayer_tcp.s"
-	@echo "... examples/nodestoreAccessExample.o"
-	@echo "... examples/nodestoreAccessExample.i"
-	@echo "... examples/nodestoreAccessExample.s"
 	@echo "... examples/opcuaServer.o"
 	@echo "... examples/opcuaServer.i"
 	@echo "... examples/opcuaServer.s"
