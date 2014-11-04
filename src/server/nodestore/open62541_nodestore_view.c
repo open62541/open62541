@@ -163,7 +163,7 @@ static UA_StatusCode findRelevantReferenceTypes(open62541NodeStore *ns, const UA
 static void getBrowseResult(open62541NodeStore *ns, const UA_BrowseDescription *browseDescription,
                             UA_UInt32 maxReferences, UA_BrowseResult *browseResult) {
     UA_UInt32  relevantReferenceTypesSize = 0;
-    UA_NodeId *relevantReferenceTypes = UA_NULL;
+    UA_NodeId *relevantReferenceTypes = NULL;
 
     // if the referencetype is null, all referencetypes are returned
     UA_Boolean returnAll = UA_NodeId_isNull(&browseDescription->referenceTypeId);
@@ -201,7 +201,7 @@ static void getBrowseResult(open62541NodeStore *ns, const UA_BrowseDescription *
         UA_UInt32 currentRefs = 0;
         for(UA_Int32 i = 0;i < parentNode->referencesSize && currentRefs < maxReferences;i++) {
             // 1) Is the node relevant? This might retrieve the node from the nodestore
-            const UA_Node *currentNode = UA_NULL;
+            const UA_Node *currentNode = NULL;
             if(!isRelevantTargetNode(ns, browseDescription, returnAll, &parentNode->references[i], &currentNode,
                                      relevantReferenceTypes, relevantReferenceTypesSize))
                 continue;
@@ -211,7 +211,7 @@ static void getBrowseResult(open62541NodeStore *ns, const UA_BrowseDescription *
                                         &browseResult->references[currentRefs]) != UA_STATUSCODE_GOOD) {
                 UA_Array_delete(browseResult->references, currentRefs, &UA_TYPES[UA_REFERENCEDESCRIPTION]);
                 currentRefs = 0;
-                browseResult->references = UA_NULL;
+                browseResult->references = NULL;
                 browseResult->statusCode = UA_STATUSCODE_UNCERTAINNOTALLNODESAVAILABLE;
                 break;
             }

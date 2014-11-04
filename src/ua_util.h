@@ -51,12 +51,12 @@
 #define UA_free(ptr) _UA_free(ptr, # ptr, __FILE__, __LINE__)
 INLINE void _UA_free(void *ptr, char *pname, char *f, UA_Int32 l) {
     DBG_VERBOSE(printf("UA_free;%p;;%s;;%s;%d\n", ptr, pname, f, l); fflush(stdout));
-    free(ptr); // checks if ptr != NULL in the background
+    free(ptr); // checks if ptr != UA_NULL in the background
 }
 #else
 #define UA_free(ptr) _UA_free(ptr)
 INLINE void _UA_free(void *ptr) {
-    free(ptr); // checks if ptr != NULL in the background
+    free(ptr); // checks if ptr != UA_NULL in the background
 }
 #endif
 

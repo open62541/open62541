@@ -9,7 +9,7 @@ UA_StatusCode UA_Connection_init(UA_Connection *connection, UA_ConnectionConfig 
                                  UA_Connection_closeCallback close, UA_Connection_writeCallback write) {
     connection->state          = UA_CONNECTION_OPENING;
     connection->localConf      = localConf;
-    connection->channel        = UA_NULL;
+    connection->channel        = NULL;
     connection->callbackHandle = callbackHandle;
     connection->close          = close;
     connection->write          = write;

@@ -211,7 +211,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 */
 void Service_Read(UA_Server *server, UA_Session *session,
 		const UA_ReadRequest *request, UA_ReadResponse *response) {
-	UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
+	UA_assert(server != NULL && session != NULL && request != NULL && response != NULL);
 
 	if (request->nodesToReadSize <= 0) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
@@ -260,7 +260,7 @@ void Service_Read(UA_Server *server, UA_Session *session,
 		UA_Namespace *tmpNamespace;
 		UA_NamespaceManager_getNamespace(server->namespaceManager,
 				associatedIndices[i], &tmpNamespace);
-		if (tmpNamespace != UA_NULL) {
+		if (tmpNamespace != NULL) {
 
 			//build up index array for each read operation onto a different namespace
 			UA_UInt32 n = 0;
@@ -291,7 +291,7 @@ void Service_Read(UA_Server *server, UA_Session *session,
 
 void Service_Write(UA_Server *server, UA_Session *session,
 		const UA_WriteRequest *request, UA_WriteResponse *response) {
-	UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
+	UA_assert(server != NULL && session != NULL && request != NULL && response != NULL);
 
 	response->resultsSize = request->nodesToWriteSize;
 
@@ -349,7 +349,7 @@ void Service_Write(UA_Server *server, UA_Session *session,
 		UA_Namespace *tmpNamespace;
 		UA_NamespaceManager_getNamespace(server->namespaceManager,
 				associatedIndices[i], &tmpNamespace);
-		if (tmpNamespace != UA_NULL) {
+		if (tmpNamespace != NULL) {
 
 			//build up index array for each read operation onto a different namespace
 			UA_UInt32 n = 0;

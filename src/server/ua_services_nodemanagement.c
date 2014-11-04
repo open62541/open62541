@@ -9,7 +9,7 @@
 
 void Service_AddNodes(UA_Server *server, UA_Session *session,
 		const UA_AddNodesRequest *request, UA_AddNodesResponse *response) {
-	UA_assert(server != UA_NULL && session != UA_NULL);
+	UA_assert(server != NULL && session != NULL);
 
 	if (request->nodesToAddSize <= 0) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
@@ -60,7 +60,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
 		UA_Namespace *tmpNamespace;
 		UA_NamespaceManager_getNamespace(server->namespaceManager,
 				associatedIndices[i], &tmpNamespace);
-		if (tmpNamespace != UA_NULL) {
+		if (tmpNamespace != NULL) {
 			//build up index array for each read operation onto a different namespace
 			UA_UInt32 n = 0;
 			for (UA_Int32 j = 0; j < request->nodesToAddSize; j++) {
@@ -138,7 +138,7 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
 		UA_Namespace *tmpNamespace;
 		UA_NamespaceManager_getNamespace(server->namespaceManager,
 				associatedIndices[i], &tmpNamespace);
-		if (tmpNamespace != UA_NULL) {
+		if (tmpNamespace != NULL) {
 			//build up index array for each read operation onto a different namespace
 			UA_UInt32 n = 0;
 			for (UA_Int32 j = 0; j < request->referencesToAddSize; j++) {

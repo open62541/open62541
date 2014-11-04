@@ -65,7 +65,7 @@ static INLINE hash_t hash_array(const UA_Byte *data, UA_UInt32 len,
 	static const uint32_t n = 0xe6546b64;
 	hash_t hash = seed;
 
-	if (data == UA_NULL)
+	if (data == NULL)
 		return 0;
 
 	blocks = (const uint32_t *) data;
@@ -132,7 +132,7 @@ static INLINE hash_t hash(const UA_NodeId *n) {
 
 static INLINE void clear_entry(open62541NodeStore *ns, const UA_Node **entry) {
 	const UA_Node *node;
-	if (entry == UA_NULL || *entry == UA_NULL)
+	if (entry == NULL || *entry == NULL)
 		return;
 
 	node = *entry;
@@ -173,7 +173,7 @@ static INLINE void clear_entry(open62541NodeStore *ns, const UA_Node **entry) {
 		UA_assert(UA_FALSE);
 		break;
 	}
-	entry = UA_NULL;
+	entry = NULL;
 	ns->count--;
 }
 
@@ -186,7 +186,7 @@ static INLINE UA_StatusCode find_entry(const open62541NodeStore *ns,
 	hash_t index = mod(h, size);
 	const UA_Node **e = &ns->entries[index];
 
-	if (*e == UA_NULL) {
+	if (*e == NULL) {
 		*entry = e;
 		return UA_STATUSCODE_BADINTERNALERROR;
 	}
@@ -204,7 +204,7 @@ static INLINE UA_StatusCode find_entry(const open62541NodeStore *ns,
 
 		e = &ns->entries[index];
 
-		if (*e == UA_NULL) {
+		if (*e == NULL) {
 			*entry = e;
 			return UA_STATUSCODE_BADINTERNALERROR;
 		}
@@ -250,7 +250,7 @@ static UA_StatusCode expand(open62541NodeStore *ns) {
 
 	const UA_Node **p = oentries;
 	do {
-		if (*p != UA_NULL) {
+		if (*p != NULL) {
 			const UA_Node **e;
 			find_entry(ns, &(*p)->nodeId, &e); /* We know this returns an empty entry here */
 			*e = *p;
@@ -320,7 +320,7 @@ UA_StatusCode open62541NodeStore_insert(open62541NodeStore *ns, UA_Node **node,
 	}
 
 	if (!(flags & UA_NODESTORE_INSERT_GETMANAGED))
-		*node = UA_NULL;
+		*node = NULL;
 
 	ns->count++;
 	return UA_STATUSCODE_GOOD;
@@ -356,7 +356,7 @@ void open62541NodeStore_iterate(const open62541NodeStore *ns,
 		UA_NodeStore_nodeVisitor visitor) {
 	for (UA_UInt32 i = 0; i < ns->size; i++) {
 		const UA_Node *node = ns->entries[i];
-		if (node != UA_NULL)
+		if (node != NULL)
 			visitor(node);
 	}
 }

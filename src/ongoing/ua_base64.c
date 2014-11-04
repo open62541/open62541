@@ -50,7 +50,7 @@ UA_Int32 UA_base64_getDecodedSize(UA_String *const base64EncodedData) {
 }
 
 UA_Int32 UA_base64_decode(UA_String *const base64EncodedData, UA_Byte *target) {
-    if(target == UA_NULL)
+    if(target == NULL)
         return UA_ERROR;
     base64_decodestate state;
     base64_init_decodestate(&state);

@@ -80,7 +80,7 @@ static UA_StatusCode UA_Array_encodeBinary_asExtensionObject(const void *src, UA
 UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, UA_Int32 length,
                                     const UA_VTable_Entry *vt, void **dst) {
     if(length <= 0) {
-        *dst = UA_NULL;
+        *dst = NULL;
         return UA_STATUSCODE_GOOD;
     }
 
@@ -104,7 +104,7 @@ UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset,
             arr += memSize;
         }
         UA_free(*dst);
-        *dst = UA_NULL;
+        *dst = NULL;
     }
 
     return retval;
@@ -613,18 +613,18 @@ UA_TYPE_ENCODEBINARY(UA_QualifiedName,
 
 UA_UInt32 UA_LocalizedText_calcSizeBinary(UA_LocalizedText const *p) {
     UA_UInt32 length = 1; // for encodingMask
-    if(p->locale.data != UA_NULL)
+    if(p->locale.data != NULL)
         length += UA_String_calcSizeBinary(&p->locale);
-    if(p->text.data != UA_NULL)
+    if(p->text.data != NULL)
         length += UA_String_calcSizeBinary(&p->text);
     return length;
 }
 
 UA_TYPE_ENCODEBINARY(UA_LocalizedText,
                      UA_Byte encodingMask = 0;
-                     if(src->locale.data != UA_NULL)
+                     if(src->locale.data != NULL)
                          encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE;
-                     if(src->text.data != UA_NULL)
+                     if(src->text.data != NULL)
                          encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
                      retval |= UA_Byte_encodeBinary(&encodingMask, dst, offset);
                      if(encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE)
@@ -802,7 +802,7 @@ UA_UInt32 UA_Variant_calcSizeBinary(UA_Variant const *p) {
     }
         
     arrayLength = data->arrayLength;
-    if(data->dataPtr == UA_NULL)
+    if(data->dataPtr == NULL)
         arrayLength = -1;
 
     length = sizeof(UA_Byte); //p->encodingMask
@@ -815,7 +815,7 @@ UA_UInt32 UA_Variant_calcSizeBinary(UA_Variant const *p) {
             length += 9;  // 4 byte nodeid + 1 byte encoding + 4 byte bytestring length
     }
 
-    if(arrayLength != 1 && data->arrayDimensions != UA_NULL) {
+    if(arrayLength != 1 && data->arrayDimensions != NULL) {
         if(is_builtin(&p->vt->typeId))
             length += UA_Array_calcSizeBinary(data->arrayDimensionsLength, &UA_TYPES[UA_INT32], data->arrayDimensions);
         else
@@ -843,7 +843,7 @@ UA_TYPE_ENCODEBINARY(UA_Variant,
                      }
 
                      isArray       = data->arrayLength != 1;  // a single element is not an array
-                     hasDimensions = isArray && data->arrayDimensions != UA_NULL;
+                     hasDimensions = isArray && data->arrayDimensions != NULL;
                      isBuiltin     = is_builtin(&src->vt->typeId);
 
                      encodingByte = 0;
@@ -1000,7 +1000,7 @@ UA_StatusCode UA_DiagnosticInfo_decodeBinary(UA_ByteString const *src, UA_UInt32
         if((dst->innerDiagnosticInfo = UA_alloc(sizeof(UA_DiagnosticInfo)))) {
             if(UA_DiagnosticInfo_decodeBinary(src, offset, dst->innerDiagnosticInfo) != UA_STATUSCODE_GOOD) {
                 UA_free(dst->innerDiagnosticInfo);
-                dst->innerDiagnosticInfo = UA_NULL;
+                dst->innerDiagnosticInfo = NULL;
                 retval |= UA_STATUSCODE_BADINTERNALERROR;
             }
         } else {

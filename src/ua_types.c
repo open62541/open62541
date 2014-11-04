@@ -129,7 +129,7 @@ void UA_Double_print(const UA_Double *p, FILE *stream) {
 UA_TYPE_NEW_DEFAULT(UA_String)
 void UA_String_init(UA_String *p) {
     p->length = -1;
-    p->data   = UA_NULL;
+    p->data   = NULL;
 }
 
 UA_TYPE_DELETE_DEFAULT(UA_String)
@@ -164,8 +164,8 @@ UA_Int32 UA_String_copycstring(char const *src, UA_String *dst) {
     UA_Int32 length = strlen(src);
     if(length == 0) {
         dst->length = 0;
-        dst->data = UA_NULL;
-    } else if((dst->data = UA_alloc(length)) != UA_NULL) {
+        dst->data = NULL;
+    } else if((dst->data = UA_alloc(length)) != NULL) {
         memcpy(dst->data, src, length);
         dst->length = length;
     } else {
@@ -275,7 +275,7 @@ int gettimeofday(struct timeval *tp, struct timezone *tzp) {
 UA_DateTime UA_DateTime_now() {
     UA_DateTime    dateTime;
     struct timeval tv;
-    gettimeofday(&tv, UA_NULL);
+    gettimeofday(&tv, NULL);
     dateTime = (tv.tv_sec + FILETIME_UNIXTIME_BIAS_SEC)
                * HUNDRED_NANOSEC_PER_SEC + tv.tv_usec * HUNDRED_NANOSEC_PER_USEC;
     return dateTime;
@@ -386,7 +386,7 @@ UA_StatusCode UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length) {
         return UA_STATUSCODE_GOOD;
     }
 
-    p->data   = UA_NULL;
+    p->data   = NULL;
     if(length < 0)
         p->length = -1;
     else
@@ -789,12 +789,12 @@ void UA_Variant_deleteMembers(UA_Variant *p) {
                 p->vt->delete(p->storage.data.dataPtr);
             else
                 UA_Array_delete(p->storage.data.dataPtr, p->storage.data.arrayLength, p->vt);
-            p->storage.data.dataPtr = UA_NULL;
+            p->storage.data.dataPtr = NULL;
         }
 
         if(p->storage.data.arrayDimensions) {
             UA_free(p->storage.data.arrayDimensions);
-            p->storage.data.arrayDimensions = UA_NULL;
+            p->storage.data.arrayDimensions = NULL;
         }
         return;
     }
@@ -808,8 +808,8 @@ UA_TYPE_NEW_DEFAULT(UA_Variant)
 void UA_Variant_init(UA_Variant *p) {
     p->storageType = UA_VARIANT_DATA;
     p->storage.data.arrayLength = -1;  // no element, p->data == UA_NULL
-    p->storage.data.dataPtr        = UA_NULL;
-    p->storage.data.arrayDimensions       = UA_NULL;
+    p->storage.data.dataPtr        = NULL;
+    p->storage.data.arrayDimensions       = NULL;
     p->storage.data.arrayDimensionsLength = -1;
     p->vt = &UA_TYPES[UA_INVALIDTYPE];
 }
@@ -913,14 +913,14 @@ void UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
     UA_String_deleteMembers(&p->additionalInfo);
     if((p->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO) && p->innerDiagnosticInfo) {
         UA_DiagnosticInfo_delete(p->innerDiagnosticInfo);
-        p->innerDiagnosticInfo = UA_NULL;
+        p->innerDiagnosticInfo = NULL;
     }
 }
 
 void UA_DiagnosticInfo_init(UA_DiagnosticInfo *p) {
     UA_String_init(&p->additionalInfo);
     p->encodingMask = 0;
-    p->innerDiagnosticInfo = UA_NULL;
+    p->innerDiagnosticInfo = NULL;
     UA_StatusCode_init(&p->innerStatusCode);
     p->locale              = 0;
     p->localizedText       = 0;
@@ -995,7 +995,7 @@ UA_StatusCode UA_InvalidType_copy(UA_InvalidType const *src, UA_InvalidType *dst
 }
 
 UA_InvalidType * UA_InvalidType_new() {
-    return UA_NULL;
+    return NULL;
 }
 
 #ifdef DEBUG
@@ -1010,14 +1010,14 @@ void UA_InvalidType_print(const UA_InvalidType *p, FILE *stream) {
 
 UA_StatusCode UA_Array_new(void **p, UA_Int32 noElements, const UA_VTable_Entry *vt) {
     if(noElements <= 0) {
-        *p = UA_NULL;
+        *p = NULL;
         return UA_STATUSCODE_GOOD;
     }
     
     // Arrays cannot be larger than 2^16 elements. This was randomly chosen so
     // that the development VM does not blow up during fuzzing tests.
     if(noElements > (1<<15)) {
-        *p = UA_NULL;
+        *p = NULL;
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
@@ -1066,7 +1066,7 @@ UA_StatusCode UA_Array_copy(const void *src, UA_Int32 noElements, const UA_VTabl
     if(retval) {
         i--; // undo last increase
         UA_Array_delete(*dst, i, vt);
-        *dst = UA_NULL;
+        *dst = NULL;
     }
 
     return retval;

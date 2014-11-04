@@ -35,7 +35,7 @@ static INLINE hash_t hash_array(const UA_Byte *data, UA_UInt32 len, UA_UInt32 se
     static const uint32_t n  = 0xe6546b64;
     hash_t hash = seed;
 
-    if(data == UA_NULL) return 0;
+    if(data == NULL) return 0;
 
     const int32_t   nblocks = len / 4;
     const uint32_t *blocks  = (const uint32_t *)data;
@@ -197,7 +197,7 @@ void open62541NodeStore_delete(open62541NodeStore *ns) {
 
     rcu_read_lock();
     cds_lfht_first(ht, &iter);
-    while(iter.node != UA_NULL) {
+    while(iter.node != NULL) {
         found_htn = cds_lfht_iter_get_node(&iter);
         if(!cds_lfht_del(ht, found_htn)) {
             open62541NodeStore_Entry *entry = caa_container_of(found_htn, open62541NodeStore_Entry, htn);
@@ -207,7 +207,7 @@ void open62541NodeStore_delete(open62541NodeStore *ns) {
     }
     rcu_read_unlock();
 
-    cds_lfht_destroy(ht, UA_NULL);
+    cds_lfht_destroy(ht, NULL);
     UA_free(ns);
 }
 
@@ -288,7 +288,7 @@ UA_StatusCode open62541NodeStore_insert(open62541NodeStore *ns, UA_Node **node, 
     if(flags & open62541NodeStore_INSERT_GETMANAGED)
         *node = &entry->node;
     else
-        *node = UA_NULL;
+        *node = NULL;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -341,7 +341,7 @@ void open62541NodeStore_iterate(const open62541NodeStore *ns, open62541NodeStore
 
     rcu_read_lock();
     cds_lfht_first(ht, &iter);
-    while(iter.node != UA_NULL) {
+    while(iter.node != NULL) {
         open62541NodeStore_Entry *found_entry = (open62541NodeStore_Entry *)cds_lfht_iter_get_node(&iter);
         uatomic_inc(&found_entry->readcount);
         const UA_Node      *node = &found_entry->node;
