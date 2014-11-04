@@ -361,6 +361,6 @@ void open62541NodeStore_iterate(const open62541NodeStore *ns,
 	}
 }
 
-void open62541NodeStore_releaseManagedNode(const UA_Node *managed) {
+void open62541NodeStore_release(const UA_Node *managed) {
 	;
 }

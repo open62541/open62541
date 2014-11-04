@@ -53,7 +53,7 @@ UA_StatusCode open62541NodeStore_get(const open62541NodeStore *ns,
 
 /** @brief Release a managed node. Do never insert a node that isn't stored in a
  namespace. */
-void open62541NodeStore_releaseManagedNode(const UA_Node *managed);
+void open62541NodeStore_release(const UA_Node *managed);
 
 /** @brief A function that can be evaluated on all entries in a namespace via
  UA_NodeStore_iterate. Note that the visitor is read-only on the nodes. */

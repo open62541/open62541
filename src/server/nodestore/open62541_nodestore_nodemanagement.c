@@ -55,7 +55,7 @@ static UA_Int32 AddReference(open62541NodeStore *nodestore, UA_Node *node,
 	inversereference.targetId.namespaceUri = UA_STRING_NULL;
 	inversereference.targetId.serverIndex = 0;
 	retval = AddSingleReference(targetnode, &inversereference);
-	open62541NodeStore_releaseManagedNode(targetnode);
+	open62541NodeStore_release(targetnode);
 
 	return retval;
 }

@@ -48,7 +48,7 @@ static UA_StatusCode fillReferenceDescription(open62541NodeStore *ns, const UA_N
     }
 
     if(currentNode)
-    	open62541NodeStore_releaseManagedNode(currentNode);
+    	open62541NodeStore_release(currentNode);
     if(retval)
         UA_ReferenceDescription_deleteMembers(referenceDescription);
     return retval;
@@ -86,7 +86,7 @@ static UA_Boolean isRelevantTargetNode(open62541NodeStore *ns, const UA_BrowseDe
         return UA_FALSE;
 
     if(((*currentNode)->nodeClass & browseDescription->nodeClassMask) == 0) {
-    	open62541NodeStore_releaseManagedNode(*currentNode);
+    	open62541NodeStore_release(*currentNode);
         return UA_FALSE;
     }
 
@@ -146,7 +146,7 @@ static UA_StatusCode findRelevantReferenceTypes(open62541NodeStore *ns, const UA
             if(retval)
                 currentLastIndex--; // undo if we need to delete the typeArray
         }
-        open62541NodeStore_releaseManagedNode((UA_Node*)node);
+        open62541NodeStore_release((UA_Node*)node);
     } while(++currentIndex <= currentLastIndex && retval == UA_STATUSCODE_GOOD);
 
     if(retval)
@@ -220,7 +220,7 @@ static void getBrowseResult(open62541NodeStore *ns, const UA_BrowseDescription *
         browseResult->referencesSize = currentRefs;
     }
 
-    open62541NodeStore_releaseManagedNode(parentNode);
+    open62541NodeStore_release(parentNode);
     if(!returnAll && browseDescription->includeSubtypes)
         UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesSize, &UA_TYPES[UA_NODEID]);
 }

@@ -203,7 +203,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		break;
 	}
 
-	open62541NodeStore_releaseManagedNode(node);
+	open62541NodeStore_release(node);
 
 	if (retval != UA_STATUSCODE_GOOD) {
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
@@ -353,7 +353,7 @@ static UA_StatusCode Service_Write_writeNode(open62541NodeStore *nodestore,
 		break;
 	}
 
-	open62541NodeStore_releaseManagedNode(node);
+	open62541NodeStore_release(node);
 	return retval;
 
 }

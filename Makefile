@@ -70,6 +70,16 @@ rebuild_cache:
 rebuild_cache/fast: rebuild_cache
 .PHONY : rebuild_cache/fast
 
+# Special rule for the target test
+test:
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running tests..."
+	/usr/bin/ctest --force-new-ctest-process $(ARGS)
+.PHONY : test
+
+# Special rule for the target test
+test/fast: test
+.PHONY : test/fast
+
 # The main all target
 all: cmake_check_build_system
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/opcua/Downloads/open62541_external_datasource/CMakeFiles /home/opcua/Downloads/open62541_external_datasource/CMakeFiles/progress.marks
@@ -139,6 +149,58 @@ open62541-objects: cmake_check_build_system
 open62541-objects/fast:
 	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/build
 .PHONY : open62541-objects/fast
+
+#=============================================================================
+# Target rules for targets named check_builtin
+
+# Build rule for target.
+check_builtin: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 check_builtin
+.PHONY : check_builtin
+
+# fast build rule for target.
+check_builtin/fast:
+	$(MAKE) -f tests/CMakeFiles/check_builtin.dir/build.make tests/CMakeFiles/check_builtin.dir/build
+.PHONY : check_builtin/fast
+
+#=============================================================================
+# Target rules for targets named check_memory
+
+# Build rule for target.
+check_memory: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 check_memory
+.PHONY : check_memory
+
+# fast build rule for target.
+check_memory/fast:
+	$(MAKE) -f tests/CMakeFiles/check_memory.dir/build.make tests/CMakeFiles/check_memory.dir/build
+.PHONY : check_memory/fast
+
+#=============================================================================
+# Target rules for targets named check_nodestore
+
+# Build rule for target.
+check_nodestore: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 check_nodestore
+.PHONY : check_nodestore
+
+# fast build rule for target.
+check_nodestore/fast:
+	$(MAKE) -f tests/CMakeFiles/check_nodestore.dir/build.make tests/CMakeFiles/check_nodestore.dir/build
+.PHONY : check_nodestore/fast
+
+#=============================================================================
+# Target rules for targets named check_services_view
+
+# Build rule for target.
+check_services_view: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 check_services_view
+.PHONY : check_services_view
+
+# fast build rule for target.
+check_services_view/fast:
+	$(MAKE) -f tests/CMakeFiles/check_services_view.dir/build.make tests/CMakeFiles/check_services_view.dir/build
+.PHONY : check_services_view/fast
 
 examples/logger_stdout.o: examples/logger_stdout.c.o
 .PHONY : examples/logger_stdout.o
@@ -847,6 +909,11 @@ help:
 	@echo "... open62541"
 	@echo "... open62541-objects"
 	@echo "... rebuild_cache"
+	@echo "... test"
+	@echo "... check_builtin"
+	@echo "... check_memory"
+	@echo "... check_nodestore"
+	@echo "... check_services_view"
 	@echo "... examples/logger_stdout.o"
 	@echo "... examples/logger_stdout.i"
 	@echo "... examples/logger_stdout.s"
