@@ -16,6 +16,11 @@
 #include "logger_stdout.h"
 #include "networklayer_tcp.h"
 
+
+#include "../src/server/ua_nodestore_interface.h"
+#include "../src/server/ua_namespace_manager.h"
+#include "../src/server/nodestore/open62541_nodestore.h"
+
 UA_Boolean running = 1;
 
 void stopHandler(int sign) {
@@ -52,17 +57,36 @@ UA_ByteString loadCertificate() {
 int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
 
+	UA_Server *server;
 	UA_String endpointUrl;
-	UA_String_copycstring("opc.tcp://192.168.56.101:16664",&endpointUrl);
-    UA_ByteString certificate = loadCertificate();
-	UA_Server *server = UA_Server_new(&endpointUrl, &certificate);
-	//Logger_Stdout_init(&server->logger);
+	UA_String_copycstring("no endpoint url",&endpointUrl);
+	UA_NodeStore  nodeStore;
+
+	open62541NodeStore *myNodeStore;
+	open62541NodeStore_new(&myNodeStore);
+
+	open62541NodeStore_setNodeStore(myNodeStore);
+
+	UA_NodeStore_registerReadNodesOperation(&nodeStore,open62541NodeStore_ReadNodes);
+	UA_NodeStore_registerBrowseNodesOperation(&nodeStore,open62541NodeStore_BrowseNodes);
+	UA_NodeStore_registerAddNodesOperation(&nodeStore,open62541NodeStore_AddNodes);
+	UA_NodeStore_registerWriteNodesOperation(&nodeStore,open62541NodeStore_WriteNodes);
+	//register more operations/ services here
+	UA_ByteString certificate = loadCertificate();
+
+	server = UA_Server_new(&endpointUrl, &certificate, &nodeStore);
+
 
     UA_Int32 myInteger = 42;
-    UA_String myIntegerName;
-    UA_STRING_STATIC(myIntegerName, "The Answer");
-    UA_Server_addScalarVariableNode(server, &myIntegerName, (void*)&myInteger, &UA_TYPES[UA_INT32],
-                                    &UA_NODEIDS[UA_OBJECTSFOLDER], &UA_NODEIDS[UA_HASCOMPONENT]);
+    UA_QualifiedName *myIntegerName;
+    myIntegerName = UA_QualifiedName_new();
+    UA_QualifiedName_copycstring("the answer is",myIntegerName);
+
+    UA_ExpandedNodeId parentNodeId;
+    parentNodeId.namespaceUri.length = 0;
+    parentNodeId.nodeId = UA_NODEIDS[UA_OBJECTSFOLDER];
+    UA_Server_addScalarVariableNode(server, myIntegerName, (void*)&myInteger, &UA_TYPES[UA_INT32],
+    		&parentNodeId, (UA_NodeId*)&UA_NODEIDS[UA_HASCOMPONENT]);
 
 #ifdef BENCHMARK
     UA_UInt32 nodeCount = 500;
