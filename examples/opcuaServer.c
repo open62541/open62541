@@ -21,8 +21,7 @@
 #include "../src/server/ua_namespace_manager.h"
 #include "../src/server/nodestore/open62541_nodestore.h"
 
-UA_Boolean running = UA_TRUE;
-
+UA_Boolean running = 1;
 
 void stopHandler(int sign) {
 	running = 0;
@@ -55,48 +54,46 @@ UA_ByteString loadCertificate() {
     return certificate;
 }
 
-
 int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-	UA_Server server;
+	UA_Server *server;
 	UA_String endpointUrl;
 	UA_String_copycstring("no endpoint url",&endpointUrl);
-	UA_NodeStore newNodeStore;
-	open62541NodeStore_new(&server.nodestore);
+	UA_NodeStore  nodeStore;
 
-	open62541NodeStore_setNodeStore(server.nodestore);
-	UA_NamespaceManager_new(&server.namespaceManager);
-	UA_NamespaceManager_addNamespace(server.namespaceManager,0, &newNodeStore);
-	UA_NodeStore_registerReadNodesOperation(&newNodeStore,open62541NodeStore_ReadNodes);
-	UA_NodeStore_registerBrowseNodesOperation(&newNodeStore,open62541NodeStore_BrowseNodes);
-	UA_NodeStore_registerAddNodesOperation(&newNodeStore,open62541NodeStore_AddNodes);
-	UA_NodeStore_registerWriteNodesOperation(&newNodeStore,open62541NodeStore_WriteNodes);
+	open62541NodeStore *myNodeStore;
+	open62541NodeStore_new(&myNodeStore);
+
+	open62541NodeStore_setNodeStore(myNodeStore);
+
+	UA_NodeStore_registerReadNodesOperation(&nodeStore,open62541NodeStore_ReadNodes);
+	UA_NodeStore_registerBrowseNodesOperation(&nodeStore,open62541NodeStore_BrowseNodes);
+	UA_NodeStore_registerAddNodesOperation(&nodeStore,open62541NodeStore_AddNodes);
+	UA_NodeStore_registerWriteNodesOperation(&nodeStore,open62541NodeStore_WriteNodes);
 	//register more operations/ services here
+	UA_ByteString certificate = loadCertificate();
 
-	UA_Server_init(&server, &endpointUrl);
+	server = UA_Server_new(&endpointUrl, &certificate, &nodeStore);
 
-	//initMyNode();
-
-	Logger_Stdout_init(&server.logger);
-    server.serverCertificate = loadCertificate();
 
     UA_Int32 myInteger = 42;
     UA_QualifiedName *myIntegerName;
-    UA_QualifiedName_new(&myIntegerName);
+    myIntegerName = UA_QualifiedName_new();
     UA_QualifiedName_copycstring("the answer is",myIntegerName);
 
-    UA_Server_addScalarVariableNode(&server, myIntegerName, (void*)&myInteger, &UA_[UA_INT32],
-                                   &server.objectsNodeId, &server.hasComponentReferenceTypeId);
+    UA_ExpandedNodeId parentNodeId;
+    parentNodeId.namespaceUri.length = 0;
+    parentNodeId.nodeId = UA_NODEIDS[UA_OBJECTSFOLDER];
+    UA_Server_addScalarVariableNode(server, myIntegerName, (void*)&myInteger, &UA_TYPES[UA_INT32],
+    		&parentNodeId, (UA_NodeId*)&UA_NODEIDS[UA_HASCOMPONENT]);
 
 #ifdef BENCHMARK
     UA_UInt32 nodeCount = 500;
-    UA_VariableNode *tmpNode;
-
     UA_Int32 data = 42;
     char str[15];
     for(UA_UInt32 i = 0;i<nodeCount;i++) {
-        UA_VariableNode_new(&tmpNode);
+        UA_VariableNode *tmpNode = UA_VariableNode_new();
         sprintf(str,"%d",i);
         UA_QualifiedName_copycstring(str,&tmpNode->browseName);
         UA_LocalizedText_copycstring(str,&tmpNode->displayName);
@@ -104,23 +101,20 @@ int main(int argc, char** argv) {
         tmpNode->nodeId.identifier.numeric = 19000+i;
         tmpNode->nodeClass = UA_NODECLASS_VARIABLE;
         //tmpNode->valueRank = -1;
-        tmpNode->value.vt = &UA_[UA_INT32];
+        tmpNode->value.vt = &UA_TYPES[UA_INT32];
         tmpNode->value.storage.data.dataPtr = &data;
         tmpNode->value.storageType = UA_VARIANT_DATA_NODELETE;
         tmpNode->value.storage.data.arrayLength = 1;
-        UA_Server_addNode(&server, (UA_Node**)&tmpNode, &server.objectsNodeId,
-                          &server.hasComponentReferenceTypeId);
+        UA_Server_addNode(server, (UA_Node**)&tmpNode, &UA_NODEIDS[UA_OBJECTSFOLDER], &UA_NODEIDS[UA_HASCOMPONENT]);
     }
 #endif
 	
 	#define PORT 16664
-	NetworklayerTCP* nl;
-	NetworklayerTCP_new(&nl, UA_ConnectionConfig_standard, PORT);
+	NetworklayerTCP* nl = NetworklayerTCP_new(UA_ConnectionConfig_standard, PORT);
 	printf("Server started, connect to to opc.tcp://127.0.0.1:%i\n", PORT);
 	struct timeval callback_interval = {1, 0}; // 1 second
-	UA_Int32 retval = NetworkLayerTCP_run(nl, &server, callback_interval,
-										  serverCallback, &running);
-	UA_Server_deleteMembers(&server);
+	UA_Int32 retval = NetworkLayerTCP_run(nl, server, callback_interval, serverCallback, &running);
+	UA_Server_delete(server);
 	NetworklayerTCP_delete(nl);
     UA_String_deleteMembers(&endpointUrl);
 	return retval == UA_STATUSCODE_GOOD ? 0 : retval;

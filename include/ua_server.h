@@ -27,19 +27,11 @@ extern "C" {
 
 /** @defgroup server Server */
 
-//identifier numbers are different for XML and binary, so we have to substract an offset for comparison
-#define UA_ENCODINGOFFSET_XML 1
-#define UA_ENCODINGOFFSET_BINARY 2
-
-struct UA_SecureChannelManager;
-typedef struct UA_SecureChannelManager UA_SecureChannelManager;
-
-struct UA_SessionManager;
-typedef struct UA_SessionManager UA_SessionManager;
-
 struct UA_NodeStore;
 typedef struct UA_NodeStore UA_NodeStore;
 
+struct UA_Server;
+typedef struct UA_Server UA_Server;
 struct open62541NodeStore;
 typedef struct open62541NodeStore open62541NodeStore;
 
@@ -76,23 +68,9 @@ struct UA_NodeStore {
 	UA_NodeStore_deleteReferences deleteReferences;
 };
 
-typedef struct UA_Server {
-	UA_ApplicationDescription description;
-	UA_SecureChannelManager *secureChannelManager;
-	UA_SessionManager *sessionManager;
-	UA_NamespaceManager* namespaceManager;
-	open62541NodeStore *nodestore;
-	UA_Logger logger;
-	UA_ByteString serverCertificate;
 
-	// todo: move these somewhere sane
-	UA_ExpandedNodeId objectsNodeId;
-	UA_NodeId hasComponentReferenceTypeId;
-
-}UA_Server;
-
-void UA_EXPORT UA_Server_init(UA_Server *server, UA_String *endpointUrl);
-UA_StatusCode UA_EXPORT UA_Server_deleteMembers(UA_Server *server);
+UA_Server UA_EXPORT * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertificate, UA_NodeStore *ns0Nodestore);
+void UA_EXPORT UA_Server_delete(UA_Server *server);
 void UA_EXPORT UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
 
 /* Services for local use */

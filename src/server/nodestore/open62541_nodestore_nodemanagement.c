@@ -182,8 +182,7 @@ UA_Int32 open62541NodeStore_AddReferences(const UA_RequestHeader *requestHeader,
 
 	    UA_memcpy(new_refs, old_refs, sizeof(UA_ReferenceNode)*count);
 
-	    UA_ReferenceNode *reference;
-	    UA_ReferenceNode_new(&reference);
+	    UA_ReferenceNode *reference = UA_ReferenceNode_new();
 
 	    reference->isInverse = !referencesToAdd[indices[i]].isForward;
 	    UA_NodeId_copy(&referencesToAdd[indices[i]].referenceTypeId,&reference->referenceTypeId);
@@ -241,7 +240,8 @@ UA_Int32 open62541NodeStore_AddNodes(const UA_RequestHeader *requestHeader,UA_Ad
 			case UA_NODECLASS_OBJECT:
 			{
 				UA_ObjectAttributes attributes;
-				UA_ObjectNode_new((UA_ObjectNode**)&newNode);
+
+				newNode = (UA_Node*)UA_ObjectNode_new();
 				newNode->nodeClass = UA_NODECLASS_OBJECT;
 				UA_ObjectAttributes_decodeBinary(&nodesToAdd[indices[i]].nodeAttributes.body,&offset,&attributes);
 				UA_ObjectNode_setAttributes((UA_ObjectAttributes*)&attributes, (UA_ObjectNode*)newNode);
@@ -256,7 +256,7 @@ UA_Int32 open62541NodeStore_AddNodes(const UA_RequestHeader *requestHeader,UA_Ad
 			case UA_NODECLASS_REFERENCETYPE:
 			{
 				UA_ReferenceTypeAttributes attributes;
-				UA_ReferenceTypeNode_new((UA_ReferenceTypeNode**)&newNode);
+				newNode = (UA_Node*)UA_ReferenceTypeNode_new();
 				newNode->nodeClass = UA_NODECLASS_REFERENCETYPE;
 				UA_ReferenceTypeAttributes_decodeBinary(&nodesToAdd[indices[i]].nodeAttributes.body,&offset,&attributes);
 				UA_ReferenceTypeNode_setAttributes((UA_ReferenceTypeAttributes*)&attributes,(UA_ReferenceTypeNode*)newNode);
@@ -265,7 +265,7 @@ UA_Int32 open62541NodeStore_AddNodes(const UA_RequestHeader *requestHeader,UA_Ad
 			case UA_NODECLASS_VARIABLE:
 			{
 				UA_VariableAttributes attributes;
-				UA_VariableNode_new((UA_VariableNode**)&newNode);
+				newNode = (UA_Node*)UA_VariableNode_new();
 				newNode->nodeClass = UA_NODECLASS_VARIABLE;
 				UA_VariableAttributes_decodeBinary(&nodesToAdd[indices[i]].nodeAttributes.body,&offset,&attributes);
 				UA_VariableNode_setAttributes((UA_VariableAttributes*)&attributes,(UA_VariableNode*)newNode);

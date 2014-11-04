@@ -476,30 +476,6 @@ src/server/ua_services_discovery.c.s:
 	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/ua_services_discovery.c.s
 .PHONY : src/server/ua_services_discovery.c.s
 
-src/server/ua_services_monitoreditems.o: src/server/ua_services_monitoreditems.c.o
-.PHONY : src/server/ua_services_monitoreditems.o
-
-# target to build an object file
-src/server/ua_services_monitoreditems.c.o:
-	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/ua_services_monitoreditems.c.o
-.PHONY : src/server/ua_services_monitoreditems.c.o
-
-src/server/ua_services_monitoreditems.i: src/server/ua_services_monitoreditems.c.i
-.PHONY : src/server/ua_services_monitoreditems.i
-
-# target to preprocess a source file
-src/server/ua_services_monitoreditems.c.i:
-	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/ua_services_monitoreditems.c.i
-.PHONY : src/server/ua_services_monitoreditems.c.i
-
-src/server/ua_services_monitoreditems.s: src/server/ua_services_monitoreditems.c.s
-.PHONY : src/server/ua_services_monitoreditems.s
-
-# target to generate assembly for a file
-src/server/ua_services_monitoreditems.c.s:
-	$(MAKE) -f CMakeFiles/open62541-objects.dir/build.make CMakeFiles/open62541-objects.dir/src/server/ua_services_monitoreditems.c.s
-.PHONY : src/server/ua_services_monitoreditems.c.s
-
 src/server/ua_services_nodemanagement.o: src/server/ua_services_nodemanagement.c.o
 .PHONY : src/server/ua_services_nodemanagement.o
 
@@ -913,9 +889,6 @@ help:
 	@echo "... src/server/ua_services_discovery.o"
 	@echo "... src/server/ua_services_discovery.i"
 	@echo "... src/server/ua_services_discovery.s"
-	@echo "... src/server/ua_services_monitoreditems.o"
-	@echo "... src/server/ua_services_monitoreditems.i"
-	@echo "... src/server/ua_services_monitoreditems.s"
 	@echo "... src/server/ua_services_nodemanagement.o"
 	@echo "... src/server/ua_services_nodemanagement.i"
 	@echo "... src/server/ua_services_nodemanagement.s"

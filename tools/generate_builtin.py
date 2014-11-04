@@ -10,6 +10,7 @@ import inspect
 import argparse
 
 parser = argparse.ArgumentParser()
+parser.add_argument('--export-prototypes', action='store_true', help='make the prototypes (init, delete, copy, ..) of generated types visible for users of the library')
 parser.add_argument('--with-xml', action='store_true', help='generate xml encoding')
 parser.add_argument('--with-json', action='store_true', help='generate json encoding')
 parser.add_argument('--only-nano', action='store_true', help='generate only the types for the nano profile')
@@ -81,17 +82,21 @@ def createEnumerated(element):
     valuemap = OrderedDict()
     name = "UA_" + element.get("Name")
     fixed_size.add(name)
+    printh("") # newline
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
             printh("/** @brief " + child.text + " */")
         if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
             valuemap[name + "_" + child.get("Name")] = child.get("Value")
     valuemap = OrderedDict(sorted(valuemap.iteritems(), key=lambda (k,v): int(v)))
-    printh("typedef UA_Int32 " + name + ";")
-    printh("enum " + name + "_enum { \n\t" +
+    # printh("typedef UA_Int32 " + name + ";")
+    printh("typedef enum " + name + " { \n\t" +
            ",\n\t".join(map(lambda (key, value) : key.upper() + " = " + value, valuemap.iteritems())) +
-           "\n};")
-    printh("UA_TYPE_PROTOTYPES (" + name + ")")
+           "\n} " + name + ";")
+    if args.export_prototypes:
+        printh("UA_TYPE_PROTOTYPES(" + name + ")")
+    else:
+        printh("UA_TYPE_PROTOTYPES_NOEXPORT(" + name + ")")
     printh("UA_TYPE_BINARY_ENCODING(" + name + ")")
     printc("UA_TYPE_AS(" + name + ", UA_Int32)")
     printc("UA_TYPE_BINARY_ENCODING_AS(" + name + ", UA_Int32)")
@@ -103,6 +108,7 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s\n)''')
 
 def createOpaque(element):
     name = "UA_" + element.get("Name")
+    printh("") # newline
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
             printh("/** @brief " + child.text + " */")
@@ -128,6 +134,7 @@ def createStructured(element):
 
     # 2) Store members in membermap (name->type).
     membermap = OrderedDict()
+    printh("") # newline
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
             printh("/** @brief " + child.text + " */")
@@ -152,7 +159,6 @@ def createStructured(element):
     else:
         printh("typedef void* %(name)s;")
         
-
     # 3) function prototypes
     printh("UA_TYPE_PROTOTYPES(" + name + ")")
     printh("UA_TYPE_BINARY_ENCODING(" + name + ")")
@@ -167,7 +173,7 @@ def createStructured(element):
         if t in fixed_size:
             printc('\t + sizeof(%(t)s) // %(n)s')
         elif t.find("*") != -1:
-            printc('\t + UA_Array_calcSizeBinary(ptr->%(n)sSize,&UA_['+ t[0:t.find("*")].upper() +
+            printc('\t + UA_Array_calcSizeBinary(ptr->%(n)sSize,&UA_TYPES['+ t[0:t.find("*")].upper() +
                    "],ptr->%(n)s)")
             has_fixed_size = False
         else:
@@ -182,7 +188,7 @@ def createStructured(element):
     UA_StatusCode retval = UA_STATUSCODE_GOOD;''')
     for n,t in membermap.iteritems():
         if t.find("*") != -1:
-            printc("\tretval |= UA_Array_encodeBinary(src->%(n)s,src->%(n)sSize,&UA_[" + t[0:t.find("*")].upper() + "],dst,offset);")
+            printc("\tretval |= UA_Array_encodeBinary(src->%(n)s,src->%(n)sSize,&UA_TYPES[" + t[0:t.find("*")].upper() + "],dst,offset);")
         else:
             printc('\tretval |= %(t)s_encodeBinary(&src->%(n)s,dst,offset);')
     printc("\treturn retval;\n}\n")
@@ -195,7 +201,7 @@ def createStructured(element):
     for n,t in membermap.iteritems():
         if t.find("*") != -1:
             printc('\tretval |= UA_Int32_decodeBinary(src,offset,&dst->%(n)sSize);')
-            printc('\tif(!retval) { retval |= UA_Array_decodeBinary(src,offset,dst->%(n)sSize,&UA_[' + t[0:t.find("*")].upper() + '],(void**)&dst->%(n)s); }')
+            printc('\tif(!retval) { retval |= UA_Array_decodeBinary(src,offset,dst->%(n)sSize,&UA_TYPES[' + t[0:t.find("*")].upper() + '],(void**)&dst->%(n)s); }')
             printc('\tif(retval) { dst->%(n)sSize = -1; }') # arrays clean up internally. But the size needs to be set here for the eventual deleteMembers.
         else:
             printc('\tretval |= %(t)s_decodeBinary(src,offset,&dst->%(n)s);')
@@ -218,7 +224,7 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
     for n,t in membermap.iteritems():
         if not t in fixed_size: # dynamic size on the wire
             if t.find("*") != -1:
-		printc("\tUA_Array_delete((void*)p->%(n)s,p->%(n)sSize,&UA_["+t[0:t.find("*")].upper()+"]);")
+		printc("\tUA_Array_delete((void*)p->%(n)s,p->%(n)sSize,&UA_TYPES["+t[0:t.find("*")].upper()+"]);")
             else:
 		printc('\t%(t)s_deleteMembers(&p->%(n)s);')
     printc("}\n")
@@ -244,7 +250,7 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
     for n,t in membermap.iteritems():
         if t.find("*") != -1:
             printc('\tdst->%(n)sSize = src->%(n)sSize;')
-            printc("\tretval |= UA_Array_copy(src->%(n)s, src->%(n)sSize,&UA_[" + t[0:t.find("*")].upper() + "],(void**)&dst->%(n)s);")
+            printc("\tretval |= UA_Array_copy(src->%(n)s, src->%(n)sSize,&UA_TYPES[" + t[0:t.find("*")].upper() + "],(void**)&dst->%(n)s);")
             continue
         if not t in fixed_size: # there are members of variable size    
             printc('\tretval |= %(t)s_copy(&src->%(n)s,&dst->%(n)s);')
@@ -261,7 +267,7 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
     for i,(n,t) in enumerate(membermap.iteritems()):
         if t.find("*") != -1:
             printc('\tUA_Int32_print(&p->%(n)sSize, stream);')
-            printc("\tUA_Array_print(p->%(n)s, p->%(n)sSize, &UA_[" + t[0:t.find("*")].upper()+"], stream);")
+            printc("\tUA_Array_print(p->%(n)s, p->%(n)sSize, &UA_TYPES[" + t[0:t.find("*")].upper()+"], stream);")
         else:
             printc('\t%(t)s_print(&p->%(n)s,stream);')
         if i == len(membermap)-1:
@@ -301,7 +307,6 @@ if args.with_xml:
 if args.additional_includes:
     for incl in args.additional_includes.split(","):
         printh("#include \"" + incl + "\"")
-printh("") # newline
 
 printc('''/**
  * @file '''+sys.argv[2]+'''.c

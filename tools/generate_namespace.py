@@ -104,14 +104,10 @@ printh('''/**********************************************************
  */
 
 UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id);\n
-extern const UA_VTable_Entry UA_EXPORT *UA_;
+extern const UA_VTable_Entry UA_EXPORT *UA_TYPES;
+extern const UA_NodeId UA_EXPORT *UA_NODEIDS;
 
-/**
- * @brief the set of possible indices into UA_VTable
- *
- * Enumerated type to define the types that the open62541 stack can handle
- */
-enum UA_VTableIndex_enum {''')
+/** The entries of UA_TYPES can be accessed with the following indices */ ''')
 
 printc('''/**********************************************************
  * '''+args.outfile.split("/")[-1]+'''.cgen -- do not modify
@@ -138,15 +134,27 @@ for row in rows:
     else:
         name = "UA_" + row[0]
 	
-    printh("\t"+name.upper()+" = "+str(i)+",")
+    printh("#define "+name.upper()+" "+str(i))
     printc('\tcase '+row[1]+': retval='+name.upper()+'; break; //'+row[2])
     i = i+1
 
-printh("};\n")
+printh('\n#define SIZE_UA_VTABLE '+str(i));
+printh("") # newline
+printh("/** In UA_NODEIDS are the nodeids of the types, referencetypes and objects */")
+# assign indices to the reference types afterwards
+for row in rows:
+    if row[0] == "" or (row[2] != "ReferenceType" and (row[2] != "Object" or "_Encoding_Default" in row[0])):
+        continue
+    name = "UA_" + row[0]
+    printh("#define "+name.upper()+" "+str(i))
+    i=i+1
+
 printc('''\n}\nreturn retval;\n}\n''');
 
-printc('''const UA_VTable_Entry *UA_ = (UA_VTable_Entry[]){''')
-i = 0
+printh("") # newline
+printh("/** These are the actual (numeric) nodeids of the types, not the indices to the vtable */")
+
+printc('''const UA_VTable_Entry *UA_TYPES = (UA_VTable_Entry[]){''')
 for row in rows:
     if skipType(row):
         continue
@@ -156,32 +164,49 @@ for row in rows:
         name = "UA_ExtensionObject"
     else:
 	name = "UA_" + row[0]
-	i=i+1
     printh('#define '+name.upper()+'_NS0 '+row[1])
 
     printc("\t{.typeId={.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric=" + row[1] + "}" + 
-          ",\n.name=(UA_Byte*)&\"%(name)s\"" +
-          ",\n.new=(UA_Int32(*)(void **))%(name)s_new" +
-          ",\n.init=(void(*)(void *))%(name)s_init"+
-          ",\n.copy=(UA_Int32(*)(void const * ,void*))%(name)s_copy" +
-          ",\n.delete=(void(*)(void *))%(name)s_delete" +
-          ",\n.deleteMembers=(void(*)(void *))%(name)s_deleteMembers" +
-          ",\n#ifdef DEBUG //FIXME: seems to be okay atm, however a pointer to a noop function would be more safe" + 
-          "\n.print=(void(*)(const void *, FILE *))%(name)s_print," +
-          "\n#endif" + 
-          "\n.memSize=" + ("sizeof(%(name)s)" if (name != "UA_InvalidType") else "0") +
-          ",\n.dynMembers=" + ("UA_FALSE" if (name in fixed_size) else "UA_TRUE") +
+           ",\n.name=(UA_Byte*)&\"%(name)s\"" +
+           ",\n.new=(void *(*)())%(name)s_new" +
+           ",\n.init=(void(*)(void *))%(name)s_init"+
+           ",\n.copy=(UA_Int32(*)(void const * ,void*))%(name)s_copy" +
+           ",\n.delete=(void(*)(void *))%(name)s_delete" +
+           ",\n.deleteMembers=(void(*)(void *))%(name)s_deleteMembers" +
+           ",\n#ifdef DEBUG //FIXME: seems to be okay atm, however a pointer to a noop function would be more safe" + 
+           "\n.print=(void(*)(const void *, FILE *))%(name)s_print," +
+           "\n#endif" + 
+           "\n.memSize=" + ("sizeof(%(name)s)" if (name != "UA_InvalidType") else "0") +
+           ",\n.dynMembers=" + ("UA_FALSE" if (name in fixed_size) else "UA_TRUE") +
            ",\n.encodings={{.calcSize=(UA_Int32(*)(const void*))%(name)s_calcSizeBinary" +
            ",\n.encode=(UA_Int32(*)(const void*,UA_ByteString*,UA_UInt32*))%(name)s_encodeBinary" +
            ",\n.decode=(UA_Int32(*)(const UA_ByteString*,UA_UInt32*,void*))%(name)s_decodeBinary}" +
            (",\n{.calcSize=(UA_Int32(*)(const void*))%(name)s_calcSizeXml" +
             ",\n.encode=(UA_Int32(*)(const void*,UA_ByteString*,UA_UInt32*))%(name)s_encodeXml" +
             ",\n.decode=(UA_Int32(*)(const UA_ByteString*,UA_UInt32*,void*))%(name)s_decodeXml}" if (args.with_xml) else "") +
-          "}},")
+           "}},")
 
 printc('};')
 
-printh('\n#define SIZE_UA_VTABLE '+str(i));
+# make the nodeids available as well
+printc('''const UA_NodeId *UA_NODEIDS = (UA_NodeId[]){''')
+for row in rows:
+    if skipType(row):
+        continue
+    if row[0] == "BaseDataType":
+        name = "UA_Variant"
+    elif row[0] == "Structure":
+        name = "UA_ExtensionObject"
+    else:
+	name = "UA_" + row[0]
+    printc("\t{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = " + row[1] + "},")
+
+for row in rows:
+    if row[0] == "" or (row[2] != "ReferenceType" and (row[2] != "Object" or "_Encoding_Default" in row[0])):
+        continue
+    printc("\t{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = " + row[1] + "},")
+
+printc('};')
 
 printh('\n#endif /* OPCUA_NAMESPACE_0_H_ */')
 

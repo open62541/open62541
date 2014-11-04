@@ -1,4 +1,4 @@
-#include "ua_server.h"
+#include "ua_server_internal.h"
 #include "ua_services.h"
 #include "ua_statuscodes.h"
 #include "ua_namespace_0.h"
@@ -53,8 +53,7 @@ static void processHello(UA_Connection *connection, const UA_ByteString *msg,
     UA_TcpHelloMessage_deleteMembers(&helloMessage);
 }
 
-static void processOpen(UA_Connection *connection, UA_Server *server,
-                        const UA_ByteString *msg, UA_UInt32 *pos) {
+static void processOpen(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, UA_UInt32 *pos) {
     if(connection->state != UA_CONNECTION_ESTABLISHED) {
         // was hello exchanged before?
         if(connection->state == UA_CONNECTION_OPENING)
@@ -140,8 +139,8 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
         DBG_VERBOSE(printf("Invoke Service: %s\n", # TYPE));                                              \
         Service_##TYPE(server, channel->session, &p, &r);                                                 \
         DBG_VERBOSE(printf("Finished Service: %s\n", # TYPE));                                            \
-        UA_ByteString_newMembers(message, UA_##TYPE##Response_calcSizeBinary(&r)); \
-        UA_##TYPE##Response_encodeBinary(&r, message, &sendOffset);     \
+        UA_ByteString_newMembers(message, UA_##TYPE##Response_calcSizeBinary(&r));                        \
+        UA_##TYPE##Response_encodeBinary(&r, message, &sendOffset);                                       \
         UA_##TYPE##Request_deleteMembers(&p);                                                             \
         UA_##TYPE##Response_deleteMembers(&r);                                                            \
         responseType = requestType.nodeId.identifier.numeric + 3;                                         \
@@ -153,7 +152,7 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
 
     UA_SecureChannel *channel;
-    UA_SecureChannelManager_get(server->secureChannelManager, secureChannelId, &channel);
+    UA_SecureChannelManager_get(&server->secureChannelManager, secureChannelId, &channel);
 
     // 2) Read the security header
     UA_UInt32 tokenId;
@@ -227,8 +226,8 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
         UA_ActivateSessionRequest_deleteMembers(&p);
         UA_ActivateSessionResponse_deleteMembers(&r);
         responseType = requestType.nodeId.identifier.numeric + 3;
-    }
         break;
+    }
 
     case UA_CLOSESESSIONREQUEST_NS0: {
         UA_CloseSessionRequest  p;
@@ -243,8 +242,8 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
         UA_CloseSessionRequest_deleteMembers(&p);
         UA_CloseSessionResponse_deleteMembers(&r);
         responseType = requestType.nodeId.identifier.numeric + 3;
+        break;
     }
-    break;
 
     case UA_READREQUEST_NS0:
         INVOKE_SERVICE(Read);

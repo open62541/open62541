@@ -1,6 +1,5 @@
 #include "ua_securechannel_manager.h"
 #include "ua_session.h"
-#include "ua_util.h"
 #include "ua_statuscodes.h"
 
 struct channel_list_entry {
@@ -8,33 +7,19 @@ struct channel_list_entry {
     LIST_ENTRY(channel_list_entry) pointers;
 };
 
-struct UA_SecureChannelManager {
-    UA_Int32    maxChannelCount;
-    UA_DateTime maxChannelLifetime;
-    LIST_HEAD(channel_list, channel_list_entry) channels;
-    UA_MessageSecurityMode securityMode;
-    UA_String   endpointUrl;
-    UA_DateTime channelLifeTime;
-    UA_Int32    lastChannelId;
-    UA_UInt32   lastTokenId;
-};
-
-UA_StatusCode UA_SecureChannelManager_new(UA_SecureChannelManager **cm, UA_UInt32 maxChannelCount,
-                                          UA_UInt32 tokenLifetime, UA_UInt32 startChannelId,
-                                          UA_UInt32 startTokenId, UA_String *endpointUrl) {
-    if(!(*cm = UA_alloc(sizeof(UA_SecureChannelManager))))
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_SecureChannelManager *channelManager = *cm;
-    LIST_INIT(&channelManager->channels);
-    channelManager->lastChannelId      = startChannelId;
-    channelManager->lastTokenId        = startTokenId;
-    UA_String_copy(endpointUrl, &channelManager->endpointUrl);
-    channelManager->maxChannelLifetime = tokenLifetime;
-    channelManager->maxChannelCount    = maxChannelCount;
+UA_StatusCode UA_SecureChannelManager_init(UA_SecureChannelManager *cm, UA_UInt32 maxChannelCount,
+                                           UA_UInt32 tokenLifetime, UA_UInt32 startChannelId,
+                                           UA_UInt32 startTokenId, UA_String *endpointUrl) {
+    LIST_INIT(&cm->channels);
+    cm->lastChannelId      = startChannelId;
+    cm->lastTokenId        = startTokenId;
+    UA_String_copy(endpointUrl, &cm->endpointUrl);
+    cm->maxChannelLifetime = tokenLifetime;
+    cm->maxChannelCount    = maxChannelCount;
     return UA_STATUSCODE_GOOD;
 }
 
-void UA_SecureChannelManager_delete(UA_SecureChannelManager *cm) {
+void UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm) {
     struct channel_list_entry *entry = LIST_FIRST(&cm->channels);
     while(entry) {
         LIST_REMOVE(entry, pointers);
@@ -47,7 +32,6 @@ void UA_SecureChannelManager_delete(UA_SecureChannelManager *cm) {
         entry = LIST_FIRST(&cm->channels);
     }
     UA_String_deleteMembers(&cm->endpointUrl);
-    UA_free(cm);
 }
 
 UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager           *cm,
@@ -55,6 +39,9 @@ UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager           *cm
                                            const UA_OpenSecureChannelRequest *request,
                                            UA_OpenSecureChannelResponse      *response) {
     struct channel_list_entry *entry = UA_alloc(sizeof(struct channel_list_entry));
+    if(!entry)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
     UA_SecureChannel_init(&entry->channel);
 
     entry->channel.connection = conn;
@@ -66,15 +53,16 @@ UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager           *cm
         cm->maxChannelLifetime : request->requestedLifetime;
 
     switch(request->securityMode) {
-    case UA_SECURITYMODE_INVALID:
+    case UA_MESSAGESECURITYMODE_INVALID:
         printf("UA_SecureChannel_processOpenRequest - client demands invalid \n");
         break;
 
-    case UA_SECURITYMODE_NONE:
+    case UA_MESSAGESECURITYMODE_NONE:
         UA_ByteString_copy(&request->clientNonce, &entry->channel.clientNonce);
         break;
 
-    case UA_SECURITYMODE_SIGNANDENCRYPT:
+    case UA_MESSAGESECURITYMODE_SIGN:
+    case UA_MESSAGESECURITYMODE_SIGNANDENCRYPT:
         printf("UA_SecureChannel_processOpenRequest - client demands signed & encrypted \n");
         //TODO check if senderCertificate and ReceiverCertificateThumbprint are present
         break;
@@ -134,6 +122,10 @@ UA_StatusCode UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt
     struct channel_list_entry *entry;
     LIST_FOREACH(entry, &cm->channels, pointers) {
         if(entry->channel.securityToken.channelId == channelId) {
+            if(entry->channel.connection)
+                entry->channel.connection->channel = UA_NULL; // remove pointer back to the channel
+            if(entry->channel.session)
+                entry->channel.session->channel = UA_NULL; // remove ponter back to the channel
             UA_SecureChannel_deleteMembers(&entry->channel);
             LIST_REMOVE(entry, pointers);
             UA_free(entry);

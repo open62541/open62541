@@ -4,17 +4,6 @@
 #include "ua_types.h"
 #include "ua_types_encoding_binary.h"
 
-typedef enum SecurityTokenRequestType {
-    UA_SECURITYTOKEN_ISSUE = 0,
-    UA_SECURITYTOKEN_RENEW = 1
-} SecurityTokenRequestType;
-
-typedef enum {
-    UA_SECURITYMODE_INVALID        = 0,
-    UA_SECURITYMODE_NONE           = 1,
-    UA_SECURITYMODE_SIGNANDENCRYPT = 2
-} SecurityMode;
-
 /* MessageType */
 typedef UA_Int32 UA_MessageType;
 enum UA_MessageType {

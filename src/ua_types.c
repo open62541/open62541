@@ -159,13 +159,18 @@ void UA_String_print(const UA_String *p, FILE *stream) {
 }
 #endif
 
+/* The c-string needs to be null-terminated. the string cannot be smaller than zero. */
 UA_Int32 UA_String_copycstring(char const *src, UA_String *dst) {
-    dst->data   = UA_NULL;
-    dst->length = strlen(src);
-    if(dst->length > 0) {
-        if(!(dst->data = UA_alloc(dst->length)))
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        UA_memcpy((void *)dst->data, src, dst->length);
+    UA_Int32 length = strlen(src);
+    if(length == 0) {
+        dst->length = 0;
+        dst->data = UA_NULL;
+    } else if((dst->data = UA_alloc(length)) != UA_NULL) {
+        memcpy(dst->data, src, length);
+        dst->length = length;
+    } else {
+        dst->length = -1;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -196,15 +201,15 @@ UA_StatusCode UA_String_copyprintf(char const *fmt, UA_String *dst, ...) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_EQUALITY UA_String_equal(const UA_String *string1, const UA_String *string2) {
+UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
     if(string1->length <= 0 && string2->length <= 0)
-        return UA_EQUAL;
+        return UA_TRUE;
     if(string1->length != string2->length)
-        return UA_NOT_EQUAL;
+        return UA_FALSE;
 
     // casts are needed to overcome signed warnings
     UA_Int32 is = strncmp((char const *)string1->data, (char const *)string2->data, string1->length);
-    return (is == 0) ? UA_EQUAL : UA_NOT_EQUAL;
+    return (is == 0) ? UA_TRUE : UA_FALSE;
 }
 
 #ifdef DEBUG
@@ -303,9 +308,9 @@ UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time) {
 
 UA_StatusCode UA_DateTime_toString(UA_DateTime time, UA_String *timeString) {
     // length of the string is 31 (incl. \0 at the end)
-    if(!(timeString->data = UA_alloc(31)))
+    if(!(timeString->data = UA_alloc(32)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    timeString->length = 30;
+    timeString->length = 31;
 
     UA_DateTimeStruct tSt = UA_DateTime_toStruct(time);
     sprintf((char*)timeString->data, "%2d/%2d/%4d %2d:%2d:%2d.%3d.%3d.%3d", tSt.mounth, tSt.day, tSt.year,
@@ -317,10 +322,10 @@ UA_StatusCode UA_DateTime_toString(UA_DateTime time, UA_String *timeString) {
 UA_TYPE_DELETE_DEFAULT(UA_Guid)
 UA_TYPE_DELETEMEMBERS_NOACTION(UA_Guid)
 
-UA_EQUALITY UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
+UA_Boolean UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
     if(memcmp(g1, g2, sizeof(UA_Guid)) == 0)
-        return UA_EQUAL;
-    return UA_NOT_EQUAL;
+        return UA_TRUE;
+    return UA_FALSE;
 }
 
 void UA_Guid_init(UA_Guid *p) {
@@ -345,7 +350,7 @@ void UA_Guid_print(const UA_Guid *p, FILE *stream) {
 
 /* ByteString */
 UA_TYPE_AS(UA_ByteString, UA_String)
-UA_EQUALITY UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2) {
+UA_Boolean UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2) {
     return UA_String_equal((const UA_String *)string1, (const UA_String *)string2);
 }
 
@@ -508,16 +513,16 @@ void UA_NodeId_print(const UA_NodeId *p, FILE *stream) {
 }
 #endif
 
-UA_EQUALITY UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
+UA_Boolean UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
     if(n1->namespaceIndex != n2->namespaceIndex)
-        return UA_NOT_EQUAL;
+        return UA_FALSE;
 
     switch(n1->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         if(n1->identifier.numeric == n2->identifier.numeric)
-            return UA_EQUAL;
+            return UA_TRUE;
         else
-            return UA_NOT_EQUAL;
+            return UA_FALSE;
 
     case UA_NODEIDTYPE_STRING:
         return UA_String_equal(&n1->identifier.string, &n2->identifier.string);
@@ -528,7 +533,7 @@ UA_EQUALITY UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
     case UA_NODEIDTYPE_BYTESTRING:
         return UA_ByteString_equal(&n1->identifier.byteString, &n2->identifier.byteString);
     }
-    return UA_NOT_EQUAL;
+    return UA_FALSE;
 }
 
 UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
@@ -806,7 +811,7 @@ void UA_Variant_init(UA_Variant *p) {
     p->storage.data.dataPtr        = UA_NULL;
     p->storage.data.arrayDimensions       = UA_NULL;
     p->storage.data.arrayDimensionsLength = -1;
-    p->vt = &UA_[UA_INVALIDTYPE];
+    p->vt = &UA_TYPES[UA_INVALIDTYPE];
 }
 
 /** This function performs a deep copy. The resulting StorageType is UA_VARIANT_DATA. */
@@ -831,7 +836,7 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
         dst->vt = src->vt;
         dstdata->arrayLength = srcdata->arrayLength;
         if(srcdata->arrayDimensions) {
-            retval |= UA_Array_copy(srcdata->arrayDimensions, srcdata->arrayDimensionsLength, &UA_[UA_INT32],
+            retval |= UA_Array_copy(srcdata->arrayDimensions, srcdata->arrayDimensionsLength, &UA_TYPES[UA_INT32],
                                     (void **)&dstdata->arrayDimensions);
             if(retval == UA_STATUSCODE_GOOD)
                 dstdata->arrayDimensionsLength = srcdata->arrayDimensionsLength;
@@ -854,9 +859,11 @@ UA_StatusCode UA_Variant_copySetValue(UA_Variant *v, const UA_VTable_Entry *vt, 
     UA_Variant_init(v);
     v->vt = vt;
     v->storage.data.arrayLength = 1; // no array but a single entry
-    UA_StatusCode retval = vt->new(&v->storage.data.dataPtr);
-    if(retval == UA_STATUSCODE_GOOD)
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if((v->storage.data.dataPtr = vt->new()))
         retval |= vt->copy(value, v->storage.data.dataPtr);
+    else
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
     if(retval) {
         UA_Variant_deleteMembers(v);
         UA_Variant_init(v);
@@ -884,8 +891,8 @@ void UA_Variant_print(const UA_Variant *p, FILE *stream) {
         return;
     }
     fprintf(stream, "(UA_Variant){/*%s*/", p->vt->name);
-    if(p->vt == &UA_[ns0id])
-        fprintf(stream, "UA_[%d]", ns0id);
+    if(p->vt == &UA_TYPES[ns0id])
+        fprintf(stream, "UA_TYPES[%d]", ns0id);
     else
         fprintf(stream, "ERROR (not a builtin type)");
     UA_Int32_print(&p->storage.data.arrayLength, stream);
@@ -895,7 +902,7 @@ void UA_Variant_print(const UA_Variant *p, FILE *stream) {
     UA_Int32_print(&p->storage.data.arrayDimensionsLength, stream);
     fprintf(stream, ",");
     UA_Array_print(p->storage.data.arrayDimensions, p->storage.data.arrayDimensionsLength,
-                   &UA_[UA_INT32], stream);
+                   &UA_TYPES[UA_INT32], stream);
     fprintf(stream, "}");
 }
 #endif
@@ -987,8 +994,8 @@ UA_StatusCode UA_InvalidType_copy(UA_InvalidType const *src, UA_InvalidType *dst
     return UA_STATUSCODE_BADINTERNALERROR;
 }
 
-UA_StatusCode UA_InvalidType_new(UA_InvalidType **p) {
-    return UA_STATUSCODE_BADINTERNALERROR;
+UA_InvalidType * UA_InvalidType_new() {
+    return UA_NULL;
 }
 
 #ifdef DEBUG
@@ -1006,12 +1013,12 @@ UA_StatusCode UA_Array_new(void **p, UA_Int32 noElements, const UA_VTable_Entry 
         *p = UA_NULL;
         return UA_STATUSCODE_GOOD;
     }
-
-    // FIXME! Arrays cannot be larger than 100MB.
-    // This was randomly chosen so that the development VM does not blow up.
-    if(noElements > (2^16)) {
+    
+    // Arrays cannot be larger than 2^16 elements. This was randomly chosen so
+    // that the development VM does not blow up during fuzzing tests.
+    if(noElements > (1<<15)) {
         *p = UA_NULL;
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     if(!(*p = UA_alloc(vt->memSize * noElements)))
@@ -1043,10 +1050,8 @@ void UA_Array_delete(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt) {
 
 UA_StatusCode UA_Array_copy(const void *src, UA_Int32 noElements, const UA_VTable_Entry *vt, void **dst) {
     UA_StatusCode retval = UA_Array_new(dst, noElements, vt);
-    if(retval) {
-        *dst = UA_NULL;
+    if(retval)
         return retval;
-    }
 
     UA_Byte *csrc = (UA_Byte *)src; // so compilers allow pointer arithmetic
     UA_Byte *cdst = (UA_Byte *)*dst;

@@ -11,6 +11,7 @@ set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG")
 # main sources of libopen62541
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src")
+file(GLOB_RECURSE exported_headers "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h")
 file(GLOB_RECURSE headers "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
 file(GLOB generated_headers "${PROJECT_BINARY_DIR}/src_generated/*.h")
 set(lib_sources src/ua_types.c
@@ -34,14 +35,14 @@ set(lib_sources src/ua_types.c
                 src/server/ua_services_securechannel.c
                 src/server/ua_services_nodemanagement.c
                 src/server/ua_services_view.c
-                src/server/ua_services_monitoreditems.c
 				src/server/nodestore/open62541_nodestore_view.c
 				src/server/nodestore/open62541_nodestore_attribute.c
 				src/server/nodestore/open62541_nodestore_nodemanagement.c
 				src/server/nodestore/open62541_nodestore_core.c
 				src/server/ua_nodestore_interface.c
-                ${headers}
-                ${generated_headers})
+				${exported_headers}
+				${generated_headers}
+                ${headers})
 
 # compiler flags
 if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
@@ -49,13 +50,14 @@ add_definitions(-std=c99 -pedantic -pipe -Wall -Wextra -Werror -Wformat
                 -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
                 -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -ffunction-sections -fdata-sections)
     if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-        add_definitions(-Wformat-nonliteral -Wl,--gc-sections)
+        add_definitions(-Wformat-nonliteral)
+        set (CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
+        set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
     endif()
 	if(NOT WIN32)
 	    add_definitions(-fstack-protector -fPIC -fvisibility=hidden)
 	endif()
 endif()
-add_definitions(-Dopen62541_EXPORTS) # dllexport/dllimport differentiation in ua_config.h when building the lib on windows
 
 # build settings
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
@@ -119,6 +121,9 @@ endif()
 
 add_library(open62541-objects OBJECT ${lib_sources}) # static version that exports all symbols
 add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-objects>)
+target_compile_definitions(open62541 INTERFACE
+  $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,SHARED_LIBRARY>:open62541_EXPORTS> # the UA_EXPORT macro is different when building the lib or using the lib
+)
 
 ## logging
 set(UA_LOGLEVEL 400 CACHE STRING "Level at which logs shall be reported")
@@ -140,7 +145,7 @@ file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 include_directories("${PROJECT_BINARY_DIR}/src_generated") 
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
-                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_builtin.py ${generate_src_options} ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated
+                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_builtin.py --export-prototypes ${generate_src_options} ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_builtin.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd)
 
@@ -176,7 +181,7 @@ if(NOT ENABLE_MULTITHREADING)
 else()
     list(APPEND server_sources examples/networklayer_tcp_concurrent.c)
 endif()
-add_executable(exampleServer ${server_sources})
+add_executable(exampleServer ${server_sources} ${exported_headers} ${generated_headers})
 target_link_libraries(exampleServer open62541)
 if(WIN32)
     target_link_libraries(exampleServer ws2_32)
@@ -186,7 +191,6 @@ if(ENABLE_MULTITHREADING)
     target_link_libraries(exampleServer urcu-cds urcu uv)
 endif()
 endif()
-
 
 # build unit tests
 option(ENABLE_UNIT_TESTS "Run unit tests after building" OFF)

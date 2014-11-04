@@ -1,7 +1,7 @@
 #include "ua_services.h"
 
 #include "ua_statuscodes.h"
-
+#include "ua_server_internal.h"
 #include "ua_namespace_manager.h"
 #include "ua_namespace_0.h"
 #include "ua_util.h"
@@ -31,43 +31,43 @@ static UA_DataValue service_read_node(UA_Server *server,
 	switch (id->attributeId) {
 	case UA_ATTRIBUTEID_NODEID:
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_NODEID],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_NODEID],
 				&node->nodeId);
 		break;
 
 	case UA_ATTRIBUTEID_NODECLASS:
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_INT32],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_INT32],
 				&node->nodeClass);
 		break;
 
 	case UA_ATTRIBUTEID_BROWSENAME:
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_QUALIFIEDNAME],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_QUALIFIEDNAME],
 				&node->browseName);
 		break;
 
 	case UA_ATTRIBUTEID_DISPLAYNAME:
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_LOCALIZEDTEXT],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_LOCALIZEDTEXT],
 				&node->displayName);
 		break;
 
 	case UA_ATTRIBUTEID_DESCRIPTION:
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_LOCALIZEDTEXT],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_LOCALIZEDTEXT],
 				&node->description);
 		break;
 
 	case UA_ATTRIBUTEID_WRITEMASK:
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_UINT32],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_UINT32],
 				&node->writeMask);
 		break;
 
 	case UA_ATTRIBUTEID_USERWRITEMASK:
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_UINT32],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_UINT32],
 				&node->userWriteMask);
 		break;
 
@@ -77,7 +77,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 						| UA_NODECLASS_VARIABLETYPE | UA_NODECLASS_DATATYPE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_BOOLEAN],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_BOOLEAN],
 				&((UA_ReferenceTypeNode *) node)->isAbstract);
 		break;
 
@@ -85,7 +85,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_BOOLEAN],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_BOOLEAN],
 				&((UA_ReferenceTypeNode *) node)->symmetric);
 		break;
 
@@ -93,7 +93,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_LOCALIZEDTEXT],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_LOCALIZEDTEXT],
 				&((UA_ReferenceTypeNode *) node)->inverseName);
 		break;
 
@@ -101,7 +101,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_VIEW)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_BOOLEAN],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_BOOLEAN],
 				&((UA_ViewNode *) node)->containsNoLoops);
 		break;
 
@@ -109,7 +109,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_BYTE],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_BYTE],
 				&((UA_ViewNode *) node)->eventNotifier);
 		break;
 
@@ -124,7 +124,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_NODEID],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_NODEID],
 				&((UA_VariableTypeNode *) node)->dataType);
 		break;
 
@@ -132,7 +132,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_INT32],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_INT32],
 				&((UA_VariableTypeNode *) node)->valueRank);
 		break;
 
@@ -140,7 +140,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		UA_Variant_copySetArray(&v.value, &UA_[UA_UINT32],
+		UA_Variant_copySetArray(&v.value, &UA_TYPES[UA_UINT32],
 				((UA_VariableTypeNode *) node)->arrayDimensionsSize,
 				&((UA_VariableTypeNode *) node)->arrayDimensions);
 		break;
@@ -149,7 +149,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_BYTE],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_BYTE],
 				&((UA_VariableNode *) node)->accessLevel);
 		break;
 
@@ -157,7 +157,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_BYTE],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_BYTE],
 				&((UA_VariableNode *) node)->userAccessLevel);
 		break;
 
@@ -165,7 +165,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_DOUBLE],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_DOUBLE],
 				&((UA_VariableNode *) node)->minimumSamplingInterval);
 		break;
 
@@ -173,7 +173,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_BOOLEAN],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_BOOLEAN],
 				&((UA_VariableNode *) node)->historizing);
 		break;
 
@@ -181,7 +181,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_METHOD)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_BOOLEAN],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_BOOLEAN],
 				&((UA_MethodNode *) node)->executable);
 		break;
 
@@ -189,7 +189,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_METHOD)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_BOOLEAN],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_BOOLEAN],
 				&((UA_MethodNode *) node)->userExecutable);
 		break;
 
@@ -218,13 +218,13 @@ void Service_Read(UA_Server *server, UA_Session *session,
 		return;
 	}
 	if (UA_Array_new((void **) &response->results, request->nodesToReadSize,
-			&UA_[UA_DATAVALUE]) != UA_STATUSCODE_GOOD) {
+			&UA_TYPES[UA_DATAVALUE]) != UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
 
 	if (UA_Array_new((void **) &response->diagnosticInfos,
-			request->nodesToReadSize, &UA_[UA_DIAGNOSTICINFO])
+			request->nodesToReadSize, &UA_TYPES[UA_DIAGNOSTICINFO])
 			!= UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
@@ -235,13 +235,13 @@ void Service_Read(UA_Server *server, UA_Session *session,
 	UA_UInt16 *associatedIndices;
 	UA_UInt32 differentNamespaceIndexCount = 0;
 	if (UA_Array_new((void **) &numberOfFoundIndices, request->nodesToReadSize,
-			&UA_[UA_UINT32]) != UA_STATUSCODE_GOOD) {
+			&UA_TYPES[UA_UINT32]) != UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
 
 	if (UA_Array_new((void **) &associatedIndices, request->nodesToReadSize,
-			&UA_[UA_UINT16]) != UA_STATUSCODE_GOOD) {
+			&UA_TYPES[UA_UINT16]) != UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
@@ -251,7 +251,7 @@ void Service_Read(UA_Server *server, UA_Session *session,
 
 	UA_UInt32 *readValueIdIndices;
 	if (UA_Array_new((void **) &readValueIdIndices, request->nodesToReadSize,
-			&UA_[UA_UINT32]) != UA_STATUSCODE_GOOD) {
+			&UA_TYPES[UA_UINT32]) != UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
@@ -296,7 +296,7 @@ void Service_Write(UA_Server *server, UA_Session *session,
 	response->resultsSize = request->nodesToWriteSize;
 
 	if (UA_Array_new((void **) &response->results, request->nodesToWriteSize,
-			&UA_[UA_STATUSCODE])) {
+			&UA_TYPES[UA_STATUSCODE])) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
@@ -307,13 +307,13 @@ void Service_Write(UA_Server *server, UA_Session *session,
 	}
 
 	if (UA_Array_new((void **) &response->results, request->nodesToWriteSize,
-			&UA_[UA_DATAVALUE]) != UA_STATUSCODE_GOOD) {
+			&UA_TYPES[UA_DATAVALUE]) != UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
 
 	if (UA_Array_new((void **) &response->diagnosticInfos,
-			request->nodesToWriteSize, &UA_[UA_DIAGNOSTICINFO])
+			request->nodesToWriteSize, &UA_TYPES[UA_DIAGNOSTICINFO])
 			!= UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
@@ -324,13 +324,13 @@ void Service_Write(UA_Server *server, UA_Session *session,
 	UA_UInt16 *associatedIndices;
 	UA_UInt32 differentNamespaceIndexCount = 0;
 	if (UA_Array_new((void **) &numberOfFoundIndices, request->nodesToWriteSize,
-			&UA_[UA_UINT32]) != UA_STATUSCODE_GOOD) {
+			&UA_TYPES[UA_UINT32]) != UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
 
 	if (UA_Array_new((void **) &associatedIndices, request->nodesToWriteSize,
-			&UA_[UA_UINT16]) != UA_STATUSCODE_GOOD) {
+			&UA_TYPES[UA_UINT16]) != UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
@@ -340,7 +340,7 @@ void Service_Write(UA_Server *server, UA_Session *session,
 
 	UA_UInt32 *writeValues;
 	if (UA_Array_new((void **) &writeValues, request->nodesToWriteSize,
-			&UA_[UA_UINT32]) != UA_STATUSCODE_GOOD) {
+			&UA_TYPES[UA_UINT32]) != UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}

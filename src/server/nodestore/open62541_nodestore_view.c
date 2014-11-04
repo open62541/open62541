@@ -9,194 +9,220 @@
 #include "ua_namespace_0.h"
 #include "ua_util.h"
 
-UA_Int32 Service_Browse_getReferenceDescription(open62541NodeStore *ns, UA_ReferenceNode *reference,
-                                                UA_UInt32 nodeClassMask, UA_UInt32 resultMask,
-                                                UA_ReferenceDescription *referenceDescription) {
-    const UA_Node *foundNode;
-    if(open62541NodeStore_get(ns, &reference->targetId.nodeId, &foundNode) != UA_STATUSCODE_GOOD)
-    	return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_NodeId_copy(&foundNode->nodeId, &referenceDescription->nodeId.nodeId);
-    //TODO ExpandedNodeId is a mockup
+
+/* Releases the current node, even if it was supplied as an argument. */
+static UA_StatusCode fillReferenceDescription(open62541NodeStore *ns, const UA_Node *currentNode, UA_ReferenceNode *reference,
+                                              UA_UInt32 resultMask, UA_ReferenceDescription *referenceDescription) {
+    UA_ReferenceDescription_init(referenceDescription);
+    if(!currentNode && resultMask != 0) {
+        if(open62541NodeStore_get(ns, &reference->targetId.nodeId, &currentNode) != UA_STATUSCODE_GOOD)
+            return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    retval |= UA_NodeId_copy(&currentNode->nodeId, &referenceDescription->nodeId.nodeId);
+    //TODO: ExpandedNodeId is mocked up
     referenceDescription->nodeId.serverIndex = 0;
     referenceDescription->nodeId.namespaceUri.length = -1;
 
-    /* UA_UInt32 mask = 0; */
-    /* for(mask = 0x01;mask <= 0x40;mask *= 2) { */
-    /*     switch(mask & (resultMask)) { */
     if(resultMask & UA_BROWSERESULTMASK_REFERENCETYPEID)
-        UA_NodeId_copy(&reference->referenceTypeId, &referenceDescription->referenceTypeId);
+        retval |= UA_NodeId_copy(&reference->referenceTypeId, &referenceDescription->referenceTypeId);
     if(resultMask & UA_BROWSERESULTMASK_ISFORWARD)
         referenceDescription->isForward = !reference->isInverse;
     if(resultMask & UA_BROWSERESULTMASK_NODECLASS)
-        UA_NodeClass_copy(&foundNode->nodeClass, &referenceDescription->nodeClass);
+        retval |= UA_NodeClass_copy(&currentNode->nodeClass, &referenceDescription->nodeClass);
     if(resultMask & UA_BROWSERESULTMASK_BROWSENAME)
-        UA_QualifiedName_copy(&foundNode->browseName, &referenceDescription->browseName);
+        retval |= UA_QualifiedName_copy(&currentNode->browseName, &referenceDescription->browseName);
     if(resultMask & UA_BROWSERESULTMASK_DISPLAYNAME)
-        UA_LocalizedText_copy(&foundNode->displayName, &referenceDescription->displayName);
-    if(resultMask & UA_BROWSERESULTMASK_TYPEDEFINITION) {
-        if(foundNode->nodeClass != UA_NODECLASS_OBJECT &&
-           foundNode->nodeClass != UA_NODECLASS_VARIABLE)
-            goto end;
-
-        for(UA_Int32 i = 0;i < foundNode->referencesSize;i++) {
-            UA_ReferenceNode *ref = &foundNode->references[i];
+        retval |= UA_LocalizedText_copy(&currentNode->displayName, &referenceDescription->displayName);
+    if(resultMask & UA_BROWSERESULTMASK_TYPEDEFINITION && currentNode->nodeClass != UA_NODECLASS_OBJECT &&
+       currentNode->nodeClass != UA_NODECLASS_VARIABLE) {
+        for(UA_Int32 i = 0;i < currentNode->referencesSize;i++) {
+            UA_ReferenceNode *ref = &currentNode->references[i];
             if(ref->referenceTypeId.identifier.numeric == 40 /* hastypedefinition */) {
-                UA_ExpandedNodeId_copy(&ref->targetId, &referenceDescription->typeDefinition);
-                goto end;
+                retval |= UA_ExpandedNodeId_copy(&ref->targetId, &referenceDescription->typeDefinition);
+                break;
             }
         }
     }
- end:
-    open62541NodeStore_releaseManagedNode(foundNode);
-    return UA_STATUSCODE_GOOD;
+
+    if(currentNode)
+    	open62541NodeStore_releaseManagedNode(currentNode);
+    if(retval)
+        UA_ReferenceDescription_deleteMembers(referenceDescription);
+    return retval;
 }
 
-/* singly-linked list */
-struct SubRefTypeId {
-    UA_NodeId id;
-    SLIST_ENTRY(SubRefTypeId) next;
-};
-SLIST_HEAD(SubRefTypeIdList, SubRefTypeId);
+/* Tests if the node is relevant an shall be returned. If the targetNode needs
+   to be retrieved from the nodestore to determine this, the targetNode is
+   returned if the node is relevant. */
+static UA_Boolean isRelevantTargetNode(open62541NodeStore *ns, const UA_BrowseDescription *browseDescription, UA_Boolean returnAll,
+                                       UA_ReferenceNode *reference, const UA_Node **currentNode,
+                                       UA_NodeId *relevantRefTypes, UA_UInt32 relevantRefTypesCount) {
+    // 1) Test Browse direction
+    if(reference->isInverse == UA_TRUE && browseDescription->browseDirection == UA_BROWSEDIRECTION_FORWARD)
+        return UA_FALSE;
 
-static UA_UInt32 walkReferenceTree(open62541NodeStore *ns, const UA_ReferenceTypeNode *current,
-                                   struct SubRefTypeIdList *list) {
-    // insert the current referencetype
-    struct SubRefTypeId *element = UA_alloc(sizeof(struct SubRefTypeId));
-    element->id = current->nodeId;
-    SLIST_INSERT_HEAD(list, element, next);
+    else if(reference->isInverse == UA_FALSE && browseDescription->browseDirection == UA_BROWSEDIRECTION_INVERSE)
+        return UA_FALSE;
 
-    UA_UInt32 count = 1; // the current element
+    // 2) Test if the reference type is relevant
+    UA_Boolean isRelevant = returnAll;
+    if(!isRelevant) {
+        for(UA_UInt32 i = 0;i < relevantRefTypesCount;i++) {
+            if(UA_NodeId_equal(&reference->referenceTypeId, &relevantRefTypes[i]))
+                isRelevant = UA_TRUE;
+        }
+        if(!isRelevant)
+            return UA_FALSE;
+    }
 
-    // walk the tree
-    for(UA_Int32 i = 0;i < current->referencesSize;i++) {
-        if(current->references[i].referenceTypeId.identifier.numeric == 45 /* HasSubtype */ &&
-           current->references[i].isInverse == UA_FALSE) {
-            const UA_Node *node;
-            if(open62541NodeStore_get(ns, &current->references[i].targetId.nodeId, &node) == UA_STATUSCODE_GOOD
-               && node->nodeClass == UA_NODECLASS_REFERENCETYPE) {
-                count += walkReferenceTree(ns, (UA_ReferenceTypeNode *)node, list);
-                open62541NodeStore_releaseManagedNode(node);
+    // 3) Test if the target nodeClass is relevant
+    if(browseDescription->nodeClassMask == 0)
+        return UA_TRUE; // the node is relevant, but we didn't need to get it from the nodestore yet.
+
+    if(open62541NodeStore_get(ns, &reference->targetId.nodeId, currentNode) != UA_STATUSCODE_GOOD)
+        return UA_FALSE;
+
+    if(((*currentNode)->nodeClass & browseDescription->nodeClassMask) == 0) {
+    	open62541NodeStore_releaseManagedNode(*currentNode);
+        return UA_FALSE;
+    }
+
+    // the node is relevant and was retrieved from the nodestore, do not release it.
+    return UA_TRUE;
+}
+
+/* We do not search across namespaces so far. The id of the root-referencetype
+   is returned in the array also. */
+static UA_StatusCode findRelevantReferenceTypes(open62541NodeStore *ns, const UA_NodeId *rootReferenceType,
+                                                UA_NodeId **referenceTypes, UA_UInt32 *referenceTypesSize) {
+    /* The references form a tree. We walk the tree by adding new nodes to the end of the array. */
+    UA_UInt32 currentIndex = 0;
+    UA_UInt32 currentLastIndex = 0;
+    UA_UInt32 currentArraySize = 20; // should be more than enough. if not, increase the array size.
+    UA_NodeId *typeArray = UA_alloc(sizeof(UA_NodeId) * currentArraySize);
+    if(!typeArray)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    retval |= UA_NodeId_copy(rootReferenceType, &typeArray[0]);
+    if(retval) {
+        UA_free(typeArray);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    const UA_ReferenceTypeNode *node;
+    do {
+        retval |= open62541NodeStore_get(ns, &typeArray[currentIndex], (const UA_Node **)&node);
+        if(retval)
+            break;
+        if(node->nodeClass != UA_NODECLASS_REFERENCETYPE) // subtypes of referencestypes are always referencestypes?
+            continue;
+
+        // Find subtypes of the current referencetype
+        for(UA_Int32 i = 0; i < node->referencesSize && retval == UA_STATUSCODE_GOOD; i++) {
+            if(node->references[i].referenceTypeId.identifier.numeric != 45 /* HasSubtype */ ||
+               node->references[i].isInverse == UA_TRUE)
+                continue;
+
+            if(currentLastIndex + 1 >= currentArraySize) {
+                // we need to resize the array
+                UA_NodeId *newArray = UA_alloc(sizeof(UA_NodeId) * currentArraySize * 2);
+                if(newArray) {
+                    memcpy(newArray, typeArray, sizeof(UA_NodeId) * currentArraySize);
+                    currentArraySize *= 2;
+                    UA_free(typeArray);
+                    typeArray = newArray;
+                } else {
+                    retval = UA_STATUSCODE_BADOUTOFMEMORY;
+                    break;
+                }
             }
+
+            // ok, we have space to add the new referencetype.
+            retval |= UA_NodeId_copy(&node->references[i].targetId.nodeId, &typeArray[++currentLastIndex]);
+            if(retval)
+                currentLastIndex--; // undo if we need to delete the typeArray
+        }
+        open62541NodeStore_releaseManagedNode((UA_Node*)node);
+    } while(++currentIndex <= currentLastIndex && retval == UA_STATUSCODE_GOOD);
+
+    if(retval)
+        UA_Array_delete(typeArray, currentLastIndex, &UA_TYPES[UA_NODEID]);
+    else {
+        *referenceTypes = typeArray;
+        *referenceTypesSize = currentLastIndex + 1;
+    }
+
+    return retval;
+}
+
+/* Results for a single browsedescription. */
+static void getBrowseResult(open62541NodeStore *ns, const UA_BrowseDescription *browseDescription,
+                            UA_UInt32 maxReferences, UA_BrowseResult *browseResult) {
+    UA_UInt32  relevantReferenceTypesSize = 0;
+    UA_NodeId *relevantReferenceTypes = UA_NULL;
+
+    // if the referencetype is null, all referencetypes are returned
+    UA_Boolean returnAll = UA_NodeId_isNull(&browseDescription->referenceTypeId);
+    if(!returnAll) {
+        if(browseDescription->includeSubtypes) {
+            browseResult->statusCode = findRelevantReferenceTypes(ns, &browseDescription->referenceTypeId,
+                                                                  &relevantReferenceTypes, &relevantReferenceTypesSize);
+            if(browseResult->statusCode != UA_STATUSCODE_GOOD)
+                return;
+        } else {
+            relevantReferenceTypes = (UA_NodeId*)&browseDescription->referenceTypeId; // is const
+            relevantReferenceTypesSize = 1;
         }
     }
-    return count;
-}
 
-/* We do not search across namespaces so far. The id of the father-referencetype is returned in the array also. */
-static UA_Int32 findSubReferenceTypes(open62541NodeStore *ns, UA_NodeId *rootReferenceType,
-                                      UA_NodeId **ids, UA_UInt32 *idcount) {
-    struct SubRefTypeIdList list;
-    UA_UInt32 count;
-    SLIST_INIT(&list);
-
-    // walk the tree
-    const UA_ReferenceTypeNode *root;
-
-    if(open62541NodeStore_get(ns, rootReferenceType, (const UA_Node **)&root) != UA_STATUSCODE_GOOD ||
-       root->nodeClass != UA_NODECLASS_REFERENCETYPE)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    count = walkReferenceTree(ns, root, &list);
-    open62541NodeStore_releaseManagedNode((const UA_Node *)root);
-
-    // copy results into an array
-    *ids = UA_alloc(sizeof(UA_NodeId)*count);
-    for(UA_UInt32 i = 0;i < count;i++) {
-        struct SubRefTypeId *element = SLIST_FIRST(&list);
-        UA_NodeId_copy(&element->id, &(*ids)[i]);
-        SLIST_REMOVE_HEAD(&list, next);
-        UA_free(element);
-    }
-    *idcount = count;
-
-    return UA_STATUSCODE_GOOD;
-}
-
-/* is this a relevant reference? */
-static INLINE UA_Boolean Service_Browse_returnReference(UA_BrowseDescription *browseDescription,
-                                                        UA_ReferenceNode     *reference,
-                                                        UA_NodeId            *relevantRefTypes,
-                                                        UA_UInt32             relevantRefTypesCount) {
-    if(reference->isInverse == UA_TRUE &&
-       browseDescription->browseDirection == UA_BROWSEDIRECTION_FORWARD)
-        return UA_FALSE;
-    else if(reference->isInverse == UA_FALSE &&
-            browseDescription->browseDirection == UA_BROWSEDIRECTION_INVERSE)
-        return UA_FALSE;
-    for(UA_UInt32 i = 0;i < relevantRefTypesCount;i++) {
-        if(UA_NodeId_equal(&browseDescription->referenceTypeId, &relevantRefTypes[i]) == UA_EQUAL)
-            return UA_TRUE;
-    }
-    return UA_FALSE;
-}
-
-/* Return results to a single browsedescription. */
-static void NodeStore_Browse_getBrowseResult(open62541NodeStore         *ns,
-                                           UA_BrowseDescription *browseDescription,
-                                           UA_UInt32             maxReferences,
-                                           UA_BrowseResult      *browseResult) {
-    const UA_Node *node;
-    UA_NodeId     *relevantReferenceTypes = UA_NULL;
-    UA_UInt32      relevantReferenceTypesCount = 0;
-    if(open62541NodeStore_get(ns, &browseDescription->nodeId, &node) != UA_STATUSCODE_GOOD) {
+    const UA_Node *parentNode;
+    if(open62541NodeStore_get(ns, &browseDescription->nodeId, &parentNode) != UA_STATUSCODE_GOOD) {
         browseResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        if(!returnAll && browseDescription->includeSubtypes)
+            UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesSize, &UA_TYPES[UA_NODEID]);
         return;
     }
 
     // 0 => unlimited references
-    if(maxReferences == 0)
-        maxReferences = node->referencesSize;
+    if(maxReferences == 0 || maxReferences > UA_INT32_MAX || (UA_Int32)maxReferences > parentNode->referencesSize)
+        maxReferences = parentNode->referencesSize;
 
-    // discover the relevant subtypes
-    if(!browseDescription->includeSubtypes ||
-       findSubReferenceTypes(ns, &browseDescription->referenceTypeId, &relevantReferenceTypes,
-                             &relevantReferenceTypesCount) != UA_STATUSCODE_GOOD) {
-        if(!(relevantReferenceTypes = UA_alloc(sizeof(UA_NodeId)))) {
-            return;
+    /* We allocate an array that is probably too big. But since most systems
+       have more than enough memory, this has zero impact on speed and
+       performance. Call Array_delete with the actual content size! */
+    browseResult->references = UA_alloc(sizeof(UA_ReferenceDescription) * maxReferences);
+    if(!browseResult->references) {
+        browseResult->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+    } else {
+        UA_UInt32 currentRefs = 0;
+        for(UA_Int32 i = 0;i < parentNode->referencesSize && currentRefs < maxReferences;i++) {
+            // 1) Is the node relevant? This might retrieve the node from the nodestore
+            const UA_Node *currentNode = UA_NULL;
+            if(!isRelevantTargetNode(ns, browseDescription, returnAll, &parentNode->references[i], &currentNode,
+                                     relevantReferenceTypes, relevantReferenceTypesSize))
+                continue;
+
+            // 2) Fill the reference description. This also releases the current node.
+            if(fillReferenceDescription(ns, currentNode, &parentNode->references[i], browseDescription->resultMask,
+                                        &browseResult->references[currentRefs]) != UA_STATUSCODE_GOOD) {
+                UA_Array_delete(browseResult->references, currentRefs, &UA_TYPES[UA_REFERENCEDESCRIPTION]);
+                currentRefs = 0;
+                browseResult->references = UA_NULL;
+                browseResult->statusCode = UA_STATUSCODE_UNCERTAINNOTALLNODESAVAILABLE;
+                break;
+            }
+            currentRefs++;
         }
-        UA_NodeId_copy(&browseDescription->referenceTypeId, relevantReferenceTypes);
-        relevantReferenceTypesCount = 1;
+        browseResult->referencesSize = currentRefs;
     }
 
-    /* We do not use a linked list but traverse the nodes references list twice
-     * (once for counting, once for generating the referencedescriptions). That
-     * is much faster than using a linked list, since the references are
-     * allocated in a continuous blob and RAM access is predictible/does not
-     * miss cache lines so often. TODO: measure with some huge objects! */
-    UA_UInt32 refs = 0;
-    for(UA_Int32 i = 0;i < node->referencesSize && refs <= maxReferences;i++) {
-        if(Service_Browse_returnReference(browseDescription, &node->references[i], relevantReferenceTypes,
-                                          relevantReferenceTypesCount))
-            refs++;
-    }
-
-    // can we return all relevant references at once?
-    UA_Boolean finished = UA_TRUE;
-    if(refs > maxReferences) {
-        refs--;
-        finished = UA_FALSE;
-    }
-
-    browseResult->referencesSize = refs;
-    UA_Array_new((void **)&browseResult->references, refs, &UA_[UA_REFERENCEDESCRIPTION]);
-
-    for(UA_UInt32 i = 0, j = 0;j < refs;i++) {
-        if(!Service_Browse_returnReference(browseDescription, &node->references[i], relevantReferenceTypes,
-                                           relevantReferenceTypesCount))
-            continue;
-
-        if(Service_Browse_getReferenceDescription(ns, &node->references[i], browseDescription->nodeClassMask,
-                                                  browseDescription->resultMask, &browseResult->references[j]) != UA_STATUSCODE_GOOD)
-            browseResult->statusCode = UA_STATUSCODE_UNCERTAINNOTALLNODESAVAILABLE;
-        j++;
-    }
-
-    if(!finished) {
-        // Todo. Set the Statuscode and the continuation point.
-    }
-
-    open62541NodeStore_releaseManagedNode(node);
-    UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesCount, &UA_[UA_NODEID]);
+    open62541NodeStore_releaseManagedNode(parentNode);
+    if(!returnAll && browseDescription->includeSubtypes)
+        UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesSize, &UA_TYPES[UA_NODEID]);
 }
 
 UA_Int32 open62541NodeStore_BrowseNodes(const UA_RequestHeader *requestHeader,UA_BrowseDescription *browseDescriptions,UA_UInt32 *indices,UA_UInt32 indicesSize, UA_UInt32 requestedMaxReferencesPerNode,
@@ -205,7 +231,7 @@ UA_Int32 open62541NodeStore_BrowseNodes(const UA_RequestHeader *requestHeader,UA
 
 
 	for(UA_UInt32 i = 0; i < indicesSize; i++){
-		NodeStore_Browse_getBrowseResult(open62541NodeStore_getNodeStore(),&browseDescriptions[indices[i]],requestedMaxReferencesPerNode, &browseResults[indices[i]]);
+		getBrowseResult(open62541NodeStore_getNodeStore(),&browseDescriptions[indices[i]],requestedMaxReferencesPerNode, &browseResults[indices[i]]);
 	}
 	return UA_STATUSCODE_GOOD;
 }

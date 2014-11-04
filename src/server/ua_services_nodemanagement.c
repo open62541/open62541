@@ -1,7 +1,7 @@
 #include "ua_services.h"
 #include "ua_namespace_0.h"
 #include "ua_statuscodes.h"
-
+#include "ua_server_internal.h"
 #include "ua_services_internal.h"
 #include "ua_namespace_manager.h"
 #include "ua_session.h"
@@ -17,13 +17,13 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
 	}
 
 	if (UA_Array_new((void **) &response->results, request->nodesToAddSize,
-			&UA_[UA_ADDNODESRESULT]) != UA_STATUSCODE_GOOD) {
+			&UA_TYPES[UA_ADDNODESRESULT]) != UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
 
 	if (UA_Array_new((void **) &response->diagnosticInfos,
-			request->nodesToAddSize, &UA_[UA_DIAGNOSTICINFO])
+			request->nodesToAddSize, &UA_TYPES[UA_DIAGNOSTICINFO])
 			!= UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
@@ -34,14 +34,14 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
 	UA_UInt16 *associatedIndices;
 	UA_UInt32 differentNamespaceIndexCount = 0;
 	if (UA_Array_new((void **) &numberOfFoundIndices,
-			request->nodesToAddSize, &UA_[UA_UINT32])
+			request->nodesToAddSize, &UA_TYPES[UA_UINT32])
 			!= UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
 
 	if (UA_Array_new((void **) &associatedIndices, request->nodesToAddSize,
-			&UA_[UA_UINT16]) != UA_STATUSCODE_GOOD) {
+			&UA_TYPES[UA_UINT16]) != UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
@@ -50,7 +50,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
 
 	UA_UInt32 *addNodesIndices;
 	if (UA_Array_new((void **) &addNodesIndices,
-			request->nodesToAddSize, &UA_[UA_UINT32])
+			request->nodesToAddSize, &UA_TYPES[UA_UINT32])
 			!= UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
@@ -93,13 +93,13 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
 	}
 
 	if (UA_Array_new((void **) &response->results, request->referencesToAddSize,
-			&UA_[UA_STATUSCODE]) != UA_STATUSCODE_GOOD) {
+			&UA_TYPES[UA_STATUSCODE]) != UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
 
 	if (UA_Array_new((void **) &response->diagnosticInfos,
-			request->referencesToAddSize, &UA_[UA_DIAGNOSTICINFO])
+			request->referencesToAddSize, &UA_TYPES[UA_DIAGNOSTICINFO])
 			!= UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
@@ -110,14 +110,14 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
 	UA_UInt16 *associatedIndices;
 	UA_UInt32 differentNamespaceIndexCount = 0;
 	if (UA_Array_new((void **) &numberOfFoundIndices,
-			request->referencesToAddSize, &UA_[UA_UINT32])
+			request->referencesToAddSize, &UA_TYPES[UA_UINT32])
 			!= UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
 
 	if (UA_Array_new((void **) &associatedIndices, request->referencesToAddSize,
-			&UA_[UA_UINT16]) != UA_STATUSCODE_GOOD) {
+			&UA_TYPES[UA_UINT16]) != UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
@@ -128,7 +128,7 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
 
 	UA_UInt32 *readValueIdIndices;
 	if (UA_Array_new((void **) &readValueIdIndices,
-			request->referencesToAddSize, &UA_[UA_UINT32])
+			request->referencesToAddSize, &UA_TYPES[UA_UINT32])
 			!= UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;

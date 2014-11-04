@@ -45,33 +45,37 @@ void serverCallback(UA_Server *server) {
 int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
 
+    /* init the server */
 	#define PORT 16664
 	UA_String endpointUrl;
-	UA_String_copyprintf("opc.tpc://127.0.0.1:%i", endpointUrl, PORT);
-    
-	UA_Server server;
-	UA_Server_init(&server, &endpointUrl);
-	Logger_Stdout_init(&server.logger);
+	UA_String_copyprintf("opc.tcp://127.0.0.1:%i", &endpointUrl, PORT);
+	UA_Server *server = UA_Server_new(&endpointUrl, NULL);
 
+    /* add a variable node */
     UA_Int32 myInteger = 42;
     UA_String myIntegerName;
     UA_STRING_STATIC(myIntegerName, "The Answer");
-    // Adds the integer variable as a child (HasComponent) to the "Objects" node.
-    UA_Server_addScalarVariableNode(&server, &myIntegerName, (void*)&myInteger,
-                                    &UA_[UA_INT32], &server.objectsNodeId,
-                                    &server.hasComponentReferenceTypeId);
+    UA_Server_addScalarVariableNode(server,
+                 /* browse name, the value and the datatype's vtable */
+                 &myIntegerName, (void*)&myInteger, &UA_TYPES[UA_INT32],
+                 /* the parent node where the variable shall be attached */
+                 &UA_NODEIDS[UA_OBJECTSFOLDER],
+                 /* the (hierarchical) referencetype from the parent */
+                 &UA_NODEIDS[UA_HASCOMPONENT]);
 
-	NetworklayerTCP* nl;
-	NetworklayerTCP_new(&nl, UA_ConnectionConfig_standard, PORT);
+    /* attach a network layer */
+	NetworklayerTCP* nl = NetworklayerTCP_new(UA_ConnectionConfig_standard, PORT);
 	printf("Server started, connect to to opc.tcp://127.0.0.1:%i\n", PORT);
-	struct timeval callback_interval = {5, 0}; // run serverCallback every 5 seconds
-	UA_Int32 retval = NetworkLayerTCP_run(nl, &server, callback_interval,
-										  serverCallback, &running);
-                                          
-	UA_Server_deleteMembers(&server);
+
+    /* run the server loop */
+	struct timeval callback_interval = {1, 0}; // 1 second
+	NetworkLayerTCP_run(nl, server, callback_interval, serverCallback, &running);
+    
+    /* clean up */
 	NetworklayerTCP_delete(nl);
+	UA_Server_delete(server);
     UA_String_deleteMembers(&endpointUrl);
-	return retval == UA_SUCCESS ? 0 : retval;
+	return 0;
 }
 ```
 

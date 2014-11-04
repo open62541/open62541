@@ -253,7 +253,7 @@ START_TEST(UA_Variant_calcSizeFixedSizeArrayShallReturnEncodingSize) {
 	// given
 	UA_Variant arg;
 	UA_Variant_init(&arg);
-	arg.vt = &UA_[UA_INT32];
+	arg.vt = &UA_TYPES[UA_INT32];
 #define ARRAY_LEN 8
 	arg.storage.data.arrayLength = ARRAY_LEN;
 	UA_Int32 *data[ARRAY_LEN];
@@ -271,7 +271,7 @@ START_TEST(UA_Variant_calcSizeVariableSizeArrayShallReturnEncodingSize) {
 	// given
 	UA_Variant arg;
 	UA_Variant_init(&arg);
-	arg.vt = &UA_[UA_STRING];
+	arg.vt = &UA_TYPES[UA_STRING];
 #define ARRAY_LEN 3
 	arg.storage.data.arrayLength = ARRAY_LEN;
 	UA_String strings[3];
@@ -642,7 +642,7 @@ START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArr
 	// then
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	ck_assert_int_eq(pos, 5);
-	ck_assert_ptr_eq(dst.vt, &UA_[UA_INT32]);
+	ck_assert_ptr_eq((void *)dst.vt, (void *)&UA_TYPES[UA_INT32]);
 	ck_assert_int_eq(dst.storage.data.arrayLength, 1);
 	ck_assert_int_eq(*(UA_Int32 *)dst.storage.data.dataPtr, 255);
 	// finally
@@ -664,7 +664,7 @@ START_TEST(UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray)
 	// then
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	ck_assert_int_eq(pos, 1+4+2*4);
-	ck_assert_ptr_eq(dst.vt, &UA_[UA_INT32]);
+	ck_assert_ptr_eq((void*)dst.vt, (void*)&UA_TYPES[UA_INT32]);
 	ck_assert_int_eq(dst.storage.data.arrayLength, 2);
 	ck_assert_int_eq(((UA_Int32 *)dst.storage.data.dataPtr)[0], 255);
 	ck_assert_int_eq(((UA_Int32 *)dst.storage.data.dataPtr)[1], -1);
@@ -1087,7 +1087,7 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithVariant) {
 	src.serverTimestamp    = 80;
 	src.encodingMask       = UA_DATAVALUE_ENCODINGMASK_VARIANT | UA_DATAVALUE_ENCODINGMASK_SERVERTIMESTAMP; //Variant & SourvePicoseconds
 	UA_Variant_init(&src.value);
-	src.value.vt           = &UA_[UA_INT32];
+	src.value.vt           = &UA_TYPES[UA_INT32];
 	src.value.storage.data.arrayLength  = 1; // one element (encoded as not an array)
 	UA_Int32  vdata  = 45;
 	src.value.storage.data.dataPtr = (void *)&vdata;
@@ -1154,6 +1154,7 @@ START_TEST(UA_DateTime_toStringShallWorkOnExample) {
 	ck_assert_int_eq(dst.data[2], '/');
 	ck_assert_int_eq(dst.data[3], '1');
 	ck_assert_int_eq(dst.data[4], '4');
+    UA_String_deleteMembers(&dst);
 }
 END_TEST
 START_TEST(UA_ExtensionObject_copyShallWorkOnExample) {
@@ -1203,7 +1204,7 @@ START_TEST(UA_Array_copyByteArrayShallWorkOnExample) {
 	testString.length  = 5;
 
 	//when
-	UA_Array_copy((const void *)testString.data, 5, &UA_[UA_BYTE], (void **)&dstArray);
+	UA_Array_copy((const void *)testString.data, 5, &UA_TYPES[UA_BYTE], (void **)&dstArray);
 	//then
 	for(i = 0;i < size;i++)
 		ck_assert_int_eq(testString.data[i], dstArray[i]);
@@ -1219,14 +1220,14 @@ START_TEST(UA_Array_copyUA_StringShallWorkOnExample) {
 	// given
 	UA_Int32   i, j;
 	UA_String *srcArray;
-	UA_Array_new((void **)&srcArray, 3, &UA_[UA_STRING]);
+    UA_Array_new((void**)&srcArray, 3, &UA_TYPES[UA_STRING]);
 	UA_String *dstArray;
 
 	UA_String_copycstring("open", &srcArray[0]);
 	UA_String_copycstring("62541", &srcArray[1]);
 	UA_String_copycstring("opc ua", &srcArray[2]);
 	//when
-	UA_Array_copy((const void *)srcArray, 3, &UA_[UA_STRING], (void **)&dstArray);
+	UA_Array_copy((const void *)srcArray, 3, &UA_TYPES[UA_STRING], (void **)&dstArray);
 	//then
 	for(i = 0;i < 3;i++) {
 		for(j = 0;j < 3;j++)
@@ -1234,8 +1235,8 @@ START_TEST(UA_Array_copyUA_StringShallWorkOnExample) {
 		ck_assert_int_eq(srcArray[i].length, dstArray[i].length);
 	}
 	//finally
-	UA_Array_delete(srcArray, 3, &UA_[UA_STRING]);
-	UA_Array_delete(dstArray, 3, &UA_[UA_STRING]);
+	UA_Array_delete(srcArray, 3, &UA_TYPES[UA_STRING]);
+	UA_Array_delete(dstArray, 3, &UA_TYPES[UA_STRING]);
 }
 END_TEST
 
@@ -1343,6 +1344,8 @@ START_TEST(UA_QualifiedName_copyShallWorkOnInputExample) {
 	ck_assert_int_eq('!', dst.name.data[7]);
 	ck_assert_int_eq(8, dst.name.length);
 	ck_assert_int_eq(5, dst.namespaceIndex);
+    // finally
+    UA_QualifiedName_deleteMembers(&dst);
 }
 END_TEST
 START_TEST(UA_Guid_copyShallWorkOnInputExample) {
@@ -1363,7 +1366,7 @@ START_TEST(UA_Guid_copyShallWorkOnInputExample) {
 END_TEST
 START_TEST(UA_LocalizedText_copycstringShallWorkOnInputExample) {
 	// given
-	const char src[7] = {'t', 'e', 'X', 't', '1', '2', '3'};
+	const char src[8] = {'t', 'e', 'X', 't', '1', '2', '3', (char)0};
 	UA_LocalizedText dst;
 
 	// when
@@ -1375,6 +1378,8 @@ START_TEST(UA_LocalizedText_copycstringShallWorkOnInputExample) {
 	ck_assert_int_eq('1', dst.text.data[4]);
 	ck_assert_int_eq(2, dst.locale.length);
 	ck_assert_int_eq(7, dst.text.length);
+    // finally
+    UA_LocalizedText_deleteMembers(&dst);
 }
 END_TEST
 START_TEST(UA_DataValue_copyShallWorkOnInputExample) {
@@ -1402,7 +1407,7 @@ START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
 	UA_Variant_init(&copiedValue);
 	value.storage.data.dataPtr = UA_alloc(sizeof(UA_String));
 	*((UA_String*)value.storage.data.dataPtr) = testString;
-	value.vt = &UA_[UA_STRING];
+	value.vt = &UA_TYPES[UA_STRING];
 	value.storage.data.arrayLength = 1;
 
 	//when
@@ -1426,7 +1431,7 @@ END_TEST
 START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
 	// given
 	UA_String *srcArray;
-	UA_Array_new((void **)&srcArray, 3, &UA_[UA_STRING]);
+    UA_Array_new((void**)&srcArray, 3, &UA_TYPES[UA_STRING]);
 	UA_String_copycstring("__open", &srcArray[0]);
 	UA_String_copycstring("_62541", &srcArray[1]);
 	UA_String_copycstring("opc ua", &srcArray[2]);
@@ -1440,10 +1445,10 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
 	UA_Variant_init(&copiedValue);
 
 	value.storage.data.arrayLength = 3;
-	value.storage.data.dataPtr        = (void **)srcArray;
+	value.storage.data.dataPtr = (void *)srcArray;
 	value.storage.data.arrayDimensionsLength = 1;
-	value.storage.data.arrayDimensions       = dimensions;
-	value.vt = &UA_[UA_STRING];
+	value.storage.data.arrayDimensions = dimensions;
+	value.vt = &UA_TYPES[UA_STRING];
 
 	//when
 	UA_Variant_copy(&value, &copiedValue);
@@ -1452,15 +1457,17 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
 	UA_Int32 i1 = value.storage.data.arrayDimensions[0];
 	UA_Int32 i2 = copiedValue.storage.data.arrayDimensions[0];
 	ck_assert_int_eq(i1, i2);
-
+    
 	for(UA_Int32 i = 0;i < 3;i++) {
-		for(UA_Int32 j = 0;j < 6;j++)
-			ck_assert_int_eq(((UA_String *)value.storage.data.dataPtr)[i].data[j], ((UA_String *)copiedValue.storage.data.dataPtr)[i].data[j]);
-		ck_assert_int_eq(((UA_String *)value.storage.data.dataPtr)[i].length, ((UA_String *)copiedValue.storage.data.dataPtr)[i].length);
+		for(UA_Int32 j = 0;j < 6;j++) {
+			ck_assert_int_eq(((UA_String *)value.storage.data.dataPtr)[i].data[j],
+                             ((UA_String *)copiedValue.storage.data.dataPtr)[i].data[j]);
+        }
+		ck_assert_int_eq(((UA_String *)value.storage.data.dataPtr)[i].length,
+                         ((UA_String *)copiedValue.storage.data.dataPtr)[i].length);
 	}
 	ck_assert_int_eq(((UA_String *)copiedValue.storage.data.dataPtr)[0].data[2], 'o');
 	ck_assert_int_eq(((UA_String *)copiedValue.storage.data.dataPtr)[0].data[3], 'p');
-
 	ck_assert_int_eq(value.storage.data.arrayDimensionsLength, copiedValue.storage.data.arrayDimensionsLength);
 	ck_assert_int_eq(value.storage.data.arrayLength, copiedValue.storage.data.arrayLength);
 
@@ -1472,7 +1479,7 @@ END_TEST
 START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
 	// given
 	UA_Int32 *srcArray;
-	UA_Array_new((void **)&srcArray, 6, &UA_[UA_INT32]);
+    UA_Array_new((void**)&srcArray, 6, &UA_TYPES[UA_INT32]);
 	srcArray[0] = 0;
 	srcArray[1] = 1;
 	srcArray[2] = 2;
@@ -1481,9 +1488,9 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
 	srcArray[5] = 5;
 
 	UA_Int32 *dimensions;
-	UA_Array_new((void **)&dimensions, 2, &UA_[UA_INT32]);
-	UA_Int32  dim1 = 3;
-	UA_Int32  dim2 = 2;
+    UA_Array_new((void**)&dimensions, 2, &UA_TYPES[UA_INT32]);
+	UA_Int32 dim1 = 3;
+	UA_Int32 dim2 = 2;
 	dimensions[0] = dim1;
 	dimensions[1] = dim2;
 
@@ -1492,10 +1499,10 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
 	UA_Variant_init(&copiedValue);
 
 	value.storage.data.arrayLength = 6;
-	value.storage.data.dataPtr        = (void **)srcArray;
+	value.storage.data.dataPtr     = (void **)srcArray;
 	value.storage.data.arrayDimensionsLength = 2;
 	value.storage.data.arrayDimensions       = dimensions;
-	value.vt = &UA_[UA_INT32];
+	value.vt = &UA_TYPES[UA_INT32];
 
 	//when
 	UA_Variant_copy(&value, &copiedValue);
@@ -1637,7 +1644,7 @@ int main(void) {
 
 	s  = testSuite_builtin();
 	sr = srunner_create(s);
-	// srunner_set_fork_status(sr, CK_NOFORK);
+	//srunner_set_fork_status(sr, CK_NOFORK);
 	srunner_run_all(sr, CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);

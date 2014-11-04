@@ -4,8 +4,9 @@
  *  Created on: Oct 14, 2014
  *      Author: opcua
  */
-#include "ua_util.h"
 #include "ua_namespace_manager.h"
+#include "ua_util.h"
+
 
 
 
@@ -26,7 +27,7 @@ void UA_NamespaceManager_new(UA_NamespaceManager** namespaceManager)
 
 }
 
-UA_StatusCode UA_NamespaceManager_addNamespace(UA_NamespaceManager *namespaceManager, UA_UInt16 index, UA_NodeStore *nodeStore)
+UA_StatusCode UA_NamespaceManager_addNamespace(UA_NamespaceManager *namespaceManager,UA_UInt16 index, UA_NodeStore *nodeStore)
 {
 	if(namespaceManager->currentNamespaceCount<UA_UINT16_MAX){
 		namespaceManager->currentNamespaceCount++;

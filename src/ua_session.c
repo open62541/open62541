@@ -41,11 +41,10 @@ UA_Session adminSession = {
     .validTill = UA_INT64_MAX,
     .channel = UA_NULL};
 
-UA_StatusCode UA_Session_new(UA_Session **session) {
-    if(!(*session = UA_alloc(sizeof(UA_Session))))
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_Session_init(*session);
-    return UA_STATUSCODE_GOOD;
+UA_Session * UA_Session_new() {
+    UA_Session *s = UA_alloc(sizeof(UA_Session));
+    if(s) UA_Session_init(s);
+    return s;
 }
 
 /* mock up function to generate tokens for authentication */
@@ -99,8 +98,7 @@ void UA_Session_delete(UA_Session *session) {
 }
 
 UA_Boolean UA_Session_compare(UA_Session *session1, UA_Session *session2) {
-    if(session1 && session2 &&
-       UA_NodeId_equal(&session1->sessionId, &session2->sessionId) == UA_EQUAL)
+    if(session1 && session2 && UA_NodeId_equal(&session1->sessionId, &session2->sessionId))
         return UA_TRUE;
     return UA_FALSE;
 }

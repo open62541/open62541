@@ -51,16 +51,15 @@ typedef struct TCPConnectionHandle {
 	NetworklayerTCP *layer;
 } TCPConnectionHandle;
 
-UA_StatusCode NetworklayerTCP_new(NetworklayerTCP **newlayer, UA_ConnectionConfig localConf,
-                                  UA_UInt32 port) {
-    *newlayer = malloc(sizeof(NetworklayerTCP));
-    if(*newlayer == UA_NULL)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-	(*newlayer)->localConf = localConf;
-	(*newlayer)->port = port;
-	(*newlayer)->connectionsSize = 0;
-	(*newlayer)->connections = UA_NULL;
-	return UA_STATUSCODE_GOOD;
+NetworklayerTCP *NetworklayerTCP_new(UA_ConnectionConfig localConf, UA_UInt32 port) {
+    NetworklayerTCP *newlayer = malloc(sizeof(NetworklayerTCP));
+    if(newlayer == NULL)
+        return NULL;
+	newlayer->localConf = localConf;
+	newlayer->port = port;
+	newlayer->connectionsSize = 0;
+	newlayer->connections = NULL;
+	return newlayer;
 }
 
 // copy the array of connections, but _loose_ one. This does not close the
@@ -76,14 +75,14 @@ static UA_StatusCode NetworklayerTCP_remove(NetworklayerTCP *layer, UA_Int32 soc
         return UA_STATUSCODE_BADINTERNALERROR;
 
     if(layer->connections[index].connection.channel)
-        layer->connections[index].connection.channel->connection = UA_NULL;
+        layer->connections[index].connection.channel->connection = NULL;
 
 	UA_Connection_deleteMembers(&layer->connections[index].connection);
 
     layer->connectionsSize--;
 	TCPConnection *newconnections;
     newconnections = malloc(sizeof(TCPConnection) * layer->connectionsSize);
-	memcpy(newconnections, &layer->connections, sizeof(TCPConnection) * index);
+	memcpy(newconnections, layer->connections, sizeof(TCPConnection) * index);
 	memcpy(&newconnections[index], &layer->connections[index+1],
            sizeof(TCPConnection) * (layer->connectionsSize - index));
     free(layer->connections);
@@ -95,7 +94,7 @@ void NetworklayerTCP_delete(NetworklayerTCP *layer) {
 	for(UA_UInt32 index = 0;index < layer->connectionsSize;index++) {
 		shutdown(layer->connections[index].sockfd, 2);
         if(layer->connections[index].connection.channel)
-            layer->connections[index].connection.channel->connection = UA_NULL;
+            layer->connections[index].connection.channel->connection = NULL;
         UA_Connection_deleteMembers(&layer->connections[index].connection);
 		CLOSESOCKET(layer->connections[index].sockfd);
 	}
@@ -139,8 +138,8 @@ void writeCallback(TCPConnectionHandle *handle, UA_ByteStringArray gather_buf) {
 		iov[i].iov_len = gather_buf.strings[i].length;
 		total_len += gather_buf.strings[i].length;
 	}
-	struct msghdr message = {.msg_name = UA_NULL, .msg_namelen = 0, .msg_iov = iov,
-							 .msg_iovlen = gather_buf.stringsSize, .msg_control = UA_NULL,
+	struct msghdr message = {.msg_name = NULL, .msg_namelen = 0, .msg_iov = iov,
+							 .msg_iovlen = gather_buf.stringsSize, .msg_control = NULL,
 							 .msg_controllen = 0, .msg_flags = 0};
 	while (nWritten < total_len) {
 		UA_Int32 n = 0;
@@ -303,7 +302,7 @@ UA_StatusCode NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, str
 	while (*running) {
 		setFDSet(layer);
 		struct timeval tmptv = tv;
-		UA_Int32 resultsize = select(layer->highestfd, &layer->fdset, UA_NULL, UA_NULL, &tmptv);
+		UA_Int32 resultsize = select(layer->highestfd, &layer->fdset, NULL, NULL, &tmptv);
 		if (resultsize <= 0) {
 #ifdef WIN32
 			UA_Int32 err = (resultsize == SOCKET_ERROR) ? WSAGetLastError() : 0;

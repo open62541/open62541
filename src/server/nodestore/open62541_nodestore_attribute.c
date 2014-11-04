@@ -21,10 +21,10 @@ static UA_DataValue service_read_node(UA_Server *server,
 	UA_DataValue v;
 	UA_DataValue_init(&v);
 
-	UA_Node const *node = UA_NULL;
+	UA_Node const *node = NULL;
 	open62541NodeStore *ns = open62541NodeStore_getNodeStore();
 	UA_Int32 result = open62541NodeStore_get(ns, &(id->nodeId), &node);
-	if (result != UA_STATUSCODE_GOOD || node == UA_NULL) {
+	if (result != UA_STATUSCODE_GOOD || node == NULL) {
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
 		v.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
 		return v;
@@ -34,44 +34,44 @@ static UA_DataValue service_read_node(UA_Server *server,
 	switch (id->attributeId) {
 	case UA_ATTRIBUTEID_NODEID:
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_NODEID],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_NODEID],
 				&node->nodeId);
 		break;
 
 	case UA_ATTRIBUTEID_NODECLASS:
 
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_INT32],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_INT32],
 				&node->nodeClass);
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
 		break;
 
 	case UA_ATTRIBUTEID_BROWSENAME:
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_QUALIFIEDNAME],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_QUALIFIEDNAME],
 				&node->browseName);
 		break;
 
 	case UA_ATTRIBUTEID_DISPLAYNAME:
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_LOCALIZEDTEXT],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_LOCALIZEDTEXT],
 				&node->displayName);
 		break;
 
 	case UA_ATTRIBUTEID_DESCRIPTION:
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_LOCALIZEDTEXT],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_LOCALIZEDTEXT],
 				&node->description);
 		break;
 
 	case UA_ATTRIBUTEID_WRITEMASK:
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_UINT32],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_UINT32],
 				&node->writeMask);
 		break;
 
 	case UA_ATTRIBUTEID_USERWRITEMASK:
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_UINT32],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_UINT32],
 				&node->userWriteMask);
 		break;
 
@@ -81,7 +81,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 						| UA_NODECLASS_VARIABLETYPE | UA_NODECLASS_DATATYPE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_BOOLEAN],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_BOOLEAN],
 				&((UA_ReferenceTypeNode *) node)->isAbstract);
 		break;
 
@@ -89,7 +89,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_BOOLEAN],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_BOOLEAN],
 				&((UA_ReferenceTypeNode *) node)->symmetric);
 		break;
 
@@ -97,7 +97,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_LOCALIZEDTEXT],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_LOCALIZEDTEXT],
 				&((UA_ReferenceTypeNode *) node)->inverseName);
 		break;
 
@@ -105,7 +105,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_VIEW)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_BOOLEAN],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_BOOLEAN],
 				&((UA_ViewNode *) node)->containsNoLoops);
 		break;
 
@@ -113,7 +113,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_BYTE],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_BYTE],
 				&((UA_ViewNode *) node)->eventNotifier);
 		break;
 
@@ -128,7 +128,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_NODEID],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_NODEID],
 				&((UA_VariableTypeNode *) node)->dataType);
 		break;
 
@@ -136,7 +136,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_INT32],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_INT32],
 				&((UA_VariableTypeNode *) node)->valueRank);
 		break;
 
@@ -144,7 +144,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		UA_Variant_copySetArray(&v.value, &UA_[UA_UINT32],
+		UA_Variant_copySetArray(&v.value, &UA_TYPES[UA_UINT32],
 				((UA_VariableTypeNode *) node)->arrayDimensionsSize,
 				&((UA_VariableTypeNode *) node)->arrayDimensions);
 		break;
@@ -153,7 +153,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_BYTE],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_BYTE],
 				&((UA_VariableNode *) node)->accessLevel);
 		break;
 
@@ -161,7 +161,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_BYTE],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_BYTE],
 				&((UA_VariableNode *) node)->userAccessLevel);
 		break;
 
@@ -169,7 +169,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_DOUBLE],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_DOUBLE],
 				&((UA_VariableNode *) node)->minimumSamplingInterval);
 		break;
 
@@ -177,7 +177,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_BOOLEAN],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_BOOLEAN],
 				&((UA_VariableNode *) node)->historizing);
 		break;
 
@@ -185,7 +185,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_METHOD)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_BOOLEAN],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_BOOLEAN],
 				&((UA_MethodNode *) node)->executable);
 		break;
 
@@ -193,7 +193,7 @@ static UA_DataValue service_read_node(UA_Server *server,
 		CHECK_NODECLASS(UA_NODECLASS_METHOD)
 		;
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-		retval |= UA_Variant_copySetValue(&v.value, &UA_[UA_BOOLEAN],
+		retval |= UA_Variant_copySetValue(&v.value, &UA_TYPES[UA_BOOLEAN],
 				&((UA_MethodNode *) node)->userExecutable);
 		break;
 
@@ -219,7 +219,7 @@ UA_Int32 open62541NodeStore_ReadNodes(const UA_RequestHeader *requestHeader,
 		UA_DataValue *readNodesResults, UA_Boolean timeStampToReturn,
 		UA_DiagnosticInfo *diagnosticInfos) {
 	for (UA_UInt32 i = 0; i < indicesSize; i++) {
-		readNodesResults[indices[i]] = service_read_node(UA_NULL,
+		readNodesResults[indices[i]] = service_read_node(NULL,
 				&readValueIds[indices[i]]);
 	}
 	return UA_STATUSCODE_GOOD;
@@ -361,9 +361,9 @@ UA_Int32 UA_EXPORT open62541NodeStore_WriteNodes(
 		const UA_RequestHeader *requestHeader, UA_WriteValue *writeValues,
 		UA_UInt32 *indices, UA_UInt32 indicesSize,
 		UA_StatusCode *writeNodesResults, UA_DiagnosticInfo *diagnosticInfo) {
-	open62541NodeStore *nodestore = UA_NULL;
+	open62541NodeStore *nodestore = NULL;
 	nodestore = open62541NodeStore_getNodeStore();
-	if (nodestore == UA_NULL) {
+	if (nodestore == NULL) {
 		return UA_STATUSCODE_BADINTERNALERROR;
 	}
 

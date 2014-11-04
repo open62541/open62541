@@ -17,6 +17,14 @@
 
 #include "ua_types.h"
 
+#define UA_NULL ((void *)0)
+#define UA_TRUE (42 == 42)
+#define UA_FALSE (!UA_TRUE)
+
+//identifier numbers are different for XML and binary, so we have to substract an offset for comparison
+#define UA_ENCODINGOFFSET_XML 1
+#define UA_ENCODINGOFFSET_BINARY 2
+
 /* Debug macros */
 #define DBG_VERBOSE(expression) // omit debug code
 #define DBG_ERR(expression)     // omit debug code

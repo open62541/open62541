@@ -21,21 +21,11 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include "ua_config.h"
-
 #ifdef DEBUG
 #include <stdio.h>
 #endif
 
-/* For internal use */
-#define UA_NULL ((void *)0)
-#define UA_TRUE (42 == 42)
-#define UA_FALSE (!UA_TRUE)
-
-typedef enum UA_EQUALITY {
-    UA_EQUAL,
-    UA_NOT_EQUAL
-} UA_EQUALITY;
+#include "ua_config.h"
     
 /**
  * @defgroup types Datatypes
@@ -51,7 +41,7 @@ typedef enum UA_EQUALITY {
  * PERMITTED.
  *
  * - <type>_new: Allocates the memory for the type and runs <type>_init on the
- *     returned variable.
+ *     returned variable. Returns null if no memory could be allocated.
  *
  * - <type>_init: Sets all members to a "safe" standard, usually zero. Arrays
  *   (e.g. for strings) are set to a length of -1.
@@ -303,21 +293,28 @@ typedef void UA_InvalidType;
 /*************/
 
 #ifdef DEBUG
+#define PRINTTYPE(TYPE) void UA_EXPORT TYPE##_print(const TYPE *p, FILE *stream);
+#define PRINTTYPE_NOEXPORT(TYPE) void TYPE##_print(const TYPE *p, FILE *stream);
+#else
+#define PRINTTYPE(TYPE)
+#define PRINTTYPE_NOEXPORT(TYPE)
+#endif
+    
 #define UA_TYPE_PROTOTYPES(TYPE)                                     \
-    UA_StatusCode UA_EXPORT TYPE##_new(TYPE **p);                    \
+    TYPE UA_EXPORT * TYPE##_new();                                   \
     void UA_EXPORT TYPE##_init(TYPE * p);                            \
     void UA_EXPORT TYPE##_delete(TYPE * p);                          \
     void UA_EXPORT TYPE##_deleteMembers(TYPE * p);                   \
     UA_StatusCode UA_EXPORT TYPE##_copy(const TYPE *src, TYPE *dst); \
-    void UA_EXPORT TYPE##_print(const TYPE *p, FILE *stream);
-#else
-#define UA_TYPE_PROTOTYPES(TYPE)                                        \
-    UA_StatusCode UA_EXPORT TYPE##_new(TYPE **p);                       \
-    void UA_EXPORT TYPE##_init(TYPE * p);                               \
-    void UA_EXPORT TYPE##_delete(TYPE * p);                             \
-    void UA_EXPORT TYPE##_deleteMembers(TYPE * p);                      \
-    UA_StatusCode UA_EXPORT TYPE##_copy(const TYPE *src, TYPE *dst);
-#endif
+    PRINTTYPE(TYPE)
+
+#define UA_TYPE_PROTOTYPES_NOEXPORT(TYPE)                            \
+    TYPE * TYPE##_new();                                             \
+    void TYPE##_init(TYPE * p);                                      \
+    void TYPE##_delete(TYPE * p);                                    \
+    void TYPE##_deleteMembers(TYPE * p);                             \
+    UA_StatusCode TYPE##_copy(const TYPE *src, TYPE *dst);           \
+    PRINTTYPE_NOEXPORT(TYPE)
 
 /* Functions for all types */
 UA_TYPE_PROTOTYPES(UA_Boolean)
@@ -348,14 +345,14 @@ UA_TYPE_PROTOTYPES(UA_DiagnosticInfo)
 UA_TYPE_PROTOTYPES(UA_InvalidType)
 
 /* String */
-#define UA_STRING_NULL (UA_String) {-1, UA_NULL }
+#define UA_STRING_NULL (UA_String) {-1, (UA_Byte*)0 }
 #define UA_STRING_STATIC(VARIABLE, STRING) do { \
         VARIABLE.length = sizeof(STRING)-1;     \
         VARIABLE.data   = (UA_Byte *)STRING; } while(0)
 
 UA_StatusCode UA_EXPORT UA_String_copycstring(char const *src, UA_String *dst);
 UA_StatusCode UA_EXPORT UA_String_copyprintf(char const *fmt, UA_String *dst, ...);
-UA_EQUALITY UA_EXPORT UA_String_equal(const UA_String *string1, const UA_String *string2);
+UA_Boolean UA_EXPORT UA_String_equal(const UA_String *string1, const UA_String *string2);
 #ifdef DEBUG
 void UA_EXPORT UA_String_printf(char const *label, const UA_String *string);
 void UA_EXPORT UA_String_printx(char const *label, const UA_String *string);
@@ -379,10 +376,10 @@ UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime time);
 UA_StatusCode UA_EXPORT UA_DateTime_toString(UA_DateTime time, UA_String *timeString);
 
 /* Guid */
-UA_EQUALITY UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
+UA_Boolean UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
 
 /* ByteString */
-UA_EQUALITY UA_EXPORT UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2);
+UA_Boolean UA_EXPORT UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2);
 UA_StatusCode UA_EXPORT UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length);
 #ifdef DEBUG
 void UA_EXPORT UA_ByteString_printf(char *label, const UA_ByteString *string);
@@ -391,7 +388,7 @@ void UA_EXPORT UA_ByteString_printx_hex(char *label, const UA_ByteString *string
 #endif
 
 /* NodeId */
-UA_EQUALITY UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
+UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 UA_Boolean UA_EXPORT UA_NodeId_isBasicType(UA_NodeId const *id);
 
@@ -456,7 +453,7 @@ typedef struct UA_Encoding {
 struct UA_VTable_Entry {
     UA_NodeId     typeId;
     UA_Byte       *name;
-    UA_StatusCode (*new)(void **p);
+    void *        (*new)();
     void          (*init)(void *p);
     UA_StatusCode (*copy)(void const *src, void *dst);
     void          (*delete)(void *p);
@@ -483,11 +480,10 @@ struct UA_VTable_Entry {
     UA_TYPE_COPY_DEFAULT(TYPE)           \
     
 #define UA_TYPE_NEW_DEFAULT(TYPE)                             \
-    UA_StatusCode TYPE##_new(TYPE **p) {                      \
-        if(!(*p = UA_alloc(sizeof(TYPE))))                    \
-            return UA_STATUSCODE_BADOUTOFMEMORY;              \
-        TYPE##_init(*p);                                      \
-        return UA_STATUSCODE_GOOD;                            \
+    TYPE * TYPE##_new() {                                     \
+        TYPE *p = UA_alloc(sizeof(TYPE));                     \
+        if(p) TYPE##_init(p);                                 \
+        return p;                                             \
     }
 
 #define UA_TYPE_INIT_DEFAULT(TYPE) \
@@ -525,16 +521,19 @@ struct UA_VTable_Entry {
     }
 
 #define UA_TYPE_COPY_AS(TYPE, TYPE_AS)                         \
-    UA_StatusCode TYPE##_copy(TYPE const *src, TYPE *dst) {         \
+    UA_StatusCode TYPE##_copy(TYPE const *src, TYPE *dst) {    \
         return TYPE_AS##_copy((TYPE_AS *)src, (TYPE_AS *)dst); \
     }
 
+#ifdef DEBUG //print functions only in debug mode
 #define UA_TYPE_PRINT_AS(TYPE, TYPE_AS)              \
     void TYPE##_print(TYPE const *p, FILE *stream) { \
         TYPE_AS##_print((TYPE_AS *)p, stream);       \
-    }                                                \
+    }
+#else
+#define UA_TYPE_PRINT_AS(TYPE, TYPE_AS)
+#endif
 
-#ifdef DEBUG //print functions only in debug mode
 #define UA_TYPE_AS(TYPE, TYPE_AS)           \
     UA_TYPE_NEW_DEFAULT(TYPE)               \
     UA_TYPE_INIT_AS(TYPE, TYPE_AS)          \
@@ -542,14 +541,6 @@ struct UA_VTable_Entry {
     UA_TYPE_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
     UA_TYPE_COPY_AS(TYPE, TYPE_AS)          \
     UA_TYPE_PRINT_AS(TYPE, TYPE_AS)
-#else
-#define UA_TYPE_AS(TYPE, TYPE_AS)           \
-    UA_TYPE_NEW_DEFAULT(TYPE)               \
-    UA_TYPE_INIT_AS(TYPE, TYPE_AS)          \
-    UA_TYPE_DELETE_AS(TYPE, TYPE_AS)        \
-    UA_TYPE_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
-    UA_TYPE_COPY_AS(TYPE, TYPE_AS)
-#endif
 
 /// @} /* end of group */
 

@@ -1,6 +1,6 @@
 #include "ua_services.h"
 #include "ua_statuscodes.h"
-
+#include "ua_server_internal.h"
 #include "ua_namespace_0.h"
 #include "ua_util.h"
 #include "ua_namespace_manager.h"
@@ -17,19 +17,19 @@ void Service_Browse(UA_Server *server, UA_Session *session,
         return;
     }
 
-    if(UA_Array_new((void **)&(response->results), request->nodesToBrowseSize, &UA_[UA_BROWSERESULT])
+    if(UA_Array_new((void **)&(response->results), request->nodesToBrowseSize, &UA_TYPES[UA_BROWSERESULT])
        != UA_STATUSCODE_GOOD) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
 
     response->resultsSize = request->nodesToBrowseSize;
-    if(UA_Array_new((void **)&numberOfFoundIndices,request->nodesToBrowseSize,&UA_[UA_UINT32]) != UA_STATUSCODE_GOOD){
+    if(UA_Array_new((void **)&numberOfFoundIndices,request->nodesToBrowseSize,&UA_TYPES[UA_UINT32]) != UA_STATUSCODE_GOOD){
     	response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
     	return ;
     }
 
-    if(UA_Array_new((void **)&associatedIndices,request->nodesToBrowseSize,&UA_[UA_UINT16]) != UA_STATUSCODE_GOOD){
+    if(UA_Array_new((void **)&associatedIndices,request->nodesToBrowseSize,&UA_TYPES[UA_UINT16]) != UA_STATUSCODE_GOOD){
     	response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
     	return ;
     }
@@ -37,7 +37,7 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     BUILD_INDEX_ARRAYS(request->nodesToBrowseSize,request->nodesToBrowse,nodeId,differentNamespaceIndexCount,associatedIndices,numberOfFoundIndices);
 
 	UA_UInt32 *browseDescriptionIndices;
-    if(UA_Array_new((void **)&browseDescriptionIndices,request->nodesToBrowseSize,&UA_[UA_UINT32]) != UA_STATUSCODE_GOOD){
+    if(UA_Array_new((void **)&browseDescriptionIndices,request->nodesToBrowseSize,&UA_TYPES[UA_UINT32]) != UA_STATUSCODE_GOOD){
     	response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
     	return ;
     }
@@ -84,7 +84,7 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
     // Allocate space for a correct answer
     response->resultsSize = request->browsePathsSize;
     // _init of the elements is done in Array_new
-    if(UA_Array_new((void **)&response->results, request->browsePathsSize, &UA_[UA_BROWSEPATHRESULT])
+    if(UA_Array_new((void **)&response->results, request->browsePathsSize, &UA_TYPES[UA_BROWSEPATHRESULT])
        != UA_STATUSCODE_GOOD) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
