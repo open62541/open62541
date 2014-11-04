@@ -108,6 +108,36 @@ void ns0_addVariableNode(UA_Server *server, UA_NodeId refTypeNodeId,
 	addSingleNode(ns0, &addNodesItem);
 }
 
+void ADD_REFTYPENODE_NS0(UA_Server *server, UA_NodeId REFTYPE_NODEID,UA_ExpandedNodeId REQ_NODEID,UA_ExpandedNodeId PARENTNODEID,char* REFTYPE_BROWSENAME, char* REFTYPE_DISPLAYNAME, char*REFTYPE_DESCRIPTION,UA_Boolean IS_ABSTRACT,UA_Boolean IS_SYMMETRIC)
+{
+	UA_AddNodesItem addNodesItem;
+    UA_Namespace *ns0;
+    UA_NamespaceManager_getNamespace(server->namespaceManager,0,&ns0);
+	UA_ReferenceTypeAttributes refTypeAttr;
+    addNodesItem.parentNodeId= PARENTNODEID;
+    addNodesItem.requestedNewNodeId = REQ_NODEID;
+    addNodesItem.referenceTypeId = REFTYPE_NODEID;
+    addNodesItem.nodeClass = UA_NODECLASS_REFERENCETYPE;
+    UA_QualifiedName_copycstring(REFTYPE_BROWSENAME, &addNodesItem.browseName);
+    UA_LocalizedText_copycstring(REFTYPE_DISPLAYNAME, &refTypeAttr.displayName);
+    UA_LocalizedText_copycstring(REFTYPE_DESCRIPTION, &refTypeAttr.description);
+    refTypeAttr.isAbstract = IS_ABSTRACT;
+    refTypeAttr.symmetric  = IS_SYMMETRIC;
+    refTypeAttr.userWriteMask = 0;
+    refTypeAttr.writeMask = 0;
+    refTypeAttr.inverseName.locale.length = 0;
+    refTypeAttr.inverseName.text.length = 0;
+    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_BROWSENAME;
+    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;
+    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DESCRIPTION;
+    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_ISABSTRACT;
+    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_SYMMETRIC;
+    UA_UInt32 offset = 0;
+    UA_ByteString_newMembers(&addNodesItem.nodeAttributes.body,UA_ReferenceTypeAttributes_calcSizeBinary(&refTypeAttr));
+    UA_ReferenceTypeAttributes_encodeBinary(&refTypeAttr,&addNodesItem.nodeAttributes.body,&offset);
+    addSingleNode(ns0,&addNodesItem);
+}
+
 UA_Server * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertificate, UA_NodeStore *ns0Nodestore) {
     UA_Server *server = UA_alloc(sizeof(UA_Server));
     if(!server)
@@ -218,34 +248,7 @@ UA_Server * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertifica
 	UA_ExpandedNodeId RefTypeId_HasHistoricalConfiguration;
 	NS0EXPANDEDNODEID(RefTypeId_HasHistoricalConfiguration, 56);
 
-#define ADD_REFTYPENODE_NS0(REFTYPE_NODEID,REQ_NODEID,PARENTNODEID,REFTYPE_BROWSENAME,REFTYPE_DISPLAYNAME,REFTYPE_DESCRIPTION, IS_ABSTRACT, IS_SYMMETRIC) do{\
-	UA_AddNodesItem addNodesItem; \
-    UA_Namespace *ns0; \
-    UA_NamespaceManager_getNamespace(server->namespaceManager,0,&ns0); \
-	UA_ReferenceTypeAttributes refTypeAttr; \
-    addNodesItem.parentNodeId= PARENTNODEID;\
-    addNodesItem.requestedNewNodeId = REQ_NODEID; \
-    addNodesItem.referenceTypeId = REFTYPE_NODEID; \
-    addNodesItem.nodeClass = UA_NODECLASS_REFERENCETYPE; \
-    UA_QualifiedName_copycstring(REFTYPE_BROWSENAME, &addNodesItem.browseName); \
-    UA_LocalizedText_copycstring(REFTYPE_DISPLAYNAME, &refTypeAttr.displayName); \
-    UA_LocalizedText_copycstring(REFTYPE_DESCRIPTION, &refTypeAttr.description); \
-    refTypeAttr.isAbstract = IS_ABSTRACT; \
-    refTypeAttr.symmetric  = IS_SYMMETRIC; \
-    refTypeAttr.userWriteMask = 0; \
-    refTypeAttr.writeMask = 0; \
-    refTypeAttr.inverseName.locale.length = 0; \
-    refTypeAttr.inverseName.text.length = 0; \
-    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_BROWSENAME; \
-    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME; \
-    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DESCRIPTION; \
-    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_ISABSTRACT; \
-    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_SYMMETRIC; \
-    UA_UInt32 offset = 0; \
-    UA_ByteString_newMembers(&addNodesItem.nodeAttributes.body,UA_ReferenceTypeAttributes_calcSizeBinary(&refTypeAttr));\
-    UA_ReferenceTypeAttributes_encodeBinary(&refTypeAttr,&addNodesItem.nodeAttributes.body,&offset); \
-    addSingleNode(ns0,&addNodesItem);\
-}while(1==0);
+
 
 	/*
 	 #define ADDREFERENCE(NODE, REFTYPE, INVERSE, TARGET_NODEID) do { \
@@ -394,85 +397,85 @@ UA_Server * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertifica
 	ns0_addObjectNode(server,RefTypeId_Organizes.nodeId, ObjId_ReferenceTypesFolder,
 			ObjId_TypesFolder, "ReferenceTypes", "ReferenceTypes",
 			"ReferenceTypes");
-	ADD_REFTYPENODE_NS0(RefTypeId_Organizes.nodeId, RefTypeId_References,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_Organizes.nodeId, RefTypeId_References,
 			ObjId_ReferenceTypesFolder, "References", "References",
 			"References", UA_TRUE, UA_TRUE);
 
 	ns0_addObjectNode(server,RefTypeId_Organizes.nodeId, ObjId_ViewsFolder, ObjId_Root,
 			"Views", "Views", "Views");
 
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId,
 			RefTypeId_NonHierarchicalReferences, RefTypeId_References,
 			"NonHierarchicalReferences", "NonHierarchicalReferences",
 			"NonHierarchicalReferences", UA_TRUE, UA_FALSE);
 
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId, RefTypeId_HasModelParent,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasModelParent,
 			RefTypeId_NonHierarchicalReferences, "HasModelParent",
 			"HasModelParent", "HasModelParent", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId, RefTypeId_GeneratesEvent,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_GeneratesEvent,
 			RefTypeId_NonHierarchicalReferences, "GeneratesEvent",
 			"GeneratesEvent", "GeneratesEvent", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId, RefTypeId_HasEncoding,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasEncoding,
 			RefTypeId_NonHierarchicalReferences, "HasEncoding", "HasEncoding",
 			"HasEncoding", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId, RefTypeId_HasModellingRule,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasModellingRule,
 			RefTypeId_NonHierarchicalReferences, "HasModellingRule",
 			"HasModellingRule", "HasModellingRule", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId, RefTypeId_HasDescription,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasDescription,
 			RefTypeId_NonHierarchicalReferences, "HasDescription",
 			"HasDescription", "HasDescription", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId,
 			RefTypeId_HasTypeDefinition, RefTypeId_NonHierarchicalReferences,
 			"HasTypeDefinition", "HasTypeDefinition", "HasTypeDefinition",
 			UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId, RefTypeId_FromState,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_FromState,
 			RefTypeId_NonHierarchicalReferences, "FromState", "FromState",
 			"FromState", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId, RefTypeId_ToState,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_ToState,
 			RefTypeId_NonHierarchicalReferences, "ToState", "ToState",
 			"ToState", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId, RefTypeId_HasCause,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasCause,
 			RefTypeId_NonHierarchicalReferences, "HasCause", "HasCause",
 			"HasCause", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId, RefTypeId_HasEffect,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasEffect,
 			RefTypeId_NonHierarchicalReferences, "HasEffect", "HasEffect",
 			"HasEffect", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId,
 			RefTypeId_HasHistoricalConfiguration,
 			RefTypeId_NonHierarchicalReferences, "HasHistoricalConfiguration",
 			"HasHistoricalConfiguration", "HasHistoricalConfiguration", UA_TRUE,
 			UA_FALSE);
 
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId,
 			RefTypeId_HierarchicalReferences, RefTypeId_References,
 			"HierarchicalReferences", "HierarchicalReferences",
 			"HierarchicalReferences", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId, RefTypeId_HasEventSource,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasEventSource,
 			RefTypeId_HierarchicalReferences, "HasEventSource",
 			"HasEventSource", "HasEventSource", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId, RefTypeId_HasNotifier,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasNotifier,
 			RefTypeId_HasEventSource, "HasEventSource", "HasEventSource",
 			"HasEventSource", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId, RefTypeId_HasChild,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasChild,
 			RefTypeId_HierarchicalReferences, "HasChild", "HasChild",
 			"HasChild", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId, RefTypeId_Aggregates,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_Aggregates,
 			RefTypeId_HasChild, "Aggregates", "Aggregates", "Aggregates",
 			UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId, RefTypeId_HasProperty,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasProperty,
 			RefTypeId_Aggregates, "HasProperty", "HasProperty", "HasProperty",
 			UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId, RefTypeId_HasComponent,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasComponent,
 			RefTypeId_Aggregates, "HasComponent", "HasComponent",
 			"HasComponent", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId,
 			RefTypeId_HasOrderedComponent, RefTypeId_HasComponent,
 			"HasOrderedComponent", "HasOrderedComponent", "HasOrderedComponent",
 			UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId, RefTypeId_HasSubtype,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasSubtype,
 			RefTypeId_HasChild, "HasSubtype", "HasSubtype", "HasSubtype",
 			UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(RefTypeId_HasSubtype.nodeId, RefTypeId_Organizes,
+	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_Organizes,
 			RefTypeId_HierarchicalReferences, "Organizes", "Organizes",
 			"Organizes", UA_TRUE, UA_FALSE);
     return server;
