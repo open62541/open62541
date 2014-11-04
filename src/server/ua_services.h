@@ -312,4 +312,56 @@ void Service_Write(UA_Server *server, UA_Session *session,
 
 /** @} */ // end of group
 
+/**
+ * @brief this macro browses through a request, looking for nodeIds belonging to the same namespace (same namespaceIndex). For each found different namespaceIndex an entry in
+ * ASSOCIATED_INDEX_ARRAY is saved. Furthermore for each occurence of the same namespace the corresponding entry of NUMBER_OF_FOUND_INDICES_ARRAY is incremented
+ *
+ *
+ * a request with 10 nodeIds, with the following namespaceIndices is received
+ * 1
+ * 1
+ * 1
+ * 3
+ * 4
+ * 5
+ * 5
+ * 5
+ * 1
+ * 1
+ * After a call of the macro the outputs would look like that:
+ * ASSOCIATED_INDEX_ARRAY[0] = 1
+ * ASSOCIATED_INDEX_ARRAY[1] = 3
+ * ASSOCIATED_INDEX_ARRAY[2] = 4
+ * ASSOCIATED_INDEX_ARRAY[3] = 5
+ *
+ * NUMBER_OF_FOUND_INDICES_ARRAY[0] = 5
+ * NUMBER_OF_FOUND_INDICES_ARRAY[1] = 1
+ * NUMBER_OF_FOUND_INDICES_ARRAY[2] = 1
+ * NUMBER_OF_FOUND_INDICES_ARRAY[3] = 3
+ *
+ *
+ */
+#define BUILD_INDEX_ARRAYS(SIZE,REQUEST_ARRAY,NODEID_PROPERTY,DIFFERENT_INDEX_COUNT,ASSOCIATED_INDEX_ARRAY,NUMBER_OF_FOUND_INDICES_ARRAY) do{ \
+		DIFFERENT_INDEX_COUNT = 0;\
+		for (UA_Int32 i = 0; i < SIZE; i++) { \
+			UA_UInt32 j = 0; \
+			do { \
+				if (ASSOCIATED_INDEX_ARRAY[j] \
+						== REQUEST_ARRAY[i].NODEID_PROPERTY.namespaceIndex) { \
+					if (DIFFERENT_INDEX_COUNT == 0) { \
+						DIFFERENT_INDEX_COUNT++; \
+					} \
+					NUMBER_OF_FOUND_INDICES_ARRAY[j]++; \
+					break; \
+				} else if (j == (DIFFERENT_INDEX_COUNT - 1)) { \
+					ASSOCIATED_INDEX_ARRAY[j + 1] = \
+					REQUEST_ARRAY[i].NODEID_PROPERTY.namespaceIndex; \
+					NUMBER_OF_FOUND_INDICES_ARRAY[j + 1] = 1; \
+					DIFFERENT_INDEX_COUNT++; \
+					break; \
+			} \
+			j++; \
+		} while (j <= DIFFERENT_INDEX_COUNT); \
+	}\
+}while(0)
 #endif

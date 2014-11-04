@@ -33,28 +33,8 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     	response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
     	return ;
     }
-    // find out count of different namespace indices
-	for (UA_Int32 i = 0; i < request->nodesToBrowseSize; i++) {
-		//for(UA_UInt32 j = 0; j <= differentNamespaceIndexCount; j++){
-		UA_UInt32 j = 0;
-		do {
-			if (associatedIndices[j]
-					== request->nodesToBrowse[i].nodeId.namespaceIndex) {
-				if (differentNamespaceIndexCount == 0) {
-					differentNamespaceIndexCount++;
-				}
-				numberOfFoundIndices[j]++;
-				break;
-			} else if (j == (differentNamespaceIndexCount - 1)) {
-				associatedIndices[j + 1] =
-						request->nodesToBrowse[i].nodeId.namespaceIndex;
-				associatedIndices[j + 1] = 1;
-				differentNamespaceIndexCount++;
-				break;
-			}
-			j++;
-		} while (j <= differentNamespaceIndexCount);
-	}
+
+    BUILD_INDEX_ARRAYS(request->nodesToBrowseSize,request->nodesToBrowse,nodeId,differentNamespaceIndexCount,associatedIndices,numberOfFoundIndices);
 
 	UA_UInt32 *browseDescriptionIndices;
     if(UA_Array_new((void **)&browseDescriptionIndices,request->nodesToBrowseSize,&UA_[UA_UINT32]) != UA_STATUSCODE_GOOD){

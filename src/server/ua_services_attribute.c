@@ -247,28 +247,8 @@ void Service_Read(UA_Server *server, UA_Session *session,
 		return;
 	}
 	// find out count of different namespace indices
+	BUILD_INDEX_ARRAYS(request->nodesToReadSize,request->nodesToRead,nodeId,differentNamespaceIndexCount,associatedIndices,numberOfFoundIndices);
 
-	for (UA_Int32 i = 0; i < request->nodesToReadSize; i++) {
-		//for(UA_UInt32 j = 0; j <= differentNamespaceIndexCount; j++){
-		UA_UInt32 j = 0;
-		do {
-			if (associatedIndices[j]
-					== request->nodesToRead[i].nodeId.namespaceIndex) {
-				if (differentNamespaceIndexCount == 0) {
-					differentNamespaceIndexCount++;
-				}
-				numberOfFoundIndices[j]++;
-				break;
-			} else if (j == (differentNamespaceIndexCount - 1)) {
-				associatedIndices[j + 1] =
-						request->nodesToRead[i].nodeId.namespaceIndex;
-				associatedIndices[j + 1] = 1;
-				differentNamespaceIndexCount++;
-				break;
-			}
-			j++;
-		} while (j <= differentNamespaceIndexCount);
-	}
 
 	UA_UInt32 *readValueIdIndices;
 	if (UA_Array_new((void **) &readValueIdIndices, request->nodesToReadSize,
@@ -308,148 +288,13 @@ void Service_Read(UA_Server *server, UA_Session *session,
 //	 for(UA_Int32 i = 0;i < response->resultsSize;i++){
 //	 response->results[i] = service_read_node(server, &request->nodesToRead[i]);
 //	 }
-
-
 }
-/*
-static UA_StatusCode Service_Write_writeNode(UA_Server *server,
-		UA_WriteValue *writeValue) {
-	UA_StatusCode retval = UA_STATUSCODE_GOOD;
-	const UA_Node *node;
-	retval = UA_NodeStoreExample_get(server->nodestore, &writeValue->nodeId,
-			&node);
-	if (retval)
-		return retval;
-
-	switch (writeValue->attributeId) {
-	case UA_ATTRIBUTEID_NODEID:
-	*/
-		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-		//		break;
-
-//	case UA_ATTRIBUTEID_NODECLASS:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_BROWSENAME:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_DISPLAYNAME:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_DESCRIPTION:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_WRITEMASK:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_USERWRITEMASK:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_ISABSTRACT:
-//
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_SYMMETRIC:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_INVERSENAME:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_EVENTNOTIFIER:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_VALUE:
-//		if (writeValue->value.encodingMask
-//				== UA_DATAVALUE_ENCODINGMASK_VARIANT) {
-//			retval |= UA_Variant_copy(&writeValue->value.value,
-//					&((UA_VariableNode *) node)->value); // todo: zero-copy
-//		}
-//		break;
-//
-//	case UA_ATTRIBUTEID_DATATYPE:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_VALUERANK:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_ACCESSLEVEL:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_USERACCESSLEVEL:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_HISTORIZING:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_EXECUTABLE:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	case UA_ATTRIBUTEID_USEREXECUTABLE:
-//		/* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-//		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-//		break;
-//
-//	default:
-//		retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
-//		break;
-//	}
-//
-//	UA_NodeStoreExample_releaseManagedNode(node);
-//	return retval;
-//
-//}
 
 void Service_Write(UA_Server *server, UA_Session *session,
 		const UA_WriteRequest *request, UA_WriteResponse *response) {
 	UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
+
+	response->resultsSize = request->nodesToWriteSize;
 
 	if (UA_Array_new((void **) &response->results, request->nodesToWriteSize,
 			&UA_[UA_STATUSCODE])) {
@@ -474,7 +319,7 @@ void Service_Write(UA_Server *server, UA_Session *session,
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
-	response->resultsSize = request->nodesToWriteSize;
+
 
 	UA_Int32 *numberOfFoundIndices;
 	UA_UInt16 *associatedIndices;
@@ -491,31 +336,11 @@ void Service_Write(UA_Server *server, UA_Session *session,
 		return;
 	}
 	// find out count of different namespace indices
+	BUILD_INDEX_ARRAYS(request->nodesToWriteSize,request->nodesToWrite,nodeId,differentNamespaceIndexCount,associatedIndices,numberOfFoundIndices);
 
-	for (UA_Int32 i = 0; i < request->nodesToWriteSize; i++) {
-		//for(UA_UInt32 j = 0; j <= differentNamespaceIndexCount; j++){
-		UA_UInt32 j = 0;
-		do {
-			if (associatedIndices[j]
-					== request->nodesToWrite[i].nodeId.namespaceIndex) {
-				if (differentNamespaceIndexCount == 0) {
-					differentNamespaceIndexCount++;
-				}
-				numberOfFoundIndices[j]++;
-				break;
-			} else if (j == (differentNamespaceIndexCount - 1)) {
-				associatedIndices[j + 1] =
-						request->nodesToWrite[i].nodeId.namespaceIndex;
-				associatedIndices[j + 1] = 1;
-				differentNamespaceIndexCount++;
-				break;
-			}
-			j++;
-		} while (j <= differentNamespaceIndexCount);
-	}
 
-	UA_UInt32 *readValueIdIndices;
-	if (UA_Array_new((void **) &readValueIdIndices, request->nodesToWriteSize,
+	UA_UInt32 *writeValues;
+	if (UA_Array_new((void **) &writeValues, request->nodesToWriteSize,
 			&UA_[UA_UINT32]) != UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
@@ -532,22 +357,19 @@ void Service_Write(UA_Server *server, UA_Session *session,
 			for (UA_Int32 j = 0; j < request->nodesToWriteSize; j++) {
 				if (request->nodesToWrite[j].nodeId.namespaceIndex
 						== associatedIndices[i]) {
-					readValueIdIndices[n] = j;
+					writeValues[n] = j;
 					n++;
 				}
 			}
 			//call read for every namespace
 			tmpNamespace->nodeStore->writeNodes(request->nodesToWrite,
-					readValueIdIndices, numberOfFoundIndices[i],
+					writeValues, numberOfFoundIndices[i],
 					response->results,
 					response->diagnosticInfos);
 		}
 	}
-	UA_free(readValueIdIndices);
+	UA_free(writeValues);
 	UA_free(numberOfFoundIndices);
 	UA_free(associatedIndices);
-	//response->resultsSize = request->nodesToWriteSize;
-	//for (UA_Int32 i = 0; i < request->nodesToWriteSize; i++){}
-	//	response->results[i] = Service_Write_writeNode(server,
-	//			&request->nodesToWrite[i]);
+
 }
