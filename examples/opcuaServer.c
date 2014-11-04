@@ -33,7 +33,7 @@ void serverCallback(UA_Server *server) {
 
 UA_ByteString loadCertificate() {
     UA_ByteString certificate = UA_STRING_NULL;
-	FILE *fp = UA_NULL;
+	FILE *fp = NULL;
 	//FIXME: a potiential bug of locating the certificate, we need to get the path from the server's config
 	fp=fopen("localhost.der", "rb");
 

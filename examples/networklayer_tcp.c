@@ -53,12 +53,12 @@ typedef struct TCPConnectionHandle {
 
 NetworklayerTCP *NetworklayerTCP_new(UA_ConnectionConfig localConf, UA_UInt32 port) {
     NetworklayerTCP *newlayer = malloc(sizeof(NetworklayerTCP));
-    if(newlayer == UA_NULL)
-        return UA_NULL;
+    if(newlayer == NULL)
+        return NULL;
 	newlayer->localConf = localConf;
 	newlayer->port = port;
 	newlayer->connectionsSize = 0;
-	newlayer->connections = UA_NULL;
+	newlayer->connections = NULL;
 	return newlayer;
 }
 
@@ -75,7 +75,7 @@ static UA_StatusCode NetworklayerTCP_remove(NetworklayerTCP *layer, UA_Int32 soc
         return UA_STATUSCODE_BADINTERNALERROR;
 
     if(layer->connections[index].connection.channel)
-        layer->connections[index].connection.channel->connection = UA_NULL;
+        layer->connections[index].connection.channel->connection = NULL;
 
 	UA_Connection_deleteMembers(&layer->connections[index].connection);
 
@@ -94,7 +94,7 @@ void NetworklayerTCP_delete(NetworklayerTCP *layer) {
 	for(UA_UInt32 index = 0;index < layer->connectionsSize;index++) {
 		shutdown(layer->connections[index].sockfd, 2);
         if(layer->connections[index].connection.channel)
-            layer->connections[index].connection.channel->connection = UA_NULL;
+            layer->connections[index].connection.channel->connection = NULL;
         UA_Connection_deleteMembers(&layer->connections[index].connection);
 		CLOSESOCKET(layer->connections[index].sockfd);
 	}
@@ -124,7 +124,7 @@ void writeCallback(TCPConnectionHandle *handle, UA_ByteStringArray gather_buf) {
 	while (nWritten < total_len) {
 		UA_UInt32 n=0;
 		do {
-			result = WSASend(handle->sockfd, buf, gather_buf.stringsSize , (LPDWORD)&n, 0, UA_NULL, UA_NULL);
+			result = WSASend(handle->sockfd, buf, gather_buf.stringsSize , (LPDWORD)&n, 0, NULL, NULL);
 			if(result != 0)
 				printf("NL_TCP_Writer - Error WSASend, code: %d \n", WSAGetLastError());
 		} while (errno == EINTR);
@@ -138,8 +138,8 @@ void writeCallback(TCPConnectionHandle *handle, UA_ByteStringArray gather_buf) {
 		iov[i].iov_len = gather_buf.strings[i].length;
 		total_len += gather_buf.strings[i].length;
 	}
-	struct msghdr message = {.msg_name = UA_NULL, .msg_namelen = 0, .msg_iov = iov,
-							 .msg_iovlen = gather_buf.stringsSize, .msg_control = UA_NULL,
+	struct msghdr message = {.msg_name = NULL, .msg_namelen = 0, .msg_iov = iov,
+							 .msg_iovlen = gather_buf.stringsSize, .msg_control = NULL,
 							 .msg_controllen = 0, .msg_flags = 0};
 	while (nWritten < total_len) {
 		UA_Int32 n = 0;
@@ -302,7 +302,7 @@ UA_StatusCode NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, str
 	while (*running) {
 		setFDSet(layer);
 		struct timeval tmptv = tv;
-		UA_Int32 resultsize = select(layer->highestfd, &layer->fdset, UA_NULL, UA_NULL, &tmptv);
+		UA_Int32 resultsize = select(layer->highestfd, &layer->fdset, NULL, NULL, &tmptv);
 		if (resultsize <= 0) {
 #ifdef WIN32
 			UA_Int32 err = (resultsize == SOCKET_ERROR) ? WSAGetLastError() : 0;

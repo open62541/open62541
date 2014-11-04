@@ -19,7 +19,6 @@ only_needed_types = set([	"InvalidType", "Node", "NodeClass", "ReferenceNode", "
 							"RelativePath", "BrowsePathTarget", "RelativePathElement", "CreateSubscriptionRequest", "CreateSubscriptionResponse",
 							"BrowseResponse", "BrowseResult", "ReferenceDescription", "BrowseRequest", "ViewDescription", "BrowseDescription",
 							"BrowseDirection", "CloseSessionRequest", "AddNodesRequest", "AddNodesResponse", "AddNodesItem", "AddNodesResult",
-							"AddReferencesRequest", "AddReferencesResponse", "AddReferencesItem", "VariableNode", "MethodNode", "VariableTypeNode",
-							"ViewNode", "ReferenceTypeNode", "BrowseResultMask", "ServerState", "ServerStatusDataType", "BuildInfo", "ObjectNode",
-							"DataTypeNode", "ObjectTypeNode", "IdType", "VariableAttributes", "NodeAttributesMask" ])
+							"DeleteNodesItem","AddReferencesRequest", "AddReferencesResponse", "AddReferencesItem","DeleteReferencesItem", "VariableNode", "MethodNode", 								"VariableTypeNode","ViewNode", "ReferenceTypeNode", "BrowseResultMask", "ServerState", "ServerStatusDataType", "BuildInfo", "ObjectNode",
+							"DataTypeNode", "ObjectTypeNode", "IdType", "VariableAttributes","ObjectAttributes","NodeAttributes","ReferenceTypeAttributes","ViewAttributes","ObjectTypeAttributes","NodeAttributesMask" ])
 only_needed_types = only_needed_types.union(existing_types)

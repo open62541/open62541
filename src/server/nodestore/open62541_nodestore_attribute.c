@@ -8,7 +8,7 @@
 #include "../ua_services.h"
 #include "open62541_nodestore.h"
 #include "ua_namespace_0.h"
-
+#include "ua_util.h"
 #define CHECK_NODECLASS(CLASS)                                 \
     if(!(node->nodeClass & (CLASS))) {                         \
         v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE; \
@@ -21,10 +21,10 @@ static UA_DataValue service_read_node(UA_Server *server,
 	UA_DataValue v;
 	UA_DataValue_init(&v);
 
-	UA_Node const *node = NULL;
+	UA_Node const *node = UA_NULL;
 	open62541NodeStore *ns = open62541NodeStore_getNodeStore();
 	UA_Int32 result = open62541NodeStore_get(ns, &(id->nodeId), &node);
-	if (result != UA_STATUSCODE_GOOD || node == NULL) {
+	if (result != UA_STATUSCODE_GOOD || node == UA_NULL) {
 		v.encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
 		v.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
 		return v;
@@ -219,7 +219,7 @@ UA_Int32 open62541NodeStore_ReadNodes(const UA_RequestHeader *requestHeader,
 		UA_DataValue *readNodesResults, UA_Boolean timeStampToReturn,
 		UA_DiagnosticInfo *diagnosticInfos) {
 	for (UA_UInt32 i = 0; i < indicesSize; i++) {
-		readNodesResults[indices[i]] = service_read_node(NULL,
+		readNodesResults[indices[i]] = service_read_node(UA_NULL,
 				&readValueIds[indices[i]]);
 	}
 	return UA_STATUSCODE_GOOD;
@@ -361,9 +361,9 @@ UA_Int32 UA_EXPORT open62541NodeStore_WriteNodes(
 		const UA_RequestHeader *requestHeader, UA_WriteValue *writeValues,
 		UA_UInt32 *indices, UA_UInt32 indicesSize,
 		UA_StatusCode *writeNodesResults, UA_DiagnosticInfo *diagnosticInfo) {
-	open62541NodeStore *nodestore = NULL;
+	open62541NodeStore *nodestore = UA_NULL;
 	nodestore = open62541NodeStore_getNodeStore();
-	if (nodestore == NULL) {
+	if (nodestore == UA_NULL) {
 		return UA_STATUSCODE_BADINTERNALERROR;
 	}
 
