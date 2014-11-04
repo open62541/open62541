@@ -44,10 +44,10 @@ UA_StatusCode UA_NamespaceManager_removeNamespace(UA_NamespaceManager *namespace
 {
 	UA_Namespace *namespace;
 	UA_NamespaceManager_getNamespace(namespaceManager,index,&namespace);
-	if(namespace == NULL)
+	if(namespace == UA_NULL)
 		return UA_STATUSCODE_BADNOTFOUND;
 
-    struct namespace_list_entry *current = NULL;
+    struct namespace_list_entry *current = UA_NULL;
     LIST_FOREACH(current, &namespaceManager->namespaces, pointers) {
         if(current->namespace.index  == index)
             break;
@@ -63,13 +63,13 @@ UA_StatusCode UA_NamespaceManager_removeNamespace(UA_NamespaceManager *namespace
 UA_Int32 UA_NamespaceManager_getNamespace(UA_NamespaceManager *namespaceManager, UA_UInt16 index, UA_Namespace **ns)
 {
 
-    struct namespace_list_entry *current = NULL;
+    struct namespace_list_entry *current = UA_NULL;
     LIST_FOREACH(current, &namespaceManager->namespaces, pointers) {
         if(current->namespace.index == index)
             break;
     }
     if(!current) {
-        *ns = NULL;
+        *ns = UA_NULL;
         return UA_STATUSCODE_BADNOTFOUND;
     }
     *ns = &current->namespace;
@@ -78,9 +78,9 @@ UA_Int32 UA_NamespaceManager_getNamespace(UA_NamespaceManager *namespaceManager,
 
 UA_Int32 UA_NamespaceManager_setNodeStore(UA_NamespaceManager *namespaceManager,UA_UInt16 index, UA_NodeStore *nodeStore)
 {
-	UA_Namespace *namespace = NULL;
+	UA_Namespace *namespace = UA_NULL;
 	UA_NamespaceManager_getNamespace(namespaceManager,index,&namespace);
-	if(namespace == NULL)
+	if(namespace == UA_NULL)
 	{
 		return UA_STATUSCODE_BADNOTFOUND;
 	}

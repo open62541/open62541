@@ -16,7 +16,7 @@ int zeroCnt = 0;
 int visitCnt = 0;
 void checkZeroVisitor(const UA_Node* node) {
 	visitCnt++;
-	if (node == NULL) zeroCnt++;
+	if (node == UA_NULL) zeroCnt++;
 }
 
 void printVisitor(const UA_Node* node) {
@@ -24,7 +24,7 @@ void printVisitor(const UA_Node* node) {
 }
 
 START_TEST(test_open62541NodeStore) {
-	open62541NodeStore *ns = NULL;
+	open62541NodeStore *ns = UA_NULL;
 	open62541NodeStore_new(&ns);
 	open62541NodeStore_delete(ns);
 }
@@ -48,7 +48,7 @@ START_TEST(findNodeInopen62541NodeStoreWithSingleEntry) {
 	open62541NodeStore_new(&ns);
 	UA_Node* n1; createNode(&n1,0,2253);
 	open62541NodeStore_insert(ns, &n1, UA_NODESTORE_INSERT_UNIQUE | UA_NODESTORE_INSERT_GETMANAGED);
-	const UA_Node* nr = NULL;
+	const UA_Node* nr = UA_NULL;
 	UA_Int32 retval;
 	// when
 	retval = open62541NodeStore_get(ns,&n1->nodeId,&nr);
@@ -70,13 +70,13 @@ START_TEST(failToFindNodeInOtheropen62541NodeStore) {
    	rcu_register_thread();
 #endif
 	// given
-	open62541NodeStore *ns = NULL;
+	open62541NodeStore *ns = UA_NULL;
 	open62541NodeStore_new(&ns);
 
 	UA_Node* n1; createNode(&n1,0,2253); open62541NodeStore_insert(ns, &n1, 0);
 	UA_Node* n2; createNode(&n2,0,2253); open62541NodeStore_insert(ns, &n2, 0);
 
-	const UA_Node* nr = NULL;
+	const UA_Node* nr = UA_NULL;
 	// when
 	UA_Node* n; createNode(&n,1,2255);
 	UA_Int32 retval = open62541NodeStore_get(ns,&n->nodeId, &nr);
@@ -106,7 +106,7 @@ START_TEST(findNodeInopen62541NodeStoreWithSeveralEntries) {
 	UA_Node* n5; createNode(&n5,0,1); open62541NodeStore_insert(ns, &n5, 0);
 	UA_Node* n6; createNode(&n6,0,12); open62541NodeStore_insert(ns, &n6, 0);
 
-	const UA_Node* nr = NULL;
+	const UA_Node* nr = UA_NULL;
 	UA_Int32 retval;
 	// when
 	retval = open62541NodeStore_get(ns,&(n3->nodeId),&nr);
@@ -164,7 +164,7 @@ START_TEST(findNodeInExpandedNamespace) {
 	for (; i<200; i++) {
 		createNode(&n,0,i); open62541NodeStore_insert(ns, &n, 0);
 	}
-	const UA_Node* nr = NULL;
+	const UA_Node* nr = UA_NULL;
 	UA_Int32 retval;
 	// when
 	createNode(&n,0,25);
@@ -223,7 +223,7 @@ START_TEST(failToFindNonExistantNodeInopen62541NodeStoreWithSeveralEntries) {
 	UA_Node* n5; createNode(&n5,0,1); open62541NodeStore_insert(ns, &n5, 0);
 	UA_Node* n6; createNode(&n6,0,12); 
 
-	const UA_Node* nr = NULL;
+	const UA_Node* nr = UA_NULL;
 	UA_Int32 retval;
 	// when
 	retval = open62541NodeStore_get(ns, &(n6->nodeId), &nr);
@@ -266,7 +266,7 @@ void *profileGetThread(void *arg) {
 	}
 	rcu_unregister_thread();
 	
-	return NULL;
+	return UA_NULL;
 }
 #endif
 
@@ -291,10 +291,10 @@ START_TEST(profileGetDelete) {
 	struct open62541NodeStoreProfileTest p[THREADS];
 	for (int i = 0; i < THREADS; i++) {
 		p[i] = (struct open62541NodeStoreProfileTest){ns, i*(N/THREADS), (i+1)*(N/THREADS), 50};
-		pthread_create(&t[i], NULL, profileGetThread, &p[i]);
+		pthread_create(&t[i], UA_NULL, profileGetThread, &p[i]);
 	}
 	for (int i = 0; i < THREADS; i++)
-		pthread_join(t[i], NULL);
+		pthread_join(t[i], UA_NULL);
 	end = clock();
 	printf("Time for %d create/get/delete on %d threads in a namespace: %fs.\n", N, THREADS, (double)(end - begin) / CLOCKS_PER_SEC);
 #else

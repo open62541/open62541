@@ -79,7 +79,7 @@ UA_Int32 stackTestFixture_delete(UA_UInt32 fixtureHandle) {
 stackTestFixture *stackTestFixture_getFixture(UA_UInt32 fixtureHandle) {
 	if(fixtureHandle < MAX_FIXTURES && ( fixturesMap & (1 << fixtureHandle)))
 		return fixtures[fixtureHandle];
-	return NULL;
+	return UA_NULL;
 }
 
 /** @brief write message provided in the gather buffers to the buffer of the fixture */
@@ -329,7 +329,7 @@ UA_Byte pkt_MSG_CreateSession[] = {
 START_TEST(emptyIndicationShallYieldNoResponse) {
 	// given
 	UA_Int32 handle = stackTestFixture_create(responseMsg, closerCallback);
-	UA_ByteString message = { -1, (UA_Byte *)NULL };
+	UA_ByteString message = { -1, (UA_Byte *)UA_NULL };
 
 	// when
 	indicateMsg(handle, &message);
@@ -424,7 +424,7 @@ START_TEST(validCreateSessionShallCreateSession) {
 
 
 	SL_ChannelManager_getChannel(25,&channel);
-	ck_assert_ptr_ne(channel,NULL);
+	ck_assert_ptr_ne(channel,UA_NULL);
 
 
 

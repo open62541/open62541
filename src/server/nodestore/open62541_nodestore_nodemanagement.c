@@ -41,7 +41,7 @@ static UA_Int32 AddReference(open62541NodeStore *nodestore, UA_Node *node,
 	UA_Int32 retval = AddSingleReference(node, reference);
 	UA_Node *targetnode;
 	UA_ReferenceNode inversereference;
-	if (retval != UA_STATUSCODE_GOOD || nodestore == NULL)
+	if (retval != UA_STATUSCODE_GOOD || nodestore == UA_NULL)
 		return retval;
 
 	// Do a copy every time?
@@ -62,7 +62,7 @@ static UA_Int32 AddReference(open62541NodeStore *nodestore, UA_Node *node,
 
 //TODO export to types, maybe?
 void UA_String_setToNULL(UA_String* string){
-	string->data = NULL;
+	string->data = UA_NULL;
 	string->length = -1;
 }
 
@@ -130,7 +130,7 @@ void UA_VariableNode_setAttributes(UA_VariableAttributes *variableAttributes, UA
 	}
 	if(variableAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_ARRAYDIMENSIONS){
 		node->arrayDimensions = variableAttributes->arrayDimensions;
-		variableAttributes->arrayDimensions = NULL;
+		variableAttributes->arrayDimensions = UA_NULL;
 	}
 	if(variableAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_ACCESSLEVEL){
 		node->accessLevel = variableAttributes->accessLevel;
@@ -164,10 +164,10 @@ UA_Int32 open62541NodeStore_AddReferences(const UA_RequestHeader *requestHeader,
 		UA_DiagnosticInfo *diagnosticInfos)
 {
 	for(UA_UInt32 i = 0;i<indicesSize;i++){
-		UA_Node *node = NULL;
+		UA_Node *node = UA_NULL;
 		open62541NodeStore *ns = open62541NodeStore_getNodeStore();
 		open62541NodeStore_get((const open62541NodeStore*)ns,(const UA_NodeId*)&referencesToAdd[indices[i]].sourceNodeId, (const UA_Node**)&node);
-		if(node == NULL){
+		if(node == UA_NULL){
 			addReferencesResults[indices[i]] = UA_STATUSCODE_BADSOURCENODEIDINVALID;
 			continue;
 		}
@@ -202,7 +202,7 @@ UA_Int32 open62541NodeStore_AddNodes(const UA_RequestHeader *requestHeader,UA_Ad
 		UA_UInt32 indicesSize, UA_AddNodesResult* addNodesResults,
 		UA_DiagnosticInfo *diagnosticInfos){
 
-	UA_Node *node = NULL;
+	UA_Node *node = UA_NULL;
 	for(UA_UInt32 i=0;i<indicesSize;i++){
 
 		const UA_Node *parent;
@@ -218,11 +218,11 @@ UA_Int32 open62541NodeStore_AddNodes(const UA_RequestHeader *requestHeader,UA_Ad
 		open62541NodeStore_get((const open62541NodeStore*)ns, (const UA_NodeId*)&nodesToAdd[indices[i]].requestedNewNodeId.nodeId , (const UA_Node**)&node);
 
 
-		if(node!=NULL){
+		if(node!=UA_NULL){
 			//todo or overwrite existing node?
 			continue;
 		}
-		UA_Node *newNode = NULL;
+		UA_Node *newNode = UA_NULL;
 		UA_UInt32 offset = 0;
 		switch(nodesToAdd[indices[i]].nodeClass){
 			case UA_NODECLASS_DATATYPE:

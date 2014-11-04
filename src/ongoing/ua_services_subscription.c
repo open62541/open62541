@@ -23,8 +23,8 @@ UA_Int32 Service_Publish(UA_Server *server, UA_Session *session, const UA_Publis
 UA_Int32 Service_SetPublishingMode(UA_Server *server, UA_Session *session,
                                    const UA_SetPublishingModeRequest *request,
                                    UA_SetPublishingModeResponse *response) {
-    response->diagnosticInfos = NULL;
-    response->results = NULL;
+    response->diagnosticInfos = UA_NULL;
+    response->results = UA_NULL;
     response->resultsSize     = 0;
     return UA_SUCCESS;
 }

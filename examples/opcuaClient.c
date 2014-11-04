@@ -56,11 +56,11 @@ int sendOpenSecureChannel(UA_Int32 sock) {
 	UA_String_copycstring("http://opcfoundation.org/UA/SecurityPolicy#None", &securityPolicy);
 
 	UA_String senderCert;
-	senderCert.data = NULL;
+	senderCert.data = UA_NULL;
 	senderCert.length = -1;
 
 	UA_String receiverCertThumb;
-	receiverCertThumb.data = NULL;
+	receiverCertThumb.data = UA_NULL;
 	receiverCertThumb.length = -1;
 
 	UA_UInt32 sequenceNumber = 51;
@@ -288,12 +288,12 @@ int main(int argc, char *argv[]) {
 	UA_UInt32 nodesToReadSize;
 	UA_UInt32 tries;
 	UA_Boolean alwaysSameNode;
-	if(argv[1] == NULL)
+	if(argv[1] == UA_NULL)
 		nodesToReadSize = 1;
 	else
 		nodesToReadSize = atoi(argv[1]);
 
-	if(argv[2] == NULL)
+	if(argv[2] == UA_NULL)
 		tries= 2;
 	else
 		tries = (UA_UInt32) atoi(argv[2]);

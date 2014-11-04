@@ -24,9 +24,9 @@ void UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm) {
     while(entry) {
         LIST_REMOVE(entry, pointers);
         if(entry->channel.session)
-            entry->channel.session->channel = NULL;
+            entry->channel.session->channel = UA_NULL;
         if(entry->channel.connection)
-            entry->channel.connection->channel = NULL;
+            entry->channel.connection->channel = UA_NULL;
         UA_SecureChannel_deleteMembers(&entry->channel);
         UA_free(entry);
         entry = LIST_FIRST(&cm->channels);
@@ -88,7 +88,7 @@ UA_StatusCode UA_SecureChannelManager_renew(UA_SecureChannelManager           *c
                                             UA_OpenSecureChannelResponse      *response) {
 
     UA_SecureChannel *channel = conn->channel;
-    if(channel == NULL)
+    if(channel == UA_NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     channel->securityToken.tokenId         = cm->lastTokenId++;
@@ -112,7 +112,7 @@ UA_StatusCode UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_UInt32
             return UA_STATUSCODE_GOOD;
         }
     }
-    *channel = NULL;
+    *channel = UA_NULL;
     return UA_STATUSCODE_BADINTERNALERROR;
 }
 
@@ -123,9 +123,9 @@ UA_StatusCode UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt
     LIST_FOREACH(entry, &cm->channels, pointers) {
         if(entry->channel.securityToken.channelId == channelId) {
             if(entry->channel.connection)
-                entry->channel.connection->channel = NULL; // remove pointer back to the channel
+                entry->channel.connection->channel = UA_NULL; // remove pointer back to the channel
             if(entry->channel.session)
-                entry->channel.session->channel = NULL; // remove ponter back to the channel
+                entry->channel.session->channel = UA_NULL; // remove ponter back to the channel
             UA_SecureChannel_deleteMembers(&entry->channel);
             LIST_REMOVE(entry, pointers);
             UA_free(entry);

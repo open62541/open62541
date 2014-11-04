@@ -9,8 +9,8 @@ void UA_SecureChannel_init(UA_SecureChannel *channel) {
     UA_AsymmetricAlgorithmSecurityHeader_init(&channel->serverAsymAlgSettings);
     UA_ByteString_init(&channel->clientNonce);
     UA_ByteString_init(&channel->serverNonce);
-    channel->connection = NULL;
-    channel->session    = NULL;
+    channel->connection = UA_NULL;
+    channel->session    = UA_NULL;
 }
 
 void UA_SecureChannel_deleteMembers(UA_SecureChannel *channel) {

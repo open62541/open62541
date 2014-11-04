@@ -363,7 +363,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             	//no break
                 // if this fails, the connection is closed (no break on the case)
                 if(connection->state == UA_CONNECTION_ESTABLISHED &&
-                   connection->channel != NULL) {
+                   connection->channel != UA_NULL) {
                     processMessage(connection, server, msg, &pos);
                     break;
                 }

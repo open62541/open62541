@@ -42,7 +42,7 @@ void ns0_addObjectNode(UA_Server *server, UA_NodeId REFTYPE_NODEID,
 		char* BROWSENAME, char* DISPLAYNAME, char* DESCRIPTION) {
 	UA_ObjectAttributes objAttr;
 	UA_AddNodesItem addNodesItem;
-	UA_Namespace *ns0 = NULL;
+	UA_Namespace *ns0 = UA_NULL;
 	UA_NamespaceManager_getNamespace(server->namespaceManager, 0, &ns0);
 	addNodesItem.parentNodeId = PARENTNODEID;
 	addNodesItem.requestedNewNodeId = REQ_NODEID;
@@ -69,7 +69,7 @@ void ns0_addVariableNode(UA_Server *server, UA_NodeId refTypeNodeId,
 		UA_DataValue *dataValue, UA_Int32 valueRank) {
 	UA_VariableAttributes varAttr;
 	UA_AddNodesItem addNodesItem;
-	UA_Namespace *ns0 = NULL;
+	UA_Namespace *ns0 = UA_NULL;
 	UA_NamespaceManager_getNamespace(server->namespaceManager, 0, &ns0);
 	addNodesItem.parentNodeId = parentNodeId;
 	addNodesItem.requestedNewNodeId = requestedNodeId;

@@ -6,7 +6,7 @@
 
 UA_StatusCode UA_NodeStore_registerAddNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_addNodes addNodes)
 {
-	if(nodeStore==NULL){
+	if(nodeStore==UA_NULL){
 		return UA_STATUSCODE_BADNOTFOUND;
 	}
 	nodeStore->addNodes = addNodes;
@@ -15,7 +15,7 @@ UA_StatusCode UA_NodeStore_registerAddNodesOperation(UA_NodeStore *nodeStore, UA
 
 UA_StatusCode UA_NodeStore_registerAddReferencesOperation(UA_NodeStore *nodeStore, UA_NodeStore_addReferences addReferences)
 {
-	if(nodeStore==NULL){
+	if(nodeStore==UA_NULL){
 		return UA_STATUSCODE_BADNOTFOUND;
 	}
 	nodeStore->addReferences = addReferences;
@@ -24,7 +24,7 @@ UA_StatusCode UA_NodeStore_registerAddReferencesOperation(UA_NodeStore *nodeStor
 
 UA_StatusCode UA_NodeStore_registerDeleteNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_deleteNodes deleteNodes)
 {
-	if(nodeStore==NULL){
+	if(nodeStore==UA_NULL){
 		return UA_STATUSCODE_BADNOTFOUND;
 	}
 	nodeStore->deleteNodes = deleteNodes;
@@ -33,7 +33,7 @@ UA_StatusCode UA_NodeStore_registerDeleteNodesOperation(UA_NodeStore *nodeStore,
 
 UA_StatusCode UA_NodeStore_registerDeleteReferencesOperation(UA_NodeStore *nodeStore, UA_NodeStore_deleteReferences deleteReferences)
 {
-	if(nodeStore==NULL){
+	if(nodeStore==UA_NULL){
 		return UA_STATUSCODE_BADNOTFOUND;
 	}
 	nodeStore->deleteReferences = deleteReferences;
@@ -43,7 +43,7 @@ UA_StatusCode UA_NodeStore_registerDeleteReferencesOperation(UA_NodeStore *nodeS
 
 UA_StatusCode UA_NodeStore_registerReadNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_readNodes readNodes)
 {
-	if(nodeStore==NULL){
+	if(nodeStore==UA_NULL){
 		return UA_STATUSCODE_BADNOTFOUND;
 	}
 	nodeStore->readNodes = readNodes;
@@ -52,7 +52,7 @@ UA_StatusCode UA_NodeStore_registerReadNodesOperation(UA_NodeStore *nodeStore, U
 
 UA_StatusCode UA_NodeStore_registerWriteNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_writeNodes writeNodes)
 {
-	if(nodeStore==NULL){
+	if(nodeStore==UA_NULL){
 		return UA_STATUSCODE_BADNOTFOUND;
 	}
 	nodeStore->writeNodes = writeNodes;
@@ -61,7 +61,7 @@ UA_StatusCode UA_NodeStore_registerWriteNodesOperation(UA_NodeStore *nodeStore, 
 
 UA_StatusCode UA_NodeStore_registerBrowseNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_browseNodes browseNodes)
 {
-	if(nodeStore==NULL){
+	if(nodeStore==UA_NULL){
 		return UA_STATUSCODE_BADNOTFOUND;
 	}
 	nodeStore->browseNodes = browseNodes;

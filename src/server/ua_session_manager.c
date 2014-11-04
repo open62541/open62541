@@ -28,7 +28,7 @@ void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager) {
     while(current) {
         LIST_REMOVE(current, pointers);
         if(current->session.channel)
-            current->session.channel->session = NULL; // the channel is no longer attached to a session
+            current->session.channel->session = UA_NULL; // the channel is no longer attached to a session
         UA_Session_deleteMembers(&current->session);
         UA_free(current);
         current = LIST_FIRST(&sessionManager->sessions);
@@ -36,19 +36,19 @@ void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager) {
 }
 
 UA_StatusCode UA_SessionManager_getSessionById(UA_SessionManager *sessionManager, UA_NodeId *sessionId, UA_Session **session) {
-    if(sessionManager == NULL) {
-        *session = NULL;
+    if(sessionManager == UA_NULL) {
+        *session = UA_NULL;
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    struct session_list_entry *current = NULL;
+    struct session_list_entry *current = UA_NULL;
     LIST_FOREACH(current, &sessionManager->sessions, pointers) {
         if(UA_NodeId_equal(&current->session.sessionId, sessionId))
             break;
     }
 
     if(!current) {
-        *session = NULL;
+        *session = UA_NULL;
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -59,19 +59,19 @@ UA_StatusCode UA_SessionManager_getSessionById(UA_SessionManager *sessionManager
 }
 
 UA_StatusCode UA_SessionManager_getSessionByToken(UA_SessionManager *sessionManager, UA_NodeId *token, UA_Session **session) {
-    if(sessionManager == NULL) {
-        *session = NULL;
+    if(sessionManager == UA_NULL) {
+        *session = UA_NULL;
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    struct session_list_entry *current = NULL;
+    struct session_list_entry *current = UA_NULL;
     LIST_FOREACH(current, &sessionManager->sessions, pointers) {
         if(UA_NodeId_equal(&current->session.authenticationToken, token))
             break;
     }
 
     if(!current) {
-        *session = NULL;
+        *session = UA_NULL;
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -108,7 +108,7 @@ UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager,
 }
 
 UA_StatusCode UA_SessionManager_removeSession(UA_SessionManager *sessionManager, UA_NodeId  *sessionId) {
-    struct session_list_entry *current = NULL;
+    struct session_list_entry *current = UA_NULL;
     LIST_FOREACH(current, &sessionManager->sessions, pointers) {
         if(UA_NodeId_equal(&current->session.sessionId, sessionId))
             break;
@@ -119,7 +119,7 @@ UA_StatusCode UA_SessionManager_removeSession(UA_SessionManager *sessionManager,
 
     LIST_REMOVE(current, pointers);
     if(current->session.channel)
-        current->session.channel->session = NULL; // the channel is no longer attached to a session
+        current->session.channel->session = UA_NULL; // the channel is no longer attached to a session
     UA_Session_deleteMembers(&current->session);
     UA_free(current);
     return UA_STATUSCODE_GOOD;

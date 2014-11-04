@@ -19,7 +19,7 @@ void freer(void* payload){
 }
 
 _Bool matcher(void* payload){
-	if(payload == NULL){
+	if(payload == UA_NULL){
 		return FALSE;
 	}
 	if(*((UA_Int32*)payload) == 42){

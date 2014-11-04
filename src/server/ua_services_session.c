@@ -38,7 +38,7 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
                                         (UA_NodeId*)&request->requestHeader.authenticationToken,
                                         &foundSession);
 
-	if(foundSession == NULL)
+	if(foundSession == UA_NULL)
         response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
     else
         channel->session = foundSession;
@@ -51,7 +51,7 @@ void Service_CloseSession(UA_Server *server, const UA_CloseSessionRequest *reque
 			(UA_NodeId*)&request->requestHeader.authenticationToken,
 			&foundSession);
 
-	if(foundSession == NULL){
+	if(foundSession == UA_NULL){
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 		return;
 	}

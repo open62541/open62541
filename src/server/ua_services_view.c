@@ -10,7 +10,7 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     UA_Int32 *numberOfFoundIndices;
     UA_UInt16 *associatedIndices;
     UA_UInt32 differentNamespaceIndexCount = 0;
-	UA_assert(server != NULL && session != NULL && request != NULL && response != NULL);
+	UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
 
     if(request->nodesToBrowseSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
@@ -45,7 +45,7 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     for(UA_UInt32 i = 0; i < differentNamespaceIndexCount; i++){
     	UA_Namespace *tmpNamespace;
     	UA_NamespaceManager_getNamespace(server->namespaceManager,associatedIndices[i],&tmpNamespace);
-    	if(tmpNamespace != NULL){
+    	if(tmpNamespace != UA_NULL){
 
     	    //build up index array for each read operation onto a different namespace
     	    UA_UInt32 n = 0;
@@ -74,7 +74,7 @@ void Service_Browse(UA_Server *server, UA_Session *session,
 void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                            const UA_TranslateBrowsePathsToNodeIdsRequest *request,
                                            UA_TranslateBrowsePathsToNodeIdsResponse *response) {
-    UA_assert(server != NULL && session != NULL && request != NULL && response != NULL);
+    UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
 
     if(request->browsePathsSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
