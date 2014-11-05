@@ -21,14 +21,16 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
-
+	response->resultsSize = request->nodesToAddSize;
 	if (UA_Array_new((void **) &response->diagnosticInfos,
 			request->nodesToAddSize, &UA_TYPES[UA_DIAGNOSTICINFO])
 			!= UA_STATUSCODE_GOOD) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
-	response->resultsSize = request->nodesToAddSize;
+	response->diagnosticInfosSize = request->nodesToAddSize;
+
+
 
 	UA_Int32 *numberOfFoundIndices;
 	UA_UInt16 *associatedIndices;
@@ -97,6 +99,7 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
+	response->resultsSize = request->referencesToAddSize;
 
 	if (UA_Array_new((void **) &response->diagnosticInfos,
 			request->referencesToAddSize, &UA_TYPES[UA_DIAGNOSTICINFO])
@@ -104,8 +107,7 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
-	response->resultsSize = request->referencesToAddSize;
-
+	response->diagnosticInfosSize = request->referencesToAddSize;
 	UA_Int32 *numberOfFoundIndices;
 	UA_UInt16 *associatedIndices;
 	UA_UInt32 differentNamespaceIndexCount = 0;

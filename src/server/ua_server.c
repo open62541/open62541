@@ -8,13 +8,15 @@
 #include "ua_services.h"
 
 void UA_Server_delete(UA_Server *server) {
-    UA_ApplicationDescription_deleteMembers(&server->description);
-    UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
-    UA_SessionManager_deleteMembers(&server->sessionManager);
-    //UA_NodeStore_delete(server->nodestore);
-    UA_ByteString_deleteMembers(&server->serverCertificate);
-    UA_Array_delete(server->endpointDescriptions, server->endpointDescriptionsSize, &UA_TYPES[UA_ENDPOINTDESCRIPTION]);
-    UA_free(server);
+	UA_ApplicationDescription_deleteMembers(&server->description);
+	UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
+	UA_SessionManager_deleteMembers(&server->sessionManager);
+	//UA_NodeStore_delete(server->nodestore);
+	UA_ByteString_deleteMembers(&server->serverCertificate);
+	UA_Array_delete(server->endpointDescriptions,
+			server->endpointDescriptionsSize,
+			&UA_TYPES[UA_ENDPOINTDESCRIPTION]);
+	UA_free(server);
 }
 void addSingleReference(UA_Namespace *namespace,
 		UA_AddReferencesItem *addReferencesItem) {
@@ -23,8 +25,8 @@ void addSingleReference(UA_Namespace *namespace,
 	UA_DiagnosticInfo diagnosticInfo;
 	UA_StatusCode result;
 	UA_RequestHeader tmpRequestHeader;
-	namespace->nodeStore->addReferences(&tmpRequestHeader,addReferencesItem, &indices,
-			indicesSize, &result, &diagnosticInfo);
+	namespace->nodeStore->addReferences(&tmpRequestHeader, addReferencesItem,
+			&indices, indicesSize, &result, &diagnosticInfo);
 }
 void addSingleNode(UA_Namespace *namespace, UA_AddNodesItem *addNodesItem) {
 	UA_UInt32 indices = 0;
@@ -33,173 +35,200 @@ void addSingleNode(UA_Namespace *namespace, UA_AddNodesItem *addNodesItem) {
 	UA_AddNodesResult result;
 	UA_RequestHeader tmpRequestHeader;
 
-	namespace->nodeStore->addNodes(&tmpRequestHeader,addNodesItem, &indices, indicesSize, &result,
-			&diagnosticInfo);
+	namespace->nodeStore->addNodes(&tmpRequestHeader, addNodesItem, &indices,
+			indicesSize, &result, &diagnosticInfo);
 }
 
 void ns0_addObjectNode(UA_Server *server, UA_NodeId REFTYPE_NODEID,
 		UA_ExpandedNodeId REQ_NODEID, UA_ExpandedNodeId PARENTNODEID,
 		char* BROWSENAME, char* DISPLAYNAME, char* DESCRIPTION) {
-	UA_ObjectAttributes objAttr;
-	UA_ObjectAttributes_init(&objAttr);
-	UA_AddNodesItem addNodesItem;
-	UA_AddNodesItem_init(&addNodesItem);
+	UA_ObjectAttributes *objAttr = UA_ObjectAttributes_new();
+	UA_ObjectAttributes_init(objAttr);
+	UA_AddNodesItem *addNodesItem = UA_AddNodesItem_new();
+	UA_AddNodesItem_init(addNodesItem);
+
 	UA_Namespace *ns0 = UA_NULL;
 	UA_NamespaceManager_getNamespace(server->namespaceManager, 0, &ns0);
-	addNodesItem.parentNodeId = PARENTNODEID;
-	addNodesItem.requestedNewNodeId = REQ_NODEID;
-	addNodesItem.referenceTypeId = REFTYPE_NODEID;
-	addNodesItem.nodeClass = UA_NODECLASS_OBJECT;\
-	UA_QualifiedName_copycstring(BROWSENAME, &addNodesItem.browseName);
-	UA_LocalizedText_copycstring(DISPLAYNAME, &objAttr.displayName);
-	UA_LocalizedText_copycstring(DESCRIPTION, &objAttr.description);
-	objAttr.userWriteMask = 0;
-	objAttr.writeMask = 0;
-	objAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_BROWSENAME;
-	objAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;
-	objAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DESCRIPTION;
+	addNodesItem->parentNodeId = PARENTNODEID;
+	addNodesItem->requestedNewNodeId = REQ_NODEID;
+	addNodesItem->referenceTypeId = REFTYPE_NODEID;
+	addNodesItem->nodeClass = UA_NODECLASS_OBJECT;\
+	UA_QualifiedName_copycstring(BROWSENAME, &addNodesItem->browseName);
+	UA_LocalizedText_copycstring(DISPLAYNAME, &objAttr->displayName);
+	UA_LocalizedText_copycstring(DESCRIPTION, &objAttr->description);
+	objAttr->userWriteMask = 0;
+	objAttr->writeMask = 0;
+	objAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_BROWSENAME;
+	objAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;
+	objAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_DESCRIPTION;
+	addNodesItem->typeDefinition.nodeId.identifier.numeric = 354;
+	addNodesItem->typeDefinition.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
+	addNodesItem->typeDefinition.nodeId.namespaceIndex = 0;
+	addNodesItem->nodeAttributes.typeId = addNodesItem->typeDefinition.nodeId;
 	UA_UInt32 offset = 0;
-	UA_ByteString_newMembers(&addNodesItem.nodeAttributes.body,
-			UA_ObjectAttributes_calcSizeBinary(&objAttr));
-	UA_ObjectAttributes_encodeBinary(&objAttr,
-			&addNodesItem.nodeAttributes.body, &offset);
-	addSingleNode(ns0, &addNodesItem);
+	UA_ByteString_newMembers(&addNodesItem->nodeAttributes.body,
+			UA_ObjectAttributes_calcSizeBinary(objAttr));
+	UA_ObjectAttributes_encodeBinary(objAttr,
+			&addNodesItem->nodeAttributes.body, &offset);
+	addSingleNode(ns0, addNodesItem);
+	UA_AddNodesItem_delete(addNodesItem);
+	UA_ObjectAttributes_delete(objAttr);
 }
 void ns0_addVariableNode(UA_Server *server, UA_NodeId refTypeNodeId,
 		UA_ExpandedNodeId requestedNodeId, UA_ExpandedNodeId parentNodeId,
-		UA_QualifiedName browseName, UA_LocalizedText displayName, UA_LocalizedText description,
-		UA_DataValue *dataValue, UA_Int32 valueRank) {
-	UA_VariableAttributes varAttr;
-	UA_VariableAttributes_init(&varAttr);
-	UA_AddNodesItem addNodesItem;
-	UA_AddNodesItem_init(&addNodesItem);
+		UA_QualifiedName browseName, UA_LocalizedText displayName,
+		UA_LocalizedText description, UA_DataValue *dataValue,
+		UA_Int32 valueRank) {
+	UA_VariableAttributes *varAttr = UA_VariableAttributes_new();
+	UA_VariableAttributes_init(varAttr);
+	UA_AddNodesItem *addNodesItem = UA_AddNodesItem_new();
+	UA_AddNodesItem_init(addNodesItem);
 	UA_Namespace *ns0 = UA_NULL;
 	UA_NamespaceManager_getNamespace(server->namespaceManager, 0, &ns0);
-	addNodesItem.parentNodeId = parentNodeId;
-	addNodesItem.requestedNewNodeId = requestedNodeId;
-	addNodesItem.referenceTypeId = refTypeNodeId;
-	addNodesItem.nodeClass = UA_NODECLASS_VARIABLE;
-	addNodesItem.browseName = browseName;
-	varAttr.displayName = displayName ;
-	varAttr.description = description;
-	varAttr.value = dataValue->value;
-	varAttr.userWriteMask = 0;
-	varAttr.writeMask = 0;
+	addNodesItem->parentNodeId = parentNodeId;
+	addNodesItem->requestedNewNodeId = requestedNodeId;
+	addNodesItem->referenceTypeId = refTypeNodeId;
+	addNodesItem->nodeClass = UA_NODECLASS_VARIABLE;
+	addNodesItem->browseName = browseName;
+	addNodesItem->typeDefinition.nodeId.identifier.numeric = 357;
+	addNodesItem->typeDefinition.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
+	addNodesItem->typeDefinition.nodeId.namespaceIndex = 0;
+	addNodesItem->nodeAttributes.typeId = addNodesItem->typeDefinition.nodeId;
+	varAttr->displayName = displayName;
+	varAttr->description = description;
+	UA_Variant_copy(&dataValue->value,&varAttr->value);
+	varAttr->userWriteMask = 0;
+	varAttr->writeMask = 0;
 
-	varAttr.dataType = dataValue->value.vt->typeId;
+	varAttr->dataType = dataValue->value.vt->typeId;
+	varAttr->valueRank = valueRank;
+	varAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_VALUERANK;
 
-	varAttr.valueRank = valueRank;
-	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_VALUERANK;
+	varAttr->arrayDimensions =
+			(UA_UInt32*) dataValue->value.storage.data.arrayDimensions;
+	varAttr->arrayDimensionsSize =
+			dataValue->value.storage.data.arrayDimensionsLength;
 
-	varAttr.arrayDimensions = (UA_UInt32*)dataValue->value.storage.data.arrayDimensions;
-	varAttr.arrayDimensionsSize = dataValue->value.storage.data.arrayDimensionsLength;
-
-	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_BROWSENAME;
-	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;
-	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DESCRIPTION;
-	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_VALUE;
-	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DATATYPE;
-	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_ARRAYDIMENSIONS;
-
-
-
+	varAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_BROWSENAME;
+	varAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;
+	varAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_DESCRIPTION;
+	varAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_VALUE;
+	varAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_DATATYPE;
+	varAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_ARRAYDIMENSIONS;
 
 	UA_UInt32 offset = 0;
-	UA_ByteString_newMembers(&addNodesItem.nodeAttributes.body,
-			UA_VariableAttributes_calcSizeBinary(&varAttr));
-	UA_VariableAttributes_encodeBinary(&varAttr,
-			&addNodesItem.nodeAttributes.body, &offset);
-	addSingleNode(ns0, &addNodesItem);
+	UA_ByteString_newMembers(&addNodesItem->nodeAttributes.body,
+			UA_VariableAttributes_calcSizeBinary(varAttr));
+	UA_VariableAttributes_encodeBinary(varAttr,
+			&addNodesItem->nodeAttributes.body, &offset);
+	addSingleNode(ns0, addNodesItem);
+	UA_AddNodesItem_delete(addNodesItem);
+	UA_VariableAttributes_delete(varAttr);
 }
 
-void ADD_REFTYPENODE_NS0(UA_Server *server, UA_NodeId REFTYPE_NODEID,UA_ExpandedNodeId REQ_NODEID,UA_ExpandedNodeId PARENTNODEID,char* REFTYPE_BROWSENAME, char* REFTYPE_DISPLAYNAME, char*REFTYPE_DESCRIPTION,UA_Boolean IS_ABSTRACT,UA_Boolean IS_SYMMETRIC)
-{
-	UA_AddNodesItem addNodesItem;
-    UA_Namespace *ns0;
-    UA_NamespaceManager_getNamespace(server->namespaceManager,0,&ns0);
-	UA_ReferenceTypeAttributes refTypeAttr;
-	UA_ReferenceTypeAttributes_init(&refTypeAttr);
-    addNodesItem.parentNodeId= PARENTNODEID;
-    addNodesItem.requestedNewNodeId = REQ_NODEID;
-    addNodesItem.referenceTypeId = REFTYPE_NODEID;
-    addNodesItem.nodeClass = UA_NODECLASS_REFERENCETYPE;
-    UA_QualifiedName_copycstring(REFTYPE_BROWSENAME, &addNodesItem.browseName);
-    UA_LocalizedText_copycstring(REFTYPE_DISPLAYNAME, &refTypeAttr.displayName);
-    UA_LocalizedText_copycstring(REFTYPE_DESCRIPTION, &refTypeAttr.description);
-    refTypeAttr.isAbstract = IS_ABSTRACT;
-    refTypeAttr.symmetric  = IS_SYMMETRIC;
-    refTypeAttr.userWriteMask = 0;
-    refTypeAttr.writeMask = 0;
-    refTypeAttr.inverseName.locale.length = 0;
-    refTypeAttr.inverseName.text.length = 0;
-    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_BROWSENAME;
-    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;
-    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DESCRIPTION;
-    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_ISABSTRACT;
-    refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_SYMMETRIC;
-    UA_UInt32 offset = 0;
-    UA_ByteString_newMembers(&addNodesItem.nodeAttributes.body,UA_ReferenceTypeAttributes_calcSizeBinary(&refTypeAttr));
-    UA_ReferenceTypeAttributes_encodeBinary(&refTypeAttr,&addNodesItem.nodeAttributes.body,&offset);
-    addSingleNode(ns0,&addNodesItem);
+void ns0_addReferenceTypeNode(UA_Server *server, UA_NodeId REFTYPE_NODEID,
+		UA_ExpandedNodeId REQ_NODEID, UA_ExpandedNodeId PARENTNODEID,
+		char* REFTYPE_BROWSENAME, char* REFTYPE_DISPLAYNAME,
+		char*REFTYPE_DESCRIPTION, UA_Boolean IS_ABSTRACT,
+		UA_Boolean IS_SYMMETRIC) {
+	UA_AddNodesItem *addNodesItem = UA_AddNodesItem_new();
+	UA_Namespace *ns0;
+	UA_NamespaceManager_getNamespace(server->namespaceManager, 0, &ns0);
+	UA_ReferenceTypeAttributes *refTypeAttr = UA_ReferenceTypeAttributes_new();
+	UA_ReferenceTypeAttributes_init(refTypeAttr);
+	addNodesItem->parentNodeId = PARENTNODEID;
+	addNodesItem->requestedNewNodeId = REQ_NODEID;
+	addNodesItem->referenceTypeId = REFTYPE_NODEID;
+	addNodesItem->nodeClass = UA_NODECLASS_REFERENCETYPE;
+	UA_QualifiedName_copycstring(REFTYPE_BROWSENAME, &addNodesItem->browseName);
+	UA_LocalizedText_copycstring(REFTYPE_DISPLAYNAME, &refTypeAttr->displayName);
+	UA_LocalizedText_copycstring(REFTYPE_DESCRIPTION, &refTypeAttr->description);
+	refTypeAttr->isAbstract = IS_ABSTRACT;
+	refTypeAttr->symmetric = IS_SYMMETRIC;
+	refTypeAttr->userWriteMask = 0;
+	refTypeAttr->writeMask = 0;
+	refTypeAttr->inverseName.locale.length = 0;
+	refTypeAttr->inverseName.text.length = 0;
+	refTypeAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_BROWSENAME;
+	refTypeAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;
+	refTypeAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_DESCRIPTION;
+	refTypeAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_ISABSTRACT;
+	refTypeAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_SYMMETRIC;
+	UA_UInt32 offset = 0;
+	UA_ByteString_newMembers(&addNodesItem->nodeAttributes.body,
+			UA_ReferenceTypeAttributes_calcSizeBinary(refTypeAttr));
+	UA_ReferenceTypeAttributes_encodeBinary(refTypeAttr,
+			&addNodesItem->nodeAttributes.body, &offset);
+	addSingleNode(ns0, addNodesItem);
+	UA_AddNodesItem_delete(addNodesItem);
+	UA_ReferenceTypeAttributes_delete(refTypeAttr);
+
 }
 
-UA_Server * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertificate, UA_NodeStore *ns0Nodestore) {
-    UA_Server *server = UA_alloc(sizeof(UA_Server));
-    if(!server)
-        return server;
+UA_Server * UA_Server_new(UA_String *endpointUrl,
+		UA_ByteString *serverCertificate, UA_NodeStore *ns0Nodestore) {
+	UA_Server *server = UA_alloc(sizeof(UA_Server));
+	if (!server)
+		return server;
 
-    UA_ApplicationDescription_init(&server->description);
+	UA_ApplicationDescription_init(&server->description);
 
-    //add namespace zero
-    server->namespaceManager = UA_NamespaceManager_new();
-    UA_NamespaceManager_addNamespace(server->namespaceManager,0,ns0Nodestore);
-    
+	//add namespace zero
+	server->namespaceManager = UA_NamespaceManager_new();
+	UA_NamespaceManager_addNamespace(server->namespaceManager, 0, ns0Nodestore);
 
-    // mockup application description
-    UA_ApplicationDescription_init(&server->description);
-    UA_String_copycstring("urn:servername:open62541:application", &server->description.productUri);
-    UA_String_copycstring("http://open62541.info/applications/4711", &server->description.applicationUri);
-    UA_LocalizedText_copycstring("The open62541 application", &server->description.applicationName);
-    server->description.applicationType = UA_APPLICATIONTYPE_SERVER;
+	// mockup application description
+	UA_ApplicationDescription_init(&server->description);
+	UA_String_copycstring("urn:servername:open62541:application",
+			&server->description.productUri);
+	UA_String_copycstring("http://open62541.info/applications/4711",
+			&server->description.applicationUri);
+	UA_LocalizedText_copycstring("The open62541 application",
+			&server->description.applicationName);
+	server->description.applicationType = UA_APPLICATIONTYPE_SERVER;
 
-    UA_ByteString_init(&server->serverCertificate);
-    if(serverCertificate)
-        UA_ByteString_copy(serverCertificate, &server->serverCertificate);
+	UA_ByteString_init(&server->serverCertificate);
+	if (serverCertificate)
+		UA_ByteString_copy(serverCertificate, &server->serverCertificate);
 
-    // mockup endpoint description
-    server->endpointDescriptionsSize = 1;
-    UA_EndpointDescription *endpoint = UA_alloc(sizeof(UA_EndpointDescription)); // todo: check return code
+	// mockup endpoint description
+	server->endpointDescriptionsSize = 1;
+	UA_EndpointDescription *endpoint = UA_alloc(sizeof(UA_EndpointDescription)); // todo: check return code
 
-    endpoint->securityMode = UA_MESSAGESECURITYMODE_NONE;
-    UA_String_copycstring("http://opcfoundation.org/UA/SecurityPolicy#None", &endpoint->securityPolicyUri);
-    UA_String_copycstring("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary", &endpoint->transportProfileUri);
+	endpoint->securityMode = UA_MESSAGESECURITYMODE_NONE;
+	UA_String_copycstring("http://opcfoundation.org/UA/SecurityPolicy#None",
+			&endpoint->securityPolicyUri);
+	UA_String_copycstring(
+			"http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary",
+			&endpoint->transportProfileUri);
 
-    endpoint->userIdentityTokensSize = 1;
-    endpoint->userIdentityTokens = UA_alloc(sizeof(UA_UserTokenPolicy));
-    UA_UserTokenPolicy_init(endpoint->userIdentityTokens);
-    UA_String_copycstring("my-anonymous-policy", &endpoint->userIdentityTokens->policyId); // defined per server
-    endpoint->userIdentityTokens->tokenType = UA_USERTOKENTYPE_ANONYMOUS;
+	endpoint->userIdentityTokensSize = 1;
+	endpoint->userIdentityTokens = UA_alloc(sizeof(UA_UserTokenPolicy));
+	UA_UserTokenPolicy_init(endpoint->userIdentityTokens);
+	UA_String_copycstring("my-anonymous-policy",
+			&endpoint->userIdentityTokens->policyId); // defined per server
+	endpoint->userIdentityTokens->tokenType = UA_USERTOKENTYPE_ANONYMOUS;
 
-    UA_String_copy(endpointUrl, &endpoint->endpointUrl);
-    /* The standard says "the HostName specified in the Server Certificate is the
-       same as the HostName contained in the endpointUrl provided in the
-       EndpointDescription */
-    UA_String_copy(&server->serverCertificate, &endpoint->serverCertificate);
-    UA_ApplicationDescription_copy(&server->description, &endpoint->server);
-    server->endpointDescriptions = endpoint;
+	UA_String_copy(endpointUrl, &endpoint->endpointUrl);
+	/* The standard says "the HostName specified in the Server Certificate is the
+	 same as the HostName contained in the endpointUrl provided in the
+	 EndpointDescription */
+	UA_String_copy(&server->serverCertificate, &endpoint->serverCertificate);
+	UA_ApplicationDescription_copy(&server->description, &endpoint->server);
+	server->endpointDescriptions = endpoint;
 
 #define MAXCHANNELCOUNT 100
 #define STARTCHANNELID 1
 #define TOKENLIFETIME 10000
 #define STARTTOKENID 1
-    UA_SecureChannelManager_init(&server->secureChannelManager, MAXCHANNELCOUNT,
-                                 TOKENLIFETIME, STARTCHANNELID, STARTTOKENID, endpointUrl);
-
+	UA_SecureChannelManager_init(&server->secureChannelManager, MAXCHANNELCOUNT,
+	TOKENLIFETIME, STARTCHANNELID, STARTTOKENID, endpointUrl);
 
 #define MAXSESSIONCOUNT 1000
 #define SESSIONLIFETIME 10000
 #define STARTSESSIONID 1
-    UA_SessionManager_init(&server->sessionManager, MAXSESSIONCOUNT, SESSIONLIFETIME, STARTSESSIONID);
+	UA_SessionManager_init(&server->sessionManager, MAXSESSIONCOUNT,
+			SESSIONLIFETIME, STARTSESSIONID);
 
 	//ns0: C2UA_STRING("http://opcfoundation.org/UA/"));
 	//ns1: C2UA_STRING("http://localhost:16664/open62541/"));
@@ -256,8 +285,6 @@ UA_Server * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertifica
 	UA_ExpandedNodeId RefTypeId_HasHistoricalConfiguration;
 	NS0EXPANDEDNODEID(RefTypeId_HasHistoricalConfiguration, 56);
 
-
-
 	/*
 	 #define ADDREFERENCE(NODE, REFTYPE, INVERSE, TARGET_NODEID) do { \
     static struct UA_ReferenceNode NODE##REFTYPE##TARGET_NODEID;    \
@@ -290,237 +317,259 @@ UA_Server * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertifica
 	NS0EXPANDEDNODEID(ObjId_Server, 2253);
 	//UA_ExpandedNodeId VarId_ServerArray;
 	//NS0EXPANDEDNODEID(VarId_ServerArray, 2254);
-    UA_ExpandedNodeId VarId_NamespaceArray; NS0EXPANDEDNODEID(VarId_NamespaceArray, 2255);
-    UA_ExpandedNodeId VarId_ServerStatus; NS0EXPANDEDNODEID(VarId_ServerStatus, 2256);
+	UA_ExpandedNodeId VarId_NamespaceArray;
+	NS0EXPANDEDNODEID(VarId_NamespaceArray, 2255);
+	UA_ExpandedNodeId VarId_ServerStatus;
+	NS0EXPANDEDNODEID(VarId_ServerStatus, 2256);
 //    UA_ExpandedNodeId ObjId_ServerCapabilities; NS0EXPANDEDNODEID(ObjId_ServerCapabilities, 2268);
-    UA_ExpandedNodeId VarId_State; NS0EXPANDEDNODEID(VarId_State, 2259);
+	UA_ExpandedNodeId VarId_State;
+	NS0EXPANDEDNODEID(VarId_State, 2259);
 
-	ns0_addObjectNode(server,RefTypeId_Organizes.nodeId, ObjId_Root, ObjId_Null,
-			"Root", "Root", "Root");
-	ns0_addObjectNode(server,RefTypeId_Organizes.nodeId, ObjId_ObjectsFolder,
+	ns0_addObjectNode(server, RefTypeId_Organizes.nodeId, ObjId_Root,
+			ObjId_Null, "Root", "Root", "Root");
+	ns0_addObjectNode(server, RefTypeId_Organizes.nodeId, ObjId_ObjectsFolder,
 			ObjId_Root, "Objects", "Objects", "Objects");
-	ns0_addObjectNode(server,RefTypeId_Organizes.nodeId, ObjId_Server,
+	ns0_addObjectNode(server, RefTypeId_Organizes.nodeId, ObjId_Server,
 			ObjId_ObjectsFolder, "Server", "Server", "Server");
 
-
-	UA_DataValue *serverArrayValue;
-	serverArrayValue = UA_DataValue_new();
+	UA_DataValue serverArrayValue;
+	UA_DataValue_init(&serverArrayValue);
 	UA_UInt32 namespaceArraySize = 2;
 
-	UA_Array_new((void**)&serverArrayValue->value.storage.data.dataPtr, namespaceArraySize, &UA_TYPES[UA_STRING]);
-	UA_String_copycstring("http://opcfoundation.org/UA/", &((UA_String *)(serverArrayValue->value.storage.data.dataPtr))[0]);
+	UA_Array_new((void**) &serverArrayValue.value.storage.data.dataPtr,
+			namespaceArraySize, &UA_TYPES[UA_STRING]);
+	UA_String_copycstring("http://opcfoundation.org/UA/",
+			&((UA_String *) (serverArrayValue.value.storage.data.dataPtr))[0]);
+	UA_String_copycstring("http://namespace123",
+				&((UA_String *) (serverArrayValue.value.storage.data.dataPtr))[1]);
+
 	UA_Int32 *arrayDim;
 	UA_UInt32 arrayDimSize = 1;
-	UA_Array_new((void**)&arrayDim, arrayDimSize, &UA_TYPES[UA_INT32]);
+	UA_Array_new((void**) &arrayDim, arrayDimSize, &UA_TYPES[UA_INT32]);
 
-	serverArrayValue->value.vt = &UA_TYPES[UA_STRING];
-	serverArrayValue->value.storage.data.arrayDimensions = arrayDim;
-	serverArrayValue->value.storage.data.arrayDimensionsLength = 1; // added to ensure encoding in readreponse
-	serverArrayValue->value.storage.data.arrayLength = 1;
-	serverArrayValue->value.storageType = UA_VARIANT_DATA;
-	 {
-		 UA_QualifiedName *browseName;
-		 browseName=UA_QualifiedName_new();
-		 UA_LocalizedText *description;
-		 description = UA_LocalizedText_new();
-		 UA_LocalizedText *displayName;
-		 displayName = UA_LocalizedText_new();
+	serverArrayValue.value.vt = &UA_TYPES[UA_STRING];
+	serverArrayValue.value.storage.data.arrayDimensions = arrayDim;
+	serverArrayValue.value.storage.data.arrayDimensionsLength = arrayDimSize; // added to ensure encoding in readreponse
+	serverArrayValue.value.storage.data.arrayLength = namespaceArraySize;
+	serverArrayValue.value.storageType = UA_VARIANT_DATA;
+	{
+		UA_QualifiedName browseName;
 
-		 UA_QualifiedName_copycstring("NamespaceArray",browseName);
-		 UA_LocalizedText_copycstring("NamespaceArray",description);
-		 UA_LocalizedText_copycstring("NamespaceArray",displayName);
+		UA_LocalizedText description;
 
-		 ns0_addVariableNode(server, RefTypeId_HasComponent.nodeId,
-				 VarId_NamespaceArray,
-				 ObjId_Server,
-				 *browseName,
-				 *description,
-				 *displayName,
-				 serverArrayValue,1);
-	 }
+		UA_LocalizedText displayName;
 
 
+		UA_QualifiedName_copycstring("NamespaceArray", &browseName);
+		UA_LocalizedText_copycstring("NamespaceArray", &description);
+		UA_LocalizedText_copycstring("NamespaceArray", &displayName);
 
-	 // ServerStatus
-	 UA_DataValue *serverStatusValue;
-	 serverStatusValue = UA_DataValue_new();
+		ns0_addVariableNode(server, RefTypeId_HasComponent.nodeId,
+				VarId_NamespaceArray, ObjId_Server, browseName, description,
+				displayName, &serverArrayValue, 1);
 
-	 UA_ServerStatusDataType *status;
-	 status = UA_ServerStatusDataType_new();
-	 status->startTime   = UA_DateTime_now();
-	 status->currentTime = UA_DateTime_now();
-	 status->state       = UA_SERVERSTATE_RUNNING;
-	 UA_String_copycstring("open62541.org", &status->buildInfo.productUri);
-	 UA_String_copycstring("open62541", &status->buildInfo.manufacturerName);
-	 UA_String_copycstring("open62541", &status->buildInfo.productName);
-	 UA_String_copycstring("0.0", &status->buildInfo.softwareVersion);
-	 UA_String_copycstring("0.0", &status->buildInfo.buildNumber);
-	 status->buildInfo.buildDate     = UA_DateTime_now();
-	 status->secondsTillShutdown     = 99999999;
-	 UA_LocalizedText_copycstring("because", &status->shutdownReason);
-	 serverStatusValue->value.vt          = &UA_TYPES[UA_SERVERSTATUSDATATYPE]; // gets encoded as an extensionobject
-	 serverStatusValue->value.storage.data.arrayLength = 0;
-	 serverStatusValue->value.storage.data.dataPtr        = status;
-	 serverStatusValue->value.storage.data.arrayDimensionsLength = 0;
-	 {
-		 UA_QualifiedName *browseName = UA_QualifiedName_new();
-		 UA_LocalizedText *description = UA_LocalizedText_new();
-		 UA_LocalizedText *displayName = UA_LocalizedText_new();
-
-		 UA_QualifiedName_copycstring("ServerStatus",browseName);
-		 UA_LocalizedText_copycstring("ServerStatus",description);
-		 UA_LocalizedText_copycstring("ServerStatus",displayName);
-
-		 ns0_addVariableNode(server,RefTypeId_HasComponent.nodeId,VarId_ServerStatus,ObjId_Server, *browseName, *description, *displayName ,serverStatusValue,-1);
 	}
 
-	 // State (Component of ServerStatus)
-
-	 UA_DataValue *sateValue = UA_DataValue_new();
 
 
-	 sateValue->value.vt = &UA_TYPES[UA_SERVERSTATE];
-	 sateValue->value.storage.data.arrayDimensionsLength = 0; // added to ensure encoding in readreponse
-	 sateValue->value.storage.data.arrayLength = 0;
-	 sateValue->value.storage.data.dataPtr = &status->state; // points into the other object.
-	 sateValue->value.storageType = UA_VARIANT_DATA;
+	// ServerStatus
+	UA_DataValue serverStatusValue;
+	UA_DataValue_init(&serverStatusValue);
 
-	 {
-		 UA_QualifiedName *browseName = UA_QualifiedName_new();
-		 UA_LocalizedText *description = UA_LocalizedText_new();
-		 UA_LocalizedText *displayName = UA_LocalizedText_new();
+	UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
 
-		 UA_QualifiedName_copycstring("State",browseName);
-		 UA_LocalizedText_copycstring("State",description);
-		 UA_LocalizedText_copycstring("State",displayName);
+	status->startTime = UA_DateTime_now();
+	status->currentTime = UA_DateTime_now();
+	status->state = UA_SERVERSTATE_RUNNING;
+	UA_String_copycstring("open62541.org", &status->buildInfo.productUri);
+	UA_String_copycstring("open62541", &status->buildInfo.manufacturerName);
+	UA_String_copycstring("open62541", &status->buildInfo.productName);
+	UA_String_copycstring("0.0", &status->buildInfo.softwareVersion);
+	UA_String_copycstring("0.0", &status->buildInfo.buildNumber);
+	status->buildInfo.buildDate = UA_DateTime_now();
+	UA_String_copycstring("en",&status->shutdownReason.locale);
+	UA_String_copycstring("because",&status->shutdownReason.text);
+	status->secondsTillShutdown = 99999999;
 
-		 ns0_addVariableNode(server,RefTypeId_HasComponent.nodeId,VarId_State,ObjId_Server, *browseName, *description,*displayName ,sateValue,-1);
-	 }
+	serverStatusValue.value.vt = &UA_TYPES[UA_SERVERSTATUSDATATYPE]; // gets encoded as an extensionobject
+	serverStatusValue.value.storage.data.arrayLength = 0;
+	serverStatusValue.value.storage.data.dataPtr = status;
+	serverStatusValue.value.storage.data.arrayDimensionsLength = 0;
+	{
+		UA_QualifiedName browseName;
+		UA_LocalizedText description;
+		UA_LocalizedText displayName;
 
-	ns0_addObjectNode(server,RefTypeId_Organizes.nodeId, ObjId_TypesFolder, ObjId_Root,
-			"Types", "Types", "Types");
+		UA_QualifiedName_copycstring("ServerStatus", &browseName);
+		UA_LocalizedText_copycstring("ServerStatus", &description);
+		UA_LocalizedText_copycstring("ServerStatus", &displayName);
 
-	ns0_addObjectNode(server,RefTypeId_Organizes.nodeId, ObjId_TypesFolder, ObjId_Root,
-			"Types", "Types", "Types");
-	ns0_addObjectNode(server,RefTypeId_Organizes.nodeId, ObjId_ReferenceTypesFolder,
-			ObjId_TypesFolder, "ReferenceTypes", "ReferenceTypes",
-			"ReferenceTypes");
-	ADD_REFTYPENODE_NS0(server,RefTypeId_Organizes.nodeId, RefTypeId_References,
-			ObjId_ReferenceTypesFolder, "References", "References",
-			"References", UA_TRUE, UA_TRUE);
+		ns0_addVariableNode(server, RefTypeId_HasComponent.nodeId,
+				VarId_ServerStatus, ObjId_Server, browseName, description,
+				displayName, &serverStatusValue, -1);
 
-	ns0_addObjectNode(server,RefTypeId_Organizes.nodeId, ObjId_ViewsFolder, ObjId_Root,
-			"Views", "Views", "Views");
+	}
 
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId,
+	// State (Component of ServerStatus)
+
+	UA_DataValue stateValue;
+
+	stateValue.value.vt = &UA_TYPES[UA_SERVERSTATE];
+	stateValue.value.storage.data.arrayDimensionsLength = 0; // added to ensure encoding in readreponse
+	stateValue.value.storage.data.arrayLength = 0;
+	stateValue.value.storage.data.dataPtr = &status->state; // points into the other object.
+	stateValue.value.storageType = UA_VARIANT_DATA;
+
+	{
+		UA_QualifiedName browseName ;
+		UA_LocalizedText description;
+		UA_LocalizedText displayName;
+
+		UA_QualifiedName_copycstring("State", &browseName);
+		UA_LocalizedText_copycstring("State", &description);
+		UA_LocalizedText_copycstring("State", &displayName);
+
+		ns0_addVariableNode(server, RefTypeId_HasComponent.nodeId, VarId_State,
+				ObjId_Server, browseName, description, displayName,
+				&stateValue, -1);
+
+	}
+
+
+	ns0_addObjectNode(server, RefTypeId_Organizes.nodeId, ObjId_TypesFolder,
+			ObjId_Root, "Types", "Types", "Types");
+
+	ns0_addObjectNode(server, RefTypeId_Organizes.nodeId, ObjId_TypesFolder,
+			ObjId_Root, "Types", "Types", "Types");
+	ns0_addObjectNode(server, RefTypeId_Organizes.nodeId,
+			ObjId_ReferenceTypesFolder, ObjId_TypesFolder, "ReferenceTypes",
+			"ReferenceTypes", "ReferenceTypes");
+	ns0_addReferenceTypeNode(server, RefTypeId_Organizes.nodeId,
+			RefTypeId_References, ObjId_ReferenceTypesFolder, "References",
+			"References", "References", UA_TRUE, UA_TRUE);
+
+	ns0_addObjectNode(server, RefTypeId_Organizes.nodeId, ObjId_ViewsFolder,
+			ObjId_Root, "Views", "Views", "Views");
+
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
 			RefTypeId_NonHierarchicalReferences, RefTypeId_References,
 			"NonHierarchicalReferences", "NonHierarchicalReferences",
 			"NonHierarchicalReferences", UA_TRUE, UA_FALSE);
 
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasModelParent,
-			RefTypeId_NonHierarchicalReferences, "HasModelParent",
-			"HasModelParent", "HasModelParent", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_GeneratesEvent,
-			RefTypeId_NonHierarchicalReferences, "GeneratesEvent",
-			"GeneratesEvent", "GeneratesEvent", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasEncoding,
-			RefTypeId_NonHierarchicalReferences, "HasEncoding", "HasEncoding",
-			"HasEncoding", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasModellingRule,
-			RefTypeId_NonHierarchicalReferences, "HasModellingRule",
-			"HasModellingRule", "HasModellingRule", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasDescription,
-			RefTypeId_NonHierarchicalReferences, "HasDescription",
-			"HasDescription", "HasDescription", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId,
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
+			RefTypeId_HasModelParent, RefTypeId_NonHierarchicalReferences,
+			"HasModelParent", "HasModelParent", "HasModelParent", UA_TRUE,
+			UA_FALSE);
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
+			RefTypeId_GeneratesEvent, RefTypeId_NonHierarchicalReferences,
+			"GeneratesEvent", "GeneratesEvent", "GeneratesEvent", UA_TRUE,
+			UA_FALSE);
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
+			RefTypeId_HasEncoding, RefTypeId_NonHierarchicalReferences,
+			"HasEncoding", "HasEncoding", "HasEncoding", UA_TRUE, UA_FALSE);
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
+			RefTypeId_HasModellingRule, RefTypeId_NonHierarchicalReferences,
+			"HasModellingRule", "HasModellingRule", "HasModellingRule", UA_TRUE,
+			UA_FALSE);
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
+			RefTypeId_HasDescription, RefTypeId_NonHierarchicalReferences,
+			"HasDescription", "HasDescription", "HasDescription", UA_TRUE,
+			UA_FALSE);
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
 			RefTypeId_HasTypeDefinition, RefTypeId_NonHierarchicalReferences,
 			"HasTypeDefinition", "HasTypeDefinition", "HasTypeDefinition",
 			UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_FromState,
-			RefTypeId_NonHierarchicalReferences, "FromState", "FromState",
-			"FromState", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_ToState,
-			RefTypeId_NonHierarchicalReferences, "ToState", "ToState",
-			"ToState", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasCause,
-			RefTypeId_NonHierarchicalReferences, "HasCause", "HasCause",
-			"HasCause", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasEffect,
-			RefTypeId_NonHierarchicalReferences, "HasEffect", "HasEffect",
-			"HasEffect", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId,
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
+			RefTypeId_FromState, RefTypeId_NonHierarchicalReferences,
+			"FromState", "FromState", "FromState", UA_TRUE, UA_FALSE);
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
+			RefTypeId_ToState, RefTypeId_NonHierarchicalReferences, "ToState",
+			"ToState", "ToState", UA_TRUE, UA_FALSE);
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
+			RefTypeId_HasCause, RefTypeId_NonHierarchicalReferences, "HasCause",
+			"HasCause", "HasCause", UA_TRUE, UA_FALSE);
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
+			RefTypeId_HasEffect, RefTypeId_NonHierarchicalReferences,
+			"HasEffect", "HasEffect", "HasEffect", UA_TRUE, UA_FALSE);
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
 			RefTypeId_HasHistoricalConfiguration,
 			RefTypeId_NonHierarchicalReferences, "HasHistoricalConfiguration",
 			"HasHistoricalConfiguration", "HasHistoricalConfiguration", UA_TRUE,
 			UA_FALSE);
 
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId,
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
 			RefTypeId_HierarchicalReferences, RefTypeId_References,
 			"HierarchicalReferences", "HierarchicalReferences",
 			"HierarchicalReferences", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasEventSource,
-			RefTypeId_HierarchicalReferences, "HasEventSource",
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
+			RefTypeId_HasEventSource, RefTypeId_HierarchicalReferences,
+			"HasEventSource", "HasEventSource", "HasEventSource", UA_TRUE,
+			UA_FALSE);
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
+			RefTypeId_HasNotifier, RefTypeId_HasEventSource, "HasEventSource",
 			"HasEventSource", "HasEventSource", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasNotifier,
-			RefTypeId_HasEventSource, "HasEventSource", "HasEventSource",
-			"HasEventSource", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasChild,
-			RefTypeId_HierarchicalReferences, "HasChild", "HasChild",
-			"HasChild", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_Aggregates,
-			RefTypeId_HasChild, "Aggregates", "Aggregates", "Aggregates",
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
+			RefTypeId_HasChild, RefTypeId_HierarchicalReferences, "HasChild",
+			"HasChild", "HasChild", UA_TRUE, UA_FALSE);
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
+			RefTypeId_Aggregates, RefTypeId_HasChild, "Aggregates",
+			"Aggregates", "Aggregates",
 			UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasProperty,
-			RefTypeId_Aggregates, "HasProperty", "HasProperty", "HasProperty",
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
+			RefTypeId_HasProperty, RefTypeId_Aggregates, "HasProperty",
+			"HasProperty", "HasProperty",
 			UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasComponent,
-			RefTypeId_Aggregates, "HasComponent", "HasComponent",
-			"HasComponent", UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId,
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
+			RefTypeId_HasComponent, RefTypeId_Aggregates, "HasComponent",
+			"HasComponent", "HasComponent", UA_TRUE, UA_FALSE);
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
 			RefTypeId_HasOrderedComponent, RefTypeId_HasComponent,
 			"HasOrderedComponent", "HasOrderedComponent", "HasOrderedComponent",
 			UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_HasSubtype,
-			RefTypeId_HasChild, "HasSubtype", "HasSubtype", "HasSubtype",
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
+			RefTypeId_HasSubtype, RefTypeId_HasChild, "HasSubtype",
+			"HasSubtype", "HasSubtype",
 			UA_TRUE, UA_FALSE);
-	ADD_REFTYPENODE_NS0(server,RefTypeId_HasSubtype.nodeId, RefTypeId_Organizes,
-			RefTypeId_HierarchicalReferences, "Organizes", "Organizes",
-			"Organizes", UA_TRUE, UA_FALSE);
-    return server;
+	ns0_addReferenceTypeNode(server, RefTypeId_HasSubtype.nodeId,
+			RefTypeId_Organizes, RefTypeId_HierarchicalReferences, "Organizes",
+			"Organizes", "Organizes", UA_TRUE, UA_FALSE);
+	return server;
 }
 
+void UA_Server_addScalarVariableNode(UA_Server *server,
+		UA_QualifiedName *browseName, void *value, const UA_VTable_Entry *vt,
+		UA_ExpandedNodeId *parentNodeId, UA_NodeId *referenceTypeId) {
+	UA_DataValue *dataValue = UA_DataValue_new();
 
-void UA_Server_addScalarVariableNode(UA_Server *server, UA_QualifiedName *browseName, void *value,
-                                                  const UA_VTable_Entry *vt, UA_ExpandedNodeId *parentNodeId,
-                                                  UA_NodeId *referenceTypeId ) {
-    UA_DataValue *dataValue = UA_DataValue_new();
+	/*UA_LocalizedText_copycstring("integer value", &tmpNode->description); */
+	UA_LocalizedText displayName;
+	UA_LocalizedText description;
 
-    /*UA_LocalizedText_copycstring("integer value", &tmpNode->description); */
-    UA_LocalizedText *displayName = UA_LocalizedText_new();
-    UA_LocalizedText *description = UA_LocalizedText_new();
+	UA_LocalizedText_init(&displayName);
+	UA_LocalizedText_init(&description);
 
-    displayName->locale.length = 0;
-    description->locale.length = 0;
 
-    UA_String_copy(&browseName->name, &displayName->text);
-    UA_String_copy(&browseName->name, &description->text);
+	UA_String_copy(&browseName->name, &displayName.text);
+	UA_String_copy(&browseName->name, &description.text);
 
-    dataValue->value.vt = vt;
-    dataValue->value.storage.data.dataPtr = value;
-    dataValue->value.storageType = UA_VARIANT_DATA;
-    dataValue->value.storage.data.arrayLength = 1;
-    UA_ExpandedNodeId reqNodeId;
-    reqNodeId.namespaceUri.length = 0;
-    reqNodeId.nodeId.namespaceIndex = 0;
-    UA_String_copy(&browseName->name,&reqNodeId.nodeId.identifier.string);
-    reqNodeId.nodeId.identifierType = UA_NODEIDTYPE_STRING;
-    ns0_addVariableNode(server,*referenceTypeId,reqNodeId, *parentNodeId,*browseName,*displayName,*description,dataValue,-1);
+	dataValue->value.vt = vt;
+	dataValue->value.storage.data.dataPtr = value;
+	dataValue->value.storageType = UA_VARIANT_DATA;
+	dataValue->value.storage.data.arrayLength = 1;
+	UA_ExpandedNodeId reqNodeId;
+	UA_ExpandedNodeId_init(&reqNodeId);
+	reqNodeId.namespaceUri.length = -1;
+	reqNodeId.nodeId.namespaceIndex = 0;
+	reqNodeId.nodeId.identifier.numeric = 222;
+	reqNodeId.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
+	ns0_addVariableNode(server, *referenceTypeId, reqNodeId, *parentNodeId,
+			*browseName, displayName, description, dataValue, -1);
 
 }
 
 UA_Int32 UA_Server_addNamespace(UA_Server *server, UA_UInt16 namespaceIndex,
 		UA_NodeStore *nodeStore) {
 
-	return (UA_Int32)UA_NamespaceManager_addNamespace(server->namespaceManager,
+	return (UA_Int32) UA_NamespaceManager_addNamespace(server->namespaceManager,
 			namespaceIndex, nodeStore);
 }

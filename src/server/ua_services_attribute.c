@@ -229,6 +229,7 @@ void Service_Read(UA_Server *server, UA_Session *session,
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
+	response->diagnosticInfosSize = request->nodesToReadSize;
 	response->resultsSize = request->nodesToReadSize;
 
 	UA_Int32 *numberOfFoundIndices;
@@ -318,9 +319,8 @@ void Service_Write(UA_Server *server, UA_Session *session,
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
-
-
-	UA_Int32 *numberOfFoundIndices;
+	response->diagnosticInfosSize = request->nodesToWriteSize;
+	UA_UInt32 *numberOfFoundIndices;
 	UA_UInt16 *associatedIndices;
 	UA_UInt32 differentNamespaceIndexCount = 0;
 	if (UA_Array_new((void **) &numberOfFoundIndices, request->nodesToWriteSize,

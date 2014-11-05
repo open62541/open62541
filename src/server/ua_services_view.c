@@ -33,6 +33,11 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     	response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
     	return ;
     }
+    if(UA_Array_new((void **)&response->diagnosticInfos,request->nodesToBrowseSize,&UA_TYPES[UA_DIAGNOSTICINFO]) != UA_STATUSCODE_GOOD){
+    	response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+    	return ;
+    }
+    response->diagnosticInfosSize = request->nodesToBrowseSize;
 
     BUILD_INDEX_ARRAYS(request->nodesToBrowseSize,request->nodesToBrowse,nodeId,differentNamespaceIndexCount,associatedIndices,numberOfFoundIndices);
 

@@ -53,7 +53,6 @@ UA_ByteString loadCertificate() {
 
     return certificate;
 }
-
 int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
 
@@ -78,15 +77,16 @@ int main(int argc, char** argv) {
 
 
     UA_Int32 myInteger = 42;
-    UA_QualifiedName *myIntegerName;
-    myIntegerName = UA_QualifiedName_new();
-    UA_QualifiedName_copycstring("the answer is",myIntegerName);
+    UA_QualifiedName myIntegerName;
+
+    UA_QualifiedName_copycstring("the answer is",&myIntegerName);
 
     UA_ExpandedNodeId parentNodeId;
+    UA_ExpandedNodeId_init(&parentNodeId);
     parentNodeId.namespaceUri.length = 0;
     parentNodeId.nodeId = UA_NODEIDS[UA_OBJECTSFOLDER];
-    UA_Server_addScalarVariableNode(server, myIntegerName, (void*)&myInteger, &UA_TYPES[UA_INT32],
-    		&parentNodeId, (UA_NodeId*)&UA_NODEIDS[UA_HASCOMPONENT]);
+    UA_Server_addScalarVariableNode(server, &myIntegerName, (void*)&myInteger, &UA_TYPES[UA_INT32],
+    		&parentNodeId, (UA_NodeId*)&UA_NODEIDS[UA_ORGANIZES]);
 
 #ifdef BENCHMARK
     UA_UInt32 nodeCount = 500;

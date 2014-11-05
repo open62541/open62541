@@ -165,7 +165,10 @@ UA_Int32 UA_String_copycstring(char const *src, UA_String *dst) {
     if(length == 0) {
         dst->length = 0;
         dst->data = UA_NULL;
-    } else if((dst->data = UA_alloc(length)) != UA_NULL) {
+        return UA_STATUSCODE_GOOD;
+    }
+    dst->data = UA_alloc(length);
+    if(dst->data != UA_NULL) {
         memcpy(dst->data, src, length);
         dst->length = length;
     } else {
