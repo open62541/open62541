@@ -20,10 +20,12 @@ struct UA_NamespaceManager {
     UA_UInt32    currentNamespaceCount;
 };
 
-void UA_NamespaceManager_new(UA_NamespaceManager** namespaceManager)
+UA_NamespaceManager* UA_NamespaceManager_new()
 {
-	*namespaceManager = UA_alloc(sizeof(UA_NamespaceManager));
-	(*namespaceManager)->currentNamespaceCount = 0;
+	UA_NamespaceManager* namespaceManager = UA_alloc(sizeof(UA_NamespaceManager));
+	namespaceManager->currentNamespaceCount = 0;
+	LIST_INIT(&(namespaceManager->namespaces));
+	return namespaceManager;
 
 }
 
@@ -34,6 +36,7 @@ UA_StatusCode UA_NamespaceManager_addNamespace(UA_NamespaceManager *namespaceMan
 		struct namespace_list_entry *newentry = UA_alloc(sizeof(struct namespace_list_entry));
 		newentry->namespace.index = index;
 		newentry->namespace.nodeStore = nodeStore;
+		UA_String_init(&newentry->namespace.url);
 		LIST_INSERT_HEAD(&namespaceManager->namespaces, newentry, pointers);
 		return UA_STATUSCODE_GOOD;
 	}

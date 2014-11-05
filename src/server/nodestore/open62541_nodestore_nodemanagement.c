@@ -123,7 +123,7 @@ void UA_VariableNode_setAttributes(UA_VariableAttributes *variableAttributes, UA
 			UA_Variant_copy(&variableAttributes->value,&node->value);
 	}
 	if(variableAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_DATATYPE){
-				UA_NodeId_copy(&variableAttributes->dataType,&node->dataType);
+			UA_NodeId_copy(&variableAttributes->dataType,&node->dataType);
 	}
 	if(variableAttributes->specifiedAttributes & UA_NODEATTRIBUTESMASK_VALUERANK){
 		node->valueRank = variableAttributes->valueRank;
@@ -205,7 +205,7 @@ UA_Int32 open62541NodeStore_AddNodes(const UA_RequestHeader *requestHeader,UA_Ad
 	UA_Node *node = UA_NULL;
 	for(UA_UInt32 i=0;i<indicesSize;i++){
 
-		const UA_Node *parent;
+		const UA_Node *parent = UA_NULL;
 		//todo what if node is in another namespace, readrequest to test, if it exists?
 		open62541NodeStore *ns = open62541NodeStore_getNodeStore();
 		if (open62541NodeStore_get(ns, &nodesToAdd->parentNodeId.nodeId,
@@ -240,7 +240,7 @@ UA_Int32 open62541NodeStore_AddNodes(const UA_RequestHeader *requestHeader,UA_Ad
 			case UA_NODECLASS_OBJECT:
 			{
 				UA_ObjectAttributes attributes;
-
+				UA_ObjectAttributes_init(&attributes);
 				newNode = (UA_Node*)UA_ObjectNode_new();
 				newNode->nodeClass = UA_NODECLASS_OBJECT;
 				UA_ObjectAttributes_decodeBinary(&nodesToAdd[indices[i]].nodeAttributes.body,&offset,&attributes);
@@ -256,6 +256,7 @@ UA_Int32 open62541NodeStore_AddNodes(const UA_RequestHeader *requestHeader,UA_Ad
 			case UA_NODECLASS_REFERENCETYPE:
 			{
 				UA_ReferenceTypeAttributes attributes;
+				UA_ReferenceTypeAttributes_init(&attributes);
 				newNode = (UA_Node*)UA_ReferenceTypeNode_new();
 				newNode->nodeClass = UA_NODECLASS_REFERENCETYPE;
 				UA_ReferenceTypeAttributes_decodeBinary(&nodesToAdd[indices[i]].nodeAttributes.body,&offset,&attributes);
@@ -265,6 +266,7 @@ UA_Int32 open62541NodeStore_AddNodes(const UA_RequestHeader *requestHeader,UA_Ad
 			case UA_NODECLASS_VARIABLE:
 			{
 				UA_VariableAttributes attributes;
+				UA_VariableAttributes_init(&attributes);
 				newNode = (UA_Node*)UA_VariableNode_new();
 				newNode->nodeClass = UA_NODECLASS_VARIABLE;
 				UA_VariableAttributes_decodeBinary(&nodesToAdd[indices[i]].nodeAttributes.body,&offset,&attributes);

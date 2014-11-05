@@ -11,7 +11,7 @@
 #include "ua_nodestore_interface.h"
 
 
-void  UA_NamespaceManager_new(UA_NamespaceManager** namespaceManager);
+UA_NamespaceManager* UA_NamespaceManager_new();
 
 UA_Int32  UA_NamespaceManager_addNamespace(UA_NamespaceManager *namespaceManager, UA_UInt16 index, UA_NodeStore *nodeStore);
 

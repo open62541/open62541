@@ -41,7 +41,9 @@ void ns0_addObjectNode(UA_Server *server, UA_NodeId REFTYPE_NODEID,
 		UA_ExpandedNodeId REQ_NODEID, UA_ExpandedNodeId PARENTNODEID,
 		char* BROWSENAME, char* DISPLAYNAME, char* DESCRIPTION) {
 	UA_ObjectAttributes objAttr;
+	UA_ObjectAttributes_init(&objAttr);
 	UA_AddNodesItem addNodesItem;
+	UA_AddNodesItem_init(&addNodesItem);
 	UA_Namespace *ns0 = UA_NULL;
 	UA_NamespaceManager_getNamespace(server->namespaceManager, 0, &ns0);
 	addNodesItem.parentNodeId = PARENTNODEID;
@@ -68,7 +70,9 @@ void ns0_addVariableNode(UA_Server *server, UA_NodeId refTypeNodeId,
 		UA_QualifiedName browseName, UA_LocalizedText displayName, UA_LocalizedText description,
 		UA_DataValue *dataValue, UA_Int32 valueRank) {
 	UA_VariableAttributes varAttr;
+	UA_VariableAttributes_init(&varAttr);
 	UA_AddNodesItem addNodesItem;
+	UA_AddNodesItem_init(&addNodesItem);
 	UA_Namespace *ns0 = UA_NULL;
 	UA_NamespaceManager_getNamespace(server->namespaceManager, 0, &ns0);
 	addNodesItem.parentNodeId = parentNodeId;
@@ -114,6 +118,7 @@ void ADD_REFTYPENODE_NS0(UA_Server *server, UA_NodeId REFTYPE_NODEID,UA_Expanded
     UA_Namespace *ns0;
     UA_NamespaceManager_getNamespace(server->namespaceManager,0,&ns0);
 	UA_ReferenceTypeAttributes refTypeAttr;
+	UA_ReferenceTypeAttributes_init(&refTypeAttr);
     addNodesItem.parentNodeId= PARENTNODEID;
     addNodesItem.requestedNewNodeId = REQ_NODEID;
     addNodesItem.referenceTypeId = REFTYPE_NODEID;
@@ -142,8 +147,11 @@ UA_Server * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertifica
     UA_Server *server = UA_alloc(sizeof(UA_Server));
     if(!server)
         return server;
+
+    UA_ApplicationDescription_init(&server->description);
+
     //add namespace zero
-    UA_NamespaceManager_new(&server->namespaceManager);
+    server->namespaceManager = UA_NamespaceManager_new();
     UA_NamespaceManager_addNamespace(server->namespaceManager,0,ns0Nodestore);
     
 
