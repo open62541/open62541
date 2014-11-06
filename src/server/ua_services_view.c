@@ -211,7 +211,12 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
             }
             currentRefs++;
         }
-        browseResult->referencesSize = currentRefs;
+        if(currentRefs != 0)
+            browseResult->referencesSize = currentRefs;
+        else {
+            UA_free(browseResult->references);
+            browseResult->references = UA_NULL;
+        }
     }
 
     UA_NodeStore_release(parentNode);
