@@ -269,7 +269,7 @@ static UA_StatusCode expand(open62541NodeStore *ns) {
 UA_StatusCode open62541NodeStore_new(open62541NodeStore **result) {
 	open62541NodeStore *ns;
 	UA_UInt32 sizePrimeIndex, size;
-	if (!(ns = UA_alloc(sizeof(UA_NodeStore))))
+	if (!(ns = UA_alloc(sizeof(UA_NodeStoreInterface))))
 		return UA_STATUSCODE_BADOUTOFMEMORY;
 
 	sizePrimeIndex = higher_prime_index(32);

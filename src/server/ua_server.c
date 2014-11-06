@@ -6,6 +6,7 @@
 #include "ua_session_manager.h"
 #include "ua_util.h"
 #include "ua_services.h"
+#include "server/nodestore/open62541_nodestore.h"
 
 void UA_Server_delete(UA_Server *server) {
 	UA_ApplicationDescription_deleteMembers(&server->description);
@@ -38,8 +39,15 @@ void addSingleNode(UA_Namespace *namespace, UA_AddNodesItem *addNodesItem) {
 	namespace->nodeStore->addNodes(&tmpRequestHeader, addNodesItem, &indices,
 			indicesSize, &result, &diagnosticInfo);
 }
+static void UA_Server_registerNS0Operations(UA_Server *server, UA_NodeStoreInterface *nodestore){
 
-void ns0_addObjectNode(UA_Server *server, UA_NodeId REFTYPE_NODEID,
+	UA_NodeStoreInterface_registerReadNodesOperation(nodestore,open62541NodeStore_ReadNodes);
+	UA_NodeStoreInterface_registerBrowseNodesOperation(nodestore,open62541NodeStore_BrowseNodes);
+	UA_NodeStoreInterface_registerAddNodesOperation(nodestore,open62541NodeStore_AddNodes);
+	UA_NodeStoreInterface_registerWriteNodesOperation(nodestore,open62541NodeStore_WriteNodes);
+}
+
+static void ns0_addObjectNode(UA_Server *server, UA_NodeId REFTYPE_NODEID,
 		UA_ExpandedNodeId REQ_NODEID, UA_ExpandedNodeId PARENTNODEID,
 		char* BROWSENAME, char* DISPLAYNAME, char* DESCRIPTION) {
 	UA_ObjectAttributes *objAttr = UA_ObjectAttributes_new();
@@ -74,7 +82,7 @@ void ns0_addObjectNode(UA_Server *server, UA_NodeId REFTYPE_NODEID,
 	UA_AddNodesItem_delete(addNodesItem);
 	UA_ObjectAttributes_delete(objAttr);
 }
-void ns0_addVariableNode(UA_Server *server, UA_NodeId refTypeNodeId,
+static void ns0_addVariableNode(UA_Server *server, UA_NodeId refTypeNodeId,
 		UA_ExpandedNodeId requestedNodeId, UA_ExpandedNodeId parentNodeId,
 		UA_QualifiedName browseName, UA_LocalizedText displayName,
 		UA_LocalizedText description, UA_DataValue *dataValue,
@@ -126,7 +134,7 @@ void ns0_addVariableNode(UA_Server *server, UA_NodeId refTypeNodeId,
 	UA_VariableAttributes_delete(varAttr);
 }
 
-void ns0_addReferenceTypeNode(UA_Server *server, UA_NodeId REFTYPE_NODEID,
+static void ns0_addReferenceTypeNode(UA_Server *server, UA_NodeId REFTYPE_NODEID,
 		UA_ExpandedNodeId REQ_NODEID, UA_ExpandedNodeId PARENTNODEID,
 		char* REFTYPE_BROWSENAME, char* REFTYPE_DISPLAYNAME,
 		char*REFTYPE_DESCRIPTION, UA_Boolean IS_ABSTRACT,
@@ -166,7 +174,8 @@ void ns0_addReferenceTypeNode(UA_Server *server, UA_NodeId REFTYPE_NODEID,
 }
 
 UA_Server * UA_Server_new(UA_String *endpointUrl,
-		UA_ByteString *serverCertificate, UA_NodeStore *ns0Nodestore) {
+		UA_ByteString *serverCertificate, UA_NodeStoreInterface *ns0Nodestore,
+		UA_Boolean useOpen62541NodeStore) {
 	UA_Server *server = UA_alloc(sizeof(UA_Server));
 	if (!server)
 		return server;
@@ -174,8 +183,13 @@ UA_Server * UA_Server_new(UA_String *endpointUrl,
 	UA_ApplicationDescription_init(&server->description);
 
 	//add namespace zero
+	UA_NodeStoreInterface nodestoreInterface;
 	server->namespaceManager = UA_NamespaceManager_new();
-	UA_NamespaceManager_addNamespace(server->namespaceManager, 0, ns0Nodestore);
+	if(!useOpen62541NodeStore){
+		nodestoreInterface = *ns0Nodestore;
+	}
+	UA_Server_registerNS0Operations(server,&nodestoreInterface);
+	UA_NamespaceManager_addNamespace(server->namespaceManager, 0, &nodestoreInterface);
 
 	// mockup application description
 	UA_ApplicationDescription_init(&server->description);
@@ -568,8 +582,10 @@ void UA_Server_addScalarVariableNode(UA_Server *server,
 }
 
 UA_Int32 UA_Server_addNamespace(UA_Server *server, UA_UInt16 namespaceIndex,
-		UA_NodeStore *nodeStore) {
+		UA_NodeStoreInterface *nodeStore) {
 
 	return (UA_Int32) UA_NamespaceManager_addNamespace(server->namespaceManager,
 			namespaceIndex, nodeStore);
 }
+
+

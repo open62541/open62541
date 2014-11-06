@@ -28,7 +28,7 @@ extern "C" {
 /** @defgroup server Server */
 
 struct UA_NodeStore;
-typedef struct UA_NodeStore UA_NodeStore;
+typedef struct UA_NodeStore UA_NodeStoreInterface;
 
 struct UA_Server;
 typedef struct UA_Server UA_Server;
@@ -41,7 +41,7 @@ typedef struct UA_Namespace
 {
 	UA_UInt16 index;
 	UA_String url;
-	UA_NodeStore *nodeStore;
+	UA_NodeStoreInterface *nodeStore;
 }UA_Namespace;
 
 struct UA_NamespaceManager;
@@ -69,7 +69,8 @@ struct UA_NodeStore {
 };
 
 
-UA_Server UA_EXPORT * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertificate, UA_NodeStore *ns0Nodestore);
+UA_Server UA_EXPORT * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertificate, UA_NodeStoreInterface *ns0Nodestore,UA_Boolean useOpen62541NodeStore);
+
 void UA_EXPORT UA_Server_delete(UA_Server *server);
 void UA_EXPORT UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
 
@@ -82,11 +83,11 @@ void UA_EXPORT UA_Server_addScalarVariableNode(UA_Server *server, UA_QualifiedNa
 //void UA_EXPORT UA_Server_addReferences(UA_Server *server, const UA_AddReferencesRequest *request,
 //		UA_AddReferencesResponse *response);
 
-UA_Int32 UA_EXPORT UA_Server_addNamespace(UA_Server *server, UA_UInt16 namespaceIndex, UA_NodeStore *nodeStore);
+UA_Int32 UA_EXPORT UA_Server_addNamespace(UA_Server *server, UA_UInt16 namespaceIndex, UA_NodeStoreInterface *nodeStore);
 
 UA_Int32 UA_EXPORT UA_Server_removeNamespace(UA_Server *server, UA_UInt16 namespaceIndex);
 
-UA_Int32 UA_EXPORT UA_Server_setNodeStore(UA_Server *server, UA_UInt16 namespaceIndex, UA_NodeStore *nodeStore);
+UA_Int32 UA_EXPORT UA_Server_setNodeStore(UA_Server *server, UA_UInt16 namespaceIndex, UA_NodeStoreInterface *nodeStore);
 
 #ifdef __cplusplus
 } // extern "C"

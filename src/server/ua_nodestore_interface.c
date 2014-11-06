@@ -4,7 +4,7 @@
 
 
 
-UA_StatusCode UA_NodeStore_registerAddNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_addNodes addNodes)
+UA_StatusCode UA_NodeStoreInterface_registerAddNodesOperation(UA_NodeStoreInterface *nodeStore, UA_NodeStore_addNodes addNodes)
 {
 	if(nodeStore==UA_NULL){
 		return UA_STATUSCODE_BADNOTFOUND;
@@ -13,7 +13,7 @@ UA_StatusCode UA_NodeStore_registerAddNodesOperation(UA_NodeStore *nodeStore, UA
 	return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_NodeStore_registerAddReferencesOperation(UA_NodeStore *nodeStore, UA_NodeStore_addReferences addReferences)
+UA_StatusCode UA_NodeStore_registerAddReferencesOperation(UA_NodeStoreInterface *nodeStore, UA_NodeStore_addReferences addReferences)
 {
 	if(nodeStore==UA_NULL){
 		return UA_STATUSCODE_BADNOTFOUND;
@@ -22,7 +22,7 @@ UA_StatusCode UA_NodeStore_registerAddReferencesOperation(UA_NodeStore *nodeStor
 	return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_NodeStore_registerDeleteNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_deleteNodes deleteNodes)
+UA_StatusCode UA_NodeStoreInterface_registerDeleteNodesOperation(UA_NodeStoreInterface *nodeStore, UA_NodeStore_deleteNodes deleteNodes)
 {
 	if(nodeStore==UA_NULL){
 		return UA_STATUSCODE_BADNOTFOUND;
@@ -31,7 +31,7 @@ UA_StatusCode UA_NodeStore_registerDeleteNodesOperation(UA_NodeStore *nodeStore,
 	return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_NodeStore_registerDeleteReferencesOperation(UA_NodeStore *nodeStore, UA_NodeStore_deleteReferences deleteReferences)
+UA_StatusCode UA_NodeStoreInterface_registerDeleteReferencesOperation(UA_NodeStoreInterface *nodeStore, UA_NodeStore_deleteReferences deleteReferences)
 {
 	if(nodeStore==UA_NULL){
 		return UA_STATUSCODE_BADNOTFOUND;
@@ -41,7 +41,7 @@ UA_StatusCode UA_NodeStore_registerDeleteReferencesOperation(UA_NodeStore *nodeS
 }
 
 
-UA_StatusCode UA_NodeStore_registerReadNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_readNodes readNodes)
+UA_StatusCode UA_NodeStoreInterface_registerReadNodesOperation(UA_NodeStoreInterface *nodeStore, UA_NodeStore_readNodes readNodes)
 {
 	if(nodeStore==UA_NULL){
 		return UA_STATUSCODE_BADNOTFOUND;
@@ -50,7 +50,7 @@ UA_StatusCode UA_NodeStore_registerReadNodesOperation(UA_NodeStore *nodeStore, U
 	return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_NodeStore_registerWriteNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_writeNodes writeNodes)
+UA_StatusCode UA_NodeStoreInterface_registerWriteNodesOperation(UA_NodeStoreInterface *nodeStore, UA_NodeStore_writeNodes writeNodes)
 {
 	if(nodeStore==UA_NULL){
 		return UA_STATUSCODE_BADNOTFOUND;
@@ -59,7 +59,7 @@ UA_StatusCode UA_NodeStore_registerWriteNodesOperation(UA_NodeStore *nodeStore, 
 	return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_NodeStore_registerBrowseNodesOperation(UA_NodeStore *nodeStore, UA_NodeStore_browseNodes browseNodes)
+UA_StatusCode UA_NodeStoreInterface_registerBrowseNodesOperation(UA_NodeStoreInterface *nodeStore, UA_NodeStore_browseNodes browseNodes)
 {
 	if(nodeStore==UA_NULL){
 		return UA_STATUSCODE_BADNOTFOUND;
@@ -68,6 +68,28 @@ UA_StatusCode UA_NodeStore_registerBrowseNodesOperation(UA_NodeStore *nodeStore,
 	return UA_STATUSCODE_GOOD;
 }
 
+UA_NodeStoreInterface* UA_NodeStore_new(){
+	return UA_alloc(sizeof(UA_NodeStoreInterface));
+}
+
+UA_StatusCode UA_NodeStore_copy(const UA_NodeStoreInterface *src,UA_NodeStoreInterface *dst){
+	if(src!=UA_NULL){
+		if(dst!=UA_NULL){
+			dst->addNodes = src->addNodes;
+			dst->addReferences = src->addReferences;
+			dst->browseNodes = src->browseNodes;
+			dst->deleteNodes = src->deleteNodes;
+			dst->deleteReferences = src->deleteReferences;
+			dst->readNodes = src->readNodes;
+			dst->writeNodes = src->writeNodes;
+		return UA_STATUSCODE_GOOD;
+		}
+	}
+	return UA_STATUSCODE_BADINTERNALERROR;
+}
+void UA_NodeStore_delete(UA_NodeStoreInterface *nodestore){
+	UA_free(nodestore);
+}
 //add method to add a 'delete nodestore'
 
 

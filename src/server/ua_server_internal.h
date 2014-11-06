@@ -14,7 +14,7 @@ struct UA_Server {
     UA_NamespaceManager *namespaceManager;
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;
-    UA_NodeStore *nodestore;
+    UA_NodeStoreInterface *nodestore;
     UA_Logger logger;
 };
 

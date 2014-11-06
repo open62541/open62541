@@ -59,28 +59,20 @@ int main(int argc, char** argv) {
 	UA_Server *server;
 	UA_String endpointUrl;
 	UA_String_copycstring("no endpoint url",&endpointUrl);
-	UA_NodeStore  nodeStore;
 
-	open62541NodeStore *myNodeStore;
-	open62541NodeStore_new(&myNodeStore);
-
-	open62541NodeStore_setNodeStore(myNodeStore);
-
-	UA_NodeStore_registerReadNodesOperation(&nodeStore,open62541NodeStore_ReadNodes);
-	UA_NodeStore_registerBrowseNodesOperation(&nodeStore,open62541NodeStore_BrowseNodes);
-	UA_NodeStore_registerAddNodesOperation(&nodeStore,open62541NodeStore_AddNodes);
-	UA_NodeStore_registerWriteNodesOperation(&nodeStore,open62541NodeStore_WriteNodes);
-	//register more operations/ services here
 	UA_ByteString certificate = loadCertificate();
+	//create a nodestore which holds all nodes
+	open62541NodeStore *open62541NodeStore;
+	open62541NodeStore_new(&open62541NodeStore);
+	open62541NodeStore_setNodeStore(open62541NodeStore);
 
-	server = UA_Server_new(&endpointUrl, &certificate, &nodeStore);
+	//create server and use default open62541Nodestore for storing the nodes
+	server = UA_Server_new(&endpointUrl, &certificate, NULL, 1);
 
-
+	//add a node to the adresspace
     UA_Int32 myInteger = 42;
     UA_QualifiedName myIntegerName;
-
     UA_QualifiedName_copycstring("the answer is",&myIntegerName);
-
     UA_ExpandedNodeId parentNodeId;
     UA_ExpandedNodeId_init(&parentNodeId);
     parentNodeId.namespaceUri.length = 0;
