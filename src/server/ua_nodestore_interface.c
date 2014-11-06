@@ -68,11 +68,11 @@ UA_StatusCode UA_NodeStoreInterface_registerBrowseNodesOperation(UA_NodeStoreInt
 	return UA_STATUSCODE_GOOD;
 }
 
-UA_NodeStoreInterface* UA_NodeStore_new(){
+UA_NodeStoreInterface* UA_NodeStoreInterface_new(){
 	return UA_alloc(sizeof(UA_NodeStoreInterface));
 }
 
-UA_StatusCode UA_NodeStore_copy(const UA_NodeStoreInterface *src,UA_NodeStoreInterface *dst){
+UA_StatusCode UA_NodeStoreInterface_copy(const UA_NodeStoreInterface *src,UA_NodeStoreInterface *dst){
 	if(src!=UA_NULL){
 		if(dst!=UA_NULL){
 			dst->addNodes = src->addNodes;
@@ -87,8 +87,8 @@ UA_StatusCode UA_NodeStore_copy(const UA_NodeStoreInterface *src,UA_NodeStoreInt
 	}
 	return UA_STATUSCODE_BADINTERNALERROR;
 }
-void UA_NodeStore_delete(UA_NodeStoreInterface *nodestore){
-	UA_free(nodestore);
+void UA_NodeStoreInterface_delete(UA_NodeStoreInterface *nodestoreInterface){
+	UA_free(nodestoreInterface);
 }
 //add method to add a 'delete nodestore'
 

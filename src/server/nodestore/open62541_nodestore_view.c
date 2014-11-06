@@ -217,7 +217,12 @@ static void getBrowseResult(open62541NodeStore *ns, const UA_BrowseDescription *
             }
             currentRefs++;
         }
-        browseResult->referencesSize = currentRefs;
+        if(currentRefs != 0)
+        	browseResult->referencesSize = currentRefs;
+        else {
+        	UA_free(browseResult->references);
+        	browseResult->references = UA_NULL;
+        }
     }
 
     open62541NodeStore_release(parentNode);

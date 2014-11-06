@@ -12,12 +12,13 @@ void UA_Server_delete(UA_Server *server) {
 	UA_ApplicationDescription_deleteMembers(&server->description);
 	UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
 	UA_SessionManager_deleteMembers(&server->sessionManager);
-	//UA_NodeStore_delete(server->nodestore);
+	UA_NamespaceManager_deleteMembers(&server->namespaceManager);
 	UA_ByteString_deleteMembers(&server->serverCertificate);
 	UA_Array_delete(server->endpointDescriptions,
 			server->endpointDescriptionsSize,
 			&UA_TYPES[UA_ENDPOINTDESCRIPTION]);
 	UA_free(server);
+
 }
 void addSingleReference(UA_Namespace *namespace,
 		UA_AddReferencesItem *addReferencesItem) {
@@ -50,88 +51,90 @@ static void UA_Server_registerNS0Operations(UA_Server *server, UA_NodeStoreInter
 static void ns0_addObjectNode(UA_Server *server, UA_NodeId REFTYPE_NODEID,
 		UA_ExpandedNodeId REQ_NODEID, UA_ExpandedNodeId PARENTNODEID,
 		char* BROWSENAME, char* DISPLAYNAME, char* DESCRIPTION) {
-	UA_ObjectAttributes *objAttr = UA_ObjectAttributes_new();
-	UA_ObjectAttributes_init(objAttr);
-	UA_AddNodesItem *addNodesItem = UA_AddNodesItem_new();
-	UA_AddNodesItem_init(addNodesItem);
+	UA_ObjectAttributes objAttr;
+	UA_ObjectAttributes_init(&objAttr);
+	UA_AddNodesItem addNodesItem;
+	UA_AddNodesItem_init(&addNodesItem);
 
 	UA_Namespace *ns0 = UA_NULL;
-	UA_NamespaceManager_getNamespace(server->namespaceManager, 0, &ns0);
-	addNodesItem->parentNodeId = PARENTNODEID;
-	addNodesItem->requestedNewNodeId = REQ_NODEID;
-	addNodesItem->referenceTypeId = REFTYPE_NODEID;
-	addNodesItem->nodeClass = UA_NODECLASS_OBJECT;\
-	UA_QualifiedName_copycstring(BROWSENAME, &addNodesItem->browseName);
-	UA_LocalizedText_copycstring(DISPLAYNAME, &objAttr->displayName);
-	UA_LocalizedText_copycstring(DESCRIPTION, &objAttr->description);
-	objAttr->userWriteMask = 0;
-	objAttr->writeMask = 0;
-	objAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_BROWSENAME;
-	objAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;
-	objAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_DESCRIPTION;
-	addNodesItem->typeDefinition.nodeId.identifier.numeric = 354;
-	addNodesItem->typeDefinition.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
-	addNodesItem->typeDefinition.nodeId.namespaceIndex = 0;
-	addNodesItem->nodeAttributes.typeId = addNodesItem->typeDefinition.nodeId;
+	UA_NamespaceManager_getNamespace(&server->namespaceManager, 0, &ns0);
+	addNodesItem.parentNodeId = PARENTNODEID;
+	addNodesItem.requestedNewNodeId = REQ_NODEID;
+	addNodesItem.referenceTypeId = REFTYPE_NODEID;
+	addNodesItem.nodeClass = UA_NODECLASS_OBJECT;\
+	UA_QualifiedName_copycstring(BROWSENAME, &addNodesItem.browseName);
+	UA_LocalizedText_copycstring(DISPLAYNAME, &objAttr.displayName);
+	UA_LocalizedText_copycstring(DESCRIPTION, &objAttr.description);
+	objAttr.userWriteMask = 0;
+	objAttr.writeMask = 0;
+	objAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_BROWSENAME;
+	objAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;
+	objAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DESCRIPTION;
+	addNodesItem.typeDefinition.nodeId.identifier.numeric = 354;
+	addNodesItem.typeDefinition.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
+	addNodesItem.typeDefinition.nodeId.namespaceIndex = 0;
+	addNodesItem.nodeAttributes.typeId = addNodesItem.typeDefinition.nodeId;
 	UA_UInt32 offset = 0;
-	UA_ByteString_newMembers(&addNodesItem->nodeAttributes.body,
-			UA_ObjectAttributes_calcSizeBinary(objAttr));
-	UA_ObjectAttributes_encodeBinary(objAttr,
-			&addNodesItem->nodeAttributes.body, &offset);
-	addSingleNode(ns0, addNodesItem);
-	UA_AddNodesItem_delete(addNodesItem);
-	UA_ObjectAttributes_delete(objAttr);
+	UA_ByteString_newMembers(&addNodesItem.nodeAttributes.body,
+			UA_ObjectAttributes_calcSizeBinary(&objAttr));
+	UA_ObjectAttributes_encodeBinary(&objAttr,
+			&addNodesItem.nodeAttributes.body, &offset);
+	addSingleNode(ns0, &addNodesItem);
+	UA_ObjectAttributes_deleteMembers(&objAttr);
+	UA_AddNodesItem_deleteMembers(&addNodesItem);
+	UA_ByteString_deleteMembers(&addNodesItem.nodeAttributes.body);
 }
 static void ns0_addVariableNode(UA_Server *server, UA_NodeId refTypeNodeId,
 		UA_ExpandedNodeId requestedNodeId, UA_ExpandedNodeId parentNodeId,
 		UA_QualifiedName browseName, UA_LocalizedText displayName,
 		UA_LocalizedText description, UA_DataValue *dataValue,
 		UA_Int32 valueRank) {
-	UA_VariableAttributes *varAttr = UA_VariableAttributes_new();
-	UA_VariableAttributes_init(varAttr);
-	UA_AddNodesItem *addNodesItem = UA_AddNodesItem_new();
-	UA_AddNodesItem_init(addNodesItem);
+	UA_VariableAttributes varAttr;
+	UA_VariableAttributes_init(&varAttr);
+	UA_AddNodesItem addNodesItem;
+	UA_AddNodesItem_init(&addNodesItem);
 	UA_Namespace *ns0 = UA_NULL;
-	UA_NamespaceManager_getNamespace(server->namespaceManager, 0, &ns0);
-	addNodesItem->parentNodeId = parentNodeId;
-	addNodesItem->requestedNewNodeId = requestedNodeId;
-	addNodesItem->referenceTypeId = refTypeNodeId;
-	addNodesItem->nodeClass = UA_NODECLASS_VARIABLE;
-	addNodesItem->browseName = browseName;
-	addNodesItem->typeDefinition.nodeId.identifier.numeric = 357;
-	addNodesItem->typeDefinition.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
-	addNodesItem->typeDefinition.nodeId.namespaceIndex = 0;
-	addNodesItem->nodeAttributes.typeId = addNodesItem->typeDefinition.nodeId;
-	varAttr->displayName = displayName;
-	varAttr->description = description;
-	UA_Variant_copy(&dataValue->value,&varAttr->value);
-	varAttr->userWriteMask = 0;
-	varAttr->writeMask = 0;
+	UA_NamespaceManager_getNamespace(&server->namespaceManager, 0, &ns0);
+	addNodesItem.parentNodeId = parentNodeId;
+	addNodesItem.requestedNewNodeId = requestedNodeId;
+	addNodesItem.referenceTypeId = refTypeNodeId;
+	addNodesItem.nodeClass = UA_NODECLASS_VARIABLE;
+	addNodesItem.browseName = browseName;
+	addNodesItem.typeDefinition.nodeId.identifier.numeric = 357;
+	addNodesItem.typeDefinition.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
+	addNodesItem.typeDefinition.nodeId.namespaceIndex = 0;
+	addNodesItem.nodeAttributes.typeId = addNodesItem.typeDefinition.nodeId;
+	varAttr.displayName = displayName;
+	varAttr.description = description;
+	UA_Variant_copy(&dataValue->value,&varAttr.value);
+	varAttr.userWriteMask = 0;
+	varAttr.writeMask = 0;
 
-	varAttr->dataType = dataValue->value.vt->typeId;
-	varAttr->valueRank = valueRank;
-	varAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_VALUERANK;
+	varAttr.dataType = dataValue->value.vt->typeId;
+	varAttr.valueRank = valueRank;
+	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_VALUERANK;
 
-	varAttr->arrayDimensions =
+	varAttr.arrayDimensions =
 			(UA_UInt32*) dataValue->value.storage.data.arrayDimensions;
-	varAttr->arrayDimensionsSize =
+	varAttr.arrayDimensionsSize =
 			dataValue->value.storage.data.arrayDimensionsLength;
 
-	varAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_BROWSENAME;
-	varAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;
-	varAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_DESCRIPTION;
-	varAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_VALUE;
-	varAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_DATATYPE;
-	varAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_ARRAYDIMENSIONS;
+	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_BROWSENAME;
+	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;
+	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DESCRIPTION;
+	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_VALUE;
+	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DATATYPE;
+	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_ARRAYDIMENSIONS;
 
 	UA_UInt32 offset = 0;
-	UA_ByteString_newMembers(&addNodesItem->nodeAttributes.body,
-			UA_VariableAttributes_calcSizeBinary(varAttr));
-	UA_VariableAttributes_encodeBinary(varAttr,
-			&addNodesItem->nodeAttributes.body, &offset);
-	addSingleNode(ns0, addNodesItem);
-	UA_AddNodesItem_delete(addNodesItem);
-	UA_VariableAttributes_delete(varAttr);
+	UA_ByteString_newMembers(&addNodesItem.nodeAttributes.body,
+			UA_VariableAttributes_calcSizeBinary(&varAttr));
+	UA_VariableAttributes_encodeBinary(&varAttr,
+			&addNodesItem.nodeAttributes.body, &offset);
+	addSingleNode(ns0, &addNodesItem);
+	UA_VariableAttributes_deleteMembers(&varAttr);
+	UA_AddNodesItem_deleteMembers(&addNodesItem);
+	UA_ByteString_deleteMembers(&addNodesItem.nodeAttributes.body);
 }
 
 static void ns0_addReferenceTypeNode(UA_Server *server, UA_NodeId REFTYPE_NODEID,
@@ -139,38 +142,39 @@ static void ns0_addReferenceTypeNode(UA_Server *server, UA_NodeId REFTYPE_NODEID
 		char* REFTYPE_BROWSENAME, char* REFTYPE_DISPLAYNAME,
 		char*REFTYPE_DESCRIPTION, UA_Boolean IS_ABSTRACT,
 		UA_Boolean IS_SYMMETRIC) {
-	UA_AddNodesItem *addNodesItem = UA_AddNodesItem_new();
+	UA_AddNodesItem addNodesItem;
+	UA_AddNodesItem_init(&addNodesItem);
 	UA_Namespace *ns0;
-	UA_NamespaceManager_getNamespace(server->namespaceManager, 0, &ns0);
-	UA_ReferenceTypeAttributes *refTypeAttr = UA_ReferenceTypeAttributes_new();
-	UA_ReferenceTypeAttributes_init(refTypeAttr);
-	addNodesItem->parentNodeId = PARENTNODEID;
-	addNodesItem->requestedNewNodeId = REQ_NODEID;
-	addNodesItem->referenceTypeId = REFTYPE_NODEID;
-	addNodesItem->nodeClass = UA_NODECLASS_REFERENCETYPE;
-	UA_QualifiedName_copycstring(REFTYPE_BROWSENAME, &addNodesItem->browseName);
-	UA_LocalizedText_copycstring(REFTYPE_DISPLAYNAME, &refTypeAttr->displayName);
-	UA_LocalizedText_copycstring(REFTYPE_DESCRIPTION, &refTypeAttr->description);
-	refTypeAttr->isAbstract = IS_ABSTRACT;
-	refTypeAttr->symmetric = IS_SYMMETRIC;
-	refTypeAttr->userWriteMask = 0;
-	refTypeAttr->writeMask = 0;
-	refTypeAttr->inverseName.locale.length = 0;
-	refTypeAttr->inverseName.text.length = 0;
-	refTypeAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_BROWSENAME;
-	refTypeAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;
-	refTypeAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_DESCRIPTION;
-	refTypeAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_ISABSTRACT;
-	refTypeAttr->specifiedAttributes |= UA_NODEATTRIBUTESMASK_SYMMETRIC;
+	UA_NamespaceManager_getNamespace(&server->namespaceManager, 0, &ns0);
+	UA_ReferenceTypeAttributes refTypeAttr;
+	UA_ReferenceTypeAttributes_init(&refTypeAttr);
+	addNodesItem.parentNodeId = PARENTNODEID;
+	addNodesItem.requestedNewNodeId = REQ_NODEID;
+	addNodesItem.referenceTypeId = REFTYPE_NODEID;
+	addNodesItem.nodeClass = UA_NODECLASS_REFERENCETYPE;
+	UA_QualifiedName_copycstring(REFTYPE_BROWSENAME, &addNodesItem.browseName);
+	UA_LocalizedText_copycstring(REFTYPE_DISPLAYNAME, &refTypeAttr.displayName);
+	UA_LocalizedText_copycstring(REFTYPE_DESCRIPTION, &refTypeAttr.description);
+	refTypeAttr.isAbstract = IS_ABSTRACT;
+	refTypeAttr.symmetric = IS_SYMMETRIC;
+	refTypeAttr.userWriteMask = 0;
+	refTypeAttr.writeMask = 0;
+	UA_LocalizedText_copycstring(REFTYPE_DISPLAYNAME,&refTypeAttr.inverseName);
+	refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_BROWSENAME;
+	refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;
+	refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DESCRIPTION;
+	refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_ISABSTRACT;
+	refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_SYMMETRIC;
+	refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_INVERSENAME;
 	UA_UInt32 offset = 0;
-	UA_ByteString_newMembers(&addNodesItem->nodeAttributes.body,
-			UA_ReferenceTypeAttributes_calcSizeBinary(refTypeAttr));
-	UA_ReferenceTypeAttributes_encodeBinary(refTypeAttr,
-			&addNodesItem->nodeAttributes.body, &offset);
-	addSingleNode(ns0, addNodesItem);
-	UA_AddNodesItem_delete(addNodesItem);
-	UA_ReferenceTypeAttributes_delete(refTypeAttr);
-
+	UA_ByteString_newMembers(&addNodesItem.nodeAttributes.body,
+			UA_ReferenceTypeAttributes_calcSizeBinary(&refTypeAttr));
+	UA_ReferenceTypeAttributes_encodeBinary(&refTypeAttr,
+			&addNodesItem.nodeAttributes.body, &offset);
+	addSingleNode(ns0, &addNodesItem);
+	UA_ReferenceTypeAttributes_deleteMembers(&refTypeAttr);
+	UA_AddNodesItem_deleteMembers(&addNodesItem);
+	UA_ByteString_deleteMembers(&addNodesItem.nodeAttributes.body);
 }
 
 UA_Server * UA_Server_new(UA_String *endpointUrl,
@@ -184,12 +188,12 @@ UA_Server * UA_Server_new(UA_String *endpointUrl,
 
 	//add namespace zero
 	UA_NodeStoreInterface nodestoreInterface;
-	server->namespaceManager = UA_NamespaceManager_new();
+	UA_NamespaceManager_init(&server->namespaceManager);
 	if(!useOpen62541NodeStore){
 		nodestoreInterface = *ns0Nodestore;
 	}
 	UA_Server_registerNS0Operations(server,&nodestoreInterface);
-	UA_NamespaceManager_addNamespace(server->namespaceManager, 0, &nodestoreInterface);
+	UA_NamespaceManager_createNamespace(&server->namespaceManager, 0, &nodestoreInterface);
 
 	// mockup application description
 	UA_ApplicationDescription_init(&server->description);
@@ -584,7 +588,7 @@ void UA_Server_addScalarVariableNode(UA_Server *server,
 UA_Int32 UA_Server_addNamespace(UA_Server *server, UA_UInt16 namespaceIndex,
 		UA_NodeStoreInterface *nodeStore) {
 
-	return (UA_Int32) UA_NamespaceManager_addNamespace(server->namespaceManager,
+	return (UA_Int32) UA_NamespaceManager_createNamespace(&server->namespaceManager,
 			namespaceIndex, nodeStore);
 }
 

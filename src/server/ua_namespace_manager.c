@@ -15,36 +15,51 @@ struct namespace_list_entry {
     LIST_ENTRY(namespace_list_entry) pointers;
 };
 
-struct UA_NamespaceManager {
-    LIST_HEAD(namespace_list, namespace_list_entry) namespaces;
-    UA_UInt32    currentNamespaceCount;
-};
 
-UA_NamespaceManager* UA_NamespaceManager_new()
+
+UA_StatusCode UA_NamespaceManager_init( UA_NamespaceManager* namespaceManager)
 {
-	UA_NamespaceManager* namespaceManager = UA_alloc(sizeof(UA_NamespaceManager));
+	LIST_INIT(&namespaceManager->namespaces);
 	namespaceManager->currentNamespaceCount = 0;
-	LIST_INIT(&(namespaceManager->namespaces));
-	return namespaceManager;
+	return UA_STATUSCODE_GOOD;
+}
+
+void UA_NamespaceManager_deleteMembers(UA_NamespaceManager *namespaceManager)
+{
+	struct namespace_list_entry *current = LIST_FIRST(&namespaceManager->namespaces);
+    while(current) {
+        LIST_REMOVE(current, pointers);
+        if(current->namespace.nodeStore != UA_NULL)
+            current->namespace.nodeStore = UA_NULL; // the channel is no longer attached to a session
+        UA_Namespace_deleteMembers(&current->namespace);
+        UA_free(current);
+        current = LIST_FIRST(&namespaceManager->namespaces);
+    }
 
 }
 
-UA_StatusCode UA_NamespaceManager_addNamespace(UA_NamespaceManager *namespaceManager,UA_UInt16 index, UA_NodeStoreInterface *nodeStore)
+UA_StatusCode UA_NamespaceManager_createNamespace(UA_NamespaceManager *namespaceManager,UA_UInt16 index, UA_NodeStoreInterface *nodeStore)
 {
 	if(namespaceManager->currentNamespaceCount<UA_UINT16_MAX){
-		namespaceManager->currentNamespaceCount++;
+
 		struct namespace_list_entry *newentry = UA_alloc(sizeof(struct namespace_list_entry));
+		UA_Namespace_init(&newentry->namespace);
 		newentry->namespace.index = index;
 		if(nodeStore != UA_NULL ){
 
-			newentry->namespace.nodeStore = UA_NodeStore_new();
-			UA_NodeStore_copy(nodeStore,newentry->namespace.nodeStore);
+			newentry->namespace.nodeStore = UA_NodeStoreInterface_new();
+			UA_NodeStoreInterface_copy(nodeStore,newentry->namespace.nodeStore);
 		}
-		UA_String_init(&newentry->namespace.url);
-		LIST_INSERT_HEAD(&namespaceManager->namespaces, newentry, pointers);
-		return UA_STATUSCODE_GOOD;
+		namespaceManager->currentNamespaceCount++;
+	    LIST_INSERT_HEAD(&namespaceManager->namespaces, newentry, pointers);
+
+	    return UA_STATUSCODE_GOOD;
+
 	}
 	return UA_STATUSCODE_BADNOTFOUND;
+
+
+
 }
 
 UA_StatusCode UA_NamespaceManager_removeNamespace(UA_NamespaceManager *namespaceManager,UA_UInt16 index)
@@ -93,7 +108,7 @@ UA_Int32 UA_NamespaceManager_setNodeStore(UA_NamespaceManager *namespaceManager,
 	}
 	if(nodeStore != UA_NULL ){
 		if(namespace->nodeStore == UA_NULL){
-			namespace->nodeStore = UA_NodeStore_new();
+			namespace->nodeStore = UA_NodeStoreInterface_new();
 		}
 	}
 	namespace->nodeStore = nodeStore;

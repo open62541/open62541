@@ -27,6 +27,7 @@ set(lib_sources src/ua_types.c
                 src/server/ua_server.c
                 src/server/ua_securechannel_manager.c
                 src/server/ua_session_manager.c
+                src/server/ua_namespace.c
                 src/server/ua_namespace_manager.c
 				src/server/ua_server_binary.c
                 src/server/ua_services_attribute.c

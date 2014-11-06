@@ -35,14 +35,6 @@ typedef struct UA_Server UA_Server;
 struct open62541NodeStore;
 typedef struct open62541NodeStore open62541NodeStore;
 
-//struct UA_Namespace;
-//typedef struct UA_Namespace UA_Namespace;
-typedef struct UA_Namespace
-{
-	UA_UInt16 index;
-	UA_String url;
-	UA_NodeStoreInterface *nodeStore;
-}UA_Namespace;
 
 struct UA_NamespaceManager;
 typedef struct UA_NamespaceManager UA_NamespaceManager;

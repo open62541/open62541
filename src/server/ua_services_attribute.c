@@ -259,7 +259,7 @@ void Service_Read(UA_Server *server, UA_Session *session,
 
 	for (UA_UInt32 i = 0; i < differentNamespaceIndexCount; i++) {
 		UA_Namespace *tmpNamespace;
-		UA_NamespaceManager_getNamespace(server->namespaceManager,
+		UA_NamespaceManager_getNamespace(&server->namespaceManager,
 				associatedIndices[i], &tmpNamespace);
 		if (tmpNamespace != UA_NULL) {
 
@@ -347,7 +347,7 @@ void Service_Write(UA_Server *server, UA_Session *session,
 
 	for (UA_UInt32 i = 0; i < differentNamespaceIndexCount; i++) {
 		UA_Namespace *tmpNamespace;
-		UA_NamespaceManager_getNamespace(server->namespaceManager,
+		UA_NamespaceManager_getNamespace(&server->namespaceManager,
 				associatedIndices[i], &tmpNamespace);
 		if (tmpNamespace != UA_NULL) {
 

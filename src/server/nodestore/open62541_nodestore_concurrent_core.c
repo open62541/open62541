@@ -258,12 +258,12 @@ UA_StatusCode open62541NodeStore_insert(open62541NodeStore *ns, UA_Node **node, 
 
     cds_lfht_node_init(&entry->htn);
     entry->readcount = ALIVE_BIT;
-    if(flags & open62541NodeStore_INSERT_GETMANAGED)
+    if(flags & UA_NODESTORE_INSERT_GETMANAGED)
         entry->readcount++;
 
     hash_t nhash = hash(&(*node)->nodeId);
     struct cds_lfht_node *result;
-    if(flags & open62541NodeStore_INSERT_UNIQUE) {
+    if(flags & UA_NODESTORE_INSERT_UNIQUE) {
         rcu_read_lock();
         result = cds_lfht_add_unique(ns->ht, nhash, compare, &entry->node.nodeId, &entry->htn);
         rcu_read_unlock();
@@ -285,7 +285,7 @@ UA_StatusCode open62541NodeStore_insert(open62541NodeStore *ns, UA_Node **node, 
     }
 
     UA_free((UA_Node *)*node);     /* The old node is replaced by a managed node. */
-    if(flags & open62541NodeStore_INSERT_GETMANAGED)
+    if(flags & UA_NODESTORE_INSERT_GETMANAGED)
         *node = &entry->node;
     else
         *node = UA_NULL;
@@ -335,7 +335,7 @@ UA_StatusCode open62541NodeStore_get(const open62541NodeStore *ns, const UA_Node
     return UA_STATUSCODE_GOOD;
 }
 
-void open62541NodeStore_iterate(const open62541NodeStore *ns, open62541NodeStore_nodeVisitor visitor) {
+void open62541NodeStore_iterate(const open62541NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
     struct cds_lfht     *ht = ns->ht;
     struct cds_lfht_iter iter;
 

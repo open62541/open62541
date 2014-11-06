@@ -11,7 +11,7 @@ struct UA_Server {
     UA_Int32 endpointDescriptionsSize;
     UA_EndpointDescription *endpointDescriptions;
     UA_ByteString serverCertificate;
-    UA_NamespaceManager *namespaceManager;
+    UA_NamespaceManager namespaceManager;
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;
     UA_NodeStoreInterface *nodestore;

@@ -19,9 +19,9 @@ UA_StatusCode UA_EXPORT UA_NodeStoreInterface_registerBrowseNodesOperation(UA_No
 
 
 
-UA_NodeStoreInterface* UA_NodeStore_new();
-UA_StatusCode UA_NodeStore_copy(const UA_NodeStoreInterface *src,UA_NodeStoreInterface *dst);
-void UA_NodeStore_delete(UA_NodeStoreInterface *nodestore);
+UA_NodeStoreInterface* UA_NodeStoreInterface_new();
+UA_StatusCode UA_NodeStoreInterface_copy(const UA_NodeStoreInterface *src,UA_NodeStoreInterface *dst);
+void UA_NodeStoreInterface_delete(UA_NodeStoreInterface *nodestore);
 
 UA_Boolean UA_NodeStore_nodeExists(UA_NodeId nodeId);
 
