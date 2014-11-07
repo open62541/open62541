@@ -29,13 +29,10 @@ void UA_NamespaceManager_deleteMembers(UA_NamespaceManager *namespaceManager)
 	struct namespace_list_entry *current = LIST_FIRST(&namespaceManager->namespaces);
     while(current) {
         LIST_REMOVE(current, pointers);
-        if(current->namespace.nodeStore != UA_NULL)
-            current->namespace.nodeStore = UA_NULL; // the channel is no longer attached to a session
         UA_Namespace_deleteMembers(&current->namespace);
         UA_free(current);
         current = LIST_FIRST(&namespaceManager->namespaces);
     }
-
 }
 
 UA_StatusCode UA_NamespaceManager_createNamespace(UA_NamespaceManager *namespaceManager,UA_UInt16 index, UA_NodeStoreInterface *nodeStore)
