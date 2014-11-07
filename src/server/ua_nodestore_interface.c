@@ -75,6 +75,7 @@ UA_NodeStoreInterface* UA_NodeStoreInterface_new(){
 UA_StatusCode UA_NodeStoreInterface_copy(const UA_NodeStoreInterface *src,UA_NodeStoreInterface *dst){
 	if(src!=UA_NULL){
 		if(dst!=UA_NULL){
+			//just copy the function pointers
 			dst->addNodes = src->addNodes;
 			dst->addReferences = src->addReferences;
 			dst->browseNodes = src->browseNodes;

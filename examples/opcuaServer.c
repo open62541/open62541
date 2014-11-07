@@ -79,6 +79,7 @@ int main(int argc, char** argv) {
     parentNodeId.nodeId = UA_NODEIDS[UA_OBJECTSFOLDER];
     UA_Server_addScalarVariableNode(server, &myIntegerName, (void*)&myInteger, &UA_TYPES[UA_INT32],
     		&parentNodeId, (UA_NodeId*)&UA_NODEIDS[UA_ORGANIZES]);
+    UA_QualifiedName_deleteMembers(&myIntegerName);
 
 #ifdef BENCHMARK
     UA_UInt32 nodeCount = 500;

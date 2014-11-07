@@ -59,7 +59,6 @@ static UA_Int32 AddReference(open62541NodeStore *nodestore, UA_Node *node,
 	return retval;
 }
 
-
 #define COPY_STANDARDATTRIBUTES do { \
 if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_DISPLAYNAME) { \
 vnode->displayName = attr.displayName; \
@@ -74,8 +73,6 @@ vnode->writeMask = attr.writeMask; \
 if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_USERWRITEMASK) \
 vnode->userWriteMask = attr.userWriteMask; \
 } while(0)
-
-
 
 static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes,
 		UA_Node **new_node, const UA_VTable_Entry **vt) {
@@ -144,8 +141,7 @@ static UA_StatusCode parseObjectNode(UA_ExtensionObject *attributes,
 	}
 // now copy all the attributes. This potentially removes them from the decoded attributes.
 	COPY_STANDARDATTRIBUTES;
-	if (attr.specifiedAttributes
-			& UA_NODEATTRIBUTESMASK_EVENTNOTIFIER) {
+	if (attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_EVENTNOTIFIER) {
 		vnode->eventNotifier = attr.eventNotifier;
 	}
 	UA_ObjectAttributes_deleteMembers(&attr);
@@ -171,18 +167,20 @@ static UA_StatusCode parseReferenceTypeNode(UA_ExtensionObject *attributes,
 // now copy all the attributes. This potentially removes them from the decoded attributes.
 	COPY_STANDARDATTRIBUTES;
 
-	if (attr.specifiedAttributes
-			& UA_NODEATTRIBUTESMASK_ISABSTRACT) {
+	if (attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_ISABSTRACT) {
 		vnode->isAbstract = attr.isAbstract;
 	}
-	if (attr.specifiedAttributes
-			& UA_NODEATTRIBUTESMASK_SYMMETRIC) {
+	if (attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_SYMMETRIC) {
 		vnode->symmetric = attr.symmetric;
 	}
-	if (attr.specifiedAttributes
-			& UA_NODEATTRIBUTESMASK_INVERSENAME) {
+	if (attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_INVERSENAME) {
 		vnode->inverseName = attr.inverseName;
 
+		attr.inverseName.text.length = -1;
+		attr.inverseName.text.data = UA_NULL;
+
+		attr.inverseName.locale.length = -1;
+		attr.inverseName.locale.data = UA_NULL;
 	}
 
 	UA_ReferenceTypeAttributes_deleteMembers(&attr);
@@ -208,8 +206,7 @@ static UA_StatusCode parseObjectTypeNode(UA_ExtensionObject *attributes,
 // now copy all the attributes. This potentially removes them from the decoded attributes.
 	COPY_STANDARDATTRIBUTES;
 
-	if (attr.specifiedAttributes
-			& UA_NODEATTRIBUTESMASK_ISABSTRACT) {
+	if (attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_ISABSTRACT) {
 		vnode->isAbstract = attr.isAbstract;
 	}
 	UA_ObjectTypeAttributes_deleteMembers(&attr);
@@ -235,12 +232,10 @@ static UA_StatusCode parseViewNode(UA_ExtensionObject *attributes,
 // now copy all the attributes. This potentially removes them from the decoded attributes.
 	COPY_STANDARDATTRIBUTES;
 
-	if (attr.specifiedAttributes
-			& UA_NODEATTRIBUTESMASK_CONTAINSNOLOOPS) {
+	if (attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_CONTAINSNOLOOPS) {
 		vnode->containsNoLoops = attr.containsNoLoops;
 	}
-	if (attr.specifiedAttributes
-			& UA_NODEATTRIBUTESMASK_EVENTNOTIFIER) {
+	if (attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_EVENTNOTIFIER) {
 		vnode->eventNotifier = attr.eventNotifier;
 	}
 	UA_ViewAttributes_deleteMembers(&attr);
@@ -344,22 +339,26 @@ UA_Int32 open62541NodeStore_AddNodes(const UA_RequestHeader *requestHeader,
 			break;
 		}
 		case UA_NODECLASS_OBJECT: {
-			parseObjectNode(&nodesToAdd[indices[i]].nodeAttributes,&newNode,&newNodeVT);
+			parseObjectNode(&nodesToAdd[indices[i]].nodeAttributes, &newNode,
+					&newNodeVT);
 			newNode->nodeClass = UA_NODECLASS_OBJECT;
 			break;
 		}
 		case UA_NODECLASS_OBJECTTYPE: {
-			parseObjectTypeNode(&nodesToAdd[indices[i]].nodeAttributes,&newNode,&newNodeVT);
+			parseObjectTypeNode(&nodesToAdd[indices[i]].nodeAttributes,
+					&newNode, &newNodeVT);
 			newNode->nodeClass = UA_NODECLASS_OBJECTTYPE;
 			break;
 		}
 		case UA_NODECLASS_REFERENCETYPE: {
-			parseReferenceTypeNode(&nodesToAdd[indices[i]].nodeAttributes,&newNode,&newNodeVT);
+			parseReferenceTypeNode(&nodesToAdd[indices[i]].nodeAttributes,
+					&newNode, &newNodeVT);
 			newNode->nodeClass = UA_NODECLASS_REFERENCETYPE;
 			break;
 		}
 		case UA_NODECLASS_VARIABLE: {
-			parseVariableNode(&nodesToAdd[indices[i]].nodeAttributes,&newNode,&newNodeVT);
+			parseVariableNode(&nodesToAdd[indices[i]].nodeAttributes, &newNode,
+					&newNodeVT);
 			newNode->nodeClass = UA_NODECLASS_VARIABLE;
 			break;
 		}
@@ -384,6 +383,7 @@ UA_Int32 open62541NodeStore_AddNodes(const UA_RequestHeader *requestHeader,
 				&newNode->browseName);
 
 		UA_AddReferencesItem addRefItem;
+		UA_AddReferencesItem_init(&addRefItem);
 		addRefItem.isForward = UA_TRUE;
 		addRefItem.referenceTypeId = nodesToAdd[indices[i]].referenceTypeId;
 		addRefItem.sourceNodeId = nodesToAdd[indices[i]].parentNodeId.nodeId;
@@ -402,7 +402,7 @@ UA_Int32 open62541NodeStore_AddNodes(const UA_RequestHeader *requestHeader,
 			open62541NodeStore_AddReferences(requestHeader, &addRefItem, &ind,
 					indSize, &result, &diagnosticInfo);
 		}
-
+		UA_AddReferencesItem_deleteMembers(&addRefItem);
 	}
 	return UA_STATUSCODE_GOOD;
 }

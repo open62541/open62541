@@ -40,12 +40,17 @@ void addSingleNode(UA_Namespace *namespace, UA_AddNodesItem *addNodesItem) {
 	namespace->nodeStore->addNodes(&tmpRequestHeader, addNodesItem, &indices,
 			indicesSize, &result, &diagnosticInfo);
 }
-static void UA_Server_registerNS0Operations(UA_Server *server, UA_NodeStoreInterface *nodestore){
+static void UA_Server_registerNS0Operations(UA_Server *server,
+		UA_NodeStoreInterface *nodestore) {
 
-	UA_NodeStoreInterface_registerReadNodesOperation(nodestore,open62541NodeStore_ReadNodes);
-	UA_NodeStoreInterface_registerBrowseNodesOperation(nodestore,open62541NodeStore_BrowseNodes);
-	UA_NodeStoreInterface_registerAddNodesOperation(nodestore,open62541NodeStore_AddNodes);
-	UA_NodeStoreInterface_registerWriteNodesOperation(nodestore,open62541NodeStore_WriteNodes);
+	UA_NodeStoreInterface_registerReadNodesOperation(nodestore,
+			open62541NodeStore_ReadNodes);
+	UA_NodeStoreInterface_registerBrowseNodesOperation(nodestore,
+			open62541NodeStore_BrowseNodes);
+	UA_NodeStoreInterface_registerAddNodesOperation(nodestore,
+			open62541NodeStore_AddNodes);
+	UA_NodeStoreInterface_registerWriteNodesOperation(nodestore,
+			open62541NodeStore_WriteNodes);
 }
 
 static void ns0_addObjectNode(UA_Server *server, UA_NodeId REFTYPE_NODEID,
@@ -82,12 +87,11 @@ static void ns0_addObjectNode(UA_Server *server, UA_NodeId REFTYPE_NODEID,
 	addSingleNode(ns0, &addNodesItem);
 	UA_ObjectAttributes_deleteMembers(&objAttr);
 	UA_AddNodesItem_deleteMembers(&addNodesItem);
-	UA_ByteString_deleteMembers(&addNodesItem.nodeAttributes.body);
 }
 static void ns0_addVariableNode(UA_Server *server, UA_NodeId refTypeNodeId,
 		UA_ExpandedNodeId requestedNodeId, UA_ExpandedNodeId parentNodeId,
-		UA_QualifiedName browseName, UA_LocalizedText displayName,
-		UA_LocalizedText description, UA_DataValue *dataValue,
+		UA_QualifiedName *browseName, UA_LocalizedText *displayName,
+		UA_LocalizedText *description, UA_DataValue *dataValue,
 		UA_Int32 valueRank) {
 	UA_VariableAttributes varAttr;
 	UA_VariableAttributes_init(&varAttr);
@@ -99,23 +103,27 @@ static void ns0_addVariableNode(UA_Server *server, UA_NodeId refTypeNodeId,
 	addNodesItem.requestedNewNodeId = requestedNodeId;
 	addNodesItem.referenceTypeId = refTypeNodeId;
 	addNodesItem.nodeClass = UA_NODECLASS_VARIABLE;
-	addNodesItem.browseName = browseName;
+	UA_QualifiedName_copy(browseName, &addNodesItem.browseName);
 	addNodesItem.typeDefinition.nodeId.identifier.numeric = 357;
 	addNodesItem.typeDefinition.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
 	addNodesItem.typeDefinition.nodeId.namespaceIndex = 0;
 	addNodesItem.nodeAttributes.typeId = addNodesItem.typeDefinition.nodeId;
-	varAttr.displayName = displayName;
-	varAttr.description = description;
-	UA_Variant_copy(&dataValue->value,&varAttr.value);
+	UA_LocalizedText_copy(displayName, &varAttr.displayName);
+	UA_LocalizedText_copy(description, &varAttr.description);
+
+	//UA_Variant_copy(&dataValue->value,&varAttr.value);
 	varAttr.userWriteMask = 0;
 	varAttr.writeMask = 0;
+	UA_Variant_copy(&dataValue->value, &varAttr.value);
 
-	varAttr.dataType = dataValue->value.vt->typeId;
+	varAttr.dataType = varAttr.value.vt->typeId;
 	varAttr.valueRank = valueRank;
 	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_VALUERANK;
 
-	varAttr.arrayDimensions =
-			(UA_UInt32*) dataValue->value.storage.data.arrayDimensions;
+	UA_Array_copy(dataValue->value.storage.data.arrayDimensions,
+			dataValue->value.storage.data.arrayDimensionsLength,
+			&UA_TYPES[UA_UINT32], (void**)&varAttr.arrayDimensions);
+
 	varAttr.arrayDimensionsSize =
 			dataValue->value.storage.data.arrayDimensionsLength;
 
@@ -134,14 +142,13 @@ static void ns0_addVariableNode(UA_Server *server, UA_NodeId refTypeNodeId,
 	addSingleNode(ns0, &addNodesItem);
 	UA_VariableAttributes_deleteMembers(&varAttr);
 	UA_AddNodesItem_deleteMembers(&addNodesItem);
-	UA_ByteString_deleteMembers(&addNodesItem.nodeAttributes.body);
 }
 
-static void ns0_addReferenceTypeNode(UA_Server *server, UA_NodeId REFTYPE_NODEID,
-		UA_ExpandedNodeId REQ_NODEID, UA_ExpandedNodeId PARENTNODEID,
-		char* REFTYPE_BROWSENAME, char* REFTYPE_DISPLAYNAME,
-		char*REFTYPE_DESCRIPTION, UA_Boolean IS_ABSTRACT,
-		UA_Boolean IS_SYMMETRIC) {
+static void ns0_addReferenceTypeNode(UA_Server *server,
+		UA_NodeId REFTYPE_NODEID, UA_ExpandedNodeId REQ_NODEID,
+		UA_ExpandedNodeId PARENTNODEID, char* REFTYPE_BROWSENAME,
+		char* REFTYPE_DISPLAYNAME, char*REFTYPE_DESCRIPTION,
+		UA_Boolean IS_ABSTRACT, UA_Boolean IS_SYMMETRIC) {
 	UA_AddNodesItem addNodesItem;
 	UA_AddNodesItem_init(&addNodesItem);
 	UA_Namespace *ns0;
@@ -159,7 +166,7 @@ static void ns0_addReferenceTypeNode(UA_Server *server, UA_NodeId REFTYPE_NODEID
 	refTypeAttr.symmetric = IS_SYMMETRIC;
 	refTypeAttr.userWriteMask = 0;
 	refTypeAttr.writeMask = 0;
-	UA_LocalizedText_copycstring(REFTYPE_DISPLAYNAME,&refTypeAttr.inverseName);
+	UA_LocalizedText_copycstring(REFTYPE_DISPLAYNAME, &refTypeAttr.inverseName);
 	refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_BROWSENAME;
 	refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;
 	refTypeAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DESCRIPTION;
@@ -174,7 +181,6 @@ static void ns0_addReferenceTypeNode(UA_Server *server, UA_NodeId REFTYPE_NODEID
 	addSingleNode(ns0, &addNodesItem);
 	UA_ReferenceTypeAttributes_deleteMembers(&refTypeAttr);
 	UA_AddNodesItem_deleteMembers(&addNodesItem);
-	UA_ByteString_deleteMembers(&addNodesItem.nodeAttributes.body);
 }
 
 UA_Server * UA_Server_new(UA_String *endpointUrl,
@@ -189,11 +195,12 @@ UA_Server * UA_Server_new(UA_String *endpointUrl,
 	//add namespace zero
 	UA_NodeStoreInterface nodestoreInterface;
 	UA_NamespaceManager_init(&server->namespaceManager);
-	if(!useOpen62541NodeStore){
+	if (!useOpen62541NodeStore) {
 		nodestoreInterface = *ns0Nodestore;
 	}
-	UA_Server_registerNS0Operations(server,&nodestoreInterface);
-	UA_NamespaceManager_createNamespace(&server->namespaceManager, 0, &nodestoreInterface);
+	UA_Server_registerNS0Operations(server, &nodestoreInterface);
+	UA_NamespaceManager_createNamespace(&server->namespaceManager, 0,
+			&nodestoreInterface);
 
 	// mockup application description
 	UA_ApplicationDescription_init(&server->description);
@@ -246,7 +253,7 @@ UA_Server * UA_Server_new(UA_String *endpointUrl,
 #define SESSIONLIFETIME 10000
 #define STARTSESSIONID 1
 	UA_SessionManager_init(&server->sessionManager, MAXSESSIONCOUNT,
-			SESSIONLIFETIME, STARTSESSIONID);
+	SESSIONLIFETIME, STARTSESSIONID);
 
 	//ns0: C2UA_STRING("http://opcfoundation.org/UA/"));
 	//ns1: C2UA_STRING("http://localhost:16664/open62541/"));
@@ -359,12 +366,10 @@ UA_Server * UA_Server_new(UA_String *endpointUrl,
 	UA_String_copycstring("http://opcfoundation.org/UA/",
 			&((UA_String *) (serverArrayValue.value.storage.data.dataPtr))[0]);
 	UA_String_copycstring("http://namespace123",
-				&((UA_String *) (serverArrayValue.value.storage.data.dataPtr))[1]);
+			&((UA_String *) (serverArrayValue.value.storage.data.dataPtr))[1]);
 
-	UA_Int32 *arrayDim;
-	UA_UInt32 arrayDimSize = 1;
-	UA_Array_new((void**) &arrayDim, arrayDimSize, &UA_TYPES[UA_INT32]);
-
+	UA_Int32 *arrayDim = UA_NULL;
+	UA_UInt32 arrayDimSize = -1;
 	serverArrayValue.value.vt = &UA_TYPES[UA_STRING];
 	serverArrayValue.value.storage.data.arrayDimensions = arrayDim;
 	serverArrayValue.value.storage.data.arrayDimensionsLength = arrayDimSize; // added to ensure encoding in readreponse
@@ -377,41 +382,43 @@ UA_Server * UA_Server_new(UA_String *endpointUrl,
 
 		UA_LocalizedText displayName;
 
-
 		UA_QualifiedName_copycstring("NamespaceArray", &browseName);
 		UA_LocalizedText_copycstring("NamespaceArray", &description);
 		UA_LocalizedText_copycstring("NamespaceArray", &displayName);
 
 		ns0_addVariableNode(server, RefTypeId_HasComponent.nodeId,
-				VarId_NamespaceArray, ObjId_Server, browseName, description,
-				displayName, &serverArrayValue, 1);
+				VarId_NamespaceArray, ObjId_Server, &browseName, &description,
+				&displayName, &serverArrayValue, 1);
+		UA_QualifiedName_deleteMembers(&browseName);
+		UA_LocalizedText_deleteMembers(&description);
+		UA_LocalizedText_deleteMembers(&displayName);
 
 	}
-
-
+	UA_DataValue_deleteMembers(&serverArrayValue);
 
 	// ServerStatus
 	UA_DataValue serverStatusValue;
 	UA_DataValue_init(&serverStatusValue);
 
-	UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
+	UA_ServerStatusDataType status;
+	UA_ServerStatusDataType_init(&status);
 
-	status->startTime = UA_DateTime_now();
-	status->currentTime = UA_DateTime_now();
-	status->state = UA_SERVERSTATE_RUNNING;
-	UA_String_copycstring("open62541.org", &status->buildInfo.productUri);
-	UA_String_copycstring("open62541", &status->buildInfo.manufacturerName);
-	UA_String_copycstring("open62541", &status->buildInfo.productName);
-	UA_String_copycstring("0.0", &status->buildInfo.softwareVersion);
-	UA_String_copycstring("0.0", &status->buildInfo.buildNumber);
-	status->buildInfo.buildDate = UA_DateTime_now();
-	UA_String_copycstring("en",&status->shutdownReason.locale);
-	UA_String_copycstring("because",&status->shutdownReason.text);
-	status->secondsTillShutdown = 99999999;
+	status.startTime = UA_DateTime_now();
+	status.currentTime = UA_DateTime_now();
+	status.state = UA_SERVERSTATE_RUNNING;
+	UA_String_copycstring("open62541.org", &status.buildInfo.productUri);
+	UA_String_copycstring("open62541", &status.buildInfo.manufacturerName);
+	UA_String_copycstring("open62541", &status.buildInfo.productName);
+	UA_String_copycstring("0.0", &status.buildInfo.softwareVersion);
+	UA_String_copycstring("0.0", &status.buildInfo.buildNumber);
+	status.buildInfo.buildDate = UA_DateTime_now();
+	UA_String_copycstring("en", &status.shutdownReason.locale);
+	UA_String_copycstring("because", &status.shutdownReason.text);
+	status.secondsTillShutdown = 99999999;
 
 	serverStatusValue.value.vt = &UA_TYPES[UA_SERVERSTATUSDATATYPE]; // gets encoded as an extensionobject
 	serverStatusValue.value.storage.data.arrayLength = 0;
-	serverStatusValue.value.storage.data.dataPtr = status;
+	serverStatusValue.value.storage.data.dataPtr = &status;
 	serverStatusValue.value.storage.data.arrayDimensionsLength = 0;
 	{
 		UA_QualifiedName browseName;
@@ -423,23 +430,27 @@ UA_Server * UA_Server_new(UA_String *endpointUrl,
 		UA_LocalizedText_copycstring("ServerStatus", &displayName);
 
 		ns0_addVariableNode(server, RefTypeId_HasComponent.nodeId,
-				VarId_ServerStatus, ObjId_Server, browseName, description,
-				displayName, &serverStatusValue, -1);
+				VarId_ServerStatus, ObjId_Server, &browseName, &description,
+				&displayName, &serverStatusValue, -1);
+
+		UA_QualifiedName_deleteMembers(&browseName);
+		UA_LocalizedText_deleteMembers(&description);
+		UA_LocalizedText_deleteMembers(&displayName);
 
 	}
-
+	UA_ServerStatusDataType_deleteMembers(&status);
 	// State (Component of ServerStatus)
 
 	UA_DataValue stateValue;
-
+	UA_DataValue_init(&stateValue);
 	stateValue.value.vt = &UA_TYPES[UA_SERVERSTATE];
 	stateValue.value.storage.data.arrayDimensionsLength = 0; // added to ensure encoding in readreponse
 	stateValue.value.storage.data.arrayLength = 0;
-	stateValue.value.storage.data.dataPtr = &status->state; // points into the other object.
+	stateValue.value.storage.data.dataPtr = &status.state; // points into the other object.
 	stateValue.value.storageType = UA_VARIANT_DATA;
 
 	{
-		UA_QualifiedName browseName ;
+		UA_QualifiedName browseName;
 		UA_LocalizedText description;
 		UA_LocalizedText displayName;
 
@@ -448,11 +459,12 @@ UA_Server * UA_Server_new(UA_String *endpointUrl,
 		UA_LocalizedText_copycstring("State", &displayName);
 
 		ns0_addVariableNode(server, RefTypeId_HasComponent.nodeId, VarId_State,
-				ObjId_Server, browseName, description, displayName,
+				ObjId_Server, &browseName, &description, &displayName,
 				&stateValue, -1);
-
+		UA_QualifiedName_deleteMembers(&browseName);
+		UA_LocalizedText_deleteMembers(&description);
+		UA_LocalizedText_deleteMembers(&displayName);
 	}
-
 
 	ns0_addObjectNode(server, RefTypeId_Organizes.nodeId, ObjId_TypesFolder,
 			ObjId_Root, "Types", "Types", "Types");
@@ -557,8 +569,8 @@ UA_Server * UA_Server_new(UA_String *endpointUrl,
 void UA_Server_addScalarVariableNode(UA_Server *server,
 		UA_QualifiedName *browseName, void *value, const UA_VTable_Entry *vt,
 		UA_ExpandedNodeId *parentNodeId, UA_NodeId *referenceTypeId) {
-	UA_DataValue *dataValue = UA_DataValue_new();
-
+	UA_DataValue dataValue;
+	UA_DataValue_init(&dataValue);
 	/*UA_LocalizedText_copycstring("integer value", &tmpNode->description); */
 	UA_LocalizedText displayName;
 	UA_LocalizedText description;
@@ -566,14 +578,13 @@ void UA_Server_addScalarVariableNode(UA_Server *server,
 	UA_LocalizedText_init(&displayName);
 	UA_LocalizedText_init(&description);
 
-
 	UA_String_copy(&browseName->name, &displayName.text);
 	UA_String_copy(&browseName->name, &description.text);
 
-	dataValue->value.vt = vt;
-	dataValue->value.storage.data.dataPtr = value;
-	dataValue->value.storageType = UA_VARIANT_DATA;
-	dataValue->value.storage.data.arrayLength = 1;
+	dataValue.value.vt = vt;
+	dataValue.value.storage.data.dataPtr = value;
+	dataValue.value.storageType = UA_VARIANT_DATA_NODELETE;
+	dataValue.value.storage.data.arrayLength = 1;
 	UA_ExpandedNodeId reqNodeId;
 	UA_ExpandedNodeId_init(&reqNodeId);
 	reqNodeId.namespaceUri.length = -1;
@@ -581,15 +592,17 @@ void UA_Server_addScalarVariableNode(UA_Server *server,
 	reqNodeId.nodeId.identifier.numeric = 222;
 	reqNodeId.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
 	ns0_addVariableNode(server, *referenceTypeId, reqNodeId, *parentNodeId,
-			*browseName, displayName, description, dataValue, -1);
+			browseName, &displayName, &description, &dataValue, -1);
+	UA_DataValue_deleteMembers(&dataValue);
+	UA_LocalizedText_deleteMembers(&displayName);
+	UA_LocalizedText_deleteMembers(&description);
 
 }
 
 UA_Int32 UA_Server_addNamespace(UA_Server *server, UA_UInt16 namespaceIndex,
 		UA_NodeStoreInterface *nodeStore) {
 
-	return (UA_Int32) UA_NamespaceManager_createNamespace(&server->namespaceManager,
-			namespaceIndex, nodeStore);
+	return (UA_Int32) UA_NamespaceManager_createNamespace(
+			&server->namespaceManager, namespaceIndex, nodeStore);
 }
-
 
