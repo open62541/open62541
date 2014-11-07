@@ -13,6 +13,7 @@ void UA_Server_delete(UA_Server *server) {
 	UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
 	UA_SessionManager_deleteMembers(&server->sessionManager);
 	UA_NamespaceManager_deleteMembers(&server->namespaceManager);
+    UA_free(server->namespaceManager);
 	UA_ByteString_deleteMembers(&server->serverCertificate);
 	UA_Array_delete(server->endpointDescriptions,
 			server->endpointDescriptionsSize,

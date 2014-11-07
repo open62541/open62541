@@ -33,7 +33,6 @@ void UA_NamespaceManager_deleteMembers(UA_NamespaceManager *namespaceManager)
         UA_free(current);
         current = LIST_FIRST(&namespaceManager->namespaces);
     }
-
 }
 
 UA_StatusCode UA_NamespaceManager_createNamespace(UA_NamespaceManager *namespaceManager,UA_UInt16 index, UA_NodeStoreInterface *nodeStore)
