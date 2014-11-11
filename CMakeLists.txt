@@ -27,8 +27,6 @@ set(lib_sources src/ua_types.c
                 src/server/ua_server.c
                 src/server/ua_securechannel_manager.c
                 src/server/ua_session_manager.c
-                src/server/ua_namespace.c
-                src/server/ua_namespace_manager.c
 				src/server/ua_server_binary.c
                 src/server/ua_services_attribute.c
                 src/server/ua_services_session.c
@@ -36,11 +34,9 @@ set(lib_sources src/ua_types.c
                 src/server/ua_services_securechannel.c
                 src/server/ua_services_nodemanagement.c
                 src/server/ua_services_view.c
-				src/server/nodestore/open62541_nodestore_view.c
-				src/server/nodestore/open62541_nodestore_attribute.c
-				src/server/nodestore/open62541_nodestore_nodemanagement.c
-				src/server/nodestore/open62541_nodestore_core.c
-				src/server/ua_nodestore_interface.c
+				#src/server/nodestore/open62541_nodestore_view.c
+				#src/server/nodestore/open62541_nodestore_attribute.c
+				#src/server/nodestore/open62541_nodestore_nodemanagement.c
 				${exported_headers}
 				${generated_headers}
                 ${headers})
@@ -115,9 +111,9 @@ endif(ENABLE_JSON_ENCODING)
 option(ENABLE_MULTITHREADING "Enable multithreading" OFF)
 if(ENABLE_MULTITHREADING)
     find_package(Threads REQUIRED)
-    list(APPEND lib_sources src/server/ua_nodestore_concurrent_core.c)
+    list(APPEND lib_sources src/server/ua_nodestore_concurrent.c)
 else()
-    list(APPEND lib_sources src/server/nodestore/open62541_nodestore_core.c)
+    list(APPEND lib_sources src/server/ua_nodestore.c)
 endif()
 
 add_library(open62541-objects OBJECT ${lib_sources}) # static version that exports all symbols

@@ -96,6 +96,8 @@ UA_StatusCode UA_SecureChannelManager_renew(UA_SecureChannelManager           *c
     channel->securityToken.revisedLifetime = request->requestedLifetime > cm->maxChannelLifetime ?
                                              cm->maxChannelLifetime : request->requestedLifetime;
 
+    if(channel->serverNonce.data != UA_NULL)
+        UA_ByteString_deleteMembers(&channel->serverNonce);
     UA_SecureChannel_generateNonce(&channel->serverNonce);
     UA_ByteString_copy(&channel->serverNonce, &response->serverNonce);
     UA_ChannelSecurityToken_copy(&channel->securityToken, &response->securityToken);

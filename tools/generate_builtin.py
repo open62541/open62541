@@ -148,14 +148,26 @@ def createStructured(element):
             else:
                 membermap[childname] = "UA_" + typename
 
+    # fixed size?
+    has_fixed_size = True
+    for n,t in membermap.iteritems():
+        if t not in fixed_size:
+            has_fixed_size = False
+    if has_fixed_size:
+        fixed_size.add(name)
+
     # 3) Print structure
     if len(membermap) > 0:
+        if has_fixed_size:
+            printh("#pragma pack (push)\n#pragma pack(1)")
         printh("typedef struct %(name)s {")
         for n,t in membermap.iteritems():
 	    if t.find("*") != -1:
 	        printh("\t" + "UA_Int32 " + n + "Size;")
             printh("\t%(t)s %(n)s;")
         printh("} %(name)s;")
+        if has_fixed_size:
+            printh("#pragma pack (pop)")
     else:
         printh("typedef void* %(name)s;")
         
@@ -168,20 +180,15 @@ def createStructured(element):
     # 4) CalcSizeBinary
     printc('''UA_UInt32 %(name)s_calcSizeBinary(%(name)s const * ptr) {
     return 0''')
-    has_fixed_size = True
     for n,t in membermap.iteritems():
         if t in fixed_size:
             printc('\t + sizeof(%(t)s) // %(n)s')
         elif t.find("*") != -1:
             printc('\t + UA_Array_calcSizeBinary(ptr->%(n)sSize,&UA_TYPES['+ t[0:t.find("*")].upper() +
                    "],ptr->%(n)s)")
-            has_fixed_size = False
         else:
             printc('\t + %(t)s_calcSizeBinary(&ptr->%(n)s)')
-            has_fixed_size = False
     printc("\t;\n}\n")
-    if has_fixed_size:
-        fixed_size.add(name)
 
     # 5) EncodeBinary
     printc('''UA_StatusCode %(name)s_encodeBinary(%(name)s const * src, UA_ByteString* dst, UA_UInt32 *offset) {

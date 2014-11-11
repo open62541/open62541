@@ -19,7 +19,6 @@ args = parser.parse_args()
 from type_lists import only_needed_types
 
 # types that are to be excluded
-exclude_kinds = set(["Object","ObjectType","Variable","Method","ReferenceType"])
 exclude_types = set(["Number", "Integer", "UInteger", "Enumeration", "Image", "ImageBMP",
                      "ImageGIF", "ImageJPG", "ImagePNG", "References", "BaseVariableType",
                      "BaseDataVariableType", "PropertyType", "DataTypeDescriptionType",
@@ -60,20 +59,49 @@ fixed_size = ['UA_DeadbandType', 'UA_DataChangeTrigger', 'UA_Guid', 'UA_Applicat
               'UA_ExceptionDeviationFormat', 'UA_ComplianceLevel', 'UA_DateTime', 'UA_Int64',
               'UA_Double']
 
-def skipType(row):
-    if row[0] == "" or row[0] in exclude_types or row[2] in exclude_kinds:
-        return True
+def useDataType(row):
+    if row[0] == "" or row[0] in exclude_types:
+        return False
+    if row[2] != "DataType":
+        return False
     if "Test" in row[0]:
-        return True
+        return False
     if args.only_needed and not(row[0] in only_needed_types):
-        return True
-    return False
+        return False
+    return True
+
+type_names = [] # the names of the datattypes for which we create a vtable entry
+def useOtherType(row):
+    if row[0] in type_names or row[0] == "":
+        return False
+    if row[0].startswith("Audit"):
+        return False
+    if row[0].startswith("Program"):
+        return False
+    if row[0].startswith("Condition"):
+        return False
+    if row[0].startswith("Refresh"):
+        return False
+    if row[0].startswith("OpcUa_"):
+        return False
+    if row[0].startswith("SessionsDiagnosticsSummaryType_"):
+        return False
+    if "Type_" in row[0]:
+        return False
+    if "_Encoding_Default" in row[0]:
+        return False
+    return True
 
 f = open(args.nodeids)
-input_str = f.read() + "\nInvalidType,0,DataType"
+input_str = f.read() + "\nInvalidType,0,DataType" + "\nHasModelParent,50,ReferenceType"
+f.close()
 input_str = input_str.replace('\r','')
 rows = map(lambda x:tuple(x.split(',')), input_str.split('\n'))
-f.close()
+for index, row in enumerate(rows):
+    if row[0] == "BaseDataType":
+    	rows[index]= ("Variant", row[1], row[2])
+    elif row[0] == "Structure":
+    	rows[index] = ("ExtensionObject", row[1], row[2])
 
 fh = open(args.outfile + ".h",'w')
 fc = open(args.outfile + ".c",'w')
@@ -106,6 +134,7 @@ printh('''/**********************************************************
 UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id);\n
 extern const UA_VTable_Entry UA_EXPORT *UA_TYPES;
 extern const UA_NodeId UA_EXPORT *UA_NODEIDS;
+extern const UA_ExpandedNodeId UA_EXPORT *UA_EXPANDEDNODEIDS;
 
 /** The entries of UA_TYPES can be accessed with the following indices */ ''')
 
@@ -124,48 +153,34 @@ UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id) {
 	switch (id->identifier.numeric) {''')
 
 i = 0
-for row in rows:
-    if skipType(row):
+for index, row in enumerate(rows):
+    if not useDataType(row):
         continue
-    if row[0] == "BaseDataType":
-    	name = "UA_Variant"
-    elif row[0] == "Structure":
-        name = "UA_ExtensionObject"
-    else:
-        name = "UA_" + row[0]
-	
+    type_names.append(row[0])
+    name = "UA_" + row[0]
     printh("#define "+name.upper()+" "+str(i))
+    printh('#define '+name.upper()+'_NS0 '+row[1])
     printc('\tcase '+row[1]+': retval='+name.upper()+'; break; //'+row[2])
     i = i+1
+printc('''\t}\n\treturn retval;\n}\n''');
 
 printh('\n#define SIZE_UA_VTABLE '+str(i));
 printh("") # newline
-printh("/** In UA_NODEIDS are the nodeids of the types, referencetypes and objects */")
-# assign indices to the reference types afterwards
+
+printh("/* Now all the non-datatype nodeids */")
 for row in rows:
-    if row[0] == "" or (row[2] != "ReferenceType" and (row[2] != "Object" or "_Encoding_Default" in row[0])):
+    if not useOtherType(row):
         continue
     name = "UA_" + row[0]
     printh("#define "+name.upper()+" "+str(i))
+    printh('#define '+name.upper()+'_NS0 '+row[1])
     i=i+1
-
-printc('''\n}\nreturn retval;\n}\n''');
-
-printh("") # newline
-printh("/** These are the actual (numeric) nodeids of the types, not the indices to the vtable */")
 
 printc('''const UA_VTable_Entry *UA_TYPES = (UA_VTable_Entry[]){''')
 for row in rows:
-    if skipType(row):
+    if row[0] not in type_names:
         continue
-    if row[0] == "BaseDataType":
-        name = "UA_Variant"
-    elif row[0] == "Structure":
-        name = "UA_ExtensionObject"
-    else:
-	name = "UA_" + row[0]
-    printh('#define '+name.upper()+'_NS0 '+row[1])
-
+    name = "UA_" + row[0]
     printc("\t{.typeId={.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric=" + row[1] + "}" + 
            ",\n.name=(UA_Byte*)&\"%(name)s\"" +
            ",\n.new=(void *(*)())%(name)s_new" +
@@ -186,26 +201,34 @@ for row in rows:
             ",\n.decode=(UA_Int32(*)(const UA_ByteString*,UA_UInt32*,void*))%(name)s_decodeXml}" if (args.with_xml) else "") +
            "}},")
 
-printc('};')
+printc('};\n')
 
 # make the nodeids available as well
 printc('''const UA_NodeId *UA_NODEIDS = (UA_NodeId[]){''')
 for row in rows:
-    if skipType(row):
+    if not row[0] in type_names:
         continue
-    if row[0] == "BaseDataType":
-        name = "UA_Variant"
-    elif row[0] == "Structure":
-        name = "UA_ExtensionObject"
-    else:
-	name = "UA_" + row[0]
     printc("\t{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = " + row[1] + "},")
 
 for row in rows:
-    if row[0] == "" or (row[2] != "ReferenceType" and (row[2] != "Object" or "_Encoding_Default" in row[0])):
+    if not useOtherType(row):
         continue
     printc("\t{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = " + row[1] + "},")
+printc('};\n')
 
+# and generate expanded nodeids
+printc('''const UA_ExpandedNodeId *UA_EXPANDEDNODEIDS = (UA_ExpandedNodeId[]){''')
+for row in rows:
+    if not row[0] in type_names:
+        continue
+    printc("\t{.nodeId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = " + row[1] +
+           "}, .namespaceUri = {.length = -1, .data = UA_NULL}, .serverIndex = 0},")
+
+for row in rows:
+    if not useOtherType(row):
+        continue
+    printc("\t{.nodeId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = " + row[1] +
+           "}, .namespaceUri = {.length = -1, .data = UA_NULL}, .serverIndex = 0},")
 printc('};')
 
 printh('\n#endif /* OPCUA_NAMESPACE_0_H_ */')

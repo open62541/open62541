@@ -27,59 +27,63 @@ extern "C" {
 
 /** @defgroup server Server */
 
-struct UA_NodeStore;
-typedef struct UA_NodeStore UA_NodeStoreInterface;
-
 struct UA_Server;
 typedef struct UA_Server UA_Server;
-struct open62541NodeStore;
-typedef struct open62541NodeStore open62541NodeStore;
 
-
-struct UA_NamespaceManager;
-typedef struct UA_NamespaceManager UA_NamespaceManager;
-
-typedef UA_Int32 (*UA_NodeStore_addNodes)(const UA_RequestHeader *requestHeader, UA_AddNodesItem *nodesToAdd,UA_UInt32 *indices,UA_UInt32 indicesSize, UA_AddNodesResult* addNodesResults, UA_DiagnosticInfo *diagnosticInfos);
-typedef UA_Int32 (*UA_NodeStore_addReferences)(const UA_RequestHeader *requestHeader,UA_AddReferencesItem* referencesToAdd,UA_UInt32 *indices,UA_UInt32 indicesSize, UA_StatusCode *addReferencesResults, UA_DiagnosticInfo *diagnosticInfos);
-
-typedef UA_Int32 (*UA_NodeStore_deleteNodes)(const UA_RequestHeader *requestHeader,UA_DeleteNodesItem *nodesToDelete,UA_UInt32 *indices,UA_UInt32 indicesSize, UA_StatusCode *deleteNodesResults, UA_DiagnosticInfo *diagnosticInfos);
-typedef UA_Int32 (*UA_NodeStore_deleteReferences)(const UA_RequestHeader *requestHeader,UA_DeleteReferencesItem *referenceToDelete,UA_UInt32 *indices, UA_UInt32 indicesSize,UA_StatusCode deleteReferencesresults, UA_DiagnosticInfo *diagnosticInfos);
-
-typedef UA_Int32 (*UA_NodeStore_readNodes)(const UA_RequestHeader *requestHeader,UA_ReadValueId *readValueIds,UA_UInt32 *indices,UA_UInt32 indicesSize,UA_DataValue *readNodesResults, UA_Boolean timeStampToReturn, UA_DiagnosticInfo *diagnosticInfos);
-typedef UA_Int32 (*UA_NodeStore_writeNodes)(const UA_RequestHeader *requestHeader,UA_WriteValue *writeValues,UA_UInt32 *indices ,UA_UInt32 indicesSize, UA_StatusCode *writeNodesResults, UA_DiagnosticInfo *diagnosticInfo);
-typedef UA_Int32 (*UA_NodeStore_browseNodes)(const UA_RequestHeader *requestHeader,UA_BrowseDescription *browseDescriptions,UA_UInt32 *indices,UA_UInt32 indicesSize, UA_UInt32 requestedMaxReferencesPerNode, UA_BrowseResult *browseResults, UA_DiagnosticInfo *diagnosticInfos);
-
-struct UA_NodeStore {
-	//new, set, get, remove,
-	UA_NodeStore_addNodes addNodes;
-	UA_NodeStore_deleteNodes deleteNodes;
-	UA_NodeStore_writeNodes writeNodes;
-	UA_NodeStore_readNodes readNodes;
-	UA_NodeStore_browseNodes browseNodes;
-	UA_NodeStore_addReferences addReferences;
-	UA_NodeStore_deleteReferences deleteReferences;
-};
-
-
-UA_Server UA_EXPORT * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertificate, UA_NodeStoreInterface *ns0Nodestore,UA_Boolean useOpen62541NodeStore);
-
+UA_Server UA_EXPORT * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertificate);
 void UA_EXPORT UA_Server_delete(UA_Server *server);
 void UA_EXPORT UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
 
 /* Services for local use */
 void UA_EXPORT UA_Server_addScalarVariableNode(UA_Server *server, UA_QualifiedName *browseName, void *value,
-                                                  const UA_VTable_Entry *vt, UA_ExpandedNodeId *parentNodeId,
-                                                  UA_NodeId *referenceTypeId );
-//UA_AddNodesResult UA_EXPORT UA_Server_addNode(UA_Server *server, UA_Node **node, UA_ExpandedNodeId *parentNodeId,
-//		UA_NodeId *referenceTypeId);
-//void UA_EXPORT UA_Server_addReferences(UA_Server *server, const UA_AddReferencesRequest *request,
-//		UA_AddReferencesResponse *response);
+                                               const UA_VTable_Entry *vt, const UA_ExpandedNodeId *parentNodeId,
+                                               const UA_NodeId *referenceTypeId );
 
-UA_Int32 UA_EXPORT UA_Server_addNamespace(UA_Server *server, UA_UInt16 namespaceIndex, UA_NodeStoreInterface *nodeStore);
+/** @ingroup server
 
-UA_Int32 UA_EXPORT UA_Server_removeNamespace(UA_Server *server, UA_UInt16 namespaceIndex);
+    @defgroup external_nodestore External Nodestore
 
-UA_Int32 UA_EXPORT UA_Server_setNodeStore(UA_Server *server, UA_UInt16 namespaceIndex, UA_NodeStoreInterface *nodeStore);
+    To plug in outside data sources, one can use
+
+    - VariableNodes with a data source (functions that are called for read and write access)
+    - An external nodestore that is mapped to specific namespaces
+
+    If no external nodestore is defined for a nodeid, it is always looked up in
+    the "local" nodestore of open62541. Namespace Zero is always in the local nodestore.
+*/
+
+typedef UA_Int32 (*UA_ExternalNodeStore_addNodes)(void *ensHandle, const UA_RequestHeader *requestHeader, UA_AddNodesItem *nodesToAdd,
+                                                  UA_UInt32 *indices,UA_UInt32 indicesSize, UA_AddNodesResult* addNodesResults,
+                                                  UA_DiagnosticInfo *diagnosticInfos);
+typedef UA_Int32 (*UA_ExternalNodeStore_addReferences)(void *ensHandle, const UA_RequestHeader *requestHeader, UA_AddReferencesItem* referencesToAdd,
+                                                       UA_UInt32 *indices,UA_UInt32 indicesSize, UA_StatusCode *addReferencesResults,
+                                                       UA_DiagnosticInfo *diagnosticInfos);
+typedef UA_Int32 (*UA_ExternalNodeStore_deleteNodes)(void *ensHandle, const UA_RequestHeader *requestHeader, UA_DeleteNodesItem *nodesToDelete, UA_UInt32 *indices,
+                                                     UA_UInt32 indicesSize, UA_StatusCode *deleteNodesResults, UA_DiagnosticInfo *diagnosticInfos);
+typedef UA_Int32 (*UA_ExternalNodeStore_deleteReferences)(void *ensHandle, const UA_RequestHeader *requestHeader, UA_DeleteReferencesItem *referenceToDelete,
+                                                          UA_UInt32 *indices, UA_UInt32 indicesSize, UA_StatusCode deleteReferencesresults,
+                                                          UA_DiagnosticInfo *diagnosticInfos);
+typedef UA_Int32 (*UA_ExternalNodeStore_readNodes)(void *ensHandle, const UA_RequestHeader *requestHeader, UA_ReadValueId *readValueIds, UA_UInt32 *indices,
+                                                   UA_UInt32 indicesSize,UA_DataValue *readNodesResults, UA_Boolean timeStampToReturn, UA_DiagnosticInfo *diagnosticInfos);
+typedef UA_Int32 (*UA_ExternalNodeStore_writeNodes)(void *ensHandle, const UA_RequestHeader *requestHeader, UA_WriteValue *writeValues, UA_UInt32 *indices,
+                                                    UA_UInt32 indicesSize, UA_StatusCode *writeNodesResults, UA_DiagnosticInfo *diagnosticInfo);
+typedef UA_Int32 (*UA_ExternalNodeStore_browseNodes)(void *ensHandle, const UA_RequestHeader *requestHeader, UA_BrowseDescription *browseDescriptions, UA_UInt32 *indices,
+                                                     UA_UInt32 indicesSize, UA_UInt32 requestedMaxReferencesPerNode, UA_BrowseResult *browseResults, UA_DiagnosticInfo *diagnosticInfos);
+typedef UA_Int32 (*UA_ExternalNodeStore_delete)(void *ensHandle);
+
+typedef struct UA_ExternalNodeStore {
+    void *ensHandle;
+	UA_ExternalNodeStore_addNodes addNodes;
+	UA_ExternalNodeStore_deleteNodes deleteNodes;
+	UA_ExternalNodeStore_writeNodes writeNodes;
+	UA_ExternalNodeStore_readNodes readNodes;
+	UA_ExternalNodeStore_browseNodes browseNodes;
+	UA_ExternalNodeStore_addReferences addReferences;
+	UA_ExternalNodeStore_deleteReferences deleteReferences;
+	UA_ExternalNodeStore_delete delete;
+} UA_ExternalNodeStore;
+
+UA_StatusCode UA_EXPORT UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, UA_ExternalNodeStore *nodeStore);
 
 #ifdef __cplusplus
 } // extern "C"

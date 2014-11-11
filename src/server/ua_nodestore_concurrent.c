@@ -1,4 +1,4 @@
-#include "open62541NodeStore.h"
+#include "ua_nodestore.h"
 #include "ua_util.h"
 
 #include <urcu.h>
@@ -8,14 +8,14 @@
 
 #define ALIVE_BIT (1 << 15) /* Alive bit in the readcount */
 
-typedef struct open62541NodeStore_Entry {
+typedef struct UA_NodeStore_Entry {
     struct cds_lfht_node htn;      /* contains next-ptr for urcu-hashmap */
     struct rcu_head      rcu_head; /* For call-rcu */
     UA_UInt16 readcount;           /* Counts the amount of readers on it [alive-bit, 15 counter-bits] */
     UA_Node   node;                /* Might be cast from any _bigger_ UA_Node* type. Allocate enough memory! */
-} open62541NodeStore_Entry;
+} UA_NodeStore_Entry;
 
-struct open62541NodeStore {
+struct UA_NodeStore {
     struct cds_lfht *ht; /* Hash table */
 };
 
@@ -98,7 +98,7 @@ static INLINE hash_t hash(const UA_NodeId *n) {
 }
 
 /****************/
-/* open62541NodeStore */
+/* UA_NodeStore */
 /****************/
 
 static inline void node_deleteMembers(const UA_Node *node) {
@@ -144,7 +144,7 @@ static inline void node_deleteMembers(const UA_Node *node) {
 /* We are in a rcu_read lock. So the node will not be freed under our feet. */
 static int compare(struct cds_lfht_node *htn, const void *orig) {
     UA_NodeId *origid = (UA_NodeId *)orig;
-    UA_NodeId *newid  = &((open62541NodeStore_Entry *)htn)->node.nodeId;   /* The htn is first in the entry structure. */
+    UA_NodeId *newid  = &((UA_NodeStore_Entry *)htn)->node.nodeId;   /* The htn is first in the entry structure. */
 
     return UA_NodeId_equal(newid, origid);
 }
@@ -154,7 +154,7 @@ static int compare(struct cds_lfht_node *htn, const void *orig) {
    section) increased the readcount, we only need to wait for the readcount
    to reach zero. */
 static void markDead(struct rcu_head *head) {
-    open62541NodeStore_Entry *entry = caa_container_of(head, open62541NodeStore_Entry, rcu_head);
+    UA_NodeStore_Entry *entry = caa_container_of(head, UA_NodeStore_Entry, rcu_head);
     if(uatomic_sub_return(&entry->readcount, ALIVE_BIT) > 0)
         return;
 
@@ -164,8 +164,8 @@ static void markDead(struct rcu_head *head) {
 }
 
 /* Free the entry if it is dead and nobody uses it anymore */
-void open62541NodeStore_release(const UA_Node *managed) {
-    open62541NodeStore_Entry *entry = caa_container_of(managed, open62541NodeStore_Entry, node); // pointer to the first entry
+void UA_NodeStore_release(const UA_Node *managed) {
+    UA_NodeStore_Entry *entry = caa_container_of(managed, UA_NodeStore_Entry, node); // pointer to the first entry
     if(uatomic_sub_return(&entry->readcount, 1) > 0)
         return;
 
@@ -174,13 +174,13 @@ void open62541NodeStore_release(const UA_Node *managed) {
     return;
 }
 
-UA_StatusCode open62541NodeStore_new(open62541NodeStore **result) {
-    open62541NodeStore *ns;
-    if(!(ns = UA_alloc(sizeof(open62541NodeStore))))
+UA_StatusCode UA_NodeStore_new(UA_NodeStore **result) {
+    UA_NodeStore *ns;
+    if(!(ns = UA_alloc(sizeof(UA_NodeStore))))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* 32 is the minimum size for the hashtable. */
-    ns->ht = cds_lfht_new(32, 32, 0, CDS_LFHT_AUTO_RESIZE, UA_NULL);
+    ns->ht = cds_lfht_new(32, 32, 0, CDS_LFHT_AUTO_RESIZE, NULL);
     if(!ns->ht) {
         UA_free(ns);
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -190,7 +190,7 @@ UA_StatusCode open62541NodeStore_new(open62541NodeStore **result) {
     return UA_STATUSCODE_GOOD;
 }
 
-void open62541NodeStore_delete(open62541NodeStore *ns) {
+void UA_NodeStore_delete(UA_NodeStore *ns) {
     struct cds_lfht      *ht = ns->ht;
     struct cds_lfht_iter  iter;
     struct cds_lfht_node *found_htn;
@@ -200,7 +200,7 @@ void open62541NodeStore_delete(open62541NodeStore *ns) {
     while(iter.node != UA_NULL) {
         found_htn = cds_lfht_iter_get_node(&iter);
         if(!cds_lfht_del(ht, found_htn)) {
-            open62541NodeStore_Entry *entry = caa_container_of(found_htn, open62541NodeStore_Entry, htn);
+            UA_NodeStore_Entry *entry = caa_container_of(found_htn, UA_NodeStore_Entry, htn);
             call_rcu(&entry->rcu_head, markDead);
         }
         cds_lfht_next(ht, &iter);
@@ -211,7 +211,7 @@ void open62541NodeStore_delete(open62541NodeStore *ns) {
     UA_free(ns);
 }
 
-UA_StatusCode open62541NodeStore_insert(open62541NodeStore *ns, UA_Node **node, UA_Byte flags) {
+UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node **node, UA_Byte flags) {
     UA_UInt32 nodesize;
     /* Copy the node into the entry. Then reset the original node. It shall no longer be used. */
     switch((*node)->nodeClass) {
@@ -251,19 +251,19 @@ UA_StatusCode open62541NodeStore_insert(open62541NodeStore *ns, UA_Node **node, 
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    open62541NodeStore_Entry *entry;
-    if(!(entry = UA_alloc(sizeof(open62541NodeStore_Entry) - sizeof(UA_Node) + nodesize)))
+    UA_NodeStore_Entry *entry;
+    if(!(entry = UA_alloc(sizeof(UA_NodeStore_Entry) - sizeof(UA_Node) + nodesize)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     memcpy(&entry->node, *node, nodesize);
 
     cds_lfht_node_init(&entry->htn);
     entry->readcount = ALIVE_BIT;
-    if(flags & open62541NodeStore_INSERT_GETMANAGED)
+    if(flags & UA_NODESTORE_INSERT_GETMANAGED)
         entry->readcount++;
 
     hash_t nhash = hash(&(*node)->nodeId);
     struct cds_lfht_node *result;
-    if(flags & open62541NodeStore_INSERT_UNIQUE) {
+    if(flags & UA_NODESTORE_INSERT_UNIQUE) {
         rcu_read_lock();
         result = cds_lfht_add_unique(ns->ht, nhash, compare, &entry->node.nodeId, &entry->htn);
         rcu_read_unlock();
@@ -278,14 +278,14 @@ UA_StatusCode open62541NodeStore_insert(open62541NodeStore *ns, UA_Node **node, 
         result = cds_lfht_add_replace(ns->ht, nhash, compare, &(*node)->nodeId, &entry->htn);
         /* If an entry got replaced, mark it as dead. */
         if(result) {
-            open62541NodeStore_Entry *entry = caa_container_of(result, open62541NodeStore_Entry, htn);
+            UA_NodeStore_Entry *entry = caa_container_of(result, UA_NodeStore_Entry, htn);
             call_rcu(&entry->rcu_head, markDead);      /* Queue this for the next time when no readers are on the entry.*/
         }
         rcu_read_unlock();
     }
 
     UA_free((UA_Node *)*node);     /* The old node is replaced by a managed node. */
-    if(flags & open62541NodeStore_INSERT_GETMANAGED)
+    if(flags & UA_NODESTORE_INSERT_GETMANAGED)
         *node = &entry->node;
     else
         *node = UA_NULL;
@@ -293,7 +293,7 @@ UA_StatusCode open62541NodeStore_insert(open62541NodeStore *ns, UA_Node **node, 
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode open62541NodeStore_remove(open62541NodeStore *ns, const UA_NodeId *nodeid) {
+UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     hash_t nhash = hash(nodeid);
     struct cds_lfht_iter iter;
 
@@ -307,20 +307,20 @@ UA_StatusCode open62541NodeStore_remove(open62541NodeStore *ns, const UA_NodeId 
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
-    open62541NodeStore_Entry *entry = caa_container_of(found_htn, open62541NodeStore_Entry, htn);
+    UA_NodeStore_Entry *entry = caa_container_of(found_htn, UA_NodeStore_Entry, htn);
     call_rcu(&entry->rcu_head, markDead);
     rcu_read_unlock();
 
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode open62541NodeStore_get(const open62541NodeStore *ns, const UA_NodeId *nodeid, const UA_Node **managedNode) {
+UA_StatusCode UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid, const UA_Node **managedNode) {
     hash_t nhash = hash(nodeid);
     struct cds_lfht_iter iter;
 
     rcu_read_lock();
     cds_lfht_lookup(ns->ht, nhash, compare, nodeid, &iter);
-    open62541NodeStore_Entry *found_entry = (open62541NodeStore_Entry *)cds_lfht_iter_get_node(&iter);
+    UA_NodeStore_Entry *found_entry = (UA_NodeStore_Entry *)cds_lfht_iter_get_node(&iter);
 
     if(!found_entry) {
         rcu_read_unlock();
@@ -335,19 +335,19 @@ UA_StatusCode open62541NodeStore_get(const open62541NodeStore *ns, const UA_Node
     return UA_STATUSCODE_GOOD;
 }
 
-void open62541NodeStore_iterate(const open62541NodeStore *ns, open62541NodeStore_nodeVisitor visitor) {
+void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
     struct cds_lfht     *ht = ns->ht;
     struct cds_lfht_iter iter;
 
     rcu_read_lock();
     cds_lfht_first(ht, &iter);
     while(iter.node != UA_NULL) {
-        open62541NodeStore_Entry *found_entry = (open62541NodeStore_Entry *)cds_lfht_iter_get_node(&iter);
+        UA_NodeStore_Entry *found_entry = (UA_NodeStore_Entry *)cds_lfht_iter_get_node(&iter);
         uatomic_inc(&found_entry->readcount);
         const UA_Node      *node = &found_entry->node;
         rcu_read_unlock();
         visitor(node);
-        open62541NodeStore_release((UA_Node *)node);
+        UA_NodeStore_release((UA_Node *)node);
         rcu_read_lock();
         cds_lfht_next(ht, &iter);
     }
