@@ -62,6 +62,37 @@ NetworklayerTCP *NetworklayerTCP_new(UA_ConnectionConfig localConf, UA_UInt32 po
 	return newlayer;
 }
 
+void NetworklayerTCP_delete(NetworklayerTCP *layer) {
+	for(UA_UInt32 index = 0;index < layer->connectionsSize;index++) {
+		shutdown(layer->connections[index].sockfd, 2);
+        if(layer->connections[index].connection.channel)
+            layer->connections[index].connection.channel->connection = NULL;
+        UA_Connection_deleteMembers(&layer->connections[index].connection);
+		CLOSESOCKET(layer->connections[index].sockfd);
+	}
+	free(layer->connections);
+	free(layer);
+}
+
+void closeCallback(TCPConnectionHandle *handle);
+void writeCallback(TCPConnectionHandle *handle, UA_ByteStringArray gather_buf);
+
+static UA_StatusCode NetworklayerTCP_add(NetworklayerTCP *layer, UA_Int32 newsockfd) {
+    layer->connectionsSize++;
+	layer->connections = realloc(layer->connections, sizeof(TCPConnection) * layer->connectionsSize);
+	TCPConnection *newconnection = &layer->connections[layer->connectionsSize-1];
+	newconnection->sockfd = newsockfd;
+
+	struct TCPConnectionHandle *callbackhandle;
+    if(!(callbackhandle = malloc(sizeof(struct TCPConnectionHandle))))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    callbackhandle->layer = layer;
+	callbackhandle->sockfd = newsockfd;
+	UA_Connection_init(&newconnection->connection, layer->localConf, callbackhandle,
+					   (UA_Connection_closeCallback)closeCallback, (UA_Connection_writeCallback)writeCallback);
+	return UA_STATUSCODE_GOOD;
+}
+
 // copy the array of connections, but _loose_ one. This does not close the
 // actual socket.
 static UA_StatusCode NetworklayerTCP_remove(NetworklayerTCP *layer, UA_Int32 sockfd) {
@@ -88,18 +119,6 @@ static UA_StatusCode NetworklayerTCP_remove(NetworklayerTCP *layer, UA_Int32 soc
     free(layer->connections);
 	layer->connections = newconnections;
 	return UA_STATUSCODE_GOOD;
-}
-
-void NetworklayerTCP_delete(NetworklayerTCP *layer) {
-	for(UA_UInt32 index = 0;index < layer->connectionsSize;index++) {
-		shutdown(layer->connections[index].sockfd, 2);
-        if(layer->connections[index].connection.channel)
-            layer->connections[index].connection.channel->connection = NULL;
-        UA_Connection_deleteMembers(&layer->connections[index].connection);
-		CLOSESOCKET(layer->connections[index].sockfd);
-	}
-	free(layer->connections);
-	free(layer);
 }
 
 /** Callback function */
@@ -159,23 +178,6 @@ void writeCallback(TCPConnectionHandle *handle, UA_ByteStringArray gather_buf) {
 #endif
     for(UA_UInt32 i=0;i<gather_buf.stringsSize;i++)
         free(gather_buf.strings[i].data);
-}
-
-static UA_StatusCode NetworklayerTCP_add(NetworklayerTCP *layer, UA_Int32 newsockfd) {
-    layer->connectionsSize++;
-	layer->connections = realloc(layer->connections, sizeof(TCPConnection) * layer->connectionsSize);
-	TCPConnection *newconnection = &layer->connections[layer->connectionsSize-1];
-	newconnection->sockfd = newsockfd;
-
-	struct TCPConnectionHandle *callbackhandle;
-    callbackhandle = malloc(sizeof(struct TCPConnectionHandle));
-    if(!callbackhandle)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    callbackhandle->layer = layer;
-	callbackhandle->sockfd = newsockfd;
-	UA_Connection_init(&newconnection->connection, layer->localConf, callbackhandle,
-					   (UA_Connection_closeCallback)closeCallback, (UA_Connection_writeCallback)writeCallback);
-	return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode setNonBlocking(int sockid) {

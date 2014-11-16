@@ -64,8 +64,8 @@ getRelevantTargetNode(UA_NodeStore *ns, const UA_BrowseDescription *browseDescri
             return UA_NULL;
     }
 
-    const UA_Node *node;
-    if(UA_NodeStore_get(ns, &reference->targetId.nodeId, &node) != UA_STATUSCODE_GOOD)
+    const UA_Node *node = UA_NodeStore_get(ns, &reference->targetId.nodeId);
+    if(!node)
         return UA_NULL;
 
     if(browseDescription->nodeClassMask != 0 && (node->nodeClass & browseDescription->nodeClassMask) == 0) {
@@ -95,12 +95,13 @@ static UA_StatusCode findRelevantReferenceTypes(UA_NodeStore *ns, const UA_NodeI
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
         
-    const UA_ReferenceTypeNode *node;
     do {
-        retval |= UA_NodeStore_get(ns, &typeArray[currentIndex], (const UA_Node **)&node);
-        if(retval)
+        const UA_ReferenceTypeNode *node =
+            (const UA_ReferenceTypeNode *)UA_NodeStore_get(ns, &typeArray[currentIndex]);
+        if(!node)
             break;
-        if(node->nodeClass != UA_NODECLASS_REFERENCETYPE) // subtypes of referencestypes are always referencestypes?
+        // subtypes of referencestypes are always referencestypes?
+        if(node->nodeClass != UA_NODECLASS_REFERENCETYPE) 
             continue;
 
         // Find subtypes of the current referencetype
@@ -152,7 +153,8 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
     if(!returnAll) {
         if(browseDescription->includeSubtypes) {
             browseResult->statusCode = findRelevantReferenceTypes(ns, &browseDescription->referenceTypeId,
-                                                                  &relevantReferenceTypes, &relevantReferenceTypesSize);
+                                                                  &relevantReferenceTypes,
+                                                                  &relevantReferenceTypesSize);
             if(browseResult->statusCode != UA_STATUSCODE_GOOD)
                 return;
         } else {
@@ -161,17 +163,23 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
         }
     }
 
-    const UA_Node *parentNode;
-    if(UA_NodeStore_get(ns, &browseDescription->nodeId, &parentNode) != UA_STATUSCODE_GOOD) {
+    const UA_Node *parentNode = UA_NodeStore_get(ns, &browseDescription->nodeId);
+    if(!parentNode) {
         browseResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         if(!returnAll && browseDescription->includeSubtypes)
             UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesSize, &UA_TYPES[UA_NODEID]);
         return;
     }
 
+    maxReferences = parentNode->referencesSize;
     // 0 => unlimited references
-    if(maxReferences == 0 || maxReferences > UA_INT32_MAX || (UA_Int32)maxReferences > parentNode->referencesSize)
-        maxReferences = parentNode->referencesSize;
+    if(maxReferences <= 0 || maxReferences > UA_INT32_MAX ||
+       (UA_Int32)maxReferences > parentNode->referencesSize) {
+        if(parentNode->referencesSize < 0)
+            maxReferences = 0;
+        else
+            maxReferences = parentNode->referencesSize;
+    }
 
     /* We allocate an array that is probably too big. But since most systems
        have more than enough memory, this has zero impact on speed and
@@ -183,13 +191,16 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
         UA_UInt32 currentRefs = 0;
         for(UA_Int32 i = 0;i < parentNode->referencesSize && currentRefs < maxReferences;i++) {
             // 1) Is the node relevant? If yes, the node is retrieved from the nodestore.
-            const UA_Node *currentNode = getRelevantTargetNode(ns, browseDescription, returnAll, &parentNode->references[i],
-                                                               relevantReferenceTypes, relevantReferenceTypesSize);
+            const UA_Node *currentNode = getRelevantTargetNode(ns, browseDescription, returnAll,
+                                                               &parentNode->references[i],
+                                                               relevantReferenceTypes,
+                                                               relevantReferenceTypesSize);
             if(!currentNode)
                 continue;
 
             // 2) Fill the reference description. This also releases the current node.
-            if(fillReferenceDescription(ns, currentNode, &parentNode->references[i], browseDescription->resultMask,
+            if(fillReferenceDescription(ns, currentNode, &parentNode->references[i],
+                                        browseDescription->resultMask,
                                         &browseResult->references[currentRefs]) != UA_STATUSCODE_GOOD) {
                 UA_Array_delete(browseResult->references, currentRefs, &UA_TYPES[UA_REFERENCEDESCRIPTION]);
                 currentRefs = 0;
@@ -212,13 +223,15 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
         UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesSize, &UA_TYPES[UA_NODEID]);
 }
 
-void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseRequest *request, UA_BrowseResponse *response) {
+void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseRequest *request,
+                    UA_BrowseResponse *response) {
     if(request->nodesToBrowseSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }
 
-    UA_StatusCode retval = UA_Array_new((void**)&response->results, request->nodesToBrowseSize, &UA_TYPES[UA_BROWSERESULT]);
+    UA_StatusCode retval = UA_Array_new((void**)&response->results, request->nodesToBrowseSize,
+                                        &UA_TYPES[UA_BROWSERESULT]);
     if(retval) {
         response->responseHeader.serviceResult = retval;
         return;

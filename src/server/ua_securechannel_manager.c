@@ -45,6 +45,7 @@ UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager           *cm
     UA_SecureChannel_init(&entry->channel);
 
     entry->channel.connection = conn;
+    conn->channel = &entry->channel;
     entry->channel.securityToken.channelId       = cm->lastChannelId++;
     entry->channel.securityToken.tokenId         = cm->lastTokenId++;
     entry->channel.securityToken.createdAt       = UA_DateTime_now();

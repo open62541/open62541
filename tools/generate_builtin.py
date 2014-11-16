@@ -325,6 +325,7 @@ printc('''/**
  */
  
 #include "''' + args.outfile.split("/")[-1] + '''.h"
+#include "ua_types_internal.h"
 #include "ua_namespace_0.h"
 #include "ua_util.h"\n''')
 

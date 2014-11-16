@@ -59,8 +59,6 @@ extern "C" {
  *   the stack, whereas the dynamically sized members is heap-allocated. To
  *   reuse the variable, the remaining members (not dynamically allocated) need
  *   to be cleaned up with an _init.
- *
- * @{
  */
 
 /** @brief A two-state logical value (true or false). */
@@ -344,6 +342,10 @@ UA_TYPE_PROTOTYPES(UA_Variant)
 UA_TYPE_PROTOTYPES(UA_DiagnosticInfo)
 UA_TYPE_PROTOTYPES(UA_InvalidType)
 
+/**********************************************/
+/* Custom functions for the builtin datatypes */
+/**********************************************/
+
 /* String */
 #define UA_STRING_NULL (UA_String) {-1, (UA_Byte*)0 }
 #define UA_STRING_STATIC(VARIABLE, STRING) do { \
@@ -390,19 +392,9 @@ void UA_EXPORT UA_ByteString_printx_hex(char *label, const UA_ByteString *string
 /* NodeId */
 UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
-UA_Boolean UA_EXPORT UA_NodeId_isBasicType(UA_NodeId const *id);
-
-#define NS0NODEID(NUMERIC_ID)                                                                        \
-    (UA_NodeId) {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = \
-                     NUMERIC_ID }
 
 /* ExpandedNodeId */
 UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
-
-#define NS0EXPANDEDNODEID(VARIABLE, NUMERIC_ID) do {   \
-        VARIABLE.nodeId       = NS0NODEID(NUMERIC_ID); \
-        VARIABLE.namespaceUri = UA_STRING_NULL;        \
-        VARIABLE.serverIndex  = 0; } while(0)
 
 /* QualifiedName */
 #define UA_QUALIFIEDNAME_STATIC(VARIABLE, STRING) do { \
@@ -429,7 +421,7 @@ UA_StatusCode UA_EXPORT UA_Array_new(void **p, UA_Int32 noElements, const UA_VTa
 void UA_EXPORT UA_Array_init(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt);
 void UA_EXPORT UA_Array_delete(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt);
 
-/* @brief The destination array is allocated according to noElements. */
+/* @brief The destination array is allocated with size noElements. */
 UA_StatusCode UA_EXPORT UA_Array_copy(const void *src, UA_Int32 noElements, const UA_VTable_Entry *vt, void **dst);
 #ifdef DEBUG
 void UA_EXPORT UA_Array_print(const void *p, UA_Int32 noElements, const UA_VTable_Entry *vt, FILE *stream);
@@ -467,82 +459,6 @@ struct UA_VTable_Entry {
                                                // the wire == size in memory.
     UA_Encoding encodings[UA_ENCODING_AMOUNT]; // binary, xml, ... UA_ENCODING_AMOUNT is set by the build script
 };
-
-/***********************************/
-/* Macros for type implementations */
-/***********************************/
-
-#define UA_TYPE_DEFAULT(TYPE)            \
-    UA_TYPE_DELETE_DEFAULT(TYPE)         \
-    UA_TYPE_DELETEMEMBERS_NOACTION(TYPE) \
-    UA_TYPE_INIT_DEFAULT(TYPE)           \
-    UA_TYPE_NEW_DEFAULT(TYPE)            \
-    UA_TYPE_COPY_DEFAULT(TYPE)           \
-    
-#define UA_TYPE_NEW_DEFAULT(TYPE)                             \
-    TYPE * TYPE##_new() {                                     \
-        TYPE *p = UA_alloc(sizeof(TYPE));                     \
-        if(p) TYPE##_init(p);                                 \
-        return p;                                             \
-    }
-
-#define UA_TYPE_INIT_DEFAULT(TYPE) \
-    void TYPE##_init(TYPE * p) {   \
-        *p = (TYPE)0;              \
-    }
-
-#define UA_TYPE_INIT_AS(TYPE, TYPE_AS) \
-    void TYPE##_init(TYPE * p) {       \
-        TYPE_AS##_init((TYPE_AS *)p);  \
-    }
-
-#define UA_TYPE_DELETE_DEFAULT(TYPE) \
-    void TYPE##_delete(TYPE *p) {    \
-        TYPE##_deleteMembers(p);     \
-        UA_free(p);                  \
-    }
-
-#define UA_TYPE_DELETE_AS(TYPE, TYPE_AS) \
-    void TYPE##_delete(TYPE * p) {       \
-        TYPE_AS##_delete((TYPE_AS *)p);  \
-    }
-
-#define UA_TYPE_DELETEMEMBERS_NOACTION(TYPE) \
-    void TYPE##_deleteMembers(TYPE * p) { return; }
-
-#define UA_TYPE_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
-    void TYPE##_deleteMembers(TYPE * p) { TYPE_AS##_deleteMembers((TYPE_AS *)p); }
-
-/* Use only when the type has no arrays. Otherwise, implement deep copy */
-#define UA_TYPE_COPY_DEFAULT(TYPE)                             \
-    UA_StatusCode TYPE##_copy(TYPE const *src, TYPE *dst) {    \
-        *dst = *src;                                           \
-        return UA_STATUSCODE_GOOD;                             \
-    }
-
-#define UA_TYPE_COPY_AS(TYPE, TYPE_AS)                         \
-    UA_StatusCode TYPE##_copy(TYPE const *src, TYPE *dst) {    \
-        return TYPE_AS##_copy((TYPE_AS *)src, (TYPE_AS *)dst); \
-    }
-
-#ifdef DEBUG //print functions only in debug mode
-#define UA_TYPE_PRINT_AS(TYPE, TYPE_AS)              \
-    void TYPE##_print(TYPE const *p, FILE *stream) { \
-        TYPE_AS##_print((TYPE_AS *)p, stream);       \
-    }
-#else
-#define UA_TYPE_PRINT_AS(TYPE, TYPE_AS)
-#endif
-
-#define UA_TYPE_AS(TYPE, TYPE_AS)           \
-    UA_TYPE_NEW_DEFAULT(TYPE)               \
-    UA_TYPE_INIT_AS(TYPE, TYPE_AS)          \
-    UA_TYPE_DELETE_AS(TYPE, TYPE_AS)        \
-    UA_TYPE_DELETEMEMBERS_AS(TYPE, TYPE_AS) \
-    UA_TYPE_COPY_AS(TYPE, TYPE_AS)          \
-    UA_TYPE_PRINT_AS(TYPE, TYPE_AS)
-
-/// @} /* end of group */
 
 #ifdef __cplusplus
 } // extern "C"

@@ -14,9 +14,8 @@
 
 /** Reads a single attribute from a node in the nodestore. */
 static void __readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue *v) {
-    UA_Node const *node   = UA_NULL;
-    UA_Int32       result = UA_NodeStore_get(server->nodestore, &(id->nodeId), &node);
-    if(result != UA_STATUSCODE_GOOD || node == UA_NULL) {
+    UA_Node const *node = UA_NodeStore_get(server->nodestore, &(id->nodeId));
+    if(!node) {
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
         v->status       = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
@@ -194,7 +193,6 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
         response->responseHeader.serviceResult = retval;
         return;
     }
-    response->resultsSize = request->nodesToReadSize;
 
     /* ### Begin External Namespaces */
     UA_Boolean isExternal[request->nodesToReadSize];
@@ -202,7 +200,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
     UA_UInt32 indices[request->nodesToReadSize];
     for(UA_Int32 j = 0;j<server->externalNamespacesSize;j++) {
         UA_UInt32 indexSize = 0;
-        for(UA_Int32 i = 0;i < response->resultsSize;i++) {
+        for(UA_Int32 i = 0;i < request->nodesToReadSize;i++) {
             if(request->nodesToRead[i].nodeId.namespaceIndex !=
                server->externalNamespaces[j].index)
                 continue;
@@ -218,6 +216,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
     }
     /* ### End External Namespaces */
 
+    response->resultsSize = request->nodesToReadSize;
     for(UA_Int32 i = 0;i < response->resultsSize;i++) {
         if(!isExternal[i])
             __readValue(server, &request->nodesToRead[i], &response->results[i]);
@@ -225,12 +224,11 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 }
 
 static UA_StatusCode __writeValue(UA_Server *server, UA_WriteValue *writeValue) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    const UA_Node *node;
-    retval = UA_NodeStore_get(server->nodestore, &writeValue->nodeId, &node);
-    if(retval)
-        return retval;
+    const UA_Node *node = UA_NodeStore_get(server->nodestore, &writeValue->nodeId);
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(writeValue->attributeId) {
     case UA_ATTRIBUTEID_NODEID:
         /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
@@ -361,8 +359,32 @@ void Service_Write(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = retval;
         return;
     }
+
+    /* ### Begin External Namespaces */
+    UA_Boolean isExternal[request->nodesToWriteSize];
+    memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToWriteSize);
+    UA_UInt32 indices[request->nodesToWriteSize];
+    for(UA_Int32 j = 0;j<server->externalNamespacesSize;j++) {
+        UA_UInt32 indexSize = 0;
+        for(UA_Int32 i = 0;i < request->nodesToWriteSize;i++) {
+            if(request->nodesToWrite[i].nodeId.namespaceIndex !=
+               server->externalNamespaces[j].index)
+                continue;
+            isExternal[i] = UA_TRUE;
+            indices[indexSize] = i;
+            indexSize++;
+        }
+        if(indexSize == 0)
+            continue;
+        UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
+        ens->writeNodes(ens->ensHandle, &request->requestHeader, request->nodesToWrite,
+                        indices, indexSize, response->results, response->diagnosticInfos);
+    }
+    /* ### End External Namespaces */
     
     response->resultsSize = request->nodesToWriteSize;
-    for(UA_Int32 i = 0;i < request->nodesToWriteSize;i++)
-        response->results[i] = __writeValue(server, &request->nodesToWrite[i]);
+    for(UA_Int32 i = 0;i < request->nodesToWriteSize;i++) {
+        if(!isExternal[i])
+            response->results[i] = __writeValue(server, &request->nodesToWrite[i]);
+    }
 }

@@ -35,6 +35,10 @@ void UA_EXPORT UA_Server_delete(UA_Server *server);
 void UA_EXPORT UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
 
 /* Services for local use */
+UA_AddNodesResult UA_EXPORT UA_Server_addNode(UA_Server *server, const UA_Node **node,
+                                              const UA_ExpandedNodeId *parentNodeId,
+                                              const UA_NodeId *referenceTypeId);
+UA_StatusCode UA_EXPORT UA_Server_addReference(UA_Server *server, const UA_AddReferencesItem *item);
 void UA_EXPORT UA_Server_addScalarVariableNode(UA_Server *server, UA_QualifiedName *browseName, void *value,
                                                const UA_VTable_Entry *vt, const UA_ExpandedNodeId *parentNodeId,
                                                const UA_NodeId *referenceTypeId );

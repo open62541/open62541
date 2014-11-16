@@ -8,8 +8,9 @@
 #include <uv.h>
 #include <assert.h>
 #include <malloc.h>
-#include "networklayer_tcp.h"
 #include "ua_transport.h"
+#include "ua_statuscodes.h"
+#include "networklayer_tcp.h"
 
 struct NetworklayerTCP {
     UA_Server *server;
@@ -21,13 +22,13 @@ struct NetworklayerTCP {
 	UA_UInt32 connectionsSize;
 };
 
-UA_Int32 NetworklayerTCP_new(NetworklayerTCP **newlayer, UA_ConnectionConfig localConf, UA_UInt32 port) {
-    *newlayer = malloc(sizeof(NetworklayerTCP));
-    if(newlayer == UA_NULL)
-        return UA_ERROR;
-	(*newlayer)->localConf = localConf;
-	(*newlayer)->port = port;
-	return UA_SUCCESS;
+NetworklayerTCP * NetworklayerTCP_new(UA_ConnectionConfig localConf, UA_UInt32 port) {
+    NetworklayerTCP *newlayer = malloc(sizeof(NetworklayerTCP));
+    if(newlayer) {
+        newlayer->localConf = localConf;
+        newlayer->port = port;
+    }
+	return newlayer;
 }
 
 void NetworklayerTCP_delete(NetworklayerTCP *layer) {
@@ -49,7 +50,7 @@ static void on_close(uv_handle_t * handle) {
     free(handle);
 }
 
-void close(void *handle) {
+static void closeHandle(void *handle) {
     uv_close((uv_handle_t *)handle, on_close);
 }
 
@@ -73,7 +74,7 @@ static void after_write(uv_write_t * req, int status) {
     free(wr);
 }
 
-static void write(void *handle, const UA_ByteStringArray buf) {
+static void writeHandle(void *handle, const UA_ByteStringArray buf) {
     uv_buf_t *uv_bufs = malloc(buf.stringsSize * sizeof(uv_buf_t));
     for(UA_UInt32 i=0; i<buf.stringsSize; i++) {
         uv_bufs[i].len = buf.strings[i].length;
@@ -134,7 +135,7 @@ static void on_connection(uv_stream_t *server, int status) {
         return;
 
     UA_Connection *connection = malloc(sizeof(UA_Connection));
-    UA_Connection_init(connection, layer->localConf, stream, close, write);
+    UA_Connection_init(connection, layer->localConf, stream, closeHandle, writeHandle);
     stream->data = connection;
 
     assert(uv_accept(server, (uv_stream_t*)stream) == 0);
@@ -147,24 +148,25 @@ void check_running(uv_timer_t* handle, int status) {
         uv_stop(layer->uvloop);
 }
 
-UA_Int32 NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, struct timeval tv, void(*worker)(UA_Server*), UA_Boolean *running) {
+UA_StatusCode NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, struct timeval tv,
+                                  void(*worker)(UA_Server*), UA_Boolean *running) {
     layer->uvloop = uv_default_loop();
     layer->server = server;
     struct sockaddr_in addr = uv_ip4_addr("0.0.0.0", layer->port);
     if(uv_tcp_init(layer->uvloop, &layer->uvserver)) {
 		printf("Socket creation error\n");
-        return UA_ERROR;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
     
     if(uv_tcp_bind(&layer->uvserver, addr)) {
         printf("Bind error\n");
-        return UA_ERROR;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
 #define MAXBACKLOG 10
     if(uv_listen((uv_stream_t*)&layer->uvserver, MAXBACKLOG, on_connection)) {
         printf("Listen error");
-        return UA_ERROR;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
     layer->uvloop->data = (void*)layer; // so we can get the pointer to the server
     layer->running = running;
@@ -174,5 +176,5 @@ UA_Int32 NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, struct t
     uv_timer_start(&timer_check_running, check_running, 0, 500);
     
     uv_run(layer->uvloop, UV_RUN_DEFAULT);
-    return UA_SUCCESS;
+    return UA_STATUSCODE_GOOD;
 }
