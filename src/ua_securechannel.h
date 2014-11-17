@@ -7,7 +7,7 @@
 #include "ua_connection.h"
 
 /**
- *  @ingroup internal
+ *  @ingroup communication
  *
  *  @defgroup securechannel SecureChannel
  */

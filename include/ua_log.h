@@ -23,6 +23,8 @@ extern "C" {
 #include "ua_config.h"
 
 /**
+ * @ingroup server
+ *
  * @defgroup logging Logging
  *
  * @brief Logging functionality is externally provided to the open62541 libary.

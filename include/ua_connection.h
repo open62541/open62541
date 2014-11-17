@@ -22,7 +22,11 @@ extern "C" {
 
 #include "ua_types.h"
 
-/** @defgroup connection Connection */
+/** @defgroup communication Communication */
+
+/**
+ * @ingroup communication
+ * @defgroup connection Connection */
 
 /** Used for zero-copy communication. The array of bytestrings is sent over the
    network as a single buffer. */
