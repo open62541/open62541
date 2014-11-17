@@ -3,12 +3,12 @@ open62541
 
 open62541 (http://open62541.org) is an open-source implementation of OPC UA (OPC Unified Architecture) licensed under LGPL + static linking exception. The open62541 library can be used to build a dedicated OPC UA server or to integrate OPC UA-based communication into existing applications.
 
-The project is in an early stage but already usable. See below for an simple server implemenation that provides access to a single variable.
-
 [![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
 [![Build Status](https://travis-ci.org/acplt/open62541.png?branch=master)](https://travis-ci.org/acplt/open62541)
 [![Coverage Status](https://coveralls.io/repos/acplt/open62541/badge.png?branch=master)](https://coveralls.io/r/acplt/open62541?branch=master)
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/1864/badge.svg)](https://scan.coverity.com/projects/1864)
+
+The project is in an early stage but already usable. See below for a simple server implemenation that provides access to a single variable.
 
 ### Documentation
 The developer documentation is generated from Doxygen annotations in the source code: http://open62541.org/doc.
