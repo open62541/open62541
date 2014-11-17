@@ -1,24 +1,23 @@
 open62541
 =========
 
-An open-source communication stack implementation of OPC UA (OPC Unified Architecture) licensed under LGPL + static linking exception.
+open62541 (http://open62541.org) is an open-source implementation of OPC UA (OPC Unified Architecture) licensed under LGPL + static linking exception. The open62541 library can be used to build a dedicated OPC UA server or to integrate OPC UA-based communication into existing applications.
+
+The project is in an early stage but already usable. See below for an simple server implemenation that provides access to a single variable.
 
 [![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
 [![Build Status](https://travis-ci.org/acplt/open62541.png?branch=master)](https://travis-ci.org/acplt/open62541)
 [![Coverage Status](https://coveralls.io/repos/acplt/open62541/badge.png?branch=master)](https://coveralls.io/r/acplt/open62541?branch=master)
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/1864/badge.svg)](https://scan.coverity.com/projects/1864)
 
-### What is currently working?
-The project is in an early stage. We retain the right to break APIs until a first stable release.
-- Binary serialization of all data types: 100%
-- Node storage and setup of a minimal namespace zero: 100%
-- Standard OPC UA Clients can connect/open a SecureChannel/open a Session: 100%
-- Browsing/reading and writing attributes: 100%
-- Advanced SecureChannel and Session Management: 75%
-
 ### Documentation
-The developer documentation is generated from Doxygen annotations in the source code (http://open62541.org/doc).
+The developer documentation is generated from Doxygen annotations in the source code: http://open62541.org/doc.
 Build instruction can be found under https://github.com/acplt/open62541/wiki/Building-open62541.
+
+For discussion and help, you can use
+- the [mailing list](https://groups.google.com/d/forum/open62541)
+- our [IRC channel](http://webchat.freenode.net/?channels=%23open62541)
+- the [bugtracker](https://github.com/acplt/open62541/issues)
 
 ### Example Server Implementation
 ```c
