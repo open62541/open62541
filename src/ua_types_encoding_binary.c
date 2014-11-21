@@ -13,7 +13,7 @@ static INLINE UA_Boolean is_builtin(const UA_NodeId *typeid ) {
 /*********/
 
 /** The data-pointer may be null. Then the array is assumed to be empy. */
-UA_UInt32 UA_Array_calcSizeBinary(UA_Int32 length, const UA_VTable_Entry *vt, const void *data) {
+UA_UInt32 UA_Array_calcSizeBinary(UA_Int32 length, const UA_TypeVTable *vt, const void *data) {
     if(!data) //empty arrays are encoded with the length member either 0 or -1
         return sizeof(UA_Int32);
 
@@ -28,7 +28,7 @@ UA_UInt32 UA_Array_calcSizeBinary(UA_Int32 length, const UA_VTable_Entry *vt, co
 }
 
 /** The data-pointer may be null. Then the array is assumed to be empy. */
-static UA_UInt32 UA_Array_calcSizeBinary_asExtensionObject(UA_Int32 length, const UA_VTable_Entry *vt, const void *data) {
+static UA_UInt32 UA_Array_calcSizeBinary_asExtensionObject(UA_Int32 length, const UA_TypeVTable *vt, const void *data) {
     UA_UInt32 l = UA_Array_calcSizeBinary(length, vt, data);
     if(!is_builtin(&vt->typeId))
         l += 9*length;  // extensionobject header for each element
@@ -36,7 +36,7 @@ static UA_UInt32 UA_Array_calcSizeBinary_asExtensionObject(UA_Int32 length, cons
 }
 
 /* The src-pointer may be null if the array length is <= 0. */
-UA_StatusCode UA_Array_encodeBinary(const void *src, UA_Int32 length, const UA_VTable_Entry *vt,
+UA_StatusCode UA_Array_encodeBinary(const void *src, UA_Int32 length, const UA_TypeVTable *vt,
                                     UA_ByteString *dst, UA_UInt32 *offset) {
     //Null Arrays are encoded with length = -1 // part 6 - §5.24
     if(length < -1)
@@ -52,7 +52,7 @@ UA_StatusCode UA_Array_encodeBinary(const void *src, UA_Int32 length, const UA_V
     return retval;
 }
 
-static UA_StatusCode UA_Array_encodeBinary_asExtensionObject(const void *src, UA_Int32 length, const UA_VTable_Entry *vt,
+static UA_StatusCode UA_Array_encodeBinary_asExtensionObject(const void *src, UA_Int32 length, const UA_TypeVTable *vt,
                                                              UA_ByteString *dst, UA_UInt32 *offset) {
     //Null Arrays are encoded with length = -1 // part 6 - §5.24
     if(length < -1)
@@ -78,7 +78,7 @@ static UA_StatusCode UA_Array_encodeBinary_asExtensionObject(const void *src, UA
 }
 
 UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, UA_Int32 length,
-                                    const UA_VTable_Entry *vt, void **dst) {
+                                    const UA_TypeVTable *vt, void **dst) {
     if(length <= 0) {
         *dst = UA_NULL;
         return UA_STATUSCODE_GOOD;
@@ -902,7 +902,7 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, UA_UInt32 *offse
     UA_NodeId typeid = { .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
                          .identifier.numeric = encodingByte & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK };
     UA_Int32 typeNs0Id = UA_ns0ToVTableIndex(&typeid );
-    const UA_VTable_Entry *vt = &UA_TYPES[typeNs0Id];
+    const UA_TypeVTable *vt = &UA_TYPES[typeNs0Id];
 
     if(!isArray) {
         if(!(data->dataPtr = UA_alloc(vt->memSize)))

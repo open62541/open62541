@@ -1,19 +1,20 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
+#include "ua_services_internal.h"
 #include "ua_statuscodes.h"
 #include "ua_nodestore.h"
 #include "ua_namespace_0.h"
 #include "ua_util.h"
 
-#define CHECK_NODECLASS(CLASS)                                 \
-    if(!(node->nodeClass & (CLASS))) {                         \
+#define CHECK_NODECLASS(CLASS)                                  \
+    if(!(node->nodeClass & (CLASS))) {                          \
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE; \
         v->status       = UA_STATUSCODE_BADNOTREADABLE;         \
-        break;                                                 \
-    }                                                          \
+        break;                                                  \
+    }
 
 /** Reads a single attribute from a node in the nodestore. */
-static void __readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue *v) {
+static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue *v) {
     UA_Node const *node = UA_NodeStore_get(server->nodestore, &(id->nodeId));
     if(!node) {
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_STATUSCODE;
@@ -60,9 +61,8 @@ static void __readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValu
         break;
 
     case UA_ATTRIBUTEID_ISABSTRACT:
-        CHECK_NODECLASS(
-            UA_NODECLASS_REFERENCETYPE | UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE |
-            UA_NODECLASS_DATATYPE);
+        CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE | UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE |
+                        UA_NODECLASS_DATATYPE);
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
         retval |= UA_Variant_copySetValue(&v->value, &UA_TYPES[UA_BOOLEAN], &((UA_ReferenceTypeNode *)node)->isAbstract);
         break;
@@ -219,11 +219,11 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
     response->resultsSize = request->nodesToReadSize;
     for(UA_Int32 i = 0;i < response->resultsSize;i++) {
         if(!isExternal[i])
-            __readValue(server, &request->nodesToRead[i], &response->results[i]);
+            readValue(server, &request->nodesToRead[i], &response->results[i]);
     }
 }
 
-static UA_StatusCode __writeValue(UA_Server *server, UA_WriteValue *writeValue) {
+static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *writeValue) {
     const UA_Node *node = UA_NodeStore_get(server->nodestore, &writeValue->nodeId);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -385,6 +385,6 @@ void Service_Write(UA_Server *server, UA_Session *session,
     response->resultsSize = request->nodesToWriteSize;
     for(UA_Int32 i = 0;i < request->nodesToWriteSize;i++) {
         if(!isExternal[i])
-            response->results[i] = __writeValue(server, &request->nodesToWrite[i]);
+            response->results[i] = writeValue(server, &request->nodesToWrite[i]);
     }
 }

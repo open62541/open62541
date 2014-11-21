@@ -32,4 +32,11 @@ struct UA_Server {
     UA_ExternalNamespace *externalNamespaces;
 };
 
+UA_AddNodesResult
+UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, const UA_Node **node,
+                             const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId);
+
+UA_StatusCode
+UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session, const UA_AddReferencesItem *item);
+
 #endif /* UA_SERVER_INTERNAL_H_ */

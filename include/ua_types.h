@@ -186,22 +186,11 @@ typedef struct UA_ExtensionObject {
     UA_ByteString body; // contains either the bytestring or a pointer to the memory-object
 } UA_ExtensionObject;
 
-struct UA_VTable_Entry; // forwards declaration
-typedef struct UA_VTable_Entry UA_VTable_Entry;
+struct UA_TypeVTable; // forward declaration
+typedef struct UA_TypeVTable UA_TypeVTable;
 
-/* Variant */
-/** @defgroup variant Variant
- *
- * @brief Variants may contain (arrays of) any other datatype.
- *
- * For that, we provide a reference to the utility functions of the type as well
- * as possible encoding by pointing an entry in the vtable of types. References
- * may either contain a structure with the variants data, or a datasource where
- * this structure may be obtained (using reference counting for async access).
- *
- * @{
- */
-
+/** @brief Pointers to data that is stored in memory. The "type" of the data is
+    stored in the variant itself. */
 typedef struct UA_VariantData {
     UA_Int32  arrayLength;        // total number of elements in the data-pointer
     void     *dataPtr;
@@ -222,24 +211,21 @@ typedef struct UA_VariantDataSource {
     void (*delete)(const void *identifier); /**< Indicates that the node with the datasource was removed from the namespace. */
 } UA_VariantDataSource;
 
-/** @brief A union of all of the types specified above.
- *
- * Variants store (arrays of) built-in types. If you want to store a more
- * complex (or self-defined) type, you have to use an UA_ExtensionObject.*/
+/** @brief Variants store (arrays of) any data type. Either they provide a
+    pointer to the data in memory, or functions from which the data can be
+    accessed. */
 typedef struct UA_Variant {
-    const UA_VTable_Entry *vt; // internal entry into vTable
+    const UA_TypeVTable *vt; /// The VTable of the datatype in question
     enum {
-        UA_VARIANT_DATA,
-        UA_VARIANT_DATA_NODELETE, // do not free the data (e.g. because it is "borrowed" and points into a larger structure)
-        UA_VARIANT_DATASOURCE
+        UA_VARIANT_DATA, ///< The data is stored in memory and "owned" by this variant
+        UA_VARIANT_DATA_NODELETE, ///< The data is stored in memory, but only "borrowed" and shall not be deleted at the end of this variant's lifecycle
+        UA_VARIANT_DATASOURCE ///< The data is provided externally. Call the functions in the datasource to get a current version
     } storageType;
     union {
         UA_VariantData       data;
         UA_VariantDataSource datasource;
     } storage;
 } UA_Variant;
-
-/** @} */
 
 /** @brief A data value with an associated status code and timestamps. */
 typedef struct UA_DataValue {
@@ -413,18 +399,18 @@ void UA_EXPORT UA_QualifiedName_printf(char const *label, const UA_QualifiedName
 UA_StatusCode UA_EXPORT UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);
 
 /* Variant */
-UA_StatusCode UA_EXPORT UA_Variant_copySetValue(UA_Variant *v, const UA_VTable_Entry *vt, const void *value);
-UA_StatusCode UA_EXPORT UA_Variant_copySetArray(UA_Variant *v, const UA_VTable_Entry *vt, UA_Int32 arrayLength, const void *array);
+UA_StatusCode UA_EXPORT UA_Variant_copySetValue(UA_Variant *v, const UA_TypeVTable *vt, const void *value);
+UA_StatusCode UA_EXPORT UA_Variant_copySetArray(UA_Variant *v, const UA_TypeVTable *vt, UA_Int32 arrayLength, const void *array);
 
 /* Array operations */
-UA_StatusCode UA_EXPORT UA_Array_new(void **p, UA_Int32 noElements, const UA_VTable_Entry *vt);
-void UA_EXPORT UA_Array_init(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt);
-void UA_EXPORT UA_Array_delete(void *p, UA_Int32 noElements, const UA_VTable_Entry *vt);
+UA_StatusCode UA_EXPORT UA_Array_new(void **p, UA_Int32 noElements, const UA_TypeVTable *vt);
+void UA_EXPORT UA_Array_init(void *p, UA_Int32 noElements, const UA_TypeVTable *vt);
+void UA_EXPORT UA_Array_delete(void *p, UA_Int32 noElements, const UA_TypeVTable *vt);
 
 /* @brief The destination array is allocated with size noElements. */
-UA_StatusCode UA_EXPORT UA_Array_copy(const void *src, UA_Int32 noElements, const UA_VTable_Entry *vt, void **dst);
+UA_StatusCode UA_EXPORT UA_Array_copy(const void *src, UA_Int32 noElements, const UA_TypeVTable *vt, void **dst);
 #ifdef DEBUG
-void UA_EXPORT UA_Array_print(const void *p, UA_Int32 noElements, const UA_VTable_Entry *vt, FILE *stream);
+void UA_EXPORT UA_Array_print(const void *p, UA_Int32 noElements, const UA_TypeVTable *vt, FILE *stream);
 #endif
 
 /**********/
@@ -442,7 +428,7 @@ typedef struct UA_Encoding {
 
 #define UA_ENCODING_BINARY 0 // Binary encoding is always available
 
-struct UA_VTable_Entry {
+struct UA_TypeVTable {
     UA_NodeId     typeId;
     UA_Byte       *name;
     void *        (*new)();
@@ -453,10 +439,8 @@ struct UA_VTable_Entry {
 #ifdef DEBUG
     void          (*print)(const void *p, FILE *stream);
 #endif
-    UA_UInt32  memSize;                        // size of the struct only in memory (no dynamic components)
-    UA_Boolean dynMembers;                     // does the type contain members that are dynamically
-                                               // allocated (strings, ..)? Otherwise, the size on
-                                               // the wire == size in memory.
+    UA_UInt32  memSize;                        // size of the struct
+    UA_Boolean dynMembers;                     // does the type contain members that are dynamically on the heap?
     UA_Encoding encodings[UA_ENCODING_AMOUNT]; // binary, xml, ... UA_ENCODING_AMOUNT is set by the build script
 };
 

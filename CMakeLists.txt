@@ -25,18 +25,16 @@ set(lib_sources src/ua_types.c
                 src/ua_session.c
                 src/ua_util.c
                 src/server/ua_server.c
+				src/server/ua_server_addressspace.c
+				src/server/ua_server_binary.c
                 src/server/ua_securechannel_manager.c
                 src/server/ua_session_manager.c
-				src/server/ua_server_binary.c
                 src/server/ua_services_attribute.c
                 src/server/ua_services_session.c
                 src/server/ua_services_discovery.c
                 src/server/ua_services_securechannel.c
                 src/server/ua_services_nodemanagement.c
                 src/server/ua_services_view.c
-				#src/server/nodestore/open62541_nodestore_view.c
-				#src/server/nodestore/open62541_nodestore_attribute.c
-				#src/server/nodestore/open62541_nodestore_nodemanagement.c
 				${exported_headers}
 				${generated_headers}
                 ${headers})

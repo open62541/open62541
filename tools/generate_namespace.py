@@ -132,7 +132,7 @@ printh('''/**********************************************************
  */
 
 UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id);\n
-extern const UA_VTable_Entry UA_EXPORT *UA_TYPES;
+extern const UA_TypeVTable UA_EXPORT *UA_TYPES;
 extern const UA_NodeId UA_EXPORT *UA_NODEIDS;
 extern const UA_ExpandedNodeId UA_EXPORT *UA_EXPANDEDNODEIDS;
 
@@ -176,7 +176,7 @@ for row in rows:
     printh('#define '+name.upper()+'_NS0 '+row[1])
     i=i+1
 
-printc('''const UA_VTable_Entry *UA_TYPES = (UA_VTable_Entry[]){''')
+printc('''const UA_TypeVTable *UA_TYPES = (UA_TypeVTable[]){''')
 for row in rows:
     if row[0] not in type_names:
         continue

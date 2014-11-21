@@ -460,20 +460,3 @@ UA_Server * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertifica
 
     return server;
 }
-
-void UA_EXPORT
-UA_Server_addScalarVariableNode(UA_Server *server, UA_QualifiedName *browseName, void *value,
-                                const UA_VTable_Entry *vt, const UA_ExpandedNodeId *parentNodeId,
-                                const UA_NodeId *referenceTypeId) {
-    UA_VariableNode *tmpNode = UA_VariableNode_new();
-    UA_QualifiedName_copy(browseName, &tmpNode->browseName);
-    UA_String_copy(&browseName->name, &tmpNode->displayName.text);
-    /* UA_LocalizedText_copycstring("integer value", &tmpNode->description); */
-    tmpNode->nodeClass = UA_NODECLASS_VARIABLE;
-    tmpNode->valueRank = -1;
-    tmpNode->value.vt = vt;
-    tmpNode->value.storage.data.dataPtr = value;
-    tmpNode->value.storageType = UA_VARIANT_DATA_NODELETE;
-    tmpNode->value.storage.data.arrayLength = 1;
-    UA_Server_addNode(server, (const UA_Node**)&tmpNode, parentNodeId, referenceTypeId);
-}

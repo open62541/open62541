@@ -54,19 +54,14 @@ int main(int argc, char** argv) {
 	UA_String endpointUrl;
     UA_String_copycstring("opc.tcp://192.168.56.101:16664",&endpointUrl);
 	UA_ByteString certificate = loadCertificate();
-	//create a nodestore which holds all nodes
-	/* open62541NodeStore *open62541NodeStore; */
-	/* open62541NodeStore_new(&open62541NodeStore); */
-	/* open62541NodeStore_setNodeStore(open62541NodeStore); */
-
-	//create server and use default open62541Nodestore for storing the nodes
 	UA_Server *server = UA_Server_new(&endpointUrl, &certificate);
 
 	//add a node to the adresspace
-    UA_Int32 myInteger = 42;
+    UA_Int32 *myInteger = malloc(sizeof(UA_Int32));
+    *myInteger = 42;
     UA_QualifiedName myIntegerName;
     UA_QualifiedName_copycstring("the answer is",&myIntegerName);
-    UA_Server_addScalarVariableNode(server, &myIntegerName, (void*)&myInteger, &UA_TYPES[UA_INT32],
+    UA_Server_addScalarVariableNode(server, &myIntegerName, myInteger, &UA_TYPES[UA_INT32],
                                     &UA_EXPANDEDNODEIDS[UA_OBJECTSFOLDER], &UA_NODEIDS[UA_ORGANIZES]);
     UA_QualifiedName_deleteMembers(&myIntegerName);
     
@@ -87,7 +82,8 @@ int main(int argc, char** argv) {
         tmpNode->value.storage.data.dataPtr = &data;
         tmpNode->value.storageType = UA_VARIANT_DATA_NODELETE;
         tmpNode->value.storage.data.arrayLength = 1;
-        UA_Server_addNode(server, (UA_Node**)&tmpNode, &UA_NODEIDS[UA_OBJECTSFOLDER], &UA_NODEIDS[UA_HASCOMPONENT]);
+        UA_Server_addNode(server, (const UA_Node**)&tmpNode, &UA_EXPANDEDNODEIDS[UA_OBJECTSFOLDER],
+                          &UA_NODEIDS[UA_HASCOMPONENT]);
     }
 #endif
 	
@@ -99,5 +95,5 @@ int main(int argc, char** argv) {
 	UA_Server_delete(server);
 	NetworklayerTCP_delete(nl);
     UA_String_deleteMembers(&endpointUrl);
-	return retval == UA_STATUSCODE_GOOD ? 0 : retval;
+	return retval;
 }
