@@ -4,6 +4,7 @@
  */
 
 #ifdef WIN32
+#include <malloc.h>
 #include <winsock2.h>
 #include <sys/types.h>
 #include <Windows.h>
@@ -133,7 +134,7 @@ void writeCallback(TCPConnectionHandle *handle, UA_ByteStringArray gather_buf) {
 	UA_UInt32 total_len = 0;
 	UA_UInt32 nWritten = 0;
 #ifdef WIN32
-	LPWSABUF buf = malloc(gather_buf.stringsSize * sizeof(WSABUF));
+	LPWSABUF buf = _alloca(gather_buf.stringsSize * sizeof(WSABUF));
 	int result = 0;
 	for(UA_UInt32 i = 0; i<gather_buf.stringsSize; i++) {
 		buf[i].buf = gather_buf.strings[i].data;
@@ -149,7 +150,6 @@ void writeCallback(TCPConnectionHandle *handle, UA_ByteStringArray gather_buf) {
 		} while (errno == EINTR);
 		nWritten += n;
 	}
-	free(buf);
 #else
 	struct iovec iov[gather_buf.stringsSize];
 	for(UA_UInt32 i=0;i<gather_buf.stringsSize;i++) {

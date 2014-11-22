@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
 
 	UA_String endpointUrl;
-    UA_String_copycstring("opc.tcp://192.168.56.101:16664",&endpointUrl);
+    UA_String_copycstring("opc.tcp://localhost:16664",&endpointUrl);
 	UA_ByteString certificate = loadCertificate();
 	UA_Server *server = UA_Server_new(&endpointUrl, &certificate);
 

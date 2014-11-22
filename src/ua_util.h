@@ -9,10 +9,13 @@
 #include "ua_config.h"
 
 #include <stddef.h> /* Needed for sys/queue.h */
-#if !defined(MSVC) && !defined(__MINGW32__)
+
+#ifndef WIN32
 #include <sys/queue.h>
+#include <alloca.h>
 #else
 #include "queue.h"
+#include <malloc.h>
 #endif
 
 #include "ua_types.h"
@@ -77,5 +80,26 @@ INLINE void UA_memcpy(void *dst, void const *src, UA_Int32 size) {
     DBG_VERBOSE(printf("UA_memcpy - %p;%p;%d\n", dst, src, size));
     memcpy(dst, src, size);
 }
+
+#ifdef DEBUG
+#define UA_alloca(size) _UA_alloca(size, __FILE__, __LINE__) 
+INLINE void * _UA_alloca(UA_Int32 size, char *file, UA_Int32 line) {
+	DBG_VERBOSE(printf("UA_alloc - %d;%s;%d\n", size, file, line); fflush(stdout));
+#ifdef WIN32
+	return _alloca(size);
+#else
+	return alloca(size);
+#endif
+}
+#else
+#define UA_alloca(size) _UA_alloca(size) 
+INLINE void * _UA_alloca(UA_Int32 size) {
+#ifdef WIN32
+	return _alloca(size);
+#else
+	return alloca(size);
+#endif
+}
+#endif
 
 #endif /* UA_UTIL_H_ */

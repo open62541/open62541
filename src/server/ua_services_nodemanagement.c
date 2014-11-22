@@ -124,9 +124,9 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
     }
 
     /* ### Begin External Namespaces */
-    UA_Boolean isExternal[request->nodesToAddSize];
+    UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * request->nodesToAddSize);
     memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToAddSize);
-    UA_UInt32 indices[request->nodesToAddSize];
+    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * request->nodesToAddSize);
     for(UA_Int32 j = 0;j<server->externalNamespacesSize;j++) {
         UA_UInt32 indexSize = 0;
         for(UA_Int32 i = 0;i < request->nodesToAddSize;i++) {

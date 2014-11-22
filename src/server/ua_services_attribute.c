@@ -195,9 +195,9 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
     }
 
     /* ### Begin External Namespaces */
-    UA_Boolean isExternal[request->nodesToReadSize];
+    UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * request->nodesToReadSize);
     memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToReadSize);
-    UA_UInt32 indices[request->nodesToReadSize];
+    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * request->nodesToReadSize);
     for(UA_Int32 j = 0;j<server->externalNamespacesSize;j++) {
         UA_UInt32 indexSize = 0;
         for(UA_Int32 i = 0;i < request->nodesToReadSize;i++) {
@@ -361,9 +361,9 @@ void Service_Write(UA_Server *server, UA_Session *session,
     }
 
     /* ### Begin External Namespaces */
-    UA_Boolean isExternal[request->nodesToWriteSize];
+    UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * request->nodesToWriteSize);
     memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToWriteSize);
-    UA_UInt32 indices[request->nodesToWriteSize];
+    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * request->nodesToWriteSize);
     for(UA_Int32 j = 0;j<server->externalNamespacesSize;j++) {
         UA_UInt32 indexSize = 0;
         for(UA_Int32 i = 0;i < request->nodesToWriteSize;i++) {
