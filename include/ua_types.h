@@ -59,6 +59,8 @@ extern "C" {
  *   the stack, whereas the dynamically sized members is heap-allocated. To
  *   reuse the variable, the remaining members (not dynamically allocated) need
  *   to be cleaned up with an _init.
+ *
+ * @{
  */
 
 /** @brief A two-state logical value (true or false). */
@@ -443,6 +445,8 @@ struct UA_TypeVTable {
     UA_Boolean dynMembers;                     // does the type contain members that are dynamically on the heap?
     UA_Encoding encodings[UA_ENCODING_AMOUNT]; // binary, xml, ... UA_ENCODING_AMOUNT is set by the build script
 };
+
+/** @} */
 
 #ifdef __cplusplus
 } // extern "C"
