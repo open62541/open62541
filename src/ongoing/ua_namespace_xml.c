@@ -17,7 +17,7 @@ UA_Int32 Namespace_loadXml(Namespace **ns,UA_UInt32 nsid,const char* rootName, X
 	*ns = n.ns;
 
 	XML_Stack_addChildHandler(&s, "UANodeSet", strlen("UANodeSet"), (XML_decoder) UA_NodeSet_decodeXmlFromStack, UA_INVALIDTYPE, &n);
-	XML_Parser parser = XML_ParserCreate(NULL);
+	XML_Parser parser = XML_ParserCreate(UA_NULL);
 	XML_SetUserData(parser, &s);
 	XML_SetElementHandler(parser, XML_Stack_startElement, XML_Stack_endElement);
 	XML_SetCharacterDataHandler(parser, XML_Stack_handleText);

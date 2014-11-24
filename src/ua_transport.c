@@ -2,6 +2,7 @@
 #include <stdio.h>
 #endif
 #include "ua_transport.h"
+#include "ua_types_internal.h"
 #include "ua_util.h"
 
 UA_TYPE_DEFAULT(UA_MessageType)

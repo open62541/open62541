@@ -45,9 +45,9 @@ from type_lists import only_needed_types
 # some types are omitted (pretend they exist already)
 existing_types.add("NodeIdType")
 
-fixed_size = set(["UA_Boolean", "UA_SByte", "UA_Byte", "UA_Int16", "UA_UInt16",
-                  "UA_Int32", "UA_UInt32", "UA_Int64", "UA_UInt64", "UA_Float",
-                  "UA_Double", "UA_DateTime", "UA_Guid", "UA_StatusCode"])
+fixed_size = {"UA_Boolean": 1, "UA_SByte": 1, "UA_Byte": 1, "UA_Int16": 2, "UA_UInt16": 2,
+              "UA_Int32": 4, "UA_UInt32": 4, "UA_Int64": 8, "UA_UInt64": 8, "UA_Float": 4,
+              "UA_Double": 8, "UA_DateTime": 8, "UA_Guid": 16, "UA_StatusCode": 4}
 
 # types we do not want to autogenerate
 def skipType(name):
@@ -81,7 +81,7 @@ def printableStructuredType(element):
 def createEnumerated(element):	
     valuemap = OrderedDict()
     name = "UA_" + element.get("Name")
-    fixed_size.add(name)
+    fixed_size[name] = 4
     printh("") # newline
     for child in element:
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
@@ -148,6 +148,18 @@ def createStructured(element):
             else:
                 membermap[childname] = "UA_" + typename
 
+    # fixed size?
+    is_fixed_size = True
+    this_fixed_size = 0
+    for n,t in membermap.iteritems():
+        if t not in fixed_size.keys():
+            is_fixed_size = False
+        else:
+            this_fixed_size += fixed_size[t]
+
+    if is_fixed_size:
+        fixed_size[name] = this_fixed_size
+
     # 3) Print structure
     if len(membermap) > 0:
         printh("typedef struct %(name)s {")
@@ -168,20 +180,18 @@ def createStructured(element):
     # 4) CalcSizeBinary
     printc('''UA_UInt32 %(name)s_calcSizeBinary(%(name)s const * ptr) {
     return 0''')
-    has_fixed_size = True
-    for n,t in membermap.iteritems():
-        if t in fixed_size:
-            printc('\t + sizeof(%(t)s) // %(n)s')
-        elif t.find("*") != -1:
-            printc('\t + UA_Array_calcSizeBinary(ptr->%(n)sSize,&UA_TYPES['+ t[0:t.find("*")].upper() +
-                   "],ptr->%(n)s)")
-            has_fixed_size = False
-        else:
-            printc('\t + %(t)s_calcSizeBinary(&ptr->%(n)s)')
-            has_fixed_size = False
+    if is_fixed_size:
+        printc('''+ %(this_fixed_size)s''')
+    else:
+        for n,t in membermap.iteritems():
+            if t in fixed_size:
+                printc('\t + sizeof(%(t)s) // %(n)s')
+            elif t.find("*") != -1:
+                printc('\t + UA_Array_calcSizeBinary(ptr->%(n)sSize,&UA_TYPES[' +
+                       t[0:t.find("*")].upper() + "],ptr->%(n)s)")
+            else:
+                printc('\t + %(t)s_calcSizeBinary(&ptr->%(n)s)')
     printc("\t;\n}\n")
-    if has_fixed_size:
-        fixed_size.add(name)
 
     # 5) EncodeBinary
     printc('''UA_StatusCode %(name)s_encodeBinary(%(name)s const * src, UA_ByteString* dst, UA_UInt32 *offset) {
@@ -318,6 +328,7 @@ printc('''/**
  */
  
 #include "''' + args.outfile.split("/")[-1] + '''.h"
+#include "ua_types_internal.h"
 #include "ua_namespace_0.h"
 #include "ua_util.h"\n''')
 

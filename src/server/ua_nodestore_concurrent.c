@@ -6,13 +6,13 @@
 #include <urcu/uatomic.h>
 #include <urcu/rculfhash.h>
 
-#define ALIVE_BIT (1 << 15) /* Alive bit in the readcount */
+#define ALIVE_BIT (1 << 15) /* Alive bit in the refcount */
 
 typedef struct UA_NodeStore_Entry {
     struct cds_lfht_node htn;      /* contains next-ptr for urcu-hashmap */
     struct rcu_head      rcu_head; /* For call-rcu */
-    UA_UInt16 readcount;           /* Counts the amount of readers on it [alive-bit, 15 counter-bits] */
-    UA_Node   node;                /* Might be cast from any _bigger_ UA_Node* type. Allocate enough memory! */
+    UA_UInt16 refcount;            /* Counts the amount of readers on it [alive-bit, 15 counter-bits] */
+    const UA_Node node;            /* Might be cast from any _bigger_ UA_Node* type. Allocate enough memory! */
 } UA_NodeStore_Entry;
 
 struct UA_NodeStore {
@@ -26,7 +26,7 @@ struct UA_NodeStore {
 typedef UA_UInt32 hash_t;
 
 /* Based on Murmur-Hash 3 by Austin Appleby (public domain, freely usable) */
-static INLINE hash_t hash_array(const UA_Byte *data, UA_UInt32 len, UA_UInt32 seed) {
+static hash_t hash_array(const UA_Byte *data, UA_UInt32 len, UA_UInt32 seed) {
     static const uint32_t c1 = 0xcc9e2d51;
     static const uint32_t c2 = 0x1b873593;
     static const uint32_t r1 = 15;
@@ -76,7 +76,7 @@ static INLINE hash_t hash_array(const UA_Byte *data, UA_UInt32 len, UA_UInt32 se
     return hash;
 }
 
-static INLINE hash_t hash(const UA_NodeId *n) {
+static hash_t hash(const UA_NodeId *n) {
     switch(n->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         /*  Knuth's multiplicative hashing */
@@ -151,11 +151,11 @@ static int compare(struct cds_lfht_node *htn, const void *orig) {
 
 /* The entry was removed from the hashtable. No more readers can get it. Since
    all readers using the node for a longer time (outside the rcu critical
-   section) increased the readcount, we only need to wait for the readcount
+   section) increased the refcount, we only need to wait for the refcount
    to reach zero. */
 static void markDead(struct rcu_head *head) {
     UA_NodeStore_Entry *entry = caa_container_of(head, UA_NodeStore_Entry, rcu_head);
-    if(uatomic_sub_return(&entry->readcount, ALIVE_BIT) > 0)
+    if(uatomic_and(&entry->refcount, ~ALIVE_BIT) > 0)
         return;
 
     node_deleteMembers(&entry->node);
@@ -166,7 +166,7 @@ static void markDead(struct rcu_head *head) {
 /* Free the entry if it is dead and nobody uses it anymore */
 void UA_NodeStore_release(const UA_Node *managed) {
     UA_NodeStore_Entry *entry = caa_container_of(managed, UA_NodeStore_Entry, node); // pointer to the first entry
-    if(uatomic_sub_return(&entry->readcount, 1) > 0)
+    if(uatomic_sub_return(&entry->refcount, 1) > 0)
         return;
 
     node_deleteMembers(managed);
@@ -257,9 +257,9 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node **node, UA_Byte flag
     memcpy(&entry->node, *node, nodesize);
 
     cds_lfht_node_init(&entry->htn);
-    entry->readcount = ALIVE_BIT;
+    entry->refcount = ALIVE_BIT;
     if(flags & UA_NODESTORE_INSERT_GETMANAGED)
-        entry->readcount++;
+        entry->refcount++;
 
     hash_t nhash = hash(&(*node)->nodeId);
     struct cds_lfht_node *result;
@@ -328,7 +328,7 @@ UA_StatusCode UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid, 
     }
 
     /* This is done within a read-lock. The node will not be marked dead within a read-lock. */
-    uatomic_inc(&found_entry->readcount);
+    uatomic_inc(&found_entry->refcount);
     rcu_read_unlock();
 
     *managedNode = &found_entry->node;
@@ -343,7 +343,7 @@ void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visit
     cds_lfht_first(ht, &iter);
     while(iter.node != UA_NULL) {
         UA_NodeStore_Entry *found_entry = (UA_NodeStore_Entry *)cds_lfht_iter_get_node(&iter);
-        uatomic_inc(&found_entry->readcount);
+        uatomic_inc(&found_entry->refcount);
         const UA_Node      *node = &found_entry->node;
         rcu_read_unlock();
         visitor(node);

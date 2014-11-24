@@ -94,15 +94,15 @@ UA_TYPE_BINARY_ENCODING(UA_InvalidType)
 /*********/
 
 /* Computes the size of an array (incl. length field) in a binary blob. */
-UA_UInt32 UA_Array_calcSizeBinary(UA_Int32 length, const UA_VTable_Entry *vt, const void *data);
+UA_UInt32 UA_Array_calcSizeBinary(UA_Int32 length, const UA_TypeVTable *vt, const void *data);
 
 /* @brief Encodes an array into a binary blob. The array size is printed as well. */
-UA_StatusCode UA_Array_encodeBinary(const void *src, UA_Int32 length, const UA_VTable_Entry *vt,
+UA_StatusCode UA_Array_encodeBinary(const void *src, UA_Int32 length, const UA_TypeVTable *vt,
                                     UA_ByteString *dst, UA_UInt32 *offset);
 
 /* @brief Decodes an array from a binary blob. The array is allocated automatically before decoding. */
 UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, UA_Int32 length,
-                                    const UA_VTable_Entry *vt, void **dst);
+                                    const UA_TypeVTable *vt, void **dst);
 
 /// @} /* end of group */
 

@@ -11,8 +11,6 @@
  * @defgroup services Services
  *
  * @brief This module describes all the services used to communicate in in OPC UA.
- *
- * @{
  */
 
 /**
@@ -30,8 +28,7 @@
  * the configuration information required to establish a SecureChannel and a
  * Session.
  */
-void Service_GetEndpoints(UA_Server                    *server,
-                          const UA_GetEndpointsRequest *request, UA_GetEndpointsResponse *response);
+void Service_GetEndpoints(UA_Server *server, const UA_GetEndpointsRequest *request, UA_GetEndpointsResponse *response);
 // Service_RegisterServer
 /** @} */
 
@@ -85,9 +82,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                              const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response);
 
-/**
- * @brief This Service is used to terminate a Session.
- */
+/** @brief This Service is used to terminate a Session. */
 void Service_CloseSession(UA_Server *server, const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response);
 // Service_Cancel
 /** @} */
@@ -102,20 +97,18 @@ void Service_CloseSession(UA_Server *server, const UA_CloseSessionRequest *reque
  * @{
  */
 
-/**
- * @brief This Service is used to add one or more Nodes into the AddressSpace hierarchy.
- */
-void Service_AddNodes(UA_Server *server, UA_Session *session,
-                      const UA_AddNodesRequest *request, UA_AddNodesResponse *response);
+/** @brief This Service is used to add one or more Nodes into the AddressSpace hierarchy. */
+void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesRequest *request, UA_AddNodesResponse *response);
 
-/**
- * @brief This Service is used to add one or more References to one or more Nodes
- */
-void Service_AddReferences(UA_Server *server, UA_Session *session,
-                           const UA_AddReferencesRequest *request, UA_AddReferencesResponse *response);
+/** @brief This Service is used to add one or more References to one or more Nodes. */
+void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddReferencesRequest *request, UA_AddReferencesResponse *response);
 
-// Service_DeleteNodes
-// Service_DeleteReferences
+/** @brief This Service is used to delete one or more Nodes from the AddressSpace. */
+void Service_DeleteNodes(UA_Server *server, UA_Session *session, const UA_DeleteNodesRequest *request, UA_DeleteNodesResponse *response);
+
+/** @brief This Service is used to delete one or more References of a Node. */
+void Service_DeleteReferences(UA_Server *server, UA_Session *session, const UA_DeleteReferencesRequest *request, UA_DeleteReferencesResponse *response);
+
 /** @} */
 
 /**
@@ -135,20 +128,15 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
 void Service_Browse(UA_Server *server, UA_Session *session,
                     const UA_BrowseRequest *request, UA_BrowseResponse *response);
 
-/**
- * @brief This Service is used to translate textual node paths to their respective ids.
- */
+/** @brief This Service is used to translate textual node paths to their respective ids. */
 void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                            const UA_TranslateBrowsePathsToNodeIdsRequest *request,
                                            UA_TranslateBrowsePathsToNodeIdsResponse *response);
 // Service_BrowseNext
-// Service_TranslateBrowsePathsToNodeIds
 // Service_RegisterNodes
 // Service_UnregisterNodes
 /** @} */
 
-
-/* Part 4: 5.9 Query Service Set */
 /**
  * @name Query Service Set
  *
@@ -166,7 +154,6 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
 // Service_QueryNext
 /** @} */
 
-/* Part 4: 5.10 Attribute Service Set */
 /**
  * @name Attribute Service Set
  *
@@ -183,9 +170,9 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
  * values as a composite, to read individual elements or to read ranges of
  * elements of the composite.
  */
-void Service_Read(UA_Server *server, UA_Session *session,
-                  const UA_ReadRequest *request, UA_ReadResponse *response);
+void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request, UA_ReadResponse *response);
 // Service_HistoryRead
+
 /**
  * @brief This Service is used to write one or more Attributes of one or more
  *  Nodes. For constructed Attribute values whose elements are indexed, such as
@@ -193,8 +180,7 @@ void Service_Read(UA_Server *server, UA_Session *session,
  *  values as a composite, to write individual elements or to write ranges of
  *  elements of the composite.
  */
-void Service_Write(UA_Server *server, UA_Session *session,
-                   const UA_WriteRequest *request, UA_WriteResponse *response);
+void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request, UA_WriteResponse *response);
 // Service_HistoryUpdate
 /** @} */
 
@@ -261,6 +247,4 @@ void Service_Write(UA_Server *server, UA_Session *session,
 // Service_DeleteSubscription
 /** @} */
 
-/** @} */ // end of group
-
-#endif
+#endif /* UA_SERVICES_H_ */

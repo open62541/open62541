@@ -4,6 +4,7 @@
  */
 
 #ifdef WIN32
+#include <malloc.h>
 #include <winsock2.h>
 #include <sys/types.h>
 #include <Windows.h>
@@ -62,6 +63,37 @@ NetworklayerTCP *NetworklayerTCP_new(UA_ConnectionConfig localConf, UA_UInt32 po
 	return newlayer;
 }
 
+void NetworklayerTCP_delete(NetworklayerTCP *layer) {
+	for(UA_UInt32 index = 0;index < layer->connectionsSize;index++) {
+		shutdown(layer->connections[index].sockfd, 2);
+        if(layer->connections[index].connection.channel)
+            layer->connections[index].connection.channel->connection = NULL;
+        UA_Connection_deleteMembers(&layer->connections[index].connection);
+		CLOSESOCKET(layer->connections[index].sockfd);
+	}
+	free(layer->connections);
+	free(layer);
+}
+
+void closeCallback(TCPConnectionHandle *handle);
+void writeCallback(TCPConnectionHandle *handle, UA_ByteStringArray gather_buf);
+
+static UA_StatusCode NetworklayerTCP_add(NetworklayerTCP *layer, UA_Int32 newsockfd) {
+    layer->connectionsSize++;
+	layer->connections = realloc(layer->connections, sizeof(TCPConnection) * layer->connectionsSize);
+	TCPConnection *newconnection = &layer->connections[layer->connectionsSize-1];
+	newconnection->sockfd = newsockfd;
+
+	struct TCPConnectionHandle *callbackhandle;
+    if(!(callbackhandle = malloc(sizeof(struct TCPConnectionHandle))))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    callbackhandle->layer = layer;
+	callbackhandle->sockfd = newsockfd;
+	UA_Connection_init(&newconnection->connection, layer->localConf, callbackhandle,
+					   (UA_Connection_closeCallback)closeCallback, (UA_Connection_writeCallback)writeCallback);
+	return UA_STATUSCODE_GOOD;
+}
+
 // copy the array of connections, but _loose_ one. This does not close the
 // actual socket.
 static UA_StatusCode NetworklayerTCP_remove(NetworklayerTCP *layer, UA_Int32 sockfd) {
@@ -90,18 +122,6 @@ static UA_StatusCode NetworklayerTCP_remove(NetworklayerTCP *layer, UA_Int32 soc
 	return UA_STATUSCODE_GOOD;
 }
 
-void NetworklayerTCP_delete(NetworklayerTCP *layer) {
-	for(UA_UInt32 index = 0;index < layer->connectionsSize;index++) {
-		shutdown(layer->connections[index].sockfd, 2);
-        if(layer->connections[index].connection.channel)
-            layer->connections[index].connection.channel->connection = NULL;
-        UA_Connection_deleteMembers(&layer->connections[index].connection);
-		CLOSESOCKET(layer->connections[index].sockfd);
-	}
-	free(layer->connections);
-	free(layer);
-}
-
 /** Callback function */
 void closeCallback(TCPConnectionHandle *handle) {
 	shutdown(handle->sockfd,2);
@@ -114,7 +134,7 @@ void writeCallback(TCPConnectionHandle *handle, UA_ByteStringArray gather_buf) {
 	UA_UInt32 total_len = 0;
 	UA_UInt32 nWritten = 0;
 #ifdef WIN32
-	LPWSABUF buf = malloc(gather_buf.stringsSize * sizeof(WSABUF));
+	LPWSABUF buf = _alloca(gather_buf.stringsSize * sizeof(WSABUF));
 	int result = 0;
 	for(UA_UInt32 i = 0; i<gather_buf.stringsSize; i++) {
 		buf[i].buf = gather_buf.strings[i].data;
@@ -130,7 +150,6 @@ void writeCallback(TCPConnectionHandle *handle, UA_ByteStringArray gather_buf) {
 		} while (errno == EINTR);
 		nWritten += n;
 	}
-	free(buf);
 #else
 	struct iovec iov[gather_buf.stringsSize];
 	for(UA_UInt32 i=0;i<gather_buf.stringsSize;i++) {
@@ -159,23 +178,6 @@ void writeCallback(TCPConnectionHandle *handle, UA_ByteStringArray gather_buf) {
 #endif
     for(UA_UInt32 i=0;i<gather_buf.stringsSize;i++)
         free(gather_buf.strings[i].data);
-}
-
-static UA_StatusCode NetworklayerTCP_add(NetworklayerTCP *layer, UA_Int32 newsockfd) {
-    layer->connectionsSize++;
-	layer->connections = realloc(layer->connections, sizeof(TCPConnection) * layer->connectionsSize);
-	TCPConnection *newconnection = &layer->connections[layer->connectionsSize-1];
-	newconnection->sockfd = newsockfd;
-
-	struct TCPConnectionHandle *callbackhandle;
-    callbackhandle = malloc(sizeof(struct TCPConnectionHandle));
-    if(!callbackhandle)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    callbackhandle->layer = layer;
-	callbackhandle->sockfd = newsockfd;
-	UA_Connection_init(&newconnection->connection, layer->localConf, callbackhandle,
-					   (UA_Connection_closeCallback)closeCallback, (UA_Connection_writeCallback)writeCallback);
-	return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode setNonBlocking(int sockid) {

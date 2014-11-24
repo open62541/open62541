@@ -91,8 +91,8 @@ static void processOpen(UA_Connection *connection, UA_Server *server, const UA_B
     respHeader.isFinal     = 'F';
     respHeader.messageSize = 8+4; //header + securechannelid
 
-    UA_ExpandedNodeId responseType;
-    NS0EXPANDEDNODEID(responseType, 449);
+    UA_ExpandedNodeId responseType = UA_EXPANDEDNODEIDS[UA_OPENSECURECHANNELRESPONSE];
+    responseType.nodeId.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
 
     respHeader.messageSize += UA_AsymmetricAlgorithmSecurityHeader_calcSizeBinary(&asymHeader);
     respHeader.messageSize += UA_SequenceHeader_calcSizeBinary(&seqHeader);

@@ -51,7 +51,7 @@ UA_Session * UA_Session_new() {
 UA_StatusCode UA_Session_generateToken(UA_NodeId *newToken) {
     //Random token generation
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    srand(time(NULL));
+    srand(time(UA_NULL));
 
     UA_Int32 i, r = 0;
     newToken->namespaceIndex = 0; // where else?

@@ -69,3 +69,4 @@ tests/check_encode
 tests/check_memory
 tests/check_namespace
 tests/coverage
+Makefile
