@@ -5,7 +5,7 @@
 #include "ua_securechannel.h"
 
 /**
- *  @ingroup internal
+ *  @ingroup communication
  *
  *  @defgroup session Session
  */

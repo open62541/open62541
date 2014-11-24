@@ -7,6 +7,7 @@
 #include "ua_session.h"
 
 /**
+ * @ingroup server
  * @defgroup services Services
  *
  * @brief This module describes all the services used to communicate in in OPC UA.
