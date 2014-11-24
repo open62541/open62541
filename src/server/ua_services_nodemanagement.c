@@ -83,6 +83,112 @@ static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node *
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode parseObjectNode(UA_ExtensionObject *attributes,
+                                     UA_Node **new_node, const UA_TypeVTable **vt) {
+    if(attributes->typeId.identifier.numeric !=
+       UA_NODEIDS[UA_OBJECTATTRIBUTES].identifier.numeric + UA_ENCODINGOFFSET_BINARY)  // VariableAttributes_Encoding_DefaultBinary
+        return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
+    UA_ObjectAttributes attr;
+    UA_UInt32 pos = 0;
+    // todo return more informative error codes from decodeBinary
+    if (UA_ObjectAttributes_decodeBinary(&attributes->body, &pos, &attr) != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
+    UA_ObjectNode *vnode = UA_ObjectNode_new();
+    if(!vnode) {
+        UA_ObjectAttributes_deleteMembers(&attr);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    // now copy all the attributes. This potentially removes them from the decoded attributes.
+    COPY_STANDARDATTRIBUTES;
+    if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_EVENTNOTIFIER)
+        vnode->eventNotifier = attr.eventNotifier;
+    UA_ObjectAttributes_deleteMembers(&attr);
+    *new_node = (UA_Node*) vnode;
+    *vt = &UA_TYPES[UA_OBJECTNODE];
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode parseReferenceTypeNode(UA_ExtensionObject *attributes,
+                                            UA_Node **new_node, const UA_TypeVTable **vt) {
+    UA_ReferenceTypeAttributes attr;
+    UA_UInt32 pos = 0;
+    // todo return more informative error codes from decodeBinary
+    if(UA_ReferenceTypeAttributes_decodeBinary(&attributes->body, &pos, &attr) != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
+    UA_ReferenceTypeNode *vnode = UA_ReferenceTypeNode_new();
+    if(!vnode) {
+        UA_ReferenceTypeAttributes_deleteMembers(&attr);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    // now copy all the attributes. This potentially removes them from the decoded attributes.
+    COPY_STANDARDATTRIBUTES;
+    if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_ISABSTRACT)
+        vnode->isAbstract = attr.isAbstract;
+    if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_SYMMETRIC)
+        vnode->symmetric = attr.symmetric;
+    if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_INVERSENAME) {
+        vnode->inverseName = attr.inverseName;
+        attr.inverseName.text.length = -1;
+        attr.inverseName.text.data = UA_NULL;
+        attr.inverseName.locale.length = -1;
+        attr.inverseName.locale.data = UA_NULL;
+    }
+    UA_ReferenceTypeAttributes_deleteMembers(&attr);
+    *new_node = (UA_Node*) vnode;
+    *vt = &UA_TYPES[UA_REFERENCETYPENODE];
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode parseObjectTypeNode(UA_ExtensionObject *attributes,
+                                         UA_Node **new_node, const UA_TypeVTable **vt) {
+    UA_ObjectTypeAttributes attr;
+    UA_UInt32 pos = 0;
+    // todo return more informative error codes from decodeBinary
+    if(UA_ObjectTypeAttributes_decodeBinary(&attributes->body, &pos, &attr) != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
+    UA_ObjectTypeNode *vnode = UA_ObjectTypeNode_new();
+    if(!vnode) {
+        UA_ObjectTypeAttributes_deleteMembers(&attr);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    
+    // now copy all the attributes. This potentially removes them from the decoded attributes.
+    COPY_STANDARDATTRIBUTES;
+    if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_ISABSTRACT) {
+        vnode->isAbstract = attr.isAbstract;
+    }
+    UA_ObjectTypeAttributes_deleteMembers(&attr);
+    *new_node = (UA_Node*) vnode;
+    *vt = &UA_TYPES[UA_OBJECTTYPENODE];
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode parseViewNode(UA_ExtensionObject *attributes, UA_Node **new_node,
+                                   const UA_TypeVTable **vt) {
+    UA_ViewAttributes attr;
+    UA_UInt32 pos = 0;
+    // todo return more informative error codes from decodeBinary
+    if(UA_ViewAttributes_decodeBinary(&attributes->body, &pos, &attr) != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
+    UA_ViewNode *vnode = UA_ViewNode_new();
+    if(!vnode) {
+        UA_ViewAttributes_deleteMembers(&attr);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    // now copy all the attributes. This potentially removes them from the decoded attributes.
+    COPY_STANDARDATTRIBUTES;
+    if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_CONTAINSNOLOOPS)
+        vnode->containsNoLoops = attr.containsNoLoops;
+    if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_EVENTNOTIFIER)
+        vnode->eventNotifier = attr.eventNotifier;
+    UA_ViewAttributes_deleteMembers(&attr);
+    *new_node = (UA_Node*) vnode;
+    *vt = &UA_TYPES[UA_VIEWNODE];
+    return UA_STATUSCODE_GOOD;
+}
+
 static void addNodeFromAttributes(UA_Server *server, UA_Session *session, UA_AddNodesItem *item,
                                   UA_AddNodesResult *result) {
     // adding nodes to ns0 is not allowed over the wire
@@ -94,10 +200,23 @@ static void addNodeFromAttributes(UA_Server *server, UA_Session *session, UA_Add
     // parse the node
     UA_Node *node;
     const UA_TypeVTable *nodeVT = UA_NULL;
-    if(item->nodeClass == UA_NODECLASS_VARIABLE)
+
+    switch (item->nodeClass) {
+    case UA_NODECLASS_OBJECT:
+        result->statusCode = parseObjectNode(&item->nodeAttributes, &node, &nodeVT);
+        break;
+    case UA_NODECLASS_OBJECTTYPE:
+        result->statusCode = parseObjectTypeNode(&item->nodeAttributes, &node, &nodeVT);
+        break;
+    case UA_NODECLASS_REFERENCETYPE:
+        result->statusCode = parseReferenceTypeNode(&item->nodeAttributes, &node, &nodeVT);
+        break;
+    case UA_NODECLASS_VARIABLE:
         result->statusCode = parseVariableNode(&item->nodeAttributes, &node, &nodeVT);
-    else // add more node types here..
+        break;
+    default:
         result->statusCode = UA_STATUSCODE_BADNOTIMPLEMENTED;
+    }
 
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
