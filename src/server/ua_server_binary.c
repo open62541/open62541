@@ -256,7 +256,9 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     case UA_BROWSEREQUEST_NS0:
         INVOKE_SERVICE(Browse);
         break;
-
+    case UA_ADDREFERENCESREQUEST_NS0:
+        INVOKE_SERVICE(AddReferences);
+        break;
     /* case UA_CREATESUBSCRIPTIONREQUEST_NS0: */
     /*     INVOKE_SERVICE(CreateSubscription); */
     /*     break; */
