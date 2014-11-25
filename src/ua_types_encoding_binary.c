@@ -333,7 +333,6 @@ UA_StatusCode UA_String_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset
     UA_Int32 length;
     if(UA_Int32_decodeBinary(src, offset, &length))
         return UA_STATUSCODE_BADINTERNALERROR;
-
     if(length <= 0)
         return UA_STATUSCODE_GOOD;
         
@@ -674,8 +673,8 @@ UA_TYPE_ENCODEBINARY(UA_ExtensionObject,
 
                      case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING:
                          // FIXME: This code is valid for numeric nodeIds in ns0 only!
-                         retval |= UA_TYPES[UA_ns0ToVTableIndex(&src->typeId)].encodings[UA_ENCODING_BINARY].encode(src-> body. data, dst, offset);
-                         break;
+                         //retval |= UA_TYPES[UA_ns0ToVTableIndex(&src->typeId)].encodings[UA_ENCODING_BINARY].encode(src->body.data, dst, offset);
+                         //break;
 
                      case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML:
                          retval |= UA_ByteString_encodeBinary(&src->body, dst, offset);
