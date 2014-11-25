@@ -270,23 +270,52 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
     }
 }
 
-void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddReferencesRequest *request,
-                           UA_AddReferencesResponse *response) {
-    if(request->referencesToAddSize <= 0) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-        return;
-    }
-
-    response->results = UA_alloc(sizeof(UA_StatusCode)*request->referencesToAddSize);
-    if(!response->results) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return;
-    }
-
-    response->resultsSize = request->referencesToAddSize;
-    for(UA_Int32 i = 0;i < response->resultsSize;i++)
-        response->results[i] = UA_Server_addReferenceWithSession(server, session,
-                                                                 &request->referencesToAdd[i]);
+void Service_AddReferences(UA_Server *server, UA_Session *session,
+		const UA_AddReferencesRequest *request,
+		UA_AddReferencesResponse *response) {
+	if (request->referencesToAddSize <= 0) {
+		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+		return;
+	}
+	response->results = UA_alloc(
+			sizeof(UA_StatusCode) * request->referencesToAddSize);
+	if (!response->results) {
+		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+		return;
+	}
+	response->resultsSize = request->referencesToAddSize;
+	memset(response->results, UA_STATUSCODE_GOOD,
+			sizeof(UA_StatusCode) * response->resultsSize);
+	/* ### Begin External Namespaces */
+//UA_Boolean isExternal[MAX_ADDREFERENCES_SIZE];
+	UA_Boolean isExternal[request->referencesToAddSize];
+	memset(isExternal, UA_FALSE,
+			sizeof(UA_Boolean) * request->referencesToAddSize);
+	UA_UInt32 indices[request->referencesToAddSize];
+	for (UA_Int32 j = 0; j < server->externalNamespacesSize; j++) {
+		UA_UInt32 indexSize = 0;
+		for (UA_Int32 i = 0; i < request->referencesToAddSize; i++) {
+			if (request->referencesToAdd[i].sourceNodeId.namespaceIndex
+					!= server->externalNamespaces[j].index)
+				continue;
+			isExternal[i] = UA_TRUE;
+			indices[indexSize] = i;
+			indexSize++;
+		}
+		if (indexSize == 0)
+			continue;
+		UA_ExternalNodeStore *ens =
+				&server->externalNamespaces[j].externalNodeStore;
+		ens->addReferences(ens->ensHandle, &request->requestHeader,
+				request->referencesToAdd, indices, indexSize, response->results,
+				response->diagnosticInfos);
+	}
+	/* ### End External Namespaces */
+	response->resultsSize = request->referencesToAddSize;
+	for (UA_Int32 i = 0; i < response->resultsSize; i++) {
+		if (!isExternal[i])
+			UA_Server_addReference(server, &request->referencesToAdd[i]);
+	}
 }
 
 void Service_DeleteNodes(UA_Server *server, UA_Session *session, const UA_DeleteNodesRequest *request,
