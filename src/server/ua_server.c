@@ -10,13 +10,13 @@
 /* Namespace Handling */
 /**********************/
 
-void UA_ExternalNamespace_init(UA_ExternalNamespace *ens) {
+static void UA_ExternalNamespace_init(UA_ExternalNamespace *ens) {
 	ens->index = 0;
-    memset(&ens->externalNodeStore, 0, sizeof(UA_ExternalNamespace));
+    memset(&ens->externalNodeStore, 0, sizeof(UA_ExternalNodeStore));
 	UA_String_init(&ens->url);
 }
 
-void UA_ExternalNamespace_deleteMembers(UA_ExternalNamespace *ens) {
+static void UA_ExternalNamespace_deleteMembers(UA_ExternalNamespace *ens) {
 	UA_String_deleteMembers(&ens->url);
     ens->externalNodeStore.delete(ens->externalNodeStore.ensHandle);
 }

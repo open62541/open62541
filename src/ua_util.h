@@ -81,25 +81,10 @@ INLINE void UA_memcpy(void *dst, void const *src, UA_Int32 size) {
     memcpy(dst, src, size);
 }
 
-#ifdef DEBUG
-#define UA_alloca(size) _UA_alloca(size, __FILE__, __LINE__) 
-INLINE void * _UA_alloca(UA_Int32 size, char *file, UA_Int32 line) {
-	DBG_VERBOSE(printf("UA_alloc - %d;%s;%d\n", size, file, line); fflush(stdout));
 #ifdef WIN32
-	return _alloca(size);
+#define UA_alloca(size) _alloca(size)
 #else
-	return alloca(size);
-#endif
-}
-#else
-#define UA_alloca(size) _UA_alloca(size) 
-INLINE void * _UA_alloca(UA_Int32 size) {
-#ifdef WIN32
-	return _alloca(size);
-#else
-	return alloca(size);
-#endif
-}
+#define UA_alloca(size) alloca(size)
 #endif
 
 #endif /* UA_UTIL_H_ */

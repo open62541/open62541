@@ -14,9 +14,6 @@ typedef struct UA_ExternalNamespace {
 	UA_ExternalNodeStore externalNodeStore;
 } UA_ExternalNamespace;
 
-void UA_ExternalNamespace_init(UA_ExternalNamespace *ens);
-void UA_ExternalNamespace_deleteMembers(UA_ExternalNamespace *ens);
-
 struct UA_Server {
     UA_ApplicationDescription description;
     UA_Int32 endpointDescriptionsSize;
