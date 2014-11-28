@@ -16,6 +16,10 @@
 #include "logger_stdout.h"
 #include "networklayer_tcp.h"
 
+#ifdef MULTITHREADING
+#include <urcu.h>
+#endif
+
 UA_Boolean running = 1;
 
 void stopHandler(int sign) {
@@ -49,6 +53,9 @@ UA_ByteString loadCertificate() {
     return certificate;
 }
 int main(int argc, char** argv) {
+#ifdef MULTITHREADING
+    rcu_register_thread();
+#endif
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
 
 	UA_String endpointUrl;
@@ -95,5 +102,8 @@ int main(int argc, char** argv) {
 	UA_Server_delete(server);
 	NetworklayerTCP_delete(nl);
     UA_String_deleteMembers(&endpointUrl);
+#ifdef MULTITHREADING
+    rcu_unregister_thread();
+#endif
 	return retval;
 }

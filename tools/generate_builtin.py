@@ -90,7 +90,7 @@ def createEnumerated(element):
             valuemap[name + "_" + child.get("Name")] = child.get("Value")
     valuemap = OrderedDict(sorted(valuemap.iteritems(), key=lambda (k,v): int(v)))
     # printh("typedef UA_Int32 " + name + ";")
-    printh("typedef enum " + name + " { \n\t" +
+    printh("typedef enum { \n\t" +
            ",\n\t".join(map(lambda (key, value) : key.upper() + " = " + value, valuemap.iteritems())) +
            "\n} " + name + ";")
     if args.export_prototypes:
@@ -162,7 +162,7 @@ def createStructured(element):
 
     # 3) Print structure
     if len(membermap) > 0:
-        printh("typedef struct %(name)s {")
+        printh("typedef struct {")
         for n,t in membermap.iteritems():
 	    if t.find("*") != -1:
 	        printh("\t" + "UA_Int32 " + n + "Size;")

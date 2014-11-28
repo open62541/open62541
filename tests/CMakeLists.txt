@@ -5,9 +5,9 @@ set(LIBS ${CHECK_LIBRARIES})
 if(NOT WIN32)
     list(APPEND LIBS rt pthread)
 endif(NOT WIN32)
-if(ENABLE_MULTITHREADING)
+if(MULTITHREADING)
     list(APPEND LIBS urcu-cds urcu)
-endif(ENABLE_MULTITHREADING)
+endif(MULTITHREADING)
 
 # the unit test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library

@@ -106,8 +106,8 @@ if(ENABLE_JSON_ENCODING)
 endif(ENABLE_JSON_ENCODING)
 
 ## multithreading
-option(ENABLE_MULTITHREADING "Enable multithreading" OFF)
-if(ENABLE_MULTITHREADING)
+option(MULTITHREADING "Enable multithreading" OFF)
+if(MULTITHREADING)
     find_package(Threads REQUIRED)
     list(APPEND lib_sources src/server/ua_nodestore_concurrent.c)
 else()
@@ -133,9 +133,22 @@ if(ENABLE_COVERAGE)
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
 endif()
 
+# set the precompiler flags
 configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
 
-# build generated code
+# download queue.h if required
+if(WIN32)
+    if(NOT EXISTS "${PROJECT_BINARY_DIR}/src_generated/queue.h")
+        file(DOWNLOAD "http://openbsd.cs.toronto.edu/cgi-bin/cvsweb/~checkout~/src/sys/sys/queue.h" "${PROJECT_BINARY_DIR}/src_generated/queue.h" STATUS result)
+        list(GET result 0 download_ok)
+        if(NOT ${download_ok} MATCHES 0)
+            file(REMOVE "${PROJECT_BINARY_DIR}/src_generated/queue.h") # remove empty file if created
+            message(FATAL_ERROR "queue.h could not be downloaded")
+        endif()
+    endif()
+endif(WIN32)
+
+# generate code from xml definitions
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 include_directories("${PROJECT_BINARY_DIR}/src_generated") 
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
@@ -174,7 +187,7 @@ option(EXAMPLESERVER "Build a test server" OFF)
 if(EXAMPLESERVER)
 set(server_sources examples/opcuaServer.c
                    examples/logger_stdout.c)
-if(NOT ENABLE_MULTITHREADING)
+if(NOT MULTITHREADING)
     list(APPEND server_sources examples/networklayer_tcp.c)
 else()
     list(APPEND server_sources examples/networklayer_tcp_concurrent.c)
@@ -184,7 +197,7 @@ target_link_libraries(exampleServer open62541)
 if(WIN32)
     target_link_libraries(exampleServer ws2_32)
 endif(WIN32)
-if(ENABLE_MULTITHREADING)
+if(MULTITHREADING)
     find_package(LibUV REQUIRED)
     target_link_libraries(exampleServer urcu-cds urcu uv)
 endif()
@@ -210,25 +223,3 @@ if(GENERATE_DOCUMENTATION)
                       WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
                       COMMENT "Generating API documentation with Doxygen")
 endif()
-
-# download queue.h if required
-if(WIN32)
-    if(NOT EXISTS "${PROJECT_BINARY_DIR}/src_generated/queue.h")
-        file(DOWNLOAD "http://openbsd.cs.toronto.edu/cgi-bin/cvsweb/~checkout~/src/sys/sys/queue.h" "${PROJECT_BINARY_DIR}/src_generated/queue.h" STATUS result)
-        list(GET result 0 download_ok)
-        if(NOT ${download_ok} MATCHES 0)
-            file(REMOVE "${PROJECT_BINARY_DIR}/src_generated/queue.h") # remove empty file if created
-            message(FATAL_ERROR "queue.h could not be downloaded")
-        endif()
-    endif()
-endif(WIN32)
-
-# build api server specificaion
-#add_executable(api-design examples/api-design/server.c)
-#target_link_libraries(api-design open62541)
-#if(WIN32)
-#    target_link_libraries(api-design ws2_32)
-#endif(WIN32)
-#if(MULTITHREADING)
-#    target_link_libraries(api-design urcu-cds urcu)
-#endif(MULTITHREADING)

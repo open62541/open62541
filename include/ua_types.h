@@ -68,8 +68,8 @@ typedef _Bool UA_Boolean;
 
 /** @brief An integer value between -129 and 127. */
 typedef int8_t UA_SByte;
-#define UA_SBYTE_MAX -128
-#define UA_SBYTE_MIN 127
+#define UA_SBYTE_MAX 127
+#define UA_SBYTE_MIN -128
 
 /** @brief An integer value between 0 and 256. */
 typedef uint8_t UA_Byte;
@@ -113,7 +113,7 @@ typedef float UA_Float;
 typedef double UA_Double;
 
 /** @brief A sequence of Unicode characters. */
-typedef struct UA_String {
+typedef struct {
     UA_Int32 length;
     UA_Byte *data;
 } UA_String;
@@ -122,7 +122,7 @@ typedef struct UA_String {
 typedef UA_Int64 UA_DateTime; //100 nanosecond resolution
 
 /** @brief A 16 byte value that can be used as a globally unique identifier. */
-typedef struct UA_Guid {
+typedef struct {
     UA_UInt32 data1;
     UA_UInt16 data2;
     UA_UInt16 data3;
@@ -130,14 +130,14 @@ typedef struct UA_Guid {
 } UA_Guid;
 
 /** @brief A sequence of octets. */
-typedef struct UA_String UA_ByteString;
+typedef UA_String UA_ByteString;
 
 /** @brief An XML element. */
-typedef struct UA_String UA_XmlElement;
+typedef UA_String UA_XmlElement;
 
 /** @brief An identifier for a node in the address space of an OPC UA Server. */
 /* The shortened numeric types are introduced during encoding. */
-typedef struct UA_NodeId {
+typedef struct {
     UA_UInt16 namespaceIndex;
     enum {
         UA_NODEIDTYPE_NUMERIC    = 2,
@@ -154,7 +154,7 @@ typedef struct UA_NodeId {
 } UA_NodeId;
 
 /** @brief A NodeId that allows the namespace URI to be specified instead of an index. */
-typedef struct UA_ExpandedNodeId {
+typedef struct {
     UA_NodeId nodeId;
     UA_String namespaceUri; // not encoded if length=-1
     UA_UInt32 serverIndex;  // not encoded if 0
@@ -165,20 +165,20 @@ typedef struct UA_ExpandedNodeId {
 typedef enum UA_StatusCode UA_StatusCode; // StatusCodes aren't an enum(=int) since 32 unsigned bits are needed. See also ua_statuscodes.h */
 
 /** @brief A name qualified by a namespace. */
-typedef struct UA_QualifiedName {
+typedef struct {
     UA_UInt16 namespaceIndex;
     UA_String name;
 } UA_QualifiedName;
 
 /** @brief Human readable text with an optional locale identifier. */
-typedef struct UA_LocalizedText {
+typedef struct {
     UA_String locale;
     UA_String text;
 } UA_LocalizedText;
 
 /** @brief A structure that contains an application specific data type that may
     not be recognized by the receiver. */
-typedef struct UA_ExtensionObject {
+typedef struct {
     UA_NodeId typeId;
     enum {
         UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED  = 0,
@@ -193,7 +193,7 @@ typedef struct UA_TypeVTable UA_TypeVTable;
 
 /** @brief Pointers to data that is stored in memory. The "type" of the data is
     stored in the variant itself. */
-typedef struct UA_VariantData {
+typedef struct {
     UA_Int32  arrayLength;        // total number of elements in the data-pointer
     void     *dataPtr;
     UA_Int32  arrayDimensionsLength;
@@ -205,7 +205,7 @@ typedef struct UA_VariantData {
  *  Implementors of datasources need to provide functions for the callbacks in
  *  this structure. As a rule, datasources are never copied, but only their
  *  content. The only way to write into a datasource is via the write-service. */
-typedef struct UA_VariantDataSource {
+typedef struct {
     const void *identifier; /**< whatever id the datasource uses internally. Can be ignored if the datasource functions do not use it. */
     UA_Int32 (*read)(const void *identifier, const UA_VariantData **); /**< Get the current data from the datasource. When it is no longer used, the data has to be relased. */
     void (*release)(const void *identifier, const UA_VariantData *); /**< For concurrent access, the datasource needs to know when the last reader releases replaced/deleted data. Release decreases the reference count. */
@@ -216,7 +216,7 @@ typedef struct UA_VariantDataSource {
 /** @brief Variants store (arrays of) any data type. Either they provide a
     pointer to the data in memory, or functions from which the data can be
     accessed. */
-typedef struct UA_Variant {
+typedef struct {
     const UA_TypeVTable *vt; /// The VTable of the datatype in question
     enum {
         UA_VARIANT_DATA, ///< The data is stored in memory and "owned" by this variant
@@ -230,7 +230,7 @@ typedef struct UA_Variant {
 } UA_Variant;
 
 /** @brief A data value with an associated status code and timestamps. */
-typedef struct UA_DataValue {
+typedef struct {
     UA_Byte       encodingMask;
     UA_Variant    value;
     UA_StatusCode status;

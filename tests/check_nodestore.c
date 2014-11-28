@@ -23,12 +23,6 @@ void printVisitor(const UA_Node* node) {
 	printf("%d\n", node->nodeId.identifier.numeric);
 }
 
-START_TEST(test_UA_NodeStore) {
-	UA_NodeStore *ns = UA_NodeStore_new();
-	UA_NodeStore_delete(ns);
-}
-END_TEST
-
 UA_StatusCode createNode(UA_Node** p, UA_Int16 nsid, UA_Int32 id) {
 	*p = (UA_Node *)UA_VariableNode_new();
 	(*p)->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
@@ -37,6 +31,31 @@ UA_StatusCode createNode(UA_Node** p, UA_Int16 nsid, UA_Int32 id) {
 	(*p)->nodeClass = UA_NODECLASS_VARIABLE;
 	return UA_STATUSCODE_GOOD;
 }
+
+START_TEST(replaceExistingNode) {
+	UA_NodeStore *ns = UA_NodeStore_new();
+	UA_Node* n1; createNode(&n1,0,2253);
+	UA_NodeStore_insert(ns, (const UA_Node **)&n1, UA_FALSE);
+	UA_Node* n2; createNode(&n2,0,2253);
+    UA_StatusCode retval = UA_NodeStore_replace(ns, (const UA_Node **)&n2, UA_FALSE);
+    
+	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    
+	UA_NodeStore_delete(ns);
+}
+END_TEST
+
+START_TEST(replaceNonExistingNode) {
+	UA_NodeStore *ns = UA_NodeStore_new();
+	UA_Node* n2; createNode(&n2,0,2253);
+    UA_StatusCode retval = UA_NodeStore_replace(ns, (const UA_Node **)&n2, UA_FALSE);
+    
+	ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
+    
+    UA_Node_delete(n2);
+	UA_NodeStore_delete(ns);
+}
+END_TEST
 
 START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
 #ifdef MULTITHREADING
@@ -66,9 +85,8 @@ START_TEST(failToFindNodeInOtherUA_NodeStore) {
 	// given
 	UA_NodeStore *ns = UA_NodeStore_new();
 
-	UA_Node* n1; createNode(&n1,0,2253);
+	UA_Node* n1; createNode(&n1,0,2255);
     UA_NodeStore_insert(ns, (const UA_Node **)&n1, UA_FALSE);
-	UA_Node* n2; createNode(&n2,0,2253); UA_NodeStore_insert(ns, (const UA_Node **)&n2, UA_FALSE);
 
 	// when
 	UA_Node* n; createNode(&n,1,2255);
@@ -251,7 +269,8 @@ struct UA_NodeStoreProfileTest {
 void *profileGetThread(void *arg) {
    	rcu_register_thread();
 	struct UA_NodeStoreProfileTest *test = (struct UA_NodeStoreProfileTest*) arg;
-	UA_NodeId id = NS0NODEID(0);
+	UA_NodeId id;
+    UA_NodeId_init(&id);
 	const UA_Node *cn;
 	UA_Int32 max_val = test->max_val;
 	UA_NodeStore *ns = test->ns;
@@ -321,10 +340,6 @@ END_TEST
 Suite * namespace_suite (void) {
 	Suite *s = suite_create ("UA_NodeStore");
 
-	TCase *tc_cd = tcase_create ("Create/Delete");
-	tcase_add_test (tc_cd, test_UA_NodeStore);
-	suite_add_tcase (s, tc_cd);
-
 	TCase* tc_find = tcase_create ("Find");
 	tcase_add_test (tc_find, findNodeInUA_NodeStoreWithSingleEntry);
 	tcase_add_test (tc_find, findNodeInUA_NodeStoreWithSeveralEntries);
@@ -332,6 +347,11 @@ Suite * namespace_suite (void) {
 	tcase_add_test (tc_find, failToFindNonExistantNodeInUA_NodeStoreWithSeveralEntries);
 	tcase_add_test (tc_find, failToFindNodeInOtherUA_NodeStore);
 	suite_add_tcase (s, tc_find);
+
+	TCase *tc_replace = tcase_create("Replace");
+	tcase_add_test (tc_replace, replaceExistingNode);
+	tcase_add_test (tc_replace, replaceNonExistingNode);
+	suite_add_tcase (s, tc_replace);
 
 	TCase* tc_iterate = tcase_create ("Iterate");
 	tcase_add_test (tc_iterate, iterateOverUA_NodeStoreShallNotVisitEmptyNodes);
