@@ -180,6 +180,10 @@ if(CLIENT)
     # the client is built directly with the .o files as it currently uses
     # internal functions that are not exported to the shared lib.
 	add_executable(exampleClient $<TARGET_OBJECTS:open62541-objects> examples/opcuaClient.c)
+    if(MULTITHREADING)
+        find_package(LibUV REQUIRED)
+        target_link_libraries(exampleClient urcu-cds urcu uv)
+    endif()
 endif()
 
 # build example server
