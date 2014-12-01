@@ -1,6 +1,29 @@
 /**
 \mainpage Open62541 Developer Documentation
 
-This file should contain some high-level description and pointers for further reading.
+<a href="http://en.wikipedia.org/wiki/OPC_Unified_Architecture">OPC UA</a>
+(short for OPC Universal Architecture) is a communication protocol originally
+developed in the context of industrial automation. OPC UA has been released as
+an “open” standard (meaning everybody can buy the document) in the IEC 62541
+series. As of late, it is marketed as the one standard for non-realtime
+industrial communication.
+
+Remote clients can interact with a \ref server by calling remote \ref services.
+(The services are different from a remote procedure call that is provided via
+the "Call" service.) The server contains a rich information model that defines
+an object system on top of an ontology-like set of nodes and references between
+nodes. The data and its "meta model" can be inspected to discover variables,
+objects, object types, methods, data types, and so on. Roughly, the \ref
+services provide access to
+
+- Session management
+- CRUD operations on the node level
+- Remote procedure calls to methods defined in the address space
+- Subscriptions to events and variable changes where clients are notified via push messages.
+
+The data structures the services process as in- and output can be encoded either
+as a binary stream or in XML. They are transported via a TCP-based custom
+protocol or via Webservices. Currently, open62541 supports only the binary
+encoding and TCP-based transport.
 
 */

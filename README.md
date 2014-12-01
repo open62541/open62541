@@ -11,8 +11,8 @@ The project is in an early stage but already usable. See below for a simple serv
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/1864/badge.svg)](https://scan.coverity.com/projects/1864)
 
 ### Documentation
-The developer documentation is generated from Doxygen annotations in the source code: http://open62541.org/doc.
-Build instruction can be found under https://github.com/acplt/open62541/wiki/Building-open62541.
+A general introduction to OPC UA and the open62541 documentation can be found at http://open62541.org/doc.
+Build instruction are here: https://github.com/acplt/open62541/wiki/Building-open62541.
 
 For discussion and help, you can use
 - the [mailing list](https://groups.google.com/d/forum/open62541)
