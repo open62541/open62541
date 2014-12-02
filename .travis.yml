@@ -47,19 +47,20 @@ script:
    - cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_UNIT_TESTS=ON -DENABLE_COVERAGE=ON .. 
    - make && make test
    - coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../
+   - cd ..
 
 after_success:
-   - cd ..
-   - git checkout gh-pages
+   - git clone --depth=50 -b gh-pages https://$GITAUTH@github.com/acplt/open62541
+   - cd open62541
    - git rm -rf doxygen
    - git rm -rf doc
-   - cp -r build/doc ./
+   - cp -r ../build/doc ./open62541/
    - git add -A doc/*
    - git config --global user.email "open62541-travis-ci@users.noreply.github.com"
    - git config --global user.name "Open62541 travis-ci"
    - git config --global push.default simple
    - git commit -am "doxygen updated by travis-ci"
    - git push https://$GITAUTH@github.com/acplt/open62541
-   - mkdir coverity
-   - cd coverity
+   - cd ..
+   - rm -rf open62541
    - ./tools/.coverity.sh
