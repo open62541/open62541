@@ -50,7 +50,7 @@ script:
 
 after_success:
    - cd ..
-   - git branch gh-pages
+   - git checkout gh-pages
    - git rm -rf doxygen
    - git rm -rf doc
    - cp -r build/doc ./
@@ -60,6 +60,6 @@ after_success:
    - git config --global push.default simple
    - git commit -am "doxygen updated by travis-ci"
    - git push https://$GITAUTH@github.com/acplt/open62541
-   - cd ..
-   - rm -rf open62541
+   - mkdir coverity
+   - cd coverity
    - ./tools/.coverity.sh
