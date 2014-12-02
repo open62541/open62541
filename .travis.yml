@@ -52,9 +52,8 @@ script:
 after_success:
    - git clone --depth=50 -b gh-pages https://$GITAUTH@github.com/acplt/open62541
    - cd open62541
-   - git rm -rf doxygen
    - git rm -rf doc
-   - cp -r ../build/doc ./open62541/
+   - cp -r ../build/doc ./
    - git add -A doc/*
    - git config --global user.email "open62541-travis-ci@users.noreply.github.com"
    - git config --global user.name "Open62541 travis-ci"
