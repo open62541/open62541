@@ -44,8 +44,12 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, const UA_Node **node, UA_Boo
 /** @brief Replace an existing node in the nodestore
 
     With the getManaged flag, the node pointer is replaced with the managed
-    pointer. Otherwise, it is set to UA_NULL. */
-UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node **node, UA_Boolean getManaged);
+    pointer. Otherwise, it is set to UA_NULL.
+
+    If the return value is UA_STATUSCODE_BADINTERNALERROR, try again. Presumably
+    the oldNode was already replaced by another thread.
+*/
+UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode, const UA_Node **node, UA_Boolean getManaged);
 
 /** @brief Remove a node from the namespace. Always succeeds, even if the node
     was not found. */

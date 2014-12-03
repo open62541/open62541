@@ -8,12 +8,12 @@
 
 #define ALIVE_BIT (1 << 15) /* Alive bit in the refcount */
 
-typedef struct UA_NodeStore_Entry {
+struct nodeEntry {
     struct cds_lfht_node htn;      /* contains next-ptr for urcu-hashmap */
     struct rcu_head      rcu_head; /* For call-rcu */
     UA_UInt16 refcount;            /* Counts the amount of readers on it [alive-bit, 15 counter-bits] */
     const UA_Node node;            /* Might be cast from any _bigger_ UA_Node* type. Allocate enough memory! */
-} UA_NodeStore_Entry;
+};
 
 struct UA_NodeStore {
     struct cds_lfht *ht; /* Hash table */
@@ -26,35 +26,27 @@ static inline void node_deleteMembers(const UA_Node *node) {
     case UA_NODECLASS_OBJECT:
         UA_ObjectNode_deleteMembers((UA_ObjectNode *)node);
         break;
-
     case UA_NODECLASS_VARIABLE:
         UA_VariableNode_deleteMembers((UA_VariableNode *)node);
         break;
-
     case UA_NODECLASS_METHOD:
         UA_MethodNode_deleteMembers((UA_MethodNode *)node);
         break;
-
     case UA_NODECLASS_OBJECTTYPE:
         UA_ObjectTypeNode_deleteMembers((UA_ObjectTypeNode *)node);
         break;
-
     case UA_NODECLASS_VARIABLETYPE:
         UA_VariableTypeNode_deleteMembers((UA_VariableTypeNode *)node);
         break;
-
     case UA_NODECLASS_REFERENCETYPE:
         UA_ReferenceTypeNode_deleteMembers((UA_ReferenceTypeNode *)node);
         break;
-
     case UA_NODECLASS_DATATYPE:
         UA_DataTypeNode_deleteMembers((UA_DataTypeNode *)node);
         break;
-
     case UA_NODECLASS_VIEW:
         UA_ViewNode_deleteMembers((UA_ViewNode *)node);
         break;
-
     default:
         UA_assert(UA_FALSE);
         break;
@@ -64,8 +56,7 @@ static inline void node_deleteMembers(const UA_Node *node) {
 /* We are in a rcu_read lock. So the node will not be freed under our feet. */
 static int compare(struct cds_lfht_node *htn, const void *orig) {
     const UA_NodeId *origid = (const UA_NodeId *)orig;
-    const UA_NodeId *newid  = &((UA_NodeStore_Entry *)htn)->node.nodeId;   /* The htn is first in the entry structure. */
-
+    const UA_NodeId *newid  = &((struct nodeEntry *)htn)->node.nodeId;   /* The htn is first in the entry structure. */
     return UA_NodeId_equal(newid, origid);
 }
 
@@ -74,7 +65,7 @@ static int compare(struct cds_lfht_node *htn, const void *orig) {
    section) increased the refcount, we only need to wait for the refcount
    to reach zero. */
 static void markDead(struct rcu_head *head) {
-    UA_NodeStore_Entry *entry = caa_container_of(head, UA_NodeStore_Entry, rcu_head);
+    struct nodeEntry *entry = caa_container_of(head, struct nodeEntry, rcu_head);
     uatomic_and(&entry->refcount, ~ALIVE_BIT); // set the alive bit to zero
     if(uatomic_read(&entry->refcount) > 0)
         return;
@@ -86,7 +77,7 @@ static void markDead(struct rcu_head *head) {
 
 /* Free the entry if it is dead and nobody uses it anymore */
 void UA_NodeStore_release(const UA_Node *managed) {
-    UA_NodeStore_Entry *entry = caa_container_of(managed, UA_NodeStore_Entry, node); // pointer to the first entry
+    struct nodeEntry *entry = caa_container_of(managed, struct nodeEntry, node); // pointer to the first entry
     if(uatomic_sub_return(&entry->refcount, 1) > 0)
         return;
 
@@ -119,7 +110,7 @@ void UA_NodeStore_delete(UA_NodeStore *ns) {
     while(iter.node != UA_NULL) {
         found_htn = cds_lfht_iter_get_node(&iter);
         if(!cds_lfht_del(ht, found_htn)) {
-            UA_NodeStore_Entry *entry = caa_container_of(found_htn, UA_NodeStore_Entry, htn);
+            struct nodeEntry *entry = caa_container_of(found_htn, struct nodeEntry, htn);
             call_rcu(&entry->rcu_head, markDead);
         }
         cds_lfht_next(ht, &iter);
@@ -162,8 +153,8 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, const UA_Node **node, UA_Boo
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_NodeStore_Entry *entry;
-    if(!(entry = UA_alloc(sizeof(UA_NodeStore_Entry) - sizeof(UA_Node) + nodesize)))
+    struct nodeEntry *entry;
+    if(!(entry = UA_alloc(sizeof(struct nodeEntry) - sizeof(UA_Node) + nodesize)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     memcpy((void*)&entry->node, *node, nodesize);
 
@@ -216,7 +207,8 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, const UA_Node **node, UA_Boo
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node **node, UA_Boolean getManaged) {
+UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode,
+                                   const UA_Node **node, UA_Boolean getManaged) {
     UA_UInt32 nodesize;
     /* Copy the node into the entry. Then reset the original node. It shall no longer be used. */
     switch((*node)->nodeClass) {
@@ -248,8 +240,8 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node **node, UA_Bo
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_NodeStore_Entry *entry;
-    if(!(entry = UA_alloc(sizeof(UA_NodeStore_Entry) - sizeof(UA_Node) + nodesize)))
+    struct nodeEntry *entry;
+    if(!(entry = UA_alloc(sizeof(struct nodeEntry) - sizeof(UA_Node) + nodesize)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     memcpy((void*)&entry->node, *node, nodesize);
 
@@ -265,26 +257,41 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node **node, UA_Bo
     cds_lfht_lookup(ns->ht, h, compare, &(*node)->nodeId, &iter);
     struct cds_lfht_node *result = cds_lfht_iter_get_node(&iter);
 
-    if(result && cds_lfht_replace(ns->ht, &iter, h, compare, &(*node)->nodeId, &entry->htn) == 0) {
-        UA_NodeStore_Entry *entry = caa_container_of(result, UA_NodeStore_Entry, htn);
-        /* If an entry got replaced, mark it as dead. */
-        call_rcu(&entry->rcu_head, markDead);
-        rcu_read_unlock();
-    } else {
+    /* No node found that can be replaced */
+    if(!result) {
         rcu_read_unlock();
         UA_free(entry);
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
+    struct nodeEntry *found_entry = (struct nodeEntry *)cds_lfht_iter_get_node(&iter);
+    /* The node we found is obsolete*/
+    if(&found_entry->node != oldNode) {
+        rcu_read_unlock();
+        UA_free(entry);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     /* The old node is replaced by a managed node. */
-    UA_free((UA_Node *)*node);
-    if(getManaged)
-        *node = &entry->node;
-    else
-        *node = UA_NULL;
+    if(cds_lfht_replace(ns->ht, &iter, h, compare, &(*node)->nodeId, &entry->htn) == 0) {
+        struct nodeEntry *entry = caa_container_of(result, struct nodeEntry, htn);
+        /* If an entry got replaced, mark it as dead. */
+        call_rcu(&entry->rcu_head, markDead);
+        rcu_read_unlock();
 
-    return UA_STATUSCODE_GOOD;
+        UA_free((UA_Node *)*node);
+        if(getManaged)
+            *node = &entry->node;
+        else
+            *node = UA_NULL;
 
+        return UA_STATUSCODE_GOOD;
+    }
+    
+    /* Replacing failed. Maybe the node got replaced just before this thread tried to.*/
+    rcu_read_unlock();
+    UA_free(entry);
+    return UA_STATUSCODE_BADINTERNALERROR;
 }
 
 UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
@@ -301,7 +308,7 @@ UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
-    UA_NodeStore_Entry *entry = caa_container_of(found_htn, UA_NodeStore_Entry, htn);
+    struct nodeEntry *entry = caa_container_of(found_htn, struct nodeEntry, htn);
     call_rcu(&entry->rcu_head, markDead);
     rcu_read_unlock();
 
@@ -314,7 +321,7 @@ const UA_Node * UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid
 
     rcu_read_lock();
     cds_lfht_lookup(ns->ht, nhash, compare, nodeid, &iter);
-    UA_NodeStore_Entry *found_entry = (UA_NodeStore_Entry *)cds_lfht_iter_get_node(&iter);
+    struct nodeEntry *found_entry = (struct nodeEntry *)cds_lfht_iter_get_node(&iter);
 
     if(!found_entry) {
         rcu_read_unlock();
@@ -334,7 +341,7 @@ void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visit
     rcu_read_lock();
     cds_lfht_first(ht, &iter);
     while(iter.node != UA_NULL) {
-        UA_NodeStore_Entry *found_entry = (UA_NodeStore_Entry *)cds_lfht_iter_get_node(&iter);
+        struct nodeEntry *found_entry = (struct nodeEntry *)cds_lfht_iter_get_node(&iter);
         uatomic_inc(&found_entry->refcount);
         const UA_Node      *node = &found_entry->node;
         rcu_read_unlock();

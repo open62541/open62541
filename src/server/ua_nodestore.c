@@ -50,7 +50,7 @@ static INLINE UA_Int16 higher_prime_index(hash_t n) {
 
 /* Returns UA_TRUE if an entry was found under the nodeid. Otherwise, returns
    false and sets slot to a pointer to the next free slot. */
-static UA_Boolean __containsNodeId(const UA_NodeStore *ns, const UA_NodeId *nodeid, struct nodeEntry ***entry) {
+static UA_Boolean containsNodeId(const UA_NodeStore *ns, const UA_NodeId *nodeid, struct nodeEntry ***entry) {
     hash_t         h     = hash(nodeid);
     UA_UInt32      size  = ns->size;
     hash_t         index = mod(h, size);
@@ -92,7 +92,7 @@ static UA_Boolean __containsNodeId(const UA_NodeStore *ns, const UA_NodeId *node
 /* The following function changes size of memory allocated for the entries and
    repeatedly inserts the table elements. The occupancy of the table after the
    call will be about 50%. */
-static UA_StatusCode __expand(UA_NodeStore *ns) {
+static UA_StatusCode expand(UA_NodeStore *ns) {
     UA_Int32 osize = ns->size;
     UA_Int32 count = ns->count;
     /* Resize only when table after removal of unused elements is either too full or too empty.  */
@@ -117,7 +117,7 @@ static UA_StatusCode __expand(UA_NodeStore *ns) {
         if(!oentries[i])
             continue;
         struct nodeEntry **e;
-        __containsNodeId(ns, &(*oentries[i]).node.nodeId, &e);  /* We know this returns an empty entry here */
+        containsNodeId(ns, &(*oentries[i]).node.nodeId, &e);  /* We know this returns an empty entry here */
         *e = oentries[i];
         j++;
     }
@@ -127,7 +127,7 @@ static UA_StatusCode __expand(UA_NodeStore *ns) {
 }
 
 /* Marks the entry dead and deletes if necessary. */
-static void __deleteEntry(struct nodeEntry *entry) {
+static void deleteEntry(struct nodeEntry *entry) {
     if(entry->refcount > 0)
         return;
     const UA_Node *node = &entry->node;
@@ -163,7 +163,7 @@ static void __deleteEntry(struct nodeEntry *entry) {
     UA_free(entry);
 }
 
-static INLINE struct nodeEntry * __nodeEntryFromNode(const UA_Node *node) {
+static INLINE struct nodeEntry * nodeEntryFromNode(const UA_Node *node) {
     UA_UInt32 nodesize = 0;
     /* Copy the node into the entry. Then reset the original node. It shall no longer be used. */
     switch(node->nodeClass) {
@@ -229,7 +229,7 @@ void UA_NodeStore_delete(UA_NodeStore *ns) {
     for(UA_UInt32 i = 0;i < size;i++) {
         if(entries[i] != UA_NULL) {
             entries[i]->refcount &= ~ALIVE_BIT; // mark dead
-            __deleteEntry(entries[i]);
+            deleteEntry(entries[i]);
             entries[i] = UA_NULL;
             ns->count--;
         }
@@ -241,7 +241,7 @@ void UA_NodeStore_delete(UA_NodeStore *ns) {
 
 UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, const UA_Node **node, UA_Boolean getManaged) {
     if(ns->size * 3 <= ns->count * 4) {
-        if(__expand(ns) != UA_STATUSCODE_GOOD)
+        if(expand(ns) != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -257,18 +257,18 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, const UA_Node **node, UA_Boo
         hash_t increase = mod2(identifier, size);
         while(UA_TRUE) {
             nodeId->identifier.numeric = identifier;
-            if(!__containsNodeId(ns, nodeId, &slot))
+            if(!containsNodeId(ns, nodeId, &slot))
                 break;
             identifier += increase;
             if(identifier >= size)
                 identifier -= size;
         }
     } else {
-        if(__containsNodeId(ns, nodeId, &slot))
+        if(containsNodeId(ns, nodeId, &slot))
             return UA_STATUSCODE_BADNODEIDEXISTS;
     }
     
-    struct nodeEntry *entry = __nodeEntryFromNode(*node);
+    struct nodeEntry *entry = nodeEntryFromNode(*node);
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -286,18 +286,23 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, const UA_Node **node, UA_Boo
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node **node, UA_Boolean getManaged) {
+UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode,
+                                   const UA_Node **node, UA_Boolean getManaged) {
     struct nodeEntry **slot;
     const UA_NodeId *nodeId = &(*node)->nodeId;
-    if(!__containsNodeId(ns, nodeId, &slot))
+    if(!containsNodeId(ns, nodeId, &slot))
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
-    struct nodeEntry *entry = __nodeEntryFromNode(*node);
+    // you try to replace an obsolete node (without threading this can't happen
+    // if the user doesn't do it deliberately in his code)
+    if(&(*slot)->node != oldNode)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    struct nodeEntry *entry = nodeEntryFromNode(*node);
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     (*slot)->refcount &= ~ALIVE_BIT; // mark dead
-    __deleteEntry(*slot);
     *slot = entry;
 
     if(getManaged) {
@@ -312,7 +317,7 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node **node, UA_Bo
 
 const UA_Node * UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
     struct nodeEntry **slot;
-    if(!__containsNodeId(ns, nodeid, &slot))
+    if(!containsNodeId(ns, nodeid, &slot))
         return UA_NULL;
     (*slot)->refcount++;
     return &(*slot)->node;
@@ -320,18 +325,18 @@ const UA_Node * UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid
 
 UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     struct nodeEntry **slot;
-    if(!__containsNodeId(ns, nodeid, &slot))
+    if(!containsNodeId(ns, nodeid, &slot))
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
     // Check before if deleting the node makes the UA_NodeStore inconsistent.
     (*slot)->refcount &= ~ALIVE_BIT; // mark dead
-    __deleteEntry(*slot);
+    deleteEntry(*slot);
     *slot = UA_NULL;
     ns->count--;
 
     /* Downsize the hashmap if it is very empty */
     if(ns->count * 8 < ns->size && ns->size > 32)
-        __expand(ns); // this can fail. we just continue with the bigger hashmap.
+        expand(ns); // this can fail. we just continue with the bigger hashmap.
 
     return UA_STATUSCODE_GOOD;
 }
@@ -346,5 +351,5 @@ void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visit
 void UA_NodeStore_release(const UA_Node *managed) {
     struct nodeEntry *entry = (struct nodeEntry *) ((char*)managed - offsetof(struct nodeEntry, node));
     entry->refcount--;
-    __deleteEntry(entry);    
+    deleteEntry(entry);
 }

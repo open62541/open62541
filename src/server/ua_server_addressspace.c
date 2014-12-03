@@ -43,8 +43,8 @@ void UA_Server_addScalarVariableNode(UA_Server *server, UA_QualifiedName *browse
 }
 
 /* Adds a one-way reference to the local nodestore */
-UA_StatusCode addOneWayReferenceWithSession (UA_Server *server, UA_Session *session,
-                                             const UA_AddReferencesItem *item) {
+UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session *session,
+                                            const UA_AddReferencesItem *item) {
     // use the servers nodestore
     const UA_Node *node = UA_NodeStore_get(server->nodestore, &item->sourceNodeId);
     // todo differentiate between error codes
@@ -84,12 +84,15 @@ UA_StatusCode addOneWayReferenceWithSession (UA_Server *server, UA_Session *sess
     UA_free(old_refs);
     newNode->references = new_refs;
     newNode->referencesSize = ++count;
-    retval = UA_NodeStore_replace(server->nodestore, (const UA_Node **)&newNode, UA_FALSE);
-    if(retval)
-        nodeVT->delete(newNode);
+    retval = UA_NodeStore_replace(server->nodestore, node, (const UA_Node **)&newNode, UA_FALSE);
     UA_NodeStore_release(node);
-
-    return retval;
+    if(retval != UA_STATUSCODE_BADINTERNALERROR)
+        return retval;
+    
+    // error presumably because the node was replaced and an old version was updated
+    // just try again
+    nodeVT->delete(newNode);
+    return addOneWayReferenceWithSession(server, session, item);
 }
 
 UA_StatusCode UA_Server_addReference(UA_Server *server, const UA_AddReferencesItem *item) {

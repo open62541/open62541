@@ -35,9 +35,10 @@ UA_StatusCode createNode(UA_Node** p, UA_Int16 nsid, UA_Int32 id) {
 START_TEST(replaceExistingNode) {
 	UA_NodeStore *ns = UA_NodeStore_new();
 	UA_Node* n1; createNode(&n1,0,2253);
-	UA_NodeStore_insert(ns, (const UA_Node **)&n1, UA_FALSE);
+	UA_NodeStore_insert(ns, (const UA_Node **)&n1, UA_TRUE);
 	UA_Node* n2; createNode(&n2,0,2253);
-    UA_StatusCode retval = UA_NodeStore_replace(ns, (const UA_Node **)&n2, UA_FALSE);
+    UA_StatusCode retval = UA_NodeStore_replace(ns, n1, (const UA_Node **)&n2, UA_FALSE);
+    UA_NodeStore_release(n1);
     
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     
@@ -47,8 +48,9 @@ END_TEST
 
 START_TEST(replaceNonExistingNode) {
 	UA_NodeStore *ns = UA_NodeStore_new();
+	UA_Node* n1; createNode(&n1,0,2253);
 	UA_Node* n2; createNode(&n2,0,2253);
-    UA_StatusCode retval = UA_NodeStore_replace(ns, (const UA_Node **)&n2, UA_FALSE);
+    UA_StatusCode retval = UA_NodeStore_replace(ns, n1, (const UA_Node **)&n2, UA_FALSE);
     
 	ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
     
