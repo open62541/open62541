@@ -1573,13 +1573,17 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
 	UA_ExtensionObject_init(&extensionObject);
 
 	extensionObject.typeId = UA_NODEIDS[UA_VARIABLEATTRIBUTES];
-	extensionObject.body = (UA_ByteString){.data = (UA_Byte*)&varAttr, .length=UA_VariableAttributes_calcSizeBinary(&varAttr)};
+	UA_Byte extensionData[50];
+	extensionObject.body = (UA_ByteString){.data = extensionData, .length=UA_VariableAttributes_calcSizeBinary(&varAttr)};
+	UA_UInt32 posEncode = 0;
+	UA_VariableAttributes_encodeBinary(&varAttr, &extensionObject.body, &posEncode);
 	extensionObject.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
+	ck_assert_int_eq(posEncode, UA_VariableAttributes_calcSizeBinary(&varAttr));
 
 	UA_Byte data[50];
 	UA_ByteString dst = {.data = data, .length=50};
-	UA_UInt32 posEncode = 0;
 
+	posEncode = 0;
 	UA_ExtensionObject_encodeBinary(&extensionObject, &dst, &posEncode);
 
 	UA_ExtensionObject extensionObjectDecoded;
@@ -1595,7 +1599,6 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
 	UA_VariableAttributes_decodeBinary(&extensionObjectDecoded.body, &posDecode, &varAttrDecoded);
 	ck_assert_uint_eq(41, varAttrDecoded.userWriteMask);
 	UA_Variant* varValDecoded = &(varAttrDecoded.value);
-	printf("%u --- ", posDecode);
 	ck_assert_int_eq(1, varValDecoded->storage.data.arrayLength);
 
 }
@@ -1708,7 +1711,7 @@ int main(void) {
 
 	s  = testSuite_builtin();
 	sr = srunner_create(s);
-	//srunner_set_fork_status(sr, CK_NOFORK);
+	srunner_set_fork_status(sr, CK_NOFORK);
 	srunner_run_all(sr, CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);
