@@ -701,6 +701,9 @@ UA_StatusCode UA_ExtensionObject_decodeBinary(UA_ByteString const *src, UA_UInt3
         break;
 
     case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING:
+    	//retval |= UA_TYPES[UA_ns0ToVTableIndex(&dst->typeId)].encodings[UA_ENCODING_BINARY].decode(src, offset, &dst->body);
+    	//break;
+
     case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML:
         retval |= UA_ByteString_decodeBinary(src, offset, &dst->body);
         break;
