@@ -14,6 +14,14 @@
 #include "ua_namespace_0.h"
 #include "ua_util.h"
 
+typedef struct ConnectionInfo{
+	UA_Int32 socket;
+	UA_UInt32 channelId;
+	UA_SequenceHeader sequenceHdr;
+	UA_NodeId authenticationToken;
+	UA_UInt32 tokenId;
+}ConnectionInfo;
+
 UA_Int32 sendHello(UA_Int32 sock, UA_String *endpointURL) {
 
 	UA_TcpMessageHeader messageHeader;
@@ -210,11 +218,13 @@ UA_Int32 sendActivateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 token
 
 }
 
-UA_Int64 sendReadRequest(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId, UA_UInt32 sequenceNumber, UA_UInt32 requestId,
+UA_Int64 sendReadRequest(ConnectionInfo *connectionInfo, UA_Int32 nodeIds_size,UA_NodeId* nodeIds){
+		/*UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId, UA_UInt32 sequenceNumber, UA_UInt32 requestId,
                          UA_NodeId authenticationToken, UA_Int32 nodeIds_size,UA_NodeId* nodeIds) {
+                         */
 	UA_ByteString *message = UA_ByteString_new();
 	UA_ByteString_newMembers(message, 65536);
-	UA_UInt32 tmpChannelId = channelId;
+	UA_UInt32 tmpChannelId = connectionInfo->channelId;
 	UA_UInt32 offset = 0;
 
 	UA_TcpMessageHeader msghdr;
@@ -240,23 +250,23 @@ UA_Int64 sendReadRequest(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId, 
 	}
 	rq.requestHeader.timeoutHint = 10000;
 	rq.requestHeader.timestamp = UA_DateTime_now();
-	rq.requestHeader.authenticationToken = authenticationToken;
+	rq.requestHeader.authenticationToken = connectionInfo->authenticationToken;
 	rq.timestampsToReturn = 0x03;
-	rq.requestHeader.requestHandle = 1 + requestId;
+	rq.requestHeader.requestHandle = 1 + connectionInfo->sequenceHdr.requestId;
 
 	msghdr.messageSize = 16 + UA_TcpMessageHeader_calcSizeBinary(&msghdr) + UA_NodeId_calcSizeBinary(&type) +
                          UA_ReadRequest_calcSizeBinary(&rq);
 
 	UA_TcpMessageHeader_encodeBinary(&msghdr,message,&offset);
 	UA_UInt32_encodeBinary(&tmpChannelId, message, &offset);
-	UA_UInt32_encodeBinary(&tokenId, message, &offset);
-	UA_UInt32_encodeBinary(&sequenceNumber, message, &offset);
-	UA_UInt32_encodeBinary(&requestId, message, &offset);
+	UA_UInt32_encodeBinary(&connectionInfo->tokenId, message, &offset);
+	UA_UInt32_encodeBinary(&connectionInfo->sequenceHdr.sequenceNumber, message, &offset);
+	UA_UInt32_encodeBinary(&connectionInfo->sequenceHdr.requestId, message, &offset);
 	UA_NodeId_encodeBinary(&type,message,&offset);
 	UA_ReadRequest_encodeBinary(&rq, message, &offset);
 
 	UA_DateTime tic = UA_DateTime_now();
-	UA_Int32 sendret = send(sock, message->data, offset, 0);
+	UA_Int32 sendret = send(connectionInfo->socket, message->data, offset, 0);
 	UA_Array_delete(rq.nodesToRead,nodeIds_size,&UA_TYPES[UA_READVALUEID]);
 	UA_ByteString_delete(message);
 
@@ -267,13 +277,68 @@ UA_Int64 sendReadRequest(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId, 
 	return tic;
 }
 
-int main(int argc, char *argv[]) {
-	int sock;
-	struct sockaddr_in server;
-
+int ua_client_connectUA(char* ipaddress,int port, UA_String *endpointUrl, ConnectionInfo *connectionInfo)
+{
 	UA_ByteString reply;
 	UA_ByteString_newMembers(&reply, 65536);
+	int sock;
+	struct sockaddr_in server;
+	//Create socket
+	sock = socket(AF_INET, SOCK_STREAM, 0);
+	if(sock == -1) {
+		printf("Could not create socket");
+        return 1;
+    }
+	server.sin_addr.s_addr = inet_addr(ipaddress);
+	server.sin_family = AF_INET;
+	server.sin_port = htons(port);
 
+	if(connect(sock, (struct sockaddr *) &server, sizeof(server)) < 0) {
+			perror("connect failed. Error");
+			return 1;
+		}
+		connectionInfo->socket = sock;
+		sendHello(sock, endpointUrl);
+		recv(sock, reply.data, reply.length, 0);
+		sendOpenSecureChannel(sock);
+		recv(sock, reply.data, reply.length, 0);
+
+		UA_UInt32 recvOffset = 0;
+		UA_TcpMessageHeader msghdr;
+		UA_TcpMessageHeader_decodeBinary(&reply, &recvOffset, &msghdr);
+
+		UA_AsymmetricAlgorithmSecurityHeader asymHeader;
+		UA_NodeId rspType;
+		UA_OpenSecureChannelResponse openSecChannelRsp;
+		UA_UInt32_decodeBinary(&reply, &recvOffset, &connectionInfo->channelId);
+		UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&reply,&recvOffset,&asymHeader);
+		UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+		UA_SequenceHeader_decodeBinary(&reply,&recvOffset,&connectionInfo->sequenceHdr);
+		UA_NodeId_decodeBinary(&reply,&recvOffset,&rspType);
+		UA_OpenSecureChannelResponse_decodeBinary(&reply,&recvOffset,&openSecChannelRsp);
+		connectionInfo->tokenId = openSecChannelRsp.securityToken.tokenId;
+
+		sendCreateSession(sock, connectionInfo->channelId, openSecChannelRsp.securityToken.tokenId, 52, 2, endpointUrl);
+		recv(sock, reply.data, reply.length, 0);
+
+		UA_NodeId messageType;
+		recvOffset = 24;
+		UA_NodeId_decodeBinary(&reply,&recvOffset,&messageType);
+		UA_CreateSessionResponse createSessionResponse;
+		UA_CreateSessionResponse_decodeBinary(&reply,&recvOffset,&createSessionResponse);
+		connectionInfo->authenticationToken = createSessionResponse.authenticationToken;
+		sendActivateSession(sock, connectionInfo->channelId, connectionInfo->tokenId, 53, 3,
+				connectionInfo->authenticationToken);
+		recv(sock, reply.data, reply.length, 0);
+
+	    UA_OpenSecureChannelResponse_deleteMembers(&openSecChannelRsp);
+
+		UA_String_deleteMembers(&reply);
+		UA_CreateSessionResponse_deleteMembers(&createSessionResponse);
+		return 0;
+}
+
+int main(int argc, char *argv[]) {
 	//start parameters
 	if(argc < 7) {
 		printf("1st parameter: number of nodes to read \n");
@@ -288,6 +353,8 @@ int main(int argc, char *argv[]) {
 	UA_UInt32 nodesToReadSize;
 	UA_UInt32 tries;
 	UA_Boolean alwaysSameNode;
+	UA_ByteString reply;
+	UA_ByteString_newMembers(&reply, 65536);
 	if(argv[1] == UA_NULL)
 		nodesToReadSize = 1;
 	else
@@ -303,57 +370,17 @@ int main(int argc, char *argv[]) {
 	else
 		alwaysSameNode = UA_FALSE;
 
-	//Create socket
-	sock = socket(AF_INET, SOCK_STREAM, 0);
-	if(sock == -1) {
-		printf("Could not create socket");
-        return 1;
-    }
-	server.sin_addr.s_addr = inet_addr(argv[5]);
-	server.sin_family = AF_INET;
-	server.sin_port = htons(atoi(argv[6]));
+
 
     //Connect to remote server
-	if(connect(sock, (struct sockaddr *) &server, sizeof(server)) < 0) {
-		perror("connect failed. Error");
+	UA_String endpoint;
+	UA_String_copycstring("none",&endpoint);
+	ConnectionInfo connectionInfo;
+	if(ua_client_connect(argv[5],atoi(argv[6]),&endpoint,&connectionInfo) == 0){
 		return 1;
 	}
 
-	UA_String *endpointUrl = UA_String_new();
-	UA_String_copycstring("opc.tcp://blabla.com:1234", endpointUrl);
-	sendHello(sock, endpointUrl);
-	int received = recv(sock, reply.data, reply.length, 0);
-	sendOpenSecureChannel(sock);
-	received = recv(sock, reply.data, reply.length, 0);
-
-	UA_UInt32 recvOffset = 0;
-	UA_TcpMessageHeader msghdr;
-	UA_TcpMessageHeader_decodeBinary(&reply, &recvOffset, &msghdr);
-	UA_UInt32 secureChannelId;
-	UA_AsymmetricAlgorithmSecurityHeader asymHeader;
-	UA_SequenceHeader seqHeader;
-	UA_NodeId rspType;
-	UA_OpenSecureChannelResponse openSecChannelRsp;
-	UA_UInt32_decodeBinary(&reply, &recvOffset, &secureChannelId);
-	UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&reply,&recvOffset,&asymHeader);
-	UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
-	UA_SequenceHeader_decodeBinary(&reply,&recvOffset,&seqHeader);
-	UA_NodeId_decodeBinary(&reply,&recvOffset,&rspType);
-	UA_OpenSecureChannelResponse_decodeBinary(&reply,&recvOffset,&openSecChannelRsp);
-
-	sendCreateSession(sock, secureChannelId, openSecChannelRsp.securityToken.tokenId, 52, 2, endpointUrl);
-	received = recv(sock, reply.data, reply.length, 0);
-
-	UA_NodeId messageType;
-	recvOffset = 24;
-	UA_NodeId_decodeBinary(&reply,&recvOffset,&messageType);
-	UA_CreateSessionResponse createSessionResponse;
-	UA_CreateSessionResponse_decodeBinary(&reply,&recvOffset,&createSessionResponse);
-
-	sendActivateSession(sock, secureChannelId, openSecChannelRsp.securityToken.tokenId, 53, 3,
-                        createSessionResponse.authenticationToken);
-	received = recv(sock, reply.data, reply.length, 0);
-
+/* REQUEST START*/
     UA_NodeId *nodesToRead;
     UA_Array_new((void**)&nodesToRead,nodesToReadSize,&UA_TYPES[UA_NODEID]);
 
@@ -368,18 +395,19 @@ int main(int argc, char *argv[]) {
 
 	UA_DateTime tic, toc;
 	UA_Double *timeDiffs;
-
+	UA_Int32 received;
 	UA_Array_new((void**)&timeDiffs,tries,&UA_TYPES[UA_DOUBLE]);
 	UA_Double sum = 0;
 
 	for(UA_UInt32 i = 0; i < tries; i++) {
-		tic = sendReadRequest(sock, secureChannelId, openSecChannelRsp.securityToken.tokenId, 54+i, 4+i,
-                              createSessionResponse.authenticationToken,nodesToReadSize,nodesToRead);
-		received = recv(sock, reply.data, 2000, 0);
+		tic = sendReadRequest(&connectionInfo,nodesToReadSize,nodesToRead);
+		received = recv(connectionInfo.socket, reply.data, 2000, 0);
 		toc = UA_DateTime_now() - tic;
 		timeDiffs[i] = (UA_Double)toc/(UA_Double)1e4;
 		sum = sum + timeDiffs[i];
 	}
+/* REQUEST END*/
+
 
 	UA_Double mean = sum / tries;
 	printf("mean time for handling request: %16.10f ms \n",mean);
@@ -401,14 +429,14 @@ int main(int argc, char *argv[]) {
 	}
 	fclose(fHandle);
 
-    UA_OpenSecureChannelResponse_deleteMembers(&openSecChannelRsp);
-	UA_String_delete(endpointUrl);
+
+	UA_String_delete(&endpoint);
 	UA_String_deleteMembers(&reply);
 	UA_Array_delete(nodesToRead,nodesToReadSize,&UA_TYPES[UA_NODEID]);
     UA_free(timeDiffs);
-	UA_CreateSessionResponse_deleteMembers(&createSessionResponse);
 
-	close(sock);
+
+	close(connectionInfo.socket);
 
 	return 0;
 }
