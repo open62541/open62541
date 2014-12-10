@@ -67,3 +67,4 @@ static hash_t hash(const UA_NodeId *n) {
         return 0;
     }
 }
+
