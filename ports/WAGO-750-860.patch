@@ -1,3 +1,9 @@
+commit b801b9275cb93f2cea1dce231f01780bed9834ca
+Author: FlorianPalm <f.palm@plt.rwth-aachen.de>
+Date:   Wed Dec 10 10:21:44 2014 +0100
+
+    changes for WAGO 750-860
+
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 index 87489b3..76c4aa0 100644
 --- a/CMakeLists.txt
@@ -56,116 +62,6 @@ index 87489b3..76c4aa0 100644
  
  # generate code from xml definitions
  file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
-diff --git a/ports/WAGO-750-860.patch b/ports/WAGO-750-860.patch
-index e88351d..e69de29 100644
---- a/ports/WAGO-750-860.patch
-+++ b/ports/WAGO-750-860.patch
-@@ -1,105 +0,0 @@
--diff --git a/CMakeLists.txt b/CMakeLists.txt
--index 87489b3..b3a045a 100644
----- a/CMakeLists.txt
--+++ b/CMakeLists.txt
--@@ -41,16 +41,14 @@ set(lib_sources src/ua_types.c
-- 
-- # compiler flags
-- if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
---add_definitions(-std=c99 -pedantic -pipe -Wall -Wextra -Werror -Wformat
---                -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
---                -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -ffunction-sections -fdata-sections)
--+add_definitions(-std=c99 -fomit-frame-pointer -pipe -msoft-float -fno-builtin -DEMBED -fno-strict-aliasing)
--     if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
--         add_definitions(-Wformat-nonliteral)
---        set (CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
---        set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
--+        set (CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-elf2flt -msoft-float")
--+        set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}  -Wl,-elf2flt -msoft-float")
--     endif()
-- 	if(NOT WIN32)
---	    add_definitions(-fstack-protector -fPIC -fvisibility=hidden)
--+	   # add_definitions(-fPIC)
-- 	endif()
-- endif()
-- 
--@@ -115,10 +113,10 @@ else()
-- endif()
-- 
-- add_library(open62541-objects OBJECT ${lib_sources}) # static version that exports all symbols
---add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-objects>)
---target_compile_definitions(open62541 INTERFACE
---  $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,SHARED_LIBRARY>:open62541_EXPORTS> # the UA_EXPORT macro is different when building the lib or using the lib
---)
--+add_library(open62541 $<TARGET_OBJECTS:open62541-objects>)
--+#target_compile_definitions(open62541 INTERFACE
--+#  $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,SHARED_LIBRARY>:open62541_EXPORTS> # the UA_EXPORT macro is different when building the lib or using the lib
--+#)
-- 
-- ## logging
-- set(UA_LOGLEVEL 400 CACHE STRING "Level at which logs shall be reported")
--diff --git a/src/ua_util.c b/src/ua_util.c
--index 875e0b9..95dfe32 100644
----- a/src/ua_util.c
--+++ b/src/ua_util.c
--@@ -2,7 +2,6 @@
-- 
-- /* the extern inline in a *.c-file is required for other compilation units to
--    see the inline function. */
---extern INLINE void UA_memcpy(void *dst, void const *src, UA_Int32 size);
-- 
-- #ifdef DEBUG
-- extern INLINE void _UA_free(void *ptr, char *pname, char *f, UA_Int32 l);
--diff --git a/src/ua_util.h b/src/ua_util.h
--index 4426129..4e5ba65 100644
----- a/src/ua_util.h
--+++ b/src/ua_util.h
--@@ -11,7 +11,7 @@
-- #include <stddef.h> /* Needed for sys/queue.h */
-- 
-- #ifndef WIN32
---#include <sys/queue.h>
--+#include "queue.h"
-- #include <alloca.h>
-- #else
-- #include "queue.h"
--@@ -50,36 +50,11 @@
-- #endif
-- 
-- /* Heap memory functions */
---#ifdef DEBUG
---#define UA_free(ptr) _UA_free(ptr, # ptr, __FILE__, __LINE__)
---INLINE void _UA_free(void *ptr, char *pname, char *f, UA_Int32 l) {
---    DBG_VERBOSE(printf("UA_free;%p;;%s;;%s;%d\n", ptr, pname, f, l); fflush(stdout));
---    free(ptr); // checks if ptr != UA_NULL in the background
---}
---#else
---#define UA_free(ptr) _UA_free(ptr)
---INLINE void _UA_free(void *ptr) {
---    free(ptr); // checks if ptr != UA_NULL in the background
---}
---#endif
--+#define UA_free(ptr) free(ptr)
-- 
---#ifdef DEBUG
---#define UA_alloc(size) _UA_alloc(size, __FILE__, __LINE__) 
---INLINE void * _UA_alloc(UA_Int32 size, char *file, UA_Int32 line) {
---    DBG_VERBOSE(printf("UA_alloc - %d;%s;%d\n", size, file, line); fflush(stdout));
---    return malloc(size);
---}
---#else
---#define UA_alloc(size) _UA_alloc(size) 
---INLINE void * _UA_alloc(UA_Int32 size) {
---    return malloc(size);
---}
---#endif
--+#define UA_alloc(size) malloc(size) 
-- 
---INLINE void UA_memcpy(void *dst, void const *src, UA_Int32 size) {
---    DBG_VERBOSE(printf("UA_memcpy - %p;%p;%d\n", dst, src, size));
---    memcpy(dst, src, size);
---}
--+#define UA_memcpy memcpy
-- 
-- #ifdef WIN32
-- #define UA_alloca(size) _alloca(size)
 diff --git a/src/ua_util.c b/src/ua_util.c
 index 875e0b9..95dfe32 100644
 --- a/src/ua_util.c
