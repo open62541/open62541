@@ -376,7 +376,7 @@ int main(int argc, char *argv[]) {
 	UA_String endpoint;
 	UA_String_copycstring("none",&endpoint);
 	ConnectionInfo connectionInfo;
-	if(ua_client_connect(argv[5],atoi(argv[6]),&endpoint,&connectionInfo) == 0){
+	if(ua_client_connectUA(argv[5],atoi(argv[6]),&endpoint,&connectionInfo) == 0){
 		return 1;
 	}
 
