@@ -58,6 +58,14 @@ endif()
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
 set(generate_src_options) # the options for the tools that generate code from xml-schema definitions
 
+## extensions
+option(EXTENSION_STATELESS "Enable stateless extension" OFF)
+if(EXTENSION_STATELESS)
+	message(STATUS "Extensions: enabling stateless")
+	add_definitions(-DEXTENSION_STATELESS)
+	add_executable(statelessClient $<TARGET_OBJECTS:open62541-objects> examples/statelessClient.c)
+endif()
+
 ## self-signed certificates
 option(ENABLE_SELFSIGNED "Enable self-signed certificates" OFF)
 if(ENABLE_SELFSIGNED)

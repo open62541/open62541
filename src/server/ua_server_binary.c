@@ -146,13 +146,37 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
         responseType = requestType.nodeId.identifier.numeric + 3;                                         \
 } while(0)
 
+#ifdef EXTENSION_STATELESS
+#define INVOKE_STATELESS_SERVICE(TYPE) do { 															  \
+        UA_##TYPE##Request p;                                                                             \
+        UA_##TYPE##Response r;                                                                            \
+        CHECK_PROCESS(UA_##TYPE##Request_decodeBinary(msg, pos, &p),; );                                  \
+        UA_##TYPE##Response_init(&r);                                                                     \
+        init_response_header(&p.requestHeader, &r.responseHeader);                                        \
+        DBG_VERBOSE(printf("Anonymous Invoke Service: %s\n", # TYPE));                                    \
+        Service_##TYPE(server, &anonymousSession, &p, &r);                                                \
+        DBG_VERBOSE(printf("Finished Anonymous Service: %s\n", # TYPE));                                  \
+        UA_ByteString_newMembers(message, UA_##TYPE##Response_calcSizeBinary(&r));                        \
+        UA_##TYPE##Response_encodeBinary(&r, message, &sendOffset);                                       \
+        UA_##TYPE##Request_deleteMembers(&p);                                                             \
+        UA_##TYPE##Response_deleteMembers(&r);                                                            \
+        responseType = requestType.nodeId.identifier.numeric + 3;                                         \
+} while(0)
+#endif
+
 static void processMessage(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, UA_UInt32 *pos) {
     // 1) Read in the securechannel
     UA_UInt32 secureChannelId;
     UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
 
-    UA_SecureChannel *channel;
+    UA_SecureChannel *channel = UA_NULL;
+#ifdef EXTENSION_STATELESS
+    if(connection->channel != UA_NULL && secureChannelId != 0){
+#endif
     UA_SecureChannelManager_get(&server->secureChannelManager, secureChannelId, &channel);
+#ifdef EXTENSION_STATELESS
+    }
+#endif
 
     // 2) Read the security header
     UA_UInt32 tokenId;
@@ -160,11 +184,17 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     UA_SequenceHeader sequenceHeader;
     CHECK_PROCESS(UA_SequenceHeader_decodeBinary(msg, pos, &sequenceHeader),; );
 
+#ifdef EXTENSION_STATELESS
+    if(connection->channel != UA_NULL && secureChannelId != 0){
+#endif
     channel->sequenceNumber = sequenceHeader.sequenceNumber;
     channel->requestId = sequenceHeader.requestId;
     // todo
     //UA_SecureChannel_checkSequenceNumber(channel,sequenceHeader.sequenceNumber);
     //UA_SecureChannel_checkRequestId(channel,sequenceHeader.requestId);
+#ifdef EXTENSION_STATELESS
+    }
+#endif
 
     // 3) Read the nodeid of the request
     UA_ExpandedNodeId requestType;
@@ -181,6 +211,26 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     UA_ByteString *message = &responseBufs[1];
 
     UA_UInt32 sendOffset = 0;
+#ifdef EXTENSION_STATELESS
+    if(connection->channel == UA_NULL && secureChannelId == 0){
+     //stateless service calls - will pass UA_NULL as session
+     //fixme: maybe we need to pass a magic number instead of UA_NULL e.g. just a 42
+     switch(requestType.nodeId.identifier.numeric - 2) {
+     case UA_READREQUEST_NS0:
+     INVOKE_STATELESS_SERVICE(Read);
+     break;
+
+     case UA_WRITEREQUEST_NS0:
+     INVOKE_STATELESS_SERVICE(Write);
+     break;
+
+     case UA_BROWSEREQUEST_NS0:
+     INVOKE_STATELESS_SERVICE(Browse);
+     break;
+     }
+     //FIXME: a copy-pasted default case, but I did not want any duplications
+     }else{
+#endif
     //subtract UA_ENCODINGOFFSET_BINARY for binary encoding
     switch(requestType.nodeId.identifier.numeric - UA_ENCODINGOFFSET_BINARY) {
     case UA_GETENDPOINTSREQUEST_NS0: {
@@ -296,7 +346,9 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
         }
     	break;
     }
-
+#ifdef EXTENSION_STATELESS
+    }
+#endif
     // 5) Build the header
     UA_NodeId response_nodeid = { .namespaceIndex     = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
                                   .identifier.numeric = responseType }; // add 2 for binary encoding
@@ -313,6 +365,11 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     UA_UInt32 rpos = 0;
     UA_TcpMessageHeader_encodeBinary(&respHeader, header, &rpos);
 
+
+#ifdef EXTENSION_STATELESS
+	if(connection->channel != UA_NULL && secureChannelId != 0){
+#endif
+
     UA_UInt32_encodeBinary(&channel->securityToken.channelId, header, &rpos); // channel id
     UA_UInt32_encodeBinary(&channel->securityToken.tokenId, header, &rpos); // algorithm security header
 
@@ -320,7 +377,15 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     UA_UInt32_encodeBinary(&channel->requestId, header, &rpos);
 
     UA_NodeId_encodeBinary(&response_nodeid, header, &rpos); // add payload type
-
+#ifdef EXTENSION_STATELESS
+	}else{
+	UA_UInt32 zeroInt = 0;
+	UA_UInt32_encodeBinary(&zeroInt, header, &rpos);
+	UA_UInt32_encodeBinary(&zeroInt, header, &rpos);
+	UA_UInt32_encodeBinary(&zeroInt, header, &rpos);
+	UA_UInt32_encodeBinary(&zeroInt, header, &rpos);
+	}
+#endif
     // sign data
 
     // encrypt data
@@ -349,6 +414,10 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
     // todo: test how far pos advanced must be equal to what is said in the messageheader
     do {
         retval = UA_TcpMessageHeader_decodeBinary(msg, &pos, &tcpMessageHeader);
+        if(tcpMessageHeader.messageSize < 8){
+        	printf("The announced size of the message is illegal (smaller than 8), skipping the whole packet\n");
+        	return;
+        }
         UA_UInt32 targetpos = pos - 8 + tcpMessageHeader.messageSize;
         if(retval == UA_STATUSCODE_GOOD) {
             // none of the process-functions returns an error its all contained inside.
@@ -369,6 +438,16 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
                     processMessage(connection, server, msg, &pos);
                     break;
                 }
+#ifdef EXTENSION_STATELESS
+                //process messages with session zero
+                if(connection->state == UA_CONNECTION_OPENING &&
+                		connection->channel == UA_NULL) {
+                	processMessage(connection, server, msg, &pos);
+                	//fixme: we need to think about keepalive
+                	connection->close(connection->callbackHandle);
+                	break;
+                }
+#endif
 
             case UA_MESSAGETYPE_CLO:
                 connection->state = UA_CONNECTION_CLOSING;
