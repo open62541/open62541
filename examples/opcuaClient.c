@@ -339,15 +339,17 @@ int ua_client_connectUA(char* ipaddress,int port, UA_String *endpointUrl, Connec
 }
 
 int main(int argc, char *argv[]) {
+	int defaultParams = argc < 7;
+
 	//start parameters
-	if(argc < 7) {
+	if(defaultParams) {
 		printf("1st parameter: number of nodes to read \n");
 		printf("2nd parameter: number of read-tries \n");
 		printf("3rd parameter: name of the file to save measurement data \n");
 		printf("4th parameter: 1 = read same node, 0 = read different nodes \n");
 		printf("5th parameter: ip adress \n");
 		printf("6th parameter: port \n");
-		return 0;
+		printf("\nUsing default parameters. \n");
 	}
 
 	UA_UInt32 nodesToReadSize;
@@ -355,20 +357,24 @@ int main(int argc, char *argv[]) {
 	UA_Boolean alwaysSameNode;
 	UA_ByteString reply;
 	UA_ByteString_newMembers(&reply, 65536);
-	if(argv[1] == UA_NULL)
+	if(defaultParams)
 		nodesToReadSize = 1;
 	else
 		nodesToReadSize = atoi(argv[1]);
 
-	if(argv[2] == UA_NULL)
+	if(defaultParams)
 		tries= 2;
 	else
 		tries = (UA_UInt32) atoi(argv[2]);
 
-	if(atoi(argv[4]) != 0)
+	if(defaultParams){
 		alwaysSameNode = UA_TRUE;
-	else
-		alwaysSameNode = UA_FALSE;
+	}else{
+		if(atoi(argv[4]) != 0)
+			alwaysSameNode = UA_TRUE;
+		else
+			alwaysSameNode = UA_FALSE;
+	}
 
 
 
@@ -376,9 +382,16 @@ int main(int argc, char *argv[]) {
 	UA_String endpoint;
 	UA_String_copycstring("none",&endpoint);
 	ConnectionInfo connectionInfo;
-	if(ua_client_connectUA(argv[5],atoi(argv[6]),&endpoint,&connectionInfo) == 0){
-		return 1;
+	if(defaultParams){
+		if(ua_client_connectUA("127.0.0.1",atoi("16664"),&endpoint,&connectionInfo) != 0){
+			return 0;
+		}
+	}else{
+		if(ua_client_connectUA(argv[5],atoi(argv[6]),&endpoint,&connectionInfo) != 0){
+			return 0;
+		}
 	}
+
 
 /* REQUEST START*/
     UA_NodeId *nodesToRead;
@@ -418,7 +431,12 @@ int main(int argc, char *argv[]) {
 	//save to file
 	char data[100];
 	const char flag = 'a';
-	FILE* fHandle =  fopen(argv[3], &flag);
+	FILE* fHandle = UA_NULL;
+	if (defaultParams) {
+		fHandle =  fopen("client.log", &flag);
+	}else{
+		fHandle =  fopen(argv[3], &flag);
+	}
 	//header
 
 	UA_Int32 bytesToWrite = sprintf(data, "measurement %s in ms, nodesToRead %d \n", argv[3], nodesToReadSize);
@@ -430,7 +448,6 @@ int main(int argc, char *argv[]) {
 	fclose(fHandle);
 
 
-	UA_String_delete(&endpoint);
 	UA_String_deleteMembers(&reply);
 	UA_Array_delete(nodesToRead,nodesToReadSize,&UA_TYPES[UA_NODEID]);
     UA_free(timeDiffs);
