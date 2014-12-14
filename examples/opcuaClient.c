@@ -277,7 +277,7 @@ UA_Int64 sendReadRequest(ConnectionInfo *connectionInfo, UA_Int32 nodeIds_size,U
 	return tic;
 }
 
-int ua_client_connectUA(char* ipaddress,int port, UA_String *endpointUrl, ConnectionInfo *connectionInfo)
+int ua_client_connectUA(char* ipaddress,int port, UA_String *endpointUrl, ConnectionInfo *connectionInfo, UA_Boolean stateless)
 {
 	UA_ByteString reply;
 	UA_ByteString_newMembers(&reply, 65536);
@@ -298,48 +298,57 @@ int ua_client_connectUA(char* ipaddress,int port, UA_String *endpointUrl, Connec
 			return 1;
 		}
 		connectionInfo->socket = sock;
-		sendHello(sock, endpointUrl);
-		recv(sock, reply.data, reply.length, 0);
-		sendOpenSecureChannel(sock);
-		recv(sock, reply.data, reply.length, 0);
 
-		UA_UInt32 recvOffset = 0;
-		UA_TcpMessageHeader msghdr;
-		UA_TcpMessageHeader_decodeBinary(&reply, &recvOffset, &msghdr);
+		if(stateless){
+			UA_NodeId_init(&connectionInfo->authenticationToken);
+			connectionInfo->channelId=0;
+			UA_SequenceHeader_init(&connectionInfo->sequenceHdr);
+			connectionInfo->tokenId=0;
+			return 0;
+		}else{
+			sendHello(sock, endpointUrl);
+			recv(sock, reply.data, reply.length, 0);
+			sendOpenSecureChannel(sock);
+			recv(sock, reply.data, reply.length, 0);
 
-		UA_AsymmetricAlgorithmSecurityHeader asymHeader;
-		UA_NodeId rspType;
-		UA_OpenSecureChannelResponse openSecChannelRsp;
-		UA_UInt32_decodeBinary(&reply, &recvOffset, &connectionInfo->channelId);
-		UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&reply,&recvOffset,&asymHeader);
-		UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
-		UA_SequenceHeader_decodeBinary(&reply,&recvOffset,&connectionInfo->sequenceHdr);
-		UA_NodeId_decodeBinary(&reply,&recvOffset,&rspType);
-		UA_OpenSecureChannelResponse_decodeBinary(&reply,&recvOffset,&openSecChannelRsp);
-		connectionInfo->tokenId = openSecChannelRsp.securityToken.tokenId;
+			UA_UInt32 recvOffset = 0;
+			UA_TcpMessageHeader msghdr;
+			UA_TcpMessageHeader_decodeBinary(&reply, &recvOffset, &msghdr);
 
-		sendCreateSession(sock, connectionInfo->channelId, openSecChannelRsp.securityToken.tokenId, 52, 2, endpointUrl);
-		recv(sock, reply.data, reply.length, 0);
+			UA_AsymmetricAlgorithmSecurityHeader asymHeader;
+			UA_NodeId rspType;
+			UA_OpenSecureChannelResponse openSecChannelRsp;
+			UA_UInt32_decodeBinary(&reply, &recvOffset, &connectionInfo->channelId);
+			UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&reply,&recvOffset,&asymHeader);
+			UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+			UA_SequenceHeader_decodeBinary(&reply,&recvOffset,&connectionInfo->sequenceHdr);
+			UA_NodeId_decodeBinary(&reply,&recvOffset,&rspType);
+			UA_OpenSecureChannelResponse_decodeBinary(&reply,&recvOffset,&openSecChannelRsp);
+			connectionInfo->tokenId = openSecChannelRsp.securityToken.tokenId;
 
-		UA_NodeId messageType;
-		recvOffset = 24;
-		UA_NodeId_decodeBinary(&reply,&recvOffset,&messageType);
-		UA_CreateSessionResponse createSessionResponse;
-		UA_CreateSessionResponse_decodeBinary(&reply,&recvOffset,&createSessionResponse);
-		connectionInfo->authenticationToken = createSessionResponse.authenticationToken;
-		sendActivateSession(sock, connectionInfo->channelId, connectionInfo->tokenId, 53, 3,
-				connectionInfo->authenticationToken);
-		recv(sock, reply.data, reply.length, 0);
+			sendCreateSession(sock, connectionInfo->channelId, openSecChannelRsp.securityToken.tokenId, 52, 2, endpointUrl);
+			recv(sock, reply.data, reply.length, 0);
 
-	    UA_OpenSecureChannelResponse_deleteMembers(&openSecChannelRsp);
+			UA_NodeId messageType;
+			recvOffset = 24;
+			UA_NodeId_decodeBinary(&reply,&recvOffset,&messageType);
+			UA_CreateSessionResponse createSessionResponse;
+			UA_CreateSessionResponse_decodeBinary(&reply,&recvOffset,&createSessionResponse);
+			connectionInfo->authenticationToken = createSessionResponse.authenticationToken;
+			sendActivateSession(sock, connectionInfo->channelId, connectionInfo->tokenId, 53, 3,
+					connectionInfo->authenticationToken);
+			recv(sock, reply.data, reply.length, 0);
 
-		UA_String_deleteMembers(&reply);
-		UA_CreateSessionResponse_deleteMembers(&createSessionResponse);
-		return 0;
+			UA_OpenSecureChannelResponse_deleteMembers(&openSecChannelRsp);
+
+			UA_String_deleteMembers(&reply);
+			UA_CreateSessionResponse_deleteMembers(&createSessionResponse);
+			return 0;
+		}
 }
 
 int main(int argc, char *argv[]) {
-	int defaultParams = argc < 7;
+	int defaultParams = argc < 8;
 
 	//start parameters
 	if(defaultParams) {
@@ -349,6 +358,7 @@ int main(int argc, char *argv[]) {
 		printf("4th parameter: 1 = read same node, 0 = read different nodes \n");
 		printf("5th parameter: ip adress \n");
 		printf("6th parameter: port \n");
+		printf("7th parameter: 0=stateful, 1=stateless\n");
 		printf("\nUsing default parameters. \n");
 	}
 
@@ -357,6 +367,8 @@ int main(int argc, char *argv[]) {
 	UA_Boolean alwaysSameNode;
 	UA_ByteString reply;
 	UA_ByteString_newMembers(&reply, 65536);
+	UA_Boolean stateless;
+
 	if(defaultParams)
 		nodesToReadSize = 1;
 	else
@@ -376,6 +388,15 @@ int main(int argc, char *argv[]) {
 			alwaysSameNode = UA_FALSE;
 	}
 
+	if(defaultParams){
+		stateless = UA_FALSE;
+	}else{
+		if(atoi(argv[7]) != 0)
+			stateless = UA_TRUE;
+		else
+			stateless = UA_FALSE;
+	}
+
 
 
     //Connect to remote server
@@ -383,11 +404,11 @@ int main(int argc, char *argv[]) {
 	UA_String_copycstring("none",&endpoint);
 	ConnectionInfo connectionInfo;
 	if(defaultParams){
-		if(ua_client_connectUA("127.0.0.1",atoi("16664"),&endpoint,&connectionInfo) != 0){
+		if(ua_client_connectUA("127.0.0.1",atoi("16664"),&endpoint,&connectionInfo,stateless) != 0){
 			return 0;
 		}
 	}else{
-		if(ua_client_connectUA(argv[5],atoi(argv[6]),&endpoint,&connectionInfo) != 0){
+		if(ua_client_connectUA(argv[5],atoi(argv[6]),&endpoint,&connectionInfo,stateless) != 0){
 			return 0;
 		}
 	}
