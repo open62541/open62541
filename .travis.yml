@@ -28,6 +28,9 @@ before_install:
    - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
    - sudo update-alternatives --config gcc
 script: 
+   - echo "Checking the applicability of patches"
+   - ./tools/.checkPorts.sh
+   - echo "Testing builds"
    - mkdir -p build
    - cd build
    - echo "Only needed profile"
@@ -50,16 +53,5 @@ script:
    - cd ..
 
 after_success:
-   - git clone --depth=50 -b gh-pages https://$GITAUTH@github.com/acplt/open62541-www
-   - cd open62541-www
-   - git rm -rf doc
-   - cp -r ../build/doc ./
-   - git add -A doc/*
-   - git config --global user.email "open62541-travis-ci@users.noreply.github.com"
-   - git config --global user.name "Open62541 travis-ci"
-   - git config --global push.default simple
-   - git commit -am "doxygen updated by travis-ci"
-   - git push https://$GITAUTH@github.com/acplt/open62541-www
-   - cd ..
-   - rm -rf open62541-www
+   - ./tools/.deployDoxygen.sh
    - ./tools/.coverity.sh
