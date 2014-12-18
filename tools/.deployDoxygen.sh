@@ -21,5 +21,5 @@ if [[ "$COMMITS" -le "1" ]]; then
    cd ..
    rm -rf open62541-www
 else
-    echo "Not the first commit of the day - no push to coverity required"
+    echo "Not the first commit of the day - no doxygen update required"
 fi

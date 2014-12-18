@@ -243,7 +243,7 @@ void worksocks(NetworklayerTCP *layer, UA_Server *server, UA_UInt32 workamount) 
 	// read from established sockets
 	for(UA_UInt32 i=0;i<layer->connectionsSize && workamount > 0;i++) {
 		if(FD_ISSET(layer->connections[i].sockfd, &layer->fdset)) {
-			int n = 0;
+			UA_Int32 n = 0;
 			IOCTLSOCKET(layer->connections[i].sockfd, FIONREAD, &n);
 			if(n==0){ /* the socket has been closed by the client - remove the socket from the socket list */
 				layer->connections[i].connection.close(layer->connections[i].connection.callbackHandle);
