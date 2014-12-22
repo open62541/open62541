@@ -403,15 +403,6 @@ int main(int argc, char *argv[]) {
 	UA_String endpoint;
 	UA_String_copycstring("none",&endpoint);
 	ConnectionInfo connectionInfo;
-	if(defaultParams){
-		if(ua_client_connectUA("127.0.0.1",atoi("16664"),&endpoint,&connectionInfo,stateless) != 0){
-			return 0;
-		}
-	}else{
-		if(ua_client_connectUA(argv[5],atoi(argv[6]),&endpoint,&connectionInfo,stateless) != 0){
-			return 0;
-		}
-	}
 
 
 /* REQUEST START*/
@@ -434,11 +425,26 @@ int main(int argc, char *argv[]) {
 	UA_Double sum = 0;
 
 	for(UA_UInt32 i = 0; i < tries; i++) {
-		tic = sendReadRequest(&connectionInfo,nodesToReadSize,nodesToRead);
+		//if(stateless || (!stateless && i==0)){
+		tic = UA_DateTime_now();
+			if(defaultParams){
+				if(ua_client_connectUA("127.0.0.1",atoi("16664"),&endpoint,&connectionInfo,stateless) != 0){
+					return 0;
+				}
+			}else{
+				if(ua_client_connectUA(argv[5],atoi(argv[6]),&endpoint,&connectionInfo,stateless) != 0){
+					return 0;
+				}
+			}
+		//}
+		sendReadRequest(&connectionInfo,nodesToReadSize,nodesToRead);
 		received = recv(connectionInfo.socket, reply.data, 2000, 0);
 		toc = UA_DateTime_now() - tic;
 		timeDiffs[i] = (UA_Double)toc/(UA_Double)1e4;
 		sum = sum + timeDiffs[i];
+		//if(stateless || (!stateless && i==tries-1)){
+			close(connectionInfo.socket);
+		//}
 	}
 /* REQUEST END*/
 
@@ -447,7 +453,7 @@ int main(int argc, char *argv[]) {
 	printf("mean time for handling request: %16.10f ms \n",mean);
 
 	if(received>0)
-		printf("%i",received); // dummy
+		printf("received: %i\n",received); // dummy
 
 	//save to file
 	char data[100];
@@ -474,7 +480,6 @@ int main(int argc, char *argv[]) {
     UA_free(timeDiffs);
 
 
-	close(connectionInfo.socket);
 
 	return 0;
 }
