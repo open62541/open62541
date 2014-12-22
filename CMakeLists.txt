@@ -3,10 +3,20 @@ cmake_minimum_required(VERSION 2.8.8)
 
 project(open62541 C)
 set(open62541_VERSION_MAJOR 0)
-set(open62541_VERSION_MINOR 1)
+set(open62541_VERSION_MINOR 0)
+set(NVIM_VERSION_PATCH 0)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
-set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG")
+
+# Set available build types for CMake GUIs.
+# A different build type can still be set by -DCMAKE_BUILD_TYPE=...
+set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+
+# Set default build type.
+if (NOT CMAKE_BUILD_TYPE)
+    message(STATUS "CMAKE_BUILD_TYPE not given; setting to 'RelWithDebInfo'.")
+    set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Choose the type of build." FORCE)
+endif()
 
 # main sources of libopen62541
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
@@ -15,18 +25,18 @@ file(GLOB_RECURSE exported_headers "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h")
 file(GLOB_RECURSE headers "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
 file(GLOB generated_headers "${PROJECT_BINARY_DIR}/src_generated/*.h")
 set(lib_sources src/ua_types.c
+                src/ua_util.c
                 src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_0.c
                 src/ua_transport.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
-				src/ua_connection.c
                 src/ua_securechannel.c
                 src/ua_session.c
-                src/ua_util.c
                 src/server/ua_server.c
 				src/server/ua_server_addressspace.c
 				src/server/ua_server_binary.c
+                src/server/ua_server_worker.c
                 src/server/ua_securechannel_manager.c
                 src/server/ua_session_manager.c
                 src/server/ua_services_attribute.c
@@ -48,6 +58,8 @@ add_definitions(-std=c99 -pedantic -pipe -Wall -Wextra -Werror -Wformat
         add_definitions(-Wformat-nonliteral)
         set (CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
         set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
+    else()
+        add_definitions(-Wno-gnu-statement-expression)
     endif()
 	if(NOT WIN32)
 	    add_definitions(-fstack-protector -fPIC -fvisibility=hidden)
@@ -55,8 +67,14 @@ add_definitions(-std=c99 -pedantic -pipe -Wall -Wextra -Werror -Wformat
 endif()
 
 # build settings
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMakeModules")
 set(generate_src_options) # the options for the tools that generate code from xml-schema definitions
+
+## set debug flag
+if(CMAKE_BUILD_TYPE MATCHES Debug)
+    set(UA_DEBUG ON)
+else()
+    set(UA_DEBUG OFF)
+endif()
 
 ## extensions
 option(EXTENSION_STATELESS "Enable stateless extension" OFF)
@@ -64,6 +82,9 @@ if(EXTENSION_STATELESS)
 	message(STATUS "Extensions: enabling stateless")
 	add_definitions(-DEXTENSION_STATELESS)
 	add_executable(statelessClient $<TARGET_OBJECTS:open62541-objects> examples/statelessClient.c)
+    if(MULTITHREADING)
+        target_link_libraries(statelessClient urcu-cds urcu urcu-common pthread)
+    endif()
 endif()
 
 ## self-signed certificates
@@ -104,18 +125,19 @@ if(ENABLE_XML_ENCODING)
     list(APPEND generate_src_options "--with-xml")
 endif()
 
-### json
-option(ENABLE_JSON_ENCODING "Enable JSON-encoding of the UA types" OFF)
-if(ENABLE_JSON_ENCODING)
-    MATH(EXPR UA_ENCODING_AMOUNT "${UA_ENCODING_AMOUNT}+1")
-	include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/ongoing")
-    list(APPEND lib_sources src/ongoing/ua_types_encoding_json.c)
-    list(APPEND generate_src_options "--with-json")
-endif(ENABLE_JSON_ENCODING)
+# ### json
+# option(ENABLE_JSON_ENCODING "Enable JSON-encoding of the UA types" OFF)
+# if(ENABLE_JSON_ENCODING)
+#     MATH(EXPR UA_ENCODING_AMOUNT "${UA_ENCODING_AMOUNT}+1")
+# 	include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/ongoing")
+#     list(APPEND lib_sources src/ongoing/ua_types_encoding_json.c)
+#     list(APPEND generate_src_options "--with-json")
+# endif(ENABLE_JSON_ENCODING)
 
 ## multithreading
 option(MULTITHREADING "Enable multithreading" OFF)
 if(MULTITHREADING)
+    set(UA_MULTITHREADING ON)
     find_package(Threads REQUIRED)
     list(APPEND lib_sources src/server/ua_nodestore_concurrent.c)
 else()
@@ -125,7 +147,7 @@ endif()
 add_library(open62541-objects OBJECT ${lib_sources}) # static version that exports all symbols
 add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-objects>)
 target_compile_definitions(open62541 INTERFACE
-  $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,SHARED_LIBRARY>:open62541_EXPORTS> # the UA_EXPORT macro is different when building the lib or using the lib
+  $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,SHARED_LIBRARY>:UA_DYNAMIC_LINKING> # the UA_EXPORT macro is different when building the lib or using the lib
 )
 
 ## logging
@@ -162,7 +184,7 @@ include_directories("${PROJECT_BINARY_DIR}/src_generated")
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                    PRE_BUILD
-                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_builtin.py --export-prototypes ${generate_src_options} ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated
+                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_builtin.py --export-prototypes ${generate_src_options} ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_builtin.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd)
 
@@ -176,8 +198,8 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_0.c
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
                    PRE_BUILD
-                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_builtin.py --additional-includes=ua_transport.h ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_namespace.py
+                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_builtin.py --additional-includes=ua_transport.h ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_transport
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_builtin.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
 
 # build example client
@@ -189,8 +211,7 @@ if(CLIENT)
     # internal functions that are not exported to the shared lib.
 	add_executable(exampleClient $<TARGET_OBJECTS:open62541-objects> examples/opcuaClient.c)
     if(MULTITHREADING)
-        find_package(LibUV REQUIRED)
-        target_link_libraries(exampleClient urcu-cds urcu uv)
+        target_link_libraries(exampleClient urcu-cds urcu urcu-common pthread)
     endif()
 endif()
 
@@ -198,20 +219,15 @@ endif()
 option(EXAMPLESERVER "Build a test server" OFF)
 if(EXAMPLESERVER)
 set(server_sources examples/opcuaServer.c
+                   examples/networklayer_tcp.c
                    examples/logger_stdout.c)
-if(NOT MULTITHREADING)
-    list(APPEND server_sources examples/networklayer_tcp.c)
-else()
-    list(APPEND server_sources examples/networklayer_tcp_concurrent.c)
-endif()
 add_executable(exampleServer ${server_sources} ${exported_headers} ${generated_headers})
 target_link_libraries(exampleServer open62541)
 if(WIN32)
     target_link_libraries(exampleServer ws2_32)
 endif(WIN32)
 if(MULTITHREADING)
-    find_package(LibUV REQUIRED)
-    target_link_libraries(exampleServer urcu-cds urcu uv)
+    target_link_libraries(exampleServer urcu-cds urcu urcu-common pthread)
 endif()
 endif()
 

@@ -59,7 +59,7 @@ UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session *sessi
     if(count < 0)
         count = 0;
     UA_ReferenceNode *old_refs = newNode->references;
-    UA_ReferenceNode *new_refs = UA_alloc(sizeof(UA_ReferenceNode)*(count+1));
+    UA_ReferenceNode *new_refs = UA_malloc(sizeof(UA_ReferenceNode)*(count+1));
     if(!new_refs) {
         nodeVT->delete(newNode);
         UA_NodeStore_release(node);
@@ -119,7 +119,7 @@ UA_StatusCode UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *s
     if(ensFirst) {
         // todo: use external nodestore
     } else
-        retval = addOneWayReferenceWithSession (server, session, item);
+        retval = addOneWayReferenceWithSession(server, session, item);
 
     if(retval) return retval;
 

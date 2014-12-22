@@ -3,7 +3,6 @@
 #include "ua_namespace_0.h"
 #include "ua_statuscodes.h"
 #include "ua_nodestore.h"
-#include "ua_services_internal.h"
 #include "ua_session.h"
 #include "ua_util.h"
 
@@ -244,7 +243,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
 
     /* ### Begin External Namespaces */
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * request->nodesToAddSize);
-    memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToAddSize);
+    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToAddSize);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * request->nodesToAddSize);
     for(UA_Int32 j = 0;j<server->externalNamespacesSize;j++) {
         UA_UInt32 indexSize = 0;
@@ -277,19 +276,19 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
 		return;
 	}
-	response->results = UA_alloc(
+	response->results = UA_malloc(
 			sizeof(UA_StatusCode) * request->referencesToAddSize);
 	if (!response->results) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
 	response->resultsSize = request->referencesToAddSize;
-	memset(response->results, UA_STATUSCODE_GOOD,
+	UA_memset(response->results, UA_STATUSCODE_GOOD,
 			sizeof(UA_StatusCode) * response->resultsSize);
 	/* ### Begin External Namespaces */
 //UA_Boolean isExternal[MAX_ADDREFERENCES_SIZE];
 	UA_Boolean isExternal[request->referencesToAddSize];
-	memset(isExternal, UA_FALSE,
+	UA_memset(isExternal, UA_FALSE,
 			sizeof(UA_Boolean) * request->referencesToAddSize);
 	UA_UInt32 indices[request->referencesToAddSize];
 	for (UA_Int32 j = 0; j < server->externalNamespacesSize; j++) {

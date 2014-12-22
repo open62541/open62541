@@ -1,3 +1,4 @@
+#include <string.h>
 #include "ua_types_encoding_binary.h"
 #include "ua_util.h"
 #include "ua_namespace_0.h"
@@ -290,15 +291,8 @@ UA_TYPE_DECODEBINARY(UA_Double,
                      mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+4] & 0xFF); // bits 32-39
                      mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+5] & 0xFF); // bits 40-47
                      mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+6] & 0x0F); // bits 48-51
-                     DBG_VERBOSE(printf("UA_Double_decodeBinary - mantissa=%f\n", mantissa));
                      biasedExponent  = (src->data[*offset+6] & 0xF0) >>  4; // bits 52-55
-                     DBG_VERBOSE(printf("UA_Double_decodeBinary - biasedExponent52-55=%d, src=%d\n",
-                                        biasedExponent,
-                                        src->data[*offset+6]));
                      biasedExponent |= ((UA_UInt32)(src->data[*offset+7] & 0x7F)) <<  4; // bits 56-62
-                     DBG_VERBOSE(printf("UA_Double_decodeBinary - biasedExponent56-62=%d, src=%d\n",
-                                        biasedExponent,
-                                        src->data[*offset+7]));
                      sign = ( src->data[*offset+7] & 0x80 ) ? -1.0 : 1.0; // bit 63
                      if(biasedExponent >= 1023)
                          *dst = (UA_Double)sign * (1 << (biasedExponent-1023)) * (1.0 + mantissa / 8.0 );
@@ -339,7 +333,7 @@ UA_StatusCode UA_String_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset
     if(length > (UA_Int32)(src->length - *offset))
         return UA_STATUSCODE_BADINTERNALERROR;
     
-    if(!(dst->data = UA_alloc(length)))
+    if(!(dst->data = UA_malloc(length)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_memcpy(dst->data, &src->data[*offset], length);
@@ -907,7 +901,7 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, UA_UInt32 *offse
     const UA_TypeVTable *vt = &UA_TYPES[typeNs0Id];
 
     if(!isArray) {
-        if(!(data->dataPtr = UA_alloc(vt->memSize)))
+        if(!(data->dataPtr = UA_malloc(vt->memSize)))
             return UA_STATUSCODE_BADOUTOFMEMORY;
         retval |= vt->encodings[UA_ENCODING_BINARY].decode(src, offset, data->dataPtr);
         if(retval) {
@@ -999,7 +993,7 @@ UA_StatusCode UA_DiagnosticInfo_decodeBinary(UA_ByteString const *src, UA_UInt32
         retval |= UA_StatusCode_decodeBinary(src, offset, &dst->innerStatusCode);
     if(dst->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO) {
         // innerDiagnosticInfo is a pointer to struct, therefore allocate
-        if((dst->innerDiagnosticInfo = UA_alloc(sizeof(UA_DiagnosticInfo)))) {
+        if((dst->innerDiagnosticInfo = UA_malloc(sizeof(UA_DiagnosticInfo)))) {
             if(UA_DiagnosticInfo_decodeBinary(src, offset, dst->innerDiagnosticInfo) != UA_STATUSCODE_GOOD) {
                 UA_free(dst->innerDiagnosticInfo);
                 dst->innerDiagnosticInfo = UA_NULL;

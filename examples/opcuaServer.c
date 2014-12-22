@@ -16,18 +16,11 @@
 #include "logger_stdout.h"
 #include "networklayer_tcp.h"
 
-#ifdef MULTITHREADING
-#include <urcu.h>
-#endif
-
 UA_Boolean running = 1;
 
 void stopHandler(int sign) {
+    printf("Received Ctrl-C\n");
 	running = 0;
-}
-
-void serverCallback(UA_Server *server) {
-    //	printf("does whatever servers do\n");
 }
 
 UA_ByteString loadCertificate() {
@@ -37,7 +30,7 @@ UA_ByteString loadCertificate() {
 	fp=fopen("localhost.der", "rb");
 
 	if(!fp) {
-        errno = 0; // otherwise we think sth went wrong on the tcp socket level
+        errno = 0; // we read errno also from the tcp layer...
         return certificate;
     }
 
@@ -52,25 +45,30 @@ UA_ByteString loadCertificate() {
 
     return certificate;
 }
+
+void testCallback(UA_Server *server, void *data) {
+       printf("testcallback\n");
+}
+
 int main(int argc, char** argv) {
-#ifdef MULTITHREADING
-    rcu_register_thread();
-#endif
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-	UA_String endpointUrl;
-    UA_String_copycstring("opc.tcp://localhost:16664",&endpointUrl);
-	UA_ByteString certificate = loadCertificate();
-	UA_Server *server = UA_Server_new(&endpointUrl, &certificate);
+	UA_Server *server = UA_Server_new();
+    UA_Server_setServerCertificate(server, loadCertificate());
+    UA_Server_addNetworkLayer(server, NetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
+
+    UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL, .work.methodCall = {.method = testCallback, .data = UA_NULL} };
+    UA_Server_addRepeatedWorkItem(server, &work, 20000000); // call every 2 sec
 
 	//add a node to the adresspace
-    UA_Int32 *myInteger = malloc(sizeof(UA_Int32));
+    UA_Int32 *myInteger = UA_Int32_new();
     *myInteger = 42;
     UA_QualifiedName myIntegerName;
-    UA_QualifiedName_copycstring("the answer is",&myIntegerName);
-    UA_Server_addScalarVariableNode(server, &myIntegerName, myInteger, &UA_TYPES[UA_INT32],
-                                    &UA_EXPANDEDNODEIDS[UA_OBJECTSFOLDER], &UA_NODEIDS[UA_ORGANIZES]);
-    UA_QualifiedName_deleteMembers(&myIntegerName);
+    UA_QUALIFIEDNAME_STATIC(myIntegerName, "the answer");
+    UA_Server_addScalarVariableNode(server, &myIntegerName,
+                                    myInteger, &UA_TYPES[UA_INT32],
+                                    &UA_EXPANDEDNODEIDS[UA_OBJECTSFOLDER],
+                                    &UA_NODEIDS[UA_ORGANIZES]);
     
 #ifdef BENCHMARK
     UA_UInt32 nodeCount = 500;
@@ -89,21 +87,14 @@ int main(int argc, char** argv) {
         tmpNode->value.storage.data.dataPtr = &data;
         tmpNode->value.storageType = UA_VARIANT_DATA_NODELETE;
         tmpNode->value.storage.data.arrayLength = 1;
-        UA_Server_addNode(server, (const UA_Node**)&tmpNode, &UA_EXPANDEDNODEIDS[UA_OBJECTSFOLDER],
+        UA_Server_addNode(server, (const UA_Node**)&tmpNode,
+                          &UA_EXPANDEDNODEIDS[UA_OBJECTSFOLDER],
                           &UA_NODEIDS[UA_HASCOMPONENT]);
     }
 #endif
-	
-	#define PORT 16664
-	NetworklayerTCP* nl = NetworklayerTCP_new(UA_ConnectionConfig_standard, PORT);
-	printf("Server started, connect to to opc.tcp://127.0.0.1:%i\n", PORT);
-	struct timeval callback_interval = {1, 0}; // 1 second
-	UA_Int32 retval = NetworkLayerTCP_run(nl, server, callback_interval, serverCallback, &running);
+
+    UA_StatusCode retval = UA_Server_run(server, 1, &running);
 	UA_Server_delete(server);
-	NetworklayerTCP_delete(nl);
-    UA_String_deleteMembers(&endpointUrl);
-#ifdef MULTITHREADING
-    rcu_unregister_thread();
-#endif
+
 	return retval;
 }

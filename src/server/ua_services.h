@@ -10,7 +10,9 @@
  * @ingroup server
  * @defgroup services Services
  *
- * @brief This module describes all the services used to communicate in in OPC UA.
+ * @brief The UA services that can be called from a remote user
+ *
+ * @{
  */
 
 /**
@@ -24,9 +26,8 @@
 // Service_FindServers
 
 /**
- * @brief This Service returns the Endpoints supported by a Server and all of
- * the configuration information required to establish a SecureChannel and a
- * Session.
+ * Returns the Endpoints supported by a Server and all of the configuration
+ * information required to establish a SecureChannel and a Session.
  */
 void Service_GetEndpoints(UA_Server *server, const UA_GetEndpointsRequest *request, UA_GetEndpointsResponse *response);
 // Service_RegisterServer
@@ -42,15 +43,17 @@ void Service_GetEndpoints(UA_Server *server, const UA_GetEndpointsRequest *reque
  * @{
  */
 
-/** @brief This Service is used to open or renew a SecureChannel that can be
-   used to ensure Confidentiality and Integrity for Message exchange during a
-   Session. */
+/**
+ * Open or renew a SecureChannel that can be used to ensure Confidentiality and
+ * Integrity for Message exchange during a Session.
+ */
 void Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
                                const UA_OpenSecureChannelRequest *request,
                                UA_OpenSecureChannelResponse *response);
 
-/** @brief This Service is used to terminate a SecureChannel. */
+/** Used to terminate a SecureChannel. */
 void Service_CloseSecureChannel(UA_Server *server, UA_Int32 channelId);
+
 /** @} */
 
 /**
@@ -63,26 +66,26 @@ void Service_CloseSecureChannel(UA_Server *server, UA_Int32 channelId);
  */
 
 /**
- * @brief This Service is used by an OPC UA Client to create a Session and the
- * Server returns two values which uniquely identify the Session. The first
- * value is the sessionId which is used to identify the Session in the audit
- * logs and in the Server’s address space. The second is the authenticationToken
- * which is used to associate an incoming request with a Session.
+ * Used by an OPC UA Client to create a Session and the Server returns two
+ * values which uniquely identify the Session. The first value is the sessionId
+ * which is used to identify the Session in the audit logs and in the Server’s
+ * address space. The second is the authenticationToken which is used to
+ * associate an incoming request with a Session.
  */
 void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                            const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response);
 
 /**
- * @brief This Service is used by the Client to submit its SoftwareCertificates
- * to the Server for validation and to specify the identity of the user
- * associated with the Session. This Service request shall be issued by the
- * Client before it issues any other Service request after CreateSession.
- * Failure to do so shall cause the Server to close the Session.
+ * Used by the Client to submit its SoftwareCertificates to the Server for
+ * validation and to specify the identity of the user associated with the
+ * Session. This Service request shall be issued by the Client before it issues
+ * any other Service request after CreateSession. Failure to do so shall cause
+ * the Server to close the Session.
  */
 void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                              const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response);
 
-/** @brief This Service is used to terminate a Session. */
+/** Used to terminate a Session. */
 void Service_CloseSession(UA_Server *server, const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response);
 // Service_Cancel
 /** @} */
@@ -97,16 +100,16 @@ void Service_CloseSession(UA_Server *server, const UA_CloseSessionRequest *reque
  * @{
  */
 
-/** @brief This Service is used to add one or more Nodes into the AddressSpace hierarchy. */
+/** Used to add one or more Nodes into the AddressSpace hierarchy. */
 void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesRequest *request, UA_AddNodesResponse *response);
 
-/** @brief This Service is used to add one or more References to one or more Nodes. */
+/** Used to add one or more References to one or more Nodes. */
 void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddReferencesRequest *request, UA_AddReferencesResponse *response);
 
-/** @brief This Service is used to delete one or more Nodes from the AddressSpace. */
+/** Used to delete one or more Nodes from the AddressSpace. */
 void Service_DeleteNodes(UA_Server *server, UA_Session *session, const UA_DeleteNodesRequest *request, UA_DeleteNodesResponse *response);
 
-/** @brief This Service is used to delete one or more References of a Node. */
+/** Used to delete one or more References of a Node. */
 void Service_DeleteReferences(UA_Server *server, UA_Session *session, const UA_DeleteReferencesRequest *request, UA_DeleteReferencesResponse *response);
 
 /** @} */
@@ -121,14 +124,14 @@ void Service_DeleteReferences(UA_Server *server, UA_Session *session, const UA_D
  */
 
 /**
- * @brief This Service is used to discover the References of a specified Node.
- * The browse can be further limited by the use of a View. This Browse Service
- * also supports a primitive filtering capability.
+ * Used to discover the References of a specified Node. The browse can be
+ * further limited by the use of a View. This Browse Service also supports a
+ * primitive filtering capability.
  */
 void Service_Browse(UA_Server *server, UA_Session *session,
                     const UA_BrowseRequest *request, UA_BrowseResponse *response);
 
-/** @brief This Service is used to translate textual node paths to their respective ids. */
+/** Used to translate textual node paths to their respective ids. */
 void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                            const UA_TranslateBrowsePathsToNodeIdsRequest *request,
                                            UA_TranslateBrowsePathsToNodeIdsResponse *response);
@@ -164,21 +167,19 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
  */
 
 /**
- * @brief This Service is used to read one or more Attributes of one or more
- * Nodes. For constructed Attribute values whose elements are indexed, such as
- * an array, this Service allows Clients to read the entire set of indexed
- * values as a composite, to read individual elements or to read ranges of
- * elements of the composite.
+ * Used to read one or more Attributes of one or more Nodes. For constructed
+ * Attribute values whose elements are indexed, such as an array, this Service
+ * allows Clients to read the entire set of indexed values as a composite, to
+ * read individual elements or to read ranges of elements of the composite.
  */
 void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request, UA_ReadResponse *response);
 // Service_HistoryRead
 
 /**
- * @brief This Service is used to write one or more Attributes of one or more
- *  Nodes. For constructed Attribute values whose elements are indexed, such as
- *  an array, this Service allows Clients to write the entire set of indexed
- *  values as a composite, to write individual elements or to write ranges of
- *  elements of the composite.
+ * Used to write one or more Attributes of one or more Nodes. For constructed
+ * Attribute values whose elements are indexed, such as an array, this Service
+ * allows Clients to write the entire set of indexed values as a composite, to
+ * write individual elements or to write ranges of elements of the composite.
  */
 void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request, UA_WriteResponse *response);
 // Service_HistoryUpdate
@@ -188,7 +189,7 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
  * @name Method Service Set
  *
  * The Method Service Set defines the means to invoke methods. A method shall be
-   a component of an Object.
+ * a component of an Object.
  *
  * @{
  */
@@ -205,12 +206,12 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
  * @{
  */
 
-/**
- * @brief This Service is used to create and add one or more MonitoredItems to a
- * Subscription. A MonitoredItem is deleted automatically by the Server when the
- * Subscription is deleted. Deleting a MonitoredItem causes its entire set of
- * triggered item links to be deleted, but has no effect on the MonitoredItems
- * referenced by the triggered items.
+/*
+ * Used to create and add one or more MonitoredItems to a Subscription. A
+ * MonitoredItem is deleted automatically by the Server when the Subscription is
+ * deleted. Deleting a MonitoredItem causes its entire set of triggered item
+ * links to be deleted, but has no effect on the MonitoredItems referenced by
+ * the triggered items.
  */
 /* UA_Int32 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session, */
 /*                                       const UA_CreateMonitoredItemsRequest *request, */
@@ -245,6 +246,7 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
 // Service_Republish
 // Service_TransferSubscription
 // Service_DeleteSubscription
+/** @} */
 /** @} */
 
 #endif /* UA_SERVICES_H_ */

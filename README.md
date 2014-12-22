@@ -35,49 +35,38 @@ Or even better, help us improving open62541 by sending bug reports/bugfixes on g
 #include "logger_stdout.h"
 #include "networklayer_tcp.h"
 
+#define WORKER_THREADS 2 /* if multithreading is enabled */
+#define PORT 16664
+
 UA_Boolean running = UA_TRUE;
-void stopHandler(int sign) {
+void signalHandler(int sign) {
 	running = UA_FALSE;
 }
 
-void serverCallback(UA_Server *server) {
-    // add your maintenance functionality here
-    printf("does whatever servers do\n");
-}
-
 int main(int argc, char** argv) {
-	signal(SIGINT, stopHandler); /* catches ctrl-c */
+    /* catch ctrl-c */
+	signal(SIGINT, signalHandler);
 
     /* init the server */
-	#define PORT 16664
-	UA_String endpointUrl;
-	UA_String_copyprintf("opc.tcp://127.0.0.1:%i", &endpointUrl, PORT);
-	UA_Server *server = UA_Server_new(&endpointUrl, NULL);
+	UA_Server *server = UA_Server_new();
+    NetworklayerTCP *nl = NetworkLayerTCP_new(UA_ConnectionConfig_standard, PORT);
+    UA_Server_addNetworkLayer(server, nl);
 
     /* add a variable node */
     UA_Int32 myInteger = 42;
     UA_String myIntegerName;
     UA_STRING_STATIC(myIntegerName, "The Answer");
     UA_Server_addScalarVariableNode(server,
-                 /* browse name, the value and the datatype's vtable */
+                 /* the browse name, the value, and the datatype vtable */
                  &myIntegerName, (void*)&myInteger, &UA_TYPES[UA_INT32],
-                 /* the parent node where the variable shall be attached */
+                 /* the parent node of the variable */
                  &UA_NODEIDS[UA_OBJECTSFOLDER],
                  /* the (hierarchical) referencetype from the parent */
-                 &UA_NODEIDS[UA_HASCOMPONENT]);
-
-    /* attach a network layer */
-	NetworklayerTCP* nl = NetworklayerTCP_new(UA_ConnectionConfig_standard, PORT);
-	printf("Server started, connect to to opc.tcp://127.0.0.1:%i\n", PORT);
+                 &UA_NODEIDS[UA_ORGANIZES]);
 
     /* run the server loop */
-	struct timeval callback_interval = {1, 0}; // 1 second
-	NetworkLayerTCP_run(nl, server, callback_interval, serverCallback, &running);
-    
-    /* clean up */
-	NetworklayerTCP_delete(nl);
+    UA_StatusCode retval = UA_Server_run(server, WORKER_THREADS, &running);
 	UA_Server_delete(server);
-    UA_String_deleteMembers(&endpointUrl);
-	return 0;
+	return retval;
 }
 ```

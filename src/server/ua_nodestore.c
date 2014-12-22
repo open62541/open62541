@@ -35,7 +35,7 @@ static hash_t const primes[] = {
     134217689, 268435399,  536870909,  1073741789, 2147483647,  4294967291
 };
 
-static INLINE UA_Int16 higher_prime_index(hash_t n) {
+static UA_Int16 higher_prime_index(hash_t n) {
     UA_UInt16 low  = 0;
     UA_UInt16 high = sizeof(primes) / sizeof(hash_t);
     while(low != high) {
@@ -103,10 +103,10 @@ static UA_StatusCode expand(UA_NodeStore *ns) {
     UA_UInt32 nindex = higher_prime_index(count * 2);
     UA_Int32 nsize = primes[nindex];
     struct nodeEntry **nentries;
-    if(!(nentries = UA_alloc(sizeof(struct nodeEntry *) * nsize)))
+    if(!(nentries = UA_malloc(sizeof(struct nodeEntry *) * nsize)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    memset(nentries, 0, nsize * sizeof(struct nodeEntry *));
+    UA_memset(nentries, 0, nsize * sizeof(struct nodeEntry *));
     struct nodeEntry **oentries = ns->entries;
     ns->entries = nentries;
     ns->size    = nsize;
@@ -196,9 +196,9 @@ static INLINE struct nodeEntry * nodeEntryFromNode(const UA_Node *node) {
     }
 
     struct nodeEntry *entry;
-    if(!(entry = UA_alloc(sizeof(struct nodeEntry) - sizeof(UA_Node) + nodesize)))
+    if(!(entry = UA_malloc(sizeof(struct nodeEntry) - sizeof(UA_Node) + nodesize)))
         return UA_NULL;
-    memcpy((void *)&entry->node, node, nodesize);
+    UA_memcpy((void *)&entry->node, node, nodesize);
     UA_free((void*)node);
     return entry;
 }
@@ -209,17 +209,17 @@ static INLINE struct nodeEntry * nodeEntryFromNode(const UA_Node *node) {
 
 UA_NodeStore * UA_NodeStore_new() {
     UA_NodeStore *ns;
-    if(!(ns = UA_alloc(sizeof(UA_NodeStore))))
+    if(!(ns = UA_malloc(sizeof(UA_NodeStore))))
         return UA_NULL;
 
     ns->sizePrimeIndex = higher_prime_index(32);
     ns->size = primes[ns->sizePrimeIndex];
     ns->count = 0;
-    if(!(ns->entries = UA_alloc(sizeof(struct nodeEntry *) * ns->size))) {
+    if(!(ns->entries = UA_malloc(sizeof(struct nodeEntry *) * ns->size))) {
         UA_free(ns);
         return UA_NULL;
     }
-    memset(ns->entries, 0, ns->size * sizeof(struct nodeEntry *));
+    UA_memset(ns->entries, 0, ns->size * sizeof(struct nodeEntry *));
     return ns;
 }
 

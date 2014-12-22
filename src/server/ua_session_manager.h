@@ -25,20 +25,10 @@ UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager,
 UA_StatusCode UA_SessionManager_removeSession(UA_SessionManager *sessionManager,
                                               UA_NodeId         *sessionId);
 
-/**
- * @brief finds the session which is identified by the sessionId
- * @param sessionId the session id is used to identify the unknown session
- * @param session the session object is returned if no error occurs
- * @return error code
- */
+/** Finds the session which is identified by the sessionId */
 UA_StatusCode UA_SessionManager_getSessionById(UA_SessionManager *sessionManager,
                                                UA_NodeId *sessionId, UA_Session **session);
 
-/**
- * @param token authentication token which is used to get the session object
- * @param session output, session object which is identified by the authentication token
- * @return error code
- */
 UA_StatusCode UA_SessionManager_getSessionByToken(UA_SessionManager *sessionManager,
                                                   UA_NodeId *token, UA_Session **session);
 

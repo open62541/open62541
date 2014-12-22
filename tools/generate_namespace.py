@@ -188,7 +188,7 @@ for row in rows:
            ",\n.copy=(UA_Int32(*)(void const * ,void*))%(name)s_copy" +
            ",\n.delete=(void(*)(void *))%(name)s_delete" +
            ",\n.deleteMembers=(void(*)(void *))%(name)s_deleteMembers" +
-           ",\n#ifdef DEBUG //FIXME: seems to be okay atm, however a pointer to a noop function would be more safe" + 
+           ",\n#ifdef UA_DEBUG //FIXME: seems to be okay atm, however a pointer to a noop function would be more safe" + 
            "\n.print=(void(*)(const void *, FILE *))%(name)s_print," +
            "\n#endif" + 
            "\n.memSize=" + ("sizeof(%(name)s)" if (name != "UA_InvalidType") else "0") +

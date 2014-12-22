@@ -1,5 +1,5 @@
-#ifndef UA_TYPES_INTERNAL_H_
-#define UA_TYPES_INTERNAL_H_
+#ifndef UA_TYPES_MACROS_H_
+#define UA_TYPES_MACROS_H_
 
 /* Macros for type implementations */
 
@@ -12,7 +12,7 @@
     
 #define UA_TYPE_NEW_DEFAULT(TYPE)                             \
     TYPE * TYPE##_new() {                                     \
-        TYPE *p = UA_alloc(sizeof(TYPE));                     \
+        TYPE *p = UA_malloc(sizeof(TYPE));                     \
         if(p) TYPE##_init(p);                                 \
         return p;                                             \
     }
@@ -56,7 +56,7 @@
         return TYPE_AS##_copy((TYPE_AS *)src, (TYPE_AS *)dst); \
     }
 
-#ifdef DEBUG //print functions only in debug mode
+#ifdef UA_DEBUG //print functions only in debug mode
 #define UA_TYPE_PRINT_AS(TYPE, TYPE_AS)              \
     void TYPE##_print(TYPE const *p, FILE *stream) { \
         TYPE_AS##_print((TYPE_AS *)p, stream);       \
@@ -73,4 +73,4 @@
     UA_TYPE_COPY_AS(TYPE, TYPE_AS)          \
     UA_TYPE_PRINT_AS(TYPE, TYPE_AS)
 
-#endif /* UA_TYPES_INTERNAL_H_ */
+#endif /* UA_TYPES_MACROS_H_ */

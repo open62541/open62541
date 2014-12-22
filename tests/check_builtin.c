@@ -1117,7 +1117,7 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithVariant) {
 END_TEST
 START_TEST(UA_DateTime_toStructShallWorkOnExample) {
 	// given
-	UA_DateTime src = 13974671891234567;
+	UA_DateTime src = 13974671891234567 + (11644473600 * 10000000); // ua counts since 1601, unix since 1970
 	//1397467189... is Mon, 14 Apr 2014 09:19:49 GMT
 	//...1234567 are the milli-, micro- and nanoseconds
 	UA_DateTimeStruct dst;
@@ -1134,7 +1134,7 @@ START_TEST(UA_DateTime_toStructShallWorkOnExample) {
 	ck_assert_int_eq(dst.hour, 9);
 
 	ck_assert_int_eq(dst.day, 14);
-	ck_assert_int_eq(dst.mounth, 4);
+	ck_assert_int_eq(dst.month, 4);
 	ck_assert_int_eq(dst.year, 2014);
 }
 END_TEST
@@ -1195,7 +1195,7 @@ START_TEST(UA_Array_copyByteArrayShallWorkOnExample) {
 	UA_Byte  *dstArray;
 	UA_Int32  size = 5;
 	UA_Int32  i    = 0;
-	testString.data = UA_alloc(size);
+	testString.data = UA_malloc(size);
 	testString.data[0] = 'O';
 	testString.data[1] = 'P';
 	testString.data[2] = 'C';
@@ -1405,7 +1405,7 @@ START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
 	UA_Variant value, copiedValue;
 	UA_Variant_init(&value);
 	UA_Variant_init(&copiedValue);
-	value.storage.data.dataPtr = UA_alloc(sizeof(UA_String));
+	value.storage.data.dataPtr = UA_malloc(sizeof(UA_String));
 	*((UA_String*)value.storage.data.dataPtr) = testString;
 	value.vt = &UA_TYPES[UA_STRING];
 	value.storage.data.arrayLength = 1;
@@ -1437,7 +1437,7 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
 	UA_String_copycstring("opc ua", &srcArray[2]);
 
 	UA_Int32 *dimensions;
-	dimensions = UA_alloc(sizeof(UA_Int32));
+	dimensions = UA_malloc(sizeof(UA_Int32));
 	dimensions[0] = 3;
 
 	UA_Variant value, copiedValue;

@@ -1,5 +1,10 @@
+#ifdef UA_MULTITHREADING
+#define _LGPL_SOURCE
+#include <urcu.h>
+//#include <urcu-call-rcu.h>
+#endif
+
 #include "ua_server_internal.h"
-#include "ua_services_internal.h" // AddReferences
 #include "ua_namespace_0.h"
 #include "ua_securechannel_manager.h"
 #include "ua_session_manager.h"
@@ -12,7 +17,6 @@
 
 static void UA_ExternalNamespace_init(UA_ExternalNamespace *ens) {
 	ens->index = 0;
-    memset(&ens->externalNodeStore, 0, sizeof(UA_ExternalNodeStore));
 	UA_String_init(&ens->url);
 }
 
@@ -21,11 +25,37 @@ static void UA_ExternalNamespace_deleteMembers(UA_ExternalNamespace *ens) {
     ens->externalNodeStore.delete(ens->externalNodeStore.ensHandle);
 }
 
+/*****************/
+/* Configuration */
+/*****************/
+
+void UA_Server_addNetworkLayer(UA_Server *server, UA_NetworkLayer networkLayer) {
+    server->nls = UA_realloc(server->nls, sizeof(UA_NetworkLayer)*(server->nlsSize+1));
+    server->nls[server->nlsSize] = networkLayer;
+    server->nlsSize++;
+}
+
+void UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate) {
+    UA_ByteString_copy(&certificate, &server->serverCertificate);
+}
+
 /**********/
 /* Server */
 /**********/
 
 void UA_Server_delete(UA_Server *server) {
+    // The server needs to be stopped before it can be deleted
+
+    // Delete the network layers
+    for(UA_Int32 i=0;i<server->nlsSize;i++) {
+        server->nls[i].delete(server->nls[i].nlHandle);
+    }
+    UA_free(server->nls);
+
+    // Delete the timed work
+    UA_Server_deleteTimedWork(server);
+
+    // Delete all internal data
     UA_ApplicationDescription_deleteMembers(&server->description);
     UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
     UA_SessionManager_deleteMembers(&server->sessionManager);
@@ -33,25 +63,40 @@ void UA_Server_delete(UA_Server *server) {
     UA_ByteString_deleteMembers(&server->serverCertificate);
     UA_Array_delete(server->endpointDescriptions, server->endpointDescriptionsSize, &UA_TYPES[UA_ENDPOINTDESCRIPTION]);
     UA_free(server);
+#ifdef UA_MULTITHREADING
+    rcu_barrier(); // wait for all scheduled call_rcu work to complete
+#endif
 }
 
-UA_Server * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertificate) {
-    UA_Server *server = UA_alloc(sizeof(UA_Server));
+UA_Server * UA_Server_new() {
+    UA_Server *server = UA_malloc(sizeof(UA_Server));
     if(!server)
         return UA_NULL;
-    
+
+    LIST_INIT(&server->timedWork);
+#ifdef UA_MULTITHREADING
+    rcu_init();
+	cds_wfcq_init(&server->dispatchQueue_head, &server->dispatchQueue_tail);
+    server->delayedWork = UA_NULL;
+#endif
+
+    // random seed
+    server->random_seed = (UA_UInt32) UA_DateTime_now();
+
+    // networklayers
+    server->nls = UA_NULL;
+    server->nlsSize = 0;
+
+    UA_ByteString_init(&server->serverCertificate);
+        
     // mockup application description
     UA_ApplicationDescription_init(&server->description);
-    UA_String_copycstring("urn:servername:open62541:application", &server->description.productUri);
-    UA_String_copycstring("http://open62541.info/applications/4711", &server->description.applicationUri);
-    UA_LocalizedText_copycstring("The open62541 application", &server->description.applicationName);
+    UA_String_copycstring("urn:unconfigured:open62541:application", &server->description.productUri);
+    UA_String_copycstring("http://unconfigured.open62541/applications/", &server->description.applicationUri);
+    UA_LocalizedText_copycstring("Unconfigured open62541 application", &server->description.applicationName);
     server->description.applicationType = UA_APPLICATIONTYPE_SERVER;
     server->externalNamespacesSize = 0;
     server->externalNamespaces = UA_NULL;
-
-    UA_ByteString_init(&server->serverCertificate);
-    if(serverCertificate)
-        UA_ByteString_copy(serverCertificate, &server->serverCertificate);
 
     // mockup endpoint description
     server->endpointDescriptionsSize = 1;
@@ -62,16 +107,16 @@ UA_Server * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertifica
     UA_String_copycstring("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary", &endpoint->transportProfileUri);
 
     endpoint->userIdentityTokensSize = 1;
-    endpoint->userIdentityTokens = UA_alloc(sizeof(UA_UserTokenPolicy));
+    endpoint->userIdentityTokens = UA_malloc(sizeof(UA_UserTokenPolicy));
     UA_UserTokenPolicy_init(endpoint->userIdentityTokens);
     UA_String_copycstring("my-anonymous-policy", &endpoint->userIdentityTokens->policyId); // defined per server
     endpoint->userIdentityTokens->tokenType = UA_USERTOKENTYPE_ANONYMOUS;
 
-    UA_String_copy(endpointUrl, &endpoint->endpointUrl);
-    /* The standard says "the HostName specified in the Server Certificate is the
-       same as the HostName contained in the endpointUrl provided in the
-       EndpointDescription */
-    UA_String_copy(&server->serverCertificate, &endpoint->serverCertificate);
+    /* UA_String_copy(endpointUrl, &endpoint->endpointUrl); */
+    /* /\* The standard says "the HostName specified in the Server Certificate is the */
+    /*    same as the HostName contained in the endpointUrl provided in the */
+    /*    EndpointDescription *\/ */
+    /* UA_String_copy(&server->serverCertificate, &endpoint->serverCertificate); */
     UA_ApplicationDescription_copy(&server->description, &endpoint->server);
     server->endpointDescriptions = endpoint;
 
@@ -80,7 +125,7 @@ UA_Server * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertifica
 #define TOKENLIFETIME 10000
 #define STARTTOKENID 1
     UA_SecureChannelManager_init(&server->secureChannelManager, MAXCHANNELCOUNT,
-                                 TOKENLIFETIME, STARTCHANNELID, STARTTOKENID, endpointUrl);
+                                 TOKENLIFETIME, STARTCHANNELID, STARTTOKENID);
 
 #define MAXSESSIONCOUNT 1000
 #define SESSIONLIFETIME 10000
@@ -410,7 +455,7 @@ UA_Server * UA_Server_new(UA_String *endpointUrl, UA_ByteString *serverCertifica
                           &((UA_String *)(namespaceArray->value.storage.data.dataPtr))[0]);
     UA_String_copycstring("urn:myServer:myApplication",
                           &((UA_String *)(namespaceArray->value.storage.data.dataPtr))[1]);
-    UA_UInt32 *dimensions = UA_alloc(sizeof(UA_UInt32));
+    UA_UInt32 *dimensions = UA_malloc(sizeof(UA_UInt32));
     if(dimensions) {
         *dimensions = 2;
         namespaceArray->arrayDimensions = dimensions;

@@ -1,9 +1,10 @@
-#include <time.h>
-#include <stdlib.h>
-
 #include "ua_session.h"
 #include "ua_util.h"
 #include "ua_statuscodes.h"
+
+#ifdef UA_MULTITHREADING
+#include <urcu/uatomic.h>
+#endif
 
 UA_Session anonymousSession = {
     .clientDescription =  {.applicationUri = {-1, UA_NULL},
@@ -42,33 +43,17 @@ UA_Session adminSession = {
     .channel = UA_NULL};
 
 UA_Session * UA_Session_new() {
-    UA_Session *s = UA_alloc(sizeof(UA_Session));
+    UA_Session *s = UA_malloc(sizeof(UA_Session));
     if(s) UA_Session_init(s);
     return s;
 }
 
-/* mock up function to generate tokens for authentication */
-UA_StatusCode UA_Session_generateToken(UA_NodeId *newToken) {
-    //Random token generation
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    srand(time(UA_NULL));
-
-    UA_Int32 i, r = 0;
+/* TODO: Nobody seems to call this function right now */
+UA_StatusCode UA_Session_generateToken(UA_NodeId *newToken, UA_UInt32 *seed) {
     newToken->namespaceIndex = 0; // where else?
     newToken->identifierType = UA_NODEIDTYPE_GUID;
-    newToken->identifier.guid.data1 = rand();
-    r = rand();
-    newToken->identifier.guid.data2 = (UA_UInt16)((r>>16) );
-    r = rand();
-    /* UA_Int32 r1 = (r>>16); */
-    /* UA_Int32 r2 = r1 & 0xFFFF; */
-    /* r2 = r2 * 1; */
-    newToken->identifier.guid.data3 = (UA_UInt16)((r>>16) );
-    for(i = 0;i < 8;i++) {
-        r = rand();
-        newToken->identifier.guid.data4[i] = (UA_Byte)((r>>28) );
-    }
-    return retval;
+    newToken->identifier.guid = UA_Guid_random(seed);
+    return UA_STATUSCODE_GOOD;
 }
 
 void UA_Session_init(UA_Session *session) {
@@ -117,4 +102,42 @@ UA_StatusCode UA_Session_getPendingLifetime(UA_Session *session, UA_Double *pend
 
     *pendingLifetime_ms = (session->validTill - UA_DateTime_now())/10000000; //difference in ms
     return UA_STATUSCODE_GOOD;
+}
+
+void UA_SecureChannel_detachSession(UA_SecureChannel *channel) {
+#ifdef UA_MULTITHREADING
+    UA_Session *session = channel->session;
+    if(session)
+        uatomic_cmpxchg(&session->channel, channel, UA_NULL);
+    uatomic_set(&channel->session, UA_NULL);
+#else
+    if(channel->session)
+        channel->session->channel = UA_NULL;
+    channel->session = UA_NULL;
+#endif
+}
+
+void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *session) {
+#ifdef UA_MULTITHREADING
+    if(uatomic_cmpxchg(&session->channel, UA_NULL, channel) == UA_NULL)
+        uatomic_set(&channel->session, session);
+#else
+    if(session->channel != UA_NULL)
+        return;
+    session->channel = channel;
+    channel->session = session;
+#endif
+}
+
+void UA_Session_detachSecureChannel(UA_Session *session) {
+#ifdef UA_MULTITHREADING
+    UA_SecureChannel *channel = session->channel;
+    if(channel)
+        uatomic_cmpxchg(&channel->session, session, UA_NULL);
+    uatomic_set(&session->channel, UA_NULL);
+#else
+    if(session->channel)
+        session->channel->session = UA_NULL;
+    session->channel = UA_NULL;
+#endif
 }

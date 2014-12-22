@@ -7,7 +7,7 @@
 #include "ua_util.h"
 #include "check.h"
 
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
 #include <pthread.h>
 #include <urcu.h>
 #endif
@@ -60,7 +60,7 @@ START_TEST(replaceNonExistingNode) {
 END_TEST
 
 START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
    	rcu_register_thread();
 #endif
 	// given
@@ -74,14 +74,14 @@ START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
 	UA_NodeStore_release(n1);
 	UA_NodeStore_release(nr);
 	UA_NodeStore_delete(ns);
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
 	rcu_unregister_thread();
 #endif
 }
 END_TEST
 
 START_TEST(failToFindNodeInOtherUA_NodeStore) {
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
    	rcu_register_thread();
 #endif
 	// given
@@ -98,14 +98,14 @@ START_TEST(failToFindNodeInOtherUA_NodeStore) {
 	// finally
 	UA_Node_delete(n);
 	UA_NodeStore_delete(ns);
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
 	rcu_unregister_thread();
 #endif
 }
 END_TEST
 
 START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
    	rcu_register_thread();
 #endif
 	// given
@@ -131,14 +131,14 @@ START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
 	UA_NodeStore_release(n3);
 	UA_NodeStore_release(nr);
 	UA_NodeStore_delete(ns);
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
 	rcu_unregister_thread();
 #endif
 }
 END_TEST
 
 START_TEST(iterateOverUA_NodeStoreShallNotVisitEmptyNodes) {
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
    	rcu_register_thread();
 #endif
 	// given
@@ -165,14 +165,14 @@ START_TEST(iterateOverUA_NodeStoreShallNotVisitEmptyNodes) {
 	ck_assert_int_eq(visitCnt, 6);
 	// finally
 	UA_NodeStore_delete(ns);
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
 	rcu_unregister_thread();
 #endif
 }
 END_TEST
 
 START_TEST(findNodeInExpandedNamespace) {
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
    	rcu_register_thread();
 #endif
 	// given
@@ -192,14 +192,14 @@ START_TEST(findNodeInExpandedNamespace) {
 	UA_free((void*)n);
 	UA_NodeStore_release(nr);
 	UA_NodeStore_delete(ns);
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
 	rcu_unregister_thread();
 #endif
 }
 END_TEST
 
 START_TEST(iterateOverExpandedNamespaceShallNotVisitEmptyNodes) {
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
    	rcu_register_thread();
 #endif
 	// given
@@ -219,14 +219,14 @@ START_TEST(iterateOverExpandedNamespaceShallNotVisitEmptyNodes) {
 	ck_assert_int_eq(visitCnt, 200);
 	// finally
 	UA_NodeStore_delete(ns);
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
 	rcu_unregister_thread();
 #endif
 }
 END_TEST
 
 START_TEST(failToFindNonExistantNodeInUA_NodeStoreWithSeveralEntries) {
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
    	rcu_register_thread();
 #endif
 	// given
@@ -250,7 +250,7 @@ START_TEST(failToFindNonExistantNodeInUA_NodeStoreWithSeveralEntries) {
 	// finally
 	UA_free((void *)n6);
 	UA_NodeStore_delete(ns);
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
 	rcu_unregister_thread();
 #endif
 }
@@ -260,7 +260,7 @@ END_TEST
 /* Performance Profiling Test Cases */
 /************************************/
 
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
 struct UA_NodeStoreProfileTest {
 	UA_NodeStore *ns;
 	UA_Int32 min_val;
@@ -290,7 +290,7 @@ void *profileGetThread(void *arg) {
 #endif
 
 START_TEST(profileGetDelete) {
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
    	rcu_register_thread();
 #endif
 
@@ -304,7 +304,7 @@ START_TEST(profileGetDelete) {
 	}
 	clock_t begin, end;
 	begin = clock();
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
 #define THREADS 4
     pthread_t t[THREADS];
 	struct UA_NodeStoreProfileTest p[THREADS];
@@ -333,7 +333,7 @@ START_TEST(profileGetDelete) {
 
 	UA_NodeStore_delete(ns);
 
-#ifdef MULTITHREADING
+#ifdef UA_MULTITHREADING
 	rcu_unregister_thread();
 #endif
 }

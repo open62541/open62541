@@ -87,7 +87,7 @@ UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager,
     if(sessionManager->currentSessionCount >= sessionManager->maxSessionCount)
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
 
-    struct session_list_entry *newentry = UA_alloc(sizeof(struct session_list_entry));
+    struct session_list_entry *newentry = UA_malloc(sizeof(struct session_list_entry));
     if(!newentry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 

@@ -2,9 +2,8 @@
 #define UA_ENCODING_AMOUNT ${UA_ENCODING_AMOUNT}
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
 
-#cmakedefine MULTITHREADING
-#cmakedefine MSVC
-#cmakedefine WIN32
+#cmakedefine UA_DEBUG
+#cmakedefine UA_MULTITHREADING
 
 /* Visibility */
 #ifdef MSVC
@@ -13,8 +12,9 @@
 #define INLINE inline
 #endif
 
-#if defined(_WIN32) || defined(__CYGWIN__)
-  #ifdef open62541_EXPORTS
+/* Function Export */
+#ifdef _WIN32
+  #ifdef UA_DYNAMIC_LINKING
     #ifdef __GNUC__
       #define UA_EXPORT __attribute__ ((dllexport))
     #else

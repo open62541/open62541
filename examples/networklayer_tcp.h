@@ -6,23 +6,17 @@
 #ifndef NETWORKLAYERTCP_H_
 #define NETWORKLAYERTCP_H_
 
-#ifdef WIN32
-  #include "winsock2.h"
-#else
-  #include <sys/mman.h>
-  #include <sys/wait.h>
-  #include <unistd.h>
-  #include <sys/time.h>
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 #include "ua_server.h"
 
-struct NetworklayerTCP;
-typedef struct NetworklayerTCP NetworklayerTCP;
+/** @brief Create the TCP networklayer and listen to the specified port */
+UA_NetworkLayer NetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UInt32 port);
 
-NetworklayerTCP * NetworklayerTCP_new(UA_ConnectionConfig localConf, UA_UInt32 port);
-void NetworklayerTCP_delete(NetworklayerTCP *layer);
-UA_StatusCode NetworkLayerTCP_run(NetworklayerTCP *layer, UA_Server *server, struct timeval tv,
-                                  void(*worker)(UA_Server*), UA_Boolean *running);
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* NETWORKLAYERTCP_H_ */

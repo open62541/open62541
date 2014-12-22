@@ -27,8 +27,7 @@ extern "C" {
  *
  * @defgroup logging Logging
  *
- * @brief Logging functionality is externally provided to the open62541 libary.
- * The server contains a logger-struct with function callbacks
+ * @brief Custom logging solutions can be "plugged in" with this interface
  */
 
 typedef enum UA_LoggerCategory {

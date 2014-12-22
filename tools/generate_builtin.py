@@ -9,6 +9,12 @@ from lxml import etree
 import inspect
 import argparse
 
+#####################
+# Utility functions #
+#####################
+
+print(sys.argv)
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--export-prototypes', action='store_true', help='make the prototypes (init, delete, copy, ..) of generated types visible for users of the library')
 parser.add_argument('--with-xml', action='store_true', help='generate xml encoding')
@@ -16,16 +22,18 @@ parser.add_argument('--with-json', action='store_true', help='generate json enco
 parser.add_argument('--only-nano', action='store_true', help='generate only the types for the nano profile')
 parser.add_argument('--only-needed', action='store_true', help='generate only types needed for compile')
 parser.add_argument('--additional-includes', action='store', help='include additional header files (separated by comma)')
-parser.add_argument('types', help='path/to/Opc.Ua.Types.bsd')
+parser.add_argument('xml', help='path/to/Opc.Ua.Types.bsd')
 parser.add_argument('outfile', help='outfile w/o extension')
 args = parser.parse_args()
+outname = args.outfile.split("/")[-1] 
+inname = args.xml.split("/")[-1]
         
 ns = {"opc": "http://opcfoundation.org/BinarySchema/"}
-tree = etree.parse(args.types)
+tree = etree.parse(args.xml)
 types = tree.xpath("/opc:TypeDictionary/*[not(self::opc:Import)]", namespaces=ns)
 
-fh = open(args.outfile + ".h",'w')
-fc = open(args.outfile + ".c",'w')
+fh = open(args.outfile + "_generated.h",'w')
+fc = open(args.outfile + "_generated.c",'w')
 
 # dirty hack. we go up the call frames to access local variables of the calling
 # function. this allows to shorten code and get %()s replaces with less clutter.
@@ -69,6 +77,10 @@ def camlCase2CCase(item):
 		return "my" + item
 	return item[:1].lower() + item[1:] if item else ''
 
+################################
+# Type Definition and Encoding #
+################################
+
 # are the types we need already in place? if not, postpone.
 def printableStructuredType(element):
     for child in element:
@@ -77,6 +89,15 @@ def printableStructuredType(element):
             if typename not in existing_types:
                 return False
     return True
+
+def printPrototypes(name):
+    if args.export_prototypes:
+        printh("UA_TYPE_PROTOTYPES(%(name)s)")
+    else:
+        printh("UA_TYPE_PROTOTYPES_NOEXPORT(%(name)s)")
+    printh("UA_TYPE_BINARY_ENCODING(%(name)s)")
+    if args.with_xml:
+        printh("UA_TYPE_XML_ENCODING(%(name)s)")
 
 def createEnumerated(element):	
     valuemap = OrderedDict()
@@ -93,11 +114,7 @@ def createEnumerated(element):
     printh("typedef enum { \n\t" +
            ",\n\t".join(map(lambda (key, value) : key.upper() + " = " + value, valuemap.iteritems())) +
            "\n} " + name + ";")
-    if args.export_prototypes:
-        printh("UA_TYPE_PROTOTYPES(" + name + ")")
-    else:
-        printh("UA_TYPE_PROTOTYPES_NOEXPORT(" + name + ")")
-    printh("UA_TYPE_BINARY_ENCODING(" + name + ")")
+    printPrototypes(name)
     printc("UA_TYPE_AS(" + name + ", UA_Int32)")
     printc("UA_TYPE_BINARY_ENCODING_AS(" + name + ", UA_Int32)")
     if args.with_xml:
@@ -113,12 +130,10 @@ def createOpaque(element):
         if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
             printh("/** @brief " + child.text + " */")
     printh("typedef UA_ByteString %(name)s;")
-    printh("UA_TYPE_PROTOTYPES(%(name)s)")
-    printh("UA_TYPE_BINARY_ENCODING(%(name)s)")
+    printPrototypes(name)
     printc("UA_TYPE_AS(%(name)s, UA_ByteString)")
     printc("UA_TYPE_BINARY_ENCODING_AS(%(name)s, UA_ByteString)")
     if args.with_xml:
-        printh("UA_TYPE_XML_ENCODING(" + name + ")\n")
         printc('''UA_TYPE_METHOD_CALCSIZEXML_NOTIMPL(%(name)s)
 UA_TYPE_METHOD_ENCODEXML_NOTIMPL(%(name)s)
 UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)\n''')
@@ -172,10 +187,7 @@ def createStructured(element):
         printh("typedef void* %(name)s;")
         
     # 3) function prototypes
-    printh("UA_TYPE_PROTOTYPES(" + name + ")")
-    printh("UA_TYPE_BINARY_ENCODING(" + name + ")")
-    if args.with_xml:
-        printh("UA_TYPE_XML_ENCODING(" + name + ")\n")
+    printPrototypes(name)
 
     # 4) CalcSizeBinary
     printc('''UA_UInt32 %(name)s_calcSizeBinary(%(name)s const * ptr) {
@@ -271,7 +283,7 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
     printc("\treturn retval;\n}\n")
 
     # 13) Print
-    printc('''#ifdef DEBUG''') 
+    printc('''#ifdef UA_DEBUG''') 
     printc('''void %(name)s_print(const %(name)s *p, FILE *stream) {
     fprintf(stream, "(%(name)s){");''')
     for i,(n,t) in enumerate(membermap.iteritems()):
@@ -286,28 +298,34 @@ UA_TYPE_METHOD_DECODEXML_NOTIMPL(%(name)s)''')
     printc('''\tfprintf(stream, "}");\n}''')
     printc('#endif');
     printc('''\n''')
+
+##########################
+# Header and Boilerplate #
+##########################
     
-	
-shortname = args.outfile.split("/")[-1] 
-print(shortname)
 printh('''/**
- * @file %(shortname)s.h
+ * @file %(outname)s_generated.h
  *
  * @brief Autogenerated data types defined in the UA standard
  *
- * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
- * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
+ * Generated from %(inname)s with script ''' + sys.argv[0] + '''
+ * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + '''
  */
 
-#ifndef ''' + shortname.upper() + '''_H_
-#define ''' + shortname.upper() + '''_H_
+#ifndef ''' + outname.upper() + '''_GENERATED_H_
+#define ''' + outname.upper() + '''_GENERATED_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "ua_types.h"
 #include "ua_types_encoding_binary.h"
 
-/** @ingroup ''' + shortname.split("_")[1] + '''
+/**
+ * @ingroup types
  *
- * @defgroup ''' + shortname + ''' Generated Types
+ * @defgroup ''' + outname + '''_generated Autogenerated ''' + outname + ''' Types
  *
  * @brief Data structures that are autogenerated from an XML-Schema.
  * @{
@@ -319,44 +337,39 @@ if args.additional_includes:
         printh("#include \"" + incl + "\"")
 
 printc('''/**
- * @file '''+sys.argv[2]+'''.c
+ * @file ''' + outname + '''_generated.c
  *
  * @brief Autogenerated function implementations to manage the data types defined in the UA standard
  *
- * Generated from '''+sys.argv[1]+''' with script '''+sys.argv[0]+'''
+ * Generated from %(inname)s with script '''+sys.argv[0]+'''
  * on host '''+platform.uname()[1]+''' by user '''+getpass.getuser()+''' at '''+ time.strftime("%Y-%m-%d %I:%M:%S")+'''
  */
  
-#include "''' + args.outfile.split("/")[-1] + '''.h"
-#include "ua_types_internal.h"
+#include "%(outname)s_generated.h"
+#include "ua_types_macros.h"
 #include "ua_namespace_0.h"
 #include "ua_util.h"\n''')
 
-# types for which we create a vector type
-arraytypes = set()
-fields = tree.xpath("//opc:Field", namespaces=ns)
-for field in fields:
-	if field.get("LengthField"):
-		arraytypes.add(stripTypename(field.get("TypeName")))
+##############################
+# Loop over types in the XML #
+##############################
+
+# # plugin handling
+# import os
+# files = [f for f in os.listdir('.') if os.path.isfile(f) and f[-3:] == ".py" and f[:7] == "plugin_"]
+# plugin_types = []
+# packageForType = OrderedDict()
+#
+# for f in files:
+# 	package = f[:-3]
+# 	exec "import " + package
+# 	exec "pluginSetup = " + package + ".setup()"
+# 	if pluginSetup["pluginType"] == "structuredObject":
+# 		plugin_types.append(pluginSetup["tagName"])
+# 		packageForType[pluginSetup["tagName"]] = [package,pluginSetup]
+# 		print("Custom object creation for tag " + pluginSetup["tagName"] + " imported from package " + package)
 
 deferred_types = OrderedDict()
-
-#plugin handling
-import os
-files = [f for f in os.listdir('.') if os.path.isfile(f) and f[-3:] == ".py" and f[:7] == "plugin_"]
-plugin_types = []
-packageForType = OrderedDict()
-
-for f in files:
-	package = f[:-3]
-	exec "import " + package
-	exec "pluginSetup = " + package + ".setup()"
-	if pluginSetup["pluginType"] == "structuredObject":
-		plugin_types.append(pluginSetup["tagName"])
-		packageForType[pluginSetup["tagName"]] = [package,pluginSetup]
-		print("Custom object creation for tag " + pluginSetup["tagName"] + " imported from package " + package)
-#end plugin handling
-
 for element in types:
 	name = element.get("Name")
 	if skipType(name):
@@ -376,16 +389,26 @@ for element in types:
 		existing_types.add(name)
 
 for name, element in deferred_types.iteritems():
-    if name in plugin_types:
-        #execute plugin if registered
-	exec "ret = " + packageForType[name][0]+"."+packageForType[name][1]["functionCall"]
-	if ret == "default":
-            createStructured(element)
-            existing_types.add(name)
-    else:
-	createStructured(element)
-        existing_types.add(name)
-printh('/// @} /* end of group */')
+    # if name in plugin_types:
+    #     #execute plugin if registered
+    #     exec "ret = " + packageForType[name][0]+"."+packageForType[name][1]["functionCall"]
+    #     if ret == "default":
+    #         createStructured(element)
+    #         existing_types.add(name)
+    # else:
+    createStructured(element)
+    existing_types.add(name)
+
+#############
+# Finish Up #
+#############
+
+printh('''
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
+/// @} /* end of group */''')
 printh('#endif')
 
 fh.close()

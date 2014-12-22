@@ -1,6 +1,6 @@
 #include "ua_server_internal.h"
+#include "ua_types_generated.h"
 #include "ua_services.h"
-#include "ua_services_internal.h"
 #include "ua_statuscodes.h"
 #include "ua_nodestore.h"
 #include "ua_namespace_0.h"
@@ -186,23 +186,24 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
         return;
     }
 
-    UA_StatusCode retval = UA_Array_new((void**)&response->results,
-                                        request->nodesToReadSize,
-                                        &UA_TYPES[UA_DATAVALUE]);
-    if(retval) {
-        response->responseHeader.serviceResult = retval;
-        return;
+    // if allocated on the stack from the "outside"
+    if(response->resultsSize <= 0) {
+        UA_StatusCode retval = UA_Array_new((void**)&response->results,
+                                            request->nodesToReadSize, &UA_TYPES[UA_DATAVALUE]);
+        if(retval) {
+            response->responseHeader.serviceResult = retval;
+            return;
+        }
     }
 
     /* ### Begin External Namespaces */
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * request->nodesToReadSize);
-    memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToReadSize);
+    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToReadSize);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * request->nodesToReadSize);
     for(UA_Int32 j = 0;j<server->externalNamespacesSize;j++) {
         UA_UInt32 indexSize = 0;
         for(UA_Int32 i = 0;i < request->nodesToReadSize;i++) {
-            if(request->nodesToRead[i].nodeId.namespaceIndex !=
-               server->externalNamespaces[j].index)
+            if(request->nodesToRead[i].nodeId.namespaceIndex != server->externalNamespaces[j].index)
                 continue;
             isExternal[i] = UA_TRUE;
             indices[indexSize] = i;
@@ -362,7 +363,7 @@ void Service_Write(UA_Server *server, UA_Session *session,
 
     /* ### Begin External Namespaces */
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * request->nodesToWriteSize);
-    memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToWriteSize);
+    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToWriteSize);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * request->nodesToWriteSize);
     for(UA_Int32 j = 0;j<server->externalNamespacesSize;j++) {
         UA_UInt32 indexSize = 0;

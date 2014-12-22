@@ -6,7 +6,7 @@ if(NOT WIN32)
     list(APPEND LIBS rt pthread)
 endif(NOT WIN32)
 if(MULTITHREADING)
-    list(APPEND LIBS urcu-cds urcu)
+    list(APPEND LIBS urcu-cds urcu urcu-common)
 endif(MULTITHREADING)
 
 # the unit test are built directly on the open62541 object files. so they can

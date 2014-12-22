@@ -84,7 +84,7 @@ static UA_StatusCode findRelevantReferenceTypes(UA_NodeStore *ns, const UA_NodeI
     UA_UInt32 currentIndex = 0;
     UA_UInt32 currentLastIndex = 0;
     UA_UInt32 currentArraySize = 20; // should be more than enough. if not, increase the array size.
-    UA_NodeId *typeArray = UA_alloc(sizeof(UA_NodeId) * currentArraySize);
+    UA_NodeId *typeArray = UA_malloc(sizeof(UA_NodeId) * currentArraySize);
     if(!typeArray)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -112,9 +112,9 @@ static UA_StatusCode findRelevantReferenceTypes(UA_NodeStore *ns, const UA_NodeI
 
             if(currentLastIndex + 1 >= currentArraySize) {
                 // we need to resize the array
-                UA_NodeId *newArray = UA_alloc(sizeof(UA_NodeId) * currentArraySize * 2);
+                UA_NodeId *newArray = UA_malloc(sizeof(UA_NodeId) * currentArraySize * 2);
                 if(newArray) {
-                    memcpy(newArray, typeArray, sizeof(UA_NodeId) * currentArraySize);
+                    UA_memcpy(newArray, typeArray, sizeof(UA_NodeId) * currentArraySize);
                     currentArraySize *= 2;
                     UA_free(typeArray);
                     typeArray = newArray;
@@ -184,7 +184,7 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
     /* We allocate an array that is probably too big. But since most systems
        have more than enough memory, this has zero impact on speed and
        performance. Call Array_delete with the actual content size! */
-    browseResult->references = UA_alloc(sizeof(UA_ReferenceDescription) * maxReferences);
+    browseResult->references = UA_malloc(sizeof(UA_ReferenceDescription) * maxReferences);
     if(!browseResult->references) {
         browseResult->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
     } else {

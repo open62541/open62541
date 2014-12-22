@@ -58,7 +58,7 @@ UA_Int32 closerCallback(UA_Connection *connection) {
 UA_Int32 stackTestFixture_create(UA_Connection_writeCallback write, UA_Connection_closeCallback close) {
 	UA_UInt32 fixtureHandle = stackTestFixture_getAndMarkFreeHandle();
 	stackTestFixture *fixture = fixtures[fixtureHandle];
-	UA_alloc((void**)&fixture->connection, sizeof(UA_Connection));
+	UA_malloc((void**)&fixture->connection, sizeof(UA_Connection));
 	fixture->respMsg.data   = fixture->respMsgBuffer;
 	fixture->respMsg.length = 0;
 	UA_Connection_init(fixture->connection, UA_ConnectionConfig_standard, fixture, close, write);
