@@ -31,18 +31,14 @@ index 87489b3..76c4aa0 100644
  	endif()
  endif()
  
-@@ -115,10 +113,10 @@ else()
+@@ -115,8 +113,8 @@ else()
  endif()
  
  add_library(open62541-objects OBJECT ${lib_sources}) # static version that exports all symbols
 -add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-objects>)
--target_compile_definitions(open62541 INTERFACE
--  $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,SHARED_LIBRARY>:UA_DYNAMIC_LINKING> # the UA_EXPORT macro is different when building the lib or using the lib
--)
+-target_compile_definitions(open62541-objects PUBLIC UA_DYNAMIC_LINKING)
 +add_library(open62541 $<TARGET_OBJECTS:open62541-objects>)
-+#target_compile_definitions(open62541 INTERFACE
-+#  $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,SHARED_LIBRARY>:UA_DYNAMIC_LINKING> # the UA_EXPORT macro is different when building the lib or using the lib
-+#)
++#target_compile_definitions(open62541-objects PUBLIC UA_DYNAMIC_LINKING)
  
  ## logging
  set(UA_LOGLEVEL 400 CACHE STRING "Level at which logs shall be reported")
