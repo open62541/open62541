@@ -19,8 +19,11 @@ For discussion and help, you can use
 - our [IRC channel](http://webchat.freenode.net/?channels=%23open62541)
 - the [bugtracker](https://github.com/acplt/open62541/issues)
 
-If open62541 is not fit for your needs, have a look at some [other open source OPC UA implementations](https://github.com/acplt/open62541/wiki/List-of-Open-Source-OPC-UA-Implementations).
-Or even better, help us improving open62541 by sending bug reports/bugfixes on github or the mailing list!
+### Contribute to open62541
+As an open source project, we invite new contributors to help improving open6241. If you are a developer, your bugfixes and new features are very welcome. Note that there are ways to contribute even without deep knowledge of the project or the UA standard:
+- Report bugs
+- Improve the documentation
+- Work on issues marked as "easy hacks"
 
 ### Example Server Implementation
 ```c
