@@ -185,7 +185,7 @@ for row in rows:
            ",\n.name=(UA_Byte*)&\"%(name)s\"" +
            ",\n.new=(void *(*)())%(name)s_new" +
            ",\n.init=(void(*)(void *))%(name)s_init"+
-           ",\n.copy=(UA_Int32(*)(void const * ,void*))%(name)s_copy" +
+           ",\n.copy=(UA_StatusCode(*)(void const * ,void*))%(name)s_copy" +
            ",\n.delete=(void(*)(void *))%(name)s_delete" +
            ",\n.deleteMembers=(void(*)(void *))%(name)s_deleteMembers" +
            ",\n#ifdef UA_DEBUG //FIXME: seems to be okay atm, however a pointer to a noop function would be more safe" + 
@@ -194,11 +194,11 @@ for row in rows:
            "\n.memSize=" + ("sizeof(%(name)s)" if (name != "UA_InvalidType") else "0") +
            ",\n.dynMembers=" + ("UA_FALSE" if (name in fixed_size) else "UA_TRUE") +
            ",\n.encodings={{.calcSize=(UA_Int32(*)(const void*))%(name)s_calcSizeBinary" +
-           ",\n.encode=(UA_Int32(*)(const void*,UA_ByteString*,UA_UInt32*))%(name)s_encodeBinary" +
-           ",\n.decode=(UA_Int32(*)(const UA_ByteString*,UA_UInt32*,void*))%(name)s_decodeBinary}" +
+           ",\n.encode=(UA_StatusCode(*)(const void*,UA_ByteString*,UA_UInt32*))%(name)s_encodeBinary" +
+           ",\n.decode=(UA_StatusCode(*)(const UA_ByteString*,UA_UInt32*,void*))%(name)s_decodeBinary}" +
            (",\n{.calcSize=(UA_Int32(*)(const void*))%(name)s_calcSizeXml" +
-            ",\n.encode=(UA_Int32(*)(const void*,UA_ByteString*,UA_UInt32*))%(name)s_encodeXml" +
-            ",\n.decode=(UA_Int32(*)(const UA_ByteString*,UA_UInt32*,void*))%(name)s_decodeXml}" if (args.with_xml) else "") +
+            ",\n.encode=(UA_StatusCode(*)(const void*,UA_ByteString*,UA_UInt32*))%(name)s_encodeXml" +
+            ",\n.decode=(UA_StatusCode(*)(const UA_ByteString*,UA_UInt32*,void*))%(name)s_decodeXml}" if (args.with_xml) else "") +
            "}},")
 
 printc('};\n')

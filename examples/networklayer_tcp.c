@@ -101,6 +101,8 @@ void writeCallback(TCPConnection *handle, UA_ByteStringArray gather_buf);
 static UA_StatusCode NetworkLayerTCP_add(NetworkLayerTCP *layer, UA_Int32 newsockfd) {
     setNonBlocking(newsockfd);
     TCPConnection *c = malloc(sizeof(TCPConnection));
+	if(!c)
+		return UA_STATUSCODE_BADINTERNALERROR;
 	c->sockfd = newsockfd;
     c->layer = layer;
     c->connection.state = UA_CONNECTION_OPENING;
@@ -110,6 +112,10 @@ static UA_StatusCode NetworkLayerTCP_add(NetworkLayerTCP *layer, UA_Int32 newsoc
     c->connection.write = (void (*)(void*, UA_ByteStringArray))writeCallback;
 
     layer->conLinks = realloc(layer->conLinks, sizeof(ConnectionLink)*(layer->conLinksSize+1));
+	if(!layer->conLinks) {
+		free(c);
+		return UA_STATUSCODE_BADINTERNALERROR;
+	}
     layer->conLinks[layer->conLinksSize].connection = c;
     layer->conLinks[layer->conLinksSize].sockfd = newsockfd;
     layer->conLinksSize++;
@@ -119,6 +125,10 @@ static UA_StatusCode NetworkLayerTCP_add(NetworkLayerTCP *layer, UA_Int32 newsoc
 // Takes the linked list of closed connections and returns the work for the server loop
 static UA_UInt32 batchDeleteLinks(NetworkLayerTCP *layer, UA_WorkItem **returnWork) {
     UA_WorkItem *work = malloc(sizeof(UA_WorkItem)*layer->conLinksSize);
+	if (!work) {
+		*returnWork = NULL;
+		return 0;
+	}
 #ifdef UA_MULTITHREADING
     struct deleteLink *d = uatomic_xchg(&layer->deleteLinkList, UA_NULL);
 #else
@@ -170,6 +180,10 @@ void closeConnection(TCPConnection *handle) {
 }
 #else
 void closeConnection(TCPConnection *handle) {
+	struct deleteLink *d = malloc(sizeof(struct deleteLink));
+	if(!d)
+		return;
+
     if(handle->connection.state == UA_CONNECTION_CLOSING)
         return;
     handle->connection.state = UA_CONNECTION_CLOSING;
@@ -179,7 +193,6 @@ void closeConnection(TCPConnection *handle) {
 	CLOSESOCKET(handle->sockfd);
 
     // Remove the link later in the main thread
-    struct deleteLink *d = malloc(sizeof(struct deleteLink));
     d->sockfd = handle->sockfd;
     d->next = handle->layer->deleteLinkList;
     handle->layer->deleteLinkList = d;
@@ -299,13 +312,16 @@ UA_Int32 NetworkLayerTCP_getWork(NetworkLayerTCP *layer, UA_WorkItem **workItems
 
 	// read from established sockets
     UA_Int32 j = itemsCount;
-    UA_ByteString buf = {-1, NULL};
+	UA_ByteString buf = { -1, NULL};
 	for(UA_Int32 i=0;i<layer->conLinksSize && j<itemsCount+resultsize;i++) {
 		if(!(FD_ISSET(layer->conLinks[i].sockfd, &layer->fdset)))
             continue;
 
-        if(buf.data == NULL)
-            buf.data = malloc(layer->conf.recvBufferSize);
+		if(!buf.data) {
+			buf.data = malloc(sizeof(UA_Byte) * layer->conf.recvBufferSize);
+			if(!buf.data)
+				break;
+		}
         
 #ifdef _WIN32
         buf.length = recv(layer->conLinks[i].sockfd, (char *)buf.data,
@@ -325,7 +341,7 @@ UA_Int32 NetworkLayerTCP_getWork(NetworkLayerTCP *layer, UA_WorkItem **workItems
         }
     }
 
-    if(buf.data != NULL)
+    if(buf.data)
         free(buf.data);
 
     if(j == 0) {

@@ -14,7 +14,7 @@
 #include "ua_util.h"
 
 #ifdef _MSC_VER
-#define RAND(SEED) rand(SEED)
+#define RAND(SEED) rand()
 #else
 #define RAND(SEED) rand_r(SEED)
 #endif
@@ -195,13 +195,13 @@ UA_StatusCode UA_String_copyprintf(char const *fmt, UA_String *dst, ...) {
     char src[UA_STRING_COPYPRINTF_BUFSIZE];
     va_list ap;
     va_start(ap, dst);
-#ifndef __MINGW32__
+#ifndef WIN32
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
     // vsnprintf should only take a literal and no variable to be secure
     UA_Int32 len = vsnprintf(src, UA_STRING_COPYPRINTF_BUFSIZE, fmt, ap);
-#ifndef __MINGW32__
+#ifndef WIN32
 #pragma GCC diagnostic pop
 #endif
     va_end(ap);
