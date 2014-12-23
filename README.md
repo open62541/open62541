@@ -21,9 +21,9 @@ For discussion and help, you can use
 
 ### Contribute to open62541
 As an open source project, we invite new contributors to help improving open6241. If you are a developer, your bugfixes and new features are very welcome. Note that there are ways to contribute even without deep knowledge of the project or the UA standard:
-- Report bugs
-- Improve the documentation
-- Work on issues marked as "easy hacks"
+- [Report bugs](https://github.com/acplt/open62541/issues)
+- Improve the [documentation](http://open62541.org/doc)
+- Work on issues marked as "[easy hacks](https://github.com/acplt/open62541/labels/easy%20hack)"
 
 ### Example Server Implementation
 ```c
