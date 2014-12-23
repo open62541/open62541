@@ -153,7 +153,7 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, const UA_Node **node, UA_Boo
     struct nodeEntry *entry;
     if(!(entry = UA_malloc(sizeof(struct nodeEntry) - sizeof(UA_Node) + nodesize)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    memcpy((void*)&entry->node, *node, nodesize);
+    UA_memcpy((void*)&entry->node, *node, nodesize);
 
     cds_lfht_node_init(&entry->htn);
     entry->refcount = ALIVE_BIT;
@@ -238,7 +238,7 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode,
     struct nodeEntry *newEntry;
     if(!(newEntry = UA_malloc(sizeof(struct nodeEntry) - sizeof(UA_Node) + nodesize)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    memcpy((void*)&newEntry->node, *node, nodesize);
+    UA_memcpy((void*)&newEntry->node, *node, nodesize);
 
     cds_lfht_node_init(&newEntry->htn);
     newEntry->refcount = ALIVE_BIT;

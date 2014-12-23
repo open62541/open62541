@@ -412,9 +412,9 @@ UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *r
             UA_Int32 workSize;
             if(*running) {
                 if(i == server->nlsSize-1)
-                    workSize = nl->getWork(nl->nlHandle, &work, 0);
-                else
                     workSize = nl->getWork(nl->nlHandle, &work, timeout);
+                else
+                    workSize = nl->getWork(nl->nlHandle, &work, 0);
             } else {
                 workSize = server->nls[i].stop(nl->nlHandle, &work);
             }
