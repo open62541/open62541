@@ -8,10 +8,6 @@ set(NVIM_VERSION_PATCH 0)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
-# Set available build types for CMake GUIs.
-# A different build type can still be set by -DCMAKE_BUILD_TYPE=...
-set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
-
 # Set default build type.
 if (NOT CMAKE_BUILD_TYPE)
     message(STATUS "CMAKE_BUILD_TYPE not given; setting to 'RelWithDebInfo'.")

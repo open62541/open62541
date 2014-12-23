@@ -287,10 +287,10 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
 			sizeof(UA_StatusCode) * response->resultsSize);
 	/* ### Begin External Namespaces */
 //UA_Boolean isExternal[MAX_ADDREFERENCES_SIZE];
-	UA_Boolean isExternal[request->referencesToAddSize];
+	UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * request->referencesToAddSize);
 	UA_memset(isExternal, UA_FALSE,
 			sizeof(UA_Boolean) * request->referencesToAddSize);
-	UA_UInt32 indices[request->referencesToAddSize];
+	UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * request->referencesToAddSize);
 	for (UA_Int32 j = 0; j < server->externalNamespacesSize; j++) {
 		UA_UInt32 indexSize = 0;
 		for (UA_Int32 i = 0; i < request->referencesToAddSize; i++) {

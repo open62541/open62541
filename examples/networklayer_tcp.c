@@ -17,10 +17,10 @@
 #include <sys/socketvar.h>
 #include <sys/ioctl.h>
 #include <unistd.h> // read, write, close
+#include <arpa/inet.h>
 #define CLOSESOCKET(S) close(S)
 #endif
 
-#include <arpa/inet.h>
 #include <stdio.h>
 #include <errno.h> // errno, EINTR
 #include <fcntl.h> // fcntl
@@ -308,7 +308,7 @@ UA_Int32 NetworkLayerTCP_getWork(NetworkLayerTCP *layer, UA_WorkItem **workItems
             buf.data = malloc(layer->conf.recvBufferSize);
         
 #ifdef _WIN32
-        buf.length = recv(layer->conLinks[i].connection.sockfd, (char *)buf.data,
+        buf.length = recv(layer->conLinks[i].sockfd, (char *)buf.data,
                           layer->conf.recvBufferSize, 0);
 #else
         buf.length = read(layer->conLinks[i].sockfd, buf.data, layer->conf.recvBufferSize);

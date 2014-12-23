@@ -3,7 +3,7 @@
 #include <stdio.h> // printf
 #include <string.h> // strlen
 #define __USE_POSIX
-#include <stdlib.h> // malloc, free
+#include <stdlib.h> // malloc, free, rand
 
 #ifdef _WIN32
 #include <windows.h>
@@ -12,6 +12,12 @@
 #endif
 
 #include "ua_util.h"
+
+#ifdef _MSC_VER
+#define RAND(SEED) rand(SEED)
+#else
+#define RAND(SEED) rand_r(SEED)
+#endif
 
 #ifdef UA_DEBUG
 #include <inttypes.h>
@@ -261,7 +267,7 @@ UA_TYPE_AS(UA_DateTime, UA_Int64)
 #define HUNDRED_NANOSEC_PER_USEC 10LL
 #define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
 
-#ifdef MSVC
+#ifdef _MSC_VER
 static const unsigned __int64 epoch = 116444736000000000;
 int gettimeofday(struct timeval *tp, struct timezone *tzp) {
     FILETIME       ft;
@@ -327,16 +333,16 @@ UA_Boolean UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
     return UA_FALSE;
 }
 
-UA_Guid UA_EXPORT UA_Guid_random(UA_UInt32 *seed) {
+UA_Guid UA_Guid_random(UA_UInt32 *seed) {
     UA_Guid result;
-    result.data1 = rand_r(seed);
-    UA_UInt32 r = rand_r(seed);
+    result.data1 = RAND(seed);
+    UA_UInt32 r = RAND(seed);
     result.data2 = r;
     result.data3 = r >> 16;
     UA_UInt32 *fake_int = (UA_UInt32*) &result.data4[0];
-    *fake_int = rand_r(seed);
+    *fake_int = RAND(seed);
     fake_int = (UA_UInt32*) &result.data4[4];
-    *fake_int = rand_r(seed);
+    *fake_int = RAND(seed);
     return result;
 }
 
