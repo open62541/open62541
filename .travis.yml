@@ -22,6 +22,7 @@ before_install:
    - sudo apt-get update -qq
    - sudo apt-get install -qq gcc-4.8
    - sudo apt-get install -qq --no-install-recommends build-essential cmake python-lxml graphviz doxygen wget
+   - sudo apt-get install -qq ia32-libs
    - wget http://security.ubuntu.com/ubuntu/pool/main/c/check/check_0.9.10-6ubuntu3_amd64.deb
    - sudo dpkg -i check_0.9.10-6ubuntu3_amd64.deb
    - sudo pip install cpp-coveralls
@@ -45,10 +46,6 @@ script:
    - make
    - echo "Generate documentation"
    - make doc
-   - echo "Debug build and unit tests (32 bit)"
-   - make clean
-   - cmake -DCMAKE_C_FLAGS=-m32 -DCMAKE_BUILD_TYPE=Debug -DENABLE_UNIT_TESTS=ON -DENABLE_COVERAGE=ON ..
-   - make && make test
    - echo "Debug build and unit tests (64 bit)"
    - make clean
    - cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_UNIT_TESTS=ON -DENABLE_COVERAGE=ON .. 
