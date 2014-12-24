@@ -48,7 +48,7 @@ script:
    - make doc
    - echo "Debug build and unit tests (32 bit)"
    - make clean
-   - cmake -DCMAKE_C_FLAGS=-m32 -DCMAKE_BUILD_TYPE=Debug -DENABLE_UNIT_TESTS=ON -DENABLE_COVERAGE=ON ..
+   - cmake -DCMAKE_C_FLAGS=-m32 -DCMAKE_BUILD_TYPE=Debug -DENABLE_UNIT_TESTS=ON ..
    - make && make test
    - echo "Debug build and unit tests (64 bit)"
    - make clean
