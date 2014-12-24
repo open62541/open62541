@@ -22,7 +22,7 @@ before_install:
    - sudo apt-get update -qq
    - sudo apt-get install -qq gcc-4.8
    - sudo apt-get install -qq --no-install-recommends build-essential cmake python-lxml graphviz doxygen wget
-   - sudo apt-get install ia32-libs
+   - sudo apt-get install ia32-libs-multiarch
    - wget http://security.ubuntu.com/ubuntu/pool/main/c/check/check_0.9.10-6ubuntu3_amd64.deb
    - sudo dpkg -i check_0.9.10-6ubuntu3_amd64.deb
    - sudo pip install cpp-coveralls
