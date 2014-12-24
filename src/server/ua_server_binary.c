@@ -95,7 +95,7 @@ static void processOpen(UA_Connection *connection, UA_Server *server, const UA_B
     UA_TcpMessageHeader respHeader;
     respHeader.messageType = UA_MESSAGETYPE_OPN;
     respHeader.isFinal     = 'F';
-    respHeader.messageSize = 8;
+    respHeader.messageSize = 8+4;
 
     UA_ExpandedNodeId responseType = UA_EXPANDEDNODEIDS[UA_OPENSECURECHANNELRESPONSE];
     responseType.nodeId.identifier.numeric += UA_ENCODINGOFFSET_BINARY;

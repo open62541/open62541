@@ -20,16 +20,13 @@ before_install:
    - sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
    - sudo add-apt-repository ppa:kalakris/cmake -y
    - sudo apt-get update -qq
-   #- sudo apt-get install -qq gcc-4.8
+   - sudo apt-get install -qq gcc-4.8
    - sudo apt-get install -qq --no-install-recommends build-essential cmake python-lxml graphviz doxygen wget
-   - sudo apt-get install libc6-i386 libc6-dev-i386
    - wget http://security.ubuntu.com/ubuntu/pool/main/c/check/check_0.9.10-6ubuntu3_amd64.deb
    - sudo dpkg -i check_0.9.10-6ubuntu3_amd64.deb
-   - wget http://security.ubuntu.com/ubuntu/pool/main/c/check/check_0.9.10-6ubuntu3_i386.deb
-   - sudo dpkg --foreign-architecture i386 -i check_0.9.10-6ubuntu3_i386.deb
    - sudo pip install cpp-coveralls
-   #- sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
-   #- sudo update-alternatives --config gcc
+   - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
+   - sudo update-alternatives --config gcc
 script: 
    - echo "Checking the applicability of patches"
    - ./tools/.checkPorts.sh
@@ -40,16 +37,12 @@ script:
    - cmake -DTYPES_ONLY_NEEDED=ON ..
    - make
    - cd .. && rm build -rf && mkdir -p build && cd build
-   - echo "Debug build and unit tests (32 bit)"
-   - CFLAGS=-m32 CXXFLAGS=-m32 cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_UNIT_TESTS=ON -DENABLE_COVERAGE=ON ..  
-   - make && make test
-   - cd .. && rm build -rf && mkdir -p build && cd build
    - cmake -DGENERATE_DOCUMENTATION=ON .. 
    - echo "Production build"
    - make
    - echo "Generate documentation"
    - make doc
-   - echo "Debug build and unit tests (64 bit) & coverage testing"
+   - echo "Debug build and unit tests (64 bit)"
    - make clean
    - cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_UNIT_TESTS=ON -DENABLE_COVERAGE=ON .. 
    - make && make test
