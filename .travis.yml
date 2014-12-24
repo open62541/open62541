@@ -25,6 +25,8 @@ before_install:
    - sudo apt-get install libc6-i386 libc6-dev-i386
    - wget http://security.ubuntu.com/ubuntu/pool/main/c/check/check_0.9.10-6ubuntu3_amd64.deb
    - sudo dpkg -i check_0.9.10-6ubuntu3_amd64.deb
+   - wget http://security.ubuntu.com/ubuntu/pool/main/c/check/check_0.9.10-6ubuntu3_i386.deb
+   - sudo dpkg -i check_0.9.10-6ubuntu3_i386.deb
    - sudo pip install cpp-coveralls
    #- sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
    #- sudo update-alternatives --config gcc
@@ -38,7 +40,7 @@ script:
    - cmake -DTYPES_ONLY_NEEDED=ON ..
    - make
    - cd .. && rm build -rf && mkdir -p build && cd build
-   - echo "Debug build and unit tests (32 bit) 
+   - echo "Debug build and unit tests (32 bit)"
    - CFLAGS=-m32 CXXFLAGS=-m32 cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_UNIT_TESTS=ON -DENABLE_COVERAGE=ON ..  
    - make && make test
    - cd .. && rm build -rf && mkdir -p build && cd build
