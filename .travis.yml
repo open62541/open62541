@@ -17,10 +17,7 @@ addons:
     build_command: make
     branch_pattern: coverity_scan
 before_install:
-   - sudo apt-get install libgl1-mesa-dri:i386
-   - sudo apt-get install ia32-libs-multiarch:i386
-   - sudo apt-get install ia32-libs-multiarch
-   - sudo apt-get install ia32-libs
+   - sudo apt-get install libc6-i386 libc6-dev-i386
    - sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
    - sudo add-apt-repository ppa:kalakris/cmake -y
    - sudo apt-get update -qq
