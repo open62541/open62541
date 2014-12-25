@@ -197,7 +197,7 @@ def createStructured(element):
     else:
         for n,t in membermap.iteritems():
             if t in fixed_size:
-                printc('\t + sizeof(%(t)s) // %(n)s')
+                printc('\t + ' + str(fixed_size[t]) + ' // %(n)s')
             elif t.find("*") != -1:
                 printc('\t + UA_Array_calcSizeBinary(ptr->%(n)sSize,&UA_TYPES[' +
                        t[0:t.find("*")].upper() + "],ptr->%(n)s)")

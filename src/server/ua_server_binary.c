@@ -76,59 +76,51 @@ static void processOpen(UA_Connection *connection, UA_Server *server, const UA_B
     UA_SequenceHeader seqHeader;
     UA_SequenceHeader_decodeBinary(msg, pos, &seqHeader);
 
-    UA_ExpandedNodeId requestType;
-    UA_ExpandedNodeId_decodeBinary(msg, pos, &requestType);
+    UA_NodeId requestType;
+    UA_NodeId_decodeBinary(msg, pos, &requestType);
 
-    if(requestType.nodeId.identifier.numeric != 446) {
-        // todo: handle error
+    if(requestType.identifier.numeric != 446) {
+        connection->close(connection);
+        return;
     }
 
     UA_OpenSecureChannelRequest r;
-    UA_OpenSecureChannelRequest_decodeBinary(msg, pos, &r);
-
-    // perform request
     UA_OpenSecureChannelResponse p;
+    UA_OpenSecureChannelRequest_decodeBinary(msg, pos, &r);
     UA_OpenSecureChannelResponse_init(&p);
     Service_OpenSecureChannel(server, connection, &r, &p);
 
-    // response
-    UA_TcpMessageHeader respHeader;
-    respHeader.messageType = UA_MESSAGETYPE_OPN;
-    respHeader.isFinal     = 'F';
-    respHeader.messageSize = 8+4;
+    /* Response */
+    UA_SecureConversationMessageHeader respHeader;
+    respHeader.messageHeader.messageType = UA_MESSAGETYPE_OPN;
+    respHeader.messageHeader.isFinal     = 'F';
+    respHeader.messageHeader.messageSize = 0;
+    respHeader.secureChannelId = p.securityToken.channelId;
 
-    UA_ExpandedNodeId responseType = UA_EXPANDEDNODEIDS[UA_OPENSECURECHANNELRESPONSE];
-    responseType.nodeId.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
+    UA_NodeId responseType = UA_NODEIDS[UA_OPENSECURECHANNELRESPONSE];
+    responseType.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
 
-    respHeader.messageSize += UA_AsymmetricAlgorithmSecurityHeader_calcSizeBinary(&asymHeader);
-    respHeader.messageSize += UA_SequenceHeader_calcSizeBinary(&seqHeader);
-    respHeader.messageSize += UA_ExpandedNodeId_calcSizeBinary(&responseType);
-    respHeader.messageSize += UA_OpenSecureChannelResponse_calcSizeBinary(&p);
+    respHeader.messageHeader.messageSize =
+        UA_SecureConversationMessageHeader_calcSizeBinary(&respHeader)
+        + UA_AsymmetricAlgorithmSecurityHeader_calcSizeBinary(&asymHeader)
+        + UA_SequenceHeader_calcSizeBinary(&seqHeader)
+        + UA_NodeId_calcSizeBinary(&responseType)
+        + UA_OpenSecureChannelResponse_calcSizeBinary(&p);
 
-    UA_ByteString resp_msg;
-    UA_Boolean onStack = UA_FALSE;
-
-    if(respHeader.messageSize <= MAX_STACK_MESSAGE) {
-        onStack = UA_TRUE;
-        resp_msg = (UA_ByteString){.length = respHeader.messageSize,
-                                   .data = UA_alloca(respHeader.messageSize)};
-    } else
-        UA_ByteString_newMembers(&resp_msg, respHeader.messageSize);
+    UA_ByteString resp_msg = (UA_ByteString){.length = respHeader.messageHeader.messageSize,
+                                             .data = UA_alloca(respHeader.messageHeader.messageSize)};
 
     UA_UInt32 tmpPos = 0;
-    UA_TcpMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
-    UA_UInt32_encodeBinary(&p.securityToken.channelId, &resp_msg, &tmpPos);
+    UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
     UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &resp_msg, &tmpPos); // just mirror back
     UA_SequenceHeader_encodeBinary(&seqHeader, &resp_msg, &tmpPos); // just mirror back
-    UA_ExpandedNodeId_encodeBinary(&responseType, &resp_msg, &tmpPos);
+    UA_NodeId_encodeBinary(&responseType, &resp_msg, &tmpPos);
     UA_OpenSecureChannelResponse_encodeBinary(&p, &resp_msg, &tmpPos);
 
     UA_OpenSecureChannelRequest_deleteMembers(&r);
     UA_OpenSecureChannelResponse_deleteMembers(&p);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
     connection->write(connection, (UA_ByteStringArray){ .stringsSize = 1, .strings = &resp_msg });
-    if(!onStack)
-        UA_free(resp_msg.data);
 }
 
 static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r) {
@@ -166,7 +158,7 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
         UA_##TYPE##Response_encodeBinary(&r, message, &sendOffset);     \
         UA_##TYPE##Request_deleteMembers(&p);                           \
         UA_##TYPE##Response_deleteMembers(&r);                          \
-        responseType = requestType.nodeId.identifier.numeric + 3;       \
+        responseType = requestType.identifier.numeric + 3;       \
     } while(0)
 
 static void processMessage(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, UA_UInt32 *pos) {
@@ -203,11 +195,11 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     //UA_SecureChannel_checkRequestId(channel,sequenceHeader.requestId);
 
     // 3) Read the nodeid of the request
-    UA_ExpandedNodeId requestType;
-    CHECK_PROCESS(UA_ExpandedNodeId_decodeBinary(msg, pos, &requestType),; );
-    if(requestType.nodeId.identifierType != UA_NODEIDTYPE_NUMERIC) {
+    UA_NodeId requestType;
+    CHECK_PROCESS(UA_NodeId_decodeBinary(msg, pos, &requestType),; );
+    if(requestType.identifierType != UA_NODEIDTYPE_NUMERIC) {
         // if the nodeidtype is numeric, we do not have to free anything
-        UA_ExpandedNodeId_deleteMembers(&requestType);
+        UA_NodeId_deleteMembers(&requestType);
         return;
     }
 
@@ -221,7 +213,7 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     UA_UInt32 sendOffset = 0;
 
     //subtract UA_ENCODINGOFFSET_BINARY for binary encoding
-    switch(requestType.nodeId.identifier.numeric - UA_ENCODINGOFFSET_BINARY) {
+    switch(requestType.identifier.numeric - UA_ENCODINGOFFSET_BINARY) {
     case UA_GETENDPOINTSREQUEST_NS0: {
         UA_GetEndpointsRequest  p;
         UA_GetEndpointsResponse r;
@@ -233,7 +225,7 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
         UA_GetEndpointsResponse_encodeBinary(&r, message, &sendOffset);
         UA_GetEndpointsRequest_deleteMembers(&p);
         UA_GetEndpointsResponse_deleteMembers(&r);
-        responseType = requestType.nodeId.identifier.numeric + 3;
+        responseType = requestType.identifier.numeric + 3;
         break;
     }
 
@@ -248,7 +240,7 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
         UA_CreateSessionResponse_encodeBinary(&r, message, &sendOffset);
         UA_CreateSessionRequest_deleteMembers(&p);
         UA_CreateSessionResponse_deleteMembers(&r);
-        responseType = requestType.nodeId.identifier.numeric + 3;
+        responseType = requestType.identifier.numeric + 3;
         break;
     }
 
@@ -263,7 +255,7 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
         UA_ActivateSessionResponse_encodeBinary(&r, message, &sendOffset);
         UA_ActivateSessionRequest_deleteMembers(&p);
         UA_ActivateSessionResponse_deleteMembers(&r);
-        responseType = requestType.nodeId.identifier.numeric + 3;
+        responseType = requestType.identifier.numeric + 3;
         break;
     }
 
@@ -278,14 +270,12 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
         UA_CloseSessionResponse_encodeBinary(&r, message, &sendOffset);
         UA_CloseSessionRequest_deleteMembers(&p);
         UA_CloseSessionResponse_deleteMembers(&r);
-        responseType = requestType.nodeId.identifier.numeric + 3;
+        responseType = requestType.identifier.numeric + 3;
         break;
     }
 
-    case UA_READREQUEST_NS0: {
+    case UA_READREQUEST_NS0:
         INVOKE_SERVICE(Read);
-    }
-        //INVOKE_SERVICE(Read);
         break;
 
     case UA_WRITEREQUEST_NS0:
@@ -299,68 +289,65 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     case UA_ADDREFERENCESREQUEST_NS0:
         INVOKE_SERVICE(AddReferences);
         break;
-    /* case UA_CREATESUBSCRIPTIONREQUEST_NS0: */
-    /*     INVOKE_SERVICE(CreateSubscription); */
-    /*     break; */
 
     case UA_TRANSLATEBROWSEPATHSTONODEIDSREQUEST_NS0:
         INVOKE_SERVICE(TranslateBrowsePathsToNodeIds);
         break;
 
-    /* case UA_PUBLISHREQUEST_NS0: */
-    /*     INVOKE_SERVICE(Publish); */
-    /*     break; */
-
-    /* case UA_CREATEMONITOREDITEMSREQUEST_NS0: */
-    /*     INVOKE_SERVICE(CreateMonitoredItems); */
-    /*     break; */
-
-    /* case UA_SETPUBLISHINGMODEREQUEST_NS0: */
-    /*     INVOKE_SERVICE(SetPublishingMode); */
-    /*     break; */
-
     default: {
         printf("SL_processMessage - unknown request, namespace=%d, request=%d\n",
-               requestType.nodeId.namespaceIndex, requestType.nodeId.identifier.numeric);
+               requestType.namespaceIndex, requestType.identifier.numeric);
         UA_RequestHeader  p;
         UA_ResponseHeader r;
-        CHECK_PROCESS(UA_RequestHeader_decodeBinary(msg, pos, &p),; );
+        UA_StatusCode retval = UA_RequestHeader_decodeBinary(msg, pos, &p);
+        if(retval != UA_STATUSCODE_GOOD)
+            return;
         UA_ResponseHeader_init(&r);
+        init_response_header(&p, &r);
         r.requestHandle = p.requestHandle;
         r.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
         ALLOC_MESSAGE(message, UA_ResponseHeader_calcSizeBinary(&r));
         UA_ResponseHeader_encodeBinary(&r, message, &sendOffset);
         UA_RequestHeader_deleteMembers(&p);
         UA_ResponseHeader_deleteMembers(&r);
-        responseType = UA_RESPONSEHEADER_NS0 + 2;
+        responseType = UA_NODEIDS[UA_RESPONSEHEADER].identifier.numeric + UA_ENCODINGOFFSET_BINARY;
         }
     	break;
     }
+
     // 5) Build the header
-    UA_NodeId response_nodeid = { .namespaceIndex     = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-                                  .identifier.numeric = responseType }; // add 2 for binary encoding
+    UA_SecureConversationMessageHeader respHeader;
+    respHeader.messageHeader.messageType = UA_MESSAGETYPE_MSG;
+    respHeader.messageHeader.isFinal     = 'F';
+    respHeader.messageHeader.messageSize = 0;
+    respHeader.secureChannelId = channel->securityToken.channelId;
 
-    UA_UInt32 headerSize = 8 + 16 + // message header + 4*32bit secure channel information
-        UA_NodeId_calcSizeBinary(&response_nodeid); // the nodeid of a service is always numeric
+    UA_SymmetricAlgorithmSecurityHeader symSecHeader;
+    symSecHeader.tokenId = channel->securityToken.tokenId;
+
+    UA_SequenceHeader seqHeader;
+    seqHeader.sequenceNumber = channel->sequenceNumber;
+    seqHeader.requestId = channel->requestId;
+
+    UA_NodeId response_nodeid = { .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
+                                  .identifier.numeric = responseType };
+
+    UA_UInt32 headerSize =
+        UA_SecureConversationMessageHeader_calcSizeBinary(&respHeader)
+        + UA_SymmetricAlgorithmSecurityHeader_calcSizeBinary(&symSecHeader)
+        + UA_SequenceHeader_calcSizeBinary(&seqHeader)
+        + UA_NodeId_calcSizeBinary(&response_nodeid);
+
     *header = (UA_ByteString){.length = headerSize, .data = UA_alloca(headerSize)};
-
-    // header
-    UA_TcpMessageHeader respHeader;
-    respHeader.messageType = UA_MESSAGETYPE_MSG;
-    respHeader.isFinal     = 'F';
-    respHeader.messageSize = header->length + message->length;
+    respHeader.messageHeader.messageSize = header->length + message->length;
 
     UA_UInt32 rpos = 0;
-    UA_TcpMessageHeader_encodeBinary(&respHeader, header, &rpos);
+    UA_SecureConversationMessageHeader_encodeBinary(&respHeader, header, &rpos);
+    UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader, header, &rpos);
+    UA_SequenceHeader_encodeBinary(&seqHeader, header, &rpos);
+    UA_NodeId_encodeBinary(&response_nodeid, header, &rpos);
 
-    UA_UInt32_encodeBinary(&channel->securityToken.channelId, header, &rpos); // channel id
-    UA_UInt32_encodeBinary(&channel->securityToken.tokenId, header, &rpos); // algorithm security header
-    UA_UInt32_encodeBinary(&channel->sequenceNumber, header, &rpos); // encode sequence header
-    UA_UInt32_encodeBinary(&channel->requestId, header, &rpos); // request id
-    UA_NodeId_encodeBinary(&response_nodeid, header, &rpos); // add payload type
-    // sign data
-
-    // encrypt data
+    // todo: sign & encrypt
 
     // 6) Send it over the wire.
     UA_ByteStringArray responseBufArray;
@@ -374,16 +361,17 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
 
 static void processClose(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg,
                          UA_UInt32 *pos) {
-    // just read in the sequenceheader
     UA_UInt32 secureChannelId;
     UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
 
-	//the two last parameter is ignored since no answer is needed
+    if(!connection->channel || connection->channel->securityToken.channelId != secureChannelId)
+        return;
+
 	Service_CloseSecureChannel(server, secureChannelId);
 }
 
 void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg) {
-    UA_UInt32 pos    = 0;
+    UA_UInt32 pos = 0;
     UA_TcpMessageHeader tcpMessageHeader;
     do {
         if(UA_TcpMessageHeader_decodeBinary(msg, &pos, &tcpMessageHeader) != UA_STATUSCODE_GOOD) {

@@ -186,14 +186,11 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
         return;
     }
 
-    // if allocated on the stack from the "outside"
-    if(response->resultsSize <= 0) {
-        UA_StatusCode retval = UA_Array_new((void**)&response->results,
-                                            request->nodesToReadSize, &UA_TYPES[UA_DATAVALUE]);
-        if(retval) {
-            response->responseHeader.serviceResult = retval;
-            return;
-        }
+    UA_StatusCode retval = UA_Array_new((void**)&response->results, request->nodesToReadSize,
+                                        &UA_TYPES[UA_DATAVALUE]);
+    if(retval != UA_STATUSCODE_GOOD) {
+        response->responseHeader.serviceResult = retval;
+        return;
     }
 
     /* ### Begin External Namespaces */

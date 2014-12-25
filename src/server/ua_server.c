@@ -492,16 +492,15 @@ UA_Server * UA_Server_new() {
 
     // todo: make this variable point to a member of the serverstatus
     UA_VariableNode *state = UA_VariableNode_new();
-    UA_ServerState stateEnum = UA_SERVERSTATE_RUNNING;
+    UA_ServerState *stateEnum = UA_ServerState_new();
+    *stateEnum = UA_SERVERSTATE_RUNNING;
     COPYNAMES(state, "State");
     state->nodeId    = UA_NODEIDS[UA_SERVER_SERVERSTATUS_STATE];
     state->nodeClass = UA_NODECLASS_VARIABLE;
     state->value.vt = &UA_TYPES[UA_SERVERSTATE];
-    state->value.storage.data.arrayDimensionsLength = 1; // added to ensure encoding in readreponse
     state->value.storage.data.arrayLength = 1;
-    state->value.storage.data.dataPtr = &stateEnum; // points into the other object.
-    state->value.storageType = UA_VARIANT_DATA_NODELETE;
+    state->value.storage.data.dataPtr = stateEnum; // points into the other object.
+    state->value.storageType = UA_VARIANT_DATA;
     UA_NodeStore_insert(server->nodestore, (const UA_Node**)&state, UA_FALSE);
-
     return server;
 }
