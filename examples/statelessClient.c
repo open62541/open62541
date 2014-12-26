@@ -25,7 +25,11 @@ int main(int argc , char *argv[])
 	unsigned int messagepos = 0;
 
 	//Create socket
+#ifdef EXTENSION_UDP
+	sock = socket(AF_INET , SOCK_DGRAM , 0);
+#else
 	sock = socket(AF_INET , SOCK_STREAM , 0);
+#endif
 	if (sock == -1)
 	{
 		printf("Could not create socket");

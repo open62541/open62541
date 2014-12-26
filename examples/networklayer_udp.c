@@ -12,6 +12,7 @@
 #include <ws2tcpip.h>
 #define CLOSESOCKET(S) closesocket(S)
 #else
+#include <strings.h> //bzero
 #include <sys/select.h> 
 #include <netinet/in.h>
 #include <sys/socketvar.h>
@@ -77,7 +78,7 @@ static void setFDSet(NetworkLayerUDP *layer) {
 }
 
 // the callbacks are thread-safe if UA_MULTITHREADING is defined
-void closeConnectionUDP(UDPConnection *handle){
+void closeConnectionUDP(UDPConnection *write){
 
 }
 void writeCallbackUDP(UDPConnection *handle, UA_ByteStringArray gather_buf);
@@ -111,17 +112,35 @@ void writeCallbackUDP(UDPConnection *handle, UA_ByteStringArray gather_buf) {
                                  .iov_len = gather_buf.strings[i].length};
 		total_len += gather_buf.strings[i].length;
 	}
-	struct msghdr message = {.msg_name = &(handle->from), .msg_namelen = handle->fromlen, .msg_iov = iov,
+
+
+	struct sockaddr_in *sin = UA_NULL;
+	if (handle->from.sa_family == AF_INET)
+	{
+	    sin = (struct sockaddr_in *) &(handle->from);
+	}else{
+		//FIXME:
+		return;
+	}
+
+	struct msghdr message = {.msg_name = sin, .msg_namelen = handle->fromlen, .msg_iov = iov,
 							 .msg_iovlen = gather_buf.stringsSize, .msg_control = NULL,
 							 .msg_controllen = 0, .msg_flags = 0};
 	while (nWritten < total_len) {
 		UA_Int32 n = 0;
 		do {
             n = sendmsg(handle->layer->serversockfd, &message, 0);
+            if(n==-1L){
+            	printf("ERROR:%i\n", errno);
+            }
         } while (n == -1L && errno == EINTR);
         nWritten += n;
 	}
 #endif
+	//remove the session
+	//TODO: without this line we have a memleak
+	//with this line we have some illegal memory flagged by valgrind
+	free(handle);
 }
 
 UA_StatusCode NetworkLayerUDP_start(NetworkLayerUDP *layer) {
@@ -194,25 +213,27 @@ UA_Int32 NetworkLayerUDP_getWork(NetworkLayerUDP *layer, UA_WorkItem **workItems
 			}
 		}
 
-	struct sockaddr src_addr;
-	socklen_t addrlen;
+		struct sockaddr sender;
+		socklen_t sendsize = sizeof(sender);
+		bzero(&sender, sizeof(sender));
         
 #ifdef _WIN32
         buf.length = recvfrom(layer->conLinks[i].sockfd, (char *)buf.data,
                           layer->conf.recvBufferSize, 0);
         //todo: fixme
 #else
-        buf.length = recvfrom(layer->serversockfd, buf.data, layer->conf.recvBufferSize, 0, &src_addr, &addrlen);
+        buf.length = recvfrom(layer->serversockfd, buf.data, layer->conf.recvBufferSize, 0, &sender, &sendsize);
 #endif
 
-        if (errno != 0 || buf.length == 0) {
+        if (buf.length <= 0) {
         } else {
             UDPConnection *c = malloc(sizeof(UDPConnection));
+
         	if(!c)
         		return UA_STATUSCODE_BADINTERNALERROR;
             c->layer = layer;
-            c->from = src_addr;
-            c->fromlen = addrlen;
+            c->from = sender;
+            c->fromlen = sendsize;
             c->connection.state = UA_CONNECTION_OPENING;
             c->connection.localConf = layer->conf;
             c->connection.channel = UA_NULL;
