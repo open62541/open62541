@@ -83,6 +83,12 @@ if(EXTENSION_STATELESS)
     endif()
 endif()
 
+option(EXTENSION_UDP "Enable udp extension" OFF)
+if(EXTENSION_UDP)
+	message(STATUS "Extensions: enabling udp")
+	add_definitions(-DEXTENSION_UDP)
+endif()
+
 ## self-signed certificates
 option(ENABLE_SELFSIGNED "Enable self-signed certificates" OFF)
 if(ENABLE_SELFSIGNED)
@@ -215,6 +221,9 @@ if(EXAMPLESERVER)
 set(server_sources examples/opcuaServer.c
                    examples/networklayer_tcp.c
                    examples/logger_stdout.c)
+if(EXTENSION_UDP)
+	list(APPEND server_sources examples/networklayer_udp.c)
+endif()
 add_executable(exampleServer ${server_sources} ${exported_headers} ${generated_headers})
 target_link_libraries(exampleServer open62541)
 if(WIN32)
