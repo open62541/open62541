@@ -74,6 +74,14 @@ endif()
 
 ## extensions
 option(EXTENSION_STATELESS "Enable stateless extension" OFF)
+option(EXTENSION_UDP "Enable udp extension" OFF)
+
+if(EXTENSION_UDP)
+	set(EXTENSION_STATELESS ON)
+	message(STATUS "Extensions: enabling udp")
+	add_definitions(-DEXTENSION_UDP)
+endif()
+
 if(EXTENSION_STATELESS)
 	message(STATUS "Extensions: enabling stateless")
 	add_definitions(-DEXTENSION_STATELESS)
@@ -81,12 +89,6 @@ if(EXTENSION_STATELESS)
     if(MULTITHREADING)
         target_link_libraries(statelessClient urcu-cds urcu urcu-common pthread)
     endif()
-endif()
-
-option(EXTENSION_UDP "Enable udp extension" OFF)
-if(EXTENSION_UDP)
-	message(STATUS "Extensions: enabling udp")
-	add_definitions(-DEXTENSION_UDP)
 endif()
 
 ## self-signed certificates
