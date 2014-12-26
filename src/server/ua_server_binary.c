@@ -441,8 +441,6 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
                 if(connection->state == UA_CONNECTION_OPENING &&
                 		connection->channel == UA_NULL) {
                 	processMessage(connection, server, msg, &pos);
-                	//fixme: we need to think about keepalive
-                	connection->close(connection);
                 	break;
                 }
 #else
