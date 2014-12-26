@@ -211,109 +211,151 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     UA_Boolean messageOnStack = UA_FALSE;
 
     UA_UInt32 sendOffset = 0;
+#ifdef EXTENSION_STATELESS
+    //only some calls allow to be stateless
+    if(channel->session == &anonymousSession){
+    	//subtract UA_ENCODINGOFFSET_BINARY for binary encoding
+    	switch(requestType.identifier.numeric - UA_ENCODINGOFFSET_BINARY) {
+    	case UA_READREQUEST_NS0:
+    		INVOKE_SERVICE(Read);
+    		break;
 
-    //subtract UA_ENCODINGOFFSET_BINARY for binary encoding
-    switch(requestType.identifier.numeric - UA_ENCODINGOFFSET_BINARY) {
-    case UA_GETENDPOINTSREQUEST_NS0: {
-        UA_GetEndpointsRequest  p;
-        UA_GetEndpointsResponse r;
-        CHECK_PROCESS(UA_GetEndpointsRequest_decodeBinary(msg, pos, &p),; );
-        UA_GetEndpointsResponse_init(&r);
-        init_response_header(&p.requestHeader, &r.responseHeader);
-        Service_GetEndpoints(server, &p, &r);
-        ALLOC_MESSAGE(message, UA_GetEndpointsResponse_calcSizeBinary(&r));
-        UA_GetEndpointsResponse_encodeBinary(&r, message, &sendOffset);
-        UA_GetEndpointsRequest_deleteMembers(&p);
-        UA_GetEndpointsResponse_deleteMembers(&r);
-        responseType = requestType.identifier.numeric + 3;
-        break;
-    }
+    	case UA_WRITEREQUEST_NS0:
+    		INVOKE_SERVICE(Write);
+    		break;
 
-    case UA_CREATESESSIONREQUEST_NS0: {
-        UA_CreateSessionRequest  p;
-        UA_CreateSessionResponse r;
-        CHECK_PROCESS(UA_CreateSessionRequest_decodeBinary(msg, pos, &p),; );
-        UA_CreateSessionResponse_init(&r);
-        init_response_header(&p.requestHeader, &r.responseHeader);
-        Service_CreateSession(server, channel,  &p, &r);
-        ALLOC_MESSAGE(message, UA_CreateSessionResponse_calcSizeBinary(&r));
-        UA_CreateSessionResponse_encodeBinary(&r, message, &sendOffset);
-        UA_CreateSessionRequest_deleteMembers(&p);
-        UA_CreateSessionResponse_deleteMembers(&r);
-        responseType = requestType.identifier.numeric + 3;
-        break;
-    }
+    	case UA_BROWSEREQUEST_NS0:
+    		INVOKE_SERVICE(Browse);
+    		break;
 
-    case UA_ACTIVATESESSIONREQUEST_NS0: {
-        UA_ActivateSessionRequest  p;
-        UA_ActivateSessionResponse r;
-        CHECK_PROCESS(UA_ActivateSessionRequest_decodeBinary(msg, pos, &p),; );
-        UA_ActivateSessionResponse_init(&r);
-        init_response_header(&p.requestHeader, &r.responseHeader);
-        Service_ActivateSession(server, channel,  &p, &r);
-        ALLOC_MESSAGE(message, UA_ActivateSessionResponse_calcSizeBinary(&r));
-        UA_ActivateSessionResponse_encodeBinary(&r, message, &sendOffset);
-        UA_ActivateSessionRequest_deleteMembers(&p);
-        UA_ActivateSessionResponse_deleteMembers(&r);
-        responseType = requestType.identifier.numeric + 3;
-        break;
-    }
-
-    case UA_CLOSESESSIONREQUEST_NS0: {
-        UA_CloseSessionRequest  p;
-        UA_CloseSessionResponse r;
-        CHECK_PROCESS(UA_CloseSessionRequest_decodeBinary(msg, pos, &p),; );
-        UA_CloseSessionResponse_init(&r);
-        init_response_header(&p.requestHeader, &r.responseHeader);
-        Service_CloseSession(server, &p, &r);
-        ALLOC_MESSAGE(message, UA_CloseSessionResponse_calcSizeBinary(&r));
-        UA_CloseSessionResponse_encodeBinary(&r, message, &sendOffset);
-        UA_CloseSessionRequest_deleteMembers(&p);
-        UA_CloseSessionResponse_deleteMembers(&r);
-        responseType = requestType.identifier.numeric + 3;
-        break;
-    }
-
-    case UA_READREQUEST_NS0:
-        INVOKE_SERVICE(Read);
-        break;
-
-    case UA_WRITEREQUEST_NS0:
-        INVOKE_SERVICE(Write);
-        break;
-
-    case UA_BROWSEREQUEST_NS0:
-        INVOKE_SERVICE(Browse);
-        break;
-
-    case UA_ADDREFERENCESREQUEST_NS0:
-        INVOKE_SERVICE(AddReferences);
-        break;
-
-    case UA_TRANSLATEBROWSEPATHSTONODEIDSREQUEST_NS0:
-        INVOKE_SERVICE(TranslateBrowsePathsToNodeIds);
-        break;
-
-    default: {
-        printf("SL_processMessage - unknown request, namespace=%d, request=%d\n",
-               requestType.namespaceIndex, requestType.identifier.numeric);
-        UA_RequestHeader  p;
-        UA_ResponseHeader r;
-        UA_StatusCode retval = UA_RequestHeader_decodeBinary(msg, pos, &p);
-        if(retval != UA_STATUSCODE_GOOD)
-            return;
-        UA_ResponseHeader_init(&r);
-        init_response_header(&p, &r);
-        r.requestHandle = p.requestHandle;
-        r.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
-        ALLOC_MESSAGE(message, UA_ResponseHeader_calcSizeBinary(&r));
-        UA_ResponseHeader_encodeBinary(&r, message, &sendOffset);
-        UA_RequestHeader_deleteMembers(&p);
-        UA_ResponseHeader_deleteMembers(&r);
-        responseType = UA_NODEIDS[UA_RESPONSEHEADER].identifier.numeric + UA_ENCODINGOFFSET_BINARY;
-        }
+    	default: {
+    		printf("SL_processMessage - stateless call for an unknown or not allowed request, namespace=%d, request=%d\n",
+    				requestType.namespaceIndex, requestType.identifier.numeric);
+    		UA_RequestHeader  p;
+    		UA_ResponseHeader r;
+    		UA_StatusCode retval = UA_RequestHeader_decodeBinary(msg, pos, &p);
+    		if(retval != UA_STATUSCODE_GOOD)
+    			return;
+    		UA_ResponseHeader_init(&r);
+    		init_response_header(&p, &r);
+    		r.requestHandle = p.requestHandle;
+    		r.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
+    		ALLOC_MESSAGE(message, UA_ResponseHeader_calcSizeBinary(&r));
+    		UA_ResponseHeader_encodeBinary(&r, message, &sendOffset);
+    		UA_RequestHeader_deleteMembers(&p);
+    		UA_ResponseHeader_deleteMembers(&r);
+    		responseType = UA_NODEIDS[UA_RESPONSEHEADER].identifier.numeric + UA_ENCODINGOFFSET_BINARY;
+    	}
     	break;
+    	}
+    }else{
+#endif
+    	//non-stateless service calls
+    	//subtract UA_ENCODINGOFFSET_BINARY for binary encoding
+    	switch(requestType.identifier.numeric - UA_ENCODINGOFFSET_BINARY) {
+    	case UA_GETENDPOINTSREQUEST_NS0: {
+    		UA_GetEndpointsRequest  p;
+    		UA_GetEndpointsResponse r;
+    		CHECK_PROCESS(UA_GetEndpointsRequest_decodeBinary(msg, pos, &p),; );
+    		UA_GetEndpointsResponse_init(&r);
+    		init_response_header(&p.requestHeader, &r.responseHeader);
+    		Service_GetEndpoints(server, &p, &r);
+    		ALLOC_MESSAGE(message, UA_GetEndpointsResponse_calcSizeBinary(&r));
+    		UA_GetEndpointsResponse_encodeBinary(&r, message, &sendOffset);
+    		UA_GetEndpointsRequest_deleteMembers(&p);
+    		UA_GetEndpointsResponse_deleteMembers(&r);
+    		responseType = requestType.identifier.numeric + 3;
+    		break;
+    	}
+
+    	case UA_CREATESESSIONREQUEST_NS0: {
+    		UA_CreateSessionRequest  p;
+    		UA_CreateSessionResponse r;
+    		CHECK_PROCESS(UA_CreateSessionRequest_decodeBinary(msg, pos, &p),; );
+    		UA_CreateSessionResponse_init(&r);
+    		init_response_header(&p.requestHeader, &r.responseHeader);
+    		Service_CreateSession(server, channel,  &p, &r);
+    		ALLOC_MESSAGE(message, UA_CreateSessionResponse_calcSizeBinary(&r));
+    		UA_CreateSessionResponse_encodeBinary(&r, message, &sendOffset);
+    		UA_CreateSessionRequest_deleteMembers(&p);
+    		UA_CreateSessionResponse_deleteMembers(&r);
+    		responseType = requestType.identifier.numeric + 3;
+    		break;
+    	}
+
+    	case UA_ACTIVATESESSIONREQUEST_NS0: {
+    		UA_ActivateSessionRequest  p;
+    		UA_ActivateSessionResponse r;
+    		CHECK_PROCESS(UA_ActivateSessionRequest_decodeBinary(msg, pos, &p),; );
+    		UA_ActivateSessionResponse_init(&r);
+    		init_response_header(&p.requestHeader, &r.responseHeader);
+    		Service_ActivateSession(server, channel,  &p, &r);
+    		ALLOC_MESSAGE(message, UA_ActivateSessionResponse_calcSizeBinary(&r));
+    		UA_ActivateSessionResponse_encodeBinary(&r, message, &sendOffset);
+    		UA_ActivateSessionRequest_deleteMembers(&p);
+    		UA_ActivateSessionResponse_deleteMembers(&r);
+    		responseType = requestType.identifier.numeric + 3;
+    		break;
+    	}
+
+    	case UA_CLOSESESSIONREQUEST_NS0: {
+    		UA_CloseSessionRequest  p;
+    		UA_CloseSessionResponse r;
+    		CHECK_PROCESS(UA_CloseSessionRequest_decodeBinary(msg, pos, &p),; );
+    		UA_CloseSessionResponse_init(&r);
+    		init_response_header(&p.requestHeader, &r.responseHeader);
+    		Service_CloseSession(server, &p, &r);
+    		ALLOC_MESSAGE(message, UA_CloseSessionResponse_calcSizeBinary(&r));
+    		UA_CloseSessionResponse_encodeBinary(&r, message, &sendOffset);
+    		UA_CloseSessionRequest_deleteMembers(&p);
+    		UA_CloseSessionResponse_deleteMembers(&r);
+    		responseType = requestType.identifier.numeric + 3;
+    		break;
+    	}
+
+    	case UA_READREQUEST_NS0:
+    		INVOKE_SERVICE(Read);
+    		break;
+
+    	case UA_WRITEREQUEST_NS0:
+    		INVOKE_SERVICE(Write);
+    		break;
+
+    	case UA_BROWSEREQUEST_NS0:
+    		INVOKE_SERVICE(Browse);
+    		break;
+
+    	case UA_ADDREFERENCESREQUEST_NS0:
+    		INVOKE_SERVICE(AddReferences);
+    		break;
+
+    	case UA_TRANSLATEBROWSEPATHSTONODEIDSREQUEST_NS0:
+    		INVOKE_SERVICE(TranslateBrowsePathsToNodeIds);
+    		break;
+
+    	default: {
+    		printf("SL_processMessage - unknown request, namespace=%d, request=%d\n",
+    				requestType.namespaceIndex, requestType.identifier.numeric);
+    		UA_RequestHeader  p;
+    		UA_ResponseHeader r;
+    		UA_StatusCode retval = UA_RequestHeader_decodeBinary(msg, pos, &p);
+    		if(retval != UA_STATUSCODE_GOOD)
+    			return;
+    		UA_ResponseHeader_init(&r);
+    		init_response_header(&p, &r);
+    		r.requestHandle = p.requestHandle;
+    		r.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
+    		ALLOC_MESSAGE(message, UA_ResponseHeader_calcSizeBinary(&r));
+    		UA_ResponseHeader_encodeBinary(&r, message, &sendOffset);
+    		UA_RequestHeader_deleteMembers(&p);
+    		UA_ResponseHeader_deleteMembers(&r);
+    		responseType = UA_NODEIDS[UA_RESPONSEHEADER].identifier.numeric + UA_ENCODINGOFFSET_BINARY;
+    	}
+    	break;
+    	}
+#ifdef EXTENSION_STATELESS
     }
+#endif
 
     // 5) Build the header
     UA_SecureConversationMessageHeader respHeader;
