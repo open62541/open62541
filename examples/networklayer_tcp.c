@@ -329,8 +329,7 @@ UA_Int32 NetworkLayerTCP_getWork(NetworkLayerTCP *layer, UA_WorkItem **workItems
 #else
         buf.length = read(layer->conLinks[i].sockfd, buf.data, layer->conf.recvBufferSize);
 #endif
-
-        if (errno != 0 || buf.length == 0) {
+        if (buf.length <= 0) {
             closeConnection(layer->conLinks[i].connection); // work is returned in the next iteration
         } else {
             items[j].type = UA_WORKITEMTYPE_BINARYNETWORKMESSAGE;
