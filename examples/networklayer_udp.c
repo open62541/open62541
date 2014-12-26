@@ -78,8 +78,8 @@ static void setFDSet(NetworkLayerUDP *layer) {
 }
 
 // the callbacks are thread-safe if UA_MULTITHREADING is defined
-void closeConnectionUDP(UDPConnection *write){
-
+void closeConnectionUDP(UDPConnection *handle){
+	free(handle);
 }
 void writeCallbackUDP(UDPConnection *handle, UA_ByteStringArray gather_buf);
 
@@ -137,10 +137,6 @@ void writeCallbackUDP(UDPConnection *handle, UA_ByteStringArray gather_buf) {
         nWritten += n;
 	}
 #endif
-	//remove the session
-	//TODO: without this line we have a memleak
-	//with this line we have some illegal memory flagged by valgrind
-	free(handle);
 }
 
 UA_StatusCode NetworkLayerUDP_start(NetworkLayerUDP *layer) {

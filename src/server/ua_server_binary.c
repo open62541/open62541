@@ -441,7 +441,10 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
                 if(connection->state == UA_CONNECTION_OPENING &&
                 		connection->channel == UA_NULL) {
                 	processMessage(connection, server, msg, &pos);
+                	connection->close(connection);
                 	break;
+                }else{
+                	connection->close(connection);
                 }
 #else
                 connection->close(connection);
