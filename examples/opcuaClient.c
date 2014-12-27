@@ -404,7 +404,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	if(defaultParams){
-		udp = UA_TRUE;
+		udp = UA_FALSE;
 	}else{
 		if(atoi(argv[8]) != 0)
 			udp = UA_TRUE;

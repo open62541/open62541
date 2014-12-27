@@ -1,4 +1,6 @@
 #include <stdio.h>
+#define __USE_POSIX199309 //nanosleep
+#include <time.h> //nanosleep
 #include "ua_server_internal.h"
 
 /**
@@ -250,6 +252,7 @@ static UA_UInt16 processTimedWork(UA_Server *server) {
     UA_UInt16 timeout = MAXTIMEOUT;
     if(tw)
         timeout = (tw->time - current)/10;
+    if(timeout>MAXTIMEOUT)timeout = MAXTIMEOUT;
     return timeout;
 }
 
@@ -411,9 +414,6 @@ UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *r
             UA_WorkItem *work;
             UA_Int32 workSize;
             if(*running) {
-                if(i == server->nlsSize-1)
-                    workSize = nl->getWork(nl->nlHandle, &work, timeout);
-                else
                     workSize = nl->getWork(nl->nlHandle, &work, 0);
             } else {
                 workSize = server->nls[i].stop(nl->nlHandle, &work);
@@ -433,6 +433,11 @@ UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *r
             UA_free(work);
 #endif
         }
+
+        struct timespec reqtime;
+        reqtime.tv_sec = 0;
+        reqtime.tv_nsec = timeout * 1000; //from us to ns
+        nanosleep(&reqtime, UA_NULL);
 
         // 3.3) Exit?
         if(!*running)
