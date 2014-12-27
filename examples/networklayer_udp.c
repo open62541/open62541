@@ -192,20 +192,21 @@ UA_Int32 NetworkLayerUDP_getWork(NetworkLayerUDP *layer, UA_WorkItem **workItems
     struct timeval tmptv = {0, timeout};
     UA_Int32 resultsize = select(layer->serversockfd+1, &layer->fdset, NULL, NULL, &tmptv);
 
-    if(resultsize < 0) {
+    if(resultsize <= 0) {
         *workItems = items;
         return itemsCount;
     }
 
-    items = realloc(items, sizeof(UA_WorkItem)*(itemsCount+resultsize));
+    items = malloc(sizeof(UA_WorkItem)*(itemsCount+resultsize));
 
 	// read from established sockets
-    UA_Int32 j = itemsCount;
+    UA_Int32 j = 0;
 	UA_ByteString buf = { -1, NULL};
 		if(!buf.data) {
 			buf.data = malloc(sizeof(UA_Byte) * layer->conf.recvBufferSize);
 			if(!buf.data){
 				//TODO:
+				printf("malloc failed");
 			}
 		}
 
