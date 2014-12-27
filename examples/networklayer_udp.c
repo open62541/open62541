@@ -71,7 +71,6 @@ static UA_StatusCode setNonBlocking(int sockid) {
 	return UA_STATUSCODE_GOOD;
 }
 
-// after every select, reset the set of sockets we want to listen on
 static void setFDSet(NetworkLayerUDP *layer) {
 	FD_ZERO(&layer->fdset);
 	FD_SET(layer->serversockfd, &layer->fdset);
@@ -168,7 +167,7 @@ UA_StatusCode NetworkLayerUDP_start(NetworkLayerUDP *layer) {
 		CLOSESOCKET(layer->serversockfd);
 		return UA_STATUSCODE_BADINTERNALERROR;
 	}
-		
+
 	if(bind(layer->serversockfd, (const struct sockaddr *)&serv_addr,
             sizeof(serv_addr)) < 0) {
 		perror("binding");
@@ -187,17 +186,16 @@ UA_StatusCode NetworkLayerUDP_start(NetworkLayerUDP *layer) {
 UA_Int32 NetworkLayerUDP_getWork(NetworkLayerUDP *layer, UA_WorkItem **workItems,
                                  UA_UInt16 timeout) {
     UA_WorkItem *items = UA_NULL;
-    UA_Int32 itemsCount = 0;
     setFDSet(layer);
     struct timeval tmptv = {0, timeout};
     UA_Int32 resultsize = select(layer->serversockfd+1, &layer->fdset, NULL, NULL, &tmptv);
 
-    if(resultsize <= 0) {
+    if(resultsize <= 0 || !FD_ISSET(layer->serversockfd, &layer->fdset)) {
         *workItems = items;
-        return itemsCount;
+        return 0;
     }
 
-    items = malloc(sizeof(UA_WorkItem)*(itemsCount+resultsize));
+    items = malloc(sizeof(UA_WorkItem)*(resultsize));
 
 	// read from established sockets
     UA_Int32 j = 0;
@@ -213,7 +211,7 @@ UA_Int32 NetworkLayerUDP_getWork(NetworkLayerUDP *layer, UA_WorkItem **workItems
 		struct sockaddr sender;
 		socklen_t sendsize = sizeof(sender);
 		bzero(&sender, sizeof(sender));
-        
+
 #ifdef _WIN32
         buf.length = recvfrom(layer->conLinks[i].sockfd, (char *)buf.data,
                           layer->conf.recvBufferSize, 0);
