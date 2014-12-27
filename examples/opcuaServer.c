@@ -61,9 +61,10 @@ int main(int argc, char** argv) {
 
 	UA_Server *server = UA_Server_new();
     UA_Server_setServerCertificate(server, loadCertificate());
-    UA_Server_addNetworkLayer(server, NetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 #ifdef EXTENSION_UDP
     UA_Server_addNetworkLayer(server, NetworkLayerUDP_new(UA_ConnectionConfig_standard, 16664));
+#else
+    UA_Server_addNetworkLayer(server, NetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 #endif
 
 

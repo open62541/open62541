@@ -50,12 +50,6 @@ typedef struct NetworkLayerUDP {
 	fd_set fdset;
 	UA_Int32 serversockfd;
     UA_UInt32 port;
-    /* We remove the connection links only in the main thread. Attach
-       to-be-deleted links with atomic operations */
-    struct deleteLink {
-        UA_Int32 sockfd;
-        struct deleteLink *next;
-    } *deleteLinkList;
 } NetworkLayerUDP;
 
 static UA_StatusCode setNonBlocking(int sockid) {
@@ -268,7 +262,6 @@ UA_NetworkLayer NetworkLayerUDP_new(UA_ConnectionConfig conf, UA_UInt32 port) {
     NetworkLayerUDP *udplayer = malloc(sizeof(NetworkLayerUDP));
 	udplayer->conf = conf;
     udplayer->port = port;
-    udplayer->deleteLinkList = UA_NULL;
 
     UA_NetworkLayer nl;
     nl.nlHandle = udplayer;
