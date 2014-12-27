@@ -248,9 +248,10 @@ static UA_UInt16 processTimedWork(UA_Server *server) {
 
     tw = LIST_FIRST(&server->timedWork);
     UA_UInt16 timeout = MAXTIMEOUT;
-    if(tw)
+    if(tw){
         timeout = (tw->time - current)/10;
-    if(timeout>MAXTIMEOUT)timeout = MAXTIMEOUT;
+        if(timeout>MAXTIMEOUT)timeout = MAXTIMEOUT;
+    }
     return timeout;
 }
 
