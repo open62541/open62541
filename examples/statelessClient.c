@@ -56,6 +56,10 @@ int main(int argc , char *argv[])
 	reqRequestType.identifierType = UA_NODEIDTYPE_NUMERIC;
 	reqRequestType.identifier.numeric = 631; //read request
 
+
+	UA_SequenceHeader_init(&reqSequenceHeader);
+	reqSequenceHeader.sequenceNumber = 42;
+
 	UA_ReadRequest_init(&req);
 	req.requestHeader = reqHeader;
 	UA_RequestHeader_init(&(req.requestHeader));
