@@ -19,8 +19,7 @@ static UA_StatusCode UA_ByteStringArray_deleteMembers(UA_ByteStringArray *string
     return UA_STATUSCODE_GOOD;
 }
 
-static void processHello(UA_Connection *connection, const UA_ByteString *msg,
-                         UA_UInt32 *pos) {
+static void processHEL(UA_Connection *connection, const UA_ByteString *msg, UA_UInt32 *pos) {
     UA_TcpHelloMessage helloMessage;
     if(UA_TcpHelloMessage_decodeBinary(msg, pos, &helloMessage) != UA_STATUSCODE_GOOD) {
         connection->close(connection);
@@ -32,7 +31,7 @@ static void processHello(UA_Connection *connection, const UA_ByteString *msg,
     connection->remoteConf.protocolVersion = helloMessage.protocolVersion;
     connection->remoteConf.recvBufferSize  = helloMessage.receiveBufferSize;
     connection->remoteConf.sendBufferSize  = helloMessage.sendBufferSize;
-    connection->state = UA_CONNECTION_ESTABLISHED;
+    connection->state                      = UA_CONNECTION_ESTABLISHED;
 
     // build acknowledge response
     UA_TcpAcknowledgeMessage ackMessage;
@@ -49,18 +48,17 @@ static void processHello(UA_Connection *connection, const UA_ByteString *msg,
                             UA_TcpMessageHeader_calcSizeBinary(&ackHeader);
 
     // The message is on the stack. That's ok since ack is very small.
-    UA_ByteString ack_msg = (UA_ByteString){.length = ackHeader.messageSize,
-                                            .data = UA_alloca(ackHeader.messageSize)};
+    UA_ByteString ack_msg = (UA_ByteString){ .length = ackHeader.messageSize,
+                                             .data = UA_alloca(ackHeader.messageSize) };
     UA_UInt32 tmpPos = 0;
     UA_TcpMessageHeader_encodeBinary(&ackHeader, &ack_msg, &tmpPos);
     UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &ack_msg, &tmpPos);
     UA_ByteStringArray answer_buf = { .stringsSize = 1, .strings = &ack_msg };
-    // the string is freed internall in the (asynchronous) write
     connection->write(connection, answer_buf);
     UA_TcpHelloMessage_deleteMembers(&helloMessage);
 }
 
-static void processOpen(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg,
+static void processOPN(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg,
                         UA_UInt32 *pos) {
     if(connection->state != UA_CONNECTION_ESTABLISHED) {
         connection->close(connection);
@@ -107,8 +105,8 @@ static void processOpen(UA_Connection *connection, UA_Server *server, const UA_B
         + UA_NodeId_calcSizeBinary(&responseType)
         + UA_OpenSecureChannelResponse_calcSizeBinary(&p);
 
-    UA_ByteString resp_msg = (UA_ByteString){.length = respHeader.messageHeader.messageSize,
-                                             .data = UA_alloca(respHeader.messageHeader.messageSize)};
+    UA_ByteString resp_msg = (UA_ByteString){ .length = respHeader.messageHeader.messageSize,
+                                              .data = UA_alloca(respHeader.messageHeader.messageSize) };
 
     UA_UInt32 tmpPos = 0;
     UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
@@ -130,10 +128,10 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
     r->timestamp       = UA_DateTime_now();
 }
 
-#define CHECK_PROCESS(CODE, CLEANUP) \
+#define CHECK_PROCESS(CODE, CLEANUP)         \
     do { if(CODE != UA_STATUSCODE_GOOD) {    \
-            CLEANUP;                 \
-            return;                  \
+            CLEANUP;                         \
+            return;                          \
         } } while(0)
 
 // if the message is small enough, we allocate it on the stack and save a malloc
@@ -158,21 +156,51 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
         UA_##TYPE##Response_encodeBinary(&r, message, &sendOffset);     \
         UA_##TYPE##Request_deleteMembers(&p);                           \
         UA_##TYPE##Response_deleteMembers(&r);                          \
-        responseType = requestType.identifier.numeric + 3;       \
+        responseType = requestType.identifier.numeric + 3;              \
     } while(0)
 
-static void processMessage(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, UA_UInt32 *pos) {
+#ifdef EXTENSION_STATELESS
+#define INVOKE_SERVICE_EXPIRES(TYPE) do {                              \
+        UA_##TYPE##Request p;                                           \
+        UA_##TYPE##Response r;											\
+        CHECK_PROCESS(UA_##TYPE##Request_decodeBinary(msg, pos, &p),;);	\
+        UA_##TYPE##Response_init(&r);									\
+        init_response_header(&p.requestHeader, &r.responseHeader);		\
+        UA_ExtensionObject additionalHeader; 							\
+        UA_ExtensionObject_init(&additionalHeader);						\
+        additionalHeader.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING; \
+        additionalHeader.typeId = UA_NODEIDS[UA_DATETIME];				\
+        /*expires in 20 seconds*/										\
+        UA_DateTime expires = UA_DateTime_now() + 20 * 100 * 1000 * 1000; \
+        UA_ByteString str;												\
+        UA_ByteString_init(&str);										\
+        str.data = UA_malloc(UA_DateTime_calcSizeBinary(&expires));		\
+        str.length = UA_DateTime_calcSizeBinary(&expires);				\
+        UA_UInt32 offset = 0;											\
+        UA_DateTime_encodeBinary(&expires, &str, &offset);				\
+        additionalHeader.body = str;									\
+        r.responseHeader.additionalHeader = additionalHeader;			\
+        Service_##TYPE(server, channel->session, &p, &r);               \
+        ALLOC_MESSAGE(message, UA_##TYPE##Response_calcSizeBinary(&r)); \
+        UA_##TYPE##Response_encodeBinary(&r, message, &sendOffset);     \
+        UA_##TYPE##Request_deleteMembers(&p);                           \
+        UA_##TYPE##Response_deleteMembers(&r);                          \
+        responseType = requestType.identifier.numeric + 3;				\
+    } while(0)
+#endif
+
+static void processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, UA_UInt32 *pos) {
     // 1) Read in the securechannel
     UA_UInt32 secureChannelId;
     UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
 
     UA_SecureChannel *channel = UA_NULL;
 #ifdef EXTENSION_STATELESS
-    if(connection->channel != UA_NULL && secureChannelId != 0){
+    if(connection->channel != UA_NULL && secureChannelId != 0) {
 #endif
     	channel = UA_SecureChannelManager_get(&server->secureChannelManager, secureChannelId);
 #ifdef EXTENSION_STATELESS
-    }else{
+    } else {
     	//a call of a stateless service is coming - replace the session by the anonymous one
         UA_SecureChannel dummyChannel;
     	UA_SecureChannel_init(&dummyChannel);
@@ -206,18 +234,18 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     // 4) process the request
     UA_ByteString responseBufs[2]; // 0->header, 1->response payload
     UA_UInt32 responseType;
-    UA_ByteString *header = &responseBufs[0];
-    UA_ByteString *message = &responseBufs[1];
+    UA_ByteString *header     = &responseBufs[0];
+    UA_ByteString *message    = &responseBufs[1];
     UA_Boolean messageOnStack = UA_FALSE;
+    UA_UInt32 sendOffset      = 0;
 
-    UA_UInt32 sendOffset = 0;
 #ifdef EXTENSION_STATELESS
     //only some calls allow to be stateless
     if(channel->session == &anonymousSession){
     	//subtract UA_ENCODINGOFFSET_BINARY for binary encoding
     	switch(requestType.identifier.numeric - UA_ENCODINGOFFSET_BINARY) {
     	case UA_READREQUEST_NS0:
-    		INVOKE_SERVICE(Read);
+    		INVOKE_SERVICE_EXPIRES(Read);
     		break;
 
     	case UA_WRITEREQUEST_NS0:
@@ -233,12 +261,9 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     				requestType.namespaceIndex, requestType.identifier.numeric);
     		UA_RequestHeader  p;
     		UA_ResponseHeader r;
-    		UA_StatusCode retval = UA_RequestHeader_decodeBinary(msg, pos, &p);
-    		if(retval != UA_STATUSCODE_GOOD)
-    			return;
+    		CHECK_PROCESS(UA_RequestHeader_decodeBinary(msg, pos, &p),; );
     		UA_ResponseHeader_init(&r);
     		init_response_header(&p, &r);
-    		r.requestHandle = p.requestHandle;
     		r.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
     		ALLOC_MESSAGE(message, UA_ResponseHeader_calcSizeBinary(&r));
     		UA_ResponseHeader_encodeBinary(&r, message, &sendOffset);
@@ -338,12 +363,9 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
     				requestType.namespaceIndex, requestType.identifier.numeric);
     		UA_RequestHeader  p;
     		UA_ResponseHeader r;
-    		UA_StatusCode retval = UA_RequestHeader_decodeBinary(msg, pos, &p);
-    		if(retval != UA_STATUSCODE_GOOD)
-    			return;
+    		CHECK_PROCESS(UA_RequestHeader_decodeBinary(msg, pos, &p),; );
     		UA_ResponseHeader_init(&r);
     		init_response_header(&p, &r);
-    		r.requestHandle = p.requestHandle;
     		r.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
     		ALLOC_MESSAGE(message, UA_ResponseHeader_calcSizeBinary(&r));
     		UA_ResponseHeader_encodeBinary(&r, message, &sendOffset);
@@ -369,7 +391,7 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
 
     UA_SequenceHeader seqHeader;
     seqHeader.sequenceNumber = channel->sequenceNumber;
-    seqHeader.requestId = channel->requestId;
+    seqHeader.requestId      = channel->requestId;
 
     UA_NodeId response_nodeid = { .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
                                   .identifier.numeric = responseType };
@@ -380,7 +402,7 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
         + UA_SequenceHeader_calcSizeBinary(&seqHeader)
         + UA_NodeId_calcSizeBinary(&response_nodeid);
 
-    *header = (UA_ByteString){.length = headerSize, .data = UA_alloca(headerSize)};
+    *header = (UA_ByteString){ .length = headerSize, .data = UA_alloca(headerSize) };
     respHeader.messageHeader.messageSize = header->length + message->length;
 
     UA_UInt32 rpos = 0;
@@ -393,7 +415,7 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
 
     // 6) Send it over the wire.
     UA_ByteStringArray responseBufArray;
-    responseBufArray.strings = responseBufs; // the content is deleted in the write function (asynchronous)
+    responseBufArray.strings     = responseBufs;
     responseBufArray.stringsSize = 2;
     connection->write(connection, responseBufArray);
 
@@ -401,7 +423,7 @@ static void processMessage(UA_Connection *connection, UA_Server *server, const U
         UA_free(message->data);
 }
 
-static void processClose(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg,
+static void processCLO(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg,
                          UA_UInt32 *pos) {
     UA_UInt32 secureChannelId;
     UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
@@ -425,22 +447,22 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
         UA_UInt32 targetpos = pos - 8 + tcpMessageHeader.messageSize;
         switch(tcpMessageHeader.messageType) {
         case UA_MESSAGETYPE_HEL:
-            processHello(connection, msg, &pos);
+            processHEL(connection, msg, &pos);
             break;
 
         case UA_MESSAGETYPE_OPN:
-            processOpen(connection, server, msg, &pos);
+            processOPN(connection, server, msg, &pos);
             break;
 
         case UA_MESSAGETYPE_MSG:
             if(connection->state == UA_CONNECTION_ESTABLISHED && connection->channel != UA_NULL)
-                processMessage(connection, server, msg, &pos);
+                processMSG(connection, server, msg, &pos);
             else {
 #ifdef EXTENSION_STATELESS
                 //process messages with session zero
-                if(connection->state == UA_CONNECTION_OPENING &&
-                		connection->channel == UA_NULL) {
-                	processMessage(connection, server, msg, &pos);
+                if(connection->state == UA_CONNECTION_OPENING && connection->channel == UA_NULL) {
+                	processMSG(connection, server, msg, &pos);
+                	//fixme: we need to think about keepalive
                 	connection->close(connection);
                 	break;
                 }else{
@@ -453,7 +475,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             break;
 
         case UA_MESSAGETYPE_CLO:
-            processClose(connection, server, msg, &pos);
+            processCLO(connection, server, msg, &pos);
             connection->close(connection);
             return;
         }
