@@ -54,6 +54,7 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, UA_U
     UA_TcpMessageHeader_encodeBinary(&ackHeader, &ack_msg, &tmpPos);
     UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &ack_msg, &tmpPos);
     UA_ByteStringArray answer_buf = { .stringsSize = 1, .strings = &ack_msg };
+    // the string is freed internall in the (asynchronous) write
     connection->write(connection, answer_buf);
     UA_TcpHelloMessage_deleteMembers(&helloMessage);
 }
@@ -465,7 +466,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
                 	//fixme: we need to think about keepalive
                 	connection->close(connection);
                 	break;
-                }else{
+                } else {
                 	connection->close(connection);
                 }
 #else
