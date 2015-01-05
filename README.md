@@ -27,14 +27,13 @@ As an open source project, we invite new contributors to help improving open6241
 
 ### Example Server Implementation
 ```c
-#include <stdio.h>
 #include <signal.h>
 
-// provided by the open62541 lib
+/* provided by the open62541 lib */
 #include "ua_server.h"
 #include "ua_namespace_0.h"
 
-// provided by the user, implementations available in the /examples folder
+/* provided by the user, implementations available in the /examples folder */
 #include "logger_stdout.h"
 #include "networklayer_tcp.h"
 
