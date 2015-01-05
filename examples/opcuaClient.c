@@ -277,14 +277,18 @@ UA_Int64 sendReadRequest(ConnectionInfo *connectionInfo, UA_Int32 nodeIds_size,U
 	return tic;
 }
 
-int ua_client_connectUA(char* ipaddress,int port, UA_String *endpointUrl, ConnectionInfo *connectionInfo, UA_Boolean stateless)
+int ua_client_connectUA(char* ipaddress,int port, UA_String *endpointUrl, ConnectionInfo *connectionInfo, UA_Boolean stateless, UA_Boolean udp)
 {
 	UA_ByteString reply;
 	UA_ByteString_newMembers(&reply, 65536);
 	int sock;
 	struct sockaddr_in server;
 	//Create socket
-	sock = socket(AF_INET, SOCK_STREAM, 0);
+	if(udp==UA_TRUE){
+		sock = socket(AF_INET, SOCK_DGRAM, 0);
+	}else{
+		sock = socket(AF_INET, SOCK_STREAM, 0);
+	}
 	if(sock == -1) {
 		printf("Could not create socket");
         return 1;
@@ -359,6 +363,7 @@ int main(int argc, char *argv[]) {
 		printf("5th parameter: ip adress \n");
 		printf("6th parameter: port \n");
 		printf("7th parameter: 0=stateful, 1=stateless\n");
+		printf("8th parameter: 0=tcp, 1=udp (only with stateless calls)\n");
 		printf("\nUsing default parameters. \n");
 	}
 
@@ -368,6 +373,7 @@ int main(int argc, char *argv[]) {
 	UA_ByteString reply;
 	UA_ByteString_newMembers(&reply, 65536);
 	UA_Boolean stateless;
+	UA_Boolean udp;
 
 	if(defaultParams)
 		nodesToReadSize = 1;
@@ -395,6 +401,15 @@ int main(int argc, char *argv[]) {
 			stateless = UA_TRUE;
 		else
 			stateless = UA_FALSE;
+	}
+
+	if(defaultParams){
+		udp = UA_FALSE;
+	}else{
+		if(atoi(argv[8]) != 0)
+			udp = UA_TRUE;
+		else
+			udp = UA_FALSE;
 	}
 
 
@@ -428,11 +443,11 @@ int main(int argc, char *argv[]) {
 		//if(stateless || (!stateless && i==0)){
 		tic = UA_DateTime_now();
 			if(defaultParams){
-				if(ua_client_connectUA("127.0.0.1",atoi("16664"),&endpoint,&connectionInfo,stateless) != 0){
+				if(ua_client_connectUA("127.0.0.1",atoi("16664"),&endpoint,&connectionInfo,stateless,udp) != 0){
 					return 0;
 				}
 			}else{
-				if(ua_client_connectUA(argv[5],atoi(argv[6]),&endpoint,&connectionInfo,stateless) != 0){
+				if(ua_client_connectUA(argv[5],atoi(argv[6]),&endpoint,&connectionInfo,stateless,udp) != 0){
 					return 0;
 				}
 			}

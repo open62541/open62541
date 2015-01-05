@@ -74,6 +74,14 @@ endif()
 
 ## extensions
 option(EXTENSION_STATELESS "Enable stateless extension" OFF)
+option(EXTENSION_UDP "Enable udp extension" OFF)
+
+if(EXTENSION_UDP)
+	set(EXTENSION_STATELESS ON)
+	message(STATUS "Extensions: enabling udp")
+	add_definitions(-DEXTENSION_UDP)
+endif()
+
 if(EXTENSION_STATELESS)
 	message(STATUS "Extensions: enabling stateless")
 	add_definitions(-DEXTENSION_STATELESS)
@@ -215,6 +223,9 @@ if(EXAMPLESERVER)
 set(server_sources examples/opcuaServer.c
                    examples/networklayer_tcp.c
                    examples/logger_stdout.c)
+if(EXTENSION_UDP)
+	list(APPEND server_sources examples/networklayer_udp.c)
+endif()
 add_executable(exampleServer ${server_sources} ${exported_headers} ${generated_headers})
 target_link_libraries(exampleServer open62541)
 if(WIN32)

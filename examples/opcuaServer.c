@@ -15,6 +15,10 @@
 // provided by the user, implementations available in the /examples folder
 #include "logger_stdout.h"
 #include "networklayer_tcp.h"
+#ifdef EXTENSION_UDP
+#include "networklayer_udp.h"
+#endif
+
 
 UA_Boolean running = 1;
 
@@ -57,7 +61,12 @@ int main(int argc, char** argv) {
 
 	UA_Server *server = UA_Server_new();
     UA_Server_setServerCertificate(server, loadCertificate());
+#ifdef EXTENSION_UDP
+    UA_Server_addNetworkLayer(server, NetworkLayerUDP_new(UA_ConnectionConfig_standard, 16664));
+#else
     UA_Server_addNetworkLayer(server, NetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
+#endif
+
 
     UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL, .work.methodCall = {.method = testCallback, .data = UA_NULL} };
     UA_Server_addRepeatedWorkItem(server, &work, 20000000); // call every 2 sec
