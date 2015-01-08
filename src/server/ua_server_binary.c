@@ -152,7 +152,7 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
         CHECK_PROCESS(UA_##TYPE##Request_decodeBinary(msg, pos, &p),;); \
         UA_##TYPE##Response_init(&r);                                   \
         init_response_header(&p.requestHeader, &r.responseHeader);      \
-        Service_##TYPE(server, channel->session, &p, &r);               \
+        Service_##TYPE(server, clientSession, &p, &r);                  \
         ALLOC_MESSAGE(message, UA_##TYPE##Response_calcSizeBinary(&r)); \
         UA_##TYPE##Response_encodeBinary(&r, message, &sendOffset);     \
         UA_##TYPE##Request_deleteMembers(&p);                           \
@@ -161,7 +161,7 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
     } while(0)
 
 #ifdef EXTENSION_STATELESS
-#define INVOKE_SERVICE_EXPIRES(TYPE) do {                              \
+#define INVOKE_SERVICE_EXPIRES(TYPE) do {                               \
         UA_##TYPE##Request p;                                           \
         UA_##TYPE##Response r;											\
         CHECK_PROCESS(UA_##TYPE##Request_decodeBinary(msg, pos, &p),;);	\
@@ -181,7 +181,7 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
         UA_DateTime_encodeBinary(&expires, &str, &offset);				\
         additionalHeader.body = str;									\
         r.responseHeader.additionalHeader = additionalHeader;			\
-        Service_##TYPE(server, channel->session, &p, &r);               \
+        Service_##TYPE(server, clientSession, &p, &r);                  \
         ALLOC_MESSAGE(message, UA_##TYPE##Response_calcSizeBinary(&r)); \
         UA_##TYPE##Response_encodeBinary(&r, message, &sendOffset);     \
         UA_##TYPE##Request_deleteMembers(&p);                           \
@@ -195,21 +195,14 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     UA_UInt32 secureChannelId;
     UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
 
-    UA_SecureChannel *channel = UA_NULL;
+    UA_SecureChannel *channel = connection->channel;
+    UA_Session *clientSession = UA_NULL;
 #ifdef EXTENSION_STATELESS
-    if(connection->channel != UA_NULL && secureChannelId != 0) {
+    if(secureChannelId == 0 || !channel)
+        clientSession = &anonymousSession;
 #endif
-    	channel = UA_SecureChannelManager_get(&server->secureChannelManager, secureChannelId);
-#ifdef EXTENSION_STATELESS
-    } else {
-    	//a call of a stateless service is coming - replace the session by the anonymous one
-        UA_SecureChannel dummyChannel;
-    	UA_SecureChannel_init(&dummyChannel);
-    	channel = &dummyChannel;
-    	channel->session = &anonymousSession;
-    }
-#endif
-
+    if(!clientSession && channel)
+        clientSession = channel->session;
 
     // 2) Read the security header
     UA_UInt32 tokenId;
@@ -242,7 +235,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
 
 #ifdef EXTENSION_STATELESS
     //only some calls allow to be stateless
-    if(channel->session == &anonymousSession){
+    if(clientSession == &anonymousSession) {
     	//subtract UA_ENCODINGOFFSET_BINARY for binary encoding
     	switch(requestType.identifier.numeric - UA_ENCODINGOFFSET_BINARY) {
     	case UA_READREQUEST_NS0:
@@ -270,11 +263,10 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     		UA_ResponseHeader_encodeBinary(&r, message, &sendOffset);
     		UA_RequestHeader_deleteMembers(&p);
     		UA_ResponseHeader_deleteMembers(&r);
-    		responseType = UA_NODEIDS[UA_RESPONSEHEADER].identifier.numeric + UA_ENCODINGOFFSET_BINARY;
+    		responseType = UA_NODEIDS[UA_RESPONSEHEADER].identifier.numeric + UA_ENCODINGOFFSET_BINARY; }
+            break;
     	}
-    	break;
-    	}
-    }else{
+    } else {
 #endif
     	//non-stateless service calls
     	//subtract UA_ENCODINGOFFSET_BINARY for binary encoding
@@ -456,23 +448,14 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             break;
 
         case UA_MESSAGETYPE_MSG:
+#ifndef EXTENSION_STATELESS
             if(connection->state == UA_CONNECTION_ESTABLISHED && connection->channel != UA_NULL)
                 processMSG(connection, server, msg, &pos);
-            else {
-#ifdef EXTENSION_STATELESS
-                //process messages with session zero
-                if(connection->state == UA_CONNECTION_OPENING && connection->channel == UA_NULL) {
-                	processMSG(connection, server, msg, &pos);
-                	//fixme: we need to think about keepalive
-                	connection->close(connection);
-                	break;
-                } else {
-                	connection->close(connection);
-                }
-#else
+            else
                 connection->close(connection);
+#else
+                processMSG(connection, server, msg, &pos);
 #endif
-            }
             break;
 
         case UA_MESSAGETYPE_CLO:
