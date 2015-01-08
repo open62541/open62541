@@ -172,6 +172,94 @@ UA_Int32 sendCreateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId
 	}
 	return 0;
 }
+
+UA_Int32 closeSession(ConnectionInfo *connectionInfo){
+	UA_UInt32 offset = 0;
+
+	UA_ByteString message;
+	UA_ByteString_newMembers(&message, 65536);
+
+	UA_CloseSessionRequest rq;
+    UA_CloseSessionRequest_init(&rq);
+
+	rq.requestHeader.requestHandle = 1;
+	rq.requestHeader.timestamp = UA_DateTime_now();
+	rq.requestHeader.timeoutHint = 10000;
+	rq.requestHeader.authenticationToken.identifier.numeric = 10;
+	rq.requestHeader.authenticationToken.identifierType = UA_NODEIDTYPE_NUMERIC;
+	rq.requestHeader.authenticationToken.namespaceIndex = 10;
+    rq.deleteSubscriptions = UA_TRUE;
+
+	UA_TcpMessageHeader msghdr;
+	msghdr.isFinal = 'F';
+	msghdr.messageType = UA_MESSAGETYPE_MSG;
+
+	UA_NodeId type;
+	type.identifier.numeric = 473;
+	type.identifierType = UA_NODEIDTYPE_NUMERIC;
+	type.namespaceIndex = 0;
+
+	msghdr.messageSize = 16 + UA_TcpMessageHeader_calcSizeBinary(&msghdr) + UA_NodeId_calcSizeBinary(&type) +
+                         UA_CloseSessionRequest_calcSizeBinary(&rq);
+
+	UA_TcpMessageHeader_encodeBinary(&msghdr, &message, &offset);
+	UA_UInt32_encodeBinary(&connectionInfo->channelId, &message, &offset);
+	UA_UInt32_encodeBinary(&connectionInfo->tokenId, &message, &offset);
+	UA_UInt32_encodeBinary(&connectionInfo->sequenceHdr.sequenceNumber, &message, &offset);
+	UA_UInt32_encodeBinary(&connectionInfo->sequenceHdr.requestId, &message, &offset);
+	UA_NodeId_encodeBinary(&type, &message, &offset);
+	UA_CloseSessionRequest_encodeBinary(&rq, &message, &offset);
+
+	UA_Int32 sendret = send(connectionInfo->socket, message.data, offset, 0);
+	UA_ByteString_deleteMembers(&message);
+	UA_CloseSessionRequest_deleteMembers(&rq);
+	if (sendret < 0) {
+		printf("send closesessionrequest failed");
+		return 1;
+	}
+
+    return 0;
+}
+
+UA_Int32 closeSecureChannel(ConnectionInfo *connectionInfo){
+	UA_UInt32 offset = 0;
+
+	UA_ByteString message;
+	UA_ByteString_newMembers(&message, 65536);
+
+	UA_CloseSecureChannelRequest rq;
+    UA_CloseSecureChannelRequest_init(&rq);
+
+	rq.requestHeader.requestHandle = 1;
+	rq.requestHeader.timestamp = UA_DateTime_now();
+	rq.requestHeader.timeoutHint = 10000;
+	rq.requestHeader.authenticationToken.identifier.numeric = 10;
+	rq.requestHeader.authenticationToken.identifierType = UA_NODEIDTYPE_NUMERIC;
+	rq.requestHeader.authenticationToken.namespaceIndex = 10;
+
+	UA_TcpMessageHeader msghdr;
+	msghdr.isFinal = 'F';
+	msghdr.messageType = UA_MESSAGETYPE_CLO;
+
+
+	msghdr.messageSize = 4 + UA_TcpMessageHeader_calcSizeBinary(&msghdr) +
+                         UA_CloseSecureChannelRequest_calcSizeBinary(&rq);
+
+	UA_TcpMessageHeader_encodeBinary(&msghdr, &message, &offset);
+	UA_UInt32_encodeBinary(&connectionInfo->channelId, &message, &offset);
+	UA_CloseSecureChannelRequest_encodeBinary(&rq, &message, &offset);
+
+	UA_Int32 sendret = send(connectionInfo->socket, message.data, offset, 0);
+	UA_ByteString_deleteMembers(&message);
+	UA_CloseSecureChannelRequest_deleteMembers(&rq);
+	if (sendret < 0) {
+		printf("send CloseSecureChannelRequest failed");
+		return 1;
+	}
+
+    return 0;
+}
+
 UA_Int32 sendActivateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId, UA_UInt32 sequenceNumber,
                              UA_UInt32 requestId, UA_NodeId authenticationToken) {
 	UA_ByteString *message = UA_ByteString_new();
@@ -457,6 +545,12 @@ int main(int argc, char *argv[]) {
 		toc = UA_DateTime_now() - tic;
 		timeDiffs[i] = (UA_Double)toc/(UA_Double)1e4;
 		sum = sum + timeDiffs[i];
+
+		closeSession(&connectionInfo);
+		recv(connectionInfo.socket, reply.data, 2000, 0);
+
+		closeSecureChannel(&connectionInfo);
+
 		//if(stateless || (!stateless && i==tries-1)){
 			close(connectionInfo.socket);
 		//}
@@ -489,12 +583,9 @@ int main(int argc, char *argv[]) {
 	}
 	fclose(fHandle);
 
-
 	UA_String_deleteMembers(&reply);
 	UA_Array_delete(nodesToRead,nodesToReadSize,&UA_TYPES[UA_NODEID]);
     UA_free(timeDiffs);
-
-
 
 	return 0;
 }
