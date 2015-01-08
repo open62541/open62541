@@ -200,9 +200,10 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
 #ifdef EXTENSION_STATELESS
     UA_SecureChannel dummyChannel;
     UA_SecureChannel_init(&dummyChannel);
-    if(secureChannelId == 0 || !clientChannel)
+    if(secureChannelId == 0 || !clientChannel){
         clientChannel = &dummyChannel;
         clientSession = &anonymousSession;
+    }
 #endif
     if(!clientSession && clientChannel)
         clientSession = clientChannel->session;
