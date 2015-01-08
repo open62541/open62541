@@ -195,14 +195,17 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     UA_UInt32 secureChannelId;
     UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
 
-    UA_SecureChannel *channel = connection->channel;
+    UA_SecureChannel *clientChannel = connection->channel;
     UA_Session *clientSession = UA_NULL;
 #ifdef EXTENSION_STATELESS
-    if(secureChannelId == 0 || !channel)
+    UA_SecureChannel dummyChannel;
+    UA_SecureChannel_init(&dummyChannel);
+    if(secureChannelId == 0 || !clientChannel)
+        clientChannel = &dummyChannel;
         clientSession = &anonymousSession;
 #endif
-    if(!clientSession && channel)
-        clientSession = channel->session;
+    if(!clientSession && clientChannel)
+        clientSession = clientChannel->session;
 
     // 2) Read the security header
     UA_UInt32 tokenId;
@@ -210,8 +213,8 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     UA_SequenceHeader sequenceHeader;
     CHECK_PROCESS(UA_SequenceHeader_decodeBinary(msg, pos, &sequenceHeader),; );
 
-    channel->sequenceNumber = sequenceHeader.sequenceNumber;
-    channel->requestId = sequenceHeader.requestId;
+    clientChannel->sequenceNumber = sequenceHeader.sequenceNumber;
+    clientChannel->requestId = sequenceHeader.requestId;
     // todo
     //UA_SecureChannel_checkSequenceNumber(channel,sequenceHeader.sequenceNumber);
     //UA_SecureChannel_checkRequestId(channel,sequenceHeader.requestId);
@@ -292,7 +295,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     		CHECK_PROCESS(UA_CreateSessionRequest_decodeBinary(msg, pos, &p),; );
     		UA_CreateSessionResponse_init(&r);
     		init_response_header(&p.requestHeader, &r.responseHeader);
-    		Service_CreateSession(server, channel,  &p, &r);
+    		Service_CreateSession(server, clientChannel,  &p, &r);
     		ALLOC_MESSAGE(message, UA_CreateSessionResponse_calcSizeBinary(&r));
     		UA_CreateSessionResponse_encodeBinary(&r, message, &sendOffset);
     		UA_CreateSessionRequest_deleteMembers(&p);
@@ -307,7 +310,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     		CHECK_PROCESS(UA_ActivateSessionRequest_decodeBinary(msg, pos, &p),; );
     		UA_ActivateSessionResponse_init(&r);
     		init_response_header(&p.requestHeader, &r.responseHeader);
-    		Service_ActivateSession(server, channel,  &p, &r);
+    		Service_ActivateSession(server, clientChannel,  &p, &r);
     		ALLOC_MESSAGE(message, UA_ActivateSessionResponse_calcSizeBinary(&r));
     		UA_ActivateSessionResponse_encodeBinary(&r, message, &sendOffset);
     		UA_ActivateSessionRequest_deleteMembers(&p);
@@ -377,14 +380,14 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     respHeader.messageHeader.messageType = UA_MESSAGETYPE_MSG;
     respHeader.messageHeader.isFinal     = 'F';
     respHeader.messageHeader.messageSize = 0;
-    respHeader.secureChannelId = channel->securityToken.channelId;
+    respHeader.secureChannelId = clientChannel->securityToken.channelId;
 
     UA_SymmetricAlgorithmSecurityHeader symSecHeader;
-    symSecHeader.tokenId = channel->securityToken.tokenId;
+    symSecHeader.tokenId = clientChannel->securityToken.tokenId;
 
     UA_SequenceHeader seqHeader;
-    seqHeader.sequenceNumber = channel->sequenceNumber;
-    seqHeader.requestId      = channel->requestId;
+    seqHeader.sequenceNumber = clientChannel->sequenceNumber;
+    seqHeader.requestId      = clientChannel->requestId;
 
     UA_NodeId response_nodeid = { .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
                                   .identifier.numeric = responseType };
