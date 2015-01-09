@@ -160,36 +160,6 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
         responseType = requestType.identifier.numeric + 3;              \
     } while(0)
 
-#ifdef EXTENSION_STATELESS
-#define INVOKE_SERVICE_EXPIRES(TYPE) do {                               \
-        UA_##TYPE##Request p;                                           \
-        UA_##TYPE##Response r;											\
-        CHECK_PROCESS(UA_##TYPE##Request_decodeBinary(msg, pos, &p),;);	\
-        UA_##TYPE##Response_init(&r);									\
-        init_response_header(&p.requestHeader, &r.responseHeader);		\
-        UA_ExtensionObject additionalHeader; 							\
-        UA_ExtensionObject_init(&additionalHeader);						\
-        additionalHeader.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING; \
-        additionalHeader.typeId = UA_NODEIDS[UA_DATETIME];				\
-        /*expires in 20 seconds*/										\
-        UA_DateTime expires = UA_DateTime_now() + 20 * 100 * 1000 * 1000; \
-        UA_ByteString str;												\
-        UA_ByteString_init(&str);										\
-        str.data = UA_malloc(UA_DateTime_calcSizeBinary(&expires));		\
-        str.length = UA_DateTime_calcSizeBinary(&expires);				\
-        UA_UInt32 offset = 0;											\
-        UA_DateTime_encodeBinary(&expires, &str, &offset);				\
-        additionalHeader.body = str;									\
-        r.responseHeader.additionalHeader = additionalHeader;			\
-        Service_##TYPE(server, clientSession, &p, &r);                  \
-        ALLOC_MESSAGE(message, UA_##TYPE##Response_calcSizeBinary(&r)); \
-        UA_##TYPE##Response_encodeBinary(&r, message, &sendOffset);     \
-        UA_##TYPE##Request_deleteMembers(&p);                           \
-        UA_##TYPE##Response_deleteMembers(&r);                          \
-        responseType = requestType.identifier.numeric + 3;				\
-    } while(0)
-#endif
-
 static void processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, UA_UInt32 *pos) {
     // 1) Read in the securechannel
     UA_UInt32 secureChannelId;
@@ -243,7 +213,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     	//subtract UA_ENCODINGOFFSET_BINARY for binary encoding
     	switch(requestType.identifier.numeric - UA_ENCODINGOFFSET_BINARY) {
     	case UA_READREQUEST_NS0:
-    		INVOKE_SERVICE_EXPIRES(Read);
+    		INVOKE_SERVICE(Read);
     		break;
 
     	case UA_WRITEREQUEST_NS0:

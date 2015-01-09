@@ -219,6 +219,40 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
         if(!isExternal[i])
             readValue(server, &request->nodesToRead[i], &response->results[i]);
     }
+
+#ifdef EXTENSION_STATELESS
+    if(session==&anonymousSession){
+		/* expiry header */
+		UA_ExtensionObject additionalHeader;
+		UA_ExtensionObject_init(&additionalHeader);
+		additionalHeader.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
+		additionalHeader.typeId = UA_NODEIDS[UA_VARIANT];
+
+		UA_Variant variant;
+		UA_Variant_init(&variant);
+		variant.vt = &UA_TYPES[UA_DATETIME];
+		variant.storage.data.arrayLength = request->nodesToReadSize;
+
+		UA_DateTime* expireArray = UA_NULL;
+		UA_Array_new((void**)&expireArray, request->nodesToReadSize,
+												&UA_TYPES[UA_DATETIME]);
+		variant.storage.data.dataPtr = expireArray;
+
+		UA_ByteString str;
+		UA_ByteString_init(&str);
+
+		/*expires in 20 seconds*/
+		for(UA_Int32 i = 0;i < response->resultsSize;i++) {
+			expireArray[i] = UA_DateTime_now() + 20 * 100 * 1000 * 1000;
+		}
+		UA_UInt32 offset = 0;
+		str.data = UA_malloc(UA_Variant_calcSizeBinary(&variant));
+		str.length = UA_Variant_calcSizeBinary(&variant);
+		UA_Variant_encodeBinary(&variant, &str, &offset);
+		additionalHeader.body = str;
+		response->responseHeader.additionalHeader = additionalHeader;
+    }
+#endif
 }
 
 static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *writeValue) {
