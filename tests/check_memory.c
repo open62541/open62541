@@ -174,7 +174,7 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
 }
 END_TEST
 
-int main() {
+int main(void) {
 	int number_failed = 0;
 	SRunner *sr;
 

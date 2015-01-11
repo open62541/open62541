@@ -14,15 +14,15 @@
 #include "ua_namespace_0.h"
 #include "ua_util.h"
 
-typedef struct ConnectionInfo{
+typedef struct ConnectionInfo {
 	UA_Int32 socket;
 	UA_UInt32 channelId;
 	UA_SequenceHeader sequenceHdr;
 	UA_NodeId authenticationToken;
 	UA_UInt32 tokenId;
-}ConnectionInfo;
+} ConnectionInfo;
 
-UA_Int32 sendHello(UA_Int32 sock, UA_String *endpointURL) {
+static UA_Int32 sendHello(UA_Int32 sock, UA_String *endpointURL) {
 
 	UA_TcpMessageHeader messageHeader;
 	messageHeader.isFinal = 'F';
@@ -54,7 +54,7 @@ UA_Int32 sendHello(UA_Int32 sock, UA_String *endpointURL) {
 	return 0;
 }
 
-int sendOpenSecureChannel(UA_Int32 sock) {
+static int sendOpenSecureChannel(UA_Int32 sock) {
 	UA_TcpMessageHeader msghdr;
 	msghdr.isFinal = 'F';
 	msghdr.messageType = UA_MESSAGETYPE_OPN;
@@ -120,8 +120,8 @@ int sendOpenSecureChannel(UA_Int32 sock) {
 	return 0;
 }
 
-UA_Int32 sendCreateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId, UA_UInt32 sequenceNumber,
-                           UA_UInt32 requestId, UA_String *endpointUrl) {
+static UA_Int32 sendCreateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId, UA_UInt32 sequenceNumber,
+                                  UA_UInt32 requestId, UA_String *endpointUrl) {
     UA_ByteString message;
 	UA_ByteString_newMembers(&message, 65536);
 	UA_UInt32 tmpChannelId = channelId;
@@ -173,7 +173,7 @@ UA_Int32 sendCreateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId
 	return 0;
 }
 
-UA_Int32 closeSession(ConnectionInfo *connectionInfo){
+static UA_Int32 closeSession(ConnectionInfo *connectionInfo) {
 	UA_UInt32 offset = 0;
 
 	UA_ByteString message;
@@ -213,7 +213,7 @@ UA_Int32 closeSession(ConnectionInfo *connectionInfo){
 	UA_Int32 sendret = send(connectionInfo->socket, message.data, offset, 0);
 	UA_ByteString_deleteMembers(&message);
 	UA_CloseSessionRequest_deleteMembers(&rq);
-	if (sendret < 0) {
+	if(sendret < 0) {
 		printf("send closesessionrequest failed");
 		return 1;
 	}
@@ -221,7 +221,7 @@ UA_Int32 closeSession(ConnectionInfo *connectionInfo){
     return 0;
 }
 
-UA_Int32 closeSecureChannel(ConnectionInfo *connectionInfo){
+static UA_Int32 closeSecureChannel(ConnectionInfo *connectionInfo) {
 	UA_UInt32 offset = 0;
 
 	UA_ByteString message;
@@ -241,7 +241,6 @@ UA_Int32 closeSecureChannel(ConnectionInfo *connectionInfo){
 	msghdr.isFinal = 'F';
 	msghdr.messageType = UA_MESSAGETYPE_CLO;
 
-
 	msghdr.messageSize = 4 + UA_TcpMessageHeader_calcSizeBinary(&msghdr) +
                          UA_CloseSecureChannelRequest_calcSizeBinary(&rq);
 
@@ -252,7 +251,7 @@ UA_Int32 closeSecureChannel(ConnectionInfo *connectionInfo){
 	UA_Int32 sendret = send(connectionInfo->socket, message.data, offset, 0);
 	UA_ByteString_deleteMembers(&message);
 	UA_CloseSecureChannelRequest_deleteMembers(&rq);
-	if (sendret < 0) {
+	if(sendret < 0) {
 		printf("send CloseSecureChannelRequest failed");
 		return 1;
 	}
@@ -260,8 +259,8 @@ UA_Int32 closeSecureChannel(ConnectionInfo *connectionInfo){
     return 0;
 }
 
-UA_Int32 sendActivateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId, UA_UInt32 sequenceNumber,
-                             UA_UInt32 requestId, UA_NodeId authenticationToken) {
+static UA_Int32 sendActivateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId, UA_UInt32 sequenceNumber,
+                                    UA_UInt32 requestId, UA_NodeId authenticationToken) {
 	UA_ByteString *message = UA_ByteString_new();
 	UA_ByteString_newMembers(message, 65536);
 	UA_UInt32 tmpChannelId = channelId;
@@ -306,7 +305,7 @@ UA_Int32 sendActivateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 token
 
 }
 
-UA_Int64 sendReadRequest(ConnectionInfo *connectionInfo, UA_Int32 nodeIds_size,UA_NodeId* nodeIds){
+static UA_Int64 sendReadRequest(ConnectionInfo *connectionInfo, UA_Int32 nodeIds_size,UA_NodeId* nodeIds){
 		/*UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 tokenId, UA_UInt32 sequenceNumber, UA_UInt32 requestId,
                          UA_NodeId authenticationToken, UA_Int32 nodeIds_size,UA_NodeId* nodeIds) {
                          */
@@ -365,8 +364,8 @@ UA_Int64 sendReadRequest(ConnectionInfo *connectionInfo, UA_Int32 nodeIds_size,U
 	return tic;
 }
 
-int ua_client_connectUA(char* ipaddress,int port, UA_String *endpointUrl, ConnectionInfo *connectionInfo, UA_Boolean stateless, UA_Boolean udp)
-{
+static int ua_client_connectUA(char* ipaddress,int port, UA_String *endpointUrl, ConnectionInfo *connectionInfo,
+                               UA_Boolean stateless, UA_Boolean udp) {
 	UA_ByteString reply;
 	UA_ByteString_newMembers(&reply, 65536);
 	int sock;

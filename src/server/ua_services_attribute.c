@@ -64,105 +64,106 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
         CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE | UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE |
                         UA_NODECLASS_DATATYPE);
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-        retval |= UA_Variant_copySetValue(&v->value, &UA_TYPES[UA_BOOLEAN], &((UA_ReferenceTypeNode *)node)->isAbstract);
+        retval |= UA_Variant_copySetValue(&v->value, &UA_TYPES[UA_BOOLEAN],
+                                          &((const UA_ReferenceTypeNode *)node)->isAbstract);
         break;
 
     case UA_ATTRIBUTEID_SYMMETRIC:
         CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE);
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
         retval |= UA_Variant_copySetValue(&v->value, &UA_TYPES[UA_BOOLEAN],
-                                          &((UA_ReferenceTypeNode *)node)->symmetric);
+                                          &((const UA_ReferenceTypeNode *)node)->symmetric);
         break;
 
     case UA_ATTRIBUTEID_INVERSENAME:
         CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE);
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
         retval |= UA_Variant_copySetValue(&v->value, &UA_TYPES[UA_LOCALIZEDTEXT],
-                                          &((UA_ReferenceTypeNode *)node)->inverseName);
+                                          &((const UA_ReferenceTypeNode *)node)->inverseName);
         break;
 
     case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
         CHECK_NODECLASS(UA_NODECLASS_VIEW);
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
         retval |= UA_Variant_copySetValue(&v->value, &UA_TYPES[UA_BOOLEAN],
-                                          &((UA_ViewNode *)node)->containsNoLoops);
+                                          &((const UA_ViewNode *)node)->containsNoLoops);
         break;
 
     case UA_ATTRIBUTEID_EVENTNOTIFIER:
         CHECK_NODECLASS(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT);
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
         retval |= UA_Variant_copySetValue(&v->value, &UA_TYPES[UA_BYTE],
-                                          &((UA_ViewNode *)node)->eventNotifier);
+                                          &((const UA_ViewNode *)node)->eventNotifier);
         break;
 
     case UA_ATTRIBUTEID_VALUE:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
-        retval |= UA_Variant_copy(&((UA_VariableNode *)node)->value, &v->value); // todo: zero-copy
+        retval |= UA_Variant_copy(&((const UA_VariableNode *)node)->value, &v->value); // todo: zero-copy
         break;
 
     case UA_ATTRIBUTEID_DATATYPE:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
         retval |= UA_Variant_copySetValue(&v->value, &UA_TYPES[UA_NODEID],
-                                          &((UA_VariableTypeNode *)node)->dataType);
+                                          &((const UA_VariableTypeNode *)node)->dataType);
         break;
 
     case UA_ATTRIBUTEID_VALUERANK:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
         retval |= UA_Variant_copySetValue(&v->value, &UA_TYPES[UA_INT32],
-                                          &((UA_VariableTypeNode *)node)->valueRank);
+                                          &((const UA_VariableTypeNode *)node)->valueRank);
         break;
 
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
         UA_Variant_copySetArray(&v->value, &UA_TYPES[UA_UINT32],
-                                ((UA_VariableTypeNode *)node)->arrayDimensionsSize,
-                                &((UA_VariableTypeNode *)node)->arrayDimensions);
+                                ((const UA_VariableTypeNode *)node)->arrayDimensionsSize,
+                                &((const UA_VariableTypeNode *)node)->arrayDimensions);
         break;
 
     case UA_ATTRIBUTEID_ACCESSLEVEL:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
         retval |= UA_Variant_copySetValue(&v->value, &UA_TYPES[UA_BYTE],
-                                          &((UA_VariableNode *)node)->accessLevel);
+                                          &((const UA_VariableNode *)node)->accessLevel);
         break;
 
     case UA_ATTRIBUTEID_USERACCESSLEVEL:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
         retval |= UA_Variant_copySetValue(&v->value, &UA_TYPES[UA_BYTE],
-                                          &((UA_VariableNode *)node)->userAccessLevel);
+                                          &((const UA_VariableNode *)node)->userAccessLevel);
         break;
 
     case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
         retval |= UA_Variant_copySetValue(&v->value, &UA_TYPES[UA_DOUBLE],
-                                          &((UA_VariableNode *)node)->minimumSamplingInterval);
+                                          &((const UA_VariableNode *)node)->minimumSamplingInterval);
         break;
 
     case UA_ATTRIBUTEID_HISTORIZING:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
         retval |= UA_Variant_copySetValue(&v->value, &UA_TYPES[UA_BOOLEAN],
-                                          &((UA_VariableNode *)node)->historizing);
+                                          &((const UA_VariableNode *)node)->historizing);
         break;
 
     case UA_ATTRIBUTEID_EXECUTABLE:
         CHECK_NODECLASS(UA_NODECLASS_METHOD);
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
         retval |= UA_Variant_copySetValue(&v->value, &UA_TYPES[UA_BOOLEAN],
-                                          &((UA_MethodNode *)node)->executable);
+                                          &((const UA_MethodNode *)node)->executable);
         break;
 
     case UA_ATTRIBUTEID_USEREXECUTABLE:
         CHECK_NODECLASS(UA_NODECLASS_METHOD);
         v->encodingMask = UA_DATAVALUE_ENCODINGMASK_VARIANT;
         retval |= UA_Variant_copySetValue(&v->value, &UA_TYPES[UA_BOOLEAN],
-                                          &((UA_MethodNode *)node)->userExecutable);
+                                          &((const UA_MethodNode *)node)->userExecutable);
         break;
 
     default:
@@ -256,129 +257,227 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 }
 
 static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *writeValue) {
-    const UA_Node *node = UA_NodeStore_get(server->nodestore, &writeValue->nodeId);
-    if(!node)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
-
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    switch(writeValue->attributeId) {
-    case UA_ATTRIBUTEID_NODEID:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
 
-    case UA_ATTRIBUTEID_NODECLASS:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
+    do {
+        const UA_Node *node = UA_NodeStore_get(server->nodestore, &writeValue->nodeId);
+        if(!node)
+            return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
-    case UA_ATTRIBUTEID_BROWSENAME:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
+        UA_Node *newNode;
+        switch(node->nodeClass) {
+        case UA_NODECLASS_OBJECT:
+            newNode = (UA_Node *)UA_ObjectNode_new();
+            UA_ObjectNode_copy((const UA_ObjectNode*)node, (UA_ObjectNode *)newNode);
+            break;
 
-    case UA_ATTRIBUTEID_DISPLAYNAME:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
+        case UA_NODECLASS_VARIABLE:
+            newNode = (UA_Node *)UA_VariableNode_new();
+            UA_VariableNode_copy((const UA_VariableNode*)node, (UA_VariableNode *)newNode);
+            break;
 
-    case UA_ATTRIBUTEID_DESCRIPTION:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
+        case UA_NODECLASS_METHOD:
+            newNode = (UA_Node *)UA_MethodNode_new();
+            UA_MethodNode_copy((const UA_MethodNode*)node, (UA_MethodNode *)newNode);
+            break;
 
-    case UA_ATTRIBUTEID_WRITEMASK:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
+        case UA_NODECLASS_OBJECTTYPE:
+            newNode = (UA_Node *)UA_ObjectTypeNode_new();
+            UA_ObjectTypeNode_copy((const UA_ObjectTypeNode*)node, (UA_ObjectTypeNode *)newNode);
+            break;
 
-    case UA_ATTRIBUTEID_USERWRITEMASK:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
+        case UA_NODECLASS_VARIABLETYPE:
+            newNode = (UA_Node *)UA_VariableTypeNode_new();
+            UA_VariableTypeNode_copy((const UA_VariableTypeNode*)node, (UA_VariableTypeNode *)newNode);
+            break;
 
-    case UA_ATTRIBUTEID_ISABSTRACT:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
+        case UA_NODECLASS_REFERENCETYPE:
+            newNode = (UA_Node *)UA_ReferenceTypeNode_new();
+            UA_ReferenceTypeNode_copy((const UA_ReferenceTypeNode*)node, (UA_ReferenceTypeNode *)newNode);
+            break;
 
-    case UA_ATTRIBUTEID_SYMMETRIC:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
+        case UA_NODECLASS_DATATYPE:
+            newNode = (UA_Node *)UA_DataTypeNode_new();
+            UA_DataTypeNode_copy((const UA_DataTypeNode*)node, (UA_DataTypeNode *)newNode);
+            break;
 
-    case UA_ATTRIBUTEID_INVERSENAME:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
+        case UA_NODECLASS_VIEW:
+            newNode = (UA_Node *)UA_ViewNode_new();
+            UA_ViewNode_copy((const UA_ViewNode*)node, (UA_ViewNode *)newNode);
+            break;
 
-    case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
-
-    case UA_ATTRIBUTEID_EVENTNOTIFIER:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
-
-    case UA_ATTRIBUTEID_VALUE:
-        if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT) {
-            retval |= UA_Variant_copy(&writeValue->value.value, &((UA_VariableNode *)node)->value); // todo: zero-copy
+        default:
+            return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+            break;
         }
-        break;
 
-    case UA_ATTRIBUTEID_DATATYPE:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
+        switch(writeValue->attributeId) {
+        case UA_ATTRIBUTEID_NODEID:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
 
-    case UA_ATTRIBUTEID_VALUERANK:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
+        case UA_ATTRIBUTEID_NODECLASS:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
 
-    case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
+        case UA_ATTRIBUTEID_BROWSENAME:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
 
-    case UA_ATTRIBUTEID_ACCESSLEVEL:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
+        case UA_ATTRIBUTEID_DISPLAYNAME:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
 
-    case UA_ATTRIBUTEID_USERACCESSLEVEL:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
+        case UA_ATTRIBUTEID_DESCRIPTION:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
 
-    case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
+        case UA_ATTRIBUTEID_WRITEMASK:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
 
-    case UA_ATTRIBUTEID_HISTORIZING:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
+        case UA_ATTRIBUTEID_USERWRITEMASK:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
 
-    case UA_ATTRIBUTEID_EXECUTABLE:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
+        case UA_ATTRIBUTEID_ISABSTRACT:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
 
-    case UA_ATTRIBUTEID_USEREXECUTABLE:
-        /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
+        case UA_ATTRIBUTEID_SYMMETRIC:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
 
-    default:
-        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
-        break;
-    }
+        case UA_ATTRIBUTEID_INVERSENAME:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
 
-    UA_NodeStore_release(node);
+        case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
+
+        case UA_ATTRIBUTEID_EVENTNOTIFIER:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
+
+        case UA_ATTRIBUTEID_VALUE:
+            if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT) {
+                retval |= UA_Variant_copy(&writeValue->value.value, &((UA_VariableNode *)newNode)->value); // todo: zero-copy
+            }
+            break;
+
+        case UA_ATTRIBUTEID_DATATYPE:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
+
+        case UA_ATTRIBUTEID_VALUERANK:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
+
+        case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
+
+        case UA_ATTRIBUTEID_ACCESSLEVEL:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
+
+        case UA_ATTRIBUTEID_USERACCESSLEVEL:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
+
+        case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
+
+        case UA_ATTRIBUTEID_HISTORIZING:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
+
+        case UA_ATTRIBUTEID_EXECUTABLE:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
+
+        case UA_ATTRIBUTEID_USEREXECUTABLE:
+            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            break;
+
+        default:
+            retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+            break;
+        }
+
+        if(retval != UA_STATUSCODE_GOOD)
+            break;
+
+        const UA_Node *constPtr = newNode; // compilers complain if we directly cast
+        if(UA_NodeStore_replace(server->nodestore, node, &constPtr, UA_FALSE) == UA_STATUSCODE_GOOD) {
+            UA_NodeStore_release(node);
+            break;
+        }
+
+        /* The node was replaced in another thread. Restart. */
+        UA_NodeStore_release(node);
+        switch(node->nodeClass) {
+        case UA_NODECLASS_OBJECT:
+            UA_ObjectNode_delete((UA_ObjectNode *)newNode);
+            break;
+
+        case UA_NODECLASS_VARIABLE:
+            UA_VariableNode_delete((UA_VariableNode *)newNode);
+            break;
+
+        case UA_NODECLASS_METHOD:
+            UA_MethodNode_delete((UA_MethodNode *)newNode);
+            break;
+            
+        case UA_NODECLASS_OBJECTTYPE:
+            UA_ObjectTypeNode_delete((UA_ObjectTypeNode *)newNode);
+            break;
+            
+        case UA_NODECLASS_VARIABLETYPE:
+            UA_VariableTypeNode_delete((UA_VariableTypeNode *)newNode);
+            break;
+            
+        case UA_NODECLASS_REFERENCETYPE:
+            UA_ReferenceTypeNode_delete((UA_ReferenceTypeNode *)newNode);
+            break;
+            
+        case UA_NODECLASS_DATATYPE:
+            UA_DataTypeNode_delete((UA_DataTypeNode *)newNode);
+            break;
+            
+        case UA_NODECLASS_VIEW:
+            UA_ViewNode_delete((UA_ViewNode *)newNode);
+            break;
+
+        default:
+            break;
+        }
+
+    } while(UA_TRUE);
+
     return retval;
 }
 

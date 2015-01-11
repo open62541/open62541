@@ -52,14 +52,14 @@
     }
 
 #define UA_TYPE_COPY_AS(TYPE, TYPE_AS)                         \
-    UA_StatusCode TYPE##_copy(TYPE const *src, TYPE *dst) {    \
-        return TYPE_AS##_copy((TYPE_AS *)src, (TYPE_AS *)dst); \
+    UA_StatusCode TYPE##_copy(const TYPE *src, TYPE *dst) {    \
+        return TYPE_AS##_copy((const TYPE_AS *)src, (TYPE_AS *)dst); \
     }
 
 #ifdef UA_DEBUG //print functions only in debug mode
-#define UA_TYPE_PRINT_AS(TYPE, TYPE_AS)              \
-    void TYPE##_print(TYPE const *p, FILE *stream) { \
-        TYPE_AS##_print((TYPE_AS *)p, stream);       \
+#define UA_TYPE_PRINT_AS(TYPE, TYPE_AS)                    \
+    void TYPE##_print(const TYPE *p, FILE *stream) {       \
+        TYPE_AS##_print((const TYPE_AS *)p, stream);       \
     }
 #else
 #define UA_TYPE_PRINT_AS(TYPE, TYPE_AS)

@@ -28,8 +28,7 @@
 }
 END_TEST */
 
-Suite* testSuite_Service_TranslateBrowsePathsToNodeIds()
-{
+static Suite* testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
 	Suite *s = suite_create("Service_TranslateBrowsePathsToNodeIds");
 	TCase *tc_core = tcase_create("Core");
 	//tcase_add_test(tc_core, Service_TranslateBrowsePathsToNodeIds_SmokeTest);
@@ -37,13 +36,11 @@ Suite* testSuite_Service_TranslateBrowsePathsToNodeIds()
 	return s;
 }
 
-int main (void)
-{
+int main(void) {
 	int number_failed = 0;
 
 	Suite *s;
 	SRunner *sr;
-
 
 	s = testSuite_Service_TranslateBrowsePathsToNodeIds();
 	sr = srunner_create(s);

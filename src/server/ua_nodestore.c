@@ -13,7 +13,7 @@
 #define ALIVE_BIT (1 << 15) /* Alive bit in the refcount */
 struct nodeEntry {
     UA_UInt16 refcount;
-    const UA_Node node;
+    UA_Node node; // could be const, but then we cannot free it without compilers warnings
 };
 
 struct UA_NodeStore {
@@ -130,31 +130,31 @@ static UA_StatusCode expand(UA_NodeStore *ns) {
 static void deleteEntry(struct nodeEntry *entry) {
     if(entry->refcount > 0)
         return;
-    const UA_Node *node = &entry->node;
-    switch(node->nodeClass) {
+
+    switch(entry->node.nodeClass) {
     case UA_NODECLASS_OBJECT:
-        UA_ObjectNode_deleteMembers((UA_ObjectNode *)node);
+        UA_ObjectNode_deleteMembers((UA_ObjectNode*)&entry->node);
         break;
     case UA_NODECLASS_VARIABLE:
-        UA_VariableNode_deleteMembers((UA_VariableNode *)node);
+        UA_VariableNode_deleteMembers((UA_VariableNode*)&entry->node);
         break;
     case UA_NODECLASS_METHOD:
-        UA_MethodNode_deleteMembers((UA_MethodNode *)node);
+        UA_MethodNode_deleteMembers((UA_MethodNode *)&entry->node);
         break;
     case UA_NODECLASS_OBJECTTYPE:
-        UA_ObjectTypeNode_deleteMembers((UA_ObjectTypeNode *)node);
+        UA_ObjectTypeNode_deleteMembers((UA_ObjectTypeNode*)&entry->node);
         break;
     case UA_NODECLASS_VARIABLETYPE:
-        UA_VariableTypeNode_deleteMembers((UA_VariableTypeNode *)node);
+        UA_VariableTypeNode_deleteMembers((UA_VariableTypeNode*)&entry->node);
         break;
     case UA_NODECLASS_REFERENCETYPE:
-        UA_ReferenceTypeNode_deleteMembers((UA_ReferenceTypeNode *)node);
+        UA_ReferenceTypeNode_deleteMembers((UA_ReferenceTypeNode*)&entry->node);
         break;
     case UA_NODECLASS_DATATYPE:
-        UA_DataTypeNode_deleteMembers((UA_DataTypeNode *)node);
+        UA_DataTypeNode_deleteMembers((UA_DataTypeNode*)&entry->node);
         break;
     case UA_NODECLASS_VIEW:
-        UA_ViewNode_deleteMembers((UA_ViewNode *)node);
+        UA_ViewNode_deleteMembers((UA_ViewNode*)&entry->node);
         break;
     default:
         UA_assert(UA_FALSE);
@@ -163,9 +163,10 @@ static void deleteEntry(struct nodeEntry *entry) {
     UA_free(entry);
 }
 
-static INLINE struct nodeEntry * nodeEntryFromNode(const UA_Node *node) {
+/** Copies the node into the entry. Then free the original node (but not its content). */
+static INLINE struct nodeEntry * nodeEntryFromNode(UA_Node *node) {
     UA_UInt32 nodesize = 0;
-    /* Copy the node into the entry. Then reset the original node. It shall no longer be used. */
+    
     switch(node->nodeClass) {
     case UA_NODECLASS_OBJECT:
         nodesize = sizeof(UA_ObjectNode);
@@ -195,19 +196,20 @@ static INLINE struct nodeEntry * nodeEntryFromNode(const UA_Node *node) {
         UA_assert(UA_FALSE);
     }
 
-    struct nodeEntry *entry;
-    if(!(entry = UA_malloc(sizeof(struct nodeEntry) - sizeof(UA_Node) + nodesize)))
+    struct nodeEntry *newEntry;
+    if(!(newEntry = UA_malloc(sizeof(struct nodeEntry) - sizeof(UA_Node) + nodesize)))
         return UA_NULL;
-    UA_memcpy((void *)&entry->node, node, nodesize);
-    UA_free((void*)node);
-    return entry;
+
+    UA_memcpy(&newEntry->node, node, nodesize);
+    UA_free(node);
+    return newEntry;
 }
 
 /**********************/
 /* Exported functions */
 /**********************/
 
-UA_NodeStore * UA_NodeStore_new() {
+UA_NodeStore * UA_NodeStore_new(void) {
     UA_NodeStore *ns;
     if(!(ns = UA_malloc(sizeof(UA_NodeStore))))
         return UA_NULL;
@@ -244,10 +246,22 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, const UA_Node **node, UA_Boo
         if(expand(ns) != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADINTERNALERROR;
     }
+    
+    /* The node is const so the user gets a const pointer back. Still, we want
+       to make small changes to the node internally, then add it to the hashmap
+       and return a new const pointer. */
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#endif
+    UA_Node *editableNode = (UA_Node*)*node;
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
     // get a free slot
     struct nodeEntry **slot;
-    UA_NodeId *nodeId = (UA_NodeId *)&(*node)->nodeId;
+    UA_NodeId *nodeId = &editableNode->nodeId;
     if(UA_NodeId_isNull(nodeId)) {
         // find a unique nodeid that is not taken
         nodeId->identifierType = UA_NODEIDTYPE_NUMERIC;
@@ -268,7 +282,7 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, const UA_Node **node, UA_Boo
             return UA_STATUSCODE_BADNODEIDEXISTS;
     }
     
-    struct nodeEntry *entry = nodeEntryFromNode(*node);
+    struct nodeEntry *entry = nodeEntryFromNode(editableNode);
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -298,7 +312,16 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode,
     if(&(*slot)->node != oldNode)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    struct nodeEntry *entry = nodeEntryFromNode(*node);
+    /* We need to able to free the new node when copying it into the entry. */
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#endif
+    struct nodeEntry *entry = nodeEntryFromNode((UA_Node *)*node);
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -349,7 +372,17 @@ void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visit
 }
 
 void UA_NodeStore_release(const UA_Node *managed) {
-    struct nodeEntry *entry = (struct nodeEntry *) ((char*)managed - offsetof(struct nodeEntry, node));
+    /* We know what we are doing here and remove a compiler warning. Nobody has
+       a reference to the const pointer, so we can free it. */
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#pragma GCC diagnostic ignored "-Wcast-align"
+#endif
+    struct nodeEntry *entry = (struct nodeEntry *) ((UA_Byte*)managed - offsetof(struct nodeEntry, node));
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
     entry->refcount--;
     deleteEntry(entry);
 }

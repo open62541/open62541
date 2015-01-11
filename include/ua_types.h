@@ -23,6 +23,7 @@ extern "C" {
 #include "ua_config.h"
 
 #include <stdint.h>
+#include <stdbool.h>
 #ifdef UA_DEBUG
 #include <stdio.h>
 #endif
@@ -61,7 +62,7 @@ extern "C" {
  */
 
 /** @brief A two-state logical value (true or false). */
-typedef _Bool UA_Boolean;
+typedef bool UA_Boolean;
 
 /** @brief An integer value between -129 and 127. */
 typedef int8_t UA_SByte;
@@ -288,7 +289,7 @@ typedef void UA_InvalidType;
 #endif
 
 #define UA_TYPE_PROTOTYPES(TYPE)                                     \
-    TYPE UA_EXPORT * TYPE##_new();                                   \
+    TYPE UA_EXPORT * TYPE##_new(void);                               \
     void UA_EXPORT TYPE##_init(TYPE * p);                            \
     void UA_EXPORT TYPE##_delete(TYPE * p);                          \
     void UA_EXPORT TYPE##_deleteMembers(TYPE * p);                   \
@@ -296,7 +297,7 @@ typedef void UA_InvalidType;
     PRINTTYPE(TYPE)
 
 #define UA_TYPE_PROTOTYPES_NOEXPORT(TYPE)                            \
-    TYPE * TYPE##_new();                                             \
+    TYPE * TYPE##_new(void);                                         \
     void TYPE##_init(TYPE * p);                                      \
     void TYPE##_delete(TYPE * p);                                    \
     void TYPE##_deleteMembers(TYPE * p);                             \
@@ -351,7 +352,7 @@ void UA_EXPORT UA_String_printx_hex(char const *label, const UA_String *string);
 #endif
 
 /* DateTime */
-UA_DateTime UA_EXPORT UA_DateTime_now();
+UA_DateTime UA_EXPORT UA_DateTime_now(void);
 typedef struct UA_DateTimeStruct {
     UA_Int16 nanoSec;
     UA_Int16 microSec;
@@ -424,7 +425,7 @@ void UA_EXPORT UA_Array_print(const void *p, UA_Int32 noElements, const UA_TypeV
 
 typedef struct UA_Encoding {
     /**  Returns the size of the encoded element.*/
-    UA_Int32 (*calcSize)(const void *p);
+    UA_UInt32 (*calcSize)(const void *p);
     /** Encodes the type into the destination bytestring. */
     UA_StatusCode (*encode)(const void *src, UA_ByteString *dst, UA_UInt32 *offset);
     /** Decodes a ByteString into an UA datatype. */
@@ -436,7 +437,7 @@ typedef struct UA_Encoding {
 struct UA_TypeVTable {
     UA_NodeId     typeId;
     UA_Byte       *name;
-    void *        (*new)();
+    void *        (*new)(void);
     void          (*init)(void *p);
     UA_StatusCode (*copy)(void const *src, void *dst);
     void          (*delete)(void *p);

@@ -240,7 +240,7 @@ void writeCallback(TCPConnection *handle, UA_ByteStringArray gather_buf) {
 #endif
 }
 
-UA_StatusCode NetworkLayerTCP_start(NetworkLayerTCP *layer) {
+static UA_StatusCode NetworkLayerTCP_start(NetworkLayerTCP *layer) {
 #ifdef _WIN32
 	WORD wVersionRequested;
 	WSADATA wsaData;
@@ -285,8 +285,8 @@ UA_StatusCode NetworkLayerTCP_start(NetworkLayerTCP *layer) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 NetworkLayerTCP_getWork(NetworkLayerTCP *layer, UA_WorkItem **workItems,
-                                 UA_UInt16 timeout) {
+static UA_Int32 NetworkLayerTCP_getWork(NetworkLayerTCP *layer, UA_WorkItem **workItems,
+                                        UA_UInt16 timeout) {
     UA_WorkItem *items = UA_NULL;
     UA_Int32 itemsCount = batchDeleteLinks(layer, &items);
     setFDSet(layer);
@@ -351,7 +351,7 @@ UA_Int32 NetworkLayerTCP_getWork(NetworkLayerTCP *layer, UA_WorkItem **workItems
     return j;
 }
 
-UA_Int32 NetworkLayerTCP_stop(NetworkLayerTCP * layer, UA_WorkItem **workItems) {
+static UA_Int32 NetworkLayerTCP_stop(NetworkLayerTCP * layer, UA_WorkItem **workItems) {
 	for(UA_Int32 index = 0;index < layer->conLinksSize;index++)
         closeConnection(layer->conLinks[index].connection);
 #ifdef _WIN32
@@ -360,7 +360,7 @@ UA_Int32 NetworkLayerTCP_stop(NetworkLayerTCP * layer, UA_WorkItem **workItems) 
     return batchDeleteLinks(layer, workItems);
 }
 
-void NetworkLayerTCP_delete(NetworkLayerTCP *layer) {
+static void NetworkLayerTCP_delete(NetworkLayerTCP *layer) {
 	free(layer->conLinks);
 	free(layer);
 }

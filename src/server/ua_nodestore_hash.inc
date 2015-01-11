@@ -17,7 +17,15 @@ static hash_t hash_array(const UA_Byte *data, UA_UInt32 len, UA_UInt32 seed) {
     static const uint32_t m  = 5;
     static const uint32_t n  = 0xe6546b64;
     hash_t hash = seed;
+    /* Somce compilers emit a warning when casting from a byte array to ints. */
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-align"
+#endif
     blocks = (const uint32_t *)data;
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
     for(int32_t i = 0;i < nblocks;i++) {
         uint32_t k = blocks[i];
         k    *= c1;
@@ -59,9 +67,9 @@ static hash_t hash(const UA_NodeId *n) {
     case UA_NODEIDTYPE_STRING:
         return hash_array(n->identifier.string.data, n->identifier.string.length, n->namespaceIndex);
     case UA_NODEIDTYPE_GUID:
-        return hash_array((UA_Byte *)&(n->identifier.guid), sizeof(UA_Guid), n->namespaceIndex);
+        return hash_array((const UA_Byte *)&(n->identifier.guid), sizeof(UA_Guid), n->namespaceIndex);
     case UA_NODEIDTYPE_BYTESTRING:
-        return hash_array((UA_Byte *)n->identifier.byteString.data, n->identifier.byteString.length, n->namespaceIndex);
+        return hash_array((const UA_Byte *)n->identifier.byteString.data, n->identifier.byteString.length, n->namespaceIndex);
     default:
         UA_assert(UA_FALSE);
         return 0;

@@ -23,14 +23,14 @@ UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager,
                                               UA_SecureChannel *channel, UA_Session **session);
 
 UA_StatusCode UA_SessionManager_removeSession(UA_SessionManager *sessionManager,
-                                              UA_NodeId         *sessionId);
+                                              const UA_NodeId *sessionId);
 
 /** Finds the session which is identified by the sessionId */
 UA_StatusCode UA_SessionManager_getSessionById(UA_SessionManager *sessionManager,
-                                               UA_NodeId *sessionId, UA_Session **session);
+                                               const UA_NodeId *sessionId, UA_Session **session);
 
 UA_StatusCode UA_SessionManager_getSessionByToken(UA_SessionManager *sessionManager,
-                                                  UA_NodeId *token, UA_Session **session);
+                                                  const UA_NodeId *token, UA_Session **session);
 
 //UA_Int32 UA_SessionManager_updateSessions();
 //UA_Int32 UA_SessionManager_generateToken(UA_Session session, UA_Int32 requestedLifeTime, SecurityTokenRequestType requestType, UA_ChannelSecurityToken* newToken);

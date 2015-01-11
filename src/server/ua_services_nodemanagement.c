@@ -197,7 +197,7 @@ static void addNodeFromAttributes(UA_Server *server, UA_Session *session, UA_Add
     }
 
     // parse the node
-    UA_Node *node;
+    UA_Node *node = UA_NULL;
     const UA_TypeVTable *nodeVT = UA_NULL;
 
     switch (item->nodeClass) {
@@ -221,8 +221,9 @@ static void addNodeFromAttributes(UA_Server *server, UA_Session *session, UA_Add
         return;
 
     // add the node
-    *result = UA_Server_addNodeWithSession(server, session, (const UA_Node **)&node,
-                                           &item->parentNodeId, &item->referenceTypeId);
+    const UA_Node *constNode = node; // compilers complain if we cast directly
+    *result = UA_Server_addNodeWithSession(server, session, &constNode, &item->parentNodeId,
+                                           &item->referenceTypeId);
     if(result->statusCode != UA_STATUSCODE_GOOD)
         nodeVT->delete(node);
 }

@@ -35,7 +35,7 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
     // make the channel know about the session
 	UA_Session *foundSession;
 	UA_SessionManager_getSessionByToken(&server->sessionManager,
-                                        (UA_NodeId*)&request->requestHeader.authenticationToken,
+                                        (const UA_NodeId*)&request->requestHeader.authenticationToken,
                                         &foundSession);
 
 	if(foundSession == UA_NULL)
@@ -48,7 +48,7 @@ void Service_CloseSession(UA_Server *server, const UA_CloseSessionRequest *reque
                               UA_CloseSessionResponse *response) {
 	UA_Session *foundSession;
 	UA_SessionManager_getSessionByToken(&server->sessionManager,
-			(UA_NodeId*)&request->requestHeader.authenticationToken,
+			(const UA_NodeId*)&request->requestHeader.authenticationToken,
 			&foundSession);
 
 	if(foundSession == UA_NULL){

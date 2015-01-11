@@ -28,7 +28,7 @@ struct UA_NodeStore;
 typedef struct UA_NodeStore UA_NodeStore;
 
 /** Create a new namespace */
-UA_NodeStore * UA_NodeStore_new();
+UA_NodeStore * UA_NodeStore_new(void);
 
 /** Delete the namespace and all nodes in it */
 void UA_NodeStore_delete(UA_NodeStore *ns);

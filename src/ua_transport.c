@@ -44,7 +44,7 @@ UA_StatusCode UA_MessageType_decodeBinary(UA_ByteString const *src, UA_UInt32 *o
 
 #ifdef UA_DEBUG
 void UA_MessageType_print(const UA_MessageType *p, FILE *stream) {
-    UA_Byte *b = (UA_Byte *)p;
+    const UA_Byte *b = (const UA_Byte *)p;
     fprintf(stream, "%c%c%c", b[2], b[1], b[0]);
 }
 #endif

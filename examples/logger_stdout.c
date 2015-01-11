@@ -9,7 +9,7 @@
 #include "logger_stdout.h"
 #include "ua_types.h"
 
-void print_time() {
+static void print_time(void) {
 	UA_DateTime now = UA_DateTime_now();
 	UA_ByteString str;
 	UA_DateTime_toString(now, &str);
@@ -18,7 +18,7 @@ void print_time() {
 }
 
 #define LOG_FUNCTION(LEVEL) \
-	void log_##LEVEL(UA_LoggerCategory category, const char *msg, ...) { \
+	static void log_##LEVEL(UA_LoggerCategory category, const char *msg, ...) { \
 		va_list args;												   \
 		puts("##LEVEL - ");											   \
 		print_time();												   \

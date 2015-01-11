@@ -2,7 +2,7 @@
 #include "ua_server_internal.h"
 #include "ua_namespace_0.h"
 
-const UA_TypeVTable * UA_Node_getTypeVT(const UA_Node *node) {
+static const UA_TypeVTable * UA_Node_getTypeVT(const UA_Node *node) {
     switch(node->nodeClass) {
     case UA_NODECLASS_OBJECT:
         return &UA_TYPES[UA_OBJECTNODE];
@@ -43,8 +43,8 @@ void UA_Server_addScalarVariableNode(UA_Server *server, UA_QualifiedName *browse
 }
 
 /* Adds a one-way reference to the local nodestore */
-UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session *session,
-                                            const UA_AddReferencesItem *item) {
+static UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session *session,
+                                                   const UA_AddReferencesItem *item) {
     // use the servers nodestore
     const UA_Node *node = UA_NodeStore_get(server->nodestore, &item->sourceNodeId);
     // todo differentiate between error codes
@@ -84,7 +84,8 @@ UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session *sessi
     UA_free(old_refs);
     newNode->references = new_refs;
     newNode->referencesSize = ++count;
-    retval = UA_NodeStore_replace(server->nodestore, node, (const UA_Node **)&newNode, UA_FALSE);
+    const UA_Node *constNode = newNode;
+    retval = UA_NodeStore_replace(server->nodestore, node, (const UA_Node **)&constNode, UA_FALSE);
     UA_NodeStore_release(node);
     if(retval != UA_STATUSCODE_BADINTERNALERROR)
         return retval;
@@ -205,7 +206,7 @@ UA_AddNodesResult UA_Server_addNodeWithSession(UA_Server *server, UA_Session *se
     *node = UA_NULL;
     
  ret2:
-    UA_NodeStore_release((UA_Node*)referenceType);
+    UA_NodeStore_release((const UA_Node*)referenceType);
  ret:
     UA_NodeStore_release(parent);
 

@@ -131,7 +131,7 @@ printh('''/**********************************************************
  * @retval the corresponding index into UA_VTable
  */
 
-UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id);\n
+UA_UInt32 UA_ns0ToVTableIndex(const UA_NodeId *id);\n
 extern const UA_TypeVTable UA_EXPORT *UA_TYPES;
 extern const UA_NodeId UA_EXPORT *UA_NODEIDS;
 extern const UA_ExpandedNodeId UA_EXPORT *UA_EXPANDEDNODEIDS;
@@ -147,7 +147,7 @@ printc('''/**********************************************************
  **********************************************************/\n
 #include "''' + args.outfile.split("/")[-1] + '''.h"\n
 #include "ua_util.h"
-UA_Int32 UA_ns0ToVTableIndex(const UA_NodeId *id) {
+UA_UInt32 UA_ns0ToVTableIndex(const UA_NodeId *id) {
 	UA_Int32 retval = 0; // InvalidType
         if(id->namespaceIndex != 0) return retval;
 	switch (id->identifier.numeric) {''')
@@ -183,7 +183,7 @@ for row in rows:
     name = "UA_" + row[0]
     printc("\t{.typeId={.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric=" + row[1] + "}" + 
            ",\n.name=(UA_Byte*)&\"%(name)s\"" +
-           ",\n.new=(void *(*)())%(name)s_new" +
+           ",\n.new=(void *(*)(void))%(name)s_new" +
            ",\n.init=(void(*)(void *))%(name)s_init"+
            ",\n.copy=(UA_StatusCode(*)(void const * ,void*))%(name)s_copy" +
            ",\n.delete=(void(*)(void *))%(name)s_delete" +
@@ -193,7 +193,7 @@ for row in rows:
            "\n#endif" + 
            "\n.memSize=" + ("sizeof(%(name)s)" if (name != "UA_InvalidType") else "0") +
            ",\n.dynMembers=" + ("UA_FALSE" if (name in fixed_size) else "UA_TRUE") +
-           ",\n.encodings={{.calcSize=(UA_Int32(*)(const void*))%(name)s_calcSizeBinary" +
+           ",\n.encodings={{.calcSize=(UA_UInt32(*)(const void*))%(name)s_calcSizeBinary" +
            ",\n.encode=(UA_StatusCode(*)(const void*,UA_ByteString*,UA_UInt32*))%(name)s_encodeBinary" +
            ",\n.decode=(UA_StatusCode(*)(const UA_ByteString*,UA_UInt32*,void*))%(name)s_decodeBinary}" +
            (",\n{.calcSize=(UA_Int32(*)(const void*))%(name)s_calcSizeXml" +

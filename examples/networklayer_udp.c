@@ -71,9 +71,10 @@ static void setFDSet(NetworkLayerUDP *layer) {
 }
 
 // the callbacks are thread-safe if UA_MULTITHREADING is defined
-void closeConnectionUDP(UDPConnection *handle){
+static void closeConnectionUDP(UDPConnection *handle) {
 	free(handle);
 }
+
 void writeCallbackUDP(UDPConnection *handle, UA_ByteStringArray gather_buf);
 
 /** Accesses only the sockfd in the handle. Can be run from parallel threads. */
@@ -108,10 +109,18 @@ void writeCallbackUDP(UDPConnection *handle, UA_ByteStringArray gather_buf) {
 
 
 	struct sockaddr_in *sin = UA_NULL;
-	if (handle->from.sa_family == AF_INET)
-	{
+	if (handle->from.sa_family == AF_INET) {
+        
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-align"
+#endif
 	    sin = (struct sockaddr_in *) &(handle->from);
-	}else{
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+
+	} else {
 		//FIXME:
 		return;
 	}
@@ -132,7 +141,7 @@ void writeCallbackUDP(UDPConnection *handle, UA_ByteStringArray gather_buf) {
 #endif
 }
 
-UA_StatusCode NetworkLayerUDP_start(NetworkLayerUDP *layer) {
+static UA_StatusCode NetworkLayerUDP_start(NetworkLayerUDP *layer) {
 #ifdef _WIN32
 	WORD wVersionRequested;
 	WSADATA wsaData;
@@ -177,8 +186,8 @@ UA_StatusCode NetworkLayerUDP_start(NetworkLayerUDP *layer) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 NetworkLayerUDP_getWork(NetworkLayerUDP *layer, UA_WorkItem **workItems,
-                                 UA_UInt16 timeout) {
+static UA_Int32 NetworkLayerUDP_getWork(NetworkLayerUDP *layer, UA_WorkItem **workItems,
+                                        UA_UInt16 timeout) {
     UA_WorkItem *items = UA_NULL;
     setFDSet(layer);
     struct timeval tmptv = {0, timeout};
@@ -249,12 +258,12 @@ UA_Int32 NetworkLayerUDP_getWork(NetworkLayerUDP *layer, UA_WorkItem **workItems
     return j;
 }
 
-UA_Int32 NetworkLayerUDP_stop(NetworkLayerUDP * layer, UA_WorkItem **workItems) {
+static UA_Int32 NetworkLayerUDP_stop(NetworkLayerUDP * layer, UA_WorkItem **workItems) {
 	CLOSESOCKET(layer->serversockfd);
 	return 0;
 }
 
-void NetworkLayerUDP_delete(NetworkLayerUDP *layer) {
+static void NetworkLayerUDP_delete(NetworkLayerUDP *layer) {
 	free(layer);
 }
 

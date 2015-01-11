@@ -32,12 +32,12 @@
 
 #define UA_TYPE_CALCSIZEBINARY_AS(TYPE, TYPE_AS)        \
     UA_UInt32 TYPE##_calcSizeBinary(TYPE const *p) {    \
-        return TYPE_AS##_calcSizeBinary((TYPE_AS *)p);  \
+        return TYPE_AS##_calcSizeBinary((const TYPE_AS *)p);  \
     }
 
 #define UA_TYPE_ENCODEBINARY_AS(TYPE, TYPE_AS)                          \
     UA_StatusCode TYPE##_encodeBinary(TYPE const *src, UA_ByteString *dst, UA_UInt32 *offset) { \
-        return TYPE_AS##_encodeBinary((TYPE_AS *)src, dst, offset);     \
+        return TYPE_AS##_encodeBinary((const TYPE_AS *)src, dst, offset);     \
     }
 
 #define UA_TYPE_DECODEBINARY_AS(TYPE, TYPE_AS)                          \

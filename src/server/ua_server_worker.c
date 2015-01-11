@@ -207,10 +207,10 @@ static UA_UInt16 processTimedWork(UA_Server *server) {
 
             UA_TimedWork *prevTw = tw; // after which tw do we insert?
             while(UA_TRUE) {
-                UA_TimedWork *next = LIST_NEXT(prevTw, pointers);
-                if(!next || next->time > tw->time)
+                UA_TimedWork *n = LIST_NEXT(prevTw, pointers);
+                if(!n || n->time > tw->time)
                     break;
-                prevTw = next;
+                prevTw = n;
             }
             if(prevTw != tw) {
                 LIST_REMOVE(tw, pointers);
@@ -228,10 +228,10 @@ static UA_UInt16 processTimedWork(UA_Server *server) {
             tw->time += tw->repetitionInterval;
             UA_TimedWork *prevTw = tw;
             while(UA_TRUE) {
-                UA_TimedWork *next = LIST_NEXT(prevTw, pointers);
-                if(!next || next->time > tw->time)
+                UA_TimedWork *n = LIST_NEXT(prevTw, pointers);
+                if(!n || n->time > tw->time)
                     break;
-                prevTw = next;
+                prevTw = n;
             }
             if(prevTw != tw) {
                 LIST_REMOVE(tw, pointers);

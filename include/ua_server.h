@@ -35,7 +35,7 @@ extern "C" {
 struct UA_Server;
 typedef struct UA_Server UA_Server;
 
-UA_Server UA_EXPORT * UA_Server_new();
+UA_Server UA_EXPORT * UA_Server_new(void);
 void UA_EXPORT UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate);
 void UA_EXPORT UA_Server_delete(UA_Server *server);
 

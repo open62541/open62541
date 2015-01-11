@@ -68,7 +68,7 @@ void UA_Server_delete(UA_Server *server) {
 #endif
 }
 
-UA_Server * UA_Server_new() {
+UA_Server * UA_Server_new(void) {
     UA_Server *server = UA_malloc(sizeof(UA_Server));
     if(!server)
         return UA_NULL;

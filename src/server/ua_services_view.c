@@ -129,7 +129,7 @@ static UA_StatusCode findRelevantReferenceTypes(UA_NodeStore *ns, const UA_NodeI
             if(retval)
                 currentLastIndex--; // undo if we need to delete the typeArray
         }
-        UA_NodeStore_release((UA_Node*)node);
+        UA_NodeStore_release((const UA_Node*)node);
     } while(++currentIndex <= currentLastIndex && retval == UA_STATUSCODE_GOOD);
 
     if(retval)
@@ -158,7 +158,8 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
             if(browseResult->statusCode != UA_STATUSCODE_GOOD)
                 return;
         } else {
-            relevantReferenceTypes = (UA_NodeId*)&browseDescription->referenceTypeId; // is const
+            relevantReferenceTypes = UA_NodeId_new();
+            UA_NodeId_copy(&browseDescription->referenceTypeId, relevantReferenceTypes);
             relevantReferenceTypesSize = 1;
         }
     }
@@ -219,7 +220,7 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
     }
 
     UA_NodeStore_release(parentNode);
-    if(!returnAll && browseDescription->includeSubtypes)
+    if(!returnAll)
         UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesSize, &UA_TYPES[UA_NODEID]);
 }
 

@@ -22,12 +22,12 @@
 
 UA_Boolean running = 1;
 
-void stopHandler(int sign) {
+static void stopHandler(int sign) {
     printf("Received Ctrl-C\n");
 	running = 0;
 }
 
-UA_ByteString loadCertificate() {
+static UA_ByteString loadCertificate(void) {
     UA_ByteString certificate = UA_STRING_NULL;
 	FILE *fp = NULL;
 	//FIXME: a potiential bug of locating the certificate, we need to get the path from the server's config
@@ -52,7 +52,7 @@ UA_ByteString loadCertificate() {
     return certificate;
 }
 
-void testCallback(UA_Server *server, void *data) {
+static void testCallback(UA_Server *server, void *data) {
        printf("testcallback\n");
 }
 

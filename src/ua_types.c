@@ -14,9 +14,9 @@
 #include "ua_util.h"
 
 #ifdef _MSC_VER
-#define RAND(SEED) rand()
+#define RAND(SEED) (UA_UInt32)rand()
 #else
-#define RAND(SEED) rand_r(SEED)
+#define RAND(SEED) (UA_UInt32)rand_r(SEED)
 #endif
 
 #ifdef UA_DEBUG
@@ -147,15 +147,14 @@ void UA_String_init(UA_String *p) {
 UA_TYPE_DELETE_DEFAULT(UA_String)
 void UA_String_deleteMembers(UA_String *p) {
     UA_free(p->data);
-    UA_String_init(p);
 }
 
 UA_StatusCode UA_String_copy(UA_String const *src, UA_String *dst) {
     UA_String_init(dst);
     if(src->length > 0) {
-        if(!(dst->data = UA_malloc(src->length)))
+        if(!(dst->data = UA_malloc((UA_UInt32)src->length)))
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        UA_memcpy((void *)dst->data, src->data, src->length);
+        UA_memcpy((void *)dst->data, src->data, (UA_UInt32)src->length);
     }
     dst->length = src->length;
     return UA_STATUSCODE_GOOD;
@@ -173,7 +172,7 @@ void UA_String_print(const UA_String *p, FILE *stream) {
 
 /* The c-string needs to be null-terminated. the string cannot be smaller than zero. */
 UA_Int32 UA_String_copycstring(char const *src, UA_String *dst) {
-    UA_Int32 length = strlen(src);
+    UA_UInt32 length = (UA_UInt32) strlen(src);
     if(length == 0) {
         dst->length = 0;
         dst->data = UA_NULL;
@@ -182,7 +181,7 @@ UA_Int32 UA_String_copycstring(char const *src, UA_String *dst) {
     dst->data = UA_malloc(length);
     if(dst->data != UA_NULL) {
         UA_memcpy(dst->data, src, length);
-        dst->length = length;
+        dst->length = (UA_Int32) (length & ~(1<<31)); // the highest bit is always zero to avoid overflows into negative values
     } else {
         dst->length = -1;
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -195,23 +194,23 @@ UA_StatusCode UA_String_copyprintf(char const *fmt, UA_String *dst, ...) {
     char src[UA_STRING_COPYPRINTF_BUFSIZE];
     va_list ap;
     va_start(ap, dst);
-#ifndef WIN32
+#if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
     // vsnprintf should only take a literal and no variable to be secure
     UA_Int32 len = vsnprintf(src, UA_STRING_COPYPRINTF_BUFSIZE, fmt, ap);
-#ifndef WIN32
+#if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
     va_end(ap);
     if(len < 0)  // FIXME: old glibc 2.0 would return -1 when truncated
         return UA_STATUSCODE_BADINTERNALERROR;
-    // since glibc 2.1 vsnprintf returns len that would have resulted if buf were large enough
+    // since glibc 2.1 vsnprintf returns the len that would have resulted if buf were large enough
     len = ( len > UA_STRING_COPYPRINTF_BUFSIZE ? UA_STRING_COPYPRINTF_BUFSIZE : len );
-    if(!(dst->data = UA_malloc(dst->length)))
+    if(!(dst->data = UA_malloc((UA_UInt32)len)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_memcpy((void *)dst->data, src, len);
+    UA_memcpy((void *)dst->data, src, (UA_UInt32)len);
     dst->length = len;
     return UA_STATUSCODE_GOOD;
 }
@@ -223,7 +222,7 @@ UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
         return UA_FALSE;
 
     // casts are needed to overcome signed warnings
-    UA_Int32 is = strncmp((char const *)string1->data, (char const *)string2->data, string1->length);
+    UA_Int32 is = strncmp((char const *)string1->data, (char const *)string2->data, (size_t)string1->length);
     return (is == 0) ? UA_TRUE : UA_FALSE;
 }
 
@@ -295,19 +294,19 @@ UA_DateTime UA_DateTime_now() {
 UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time) {
     UA_DateTimeStruct dateTimeStruct;
     //calcualting the the milli-, micro- and nanoseconds
-    dateTimeStruct.nanoSec = (time % 10) * 100;
-    dateTimeStruct.microSec = (time % 10000) / 10;
-    dateTimeStruct.milliSec = (time % 10000000) / 10000;
+    dateTimeStruct.nanoSec  = (UA_Int16)((time % 10) * 100);
+    dateTimeStruct.microSec = (UA_Int16)((time % 10000) / 10);
+    dateTimeStruct.milliSec = (UA_Int16)((time % 10000000) / 10000);
 
     //calculating the unix time with #include <time.h>
     time_t secSinceUnixEpoch = (time/10000000) - UNIX_EPOCH_BIAS_SEC;
     struct tm ts = *gmtime(&secSinceUnixEpoch);
-    dateTimeStruct.sec    = ts.tm_sec;
-    dateTimeStruct.min    = ts.tm_min;
-    dateTimeStruct.hour   = ts.tm_hour;
-    dateTimeStruct.day    = ts.tm_mday;
-    dateTimeStruct.month  = ts.tm_mon+1;
-    dateTimeStruct.year   = ts.tm_year + 1900;
+    dateTimeStruct.sec    = (UA_Int16)ts.tm_sec;
+    dateTimeStruct.min    = (UA_Int16)ts.tm_min;
+    dateTimeStruct.hour   = (UA_Int16)ts.tm_hour;
+    dateTimeStruct.day    = (UA_Int16)ts.tm_mday;
+    dateTimeStruct.month  = (UA_Int16)(ts.tm_mon + 1);
+    dateTimeStruct.year   = (UA_Int16)(ts.tm_year + 1900);
     return dateTimeStruct;
 }
 
@@ -337,12 +336,18 @@ UA_Guid UA_Guid_random(UA_UInt32 *seed) {
     UA_Guid result;
     result.data1 = RAND(seed);
     UA_UInt32 r = RAND(seed);
-    result.data2 = r;
-    result.data3 = r >> 16;
-    UA_UInt32 *fake_int = (UA_UInt32*) &result.data4[0];
-    *fake_int = RAND(seed);
-    fake_int = (UA_UInt32*) &result.data4[4];
-    *fake_int = RAND(seed);
+    result.data2 = (UA_UInt16) r;
+    result.data3 = (UA_UInt16) (r >> 16);
+    r = RAND(seed);
+    result.data4[0] = (UA_Byte)r;
+    result.data4[1] = (UA_Byte)(r >> 4);
+    result.data4[2] = (UA_Byte)(r >> 8);
+    result.data4[3] = (UA_Byte)(r >> 12);
+    r = RAND(seed);
+    result.data4[4] = (UA_Byte)r;
+    result.data4[5] = (UA_Byte)(r >> 4);
+    result.data4[6] = (UA_Byte)(r >> 8);
+    result.data4[7] = (UA_Byte)(r >> 12);
     return result;
 }
 
@@ -355,7 +360,7 @@ void UA_Guid_init(UA_Guid *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_Guid)
 UA_StatusCode UA_Guid_copy(UA_Guid const *src, UA_Guid *dst) {
-    UA_memcpy((void *)dst, (void *)src, sizeof(UA_Guid));
+    UA_memcpy((void *)dst, (const void *)src, sizeof(UA_Guid));
     return UA_STATUSCODE_GOOD;
 }
 
@@ -374,41 +379,35 @@ UA_Boolean UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString
 
 #ifdef UA_DEBUG
 void UA_ByteString_printf(char *label, const UA_ByteString *string) {
-    UA_String_printf(label, (UA_String *)string);
+    UA_String_printf(label, (const UA_String *)string);
 }
 #endif
 
 #ifdef UA_DEBUG
 void UA_ByteString_printx(char *label, const UA_ByteString *string) {
-    UA_String_printx(label, (UA_String *)string);
+    UA_String_printx(label, (const UA_String *)string);
 }
 #endif
 
 #ifdef UA_DEBUG
 void UA_ByteString_printx_hex(char *label, const UA_ByteString *string) {
-    UA_String_printx_hex(label, (UA_String *)string);
+    UA_String_printx_hex(label, (const UA_String *)string);
 }
 #endif
-
-UA_Byte       UA_Byte_securityPoliceNoneData[] = "http://opcfoundation.org/UA/SecurityPolicy#None";
-// sizeof()-1 : discard the implicit null-terminator of the c-char-string
-UA_ByteString UA_ByteString_securityPoliceNone =
-{ sizeof(UA_Byte_securityPoliceNoneData)-1, UA_Byte_securityPoliceNoneData };
 
 /** Creates a ByteString of the indicated length. The content is not set to zero. */
 UA_StatusCode UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length) {
     if(length > 0) {
-        if(!(p->data = UA_malloc(length)))
+        if(!(p->data = UA_malloc((UA_UInt32)length)))
             return UA_STATUSCODE_BADOUTOFMEMORY;
         p->length = length;
-        return UA_STATUSCODE_GOOD;
+    } else {
+        p->data = UA_NULL;
+        if(length == 0)
+            p->length = 0;
+        else
+            p->length = -1;
     }
-
-    p->data   = UA_NULL;
-    if(length < 0)
-        p->length = -1;
-    else
-        p->length = 0;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -453,7 +452,7 @@ UA_StatusCode UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst) {
     return retval;
 }
 
-UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id) {
+static UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id) {
     return id->namespaceIndex == 0 &&
            id->identifierType == UA_NODEIDTYPE_NUMERIC &&
            id->identifier.numeric <= UA_DIAGNOSTICINFO;
@@ -1039,7 +1038,8 @@ UA_StatusCode UA_Array_new(void **p, UA_Int32 noElements, const UA_TypeVTable *v
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    if(!(*p = UA_malloc(vt->memSize * noElements)))
+    /* the cast to UInt32 can be made since noElements is positive */
+    if(!(*p = UA_malloc(vt->memSize * (UA_UInt32)noElements)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_Array_init(*p, noElements, vt);
@@ -1071,7 +1071,7 @@ UA_StatusCode UA_Array_copy(const void *src, UA_Int32 noElements, const UA_TypeV
     if(retval)
         return retval;
 
-    UA_Byte *csrc = (UA_Byte *)src; // so compilers allow pointer arithmetic
+    const UA_Byte *csrc = (const UA_Byte *)src; // so compilers allow pointer arithmetic
     UA_Byte *cdst = (UA_Byte *)*dst;
     UA_UInt32 memSize = vt->memSize;
     UA_Int32  i       = 0;
@@ -1093,7 +1093,7 @@ UA_StatusCode UA_Array_copy(const void *src, UA_Int32 noElements, const UA_TypeV
 #ifdef UA_DEBUG
 void UA_Array_print(const void *p, UA_Int32 noElements, const UA_TypeVTable *vt, FILE *stream) {
     fprintf(stream, "(%s){", vt->name);
-    char     *cp      = (char *)p; // so compilers allow pointer arithmetic
+    const char *cp = (const char *)p; // so compilers allow pointer arithmetic
     UA_UInt32 memSize = vt->memSize;
     for(UA_Int32 i = 0;i < noElements;i++) {
         vt->print(cp, stream);

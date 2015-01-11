@@ -642,7 +642,7 @@ START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArr
 	// then
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	ck_assert_int_eq(pos, 5);
-	ck_assert_ptr_eq((void *)dst.vt, (void *)&UA_TYPES[UA_INT32]);
+	ck_assert_ptr_eq((const void *)dst.vt, (const void *)&UA_TYPES[UA_INT32]);
 	ck_assert_int_eq(dst.storage.data.arrayLength, 1);
 	ck_assert_int_eq(*(UA_Int32 *)dst.storage.data.dataPtr, 255);
 	// finally
@@ -664,7 +664,7 @@ START_TEST(UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray)
 	// then
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	ck_assert_int_eq(pos, 1+4+2*4);
-	ck_assert_ptr_eq((void*)dst.vt, (void*)&UA_TYPES[UA_INT32]);
+	ck_assert_ptr_eq((const void*)dst.vt, (const void*)&UA_TYPES[UA_INT32]);
 	ck_assert_int_eq(dst.storage.data.arrayLength, 2);
 	ck_assert_int_eq(((UA_Int32 *)dst.storage.data.dataPtr)[0], 255);
 	ck_assert_int_eq(((UA_Int32 *)dst.storage.data.dataPtr)[1], -1);
@@ -1499,7 +1499,7 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
 	UA_Variant_init(&copiedValue);
 
 	value.storage.data.arrayLength = 6;
-	value.storage.data.dataPtr     = (void **)srcArray;
+	value.storage.data.dataPtr     = srcArray;
 	value.storage.data.arrayDimensionsLength = 2;
 	value.storage.data.arrayDimensions       = dimensions;
 	value.vt = &UA_TYPES[UA_INT32];
@@ -1604,7 +1604,7 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
 }
 END_TEST
 
-Suite *testSuite_builtin(void) {
+static Suite *testSuite_builtin(void) {
 	Suite *s = suite_create("Built-in Data Types 62541-6 Table 1");
 
 	TCase *tc_calcSize = tcase_create("calcSize");

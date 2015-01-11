@@ -49,6 +49,7 @@ set(lib_sources src/ua_types.c
 if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
 add_definitions(-std=c99 -pedantic -pipe -Wall -Wextra -Werror -Wformat
                 -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
+                -Wshadow -Wcast-align -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes # -Wconversion 
                 -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -ffunction-sections -fdata-sections)
     if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
         add_definitions(-Wformat-nonliteral)

@@ -42,14 +42,14 @@ UA_Session adminSession = {
     .validTill = UA_INT64_MAX,
     .channel = UA_NULL};
 
-UA_Session * UA_Session_new() {
+UA_Session * UA_Session_new(void) {
     UA_Session *s = UA_malloc(sizeof(UA_Session));
     if(s) UA_Session_init(s);
     return s;
 }
 
 /* TODO: Nobody seems to call this function right now */
-UA_StatusCode UA_Session_generateToken(UA_NodeId *newToken, UA_UInt32 *seed) {
+static UA_StatusCode UA_Session_generateToken(UA_NodeId *newToken, UA_UInt32 *seed) {
     newToken->namespaceIndex = 0; // where else?
     newToken->identifierType = UA_NODEIDTYPE_GUID;
     newToken->identifier.guid = UA_Guid_random(seed);
