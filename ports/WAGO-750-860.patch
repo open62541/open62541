@@ -8,12 +8,13 @@ diff --git a/CMakeLists.txt b/CMakeLists.txt
 index 87489b3..76c4aa0 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -41,18 +41,16 @@ set(lib_sources src/ua_types.c
+@@ -41,19 +41,16 @@ set(lib_sources src/ua_types.c
  
  # compiler flags
  if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
 -add_definitions(-std=c99 -pedantic -pipe -Wall -Wextra -Werror -Wformat
 -                -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
+-                -Wshadow -Wcast-align -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes # -Wconversion
 -                -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -ffunction-sections -fdata-sections)
 +add_definitions(-std=c99 -fomit-frame-pointer -pipe -msoft-float -fno-builtin -DEMBED -fno-strict-aliasing)
      if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
