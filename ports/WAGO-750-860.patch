@@ -1,14 +1,18 @@
-commit b801b9275cb93f2cea1dce231f01780bed9834ca
-Author: FlorianPalm <f.palm@plt.rwth-aachen.de>
-Date:   Wed Dec 10 10:21:44 2014 +0100
+From 97515341454f26fcd14e50d5980f5f0361307814 Mon Sep 17 00:00:00 2001
+From: FlorianPalm <f.palm@plt.rwth-aachen.de>
+Date: Mon, 12 Jan 2015 18:45:01 +0100
+Subject: [PATCH] fixes to the patch
 
-    changes for WAGO 750-860
+---
+ CMakeLists.txt | 19 ++++++++-----------
+ src/ua_util.h  |  2 +-
+ 2 files changed, 9 insertions(+), 12 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 87489b3..76c4aa0 100644
+index c785182..9e66da0 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -41,19 +41,16 @@ set(lib_sources src/ua_types.c
+@@ -47,19 +47,16 @@ set(lib_sources src/ua_types.c
  
  # compiler flags
  if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
@@ -32,7 +36,7 @@ index 87489b3..76c4aa0 100644
  	endif()
  endif()
  
-@@ -115,8 +113,8 @@ else()
+@@ -150,8 +147,8 @@ else()
  endif()
  
  add_library(open62541-objects OBJECT ${lib_sources}) # static version that exports all symbols
@@ -43,7 +47,7 @@ index 87489b3..76c4aa0 100644
  
  ## logging
  set(UA_LOGLEVEL 400 CACHE STRING "Level at which logs shall be reported")
-@@ -137,7 +135,7 @@ endif()
+@@ -170,7 +167,7 @@ endif()
  configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
  
  # download queue.h if required
@@ -52,7 +56,7 @@ index 87489b3..76c4aa0 100644
      if(NOT EXISTS "${PROJECT_BINARY_DIR}/src_generated/queue.h")
          file(DOWNLOAD "http://openbsd.cs.toronto.edu/cgi-bin/cvsweb/~checkout~/src/sys/sys/queue.h" "${PROJECT_BINARY_DIR}/src_generated/queue.h" STATUS result)
          list(GET result 0 download_ok)
-@@ -146,7 +144,7 @@ if(WIN32)
+@@ -179,7 +176,7 @@ if(WIN32)
              message(FATAL_ERROR "queue.h could not be downloaded")
          endif()
      endif()
@@ -61,3 +65,19 @@ index 87489b3..76c4aa0 100644
  
  # generate code from xml definitions
  file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
+diff --git a/src/ua_util.h b/src/ua_util.h
+index 5ec1191..65e1a4d 100644
+--- a/src/ua_util.h
++++ b/src/ua_util.h
+@@ -5,7 +5,7 @@
+ 
+ #include <stddef.h> /* Needed for sys/queue.h */
+ #ifndef WIN32
+-#include <sys/queue.h>
++#include "queue.h"
+ #include <alloca.h>
+ #else
+ #include "queue.h"
+-- 
+2.2.0
+
