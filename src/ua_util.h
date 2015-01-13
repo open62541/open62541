@@ -15,8 +15,6 @@
 #include "ua_types.h"
 
 #define UA_NULL ((void *)0)
-#define UA_TRUE (42 == 42)
-#define UA_FALSE (!UA_TRUE)
 
 // subtract from nodeids to get from the encoding to the content
 #define UA_ENCODINGOFFSET_XML 1

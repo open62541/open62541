@@ -133,8 +133,8 @@ struct UA_TimedWork {
 };
 
 /* The item is copied and not freed by this function. */
-static UA_Guid addTimedWork(UA_Server *server, UA_WorkItem *item, UA_DateTime firstTime,
-                            UA_UInt32 repetitionInterval) {
+static UA_StatusCode addTimedWork(UA_Server *server, const UA_WorkItem *item, UA_DateTime firstTime,
+                                  UA_UInt32 repetitionInterval, UA_Guid *resultWorkGuid) {
     UA_TimedWork *tw, *lastTw = UA_NULL;
 
     // search for matching entry
@@ -156,11 +156,15 @@ static UA_Guid addTimedWork(UA_Server *server, UA_WorkItem *item, UA_DateTime fi
         tw->workIds = UA_realloc(tw->workIds, sizeof(UA_Guid)*tw->workSize);
         tw->work[tw->workSize-1] = *item;
         tw->workIds[tw->workSize-1] = UA_Guid_random(&server->random_seed);
-        return tw->workIds[tw->workSize-1];
+        if(resultWorkGuid)
+            *resultWorkGuid = tw->workIds[tw->workSize-1];
+        return UA_STATUSCODE_GOOD;
     }
 
     // create a new entry
-    tw = UA_malloc(sizeof(UA_TimedWork));
+    if(!(tw = UA_malloc(sizeof(UA_TimedWork))))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
     tw->workSize = 1;
     tw->time = firstTime;
     tw->repetitionInterval = repetitionInterval;
@@ -173,16 +177,21 @@ static UA_Guid addTimedWork(UA_Server *server, UA_WorkItem *item, UA_DateTime fi
     else
         LIST_INSERT_HEAD(&server->timedWork, tw, pointers);
 
-    return tw->workIds[0];
+    if(resultWorkGuid)
+        *resultWorkGuid = tw->workIds[0];
+
+    return UA_STATUSCODE_GOOD;
 }
 
 // Currently, these functions need to get the server mutex, but should be sufficiently fast
-UA_Guid UA_Server_addTimedWorkItem(UA_Server *server, UA_WorkItem *work, UA_DateTime time) {
-    return addTimedWork(server, work, time, 0);
+UA_StatusCode UA_Server_addTimedWorkItem(UA_Server *server, const UA_WorkItem *work, UA_DateTime time,
+                                         UA_Guid *resultWorkGuid) {
+    return addTimedWork(server, work, time, 0, resultWorkGuid);
 }
 
-UA_Guid UA_Server_addRepeatedWorkItem(UA_Server *server, UA_WorkItem *work, UA_UInt32 interval) {
-    return addTimedWork(server, work, UA_DateTime_now() + interval, interval);
+UA_StatusCode UA_Server_addRepeatedWorkItem(UA_Server *server, const UA_WorkItem *work, UA_UInt32 interval,
+                                            UA_Guid *resultWorkGuid) {
+    return addTimedWork(server, work, UA_DateTime_now() + interval, interval, resultWorkGuid);
 }
 
 /** Dispatches timed work, returns the timeout until the next timed work in ms */
@@ -395,7 +404,7 @@ UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *r
     UA_WorkItem processDelayed = {.type = UA_WORKITEMTYPE_METHODCALL,
                                   .work.methodCall = {.method = dispatchDelayedWork,
                                                       .data = UA_NULL} };
-    UA_Server_addRepeatedWorkItem(server, &processDelayed, 10000000);
+    UA_Server_addRepeatedWorkItem(server, &processDelayed, 10000000, UA_NULL);
 #endif
 
     // 2) Start the networklayers

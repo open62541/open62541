@@ -100,21 +100,42 @@ typedef struct UA_WorkItem {
 } UA_WorkItem;
 
 /**
- * Add work that is executed at a given time in the future. If the indicated
- * time lies in the past, the work is executed immediately.
+ * @param server The server object.
  *
- * The work pointer is not freed but copied to an internal representation
+ * @param work Pointer to the WorkItem that shall be added. The pointer is not
+ *        freed but copied to an internal representation.
+ *
+ * @param time The time when the work shall be executed. If the time lies in the
+ *        past, the work will be executed in the next iteration of the server's
+ *        main loop
+ *
+ * @param resultWorkGuid Upon success, the pointed value is set to the guid of
+ *        the workitem in the server queue. This can be used to cancel the work
+ *        later on. If the pointer is null, the guid is not set.
+ *
+ * @return Upon sucess, UA_STATUSCODE_GOOD is returned. An error code otherwise.
  */
-UA_Guid UA_EXPORT UA_Server_addTimedWorkItem(UA_Server *server, UA_WorkItem *work, UA_DateTime time);
+UA_StatusCode UA_EXPORT UA_Server_addTimedWorkItem(UA_Server *server, const UA_WorkItem *work,
+                                                   UA_DateTime time, UA_Guid *resultWorkGuid);
 
 /**
- *  Add work that is executed repeatedly with the given interval (in 100ns). If
- *  work with the same repetition interval already exists, the first execution
- *  might occur sooner.
+ * @param server The server object.
  *
- * The work pointer is not freed but copied to an internal representation
+ * @param work Pointer to the WorkItem that shall be added. The pointer is not
+ *        freed but copied to an internal representation.
+ *
+ * @param interval The work that is executed repeatedly with the given interval
+ *        (in 100ns). If work with the same repetition interval already exists,
+ *        the first execution might occur sooner.
+ *
+ * @param resultWorkGuid Upon success, the pointed value is set to the guid of
+ *        the workitem in the server queue. This can be used to cancel the work
+ *        later on. If the pointer is null, the guid is not set.
+ *
+ * @return Upon sucess, UA_STATUSCODE_GOOD is returned. An error code otherwise.
  */
-UA_Guid UA_EXPORT UA_Server_addRepeatedWorkItem(UA_Server *server, UA_WorkItem *work, UA_UInt32 interval);
+UA_StatusCode UA_EXPORT UA_Server_addRepeatedWorkItem(UA_Server *server, const UA_WorkItem *work,
+                                                      UA_UInt32 interval, UA_Guid *resultWorkGuid);
 
 /** Remove timed or repeated work */
 UA_Boolean UA_EXPORT UA_Server_removeWorkItem(UA_Server *server, UA_Guid workId);
