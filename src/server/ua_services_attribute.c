@@ -348,7 +348,6 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *writeValue) {
             break;
 
         case UA_ATTRIBUTEID_ISABSTRACT:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
@@ -373,9 +372,13 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *writeValue) {
             break;
 
         case UA_ATTRIBUTEID_VALUE:
-            if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT) {
-                retval |= UA_Variant_copy(&writeValue->value.value, &((UA_VariableNode *)newNode)->value); // todo: zero-copy
+            if(newNode->nodeClass != (UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE)) {
+                retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+                break;
             }
+
+            if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT)
+                retval |= UA_Variant_copy(&writeValue->value.value, &((UA_VariableNode *)newNode)->value); // todo: zero-copy
             break;
 
         case UA_ATTRIBUTEID_DATATYPE:
