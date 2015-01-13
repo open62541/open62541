@@ -7,10 +7,14 @@
 #endif
 
 void UA_SecureChannel_init(UA_SecureChannel *channel) {
+    UA_MessageSecurityMode_init(&channel->securityMode);
+    UA_ChannelSecurityToken_init(&channel->securityToken);
     UA_AsymmetricAlgorithmSecurityHeader_init(&channel->clientAsymAlgSettings);
     UA_AsymmetricAlgorithmSecurityHeader_init(&channel->serverAsymAlgSettings);
     UA_ByteString_init(&channel->clientNonce);
     UA_ByteString_init(&channel->serverNonce);
+    channel->requestId = 0;
+    channel->sequenceNumber = 0;
     channel->connection = UA_NULL;
     channel->session    = UA_NULL;
 }
