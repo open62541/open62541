@@ -46,7 +46,11 @@ typedef struct {
 /* Internal mapping of sockets to connections */
 typedef struct {
     TCPConnection *connection;
-    UA_Int32 sockfd;
+#ifdef _WIN32
+	UA_UInt32 sockfd;
+#else
+	UA_Int32 sockfd;
+#endif
 } ConnectionLink;
 
 typedef struct NetworkLayerTCP {
@@ -54,10 +58,11 @@ typedef struct NetworkLayerTCP {
 	fd_set fdset;
 #ifdef _WIN32
 	UA_UInt32 serversockfd;
+	UA_UInt32 highestfd;
 #else
 	UA_Int32 serversockfd;
-#endif
 	UA_Int32 highestfd;
+#endif
     UA_UInt16 conLinksSize;
     ConnectionLink *conLinks;
     UA_UInt32 port;
