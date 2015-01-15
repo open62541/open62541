@@ -4,7 +4,7 @@
 #include "ua_namespace_0.h"
 #include "ua_statuscodes.h"
 
-static INLINE UA_Boolean is_builtin(const UA_NodeId *typeid ) {
+static UA_Boolean is_builtin(const UA_NodeId *typeid ) {
     return typeid ->namespaceIndex == 0 && 1 <= typeid ->identifier.numeric &&
         typeid ->identifier.numeric <= 25;
 }

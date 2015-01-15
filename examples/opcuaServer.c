@@ -19,6 +19,7 @@
 #include "networklayer_udp.h"
 #endif
 
+#include "ua_types.h"
 
 UA_Boolean running = 1;
 
@@ -28,6 +29,7 @@ static void stopHandler(int sign) {
 }
 
 static UA_ByteString loadCertificate(void) {
+
     UA_ByteString certificate = UA_STRING_NULL;
 	FILE *fp = NULL;
 	//FIXME: a potiential bug of locating the certificate, we need to get the path from the server's config
@@ -58,6 +60,7 @@ static void testCallback(UA_Server *server, void *data) {
 
 int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
+    printf("--- %lu\n", sizeof(UA_DataTypeLayout));
 
 	UA_Server *server = UA_Server_new();
     UA_Server_setServerCertificate(server, loadCertificate());

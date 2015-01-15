@@ -5,13 +5,6 @@
 #cmakedefine UA_DEBUG
 #cmakedefine UA_MULTITHREADING
 
-/* Visibility */
-#ifdef _MSC_VER
-#define INLINE __inline
-#else
-#define INLINE inline
-#endif
-
 /* Function Export */
 #ifdef _WIN32
 #  ifdef UA_DYNAMIC_LINKING
@@ -32,7 +25,7 @@
 #    endif
 #  endif
 #else
-#  if __GNUC__ >= 4 || __clang__
+#  if __GNUC__ || __clang__
 #    define UA_EXPORT __attribute__ ((visibility ("default")))
 #  else
 #    define UA_EXPORT

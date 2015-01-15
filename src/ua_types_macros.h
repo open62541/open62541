@@ -56,14 +56,10 @@
         return TYPE_AS##_copy((const TYPE_AS *)src, (TYPE_AS *)dst); \
     }
 
-#ifdef UA_DEBUG //print functions only in debug mode
 #define UA_TYPE_PRINT_AS(TYPE, TYPE_AS)                    \
     void TYPE##_print(const TYPE *p, FILE *stream) {       \
         TYPE_AS##_print((const TYPE_AS *)p, stream);       \
     }
-#else
-#define UA_TYPE_PRINT_AS(TYPE, TYPE_AS)
-#endif
 
 #define UA_TYPE_AS(TYPE, TYPE_AS)           \
     UA_TYPE_NEW_DEFAULT(TYPE)               \

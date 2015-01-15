@@ -164,7 +164,7 @@ static void deleteEntry(struct nodeEntry *entry) {
 }
 
 /** Copies the node into the entry. Then free the original node (but not its content). */
-static INLINE struct nodeEntry * nodeEntryFromNode(UA_Node *node) {
+static struct nodeEntry * nodeEntryFromNode(UA_Node *node) {
     UA_UInt32 nodesize = 0;
     
     switch(node->nodeClass) {

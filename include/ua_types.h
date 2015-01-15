@@ -20,13 +20,11 @@
 extern "C" {
 #endif
 
-#include "ua_config.h"
-
 #include <stdint.h>
 #include <stdbool.h>
-#ifdef UA_DEBUG
 #include <stdio.h>
-#endif
+
+#include "ua_config.h"
 
 /**
  * @defgroup types Datatypes
@@ -282,21 +280,13 @@ typedef void UA_InvalidType;
 /* Functions */
 /*************/
 
-#ifdef UA_DEBUG
-#define PRINTTYPE(TYPE) void UA_EXPORT TYPE##_print(const TYPE *p, FILE *stream);
-#define PRINTTYPE_NOEXPORT(TYPE) void TYPE##_print(const TYPE *p, FILE *stream);
-#else
-#define PRINTTYPE(TYPE)
-#define PRINTTYPE_NOEXPORT(TYPE)
-#endif
-
 #define UA_TYPE_PROTOTYPES(TYPE)                                     \
     TYPE UA_EXPORT * TYPE##_new(void);                               \
     void UA_EXPORT TYPE##_init(TYPE * p);                            \
     void UA_EXPORT TYPE##_delete(TYPE * p);                          \
     void UA_EXPORT TYPE##_deleteMembers(TYPE * p);                   \
     UA_StatusCode UA_EXPORT TYPE##_copy(const TYPE *src, TYPE *dst); \
-    PRINTTYPE(TYPE)
+    void UA_EXPORT TYPE##_print(const TYPE *p, FILE *stream);
 
 #define UA_TYPE_PROTOTYPES_NOEXPORT(TYPE)                            \
     TYPE * TYPE##_new(void);                                         \
@@ -304,7 +294,7 @@ typedef void UA_InvalidType;
     void TYPE##_delete(TYPE * p);                                    \
     void TYPE##_deleteMembers(TYPE * p);                             \
     UA_StatusCode TYPE##_copy(const TYPE *src, TYPE *dst);           \
-    PRINTTYPE_NOEXPORT(TYPE)
+    void TYPE##_print(const TYPE *p, FILE *stream);
 
 /* Functions for all types */
 UA_TYPE_PROTOTYPES(UA_Boolean)
@@ -347,11 +337,9 @@ UA_TYPE_PROTOTYPES(UA_InvalidType)
 UA_StatusCode UA_EXPORT UA_String_copycstring(char const *src, UA_String *dst);
 UA_StatusCode UA_EXPORT UA_String_copyprintf(char const *fmt, UA_String *dst, ...);
 UA_Boolean UA_EXPORT UA_String_equal(const UA_String *string1, const UA_String *string2);
-#ifdef UA_DEBUG
 void UA_EXPORT UA_String_printf(char const *label, const UA_String *string);
 void UA_EXPORT UA_String_printx(char const *label, const UA_String *string);
 void UA_EXPORT UA_String_printx_hex(char const *label, const UA_String *string);
-#endif
 
 /* DateTime */
 UA_DateTime UA_EXPORT UA_DateTime_now(void);
@@ -377,11 +365,9 @@ UA_Guid UA_EXPORT UA_Guid_random(UA_UInt32 *seed);
 /* ByteString */
 UA_Boolean UA_EXPORT UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2);
 UA_StatusCode UA_EXPORT UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length);
-#ifdef UA_DEBUG
 void UA_EXPORT UA_ByteString_printf(char *label, const UA_ByteString *string);
 void UA_EXPORT UA_ByteString_printx(char *label, const UA_ByteString *string);
 void UA_EXPORT UA_ByteString_printx_hex(char *label, const UA_ByteString *string);
-#endif
 
 /* NodeId */
 UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
@@ -395,9 +381,7 @@ UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
         VARIABLE.namespaceIndex = 0;                   \
         UA_STRING_STATIC(VARIABLE.name, STRING); } while(0)
 UA_StatusCode UA_EXPORT UA_QualifiedName_copycstring(char const *src, UA_QualifiedName *dst);
-#ifdef UA_DEBUG
 void UA_EXPORT UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn);
-#endif
 
 /* LocalizedText */
 #define UA_LOCALIZEDTEXT_STATIC(VARIABLE, STRING) do { \
@@ -417,9 +401,44 @@ void UA_EXPORT UA_Array_delete(void *p, UA_Int32 noElements, const UA_TypeVTable
 
 /* @brief The destination array is allocated with size noElements. */
 UA_StatusCode UA_EXPORT UA_Array_copy(const void *src, UA_Int32 noElements, const UA_TypeVTable *vt, void **dst);
-#ifdef UA_DEBUG
 void UA_EXPORT UA_Array_print(const void *p, UA_Int32 noElements, const UA_TypeVTable *vt, FILE *stream);
-#endif
+
+
+/*******************/
+/* TypeDescription */
+/*******************/
+
+#define UA_MAX_MEMBERS 16 // Maximum number of members per complex type
+
+/**
+ * The type descriptions points to the table in which the type is defined.
+ * That is necessary so that we can find the layouts of the member types.
+ *
+ * DataTypeTables are self-contained. Only the built-in types can be assumed.
+ * All the other types must be built up within the same table and cannot
+ * cross-reference. In the server, we store one datatypetable per namespace.
+ */
+typedef struct {
+    UA_UInt16 memSize; ///< Size of the struct in memory
+    UA_UInt16 binarySize : 14; ///< Size of the type in binary encoding. Including _all_ members with constantSize == true.
+    UA_Boolean constantSize : 1; ///< Does the type have constant size in memory? (no pointers, also not in members)
+    UA_Boolean binaryZeroCopy: 1; ///< Given an array of this type, can we just point into the binary stream? The boolean is a shortcut for (memSize == binarySize && constantSize).
+    UA_Boolean isBuiltin : 1; ///< The type is builtin. Use special functions if necessary. membersSize is 0, but the builtin-type index we have is encoded in memberDetails[0].memberTypeIndex.
+    struct {
+        UA_UInt16 memberTypeIndex : 10; ///< Index of the member in the datatypelayout table
+        UA_Byte padding : 5; ///< How much padding is there before this member element?
+        UA_Boolean isArray : 1;
+    } memberDetails[UA_MAX_MEMBERS];
+    UA_Byte membersSize; ///< How many members does the struct have? (max. 32)
+    struct UA_DataTypeLayout *table; /**< Point to the beginning of the table where the members can be found with their indices  */
+} UA_DataTypeLayout;
+
+typedef struct {
+    UA_UInt16 tableSize;
+    UA_DataTypeLayout *layouts;
+    UA_NodeId *typeIds;
+    UA_String typeNames;
+} UA_TypeDescriptionTable;
 
 /**********/
 /* VTable */
