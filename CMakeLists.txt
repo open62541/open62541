@@ -169,18 +169,6 @@ endif()
 # set the precompiler flags
 configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
 
-# download queue.h if required
-if(WIN32)
-    if(NOT EXISTS "${PROJECT_BINARY_DIR}/src_generated/queue.h")
-        file(DOWNLOAD "http://openbsd.cs.toronto.edu/cgi-bin/cvsweb/~checkout~/src/sys/sys/queue.h" "${PROJECT_BINARY_DIR}/src_generated/queue.h" STATUS result)
-        list(GET result 0 download_ok)
-        if(NOT ${download_ok} MATCHES 0)
-            file(REMOVE "${PROJECT_BINARY_DIR}/src_generated/queue.h") # remove empty file if created
-            message(FATAL_ERROR "queue.h could not be downloaded")
-        endif()
-    endif()
-endif(WIN32)
-
 # generate code from xml definitions
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 include_directories("${PROJECT_BINARY_DIR}/src_generated") 

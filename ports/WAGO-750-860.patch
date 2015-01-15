@@ -47,37 +47,6 @@ index c785182..9e66da0 100644
  
  ## logging
  set(UA_LOGLEVEL 400 CACHE STRING "Level at which logs shall be reported")
-@@ -170,7 +167,7 @@ endif()
- configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
- 
- # download queue.h if required
--if(WIN32)
-+#if(WIN32)
-     if(NOT EXISTS "${PROJECT_BINARY_DIR}/src_generated/queue.h")
-         file(DOWNLOAD "http://openbsd.cs.toronto.edu/cgi-bin/cvsweb/~checkout~/src/sys/sys/queue.h" "${PROJECT_BINARY_DIR}/src_generated/queue.h" STATUS result)
-         list(GET result 0 download_ok)
-@@ -179,7 +176,7 @@ if(WIN32)
-             message(FATAL_ERROR "queue.h could not be downloaded")
-         endif()
-     endif()
--endif(WIN32)
-+#endif(WIN32)
- 
- # generate code from xml definitions
- file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
-diff --git a/src/ua_util.h b/src/ua_util.h
-index 5ec1191..65e1a4d 100644
---- a/src/ua_util.h
-+++ b/src/ua_util.h
-@@ -5,7 +5,7 @@
- 
- #include <stddef.h> /* Needed for sys/queue.h */
- #ifndef _WIN32
--#include <sys/queue.h>
-+#include "queue.h"
- #include <alloca.h>
- #else
- #include "queue.h"
 -- 
 2.2.0
 

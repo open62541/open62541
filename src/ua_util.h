@@ -3,12 +3,12 @@
 
 #include <assert.h> // assert
 
-#include <stddef.h> /* Needed for sys/queue.h */
+#include <stddef.h> /* Needed for queue.h */
+#include "queue.h"
+
 #ifndef _WIN32
-#include <sys/queue.h>
 #include <alloca.h>
 #else
-#include "queue.h"
 #include <malloc.h>
 #endif
 
