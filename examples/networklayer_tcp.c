@@ -64,7 +64,11 @@ typedef struct NetworkLayerTCP {
     /* We remove the connection links only in the main thread. Attach
        to-be-deleted links with atomic operations */
     struct deleteLink {
-        UA_Int32 sockfd;
+#ifdef _WIN32
+		UA_UInt32 sockfd;
+#else
+		UA_Int32 sockfd;
+#endif
         struct deleteLink *next;
     } *deleteLinkList;
 } NetworkLayerTCP;
