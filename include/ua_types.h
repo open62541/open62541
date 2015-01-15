@@ -410,25 +410,19 @@ void UA_EXPORT UA_Array_print(const void *p, UA_Int32 noElements, const UA_TypeV
 
 #define UA_MAX_MEMBERS 16 // Maximum number of members per complex type
 
-/**
- * The type descriptions points to the table in which the type is defined.
- * That is necessary so that we can find the layouts of the member types.
- *
- * DataTypeTables are self-contained. Only the built-in types can be assumed.
- * All the other types must be built up within the same table and cannot
- * cross-reference. In the server, we store one datatypetable per namespace.
- */
+struct UA_DataTypeMember {
+    UA_UInt16 memberTypeIndex : 10; ///< Index of the member in the datatypelayout table
+    UA_Byte padding : 5; ///< How much padding is there before this member element?
+    UA_Boolean isArray : 1;
+};
+    
 typedef struct {
     UA_UInt16 memSize; ///< Size of the struct in memory
     UA_UInt16 binarySize : 14; ///< Size of the type in binary encoding. Including _all_ members with constantSize == true.
     UA_Boolean constantSize : 1; ///< Does the type have constant size in memory? (no pointers, also not in members)
     UA_Boolean binaryZeroCopy: 1; ///< Given an array of this type, can we just point into the binary stream? The boolean is a shortcut for (memSize == binarySize && constantSize).
     UA_Boolean isBuiltin : 1; ///< The type is builtin. Use special functions if necessary. membersSize is 0, but the builtin-type index we have is encoded in memberDetails[0].memberTypeIndex.
-    struct {
-        UA_UInt16 memberTypeIndex : 10; ///< Index of the member in the datatypelayout table
-        UA_Byte padding : 5; ///< How much padding is there before this member element?
-        UA_Boolean isArray : 1;
-    } memberDetails[UA_MAX_MEMBERS];
+    struct UA_DataTypeMember memberDetails[UA_MAX_MEMBERS];
     UA_Byte membersSize; ///< How many members does the struct have? (max. 32)
     struct UA_DataTypeLayout *table; /**< Point to the beginning of the table where the members can be found with their indices  */
 } UA_DataTypeLayout;

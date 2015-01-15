@@ -27,7 +27,10 @@ class Type(object):
         self.name = name
         self.description = description
 
-    def string_c(self):
+    def typedef_c(self):
+        pass
+
+    def typelayout_c(self):
         pass
 
 class EnumerationType(Type):
@@ -39,14 +42,24 @@ class EnumerationType(Type):
     def append_enum(name, value):
         self.elements[name] = value
 
-    def string_c(self):
+    def typedef_c(self):
         return "typedef enum { \n    " + \
-            ",\n    ".join(map(lambda (key, value) : key.upper() + " = " + value, self.elements.iteritems())) + \
+            ",\n    ".join(map(lambda (key,value) : key.upper() + " = " + value,self.elements.iteritems())) + \
             "\n} " + self.name + ";"
 
+    def typelayout_c(self, tablename):
+        return "(UA_DataTypeLayout) {.memsize = sizeof(" + self.name "), .binarySize = 4," + \
+            ".constantSize = UA_TRUE, .binaryZeroCopy = UA_TRUE, isBuiltin = UA_FALSE," + \
+            ".memberDetails = " + \
+            ".membersSize = 0, .table = " + tablename + " }"
+
 class OpaqueType(Type):
-    def string_c(self):
+    def typedef_c(self):
         return "typedef UA_ByteString " + self.name + ";"
+    def typelayout_c(self, tablename):
+        return "(UA_DataTypeLayout) {.memsize = sizeof(" + self.name "), .binarySize = 4," + \
+            ".constantSize = UA_TRUE, .binaryZeroCopy = UA_TRUE, isBuiltin = UA_FALSE," + \
+            ".membersSize = 0, .table = " + tablename + " }"
 
 class StructMember(object):
     def __init__(self, name, memberType, isArray):
@@ -68,7 +81,7 @@ class StructType(Type):
                 return False
         return True
 
-    def string_c(self):
+    def typedef_c(self):
         if len(self.members) == 0:
             return "typedef void * " + self.name + ";"
         returnstr =  "typedef struct {\n"
@@ -239,7 +252,7 @@ extern "C" {
         printh("")
         if t.description != "":
             printh("/** @brief " + t.description + "*/")
-        printh(t.string_c())
+        printh(t.typedef_c())
 
     printh('''
 /// @} /* end of group */
