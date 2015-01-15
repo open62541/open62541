@@ -17,6 +17,7 @@ addons:
     build_command: make
     branch_pattern: coverity_scan
 before_install:
+   - sudo apt-get install gcc-mingw-w64-i686
    - sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
    - sudo add-apt-repository ppa:kalakris/cmake -y
    - sudo apt-get update -qq
@@ -27,7 +28,6 @@ before_install:
    - sudo pip install cpp-coveralls
    - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
    - sudo update-alternatives --config gcc
-   - sudo apt-get install gcc-mingw-w64-i686
 script: 
    - echo "Checking the applicability of patches"
    - ./tools/.checkPorts.sh
