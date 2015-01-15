@@ -4,7 +4,7 @@
 #include <assert.h> // assert
 
 #include <stddef.h> /* Needed for sys/queue.h */
-#ifndef WIN32
+#ifndef _WIN32
 #include <sys/queue.h>
 #include <alloca.h>
 #else
@@ -29,7 +29,7 @@ void * UA_realloc(void *ptr, UA_UInt32 size);
 void UA_memcpy(void *dst, void const *src, UA_UInt32 size);
 void * UA_memset(void *ptr, UA_Int32 value, UA_UInt32 size);
 
-#ifdef WIN32
+#ifdef _WIN32
 #define UA_alloca(SIZE) _alloca(SIZE)
 #else
 #define UA_alloca(SIZE) alloca(SIZE)

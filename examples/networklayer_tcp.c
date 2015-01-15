@@ -8,7 +8,7 @@
 #include <malloc.h>
 #include <winsock2.h>
 #include <sys/types.h>
-#include <Windows.h>
+#include <windows.h>
 #include <ws2tcpip.h>
 #define CLOSESOCKET(S) closesocket(S)
 #else
