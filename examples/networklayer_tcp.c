@@ -52,7 +52,11 @@ typedef struct {
 typedef struct NetworkLayerTCP {
 	UA_ConnectionConfig conf;
 	fd_set fdset;
+#ifdef _WIN32
+	UA_UInt32 serversockfd;
+#else
 	UA_Int32 serversockfd;
+#endif
 	UA_Int32 highestfd;
     UA_UInt16 conLinksSize;
     ConnectionLink *conLinks;
@@ -206,7 +210,7 @@ void writeCallback(TCPConnection *handle, UA_ByteStringArray gather_buf) {
 	LPWSABUF buf = _alloca(gather_buf.stringsSize * sizeof(WSABUF));
 	int result = 0;
 	for(UA_UInt32 i = 0; i<gather_buf.stringsSize; i++) {
-		buf[i].buf = gather_buf.strings[i].data;
+		buf[i].buf = (char*)gather_buf.strings[i].data;
 		buf[i].len = gather_buf.strings[i].length;
 		total_len += gather_buf.strings[i].length;
 	}
