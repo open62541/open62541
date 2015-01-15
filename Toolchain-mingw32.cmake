@@ -6,18 +6,19 @@ set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -static-libgcc")
 
 # Which compilers to use for C and C++, and location of target
 # environment.
-if(EXISTS /usr/i586-mingw32msvc)
-# First look in standard location as used by Debian/Ubuntu/etc.
-set(CMAKE_C_COMPILER i586-mingw32msvc-gcc)
-set(CMAKE_CXX_COMPILER i586-mingw32msvc-g++)
-set(CMAKE_RC_COMPILER i586-mingw32msvc-windres)
-set(CMAKE_FIND_ROOT_PATH /usr/i586-mingw32msvc)
-elseif(EXISTS /usr/i686-w64-mingw32)
+if(EXISTS /usr/i686-w64-mingw32)
 # First look in standard location as used by Debian/Ubuntu/etc.
 set(CMAKE_C_COMPILER i686-w64-mingw32-gcc)
 set(CMAKE_CXX_COMPILER i686-w64-mingw32-g++)
 set(CMAKE_RC_COMPILER i686-w64-mingw32-windres)
 set(CMAKE_AR:FILEPATH /usr/bin/i686-w64-mingw32-ar)
+set(CMAKE_FIND_ROOT_PATH /usr/i686-w64-mingw32)
+elseif(EXISTS /usr/i586-mingw32msvc)
+# First look in standard location as used by Debian/Ubuntu/etc.
+set(CMAKE_C_COMPILER i586-mingw32msvc-gcc)
+set(CMAKE_CXX_COMPILER i586-mingw32msvc-g++)
+set(CMAKE_RC_COMPILER i586-mingw32msvc-windres)
+set(CMAKE_FIND_ROOT_PATH /usr/i586-mingw32msvc)
 elseif(EXISTS /opt/mingw)
 # You can get a MinGW environment using the script at <http://mxe.cc>.
 # It downloads and builds MinGW and most of the dependencies for you.
