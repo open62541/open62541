@@ -7,7 +7,9 @@
 #include <malloc.h>
 #endif
 
+#ifndef  __USE_POSIX
 #define __USE_POSIX
+#endif
 #include <stdlib.h> // malloc, free
 #include <string.h> // memcpy
 #include <assert.h> // assert
