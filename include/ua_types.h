@@ -137,16 +137,18 @@ typedef UA_String UA_ByteString;
 /** @brief An XML element. */
 typedef UA_String UA_XmlElement;
 
+typedef enum {
+    UA_NODEIDTYPE_NUMERIC    = 2,
+    UA_NODEIDTYPE_STRING     = 3,
+    UA_NODEIDTYPE_GUID       = 4,
+    UA_NODEIDTYPE_BYTESTRING = 5
+} UA_NodeIdType;
+    
 /** @brief An identifier for a node in the address space of an OPC UA Server. */
 /* The shortened numeric types are introduced during encoding. */
 typedef struct {
     UA_UInt16 namespaceIndex;
-    enum {
-        UA_NODEIDTYPE_NUMERIC    = 2,
-        UA_NODEIDTYPE_STRING     = 3,
-        UA_NODEIDTYPE_GUID       = 4,
-        UA_NODEIDTYPE_BYTESTRING = 5
-    } identifierType;
+    UA_NodeIdType identifierType;
     union {
         UA_UInt32     numeric;
         UA_String     string;
@@ -408,30 +410,27 @@ void UA_EXPORT UA_Array_print(const void *p, UA_Int32 noElements, const UA_TypeV
 /* TypeDescription */
 /*******************/
 
-#define UA_MAX_MEMBERS 16 // Maximum number of members per complex type
+#define UA_MAX_MEMBERS 13 // Maximum number of members per complex type
 
-struct UA_DataTypeMember {
-    UA_UInt16 memberTypeIndex : 10; ///< Index of the member in the datatypelayout table
+typedef struct {
+    UA_UInt16 memberTypeIndex : 9; ///< Index of the member in the datatypelayout table
+    UA_Boolean nameSpaceZero : 1; ///< The type of the member is defined in namespace zero
     UA_Byte padding : 5; ///< How much padding is there before this member element?
-    UA_Boolean isArray : 1;
-};
+    UA_Boolean isArray : 1; ///< The member is an array if the given type
+} UA_DataTypeMember;
     
 typedef struct {
-    UA_UInt16 memSize; ///< Size of the struct in memory
-    UA_UInt16 binarySize : 14; ///< Size of the type in binary encoding. Including _all_ members with constantSize == true.
-    UA_Boolean constantSize : 1; ///< Does the type have constant size in memory? (no pointers, also not in members)
-    UA_Boolean binaryZeroCopy: 1; ///< Given an array of this type, can we just point into the binary stream? The boolean is a shortcut for (memSize == binarySize && constantSize).
-    UA_Boolean isBuiltin : 1; ///< The type is builtin. Use special functions if necessary. membersSize is 0, but the builtin-type index we have is encoded in memberDetails[0].memberTypeIndex.
-    struct UA_DataTypeMember memberDetails[UA_MAX_MEMBERS];
-    UA_Byte membersSize; ///< How many members does the struct have? (max. 32)
-    struct UA_DataTypeLayout *table; /**< Point to the beginning of the table where the members can be found with their indices  */
+    UA_UInt16 memSize : 15; ///< Size of the struct in memory
+    UA_Boolean zeroCopyable; ///< Can the type be copied directly off the stream?
+    UA_Byte membersSize; ///< How many members does the struct have?
+    UA_DataTypeMember members[UA_MAX_MEMBERS];
 } UA_DataTypeLayout;
 
 typedef struct {
     UA_UInt16 tableSize;
-    UA_DataTypeLayout *layouts;
+    UA_DataTypeLayout *typeLayouts;
     UA_NodeId *typeIds;
-    UA_String typeNames;
+    UA_String *typeNames;
 } UA_TypeDescriptionTable;
 
 /**********/
