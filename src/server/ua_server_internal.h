@@ -44,7 +44,7 @@ struct UA_Server {
     UA_ExternalNamespace *externalNamespaces;
 
     UA_Int32 nlsSize;
-    UA_NetworkLayer *nls;
+    UA_ServerNetworkLayer *nls;
 
     UA_UInt32 random_seed;
 

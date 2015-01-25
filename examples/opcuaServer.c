@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
 #ifdef EXTENSION_UDP
     UA_Server_addNetworkLayer(server, NetworkLayerUDP_new(UA_ConnectionConfig_standard, 16664));
 #else
-    UA_Server_addNetworkLayer(server, NetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
+    UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 #endif
 
 
