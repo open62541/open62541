@@ -14,7 +14,7 @@
 
 #include "ua_util.h"
 
-#ifdef _MSC_VER
+#ifdef _WIN32
 #define RAND(SEED) (UA_UInt32)rand()
 #else
 #define RAND(SEED) (UA_UInt32)rand_r(SEED)
@@ -232,8 +232,9 @@ UA_TYPE_AS(UA_DateTime, UA_Int64)
 #define HUNDRED_NANOSEC_PER_USEC 10LL
 #define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
 
-#ifdef _MSC_VER
+#ifdef _WIN32
 static const unsigned __int64 epoch = 116444736000000000;
+int gettimeofday(struct timeval *tp, struct timezone *tzp);
 int gettimeofday(struct timeval *tp, struct timezone *tzp) {
     FILETIME       ft;
     SYSTEMTIME     st;
@@ -257,15 +258,15 @@ UA_DateTime UA_DateTime_now() {
     return dateTime;
 }
 
-UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time) {
+UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime atime) {
     UA_DateTimeStruct dateTimeStruct;
     //calcualting the the milli-, micro- and nanoseconds
-    dateTimeStruct.nanoSec  = (UA_Int16)((time % 10) * 100);
-    dateTimeStruct.microSec = (UA_Int16)((time % 10000) / 10);
-    dateTimeStruct.milliSec = (UA_Int16)((time % 10000000) / 10000);
+    dateTimeStruct.nanoSec  = (UA_Int16)((atime % 10) * 100);
+    dateTimeStruct.microSec = (UA_Int16)((atime % 10000) / 10);
+    dateTimeStruct.milliSec = (UA_Int16)((atime % 10000000) / 10000);
 
     //calculating the unix time with #include <time.h>
-    time_t secSinceUnixEpoch = (time/10000000) - UNIX_EPOCH_BIAS_SEC;
+    time_t secSinceUnixEpoch = (atime/10000000) - UNIX_EPOCH_BIAS_SEC;
     struct tm ts = *gmtime(&secSinceUnixEpoch);
     dateTimeStruct.sec    = (UA_Int16)ts.tm_sec;
     dateTimeStruct.min    = (UA_Int16)ts.tm_min;
@@ -276,13 +277,13 @@ UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time) {
     return dateTimeStruct;
 }
 
-UA_StatusCode UA_DateTime_toString(UA_DateTime time, UA_String *timeString) {
+UA_StatusCode UA_DateTime_toString(UA_DateTime atime, UA_String *timeString) {
     // length of the string is 31 (incl. \0 at the end)
     if(!(timeString->data = UA_malloc(32)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     timeString->length = 31;
 
-    UA_DateTimeStruct tSt = UA_DateTime_toStruct(time);
+    UA_DateTimeStruct tSt = UA_DateTime_toStruct(atime);
     sprintf((char*)timeString->data, "%2d/%2d/%4d %2d:%2d:%2d.%3d.%3d.%3d", tSt.month, tSt.day, tSt.year,
             tSt.hour, tSt.min, tSt.sec, tSt.milliSec, tSt.microSec, tSt.nanoSec);
     return UA_STATUSCODE_GOOD;

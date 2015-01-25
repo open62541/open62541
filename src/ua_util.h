@@ -1,15 +1,18 @@
 #ifndef UA_UTIL_H_
 #define UA_UTIL_H_
 
+#define __USE_POSIX
+#include <stdlib.h> // malloc, free
+#include <string.h> // memcpy
 #include <assert.h> // assert
+#include <stddef.h> /* Needed for queue.h */
 
-#include <stddef.h> /* Needed for sys/queue.h */
-#ifndef WIN32
-#include <sys/queue.h>
-#include <alloca.h>
+#ifdef _WIN32
+#  include <malloc.h>
+#  include "queue.h"
 #else
-#include "queue.h"
-#include <malloc.h>
+#  include <alloca.h>
+#  include <sys/queue.h>
 #endif
 
 #include "ua_types.h"
@@ -22,17 +25,17 @@
 
 #define UA_assert(ignore) assert(ignore)
 
-// these are inlined for release builds
-void UA_free(void *ptr);
-void * UA_malloc(UA_UInt32 size);
-void * UA_realloc(void *ptr, UA_UInt32 size);
-void UA_memcpy(void *dst, void const *src, UA_UInt32 size);
-void * UA_memset(void *ptr, UA_Int32 value, UA_UInt32 size);
+/* Replace the macros with functions for custom allocators.. */
+#define UA_free(ptr) free(ptr)
+#define UA_malloc(size) malloc(size)
+#define UA_realloc(ptr, size) realloc(ptr, size)
+#define UA_memcpy(dst, src, size) memcpy(dst, src, size)
+#define UA_memset(ptr, value, size) memset(ptr, value, size)
 
-#ifdef WIN32
-#define UA_alloca(SIZE) _alloca(SIZE)
+#ifdef _WIN32
+# define UA_alloca(SIZE) _alloca(SIZE)
 #else
-#define UA_alloca(SIZE) alloca(SIZE)
+# define UA_alloca(SIZE) alloca(SIZE)
 #endif
 
 #endif /* UA_UTIL_H_ */

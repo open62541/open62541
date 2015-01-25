@@ -256,11 +256,11 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 #endif
 }
 
-static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *writeValue) {
+static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *aWriteValue) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     do {
-        const UA_Node *node = UA_NodeStore_get(server->nodestore, &writeValue->nodeId);
+        const UA_Node *node = UA_NodeStore_get(server->nodestore, &aWriteValue->nodeId);
         if(!node)
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
@@ -311,39 +311,39 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *writeValue) {
             break;
         }
 
-        switch(writeValue->attributeId) {
+        switch(aWriteValue->attributeId) {
         case UA_ATTRIBUTEID_NODEID:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
         case UA_ATTRIBUTEID_NODECLASS:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
         case UA_ATTRIBUTEID_BROWSENAME:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
         case UA_ATTRIBUTEID_DISPLAYNAME:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
         case UA_ATTRIBUTEID_DESCRIPTION:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
         case UA_ATTRIBUTEID_WRITEMASK:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
         case UA_ATTRIBUTEID_USERWRITEMASK:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
@@ -352,12 +352,12 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *writeValue) {
             break;
 
         case UA_ATTRIBUTEID_SYMMETRIC:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
         case UA_ATTRIBUTEID_INVERSENAME:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
@@ -367,7 +367,7 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *writeValue) {
             break;
 
         case UA_ATTRIBUTEID_EVENTNOTIFIER:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
@@ -377,52 +377,52 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *writeValue) {
                 break;
             }
 
-            if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT)
-                retval |= UA_Variant_copy(&writeValue->value.value, &((UA_VariableNode *)newNode)->value); // todo: zero-copy
+            if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT)
+                retval |= UA_Variant_copy(&aWriteValue->value.value, &((UA_VariableNode *)newNode)->value); // todo: zero-copy
             break;
 
         case UA_ATTRIBUTEID_DATATYPE:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
         case UA_ATTRIBUTEID_VALUERANK:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
         case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
         case UA_ATTRIBUTEID_ACCESSLEVEL:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
         case UA_ATTRIBUTEID_USERACCESSLEVEL:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
         case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
         case UA_ATTRIBUTEID_HISTORIZING:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
         case UA_ATTRIBUTEID_EXECUTABLE:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 
         case UA_ATTRIBUTEID_USEREXECUTABLE:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
+            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
 

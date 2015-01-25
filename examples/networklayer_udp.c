@@ -8,7 +8,7 @@
 #include <malloc.h>
 #include <winsock2.h>
 #include <sys/types.h>
-#include <Windows.h>
+#include <windows.h>
 #include <ws2tcpip.h>
 #define CLOSESOCKET(S) closesocket(S)
 #else
@@ -48,7 +48,11 @@ typedef struct {
 typedef struct NetworkLayerUDP {
 	UA_ConnectionConfig conf;
 	fd_set fdset;
+#ifdef _WIN32
+	UA_UInt32 serversockfd;
+#else
 	UA_Int32 serversockfd;
+#endif
     UA_UInt32 port;
 } NetworkLayerUDP;
 
@@ -81,24 +85,29 @@ void writeCallbackUDP(UDPConnection *handle, UA_ByteStringArray gather_buf);
 void writeCallbackUDP(UDPConnection *handle, UA_ByteStringArray gather_buf) {
 	UA_UInt32 total_len = 0, nWritten = 0;
 #ifdef _WIN32
+	/*
 	LPWSABUF buf = _alloca(gather_buf.stringsSize * sizeof(WSABUF));
 	int result = 0;
 	for(UA_UInt32 i = 0; i<gather_buf.stringsSize; i++) {
-		buf[i].buf = gather_buf.strings[i].data;
+		buf[i].buf = (char*)gather_buf.strings[i].data;
 		buf[i].len = gather_buf.strings[i].length;
 		total_len += gather_buf.strings[i].length;
 	}
 	while(nWritten < total_len) {
 		UA_UInt32 n = 0;
 		do {
-			result = WSASendto(handle->sockfd, buf, gather_buf.stringsSize ,
-                             (LPDWORD)&n, 0, NULL, NULL);
+			result = WSASendto(handle->layer->serversockfd, buf, gather_buf.stringsSize ,
+                             (LPDWORD)&n, 0, 
+                             handle->from, handle->fromlen,
+                             NULL, NULL);
 			//FIXME:
 			if(result != 0)
 				printf("Error WSASend, code: %d \n", WSAGetLastError());
 		} while(errno == EINTR);
 		nWritten += n;
 	}
+	*/
+	#error fixme: udp not yet implemented for windows
 #else
 	struct iovec iov[gather_buf.stringsSize];
 	for(UA_UInt32 i=0;i<gather_buf.stringsSize;i++) {

@@ -29,8 +29,8 @@ static void UA_ExternalNamespace_deleteMembers(UA_ExternalNamespace *ens) {
 /* Configuration */
 /*****************/
 
-void UA_Server_addNetworkLayer(UA_Server *server, UA_NetworkLayer networkLayer) {
-    server->nls = UA_realloc(server->nls, sizeof(UA_NetworkLayer)*(server->nlsSize+1));
+void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkLayer) {
+    server->nls = UA_realloc(server->nls, sizeof(UA_ServerNetworkLayer)*(server->nlsSize+1));
     server->nls[server->nlsSize] = networkLayer;
     server->nlsSize++;
 }
@@ -48,7 +48,7 @@ void UA_Server_delete(UA_Server *server) {
 
     // Delete the network layers
     for(UA_Int32 i=0;i<server->nlsSize;i++) {
-        server->nls[i].delete(server->nls[i].nlHandle);
+        server->nls[i].free(server->nls[i].nlHandle);
     }
     UA_free(server->nls);
 

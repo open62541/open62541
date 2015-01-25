@@ -17,6 +17,7 @@ addons:
     build_command: make
     branch_pattern: coverity_scan
 before_install:
+   - sudo apt-get install binutils-mingw-w64-i686 gcc-mingw-w64-i686
    - sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
    - sudo add-apt-repository ppa:kalakris/cmake -y
    - sudo apt-get update -qq
@@ -33,12 +34,16 @@ script:
    - echo "Testing builds"
    - mkdir -p build
    - cd build
+   - echo "Cross compile build for MinGW"
+   - cmake -DCMAKE_TOOLCHAIN_FILE=../Toolchain-mingw32.cmake -DEXAMPLESERVER=ON ..
+   - make
+   - cd .. && rm build -rf && mkdir -p build && cd build
    - echo "Only needed profile"
    - cmake -DTYPES_ONLY_NEEDED=ON ..
    - make
    - cd .. && rm build -rf && mkdir -p build && cd build
-   - cmake -DGENERATE_DOCUMENTATION=ON .. 
    - echo "Production build"
+   - cmake -DGENERATE_DOCUMENTATION=ON .. 
    - make
    - echo "Generate documentation"
    - make doc
