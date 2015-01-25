@@ -183,15 +183,15 @@ typedef struct {
     UA_Int32 (*stop)(void *nlhandle, UA_WorkItem **workItems);
 
     /** Deletes the network layer. Call only after a successfull shutdown. */
-    void (*delete)(void *nlhandle);
-} UA_NetworkLayer;
+    void (*free)(void *nlhandle);
+} UA_ServerNetworkLayer;
 
 /**
  * Adds a network layer to the server. The network layer is destroyed together
  * with the server. Do not use it after adding it as it might be moved around on
  * the heap.
  */
-void UA_EXPORT UA_Server_addNetworkLayer(UA_Server *server, UA_NetworkLayer networkLayer);
+void UA_EXPORT UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkLayer);
 
 /** @} */
 

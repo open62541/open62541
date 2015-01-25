@@ -11,9 +11,11 @@ extern "C" {
 #endif
 
 #include "ua_server.h"
+#include "ua_client.h"
 
 /** @brief Create the TCP networklayer and listen to the specified port */
-UA_NetworkLayer NetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UInt32 port);
+UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UInt32 port);
+UA_ClientNetworkLayer ClientNetworkLayerTCP_new(UA_ConnectionConfig conf);
 
 #ifdef __cplusplus
 } // extern "C"

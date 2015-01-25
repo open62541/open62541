@@ -1,12 +1,6 @@
 #ifndef UA_UTIL_H_
 #define UA_UTIL_H_
 
-#ifndef _WIN32
-#include <alloca.h>
-#else
-#include <malloc.h>
-#endif
-
 #ifndef  __USE_POSIX
 #define __USE_POSIX
 #endif
@@ -14,11 +8,14 @@
 #include <string.h> // memcpy
 #include <assert.h> // assert
 #include <stddef.h> /* Needed for queue.h */
-#include "queue.h"
 
-#include "ua_types.h"
-
-#define UA_NULL ((void *)0)
+#ifdef _WIN32
+#  include <malloc.h>
+#  include "queue.h"
+#else
+#  include <alloca.h>
+#  include <sys/queue.h>
+#endif
 
 // subtract from nodeids to get from the encoding to the content
 #define UA_ENCODINGOFFSET_XML 1
@@ -26,17 +23,17 @@
 
 #define UA_assert(ignore) assert(ignore)
 
-/* Replace the macros with functions for custom allocators.. */
+/* Memory management. Replace the macros with functions for custom allocators.. */
+#define UA_NULL ((void *)0)
 #define UA_free(ptr) free(ptr)
 #define UA_malloc(size) malloc(size)
 #define UA_realloc(ptr, size) realloc(ptr, size)
 #define UA_memcpy(dst, src, size) memcpy(dst, src, size)
 #define UA_memset(ptr, value, size) memset(ptr, value, size)
-
 #ifdef _WIN32
-#define UA_alloca(SIZE) _alloca(SIZE)
+# define UA_alloca(SIZE) _alloca(SIZE)
 #else
-#define UA_alloca(SIZE) alloca(SIZE)
+# define UA_alloca(SIZE) alloca(SIZE)
 #endif
 
 #endif /* UA_UTIL_H_ */

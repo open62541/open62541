@@ -19,9 +19,7 @@
 #define RAND(SEED) (UA_UInt32)rand_r(SEED)
 #endif
 
-#ifdef UA_DEBUG
 #include <inttypes.h>
-#endif
 
 #include "ua_types.h"
 #include "ua_types_macros.h"
