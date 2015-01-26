@@ -12,6 +12,9 @@ fixed_size = {"UA_Boolean": 1, "UA_SByte": 1, "UA_Byte": 1, "UA_Int16": 2, "UA_U
               "UA_Int32": 4, "UA_UInt32": 4, "UA_Int64": 8, "UA_UInt64": 8, "UA_Float": 4,
               "UA_Double": 8, "UA_DateTime": 8, "UA_Guid": 16, "UA_StatusCode": 4}
 
+zero_copy = ["UA_Boolean", "UA_Byte", "UA_Int16", "UA_UInt16", "UA_Int32", "UA_UInt32",
+             "UA_Int64", "UA_UInt64", "UA_Float", "UA_Double", "UA_DateTime", "UA_StatusCode"]
+
 builtin_types = ["UA_Boolean", "UA_Byte", "UA_Int16", "UA_UInt16", "UA_Int32", "UA_UInt32",
                  "UA_Int64", "UA_UInt64", "UA_Float", "UA_Double", "UA_String", "UA_DateTime",
                  "UA_Guid", "UA_ByteString", "UA_XmlElement", "UA_NodeId", "UA_ExpandedNodeId",
@@ -24,31 +27,31 @@ excluded_types = ["UA_NodeIdType", "UA_InstanceNode", "UA_TypeNode", "UA_Node", 
                   "UA_SamplingIntervalDiagnosticsDataType", "UA_SessionSecurityDiagnosticsDataType",
                   "UA_SubscriptionDiagnosticsDataType", "UA_SessionDiagnosticsDataType"]
 
-class Type(object):
+class BuiltinType(object):
+    "Generic type without members. Used for builtin types."
     def __init__(self, name, description = ""):
         self.name = name
         self.description = description
+
+    def fixed_size(self):
+        return self.name in fixed_size
+
+    def mem_size(self):
+        return fixed_size[self.name]
+
+    def zero_copy(self):
+        return self.name in zero_copy
 
     def typedef_c(self):
         pass
 
     def typelayout_c(self):
-        pass
+        return "{.memSize = sizeof(" + self.name + "), " + \
+            ".fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
+            ", .zeroCopyable = " + ("UA_TRUE" if self.zero_copy() else "UA_FALSE") + \
+            ", .membersSize = 0 }"
 
-class BuiltinType(Type):
-    def __init__(self, name, description = "", zeroCopyable = False):
-        self.name = name
-        self.description = description
-        self.zeroCopyable = zeroCopyable
-
-    def fixed_size(self):
-        return self.name in fixed_size
-
-    def typelayout_c(self):
-        return "{.memSize = sizeof(" + self.name + "), .zeroCopyable = " + \
-            ("UA_TRUE" if self.zeroCopyable else "UA_FALSE") + ", .membersSize = 0 }"
-
-class EnumerationType(Type):
+class EnumerationType(object):
     def __init__(self, name, description = "", elements = OrderedDict()):
         self.name = name
         self.description = description
@@ -60,25 +63,38 @@ class EnumerationType(Type):
     def fixed_size(self):
         return True
 
+    def mem_size(self):
+        return 4
+
+    def zero_copy(self):
+        return True
+
     def typedef_c(self):
         return "typedef enum { \n    " + \
             ",\n    ".join(map(lambda (key,value) : key.upper() + " = " + value,self.elements.iteritems())) + \
             "\n} " + self.name + ";"
 
     def typelayout_c(self):
-        return "{.memSize = sizeof(" + self.name + "), .zeroCopyable = UA_TRUE, " + \
+        return "{.memSize = sizeof(" + self.name + "), .fixedSize = UA_TRUE, .zeroCopyable = UA_TRUE, " + \
             ".membersSize = 1,\n\t.members[0] = {.memberTypeIndex = UA_INT32," + \
             ".nameSpaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE } }"
 
-class OpaqueType(Type):
+class OpaqueType(object):
+    def __init__(self, name, description = ""):
+        self.name = name
+        self.description = description
+
     def fixed_size(self):
+        return False
+
+    def zero_copy(self):
         return False
 
     def typedef_c(self):
         return "typedef UA_ByteString " + self.name + ";"
 
     def typelayout_c(self):
-        return "{.memSize = sizeof(" + self.name + "), .zeroCopyable = UA_FALSE, " + \
+        return "{.memSize = sizeof(" + self.name + "), .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
             ".membersSize = 1,\n\t.members[0] = {.memberTypeIndex = UA_BYTE," + \
             ".nameSpaceZero = UA_TRUE, .padding = offsetof(UA_String, data), .isArray = UA_TRUE } }"
 
@@ -88,17 +104,30 @@ class StructMember(object):
         self.memberType = memberType
         self.isArray = isArray
 
-class StructType(Type):
+class StructType(object):
     def __init__(self, name, description, members = OrderedDict()):
         self.name = name
         self.description = description
         self.members = members # maps a name to a member definition
 
     def fixed_size(self):
-        if self.name in fixed_size:
-            return True
         for m in self.members.values():
             if m.isArray or not m.memberType.fixed_size():
+                return False
+        return True
+
+    def mem_size(self):
+        total = 0
+        for m in self.members.values():
+            if m.isArray:
+                raise Exception("Arrays have no fixed size!")
+            else:
+                total += m.memberType.mem_size()
+        return total
+
+    def zero_copy(self):
+        for m in self.members.values():
+            if m.isArray or not m.memberType.zero_copy():
                 return False
         return True
 
@@ -115,9 +144,11 @@ class StructType(Type):
         return returnstr + "} " + self.name + ";"
 
     def typelayout_c(self):
-        layout = "{.memSize = sizeof(" + self.name + "), .zeroCopyable = " + \
-                 ("UA_TRUE, " if self.fixed_size() else "UA_FALSE, ") + \
-                 ".membersSize = " + str(len(self.members)) + ","
+        layout = "{.memSize = sizeof(" + self.name + "), "+ \
+                 ".fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
+                 ", .zeroCopyable = " + ("sizeof(" + self.name + ") == " + str(self.mem_size()) if self.zero_copy() \
+                                         else "UA_FALSE") + \
+                 ", .membersSize = " + str(len(self.members)) + ","
         for index, member in enumerate(self.members.values()):
             layout += "\n\t.members["+ str(index)+ "] = {" + \
                       ".memberTypeIndex = UA_" + member.memberType.name.upper()[3:] + ", " + \
@@ -138,13 +169,13 @@ class StructType(Type):
             layout += ".isArray = " + ("UA_TRUE" if member.isArray else "UA_FALSE") + " }, "
         return layout + "}"
 
-def parseTypeDefinitions(xmlDescription, type_selection = None):
+def parseTypeDefinitions(xmlDescription, existing_types = OrderedDict()):
     '''Returns an ordered dict that maps names to types. The order is such that
        every type depends only on known types. '''
     ns = {"opc": "http://opcfoundation.org/BinarySchema/"}
     tree = etree.parse(xmlDescription)
     typeSnippets = tree.xpath("/opc:TypeDictionary/*[not(self::opc:Import)]", namespaces=ns)
-    types = OrderedDict([(t, BuiltinType(t, "", t in fixed_size)) for t in builtin_types])
+    types = OrderedDict(existing_types.items())
 
     # types we do not want to autogenerate
     def skipType(name):
@@ -155,8 +186,6 @@ def parseTypeDefinitions(xmlDescription, type_selection = None):
         if "Test" in name: # skip all test types
             return True
         if re.search("NodeId$", name) != None:
-            return True
-        if type_selection and not(name in type_selection):
             return True
         return False
 
@@ -201,13 +230,11 @@ def parseTypeDefinitions(xmlDescription, type_selection = None):
         for child in typeXml:
             if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
                 description = child.text
-
         # ignore lengthfields, just tag the array-members as an array
         lengthfields = []
         for child in typeXml:
             if child.get("LengthField"):
                 lengthfields.append(child.get("LengthField"))
-
         members = OrderedDict()
         for child in typeXml:
             if not child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
@@ -221,7 +248,6 @@ def parseTypeDefinitions(xmlDescription, type_selection = None):
             memberName = camlCase2CCase(child.get("Name"))
             isArray = True if child.get("LengthField") else False
             members[memberName] = StructMember(memberName, memberType, isArray)
-
         return StructType(name, description, members)
 
     finished = False
@@ -230,13 +256,13 @@ def parseTypeDefinitions(xmlDescription, type_selection = None):
         for typeXml in typeSnippets:
             name = "UA_" + typeXml.get("Name")
             if name in types or skipType(name):
-		continue
+                continue
             if typeXml.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedType":
-		t = parseEnumeration(typeXml)
+                t = parseEnumeration(typeXml)
                 types[t.name] = t
             elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}OpaqueType":
-		t = parseOpaque(typeXml)
-		types[t.name] = t
+                t = parseOpaque(typeXml)
+                types[t.name] = t
             elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}StructuredType":
                 t = parseStructured(typeXml)
                 if t == None:
@@ -253,7 +279,8 @@ parser.add_argument('outfile', help='outfile w/o extension')
 args = parser.parse_args()
 outname = args.outfile.split("/")[-1] 
 inname = args.xml.split("/")[-1]
-types = OrderedDict(parseTypeDefinitions(args.xml).items())
+existing_types = OrderedDict([(t, BuiltinType(t)) for t in builtin_types])
+types = parseTypeDefinitions(args.xml, existing_types)
 
 fh = open("ua_" + args.outfile + "_generated.h",'w')
 fc = open("ua_" + args.outfile + "_generated.c",'w')
@@ -298,7 +325,7 @@ for t in types.itervalues():
     if type(t) != BuiltinType:
         printh("")
         if t.description != "":
-            printh("/** @brief " + t.description + "*/")
+            printh("/** @brief " + t.description + " */")
         printh(t.typedef_c())
     printh("#define UA_" + t.name[3:].upper() + " " + str(i))
     i += 1
@@ -327,10 +354,8 @@ printc('''/**
 const UA_DataTypeLayout *UA_TYPES = (const UA_DataTypeLayout[]){''')
 
 for t in types.itervalues():
-    if type(t) == BuiltinType and not args.is_ns0:
-        continue
     printc("")
-    printc("/* " + t.name + "*/")
+    printc("/* " + t.name + " */")
     printc(t.typelayout_c() + ",")
 
 printc("};")

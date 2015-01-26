@@ -420,9 +420,10 @@ typedef struct {
 } UA_DataTypeMember;
     
 typedef struct {
-    UA_UInt16 memSize : 15; ///< Size of the struct in memory
-    UA_Boolean zeroCopyable; ///< Can the type be copied directly off the stream?
-    UA_Byte membersSize; ///< How many members does the struct have?
+    UA_UInt16 memSize; ///< Size of the struct in memory
+    UA_Boolean fixedSize : 1; ///< The type contains no pointers
+    UA_Boolean zeroCopyable : 1; ///< Can the type be copied directly off the stream?
+    UA_Byte membersSize : 6; ///< How many members does the struct have?
     UA_DataTypeMember members[UA_MAX_MEMBERS];
 } UA_DataTypeLayout;
 
