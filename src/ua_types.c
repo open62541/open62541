@@ -1039,3 +1039,66 @@ void UA_Array_print(const void *p, UA_Int32 noElements, const UA_TypeVTable *vt,
         cp += memSize;
     }
 }
+
+typedef void (*UA_TypeInit)(void *p);
+typedef void (*UA_TypeInitJump)(void *p, UA_UInt16 typeIndex);
+
+static const UA_TypeInit *builtinInit = (UA_TypeInit[])
+{(UA_TypeInit)&UA_Boolean_init, (UA_TypeInit)&UA_SByte_init, (UA_TypeInit)&UA_Byte_init,
+ (UA_TypeInit)&UA_Int16_init, (UA_TypeInit)&UA_UInt16_init, (UA_TypeInit)&UA_Int32_init,
+ (UA_TypeInit)&UA_UInt32_init, (UA_TypeInit)&UA_Int64_init, (UA_TypeInit)&UA_UInt64_init,
+ (UA_TypeInit)&UA_Float_init, (UA_TypeInit)&UA_Double_init, (UA_TypeInit)&UA_String_init,
+ (UA_TypeInit)&UA_DateTime_init, (UA_TypeInit)&UA_Guid_init, (UA_TypeInit)&UA_ByteString_init,
+ (UA_TypeInit)&UA_XmlElement_init, (UA_TypeInit)&UA_NodeId_init, (UA_TypeInit)&UA_ExpandedNodeId_init,
+ (UA_TypeInit)&UA_StatusCode_init, (UA_TypeInit)&UA_QualifiedName_init, (UA_TypeInit)&UA_LocalizedText_init,
+ (UA_TypeInit)&UA_ExtensionObject_init, (UA_TypeInit)&UA_DataValue_init, (UA_TypeInit)&UA_Variant_init,
+ (UA_TypeInit)&UA_DiagnosticInfo_init
+};
+
+static inline void initJump(void *p, UA_UInt16 typeIndex) {
+    builtinInit[typeIndex](p);
+}
+
+static const UA_TypeInitJump *initJumpTable = (UA_TypeInitJump[])
+{&initJump, &initJump, &initJump, &initJump, &initJump, &initJump, &initJump, &initJump,
+ &initJump, &initJump, &initJump, &initJump, &initJump, &initJump, &initJump, &initJump,
+ &initJump, &initJump, &initJump, &initJump, &initJump, &initJump, &initJump, &initJump,
+ &initJump, /* 25 times the jump to the builtin function */
+ &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init,
+ &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init,
+ &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init,
+ &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init,
+ &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init,
+ &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init,
+ &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init,
+ &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init
+ /* 39 times the (recursive) jump to the datatype function */ };
+
+
+void UA_DataType_init(void *p, UA_UInt16 typeIndex) {
+    UA_Byte *ptr = (UA_Byte *)p; // for pointer arithmetic
+
+    /* Do not check for the builtin-type here. They will be called with their
+       very own _init functions normally. In the off case, that the generic
+       function is called with the index of a builtin, they contain a single
+       member of the builtin type that will be branched off in the loop. */
+
+    const UA_DataTypeLayout *layout = (const UA_DataTypeLayout*)&UA_TYPES[typeIndex];
+    for(int i=0;i<layout->membersSize; i++) {
+        const UA_DataTypeMember *member = &layout->members[i];
+        if(member->isArray) {
+            /* An array, padding is split into before and after the length integer */
+            ptr += (member->padding >> 3);
+            *((UA_Int32*)ptr) = -1;
+            ptr += sizeof(UA_Int32) + (member->padding & 0x000fff);
+            *((void**)ptr) = UA_NULL;
+            ptr += sizeof(void*);
+            continue;
+        }
+        const UA_DataTypeLayout *memberLayout = (const UA_DataTypeLayout*)&UA_TYPES[member->memberTypeIndex];
+        ptr += member->padding;
+        UA_Byte jumpIndex = ((member->memberTypeIndex > 24) << 5) + (member->memberTypeIndex & 0xff);
+        initJumpTable[jumpIndex](ptr, member->memberTypeIndex);
+        ptr += memberLayout->memSize;
+    }
+}

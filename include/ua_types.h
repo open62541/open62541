@@ -410,7 +410,8 @@ void UA_EXPORT UA_Array_print(const void *p, UA_Int32 noElements, const UA_TypeV
 /* TypeDescription */
 /*******************/
 
-#define UA_MAX_MEMBERS 13 // Maximum number of members per complex type
+#define UA_MAX_TYPE_MEMBERS 13 // Maximum number of members per complex type
+#define UA_MAX_TYPE_DEPTH 5 // Maximum depth of nested types
 
 typedef struct {
     UA_UInt16 memberTypeIndex : 9; ///< Index of the member in the datatypelayout table
@@ -426,8 +427,11 @@ typedef struct {
     UA_Boolean fixedSize : 1; ///< The type contains no pointers
     UA_Boolean zeroCopyable : 1; ///< Can the type be copied directly off the stream?
     UA_Byte membersSize : 6; ///< How many members does the struct have?
-    UA_DataTypeMember members[UA_MAX_MEMBERS];
+    UA_DataTypeMember members[UA_MAX_TYPE_MEMBERS];
 } UA_DataTypeLayout;
+
+void UA_DataType_init(void *p, UA_UInt16 typeIndex);
+void * UA_DataType_new(const UA_DataTypeLayout *layoutTable, UA_UInt16 typeIndex);
 
 typedef struct {
     UA_UInt16 tableSize;

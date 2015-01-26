@@ -49,7 +49,8 @@ class BuiltinType(object):
         return "{.memSize = sizeof(" + self.name + "), " + \
             ".fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
             ", .zeroCopyable = " + ("UA_TRUE" if self.zero_copy() else "UA_FALSE") + \
-            ", .membersSize = 0 }"
+            ", .membersSize = 1,\n\t.members[0] = {.memberTypeIndex = " + self.name.upper() + "," + \
+            ".nameSpaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}"
 
 class EnumerationType(object):
     def __init__(self, name, description = "", elements = OrderedDict()):
