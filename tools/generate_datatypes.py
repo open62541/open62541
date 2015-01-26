@@ -95,8 +95,8 @@ class OpaqueType(object):
 
     def typelayout_c(self):
         return "{.memSize = sizeof(" + self.name + "), .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
-            ".membersSize = 1,\n\t.members[0] = {.memberTypeIndex = UA_BYTE," + \
-            ".nameSpaceZero = UA_TRUE, .padding = offsetof(UA_String, data), .isArray = UA_TRUE } }"
+            ".membersSize = 1,\n\t.members[0] = {.memberTypeIndex = UA_BYTESTRING," + \
+            ".nameSpaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE } }"
 
 class StructMember(object):
     def __init__(self, name, memberType, isArray):
@@ -153,20 +153,28 @@ class StructType(object):
             layout += "\n\t.members["+ str(index)+ "] = {" + \
                       ".memberTypeIndex = UA_" + member.memberType.name.upper()[3:] + ", " + \
                       ".nameSpaceZero = "+ \
-                      ("UA_TRUE, " if args.is_ns0 or member.memberType.name in builtin_types else "UA_FALSE, ") + \
+                      ("UA_TRUE, " if args.is_ns0 or member.memberType.name in existing_types else "UA_FALSE, ") + \
                       ".padding = "
-            if index == 0:
-                layout += "0, "
-            else:
+
+            before_endpos = "0"
+            thispos = "offsetof(%s, %s)" % (self.name, member.name)
+            if index > 0:
                 before = self.members.values()[index-1]
-                layout += "offsetof(" + self.name + ", "+ member.name + ") - offsetof(" + self.name + ", " + before.name + ")"
-                if member.isArray:
-                    layout += " - sizeof(UA_Int32) "
+                before_endpos = "(offsetof(%s, %s)" % (self.name, before.name)
                 if before.isArray:
-                    layout += " - sizeof(void *), "
+                    before_endpos += " + sizeof(void*))"
                 else:
-                    layout += " - sizeof(" + before.memberType.name + "), "
-            layout += ".isArray = " + ("UA_TRUE" if member.isArray else "UA_FALSE") + " }, "
+                    before_endpos += " + sizeof(%s))" % before.memberType.name
+            
+            if member.isArray:
+                # the first two bytes are padding for the length index, the last three for the pointer
+                length_pos = "offsetof(%s, %sSize)" % (self.name, member.name)
+                if index != 0:
+                    layout += "((%s - %s) << 3) + " % (length_pos, before_endpos)
+                layout += "(%s - sizeof(UA_Int32) - %s)" % (thispos, length_pos)
+            else:
+                layout += "%s - %s" % (thispos, before_endpos)
+            layout += ", .isArray = " + ("UA_TRUE" if member.isArray else "UA_FALSE") + " }, "
         return layout + "}"
 
 def parseTypeDefinitions(xmlDescription, existing_types = OrderedDict()):
@@ -272,15 +280,20 @@ def parseTypeDefinitions(xmlDescription, existing_types = OrderedDict()):
     return types
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--is-ns0', action='store_true', help='the builtin-types are added to namespace 0')
-parser.add_argument('xml', help='path/to/Opc.Ua.Types.bsd')
+parser.add_argument('--is-ns0', action='store_true', help='type definitions are for namespace zero')
+parser.add_argument('--ns0-types-xml', nargs=1, help='xml-definition of the ns0 types that are assumed to already exist')
+parser.add_argument('types_xml', help='path/to/Opc.Ua.Types.bsd')
 parser.add_argument('outfile', help='outfile w/o extension')
 
 args = parser.parse_args()
 outname = args.outfile.split("/")[-1] 
-inname = args.xml.split("/")[-1]
-existing_types = OrderedDict([(t, BuiltinType(t)) for t in builtin_types])
-types = parseTypeDefinitions(args.xml, existing_types)
+inname = args.types_xml.split("/")[-1]
+existing_types = OrderedDict()
+if args.is_ns0:
+    existing_types = OrderedDict([(t, BuiltinType(t)) for t in builtin_types])
+if args.ns0_types_xml:
+    existing_types = parseTypeDefinitions(args.ns0_types_xml, existing_types)
+types = parseTypeDefinitions(args.types_xml, existing_types)
 
 fh = open("ua_" + args.outfile + "_generated.h",'w')
 fc = open("ua_" + args.outfile + "_generated.c",'w')

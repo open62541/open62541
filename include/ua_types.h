@@ -415,7 +415,9 @@ void UA_EXPORT UA_Array_print(const void *p, UA_Int32 noElements, const UA_TypeV
 typedef struct {
     UA_UInt16 memberTypeIndex : 9; ///< Index of the member in the datatypelayout table
     UA_Boolean nameSpaceZero : 1; ///< The type of the member is defined in namespace zero
-    UA_Byte padding : 5; ///< How much padding is there before this member element?
+    UA_Byte padding : 5; /**< How much padding is there before this member element? For arrays this
+                              is split into 2 bytes padding for for the length index (max 4 bytes)
+                              and 3 bytes padding for the pointer (max 8 bytes) */
     UA_Boolean isArray : 1; ///< The member is an array if the given type
 } UA_DataTypeMember;
     
