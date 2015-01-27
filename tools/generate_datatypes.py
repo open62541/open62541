@@ -12,14 +12,19 @@ fixed_size = {"UA_Boolean": 1, "UA_SByte": 1, "UA_Byte": 1, "UA_Int16": 2, "UA_U
               "UA_Int32": 4, "UA_UInt32": 4, "UA_Int64": 8, "UA_UInt64": 8, "UA_Float": 4,
               "UA_Double": 8, "UA_DateTime": 8, "UA_Guid": 16, "UA_StatusCode": 4}
 
-zero_copy = ["UA_Boolean", "UA_Byte", "UA_Int16", "UA_UInt16", "UA_Int32", "UA_UInt32",
+zero_copy = ["UA_Boolean", "UA_SByte", "UA_Byte", "UA_Int16", "UA_UInt16", "UA_Int32", "UA_UInt32",
              "UA_Int64", "UA_UInt64", "UA_Float", "UA_Double", "UA_DateTime", "UA_StatusCode"]
 
-builtin_types = ["UA_Boolean", "UA_Byte", "UA_Int16", "UA_UInt16", "UA_Int32", "UA_UInt32",
-                 "UA_Int64", "UA_UInt64", "UA_Float", "UA_Double", "UA_String", "UA_DateTime",
-                 "UA_Guid", "UA_ByteString", "UA_XmlElement", "UA_NodeId", "UA_ExpandedNodeId",
-                 "UA_StatusCode", "UA_QualifiedName", "UA_LocalizedText", "UA_ExtensionObject",
-                 "UA_Variant", "UA_DataValue", "UA_DiagnosticInfo"]
+# The order of the builtin-types is not as in the standard. We put all the
+# fixed_size types in the front, so they can be distinguished by a simple geq
+# comparison. That's ok, since we use the type-index only internally!!
+builtin_types = ["UA_Boolean", "UA_SByte", "UA_Byte", "UA_Int16", "UA_UInt16",
+                 "UA_Int32", "UA_UInt32", "UA_Int64", "UA_UInt64", "UA_Float",
+                 "UA_Double", "UA_DateTime", "UA_Guid", "UA_StatusCode",
+                 "UA_String", "UA_ByteString", "UA_XmlElement", "UA_NodeId",
+                 "UA_ExpandedNodeId", "UA_QualifiedName", "UA_LocalizedText",
+                 "UA_ExtensionObject", "UA_DataValue", "UA_Variant",
+                 "UA_DiagnosticInfo"]
 
 excluded_types = ["UA_NodeIdType", "UA_InstanceNode", "UA_TypeNode", "UA_Node", "UA_ObjectNode",
                   "UA_ObjectTypeNode", "UA_VariableNode", "UA_VariableTypeNode", "UA_ReferenceTypeNode",
@@ -331,7 +336,7 @@ extern "C" {
 * @{
 */
 
-extern const UA_DataTypeLayout *UA_''' + outname.upper() + ''';
+extern const UA_DataType *UA_''' + outname.upper() + ''';
 ''')
 
 i = 0
@@ -365,7 +370,7 @@ printc('''/**
 #include "stddef.h"
 #include "ua_''' + outname + '''_generated.h"
 
-const UA_DataTypeLayout *UA_TYPES = (const UA_DataTypeLayout[]){''')
+const UA_DataType *UA_TYPES = (const UA_DataType[]){''')
 
 for t in types.itervalues():
     printc("")

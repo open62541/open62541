@@ -60,7 +60,7 @@ static void testCallback(UA_Server *server, void *data) {
 
 int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
-    printf("--- %lu\n", sizeof(UA_DataTypeLayout));
+    printf("--- %lu\n", sizeof(UA_DataType));
 
 	UA_Server *server = UA_Server_new();
     UA_Server_setServerCertificate(server, loadCertificate());

@@ -1064,30 +1064,31 @@ static const UA_TypeInitJump *initJumpTable = (UA_TypeInitJump[])
  &initJump, &initJump, &initJump, &initJump, &initJump, &initJump, &initJump, &initJump,
  &initJump, &initJump, &initJump, &initJump, &initJump, &initJump, &initJump, &initJump,
  &initJump, /* 25 times the jump to the builtin function */
- &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init,
- &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init,
- &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init,
- &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init,
- &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init,
- &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init,
- &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init,
- &UA_DataType_init, &UA_DataType_init, &UA_DataType_init, &UA_DataType_init
+ &UA_init, &UA_init, &UA_init, &UA_init, &UA_init,
+ &UA_init, &UA_init, &UA_init, &UA_init, &UA_init,
+ &UA_init, &UA_init, &UA_init, &UA_init, &UA_init,
+ &UA_init, &UA_init, &UA_init, &UA_init, &UA_init,
+ &UA_init, &UA_init, &UA_init, &UA_init, &UA_init,
+ &UA_init, &UA_init, &UA_init, &UA_init, &UA_init,
+ &UA_init, &UA_init, &UA_init, &UA_init, &UA_init,
+ &UA_init, &UA_init, &UA_init, &UA_init
  /* 39 times the (recursive) jump to the datatype function */ };
 
-
-void UA_DataType_init(void *p, UA_UInt16 typeIndex) {
+void UA_init(void *p, UA_UInt16 typeIndex) {
     UA_Byte *ptr = (UA_Byte *)p; // for pointer arithmetic
 
-    /* Do not check for the builtin-type here. They will be called with their
-       very own _init functions normally. In the off case, that the generic
-       function is called with the index of a builtin, they contain a single
-       member of the builtin type that will be branched off in the loop. */
+    /* Do not check if the index is a builtin-type here. Builtins will be called
+       with their very own _init functions normally. In the off case, that the
+       generic function is called with the index of a builtin, their layout
+       contains a single member of the builtin type, that will be inited in the
+       for loop. */
 
-    const UA_DataTypeLayout *layout = (const UA_DataTypeLayout*)&UA_TYPES[typeIndex];
+    const UA_DataType *layout = (const UA_DataType*)&UA_TYPES[typeIndex];
     for(int i=0;i<layout->membersSize; i++) {
         const UA_DataTypeMember *member = &layout->members[i];
         if(member->isArray) {
-            /* An array, padding is split into before and after the length integer */
+            /* Padding contains bit-magic to split into padding before and after
+               the length integer */
             ptr += (member->padding >> 3);
             *((UA_Int32*)ptr) = -1;
             ptr += sizeof(UA_Int32) + (member->padding & 0x000fff);
@@ -1095,10 +1096,90 @@ void UA_DataType_init(void *p, UA_UInt16 typeIndex) {
             ptr += sizeof(void*);
             continue;
         }
-        const UA_DataTypeLayout *memberLayout = (const UA_DataTypeLayout*)&UA_TYPES[member->memberTypeIndex];
+        const UA_DataType *memberLayout =
+            (const UA_DataType*)&UA_TYPES[member->memberTypeIndex];
         ptr += member->padding;
+        /* If the type is not builtin, we will hit an index > 32 and the call is recursive. */
         UA_Byte jumpIndex = ((member->memberTypeIndex > 24) << 5) + (member->memberTypeIndex & 0xff);
         initJumpTable[jumpIndex](ptr, member->memberTypeIndex);
         ptr += memberLayout->memSize;
     }
+}
+
+void * UA_new(UA_UInt16 typeIndex) {
+    const UA_DataType *layout = (const UA_DataType*)&UA_TYPES[typeIndex];
+    void *p = UA_malloc(layout->memSize);
+    UA_init(p, typeIndex);
+    return p;
+}
+
+void UA_deleteMembers(void *p, UA_UInt16 typeIndex) {
+    UA_Byte *ptr = (UA_Byte *)p; // for pointer arithmetic
+    const UA_DataType *layout = (const UA_DataType*)&UA_TYPES[typeIndex];
+    for(int i=0;i<layout->membersSize; i++) {
+        const UA_DataTypeMember *member = &layout->members[i];
+        if(member->isArray) {
+            ptr += (member->padding >> 3) + sizeof(UA_Int32) + (member->padding & 0x000fff);
+            //UA_DataTypeArray_delete(ptr, member->memberTypeIndex);
+            ptr += sizeof(void*);
+            continue;
+        }
+        const UA_DataType *memberLayout =
+            (const UA_DataType*)&UA_TYPES[member->memberTypeIndex];
+        ptr += member->padding;
+        switch(member->memberTypeIndex) {
+        case UA_BOOLEAN:
+        case UA_SBYTE:
+        case UA_BYTE:
+        case UA_INT16:
+        case UA_UINT16:
+        case UA_INT32:
+        case UA_UINT32:
+        case UA_INT64:
+        case UA_UINT64:
+        case UA_FLOAT:
+        case UA_DOUBLE:
+        case UA_DATETIME:
+        case UA_GUID:
+        case UA_STATUSCODE:
+            break;
+        case UA_STRING:
+        case UA_BYTESTRING:
+        case UA_XMLELEMENT:
+            UA_String_deleteMembers((UA_String*)ptr);
+            break;
+        case UA_NODEID:
+            UA_NodeId_deleteMembers((UA_NodeId*)ptr);
+            break;
+        case UA_EXPANDEDNODEID:
+            UA_ExpandedNodeId_deleteMembers((UA_ExpandedNodeId*)ptr);
+            break;
+        case UA_QUALIFIEDNAME:
+            UA_QualifiedName_deleteMembers((UA_QualifiedName*)ptr);
+            break;
+        case UA_LOCALIZEDTEXT:
+            UA_LocalizedText_deleteMembers((UA_LocalizedText*)ptr);
+            break;
+        case UA_EXTENSIONOBJECT:
+            UA_ExtensionObject_deleteMembers((UA_ExtensionObject*)ptr);
+            break;
+        case UA_DATAVALUE:
+            UA_DataValue_deleteMembers((UA_DataValue*)ptr);
+            break;
+        case UA_VARIANT:
+            UA_Variant_deleteMembers((UA_Variant*)ptr);
+            break;
+        case UA_DIAGNOSTICINFO:
+            UA_DiagnosticInfo_deleteMembers((UA_DiagnosticInfo*)ptr);
+            break;
+        default:
+            UA_deleteMembers(ptr, member->memberTypeIndex);
+        }
+        ptr += memberLayout->memSize;
+    }
+}
+
+void UA_delete(void *p, UA_UInt16 typeIndex) {
+    UA_deleteMembers(p, typeIndex);
+    UA_free(p);
 }

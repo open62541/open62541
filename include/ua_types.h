@@ -411,31 +411,38 @@ void UA_EXPORT UA_Array_print(const void *p, UA_Int32 noElements, const UA_TypeV
 /*******************/
 
 #define UA_MAX_TYPE_MEMBERS 13 // Maximum number of members per complex type
-#define UA_MAX_TYPE_DEPTH 5 // Maximum depth of nested types
 
 typedef struct {
     UA_UInt16 memberTypeIndex : 9; ///< Index of the member in the datatypelayout table
-    UA_Boolean nameSpaceZero : 1; ///< The type of the member is defined in namespace zero
+    UA_Boolean nameSpaceZero : 1; /**< The type of the member is defined in namespace zero. In this
+                                       implementation, types from custom namespace may contain
+                                       members from the same namespace or ns0 only.*/
     UA_Byte padding : 5; /**< How much padding is there before this member element? For arrays this
                               is split into 2 bytes padding for for the length index (max 4 bytes)
                               and 3 bytes padding for the pointer (max 8 bytes) */
-    UA_Boolean isArray : 1; ///< The member is an array if the given type
+    UA_Boolean isArray : 1; ///< The member is an array of the given type
 } UA_DataTypeMember;
     
 typedef struct {
     UA_UInt16 memSize; ///< Size of the struct in memory
     UA_Boolean fixedSize : 1; ///< The type contains no pointers
     UA_Boolean zeroCopyable : 1; ///< Can the type be copied directly off the stream?
-    UA_Byte membersSize : 6; ///< How many members does the struct have?
+    UA_Byte membersSize : 6; ///< How many members does the type have?
     UA_DataTypeMember members[UA_MAX_TYPE_MEMBERS];
-} UA_DataTypeLayout;
+} UA_DataType;
 
-void UA_DataType_init(void *p, UA_UInt16 typeIndex);
-void * UA_DataType_new(const UA_DataTypeLayout *layoutTable, UA_UInt16 typeIndex);
+void UA_EXPORT UA_init(void *p, UA_UInt16 typeIndex);
+void UA_EXPORT * UA_new(UA_UInt16 typeIndex);
+void UA_EXPORT UA_deleteMembers(void *p, UA_UInt16 typeIndex);
+void UA_EXPORT UA_delete(void *p, UA_UInt16 typeIndex);
+
+UA_StatusCode UA_EXPORT UA__Array_new(void **p, UA_Int32 noElements, UA_UInt16 typeIndex);
+void UA_EXPORT UA__Array_init(void *p, UA_Int32 noElements, UA_UInt16 typeIndex);
+void UA_EXPORT UA__Array_delete(void *p, UA_Int32 noElements, UA_UInt16 typeIndex);
 
 typedef struct {
     UA_UInt16 tableSize;
-    UA_DataTypeLayout *typeLayouts;
+    UA_DataType *typeLayouts;
     UA_NodeId *typeIds;
     UA_String *typeNames;
 } UA_TypeDescriptionTable;
