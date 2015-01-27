@@ -35,7 +35,7 @@ script:
    - mkdir -p build
    - cd build
    - echo "Cross compile build for MinGW"
-   - cmake -DCMAKE_TOOLCHAIN_FILE=../Toolchain-mingw32.cmake -DEXAMPLESERVER=ON ..
+   - cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw32.cmake -DEXAMPLESERVER=ON ..
    - make
    - cd .. && rm build -rf && mkdir -p build && cd build
    - echo "Only needed profile"
