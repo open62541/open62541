@@ -30,6 +30,7 @@
 #define UA_TYPE_DEFAULT(TYPE)            \
     UA_TYPE_NEW_DEFAULT(TYPE)            \
     UA_TYPE_INIT_DEFAULT(TYPE)           \
+    UA_TYPE_DELETEMEMBERS_NOACTION(TYPE) \
     UA_TYPE_DELETE_DEFAULT(TYPE)         \
     UA_TYPE_COPY_DEFAULT(TYPE)           \
 
@@ -43,6 +44,10 @@
 #define UA_TYPE_INIT_DEFAULT(TYPE) \
     void TYPE##_init(TYPE * p) {   \
         *p = (TYPE)0;              \
+    }
+
+#define UA_TYPE_DELETEMEMBERS_NOACTION(TYPE) \
+    void TYPE##_deleteMembers(TYPE *p) {    \
     }
 
 #define UA_TYPE_DELETE_DEFAULT(TYPE) \
@@ -263,6 +268,7 @@ UA_StatusCode UA_DateTime_toString(UA_DateTime atime, UA_String *timeString) {
 }
 
 /* Guid */
+UA_TYPE_DELETEMEMBERS_NOACTION(UA_Guid)
 UA_TYPE_DELETE_DEFAULT(UA_Guid)
 
 UA_Boolean UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
