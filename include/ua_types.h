@@ -22,8 +22,6 @@ extern "C" {
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <stdio.h>
-
 #include "ua_config.h"
 
 /**
@@ -117,7 +115,6 @@ typedef struct {
 } UA_String;
 
 /** @brief An instance in time.
- *
  * A DateTime value is encoded as a 64-bit signed integer which represents the
  * number of 100 nanosecond intervals since January 1, 1601 (UTC).
  */
@@ -192,9 +189,6 @@ typedef struct {
     UA_ByteString body; // contains either the bytestring or a pointer to the memory-object
 } UA_ExtensionObject;
 
-struct UA_TypeVTable; // forward declaration
-typedef struct UA_TypeVTable UA_TypeVTable;
-
 /** @brief Pointers to data that is stored in memory. The "type" of the data is
     stored in the variant itself. */
 typedef struct {
@@ -210,22 +204,32 @@ typedef struct {
  *  this structure. As a rule, datasources are never copied, but only their
  *  content. The only way to write into a datasource is via the write-service. */
 typedef struct {
-    const void *identifier; /**< whatever id the datasource uses internally. Can be ignored if the datasource functions do not use it. */
-    UA_Int32 (*read)(const void *identifier, const UA_VariantData **); /**< Get the current data from the datasource. When it is no longer used, the data has to be relased. */
-    void (*release)(const void *identifier, const UA_VariantData *); /**< For concurrent access, the datasource needs to know when the last reader releases replaced/deleted data. Release decreases the reference count. */
-    UA_Int32 (*write)(const void **identifier, const UA_VariantData *); /**< Replace the data in the datasource. Also used to replace the identifier pointer for lookups. Do not free the variantdata afterwards! */
-    void (*delete)(const void *identifier); /**< Indicates that the node with the datasource was removed from the namespace. */
+    const void *handle;
+    UA_StatusCode (*read)(const void *handle, const UA_VariantData **);
+    void (*release)(const void *handle, const UA_VariantData *);
+    UA_StatusCode (*write)(const void **handle, const UA_VariantData *);
+    void (*delete)(const void *handle);
 } UA_VariantDataSource;
 
-/** @brief Variants store (arrays of) any data type. Either they provide a
-    pointer to the data in memory, or functions from which the data can be
-    accessed. */
+struct UA_DataType;
+typedef struct UA_DataType UA_DataType; 
+struct UA_DataTypeTable;
+typedef struct UA_DataTypeTable UA_DataTypeTable; 
+
+/** @brief Variants store (arrays of) any data type. Either they provide a pointer to the data in
+    memory, or functions from which the data can be accessed. Variants are replaced together with
+    the data they store (exception: use a data source).*/
 typedef struct {
-    const UA_TypeVTable *vt; /// The VTable of the datatype in question
+    UA_UInt16 typeIndex;
+    const UA_DataTypeTable *typeTable;
     enum {
-        UA_VARIANT_DATA, ///< The data is stored in memory and "owned" by this variant
-        UA_VARIANT_DATA_NODELETE, ///< The data is stored in memory, but only "borrowed" and shall not be deleted at the end of this variant's lifecycle
-        UA_VARIANT_DATASOURCE ///< The data is provided externally. Call the functions in the datasource to get a current version
+        UA_VARIANT_DATA, ///< The data is "owned" by this variant (copied and deleted together)
+        UA_VARIANT_DATA_NODELETE, /**< The data is "borrowed" by the variant and shall not be
+                                       deleted at the end of this variant's lifecycle. It is not
+                                       possible to overwrite borrowed data due to concurrent access.
+                                       Use a custom datasource with a mutex. */
+        UA_VARIANT_DATASOURCE /**< The data is provided externally. Call the functions in the
+                                   datasource to get a current version */
     } storageType;
     union {
         UA_VariantData       data;
@@ -275,9 +279,6 @@ enum UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_enum {
     UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO = 0x40
 };
 
-/** @brief Type use internally to denote an invalid datatype. */
-typedef void UA_InvalidType;
-
 /*************/
 /* Functions */
 /*************/
@@ -287,16 +288,7 @@ typedef void UA_InvalidType;
     void UA_EXPORT TYPE##_init(TYPE * p);                            \
     void UA_EXPORT TYPE##_delete(TYPE * p);                          \
     void UA_EXPORT TYPE##_deleteMembers(TYPE * p);                   \
-    UA_StatusCode UA_EXPORT TYPE##_copy(const TYPE *src, TYPE *dst); \
-    void UA_EXPORT TYPE##_print(const TYPE *p, FILE *stream);
-
-#define UA_TYPE_PROTOTYPES_NOEXPORT(TYPE)                            \
-    TYPE * TYPE##_new(void);                                         \
-    void TYPE##_init(TYPE * p);                                      \
-    void TYPE##_delete(TYPE * p);                                    \
-    void TYPE##_deleteMembers(TYPE * p);                             \
-    UA_StatusCode TYPE##_copy(const TYPE *src, TYPE *dst);           \
-    void TYPE##_print(const TYPE *p, FILE *stream);
+    UA_StatusCode UA_EXPORT TYPE##_copy(const TYPE *src, TYPE *dst);
 
 /* Functions for all types */
 UA_TYPE_PROTOTYPES(UA_Boolean)
@@ -311,20 +303,35 @@ UA_TYPE_PROTOTYPES(UA_UInt64)
 UA_TYPE_PROTOTYPES(UA_Float)
 UA_TYPE_PROTOTYPES(UA_Double)
 UA_TYPE_PROTOTYPES(UA_String)
-UA_TYPE_PROTOTYPES(UA_DateTime)
+#define UA_DateTime_new UA_Int64_new
+#define UA_DateTime_init UA_Int64_init
+#define UA_DateTime_delete UA_Int64_delete
+#define UA_DateTime_deleteMembers UA_Int64_deleteMembers
+#define UA_DateTime_copy UA_Int64_copy
 UA_TYPE_PROTOTYPES(UA_Guid)
-UA_TYPE_PROTOTYPES(UA_ByteString)
-UA_TYPE_PROTOTYPES(UA_XmlElement)
+#define UA_ByteString_new UA_String_new
+#define UA_ByteString_init UA_String_init
+#define UA_ByteString_delete UA_String_delete
+#define UA_ByteString_deleteMembers UA_String_deleteMembers
+#define UA_ByteString_copy UA_String_copy
+#define UA_XmlElement_new UA_String_new
+#define UA_XmlElement_init UA_String_init
+#define UA_XmlElement_delete UA_String_delete
+#define UA_XmlElement_deleteMembers UA_String_deleteMembers
+#define UA_XmlElement_copy UA_String_copy
 UA_TYPE_PROTOTYPES(UA_NodeId)
 UA_TYPE_PROTOTYPES(UA_ExpandedNodeId)
-UA_TYPE_PROTOTYPES(UA_StatusCode)
+#define UA_StatusCode_new UA_Int32_new
+#define UA_StatusCode_init UA_Int32_init
+#define UA_StatusCode_delete UA_Int32_delete
+#define UA_StatusCode_deleteMembers UA_Int32_deleteMembers
+#define UA_StatusCode_copy UA_Int32_copy
 UA_TYPE_PROTOTYPES(UA_QualifiedName)
 UA_TYPE_PROTOTYPES(UA_LocalizedText)
 UA_TYPE_PROTOTYPES(UA_ExtensionObject)
 UA_TYPE_PROTOTYPES(UA_DataValue)
 UA_TYPE_PROTOTYPES(UA_Variant)
 UA_TYPE_PROTOTYPES(UA_DiagnosticInfo)
-UA_TYPE_PROTOTYPES(UA_InvalidType)
 
 /**********************************************/
 /* Custom functions for the builtin datatypes */
@@ -393,28 +400,18 @@ void UA_EXPORT UA_QualifiedName_printf(char const *label, const UA_QualifiedName
 UA_StatusCode UA_EXPORT UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);
 
 /* Variant */
-UA_StatusCode UA_EXPORT UA_Variant_copySetValue(UA_Variant *v, const UA_TypeVTable *vt, const void *value);
-UA_StatusCode UA_EXPORT UA_Variant_copySetArray(UA_Variant *v, const UA_TypeVTable *vt, UA_Int32 arrayLength, const void *array);
+UA_StatusCode UA_EXPORT UA_Variant_copySetValue(UA_Variant *v, const void *p, UA_UInt16 typeIndex);
+UA_StatusCode UA_EXPORT UA_Variant_copySetArray(UA_Variant *v, const void *array, UA_Int32 noElements, UA_UInt16 typeIndex);
 
-/* Array operations */
-UA_StatusCode UA_EXPORT UA_Array_new(void **p, UA_Int32 noElements, const UA_TypeVTable *vt);
-void UA_EXPORT UA_Array_init(void *p, UA_Int32 noElements, const UA_TypeVTable *vt);
-void UA_EXPORT UA_Array_delete(void *p, UA_Int32 noElements, const UA_TypeVTable *vt);
-
-/* @brief The destination array is allocated with size noElements. */
-UA_StatusCode UA_EXPORT UA_Array_copy(const void *src, UA_Int32 noElements, const UA_TypeVTable *vt, void **dst);
-void UA_EXPORT UA_Array_print(const void *p, UA_Int32 noElements, const UA_TypeVTable *vt, FILE *stream);
-
-
-/*******************/
-/* TypeDescription */
-/*******************/
+/****************************/
+/* Structured Type Handling */
+/****************************/
 
 #define UA_MAX_TYPE_MEMBERS 13 // Maximum number of members per complex type
 
 typedef struct {
-    UA_UInt16 memberTypeIndex : 9; ///< Index of the member in the datatypelayout table
-    UA_Boolean nameSpaceZero : 1; /**< The type of the member is defined in namespace zero. In this
+    UA_UInt16 memberTypeIndex : 9; ///< Index of the member in the datatypetable
+    UA_Boolean namespaceZero : 1; /**< The type of the member is defined in namespace zero. In this
                                        implementation, types from custom namespace may contain
                                        members from the same namespace or ns0 only.*/
     UA_Byte padding : 5; /**< How much padding is there before this member element? For arrays this
@@ -423,60 +420,40 @@ typedef struct {
     UA_Boolean isArray : 1; ///< The member is an array of the given type
 } UA_DataTypeMember;
     
-typedef struct {
+struct UA_DataType {
     UA_UInt16 memSize; ///< Size of the struct in memory
-    UA_Boolean fixedSize : 1; ///< The type contains no pointers
+    UA_UInt16 typeIndex : 13; ///< Index of the type in the datatytypetable
+    UA_Boolean namespaceZero : 1; ///< The type is defined in namespace zero.
+    UA_Boolean fixedSize : 1; ///< The type (and its members) contains no pointers
     UA_Boolean zeroCopyable : 1; ///< Can the type be copied directly off the stream?
-    UA_Byte membersSize : 6; ///< How many members does the type have?
+    UA_Byte membersSize; ///< How many members does the type have?
     UA_DataTypeMember members[UA_MAX_TYPE_MEMBERS];
-} UA_DataType;
-
-void UA_EXPORT UA_init(void *p, UA_UInt16 typeIndex);
-void UA_EXPORT * UA_new(UA_UInt16 typeIndex);
-void UA_EXPORT UA_deleteMembers(void *p, UA_UInt16 typeIndex);
-void UA_EXPORT UA_delete(void *p, UA_UInt16 typeIndex);
-
-UA_StatusCode UA_EXPORT UA__Array_new(void **p, UA_Int32 noElements, UA_UInt16 typeIndex);
-void UA_EXPORT UA__Array_init(void *p, UA_Int32 noElements, UA_UInt16 typeIndex);
-void UA_EXPORT UA__Array_delete(void *p, UA_Int32 noElements, UA_UInt16 typeIndex);
-
-typedef struct {
-    UA_UInt16 tableSize;
-    UA_DataType *typeLayouts;
-    UA_NodeId *typeIds;
-    UA_String *typeNames;
-} UA_TypeDescriptionTable;
-
-/**********/
-/* VTable */
-/**********/
-
-typedef struct UA_Encoding {
-    /**  Returns the size of the encoded element.*/
-    UA_UInt32 (*calcSize)(const void *p);
-    /** Encodes the type into the destination bytestring. */
-    UA_StatusCode (*encode)(const void *src, UA_ByteString *dst, UA_UInt32 *offset);
-    /** Decodes a ByteString into an UA datatype. */
-    UA_StatusCode (*decode)(const UA_ByteString *src, UA_UInt32 *offset, void *dst);
-} UA_Encoding;
-
-#define UA_ENCODING_BINARY 0 // Binary encoding is always available
-
-struct UA_TypeVTable {
-    UA_NodeId     typeId;
-    UA_Byte       *name;
-    void *        (*new)(void);
-    void          (*init)(void *p);
-    UA_StatusCode (*copy)(void const *src, void *dst);
-    void          (*delete)(void *p);
-    void          (*deleteMembers)(void *p);
-#ifdef UA_DEBUG
-    void          (*print)(const void *p, FILE *stream);
-#endif
-    UA_UInt32  memSize;                        // size of the struct
-    UA_Boolean dynMembers;                     // does the type contain members that are dynamically on the heap?
-    UA_Encoding encodings[UA_ENCODING_AMOUNT]; // binary, xml, ... UA_ENCODING_AMOUNT is set by the build script
 };
+
+struct UA_DataTypeTable {
+    UA_DataType *types;
+    UA_UInt32 *numericNodeIds;
+    UA_UInt16 namespaceIndex;
+    UA_UInt16 tableSize;
+};
+
+/** The structured types defined in the standard are stored in this array. Generally access looks
+    like UA_TYPES_NS0[UA_INT32], where the name of the type in uppercase gives the types index. */
+extern const UA_DataTypeTable UA_EXPORT UA_TYPES;
+
+void UA_EXPORT * UA_new(const UA_DataType *dataType);
+void UA_EXPORT UA_init(void *p, const UA_DataType *dataType);
+UA_StatusCode UA_EXPORT UA_copy(const void *src, void *dst, const UA_DataType *dataType);
+void UA_EXPORT UA_deleteMembers(void *p, const UA_DataType *dataType);
+void UA_EXPORT UA_delete(void *p, const UA_DataType *dataType);
+
+/********************/
+/* Array operations */
+/********************/
+
+UA_StatusCode UA_EXPORT UA_Array_new(void **p, UA_Int32 noElements, const UA_DataType *dataType);
+UA_StatusCode UA_EXPORT UA_Array_copy(const void *src, UA_Int32 noElements, void **dst, const UA_DataType *dataType);
+void UA_EXPORT UA_Array_delete(void *p, UA_Int32 noElements, const UA_DataType *dataType);
 
 /** @} */
 

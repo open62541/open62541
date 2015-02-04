@@ -94,7 +94,7 @@ void UA_NodeStore_release(const UA_Node *managed) {
 #pragma GCC diagnostic pop
 #endif
 
-    if(uatomic_sub_return(&entry->refcount, 1) > 0)
+    if(uatomic_add_return(&entry->refcount, -1) > 0)
         return;
 
     node_deleteMembers(&entry->node);

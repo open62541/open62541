@@ -80,19 +80,15 @@ UA_TYPE_BINARY_ENCODING(UA_DataValue)
 UA_TYPE_BINARY_ENCODING(UA_Variant)
 UA_TYPE_BINARY_ENCODING(UA_DiagnosticInfo)
 
-/* Not defined in the standard */
-UA_TYPE_BINARY_ENCODING(UA_InvalidType)
+UA_UInt32 UA_calcSizeBinary(const void *p, const UA_DataType *dataType);
+UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_ByteString *dst, UA_UInt32 *offset);
+UA_StatusCode UA_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, void *dst, const UA_DataType *dataType);
 
-/** Computes the size of an array (incl. length field) in a binary blob. */
-UA_UInt32 UA_Array_calcSizeBinary(UA_Int32 length, const UA_TypeVTable *vt, const void *data);
-
-/** Encodes an array into a binary blob. The array size is printed as an int32 before the actual content. */
-UA_StatusCode UA_Array_encodeBinary(const void *src, UA_Int32 length, const UA_TypeVTable *vt,
+UA_UInt32 UA_Array_calcSizeBinary(const void *p, UA_Int32 noElements, const UA_DataType *dataType);
+UA_StatusCode UA_Array_encodeBinary(const void *src, UA_Int32 noElements, const UA_DataType *dataType,
                                     UA_ByteString *dst, UA_UInt32 *offset);
-
-/** Decodes an array from a binary blob. The array is allocated automatically before decoding. */
-UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, UA_Int32 length,
-                                    const UA_TypeVTable *vt, void **dst);
+UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, UA_Int32 noElements,
+                                    void **dst, const UA_DataType *dataType);
 
 /// @} /* end of group */
 

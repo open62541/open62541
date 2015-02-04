@@ -13,7 +13,7 @@
 
    <opc:StructuredType Name="TcpMessageHeader">
     <opc:Documentation>TCP Header</opc:Documentation>
-    <opc:Field Name="MessageType" TypeName="opc:MessageType" /> <!-- The MessageType type is custom and implemented by hand -->
+    <opc:Field Name="MessageType" TypeName="opc:UInt32" /> <!-- The MessageType type is custom and implemented by hand -->
     <opc:Field Name="IsFinal" TypeName="opc:Byte" />
     <opc:Field Name="MessageSize" TypeName="opc:UInt32" />
   </opc:StructuredType>
