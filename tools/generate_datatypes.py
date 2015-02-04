@@ -456,7 +456,7 @@ for t in types.itervalues():
     printc(t.typelayout_c(args.namespace_id == 0) + ",")
 printc("};\n")
 if args.typedescriptions:
-    printc('const UA_UInt32 *' + outname.upper() + '_ID = (UA_UInt32[]){')
+    printc('const UA_UInt32 *' + outname.upper() + '_IDS = (UA_UInt32[]){')
     for t in types.itervalues():
         print(str(typedescriptions[t.name].nodeid) + ", ", end='', file=fc)
     printc("};")

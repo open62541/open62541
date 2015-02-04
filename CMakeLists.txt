@@ -26,7 +26,7 @@ set(lib_sources
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
                 src/ua_securechannel.c
-                src/ua_session.c)
+                src/ua_session.c
                 # src/server/ua_server.c
 				# src/server/ua_server_addressspace.c
 				# src/server/ua_server_binary.c
@@ -39,9 +39,9 @@ set(lib_sources
                 # src/server/ua_services_securechannel.c
                 # src/server/ua_services_nodemanagement.c
                 # src/server/ua_services_view.c
-				# ${exported_headers}
-				# ${generated_headers}
-                # ${headers})
+				${exported_headers}
+				${generated_headers}
+                ${headers})
 
 # compiler flags
 if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
