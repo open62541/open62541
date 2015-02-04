@@ -673,15 +673,15 @@ UA_UInt32 UA_DataValue_calcSizeBinary(UA_DataValue const *p) {
     UA_UInt32 length = sizeof(UA_Byte);
     if(p->hasVariant)
         length += UA_Variant_calcSizeBinary(&p->value);
-    if(p->hasStatusCode)
+    if(p->hasStatus)
         length += sizeof(UA_UInt32);
-    if(p->hasSourceTimeStamp)
+    if(p->hasSourceTimestamp)
         length += sizeof(UA_DateTime);
-    if(p->hasSourcePicoSeconds)
+    if(p->hasSourcePicoseconds)
         length += sizeof(UA_Int16);
-    if(p->hasServerTimeStamp)
+    if(p->hasServerTimestamp)
         length += sizeof(UA_DateTime);
-    if(p->hasServerPicoSeconds)
+    if(p->hasServerPicoseconds)
         length += sizeof(UA_Int16);
     return length;
 }
@@ -690,15 +690,15 @@ UA_StatusCode UA_DataValue_encodeBinary(UA_DataValue const *src, UA_ByteString *
     UA_StatusCode retval = UA_Byte_encodeBinary((const UA_Byte*)src, dst, offset);
     if(src->hasVariant)
         retval |= UA_Variant_encodeBinary(&src->value, dst, offset);
-    if(src->hasStatusCode)
+    if(src->hasStatus)
         retval |= UA_StatusCode_encodeBinary(&src->status, dst, offset);
-    if(src->hasSourceTimeStamp)
+    if(src->hasSourceTimestamp)
         retval |= UA_DateTime_encodeBinary(&src->sourceTimestamp, dst, offset);
-    if(src->hasSourcePicoSeconds)
+    if(src->hasSourcePicoseconds)
         retval |= UA_Int16_encodeBinary(&src->sourcePicoseconds, dst, offset);
-    if(src->hasServerTimeStamp)
+    if(src->hasServerTimestamp)
         retval |= UA_DateTime_encodeBinary(&src->serverTimestamp, dst, offset);
-    if(src->hasServerPicoSeconds)
+    if(src->hasServerPicoseconds)
         retval |= UA_Int16_encodeBinary(&src->serverPicoseconds, dst, offset);
     return retval;
 }
@@ -711,18 +711,18 @@ UA_StatusCode UA_DataValue_decodeBinary(UA_ByteString const *src, UA_UInt32 *off
         return retval;
     if(dst->hasVariant)
         retval |= UA_Variant_decodeBinary(src, offset, &dst->value);
-    if(dst->hasStatusCode)
+    if(dst->hasStatus)
         retval |= UA_StatusCode_decodeBinary(src, offset, &dst->status);
-    if(dst->hasSourceTimeStamp)
+    if(dst->hasSourceTimestamp)
         retval |= UA_DateTime_decodeBinary(src, offset, &dst->sourceTimestamp);
-    if(dst->hasSourcePicoSeconds) {
+    if(dst->hasSourcePicoseconds) {
         retval |= UA_Int16_decodeBinary(src, offset, &dst->sourcePicoseconds);
         if(dst->sourcePicoseconds > MAX_PICO_SECONDS)
             dst->sourcePicoseconds = MAX_PICO_SECONDS;
     }
-    if(dst->hasServerTimeStamp)
+    if(dst->hasServerTimestamp)
         retval |= UA_DateTime_decodeBinary(src, offset, &dst->serverTimestamp);
-    if(dst->hasServerPicoSeconds) {
+    if(dst->hasServerPicoseconds) {
         retval |= UA_Int16_decodeBinary(src, offset, &dst->serverPicoseconds);
         if(dst->serverPicoseconds > MAX_PICO_SECONDS)
             dst->serverPicoseconds = MAX_PICO_SECONDS;
@@ -771,7 +771,7 @@ UA_UInt32 UA_Variant_calcSizeBinary(UA_Variant const *p) {
     }
 
     if(arrayLength != 1 && data->arrayDimensions != UA_NULL)
-        length += UA_Array_calcSizeBinary(data->arrayDimensions, data->arrayDimensionsLength, &UA_TYPES[UA_INT32]);
+        length += UA_Array_calcSizeBinary(data->arrayDimensions, data->arrayDimensionsLength, &UA_TYPES[UA_TYPES_INT32]);
     
     if(p->storageType == UA_VARIANT_DATASOURCE)
         p->storage.datasource.release(p->storage.datasource.handle, data);
@@ -823,7 +823,7 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
     }
 
     if(hasDimensions)
-        retval |= UA_Array_encodeBinary(data->arrayDimensions, data->arrayDimensionsLength, &UA_TYPES[UA_INT32], dst, offset);
+        retval |= UA_Array_encodeBinary(data->arrayDimensions, data->arrayDimensionsLength, &UA_TYPES[UA_TYPES_INT32], dst, offset);
 
     if(src->storageType == UA_VARIANT_DATASOURCE)
         src->storage.datasource.release(src->storage.datasource.handle, data);
@@ -872,7 +872,7 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, UA_UInt32 *offse
     if(hasDimensions && retval == UA_STATUSCODE_GOOD) {
         retval |= UA_Int32_decodeBinary(src, offset, &data->arrayDimensionsLength);
         if(retval == UA_STATUSCODE_GOOD)
-            retval |= UA_Array_decodeBinary(src, offset, data->arrayDimensionsLength, &data->dataPtr, &UA_TYPES[UA_INT32]);
+            retval |= UA_Array_decodeBinary(src, offset, data->arrayDimensionsLength, &data->dataPtr, &UA_TYPES[UA_TYPES_INT32]);
         if(retval)
             data->arrayLength = -1; // for deleteMembers
     }
@@ -989,57 +989,57 @@ UA_UInt32 UA_calcSizeBinary(const void *p, const UA_DataType *dataType) {
             continue;
         }
         switch(member->memberTypeIndex) {
-        case UA_BOOLEAN:
-        case UA_SBYTE:
-        case UA_BYTE:
+        case UA_TYPES_BOOLEAN:
+        case UA_TYPES_SBYTE:
+        case UA_TYPES_BYTE:
             size += 1;
             break;
-        case UA_INT16:
-        case UA_UINT16:
+        case UA_TYPES_INT16:
+        case UA_TYPES_UINT16:
             size += 2;
             break;
-        case UA_INT32:
-        case UA_UINT32:
-        case UA_STATUSCODE:
-        case UA_FLOAT:
+        case UA_TYPES_INT32:
+        case UA_TYPES_UINT32:
+        case UA_TYPES_STATUSCODE:
+        case UA_TYPES_FLOAT:
             size += 4;
             break;
-        case UA_INT64:
-        case UA_UINT64:
-        case UA_DOUBLE:
-        case UA_DATETIME:
+        case UA_TYPES_INT64:
+        case UA_TYPES_UINT64:
+        case UA_TYPES_DOUBLE:
+        case UA_TYPES_DATETIME:
             size += 8;
             break;
-        case UA_GUID:
+        case UA_TYPES_GUID:
             size += 16;
             break;
-        case UA_NODEID:
+        case UA_TYPES_NODEID:
             size += UA_NodeId_calcSizeBinary((const UA_NodeId*)ptr);
             break;
-        case UA_EXPANDEDNODEID:
+        case UA_TYPES_EXPANDEDNODEID:
             size += UA_ExpandedNodeId_calcSizeBinary((const UA_ExpandedNodeId*)ptr);
             break;
-        case UA_QUALIFIEDNAME:
+        case UA_TYPES_QUALIFIEDNAME:
             size += UA_QualifiedName_calcSizeBinary((const UA_QualifiedName*)ptr);
             break;
-        case UA_LOCALIZEDTEXT:
+        case UA_TYPES_LOCALIZEDTEXT:
             size += UA_LocalizedText_calcSizeBinary((const UA_LocalizedText*)ptr);
             break;
-        case UA_EXTENSIONOBJECT:
+        case UA_TYPES_EXTENSIONOBJECT:
             size += UA_ExtensionObject_calcSizeBinary((const UA_ExtensionObject*)ptr);
             break;
-        case UA_DATAVALUE:
+        case UA_TYPES_DATAVALUE:
             size += UA_DataValue_calcSizeBinary((const UA_DataValue*)ptr);
             break;
-        case UA_VARIANT:
+        case UA_TYPES_VARIANT:
             size += UA_Variant_calcSizeBinary((const UA_Variant*)ptr);
             break;
-        case UA_DIAGNOSTICINFO:
+        case UA_TYPES_DIAGNOSTICINFO:
             size += UA_DiagnosticInfo_calcSizeBinary((const UA_DiagnosticInfo*)ptr);
             break;
-        case UA_STRING:
-        case UA_BYTESTRING:
-        case UA_XMLELEMENT:
+        case UA_TYPES_STRING:
+        case UA_TYPES_BYTESTRING:
+        case UA_TYPES_XMLELEMENT:
             size += UA_String_calcSizeBinary((const UA_String*)ptr);
             break;
         default:
@@ -1079,63 +1079,63 @@ UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_B
         }
         
         switch(member->memberTypeIndex) {
-        case UA_BOOLEAN:
-        case UA_SBYTE:
-        case UA_BYTE:
+        case UA_TYPES_BOOLEAN:
+        case UA_TYPES_SBYTE:
+        case UA_TYPES_BYTE:
             retval = UA_Byte_encodeBinary((const UA_Byte*)ptr, dst, offset);
             break;
-        case UA_INT16:
+        case UA_TYPES_INT16:
             retval = UA_Int16_encodeBinary((const UA_Int16*)ptr, dst, offset);
             break;
-        case UA_UINT16:
+        case UA_TYPES_UINT16:
             retval = UA_UInt16_encodeBinary((const UA_UInt16*)ptr, dst, offset);
             break;
-        case UA_INT32:
-        case UA_UINT32:
-        case UA_STATUSCODE:
+        case UA_TYPES_INT32:
+        case UA_TYPES_UINT32:
+        case UA_TYPES_STATUSCODE:
             retval = UA_Int32_encodeBinary((const UA_Int32*)ptr, dst, offset);
             break;
-        case UA_FLOAT:
+        case UA_TYPES_FLOAT:
             retval = UA_Float_encodeBinary((const UA_Float*)ptr, dst, offset);
             break;
-        case UA_INT64:
-        case UA_UINT64:
-        case UA_DATETIME:
+        case UA_TYPES_INT64:
+        case UA_TYPES_UINT64:
+        case UA_TYPES_DATETIME:
             retval = UA_Int64_encodeBinary((const UA_Int64*)ptr, dst, offset);
             break;
-        case UA_DOUBLE:
+        case UA_TYPES_DOUBLE:
             retval = UA_Double_encodeBinary((const UA_Double*)ptr, dst, offset);
             break;
-        case UA_GUID:
+        case UA_TYPES_GUID:
             retval = UA_Guid_encodeBinary((const UA_Guid*)ptr, dst, offset);
             break;
-        case UA_NODEID:
+        case UA_TYPES_NODEID:
             retval = UA_NodeId_encodeBinary((const UA_NodeId*)ptr, dst, offset);
             break;
-        case UA_EXPANDEDNODEID:
+        case UA_TYPES_EXPANDEDNODEID:
             retval = UA_ExpandedNodeId_encodeBinary((const UA_ExpandedNodeId*)ptr, dst, offset);
             break;
-        case UA_QUALIFIEDNAME:
+        case UA_TYPES_QUALIFIEDNAME:
             retval = UA_QualifiedName_encodeBinary((const UA_QualifiedName*)ptr, dst, offset);
             break;
-        case UA_LOCALIZEDTEXT:
+        case UA_TYPES_LOCALIZEDTEXT:
             retval = UA_LocalizedText_encodeBinary((const UA_LocalizedText*)ptr, dst, offset);
             break;
-        case UA_EXTENSIONOBJECT:
+        case UA_TYPES_EXTENSIONOBJECT:
             retval = UA_ExtensionObject_encodeBinary((const UA_ExtensionObject*)ptr, dst, offset);
             break;
-        case UA_DATAVALUE:
+        case UA_TYPES_DATAVALUE:
             retval = UA_DataValue_encodeBinary((const UA_DataValue*)ptr, dst, offset);
             break;
-        case UA_VARIANT:
+        case UA_TYPES_VARIANT:
             retval = UA_Variant_encodeBinary((const UA_Variant*)ptr, dst, offset);
             break;
-        case UA_DIAGNOSTICINFO:
+        case UA_TYPES_DIAGNOSTICINFO:
             retval = UA_DiagnosticInfo_encodeBinary((const UA_DiagnosticInfo*)ptr, dst, offset);
             break;
-        case UA_STRING:
-        case UA_BYTESTRING:
-        case UA_XMLELEMENT:
+        case UA_TYPES_STRING:
+        case UA_TYPES_BYTESTRING:
+        case UA_TYPES_XMLELEMENT:
             retval = UA_String_encodeBinary((const UA_String*)ptr, dst, offset);
             break;
         default:
@@ -1175,61 +1175,61 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, void 
         }
         ptr += member->padding;
         switch(member->memberTypeIndex) {
-        case UA_BOOLEAN:
-        case UA_SBYTE:
-        case UA_BYTE:
+        case UA_TYPES_BOOLEAN:
+        case UA_TYPES_SBYTE:
+        case UA_TYPES_BYTE:
             retval = UA_Byte_decodeBinary(src, offset, (UA_Byte*)ptr);
             break;
-        case UA_INT16:
-        case UA_UINT16:
+        case UA_TYPES_INT16:
+        case UA_TYPES_UINT16:
             retval = UA_Int16_decodeBinary(src, offset, (UA_Int16*)ptr);
             break;
-        case UA_INT32:
-        case UA_UINT32:
-        case UA_STATUSCODE:
+        case UA_TYPES_INT32:
+        case UA_TYPES_UINT32:
+        case UA_TYPES_STATUSCODE:
             retval = UA_Int32_decodeBinary(src, offset, (UA_Int32*)ptr);
             break;
-        case UA_FLOAT:
+        case UA_TYPES_FLOAT:
             retval = UA_Float_decodeBinary(src, offset, (UA_Float*)ptr);
             break;
-        case UA_INT64:
-        case UA_UINT64:
-        case UA_DATETIME:
+        case UA_TYPES_INT64:
+        case UA_TYPES_UINT64:
+        case UA_TYPES_DATETIME:
             retval = UA_Int64_decodeBinary(src, offset, (UA_Int64*)ptr);
             break;
-        case UA_DOUBLE:
+        case UA_TYPES_DOUBLE:
             retval = UA_Double_decodeBinary(src, offset, (UA_Double*)ptr);
             break;
-        case UA_GUID:
+        case UA_TYPES_GUID:
             retval = UA_Guid_decodeBinary(src, offset, (UA_Guid*)ptr);
             break;
-        case UA_NODEID:
+        case UA_TYPES_NODEID:
             retval = UA_NodeId_decodeBinary(src, offset, (UA_NodeId*)ptr);
             break;
-        case UA_EXPANDEDNODEID:
+        case UA_TYPES_EXPANDEDNODEID:
             retval = UA_ExpandedNodeId_decodeBinary(src, offset, (UA_ExpandedNodeId*)ptr);
             break;
-        case UA_QUALIFIEDNAME:
+        case UA_TYPES_QUALIFIEDNAME:
             retval = UA_QualifiedName_decodeBinary(src, offset, (UA_QualifiedName*)ptr);
             break;
-        case UA_LOCALIZEDTEXT:
+        case UA_TYPES_LOCALIZEDTEXT:
             retval = UA_LocalizedText_decodeBinary(src, offset, (UA_LocalizedText*)ptr);
             break;
-        case UA_EXTENSIONOBJECT:
+        case UA_TYPES_EXTENSIONOBJECT:
             retval = UA_ExtensionObject_decodeBinary(src, offset, (UA_ExtensionObject*)ptr);
             break;
-        case UA_DATAVALUE:
+        case UA_TYPES_DATAVALUE:
             retval = UA_DataValue_decodeBinary(src, offset, (UA_DataValue*)ptr);
             break;
-        case UA_VARIANT:
+        case UA_TYPES_VARIANT:
             retval = UA_Variant_decodeBinary(src, offset, (UA_Variant*)ptr);
             break;
-        case UA_DIAGNOSTICINFO:
+        case UA_TYPES_DIAGNOSTICINFO:
             retval = UA_DiagnosticInfo_decodeBinary(src, offset, (UA_DiagnosticInfo*)ptr);
             break;
-        case UA_STRING:
-        case UA_BYTESTRING:
-        case UA_XMLELEMENT:
+        case UA_TYPES_STRING:
+        case UA_TYPES_BYTESTRING:
+        case UA_TYPES_XMLELEMENT:
             retval = UA_String_decodeBinary(src, offset, (UA_String*)ptr);
             break;
         default:

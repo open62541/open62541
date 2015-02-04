@@ -238,11 +238,11 @@ typedef struct {
 /** @brief A data value with an associated status code and timestamps. */
 typedef struct {
     UA_Boolean    hasVariant : 1;
-    UA_Boolean    hasStatusCode : 1;
-    UA_Boolean    hasSourceTimeStamp : 1;
-    UA_Boolean    hasServerTimeStamp : 1;
-    UA_Boolean    hasSourcePicoSeconds : 1;
-    UA_Boolean    hasServerPicoSeconds : 1;
+    UA_Boolean    hasStatus : 1;
+    UA_Boolean    hasSourceTimestamp : 1;
+    UA_Boolean    hasServerTimestamp : 1;
+    UA_Boolean    hasSourcePicoseconds : 1;
+    UA_Boolean    hasServerPicoseconds : 1;
     UA_Variant    value;
     UA_StatusCode status;
     UA_DateTime   sourceTimestamp;

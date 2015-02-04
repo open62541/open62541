@@ -660,7 +660,7 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
         dstdata->arrayLength = srcdata->arrayLength;
         if(srcdata->arrayDimensions) {
             retval |= UA_Array_copy(srcdata->arrayDimensions, srcdata->arrayDimensionsLength,
-                                    (void **)&dstdata->arrayDimensions, &UA_TYPES[UA_INT32]);
+                                    (void **)&dstdata->arrayDimensions, &UA_TYPES[UA_TYPES_INT32]);
             if(retval == UA_STATUSCODE_GOOD)
                 dstdata->arrayDimensionsLength = srcdata->arrayDimensionsLength;
             else {
@@ -790,57 +790,57 @@ void UA_init(void *p, const UA_DataType *dataType) {
         }
 
         switch(member->memberTypeIndex) {
-        case UA_BOOLEAN:
-        case UA_SBYTE:
-        case UA_BYTE:
+        case UA_TYPES_BOOLEAN:
+        case UA_TYPES_SBYTE:
+        case UA_TYPES_BYTE:
             *ptr = 0;
             break;
-        case UA_INT16:
-        case UA_UINT16:
+        case UA_TYPES_INT16:
+        case UA_TYPES_UINT16:
             *((UA_Int16*)ptr) = 0;
             break;
-        case UA_INT32:
-        case UA_UINT32:
-        case UA_STATUSCODE:
-        case UA_FLOAT:
+        case UA_TYPES_INT32:
+        case UA_TYPES_UINT32:
+        case UA_TYPES_STATUSCODE:
+        case UA_TYPES_FLOAT:
             *((UA_Int32*)ptr) = 0;
             break;
-        case UA_INT64:
-        case UA_UINT64:
-        case UA_DOUBLE:
-        case UA_DATETIME:
+        case UA_TYPES_INT64:
+        case UA_TYPES_UINT64:
+        case UA_TYPES_DOUBLE:
+        case UA_TYPES_DATETIME:
             *((UA_Int64*)ptr) = 0;
             break;
-        case UA_GUID:
+        case UA_TYPES_GUID:
             UA_Guid_init((UA_Guid*)ptr);
             break;
-        case UA_NODEID:
+        case UA_TYPES_NODEID:
             UA_NodeId_init((UA_NodeId*)ptr);
             break;
-        case UA_EXPANDEDNODEID:
+        case UA_TYPES_EXPANDEDNODEID:
             UA_ExpandedNodeId_init((UA_ExpandedNodeId*)ptr);
             break;
-        case UA_QUALIFIEDNAME:
+        case UA_TYPES_QUALIFIEDNAME:
             UA_QualifiedName_init((UA_QualifiedName*)ptr);
             break;
-        case UA_LOCALIZEDTEXT:
+        case UA_TYPES_LOCALIZEDTEXT:
             UA_LocalizedText_init((UA_LocalizedText*)ptr);
             break;
-        case UA_EXTENSIONOBJECT:
+        case UA_TYPES_EXTENSIONOBJECT:
             UA_ExtensionObject_init((UA_ExtensionObject*)ptr);
             break;
-        case UA_DATAVALUE:
+        case UA_TYPES_DATAVALUE:
             UA_DataValue_init((UA_DataValue*)ptr);
             break;
-        case UA_VARIANT:
+        case UA_TYPES_VARIANT:
             UA_Variant_init((UA_Variant*)ptr);
             break;
-        case UA_DIAGNOSTICINFO:
+        case UA_TYPES_DIAGNOSTICINFO:
             UA_DiagnosticInfo_init((UA_DiagnosticInfo*)ptr);
             break;
-        case UA_STRING:
-        case UA_BYTESTRING:
-        case UA_XMLELEMENT:
+        case UA_TYPES_STRING:
+        case UA_TYPES_BYTESTRING:
+        case UA_TYPES_XMLELEMENT:
             UA_String_init((UA_String*)ptr);
             break;
         default:
@@ -935,33 +935,33 @@ void UA_deleteMembers(void *p, const UA_DataType *dataType) {
             // the following types have a fixed size.
             /* UA_BOOLEAN, UA_SBYTE, UA_BYTE, UA_INT16, UA_UINT16, UA_INT32, UA_UINT32, */
             /* UA_STATUSCODE, UA_FLOAT, UA_INT64, UA_UINT64, UA_DOUBLE, UA_DATETIME, UA_GUID */
-        case UA_NODEID:
+        case UA_TYPES_NODEID:
             UA_NodeId_deleteMembers((UA_NodeId*)ptr);
             break;
-        case UA_EXPANDEDNODEID:
+        case UA_TYPES_EXPANDEDNODEID:
             UA_ExpandedNodeId_deleteMembers((UA_ExpandedNodeId*)ptr);
             break;
-        case UA_QUALIFIEDNAME:
+        case UA_TYPES_QUALIFIEDNAME:
             UA_QualifiedName_deleteMembers((UA_QualifiedName*)ptr);
             break;
-        case UA_LOCALIZEDTEXT:
+        case UA_TYPES_LOCALIZEDTEXT:
             UA_LocalizedText_deleteMembers((UA_LocalizedText*)ptr);
             break;
-        case UA_EXTENSIONOBJECT:
+        case UA_TYPES_EXTENSIONOBJECT:
             UA_ExtensionObject_deleteMembers((UA_ExtensionObject*)ptr);
             break;
-        case UA_DATAVALUE:
+        case UA_TYPES_DATAVALUE:
             UA_DataValue_deleteMembers((UA_DataValue*)ptr);
             break;
-        case UA_VARIANT:
+        case UA_TYPES_VARIANT:
             UA_Variant_deleteMembers((UA_Variant*)ptr);
             break;
-        case UA_DIAGNOSTICINFO:
+        case UA_TYPES_DIAGNOSTICINFO:
             UA_DiagnosticInfo_deleteMembers((UA_DiagnosticInfo*)ptr);
             break;
-        case UA_STRING:
-        case UA_BYTESTRING:
-        case UA_XMLELEMENT:
+        case UA_TYPES_STRING:
+        case UA_TYPES_BYTESTRING:
+        case UA_TYPES_XMLELEMENT:
             UA_String_deleteMembers((UA_String*)ptr);
             break;
         default:

@@ -1,7 +1,6 @@
 /* Buid options and configuration (set by cmake) */
-#define UA_ENCODING_AMOUNT ${UA_ENCODING_AMOUNT}
-#define UA_LOGLEVEL ${UA_LOGLEVEL}
 
+#define UA_LOGLEVEL ${UA_LOGLEVEL}
 #cmakedefine UA_DEBUG
 #cmakedefine UA_MULTITHREADING
 

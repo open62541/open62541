@@ -102,31 +102,22 @@ if(ENABLE_SELFSIGNED)
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/localhost.cnf)
 endif()
 
-## auto-generate all types or only the relevant subset?
-option(TYPES_ONLY_NEEDED "Include only compile-needed types" OFF)
-if(TYPES_ONLY_NEEDED)
-    list(APPEND generate_src_options "--only-needed")
-endif()
-
-## encodings
-set(UA_ENCODING_AMOUNT 1) # binary encoding
-
-### xml
-option(ENABLE_XML_ENCODING "Enable XML-encoding of the UA types" OFF)
-if(ENABLE_XML_ENCODING)
-    MATH(EXPR UA_ENCODING_AMOUNT "${UA_ENCODING_AMOUNT}+1")
-    find_package(EXPAT REQUIRED)
-    if(EXPAT_FOUND)
-        include_directories(${EXPAT_INCLUDE_DIRS})
-    else(EXPAT_FOUND)
-        message(FATAL_ERROR "Expat library not found.")
-    endif(EXPAT_FOUND)
-	include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/ongoing")
-    list(APPEND lib_sources src/ongoing/ua_types_encoding_xml.c
-                            src/ongoing/ua_namespace_xml.c
-                            src/ongoing/ua_xml.c)
-    list(APPEND generate_src_options "--with-xml")
-endif()
+# ### xml
+# option(ENABLE_XML_ENCODING "Enable XML-encoding of the UA types" OFF)
+# if(ENABLE_XML_ENCODING)
+#     MATH(EXPR UA_ENCODING_AMOUNT "${UA_ENCODING_AMOUNT}+1")
+#     find_package(EXPAT REQUIRED)
+#     if(EXPAT_FOUND)
+#         include_directories(${EXPAT_INCLUDE_DIRS})
+#     else(EXPAT_FOUND)
+#         message(FATAL_ERROR "Expat library not found.")
+#     endif(EXPAT_FOUND)
+# 	include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/ongoing")
+#     list(APPEND lib_sources src/ongoing/ua_types_encoding_xml.c
+#                             src/ongoing/ua_namespace_xml.c
+#                             src/ongoing/ua_xml.c)
+#     list(APPEND generate_src_options "--with-xml")
+# endif()
 
 # ### json
 # option(ENABLE_JSON_ENCODING "Enable JSON-encoding of the UA types" OFF)

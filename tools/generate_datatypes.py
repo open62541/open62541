@@ -78,14 +78,14 @@ class BuiltinType(object):
     def typedef_c(self):
         pass
 
-    def typelayout_c(self, namespace_0):
+    def typelayout_c(self, namespace_0, outname):
         return "{.memSize = sizeof(" + self.name + "), " + \
             ".namespaceZero = UA_TRUE, " + \
             ".fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
             ", .zeroCopyable = " + ("UA_TRUE" if self.zero_copy() else "UA_FALSE") + \
-            ", .membersSize = 1,\n\t.members[0] = {.memberTypeIndex = " + self.name.upper() + "," + \
+            ", .membersSize = 1,\n\t.members[0] = {.memberTypeIndex = UA_TYPES_" + self.name[3:].upper() + "," + \
             ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }, " + \
-            ".typeIndex = %s }" % (self.name.upper())
+            ".typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
 
 class EnumerationType(object):
     def __init__(self, name, description = "", elements = OrderedDict()):
@@ -110,12 +110,12 @@ class EnumerationType(object):
             ",\n    ".join(map(lambda (key,value) : key.upper() + " = " + value,self.elements.iteritems())) + \
             "\n} " + self.name + ";"
 
-    def typelayout_c(self, namespace_0):
+    def typelayout_c(self, namespace_0, outname):
         return "{.memSize = sizeof(" + self.name + "), " +\
             ".namespaceZero = " + ("UA_TRUE" if namespace_0 else "UA_FALSE") + \
             ", .fixedSize = UA_TRUE, .zeroCopyable = UA_TRUE, " + \
-            ".membersSize = 1,\n\t.members[0] = {.memberTypeIndex = UA_INT32," + \
-            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }, .typeIndex = %s }" % (self.name.upper())
+            ".membersSize = 1,\n\t.members[0] = {.memberTypeIndex = UA_TYPES_INT32," + \
+            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }, .typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
 
     def functions_c(self, typeTableName):
         return '''#define %s_new (UA_Int32*)UA_Int32_new
@@ -141,11 +141,11 @@ class OpaqueType(object):
     def typedef_c(self):
         return "typedef UA_ByteString " + self.name + ";"
 
-    def typelayout_c(self, namespace_0):
+    def typelayout_c(self, namespace_0, outname):
         return "{.memSize = sizeof(" + self.name + "), .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
             ".namespaceZero = " + ("UA_TRUE" if namespace_0 else "UA_FALSE") + \
-            ", .membersSize = 1,\n\t.members[0] = {.memberTypeIndex = UA_BYTESTRING," + \
-            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }, .typeIndex = %s }" % (self.name.upper())
+            ", .membersSize = 1,\n\t.members[0] = {.memberTypeIndex = UA_TYPES_BYTESTRING," + \
+            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }, .typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
 
     def functions_c(self, typeTableName):
         return '''#define %s_new UA_ByteString_new
@@ -202,17 +202,18 @@ class StructType(object):
                 returnstr += "    " + member.memberType.name + " " +name + ";\n"
         return returnstr + "} " + self.name + ";"
 
-    def typelayout_c(self, namespace_0):
+    def typelayout_c(self, namespace_0, outname):
         layout = "{.memSize = sizeof(" + self.name + "), "+ \
                  ".namespaceZero = " + ("UA_TRUE" if namespace_0 else "UA_FALSE") + \
                  ", .fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
                  ", .zeroCopyable = " + ("sizeof(" + self.name + ") == " + str(self.mem_size()) if self.zero_copy() \
                                          else "UA_FALSE") + \
-                 ", .typeIndex = " + self.name.upper() + \
+                 ", .typeIndex = " + outname.upper() + "_" + self.name[3:].upper() + \
                  ", .membersSize = " + str(len(self.members)) + ","
         for index, member in enumerate(self.members.values()):
             layout += "\n\t.members["+ str(index)+ "] = {" + \
-                      ".memberTypeIndex = UA_" + member.memberType.name.upper()[3:] + ", " + \
+                      ".memberTypeIndex = " + ("UA_TYPES_" + member.memberType.name[3:].upper() if args.namespace_id == 0 or member.memberType.name in existing_types else \
+                                               outname.upper() + "_" + member.memberType.name[3:].upper()) + ", " + \
                       ".namespaceZero = "+ \
                       ("UA_TRUE, " if args.namespace_id == 0 or member.memberType.name in existing_types else "UA_FALSE, ") + \
                       ".padding = "
@@ -247,7 +248,7 @@ class StructType(object):
 #define %s_calcSizeBinary(p) UA_calcSizeBinary(p, %s)
 #define %s_encodeBinary(src, dst, offset) UA_encodeBinary(src, %s, dst, offset)
 #define %s_decodeBinary(src, offset, dst) UA_decodeBinary(src, offset, dst, %s)''' % \
-    tuple(itertools.chain(*itertools.repeat([self.name, "&"+typeTableName+"["+self.name.upper()+"]"], 8)))
+    tuple(itertools.chain(*itertools.repeat([self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 8)))
 
 def parseTypeDefinitions(xmlDescription, existing_types = OrderedDict()):
     '''Returns an ordered dict that maps names to types. The order is such that
@@ -414,6 +415,7 @@ extern "C" {
 * @{
 */
 ''')
+printh("#define " + outname.upper() + "_COUNT %s\n" % (str(len(types))))
 printh("extern const UA_DataType *" + outname.upper() + ";\n")
 printh("extern const UA_UInt32 *" + outname.upper() + "_IDS;\n")
 
@@ -424,12 +426,11 @@ for t in types.itervalues():
         if t.description != "":
             printh("/** @brief " + t.description + " */")
         printh(t.typedef_c())
-    printh("#define UA_" + t.name[3:].upper() + " " + str(i))
+    printh("#define " + outname.upper() + "_" + t.name[3:].upper() + " " + str(i))
     if type(t) != BuiltinType:
         printh(t.functions_c(outname.upper()))
     i += 1
 
-printh("#define " + outname.upper() + "_COUNT %s\n" % (str(len(types))))
 printh('''
 /// @} /* end of group */\n
 #ifdef __cplusplus
@@ -452,7 +453,7 @@ const UA_DataType *''' + outname.upper() + ''' = (UA_DataType[]){''')
 for t in types.itervalues():
     printc("")
     printc("/* " + t.name + " */")
-    printc(t.typelayout_c(args.namespace_id == 0) + ",")
+    printc(t.typelayout_c(args.namespace_id == 0, outname) + ",")
 printc("};\n")
 if args.typedescriptions:
     printc('const UA_UInt32 *' + outname.upper() + '_IDS = (UA_UInt32[]){')
