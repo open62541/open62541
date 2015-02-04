@@ -671,34 +671,34 @@ UA_StatusCode UA_ExtensionObject_decodeBinary(UA_ByteString const *src, UA_UInt3
 /* DataValue */
 UA_UInt32 UA_DataValue_calcSizeBinary(UA_DataValue const *p) {
     UA_UInt32 length = sizeof(UA_Byte);
-    if(p->encodingMask & UA_DATAVALUE_ENCODINGMASK_VARIANT)
+    if(p->hasVariant)
         length += UA_Variant_calcSizeBinary(&p->value);
-    if(p->encodingMask & UA_DATAVALUE_ENCODINGMASK_STATUSCODE)
-        length += sizeof(UA_UInt32);   //dataValue->status
-    if(p->encodingMask & UA_DATAVALUE_ENCODINGMASK_SOURCETIMESTAMP)
-        length += sizeof(UA_DateTime);  //dataValue->sourceTimestamp
-    if(p->encodingMask & UA_DATAVALUE_ENCODINGMASK_SOURCEPICOSECONDS)
-        length += sizeof(UA_Int64);    //dataValue->sourcePicoseconds
-    if(p->encodingMask & UA_DATAVALUE_ENCODINGMASK_SERVERTIMESTAMP)
-        length += sizeof(UA_DateTime);  //dataValue->serverTimestamp
-    if(p->encodingMask & UA_DATAVALUE_ENCODINGMASK_SERVERPICOSECONDS)
-        length += sizeof(UA_Int64);    //dataValue->serverPicoseconds
+    if(p->hasStatusCode)
+        length += sizeof(UA_UInt32);
+    if(p->hasSourceTimeStamp)
+        length += sizeof(UA_DateTime);
+    if(p->hasSourcePicoSeconds)
+        length += sizeof(UA_Int16);
+    if(p->hasServerTimeStamp)
+        length += sizeof(UA_DateTime);
+    if(p->hasServerPicoSeconds)
+        length += sizeof(UA_Int16);
     return length;
 }
 
 UA_StatusCode UA_DataValue_encodeBinary(UA_DataValue const *src, UA_ByteString * dst, UA_UInt32 *offset) {
-    UA_StatusCode retval = UA_Byte_encodeBinary(&src->encodingMask, dst, offset);
-    if(src->encodingMask & UA_DATAVALUE_ENCODINGMASK_VARIANT)
+    UA_StatusCode retval = UA_Byte_encodeBinary((const UA_Byte*)src, dst, offset);
+    if(src->hasVariant)
         retval |= UA_Variant_encodeBinary(&src->value, dst, offset);
-    if(src->encodingMask & UA_DATAVALUE_ENCODINGMASK_STATUSCODE)
+    if(src->hasStatusCode)
         retval |= UA_StatusCode_encodeBinary(&src->status, dst, offset);
-    if(src->encodingMask & UA_DATAVALUE_ENCODINGMASK_SOURCETIMESTAMP)
+    if(src->hasSourceTimeStamp)
         retval |= UA_DateTime_encodeBinary(&src->sourceTimestamp, dst, offset);
-    if(src->encodingMask & UA_DATAVALUE_ENCODINGMASK_SOURCEPICOSECONDS)
+    if(src->hasSourcePicoSeconds)
         retval |= UA_Int16_encodeBinary(&src->sourcePicoseconds, dst, offset);
-    if(src->encodingMask & UA_DATAVALUE_ENCODINGMASK_SERVERTIMESTAMP)
+    if(src->hasServerTimeStamp)
         retval |= UA_DateTime_encodeBinary(&src->serverTimestamp, dst, offset);
-    if(src->encodingMask & UA_DATAVALUE_ENCODINGMASK_SERVERPICOSECONDS)
+    if(src->hasServerPicoSeconds)
         retval |= UA_Int16_encodeBinary(&src->serverPicoseconds, dst, offset);
     return retval;
 }
@@ -706,21 +706,23 @@ UA_StatusCode UA_DataValue_encodeBinary(UA_DataValue const *src, UA_ByteString *
 #define MAX_PICO_SECONDS 1000
 UA_StatusCode UA_DataValue_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA_DataValue *dst) {
     UA_DataValue_init(dst);
-    UA_StatusCode retval = UA_Byte_decodeBinary(src, offset, &dst->encodingMask);
-    if(dst->encodingMask & UA_DATAVALUE_ENCODINGMASK_VARIANT)
+    UA_StatusCode retval = UA_Byte_decodeBinary(src, offset, (UA_Byte*)dst);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    if(dst->hasVariant)
         retval |= UA_Variant_decodeBinary(src, offset, &dst->value);
-    if(dst->encodingMask & UA_DATAVALUE_ENCODINGMASK_STATUSCODE)
+    if(dst->hasStatusCode)
         retval |= UA_StatusCode_decodeBinary(src, offset, &dst->status);
-    if(dst->encodingMask & UA_DATAVALUE_ENCODINGMASK_SOURCETIMESTAMP)
+    if(dst->hasSourceTimeStamp)
         retval |= UA_DateTime_decodeBinary(src, offset, &dst->sourceTimestamp);
-    if(dst->encodingMask & UA_DATAVALUE_ENCODINGMASK_SOURCEPICOSECONDS) {
+    if(dst->hasSourcePicoSeconds) {
         retval |= UA_Int16_decodeBinary(src, offset, &dst->sourcePicoseconds);
         if(dst->sourcePicoseconds > MAX_PICO_SECONDS)
             dst->sourcePicoseconds = MAX_PICO_SECONDS;
     }
-    if(dst->encodingMask & UA_DATAVALUE_ENCODINGMASK_SERVERTIMESTAMP)
+    if(dst->hasServerTimeStamp)
         retval |= UA_DateTime_decodeBinary(src, offset, &dst->serverTimestamp);
-    if(dst->encodingMask & UA_DATAVALUE_ENCODINGMASK_SERVERPICOSECONDS) {
+    if(dst->hasServerPicoSeconds) {
         retval |= UA_Int16_decodeBinary(src, offset, &dst->serverPicoseconds);
         if(dst->serverPicoseconds > MAX_PICO_SECONDS)
             dst->serverPicoseconds = MAX_PICO_SECONDS;
@@ -885,65 +887,61 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, UA_UInt32 *offse
 
 /* DiagnosticInfo */
 UA_UInt32 UA_DiagnosticInfo_calcSizeBinary(UA_DiagnosticInfo const *ptr) {
-    UA_UInt32 length = sizeof(UA_Byte); // EncodingMask
-    if(!ptr->encodingMask)
-        return length;
-    if(ptr->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_SYMBOLICID)
+    UA_UInt32 length = sizeof(UA_Byte);
+    if(ptr->hasSymbolicId)
         length += sizeof(UA_Int32);
-    if(ptr->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_NAMESPACE)
+    if(ptr->hasNamespace)
         length += sizeof(UA_Int32);
-    if(ptr->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_LOCALIZEDTEXT)
+    if(ptr->hasLocalizedText)
         length += sizeof(UA_Int32);
-    if(ptr->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_LOCALE)
+    if(ptr->hasLocale)
         length += sizeof(UA_Int32);
-    if(ptr->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_ADDITIONALINFO)
+    if(ptr->hasAdditionalInfo)
         length += UA_String_calcSizeBinary(&ptr->additionalInfo);
-    if(ptr->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_INNERSTATUSCODE)
+    if(ptr->hasInnerStatusCode)
         length += sizeof(UA_StatusCode);
-    if(ptr->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO)
+    if(ptr->hasInnerDiagnosticInfo)
         length += UA_DiagnosticInfo_calcSizeBinary(ptr->innerDiagnosticInfo);
     return length;
 }
 
 UA_StatusCode UA_DiagnosticInfo_encodeBinary(const UA_DiagnosticInfo *src, UA_ByteString * dst, UA_UInt32 *offset) {
-    UA_StatusCode retval = UA_Byte_encodeBinary(&src->encodingMask, dst, offset);
-    if(!retval && !src->encodingMask)
-        return retval;
-    if(src->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_SYMBOLICID)
+    UA_StatusCode retval = UA_Byte_encodeBinary((const UA_Byte *)src, dst, offset);
+    if(src->hasSymbolicId)
         retval |= UA_Int32_encodeBinary(&src->symbolicId, dst, offset);
-    if(src->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_NAMESPACE)
+    if(src->hasNamespace)
         retval |= UA_Int32_encodeBinary( &src->namespaceUri, dst, offset);
-    if(src->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_LOCALIZEDTEXT)
+    if(src->hasLocalizedText)
         retval |= UA_Int32_encodeBinary(&src->localizedText, dst, offset);
-    if(src->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_LOCALE)
+    if(src->hasLocale)
         retval |= UA_Int32_encodeBinary(&src->locale, dst, offset);
-    if(src->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_ADDITIONALINFO)
+    if(src->hasAdditionalInfo)
         retval |= UA_String_encodeBinary(&src->additionalInfo, dst, offset);
-    if(src->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_INNERSTATUSCODE)
+    if(src->hasInnerStatusCode)
         retval |= UA_StatusCode_encodeBinary(&src->innerStatusCode, dst, offset);
-    if(src->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO)
+    if(src->hasInnerDiagnosticInfo)
         retval |= UA_DiagnosticInfo_encodeBinary(src->innerDiagnosticInfo, dst, offset);
     return retval;
 }
 
 UA_StatusCode UA_DiagnosticInfo_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, UA_DiagnosticInfo *dst) {
     UA_DiagnosticInfo_init(dst);
-    UA_StatusCode retval = UA_Byte_decodeBinary(src, offset, &dst->encodingMask);
-    if(!retval && !dst->encodingMask) // in most cases, the DiagnosticInfo is empty
+    UA_StatusCode retval = UA_Byte_decodeBinary(src, offset, (UA_Byte*)dst);
+    if(!retval)
         return retval;
-    if(dst->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_SYMBOLICID)
+    if(dst->hasSymbolicId)
         retval |= UA_Int32_decodeBinary(src, offset, &dst->symbolicId);
-    if(dst->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_NAMESPACE)
+    if(dst->hasNamespace)
         retval |= UA_Int32_decodeBinary(src, offset, &dst->namespaceUri);
-    if(dst->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_LOCALIZEDTEXT)
+    if(dst->hasLocalizedText)
         retval |= UA_Int32_decodeBinary(src, offset, &dst->localizedText);
-    if(dst->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_LOCALE)
+    if(dst->hasLocale)
         retval |= UA_Int32_decodeBinary(src, offset, &dst->locale);
-    if(dst->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_ADDITIONALINFO)
+    if(dst->hasAdditionalInfo)
         retval |= UA_String_decodeBinary(src, offset, &dst->additionalInfo);
-    if(dst->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_INNERSTATUSCODE)
+    if(dst->hasInnerStatusCode)
         retval |= UA_StatusCode_decodeBinary(src, offset, &dst->innerStatusCode);
-    if(dst->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO) {
+    if(dst->hasInnerDiagnosticInfo) {
         // innerDiagnosticInfo is a pointer to struct, therefore allocate
         if((dst->innerDiagnosticInfo = UA_malloc(sizeof(UA_DiagnosticInfo)))) {
             if(UA_DiagnosticInfo_decodeBinary(src, offset, dst->innerDiagnosticInfo) != UA_STATUSCODE_GOOD) {
@@ -955,7 +953,7 @@ UA_StatusCode UA_DiagnosticInfo_decodeBinary(UA_ByteString const *src, UA_UInt32
             retval |= UA_STATUSCODE_BADOUTOFMEMORY;
         }
     }
-    if(retval)
+    if(retval != UA_STATUSCODE_GOOD)
         UA_DiagnosticInfo_deleteMembers(dst);
     return retval;
 }

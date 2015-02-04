@@ -576,7 +576,7 @@ void UA_DataValue_deleteMembers(UA_DataValue *p) {
 }
 
 void UA_DataValue_init(UA_DataValue *p) {
-    p->encodingMask      = 0;
+    *((UA_Byte*)p) = 0; // zero out the bitfield 
     p->serverPicoseconds = 0;
     UA_DateTime_init(&p->serverTimestamp);
     p->sourcePicoseconds = 0;
@@ -587,10 +587,10 @@ void UA_DataValue_init(UA_DataValue *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_DataValue)
 UA_StatusCode UA_DataValue_copy(UA_DataValue const *src, UA_DataValue *dst) {
+    *((UA_Byte*)dst) = *((const UA_Byte*)src); // the bitfield
     UA_StatusCode retval = UA_DateTime_copy(&src->serverTimestamp, &dst->serverTimestamp);
     retval |= UA_DateTime_copy(&src->sourceTimestamp, &dst->sourceTimestamp);
     retval |= UA_Variant_copy(&src->value, &dst->value);
-    dst->encodingMask = src->encodingMask;
     dst->serverPicoseconds = src->serverPicoseconds;
     dst->sourcePicoseconds = src->sourcePicoseconds;
     dst->status = src->status;
@@ -716,30 +716,30 @@ UA_StatusCode UA_Variant_copySetArray(UA_Variant *v, const void *array, UA_Int32
 UA_TYPE_DELETE_DEFAULT(UA_DiagnosticInfo)
 void UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
     UA_String_deleteMembers(&p->additionalInfo);
-    if((p->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO) && p->innerDiagnosticInfo) {
+    if(p->hasInnerDiagnosticInfo && p->innerDiagnosticInfo) {
         UA_DiagnosticInfo_delete(p->innerDiagnosticInfo);
         p->innerDiagnosticInfo = UA_NULL;
     }
 }
 
+UA_TYPE_NEW_DEFAULT(UA_DiagnosticInfo)
 void UA_DiagnosticInfo_init(UA_DiagnosticInfo *p) {
+    *(UA_Byte*)p = 0;
+    p->symbolicId          = 0;
+    p->namespaceUri        = 0;
+    p->localizedText       = 0;
+    p->locale              = 0;
     UA_String_init(&p->additionalInfo);
-    p->encodingMask = 0;
     p->innerDiagnosticInfo = UA_NULL;
     UA_StatusCode_init(&p->innerStatusCode);
-    p->locale              = 0;
-    p->localizedText       = 0;
-    p->namespaceUri        = 0;
-    p->symbolicId          = 0;
 }
 
-UA_TYPE_NEW_DEFAULT(UA_DiagnosticInfo)
 UA_StatusCode UA_DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst) {
     UA_DiagnosticInfo_init(dst);
+    *(UA_Byte*)dst = *(const UA_Byte*)src; // bitfields
     UA_StatusCode retval = UA_String_copy(&src->additionalInfo, &dst->additionalInfo);
-    dst->encodingMask = src->encodingMask;
     retval |= UA_StatusCode_copy(&src->innerStatusCode, &dst->innerStatusCode);
-    if((src->encodingMask & UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO) && src->innerDiagnosticInfo) {
+    if(src->hasInnerDiagnosticInfo && src->innerDiagnosticInfo) {
         if((dst->innerDiagnosticInfo = UA_malloc(sizeof(UA_DiagnosticInfo))))
             retval |= UA_DiagnosticInfo_copy(src->innerDiagnosticInfo, dst->innerDiagnosticInfo);
         else
@@ -749,10 +749,8 @@ UA_StatusCode UA_DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_Diagnostic
     dst->localizedText = src->localizedText;
     dst->namespaceUri = src->namespaceUri;
     dst->symbolicId = src->symbolicId;
-    if(retval) {
+    if(retval)
         UA_DiagnosticInfo_deleteMembers(dst);
-        UA_DiagnosticInfo_init(dst);
-    }
     return retval;
 }
 

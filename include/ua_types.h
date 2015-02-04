@@ -237,7 +237,12 @@ typedef struct {
 
 /** @brief A data value with an associated status code and timestamps. */
 typedef struct {
-    UA_Byte       encodingMask;
+    UA_Boolean    hasVariant : 1;
+    UA_Boolean    hasStatusCode : 1;
+    UA_Boolean    hasSourceTimeStamp : 1;
+    UA_Boolean    hasServerTimeStamp : 1;
+    UA_Boolean    hasSourcePicoSeconds : 1;
+    UA_Boolean    hasServerPicoSeconds : 1;
     UA_Variant    value;
     UA_StatusCode status;
     UA_DateTime   sourceTimestamp;
@@ -246,18 +251,15 @@ typedef struct {
     UA_Int16      serverPicoseconds;
 } UA_DataValue;
 
-enum UA_DATAVALUE_ENCODINGMASKTYPE_enum {
-    UA_DATAVALUE_ENCODINGMASK_VARIANT           = 0x01,
-    UA_DATAVALUE_ENCODINGMASK_STATUSCODE        = 0x02,
-    UA_DATAVALUE_ENCODINGMASK_SOURCETIMESTAMP   = 0x04,
-    UA_DATAVALUE_ENCODINGMASK_SERVERTIMESTAMP   = 0x08,
-    UA_DATAVALUE_ENCODINGMASK_SOURCEPICOSECONDS = 0x10,
-    UA_DATAVALUE_ENCODINGMASK_SERVERPICOSECONDS = 0x20
-};
-
 /** @brief A structure that contains detailed error and diagnostic information associated with a StatusCode. */
 typedef struct UA_DiagnosticInfo {
-    UA_Byte       encodingMask;     // Type of the Enum UA_DIAGNOSTICINFO_ENCODINGMASKTYPE
+    UA_Boolean    hasSymbolicId : 1;
+    UA_Boolean    hasNamespace : 1;
+    UA_Boolean    hasLocalizedText : 1;
+    UA_Boolean    hasLocale : 1;
+    UA_Boolean    hasAdditionalInfo : 1;
+    UA_Boolean    hasInnerStatusCode : 1;
+    UA_Boolean    hasInnerDiagnosticInfo : 1;
     UA_Int32      symbolicId;
     UA_Int32      namespaceUri;
     UA_Int32      localizedText;
@@ -267,21 +269,7 @@ typedef struct UA_DiagnosticInfo {
     struct UA_DiagnosticInfo *innerDiagnosticInfo;
 } UA_DiagnosticInfo;
 
-enum UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_enum {
-    UA_DIAGNOSTICINFO_ENCODINGMASK_SYMBOLICID          = 0x01,
-    UA_DIAGNOSTICINFO_ENCODINGMASK_NAMESPACE           = 0x02,
-    UA_DIAGNOSTICINFO_ENCODINGMASK_LOCALIZEDTEXT       = 0x04,
-    UA_DIAGNOSTICINFO_ENCODINGMASK_LOCALE              = 0x08,
-    UA_DIAGNOSTICINFO_ENCODINGMASK_ADDITIONALINFO      = 0x10,
-    UA_DIAGNOSTICINFO_ENCODINGMASK_INNERSTATUSCODE     = 0x20,
-    UA_DIAGNOSTICINFO_ENCODINGMASK_INNERDIAGNOSTICINFO = 0x40
-};
-
-/*************/
-/* Functions */
-/*************/
-
-#define UA_TYPE_PROTOTYPES(TYPE)                                     \
+#define UA_TYPE_HANDLING_FUNCTIONS(TYPE)                             \
     TYPE UA_EXPORT * TYPE##_new(void);                               \
     void UA_EXPORT TYPE##_init(TYPE * p);                            \
     void UA_EXPORT TYPE##_delete(TYPE * p);                          \
@@ -289,24 +277,24 @@ enum UA_DIAGNOSTICINFO_ENCODINGMASKTYPE_enum {
     UA_StatusCode UA_EXPORT TYPE##_copy(const TYPE *src, TYPE *dst);
 
 /* Functions for all types */
-UA_TYPE_PROTOTYPES(UA_Boolean)
-UA_TYPE_PROTOTYPES(UA_SByte)
-UA_TYPE_PROTOTYPES(UA_Byte)
-UA_TYPE_PROTOTYPES(UA_Int16)
-UA_TYPE_PROTOTYPES(UA_UInt16)
-UA_TYPE_PROTOTYPES(UA_Int32)
-UA_TYPE_PROTOTYPES(UA_UInt32)
-UA_TYPE_PROTOTYPES(UA_Int64)
-UA_TYPE_PROTOTYPES(UA_UInt64)
-UA_TYPE_PROTOTYPES(UA_Float)
-UA_TYPE_PROTOTYPES(UA_Double)
-UA_TYPE_PROTOTYPES(UA_String)
+UA_TYPE_HANDLING_FUNCTIONS(UA_Boolean)
+UA_TYPE_HANDLING_FUNCTIONS(UA_SByte)
+UA_TYPE_HANDLING_FUNCTIONS(UA_Byte)
+UA_TYPE_HANDLING_FUNCTIONS(UA_Int16)
+UA_TYPE_HANDLING_FUNCTIONS(UA_UInt16)
+UA_TYPE_HANDLING_FUNCTIONS(UA_Int32)
+UA_TYPE_HANDLING_FUNCTIONS(UA_UInt32)
+UA_TYPE_HANDLING_FUNCTIONS(UA_Int64)
+UA_TYPE_HANDLING_FUNCTIONS(UA_UInt64)
+UA_TYPE_HANDLING_FUNCTIONS(UA_Float)
+UA_TYPE_HANDLING_FUNCTIONS(UA_Double)
+UA_TYPE_HANDLING_FUNCTIONS(UA_String)
 #define UA_DateTime_new UA_Int64_new
 #define UA_DateTime_init UA_Int64_init
 #define UA_DateTime_delete UA_Int64_delete
 #define UA_DateTime_deleteMembers UA_Int64_deleteMembers
 #define UA_DateTime_copy UA_Int64_copy
-UA_TYPE_PROTOTYPES(UA_Guid)
+UA_TYPE_HANDLING_FUNCTIONS(UA_Guid)
 #define UA_ByteString_new UA_String_new
 #define UA_ByteString_init UA_String_init
 #define UA_ByteString_delete UA_String_delete
@@ -317,19 +305,19 @@ UA_TYPE_PROTOTYPES(UA_Guid)
 #define UA_XmlElement_delete UA_String_delete
 #define UA_XmlElement_deleteMembers UA_String_deleteMembers
 #define UA_XmlElement_copy UA_String_copy
-UA_TYPE_PROTOTYPES(UA_NodeId)
-UA_TYPE_PROTOTYPES(UA_ExpandedNodeId)
+UA_TYPE_HANDLING_FUNCTIONS(UA_NodeId)
+UA_TYPE_HANDLING_FUNCTIONS(UA_ExpandedNodeId)
 #define UA_StatusCode_new UA_Int32_new
 #define UA_StatusCode_init UA_Int32_init
 #define UA_StatusCode_delete UA_Int32_delete
 #define UA_StatusCode_deleteMembers UA_Int32_deleteMembers
 #define UA_StatusCode_copy UA_Int32_copy
-UA_TYPE_PROTOTYPES(UA_QualifiedName)
-UA_TYPE_PROTOTYPES(UA_LocalizedText)
-UA_TYPE_PROTOTYPES(UA_ExtensionObject)
-UA_TYPE_PROTOTYPES(UA_DataValue)
-UA_TYPE_PROTOTYPES(UA_Variant)
-UA_TYPE_PROTOTYPES(UA_DiagnosticInfo)
+UA_TYPE_HANDLING_FUNCTIONS(UA_QualifiedName)
+UA_TYPE_HANDLING_FUNCTIONS(UA_LocalizedText)
+UA_TYPE_HANDLING_FUNCTIONS(UA_ExtensionObject)
+UA_TYPE_HANDLING_FUNCTIONS(UA_DataValue)
+UA_TYPE_HANDLING_FUNCTIONS(UA_Variant)
+UA_TYPE_HANDLING_FUNCTIONS(UA_DiagnosticInfo)
 
 /**********************************************/
 /* Custom functions for the builtin datatypes */
@@ -427,18 +415,6 @@ struct UA_DataType {
     UA_Byte membersSize; ///< How many members does the type have?
     UA_DataTypeMember members[UA_MAX_TYPE_MEMBERS];
 };
-
-struct UA_DataTypeDescription {
-    UA_DataType *types;
-    UA_UInt32 *numericNodeIds;
-    UA_UInt16 namespaceIndex;
-    UA_UInt16 tableSize;
-};
-
-/** The structured types defined in the standard are stored in this array. Generally access looks
-    like UA_TYPES_NS0[UA_INT32], where the name of the type in uppercase gives the types index. */
-extern const UA_DataType UA_EXPORT *UA_TYPES;
-extern const UA_UInt32 UA_EXPORT *UA_TYPES_IDS;
 
 void UA_EXPORT * UA_new(const UA_DataType *dataType);
 void UA_EXPORT UA_init(void *p, const UA_DataType *dataType);

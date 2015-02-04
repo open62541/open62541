@@ -414,9 +414,8 @@ extern "C" {
 * @{
 */
 ''')
-if outname != "ua_types":
-    printh("extern const UA_DataType *" + outname.upper() + ";\n")
-    printh("extern const UA_UInt32 *" + outname.upper() + "_IDS;\n")
+printh("extern const UA_DataType *" + outname.upper() + ";\n")
+printh("extern const UA_UInt32 *" + outname.upper() + "_IDS;\n")
 
 i = 0
 for t in types.itervalues():
