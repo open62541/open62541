@@ -213,15 +213,13 @@ typedef struct {
 
 struct UA_DataType;
 typedef struct UA_DataType UA_DataType; 
-struct UA_DataTypeTable;
-typedef struct UA_DataTypeTable UA_DataTypeTable; 
 
 /** @brief Variants store (arrays of) any data type. Either they provide a pointer to the data in
     memory, or functions from which the data can be accessed. Variants are replaced together with
     the data they store (exception: use a data source).*/
 typedef struct {
-    UA_UInt16 typeIndex;
-    const UA_DataTypeTable *typeTable;
+    const UA_DataType *dataType;
+    UA_NodeId dataTypeId;
     enum {
         UA_VARIANT_DATA, ///< The data is "owned" by this variant (copied and deleted together)
         UA_VARIANT_DATA_NODELETE, /**< The data is "borrowed" by the variant and shall not be
@@ -430,7 +428,7 @@ struct UA_DataType {
     UA_DataTypeMember members[UA_MAX_TYPE_MEMBERS];
 };
 
-struct UA_DataTypeTable {
+struct UA_DataTypeDescription {
     UA_DataType *types;
     UA_UInt32 *numericNodeIds;
     UA_UInt16 namespaceIndex;
@@ -439,7 +437,8 @@ struct UA_DataTypeTable {
 
 /** The structured types defined in the standard are stored in this array. Generally access looks
     like UA_TYPES_NS0[UA_INT32], where the name of the type in uppercase gives the types index. */
-extern const UA_DataTypeTable UA_EXPORT UA_TYPES;
+extern const UA_DataType UA_EXPORT *UA_TYPES;
+extern const UA_UInt32 UA_EXPORT *UA_TYPES_IDS;
 
 void UA_EXPORT * UA_new(const UA_DataType *dataType);
 void UA_EXPORT UA_init(void *p, const UA_DataType *dataType);

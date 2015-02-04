@@ -754,8 +754,6 @@ UA_UInt32 UA_Variant_calcSizeBinary(UA_Variant const *p) {
             return 0;
     }
 
-    const UA_DataType *dataType = &p->typeTable->types[p->typeIndex];
-        
     arrayLength = data->arrayLength;
     if(data->dataPtr == UA_NULL)
         arrayLength = -1;
@@ -764,14 +762,14 @@ UA_UInt32 UA_Variant_calcSizeBinary(UA_Variant const *p) {
     if(arrayLength < 1) {
         length += 4; // length
     } else {
-        length += UA_Array_calcSizeBinary(data->dataPtr, arrayLength, dataType);
+        length += UA_Array_calcSizeBinary(data->dataPtr, arrayLength, p->dataType);
         // if the type is not builtin, we encode it as an extensionobject
-        if(p->typeTable != &UA_TYPES || p->typeIndex > 24)
+        if(!p->dataType->namespaceZero || p->dataType->typeIndex > 24)
             length += 9 * arrayLength;  // overhead for extensionobjects: 4 byte nodeid + 1 byte encoding + 4 byte bytestring length
     }
 
     if(arrayLength != 1 && data->arrayDimensions != UA_NULL)
-        length += UA_Array_calcSizeBinary(data->arrayDimensions, data->arrayDimensionsLength, &UA_TYPES.types[UA_INT32]);
+        length += UA_Array_calcSizeBinary(data->arrayDimensions, data->arrayDimensionsLength, &UA_TYPES[UA_INT32]);
     
     if(p->storageType == UA_VARIANT_DATASOURCE)
         p->storage.datasource.release(p->storage.datasource.handle, data);
@@ -791,8 +789,7 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
     UA_Byte encodingByte = 0;
     UA_Boolean isArray = data->arrayLength != 1;  // a single element is not an array
     UA_Boolean hasDimensions = isArray && data->arrayDimensions != UA_NULL;
-    const UA_DataType *dataType = &src->typeTable->types[src->typeIndex];
-    UA_Boolean isBuiltin = (dataType->namespaceZero && src->typeIndex <= 24);
+    UA_Boolean isBuiltin = (src->dataType->namespaceZero && src->dataType->typeIndex <= 24);
 
     if(isArray) {
         encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
@@ -801,33 +798,30 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
     }
 
     if(isBuiltin)
-        encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (UA_Byte)UA_TYPES.numericNodeIds[src->typeIndex];
+        encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (UA_Byte)UA_TYPES_IDS[src->dataType->typeIndex];
     else
         encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (UA_Byte)22;  // ExtensionObject
 
     UA_StatusCode retval = UA_Byte_encodeBinary(&encodingByte, dst, offset);
 
     if(isArray)
-        retval |= UA_Array_encodeBinary(data->dataPtr, data->arrayLength, dataType, dst, offset);
+        retval |= UA_Array_encodeBinary(data->dataPtr, data->arrayLength, src->dataType, dst, offset);
     else if(!data->dataPtr)
         retval = UA_STATUSCODE_BADENCODINGERROR; // an array can be empty. a single element must be present.
     else {
         if(!isBuiltin) {
             // print the extensionobject header
-            UA_NodeId typeNodeId = (UA_NodeId){.namespaceIndex = src->typeTable->namespaceIndex,
-                                               .identifierType = UA_NODEIDTYPE_NUMERIC,
-                                               .identifier.numeric = src->typeTable->numericNodeIds[dataType->typeIndex]};
-            UA_NodeId_encodeBinary(&typeNodeId, dst, offset);
+            UA_NodeId_encodeBinary(&src->dataTypeId, dst, offset);
             UA_Byte eoEncoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
             UA_Byte_encodeBinary(&eoEncoding, dst, offset);
-            UA_Int32 eoEncodingLength = UA_calcSizeBinary(data->dataPtr, dataType);
+            UA_Int32 eoEncodingLength = UA_calcSizeBinary(data->dataPtr, src->dataType);
             UA_Int32_encodeBinary(&eoEncodingLength, dst, offset);
         }
-        retval |= UA_encodeBinary(data->dataPtr, dataType, dst, offset);
+        retval |= UA_encodeBinary(data->dataPtr, src->dataType, dst, offset);
     }
 
     if(hasDimensions)
-        retval |= UA_Array_encodeBinary(data->arrayDimensions, data->arrayDimensionsLength, &UA_TYPES.types[UA_INT32], dst, offset);
+        retval |= UA_Array_encodeBinary(data->arrayDimensions, data->arrayDimensionsLength, &UA_TYPES[UA_INT32], dst, offset);
 
     if(src->storageType == UA_VARIANT_DATASOURCE)
         src->storage.datasource.release(src->storage.datasource.handle, data);
@@ -850,11 +844,11 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, UA_UInt32 *offse
                          .identifier.numeric = encodingByte & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK };
 
     UA_UInt16 typeIndex;
-    for(typeIndex = 0; typeIndex < UA_TYPES.tableSize; typeIndex++) {
-        if(UA_TYPES.numericNodeIds[typeIndex] == typeid.identifier.numeric)
+    for(typeIndex = 0; typeIndex < UA_TYPES_COUNT; typeIndex++) {
+        if(UA_TYPES_IDS[typeIndex] == typeid.identifier.numeric)
             break;
     }
-    const UA_DataType *dataType = &UA_TYPES.types[typeIndex];
+    const UA_DataType *dataType = &UA_TYPES[typeIndex];
 
     if(!isArray) {
         if(!(data->dataPtr = UA_malloc(dataType->memSize)))
@@ -876,13 +870,13 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, UA_UInt32 *offse
     if(hasDimensions && retval == UA_STATUSCODE_GOOD) {
         retval |= UA_Int32_decodeBinary(src, offset, &data->arrayDimensionsLength);
         if(retval == UA_STATUSCODE_GOOD)
-            retval |= UA_Array_decodeBinary(src, offset, data->arrayDimensionsLength, &data->dataPtr, &UA_TYPES.types[UA_INT32]);
+            retval |= UA_Array_decodeBinary(src, offset, data->arrayDimensionsLength, &data->dataPtr, &UA_TYPES[UA_INT32]);
         if(retval)
             data->arrayLength = -1; // for deleteMembers
     }
 
-    dst->typeTable = &UA_TYPES;
-    dst->typeIndex = typeIndex;
+    dst->dataType = dataType;
+    dst->dataTypeId = typeid;
 
     if(retval)
         UA_Variant_deleteMembers(dst);
@@ -978,7 +972,7 @@ UA_UInt32 UA_calcSizeBinary(const void *p, const UA_DataType *dataType) {
         const UA_DataTypeMember *member = &dataType->members[i];
         const UA_DataType *memberType;
         if(member->namespaceZero)
-            memberType = &UA_TYPES.types[member->memberTypeIndex];
+            memberType = &UA_TYPES[member->memberTypeIndex];
         else
             memberType = dataType - dataType->typeIndex + member->memberTypeIndex;
 
@@ -1066,7 +1060,7 @@ UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_B
         const UA_DataTypeMember *member = &dataType->members[i];
         const UA_DataType *memberType;
         if(member->namespaceZero)
-            memberType = &UA_TYPES.types[member->memberTypeIndex];
+            memberType = &UA_TYPES[member->memberTypeIndex];
         else
             memberType = dataType - dataType->typeIndex + member->memberTypeIndex;
 
@@ -1162,7 +1156,7 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, void 
         const UA_DataTypeMember *member = &dataType->members[i];
         const UA_DataType *memberType;
         if(member->namespaceZero)
-            memberType = &UA_TYPES.types[member->memberTypeIndex];
+            memberType = &UA_TYPES[member->memberTypeIndex];
         else
             memberType = dataType - dataType->typeIndex + member->memberTypeIndex;
 

@@ -247,7 +247,7 @@ class StructType(object):
 #define %s_calcSizeBinary(p) UA_calcSizeBinary(p, %s)
 #define %s_encodeBinary(src, dst, offset) UA_encodeBinary(src, %s, dst, offset)
 #define %s_decodeBinary(src, offset, dst) UA_decodeBinary(src, offset, dst, %s)''' % \
-    tuple(itertools.chain(*itertools.repeat([self.name, "&"+typeTableName+".types["+self.name.upper()+"]"], 8)))
+    tuple(itertools.chain(*itertools.repeat([self.name, "&"+typeTableName+"["+self.name.upper()+"]"], 8)))
 
 def parseTypeDefinitions(xmlDescription, existing_types = OrderedDict()):
     '''Returns an ordered dict that maps names to types. The order is such that
@@ -415,7 +415,8 @@ extern "C" {
 */
 ''')
 if outname != "ua_types":
-    printh("extern const UA_DataTypeTable " + outname.upper() + ";\n")
+    printh("extern const UA_DataType *" + outname.upper() + ";\n")
+    printh("extern const UA_UInt32 *" + outname.upper() + "_IDS;\n")
 
 i = 0
 for t in types.itervalues():
@@ -429,6 +430,7 @@ for t in types.itervalues():
         printh(t.functions_c(outname.upper()))
     i += 1
 
+printh("#define " + outname.upper() + "_COUNT %s\n" % (str(len(types))))
 printh('''
 /// @} /* end of group */\n
 #ifdef __cplusplus
@@ -447,19 +449,17 @@ printc('''/**
 #include "stddef.h"
 #include "ua_types.h"
 #include "''' + outname + '''_generated.h"\n
-const UA_DataTypeTable ''' + outname.upper() + ''' = (UA_DataTypeTable){
-.types = (UA_DataType[]){''')
+const UA_DataType *''' + outname.upper() + ''' = (UA_DataType[]){''')
 for t in types.itervalues():
     printc("")
     printc("/* " + t.name + " */")
     printc(t.typelayout_c(args.namespace_id == 0) + ",")
-printc("},\n")
+printc("};\n")
 if args.typedescriptions:
-    printc(".numericNodeIds = (UA_UInt32[]){")
+    printc('const UA_UInt32 *' + outname.upper() + '_ID = (UA_UInt32[]){')
     for t in types.itervalues():
         print(str(typedescriptions[t.name].nodeid) + ", ", end='', file=fc)
-    printc("},\n")
-printc(".namespaceIndex = %s, .tableSize = %s};" % (str(args.namespace_id), str(len(types))))
+    printc("};")
 
 fh.close()
 fc.close()

@@ -2,7 +2,7 @@
 #include <time.h>
 #include <stdio.h> // printf
 #include <string.h> // strlen
-//#define __USE_POSIX
+#define __USE_POSIX
 #include <stdlib.h> // malloc, free, rand
 
 #ifdef _WIN32
@@ -601,19 +601,17 @@ void UA_Variant_init(UA_Variant *p) {
     p->storage.data.dataPtr        = UA_NULL;
     p->storage.data.arrayDimensions       = UA_NULL;
     p->storage.data.arrayDimensionsLength = -1;
-    p->typeIndex = 0;
-    p->typeTable = &UA_TYPES;
+    UA_NodeId_init(&p->dataTypeId);
+    p->dataType = UA_NULL;
 }
 
 UA_TYPE_DELETE_DEFAULT(UA_Variant)
 void UA_Variant_deleteMembers(UA_Variant *p) {
     if(p->storageType == UA_VARIANT_DATA) {
         if(p->storage.data.dataPtr) {
-            if(p->storage.data.arrayLength == 1)
-                UA_delete(p->storage.data.dataPtr, &p->typeTable->types[p->typeIndex]);
-            else
-                UA_Array_delete(p->storage.data.dataPtr, p->storage.data.arrayLength, &p->typeTable->types[p->typeIndex]);
+            UA_Array_delete(p->storage.data.dataPtr, p->storage.data.arrayLength, p->dataType);
             p->storage.data.dataPtr = UA_NULL;
+            p->storage.data.arrayLength = 0;
         }
 
         if(p->storage.data.arrayDimensions) {
@@ -622,6 +620,8 @@ void UA_Variant_deleteMembers(UA_Variant *p) {
         }
         return;
     }
+
+    UA_NodeId_deleteMembers(&p->dataTypeId);
 
     if(p->storageType == UA_VARIANT_DATASOURCE) {
         p->storage.datasource.delete(p->storage.datasource.handle);
@@ -646,16 +646,15 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
     }
 
     /* 2) Copy the data to the destination */
-    retval |= UA_Array_copy(srcdata->dataPtr, srcdata->arrayLength, &dstdata->dataPtr,
-                            &src->typeTable->types[src->typeIndex]);
+    retval |= UA_Array_copy(srcdata->dataPtr, srcdata->arrayLength, &dstdata->dataPtr, src->dataType);
     if(retval == UA_STATUSCODE_GOOD) {
         dst->storageType = UA_VARIANT_DATA;
-        dst->typeIndex = src->typeIndex;
-        dst->typeTable = src->typeTable;
+        dst->dataType= src->dataType;
+        UA_NodeId_copy(&src->dataTypeId, &dst->dataTypeId);
         dstdata->arrayLength = srcdata->arrayLength;
         if(srcdata->arrayDimensions) {
             retval |= UA_Array_copy(srcdata->arrayDimensions, srcdata->arrayDimensionsLength,
-                                    (void **)&dstdata->arrayDimensions, &UA_TYPES.types[UA_INT32]);
+                                    (void **)&dstdata->arrayDimensions, &UA_TYPES[UA_INT32]);
             if(retval == UA_STATUSCODE_GOOD)
                 dstdata->arrayDimensionsLength = srcdata->arrayDimensionsLength;
             else {
@@ -675,12 +674,14 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
 /** Copies data into a variant. The target variant has always a storagetype UA_VARIANT_DATA */
 UA_StatusCode UA_Variant_copySetValue(UA_Variant *v, const void *p, UA_UInt16 typeIndex) {
     UA_Variant_init(v);
-    v->typeIndex = typeIndex;
-    v->typeTable = &UA_TYPES;
+    v->dataType = &UA_TYPES[typeIndex];
+    v->dataTypeId = (UA_NodeId){.namespaceIndex = 0,
+                                .identifierType = UA_NODEIDTYPE_NUMERIC,
+                                .identifier.numeric = UA_TYPES_IDS[typeIndex]};
     v->storage.data.arrayLength = 1; // no array but a single entry
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if((v->storage.data.dataPtr = UA_new(&UA_TYPES.types[typeIndex])))
-       retval = UA_copy(p, v->storage.data.dataPtr, &UA_TYPES.types[typeIndex]);
+    if((v->storage.data.dataPtr = UA_new(&UA_TYPES[typeIndex])))
+       retval = UA_copy(p, v->storage.data.dataPtr, &UA_TYPES[typeIndex]);
     else
         retval = UA_STATUSCODE_BADOUTOFMEMORY;
     if(retval) {
@@ -692,10 +693,12 @@ UA_StatusCode UA_Variant_copySetValue(UA_Variant *v, const void *p, UA_UInt16 ty
 
 UA_StatusCode UA_Variant_copySetArray(UA_Variant *v, const void *array, UA_Int32 noElements, UA_UInt16 typeIndex) {
     UA_Variant_init(v);
-    v->typeIndex = typeIndex;
-    v->typeTable = &UA_TYPES;
+    v->dataType = &UA_TYPES[typeIndex];
+    v->dataTypeId = (UA_NodeId){.namespaceIndex = 0,
+                                .identifierType = UA_NODEIDTYPE_NUMERIC,
+                                .identifier.numeric = UA_TYPES_IDS[typeIndex]};
     v->storage.data.arrayLength = noElements;
-    UA_StatusCode retval = UA_Array_copy(array, noElements, &v->storage.data.dataPtr, &UA_TYPES.types[typeIndex]);
+    UA_StatusCode retval = UA_Array_copy(array, noElements, &v->storage.data.dataPtr, &UA_TYPES[typeIndex]);
     if(retval) {
         UA_Variant_deleteMembers(v);
         UA_Variant_init(v);
@@ -837,9 +840,9 @@ void UA_init(void *p, const UA_DataType *dataType) {
             UA_String_init((UA_String*)ptr);
             break;
         default:
-            UA_init(ptr, &UA_TYPES.types[member->memberTypeIndex]);
+            UA_init(ptr, &UA_TYPES[member->memberTypeIndex]);
         }
-        ptr += UA_TYPES.types[member->memberTypeIndex].memSize;
+        ptr += UA_TYPES[member->memberTypeIndex].memSize;
     }
 }
 
@@ -860,7 +863,7 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
         const UA_DataTypeMember *member = &dataType->members[i];
         const UA_DataType *memberType;
         if(member->namespaceZero)
-            memberType = &UA_TYPES.types[member->memberTypeIndex];
+            memberType = &UA_TYPES[member->memberTypeIndex];
         else
             memberType = dataType - dataType->typeIndex + member->memberTypeIndex;
 
@@ -903,7 +906,7 @@ void UA_deleteMembers(void *p, const UA_DataType *dataType) {
         const UA_DataTypeMember *member = &dataType->members[i];
         const UA_DataType *memberType;
         if(member->namespaceZero)
-            memberType = &UA_TYPES.types[member->memberTypeIndex];
+            memberType = &UA_TYPES[member->memberTypeIndex];
         else
             memberType = dataType - dataType->typeIndex + member->memberTypeIndex;
 
