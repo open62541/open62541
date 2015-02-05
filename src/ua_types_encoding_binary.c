@@ -764,9 +764,9 @@ UA_UInt32 UA_Variant_calcSizeBinary(UA_Variant const *p) {
     if(arrayLength < 1) {
         length += 4; // length
     } else {
-        length += UA_Array_calcSizeBinary(data->dataPtr, arrayLength, p->dataType);
+        length += UA_Array_calcSizeBinary(data->dataPtr, arrayLength, p->type);
         // if the type is not builtin, we encode it as an extensionobject
-        if(!p->dataType->namespaceZero || p->dataType->typeIndex > 24)
+        if(!p->type->namespaceZero || p->type->typeIndex > 24)
             length += 9 * arrayLength;  // overhead for extensionobjects: 4 byte nodeid + 1 byte encoding + 4 byte bytestring length
     }
 
@@ -791,7 +791,7 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
     UA_Byte encodingByte = 0;
     UA_Boolean isArray = data->arrayLength != 1;  // a single element is not an array
     UA_Boolean hasDimensions = isArray && data->arrayDimensions != UA_NULL;
-    UA_Boolean isBuiltin = (src->dataType->namespaceZero && src->dataType->typeIndex <= 24);
+    UA_Boolean isBuiltin = (src->type->namespaceZero && src->type->typeIndex <= 24);
 
     if(isArray) {
         encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
@@ -800,26 +800,26 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
     }
 
     if(isBuiltin)
-        encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (UA_Byte)UA_TYPES_IDS[src->dataType->typeIndex];
+        encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (UA_Byte)UA_TYPES_IDS[src->type->typeIndex];
     else
         encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (UA_Byte)22;  // ExtensionObject
 
     UA_StatusCode retval = UA_Byte_encodeBinary(&encodingByte, dst, offset);
 
     if(isArray)
-        retval |= UA_Array_encodeBinary(data->dataPtr, data->arrayLength, src->dataType, dst, offset);
+        retval |= UA_Array_encodeBinary(data->dataPtr, data->arrayLength, src->type, dst, offset);
     else if(!data->dataPtr)
         retval = UA_STATUSCODE_BADENCODINGERROR; // an array can be empty. a single element must be present.
     else {
         if(!isBuiltin) {
             // print the extensionobject header
-            UA_NodeId_encodeBinary(&src->dataTypeId, dst, offset);
+            UA_NodeId_encodeBinary(&src->typeId, dst, offset);
             UA_Byte eoEncoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
             UA_Byte_encodeBinary(&eoEncoding, dst, offset);
-            UA_Int32 eoEncodingLength = UA_calcSizeBinary(data->dataPtr, src->dataType);
+            UA_Int32 eoEncodingLength = UA_calcSizeBinary(data->dataPtr, src->type);
             UA_Int32_encodeBinary(&eoEncodingLength, dst, offset);
         }
-        retval |= UA_encodeBinary(data->dataPtr, src->dataType, dst, offset);
+        retval |= UA_encodeBinary(data->dataPtr, src->type, dst, offset);
     }
 
     if(hasDimensions)
@@ -877,8 +877,8 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, UA_UInt32 *offse
             data->arrayLength = -1; // for deleteMembers
     }
 
-    dst->dataType = dataType;
-    dst->dataTypeId = typeid;
+    dst->type = dataType;
+    dst->typeId = typeid;
 
     if(retval)
         UA_Variant_deleteMembers(dst);

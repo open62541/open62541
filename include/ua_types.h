@@ -218,8 +218,8 @@ typedef struct UA_DataType UA_DataType;
     memory, or functions from which the data can be accessed. Variants are replaced together with
     the data they store (exception: use a data source).*/
 typedef struct {
-    const UA_DataType *dataType;
-    UA_NodeId dataTypeId;
+    const UA_DataType *type;
+    UA_NodeId typeId;
     enum {
         UA_VARIANT_DATA, ///< The data is "owned" by this variant (copied and deleted together)
         UA_VARIANT_DATA_NODELETE, /**< The data is "borrowed" by the variant and shall not be

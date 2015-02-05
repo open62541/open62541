@@ -607,15 +607,15 @@ void UA_Variant_init(UA_Variant *p) {
     p->storage.data.dataPtr        = UA_NULL;
     p->storage.data.arrayDimensions       = UA_NULL;
     p->storage.data.arrayDimensionsLength = -1;
-    UA_NodeId_init(&p->dataTypeId);
-    p->dataType = UA_NULL;
+    UA_NodeId_init(&p->typeId);
+    p->type = UA_NULL;
 }
 
 UA_TYPE_DELETE_DEFAULT(UA_Variant)
 void UA_Variant_deleteMembers(UA_Variant *p) {
     if(p->storageType == UA_VARIANT_DATA) {
         if(p->storage.data.dataPtr) {
-            UA_Array_delete(p->storage.data.dataPtr, p->storage.data.arrayLength, p->dataType);
+            UA_Array_delete(p->storage.data.dataPtr, p->storage.data.arrayLength, p->type);
             p->storage.data.dataPtr = UA_NULL;
             p->storage.data.arrayLength = 0;
         }
@@ -627,7 +627,7 @@ void UA_Variant_deleteMembers(UA_Variant *p) {
         return;
     }
 
-    UA_NodeId_deleteMembers(&p->dataTypeId);
+    UA_NodeId_deleteMembers(&p->typeId);
 
     if(p->storageType == UA_VARIANT_DATASOURCE) {
         p->storage.datasource.delete(p->storage.datasource.handle);
@@ -652,11 +652,11 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
     }
 
     /* 2) Copy the data to the destination */
-    retval |= UA_Array_copy(srcdata->dataPtr, srcdata->arrayLength, &dstdata->dataPtr, src->dataType);
+    retval |= UA_Array_copy(srcdata->dataPtr, srcdata->arrayLength, &dstdata->dataPtr, src->type);
     if(retval == UA_STATUSCODE_GOOD) {
         dst->storageType = UA_VARIANT_DATA;
-        dst->dataType= src->dataType;
-        UA_NodeId_copy(&src->dataTypeId, &dst->dataTypeId);
+        dst->type= src->type;
+        UA_NodeId_copy(&src->typeId, &dst->typeId);
         dstdata->arrayLength = srcdata->arrayLength;
         if(srcdata->arrayDimensions) {
             retval |= UA_Array_copy(srcdata->arrayDimensions, srcdata->arrayDimensionsLength,
@@ -680,8 +680,8 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
 /** Copies data into a variant. The target variant has always a storagetype UA_VARIANT_DATA */
 UA_StatusCode UA_Variant_copySetValue(UA_Variant *v, const void *p, UA_UInt16 typeIndex) {
     UA_Variant_init(v);
-    v->dataType = &UA_TYPES[typeIndex];
-    v->dataTypeId = (UA_NodeId){.namespaceIndex = 0,
+    v->type = &UA_TYPES[typeIndex];
+    v->typeId = (UA_NodeId){.namespaceIndex = 0,
                                 .identifierType = UA_NODEIDTYPE_NUMERIC,
                                 .identifier.numeric = UA_TYPES_IDS[typeIndex]};
     v->storage.data.arrayLength = 1; // no array but a single entry
@@ -699,10 +699,10 @@ UA_StatusCode UA_Variant_copySetValue(UA_Variant *v, const void *p, UA_UInt16 ty
 
 UA_StatusCode UA_Variant_copySetArray(UA_Variant *v, const void *array, UA_Int32 noElements, UA_UInt16 typeIndex) {
     UA_Variant_init(v);
-    v->dataType = &UA_TYPES[typeIndex];
-    v->dataTypeId = (UA_NodeId){.namespaceIndex = 0,
-                                .identifierType = UA_NODEIDTYPE_NUMERIC,
-                                .identifier.numeric = UA_TYPES_IDS[typeIndex]};
+    v->type = &UA_TYPES[typeIndex];
+    v->typeId = (UA_NodeId){.namespaceIndex = 0,
+                            .identifierType = UA_NODEIDTYPE_NUMERIC,
+                            .identifier.numeric = UA_TYPES_IDS[typeIndex]};
     v->storage.data.arrayLength = noElements;
     UA_StatusCode retval = UA_Array_copy(array, noElements, &v->storage.data.dataPtr, &UA_TYPES[typeIndex]);
     if(retval) {
