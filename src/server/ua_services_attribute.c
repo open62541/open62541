@@ -372,7 +372,7 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *aWriteValue) {
             break;
 
         case UA_ATTRIBUTEID_VALUE:
-            if(newNode->nodeClass != (UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE)) {
+            if((newNode->nodeClass != UA_NODECLASS_VARIABLE) && (newNode->nodeClass != UA_NODECLASS_VARIABLETYPE)) {
                 retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
                 break;
             }

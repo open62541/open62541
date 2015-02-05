@@ -226,7 +226,7 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
 
 void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseRequest *request,
                     UA_BrowseResponse *response) {
-    if(request->nodesToBrowseSize <= 0) {
+   if(request->nodesToBrowseSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }
@@ -237,11 +237,38 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
         response->responseHeader.serviceResult = retval;
         return;
     }
-        
+
+
+    /* ### Begin External Namespaces */
+    UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * request->nodesToBrowseSize);
+    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * request->nodesToBrowseSize);
+    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * request->nodesToBrowseSize);
+    for(UA_Int32 j = 0;j<server->externalNamespacesSize;j++) {
+        UA_UInt32 indexSize = 0;
+        for(UA_Int32 i = 0;i < request->nodesToBrowseSize;i++) {
+            if(request->nodesToBrowse[i].nodeId.namespaceIndex != server->externalNamespaces[j].index)
+                continue;
+            isExternal[i] = UA_TRUE;
+            indices[indexSize] = i;
+            indexSize++;
+        }
+        if(indexSize == 0)
+            continue;
+
+        UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
+        ens->browseNodes(ens->ensHandle, &request->requestHeader, request->nodesToBrowse,
+                       indices, indexSize, request->requestedMaxReferencesPerNode, response->results, response->diagnosticInfos);
+    }
+    /* ### End External Namespaces */
+
+
     response->resultsSize = request->nodesToBrowseSize;
-    for(UA_Int32 i = 0;i < request->nodesToBrowseSize;i++)
-        getBrowseResult(server->nodestore, &request->nodesToBrowse[i],
+    for(UA_Int32 i = 0;i < request->nodesToBrowseSize;i++){
+        if(!isExternal[i]) {
+            getBrowseResult(server->nodestore, &request->nodesToBrowse[i],
                         request->requestedMaxReferencesPerNode, &response->results[i]);
+        }
+    }
 }
 
 void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
