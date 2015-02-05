@@ -886,9 +886,13 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
             *dstNoElements = noElements;
             ptrs += sizeof(void*);
             ptrd += sizeof(void*);
-        } else {
-            ptrs += member->padding;
-            ptrd += member->padding;
+            continue;
+        }
+
+        ptrs += member->padding;
+        ptrd += member->padding;
+
+        if(!member->namespaceZero) {
             UA_StatusCode retval = UA_copy(ptrs, ptrd, memberType);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_deleteMembers(dst, dataType);
@@ -896,7 +900,68 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
             }
             ptrs += memberType->memSize;
             ptrd += memberType->memSize;
+            continue;
         }
+
+        switch(member->memberTypeIndex) {
+        case UA_TYPES_BOOLEAN:
+        case UA_TYPES_SBYTE:
+        case UA_TYPES_BYTE:
+            *((UA_Byte*)ptrd) = *((const UA_Byte*)ptrs);
+            break;
+        case UA_TYPES_INT16:
+        case UA_TYPES_UINT16:
+            *((UA_Int16*)ptrd) = *((const UA_Byte*)ptrs);
+            break;
+        case UA_TYPES_INT32:
+        case UA_TYPES_UINT32:
+        case UA_TYPES_STATUSCODE:
+        case UA_TYPES_FLOAT:
+            *((UA_Int32*)ptrd) = *((const UA_Int32*)ptrs);
+            break;
+        case UA_TYPES_INT64:
+        case UA_TYPES_UINT64:
+        case UA_TYPES_DOUBLE:
+        case UA_TYPES_DATETIME:
+            *((UA_Int64*)ptrd) = *((const UA_Int64*)ptrs);
+            break;
+        case UA_TYPES_GUID:
+            *((UA_Guid*)ptrd) = *((const UA_Guid*)ptrs);
+            break;
+        case UA_TYPES_NODEID:
+            UA_NodeId_copy((const UA_NodeId*)ptrs, (UA_NodeId*)ptrd);
+            break;
+        case UA_TYPES_EXPANDEDNODEID:
+            UA_ExpandedNodeId_copy((const UA_ExpandedNodeId*)ptrs, (UA_ExpandedNodeId*)ptrd);
+            break;
+        case UA_TYPES_QUALIFIEDNAME:
+            UA_QualifiedName_copy((const UA_QualifiedName*)ptrs, (UA_QualifiedName*)ptrd);
+            break;
+        case UA_TYPES_LOCALIZEDTEXT:
+            UA_LocalizedText_copy((const UA_LocalizedText*)ptrs, (UA_LocalizedText*)ptrd);
+            break;
+        case UA_TYPES_EXTENSIONOBJECT:
+            UA_ExtensionObject_copy((const UA_ExtensionObject*)ptrs, (UA_ExtensionObject*)ptrd);
+            break;
+        case UA_TYPES_DATAVALUE:
+            UA_DataValue_copy((const UA_DataValue*)ptrs, (UA_DataValue*)ptrd);
+            break;
+        case UA_TYPES_VARIANT:
+            UA_Variant_copy((const UA_Variant*)ptrs, (UA_Variant*)ptrd);
+            break;
+        case UA_TYPES_DIAGNOSTICINFO:
+            UA_DiagnosticInfo_copy((const UA_DiagnosticInfo*)ptrs, (UA_DiagnosticInfo*)ptrd);
+            break;
+        case UA_TYPES_STRING:
+        case UA_TYPES_BYTESTRING:
+        case UA_TYPES_XMLELEMENT:
+            UA_String_copy((const UA_String*)ptrs, (UA_String*)ptrd);
+            break;
+        default:
+            UA_copy(ptrs, ptrd, &UA_TYPES[member->memberTypeIndex]);
+        }
+        ptrs += memberType->memSize;
+        ptrd += memberType->memSize;
     }
     return UA_STATUSCODE_GOOD;
 }

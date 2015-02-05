@@ -43,17 +43,16 @@ START_TEST(UA_DataValue_calcSizeShallWorkOnExample) {
 	UA_DataValue dataValue;
 	dataValue.status       = 12;
     dataValue.hasStatus = UA_TRUE;
-	UA_DateTime dateTime = 80;
-	dataValue.sourceTimestamp = dateTime;
+	dataValue.sourceTimestamp = 80;
     dataValue.hasSourceTimestamp = UA_TRUE;
-	UA_DateTime sourceTime = 214;
-	dataValue.sourcePicoseconds = sourceTime;
+	dataValue.sourcePicoseconds = 214;
     dataValue.hasSourcePicoseconds = UA_TRUE;
 	int size = 0;
 	// when
 	size = UA_DataValue_calcSizeBinary(&dataValue);
 	// then
-	ck_assert_int_eq(size, 21);
+    // 1 (bitfield) + 4 (status) + 8 (timestamp) + 2 (picoseconds)
+	ck_assert_int_eq(size, 15);
 }
 END_TEST
 
@@ -63,15 +62,16 @@ START_TEST(UA_DiagnosticInfo_calcSizeShallWorkOnExample) {
 	diagnosticInfo.symbolicId    = 30;
     diagnosticInfo.hasSymbolicId = UA_TRUE;
 	diagnosticInfo.namespaceUri  = 25;
-    diagnosticInfo.hasNamespace = UA_TRUE;
+    diagnosticInfo.hasNamespaceUri = UA_TRUE;
 	diagnosticInfo.localizedText = 22;
     diagnosticInfo.hasLocalizedText = UA_TRUE;
 	UA_Byte additionalInfoData = 'd';
 	diagnosticInfo.additionalInfo.data = &additionalInfoData; //"OPCUA";
-	diagnosticInfo.additionalInfo.length = 5;
+	diagnosticInfo.additionalInfo.length = 1;
     diagnosticInfo.hasAdditionalInfo = UA_TRUE;
 	// when & then
-	ck_assert_int_eq(UA_DiagnosticInfo_calcSizeBinary(&diagnosticInfo), 26);
+    // 1 (bitfield) + 4 (symbolic id) + 4 (namespaceuri) + 4 (localizedtext) + 5 (additionalinfo)
+	ck_assert_int_eq(UA_DiagnosticInfo_calcSizeBinary(&diagnosticInfo), 18);
 }
 END_TEST
 
@@ -1778,7 +1778,7 @@ int main(void) {
 
 	s  = testSuite_builtin();
 	sr = srunner_create(s);
-	//srunner_set_fork_status(sr, CK_NOFORK);
+	srunner_set_fork_status(sr, CK_NOFORK);
 	srunner_run_all(sr, CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);

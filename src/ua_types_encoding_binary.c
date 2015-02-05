@@ -21,7 +21,7 @@ UA_StatusCode UA_Boolean_decodeBinary(UA_ByteString const *src, UA_UInt32 *offse
     if(*offset + sizeof(UA_Boolean) > (UA_UInt32)src->length )
         return UA_STATUSCODE_BADDECODINGERROR;
     *dst = (src->data[*offset] > 0) ? UA_TRUE : UA_FALSE;
-    offset++;
+    (*offset)++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -39,7 +39,7 @@ UA_StatusCode UA_SByte_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset,
     if(*offset + sizeof(UA_SByte) > (UA_UInt32)src->length )
         return UA_STATUSCODE_BADDECODINGERROR;
     *dst = (UA_SByte)src->data[*offset];
-    (offset)++;
+    (*offset)++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -57,7 +57,7 @@ UA_StatusCode UA_Byte_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, 
     if(*offset + sizeof(UA_Byte) > (UA_UInt32)src->length )
         return UA_STATUSCODE_BADDECODINGERROR;
     *dst = src->data[*offset];
-    (offset)++;
+    (*offset)++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -890,7 +890,7 @@ UA_UInt32 UA_DiagnosticInfo_calcSizeBinary(UA_DiagnosticInfo const *ptr) {
     UA_UInt32 length = sizeof(UA_Byte);
     if(ptr->hasSymbolicId)
         length += sizeof(UA_Int32);
-    if(ptr->hasNamespace)
+    if(ptr->hasNamespaceUri)
         length += sizeof(UA_Int32);
     if(ptr->hasLocalizedText)
         length += sizeof(UA_Int32);
@@ -909,7 +909,7 @@ UA_StatusCode UA_DiagnosticInfo_encodeBinary(const UA_DiagnosticInfo *src, UA_By
     UA_StatusCode retval = UA_Byte_encodeBinary((const UA_Byte *)src, dst, offset);
     if(src->hasSymbolicId)
         retval |= UA_Int32_encodeBinary(&src->symbolicId, dst, offset);
-    if(src->hasNamespace)
+    if(src->hasNamespaceUri)
         retval |= UA_Int32_encodeBinary( &src->namespaceUri, dst, offset);
     if(src->hasLocalizedText)
         retval |= UA_Int32_encodeBinary(&src->localizedText, dst, offset);
@@ -931,7 +931,7 @@ UA_StatusCode UA_DiagnosticInfo_decodeBinary(UA_ByteString const *src, UA_UInt32
         return retval;
     if(dst->hasSymbolicId)
         retval |= UA_Int32_decodeBinary(src, offset, &dst->symbolicId);
-    if(dst->hasNamespace)
+    if(dst->hasNamespaceUri)
         retval |= UA_Int32_decodeBinary(src, offset, &dst->namespaceUri);
     if(dst->hasLocalizedText)
         retval |= UA_Int32_decodeBinary(src, offset, &dst->localizedText);

@@ -254,7 +254,7 @@ typedef struct {
 /** @brief A structure that contains detailed error and diagnostic information associated with a StatusCode. */
 typedef struct UA_DiagnosticInfo {
     UA_Boolean    hasSymbolicId : 1;
-    UA_Boolean    hasNamespace : 1;
+    UA_Boolean    hasNamespaceUri : 1;
     UA_Boolean    hasLocalizedText : 1;
     UA_Boolean    hasLocale : 1;
     UA_Boolean    hasAdditionalInfo : 1;
