@@ -855,6 +855,10 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, UA_UInt32 *offse
         if(UA_TYPES_IDS[typeIndex] == typeid.identifier.numeric)
             break;
     }
+
+    if(typeIndex >= UA_TYPES_COUNT)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
     const UA_DataType *dataType = &UA_TYPES[typeIndex];
 
     if(!isArray) {
