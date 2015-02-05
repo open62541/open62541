@@ -41,6 +41,7 @@ END_TEST
 START_TEST(UA_DataValue_calcSizeShallWorkOnExample) {
 	// given
 	UA_DataValue dataValue;
+    UA_DataValue_init(&dataValue);
 	dataValue.status       = 12;
     dataValue.hasStatus = UA_TRUE;
 	dataValue.sourceTimestamp = 80;
@@ -59,6 +60,7 @@ END_TEST
 START_TEST(UA_DiagnosticInfo_calcSizeShallWorkOnExample) {
 	// given
 	UA_DiagnosticInfo diagnosticInfo;
+    UA_DiagnosticInfo_init(&diagnosticInfo);
 	diagnosticInfo.symbolicId    = 30;
     diagnosticInfo.hasSymbolicId = UA_TRUE;
 	diagnosticInfo.namespaceUri  = 25;
@@ -1104,6 +1106,7 @@ END_TEST
 START_TEST(UA_DataValue_encodeShallWorkOnExampleWithoutVariant) {
 	// given
 	UA_DataValue src;
+    UA_DataValue_init(&src);
 	src.serverTimestamp = 80;
     src.hasServerTimestamp = UA_TRUE;
 
@@ -1135,10 +1138,10 @@ END_TEST
 START_TEST(UA_DataValue_encodeShallWorkOnExampleWithVariant) {
 	// given
 	UA_DataValue src;
+    UA_DataValue_init(&src);
 	src.serverTimestamp    = 80;
     src.hasVariant = UA_TRUE;
     src.hasServerTimestamp = UA_TRUE;
-	UA_Variant_init(&src.value);
 	src.value.type = &UA_TYPES[UA_TYPES_INT32];
 	src.value.storage.data.arrayLength  = 1; // one element (encoded as not an array)
 	UA_Int32  vdata  = 45;
@@ -1607,35 +1610,20 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
 END_TEST
 
 START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
-	/* take an int */
 	UA_Int32 val = 42;
-
-	/* wrap it into a variant */
-	UA_Variant varVal;
-	UA_Variant_init(&varVal);
-	varVal.type = &UA_TYPES[UA_TYPES_INT32];
-	varVal.storage.data.dataPtr = &val;
-	varVal.storage.data.arrayDimensionsLength = -1;
-	varVal.storage.data.arrayDimensions = UA_NULL;
-	varVal.storageType = UA_VARIANT_DATA_NODELETE;
-	varVal.storage.data.arrayLength = 1;
-	varVal.storage.data.dataPtr = &val;
-
-	/* wrap it into a variable attributes */
 	UA_VariableAttributes varAttr;
 	UA_VariableAttributes_init(&varAttr);
+    varAttr.dataType.identifierType = UA_NODEIDTYPE_NUMERIC;
 	varAttr.dataType.identifier.numeric = UA_TYPES_IDS[UA_TYPES_INT32];
-	UA_Variant_copy(&varVal,&varAttr.value);
+	UA_Variant_init(&varAttr.value);
+	varAttr.value.type = &UA_TYPES[UA_TYPES_INT32];
+    UA_NODEID_ASSIGN(varAttr.value.typeId, UA_TYPES_IDS[UA_TYPES_INT32], 0);
+	varAttr.value.storage.data.dataPtr = &val;
+	varAttr.value.storage.data.arrayLength = 1;
 	varAttr.userWriteMask = 41;
-	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_VALUERANK;
-	varAttr.arrayDimensions = UA_NULL;
-	varAttr.arrayDimensionsSize = -1;
-	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_BROWSENAME;
-	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;
-	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DESCRIPTION;
-	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_VALUE;
 	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DATATYPE;
-	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_ARRAYDIMENSIONS;
+	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_VALUE;
+	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_USERWRITEMASK;
 	/* wrap it into a extension object attributes */
 	UA_ExtensionObject extensionObject;
 	UA_ExtensionObject_init(&extensionObject);
@@ -1665,8 +1653,11 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
 	posDecode = 0;
 	UA_VariableAttributes_decodeBinary(&extensionObjectDecoded.body, &posDecode, &varAttrDecoded);
 	ck_assert_uint_eq(41, varAttrDecoded.userWriteMask);
-	UA_Variant* varValDecoded = &(varAttrDecoded.value);
-	ck_assert_int_eq(1, varValDecoded->storage.data.arrayLength);
+	ck_assert_int_eq(1, varAttrDecoded.value.storage.data.arrayLength);
+
+    // finally
+    UA_ExtensionObject_deleteMembers(&extensionObjectDecoded);
+    UA_Variant_deleteMembers(&varAttrDecoded.value);
 
 }
 END_TEST

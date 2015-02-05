@@ -358,24 +358,20 @@ UA_StatusCode UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst) {
     case UA_NODEIDTYPE_NUMERIC:
         *dst = *src;
         return UA_STATUSCODE_GOOD;
-        break;
-
     case UA_NODEIDTYPE_STRING: // Table 6, second entry
         retval |= UA_String_copy(&src->identifier.string, &dst->identifier.string);
         break;
-
     case UA_NODEIDTYPE_GUID: // Table 6, third entry
         retval |= UA_Guid_copy(&src->identifier.guid, &dst->identifier.guid);
         break;
-
     case UA_NODEIDTYPE_BYTESTRING: // Table 6, "OPAQUE"
         retval |= UA_ByteString_copy(&src->identifier.byteString, &dst->identifier.byteString);
         break;
-
     default:
         UA_NodeId_init(dst);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+    dst->namespaceIndex = src->namespaceIndex;
     dst->identifierType = src->identifierType;
     if(retval)
         UA_NodeId_deleteMembers(dst);
@@ -474,9 +470,8 @@ void UA_ExpandedNodeId_init(UA_ExpandedNodeId *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_ExpandedNodeId)
 UA_StatusCode UA_ExpandedNodeId_copy(UA_ExpandedNodeId const *src, UA_ExpandedNodeId *dst) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode retval = UA_NodeId_copy(&src->nodeId, &dst->nodeId);
     retval |= UA_String_copy(&src->namespaceUri, &dst->namespaceUri);
-    retval |= UA_NodeId_copy(&src->nodeId, &dst->nodeId);
     dst->serverIndex = src->serverIndex;
     if(retval)
         UA_ExpandedNodeId_deleteMembers(dst);
@@ -587,6 +582,7 @@ void UA_DataValue_init(UA_DataValue *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_DataValue)
 UA_StatusCode UA_DataValue_copy(UA_DataValue const *src, UA_DataValue *dst) {
+    UA_DataValue_init(dst);
     *((UA_Byte*)dst) = *((const UA_Byte*)src); // the bitfield
     UA_StatusCode retval = UA_DateTime_copy(&src->serverTimestamp, &dst->serverTimestamp);
     retval |= UA_DateTime_copy(&src->sourceTimestamp, &dst->sourceTimestamp);
@@ -774,7 +770,7 @@ void UA_init(void *p, const UA_DataType *dataType) {
                the length integer */
             ptr += (member->padding >> 3);
             *((UA_Int32*)ptr) = -1;
-            ptr += sizeof(UA_Int32) + (member->padding & 0x000fff);
+            ptr += sizeof(UA_Int32) + (member->padding & 0x07);
             *((void**)ptr) = UA_NULL;
             ptr += sizeof(void*);
             continue;
@@ -861,6 +857,8 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
         memcpy(dst, src, dataType->memSize);
         return UA_STATUSCODE_GOOD;
     }
+    UA_init(dst, dataType);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     const UA_Byte *ptrs = (const UA_Byte *)src;
     UA_Byte *ptrd = (UA_Byte *)dst;
     for(int i=0;i<dataType->membersSize; i++) {
@@ -876,9 +874,9 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
             ptrd += (member->padding >> 3);
             UA_Int32 *dstNoElements = (UA_Int32*)ptrd;
             const UA_Int32 noElements = *((const UA_Int32*)ptrs);
-            ptrs += sizeof(UA_Int32) + (member->padding & 0x000fff);
-            ptrd += sizeof(UA_Int32) + (member->padding & 0x000fff);
-            UA_StatusCode retval = UA_Array_copy(ptrs, noElements, (void**)&ptrd, memberType);
+            ptrs += sizeof(UA_Int32) + (member->padding & 0x07);
+            ptrd += sizeof(UA_Int32) + (member->padding & 0x07);
+            retval = UA_Array_copy(*(void* const*)ptrs, noElements, (void**)ptrd, memberType);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_deleteMembers(dst, dataType);
                 return retval;
@@ -891,9 +889,8 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
 
         ptrs += member->padding;
         ptrd += member->padding;
-
         if(!member->namespaceZero) {
-            UA_StatusCode retval = UA_copy(ptrs, ptrd, memberType);
+            retval = UA_copy(ptrs, ptrd, memberType);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_deleteMembers(dst, dataType);
                 return retval;
@@ -929,41 +926,43 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
             *((UA_Guid*)ptrd) = *((const UA_Guid*)ptrs);
             break;
         case UA_TYPES_NODEID:
-            UA_NodeId_copy((const UA_NodeId*)ptrs, (UA_NodeId*)ptrd);
+            retval |= UA_NodeId_copy((const UA_NodeId*)ptrs, (UA_NodeId*)ptrd);
             break;
         case UA_TYPES_EXPANDEDNODEID:
-            UA_ExpandedNodeId_copy((const UA_ExpandedNodeId*)ptrs, (UA_ExpandedNodeId*)ptrd);
+            retval |= UA_ExpandedNodeId_copy((const UA_ExpandedNodeId*)ptrs, (UA_ExpandedNodeId*)ptrd);
             break;
         case UA_TYPES_QUALIFIEDNAME:
-            UA_QualifiedName_copy((const UA_QualifiedName*)ptrs, (UA_QualifiedName*)ptrd);
+            retval |= UA_QualifiedName_copy((const UA_QualifiedName*)ptrs, (UA_QualifiedName*)ptrd);
             break;
         case UA_TYPES_LOCALIZEDTEXT:
-            UA_LocalizedText_copy((const UA_LocalizedText*)ptrs, (UA_LocalizedText*)ptrd);
+            retval |= UA_LocalizedText_copy((const UA_LocalizedText*)ptrs, (UA_LocalizedText*)ptrd);
             break;
         case UA_TYPES_EXTENSIONOBJECT:
-            UA_ExtensionObject_copy((const UA_ExtensionObject*)ptrs, (UA_ExtensionObject*)ptrd);
+            retval |= UA_ExtensionObject_copy((const UA_ExtensionObject*)ptrs, (UA_ExtensionObject*)ptrd);
             break;
         case UA_TYPES_DATAVALUE:
-            UA_DataValue_copy((const UA_DataValue*)ptrs, (UA_DataValue*)ptrd);
+            retval |= UA_DataValue_copy((const UA_DataValue*)ptrs, (UA_DataValue*)ptrd);
             break;
         case UA_TYPES_VARIANT:
-            UA_Variant_copy((const UA_Variant*)ptrs, (UA_Variant*)ptrd);
+            retval |= UA_Variant_copy((const UA_Variant*)ptrs, (UA_Variant*)ptrd);
             break;
         case UA_TYPES_DIAGNOSTICINFO:
-            UA_DiagnosticInfo_copy((const UA_DiagnosticInfo*)ptrs, (UA_DiagnosticInfo*)ptrd);
+            retval |= UA_DiagnosticInfo_copy((const UA_DiagnosticInfo*)ptrs, (UA_DiagnosticInfo*)ptrd);
             break;
         case UA_TYPES_STRING:
         case UA_TYPES_BYTESTRING:
         case UA_TYPES_XMLELEMENT:
-            UA_String_copy((const UA_String*)ptrs, (UA_String*)ptrd);
+            retval |= UA_String_copy((const UA_String*)ptrs, (UA_String*)ptrd);
             break;
         default:
-            UA_copy(ptrs, ptrd, &UA_TYPES[member->memberTypeIndex]);
+            retval |= UA_copy(ptrs, ptrd, &UA_TYPES[member->memberTypeIndex]);
         }
         ptrs += memberType->memSize;
         ptrd += memberType->memSize;
     }
-    return UA_STATUSCODE_GOOD;
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_deleteMembers(dst, dataType);
+    return retval;
 }
 
 void UA_deleteMembers(void *p, const UA_DataType *dataType) {
@@ -982,14 +981,13 @@ void UA_deleteMembers(void *p, const UA_DataType *dataType) {
         if(member->isArray) {
             ptr += (member->padding >> 3);
             UA_Int32 noElements = *((UA_Int32*)ptr);
-            ptr += sizeof(UA_Int32) + (member->padding & 0x000fff);
-            UA_Array_delete(ptr, noElements, memberType);
+            ptr += sizeof(UA_Int32) + (member->padding & 0x07);
+            UA_Array_delete(*(void**)ptr, noElements, memberType);
             ptr += sizeof(void*);
             continue;
         }
 
         ptr += member->padding;
-            
         if(!member->namespaceZero) {
             UA_deleteMembers(ptr, memberType);
             ptr += memberType->memSize;

@@ -325,7 +325,7 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_DiagnosticInfo)
 
 /* String */
 #define UA_STRING_NULL (UA_String) {-1, (UA_Byte*)0 }
-#define UA_STRING_STATIC(VARIABLE, STRING) do { \
+#define UA_STRING_ASSIGN(VARIABLE, STRING) do { \
         VARIABLE.length = sizeof(STRING)-1;     \
         VARIABLE.data   = (UA_Byte *)STRING; } while(0)
 
@@ -367,22 +367,19 @@ void UA_EXPORT UA_ByteString_printx_hex(char *label, const UA_ByteString *string
 /* NodeId */
 UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
+#define UA_NODEID_ASSIGN(VARIABLE, NUMERICID, NAMESPACE) do { \
+    VARIABLE.namespaceIndex = NAMESPACE;                      \
+    VARIABLE.identifierType = UA_NODEIDTYPE_NUMERIC;          \
+    VARIABLE.identifier.numeric = NUMERICID; } while(0);
 
 /* ExpandedNodeId */
 UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 
 /* QualifiedName */
-#define UA_QUALIFIEDNAME_STATIC(VARIABLE, STRING) do { \
-        VARIABLE.namespaceIndex = 0;                   \
-        UA_STRING_STATIC(VARIABLE.name, STRING); } while(0)
 UA_StatusCode UA_EXPORT UA_QualifiedName_copycstring(char const *src, UA_QualifiedName *dst);
 void UA_EXPORT UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn);
 
 /* LocalizedText */
-#define UA_LOCALIZEDTEXT_STATIC(VARIABLE, STRING) do { \
-        UA_STRING_STATIC(VARIABLE.locale, "en");       \
-        UA_STRING_STATIC(VARIABLE.text, STRING); } while(0)
-
 UA_StatusCode UA_EXPORT UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);
 
 /* Variant */
