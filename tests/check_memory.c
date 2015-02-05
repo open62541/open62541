@@ -54,7 +54,6 @@ START_TEST(encodeShallYieldDecode) {
 	UA_ByteString_newMembers(&msg1, UA_calcSizeBinary(obj1, &UA_TYPES[_i]));
     UA_StatusCode retval = UA_encodeBinary(obj1, &UA_TYPES[_i], &msg1, &pos);
 	if(retval != UA_STATUSCODE_GOOD) {
-		// this happens, e.g. when we encode a variant (with UA_TYPES[UA_INVALIDTYPE] in the vtable)
 		UA_delete(obj1, &UA_TYPES[_i]);
 		UA_ByteString_deleteMembers(&msg1);
 		return;	
@@ -86,8 +85,11 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
 	UA_UInt32 pos;
 	void *obj1 = UA_new(&UA_TYPES[_i]);
 	UA_ByteString_newMembers(&msg1, UA_calcSizeBinary(obj1, &UA_TYPES[_i]));
-    pos = 0; UA_encodeBinary(obj1, &UA_TYPES[_i], &msg1, &pos);
+    pos = 0;
+    UA_StatusCode retval = UA_encodeBinary(obj1, &UA_TYPES[_i], &msg1, &pos);
 	UA_delete(obj1, &UA_TYPES[_i]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return; // e.g. variants cannot be encoded after an init without failing (no datatype set)
 	// when
 	void *obj2 = UA_new(&UA_TYPES[_i]);
 	pos = 0;
@@ -191,7 +193,7 @@ int main(void) {
 	suite_add_tcase(s, tc);
 
 	sr = srunner_create(s);
-	//srunner_set_fork_status(sr, CK_NOFORK);
+	srunner_set_fork_status(sr, CK_NOFORK);
 	srunner_run_all (sr, CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);

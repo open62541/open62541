@@ -1658,7 +1658,6 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
     // finally
     UA_ExtensionObject_deleteMembers(&extensionObjectDecoded);
     UA_Variant_deleteMembers(&varAttrDecoded.value);
-
 }
 END_TEST
 
@@ -1769,7 +1768,7 @@ int main(void) {
 
 	s  = testSuite_builtin();
 	sr = srunner_create(s);
-	srunner_set_fork_status(sr, CK_NOFORK);
+	//srunner_set_fork_status(sr, CK_NOFORK);
 	srunner_run_all(sr, CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);

@@ -955,7 +955,7 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
             retval |= UA_String_copy((const UA_String*)ptrs, (UA_String*)ptrd);
             break;
         default:
-            retval |= UA_copy(ptrs, ptrd, &UA_TYPES[member->memberTypeIndex]);
+            retval |= UA_copy(ptrs, ptrd, memberType);
         }
         ptrs += memberType->memSize;
         ptrd += memberType->memSize;
@@ -1048,6 +1048,9 @@ UA_StatusCode UA_Array_new(void **p, UA_Int32 noElements, const UA_DataType *dat
         *p = UA_NULL;
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    if(dataType->memSize * noElements < 0 || dataType->memSize * noElements > MAX_ARRAY_SIZE )
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
     *p = malloc(dataType->memSize * noElements);
     if(!p)

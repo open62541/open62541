@@ -747,6 +747,8 @@ enum UA_VARIANT_ENCODINGMASKTYPE_enum {
 UA_UInt32 UA_Variant_calcSizeBinary(UA_Variant const *p) {
     UA_UInt32 arrayLength, length;
     const UA_VariantData *data;
+    if(!p->type)
+        return 0;
     if(p->storageType == UA_VARIANT_DATA)
         data = &p->storage.data;
     else {
@@ -782,6 +784,8 @@ UA_UInt32 UA_Variant_calcSizeBinary(UA_Variant const *p) {
 
 UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst, UA_UInt32 *offset) {
     const UA_VariantData  *data;
+    if(!src->type)
+        return UA_STATUSCODE_BADINTERNALERROR;
     if(src->storageType == UA_VARIANT_DATA)
         data = &src->storage.data;
     else {
@@ -837,7 +841,7 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, UA_UInt32 *offse
     UA_Variant_init(dst);
     UA_Byte encodingByte;
     UA_StatusCode retval = UA_Byte_decodeBinary(src, offset, &encodingByte);
-    if(retval)
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     UA_VariantData *data = &dst->storage.data;
@@ -1153,6 +1157,7 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, void 
     UA_Byte *ptr = (UA_Byte*)dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Byte membersSize = dataType->membersSize;
+    UA_init(dst, dataType);
     for(int i=0;i<membersSize && retval == UA_STATUSCODE_GOOD; i++) {
         const UA_DataTypeMember *member = &dataType->members[i];
         const UA_DataType *memberType;
@@ -1236,7 +1241,7 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, void 
             retval = UA_String_decodeBinary(src, offset, (UA_String*)ptr);
             break;
         default:
-            retval = UA_decodeBinary(src, offset, ptr, dataType);
+            retval = UA_decodeBinary(src, offset, ptr, memberType);
         }
         ptr += memberType->memSize;
     }
@@ -1285,8 +1290,14 @@ UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset,
         return UA_STATUSCODE_GOOD;
     }
 
+    if(dataType->memSize * noElements < 0 || dataType->memSize * noElements > MAX_ARRAY_SIZE )
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    if(*offset + (dataType->memSize * noElements) > (UA_UInt32)src->length)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
     *dst = UA_malloc(dataType->memSize * noElements);
-    if(!dst)
+    if(!*dst)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_Byte *ptr = (UA_Byte*)*dst;

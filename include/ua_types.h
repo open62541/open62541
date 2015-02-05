@@ -423,6 +423,8 @@ void UA_EXPORT UA_delete(void *p, const UA_DataType *dataType);
 /* Array operations */
 /********************/
 
+#define MAX_ARRAY_SIZE 104857600 // arrays must be smaller than 100MB
+
 UA_StatusCode UA_EXPORT UA_Array_new(void **p, UA_Int32 noElements, const UA_DataType *dataType);
 UA_StatusCode UA_EXPORT UA_Array_copy(const void *src, UA_Int32 noElements, void **dst, const UA_DataType *dataType);
 void UA_EXPORT UA_Array_delete(void *p, UA_Int32 noElements, const UA_DataType *dataType);
