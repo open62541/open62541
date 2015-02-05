@@ -685,7 +685,8 @@ START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArr
 	// then
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	ck_assert_int_eq(pos, 5);
-	ck_assert_ptr_eq((const void *)dst.type, (const void *)&UA_TYPES[UA_TYPES_INT32]);
+	//ck_assert_ptr_eq((const void *)dst.type, (const void *)&UA_TYPES[UA_TYPES_INT32]); //does not compile in gcc 4.6
+    ck_assert_int_eq((uintptr_t)dst.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]); 
 	ck_assert_int_eq(dst.storage.data.arrayLength, 1);
 	ck_assert_int_eq(*(UA_Int32 *)dst.storage.data.dataPtr, 255);
 	// finally
@@ -708,7 +709,8 @@ START_TEST(UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray)
 	// then
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	ck_assert_int_eq(pos, 1+4+2*4);
-	ck_assert_ptr_eq((const void*)dst.type, (const void*)&UA_TYPES[UA_TYPES_INT32]);
+	//ck_assert_ptr_eq((const (void*))dst.type, (const void*)&UA_TYPES[UA_TYPES_INT32]); //does not compile in gcc 4.6
+    ck_assert_int_eq((uintptr_t)dst.type,(uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
 	ck_assert_int_eq(dst.storage.data.arrayLength, 2);
 	ck_assert_int_eq(((UA_Int32 *)dst.storage.data.dataPtr)[0], 255);
 	ck_assert_int_eq(((UA_Int32 *)dst.storage.data.dataPtr)[1], -1);
