@@ -134,18 +134,16 @@ typedef UA_String UA_ByteString;
 /** @brief An XML element. */
 typedef UA_String UA_XmlElement;
 
-typedef enum {
-    UA_NODEIDTYPE_NUMERIC    = 2,
-    UA_NODEIDTYPE_STRING     = 3,
-    UA_NODEIDTYPE_GUID       = 4,
-    UA_NODEIDTYPE_BYTESTRING = 5
-} UA_NodeIdType;
-    
 /** @brief An identifier for a node in the address space of an OPC UA Server. */
 /* The shortened numeric types are introduced during encoding. */
 typedef struct {
     UA_UInt16 namespaceIndex;
-    UA_NodeIdType identifierType;
+    enum {
+        UA_NODEIDTYPE_NUMERIC    = 2,
+        UA_NODEIDTYPE_STRING     = 3,
+        UA_NODEIDTYPE_GUID       = 4,
+        UA_NODEIDTYPE_BYTESTRING = 5
+    } identifierType;
     union {
         UA_UInt32     numeric;
         UA_String     string;
@@ -201,8 +199,10 @@ typedef struct {
 /** @brief A datasource is the interface to interact with a local data provider.
  *
  *  Implementors of datasources need to provide functions for the callbacks in
- *  this structure. As a rule, datasources are never copied, but only their
- *  content. The only way to write into a datasource is via the write-service. */
+ *  this structure. After every read, the handle needs to be released to
+ *  indicate that the pointer is no longer accessed. As a rule, datasources are
+ *  never copied, but only their content. The only way to write into a
+ *  datasource is via the write-service. */
 typedef struct {
     const void *handle;
     UA_StatusCode (*read)(const void *handle, const UA_VariantData **);
