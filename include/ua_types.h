@@ -371,13 +371,24 @@ UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
     VARIABLE.namespaceIndex = NAMESPACE;                      \
     VARIABLE.identifierType = UA_NODEIDTYPE_NUMERIC;          \
     VARIABLE.identifier.numeric = NUMERICID; } while(0);
+#define UA_NODEID_STATIC(NUMERICID, NAMESPACE)                          \
+    (UA_NodeId){.namespaceIndex = NAMESPACE, .identifierType = UA_NODEIDTYPE_NUMERIC, \
+            .identifier.numeric = NUMERICID}
 
 /* ExpandedNodeId */
 UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
+#define UA_EXPANDEDNODEID_STATIC(NUMERICID, NAMESPACE)                  \
+    (UA_ExpandedNodeId){.nodeId = {.namespaceIndex = NAMESPACE, .identifierType = UA_NODEIDTYPE_NUMERIC, \
+                                   .identifier.numeric = NUMERICID},    \
+            .serverIndex = 0, .namespaceUri = {.length = -1, .data = UA_NULL} }
 
 /* QualifiedName */
 UA_StatusCode UA_EXPORT UA_QualifiedName_copycstring(char const *src, UA_QualifiedName *dst);
 void UA_EXPORT UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn);
+#define UA_QUALIFIEDNAME_ASSIGN(VARIABLE, STRING) do {          \
+        VARIABLE.namespaceIndex = 0;                            \
+        UA_STRING_ASSIGN(VARIABLE.name, STRING); } while(0)
+    
 
 /* LocalizedText */
 UA_StatusCode UA_EXPORT UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);

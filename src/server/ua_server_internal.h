@@ -67,6 +67,9 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
 UA_AddNodesResult UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, const UA_Node **node,
                                                const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId);
 
+UA_AddNodesResult UA_Server_addNode(UA_Server *server, const UA_Node **node,
+                                    const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId);
+
 UA_StatusCode UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session, const UA_AddReferencesItem *item);
 
 void UA_Server_deleteTimedWork(UA_Server *server);

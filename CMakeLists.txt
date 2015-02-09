@@ -14,35 +14,6 @@ if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Choose the type of build." FORCE)
 endif()
 
-# main sources of libopen62541
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src")
-file(GLOB_RECURSE exported_headers "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h")
-file(GLOB_RECURSE headers "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
-file(GLOB generated_headers "${PROJECT_BINARY_DIR}/src_generated/*.h")
-set(lib_sources 
-                src/ua_types.c
-                src/ua_types_encoding_binary.c
-                ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
-                ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
-                src/ua_securechannel.c
-                src/ua_session.c
-                # src/server/ua_server.c
-				# src/server/ua_server_addressspace.c
-				# src/server/ua_server_binary.c
-                # src/server/ua_server_worker.c
-                src/server/ua_securechannel_manager.c
-                src/server/ua_session_manager.c
-                # src/server/ua_services_attribute.c
-                # src/server/ua_services_session.c
-                # src/server/ua_services_discovery.c
-                # src/server/ua_services_securechannel.c
-                # src/server/ua_services_nodemanagement.c
-                # src/server/ua_services_view.c
-				${exported_headers}
-				${generated_headers}
-                ${headers})
-
 # compiler flags
 if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
 add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat
@@ -61,8 +32,44 @@ add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat
 	endif()
 endif()
 
-# build settings
-set(generate_src_options) # the options for the tools that generate code from xml-schema definitions
+# main sources of libopen62541
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src")
+file(GLOB_RECURSE exported_headers "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h")
+file(GLOB generated_headers "${PROJECT_BINARY_DIR}/src_generated/*.h")
+set(lib_sources src/ua_types.c
+                src/ua_types_encoding_binary.c
+                ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
+                ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
+                ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
+                src/ua_securechannel.c
+                src/ua_session.c
+                src/server/ua_server.c
+				src/server/ua_server_addressspace.c
+				src/server/ua_server_binary.c
+				src/server/ua_nodes.c
+                src/server/ua_server_worker.c
+                src/server/ua_securechannel_manager.c
+                src/server/ua_session_manager.c
+                src/server/ua_services_discovery.c
+                src/server/ua_services_securechannel.c
+                src/server/ua_services_session.c
+                src/server/ua_services_attribute.c
+                src/server/ua_services_nodemanagement.c
+                src/server/ua_services_view.c
+				${exported_headers}
+				${generated_headers} )
+
+## multithreading
+option(MULTITHREADING "Enable multithreading" OFF)
+if(MULTITHREADING)
+    set(UA_MULTITHREADING ON)
+    find_package(Threads REQUIRED)
+    list(APPEND lib_sources src/server/ua_nodestore_concurrent.c)
+else()
+    list(APPEND lib_sources src/server/ua_nodestore.c)
+endif()
+
 
 ## set debug flag
 if(CMAKE_BUILD_TYPE MATCHES Debug)
@@ -101,42 +108,6 @@ if(ENABLE_SELFSIGNED)
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/create_self-signed.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/localhost.cnf)
 endif()
-
-# ### xml
-# option(ENABLE_XML_ENCODING "Enable XML-encoding of the UA types" OFF)
-# if(ENABLE_XML_ENCODING)
-#     MATH(EXPR UA_ENCODING_AMOUNT "${UA_ENCODING_AMOUNT}+1")
-#     find_package(EXPAT REQUIRED)
-#     if(EXPAT_FOUND)
-#         include_directories(${EXPAT_INCLUDE_DIRS})
-#     else(EXPAT_FOUND)
-#         message(FATAL_ERROR "Expat library not found.")
-#     endif(EXPAT_FOUND)
-# 	include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/ongoing")
-#     list(APPEND lib_sources src/ongoing/ua_types_encoding_xml.c
-#                             src/ongoing/ua_namespace_xml.c
-#                             src/ongoing/ua_xml.c)
-#     list(APPEND generate_src_options "--with-xml")
-# endif()
-
-# ### json
-# option(ENABLE_JSON_ENCODING "Enable JSON-encoding of the UA types" OFF)
-# if(ENABLE_JSON_ENCODING)
-#     MATH(EXPR UA_ENCODING_AMOUNT "${UA_ENCODING_AMOUNT}+1")
-# 	include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src/ongoing")
-#     list(APPEND lib_sources src/ongoing/ua_types_encoding_json.c)
-#     list(APPEND generate_src_options "--with-json")
-# endif(ENABLE_JSON_ENCODING)
-
-## multithreading
-# option(MULTITHREADING "Enable multithreading" OFF)
-# if(MULTITHREADING)
-#     set(UA_MULTITHREADING ON)
-#     find_package(Threads REQUIRED)
-#     list(APPEND lib_sources src/server/ua_nodestore_concurrent.c)
-# else()
-#     list(APPEND lib_sources src/server/ua_nodestore.c)
-# endif()
 
 add_library(open62541-objects OBJECT ${lib_sources}) # static version that exports all symbols
 add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-objects>)
@@ -187,7 +158,12 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_gener
                    PRE_BUILD
                    COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --ns0-types-xml ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd 1 ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_transport
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
-                           ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd
+                           ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
+
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
+                   PRE_BUILD
+                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_nodeids.py ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nodeids.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
 
 # build example client
@@ -204,23 +180,23 @@ if(CLIENT)
 endif()
 
 # build example server
-# option(EXAMPLESERVER "Build a test server" OFF)
-# if(EXAMPLESERVER)
-# set(server_sources examples/opcuaServer.c
-#                    examples/networklayer_tcp.c
-#                    examples/logger_stdout.c)
-# if(EXTENSION_UDP)
-# 	list(APPEND server_sources examples/networklayer_udp.c)
-# endif()
-# add_executable(exampleServer ${server_sources} ${exported_headers} ${generated_headers})
-# target_link_libraries(exampleServer open62541)
-# if(WIN32)
-#     target_link_libraries(exampleServer ws2_32)
-# endif(WIN32)
-# if(MULTITHREADING)
-#     target_link_libraries(exampleServer urcu-cds urcu urcu-common pthread)
-# endif()
-# endif()
+option(EXAMPLESERVER "Build a test server" OFF)
+if(EXAMPLESERVER)
+set(server_sources examples/opcuaServer.c
+                   examples/networklayer_tcp.c
+                   examples/logger_stdout.c)
+if(EXTENSION_UDP)
+	list(APPEND server_sources examples/networklayer_udp.c)
+endif()
+add_executable(exampleServer ${server_sources} ${exported_headers} ${generated_headers})
+target_link_libraries(exampleServer open62541)
+if(WIN32)
+    target_link_libraries(exampleServer ws2_32)
+endif(WIN32)
+if(MULTITHREADING)
+    target_link_libraries(exampleServer urcu-cds urcu urcu-common pthread)
+endif()
+endif()
 
 # build unit tests
 option(ENABLE_UNIT_TESTS "Run unit tests after building" OFF)

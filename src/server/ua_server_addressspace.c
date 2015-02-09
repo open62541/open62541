@@ -1,45 +1,60 @@
 #include "ua_server.h"
 #include "ua_server_internal.h"
-#include "ua_namespace_0.h"
 
-static const UA_TypeVTable * UA_Node_getTypeVT(const UA_Node *node) {
-    switch(node->nodeClass) {
-    case UA_NODECLASS_OBJECT:
-        return &UA_TYPES[UA_OBJECTNODE];
-    case UA_NODECLASS_VARIABLE:
-        return &UA_TYPES[UA_VARIABLENODE];
-    case UA_NODECLASS_METHOD:
-        return &UA_TYPES[UA_METHODNODE];
-    case UA_NODECLASS_OBJECTTYPE:
-        return &UA_TYPES[UA_OBJECTTYPENODE];
-    case UA_NODECLASS_VARIABLETYPE:
-        return &UA_TYPES[UA_VARIABLETYPENODE];
-    case UA_NODECLASS_REFERENCETYPE:
-        return &UA_TYPES[UA_REFERENCETYPENODE];
-    case UA_NODECLASS_DATATYPE:
-        return &UA_TYPES[UA_DATATYPENODE];
-    case UA_NODECLASS_VIEW:
-        return &UA_TYPES[UA_VIEWNODE];
-    default: break;
-    }
+/* static const UA_TypeVTable * UA_Node_getTypeVT(const UA_Node *node) { */
+/*     switch(node->nodeClass) { */
+/*     case UA_NODECLASS_OBJECT: */
+/*         return &UA_TYPES[UA_OBJECTNODE]; */
+/*     case UA_NODECLASS_VARIABLE: */
+/*         return &UA_TYPES[UA_VARIABLENODE]; */
+/*     case UA_NODECLASS_METHOD: */
+/*         return &UA_TYPES[UA_METHODNODE]; */
+/*     case UA_NODECLASS_OBJECTTYPE: */
+/*         return &UA_TYPES[UA_OBJECTTYPENODE]; */
+/*     case UA_NODECLASS_VARIABLETYPE: */
+/*         return &UA_TYPES[UA_VARIABLETYPENODE]; */
+/*     case UA_NODECLASS_REFERENCETYPE: */
+/*         return &UA_TYPES[UA_REFERENCETYPENODE]; */
+/*     case UA_NODECLASS_DATATYPE: */
+/*         return &UA_TYPES[UA_DATATYPENODE]; */
+/*     case UA_NODECLASS_VIEW: */
+/*         return &UA_TYPES[UA_VIEWNODE]; */
+/*     default: break; */
+/*     } */
 
-    return &UA_TYPES[UA_INVALIDTYPE];
-}
+/*     return &UA_TYPES[UA_INVALIDTYPE]; */
+/* } */
 
-void UA_Server_addScalarVariableNode(UA_Server *server, UA_QualifiedName *browseName, void *value,
-                                     const UA_TypeVTable *vt, const UA_ExpandedNodeId *parentNodeId,
-                                     const UA_NodeId *referenceTypeId) {
+UA_StatusCode UA_Server_addScalarVariableNode(UA_Server *server, UA_QualifiedName *browseName,
+                                              void *value, const UA_NodeId typeId,
+                                              const UA_ExpandedNodeId *parentNodeId,
+                                              const UA_NodeId *referenceTypeId ) {
+    if(typeId.namespaceIndex != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
     UA_VariableNode *tmpNode = UA_VariableNode_new();
     UA_QualifiedName_copy(browseName, &tmpNode->browseName);
     UA_String_copy(&browseName->name, &tmpNode->displayName.text);
     /* UA_LocalizedText_copycstring("integer value", &tmpNode->description); */
     tmpNode->nodeClass = UA_NODECLASS_VARIABLE;
     tmpNode->valueRank = -1;
-    tmpNode->value.vt = vt;
+    UA_NodeId_copy(&typeId, &tmpNode->dataType);
+    UA_NodeId_copy(&typeId, &tmpNode->value.typeId);
     tmpNode->value.storage.data.dataPtr = value;
     tmpNode->value.storageType = UA_VARIANT_DATA;
     tmpNode->value.storage.data.arrayLength = 1;
-    UA_Server_addNode(server, (const UA_Node**)&tmpNode, parentNodeId, referenceTypeId);
+    size_t i;
+    for(i = 0;i<UA_TYPES_COUNT;i++) {
+        if(UA_TYPES_IDS[i] == typeId.identifier.numeric)
+            break;
+    }
+    if(i >= UA_TYPES_COUNT) {
+        UA_VariableNode_delete(tmpNode);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    tmpNode->value.type = &UA_TYPES[i];
+    UA_Server_addNodeWithSession(server, &adminSession, (const UA_Node**)&tmpNode,
+                                 parentNodeId, referenceTypeId);
+    return UA_STATUSCODE_GOOD;
 }
 
 /* Adds a one-way reference to the local nodestore */
@@ -51,9 +66,52 @@ static UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session
     if(!node)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    const UA_TypeVTable *nodeVT = UA_Node_getTypeVT(node);
-    UA_Node *newNode = nodeVT->new();
-    nodeVT->copy(node, newNode);
+    UA_Node *newNode = UA_NULL;
+    void (*deleteNode)(UA_Node*) = UA_NULL;
+    switch(node->nodeClass) {
+    case UA_NODECLASS_OBJECT:
+        newNode = (UA_Node*)UA_ObjectNode_new();
+        UA_ObjectNode_copy((const UA_ObjectNode*)node, (UA_ObjectNode*)newNode);
+        deleteNode = (void (*)(UA_Node*))UA_ObjectNode_delete;
+        break;
+    case UA_NODECLASS_VARIABLE:
+        newNode = (UA_Node*)UA_VariableNode_new();
+        UA_VariableNode_copy((const UA_VariableNode*)node, (UA_VariableNode*)newNode);
+        deleteNode = (void (*)(UA_Node*))UA_VariableNode_delete;
+        break;
+    case UA_NODECLASS_METHOD:
+        newNode = (UA_Node*)UA_MethodNode_new();
+        UA_MethodNode_copy((const UA_MethodNode*)node, (UA_MethodNode*)newNode);
+        deleteNode = (void (*)(UA_Node*))UA_MethodNode_delete;
+        break;
+    case UA_NODECLASS_OBJECTTYPE:
+        newNode = (UA_Node*)UA_ObjectTypeNode_new();
+        UA_ObjectTypeNode_copy((const UA_ObjectTypeNode*)node, (UA_ObjectTypeNode*)newNode);
+        deleteNode = (void (*)(UA_Node*))UA_ObjectTypeNode_delete;
+        break;
+    case UA_NODECLASS_VARIABLETYPE:
+        newNode = (UA_Node*)UA_VariableTypeNode_new();
+        UA_VariableTypeNode_copy((const UA_VariableTypeNode*)node, (UA_VariableTypeNode*)newNode);
+        deleteNode = (void (*)(UA_Node*))UA_VariableTypeNode_delete;
+        break;
+    case UA_NODECLASS_REFERENCETYPE:
+        newNode = (UA_Node*)UA_ReferenceTypeNode_new();
+        UA_ReferenceTypeNode_copy((const UA_ReferenceTypeNode*)node, (UA_ReferenceTypeNode*)newNode);
+        deleteNode = (void (*)(UA_Node*))UA_ReferenceTypeNode_delete;
+        break;
+    case UA_NODECLASS_DATATYPE:
+        newNode = (UA_Node*)UA_DataTypeNode_new();
+        UA_DataTypeNode_copy((const UA_DataTypeNode*)node, (UA_DataTypeNode*)newNode);
+        deleteNode = (void (*)(UA_Node*))UA_DataTypeNode_delete;
+        break;
+    case UA_NODECLASS_VIEW:
+        newNode = (UA_Node*)UA_ViewNode_new();
+        UA_ViewNode_copy((const UA_ViewNode*)node, (UA_ViewNode*)newNode);
+        deleteNode = (void (*)(UA_Node*))UA_ViewNode_delete;
+        break;
+    default:
+        UA_assert(UA_FALSE);
+    }
 
     UA_Int32 count = node->referencesSize;
     if(count < 0)
@@ -61,7 +119,7 @@ static UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session
     UA_ReferenceNode *old_refs = newNode->references;
     UA_ReferenceNode *new_refs = UA_malloc(sizeof(UA_ReferenceNode)*(count+1));
     if(!new_refs) {
-        nodeVT->delete(newNode);
+        deleteNode(newNode);
         UA_NodeStore_release(node);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -73,10 +131,10 @@ static UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session
     new_refs[count].isInverse = !item->isForward;
     retval |= UA_ExpandedNodeId_copy(&item->targetNodeId, &new_refs[count].targetId);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Array_delete(new_refs, ++count, &UA_TYPES[UA_REFERENCENODE]);
+        UA_Array_delete(new_refs, ++count, &UA_TYPES[UA_TYPES_REFERENCENODE]);
         newNode->references = UA_NULL;
         newNode->referencesSize = 0;
-        nodeVT->delete(newNode);
+        deleteNode(newNode);
         UA_NodeStore_release(node);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -92,7 +150,7 @@ static UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session
     
     // error presumably because the node was replaced and an old version was updated
     // just try again
-    nodeVT->delete(newNode);
+    deleteNode(newNode);
     return addOneWayReferenceWithSession(server, session, item);
 }
 
@@ -144,7 +202,8 @@ UA_AddNodesResult UA_Server_addNode(UA_Server *server, const UA_Node **node,
 }
 
 UA_AddNodesResult UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, const UA_Node **node,
-                                               const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId) {
+                                               const UA_ExpandedNodeId *parentNodeId,
+                                               const UA_NodeId *referenceTypeId) {
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
 

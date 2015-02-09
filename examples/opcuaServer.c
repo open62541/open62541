@@ -2,6 +2,8 @@
  * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
+#include <time.h>
+#include "ua_types.h"
 
 #include <stdio.h>
 #include <stdlib.h> 
@@ -10,7 +12,6 @@
 
 // provided by the open62541 lib
 #include "ua_server.h"
-#include "ua_namespace_0.h"
 
 // provided by the user, implementations available in the /examples folder
 #include "logger_stdout.h"
@@ -20,6 +21,7 @@
 #endif
 
 #include "ua_types.h"
+#include "ua_nodeids.h"
 
 UA_Boolean running = 1;
 
@@ -60,7 +62,6 @@ static void testCallback(UA_Server *server, void *data) {
 
 int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
-    printf("--- %lu\n", sizeof(UA_DataType));
 
 	UA_Server *server = UA_Server_new();
     UA_Server_setServerCertificate(server, loadCertificate());
@@ -70,7 +71,6 @@ int main(int argc, char** argv) {
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 #endif
 
-
     UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL, .work.methodCall = {.method = testCallback, .data = UA_NULL} };
     UA_Server_addRepeatedWorkItem(server, &work, 20000000, UA_NULL); // call every 2 sec
 
@@ -78,11 +78,11 @@ int main(int argc, char** argv) {
     UA_Int32 *myInteger = UA_Int32_new();
     *myInteger = 42;
     UA_QualifiedName myIntegerName;
-    UA_QUALIFIEDNAME_STATIC(myIntegerName, "the answer");
+    UA_QUALIFIEDNAME_ASSIGN(myIntegerName, "the answer");
     UA_Server_addScalarVariableNode(server, &myIntegerName,
-                                    myInteger, &UA_TYPES[UA_INT32],
-                                    &UA_EXPANDEDNODEIDS[UA_OBJECTSFOLDER],
-                                    &UA_NODEIDS[UA_ORGANIZES]);
+                                    myInteger, UA_NODEID_STATIC(UA_TYPES_IDS[UA_TYPES_INT32],0),
+                                    &UA_EXPANDEDNODEID_STATIC(UA_NS0ID_OBJECTSFOLDER,0),
+                                    &UA_NODEID_STATIC(UA_NS0ID_ORGANIZES,0));
     
 #ifdef BENCHMARK
     UA_UInt32 nodeCount = 500;
@@ -102,8 +102,8 @@ int main(int argc, char** argv) {
         tmpNode->value.storageType = UA_VARIANT_DATA_NODELETE;
         tmpNode->value.storage.data.arrayLength = 1;
         UA_Server_addNode(server, (const UA_Node**)&tmpNode,
-                          &UA_EXPANDEDNODEIDS[UA_OBJECTSFOLDER],
-                          &UA_NODEIDS[UA_HASCOMPONENT]);
+                          &UA_EXPANDEDNODEID_STATIC(UA_OBJECTSFOLDER,0),
+                          &UA_NODEID_STATIC(UA_HASCOMPONENT,0));
     }
 #endif
 

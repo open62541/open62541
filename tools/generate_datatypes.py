@@ -40,7 +40,6 @@ class TypeDescription(object):
         self.namespaceid = namespaceid
 
 def parseTypeDescriptions(filename, namespaceid):
-    print(filename)
     definitions = {}
     f = open(filename[0])
     input_str = f.read()
@@ -118,14 +117,14 @@ class EnumerationType(object):
             ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
 
     def functions_c(self, typeTableName):
-        return '''#define %s_new (UA_Int32*)UA_Int32_new
+        return '''#define %s_new (%s*)UA_Int32_new
 #define %s_init(p) UA_Int32_init((UA_Int32*)p)
 #define %s_delete(p) UA_Int32_delete((UA_Int32*)p)
 #define %s_deleteMembers(p) UA_Int32_deleteMembers((UA_Int32*)p)
-#define %s_copy(src, dst) UA_Int32_copy((UA_Int32*)src, (UA_Int32*)dst)
+#define %s_copy(src, dst) UA_Int32_copy((const UA_Int32*)src, (UA_Int32*)dst)
 #define %s_calcSizeBinary(p) UA_Int32_calcSizeBinary((UA_Int32*)p)
 #define %s_encodeBinary(src, dst, offset) UA_Int32_encodeBinary((UA_Int32*)src, dst, offset)
-#define %s_decodeBinary(src, offset, dst) UA_Int32_decodeBinary(src, offset, (UA_Int32*)dst)''' % tuple(itertools.repeat(self.name, 8))
+#define %s_decodeBinary(src, offset, dst) UA_Int32_decodeBinary(src, offset, (UA_Int32*)dst)''' % tuple(itertools.repeat(self.name, 9))
 
 class OpaqueType(object):
     def __init__(self, name, description = ""):
@@ -241,7 +240,7 @@ class StructType(object):
         return layout + "}}"
 
     def functions_c(self, typeTableName):
-        return '''#define %s_new UA_new(%s)
+        return '''#define %s_new() UA_new(%s)
 #define %s_init(p) UA_init(p, %s)
 #define %s_delete(p) UA_delete(p, %s)
 #define %s_deleteMembers(p) UA_deleteMembers(p, %s)
@@ -417,8 +416,8 @@ extern "C" {
 */
 ''')
 printh("#define " + outname.upper() + "_COUNT %s\n" % (str(len(types))))
-printh("extern const UA_DataType *" + outname.upper() + ";\n")
-printh("extern const UA_UInt32 *" + outname.upper() + "_IDS;\n")
+printh("extern UA_EXPORT const UA_DataType *" + outname.upper() + ";\n")
+printh("extern UA_EXPORT const UA_UInt32 *" + outname.upper() + "_IDS;\n")
 
 i = 0
 for t in types.itervalues():

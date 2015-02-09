@@ -1,6 +1,5 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
-#include "ua_namespace_0.h"
 #include "ua_statuscodes.h"
 #include "ua_nodestore.h"
 #include "ua_session.h"
@@ -21,10 +20,9 @@
         vnode->userWriteMask = attr.userWriteMask;                      \
     } while(0)
 
-static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node **new_node,
-                                       const UA_TypeVTable **vt) {
+static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node **new_node) {
     if(attributes->typeId.identifier.numeric !=
-       UA_NODEIDS[UA_VARIABLEATTRIBUTES].identifier.numeric + UA_ENCODINGOFFSET_BINARY)
+       UA_TYPES_IDS[UA_TYPES_VARIABLEATTRIBUTES] + UA_ENCODINGOFFSET_BINARY)
         return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
 
     UA_VariableAttributes attr;
@@ -78,14 +76,12 @@ static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node *
     UA_VariableAttributes_deleteMembers(&attr);
 
     *new_node = (UA_Node*)vnode;
-    *vt = &UA_TYPES[UA_VARIABLENODE];
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode parseObjectNode(UA_ExtensionObject *attributes,
-                                     UA_Node **new_node, const UA_TypeVTable **vt) {
+static UA_StatusCode parseObjectNode(UA_ExtensionObject *attributes, UA_Node **new_node) {
     if(attributes->typeId.identifier.numeric !=
-       UA_NODEIDS[UA_OBJECTATTRIBUTES].identifier.numeric + UA_ENCODINGOFFSET_BINARY)  // VariableAttributes_Encoding_DefaultBinary
+       UA_TYPES_IDS[UA_TYPES_OBJECTATTRIBUTES] + UA_ENCODINGOFFSET_BINARY)  // VariableAttributes_Encoding_DefaultBinary
         return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
     UA_ObjectAttributes attr;
     UA_UInt32 pos = 0;
@@ -104,12 +100,10 @@ static UA_StatusCode parseObjectNode(UA_ExtensionObject *attributes,
         vnode->eventNotifier = attr.eventNotifier;
     UA_ObjectAttributes_deleteMembers(&attr);
     *new_node = (UA_Node*) vnode;
-    *vt = &UA_TYPES[UA_OBJECTNODE];
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode parseReferenceTypeNode(UA_ExtensionObject *attributes,
-                                            UA_Node **new_node, const UA_TypeVTable **vt) {
+static UA_StatusCode parseReferenceTypeNode(UA_ExtensionObject *attributes, UA_Node **new_node) {
     UA_ReferenceTypeAttributes attr;
     UA_UInt32 pos = 0;
     // todo return more informative error codes from decodeBinary
@@ -136,12 +130,10 @@ static UA_StatusCode parseReferenceTypeNode(UA_ExtensionObject *attributes,
     }
     UA_ReferenceTypeAttributes_deleteMembers(&attr);
     *new_node = (UA_Node*) vnode;
-    *vt = &UA_TYPES[UA_REFERENCETYPENODE];
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode parseObjectTypeNode(UA_ExtensionObject *attributes,
-                                         UA_Node **new_node, const UA_TypeVTable **vt) {
+static UA_StatusCode parseObjectTypeNode(UA_ExtensionObject *attributes, UA_Node **new_node) {
     UA_ObjectTypeAttributes attr;
     UA_UInt32 pos = 0;
     // todo return more informative error codes from decodeBinary
@@ -160,12 +152,10 @@ static UA_StatusCode parseObjectTypeNode(UA_ExtensionObject *attributes,
     }
     UA_ObjectTypeAttributes_deleteMembers(&attr);
     *new_node = (UA_Node*) vnode;
-    *vt = &UA_TYPES[UA_OBJECTTYPENODE];
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode parseViewNode(UA_ExtensionObject *attributes, UA_Node **new_node,
-                                   const UA_TypeVTable **vt) {
+static UA_StatusCode parseViewNode(UA_ExtensionObject *attributes, UA_Node **new_node) {
     UA_ViewAttributes attr;
     UA_UInt32 pos = 0;
     // todo return more informative error codes from decodeBinary
@@ -184,7 +174,6 @@ static UA_StatusCode parseViewNode(UA_ExtensionObject *attributes, UA_Node **new
         vnode->eventNotifier = attr.eventNotifier;
     UA_ViewAttributes_deleteMembers(&attr);
     *new_node = (UA_Node*) vnode;
-    *vt = &UA_TYPES[UA_VIEWNODE];
     return UA_STATUSCODE_GOOD;
 }
 
@@ -198,20 +187,19 @@ static void addNodeFromAttributes(UA_Server *server, UA_Session *session, UA_Add
 
     // parse the node
     UA_Node *node = UA_NULL;
-    const UA_TypeVTable *nodeVT = UA_NULL;
 
     switch (item->nodeClass) {
     case UA_NODECLASS_OBJECT:
-        result->statusCode = parseObjectNode(&item->nodeAttributes, &node, &nodeVT);
+        result->statusCode = parseObjectNode(&item->nodeAttributes, &node);
         break;
     case UA_NODECLASS_OBJECTTYPE:
-        result->statusCode = parseObjectTypeNode(&item->nodeAttributes, &node, &nodeVT);
+        result->statusCode = parseObjectTypeNode(&item->nodeAttributes, &node);
         break;
     case UA_NODECLASS_REFERENCETYPE:
-        result->statusCode = parseReferenceTypeNode(&item->nodeAttributes, &node, &nodeVT);
+        result->statusCode = parseReferenceTypeNode(&item->nodeAttributes, &node);
         break;
     case UA_NODECLASS_VARIABLE:
-        result->statusCode = parseVariableNode(&item->nodeAttributes, &node, &nodeVT);
+        result->statusCode = parseVariableNode(&item->nodeAttributes, &node);
         break;
     default:
         result->statusCode = UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -224,8 +212,24 @@ static void addNodeFromAttributes(UA_Server *server, UA_Session *session, UA_Add
     const UA_Node *constNode = node; // compilers complain if we cast directly
     *result = UA_Server_addNodeWithSession(server, session, &constNode, &item->parentNodeId,
                                            &item->referenceTypeId);
-    if(result->statusCode != UA_STATUSCODE_GOOD)
-        nodeVT->delete(node);
+    if(result->statusCode != UA_STATUSCODE_GOOD) {
+        switch (node->nodeClass) {
+        case UA_NODECLASS_OBJECT:
+            UA_ObjectNode_delete((UA_ObjectNode*)node);
+            break;
+        case UA_NODECLASS_OBJECTTYPE:
+            UA_ObjectTypeNode_delete((UA_ObjectTypeNode*)node);
+            break;
+        case UA_NODECLASS_REFERENCETYPE:
+            UA_ReferenceTypeNode_delete((UA_ReferenceTypeNode*)node);
+            break;
+        case UA_NODECLASS_VARIABLE:
+            UA_VariableNode_delete((UA_VariableNode*)node);
+            break;
+        default:
+            UA_assert(UA_FALSE);
+        }
+    }
 }
 
 void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesRequest *request,
@@ -236,7 +240,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
     }
 
     UA_StatusCode retval = UA_Array_new((void**)&response->results, request->nodesToAddSize,
-                                        &UA_TYPES[UA_ADDNODESRESULT]);
+                                        &UA_TYPES[UA_TYPES_ADDNODESRESULT]);
     if(retval) {
         response->responseHeader.serviceResult = retval;
         return;

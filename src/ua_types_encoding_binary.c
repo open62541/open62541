@@ -650,9 +650,6 @@ UA_StatusCode UA_ExtensionObject_decodeBinary(UA_ByteString const *src, UA_UInt3
         break;
 
     case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING:
-    	//retval |= UA_TYPES[UA_ns0ToVTableIndex(&dst->typeId)].encodings[UA_ENCODING_BINARY].decode(src, offset, &dst->body);
-    	//break;
-
     case UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML:
         retval |= UA_ByteString_decodeBinary(src, offset, &dst->body);
         break;
@@ -1172,9 +1169,10 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, void 
 
         if(member->isArray) {
             ptr += (member->padding >> 3);
-            UA_Int32 noElements = *((UA_Int32*)ptr);
+            UA_Int32 *noElements = (UA_Int32*)ptr;
+            UA_Int32_decodeBinary(src, offset, noElements);
             ptr += sizeof(UA_Int32) + (member->padding & 0x07);
-            retval = UA_Array_decodeBinary(src, offset, noElements, (void**)ptr, memberType);
+            retval = UA_Array_decodeBinary(src, offset, *noElements, (void**)ptr, memberType);
             ptr += sizeof(void*);
             continue;
         }
@@ -1260,7 +1258,7 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, void 
 
 UA_UInt32 UA_Array_calcSizeBinary(const void *p, UA_Int32 noElements, const UA_DataType *dataType) {
     if(noElements <= 0)
-        return 0;
+        return 4;
     UA_UInt32 size = 4; // the array size encoding
     if(dataType->fixedSize) {
         size += noElements * UA_calcSizeBinary(p, dataType);
@@ -1276,10 +1274,11 @@ UA_UInt32 UA_Array_calcSizeBinary(const void *p, UA_Int32 noElements, const UA_D
 
 UA_StatusCode UA_Array_encodeBinary(const void *src, UA_Int32 noElements, const UA_DataType *dataType,
                                     UA_ByteString *dst, UA_UInt32 *offset) {
-    if(noElements <= 0)
-        return 0;
-    const UA_Byte *ptr = (const UA_Byte*)src;
+    if(noElements <= -1)
+        noElements = -1;
+    UA_Int32_encodeBinary(&noElements, dst, offset);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    const UA_Byte *ptr = (const UA_Byte*)src;
     for(int i=0;i<noElements && retval == UA_STATUSCODE_GOOD;i++) {
         retval = UA_encodeBinary(ptr, dataType, dst, offset);
         ptr += dataType->memSize;
@@ -1297,7 +1296,8 @@ UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset,
     if(dataType->memSize * noElements < 0 || dataType->memSize * noElements > MAX_ARRAY_SIZE )
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    if(*offset + (dataType->memSize * noElements) > (UA_UInt32)src->length)
+    // filter out arrays that can obviously not be parsed
+    if(*offset + ((dataType->memSize * noElements)/8) > (UA_UInt32)src->length)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = UA_malloc(dataType->memSize * noElements);

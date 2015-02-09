@@ -1,11 +1,14 @@
 #include <stdio.h>
 
 #include "ua_server_internal.h"
+#include "ua_types_encoding_binary.h"
+#include "ua_transport_generated.h"
 #include "ua_services.h"
 #include "ua_statuscodes.h"
 #include "ua_securechannel_manager.h"
 #include "ua_session_manager.h"
 #include "ua_util.h"
+#include "ua_nodeids.h"
 
 /** Max size of messages that are allocated on the stack */
 #define MAX_STACK_MESSAGE 65536
@@ -41,8 +44,7 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, UA_U
     ackMessage.maxChunkCount     = connection->localConf.maxChunkCount;
 
     UA_TcpMessageHeader ackHeader;
-    ackHeader.messageType = UA_MESSAGETYPE_ACK;
-    ackHeader.isFinal     = 'F';
+    ackHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_ACKF;
     ackHeader.messageSize = UA_TcpAcknowledgeMessage_calcSizeBinary(&ackMessage) +
                             UA_TcpMessageHeader_calcSizeBinary(&ackHeader);
 
@@ -90,12 +92,12 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
 
     /* Response */
     UA_SecureConversationMessageHeader respHeader;
-    respHeader.messageHeader.messageType = UA_MESSAGETYPE_OPN;
-    respHeader.messageHeader.isFinal     = 'F';
+    respHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_OPNF;
     respHeader.messageHeader.messageSize = 0;
     respHeader.secureChannelId = p.securityToken.channelId;
 
-    UA_NodeId responseType = UA_NODEIDS[UA_OPENSECURECHANNELRESPONSE];
+    UA_NodeId responseType;
+    UA_NODEID_ASSIGN(responseType, UA_NS0ID_OPENSECURECHANNELRESPONSE, 0);
     responseType.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
 
     respHeader.messageHeader.messageSize =
@@ -128,12 +130,6 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
     r->timestamp       = UA_DateTime_now();
 }
 
-#define CHECK_PROCESS(CODE, CLEANUP)         \
-    do { if(CODE != UA_STATUSCODE_GOOD) {    \
-            CLEANUP;                         \
-            return;                          \
-        } } while(0)
-
 // if the message is small enough, we allocate it on the stack and save a malloc
 #define ALLOC_MESSAGE(MESSAGE, SIZE) do {                               \
         UA_UInt32 messageSize = SIZE;                                   \
@@ -148,7 +144,8 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
 #define INVOKE_SERVICE(TYPE) do {                                       \
         UA_##TYPE##Request p;                                           \
         UA_##TYPE##Response r;                                          \
-        CHECK_PROCESS(UA_##TYPE##Request_decodeBinary(msg, pos, &p),;); \
+        if(UA_##TYPE##Request_decodeBinary(msg, pos, &p))               \
+            return;                                                     \
         UA_##TYPE##Response_init(&r);                                   \
         init_response_header(&p.requestHeader, &r.responseHeader);      \
         Service_##TYPE(server, clientSession, &p, &r);                  \
@@ -181,7 +178,8 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     UA_UInt32 tokenId;
     UA_UInt32_decodeBinary(msg, pos, &tokenId);
     UA_SequenceHeader sequenceHeader;
-    CHECK_PROCESS(UA_SequenceHeader_decodeBinary(msg, pos, &sequenceHeader),; );
+    if(UA_SequenceHeader_decodeBinary(msg, pos, &sequenceHeader))
+        return;
 
     clientChannel->sequenceNumber = sequenceHeader.sequenceNumber;
     clientChannel->requestId = sequenceHeader.requestId;
@@ -191,7 +189,8 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
 
     // 3) Read the nodeid of the request
     UA_NodeId requestType;
-    CHECK_PROCESS(UA_NodeId_decodeBinary(msg, pos, &requestType),; );
+    if(UA_NodeId_decodeBinary(msg, pos, &requestType))
+        return;
     if(requestType.identifierType != UA_NODEIDTYPE_NUMERIC) {
         // if the nodeidtype is numeric, we do not have to free anything
         UA_NodeId_deleteMembers(&requestType);
@@ -228,7 +227,8 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     				requestType.namespaceIndex, requestType.identifier.numeric);
     		UA_RequestHeader  p;
     		UA_ResponseHeader r;
-    		CHECK_PROCESS(UA_RequestHeader_decodeBinary(msg, pos, &p),; );
+    		if(UA_RequestHeader_decodeBinary(msg, pos, &p))
+                return;
     		UA_ResponseHeader_init(&r);
     		init_response_header(&p, &r);
     		r.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
@@ -236,7 +236,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     		UA_ResponseHeader_encodeBinary(&r, message, &sendOffset);
     		UA_RequestHeader_deleteMembers(&p);
     		UA_ResponseHeader_deleteMembers(&r);
-    		responseType = UA_NODEIDS[UA_RESPONSEHEADER].identifier.numeric + UA_ENCODINGOFFSET_BINARY; }
+    		responseType = UA_NS0ID_RESPONSEHEADER + UA_ENCODINGOFFSET_BINARY; }
             break;
     	}
     } else {
@@ -244,10 +244,11 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     	//non-stateless service calls
     	//subtract UA_ENCODINGOFFSET_BINARY for binary encoding
     	switch(requestType.identifier.numeric - UA_ENCODINGOFFSET_BINARY) {
-    	case UA_GETENDPOINTSREQUEST_NS0: {
+    	case UA_NS0ID_GETENDPOINTSREQUEST: {
     		UA_GetEndpointsRequest  p;
     		UA_GetEndpointsResponse r;
-    		CHECK_PROCESS(UA_GetEndpointsRequest_decodeBinary(msg, pos, &p),; );
+    		if(UA_GetEndpointsRequest_decodeBinary(msg, pos, &p))
+                return;
     		UA_GetEndpointsResponse_init(&r);
     		init_response_header(&p.requestHeader, &r.responseHeader);
     		Service_GetEndpoints(server, &p, &r);
@@ -259,10 +260,11 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     		break;
     	}
 
-    	case UA_CREATESESSIONREQUEST_NS0: {
+    	case UA_NS0ID_CREATESESSIONREQUEST: {
     		UA_CreateSessionRequest  p;
     		UA_CreateSessionResponse r;
-    		CHECK_PROCESS(UA_CreateSessionRequest_decodeBinary(msg, pos, &p),; );
+            if(UA_CreateSessionRequest_decodeBinary(msg, pos, &p))
+                return;
     		UA_CreateSessionResponse_init(&r);
     		init_response_header(&p.requestHeader, &r.responseHeader);
     		Service_CreateSession(server, clientChannel,  &p, &r);
@@ -274,10 +276,11 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     		break;
     	}
 
-    	case UA_ACTIVATESESSIONREQUEST_NS0: {
+    	case UA_NS0ID_ACTIVATESESSIONREQUEST: {
     		UA_ActivateSessionRequest  p;
     		UA_ActivateSessionResponse r;
-    		CHECK_PROCESS(UA_ActivateSessionRequest_decodeBinary(msg, pos, &p),; );
+    		if(UA_ActivateSessionRequest_decodeBinary(msg, pos, &p))
+                return;
     		UA_ActivateSessionResponse_init(&r);
     		init_response_header(&p.requestHeader, &r.responseHeader);
     		Service_ActivateSession(server, clientChannel,  &p, &r);
@@ -289,10 +292,11 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     		break;
     	}
 
-    	case UA_CLOSESESSIONREQUEST_NS0: {
+    	case UA_NS0ID_CLOSESESSIONREQUEST: {
     		UA_CloseSessionRequest  p;
     		UA_CloseSessionResponse r;
-    		CHECK_PROCESS(UA_CloseSessionRequest_decodeBinary(msg, pos, &p),; );
+    		if(UA_CloseSessionRequest_decodeBinary(msg, pos, &p))
+                return;
     		UA_CloseSessionResponse_init(&r);
     		init_response_header(&p.requestHeader, &r.responseHeader);
     		Service_CloseSession(server, &p, &r);
@@ -304,23 +308,23 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     		break;
     	}
 
-    	case UA_READREQUEST_NS0:
+    	case UA_NS0ID_READREQUEST:
     		INVOKE_SERVICE(Read);
     		break;
 
-    	case UA_WRITEREQUEST_NS0:
+    	case UA_NS0ID_WRITEREQUEST:
     		INVOKE_SERVICE(Write);
     		break;
 
-    	case UA_BROWSEREQUEST_NS0:
+    	case UA_NS0ID_BROWSEREQUEST:
     		INVOKE_SERVICE(Browse);
     		break;
 
-    	case UA_ADDREFERENCESREQUEST_NS0:
+    	case UA_NS0ID_ADDREFERENCESREQUEST:
     		INVOKE_SERVICE(AddReferences);
     		break;
 
-    	case UA_TRANSLATEBROWSEPATHSTONODEIDSREQUEST_NS0:
+    	case UA_NS0ID_TRANSLATEBROWSEPATHSTONODEIDSREQUEST:
     		INVOKE_SERVICE(TranslateBrowsePathsToNodeIds);
     		break;
 
@@ -329,7 +333,8 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     				requestType.namespaceIndex, requestType.identifier.numeric);
     		UA_RequestHeader  p;
     		UA_ResponseHeader r;
-    		CHECK_PROCESS(UA_RequestHeader_decodeBinary(msg, pos, &p),; );
+    		if(UA_RequestHeader_decodeBinary(msg, pos, &p))
+                return;
     		UA_ResponseHeader_init(&r);
     		init_response_header(&p, &r);
     		r.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
@@ -337,7 +342,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     		UA_ResponseHeader_encodeBinary(&r, message, &sendOffset);
     		UA_RequestHeader_deleteMembers(&p);
     		UA_ResponseHeader_deleteMembers(&r);
-    		responseType = UA_NODEIDS[UA_RESPONSEHEADER].identifier.numeric + UA_ENCODINGOFFSET_BINARY;
+    		responseType = UA_NS0ID_RESPONSEHEADER + UA_ENCODINGOFFSET_BINARY;
     	}
     	break;
     	}
@@ -347,8 +352,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
 
     // 5) Build the header
     UA_SecureConversationMessageHeader respHeader;
-    respHeader.messageHeader.messageType = UA_MESSAGETYPE_MSG;
-    respHeader.messageHeader.isFinal     = 'F';
+    respHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
     respHeader.messageHeader.messageSize = 0;
     respHeader.secureChannelId = clientChannel->securityToken.channelId;
 
@@ -411,16 +415,16 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
         }
 
         UA_UInt32 targetpos = pos - 8 + tcpMessageHeader.messageSize;
-        switch(tcpMessageHeader.messageType) {
-        case UA_MESSAGETYPE_HEL:
+        switch(tcpMessageHeader.messageTypeAndFinal & 0xffffff) {
+        case UA_MESSAGETYPEANDFINAL_HELF & 0xffffff:
             processHEL(connection, msg, &pos);
             break;
 
-        case UA_MESSAGETYPE_OPN:
+        case UA_MESSAGETYPEANDFINAL_OPNF & 0xffffff:
             processOPN(connection, server, msg, &pos);
             break;
 
-        case UA_MESSAGETYPE_MSG:
+        case UA_MESSAGETYPEANDFINAL_MSGF & 0xffffff:
 #ifndef EXTENSION_STATELESS
             if(connection->state == UA_CONNECTION_ESTABLISHED && connection->channel != UA_NULL)
                 processMSG(connection, server, msg, &pos);
@@ -431,7 +435,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
 #endif
             break;
 
-        case UA_MESSAGETYPE_CLO:
+        case UA_MESSAGETYPEANDFINAL_CLOF & 0xffffff:
             processCLO(connection, server, msg, &pos);
             connection->close(connection);
             return;
