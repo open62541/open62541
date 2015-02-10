@@ -208,36 +208,38 @@ class StructType(object):
                  ", .zeroCopyable = " + ("sizeof(" + self.name + ") == " + str(self.mem_size()) if self.zero_copy() \
                                          else "UA_FALSE") + \
                  ", .typeIndex = " + outname.upper() + "_" + self.name[3:].upper() + \
-                 ", .membersSize = " + str(len(self.members)) + "," + \
-                 "\n\t.members={"
-        for index, member in enumerate(self.members.values()):
-            layout += "\n\t{" + \
-                      ".memberTypeIndex = " + ("UA_TYPES_" + member.memberType.name[3:].upper() if args.namespace_id == 0 or member.memberType.name in existing_types else \
-                                               outname.upper() + "_" + member.memberType.name[3:].upper()) + ", " + \
-                      ".namespaceZero = "+ \
-                      ("UA_TRUE, " if args.namespace_id == 0 or member.memberType.name in existing_types else "UA_FALSE, ") + \
-                      ".padding = "
+                 ", .membersSize = " + str(len(self.members)) + ","
+        if len(self.members) > 0:
+            layout += "\n\t.members={"
+            for index, member in enumerate(self.members.values()):
+                layout += "\n\t{" + \
+                          ".memberTypeIndex = " + ("UA_TYPES_" + member.memberType.name[3:].upper() if args.namespace_id == 0 or member.memberType.name in existing_types else \
+                                                   outname.upper() + "_" + member.memberType.name[3:].upper()) + ", " + \
+                          ".namespaceZero = "+ \
+                          ("UA_TRUE, " if args.namespace_id == 0 or member.memberType.name in existing_types else "UA_FALSE, ") + \
+                          ".padding = "
 
-            before_endpos = "0"
-            thispos = "offsetof(%s, %s)" % (self.name, member.name)
-            if index > 0:
-                before = self.members.values()[index-1]
-                before_endpos = "(offsetof(%s, %s)" % (self.name, before.name)
-                if before.isArray:
-                    before_endpos += " + sizeof(void*))"
-                else:
-                    before_endpos += " + sizeof(%s))" % before.memberType.name
+                before_endpos = "0"
+                thispos = "offsetof(%s, %s)" % (self.name, member.name)
+                if index > 0:
+                    before = self.members.values()[index-1]
+                    before_endpos = "(offsetof(%s, %s)" % (self.name, before.name)
+                    if before.isArray:
+                        before_endpos += " + sizeof(void*))"
+                    else:
+                        before_endpos += " + sizeof(%s))" % before.memberType.name
             
-            if member.isArray:
-                # the first two bytes are padding for the length index, the last three for the pointer
-                length_pos = "offsetof(%s, %sSize)" % (self.name, member.name)
-                if index != 0:
-                    layout += "((%s - %s) << 3) + " % (length_pos, before_endpos)
-                layout += "(%s - sizeof(UA_Int32) - %s)" % (thispos, length_pos)
-            else:
-                layout += "%s - %s" % (thispos, before_endpos)
-            layout += ", .isArray = " + ("UA_TRUE" if member.isArray else "UA_FALSE") + " }, "
-        return layout + "}}"
+                if member.isArray:
+                    # the first two bytes are padding for the length index, the last three for the pointer
+                    length_pos = "offsetof(%s, %sSize)" % (self.name, member.name)
+                    if index != 0:
+                        layout += "((%s - %s) << 3) + " % (length_pos, before_endpos)
+                    layout += "(%s - sizeof(UA_Int32) - %s)" % (thispos, length_pos)
+                else:
+                    layout += "%s - %s" % (thispos, before_endpos)
+                layout += ", .isArray = " + ("UA_TRUE" if member.isArray else "UA_FALSE") + " }, "
+            layout += "}"
+        return layout + "}"
 
     def functions_c(self, typeTableName):
         return '''#define %s_new() UA_new(%s)
