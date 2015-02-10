@@ -55,7 +55,7 @@ START_TEST(replaceNonExistingNode) {
     
 	ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
     
-    UA_Node_delete(n2);
+    UA_VariableNode_delete((UA_VariableNode*)n2);
 	UA_NodeStore_delete(ns);
 }
 END_TEST
@@ -97,7 +97,7 @@ START_TEST(failToFindNodeInOtherUA_NodeStore) {
 	// then
 	ck_assert_ptr_eq((const void*)nr, UA_NULL);
 	// finally
-	UA_Node_delete(n);
+	UA_VariableNode_delete((UA_VariableNode*)n);
 	UA_NodeStore_delete(ns);
 #ifdef UA_MULTITHREADING
 	rcu_unregister_thread();

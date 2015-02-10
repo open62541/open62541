@@ -1297,7 +1297,7 @@ UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     // filter out arrays that can obviously not be parsed
-    if(*offset + ((dataType->memSize * noElements)/8) > (UA_UInt32)src->length)
+    if(*offset + ((dataType->memSize * noElements)/32) > (UA_UInt32)src->length)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = UA_malloc(dataType->memSize * noElements);
