@@ -1,30 +1,6 @@
 #include "ua_server.h"
 #include "ua_server_internal.h"
 
-/* static const UA_TypeVTable * UA_Node_getTypeVT(const UA_Node *node) { */
-/*     switch(node->nodeClass) { */
-/*     case UA_NODECLASS_OBJECT: */
-/*         return &UA_TYPES[UA_OBJECTNODE]; */
-/*     case UA_NODECLASS_VARIABLE: */
-/*         return &UA_TYPES[UA_VARIABLENODE]; */
-/*     case UA_NODECLASS_METHOD: */
-/*         return &UA_TYPES[UA_METHODNODE]; */
-/*     case UA_NODECLASS_OBJECTTYPE: */
-/*         return &UA_TYPES[UA_OBJECTTYPENODE]; */
-/*     case UA_NODECLASS_VARIABLETYPE: */
-/*         return &UA_TYPES[UA_VARIABLETYPENODE]; */
-/*     case UA_NODECLASS_REFERENCETYPE: */
-/*         return &UA_TYPES[UA_REFERENCETYPENODE]; */
-/*     case UA_NODECLASS_DATATYPE: */
-/*         return &UA_TYPES[UA_DATATYPENODE]; */
-/*     case UA_NODECLASS_VIEW: */
-/*         return &UA_TYPES[UA_VIEWNODE]; */
-/*     default: break; */
-/*     } */
-
-/*     return &UA_TYPES[UA_INVALIDTYPE]; */
-/* } */
-
 UA_StatusCode UA_Server_addScalarVariableNode(UA_Server *server, UA_QualifiedName *browseName,
                                               void *value, const UA_NodeId typeId,
                                               const UA_ExpandedNodeId *parentNodeId,

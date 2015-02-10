@@ -19,7 +19,7 @@ static void UA_Node_deleteMembers(UA_Node *p) {
 	UA_QualifiedName_deleteMembers(&p->browseName);
 	UA_LocalizedText_deleteMembers(&p->displayName);
 	UA_LocalizedText_deleteMembers(&p->description);
-	UA_Array_delete((void*)p->references, p->referencesSize, &UA_TYPES[UA_TYPES_REFERENCENODE]);
+	UA_Array_delete(p->references, p->referencesSize, &UA_TYPES[UA_TYPES_REFERENCENODE]);
 }
 
 static UA_StatusCode UA_Node_copy(const UA_Node *src, UA_Node *dst) {
@@ -118,7 +118,7 @@ UA_VariableNode * UA_VariableNode_new(void) {
 void UA_VariableNode_deleteMembers(UA_VariableNode *p) {
     UA_Node_deleteMembers((UA_Node*)p);
     UA_Variant_deleteMembers(&p->value);
-    UA_Array_delete(&p->arrayDimensions, p->arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Array_delete(p->arrayDimensions, p->arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
     p->arrayDimensionsSize = -1;
 }
 
@@ -173,7 +173,7 @@ UA_VariableTypeNode * UA_VariableTypeNode_new(void) {
 void UA_VariableTypeNode_deleteMembers(UA_VariableTypeNode *p) {
     UA_Node_deleteMembers((UA_Node*)p);
     UA_Variant_deleteMembers(&p->value);
-    UA_Array_delete(&p->arrayDimensions, p->arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Array_delete(p->arrayDimensions, p->arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
     p->arrayDimensionsSize = -1;
 }
 
