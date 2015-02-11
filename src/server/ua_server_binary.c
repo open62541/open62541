@@ -210,15 +210,15 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     if(clientSession == &anonymousSession) {
     	//subtract UA_ENCODINGOFFSET_BINARY for binary encoding
     	switch(requestType.identifier.numeric - UA_ENCODINGOFFSET_BINARY) {
-    	case UA_READREQUEST_NS0:
+    	case UA_NS0ID_READREQUEST:
     		INVOKE_SERVICE(Read);
     		break;
 
-    	case UA_WRITEREQUEST_NS0:
+    	case UA_NS0ID_WRITEREQUEST:
     		INVOKE_SERVICE(Write);
     		break;
 
-    	case UA_BROWSEREQUEST_NS0:
+    	case UA_NS0ID_BROWSEREQUEST:
     		INVOKE_SERVICE(Browse);
     		break;
 

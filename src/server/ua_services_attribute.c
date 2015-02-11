@@ -230,12 +230,12 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 
 		UA_Variant variant;
 		UA_Variant_init(&variant);
-		variant.vt = &UA_TYPES[UA_DATETIME];
+		variant.type = &UA_TYPES[UA_TYPES_DATETIME];
 		variant.storage.data.arrayLength = request->nodesToReadSize;
 
 		UA_DateTime* expireArray = UA_NULL;
 		UA_Array_new((void**)&expireArray, request->nodesToReadSize,
-												&UA_TYPES[UA_DATETIME]);
+												&UA_TYPES[UA_TYPES_DATETIME]);
 		variant.storage.data.dataPtr = expireArray;
 
 		UA_ByteString str;
