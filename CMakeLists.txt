@@ -148,8 +148,10 @@ else()
     list(APPEND lib_sources src/server/ua_nodestore.c)
 endif()
 
-add_library(open62541-objects OBJECT ${lib_sources}) # static version that exports all symbols
+add_library(open62541-objects OBJECT ${lib_sources}) 
 add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-objects>)
+add_library(open62541-static STATIC $<TARGET_OBJECTS:open62541-objects>)
+SET_TARGET_PROPERTIES(open62541-static PROPERTIES OUTPUT_NAME open62541 CLEAN_DIRECT_OUTPUT 1) # static version that exports all symbols
 target_compile_definitions(open62541-objects PUBLIC UA_DYNAMIC_LINKING)
 
 ## logging

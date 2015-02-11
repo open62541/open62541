@@ -200,9 +200,9 @@ static UA_StatusCode addTimedWork(UA_Server *server, const UA_WorkItem *item, UA
 }
 
 // Currently, these functions need to get the server mutex, but should be sufficiently fast
-UA_StatusCode UA_Server_addTimedWorkItem(UA_Server *server, const UA_WorkItem *work, UA_DateTime time,
+UA_StatusCode UA_Server_addTimedWorkItem(UA_Server *server, const UA_WorkItem *work, UA_DateTime executionTime,
                                          UA_Guid *resultWorkGuid) {
-    return addTimedWork(server, work, time, 0, resultWorkGuid);
+    return addTimedWork(server, work, executionTime, 0, resultWorkGuid);
 }
 
 UA_StatusCode UA_Server_addRepeatedWorkItem(UA_Server *server, const UA_WorkItem *work, UA_UInt32 interval,
