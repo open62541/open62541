@@ -34,7 +34,7 @@
 
 #define MAXBACKLOG 100
 
-struct Networklayer_UDP;
+struct ServerNetworklayerUDP;
 
 /* Forwarded to the server as a (UA_Connection) and used for callbacks back into
    the networklayer */
@@ -42,10 +42,10 @@ typedef struct {
 	UA_Connection connection;
 	struct sockaddr from;
 	socklen_t fromlen;
-	struct NetworkLayerUDP *layer;
+	struct ServerNetworkLayerUDP *layer;
 } UDPConnection;
 
-typedef struct NetworkLayerUDP {
+typedef struct ServerNetworkLayerUDP {
 	UA_ConnectionConfig conf;
 	fd_set fdset;
 #ifdef _WIN32
@@ -54,7 +54,7 @@ typedef struct NetworkLayerUDP {
 	UA_Int32 serversockfd;
 #endif
     UA_UInt32 port;
-} NetworkLayerUDP;
+} ServerNetworkLayerUDP;
 
 static UA_StatusCode setNonBlocking(int sockid) {
 #ifdef _WIN32
@@ -69,7 +69,7 @@ static UA_StatusCode setNonBlocking(int sockid) {
 	return UA_STATUSCODE_GOOD;
 }
 
-static void setFDSet(NetworkLayerUDP *layer) {
+static void setFDSet(ServerNetworkLayerUDP *layer) {
 	FD_ZERO(&layer->fdset);
 	FD_SET(layer->serversockfd, &layer->fdset);
 }
@@ -150,7 +150,7 @@ void writeCallbackUDP(UDPConnection *handle, UA_ByteStringArray gather_buf) {
 #endif
 }
 
-static UA_StatusCode NetworkLayerUDP_start(NetworkLayerUDP *layer) {
+static UA_StatusCode ServerNetworkLayerUDP_start(ServerNetworkLayerUDP *layer) {
 #ifdef _WIN32
 	WORD wVersionRequested;
 	WSADATA wsaData;
@@ -195,7 +195,7 @@ static UA_StatusCode NetworkLayerUDP_start(NetworkLayerUDP *layer) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_Int32 NetworkLayerUDP_getWork(NetworkLayerUDP *layer, UA_WorkItem **workItems,
+static UA_Int32 ServerNetworkLayerUDP_getWork(ServerNetworkLayerUDP *layer, UA_WorkItem **workItems,
                                         UA_UInt16 timeout) {
     UA_WorkItem *items = UA_NULL;
     setFDSet(layer);
@@ -267,25 +267,25 @@ static UA_Int32 NetworkLayerUDP_getWork(NetworkLayerUDP *layer, UA_WorkItem **wo
     return j;
 }
 
-static UA_Int32 NetworkLayerUDP_stop(NetworkLayerUDP * layer, UA_WorkItem **workItems) {
+static UA_Int32 ServerNetworkLayerUDP_stop(ServerNetworkLayerUDP * layer, UA_WorkItem **workItems) {
 	CLOSESOCKET(layer->serversockfd);
 	return 0;
 }
 
-static void NetworkLayerUDP_delete(NetworkLayerUDP *layer) {
+static void ServerNetworkLayerUDP_delete(ServerNetworkLayerUDP *layer) {
 	free(layer);
 }
 
-UA_NetworkLayer NetworkLayerUDP_new(UA_ConnectionConfig conf, UA_UInt32 port) {
-    NetworkLayerUDP *udplayer = malloc(sizeof(NetworkLayerUDP));
+UA_ServerNetworkLayer ServerNetworkLayerUDP_new(UA_ConnectionConfig conf, UA_UInt32 port){
+    ServerNetworkLayerUDP *udplayer = malloc(sizeof(ServerNetworkLayerUDP));
 	udplayer->conf = conf;
     udplayer->port = port;
 
-    UA_NetworkLayer nl;
+    UA_ServerNetworkLayer nl;
     nl.nlHandle = udplayer;
-    nl.start = (UA_StatusCode (*)(void*))NetworkLayerUDP_start;
-    nl.getWork = (UA_Int32 (*)(void*, UA_WorkItem**, UA_UInt16)) NetworkLayerUDP_getWork;
-    nl.stop = (UA_Int32 (*)(void*, UA_WorkItem**)) NetworkLayerUDP_stop;
-    nl.delete = (void (*)(void*))NetworkLayerUDP_delete;
+    nl.start = (UA_StatusCode (*)(void*))ServerNetworkLayerUDP_start;
+    nl.getWork = (UA_Int32 (*)(void*, UA_WorkItem**, UA_UInt16)) ServerNetworkLayerUDP_getWork;
+    nl.stop = (UA_Int32 (*)(void*, UA_WorkItem**)) ServerNetworkLayerUDP_stop;
+    nl.free = (void (*)(void*))ServerNetworkLayerUDP_delete;
     return nl;
 }
