@@ -62,10 +62,11 @@ void UA_Server_delete(UA_Server *server) {
     UA_NodeStore_delete(server->nodestore);
     UA_ByteString_deleteMembers(&server->serverCertificate);
     UA_Array_delete(server->endpointDescriptions, server->endpointDescriptionsSize, &UA_TYPES[UA_ENDPOINTDESCRIPTION]);
-    UA_free(server);
 #ifdef UA_MULTITHREADING
+    pthread_cond_destroy(&server->dispatchQueue_condition); // so the workers don't spin if the queue is empty
     rcu_barrier(); // wait for all scheduled call_rcu work to complete
 #endif
+    UA_free(server);
 }
 
 UA_Server * UA_Server_new(void) {
