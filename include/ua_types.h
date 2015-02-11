@@ -403,6 +403,7 @@ UA_StatusCode UA_EXPORT UA_Variant_copySetArray(UA_Variant *v, const void *array
 
 #define UA_MAX_TYPE_MEMBERS 13 // Maximum number of members per complex type
 
+#ifndef _WIN32
 typedef struct {
     UA_UInt16 memberTypeIndex : 9; ///< Index of the member in the datatypetable
     UA_Boolean namespaceZero : 1; /**< The type of the member is defined in namespace zero. In this
@@ -423,6 +424,28 @@ struct UA_DataType {
     UA_Byte membersSize; ///< How many members does the type have?
     UA_DataTypeMember members[UA_MAX_TYPE_MEMBERS];
 };
+#else
+typedef struct {
+	UA_UInt16 memberTypeIndex; ///< Index of the member in the datatypetable
+	UA_Boolean namespaceZero; /**< The type of the member is defined in namespace zero. In this
+								  implementation, types from custom namespace may contain
+								  members from the same namespace or ns0 only.*/
+	UA_Byte padding; /**< How much padding is there before this member element? For arrays this
+						 is split into 2 bytes padding for for the length index (max 4 bytes)
+						 and 3 bytes padding for the pointer (max 8 bytes) */
+	UA_Boolean isArray; ///< The member is an array of the given type
+} UA_DataTypeMember;
+
+struct UA_DataType {
+	UA_UInt16 memSize; ///< Size of the struct in memory
+	UA_UInt16 typeIndex; ///< Index of the type in the datatytypetable
+	UA_Boolean namespaceZero; ///< The type is defined in namespace zero.
+	UA_Boolean fixedSize; ///< The type (and its members) contains no pointers
+	UA_Boolean zeroCopyable; ///< Can the type be copied directly off the stream?
+	UA_Byte membersSize; ///< How many members does the type have?
+	UA_DataTypeMember members[UA_MAX_TYPE_MEMBERS];
+};
+#endif
 
 void UA_EXPORT * UA_new(const UA_DataType *dataType);
 void UA_EXPORT UA_init(void *p, const UA_DataType *dataType);
