@@ -9,8 +9,8 @@
 #include <stdlib.h> // pulls in declaration of malloc, free
 
 #include "ua_transport_generated.h"
-#include "ua_namespace_0.h"
 #include "ua_util.h"
+#include "ua_types_encoding_binary.h"
 
 
 int main(int argc , char *argv[])
@@ -72,7 +72,7 @@ int main(int argc , char *argv[])
 	req.requestHeader.additionalHeader = reqHeaderAdditionalHeader;
 	UA_ExtensionObject_init(&(req.requestHeader.additionalHeader));
 
-	UA_Array_new((void **)&req.nodesToRead, 1, &UA_TYPES[UA_READVALUEID]);
+	UA_Array_new((void **)&req.nodesToRead, 1, &UA_TYPES[UA_TYPES_READVALUEID]);
 	req.nodesToReadSize = 1;
 
 	UA_ReadValueId_init(&(req.nodesToRead[0]));
@@ -91,10 +91,8 @@ int main(int argc , char *argv[])
 			UA_ReadRequest_calcSizeBinary(&req);
 
 	UA_TcpMessageHeader_init(&reqTcpHeader);
-	reqTcpHeader.messageType = UA_MESSAGETYPE_MSG;
+	reqTcpHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
 	reqTcpHeader.messageSize = messageEncodedLength;
-	reqTcpHeader.isFinal = 'F';
-
 
 	UA_TcpMessageHeader_encodeBinary(&reqTcpHeader, &message, &messagepos);
 	UA_UInt32_encodeBinary(&reqSecureChannelId, &message, &messagepos);
