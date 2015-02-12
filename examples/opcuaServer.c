@@ -86,24 +86,17 @@ int main(int argc, char** argv) {
     
 #ifdef BENCHMARK
     UA_UInt32 nodeCount = 500;
-    UA_Int32 data = 42;
     char str[15];
     for(UA_UInt32 i = 0;i<nodeCount;i++) {
-        UA_VariableNode *tmpNode = UA_VariableNode_new();
+        UA_Int32 *data = UA_Int32_new();
+        UA_QualifiedName *nodeName = UA_QualifiedName_new();
+        *data = 42;
         sprintf(str,"%d",i);
-        UA_QualifiedName_copycstring(str,&tmpNode->browseName);
-        UA_LocalizedText_copycstring(str,&tmpNode->displayName);
-        UA_LocalizedText_copycstring("integer value", &tmpNode->description);
-        tmpNode->nodeId.identifier.numeric = 19000+i;
-        tmpNode->nodeClass = UA_NODECLASS_VARIABLE;
-        //tmpNode->valueRank = -1;
-        tmpNode->value.vt = &UA_TYPES[UA_INT32];
-        tmpNode->value.storage.data.dataPtr = &data;
-        tmpNode->value.storageType = UA_VARIANT_DATA_NODELETE;
-        tmpNode->value.storage.data.arrayLength = 1;
-        UA_Server_addNode(server, (const UA_Node**)&tmpNode,
-                          &UA_EXPANDEDNODEID_STATIC(UA_OBJECTSFOLDER,0),
-                          &UA_NODEID_STATIC(UA_HASCOMPONENT,0));
+        UA_QualifiedName_copycstring(str, nodeName);
+        UA_Server_addScalarVariableNode(server, nodeName,
+                                        data, UA_NODEID_STATIC(UA_TYPES_IDS[UA_TYPES_INT32],0),
+                                        &UA_EXPANDEDNODEID_STATIC(UA_NS0ID_OBJECTSFOLDER,0),
+                                        &UA_NODEID_STATIC(UA_NS0ID_ORGANIZES,0));
     }
 #endif
 
