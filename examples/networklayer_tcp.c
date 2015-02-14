@@ -317,6 +317,8 @@ static UA_Int32 NetworkLayerTCP_getWork(NetworkLayerTCP *layer, UA_WorkItem **wo
 		struct sockaddr_in cli_addr;
 		socklen_t cli_len = sizeof(cli_addr);
 		int newsockfd = accept(layer->serversockfd, (struct sockaddr *) &cli_addr, &cli_len);
+		int i = 1;
+		setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&i, sizeof(i));
 		if (newsockfd >= 0)
 			NetworkLayerTCP_add(layer, newsockfd);
 	}
