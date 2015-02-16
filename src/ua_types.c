@@ -1012,7 +1012,7 @@ UA_StatusCode UA_Array_new(void **p, UA_Int32 noElements, const UA_DataType *dat
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    if(dataType->memSize * noElements < 0 || dataType->memSize * noElements > MAX_ARRAY_SIZE )
+    if((UA_Int32)dataType->memSize * noElements < 0 || dataType->memSize * noElements > MAX_ARRAY_SIZE )
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     *p = malloc(dataType->memSize * (size_t)noElements);
