@@ -36,10 +36,10 @@ index c785182..9e66da0 100644
  	endif()
  endif()
  
-@@ -149,10 +149,7 @@ else()
+@@ -90,10 +90,7 @@ else()
  endif()
  
- add_library(open62541-objects OBJECT ${lib_sources}) 
+ add_library(open62541-objects OBJECT ${lib_sources})
 -add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-objects>)
 -add_library(open62541-static STATIC $<TARGET_OBJECTS:open62541-objects>)
 -SET_TARGET_PROPERTIES(open62541-static PROPERTIES OUTPUT_NAME open62541 CLEAN_DIRECT_OUTPUT 1) # static version that exports all symbols
@@ -48,6 +48,3 @@ index c785182..9e66da0 100644
  
  ## logging
  set(UA_LOGLEVEL 400 CACHE STRING "Level at which logs shall be reported")
--- 
-2.2.0
-
