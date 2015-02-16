@@ -313,10 +313,10 @@ END_TEST
 
 START_TEST(UA_Byte_decodeShallCopyAndAdvancePosition) {
 	// given
-	UA_Byte       dst;
-	UA_Byte       data[] = { 0x08 };
-	UA_ByteString src    = { 1, data };
-	UA_UInt32     pos    = 0;
+	UA_Byte dst;
+	UA_Byte data[] = { 0x08 };
+	UA_ByteString src = { 1, data };
+	size_t pos = 0;
 
 	// when
 	UA_StatusCode retval = UA_Byte_decodeBinary(&src, &pos, &dst);
@@ -329,10 +329,10 @@ END_TEST
 
 START_TEST(UA_Byte_decodeShallModifyOnlyCurrentPosition) {
 	// given
-	UA_Byte       dst[]  = { 0xFF, 0xFF, 0xFF };
-	UA_Byte       data[] = { 0x08 };
-	UA_ByteString src    = { 1, data };
-	UA_UInt32     pos    = 0;
+	UA_Byte dst[]  = { 0xFF, 0xFF, 0xFF };
+	UA_Byte data[] = { 0x08 };
+	UA_ByteString src = { 1, data };
+	size_t pos = 0;
 	// when
 	UA_StatusCode retval = UA_Byte_decodeBinary(&src, &pos, &dst[1]);
 	// then
@@ -346,14 +346,14 @@ END_TEST
 
 START_TEST(UA_Int16_decodeShallAssumeLittleEndian) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] = {
+	size_t pos = 0;
+	UA_Byte data[] = {
 			0x01, 0x00,     // 1
 			0x00, 0x01      // 256
 	};
 	UA_ByteString src = { 4, data };
 	// when
-	UA_Int16      val_01_00, val_00_01;
+	UA_Int16 val_01_00, val_00_01;
 	UA_StatusCode retval = UA_Int16_decodeBinary(&src, &pos, &val_01_00);
 	retval |= UA_Int16_decodeBinary(&src, &pos, &val_00_01);
 	// then
@@ -366,14 +366,14 @@ END_TEST
 
 START_TEST(UA_Int16_decodeShallRespectSign) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] = {
+	size_t pos = 0;
+	UA_Byte data[] = {
 			0xFF, 0xFF,     // -1
 			0x00, 0x80      // -32768
 	};
 	UA_ByteString src = { 4, data };
 	// when
-	UA_Int16      val_ff_ff, val_00_80;
+	UA_Int16 val_ff_ff, val_00_80;
 	UA_StatusCode retval = UA_Int16_decodeBinary(&src, &pos, &val_ff_ff);
 	retval |= UA_Int16_decodeBinary(&src, &pos, &val_00_80);
 	// then
@@ -385,8 +385,8 @@ END_TEST
 
 START_TEST(UA_UInt16_decodeShallNotRespectSign) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] = {
+	size_t pos = 0;
+	UA_Byte data[] = {
 			0xFF, 0xFF,     // (2^16)-1
 			0x00, 0x80      // (2^15)
 	};
@@ -405,8 +405,8 @@ END_TEST
 
 START_TEST(UA_Int32_decodeShallAssumeLittleEndian) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] = {
+	size_t pos = 0;
+	UA_Byte data[] = {
 			0x01, 0x00, 0x00, 0x00,     // 1
 			0x00, 0x01, 0x00, 0x00      // 256
 	};
@@ -426,8 +426,8 @@ END_TEST
 
 START_TEST(UA_Int32_decodeShallRespectSign) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] = {
+	size_t pos = 0;
+	UA_Byte data[] = {
 			0xFF, 0xFF, 0xFF, 0xFF,     // -1
 			0x00, 0x80, 0xFF, 0xFF      // -32768
 	};
@@ -446,8 +446,8 @@ END_TEST
 
 START_TEST(UA_UInt32_decodeShallNotRespectSign) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] = {
+	size_t pos = 0;
+	UA_Byte data[] = {
 			0xFF, 0xFF, 0xFF, 0xFF,     // (2^32)-1
 			0x00, 0x00, 0x00, 0x80      // (2^31)
 	};
@@ -473,10 +473,10 @@ START_TEST(UA_UInt64_decodeShallNotRespectSign) {
 	UA_Byte mem[8] = { 00, 00, 00, 00, 0x00, 0x00, 0x00, 0xFF };
 	rawMessage.data   = mem;
 	rawMessage.length = 8;
-	UA_UInt32 p = 0;
+	size_t pos = 0;
 	UA_UInt64 val;
 	// when
-	UA_UInt64_decodeBinary(&rawMessage, &p, &val);
+	UA_UInt64_decodeBinary(&rawMessage, &pos, &val);
 	// then
 	ck_assert_uint_eq(val, expectedVal);
 }
@@ -491,10 +491,10 @@ START_TEST(UA_Int64_decodeShallRespectSign) {
 	rawMessage.data   = mem;
 	rawMessage.length = 8;
 
-	UA_UInt32 p = 0;
-	UA_Int64  val;
+	size_t pos = 0;
+	UA_Int64 val;
 	// when
-	UA_Int64_decodeBinary(&rawMessage, &p, &val);
+	UA_Int64_decodeBinary(&rawMessage, &pos, &val);
 	//then
 	ck_assert_uint_eq(val, expectedVal);
 }
@@ -502,10 +502,10 @@ END_TEST
 
 START_TEST(UA_Float_decodeShallWorkOnExample) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] = { 0x00, 0x00, 0xD0, 0xC0 }; // -6.5
-	UA_ByteString src    = { 4, data };
-	UA_Float      dst;
+	size_t pos = 0;
+	UA_Byte data[] = { 0x00, 0x00, 0xD0, 0xC0 }; // -6.5
+	UA_ByteString src = { 4, data };
+	UA_Float dst;
 	// when
 	UA_StatusCode retval = UA_Float_decodeBinary(&src, &pos, &dst);
 	// then
@@ -518,10 +518,10 @@ END_TEST
 
 START_TEST(UA_Double_decodeShallGiveOne) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF0, 0x3F }; // 1
-	UA_ByteString src    = { 8, data };                                        // 1
-	UA_Double     dst;
+	size_t pos = 0;
+	UA_Byte data[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF0, 0x3F }; // 1
+	UA_ByteString src = { 8, data }; // 1
+	UA_Double dst;
 	// when
 	UA_StatusCode retval = UA_Double_decodeBinary(&src, &pos, &dst);
 	// then
@@ -534,10 +534,10 @@ END_TEST
 
 START_TEST(UA_Double_decodeShallGiveZero) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-	UA_ByteString src    = { 8, data }; // 1
-	UA_Double     dst;
+	size_t pos = 0;
+	UA_Byte data[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+	UA_ByteString src = { 8, data }; // 1
+	UA_Double dst;
 	// when
 	UA_StatusCode retval = UA_Double_decodeBinary(&src, &pos, &dst);
 	// then
@@ -550,11 +550,10 @@ END_TEST
 
 START_TEST(UA_Double_decodeShallGiveMinusTwo) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0 }; // -2
-	UA_ByteString src    = { 8, data };
-
-	UA_Double     dst;
+	size_t pos = 0;
+	UA_Byte data[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC0 }; // -2
+	UA_ByteString src = { 8, data };
+	UA_Double dst;
 	// when
 	UA_StatusCode retval = UA_Double_decodeBinary(&src, &pos, &dst);
 	// then
@@ -567,11 +566,11 @@ END_TEST
 
 START_TEST(UA_String_decodeShallAllocateMemoryAndCopyString) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] =
+	size_t pos = 0;
+	UA_Byte data[] =
 	{ 0x08, 0x00, 0x00, 0x00, 'A', 'C', 'P', 'L', 'T', ' ', 'U', 'A', 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
-	UA_ByteString src    = { 16, data };
-	UA_String     dst;
+	UA_ByteString src = { 16, data };
+	UA_String dst;
 	// when
 	UA_StatusCode retval = UA_String_decodeBinary(&src, &pos, &dst);
 	// then
@@ -585,12 +584,11 @@ END_TEST
 
 START_TEST(UA_String_decodeWithNegativeSizeShallNotAllocateMemoryAndNullPtr) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] =
+	size_t pos = 0;
+	UA_Byte data[] =
 	{ 0xFF, 0xFF, 0xFF, 0xFF, 'A', 'C', 'P', 'L', 'T', ' ', 'U', 'A', 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
-	UA_ByteString src    = { 16, data };
-
-	UA_String     dst;
+	UA_ByteString src = { 16, data };
+	UA_String dst;
 	// when
 	UA_StatusCode retval = UA_String_decodeBinary(&src, &pos, &dst);
 	// then
@@ -602,28 +600,26 @@ END_TEST
 
 START_TEST(UA_String_decodeWithZeroSizeShallNotAllocateMemoryAndNullPtr) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] =
+	size_t pos = 0;
+	UA_Byte data[] =
 	{ 0x00, 0x00, 0x00, 0x00, 'A', 'C', 'P', 'L', 'T', ' ', 'U', 'A', 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
-	UA_ByteString src    = { 16, data };
-
-	UA_String     dst    = { 2, (UA_Byte *)"XX" };
+	UA_ByteString src = { 17, data };
+	UA_String dst;
 	// when
 	UA_StatusCode retval = UA_String_decodeBinary(&src, &pos, &dst);
 	// then
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-	ck_assert_int_eq(dst.length, -1); // shall we keep zero?
+	ck_assert_int_eq(dst.length, 0);
 	ck_assert_ptr_eq(dst.data, UA_NULL);
 }
 END_TEST
 
 START_TEST(UA_NodeId_decodeTwoByteShallReadTwoBytesAndSetNamespaceToZero) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] = { 0 /* UA_NODEIDTYPE_TWOBYTE */, 0x10 };
+	size_t pos = 0;
+	UA_Byte data[] = { 0 /* UA_NODEIDTYPE_TWOBYTE */, 0x10 };
 	UA_ByteString src    = { 2, data };
-
-	UA_NodeId     dst;
+	UA_NodeId dst;
 	// when
 	UA_StatusCode retval = UA_NodeId_decodeBinary(&src, &pos, &dst);
 	// then
@@ -637,11 +633,10 @@ END_TEST
 
 START_TEST(UA_NodeId_decodeFourByteShallReadFourBytesAndRespectNamespace) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] = { 1 /* UA_NODEIDTYPE_FOURBYTE */, 0x01, 0x00, 0x01 };
-	UA_ByteString src    = { 4, data };
-
-	UA_NodeId     dst;
+	size_t pos = 0;
+	UA_Byte data[] = { 1 /* UA_NODEIDTYPE_FOURBYTE */, 0x01, 0x00, 0x01 };
+	UA_ByteString src = { 4, data };
+	UA_NodeId dst;
 	// when
 	UA_StatusCode retval = UA_NodeId_decodeBinary(&src, &pos, &dst);
 	// then
@@ -655,11 +650,10 @@ END_TEST
 
 START_TEST(UA_NodeId_decodeStringShallAllocateMemory) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] = { UA_NODEIDTYPE_STRING, 0x01, 0x00, 0x03, 0x00, 0x00, 0x00, 'P', 'L', 'T' };
-	UA_ByteString src    = { 10, data };
-
-	UA_NodeId     dst;
+	size_t pos = 0;
+	UA_Byte data[] = { UA_NODEIDTYPE_STRING, 0x01, 0x00, 0x03, 0x00, 0x00, 0x00, 'P', 'L', 'T' };
+	UA_ByteString src = { 10, data };
+	UA_NodeId dst;
 	// when
 	UA_StatusCode retval = UA_NodeId_decodeBinary(&src, &pos, &dst);
 	// then
@@ -676,10 +670,10 @@ END_TEST
 
 START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArray) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] = { UA_TYPES_IDS[UA_TYPES_INT32], 0xFF, 0x00, 0x00, 0x00 };
-	UA_ByteString src    = { 5, data };
-	UA_Variant    dst;
+	size_t pos = 0;
+	UA_Byte data[] = { UA_TYPES_IDS[UA_TYPES_INT32], 0xFF, 0x00, 0x00, 0x00 };
+	UA_ByteString src = { 5, data };
+	UA_Variant dst;
 	// when
 	UA_StatusCode retval = UA_Variant_decodeBinary(&src, &pos, &dst);
 	// then
@@ -696,16 +690,14 @@ END_TEST
 
 START_TEST(UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] =
-	{ UA_TYPES_IDS[UA_TYPES_INT32] | UA_VARIANT_ENCODINGMASKTYPE_ARRAY, 0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF,
-			0xFF,                                             0xFF };
+	size_t pos = 0;
+	UA_Byte data[] = { UA_TYPES_IDS[UA_TYPES_INT32] | UA_VARIANT_ENCODINGMASKTYPE_ARRAY,
+                       0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF,
+                       0xFF, 0xFF };
 	UA_ByteString src = { 13, data };
-	UA_Variant    dst;
-
+	UA_Variant dst;
 	// when
 	UA_StatusCode retval = UA_Variant_decodeBinary(&src, &pos, &dst);
-
 	// then
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	ck_assert_int_eq(pos, 1+4+2*4);
@@ -721,12 +713,11 @@ END_TEST
 
 START_TEST(UA_Variant_decodeWithOutDeleteMembersShallFailInCheckMem) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] =
-	{ UA_TYPES_IDS[UA_TYPES_INT32] | UA_VARIANT_ENCODINGMASKTYPE_ARRAY, 0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF };
+	size_t pos = 0;
+	UA_Byte data[] = { UA_TYPES_IDS[UA_TYPES_INT32] | UA_VARIANT_ENCODINGMASKTYPE_ARRAY,
+                       0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF };
 	UA_ByteString src = { 13, data };
-
-	UA_Variant    dst;
+	UA_Variant dst;
 	// when
 	UA_StatusCode retval = UA_Variant_decodeBinary(&src, &pos, &dst);
 	// then
@@ -738,12 +729,12 @@ END_TEST
 
 START_TEST(UA_Variant_decodeWithTooSmallSourceShallReturnWithError) {
 	// given
-	UA_UInt32     pos    = 0;
-	UA_Byte       data[] =
-	{ UA_TYPES_IDS[UA_TYPES_INT32] | UA_VARIANT_ENCODINGMASKTYPE_ARRAY, 0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF };
+	size_t pos = 0;
+	UA_Byte data[] = { UA_TYPES_IDS[UA_TYPES_INT32] | UA_VARIANT_ENCODINGMASKTYPE_ARRAY,
+                       0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF };
 	UA_ByteString src = { 4, data };
 
-	UA_Variant    dst;
+	UA_Variant dst;
 	// when
 	UA_StatusCode retval = UA_Variant_decodeBinary(&src, &pos, &dst);
 	// then
@@ -759,8 +750,8 @@ START_TEST(UA_Byte_encode_test) {
 	UA_Byte data[]    = { 0x00, 0xFF };
 	UA_ByteString dst = { 2, data };
 
-	UA_Int32  retval  = 0;
-	UA_UInt32 pos     = 0;
+	UA_Int32 retval = 0;
+	size_t pos = 0;
 
 	ck_assert_uint_eq(dst.data[1], 0xFF);
 
@@ -790,12 +781,11 @@ END_TEST
 START_TEST(UA_UInt16_encodeNegativeShallEncodeLittleEndian) {
 	// given
 	UA_UInt16     src;
-	UA_Byte       data[] = {  0x55, 0x55,
-			0x55,       0x55 };
+	UA_Byte       data[] = { 0x55, 0x55, 0x55, 0x55 };
 	UA_ByteString dst    = { 4, data };
 
 	UA_StatusCode retval = 0;
-	UA_UInt32     pos    = 0;
+	size_t pos = 0;
 
 	// when test 1
 	src    = -1;
@@ -825,7 +815,7 @@ START_TEST(UA_UInt16_encodeShallEncodeLittleEndian) {
 	UA_ByteString dst    = { 4, data };
 
 	UA_StatusCode retval = 0;
-	UA_UInt32     pos    = 0;
+	size_t pos = 0;
 
 	// when test 1
 	src    = 0;
@@ -854,7 +844,7 @@ START_TEST(UA_UInt32_encodeShallEncodeLittleEndian) {
 	UA_ByteString dst    = { 8, data };
 
 	UA_StatusCode retval = 0;
-	UA_UInt32     pos    = 0;
+	size_t pos = 0;
 
 	// when test 1
 	src    = -1;
@@ -886,8 +876,8 @@ START_TEST(UA_Int32_encodeShallEncodeLittleEndian) {
 	UA_Byte  data[]   = { 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55 };
 	UA_ByteString dst = { 8, data };
 
-	UA_Int32  retval  = 0;
-	UA_UInt32 pos     = 0;
+	UA_Int32 retval = 0;
+	size_t pos = 0;
 
 	// when test 1
 	src    = 1;
@@ -921,7 +911,7 @@ START_TEST(UA_Int32_encodeNegativeShallEncodeLittleEndian) {
 	UA_ByteString dst = { 8, data };
 
 	UA_Int32  retval  = 0;
-	UA_UInt32 pos     = 0;
+	size_t pos = 0;
 
 	// when test 1
 	src    = -1;
@@ -944,7 +934,7 @@ START_TEST(UA_UInt64_encodeShallWorkOnExample) {
 	UA_ByteString dst    = { 16, data };
 
 	UA_StatusCode retval = 0;
-	UA_UInt32     pos    = 0;
+	size_t pos    = 0;
 
 	// when test 1
 	src    = -1;
@@ -986,7 +976,7 @@ START_TEST(UA_Int64_encodeShallEncodeLittleEndian) {
 	UA_ByteString dst = { 16, data };
 
 	UA_Int32  retval  = 0;
-	UA_UInt32 pos     = 0;
+	size_t pos     = 0;
 
 	// when test 1
 	src    = 0x7F0033AA44EE6611;
@@ -1013,7 +1003,7 @@ START_TEST(UA_Int64_encodeNegativeShallEncodeLittleEndian) {
 	UA_ByteString dst = { 16, data };
 
 	UA_Int32  retval  = 0;
-	UA_UInt32 pos     = 0;
+	size_t pos     = 0;
 
 	// when test 1
 	src    = -1;
@@ -1040,7 +1030,7 @@ START_TEST(UA_Float_encodeShallWorkOnExample) {
 	UA_ByteString dst = { 16, data };
 
 	UA_Int32  retval  = 0;
-	UA_UInt32 pos     = 0;
+	size_t pos     = 0;
 
 	// when test 1
 	src    = -6.5;
@@ -1088,7 +1078,7 @@ START_TEST(UA_String_encodeShallWorkOnExample) {
 	UA_ByteString dst = { 24, data };
 
 	UA_Int32  retval  = 0;
-	UA_UInt32 pos     = 0;
+	size_t pos     = 0;
 
 	// when
 	retval = UA_String_encodeBinary(&src, &dst, &pos);
@@ -1118,7 +1108,7 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithoutVariant) {
 	UA_ByteString dst = { 24, data };
 
 	UA_Int32  retval  = 0;
-	UA_UInt32 pos     = 0;
+	size_t pos     = 0;
 
 	// when
 	retval = UA_DataValue_encodeBinary(&src, &dst, &pos);
@@ -1155,7 +1145,7 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithVariant) {
 	UA_ByteString dst = { 24, data };
 
 	UA_Int32  retval  = 0;
-	UA_UInt32 pos     = 0;
+	size_t pos     = 0;
 
 	// when
 	retval = UA_DataValue_encodeBinary(&src, &dst, &pos);
@@ -1632,7 +1622,7 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
 	extensionObject.typeId.identifier.numeric = UA_TYPES_IDS[UA_TYPES_VARIABLEATTRIBUTES];
 	UA_Byte extensionData[50];
 	extensionObject.body = (UA_ByteString){.data = extensionData, .length=UA_VariableAttributes_calcSizeBinary(&varAttr)};
-	UA_UInt32 posEncode = 0;
+	size_t posEncode = 0;
 	UA_VariableAttributes_encodeBinary(&varAttr, &extensionObject.body, &posEncode);
 	extensionObject.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
 	ck_assert_int_eq(posEncode, UA_VariableAttributes_calcSizeBinary(&varAttr));
@@ -1644,7 +1634,7 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
 	UA_ExtensionObject_encodeBinary(&extensionObject, &dst, &posEncode);
 
 	UA_ExtensionObject extensionObjectDecoded;
-	UA_UInt32 posDecode = 0;
+	size_t posDecode = 0;
 	UA_ExtensionObject_decodeBinary(&dst, &posDecode, &extensionObjectDecoded);
 
 	ck_assert_int_eq(posEncode, posDecode);

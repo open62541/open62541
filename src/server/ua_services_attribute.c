@@ -433,8 +433,7 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *aWriteValue) {
         if(retval != UA_STATUSCODE_GOOD)
             break;
 
-        const UA_Node *constPtr = newNode; // compilers complain if we directly cast
-        if(UA_NodeStore_replace(server->nodestore, node, &constPtr, UA_FALSE) == UA_STATUSCODE_GOOD) {
+        if(UA_NodeStore_replace(server->nodestore, node, newNode, UA_NULL) == UA_STATUSCODE_GOOD) {
             UA_NodeStore_release(node);
             break;
         }

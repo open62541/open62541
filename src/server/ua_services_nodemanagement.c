@@ -209,8 +209,7 @@ static void addNodeFromAttributes(UA_Server *server, UA_Session *session, UA_Add
         return;
 
     // add the node
-    const UA_Node *constNode = node; // compilers complain if we cast directly
-    *result = UA_Server_addNodeWithSession(server, session, &constNode, &item->parentNodeId,
+    *result = UA_Server_addNodeWithSession(server, session, node, &item->parentNodeId,
                                            &item->referenceTypeId);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         switch (node->nodeClass) {

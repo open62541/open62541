@@ -908,7 +908,7 @@ UA_StatusCode UA_DiagnosticInfo_decodeBinary(UA_ByteString const *src, size_t *o
 
 size_t UA_calcSizeBinary(const void *p, const UA_DataType *dataType) {
     size_t size = 0;
-    const UA_Byte *ptr = (const UA_Byte*)p;
+    uintptr_t ptr = (uintptr_t)p;
     UA_Byte membersSize = dataType->membersSize;
     for(size_t i=0;i<membersSize; i++) {
         const UA_DataTypeMember *member = &dataType->members[i];
@@ -929,7 +929,7 @@ size_t UA_calcSizeBinary(const void *p, const UA_DataType *dataType) {
 
         ptr += member->padding;
         if(!member->namespaceZero) {
-            size += UA_calcSizeBinary(ptr, memberType);
+            size += UA_calcSizeBinary((const void*)ptr, memberType);
             ptr += memberType->memSize;
             continue;
         }
@@ -989,7 +989,7 @@ size_t UA_calcSizeBinary(const void *p, const UA_DataType *dataType) {
             size += UA_String_calcSizeBinary((const UA_String*)ptr);
             break;
         default:
-            size += UA_calcSizeBinary(ptr, memberType);
+            size += UA_calcSizeBinary((const void*)ptr, memberType);
         }
         ptr += memberType->memSize;
     }
@@ -997,7 +997,7 @@ size_t UA_calcSizeBinary(const void *p, const UA_DataType *dataType) {
 }
 
 UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_ByteString *dst, size_t *offset) {
-    const UA_Byte *ptr = (const UA_Byte*)src;
+    uintptr_t ptr = (uintptr_t)src;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Byte membersSize = dataType->membersSize;
     for(size_t i=0;i<membersSize && retval == UA_STATUSCODE_GOOD; i++) {
@@ -1019,7 +1019,7 @@ UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_B
 
         ptr += member->padding;
         if(!member->namespaceZero) {
-            UA_encodeBinary(ptr, memberType, dst, offset);
+            UA_encodeBinary((const void*)ptr, memberType, dst, offset);
             ptr += memberType->memSize;
             continue;
         }
@@ -1085,7 +1085,7 @@ UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_B
             retval = UA_String_encodeBinary((const UA_String*)ptr, dst, offset);
             break;
         default:
-            retval = UA_encodeBinary(ptr, memberType, dst, offset);
+            retval = UA_encodeBinary((const void*)ptr, memberType, dst, offset);
         }
         ptr += memberType->memSize;
     }
@@ -1093,10 +1093,10 @@ UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_B
 }
 
 UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst, const UA_DataType *dataType) {
-    UA_Byte *ptr = (UA_Byte*)dst;
+    UA_init(dst, dataType);
+    uintptr_t ptr = (uintptr_t)dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Byte membersSize = dataType->membersSize;
-    UA_init(dst, dataType);
     for(size_t i=0;i<membersSize && retval == UA_STATUSCODE_GOOD; i++) {
         const UA_DataTypeMember *member = &dataType->members[i];
         const UA_DataType *memberType;
@@ -1117,7 +1117,7 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *ds
 
         ptr += member->padding;
         if(!member->namespaceZero) {
-            UA_decodeBinary(src, offset, ptr, memberType);
+            UA_decodeBinary(src, offset, (void*)ptr, memberType);
             ptr += memberType->memSize;
             continue;
         }
@@ -1181,7 +1181,7 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *ds
             retval = UA_String_decodeBinary(src, offset, (UA_String*)ptr);
             break;
         default:
-            retval = UA_decodeBinary(src, offset, ptr, memberType);
+            retval = UA_decodeBinary(src, offset, (void*)ptr, memberType);
         }
         ptr += memberType->memSize;
     }
@@ -1202,9 +1202,9 @@ size_t UA_Array_calcSizeBinary(const void *p, UA_Int32 noElements, const UA_Data
         size += noElements * UA_calcSizeBinary(p, dataType);
         return size;
     }
-    const UA_Byte *ptr = (const UA_Byte*)p;
+    uintptr_t ptr = (uintptr_t)p;
     for(int i=0;i<noElements;i++) {
-        size += UA_calcSizeBinary(ptr, dataType);
+        size += UA_calcSizeBinary((void*)ptr, dataType);
         ptr += dataType->memSize;
     }
     return size;
@@ -1216,9 +1216,9 @@ UA_StatusCode UA_Array_encodeBinary(const void *src, UA_Int32 noElements, const 
         noElements = -1;
     UA_Int32_encodeBinary(&noElements, dst, offset);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    const UA_Byte *ptr = (const UA_Byte*)src;
+    uintptr_t ptr = (uintptr_t)src;
     for(int i=0;i<noElements && retval == UA_STATUSCODE_GOOD;i++) {
-        retval = UA_encodeBinary(ptr, dataType, dst, offset);
+        retval = UA_encodeBinary((const void*)ptr, dataType, dst, offset);
         ptr += dataType->memSize;
     }
     return retval;
@@ -1242,11 +1242,11 @@ UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, size_t *offset, UA
     if(!*dst)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_Byte *ptr = (UA_Byte*)*dst;
+    uintptr_t ptr = (uintptr_t)*dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Int32 i;
     for(i=0;i<noElements && retval == UA_STATUSCODE_GOOD;i++) {
-        retval = UA_decodeBinary(src, offset, ptr, dataType);
+        retval = UA_decodeBinary(src, offset, (void*)ptr, dataType);
         ptr += dataType->memSize;
     }
     if(retval != UA_STATUSCODE_GOOD)

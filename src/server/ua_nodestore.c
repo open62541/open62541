@@ -165,8 +165,7 @@ static void deleteEntry(struct nodeEntry *entry) {
 
 /** Copies the node into the entry. Then free the original node (but not its content). */
 static struct nodeEntry * nodeEntryFromNode(UA_Node *node) {
-    UA_UInt32 nodesize = 0;
-    
+    size_t nodesize = 0;
     switch(node->nodeClass) {
     case UA_NODECLASS_OBJECT:
         nodesize = sizeof(UA_ObjectNode);
@@ -241,69 +240,55 @@ void UA_NodeStore_delete(UA_NodeStore *ns) {
     UA_free(ns);
 }
 
-UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, const UA_Node **node, UA_Boolean getManaged) {
+UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, const UA_Node **inserted) {
     if(ns->size * 3 <= ns->count * 4) {
         if(expand(ns) != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADINTERNALERROR;
     }
     
-    /* The node is const so the user gets a const pointer back. Still, we want
-       to make small changes to the node internally, then add it to the hashmap
-       and return a new const pointer. */
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-qual"
-#endif
-    UA_Node *editableNode = (UA_Node*)*node;
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-
     // get a free slot
     struct nodeEntry **slot;
-    UA_NodeId *nodeId = &editableNode->nodeId;
-    if(UA_NodeId_isNull(nodeId)) {
+    if(UA_NodeId_isNull(&node->nodeId)) {
         // find a unique nodeid that is not taken
-        nodeId->identifierType = UA_NODEIDTYPE_NUMERIC;
-        nodeId->namespaceIndex = 1; // namespace 1 is always in the local nodestore
+        node->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
+        node->nodeId.namespaceIndex = 1; // namespace 1 is always in the local nodestore
         UA_Int32 identifier = ns->count+1; // start value
         UA_Int32 size = ns->size;
         hash_t increase = mod2(identifier, size);
         while(UA_TRUE) {
-            nodeId->identifier.numeric = identifier;
-            if(!containsNodeId(ns, nodeId, &slot))
+            node->nodeId.identifier.numeric = identifier;
+            if(!containsNodeId(ns, &node->nodeId, &slot))
                 break;
             identifier += increase;
             if(identifier >= size)
                 identifier -= size;
         }
     } else {
-        if(containsNodeId(ns, nodeId, &slot))
+        if(containsNodeId(ns, &node->nodeId, &slot))
             return UA_STATUSCODE_BADNODEIDEXISTS;
     }
     
-    struct nodeEntry *entry = nodeEntryFromNode(editableNode);
+    struct nodeEntry *entry = nodeEntryFromNode(node);
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     *slot = entry;
     ns->count++;
 
-    if(getManaged) {
+    if(inserted) {
         entry->refcount = ALIVE_BIT + 1;
-        *node = &entry->node;
+        *inserted = &entry->node;
     } else {
         entry->refcount = ALIVE_BIT;
-        *node = UA_NULL;
     }
 
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode,
-                                   const UA_Node **node, UA_Boolean getManaged) {
+UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode, UA_Node *node,
+                                   const UA_Node **inserted) {
     struct nodeEntry **slot;
-    const UA_NodeId *nodeId = &(*node)->nodeId;
+    const UA_NodeId *nodeId = &node->nodeId;
     if(!containsNodeId(ns, nodeId, &slot))
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
@@ -312,28 +297,18 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode,
     if(&(*slot)->node != oldNode)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* We need to able to free the new node when copying it into the entry. */
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-qual"
-#endif
-    struct nodeEntry *entry = nodeEntryFromNode((UA_Node *)*node);
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-
+    struct nodeEntry *entry = nodeEntryFromNode(node);
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     (*slot)->refcount &= ~ALIVE_BIT; // mark dead
     *slot = entry;
 
-    if(getManaged) {
+    if(inserted) {
         entry->refcount = ALIVE_BIT + 1;
-        *node = &entry->node;
+        *inserted = &entry->node;
     } else {
         entry->refcount = ALIVE_BIT;
-        *node = UA_NULL;
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -374,15 +349,7 @@ void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visit
 void UA_NodeStore_release(const UA_Node *managed) {
     /* We know what we are doing here and remove a compiler warning. Nobody has
        a reference to the const pointer, so we can free it. */
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-qual"
-#pragma GCC diagnostic ignored "-Wcast-align"
-#endif
-    struct nodeEntry *entry = (struct nodeEntry *) ((UA_Byte*)managed - offsetof(struct nodeEntry, node));
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
+    struct nodeEntry *entry = (struct nodeEntry *) ((uintptr_t)managed - offsetof(struct nodeEntry, node));
     entry->refcount--;
     deleteEntry(entry);
 }

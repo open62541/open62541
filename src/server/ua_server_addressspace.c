@@ -28,7 +28,7 @@ UA_StatusCode UA_Server_addScalarVariableNode(UA_Server *server, UA_QualifiedNam
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     tmpNode->value.type = &UA_TYPES[i];
-    UA_Server_addNodeWithSession(server, &adminSession, (const UA_Node**)&tmpNode,
+    UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)tmpNode,
                                  parentNodeId, referenceTypeId);
     return UA_STATUSCODE_GOOD;
 }
@@ -118,8 +118,7 @@ static UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session
     UA_free(old_refs);
     newNode->references = new_refs;
     newNode->referencesSize = ++count;
-    const UA_Node *constNode = newNode;
-    retval = UA_NodeStore_replace(server->nodestore, node, (const UA_Node **)&constNode, UA_FALSE);
+    retval = UA_NodeStore_replace(server->nodestore, node, newNode, UA_NULL);
     UA_NodeStore_release(node);
     if(retval != UA_STATUSCODE_BADINTERNALERROR)
         return retval;
@@ -172,12 +171,12 @@ UA_StatusCode UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *s
     return retval;
 } 
 
-UA_AddNodesResult UA_Server_addNode(UA_Server *server, const UA_Node **node,
-                                    const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId) {
+UA_AddNodesResult UA_Server_addNode(UA_Server *server, UA_Node *node, const UA_ExpandedNodeId *parentNodeId,
+                                    const UA_NodeId *referenceTypeId) {
     return UA_Server_addNodeWithSession(server, &adminSession, node, parentNodeId, referenceTypeId);
 }
 
-UA_AddNodesResult UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, const UA_Node **node,
+UA_AddNodesResult UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, UA_Node *node,
                                                const UA_ExpandedNodeId *parentNodeId,
                                                const UA_NodeId *referenceTypeId) {
     UA_AddNodesResult result;
@@ -207,19 +206,20 @@ UA_AddNodesResult UA_Server_addNodeWithSession(UA_Server *server, UA_Session *se
     }
 
     // todo: test if the referencetype is hierarchical
-    if(UA_NodeId_isNull(&(*node)->nodeId)) {
-        if(UA_NodeStore_insert(server->nodestore, node, UA_TRUE) != UA_STATUSCODE_GOOD) {
+    const UA_Node *managed = UA_NULL;
+    if(UA_NodeId_isNull(&node->nodeId)) {
+        if(UA_NodeStore_insert(server->nodestore, node, &managed) != UA_STATUSCODE_GOOD) {
             result.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
             goto ret2;
         }
-        result.addedNodeId = (*node)->nodeId; // cannot fail as unique nodeids are numeric
+        result.addedNodeId = managed->nodeId; // cannot fail as unique nodeids are numeric
     } else {
-        if(UA_NodeId_copy(&(*node)->nodeId, &result.addedNodeId) != UA_STATUSCODE_GOOD) {
+        if(UA_NodeId_copy(&node->nodeId, &result.addedNodeId) != UA_STATUSCODE_GOOD) {
             result.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
             goto ret2;
         }
 
-        if(UA_NodeStore_insert(server->nodestore, node, UA_TRUE) != UA_STATUSCODE_GOOD) {
+        if(UA_NodeStore_insert(server->nodestore, node, &managed) != UA_STATUSCODE_GOOD) {
             result.statusCode = UA_STATUSCODE_BADNODEIDEXISTS;  // todo: differentiate out of memory
             UA_NodeId_deleteMembers(&result.addedNodeId);
             goto ret2;
@@ -229,7 +229,7 @@ UA_AddNodesResult UA_Server_addNodeWithSession(UA_Server *server, UA_Session *se
     // reference back to the parent
     UA_AddReferencesItem item;
     UA_AddReferencesItem_init(&item);
-    item.sourceNodeId = (*node)->nodeId;
+    item.sourceNodeId = managed->nodeId;
     item.referenceTypeId = referenceType->nodeId;
     item.isForward = UA_FALSE;
     item.targetNodeId.nodeId = parent->nodeId;
@@ -237,8 +237,7 @@ UA_AddNodesResult UA_Server_addNodeWithSession(UA_Server *server, UA_Session *se
 
     // todo: error handling. remove new node from nodestore
 
-    UA_NodeStore_release(*node);
-    *node = UA_NULL;
+    UA_NodeStore_release(managed);
     
  ret2:
     UA_NodeStore_release((const UA_Node*)referenceType);

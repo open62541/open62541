@@ -22,6 +22,7 @@ extern "C" {
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include "ua_config.h"
 
 /**
@@ -332,9 +333,6 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_DiagnosticInfo)
 UA_StatusCode UA_EXPORT UA_String_copycstring(char const *src, UA_String *dst);
 UA_StatusCode UA_EXPORT UA_String_copyprintf(char const *fmt, UA_String *dst, ...);
 UA_Boolean UA_EXPORT UA_String_equal(const UA_String *string1, const UA_String *string2);
-void UA_EXPORT UA_String_printf(char const *label, const UA_String *string);
-void UA_EXPORT UA_String_printx(char const *label, const UA_String *string);
-void UA_EXPORT UA_String_printx_hex(char const *label, const UA_String *string);
 
 /* DateTime */
 UA_DateTime UA_EXPORT UA_DateTime_now(void);
@@ -360,9 +358,6 @@ UA_Guid UA_EXPORT UA_Guid_random(UA_UInt32 *seed);
 /* ByteString */
 UA_Boolean UA_EXPORT UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2);
 UA_StatusCode UA_EXPORT UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length);
-void UA_EXPORT UA_ByteString_printf(char *label, const UA_ByteString *string);
-void UA_EXPORT UA_ByteString_printx(char *label, const UA_ByteString *string);
-void UA_EXPORT UA_ByteString_printx_hex(char *label, const UA_ByteString *string);
 
 /* NodeId */
 UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
@@ -404,48 +399,33 @@ UA_StatusCode UA_EXPORT UA_Variant_copySetArray(UA_Variant *v, const void *array
 #define UA_MAX_TYPE_MEMBERS 13 // Maximum number of members per complex type
 
 #ifndef _WIN32
+# define UA_BITFIELD(SIZE) : SIZE
+#else
+# define UA_BITFIELD(SIZE)
+#endif
+
 typedef struct {
-    UA_UInt16 memberTypeIndex : 9; ///< Index of the member in the datatypetable
-    UA_Boolean namespaceZero : 1; /**< The type of the member is defined in namespace zero. In this
-                                       implementation, types from custom namespace may contain
-                                       members from the same namespace or ns0 only.*/
-    UA_Byte padding : 5; /**< How much padding is there before this member element? For arrays this
-                              is split into 2 bytes padding for for the length index (max 4 bytes)
-                              and 3 bytes padding for the pointer (max 8 bytes) */
-    UA_Boolean isArray : 1; ///< The member is an array of the given type
+    UA_UInt16 memberTypeIndex UA_BITFIELD(9); ///< Index of the member in the datatypetable
+    UA_Boolean namespaceZero UA_BITFIELD(1); /**< The type of the member is defined in namespace
+                                                  zero. In this implementation, types from custom
+                                                  namespace may contain members from the same
+                                                  namespace or ns0 only.*/
+    UA_Byte padding UA_BITFIELD(5); /**< How much padding is there before this member element? For
+                                         arrays this is split into 2 bytes padding for for the
+                                         length index (max 4 bytes) and 3 bytes padding for the
+                                         pointer (max 8 bytes) */
+    UA_Boolean isArray UA_BITFIELD(1); ///< The member is an array of the given type
 } UA_DataTypeMember;
     
 struct UA_DataType {
-    UA_UInt16 memSize; ///< Size of the struct in memory
-    UA_UInt16 typeIndex : 13; ///< Index of the type in the datatytypetable
-    UA_Boolean namespaceZero : 1; ///< The type is defined in namespace zero.
-    UA_Boolean fixedSize : 1; ///< The type (and its members) contains no pointers
-    UA_Boolean zeroCopyable : 1; ///< Can the type be copied directly off the stream?
+    size_t memSize UA_BITFIELD(16); ///< Size of the struct in memory
+    size_t typeIndex UA_BITFIELD(13); ///< Index of the type in the datatytypetable
+    UA_Boolean namespaceZero UA_BITFIELD(1); ///< The type is defined in namespace zero.
+    UA_Boolean fixedSize UA_BITFIELD(1); ///< The type (and its members) contains no pointers
+    UA_Boolean zeroCopyable UA_BITFIELD(1); ///< Can the type be copied directly off the stream?
     UA_Byte membersSize; ///< How many members does the type have?
     UA_DataTypeMember members[UA_MAX_TYPE_MEMBERS];
 };
-#else
-typedef struct {
-	UA_UInt16 memberTypeIndex; ///< Index of the member in the datatypetable
-	UA_Boolean namespaceZero; /**< The type of the member is defined in namespace zero. In this
-								  implementation, types from custom namespace may contain
-								  members from the same namespace or ns0 only.*/
-	UA_Byte padding; /**< How much padding is there before this member element? For arrays this
-						 is split into 2 bytes padding for for the length index (max 4 bytes)
-						 and 3 bytes padding for the pointer (max 8 bytes) */
-	UA_Boolean isArray; ///< The member is an array of the given type
-} UA_DataTypeMember;
-
-struct UA_DataType {
-	UA_UInt16 memSize; ///< Size of the struct in memory
-	UA_UInt16 typeIndex; ///< Index of the type in the datatytypetable
-	UA_Boolean namespaceZero; ///< The type is defined in namespace zero.
-	UA_Boolean fixedSize; ///< The type (and its members) contains no pointers
-	UA_Boolean zeroCopyable; ///< Can the type be copied directly off the stream?
-	UA_Byte membersSize; ///< How many members does the type have?
-	UA_DataTypeMember members[UA_MAX_TYPE_MEMBERS];
-};
-#endif
 
 void UA_EXPORT * UA_new(const UA_DataType *dataType);
 void UA_EXPORT UA_init(void *p, const UA_DataType *dataType);

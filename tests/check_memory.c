@@ -49,7 +49,7 @@ END_TEST
 START_TEST(encodeShallYieldDecode) {
 	// given
 	UA_ByteString msg1, msg2;
-	UA_UInt32     pos = 0;
+	size_t pos = 0;
 	void *obj1 = UA_new(&UA_TYPES[_i]);
 	UA_ByteString_newMembers(&msg1, UA_calcSizeBinary(obj1, &UA_TYPES[_i]));
     UA_StatusCode retval = UA_encodeBinary(obj1, &UA_TYPES[_i], &msg1, &pos);
@@ -82,14 +82,15 @@ END_TEST
 START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
 	// given
 	UA_ByteString msg1;
-	UA_UInt32 pos;
 	void *obj1 = UA_new(&UA_TYPES[_i]);
+	size_t pos = 0;
 	UA_ByteString_newMembers(&msg1, UA_calcSizeBinary(obj1, &UA_TYPES[_i]));
-    pos = 0;
     UA_StatusCode retval = UA_encodeBinary(obj1, &UA_TYPES[_i], &msg1, &pos);
 	UA_delete(obj1, &UA_TYPES[_i]);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ByteString_deleteMembers(&msg1);
         return; // e.g. variants cannot be encoded after an init without failing (no datatype set)
+    }
 	// when
 	void *obj2 = UA_new(&UA_TYPES[_i]);
 	pos = 0;
@@ -128,7 +129,7 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
 			msg1.data[i] = (UA_Byte)random();  // when
 #endif
 		}
-		UA_UInt32 pos = 0;
+		size_t pos = 0;
 		obj1 = UA_new(&UA_TYPES[_i]);
 		retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i]);
 		//then
@@ -162,7 +163,7 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
 			msg1.data[i] = (UA_Byte)random();  // when
 #endif
 		}
-		UA_UInt32 pos = 0;
+		size_t pos = 0;
 		void *obj1 = UA_new(&UA_TYPES[_i]);
 		retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i]);
 		UA_delete(obj1, &UA_TYPES[_i]);

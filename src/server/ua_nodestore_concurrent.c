@@ -66,15 +66,7 @@ static int compare(struct cds_lfht_node *htn, const void *orig) {
    section) increased the refcount, we only need to wait for the refcount
    to reach zero. */
 static void markDead(struct rcu_head *head) {
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-align"
-#endif
-    struct nodeEntry *entry = caa_container_of(head, struct nodeEntry, rcu_head);
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-
+    struct nodeEntry *entry = (struct nodeEntry*) ((uintptr_t)head - offsetof(struct nodeEntry, rcu_head)); 
     uatomic_and(&entry->refcount, ~ALIVE_BIT); // set the alive bit to zero
     if(uatomic_read(&entry->refcount) > 0)
         return;
@@ -85,20 +77,11 @@ static void markDead(struct rcu_head *head) {
 
 /* Free the entry if it is dead and nobody uses it anymore */
 void UA_NodeStore_release(const UA_Node *managed) {
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-align"
-#endif
-    struct nodeEntry *entry = caa_container_of(managed, struct nodeEntry, node); // pointer to the first entry
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-
-    if(uatomic_add_return(&entry->refcount, -1) > 0)
-        return;
-
-    node_deleteMembers(&entry->node);
-    UA_free(entry);
+    struct nodeEntry *entry = (struct nodeEntry*) ((uintptr_t)managed - offsetof(struct nodeEntry, node)); 
+    if(uatomic_add_return(&entry->refcount, -1) == 0) {
+        node_deleteMembers(&entry->node);
+        UA_free(entry);
+    }
 }
 
 UA_NodeStore * UA_NodeStore_new() {
@@ -123,14 +106,7 @@ void UA_NodeStore_delete(UA_NodeStore *ns) {
     cds_lfht_first(ht, &iter);
     while(iter.node) {
         if(!cds_lfht_del(ht, iter.node)) {
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-align"
-#endif
-            struct nodeEntry *entry = caa_container_of(iter.node, struct nodeEntry, htn);
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
+            struct nodeEntry *entry = (struct nodeEntry*) ((uintptr_t)iter.node - offsetof(struct nodeEntry, htn)); 
             call_rcu(&entry->rcu_head, markDead);
         }
         cds_lfht_next(ht, &iter);
@@ -141,10 +117,10 @@ void UA_NodeStore_delete(UA_NodeStore *ns) {
     UA_free(ns);
 }
 
-UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, const UA_Node **node, UA_Boolean getManaged) {
-    UA_UInt32 nodesize;
+UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, const UA_Node **inserted) {
+    size_t nodesize;
     /* Copy the node into the entry. Then reset the original node. It shall no longer be used. */
-    switch((*node)->nodeClass) {
+    switch(node->nodeClass) {
     case UA_NODECLASS_OBJECT:
         nodesize = sizeof(UA_ObjectNode);
         break;
@@ -176,16 +152,16 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, const UA_Node **node, UA_Boo
     struct nodeEntry *entry;
     if(!(entry = UA_malloc(sizeof(struct nodeEntry) - sizeof(UA_Node) + nodesize)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_memcpy((void*)&entry->node, *node, nodesize);
+    UA_memcpy((void*)&entry->node, node, nodesize);
 
     cds_lfht_node_init(&entry->htn);
     entry->refcount = ALIVE_BIT;
-    if(getManaged) // increase the counter before adding the node
+    if(inserted) // increase the counter before adding the node
         entry->refcount++;
 
     struct cds_lfht_node *result;
-    if(!UA_NodeId_isNull(&(*node)->nodeId)) {
-        hash_t h = hash(&(*node)->nodeId);
+    if(!UA_NodeId_isNull(&node->nodeId)) {
+        hash_t h = hash(&node->nodeId);
         rcu_read_lock();
         result = cds_lfht_add_unique(ns->ht, h, compare, &entry->node.nodeId, &entry->htn);
         rcu_read_unlock();
@@ -217,27 +193,17 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, const UA_Node **node, UA_Boo
         rcu_read_unlock();
     }
 
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-qual"
-#endif
-    UA_free((UA_Node *)*node);     /* The old node is replaced by a managed node. */
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-
-    if(getManaged)
-        *node = &entry->node;
-    else
-        *node = UA_NULL;
+    UA_free(node);
+    if(inserted)
+        *inserted = &entry->node;
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode,
-                                   const UA_Node **node, UA_Boolean getManaged) {
-    UA_UInt32 nodesize;
+UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode, UA_Node *node,
+                                   const UA_Node **inserted) {
+    size_t nodesize;
     /* Copy the node into the entry. Then reset the original node. It shall no longer be used. */
-    switch((*node)->nodeClass) {
+    switch(node->nodeClass) {
     case UA_NODECLASS_OBJECT:
         nodesize = sizeof(UA_ObjectNode);
         break;
@@ -269,18 +235,17 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode,
     struct nodeEntry *newEntry;
     if(!(newEntry = UA_malloc(sizeof(struct nodeEntry) - sizeof(UA_Node) + nodesize)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_memcpy((void*)&newEntry->node, *node, nodesize);
+    UA_memcpy((void*)&newEntry->node, node, nodesize);
 
     cds_lfht_node_init(&newEntry->htn);
     newEntry->refcount = ALIVE_BIT;
-    if(getManaged) // increase the counter before adding the node
+    if(inserted) // increase the counter before adding the node
         newEntry->refcount++;
 
-    hash_t h = hash(&(*node)->nodeId);
-
+    hash_t h = hash(&node->nodeId);
     struct cds_lfht_iter iter;
     rcu_read_lock();
-    cds_lfht_lookup(ns->ht, h, compare, &(*node)->nodeId, &iter);
+    cds_lfht_lookup(ns->ht, h, compare, &node->nodeId, &iter);
 
     /* No node found that can be replaced */
     if(!iter.node) {
@@ -289,14 +254,7 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode,
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-align"
-#endif
-    struct nodeEntry *oldEntry = caa_container_of(iter.node, struct nodeEntry, htn);
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
+    struct nodeEntry *oldEntry = (struct nodeEntry*) ((uintptr_t)iter.node - offsetof(struct nodeEntry, htn)); 
     /* The node we found is obsolete*/
     if(&oldEntry->node != oldNode) {
         rcu_read_unlock();
@@ -305,7 +263,7 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode,
     }
 
     /* The old node is replaced by a managed node. */
-    if(cds_lfht_replace(ns->ht, &iter, h, compare, &(*node)->nodeId, &newEntry->htn) != 0) {
+    if(cds_lfht_replace(ns->ht, &iter, h, compare, &node->nodeId, &newEntry->htn) != 0) {
         /* Replacing failed. Maybe the node got replaced just before this thread tried to.*/
         rcu_read_unlock();
         UA_free(newEntry);
@@ -315,21 +273,10 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode,
     /* If an entry got replaced, mark it as dead. */
     call_rcu(&oldEntry->rcu_head, markDead);
     rcu_read_unlock();
+    UA_free(node);
 
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-qual"
-#endif
-    UA_free((UA_Node *)*node); // was copied to newEntry and is obsolete
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-
-    if(getManaged)
-        *node = &newEntry->node;
-    else
-        *node = UA_NULL;
-
+    if(inserted)
+        *inserted = &newEntry->node;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -345,15 +292,7 @@ UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-align"
-#endif
-    struct nodeEntry *entry = caa_container_of(iter.node, struct nodeEntry, htn);
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-
+    struct nodeEntry *entry = (struct nodeEntry*) ((uintptr_t)iter.node - offsetof(struct nodeEntry, htn)); 
     call_rcu(&entry->rcu_head, markDead);
     rcu_read_unlock();
 

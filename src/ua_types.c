@@ -178,33 +178,6 @@ UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
     return (is == 0) ? UA_TRUE : UA_FALSE;
 }
 
-void UA_String_printf(char const *label, const UA_String *string) {
-    printf("%s {Length=%d, Data=%.*s}\n", label, string->length,
-           string->length, (char *)string->data);
-}
-
-void UA_String_printx(char const *label, const UA_String *string) {
-    printf("%s {Length=%d, Data=", label, string->length);
-    if(string->length > 0) {
-        for(UA_Int32 i = 0;i < string->length;i++) {
-            printf("%c%d", i == 0 ? '{' : ',', (string->data)[i]);
-            // if (i > 0 && !(i%20)) { printf("\n\t"); }
-        }
-    } else
-        printf("{");
-    printf("}}\n");
-}
-
-void UA_String_printx_hex(char const *label, const UA_String *string) {
-    printf("%s {Length=%d, Data=", label, string->length);
-    if(string->length > 0) {
-        for(UA_Int32 i = 0;i < string->length;i++)
-            printf("%c%x", i == 0 ? '{' : ',', (string->data)[i]);
-    } else
-        printf("{");
-    printf("}}\n");
-}
-
 /* DateTime */
 #define UNIX_EPOCH_BIAS_SEC 11644473600LL // Number of seconds from 1 Jan. 1601 00:00 to 1 Jan 1970 00:00 UTC
 #define HUNDRED_NANOSEC_PER_USEC 10LL
@@ -312,18 +285,6 @@ UA_StatusCode UA_Guid_copy(UA_Guid const *src, UA_Guid *dst) {
 /* ByteString */
 UA_Boolean UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2) {
     return UA_String_equal((const UA_String *)string1, (const UA_String *)string2);
-}
-
-void UA_ByteString_printf(char *label, const UA_ByteString *string) {
-    UA_String_printf(label, (const UA_String *)string);
-}
-
-void UA_ByteString_printx(char *label, const UA_ByteString *string) {
-    UA_String_printx(label, (const UA_String *)string);
-}
-
-void UA_ByteString_printx_hex(char *label, const UA_ByteString *string) {
-    UA_String_printx_hex(label, (const UA_String *)string);
 }
 
 /** Creates a ByteString of the indicated length. The content is not set to zero. */
@@ -755,15 +716,15 @@ UA_StatusCode UA_DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_Diagnostic
 /*******************/
 
 void UA_init(void *p, const UA_DataType *dataType) {
-    UA_Byte *ptr = (UA_Byte *)p; // for pointer arithmetic
-
     /* Do not check if the index is a builtin-type here. Builtins will be called
        with their very own _init functions normally. In the off case, that the
        generic function is called with the index of a builtin, their layout
        contains a single member of the builtin type, that will be inited in the
        for loop. */
 
-    for(int i=0;i<dataType->membersSize; i++) {
+    uintptr_t ptr = (uintptr_t)p;
+    UA_Byte membersSize = dataType->membersSize;
+    for(size_t i=0;i<membersSize; i++) {
         const UA_DataTypeMember *member = &dataType->members[i];
         if(member->isArray) {
             /* Padding contains bit-magic to split into padding before and after
@@ -780,7 +741,7 @@ void UA_init(void *p, const UA_DataType *dataType) {
         if(!member->namespaceZero) {
             // pointer arithmetic
             const UA_DataType *memberType = dataType - dataType->typeIndex + member->memberTypeIndex;
-            UA_init(ptr, memberType);
+            UA_init((void*)ptr, memberType);
             ptr += memberType->memSize;
             continue;
         }
@@ -789,23 +750,23 @@ void UA_init(void *p, const UA_DataType *dataType) {
         case UA_TYPES_BOOLEAN:
         case UA_TYPES_SBYTE:
         case UA_TYPES_BYTE:
-            *ptr = 0;
+            *(UA_Byte*)ptr = 0;
             break;
         case UA_TYPES_INT16:
         case UA_TYPES_UINT16:
-            *((UA_Int16*)ptr) = 0;
+            *(UA_Int16*)ptr = 0;
             break;
         case UA_TYPES_INT32:
         case UA_TYPES_UINT32:
         case UA_TYPES_STATUSCODE:
         case UA_TYPES_FLOAT:
-            *((UA_Int32*)ptr) = 0;
+            *(UA_Int32*)ptr = 0;
             break;
         case UA_TYPES_INT64:
         case UA_TYPES_UINT64:
         case UA_TYPES_DOUBLE:
         case UA_TYPES_DATETIME:
-            *((UA_Int64*)ptr) = 0;
+            *(UA_Int64*)ptr = 0;
             break;
         case UA_TYPES_GUID:
             UA_Guid_init((UA_Guid*)ptr);
@@ -840,7 +801,7 @@ void UA_init(void *p, const UA_DataType *dataType) {
             UA_String_init((UA_String*)ptr);
             break;
         default:
-            UA_init(ptr, &UA_TYPES[member->memberTypeIndex]);
+            UA_init((void*)ptr, &UA_TYPES[member->memberTypeIndex]);
         }
         ptr += UA_TYPES[member->memberTypeIndex].memSize;
     }
@@ -848,7 +809,8 @@ void UA_init(void *p, const UA_DataType *dataType) {
 
 void * UA_new(const UA_DataType *dataType) {
     void *p = UA_malloc(dataType->memSize);
-    if(p) UA_init(p, dataType);
+    if(p)
+        UA_init(p, dataType);
     return p;
 }
 
@@ -859,9 +821,10 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
     }
     UA_init(dst, dataType);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    const UA_Byte *ptrs = (const UA_Byte *)src;
-    UA_Byte *ptrd = (UA_Byte *)dst;
-    for(int i=0;i<dataType->membersSize; i++) {
+    uintptr_t ptrs = (uintptr_t)src;
+    uintptr_t ptrd = (uintptr_t)dst;
+    UA_Byte membersSize = dataType->membersSize;
+    for(size_t i=0;i<membersSize; i++) {
         const UA_DataTypeMember *member = &dataType->members[i];
         const UA_DataType *memberType;
         if(member->namespaceZero)
@@ -890,7 +853,7 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
         ptrs += member->padding;
         ptrd += member->padding;
         if(!member->namespaceZero) {
-            retval = UA_copy(ptrs, ptrd, memberType);
+            retval = UA_copy((const void*)ptrs, (void*)ptrd, memberType);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_deleteMembers(dst, dataType);
                 return retval;
@@ -955,7 +918,7 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
             retval |= UA_String_copy((const UA_String*)ptrs, (UA_String*)ptrd);
             break;
         default:
-            retval |= UA_copy(ptrs, ptrd, memberType);
+            retval |= UA_copy((const void *)ptrs, (void*)ptrd, memberType);
         }
         ptrs += memberType->memSize;
         ptrd += memberType->memSize;
@@ -966,11 +929,11 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
 }
 
 void UA_deleteMembers(void *p, const UA_DataType *dataType) {
-    UA_Byte *ptr = (UA_Byte *)p; // for pointer arithmetic
+    uintptr_t ptr = (uintptr_t)p;
     if(dataType->fixedSize)
         return;
     UA_Byte membersSize = dataType->membersSize;
-    for(int i=0;i<membersSize; i++) {
+    for(size_t i=0;i<membersSize; i++) {
         const UA_DataTypeMember *member = &dataType->members[i];
         const UA_DataType *memberType;
         if(member->namespaceZero)
@@ -989,7 +952,7 @@ void UA_deleteMembers(void *p, const UA_DataType *dataType) {
 
         ptr += member->padding;
         if(!member->namespaceZero) {
-            UA_deleteMembers(ptr, memberType);
+            UA_deleteMembers((void*)ptr, memberType);
             ptr += memberType->memSize;
             continue;
         }
@@ -1028,7 +991,7 @@ void UA_deleteMembers(void *p, const UA_DataType *dataType) {
             UA_String_deleteMembers((UA_String*)ptr);
             break;
         default:
-            UA_deleteMembers(ptr, memberType);
+            UA_deleteMembers((void*)ptr, memberType);
         }
         ptr += memberType->memSize;
     }
@@ -1052,13 +1015,13 @@ UA_StatusCode UA_Array_new(void **p, UA_Int32 noElements, const UA_DataType *dat
     if(dataType->memSize * noElements < 0 || dataType->memSize * noElements > MAX_ARRAY_SIZE )
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    *p = malloc(dataType->memSize * noElements);
+    *p = malloc(dataType->memSize * (size_t)noElements);
     if(!p)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_Byte *ptr = *p;
-    for(UA_Int32 i = 0; i<noElements; i++) {
-        UA_init(ptr, dataType);
+    uintptr_t ptr = (uintptr_t)*p;
+    for(int i = 0; i<noElements; i++) {
+        UA_init((void*)ptr, dataType);
         ptr += dataType->memSize;
     }
     return UA_STATUSCODE_GOOD;
@@ -1070,19 +1033,19 @@ UA_StatusCode UA_Array_copy(const void *src, UA_Int32 noElements, void **dst, co
         return UA_STATUSCODE_GOOD;
     }
 
-    if(!(*dst = UA_malloc(noElements * dataType->memSize)))
+    if(!(*dst = UA_malloc((size_t)noElements * dataType->memSize)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     if(dataType->fixedSize) {
-        memcpy(*dst, src, dataType->memSize * noElements);
+        memcpy(*dst, src, dataType->memSize * (size_t)noElements);
         return UA_STATUSCODE_GOOD;
     }
 
-    const UA_Byte *ptrs = (const UA_Byte*)src;
-    UA_Byte *ptrd = (UA_Byte*)*dst;
+    uintptr_t ptrs = (uintptr_t)src;
+    uintptr_t ptrd = (uintptr_t)*dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(int i=0;i<noElements; i++) {
-        retval = UA_copy(ptrs, ptrd, dataType);
+        retval = UA_copy((void*)ptrs, (void*)ptrd, dataType);
         ptrs += dataType->memSize;
         ptrd += dataType->memSize;
     }
@@ -1098,9 +1061,9 @@ void UA_Array_delete(void *p, UA_Int32 noElements, const UA_DataType *dataType) 
         return;
 
     if(!dataType->fixedSize) {
-        UA_Byte *ptr = p; // for pointer arithemetic
+        uintptr_t ptr = (uintptr_t)p;
         for(UA_Int32 i = 0; i<noElements; i++) {
-            UA_deleteMembers(ptr, dataType);
+            UA_deleteMembers((void*)ptr, dataType);
             ptr += dataType->memSize;
         }
     }
