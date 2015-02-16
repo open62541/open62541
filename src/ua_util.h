@@ -1,7 +1,7 @@
 #ifndef UA_UTIL_H_
 #define UA_UTIL_H_
 
-#ifndef  __USE_POSIX
+#ifndef __USE_POSIX
 #define __USE_POSIX
 #endif
 #include <stdlib.h> // malloc, free
@@ -10,11 +10,11 @@
 #include <stddef.h> /* Needed for queue.h */
 
 #ifdef _WIN32
-#  include <malloc.h>
-#  include "queue.h"
+# include <malloc.h>
+# include "../deps/queue.h"
 #else
-#  include <alloca.h>
-#  include <sys/queue.h>
+# include <alloca.h>
+# include <sys/queue.h>
 #endif
 
 #include "ua_types.h"
@@ -27,7 +27,7 @@
 
 #define UA_assert(ignore) assert(ignore)
 
-/* Replace the macros with functions for custom allocators.. */
+/* Replace the macros with functions for custom allocators if necessary */
 #define UA_free(ptr) free(ptr)
 #define UA_malloc(size) malloc(size)
 #define UA_realloc(ptr, size) realloc(ptr, size)

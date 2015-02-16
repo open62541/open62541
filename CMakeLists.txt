@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 2.8.8)
 project(open62541 C)
 set(open62541_VERSION_MAJOR 0)
 set(open62541_VERSION_MINOR 0)
-set(NVIM_VERSION_PATCH 0)
+set(open62541_VERSION_PATCH 0)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -70,14 +70,6 @@ else()
     list(APPEND lib_sources src/server/ua_nodestore.c)
 endif()
 
-
-## set debug flag
-if(CMAKE_BUILD_TYPE MATCHES Debug)
-    set(UA_DEBUG ON)
-else()
-    set(UA_DEBUG OFF)
-endif()
-
 ## extensions
 option(EXTENSION_STATELESS "Enable stateless extension" OFF)
 option(EXTENSION_UDP "Enable udp extension" OFF)
@@ -95,18 +87,6 @@ if(EXTENSION_STATELESS)
     if(MULTITHREADING)
         target_link_libraries(statelessClient urcu-cds urcu urcu-common pthread)
     endif()
-endif()
-
-## self-signed certificates
-option(ENABLE_SELFSIGNED "Enable self-signed certificates" OFF)
-if(ENABLE_SELFSIGNED)
-    message(STATUS "Enabling self-signed certificates")
-    SET(lib_sources ${lib_sources} ${PROJECT_BINARY_DIR}/localhost.der ${PROJECT_BINARY_DIR}/ca.crt)
-    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/localhost.der
-                              ${PROJECT_BINARY_DIR}/ca.crt
-                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${PROJECT_BINARY_DIR}
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/create_self-signed.py
-                           ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/localhost.cnf)
 endif()
 
 add_library(open62541-objects OBJECT ${lib_sources}) # static version that exports all symbols
@@ -128,18 +108,6 @@ endif()
 
 # set the precompiler flags
 configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
-
-# download queue.h if required
-if(WIN32)
-    if(NOT EXISTS "${PROJECT_BINARY_DIR}/src_generated/queue.h")
-        file(DOWNLOAD "http://openbsd.cs.toronto.edu/cgi-bin/cvsweb/~checkout~/src/sys/sys/queue.h" "${PROJECT_BINARY_DIR}/src_generated/queue.h" STATUS result)
-        list(GET result 0 download_ok)
-        if(NOT ${download_ok} MATCHES 0)
-            file(REMOVE "${PROJECT_BINARY_DIR}/src_generated/queue.h") # remove empty file if created
-            message(FATAL_ERROR "queue.h could not be downloaded")
-        endif()
-    endif()
-endif(WIN32)
 
 # generate code from xml definitions
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
@@ -196,6 +164,18 @@ endif(WIN32)
 if(MULTITHREADING)
     target_link_libraries(exampleServer urcu-cds urcu urcu-common pthread)
 endif()
+endif()
+
+## self-signed certificates
+option(GENERATE_SELFSIGNED "Generate self-signed certificates" OFF)
+if(GENERATE_SELFSIGNED)
+    message(STATUS "Enabling self-signed certificates")
+    SET(lib_sources ${lib_sources} ${PROJECT_BINARY_DIR}/localhost.der ${PROJECT_BINARY_DIR}/ca.crt)
+    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/localhost.der
+                              ${PROJECT_BINARY_DIR}/ca.crt
+                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${PROJECT_BINARY_DIR}
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/create_self-signed.py
+                           ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/localhost.cnf)
 endif()
 
 # build unit tests
