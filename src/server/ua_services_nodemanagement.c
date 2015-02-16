@@ -26,7 +26,7 @@ static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node *
         return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
 
     UA_VariableAttributes attr;
-    UA_UInt32 pos = 0;
+    size_t pos = 0;
     // todo return more informative error codes from decodeBinary
     if(UA_VariableAttributes_decodeBinary(&attributes->body, &pos, &attr) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
@@ -84,7 +84,7 @@ static UA_StatusCode parseObjectNode(UA_ExtensionObject *attributes, UA_Node **n
        UA_TYPES_IDS[UA_TYPES_OBJECTATTRIBUTES] + UA_ENCODINGOFFSET_BINARY)  // VariableAttributes_Encoding_DefaultBinary
         return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
     UA_ObjectAttributes attr;
-    UA_UInt32 pos = 0;
+    size_t pos = 0;
     // todo return more informative error codes from decodeBinary
     if (UA_ObjectAttributes_decodeBinary(&attributes->body, &pos, &attr) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
@@ -105,7 +105,7 @@ static UA_StatusCode parseObjectNode(UA_ExtensionObject *attributes, UA_Node **n
 
 static UA_StatusCode parseReferenceTypeNode(UA_ExtensionObject *attributes, UA_Node **new_node) {
     UA_ReferenceTypeAttributes attr;
-    UA_UInt32 pos = 0;
+    size_t pos = 0;
     // todo return more informative error codes from decodeBinary
     if(UA_ReferenceTypeAttributes_decodeBinary(&attributes->body, &pos, &attr) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
@@ -135,7 +135,7 @@ static UA_StatusCode parseReferenceTypeNode(UA_ExtensionObject *attributes, UA_N
 
 static UA_StatusCode parseObjectTypeNode(UA_ExtensionObject *attributes, UA_Node **new_node) {
     UA_ObjectTypeAttributes attr;
-    UA_UInt32 pos = 0;
+    size_t pos = 0;
     // todo return more informative error codes from decodeBinary
     if(UA_ObjectTypeAttributes_decodeBinary(&attributes->body, &pos, &attr) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
@@ -157,7 +157,7 @@ static UA_StatusCode parseObjectTypeNode(UA_ExtensionObject *attributes, UA_Node
 
 static UA_StatusCode parseViewNode(UA_ExtensionObject *attributes, UA_Node **new_node) {
     UA_ViewAttributes attr;
-    UA_UInt32 pos = 0;
+    size_t pos = 0;
     // todo return more informative error codes from decodeBinary
     if(UA_ViewAttributes_decodeBinary(&attributes->body, &pos, &attr) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;

@@ -21,7 +21,7 @@ static UA_StatusCode UA_ByteStringArray_deleteMembers(UA_ByteStringArray *string
     return UA_STATUSCODE_GOOD;
 }
 
-static void processHEL(UA_Connection *connection, const UA_ByteString *msg, UA_UInt32 *pos) {
+static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size_t *pos) {
     UA_TcpHelloMessage helloMessage;
     if(UA_TcpHelloMessage_decodeBinary(msg, pos, &helloMessage) != UA_STATUSCODE_GOOD) {
         connection->close(connection);
@@ -51,7 +51,7 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, UA_U
     // The message is on the stack. That's ok since ack is very small.
     UA_ByteString ack_msg = (UA_ByteString){ .length = ackHeader.messageSize,
                                              .data = UA_alloca(ackHeader.messageSize) };
-    UA_UInt32 tmpPos = 0;
+    size_t tmpPos = 0;
     UA_TcpMessageHeader_encodeBinary(&ackHeader, &ack_msg, &tmpPos);
     UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &ack_msg, &tmpPos);
     UA_ByteStringArray answer_buf = { .stringsSize = 1, .strings = &ack_msg };
@@ -61,7 +61,7 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, UA_U
 }
 
 static void processOPN(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg,
-                        UA_UInt32 *pos) {
+                        size_t *pos) {
     if(connection->state != UA_CONNECTION_ESTABLISHED) {
         connection->close(connection);
         return;
@@ -110,7 +110,7 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
     UA_ByteString resp_msg = (UA_ByteString){ .length = respHeader.messageHeader.messageSize,
                                               .data = UA_alloca(respHeader.messageHeader.messageSize) };
 
-    UA_UInt32 tmpPos = 0;
+    size_t tmpPos = 0;
     UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
     UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &resp_msg, &tmpPos); // just mirror back
     UA_SequenceHeader_encodeBinary(&seqHeader, &resp_msg, &tmpPos); // just mirror back
@@ -156,7 +156,7 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
         responseType = requestType.identifier.numeric + 3;              \
     } while(0)
 
-static void processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, UA_UInt32 *pos) {
+static void processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, size_t *pos) {
     // 1) Read in the securechannel
     UA_UInt32 secureChannelId;
     UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
@@ -203,7 +203,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     UA_ByteString *header     = &responseBufs[0];
     UA_ByteString *message    = &responseBufs[1];
     UA_Boolean messageOnStack = UA_FALSE;
-    UA_UInt32 sendOffset      = 0;
+    size_t sendOffset      = 0;
 
 #ifdef EXTENSION_STATELESS
     //only some calls allow to be stateless
@@ -375,7 +375,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     *header = (UA_ByteString){ .length = headerSize, .data = UA_alloca(headerSize) };
     respHeader.messageHeader.messageSize = header->length + message->length;
 
-    UA_UInt32 rpos = 0;
+    size_t rpos = 0;
     UA_SecureConversationMessageHeader_encodeBinary(&respHeader, header, &rpos);
     UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader, header, &rpos);
     UA_SequenceHeader_encodeBinary(&seqHeader, header, &rpos);
@@ -394,7 +394,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
 }
 
 static void processCLO(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg,
-                         UA_UInt32 *pos) {
+                         size_t *pos) {
     UA_UInt32 secureChannelId;
     UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
 
@@ -405,7 +405,7 @@ static void processCLO(UA_Connection *connection, UA_Server *server, const UA_By
 }
 
 void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg) {
-    UA_UInt32 pos = 0;
+    size_t pos = 0;
     UA_TcpMessageHeader tcpMessageHeader;
     do {
         if(UA_TcpMessageHeader_decodeBinary(msg, &pos, &tcpMessageHeader) != UA_STATUSCODE_GOOD) {
@@ -414,7 +414,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             break;
         }
 
-        UA_UInt32 targetpos = pos - 8 + tcpMessageHeader.messageSize;
+        size_t targetpos = pos - 8 + tcpMessageHeader.messageSize;
         switch(tcpMessageHeader.messageTypeAndFinal & 0xffffff) {
         case UA_MESSAGETYPEANDFINAL_HELF & 0xffffff:
             processHEL(connection, msg, &pos);

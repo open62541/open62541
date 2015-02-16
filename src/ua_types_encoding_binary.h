@@ -1,6 +1,7 @@
 #ifndef UA_TYPES_ENCODING_BINARY_H_
 #define UA_TYPES_ENCODING_BINARY_H_
 
+#include <stddef.h>
 #include "ua_types.h"
 
 /**
@@ -30,29 +31,10 @@
  * @{
  */
 
-#define UA_TYPE_CALCSIZEBINARY_AS(TYPE, TYPE_AS)        \
-    UA_UInt32 TYPE##_calcSizeBinary(TYPE const *p) {    \
-        return TYPE_AS##_calcSizeBinary((const TYPE_AS *)p);  \
-    }
-
-#define UA_TYPE_ENCODEBINARY_AS(TYPE, TYPE_AS)                          \
-    UA_StatusCode TYPE##_encodeBinary(TYPE const *src, UA_ByteString *dst, UA_UInt32 *offset) { \
-        return TYPE_AS##_encodeBinary((const TYPE_AS *)src, dst, offset);     \
-    }
-
-#define UA_TYPE_DECODEBINARY_AS(TYPE, TYPE_AS)                          \
-    UA_StatusCode TYPE##_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, TYPE *dst) { \
-        return TYPE_AS##_decodeBinary(src, offset, (TYPE_AS *)dst);     \
-    }
-#define UA_TYPE_BINARY_ENCODING_AS(TYPE, TYPE_AS) \
-    UA_TYPE_CALCSIZEBINARY_AS(TYPE, TYPE_AS)      \
-    UA_TYPE_ENCODEBINARY_AS(TYPE, TYPE_AS)        \
-    UA_TYPE_DECODEBINARY_AS(TYPE, TYPE_AS)
-
 #define UA_TYPE_BINARY_ENCODING(TYPE)                                   \
-    UA_UInt32 TYPE##_calcSizeBinary(TYPE const *p);                     \
-    UA_StatusCode TYPE##_encodeBinary(TYPE const *src, UA_ByteString *dst, UA_UInt32 *offset); \
-    UA_StatusCode TYPE##_decodeBinary(UA_ByteString const *src, UA_UInt32 *offset, TYPE *dst);
+    size_t TYPE##_calcSizeBinary(TYPE const *p);                        \
+    UA_StatusCode TYPE##_encodeBinary(TYPE const *src, UA_ByteString *dst, size_t *offset); \
+    UA_StatusCode TYPE##_decodeBinary(UA_ByteString const *src, size_t *offset, TYPE *dst);
 
 UA_TYPE_BINARY_ENCODING(UA_Boolean)
 UA_TYPE_BINARY_ENCODING(UA_SByte)
@@ -80,14 +62,14 @@ UA_TYPE_BINARY_ENCODING(UA_DataValue)
 UA_TYPE_BINARY_ENCODING(UA_Variant)
 UA_TYPE_BINARY_ENCODING(UA_DiagnosticInfo)
 
-UA_UInt32 UA_calcSizeBinary(const void *p, const UA_DataType *dataType);
-UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_ByteString *dst, UA_UInt32 *offset);
-UA_StatusCode UA_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, void *dst, const UA_DataType *dataType);
+size_t UA_calcSizeBinary(const void *p, const UA_DataType *dataType);
+UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_ByteString *dst, size_t *offset);
+UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst, const UA_DataType *dataType);
 
-UA_UInt32 UA_Array_calcSizeBinary(const void *p, UA_Int32 noElements, const UA_DataType *dataType);
+size_t UA_Array_calcSizeBinary(const void *p, UA_Int32 noElements, const UA_DataType *dataType);
 UA_StatusCode UA_Array_encodeBinary(const void *src, UA_Int32 noElements, const UA_DataType *dataType,
-                                    UA_ByteString *dst, UA_UInt32 *offset);
-UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, UA_UInt32 *offset, UA_Int32 noElements,
+                                    UA_ByteString *dst, size_t *offset);
+UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Int32 noElements,
                                     void **dst, const UA_DataType *dataType);
 
 /// @} /* end of group */
