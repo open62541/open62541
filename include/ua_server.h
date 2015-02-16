@@ -96,7 +96,7 @@ typedef struct UA_WorkItem {
  * @param work Pointer to the WorkItem that shall be added. The pointer is not
  *        freed but copied to an internal representation.
  *
- * @param time The time when the work shall be executed. If the time lies in the
+ * @param executionTime The time when the work shall be executed. If the time lies in the
  *        past, the work will be executed in the next iteration of the server's
  *        main loop
  *
@@ -107,7 +107,7 @@ typedef struct UA_WorkItem {
  * @return Upon sucess, UA_STATUSCODE_GOOD is returned. An error code otherwise.
  */
 UA_StatusCode UA_EXPORT UA_Server_addTimedWorkItem(UA_Server *server, const UA_WorkItem *work,
-                                                   UA_DateTime time, UA_Guid *resultWorkGuid);
+                                                   UA_DateTime executionTime, UA_Guid *resultWorkGuid);
 
 /**
  * @param server The server object.

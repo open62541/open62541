@@ -91,6 +91,8 @@ endif()
 
 add_library(open62541-objects OBJECT ${lib_sources}) # static version that exports all symbols
 add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-objects>)
+add_library(open62541-static STATIC $<TARGET_OBJECTS:open62541-objects>)
+SET_TARGET_PROPERTIES(open62541-static PROPERTIES OUTPUT_NAME open62541 CLEAN_DIRECT_OUTPUT 1) # static version that exports all symbols
 target_compile_definitions(open62541-objects PUBLIC UA_DYNAMIC_LINKING)
 
 ## logging
@@ -160,6 +162,8 @@ add_executable(exampleServer ${server_sources} ${exported_headers} ${generated_h
 target_link_libraries(exampleServer open62541)
 if(WIN32)
     target_link_libraries(exampleServer ws2_32)
+else()
+    target_link_libraries(exampleServer rt)
 endif(WIN32)
 if(MULTITHREADING)
     target_link_libraries(exampleServer urcu-cds urcu urcu-common pthread)

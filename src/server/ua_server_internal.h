@@ -57,6 +57,7 @@ struct UA_Server {
     // worker threads wait on the queue
 	struct cds_wfcq_head dispatchQueue_head;
 	struct cds_wfcq_tail dispatchQueue_tail;
+    pthread_cond_t dispatchQueue_condition; // so the workers don't spin if the queue is empty
 #endif
 
     LIST_HEAD(UA_TimedWorkList, UA_TimedWork) timedWork;
