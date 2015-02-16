@@ -14,6 +14,7 @@
 #else
 #include <sys/select.h> 
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/socketvar.h>
 #include <sys/ioctl.h>
 #include <unistd.h> // read, write, close
