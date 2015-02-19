@@ -266,6 +266,12 @@ UA_TYPE_AS(UA_DateTime, UA_Int64)
 #define HUNDRED_NANOSEC_PER_USEC 10LL
 #define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
 
+#ifdef __MINGW32__
+struct timezone {
+  int tz_minuteswest;
+  int tz_dsttime;
+};
+#endif
 #ifdef _WIN32
 static const unsigned __int64 epoch = 116444736000000000;
 int gettimeofday(struct timeval *tp, struct timezone *tzp);
