@@ -1,36 +1,35 @@
 #include "ua_server.h"
 #include "ua_server_internal.h"
 
-UA_StatusCode UA_Server_addScalarVariableNode(UA_Server *server, UA_QualifiedName *browseName,
-                                              void *value, const UA_NodeId typeId,
-                                              const UA_ExpandedNodeId *parentNodeId,
-                                              const UA_NodeId *referenceTypeId ) {
-    if(typeId.namespaceIndex != 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_VariableNode *tmpNode = UA_VariableNode_new();
-    UA_QualifiedName_copy(browseName, &tmpNode->browseName);
-    UA_String_copy(&browseName->name, &tmpNode->displayName.text);
-    /* UA_LocalizedText_copycstring("integer value", &tmpNode->description); */
-    tmpNode->nodeClass = UA_NODECLASS_VARIABLE;
-    tmpNode->valueRank = -1;
-    UA_NodeId_copy(&typeId, &tmpNode->dataType);
-    UA_NodeId_copy(&typeId, &tmpNode->value.typeId);
-    tmpNode->value.storage.data.dataPtr = value;
-    tmpNode->value.storageType = UA_VARIANT_DATA;
-    tmpNode->value.storage.data.arrayLength = 1;
-    size_t i;
-    for(i = 0;i<UA_TYPES_COUNT;i++) {
-        if(UA_TYPES_IDS[i] == typeId.identifier.numeric)
-            break;
+    /* size_t i; */
+    /* for(i = 0;i<UA_TYPES_COUNT;i++) { */
+    /*     if(UA_TYPES_IDS[i] == typeId.identifier.numeric) */
+    /*         break; */
+    /* } */
+    /* if(i >= UA_TYPES_COUNT) { */
+    /*     UA_VariableNode_delete(tmpNode); */
+    /*     return UA_STATUSCODE_BADINTERNALERROR; */
+    /* } */
+    /* tmpNode->value.type = &UA_TYPES[i]; */
+
+UA_StatusCode UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, UA_QualifiedName *browseName,
+                                        const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId ) {
+    UA_VariableNode *node = UA_VariableNode_new();
+    node->value = *value; // copy content
+    UA_QualifiedName_copy(browseName, &node->browseName);
+    UA_String_copy(&browseName->name, &node->displayName.text);
+    UA_ExpandedNodeId parentId; // we need an expandednodeid
+    UA_ExpandedNodeId_init(&parentId);
+    parentId.nodeId = *parentNodeId;
+    UA_AddNodesResult res = UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node,
+                                                         &parentId, referenceTypeId);
+    if(res.statusCode != UA_STATUSCODE_GOOD) {
+        UA_Variant_init(&node->value);
+        UA_VariableNode_delete(node);
+    } else {
+        UA_free(value);
     }
-    if(i >= UA_TYPES_COUNT) {
-        UA_VariableNode_delete(tmpNode);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    tmpNode->value.type = &UA_TYPES[i];
-    UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)tmpNode,
-                                 parentNodeId, referenceTypeId);
-    return UA_STATUSCODE_GOOD;
+    return res.statusCode;
 }
 
 /* Adds a one-way reference to the local nodestore */

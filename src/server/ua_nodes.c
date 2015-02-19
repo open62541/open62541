@@ -43,6 +43,7 @@ static UA_StatusCode UA_Node_copy(const UA_Node *src, UA_Node *dst) {
 /* UA_ObjectNode */
 void UA_ObjectNode_init(UA_ObjectNode *p) {
 	UA_Node_init((UA_Node*)p);
+    p->nodeClass = UA_NODECLASS_OBJECT;
     p->eventNotifier = 0;
 }
 
@@ -70,6 +71,7 @@ UA_StatusCode UA_ObjectNode_copy(const UA_ObjectNode *src, UA_ObjectNode *dst) {
 /* UA_ObjectTypeNode */
 void UA_ObjectTypeNode_init(UA_ObjectTypeNode *p) {
 	UA_Node_init((UA_Node*)p);
+    p->nodeClass = UA_NODECLASS_OBJECTTYPE;
     p->isAbstract = UA_FALSE;
 }
 
@@ -97,6 +99,7 @@ UA_StatusCode UA_ObjectTypeNode_copy(const UA_ObjectTypeNode *src, UA_ObjectType
 /* UA_VariableNode */
 void UA_VariableNode_init(UA_VariableNode *p) {
 	UA_Node_init((UA_Node*)p);
+    p->nodeClass = UA_NODECLASS_VARIABLE;
     UA_Variant_init(&p->value);
     UA_NodeId_init(&p->dataType);
     p->valueRank = 0;
@@ -155,6 +158,7 @@ UA_StatusCode UA_VariableNode_copy(const UA_VariableNode *src, UA_VariableNode *
 /* UA_VariableTypeNode */
 void UA_VariableTypeNode_init(UA_VariableTypeNode *p) {
 	UA_Node_init((UA_Node*)p);
+    p->nodeClass = UA_NODECLASS_VARIABLETYPE;
     UA_Variant_init(&p->value);
     UA_NodeId_init(&p->dataType);
     p->valueRank = 0;
@@ -207,6 +211,7 @@ UA_StatusCode UA_VariableTypeNode_copy(const UA_VariableTypeNode *src, UA_Variab
 /* UA_ReferenceTypeNode */
 void UA_ReferenceTypeNode_init(UA_ReferenceTypeNode *p) {
 	UA_Node_init((UA_Node*)p);
+    p->nodeClass = UA_NODECLASS_REFERENCETYPE;
     p->isAbstract = UA_FALSE;
     p->symmetric = UA_FALSE;
     UA_LocalizedText_init(&p->inverseName);
@@ -246,6 +251,7 @@ UA_StatusCode UA_ReferenceTypeNode_copy(const UA_ReferenceTypeNode *src, UA_Refe
 /* UA_MethodNode */
 void UA_MethodNode_init(UA_MethodNode *p) {
 	UA_Node_init((UA_Node*)p);
+    p->nodeClass = UA_NODECLASS_METHOD;
     p->executable = UA_FALSE;
     p->userExecutable = UA_FALSE;
 }
@@ -275,6 +281,7 @@ UA_StatusCode UA_MethodNode_copy(const UA_MethodNode *src, UA_MethodNode *dst) {
 /* UA_ViewNode */
 void UA_ViewNode_init(UA_ViewNode *p) {
 	UA_Node_init((UA_Node*)p);
+    p->nodeClass = UA_NODECLASS_VIEW;
     p->containsNoLoops = UA_FALSE;
     p->eventNotifier = 0;
 }
@@ -304,6 +311,7 @@ UA_StatusCode UA_ViewNode_copy(const UA_ViewNode *src, UA_ViewNode *dst) {
 /* UA_DataTypeNode */
 void UA_DataTypeNode_init(UA_DataTypeNode *p) {
 	UA_Node_init((UA_Node*)p);
+    p->nodeClass = UA_NODECLASS_DATATYPE;
     p->isAbstract = UA_FALSE;
 }
 

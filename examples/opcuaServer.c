@@ -20,8 +20,6 @@
 #include "networklayer_udp.h"
 #endif
 
-#include "ua_types.h"
-#include "ua_nodeids.h"
 
 UA_Boolean running = 1;
 
@@ -77,12 +75,13 @@ int main(int argc, char** argv) {
 	//add a node to the adresspace
     UA_Int32 *myInteger = UA_Int32_new();
     *myInteger = 42;
+    UA_Variant *myIntegerVariant = UA_Variant_new();
+    UA_Variant_setValue(myIntegerVariant, myInteger, UA_TYPES_INT32);
     UA_QualifiedName myIntegerName;
     UA_QUALIFIEDNAME_ASSIGN(myIntegerName, "the answer");
-    UA_Server_addScalarVariableNode(server, &myIntegerName,
-                                    myInteger, UA_NODEID_STATIC(UA_TYPES_IDS[UA_TYPES_INT32],0),
-                                    &UA_EXPANDEDNODEID_STATIC(UA_NS0ID_OBJECTSFOLDER,0),
-                                    &UA_NODEID_STATIC(UA_NS0ID_ORGANIZES,0));
+    UA_Server_addVariableNode(server, myIntegerVariant, &myIntegerName,
+                              &UA_NODEID_STATIC(UA_NS0ID_OBJECTSFOLDER,0),
+                              &UA_NODEID_STATIC(UA_NS0ID_ORGANIZES,0));
     
 #ifdef BENCHMARK
     UA_UInt32 nodeCount = 500;
@@ -93,10 +92,10 @@ int main(int argc, char** argv) {
         *data = 42;
         sprintf(str,"%d",i);
         UA_QualifiedName_copycstring(str, nodeName);
-        UA_Server_addScalarVariableNode(server, nodeName,
-                                        data, UA_NODEID_STATIC(UA_TYPES_IDS[UA_TYPES_INT32],0),
-                                        &UA_EXPANDEDNODEID_STATIC(UA_NS0ID_OBJECTSFOLDER,0),
-                                        &UA_NODEID_STATIC(UA_NS0ID_ORGANIZES,0));
+        UA_Server_addVariableNode(server, nodeName,
+                                  data, UA_NODEID_STATIC(UA_TYPES_IDS[UA_TYPES_INT32],0),
+                                  &UA_EXPANDEDNODEID_STATIC(UA_NS0ID_OBJECTSFOLDER,0),
+                                  &UA_NODEID_STATIC(UA_NS0ID_ORGANIZES,0));
     }
 #endif
 

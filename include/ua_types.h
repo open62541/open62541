@@ -389,7 +389,9 @@ void UA_EXPORT UA_QualifiedName_printf(char const *label, const UA_QualifiedName
 UA_StatusCode UA_EXPORT UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);
 
 /* Variant */
+UA_StatusCode UA_EXPORT UA_Variant_setValue(UA_Variant *v, void *p, UA_UInt16 typeIndex);
 UA_StatusCode UA_EXPORT UA_Variant_copySetValue(UA_Variant *v, const void *p, UA_UInt16 typeIndex);
+UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 noElements, UA_UInt16 typeIndex);
 UA_StatusCode UA_EXPORT UA_Variant_copySetArray(UA_Variant *v, const void *array, UA_Int32 noElements, UA_UInt16 typeIndex);
 
 /****************************/

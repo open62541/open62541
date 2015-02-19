@@ -643,39 +643,42 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
     return retval;
 }
 
-/** Copies data into a variant. The target variant has always a storagetype UA_VARIANT_DATA */
-UA_StatusCode UA_Variant_copySetValue(UA_Variant *v, const void *p, UA_UInt16 typeIndex) {
-    UA_Variant_init(v);
-    v->type = &UA_TYPES[typeIndex];
-    v->typeId = (UA_NodeId){.namespaceIndex = 0,
-                                .identifierType = UA_NODEIDTYPE_NUMERIC,
-                                .identifier.numeric = UA_TYPES_IDS[typeIndex]};
-    v->storage.data.arrayLength = 1; // no array but a single entry
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if((v->storage.data.dataPtr = UA_new(&UA_TYPES[typeIndex])))
-       retval = UA_copy(p, v->storage.data.dataPtr, &UA_TYPES[typeIndex]);
-    else
-        retval = UA_STATUSCODE_BADOUTOFMEMORY;
-    if(retval) {
-        UA_Variant_deleteMembers(v);
-        UA_Variant_init(v);
-    }
-    return retval;
+UA_StatusCode UA_Variant_setValue(UA_Variant *v, void *p, UA_UInt16 typeIndex) {
+    return UA_Variant_setArray(v, p, 1, typeIndex);
 }
 
-UA_StatusCode UA_Variant_copySetArray(UA_Variant *v, const void *array, UA_Int32 noElements, UA_UInt16 typeIndex) {
-    UA_Variant_init(v);
+UA_StatusCode UA_Variant_copySetValue(UA_Variant *v, const void *p, UA_UInt16 typeIndex) {
+    if(typeIndex >= UA_TYPES_COUNT)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    void *new;
+    UA_StatusCode retval = UA_copy(p, &new, &UA_TYPES[typeIndex]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    return UA_Variant_setArray(v, new, 1, typeIndex);
+}
+
+UA_StatusCode UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 noElements,
+                                  UA_UInt16 typeIndex) {
+    if(typeIndex >= UA_TYPES_COUNT)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_Variant_deleteMembers(v);
     v->type = &UA_TYPES[typeIndex];
-    v->typeId = (UA_NodeId){.namespaceIndex = 0,
-                            .identifierType = UA_NODEIDTYPE_NUMERIC,
-                            .identifier.numeric = UA_TYPES_IDS[typeIndex]};
+    v->typeId = UA_NODEID_STATIC(UA_TYPES_IDS[typeIndex], 0);
     v->storage.data.arrayLength = noElements;
-    UA_StatusCode retval = UA_Array_copy(array, noElements, &v->storage.data.dataPtr, &UA_TYPES[typeIndex]);
-    if(retval) {
-        UA_Variant_deleteMembers(v);
-        UA_Variant_init(v);
-    }
-    return retval;
+    v->storage.data.dataPtr = array;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_Variant_copySetArray(UA_Variant *v, const void *array, UA_Int32 noElements,
+                                      UA_UInt16 typeIndex) {
+    if(typeIndex >= UA_TYPES_COUNT)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    void *new;
+    UA_StatusCode retval = UA_Array_copy(array, noElements, &new, &UA_TYPES[typeIndex]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    return UA_Variant_setArray(v, new, noElements, typeIndex);
 }
 
 /* DiagnosticInfo */
