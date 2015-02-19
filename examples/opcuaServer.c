@@ -88,13 +88,14 @@ int main(int argc, char** argv) {
     char str[15];
     for(UA_UInt32 i = 0;i<nodeCount;i++) {
         UA_Int32 *data = UA_Int32_new();
-        UA_QualifiedName *nodeName = UA_QualifiedName_new();
         *data = 42;
+        UA_Variant *variant = UA_Variant_new();
+        UA_Variant_setValue(variant, data, UA_TYPES_INT32);
+        UA_QualifiedName *nodeName = UA_QualifiedName_new();
         sprintf(str,"%d",i);
         UA_QualifiedName_copycstring(str, nodeName);
-        UA_Server_addVariableNode(server, nodeName,
-                                  data, UA_NODEID_STATIC(UA_TYPES_IDS[UA_TYPES_INT32],0),
-                                  &UA_EXPANDEDNODEID_STATIC(UA_NS0ID_OBJECTSFOLDER,0),
+        UA_Server_addVariableNode(server, variant, nodeName,
+                                  &UA_NODEID_STATIC(UA_NS0ID_OBJECTSFOLDER,0),
                                   &UA_NODEID_STATIC(UA_NS0ID_ORGANIZES,0));
     }
 #endif

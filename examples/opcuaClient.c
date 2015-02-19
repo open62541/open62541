@@ -40,7 +40,7 @@ static UA_Int32 sendHello(UA_Int32 sock, UA_String *endpointURL) {
 	UA_ByteString message;
 	UA_ByteString_newMembers(&message, messageHeader.messageSize);
 
-	UA_UInt32 offset = 0;
+	size_t offset = 0;
 	UA_TcpMessageHeader_encodeBinary((UA_TcpMessageHeader const*) &messageHeader, &message, &offset);
 	UA_TcpHelloMessage_encodeBinary((UA_TcpHelloMessage const*) &hello, &message, &offset);
 
@@ -95,7 +95,7 @@ static int sendOpenSecureChannel(UA_Int32 sock) {
 
 	UA_ByteString message;
 	UA_ByteString_newMembers(&message, 1000);
-	UA_UInt32 offset = 0;
+	size_t offset = 0;
 	UA_TcpMessageHeader_encodeBinary(&msghdr, &message, &offset);
 	UA_UInt32_encodeBinary(&secureChannelId, &message, &offset);
 	UA_String_encodeBinary(&securityPolicy, &message, &offset);
@@ -123,7 +123,7 @@ static UA_Int32 sendCreateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 
     UA_ByteString message;
 	UA_ByteString_newMembers(&message, 65536);
 	UA_UInt32 tmpChannelId = channelId;
-	UA_UInt32 offset = 0;
+	size_t offset = 0;
 
 	UA_TcpMessageHeader msghdr;
 	msghdr.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
@@ -171,7 +171,7 @@ static UA_Int32 sendCreateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 
 }
 
 static UA_Int32 closeSession(ConnectionInfo *connectionInfo) {
-	UA_UInt32 offset = 0;
+	size_t offset = 0;
 
 	UA_ByteString message;
 	UA_ByteString_newMembers(&message, 65536);
@@ -218,7 +218,7 @@ static UA_Int32 closeSession(ConnectionInfo *connectionInfo) {
 }
 
 static UA_Int32 closeSecureChannel(ConnectionInfo *connectionInfo) {
-	UA_UInt32 offset = 0;
+	size_t offset = 0;
 
 	UA_ByteString message;
 	UA_ByteString_newMembers(&message, 65536);
@@ -259,7 +259,7 @@ static UA_Int32 sendActivateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt3
 	UA_ByteString *message = UA_ByteString_new();
 	UA_ByteString_newMembers(message, 65536);
 	UA_UInt32 tmpChannelId = channelId;
-	UA_UInt32 offset = 0;
+	size_t offset = 0;
 
 	UA_TcpMessageHeader msghdr;
 	msghdr.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
@@ -306,7 +306,7 @@ static UA_Int64 sendReadRequest(ConnectionInfo *connectionInfo, UA_Int32 nodeIds
 	UA_ByteString *message = UA_ByteString_new();
 	UA_ByteString_newMembers(message, 65536);
 	UA_UInt32 tmpChannelId = connectionInfo->channelId;
-	UA_UInt32 offset = 0;
+	size_t offset = 0;
 
 	UA_TcpMessageHeader msghdr;
 	msghdr.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
@@ -395,7 +395,7 @@ static int ua_client_connectUA(char* ipaddress,int port, UA_String *endpointUrl,
 			sendOpenSecureChannel(sock);
 			recv(sock, reply.data, reply.length, 0);
 
-			UA_UInt32 recvOffset = 0;
+			size_t recvOffset = 0;
 			UA_TcpMessageHeader msghdr;
 			UA_TcpMessageHeader_decodeBinary(&reply, &recvOffset, &msghdr);
 
