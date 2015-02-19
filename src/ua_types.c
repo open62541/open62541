@@ -183,6 +183,15 @@ UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
 #define HUNDRED_NANOSEC_PER_USEC 10LL
 #define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
 
+#ifdef __MINGW32__
+#ifndef _TIMEZONE_DEFINED
+#define _TIMEZONE_DEFINED
+struct timezone {
+  int tz_minuteswest;
+  int tz_dsttime;
+};
+#endif
+#endif
 #ifdef _WIN32
 static const unsigned __int64 epoch = 116444736000000000;
 int gettimeofday(struct timeval *tp, struct timezone *tzp);
