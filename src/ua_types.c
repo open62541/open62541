@@ -456,6 +456,7 @@ UA_StatusCode UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst) {
         UA_NodeId_init(dst);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+    dst->namespaceIndex = src->namespaceIndex;
     dst->identifierType = src->identifierType;
     if(retval)
         UA_NodeId_deleteMembers(dst);
