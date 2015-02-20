@@ -209,7 +209,7 @@ typedef struct {
     UA_StatusCode (*read)(const void *handle, const UA_VariantData **);
     void (*release)(const void *handle, const UA_VariantData *);
     UA_StatusCode (*write)(const void **handle, const UA_VariantData *);
-    void (*delete)(const void *handle);
+    void (*free)(const void *handle);
 } UA_VariantDataSource;
 
 struct UA_DataType;
@@ -324,6 +324,12 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_DiagnosticInfo)
 /* Custom functions for the builtin datatypes */
 /**********************************************/
 
+#ifdef __cplusplus
+#define CPP_ONLY(STR) STR
+#else
+#define CPP_ONLY(STR)
+#endif
+
 /* String */
 #define UA_STRING_NULL (UA_String) {-1, (UA_Byte*)0 }
 #define UA_STRING_ASSIGN(VARIABLE, STRING) do { \
@@ -364,7 +370,7 @@ UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 #define UA_NODEID_ASSIGN(VARIABLE, NUMERICID, NAMESPACE) do { \
     VARIABLE.namespaceIndex = NAMESPACE;                      \
-    VARIABLE.identifierType = UA_NODEIDTYPE_NUMERIC;          \
+    VARIABLE.identifierType = CPP_ONLY(UA_NodeId::)UA_NODEIDTYPE_NUMERIC; \
     VARIABLE.identifier.numeric = NUMERICID; } while(0);
 #define UA_NODEID_STATIC(NUMERICID, NAMESPACE)                          \
     (UA_NodeId){.namespaceIndex = NAMESPACE, .identifierType = UA_NODEIDTYPE_NUMERIC, \

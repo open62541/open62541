@@ -20,9 +20,9 @@
 extern "C" {
 #endif
 
-#include "ua_util.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
+#include "ua_util.h"
 #include "ua_nodeids.h"
 #include "ua_connection.h"
 #include "ua_log.h"
@@ -242,7 +242,7 @@ typedef struct UA_ExternalNodeStore {
 	UA_ExternalNodeStore_browseNodes browseNodes;
 	UA_ExternalNodeStore_addReferences addReferences;
 	UA_ExternalNodeStore_deleteReferences deleteReferences;
-	UA_ExternalNodeStore_delete delete;
+	UA_ExternalNodeStore_delete deleteNodeStore;
 } UA_ExternalNodeStore;
 
 UA_StatusCode UA_EXPORT
