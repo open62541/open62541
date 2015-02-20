@@ -102,9 +102,7 @@ void UA_VariableNode_init(UA_VariableNode *p) {
     p->nodeClass = UA_NODECLASS_VARIABLE;
     UA_Variant_init(&p->value);
     UA_NodeId_init(&p->dataType);
-    p->valueRank = 0;
-    p->arrayDimensionsSize = -1;
-    p->arrayDimensions = UA_NULL;
+    p->valueRank = -2; // scalar or array of any dimension
     p->accessLevel = 0;
     p->userAccessLevel = 0;
     p->minimumSamplingInterval = 0.0;
@@ -121,8 +119,6 @@ UA_VariableNode * UA_VariableNode_new(void) {
 void UA_VariableNode_deleteMembers(UA_VariableNode *p) {
     UA_Node_deleteMembers((UA_Node*)p);
     UA_Variant_deleteMembers(&p->value);
-    UA_Array_delete(p->arrayDimensions, p->arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
-    p->arrayDimensionsSize = -1;
 }
 
 void UA_VariableNode_delete(UA_VariableNode *p) {
@@ -141,13 +137,6 @@ UA_StatusCode UA_VariableNode_copy(const UA_VariableNode *src, UA_VariableNode *
         UA_VariableNode_deleteMembers(dst);
         return retval;
     }
-    retval = UA_Array_copy(src->arrayDimensions, src->arrayDimensionsSize, (void**)&dst->arrayDimensions,
-                           &UA_TYPES[UA_TYPES_UINT32]);
-    if(retval) {
-        UA_VariableNode_deleteMembers(dst);
-        return retval;
-    }
-    dst->arrayDimensionsSize = src->arrayDimensionsSize;
     dst->accessLevel = src->accessLevel;
     dst->userAccessLevel = src->accessLevel;
     dst->minimumSamplingInterval = src->minimumSamplingInterval;

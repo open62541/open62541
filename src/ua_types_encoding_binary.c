@@ -709,7 +709,8 @@ size_t UA_Variant_calcSizeBinary(UA_Variant const *p) {
     }
 
     if(arrayLength != 1 && data->arrayDimensions != UA_NULL)
-        length += UA_Array_calcSizeBinary(data->arrayDimensions, data->arrayDimensionsLength, &UA_TYPES[UA_TYPES_INT32]);
+        length += UA_Array_calcSizeBinary(data->arrayDimensions, data->arrayDimensionsSize,
+                                          &UA_TYPES[UA_TYPES_INT32]);
     
     if(p->storageType == UA_VARIANT_DATASOURCE)
         p->storage.datasource.release(p->storage.datasource.handle, data);
@@ -763,7 +764,8 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
     }
 
     if(hasDimensions)
-        retval |= UA_Array_encodeBinary(data->arrayDimensions, data->arrayDimensionsLength, &UA_TYPES[UA_TYPES_INT32], dst, offset);
+        retval |= UA_Array_encodeBinary(data->arrayDimensions, data->arrayDimensionsSize,
+                                        &UA_TYPES[UA_TYPES_INT32], dst, offset);
 
     if(src->storageType == UA_VARIANT_DATASOURCE)
         src->storage.datasource.release(src->storage.datasource.handle, data);
@@ -814,9 +816,10 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, size_t *offset, 
     }
 
     if(hasDimensions && retval == UA_STATUSCODE_GOOD) {
-        retval |= UA_Int32_decodeBinary(src, offset, &data->arrayDimensionsLength);
+        retval |= UA_Int32_decodeBinary(src, offset, &data->arrayDimensionsSize);
         if(retval == UA_STATUSCODE_GOOD)
-            retval |= UA_Array_decodeBinary(src, offset, data->arrayDimensionsLength, &data->dataPtr, &UA_TYPES[UA_TYPES_INT32]);
+            retval |= UA_Array_decodeBinary(src, offset, data->arrayDimensionsSize,
+                                            &data->dataPtr, &UA_TYPES[UA_TYPES_INT32]);
         if(retval)
             data->arrayLength = -1; // for deleteMembers
     }

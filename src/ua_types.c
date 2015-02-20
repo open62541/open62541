@@ -570,9 +570,9 @@ UA_TYPE_NEW_DEFAULT(UA_Variant)
 void UA_Variant_init(UA_Variant *p) {
     p->storageType = UA_VARIANT_DATA;
     p->storage.data.arrayLength = -1;  // no element, p->data == UA_NULL
-    p->storage.data.dataPtr        = UA_NULL;
-    p->storage.data.arrayDimensions       = UA_NULL;
-    p->storage.data.arrayDimensionsLength = -1;
+    p->storage.data.dataPtr = UA_NULL;
+    p->storage.data.arrayDimensions = UA_NULL;
+    p->storage.data.arrayDimensionsSize = -1;
     UA_NodeId_init(&p->typeId);
     p->type = UA_NULL;
 }
@@ -625,10 +625,10 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
         UA_NodeId_copy(&src->typeId, &dst->typeId);
         dstdata->arrayLength = srcdata->arrayLength;
         if(srcdata->arrayDimensions) {
-            retval |= UA_Array_copy(srcdata->arrayDimensions, srcdata->arrayDimensionsLength,
+            retval |= UA_Array_copy(srcdata->arrayDimensions, srcdata->arrayDimensionsSize,
                                     (void **)&dstdata->arrayDimensions, &UA_TYPES[UA_TYPES_INT32]);
             if(retval == UA_STATUSCODE_GOOD)
-                dstdata->arrayDimensionsLength = srcdata->arrayDimensionsLength;
+                dstdata->arrayDimensionsSize = srcdata->arrayDimensionsSize;
             else {
                 UA_Variant_deleteMembers(dst);
                 UA_Variant_init(dst);

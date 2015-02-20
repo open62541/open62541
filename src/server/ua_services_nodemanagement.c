@@ -55,12 +55,13 @@ static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node *
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_VALUERANK)
         vnode->valueRank = attr.valueRank;
 
-    if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_ARRAYDIMENSIONS) {
-        vnode->arrayDimensionsSize = attr.arrayDimensionsSize;
-        vnode->arrayDimensions = attr.arrayDimensions;
-        attr.arrayDimensionsSize = -1;
-        attr.arrayDimensions = UA_NULL;
-    }
+    // don't use extra dimension spec. This comes from the value.
+    /* if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_ARRAYDIMENSIONS) { */
+    /*     vnode->arrayDimensionsSize = attr.arrayDimensionsSize; */
+    /*     vnode->arrayDimensions = attr.arrayDimensions; */
+    /*     attr.arrayDimensionsSize = -1; */
+    /*     attr.arrayDimensions = UA_NULL; */
+    /* } */
 
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_DATATYPE ||
        attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_OBJECTTYPEORDATATYPE) {

@@ -193,7 +193,7 @@ typedef struct {
 typedef struct {
     UA_Int32  arrayLength;        // total number of elements in the data-pointer
     void     *dataPtr;
-    UA_Int32  arrayDimensionsLength;
+    UA_Int32  arrayDimensionsSize;
     UA_Int32 *arrayDimensions;
 } UA_VariantData;
 

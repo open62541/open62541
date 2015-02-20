@@ -481,12 +481,6 @@ UA_Server * UA_Server_new(void) {
                           &((UA_String *)(namespaceArray->value.storage.data.dataPtr))[0]);
     UA_String_copycstring("urn:myServer:myApplication",
                           &((UA_String *)(namespaceArray->value.storage.data.dataPtr))[1]);
-    UA_UInt32 *dimensions = UA_malloc(sizeof(UA_UInt32));
-    if(dimensions) {
-        *dimensions = 2;
-        namespaceArray->arrayDimensions = dimensions;
-        namespaceArray->arrayDimensionsSize = 1;
-    }
     namespaceArray->dataType.identifier.numeric = UA_TYPES_IDS[UA_TYPES_STRING];
     namespaceArray->valueRank = 1;
     namespaceArray->minimumSamplingInterval = 1.0;

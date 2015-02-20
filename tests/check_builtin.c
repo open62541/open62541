@@ -1480,7 +1480,7 @@ START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
 		ck_assert_int_eq(copiedString.data[i], testString.data[i]);
 	ck_assert_int_eq(copiedString.length, testString.length);
 
-	ck_assert_int_eq(value.storage.data.arrayDimensionsLength, copiedValue.storage.data.arrayDimensionsLength);
+	ck_assert_int_eq(value.storage.data.arrayDimensionsSize, copiedValue.storage.data.arrayDimensionsSize);
 	ck_assert_int_eq(value.storage.data.arrayLength, copiedValue.storage.data.arrayLength);
 
 	//finally
@@ -1508,7 +1508,7 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
 
 	value.storage.data.arrayLength = 3;
 	value.storage.data.dataPtr = (void *)srcArray;
-	value.storage.data.arrayDimensionsLength = 1;
+	value.storage.data.arrayDimensionsSize = 1;
 	value.storage.data.arrayDimensions = dimensions;
 	value.type = &UA_TYPES[UA_TYPES_STRING];
 
@@ -1530,7 +1530,7 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
 	}
 	ck_assert_int_eq(((UA_String *)copiedValue.storage.data.dataPtr)[0].data[2], 'o');
 	ck_assert_int_eq(((UA_String *)copiedValue.storage.data.dataPtr)[0].data[3], 'p');
-	ck_assert_int_eq(value.storage.data.arrayDimensionsLength, copiedValue.storage.data.arrayDimensionsLength);
+	ck_assert_int_eq(value.storage.data.arrayDimensionsSize, copiedValue.storage.data.arrayDimensionsSize);
 	ck_assert_int_eq(value.storage.data.arrayLength, copiedValue.storage.data.arrayLength);
 
 	//finally
@@ -1563,7 +1563,7 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
 
 	value.storage.data.arrayLength = 6;
 	value.storage.data.dataPtr     = srcArray;
-	value.storage.data.arrayDimensionsLength = 2;
+	value.storage.data.arrayDimensionsSize = 2;
 	value.storage.data.arrayDimensions       = dimensions;
 	value.type = &UA_TYPES[UA_TYPES_INT32];
 
@@ -1592,7 +1592,7 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
 		ck_assert_int_eq(i2, i);
 	}
 
-	ck_assert_int_eq(value.storage.data.arrayDimensionsLength, copiedValue.storage.data.arrayDimensionsLength);
+	ck_assert_int_eq(value.storage.data.arrayDimensionsSize, copiedValue.storage.data.arrayDimensionsSize);
 	ck_assert_int_eq(value.storage.data.arrayLength, copiedValue.storage.data.arrayLength);
 
 	//finally

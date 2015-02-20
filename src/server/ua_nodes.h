@@ -35,9 +35,13 @@ typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Variant value;
     UA_NodeId dataType;
-    UA_Int32 valueRank;
-    UA_Int32 arrayDimensionsSize;
-    UA_UInt32 *arrayDimensions;
+    UA_Int32 valueRank; /**< n >= 1: the value is an array with the specified number of dimensions.
+                             n = 0: the value is an array with one or more dimensions.
+                             n = -1: the value is a scalar.
+                             n = -2: the value can be a scalar or an array with any number of dimensions.
+                             n = -3:  the value can be a scalar or a one dimensional array. */
+    // UA_Int32 arrayDimensionsSize; // taken from the value-variant
+    // UA_UInt32 *arrayDimensions;
     UA_Byte accessLevel;
     UA_Byte userAccessLevel;
     UA_Double minimumSamplingInterval;
