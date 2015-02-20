@@ -264,6 +264,15 @@ UA_TYPE_AS(UA_DateTime, UA_Int64)
 #define HUNDRED_NANOSEC_PER_USEC 10LL
 #define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
 
+#ifdef __MINGW32__
+#ifndef _TIMEZONE_DEFINED
+#define _TIMEZONE_DEFINED
+struct timezone {
+  int tz_minuteswest;
+  int tz_dsttime;
+};
+#endif
+#endif
 #ifdef _WIN32
 static const unsigned __int64 epoch = 116444736000000000;
 int gettimeofday(struct timeval *tp, struct timezone *tzp);
@@ -445,6 +454,7 @@ UA_StatusCode UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst) {
         UA_NodeId_init(dst);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+    dst->namespaceIndex = src->namespaceIndex;
     dst->identifierType = src->identifierType;
     if(retval)
         UA_NodeId_deleteMembers(dst);

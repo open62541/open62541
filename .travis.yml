@@ -25,6 +25,10 @@ before_install:
    - sudo apt-get install -qq --no-install-recommends build-essential cmake python-lxml graphviz doxygen wget
    - wget http://security.ubuntu.com/ubuntu/pool/main/c/check/check_0.9.10-6ubuntu3_amd64.deb
    - sudo dpkg -i check_0.9.10-6ubuntu3_amd64.deb
+   - wget https://launchpad.net/ubuntu/+source/liburcu/0.8.5-1ubuntu1/+build/6513813/+files/liburcu2_0.8.5-1ubuntu1_amd64.deb
+   - wget https://launchpad.net/ubuntu/+source/liburcu/0.8.5-1ubuntu1/+build/6513813/+files/liburcu-dev_0.8.5-1ubuntu1_amd64.deb
+   - sudo dpkg -i liburcu2_0.8.5-1ubuntu1_amd64.deb
+   - sudo dpkg -i liburcu-dev_0.8.5-1ubuntu1_amd64.deb
    - sudo pip install cpp-coveralls
    - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
    - sudo update-alternatives --config gcc
@@ -35,7 +39,11 @@ script:
    - mkdir -p build
    - cd build
    - echo "Cross compile build for MinGW"
-   - cmake -DCMAKE_TOOLCHAIN_FILE=../Toolchain-mingw32.cmake -DEXAMPLESERVER=ON ..
+   - cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw32.cmake -DEXAMPLESERVER=ON ..
+   - make
+   - cd .. && rm build -rf && mkdir -p build && cd build
+   - echo "Compile multithreaded version"
+   - cmake -DMULTITHREADING=ON -DEXAMPLESERVER=ON ..
    - make
    - cd .. && rm build -rf && mkdir -p build && cd build
    - echo "Only needed profile"
