@@ -40,8 +40,7 @@ typedef struct {
                              n = -1: the value is a scalar.
                              n = -2: the value can be a scalar or an array with any number of dimensions.
                              n = -3:  the value can be a scalar or a one dimensional array. */
-    // UA_Int32 arrayDimensionsSize; // taken from the value-variant
-    // UA_UInt32 *arrayDimensions;
+    // Array Dimensions taken from the value-variant
     UA_Byte accessLevel;
     UA_Byte userAccessLevel;
     UA_Double minimumSamplingInterval;
