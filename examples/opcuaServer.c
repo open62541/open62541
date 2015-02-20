@@ -79,7 +79,7 @@ int main(int argc, char** argv) {
     UA_Variant_setValue(myIntegerVariant, myInteger, UA_TYPES_INT32);
     UA_QualifiedName myIntegerName;
     UA_QUALIFIEDNAME_ASSIGN(myIntegerName, "the answer");
-    UA_Server_addVariableNode(server, myIntegerVariant, &myIntegerName,
+    UA_Server_addVariableNode(server, myIntegerVariant, &UA_NODEID_NULL, &myIntegerName,
                               &UA_NODEID_STATIC(UA_NS0ID_OBJECTSFOLDER,0),
                               &UA_NODEID_STATIC(UA_NS0ID_ORGANIZES,0));
     
@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
         UA_QualifiedName *nodeName = UA_QualifiedName_new();
         sprintf(str,"%d",i);
         UA_QualifiedName_copycstring(str, nodeName);
-        UA_Server_addVariableNode(server, variant, nodeName,
+        UA_Server_addVariableNode(server, variant, &UA_NODEID_NULL, nodeName,
                                   &UA_NODEID_STATIC(UA_NS0ID_OBJECTSFOLDER,0),
                                   &UA_NODEID_STATIC(UA_NS0ID_ORGANIZES,0));
     }

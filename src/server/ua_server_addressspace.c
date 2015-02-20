@@ -12,10 +12,12 @@
     /* } */
     /* tmpNode->value.type = &UA_TYPES[i]; */
 
-UA_StatusCode UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, UA_QualifiedName *browseName,
-                                        const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId ) {
+UA_StatusCode UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, UA_NodeId *nodeId,
+                                        UA_QualifiedName *browseName, const UA_NodeId *parentNodeId,
+                                        const UA_NodeId *referenceTypeId) {
     UA_VariableNode *node = UA_VariableNode_new();
     node->value = *value; // copy content
+    UA_NodeId_copy(nodeId, &node->nodeId);
     UA_QualifiedName_copy(browseName, &node->browseName);
     UA_String_copy(&browseName->name, &node->displayName.text);
     UA_ExpandedNodeId parentId; // we need an expandednodeid

@@ -369,6 +369,7 @@ UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 #define UA_NODEID_STATIC(NUMERICID, NAMESPACE)                          \
     (UA_NodeId){.namespaceIndex = NAMESPACE, .identifierType = UA_NODEIDTYPE_NUMERIC, \
             .identifier.numeric = NUMERICID}
+#define UA_NODEID_NULL UA_NODEID_STATIC(0,0)
 
 /* ExpandedNodeId */
 UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
