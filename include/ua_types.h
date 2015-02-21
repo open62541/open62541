@@ -86,7 +86,7 @@ typedef uint16_t UA_UInt16;
 /** @brief An integer value between -2 147 483 648 and 2 147 483 647. */
 typedef int32_t UA_Int32;
 #define UA_INT32_MAX 2147483647
-#define UA_INT32_MIN −2147483648
+#define UA_INT32_MIN -2147483648
 
 /** @brief An integer value between 0 and 429 4967 295. */
 typedef uint32_t UA_UInt32;
@@ -96,7 +96,7 @@ typedef uint32_t UA_UInt32;
 /** @brief An integer value between -10 223 372 036 854 775 808 and 9 223 372 036 854 775 807 */
 typedef int64_t UA_Int64;
 #define UA_INT64_MAX 9223372036854775807
-#define UA_INT64_MIN −9223372036854775808
+#define UA_INT64_MIN -9223372036854775808
 
 /** @brief An integer value between 0 and 18 446 744 073 709 551 615. */
 typedef uint64_t UA_UInt64;
@@ -209,7 +209,6 @@ typedef struct {
     UA_StatusCode (*read)(const void *handle, UA_VariantData *data);
     void (*release)(const void *handle, UA_VariantData *data);
     UA_StatusCode (*write)(const void *handle, const UA_VariantData *data);
-    void (*destroy)(const void *handle);
 } UA_VariantDataSource;
 
 struct UA_DataType;
@@ -386,7 +385,6 @@ UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 
 /* QualifiedName */
 UA_StatusCode UA_EXPORT UA_QualifiedName_copycstring(char const *src, UA_QualifiedName *dst);
-void UA_EXPORT UA_QualifiedName_printf(char const *label, const UA_QualifiedName *qn);
 #define UA_QUALIFIEDNAME_ASSIGN(VARIABLE, STRING) do {          \
         VARIABLE.namespaceIndex = 0;                            \
         UA_STRING_ASSIGN(VARIABLE.name, STRING); } while(0)

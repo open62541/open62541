@@ -8,7 +8,6 @@
 #include <stdio.h>
 #include <stdlib.h> 
 #include <signal.h>
-#include <errno.h> // errno, EINTR
 
 // provided by the open62541 lib
 #include "ua_server.h"
@@ -34,10 +33,6 @@ static void releaseTimeData(const void *handle, UA_VariantData* data) {
     UA_DateTime_delete((UA_DateTime*)data->dataPtr);
 }
 
-static void destroyTimeDataSource(const void *handle) {
-    return;
-}
-
 UA_Boolean running = 1;
 
 static void stopHandler(int sign) {
@@ -55,9 +50,10 @@ int main(int argc, char** argv) {
     UA_Variant *myDateTimeVariant = UA_Variant_new();
     myDateTimeVariant->storageType = UA_VARIANT_DATASOURCE;
     myDateTimeVariant->storage.datasource = (UA_VariantDataSource)
-        {.handle = UA_NULL, .read = readTimeData, .release = releaseTimeData,
-         .write = (UA_StatusCode (*)(const void*, const UA_VariantData*))UA_NULL,
-         .destroy = destroyTimeDataSource};
+        {.handle = UA_NULL,
+         .read = readTimeData,
+         .release = releaseTimeData,
+         .write = (UA_StatusCode (*)(const void*, const UA_VariantData*))UA_NULL};
     myDateTimeVariant->type = &UA_TYPES[UA_TYPES_DATETIME];
     myDateTimeVariant->typeId = UA_NODEID_STATIC(UA_TYPES_IDS[UA_TYPES_DATETIME],0);
     UA_QualifiedName myDateTimeName;

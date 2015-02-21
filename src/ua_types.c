@@ -590,8 +590,6 @@ void UA_Variant_deleteMembers(UA_Variant *p) {
             UA_free(p->storage.data.arrayDimensions);
             p->storage.data.arrayDimensions = UA_NULL;
         }
-    } else if(p->storageType == UA_VARIANT_DATASOURCE) {
-        p->storage.datasource.destroy(p->storage.datasource.handle);
     }
 }
 
