@@ -63,11 +63,12 @@ static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node *
     /*     attr.arrayDimensions = UA_NULL; */
     /* } */
 
-    if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_DATATYPE ||
-       attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_OBJECTTYPEORDATATYPE) {
-        vnode->dataType = attr.dataType;
-        UA_NodeId_init(&attr.dataType);
-    }
+    // don't use the extra type id. This comes from the value.
+    /* if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_DATATYPE || */
+    /*    attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_OBJECTTYPEORDATATYPE) { */
+    /*     vnode->dataType = attr.dataType; */
+    /*     UA_NodeId_init(&attr.dataType); */
+    /* } */
 
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_VALUE) {
         vnode->value = attr.value;

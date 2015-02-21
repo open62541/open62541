@@ -242,7 +242,7 @@ typedef struct UA_ExternalNodeStore {
 	UA_ExternalNodeStore_browseNodes browseNodes;
 	UA_ExternalNodeStore_addReferences addReferences;
 	UA_ExternalNodeStore_deleteReferences deleteReferences;
-	UA_ExternalNodeStore_delete deleteNodeStore;
+	UA_ExternalNodeStore_delete destroy;
 } UA_ExternalNodeStore;
 
 UA_StatusCode UA_EXPORT

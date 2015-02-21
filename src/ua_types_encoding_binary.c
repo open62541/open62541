@@ -680,53 +680,55 @@ enum UA_VARIANT_ENCODINGMASKTYPE_enum {
 };
 
 size_t UA_Variant_calcSizeBinary(UA_Variant const *p) {
-    UA_UInt32 arrayLength;
-    const UA_VariantData *data;
-    if(!p->type)
+    if(p->type == UA_NULL) // type is not set after init
         return 0;
-    if(p->storageType == UA_VARIANT_DATA)
+    const UA_VariantData *data;
+    UA_VariantData datasourceData;
+    if(p->storageType == UA_VARIANT_DATA || p->storageType == UA_VARIANT_DATA_NODELETE)
         data = &p->storage.data;
     else {
-        if(p->storage.datasource.read(p->storage.datasource.handle, &data) != UA_STATUSCODE_GOOD)
+        if(p->storage.datasource.read(p->storage.datasource.handle, &datasourceData) != UA_STATUSCODE_GOOD)
             return 0;
+        data = &datasourceData;
     }
-
-    arrayLength = data->arrayLength;
-    if(data->dataPtr == UA_NULL)
-        arrayLength = -1;
 
     size_t length = sizeof(UA_Byte); //p->encodingMask
-    if(arrayLength < 1) {
-        length += 4; // length
-    } else {
-        if(arrayLength > 1)
-            length += UA_Array_calcSizeBinary(data->dataPtr, arrayLength, p->type);
-        else
-            length += UA_calcSizeBinary(data->dataPtr, p->type);
-        // if the type is not builtin, we encode it as an extensionobject
-        if(!p->type->namespaceZero || p->type->typeIndex > 24)
-            length += 9 * arrayLength;  // overhead for extensionobjects: 4 byte nodeid + 1 byte encoding + 4 byte bytestring length
+    UA_Int32 arrayLength = data->arrayLength;
+    if(arrayLength <= 0 || data->dataPtr == UA_NULL) {
+        length += 4;
+        arrayLength = 0; // for adding the extensionobject overhead...
     }
+    else if(arrayLength == 1)
+        length += UA_calcSizeBinary(data->dataPtr, p->type);
+    else
+        length += UA_Array_calcSizeBinary(data->dataPtr, arrayLength, p->type);
+        
+    // if the type is not builtin, we encode it as an extensionobject
+    if(p->type->typeIndex > 24 || !p->type->namespaceZero)
+        length += 9 * arrayLength;  // overhead for extensionobjects: 4 byte nodeid + 1 byte
+                                    // encoding + 4 byte bytestring length
 
     if(arrayLength != 1 && data->arrayDimensions != UA_NULL)
         length += UA_Array_calcSizeBinary(data->arrayDimensions, data->arrayDimensionsSize,
                                           &UA_TYPES[UA_TYPES_INT32]);
     
     if(p->storageType == UA_VARIANT_DATASOURCE)
-        p->storage.datasource.release(p->storage.datasource.handle, data);
+        p->storage.datasource.release(p->storage.datasource.handle, &datasourceData);
 
     return length;
 }
 
 UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst, size_t *offset) {
     const UA_VariantData  *data;
+    UA_VariantData datasourceData;
     if(!src->type)
         return UA_STATUSCODE_BADINTERNALERROR;
     if(src->storageType == UA_VARIANT_DATA)
         data = &src->storage.data;
     else {
-        if(src->storage.datasource.read(src->storage.datasource.handle, &data) != UA_STATUSCODE_GOOD)
+        if(src->storage.datasource.read(src->storage.datasource.handle, &datasourceData) != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADENCODINGERROR;
+        data = &datasourceData;
     }
     
     UA_Byte encodingByte = 0;
@@ -768,7 +770,7 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
                                         &UA_TYPES[UA_TYPES_INT32], dst, offset);
 
     if(src->storageType == UA_VARIANT_DATASOURCE)
-        src->storage.datasource.release(src->storage.datasource.handle, data);
+        src->storage.datasource.release(src->storage.datasource.handle, &datasourceData);
                      
     return retval;
 }

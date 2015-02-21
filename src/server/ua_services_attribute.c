@@ -40,8 +40,9 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
         break;
 
     case UA_ATTRIBUTEID_DISPLAYNAME:
-        v->hasVariant = UA_TRUE;
         retval |= UA_Variant_copySetValue(&v->value, &node->displayName, UA_TYPES_LOCALIZEDTEXT);
+        if(retval == UA_STATUSCODE_GOOD)
+            v->hasVariant = UA_TRUE;
         break;
 
     case UA_ATTRIBUTEID_DESCRIPTION:
@@ -56,8 +57,7 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
 
     case UA_ATTRIBUTEID_USERWRITEMASK:
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &node->userWriteMask,
-                                          UA_TYPES_UINT32);
+        retval |= UA_Variant_copySetValue(&v->value, &node->userWriteMask, UA_TYPES_UINT32);
         break;
 
     case UA_ATTRIBUTEID_ISABSTRACT:
@@ -98,14 +98,15 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
 
     case UA_ATTRIBUTEID_VALUE:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copy(&((const UA_VariableNode *)node)->value, &v->value); // todo: zero-copy
+        retval = UA_Variant_copy(&((const UA_VariableNode *)node)->value, &v->value);
+        if(retval == UA_STATUSCODE_GOOD)
+            v->hasVariant = UA_TRUE;
         break;
 
     case UA_ATTRIBUTEID_DATATYPE:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &((const UA_VariableTypeNode *)node)->dataType,
+        retval |= UA_Variant_copySetValue(&v->value, &((const UA_VariableTypeNode *)node)->value.typeId,
                                           UA_TYPES_NODEID);
         break;
 
@@ -118,9 +119,25 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
 
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        v->hasVariant = UA_TRUE;
-        UA_Variant_copySetArray(&v->value, &((const UA_VariableTypeNode *)node)->arrayDimensions,
-                                ((const UA_VariableTypeNode *)node)->arrayDimensionsSize, UA_TYPES_UINT32);
+        {
+            const UA_VariantData *data = UA_NULL;
+            UA_VariantData datasourceData;
+            const UA_VariableNode *vn = (const UA_VariableNode *)node;
+            if(vn->value.storageType == UA_VARIANT_DATA || vn->value.storageType == UA_VARIANT_DATA_NODELETE)
+                data = &vn->value.storage.data;
+            else {
+                if((retval = vn->value.storage.datasource.read(vn->value.storage.datasource.handle,
+                                                               &datasourceData)) != UA_STATUSCODE_GOOD)
+                    break;
+                data = &datasourceData;
+            }
+            retval = UA_Variant_copySetArray(&v->value, data->arrayDimensions, data->arrayDimensionsSize,
+                                             UA_TYPES_INT32);
+            if(retval == UA_STATUSCODE_GOOD)
+                v->hasVariant = UA_TRUE;
+            if(vn->value.storageType == UA_VARIANT_DATASOURCE)
+                vn->value.storage.datasource.release(vn->value.storage.datasource.handle, &datasourceData);
+        }
         break;
 
     case UA_ATTRIBUTEID_ACCESSLEVEL:
@@ -172,7 +189,11 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
     }
 
     UA_NodeStore_release(node);
-
+#include "stdio.h"
+    if(v->hasVariant && v->value.type == UA_NULL) {
+        printf("%i", id->attributeId);
+        UA_assert(UA_FALSE);
+    }
     if(retval != UA_STATUSCODE_GOOD) {
         v->hasStatus = UA_TRUE;
         v->status = UA_STATUSCODE_BADNOTREADABLE;

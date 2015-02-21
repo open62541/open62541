@@ -504,7 +504,7 @@ UA_StatusCode UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *ds
 }
 
 UA_StatusCode UA_LocalizedText_copy(UA_LocalizedText const *src, UA_LocalizedText *dst) {
-    UA_Int32 retval = UA_String_copy(&src->locale, &dst->locale);
+    UA_StatusCode retval = UA_String_copy(&src->locale, &dst->locale);
     retval |= UA_String_copy(&src->text, &dst->text);
     if(retval)
         UA_LocalizedText_deleteMembers(dst);
@@ -579,66 +579,51 @@ void UA_Variant_init(UA_Variant *p) {
 
 UA_TYPE_DELETE_DEFAULT(UA_Variant)
 void UA_Variant_deleteMembers(UA_Variant *p) {
+    UA_NodeId_deleteMembers(&p->typeId);
     if(p->storageType == UA_VARIANT_DATA) {
         if(p->storage.data.dataPtr) {
             UA_Array_delete(p->storage.data.dataPtr, p->storage.data.arrayLength, p->type);
             p->storage.data.dataPtr = UA_NULL;
             p->storage.data.arrayLength = 0;
         }
-
         if(p->storage.data.arrayDimensions) {
             UA_free(p->storage.data.arrayDimensions);
             p->storage.data.arrayDimensions = UA_NULL;
         }
-        return;
-    }
-
-    UA_NodeId_deleteMembers(&p->typeId);
-
-    if(p->storageType == UA_VARIANT_DATASOURCE) {
-        p->storage.datasource.delete(p->storage.datasource.handle);
+    } else if(p->storageType == UA_VARIANT_DATASOURCE) {
+        p->storage.datasource.destroy(p->storage.datasource.handle);
     }
 }
 
-
-/** This function performs a deep copy. The resulting StorageType is UA_VARIANT_DATA. */
 UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
     UA_Variant_init(dst);
-    /* 1) Uniform access to the data */
-    UA_VariantData *dstdata = &dst->storage.data;
-    const UA_VariantData *srcdata;
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(src->storageType == UA_VARIANT_DATA || src->storageType == UA_VARIANT_DATA_NODELETE)
-        srcdata = &src->storage.data;
-    else {
-        retval |= src->storage.datasource.read(src->storage.datasource.handle, &srcdata);
-        if(retval)
-            return retval;
+    UA_StatusCode retval = UA_NodeId_copy(&src->typeId, &dst->typeId);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    dst->type = src->type;
+    if(src->storageType == UA_VARIANT_DATASOURCE) {
+        dst->storageType = UA_VARIANT_DATASOURCE;
+        dst->storage = src->storage;
+        return UA_STATUSCODE_GOOD;
     }
-
-    /* 2) Copy the data to the destination */
+    
+    UA_VariantData *dstdata = &dst->storage.data;
+    const UA_VariantData *srcdata = &src->storage.data;
+    dst->storageType = UA_VARIANT_DATA;
     retval |= UA_Array_copy(srcdata->dataPtr, srcdata->arrayLength, &dstdata->dataPtr, src->type);
-    if(retval == UA_STATUSCODE_GOOD) {
-        dst->storageType = UA_VARIANT_DATA;
-        dst->type= src->type;
-        UA_NodeId_copy(&src->typeId, &dst->typeId);
-        dstdata->arrayLength = srcdata->arrayLength;
-        if(srcdata->arrayDimensions) {
-            retval |= UA_Array_copy(srcdata->arrayDimensions, srcdata->arrayDimensionsSize,
-                                    (void **)&dstdata->arrayDimensions, &UA_TYPES[UA_TYPES_INT32]);
-            if(retval == UA_STATUSCODE_GOOD)
-                dstdata->arrayDimensionsSize = srcdata->arrayDimensionsSize;
-            else {
-                UA_Variant_deleteMembers(dst);
-                UA_Variant_init(dst);
-            }
-        }
-    } 
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Variant_deleteMembers(dst);
+        return retval;
+    }
+    dstdata->arrayLength = srcdata->arrayLength;
 
-    /* 3) Release the data source if necessary */
-    if(src->storageType == UA_VARIANT_DATASOURCE)
-        src->storage.datasource.release(src->storage.datasource.handle, srcdata);
+    if(srcdata->arrayDimensions) {
+        retval |= UA_Array_copy(srcdata->arrayDimensions, srcdata->arrayDimensionsSize,
+                                (void **)&dstdata->arrayDimensions, &UA_TYPES[UA_TYPES_INT32]);
+        if(retval != UA_STATUSCODE_GOOD)
+            UA_Variant_deleteMembers(dst);
+    }
+    dstdata->arrayDimensionsSize = srcdata->arrayDimensionsSize;
 
     return retval;
 }
@@ -650,8 +635,11 @@ UA_StatusCode UA_Variant_setValue(UA_Variant *v, void *p, UA_UInt16 typeIndex) {
 UA_StatusCode UA_Variant_copySetValue(UA_Variant *v, const void *p, UA_UInt16 typeIndex) {
     if(typeIndex >= UA_TYPES_COUNT)
         return UA_STATUSCODE_BADINTERNALERROR;
-    void *new;
-    UA_StatusCode retval = UA_copy(p, &new, &UA_TYPES[typeIndex]);
+    const UA_DataType *type = &UA_TYPES[typeIndex];
+    void *new = UA_malloc(type->memSize);
+    if(!new)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_StatusCode retval = UA_copy(p, new, &UA_TYPES[typeIndex]);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     return UA_Variant_setArray(v, new, 1, typeIndex);
@@ -662,7 +650,6 @@ UA_StatusCode UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 noElement
     if(typeIndex >= UA_TYPES_COUNT)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_Variant_deleteMembers(v);
     v->type = &UA_TYPES[typeIndex];
     v->typeId = UA_NODEID_STATIC(UA_TYPES_IDS[typeIndex], 0);
     v->storage.data.arrayLength = noElements;

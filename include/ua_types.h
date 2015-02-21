@@ -206,10 +206,10 @@ typedef struct {
  *  datasource is via the write-service. */
 typedef struct {
     const void *handle;
-    UA_StatusCode (*read)(const void *handle, const UA_VariantData **);
-    void (*release)(const void *handle, const UA_VariantData *);
-    UA_StatusCode (*write)(const void **handle, const UA_VariantData *);
-    void (*free)(const void *handle);
+    UA_StatusCode (*read)(const void *handle, UA_VariantData *data);
+    void (*release)(const void *handle, UA_VariantData *data);
+    UA_StatusCode (*write)(const void *handle, const UA_VariantData *data);
+    void (*destroy)(const void *handle);
 } UA_VariantDataSource;
 
 struct UA_DataType;

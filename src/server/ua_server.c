@@ -22,7 +22,7 @@ static void UA_ExternalNamespace_init(UA_ExternalNamespace *ens) {
 
 static void UA_ExternalNamespace_deleteMembers(UA_ExternalNamespace *ens) {
 	UA_String_deleteMembers(&ens->url);
-    ens->externalNodeStore.delete(ens->externalNodeStore.ensHandle);
+    ens->externalNodeStore.destroy(ens->externalNodeStore.ensHandle);
 }
 
 /*****************/
@@ -481,7 +481,6 @@ UA_Server * UA_Server_new(void) {
                           &((UA_String *)(namespaceArray->value.storage.data.dataPtr))[0]);
     UA_String_copycstring("urn:myServer:myApplication",
                           &((UA_String *)(namespaceArray->value.storage.data.dataPtr))[1]);
-    namespaceArray->dataType.identifier.numeric = UA_TYPES_IDS[UA_TYPES_STRING];
     namespaceArray->valueRank = 1;
     namespaceArray->minimumSamplingInterval = 1.0;
     namespaceArray->historizing = UA_FALSE;
