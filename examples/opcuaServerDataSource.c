@@ -19,12 +19,12 @@
 
 // data source
 static UA_StatusCode readTimeData(const void *handle, UA_VariantData* data) {
-    UA_DateTime *time = UA_DateTime_new();
-    if(!time)
+    UA_DateTime *currentTime = UA_DateTime_new();
+    if(!currentTime)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    *time = UA_DateTime_now();
+    *currentTime = UA_DateTime_now();
     data->arrayLength = 1;
-    data->dataPtr = time;
+    data->dataPtr = currentTime;
     data->arrayDimensionsSize = -1;
     data->arrayDimensions = UA_NULL;
     return UA_STATUSCODE_GOOD;
