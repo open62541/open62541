@@ -4,6 +4,7 @@
 #include "ua_statuscodes.h"
 #include "ua_nodestore.h"
 #include "ua_util.h"
+#include "stdio.h"
 
 #define CHECK_NODECLASS(CLASS)                                  \
     if(!(node->nodeClass & (CLASS))) {                          \
@@ -189,7 +190,7 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
     }
 
     UA_NodeStore_release(node);
-#include "stdio.h"
+
     if(v->hasVariant && v->value.type == UA_NULL) {
         printf("%i", id->attributeId);
         UA_assert(UA_FALSE);
