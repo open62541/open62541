@@ -123,7 +123,7 @@ UA_StatusCode UA_EXPORT UA_Server_addRepeatedWorkItem(UA_Server *server, const U
                                                       UA_UInt32 interval, UA_Guid *resultWorkGuid);
 
 /** Remove timed or repeated work */
-//UA_Boolean UA_EXPORT UA_Server_removeWorkItem(UA_Server *server, UA_Guid workId);
+UA_Boolean UA_EXPORT UA_Server_removeWorkItem(UA_Server *server, UA_Guid workId);
 
 /**
  * Interface to the binary network layers. This structure is returned from the
@@ -245,7 +245,8 @@ typedef struct UA_ExternalNodeStore {
 	UA_ExternalNodeStore_delete destroy;
 } UA_ExternalNodeStore;
 
-//UA_StatusCode UA_EXPORT UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, const UA_String *url, UA_ExternalNodeStore *nodeStore);
+UA_StatusCode UA_EXPORT
+UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, const UA_String *url, UA_ExternalNodeStore *nodeStore);
 
 /** @} */
 
