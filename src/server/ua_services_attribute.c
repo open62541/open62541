@@ -277,176 +277,133 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 #endif
 }
 
-static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *aWriteValue) {
+static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
-    do {
-        const UA_Node *node = UA_NodeStore_get(server->nodestore, &aWriteValue->nodeId);
+    // we might repeat writing, e.g. when the node got replaced mid-work
+    UA_Boolean done = UA_FALSE;
+    while(!done) {
+        const UA_Node *node = UA_NodeStore_get(server->nodestore, &wvalue->nodeId);
         if(!node)
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
-        UA_Node *newNode;
+        UA_Node* (*newNode)(void);
+        void (*deleteNode)(UA_Node*);
+        UA_StatusCode (*copyNode)(const UA_Node*, UA_Node*);
+
         switch(node->nodeClass) {
         case UA_NODECLASS_OBJECT:
-            newNode = (UA_Node *)UA_ObjectNode_new();
-            UA_ObjectNode_copy((const UA_ObjectNode*)node, (UA_ObjectNode *)newNode);
+            newNode = (UA_Node *(*)(void))UA_ObjectNode_new;
+            deleteNode = (void (*)(UA_Node*))UA_ObjectNode_delete;
+            copyNode = (UA_StatusCode (*)(const UA_Node*, UA_Node*))UA_ObjectNode_copy;
             break;
-
         case UA_NODECLASS_VARIABLE:
-            newNode = (UA_Node *)UA_VariableNode_new();
-            UA_VariableNode_copy((const UA_VariableNode*)node, (UA_VariableNode *)newNode);
+            newNode = (UA_Node *(*)(void))UA_VariableNode_new;
+            deleteNode = (void (*)(UA_Node*))UA_VariableNode_delete;
+            copyNode = (UA_StatusCode (*)(const UA_Node*, UA_Node*))UA_VariableNode_copy;
             break;
-
         case UA_NODECLASS_METHOD:
-            newNode = (UA_Node *)UA_MethodNode_new();
-            UA_MethodNode_copy((const UA_MethodNode*)node, (UA_MethodNode *)newNode);
+            newNode = (UA_Node *(*)(void))UA_MethodNode_new;
+            deleteNode = (void (*)(UA_Node*))UA_MethodNode_delete;
+            copyNode = (UA_StatusCode (*)(const UA_Node*, UA_Node*))UA_MethodNode_copy;
             break;
-
         case UA_NODECLASS_OBJECTTYPE:
-            newNode = (UA_Node *)UA_ObjectTypeNode_new();
-            UA_ObjectTypeNode_copy((const UA_ObjectTypeNode*)node, (UA_ObjectTypeNode *)newNode);
+            newNode = (UA_Node *(*)(void))UA_ObjectTypeNode_new;
+            deleteNode = (void (*)(UA_Node*))UA_ObjectTypeNode_delete;
+            copyNode = (UA_StatusCode (*)(const UA_Node*, UA_Node*))UA_ObjectTypeNode_copy;
             break;
-
         case UA_NODECLASS_VARIABLETYPE:
-            newNode = (UA_Node *)UA_VariableTypeNode_new();
-            UA_VariableTypeNode_copy((const UA_VariableTypeNode*)node, (UA_VariableTypeNode *)newNode);
+            newNode = (UA_Node *(*)(void))UA_VariableTypeNode_new;
+            deleteNode = (void (*)(UA_Node*))UA_VariableTypeNode_delete;
+            copyNode = (UA_StatusCode (*)(const UA_Node*, UA_Node*))UA_VariableTypeNode_copy;
             break;
-
         case UA_NODECLASS_REFERENCETYPE:
-            newNode = (UA_Node *)UA_ReferenceTypeNode_new();
-            UA_ReferenceTypeNode_copy((const UA_ReferenceTypeNode*)node, (UA_ReferenceTypeNode *)newNode);
+            newNode = (UA_Node *(*)(void))UA_ReferenceTypeNode_new;
+            deleteNode = (void (*)(UA_Node*))UA_ReferenceTypeNode_delete;
+            copyNode = (UA_StatusCode (*)(const UA_Node*, UA_Node*))UA_ReferenceTypeNode_copy;
             break;
-
         case UA_NODECLASS_DATATYPE:
-            newNode = (UA_Node *)UA_DataTypeNode_new();
-            UA_DataTypeNode_copy((const UA_DataTypeNode*)node, (UA_DataTypeNode *)newNode);
+            newNode = (UA_Node *(*)(void))UA_DataTypeNode_new;
+            deleteNode = (void (*)(UA_Node*))UA_DataTypeNode_delete;
+            copyNode = (UA_StatusCode (*)(const UA_Node*, UA_Node*))UA_DataTypeNode_copy;
             break;
-
         case UA_NODECLASS_VIEW:
-            newNode = (UA_Node *)UA_ViewNode_new();
-            UA_ViewNode_copy((const UA_ViewNode*)node, (UA_ViewNode *)newNode);
+            newNode = (UA_Node *(*)(void))UA_ViewNode_new;
+            deleteNode = (void (*)(UA_Node*))UA_ViewNode_delete;
+            copyNode = (UA_StatusCode (*)(const UA_Node*, UA_Node*))UA_ViewNode_copy;
             break;
-
         default:
+            UA_NodeStore_release(node);
             return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
-            break;
         }
 
-        switch(aWriteValue->attributeId) {
+        switch(wvalue->attributeId) {
         case UA_ATTRIBUTEID_NODEID:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_NODECLASS:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){ } */
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_BROWSENAME:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_DISPLAYNAME:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_DESCRIPTION:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_WRITEMASK:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_USERWRITEMASK:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_ISABSTRACT:
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_SYMMETRIC:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_INVERSENAME:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
-            /* if(writeValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_EVENTNOTIFIER:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
-
         case UA_ATTRIBUTEID_VALUE:
-            if((newNode->nodeClass != UA_NODECLASS_VARIABLE) && (newNode->nodeClass != UA_NODECLASS_VARIABLETYPE)) {
+            if((node->nodeClass != UA_NODECLASS_VARIABLE) && (node->nodeClass != UA_NODECLASS_VARIABLETYPE)) {
                 retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
                 break;
             }
 
-            if(aWriteValue->value.hasVariant)
-                retval |= UA_Variant_copy(&aWriteValue->value.value, &((UA_VariableNode *)newNode)->value); // todo: zero-copy
-            break;
+            const UA_VariableNode *vn = (const UA_VariableNode*)node;
+            // has the wvalue a variant of the right type?
+            // array sizes are not checked yet..
+            if(!wvalue->value.hasVariant || !UA_NodeId_equal(&vn->value.typeId, &wvalue->value.value.typeId)) {
+                retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+                break;
+            }
 
+            if(vn->value.storageType == UA_VARIANT_DATASOURCE) {
+                retval = vn->value.storage.datasource.write(vn->value.storage.datasource.handle,
+                                                            &wvalue->value.value.storage.data);
+                done = UA_TRUE;
+            } else {
+                // could be a variable or variabletype node. They fit for the value.. member
+                UA_VariableNode *newVn = (UA_VariableNode*)newNode();
+                if(!newVn) {
+                    retval = UA_STATUSCODE_BADOUTOFMEMORY;
+                    break;
+                }
+                retval = copyNode((const UA_Node*)vn, (UA_Node*)newVn);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    deleteNode((UA_Node*)newVn);
+                    break;
+                }
+                retval = UA_Variant_copy(&wvalue->value.value, &newVn->value);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    deleteNode((UA_Node*)newVn);
+                    break;
+                }
+                if(UA_NodeStore_replace(server->nodestore,node,(UA_Node*)newVn,UA_NULL) == UA_STATUSCODE_GOOD)
+                    done = UA_TRUE;
+                else
+                    deleteNode((UA_Node*)newVn);
+            } 
+            break;
         case UA_ATTRIBUTEID_DATATYPE:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_VALUERANK:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_ACCESSLEVEL:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_USERACCESSLEVEL:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_HISTORIZING:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_EXECUTABLE:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
-
         case UA_ATTRIBUTEID_USEREXECUTABLE:
-            /* if(aWriteValue->value.encodingMask == UA_DATAVALUE_ENCODINGMASK_VARIANT){} */
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
-
         default:
             retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
             break;
@@ -455,51 +412,8 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *aWriteValue) {
         if(retval != UA_STATUSCODE_GOOD)
             break;
 
-        if(UA_NodeStore_replace(server->nodestore, node, newNode, UA_NULL) == UA_STATUSCODE_GOOD) {
-            UA_NodeStore_release(node);
-            break;
-        }
-
-        /* The node was replaced in another thread. Restart. */
         UA_NodeStore_release(node);
-        switch(node->nodeClass) {
-        case UA_NODECLASS_OBJECT:
-            UA_ObjectNode_delete((UA_ObjectNode *)newNode);
-            break;
-
-        case UA_NODECLASS_VARIABLE:
-            UA_VariableNode_delete((UA_VariableNode *)newNode);
-            break;
-
-        case UA_NODECLASS_METHOD:
-            UA_MethodNode_delete((UA_MethodNode *)newNode);
-            break;
-            
-        case UA_NODECLASS_OBJECTTYPE:
-            UA_ObjectTypeNode_delete((UA_ObjectTypeNode *)newNode);
-            break;
-            
-        case UA_NODECLASS_VARIABLETYPE:
-            UA_VariableTypeNode_delete((UA_VariableTypeNode *)newNode);
-            break;
-            
-        case UA_NODECLASS_REFERENCETYPE:
-            UA_ReferenceTypeNode_delete((UA_ReferenceTypeNode *)newNode);
-            break;
-            
-        case UA_NODECLASS_DATATYPE:
-            UA_DataTypeNode_delete((UA_DataTypeNode *)newNode);
-            break;
-            
-        case UA_NODECLASS_VIEW:
-            UA_ViewNode_delete((UA_ViewNode *)newNode);
-            break;
-
-        default:
-            break;
-        }
-
-    } while(UA_TRUE);
+    }
 
     return retval;
 }
