@@ -62,6 +62,9 @@ UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager           *cm
     if(!entry) return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_SecureChannel_init(&entry->channel);
 
+    response->responseHeader.stringTableSize = 0;
+    response->responseHeader.timestamp       = UA_DateTime_now();
+
     entry->channel.connection = conn;
     conn->channel = &entry->channel;
     entry->channel.securityToken.channelId       = cm->lastChannelId++;
