@@ -5,17 +5,13 @@
 #define __USE_POSIX
 #include <stdlib.h> // malloc, free, rand
 
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <sys/time.h>
-#endif
-
 #include "ua_util.h"
 
 #ifdef _WIN32
+#include <windows.h>
 #define RAND(SEED) (UA_UInt32)rand()
 #else
+#include <sys/time.h>
 #define RAND(SEED) (UA_UInt32)rand_r(SEED)
 #endif
 
