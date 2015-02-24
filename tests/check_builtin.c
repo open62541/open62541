@@ -1609,7 +1609,7 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
 	varAttr.dataType.identifier.numeric = UA_TYPES_IDS[UA_TYPES_INT32];
 	UA_Variant_init(&varAttr.value);
 	varAttr.value.type = &UA_TYPES[UA_TYPES_INT32];
-    UA_NODEID_ASSIGN(varAttr.value.typeId, UA_TYPES_IDS[UA_TYPES_INT32], 0);
+    UA_NODEID_ASSIGN(varAttr.value.typeId, 0, UA_TYPES_IDS[UA_TYPES_INT32]);
 	varAttr.value.storage.data.dataPtr = &val;
 	varAttr.value.storage.data.arrayLength = 1;
 	varAttr.userWriteMask = 41;
