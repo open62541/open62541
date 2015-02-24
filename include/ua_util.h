@@ -12,6 +12,9 @@
 #ifdef _WIN32
 # include <malloc.h>
 # include "../deps/queue.h"
+# ifdef SLIST_ENTRY
+#  undef SLIST_ENTRY // avoid a conflik in winnt.h
+# endif
 #else
 # include <alloca.h>
 # include <sys/queue.h>
