@@ -101,12 +101,12 @@ int main(int argc, char** argv) {
          .release = releaseTimeData,
          .write = writeTimeData};
     dateVariant->type = &UA_TYPES[UA_TYPES_DATETIME];
-    dateVariant->typeId = UA_NODEID_STATIC(UA_TYPES_IDS[UA_TYPES_DATETIME],0);
+    dateVariant->typeId = UA_NODEID_STATIC(0, UA_TYPES_IDS[UA_TYPES_DATETIME]);
     UA_QualifiedName dateName;
     UA_QUALIFIEDNAME_ASSIGN(dateName, "the time");
     UA_Server_addVariableNode(server, dateVariant, &UA_NODEID_NULL, &dateName,
-                              &UA_NODEID_STATIC(UA_NS0ID_OBJECTSFOLDER,0),
-                              &UA_NODEID_STATIC(UA_NS0ID_ORGANIZES,0));
+                              &UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
+                              &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
 
     // print the status every 2 sec
     UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL, .work.methodCall = {.method = printDeviceStatus, .data = UA_NULL} };
@@ -121,12 +121,12 @@ int main(int argc, char** argv) {
          .release = releaseDeviceStatus,
          .write = writeDeviceStatus};
     statusVariant->type = &UA_TYPES[UA_TYPES_INT32];
-    statusVariant->typeId = UA_NODEID_STATIC(UA_TYPES_IDS[UA_TYPES_INT32],0);
+    statusVariant->typeId = UA_NODEID_STATIC(0, UA_TYPES_IDS[UA_TYPES_INT32]);
     UA_QualifiedName statusName;
     UA_QUALIFIEDNAME_ASSIGN(statusName, "device status");
     UA_Server_addVariableNode(server, statusVariant, &UA_NODEID_NULL, &statusName,
-                              &UA_NODEID_STATIC(UA_NS0ID_OBJECTSFOLDER,0),
-                              &UA_NODEID_STATIC(UA_NS0ID_ORGANIZES,0));
+                              &UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
+                              &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
 
     UA_StatusCode retval = UA_Server_run(server, 1, &running);
 	UA_Server_delete(server);

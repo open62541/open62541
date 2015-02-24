@@ -649,7 +649,7 @@ UA_StatusCode UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 noElement
         return UA_STATUSCODE_BADINTERNALERROR;
 
     v->type = &UA_TYPES[typeIndex];
-    v->typeId = UA_NODEID_STATIC(UA_TYPES_IDS[typeIndex], 0);
+    v->typeId = UA_NODEID_STATIC(0, UA_TYPES_IDS[typeIndex]);
     v->storage.data.arrayLength = noElements;
     v->storage.data.dataPtr = array;
     return UA_STATUSCODE_GOOD;

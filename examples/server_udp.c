@@ -8,7 +8,6 @@
 #include <stdio.h>
 #include <stdlib.h> 
 #include <signal.h>
-#include <errno.h> // errno, EINTR
 
 // provided by the open62541 lib
 #include "ua_server.h"
@@ -38,8 +37,8 @@ int main(int argc, char** argv) {
     UA_QualifiedName myIntegerName;
     UA_QUALIFIEDNAME_ASSIGN(myIntegerName, "the answer");
     UA_Server_addVariableNode(server, myIntegerVariant, &UA_NODEID_NULL, &myIntegerName,
-                              &UA_NODEID_STATIC(UA_NS0ID_OBJECTSFOLDER,0),
-                              &UA_NODEID_STATIC(UA_NS0ID_ORGANIZES,0));
+                              &UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
+                              &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
 
     UA_StatusCode retval = UA_Server_run(server, 1, &running);
 	UA_Server_delete(server);

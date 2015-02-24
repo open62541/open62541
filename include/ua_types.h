@@ -367,20 +367,20 @@ UA_StatusCode UA_EXPORT UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 leng
 /* NodeId */
 UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
-#define UA_NODEID_ASSIGN(VARIABLE, NUMERICID, NAMESPACE) do { \
-    VARIABLE.namespaceIndex = NAMESPACE;                      \
-    VARIABLE.identifierType = CPP_ONLY(UA_NodeId::)UA_NODEIDTYPE_NUMERIC; \
-    VARIABLE.identifier.numeric = NUMERICID; } while(0);
-#define UA_NODEID_STATIC(NUMERICID, NAMESPACE)                          \
-    (UA_NodeId){.namespaceIndex = NAMESPACE, .identifierType = UA_NODEIDTYPE_NUMERIC, \
-            .identifier.numeric = NUMERICID}
+#define UA_NODEID_ASSIGN(VARIABLE, NAMESPACE, NUMERICID) do {                 \
+        VARIABLE.namespaceIndex = NAMESPACE;                                  \
+        VARIABLE.identifierType = CPP_ONLY(UA_NodeId::)UA_NODEIDTYPE_NUMERIC; \
+        VARIABLE.identifier.numeric = NUMERICID; } while(0);
+#define UA_NODEID_STATIC(NAMESPACE, NUMERICID) (UA_NodeId) {              \
+    .namespaceIndex = NAMESPACE, .identifierType = UA_NODEIDTYPE_NUMERIC, \
+    .identifier.numeric = NUMERICID }
 #define UA_NODEID_NULL UA_NODEID_STATIC(0,0)
 
 /* ExpandedNodeId */
 UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
-#define UA_EXPANDEDNODEID_STATIC(NUMERICID, NAMESPACE)                  \
+#define UA_EXPANDEDNODEID_STATIC(NUMERICID, NAMESPACE)                                                   \
     (UA_ExpandedNodeId){.nodeId = {.namespaceIndex = NAMESPACE, .identifierType = UA_NODEIDTYPE_NUMERIC, \
-                                   .identifier.numeric = NUMERICID},    \
+                                   .identifier.numeric = NUMERICID},                                     \
             .serverIndex = 0, .namespaceUri = {.length = -1, .data = UA_NULL} }
 
 /* QualifiedName */

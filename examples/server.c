@@ -72,8 +72,8 @@ int main(int argc, char** argv) {
     UA_QualifiedName myIntegerName;
     UA_QUALIFIEDNAME_ASSIGN(myIntegerName, "the answer");
     UA_Server_addVariableNode(server, myIntegerVariant, &UA_NODEID_NULL, &myIntegerName,
-                              &UA_NODEID_STATIC(UA_NS0ID_OBJECTSFOLDER,0),
-                              &UA_NODEID_STATIC(UA_NS0ID_ORGANIZES,0));
+                              &UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
+                              &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
 
     // add node with a callback to the userspace
     
@@ -90,8 +90,8 @@ int main(int argc, char** argv) {
         sprintf(str,"%d",i);
         UA_QualifiedName_copycstring(str, nodeName);
         UA_Server_addVariableNode(server, variant, &UA_NODEID_NULL, nodeName,
-                                  &UA_NODEID_STATIC(UA_NS0ID_OBJECTSFOLDER,0),
-                                  &UA_NODEID_STATIC(UA_NS0ID_ORGANIZES,0));
+                                  &UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
     }
 #endif
 
