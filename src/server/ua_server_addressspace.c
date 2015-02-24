@@ -1,17 +1,6 @@
 #include "ua_server.h"
 #include "ua_server_internal.h"
 
-    /* size_t i; */
-    /* for(i = 0;i<UA_TYPES_COUNT;i++) { */
-    /*     if(UA_TYPES_IDS[i] == typeId.identifier.numeric) */
-    /*         break; */
-    /* } */
-    /* if(i >= UA_TYPES_COUNT) { */
-    /*     UA_VariableNode_delete(tmpNode); */
-    /*     return UA_STATUSCODE_BADINTERNALERROR; */
-    /* } */
-    /* tmpNode->value.type = &UA_TYPES[i]; */
-
 UA_StatusCode UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, UA_NodeId *nodeId,
                                         UA_QualifiedName *browseName, const UA_NodeId *parentNodeId,
                                         const UA_NodeId *referenceTypeId) {

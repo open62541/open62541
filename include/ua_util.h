@@ -7,17 +7,11 @@
 #include <stdlib.h> // malloc, free
 #include <string.h> // memcpy
 #include <assert.h> // assert
-#include <stddef.h> /* Needed for queue.h */
 
 #ifdef _WIN32
 # include <malloc.h>
-# include "../deps/queue.h"
-# ifdef SLIST_ENTRY
-#  undef SLIST_ENTRY // avoid a conflik in winnt.h
-# endif
 #else
 # include <alloca.h>
-# include <sys/queue.h>
 #endif
 
 #include "ua_types.h"

@@ -1,6 +1,12 @@
 #ifndef UA_CHANNEL_MANAGER_H_
 #define UA_CHANNEL_MANAGER_H_
 
+#ifdef _WIN32
+# include "../deps/queue.h"
+#else
+# include <sys/queue.h>
+#endif
+
 #include "ua_server.h"
 #include "ua_securechannel.h"
 #include "ua_util.h"
