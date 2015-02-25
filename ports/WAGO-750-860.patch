@@ -36,7 +36,7 @@ index c785182..9e66da0 100644
  	endif()
  endif()
  
-@@ -90,10 +90,7 @@ else()
+@@ -90,11 +90,7 @@ else()
  endif()
  
  add_library(open62541-objects OBJECT ${lib_sources})
@@ -44,6 +44,7 @@ index c785182..9e66da0 100644
 -add_library(open62541-static STATIC $<TARGET_OBJECTS:open62541-objects>)
 -SET_TARGET_PROPERTIES(open62541-static PROPERTIES OUTPUT_NAME open62541 CLEAN_DIRECT_OUTPUT 1) # static version that exports all symbols
 -target_compile_definitions(open62541-objects PUBLIC UA_DYNAMIC_LINKING)
+-target_compile_definitions(open62541-static PUBLIC UA_DYNAMIC_LINKING)
 +add_library(open62541 $<TARGET_OBJECTS:open62541-objects>)
  
  ## logging
