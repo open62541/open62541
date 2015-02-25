@@ -31,7 +31,6 @@ As an open source project, we invite new contributors to help improving open6241
 
 /* provided by the open62541 lib */
 #include "ua_server.h"
-#include "ua_namespace_0.h"
 
 /* provided by the user, implementations available in the /examples folder */
 #include "logger_stdout.h"
@@ -65,7 +64,7 @@ int main(int argc, char** argv) {
                               myIntegerVariant, /* the variant */
                               &UA_NODEID_NULL, /* assign a new nodeid */
                               &myIntegerName, /* the browse name */
-                              /* the parent node, and the referencetype to the parent */
+                              /* the parent node and the referencetype to the parent */
                               &UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
                               &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
 
