@@ -61,8 +61,8 @@ int main(int argc, char** argv) {
     UA_Server_setServerCertificate(server, loadCertificate());
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 
-    UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL, .work.methodCall = {.method = testCallback, .data = UA_NULL} };
-    UA_Server_addRepeatedWorkItem(server, &work, 20000000, UA_NULL); // call every 2 sec
+    UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL, .work.methodCall = {.method = testCallback, .data = NULL} };
+    UA_Server_addRepeatedWorkItem(server, &work, 20000000, NULL); // call every 2 sec
 
 	// add a variable node to the adresspace
     UA_Int32 *myInteger = UA_Int32_new();

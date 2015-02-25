@@ -121,7 +121,7 @@ static UA_StatusCode NetworkLayerTCP_add(NetworkLayerTCP *layer, UA_Int32 newsoc
     c->layer = layer;
     c->connection.state = UA_CONNECTION_OPENING;
     c->connection.localConf = layer->conf;
-    c->connection.channel = UA_NULL;
+    c->connection.channel = (void*)0;
     c->connection.close = (void (*)(void*))closeConnection;
     c->connection.write = (void (*)(void*, UA_ByteStringArray))writeCallback;
 
@@ -144,10 +144,10 @@ static UA_UInt32 batchDeleteLinks(NetworkLayerTCP *layer, UA_WorkItem **returnWo
 		return 0;
 	}
 #ifdef UA_MULTITHREADING
-    struct deleteLink *d = uatomic_xchg(&layer->deleteLinkList, UA_NULL);
+    struct deleteLink *d = uatomic_xchg(&layer->deleteLinkList, (void*)0);
 #else
     struct deleteLink *d = layer->deleteLinkList;
-    layer->deleteLinkList = UA_NULL;
+    layer->deleteLinkList = (void*)0;
 #endif
     UA_UInt32 count = 0;
     while(d) {
@@ -301,7 +301,7 @@ static UA_StatusCode NetworkLayerTCP_start(NetworkLayerTCP *layer) {
 
 static UA_Int32 NetworkLayerTCP_getWork(NetworkLayerTCP *layer, UA_WorkItem **workItems,
                                         UA_UInt16 timeout) {
-    UA_WorkItem *items = UA_NULL;
+    UA_WorkItem *items = (void*)0;
     UA_Int32 itemsCount = batchDeleteLinks(layer, &items);
     setFDSet(layer);
     struct timeval tmptv = {0, timeout};
@@ -387,7 +387,7 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
 	tcplayer->conLinksSize = 0;
 	tcplayer->conLinks = NULL;
     tcplayer->port = port;
-    tcplayer->deleteLinkList = UA_NULL;
+    tcplayer->deleteLinkList = (void*)0;
 
     UA_ServerNetworkLayer nl;
     nl.nlHandle = tcplayer;
