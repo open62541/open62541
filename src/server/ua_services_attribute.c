@@ -208,10 +208,9 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
         return;
     }
 
-    UA_StatusCode retval = UA_Array_new((void**)&response->results, request->nodesToReadSize,
-                                        &UA_TYPES[UA_TYPES_DATAVALUE]);
-    if(retval != UA_STATUSCODE_GOOD) {
-        response->responseHeader.serviceResult = retval;
+    response->results = UA_Array_new(&UA_TYPES[UA_TYPES_DATAVALUE], request->nodesToReadSize);
+    if(!response->results) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
 
@@ -422,10 +421,9 @@ void Service_Write(UA_Server *server, UA_Session *session,
                    const UA_WriteRequest *request, UA_WriteResponse *response) {
     UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
 
-    UA_StatusCode retval = UA_Array_new((void**)&response->results, request->nodesToWriteSize,
-                                        &UA_TYPES[UA_TYPES_STATUSCODE]);
-    if(retval) {
-        response->responseHeader.serviceResult = retval;
+    response->results = UA_Array_new(&UA_TYPES[UA_TYPES_STATUSCODE], request->nodesToWriteSize);
+    if(!response->results) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
 

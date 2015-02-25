@@ -97,7 +97,7 @@ static UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session
     new_refs[count].isInverse = !item->isForward;
     retval |= UA_ExpandedNodeId_copy(&item->targetNodeId, &new_refs[count].targetId);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Array_delete(new_refs, ++count, &UA_TYPES[UA_TYPES_REFERENCENODE]);
+        UA_Array_delete(new_refs, &UA_TYPES[UA_TYPES_REFERENCENODE], ++count);
         newNode->references = UA_NULL;
         newNode->referencesSize = 0;
         deleteNode(newNode);

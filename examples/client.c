@@ -319,7 +319,7 @@ static UA_Int64 sendReadRequest(ConnectionInfo *connectionInfo, UA_Int32 nodeIds
 	UA_ReadRequest rq;
 	UA_ReadRequest_init(&rq);
 	rq.maxAge = 0;
-	UA_Array_new((void **)&rq.nodesToRead, nodeIds_size, &UA_TYPES[UA_TYPES_READVALUEID]);
+	rq.nodesToRead = UA_Array_new(&UA_TYPES[UA_TYPES_READVALUEID], nodeIds_size);
 	rq.nodesToReadSize = nodeIds_size;
 	for(UA_Int32 i=0;i<nodeIds_size;i++) {
 		UA_ReadValueId_init(&(rq.nodesToRead[i]));
@@ -347,7 +347,7 @@ static UA_Int64 sendReadRequest(ConnectionInfo *connectionInfo, UA_Int32 nodeIds
 
 	UA_DateTime tic = UA_DateTime_now();
 	UA_Int32 sendret = send(connectionInfo->socket, message->data, offset, 0);
-	UA_Array_delete(rq.nodesToRead,nodeIds_size,&UA_TYPES[UA_TYPES_READVALUEID]);
+	UA_Array_delete(rq.nodesToRead, &UA_TYPES[UA_TYPES_READVALUEID], nodeIds_size);
 	UA_ByteString_delete(message);
 
 	if (sendret < 0) {
@@ -502,7 +502,7 @@ int main(int argc, char *argv[]) {
 
 /* REQUEST START*/
     UA_NodeId *nodesToRead;
-    UA_Array_new((void**)&nodesToRead,nodesToReadSize,&UA_TYPES[UA_TYPES_NODEID]);
+    nodesToRead = UA_Array_new(&UA_TYPES[UA_TYPES_NODEID], nodesToReadSize);
 
 	for(UA_UInt32 i = 0; i<nodesToReadSize; i++) {
 		if(alwaysSameNode)
@@ -516,7 +516,7 @@ int main(int argc, char *argv[]) {
 	UA_DateTime tic, toc;
 	UA_Double *timeDiffs;
 	UA_Int32 received;
-	UA_Array_new((void**)&timeDiffs,tries,&UA_TYPES[UA_TYPES_DOUBLE]);
+	timeDiffs = UA_Array_new(&UA_TYPES[UA_TYPES_DOUBLE], tries);
 	UA_Double sum = 0;
 
 	for(UA_UInt32 i = 0; i < tries; i++) {
@@ -576,7 +576,7 @@ int main(int argc, char *argv[]) {
 	fclose(fHandle);
 
 	UA_String_deleteMembers(&reply);
-	UA_Array_delete(nodesToRead,nodesToReadSize,&UA_TYPES[UA_TYPES_NODEID]);
+	UA_Array_delete(nodesToRead,&UA_TYPES[UA_TYPES_NODEID], nodesToReadSize);
     UA_free(timeDiffs);
 
 	return 0;

@@ -1254,7 +1254,7 @@ START_TEST(UA_Array_copyByteArrayShallWorkOnExample) {
 	testString.length  = 5;
 
 	//when
-	UA_Array_copy((const void *)testString.data, 5, (void **)&dstArray, &UA_TYPES[UA_TYPES_BYTE]);
+	UA_Array_copy((const void *)testString.data, (void **)&dstArray, &UA_TYPES[UA_TYPES_BYTE], 5);
 	//then
 	for(i = 0;i < size;i++)
 		ck_assert_int_eq(testString.data[i], dstArray[i]);
@@ -1269,15 +1269,14 @@ END_TEST
 START_TEST(UA_Array_copyUA_StringShallWorkOnExample) {
 	// given
 	UA_Int32   i, j;
-	UA_String *srcArray;
-	UA_Array_new((void**)&srcArray, 3, &UA_TYPES[UA_TYPES_STRING]);
+	UA_String *srcArray = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 3);
 	UA_String *dstArray;
 
 	UA_String_copycstring("open", &srcArray[0]);
 	UA_String_copycstring("62541", &srcArray[1]);
 	UA_String_copycstring("opc ua", &srcArray[2]);
 	//when
-	UA_Array_copy((const void *)srcArray, 3, (void **)&dstArray, &UA_TYPES[UA_TYPES_STRING]);
+	UA_Array_copy((const void *)srcArray, (void **)&dstArray, &UA_TYPES[UA_TYPES_STRING], 3);
 	//then
 	for(i = 0;i < 3;i++) {
 		for(j = 0;j < 3;j++)
@@ -1285,8 +1284,8 @@ START_TEST(UA_Array_copyUA_StringShallWorkOnExample) {
 		ck_assert_int_eq(srcArray[i].length, dstArray[i].length);
 	}
 	//finally
-	UA_Array_delete(srcArray, 3, &UA_TYPES[UA_TYPES_STRING]);
-	UA_Array_delete(dstArray, 3, &UA_TYPES[UA_TYPES_STRING]);
+	UA_Array_delete(srcArray, &UA_TYPES[UA_TYPES_STRING], 3);
+	UA_Array_delete(dstArray, &UA_TYPES[UA_TYPES_STRING], 3);
 }
 END_TEST
 
@@ -1492,8 +1491,7 @@ END_TEST
 
 START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
 	// given
-	UA_String *srcArray;
-	UA_Array_new((void**)&srcArray, 3, &UA_TYPES[UA_TYPES_STRING]);
+	UA_String *srcArray = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 3);
 	UA_String_copycstring("__open", &srcArray[0]);
 	UA_String_copycstring("_62541", &srcArray[1]);
 	UA_String_copycstring("opc ua", &srcArray[2]);
@@ -1541,8 +1539,7 @@ END_TEST
 
 START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
 	// given
-	UA_Int32 *srcArray;
-	UA_Array_new((void**)&srcArray, 6, &UA_TYPES[UA_TYPES_INT32]);
+	UA_Int32 *srcArray = UA_Array_new(&UA_TYPES[UA_TYPES_INT32], 6);
 	srcArray[0] = 0;
 	srcArray[1] = 1;
 	srcArray[2] = 2;
@@ -1550,8 +1547,7 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
 	srcArray[4] = 4;
 	srcArray[5] = 5;
 
-	UA_Int32 *dimensions;
-	UA_Array_new((void**)&dimensions, 2, &UA_TYPES[UA_TYPES_INT32]);
+	UA_Int32 *dimensions = UA_Array_new(&UA_TYPES[UA_TYPES_INT32], 2);
 	UA_Int32 dim1 = 3;
 	UA_Int32 dim2 = 2;
 	dimensions[0] = dim1;

@@ -19,7 +19,7 @@ static void UA_Node_deleteMembers(UA_Node *p) {
 	UA_QualifiedName_deleteMembers(&p->browseName);
 	UA_LocalizedText_deleteMembers(&p->displayName);
 	UA_LocalizedText_deleteMembers(&p->description);
-	UA_Array_delete(p->references, p->referencesSize, &UA_TYPES[UA_TYPES_REFERENCENODE]);
+	UA_Array_delete(p->references, &UA_TYPES[UA_TYPES_REFERENCENODE], p->referencesSize);
 }
 
 static UA_StatusCode UA_Node_copy(const UA_Node *src, UA_Node *dst) {
@@ -33,8 +33,8 @@ static UA_StatusCode UA_Node_copy(const UA_Node *src, UA_Node *dst) {
 	dst->writeMask = src->writeMask;
 	dst->userWriteMask = src->userWriteMask;
 	dst->referencesSize = src->referencesSize;
-	retval |= UA_Array_copy(src->references, src->referencesSize, (void**)&dst->references,
-                            &UA_TYPES[UA_TYPES_REFERENCENODE]);
+	retval |= UA_Array_copy(src->references, (void**)&dst->references, &UA_TYPES[UA_TYPES_REFERENCENODE],
+                            src->referencesSize);
 	if(retval)
     	UA_Node_deleteMembers(dst);
 	return retval;

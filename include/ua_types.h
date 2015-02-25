@@ -330,17 +330,25 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_DiagnosticInfo)
 #endif
 
 /* String */
+/** Copy a (zero terminated) char-array into a UA_String. Memory for the string data is
+    allocated. */
+UA_StatusCode UA_EXPORT UA_String_copycstring(char const *src, UA_String *dst);
+
+/** Printf a char-array into a UA_String. Memory for the string data is allocated. */
+UA_StatusCode UA_EXPORT UA_String_copyprintf(char const *fmt, UA_String *dst, ...);
+
+/** Compares two strings */
+UA_Boolean UA_EXPORT UA_String_equal(const UA_String *string1, const UA_String *string2);
+
 #define UA_STRING_NULL (UA_String) {-1, (UA_Byte*)0 }
 #define UA_STRING_ASSIGN(VARIABLE, STRING) do { \
         VARIABLE.length = sizeof(STRING)-1;     \
         VARIABLE.data   = (UA_Byte *)STRING; } while(0)
 
-UA_StatusCode UA_EXPORT UA_String_copycstring(char const *src, UA_String *dst);
-UA_StatusCode UA_EXPORT UA_String_copyprintf(char const *fmt, UA_String *dst, ...);
-UA_Boolean UA_EXPORT UA_String_equal(const UA_String *string1, const UA_String *string2);
-
 /* DateTime */
+/** Returns the current time */
 UA_DateTime UA_EXPORT UA_DateTime_now(void);
+
 typedef struct UA_DateTimeStruct {
     UA_Int16 nanoSec;
     UA_Int16 microSec;
@@ -352,32 +360,45 @@ typedef struct UA_DateTimeStruct {
     UA_Int16 month;
     UA_Int16 year;
 } UA_DateTimeStruct;
+
 UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime time);
 UA_StatusCode UA_EXPORT UA_DateTime_toString(UA_DateTime time, UA_String *timeString);
 
 /* Guid */
+/** Compares two guids */
 UA_Boolean UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
-/** Do not use for security-critical entropy! */
+    
+/** Returns a randomly generated guid. Do not use for security-critical entropy! */
 UA_Guid UA_EXPORT UA_Guid_random(UA_UInt32 *seed);
 
 /* ByteString */
-UA_Boolean UA_EXPORT UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2);
+#define UA_ByteString_equal(string1, string2) \
+    UA_String_equal((const UA_String*) string1, (const UA_String*)string2)
+
+/** Allocates memory of size length for the bytestring. The content is not set to zero. */
 UA_StatusCode UA_EXPORT UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length);
 
 /* NodeId */
+/** Compares two nodeids */
 UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
+
+/** Is the nodeid a null-nodeid? */
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
+
 #define UA_NODEID_ASSIGN(VARIABLE, NAMESPACE, NUMERICID) do {                 \
         VARIABLE.namespaceIndex = NAMESPACE;                                  \
         VARIABLE.identifierType = CPP_ONLY(UA_NodeId::)UA_NODEIDTYPE_NUMERIC; \
         VARIABLE.identifier.numeric = NUMERICID; } while(0);
+
 #define UA_NODEID_STATIC(NAMESPACE, NUMERICID) (UA_NodeId) {              \
     .namespaceIndex = NAMESPACE, .identifierType = UA_NODEIDTYPE_NUMERIC, \
     .identifier.numeric = NUMERICID }
+
 #define UA_NODEID_NULL UA_NODEID_STATIC(0,0)
 
 /* ExpandedNodeId */
 UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
+
 #define UA_EXPANDEDNODEID_STATIC(NAMESPACE, NUMERICID) (UA_ExpandedNodeId) {             \
         .nodeId = {.namespaceIndex = NAMESPACE, .identifierType = UA_NODEIDTYPE_NUMERIC, \
                    .identifier.numeric = NUMERICID },                                    \
@@ -390,12 +411,58 @@ UA_StatusCode UA_EXPORT UA_QualifiedName_copycstring(char const *src, UA_Qualifi
         UA_STRING_ASSIGN(VARIABLE.name, STRING); } while(0)
 
 /* LocalizedText */
+/** Copy a (zero-terminated) char-array into the UA_LocalizedText. Memory for the string is
+    allocated. The locale is set to "en" by default. */
 UA_StatusCode UA_EXPORT UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);
 
 /* Variant */
+
+/**
+ * Set the variant to a scalar value that already resides in memory. The value takes on the
+ * lifecycle of the variant and is deleted with it.
+ *
+ * @param v The variant
+ * @param p A pointer to the data
+ * @param typeIndex The index of the datatype (from namespace 0) as defined in ua_types_generated.h.
+ * For example, typeIndex == UA_TYPES_INT32
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
 UA_StatusCode UA_EXPORT UA_Variant_setValue(UA_Variant *v, void *p, UA_UInt16 typeIndex);
+
+/**
+ * Set the variant to a scalar value that is copied from an existing variable.
+ *
+ * @param v The variant
+ * @param p A pointer to the data
+ * @param typeIndex The index of the datatype (from namespace 0) as defined in ua_types_generated.h.
+ * For example, typeIndex == UA_TYPES_INT32
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
 UA_StatusCode UA_EXPORT UA_Variant_copySetValue(UA_Variant *v, const void *p, UA_UInt16 typeIndex);
+
+/**
+ * Set the variant to an array that already resides in memory. The array takes on the lifecycle of
+ * the variant and is deleted with it.
+ *
+ * @param v The variant
+ * @param array A pointer to the array data
+ * @param noElements The size of the array
+ * @param typeIndex The index of the datatype (from namespace 0) as defined in ua_types_generated.h.
+ * For example, typeIndex == UA_TYPES_INT32
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
 UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 noElements, UA_UInt16 typeIndex);
+
+/**
+ * Set the variant to an array that is copied from an existing array.
+ *
+ * @param v The variant
+ * @param array A pointer to the array data
+ * @param noElements The size of the array
+ * @param typeIndex The index of the datatype (from namespace 0) as defined in ua_types_generated.h.
+ * For example, typeIndex == UA_TYPES_INT32
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
 UA_StatusCode UA_EXPORT UA_Variant_copySetArray(UA_Variant *v, const void *array, UA_Int32 noElements, UA_UInt16 typeIndex);
 
 /****************************/
@@ -433,10 +500,49 @@ struct UA_DataType {
     UA_DataTypeMember members[UA_MAX_TYPE_MEMBERS];
 };
 
+/**
+ * Allocates and initializes a variable of type dataType
+ *
+ * @param dataType The datatype description
+ * @return Returns the memory location of the variable or (void*)0 if no memory is available
+ */
 void UA_EXPORT * UA_new(const UA_DataType *dataType);
+
+/**
+ * Initializes a variable to default values
+ *
+ * @param p The memory location of the variable
+ * @param dataType The datatype description
+ */
 void UA_EXPORT UA_init(void *p, const UA_DataType *dataType);
+
+/**
+ * Copies the content of two variables. If copying fails (e.g. because no memory was available for
+ * an array), then dst is emptied and initialized to prevent memory leaks.
+ *
+ * @param src The memory location of the source variable
+ * @param dst The memory location of the destination variable
+ * @param dataType The datatype description
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
 UA_StatusCode UA_EXPORT UA_copy(const void *src, void *dst, const UA_DataType *dataType);
+
+/**
+ * Deletes the dynamically assigned content of a variable (e.g. a member-array). Afterwards, the
+ * variable can be safely deleted without causing memory leaks. But the variable is not initialized
+ * and may contain old data that is not memory-relevant.
+ *
+ * @param p The memory location of the variable
+ * @param dataType The datatype description of the variable
+ */
 void UA_EXPORT UA_deleteMembers(void *p, const UA_DataType *dataType);
+
+/**
+ * Deletes (frees) a variable and all of its content.
+ *
+ * @param p The memory location of the variable
+ * @param dataType The datatype description of the variable
+ */
 void UA_EXPORT UA_delete(void *p, const UA_DataType *dataType);
 
 /********************/
@@ -445,9 +551,33 @@ void UA_EXPORT UA_delete(void *p, const UA_DataType *dataType);
 
 #define MAX_ARRAY_SIZE 104857600 // arrays must be smaller than 100MB
 
-UA_StatusCode UA_EXPORT UA_Array_new(void **p, UA_Int32 noElements, const UA_DataType *dataType);
-UA_StatusCode UA_EXPORT UA_Array_copy(const void *src, UA_Int32 noElements, void **dst, const UA_DataType *dataType);
-void UA_EXPORT UA_Array_delete(void *p, UA_Int32 noElements, const UA_DataType *dataType);
+/**
+ * Allocates and initializes an array of variables of a specific type
+ *
+ * @param dataType The datatype description
+ * @return Returns the memory location of the variable or (void*)0 if no memory could be allocated
+ */
+void* UA_EXPORT UA_Array_new(const UA_DataType *dataType, UA_Int32 noElements);
+
+/**
+ * Allocates and copies an array. dst is set to (void*)0 if not enough memory is available.
+ *
+ * @param src The memory location of the souce array
+ * @param dst The memory location where the pointer to the destination array is written
+ * @param dataType The datatype of the array members
+ * @param noElements The size of the array
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
+UA_StatusCode UA_EXPORT UA_Array_copy(const void *src, void **dst, const UA_DataType *dataType, UA_Int32 noElements);
+
+/**
+ * Deletes an array.
+ *
+ * @param src The memory location of the array
+ * @param dataType The datatype of the array members
+ * @param noElements The size of the array
+ */
+void UA_EXPORT UA_Array_delete(void *p, const UA_DataType *dataType, UA_Int32 noElements);
 
 /** @} */
 

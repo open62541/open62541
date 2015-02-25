@@ -1255,6 +1255,6 @@ UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, size_t *offset, UA
         ptr += dataType->memSize;
     }
     if(retval != UA_STATUSCODE_GOOD)
-        UA_Array_delete(*dst, i, dataType);
+        UA_Array_delete(*dst, dataType, i);
     return retval;
 }

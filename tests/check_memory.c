@@ -26,7 +26,7 @@ START_TEST(arrayCopyShallMakeADeepCopy) {
 	a1[2] = (UA_String){3, (UA_Byte*)"ccc"};
 	// when
 	UA_String *a2;
-	UA_Int32   retval = UA_Array_copy((const void *)a1, 3, (void **)&a2, &UA_TYPES[UA_TYPES_STRING]);
+	UA_Int32   retval = UA_Array_copy((const void *)a1, (void **)&a2, &UA_TYPES[UA_TYPES_STRING], 3);
 	// then
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	ck_assert_int_eq(a1[0].length, 1);
@@ -42,7 +42,7 @@ START_TEST(arrayCopyShallMakeADeepCopy) {
 	ck_assert_int_eq(a1[1].data[0], a2[1].data[0]);
 	ck_assert_int_eq(a1[2].data[0], a2[2].data[0]);
 	// finally
-	UA_Array_delete((void *)a2, 3, &UA_TYPES[UA_TYPES_STRING]);
+	UA_Array_delete((void *)a2, &UA_TYPES[UA_TYPES_STRING], 3);
 }
 END_TEST
 

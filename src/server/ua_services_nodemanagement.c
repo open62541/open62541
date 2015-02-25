@@ -240,10 +240,9 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
         return;
     }
 
-    UA_StatusCode retval = UA_Array_new((void**)&response->results, request->nodesToAddSize,
-                                        &UA_TYPES[UA_TYPES_ADDNODESRESULT]);
-    if(retval) {
-        response->responseHeader.serviceResult = retval;
+    response->results = UA_Array_new(&UA_TYPES[UA_TYPES_ADDNODESRESULT], request->nodesToAddSize);
+    if(!response->results) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
 
