@@ -1,6 +1,7 @@
 #include "ua_util.h"
 #include "ua_types.h"
 #include "ua_connection.h"
+#include "ua_types_generated.h"
 
 /**
  * The client networklayer can handle only a single connection. The networklayer
