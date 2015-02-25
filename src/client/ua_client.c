@@ -25,6 +25,9 @@ UA_Client * UA_Client_new(void) {
 
 static UA_StatusCode HelAckHandshake(UA_Client *c);
 static UA_StatusCode SecureChannelHandshake(UA_Client *c);
+static UA_StatusCode SessionHandshake(UA_Client *c);
+static UA_StatusCode CloseSession(UA_Client *c);
+static UA_StatusCode CloseSecureChannel(UA_Client *c);
 
 UA_StatusCode UA_Client_connect(UA_Client *c, UA_ConnectionConfig conf, UA_ClientNetworkLayer networkLayer,
                                 char *endpointUrl) {

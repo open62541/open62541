@@ -18,7 +18,12 @@ struct UA_Client;
 typedef struct UA_Client UA_Client;
 
 UA_Client UA_EXPORT * UA_Client_new(void);
-UA_Client UA_EXPORT * setUserDataPtr(UA_Client *c, void *userData);
+
 UA_StatusCode UA_EXPORT UA_Client_connect(UA_Client *c, UA_ConnectionConfig conf,
                                           UA_ClientNetworkLayer networkLayer, char *endpointUrl);
+
 UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *c);
+
+UA_ReadResponse UA_EXPORT UA_Client_read(UA_Client *c, const UA_ReadRequest *request);
+UA_WriteResponse UA_EXPORT UA_Client_write(UA_Client *c, const UA_WriteRequest *request);
+UA_BrowseResponse UA_EXPORT UA_Client_browse(UA_Client *c, const UA_BrowseRequest *request);
