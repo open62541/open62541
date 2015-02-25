@@ -385,7 +385,7 @@ static void ServerNetworkLayerTCP_delete(ServerNetworkLayerTCP *layer) {
 }
 
 UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UInt32 port) {
-    NetworkLayerTCP *tcplayer = malloc(sizeof(NetworkLayerTCP));
+    ServerNetworkLayerTCP *tcplayer = malloc(sizeof(ServerNetworkLayerTCP));
 	tcplayer->conf = conf;
 	tcplayer->conLinksSize = 0;
 	tcplayer->conLinks = NULL;
@@ -394,10 +394,10 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
 
     UA_ServerNetworkLayer nl;
     nl.nlHandle = tcplayer;
-    nl.start = (UA_StatusCode (*)(void*))NetworkLayerTCP_start;
-    nl.getWork = (UA_Int32 (*)(void*, UA_WorkItem**, UA_UInt16)) NetworkLayerTCP_getWork;
-    nl.stop = (UA_Int32 (*)(void*, UA_WorkItem**)) NetworkLayerTCP_stop;
-    nl.free = (void (*)(void*))NetworkLayerTCP_delete;
+    nl.start = (UA_StatusCode (*)(void*))ServerNetworkLayerTCP_start;
+    nl.getWork = (UA_Int32 (*)(void*, UA_WorkItem**, UA_UInt16))ServerNetworkLayerTCP_getWork;
+    nl.stop = (UA_Int32 (*)(void*, UA_WorkItem**))ServerNetworkLayerTCP_stop;
+    nl.free = (void (*)(void*))ServerNetworkLayerTCP_delete;
     return nl;
 }
 

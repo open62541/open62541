@@ -1,5 +1,6 @@
 #include "ua_client.h"
-#include "ua_connection.h"
+#include "ua_types_encoding_binary.h"
+#include "ua_transport_generated.h"
 
 struct UA_Client {
     UA_ClientNetworkLayer networkLayer;
@@ -39,7 +40,6 @@ UA_StatusCode UA_Client_connect(UA_Client *c, UA_ConnectionConfig conf, UA_Clien
         return retval;
 
     HelAckHandshake(c);
-    // hello
     // securechannel
     // session
     
@@ -53,8 +53,7 @@ UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *c) {
 // The tcp connection is established. Now do the handshake
 static UA_StatusCode HelAckHandshake(UA_Client *c) {
 	UA_TcpMessageHeader messageHeader;
-	messageHeader.isFinal = 'F';
-	messageHeader.messageType = UA_MESSAGETYPE_HEL;
+    messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_HELF;
 
 	UA_TcpHelloMessage hello;
 	UA_String_copy(&c->endpointUrl, &hello.endpointUrl);
@@ -72,7 +71,7 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     message.data = UA_alloca(messageHeader.messageSize);
     message.length = messageHeader.messageSize;
 
-	UA_UInt32 offset = 0;
+	size_t offset = 0;
 	UA_TcpMessageHeader_encodeBinary(&messageHeader, &message, &offset);
 	UA_TcpHelloMessage_encodeBinary(&hello, &message, &offset);
 
@@ -107,8 +106,7 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
 
 static UA_StatusCode SecureChannelHandshake(UA_Client *c) {
     UA_SecureConversationMessageHeader msghdr;
-	msghdr.messageHeader.messageType = UA_MESSAGETYPE_OPN;
-	msghdr.messageHeader.isFinal = 'F';
+    msghdr.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_OPNF;
     msghdr.secureChannelId = 0;
 
     UA_AsymmetricAlgorithmSecurityHeader asymHeader;
@@ -143,7 +141,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *c) {
 
 	UA_ByteString message;
 	UA_ByteString_newMembers(&message, msghdr.messageHeader.messageSize);
-	UA_UInt32 offset = 0;
+	size_t offset = 0;
     UA_SecureConversationMessageHeader_encodeBinary(&msghdr, &message, &offset);
     UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &message, &offset);
     UA_SequenceHeader_encodeBinary(&seqHeader, &message, &offset);
