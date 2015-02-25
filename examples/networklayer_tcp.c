@@ -341,13 +341,8 @@ static UA_Int32 ServerNetworkLayerTCP_getWork(ServerNetworkLayerTCP *layer, UA_W
 			if(!buf.data)
 				break;
 		}
-        
-#ifdef _WIN32
         buf.length = recv(layer->conLinks[i].sockfd, (char *)buf.data,
                           layer->conf.recvBufferSize, 0);
-#else
-        buf.length = read(layer->conLinks[i].sockfd, buf.data, layer->conf.recvBufferSize);
-#endif
         if (buf.length <= 0) {
             closeConnection(layer->conLinks[i].connection); // work is returned in the next iteration
         } else {
@@ -470,8 +465,27 @@ static void ClientNetworkLayerTCP_disconnect(UA_Int32 *handle) {
 }
 
 static UA_StatusCode ClientNetworkLayerTCP_send(UA_Int32 *handle, UA_ByteStringArray gather_buf) {
+	UA_UInt32 total_len = 0, nWritten = 0;
+#ifdef _WIN32
+	LPWSABUF buf = _alloca(gather_buf.stringsSize * sizeof(WSABUF));
+	int result = 0;
+	for(UA_UInt32 i = 0; i<gather_buf.stringsSize; i++) {
+		buf[i].buf = (char*)gather_buf.strings[i].data;
+		buf[i].len = gather_buf.strings[i].length;
+		total_len += gather_buf.strings[i].length;
+	}
+	while(nWritten < total_len) {
+		UA_UInt32 n = 0;
+		do {
+			result = WSASend(*handle, buf, gather_buf.stringsSize ,
+                             (LPDWORD)&n, 0, NULL, NULL);
+			if(result != 0)
+				printf("Error WSASend, code: %d \n", WSAGetLastError());
+		} while(errno == EINTR);
+		nWritten += n;
+	}
+#else
 	struct iovec iov[gather_buf.stringsSize];
-    int total_len = 0;
 	for(UA_UInt32 i=0;i<gather_buf.stringsSize;i++) {
 		iov[i] = (struct iovec) {.iov_base = gather_buf.strings[i].data,
                                  .iov_len = gather_buf.strings[i].length};
@@ -480,13 +494,13 @@ static UA_StatusCode ClientNetworkLayerTCP_send(UA_Int32 *handle, UA_ByteStringA
 	struct msghdr message = {.msg_name = NULL, .msg_namelen = 0, .msg_iov = iov,
 							 .msg_iovlen = gather_buf.stringsSize, .msg_control = NULL,
 							 .msg_controllen = 0, .msg_flags = 0};
-    int nWritten = 0;
 	while (nWritten < total_len) {
         int n = sendmsg(*handle, &message, 0);
         if(n <= -1)
             return UA_STATUSCODE_BADINTERNALERROR;
         nWritten += n;
 	}
+#endif
     return UA_STATUSCODE_GOOD;
 }
 
@@ -501,7 +515,7 @@ static UA_StatusCode ClientNetworkLayerTCP_awaitResponse(UA_Int32 *handle, UA_By
     if(ret == 0)
         return UA_STATUSCODE_BADTIMEOUT;
 
-    ret = recv(*handle, response->data, response->length, 0);
+    ret = recv(*handle, (char*)response->data, response->length, 0);
 
     if(ret <= -1)
         return UA_STATUSCODE_BADINTERNALERROR;
