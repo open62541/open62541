@@ -381,14 +381,13 @@ UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 #define UA_EXPANDEDNODEID_STATIC(NAMESPACE, NUMERICID) (UA_ExpandedNodeId) {             \
         .nodeId = {.namespaceIndex = NAMESPACE, .identifierType = UA_NODEIDTYPE_NUMERIC, \
                    .identifier.numeric = NUMERICID },                                    \
-        .serverIndex = 0, .namespaceUri = {.length = -1, .data = UA_NULL} }
+        .serverIndex = 0, .namespaceUri = UA_STRING_NULL }
     
 /* QualifiedName */
 UA_StatusCode UA_EXPORT UA_QualifiedName_copycstring(char const *src, UA_QualifiedName *dst);
 #define UA_QUALIFIEDNAME_ASSIGN(VARIABLE, STRING) do {          \
         VARIABLE.namespaceIndex = 0;                            \
         UA_STRING_ASSIGN(VARIABLE.name, STRING); } while(0)
-    
 
 /* LocalizedText */
 UA_StatusCode UA_EXPORT UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst);
