@@ -185,12 +185,14 @@ void closeConnection(TCPConnection *handle) {
 	shutdown(handle->sockfd,2);
 	CLOSESOCKET(handle->sockfd);
 
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP*)handle->layer;
+
     // Remove the link later in the main thread
     struct deleteLink *d = malloc(sizeof(struct deleteLink));
     d->sockfd = handle->sockfd;
     while(1) {
-        d->next = handle->layer->deleteLinkList;
-        if(uatomic_cmpxchg(&handle->layer->deleteLinkList, d->next, d) == d->next)
+        d->next = layer->deleteLinkList;
+        if(uatomic_cmpxchg(&layer->deleteLinkList, d->next, d) == d->next)
             break;
     }
 }
