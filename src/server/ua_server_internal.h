@@ -9,12 +9,7 @@
 #include <urcu/wfcqueue.h>
 #endif
 
-#ifdef _WIN32
-# include "../deps/queue.h"
-#else
-# include <sys/queue.h>
-#endif
-
+#include "../deps/queue.h"
 #include "ua_server.h"
 #include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
