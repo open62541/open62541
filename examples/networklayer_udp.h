@@ -13,7 +13,7 @@ extern "C" {
 #include "ua_server.h"
 
 /** @brief Create the UDP networklayer and listen to the specified port */
-UA_NetworkLayer NetworkLayerUDP_new(UA_ConnectionConfig conf, UA_UInt32 port);
+UA_ServerNetworkLayer ServerNetworkLayerUDP_new(UA_ConnectionConfig conf, UA_UInt32 port);
 
 #ifdef __cplusplus
 } // extern "C"

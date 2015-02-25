@@ -31,7 +31,6 @@ As an open source project, we invite new contributors to help improving open6241
 
 /* provided by the open62541 lib */
 #include "ua_server.h"
-#include "ua_namespace_0.h"
 
 /* provided by the user, implementations available in the /examples folder */
 #include "logger_stdout.h"
@@ -51,20 +50,23 @@ int main(int argc, char** argv) {
 
     /* init the server */
 	UA_Server *server = UA_Server_new();
-    NetworklayerTCP *nl = NetworkLayerTCP_new(UA_ConnectionConfig_standard, PORT);
+    NetworklayerTCP *nl = ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, PORT);
     UA_Server_addNetworkLayer(server, nl);
 
     /* add a variable node */
-    UA_Int32 myInteger = 42;
-    UA_String myIntegerName;
-    UA_STRING_STATIC(myIntegerName, "The Answer");
-    UA_Server_addScalarVariableNode(server,
-                 /* the browse name, the value, and the datatype vtable */
-                 &myIntegerName, (void*)&myInteger, &UA_TYPES[UA_INT32],
-                 /* the parent node of the variable */
-                 &UA_NODEIDS[UA_OBJECTSFOLDER],
-                 /* the (hierarchical) referencetype from the parent */
-                 &UA_NODEIDS[UA_ORGANIZES]);
+    UA_Int32 *myInteger = UA_Int32_new();
+    *myInteger = 42;
+    UA_Variant *myIntegerVariant = UA_Variant_new();
+    UA_Variant_setValue(myIntegerVariant, myInteger, UA_TYPES_INT32);
+    UA_QualifiedName myIntegerName;
+    UA_QUALIFIEDNAME_ASSIGN(myIntegerName, "the answer");
+    UA_Server_addVariableNode(server,
+                              myIntegerVariant, /* the variant */
+                              &UA_NODEID_NULL, /* assign a new nodeid */
+                              &myIntegerName, /* the browse name */
+                              /* the parent node and the referencetype to the parent */
+                              &UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
+                              &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
 
     /* run the server loop */
     UA_StatusCode retval = UA_Server_run(server, WORKER_THREADS, &running);

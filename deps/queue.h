@@ -99,13 +99,6 @@ struct name {								\
 #define	SLIST_HEAD_INITIALIZER(head)					\
 	{ NULL }
  
-
-/*changes by Stasik0 to avoid conflicts with winnt.h*/
-#ifdef SLIST_ENTRY
-#undef SLIST_ENTRY
-#endif
-/**/
-
 #define SLIST_ENTRY(type)						\
 struct {								\
 	struct type *sle_next;	/* next element */			\

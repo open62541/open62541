@@ -1,6 +1,5 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
-#include "ua_namespace_0.h"
 #include "ua_util.h"
 
 void Service_GetEndpoints(UA_Server                    *server,

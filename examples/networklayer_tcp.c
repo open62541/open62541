@@ -14,6 +14,7 @@
 #else
 #include <sys/select.h> 
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/socketvar.h>
 #include <sys/ioctl.h>
 #include <unistd.h> // read, write, close
@@ -122,7 +123,7 @@ static UA_StatusCode ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_
     c->layer = layer;
     c->connection.state = UA_CONNECTION_OPENING;
     c->connection.localConf = layer->conf;
-    c->connection.channel = UA_NULL;
+    c->connection.channel = (void*)0;
     c->connection.close = (void (*)(void*))closeConnection;
     c->connection.write = (void (*)(void*, UA_ByteStringArray))writeCallback;
 
@@ -145,10 +146,10 @@ static UA_UInt32 batchDeleteLinks(ServerNetworkLayerTCP *layer, UA_WorkItem **re
 		return 0;
 	}
 #ifdef UA_MULTITHREADING
-    struct deleteLink *d = uatomic_xchg(&layer->deleteLinkList, UA_NULL);
+    struct deleteLink *d = uatomic_xchg(&layer->deleteLinkList, (void*)0);
 #else
     struct deleteLink *d = layer->deleteLinkList;
-    layer->deleteLinkList = UA_NULL;
+    layer->deleteLinkList = (void*)0;
 #endif
     UA_UInt32 count = 0;
     while(d) {
@@ -303,7 +304,7 @@ static UA_StatusCode ServerNetworkLayerTCP_start(ServerNetworkLayerTCP *layer) {
 
 static UA_Int32 ServerNetworkLayerTCP_getWork(ServerNetworkLayerTCP *layer, UA_WorkItem **workItems,
                                         UA_UInt16 timeout) {
-    UA_WorkItem *items = UA_NULL;
+    UA_WorkItem *items = (void*)0;
     UA_Int32 itemsCount = batchDeleteLinks(layer, &items);
     setFDSet(layer);
     struct timeval tmptv = {0, timeout};
@@ -320,6 +321,8 @@ static UA_Int32 ServerNetworkLayerTCP_getWork(ServerNetworkLayerTCP *layer, UA_W
 		struct sockaddr_in cli_addr;
 		socklen_t cli_len = sizeof(cli_addr);
 		int newsockfd = accept(layer->serversockfd, (struct sockaddr *) &cli_addr, &cli_len);
+		int i = 1;
+		setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&i, sizeof(i));
 		if (newsockfd >= 0)
 			ServerNetworkLayerTCP_add(layer, newsockfd);
 	}
@@ -382,19 +385,19 @@ static void ServerNetworkLayerTCP_delete(ServerNetworkLayerTCP *layer) {
 }
 
 UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UInt32 port) {
-    ServerNetworkLayerTCP *tcplayer = malloc(sizeof(ServerNetworkLayerTCP));
+    NetworkLayerTCP *tcplayer = malloc(sizeof(NetworkLayerTCP));
 	tcplayer->conf = conf;
 	tcplayer->conLinksSize = 0;
 	tcplayer->conLinks = NULL;
     tcplayer->port = port;
-    tcplayer->deleteLinkList = UA_NULL;
+    tcplayer->deleteLinkList = (void*)0;
 
     UA_ServerNetworkLayer nl;
     nl.nlHandle = tcplayer;
-    nl.start = (UA_StatusCode (*)(void*))ServerNetworkLayerTCP_start;
-    nl.getWork = (UA_Int32 (*)(void*, UA_WorkItem**, UA_UInt16))ServerNetworkLayerTCP_getWork;
-    nl.stop = (UA_Int32 (*)(void*, UA_WorkItem**))ServerNetworkLayerTCP_stop;
-    nl.free = (void (*)(void*))ServerNetworkLayerTCP_delete;
+    nl.start = (UA_StatusCode (*)(void*))NetworkLayerTCP_start;
+    nl.getWork = (UA_Int32 (*)(void*, UA_WorkItem**, UA_UInt16)) NetworkLayerTCP_getWork;
+    nl.stop = (UA_Int32 (*)(void*, UA_WorkItem**)) NetworkLayerTCP_stop;
+    nl.free = (void (*)(void*))NetworkLayerTCP_delete;
     return nl;
 }
 

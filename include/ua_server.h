@@ -21,8 +21,8 @@ extern "C" {
 #endif
 
 #include "ua_types.h"
-#include "ua_util.h"
 #include "ua_types_generated.h"
+#include "ua_nodeids.h"
 #include "ua_connection.h"
 #include "ua_log.h"
 
@@ -55,28 +55,12 @@ void UA_EXPORT UA_Server_delete(UA_Server *server);
  */
 UA_StatusCode UA_EXPORT UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running);
 
-/**
- * Add a node to the server's address space
- *
- * If adding the node succeeds, the pointer to the node is set to null. If the
- * original nodeid is null (ns=0,i=0), a unique new nodeid is created for the
- * node and returned in the AddNodesResult struct. */
-UA_AddNodesResult UA_EXPORT UA_Server_addNode(UA_Server *server, const UA_Node **node,
-                                              const UA_ExpandedNodeId *parentNodeId,
-                                              const UA_NodeId *referenceTypeId);
-
 /** Add a reference to the server's address space */
 UA_StatusCode UA_EXPORT UA_Server_addReference(UA_Server *server, const UA_AddReferencesItem *item);
 
-/**
- * Add a scalar variable (node) to the server's address space
- *
- * The value must lie on the heap and must not be reused after adding it, as it
- * becomes attached to the lifecycle of the VariableNode. */
-void UA_EXPORT UA_Server_addScalarVariableNode(UA_Server *server, UA_QualifiedName *browseName,
-                                               void *value, const UA_TypeVTable *vt,
-                                               const UA_ExpandedNodeId *parentNodeId,
-                                               const UA_NodeId *referenceTypeId );
+UA_StatusCode UA_EXPORT UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, UA_NodeId *nodeId,
+                                                  UA_QualifiedName *browseName, const UA_NodeId *parentNodeId,
+                                                  const UA_NodeId *referenceTypeId);
 
 /** Work that is run in the main loop (singlethreaded) or dispatched to a worker
     thread. */
@@ -257,7 +241,7 @@ typedef struct UA_ExternalNodeStore {
 	UA_ExternalNodeStore_browseNodes browseNodes;
 	UA_ExternalNodeStore_addReferences addReferences;
 	UA_ExternalNodeStore_deleteReferences deleteReferences;
-	UA_ExternalNodeStore_delete delete;
+	UA_ExternalNodeStore_delete destroy;
 } UA_ExternalNodeStore;
 
 UA_StatusCode UA_EXPORT

@@ -11,7 +11,7 @@
 #include <unistd.h> // for close
 #include <stdlib.h> // pulls in declaration of malloc, free
 #include "ua_transport_generated.h"
-#include "ua_namespace_0.h"
+#include "ua_types_encoding_binary.h"
 #include "ua_util.h"
 
 typedef struct ConnectionInfo {
@@ -25,8 +25,7 @@ typedef struct ConnectionInfo {
 static UA_Int32 sendHello(UA_Int32 sock, UA_String *endpointURL) {
 
 	UA_TcpMessageHeader messageHeader;
-	messageHeader.isFinal = 'F';
-	messageHeader.messageType = UA_MESSAGETYPE_HEL;
+	messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_HELF;
 
 	UA_TcpHelloMessage hello;
 	UA_String_copy(endpointURL, &hello.endpointUrl);
@@ -41,7 +40,7 @@ static UA_Int32 sendHello(UA_Int32 sock, UA_String *endpointURL) {
 	UA_ByteString message;
 	UA_ByteString_newMembers(&message, messageHeader.messageSize);
 
-	UA_UInt32 offset = 0;
+	size_t offset = 0;
 	UA_TcpMessageHeader_encodeBinary((UA_TcpMessageHeader const*) &messageHeader, &message, &offset);
 	UA_TcpHelloMessage_encodeBinary((UA_TcpHelloMessage const*) &hello, &message, &offset);
 
@@ -56,8 +55,7 @@ static UA_Int32 sendHello(UA_Int32 sock, UA_String *endpointURL) {
 
 static int sendOpenSecureChannel(UA_Int32 sock) {
 	UA_TcpMessageHeader msghdr;
-	msghdr.isFinal = 'F';
-	msghdr.messageType = UA_MESSAGETYPE_OPN;
+	msghdr.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_OPNF;
 
 	UA_UInt32 secureChannelId = 0;
 	UA_String securityPolicy;
@@ -97,7 +95,7 @@ static int sendOpenSecureChannel(UA_Int32 sock) {
 
 	UA_ByteString message;
 	UA_ByteString_newMembers(&message, 1000);
-	UA_UInt32 offset = 0;
+	size_t offset = 0;
 	UA_TcpMessageHeader_encodeBinary(&msghdr, &message, &offset);
 	UA_UInt32_encodeBinary(&secureChannelId, &message, &offset);
 	UA_String_encodeBinary(&securityPolicy, &message, &offset);
@@ -125,11 +123,10 @@ static UA_Int32 sendCreateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 
     UA_ByteString message;
 	UA_ByteString_newMembers(&message, 65536);
 	UA_UInt32 tmpChannelId = channelId;
-	UA_UInt32 offset = 0;
+	size_t offset = 0;
 
 	UA_TcpMessageHeader msghdr;
-	msghdr.isFinal = 'F';
-	msghdr.messageType = UA_MESSAGETYPE_MSG;
+	msghdr.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
 
 	UA_NodeId type;
 	type.identifier.numeric = 461;
@@ -174,7 +171,7 @@ static UA_Int32 sendCreateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 
 }
 
 static UA_Int32 closeSession(ConnectionInfo *connectionInfo) {
-	UA_UInt32 offset = 0;
+	size_t offset = 0;
 
 	UA_ByteString message;
 	UA_ByteString_newMembers(&message, 65536);
@@ -191,8 +188,7 @@ static UA_Int32 closeSession(ConnectionInfo *connectionInfo) {
     rq.deleteSubscriptions = UA_TRUE;
 
 	UA_TcpMessageHeader msghdr;
-	msghdr.isFinal = 'F';
-	msghdr.messageType = UA_MESSAGETYPE_MSG;
+	msghdr.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
 
 	UA_NodeId type;
 	type.identifier.numeric = 473;
@@ -222,7 +218,7 @@ static UA_Int32 closeSession(ConnectionInfo *connectionInfo) {
 }
 
 static UA_Int32 closeSecureChannel(ConnectionInfo *connectionInfo) {
-	UA_UInt32 offset = 0;
+	size_t offset = 0;
 
 	UA_ByteString message;
 	UA_ByteString_newMembers(&message, 65536);
@@ -238,8 +234,7 @@ static UA_Int32 closeSecureChannel(ConnectionInfo *connectionInfo) {
 	rq.requestHeader.authenticationToken.namespaceIndex = 10;
 
 	UA_TcpMessageHeader msghdr;
-	msghdr.isFinal = 'F';
-	msghdr.messageType = UA_MESSAGETYPE_CLO;
+	msghdr.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_CLOF;
 
 	msghdr.messageSize = 4 + UA_TcpMessageHeader_calcSizeBinary(&msghdr) +
                          UA_CloseSecureChannelRequest_calcSizeBinary(&rq);
@@ -264,11 +259,10 @@ static UA_Int32 sendActivateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt3
 	UA_ByteString *message = UA_ByteString_new();
 	UA_ByteString_newMembers(message, 65536);
 	UA_UInt32 tmpChannelId = channelId;
-	UA_UInt32 offset = 0;
+	size_t offset = 0;
 
 	UA_TcpMessageHeader msghdr;
-	msghdr.isFinal = 'F';
-	msghdr.messageType = UA_MESSAGETYPE_MSG;
+	msghdr.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
 	msghdr.messageSize = 86;
 
 	UA_NodeId type;
@@ -312,11 +306,10 @@ static UA_Int64 sendReadRequest(ConnectionInfo *connectionInfo, UA_Int32 nodeIds
 	UA_ByteString *message = UA_ByteString_new();
 	UA_ByteString_newMembers(message, 65536);
 	UA_UInt32 tmpChannelId = connectionInfo->channelId;
-	UA_UInt32 offset = 0;
+	size_t offset = 0;
 
 	UA_TcpMessageHeader msghdr;
-	msghdr.isFinal = 'F';
-	msghdr.messageType = UA_MESSAGETYPE_MSG;
+	msghdr.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
 
 	UA_NodeId type;
 	type.identifier.numeric = 631;
@@ -326,7 +319,7 @@ static UA_Int64 sendReadRequest(ConnectionInfo *connectionInfo, UA_Int32 nodeIds
 	UA_ReadRequest rq;
 	UA_ReadRequest_init(&rq);
 	rq.maxAge = 0;
-	UA_Array_new((void **)&rq.nodesToRead, nodeIds_size, &UA_TYPES[UA_READVALUEID]);
+	rq.nodesToRead = UA_Array_new(&UA_TYPES[UA_TYPES_READVALUEID], nodeIds_size);
 	rq.nodesToReadSize = nodeIds_size;
 	for(UA_Int32 i=0;i<nodeIds_size;i++) {
 		UA_ReadValueId_init(&(rq.nodesToRead[i]));
@@ -354,7 +347,7 @@ static UA_Int64 sendReadRequest(ConnectionInfo *connectionInfo, UA_Int32 nodeIds
 
 	UA_DateTime tic = UA_DateTime_now();
 	UA_Int32 sendret = send(connectionInfo->socket, message->data, offset, 0);
-	UA_Array_delete(rq.nodesToRead,nodeIds_size,&UA_TYPES[UA_READVALUEID]);
+	UA_Array_delete(rq.nodesToRead, &UA_TYPES[UA_TYPES_READVALUEID], nodeIds_size);
 	UA_ByteString_delete(message);
 
 	if (sendret < 0) {
@@ -402,7 +395,7 @@ static int ua_client_connectUA(char* ipaddress,int port, UA_String *endpointUrl,
 			sendOpenSecureChannel(sock);
 			recv(sock, reply.data, reply.length, 0);
 
-			UA_UInt32 recvOffset = 0;
+			size_t recvOffset = 0;
 			UA_TcpMessageHeader msghdr;
 			UA_TcpMessageHeader_decodeBinary(&reply, &recvOffset, &msghdr);
 
@@ -509,7 +502,7 @@ int main(int argc, char *argv[]) {
 
 /* REQUEST START*/
     UA_NodeId *nodesToRead;
-    UA_Array_new((void**)&nodesToRead,nodesToReadSize,&UA_TYPES[UA_NODEID]);
+    nodesToRead = UA_Array_new(&UA_TYPES[UA_TYPES_NODEID], nodesToReadSize);
 
 	for(UA_UInt32 i = 0; i<nodesToReadSize; i++) {
 		if(alwaysSameNode)
@@ -523,7 +516,7 @@ int main(int argc, char *argv[]) {
 	UA_DateTime tic, toc;
 	UA_Double *timeDiffs;
 	UA_Int32 received;
-	UA_Array_new((void**)&timeDiffs,tries,&UA_TYPES[UA_DOUBLE]);
+	timeDiffs = UA_Array_new(&UA_TYPES[UA_TYPES_DOUBLE], tries);
 	UA_Double sum = 0;
 
 	for(UA_UInt32 i = 0; i < tries; i++) {
@@ -583,7 +576,7 @@ int main(int argc, char *argv[]) {
 	fclose(fHandle);
 
 	UA_String_deleteMembers(&reply);
-	UA_Array_delete(nodesToRead,nodesToReadSize,&UA_TYPES[UA_NODEID]);
+	UA_Array_delete(nodesToRead,&UA_TYPES[UA_TYPES_NODEID], nodesToReadSize);
     UA_free(timeDiffs);
 
 	return 0;

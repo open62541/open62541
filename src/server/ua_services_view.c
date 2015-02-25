@@ -2,7 +2,6 @@
 #include "ua_services.h"
 #include "ua_statuscodes.h"
 #include "ua_nodestore.h"
-#include "ua_namespace_0.h"
 #include "ua_util.h"
 
 /* Releases the current node, even if it was supplied as an argument. */
@@ -133,7 +132,7 @@ static UA_StatusCode findRelevantReferenceTypes(UA_NodeStore *ns, const UA_NodeI
     } while(++currentIndex <= currentLastIndex && retval == UA_STATUSCODE_GOOD);
 
     if(retval)
-        UA_Array_delete(typeArray, currentLastIndex, &UA_TYPES[UA_NODEID]);
+        UA_Array_delete(typeArray, &UA_TYPES[UA_TYPES_NODEID], currentLastIndex);
     else {
         *referenceTypes = typeArray;
         *referenceTypesSize = currentLastIndex + 1;
@@ -168,7 +167,7 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
     if(!parentNode) {
         browseResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         if(!returnAll)
-            UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesSize, &UA_TYPES[UA_NODEID]);
+            UA_Array_delete(relevantReferenceTypes, &UA_TYPES[UA_TYPES_NODEID], relevantReferenceTypesSize);
         return;
     }
 
@@ -203,7 +202,7 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
             if(fillReferenceDescription(ns, currentNode, &parentNode->references[i],
                                         browseDescription->resultMask,
                                         &browseResult->references[currentRefs]) != UA_STATUSCODE_GOOD) {
-                UA_Array_delete(browseResult->references, currentRefs, &UA_TYPES[UA_REFERENCEDESCRIPTION]);
+                UA_Array_delete(browseResult->references, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION], currentRefs);
                 currentRefs = 0;
                 browseResult->references = UA_NULL;
                 browseResult->statusCode = UA_STATUSCODE_UNCERTAINNOTALLNODESAVAILABLE;
@@ -221,7 +220,7 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
 
     UA_NodeStore_release(parentNode);
     if(!returnAll)
-        UA_Array_delete(relevantReferenceTypes, relevantReferenceTypesSize, &UA_TYPES[UA_NODEID]);
+        UA_Array_delete(relevantReferenceTypes, &UA_TYPES[UA_TYPES_NODEID], relevantReferenceTypesSize);
 }
 
 void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseRequest *request,
@@ -231,13 +230,11 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
         return;
     }
 
-    UA_StatusCode retval = UA_Array_new((void**)&response->results, request->nodesToBrowseSize,
-                                        &UA_TYPES[UA_BROWSERESULT]);
-    if(retval) {
-        response->responseHeader.serviceResult = retval;
+   response->results = UA_Array_new(&UA_TYPES[UA_TYPES_BROWSERESULT], request->nodesToBrowseSize);
+    if(!response->results) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-
 
     /* ### Begin External Namespaces */
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * request->nodesToBrowseSize);
@@ -279,9 +276,9 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
         return;
     }
 
-    UA_StatusCode retval = UA_Array_new((void**)&response->results, request->browsePathsSize, &UA_TYPES[UA_BROWSEPATHRESULT]);
-    if(retval) {
-        response->responseHeader.serviceResult = retval;
+    response->results = UA_Array_new(&UA_TYPES[UA_TYPES_BROWSEPATHRESULT], request->browsePathsSize);
+    if(!response->results) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
 
