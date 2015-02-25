@@ -166,7 +166,7 @@ UA_Server * UA_Server_new(void) {
 
     UA_ReferenceTypeNode *hassubtype = UA_ReferenceTypeNode_new();
     COPYNAMES(hassubtype, "HasSubtype");
-    UA_LocalizedText_copycstring("SubtypeOf", &hassubtype->inverseName);
+    UA_LocalizedText_copycstring("HasSupertype", &hassubtype->inverseName);
     hassubtype->nodeId.identifier.numeric = UA_NS0ID_HASSUBTYPE;
     hassubtype->isAbstract = UA_FALSE;
     hassubtype->symmetric  = UA_FALSE;
@@ -388,10 +388,17 @@ UA_Server * UA_Server_new(void) {
     /* Objects */
     /***********/
     
+    UA_ObjectTypeNode *baseObjectType = UA_ObjectTypeNode_new();
+    baseObjectType->nodeId.identifier.numeric = UA_NS0ID_BASEOBJECTTYPE;
+    COPYNAMES(baseObjectType, "BaseObjectType");
+    UA_NodeStore_insert(server->nodestore, (UA_Node*)baseObjectType, UA_NULL);
+
     UA_ObjectTypeNode *folderType = UA_ObjectTypeNode_new();
     folderType->nodeId.identifier.numeric = UA_NS0ID_FOLDERTYPE;
     COPYNAMES(folderType, "FolderType");
     UA_NodeStore_insert(server->nodestore, (UA_Node*)folderType, UA_NULL);
+    ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_BASEOBJECTTYPE), UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE),
+                     UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_FOLDERTYPE));
 
     UA_ObjectNode *root = UA_ObjectNode_new();
     COPYNAMES(root, "Root");
