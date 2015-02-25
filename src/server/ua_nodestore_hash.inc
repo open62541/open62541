@@ -1,7 +1,7 @@
 typedef UA_UInt32 hash_t;
 
-static INLINE hash_t mod(hash_t h, hash_t size) { return h % size; }
-static INLINE hash_t mod2(hash_t h, hash_t size) { return 1 + (h % (size - 2)); }
+static hash_t mod(hash_t h, hash_t size) { return h % size; }
+static hash_t mod2(hash_t h, hash_t size) { return 1 + (h % (size - 2)); }
 
 /* Based on Murmur-Hash 3 by Austin Appleby (public domain, freely usable) */
 static hash_t hash_array(const UA_Byte *data, UA_UInt32 len, UA_UInt32 seed) {

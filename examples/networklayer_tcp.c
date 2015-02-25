@@ -14,6 +14,7 @@
 #else
 #include <sys/select.h> 
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/socketvar.h>
 #include <sys/ioctl.h>
 #include <unistd.h> // read, write, close
@@ -317,6 +318,8 @@ static UA_Int32 NetworkLayerTCP_getWork(NetworkLayerTCP *layer, UA_WorkItem **wo
 		struct sockaddr_in cli_addr;
 		socklen_t cli_len = sizeof(cli_addr);
 		int newsockfd = accept(layer->serversockfd, (struct sockaddr *) &cli_addr, &cli_len);
+		int i = 1;
+		setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&i, sizeof(i));
 		if (newsockfd >= 0)
 			NetworkLayerTCP_add(layer, newsockfd);
 	}
@@ -378,7 +381,7 @@ static void NetworkLayerTCP_delete(NetworkLayerTCP *layer) {
 	free(layer);
 }
 
-UA_NetworkLayer NetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UInt32 port) {
+UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UInt32 port) {
     NetworkLayerTCP *tcplayer = malloc(sizeof(NetworkLayerTCP));
 	tcplayer->conf = conf;
 	tcplayer->conLinksSize = 0;
@@ -386,11 +389,11 @@ UA_NetworkLayer NetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UInt32 port) {
     tcplayer->port = port;
     tcplayer->deleteLinkList = UA_NULL;
 
-    UA_NetworkLayer nl;
+    UA_ServerNetworkLayer nl;
     nl.nlHandle = tcplayer;
     nl.start = (UA_StatusCode (*)(void*))NetworkLayerTCP_start;
     nl.getWork = (UA_Int32 (*)(void*, UA_WorkItem**, UA_UInt16)) NetworkLayerTCP_getWork;
     nl.stop = (UA_Int32 (*)(void*, UA_WorkItem**)) NetworkLayerTCP_stop;
-    nl.delete = (void (*)(void*))NetworkLayerTCP_delete;
+    nl.free = (void (*)(void*))NetworkLayerTCP_delete;
     return nl;
 }

@@ -435,7 +435,7 @@ UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *r
 
         // 3.2) Get work from the networklayer and dispatch it
         for(UA_Int32 i=0;i<server->nlsSize;i++) {
-            UA_NetworkLayer *nl = &server->nls[i];
+            UA_ServerNetworkLayer *nl = &server->nls[i];
             UA_WorkItem *work;
             UA_Int32 workSize;
             if(*running) {

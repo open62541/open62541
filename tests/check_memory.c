@@ -3,21 +3,18 @@
 #include <stdlib.h>
 
 #include "ua_types.h"
+#include "ua_types_generated.h"
+#include "ua_types_encoding_binary.h"
 #include "ua_util.h"
-#include "ua_namespace_0.h"
 #include "check.h"
 
 START_TEST(newAndEmptyObjectShallBeDeleted) {
 	// given
-	void *obj = UA_TYPES[_i].new();
-	// when
-#ifdef DEBUG //no print functions if not in debug mode
-	UA_TYPES[_i].print(obj, stdout);
-#endif
+	void *obj = UA_new(&UA_TYPES[_i]);
 	// then
 	ck_assert_ptr_ne(obj, UA_NULL);
     // finally
-	UA_TYPES[_i].delete(obj);
+	UA_delete(obj, &UA_TYPES[_i]);
 }
 END_TEST
 
@@ -29,7 +26,7 @@ START_TEST(arrayCopyShallMakeADeepCopy) {
 	a1[2] = (UA_String){3, (UA_Byte*)"ccc"};
 	// when
 	UA_String *a2;
-	UA_Int32   retval = UA_Array_copy((const void *)a1, 3, &UA_TYPES[UA_STRING], (void **)&a2);
+	UA_Int32   retval = UA_Array_copy((const void *)a1, (void **)&a2, &UA_TYPES[UA_TYPES_STRING], 3);
 	// then
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	ck_assert_int_eq(a1[0].length, 1);
@@ -45,39 +42,38 @@ START_TEST(arrayCopyShallMakeADeepCopy) {
 	ck_assert_int_eq(a1[1].data[0], a2[1].data[0]);
 	ck_assert_int_eq(a1[2].data[0], a2[2].data[0]);
 	// finally
-	UA_Array_delete((void *)a2, 3, &UA_TYPES[UA_STRING]);
+	UA_Array_delete((void *)a2, &UA_TYPES[UA_TYPES_STRING], 3);
 }
 END_TEST
 
 START_TEST(encodeShallYieldDecode) {
 	// given
 	UA_ByteString msg1, msg2;
-	UA_UInt32     pos = 0;
-	void *obj1 = UA_TYPES[_i].new();
-	UA_ByteString_newMembers(&msg1, UA_TYPES[_i].encodings[UA_ENCODING_BINARY].calcSize(obj1));
-	UA_StatusCode retval = UA_TYPES[_i].encodings[UA_ENCODING_BINARY].encode(obj1, &msg1, &pos);
+	size_t pos = 0;
+	void *obj1 = UA_new(&UA_TYPES[_i]);
+	UA_ByteString_newMembers(&msg1, UA_calcSizeBinary(obj1, &UA_TYPES[_i]));
+    UA_StatusCode retval = UA_encodeBinary(obj1, &UA_TYPES[_i], &msg1, &pos);
 	if(retval != UA_STATUSCODE_GOOD) {
-		// this happens, e.g. when we encode a variant (with UA_TYPES[UA_INVALIDTYPE] in the vtable)
-		UA_TYPES[_i].delete(obj1);
+		UA_delete(obj1, &UA_TYPES[_i]);
 		UA_ByteString_deleteMembers(&msg1);
 		return;	
 	}
 
 	// when
-	void *obj2 = UA_TYPES[_i].new();
-	pos = 0; retval = UA_TYPES[_i].encodings[UA_ENCODING_BINARY].decode(&msg1, &pos, obj2);
-	ck_assert_msg(retval == UA_STATUSCODE_GOOD, "messages differ idx=%d,name=%s", _i, UA_TYPES[_i].name);
-	retval = UA_ByteString_newMembers(&msg2, UA_TYPES[_i].encodings[UA_ENCODING_BINARY].calcSize(obj2));
+	void *obj2 = UA_new(&UA_TYPES[_i]);
+	pos = 0; retval = UA_decodeBinary(&msg1, &pos, obj2, &UA_TYPES[_i]);
+	ck_assert_msg(retval == UA_STATUSCODE_GOOD, "messages differ idx=%d,nodeid=%i", _i, UA_TYPES_IDS[_i]);
+	retval = UA_ByteString_newMembers(&msg2, UA_calcSizeBinary(obj2, &UA_TYPES[_i]));
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-	pos = 0; retval = UA_TYPES[_i].encodings[UA_ENCODING_BINARY].encode(obj2, &msg2, &pos);
+	pos = 0; retval = UA_encodeBinary(obj2, &UA_TYPES[_i], &msg2, &pos);
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
 	// then
-	ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == UA_TRUE, "messages differ idx=%d,name=%s", _i, UA_TYPES[_i].name);
+	ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == UA_TRUE, "messages differ idx=%d,nodeid=%i", _i, UA_TYPES_IDS[_i]);
 
 	// finally
-	UA_TYPES[_i].delete(obj1);
-	UA_TYPES[_i].delete(obj2);
+	UA_delete(obj1, &UA_TYPES[_i]);
+	UA_delete(obj2, &UA_TYPES[_i]);
 	UA_ByteString_deleteMembers(&msg1);
 	UA_ByteString_deleteMembers(&msg2);
 }
@@ -86,21 +82,25 @@ END_TEST
 START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
 	// given
 	UA_ByteString msg1;
-	UA_UInt32 pos;
-	void *obj1 = UA_TYPES[_i].new();
-	UA_ByteString_newMembers(&msg1, UA_TYPES[_i].encodings[0].calcSize(obj1));
-	pos = 0; UA_TYPES[_i].encodings[0].encode(obj1, &msg1, &pos);
-	UA_TYPES[_i].delete(obj1);
+	void *obj1 = UA_new(&UA_TYPES[_i]);
+	size_t pos = 0;
+	UA_ByteString_newMembers(&msg1, UA_calcSizeBinary(obj1, &UA_TYPES[_i]));
+    UA_StatusCode retval = UA_encodeBinary(obj1, &UA_TYPES[_i], &msg1, &pos);
+	UA_delete(obj1, &UA_TYPES[_i]);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ByteString_deleteMembers(&msg1);
+        return; // e.g. variants cannot be encoded after an init without failing (no datatype set)
+    }
 	// when
-	void *obj2 = UA_TYPES[_i].new();
+	void *obj2 = UA_new(&UA_TYPES[_i]);
 	pos = 0;
 	msg1.length = msg1.length / 2;
 	//fprintf(stderr,"testing %s with half buffer\n",UA_TYPES[_i].name);
-	UA_TYPES[_i].encodings[0].decode(&msg1, &pos, obj2);
+	UA_decodeBinary(&msg1, &pos, obj2, &UA_TYPES[_i]);
 	//then
 	// finally
 	//fprintf(stderr,"delete %s with half buffer\n",UA_TYPES[_i].name);
-	UA_TYPES[_i].delete(obj2);
+	UA_delete(obj2, &UA_TYPES[_i]);
 	UA_ByteString_deleteMembers(&msg1);
 }
 END_TEST
@@ -129,13 +129,13 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
 			msg1.data[i] = (UA_Byte)random();  // when
 #endif
 		}
-		UA_UInt32 pos = 0;
-		obj1 = UA_TYPES[_i].new();
-		retval |= UA_TYPES[_i].encodings[0].decode(&msg1, &pos, obj1);
+		size_t pos = 0;
+		obj1 = UA_new(&UA_TYPES[_i]);
+		retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i]);
 		//then
-		ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Decoding %s from random buffer", UA_TYPES[_i].name);
+		ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Decoding %d from random buffer", UA_TYPES_IDS[_i]);
 		// finally
-		UA_TYPES[_i].delete(obj1);
+		UA_delete(obj1, &UA_TYPES[_i]);
 	}
 	UA_ByteString_deleteMembers(&msg1);
 }
@@ -163,10 +163,10 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
 			msg1.data[i] = (UA_Byte)random();  // when
 #endif
 		}
-		UA_UInt32 pos = 0;
-		void *obj1 = UA_TYPES[_i].new();
-		retval |= UA_TYPES[_i].encodings[0].decode(&msg1, &pos, obj1);
-		UA_TYPES[_i].delete(obj1);
+		size_t pos = 0;
+		void *obj1 = UA_new(&UA_TYPES[_i]);
+		retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i]);
+		UA_delete(obj1, &UA_TYPES[_i]);
 	}
 
 	// finally
@@ -180,22 +180,21 @@ int main(void) {
 
 	Suite *s  = suite_create("testMemoryHandling");
 	TCase *tc = tcase_create("Empty Objects");
-	tcase_add_loop_test(tc, newAndEmptyObjectShallBeDeleted, UA_BOOLEAN, UA_INVALIDTYPE-1);
+	tcase_add_loop_test(tc, newAndEmptyObjectShallBeDeleted, UA_TYPES_BOOLEAN, UA_TYPES_EVENTNOTIFICATIONLIST);
 	tcase_add_test(tc, arrayCopyShallMakeADeepCopy);
-	tcase_add_loop_test(tc, encodeShallYieldDecode, UA_BOOLEAN, UA_INVALIDTYPE-1);
+	tcase_add_loop_test(tc, encodeShallYieldDecode, UA_TYPES_BOOLEAN, UA_TYPES_EVENTNOTIFICATIONLIST);
 	suite_add_tcase(s, tc);
 	tc = tcase_create("Truncated Buffers");
-	tcase_add_loop_test(tc, decodeShallFailWithTruncatedBufferButSurvive, UA_BOOLEAN, UA_INVALIDTYPE-1);
+	tcase_add_loop_test(tc, decodeShallFailWithTruncatedBufferButSurvive, UA_TYPES_BOOLEAN, UA_TYPES_EVENTNOTIFICATIONLIST);
 	suite_add_tcase(s, tc);
 
 	tc = tcase_create("Fuzzing with Random Buffers");
-	tcase_add_loop_test(tc, decodeScalarBasicTypeFromRandomBufferShallSucceed, UA_BOOLEAN, UA_DOUBLE);
-	tcase_add_loop_test(tc, decodeComplexTypeFromRandomBufferShallSurvive, UA_STRING, UA_DIAGNOSTICINFO);
-	tcase_add_loop_test(tc, decodeComplexTypeFromRandomBufferShallSurvive, UA_IDTYPE, UA_INVALIDTYPE);
+	tcase_add_loop_test(tc, decodeScalarBasicTypeFromRandomBufferShallSucceed, UA_TYPES_BOOLEAN, UA_TYPES_GUID);
+	tcase_add_loop_test(tc, decodeComplexTypeFromRandomBufferShallSurvive, UA_TYPES_NODEID, UA_TYPES_EVENTNOTIFICATIONLIST);
 	suite_add_tcase(s, tc);
 
 	sr = srunner_create(s);
-	//srunner_set_fork_status(sr, CK_NOFORK);
+	srunner_set_fork_status(sr, CK_NOFORK);
 	srunner_run_all (sr, CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);

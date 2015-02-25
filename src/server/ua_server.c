@@ -1,15 +1,15 @@
 #ifdef UA_MULTITHREADING
 #define _LGPL_SOURCE
 #include <urcu.h>
-//#include <urcu-call-rcu.h>
 #endif
 
+#include "ua_types.h"
 #include "ua_server_internal.h"
-#include "ua_namespace_0.h"
 #include "ua_securechannel_manager.h"
 #include "ua_session_manager.h"
 #include "ua_util.h"
 #include "ua_services.h"
+#include "ua_nodeids.h"
 
 /**********************/
 /* Namespace Handling */
@@ -22,15 +22,15 @@ static void UA_ExternalNamespace_init(UA_ExternalNamespace *ens) {
 
 static void UA_ExternalNamespace_deleteMembers(UA_ExternalNamespace *ens) {
 	UA_String_deleteMembers(&ens->url);
-    ens->externalNodeStore.delete(ens->externalNodeStore.ensHandle);
+    ens->externalNodeStore.destroy(ens->externalNodeStore.ensHandle);
 }
 
 /*****************/
 /* Configuration */
 /*****************/
 
-void UA_Server_addNetworkLayer(UA_Server *server, UA_NetworkLayer networkLayer) {
-    server->nls = UA_realloc(server->nls, sizeof(UA_NetworkLayer)*(server->nlsSize+1));
+void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkLayer) {
+    server->nls = UA_realloc(server->nls, sizeof(UA_ServerNetworkLayer)*(server->nlsSize+1));
     server->nls[server->nlsSize] = networkLayer;
     server->nlsSize++;
 }
@@ -48,7 +48,7 @@ void UA_Server_delete(UA_Server *server) {
 
     // Delete the network layers
     for(UA_Int32 i=0;i<server->nlsSize;i++) {
-        server->nls[i].delete(server->nls[i].nlHandle);
+        server->nls[i].free(server->nls[i].nlHandle);
     }
     UA_free(server->nls);
 
@@ -61,7 +61,7 @@ void UA_Server_delete(UA_Server *server) {
     UA_SessionManager_deleteMembers(&server->sessionManager);
     UA_NodeStore_delete(server->nodestore);
     UA_ByteString_deleteMembers(&server->serverCertificate);
-    UA_Array_delete(server->endpointDescriptions, server->endpointDescriptionsSize, &UA_TYPES[UA_ENDPOINTDESCRIPTION]);
+    UA_Array_delete(server->endpointDescriptions, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION], server->endpointDescriptionsSize);
 #ifdef UA_MULTITHREADING
     pthread_cond_destroy(&server->dispatchQueue_condition); // so the workers don't spin if the queue is empty
     rcu_barrier(); // wait for all scheduled call_rcu work to complete
@@ -135,7 +135,7 @@ UA_Server * UA_Server_new(void) {
 
     server->nodestore = UA_NodeStore_new();
 
-#define ADDREFERENCE(NODEID, REFTYPE_NODEID, TARGET_EXPNODEID) do { \
+#define ADDREFERENCE(NODEID, REFTYPE_NODEID, TARGET_EXPNODEID) do {     \
         UA_AddReferencesItem item;                                      \
         UA_AddReferencesItem_init(&item);                               \
         item.sourceNodeId = NODEID;                                     \
@@ -158,316 +158,334 @@ UA_Server * UA_Server_new(void) {
     /* bootstrap by manually inserting "references" and "hassubtype" */
     UA_ReferenceTypeNode *references = UA_ReferenceTypeNode_new();
     COPYNAMES(references, "References");
-    references->nodeId     = UA_NODEIDS[UA_REFERENCES];
+    references->nodeId.identifier.numeric = UA_NS0ID_REFERENCES;
     references->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     references->isAbstract = UA_TRUE;
     references->symmetric  = UA_TRUE;
     // this node has no parent??
-    UA_NodeStore_insert(server->nodestore, (const UA_Node**)&references, UA_FALSE);
+    UA_NodeStore_insert(server->nodestore, (UA_Node*)references, UA_NULL);
 
     UA_ReferenceTypeNode *hassubtype = UA_ReferenceTypeNode_new();
     COPYNAMES(hassubtype, "HasSubtype");
     UA_LocalizedText_copycstring("SubtypeOf", &hassubtype->inverseName);
-    hassubtype->nodeId     = UA_NODEIDS[UA_HASSUBTYPE];
+    hassubtype->nodeId.identifier.numeric = UA_NS0ID_HASSUBTYPE;
     hassubtype->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     hassubtype->isAbstract = UA_FALSE;
     hassubtype->symmetric  = UA_FALSE;
-    UA_NodeStore_insert(server->nodestore, (const UA_Node**)&hassubtype, UA_FALSE);
+    UA_NodeStore_insert(server->nodestore, (UA_Node*)hassubtype, UA_NULL);
 
     /* continue adding reference types with normal "addnode" */
     UA_ReferenceTypeNode *hierarchicalreferences = UA_ReferenceTypeNode_new();
     COPYNAMES(hierarchicalreferences, "Hierarchicalreferences");
-    hierarchicalreferences->nodeId     = UA_NODEIDS[UA_HIERARCHICALREFERENCES];
+    hierarchicalreferences->nodeId.identifier.numeric = UA_NS0ID_HIERARCHICALREFERENCES;
     hierarchicalreferences->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     hierarchicalreferences->isAbstract = UA_TRUE;
     hierarchicalreferences->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node**)&hierarchicalreferences,
-                      &UA_EXPANDEDNODEIDS[UA_REFERENCES], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)hierarchicalreferences,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_REFERENCES),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *nonhierarchicalreferences = UA_ReferenceTypeNode_new();
     COPYNAMES(nonhierarchicalreferences, "NonHierarchicalReferences");
-    nonhierarchicalreferences->nodeId     = UA_NODEIDS[UA_NONHIERARCHICALREFERENCES];
+    nonhierarchicalreferences->nodeId.identifier.numeric = UA_NS0ID_NONHIERARCHICALREFERENCES;
     nonhierarchicalreferences->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     nonhierarchicalreferences->isAbstract = UA_TRUE;
     nonhierarchicalreferences->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&nonhierarchicalreferences,
-                      &UA_EXPANDEDNODEIDS[UA_REFERENCES], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)nonhierarchicalreferences,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_REFERENCES),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *haschild = UA_ReferenceTypeNode_new();
     COPYNAMES(haschild, "HasChild");
-    haschild->nodeId     = UA_NODEIDS[UA_HASCHILD];
+    haschild->nodeId.identifier.numeric = UA_NS0ID_HASCHILD;
     haschild->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     haschild->isAbstract = UA_TRUE;
     haschild->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&haschild,
-                      &UA_EXPANDEDNODEIDS[UA_HIERARCHICALREFERENCES], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)haschild,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_HIERARCHICALREFERENCES),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *organizes = UA_ReferenceTypeNode_new();
     COPYNAMES(organizes, "Organizes");
     UA_LocalizedText_copycstring("OrganizedBy", &organizes->inverseName);
-    organizes->nodeId     = UA_NODEIDS[UA_ORGANIZES];
+    organizes->nodeId.identifier.numeric = UA_NS0ID_ORGANIZES;
     organizes->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     organizes->isAbstract = UA_FALSE;
     organizes->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&organizes,
-                      &UA_EXPANDEDNODEIDS[UA_HIERARCHICALREFERENCES], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)organizes,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_HIERARCHICALREFERENCES),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *haseventsource = UA_ReferenceTypeNode_new();
     COPYNAMES(haseventsource, "HasEventSource");
     UA_LocalizedText_copycstring("EventSourceOf", &haseventsource->inverseName);
-    haseventsource->nodeId     = UA_NODEIDS[UA_HASEVENTSOURCE];
+    haseventsource->nodeId.identifier.numeric = UA_NS0ID_HASEVENTSOURCE;
     haseventsource->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     haseventsource->isAbstract = UA_FALSE;
     haseventsource->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&haseventsource,
-                      &UA_EXPANDEDNODEIDS[UA_HIERARCHICALREFERENCES], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)haseventsource,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_HIERARCHICALREFERENCES),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *hasmodellingrule = UA_ReferenceTypeNode_new();
     COPYNAMES(hasmodellingrule, "HasModellingRule");
     UA_LocalizedText_copycstring("ModellingRuleOf", &hasmodellingrule->inverseName);
-    hasmodellingrule->nodeId     = UA_NODEIDS[UA_HASMODELLINGRULE];
+    hasmodellingrule->nodeId.identifier.numeric = UA_NS0ID_HASMODELLINGRULE;
     hasmodellingrule->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     hasmodellingrule->isAbstract = UA_FALSE;
     hasmodellingrule->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&hasmodellingrule,
-                      &UA_EXPANDEDNODEIDS[UA_NONHIERARCHICALREFERENCES], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)hasmodellingrule,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *hasencoding = UA_ReferenceTypeNode_new();
     COPYNAMES(hasencoding, "HasEncoding");
     UA_LocalizedText_copycstring("EncodingOf", &hasencoding->inverseName);
-    hasencoding->nodeId     = UA_NODEIDS[UA_HASENCODING];
+    hasencoding->nodeId.identifier.numeric = UA_NS0ID_HASENCODING;
     hasencoding->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     hasencoding->isAbstract = UA_FALSE;
     hasencoding->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&hasencoding,
-                      &UA_EXPANDEDNODEIDS[UA_NONHIERARCHICALREFERENCES], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)hasencoding,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *hasdescription = UA_ReferenceTypeNode_new();
     COPYNAMES(hasdescription, "HasDescription");
     UA_LocalizedText_copycstring("DescriptionOf", &hasdescription->inverseName);
-    hasdescription->nodeId     = UA_NODEIDS[UA_HASDESCRIPTION];
+    hasdescription->nodeId.identifier.numeric = UA_NS0ID_HASDESCRIPTION;
     hasdescription->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     hasdescription->isAbstract = UA_FALSE;
     hasdescription->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&hasdescription,
-                      &UA_EXPANDEDNODEIDS[UA_NONHIERARCHICALREFERENCES], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)hasdescription,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *hastypedefinition = UA_ReferenceTypeNode_new();
     COPYNAMES(hastypedefinition, "HasTypeDefinition");
     UA_LocalizedText_copycstring("TypeDefinitionOf", &hastypedefinition->inverseName);
-    hastypedefinition->nodeId     = UA_NODEIDS[UA_HASTYPEDEFINITION];
+    hastypedefinition->nodeId.identifier.numeric = UA_NS0ID_HASTYPEDEFINITION;
     hastypedefinition->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     hastypedefinition->isAbstract = UA_FALSE;
     hastypedefinition->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&hastypedefinition,
-                      &UA_EXPANDEDNODEIDS[UA_NONHIERARCHICALREFERENCES], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)hastypedefinition,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *generatesevent = UA_ReferenceTypeNode_new();
     COPYNAMES(generatesevent, "GeneratesEvent");
     UA_LocalizedText_copycstring("GeneratedBy", &generatesevent->inverseName);
-    generatesevent->nodeId     = UA_NODEIDS[UA_GENERATESEVENT];
+    generatesevent->nodeId.identifier.numeric = UA_NS0ID_GENERATESEVENT;
     generatesevent->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     generatesevent->isAbstract = UA_FALSE;
     generatesevent->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&generatesevent,
-                      &UA_EXPANDEDNODEIDS[UA_NONHIERARCHICALREFERENCES], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)generatesevent,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *aggregates = UA_ReferenceTypeNode_new();
     COPYNAMES(aggregates, "Aggregates");
     // Todo: Is there an inverse name?
-    aggregates->nodeId     = UA_NODEIDS[UA_AGGREGATES];
+    aggregates->nodeId.identifier.numeric = UA_NS0ID_AGGREGATES;
     aggregates->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     aggregates->isAbstract = UA_TRUE;
     aggregates->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&aggregates,
-                      &UA_EXPANDEDNODEIDS[UA_HASCHILD], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)aggregates,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_HASCHILD),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     // complete bootstrap of hassubtype
-    ADDREFERENCE(UA_NODEIDS[UA_HASCHILD], UA_NODEIDS[UA_HASSUBTYPE],
-                 UA_EXPANDEDNODEIDS[UA_HASSUBTYPE]);
+    ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_HASCHILD), UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE),
+                 UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *hasproperty = UA_ReferenceTypeNode_new();
     COPYNAMES(hasproperty, "HasProperty");
     UA_LocalizedText_copycstring("PropertyOf", &hasproperty->inverseName);
-    hasproperty->nodeId     = UA_NODEIDS[UA_HASPROPERTY];
+    hasproperty->nodeId.identifier.numeric = UA_NS0ID_HASPROPERTY;
     hasproperty->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     hasproperty->isAbstract = UA_FALSE;
     hasproperty->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&hasproperty,
-                      &UA_EXPANDEDNODEIDS[UA_AGGREGATES], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)hasproperty,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_AGGREGATES),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *hascomponent = UA_ReferenceTypeNode_new();
     COPYNAMES(hascomponent, "HasComponent");
     UA_LocalizedText_copycstring("ComponentOf", &hascomponent->inverseName);
-    hascomponent->nodeId     = UA_NODEIDS[UA_HASCOMPONENT];
+    hascomponent->nodeId.identifier.numeric = UA_NS0ID_HASCOMPONENT;
     hascomponent->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     hascomponent->isAbstract = UA_FALSE;
     hascomponent->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&hascomponent,
-                      &UA_EXPANDEDNODEIDS[UA_AGGREGATES], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)hascomponent,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_AGGREGATES),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *hasnotifier = UA_ReferenceTypeNode_new();
     COPYNAMES(hasnotifier, "HasNotifier");
     UA_LocalizedText_copycstring("NotifierOf", &hasnotifier->inverseName);
-    hasnotifier->nodeId     = UA_NODEIDS[UA_HASNOTIFIER];
+    hasnotifier->nodeId.identifier.numeric = UA_NS0ID_HASNOTIFIER;
     hasnotifier->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     hasnotifier->isAbstract = UA_FALSE;
     hasnotifier->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&hasnotifier,
-                      &UA_EXPANDEDNODEIDS[UA_HASEVENTSOURCE], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)hasnotifier,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_HASEVENTSOURCE),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *hasorderedcomponent = UA_ReferenceTypeNode_new();
     COPYNAMES(hasorderedcomponent, "HasOrderedComponent");
     UA_LocalizedText_copycstring("OrderedComponentOf", &hasorderedcomponent->inverseName);
-    hasorderedcomponent->nodeId     = UA_NODEIDS[UA_HASORDEREDCOMPONENT];
+    hasorderedcomponent->nodeId.identifier.numeric = UA_NS0ID_HASORDEREDCOMPONENT;
     hasorderedcomponent->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     hasorderedcomponent->isAbstract = UA_FALSE;
     hasorderedcomponent->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&hasorderedcomponent,
-                      &UA_EXPANDEDNODEIDS[UA_HASCOMPONENT], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)hasorderedcomponent,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_HASCOMPONENT),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *hasmodelparent = UA_ReferenceTypeNode_new();
     COPYNAMES(hasmodelparent, "HasModelParent");
     UA_LocalizedText_copycstring("ModelParentOf", &hasmodelparent->inverseName);
-    hasmodelparent->nodeId     = UA_NODEIDS[UA_HASMODELPARENT];
+    hasmodelparent->nodeId.identifier.numeric = UA_NS0ID_HASMODELPARENT;
     hasmodelparent->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     hasmodelparent->isAbstract = UA_FALSE;
     hasmodelparent->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&hasmodelparent,
-                      &UA_EXPANDEDNODEIDS[UA_NONHIERARCHICALREFERENCES], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)hasmodelparent,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *fromstate = UA_ReferenceTypeNode_new();
     COPYNAMES(fromstate, "FromState");
     UA_LocalizedText_copycstring("ToTransition", &fromstate->inverseName);
-    fromstate->nodeId     = UA_NODEIDS[UA_FROMSTATE];
+    fromstate->nodeId.identifier.numeric = UA_NS0ID_FROMSTATE;
     fromstate->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     fromstate->isAbstract = UA_FALSE;
     fromstate->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&fromstate,
-                      &UA_EXPANDEDNODEIDS[UA_NONHIERARCHICALREFERENCES], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)fromstate,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *tostate = UA_ReferenceTypeNode_new();
     COPYNAMES(tostate, "ToState");
     UA_LocalizedText_copycstring("FromTransition", &tostate->inverseName);
-    tostate->nodeId     = UA_NODEIDS[UA_TOSTATE];
+    tostate->nodeId.identifier.numeric = UA_NS0ID_TOSTATE;
     tostate->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     tostate->isAbstract = UA_FALSE;
     tostate->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&tostate,
-                      &UA_EXPANDEDNODEIDS[UA_NONHIERARCHICALREFERENCES], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)tostate,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *hascause = UA_ReferenceTypeNode_new();
     COPYNAMES(hascause, "HasCause");
     UA_LocalizedText_copycstring("MayBeCausedBy", &hascause->inverseName);
-    hascause->nodeId     = UA_NODEIDS[UA_HASCAUSE];
+    hascause->nodeId.identifier.numeric = UA_NS0ID_HASCAUSE;
     hascause->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     hascause->isAbstract = UA_FALSE;
     hascause->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&hascause,
-                      &UA_EXPANDEDNODEIDS[UA_NONHIERARCHICALREFERENCES], &UA_NODEIDS[UA_HASSUBTYPE]);
-
+    UA_Server_addNode(server, (UA_Node*)hascause,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
+    
     UA_ReferenceTypeNode *haseffect = UA_ReferenceTypeNode_new();
     COPYNAMES(haseffect, "HasEffect");
     UA_LocalizedText_copycstring("MayBeEffectedBy", &haseffect->inverseName);
-    haseffect->nodeId     = UA_NODEIDS[UA_HASEFFECT];
+    haseffect->nodeId.identifier.numeric = UA_NS0ID_HASEFFECT;
     haseffect->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     haseffect->isAbstract = UA_FALSE;
     haseffect->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&haseffect,
-                      &UA_EXPANDEDNODEIDS[UA_NONHIERARCHICALREFERENCES], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)haseffect,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     UA_ReferenceTypeNode *hashistoricalconfiguration = UA_ReferenceTypeNode_new();
     COPYNAMES(hashistoricalconfiguration, "HasHistoricalConfiguration");
     UA_LocalizedText_copycstring("HistoricalConfigurationOf", &hashistoricalconfiguration->inverseName);
-    hashistoricalconfiguration->nodeId     = UA_NODEIDS[UA_HASHISTORICALCONFIGURATION];
+    hashistoricalconfiguration->nodeId.identifier.numeric = UA_NS0ID_HASHISTORICALCONFIGURATION;
     hashistoricalconfiguration->nodeClass  = UA_NODECLASS_REFERENCETYPE;
     hashistoricalconfiguration->isAbstract = UA_FALSE;
     hashistoricalconfiguration->symmetric  = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&hashistoricalconfiguration,
-                      &UA_EXPANDEDNODEIDS[UA_AGGREGATES], &UA_NODEIDS[UA_HASSUBTYPE]);
+    UA_Server_addNode(server, (UA_Node*)hashistoricalconfiguration,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_AGGREGATES),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASSUBTYPE));
 
     /***********/
     /* Objects */
     /***********/
     
     UA_ObjectNode *folderType = UA_ObjectNode_new();
-    folderType->nodeId    = UA_NODEIDS[UA_FOLDERTYPE];
+    folderType->nodeId.identifier.numeric = UA_NS0ID_FOLDERTYPE;
     folderType->nodeClass = UA_NODECLASS_OBJECTTYPE;
     COPYNAMES(folderType, "FolderType");
-    UA_NodeStore_insert(server->nodestore, (const UA_Node**)&folderType, UA_FALSE);
+    UA_NodeStore_insert(server->nodestore, (UA_Node*)folderType, UA_NULL);
 
     UA_ObjectNode *root = UA_ObjectNode_new();
     COPYNAMES(root, "Root");
-    root->nodeId    = UA_NODEIDS[UA_ROOTFOLDER];
+    root->nodeId.identifier.numeric = UA_NS0ID_ROOTFOLDER;
     root->nodeClass = UA_NODECLASS_OBJECT;
-    UA_NodeStore_insert(server->nodestore, (const UA_Node**)&root, UA_FALSE);
-    ADDREFERENCE(UA_NODEIDS[UA_ROOTFOLDER], UA_NODEIDS[UA_HASTYPEDEFINITION],
-                 UA_EXPANDEDNODEIDS[UA_FOLDERTYPE]);
-    ADDREFERENCE(UA_NODEIDS[UA_ROOTFOLDER], UA_NODEIDS[UA_ORGANIZES],
-                 UA_EXPANDEDNODEIDS[UA_OBJECTSFOLDER]);
-    ADDREFERENCE(UA_NODEIDS[UA_ROOTFOLDER], UA_NODEIDS[UA_ORGANIZES],
-                 UA_EXPANDEDNODEIDS[UA_TYPESFOLDER]);
-    ADDREFERENCE(UA_NODEIDS[UA_ROOTFOLDER], UA_NODEIDS[UA_ORGANIZES],
-                 UA_EXPANDEDNODEIDS[UA_VIEWSFOLDER]);
+    UA_NodeStore_insert(server->nodestore, (UA_Node*)root, UA_NULL);
+    ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_ROOTFOLDER), UA_NODEID_STATIC(0, UA_NS0ID_HASTYPEDEFINITION),
+                 UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_FOLDERTYPE));
+    ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_ROOTFOLDER), UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES),
+                 UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER));
+    ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_ROOTFOLDER), UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES),
+                 UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_TYPESFOLDER));
+    ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_ROOTFOLDER), UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES),
+                 UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_VIEWSFOLDER));
 
     UA_ObjectNode *objects = UA_ObjectNode_new();
     COPYNAMES(objects, "Objects");
-    objects->nodeId    = UA_NODEIDS[UA_OBJECTSFOLDER];
+    objects->nodeId.identifier.numeric = UA_NS0ID_OBJECTSFOLDER;
     objects->nodeClass = UA_NODECLASS_OBJECT;
-    UA_NodeStore_insert(server->nodestore, (const UA_Node**)&objects, UA_FALSE);
-    ADDREFERENCE(UA_NODEIDS[UA_OBJECTSFOLDER], UA_NODEIDS[UA_HASTYPEDEFINITION],
-                 UA_EXPANDEDNODEIDS[UA_FOLDERTYPE]);
-    ADDREFERENCE(UA_NODEIDS[UA_OBJECTSFOLDER], UA_NODEIDS[UA_ORGANIZES], UA_EXPANDEDNODEIDS[UA_SERVER]);
+    UA_NodeStore_insert(server->nodestore, (UA_Node*)objects, UA_NULL);
+    ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_STATIC(0, UA_NS0ID_HASTYPEDEFINITION),
+                 UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_FOLDERTYPE));
+    ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES),
+                 UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER));
 
     UA_ObjectNode *types = UA_ObjectNode_new();
     COPYNAMES(types, "Types");
-    types->nodeId    = UA_NODEIDS[UA_TYPESFOLDER];
+    types->nodeId.identifier.numeric = UA_NS0ID_TYPESFOLDER;
     types->nodeClass = UA_NODECLASS_OBJECT;
-    UA_NodeStore_insert(server->nodestore, (const UA_Node**)&types, UA_FALSE);
-    ADDREFERENCE(UA_NODEIDS[UA_TYPESFOLDER], UA_NODEIDS[UA_HASTYPEDEFINITION],
-                 UA_EXPANDEDNODEIDS[UA_FOLDERTYPE]);
+    UA_NodeStore_insert(server->nodestore, (UA_Node*)types, UA_NULL);
+    ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_TYPESFOLDER), UA_NODEID_STATIC(0, UA_NS0ID_HASTYPEDEFINITION),
+                 UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_FOLDERTYPE));
 
     UA_ObjectNode *views = UA_ObjectNode_new();
     COPYNAMES(views, "Views");
-    views->nodeId    = UA_NODEIDS[UA_VIEWSFOLDER];
+    views->nodeId.identifier.numeric = UA_NS0ID_VIEWSFOLDER;
     views->nodeClass = UA_NODECLASS_OBJECT;
-    UA_NodeStore_insert(server->nodestore, (const UA_Node**)&views, UA_FALSE);
-    ADDREFERENCE(UA_NODEIDS[UA_VIEWSFOLDER], UA_NODEIDS[UA_HASTYPEDEFINITION],
-                 UA_EXPANDEDNODEIDS[UA_FOLDERTYPE]);
+    UA_NodeStore_insert(server->nodestore, (UA_Node*)views, UA_NULL);
+    ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_VIEWSFOLDER), UA_NODEID_STATIC(0, UA_NS0ID_HASTYPEDEFINITION),
+                 UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_FOLDERTYPE));
 
     UA_ObjectNode *servernode = UA_ObjectNode_new();
     COPYNAMES(servernode, "Server");
-    servernode->nodeId    = UA_NODEIDS[UA_SERVER];
+    servernode->nodeId.identifier.numeric = UA_NS0ID_SERVER;
     servernode->nodeClass = UA_NODECLASS_OBJECT;
-    UA_NodeStore_insert(server->nodestore, (const UA_Node**)&servernode, UA_FALSE);
-    ADDREFERENCE(UA_NODEIDS[UA_SERVER], UA_NODEIDS[UA_HASCOMPONENT],
-                 UA_EXPANDEDNODEIDS[UA_SERVER_SERVERCAPABILITIES]);
-    ADDREFERENCE(UA_NODEIDS[UA_SERVER], UA_NODEIDS[UA_HASPROPERTY], UA_EXPANDEDNODEIDS[UA_SERVER_SERVERARRAY]);
+    UA_NodeStore_insert(server->nodestore, (UA_Node*)servernode, UA_NULL);
+    ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_SERVER), UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT),
+                 UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES));
+    ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_SERVER), UA_NODEID_STATIC(0, UA_NS0ID_HASPROPERTY),
+                 UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER_SERVERARRAY));
 
     UA_VariableNode *namespaceArray = UA_VariableNode_new();
     COPYNAMES(namespaceArray, "NamespaceArray");
-    namespaceArray->nodeId    = UA_NODEIDS[UA_SERVER_NAMESPACEARRAY];
+    namespaceArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_NAMESPACEARRAY;
     namespaceArray->nodeClass = UA_NODECLASS_VARIABLE;
-    UA_Array_new(&namespaceArray->value.storage.data.dataPtr, 2, &UA_TYPES[UA_STRING]);
-    namespaceArray->value.vt = &UA_TYPES[UA_STRING];
+    namespaceArray->value.storage.data.dataPtr = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 2);
     namespaceArray->value.storage.data.arrayLength = 2;
+    namespaceArray->value.type = &UA_TYPES[UA_TYPES_STRING];
+    namespaceArray->value.typeId.identifier.numeric = UA_TYPES_IDS[UA_TYPES_STRING];
     // Fixme: Insert the external namespaces
     UA_String_copycstring("http://opcfoundation.org/UA/",
                           &((UA_String *)(namespaceArray->value.storage.data.dataPtr))[0]);
     UA_String_copycstring("urn:myServer:myApplication",
                           &((UA_String *)(namespaceArray->value.storage.data.dataPtr))[1]);
-    UA_UInt32 *dimensions = UA_malloc(sizeof(UA_UInt32));
-    if(dimensions) {
-        *dimensions = 2;
-        namespaceArray->arrayDimensions = dimensions;
-        namespaceArray->arrayDimensionsSize = 1;
-    }
-    namespaceArray->dataType = UA_NODEIDS[UA_STRING];
     namespaceArray->valueRank = 1;
     namespaceArray->minimumSamplingInterval = 1.0;
     namespaceArray->historizing = UA_FALSE;
-    UA_Server_addNode(server, (const UA_Node **)&namespaceArray,
-                      &UA_EXPANDEDNODEIDS[UA_SERVER], &UA_NODEIDS[UA_HASCOMPONENT]);
+    UA_Server_addNode(server, (UA_Node*)namespaceArray,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT));
 
     UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
     status->startTime   = UA_DateTime_now();
@@ -483,25 +501,28 @@ UA_Server * UA_Server_new(void) {
     UA_LocalizedText_copycstring("because", &status->shutdownReason);
     UA_VariableNode *serverstatus = UA_VariableNode_new();
     COPYNAMES(serverstatus, "ServerStatus");
-    serverstatus->nodeId    = UA_NODEIDS[UA_SERVER_SERVERSTATUS];
+    serverstatus->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERSTATUS;
     serverstatus->nodeClass = UA_NODECLASS_VARIABLE;
-    serverstatus->value.vt = &UA_TYPES[UA_SERVERSTATUSDATATYPE]; // gets encoded as an extensionobject
+    serverstatus->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
+    serverstatus->value.typeId.identifier.numeric = UA_TYPES_IDS[UA_TYPES_SERVERSTATUSDATATYPE];
     serverstatus->value.storage.data.arrayLength = 1;
     serverstatus->value.storage.data.dataPtr = status;
-    UA_Server_addNode(server, (const UA_Node **)&serverstatus,
-                      &UA_EXPANDEDNODEIDS[UA_SERVER], &UA_NODEIDS[UA_HASPROPERTY]);
+    UA_Server_addNode(server, (UA_Node*)serverstatus,
+                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASPROPERTY));
 
     // todo: make this variable point to a member of the serverstatus
     UA_VariableNode *state = UA_VariableNode_new();
     UA_ServerState *stateEnum = UA_ServerState_new();
     *stateEnum = UA_SERVERSTATE_RUNNING;
     COPYNAMES(state, "State");
-    state->nodeId    = UA_NODEIDS[UA_SERVER_SERVERSTATUS_STATE];
+    state->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERSTATUS_STATE;
     state->nodeClass = UA_NODECLASS_VARIABLE;
-    state->value.vt = &UA_TYPES[UA_SERVERSTATE];
+    state->value.type = &UA_TYPES[UA_TYPES_SERVERSTATE];
+    state->value.typeId.identifier.numeric = UA_TYPES_IDS[UA_TYPES_SERVERSTATE];
     state->value.storage.data.arrayLength = 1;
     state->value.storage.data.dataPtr = stateEnum; // points into the other object.
     state->value.storageType = UA_VARIANT_DATA;
-    UA_NodeStore_insert(server->nodestore, (const UA_Node**)&state, UA_FALSE);
+    UA_NodeStore_insert(server->nodestore, (UA_Node*)state, UA_NULL);
     return server;
 }

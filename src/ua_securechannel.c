@@ -6,6 +6,11 @@
 #include <urcu/uatomic.h>
 #endif
 
+// max message size is 64k
+const UA_ConnectionConfig UA_ConnectionConfig_standard =
+    {.protocolVersion = 0, .sendBufferSize = 65536, .recvBufferSize  = 65536,
+     .maxMessageSize = 65536, .maxChunkCount   = 1};
+
 void UA_SecureChannel_init(UA_SecureChannel *channel) {
     UA_MessageSecurityMode_init(&channel->securityMode);
     UA_ChannelSecurityToken_init(&channel->securityToken);

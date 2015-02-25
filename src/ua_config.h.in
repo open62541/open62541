@@ -1,16 +1,7 @@
 /* Buid options and configuration (set by cmake) */
-#define UA_ENCODING_AMOUNT ${UA_ENCODING_AMOUNT}
+
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
-
-#cmakedefine UA_DEBUG
 #cmakedefine UA_MULTITHREADING
-
-/* Visibility */
-#ifdef _MSC_VER
-#define INLINE __inline
-#else
-#define INLINE inline
-#endif
 
 /* Function Export */
 #ifdef _WIN32
@@ -32,7 +23,7 @@
 #    endif
 #  endif
 #else
-#  if __GNUC__ >= 4 || __clang__
+#  if __GNUC__ || __clang__
 #    define UA_EXPORT __attribute__ ((visibility ("default")))
 #  else
 #    define UA_EXPORT

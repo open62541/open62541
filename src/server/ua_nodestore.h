@@ -2,6 +2,7 @@
 #define UA_NODESTORE_H_
 
 #include "ua_types_generated.h"
+#include "ua_nodes.h"
 
 /**
  * @ingroup server
@@ -34,20 +35,20 @@ UA_NodeStore * UA_NodeStore_new(void);
 void UA_NodeStore_delete(UA_NodeStore *ns);
 
 /**
- * Inserts a new node into the namespace. With the getManaged flag, the node
- * pointer is replaced with the managed pointer. Otherwise, it is set to
- * UA_NULL. If the nodeid is zero, then a fresh numeric nodeid from namespace 1
- * is assigned.
+ * Inserts a new node into the namespace. If the nodeid is zero, then a fresh
+ * numeric nodeid from namespace 1 is assigned. The memory of the original node
+ * is freed and the content is moved to a managed (immutable) node. If inserted
+ * is not NULL, then a pointer to the managed node is returned (and must be
+ * released).
  */
-UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, const UA_Node **node, UA_Boolean getManaged);
+UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, const UA_Node **inserted);
 
 /**
- * Replace an existing node in the nodestore. With the getManaged flag, the node
- * pointer is replaced with the managed pointer. Otherwise, it is set to
- * UA_NULL. If the return value is UA_STATUSCODE_BADINTERNALERROR, try again.
- * Presumably the oldNode was already replaced by another thread.
+ * Replace an existing node in the nodestore. If the node was already replaced,
+ * UA_STATUSCODE_BADINTERNALERROR is returned. If inserted is not NULL, a
+ * pointer to the managed (immutable) node is returned.
  */
-UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode, const UA_Node **node, UA_Boolean getManaged);
+UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode, UA_Node *node, const UA_Node **inserted);
 
 /**
  * Remove a node from the namespace. Always succeeds, even if the node was not
