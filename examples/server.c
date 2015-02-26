@@ -74,9 +74,6 @@ int main(int argc, char** argv) {
     UA_Server_addVariableNode(server, myIntegerVariant, &UA_NODEID_NULL, &myIntegerName,
                               &UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
                               &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
-
-    // add node with a callback to the userspace
-    
     
 #ifdef BENCHMARK
     UA_UInt32 nodeCount = 500;

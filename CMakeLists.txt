@@ -88,8 +88,8 @@ add_library(open62541-objects OBJECT ${lib_sources})
 add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-objects>)
 add_library(open62541-static STATIC $<TARGET_OBJECTS:open62541-objects>)
 SET_TARGET_PROPERTIES(open62541-static PROPERTIES OUTPUT_NAME open62541 CLEAN_DIRECT_OUTPUT 1) # static version that exports all symbols
-target_compile_definitions(open62541-objects PUBLIC UA_DYNAMIC_LINKING)
-target_compile_definitions(open62541-static PUBLIC UA_DYNAMIC_LINKING)
+target_compile_definitions(open62541-objects PRIVATE UA_DYNAMIC_LINKING)
+target_compile_definitions(open62541-static PRIVATE UA_DYNAMIC_LINKING)
 
 ## logging
 set(UA_LOGLEVEL 400 CACHE STRING "Level at which logs shall be reported")

@@ -402,7 +402,7 @@ UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 #define UA_EXPANDEDNODEID_STATIC(NAMESPACE, NUMERICID) (UA_ExpandedNodeId) {             \
         .nodeId = {.namespaceIndex = NAMESPACE, .identifierType = UA_NODEIDTYPE_NUMERIC, \
                    .identifier.numeric = NUMERICID },                                    \
-        .serverIndex = 0, .namespaceUri = UA_STRING_NULL }
+        .serverIndex = 0, .namespaceUri = {.data = (UA_Byte*)0, .length = -1} }
     
 /* QualifiedName */
 UA_StatusCode UA_EXPORT UA_QualifiedName_copycstring(char const *src, UA_QualifiedName *dst);
