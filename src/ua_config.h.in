@@ -12,14 +12,10 @@
 #      define UA_EXPORT __declspec(dllexport)
 #    endif
 #  else
-#    ifndef STATIC_LINKING
-#      ifdef __GNUC__
-#        define UA_EXPORT __attribute__ ((dllimport))
-#      else
-#        define UA_EXPORT __declspec(dllimport)
-#      endif
+#    ifdef __GNUC__
+#      define UA_EXPORT __attribute__ ((dllexport))
 #    else
-#      define UA_EXPORT
+#      define UA_EXPORT __declspec(dllimport)
 #    endif
 #  endif
 #else
