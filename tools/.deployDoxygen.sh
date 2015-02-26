@@ -5,7 +5,9 @@
 # Doxygen docs to open62541-www
 #
 
-COMMITS=`git log coverity_scan --since=today.midnight --oneline | wc -l`
+git checkout coverity_scan
+COMMITS=`git log --since=today.midnight --oneline | wc -l`
+git checkout master
 
 if [[ "$COMMITS" -le "1" ]]; then
    git clone --depth=50 -b gh-pages https://$GITAUTH@github.com/acplt/open62541-www

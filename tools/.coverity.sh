@@ -5,7 +5,9 @@
 # of the day to the coverity scan service
 #
 
-COMMITS=`git log coverity_scan --since=today.midnight --oneline | wc -l`
+git checkout coverity_scan
+COMMITS=`git log --since=today.midnight --oneline | wc -l`
+git checkout master
 
 if [[ "$COMMITS" -le "1" ]]; then
     #first commit a day - push changes to branch coverity_scan
