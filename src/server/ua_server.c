@@ -462,7 +462,7 @@ UA_Server * UA_Server_new(void) {
     namespaceArray->historizing = UA_FALSE;
     UA_Server_addNode(server, (UA_Node*)namespaceArray,
                       &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER),
-                      &UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT));
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASPROPERTY));
 
     UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
     status->startTime   = UA_DateTime_now();
@@ -485,7 +485,7 @@ UA_Server * UA_Server_new(void) {
     serverstatus->value.storage.data.dataPtr = status;
     UA_Server_addNode(server, (UA_Node*)serverstatus,
                       &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER),
-                      &UA_NODEID_STATIC(0, UA_NS0ID_HASPROPERTY));
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT));
 
     // todo: make this variable point to a member of the serverstatus
     UA_VariableNode *state = UA_VariableNode_new();

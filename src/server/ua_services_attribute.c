@@ -255,8 +255,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 		variant.storage.data.arrayLength = request->nodesToReadSize;
 
 		UA_DateTime* expireArray = UA_NULL;
-		UA_Array_new((void**)&expireArray, request->nodesToReadSize,
-												&UA_TYPES[UA_TYPES_DATETIME]);
+		expireArray = UA_Array_new(&UA_TYPES[UA_TYPES_DATETIME], request->nodesToReadSize);
 		variant.storage.data.dataPtr = expireArray;
 
 		UA_ByteString str;

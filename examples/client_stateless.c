@@ -72,7 +72,7 @@ int main(int argc , char *argv[])
 	req.requestHeader.additionalHeader = reqHeaderAdditionalHeader;
 	UA_ExtensionObject_init(&(req.requestHeader.additionalHeader));
 
-	UA_Array_new((void **)&req.nodesToRead, 1, &UA_TYPES[UA_TYPES_READVALUEID]);
+	req.nodesToRead= UA_Array_new(&UA_TYPES[UA_TYPES_READVALUEID], 1);
 	req.nodesToReadSize = 1;
 
 	UA_ReadValueId_init(&(req.nodesToRead[0]));
