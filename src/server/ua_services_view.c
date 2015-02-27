@@ -24,8 +24,7 @@ static UA_StatusCode fillReferenceDescription(UA_NodeStore *ns, const UA_Node *c
         retval |= UA_QualifiedName_copy(&currentNode->browseName, &referenceDescription->browseName);
     if(resultMask & UA_BROWSERESULTMASK_DISPLAYNAME)
         retval |= UA_LocalizedText_copy(&currentNode->displayName, &referenceDescription->displayName);
-    if(resultMask & UA_BROWSERESULTMASK_TYPEDEFINITION && currentNode->nodeClass != UA_NODECLASS_OBJECT &&
-       currentNode->nodeClass != UA_NODECLASS_VARIABLE) {
+    if(resultMask & UA_BROWSERESULTMASK_TYPEDEFINITION ) {
         for(UA_Int32 i = 0;i < currentNode->referencesSize;i++) {
             UA_ReferenceNode *ref = &currentNode->references[i];
             if(ref->referenceTypeId.identifier.numeric == 40 /* hastypedefinition */) {
