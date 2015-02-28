@@ -103,4 +103,14 @@ typedef enum {
     UA_ATTRIBUTEID_USEREXECUTABLE          = 22
 } UA_AttributeId;
 
+#define ADDREFERENCE(NODEID, REFTYPE_NODEID, TARGET_EXPNODEID) do {     \
+        UA_AddReferencesItem item;                                      \
+        UA_AddReferencesItem_init(&item);                               \
+        item.sourceNodeId = NODEID;                                     \
+        item.referenceTypeId = REFTYPE_NODEID;                          \
+        item.isForward = UA_TRUE;                                       \
+        item.targetNodeId = TARGET_EXPNODEID;                           \
+        UA_Server_addReference(server, &item);                          \
+    } while(0)
+
 #endif /* UA_SERVER_INTERNAL_H_ */

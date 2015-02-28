@@ -135,16 +135,6 @@ UA_Server * UA_Server_new(void) {
 
     server->nodestore = UA_NodeStore_new();
 
-#define ADDREFERENCE(NODEID, REFTYPE_NODEID, TARGET_EXPNODEID) do {     \
-        UA_AddReferencesItem item;                                      \
-        UA_AddReferencesItem_init(&item);                               \
-        item.sourceNodeId = NODEID;                                     \
-        item.referenceTypeId = REFTYPE_NODEID;                          \
-        item.isForward = UA_TRUE;                                       \
-        item.targetNodeId = TARGET_EXPNODEID;                           \
-        UA_Server_addReference(server, &item);                          \
-    } while(0)
-
 #define COPYNAMES(TARGET, NAME) do {                                \
         UA_QualifiedName_copycstring(NAME, &TARGET->browseName);    \
         UA_LocalizedText_copycstring(NAME, &TARGET->displayName);   \
@@ -387,11 +377,16 @@ UA_Server * UA_Server_new(void) {
     /***********/
     /* Objects */
     /***********/
-    
+
     UA_ObjectTypeNode *baseObjectType = UA_ObjectTypeNode_new();
     baseObjectType->nodeId.identifier.numeric = UA_NS0ID_BASEOBJECTTYPE;
     COPYNAMES(baseObjectType, "BaseObjectType");
     UA_NodeStore_insert(server->nodestore, (UA_Node*)baseObjectType, UA_NULL);
+
+    UA_ObjectTypeNode *baseDataVarialbeType = UA_ObjectTypeNode_new();
+    baseDataVarialbeType->nodeId.identifier.numeric = UA_NS0ID_BASEDATAVARIABLETYPE;
+    COPYNAMES(baseDataVarialbeType, "BaseDataVariableType");
+    UA_NodeStore_insert(server->nodestore, (UA_Node*)baseDataVarialbeType, UA_NULL);
 
     UA_ObjectTypeNode *folderType = UA_ObjectTypeNode_new();
     folderType->nodeId.identifier.numeric = UA_NS0ID_FOLDERTYPE;
