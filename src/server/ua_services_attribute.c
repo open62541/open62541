@@ -100,8 +100,12 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
     case UA_ATTRIBUTEID_VALUE:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         retval = UA_Variant_copy(&((const UA_VariableNode *)node)->value, &v->value);
-        if(retval == UA_STATUSCODE_GOOD)
+        if(retval == UA_STATUSCODE_GOOD){
             v->hasVariant = UA_TRUE;
+
+            v->hasSourceTimestamp = UA_TRUE;
+            v->sourceTimestamp = UA_DateTime_now();
+        }
         break;
 
     case UA_ATTRIBUTEID_DATATYPE:
@@ -194,6 +198,10 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
     if(v->hasVariant && v->value.type == UA_NULL) {
         printf("%i", id->attributeId);
         UA_assert(UA_FALSE);
+    }
+    if(retval == UA_STATUSCODE_GOOD) {
+    	v->hasServerTimestamp = UA_TRUE;
+    	v->serverTimestamp = UA_DateTime_now();
     }
     if(retval != UA_STATUSCODE_GOOD) {
         v->hasStatus = UA_TRUE;
