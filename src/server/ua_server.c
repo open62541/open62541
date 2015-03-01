@@ -617,24 +617,21 @@ UA_Server * UA_Server_new(void) {
     status->startTime   = UA_DateTime_now();
     status->currentTime = UA_DateTime_now();
     status->state       = UA_SERVERSTATE_RUNNING;
-    UA_String_copycstring("open62541.org", &status->buildInfo.productUri);
+    UA_String_copycstring("http://www.open62541.org", &status->buildInfo.productUri);
     UA_String_copycstring("open62541", &status->buildInfo.manufacturerName);
-    UA_String_copycstring("open62541", &status->buildInfo.productName);
+    UA_String_copycstring("open62541 OPC UA Server", &status->buildInfo.productName);
     UA_String_copycstring("0.0", &status->buildInfo.softwareVersion);
     UA_String_copycstring("0.0", &status->buildInfo.buildNumber);
     status->buildInfo.buildDate = UA_DateTime_now();
-    status->secondsTillShutdown = 99999999;
-    UA_LocalizedText_copycstring("because", &status->shutdownReason);
-    UA_VariableNode *serverstatus = UA_VariableNode_new();
-    COPYNAMES(serverstatus, "ServerStatus");
-    serverstatus->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERSTATUS;
-    serverstatus->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
-    serverstatus->value.typeId.identifier.numeric = UA_TYPES_IDS[UA_TYPES_SERVERSTATUSDATATYPE];
-    serverstatus->value.storage.data.arrayLength = 1;
-    serverstatus->value.storage.data.dataPtr = status;
-    UA_Server_addNode(server, (UA_Node*)serverstatus,
-                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER),
-                      &UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT));
+    status->secondsTillShutdown = 0;
+
+    UA_Variant *serverstatus = UA_Variant_new();
+    UA_Variant_setValue(serverstatus, status, UA_TYPES_SERVERSTATUSDATATYPE);
+    UA_QualifiedName serverstatusname;
+    UA_QUALIFIEDNAME_ASSIGN(serverstatusname, "ServerStatus");
+    UA_Server_addVariableNode(server, serverstatus, &UA_NODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS), &serverstatusname,
+                              &UA_NODEID_STATIC(0, UA_NS0ID_SERVER),
+                              &UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT));
 
     // todo: make this variable point to a member of the serverstatus
     UA_VariableNode *state = UA_VariableNode_new();
