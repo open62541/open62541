@@ -40,25 +40,21 @@ script:
    - cd build
    - echo "Cross compile build for MinGW"
    - cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw32.cmake -DEXAMPLESERVER=ON ..
-   - make
+   - make -j
    - cd .. && rm build -rf && mkdir -p build && cd build
    - echo "Compile multithreaded version"
    - cmake -DMULTITHREADING=ON -DEXAMPLESERVER=ON ..
-   - make
-   - cd .. && rm build -rf && mkdir -p build && cd build
-   - echo "Only needed profile"
-   - cmake -DTYPES_ONLY_NEEDED=ON ..
-   - make
+   - make -j
    - cd .. && rm build -rf && mkdir -p build && cd build
    - echo "Production build"
    - cmake -DGENERATE_DOCUMENTATION=ON .. 
-   - make
+   - make -j
    - echo "Generate documentation"
-   - make doc
+   - make -j doc
    - echo "Debug build and unit tests (64 bit)"
    - make clean
    - cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_UNIT_TESTS=ON -DENABLE_COVERAGE=ON .. 
-   - make && make test
+   - make -j && make test
    - coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../
    - cd ..
 
