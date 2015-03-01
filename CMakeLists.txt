@@ -16,7 +16,7 @@ endif()
 
 # compiler flags
 if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-add_definitions(-std=c99 -Os -pipe -Wall -Wextra -Werror -Wformat
+add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat
                 -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
                 -Wshadow -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes # -Wconversion
                 -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -ffunction-sections -fdata-sections)
