@@ -272,7 +272,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 		for(UA_Int32 i = 0;i < response->resultsSize;i++) {
 			expireArray[i] = UA_DateTime_now() + 20 * 100 * 1000 * 1000;
 		}
-		UA_UInt32 offset = 0;
+		size_t offset = 0;
 		str.data = UA_malloc(UA_Variant_calcSizeBinary(&variant));
 		str.length = UA_Variant_calcSizeBinary(&variant);
 		UA_Variant_encodeBinary(&variant, &str, &offset);
