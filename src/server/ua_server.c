@@ -617,14 +617,15 @@ UA_Server * UA_Server_new(void) {
     UA_VariableNode *namespaceArray = UA_VariableNode_new();
     COPYNAMES(namespaceArray, "NamespaceArray");
     namespaceArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_NAMESPACEARRAY;
-    namespaceArray->value.storage.data.dataPtr = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 2);
-    namespaceArray->value.storage.data.arrayLength = 2;
-    namespaceArray->value.type = &UA_TYPES[UA_TYPES_STRING];
+    namespaceArray->variableType = UA_VARIABLETYPE_VARIANT;
+    namespaceArray->variable.variant.dataPtr = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 2);
+    namespaceArray->variable.variant.arrayLength = 2;
+    namespaceArray->variable.variant.type = &UA_TYPES[UA_TYPES_STRING];
     // Fixme: Insert the external namespaces
     UA_String_copycstring("http://opcfoundation.org/UA/",
-                          &((UA_String *)(namespaceArray->value.storage.data.dataPtr))[0]);
+                          &((UA_String *)(namespaceArray->variable.variant.dataPtr))[0]);
     UA_String_copycstring("urn:myServer:myApplication",
-                          &((UA_String *)(namespaceArray->value.storage.data.dataPtr))[1]);
+                          &((UA_String *)(namespaceArray->variable.variant.dataPtr))[1]);
     namespaceArray->valueRank = 1;
     namespaceArray->minimumSamplingInterval = 1.0;
     namespaceArray->historizing = UA_FALSE;
@@ -651,10 +652,10 @@ UA_Server * UA_Server_new(void) {
     *stateEnum = UA_SERVERSTATE_RUNNING;
     COPYNAMES(state, "State");
     state->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERSTATUS_STATE;
-    state->value.type = &UA_TYPES[UA_TYPES_SERVERSTATE];
-    state->value.storage.data.arrayLength = 1;
-    state->value.storage.data.dataPtr = stateEnum; // points into the other object.
-    state->value.storageType = UA_VARIANT_DATA;
+    state->variableType = UA_VARIABLETYPE_VARIANT;
+    state->variable.variant.type = &UA_TYPES[UA_TYPES_SERVERSTATE];
+    state->variable.variant.arrayLength = 1;
+    state->variable.variant.dataPtr = stateEnum; // points into the other object.
     UA_NodeStore_insert(server->nodestore, (UA_Node*)state, UA_NULL);
     ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS), UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT),
                      UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));

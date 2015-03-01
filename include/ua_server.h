@@ -62,6 +62,20 @@ UA_StatusCode UA_EXPORT UA_Server_addVariableNode(UA_Server *server, UA_Variant 
                                                   UA_QualifiedName *browseName, const UA_NodeId *parentNodeId,
                                                   const UA_NodeId *referenceTypeId);
 
+/** @brief A datasource is the interface to interact with a local data provider.
+ *
+ *  Implementors of datasources need to provide functions for the callbacks in
+ *  this structure. After every read, the handle needs to be released to
+ *  indicate that the pointer is no longer accessed. As a rule, datasources are
+ *  never copied, but only their content. The only way to write into a
+ *  datasource is via the write-service. */
+typedef struct {
+    const void *handle;
+    UA_StatusCode (*read)(const void *handle, UA_DataValue *value);
+    void (*release)(const void *handle, UA_DataValue *value);
+    UA_StatusCode (*write)(const void *handle, const UA_Variant *data);
+} UA_DataSource;
+
 /** Work that is run in the main loop (singlethreaded) or dispatched to a worker
     thread. */
 typedef struct UA_WorkItem {

@@ -572,24 +572,24 @@ UA_StatusCode UA_DataValue_copy(UA_DataValue const *src, UA_DataValue *dst) {
 UA_TYPE_NEW_DEFAULT(UA_Variant)
 void UA_Variant_init(UA_Variant *p) {
     p->storageType = UA_VARIANT_DATA;
-    p->storage.data.arrayLength = -1;  // no element, p->data == UA_NULL
-    p->storage.data.dataPtr = UA_NULL;
-    p->storage.data.arrayDimensions = UA_NULL;
-    p->storage.data.arrayDimensionsSize = -1;
+    p->arrayLength = -1;
+    p->dataPtr = UA_NULL;
+    p->arrayDimensions = UA_NULL;
+    p->arrayDimensionsSize = -1;
     p->type = UA_NULL;
 }
 
 UA_TYPE_DELETE_DEFAULT(UA_Variant)
 void UA_Variant_deleteMembers(UA_Variant *p) {
     if(p->storageType == UA_VARIANT_DATA) {
-        if(p->storage.data.dataPtr) {
-            UA_Array_delete(p->storage.data.dataPtr, p->type, p->storage.data.arrayLength);
-            p->storage.data.dataPtr = UA_NULL;
-            p->storage.data.arrayLength = 0;
+        if(p->dataPtr) {
+            UA_Array_delete(p->dataPtr, p->type, p->arrayLength);
+            p->dataPtr = UA_NULL;
+            p->arrayLength = -1;
         }
-        if(p->storage.data.arrayDimensions) {
-            UA_free(p->storage.data.arrayDimensions);
-            p->storage.data.arrayDimensions = UA_NULL;
+        if(p->arrayDimensions) {
+            UA_free(p->arrayDimensions);
+            p->arrayDimensions = UA_NULL;
         }
     }
 }
@@ -597,32 +597,24 @@ void UA_Variant_deleteMembers(UA_Variant *p) {
 UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
     UA_Variant_init(dst);
     dst->type = src->type;
-    if(src->storageType == UA_VARIANT_DATASOURCE) {
-        dst->storageType = UA_VARIANT_DATASOURCE;
-        dst->storage = src->storage;
-        return UA_STATUSCODE_GOOD;
-    }
-    
-    UA_VariantData *dstdata = &dst->storage.data;
-    const UA_VariantData *srcdata = &src->storage.data;
     dst->storageType = UA_VARIANT_DATA;
-    UA_StatusCode retval = UA_Array_copy(srcdata->dataPtr, &dstdata->dataPtr, src->type, srcdata->arrayLength);
+    UA_StatusCode retval = UA_Array_copy(src->dataPtr, &dst->dataPtr, src->type, src->arrayLength);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Variant_deleteMembers(dst);
         UA_Variant_init(dst);
         return retval;
     }
-    dstdata->arrayLength = srcdata->arrayLength;
+    dst->arrayLength = src->arrayLength;
 
-    if(srcdata->arrayDimensions) {
-        retval |= UA_Array_copy(srcdata->arrayDimensions, (void **)&dstdata->arrayDimensions, &UA_TYPES[UA_TYPES_INT32],
-                                srcdata->arrayDimensionsSize);
+    if(src->arrayDimensions) {
+        retval |= UA_Array_copy(src->arrayDimensions, (void **)&dst->arrayDimensions,
+                                &UA_TYPES[UA_TYPES_INT32], src->arrayDimensionsSize);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_Variant_deleteMembers(dst);
             UA_Variant_init(dst);
         }
     }
-    dstdata->arrayDimensionsSize = srcdata->arrayDimensionsSize;
+    dst->arrayDimensionsSize = src->arrayDimensionsSize;
 
     return retval;
 }
@@ -650,8 +642,8 @@ UA_StatusCode UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 noElement
         return UA_STATUSCODE_BADINTERNALERROR;
 
     v->type = &UA_TYPES[typeIndex];
-    v->storage.data.arrayLength = noElements;
-    v->storage.data.dataPtr = array;
+    v->arrayLength = noElements;
+    v->dataPtr = array;
     return UA_STATUSCODE_GOOD;
 }
 

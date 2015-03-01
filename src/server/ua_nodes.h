@@ -1,6 +1,7 @@
 #ifndef UA_NODES_H_
 #define UA_NODES_H_
 
+#include "ua_server.h"
 #include "ua_types_generated.h"
 #include "ua_types_encoding_binary.h"
 
@@ -33,8 +34,14 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_ObjectTypeNode)
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS
-    UA_Variant value;
-    // datatype is taken from the value
+    enum {
+        UA_VARIABLETYPE_VARIANT,
+        UA_VARIABLETYPE_DATASOURCE
+    } variableType;
+    union {
+        UA_Variant variant;
+        UA_DataSource dataSource;
+    } variable;
     UA_Int32 valueRank; /**< n >= 1: the value is an array with the specified number of dimensions.
                              n = 0: the value is an array with one or more dimensions.
                              n = -1: the value is a scalar.

@@ -21,23 +21,24 @@
 /*************************/
 /* Read-only data source */
 /*************************/
-static UA_StatusCode readTimeData(const void *handle, UA_VariantData *data) {
+static UA_StatusCode readTimeData(const void *handle, UA_DataValue *value) {
     UA_DateTime *currentTime = UA_DateTime_new();
     if(!currentTime)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     *currentTime = UA_DateTime_now();
-    data->arrayLength = 1;
-    data->dataPtr = currentTime;
-    data->arrayDimensionsSize = -1;
-    data->arrayDimensions = UA_NULL;
+    value->value.arrayLength = 1;
+    value->value.dataPtr = currentTime;
+    value->value.arrayDimensionsSize = -1;
+    value->value.arrayDimensions = NULL;
+    value->hasVariant = UA_TRUE;
     return UA_STATUSCODE_GOOD;
 }
 
-static void releaseTimeData(const void *handle, UA_VariantData *data) {
-    UA_DateTime_delete((UA_DateTime*)data->dataPtr);
+static void releaseTimeData(const void *handle, UA_DataValue *value) {
+    UA_DateTime_delete((UA_DateTime*)value->value.dataPtr);
 }
 
-static UA_StatusCode writeTimeData(const void *handle, const UA_VariantData *data) {
+static UA_StatusCode writeTimeData(const void *handle, const UA_Variant *data) {
     return UA_STATUSCODE_BADINTERNALERROR;
 }
 
@@ -51,28 +52,31 @@ static void printDeviceStatus(UA_Server *server, void *data) {
     printf("Device Status: %i\n", deviceStatus);
 }
 
-static UA_StatusCode readDeviceStatus(const void *handle, UA_VariantData *data) {
+static UA_StatusCode readDeviceStatus(const void *handle, UA_DataValue *value) {
     /* In order to reduce blocking time, we could alloc memory for every read
        and return a copy of the data. */
     pthread_rwlock_rdlock(&deviceStatusLock);
-    data->arrayLength = 1;
-    data->dataPtr = &deviceStatus;
-    data->arrayDimensionsSize = -1;
-    data->arrayDimensions = UA_NULL;
+    value->value.arrayLength = 1;
+    value->value.dataPtr = &deviceStatus;
+    value->value.arrayDimensionsSize = -1;
+    value->value.arrayDimensions = NULL;
+    value->hasVariant = UA_TRUE;
+    value->sourceTimestamp = UA_DateTime_now();
+    value->hasSourceTimestamp = UA_TRUE;
     return UA_STATUSCODE_GOOD;
 }
 
-static void releaseDeviceStatus(const void *handle, UA_VariantData *data) {
+static void releaseDeviceStatus(const void *handle, UA_DataValue *value) {
     /* If we allocated memory for a specific read, free the content of the
        variantdata. */
-    data->dataPtr = UA_NULL;
-    data->arrayLength = -1;
+    value->value.arrayLength = -1;
+    value->value.dataPtr = NULL;
     pthread_rwlock_unlock(&deviceStatusLock);
 }
 
-static UA_StatusCode writeDeviceStatus(const void *handle, const UA_VariantData *data) {
+static UA_StatusCode writeDeviceStatus(const void *handle, const UA_Variant *data) {
     pthread_rwlock_wrlock(&deviceStatusLock);
-    if(data->dataPtr != UA_NULL)
+    if(data->dataPtr)
         deviceStatus = *(UA_Int32*)data->dataPtr;
     pthread_rwlock_unlock(&deviceStatusLock);
     return UA_STATUSCODE_GOOD;
@@ -94,8 +98,7 @@ int main(int argc, char** argv) {
 
     // add node with the datetime data source
     UA_Variant *dateVariant = UA_Variant_new();
-    dateVariant->storageType = UA_VARIANT_DATASOURCE;
-    dateVariant->storage.datasource = (UA_VariantDataSource)
+    dateVariant->storage.datasource = (UA_DataSource)
         {.handle = UA_NULL,
          .read = readTimeData,
          .release = releaseTimeData,

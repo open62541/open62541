@@ -188,29 +188,6 @@ typedef struct {
     UA_ByteString body; // contains either the bytestring or a pointer to the memory-object
 } UA_ExtensionObject;
 
-/** @brief Pointers to data that is stored in memory. The "type" of the data is
-    stored in the variant itself. */
-typedef struct {
-    UA_Int32  arrayLength;        // total number of elements in the data-pointer
-    void     *dataPtr;
-    UA_Int32  arrayDimensionsSize;
-    UA_Int32 *arrayDimensions;
-} UA_VariantData;
-
-/** @brief A datasource is the interface to interact with a local data provider.
- *
- *  Implementors of datasources need to provide functions for the callbacks in
- *  this structure. After every read, the handle needs to be released to
- *  indicate that the pointer is no longer accessed. As a rule, datasources are
- *  never copied, but only their content. The only way to write into a
- *  datasource is via the write-service. */
-typedef struct {
-    const void *handle;
-    UA_StatusCode (*read)(const void *handle, UA_VariantData *data);
-    void (*release)(const void *handle, UA_VariantData *data);
-    UA_StatusCode (*write)(const void *handle, const UA_VariantData *data);
-} UA_VariantDataSource;
-
 struct UA_DataType;
 typedef struct UA_DataType UA_DataType; 
 
@@ -225,13 +202,11 @@ typedef struct {
                                        deleted at the end of this variant's lifecycle. It is not
                                        possible to overwrite borrowed data due to concurrent access.
                                        Use a custom datasource with a mutex. */
-        UA_VARIANT_DATASOURCE /**< The data is provided externally. Call the functions in the
-                                   datasource to get a current version */
     } storageType;
-    union {
-        UA_VariantData       data;
-        UA_VariantDataSource datasource;
-    } storage;
+    UA_Int32  arrayLength;  ///< the number of elements in the data-pointer
+    void     *dataPtr; ///< points to the scalar or array data
+    UA_Int32  arrayDimensionsSize; ///< the number of dimensions the data-array has
+    UA_Int32 *arrayDimensions; ///< the length of each dimension of the data-array
 } UA_Variant;
 
 /** @brief A data value with an associated status code and timestamps. */

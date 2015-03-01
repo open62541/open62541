@@ -5,7 +5,7 @@ UA_StatusCode UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, UA
                                         UA_QualifiedName *browseName, const UA_NodeId *parentNodeId,
                                         const UA_NodeId *referenceTypeId) {
     UA_VariableNode *node = UA_VariableNode_new();
-    node->value = *value; // copy content
+    node->variable.variant = *value; // copy content
     UA_NodeId_copy(nodeId, &node->nodeId);
     UA_QualifiedName_copy(browseName, &node->browseName);
     UA_String_copy(&browseName->name, &node->displayName.text);
@@ -17,7 +17,7 @@ UA_StatusCode UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, UA
     ADDREFERENCE(res.addedNodeId, UA_NODEID_STATIC(0, UA_NS0ID_HASTYPEDEFINITION),
                  UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_BASEDATAVARIABLETYPE));
     if(res.statusCode != UA_STATUSCODE_GOOD) {
-        UA_Variant_init(&node->value);
+        UA_Variant_init(&node->variable.variant);
         UA_VariableNode_delete(node);
     } else {
         UA_free(value);
