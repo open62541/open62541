@@ -47,7 +47,7 @@ script:
    - make -j
    - cd .. && rm build -rf && mkdir -p build && cd build
    - echo "Production build"
-   - cmake -DGENERATE_DOCUMENTATION=ON .. 
+   - cmake -DEXAMPLESERVER=ON -DEXTENSION_STATELESS=ON -DGENERATE_DOCUMENTATION=ON .. 
    - make -j
    - echo "Generate documentation"
    - make -j doc
