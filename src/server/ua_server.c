@@ -633,7 +633,6 @@ UA_Server * UA_Server_new(void) {
                               &UA_NODEID_STATIC(0, UA_NS0ID_SERVER),
                               &UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT));
 
-    // todo: make this variable point to a member of the serverstatus
     UA_VariableNode *state = UA_VariableNode_new();
     UA_ServerState *stateEnum = UA_ServerState_new();
     *stateEnum = UA_SERVERSTATE_RUNNING;
