@@ -77,8 +77,13 @@ class BuiltinType(object):
     def typedef_c(self):
         pass
 
-    def typelayout_c(self, namespace_0, outname):
-        return "{.memSize = sizeof(" + self.name + "), " + \
+    def typelayout_c(self, namespace_0, description, outname):
+        if description == None:
+            typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, "
+        else:
+            typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
+        return "{.typeId = " + typeid + \
+            ".memSize = sizeof(" + self.name + "), " + \
             ".namespaceZero = UA_TRUE, " + \
             ".fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
             ", .zeroCopyable = " + ("UA_TRUE" if self.zero_copy() else "UA_FALSE") + \
@@ -109,8 +114,13 @@ class EnumerationType(object):
             ",\n    ".join(map(lambda (key,value) : key.upper() + " = " + value,self.elements.iteritems())) + \
             "\n} " + self.name + ";"
 
-    def typelayout_c(self, namespace_0, outname):
-        return "{.memSize = sizeof(" + self.name + "), " +\
+    def typelayout_c(self, namespace_0, description, outname):
+        if description == None:
+            typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, "
+        else:
+            typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
+        return "{.typeId = " + typeid + \
+            ".memSize = sizeof(" + self.name + "), " +\
             ".namespaceZero = " + ("UA_TRUE" if namespace_0 else "UA_FALSE") + \
             ", .fixedSize = UA_TRUE, .zeroCopyable = UA_TRUE, " + \
             ".membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_INT32," + \
@@ -140,8 +150,13 @@ class OpaqueType(object):
     def typedef_c(self):
         return "typedef UA_ByteString " + self.name + ";"
 
-    def typelayout_c(self, namespace_0, outname):
-        return "{.memSize = sizeof(" + self.name + "), .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
+    def typelayout_c(self, namespace_0, description, outname):
+        if description == None:
+            typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, "
+        else:
+            typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
+        return "{.typeId = " + typeid + \
+            ".memSize = sizeof(" + self.name + "), .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
             ".namespaceZero = " + ("UA_TRUE" if namespace_0 else "UA_FALSE") + \
             ", .membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_BYTESTRING," + \
             ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
@@ -201,8 +216,13 @@ class StructType(object):
                 returnstr += "    " + member.memberType.name + " " +name + ";\n"
         return returnstr + "} " + self.name + ";"
 
-    def typelayout_c(self, namespace_0, outname):
-        layout = "{.memSize = sizeof(" + self.name + "), "+ \
+    def typelayout_c(self, namespace_0, description, outname):
+        if description == None:
+            typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, "
+        else:
+            typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
+        layout = "{.typeId = "+ typeid + \
+                 ".memSize = sizeof(" + self.name + "), "+ \
                  ".namespaceZero = " + ("UA_TRUE" if namespace_0 else "UA_FALSE") + \
                  ", .fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
                  ", .zeroCopyable = " + ("sizeof(" + self.name + ") == " + str(self.mem_size()) if self.zero_copy() \
@@ -419,7 +439,6 @@ extern "C" {
 ''')
 printh("#define " + outname.upper() + "_COUNT %s\n" % (str(len(types))))
 printh("extern UA_EXPORT const UA_DataType *" + outname.upper() + ";\n")
-printh("extern UA_EXPORT const UA_UInt32 *" + outname.upper() + "_IDS;\n")
 
 i = 0
 for t in types.itervalues():
@@ -455,13 +474,17 @@ const UA_DataType *''' + outname.upper() + ''' = (UA_DataType[]){''')
 for t in types.itervalues():
     printc("")
     printc("/* " + t.name + " */")
-    printc(t.typelayout_c(args.namespace_id == 0, outname) + ",")
+    if args.typedescriptions:
+        td = typedescriptions[t.name]
+    else:
+        td = None
+    printc(t.typelayout_c(args.namespace_id == 0, td, outname) + ",")
 printc("};\n")
-if args.typedescriptions:
-    printc('const UA_UInt32 *' + outname.upper() + '_IDS = (UA_UInt32[]){')
-    for t in types.itervalues():
-        print(str(typedescriptions[t.name].nodeid) + ", ", end='', file=fc)
-    printc("};")
+# if args.typedescriptions:
+#     printc('const UA_UInt32 *' + outname.upper() + '_IDS = (UA_UInt32[]){')
+#     for t in types.itervalues():
+#         print(str(typedescriptions[t.name].nodeid) + ", ", end='', file=fc)
+#     printc("};")
 
 fh.close()
 fc.close()

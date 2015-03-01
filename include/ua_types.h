@@ -219,7 +219,6 @@ typedef struct UA_DataType UA_DataType;
     the data they store (exception: use a data source).*/
 typedef struct {
     const UA_DataType *type;
-    UA_NodeId typeId;
     enum {
         UA_VARIANT_DATA, ///< The data is "owned" by this variant (copied and deleted together)
         UA_VARIANT_DATA_NODELETE, /**< The data is "borrowed" by the variant and shall not be
@@ -491,6 +490,7 @@ typedef struct {
 } UA_DataTypeMember;
     
 struct UA_DataType {
+    UA_NodeId typeId; ///< The nodeid of the type
     size_t memSize UA_BITFIELD(16); ///< Size of the struct in memory
     size_t typeIndex UA_BITFIELD(13); ///< Index of the type in the datatytypetable
     UA_Boolean namespaceZero UA_BITFIELD(1); ///< The type is defined in namespace zero.

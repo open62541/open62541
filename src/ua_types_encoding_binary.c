@@ -743,7 +743,7 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
     }
 
     if(isBuiltin)
-        encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (UA_Byte)UA_TYPES_IDS[src->type->typeIndex];
+        encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (UA_Byte)src->type->typeId.identifier.numeric;
     else
         encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (UA_Byte)22;  // ExtensionObject
 
@@ -756,13 +756,13 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
     else {
         if(!isBuiltin) {
             // print the extensionobject header
-        	if(src->typeId.identifier.numeric==862){ //fixme: CAUTION, THIS IS  A DIRTY WORKAROUND FOR #182, needs to be fixed
+        	if(src->type->typeId.identifier.numeric==862){ //fixme: CAUTION, THIS IS  A DIRTY WORKAROUND FOR #182, needs to be fixed
         		UA_NodeId copy;
-        		UA_NodeId_copy(&src->typeId, &copy);
+        		UA_NodeId_copy(&src->type->typeId, &copy);
         		copy.identifier.numeric=copy.identifier.numeric+2;
         		UA_NodeId_encodeBinary(&copy, dst, offset);
-        	}else{
-        		UA_NodeId_encodeBinary(&src->typeId, dst, offset);
+        	} else {
+        		UA_NodeId_encodeBinary(&src->type->typeId, dst, offset);
         	}
             UA_Byte eoEncoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
             UA_Byte_encodeBinary(&eoEncoding, dst, offset);
@@ -798,7 +798,7 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, size_t *offset, 
 
     UA_UInt16 typeIndex;
     for(typeIndex = 0; typeIndex < UA_TYPES_COUNT; typeIndex++) {
-        if(UA_TYPES_IDS[typeIndex] == typeid.identifier.numeric)
+        if(UA_TYPES[typeIndex].typeId.identifier.numeric == typeid.identifier.numeric)
             break;
     }
 
@@ -834,7 +834,6 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, size_t *offset, 
     }
 
     dst->type = dataType;
-    dst->typeId = typeid;
 
     if(retval)
         UA_Variant_deleteMembers(dst);

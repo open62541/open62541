@@ -600,7 +600,6 @@ UA_Server * UA_Server_new(void) {
     namespaceArray->value.storage.data.dataPtr = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 2);
     namespaceArray->value.storage.data.arrayLength = 2;
     namespaceArray->value.type = &UA_TYPES[UA_TYPES_STRING];
-    namespaceArray->value.typeId.identifier.numeric = UA_TYPES_IDS[UA_TYPES_STRING];
     // Fixme: Insert the external namespaces
     UA_String_copycstring("http://opcfoundation.org/UA/",
                           &((UA_String *)(namespaceArray->value.storage.data.dataPtr))[0]);
@@ -639,7 +638,6 @@ UA_Server * UA_Server_new(void) {
     COPYNAMES(state, "State");
     state->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERSTATUS_STATE;
     state->value.type = &UA_TYPES[UA_TYPES_SERVERSTATE];
-    state->value.typeId.identifier.numeric = UA_TYPES_IDS[UA_TYPES_SERVERSTATE];
     state->value.storage.data.arrayLength = 1;
     state->value.storage.data.dataPtr = stateEnum; // points into the other object.
     state->value.storageType = UA_VARIANT_DATA;

@@ -114,7 +114,7 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
     case UA_ATTRIBUTEID_DATATYPE:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &((const UA_VariableTypeNode *)node)->value.typeId,
+        retval |= UA_Variant_copySetValue(&v->value, &((const UA_VariableTypeNode *)node)->value.type->typeId,
                                           UA_TYPES_NODEID);
         break;
 
@@ -367,7 +367,7 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
             const UA_VariableNode *vn = (const UA_VariableNode*)node;
             // has the wvalue a variant of the right type?
             // array sizes are not checked yet..
-            if(!wvalue->value.hasVariant || !UA_NodeId_equal(&vn->value.typeId, &wvalue->value.value.typeId)) {
+            if(!wvalue->value.hasVariant || !UA_NodeId_equal(&vn->value.type->typeId,  &wvalue->value.value.type->typeId)) {
                 retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
                 break;
             }

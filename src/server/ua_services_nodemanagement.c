@@ -22,7 +22,7 @@
 
 static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node **new_node) {
     if(attributes->typeId.identifier.numeric !=
-       UA_TYPES_IDS[UA_TYPES_VARIABLEATTRIBUTES] + UA_ENCODINGOFFSET_BINARY)
+       UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES].typeId.identifier.numeric + UA_ENCODINGOFFSET_BINARY)
         return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
 
     UA_VariableAttributes attr;
@@ -83,7 +83,7 @@ static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node *
 
 static UA_StatusCode parseObjectNode(UA_ExtensionObject *attributes, UA_Node **new_node) {
     if(attributes->typeId.identifier.numeric !=
-       UA_TYPES_IDS[UA_TYPES_OBJECTATTRIBUTES] + UA_ENCODINGOFFSET_BINARY)  // VariableAttributes_Encoding_DefaultBinary
+       UA_TYPES[UA_TYPES_OBJECTATTRIBUTES].typeId.identifier.numeric + UA_ENCODINGOFFSET_BINARY)  // VariableAttributes_Encoding_DefaultBinary
         return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
     UA_ObjectAttributes attr;
     size_t pos = 0;
