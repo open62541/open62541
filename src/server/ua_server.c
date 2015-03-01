@@ -645,5 +645,8 @@ UA_Server * UA_Server_new(void) {
     state->value.storage.data.dataPtr = stateEnum; // points into the other object.
     state->value.storageType = UA_VARIANT_DATA;
     UA_NodeStore_insert(server->nodestore, (UA_Node*)state, UA_NULL);
+    ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS), UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT),
+                     UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));
+
     return server;
 }
