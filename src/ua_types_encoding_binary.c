@@ -756,7 +756,14 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
     else {
         if(!isBuiltin) {
             // print the extensionobject header
-            UA_NodeId_encodeBinary(&src->typeId, dst, offset);
+        	if(src->typeId.identifier.numeric==862){ //fixme: CAUTION, THIS IS  A DIRTY WORKAROUND FOR #182, needs to be fixed
+        		UA_NodeId copy;
+        		UA_NodeId_copy(&src->typeId, &copy);
+        		copy.identifier.numeric=copy.identifier.numeric+2;
+        		UA_NodeId_encodeBinary(&copy, dst, offset);
+        	}else{
+        		UA_NodeId_encodeBinary(&src->typeId, dst, offset);
+        	}
             UA_Byte eoEncoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
             UA_Byte_encodeBinary(&eoEncoding, dst, offset);
             UA_Int32 eoEncodingLength = UA_calcSizeBinary(data->dataPtr, src->type);
