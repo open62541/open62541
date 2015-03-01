@@ -255,7 +255,6 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 		UA_ExtensionObject additionalHeader;
 		UA_ExtensionObject_init(&additionalHeader);
 		additionalHeader.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
-		additionalHeader.typeId.identifier.numeric = UA_TYPES_IDS[UA_TYPES_VARIANT];
 
 		UA_Variant variant;
 		UA_Variant_init(&variant);
