@@ -101,7 +101,6 @@ int main(int argc, char** argv) {
          .release = releaseTimeData,
          .write = writeTimeData};
     dateVariant->type = &UA_TYPES[UA_TYPES_DATETIME];
-    dateVariant->typeId = UA_NODEID_STATIC(0, UA_TYPES_IDS[UA_TYPES_DATETIME]);
     UA_QualifiedName dateName;
     UA_QUALIFIEDNAME_ASSIGN(dateName, "the time");
     UA_Server_addVariableNode(server, dateVariant, &UA_NODEID_NULL, &dateName,
@@ -121,7 +120,6 @@ int main(int argc, char** argv) {
          .release = releaseDeviceStatus,
          .write = writeDeviceStatus};
     statusVariant->type = &UA_TYPES[UA_TYPES_INT32];
-    statusVariant->typeId = UA_NODEID_STATIC(0, UA_TYPES_IDS[UA_TYPES_INT32]);
     UA_QualifiedName statusName;
     UA_QUALIFIEDNAME_ASSIGN(statusName, "device status");
     UA_Server_addVariableNode(server, statusVariant, &UA_NODEID_NULL, &statusName,

@@ -431,6 +431,7 @@ UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *r
         server->nls[i].start(server->nls[i].nlHandle);
 
     // 3) The loop
+    server->timeStarted = UA_DateTime_now();
     while(1) {
         // 3.1) Process timed work
         UA_UInt16 timeout = processTimedWork(server);

@@ -712,7 +712,7 @@ size_t UA_Variant_calcSizeBinary(UA_Variant const *p) {
         length += UA_Array_calcSizeBinary(data->arrayDimensions, data->arrayDimensionsSize,
                                           &UA_TYPES[UA_TYPES_INT32]);
     
-    if(p->storageType == UA_VARIANT_DATASOURCE)
+    if(p->storageType == UA_VARIANT_DATASOURCE && p->storage.datasource.release != UA_NULL)
         p->storage.datasource.release(p->storage.datasource.handle, &datasourceData);
 
     return length;
@@ -776,7 +776,7 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
         retval |= UA_Array_encodeBinary(data->arrayDimensions, data->arrayDimensionsSize,
                                         &UA_TYPES[UA_TYPES_INT32], dst, offset);
 
-    if(src->storageType == UA_VARIANT_DATASOURCE)
+    if(src->storageType == UA_VARIANT_DATASOURCE && src->storage.datasource.release!=UA_NULL)
         src->storage.datasource.release(src->storage.datasource.handle, &datasourceData);
                      
     return retval;

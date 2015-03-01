@@ -134,16 +134,18 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
             if(vn->value.storageType == UA_VARIANT_DATA || vn->value.storageType == UA_VARIANT_DATA_NODELETE)
                 data = &vn->value.storage.data;
             else {
-                if((retval = vn->value.storage.datasource.read(vn->value.storage.datasource.handle,
-                                                               &datasourceData)) != UA_STATUSCODE_GOOD)
-                    break;
-                data = &datasourceData;
+            	if(vn->value.storage.datasource.read != UA_NULL){
+					if((retval = vn->value.storage.datasource.read(vn->value.storage.datasource.handle,
+																   &datasourceData)) != UA_STATUSCODE_GOOD)
+						break;
+					data = &datasourceData;
+            	}
             }
             retval = UA_Variant_copySetArray(&v->value, data->arrayDimensions, data->arrayDimensionsSize,
                                              UA_TYPES_INT32);
             if(retval == UA_STATUSCODE_GOOD)
                 v->hasVariant = UA_TRUE;
-            if(vn->value.storageType == UA_VARIANT_DATASOURCE)
+            if(vn->value.storageType == UA_VARIANT_DATASOURCE && vn->value.storage.datasource.release != UA_NULL)
                 vn->value.storage.datasource.release(vn->value.storage.datasource.handle, &datasourceData);
         }
         break;
@@ -372,8 +374,12 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
             }
 
             if(vn->value.storageType == UA_VARIANT_DATASOURCE) {
-                retval = vn->value.storage.datasource.write(vn->value.storage.datasource.handle,
-                                                            &wvalue->value.value.storage.data);
+            	if(vn->value.storage.datasource.write != UA_NULL){
+            		retval = vn->value.storage.datasource.write(vn->value.storage.datasource.handle,
+                                                            	&wvalue->value.value.storage.data);
+            	}else{
+            		retval = UA_STATUSCODE_BADINTERNALERROR;
+            	}
                 done = UA_TRUE;
             } else {
                 // could be a variable or variabletype node. They fit for the value.. member

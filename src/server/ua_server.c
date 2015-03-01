@@ -69,6 +69,26 @@ void UA_Server_delete(UA_Server *server) {
     UA_free(server);
 }
 
+static UA_StatusCode readStatus(const void *handle, UA_VariantData *data) {
+    UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
+    status->startTime   = ((const UA_Server*)handle)->timeStarted;
+    status->currentTime = UA_DateTime_now();
+    status->state       = UA_SERVERSTATE_RUNNING;
+    UA_String_copycstring("http://www.open62541.org", &status->buildInfo.productUri);
+    UA_String_copycstring("open62541", &status->buildInfo.manufacturerName);
+    UA_String_copycstring("open62541 OPC UA Server", &status->buildInfo.productName);
+    UA_String_copycstring("0.0", &status->buildInfo.softwareVersion);
+    UA_String_copycstring("0.0", &status->buildInfo.buildNumber);
+    status->buildInfo.buildDate = UA_DateTime_now();
+    status->secondsTillShutdown = 0;
+
+	data->arrayLength = 1;
+    data->dataPtr = status;
+    data->arrayDimensionsSize = -1;
+    data->arrayDimensions = UA_NULL;
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_Server * UA_Server_new(void) {
     UA_Server *server = UA_malloc(sizeof(UA_Server));
     if(!server)
@@ -612,25 +632,26 @@ UA_Server * UA_Server_new(void) {
                       &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER),
                       &UA_NODEID_STATIC(0, UA_NS0ID_HASPROPERTY));
 
-    UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
-    status->startTime   = UA_DateTime_now();
-    status->currentTime = UA_DateTime_now();
-    status->state       = UA_SERVERSTATE_RUNNING;
-    UA_String_copycstring("http://www.open62541.org", &status->buildInfo.productUri);
-    UA_String_copycstring("open62541", &status->buildInfo.manufacturerName);
-    UA_String_copycstring("open62541 OPC UA Server", &status->buildInfo.productName);
-    UA_String_copycstring("0.0", &status->buildInfo.softwareVersion);
-    UA_String_copycstring("0.0", &status->buildInfo.buildNumber);
-    status->buildInfo.buildDate = UA_DateTime_now();
-    status->secondsTillShutdown = 0;
-
-    UA_Variant *serverstatus = UA_Variant_new();
+    /*UA_Variant *serverstatus = UA_Variant_new();
     UA_Variant_setValue(serverstatus, status, UA_TYPES_SERVERSTATUSDATATYPE);
     UA_QualifiedName serverstatusname;
     UA_QUALIFIEDNAME_ASSIGN(serverstatusname, "ServerStatus");
     UA_Server_addVariableNode(server, serverstatus, &UA_NODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS), &serverstatusname,
                               &UA_NODEID_STATIC(0, UA_NS0ID_SERVER),
-                              &UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT));
+                              &UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT));*/
+    UA_Variant *serverstatus = UA_Variant_new();
+    serverstatus->storageType = UA_VARIANT_DATASOURCE;
+    serverstatus->storage.datasource = (UA_VariantDataSource)
+        {.handle = server,
+         .read = readStatus,
+         .release = UA_NULL,
+         .write = UA_NULL};
+    serverstatus->type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
+    UA_QualifiedName serverstatusname;
+    UA_QUALIFIEDNAME_ASSIGN(serverstatusname, "ServerStatus");
+    UA_Server_addVariableNode(server, serverstatus, &UA_NODEID_NULL, &serverstatusname,
+    							&UA_NODEID_STATIC(0, UA_NS0ID_SERVER),
+    							&UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT));
 
     UA_VariableNode *state = UA_VariableNode_new();
     UA_ServerState *stateEnum = UA_ServerState_new();
