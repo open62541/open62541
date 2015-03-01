@@ -671,7 +671,7 @@ END_TEST
 START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArray) {
 	// given
 	size_t pos = 0;
-	UA_Byte data[] = { UA_TYPES_IDS[UA_TYPES_INT32], 0xFF, 0x00, 0x00, 0x00 };
+	UA_Byte data[] = { UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric, 0xFF, 0x00, 0x00, 0x00 };
 	UA_ByteString src = { 5, data };
 	UA_Variant dst;
 	// when
@@ -691,7 +691,7 @@ END_TEST
 START_TEST(UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray) {
 	// given
 	size_t pos = 0;
-	UA_Byte data[] = { UA_TYPES_IDS[UA_TYPES_INT32] | UA_VARIANT_ENCODINGMASKTYPE_ARRAY,
+	UA_Byte data[] = { UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric | UA_VARIANT_ENCODINGMASKTYPE_ARRAY,
                        0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF,
                        0xFF, 0xFF };
 	UA_ByteString src = { 13, data };
@@ -714,7 +714,7 @@ END_TEST
 START_TEST(UA_Variant_decodeWithOutDeleteMembersShallFailInCheckMem) {
 	// given
 	size_t pos = 0;
-	UA_Byte data[] = { UA_TYPES_IDS[UA_TYPES_INT32] | UA_VARIANT_ENCODINGMASKTYPE_ARRAY,
+	UA_Byte data[] = { UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric | UA_VARIANT_ENCODINGMASKTYPE_ARRAY,
                        0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF };
 	UA_ByteString src = { 13, data };
 	UA_Variant dst;
@@ -730,7 +730,7 @@ END_TEST
 START_TEST(UA_Variant_decodeWithTooSmallSourceShallReturnWithError) {
 	// given
 	size_t pos = 0;
-	UA_Byte data[] = { UA_TYPES_IDS[UA_TYPES_INT32] | UA_VARIANT_ENCODINGMASKTYPE_ARRAY,
+	UA_Byte data[] = { UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric | UA_VARIANT_ENCODINGMASKTYPE_ARRAY,
                        0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF };
 	UA_ByteString src = { 4, data };
 
@@ -1215,8 +1215,7 @@ START_TEST(UA_ExtensionObject_copyShallWorkOnExample) {
 	UA_ExtensionObject_init(&value);
 	UA_ExtensionObject_init(&valueCopied);
 
-	value.typeId.identifierType = UA_NODEIDTYPE_NUMERIC;
-	value.typeId.identifier.numeric = UA_TYPES_IDS[UA_TYPES_BYTE];
+	value.typeId = UA_TYPES[UA_TYPES_BYTE].typeId;
 	value.encoding    = UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED;
 	value.encoding    = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
 	value.body.data   = data;
@@ -1601,11 +1600,9 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
 	UA_Int32 val = 42;
 	UA_VariableAttributes varAttr;
 	UA_VariableAttributes_init(&varAttr);
-    varAttr.dataType.identifierType = UA_NODEIDTYPE_NUMERIC;
-	varAttr.dataType.identifier.numeric = UA_TYPES_IDS[UA_TYPES_INT32];
+	varAttr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
 	UA_Variant_init(&varAttr.value);
 	varAttr.value.type = &UA_TYPES[UA_TYPES_INT32];
-    UA_NODEID_ASSIGN(varAttr.value.typeId, 0, UA_TYPES_IDS[UA_TYPES_INT32]);
 	varAttr.value.storage.data.dataPtr = &val;
 	varAttr.value.storage.data.arrayLength = 1;
 	varAttr.userWriteMask = 41;
@@ -1615,7 +1612,7 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
 	/* wrap it into a extension object attributes */
 	UA_ExtensionObject extensionObject;
 	UA_ExtensionObject_init(&extensionObject);
-	extensionObject.typeId.identifier.numeric = UA_TYPES_IDS[UA_TYPES_VARIABLEATTRIBUTES];
+	extensionObject.typeId = UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES].typeId;
 	UA_Byte extensionData[50];
 	extensionObject.body = (UA_ByteString){.data = extensionData, .length=UA_VariableAttributes_calcSizeBinary(&varAttr)};
 	size_t posEncode = 0;

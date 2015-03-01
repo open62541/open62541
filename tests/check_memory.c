@@ -62,14 +62,14 @@ START_TEST(encodeShallYieldDecode) {
 	// when
 	void *obj2 = UA_new(&UA_TYPES[_i]);
 	pos = 0; retval = UA_decodeBinary(&msg1, &pos, obj2, &UA_TYPES[_i]);
-	ck_assert_msg(retval == UA_STATUSCODE_GOOD, "messages differ idx=%d,nodeid=%i", _i, UA_TYPES_IDS[_i]);
+	ck_assert_msg(retval == UA_STATUSCODE_GOOD, "messages differ idx=%d,nodeid=%i", _i, UA_TYPES[_i].typeId.identifier.numeric);
 	retval = UA_ByteString_newMembers(&msg2, UA_calcSizeBinary(obj2, &UA_TYPES[_i]));
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	pos = 0; retval = UA_encodeBinary(obj2, &UA_TYPES[_i], &msg2, &pos);
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
 	// then
-	ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == UA_TRUE, "messages differ idx=%d,nodeid=%i", _i, UA_TYPES_IDS[_i]);
+	ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == UA_TRUE, "messages differ idx=%d,nodeid=%i", _i, UA_TYPES[_i].typeId.identifier.numeric);
 
 	// finally
 	UA_delete(obj1, &UA_TYPES[_i]);
@@ -133,7 +133,7 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
 		obj1 = UA_new(&UA_TYPES[_i]);
 		retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i]);
 		//then
-		ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Decoding %d from random buffer", UA_TYPES_IDS[_i]);
+		ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Decoding %d from random buffer", UA_TYPES[_i].typeId.identifier.numeric);
 		// finally
 		UA_delete(obj1, &UA_TYPES[_i]);
 	}
