@@ -105,6 +105,9 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
 
             v->hasSourceTimestamp = UA_TRUE;
             v->sourceTimestamp = UA_DateTime_now();
+
+            v->hasServerTimestamp = UA_TRUE;
+            v->serverTimestamp = UA_DateTime_now();
         }
         break;
 
@@ -199,10 +202,7 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
         printf("%i", id->attributeId);
         UA_assert(UA_FALSE);
     }
-    if(retval == UA_STATUSCODE_GOOD) {
-    	v->hasServerTimestamp = UA_TRUE;
-    	v->serverTimestamp = UA_DateTime_now();
-    }
+
     if(retval != UA_STATUSCODE_GOOD) {
         v->hasStatus = UA_TRUE;
         v->status = UA_STATUSCODE_BADNOTREADABLE;
