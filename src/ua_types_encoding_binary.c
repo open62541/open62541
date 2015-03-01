@@ -687,7 +687,7 @@ size_t UA_Variant_calcSizeBinary(UA_Variant const *p) {
     if(p->storageType == UA_VARIANT_DATA || p->storageType == UA_VARIANT_DATA_NODELETE)
         data = &p->storage.data;
     else {
-        if(p->storage.datasource.read(p->storage.datasource.handle, &datasourceData) != UA_STATUSCODE_GOOD)
+        if(p->storage.datasource.read == UA_NULL || p->storage.datasource.read(p->storage.datasource.handle, &datasourceData) != UA_STATUSCODE_GOOD)
             return 0;
         data = &datasourceData;
     }
@@ -726,7 +726,7 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
     if(src->storageType == UA_VARIANT_DATA)
         data = &src->storage.data;
     else {
-        if(src->storage.datasource.read(src->storage.datasource.handle, &datasourceData) != UA_STATUSCODE_GOOD)
+        if(src->storage.datasource.read == UA_NULL || src->storage.datasource.read(src->storage.datasource.handle, &datasourceData) != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADENCODINGERROR;
         data = &datasourceData;
     }

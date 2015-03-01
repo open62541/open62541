@@ -632,13 +632,6 @@ UA_Server * UA_Server_new(void) {
                       &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER),
                       &UA_NODEID_STATIC(0, UA_NS0ID_HASPROPERTY));
 
-    /*UA_Variant *serverstatus = UA_Variant_new();
-    UA_Variant_setValue(serverstatus, status, UA_TYPES_SERVERSTATUSDATATYPE);
-    UA_QualifiedName serverstatusname;
-    UA_QUALIFIEDNAME_ASSIGN(serverstatusname, "ServerStatus");
-    UA_Server_addVariableNode(server, serverstatus, &UA_NODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS), &serverstatusname,
-                              &UA_NODEID_STATIC(0, UA_NS0ID_SERVER),
-                              &UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT));*/
     UA_Variant *serverstatus = UA_Variant_new();
     serverstatus->storageType = UA_VARIANT_DATASOURCE;
     serverstatus->storage.datasource = (UA_VariantDataSource)

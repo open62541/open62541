@@ -134,12 +134,10 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
             if(vn->value.storageType == UA_VARIANT_DATA || vn->value.storageType == UA_VARIANT_DATA_NODELETE)
                 data = &vn->value.storage.data;
             else {
-            	if(vn->value.storage.datasource.read != UA_NULL){
-					if((retval = vn->value.storage.datasource.read(vn->value.storage.datasource.handle,
+				if(vn->value.storage.datasource.read == UA_NULL || (retval = vn->value.storage.datasource.read(vn->value.storage.datasource.handle,
 																   &datasourceData)) != UA_STATUSCODE_GOOD)
 						break;
-					data = &datasourceData;
-            	}
+				data = &datasourceData;
             }
             retval = UA_Variant_copySetArray(&v->value, data->arrayDimensions, data->arrayDimensionsSize,
                                              UA_TYPES_INT32);
