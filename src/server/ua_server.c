@@ -642,7 +642,7 @@ UA_Server * UA_Server_new(void) {
     serverstatus->type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
     UA_QualifiedName serverstatusname;
     UA_QUALIFIEDNAME_ASSIGN(serverstatusname, "ServerStatus");
-    UA_Server_addVariableNode(server, serverstatus, &UA_NODEID_NULL, &serverstatusname,
+    UA_Server_addVariableNode(server, serverstatus, &UA_NODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS), &serverstatusname,
     							&UA_NODEID_STATIC(0, UA_NS0ID_SERVER),
     							&UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT));
 
