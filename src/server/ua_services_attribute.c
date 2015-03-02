@@ -295,11 +295,11 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 		UA_Variant variant;
 		UA_Variant_init(&variant);
 		variant.type = &UA_TYPES[UA_TYPES_DATETIME];
-		variant.storage.data.arrayLength = request->nodesToReadSize;
+		variant.arrayLength = request->nodesToReadSize;
 
 		UA_DateTime* expireArray = UA_NULL;
 		expireArray = UA_Array_new(&UA_TYPES[UA_TYPES_DATETIME], request->nodesToReadSize);
-		variant.storage.data.dataPtr = expireArray;
+		variant.dataPtr = expireArray;
 
 		UA_ByteString str;
 		UA_ByteString_init(&str);
