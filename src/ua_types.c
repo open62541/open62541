@@ -619,43 +619,35 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
     return retval;
 }
 
-UA_StatusCode UA_Variant_setValue(UA_Variant *v, void *p, UA_UInt16 typeIndex) {
-    return UA_Variant_setArray(v, p, 1, typeIndex);
+UA_StatusCode UA_Variant_setValue(UA_Variant *v, void *p, const UA_DataType *type) {
+    return UA_Variant_setArray(v, p, 1, type);
 }
 
-UA_StatusCode UA_Variant_copySetValue(UA_Variant *v, const void *p, UA_UInt16 typeIndex) {
-    if(typeIndex >= UA_TYPES_COUNT)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    const UA_DataType *type = &UA_TYPES[typeIndex];
+UA_StatusCode UA_Variant_copySetValue(UA_Variant *v, const void *p, const UA_DataType *type) {
     void *new = UA_malloc(type->memSize);
     if(!new)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_StatusCode retval = UA_copy(p, new, &UA_TYPES[typeIndex]);
+    UA_StatusCode retval = UA_copy(p, new, type);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    return UA_Variant_setArray(v, new, 1, typeIndex);
+    return UA_Variant_setArray(v, new, 1, type);
 }
 
 UA_StatusCode UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 noElements,
-                                  UA_UInt16 typeIndex) {
-    if(typeIndex >= UA_TYPES_COUNT)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    v->type = &UA_TYPES[typeIndex];
+                                  const UA_DataType *type) {
+    v->type = type;
     v->arrayLength = noElements;
     v->dataPtr = array;
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode UA_Variant_copySetArray(UA_Variant *v, const void *array, UA_Int32 noElements,
-                                      UA_UInt16 typeIndex) {
-    if(typeIndex >= UA_TYPES_COUNT)
-        return UA_STATUSCODE_BADINTERNALERROR;
+                                      const UA_DataType *type) {
     void *new;
-    UA_StatusCode retval = UA_Array_copy(array, &new, &UA_TYPES[typeIndex], noElements);
+    UA_StatusCode retval = UA_Array_copy(array, &new, type, noElements);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    return UA_Variant_setArray(v, new, noElements, typeIndex);
+    return UA_Variant_setArray(v, new, noElements, type);
 }
 
 /* DiagnosticInfo */

@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
     UA_Int32 *myInteger = UA_Int32_new();
     *myInteger = 42;
     UA_Variant *myIntegerVariant = UA_Variant_new();
-    UA_Variant_setValue(myIntegerVariant, myInteger, UA_TYPES_INT32);
+    UA_Variant_setValue(myIntegerVariant, myInteger, &UA_TYPES[UA_TYPES_INT32]);
     UA_QualifiedName myIntegerName;
     UA_QUALIFIEDNAME_ASSIGN(myIntegerName, "the answer");
     UA_Server_addVariableNode(server, myIntegerVariant, &UA_NODEID_NULL, &myIntegerName,

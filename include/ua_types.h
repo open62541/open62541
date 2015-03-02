@@ -396,23 +396,21 @@ UA_StatusCode UA_EXPORT UA_LocalizedText_copycstring(char const *src, UA_Localiz
  * lifecycle of the variant and is deleted with it.
  *
  * @param v The variant
- * @param p A pointer to the data
- * @param typeIndex The index of the datatype (from namespace 0) as defined in ua_types_generated.h.
- * For example, typeIndex == UA_TYPES_INT32
+ * @param p A pointer to the value data
+ * @param type The datatype of the value in question
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setValue(UA_Variant *v, void *p, UA_UInt16 typeIndex);
+UA_StatusCode UA_EXPORT UA_Variant_setValue(UA_Variant *v, void *p, const UA_DataType *type);
 
 /**
  * Set the variant to a scalar value that is copied from an existing variable.
  *
  * @param v The variant
- * @param p A pointer to the data
- * @param typeIndex The index of the datatype (from namespace 0) as defined in ua_types_generated.h.
- * For example, typeIndex == UA_TYPES_INT32
+ * @param p A pointer to the value data
+ * @param type The datatype of the value
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_copySetValue(UA_Variant *v, const void *p, UA_UInt16 typeIndex);
+UA_StatusCode UA_EXPORT UA_Variant_copySetValue(UA_Variant *v, const void *p, const UA_DataType *type);
 
 /**
  * Set the variant to an array that already resides in memory. The array takes on the lifecycle of
@@ -421,11 +419,11 @@ UA_StatusCode UA_EXPORT UA_Variant_copySetValue(UA_Variant *v, const void *p, UA
  * @param v The variant
  * @param array A pointer to the array data
  * @param noElements The size of the array
- * @param typeIndex The index of the datatype (from namespace 0) as defined in ua_types_generated.h.
- * For example, typeIndex == UA_TYPES_INT32
+ * @param type The datatype of the array
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 noElements, UA_UInt16 typeIndex);
+UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array,
+                                            UA_Int32 noElements, const UA_DataType *type);
 
 /**
  * Set the variant to an array that is copied from an existing array.
@@ -433,11 +431,11 @@ UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32
  * @param v The variant
  * @param array A pointer to the array data
  * @param noElements The size of the array
- * @param typeIndex The index of the datatype (from namespace 0) as defined in ua_types_generated.h.
- * For example, typeIndex == UA_TYPES_INT32
+ * @param type The datatype of the array
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_copySetArray(UA_Variant *v, const void *array, UA_Int32 noElements, UA_UInt16 typeIndex);
+UA_StatusCode UA_EXPORT UA_Variant_copySetArray(UA_Variant *v, const void *array,
+                                                UA_Int32 noElements, const UA_DataType *type);
 
 /****************************/
 /* Structured Type Handling */
