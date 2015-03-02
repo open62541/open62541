@@ -732,10 +732,10 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
     else {
         if(!isBuiltin) {
             // print the extensionobject header
-        	if(src->type->isStructure == UA_TRUE){ //increase id by 2 for binary encoding of struct obejcts
+        	if(src->type->isStructure == UA_TRUE){ //increase id by UA_ENCODINGOFFSET_BINARY for binary encoding of struct obejcts
         		UA_NodeId copy;
         		UA_NodeId_copy(&src->type->typeId, &copy);
-        		copy.identifier.numeric=copy.identifier.numeric+2;
+        		copy.identifier.numeric=copy.identifier.numeric + UA_ENCODINGOFFSET_BINARY;
         		UA_NodeId_encodeBinary(&copy, dst, offset);
         	} else {
         		UA_NodeId_encodeBinary(&src->type->typeId, dst, offset);
