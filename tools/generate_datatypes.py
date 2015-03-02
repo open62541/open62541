@@ -8,6 +8,7 @@ import re
 from lxml import etree
 import itertools
 import argparse
+from pprint import pprint
 
 fixed_size = {"UA_Boolean": 1, "UA_SByte": 1, "UA_Byte": 1, "UA_Int16": 2, "UA_UInt16": 2,
               "UA_Int32": 4, "UA_UInt32": 4, "UA_Int64": 8, "UA_UInt64": 8, "UA_Float": 4,
@@ -87,6 +88,7 @@ class BuiltinType(object):
             ".namespaceZero = UA_TRUE, " + \
             ".fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
             ", .zeroCopyable = " + ("UA_TRUE" if self.zero_copy() else "UA_FALSE") + \
+            ", .isStructure = UA_FALSE" + \
             ", .membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_" + self.name[3:].upper() + "," + \
             ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, " + \
             ".typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
@@ -122,7 +124,7 @@ class EnumerationType(object):
         return "{.typeId = " + typeid + \
             ".memSize = sizeof(" + self.name + "), " +\
             ".namespaceZero = " + ("UA_TRUE" if namespace_0 else "UA_FALSE") + \
-            ", .fixedSize = UA_TRUE, .zeroCopyable = UA_TRUE, " + \
+            ", .fixedSize = UA_TRUE, .zeroCopyable = UA_TRUE, .isStructure = UA_FALSE, " + \
             ".membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_INT32," + \
             ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
 
@@ -227,6 +229,7 @@ class StructType(object):
                  ", .fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
                  ", .zeroCopyable = " + ("sizeof(" + self.name + ") == " + str(self.mem_size()) if self.zero_copy() \
                                          else "UA_FALSE") + \
+                 ", .isStructure = UA_TRUE" + \
                  ", .typeIndex = " + outname.upper() + "_" + self.name[3:].upper() + \
                  ", .membersSize = " + str(len(self.members)) + ","
         if len(self.members) > 0:

@@ -471,6 +471,7 @@ struct UA_DataType {
     UA_Boolean namespaceZero UA_BITFIELD(1); ///< The type is defined in namespace zero.
     UA_Boolean fixedSize UA_BITFIELD(1); ///< The type (and its members) contains no pointers
     UA_Boolean zeroCopyable UA_BITFIELD(1); ///< Can the type be copied directly off the stream?
+    UA_Boolean isStructure UA_BITFIELD(1); ///< strcture or not
     UA_Byte membersSize; ///< How many members does the type have?
     UA_DataTypeMember members[UA_MAX_TYPE_MEMBERS];
 };

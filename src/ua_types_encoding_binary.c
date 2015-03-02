@@ -732,7 +732,7 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
     else {
         if(!isBuiltin) {
             // print the extensionobject header
-        	if(src->type->typeId.identifier.numeric==862){ //fixme: CAUTION, THIS IS  A DIRTY WORKAROUND FOR #182, needs to be fixed
+        	if(src->type->isStructure == UA_TRUE){ //increase id by 2 for binary encoding of struct obejcts
         		UA_NodeId copy;
         		UA_NodeId_copy(&src->type->typeId, &copy);
         		copy.identifier.numeric=copy.identifier.numeric+2;
