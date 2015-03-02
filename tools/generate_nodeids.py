@@ -32,11 +32,6 @@ input_str = f.read() + "\nHasModelParent,50,ReferenceType"
 f.close()
 input_str = input_str.replace('\r','')
 rows = map(lambda x:tuple(x.split(',')), input_str.split('\n'))
-for index, row in enumerate(rows):
-    if row[0] == "BaseDataType":
-    	rows[index]= ("Variant", row[1], row[2])
-    elif row[0] == "Structure":
-    	rows[index] = ("ExtensionObject", row[1], row[2])
 
 fh = open(args.outfile + ".h",'w')
 def printh(string):

@@ -491,7 +491,7 @@ void UA_LocalizedText_init(UA_LocalizedText *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_LocalizedText)
 UA_StatusCode UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst) {
-    UA_StatusCode retval = UA_String_copycstring("en", &dst->locale); // TODO: Are language codes upper case?
+    UA_StatusCode retval = UA_String_copycstring("", &dst->locale);
     retval |= UA_String_copycstring(src, &dst->text);
     if(retval) {
         UA_LocalizedText_deleteMembers(dst);
