@@ -367,7 +367,7 @@ void UA_NodeId_deleteMembers(UA_NodeId *p) {
 }
 
 UA_Boolean UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
-    if(n1->namespaceIndex != n2->namespaceIndex)
+	if(n1->namespaceIndex != n2->namespaceIndex || n1->identifierType!=n2->identifierType)
         return UA_FALSE;
 
     switch(n1->identifierType) {
