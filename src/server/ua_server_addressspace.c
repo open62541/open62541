@@ -25,6 +25,29 @@ UA_StatusCode UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, UA
     return res.statusCode;
 }
 
+UA_StatusCode UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
+                                                  UA_NodeId *nodeId, UA_QualifiedName *browseName,
+                                                  const UA_NodeId *parentNodeId,
+                                                  const UA_NodeId *referenceTypeId) {
+    UA_VariableNode *node = UA_VariableNode_new();
+    node->variableType = UA_VARIABLETYPE_DATASOURCE;
+    node->variable.dataSource = dataSource;
+    UA_NodeId_copy(nodeId, &node->nodeId);
+    UA_QualifiedName_copy(browseName, &node->browseName);
+    UA_String_copy(&browseName->name, &node->displayName.text);
+    UA_ExpandedNodeId parentId; // we need an expandednodeid
+    UA_ExpandedNodeId_init(&parentId);
+    parentId.nodeId = *parentNodeId;
+    UA_AddNodesResult res = UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node,
+                                                         &parentId, referenceTypeId);
+    ADDREFERENCE(res.addedNodeId, UA_NODEID_STATIC(0, UA_NS0ID_HASTYPEDEFINITION),
+                 UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_BASEDATAVARIABLETYPE));
+    if(res.statusCode != UA_STATUSCODE_GOOD) {
+        UA_VariableNode_delete(node);
+    }
+    return res.statusCode;
+}
+
 /* Adds a one-way reference to the local nodestore */
 static UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session *session,
                                                    const UA_AddReferencesItem *item) {

@@ -25,7 +25,6 @@ static void stopHandler(int sign) {
 }
 
 static UA_ByteString loadCertificate(void) {
-
     UA_ByteString certificate = UA_STRING_NULL;
 	FILE *fp = NULL;
 	//FIXME: a potiential bug of locating the certificate, we need to get the path from the server's config

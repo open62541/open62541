@@ -55,6 +55,24 @@ void UA_EXPORT UA_Server_delete(UA_Server *server);
  */
 UA_StatusCode UA_EXPORT UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running);
 
+/** @brief A datasource is the interface to interact with a local data provider.
+ *
+ * Implementors of datasources need to provide functions for the callbacks in
+ * this structure. After every read, the handle needs to be released to indicate
+ * that the pointer is no longer accessed. As a rule, datasources are never
+ * copied, but only their content. The only way to write into a datasource is
+ * via the write-service.
+ *
+ * It is expected that the read and release callbacks are implemented. The write
+ * callback can be set to null.
+ **/
+typedef struct {
+    const void *handle;
+    UA_StatusCode (*read)(const void *handle, UA_DataValue *value);
+    void (*release)(const void *handle, UA_DataValue *value);
+    UA_StatusCode (*write)(const void *handle, const UA_Variant *data);
+} UA_DataSource;
+
 /** Add a reference to the server's address space */
 UA_StatusCode UA_EXPORT UA_Server_addReference(UA_Server *server, const UA_AddReferencesItem *item);
 
@@ -62,19 +80,10 @@ UA_StatusCode UA_EXPORT UA_Server_addVariableNode(UA_Server *server, UA_Variant 
                                                   UA_QualifiedName *browseName, const UA_NodeId *parentNodeId,
                                                   const UA_NodeId *referenceTypeId);
 
-/** @brief A datasource is the interface to interact with a local data provider.
- *
- *  Implementors of datasources need to provide functions for the callbacks in
- *  this structure. After every read, the handle needs to be released to
- *  indicate that the pointer is no longer accessed. As a rule, datasources are
- *  never copied, but only their content. The only way to write into a
- *  datasource is via the write-service. */
-typedef struct {
-    const void *handle;
-    UA_StatusCode (*read)(const void *handle, UA_DataValue *value);
-    void (*release)(const void *handle, UA_DataValue *value);
-    UA_StatusCode (*write)(const void *handle, const UA_Variant *data);
-} UA_DataSource;
+UA_StatusCode UA_EXPORT UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
+                                                            UA_NodeId *nodeId, UA_QualifiedName *browseName,
+                                                            const UA_NodeId *parentNodeId,
+                                                            const UA_NodeId *referenceTypeId);
 
 /** Work that is run in the main loop (singlethreaded) or dispatched to a worker
     thread. */

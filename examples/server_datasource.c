@@ -26,6 +26,7 @@ static UA_StatusCode readTimeData(const void *handle, UA_DataValue *value) {
     if(!currentTime)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     *currentTime = UA_DateTime_now();
+    value->value.type = &UA_TYPES[UA_TYPES_DATETIME];
     value->value.arrayLength = 1;
     value->value.dataPtr = currentTime;
     value->value.arrayDimensionsSize = -1;
@@ -36,10 +37,6 @@ static UA_StatusCode readTimeData(const void *handle, UA_DataValue *value) {
 
 static void releaseTimeData(const void *handle, UA_DataValue *value) {
     UA_DateTime_delete((UA_DateTime*)value->value.dataPtr);
-}
-
-static UA_StatusCode writeTimeData(const void *handle, const UA_Variant *data) {
-    return UA_STATUSCODE_BADINTERNALERROR;
 }
 
 /**************************/
@@ -56,6 +53,7 @@ static UA_StatusCode readDeviceStatus(const void *handle, UA_DataValue *value) {
     /* In order to reduce blocking time, we could alloc memory for every read
        and return a copy of the data. */
     pthread_rwlock_rdlock(&deviceStatusLock);
+    value->value.type = &UA_TYPES[UA_TYPES_INT32];
     value->value.arrayLength = 1;
     value->value.dataPtr = &deviceStatus;
     value->value.arrayDimensionsSize = -1;
@@ -97,35 +95,31 @@ int main(int argc, char** argv) {
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 
     // add node with the datetime data source
-    UA_Variant *dateVariant = UA_Variant_new();
-    dateVariant->storage.datasource = (UA_DataSource)
-        {.handle = UA_NULL,
+    UA_DataSource dateDataSource = (UA_DataSource)
+        {.handle = NULL,
          .read = readTimeData,
          .release = releaseTimeData,
-         .write = writeTimeData};
-    dateVariant->type = &UA_TYPES[UA_TYPES_DATETIME];
+         .write = NULL};
     UA_QualifiedName dateName;
     UA_QUALIFIEDNAME_ASSIGN(dateName, "the time");
-    UA_Server_addVariableNode(server, dateVariant, &UA_NODEID_NULL, &dateName,
-                              &UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
-                              &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
+    UA_Server_addDataSourceVariableNode(server, dateDataSource, &UA_NODEID_NULL, &dateName,
+                                        &UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                        &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
 
     // print the status every 2 sec
-    UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL, .work.methodCall = {.method = printDeviceStatus, .data = UA_NULL} };
-    UA_Server_addRepeatedWorkItem(server, &work, 20000000, UA_NULL);
+    UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL,
+                        .work.methodCall = {.method = printDeviceStatus, .data = NULL} };
+    UA_Server_addRepeatedWorkItem(server, &work, 20000000, NULL);
 
     // add node with the device status data source
-    UA_Variant *statusVariant = UA_Variant_new();
-    statusVariant->storageType = UA_VARIANT_DATASOURCE;
-    statusVariant->storage.datasource = (UA_VariantDataSource)
-        {.handle = UA_NULL,
+    UA_DataSource deviceStatusDataSource = (UA_DataSource)
+        {.handle = NULL,
          .read = readDeviceStatus,
          .release = releaseDeviceStatus,
          .write = writeDeviceStatus};
-    statusVariant->type = &UA_TYPES[UA_TYPES_INT32];
     UA_QualifiedName statusName;
     UA_QUALIFIEDNAME_ASSIGN(statusName, "device status");
-    UA_Server_addVariableNode(server, statusVariant, &UA_NODEID_NULL, &statusName,
+    UA_Server_addDataSourceVariableNode(server, deviceStatusDataSource, &UA_NODEID_NULL, &statusName,
                               &UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
                               &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
 

@@ -69,7 +69,7 @@ void UA_Server_delete(UA_Server *server) {
     UA_free(server);
 }
 
-static UA_StatusCode readStatus(const void *handle, UA_VariantData *data) {
+static UA_StatusCode readStatus(const void *handle, UA_DataValue *value) {
     UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
     status->startTime   = ((const UA_Server*)handle)->timeStarted;
     status->currentTime = UA_DateTime_now();
@@ -82,11 +82,17 @@ static UA_StatusCode readStatus(const void *handle, UA_VariantData *data) {
     status->buildInfo.buildDate = UA_DateTime_now();
     status->secondsTillShutdown = 0;
 
-	data->arrayLength = 1;
-    data->dataPtr = status;
-    data->arrayDimensionsSize = -1;
-    data->arrayDimensions = UA_NULL;
+    value->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
+	value->value.arrayLength = 1;
+    value->value.dataPtr = status;
+    value->value.arrayDimensionsSize = -1;
+    value->value.arrayDimensions = UA_NULL;
+    value->hasVariant = UA_TRUE;
     return UA_STATUSCODE_GOOD;
+}
+
+static void releaseStatus(const void *handle, UA_DataValue *value) {
+    UA_DataValue_deleteMembers(value);
 }
 
 UA_Server * UA_Server_new(void) {
@@ -633,19 +639,14 @@ UA_Server * UA_Server_new(void) {
                       &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER),
                       &UA_NODEID_STATIC(0, UA_NS0ID_HASPROPERTY));
 
-    UA_Variant *serverstatus = UA_Variant_new();
-    serverstatus->storageType = UA_VARIANT_DATASOURCE;
-    serverstatus->storage.datasource = (UA_VariantDataSource)
-        {.handle = server,
-         .read = readStatus,
-         .release = UA_NULL,
-         .write = UA_NULL};
-    serverstatus->type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
-    UA_QualifiedName serverstatusname;
-    UA_QUALIFIEDNAME_ASSIGN(serverstatusname, "ServerStatus");
-    UA_Server_addVariableNode(server, serverstatus, &UA_NODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS), &serverstatusname,
-    							&UA_NODEID_STATIC(0, UA_NS0ID_SERVER),
-    							&UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT));
+    UA_VariableNode *serverstatus = UA_VariableNode_new();
+    COPYNAMES(serverstatus, "ServerStatus");
+    serverstatus->nodeId = UA_NODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS);
+    serverstatus->variableType = UA_VARIABLETYPE_DATASOURCE;
+    serverstatus->variable.dataSource = (UA_DataSource) {.handle = server, .read = readStatus,
+                                                         .release = releaseStatus, .write = UA_NULL};
+    UA_Server_addNode(server, (UA_Node*)serverstatus, &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT));
 
     UA_VariableNode *state = UA_VariableNode_new();
     UA_ServerState *stateEnum = UA_ServerState_new();
