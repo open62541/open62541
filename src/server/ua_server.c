@@ -709,13 +709,6 @@ UA_Server * UA_Server_new(void) {
                       &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_BASEDATATYPE),
                       &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
 
-    UA_DataTypeNode *baseDataTypeNode = UA_DataTypeNode_new();
-    baseDataTypeNode->nodeId.identifier.numeric = UA_NS0ID_BASEDATATYPE;
-    COPYNAMES(baseDataTypeNode, "BaseDataType");
-    UA_Server_addNode(server, (UA_Node*)baseDataTypeNode,
-                      &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_BASEDATATYPE),
-                      &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
-
     UA_DataTypeNode *diagnosticInfoNode = UA_DataTypeNode_new();
     diagnosticInfoNode->nodeId.identifier.numeric = UA_NS0ID_DIAGNOSTICINFO;
     COPYNAMES(diagnosticInfoNode, "DiagnosticInfo");

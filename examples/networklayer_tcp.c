@@ -377,6 +377,9 @@ static UA_Int32 NetworkLayerTCP_stop(NetworkLayerTCP * layer, UA_WorkItem **work
 }
 
 static void NetworkLayerTCP_delete(NetworkLayerTCP *layer) {
+	for(UA_Int32 i=0;i<layer->conLinksSize;++i){
+		free(layer->conLinks[i].connection);
+	}
 	free(layer->conLinks);
 	free(layer);
 }
