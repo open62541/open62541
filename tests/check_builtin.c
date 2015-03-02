@@ -1424,10 +1424,8 @@ START_TEST(UA_LocalizedText_copycstringShallWorkOnInputExample) {
 	UA_StatusCode ret = UA_LocalizedText_copycstring(src, &dst);
 	// then
 	ck_assert_int_eq(ret, UA_STATUSCODE_GOOD);
-	ck_assert_int_eq('e', dst.locale.data[0]);
-	ck_assert_int_eq('n', dst.locale.data[1]);
 	ck_assert_int_eq('1', dst.text.data[4]);
-	ck_assert_int_eq(2, dst.locale.length);
+	ck_assert_int_eq(0, dst.locale.length);
 	ck_assert_int_eq(7, dst.text.length);
 	// finally
 	UA_LocalizedText_deleteMembers(&dst);
