@@ -30,7 +30,7 @@ UA_StatusCode UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSour
                                                   const UA_NodeId *parentNodeId,
                                                   const UA_NodeId *referenceTypeId) {
     UA_VariableNode *node = UA_VariableNode_new();
-    node->variableType = UA_VARIABLETYPE_DATASOURCE;
+    node->variableType = UA_VARIABLENODETYPE_DATASOURCE;
     node->variable.dataSource = dataSource;
     UA_NodeId_copy(nodeId, &node->nodeId);
     UA_QualifiedName_copy(browseName, &node->browseName);

@@ -40,8 +40,8 @@ typedef struct {
                              n = -2: the value can be a scalar or an array with any number of dimensions.
                              n = -3:  the value can be a scalar or a one dimensional array. */
     enum {
-        UA_VARIABLETYPE_VARIANT,
-        UA_VARIABLETYPE_DATASOURCE
+        UA_VARIABLENODETYPE_VARIANT,
+        UA_VARIABLENODETYPE_DATASOURCE
     } variableType;
     union {
         UA_Variant variant;

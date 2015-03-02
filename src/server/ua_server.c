@@ -623,7 +623,7 @@ UA_Server * UA_Server_new(void) {
     UA_VariableNode *namespaceArray = UA_VariableNode_new();
     COPYNAMES(namespaceArray, "NamespaceArray");
     namespaceArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_NAMESPACEARRAY;
-    namespaceArray->variableType = UA_VARIABLETYPE_VARIANT;
+    namespaceArray->variableType = UA_VARIABLENODETYPE_VARIANT;
     namespaceArray->variable.variant.dataPtr = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 2);
     namespaceArray->variable.variant.arrayLength = 2;
     namespaceArray->variable.variant.type = &UA_TYPES[UA_TYPES_STRING];
@@ -642,7 +642,7 @@ UA_Server * UA_Server_new(void) {
     UA_VariableNode *serverstatus = UA_VariableNode_new();
     COPYNAMES(serverstatus, "ServerStatus");
     serverstatus->nodeId = UA_NODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS);
-    serverstatus->variableType = UA_VARIABLETYPE_DATASOURCE;
+    serverstatus->variableType = UA_VARIABLENODETYPE_DATASOURCE;
     serverstatus->variable.dataSource = (UA_DataSource) {.handle = server, .read = readStatus,
                                                          .release = releaseStatus, .write = UA_NULL};
     UA_Server_addNode(server, (UA_Node*)serverstatus, &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER),
@@ -653,7 +653,7 @@ UA_Server * UA_Server_new(void) {
     *stateEnum = UA_SERVERSTATE_RUNNING;
     COPYNAMES(state, "State");
     state->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERSTATUS_STATE;
-    state->variableType = UA_VARIABLETYPE_VARIANT;
+    state->variableType = UA_VARIABLENODETYPE_VARIANT;
     state->variable.variant.type = &UA_TYPES[UA_TYPES_SERVERSTATE];
     state->variable.variant.arrayLength = 1;
     state->variable.variant.dataPtr = stateEnum; // points into the other object.

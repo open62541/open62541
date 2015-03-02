@@ -101,7 +101,7 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         {
             const UA_VariableNode *vn = (const UA_VariableNode*)node;
-            if(vn->variableType == UA_VARIABLETYPE_VARIANT) {
+            if(vn->variableType == UA_VARIABLENODETYPE_VARIANT) {
                 retval = UA_Variant_copy(&vn->variable.variant, &v->value);
                 if(retval == UA_STATUSCODE_GOOD){
                     v->hasVariant = UA_TRUE;
@@ -133,7 +133,7 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
                                               UA_TYPES_NODEID);
         else {
             const UA_VariableNode *vn = (const UA_VariableNode*)node;
-            if(vn->variableType == UA_VARIABLETYPE_VARIANT)
+            if(vn->variableType == UA_VARIABLENODETYPE_VARIANT)
                 retval |= UA_Variant_copySetValue(&v->value, &vn->variable.variant.type->typeId,
                                                   UA_TYPES_NODEID);
             else {
@@ -161,7 +161,7 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         {
             const UA_VariableNode *vn = (const UA_VariableNode *)node;
-            if(vn->variableType == UA_VARIABLETYPE_VARIANT) {
+            if(vn->variableType == UA_VARIABLENODETYPE_VARIANT) {
                 retval = UA_Variant_copySetArray(&v->value, vn->variable.variant.arrayDimensions,
                                                  vn->variable.variant.arrayDimensionsSize, UA_TYPES_INT32);
                 if(retval == UA_STATUSCODE_GOOD)
@@ -346,7 +346,7 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
         case UA_ATTRIBUTEID_VALUE:
             if(node->nodeClass == UA_NODECLASS_VARIABLE) {
                 const UA_VariableNode *vn = (const UA_VariableNode*)node;
-                if(vn->variableType == UA_VARIABLETYPE_DATASOURCE) {
+                if(vn->variableType == UA_VARIABLENODETYPE_DATASOURCE) {
                     if(!vn->variable.dataSource.write) {
                         retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
                         break;
