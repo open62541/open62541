@@ -28,6 +28,8 @@ extern "C" {
  * @defgroup logging Logging
  *
  * @brief Custom logging solutions can be "plugged in" with this interface
+ *
+ * @{
  */
 
 typedef enum UA_LoggerCategory {
@@ -84,6 +86,8 @@ typedef struct UA_Logger {
 #else
 #define UA_LOG_FATAL(LOGGER, CATEGORY, MSG) do {} while(0)
 #endif
+
+/** @} */
 
 #ifdef __cplusplus
 } // extern "C"
