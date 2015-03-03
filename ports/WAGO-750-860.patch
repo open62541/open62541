@@ -48,4 +48,4 @@ index c785182..9e66da0 100644
 +add_library(open62541 $<TARGET_OBJECTS:open62541-objects>)
  
  ## logging
- set(UA_LOGLEVEL 400 CACHE STRING "Level at which logs shall be reported")
+ set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
