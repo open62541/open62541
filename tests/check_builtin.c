@@ -1198,7 +1198,7 @@ START_TEST(UA_DateTime_toStringShallWorkOnExample) {
 	// when
 	UA_DateTime_toString(src, &dst);
 	// then
-	ck_assert_int_eq(dst.data[0], ' ');
+	ck_assert_int_eq(dst.data[0], '0');
 	ck_assert_int_eq(dst.data[1], '4');
 	ck_assert_int_eq(dst.data[2], '/');
 	ck_assert_int_eq(dst.data[3], '1');

@@ -4,7 +4,6 @@
  */
 
 #include <stdio.h>
-#include <stdarg.h>
 
 #include "logger_stdout.h"
 #include "ua_types.h"
@@ -13,20 +12,15 @@ static void print_time(void) {
 	UA_DateTime now = UA_DateTime_now();
 	UA_ByteString str;
 	UA_DateTime_toString(now, &str);
-	printf("\"%.*s\"}", str.length, str.data);
+	printf("%.*s", str.length, str.data);
 	UA_ByteString_deleteMembers(&str);
 }
 
 #define LOG_FUNCTION(LEVEL) \
-	static void log_##LEVEL(UA_LoggerCategory category, const char *msg, ...) { \
-		va_list args;												   \
-		puts("##LEVEL - ");											   \
-		print_time();												   \
-		puts(" - ");												   \
-		va_start(args, msg);										   \
-		vprintf(msg, args);											   \
-		puts("\n");													   \
-		va_end(args);												   \
+	static void log_##LEVEL(UA_LoggerCategory category, const char *msg) { \
+        printf("[");                                                    \
+		print_time();                                                   \
+        printf("] " #LEVEL "/%s\t%s\n", UA_LoggerCategoryNames[category], msg); \
 	}
 
 LOG_FUNCTION(trace)
@@ -36,8 +30,8 @@ LOG_FUNCTION(warning)
 LOG_FUNCTION(error)
 LOG_FUNCTION(fatal)
 
-void Logger_Stdout_init(UA_Logger *logger) {
-	*logger = (UA_Logger){
+UA_Logger Logger_Stdout_new(void) {
+	return (UA_Logger){
 		.log_trace = log_trace,
 		.log_debug = log_debug,
 		.log_info = log_info,

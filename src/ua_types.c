@@ -240,7 +240,7 @@ UA_StatusCode UA_DateTime_toString(UA_DateTime atime, UA_String *timeString) {
     timeString->length = 31;
 
     UA_DateTimeStruct tSt = UA_DateTime_toStruct(atime);
-    sprintf((char*)timeString->data, "%2d/%2d/%4d %2d:%2d:%2d.%3d.%3d.%3d", tSt.month, tSt.day, tSt.year,
+    sprintf((char*)timeString->data, "%02d/%02d/%04d %02d:%02d:%02d.%03d.%03d.%03d", tSt.month, tSt.day, tSt.year,
             tSt.hour, tSt.min, tSt.sec, tSt.milliSec, tSt.microSec, tSt.nanoSec);
     return UA_STATUSCODE_GOOD;
 }

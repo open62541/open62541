@@ -428,7 +428,7 @@ UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *r
 
     // 2) Start the networklayers
     for(UA_Int32 i=0;i<server->nlsSize;i++)
-        server->nls[i].start(server->nls[i].nlHandle);
+        server->nls[i].start(server->nls[i].nlHandle, &server->logger);
 
     // 3) The loop
     server->timeStarted = UA_DateTime_now();

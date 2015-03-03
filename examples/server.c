@@ -18,6 +18,7 @@
 #include "networklayer_tcp.h"
 
 UA_Boolean running = 1;
+UA_Logger logger;
 
 static void stopHandler(int sign) {
     printf("Received Ctrl-C\n");
@@ -50,13 +51,15 @@ static UA_ByteString loadCertificate(void) {
 }
 
 static void testCallback(UA_Server *server, void *data) {
-       printf("testcallback\n");
+    logger.log_info(UA_LOGGERCATEGORY_USERLAND, "testcallback");
 }
 
 int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
 
 	UA_Server *server = UA_Server_new();
+    logger = Logger_Stdout_new();
+    UA_Server_setLogger(server, logger);
     UA_Server_setServerCertificate(server, loadCertificate());
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 

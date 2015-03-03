@@ -11,6 +11,11 @@
 #include "ua_services.h"
 #include "ua_nodeids.h"
 
+
+const char *UA_LoggerCategoryNames[5] =
+    {"connection", "session", "subscription", "server",
+     "userland"};
+
 /**********************/
 /* Namespace Handling */
 /**********************/
@@ -33,10 +38,15 @@ void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkL
     server->nls = UA_realloc(server->nls, sizeof(UA_ServerNetworkLayer)*(server->nlsSize+1));
     server->nls[server->nlsSize] = networkLayer;
     server->nlsSize++;
+    UA_LOG_INFO(server->logger, UA_LOGGERCATEGORY_SERVER, "Networklayer added");
 }
 
 void UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate) {
     UA_ByteString_copy(&certificate, &server->serverCertificate);
+}
+
+void UA_Server_setLogger(UA_Server *server, UA_Logger logger) {
+    server->logger = logger;
 }
 
 /**********/
@@ -106,6 +116,9 @@ UA_Server * UA_Server_new(void) {
 	cds_wfcq_init(&server->dispatchQueue_head, &server->dispatchQueue_tail);
     server->delayedWork = UA_NULL;
 #endif
+
+    // logger
+    server->logger = (UA_Logger){UA_NULL, UA_NULL, UA_NULL, UA_NULL, UA_NULL, UA_NULL};
 
     // random seed
     server->random_seed = (UA_UInt32) UA_DateTime_now();

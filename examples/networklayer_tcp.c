@@ -254,7 +254,7 @@ void writeCallback(TCPConnection *handle, UA_ByteStringArray gather_buf) {
 #endif
 }
 
-static UA_StatusCode NetworkLayerTCP_start(NetworkLayerTCP *layer) {
+static UA_StatusCode NetworkLayerTCP_start(NetworkLayerTCP *layer, UA_Logger *logger) {
 #ifdef _WIN32
 	WORD wVersionRequested;
 	WSADATA wsaData;
@@ -293,9 +293,11 @@ static UA_StatusCode NetworkLayerTCP_start(NetworkLayerTCP *layer) {
 
 	setNonBlocking(layer->serversockfd);
 	listen(layer->serversockfd, MAXBACKLOG);
-    printf("Listening for TCP connections on %s:%d\n",
-           inet_ntoa(serv_addr.sin_addr),
-           ntohs(serv_addr.sin_port));
+    char msg[256];
+    sprintf(msg, "Listening for TCP connections on %s:%d",
+            inet_ntoa(serv_addr.sin_addr),
+            ntohs(serv_addr.sin_port));
+    UA_LOG_INFO((*logger), UA_LOGGERCATEGORY_SERVER, msg);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -394,7 +396,7 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
 
     UA_ServerNetworkLayer nl;
     nl.nlHandle = tcplayer;
-    nl.start = (UA_StatusCode (*)(void*))NetworkLayerTCP_start;
+    nl.start = (UA_StatusCode (*)(void*, UA_Logger *logger))NetworkLayerTCP_start;
     nl.getWork = (UA_Int32 (*)(void*, UA_WorkItem**, UA_UInt16)) NetworkLayerTCP_getWork;
     nl.stop = (UA_Int32 (*)(void*, UA_WorkItem**)) NetworkLayerTCP_stop;
     nl.free = (void (*)(void*))NetworkLayerTCP_delete;

@@ -39,6 +39,9 @@ UA_Server UA_EXPORT * UA_Server_new(void);
 void UA_EXPORT UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate);
 void UA_EXPORT UA_Server_delete(UA_Server *server);
 
+/** Sets the logger used by the server */
+void UA_EXPORT UA_Server_setLogger(UA_Server *server, UA_Logger logger);
+
 /**
  * Runs the main loop of the server. In each iteration, this calls into the
  * networklayers to see if work have arrived and checks if timed events need to
@@ -162,7 +165,7 @@ typedef struct {
      *
      * @return Returns UA_STATUSCODE_GOOD or an error code.
      */
-    UA_StatusCode (*start)(void *nlHandle);
+    UA_StatusCode (*start)(void *nlHandle, UA_Logger *logger);
     
     /**
      * Gets called from the main server loop and returns the work that

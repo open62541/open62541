@@ -92,7 +92,7 @@ target_compile_definitions(open62541-objects PRIVATE UA_DYNAMIC_LINKING)
 target_compile_definitions(open62541-static PRIVATE UA_DYNAMIC_LINKING)
 
 ## logging
-set(UA_LOGLEVEL 400 CACHE STRING "Level at which logs shall be reported")
+set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 
 ## coverage
 option(ENABLE_COVERAGE "Enable gcov coverage" OFF)

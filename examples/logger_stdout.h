@@ -9,6 +9,6 @@
 #include "ua_log.h"
 
 /** Initialises the logger for the current thread. */
-void Logger_Stdout_init(UA_Logger *logger);
+UA_Logger Logger_Stdout_new(void);
 
 #endif /* LOGGER_STDOUT_H_ */

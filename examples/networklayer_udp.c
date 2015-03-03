@@ -150,7 +150,7 @@ void writeCallbackUDP(UDPConnection *handle, UA_ByteStringArray gather_buf) {
 #endif
 }
 
-static UA_StatusCode ServerNetworkLayerUDP_start(ServerNetworkLayerUDP *layer) {
+static UA_StatusCode ServerNetworkLayerUDP_start(ServerNetworkLayerUDP *layer, UA_Logger *logger) {
 #ifdef _WIN32
 	WORD wVersionRequested;
 	WSADATA wsaData;
@@ -188,10 +188,11 @@ static UA_StatusCode ServerNetworkLayerUDP_start(ServerNetworkLayerUDP *layer) {
 	}
 
 	setNonBlocking(layer->serversockfd);
-
-    printf("Listening for UDP connections on %s:%d\n",
-           inet_ntoa(serv_addr.sin_addr),
-           ntohs(serv_addr.sin_port));
+    char msg[256];
+    sprintf(msg, "Listening for TCP connections on %s:%d",
+            inet_ntoa(serv_addr.sin_addr),
+            ntohs(serv_addr.sin_port));
+    UA_LOG_INFO((*logger), UA_LOGGERCATEGORY_SERVER, msg);
     return UA_STATUSCODE_GOOD;
 }
 
