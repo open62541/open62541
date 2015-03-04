@@ -5,8 +5,7 @@
 # of the day to the coverity scan service
 #
 
-git checkout -t -b coverity_scan origin/coverity_scan
-COMMITS=`git log --since=today.midnight --oneline | wc -l`
+COMMITS=`git log origin/coverity_scan --since=today.midnight --oneline | wc -l`
 git checkout master
 
 if [[ "$COMMITS" -le "1" ]]; then
