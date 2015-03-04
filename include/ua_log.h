@@ -40,7 +40,7 @@ typedef enum UA_LoggerCategory {
     UA_LOGGERCATEGORY_USERLAND
 } UA_LoggerCategory;
 
-extern const char *UA_LoggerCategoryNames[5];
+extern UA_EXPORT const char *UA_LoggerCategoryNames[5];
 
 typedef struct UA_Logger {
     void (*log_trace)(UA_LoggerCategory category, const char *msg);
