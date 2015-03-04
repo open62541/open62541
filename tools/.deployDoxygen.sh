@@ -5,7 +5,7 @@
 # Doxygen docs to open62541-www
 #
 
-git checkout origin/coverity_scan
+git checkout -t -b coverity_scan origin/coverity_scan
 COMMITS=`git log --since=today.midnight --oneline | wc -l`
 git checkout master
 
