@@ -27,10 +27,9 @@ UA_Logger logger;
 /*************************/
 static UA_StatusCode readTemperature(const void *handle, UA_DataValue *value) {
     UA_Double* currentTemperature = UA_Double_new();
-    UA_Int32 i = 0;
+
     if(!currentTemperature)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-
 
     if (fseek(temperatureFile, 0, SEEK_SET))
       {
@@ -38,12 +37,12 @@ static UA_StatusCode readTemperature(const void *handle, UA_DataValue *value) {
         exit(1);
       }
 
-    if(fscanf(temperatureFile, "%d", &i) != 1){
+    if(fscanf(temperatureFile, "%lf", currentTemperature) != 1){
     	printf("Can not open parse temperature!\n");
     	exit(1);
     }
 
-    *currentTemperature = i/1000.0;
+    *currentTemperature /= 1000.0;
 
     value->value.type = &UA_TYPES[UA_TYPES_DOUBLE];
     value->value.arrayLength = 1;
