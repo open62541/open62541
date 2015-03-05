@@ -38,7 +38,7 @@ static UA_StatusCode readTemperature(const void *handle, UA_DataValue *value) {
       }
 
     if(fscanf(temperatureFile, "%lf", currentTemperature) != 1){
-    	printf("Can not open parse temperature!\n");
+    	printf("Can not parse temperature!\n");
     	exit(1);
     }
 
