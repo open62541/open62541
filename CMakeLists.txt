@@ -169,6 +169,21 @@ if(EXAMPLESERVER)
     endif()
 endif()
 
+# build rpi example server
+option(EXAMPLESERVER_RPI "Build a Raspberry Pi specific test server" OFF)
+if(EXAMPLESERVER_RPI)
+    add_executable(exampleServerRpi examples/server_rpi.c examples/networklayer_tcp.c examples/logger_stdout.c ${exported_headers} ${generated_headers})
+    target_link_libraries(exampleServerRpi open62541-static)
+    if(WIN32)
+        target_link_libraries(exampleServerRpi ws2_32)
+    else()
+        target_link_libraries(exampleServerRpi rt)
+    endif()
+    if(MULTITHREADING)
+        target_link_libraries(exampleServerRpi urcu-cds urcu urcu-common pthread)
+    endif()
+endif()
+
 ## self-signed certificates
 option(GENERATE_SELFSIGNED "Generate self-signed certificates" OFF)
 if(GENERATE_SELFSIGNED)
