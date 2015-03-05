@@ -426,12 +426,61 @@ UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *r
     UA_Server_addRepeatedWorkItem(server, &processDelayed, 10000000, UA_NULL);
 #endif
 
-    // 2) Start the networklayers
+    // 2a) Start the networklayers
     for(UA_Int32 i=0;i<server->nlsSize;i++)
         server->nls[i].start(server->nls[i].nlHandle, &server->logger);
 
-    // 3) The loop
-    server->timeStarted = UA_DateTime_now();
+    // 2b) Init server's meta-information
+    //fill startTime
+    server->startTime = UA_DateTime_now();
+
+    //fill build date
+    {
+		static struct tm ct;
+
+		ct.tm_year = (__DATE__[7] - '0') * 1000 +  (__DATE__[8] - '0') * 100 + (__DATE__[9] - '0') * 10 + (__DATE__[10] - '0')- 1900;
+
+		if (0) ;
+		else if ((__DATE__[0]=='J') && (__DATE__[1]=='a') && (__DATE__[2]=='n')) ct.tm_mon = 1-1;
+		else if ((__DATE__[0]=='F') && (__DATE__[1]=='e') && (__DATE__[2]=='b')) ct.tm_mon = 2-1;
+		else if ((__DATE__[0]=='M') && (__DATE__[1]=='a') && (__DATE__[2]=='r')) ct.tm_mon = 3-1;
+		else if ((__DATE__[0]=='A') && (__DATE__[1]=='p') && (__DATE__[2]=='r')) ct.tm_mon = 4-1;
+		else if ((__DATE__[0]=='M') && (__DATE__[1]=='a') && (__DATE__[2]=='y')) ct.tm_mon = 5-1;
+		else if ((__DATE__[0]=='J') && (__DATE__[1]=='u') && (__DATE__[2]=='n')) ct.tm_mon = 6-1;
+		else if ((__DATE__[0]=='J') && (__DATE__[1]=='u') && (__DATE__[2]=='l')) ct.tm_mon = 7-1;
+		else if ((__DATE__[0]=='A') && (__DATE__[1]=='u') && (__DATE__[2]=='g')) ct.tm_mon = 8-1;
+		else if ((__DATE__[0]=='S') && (__DATE__[1]=='e') && (__DATE__[2]=='p')) ct.tm_mon = 9-1;
+		else if ((__DATE__[0]=='O') && (__DATE__[1]=='c') && (__DATE__[2]=='t')) ct.tm_mon = 10-1;
+		else if ((__DATE__[0]=='N') && (__DATE__[1]=='o') && (__DATE__[2]=='v')) ct.tm_mon = 11-1;
+		else if ((__DATE__[0]=='D') && (__DATE__[1]=='e') && (__DATE__[2]=='c')) ct.tm_mon = 12-1;
+
+		// special case to handle __DATE__ not inserting leading zero on day of month
+		// if Day of month is less than 10 - it inserts a blank character
+		// this results in a negative number for tm_mday
+
+		if(__DATE__[4] == ' ')
+		{
+			ct.tm_mday =  __DATE__[5]-'0';
+		}
+		else
+		{
+			ct.tm_mday = (__DATE__[4]-'0')*10 + (__DATE__[5]-'0');
+		}
+
+		ct.tm_hour = ((__TIME__[0] - '0') * 10 + __TIME__[1] - '0');
+		ct.tm_min = ((__TIME__[3] - '0') * 10 + __TIME__[4] - '0');
+		ct.tm_sec = ((__TIME__[6] - '0') * 10 + __TIME__[7] - '0');
+
+		ct.tm_isdst = -1;  // information is not available.
+
+		//FIXME: next 3 lines are copy-pasted from ua_types.c
+		#define UNIX_EPOCH_BIAS_SEC 11644473600LL // Number of seconds from 1 Jan. 1601 00:00 to 1 Jan 1970 00:00 UTC
+		#define HUNDRED_NANOSEC_PER_USEC 10LL
+		#define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
+		server->buildDate = (mktime(&ct) + UNIX_EPOCH_BIAS_SEC) * HUNDRED_NANOSEC_PER_SEC;
+    }
+
+    //3) The loop
     while(1) {
         // 3.1) Process timed work
         UA_UInt16 timeout = processTimedWork(server);

@@ -81,15 +81,17 @@ void UA_Server_delete(UA_Server *server) {
 
 static UA_StatusCode readStatus(const void *handle, UA_DataValue *value) {
     UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
-    status->startTime   = ((const UA_Server*)handle)->timeStarted;
+    status->startTime   = ((const UA_Server*)handle)->startTime;
     status->currentTime = UA_DateTime_now();
     status->state       = UA_SERVERSTATE_RUNNING;
     UA_String_copycstring("http://www.open62541.org", &status->buildInfo.productUri);
     UA_String_copycstring("open62541", &status->buildInfo.manufacturerName);
     UA_String_copycstring("open62541 OPC UA Server", &status->buildInfo.productName);
-    UA_String_copycstring("0.0", &status->buildInfo.softwareVersion);
-    UA_String_copycstring("0.0", &status->buildInfo.buildNumber);
-    status->buildInfo.buildDate = UA_DateTime_now();
+#define STRINGIFY(x) #x //some magic
+#define TOSTRING(x) STRINGIFY(x) //some magic
+    UA_String_copycstring(TOSTRING(OPEN62541_VERSION_MAJOR) "." TOSTRING(OPEN62541_VERSION_MINOR) "." TOSTRING(OPEN62541_VERSION_PATCH), &status->buildInfo.softwareVersion);
+    UA_String_copycstring("0", &status->buildInfo.buildNumber);
+    status->buildInfo.buildDate = ((const UA_Server*)handle)->buildDate;
     status->secondsTillShutdown = 0;
 
     value->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];

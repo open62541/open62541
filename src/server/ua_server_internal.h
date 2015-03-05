@@ -63,7 +63,8 @@ struct UA_Server {
 
     LIST_HEAD(UA_TimedWorkList, UA_TimedWork) timedWork;
 
-    UA_DateTime timeStarted;
+    UA_DateTime startTime;
+    UA_DateTime buildDate;
 };
 
 void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
