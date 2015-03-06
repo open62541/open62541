@@ -228,20 +228,21 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }
+   size_t size = request->nodesToBrowseSize;
 
-   response->results = UA_Array_new(&UA_TYPES[UA_TYPES_BROWSERESULT], request->nodesToBrowseSize);
+   response->results = UA_Array_new(&UA_TYPES[UA_TYPES_BROWSERESULT], size);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
 
     /* ### Begin External Namespaces */
-    UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * request->nodesToBrowseSize);
-    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * request->nodesToBrowseSize);
-    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * request->nodesToBrowseSize);
-    for(UA_Int32 j = 0;j<server->externalNamespacesSize;j++) {
-        UA_UInt32 indexSize = 0;
-        for(UA_Int32 i = 0;i < request->nodesToBrowseSize;i++) {
+    UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
+    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
+    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
+    for(size_t j = 0;j<server->externalNamespacesSize;j++) {
+        size_t indexSize = 0;
+        for(size_t i = 0;i < size;i++) {
             if(request->nodesToBrowse[i].nodeId.namespaceIndex != server->externalNamespaces[j].index)
                 continue;
             isExternal[i] = UA_TRUE;
@@ -258,8 +259,8 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
     /* ### End External Namespaces */
 
 
-    response->resultsSize = request->nodesToBrowseSize;
-    for(UA_Int32 i = 0;i < request->nodesToBrowseSize;i++){
+    response->resultsSize = size;
+    for(size_t i = 0;i < size;i++){
         if(!isExternal[i]) {
             getBrowseResult(server->nodestore, &request->nodesToBrowse[i],
                         request->requestedMaxReferencesPerNode, &response->results[i]);

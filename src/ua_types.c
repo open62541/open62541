@@ -628,8 +628,10 @@ UA_StatusCode UA_Variant_copySetValue(UA_Variant *v, const void *p, const UA_Dat
     if(!new)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_StatusCode retval = UA_copy(p, new, type);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+	if(retval != UA_STATUSCODE_GOOD) {
+		UA_delete(new, type);
+		return retval;
+	}
     return UA_Variant_setArray(v, new, 1, type);
 }
 

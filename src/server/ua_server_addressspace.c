@@ -101,7 +101,7 @@ static UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session
         deleteNode = (void (*)(UA_Node*))UA_ViewNode_delete;
         break;
     default:
-        UA_assert(UA_FALSE);
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     UA_Int32 count = node->referencesSize;

@@ -253,20 +253,21 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }
+    size_t size = request->nodesToReadSize;
 
-    response->results = UA_Array_new(&UA_TYPES[UA_TYPES_DATAVALUE], request->nodesToReadSize);
+    response->results = UA_Array_new(&UA_TYPES[UA_TYPES_DATAVALUE], size);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
 
     /* ### Begin External Namespaces */
-    UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * request->nodesToReadSize);
-    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToReadSize);
-    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * request->nodesToReadSize);
-    for(UA_Int32 j = 0;j<server->externalNamespacesSize;j++) {
-        UA_UInt32 indexSize = 0;
-        for(UA_Int32 i = 0;i < request->nodesToReadSize;i++) {
+    UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
+    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
+    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
+    for(size_t j = 0;j<server->externalNamespacesSize;j++) {
+        size_t indexSize = 0;
+        for(size_t i = 0;i < size;i++) {
             if(request->nodesToRead[i].nodeId.namespaceIndex != server->externalNamespaces[j].index)
                 continue;
             isExternal[i] = UA_TRUE;
@@ -281,8 +282,8 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
     }
     /* ### End External Namespaces */
 
-    response->resultsSize = request->nodesToReadSize;
-    for(UA_Int32 i = 0;i < response->resultsSize;i++) {
+    response->resultsSize = size;
+    for(size_t i = 0;i < size;i++) {
         if(!isExternal[i])
             readValue(server, &request->nodesToRead[i], &response->results[i]);
     }

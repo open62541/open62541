@@ -35,7 +35,12 @@ static void UA_ExternalNamespace_deleteMembers(UA_ExternalNamespace *ens) {
 /*****************/
 
 void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkLayer) {
-    server->nls = UA_realloc(server->nls, sizeof(UA_ServerNetworkLayer)*(server->nlsSize+1));
+    UA_ServerNetworkLayer *newlayers = UA_realloc(server->nls, sizeof(UA_ServerNetworkLayer)*(server->nlsSize+1));
+    if(!newlayers) {
+        UA_LOG_ERROR(server->logger, UA_LOGGERCATEGORY_SERVER, "Networklayer added");
+        return;
+    }
+    server->nls = newlayers;
     server->nls[server->nlsSize] = networkLayer;
     server->nlsSize++;
     UA_LOG_INFO(server->logger, UA_LOGGERCATEGORY_SERVER, "Networklayer added");
@@ -115,22 +120,22 @@ UA_Server * UA_Server_new(void) {
     LIST_INIT(&server->timedWork);
 #ifdef UA_MULTITHREADING
     rcu_init();
-	cds_wfcq_init(&server->dispatchQueue_head, &server->dispatchQueue_tail);
+    cds_wfcq_init(&server->dispatchQueue_head, &server->dispatchQueue_tail);
     server->delayedWork = UA_NULL;
 #endif
 
     // logger
-    server->logger = (UA_Logger){UA_NULL, UA_NULL, UA_NULL, UA_NULL, UA_NULL, UA_NULL};
+    server->logger = (UA_Logger){ UA_NULL, UA_NULL, UA_NULL, UA_NULL, UA_NULL, UA_NULL };
 
     // random seed
-    server->random_seed = (UA_UInt32) UA_DateTime_now();
+    server->random_seed = (UA_UInt32)UA_DateTime_now();
 
     // networklayers
     server->nls = UA_NULL;
     server->nlsSize = 0;
 
     UA_ByteString_init(&server->serverCertificate);
-        
+
     // mockup application description
     UA_ApplicationDescription_init(&server->description);
     UA_String_copycstring("urn:unconfigured:open62541:application", &server->description.productUri);
@@ -148,8 +153,8 @@ UA_Server * UA_Server_new(void) {
     UA_String_copycstring("http://opcfoundation.org/UA/SecurityPolicy#None", &endpoint->securityPolicyUri);
     UA_String_copycstring("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary", &endpoint->transportProfileUri);
 
-    endpoint->userIdentityTokensSize = 1;
     endpoint->userIdentityTokens = UA_malloc(sizeof(UA_UserTokenPolicy));
+    endpoint->userIdentityTokensSize = 1;
     UA_UserTokenPolicy_init(endpoint->userIdentityTokens);
     UA_String_copycstring("my-anonymous-policy", &endpoint->userIdentityTokens->policyId); // defined per server
     endpoint->userIdentityTokens->tokenType = UA_USERTOKENTYPE_ANONYMOUS;
