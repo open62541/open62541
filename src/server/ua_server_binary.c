@@ -170,12 +170,12 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         UA_SecureChannel_init(&anonymousChannel);
         clientChannel = &anonymousChannel;
     }
+
+    UA_Session *clientSession = clientChannel->session;
 #ifdef EXTENSION_STATELESS
     if(secureChannelId == 0)
         clientSession = &anonymousSession;
 #endif
-
-    UA_Session *clientSession = clientChannel->session;
 
     // 2) Read the security header
     UA_UInt32 tokenId;
@@ -218,7 +218,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         break;
     default:
         if(clientSession != &anonymousSession)
-            retval = UA_STATUSCODE_BADNOTCONNECTED
+            retval = UA_STATUSCODE_BADNOTCONNECTED;
     }
 #endif
 
@@ -410,7 +410,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
         case UA_MESSAGETYPEANDFINAL_MSGF & 0xffffff:
 #ifdef EXTENSION_STATELESS
             processMSG(connection, server, msg, &pos);
-            break
+            break;
 #endif
                 if(connection->state != UA_CONNECTION_ESTABLISHED) {
                 connection->close(connection);

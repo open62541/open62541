@@ -240,7 +240,7 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
     UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
-    for(size_t j = 0;j<server->externalNamespacesSize;j++) {
+    for(UA_Int32 j = 0;j<server->externalNamespacesSize;j++) {
         size_t indexSize = 0;
         for(size_t i = 0;i < size;i++) {
             if(request->nodesToBrowse[i].nodeId.namespaceIndex != server->externalNamespaces[j].index)
