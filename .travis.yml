@@ -45,7 +45,7 @@ script:
 - cp open62541-win32.zip ..
 - cd .. && rm build -rf && mkdir -p build && cd build
 - echo "Cross compile release build for 32-bit linux"
-- cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-gcc32.cmake -DCMAKE_BUILD_TYPE=Release
+- cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-gcc-m32.cmake -DCMAKE_BUILD_TYPE=Release
   -DEXAMPLESERVER=ON ..
 - make -j
 - tar -pczf open62541-linux32.tar.gz exampleServer libopen62541.so libopen62541.a
