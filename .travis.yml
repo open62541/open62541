@@ -54,6 +54,11 @@ script:
 - tar -pczf open62541-linux64.tar.gz exampleServer libopen62541.so libopen62541.a
 - cp open62541-linux64.tar.gz ..
 - cd .. && rm build -rf && mkdir -p build && cd build
+- echo "Upgrade to gcc 4.8"
+- sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+- sudo apt-get update -qq
+- sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
+- sudo update-alternatives --config gcc
 - echo "Compile multithreaded version"
 - cmake -DMULTITHREADING=ON -DEXAMPLESERVER=ON ..
 - make -j
