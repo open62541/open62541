@@ -12,9 +12,8 @@
 #include "ua_nodeids.h"
 
 
-const char *UA_LoggerCategoryNames[5] =
-    {"connection", "session", "subscription", "server",
-     "userland"};
+const char *UA_LoggerCategoryNames[3] =
+    {"communication", "server", "userland"};
 
 /**********************/
 /* Namespace Handling */

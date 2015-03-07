@@ -307,10 +307,10 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         break;
 
     default: {
-        char logmsg[512];
-        sprintf(logmsg, "SL_processMessage - unknown request, namespace=%d, request=%d\n",
+        char logmsg[60];
+        sprintf(logmsg, "Unknown request: NodeId(ns=%d, i=%d)",
                 requestType.namespaceIndex, requestType.identifier.numeric);
-        UA_LOG_INFO(server->logger, UA_LOGGERCATEGORY_CONNECTION, logmsg);
+        UA_LOG_INFO(server->logger, UA_LOGGERCATEGORY_COMMUNICATION, logmsg);
 
         UA_RequestHeader  p;
         UA_ResponseHeader r;
@@ -391,7 +391,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
     UA_TcpMessageHeader tcpMessageHeader;
     do {
         if(UA_TcpMessageHeader_decodeBinary(msg, &pos, &tcpMessageHeader) != UA_STATUSCODE_GOOD) {
-            printf("ERROR: decoding of header failed \n");
+            UA_LOG_INFO(server->logger, UA_LOGGERCATEGORY_COMMUNICATION, "Decoding of message header failed");
             connection->close(connection);
             break;
         }
@@ -426,7 +426,8 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
 
         UA_TcpMessageHeader_deleteMembers(&tcpMessageHeader);
         if(pos != targetpos) {
-            printf("The message size was not as announced or the message could not be processed, skipping to the end of the message.\n");
+            UA_LOG_INFO(server->logger, UA_LOGGERCATEGORY_COMMUNICATION,
+                        "The message was not entirely processed, skipping to the end");
             pos = targetpos;
         }
     } while(msg->length > (UA_Int32)pos);

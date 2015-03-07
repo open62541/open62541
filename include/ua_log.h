@@ -33,14 +33,12 @@ extern "C" {
  */
 
 typedef enum UA_LoggerCategory {
-    UA_LOGGERCATEGORY_CONNECTION,
-    UA_LOGGERCATEGORY_SESSION,
-    UA_LOGGERCATEGORY_SUBSCRIPTION,
+    UA_LOGGERCATEGORY_COMMUNICATION,
     UA_LOGGERCATEGORY_SERVER,
     UA_LOGGERCATEGORY_USERLAND
 } UA_LoggerCategory;
 
-extern UA_EXPORT const char *UA_LoggerCategoryNames[5];
+extern UA_EXPORT const char *UA_LoggerCategoryNames[3];
 
 typedef struct UA_Logger {
     void (*log_trace)(UA_LoggerCategory category, const char *msg);

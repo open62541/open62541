@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include "ua_securechannel_manager.h"
 #include "ua_session.h"
 #include "ua_statuscodes.h"
