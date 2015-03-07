@@ -688,7 +688,6 @@ UA_StatusCode UA_DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_Diagnostic
     dst->hasLocale              = src->hasLocale;
     dst->hasAdditionalInfo      = src->hasAdditionalInfo;
     dst->hasInnerStatusCode     = src->hasInnerStatusCode;
-    dst->hasInnerDiagnosticInfo = src->hasInnerDiagnosticInfo;
     
     dst->symbolicId = src->symbolicId;
     dst->namespaceUri = src->namespaceUri;
@@ -699,12 +698,12 @@ UA_StatusCode UA_DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_Diagnostic
     if(src->hasAdditionalInfo)
        retval = UA_String_copy(&src->additionalInfo, &dst->additionalInfo);
     if(src->hasInnerDiagnosticInfo && src->innerDiagnosticInfo) {
-        if((dst->innerDiagnosticInfo = UA_malloc(sizeof(UA_DiagnosticInfo))))
+        if((dst->innerDiagnosticInfo = UA_malloc(sizeof(UA_DiagnosticInfo)))) {
             retval |= UA_DiagnosticInfo_copy(src->innerDiagnosticInfo, dst->innerDiagnosticInfo);
+            dst->hasInnerDiagnosticInfo = src->hasInnerDiagnosticInfo;
+        }
         else
             retval |= UA_STATUSCODE_BADOUTOFMEMORY;
-    } else {
-        dst->hasInnerDiagnosticInfo = UA_FALSE;
     }
     if(retval) {
         UA_DiagnosticInfo_deleteMembers(dst);

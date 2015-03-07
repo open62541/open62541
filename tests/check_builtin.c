@@ -1297,6 +1297,7 @@ START_TEST(UA_DiagnosticInfo_copyShallWorkOnExample) {
 	UA_DiagnosticInfo_init(&innerValue);
     value.hasInnerDiagnosticInfo = UA_TRUE;
 	value.innerDiagnosticInfo = &innerValue;
+    value.hasAdditionalInfo = UA_TRUE;
 	value.additionalInfo = testString;
 
 	//when
