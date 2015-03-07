@@ -146,11 +146,21 @@ if(CLIENT)
     if(MULTITHREADING)
         target_link_libraries(exampleClient urcu-cds urcu urcu-common pthread)
     endif()
+    if ((CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang") AND (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release"))
+    	add_custom_command(TARGET exampleClient POST_BUILD
+    		COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleClient>
+		)
+	endif()
     if(EXTENSION_STATELESS)
         add_executable(statelessClient $<TARGET_OBJECTS:open62541-objects> examples/client_stateless.c)
         if(MULTITHREADING)
             target_link_libraries(statelessClient urcu-cds urcu urcu-common pthread)
         endif()
+        if ((CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang") AND (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release"))
+    	add_custom_command(TARGET statelessClient POST_BUILD
+    		COMMAND ${CMAKE_STRIP} $<TARGET_FILE:statelessClient>
+		)
+		endif()
     endif()
 endif()
 
@@ -167,6 +177,11 @@ if(EXAMPLESERVER)
     if(MULTITHREADING)
         target_link_libraries(exampleServer urcu-cds urcu urcu-common pthread)
     endif()
+    if ((CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang") AND (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release"))
+    	add_custom_command(TARGET exampleServer POST_BUILD
+    		COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleServer>
+		)
+	endif()
 endif()
 
 # build rpi example server
@@ -182,6 +197,11 @@ if(EXAMPLESERVER_RPI)
     if(MULTITHREADING)
         target_link_libraries(exampleServerRpi urcu-cds urcu urcu-common pthread)
     endif()
+    if ((CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang") AND (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release"))
+    	add_custom_command(TARGET exampleServerRpi POST_BUILD
+    		COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleServerRpi>
+		)
+	endif()
 endif()
 
 ## self-signed certificates

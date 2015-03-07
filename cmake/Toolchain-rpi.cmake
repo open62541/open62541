@@ -9,3 +9,4 @@
 # make
 set(CMAKE_C_COMPILER arm-bcm2708hardfp-linux-gnueabi-gcc)
 set(CMAKE_CXX_COMPILER arm-bcm2708hardfp-linux-gnueabi-g++)
+set(CMAKE_STRIP arm-bcm2708hardfp-linux-gnueabi-strip)
