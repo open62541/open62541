@@ -79,7 +79,7 @@ after_success:
 deploy:
   provider: releases
   api_key:
-    secure: cr2bC37J4ycDjawJ+lwH9EK2B9hRrBwzeMCyjQcZ7rC0ooKDQDIO3KwyPGVvvM5maBA+K5wilZcA8CuJ5tOAzoqkg9NXzg5T7DR6GPb6n32VLoveqVXn6CfUl1II7Jpp1tIo9gdfeGn1k5GoW1ECmWwTpQJU/dp3gEk/LR5OusQ=
+    secure: PKCoA7MBRtHloIbNF4Qj5LQyCafjekfVeFXlMBd9KmC0ynNuef+D7nn38f/jo25/b0Ii7r+hgslkQPezbKyEqo2zcCB8Pn8TWau2hbzKM/dUCPoN90HVaQcRjUi8P2Y+QkouwyPWSujBL35/X5QiAntRotCSbZx4fkyiN8cU95o=
   file: 
     - open62541-win32.zip
     - open62541-linux32.tar.gz
