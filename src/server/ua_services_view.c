@@ -170,12 +170,13 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
         return;
     }
 
-    maxReferences = parentNode->referencesSize;
-    // 0 => unlimited references
+    maxReferences = parentNode->referencesSize; // 0 => unlimited references
     if(maxReferences <= 0 || maxReferences > UA_INT32_MAX ||
        (UA_Int32)maxReferences > parentNode->referencesSize) {
-        if(parentNode->referencesSize < 0)
-            maxReferences = 0;
+        if(parentNode->referencesSize <= 0) {
+            browseResult->referencesSize = 0;
+            return;
+        }
         else
             maxReferences = parentNode->referencesSize;
     }

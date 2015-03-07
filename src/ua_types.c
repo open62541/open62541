@@ -664,7 +664,13 @@ void UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_DiagnosticInfo)
 void UA_DiagnosticInfo_init(UA_DiagnosticInfo *p) {
-    *(UA_Byte*)p = 0;
+    p->hasSymbolicId          = UA_FALSE;
+    p->hasNamespaceUri        = UA_FALSE;
+    p->hasLocalizedText       = UA_FALSE;
+    p->hasLocale              = UA_FALSE;
+    p->hasAdditionalInfo      = UA_FALSE;
+    p->hasInnerStatusCode     = UA_FALSE;
+    p->hasInnerDiagnosticInfo = UA_FALSE;
     p->symbolicId          = 0;
     p->namespaceUri        = 0;
     p->localizedText       = 0;
@@ -676,19 +682,30 @@ void UA_DiagnosticInfo_init(UA_DiagnosticInfo *p) {
 
 UA_StatusCode UA_DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst) {
     UA_DiagnosticInfo_init(dst);
-    *(UA_Byte*)dst = *(const UA_Byte*)src; // bitfields
-    UA_StatusCode retval = UA_String_copy(&src->additionalInfo, &dst->additionalInfo);
-    retval |= UA_StatusCode_copy(&src->innerStatusCode, &dst->innerStatusCode);
+    dst->hasSymbolicId          = src->hasSymbolicId;
+    dst->hasNamespaceUri        = src->hasNamespaceUri;
+    dst->hasLocalizedText       = src->hasLocalizedText;
+    dst->hasLocale              = src->hasLocale;
+    dst->hasAdditionalInfo      = src->hasAdditionalInfo;
+    dst->hasInnerStatusCode     = src->hasInnerStatusCode;
+    dst->hasInnerDiagnosticInfo = src->hasInnerDiagnosticInfo;
+    
+    dst->symbolicId = src->symbolicId;
+    dst->namespaceUri = src->namespaceUri;
+    dst->localizedText = src->localizedText;
+    dst->locale = src->locale;
+    dst->innerStatusCode = src->innerStatusCode;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(src->hasAdditionalInfo)
+       retval = UA_String_copy(&src->additionalInfo, &dst->additionalInfo);
     if(src->hasInnerDiagnosticInfo && src->innerDiagnosticInfo) {
         if((dst->innerDiagnosticInfo = UA_malloc(sizeof(UA_DiagnosticInfo))))
             retval |= UA_DiagnosticInfo_copy(src->innerDiagnosticInfo, dst->innerDiagnosticInfo);
         else
             retval |= UA_STATUSCODE_BADOUTOFMEMORY;
+    } else {
+        dst->hasInnerDiagnosticInfo = UA_FALSE;
     }
-    dst->locale = src->locale;
-    dst->localizedText = src->localizedText;
-    dst->namespaceUri = src->namespaceUri;
-    dst->symbolicId = src->symbolicId;
     if(retval) {
         UA_DiagnosticInfo_deleteMembers(dst);
         UA_DiagnosticInfo_init(dst);

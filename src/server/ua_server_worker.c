@@ -250,7 +250,10 @@ static UA_UInt16 processTimedWork(UA_Server *server) {
             UA_free(tw);
         }
 #else
-        processWork(server,tw->work, tw->workSize); // does not free the work
+        // 1) Process the work since it is past its due date
+        processWork(server, tw->work, tw->workSize); // does not free the work
+
+        // 2) If the work is repeated, add it back into the list. Otherwise remove it.
         if(tw->repetitionInterval > 0) {
             tw->time += tw->repetitionInterval;
             UA_TimedWork *prevTw = tw;
@@ -273,22 +276,27 @@ static UA_UInt16 processTimedWork(UA_Server *server) {
 #endif
     }
 
-    tw = LIST_FIRST(&server->timedWork);
+    // check if the next timed work is sooner than the usual timeout
+    UA_TimedWork *first = LIST_FIRST(&server->timedWork);
     UA_UInt16 timeout = MAXTIMEOUT;
-    if(tw){
-        timeout = (tw->time - current)/10;
-        if(timeout>MAXTIMEOUT)timeout = MAXTIMEOUT;
+    if(first) {
+        timeout = (first->time - current)/10;
+        if(timeout > MAXTIMEOUT)
+            timeout = MAXTIMEOUT;
     }
     return timeout;
 }
 
 void UA_Server_deleteTimedWork(UA_Server *server) {
-    UA_TimedWork *tw;
-    while((tw = LIST_FIRST(&server->timedWork))) {
-        LIST_REMOVE(tw, pointers);
-        UA_free(tw->work);
-        UA_free(tw->workIds);
-        UA_free(tw);
+    UA_TimedWork *current;
+    UA_TimedWork *next = LIST_FIRST(&server->timedWork);
+    while(next) {
+        current = next;
+        next = LIST_NEXT(current, pointers);
+        LIST_REMOVE(current, pointers);
+        UA_free(current->work);
+        UA_free(current->workIds);
+        UA_free(current);
     }
 }
 

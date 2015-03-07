@@ -187,10 +187,8 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
 
     //UA_SecureChannel_checkSequenceNumber(channel,sequenceHeader.sequenceNumber);
     //UA_SecureChannel_checkRequestId(channel,sequenceHeader.requestId);
-    if(clientChannel) {
-        clientChannel->sequenceNumber = sequenceHeader.sequenceNumber;
-        clientChannel->requestId = sequenceHeader.requestId;
-    }
+    clientChannel->sequenceNumber = sequenceHeader.sequenceNumber;
+    clientChannel->requestId = sequenceHeader.requestId;
 
     // 3) Read the nodeid of the request
     UA_NodeId requestType;
@@ -320,10 +318,11 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
             return;
         UA_ResponseHeader_init(&r);
         init_response_header(&p, &r);
-        if(retval == UA_STATUSCODE_GOOD)
-            r.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
-        else
+        r.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
+#ifdef EXTENSION_STATELESS
+        if(retval != UA_STATUSCODE_GOOD)
             r.serviceResult = retval;
+#endif
         ALLOC_MESSAGE(message, UA_ResponseHeader_calcSizeBinary(&r));
         UA_ResponseHeader_encodeBinary(&r, message, &sendOffset);
         UA_RequestHeader_deleteMembers(&p);

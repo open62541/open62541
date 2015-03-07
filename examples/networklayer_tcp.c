@@ -136,10 +136,10 @@ static UA_StatusCode NetworkLayerTCP_add(NetworkLayerTCP *layer, UA_Int32 newsoc
 	return UA_STATUSCODE_GOOD;
 }
 
-// Takes the linked list of closed connections and returns the work for the server loop
-static UA_UInt32 batchDeleteLinks(NetworkLayerTCP *layer, UA_WorkItem **returnWork) {
-    UA_WorkItem *work = malloc(sizeof(UA_WorkItem)*layer->conLinksSize);
-	if (!work) {
+/* Removes all connections from the network layer. Returns the work items to close them properly. */
+static UA_UInt32 removeAllConnections(NetworkLayerTCP *layer, UA_WorkItem **returnWork) {
+    UA_WorkItem *work;
+	if (layer->conLinksSize <= 0 || !(work = malloc(sizeof(UA_WorkItem)*layer->conLinksSize))) {
 		*returnWork = NULL;
 		return 0;
 	}
@@ -194,12 +194,12 @@ void closeConnection(TCPConnection *handle) {
 }
 #else
 void closeConnection(TCPConnection *handle) {
+    if(handle->connection.state == UA_CONNECTION_CLOSING)
+        return;
+
 	struct deleteLink *d = malloc(sizeof(struct deleteLink));
 	if(!d)
 		return;
-
-    if(handle->connection.state == UA_CONNECTION_CLOSING)
-        return;
     handle->connection.state = UA_CONNECTION_CLOSING;
 
     UA_Connection_detachSecureChannel(&handle->connection);
@@ -304,7 +304,7 @@ static UA_StatusCode NetworkLayerTCP_start(NetworkLayerTCP *layer, UA_Logger *lo
 static UA_Int32 NetworkLayerTCP_getWork(NetworkLayerTCP *layer, UA_WorkItem **workItems,
                                         UA_UInt16 timeout) {
     UA_WorkItem *items = (void*)0;
-    UA_Int32 itemsCount = batchDeleteLinks(layer, &items);
+    UA_Int32 itemsCount = removeAllConnections(layer, &items);
     setFDSet(layer);
     struct timeval tmptv = {0, timeout};
     UA_Int32 resultsize = select(layer->highestfd+1, &layer->fdset, NULL, NULL, &tmptv);
@@ -375,7 +375,7 @@ static UA_Int32 NetworkLayerTCP_stop(NetworkLayerTCP * layer, UA_WorkItem **work
 #ifdef _WIN32
 	WSACleanup();
 #endif
-    return batchDeleteLinks(layer, workItems);
+    return removeAllConnections(layer, workItems);
 }
 
 static void NetworkLayerTCP_delete(NetworkLayerTCP *layer) {

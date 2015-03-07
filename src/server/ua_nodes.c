@@ -175,7 +175,7 @@ void UA_VariableTypeNode_delete(UA_VariableTypeNode *p) {
 UA_StatusCode UA_VariableTypeNode_copy(const UA_VariableTypeNode *src, UA_VariableTypeNode *dst) {
     UA_VariableTypeNode_init(dst);
 	UA_StatusCode retval = UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
-    retval = UA_Variant_copy(&src->value, &dst->value);
+    retval |= UA_Variant_copy(&src->value, &dst->value);
     if(retval) {
         UA_VariableTypeNode_deleteMembers(dst);
         return retval;

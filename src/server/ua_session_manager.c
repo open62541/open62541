@@ -24,14 +24,16 @@ UA_StatusCode UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt3
 }
 
 void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager) {
-    struct session_list_entry *current = LIST_FIRST(&sessionManager->sessions);
-    while(current) {
+    struct session_list_entry *current;
+    struct session_list_entry *next = LIST_FIRST(&sessionManager->sessions);
+    while(next) {
+        current = next;
+        next = LIST_NEXT(current, pointers);
         LIST_REMOVE(current, pointers);
         if(current->session.channel)
             current->session.channel->session = UA_NULL; // the channel is no longer attached to a session
         UA_Session_deleteMembers(&current->session);
         UA_free(current);
-        current = LIST_FIRST(&sessionManager->sessions);
     }
 }
 
