@@ -84,5 +84,6 @@ deploy:
     - open62541-win32.zip
     - open62541-linux32.tar.gz
     - open62541-linux64.tar.gz
+  skip_cleanup: true
   on:
-    repo: acplt/open62541
+    tags: true
