@@ -465,7 +465,7 @@ typedef struct {
 struct UA_DataType {
     UA_NodeId typeId; ///< The nodeid of the type
     size_t memSize UA_BITFIELD(16); ///< Size of the struct in memory
-    size_t typeIndex UA_BITFIELD(13); ///< Index of the type in the datatytypetable
+    size_t typeIndex UA_BITFIELD(12); ///< Index of the type in the datatytypetable
     UA_Boolean namespaceZero UA_BITFIELD(1); ///< The type is defined in namespace zero.
     UA_Boolean fixedSize UA_BITFIELD(1); ///< The type (and its members) contains no pointers
     UA_Boolean zeroCopyable UA_BITFIELD(1); ///< Can the type be copied directly off the stream?
