@@ -3,10 +3,8 @@ compiler:
 - gcc
 env:
   global:
-   #this is the encrypted GITAUTH
-   - secure: "nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo="
-   # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
-   - secure: "ehswgymGXPM3UINhOOnfSByMnrRNTixeT2vEV+z3kXy3WHew/O1yt9GxaYGrUhJPg4+5chAQgjYmezO1x3/CUKFgeHQUmVTFWEzfy1kL1JVjO+ufYyJDnbY+x3OmyNmMYcef2J5MAuUS2C1KFvIxtLsljVK+gpe4LcylkCIF/3Y="
+  - secure: nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo=
+  - secure: ehswgymGXPM3UINhOOnfSByMnrRNTixeT2vEV+z3kXy3WHew/O1yt9GxaYGrUhJPg4+5chAQgjYmezO1x3/CUKFgeHQUmVTFWEzfy1kL1JVjO+ufYyJDnbY+x3OmyNmMYcef2J5MAuUS2C1KFvIxtLsljVK+gpe4LcylkCIF/3Y=
 addons:
   coverity_scan:
     project:
@@ -17,61 +15,74 @@ addons:
     build_command: make
     branch_pattern: coverity_scan
 before_install:
-   - sudo apt-get install binutils-mingw-w64-i686 gcc-mingw-w64-i686
-   - sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-   - sudo add-apt-repository ppa:kalakris/cmake -y
-   - sudo apt-get update -qq
-   - sudo apt-get install -qq gcc-4.8
-   - sudo apt-get install -qq --no-install-recommends build-essential cmake python-lxml graphviz doxygen wget zip
-   - wget http://security.ubuntu.com/ubuntu/pool/main/c/check/check_0.9.10-6ubuntu3_amd64.deb
-   - sudo dpkg -i check_0.9.10-6ubuntu3_amd64.deb
-   - wget https://launchpad.net/ubuntu/+source/liburcu/0.8.5-1ubuntu1/+build/6513813/+files/liburcu2_0.8.5-1ubuntu1_amd64.deb
-   - wget https://launchpad.net/ubuntu/+source/liburcu/0.8.5-1ubuntu1/+build/6513813/+files/liburcu-dev_0.8.5-1ubuntu1_amd64.deb
-   - sudo dpkg -i liburcu2_0.8.5-1ubuntu1_amd64.deb
-   - sudo dpkg -i liburcu-dev_0.8.5-1ubuntu1_amd64.deb
-   - sudo pip install cpp-coveralls
-   - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
-   - sudo update-alternatives --config gcc
-script: 
-   - echo "Checking the applicability of patches"
-   - ./tools/.checkPorts.sh
-   - echo "Testing builds"
-   - mkdir -p build
-   - cd build
-   - echo "Cross compile release build for MinGW"
-   - cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw32.cmake -DCMAKE_BUILD_TYPE=Release -DEXAMPLESERVER=ON ..
-   - make -j
-   - zip open62541-win32.zip exampleServer.exe libopen62541.dll libopen62541.a libopen62541.dll.a
-   - cp open62541-win32.zip ..
-   - cd .. && rm build -rf && mkdir -p build && cd build
-   - echo "Cross compile release build for 32-bit linux"
-   - cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-gcc32.cmake -DCMAKE_BUILD_TYPE=Release -DEXAMPLESERVER=ON ..
-   - make -j
-   - tar -pczf open62541-linux32.tar.gz exampleServer libopen62541.so libopen62541.a
-   - cp open62541-linux32.tar.gz ..
-   - cd .. && rm build -rf && mkdir -p build && cd build
-   - echo "Compile release build for 64-bit linux"
-   - cmake -DCMAKE_BUILD_TYPE=Release -DEXAMPLESERVER=ON ..
-   - make -j
-   - tar -pczf open62541-linux64.tar.gz exampleServer libopen62541.so libopen62541.a
-   - cp open62541-linux64.tar.gz ..
-   - cd .. && rm build -rf && mkdir -p build && cd build
-   - echo "Compile multithreaded version"
-   - cmake -DMULTITHREADING=ON -DEXAMPLESERVER=ON ..
-   - make -j
-   - cd .. && rm build -rf && mkdir -p build && cd build
-   - echo "Documentation build"
-   - cmake -DEXAMPLESERVER=ON -DEXTENSION_STATELESS=ON -DGENERATE_DOCUMENTATION=ON .. 
-   - make -j
-   - echo "Generate documentation"
-   - make -j doc
-   - echo "Debug build and unit tests (64 bit)"
-   - make clean
-   - cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_UNIT_TESTS=ON -DENABLE_COVERAGE=ON .. 
-   - make -j && make test
-   - coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../
-   - cd ..
-
+- sudo apt-get install binutils-mingw-w64-i686 gcc-mingw-w64-i686
+- sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+- sudo add-apt-repository ppa:kalakris/cmake -y
+- sudo apt-get update -qq
+- sudo apt-get install -qq gcc-4.8
+- sudo apt-get install -qq --no-install-recommends build-essential cmake python-lxml
+  graphviz doxygen wget zip
+- wget http://security.ubuntu.com/ubuntu/pool/main/c/check/check_0.9.10-6ubuntu3_amd64.deb
+- sudo dpkg -i check_0.9.10-6ubuntu3_amd64.deb
+- wget https://launchpad.net/ubuntu/+source/liburcu/0.8.5-1ubuntu1/+build/6513813/+files/liburcu2_0.8.5-1ubuntu1_amd64.deb
+- wget https://launchpad.net/ubuntu/+source/liburcu/0.8.5-1ubuntu1/+build/6513813/+files/liburcu-dev_0.8.5-1ubuntu1_amd64.deb
+- sudo dpkg -i liburcu2_0.8.5-1ubuntu1_amd64.deb
+- sudo dpkg -i liburcu-dev_0.8.5-1ubuntu1_amd64.deb
+- sudo pip install cpp-coveralls
+- sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
+- sudo update-alternatives --config gcc
+script:
+- echo "Checking the applicability of patches"
+- ./tools/.checkPorts.sh
+- echo "Testing builds"
+- mkdir -p build
+- cd build
+- echo "Cross compile release build for MinGW"
+- cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw32.cmake -DCMAKE_BUILD_TYPE=Release
+  -DEXAMPLESERVER=ON ..
+- make -j
+- zip open62541-win32.zip exampleServer.exe libopen62541.dll libopen62541.a libopen62541.dll.a
+- cp open62541-win32.zip ..
+- cd .. && rm build -rf && mkdir -p build && cd build
+- echo "Cross compile release build for 32-bit linux"
+- cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-gcc32.cmake -DCMAKE_BUILD_TYPE=Release
+  -DEXAMPLESERVER=ON ..
+- make -j
+- tar -pczf open62541-linux32.tar.gz exampleServer libopen62541.so libopen62541.a
+- cp open62541-linux32.tar.gz ..
+- cd .. && rm build -rf && mkdir -p build && cd build
+- echo "Compile release build for 64-bit linux"
+- cmake -DCMAKE_BUILD_TYPE=Release -DEXAMPLESERVER=ON ..
+- make -j
+- tar -pczf open62541-linux64.tar.gz exampleServer libopen62541.so libopen62541.a
+- cp open62541-linux64.tar.gz ..
+- cd .. && rm build -rf && mkdir -p build && cd build
+- echo "Compile multithreaded version"
+- cmake -DMULTITHREADING=ON -DEXAMPLESERVER=ON ..
+- make -j
+- cd .. && rm build -rf && mkdir -p build && cd build
+- echo "Documentation build"
+- cmake -DEXAMPLESERVER=ON -DEXTENSION_STATELESS=ON -DGENERATE_DOCUMENTATION=ON ..
+- make -j
+- echo "Generate documentation"
+- make -j doc
+- echo "Debug build and unit tests (64 bit)"
+- make clean
+- cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_UNIT_TESTS=ON -DENABLE_COVERAGE=ON ..
+- make -j && make test
+- coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E
+  '.*CMakeCCompilerId\.c' -r ../
+- cd ..
 after_success:
-   - ./tools/.deployDoxygen.sh
-   - ./tools/.coverity.sh
+- ./tools/.deployDoxygen.sh
+- ./tools/.coverity.sh
+deploy:
+  provider: releases
+  api_key:
+    secure: cr2bC37J4ycDjawJ+lwH9EK2B9hRrBwzeMCyjQcZ7rC0ooKDQDIO3KwyPGVvvM5maBA+K5wilZcA8CuJ5tOAzoqkg9NXzg5T7DR6GPb6n32VLoveqVXn6CfUl1II7Jpp1tIo9gdfeGn1k5GoW1ECmWwTpQJU/dp3gEk/LR5OusQ=
+  file: 
+    - open62541-win32.zip
+    - open62541-linux32.tar.gz
+    - open62541-linux64.tar.gz
+  on:
+    repo: acplt/open62541
