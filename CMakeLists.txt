@@ -208,12 +208,12 @@ endif()
 option(GENERATE_SELFSIGNED "Generate self-signed certificates" OFF)
 if(GENERATE_SELFSIGNED)
     message(STATUS "Enabling self-signed certificates")
-    SET(lib_sources ${lib_sources} ${PROJECT_BINARY_DIR}/localhost.der ${PROJECT_BINARY_DIR}/ca.crt)
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/localhost.der
                               ${PROJECT_BINARY_DIR}/ca.crt
                    COMMAND python ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${PROJECT_BINARY_DIR}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/create_self-signed.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/localhost.cnf)
+    add_custom_target(selfsigned ALL DEPENDS ${PROJECT_BINARY_DIR}/localhost.der ${PROJECT_BINARY_DIR}/ca.crt)
 endif()
 
 # build unit tests

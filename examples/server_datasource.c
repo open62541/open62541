@@ -21,7 +21,7 @@
 /*************************/
 /* Read-only data source */
 /*************************/
-static UA_StatusCode readTimeData(const void *handle, UA_DataValue *value) {
+static UA_StatusCode readTimeData(const void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
     UA_DateTime *currentTime = UA_DateTime_new();
     if(!currentTime)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -32,6 +32,10 @@ static UA_StatusCode readTimeData(const void *handle, UA_DataValue *value) {
     value->value.arrayDimensionsSize = -1;
     value->value.arrayDimensions = NULL;
     value->hasVariant = UA_TRUE;
+    if(sourceTimeStamp) {
+        value->hasSourceTimestamp = UA_TRUE;
+        value->sourceTimestamp = *currentTime;
+    }
     return UA_STATUSCODE_GOOD;
 }
 
@@ -49,7 +53,7 @@ static void printDeviceStatus(UA_Server *server, void *data) {
     printf("Device Status: %i\n", deviceStatus);
 }
 
-static UA_StatusCode readDeviceStatus(const void *handle, UA_DataValue *value) {
+static UA_StatusCode readDeviceStatus(const void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
     /* In order to reduce blocking time, we could alloc memory for every read
        and return a copy of the data. */
     pthread_rwlock_rdlock(&deviceStatusLock);
@@ -59,8 +63,10 @@ static UA_StatusCode readDeviceStatus(const void *handle, UA_DataValue *value) {
     value->value.arrayDimensionsSize = -1;
     value->value.arrayDimensions = NULL;
     value->hasVariant = UA_TRUE;
-    value->sourceTimestamp = UA_DateTime_now();
-    value->hasSourceTimestamp = UA_TRUE;
+    if(sourceTimeStamp) {
+        value->sourceTimestamp = UA_DateTime_now();
+        value->hasSourceTimestamp = UA_TRUE;
+    }
     return UA_STATUSCODE_GOOD;
 }
 

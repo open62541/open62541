@@ -18,7 +18,8 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     // creates a session and adds a pointer to the channel. Only when the
     // session is activated will the channel point to the session as well
 	UA_Session *newSession;
-    response->responseHeader.serviceResult = UA_SessionManager_createSession(&server->sessionManager, channel, &newSession);
+    response->responseHeader.serviceResult = UA_SessionManager_createSession(&server->sessionManager,
+                                                                             channel, &newSession);
 	if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
 		return;
 
@@ -28,7 +29,9 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->revisedSessionTimeout = newSession->timeout;
     response->authenticationToken = newSession->authenticationToken;
     response->responseHeader.serviceResult = UA_String_copy(&request->sessionName, &newSession->sessionName);
-    response->responseHeader.serviceResult |= UA_ByteString_copy(&server->serverCertificate, &response->serverCertificate);
+    if(server->endpointDescriptions)
+        response->responseHeader.serviceResult |=
+            UA_ByteString_copy(&server->endpointDescriptions->serverCertificate, &response->serverCertificate);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_SessionManager_removeSession(&server->sessionManager, &newSession->sessionId);
          return;

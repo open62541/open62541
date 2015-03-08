@@ -13,7 +13,8 @@
     }
 
 /** Reads a single attribute from a node in the nodestore. */
-static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue *v) {
+static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
+                      const UA_ReadValueId *id, UA_DataValue *v) {
     UA_Node const *node = UA_NodeStore_get(server->nodestore, &(id->nodeId));
     if(!node) {
         v->hasStatus = UA_TRUE;
@@ -22,7 +23,6 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
     }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
     switch(id->attributeId) {
     case UA_ATTRIBUTEID_NODEID:
         v->hasVariant = UA_TRUE;
@@ -102,23 +102,25 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
             const UA_VariableNode *vn = (const UA_VariableNode*)node;
             if(vn->variableType == UA_VARIABLENODETYPE_VARIANT) {
                 retval = UA_Variant_copy(&vn->variable.variant, &v->value);
-                if(retval == UA_STATUSCODE_GOOD){
-                    v->hasVariant = UA_TRUE;
-                    v->hasServerTimestamp = UA_TRUE;
-                    v->serverTimestamp = UA_DateTime_now();
+                if(retval != UA_STATUSCODE_GOOD)
+                    break;
+                v->hasVariant = UA_TRUE;
+                if(timestamps == UA_TIMESTAMPSTORETURN_SOURCE || timestamps == UA_TIMESTAMPSTORETURN_BOTH) {
+                    v->hasSourceTimestamp = UA_TRUE;
+                    v->sourceTimestamp = UA_DateTime_now();
                 }
             } else {
                 UA_DataValue val;
                 UA_DataValue_init(&val);
-                retval |= vn->variable.dataSource.read(vn->variable.dataSource.handle, &val);
+                UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
+                                              timestamps == UA_TIMESTAMPSTORETURN_BOTH);
+                retval |= vn->variable.dataSource.read(vn->variable.dataSource.handle, sourceTimeStamp, &val);
                 if(retval != UA_STATUSCODE_GOOD)
                     break;
                 retval |= UA_DataValue_copy(&val, v);
                 vn->variable.dataSource.release(vn->variable.dataSource.handle, &val);
                 if(retval != UA_STATUSCODE_GOOD)
                     break;
-                v->hasServerTimestamp = UA_TRUE;
-                v->serverTimestamp = UA_DateTime_now();
             }
         }
         break;
@@ -138,7 +140,7 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
             else {
                 UA_DataValue val;
                 UA_DataValue_init(&val);
-                retval |= vn->variable.dataSource.read(vn->variable.dataSource.handle, &val);
+                retval |= vn->variable.dataSource.read(vn->variable.dataSource.handle, UA_FALSE, &val);
                 if(retval != UA_STATUSCODE_GOOD)
                     break;
                 retval |= UA_Variant_copySetValue(&v->value, &val.value.type->typeId,
@@ -170,7 +172,7 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
             } else {
                 UA_DataValue val;
                 UA_DataValue_init(&val);
-                retval |= vn->variable.dataSource.read(vn->variable.dataSource.handle, &val);
+                retval |= vn->variable.dataSource.read(vn->variable.dataSource.handle, UA_FALSE, &val);
                 if(retval != UA_STATUSCODE_GOOD)
                     break;
                 if(!val.hasVariant) {
@@ -238,6 +240,11 @@ static void readValue(UA_Server *server, const UA_ReadValueId *id, UA_DataValue 
     if(retval != UA_STATUSCODE_GOOD) {
         v->hasStatus = UA_TRUE;
         v->status = UA_STATUSCODE_BADNOTREADABLE;
+    } else {
+        if(timestamps == UA_TIMESTAMPSTORETURN_SERVER || timestamps == UA_TIMESTAMPSTORETURN_BOTH) {
+            v->hasServerTimestamp = UA_TRUE;
+            v->serverTimestamp = UA_DateTime_now();
+        }
     }
 }
 
@@ -279,7 +286,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
     response->resultsSize = size;
     for(size_t i = 0;i < size;i++) {
         if(!isExternal[i])
-            readValue(server, &request->nodesToRead[i], &response->results[i]);
+            readValue(server, request->timestampsToReturn, &request->nodesToRead[i], &response->results[i]);
     }
 
 #ifdef EXTENSION_STATELESS

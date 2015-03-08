@@ -71,7 +71,7 @@ UA_StatusCode UA_EXPORT UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_
  **/
 typedef struct {
     const void *handle;
-    UA_StatusCode (*read)(const void *handle, UA_DataValue *value);
+    UA_StatusCode (*read)(const void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value);
     void (*release)(const void *handle, UA_DataValue *value);
     UA_StatusCode (*write)(const void *handle, const UA_Variant *data);
 } UA_DataSource;

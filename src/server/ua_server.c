@@ -44,7 +44,8 @@ void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkL
 }
 
 void UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate) {
-    UA_ByteString_copy(&certificate, &server->serverCertificate);
+    for(UA_Int32 i=0;i<server->endpointDescriptionsSize;i++)
+        UA_ByteString_copy(&certificate, &server->endpointDescriptions[i].serverCertificate);
 }
 
 void UA_Server_setLogger(UA_Server *server, UA_Logger logger) {
@@ -81,7 +82,7 @@ void UA_Server_delete(UA_Server *server) {
     UA_free(server);
 }
 
-static UA_StatusCode readStatus(const void *handle, UA_DataValue *value) {
+static UA_StatusCode readStatus(const void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
     UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
     status->startTime   = ((const UA_Server*)handle)->startTime;
     status->currentTime = UA_DateTime_now();
@@ -95,13 +96,16 @@ static UA_StatusCode readStatus(const void *handle, UA_DataValue *value) {
     UA_String_copycstring("0", &status->buildInfo.buildNumber);
     status->buildInfo.buildDate = ((const UA_Server*)handle)->buildDate;
     status->secondsTillShutdown = 0;
-
     value->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
 	value->value.arrayLength = 1;
     value->value.dataPtr = status;
     value->value.arrayDimensionsSize = -1;
     value->value.arrayDimensions = UA_NULL;
     value->hasVariant = UA_TRUE;
+    if(sourceTimeStamp) {
+        value->hasSourceTimestamp = UA_TRUE;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
     return UA_STATUSCODE_GOOD;
 }
 
