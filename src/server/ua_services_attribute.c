@@ -8,7 +8,7 @@
 #define CHECK_NODECLASS(CLASS)                                  \
     if(!(node->nodeClass & (CLASS))) {                          \
         v->hasStatus = UA_TRUE;                                 \
-        v->status = UA_STATUSCODE_BADNOTREADABLE;               \
+        v->status = UA_STATUSCODE_BADATTRIBUTEIDINVALID;        \
         break;                                                  \
     }
 
@@ -254,6 +254,12 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }
+
+    if(request->maxAge < 0) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADMAXAGEINVALID;
+        return;
+    }
+
     size_t size = request->nodesToReadSize;
 
     response->results = UA_Array_new(&UA_TYPES[UA_TYPES_DATAVALUE], size);
