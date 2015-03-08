@@ -71,15 +71,14 @@ static const UA_Node * getRelevantTargetNode(UA_NodeStore *ns, const UA_BrowseDe
     return node;
 }
 
-/* We do not search across namespaces so far. The id of the root-referencetype
-   is returned in the array also. */
-static UA_StatusCode findRelevantReferenceTypes(UA_NodeStore *ns, const UA_NodeId *rootReferenceType,
-                                                UA_NodeId **referenceTypes, size_t *referenceTypesSize) {
+/* Find all referencetypes that are subtypes (of subtypes) of the given root referencetype */
+static UA_StatusCode findReferenceTypeSubTypes(UA_NodeStore *ns, const UA_NodeId *rootReferenceType,
+                                               UA_NodeId **referenceTypes, size_t *referenceTypesSize) {
     /* The references form a tree. We walk the tree by adding new nodes to the end of the array. */
-    size_t currentIndex = 0;
-    size_t currentLastIndex = 0;
-    size_t currentArraySize = 20; // should be more than enough. if not, increase the array size.
-    UA_NodeId *typeArray = UA_malloc(sizeof(UA_NodeId) * currentArraySize);
+    size_t index = 0;
+    size_t lastIndex = 0;
+    size_t arraySize = 20; // should be more than enough. if not, increase the array size.
+    UA_NodeId *typeArray = UA_malloc(sizeof(UA_NodeId) * arraySize);
     if(!typeArray)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -90,51 +89,59 @@ static UA_StatusCode findRelevantReferenceTypes(UA_NodeStore *ns, const UA_NodeI
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
         
+    /**
+     * We find all subtypes by a single iteration over the array. We start with an array with a
+     * single root nodeid at the beginning. When we find relevant references, we add the nodeids to
+     * the back of the array and increase the size. Since the hierarchy is not cyclic, we can safely
+     * progress in the array to process the newly found referencetype nodeids (emulated recursion).
+     */
     do {
+        // 1) Get the node
         const UA_ReferenceTypeNode *node =
-            (const UA_ReferenceTypeNode *)UA_NodeStore_get(ns, &typeArray[currentIndex]);
+            (const UA_ReferenceTypeNode *)UA_NodeStore_get(ns, &typeArray[index]);
         if(!node)
             break;
-        // subtypes of referencestypes are always referencestypes?
+
+        // 2) Check that we have the right type of node
         if(node->nodeClass != UA_NODECLASS_REFERENCETYPE) 
             continue;
 
-        // Find subtypes of the current referencetype
+        // 3) Find references to subtypes
         for(UA_Int32 i = 0; i < node->referencesSize && retval == UA_STATUSCODE_GOOD; i++) {
+            // Is this a subtype reference?
             if(node->references[i].referenceTypeId.identifier.numeric != 45 /* HasSubtype */ ||
                node->references[i].isInverse == UA_TRUE)
                 continue;
 
-            if(currentLastIndex + 1 >= currentArraySize) {
-                // we need to resize the array
-                UA_NodeId *newArray = UA_malloc(sizeof(UA_NodeId) * currentArraySize * 2);
-                if(newArray) {
-                    UA_memcpy(newArray, typeArray, sizeof(UA_NodeId) * currentArraySize);
-                    currentArraySize *= 2;
-                    UA_free(typeArray);
-                    typeArray = newArray;
-                } else {
+            // Do we have enough space in the array?
+            if(lastIndex + 1 >= arraySize) {
+                UA_NodeId *newArray = UA_malloc(sizeof(UA_NodeId) * arraySize * 2);
+                if(!newArray) {
                     retval = UA_STATUSCODE_BADOUTOFMEMORY;
                     break;
                 }
+                UA_memcpy(newArray, typeArray, sizeof(UA_NodeId) * arraySize);
+                arraySize *= 2;
+                UA_free(typeArray);
+                typeArray = newArray;
             }
 
-            // ok, we have space to add the new referencetype.
-            retval |= UA_NodeId_copy(&node->references[i].targetId.nodeId, &typeArray[++currentLastIndex]);
+            // Copy the node
+            retval |= UA_NodeId_copy(&node->references[i].targetId.nodeId, &typeArray[++lastIndex]);
             if(retval)
-                currentLastIndex--; // undo if we need to delete the typeArray
+                lastIndex--; // undo if we need to delete the typeArray
         }
         UA_NodeStore_release((const UA_Node*)node);
-    } while(++currentIndex <= currentLastIndex && retval == UA_STATUSCODE_GOOD);
+    } while(++index <= lastIndex && retval == UA_STATUSCODE_GOOD);
 
-    if(retval)
-        UA_Array_delete(typeArray, &UA_TYPES[UA_TYPES_NODEID], currentLastIndex);
-    else {
-        *referenceTypes = typeArray;
-        *referenceTypesSize = currentLastIndex + 1;
+    if(retval) {
+        UA_Array_delete(typeArray, &UA_TYPES[UA_TYPES_NODEID], lastIndex);
+        return retval;
     }
-    
-    return retval;
+
+    *referenceTypes = typeArray;
+    *referenceTypesSize = lastIndex + 1;
+    return UA_STATUSCODE_GOOD;
 }
 
 /* Results for a single browsedescription. */
@@ -148,8 +155,8 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
     if(!returnAll) {
         if(browseDescription->includeSubtypes) {
             browseResult->statusCode =
-                findRelevantReferenceTypes(ns, &browseDescription->referenceTypeId, &relevantReferenceTypes,
-                                           &relevantReferenceTypesSize);
+                findReferenceTypeSubTypes(ns, &browseDescription->referenceTypeId, &relevantReferenceTypes,
+                                          &relevantReferenceTypesSize);
             if(browseResult->statusCode != UA_STATUSCODE_GOOD)
                 return;
         } else {
