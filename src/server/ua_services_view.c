@@ -43,18 +43,19 @@ static UA_StatusCode fillReferenceDescription(UA_NodeStore *ns, const UA_Node *c
 
 /* Tests if the node is relevant to the browse request and shall be returned. If
    so, it is retrieved from the Nodestore. If not, null is returned. */
-static const UA_Node *
-getRelevantTargetNode(UA_NodeStore *ns, const UA_BrowseDescription *browseDescription, UA_Boolean returnAll,
-                      UA_ReferenceNode *reference, UA_NodeId *relevantRefTypes, UA_UInt32 relevantRefTypesCount) {
-    if(reference->isInverse == UA_TRUE && browseDescription->browseDirection == UA_BROWSEDIRECTION_FORWARD)
+static const UA_Node * getRelevantTargetNode(UA_NodeStore *ns, const UA_BrowseDescription *browseDescription,
+                                             UA_Boolean returnAll, UA_ReferenceNode *reference,
+                                             UA_NodeId *relevantRefTypes, size_t relevantRefTypesCount) {
+    if(reference->isInverse == UA_TRUE &&
+       browseDescription->browseDirection == UA_BROWSEDIRECTION_FORWARD)
         return UA_NULL;
-
-    else if(reference->isInverse == UA_FALSE && browseDescription->browseDirection == UA_BROWSEDIRECTION_INVERSE)
+    else if(reference->isInverse == UA_FALSE &&
+            browseDescription->browseDirection == UA_BROWSEDIRECTION_INVERSE)
         return UA_NULL;
 
     UA_Boolean isRelevant = returnAll;
     if(!isRelevant) {
-        for(UA_UInt32 i = 0;i < relevantRefTypesCount;i++) {
+        for(size_t i = 0;i < relevantRefTypesCount;i++) {
             if(UA_NodeId_equal(&reference->referenceTypeId, &relevantRefTypes[i]))
                 isRelevant = UA_TRUE;
         }
@@ -63,25 +64,21 @@ getRelevantTargetNode(UA_NodeStore *ns, const UA_BrowseDescription *browseDescri
     }
 
     const UA_Node *node = UA_NodeStore_get(ns, &reference->targetId.nodeId);
-    if(!node)
-        return UA_NULL;
-
-    if(browseDescription->nodeClassMask != 0 && (node->nodeClass & browseDescription->nodeClassMask) == 0) {
+    if(node && browseDescription->nodeClassMask != 0 && (node->nodeClass & browseDescription->nodeClassMask) == 0) {
         UA_NodeStore_release(node);
-        return UA_NULL;
+        node = UA_NULL;
     }
-
     return node;
 }
 
 /* We do not search across namespaces so far. The id of the root-referencetype
    is returned in the array also. */
 static UA_StatusCode findRelevantReferenceTypes(UA_NodeStore *ns, const UA_NodeId *rootReferenceType,
-                                                UA_NodeId **referenceTypes, UA_UInt32 *referenceTypesSize) {
+                                                UA_NodeId **referenceTypes, size_t *referenceTypesSize) {
     /* The references form a tree. We walk the tree by adding new nodes to the end of the array. */
-    UA_UInt32 currentIndex = 0;
-    UA_UInt32 currentLastIndex = 0;
-    UA_UInt32 currentArraySize = 20; // should be more than enough. if not, increase the array size.
+    size_t currentIndex = 0;
+    size_t currentLastIndex = 0;
+    size_t currentArraySize = 20; // should be more than enough. if not, increase the array size.
     UA_NodeId *typeArray = UA_malloc(sizeof(UA_NodeId) * currentArraySize);
     if(!typeArray)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -143,16 +140,16 @@ static UA_StatusCode findRelevantReferenceTypes(UA_NodeStore *ns, const UA_NodeI
 /* Results for a single browsedescription. */
 static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browseDescription,
                             UA_UInt32 maxReferences, UA_BrowseResult *browseResult) {
-    UA_UInt32  relevantReferenceTypesSize = 0;
+    size_t relevantReferenceTypesSize = 0;
     UA_NodeId *relevantReferenceTypes = UA_NULL;
 
     // if the referencetype is null, all referencetypes are returned
     UA_Boolean returnAll = UA_NodeId_isNull(&browseDescription->referenceTypeId);
     if(!returnAll) {
         if(browseDescription->includeSubtypes) {
-            browseResult->statusCode = findRelevantReferenceTypes(ns, &browseDescription->referenceTypeId,
-                                                                  &relevantReferenceTypes,
-                                                                  &relevantReferenceTypesSize);
+            browseResult->statusCode =
+                findRelevantReferenceTypes(ns, &browseDescription->referenceTypeId, &relevantReferenceTypes,
+                                           &relevantReferenceTypesSize);
             if(browseResult->statusCode != UA_STATUSCODE_GOOD)
                 return;
         } else {
@@ -170,16 +167,14 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
         return;
     }
 
-    maxReferences = parentNode->referencesSize; // 0 => unlimited references
-    if(maxReferences <= 0 || maxReferences > UA_INT32_MAX ||
-       (UA_Int32)maxReferences > parentNode->referencesSize) {
-        if(parentNode->referencesSize <= 0) {
-            browseResult->referencesSize = 0;
-            return;
-        }
-        else
-            maxReferences = parentNode->referencesSize;
+    if(parentNode->referencesSize <= 0) {
+        UA_NodeStore_release(parentNode);
+        browseResult->referencesSize = 0;
+        if(!returnAll)
+            UA_Array_delete(relevantReferenceTypes, &UA_TYPES[UA_TYPES_NODEID], relevantReferenceTypesSize);
+        return;
     }
+    maxReferences = parentNode->referencesSize; // 0 => unlimited references
 
     /* We allocate an array that is probably too big. But since most systems
        have more than enough memory, this has zero impact on speed and
@@ -188,13 +183,12 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
     if(!browseResult->references) {
         browseResult->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
     } else {
-        UA_UInt32 currentRefs = 0;
+        size_t currentRefs = 0;
         for(UA_Int32 i = 0;i < parentNode->referencesSize && currentRefs < maxReferences;i++) {
             // 1) Is the node relevant? If yes, the node is retrieved from the nodestore.
-            const UA_Node *currentNode = getRelevantTargetNode(ns, browseDescription, returnAll,
-                                                               &parentNode->references[i],
-                                                               relevantReferenceTypes,
-                                                               relevantReferenceTypesSize);
+            const UA_Node *currentNode =
+                getRelevantTargetNode(ns, browseDescription, returnAll, &parentNode->references[i],
+                                      relevantReferenceTypes, relevantReferenceTypesSize);
             if(!currentNode)
                 continue;
 
@@ -259,13 +253,11 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
     }
     /* ### End External Namespaces */
 
-
     response->resultsSize = size;
     for(size_t i = 0;i < size;i++){
-        if(!isExternal[i]) {
+        if(!isExternal[i])
             getBrowseResult(server->nodestore, &request->nodesToBrowse[i],
                         request->requestedMaxReferencesPerNode, &response->results[i]);
-        }
     }
 }
 

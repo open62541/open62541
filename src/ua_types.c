@@ -120,20 +120,18 @@ UA_StatusCode UA_String_copy(UA_String const *src, UA_String *dst) {
 
 /* The c-string needs to be null-terminated. the string cannot be smaller than zero. */
 UA_Int32 UA_String_copycstring(char const *src, UA_String *dst) {
-    UA_UInt32 length = (UA_UInt32) strlen(src);
+    UA_String_init(dst);
+    size_t length = (UA_UInt32) strlen(src);
     if(length == 0) {
         dst->length = 0;
         dst->data = UA_NULL;
         return UA_STATUSCODE_GOOD;
     }
     dst->data = UA_malloc(length);
-    if(dst->data != UA_NULL) {
-        UA_memcpy(dst->data, src, length);
-        dst->length = (UA_Int32) (length & ~(1<<31)); // the highest bit is always zero to avoid overflows into negative values
-    } else {
-        dst->length = -1;
+    if(!dst->data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
+    UA_memcpy(dst->data, src, length);
+    dst->length = length;
     return UA_STATUSCODE_GOOD;
 }
 

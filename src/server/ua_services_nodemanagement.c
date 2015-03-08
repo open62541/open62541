@@ -313,6 +313,7 @@ void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddR
 				response->diagnosticInfos);
 	}
 	/* ### End External Namespaces */
+
 	response->resultsSize = size;
 	for(UA_Int32 i = 0; i < response->resultsSize; i++) {
 		if(!isExternal[i])
