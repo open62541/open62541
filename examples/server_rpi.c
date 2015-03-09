@@ -140,7 +140,7 @@ int main(int argc, char** argv) {
 
 	if (	!(triggerFile = fopen("/sys/class/leds/led0/trigger", "w"))
 			|| 	!(ledFile = fopen("/sys/class/leds/led0/brightness", "w"))) {
-		printf("Can not open trigger or led file, no led node will be added\n");
+		printf("Can not open trigger or led file, no led node will be added (try to run server from sudo)\n");
 	} else {
 		//setting led mode to manual
 		fprintf(triggerFile, "%s", "none");
