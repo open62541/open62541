@@ -33,12 +33,12 @@ static UA_StatusCode readTemperature(const void *handle, UA_Boolean sourceTimeSt
 
 	if (fseek(temperatureFile, 0, SEEK_SET))
 	{
-		puts("Error seeking to start of file");
+		UA_LOG_WARNING(logger, UA_LOGGERCATEGORY_USERLAND, "Error seeking to start of file");
 		exit(1);
 	}
 
 	if(fscanf(temperatureFile, "%lf", currentTemperature) != 1){
-		printf("Can not parse temperature!\n");
+		UA_LOG_WARNING(logger, UA_LOGGERCATEGORY_USERLAND, "Can not parse temperature");
 		exit(1);
 	}
 
@@ -97,23 +97,26 @@ static UA_StatusCode writeLedStatus(const void *handle, const UA_Variant *data) 
 
 	if (fseek(triggerFile, 0, SEEK_SET))
 	{
-		puts("Error seeking to start of led file");
+		UA_LOG_WARNING(logger, UA_LOGGERCATEGORY_USERLAND, "Error seeking to start of led file");
 	}
     if(ledStatus == 1){
     	fprintf(ledFile, "%s", "1");
     } else {
     	fprintf(ledFile, "%s", "0");
     }
+    fflush(ledFile);
+
     pthread_rwlock_unlock(&ledStatusLock);
     return UA_STATUSCODE_GOOD;
 }
 
 static void stopHandler(int sign) {
-	printf("Received Ctrl-C\n");
+	UA_LOG_INFO(logger, UA_LOGGERCATEGORY_SERVER, "Received Ctrl-C");
 	running = 0;
 }
 
 int main(int argc, char** argv) {
+
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
 	pthread_rwlock_init(&ledStatusLock, 0);
 
@@ -123,7 +126,7 @@ int main(int argc, char** argv) {
 	UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 
 	if(!(temperatureFile = fopen("/sys/class/thermal/thermal_zone0/temp", "r"))){
-		printf("Can not open temperature file, no temperature node will be added\n");
+		UA_LOG_WARNING(logger, UA_LOGGERCATEGORY_USERLAND, "[Linux specific] Can not open temperature file, no temperature node will be added");
 	} else {
 		// add node with the datetime data source
 		UA_DataSource temperatureDataSource = (UA_DataSource)
@@ -140,7 +143,7 @@ int main(int argc, char** argv) {
 
 	if (	!(triggerFile = fopen("/sys/class/leds/led0/trigger", "w"))
 			|| 	!(ledFile = fopen("/sys/class/leds/led0/brightness", "w"))) {
-		printf("Can not open trigger or led file, no led node will be added (try to run server from sudo)\n");
+		UA_LOG_WARNING(logger, UA_LOGGERCATEGORY_USERLAND, "[Raspberry Pi specific] Can not open trigger or led file, no led node will be added (try to run server from sudo)");
 	} else {
 		//setting led mode to manual
 		fprintf(triggerFile, "%s", "none");
@@ -171,7 +174,7 @@ int main(int argc, char** argv) {
 	if(triggerFile){
 		if (fseek(triggerFile, 0, SEEK_SET))
 		{
-			puts("Error seeking to start of led file");
+			UA_LOG_WARNING(logger, UA_LOGGERCATEGORY_USERLAND, "Error seeking to start of led file");
 		}
 
 		//setting led mode to default
