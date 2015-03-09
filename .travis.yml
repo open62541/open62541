@@ -80,7 +80,9 @@ after_success:
 before_deploy:
 - rm build -rf && mkdir -p build && cd build
 - echo "Cross compile release build for Raspberry Pi"
-- git clone https://github.com/raspberrypi/tools ~
+- cd ~
+- git clone https://github.com/raspberrypi/tools
+- cd -
 - export PATH=$PATH:~/tools/arm-bcm2708/arm-bcm2708hardfp-linux-gnueabi/bin/
 - cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-rpi64.cmake -DCMAKE_BUILD_TYPE=Release -DEXAMPLESERVER=ON ..
 - make -j
