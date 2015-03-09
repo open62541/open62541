@@ -1,4 +1,4 @@
-# -- How to cross compile for Raspberry Pi -- 
+# -- How to cross compile for Raspberry Pi (on a 32bit host) -- 
 # 1) get the toolchain
 # cd ~
 # git clone https://github.com/raspberrypi/tools

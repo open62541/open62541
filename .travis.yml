@@ -36,20 +36,20 @@ script:
 - cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw32.cmake -DCMAKE_BUILD_TYPE=Release
   -DEXAMPLESERVER=ON ..
 - make -j
-- zip open62541-win32.zip README.md exampleServer_datasource.exe libopen62541.dll libopen62541.a libopen62541.dll.a
+- zip open62541-win32.zip ../README.md exampleServer_datasource.exe libopen62541.dll libopen62541.a libopen62541.dll.a
 - cp open62541-win32.zip ..
 - cd .. && rm build -rf && mkdir -p build && cd build
 - echo "Cross compile release build for 32-bit linux"
 - cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-gcc-m32.cmake -DCMAKE_BUILD_TYPE=Release
   -DEXAMPLESERVER=ON ..
 - make -j
-- tar -pczf open62541-linux32.tar.gz README.md exampleServer_datasource libopen62541.so libopen62541.a
+- tar -pczf open62541-linux32.tar.gz ../README.md exampleServer_datasource libopen62541.so libopen62541.a
 - cp open62541-linux32.tar.gz ..
 - cd .. && rm build -rf && mkdir -p build && cd build
 - echo "Compile release build for 64-bit linux"
 - cmake -DCMAKE_BUILD_TYPE=Release -DEXAMPLESERVER=ON ..
 - make -j
-- tar -pczf open62541-linux64.tar.gz README.md exampleServer_datasource libopen62541.so libopen62541.a
+- tar -pczf open62541-linux64.tar.gz ../README.md exampleServer_datasource libopen62541.so libopen62541.a
 - cp open62541-linux64.tar.gz ..
 - cd .. && rm build -rf && mkdir -p build && cd build
 - echo "Upgrade to gcc 4.8"
@@ -77,6 +77,16 @@ script:
 after_success:
 - ./tools/.deployDoxygen.sh
 - ./tools/.coverity.sh
+before_deploy:
+- rm build -rf && mkdir -p build && cd build
+- echo "Cross compile release build for Raspberry Pi"
+- git clone https://github.com/raspberrypi/tools ~
+- export PATH=$PATH:~/tools/arm-bcm2708/arm-bcm2708hardfp-linux-gnueabi/bin/
+- cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-rpi64.cmake -DCMAKE_BUILD_TYPE=Release -DEXAMPLESERVER=ON ..
+- make -j
+- tar -pczf open62541-raspberrypi.tar.gz ../README.md exampleServer_datasource libopen62541.so libopen62541.a
+- cp open62541-raspberrypi.tar.gz ..
+- cd ..
 deploy:
   provider: releases
   api_key:
@@ -85,6 +95,7 @@ deploy:
     - open62541-win32.zip
     - open62541-linux32.tar.gz
     - open62541-linux64.tar.gz
+    - open62541-raspberrypi.tar.gz
   skip_cleanup: true
   on:
     tags: true
