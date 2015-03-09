@@ -147,9 +147,11 @@ int main(int argc, char** argv) {
 	} else {
 		//setting led mode to manual
 		fprintf(triggerFile, "%s", "none");
+		fflush(triggerFile);
 
 		//turning off led initially
 		fprintf(ledFile, "%s", "1");
+		fflush(ledFile);
 
 		// add node with the device status data source
 		UA_DataSource ledStatusDataSource = (UA_DataSource)
