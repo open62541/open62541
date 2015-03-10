@@ -92,8 +92,13 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
     case UA_ATTRIBUTEID_EVENTNOTIFIER:
         CHECK_NODECLASS(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT);
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &((const UA_ViewNode *)node)->eventNotifier,
-                                          &UA_TYPES[UA_TYPES_BYTE]);
+        if(node->nodeClass == UA_NODECLASS_VIEW){
+        	retval |= UA_Variant_copySetValue(&v->value, &((const UA_ViewNode *)node)->eventNotifier,
+                                          	  &UA_TYPES[UA_TYPES_BYTE]);
+        } else {
+        	retval |= UA_Variant_copySetValue(&v->value, &((const UA_ObjectNode *)node)->eventNotifier,
+        	                                          	  &UA_TYPES[UA_TYPES_BYTE]);
+        }
         break;
 
     case UA_ATTRIBUTEID_VALUE:
@@ -172,6 +177,7 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
             } else {
                 UA_DataValue val;
                 UA_DataValue_init(&val);
+
                 retval |= vn->variable.dataSource.read(vn->variable.dataSource.handle, UA_FALSE, &val);
                 if(retval != UA_STATUSCODE_GOOD)
                     break;
