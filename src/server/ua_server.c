@@ -115,6 +115,28 @@ static void releaseStatus(const void *handle, UA_DataValue *value) {
     UA_DataValue_deleteMembers(value);
 }
 
+static UA_StatusCode readCurrentTime(const void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
+	UA_DateTime *currentTime = UA_DateTime_new();
+	if(!currentTime)
+		return UA_STATUSCODE_BADOUTOFMEMORY;
+	*currentTime = UA_DateTime_now();
+	value->value.type = &UA_TYPES[UA_TYPES_DATETIME];
+	value->value.arrayLength = 1;
+	value->value.dataPtr = currentTime;
+	value->value.arrayDimensionsSize = -1;
+	value->value.arrayDimensions = NULL;
+	value->hasVariant = UA_TRUE;
+	if(sourceTimeStamp) {
+		value->hasSourceTimestamp = UA_TRUE;
+		value->sourceTimestamp = *currentTime;
+	}
+	return UA_STATUSCODE_GOOD;
+}
+
+static void releaseCurrentTime(const void *handle, UA_DataValue *value) {
+	UA_DateTime_delete((UA_DateTime*)value->value.dataPtr);
+}
+
 static void copyNames(UA_Node *node, char *name) {
     UA_QualifiedName_copycstring(name, &node->browseName);
     UA_LocalizedText_copycstring(name, &node->displayName);
@@ -538,6 +560,15 @@ UA_Server * UA_Server_new(void) {
     UA_NodeStore_insert(server->nodestore, (UA_Node*)state, UA_NULL);
     ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS), UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT),
                      UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));
+
+    UA_VariableNode *currenttime = UA_VariableNode_new();
+    copyNames((UA_Node*)serverstatus, "CurrentTime");
+    currenttime->nodeId = UA_NODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    currenttime->variableType = UA_VARIABLENODETYPE_DATASOURCE;
+    currenttime->variable.dataSource = (UA_DataSource) {.handle = NULL, .read = readCurrentTime,
+                                                         .release = releaseCurrentTime, .write = UA_NULL};
+    UA_Server_addNode(server, (UA_Node*)currenttime, &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
+                      &UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT));
 
     /**************/
     /* Data Types */
