@@ -140,7 +140,7 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
             messageOnStack = UA_TRUE;                                   \
             *MESSAGE = (UA_ByteString){.length = messageSize,           \
                                        .data = UA_alloca(messageSize)}; \
-                        } else                                                          \
+                        } else                                          \
             UA_ByteString_newMembers(MESSAGE, messageSize);             \
     } while(0)
 

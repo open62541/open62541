@@ -540,7 +540,7 @@ void UA_DataValue_deleteMembers(UA_DataValue *p) {
 }
 
 void UA_DataValue_init(UA_DataValue *p) {
-    *((UA_Byte*)p) = 0; // zero out the bitfield 
+    *((UA_Byte*)p) = 0; // zero out the bitfield
     p->serverPicoseconds = 0;
     UA_DateTime_init(&p->serverTimestamp);
     p->sourcePicoseconds = 0;
@@ -662,13 +662,7 @@ void UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
 
 UA_TYPE_NEW_DEFAULT(UA_DiagnosticInfo)
 void UA_DiagnosticInfo_init(UA_DiagnosticInfo *p) {
-    p->hasSymbolicId          = UA_FALSE;
-    p->hasNamespaceUri        = UA_FALSE;
-    p->hasLocalizedText       = UA_FALSE;
-    p->hasLocale              = UA_FALSE;
-    p->hasAdditionalInfo      = UA_FALSE;
-    p->hasInnerStatusCode     = UA_FALSE;
-    p->hasInnerDiagnosticInfo = UA_FALSE;
+	*((UA_Byte*)p) = 0; // zero out the bitfield
     p->symbolicId          = 0;
     p->namespaceUri        = 0;
     p->localizedText       = 0;
@@ -680,12 +674,7 @@ void UA_DiagnosticInfo_init(UA_DiagnosticInfo *p) {
 
 UA_StatusCode UA_DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst) {
     UA_DiagnosticInfo_init(dst);
-    dst->hasSymbolicId          = src->hasSymbolicId;
-    dst->hasNamespaceUri        = src->hasNamespaceUri;
-    dst->hasLocalizedText       = src->hasLocalizedText;
-    dst->hasLocale              = src->hasLocale;
-    dst->hasAdditionalInfo      = src->hasAdditionalInfo;
-    dst->hasInnerStatusCode     = src->hasInnerStatusCode;
+    *((UA_Byte*)dst) = *((const UA_Byte*)src); // the bitfield
     
     dst->symbolicId = src->symbolicId;
     dst->namespaceUri = src->namespaceUri;

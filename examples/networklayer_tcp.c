@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <errno.h> // errno, EINTR
 #include <fcntl.h> // fcntl
+#include <string.h> // memset
 
 #include "networklayer_tcp.h" // UA_MULTITHREADING is defined in here
 
@@ -218,6 +219,7 @@ void writeCallback(TCPConnection *handle, UA_ByteStringArray gather_buf) {
 	UA_UInt32 total_len = 0, nWritten = 0;
 #ifdef _WIN32
 	LPWSABUF buf = _alloca(gather_buf.stringsSize * sizeof(WSABUF));
+	memset(buf, 0, sizeof(gather_buf.stringsSize * sizeof(WSABUF)));
 	int result = 0;
 	for(UA_UInt32 i = 0; i<gather_buf.stringsSize; i++) {
 		buf[i].buf = (char*)gather_buf.strings[i].data;
@@ -236,14 +238,16 @@ void writeCallback(TCPConnection *handle, UA_ByteStringArray gather_buf) {
 	}
 #else
 	struct iovec iov[gather_buf.stringsSize];
+	memset(iov, 0, sizeof(struct iovec)*gather_buf.stringsSize);
 	for(UA_UInt32 i=0;i<gather_buf.stringsSize;i++) {
-		iov[i] = (struct iovec) {.iov_base = gather_buf.strings[i].data,
-                                 .iov_len = gather_buf.strings[i].length};
+		iov[i].iov_base = gather_buf.strings[i].data;
+		iov[i].iov_len = gather_buf.strings[i].length;
 		total_len += gather_buf.strings[i].length;
 	}
-	struct msghdr message = {.msg_name = NULL, .msg_namelen = 0, .msg_iov = iov,
-							 .msg_iovlen = gather_buf.stringsSize, .msg_control = NULL,
-							 .msg_controllen = 0, .msg_flags = 0};
+	struct msghdr message;
+	memset(&message, 0, sizeof(message));
+	message.msg_iov = iov;
+	message.msg_iovlen = gather_buf.stringsSize;
 	while (nWritten < total_len) {
 		UA_Int32 n = 0;
 		do {

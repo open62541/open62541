@@ -57,29 +57,31 @@ void UA_Server_setLogger(UA_Server *server, UA_Logger logger) {
 /**********/
 
 void UA_Server_delete(UA_Server *server) {
-    // The server needs to be stopped before it can be deleted
+	// The server needs to be stopped before it can be deleted
 
-    // Delete the network layers
-    for(UA_Int32 i=0;i<server->nlsSize;i++) {
-        server->nls[i].free(server->nls[i].nlHandle);
-    }
-    UA_free(server->nls);
+	// Delete all internal data
+	UA_ApplicationDescription_deleteMembers(&server->description);
+	UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
+	UA_SessionManager_deleteMembers(&server->sessionManager);
+	UA_NodeStore_delete(server->nodestore);
+	UA_ByteString_deleteMembers(&server->serverCertificate);
+	UA_Array_delete(server->endpointDescriptions, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION], server->endpointDescriptionsSize);
 
-    // Delete the timed work
-    UA_Server_deleteTimedWork(server);
+	// Delete the timed work
+	UA_Server_deleteTimedWork(server);
 
-    // Delete all internal data
-    UA_ApplicationDescription_deleteMembers(&server->description);
-    UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
-    UA_SessionManager_deleteMembers(&server->sessionManager);
-    UA_NodeStore_delete(server->nodestore);
-    UA_ByteString_deleteMembers(&server->serverCertificate);
-    UA_Array_delete(server->endpointDescriptions, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION], server->endpointDescriptionsSize);
+
+	// Delete the network layers
+	for(UA_Int32 i=0;i<server->nlsSize;i++) {
+		server->nls[i].free(server->nls[i].nlHandle);
+	}
+	UA_free(server->nls);
+
 #ifdef UA_MULTITHREADING
-    pthread_cond_destroy(&server->dispatchQueue_condition); // so the workers don't spin if the queue is empty
-    rcu_barrier(); // wait for all scheduled call_rcu work to complete
+	pthread_cond_destroy(&server->dispatchQueue_condition); // so the workers don't spin if the queue is empty
+	rcu_barrier(); // wait for all scheduled call_rcu work to complete
 #endif
-    UA_free(server);
+	UA_free(server);
 }
 
 static UA_StatusCode readStatus(const void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
