@@ -537,7 +537,7 @@ UA_Server * UA_Server_new(void) {
  		   &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_ROOTFOLDER),
  		   &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
     ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_VIEWSFOLDER), UA_NODEID_STATIC(0, UA_NS0ID_HASTYPEDEFINITION),
- 		   UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_FOLDERTYPE));
+                 UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_FOLDERTYPE));
 
     /**********************/
     /* Further Data Types */
@@ -593,8 +593,6 @@ UA_Server * UA_Server_new(void) {
                 UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_FOLDERTYPE));
    addVariableTypeNode_organized(server, "BaseVariableType", UA_NS0ID_BASEVARIABLETYPE, UA_NS0ID_VARIABLETYPESFOLDER, UA_TRUE);
    addVariableTypeNode_subtype(server, "PropertyType", UA_NS0ID_PROPERTYTYPE, UA_NS0ID_BASEVARIABLETYPE, UA_FALSE);
-
-
 
    /*******************/
    /* Further Objects */
@@ -682,7 +680,7 @@ UA_Server * UA_Server_new(void) {
 		   UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));
 
    UA_VariableNode *currenttime = UA_VariableNode_new();
-   copyNames((UA_Node*)serverstatus, "CurrentTime");
+   copyNames((UA_Node*)currenttime, "CurrentTime");
    currenttime->nodeId = UA_NODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
    currenttime->variableType = UA_VARIABLENODETYPE_DATASOURCE;
    currenttime->variable.dataSource = (UA_DataSource) {.handle = NULL, .read = readCurrentTime,

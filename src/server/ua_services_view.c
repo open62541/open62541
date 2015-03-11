@@ -274,14 +274,23 @@ static UA_StatusCode walkBrowsePath(UA_Server *server, UA_Session *session, cons
                                     UA_Int32 *currentTargets) {
 
     const UA_RelativePathElement *elem = &path->elements[pathindex];
+    if(elem->targetName.name.length == -1)
+        return UA_STATUSCODE_BADBROWSENAMEINVALID;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_NodeId *referenceTypes;
     size_t referenceTypesSize;
+    UA_Boolean allReferences = UA_FALSE;
     if(elem->includeSubtypes) {
-        retval = findReferenceTypeSubTypes(server->nodestore, &elem->referenceTypeId, &referenceTypes,
-                                           &referenceTypesSize);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+        if(UA_NodeId_isNull(&elem->referenceTypeId)) {
+            allReferences = UA_TRUE;
+            referenceTypesSize = 1; // so we enter the inner loop once
+        }
+        else {
+            retval = findReferenceTypeSubTypes(server->nodestore, &elem->referenceTypeId, &referenceTypes,
+                                               &referenceTypesSize);
+            if(retval != UA_STATUSCODE_GOOD)
+                return UA_STATUSCODE_BADNOMATCH;
+        }
     } else {
         uintptr_t ptr = (uintptr_t)&elem->referenceTypeId; // ptr magic due to const cast
         referenceTypes = (UA_NodeId*)ptr;
@@ -290,8 +299,8 @@ static UA_StatusCode walkBrowsePath(UA_Server *server, UA_Session *session, cons
 
     for(UA_Int32 i=0;i<current->referencesSize && retval == UA_STATUSCODE_GOOD;i++) {
         for(size_t j=0;j<referenceTypesSize && retval == UA_STATUSCODE_GOOD;j++) {
-            if(!UA_NodeId_equal(&current->references[i].referenceTypeId, &referenceTypes[j]) ||
-               current->references[i].isInverse != elem->isInverse)
+            if((!allReferences && (!UA_NodeId_equal(&current->references[i].referenceTypeId, &referenceTypes[j])
+                                   || current->references[i].isInverse != elem->isInverse)))
                 continue;
             // todo: expandednodeid
             const UA_Node *next = UA_NodeStore_get(server->nodestore, &current->references[i].targetId.nodeId);
@@ -301,14 +310,14 @@ static UA_StatusCode walkBrowsePath(UA_Server *server, UA_Session *session, cons
                UA_String_equal(&elem->targetName.name, &next->browseName.name)) {
                 if((UA_Int32)pathindex + 1 >= path->elementsSize) {
                     // at the end of the path.. add the node
-                    if(*currentTargets > (UA_Int32)*targetsSize) {
+                    if(*currentTargets >= (UA_Int32)*targetsSize) {
                         UA_BrowsePathTarget *newtargets = UA_realloc(targets, sizeof(UA_BrowsePathTarget) *
-                                                                     *targetsSize * 2);
+                                                                     (*targetsSize) * 2);
                         if(!newtargets) {
                             retval = UA_STATUSCODE_BADOUTOFMEMORY;
                         } else {
                             targets = newtargets;
-                            *targetsSize *= 2;
+                            (*targetsSize)++;
                         }
                     }
                     if(retval == UA_STATUSCODE_GOOD) {
@@ -327,7 +336,7 @@ static UA_StatusCode walkBrowsePath(UA_Server *server, UA_Session *session, cons
         }
     }
 
-    if(elem->includeSubtypes)
+    if(!allReferences && elem->includeSubtypes)
         UA_Array_delete(referenceTypes, &UA_TYPES[UA_TYPES_NODEID], (UA_Int32)referenceTypesSize);
     return retval;
 }
@@ -340,7 +349,7 @@ static void translateBrowsePath(UA_Server *server, UA_Session *session, const UA
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-    result->targetsSize = 0; // todo: why is this not set during init?
+    result->targetsSize = 0;
     const UA_Node *firstNode = UA_NodeStore_get(server->nodestore, &path->startingNode);
     if(!firstNode) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -350,6 +359,8 @@ static void translateBrowsePath(UA_Server *server, UA_Session *session, const UA
     if(path->relativePath.elementsSize > 0)
         result->statusCode = walkBrowsePath(server, session, firstNode, &path->relativePath, 0,
                                             result->targets, &arraySize, &result->targetsSize);
+    else
+        result->statusCode = UA_STATUSCODE_BADNOTHINGTODO;
     UA_NodeStore_release(firstNode);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_Array_delete(result->targets, &UA_TYPES[UA_TYPES_BROWSEPATHTARGET], result->targetsSize);
