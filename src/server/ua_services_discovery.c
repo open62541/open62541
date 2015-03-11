@@ -5,7 +5,6 @@
 void Service_GetEndpoints(UA_Server                    *server,
                           const UA_GetEndpointsRequest *request,
                           UA_GetEndpointsResponse      *response) {
-    UA_GetEndpointsResponse_init(response);
     response->endpoints = UA_malloc(sizeof(UA_EndpointDescription));
     if(!response->endpoints) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
