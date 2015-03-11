@@ -12,6 +12,21 @@
         break;                                                  \
     }
 
+static void handleServerTimestamps(UA_TimestampsToReturn timestamps, UA_DataValue* v) {
+	if (v && (timestamps == UA_TIMESTAMPSTORETURN_SERVER
+			|| timestamps == UA_TIMESTAMPSTORETURN_BOTH)) {
+		v->hasServerTimestamp = UA_TRUE;
+		v->serverTimestamp = UA_DateTime_now();
+	}
+}
+
+static void handleSourceTimestamps(UA_TimestampsToReturn timestamps, UA_DataValue* v) {
+	if(timestamps == UA_TIMESTAMPSTORETURN_SOURCE || timestamps == UA_TIMESTAMPSTORETURN_BOTH) {
+		v->hasSourceTimestamp = UA_TRUE;
+		v->sourceTimestamp = UA_DateTime_now();
+	}
+}
+
 /** Reads a single attribute from a node in the nodestore. */
 static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
                       const UA_ReadValueId *id, UA_DataValue *v) {
@@ -111,10 +126,7 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
 					if(retval != UA_STATUSCODE_GOOD)
 						break;
 					v->hasVariant = UA_TRUE;
-					if(timestamps == UA_TIMESTAMPSTORETURN_SOURCE || timestamps == UA_TIMESTAMPSTORETURN_BOTH) {
-						v->hasSourceTimestamp = UA_TRUE;
-						v->sourceTimestamp = UA_DateTime_now();
-					}
+					handleSourceTimestamps(timestamps, v);
 				} else {
 					UA_DataValue val;
 					UA_DataValue_init(&val);
@@ -130,10 +142,7 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
 				}
         	}else{
     			v->hasVariant = UA_FALSE;
-    			if(timestamps == UA_TIMESTAMPSTORETURN_SOURCE || timestamps == UA_TIMESTAMPSTORETURN_BOTH) {
-    					v->hasSourceTimestamp = UA_TRUE;
-    					v->sourceTimestamp = UA_DateTime_now();
-    			}
+    			handleSourceTimestamps(timestamps, v);
         	}
         }
         break;
@@ -258,12 +267,9 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
     if(retval != UA_STATUSCODE_GOOD) {
         v->hasStatus = UA_TRUE;
         v->status = UA_STATUSCODE_BADNOTREADABLE;
-    } else {
-        if(timestamps == UA_TIMESTAMPSTORETURN_SERVER || timestamps == UA_TIMESTAMPSTORETURN_BOTH) {
-            v->hasServerTimestamp = UA_TRUE;
-            v->serverTimestamp = UA_DateTime_now();
-        }
     }
+
+    handleServerTimestamps(timestamps, v);
 }
 
 void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request,
@@ -273,16 +279,23 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
         return;
     }
 
-    if(request->maxAge < 0) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADMAXAGEINVALID;
-        return;
-    }
-
     size_t size = request->nodesToReadSize;
 
     response->results = UA_Array_new(&UA_TYPES[UA_TYPES_DATAVALUE], size);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+
+    response->resultsSize = size;
+
+    //a bit ugly, but probably almost never called
+    if(request->maxAge < 0) {
+        for(size_t i = 0;i < size;i++) {
+        	response->results[i].status = UA_STATUSCODE_BADMAXAGEINVALID;
+        	handleServerTimestamps(request->timestampsToReturn, &response->results[i]);
+        	handleSourceTimestamps(request->timestampsToReturn, &response->results[i]);
+        }
         return;
     }
 
@@ -307,7 +320,6 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
     }
     /* ### End External Namespaces */
 
-    response->resultsSize = size;
     for(size_t i = 0;i < size;i++) {
         if(!isExternal[i])
             readValue(server, request->timestampsToReturn, &request->nodesToRead[i], &response->results[i]);
