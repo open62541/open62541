@@ -317,7 +317,7 @@ static UA_StatusCode walkBrowsePath(UA_Server *server, UA_Session *session, cons
                             retval = UA_STATUSCODE_BADOUTOFMEMORY;
                         } else {
                             targets = newtargets;
-                            *targetsSize *= 2;
+                            (*targetsSize)++;
                         }
                     }
                     if(retval == UA_STATUSCODE_GOOD) {
