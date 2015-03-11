@@ -280,17 +280,14 @@ static UA_StatusCode walkBrowsePath(UA_Server *server, UA_Session *session, cons
     UA_NodeId *referenceTypes;
     size_t referenceTypesSize;
     UA_Boolean allReferences = UA_FALSE;
-    if(elem->includeSubtypes) {
-        if(UA_NodeId_isNull(&elem->referenceTypeId)) {
-            allReferences = UA_TRUE;
-            referenceTypesSize = 1; // so we enter the inner loop once
-        }
-        else {
-            retval = findReferenceTypeSubTypes(server->nodestore, &elem->referenceTypeId, &referenceTypes,
-                                               &referenceTypesSize);
-            if(retval != UA_STATUSCODE_GOOD)
-                return UA_STATUSCODE_BADNOMATCH;
-        }
+    if(UA_NodeId_isNull(&elem->referenceTypeId)) {
+        allReferences = UA_TRUE;
+        referenceTypesSize = 1; // so we enter the inner loop once
+    } else if(elem->includeSubtypes) {
+        retval = findReferenceTypeSubTypes(server->nodestore, &elem->referenceTypeId, &referenceTypes,
+                                           &referenceTypesSize);
+        if(retval != UA_STATUSCODE_GOOD)
+            return UA_STATUSCODE_BADNOMATCH;
     } else {
         uintptr_t ptr = (uintptr_t)&elem->referenceTypeId; // ptr magic due to const cast
         referenceTypes = (UA_NodeId*)ptr;
@@ -299,8 +296,8 @@ static UA_StatusCode walkBrowsePath(UA_Server *server, UA_Session *session, cons
 
     for(UA_Int32 i=0;i<current->referencesSize && retval == UA_STATUSCODE_GOOD;i++) {
         for(size_t j=0;j<referenceTypesSize && retval == UA_STATUSCODE_GOOD;j++) {
-            if((!allReferences && (!UA_NodeId_equal(&current->references[i].referenceTypeId, &referenceTypes[j])
-                                   || current->references[i].isInverse != elem->isInverse)))
+            if(!allReferences && (!UA_NodeId_equal(&current->references[i].referenceTypeId, &referenceTypes[j])
+                                   || current->references[i].isInverse != elem->isInverse))
                 continue;
             // todo: expandednodeid
             const UA_Node *next = UA_NodeStore_get(server->nodestore, &current->references[i].targetId.nodeId);
@@ -325,6 +322,8 @@ static UA_StatusCode walkBrowsePath(UA_Server *server, UA_Session *session, cons
                         UA_NodeId_copy(&next->nodeId, &targets[*currentTargets].targetId.nodeId);
                         targets[*currentTargets].remainingPathIndex = UA_UINT32_MAX;
                         *currentTargets += 1;
+                        UA_NodeStore_release(next);
+                        break; // go to the next node
                     }
                 } else {
                     // recurse deeper into the path

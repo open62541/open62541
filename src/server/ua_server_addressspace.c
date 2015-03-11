@@ -15,7 +15,7 @@ UA_StatusCode UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, UA
     UA_AddNodesResult res = UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node,
                                                          &parentId, referenceTypeId);
     ADDREFERENCE(res.addedNodeId, UA_NODEID_STATIC(0, UA_NS0ID_HASTYPEDEFINITION),
-                 UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_BASEDATAVARIABLETYPE));
+                 UA_EXPANDEDNODEID_STATIC(0, value->type->typeId.identifier.numeric));
     if(res.statusCode != UA_STATUSCODE_GOOD) {
         UA_Variant_init(&node->variable.variant);
         UA_VariableNode_delete(node);
