@@ -472,6 +472,11 @@ void Service_Write(UA_Server *server, UA_Session *session,
                    const UA_WriteRequest *request, UA_WriteResponse *response) {
     UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
 
+    if(request->nodesToWriteSize <= 0){
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+        return;
+    }
+
     response->results = UA_Array_new(&UA_TYPES[UA_TYPES_STATUSCODE], request->nodesToWriteSize);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
