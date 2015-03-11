@@ -56,9 +56,9 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_VariableNode)
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS
+    UA_Boolean isAbstract;
     UA_Int32 valueRank;
     UA_Variant value;
-    UA_Boolean isAbstract;
 } UA_VariableTypeNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_VariableTypeNode)
 
