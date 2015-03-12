@@ -694,7 +694,7 @@ size_t UA_Variant_calcSizeBinary(UA_Variant const *p) {
         length += UA_Array_calcSizeBinary(p->dataPtr, arrayLength, p->type);
         
     // if the type is not builtin, we encode it as an extensionobject
-    if(p->type > &UA_TYPES[UA_TYPES_XMLELEMENT] || !p->type->namespaceZero)
+    if(p->type->typeIndex > UA_TYPES_XMLELEMENT || !p->type->namespaceZero)
         length += 9 * arrayLength;  // overhead for extensionobjects: 4 byte nodeid + 1 byte
                                     // encoding + 4 byte bytestring length
     if(arrayLength != 1 && p->arrayDimensions != UA_NULL)
@@ -710,7 +710,7 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
     UA_Byte encodingByte = 0;
     UA_Boolean isArray = src->arrayLength != 1;  // a single element is not an array
     UA_Boolean hasDimensions = isArray && src->arrayDimensions != UA_NULL;
-    UA_Boolean isBuiltin = src->type->namespaceZero && src->type <= &UA_TYPES[UA_TYPES_XMLELEMENT];
+    UA_Boolean isBuiltin = src->type->namespaceZero && src->type->typeIndex <= UA_TYPES_XMLELEMENT;
 
     if(isArray) {
         encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
