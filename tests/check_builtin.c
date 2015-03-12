@@ -564,6 +564,22 @@ START_TEST(UA_Double_decodeShallGiveMinusTwo) {
 }
 END_TEST
 
+START_TEST(UA_Double_decodeShallGive2147483648) {
+	// given
+	size_t pos = 0;
+	UA_Byte data[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xE0, 0x41 }; //2147483648
+	UA_ByteString src = { 8, data }; // 1
+	UA_Double dst;
+	// when
+	UA_StatusCode retval = UA_Double_decodeBinary(&src, &pos, &dst);
+	// then
+	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+	ck_assert_int_eq(pos, 8);
+	ck_assert(2147483647.9999999 < dst);
+	ck_assert(dst < 2147483648.00000001);
+}
+END_TEST
+
 START_TEST(UA_String_decodeShallAllocateMemoryAndCopyString) {
 	// given
 	size_t pos = 0;
@@ -1689,6 +1705,7 @@ static Suite *testSuite_builtin(void) {
 	tcase_add_test(tc_decode, UA_Double_decodeShallGiveOne);
 	tcase_add_test(tc_decode, UA_Double_decodeShallGiveZero);
 	tcase_add_test(tc_decode, UA_Double_decodeShallGiveMinusTwo);
+	tcase_add_test(tc_decode, UA_Double_decodeShallGive2147483648);
 	tcase_add_test(tc_decode, UA_Byte_encode_test);
 	tcase_add_test(tc_decode, UA_String_decodeShallAllocateMemoryAndCopyString);
 	tcase_add_test(tc_decode, UA_String_decodeWithNegativeSizeShallNotAllocateMemoryAndNullPtr);
@@ -1752,7 +1769,7 @@ int main(void) {
 
 	s  = testSuite_builtin();
 	sr = srunner_create(s);
-	//srunner_set_fork_status(sr, CK_NOFORK);
+	srunner_set_fork_status(sr, CK_NOFORK);
 	srunner_run_all(sr, CK_NORMAL);
 	number_failed += srunner_ntests_failed(sr);
 	srunner_free(sr);

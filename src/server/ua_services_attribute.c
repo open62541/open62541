@@ -289,13 +289,8 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 
     response->resultsSize = size;
 
-    //a bit ugly, but probably almost never called
     if(request->maxAge < 0) {
-        for(size_t i = 0;i < size;i++) {
-        	response->results[i].status = UA_STATUSCODE_BADMAXAGEINVALID;
-        	handleServerTimestamps(request->timestampsToReturn, &response->results[i]);
-        	handleSourceTimestamps(request->timestampsToReturn, &response->results[i]);
-        }
+    	response->responseHeader.serviceResult = UA_STATUSCODE_BADMAXAGEINVALID;
         return;
     }
 

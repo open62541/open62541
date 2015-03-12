@@ -126,18 +126,6 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
     connection->write(connection, (UA_ByteStringArray){ .stringsSize = 1, .strings = &resp_msg });
 }
 
-static void handle_diagnostics(const UA_RequestHeader *p, UA_ResponseHeader *r){
-	// TODO do it right, we will probably need to to it inside of the service
-	if(p->returnDiagnostics > 0){
-		r->serviceDiagnostics.hasSymbolicId = UA_TRUE;
-		r->serviceDiagnostics.symbolicId = 0;
-		r->stringTableSize = 1;
-		UA_String* namespaceUri = UA_String_new();
-		UA_String_copycstring("TBD", namespaceUri);
-		r->stringTable = namespaceUri;
-	}
-}
-
 static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r) {
     r->requestHandle = p->requestHandle;
     r->serviceResult = UA_STATUSCODE_GOOD;
@@ -163,7 +151,6 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
             return;                                                     \
         UA_##TYPE##Response_init(&r);                                   \
         init_response_header(&p.requestHeader, &r.responseHeader);      \
-        handle_diagnostics(&p.requestHeader, &r.responseHeader);											\
         Service_##TYPE(server, clientSession, &p, &r);                  \
         ALLOC_MESSAGE(message, UA_##TYPE##Response_calcSizeBinary(&r)); \
         UA_##TYPE##Response_encodeBinary(&r, message, &sendOffset);     \
