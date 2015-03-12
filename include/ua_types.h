@@ -464,11 +464,12 @@ typedef struct {
     
 struct UA_DataType {
     UA_NodeId typeId; ///< The nodeid of the type
-    ptrdiff_t memSize UA_BITFIELD(16); ///< Size of the struct in memory
-    UA_UInt16 typeIndex UA_BITFIELD(13); ///< Index of the type in the datatypetable
+    size_t memSize UA_BITFIELD(16); ///< Size of the struct in memory
+    size_t typeIndex UA_BITFIELD(12); ///< Index of the type in the datatypetable
     UA_Boolean namespaceZero UA_BITFIELD(1); ///< The type is defined in namespace zero.
     UA_Boolean fixedSize UA_BITFIELD(1); ///< The type (and its members) contains no pointers
     UA_Boolean zeroCopyable UA_BITFIELD(1); ///< Can the type be copied directly off the stream?
+    UA_Boolean isStructure UA_BITFIELD(1); ///< strcture or not
     UA_Byte membersSize; ///< How many members does the type have?
     UA_DataTypeMember members[UA_MAX_TYPE_MEMBERS];
 };
