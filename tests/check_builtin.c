@@ -575,8 +575,8 @@ START_TEST(UA_Double_decodeShallGive2147483648) {
 	// then
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	ck_assert_int_eq(pos, 8);
-	ck_assert(2147483647.9999999 < dst);
-	ck_assert(dst < 2147483648.00000001);
+	ck_assert(2147483647.9999999 <= dst);
+	ck_assert(dst <= 2147483648.00000001);
 }
 END_TEST
 
