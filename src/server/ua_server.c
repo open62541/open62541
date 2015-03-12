@@ -241,9 +241,9 @@ UA_Server * UA_Server_new(void) {
                                  TOKENLIFETIME, STARTCHANNELID, STARTTOKENID);
 
 #define MAXSESSIONCOUNT 1000
-#define SESSIONLIFETIME 10000
+#define MAXSESSIONLIFETIME 10000
 #define STARTSESSIONID 1
-    UA_SessionManager_init(&server->sessionManager, MAXSESSIONCOUNT, SESSIONLIFETIME, STARTSESSIONID);
+    UA_SessionManager_init(&server->sessionManager, MAXSESSIONCOUNT, MAXSESSIONLIFETIME, STARTSESSIONID);
 
     server->nodestore = UA_NodeStore_new();
 

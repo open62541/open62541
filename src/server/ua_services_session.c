@@ -19,7 +19,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     // session is activated will the channel point to the session as well
 	UA_Session *newSession;
     response->responseHeader.serviceResult = UA_SessionManager_createSession(&server->sessionManager,
-                                                                             channel, &newSession);
+                                                                             channel, request, &newSession);
 	if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
 		return;
 

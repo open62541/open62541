@@ -14,11 +14,11 @@ struct session_list_entry {
 };
 
 UA_StatusCode UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt32 maxSessionCount,
-                                    UA_UInt32 sessionTimeout, UA_UInt32 startSessionId) {
+                                    UA_UInt32 maxSessionLifeTime, UA_UInt32 startSessionId) {
     LIST_INIT(&sessionManager->sessions);
     sessionManager->maxSessionCount = maxSessionCount;
     sessionManager->lastSessionId   = startSessionId;
-    sessionManager->sessionTimeout  = sessionTimeout;
+    sessionManager->maxSessionLifeTime  = maxSessionLifeTime;
     sessionManager->currentSessionCount = 0;
     return UA_STATUSCODE_GOOD;
 }
@@ -87,7 +87,7 @@ UA_StatusCode UA_SessionManager_getSessionByToken(UA_SessionManager *sessionMana
 
 /** Creates and adds a session. */
 UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_SecureChannel *channel,
-                                              UA_Session **session) {
+												const UA_CreateSessionRequest *request, UA_Session **session) {
     if(sessionManager->currentSessionCount >= sessionManager->maxSessionCount)
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
 
@@ -102,7 +102,7 @@ UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager,
                                                          .identifierType = UA_NODEIDTYPE_NUMERIC,
                                                          .identifier.numeric = sessionManager->lastSessionId };
     newentry->session.channel = channel;
-    newentry->session.timeout = 3600 * 1000; // 1h
+    newentry->session.timeout = (request->requestedSessionTimeout <= sessionManager->maxSessionLifeTime && request->requestedSessionTimeout>0) ? request->requestedSessionTimeout : sessionManager->maxSessionLifeTime;
     UA_Session_setExpirationDate(&newentry->session);
 
     sessionManager->currentSessionCount++;
