@@ -391,11 +391,21 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
                     break;
                 }
 
-                // array sizes are not checked to match
-                if(!wvalue->value.hasVariant || !UA_NodeId_equal(&vn->variable.variant.type->typeId,
-                                                                 &wvalue->value.value.type->typeId)) {
-                	retval = UA_STATUSCODE_BADTYPEMISMATCH;
+                // array sizes are not compared
+
+                if(!wvalue->value.hasVariant) {
+                    retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
                     break;
+                }
+                if(!UA_NodeId_equal(&vn->variable.variant.type->typeId, &wvalue->value.value.type->typeId)) {
+                    // when the nodeids differ, it is possible that an enum was sent as an int, or
+                    // an opaque type as a bytestring
+                    if(!vn->variable.variant.type->namespaceZero || wvalue->value.value.type->namespaceZero ||
+                       vn->variable.variant.type->typeIndex != wvalue->value.value.type->typeIndex) {
+                        retval = UA_STATUSCODE_BADTYPEMISMATCH;
+                        break;
+                    }
+                    wvalue->value.value.type = vn->variable.variant.type;
                 }
 
                 UA_VariableNode *newVn = UA_VariableNode_new();
@@ -420,10 +430,17 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
                     UA_VariableNode_delete(newVn);
             } else if(node->nodeClass == UA_NODECLASS_VARIABLETYPE) {
                 const UA_VariableTypeNode *vtn = (const UA_VariableTypeNode*)node;
-                if(!wvalue->value.hasVariant || !UA_NodeId_equal(&vtn->value.type->typeId,
-                                                                 &wvalue->value.value.type->typeId)) {
+                if(!wvalue->value.hasVariant) {
                     retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
                     break;
+                }
+                if(!UA_NodeId_equal(&vtn->value.type->typeId, &wvalue->value.value.type->typeId)) {
+                    if(!vtn->value.type->namespaceZero || wvalue->value.value.type->namespaceZero ||
+                       vtn->value.type->typeIndex != wvalue->value.value.type->typeIndex) {
+                        retval = UA_STATUSCODE_BADTYPEMISMATCH;
+                        break;
+                    }
+                    wvalue->value.value.type = vtn->value.type;
                 }
 
                 UA_VariableTypeNode *newVtn = UA_VariableTypeNode_new();
