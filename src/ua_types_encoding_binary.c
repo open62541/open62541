@@ -171,7 +171,6 @@ UA_TYPE_CALCSIZEBINARY_MEMSIZE(UA_Double)
 // FIXME: Implement NaN, Inf and Zero(s)
 UA_Byte UA_DOUBLE_ZERO[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 UA_StatusCode UA_Double_decodeBinary(UA_ByteString const *src, size_t *offset, UA_Double * dst) {
-#include "stdio.h"
     if(*offset + sizeof(UA_Double) > (UA_UInt32)src->length )
         return UA_STATUSCODE_BADDECODINGERROR;
     UA_Double sign;
