@@ -6,7 +6,7 @@
 #
 
 git fetch origin coverity_scan
-COMMITS=`git log --oneline --since today.midnight | wc -l`
+COMMITS=`git log --oneline --since=today.midnight | wc -l`
 if [[ "$COMMITS" -le "1" ]]; then
    git clone --depth=50 -b gh-pages https://$GITAUTH@github.com/acplt/open62541-www
    cd open62541-www

@@ -88,7 +88,6 @@ class BuiltinType(object):
             ".namespaceZero = UA_TRUE, " + \
             ".fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
             ", .zeroCopyable = " + ("UA_TRUE" if self.zero_copy() else "UA_FALSE") + \
-            ", .isStructure = UA_FALSE" + \
             ", .membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_" + self.name[3:].upper() + "," + \
             ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, " + \
             ".typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
@@ -123,10 +122,10 @@ class EnumerationType(object):
             typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
         return "{.typeId = " + typeid + \
             ".memSize = sizeof(" + self.name + "), " +\
-            ".namespaceZero = " + ("UA_TRUE" if namespace_0 else "UA_FALSE") + \
-            ", .fixedSize = UA_TRUE, .zeroCopyable = UA_TRUE, .isStructure = UA_FALSE, " + \
+            ".namespaceZero = UA_TRUE, " + \
+            ".fixedSize = UA_TRUE, .zeroCopyable = UA_TRUE, " + \
             ".membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_INT32," + \
-            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
+            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = UA_TYPES_INT32 }"
 
     def functions_c(self, typeTableName):
         return '''#define %s_new (%s*)UA_Int32_new
@@ -159,9 +158,8 @@ class OpaqueType(object):
             typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
         return "{.typeId = " + typeid + \
             ".memSize = sizeof(" + self.name + "), .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
-            ".namespaceZero = " + ("UA_TRUE" if namespace_0 else "UA_FALSE") + \
-            ", .membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_BYTESTRING," + \
-            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
+            ".namespaceZero = UA_TRUE, .membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_BYTESTRING," + \
+            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = UA_TYPES_BYTESTRING }"
 
     def functions_c(self, typeTableName):
         return '''#define %s_new UA_ByteString_new
@@ -229,7 +227,6 @@ class StructType(object):
                  ", .fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
                  ", .zeroCopyable = " + ("sizeof(" + self.name + ") == " + str(self.mem_size()) if self.zero_copy() \
                                          else "UA_FALSE") + \
-                 ", .isStructure = UA_TRUE" + \
                  ", .typeIndex = " + outname.upper() + "_" + self.name[3:].upper() + \
                  ", .membersSize = " + str(len(self.members)) + ","
         if len(self.members) > 0:
