@@ -726,7 +726,9 @@ UA_Server * UA_Server_new(void) {
 		   UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_FOLDERTYPE));
 
    UA_UInt32 id = 1000; //running id in namespace 1
-   for(UA_UInt32 type =0; type<= UA_TYPES_XMLELEMENT; type++){
+   for(UA_UInt32 type = 0; type <= UA_TYPES_XMLELEMENT; type++) {
+       if(type == UA_TYPES_VARIANT || type == UA_TYPES_DIAGNOSTICINFO)
+           continue;
 	   //add a scalar node for every built-in type
 	    void *value = UA_new(&UA_TYPES[type]);
 	    UA_Variant *variant = UA_Variant_new();
@@ -747,7 +749,7 @@ UA_Server * UA_Server_new(void) {
 	   arraynode->variable.variant.arrayLength = type;
 	   arraynode->variable.variant.dataPtr = UA_Array_new(&UA_TYPES[type], arraynode->variable.variant.arrayLength);
 	   char* initPointer = (char* )arraynode->variable.variant.dataPtr;
-	   for(UA_Int32 i=0;i<arraynode->variable.variant.arrayLength;i++){
+	   for(UA_Int32 i=0;i<arraynode->variable.variant.arrayLength;i++) {
 		   UA_init(initPointer, &UA_TYPES[type]);
 		   initPointer += UA_TYPES[type].memSize;
 	   }

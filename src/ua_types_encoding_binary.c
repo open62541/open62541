@@ -680,8 +680,6 @@ enum UA_VARIANT_ENCODINGMASKTYPE_enum {
 };
 
 size_t UA_Variant_calcSizeBinary(UA_Variant const *p) {
-    if(!p->type) // type is not set after init
-        return 0;
     size_t length = sizeof(UA_Byte); //p->encodingMask
     UA_Int32 arrayLength = p->arrayLength;
     if(arrayLength <= 0 || p->dataPtr == UA_NULL) {
@@ -704,9 +702,6 @@ size_t UA_Variant_calcSizeBinary(UA_Variant const *p) {
 }
 
 UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst, size_t *offset) {
-    if(!src->type)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    
     UA_Byte encodingByte = 0;
     UA_Boolean isArray = src->arrayLength != 1;  // a single element is not an array
     UA_Boolean hasDimensions = isArray && src->arrayDimensions != UA_NULL;

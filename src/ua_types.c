@@ -574,7 +574,7 @@ void UA_Variant_init(UA_Variant *p) {
     p->dataPtr = UA_NULL;
     p->arrayDimensions = UA_NULL;
     p->arrayDimensionsSize = -1;
-    p->type = UA_NULL;
+    p->type = &UA_TYPES[UA_TYPES_BOOLEAN];
 }
 
 UA_TYPE_DELETE_DEFAULT(UA_Variant)
