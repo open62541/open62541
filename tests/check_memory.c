@@ -189,7 +189,7 @@ int main(void) {
 	suite_add_tcase(s, tc);
 
 	tc = tcase_create("Fuzzing with Random Buffers");
-	tcase_add_loop_test(tc, decodeScalarBasicTypeFromRandomBufferShallSucceed, UA_TYPES_BOOLEAN, UA_TYPES_GUID);
+	tcase_add_loop_test(tc, decodeScalarBasicTypeFromRandomBufferShallSucceed, UA_TYPES_BOOLEAN, UA_TYPES_DOUBLE);
 	tcase_add_loop_test(tc, decodeComplexTypeFromRandomBufferShallSurvive, UA_TYPES_NODEID, UA_TYPES_EVENTNOTIFICATIONLIST);
 	suite_add_tcase(s, tc);
 
