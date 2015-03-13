@@ -394,7 +394,7 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
                 // array sizes are not compared
 
                 if(!wvalue->value.hasVariant) {
-                    retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+                    retval = UA_STATUSCODE_BADTYPEMISMATCH;
                     break;
                 }
                 if(!UA_NodeId_equal(&vn->variable.variant.type->typeId, &wvalue->value.value.type->typeId)) {
