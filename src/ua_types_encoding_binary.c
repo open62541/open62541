@@ -166,26 +166,12 @@ UA_Byte UA_DOUBLE_ZERO[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 UA_StatusCode UA_Double_decodeBinary(UA_ByteString const *src, size_t *offset, UA_Double * dst) {
     if(*offset + sizeof(UA_Double) > (UA_UInt32)src->length )
         return UA_STATUSCODE_BADDECODINGERROR;
-    UA_Double sign;
-    UA_Double mantissa;
-    UA_UInt32 biasedExponent;
-    if(memcmp(&src->data[*offset], UA_DOUBLE_ZERO, 8) == 0)
-        return UA_Int64_decodeBinary(src, offset, (UA_Int64 *)dst);
-    mantissa = (UA_Double)(src->data[*offset] & 0xFF);                         // bits 0-7
-    mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+1] & 0xFF); // bits 8-15
-    mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+2] & 0xFF); // bits 16-23
-    mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+3] & 0xFF); // bits 24-31
-    mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+4] & 0xFF); // bits 32-39
-    mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+5] & 0xFF); // bits 40-47
-    mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+6] & 0x0F); // bits 48-51
-    biasedExponent  = (src->data[*offset+6] & 0xF0) >>  4; // bits 52-55
-    biasedExponent |= ((UA_UInt32)(src->data[*offset+7] & 0x7F)) <<  4; // bits 56-62
-    sign = ( src->data[*offset+7] & 0x80 ) ? -1.0 : 1.0; // bit 63
-    if(biasedExponent >= 1023)
-        *dst = (UA_Double)sign * (1ULL << (biasedExponent-1023)) * (1.0 + mantissa / 8.0 );
-    else
-        *dst = (UA_Double)sign * 2.0 *
-            (1.0 + mantissa / 8.0 ) / ((UA_Double)(biasedExponent-1023));
+
+    UA_Double value = *((UA_Double*)&src->data[*offset]);
+#ifndef WIN32
+    value = le64toh(value);
+#endif
+    *dst = value;
     *offset += 8;
     return UA_STATUSCODE_GOOD;
 }
