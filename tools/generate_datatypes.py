@@ -20,13 +20,12 @@ zero_copy = ["UA_Boolean", "UA_SByte", "UA_Byte", "UA_Int16", "UA_UInt16", "UA_I
 # The order of the builtin-types is not as in the standard. We put all the
 # fixed_size types in the front, so they can be distinguished by a simple geq
 # comparison. That's ok, since we use the type-index only internally!!
-builtin_types = ["UA_Boolean", "UA_SByte", "UA_Byte", # 1 byte
-                 "UA_Int16", "UA_UInt16", # 2 bytes
-                 "UA_Int32", "UA_UInt32",  "UA_StatusCode", "UA_Float", # 4 byte
-                 "UA_Int64", "UA_UInt64", "UA_Double", "UA_DateTime", # 8 byte
-                 "UA_Guid", "UA_NodeId", "UA_ExpandedNodeId", "UA_QualifiedName", "UA_LocalizedText", "UA_ExtensionObject", "UA_DataValue", "UA_Variant", "UA_DiagnosticInfo", # fancy types
-                 "UA_String", "UA_ByteString", "UA_XmlElement" # strings (handled as structured types with a single array entry)
-]
+builtin_types = ["UA_Boolean", "UA_SByte", "UA_Byte", "UA_Int16", "UA_UInt16",
+                 "UA_Int32", "UA_UInt32", "UA_Int64", "UA_UInt64", "UA_Float",
+                 "UA_Double", "UA_String", "UA_DateTime", "UA_Guid", "UA_ByteString",
+                 "UA_XmlElement", "UA_NodeId", "UA_ExpandedNodeId", "UA_StatusCode",
+                 "UA_QualifiedName", "UA_LocalizedText", "UA_ExtensionObject", "UA_DataValue",
+                 "UA_Variant", "UA_DiagnosticInfo"]
 
 excluded_types = ["UA_NodeIdType", "UA_InstanceNode", "UA_TypeNode", "UA_Node", "UA_ObjectNode",
                   "UA_ObjectTypeNode", "UA_VariableNode", "UA_VariableTypeNode", "UA_ReferenceTypeNode",
