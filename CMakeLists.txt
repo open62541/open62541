@@ -87,6 +87,12 @@ if(EXTENSION_STATELESS)
 	add_definitions(-DEXTENSION_STATELESS)
 endif()
 
+option(DEMO_NODESET "Create a demo node for every built-in datatype" OFF)
+if(DEMO_NODESET)
+	message(STATUS "Enabling demo nodeset")
+	add_definitions(-DDEMO_NODESET)
+endif()
+
 add_library(open62541-objects OBJECT ${lib_sources})
 add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-objects>)
 add_library(open62541-static STATIC $<TARGET_OBJECTS:open62541-objects>)

@@ -11,6 +11,10 @@
 #include "ua_services.h"
 #include "ua_nodeids.h"
 
+#ifdef DEMO_NODESET
+#include <stdio.h> //sprintf
+#endif
+
 const char *UA_LoggerCategoryNames[3] = {"communication", "server", "userland"};
 
 /**********************/
@@ -685,6 +689,77 @@ UA_Server * UA_Server_new(void) {
 	   .release = releaseCurrentTime, .write = UA_NULL};
    UA_Server_addNode(server, (UA_Node*)currenttime, &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
 		   &UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT));
+
+#ifdef DEMO_NODESET
+   /**************/
+   /* Demo Nodes */
+   /**************/
+
+#define DEMOID 990
+   UA_ObjectNode *demo = UA_ObjectNode_new();
+   copyNames((UA_Node*)demo, "Demo");
+   demo->nodeId = UA_NODEID_STATIC(1, DEMOID);
+   UA_Server_addNode(server, (UA_Node*)demo,
+		   &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
+		   &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
+   ADDREFERENCE(UA_NODEID_STATIC(1, DEMOID), UA_NODEID_STATIC(0, UA_NS0ID_HASTYPEDEFINITION),
+		   UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_FOLDERTYPE));
+
+#define SCALARID 991
+   UA_ObjectNode *scalar = UA_ObjectNode_new();
+   copyNames((UA_Node*)scalar, "Scalar");
+   scalar->nodeId = UA_NODEID_STATIC(1, SCALARID);
+   UA_Server_addNode(server, (UA_Node*)scalar,
+		   &UA_EXPANDEDNODEID_STATIC(1, DEMOID),
+		   &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
+   ADDREFERENCE(UA_NODEID_STATIC(1, SCALARID), UA_NODEID_STATIC(0, UA_NS0ID_HASTYPEDEFINITION),
+		   UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_FOLDERTYPE));
+
+#define ARRAYID 992
+   UA_ObjectNode *array = UA_ObjectNode_new();
+   copyNames((UA_Node*)array, "Arrays");
+   array->nodeId = UA_NODEID_STATIC(1, ARRAYID);
+   UA_Server_addNode(server, (UA_Node*)array,
+		   &UA_EXPANDEDNODEID_STATIC(1, DEMOID),
+		   &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
+   ADDREFERENCE(UA_NODEID_STATIC(1, ARRAYID), UA_NODEID_STATIC(0, UA_NS0ID_HASTYPEDEFINITION),
+		   UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_FOLDERTYPE));
+
+   UA_UInt32 id = 1000; //running id in namespace 1
+   for(UA_UInt32 type =0; type<= UA_TYPES_XMLELEMENT; type++){
+	   //add a scalar node for every built-in type
+	    void *value = UA_new(&UA_TYPES[type]);
+	    UA_Variant *variant = UA_Variant_new();
+	    UA_Variant_setValue(variant, value, &UA_TYPES[type]);
+	    UA_QualifiedName myIntegerName;
+	    char name[15];
+	    sprintf(name, "%02d", type);
+	    UA_QUALIFIEDNAME_ASSIGN(myIntegerName, name);
+	    UA_Server_addVariableNode(server, variant, &UA_NODEID_STATIC(1, ++id), &myIntegerName,
+	                              &UA_NODEID_STATIC(1, SCALARID),
+	                              &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
+
+   	   //add an array node for every built-in type
+	   UA_VariableNode *arraynode = UA_VariableNode_new();
+	   copyNames((UA_Node*)arraynode, name);
+	   arraynode->nodeId = UA_NODEID_STATIC(1, ++id);
+	   arraynode->variableType = UA_VARIABLENODETYPE_VARIANT;
+	   arraynode->variable.variant.arrayLength = type;
+	   arraynode->variable.variant.dataPtr = UA_Array_new(&UA_TYPES[type], arraynode->variable.variant.arrayLength);
+	   char* initPointer = (char* )arraynode->variable.variant.dataPtr;
+	   for(UA_Int32 i=0;i<arraynode->variable.variant.arrayLength;i++){
+		   UA_init(initPointer, &UA_TYPES[type]);
+		   initPointer += UA_TYPES[type].memSize;
+	   }
+	   arraynode->variable.variant.type = &UA_TYPES[type];
+	   arraynode->valueRank = 1;
+	   arraynode->minimumSamplingInterval = 1.0;
+	   arraynode->historizing = UA_FALSE;
+	   UA_Server_addNode(server, (UA_Node*)arraynode,
+			   &UA_EXPANDEDNODEID_STATIC(1, ARRAYID),
+			   &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
+   }
+#endif
 
    return server;
 }
