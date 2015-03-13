@@ -726,7 +726,7 @@ UA_Server * UA_Server_new(void) {
 		   UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_FOLDERTYPE));
 
    UA_UInt32 id = 1000; //running id in namespace 1
-   for(UA_UInt32 type = 0; type <= UA_TYPES_DIAGNOSTICINFO; type++) {
+   for(UA_UInt32 type = 0; UA_IS_BUILTIN(type); type++) {
        if(type == UA_TYPES_VARIANT || type == UA_TYPES_DIAGNOSTICINFO)
            continue;
 	   //add a scalar node for every built-in type

@@ -449,6 +449,8 @@ UA_StatusCode UA_EXPORT UA_Variant_copySetArray(UA_Variant *v, const void *array
 # define UA_BITFIELD(SIZE)
 #endif
 
+#define UA_IS_BUILTIN(ID) (ID <= UA_TYPES_DIAGNOSTICINFO)
+
 typedef struct {
     UA_UInt16 memberTypeIndex UA_BITFIELD(9); ///< Index of the member in the datatypetable
     UA_Boolean namespaceZero UA_BITFIELD(1); /**< The type of the member is defined in namespace
