@@ -1,4 +1,8 @@
 #include <string.h>
+#ifndef WIN32
+#define __USE_BSD
+#include <endian.h>
+#endif
 #include "ua_types_encoding_binary.h"
 #include "ua_util.h"
 #include "ua_statuscodes.h"
@@ -143,22 +147,28 @@ UA_Byte UA_FLOAT_ZERO[] = { 0x00, 0x00, 0x00, 0x00 };
 UA_StatusCode UA_Float_decodeBinary(UA_ByteString const *src, size_t *offset, UA_Float * dst) {
     if(*offset + sizeof(UA_Float) > (size_t)src->length )
         return UA_STATUSCODE_BADDECODINGERROR;
-    UA_Float mantissa;
-    UA_UInt32 biasedExponent;
-    UA_Float sign;
-    if(memcmp(&src->data[*offset], UA_FLOAT_ZERO, 4) == 0)
-        return UA_Int32_decodeBinary(src, offset, (UA_Int32 *)dst);
-    mantissa = (UA_Float)(src->data[*offset] & 0xFF);                                   // bits 0-7
-    mantissa = (mantissa / (UA_Float)256.0 ) + (UA_Float)(src->data[*offset+1] & 0xFF); // bits 8-15
-    mantissa = (mantissa / (UA_Float)256.0 ) + (UA_Float)(src->data[*offset+2] & 0x7F); // bits 16-22
-    biasedExponent  = (src->data[*offset+2] & 0x80) >>  7;                              // bits 23
-    biasedExponent |= (UA_UInt32)(src->data[*offset+3] & 0x7F) <<  1;                   // bits 24-30
-    sign = ( src->data[*offset+ 3] & 0x80 ) ? -1.0 : 1.0;                               // bit 31
-    if(biasedExponent >= 127)
-        *dst = (UA_Float)sign * (1ULL << (biasedExponent-127)) * (1.0 + mantissa / 128.0 );
-    else
-        *dst = (UA_Float)sign * 2.0 * (1.0 + mantissa / 128.0 ) / ((UA_Float)(biasedExponent-127));
+    UA_Float value = *((UA_Float*)&src->data[*offset]);
+#ifndef WIN32
+    value = le32toh(value);
+#endif
+    *dst = value;
     *offset += 4;
+    /* UA_Float mantissa; */
+    /* UA_UInt32 biasedExponent; */
+    /* UA_Float sign; */
+    /* if(memcmp(&src->data[*offset], UA_FLOAT_ZERO, 4) == 0) */
+    /*     return UA_Int32_decodeBinary(src, offset, (UA_Int32 *)dst); */
+    /* mantissa = (UA_Float)(src->data[*offset] & 0xFF);                                   // bits 0-7 */
+    /* mantissa = (mantissa / (UA_Float)256.0 ) + (UA_Float)(src->data[*offset+1] & 0xFF); // bits 8-15 */
+    /* mantissa = (mantissa / (UA_Float)256.0 ) + (UA_Float)(src->data[*offset+2] & 0x7F); // bits 16-22 */
+    /* biasedExponent  = (src->data[*offset+2] & 0x80) >>  7;                              // bits 23 */
+    /* biasedExponent |= (UA_UInt32)(src->data[*offset+3] & 0x7F) <<  1;                   // bits 24-30 */
+    /* sign = ( src->data[*offset+ 3] & 0x80 ) ? -1.0 : 1.0;                               // bit 31 */
+    /* if(biasedExponent >= 127) */
+    /*     *dst = (UA_Float)sign * (1ULL << (biasedExponent-127)) * (1.0 + mantissa / 128.0 ); */
+    /* else */
+    /*     *dst = (UA_Float)sign * 2.0 * (1.0 + mantissa / 128.0 ) / ((UA_Float)(biasedExponent-127)); */
+    /* *offset += 4; */
     return UA_STATUSCODE_GOOD;
 }
 
