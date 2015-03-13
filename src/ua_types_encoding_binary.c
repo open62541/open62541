@@ -1102,9 +1102,12 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *ds
         if(member->isArray) {
             ptr += (member->padding >> 3);
             UA_Int32 *noElements = (UA_Int32*)ptr;
-            UA_Int32_decodeBinary(src, offset, noElements);
+            UA_Int32 tempNoElements;
+            UA_Int32_decodeBinary(src, offset, &tempNoElements);
             ptr += sizeof(UA_Int32) + (member->padding & 0x07);
             retval = UA_Array_decodeBinary(src, offset, *noElements, (void**)ptr, memberType);
+            if(retval == UA_STATUSCODE_GOOD)
+                *noElements = tempNoElements;
             ptr += sizeof(void*);
             continue;
         }
