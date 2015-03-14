@@ -30,6 +30,22 @@ static void handleSourceTimestamps(UA_TimestampsToReturn timestamps, UA_DataValu
 /** Reads a single attribute from a node in the nodestore. */
 static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
                       const UA_ReadValueId *id, UA_DataValue *v) {
+
+	if(id->dataEncoding.name.length >= 0){
+		if(memcmp(id->dataEncoding.name.data, "DefaultBinary", 13)!=0 && memcmp(id->dataEncoding.name.data, "DefaultXml", 10)!=0){
+			v->hasStatus = UA_TRUE;
+			v->status = UA_STATUSCODE_BADDATAENCODINGINVALID;
+			return;
+		}
+	}
+
+	//index range for a non-value
+	if(id->indexRange.length >= 0 && id->attributeId != UA_ATTRIBUTEID_VALUE){
+		v->hasStatus = UA_TRUE;
+		v->status = UA_STATUSCODE_BADINDEXRANGENODATA;
+		return;
+	}
+
     UA_Node const *node = UA_NodeStore_get(server->nodestore, &(id->nodeId));
     if(!node) {
         v->hasStatus = UA_TRUE;
@@ -184,6 +200,8 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         {
+        	//TODO: handle indexRange
+
         	if(node->nodeClass == UA_NODECLASS_VARIABLE){
 				const UA_VariableNode *vn = (const UA_VariableNode *)node;
 				if(vn->variableType == UA_VARIABLENODETYPE_VARIANT) {
@@ -277,6 +295,11 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
     if(request->nodesToReadSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
+    }
+
+    if(request->timestampsToReturn > 3 || request->timestampsToReturn < 0){
+    	response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
+    	return;
     }
 
     size_t size = request->nodesToReadSize;
