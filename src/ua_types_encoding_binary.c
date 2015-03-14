@@ -69,16 +69,25 @@ UA_TYPE_CALCSIZEBINARY_MEMSIZE(UA_UInt16)
 UA_StatusCode UA_UInt16_encodeBinary(UA_UInt16 const *src, UA_ByteString * dst, size_t *offset) {
     if(*offset + sizeof(UA_UInt16) > (size_t)dst->length )
         return UA_STATUSCODE_BADENCODINGERROR;
-    dst->data[(*offset)++] = (UA_Byte)((*src & 0x00FF) >> 0);
-    dst->data[(*offset)++] = (UA_Byte)((*src & 0xFF00) >> 8);
+    UA_UInt16 *dst_ptr = (UA_UInt16*)&dst->data[*offset];
+#ifndef _WIN32
+    *dst_ptr = htole16(*src);
+#else
+    *dst_ptr = *src;
+#endif
+    *offset += 2;
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_UInt16_decodeBinary(UA_ByteString const *src, size_t *offset, UA_UInt16 * dst) {
+UA_StatusCode UA_UInt16_decodeBinary(UA_ByteString const *src, size_t *offset, UA_UInt16 *dst) {
     if(*offset + sizeof(UA_UInt16) > (size_t)src->length)
         return UA_STATUSCODE_BADDECODINGERROR;
-    *dst =  (UA_UInt16)src->data[(*offset)++] << 0;
-    *dst |= (UA_UInt16)src->data[(*offset)++] << 8;
+    UA_UInt16 value = *((UA_UInt16*)&src->data[*offset]);
+#ifndef _WIN32
+    value = le16toh(value);
+#endif
+    *dst = value;
+    *offset += 2;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -90,20 +99,25 @@ UA_TYPE_CALCSIZEBINARY_MEMSIZE(UA_UInt32)
 UA_StatusCode UA_UInt32_encodeBinary(UA_UInt32 const *src, UA_ByteString * dst, size_t *offset) {
     if(*offset + sizeof(UA_UInt32) > (size_t)dst->length )
         return UA_STATUSCODE_BADENCODINGERROR;
-    dst->data[(*offset)++] = (UA_Byte)((*src & 0x000000FF) >> 0);
-    dst->data[(*offset)++] = (UA_Byte)((*src & 0x0000FF00) >> 8);
-    dst->data[(*offset)++] = (UA_Byte)((*src & 0x00FF0000) >> 16);
-    dst->data[(*offset)++] = (UA_Byte)((*src & 0xFF000000) >> 24);
+    UA_UInt32 *dst_ptr = (UA_UInt32*)&dst->data[*offset];
+#ifndef _WIN32
+    *dst_ptr = htole32(*src);
+#else
+    *dst_ptr = *src;
+#endif
+    *offset += 4;
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode UA_UInt32_decodeBinary(UA_ByteString const *src, size_t *offset, UA_UInt32 * dst) {
     if(*offset + sizeof(UA_UInt32) > (size_t)src->length)
         return UA_STATUSCODE_BADDECODINGERROR;
-    *dst  = (UA_UInt32)src->data[(*offset)++] << 0;
-    *dst |= (UA_UInt32)src->data[(*offset)++] << 8;
-    *dst |= (UA_UInt32)src->data[(*offset)++] << 16;
-    *dst |= (UA_UInt32)src->data[(*offset)++] << 24;
+    UA_UInt32 value = *((UA_UInt32*)&src->data[*offset]);
+#ifndef _WIN32
+    value = le32toh(value);
+#endif
+    *dst = value;
+    *offset += 4;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -115,59 +129,20 @@ UA_TYPE_CALCSIZEBINARY_MEMSIZE(UA_UInt64)
 UA_StatusCode UA_UInt64_encodeBinary(UA_UInt64 const *src, UA_ByteString *dst, size_t *offset) {
     if(*offset + sizeof(UA_UInt64) > (size_t)dst->length )
         return UA_STATUSCODE_BADENCODINGERROR;
-    dst->data[(*offset)++] = (UA_Byte)((*src & 0x00000000000000FF) >> 0);
-    dst->data[(*offset)++] = (UA_Byte)((*src & 0x000000000000FF00) >> 8);
-    dst->data[(*offset)++] = (UA_Byte)((*src & 0x0000000000FF0000) >> 16);
-    dst->data[(*offset)++] = (UA_Byte)((*src & 0x00000000FF000000) >> 24);
-    dst->data[(*offset)++] = (UA_Byte)((*src & 0x000000FF00000000) >> 32);
-    dst->data[(*offset)++] = (UA_Byte)((*src & 0x0000FF0000000000) >> 40);
-    dst->data[(*offset)++] = (UA_Byte)((*src & 0x00FF000000000000) >> 48);
-    dst->data[(*offset)++] = (UA_Byte)((*src & 0xFF00000000000000) >> 56);
+    UA_UInt64 *dst_ptr = (UA_UInt64*)&dst->data[*offset];
+#ifndef _WIN32
+    *dst_ptr = htole64(*src);
+#else
+    *dst_ptr = *src;
+#endif
+    *offset += 8;
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode UA_UInt64_decodeBinary(UA_ByteString const *src, size_t *offset, UA_UInt64 * dst) {
     if(*offset + sizeof(UA_UInt64) > (size_t)src->length)
         return UA_STATUSCODE_BADDECODINGERROR;
-    *dst  = (UA_UInt64)src->data[(*offset)++] << 0;
-    *dst |= (UA_UInt64)src->data[(*offset)++] << 8;
-    *dst |= (UA_UInt64)src->data[(*offset)++] << 16;
-    *dst |= (UA_UInt64)src->data[(*offset)++] << 24;
-    *dst |= (UA_UInt64)src->data[(*offset)++] << 32;
-    *dst |= (UA_UInt64)src->data[(*offset)++] << 40;
-    *dst |= (UA_UInt64)src->data[(*offset)++] << 48;
-    *dst |= (UA_UInt64)src->data[(*offset)++] << 56;
-    return UA_STATUSCODE_GOOD;
-}
-
-/* Float */
-UA_TYPE_CALCSIZEBINARY_MEMSIZE(UA_Float)
-UA_Byte UA_FLOAT_ZERO[] = { 0x00, 0x00, 0x00, 0x00 };
-UA_StatusCode UA_Float_decodeBinary(UA_ByteString const *src, size_t *offset, UA_Float * dst) {
-    if(*offset + sizeof(UA_Float) > (size_t)src->length )
-        return UA_STATUSCODE_BADDECODINGERROR;
-    UA_Float value = *((UA_Float*)&src->data[*offset]);
-#ifndef _WIN32
-    value = le32toh(value);
-#endif
-    *dst = value;
-    *offset += 4;
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode UA_Float_encodeBinary(UA_Float const *src, UA_ByteString * dst, size_t *offset) {
-    return UA_Int32_encodeBinary((const UA_Int32 *)src, dst, offset);
-}
-
-/* Double */
-UA_TYPE_CALCSIZEBINARY_MEMSIZE(UA_Double)
-// FIXME: Implement NaN, Inf and Zero(s)
-UA_Byte UA_DOUBLE_ZERO[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-UA_StatusCode UA_Double_decodeBinary(UA_ByteString const *src, size_t *offset, UA_Double * dst) {
-    if(*offset + sizeof(UA_Double) > (UA_UInt32)src->length )
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    UA_Double value = *((UA_Double*)&src->data[*offset]);
+    UA_UInt64 value = *((UA_UInt64*)&src->data[*offset]);
 #ifndef _WIN32
     value = le64toh(value);
 #endif
@@ -176,9 +151,52 @@ UA_StatusCode UA_Double_decodeBinary(UA_ByteString const *src, size_t *offset, U
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Double_encodeBinary(UA_Double const *src, UA_ByteString * dst, size_t *offset) {
-    return UA_Int64_encodeBinary((const UA_Int64*)src, dst, offset);
-}
+/* Float */
+/* In case that the float endiannes is different from the integer endianness (very unlikely on
+   modern cpus), use the following code:
+
+   UA_Byte UA_FLOAT_ZERO[] = { 0x00, 0x00, 0x00, 0x00 };
+   UA_Float mantissa;
+   UA_UInt32 biasedExponent;
+   UA_Float sign;
+   if(memcmp(&src->data[*offset], UA_FLOAT_ZERO, 4) == 0)
+       return UA_Int32_decodeBinary(src, offset, (UA_Int32 *)dst);
+   mantissa = (UA_Float)(src->data[*offset] & 0xFF);                                   // bits 0-7
+   mantissa = (mantissa / (UA_Float)256.0 ) + (UA_Float)(src->data[*offset+1] & 0xFF); // bits 8-15
+   mantissa = (mantissa / (UA_Float)256.0 ) + (UA_Float)(src->data[*offset+2] & 0x7F); // bits 16-22
+   biasedExponent  = (src->data[*offset+2] & 0x80) >>  7;                              // bits 23
+   biasedExponent |= (UA_UInt32)(src->data[*offset+3] & 0x7F) <<  1;                   // bits 24-30
+   sign = ( src->data[*offset+ 3] & 0x80 ) ? -1.0 : 1.0;                               // bit 31
+   if(biasedExponent >= 127)
+       *dst = (UA_Float)sign * (1ULL << (biasedExponent-127)) * (1.0 + mantissa / 128.0 );
+   else
+       *dst = (UA_Float)sign * 2.0 * (1.0 + mantissa / 128.0 ) / ((UA_Float)(biasedExponent-127));}
+ */
+UA_TYPE_BINARY_ENCODING_AS(UA_Float, UA_UInt32)
+
+/* Double */
+/* UA_Byte UA_DOUBLE_ZERO[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+   UA_Double sign;
+   UA_Double mantissa;
+   UA_UInt32 biasedExponent;
+   if(memcmp(&src->data[*offset], UA_DOUBLE_ZERO, 8) == 0)
+       return UA_Int64_decodeBinary(src, offset, (UA_Int64 *)dst);
+   mantissa = (UA_Double)(src->data[*offset] & 0xFF);                         // bits 0-7
+   mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+1] & 0xFF); // bits 8-15
+   mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+2] & 0xFF); // bits 16-23
+   mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+3] & 0xFF); // bits 24-31
+   mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+4] & 0xFF); // bits 32-39
+   mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+5] & 0xFF); // bits 40-47
+   mantissa = (mantissa / 256.0 ) + (UA_Double)(src->data[*offset+6] & 0x0F); // bits 48-51
+   biasedExponent  = (src->data[*offset+6] & 0xF0) >>  4; // bits 52-55
+   biasedExponent |= ((UA_UInt32)(src->data[*offset+7] & 0x7F)) <<  4; // bits 56-62
+   sign = ( src->data[*offset+7] & 0x80 ) ? -1.0 : 1.0; // bit 63
+   if(biasedExponent >= 1023)
+       *dst = (UA_Double)sign * (1ULL << (biasedExponent-1023)) * (1.0 + mantissa / 8.0 );
+   else
+     *dst = (UA_Double)sign * 2.0 * (1.0 + mantissa / 8.0 ) / ((UA_Double)(biasedExponent-1023));
+*/
+UA_TYPE_BINARY_ENCODING_AS(UA_Double, UA_UInt64)
 
 /* String */
 size_t UA_String_calcSizeBinary(UA_String const *string) {
