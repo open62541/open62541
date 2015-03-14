@@ -206,10 +206,12 @@ UA_Server * UA_Server_new(void) {
 
     UA_ByteString_init(&server->serverCertificate);
 
+#define PRODUCT_URI "http://open62541.org"
+#define APPLICATION_URI "urn:unconfigured:open62541:open62541Server"
     // mockup application description
     UA_ApplicationDescription_init(&server->description);
-    UA_String_copycstring("urn:unconfigured:open62541:open62541Server", &server->description.productUri);
-    UA_String_copycstring("http://open62541.org/applications/unconfigured", &server->description.applicationUri);
+    UA_String_copycstring(PRODUCT_URI, &server->description.productUri);
+    UA_String_copycstring(APPLICATION_URI, &server->description.applicationUri);
     UA_LocalizedText_copycstring("Unconfigured open62541 application", &server->description.applicationName);
     server->description.applicationType = UA_APPLICATIONTYPE_SERVER;
     server->externalNamespacesSize = 0;
@@ -621,7 +623,7 @@ UA_Server * UA_Server_new(void) {
    // Fixme: Insert the external namespaces
    UA_String_copycstring("http://opcfoundation.org/UA/",
 		   &((UA_String *)(namespaceArray->variable.variant.dataPtr))[0]);
-   UA_String_copycstring("urn:myServer:myApplication",
+   UA_String_copycstring(APPLICATION_URI,
 		   &((UA_String *)(namespaceArray->variable.variant.dataPtr))[1]);
    namespaceArray->valueRank = 1;
    namespaceArray->minimumSamplingInterval = 1.0;
@@ -631,6 +633,24 @@ UA_Server * UA_Server_new(void) {
 		   &UA_NODEID_STATIC(0, UA_NS0ID_HASPROPERTY));
    ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY), UA_NODEID_STATIC(0, UA_NS0ID_HASTYPEDEFINITION),
 		   UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_PROPERTYTYPE));
+
+   UA_VariableNode *serverArray = UA_VariableNode_new();
+   copyNames((UA_Node*)serverArray, "ServerArray");
+   serverArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERARRAY;
+   serverArray->variableType = UA_VARIABLENODETYPE_VARIANT;
+   serverArray->variable.variant.dataPtr = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 1);
+   serverArray->variable.variant.arrayLength = 1;
+   serverArray->variable.variant.type = &UA_TYPES[UA_TYPES_STRING];
+   UA_String_copycstring(APPLICATION_URI,
+ 		   &((UA_String *)(serverArray->variable.variant.dataPtr))[0]);
+   serverArray->valueRank = 1;
+   serverArray->minimumSamplingInterval = 1.0;
+   serverArray->historizing = UA_FALSE;
+   UA_Server_addNode(server, (UA_Node*)serverArray,
+ 		   &UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER),
+ 		   &UA_NODEID_STATIC(0, UA_NS0ID_HASPROPERTY));
+   ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_SERVER_SERVERARRAY), UA_NODEID_STATIC(0, UA_NS0ID_HASTYPEDEFINITION),
+ 		   UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_PROPERTYTYPE));
 
    UA_ObjectNode *servercapablities = UA_ObjectNode_new();
    copyNames((UA_Node*)servercapablities, "ServerCapabilities");
