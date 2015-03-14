@@ -208,8 +208,8 @@ UA_Server * UA_Server_new(void) {
 
     // mockup application description
     UA_ApplicationDescription_init(&server->description);
-    UA_String_copycstring("urn:unconfigured:open62541:application", &server->description.productUri);
-    UA_String_copycstring("http://unconfigured.open62541/applications/", &server->description.applicationUri);
+    UA_String_copycstring("urn:unconfigured:open62541:open62541Server", &server->description.productUri);
+    UA_String_copycstring("http://open62541.org/applications/unconfigured", &server->description.applicationUri);
     UA_LocalizedText_copycstring("Unconfigured open62541 application", &server->description.applicationName);
     server->description.applicationType = UA_APPLICATIONTYPE_SERVER;
     server->externalNamespacesSize = 0;
