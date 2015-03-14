@@ -5,6 +5,20 @@
 void Service_GetEndpoints(UA_Server                    *server,
                           const UA_GetEndpointsRequest *request,
                           UA_GetEndpointsResponse      *response) {
+    /* test if the supported binary profile shall be returned */
+    UA_Boolean returnBinary = request->profileUrisSize == 0;
+    for(UA_Int32 i=0;i<request->profileUrisSize;i++) {
+        if(UA_String_equal(&request->profileUris[i], &server->endpointDescriptions->transportProfileUri)) {
+            returnBinary = UA_TRUE;
+            break;
+        }
+    }
+
+    if(!returnBinary) {
+        response->endpointsSize = 0;
+        return;
+    }
+
     response->endpoints = UA_malloc(sizeof(UA_EndpointDescription));
     if(!response->endpoints) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
