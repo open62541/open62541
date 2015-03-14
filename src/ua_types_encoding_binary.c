@@ -1,4 +1,4 @@
-#ifndef WIN32
+#ifndef _WIN32
 #define _BSD_SOURCE
 #include <endian.h>
 #endif
@@ -147,7 +147,7 @@ UA_StatusCode UA_Float_decodeBinary(UA_ByteString const *src, size_t *offset, UA
     if(*offset + sizeof(UA_Float) > (size_t)src->length )
         return UA_STATUSCODE_BADDECODINGERROR;
     UA_Float value = *((UA_Float*)&src->data[*offset]);
-#ifndef WIN32
+#ifndef _WIN32
     value = le32toh(value);
 #endif
     *dst = value;
@@ -168,7 +168,7 @@ UA_StatusCode UA_Double_decodeBinary(UA_ByteString const *src, size_t *offset, U
         return UA_STATUSCODE_BADDECODINGERROR;
 
     UA_Double value = *((UA_Double*)&src->data[*offset]);
-#ifndef WIN32
+#ifndef _WIN32
     value = le64toh(value);
 #endif
     *dst = value;
