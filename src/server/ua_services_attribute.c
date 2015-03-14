@@ -297,7 +297,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
         return;
     }
 
-    if(request->timestampsToReturn > 3 || request->timestampsToReturn < 0){
+    if(request->timestampsToReturn > 3){
     	response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
     	return;
     }
