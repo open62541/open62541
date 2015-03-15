@@ -169,8 +169,14 @@ static UA_StatusCode addTimedWork(UA_Server *server, const UA_WorkItem *item, UA
     if(tw) {
         // append to matching entry
         tw->workSize++;
-        tw->work = UA_realloc(tw->work, sizeof(UA_WorkItem)*tw->workSize);
-        tw->workIds = UA_realloc(tw->workIds, sizeof(UA_Guid)*tw->workSize);
+        UA_WorkItem *biggerWorkArray = UA_realloc(tw->work, sizeof(UA_WorkItem)*tw->workSize);
+        if(!biggerWorkArray)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        tw->work = biggerWorkArray;
+        UA_Guid *biggerWorkIds = UA_realloc(tw->workIds, sizeof(UA_Guid)*tw->workSize);
+        if(!biggerWorkIds)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        tw->workIds = biggerWorkIds;
         tw->work[tw->workSize-1] = *item;
         tw->workIds[tw->workSize-1] = UA_Guid_random(&server->random_seed);
         if(resultWorkGuid)
@@ -181,13 +187,20 @@ static UA_StatusCode addTimedWork(UA_Server *server, const UA_WorkItem *item, UA
     // create a new entry
     if(!(tw = UA_malloc(sizeof(UA_TimedWork))))
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(!(tw->work = UA_malloc(sizeof(UA_WorkItem)))) {
+        UA_free(tw);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    if(!(tw->workIds = UA_malloc(sizeof(UA_Guid)))) {
+        UA_free(tw->work);
+        UA_free(tw);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     tw->workSize = 1;
     tw->time = firstTime;
     tw->repetitionInterval = repetitionInterval;
-    tw->work = UA_malloc(sizeof(UA_WorkItem));
     tw->work[0] = *item;
-    tw->workIds = UA_malloc(sizeof(UA_Guid));
     tw->workIds[0] = UA_Guid_random(&server->random_seed);
     if(lastTw)
         LIST_INSERT_AFTER(lastTw, tw, pointers);
