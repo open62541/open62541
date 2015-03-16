@@ -311,29 +311,29 @@ size_t UA_NodeId_calcSizeBinary(UA_NodeId const *p) {
     return length;
 }
 
-UA_StatusCode UA_NodeId_encodeBinary(UA_NodeId const *src, UA_ByteString * dst, size_t *offset) {
+static UA_StatusCode UA_NodeId_encodeBinary_nodeid_offset(UA_NodeId const *src, UA_ByteString * dst, size_t *offset, UA_Int32 nodeid_offset) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     // temporary variables for endian-save code
     UA_Byte srcByte;
     UA_UInt16 srcUInt16;
     switch(src->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
-        if(src->identifier.numeric > UA_UINT16_MAX || src->namespaceIndex > UA_BYTE_MAX) {
+        if(src->identifier.numeric+nodeid_offset > UA_UINT16_MAX || src->namespaceIndex > UA_BYTE_MAX) {
             srcByte = UA_NODEIDTYPE_NUMERIC;
             retval |= UA_Byte_encodeBinary(&srcByte, dst, offset);
             retval |= UA_UInt16_encodeBinary(&src->namespaceIndex, dst, offset);
-            retval |= UA_UInt32_encodeBinary(&src->identifier.numeric, dst, offset);
-        } else if(src->identifier.numeric > UA_BYTE_MAX || src->namespaceIndex > 0) { /* UA_NODEIDTYPE_FOURBYTE */
+            retval |= UA_UInt32_encodeBinary(&src->identifier.numeric+nodeid_offset, dst, offset);
+        } else if(src->identifier.numeric+nodeid_offset > UA_BYTE_MAX || src->namespaceIndex > 0) { /* UA_NODEIDTYPE_FOURBYTE */
             srcByte = UA_NODEIDTYPE_FOURBYTE;
             retval |= UA_Byte_encodeBinary(&srcByte, dst, offset);
             srcByte = src->namespaceIndex;
-            srcUInt16 = src->identifier.numeric;
+            srcUInt16 = src->identifier.numeric+nodeid_offset;
             retval |= UA_Byte_encodeBinary(&srcByte, dst, offset);
             retval |= UA_UInt16_encodeBinary(&srcUInt16, dst, offset);
         } else { /* UA_NODEIDTYPE_TWOBYTE */
             srcByte = UA_NODEIDTYPE_TWOBYTE;
             retval |= UA_Byte_encodeBinary(&srcByte, dst, offset);
-            srcByte = src->identifier.numeric;
+            srcByte = src->identifier.numeric+nodeid_offset;
             retval |= UA_Byte_encodeBinary(&srcByte, dst, offset);
         }
         break;
@@ -359,6 +359,10 @@ UA_StatusCode UA_NodeId_encodeBinary(UA_NodeId const *src, UA_ByteString * dst, 
         UA_assert(UA_FALSE);
     }
     return retval;
+}
+
+UA_StatusCode UA_NodeId_encodeBinary(UA_NodeId const *src, UA_ByteString * dst, size_t *offset) {
+	return UA_NodeId_encodeBinary_nodeid_offset(src, dst, offset, 0);
 }
 
 UA_StatusCode UA_NodeId_decodeBinary(UA_ByteString const *src, size_t *offset, UA_NodeId *dst) {
@@ -725,10 +729,8 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
     for(UA_Int32 i=0;i<src->arrayLength;i++) {
         if(!isBuiltin) {
             /* The type is wrapped inside an extensionobject*/
-            UA_NodeId copy;
-            retval |= UA_NodeId_copy(&src->type->typeId, &copy);
-            copy.identifier.numeric += UA_ENCODINGOFFSET_BINARY; // todo: this holds only for namespace 0
-            retval |= UA_NodeId_encodeBinary(&copy, dst, offset);
+            // todo: offest holds only for namespace 0
+            retval |= UA_NodeId_encodeBinary_nodeid_offset(&src->type->typeId, dst, offset, UA_ENCODINGOFFSET_BINARY);
             UA_Byte eoEncoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
             retval |= UA_Byte_encodeBinary(&eoEncoding, dst, offset);
             UA_Int32 eoEncodingLength = UA_calcSizeBinary(src->dataPtr, src->type);
