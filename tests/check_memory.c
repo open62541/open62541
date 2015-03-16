@@ -180,17 +180,17 @@ int main(void) {
 
 	Suite *s  = suite_create("testMemoryHandling");
 	TCase *tc = tcase_create("Empty Objects");
-	tcase_add_loop_test(tc, newAndEmptyObjectShallBeDeleted, UA_TYPES_BOOLEAN, UA_TYPES_EVENTNOTIFICATIONLIST);
+	tcase_add_loop_test(tc, newAndEmptyObjectShallBeDeleted, UA_TYPES_BOOLEAN, UA_TYPES_COUNT - 1);
 	tcase_add_test(tc, arrayCopyShallMakeADeepCopy);
-	tcase_add_loop_test(tc, encodeShallYieldDecode, UA_TYPES_BOOLEAN, UA_TYPES_EVENTNOTIFICATIONLIST);
+	tcase_add_loop_test(tc, encodeShallYieldDecode, UA_TYPES_BOOLEAN, UA_TYPES_COUNT - 1);
 	suite_add_tcase(s, tc);
 	tc = tcase_create("Truncated Buffers");
-	tcase_add_loop_test(tc, decodeShallFailWithTruncatedBufferButSurvive, UA_TYPES_BOOLEAN, UA_TYPES_EVENTNOTIFICATIONLIST);
+	tcase_add_loop_test(tc, decodeShallFailWithTruncatedBufferButSurvive, UA_TYPES_BOOLEAN, UA_TYPES_COUNT - 1);
 	suite_add_tcase(s, tc);
 
 	tc = tcase_create("Fuzzing with Random Buffers");
 	tcase_add_loop_test(tc, decodeScalarBasicTypeFromRandomBufferShallSucceed, UA_TYPES_BOOLEAN, UA_TYPES_DOUBLE);
-	tcase_add_loop_test(tc, decodeComplexTypeFromRandomBufferShallSurvive, UA_TYPES_NODEID, UA_TYPES_EVENTNOTIFICATIONLIST);
+	tcase_add_loop_test(tc, decodeComplexTypeFromRandomBufferShallSurvive, UA_TYPES_NODEID, UA_TYPES_COUNT - 1);
 	suite_add_tcase(s, tc);
 
 	sr = srunner_create(s);
