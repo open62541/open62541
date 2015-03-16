@@ -27,6 +27,7 @@
 /* Replace the macros with functions for custom allocators if necessary */
 #define UA_free(ptr) free(ptr)
 #define UA_malloc(size) malloc(size)
+#define UA_calloc(num, size) calloc(num, size)
 #define UA_realloc(ptr, size) realloc(ptr, size)
 #define UA_memcpy(dst, src, size) memcpy(dst, src, size)
 #define UA_memset(ptr, value, size) memset(ptr, value, size)

@@ -1005,8 +1005,11 @@ void* UA_Array_new(const UA_DataType *dataType, UA_Int32 noElements) {
     if((UA_Int32)dataType->memSize * noElements < 0 || dataType->memSize * noElements > MAX_ARRAY_SIZE )
         return UA_NULL;
 
+    if(dataType->fixedSize)
+        return calloc(noElements, dataType->memSize);
+
     void *p = malloc(dataType->memSize * (size_t)noElements);
-    if(!p || dataType->fixedSize) // datatypes of fixed size are not initialized.
+    if(!p)
         return p;
 
     uintptr_t ptr = (uintptr_t)p;
