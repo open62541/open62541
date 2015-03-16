@@ -28,7 +28,7 @@ before_install:
 - sudo pip install cpp-coveralls
 script:
 - echo "Checking the applicability of patches"
-- ./tools/.checkPorts.sh
+- # ./tools/.checkPorts.sh
 - echo "Testing builds"
 - mkdir -p build
 - cd build

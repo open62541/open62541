@@ -63,9 +63,6 @@ set(lib_sources src/ua_types.c
 				${exported_headers}
 				${generated_headers} )
 
-## set the precompiler flags
-configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
-
 ## generate code from xml definitions
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 include_directories("${PROJECT_BINARY_DIR}/src_generated")
@@ -93,6 +90,9 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
 
 ## logging
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
+
+## set the precompiler flags
+configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
 
 ## multithreading
 option(MULTITHREADING "Enable multithreading" OFF)
