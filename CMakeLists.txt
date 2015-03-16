@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.8)
-# set(CMAKE_VERBOSE_MAKEFILE on )
+# set(CMAKE_VERBOSE_MAKEFILE on)
 
 project(open62541 C)
 set(open62541_VERSION_MAJOR 0)
@@ -35,7 +35,7 @@ add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat
 	endif()
 endif()
 
-# main sources of libopen62541
+# build the main library
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src")
 file(GLOB_RECURSE exported_headers "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h")
@@ -62,6 +62,37 @@ set(lib_sources src/ua_types.c
                 src/server/ua_services_view.c
 				${exported_headers}
 				${generated_headers} )
+
+## set the precompiler flags
+configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
+
+## generate code from xml definitions
+file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
+include_directories("${PROJECT_BINARY_DIR}/src_generated")
+
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
+                   PRE_BUILD
+                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --typedescriptions ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv 0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
+                           ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
+                           ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
+
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
+                   PRE_BUILD
+                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --ns0-types-xml ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd 1 ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_transport
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
+                           ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
+
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
+                   PRE_BUILD
+                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_nodeids.py ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nodeids.py
+                           ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
+
+## logging
+set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 
 ## multithreading
 option(MULTITHREADING "Enable multithreading" OFF)
@@ -100,10 +131,14 @@ SET_TARGET_PROPERTIES(open62541-static PROPERTIES OUTPUT_NAME open62541 CLEAN_DI
 target_compile_definitions(open62541-objects PRIVATE UA_DYNAMIC_LINKING)
 target_compile_definitions(open62541-static PRIVATE UA_DYNAMIC_LINKING)
 
-## logging
-set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
+# build language bindings for the library
+option(ENABLE_BINDING_LUA "Build Lua bindings" OFF)
+option(ENABLE_BINDING_PYTHON "Build Python bindings" OFF)
+if(ENABLE_BINDING_LUA OR ENABLE_BINDING_PYTHON)
+    add_subdirectory(bindings)
+endif()
 
-## coverage
+# coverage
 option(ENABLE_COVERAGE "Enable gcov coverage" OFF)
 if(ENABLE_COVERAGE)
     message(STATUS "Enabling gcov support")
@@ -112,34 +147,6 @@ if(ENABLE_COVERAGE)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
 endif()
-
-# set the precompiler flags
-configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
-
-# generate code from xml definitions
-file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
-include_directories("${PROJECT_BINARY_DIR}/src_generated") 
-
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
-                   PRE_BUILD
-                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --typedescriptions ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv 0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
-                           ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
-                           ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
-
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
-                   PRE_BUILD
-                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --ns0-types-xml ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd 1 ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_transport
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
-                           ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
-
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
-                   PRE_BUILD
-                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_nodeids.py ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nodeids.py
-                           ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
 
 # build example client
 option(CLIENT "Build a test client" OFF)
