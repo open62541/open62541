@@ -33,6 +33,27 @@ excluded_types = ["UA_NodeIdType", "UA_InstanceNode", "UA_TypeNode", "UA_Node", 
                   "UA_SamplingIntervalDiagnosticsDataType", "UA_SessionSecurityDiagnosticsDataType",
                   "UA_SubscriptionDiagnosticsDataType", "UA_SessionDiagnosticsDataType"]
 
+minimal_types = ["InvalidType", "Node", "NodeClass", "ReferenceNode", "ApplicationDescription", "ApplicationType",
+                 "ChannelSecurityToken", "OpenSecureChannelRequest", "OpenSecureChannelResponse",
+                 "CloseSecureChannelRequest", "CloseSecureChannelResponse", "RequestHeader", "ResponseHeader",
+                 "SecurityTokenRequestType", "MessageSecurityMode", "CloseSessionResponse", "CloseSessionRquest",
+                 "ActivateSessionRequest", "ActivateSessionResponse", "SignatureData", "SignedSoftwareCertificate",
+                 "CreateSessionResponse", "CreateSessionRequest", "EndpointDescription", "UserTokenPolicy", "UserTokenType",
+                 "GetEndpointsRequest", "GetEndpointsResponse", "PublishRequest", "PublishResponse", "SetPublishingModeResponse",
+                 "SubscriptionAcknowledgement", "NotificationMessage", "ExtensionObject", "Structure", "ReadRequest",
+                 "ReadResponse", "ReadValueId", "TimestampsToReturn", "WriteRequest", "WriteResponse", "WriteValue",
+                 "SetPublishingModeRequest", "CreateMonitoredItemsResponse", "MonitoredItemCreateResult", "CreateMonitoredItemsRequest",
+                 "MonitoredItemCreateRequest", "MonitoringMode", "MonitoringParameters", "TranslateBrowsePathsToNodeIdsRequest",
+                 "TranslateBrowsePathsToNodeIdsResponse", "BrowsePath", "BrowsePathResult", "RelativePath", "BrowsePathTarget",
+                 "RelativePathElement", "CreateSubscriptionRequest", "CreateSubscriptionResponse", "BrowseResponse",
+                 "BrowseResult", "ReferenceDescription", "BrowseRequest", "ViewDescription", "BrowseDescription",
+                 "BrowseDirection", "CloseSessionRequest", "AddNodesRequest", "AddNodesResponse", "AddNodesItem", "AddNodesResult",
+                 "DeleteNodesItem","AddReferencesRequest", "AddReferencesResponse", "AddReferencesItem","DeleteReferencesItem", "VariableNode",
+                 "MethodNode", "VariableTypeNode", "ViewNode", "ReferenceTypeNode", "BrowseResultMask", "ServerState", "ServerStatusDataType",
+                 "BuildInfo", "ObjectNode", "DataTypeNode", "ObjectTypeNode", "IdType", "VariableAttributes", "ObjectAttributes",
+                 "NodeAttributes","ReferenceTypeAttributes", "ViewAttributes", "ObjectTypeAttributes", "NodeAttributesMask","DeleteNodesItem",
+                 "DeleteNodesRequest", "DeleteNodesResponse", "DeleteReferencesItem", "DeleteReferencesRequest", "DeleteReferencesResponse"]
+
 class TypeDescription(object):
     def __init__(self, name, nodeid, namespaceid):
         self.name = name # without the UA_ prefix
@@ -284,6 +305,8 @@ def parseTypeDefinitions(xmlDescription, existing_types = OrderedDict()):
         if name in builtin_types:
             return True
         if name in excluded_types:
+            return True
+        if outname == "ua_types" and not name[3:] in minimal_types:
             return True
         if "Test" in name: # skip all test types
             return True
