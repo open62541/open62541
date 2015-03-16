@@ -8,8 +8,8 @@ if(ENABLE_BINDING_LUA)
                         COMMAND ${SWIG_EXECUTABLE} -lua
                         -I${PROJECT_SOURCE_DIR}/include
                         -o ${PROJECT_BINARY_DIR}/lua/lua_wrap.c
-                        ${CMAKE_CURRENT_SOURCE_DIR}/open62541.i
-                        DEPENDS open62541)
+                        ${PROJECT_SOURCE_DIR}/bindings/open62541.i
+                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/open62541.i)
     add_library(open62541-lua SHARED ${PROJECT_BINARY_DIR}/lua/lua_wrap.c)
     set_target_properties(open62541-lua PROPERTIES COMPILE_FLAGS "-Wno-error")
     target_include_directories(open62541-lua PUBLIC ${LUA_INCLUDE_DIR} ${PROJECT_SOURCE_DIR}/include
@@ -26,8 +26,8 @@ if(ENABLE_BINDING_PYTHON)
                         COMMAND ${SWIG_EXECUTABLE} -python
                         -I${PROJECT_SOURCE_DIR}/include
                         -o ${PROJECT_BINARY_DIR}/python/python_wrap.c
-                        ${CMAKE_CURRENT_SOURCE_DIR}/open62541.i
-                        DEPENDS open62541)
+                        ${PROJECT_SOURCE_DIR}/bindings/open62541.i
+                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/open62541.i)
     add_library(open62541-python SHARED ${PROJECT_BINARY_DIR}/python/python_wrap.c)
     set_target_properties(open62541-python PROPERTIES COMPILE_FLAGS "-Wno-error")
     target_include_directories(open62541-python PUBLIC ${PYTHON_INCLUDE_DIR} ${PROJECT_SOURCE_DIR}/include
