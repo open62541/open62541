@@ -697,7 +697,7 @@ START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArr
 	ck_assert_int_eq(pos, 5);
 	//ck_assert_ptr_eq((const void *)dst.type, (const void *)&UA_TYPES[UA_TYPES_INT32]); //does not compile in gcc 4.6
     ck_assert_int_eq((uintptr_t)dst.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]); 
-	ck_assert_int_eq(dst.arrayLength, 1);
+	ck_assert_int_eq(dst.arrayLength, -1);
 	ck_assert_int_eq(*(UA_Int32 *)dst.dataPtr, 255);
 	// finally
 	UA_Variant_deleteMembers(&dst);
@@ -1653,7 +1653,7 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
 	posDecode = 0;
 	UA_VariableAttributes_decodeBinary(&extensionObjectDecoded.body, &posDecode, &varAttrDecoded);
 	ck_assert_uint_eq(41, varAttrDecoded.userWriteMask);
-	ck_assert_int_eq(1, varAttrDecoded.value.arrayLength);
+	ck_assert_int_eq(-1, varAttrDecoded.value.arrayLength);
 
     // finally
     UA_ExtensionObject_deleteMembers(&extensionObjectDecoded);

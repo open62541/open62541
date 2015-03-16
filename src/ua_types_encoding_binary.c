@@ -773,7 +773,7 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, size_t *offset, 
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
         }
-        retval |= UA_Array_decodeBinary(src, offset, (arraySize==-1) ? 1: arraySize, &dst->dataPtr, dataType);
+        retval |= UA_Array_decodeBinary(src, offset, (!isArray && arraySize==-1) ? 1: arraySize, &dst->dataPtr, dataType);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         dst->arrayLength = arraySize; // for deleteMembers
