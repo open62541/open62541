@@ -201,7 +201,6 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         {
         	//TODO: handle indexRange
-
         	if(node->nodeClass == UA_NODECLASS_VARIABLE){
 				const UA_VariableNode *vn = (const UA_VariableNode *)node;
 				if(vn->variableType == UA_VARIABLENODETYPE_VARIANT) {
@@ -226,7 +225,7 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
 													 val.value.arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
 					vn->variable.dataSource.release(vn->variable.dataSource.handle, &val);
 				}
-        	}else{
+        	} else {
         		retval = UA_STATUSCODE_GOOD;
         	}
         }

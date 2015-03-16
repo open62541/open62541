@@ -36,7 +36,7 @@ static UA_StatusCode readTimeData(const void *handle, UA_Boolean sourceTimeStamp
 		return UA_STATUSCODE_BADOUTOFMEMORY;
 	*currentTime = UA_DateTime_now();
 	value->value.type = &UA_TYPES[UA_TYPES_DATETIME];
-	value->value.arrayLength = 1;
+	value->value.arrayLength = -1;
 	value->value.dataPtr = currentTime;
 	value->value.arrayDimensionsSize = -1;
 	value->value.arrayDimensions = NULL;
@@ -73,7 +73,7 @@ static UA_StatusCode readTemperature(const void *handle, UA_Boolean sourceTimeSt
 	*currentTemperature /= 1000.0;
 
 	value->value.type = &UA_TYPES[UA_TYPES_DOUBLE];
-	value->value.arrayLength = 1;
+	value->value.arrayLength = -1;
 	value->value.dataPtr = currentTemperature;
 	value->value.arrayDimensionsSize = -1;
 	value->value.arrayDimensions = NULL;
@@ -102,7 +102,7 @@ static UA_StatusCode readLedStatus(const void *handle, UA_Boolean sourceTimeStam
 	pthread_rwlock_rdlock(&writeLock);
 #endif
 	value->value.type = &UA_TYPES[UA_TYPES_BOOLEAN];
-	value->value.arrayLength = 1;
+	value->value.arrayLength = -1;
 	value->value.dataPtr = &ledStatus;
 	value->value.arrayDimensionsSize = -1;
 	value->value.arrayDimensions = NULL;

@@ -1151,7 +1151,7 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithVariant) {
     src.hasVariant = UA_TRUE;
     src.hasServerTimestamp = UA_TRUE;
 	src.value.type = &UA_TYPES[UA_TYPES_INT32];
-	src.value.arrayLength  = 1; // one element (encoded as not an array)
+	src.value.arrayLength  = -1; // one element (encoded as not an array)
 	UA_Int32  vdata  = 45;
 	src.value.dataPtr = (void *)&vdata;
 
@@ -1619,7 +1619,7 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
 	UA_Variant_init(&varAttr.value);
 	varAttr.value.type = &UA_TYPES[UA_TYPES_INT32];
 	varAttr.value.dataPtr = &val;
-	varAttr.value.arrayLength = 1;
+	varAttr.value.arrayLength = -1;
 	varAttr.userWriteMask = 41;
 	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DATATYPE;
 	varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_VALUE;

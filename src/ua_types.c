@@ -581,6 +581,8 @@ UA_TYPE_DELETE_DEFAULT(UA_Variant)
 void UA_Variant_deleteMembers(UA_Variant *p) {
     if(p->storageType == UA_VARIANT_DATA) {
         if(p->dataPtr) {
+            if(p->arrayLength == -1)
+                p->arrayLength = 1;
             UA_Array_delete(p->dataPtr, p->type, p->arrayLength);
             p->dataPtr = UA_NULL;
             p->arrayLength = -1;
@@ -594,15 +596,18 @@ void UA_Variant_deleteMembers(UA_Variant *p) {
 
 UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
     UA_Variant_init(dst);
-    dst->type = src->type;
-    dst->storageType = UA_VARIANT_DATA;
-    UA_StatusCode retval = UA_Array_copy(src->dataPtr, &dst->dataPtr, src->type, src->arrayLength);
+    UA_Int32 tmp = src->arrayLength;
+    if(src->arrayLength == -1 && src->dataPtr)
+        tmp = 1;
+    UA_StatusCode retval = UA_Array_copy(src->dataPtr, &dst->dataPtr, src->type, tmp);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Variant_deleteMembers(dst);
         UA_Variant_init(dst);
         return retval;
     }
     dst->arrayLength = src->arrayLength;
+    dst->type = src->type;
+    dst->storageType = UA_VARIANT_DATA;
 
     if(src->arrayDimensions) {
         retval |= UA_Array_copy(src->arrayDimensions, (void **)&dst->arrayDimensions,
@@ -610,15 +615,16 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
         if(retval != UA_STATUSCODE_GOOD) {
             UA_Variant_deleteMembers(dst);
             UA_Variant_init(dst);
+            return retval;
         }
+        dst->arrayDimensionsSize = src->arrayDimensionsSize;
     }
-    dst->arrayDimensionsSize = src->arrayDimensionsSize;
 
     return retval;
 }
 
 UA_StatusCode UA_Variant_setValue(UA_Variant *v, void *p, const UA_DataType *type) {
-    return UA_Variant_setArray(v, p, 1, type);
+    return UA_Variant_setArray(v, p, -1, type);
 }
 
 UA_StatusCode UA_Variant_copySetValue(UA_Variant *v, const void *p, const UA_DataType *type) {
@@ -630,7 +636,7 @@ UA_StatusCode UA_Variant_copySetValue(UA_Variant *v, const void *p, const UA_Dat
 		UA_delete(new, type);
 		return retval;
 	}
-    return UA_Variant_setArray(v, new, 1, type);
+    return UA_Variant_setArray(v, new, -1, type);
 }
 
 UA_StatusCode UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 noElements,

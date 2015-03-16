@@ -103,7 +103,7 @@ static UA_StatusCode readStatus(const void *handle, UA_Boolean sourceTimeStamp, 
     status->buildInfo.buildDate = ((const UA_Server*)handle)->buildDate;
     status->secondsTillShutdown = 0;
     value->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
-	value->value.arrayLength = 1;
+	value->value.arrayLength = -1;
     value->value.dataPtr = status;
     value->value.arrayDimensionsSize = -1;
     value->value.arrayDimensions = UA_NULL;
@@ -125,7 +125,7 @@ static UA_StatusCode readCurrentTime(const void *handle, UA_Boolean sourceTimeSt
 		return UA_STATUSCODE_BADOUTOFMEMORY;
 	*currentTime = UA_DateTime_now();
 	value->value.type = &UA_TYPES[UA_TYPES_DATETIME];
-	value->value.arrayLength = 1;
+	value->value.arrayLength = -1;
 	value->value.dataPtr = currentTime;
 	value->value.arrayDimensionsSize = -1;
 	value->value.arrayDimensions = NULL;
@@ -695,7 +695,7 @@ UA_Server * UA_Server_new(void) {
    state->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERSTATUS_STATE;
    state->variableType = UA_VARIABLENODETYPE_VARIANT;
    state->variable.variant.type = &UA_TYPES[UA_TYPES_SERVERSTATE];
-   state->variable.variant.arrayLength = 1;
+   state->variable.variant.arrayLength = -1;
    state->variable.variant.dataPtr = stateEnum; // points into the other object.
    UA_NodeStore_insert(server->nodestore, (UA_Node*)state, UA_NULL);
    ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS), UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT),
@@ -761,25 +761,12 @@ UA_Server * UA_Server_new(void) {
 	                              &UA_NODEID_STATIC(1, SCALARID),
 	                              &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
 
-   	   //add an array node for every built-in type
-	   UA_VariableNode *arraynode = UA_VariableNode_new();
-	   copyNames((UA_Node*)arraynode, name);
-	   arraynode->nodeId = UA_NODEID_STATIC(1, ++id);
-	   arraynode->variableType = UA_VARIABLENODETYPE_VARIANT;
-	   arraynode->variable.variant.arrayLength = type;
-	   arraynode->variable.variant.dataPtr = UA_Array_new(&UA_TYPES[type], arraynode->variable.variant.arrayLength);
-	   char* initPointer = (char* )arraynode->variable.variant.dataPtr;
-	   for(UA_Int32 i=0;i<arraynode->variable.variant.arrayLength;i++) {
-		   UA_init(initPointer, &UA_TYPES[type]);
-		   initPointer += UA_TYPES[type].memSize;
-	   }
-	   arraynode->variable.variant.type = &UA_TYPES[type];
-	   arraynode->valueRank = 1;
-	   arraynode->minimumSamplingInterval = 1.0;
-	   arraynode->historizing = UA_FALSE;
-	   UA_Server_addNode(server, (UA_Node*)arraynode,
-			   &UA_EXPANDEDNODEID_STATIC(1, ARRAYID),
-			   &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
+        //add an array node for every built-in type
+        UA_Variant *arrayvar = UA_Variant_new();
+        UA_Variant_setArray(arrayvar, UA_Array_new(&UA_TYPES[type], 10), 10, &UA_TYPES[type]);
+        UA_Server_addVariableNode(server, arrayvar, &UA_NODEID_STATIC(1, ++id), &myIntegerName,
+                                  &UA_NODEID_STATIC(1, ARRAYID),
+                                  &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
    }
 #endif
 
