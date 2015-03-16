@@ -767,13 +767,13 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, size_t *offset, 
     if(isArray || typeIndex != UA_TYPES_EXTENSIONOBJECT) {
         /* an array or a single builtin */
         const UA_DataType *dataType = &UA_TYPES[typeIndex];
-        UA_Int32 arraySize = 1;
+        UA_Int32 arraySize = -1;
         if(isArray) {
             retval |= UA_Int32_decodeBinary(src, offset, &arraySize);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
         }
-        retval |= UA_Array_decodeBinary(src, offset, arraySize, &dst->dataPtr, dataType);
+        retval |= UA_Array_decodeBinary(src, offset, (arraySize==-1) ? 1: arraySize, &dst->dataPtr, dataType);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         dst->arrayLength = arraySize; // for deleteMembers
