@@ -771,12 +771,6 @@ void UA_init(void *p, const UA_DataType *dataType) {
         case UA_TYPES_EXPANDEDNODEID:
             UA_ExpandedNodeId_init((UA_ExpandedNodeId*)ptr);
             break;
-        case UA_TYPES_QUALIFIEDNAME:
-            UA_QualifiedName_init((UA_QualifiedName*)ptr);
-            break;
-        case UA_TYPES_LOCALIZEDTEXT:
-            UA_LocalizedText_init((UA_LocalizedText*)ptr);
-            break;
         case UA_TYPES_EXTENSIONOBJECT:
             UA_ExtensionObject_init((UA_ExtensionObject*)ptr);
             break;
@@ -789,12 +783,8 @@ void UA_init(void *p, const UA_DataType *dataType) {
         case UA_TYPES_DIAGNOSTICINFO:
             UA_DiagnosticInfo_init((UA_DiagnosticInfo*)ptr);
             break;
-        case UA_TYPES_STRING:
-        case UA_TYPES_BYTESTRING:
-        case UA_TYPES_XMLELEMENT:
-            UA_String_init((UA_String*)ptr);
-            break;
         default:
+            // QualifiedName, LocalizedText and strings are treated as structures, also
             UA_init((void*)ptr, &UA_TYPES[member->memberTypeIndex]);
         }
         ptr += UA_TYPES[member->memberTypeIndex].memSize;
@@ -890,12 +880,6 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
         case UA_TYPES_EXPANDEDNODEID:
             retval |= UA_ExpandedNodeId_copy((const UA_ExpandedNodeId*)ptrs, (UA_ExpandedNodeId*)ptrd);
             break;
-        case UA_TYPES_QUALIFIEDNAME:
-            retval |= UA_QualifiedName_copy((const UA_QualifiedName*)ptrs, (UA_QualifiedName*)ptrd);
-            break;
-        case UA_TYPES_LOCALIZEDTEXT:
-            retval |= UA_LocalizedText_copy((const UA_LocalizedText*)ptrs, (UA_LocalizedText*)ptrd);
-            break;
         case UA_TYPES_EXTENSIONOBJECT:
             retval |= UA_ExtensionObject_copy((const UA_ExtensionObject*)ptrs, (UA_ExtensionObject*)ptrd);
             break;
@@ -908,12 +892,8 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
         case UA_TYPES_DIAGNOSTICINFO:
             retval |= UA_DiagnosticInfo_copy((const UA_DiagnosticInfo*)ptrs, (UA_DiagnosticInfo*)ptrd);
             break;
-        case UA_TYPES_STRING:
-        case UA_TYPES_BYTESTRING:
-        case UA_TYPES_XMLELEMENT:
-            retval |= UA_String_copy((const UA_String*)ptrs, (UA_String*)ptrd);
-            break;
         default:
+            // QualifiedName, LocalizedText and strings are treated as structures, also
             retval |= UA_copy((const void *)ptrs, (void*)ptrd, memberType);
         }
         ptrs += memberType->memSize;
@@ -954,22 +934,28 @@ void UA_deleteMembers(void *p, const UA_DataType *dataType) {
             ptr += memberType->memSize;
             continue;
         }
-        
+
         switch(member->memberTypeIndex) {
-            // the following types have a fixed size.
-            /* UA_BOOLEAN, UA_SBYTE, UA_BYTE, UA_INT16, UA_UINT16, UA_INT32, UA_UINT32, */
-            /* UA_STATUSCODE, UA_FLOAT, UA_INT64, UA_UINT64, UA_DOUBLE, UA_DATETIME, UA_GUID */
+        case UA_TYPES_BOOLEAN:
+        case UA_TYPES_SBYTE:
+        case UA_TYPES_BYTE:
+        case UA_TYPES_INT16:
+        case UA_TYPES_UINT16:
+        case UA_TYPES_INT32:
+        case UA_TYPES_UINT32:
+        case UA_TYPES_STATUSCODE:
+        case UA_TYPES_FLOAT:
+        case UA_TYPES_INT64:
+        case UA_TYPES_UINT64:
+        case UA_TYPES_DOUBLE:
+        case UA_TYPES_DATETIME:
+        case UA_TYPES_GUID:
+            break;
         case UA_TYPES_NODEID:
             UA_NodeId_deleteMembers((UA_NodeId*)ptr);
             break;
         case UA_TYPES_EXPANDEDNODEID:
             UA_ExpandedNodeId_deleteMembers((UA_ExpandedNodeId*)ptr);
-            break;
-        case UA_TYPES_QUALIFIEDNAME:
-            UA_QualifiedName_deleteMembers((UA_QualifiedName*)ptr);
-            break;
-        case UA_TYPES_LOCALIZEDTEXT:
-            UA_LocalizedText_deleteMembers((UA_LocalizedText*)ptr);
             break;
         case UA_TYPES_EXTENSIONOBJECT:
             UA_ExtensionObject_deleteMembers((UA_ExtensionObject*)ptr);
@@ -983,12 +969,8 @@ void UA_deleteMembers(void *p, const UA_DataType *dataType) {
         case UA_TYPES_DIAGNOSTICINFO:
             UA_DiagnosticInfo_deleteMembers((UA_DiagnosticInfo*)ptr);
             break;
-        case UA_TYPES_STRING:
-        case UA_TYPES_BYTESTRING:
-        case UA_TYPES_XMLELEMENT:
-            UA_String_deleteMembers((UA_String*)ptr);
-            break;
         default:
+            // QualifiedName, LocalizedText and strings are treated as structures, also
             UA_deleteMembers((void*)ptr, memberType);
         }
         ptr += memberType->memSize;

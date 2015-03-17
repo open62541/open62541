@@ -39,20 +39,23 @@ minimal_types = ["InvalidType", "Node", "NodeClass", "ReferenceNode", "Applicati
                  "SecurityTokenRequestType", "MessageSecurityMode", "CloseSessionResponse", "CloseSessionRquest",
                  "ActivateSessionRequest", "ActivateSessionResponse", "SignatureData", "SignedSoftwareCertificate",
                  "CreateSessionResponse", "CreateSessionRequest", "EndpointDescription", "UserTokenPolicy", "UserTokenType",
-                 "GetEndpointsRequest", "GetEndpointsResponse", "PublishRequest", "PublishResponse", "SetPublishingModeResponse",
-                 "SubscriptionAcknowledgement", "NotificationMessage", "ExtensionObject", "Structure", "ReadRequest",
-                 "ReadResponse", "ReadValueId", "TimestampsToReturn", "WriteRequest", "WriteResponse", "WriteValue",
-                 "SetPublishingModeRequest", "CreateMonitoredItemsResponse", "MonitoredItemCreateResult", "CreateMonitoredItemsRequest",
-                 "MonitoredItemCreateRequest", "MonitoringMode", "MonitoringParameters", "TranslateBrowsePathsToNodeIdsRequest",
-                 "TranslateBrowsePathsToNodeIdsResponse", "BrowsePath", "BrowsePathResult", "RelativePath", "BrowsePathTarget",
-                 "RelativePathElement", "CreateSubscriptionRequest", "CreateSubscriptionResponse", "BrowseResponse",
-                 "BrowseResult", "ReferenceDescription", "BrowseRequest", "ViewDescription", "BrowseDescription",
-                 "BrowseDirection", "CloseSessionRequest", "AddNodesRequest", "AddNodesResponse", "AddNodesItem", "AddNodesResult",
-                 "DeleteNodesItem","AddReferencesRequest", "AddReferencesResponse", "AddReferencesItem","DeleteReferencesItem", "VariableNode",
-                 "MethodNode", "VariableTypeNode", "ViewNode", "ReferenceTypeNode", "BrowseResultMask", "ServerState", "ServerStatusDataType",
-                 "BuildInfo", "ObjectNode", "DataTypeNode", "ObjectTypeNode", "IdType", "VariableAttributes", "ObjectAttributes",
-                 "NodeAttributes","ReferenceTypeAttributes", "ViewAttributes", "ObjectTypeAttributes", "NodeAttributesMask","DeleteNodesItem",
-                 "DeleteNodesRequest", "DeleteNodesResponse", "DeleteReferencesItem", "DeleteReferencesRequest", "DeleteReferencesResponse"]
+                 "GetEndpointsRequest", "GetEndpointsResponse", "PublishRequest", "PublishResponse",
+                 "SetPublishingModeResponse", "SubscriptionAcknowledgement", "NotificationMessage", "ExtensionObject",
+                 "Structure", "ReadRequest", "ReadResponse", "ReadValueId", "TimestampsToReturn", "WriteRequest",
+                 "WriteResponse", "WriteValue", "SetPublishingModeRequest", "CreateMonitoredItemsResponse",
+                 "MonitoredItemCreateResult", "CreateMonitoredItemsRequest", "MonitoredItemCreateRequest",
+                 "MonitoringMode", "MonitoringParameters", "TranslateBrowsePathsToNodeIdsRequest",
+                 "TranslateBrowsePathsToNodeIdsResponse", "BrowsePath", "BrowsePathResult", "RelativePath",
+                 "BrowsePathTarget", "RelativePathElement", "CreateSubscriptionRequest", "CreateSubscriptionResponse",
+                 "BrowseResponse", "BrowseResult", "ReferenceDescription", "BrowseRequest", "ViewDescription",
+                 "BrowseDescription", "BrowseDirection", "CloseSessionRequest", "AddNodesRequest", "AddNodesResponse",
+                 "AddNodesItem", "AddNodesResult", "DeleteNodesItem","AddReferencesRequest", "AddReferencesResponse",
+                 "AddReferencesItem","DeleteReferencesItem", "VariableNode", "MethodNode", "VariableTypeNode",
+                 "ViewNode", "ReferenceTypeNode", "BrowseResultMask", "ServerState", "ServerStatusDataType", "BuildInfo",
+                 "ObjectNode", "DataTypeNode", "ObjectTypeNode", "IdType", "VariableAttributes", "ObjectAttributes",
+                 "NodeAttributes","ReferenceTypeAttributes", "ViewAttributes", "ObjectTypeAttributes",
+                 "NodeAttributesMask","DeleteNodesItem", "DeleteNodesRequest", "DeleteNodesResponse",
+                 "DeleteReferencesItem", "DeleteReferencesRequest", "DeleteReferencesResponse"]
 
 class TypeDescription(object):
     def __init__(self, name, nodeid, namespaceid):
@@ -102,7 +105,38 @@ class BuiltinType(object):
         if description == None:
             typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, "
         else:
-            typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
+            typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % \
+                     (description.namespaceid, description.nodeid)
+        if self.name in ["UA_String", "UA_ByteString", "UA_XmlElement"]:
+            return "{.typeId = " + typeid + \
+                ".memSize = sizeof(" + self.name + "), " + \
+                ".namespaceZero = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
+                ".membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_BYTE, .namespaceZero = UA_TRUE, " + \
+                ".padding = offsetof(UA_String, data) - sizeof(UA_Int32), .isArray = UA_TRUE }}, " + \
+                ".typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
+
+        if self.name == "UA_QualifiedName":
+            return "{.typeId = " + typeid + \
+                ".memSize = sizeof(UA_QualifiedName), " + \
+                ".namespaceZero = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
+                ".membersSize = 2, .members = {" + \
+                "\n\t{.memberTypeIndex = UA_TYPES_UINT16, .namespaceZero = UA_TRUE, " + \
+                ".padding = 0, .isArray = UA_FALSE }," + \
+                "\n\t{.memberTypeIndex = UA_TYPES_STRING, .namespaceZero = UA_TRUE, " + \
+                ".padding = offsetof(UA_QualifiedName, name) - sizeof(UA_UInt16), .isArray = UA_FALSE }},\n" + \
+                ".typeIndex = UA_TYPES_QUALIFIEDNAME }"
+
+        if self.name == "UA_LocalizedText":
+            return "{.typeId = " + typeid + \
+                ".memSize = sizeof(UA_LocalizedText), " + \
+                ".namespaceZero = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
+                ".membersSize = 2, .members = {" + \
+                "\n\t{.memberTypeIndex = UA_TYPES_STRING, .namespaceZero = UA_TRUE, " + \
+                ".padding = 0, .isArray = UA_FALSE }," + \
+                "\n\t{.memberTypeIndex = UA_TYPES_STRING, .namespaceZero = UA_TRUE, " + \
+                ".padding = offsetof(UA_LocalizedText, text) - sizeof(UA_String), .isArray = UA_FALSE }},\n" + \
+                ".typeIndex = UA_TYPES_LOCALIZEDTEXT }"
+                
         return "{.typeId = " + typeid + \
             ".memSize = sizeof(" + self.name + "), " + \
             ".namespaceZero = UA_TRUE, " + \

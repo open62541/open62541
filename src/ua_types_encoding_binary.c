@@ -960,9 +960,6 @@ size_t UA_calcSizeBinary(const void *p, const UA_DataType *dataType) {
         case UA_TYPES_EXPANDEDNODEID:
             size += UA_ExpandedNodeId_calcSizeBinary((const UA_ExpandedNodeId*)ptr);
             break;
-        case UA_TYPES_QUALIFIEDNAME:
-            size += UA_QualifiedName_calcSizeBinary((const UA_QualifiedName*)ptr);
-            break;
         case UA_TYPES_LOCALIZEDTEXT:
             size += UA_LocalizedText_calcSizeBinary((const UA_LocalizedText*)ptr);
             break;
@@ -978,12 +975,8 @@ size_t UA_calcSizeBinary(const void *p, const UA_DataType *dataType) {
         case UA_TYPES_DIAGNOSTICINFO:
             size += UA_DiagnosticInfo_calcSizeBinary((const UA_DiagnosticInfo*)ptr);
             break;
-        case UA_TYPES_STRING:
-        case UA_TYPES_BYTESTRING:
-        case UA_TYPES_XMLELEMENT:
-            size += UA_String_calcSizeBinary((const UA_String*)ptr);
-            break;
         default:
+            // UA_TYPES_QUALIFIEDNAME, UA_TYPES_STRING, UA_TYPES_BYTESTRING, UA_TYPES_XMLELEMENT:
             size += UA_calcSizeBinary((const void*)ptr, memberType);
         }
         ptr += memberType->memSize;
@@ -1026,26 +1019,20 @@ UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_B
             retval = UA_Byte_encodeBinary((const UA_Byte*)ptr, dst, offset);
             break;
         case UA_TYPES_INT16:
-            retval = UA_Int16_encodeBinary((const UA_Int16*)ptr, dst, offset);
-            break;
         case UA_TYPES_UINT16:
             retval = UA_UInt16_encodeBinary((const UA_UInt16*)ptr, dst, offset);
             break;
         case UA_TYPES_INT32:
         case UA_TYPES_UINT32:
-        case UA_TYPES_STATUSCODE:
-            retval = UA_Int32_encodeBinary((const UA_Int32*)ptr, dst, offset);
-            break;
         case UA_TYPES_FLOAT:
-            retval = UA_Float_encodeBinary((const UA_Float*)ptr, dst, offset);
+        case UA_TYPES_STATUSCODE:
+            retval = UA_UInt32_encodeBinary((const UA_UInt32*)ptr, dst, offset);
             break;
         case UA_TYPES_INT64:
         case UA_TYPES_UINT64:
-        case UA_TYPES_DATETIME:
-            retval = UA_Int64_encodeBinary((const UA_Int64*)ptr, dst, offset);
-            break;
         case UA_TYPES_DOUBLE:
-            retval = UA_Double_encodeBinary((const UA_Double*)ptr, dst, offset);
+        case UA_TYPES_DATETIME:
+            retval = UA_UInt64_encodeBinary((const UA_UInt64*)ptr, dst, offset);
             break;
         case UA_TYPES_GUID:
             retval = UA_Guid_encodeBinary((const UA_Guid*)ptr, dst, offset);
@@ -1055,9 +1042,6 @@ UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_B
             break;
         case UA_TYPES_EXPANDEDNODEID:
             retval = UA_ExpandedNodeId_encodeBinary((const UA_ExpandedNodeId*)ptr, dst, offset);
-            break;
-        case UA_TYPES_QUALIFIEDNAME:
-            retval = UA_QualifiedName_encodeBinary((const UA_QualifiedName*)ptr, dst, offset);
             break;
         case UA_TYPES_LOCALIZEDTEXT:
             retval = UA_LocalizedText_encodeBinary((const UA_LocalizedText*)ptr, dst, offset);
@@ -1074,12 +1058,8 @@ UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_B
         case UA_TYPES_DIAGNOSTICINFO:
             retval = UA_DiagnosticInfo_encodeBinary((const UA_DiagnosticInfo*)ptr, dst, offset);
             break;
-        case UA_TYPES_STRING:
-        case UA_TYPES_BYTESTRING:
-        case UA_TYPES_XMLELEMENT:
-            retval = UA_String_encodeBinary((const UA_String*)ptr, dst, offset);
-            break;
         default:
+            // UA_TYPES_QUALIFIEDNAME, UA_TYPES_STRING, UA_TYPES_BYTESTRING, UA_TYPES_XMLELEMENT:
             retval = UA_encodeBinary((const void*)ptr, memberType, dst, offset);
         }
         ptr += memberType->memSize;
@@ -1134,19 +1114,15 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *ds
             break;
         case UA_TYPES_INT32:
         case UA_TYPES_UINT32:
-        case UA_TYPES_STATUSCODE:
-            retval = UA_Int32_decodeBinary(src, offset, (UA_Int32*)ptr);
-            break;
         case UA_TYPES_FLOAT:
-            retval = UA_Float_decodeBinary(src, offset, (UA_Float*)ptr);
+        case UA_TYPES_STATUSCODE:
+            retval = UA_UInt32_decodeBinary(src, offset, (UA_UInt32*)ptr);
             break;
         case UA_TYPES_INT64:
         case UA_TYPES_UINT64:
-        case UA_TYPES_DATETIME:
-            retval = UA_Int64_decodeBinary(src, offset, (UA_Int64*)ptr);
-            break;
         case UA_TYPES_DOUBLE:
-            retval = UA_Double_decodeBinary(src, offset, (UA_Double*)ptr);
+        case UA_TYPES_DATETIME:
+            retval = UA_UInt64_decodeBinary(src, offset, (UA_UInt64*)ptr);
             break;
         case UA_TYPES_GUID:
             retval = UA_Guid_decodeBinary(src, offset, (UA_Guid*)ptr);
@@ -1156,9 +1132,6 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *ds
             break;
         case UA_TYPES_EXPANDEDNODEID:
             retval = UA_ExpandedNodeId_decodeBinary(src, offset, (UA_ExpandedNodeId*)ptr);
-            break;
-        case UA_TYPES_QUALIFIEDNAME:
-            retval = UA_QualifiedName_decodeBinary(src, offset, (UA_QualifiedName*)ptr);
             break;
         case UA_TYPES_LOCALIZEDTEXT:
             retval = UA_LocalizedText_decodeBinary(src, offset, (UA_LocalizedText*)ptr);
@@ -1175,12 +1148,8 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *ds
         case UA_TYPES_DIAGNOSTICINFO:
             retval = UA_DiagnosticInfo_decodeBinary(src, offset, (UA_DiagnosticInfo*)ptr);
             break;
-        case UA_TYPES_STRING:
-        case UA_TYPES_BYTESTRING:
-        case UA_TYPES_XMLELEMENT:
-            retval = UA_String_decodeBinary(src, offset, (UA_String*)ptr);
-            break;
         default:
+            // UA_TYPES_QUALIFIEDNAME, UA_TYPES_STRING, UA_TYPES_BYTESTRING, UA_TYPES_XMLELEMENT:
             retval = UA_decodeBinary(src, offset, (void*)ptr, memberType);
         }
         ptr += memberType->memSize;
