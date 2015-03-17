@@ -771,6 +771,9 @@ void UA_init(void *p, const UA_DataType *dataType) {
         case UA_TYPES_EXPANDEDNODEID:
             UA_ExpandedNodeId_init((UA_ExpandedNodeId*)ptr);
             break;
+        case UA_TYPES_LOCALIZEDTEXT:
+            UA_LocalizedText_init((UA_LocalizedText*)ptr);
+            break;
         case UA_TYPES_EXTENSIONOBJECT:
             UA_ExtensionObject_init((UA_ExtensionObject*)ptr);
             break;
@@ -880,6 +883,9 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
         case UA_TYPES_EXPANDEDNODEID:
             retval |= UA_ExpandedNodeId_copy((const UA_ExpandedNodeId*)ptrs, (UA_ExpandedNodeId*)ptrd);
             break;
+        case UA_TYPES_LOCALIZEDTEXT:
+            retval |= UA_LocalizedText_copy((const UA_LocalizedText*)ptrs, (UA_LocalizedText*)ptrd);
+            break;
         case UA_TYPES_EXTENSIONOBJECT:
             retval |= UA_ExtensionObject_copy((const UA_ExtensionObject*)ptrs, (UA_ExtensionObject*)ptrd);
             break;
@@ -956,6 +962,9 @@ void UA_deleteMembers(void *p, const UA_DataType *dataType) {
             break;
         case UA_TYPES_EXPANDEDNODEID:
             UA_ExpandedNodeId_deleteMembers((UA_ExpandedNodeId*)ptr);
+            break;
+        case UA_TYPES_LOCALIZEDTEXT:
+            UA_LocalizedText_deleteMembers((UA_LocalizedText*)ptr);
             break;
         case UA_TYPES_EXTENSIONOBJECT:
             UA_ExtensionObject_deleteMembers((UA_ExtensionObject*)ptr);
