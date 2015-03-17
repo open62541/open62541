@@ -4,7 +4,6 @@
 #include "ua_nodestore.h"
 #include "ua_util.h"
 
-/* Releases the current node, even if it was supplied as an argument. */
 static UA_StatusCode fillReferenceDescription(UA_NodeStore *ns, const UA_Node *currentNode, UA_ReferenceNode *reference,
                                               UA_UInt32 resultMask, UA_ReferenceDescription *referenceDescription) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -27,15 +26,13 @@ static UA_StatusCode fillReferenceDescription(UA_NodeStore *ns, const UA_Node *c
     if(resultMask & UA_BROWSERESULTMASK_TYPEDEFINITION ) {
         for(UA_Int32 i = 0;i < currentNode->referencesSize;i++) {
             UA_ReferenceNode *ref = &currentNode->references[i];
-            if(ref->referenceTypeId.identifier.numeric == 40 /* hastypedefinition */) {
+            if(ref->referenceTypeId.identifier.numeric == UA_NS0ID_HASTYPEDEFINITION) {
                 retval |= UA_ExpandedNodeId_copy(&ref->targetId, &referenceDescription->typeDefinition);
                 break;
             }
         }
     }
 
-    if(currentNode)
-        UA_NodeStore_release(currentNode);
     if(retval)
         UA_ReferenceDescription_deleteMembers(referenceDescription);
     return retval;
@@ -200,9 +197,11 @@ static void getBrowseResult(UA_NodeStore *ns, const UA_BrowseDescription *browse
                 continue;
 
             // 2) Fill the reference description. This also releases the current node.
-            if(fillReferenceDescription(ns, currentNode, &parentNode->references[i],
-                                        browseDescription->resultMask,
-                                        &browseResult->references[currentRefs]) != UA_STATUSCODE_GOOD) {
+            UA_StatusCode retval = fillReferenceDescription(ns, currentNode, &parentNode->references[i],
+                                                            browseDescription->resultMask,
+                                                            &browseResult->references[currentRefs]);
+            UA_NodeStore_release(currentNode);
+            if(retval) {
                 UA_Array_delete(browseResult->references, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION], currentRefs);
                 currentRefs = 0;
                 browseResult->references = UA_NULL;
