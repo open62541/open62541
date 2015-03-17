@@ -212,6 +212,13 @@ UA_Server * UA_Server_new(void) {
     UA_ApplicationDescription_init(&server->description);
     UA_String_copycstring(PRODUCT_URI, &server->description.productUri);
     UA_String_copycstring(APPLICATION_URI, &server->description.applicationUri);
+    server->description.discoveryUrlsSize = 1;
+    server->description.discoveryUrls = UA_String_new();
+    if(!server->description.discoveryUrls)
+    	return UA_NULL;
+    UA_String_copycstring("opc.tcp://0.0.0.0", server->description.discoveryUrls); //TODO: what to resturn here?
+
+
     UA_LocalizedText_copycstring("Unconfigured open62541 application", &server->description.applicationName);
     server->description.applicationType = UA_APPLICATIONTYPE_SERVER;
     server->externalNamespacesSize = 0;

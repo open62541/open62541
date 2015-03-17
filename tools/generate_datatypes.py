@@ -39,7 +39,7 @@ minimal_types = ["InvalidType", "Node", "NodeClass", "ReferenceNode", "Applicati
                  "SecurityTokenRequestType", "MessageSecurityMode", "CloseSessionResponse", "CloseSessionRquest",
                  "ActivateSessionRequest", "ActivateSessionResponse", "SignatureData", "SignedSoftwareCertificate",
                  "CreateSessionResponse", "CreateSessionRequest", "EndpointDescription", "UserTokenPolicy", "UserTokenType",
-                 "GetEndpointsRequest", "GetEndpointsResponse", "PublishRequest", "PublishResponse",
+                 "GetEndpointsRequest", "GetEndpointsResponse", "PublishRequest", "PublishResponse", "FindServersRequest", "FindServersResponse",
                  "SetPublishingModeResponse", "SubscriptionAcknowledgement", "NotificationMessage", "ExtensionObject",
                  "Structure", "ReadRequest", "ReadResponse", "ReadValueId", "TimestampsToReturn", "WriteRequest",
                  "WriteResponse", "WriteValue", "SetPublishingModeRequest", "CreateMonitoredItemsResponse",

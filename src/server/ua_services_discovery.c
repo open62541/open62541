@@ -2,6 +2,22 @@
 #include "ua_services.h"
 #include "ua_util.h"
 
+void Service_FindServers(UA_Server                    *server,
+                          const UA_FindServersRequest *request,
+                          UA_FindServersResponse      *response) {
+    response->servers = UA_malloc(sizeof(UA_ApplicationDescription));
+    if(!response->servers) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+    if(UA_ApplicationDescription_copy(&server->description, response->servers) != UA_STATUSCODE_GOOD) {
+        UA_free(response->servers);
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+	response->serversSize = 1;
+}
+
 void Service_GetEndpoints(UA_Server                    *server,
                           const UA_GetEndpointsRequest *request,
                           UA_GetEndpointsResponse      *response) {

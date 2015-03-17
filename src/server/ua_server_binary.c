@@ -238,6 +238,22 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         break;
     }
 
+    case UA_NS0ID_FINDSERVERSREQUEST: {
+        UA_FindServersRequest  p;
+        UA_FindServersResponse r;
+        if(UA_FindServersRequest_decodeBinary(msg, pos, &p))
+            return;
+        UA_FindServersResponse_init(&r);
+        init_response_header(&p.requestHeader, &r.responseHeader);
+        Service_FindServers(server, &p, &r);
+        ALLOC_MESSAGE(message, UA_FindServersResponse_calcSizeBinary(&r));
+        UA_FindServersResponse_encodeBinary(&r, message, &sendOffset);
+        UA_FindServersRequest_deleteMembers(&p);
+        UA_FindServersResponse_deleteMembers(&r);
+        responseType = requestType.identifier.numeric + 3;
+        break;
+    }
+
     case UA_NS0ID_CREATESESSIONREQUEST: {
         UA_CreateSessionRequest  p;
         UA_CreateSessionResponse r;

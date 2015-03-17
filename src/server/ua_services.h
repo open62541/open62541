@@ -24,7 +24,9 @@
  * @{
  */
 // Service_FindServers
-
+void Service_FindServers(UA_Server                    *server,
+                          const UA_FindServersRequest *request,
+                          UA_FindServersResponse      *response);
 /**
  * Returns the Endpoints supported by a Server and all of the configuration
  * information required to establish a SecureChannel and a Session.
