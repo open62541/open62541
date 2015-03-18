@@ -1,9 +1,76 @@
+#include <inttypes.h>
+#include <stdio.h>
 #include "ua_server_internal.h"
 #include "ua_types_generated.h"
 #include "ua_services.h"
 #include "ua_statuscodes.h"
 #include "ua_nodestore.h"
 #include "ua_util.h"
+
+typedef struct {
+    struct UA_NumericRangeDimension{
+        UA_UInt32 min;
+        UA_UInt32 max;
+    } *dimensions;
+    size_t dimensionsSize;
+} UA_NumericRange;
+
+static UA_StatusCode parse_numericrange(UA_String *str, UA_NumericRange *range) {
+    char *cstring = (char*)UA_realloc(str->data, str->length +1);
+    if(!cstring)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    str->data = (UA_Byte*)cstring;
+    UA_Int32 index = 0;
+
+    size_t dimensionsIndex = 0;
+    size_t dimensionsMax = 3; // more should be uncommon
+    struct UA_NumericRangeDimension *dimensions = UA_malloc(sizeof(struct UA_NumericRangeDimension) * 3);
+    if(!dimensions)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    
+    do {
+        UA_UInt32 min, max;
+        UA_Int32 progress;
+        UA_Int32 res = sscanf(cstring, "%" SCNu32 "%n", &min, &progress);
+        if(res <= 0)
+            break;
+        index += progress;
+        if(index >= str->length || cstring[index] != ':')
+            max = min;
+        else {
+            res = sscanf(&cstring[++index], "%" SCNu32 "%n", &max, &progress);
+            if(res <= 0)
+                break;
+            index += progress;
+        }
+        
+        if(dimensionsIndex >= dimensionsMax) {
+            struct UA_NumericRangeDimension *newDimensions =
+                UA_realloc(dimensions, sizeof(struct UA_NumericRangeDimension) * 2 * dimensionsMax);
+            if(!newDimensions) {
+                UA_free(dimensions);
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            dimensions = newDimensions;
+            dimensionsMax *= 2;
+        }
+
+        dimensions[dimensionsIndex].min = min;
+        dimensions[dimensionsIndex].max = max;
+        dimensionsIndex++;
+    } while(++index < str->length && cstring[index] == ',');
+    
+    if(dimensionsIndex <= 0) {
+        UA_free(dimensions);
+        range->dimensions = UA_NULL;
+        range->dimensionsSize = 0;
+        return UA_STATUSCODE_BADINDEXRANGENODATA;
+    }
+        
+    range->dimensions = dimensions;
+    range->dimensionsSize = dimensionsIndex;
+    return UA_STATUSCODE_GOOD;
+}
 
 #define CHECK_NODECLASS(CLASS)                                  \
     if(!(node->nodeClass & (CLASS))) {                          \
