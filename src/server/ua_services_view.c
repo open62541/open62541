@@ -379,3 +379,34 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
     for(UA_Int32 i = 0;i < response->resultsSize;i++)
         translateBrowsePath(server, session, &request->browsePaths[i], &response->results[i]);
 }
+
+void Service_RegisterNodes(UA_Server *server, UA_Session *session,
+                                           const UA_RegisterNodesRequest *request,
+                                           UA_RegisterNodesResponse *response) {
+
+	//TODO: hang the nodeids to the session if really needed
+	response->responseHeader.timestamp = UA_DateTime_now();
+	response->registeredNodeIdsSize = request->nodesToRegisterSize;
+	response->registeredNodeIds = request->nodesToRegister;
+	if(request->nodesToRegisterSize==0){
+		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+	}
+	if(UA_NodeId_equal(&request->requestHeader.authenticationToken, &UA_NODEID_NULL) || !UA_NodeId_equal(&request->requestHeader.authenticationToken, &session->authenticationToken) ){
+		response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+	}
+
+}
+
+void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
+                                           const UA_UnregisterNodesRequest *request,
+                                           UA_UnregisterNodesResponse *response) {
+
+	//TODO: remove the nodeids from the session if really needed
+	response->responseHeader.timestamp = UA_DateTime_now();
+	if(request->nodesToUnregisterSize==0){
+		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+	}
+	if(UA_NodeId_equal(&request->requestHeader.authenticationToken, &UA_NODEID_NULL) || !UA_NodeId_equal(&request->requestHeader.authenticationToken, &session->authenticationToken) ){
+		response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+	}
+}

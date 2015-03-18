@@ -318,6 +318,14 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         INVOKE_SERVICE(AddReferences);
         break;
 
+    case UA_NS0ID_REGISTERNODESREQUEST:
+        INVOKE_SERVICE(RegisterNodes);
+        break;
+
+    case UA_NS0ID_UNREGISTERNODESREQUEST:
+        INVOKE_SERVICE(UnregisterNodes);
+        break;
+
     case UA_NS0ID_TRANSLATEBROWSEPATHSTONODEIDSREQUEST:
         INVOKE_SERVICE(TranslateBrowsePathsToNodeIds);
         break;
