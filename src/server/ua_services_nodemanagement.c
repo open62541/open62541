@@ -39,19 +39,14 @@ static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node *
 
     // now copy all the attributes. This potentially removes them from the decoded attributes.
     COPY_STANDARDATTRIBUTES;
-
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_ACCESSLEVEL)
         vnode->accessLevel = attr.accessLevel;
-
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_USERACCESSLEVEL)
         vnode->userAccessLevel = attr.userAccessLevel;
-
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_HISTORIZING)
         vnode->historizing = attr.historizing;
-
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_MINIMUMSAMPLINGINTERVAL)
         vnode->minimumSamplingInterval = attr.minimumSamplingInterval;
-
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_VALUERANK)
         vnode->valueRank = attr.valueRank;
 
@@ -83,8 +78,9 @@ static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node *
 
 static UA_StatusCode parseObjectNode(UA_ExtensionObject *attributes, UA_Node **new_node) {
     if(attributes->typeId.identifier.numeric !=
-       UA_TYPES[UA_TYPES_OBJECTATTRIBUTES].typeId.identifier.numeric + UA_ENCODINGOFFSET_BINARY)  // VariableAttributes_Encoding_DefaultBinary
+       UA_TYPES[UA_TYPES_OBJECTATTRIBUTES].typeId.identifier.numeric + UA_ENCODINGOFFSET_BINARY)
         return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
+
     UA_ObjectAttributes attr;
     size_t pos = 0;
     // todo return more informative error codes from decodeBinary

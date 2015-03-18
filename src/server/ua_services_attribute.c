@@ -59,38 +59,31 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
         v->hasVariant = UA_TRUE;
         retval |= UA_Variant_copySetValue(&v->value, &node->nodeId, &UA_TYPES[UA_TYPES_NODEID]);
         break;
-
     case UA_ATTRIBUTEID_NODECLASS:
         v->hasVariant = UA_TRUE;
         retval |= UA_Variant_copySetValue(&v->value, &node->nodeClass, &UA_TYPES[UA_TYPES_INT32]);
         break;
-
     case UA_ATTRIBUTEID_BROWSENAME:
         v->hasVariant = UA_TRUE;
         retval |= UA_Variant_copySetValue(&v->value, &node->browseName, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
         break;
-
     case UA_ATTRIBUTEID_DISPLAYNAME:
         retval |= UA_Variant_copySetValue(&v->value, &node->displayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         if(retval == UA_STATUSCODE_GOOD)
             v->hasVariant = UA_TRUE;
         break;
-
     case UA_ATTRIBUTEID_DESCRIPTION:
         v->hasVariant = UA_TRUE;
         retval |= UA_Variant_copySetValue(&v->value, &node->description, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         break;
-
     case UA_ATTRIBUTEID_WRITEMASK:
         v->hasVariant = UA_TRUE;
         retval |= UA_Variant_copySetValue(&v->value, &node->writeMask, &UA_TYPES[UA_TYPES_UINT32]);
         break;
-
     case UA_ATTRIBUTEID_USERWRITEMASK:
         v->hasVariant = UA_TRUE;
         retval |= UA_Variant_copySetValue(&v->value, &node->userWriteMask, &UA_TYPES[UA_TYPES_UINT32]);
         break;
-
     case UA_ATTRIBUTEID_ISABSTRACT:
         CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE | UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE |
                         UA_NODECLASS_DATATYPE);
@@ -98,28 +91,24 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
         retval |= UA_Variant_copySetValue(&v->value, &((const UA_ReferenceTypeNode *)node)->isAbstract,
                                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
-
     case UA_ATTRIBUTEID_SYMMETRIC:
         CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE);
         v->hasVariant = UA_TRUE;
         retval |= UA_Variant_copySetValue(&v->value, &((const UA_ReferenceTypeNode *)node)->symmetric,
                                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
-
     case UA_ATTRIBUTEID_INVERSENAME:
         CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE);
         v->hasVariant = UA_TRUE;
         retval |= UA_Variant_copySetValue(&v->value, &((const UA_ReferenceTypeNode *)node)->inverseName,
                                           &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         break;
-
     case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
         CHECK_NODECLASS(UA_NODECLASS_VIEW);
         v->hasVariant = UA_TRUE;
         retval |= UA_Variant_copySetValue(&v->value, &((const UA_ViewNode *)node)->containsNoLoops,
                                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
-
     case UA_ATTRIBUTEID_EVENTNOTIFIER:
         CHECK_NODECLASS(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT);
         v->hasVariant = UA_TRUE;
@@ -128,7 +117,7 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
                                           	  &UA_TYPES[UA_TYPES_BYTE]);
         } else {
         	retval |= UA_Variant_copySetValue(&v->value, &((const UA_ObjectNode *)node)->eventNotifier,
-        	                                          	  &UA_TYPES[UA_TYPES_BYTE]);
+                                              &UA_TYPES[UA_TYPES_BYTE]);
         }
         break;
 
@@ -156,7 +145,7 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
 					if(retval != UA_STATUSCODE_GOOD)
 						break;
 				}
-        	}else{
+        	} else {
     			v->hasVariant = UA_FALSE;
     			handleSourceTimestamps(timestamps, v);
         	}
@@ -419,15 +408,26 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
                     retval = UA_STATUSCODE_BADTYPEMISMATCH;
                     break;
                 }
+
                 if(!UA_NodeId_equal(&vn->variable.variant.type->typeId, &wvalue->value.value.type->typeId)) {
-                    // when the nodeids differ, it is possible that an enum was sent as an int, or
-                    // an opaque type as a bytestring
-                    if(!vn->variable.variant.type->namespaceZero || wvalue->value.value.type->namespaceZero ||
-                       vn->variable.variant.type->typeIndex != wvalue->value.value.type->typeIndex) {
+                    if(vn->variable.variant.type->namespaceZero && wvalue->value.value.type->namespaceZero &&
+                       vn->variable.variant.type->typeIndex == wvalue->value.value.type->typeIndex)
+                        // an enum was sent as an int32, or an opaque type as a bytestring
+                        wvalue->value.value.type = vn->variable.variant.type;
+                    else if(vn->variable.variant.type == &UA_TYPES[UA_TYPES_BYTE] &&
+                            (!vn->variable.variant.dataPtr || vn->variable.variant.arrayLength > -1) /* isArray */ &&
+                            wvalue->value.value.type == &UA_TYPES[UA_TYPES_BYTESTRING] &&
+                            wvalue->value.value.dataPtr && wvalue->value.value.arrayLength == -1 /* isScalar */) {
+                        // a string is written to a byte array
+                        UA_ByteString *str = (UA_ByteString*) wvalue->value.value.dataPtr;
+                        wvalue->value.value.arrayLength = str->length;
+                        wvalue->value.value.dataPtr = str->data;
+                        wvalue->value.value.type = &UA_TYPES[UA_TYPES_BYTE];
+                        UA_free(str);
+                    } else {
                         retval = UA_STATUSCODE_BADTYPEMISMATCH;
                         break;
                     }
-                    wvalue->value.value.type = vn->variable.variant.type;
                 }
 
                 UA_VariableNode *newVn = UA_VariableNode_new();

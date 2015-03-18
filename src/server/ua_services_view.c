@@ -4,8 +4,9 @@
 #include "ua_nodestore.h"
 #include "ua_util.h"
 
-static UA_StatusCode fillrefdescr(UA_NodeStore *ns, const UA_Node *curr, UA_ReferenceNode *ref,
-                                  UA_UInt32 mask, UA_ReferenceDescription *descr)
+static UA_StatusCode
+fillrefdescr(UA_NodeStore *ns, const UA_Node *curr, UA_ReferenceNode *ref, UA_UInt32 mask,
+             UA_ReferenceDescription *descr)
 {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ReferenceDescription_init(descr);
@@ -98,26 +99,22 @@ findsubtypes(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **reftypes, size
                 continue;
 
             if(++last >= results_size) { // is the array big enough?
-                UA_NodeId *new_results = UA_malloc(sizeof(UA_NodeId) * results_size * 2);
+                UA_NodeId *new_results = UA_realloc(results, sizeof(UA_NodeId) * results_size * 2);
                 if(!new_results) {
                     retval = UA_STATUSCODE_BADOUTOFMEMORY;
                     break;
                 }
-                UA_memcpy(new_results, results, sizeof(UA_NodeId) * results_size);
                 results_size *= 2;
-                UA_free(results);
-                results = new_results;
             }
 
             retval = UA_NodeId_copy(&node->references[i].targetId.nodeId, &results[last]);
             if(retval != UA_STATUSCODE_GOOD) {
-                last--;
+                last--; // for array_delete
                 break;
             }
         }
         UA_NodeStore_release(node);
-        index++;
-    } while(index <= last && retval == UA_STATUSCODE_GOOD);
+    } while(++index <= last && retval == UA_STATUSCODE_GOOD);
 
     if(retval) {
         UA_Array_delete(results, &UA_TYPES[UA_TYPES_NODEID], last);
