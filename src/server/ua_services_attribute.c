@@ -31,7 +31,7 @@ static UA_StatusCode parse_numericrange(UA_String *str, UA_NumericRange *range) 
     do {
         UA_UInt32 min, max;
         UA_Int32 progress;
-        UA_Int32 res = sscanf(cstring, "%" SCNu32 "%n", &min, &progress);
+        UA_Int32 res = sscanf(&cstring[index], "%" SCNu32 "%n", &min, &progress);
         if(res <= 0)
             break;
         index += progress;
@@ -58,7 +58,7 @@ static UA_StatusCode parse_numericrange(UA_String *str, UA_NumericRange *range) 
         dimensions[dimensionsIndex].min = min;
         dimensions[dimensionsIndex].max = max;
         dimensionsIndex++;
-    } while(++index < str->length && cstring[index] == ',');
+    } while(index + 1 < str->length && cstring[index] == ',' && ++index);
     
     if(dimensionsIndex <= 0) {
         UA_free(dimensions);
