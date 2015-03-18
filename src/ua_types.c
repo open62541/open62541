@@ -395,7 +395,7 @@ UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
         break;
 
     case UA_NODEIDTYPE_STRING:
-        if(p->namespaceIndex != 0 || p->identifier.string.length != 0)
+        if(p->namespaceIndex != 0 || p->identifier.string.length > 0)
             return UA_FALSE;
         break;
 
@@ -406,7 +406,7 @@ UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
         break;
 
     case UA_NODEIDTYPE_BYTESTRING:
-        if(p->namespaceIndex != 0 || p->identifier.byteString.length != 0)
+        if(p->namespaceIndex != 0 || p->identifier.byteString.length > 0)
             return UA_FALSE;
         break;
 
@@ -644,8 +644,9 @@ UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const
     if(range.dimensionsSize != dims_count)
         return UA_STATUSCODE_BADINTERNALERROR;
     for(UA_Int32 i = 0; i < range.dimensionsSize; i++) {
-        if(range.dimensions[i].min > range.dimensions[i].max ||
-           range.dimensions[i].max > (UA_UInt32)dims[i])
+        if(range.dimensions[i].min > range.dimensions[i].max)
+            return UA_STATUSCODE_BADINDEXRANGEINVALID;
+        if(range.dimensions[i].max > (UA_UInt32)dims[i])
             return UA_STATUSCODE_BADINDEXRANGENODATA;
         count *= (range.dimensions[i].max - range.dimensions[i].min) + 1;
     }

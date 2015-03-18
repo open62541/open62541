@@ -91,8 +91,8 @@ findsubtypes(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **reftypes, size
     size_t last = 0; // where is the last element in the array?
     do {
         const UA_Node *node = UA_NodeStore_get(ns, &results[index]);
-        if(!node)
-            break;
+        if(!node || node->nodeClass != UA_NODECLASS_REFERENCETYPE)
+            continue;
         for(UA_Int32 i = 0; i < node->referencesSize; i++) {
             if(node->references[i].referenceTypeId.identifier.numeric != UA_NS0ID_HASSUBTYPE ||
                node->references[i].isInverse == UA_TRUE)
@@ -104,6 +104,7 @@ findsubtypes(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **reftypes, size
                     retval = UA_STATUSCODE_BADOUTOFMEMORY;
                     break;
                 }
+                results = new_results;
                 results_size *= 2;
             }
 
@@ -137,7 +138,8 @@ browse(UA_NodeStore *ns, const UA_BrowseDescription *descr, UA_UInt32 maxrefs, U
     UA_Boolean all_refs = UA_NodeId_isNull(&descr->referenceTypeId);
     if(!all_refs) {
         if(descr->includeSubtypes) {
-            result->statusCode = findsubtypes(ns, &descr->referenceTypeId, &relevant_refs, &relevant_refs_size);
+            result->statusCode = findsubtypes(ns, &descr->referenceTypeId,
+                                              &relevant_refs, &relevant_refs_size);
             if(result->statusCode != UA_STATUSCODE_GOOD)
                 return;
         } else {
@@ -175,7 +177,8 @@ browse(UA_NodeStore *ns, const UA_BrowseDescription *descr, UA_UInt32 maxrefs, U
         if(!current)
             continue;
 
-        UA_StatusCode retval = fillrefdescr(ns, current, &node->references[i], descr->resultMask, &result->references[count]);
+        UA_StatusCode retval = fillrefdescr(ns, current, &node->references[i],
+                                            descr->resultMask, &result->references[count]);
         UA_NodeStore_release(current);
 
         if(retval) {
@@ -249,8 +252,9 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
 /***********************/
 
 static UA_StatusCode
-walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, const UA_RelativePath *path, UA_Int32 pathindex,
-               UA_BrowsePathTarget **targets, UA_Int32 *targets_size, UA_Int32 *target_count)
+walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, const UA_RelativePath *path,
+               UA_Int32 pathindex, UA_BrowsePathTarget **targets, UA_Int32 *targets_size,
+               UA_Int32 *target_count)
 {
     const UA_RelativePathElement *elem = &path->elements[pathindex];
     if(elem->targetName.name.length == -1)
@@ -326,6 +330,11 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
 
 static void translateBrowsePath(UA_Server *server, UA_Session *session, const UA_BrowsePath *path,
                                 UA_BrowsePathResult *result) {
+    if(path->relativePath.elementsSize <= 0) {
+        result->statusCode = UA_STATUSCODE_BADNOTHINGTODO;
+        return;
+    }
+        
     UA_Int32 arraySize = 10;
     result->targets = UA_malloc(sizeof(UA_BrowsePathTarget) * arraySize);
     if(!result->targets) {
@@ -337,21 +346,16 @@ static void translateBrowsePath(UA_Server *server, UA_Session *session, const UA
     if(!firstNode) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         UA_free(result->targets);
+        result->targets = UA_NULL;
         return;
     }
-    if(path->relativePath.elementsSize > 0)
-        result->statusCode = walkBrowsePath(server, session, firstNode, &path->relativePath, 0,
-                                            &result->targets, &arraySize, &result->targetsSize);
-    else
-        result->statusCode = UA_STATUSCODE_BADNOTHINGTODO;
+    result->statusCode = walkBrowsePath(server, session, firstNode, &path->relativePath, 0,
+                                        &result->targets, &arraySize, &result->targetsSize);
     UA_NodeStore_release(firstNode);
+    if(result->targetsSize == 0 && result->statusCode == UA_STATUSCODE_GOOD)
+        result->statusCode = UA_STATUSCODE_BADNOMATCH;
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_Array_delete(result->targets, &UA_TYPES[UA_TYPES_BROWSEPATHTARGET], result->targetsSize);
-        result->targets = UA_NULL;
-        result->targetsSize = -1;
-    } else if(result->targetsSize == 0) {
-        result->statusCode = UA_STATUSCODE_BADNOMATCH;
-        UA_free(result->targets);
         result->targets = UA_NULL;
         result->targetsSize = -1;
     }
