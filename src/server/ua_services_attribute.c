@@ -7,40 +7,37 @@
 #include "ua_nodestore.h"
 #include "ua_util.h"
 
-typedef struct {
-    struct UA_NumericRangeDimension{
-        UA_UInt32 min;
-        UA_UInt32 max;
-    } *dimensions;
-    size_t dimensionsSize;
-} UA_NumericRange;
-
-static UA_StatusCode parse_numericrange(UA_String *str, UA_NumericRange *range) {
-    char *cstring = (char*)UA_realloc(str->data, str->length +1);
-    if(!cstring)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    str->data = (UA_Byte*)cstring;
+static UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range) {
+    if(str.length < 0 || str.length >= 1023)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    char cstring[str.length];
+    UA_memcpy(cstring, str.data, str.length);
+    cstring[str.length] = 0;
     UA_Int32 index = 0;
-
     size_t dimensionsIndex = 0;
     size_t dimensionsMax = 3; // more should be uncommon
     struct UA_NumericRangeDimension *dimensions = UA_malloc(sizeof(struct UA_NumericRangeDimension) * 3);
     if(!dimensions)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     do {
-        UA_UInt32 min, max;
+        UA_Int32 min, max;
         UA_Int32 progress;
         UA_Int32 res = sscanf(&cstring[index], "%" SCNu32 "%n", &min, &progress);
-        if(res <= 0)
+        if(res <= 0 || min < 0) {
+            retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
             break;
+        }
         index += progress;
-        if(index >= str->length || cstring[index] != ':')
+        if(index >= str.length || cstring[index] == ',')
             max = min;
         else {
-            res = sscanf(&cstring[++index], "%" SCNu32 "%n", &max, &progress);
-            if(res <= 0)
+            res = sscanf(&cstring[index], ":%" SCNu32 "%n", &max, &progress);
+            if(res <= 0 || max < 0 || min >= max) {
+                retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
                 break;
+            }
             index += progress;
         }
         
@@ -58,18 +55,18 @@ static UA_StatusCode parse_numericrange(UA_String *str, UA_NumericRange *range) 
         dimensions[dimensionsIndex].min = min;
         dimensions[dimensionsIndex].max = max;
         dimensionsIndex++;
-    } while(index + 1 < str->length && cstring[index] == ',' && ++index);
-    
-    if(dimensionsIndex <= 0) {
+    } while(retval == UA_STATUSCODE_GOOD && index + 1 < str.length && cstring[index] == ',' && ++index);
+
+    if(retval == UA_STATUSCODE_GOOD && dimensionsIndex <= 0)
+        retval = UA_STATUSCODE_BADINDEXRANGENODATA;
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_free(dimensions);
-        range->dimensions = UA_NULL;
-        range->dimensionsSize = 0;
-        return UA_STATUSCODE_BADINDEXRANGENODATA;
+        return retval;
     }
         
     range->dimensions = dimensions;
     range->dimensionsSize = dimensionsIndex;
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 #define CHECK_NODECLASS(CLASS)                                  \
@@ -191,12 +188,28 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
     case UA_ATTRIBUTEID_VALUE:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         {
-        	if(node->nodeClass == UA_NODECLASS_VARIABLE){
+        	if(node->nodeClass == UA_NODECLASS_VARIABLE) {
+                // todo: copy only selective...
+                UA_Boolean hasRange = UA_FALSE;
+                UA_NumericRange range;
+                if(id->indexRange.length > 0) {
+                    hasRange = UA_TRUE;
+                    retval = parse_numericrange(id->indexRange, &range);
+                    if(retval != UA_STATUSCODE_GOOD)
+                        break;
+                }
+
 				const UA_VariableNode *vn = (const UA_VariableNode*)node;
 				if(vn->variableType == UA_VARIABLENODETYPE_VARIANT) {
-					retval = UA_Variant_copy(&vn->variable.variant, &v->value);
-					if(retval != UA_STATUSCODE_GOOD)
+                    if(hasRange)
+                        retval = UA_Variant_copyRange(&vn->variable.variant, &v->value, range);
+                    else
+                        retval = UA_Variant_copy(&vn->variable.variant, &v->value);
+					if(retval != UA_STATUSCODE_GOOD) {
+                        if(hasRange)
+                            UA_free(range.dimensions);
 						break;
+                    }
 					v->hasVariant = UA_TRUE;
 					handleSourceTimestamps(timestamps, v);
 				} else {
@@ -211,7 +224,12 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
 					vn->variable.dataSource.release(vn->variable.dataSource.handle, &val);
 					if(retval != UA_STATUSCODE_GOOD)
 						break;
+                    // todo: selection of indexranges
 				}
+
+                if(hasRange)
+                    UA_free(range.dimensions);
+                
         	} else {
     			v->hasVariant = UA_FALSE;
     			handleSourceTimestamps(timestamps, v);
@@ -339,7 +357,7 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
 
     if(retval != UA_STATUSCODE_GOOD) {
         v->hasStatus = UA_TRUE;
-        v->status = UA_STATUSCODE_BADNOTREADABLE;
+        v->status = retval;
     }
 
     handleServerTimestamps(timestamps, v);

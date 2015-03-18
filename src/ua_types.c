@@ -623,6 +623,97 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
     return retval;
 }
 
+UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRange range) {
+    UA_Variant_init(dst);
+
+    // test the integrity of the variant dimensions
+    UA_Int32 dims_count = 1;
+    const UA_Int32 *dims = &src->arrayLength; // default: the array has only one dimension
+    if(src->arrayDimensionsSize > 0) {
+        dims_count = src->arrayDimensionsSize;
+        dims = src->arrayDimensions;
+        UA_Int32 elements = 1;
+        for(UA_Int32 i = 0; i < dims_count; i++)
+            elements *= dims[i];
+        if(elements != src->arrayLength)
+            return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    // test the integrity of the range and count objects
+    size_t count = 1;
+    if(range.dimensionsSize != dims_count)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    for(UA_Int32 i = 0; i < range.dimensionsSize; i++) {
+        if(range.dimensions[i].min > range.dimensions[i].max ||
+           range.dimensions[i].max > (UA_UInt32)dims[i])
+            return UA_STATUSCODE_BADINDEXRANGENODATA;
+        count *= (range.dimensions[i].max - range.dimensions[i].min) + 1;
+    }
+
+    dst->dataPtr = UA_malloc(src->type->memSize * count);
+    if(!dst->dataPtr)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    
+    // copy a subset of the tensor with as few calls as possible.
+    // shift from copying single elements to contiguous blocks
+    size_t elem_size = src->type->memSize;
+    uintptr_t nextsrc = (uintptr_t)src->dataPtr; // the start ptr of the next copy operation
+    size_t contiguous_elems = src->arrayLength; // the length of the copy operation
+    ptrdiff_t jump_length = elem_size * dims[0]; // how far to jump until the next contiguous copy
+    size_t copy_count = count; // how often to copy
+
+    size_t running_dimssize = 1; // how big is a contiguous block for the dimensions k_max to k
+    UA_Boolean found_contiguous = UA_FALSE;
+    for(UA_Int32 k = dims_count - 1; k >= 0; k--) {
+        if(!found_contiguous) {
+            if(range.dimensions[k].min != 0 || range.dimensions[k].max + 1 != (UA_UInt32)dims[k]) {
+                found_contiguous = UA_TRUE;
+                contiguous_elems = (range.dimensions[k].max - range.dimensions[k].min + 1) * running_dimssize;
+                jump_length = ((dims[k] * running_dimssize) - contiguous_elems) * elem_size;
+                copy_count /= range.dimensions[k].max - range.dimensions[k].min + 1;
+            } else
+                copy_count /= dims[k];
+        } 
+        nextsrc += running_dimssize * range.dimensions[k].min * elem_size;
+        running_dimssize *= dims[k];
+    }
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    uintptr_t nextdst = (uintptr_t)dst->dataPtr;
+    size_t copied = 0;
+    for(size_t i = 0; i < copy_count; i++) {
+        if(src->type->fixedSize) {
+            memcpy((void*)nextdst, (void*)nextsrc, elem_size * contiguous_elems);
+        } else {
+            for(size_t j = 0; j < contiguous_elems; j++)
+                retval = UA_copy((const void*)(nextsrc + (j * elem_size)), (void*)(nextdst + (j * elem_size)), src->type);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_Array_delete(dst->dataPtr, src->type, copied);
+                return retval;
+            }
+            copied += contiguous_elems;
+        }
+        nextdst += elem_size * contiguous_elems;
+        nextsrc += jump_length;
+    }
+
+    if(src->arrayDimensionsSize > 0) {
+        retval = UA_Array_copy(dims, (void**)&dst->arrayDimensions, &UA_TYPES[UA_TYPES_INT32], dims_count);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(dst->dataPtr, src->type, copied);
+            return retval;
+        }
+        for(UA_Int32 k = 0; k < dims_count; k++) {
+            dst->arrayDimensions[k] = range.dimensions[k].max - range.dimensions[k].min + 1;
+        }
+        dst->arrayDimensionsSize = dims_count;
+    }
+    dst->arrayLength = count;
+    dst->type = src->type;
+    dst->storageType = UA_VARIANT_DATA;
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode UA_Variant_setValue(UA_Variant *v, void *p, const UA_DataType *type) {
     return UA_Variant_setArray(v, p, -1, type);
 }
@@ -1047,9 +1138,6 @@ UA_StatusCode UA_Array_copy(const void *src, void **dst, const UA_DataType *data
 }
 
 void UA_Array_delete(void *p, const UA_DataType *dataType, UA_Int32 noElements) {
-    if(noElements <= 0 || !p)
-        return;
-
     if(!dataType->fixedSize) {
         uintptr_t ptr = (uintptr_t)p;
         for(UA_Int32 i = 0; i<noElements; i++) {
