@@ -216,7 +216,7 @@ UA_Server * UA_Server_new(void) {
     server->description.discoveryUrls = UA_String_new();
     if(!server->description.discoveryUrls)
     	return UA_NULL;
-    UA_String_copycstring("opc.tcp://0.0.0.0", server->description.discoveryUrls); //TODO: what to resturn here?
+    UA_String_copycstring("opc.tcp://0.0.0.0:16664", server->description.discoveryUrls); //TODO: 16664 is hardcoded :(
 
 
     UA_LocalizedText_copycstring("Unconfigured open62541 application", &server->description.applicationName);

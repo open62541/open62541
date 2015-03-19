@@ -17,6 +17,7 @@
 #include <netinet/tcp.h>
 #include <sys/socketvar.h>
 #include <sys/ioctl.h>
+#define __USE_BSD
 #include <unistd.h> // read, write, close
 #include <arpa/inet.h>
 #define CLOSESOCKET(S) close(S)
@@ -298,8 +299,11 @@ static UA_StatusCode NetworkLayerTCP_start(NetworkLayerTCP *layer, UA_Logger *lo
 	setNonBlocking(layer->serversockfd);
 	listen(layer->serversockfd, MAXBACKLOG);
     char msg[256];
-    sprintf(msg, "Listening for TCP connections on %s:%d",
-            inet_ntoa(serv_addr.sin_addr),
+    char hostname[256];
+    gethostname(hostname, 255);
+    sprintf(msg, "Listening for TCP connections on opc.tcp://%s:%d",
+    		hostname,
+    		//inet_ntoa(serv_addr.sin_addr),
             ntohs(serv_addr.sin_port));
     UA_LOG_INFO((*logger), UA_LOGGERCATEGORY_SERVER, msg);
     return UA_STATUSCODE_GOOD;
