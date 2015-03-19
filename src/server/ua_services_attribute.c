@@ -10,7 +10,7 @@
 static UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range) {
     if(str.length < 0 || str.length >= 1023)
         return UA_STATUSCODE_BADINTERNALERROR;
-    char cstring[str.length];
+    char cstring[str.length+1];
     UA_memcpy(cstring, str.data, str.length);
     cstring[str.length] = 0;
     UA_Int32 index = 0;
@@ -57,8 +57,6 @@ static UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *ra
         dimensionsIndex++;
     } while(retval == UA_STATUSCODE_GOOD && index + 1 < str.length && cstring[index] == ',' && ++index);
 
-    if(retval == UA_STATUSCODE_GOOD && dimensionsIndex <= 0)
-        retval = UA_STATUSCODE_BADINDEXRANGENODATA;
     if(retval != UA_STATUSCODE_GOOD) {
         UA_free(dimensions);
         return retval;
