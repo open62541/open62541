@@ -316,13 +316,15 @@ static UA_StatusCode UA_NodeId_encodeBinary_nodeid_offset(UA_NodeId const *src, 
     // temporary variables for endian-save code
     UA_Byte srcByte;
     UA_UInt16 srcUInt16;
+    UA_UInt32 srcUInt32;
     switch(src->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         if(src->identifier.numeric+nodeid_offset > UA_UINT16_MAX || src->namespaceIndex > UA_BYTE_MAX) {
             srcByte = UA_NODEIDTYPE_NUMERIC;
             retval |= UA_Byte_encodeBinary(&srcByte, dst, offset);
             retval |= UA_UInt16_encodeBinary(&src->namespaceIndex, dst, offset);
-            retval |= UA_UInt32_encodeBinary(&src->identifier.numeric+nodeid_offset, dst, offset);
+            srcUInt32 = src->identifier.numeric+nodeid_offset;
+            retval |= UA_UInt32_encodeBinary(&srcUInt32, dst, offset);
         } else if(src->identifier.numeric+nodeid_offset > UA_BYTE_MAX || src->namespaceIndex > 0) { /* UA_NODEIDTYPE_FOURBYTE */
             srcByte = UA_NODEIDTYPE_FOURBYTE;
             retval |= UA_Byte_encodeBinary(&srcByte, dst, offset);
