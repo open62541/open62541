@@ -378,8 +378,8 @@ static UA_Int32 NetworkLayerTCP_getWork(NetworkLayerTCP *layer, UA_WorkItem **wo
 }
 
 static UA_Int32 NetworkLayerTCP_stop(NetworkLayerTCP * layer, UA_WorkItem **workItems) {
-	for(UA_Int32 index = 0;index < layer->conLinksSize;index++)
-        closeConnection(layer->conLinks[index].connection);
+	for(UA_Int32 i = 0;i < layer->conLinksSize;i++)
+        closeConnection(layer->conLinks[i].connection);
 #ifdef _WIN32
 	WSACleanup();
 #endif
