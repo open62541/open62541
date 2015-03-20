@@ -408,6 +408,14 @@ UA_StatusCode UA_EXPORT UA_LocalizedText_copycstring(char const *src, UA_Localiz
 /* Variant */
 
 /**
+ * Variant semantics:
+ *  - arrayLength = -1 && dataPtr == NULL: empty variant
+ *  - arrayLength = -1 && dataPtr == !NULL: variant holds a single element (a scalar)
+ *  - arrayLength >= 0: variant holds an array of the appropriate length
+ *                    : dataPtr can be NULL if arrayLength == 0
+ */
+
+/**
  * Copy the variant, but use only a subset of the (multidimensional) array. Returns an error code if
  * the variant is no array or if the indicated range does not fit.
  */
