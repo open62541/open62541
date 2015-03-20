@@ -117,7 +117,7 @@ void writeCallbackUDP(UDPConnection *handle, UA_ByteStringArray gather_buf) {
 	}
 
 
-	struct sockaddr_in *sin = UA_NULL;
+	struct sockaddr_in *sin = NULL;
 	if (handle->from.sa_family == AF_INET) {
         
 #if defined(__GNUC__) || defined(__clang__)
@@ -198,7 +198,7 @@ static UA_StatusCode ServerNetworkLayerUDP_start(ServerNetworkLayerUDP *layer, U
 
 static UA_Int32 ServerNetworkLayerUDP_getWork(ServerNetworkLayerUDP *layer, UA_WorkItem **workItems,
                                         UA_UInt16 timeout) {
-    UA_WorkItem *items = UA_NULL;
+    UA_WorkItem *items = NULL;
     setFDSet(layer);
     struct timeval tmptv = {0, timeout};
     UA_Int32 resultsize = select(layer->serversockfd+1, &layer->fdset, NULL, NULL, &tmptv);
@@ -244,7 +244,7 @@ static UA_Int32 ServerNetworkLayerUDP_getWork(ServerNetworkLayerUDP *layer, UA_W
             c->fromlen = sendsize;
             c->connection.state = UA_CONNECTION_OPENING;
             c->connection.localConf = layer->conf;
-            c->connection.channel = UA_NULL;
+            c->connection.channel = NULL;
             c->connection.close = (void (*)(void*))closeConnectionUDP;
             c->connection.write = (void (*)(void*, UA_ByteStringArray))writeCallbackUDP;
 
@@ -288,5 +288,6 @@ UA_ServerNetworkLayer ServerNetworkLayerUDP_new(UA_ConnectionConfig conf, UA_UIn
     nl.getWork = (UA_Int32 (*)(void*, UA_WorkItem**, UA_UInt16)) ServerNetworkLayerUDP_getWork;
     nl.stop = (UA_Int32 (*)(void*, UA_WorkItem**)) ServerNetworkLayerUDP_stop;
     nl.free = (void (*)(void*))ServerNetworkLayerUDP_delete;
+    nl.discoveryUrl = NULL;
     return nl;
 }

@@ -192,8 +192,14 @@ typedef struct {
      */
     UA_Int32 (*stop)(void *nlhandle, UA_WorkItem **workItems);
 
-    /** Deletes the network layer. Call only after a successfull shutdown. */
+    /** Deletes the network layer. Call only after a successful shutdown. */
     void (*free)(void *nlhandle);
+
+    /**
+     * String containing the discovery URL that will be add to the server's list
+     * contains the protocol the host and the port of the layer
+     */
+    UA_String* discoveryUrl;
 } UA_ServerNetworkLayer;
 
 /**

@@ -104,7 +104,8 @@ void UA_String_init(UA_String *p) {
 
 UA_TYPE_DELETE_DEFAULT(UA_String)
 void UA_String_deleteMembers(UA_String *p) {
-    UA_free(p->data);
+	if(p->data)
+		UA_free(p->data);
 }
 
 UA_StatusCode UA_String_copy(UA_String const *src, UA_String *dst) {

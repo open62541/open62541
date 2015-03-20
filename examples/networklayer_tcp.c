@@ -69,6 +69,7 @@ typedef struct NetworkLayerTCP {
     UA_UInt16 conLinksSize;
     ConnectionLink *conLinks;
     UA_UInt32 port;
+    UA_String discoveryUrl;
     /* We remove the connection links only in the main thread. Attach
        to-be-deleted links with atomic operations */
     struct deleteLink {
@@ -78,6 +79,7 @@ typedef struct NetworkLayerTCP {
 		UA_Int32 sockfd;
 #endif
         struct deleteLink *next;
+
     } *deleteLinkList;
 } NetworkLayerTCP;
 
@@ -299,12 +301,7 @@ static UA_StatusCode NetworkLayerTCP_start(NetworkLayerTCP *layer, UA_Logger *lo
 	setNonBlocking(layer->serversockfd);
 	listen(layer->serversockfd, MAXBACKLOG);
     char msg[256];
-    char hostname[256];
-    gethostname(hostname, 255);
-    sprintf(msg, "Listening for TCP connections on opc.tcp://%s:%d",
-    		hostname,
-    		//inet_ntoa(serv_addr.sin_addr),
-            ntohs(serv_addr.sin_port));
+    sprintf(msg, "Listening on %.*s\n", layer->discoveryUrl.length, layer->discoveryUrl.data);
     UA_LOG_INFO((*logger), UA_LOGGERCATEGORY_SERVER, msg);
     return UA_STATUSCODE_GOOD;
 }
@@ -387,6 +384,7 @@ static UA_Int32 NetworkLayerTCP_stop(NetworkLayerTCP * layer, UA_WorkItem **work
 }
 
 static void NetworkLayerTCP_delete(NetworkLayerTCP *layer) {
+	UA_String_deleteMembers(&layer->discoveryUrl);
 	for(UA_Int32 i=0;i<layer->conLinksSize;++i){
 		free(layer->conLinks[i].connection);
 	}
@@ -401,6 +399,9 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
 	tcplayer->conLinks = NULL;
     tcplayer->port = port;
     tcplayer->deleteLinkList = (void*)0;
+    char hostname[256];
+    gethostname(hostname, 255);
+    UA_String_copyprintf("opc.tcp://%s:%d", &tcplayer->discoveryUrl, hostname, port);
 
     UA_ServerNetworkLayer nl;
     nl.nlHandle = tcplayer;
@@ -408,5 +409,7 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
     nl.getWork = (UA_Int32 (*)(void*, UA_WorkItem**, UA_UInt16)) NetworkLayerTCP_getWork;
     nl.stop = (UA_Int32 (*)(void*, UA_WorkItem**)) NetworkLayerTCP_stop;
     nl.free = (void (*)(void*))NetworkLayerTCP_delete;
+    nl.discoveryUrl = &tcplayer->discoveryUrl;
+
     return nl;
 }

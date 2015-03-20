@@ -44,7 +44,17 @@ void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkL
     server->nls = newlayers;
     server->nls[server->nlsSize] = networkLayer;
     server->nlsSize++;
-    UA_LOG_INFO(server->logger, UA_LOGGERCATEGORY_SERVER, "Networklayer added");
+
+    if(networkLayer.discoveryUrl){
+		UA_String* newUrls = UA_realloc(server->description.discoveryUrls, sizeof(UA_String)*(server->description.discoveryUrlsSize+1)); //TODO: rework this pattern into *_array_insert
+		if(!newUrls) {
+			UA_LOG_ERROR(server->logger, UA_LOGGERCATEGORY_SERVER, "Adding discoveryUrl");
+			return;
+		}
+		server->description.discoveryUrls = newUrls;
+		UA_String_copy(networkLayer.discoveryUrl, &server->description.discoveryUrls[0]);
+		server->description.discoveryUrlsSize++;
+    }
 }
 
 void UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate) {
@@ -212,12 +222,7 @@ UA_Server * UA_Server_new(void) {
     UA_ApplicationDescription_init(&server->description);
     UA_String_copycstring(PRODUCT_URI, &server->description.productUri);
     UA_String_copycstring(APPLICATION_URI, &server->description.applicationUri);
-    server->description.discoveryUrlsSize = 1;
-    server->description.discoveryUrls = UA_String_new();
-    if(!server->description.discoveryUrls)
-    	return UA_NULL;
-    UA_String_copycstring("opc.tcp://0.0.0.0:16664", server->description.discoveryUrls); //TODO: 16664 is hardcoded :(
-
+    server->description.discoveryUrlsSize = 0;
 
     UA_LocalizedText_copycstring("Unconfigured open62541 application", &server->description.applicationName);
     server->description.applicationType = UA_APPLICATIONTYPE_SERVER;

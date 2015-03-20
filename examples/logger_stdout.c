@@ -12,7 +12,7 @@ static void print_time(void) {
 	UA_DateTime now = UA_DateTime_now();
 	UA_ByteString str;
 	UA_DateTime_toString(now, &str);
-	printf("%.*s", str.length, str.data);
+	printf("%.27s", str.data); //a bit hacky way not to display nanoseconds
 	UA_ByteString_deleteMembers(&str);
 }
 
