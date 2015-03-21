@@ -1,8 +1,3 @@
-#ifdef UA_MULTITHREADING
-#define _LGPL_SOURCE
-#include <urcu.h>
-#endif
-
 #include "ua_types.h"
 #include "ua_server_internal.h"
 #include "ua_securechannel_manager.h"
@@ -10,10 +5,6 @@
 #include "ua_util.h"
 #include "ua_services.h"
 #include "ua_nodeids.h"
-
-#ifdef DEMO_NODESET
-#include <stdio.h> //sprintf
-#endif
 
 const char *UA_LoggerCategoryNames[3] = {"communication", "server", "userland"};
 

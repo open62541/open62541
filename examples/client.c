@@ -10,9 +10,7 @@
 #include <arpa/inet.h> //inet_addr
 #include <unistd.h> // for close
 #include <stdlib.h> // pulls in declaration of malloc, free
-#include "ua_transport_generated.h"
-#include "ua_types_encoding_binary.h"
-#include "ua_util.h"
+#include "open62541.h"
 
 typedef struct ConnectionInfo {
 	UA_Int32 socket;

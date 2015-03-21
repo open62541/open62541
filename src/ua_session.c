@@ -1,10 +1,6 @@
-#include "ua_session.h"
 #include "ua_util.h"
+#include "ua_session.h"
 #include "ua_statuscodes.h"
-
-#ifdef UA_MULTITHREADING
-#include <urcu/uatomic.h>
-#endif
 
 UA_Session anonymousSession = {
     .clientDescription =  {.applicationUri = {-1, UA_NULL},

@@ -53,6 +53,8 @@ typedef struct {
     UA_Boolean historizing;
 } UA_VariableNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_VariableNode)
+/** Make a copy but leave out the references and the variable */
+UA_StatusCode UA_VariableNode_copyWithoutRefsAndVariable(const UA_VariableNode *src, UA_VariableNode *dst);
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS

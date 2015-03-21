@@ -1,20 +1,4 @@
-#include <stdarg.h> // va_start, va_end
-#include <time.h>
-#include <stdio.h> // printf
-#include <string.h> // strlen
-#define __USE_POSIX
-#include <stdlib.h> // malloc, free, rand
-
 #include "ua_util.h"
-
-#ifdef _WIN32
-#include <windows.h>
-#define RAND(SEED) (UA_UInt32)rand()
-#else
-#include <sys/time.h>
-#define RAND(SEED) (UA_UInt32)rand_r(SEED)
-#endif
-
 #include "ua_types.h"
 #include "ua_statuscodes.h"
 #include "ua_types_generated.h"
@@ -120,7 +104,7 @@ UA_StatusCode UA_String_copy(UA_String const *src, UA_String *dst) {
 }
 
 /* The c-string needs to be null-terminated. the string cannot be smaller than zero. */
-UA_Int32 UA_String_copycstring(char const *src, UA_String *dst) {
+UA_StatusCode UA_String_copycstring(char const *src, UA_String *dst) {
     UA_String_init(dst);
     size_t length = (UA_UInt32) strlen(src);
     if(length == 0) {

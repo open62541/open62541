@@ -4,9 +4,7 @@
  */
 
 #include <stdio.h>
-
 #include "logger_stdout.h"
-#include "ua_types.h"
 
 static void print_time(void) {
 	UA_DateTime now = UA_DateTime_now();

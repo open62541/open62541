@@ -1,10 +1,3 @@
-#define __USE_POSIX
-#define _XOPEN_SOURCE 500
-#define __USE_POSIX199309
-#ifndef WIN32
-#include <sys/time.h>
-#endif
-#include <time.h>
 #include "ua_server_internal.h"
 
 /**

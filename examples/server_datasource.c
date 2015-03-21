@@ -3,8 +3,6 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
 #include <time.h>
-#include "ua_types.h"
-
 #include <stdio.h>
 #include <stdlib.h> 
 #include <signal.h>
@@ -13,8 +11,7 @@
 #include <pthread.h>
 #endif
 
-// provided by the open62541 lib
-#include "ua_server.h"
+#include "open62541.h"
 
 // provided by the user, implementations available in the /examples folder
 #include "logger_stdout.h"

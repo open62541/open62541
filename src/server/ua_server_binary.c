@@ -1,5 +1,4 @@
-#include <stdio.h>
-
+#include "ua_util.h"
 #include "ua_server_internal.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_transport_generated.h"
@@ -7,7 +6,6 @@
 #include "ua_statuscodes.h"
 #include "ua_securechannel_manager.h"
 #include "ua_session_manager.h"
-#include "ua_util.h"
 #include "ua_nodeids.h"
 
 /** Max size of messages that are allocated on the stack */
@@ -402,9 +400,10 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
 static void processCLO(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg,
                        size_t *pos) {
     UA_UInt32 secureChannelId;
-    UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
+    UA_StatusCode retval = UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
 
-    if(!connection->channel || connection->channel->securityToken.channelId != secureChannelId)
+    if(retval != UA_STATUSCODE_GOOD || !connection->channel ||
+       connection->channel->securityToken.channelId != secureChannelId)
         return;
 
     Service_CloseSecureChannel(server, secureChannelId);

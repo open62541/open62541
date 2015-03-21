@@ -297,11 +297,11 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_Guid)
 #define UA_XmlElement_copy UA_String_copy
 UA_TYPE_HANDLING_FUNCTIONS(UA_NodeId)
 UA_TYPE_HANDLING_FUNCTIONS(UA_ExpandedNodeId)
-#define UA_StatusCode_new UA_Int32_new
-#define UA_StatusCode_init UA_Int32_init
-#define UA_StatusCode_delete UA_Int32_delete
-#define UA_StatusCode_deleteMembers UA_Int32_deleteMembers
-#define UA_StatusCode_copy UA_Int32_copy
+#define UA_StatusCode_new(p) UA_Int32_new((UA_Int32*)p)
+#define UA_StatusCode_init(p) UA_Int32_init((UA_Int32*)p)
+#define UA_StatusCode_delete(p) UA_Int32_delete((UA_Int32*)p)
+#define UA_StatusCode_deleteMembers(p) UA_Int32_deleteMembers((UA_Int32*)p)
+#define UA_StatusCode_copy(p) UA_Int32_copy((UA_Int32*)p)
 UA_TYPE_HANDLING_FUNCTIONS(UA_QualifiedName)
 UA_TYPE_HANDLING_FUNCTIONS(UA_LocalizedText)
 UA_TYPE_HANDLING_FUNCTIONS(UA_ExtensionObject)

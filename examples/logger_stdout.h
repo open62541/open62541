@@ -6,7 +6,7 @@
 #ifndef LOGGER_STDOUT_H_
 #define LOGGER_STDOUT_H_
 
-#include "ua_log.h"
+#include "open62541.h"
 
 /** Initialises the logger for the current thread. */
 UA_Logger Logger_Stdout_new(void);

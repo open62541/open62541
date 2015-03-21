@@ -503,7 +503,7 @@ printh('''
 #ifdef __cplusplus
 } // extern "C"
 #endif\n
-#endif''')
+#endif /* %s_GENERATED_H_ */''' % outname.upper())
 
 printc('''/**
 * @file ''' + outname + '''_generated.c

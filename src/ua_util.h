@@ -1,9 +1,24 @@
 #ifndef UA_UTIL_H_
 #define UA_UTIL_H_
 
-#ifndef __USE_POSIX
-#define __USE_POSIX
+#ifndef UA_AMALGAMATE
+# include "ua_config.h"
 #endif
+
+#ifndef __USE_POSIX
+# define __USE_POSIX
+#endif
+#ifndef _POSIX_SOURCE
+# define _POSIX_SOURCE
+#endif
+#ifndef _BSD_SOURCE
+# define _BSD_SOURCE
+#endif
+
+/*********************/
+/* Memory Management */
+/*********************/
+
 #include <stdlib.h> // malloc, free
 #include <string.h> // memcpy
 #include <assert.h> // assert
@@ -13,8 +28,6 @@
 #else
 # include <alloca.h>
 #endif
-
-#include "ua_types.h"
 
 #define UA_NULL ((void *)0)
 
@@ -36,6 +49,38 @@
 # define UA_alloca(SIZE) _alloca(SIZE)
 #else
 # define UA_alloca(SIZE) alloca(SIZE)
+#endif
+
+/********************/
+/* System Libraries */
+/********************/
+
+#include <stdarg.h> // va_start, va_end
+#include <time.h>
+#include <stdio.h> // printf
+#include <inttypes.h>
+
+#ifdef _WIN32
+# include <windows.h>
+# define RAND(SEED) (UA_UInt32)rand()
+#else
+# include <endian.h>
+# include <sys/time.h>
+# define RAND(SEED) (UA_UInt32)rand_r(SEED)
+#endif
+
+/*************************/
+/* External Dependencies */
+/*************************/
+
+#ifndef UA_AMALGAMATE
+# include "queue.h"
+#endif
+
+#ifdef UA_MULTITHREADING
+#define _LGPL_SOURCE
+#include <urcu.h>
+#include <urcu/wfcqueue.h>
 #endif
 
 #endif /* UA_UTIL_H_ */

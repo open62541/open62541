@@ -36,37 +36,48 @@ add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat
 endif()
 
 # build the main library
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/src")
-file(GLOB_RECURSE exported_headers "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h")
-file(GLOB generated_headers "${PROJECT_BINARY_DIR}/src_generated/*.h")
-set(lib_sources src/ua_types.c
-                src/ua_types_encoding_binary.c
+set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_statuscodes.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_types.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_connection.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_log.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_server.h)
+set(internal_headers ${PROJECT_SOURCE_DIR}/src/ua_util.h
+                     ${PROJECT_SOURCE_DIR}/deps/queue.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
+                     ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
+                     ${PROJECT_SOURCE_DIR}/src/ua_session.h
+                     ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
+                     ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h
+                     ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h
+                     ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.h
+                     ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.h
+                     ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
+                     ${PROJECT_SOURCE_DIR}/src/server/ua_services.h)
+set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
+                ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
-                ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
-                src/ua_securechannel.c
-                src/ua_session.c
-                src/server/ua_server.c
-				src/server/ua_server_addressspace.c
-				src/server/ua_server_binary.c
-				src/server/ua_nodes.c
-                src/server/ua_server_worker.c
-                src/server/ua_securechannel_manager.c
-                src/server/ua_session_manager.c
-                src/server/ua_services_discovery.c
-                src/server/ua_services_securechannel.c
-                src/server/ua_services_session.c
-                src/server/ua_services_attribute.c
-                src/server/ua_services_nodemanagement.c
-                src/server/ua_services_view.c
-				${exported_headers}
-				${generated_headers} )
+                ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
+                ${PROJECT_SOURCE_DIR}/src/ua_session.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
+				${PROJECT_SOURCE_DIR}/src/server/ua_server_addressspace.c
+				${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
+				${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_worker.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_session.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_attribute.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c)
 
 ## generate code from xml definitions
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
-include_directories("${PROJECT_BINARY_DIR}/src_generated")
-
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                    PRE_BUILD
@@ -99,10 +110,19 @@ option(MULTITHREADING "Enable multithreading" OFF)
 if(MULTITHREADING)
     set(UA_MULTITHREADING ON)
     find_package(Threads REQUIRED)
-    list(APPEND lib_sources src/server/ua_nodestore_concurrent.c)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_concurrent.c)
 else()
-    list(APPEND lib_sources src/server/ua_nodestore.c)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.c)
 endif()
+
+## build amalgamated source files
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c
+                   PRE_BUILD
+                   COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
+                   COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
+                                  ${internal_headers} ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources}
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${exported_headers} ${internal_headers}
+                           ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
 
 ## extensions
 option(EXTENSION_UDP "Enable udp extension" OFF)
@@ -124,12 +144,20 @@ if(DEMO_NODESET)
 	add_definitions(-DDEMO_NODESET)
 endif()
 
-add_library(open62541-objects OBJECT ${lib_sources})
-add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-objects>)
-add_library(open62541-static STATIC $<TARGET_OBJECTS:open62541-objects>)
-SET_TARGET_PROPERTIES(open62541-static PROPERTIES OUTPUT_NAME open62541 CLEAN_DIRECT_OUTPUT 1) # static version that exports all symbols
-target_compile_definitions(open62541-objects PRIVATE UA_DYNAMIC_LINKING)
-target_compile_definitions(open62541-static PRIVATE UA_DYNAMIC_LINKING)
+option(BUILD_AMALGAMATION "Build the single-file distribution" ON)
+if(BUILD_AMALGAMATION)
+    add_custom_target(open62541-amalgamation DEPENDS ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c)
+endif()
+
+option(BUILD_LIBRARY "Build a shared library (.so/.dll)" ON)
+if(BUILD_LIBRARY)
+    add_library(open62541 SHARED ${lib_sources} ${exported_headers} ${internal_headers}) 
+    target_include_directories(open62541 PRIVATE ${PROJECT_SOURCE_DIR}/include)
+    target_include_directories(open62541 PRIVATE ${PROJECT_SOURCE_DIR}/deps)
+    target_include_directories(open62541 PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    target_include_directories(open62541 PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
+    target_compile_definitions(open62541 PRIVATE UA_DYNAMIC_LINKING)
+endif()
 
 # build language bindings for the library
 option(ENABLE_BINDING_LUA "Build Lua bindings" OFF)
@@ -148,42 +176,13 @@ if(ENABLE_COVERAGE)
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
 endif()
 
-# build example client
-option(CLIENT "Build a test client" OFF)
-if(CLIENT)
-	message(STATUS "Extensions: enabling client")
-	add_definitions( -DBENCHMARK=1 )
-    # the client is built directly with the .o files as it currently uses
-    # internal functions that are not exported to the shared lib.
-	add_executable(exampleClient $<TARGET_OBJECTS:open62541-objects> examples/client.c)
-    if(MULTITHREADING)
-        target_link_libraries(exampleClient urcu-cds urcu urcu-common pthread)
-    endif()
-    if ((CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang") AND (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release"))
-    	add_custom_command(TARGET exampleClient POST_BUILD
-    		COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleClient>
-		)
-	endif()
-    if(EXTENSION_STATELESS)
-        add_executable(statelessClient $<TARGET_OBJECTS:open62541-objects> examples/client_stateless.c)
-        if(MULTITHREADING)
-            target_link_libraries(statelessClient urcu-cds urcu urcu-common pthread)
-        endif()
-        if ((CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang") AND (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release"))
-    	add_custom_command(TARGET statelessClient POST_BUILD
-    		COMMAND ${CMAKE_STRIP} $<TARGET_FILE:statelessClient>
-		)
-		endif()
-    endif()
-endif()
-
 # build example server
-option(EXAMPLESERVER "Build a test server" OFF)
-if(EXAMPLESERVER)
-    add_executable(exampleServer examples/server.c examples/networklayer_tcp.c examples/logger_stdout.c ${exported_headers} ${generated_headers})
-    add_executable(exampleServer_datasource examples/server_datasource.c examples/networklayer_tcp.c examples/logger_stdout.c ${exported_headers} ${generated_headers})
-    target_link_libraries(exampleServer open62541-static)
-    target_link_libraries(exampleServer_datasource open62541-static)
+option(BUILD_EXAMPLESERVER "Build the example server" OFF)
+if(BUILD_EXAMPLESERVER)
+    add_executable(exampleServer examples/server.c ${PROJECT_BINARY_DIR}/open62541.c examples/networklayer_tcp.c examples/logger_stdout.c)
+    add_executable(exampleServer_datasource examples/server_datasource.c ${PROJECT_BINARY_DIR}/open62541.c examples/networklayer_tcp.c examples/logger_stdout.c)
+    target_include_directories(exampleServer PRIVATE ${PROJECT_BINARY_DIR})
+    target_include_directories(exampleServer_datasource PRIVATE ${PROJECT_BINARY_DIR})
     if(WIN32)
         target_link_libraries(exampleServer ws2_32)
         target_link_libraries(exampleServer_datasource ws2_32)
@@ -195,13 +194,9 @@ if(EXAMPLESERVER)
         target_link_libraries(exampleServer urcu-cds urcu urcu-common pthread)
         target_link_libraries(exampleServer_datasource urcu-cds urcu urcu-common pthread)
     endif()
-    if ((CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang") AND (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release"))
-    	add_custom_command(TARGET exampleServer POST_BUILD
-    		COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleServer>
-		)
-		add_custom_command(TARGET exampleServer_datasource POST_BUILD
-    		COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleServer_datasource>
-		)
+    if((CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang") AND (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release"))
+    	add_custom_command(TARGET exampleServer POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleServer>)
+		add_custom_command(TARGET exampleServer_datasource POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleServer_datasource>)
 	endif()
 endif()
 
@@ -217,9 +212,39 @@ if(GENERATE_SELFSIGNED)
     add_custom_target(selfsigned ALL DEPENDS ${PROJECT_BINARY_DIR}/localhost.der ${PROJECT_BINARY_DIR}/ca.crt)
 endif()
 
+# build example client
+option(BUILD_EXAMPLECLIENT "Build a test client" OFF)
+if(BUILD_EXAMPLECLIENT)
+	message(STATUS "Extensions: enabling client")
+	add_definitions( -DBENCHMARK=1 )
+	add_executable(exampleClient ${PROJECT_BINARY_DIR}/open62541.c examples/client.c)
+    target_include_directories(exampleClient PRIVATE ${PROJECT_BINARY_DIR})
+    if(MULTITHREADING)
+        target_link_libraries(exampleClient urcu-cds urcu urcu-common pthread)
+    endif()
+    if ((CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang") AND (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release"))
+    	add_custom_command(TARGET exampleClient POST_BUILD
+    		COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleClient>
+		)
+	endif()
+    if(EXTENSION_STATELESS)
+        add_executable(statelessClient ${PROJECT_BINARY_DIR}/open62541.c examples/client_stateless.c)
+        target_include_directories(statelessClient PRIVATE ${PROJECT_BINARY_DIR})
+        if(MULTITHREADING)
+            target_link_libraries(statelessClient urcu-cds urcu urcu-common pthread)
+        endif()
+        if ((CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang") AND (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release"))
+    	add_custom_command(TARGET statelessClient POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:statelessClient>)
+		endif()
+    endif()
+endif()
+
 # build unit tests
-option(ENABLE_UNIT_TESTS "Run unit tests after building" OFF)
-if(ENABLE_UNIT_TESTS)
+option(BUILD_UNIT_TESTS "Run unit tests after building" OFF)
+if(BUILD_UNIT_TESTS)
+    if(NOT BUILD_LIBRARY)
+        message(SEND_ERROR "Can't build unit tests without building the library")
+    endif()
     enable_testing()
     add_subdirectory(tests)
 endif()

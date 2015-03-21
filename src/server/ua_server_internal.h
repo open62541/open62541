@@ -3,13 +3,6 @@
 
 #include "ua_config.h"
 
-#ifdef UA_MULTITHREADING
-#define _LGPL_SOURCE
-#include <urcu.h>
-#include <urcu/wfcqueue.h>
-#endif
-
-#include "../deps/queue.h"
 #include "ua_server.h"
 #include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"

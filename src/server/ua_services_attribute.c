@@ -1,5 +1,3 @@
-#include <inttypes.h>
-#include <stdio.h>
 #include "ua_server_internal.h"
 #include "ua_types_generated.h"
 #include "ua_services.h"
