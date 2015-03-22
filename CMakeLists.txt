@@ -148,8 +148,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release"
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c)
     add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-object>)
 else()
-    ##compile from individual c files
-    add_library(open62541-object OBJECT ${lib_sources})
+    add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
     include_directories(${PROJECT_SOURCE_DIR}/include)
     include_directories(${PROJECT_SOURCE_DIR}/deps)
     include_directories(${PROJECT_SOURCE_DIR}/src)
