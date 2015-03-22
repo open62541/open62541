@@ -8,7 +8,7 @@
 static UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range) {
     if(str.length < 0 || str.length >= 1023)
         return UA_STATUSCODE_BADINTERNALERROR;
-    char cstring[str.length+1];
+    char *cstring = UA_alloca(str.length+1);
     UA_memcpy(cstring, str.data, str.length);
     cstring[str.length] = 0;
     UA_Int32 index = 0;
