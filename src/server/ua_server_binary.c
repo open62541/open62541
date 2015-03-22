@@ -160,7 +160,9 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
 static void processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, size_t *pos) {
     // 1) Read in the securechannel
     UA_UInt32 secureChannelId;
-    UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
+    UA_StatusCode retval = UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
+    if(retval != UA_STATUSCODE_GOOD)
+        return;
 
     UA_SecureChannel *clientChannel = connection->channel;
     UA_SecureChannel anonymousChannel;
@@ -178,7 +180,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     // 2) Read the security header
     UA_UInt32 tokenId;
     UA_SequenceHeader sequenceHeader;
-    UA_StatusCode retval = UA_UInt32_decodeBinary(msg, pos, &tokenId);
+    retval = UA_UInt32_decodeBinary(msg, pos, &tokenId);
     retval |= UA_SequenceHeader_decodeBinary(msg, pos, &sequenceHeader);
     if(retval != UA_STATUSCODE_GOOD)
         return;

@@ -57,11 +57,11 @@ script:
 - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
 - sudo update-alternatives --config gcc
 - echo "Compile multithreaded version"
-- cmake -DMULTITHREADING=ON -DEXAMPLESERVER=ON ..
+- cmake -DENABLE_MULTITHREADING=ON -DBUILD_EXAMPLESERVER=ON ..
 - make -j
 - cd .. && rm build -rf && mkdir -p build && cd build
 - echo "Documentation build"
-- cmake -DEXTENSION_STATELESS=ON -DGENERATE_DOCUMENTATION=ON ..
+- cmake -DEXTENSION_STATELESS=ON -DBUILD_DOCUMENTATION=ON ..
 - make -j
 - echo "Generate documentation"
 - make -j doc

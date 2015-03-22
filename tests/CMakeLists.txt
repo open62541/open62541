@@ -17,15 +17,11 @@ endif(MULTITHREADING)
 # the unit test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library
 
-add_executable(check_builtin check_builtin.c ${PROJECT_SOURCE_DIR}/src/ua_types.c
-                                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
-                                             ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c)
+add_executable(check_builtin check_builtin.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_builtin ${LIBS})
 add_test(builtin ${CMAKE_CURRENT_BINARY_DIR}/check_builtin)
 
-add_executable(check_memory check_memory.c ${PROJECT_SOURCE_DIR}/src/ua_types.c
-                                           ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
-                                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c)
+add_executable(check_memory check_memory.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_memory ${LIBS})
 add_test(memory ${CMAKE_CURRENT_BINARY_DIR}/check_memory)
 
@@ -37,14 +33,11 @@ add_test(memory ${CMAKE_CURRENT_BINARY_DIR}/check_memory)
 # target_link_libraries(check_base64 ${LIBS})
 # add_test(base64 ${CMAKE_CURRENT_BINARY_DIR}/check_base64)
 
-add_executable(check_services_view check_services_view.c)
+add_executable(check_services_view check_services_view.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_services_view ${LIBS})
 add_test(services_view ${CMAKE_CURRENT_BINARY_DIR}/check_services_view)
 
-add_executable(check_nodestore check_nodestore.c ${PROJECT_SOURCE_DIR}/src/ua_types.c
-                                                 ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
-                                                 ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.c
-                                                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c)
+add_executable(check_nodestore check_nodestore.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_nodestore ${LIBS})
 add_test(nodestore ${CMAKE_CURRENT_BINARY_DIR}/check_nodestore)
 
