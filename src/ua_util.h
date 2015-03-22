@@ -62,6 +62,7 @@
 
 #ifdef _WIN32
 # include <windows.h>
+# undef SLIST_ENTRY
 # define RAND(SEED) (UA_UInt32)rand()
 #else
 # include <endian.h>
