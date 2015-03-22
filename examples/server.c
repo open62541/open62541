@@ -8,7 +8,12 @@
 #include <signal.h>
 #include <errno.h> // errno, EINTR
 
-#include "open62541.h"
+#ifdef NOT_AMALGATED
+    #include "ua_types.h"
+    #include "ua_server.h"
+#else
+    #include "open62541.h"
+#endif
 
 // provided by the user, implementations available in the /examples folder
 #include "logger_stdout.h"
