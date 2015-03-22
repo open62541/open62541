@@ -64,7 +64,7 @@ else:
 # define UA_DYNAMIC_LINKING
 #endif\n\n''')
     for fname in args.inputs:
-        if "util.h" in fname:
+        if "ua_config.h" in fname or "ua_util.h" in fname:
             with open(fname) as infile:
                 for line in infile:
                     file.write(line)

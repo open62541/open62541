@@ -1,11 +1,5 @@
-#define _LGPL_SOURCE
-#include <urcu.h>
-#include <urcu/compiler.h> // for caa_container_of
-#include <urcu/uatomic.h>
-#include <urcu/rculfhash.h>
-
-#include "ua_nodestore.h"
 #include "ua_util.h"
+#include "ua_nodestore.h"
 
 #define ALIVE_BIT (1 << 15) /* Alive bit in the refcount */
 

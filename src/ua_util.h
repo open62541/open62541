@@ -10,6 +10,7 @@
 #endif
 #ifndef _POSIX_SOURCE
 # define _POSIX_SOURCE
+# define _POSIX_C_SOURCE 199309L
 #endif
 #ifndef _BSD_SOURCE
 # define _BSD_SOURCE
@@ -79,9 +80,12 @@
 #endif
 
 #ifdef UA_MULTITHREADING
-#define _LGPL_SOURCE
-#include <urcu.h>
-#include <urcu/wfcqueue.h>
+# define _LGPL_SOURCE
+# include <urcu.h>
+# include <urcu/wfcqueue.h>
+# include <urcu/compiler.h> // for caa_container_of
+# include <urcu/uatomic.h>
+# include <urcu/rculfhash.h>
 #endif
 
 #endif /* UA_UTIL_H_ */

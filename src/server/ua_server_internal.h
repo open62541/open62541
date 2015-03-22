@@ -1,8 +1,7 @@
 #ifndef UA_SERVER_INTERNAL_H_
 #define UA_SERVER_INTERNAL_H_
 
-#include "ua_config.h"
-
+#include "ua_util.h"
 #include "ua_server.h"
 #include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
