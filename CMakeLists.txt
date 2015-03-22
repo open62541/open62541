@@ -135,8 +135,9 @@ if(BUILD_DEMO_NODESET)
 	add_definitions(-DDEMO_NODESET)
 endif()
 
-## build amalgamated source files
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c
+if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
+    ## build amalgamated source files
+    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c
                    PRE_BUILD
                    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
                    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
@@ -144,13 +145,17 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${exported_headers} ${internal_headers}
                            ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
 
-# add_library(open62541-object OBJECT ${lib_sources})
-# include_directories(${PROJECT_SOURCE_DIR}/include)
-# include_directories(${PROJECT_SOURCE_DIR}/deps)
-# include_directories(${PROJECT_SOURCE_DIR}/src)
-# include_directories(${PROJECT_BINARY_DIR}/src_generated)
-add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c)
-add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-object>)
+    add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c)
+    add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-object>)
+else()
+    ##compile from individual c files
+    add_library(open62541-object OBJECT ${lib_sources})
+    include_directories(${PROJECT_SOURCE_DIR}/include)
+    include_directories(${PROJECT_SOURCE_DIR}/deps)
+    include_directories(${PROJECT_SOURCE_DIR}/src)
+    include_directories(${PROJECT_BINARY_DIR}/src_generated)
+endif()
+
 
 # build language bindings for the library
 option(ENABLE_BINDING_LUA "Build Lua bindings" OFF)
