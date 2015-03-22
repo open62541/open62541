@@ -2,6 +2,8 @@
  * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
+#include "open62541.h"
+
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h> 
@@ -10,8 +12,6 @@
 #ifdef UA_MULTITHREADING
 #include <pthread.h>
 #endif
-
-#include "open62541.h"
 
 // provided by the user, implementations available in the /examples folder
 #include "logger_stdout.h"
