@@ -23,7 +23,7 @@ UA_StatusCode UA_Boolean_encodeBinary(const UA_Boolean *src, UA_ByteString *dst,
     if(*offset + sizeof(UA_Boolean) > (size_t)dst->length)
         return UA_STATUSCODE_BADENCODINGERROR;
     dst->data[*offset] = (UA_Byte)*src;
-    (*offset)++;
+    ++(*offset);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -31,7 +31,7 @@ UA_StatusCode UA_Boolean_decodeBinary(UA_ByteString const *src, size_t *offset, 
     if(*offset + sizeof(UA_Boolean) > (size_t)src->length )
         return UA_STATUSCODE_BADDECODINGERROR;
     *dst = (src->data[*offset] > 0) ? UA_TRUE : UA_FALSE;
-    (*offset)++;
+    ++(*offset);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -44,7 +44,7 @@ UA_StatusCode UA_Byte_encodeBinary(const UA_Byte *src, UA_ByteString *dst, size_
     if(*offset + sizeof(UA_Byte) > (size_t)dst->length)
         return UA_STATUSCODE_BADENCODINGERROR;
     dst->data[*offset] = (UA_Byte)*src;
-    (*offset)++;
+    ++(*offset);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -52,7 +52,7 @@ UA_StatusCode UA_Byte_decodeBinary(UA_ByteString const *src, size_t *offset, UA_
     if(*offset + sizeof(UA_Byte) > (size_t)src->length )
         return UA_STATUSCODE_BADDECODINGERROR;
     *dst = src->data[*offset];
-    (*offset)++;
+    ++(*offset);
     return UA_STATUSCODE_GOOD;
 }
 
