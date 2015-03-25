@@ -704,7 +704,7 @@ UA_StatusCode UA_Variant_setScalar(UA_Variant *v, void *p, const UA_DataType *ty
     return UA_Variant_setArray(v, p, -1, type);
 }
 
-UA_StatusCode UA_Variant_copySetScalar(UA_Variant *v, const void *p, const UA_DataType *type) {
+UA_StatusCode UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_DataType *type) {
     void *new = UA_malloc(type->memSize);
     if(!new)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -724,7 +724,7 @@ UA_StatusCode UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 noElement
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Variant_copySetArray(UA_Variant *v, const void *array, UA_Int32 noElements,
+UA_StatusCode UA_Variant_setArrayCopy(UA_Variant *v, const void *array, UA_Int32 noElements,
                                       const UA_DataType *type) {
     void *new;
     UA_StatusCode retval = UA_Array_copy(array, &new, type, noElements);

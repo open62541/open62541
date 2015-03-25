@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
     /* add a variable node */
     UA_Variant *myIntegerVariant = UA_Variant_new();
     UA_Int32 myInteger = 42;
-    UA_Variant_copySetScalar(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     UA_QualifiedName myIntegerName;
     UA_QUALIFIEDNAME_ASSIGN(myIntegerName, "the answer");
     UA_NodeId myIntegerNodeId = UA_NODEID_NULL; /* assign a random free nodeid */

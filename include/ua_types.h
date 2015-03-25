@@ -440,7 +440,7 @@ UA_StatusCode UA_EXPORT UA_Variant_setScalar(UA_Variant *v, void *p, const UA_Da
  * @param type The datatype of the value
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_copySetScalar(UA_Variant *v, const void *p, const UA_DataType *type);
+UA_StatusCode UA_EXPORT UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_DataType *type);
 
 /**
  * Set the variant to an array that already resides in memory. The array takes on the lifecycle of
@@ -464,7 +464,7 @@ UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array,
  * @param type The datatype of the array
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_copySetArray(UA_Variant *v, const void *array,
+UA_StatusCode UA_EXPORT UA_Variant_setArrayCopy(UA_Variant *v, const void *array,
                                                 UA_Int32 noElements, const UA_DataType *type);
 
 /****************************/
