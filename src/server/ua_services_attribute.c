@@ -117,66 +117,66 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
     switch(id->attributeId) {
     case UA_ATTRIBUTEID_NODEID:
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &node->nodeId, &UA_TYPES[UA_TYPES_NODEID]);
+        retval |= UA_Variant_copySetScalar(&v->value, &node->nodeId, &UA_TYPES[UA_TYPES_NODEID]);
         break;
     case UA_ATTRIBUTEID_NODECLASS:
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &node->nodeClass, &UA_TYPES[UA_TYPES_INT32]);
+        retval |= UA_Variant_copySetScalar(&v->value, &node->nodeClass, &UA_TYPES[UA_TYPES_INT32]);
         break;
     case UA_ATTRIBUTEID_BROWSENAME:
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &node->browseName, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+        retval |= UA_Variant_copySetScalar(&v->value, &node->browseName, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
         break;
     case UA_ATTRIBUTEID_DISPLAYNAME:
-        retval |= UA_Variant_copySetValue(&v->value, &node->displayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        retval |= UA_Variant_copySetScalar(&v->value, &node->displayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         if(retval == UA_STATUSCODE_GOOD)
             v->hasVariant = UA_TRUE;
         break;
     case UA_ATTRIBUTEID_DESCRIPTION:
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &node->description, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        retval |= UA_Variant_copySetScalar(&v->value, &node->description, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         break;
     case UA_ATTRIBUTEID_WRITEMASK:
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &node->writeMask, &UA_TYPES[UA_TYPES_UINT32]);
+        retval |= UA_Variant_copySetScalar(&v->value, &node->writeMask, &UA_TYPES[UA_TYPES_UINT32]);
         break;
     case UA_ATTRIBUTEID_USERWRITEMASK:
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &node->userWriteMask, &UA_TYPES[UA_TYPES_UINT32]);
+        retval |= UA_Variant_copySetScalar(&v->value, &node->userWriteMask, &UA_TYPES[UA_TYPES_UINT32]);
         break;
     case UA_ATTRIBUTEID_ISABSTRACT:
         CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE | UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE |
                         UA_NODECLASS_DATATYPE);
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &((const UA_ReferenceTypeNode *)node)->isAbstract,
+        retval |= UA_Variant_copySetScalar(&v->value, &((const UA_ReferenceTypeNode *)node)->isAbstract,
                                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
     case UA_ATTRIBUTEID_SYMMETRIC:
         CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE);
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &((const UA_ReferenceTypeNode *)node)->symmetric,
+        retval |= UA_Variant_copySetScalar(&v->value, &((const UA_ReferenceTypeNode *)node)->symmetric,
                                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
     case UA_ATTRIBUTEID_INVERSENAME:
         CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE);
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &((const UA_ReferenceTypeNode *)node)->inverseName,
+        retval |= UA_Variant_copySetScalar(&v->value, &((const UA_ReferenceTypeNode *)node)->inverseName,
                                           &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         break;
     case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
         CHECK_NODECLASS(UA_NODECLASS_VIEW);
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &((const UA_ViewNode *)node)->containsNoLoops,
+        retval |= UA_Variant_copySetScalar(&v->value, &((const UA_ViewNode *)node)->containsNoLoops,
                                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
     case UA_ATTRIBUTEID_EVENTNOTIFIER:
         CHECK_NODECLASS(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT);
         v->hasVariant = UA_TRUE;
         if(node->nodeClass == UA_NODECLASS_VIEW){
-        	retval |= UA_Variant_copySetValue(&v->value, &((const UA_ViewNode *)node)->eventNotifier,
+        	retval |= UA_Variant_copySetScalar(&v->value, &((const UA_ViewNode *)node)->eventNotifier,
                                           	  &UA_TYPES[UA_TYPES_BYTE]);
         } else {
-        	retval |= UA_Variant_copySetValue(&v->value, &((const UA_ObjectNode *)node)->eventNotifier,
+        	retval |= UA_Variant_copySetScalar(&v->value, &((const UA_ObjectNode *)node)->eventNotifier,
                                               &UA_TYPES[UA_TYPES_BYTE]);
         }
         break;
@@ -237,13 +237,13 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
 		v->hasVariant = UA_TRUE;
 		if(node->nodeClass == UA_NODECLASS_VARIABLETYPE){
-			retval |= UA_Variant_copySetValue(&v->value,
+			retval |= UA_Variant_copySetScalar(&v->value,
 											  &((const UA_VariableTypeNode *)node)->value.type->typeId,
 											  &UA_TYPES[UA_TYPES_NODEID]);
 		} else {
 			const UA_VariableNode *vn = (const UA_VariableNode*)node;
 			if(vn->variableType == UA_VARIABLENODETYPE_VARIANT)
-				retval |= UA_Variant_copySetValue(&v->value, &vn->variable.variant.type->typeId,
+				retval |= UA_Variant_copySetScalar(&v->value, &vn->variable.variant.type->typeId,
 												  &UA_TYPES[UA_TYPES_NODEID]);
 			else {
 				UA_DataValue val;
@@ -251,7 +251,7 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
 				retval |= vn->variable.dataSource.read(vn->variable.dataSource.handle, UA_FALSE, &val);
 				if(retval != UA_STATUSCODE_GOOD)
 					break;
-				retval |= UA_Variant_copySetValue(&v->value, &val.value.type->typeId,
+				retval |= UA_Variant_copySetScalar(&v->value, &val.value.type->typeId,
 												  &UA_TYPES[UA_TYPES_NODEID]);
 				vn->variable.dataSource.release(vn->variable.dataSource.handle, &val);
 				if(retval != UA_STATUSCODE_GOOD)
@@ -263,7 +263,7 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
     case UA_ATTRIBUTEID_VALUERANK:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &((const UA_VariableTypeNode *)node)->valueRank,
+        retval |= UA_Variant_copySetScalar(&v->value, &((const UA_VariableTypeNode *)node)->valueRank,
                                           &UA_TYPES[UA_TYPES_INT32]);
         break;
 
@@ -304,42 +304,42 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
     case UA_ATTRIBUTEID_ACCESSLEVEL:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &((const UA_VariableNode *)node)->accessLevel,
+        retval |= UA_Variant_copySetScalar(&v->value, &((const UA_VariableNode *)node)->accessLevel,
                                           &UA_TYPES[UA_TYPES_BYTE]);
         break;
 
     case UA_ATTRIBUTEID_USERACCESSLEVEL:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &((const UA_VariableNode *)node)->userAccessLevel,
+        retval |= UA_Variant_copySetScalar(&v->value, &((const UA_VariableNode *)node)->userAccessLevel,
                                           &UA_TYPES[UA_TYPES_BYTE]);
         break;
 
     case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &((const UA_VariableNode *)node)->minimumSamplingInterval,
+        retval |= UA_Variant_copySetScalar(&v->value, &((const UA_VariableNode *)node)->minimumSamplingInterval,
                                           &UA_TYPES[UA_TYPES_DOUBLE]);
         break;
 
     case UA_ATTRIBUTEID_HISTORIZING:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &((const UA_VariableNode *)node)->historizing,
+        retval |= UA_Variant_copySetScalar(&v->value, &((const UA_VariableNode *)node)->historizing,
                                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
 
     case UA_ATTRIBUTEID_EXECUTABLE:
         CHECK_NODECLASS(UA_NODECLASS_METHOD);
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &((const UA_MethodNode *)node)->executable,
+        retval |= UA_Variant_copySetScalar(&v->value, &((const UA_MethodNode *)node)->executable,
                                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
 
     case UA_ATTRIBUTEID_USEREXECUTABLE:
         CHECK_NODECLASS(UA_NODECLASS_METHOD);
         v->hasVariant = UA_TRUE;
-        retval |= UA_Variant_copySetValue(&v->value, &((const UA_MethodNode *)node)->userExecutable,
+        retval |= UA_Variant_copySetScalar(&v->value, &((const UA_MethodNode *)node)->userExecutable,
                                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
 

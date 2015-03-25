@@ -759,21 +759,19 @@ UA_Server * UA_Server_new(void) {
 	   //add a scalar node for every built-in type
 	    void *value = UA_new(&UA_TYPES[type]);
 	    UA_Variant *variant = UA_Variant_new();
-	    UA_Variant_setValue(variant, value, &UA_TYPES[type]);
+	    UA_Variant_setScalar(variant, value, &UA_TYPES[type]);
 	    UA_QualifiedName myIntegerName;
 	    char name[15];
 	    sprintf(name, "%02d", type);
 	    UA_QUALIFIEDNAME_ASSIGN(myIntegerName, name);
-	    UA_Server_addVariableNode(server, variant, &UA_NODEID_STATIC(1, ++id), &myIntegerName,
-	                              &UA_NODEID_STATIC(1, SCALARID),
-	                              &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
+	    UA_Server_addVariableNode(server, variant, myIntegerName, UA_NODEID_STATIC(1, ++id),
+	                              UA_NODEID_STATIC(1, SCALARID), UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
 
         //add an array node for every built-in type
         UA_Variant *arrayvar = UA_Variant_new();
         UA_Variant_setArray(arrayvar, UA_Array_new(&UA_TYPES[type], 10), 10, &UA_TYPES[type]);
-        UA_Server_addVariableNode(server, arrayvar, &UA_NODEID_STATIC(1, ++id), &myIntegerName,
-                                  &UA_NODEID_STATIC(1, ARRAYID),
-                                  &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
+        UA_Server_addVariableNode(server, arrayvar, myIntegerName, UA_NODEID_STATIC(1, ++id),
+                                  UA_NODEID_STATIC(1, ARRAYID), UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
    }
 #endif
 

@@ -54,19 +54,16 @@ int main(int argc, char** argv) {
     UA_Server_addNetworkLayer(server, nl);
 
     /* add a variable node */
-    UA_Int32 *myInteger = UA_Int32_new();
-    *myInteger = 42;
     UA_Variant *myIntegerVariant = UA_Variant_new();
-    UA_Variant_setValue(myIntegerVariant, myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Int32 myInteger = 42;
+    UA_Variant_copySetScalar(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     UA_QualifiedName myIntegerName;
     UA_QUALIFIEDNAME_ASSIGN(myIntegerName, "the answer");
-    UA_Server_addVariableNode(server,
-                              myIntegerVariant, /* the variant */
-                              &UA_NODEID_NULL, /* assign a new nodeid */
-                              &myIntegerName, /* the browse name */
-                              /* the parent node and the referencetype to the parent */
-                              &UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
-                              &UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
+    UA_NodeId myIntegerNodeId = UA_NODEID_NULL; /* assign a random free nodeid */
+    UA_NodeId parentNodeId = UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES);
+    UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
+                              myIntegerNodeId, parentNodeId, parentReferenceNodeId);
 
     /* run the server loop */
     UA_StatusCode retval = UA_Server_run(server, WORKER_THREADS, &running);

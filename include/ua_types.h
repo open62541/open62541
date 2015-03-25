@@ -430,7 +430,7 @@ UA_StatusCode UA_EXPORT UA_Variant_copyRange(const UA_Variant *src, UA_Variant *
  * @param type The datatype of the value in question
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setValue(UA_Variant *v, void *p, const UA_DataType *type);
+UA_StatusCode UA_EXPORT UA_Variant_setScalar(UA_Variant *v, void *p, const UA_DataType *type);
 
 /**
  * Set the variant to a scalar value that is copied from an existing variable.
@@ -440,7 +440,7 @@ UA_StatusCode UA_EXPORT UA_Variant_setValue(UA_Variant *v, void *p, const UA_Dat
  * @param type The datatype of the value
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_copySetValue(UA_Variant *v, const void *p, const UA_DataType *type);
+UA_StatusCode UA_EXPORT UA_Variant_copySetScalar(UA_Variant *v, const void *p, const UA_DataType *type);
 
 /**
  * Set the variant to an array that already resides in memory. The array takes on the lifecycle of

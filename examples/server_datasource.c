@@ -183,9 +183,9 @@ int main(int argc, char** argv) {
 		.write = NULL};
 	UA_QualifiedName dateName;
 	UA_QUALIFIEDNAME_ASSIGN(dateName, "current time");
-	UA_Server_addDataSourceVariableNode(server, dateDataSource, &UA_NODEID_NULL, &dateName,
-			&UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
-			&UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
+	UA_Server_addDataSourceVariableNode(server, dateDataSource, dateName, UA_NODEID_NULL,
+                                        UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                        UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
 
 	if(!(temperatureFile = fopen("/sys/class/thermal/thermal_zone0/temp", "r"))){
 		UA_LOG_WARNING(logger, UA_LOGGERCATEGORY_USERLAND, "[Linux specific] Can not open temperature file, no temperature node will be added");
@@ -198,9 +198,9 @@ int main(int argc, char** argv) {
 			.write = NULL};
 		UA_QualifiedName ledName;
 		UA_QUALIFIEDNAME_ASSIGN(ledName, "cpu temperature");
-		UA_Server_addDataSourceVariableNode(server, temperatureDataSource, &UA_NODEID_NULL, &ledName,
-				&UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
-				&UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
+		UA_Server_addDataSourceVariableNode(server, temperatureDataSource, ledName, UA_NODEID_NULL, 
+                                            UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                            UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
 	}
 
 	if (	!(triggerFile = fopen("/sys/class/leds/led0/trigger", "w"))
@@ -225,9 +225,9 @@ int main(int argc, char** argv) {
 		.write = writeLedStatus};
 	UA_QualifiedName statusName;
 	UA_QUALIFIEDNAME_ASSIGN(statusName, "status LED");
-	UA_Server_addDataSourceVariableNode(server, ledStatusDataSource, &UA_NODEID_NULL, &statusName,
-			&UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
-			&UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
+	UA_Server_addDataSourceVariableNode(server, ledStatusDataSource, statusName, UA_NODEID_NULL,
+                                        UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                        UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
 
 	//start server
 	UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false

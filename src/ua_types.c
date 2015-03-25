@@ -700,11 +700,11 @@ UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Variant_setValue(UA_Variant *v, void *p, const UA_DataType *type) {
+UA_StatusCode UA_Variant_setScalar(UA_Variant *v, void *p, const UA_DataType *type) {
     return UA_Variant_setArray(v, p, -1, type);
 }
 
-UA_StatusCode UA_Variant_copySetValue(UA_Variant *v, const void *p, const UA_DataType *type) {
+UA_StatusCode UA_Variant_copySetScalar(UA_Variant *v, const void *p, const UA_DataType *type) {
     void *new = UA_malloc(type->memSize);
     if(!new)
         return UA_STATUSCODE_BADOUTOFMEMORY;

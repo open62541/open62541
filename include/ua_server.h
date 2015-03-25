@@ -79,14 +79,14 @@ typedef struct {
 /** Add a reference to the server's address space */
 UA_StatusCode UA_EXPORT UA_Server_addReference(UA_Server *server, const UA_AddReferencesItem *item);
 
-UA_StatusCode UA_EXPORT UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, UA_NodeId *nodeId,
-                                                  UA_QualifiedName *browseName, const UA_NodeId *parentNodeId,
-                                                  const UA_NodeId *referenceTypeId);
+UA_StatusCode UA_EXPORT
+UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_QualifiedName browseName, 
+                          UA_NodeId nodeId, const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId);
 
-UA_StatusCode UA_EXPORT UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
-                                                            UA_NodeId *nodeId, UA_QualifiedName *browseName,
-                                                            const UA_NodeId *parentNodeId,
-                                                            const UA_NodeId *referenceTypeId);
+UA_StatusCode UA_EXPORT
+UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
+                                    const UA_QualifiedName browseName, UA_NodeId nodeId,
+                                    const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId);
 
 /** Work that is run in the main loop (singlethreaded) or dispatched to a worker
     thread. */
