@@ -1,3 +1,10 @@
+#ifndef UA_CLIENT_H_
+#define UA_CLIENT_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "ua_util.h"
 #include "ua_types.h"
 #include "ua_connection.h"
@@ -29,3 +36,9 @@ UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *c);
 UA_ReadResponse UA_EXPORT UA_Client_read(UA_Client *c, const UA_ReadRequest *request);
 UA_WriteResponse UA_EXPORT UA_Client_write(UA_Client *c, const UA_WriteRequest *request);
 UA_BrowseResponse UA_EXPORT UA_Client_browse(UA_Client *c, const UA_BrowseRequest *request);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
+#endif /* UA_CLIENT_H_ */
