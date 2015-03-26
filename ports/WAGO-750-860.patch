@@ -18,7 +18,7 @@ index c785182..9e66da0 100644
  if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
 -add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat
 -                -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
--                -Wshadow -Wcast-align -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes # -Wconversion
+-                -Wshadow -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes # -Wconversion
 -                -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -ffunction-sections -fdata-sections)
 +add_definitions(-std=c99 -fomit-frame-pointer -pipe -msoft-float -fno-builtin -DEMBED -fno-strict-aliasing)
      if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
@@ -36,15 +36,16 @@ index c785182..9e66da0 100644
  	endif()
  endif()
  
-@@ -90,10 +90,7 @@ else()
+@@ -90,11 +90,7 @@ else()
  endif()
  
  add_library(open62541-objects OBJECT ${lib_sources})
 -add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-objects>)
 -add_library(open62541-static STATIC $<TARGET_OBJECTS:open62541-objects>)
 -SET_TARGET_PROPERTIES(open62541-static PROPERTIES OUTPUT_NAME open62541 CLEAN_DIRECT_OUTPUT 1) # static version that exports all symbols
--target_compile_definitions(open62541-objects PUBLIC UA_DYNAMIC_LINKING)
+-target_compile_definitions(open62541-objects PRIVATE UA_DYNAMIC_LINKING)
+-target_compile_definitions(open62541-static PRIVATE UA_DYNAMIC_LINKING)
 +add_library(open62541 $<TARGET_OBJECTS:open62541-objects>)
  
  ## logging
- set(UA_LOGLEVEL 400 CACHE STRING "Level at which logs shall be reported")
+ set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")

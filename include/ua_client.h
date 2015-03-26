@@ -19,6 +19,7 @@ struct UA_Client;
 typedef struct UA_Client UA_Client;
 
 UA_Client UA_EXPORT * UA_Client_new(void);
+void UA_Client_delete(UA_Client* client);
 
 UA_StatusCode UA_EXPORT UA_Client_connect(UA_Client *c, UA_ConnectionConfig conf,
                                           UA_ClientNetworkLayer networkLayer, char *endpointUrl);

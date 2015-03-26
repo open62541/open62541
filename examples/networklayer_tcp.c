@@ -17,6 +17,7 @@
 #include <netinet/tcp.h>
 #include <sys/socketvar.h>
 #include <sys/ioctl.h>
+#define __USE_BSD
 #include <unistd.h> // read, write, close
 #include <arpa/inet.h>
 #define CLOSESOCKET(S) close(S)
@@ -25,6 +26,7 @@
 #include <stdio.h>
 #include <errno.h> // errno, EINTR
 #include <fcntl.h> // fcntl
+#include <string.h> // memset
 
 #include "networklayer_tcp.h" // UA_MULTITHREADING is defined in here
 
@@ -32,8 +34,12 @@
 #include <urcu/uatomic.h>
 #endif
 
-/* Forwarded as a (UA_Connection) and used for callbacks back into the
-   networklayer */
+
+
+struct ServerNetworklayer_TCP;
+
+/* Forwarded to the server as a (UA_Connection) and used for callbacks back into
+   the networklayer */
 typedef struct {
 	UA_Connection connection;
 	UA_Int32 sockfd;
@@ -56,7 +62,7 @@ typedef struct {
 #endif
 } ConnectionLink;
 
-typedef struct {
+typedef struct ServerNetworkLayerTCP {
 	UA_ConnectionConfig conf;
 	fd_set fdset;
 #ifdef _WIN32
@@ -69,6 +75,7 @@ typedef struct {
     UA_UInt16 conLinksSize;
     ConnectionLink *conLinks;
     UA_UInt32 port;
+    UA_String discoveryUrl;
     /* We remove the connection links only in the main thread. Attach
        to-be-deleted links with atomic operations */
     struct deleteLink {
@@ -78,6 +85,7 @@ typedef struct {
 		UA_Int32 sockfd;
 #endif
         struct deleteLink *next;
+
     } *deleteLinkList;
 } ServerNetworkLayerTCP;
 
@@ -138,10 +146,10 @@ static UA_StatusCode ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_
 	return UA_STATUSCODE_GOOD;
 }
 
-// Takes the linked list of closed connections and returns the work for the server loop
-static UA_UInt32 batchDeleteLinks(ServerNetworkLayerTCP *layer, UA_WorkItem **returnWork) {
-    UA_WorkItem *work = malloc(sizeof(UA_WorkItem)*layer->conLinksSize);
-	if (!work) {
+/* Removes all connections from the network layer. Returns the work items to close them properly. */
+static UA_UInt32 removeAllConnections(ServerNetworkLayerTCP *layer, UA_WorkItem **returnWork) {
+    UA_WorkItem *work;
+	if (layer->conLinksSize <= 0 || !(work = malloc(sizeof(UA_WorkItem)*layer->conLinksSize))) {
 		*returnWork = NULL;
 		return 0;
 	}
@@ -198,12 +206,12 @@ void closeConnection(TCPConnection *handle) {
 }
 #else
 void closeConnection(TCPConnection *handle) {
+    if(handle->connection.state == UA_CONNECTION_CLOSING)
+        return;
+
 	struct deleteLink *d = malloc(sizeof(struct deleteLink));
 	if(!d)
 		return;
-
-    if(handle->connection.state == UA_CONNECTION_CLOSING)
-        return;
     handle->connection.state = UA_CONNECTION_CLOSING;
 
     UA_Connection_detachSecureChannel(&handle->connection);
@@ -223,6 +231,7 @@ void writeCallback(TCPConnection *handle, UA_ByteStringArray gather_buf) {
 	UA_UInt32 total_len = 0, nWritten = 0;
 #ifdef _WIN32
 	LPWSABUF buf = _alloca(gather_buf.stringsSize * sizeof(WSABUF));
+	memset(buf, 0, sizeof(gather_buf.stringsSize * sizeof(WSABUF)));
 	int result = 0;
 	for(UA_UInt32 i = 0; i<gather_buf.stringsSize; i++) {
 		buf[i].buf = (char*)gather_buf.strings[i].data;
@@ -241,14 +250,16 @@ void writeCallback(TCPConnection *handle, UA_ByteStringArray gather_buf) {
 	}
 #else
 	struct iovec iov[gather_buf.stringsSize];
+	memset(iov, 0, sizeof(struct iovec)*gather_buf.stringsSize);
 	for(UA_UInt32 i=0;i<gather_buf.stringsSize;i++) {
-		iov[i] = (struct iovec) {.iov_base = gather_buf.strings[i].data,
-                                 .iov_len = gather_buf.strings[i].length};
+		iov[i].iov_base = gather_buf.strings[i].data;
+		iov[i].iov_len = gather_buf.strings[i].length;
 		total_len += gather_buf.strings[i].length;
 	}
-	struct msghdr message = {.msg_name = NULL, .msg_namelen = 0, .msg_iov = iov,
-							 .msg_iovlen = gather_buf.stringsSize, .msg_control = NULL,
-							 .msg_controllen = 0, .msg_flags = 0};
+	struct msghdr message;
+	memset(&message, 0, sizeof(message));
+	message.msg_iov = iov;
+	message.msg_iovlen = gather_buf.stringsSize;
 	while (nWritten < total_len) {
 		UA_Int32 n = 0;
 		do {
@@ -259,7 +270,7 @@ void writeCallback(TCPConnection *handle, UA_ByteStringArray gather_buf) {
 #endif
 }
 
-static UA_StatusCode ServerNetworkLayerTCP_start(ServerNetworkLayerTCP *layer) {
+static UA_StatusCode ServerNetworkLayerTCP_start(ServerNetworkLayerTCP *layer, UA_Logger *logger) {
 #ifdef _WIN32
 	WORD wVersionRequested;
 	WSADATA wsaData;
@@ -298,16 +309,16 @@ static UA_StatusCode ServerNetworkLayerTCP_start(ServerNetworkLayerTCP *layer) {
 
 	setNonBlocking(layer->serversockfd);
 	listen(layer->serversockfd, MAXBACKLOG);
-    printf("Listening for TCP connections on %s:%d\n",
-           inet_ntoa(serv_addr.sin_addr),
-           ntohs(serv_addr.sin_port));
+    char msg[256];
+    sprintf(msg, "Listening on %.*s\n", layer->discoveryUrl.length, layer->discoveryUrl.data);
+    UA_LOG_INFO((*logger), UA_LOGGERCATEGORY_SERVER, msg);
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_Int32 ServerNetworkLayerTCP_getWork(ServerNetworkLayerTCP *layer, UA_WorkItem **workItems,
                                         UA_UInt16 timeout) {
     UA_WorkItem *items = (void*)0;
-    UA_Int32 itemsCount = batchDeleteLinks(layer, &items);
+    UA_Int32 itemsCount = removeAllConnections(layer, &items);
     setFDSet(layer);
     struct timeval tmptv = {0, timeout};
     UA_Int32 resultsize = select(layer->highestfd+1, &layer->fdset, NULL, NULL, &tmptv);
@@ -343,8 +354,13 @@ static UA_Int32 ServerNetworkLayerTCP_getWork(ServerNetworkLayerTCP *layer, UA_W
 			if(!buf.data)
 				break;
 		}
+        
+#ifdef _WIN32
         buf.length = recv(layer->conLinks[i].sockfd, (char *)buf.data,
                           layer->conf.recvBufferSize, 0);
+#else
+        buf.length = read(layer->conLinks[i].sockfd, buf.data, layer->conf.recvBufferSize);
+#endif
         if (buf.length <= 0) {
             closeConnection(layer->conLinks[i].connection); // work is returned in the next iteration
         } else {
@@ -373,10 +389,14 @@ static UA_Int32 ServerNetworkLayerTCP_stop(ServerNetworkLayerTCP * layer, UA_Wor
 #ifdef _WIN32
 	WSACleanup();
 #endif
-    return batchDeleteLinks(layer, workItems);
+    return removeAllConnections(layer, workItems);
 }
 
 static void ServerNetworkLayerTCP_delete(ServerNetworkLayerTCP *layer) {
+	UA_String_deleteMembers(&layer->discoveryUrl);
+	for(UA_Int32 i=0;i<layer->conLinksSize;++i){
+		free(layer->conLinks[i].connection);
+	}
 	free(layer->conLinks);
 	free(layer);
 }
@@ -388,13 +408,18 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
 	tcplayer->conLinks = NULL;
     tcplayer->port = port;
     tcplayer->deleteLinkList = (void*)0;
+    char hostname[256];
+    gethostname(hostname, 255);
+    UA_String_copyprintf("opc.tcp://%s:%d", &tcplayer->discoveryUrl, hostname, port);
 
     UA_ServerNetworkLayer nl;
     nl.nlHandle = tcplayer;
-    nl.start = (UA_StatusCode (*)(void*))ServerNetworkLayerTCP_start;
+    nl.start = (UA_StatusCode (*)(void*, UA_Logger *logger))ServerNetworkLayerTCP_start;
     nl.getWork = (UA_Int32 (*)(void*, UA_WorkItem**, UA_UInt16))ServerNetworkLayerTCP_getWork;
     nl.stop = (UA_Int32 (*)(void*, UA_WorkItem**))ServerNetworkLayerTCP_stop;
     nl.free = (void (*)(void*))ServerNetworkLayerTCP_delete;
+	nl.discoveryUrl = &tcplayer->discoveryUrl;
+
     return nl;
 }
 

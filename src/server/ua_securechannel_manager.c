@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include "ua_securechannel_manager.h"
 #include "ua_session.h"
 #include "ua_statuscodes.h"
@@ -21,16 +19,18 @@ UA_StatusCode UA_SecureChannelManager_init(UA_SecureChannelManager *cm, UA_UInt3
 }
 
 void UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm) {
-    struct channel_list_entry *entry = LIST_FIRST(&cm->channels);
-    while(entry) {
-        LIST_REMOVE(entry, pointers);
-        if(entry->channel.session)
-            entry->channel.session->channel = UA_NULL;
-        if(entry->channel.connection)
-            entry->channel.connection->channel = UA_NULL;
-        UA_SecureChannel_deleteMembers(&entry->channel);
-        UA_free(entry);
-        entry = LIST_FIRST(&cm->channels);
+    struct channel_list_entry *current;
+    struct channel_list_entry *next = LIST_FIRST(&cm->channels);
+    while(next) {
+        current = next;
+        next = LIST_NEXT(current, pointers);
+        LIST_REMOVE(current, pointers);
+        if(current->channel.session)
+            current->channel.session->channel = UA_NULL;
+        if(current->channel.connection)
+            current->channel.connection->channel = UA_NULL;
+        UA_SecureChannel_deleteMembers(&current->channel);
+        UA_free(current);
     }
 }
 

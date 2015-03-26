@@ -1,11 +1,5 @@
-#define _LGPL_SOURCE
-#include <urcu.h>
-#include <urcu/compiler.h> // for caa_container_of
-#include <urcu/uatomic.h>
-#include <urcu/rculfhash.h>
-
-#include "ua_nodestore.h"
 #include "ua_util.h"
+#include "ua_nodestore.h"
 
 #define ALIVE_BIT (1 << 15) /* Alive bit in the refcount */
 
@@ -175,6 +169,9 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, const UA_Node
         /* create a unique nodeid */
         ((UA_Node *)&entry->node)->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
         ((UA_Node *)&entry->node)->nodeId.namespaceIndex = 1; // namespace 1 is always in the local nodestore
+        if(((UA_Node *)&entry->node)->nodeClass==UA_NODECLASS_VARIABLE){ //set namespaceIndex in browseName in case id is generated
+        	((UA_VariableNode*)&entry->node)->browseName.namespaceIndex=((UA_Node *)&entry->node)->nodeId.namespaceIndex;
+        }
         unsigned long identifier;
         long before, after;
         rcu_read_lock();

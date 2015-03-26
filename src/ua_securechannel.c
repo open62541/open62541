@@ -1,10 +1,6 @@
-#include "ua_securechannel.h"
 #include "ua_util.h"
+#include "ua_securechannel.h"
 #include "ua_statuscodes.h"
-
-#ifdef UA_MULTITHREADING
-#include <urcu/uatomic.h>
-#endif
 
 // max message size is 64k
 const UA_ConnectionConfig UA_ConnectionConfig_standard =
@@ -58,7 +54,7 @@ UA_StatusCode UA_SecureChannel_updateRequestId(UA_SecureChannel *channel, UA_UIn
     return UA_STATUSCODE_GOOD;
 }
 
-UA_Int32 UA_SecureChannel_updateSequenceNumber(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
+UA_StatusCode UA_SecureChannel_updateSequenceNumber(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
     //TODO review checking of sequence
     if(channel->sequenceNumber+1  != sequenceNumber)
         return UA_STATUSCODE_BADINTERNALERROR;

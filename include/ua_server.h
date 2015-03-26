@@ -39,6 +39,9 @@ UA_Server UA_EXPORT * UA_Server_new(void);
 void UA_EXPORT UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate);
 void UA_EXPORT UA_Server_delete(UA_Server *server);
 
+/** Sets the logger used by the server */
+void UA_EXPORT UA_Server_setLogger(UA_Server *server, UA_Logger logger);
+
 /**
  * Runs the main loop of the server. In each iteration, this calls into the
  * networklayers to see if work have arrived and checks if timed events need to
@@ -55,12 +58,35 @@ void UA_EXPORT UA_Server_delete(UA_Server *server);
  */
 UA_StatusCode UA_EXPORT UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running);
 
+/** @brief A datasource is the interface to interact with a local data provider.
+ *
+ * Implementors of datasources need to provide functions for the callbacks in
+ * this structure. After every read, the handle needs to be released to indicate
+ * that the pointer is no longer accessed. As a rule, datasources are never
+ * copied, but only their content. The only way to write into a datasource is
+ * via the write-service.
+ *
+ * It is expected that the read and release callbacks are implemented. The write
+ * callback can be set to null.
+ **/
+typedef struct {
+    const void *handle;
+    UA_StatusCode (*read)(const void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value);
+    void (*release)(const void *handle, UA_DataValue *value);
+    UA_StatusCode (*write)(const void *handle, const UA_Variant *data);
+} UA_DataSource;
+
 /** Add a reference to the server's address space */
 UA_StatusCode UA_EXPORT UA_Server_addReference(UA_Server *server, const UA_AddReferencesItem *item);
 
-UA_StatusCode UA_EXPORT UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, UA_NodeId *nodeId,
-                                                  UA_QualifiedName *browseName, const UA_NodeId *parentNodeId,
-                                                  const UA_NodeId *referenceTypeId);
+UA_StatusCode UA_EXPORT
+UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_QualifiedName browseName, 
+                          UA_NodeId nodeId, const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId);
+
+UA_StatusCode UA_EXPORT
+UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
+                                    const UA_QualifiedName browseName, UA_NodeId nodeId,
+                                    const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId);
 
 /** Work that is run in the main loop (singlethreaded) or dispatched to a worker
     thread. */
@@ -122,7 +148,7 @@ UA_StatusCode UA_EXPORT UA_Server_addRepeatedWorkItem(UA_Server *server, const U
                                                       UA_UInt32 interval, UA_Guid *resultWorkGuid);
 
 /** Remove timed or repeated work */
-UA_Boolean UA_EXPORT UA_Server_removeWorkItem(UA_Server *server, UA_Guid workId);
+/* UA_Boolean UA_EXPORT UA_Server_removeWorkItem(UA_Server *server, UA_Guid workId); */
 
 /**
  * Interface to the binary network layers. This structure is returned from the
@@ -139,7 +165,7 @@ typedef struct {
      *
      * @return Returns UA_STATUSCODE_GOOD or an error code.
      */
-    UA_StatusCode (*start)(void *nlHandle);
+    UA_StatusCode (*start)(void *nlHandle, UA_Logger *logger);
     
     /**
      * Gets called from the main server loop and returns the work that
@@ -166,8 +192,14 @@ typedef struct {
      */
     UA_Int32 (*stop)(void *nlhandle, UA_WorkItem **workItems);
 
-    /** Deletes the network layer. Call only after a successfull shutdown. */
+    /** Deletes the network layer. Call only after a successful shutdown. */
     void (*free)(void *nlhandle);
+
+    /**
+     * String containing the discovery URL that will be add to the server's list
+     * contains the protocol the host and the port of the layer
+     */
+    UA_String* discoveryUrl;
 } UA_ServerNetworkLayer;
 
 /**
@@ -244,8 +276,8 @@ typedef struct UA_ExternalNodeStore {
 	UA_ExternalNodeStore_delete destroy;
 } UA_ExternalNodeStore;
 
-UA_StatusCode UA_EXPORT
-UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, const UA_String *url, UA_ExternalNodeStore *nodeStore);
+/* UA_StatusCode UA_EXPORT */
+/* UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, const UA_String *url, UA_ExternalNodeStore *nodeStore); */
 
 /** @} */
 

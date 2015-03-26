@@ -1,34 +1,58 @@
 #include "ua_server.h"
 #include "ua_server_internal.h"
 
-UA_StatusCode UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, UA_NodeId *nodeId,
-                                        UA_QualifiedName *browseName, const UA_NodeId *parentNodeId,
-                                        const UA_NodeId *referenceTypeId) {
+UA_StatusCode
+UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_QualifiedName browseName, 
+                          UA_NodeId nodeId, const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId)
+{
     UA_VariableNode *node = UA_VariableNode_new();
-    node->value = *value; // copy content
-    UA_NodeId_copy(nodeId, &node->nodeId);
-    UA_QualifiedName_copy(browseName, &node->browseName);
-    UA_String_copy(&browseName->name, &node->displayName.text);
+    node->variable.variant = *value; // copy content
+    UA_NodeId_copy(&nodeId, &node->nodeId);
+    UA_QualifiedName_copy(&browseName, &node->browseName);
+    UA_String_copy(&browseName.name, &node->displayName.text);
     UA_ExpandedNodeId parentId; // we need an expandednodeid
     UA_ExpandedNodeId_init(&parentId);
-    parentId.nodeId = *parentNodeId;
-    UA_AddNodesResult res = UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node,
-                                                         &parentId, referenceTypeId);
+    UA_NodeId_copy(&parentNodeId, &parentId.nodeId);
+    UA_AddNodesResult res =
+        UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node, &parentId, &referenceTypeId);
+    ADDREFERENCE(res.addedNodeId, UA_NODEID_STATIC(0, UA_NS0ID_HASTYPEDEFINITION),
+                 UA_EXPANDEDNODEID_STATIC(0, value->type->typeId.identifier.numeric));
     if(res.statusCode != UA_STATUSCODE_GOOD) {
-        UA_Variant_init(&node->value);
+        UA_Variant_init(&node->variable.variant);
         UA_VariableNode_delete(node);
-    } else {
+    } else
         UA_free(value);
-    }
+    return res.statusCode;
+}
+
+UA_StatusCode
+UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
+                                    const UA_QualifiedName browseName, UA_NodeId nodeId,
+                                    const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId)
+{
+    UA_VariableNode *node = UA_VariableNode_new();
+    node->variableType = UA_VARIABLENODETYPE_DATASOURCE;
+    node->variable.dataSource = dataSource;
+    UA_NodeId_copy(&nodeId, &node->nodeId);
+    UA_QualifiedName_copy(&browseName, &node->browseName);
+    UA_String_copy(&browseName.name, &node->displayName.text);
+    UA_ExpandedNodeId parentId; // dummy exapndednodeid
+    UA_ExpandedNodeId_init(&parentId);
+    UA_NodeId_copy(&parentNodeId, &parentId.nodeId);
+    UA_AddNodesResult res =
+        UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node, &parentId, &referenceTypeId);
+    ADDREFERENCE(res.addedNodeId, UA_NODEID_STATIC(0, UA_NS0ID_HASTYPEDEFINITION),
+                 UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_BASEDATAVARIABLETYPE));
+    if(res.statusCode != UA_STATUSCODE_GOOD)
+        UA_VariableNode_delete(node);
     return res.statusCode;
 }
 
 /* Adds a one-way reference to the local nodestore */
-static UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session *session,
-                                                   const UA_AddReferencesItem *item) {
-    // use the servers nodestore
+static UA_StatusCode
+addOneWayReferenceWithSession(UA_Server *server, UA_Session *session, const UA_AddReferencesItem *item)
+{
     const UA_Node *node = UA_NodeStore_get(server->nodestore, &item->sourceNodeId);
-    // todo differentiate between error codes
     if(!node)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -76,7 +100,7 @@ static UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session
         deleteNode = (void (*)(UA_Node*))UA_ViewNode_delete;
         break;
     default:
-        UA_assert(UA_FALSE);
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     UA_Int32 count = node->referencesSize;
@@ -113,21 +137,23 @@ static UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session
     if(retval != UA_STATUSCODE_BADINTERNALERROR)
         return retval;
     
-    // error presumably because the node was replaced and an old version was updated
-    // just try again
+    // error presumably because the node was replaced and an old version was updated just try again
     deleteNode(newNode);
     return addOneWayReferenceWithSession(server, session, item);
 }
 
-UA_StatusCode UA_Server_addReference(UA_Server *server, const UA_AddReferencesItem *item) {
+/* userland version of addReferenceWithSession */
+UA_StatusCode
+UA_Server_addReference(UA_Server *server, const UA_AddReferencesItem *item)
+{
     return UA_Server_addReferenceWithSession(server, &adminSession, item);
 }
 
-UA_StatusCode UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session,
-                                                const UA_AddReferencesItem *item) {
-    // todo: we don't support references to other servers (expandednodeid) for now
+UA_StatusCode
+UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session, const UA_AddReferencesItem *item)
+{
     if(item->targetServerUri.length > 0)
-        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+        return UA_STATUSCODE_BADNOTIMPLEMENTED; // currently no expandednodeids are allowed
     
     // Is this for an external nodestore?
     UA_ExternalNodeStore *ensFirst = UA_NULL;
@@ -161,14 +187,18 @@ UA_StatusCode UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *s
     return retval;
 } 
 
-UA_AddNodesResult UA_Server_addNode(UA_Server *server, UA_Node *node, const UA_ExpandedNodeId *parentNodeId,
-                                    const UA_NodeId *referenceTypeId) {
+/* userland version of addNodeWithSession */
+UA_AddNodesResult
+UA_Server_addNode(UA_Server *server, UA_Node *node, const UA_ExpandedNodeId *parentNodeId,
+                  const UA_NodeId *referenceTypeId)
+{
     return UA_Server_addNodeWithSession(server, &adminSession, node, parentNodeId, referenceTypeId);
 }
 
-UA_AddNodesResult UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, UA_Node *node,
-                                               const UA_ExpandedNodeId *parentNodeId,
-                                               const UA_NodeId *referenceTypeId) {
+UA_AddNodesResult
+UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, UA_Node *node,
+                             const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId)
+{
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
 

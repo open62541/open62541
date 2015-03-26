@@ -24,7 +24,9 @@
  * @{
  */
 // Service_FindServers
-
+void Service_FindServers(UA_Server                    *server,
+                          const UA_FindServersRequest *request,
+                          UA_FindServersResponse      *response);
 /**
  * Returns the Endpoints supported by a Server and all of the configuration
  * information required to establish a SecureChannel and a Session.
@@ -136,8 +138,15 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
                                            const UA_TranslateBrowsePathsToNodeIdsRequest *request,
                                            UA_TranslateBrowsePathsToNodeIdsResponse *response);
 // Service_BrowseNext
+
 // Service_RegisterNodes
+void Service_RegisterNodes(UA_Server *server, UA_Session *session,
+                                           const UA_RegisterNodesRequest *request,
+                                           UA_RegisterNodesResponse *response);
 // Service_UnregisterNodes
+void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
+                                           const UA_UnregisterNodesRequest *request,
+                                           UA_UnregisterNodesResponse *response);
 /** @} */
 
 /**

@@ -8,6 +8,7 @@ import re
 from lxml import etree
 import itertools
 import argparse
+from pprint import pprint
 
 fixed_size = {"UA_Boolean": 1, "UA_SByte": 1, "UA_Byte": 1, "UA_Int16": 2, "UA_UInt16": 2,
               "UA_Int32": 4, "UA_UInt32": 4, "UA_Int64": 8, "UA_UInt64": 8, "UA_Float": 4,
@@ -19,19 +20,43 @@ zero_copy = ["UA_Boolean", "UA_SByte", "UA_Byte", "UA_Int16", "UA_UInt16", "UA_I
 # The order of the builtin-types is not as in the standard. We put all the
 # fixed_size types in the front, so they can be distinguished by a simple geq
 # comparison. That's ok, since we use the type-index only internally!!
-builtin_types = ["UA_Boolean", "UA_SByte", "UA_Byte", # 1 byte
-                 "UA_Int16", "UA_UInt16", # 2 bytes
-                 "UA_Int32", "UA_UInt32",  "UA_StatusCode", "UA_Float", # 4 byte
-                 "UA_Int64", "UA_UInt64", "UA_Double", "UA_DateTime", # 8 byte
-                 "UA_Guid", "UA_NodeId", "UA_ExpandedNodeId", "UA_QualifiedName", "UA_LocalizedText", "UA_ExtensionObject", "UA_DataValue", "UA_Variant", "UA_DiagnosticInfo", # fancy types
-                 "UA_String", "UA_ByteString", "UA_XmlElement" # strings (handled as structured types with a single array entry)
-]
+builtin_types = ["UA_Boolean", "UA_SByte", "UA_Byte", "UA_Int16", "UA_UInt16",
+                 "UA_Int32", "UA_UInt32", "UA_Int64", "UA_UInt64", "UA_Float",
+                 "UA_Double", "UA_String", "UA_DateTime", "UA_Guid", "UA_ByteString",
+                 "UA_XmlElement", "UA_NodeId", "UA_ExpandedNodeId", "UA_StatusCode",
+                 "UA_QualifiedName", "UA_LocalizedText", "UA_ExtensionObject", "UA_DataValue",
+                 "UA_Variant", "UA_DiagnosticInfo"]
 
 excluded_types = ["UA_NodeIdType", "UA_InstanceNode", "UA_TypeNode", "UA_Node", "UA_ObjectNode",
                   "UA_ObjectTypeNode", "UA_VariableNode", "UA_VariableTypeNode", "UA_ReferenceTypeNode",
                   "UA_MethodNode", "UA_ViewNode", "UA_DataTypeNode", "UA_ServerDiagnosticsSummaryDataType",
                   "UA_SamplingIntervalDiagnosticsDataType", "UA_SessionSecurityDiagnosticsDataType",
                   "UA_SubscriptionDiagnosticsDataType", "UA_SessionDiagnosticsDataType"]
+
+minimal_types = ["InvalidType", "Node", "NodeClass", "ReferenceNode", "ApplicationDescription", "ApplicationType",
+                 "ChannelSecurityToken", "OpenSecureChannelRequest", "OpenSecureChannelResponse",
+                 "CloseSecureChannelRequest", "CloseSecureChannelResponse", "RequestHeader", "ResponseHeader",
+                 "SecurityTokenRequestType", "MessageSecurityMode", "CloseSessionResponse", "CloseSessionRquest",
+                 "ActivateSessionRequest", "ActivateSessionResponse", "SignatureData", "SignedSoftwareCertificate",
+                 "CreateSessionResponse", "CreateSessionRequest", "EndpointDescription", "UserTokenPolicy", "UserTokenType",
+                 "GetEndpointsRequest", "GetEndpointsResponse", "PublishRequest", "PublishResponse", "FindServersRequest", "FindServersResponse",
+                 "SetPublishingModeResponse", "SubscriptionAcknowledgement", "NotificationMessage", "ExtensionObject",
+                 "Structure", "ReadRequest", "ReadResponse", "ReadValueId", "TimestampsToReturn", "WriteRequest",
+                 "WriteResponse", "WriteValue", "SetPublishingModeRequest", "CreateMonitoredItemsResponse",
+                 "MonitoredItemCreateResult", "CreateMonitoredItemsRequest", "MonitoredItemCreateRequest",
+                 "MonitoringMode", "MonitoringParameters", "TranslateBrowsePathsToNodeIdsRequest",
+                 "TranslateBrowsePathsToNodeIdsResponse", "BrowsePath", "BrowsePathResult", "RelativePath",
+                 "BrowsePathTarget", "RelativePathElement", "CreateSubscriptionRequest", "CreateSubscriptionResponse",
+                 "BrowseResponse", "BrowseResult", "ReferenceDescription", "BrowseRequest", "ViewDescription",
+                 "BrowseDescription", "BrowseDirection", "CloseSessionRequest", "AddNodesRequest", "AddNodesResponse",
+                 "AddNodesItem", "AddNodesResult", "DeleteNodesItem","AddReferencesRequest", "AddReferencesResponse",
+                 "AddReferencesItem","DeleteReferencesItem", "VariableNode", "MethodNode", "VariableTypeNode",
+                 "ViewNode", "ReferenceTypeNode", "BrowseResultMask", "ServerState", "ServerStatusDataType", "BuildInfo",
+                 "ObjectNode", "DataTypeNode", "ObjectTypeNode", "IdType", "VariableAttributes", "ObjectAttributes",
+                 "NodeAttributes","ReferenceTypeAttributes", "ViewAttributes", "ObjectTypeAttributes",
+                 "NodeAttributesMask","DeleteNodesItem", "DeleteNodesRequest", "DeleteNodesResponse",
+                 "DeleteReferencesItem", "DeleteReferencesRequest", "DeleteReferencesResponse",
+                 "RegisterNodesRequest", "RegisterNodesResponse", "UnregisterNodesRequest", "UnregisterNodesResponse"]
 
 class TypeDescription(object):
     def __init__(self, name, nodeid, namespaceid):
@@ -77,8 +102,33 @@ class BuiltinType(object):
     def typedef_c(self):
         pass
 
-    def typelayout_c(self, namespace_0, outname):
-        return "{.memSize = sizeof(" + self.name + "), " + \
+    def typelayout_c(self, namespace_0, description, outname):
+        if description == None:
+            typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, "
+        else:
+            typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % \
+                     (description.namespaceid, description.nodeid)
+        if self.name in ["UA_String", "UA_ByteString", "UA_XmlElement"]:
+            return "{.typeId = " + typeid + \
+                ".memSize = sizeof(" + self.name + "), " + \
+                ".namespaceZero = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
+                ".membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_BYTE, .namespaceZero = UA_TRUE, " + \
+                ".padding = offsetof(UA_String, data) - sizeof(UA_Int32), .isArray = UA_TRUE }}, " + \
+                ".typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
+
+        if self.name == "UA_QualifiedName":
+            return "{.typeId = " + typeid + \
+                ".memSize = sizeof(UA_QualifiedName), " + \
+                ".namespaceZero = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
+                ".membersSize = 2, .members = {" + \
+                "\n\t{.memberTypeIndex = UA_TYPES_UINT16, .namespaceZero = UA_TRUE, " + \
+                ".padding = 0, .isArray = UA_FALSE }," + \
+                "\n\t{.memberTypeIndex = UA_TYPES_STRING, .namespaceZero = UA_TRUE, " + \
+                ".padding = offsetof(UA_QualifiedName, name) - sizeof(UA_UInt16), .isArray = UA_FALSE }},\n" + \
+                ".typeIndex = UA_TYPES_QUALIFIEDNAME }"
+                
+        return "{.typeId = " + typeid + \
+            ".memSize = sizeof(" + self.name + "), " + \
             ".namespaceZero = UA_TRUE, " + \
             ".fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
             ", .zeroCopyable = " + ("UA_TRUE" if self.zero_copy() else "UA_FALSE") + \
@@ -109,12 +159,17 @@ class EnumerationType(object):
             ",\n    ".join(map(lambda (key,value) : key.upper() + " = " + value,self.elements.iteritems())) + \
             "\n} " + self.name + ";"
 
-    def typelayout_c(self, namespace_0, outname):
-        return "{.memSize = sizeof(" + self.name + "), " +\
-            ".namespaceZero = " + ("UA_TRUE" if namespace_0 else "UA_FALSE") + \
-            ", .fixedSize = UA_TRUE, .zeroCopyable = UA_TRUE, " + \
+    def typelayout_c(self, namespace_0, description, outname):
+        if description == None:
+            typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, "
+        else:
+            typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
+        return "{.typeId = " + typeid + \
+            ".memSize = sizeof(" + self.name + "), " +\
+            ".namespaceZero = UA_TRUE, " + \
+            ".fixedSize = UA_TRUE, .zeroCopyable = UA_TRUE, " + \
             ".membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_INT32," + \
-            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
+            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = UA_TYPES_INT32 }"
 
     def functions_c(self, typeTableName):
         return '''#define %s_new (%s*)UA_Int32_new
@@ -140,11 +195,15 @@ class OpaqueType(object):
     def typedef_c(self):
         return "typedef UA_ByteString " + self.name + ";"
 
-    def typelayout_c(self, namespace_0, outname):
-        return "{.memSize = sizeof(" + self.name + "), .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
-            ".namespaceZero = " + ("UA_TRUE" if namespace_0 else "UA_FALSE") + \
-            ", .membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_BYTESTRING," + \
-            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
+    def typelayout_c(self, namespace_0, description, outname):
+        if description == None:
+            typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, "
+        else:
+            typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
+        return "{.typeId = " + typeid + \
+            ".memSize = sizeof(" + self.name + "), .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
+            ".namespaceZero = UA_TRUE, .membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_BYTESTRING," + \
+            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = UA_TYPES_BYTESTRING }"
 
     def functions_c(self, typeTableName):
         return '''#define %s_new UA_ByteString_new
@@ -201,8 +260,13 @@ class StructType(object):
                 returnstr += "    " + member.memberType.name + " " +name + ";\n"
         return returnstr + "} " + self.name + ";"
 
-    def typelayout_c(self, namespace_0, outname):
-        layout = "{.memSize = sizeof(" + self.name + "), "+ \
+    def typelayout_c(self, namespace_0, description, outname):
+        if description == None:
+            typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, "
+        else:
+            typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
+        layout = "{.typeId = "+ typeid + \
+                 ".memSize = sizeof(" + self.name + "), "+ \
                  ".namespaceZero = " + ("UA_TRUE" if namespace_0 else "UA_FALSE") + \
                  ", .fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
                  ", .zeroCopyable = " + ("sizeof(" + self.name + ") == " + str(self.mem_size()) if self.zero_copy() \
@@ -265,6 +329,8 @@ def parseTypeDefinitions(xmlDescription, existing_types = OrderedDict()):
         if name in builtin_types:
             return True
         if name in excluded_types:
+            return True
+        if outname == "ua_types" and not name[3:] in minimal_types:
             return True
         if "Test" in name: # skip all test types
             return True
@@ -419,7 +485,6 @@ extern "C" {
 ''')
 printh("#define " + outname.upper() + "_COUNT %s\n" % (str(len(types))))
 printh("extern UA_EXPORT const UA_DataType *" + outname.upper() + ";\n")
-printh("extern UA_EXPORT const UA_UInt32 *" + outname.upper() + "_IDS;\n")
 
 i = 0
 for t in types.itervalues():
@@ -438,7 +503,7 @@ printh('''
 #ifdef __cplusplus
 } // extern "C"
 #endif\n
-#endif''')
+#endif /* %s_GENERATED_H_ */''' % outname.upper())
 
 printc('''/**
 * @file ''' + outname + '''_generated.c
@@ -455,13 +520,17 @@ const UA_DataType *''' + outname.upper() + ''' = (UA_DataType[]){''')
 for t in types.itervalues():
     printc("")
     printc("/* " + t.name + " */")
-    printc(t.typelayout_c(args.namespace_id == 0, outname) + ",")
+    if args.typedescriptions:
+        td = typedescriptions[t.name]
+    else:
+        td = None
+    printc(t.typelayout_c(args.namespace_id == 0, td, outname) + ",")
 printc("};\n")
-if args.typedescriptions:
-    printc('const UA_UInt32 *' + outname.upper() + '_IDS = (UA_UInt32[]){')
-    for t in types.itervalues():
-        print(str(typedescriptions[t.name].nodeid) + ", ", end='', file=fc)
-    printc("};")
+# if args.typedescriptions:
+#     printc('const UA_UInt32 *' + outname.upper() + '_IDS = (UA_UInt32[]){')
+#     for t in types.itervalues():
+#         print(str(typedescriptions[t.name].nodeid) + ", ", end='', file=fc)
+#     printc("};")
 
 fh.close()
 fc.close()

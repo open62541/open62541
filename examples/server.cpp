@@ -28,20 +28,17 @@ int main()
 	UA_Server *server = UA_Server_new();
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 
-	//add a node to the adresspace
-    UA_Int32 *myInteger = UA_Int32_new();
-    *myInteger = 42;
+	// add a variable node to the adresspace
     UA_Variant *myIntegerVariant = UA_Variant_new();
-    UA_Variant_setValue(myIntegerVariant, myInteger, UA_TYPES_INT32);
+    UA_Int32 myInteger = 42;
+    UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     UA_QualifiedName myIntegerName;
     UA_QUALIFIEDNAME_ASSIGN(myIntegerName, "the answer");
-    UA_NodeId nullnode, objects, organizes;
-    UA_NODEID_ASSIGN(nullnode, 0, 0);
-    UA_NODEID_ASSIGN(objects, UA_NS0ID_OBJECTSFOLDER, 0);
-    UA_NODEID_ASSIGN(organizes, UA_NS0ID_ORGANIZES, 0);
-    
-    UA_Server_addVariableNode(server, myIntegerVariant, &nullnode, &myIntegerName,
-                              &objects, &organizes);
+    UA_NodeId myIntegerNodeId = UA_NODEID_NULL; /* assign a random free nodeid */
+    UA_NodeId parentNodeId = UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES);
+    UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
+                              myIntegerNodeId, parentNodeId, parentReferenceNodeId);
 
     UA_Boolean running = UA_TRUE;
     UA_StatusCode retval = UA_Server_run(server, 1, &running);

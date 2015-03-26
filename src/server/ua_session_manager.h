@@ -12,16 +12,15 @@ typedef struct UA_SessionManager {
     UA_Int32     lastSessionId;
     UA_UInt32    currentSessionCount;
     UA_DateTime  maxSessionLifeTime;
-    UA_DateTime  sessionTimeout;
 } UA_SessionManager;
 
 UA_StatusCode UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt32 maxSessionCount,
-                                    UA_UInt32 sessionLifetime, UA_UInt32 startSessionId);
+                                    UA_UInt32 maxSessionLifeTime, UA_UInt32 startSessionId);
 
 void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager);
 
 UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager,
-                                              UA_SecureChannel *channel, UA_Session **session);
+                                              UA_SecureChannel *channel, const UA_CreateSessionRequest *request, UA_Session **session);
 
 UA_StatusCode UA_SessionManager_removeSession(UA_SessionManager *sessionManager,
                                               const UA_NodeId *sessionId);

@@ -1,3 +1,6 @@
+#ifndef UA_CONFIG_H_
+#define UA_CONFIG_H_
+
 /* Buid options and configuration (set by cmake) */
 
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
@@ -12,14 +15,10 @@
 #      define UA_EXPORT __declspec(dllexport)
 #    endif
 #  else
-#    ifndef STATIC_LINKING
-#      ifdef __GNUC__
-#        define UA_EXPORT __attribute__ ((dllimport))
-#      else
-#        define UA_EXPORT __declspec(dllimport)
-#      endif
+#    ifdef __GNUC__
+#      define UA_EXPORT __attribute__ ((dllexport))
 #    else
-#      define UA_EXPORT
+#      define UA_EXPORT __declspec(dllimport)
 #    endif
 #  endif
 #else
@@ -29,3 +28,5 @@
 #    define UA_EXPORT
 #  endif
 #endif
+
+#endif /* UA_CONFIG_H_ */

@@ -1,6 +1,7 @@
 import sys
 import os
 import shutil
+import socket
 
 if len(sys.argv) < 2:
     sys.exit('Usage: %s directory to output certificates' % sys.argv[0])
@@ -9,6 +10,9 @@ if not os.path.exists(sys.argv[1]):
     sys.exit('ERROR: Directory %s was not found!' % sys.argv[1])
     
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+
+os.environ['HOSTNAME'] = socket.gethostname()
 
 os.system("""openssl genrsa -out ca.key 2048""")
 os.system("""openssl req \

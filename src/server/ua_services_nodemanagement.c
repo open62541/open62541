@@ -22,7 +22,7 @@
 
 static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node **new_node) {
     if(attributes->typeId.identifier.numeric !=
-       UA_TYPES_IDS[UA_TYPES_VARIABLEATTRIBUTES] + UA_ENCODINGOFFSET_BINARY)
+       UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES].typeId.identifier.numeric + UA_ENCODINGOFFSET_BINARY)
         return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
 
     UA_VariableAttributes attr;
@@ -39,19 +39,14 @@ static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node *
 
     // now copy all the attributes. This potentially removes them from the decoded attributes.
     COPY_STANDARDATTRIBUTES;
-
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_ACCESSLEVEL)
         vnode->accessLevel = attr.accessLevel;
-
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_USERACCESSLEVEL)
         vnode->userAccessLevel = attr.userAccessLevel;
-
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_HISTORIZING)
         vnode->historizing = attr.historizing;
-
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_MINIMUMSAMPLINGINTERVAL)
         vnode->minimumSamplingInterval = attr.minimumSamplingInterval;
-
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_VALUERANK)
         vnode->valueRank = attr.valueRank;
 
@@ -71,7 +66,7 @@ static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node *
     /* } */
 
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_VALUE) {
-        vnode->value = attr.value;
+        vnode->variable.variant = attr.value;
         UA_Variant_init(&attr.value);
     }
 
@@ -83,8 +78,9 @@ static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node *
 
 static UA_StatusCode parseObjectNode(UA_ExtensionObject *attributes, UA_Node **new_node) {
     if(attributes->typeId.identifier.numeric !=
-       UA_TYPES_IDS[UA_TYPES_OBJECTATTRIBUTES] + UA_ENCODINGOFFSET_BINARY)  // VariableAttributes_Encoding_DefaultBinary
+       UA_TYPES[UA_TYPES_OBJECTATTRIBUTES].typeId.identifier.numeric + UA_ENCODINGOFFSET_BINARY)
         return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
+
     UA_ObjectAttributes attr;
     size_t pos = 0;
     // todo return more informative error codes from decodeBinary
@@ -239,20 +235,21 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }
+    size_t size = request->nodesToAddSize;
 
-    response->results = UA_Array_new(&UA_TYPES[UA_TYPES_ADDNODESRESULT], request->nodesToAddSize);
+    response->results = UA_Array_new(&UA_TYPES[UA_TYPES_ADDNODESRESULT], size);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
 
     /* ### Begin External Namespaces */
-    UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * request->nodesToAddSize);
-    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToAddSize);
-    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * request->nodesToAddSize);
+    UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
+    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
+    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
     for(UA_Int32 j = 0;j<server->externalNamespacesSize;j++) {
-        UA_UInt32 indexSize = 0;
-        for(UA_Int32 i = 0;i < request->nodesToAddSize;i++) {
+        size_t indexSize = 0;
+        for(size_t i = 0;i < size;i++) {
             if(request->nodesToAdd[i].requestedNewNodeId.nodeId.namespaceIndex != server->externalNamespaces[j].index)
                 continue;
             isExternal[i] = UA_TRUE;
@@ -267,39 +264,36 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
     }
     /* ### End External Namespaces */
     
-    response->resultsSize = request->nodesToAddSize;
-    for(int i = 0;i < request->nodesToAddSize;i++) {
+    response->resultsSize = size;
+    for(size_t i = 0;i < size;i++) {
         if(!isExternal[i])
             addNodeFromAttributes(server, session, &request->nodesToAdd[i], &response->results[i]);
     }
 }
 
-void Service_AddReferences(UA_Server *server, UA_Session *session,
-		const UA_AddReferencesRequest *request,
-		UA_AddReferencesResponse *response) {
-	if (request->referencesToAddSize <= 0) {
+void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddReferencesRequest *request,
+                           UA_AddReferencesResponse *response) {
+	if(request->referencesToAddSize <= 0) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
 		return;
 	}
-	response->results = UA_malloc(
-			sizeof(UA_StatusCode) * request->referencesToAddSize);
-	if (!response->results) {
+    size_t size = request->referencesToAddSize;
+	
+    if(!(response->results = UA_malloc(sizeof(UA_StatusCode) * size))) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
 		return;
 	}
-	response->resultsSize = request->referencesToAddSize;
-	UA_memset(response->results, UA_STATUSCODE_GOOD,
-			sizeof(UA_StatusCode) * response->resultsSize);
+	response->resultsSize = size;
+	UA_memset(response->results, UA_STATUSCODE_GOOD, sizeof(UA_StatusCode) * size);
+
 	/* ### Begin External Namespaces */
-//UA_Boolean isExternal[MAX_ADDREFERENCES_SIZE];
-	UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * request->referencesToAddSize);
-	UA_memset(isExternal, UA_FALSE,
-			sizeof(UA_Boolean) * request->referencesToAddSize);
-	UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * request->referencesToAddSize);
-	for (UA_Int32 j = 0; j < server->externalNamespacesSize; j++) {
-		UA_UInt32 indexSize = 0;
-		for (UA_Int32 i = 0; i < request->referencesToAddSize; i++) {
-			if (request->referencesToAdd[i].sourceNodeId.namespaceIndex
+	UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
+	UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
+	UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
+	for(UA_Int32 j = 0; j < server->externalNamespacesSize; j++) {
+		size_t indexSize = 0;
+		for(size_t i = 0;i < size;i++) {
+			if(request->referencesToAdd[i].sourceNodeId.namespaceIndex
 					!= server->externalNamespaces[j].index)
 				continue;
 			isExternal[i] = UA_TRUE;
@@ -315,9 +309,10 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
 				response->diagnosticInfos);
 	}
 	/* ### End External Namespaces */
-	response->resultsSize = request->referencesToAddSize;
-	for (UA_Int32 i = 0; i < response->resultsSize; i++) {
-		if (!isExternal[i])
+
+	response->resultsSize = size;
+	for(UA_Int32 i = 0; i < response->resultsSize; i++) {
+		if(!isExternal[i])
 			UA_Server_addReference(server, &request->referencesToAdd[i]);
 	}
 }

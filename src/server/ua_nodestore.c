@@ -252,6 +252,9 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, const UA_Node
         // find a unique nodeid that is not taken
         node->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
         node->nodeId.namespaceIndex = 1; // namespace 1 is always in the local nodestore
+        if(node->nodeClass==UA_NODECLASS_VARIABLE){ //set namespaceIndex in browseName in case id is generated
+        	((UA_VariableNode*)node)->browseName.namespaceIndex=node->nodeId.namespaceIndex;
+        }
         UA_Int32 identifier = ns->count+1; // start value
         UA_Int32 size = ns->size;
         hash_t increase = mod2(identifier, size);
@@ -267,7 +270,7 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, const UA_Node
         if(containsNodeId(ns, &node->nodeId, &slot))
             return UA_STATUSCODE_BADNODEIDEXISTS;
     }
-    
+
     struct nodeEntry *entry = nodeEntryFromNode(node);
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;

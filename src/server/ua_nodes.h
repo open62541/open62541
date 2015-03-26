@@ -1,6 +1,7 @@
 #ifndef UA_NODES_H_
 #define UA_NODES_H_
 
+#include "ua_server.h"
 #include "ua_types_generated.h"
 #include "ua_types_encoding_binary.h"
 
@@ -33,28 +34,33 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_ObjectTypeNode)
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS
-    UA_Variant value;
-    // datatype is taken from the value
     UA_Int32 valueRank; /**< n >= 1: the value is an array with the specified number of dimensions.
                              n = 0: the value is an array with one or more dimensions.
                              n = -1: the value is a scalar.
                              n = -2: the value can be a scalar or an array with any number of dimensions.
                              n = -3:  the value can be a scalar or a one dimensional array. */
-    // array dimensions are taken from the value-variant
+    enum {
+        UA_VARIABLENODETYPE_VARIANT,
+        UA_VARIABLENODETYPE_DATASOURCE
+    } variableType;
+    union {
+        UA_Variant variant;
+        UA_DataSource dataSource;
+    } variable;
     UA_Byte accessLevel;
     UA_Byte userAccessLevel;
     UA_Double minimumSamplingInterval;
     UA_Boolean historizing;
 } UA_VariableNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_VariableNode)
+/** Make a copy but leave out the references and the variable */
+UA_StatusCode UA_VariableNode_copyWithoutRefsAndVariable(const UA_VariableNode *src, UA_VariableNode *dst);
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS
-    UA_Variant value;
-    // datatype is taken from the value
-    UA_Int32 valueRank;
-    // array dimensions are taken from the value-variant
     UA_Boolean isAbstract;
+    UA_Int32 valueRank;
+    UA_Variant value;
 } UA_VariableTypeNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_VariableTypeNode)
 

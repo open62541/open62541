@@ -188,51 +188,37 @@ typedef struct {
     UA_ByteString body; // contains either the bytestring or a pointer to the memory-object
 } UA_ExtensionObject;
 
-/** @brief Pointers to data that is stored in memory. The "type" of the data is
-    stored in the variant itself. */
-typedef struct {
-    UA_Int32  arrayLength;        // total number of elements in the data-pointer
-    void     *dataPtr;
-    UA_Int32  arrayDimensionsSize;
-    UA_Int32 *arrayDimensions;
-} UA_VariantData;
-
-/** @brief A datasource is the interface to interact with a local data provider.
- *
- *  Implementors of datasources need to provide functions for the callbacks in
- *  this structure. After every read, the handle needs to be released to
- *  indicate that the pointer is no longer accessed. As a rule, datasources are
- *  never copied, but only their content. The only way to write into a
- *  datasource is via the write-service. */
-typedef struct {
-    const void *handle;
-    UA_StatusCode (*read)(const void *handle, UA_VariantData *data);
-    void (*release)(const void *handle, UA_VariantData *data);
-    UA_StatusCode (*write)(const void *handle, const UA_VariantData *data);
-} UA_VariantDataSource;
-
 struct UA_DataType;
 typedef struct UA_DataType UA_DataType; 
+
+/** @brief NumericRanges are used select a subset in a (multidimensional) variant array.
+    NumericRange has no official type structure in the standard. Officially, it only exists as an
+    encoded string, such as "1:2,0:3,5". The colon separates min/max index and the comma separates
+    dimensions. A single value indicates a range with a single element (min==max). */
+typedef struct {
+    UA_Int32 dimensionsSize;
+    struct UA_NumericRangeDimension {
+        UA_UInt32 min;
+        UA_UInt32 max;
+    } *dimensions;
+} UA_NumericRange;
 
 /** @brief Variants store (arrays of) any data type. Either they provide a pointer to the data in
     memory, or functions from which the data can be accessed. Variants are replaced together with
     the data they store (exception: use a data source).*/
 typedef struct {
     const UA_DataType *type;
-    UA_NodeId typeId;
     enum {
         UA_VARIANT_DATA, ///< The data is "owned" by this variant (copied and deleted together)
         UA_VARIANT_DATA_NODELETE, /**< The data is "borrowed" by the variant and shall not be
                                        deleted at the end of this variant's lifecycle. It is not
                                        possible to overwrite borrowed data due to concurrent access.
                                        Use a custom datasource with a mutex. */
-        UA_VARIANT_DATASOURCE /**< The data is provided externally. Call the functions in the
-                                   datasource to get a current version */
     } storageType;
-    union {
-        UA_VariantData       data;
-        UA_VariantDataSource datasource;
-    } storage;
+    UA_Int32  arrayLength;  ///< the number of elements in the data-pointer
+    void     *dataPtr; ///< points to the scalar or array data
+    UA_Int32  arrayDimensionsSize; ///< the number of dimensions the data-array has
+    UA_Int32 *arrayDimensions; ///< the length of each dimension of the data-array
 } UA_Variant;
 
 /** @brief A data value with an associated status code and timestamps. */
@@ -269,12 +255,16 @@ typedef struct UA_DiagnosticInfo {
     struct UA_DiagnosticInfo *innerDiagnosticInfo;
 } UA_DiagnosticInfo;
 
+#ifndef SWIG
 #define UA_TYPE_HANDLING_FUNCTIONS(TYPE)                             \
     TYPE UA_EXPORT * TYPE##_new(void);                               \
     void UA_EXPORT TYPE##_init(TYPE * p);                            \
     void UA_EXPORT TYPE##_delete(TYPE * p);                          \
     void UA_EXPORT TYPE##_deleteMembers(TYPE * p);                   \
     UA_StatusCode UA_EXPORT TYPE##_copy(const TYPE *src, TYPE *dst);
+#else
+#define UA_TYPE_HANDLING_FUNCTIONS(TYPE)
+#endif
 
 /* Functions for all types */
 UA_TYPE_HANDLING_FUNCTIONS(UA_Boolean)
@@ -307,11 +297,11 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_Guid)
 #define UA_XmlElement_copy UA_String_copy
 UA_TYPE_HANDLING_FUNCTIONS(UA_NodeId)
 UA_TYPE_HANDLING_FUNCTIONS(UA_ExpandedNodeId)
-#define UA_StatusCode_new UA_Int32_new
-#define UA_StatusCode_init UA_Int32_init
-#define UA_StatusCode_delete UA_Int32_delete
-#define UA_StatusCode_deleteMembers UA_Int32_deleteMembers
-#define UA_StatusCode_copy UA_Int32_copy
+#define UA_StatusCode_new(p) UA_Int32_new((UA_Int32*)p)
+#define UA_StatusCode_init(p) UA_Int32_init((UA_Int32*)p)
+#define UA_StatusCode_delete(p) UA_Int32_delete((UA_Int32*)p)
+#define UA_StatusCode_deleteMembers(p) UA_Int32_deleteMembers((UA_Int32*)p)
+#define UA_StatusCode_copy(p) UA_Int32_copy((UA_Int32*)p)
 UA_TYPE_HANDLING_FUNCTIONS(UA_QualifiedName)
 UA_TYPE_HANDLING_FUNCTIONS(UA_LocalizedText)
 UA_TYPE_HANDLING_FUNCTIONS(UA_ExtensionObject)
@@ -402,7 +392,7 @@ UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 #define UA_EXPANDEDNODEID_STATIC(NAMESPACE, NUMERICID) (UA_ExpandedNodeId) {             \
         .nodeId = {.namespaceIndex = NAMESPACE, .identifierType = UA_NODEIDTYPE_NUMERIC, \
                    .identifier.numeric = NUMERICID },                                    \
-        .serverIndex = 0, .namespaceUri = UA_STRING_NULL }
+        .serverIndex = 0, .namespaceUri = {.data = (UA_Byte*)0, .length = -1} }
     
 /* QualifiedName */
 UA_StatusCode UA_EXPORT UA_QualifiedName_copycstring(char const *src, UA_QualifiedName *dst);
@@ -418,27 +408,39 @@ UA_StatusCode UA_EXPORT UA_LocalizedText_copycstring(char const *src, UA_Localiz
 /* Variant */
 
 /**
+ * Variant semantics:
+ *  - arrayLength = -1 && dataPtr == NULL: empty variant
+ *  - arrayLength = -1 && dataPtr == !NULL: variant holds a single element (a scalar)
+ *  - arrayLength >= 0: variant holds an array of the appropriate length
+ *                    : dataPtr can be NULL if arrayLength == 0
+ */
+
+/**
+ * Copy the variant, but use only a subset of the (multidimensional) array. Returns an error code if
+ * the variant is no array or if the indicated range does not fit.
+ */
+UA_StatusCode UA_EXPORT UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, UA_NumericRange range);
+
+/**
  * Set the variant to a scalar value that already resides in memory. The value takes on the
  * lifecycle of the variant and is deleted with it.
  *
  * @param v The variant
- * @param p A pointer to the data
- * @param typeIndex The index of the datatype (from namespace 0) as defined in ua_types_generated.h.
- * For example, typeIndex == UA_TYPES_INT32
+ * @param p A pointer to the value data
+ * @param type The datatype of the value in question
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setValue(UA_Variant *v, void *p, UA_UInt16 typeIndex);
+UA_StatusCode UA_EXPORT UA_Variant_setScalar(UA_Variant *v, void *p, const UA_DataType *type);
 
 /**
  * Set the variant to a scalar value that is copied from an existing variable.
  *
  * @param v The variant
- * @param p A pointer to the data
- * @param typeIndex The index of the datatype (from namespace 0) as defined in ua_types_generated.h.
- * For example, typeIndex == UA_TYPES_INT32
+ * @param p A pointer to the value data
+ * @param type The datatype of the value
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_copySetValue(UA_Variant *v, const void *p, UA_UInt16 typeIndex);
+UA_StatusCode UA_EXPORT UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_DataType *type);
 
 /**
  * Set the variant to an array that already resides in memory. The array takes on the lifecycle of
@@ -447,11 +449,11 @@ UA_StatusCode UA_EXPORT UA_Variant_copySetValue(UA_Variant *v, const void *p, UA
  * @param v The variant
  * @param array A pointer to the array data
  * @param noElements The size of the array
- * @param typeIndex The index of the datatype (from namespace 0) as defined in ua_types_generated.h.
- * For example, typeIndex == UA_TYPES_INT32
+ * @param type The datatype of the array
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 noElements, UA_UInt16 typeIndex);
+UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array,
+                                            UA_Int32 noElements, const UA_DataType *type);
 
 /**
  * Set the variant to an array that is copied from an existing array.
@@ -459,11 +461,11 @@ UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32
  * @param v The variant
  * @param array A pointer to the array data
  * @param noElements The size of the array
- * @param typeIndex The index of the datatype (from namespace 0) as defined in ua_types_generated.h.
- * For example, typeIndex == UA_TYPES_INT32
+ * @param type The datatype of the array
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_copySetArray(UA_Variant *v, const void *array, UA_Int32 noElements, UA_UInt16 typeIndex);
+UA_StatusCode UA_EXPORT UA_Variant_setArrayCopy(UA_Variant *v, const void *array,
+                                                UA_Int32 noElements, const UA_DataType *type);
 
 /****************************/
 /* Structured Type Handling */
@@ -476,6 +478,8 @@ UA_StatusCode UA_EXPORT UA_Variant_copySetArray(UA_Variant *v, const void *array
 #else
 # define UA_BITFIELD(SIZE)
 #endif
+
+#define UA_IS_BUILTIN(ID) (ID <= UA_TYPES_DIAGNOSTICINFO)
 
 typedef struct {
     UA_UInt16 memberTypeIndex UA_BITFIELD(9); ///< Index of the member in the datatypetable
@@ -491,8 +495,9 @@ typedef struct {
 } UA_DataTypeMember;
     
 struct UA_DataType {
-    size_t memSize UA_BITFIELD(16); ///< Size of the struct in memory
-    size_t typeIndex UA_BITFIELD(13); ///< Index of the type in the datatytypetable
+    UA_NodeId typeId; ///< The nodeid of the type
+    ptrdiff_t memSize UA_BITFIELD(16); ///< Size of the struct in memory
+    UA_UInt16 typeIndex UA_BITFIELD(13); ///< Index of the type in the datatypetable
     UA_Boolean namespaceZero UA_BITFIELD(1); ///< The type is defined in namespace zero.
     UA_Boolean fixedSize UA_BITFIELD(1); ///< The type (and its members) contains no pointers
     UA_Boolean zeroCopyable UA_BITFIELD(1); ///< Can the type be copied directly off the stream?

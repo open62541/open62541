@@ -5,8 +5,8 @@
 # of the day to the coverity scan service
 #
 
-COMMITS=`git log --since=today.midnight --oneline | wc -l`
-
+git fetch origin coverity_scan
+COMMITS=`git log --oneline --since=today.midnight | wc -l`
 if [[ "$COMMITS" -le "1" ]]; then
     #first commit a day - push changes to branch coverity_scan
     git clone -b coverity_scan https://$GITAUTH@github.com/acplt/open62541

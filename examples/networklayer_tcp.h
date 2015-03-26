@@ -10,8 +10,12 @@
 extern "C" {
 #endif
 
-#include "ua_server.h"
-#include "ua_client.h"
+#ifdef NOT_AMALGATED
+    #include "ua_server.h"
+	#include "ua_client.h"
+#else
+    #include "open62541.h"
+#endif
 
 /** @brief Create the TCP networklayer and listen to the specified port */
 UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UInt32 port);

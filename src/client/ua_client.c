@@ -23,6 +23,11 @@ UA_Client * UA_Client_new(void) {
     return c;
 }
 
+void UA_Client_delete(UA_Client* client){
+	if(client)
+		free(client);
+}
+
 static UA_StatusCode HelAckHandshake(UA_Client *c);
 static UA_StatusCode SecureChannelHandshake(UA_Client *c);
 static UA_StatusCode SessionHandshake(UA_Client *c);

@@ -1,15 +1,7 @@
 #ifndef UA_SERVER_INTERNAL_H_
 #define UA_SERVER_INTERNAL_H_
 
-#include "ua_config.h"
-
-#ifdef UA_MULTITHREADING
-#define _LGPL_SOURCE
-#include <urcu.h>
-#include <urcu/wfcqueue.h>
-#endif
-
-#include "../deps/queue.h"
+#include "ua_util.h"
 #include "ua_server.h"
 #include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
@@ -62,6 +54,9 @@ struct UA_Server {
 #endif
 
     LIST_HEAD(UA_TimedWorkList, UA_TimedWork) timedWork;
+
+    UA_DateTime startTime;
+    UA_DateTime buildDate;
 };
 
 void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
@@ -102,5 +97,15 @@ typedef enum {
     UA_ATTRIBUTEID_EXECUTABLE              = 21,
     UA_ATTRIBUTEID_USEREXECUTABLE          = 22
 } UA_AttributeId;
+
+#define ADDREFERENCE(NODEID, REFTYPE_NODEID, TARGET_EXPNODEID) do {     \
+        UA_AddReferencesItem item;                                      \
+        UA_AddReferencesItem_init(&item);                               \
+        item.sourceNodeId = NODEID;                                     \
+        item.referenceTypeId = REFTYPE_NODEID;                          \
+        item.isForward = UA_TRUE;                                       \
+        item.targetNodeId = TARGET_EXPNODEID;                           \
+        UA_Server_addReference(server, &item);                          \
+    } while(0)
 
 #endif /* UA_SERVER_INTERNAL_H_ */

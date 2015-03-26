@@ -1,9 +1,4 @@
-#include <stdio.h>
-#define __USE_POSIX
-#define _XOPEN_SOURCE 500
-#define __USE_POSIX199309
-#include <sys/time.h>
-#include <time.h>
+#include "ua_util.h"
 #include "ua_server_internal.h"
 
 /**
@@ -168,8 +163,14 @@ static UA_StatusCode addTimedWork(UA_Server *server, const UA_WorkItem *item, UA
     if(tw) {
         // append to matching entry
         tw->workSize++;
-        tw->work = UA_realloc(tw->work, sizeof(UA_WorkItem)*tw->workSize);
-        tw->workIds = UA_realloc(tw->workIds, sizeof(UA_Guid)*tw->workSize);
+        UA_WorkItem *biggerWorkArray = UA_realloc(tw->work, sizeof(UA_WorkItem)*tw->workSize);
+        if(!biggerWorkArray)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        tw->work = biggerWorkArray;
+        UA_Guid *biggerWorkIds = UA_realloc(tw->workIds, sizeof(UA_Guid)*tw->workSize);
+        if(!biggerWorkIds)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        tw->workIds = biggerWorkIds;
         tw->work[tw->workSize-1] = *item;
         tw->workIds[tw->workSize-1] = UA_Guid_random(&server->random_seed);
         if(resultWorkGuid)
@@ -180,13 +181,20 @@ static UA_StatusCode addTimedWork(UA_Server *server, const UA_WorkItem *item, UA
     // create a new entry
     if(!(tw = UA_malloc(sizeof(UA_TimedWork))))
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(!(tw->work = UA_malloc(sizeof(UA_WorkItem)))) {
+        UA_free(tw);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    if(!(tw->workIds = UA_malloc(sizeof(UA_Guid)))) {
+        UA_free(tw->work);
+        UA_free(tw);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     tw->workSize = 1;
     tw->time = firstTime;
     tw->repetitionInterval = repetitionInterval;
-    tw->work = UA_malloc(sizeof(UA_WorkItem));
     tw->work[0] = *item;
-    tw->workIds = UA_malloc(sizeof(UA_Guid));
     tw->workIds[0] = UA_Guid_random(&server->random_seed);
     if(lastTw)
         LIST_INSERT_AFTER(lastTw, tw, pointers);
@@ -248,7 +256,10 @@ static UA_UInt16 processTimedWork(UA_Server *server) {
             UA_free(tw);
         }
 #else
-        processWork(server,tw->work, tw->workSize); // does not free the work
+        // 1) Process the work since it is past its due date
+        processWork(server, tw->work, tw->workSize); // does not free the work
+
+        // 2) If the work is repeated, add it back into the list. Otherwise remove it.
         if(tw->repetitionInterval > 0) {
             tw->time += tw->repetitionInterval;
             UA_TimedWork *prevTw = tw;
@@ -271,22 +282,27 @@ static UA_UInt16 processTimedWork(UA_Server *server) {
 #endif
     }
 
-    tw = LIST_FIRST(&server->timedWork);
+    // check if the next timed work is sooner than the usual timeout
+    UA_TimedWork *first = LIST_FIRST(&server->timedWork);
     UA_UInt16 timeout = MAXTIMEOUT;
-    if(tw){
-        timeout = (tw->time - current)/10;
-        if(timeout>MAXTIMEOUT)timeout = MAXTIMEOUT;
+    if(first) {
+        timeout = (first->time - current)/10;
+        if(timeout > MAXTIMEOUT)
+            timeout = MAXTIMEOUT;
     }
     return timeout;
 }
 
 void UA_Server_deleteTimedWork(UA_Server *server) {
-    UA_TimedWork *tw;
-    while((tw = LIST_FIRST(&server->timedWork))) {
-        LIST_REMOVE(tw, pointers);
-        UA_free(tw->work);
-        UA_free(tw->workIds);
-        UA_free(tw);
+    UA_TimedWork *current;
+    UA_TimedWork *next = LIST_FIRST(&server->timedWork);
+    while(next) {
+        current = next;
+        next = LIST_NEXT(current, pointers);
+        LIST_REMOVE(current, pointers);
+        UA_free(current->work);
+        UA_free(current->workIds);
+        UA_free(current);
     }
 }
 
@@ -424,11 +440,61 @@ UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *r
     UA_Server_addRepeatedWorkItem(server, &processDelayed, 10000000, UA_NULL);
 #endif
 
-    // 2) Start the networklayers
+    // 2a) Start the networklayers
     for(UA_Int32 i=0;i<server->nlsSize;i++)
-        server->nls[i].start(server->nls[i].nlHandle);
+        server->nls[i].start(server->nls[i].nlHandle, &server->logger);
 
-    // 3) The loop
+    // 2b) Init server's meta-information
+    //fill startTime
+    server->startTime = UA_DateTime_now();
+
+    //fill build date
+    {
+		static struct tm ct;
+
+		ct.tm_year = (__DATE__[7] - '0') * 1000 +  (__DATE__[8] - '0') * 100 + (__DATE__[9] - '0') * 10 + (__DATE__[10] - '0')- 1900;
+
+		if (0) ;
+		else if ((__DATE__[0]=='J') && (__DATE__[1]=='a') && (__DATE__[2]=='n')) ct.tm_mon = 1-1;
+		else if ((__DATE__[0]=='F') && (__DATE__[1]=='e') && (__DATE__[2]=='b')) ct.tm_mon = 2-1;
+		else if ((__DATE__[0]=='M') && (__DATE__[1]=='a') && (__DATE__[2]=='r')) ct.tm_mon = 3-1;
+		else if ((__DATE__[0]=='A') && (__DATE__[1]=='p') && (__DATE__[2]=='r')) ct.tm_mon = 4-1;
+		else if ((__DATE__[0]=='M') && (__DATE__[1]=='a') && (__DATE__[2]=='y')) ct.tm_mon = 5-1;
+		else if ((__DATE__[0]=='J') && (__DATE__[1]=='u') && (__DATE__[2]=='n')) ct.tm_mon = 6-1;
+		else if ((__DATE__[0]=='J') && (__DATE__[1]=='u') && (__DATE__[2]=='l')) ct.tm_mon = 7-1;
+		else if ((__DATE__[0]=='A') && (__DATE__[1]=='u') && (__DATE__[2]=='g')) ct.tm_mon = 8-1;
+		else if ((__DATE__[0]=='S') && (__DATE__[1]=='e') && (__DATE__[2]=='p')) ct.tm_mon = 9-1;
+		else if ((__DATE__[0]=='O') && (__DATE__[1]=='c') && (__DATE__[2]=='t')) ct.tm_mon = 10-1;
+		else if ((__DATE__[0]=='N') && (__DATE__[1]=='o') && (__DATE__[2]=='v')) ct.tm_mon = 11-1;
+		else if ((__DATE__[0]=='D') && (__DATE__[1]=='e') && (__DATE__[2]=='c')) ct.tm_mon = 12-1;
+
+		// special case to handle __DATE__ not inserting leading zero on day of month
+		// if Day of month is less than 10 - it inserts a blank character
+		// this results in a negative number for tm_mday
+
+		if(__DATE__[4] == ' ')
+		{
+			ct.tm_mday =  __DATE__[5]-'0';
+		}
+		else
+		{
+			ct.tm_mday = (__DATE__[4]-'0')*10 + (__DATE__[5]-'0');
+		}
+
+		ct.tm_hour = ((__TIME__[0] - '0') * 10 + __TIME__[1] - '0');
+		ct.tm_min = ((__TIME__[3] - '0') * 10 + __TIME__[4] - '0');
+		ct.tm_sec = ((__TIME__[6] - '0') * 10 + __TIME__[7] - '0');
+
+		ct.tm_isdst = -1;  // information is not available.
+
+		//FIXME: next 3 lines are copy-pasted from ua_types.c
+		#define UNIX_EPOCH_BIAS_SEC 11644473600LL // Number of seconds from 1 Jan. 1601 00:00 to 1 Jan 1970 00:00 UTC
+		#define HUNDRED_NANOSEC_PER_USEC 10LL
+		#define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
+		server->buildDate = (mktime(&ct) + UNIX_EPOCH_BIAS_SEC) * HUNDRED_NANOSEC_PER_SEC;
+    }
+
+    //3) The loop
     while(1) {
         // 3.1) Process timed work
         UA_UInt16 timeout = processTimedWork(server);
