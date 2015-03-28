@@ -476,8 +476,11 @@ static UA_StatusCode ClientNetworkLayerTCP_connect(const UA_String endpointUrl, 
 #else
     UA_Int32 sock = 0;
 #endif
-
+#ifdef _WIN32
+    if((layer->serversockfd = socket(PF_INET, SOCK_STREAM,0)) == INVALID_SOCKET) {
+#else
     if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+#endif
 		printf("Could not create socket\n");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -515,7 +518,7 @@ static UA_StatusCode ClientNetworkLayerTCP_connect(const UA_String endpointUrl, 
 }
 
 static void ClientNetworkLayerTCP_disconnect(ClientNetworkLayerTCP* handle) {
-    close(handle->sockfd);
+	CLOSESOCKET(handle->sockfd);
 }
 
 static UA_StatusCode ClientNetworkLayerTCP_send(ClientNetworkLayerTCP *handle, UA_ByteStringArray gather_buf) {
@@ -531,7 +534,7 @@ static UA_StatusCode ClientNetworkLayerTCP_send(ClientNetworkLayerTCP *handle, U
 	while(nWritten < total_len) {
 		UA_UInt32 n = 0;
 		do {
-			result = WSASend(*handle, buf, gather_buf.stringsSize ,
+			result = WSASend(handle->sockfd, buf, gather_buf.stringsSize ,
                              (LPDWORD)&n, 0, NULL, NULL);
 			if(result != 0)
 				printf("Error WSASend, code: %d \n", WSAGetLastError());
