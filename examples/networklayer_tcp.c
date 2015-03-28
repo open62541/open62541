@@ -17,6 +17,7 @@
 #include <netinet/tcp.h>
 #include <sys/socketvar.h>
 #include <sys/ioctl.h>
+#include <netdb.h> //gethostbyname for the client
 #define __USE_BSD
 #include <unistd.h> // read, write, close
 #include <arpa/inet.h>
@@ -427,22 +428,32 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
 /* Client NetworkLayer TCP */
 /***************************/
 
-static UA_StatusCode ClientNetworkLayerTCP_connect(const UA_String endpointUrl, void **resultHandle) { 
-    if(endpointUrl.length < 11 || endpointUrl.length >= 512) {
-        printf("server url size invalid");
+#ifdef FINALLY
+#undef FINALLY
+#endif
+#define FINALLY free(sock);
+
+static UA_StatusCode ClientNetworkLayerTCP_connect(const UA_String endpointUrl, void **resultHandle) {
+	if(endpointUrl.length < 11 || endpointUrl.length >= 512) {
+        printf("server url size invalid\n");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     if(strncmp((char*)endpointUrl.data, "opc.tcp://", 10) != 0) {
-        printf("server url does not begin with opc.tcp://");
+        printf("server url does not begin with opc.tcp://\n");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    //this is somewhat ugly, but atoi needs a c string
+    char cstringEndpointUrl[endpointUrl.length+1];
+    memcpy(cstringEndpointUrl, endpointUrl.data, endpointUrl.length);
+    cstringEndpointUrl[endpointUrl.length+1] = '0';
 
     UA_UInt16 portpos = 9;
     UA_UInt16 port = 0;
     for(;portpos < endpointUrl.length; portpos++) {
         if(endpointUrl.data[portpos] == ':') {
-            port = atoi((char*)&endpointUrl.data[portpos+1]);
+            port = atoi(&cstringEndpointUrl[portpos+1]);
             break;
         }
     }
@@ -460,27 +471,40 @@ static UA_StatusCode ClientNetworkLayerTCP_connect(const UA_String endpointUrl, 
     if(!sock)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     if((*sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-        free(sock);
-		printf("Could not create socket");
+		printf("Could not create socket\n");
+    	FINALLY
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-	struct sockaddr_in server;
-	server.sin_addr.s_addr = inet_addr(hostname);
-	server.sin_family = AF_INET;
-	server.sin_port = port;
-
-	if(connect(*sock, (struct sockaddr *) &server, sizeof(server)) < 0) {
-        free(sock);
-        printf("Connect failed.");
+    struct hostent *server;
+    server = gethostbyname(hostname);
+    if (server == NULL) {
+        printf("DNS lookup of %s failed\n", hostname);
+    	FINALLY
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    if(setNonBlocking(*sock) != UA_STATUSCODE_GOOD) {
-        free(sock);
-        printf("Could not switch to nonblocking.");
+	struct sockaddr_in server_addr;
+
+    memset(&server_addr, 0, sizeof(server_addr));
+    memcpy((char *)&server_addr.sin_addr.s_addr,
+    	 (char *)server->h_addr_list[0],
+         server->h_length);
+
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(port);
+
+	if(connect(*sock, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
+        printf("Connect failed.\n");
+    	FINALLY
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    //if(setNonBlocking(*sock) != UA_STATUSCODE_GOOD) {
+    //    printf("Could not switch to nonblocking.\n");
+    //	FINALLY
+    //    return UA_STATUSCODE_BADINTERNALERROR;
+    //}
 
     *resultHandle = sock;
     return UA_STATUSCODE_GOOD;
@@ -535,7 +559,9 @@ static UA_StatusCode ClientNetworkLayerTCP_awaitResponse(UA_Int32 *handle, UA_By
                                                          UA_UInt32 timeout) {
     fd_set read_fds;
     FD_ZERO(&read_fds);
+    FD_SET(*handle, &read_fds);//tcp socket
     struct timeval tmptv = {0, timeout};
+    tmptv.tv_sec = 10;
     int ret = select(*handle+1, &read_fds, NULL, NULL, &tmptv);
     if(ret <= -1)
         return UA_STATUSCODE_BADINTERNALERROR;

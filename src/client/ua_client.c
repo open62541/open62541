@@ -42,9 +42,8 @@ UA_StatusCode UA_Client_connect(UA_Client *c, UA_ConnectionConfig conf, UA_Clien
 
     c->networkLayer = networkLayer;
     c->connection.localConf = conf;
-
     retval = networkLayer.connect(c->endpointUrl, &c->connectionHandle);
-    if(!retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     HelAckHandshake(c);
@@ -109,6 +108,7 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     conn->remoteConf.sendBufferSize = ackMessage.sendBufferSize;
     conn->state = UA_CONNECTION_ESTABLISHED;
 
+    UA_TcpAcknowledgeMessage_deleteMembers(&ackMessage);
 	return UA_STATUSCODE_GOOD;
 }
 
