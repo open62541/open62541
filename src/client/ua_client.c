@@ -97,6 +97,7 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
 		return retval;
 
     offset = 0;
+	UA_TcpMessageHeader_decodeBinary(&reply, &offset, &messageHeader);
     UA_TcpAcknowledgeMessage ackMessage;
     retval = UA_TcpAcknowledgeMessage_decodeBinary(&reply, &offset, &ackMessage);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -109,8 +110,6 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     conn->remoteConf.recvBufferSize = ackMessage.receiveBufferSize;
     conn->remoteConf.sendBufferSize = ackMessage.sendBufferSize;
     conn->state = UA_CONNECTION_ESTABLISHED;
-
-    printf("%i\n", ackMessage.maxChunkCount); //bug, this should be 1!
 
     UA_TcpAcknowledgeMessage_deleteMembers(&ackMessage);
 	return UA_STATUSCODE_GOOD;
