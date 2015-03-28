@@ -15,8 +15,11 @@ extern "C" {
  * is only concerned with getting messages to the client and receiving them.
  */
 typedef struct {
+	void *nlHandle;
+
     UA_StatusCode (*connect)(const UA_String endpointUrl, void **resultHandle);
     void (*disconnect)(void *handle);
+    void (*delete)(void *handle);
     UA_StatusCode (*send)(void *handle, UA_ByteStringArray gather_buf);
     // the response buffer exists on the heap. the size shall correspond the the connection settings
     UA_StatusCode (*awaitResponse)(void *handle, UA_ByteString *response, UA_UInt32 timeout);

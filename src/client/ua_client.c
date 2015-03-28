@@ -4,7 +4,6 @@
 
 struct UA_Client {
     UA_ClientNetworkLayer networkLayer;
-    void *connectionHandle;
     UA_String endpointUrl;
     UA_Connection connection;
 	/* UA_UInt32 channelId; */
@@ -24,8 +23,11 @@ UA_Client * UA_Client_new(void) {
 }
 
 void UA_Client_delete(UA_Client* client){
-	if(client)
+	if(client){
+		client->networkLayer.delete(client->networkLayer.nlHandle);
+		UA_String_deleteMembers(&client->endpointUrl);
 		free(client);
+	}
 }
 
 static UA_StatusCode HelAckHandshake(UA_Client *c);
@@ -42,7 +44,7 @@ UA_StatusCode UA_Client_connect(UA_Client *c, UA_ConnectionConfig conf, UA_Clien
 
     c->networkLayer = networkLayer;
     c->connection.localConf = conf;
-    retval = networkLayer.connect(c->endpointUrl, &c->connectionHandle);
+    retval = networkLayer.connect(c->endpointUrl, c->networkLayer.nlHandle);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -81,15 +83,16 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
 	size_t offset = 0;
 	UA_TcpMessageHeader_encodeBinary(&messageHeader, &message, &offset);
 	UA_TcpHelloMessage_encodeBinary(&hello, &message, &offset);
+    UA_TcpHelloMessage_deleteMembers(&hello);
 
     UA_ByteStringArray buf = {.stringsSize = 1, .strings = &message};
-    UA_StatusCode retval = c->networkLayer.send(c->connectionHandle, buf);
+    UA_StatusCode retval = c->networkLayer.send(c->networkLayer.nlHandle, buf);
     if(retval)
         return retval;
 
     UA_Byte replybuf[1024];
     UA_ByteString reply = {.data = replybuf, .length = 1024};
-    retval = c->networkLayer.awaitResponse(c->connectionHandle, &reply, 100);
+    retval = c->networkLayer.awaitResponse(c->networkLayer.nlHandle, &reply, 0);
 	if (retval)
 		return retval;
 
@@ -100,13 +103,14 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
         UA_TcpAcknowledgeMessage_deleteMembers(&ackMessage);
         return retval;
     }
-
     conn->remoteConf.maxChunkCount = ackMessage.maxChunkCount;
     conn->remoteConf.maxMessageSize = ackMessage.maxMessageSize;
     conn->remoteConf.protocolVersion = ackMessage.protocolVersion;
     conn->remoteConf.recvBufferSize = ackMessage.receiveBufferSize;
     conn->remoteConf.sendBufferSize = ackMessage.sendBufferSize;
     conn->state = UA_CONNECTION_ESTABLISHED;
+
+    printf("%i\n", ackMessage.maxChunkCount); //bug, this should be 1!
 
     UA_TcpAcknowledgeMessage_deleteMembers(&ackMessage);
 	return UA_STATUSCODE_GOOD;
@@ -160,13 +164,13 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *c) {
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
 
     UA_ByteStringArray buf = {.stringsSize = 1, .strings = &message};
-    UA_StatusCode retval = c->networkLayer.send(c->connectionHandle, buf);
+    UA_StatusCode retval = c->networkLayer.send(c->networkLayer.nlHandle, buf);
 	UA_ByteString_deleteMembers(&message);
 
     // parse the response
     UA_ByteString response;
     UA_ByteString_newMembers(&response, c->connection.localConf.recvBufferSize);
-    retval = c->networkLayer.awaitResponse(c->connectionHandle, &response, 1000);
+    retval = c->networkLayer.awaitResponse(c->networkLayer.nlHandle, &response, 1000);
     
     /* UA_SecureConversationMessageHeader_init(&msghdr); */
     /* UA_AsymmetricAlgorithmSecurityHeader_init(&asymHeader); */
