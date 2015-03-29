@@ -31,14 +31,14 @@ typedef struct UA_Client UA_Client;
 UA_Client UA_EXPORT * UA_Client_new(void);
 void UA_Client_delete(UA_Client* client);
 
-UA_StatusCode UA_EXPORT UA_Client_connect(UA_Client *c, UA_ConnectionConfig conf,
+UA_StatusCode UA_EXPORT UA_Client_connect(UA_Client *client, UA_ConnectionConfig conf,
                                           UA_ClientNetworkLayer networkLayer, char *endpointUrl);
 
-UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *c);
+UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client);
 
-UA_ReadResponse UA_EXPORT UA_Client_read(UA_Client *c, const UA_ReadRequest *request);
-UA_WriteResponse UA_EXPORT UA_Client_write(UA_Client *c, const UA_WriteRequest *request);
-UA_BrowseResponse UA_EXPORT UA_Client_browse(UA_Client *c, const UA_BrowseRequest *request);
+UA_ReadResponse UA_EXPORT UA_Client_read(UA_Client *client, const UA_ReadRequest *request);
+UA_WriteResponse UA_EXPORT UA_Client_write(UA_Client *client, const UA_WriteRequest *request);
+UA_BrowseResponse UA_EXPORT UA_Client_browse(UA_Client *client, const UA_BrowseRequest *request);
 
 #ifdef __cplusplus
 } // extern "C"
