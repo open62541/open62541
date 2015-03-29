@@ -610,7 +610,6 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
 
 UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRange range) {
     UA_Variant_init(dst);
-
     // test the integrity of the variant dimensions
     UA_Int32 dims_count = 1;
     const UA_Int32 *dims = &src->arrayLength; // default: the array has only one dimension
@@ -672,7 +671,8 @@ UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const
             memcpy((void*)nextdst, (void*)nextsrc, elem_size * contiguous_elems);
         } else {
             for(size_t j = 0; j < contiguous_elems; j++)
-                retval = UA_copy((const void*)(nextsrc + (j * elem_size)), (void*)(nextdst + (j * elem_size)), src->type);
+                retval = UA_copy((const void*)(nextsrc + (j * elem_size)), (void*)(nextdst + (j * elem_size)),
+                                 src->type);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_Array_delete(dst->dataPtr, src->type, copied);
                 return retval;
@@ -689,9 +689,8 @@ UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const
             UA_Array_delete(dst->dataPtr, src->type, copied);
             return retval;
         }
-        for(UA_Int32 k = 0; k < dims_count; k++) {
+        for(UA_Int32 k = 0; k < dims_count; k++)
             dst->arrayDimensions[k] = range.dimensions[k].max - range.dimensions[k].min + 1;
-        }
         dst->arrayDimensionsSize = dims_count;
     }
     dst->arrayLength = count;

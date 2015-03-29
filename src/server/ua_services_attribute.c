@@ -5,7 +5,9 @@
 #include "ua_nodestore.h"
 #include "ua_util.h"
 
-static UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range) {
+static UA_StatusCode
+parse_numericrange(const UA_String str, UA_NumericRange *range)
+{
     if(str.length < 0 || str.length >= 1023)
         return UA_STATUSCODE_BADINTERNALERROR;
     char *cstring = UA_alloca(str.length+1);
@@ -92,7 +94,8 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
                       const UA_ReadValueId *id, UA_DataValue *v) {
 
 	if(id->dataEncoding.name.length >= 0){
-		if(memcmp(id->dataEncoding.name.data, "DefaultBinary", 13)!=0 && memcmp(id->dataEncoding.name.data, "DefaultXml", 10)!=0){
+		if(memcmp(id->dataEncoding.name.data, "DefaultBinary", 13) != 0 &&
+           memcmp(id->dataEncoding.name.data, "DefaultXml", 10) != 0) {
 			v->hasStatus = UA_TRUE;
 			v->status = UA_STATUSCODE_BADDATAENCODINGINVALID;
 			return;
@@ -184,52 +187,45 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
     case UA_ATTRIBUTEID_VALUE:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         {
-        	if(node->nodeClass == UA_NODECLASS_VARIABLE) {
-                // todo: copy only selective...
-                UA_Boolean hasRange = UA_FALSE;
-                UA_NumericRange range;
-                if(id->indexRange.length > 0) {
-                    hasRange = UA_TRUE;
-                    retval = parse_numericrange(id->indexRange, &range);
-                    if(retval != UA_STATUSCODE_GOOD)
-                        break;
-                }
-
-				const UA_VariableNode *vn = (const UA_VariableNode*)node;
-				if(vn->variableType == UA_VARIABLENODETYPE_VARIANT) {
-                    if(hasRange)
-                        retval = UA_Variant_copyRange(&vn->variable.variant, &v->value, range);
-                    else
-                        retval = UA_Variant_copy(&vn->variable.variant, &v->value);
-					if(retval != UA_STATUSCODE_GOOD) {
-                        if(hasRange)
-                            UA_free(range.dimensions);
-						break;
-                    }
-					v->hasVariant = UA_TRUE;
-					handleSourceTimestamps(timestamps, v);
-				} else {
-					UA_DataValue val;
-					UA_DataValue_init(&val);
-					UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
-												  timestamps == UA_TIMESTAMPSTORETURN_BOTH);
-					retval |= vn->variable.dataSource.read(vn->variable.dataSource.handle, sourceTimeStamp, &val);
-					if(retval != UA_STATUSCODE_GOOD)
-						break;
-					retval |= UA_DataValue_copy(&val, v);
-					vn->variable.dataSource.release(vn->variable.dataSource.handle, &val);
-					if(retval != UA_STATUSCODE_GOOD)
-						break;
-                    // todo: selection of indexranges
-				}
-
-                if(hasRange)
-                    UA_free(range.dimensions);
-                
-        	} else {
+        	if(node->nodeClass != UA_NODECLASS_VARIABLE) {
     			v->hasVariant = UA_FALSE;
     			handleSourceTimestamps(timestamps, v);
-        	}
+            }
+
+            UA_Boolean hasRange = UA_FALSE;
+            UA_NumericRange range;
+            if(id->indexRange.length > 0) {
+                hasRange = UA_TRUE;
+                retval = parse_numericrange(id->indexRange, &range);
+                if(retval != UA_STATUSCODE_GOOD)
+                    break;
+            }
+
+            const UA_VariableNode *vn = (const UA_VariableNode*)node;
+
+            if(vn->variableType == UA_VARIABLENODETYPE_VARIANT) {
+                if(hasRange)
+                    retval |= UA_Variant_copyRange(&vn->variable.variant, &v->value, range);
+                else
+                    retval |= UA_Variant_copy(&vn->variable.variant, &v->value);
+                if(retval == UA_STATUSCODE_GOOD) {
+                    v->hasVariant = UA_TRUE;
+                    handleSourceTimestamps(timestamps, v);
+                }
+            } else {
+                UA_DataValue val;
+                UA_DataValue_init(&val);
+                UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
+                                              timestamps == UA_TIMESTAMPSTORETURN_BOTH);
+                retval |= vn->variable.dataSource.read(vn->variable.dataSource.handle, sourceTimeStamp, &val);
+                if(retval == UA_STATUSCODE_GOOD) {
+                    retval |= UA_DataValue_copy(&val, v); // todo: selection of indexranges
+                }
+                vn->variable.dataSource.release(vn->variable.dataSource.handle, &val);
+            }
+
+            if(hasRange)
+                UA_free(range.dimensions);
         }
         break;
 
@@ -271,33 +267,29 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         {
         	//TODO: handle indexRange
-        	if(node->nodeClass == UA_NODECLASS_VARIABLE){
-				const UA_VariableNode *vn = (const UA_VariableNode *)node;
-				if(vn->variableType == UA_VARIABLENODETYPE_VARIANT) {
-					retval = UA_Variant_setArrayCopy(&v->value, vn->variable.variant.arrayDimensions,
-													 vn->variable.variant.arrayDimensionsSize,
-													 &UA_TYPES[UA_TYPES_INT32]);
-					if(retval == UA_STATUSCODE_GOOD)
-						v->hasVariant = UA_TRUE;
-				} else {
-					UA_DataValue val;
-					UA_DataValue_init(&val);
-
-					retval |= vn->variable.dataSource.read(vn->variable.dataSource.handle, UA_FALSE, &val);
-					if(retval != UA_STATUSCODE_GOOD)
-						break;
-					if(!val.hasVariant) {
-						vn->variable.dataSource.release(vn->variable.dataSource.handle, &val);
-						retval = UA_STATUSCODE_BADNOTREADABLE;
-						break;
-					}
-					retval = UA_Variant_setArrayCopy(&v->value, val.value.arrayDimensions,
-													 val.value.arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
-					vn->variable.dataSource.release(vn->variable.dataSource.handle, &val);
-				}
-        	} else {
-        		retval = UA_STATUSCODE_GOOD;
-        	}
+            if(node->nodeClass == UA_NODECLASS_VARIABLETYPE)
+                break;
+                
+            const UA_VariableNode *vn = (const UA_VariableNode *)node;
+            if(vn->variableType == UA_VARIABLENODETYPE_VARIANT) {
+                retval = UA_Variant_setArrayCopy(&v->value, vn->variable.variant.arrayDimensions,
+                                                 vn->variable.variant.arrayDimensionsSize,
+                                                 &UA_TYPES[UA_TYPES_INT32]);
+                if(retval == UA_STATUSCODE_GOOD)
+                    v->hasVariant = UA_TRUE;
+            } else {
+                UA_DataValue val;
+                UA_DataValue_init(&val);
+                retval |= vn->variable.dataSource.read(vn->variable.dataSource.handle, UA_FALSE, &val);
+                if(retval != UA_STATUSCODE_GOOD)
+                    break;
+                if(!val.hasVariant)
+                    retval = UA_STATUSCODE_BADNOTREADABLE;
+                else
+                    retval = UA_Variant_setArrayCopy(&v->value, val.value.arrayDimensions,
+                                                     val.value.arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
+                vn->variable.dataSource.release(vn->variable.dataSource.handle, &val);
+            }
         }
         break;
 
