@@ -349,9 +349,65 @@ static UA_StatusCode SessionHandshake(UA_Client *client) {
     return response.responseHeader.serviceResult; // not deleted
 }
 
+/*************************/
+/* User-Facing Functions */
+/*************************/
+
 UA_ReadResponse UA_Client_read(UA_Client *client, const UA_ReadRequest *request) {
     UA_ReadResponse response;
     synchronousRequest(request, &UA_TYPES[UA_TYPES_READREQUEST], &response,
                        &UA_TYPES[UA_TYPES_READRESPONSE], client);
+    return response;
+}
+
+UA_WriteResponse UA_Client_write(UA_Client *client, const UA_WriteRequest *request) {
+    UA_WriteResponse response;
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_WRITEREQUEST], &response,
+                       &UA_TYPES[UA_TYPES_WRITERESPONSE], client);
+    return response;
+}
+
+UA_BrowseResponse UA_Client_browse(UA_Client *client, const UA_BrowseRequest *request) {
+    UA_BrowseResponse response;
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
+                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
+    return response;
+}
+
+UA_TranslateBrowsePathsToNodeIdsResponse
+UA_Client_translateBrowsePathsToNodeIds(UA_Client *client,
+                                        const UA_TranslateBrowsePathsToNodeIdsRequest *request) {
+    UA_TranslateBrowsePathsToNodeIdsResponse response;
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
+                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
+    return response;
+}
+
+UA_AddNodesResponse UA_Client_addNodes(UA_Client *client, const UA_AddNodesRequest *request) {
+    UA_AddNodesResponse response;
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
+                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
+    return response;
+}
+
+UA_AddReferencesResponse UA_Client_addReferences(UA_Client *client, const UA_AddReferencesRequest *request) {
+    UA_AddReferencesResponse response;
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
+                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
+    return response;
+}
+
+UA_DeleteNodesResponse UA_Client_deleteNodes(UA_Client *client, const UA_DeleteNodesRequest *request) {
+    UA_DeleteNodesResponse response;
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
+                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
+    return response;
+}
+
+UA_DeleteReferencesResponse UA_Client_deleteReferences(UA_Client *client,
+                                                       const UA_DeleteReferencesRequest *request) {
+    UA_DeleteReferencesResponse response;
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
+                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
     return response;
 }

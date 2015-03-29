@@ -18,9 +18,10 @@ int main(int argc, char *argv[]) {
     read_req.nodesToRead = UA_ReadValueId_new();
     read_req.nodesToReadSize = 1;
     read_req.nodesToRead[0].nodeId = UA_NODEID_STATIC(1, 73);
-    read_req.nodesToRead[0].attributeId = 13;
+    read_req.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
     UA_ReadResponse read_resp = UA_Client_read(client, &read_req);
     printf("answer statuscode: %i\n", read_resp.responseHeader.serviceResult);
     printf("answer value: %i\n", *(UA_Int32*)read_resp.results[0].value.dataPtr);
+    UA_ReadResponse_deleteMembers(&read_resp);
     UA_Client_delete(client);
 }

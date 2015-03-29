@@ -31,7 +31,8 @@ void Service_FindServers(UA_Server                    *server,
  * Returns the Endpoints supported by a Server and all of the configuration
  * information required to establish a SecureChannel and a Session.
  */
-void Service_GetEndpoints(UA_Server *server, const UA_GetEndpointsRequest *request, UA_GetEndpointsResponse *response);
+void Service_GetEndpoints(UA_Server *server, const UA_GetEndpointsRequest *request,
+                          UA_GetEndpointsResponse *response);
 // Service_RegisterServer
 /** @} */
 
@@ -88,7 +89,8 @@ void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                              const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response);
 
 /** Used to terminate a Session. */
-void Service_CloseSession(UA_Server *server, const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response);
+void Service_CloseSession(UA_Server *server, const UA_CloseSessionRequest *request,
+                          UA_CloseSessionResponse *response);
 // Service_Cancel
 /** @} */
 
@@ -103,16 +105,20 @@ void Service_CloseSession(UA_Server *server, const UA_CloseSessionRequest *reque
  */
 
 /** Used to add one or more Nodes into the AddressSpace hierarchy. */
-void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesRequest *request, UA_AddNodesResponse *response);
+void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesRequest *request,
+                      UA_AddNodesResponse *response);
 
 /** Used to add one or more References to one or more Nodes. */
-void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddReferencesRequest *request, UA_AddReferencesResponse *response);
+void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddReferencesRequest *request,
+                           UA_AddReferencesResponse *response);
 
 /** Used to delete one or more Nodes from the AddressSpace. */
-void Service_DeleteNodes(UA_Server *server, UA_Session *session, const UA_DeleteNodesRequest *request, UA_DeleteNodesResponse *response);
+void Service_DeleteNodes(UA_Server *server, UA_Session *session, const UA_DeleteNodesRequest *request,
+                         UA_DeleteNodesResponse *response);
 
 /** Used to delete one or more References of a Node. */
-void Service_DeleteReferences(UA_Server *server, UA_Session *session, const UA_DeleteReferencesRequest *request, UA_DeleteReferencesResponse *response);
+void Service_DeleteReferences(UA_Server *server, UA_Session *session, const UA_DeleteReferencesRequest *request,
+                              UA_DeleteReferencesResponse *response);
 
 /** @} */
 
@@ -140,13 +146,11 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
 // Service_BrowseNext
 
 // Service_RegisterNodes
-void Service_RegisterNodes(UA_Server *server, UA_Session *session,
-                                           const UA_RegisterNodesRequest *request,
-                                           UA_RegisterNodesResponse *response);
+void Service_RegisterNodes(UA_Server *server, UA_Session *session, const UA_RegisterNodesRequest *request,
+                           UA_RegisterNodesResponse *response);
 // Service_UnregisterNodes
-void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
-                                           const UA_UnregisterNodesRequest *request,
-                                           UA_UnregisterNodesResponse *response);
+void Service_UnregisterNodes(UA_Server *server, UA_Session *session, const UA_UnregisterNodesRequest *request,
+                             UA_UnregisterNodesResponse *response);
 /** @} */
 
 /**
@@ -181,7 +185,8 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
  * allows Clients to read the entire set of indexed values as a composite, to
  * read individual elements or to read ranges of elements of the composite.
  */
-void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request, UA_ReadResponse *response);
+void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request,
+                  UA_ReadResponse *response);
 // Service_HistoryRead
 
 /**
@@ -190,7 +195,8 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
  * allows Clients to write the entire set of indexed values as a composite, to
  * write individual elements or to write ranges of elements of the composite.
  */
-void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request, UA_WriteResponse *response);
+void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,
+                   UA_WriteResponse *response);
 // Service_HistoryUpdate
 /** @} */
 
