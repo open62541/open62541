@@ -245,6 +245,7 @@ static void synchronousRequest(const void *request, const UA_DataType *requestTy
     retval |= UA_SecureConversationMessageHeader_encodeBinary(&msgHeader, &message, &offset);
     retval |= UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symHeader, &message, &offset);
     retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &message, &offset);
+
     retval |= UA_NodeId_encodeBinary(&requestId, &message, &offset);
     retval |= UA_encodeBinary(request, requestType, &message, &offset);
 
@@ -287,6 +288,25 @@ static void synchronousRequest(const void *request, const UA_DataType *requestTy
         respHeader->serviceResult = retval;
 }
 
+static UA_StatusCode ActivateSession(UA_Client *client) {
+	UA_ActivateSessionRequest request;
+	UA_ActivateSessionRequest_init(&request);
+
+    request.requestHeader.requestHandle = 2;
+    request.requestHeader.authenticationToken = client->authenticationToken;
+    request.requestHeader.timestamp = UA_DateTime_now();
+    request.requestHeader.timeoutHint = 10000;
+
+    UA_ActivateSessionResponse response;
+    synchronousRequest(&request, &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE],
+                       client);
+
+    UA_ActivateSessionRequest_deleteMembers(&request);
+    UA_ActivateSessionResponse_deleteMembers(&response);
+    return response.responseHeader.serviceResult; // not deleted
+}
+
 static UA_StatusCode SessionHandshake(UA_Client *client) {
 
     UA_CreateSessionRequest request;
@@ -294,6 +314,7 @@ static UA_StatusCode SessionHandshake(UA_Client *client) {
 
     // todo: is this needed for all requests?
     UA_NodeId_copy(&client->authenticationToken, &request.requestHeader.authenticationToken);
+
     request.requestHeader.timestamp = UA_DateTime_now();
 	request.requestHeader.timeoutHint = 10000;
     UA_ByteString_copy(&client->clientNonce, &request.clientNonce);
@@ -308,6 +329,8 @@ static UA_StatusCode SessionHandshake(UA_Client *client) {
     synchronousRequest(&request, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
                        &response, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE],
                        client);
+
+    UA_NodeId_copy(&response.authenticationToken, &client->authenticationToken);
 
     UA_CreateSessionRequest_deleteMembers(&request);
     UA_CreateSessionResponse_deleteMembers(&response);
@@ -332,6 +355,8 @@ UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectionConfig conf,
         retval = SecureChannelHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
         retval = SessionHandshake(client);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = ActivateSession(client);
     return retval;
 }
 
@@ -343,8 +368,11 @@ UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client) {
 /* User-Facing Functions */
 /*************************/
 
-UA_ReadResponse UA_Client_read(UA_Client *client, const UA_ReadRequest *request) {
+UA_ReadResponse UA_Client_read(UA_Client *client, UA_ReadRequest *request) {
     UA_ReadResponse response;
+    //todo: probably move to synchronousRequest
+    UA_NodeId_copy(&client->authenticationToken, &request->requestHeader.authenticationToken);
+
     synchronousRequest(request, &UA_TYPES[UA_TYPES_READREQUEST], &response,
                        &UA_TYPES[UA_TYPES_READRESPONSE], client);
     return response;

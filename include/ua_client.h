@@ -37,7 +37,8 @@ UA_StatusCode UA_EXPORT UA_Client_connect(UA_Client *client, UA_ConnectionConfig
 UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client);
 
 /* Attribute Service Set */
-UA_ReadResponse UA_EXPORT UA_Client_read(UA_Client *client, const UA_ReadRequest *request);
+//TODO: had to remove const from the 2nd argument
+UA_ReadResponse UA_EXPORT UA_Client_read(UA_Client *client, UA_ReadRequest *request);
 UA_WriteResponse UA_EXPORT UA_Client_write(UA_Client *client, const UA_WriteRequest *request);
 
 /* View Service Set */    
