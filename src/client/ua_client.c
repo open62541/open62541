@@ -95,11 +95,12 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *c) {
 	opnSecRq.requestHeader.authenticationToken.identifierType = UA_NODEIDTYPE_NUMERIC;
 	opnSecRq.requestHeader.authenticationToken.namespaceIndex = 10;
 
-	messageHeader.messageHeader.messageSize = UA_SecureConversationMessageHeader_calcSizeBinary(&messageHeader) +
-	UA_AsymmetricAlgorithmSecurityHeader_calcSizeBinary(&asymHeader) +
-	UA_SequenceHeader_calcSizeBinary(&seqHeader) +
-	UA_NodeId_calcSizeBinary(&requestType) +
-	UA_OpenSecureChannelRequest_calcSizeBinary(&opnSecRq);
+	messageHeader.messageHeader.messageSize =
+        UA_SecureConversationMessageHeader_calcSizeBinary(&messageHeader) +
+        UA_AsymmetricAlgorithmSecurityHeader_calcSizeBinary(&asymHeader) +
+        UA_SequenceHeader_calcSizeBinary(&seqHeader) +
+        UA_NodeId_calcSizeBinary(&requestType) +
+        UA_OpenSecureChannelRequest_calcSizeBinary(&opnSecRq);
 
 	UA_ByteString message;
     message.data = UA_alloca(messageHeader.messageHeader.messageSize);
@@ -124,8 +125,10 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *c) {
     UA_ByteString reply;
     UA_ByteString_newMembers(&reply, c->connection.localConf.recvBufferSize);
     retval = c->networkLayer.awaitResponse(c->networkLayer.nlHandle, &reply, 1000);
-    if(retval)
+    if(retval) {
+        UA_ByteString_deleteMembers(&reply);
         return retval;
+    }
 
 	offset = 0;
 
@@ -140,11 +143,10 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *c) {
 	//TODO: save other stuff
 	UA_OpenSecureChannelResponse response;
 	UA_OpenSecureChannelResponse_decodeBinary(&reply, &offset, &response);
-
-	UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
-    UA_OpenSecureChannelRequest_deleteMembers(&opnSecRq);
-
     UA_ByteString_deleteMembers(&reply);
+
+	UA_OpenSecureChannelResponse_deleteMembers(&response);
+	UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
     return retval;
 
 }
