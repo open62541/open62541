@@ -54,43 +54,6 @@ void UA_Client_delete(UA_Client* client){
     free(client);
 }
 
-static UA_StatusCode HelAckHandshake(UA_Client *client);
-static UA_StatusCode SecureChannelHandshake(UA_Client *client);
-static UA_StatusCode SessionHandshake(UA_Client *client);
-static UA_StatusCode CloseSession(UA_Client *client);
-static UA_StatusCode CloseSecureChannel(UA_Client *client);
-
-UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectionConfig conf,
-                                UA_ClientNetworkLayer networkLayer, char *endpointUrl)
-{
-    UA_StatusCode retval = UA_String_copycstring(endpointUrl, &client->endpointUrl);
-    if(retval != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    client->networkLayer = networkLayer;
-    client->connection.localConf = conf;
-    retval = networkLayer.connect(client->endpointUrl, client->networkLayer.nlHandle);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    retval = HelAckHandshake(client);
-    if(retval == UA_STATUSCODE_GOOD)
-        retval = SecureChannelHandshake(client);
-    if(retval == UA_STATUSCODE_GOOD)
-        retval = SessionHandshake(client);
-    return retval;
-}
-
-UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client) {
-    return UA_STATUSCODE_GOOD;
-}
-
-#define SETREQUESTHEADER(HEADER, CLIENT) \
-    UA_NodeId_copy(&CLIENT->authenticationToken, &HEADER.authenticationToken); \
-    HEADER.timestamp = UA_DateTime_now();                               \
-	HEADER.timeoutHint = 10000;                                         \
-    /* extend this */
-
 static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
     UA_ByteString_deleteMembers(&client->clientNonce); // if the handshake is repeated
 	UA_ByteString_newMembers(&client->clientNonce, 1);
@@ -109,14 +72,12 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
 	UA_String_copycstring("http://opcfoundation.org/UA/SecurityPolicy#None", &asymHeader.securityPolicyUri);
 
     /* id of opensecurechannelrequest */
-	UA_NodeId requestType = UA_NODEID_STATIC(0, UA_NS0ID_OPENSECURECHANNELREQUEST +
-                                             UA_ENCODINGOFFSET_BINARY);
+	UA_NodeId requestType = UA_NODEID_STATIC(0, UA_NS0ID_OPENSECURECHANNELREQUEST + UA_ENCODINGOFFSET_BINARY);
 
 	UA_OpenSecureChannelRequest opnSecRq;
 	UA_OpenSecureChannelRequest_init(&opnSecRq);
 	opnSecRq.requestHeader.timestamp = UA_DateTime_now();
     UA_ByteString_copy(&client->clientNonce, &opnSecRq.clientNonce);
-	opnSecRq.clientProtocolVersion = 0;
 	opnSecRq.requestedLifetime = 30000;
 	opnSecRq.securityMode = UA_MESSAGESECURITYMODE_NONE;
 	opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_ISSUE;
@@ -265,7 +226,7 @@ static void synchronousRequest(const void *request, const UA_DataType *requestTy
     seqHeader.requestId = ++client->requestId;
 
 	UA_NodeId requestId = UA_NODEID_STATIC(0, requestType->typeId.identifier.numeric +
-                                             UA_ENCODINGOFFSET_BINARY);
+                                           UA_ENCODINGOFFSET_BINARY);
 
 	msgHeader.messageHeader.messageSize =
         UA_SecureConversationMessageHeader_calcSizeBinary(&msgHeader) +
@@ -277,7 +238,7 @@ static void synchronousRequest(const void *request, const UA_DataType *requestTy
 	UA_ByteString message;
     UA_StatusCode retval = UA_ByteString_newMembers(&message, msgHeader.messageHeader.messageSize);
     if(retval != UA_STATUSCODE_GOOD) {
-
+        // todo
     }
 
     size_t offset = 0;
@@ -331,14 +292,17 @@ static UA_StatusCode SessionHandshake(UA_Client *client) {
     UA_CreateSessionRequest request;
     UA_CreateSessionRequest_init(&request);
 
-    SETREQUESTHEADER(request.requestHeader, client);
-	/* UA_String_copy(endpointUrl, &rq.endpointUrl); */
-	/* UA_String_copycstring("mysession", &rq.sessionName); */
-	/* UA_String_copycstring("abcd", &rq.clientCertificate); */
-
+    // todo: is this needed for all requests?
+    UA_NodeId_copy(&client->authenticationToken, &request.requestHeader.authenticationToken);
+    request.requestHeader.timestamp = UA_DateTime_now();
+	request.requestHeader.timeoutHint = 10000;
     UA_ByteString_copy(&client->clientNonce, &request.clientNonce);
 	request.requestedSessionTimeout = 1200000;
 	request.maxResponseMessageSize = UA_INT32_MAX;
+
+	/* UA_String_copy(endpointUrl, &rq.endpointUrl); */
+	/* UA_String_copycstring("mysession", &rq.sessionName); */
+	/* UA_String_copycstring("abcd", &rq.clientCertificate); */
 
     UA_CreateSessionResponse response;
     synchronousRequest(&request, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
@@ -348,6 +312,31 @@ static UA_StatusCode SessionHandshake(UA_Client *client) {
     UA_CreateSessionRequest_deleteMembers(&request);
     UA_CreateSessionResponse_deleteMembers(&response);
     return response.responseHeader.serviceResult; // not deleted
+}
+
+UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectionConfig conf,
+                                UA_ClientNetworkLayer networkLayer, char *endpointUrl)
+{
+    UA_StatusCode retval = UA_String_copycstring(endpointUrl, &client->endpointUrl);
+    if(retval != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    client->networkLayer = networkLayer;
+    client->connection.localConf = conf;
+    retval = networkLayer.connect(client->endpointUrl, client->networkLayer.nlHandle);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    retval = HelAckHandshake(client);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = SecureChannelHandshake(client);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = SessionHandshake(client);
+    return retval;
+}
+
+UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client) {
+    return UA_STATUSCODE_GOOD;
 }
 
 /*************************/

@@ -36,31 +36,6 @@ UA_StatusCode UA_EXPORT UA_Client_connect(UA_Client *client, UA_ConnectionConfig
 
 UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client);
 
-typedef enum {
-    UA_ATTRIBUTEID_NODEID                  = 1,
-    UA_ATTRIBUTEID_NODECLASS               = 2,
-    UA_ATTRIBUTEID_BROWSENAME              = 3,
-    UA_ATTRIBUTEID_DISPLAYNAME             = 4,
-    UA_ATTRIBUTEID_DESCRIPTION             = 5,
-    UA_ATTRIBUTEID_WRITEMASK               = 6,
-    UA_ATTRIBUTEID_USERWRITEMASK           = 7,
-    UA_ATTRIBUTEID_ISABSTRACT              = 8,
-    UA_ATTRIBUTEID_SYMMETRIC               = 9,
-    UA_ATTRIBUTEID_INVERSENAME             = 10,
-    UA_ATTRIBUTEID_CONTAINSNOLOOPS         = 11,
-    UA_ATTRIBUTEID_EVENTNOTIFIER           = 12,
-    UA_ATTRIBUTEID_VALUE                   = 13,
-    UA_ATTRIBUTEID_DATATYPE                = 14,
-    UA_ATTRIBUTEID_VALUERANK               = 15,
-    UA_ATTRIBUTEID_ARRAYDIMENSIONS         = 16,
-    UA_ATTRIBUTEID_ACCESSLEVEL             = 17,
-    UA_ATTRIBUTEID_USERACCESSLEVEL         = 18,
-    UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL = 19,
-    UA_ATTRIBUTEID_HISTORIZING             = 20,
-    UA_ATTRIBUTEID_EXECUTABLE              = 21,
-    UA_ATTRIBUTEID_USEREXECUTABLE          = 22
-} UA_AttributeId;
-
 /* Attribute Service Set */
 UA_ReadResponse UA_EXPORT UA_Client_read(UA_Client *client, const UA_ReadRequest *request);
 UA_WriteResponse UA_EXPORT UA_Client_write(UA_Client *client, const UA_WriteRequest *request);

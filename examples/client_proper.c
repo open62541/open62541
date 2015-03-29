@@ -5,6 +5,7 @@
     #include "open62541.h"
 #endif
 
+#include <stdio.h>
 #include "networklayer_tcp.h"
 
 int main(int argc, char *argv[]) {
