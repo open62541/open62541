@@ -7,7 +7,6 @@
 
 #include "networklayer_tcp.h"
 
-
 int main(int argc, char *argv[]) {
 	UA_Client *client = UA_Client_new();
 	UA_ClientNetworkLayer nl = ClientNetworkLayerTCP_new(UA_ConnectionConfig_standard);
@@ -20,8 +19,8 @@ int main(int argc, char *argv[]) {
     read_req.nodesToRead[0].nodeId = UA_NODEID_STATIC(1, 73);
     read_req.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
     UA_ReadResponse read_resp = UA_Client_read(client, &read_req);
-    printf("answer statuscode: %i\n", read_resp.responseHeader.serviceResult);
-    printf("answer value: %i\n", *(UA_Int32*)read_resp.results[0].value.dataPtr);
+    printf("the answer is: %i\n", *(UA_Int32*)read_resp.results[0].value.dataPtr);
+    UA_ReadRequest_deleteMembers(&read_req);
     UA_ReadResponse_deleteMembers(&read_resp);
     UA_Client_delete(client);
 }

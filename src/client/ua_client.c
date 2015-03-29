@@ -78,7 +78,6 @@ UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectionConfig conf,
         retval = SecureChannelHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
         retval = SessionHandshake(client);
-    printf("Connection returned %i\n", retval);
     return retval;
 }
 
@@ -290,6 +289,7 @@ static void synchronousRequest(const void *request, const UA_DataType *requestTy
 
     UA_ByteStringArray buf = {.stringsSize = 1, .strings = &message};
     retval = client->networkLayer.send(client->networkLayer.nlHandle, buf);
+    UA_ByteString_deleteMembers(&message);
     if(retval != UA_STATUSCODE_GOOD) {
         respHeader->serviceResult = retval;
         return;
@@ -345,6 +345,7 @@ static UA_StatusCode SessionHandshake(UA_Client *client) {
                        &response, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE],
                        client);
 
+    UA_CreateSessionRequest_deleteMembers(&request);
     UA_CreateSessionResponse_deleteMembers(&response);
     return response.responseHeader.serviceResult; // not deleted
 }
