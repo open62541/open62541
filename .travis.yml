@@ -36,7 +36,7 @@ script:
 - cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw32.cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLESERVER=ON ..
 - make -j
 - cp ../README.md .
-- zip open62541-win32.zip README.md exampleServere.exe exampleClient.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
+- zip open62541-win32.zip README.md exampleServer.exe exampleClient.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
 - cp open62541-win32.zip ..
 - cd .. && rm build -rf && mkdir -p build && cd build
 - echo "Cross compile release build for 32-bit linux"
