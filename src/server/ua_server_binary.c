@@ -421,28 +421,29 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             break;
         }
 
+        if(tcpMessageHeader.messageSize < 32)
+            break; // there is no usefull message of that size
+
         size_t targetpos = pos - 8 + tcpMessageHeader.messageSize;
+
         switch(tcpMessageHeader.messageTypeAndFinal & 0xffffff) {
         case UA_MESSAGETYPEANDFINAL_HELF & 0xffffff:
             processHEL(connection, msg, &pos);
             break;
-
         case UA_MESSAGETYPEANDFINAL_OPNF & 0xffffff:
             processOPN(connection, server, msg, &pos);
             break;
-
         case UA_MESSAGETYPEANDFINAL_MSGF & 0xffffff:
 #ifdef EXTENSION_STATELESS
             processMSG(connection, server, msg, &pos);
             break;
 #endif
-                if(connection->state != UA_CONNECTION_ESTABLISHED) {
+            if(connection->state != UA_CONNECTION_ESTABLISHED) {
                 connection->close(connection);
                 break;
-                }
+            }
             processMSG(connection, server, msg, &pos);
             break;
-
         case UA_MESSAGETYPEANDFINAL_CLOF & 0xffffff:
             processCLO(connection, server, msg, &pos);
             connection->close(connection);
