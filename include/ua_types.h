@@ -586,6 +586,32 @@ void UA_EXPORT UA_Array_delete(void *p, const UA_DataType *dataType, UA_Int32 no
 
 /** @} */
 
+/* These are not generated from XML. Server *and* client need them. */
+typedef enum {
+    UA_ATTRIBUTEID_NODEID                  = 1,
+    UA_ATTRIBUTEID_NODECLASS               = 2,
+    UA_ATTRIBUTEID_BROWSENAME              = 3,
+    UA_ATTRIBUTEID_DISPLAYNAME             = 4,
+    UA_ATTRIBUTEID_DESCRIPTION             = 5,
+    UA_ATTRIBUTEID_WRITEMASK               = 6,
+    UA_ATTRIBUTEID_USERWRITEMASK           = 7,
+    UA_ATTRIBUTEID_ISABSTRACT              = 8,
+    UA_ATTRIBUTEID_SYMMETRIC               = 9,
+    UA_ATTRIBUTEID_INVERSENAME             = 10,
+    UA_ATTRIBUTEID_CONTAINSNOLOOPS         = 11,
+    UA_ATTRIBUTEID_EVENTNOTIFIER           = 12,
+    UA_ATTRIBUTEID_VALUE                   = 13,
+    UA_ATTRIBUTEID_DATATYPE                = 14,
+    UA_ATTRIBUTEID_VALUERANK               = 15,
+    UA_ATTRIBUTEID_ARRAYDIMENSIONS         = 16,
+    UA_ATTRIBUTEID_ACCESSLEVEL             = 17,
+    UA_ATTRIBUTEID_USERACCESSLEVEL         = 18,
+    UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL = 19,
+    UA_ATTRIBUTEID_HISTORIZING             = 20,
+    UA_ATTRIBUTEID_EXECUTABLE              = 21,
+    UA_ATTRIBUTEID_USEREXECUTABLE          = 22
+} UA_AttributeId;
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

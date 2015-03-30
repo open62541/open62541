@@ -43,7 +43,8 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                      ${PROJECT_SOURCE_DIR}/include/ua_connection.h
                      ${PROJECT_SOURCE_DIR}/include/ua_log.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_server.h)
+                     ${PROJECT_SOURCE_DIR}/include/ua_server.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_client.h)
 set(internal_headers ${PROJECT_SOURCE_DIR}/src/ua_util.h
                      ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
@@ -74,7 +75,9 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_session.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_attribute.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c)
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client.c)
+                ##TODO: make client stuff optional
 
 ## generate code from xml definitions
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
@@ -136,6 +139,7 @@ if(BUILD_DEMO_NODESET)
 endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
+	set(AMALGATED ON)
     ## build amalgamated source files
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c
                    PRE_BUILD
@@ -178,23 +182,23 @@ endif()
 option(BUILD_EXAMPLESERVER "Build the example server" OFF)
 if(BUILD_EXAMPLESERVER)
     add_executable(exampleServer examples/server.c $<TARGET_OBJECTS:open62541-object> examples/networklayer_tcp.c examples/logger_stdout.c)
-    add_executable(exampleServer_datasource examples/server_datasource.c $<TARGET_OBJECTS:open62541-object> examples/networklayer_tcp.c examples/logger_stdout.c)
+    add_executable(exampleServer_simple examples/server_simple.c $<TARGET_OBJECTS:open62541-object> examples/networklayer_tcp.c examples/logger_stdout.c)
     target_include_directories(exampleServer PRIVATE ${PROJECT_BINARY_DIR})
-    target_include_directories(exampleServer_datasource PRIVATE ${PROJECT_BINARY_DIR})
+    target_include_directories(exampleServer_simple PRIVATE ${PROJECT_BINARY_DIR})
     if(WIN32)
         target_link_libraries(exampleServer ws2_32)
-        target_link_libraries(exampleServer_datasource ws2_32)
+        target_link_libraries(exampleServer_simple ws2_32)
     else()
         target_link_libraries(exampleServer rt)
-        target_link_libraries(exampleServer_datasource rt)
+        target_link_libraries(exampleServer_simple rt)
     endif()
     if(ENABLE_MULTITHREADING)
         target_link_libraries(exampleServer urcu-cds urcu urcu-common pthread)
-        target_link_libraries(exampleServer_datasource urcu-cds urcu urcu-common pthread)
+        target_link_libraries(exampleServer_simple urcu-cds urcu urcu-common pthread)
     endif()
     if((CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang") AND (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release"))
     	add_custom_command(TARGET exampleServer POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleServer>)
-		add_custom_command(TARGET exampleServer_datasource POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleServer_datasource>)
+		add_custom_command(TARGET exampleServer_simple POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleServer_simple>)
 	endif()
 endif()
 
@@ -215,18 +219,30 @@ option(BUILD_EXAMPLECLIENT "Build a test client" OFF)
 if(BUILD_EXAMPLECLIENT)
 	message(STATUS "Extensions: enabling client")
 	add_definitions( -DBENCHMARK=1 )
-	add_executable(exampleClient $<TARGET_OBJECTS:open62541-object> examples/client.c)
-    target_include_directories(exampleClient PRIVATE ${PROJECT_BINARY_DIR})
-    if(ENABLE_MULTITHREADING)
-        target_link_libraries(exampleClient urcu-cds urcu urcu-common pthread)
+	if(NOT AMALGATED)
+		add_executable(exampleClient_legacy $<TARGET_OBJECTS:open62541-object> examples/client_legacy.c)
+	endif()
+	add_executable(exampleClient $<TARGET_OBJECTS:open62541-object> examples/client.c examples/networklayer_tcp.c)
+    if(NOT AMALGATED)
+    	target_include_directories(exampleClient_legacy PRIVATE ${PROJECT_BINARY_DIR})
     endif()
+    target_include_directories(exampleClient PRIVATE ${PROJECT_BINARY_DIR})
     if(WIN32)
+    	if(NOT AMALGATED)
+        	target_link_libraries(exampleClient_legacy ws2_32)
+        endif()
         target_link_libraries(exampleClient ws2_32)
     else()
+   		if(NOT AMALGATED)
+        	target_link_libraries(exampleClient_legacy rt)
+        endif()
         target_link_libraries(exampleClient rt)
     endif()
     if ((CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang") AND (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release"))
-    	add_custom_command(TARGET exampleClient POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleClient>)
+       if(NOT AMALGATED)
+       		add_custom_command(TARGET exampleClient_legacy POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleClient_legacy>)
+	   endif()
+	   add_custom_command(TARGET exampleClient POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleClient>)
 	endif()
     if(EXTENSION_STATELESS)
         add_executable(statelessClient ${PROJECT_BINARY_DIR}/open62541.c examples/client_stateless.c)

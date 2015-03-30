@@ -17,6 +17,7 @@
 #include <netinet/tcp.h>
 #include <sys/socketvar.h>
 #include <sys/ioctl.h>
+#include <netdb.h> //gethostbyname for the client
 #define __USE_BSD
 #include <unistd.h> // read, write, close
 #include <arpa/inet.h>
@@ -34,17 +35,23 @@
 #include <urcu/uatomic.h>
 #endif
 
-#define MAXBACKLOG 100
 
-struct Networklayer_TCP;
+
+struct ServerNetworklayer_TCP;
 
 /* Forwarded to the server as a (UA_Connection) and used for callbacks back into
    the networklayer */
 typedef struct {
 	UA_Connection connection;
 	UA_Int32 sockfd;
-	struct NetworkLayerTCP *layer;
+	void *layer;
 } TCPConnection;
+
+/***************************/
+/* Server NetworkLayer TCP */
+/***************************/
+
+#define MAXBACKLOG 100
 
 /* Internal mapping of sockets to connections */
 typedef struct {
@@ -56,7 +63,7 @@ typedef struct {
 #endif
 } ConnectionLink;
 
-typedef struct NetworkLayerTCP {
+typedef struct ServerNetworkLayerTCP {
 	UA_ConnectionConfig conf;
 	fd_set fdset;
 #ifdef _WIN32
@@ -81,7 +88,16 @@ typedef struct NetworkLayerTCP {
         struct deleteLink *next;
 
     } *deleteLinkList;
-} NetworkLayerTCP;
+} ServerNetworkLayerTCP;
+
+typedef struct ClientNetworkLayerTCP {
+	fd_set read_fds;
+#ifdef _WIN32
+	UA_UInt32 sockfd;
+#else
+	UA_Int32 sockfd;
+#endif
+} ClientNetworkLayerTCP;
 
 static UA_StatusCode setNonBlocking(int sockid) {
 #ifdef _WIN32
@@ -101,7 +117,7 @@ static void freeConnectionCallback(UA_Server *server, TCPConnection *connection)
 }
 
 // after every select, reset the set of sockets we want to listen on
-static void setFDSet(NetworkLayerTCP *layer) {
+static void setFDSet(ServerNetworkLayerTCP *layer) {
 	FD_ZERO(&layer->fdset);
 	FD_SET(layer->serversockfd, &layer->fdset);
 	layer->highestfd = layer->serversockfd;
@@ -116,7 +132,7 @@ static void setFDSet(NetworkLayerTCP *layer) {
 void closeConnection(TCPConnection *handle);
 void writeCallback(TCPConnection *handle, UA_ByteStringArray gather_buf);
 
-static UA_StatusCode NetworkLayerTCP_add(NetworkLayerTCP *layer, UA_Int32 newsockfd) {
+static UA_StatusCode ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
     setNonBlocking(newsockfd);
     TCPConnection *c = malloc(sizeof(TCPConnection));
 	if(!c)
@@ -141,7 +157,7 @@ static UA_StatusCode NetworkLayerTCP_add(NetworkLayerTCP *layer, UA_Int32 newsoc
 }
 
 /* Removes all connections from the network layer. Returns the work items to close them properly. */
-static UA_UInt32 removeAllConnections(NetworkLayerTCP *layer, UA_WorkItem **returnWork) {
+static UA_UInt32 removeAllConnections(ServerNetworkLayerTCP *layer, UA_WorkItem **returnWork) {
     UA_WorkItem *work;
 	if (layer->conLinksSize <= 0 || !(work = malloc(sizeof(UA_WorkItem)*layer->conLinksSize))) {
 		*returnWork = NULL;
@@ -187,12 +203,14 @@ void closeConnection(TCPConnection *handle) {
 	shutdown(handle->sockfd,2);
 	CLOSESOCKET(handle->sockfd);
 
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP*)handle->layer;
+
     // Remove the link later in the main thread
     struct deleteLink *d = malloc(sizeof(struct deleteLink));
     d->sockfd = handle->sockfd;
     while(1) {
-        d->next = handle->layer->deleteLinkList;
-        if(uatomic_cmpxchg(&handle->layer->deleteLinkList, d->next, d) == d->next)
+        d->next = layer->deleteLinkList;
+        if(uatomic_cmpxchg(&layer->deleteLinkList, d->next, d) == d->next)
             break;
     }
 }
@@ -212,8 +230,9 @@ void closeConnection(TCPConnection *handle) {
 
     // Remove the link later in the main thread
     d->sockfd = handle->sockfd;
-    d->next = handle->layer->deleteLinkList;
-    handle->layer->deleteLinkList = d;
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP*)handle->layer;
+    d->next = layer->deleteLinkList;
+    layer->deleteLinkList = d;
 }
 #endif
 
@@ -261,7 +280,7 @@ void writeCallback(TCPConnection *handle, UA_ByteStringArray gather_buf) {
 #endif
 }
 
-static UA_StatusCode NetworkLayerTCP_start(NetworkLayerTCP *layer, UA_Logger *logger) {
+static UA_StatusCode ServerNetworkLayerTCP_start(ServerNetworkLayerTCP *layer, UA_Logger *logger) {
 #ifdef _WIN32
 	WORD wVersionRequested;
 	WSADATA wsaData;
@@ -306,7 +325,7 @@ static UA_StatusCode NetworkLayerTCP_start(NetworkLayerTCP *layer, UA_Logger *lo
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_Int32 NetworkLayerTCP_getWork(NetworkLayerTCP *layer, UA_WorkItem **workItems,
+static UA_Int32 ServerNetworkLayerTCP_getWork(ServerNetworkLayerTCP *layer, UA_WorkItem **workItems,
                                         UA_UInt16 timeout) {
     UA_WorkItem *items = (void*)0;
     UA_Int32 itemsCount = removeAllConnections(layer, &items);
@@ -328,7 +347,7 @@ static UA_Int32 NetworkLayerTCP_getWork(NetworkLayerTCP *layer, UA_WorkItem **wo
 		int i = 1;
 		setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&i, sizeof(i));
 		if (newsockfd >= 0)
-			NetworkLayerTCP_add(layer, newsockfd);
+			ServerNetworkLayerTCP_add(layer, newsockfd);
 	}
     
     items = realloc(items, sizeof(UA_WorkItem)*(itemsCount+resultsize));
@@ -374,16 +393,16 @@ static UA_Int32 NetworkLayerTCP_getWork(NetworkLayerTCP *layer, UA_WorkItem **wo
     return j;
 }
 
-static UA_Int32 NetworkLayerTCP_stop(NetworkLayerTCP * layer, UA_WorkItem **workItems) {
-	for(UA_Int32 i = 0;i < layer->conLinksSize;i++)
-        closeConnection(layer->conLinks[i].connection);
+static UA_Int32 ServerNetworkLayerTCP_stop(ServerNetworkLayerTCP * layer, UA_WorkItem **workItems) {
+	for(UA_Int32 index = 0;index < layer->conLinksSize;index++)
+        closeConnection(layer->conLinks[index].connection);
 #ifdef _WIN32
 	WSACleanup();
 #endif
     return removeAllConnections(layer, workItems);
 }
 
-static void NetworkLayerTCP_delete(NetworkLayerTCP *layer) {
+static void ServerNetworkLayerTCP_delete(ServerNetworkLayerTCP *layer) {
 	UA_String_deleteMembers(&layer->discoveryUrl);
 	for(UA_Int32 i=0;i<layer->conLinksSize;++i){
 		free(layer->conLinks[i].connection);
@@ -393,7 +412,7 @@ static void NetworkLayerTCP_delete(NetworkLayerTCP *layer) {
 }
 
 UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UInt32 port) {
-    NetworkLayerTCP *tcplayer = malloc(sizeof(NetworkLayerTCP));
+    ServerNetworkLayerTCP *tcplayer = malloc(sizeof(ServerNetworkLayerTCP));
 	tcplayer->conf = conf;
 	tcplayer->conLinksSize = 0;
 	tcplayer->conLinks = NULL;
@@ -405,11 +424,185 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
 
     UA_ServerNetworkLayer nl;
     nl.nlHandle = tcplayer;
-    nl.start = (UA_StatusCode (*)(void*, UA_Logger *logger))NetworkLayerTCP_start;
-    nl.getWork = (UA_Int32 (*)(void*, UA_WorkItem**, UA_UInt16)) NetworkLayerTCP_getWork;
-    nl.stop = (UA_Int32 (*)(void*, UA_WorkItem**)) NetworkLayerTCP_stop;
-    nl.free = (void (*)(void*))NetworkLayerTCP_delete;
-    nl.discoveryUrl = &tcplayer->discoveryUrl;
+    nl.start = (UA_StatusCode (*)(void*, UA_Logger *logger))ServerNetworkLayerTCP_start;
+    nl.getWork = (UA_Int32 (*)(void*, UA_WorkItem**, UA_UInt16))ServerNetworkLayerTCP_getWork;
+    nl.stop = (UA_Int32 (*)(void*, UA_WorkItem**))ServerNetworkLayerTCP_stop;
+    nl.free = (void (*)(void*))ServerNetworkLayerTCP_delete;
+	nl.discoveryUrl = &tcplayer->discoveryUrl;
 
     return nl;
+}
+
+/***************************/
+/* Client NetworkLayer TCP */
+/***************************/
+
+static UA_StatusCode ClientNetworkLayerTCP_connect(const UA_String endpointUrl, ClientNetworkLayerTCP *resultHandle) {
+	if(endpointUrl.length < 11 || endpointUrl.length >= 512) {
+        printf("server url size invalid\n");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    if(strncmp((char*)endpointUrl.data, "opc.tcp://", 10) != 0) {
+        printf("server url does not begin with opc.tcp://\n");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    //this is somewhat ugly, but atoi needs a c string
+    char cstringEndpointUrl[endpointUrl.length+1];
+    memcpy(cstringEndpointUrl, endpointUrl.data, endpointUrl.length);
+    cstringEndpointUrl[endpointUrl.length+1] = '0';
+
+    UA_UInt16 portpos = 9;
+    UA_UInt16 port = 0;
+    for(;portpos < endpointUrl.length; portpos++) {
+        if(endpointUrl.data[portpos] == ':') {
+            port = atoi(&cstringEndpointUrl[portpos+1]);
+            break;
+        }
+    }
+    if(port == 0) {
+        printf("port invalid");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    
+    char hostname[512];
+    for(int i=10; i < portpos; i++)
+        hostname[i-10] = endpointUrl.data[i];
+    hostname[portpos-10] = 0;
+
+#ifdef _WIN32
+    UA_UInt32 sock = 0;
+#else
+    UA_Int32 sock = 0;
+#endif
+#ifdef _WIN32
+	WORD wVersionRequested;
+	WSADATA wsaData;
+	wVersionRequested = MAKEWORD(2, 2);
+	WSAStartup(wVersionRequested, &wsaData);
+    if((sock = socket(PF_INET, SOCK_STREAM,0)) == INVALID_SOCKET) {
+#else
+    if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+#endif
+		printf("Could not create socket\n");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    struct hostent *server;
+    server = gethostbyname(hostname);
+    if (server == NULL) {
+        printf("DNS lookup of %s failed\n", hostname);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+	struct sockaddr_in server_addr;
+
+    memset(&server_addr, 0, sizeof(server_addr));
+    memcpy((char *)&server_addr.sin_addr.s_addr,
+    	 (char *)server->h_addr_list[0],
+         server->h_length);
+
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(port);
+
+	if(connect(sock, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
+        printf("Connect failed.\n");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    //if(setNonBlocking(*sock) != UA_STATUSCODE_GOOD) {
+    //    printf("Could not switch to nonblocking.\n");
+    //	FINALLY
+    //    return UA_STATUSCODE_BADINTERNALERROR;
+    //}
+
+    resultHandle->sockfd = sock;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void ClientNetworkLayerTCP_disconnect(ClientNetworkLayerTCP* handle) {
+	CLOSESOCKET(handle->sockfd);
+}
+
+static UA_StatusCode ClientNetworkLayerTCP_send(ClientNetworkLayerTCP *handle, UA_ByteStringArray gather_buf) {
+	UA_UInt32 total_len = 0, nWritten = 0;
+#ifdef _WIN32
+	LPWSABUF buf = _alloca(gather_buf.stringsSize * sizeof(WSABUF));
+	int result = 0;
+	for(UA_UInt32 i = 0; i<gather_buf.stringsSize; i++) {
+		buf[i].buf = (char*)gather_buf.strings[i].data;
+		buf[i].len = gather_buf.strings[i].length;
+		total_len += gather_buf.strings[i].length;
+	}
+	while(nWritten < total_len) {
+		UA_UInt32 n = 0;
+		do {
+			result = WSASend(handle->sockfd, buf, gather_buf.stringsSize ,
+                             (LPDWORD)&n, 0, NULL, NULL);
+			if(result != 0)
+				printf("Error WSASend, code: %d \n", WSAGetLastError());
+		} while(errno == EINTR);
+		nWritten += n;
+	}
+#else
+	struct iovec iov[gather_buf.stringsSize];
+	for(UA_UInt32 i=0;i<gather_buf.stringsSize;i++) {
+		iov[i] = (struct iovec) {.iov_base = gather_buf.strings[i].data,
+                                 .iov_len = gather_buf.strings[i].length};
+		total_len += gather_buf.strings[i].length;
+	}
+	struct msghdr message = {.msg_name = NULL, .msg_namelen = 0, .msg_iov = iov,
+							 .msg_iovlen = gather_buf.stringsSize, .msg_control = NULL,
+							 .msg_controllen = 0, .msg_flags = 0};
+	while (nWritten < total_len) {
+        int n = sendmsg(handle->sockfd, &message, 0);
+        if(n <= -1)
+            return UA_STATUSCODE_BADINTERNALERROR;
+        nWritten += n;
+	}
+#endif
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode ClientNetworkLayerTCP_awaitResponse(ClientNetworkLayerTCP *handle, UA_ByteString *response,
+                                                         UA_UInt32 timeout) {
+    FD_ZERO(&handle->read_fds);
+    FD_SET(handle->sockfd, &handle->read_fds);//tcp socket
+    struct timeval tmptv = {0, timeout};
+    tmptv.tv_sec = 10;
+    int ret = select(handle->sockfd+1, &handle->read_fds, NULL, NULL, &tmptv);
+    if(ret <= -1)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(ret == 0)
+        return UA_STATUSCODE_BADTIMEOUT;
+
+    ret = recv(handle->sockfd, (char*)response->data, response->length, 0);
+
+    if(ret <= -1)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(ret == 0)
+        return UA_STATUSCODE_BADSERVERNOTCONNECTED;
+
+    response->length = ret;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void ClientNetworkLayerTCP_delete(ClientNetworkLayerTCP *layer) {
+	if(layer)
+		free(layer);
+}
+
+UA_ClientNetworkLayer ClientNetworkLayerTCP_new(UA_ConnectionConfig conf) {
+	ClientNetworkLayerTCP *tcplayer = malloc(sizeof(ClientNetworkLayerTCP));
+	tcplayer->sockfd = 0;
+
+    UA_ClientNetworkLayer layer;
+    layer.nlHandle = tcplayer;
+    layer.connect = (UA_StatusCode (*)(const UA_String, void**)) ClientNetworkLayerTCP_connect;
+    layer.disconnect = (void (*)(void*)) ClientNetworkLayerTCP_disconnect;
+    layer.delete = (void (*)(void*)) ClientNetworkLayerTCP_delete;
+    layer.send = (UA_StatusCode (*)(void*, UA_ByteStringArray)) ClientNetworkLayerTCP_send;
+    layer.awaitResponse = (UA_StatusCode (*)(void*, UA_ByteString *, UA_UInt32))ClientNetworkLayerTCP_awaitResponse;
+    return layer;
 }
