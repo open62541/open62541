@@ -11,7 +11,8 @@
 int main(int argc, char *argv[]) {
 	UA_Client *client = UA_Client_new();
 	UA_ClientNetworkLayer nl = ClientNetworkLayerTCP_new(UA_ConnectionConfig_standard);
-    UA_Client_connect(client, UA_ConnectionConfig_standard, nl, "opc.tcp://localhost:48020");
+    if(UA_Client_connect(client, UA_ConnectionConfig_standard, nl, "opc.tcp://localhost:48020") != UA_STATUSCODE_GOOD)
+    	return 0;
 
     UA_NodeId node;
     node.namespaceIndex = 4;
