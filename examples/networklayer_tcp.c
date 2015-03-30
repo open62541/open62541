@@ -477,6 +477,10 @@ static UA_StatusCode ClientNetworkLayerTCP_connect(const UA_String endpointUrl, 
     UA_Int32 sock = 0;
 #endif
 #ifdef _WIN32
+	WORD wVersionRequested;
+	WSADATA wsaData;
+	wVersionRequested = MAKEWORD(2, 2);
+	WSAStartup(wVersionRequested, &wsaData);
     if((sock = socket(PF_INET, SOCK_STREAM,0)) == INVALID_SOCKET) {
 #else
     if((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
