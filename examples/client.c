@@ -325,7 +325,7 @@ static UA_Int64 sendReadRequest(ConnectionInfo *connectionInfo, UA_Int32 nodeIds
 	UA_ReadRequest_init(&rq);
 	rq.maxAge = 0;
 	rq.nodesToRead = UA_Array_new(&UA_TYPES[UA_TYPES_READVALUEID], nodeIds_size);
-	rq.nodesToReadSize = nodeIds_size;
+	rq.nodesToReadSize = 1;
 	for(UA_Int32 i=0;i<nodeIds_size;i++) {
 		UA_ReadValueId_init(&(rq.nodesToRead[i]));
 		rq.nodesToRead[i].attributeId = 6; //WriteMask
@@ -507,9 +507,9 @@ int main(int argc, char *argv[]) {
 
 /* REQUEST START*/
     UA_NodeId *nodesToRead;
-    nodesToRead = UA_Array_new(&UA_TYPES[UA_TYPES_NODEID], nodesToReadSize);
+    nodesToRead = UA_Array_new(&UA_TYPES[UA_TYPES_NODEID], 1);
 
-	for(UA_UInt32 i = 0; i<nodesToReadSize; i++) {
+	for(UA_UInt32 i = 0; i<1; i++) {
 		if(alwaysSameNode)
 			nodesToRead[i].identifier.numeric = 2253; //ask always the same node
 		else
@@ -537,20 +537,23 @@ int main(int argc, char *argv[]) {
 				}
 			}
 		//}
-		sendReadRequest(&connectionInfo,nodesToReadSize,nodesToRead);
+		for(UA_UInt32 i = 0; i < nodesToReadSize; i++) {
+		sendReadRequest(&connectionInfo,1,nodesToRead);
 		received = recv(connectionInfo.socket, reply.data, 2000, 0);
-		toc = UA_DateTime_now() - tic;
-		timeDiffs[i] = (UA_Double)toc/(UA_Double)1e4;
-		sum = sum + timeDiffs[i];
+		}
 
+		if(!stateless){
 		closeSession(&connectionInfo);
 		recv(connectionInfo.socket, reply.data, 2000, 0);
 
 		closeSecureChannel(&connectionInfo);
-
+		}
 		//if(stateless || (!stateless && i==tries-1)){
 			close(connectionInfo.socket);
 		//}
+		toc = UA_DateTime_now() - tic;
+		timeDiffs[i] = (UA_Double)toc/(UA_Double)1e4;
+		sum = sum + timeDiffs[i];
 	}
 /* REQUEST END*/
 
@@ -572,7 +575,7 @@ int main(int argc, char *argv[]) {
 	}
 	//header
 
-	UA_Int32 bytesToWrite = sprintf(data, "measurement %s in ms, nodesToRead %d \n", argv[3], nodesToReadSize);
+	UA_Int32 bytesToWrite = sprintf(data, "measurement %s in ms, nodesToRead %d \n", argv[3], 1);
 	fwrite(data,1,bytesToWrite,fHandle);
 	for(UA_UInt32 i=0;i<tries;i++) {
 		bytesToWrite = sprintf(data,"%16.10f \n",timeDiffs[i]);
@@ -581,7 +584,7 @@ int main(int argc, char *argv[]) {
 	fclose(fHandle);
 
 	UA_String_deleteMembers(&reply);
-	UA_Array_delete(nodesToRead,&UA_TYPES[UA_TYPES_NODEID], nodesToReadSize);
+	UA_Array_delete(nodesToRead,&UA_TYPES[UA_TYPES_NODEID], 1);
     UA_free(timeDiffs);
 
 	return 0;
