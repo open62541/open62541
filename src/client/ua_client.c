@@ -39,6 +39,7 @@ UA_Client * UA_Client_new(void) {
     UA_ByteString_init(&client->clientNonce);
     UA_ByteString_init(&client->serverNonce);
     
+    UA_NodeId_init(&client->authenticationToken);
     return client;
 }
 
@@ -209,13 +210,16 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
 
 /** If the request fails, then the response is cast to UA_ResponseHeader (at the beginning of every
     response) and filled with the appropriate error code */
-static void synchronousRequest(const void *request, const UA_DataType *requestType,
-                               void *response, const UA_DataType *responseType, UA_Client *client)
+static void sendReceiveRequest(const void *request, const UA_DataType *requestType,
+                               void *response, const UA_DataType *responseType, UA_Client *client, UA_Boolean sendOnly)
 {
-    UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
 
     UA_SecureConversationMessageHeader msgHeader;
-    msgHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
+    if(sendOnly){
+    	msgHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_CLOF;
+    }else{
+    	msgHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
+    }
     msgHeader.secureChannelId = client->securityToken.channelId;
 
     UA_SymmetricAlgorithmSecurityHeader symHeader;
@@ -252,6 +256,12 @@ static void synchronousRequest(const void *request, const UA_DataType *requestTy
     UA_ByteStringArray buf = {.stringsSize = 1, .strings = &message};
     retval = client->networkLayer.send(client->networkLayer.nlHandle, buf);
     UA_ByteString_deleteMembers(&message);
+
+    //TODO: rework to get return value
+    if(sendOnly)
+    	return;
+
+    UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
     if(retval != UA_STATUSCODE_GOOD) {
         respHeader->serviceResult = retval;
         return;
@@ -288,11 +298,20 @@ static void synchronousRequest(const void *request, const UA_DataType *requestTy
         respHeader->serviceResult = retval;
 }
 
+static void synchronousRequest(const void *request, const UA_DataType *requestType,
+                               void *response, const UA_DataType *responseType, UA_Client *client){
+	sendReceiveRequest(request, requestType, response, responseType, client, UA_FALSE);
+}
+
+static void sendOnlyRequest(const void *request, const UA_DataType *requestType, UA_Client *client){
+	sendReceiveRequest(request, requestType, UA_NULL, UA_NULL, client, UA_TRUE);
+}
+
 static UA_StatusCode ActivateSession(UA_Client *client) {
 	UA_ActivateSessionRequest request;
 	UA_ActivateSessionRequest_init(&request);
 
-    request.requestHeader.requestHandle = 2;
+    request.requestHeader.requestHandle = 2; //TODO: is it a magic number?
     request.requestHeader.authenticationToken = client->authenticationToken;
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
@@ -337,6 +356,45 @@ static UA_StatusCode SessionHandshake(UA_Client *client) {
     return response.responseHeader.serviceResult; // not deleted
 }
 
+static UA_StatusCode CloseSession(UA_Client *client) {
+	UA_CloseSessionRequest request;
+	UA_CloseSessionRequest_init(&request);
+
+	request.requestHeader.timestamp = UA_DateTime_now();
+	request.requestHeader.timeoutHint = 10000;
+	request.deleteSubscriptions = UA_TRUE;
+	UA_NodeId_copy(&client->authenticationToken, &request.requestHeader.authenticationToken);
+    UA_CreateSessionResponse response;
+    synchronousRequest(&request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE],
+                       client);
+
+    UA_CloseSessionRequest_deleteMembers(&request);
+    UA_CloseSessionResponse_deleteMembers(&response);
+    return response.responseHeader.serviceResult; // not deleted
+}
+
+static UA_StatusCode CloseSecureChannel(UA_Client *client) {
+	UA_CloseSecureChannelRequest request;
+    UA_CloseSecureChannelRequest_init(&request);
+
+    request.requestHeader.requestHandle = 1; //TODO: magic number?
+    request.requestHeader.timestamp = UA_DateTime_now();
+    request.requestHeader.timeoutHint = 10000;
+
+    request.requestHeader.authenticationToken = client->authenticationToken;
+
+    sendOnlyRequest(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST], client);
+
+    return UA_STATUSCODE_GOOD;
+
+}
+
+/*************************/
+/* User-Facing Functions */
+/*************************/
+
+
 UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectionConfig conf,
                                 UA_ClientNetworkLayer networkLayer, char *endpointUrl)
 {
@@ -360,19 +418,19 @@ UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectionConfig conf,
     return retval;
 }
 
-UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client) {
-    return UA_STATUSCODE_GOOD;
-}
 
-/*************************/
-/* User-Facing Functions */
-/*************************/
+UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client) {
+	UA_StatusCode retval;
+	retval = CloseSession(client);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = CloseSecureChannel(client);
+    return retval;
+}
 
 UA_ReadResponse UA_Client_read(UA_Client *client, UA_ReadRequest *request) {
     UA_ReadResponse response;
     //todo: probably move to synchronousRequest
     UA_NodeId_copy(&client->authenticationToken, &request->requestHeader.authenticationToken);
-
     synchronousRequest(request, &UA_TYPES[UA_TYPES_READREQUEST], &response,
                        &UA_TYPES[UA_TYPES_READRESPONSE], client);
     return response;
