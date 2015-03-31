@@ -427,63 +427,66 @@ UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client) {
     return retval;
 }
 
-UA_ReadResponse UA_Client_read(UA_Client *client, UA_ReadRequest *request) {
-    UA_ReadResponse response;
+UA_StatusCode UA_Client_read(UA_Client *client, UA_ReadRequest *request, UA_ReadResponse *response) {
     //todo: probably move to synchronousRequest
     UA_NodeId_copy(&client->authenticationToken, &request->requestHeader.authenticationToken);
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_READREQUEST], &response,
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_READREQUEST], response,
                        &UA_TYPES[UA_TYPES_READRESPONSE], client);
-    return response;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_WriteResponse UA_Client_write(UA_Client *client, const UA_WriteRequest *request) {
-    UA_WriteResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_WRITEREQUEST], &response,
+UA_StatusCode UA_Client_write(UA_Client *client, UA_WriteRequest *request, UA_WriteResponse *response) {
+	//todo: probably move to synchronousRequest
+    UA_NodeId_copy(&client->authenticationToken, &request->requestHeader.authenticationToken);
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_WRITEREQUEST], response,
                        &UA_TYPES[UA_TYPES_WRITERESPONSE], client);
-    return response;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_BrowseResponse UA_Client_browse(UA_Client *client, const UA_BrowseRequest *request) {
-    UA_BrowseResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
+UA_StatusCode UA_Client_browse(UA_Client *client, UA_BrowseRequest *request, UA_BrowseResponse *response) {
+	//todo: probably move to synchronousRequest
+    UA_NodeId_copy(&client->authenticationToken, &request->requestHeader.authenticationToken);
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], response,
                        &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
-    return response;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_TranslateBrowsePathsToNodeIdsResponse
-UA_Client_translateBrowsePathsToNodeIds(UA_Client *client,
-                                        const UA_TranslateBrowsePathsToNodeIdsRequest *request) {
-    UA_TranslateBrowsePathsToNodeIdsResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
+UA_StatusCode UA_Client_translateBrowsePathsToNodeIds(UA_Client *client, UA_TranslateBrowsePathsToNodeIdsRequest *request, UA_TranslateBrowsePathsToNodeIdsResponse* response){
+	//todo: probably move to synchronousRequest
+	UA_NodeId_copy(&client->authenticationToken, &request->requestHeader.authenticationToken);
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], response,
                        &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
-    return response;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_AddNodesResponse UA_Client_addNodes(UA_Client *client, const UA_AddNodesRequest *request) {
-    UA_AddNodesResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
+UA_StatusCode UA_Client_addNodes(UA_Client *client, UA_AddNodesRequest *request, UA_AddNodesResponse* response) {
+	//todo: probably move to synchronousRequest
+	UA_NodeId_copy(&client->authenticationToken, &request->requestHeader.authenticationToken);
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], response,
                        &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
-    return response;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_AddReferencesResponse UA_Client_addReferences(UA_Client *client, const UA_AddReferencesRequest *request) {
-    UA_AddReferencesResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
+UA_StatusCode UA_Client_addReferences(UA_Client *client, UA_AddReferencesRequest *request, UA_AddReferencesResponse* response) {
+	//todo: probably move to synchronousRequest
+	UA_NodeId_copy(&client->authenticationToken, &request->requestHeader.authenticationToken);
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], response,
                        &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
-    return response;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_DeleteNodesResponse UA_Client_deleteNodes(UA_Client *client, const UA_DeleteNodesRequest *request) {
-    UA_DeleteNodesResponse response;
+UA_StatusCode UA_Client_deleteNodes(UA_Client *client, UA_DeleteNodesRequest *request, UA_DeleteNodesResponse* response) {
+	//todo: probably move to synchronousRequest
+	UA_NodeId_copy(&client->authenticationToken, &request->requestHeader.authenticationToken);
     synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
                        &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
-    return response;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_DeleteReferencesResponse UA_Client_deleteReferences(UA_Client *client,
-                                                       const UA_DeleteReferencesRequest *request) {
-    UA_DeleteReferencesResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
+UA_StatusCode UA_Client_deleteReferences(UA_Client *client, UA_DeleteReferencesRequest *request, UA_DeleteReferencesResponse* response) {
+	//todo: probably move to synchronousRequest
+	UA_NodeId_copy(&client->authenticationToken, &request->requestHeader.authenticationToken);
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], response,
                        &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
-    return response;
+    return UA_STATUSCODE_GOOD;
 }
