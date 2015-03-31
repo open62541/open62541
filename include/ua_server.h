@@ -125,8 +125,9 @@ typedef struct UA_WorkItem {
  *
  * @return Upon sucess, UA_STATUSCODE_GOOD is returned. An error code otherwise.
  */
-UA_StatusCode UA_EXPORT UA_Server_addTimedWorkItem(UA_Server *server, const UA_WorkItem *work,
-                                                   UA_DateTime executionTime, UA_Guid *resultWorkGuid);
+UA_StatusCode UA_EXPORT
+UA_Server_addTimedWorkItem(UA_Server *server, const UA_WorkItem *work,
+                           UA_DateTime executionTime, UA_Guid *resultWorkGuid);
 
 /**
  * @param server The server object.
@@ -144,8 +145,9 @@ UA_StatusCode UA_EXPORT UA_Server_addTimedWorkItem(UA_Server *server, const UA_W
  *
  * @return Upon sucess, UA_STATUSCODE_GOOD is returned. An error code otherwise.
  */
-UA_StatusCode UA_EXPORT UA_Server_addRepeatedWorkItem(UA_Server *server, const UA_WorkItem *work,
-                                                      UA_UInt32 interval, UA_Guid *resultWorkGuid);
+UA_StatusCode UA_EXPORT
+UA_Server_addRepeatedWorkItem(UA_Server *server, const UA_WorkItem *work,
+                              UA_UInt32 interval, UA_Guid *resultWorkGuid);
 
 /** Remove timed or repeated work */
 /* UA_Boolean UA_EXPORT UA_Server_removeWorkItem(UA_Server *server, UA_Guid workId); */

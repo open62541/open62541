@@ -526,7 +526,8 @@ UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *r
                 pthread_cond_broadcast(&server->dispatchQueue_condition); 
 #else
             processWork(server, work, workSize);
-            UA_free(work);
+            if(workSize > 0)
+                UA_free(work);
 #endif
         }
 

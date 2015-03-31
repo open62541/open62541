@@ -68,29 +68,33 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
     }
 
     UA_UInt32 secureChannelId;
-    UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
+    UA_StatusCode retval = UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
 
     UA_AsymmetricAlgorithmSecurityHeader asymHeader;
-    UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(msg, pos, &asymHeader);
+    retval |= UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(msg, pos, &asymHeader);
 
     UA_SequenceHeader seqHeader;
-    UA_SequenceHeader_decodeBinary(msg, pos, &seqHeader);
+    retval |= UA_SequenceHeader_decodeBinary(msg, pos, &seqHeader);
 
     UA_NodeId requestType;
-    UA_NodeId_decodeBinary(msg, pos, &requestType);
+    retval |= UA_NodeId_decodeBinary(msg, pos, &requestType);
 
-    if(requestType.identifier.numeric != 446) {
+    UA_OpenSecureChannelRequest r;
+    retval |= UA_OpenSecureChannelRequest_decodeBinary(msg, pos, &r);
+
+    if(retval != UA_STATUSCODE_GOOD || requestType.identifier.numeric != 446) {
+        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+        UA_SequenceHeader_deleteMembers(&seqHeader);
+        UA_NodeId_deleteMembers(&requestType);
+        UA_OpenSecureChannelRequest_deleteMembers(&r);
         connection->close(connection);
         return;
     }
 
-    UA_OpenSecureChannelRequest r;
     UA_OpenSecureChannelResponse p;
-    UA_OpenSecureChannelRequest_decodeBinary(msg, pos, &r);
     UA_OpenSecureChannelResponse_init(&p);
     Service_OpenSecureChannel(server, connection, &r, &p);
 
-    /* Response */
     UA_SecureConversationMessageHeader respHeader;
     respHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_OPNF;
     respHeader.messageHeader.messageSize = 0;
@@ -108,7 +112,7 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
 
     UA_ByteString resp_msg = (UA_ByteString){
         .length = respHeader.messageHeader.messageSize,
-            .data = UA_alloca(respHeader.messageHeader.messageSize)
+        .data = UA_alloca(respHeader.messageHeader.messageSize)
     };
 
     size_t tmpPos = 0;

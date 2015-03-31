@@ -88,8 +88,10 @@ void UA_String_init(UA_String *p) {
 
 UA_TYPE_DELETE_DEFAULT(UA_String)
 void UA_String_deleteMembers(UA_String *p) {
-	if(p->data)
+	if(p->data) {
 		UA_free(p->data);
+        p->data = UA_NULL;
+    }
 }
 
 UA_StatusCode UA_String_copy(UA_String const *src, UA_String *dst) {
@@ -332,19 +334,11 @@ static UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id) {
 UA_TYPE_DELETE_DEFAULT(UA_NodeId)
 void UA_NodeId_deleteMembers(UA_NodeId *p) {
     switch(p->identifierType) {
-    case UA_NODEIDTYPE_NUMERIC:
-        // nothing to do
-        break;
-    case UA_NODEIDTYPE_STRING: // Table 6, second entry
-        UA_String_deleteMembers(&p->identifier.string);
-        break;
-
-    case UA_NODEIDTYPE_GUID: // Table 6, third entry
-        UA_Guid_deleteMembers(&p->identifier.guid);
-        break;
-
-    case UA_NODEIDTYPE_BYTESTRING: // Table 6, "OPAQUE"
+    case UA_NODEIDTYPE_STRING:
+    case UA_NODEIDTYPE_BYTESTRING:
         UA_ByteString_deleteMembers(&p->identifier.byteString);
+        break;
+    default:
         break;
     }
 }
@@ -1006,6 +1000,7 @@ void UA_deleteMembers(void *p, const UA_DataType *dataType) {
             UA_Int32 noElements = *((UA_Int32*)ptr);
             ptr += sizeof(UA_Int32) + (member->padding & 0x07);
             UA_Array_delete(*(void**)ptr, memberType, noElements);
+            *(void**)ptr = UA_NULL;
             ptr += sizeof(void*);
             continue;
         }
