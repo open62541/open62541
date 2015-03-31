@@ -524,6 +524,62 @@ int main(int argc, char *argv[]) {
 	timeDiffs = UA_Array_new(&UA_TYPES[UA_TYPES_DOUBLE], tries);
 	UA_Double sum = 0;
 
+	tic = UA_DateTime_now();
+
+	/**
+	UA_Double duration;
+
+	UA_UInt32 count = 0;
+	UA_Double start = 0, stop = 0;
+
+	UA_UInt32 timeToRun = 30;
+	UA_UInt32 timeToStart = 8;
+	UA_UInt32 timeToStop = 22;
+
+	do{
+		toc = UA_DateTime_now();
+		duration = ((UA_Double)toc-(UA_Double)tic)/(UA_Double)1e4;
+		if(duration>=timeToStart*1000 && duration <= timeToStop*1000){
+			if(start==0.0){
+				start=UA_DateTime_now();
+			}
+		}
+			//if(stateless || (!stateless && i==0)){
+				if(defaultParams){
+					if(ua_client_connectUA("127.0.0.1",atoi("16664"),&endpoint,&connectionInfo,stateless,udp) != 0){
+						return 0;
+					}
+				}else{
+					if(ua_client_connectUA(argv[5],atoi(argv[6]),&endpoint,&connectionInfo,stateless,udp) != 0){
+						return 0;
+					}
+				}
+			//}
+			sendReadRequest(&connectionInfo,1,nodesToRead);
+			received = recv(connectionInfo.socket, reply.data, 2000, 0);
+			if(duration>=timeToStart*1000 && duration <= timeToStop*1000){
+				count++;
+			}
+
+			if(!stateless){
+			closeSession(&connectionInfo);
+			recv(connectionInfo.socket, reply.data, 2000, 0);
+
+			closeSecureChannel(&connectionInfo);
+			}
+			//if(stateless || (!stateless && i==tries-1)){
+				close(connectionInfo.socket);
+			//}
+		if(duration >= timeToStop*1000 && stop==0){
+			stop=UA_DateTime_now();
+			printf("%i messages in %f secs, rate %f m/s\n", count, (stop-start)/(UA_Double)1e7, (UA_Double)count/((stop-start)/(UA_Double)1e7));
+		}
+
+	}while(duration<timeToRun*1000);
+
+	exit(0);
+	**/
+
 	for(UA_UInt32 i = 0; i < tries; i++) {
 		//if(stateless || (!stateless && i==0)){
 		tic = UA_DateTime_now();
@@ -541,12 +597,10 @@ int main(int argc, char *argv[]) {
 		sendReadRequest(&connectionInfo,1,nodesToRead);
 		received = recv(connectionInfo.socket, reply.data, 2000, 0);
 		}
-
-		if(!stateless){
+			if(!stateless){
 		closeSession(&connectionInfo);
 		recv(connectionInfo.socket, reply.data, 2000, 0);
-
-		closeSecureChannel(&connectionInfo);
+			closeSecureChannel(&connectionInfo);
 		}
 		//if(stateless || (!stateless && i==tries-1)){
 			close(connectionInfo.socket);
@@ -555,14 +609,15 @@ int main(int argc, char *argv[]) {
 		timeDiffs[i] = (UA_Double)toc/(UA_Double)1e4;
 		sum = sum + timeDiffs[i];
 	}
-/* REQUEST END*/
 
+/* REQUEST END*/
 
 	UA_Double mean = sum / tries;
 	printf("mean time for handling request: %16.10f ms \n",mean);
 
 	if(received>0)
 		printf("received: %i\n",received); // dummy
+
 
 	//save to file
 	char data[100];
