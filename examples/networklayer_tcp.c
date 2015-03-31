@@ -282,10 +282,6 @@ void writeCallback(TCPConnection *handle, UA_ByteStringArray gather_buf) {
 
 static UA_StatusCode ServerNetworkLayerTCP_start(ServerNetworkLayerTCP *layer, UA_Logger *logger) {
 #ifdef _WIN32
-	WORD wVersionRequested;
-	WSADATA wsaData;
-	wVersionRequested = MAKEWORD(2, 2);
-	WSAStartup(wVersionRequested, &wsaData);
 	if((layer->serversockfd = socket(PF_INET, SOCK_STREAM,0)) == INVALID_SOCKET) {
 		printf("ERROR opening socket, code: %d\n", WSAGetLastError());
 		return UA_STATUSCODE_BADINTERNALERROR;
@@ -412,6 +408,12 @@ static void ServerNetworkLayerTCP_delete(ServerNetworkLayerTCP *layer) {
 }
 
 UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UInt32 port) {
+#ifdef _WIN32
+	WORD wVersionRequested;
+	WSADATA wsaData;
+	wVersionRequested = MAKEWORD(2, 2);
+	WSAStartup(wVersionRequested, &wsaData);
+#endif
     ServerNetworkLayerTCP *tcplayer = malloc(sizeof(ServerNetworkLayerTCP));
 	tcplayer->conf = conf;
 	tcplayer->conLinksSize = 0;
@@ -505,24 +507,24 @@ static UA_StatusCode ClientNetworkLayerTCP_connect(const UA_String endpointUrl, 
 
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = htons(port);
-
 	if(connect(sock, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
         printf("Connect failed.\n");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
     //if(setNonBlocking(*sock) != UA_STATUSCODE_GOOD) {
     //    printf("Could not switch to nonblocking.\n");
     //	FINALLY
     //    return UA_STATUSCODE_BADINTERNALERROR;
     //}
-
     resultHandle->sockfd = sock;
     return UA_STATUSCODE_GOOD;
 }
 
 static void ClientNetworkLayerTCP_disconnect(ClientNetworkLayerTCP* handle) {
 	CLOSESOCKET(handle->sockfd);
+#ifdef _WIN32
+	WSACleanup();
+#endif
 }
 
 static UA_StatusCode ClientNetworkLayerTCP_send(ClientNetworkLayerTCP *handle, UA_ByteStringArray gather_buf) {
@@ -567,17 +569,18 @@ static UA_StatusCode ClientNetworkLayerTCP_send(ClientNetworkLayerTCP *handle, U
 
 static UA_StatusCode ClientNetworkLayerTCP_awaitResponse(ClientNetworkLayerTCP *handle, UA_ByteString *response,
                                                          UA_UInt32 timeout) {
-    FD_ZERO(&handle->read_fds);
-    FD_SET(handle->sockfd, &handle->read_fds);//tcp socket
+    //FD_ZERO(&handle->read_fds);
+    //FD_SET(handle->sockfd, &handle->read_fds);//tcp socket
     struct timeval tmptv = {0, timeout};
-    tmptv.tv_sec = 10;
-    int ret = select(handle->sockfd+1, &handle->read_fds, NULL, NULL, &tmptv);
+    /*int ret = select(handle->sockfd+1, &handle->read_fds, NULL, NULL, &tmptv);
     if(ret <= -1)
         return UA_STATUSCODE_BADINTERNALERROR;
     if(ret == 0)
-        return UA_STATUSCODE_BADTIMEOUT;
+        return UA_STATUSCODE_BADTIMEOUT;*/
 
-    ret = recv(handle->sockfd, (char*)response->data, response->length, 0);
+    setsockopt(handle->sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tmptv,sizeof(struct timeval));
+
+    int ret = recv(handle->sockfd, (char*)response->data, response->length, 0);
 
     if(ret <= -1)
         return UA_STATUSCODE_BADINTERNALERROR;

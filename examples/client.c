@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
     //UA_String_copycstring("Demo.Static.Scalar.Int32", &node.identifier.string);
     node.namespaceIndex = 1;
     node.identifierType = UA_NODEIDTYPE_NUMERIC;
-    node.identifier.numeric = 76;
+    node.identifier.numeric = 442;
 
     UA_ReadRequest read_req;
     UA_ReadRequest_init(&read_req);
@@ -30,7 +30,8 @@ int main(int argc, char *argv[]) {
     read_req.nodesToReadSize = 1;
     read_req.nodesToRead[0].nodeId = node;
     read_req.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
-    UA_ReadResponse read_resp = UA_Client_read(client, &read_req);
+    UA_ReadResponse read_resp;
+    UA_Client_read(client, &read_req, &read_resp);
     printf("the answer is: %i\n", *(UA_Int32*)read_resp.results[0].value.dataPtr);
     UA_ReadRequest_deleteMembers(&read_req);
     UA_ReadResponse_deleteMembers(&read_resp);

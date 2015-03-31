@@ -38,21 +38,19 @@ UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client);
 
 /* Attribute Service Set */
 //TODO: had to remove const from the 2nd argument
-UA_ReadResponse UA_EXPORT UA_Client_read(UA_Client *client, UA_ReadRequest *request);
-UA_WriteResponse UA_EXPORT UA_Client_write(UA_Client *client, const UA_WriteRequest *request);
+UA_StatusCode UA_EXPORT UA_Client_read(UA_Client *client, UA_ReadRequest *request, UA_ReadResponse *response);
+
+UA_StatusCode UA_EXPORT UA_Client_write(UA_Client *client, UA_WriteRequest *request, UA_WriteResponse *response);
 
 /* View Service Set */    
-UA_BrowseResponse UA_EXPORT UA_Client_browse(UA_Client *client, const UA_BrowseRequest *request);
-UA_TranslateBrowsePathsToNodeIdsResponse UA_EXPORT UA_Client_translateBrowsePathsToNodeIds(UA_Client *client,
-                                                        const UA_TranslateBrowsePathsToNodeIdsRequest *request);
+UA_StatusCode UA_EXPORT UA_Client_browse(UA_Client *client, UA_BrowseRequest *request, UA_BrowseResponse *response);
+UA_StatusCode UA_EXPORT UA_Client_translateBrowsePathsToNodeIds(UA_Client *client, UA_TranslateBrowsePathsToNodeIdsRequest *request, UA_TranslateBrowsePathsToNodeIdsResponse* response);
 
 /* NodeManagement Service Set */
-UA_AddNodesResponse UA_EXPORT UA_Client_addNodes(UA_Client *client, const UA_AddNodesRequest *request);
-UA_AddReferencesResponse UA_EXPORT
-    UA_Client_addReferences(UA_Client *client, const UA_AddReferencesRequest *request);
-UA_DeleteNodesResponse UA_EXPORT UA_Client_deleteNodes(UA_Client *client, const UA_DeleteNodesRequest *request);
-UA_DeleteReferencesResponse UA_EXPORT
-    UA_Client_deleteReferences(UA_Client *client, const UA_DeleteReferencesRequest *request);
+UA_StatusCode UA_EXPORT UA_Client_addNodes(UA_Client *client, UA_AddNodesRequest *request, UA_AddNodesResponse* response);
+UA_StatusCode UA_EXPORT UA_Client_addReferences(UA_Client *client, UA_AddReferencesRequest *request, UA_AddReferencesResponse* response);
+UA_StatusCode UA_EXPORT UA_Client_deleteNodes(UA_Client *client, UA_DeleteNodesRequest *request, UA_DeleteNodesResponse* response);
+UA_StatusCode UA_EXPORT UA_Client_deleteReferences(UA_Client *client, UA_DeleteReferencesRequest *request, UA_DeleteReferencesResponse* response);
     
 #ifdef __cplusplus
 } // extern "C"
