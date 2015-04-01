@@ -105,10 +105,10 @@ static UA_StatusCode readStatus(const void *handle, UA_Boolean sourceTimeStamp, 
     status->secondsTillShutdown = 0;
     value->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
 	value->value.arrayLength = -1;
-    value->value.dataPtr = status;
+    value->value.data = status;
     value->value.arrayDimensionsSize = -1;
     value->value.arrayDimensions = UA_NULL;
-    value->hasVariant = UA_TRUE;
+    value->hasValue = UA_TRUE;
     if(sourceTimeStamp) {
         value->hasSourceTimestamp = UA_TRUE;
         value->sourceTimestamp = UA_DateTime_now();
@@ -127,10 +127,10 @@ static UA_StatusCode readCurrentTime(const void *handle, UA_Boolean sourceTimeSt
 	*currentTime = UA_DateTime_now();
 	value->value.type = &UA_TYPES[UA_TYPES_DATETIME];
 	value->value.arrayLength = -1;
-	value->value.dataPtr = currentTime;
+	value->value.data = currentTime;
 	value->value.arrayDimensionsSize = -1;
 	value->value.arrayDimensions = NULL;
-	value->hasVariant = UA_TRUE;
+	value->hasValue = UA_TRUE;
 	if(sourceTimeStamp) {
 		value->hasSourceTimestamp = UA_TRUE;
 		value->sourceTimestamp = *currentTime;
@@ -139,7 +139,7 @@ static UA_StatusCode readCurrentTime(const void *handle, UA_Boolean sourceTimeSt
 }
 
 static void releaseCurrentTime(const void *handle, UA_DataValue *value) {
-	UA_DateTime_delete((UA_DateTime*)value->value.dataPtr);
+	UA_DateTime_delete((UA_DateTime*)value->value.data);
 }
 
 static void copyNames(UA_Node *node, char *name) {
@@ -622,14 +622,14 @@ UA_Server * UA_Server_new(void) {
    copyNames((UA_Node*)namespaceArray, "NamespaceArray");
    namespaceArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_NAMESPACEARRAY;
    namespaceArray->variableType = UA_VARIABLENODETYPE_VARIANT;
-   namespaceArray->variable.variant.dataPtr = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 2);
+   namespaceArray->variable.variant.data = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 2);
    namespaceArray->variable.variant.arrayLength = 2;
    namespaceArray->variable.variant.type = &UA_TYPES[UA_TYPES_STRING];
    // Fixme: Insert the external namespaces
    UA_String_copycstring("http://opcfoundation.org/UA/",
-		   &((UA_String *)(namespaceArray->variable.variant.dataPtr))[0]);
+		   &((UA_String *)(namespaceArray->variable.variant.data))[0]);
    UA_String_copycstring(APPLICATION_URI,
-		   &((UA_String *)(namespaceArray->variable.variant.dataPtr))[1]);
+		   &((UA_String *)(namespaceArray->variable.variant.data))[1]);
    namespaceArray->valueRank = 1;
    namespaceArray->minimumSamplingInterval = 1.0;
    namespaceArray->historizing = UA_FALSE;
@@ -644,11 +644,11 @@ UA_Server * UA_Server_new(void) {
    copyNames((UA_Node*)serverArray, "ServerArray");
    serverArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERARRAY;
    serverArray->variableType = UA_VARIABLENODETYPE_VARIANT;
-   serverArray->variable.variant.dataPtr = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 1);
+   serverArray->variable.variant.data = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 1);
    serverArray->variable.variant.arrayLength = 1;
    serverArray->variable.variant.type = &UA_TYPES[UA_TYPES_STRING];
    UA_String_copycstring(APPLICATION_URI,
- 		   &((UA_String *)(serverArray->variable.variant.dataPtr))[0]);
+ 		   &((UA_String *)(serverArray->variable.variant.data))[0]);
    serverArray->valueRank = 1;
    serverArray->minimumSamplingInterval = 1.0;
    serverArray->historizing = UA_FALSE;
@@ -670,13 +670,13 @@ UA_Server * UA_Server_new(void) {
    copyNames((UA_Node*)localeIdArray, "LocaleIdArray");
    localeIdArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERCAPABILITIES_LOCALEIDARRAY;
    localeIdArray->variableType = UA_VARIABLENODETYPE_VARIANT;
-   localeIdArray->variable.variant.dataPtr = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 2);
+   localeIdArray->variable.variant.data = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 2);
    localeIdArray->variable.variant.arrayLength = 2;
    localeIdArray->variable.variant.type = &UA_TYPES[UA_TYPES_STRING];
    UA_String_copycstring("en",
-		   &((UA_String *)(localeIdArray->variable.variant.dataPtr))[0]);
+		   &((UA_String *)(localeIdArray->variable.variant.data))[0]);
    UA_String_copycstring("de",
-		   &((UA_String *)(localeIdArray->variable.variant.dataPtr))[1]);
+		   &((UA_String *)(localeIdArray->variable.variant.data))[1]);
    localeIdArray->valueRank = 1;
    localeIdArray->minimumSamplingInterval = 1.0;
    localeIdArray->historizing = UA_FALSE;
@@ -703,7 +703,7 @@ UA_Server * UA_Server_new(void) {
    state->variableType = UA_VARIABLENODETYPE_VARIANT;
    state->variable.variant.type = &UA_TYPES[UA_TYPES_SERVERSTATE];
    state->variable.variant.arrayLength = -1;
-   state->variable.variant.dataPtr = stateEnum; // points into the other object.
+   state->variable.variant.data = stateEnum; // points into the other object.
    UA_NodeStore_insert(server->nodestore, (UA_Node*)state, UA_NULL);
    ADDREFERENCE(UA_NODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS), UA_NODEID_STATIC(0, UA_NS0ID_HASCOMPONENT),
 		   UA_EXPANDEDNODEID_STATIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));

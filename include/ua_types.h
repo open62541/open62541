@@ -216,14 +216,14 @@ typedef struct {
                                        Use a custom datasource with a mutex. */
     } storageType;
     UA_Int32  arrayLength;  ///< the number of elements in the data-pointer
-    void     *dataPtr; ///< points to the scalar or array data
+    void     *data; ///< points to the scalar or array data
     UA_Int32  arrayDimensionsSize; ///< the number of dimensions the data-array has
     UA_Int32 *arrayDimensions; ///< the length of each dimension of the data-array
 } UA_Variant;
 
 /** @brief A data value with an associated status code and timestamps. */
 typedef struct {
-    UA_Boolean    hasVariant : 1;
+    UA_Boolean    hasValue : 1;
     UA_Boolean    hasStatus : 1;
     UA_Boolean    hasSourceTimestamp : 1;
     UA_Boolean    hasServerTimestamp : 1;
@@ -409,10 +409,10 @@ UA_StatusCode UA_EXPORT UA_LocalizedText_copycstring(char const *src, UA_Localiz
 
 /**
  * Variant semantics:
- *  - arrayLength = -1 && dataPtr == NULL: empty variant
- *  - arrayLength = -1 && dataPtr == !NULL: variant holds a single element (a scalar)
+ *  - arrayLength = -1 && data == NULL: empty variant
+ *  - arrayLength = -1 && data == !NULL: variant holds a single element (a scalar)
  *  - arrayLength >= 0: variant holds an array of the appropriate length
- *                    : dataPtr can be NULL if arrayLength == 0
+ *                      data can be NULL if arrayLength == 0
  */
 
 /**

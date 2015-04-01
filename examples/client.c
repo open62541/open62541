@@ -11,31 +11,28 @@
 int main(int argc, char *argv[]) {
 	UA_Client *client = UA_Client_new();
 	UA_ClientNetworkLayer nl = ClientNetworkLayerTCP_new(UA_ConnectionConfig_standard);
-    //if(UA_Client_connect(client, UA_ConnectionConfig_standard, nl, "opc.tcp://localhost:48020") != UA_STATUSCODE_GOOD)
-	if(UA_Client_connect(client, UA_ConnectionConfig_standard, nl, "opc.tcp://localhost:16664") != UA_STATUSCODE_GOOD)
-    	return 0;
+    UA_StatusCode retval = UA_Client_connect(client, UA_ConnectionConfig_standard, nl,
+                                             "opc.tcp://localhost:16664");
+	if(retval != UA_STATUSCODE_GOOD)
+    	return retval;
 
-    UA_NodeId node;
-    //node.namespaceIndex = 4;
-    //node.identifierType = UA_NODEIDTYPE_STRING;
-    //UA_String_copycstring("Demo.Static.Scalar.Int32", &node.identifier.string);
-    node.namespaceIndex = 1;
-    node.identifierType = UA_NODEIDTYPE_NUMERIC;
-    node.identifier.numeric = 442;
+    UA_ReadRequest req;
+    UA_ReadRequest_init(&req);
+    req.nodesToRead = UA_ReadValueId_new();
+    req.nodesToReadSize = 1;
+    req.nodesToRead[0].nodeId = UA_NODEID_STATIC(1, 442); /* assume this node exists */
+    req.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
 
-    UA_ReadRequest read_req;
-    UA_ReadRequest_init(&read_req);
+    UA_ReadResponse resp = UA_Client_read(client, &req);
+    if(resp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
+       resp.resultsSize > 0 && resp.results[0].hasValue &&
+       resp.results[0].value.data /* an empty array returns a null-ptr */ &&
+       resp.results[0].value.type == &UA_TYPES[UA_TYPES_INT32])
+        printf("the answer is: %i\n", *(UA_Int32*)resp.results[0].value.data);
 
-    read_req.nodesToRead = UA_ReadValueId_new();
-    read_req.nodesToReadSize = 1;
-    read_req.nodesToRead[0].nodeId = node;
-    read_req.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
-    UA_ReadResponse read_resp;
-    UA_Client_read(client, &read_req, &read_resp);
-    printf("the answer is: %i\n", *(UA_Int32*)read_resp.results[0].value.dataPtr);
-    UA_ReadRequest_deleteMembers(&read_req);
-    UA_ReadResponse_deleteMembers(&read_resp);
-
+    UA_ReadRequest_deleteMembers(&req);
+    UA_ReadResponse_deleteMembers(&resp);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
+    return UA_STATUSCODE_GOOD;
 }

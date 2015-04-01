@@ -39,10 +39,10 @@ static UA_StatusCode readTimeData(const void *handle, UA_Boolean sourceTimeStamp
 	*currentTime = UA_DateTime_now();
 	value->value.type = &UA_TYPES[UA_TYPES_DATETIME];
 	value->value.arrayLength = -1;
-	value->value.dataPtr = currentTime;
+	value->value.data = currentTime;
 	value->value.arrayDimensionsSize = -1;
 	value->value.arrayDimensions = NULL;
-	value->hasVariant = UA_TRUE;
+	value->hasValue = UA_TRUE;
 	if(sourceTimeStamp) {
 		value->hasSourceTimestamp = UA_TRUE;
 		value->sourceTimestamp = *currentTime;
@@ -51,7 +51,7 @@ static UA_StatusCode readTimeData(const void *handle, UA_Boolean sourceTimeStamp
 }
 
 static void releaseTimeData(const void *handle, UA_DataValue *value) {
-	UA_DateTime_delete((UA_DateTime*)value->value.dataPtr);
+	UA_DateTime_delete((UA_DateTime*)value->value.data);
 }
 
 /*****************************/
@@ -76,15 +76,15 @@ static UA_StatusCode readTemperature(const void *handle, UA_Boolean sourceTimeSt
 
 	value->value.type = &UA_TYPES[UA_TYPES_DOUBLE];
 	value->value.arrayLength = -1;
-	value->value.dataPtr = currentTemperature;
+	value->value.data = currentTemperature;
 	value->value.arrayDimensionsSize = -1;
 	value->value.arrayDimensions = NULL;
-	value->hasVariant = UA_TRUE;
+	value->hasValue = UA_TRUE;
 	return UA_STATUSCODE_GOOD;
 }
 
 static void releaseTemperature(const void *handle, UA_DataValue *value) {
-	UA_Double_delete((UA_Double*)value->value.dataPtr);
+	UA_Double_delete((UA_Double*)value->value.data);
 }
 
 /*************************/
@@ -105,10 +105,10 @@ static UA_StatusCode readLedStatus(const void *handle, UA_Boolean sourceTimeStam
 #endif
 	value->value.type = &UA_TYPES[UA_TYPES_BOOLEAN];
 	value->value.arrayLength = -1;
-	value->value.dataPtr = &ledStatus;
+	value->value.data = &ledStatus;
 	value->value.arrayDimensionsSize = -1;
 	value->value.arrayDimensions = NULL;
-	value->hasVariant = UA_TRUE;
+	value->hasValue = UA_TRUE;
 	if(sourceTimeStamp) {
 		value->sourceTimestamp = UA_DateTime_now();
 		value->hasSourceTimestamp = UA_TRUE;
@@ -120,7 +120,7 @@ static void releaseLedStatus(const void *handle, UA_DataValue *value) {
 	/* If we allocated memory for a specific read, free the content of the
        variantdata. */
 	value->value.arrayLength = -1;
-	value->value.dataPtr = NULL;
+	value->value.data = NULL;
 #ifdef UA_MULTITHREADING
 	pthread_rwlock_unlock(&writeLock);
 #endif
@@ -130,8 +130,8 @@ static UA_StatusCode writeLedStatus(const void *handle, const UA_Variant *data) 
 #ifdef UA_MULTITHREADING
 	pthread_rwlock_wrlock(&writeLock);
 #endif
-	if(data->dataPtr)
-		ledStatus = *(UA_Boolean*)data->dataPtr;
+	if(data->data)
+		ledStatus = *(UA_Boolean*)data->data;
 
 	if(triggerFile)
 		fseek(triggerFile, 0, SEEK_SET);

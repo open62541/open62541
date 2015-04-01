@@ -550,7 +550,7 @@ UA_TYPE_NEW_DEFAULT(UA_Variant)
 void UA_Variant_init(UA_Variant *p) {
     p->storageType = UA_VARIANT_DATA;
     p->arrayLength = -1;
-    p->dataPtr = UA_NULL;
+    p->data = UA_NULL;
     p->arrayDimensions = UA_NULL;
     p->arrayDimensionsSize = -1;
     p->type = &UA_TYPES[UA_TYPES_BOOLEAN];
@@ -559,11 +559,11 @@ void UA_Variant_init(UA_Variant *p) {
 UA_TYPE_DELETE_DEFAULT(UA_Variant)
 void UA_Variant_deleteMembers(UA_Variant *p) {
     if(p->storageType == UA_VARIANT_DATA) {
-        if(p->dataPtr) {
+        if(p->data) {
             if(p->arrayLength == -1)
                 p->arrayLength = 1;
-            UA_Array_delete(p->dataPtr, p->type, p->arrayLength);
-            p->dataPtr = UA_NULL;
+            UA_Array_delete(p->data, p->type, p->arrayLength);
+            p->data = UA_NULL;
             p->arrayLength = -1;
         }
         if(p->arrayDimensions) {
@@ -576,9 +576,9 @@ void UA_Variant_deleteMembers(UA_Variant *p) {
 UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
     UA_Variant_init(dst);
     UA_Int32 tmp = src->arrayLength;
-    if(src->arrayLength == -1 && src->dataPtr)
+    if(src->arrayLength == -1 && src->data)
         tmp = 1;
-    UA_StatusCode retval = UA_Array_copy(src->dataPtr, &dst->dataPtr, src->type, tmp);
+    UA_StatusCode retval = UA_Array_copy(src->data, &dst->data, src->type, tmp);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Variant_deleteMembers(dst);
         UA_Variant_init(dst);
@@ -629,14 +629,14 @@ UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const
         count *= (range.dimensions[i].max - range.dimensions[i].min) + 1;
     }
 
-    dst->dataPtr = UA_malloc(src->type->memSize * count);
-    if(!dst->dataPtr)
+    dst->data = UA_malloc(src->type->memSize * count);
+    if(!dst->data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     
     // copy a subset of the tensor with as few calls as possible.
     // shift from copying single elements to contiguous blocks
     size_t elem_size = src->type->memSize;
-    uintptr_t nextsrc = (uintptr_t)src->dataPtr; // the start ptr of the next copy operation
+    uintptr_t nextsrc = (uintptr_t)src->data; // the start ptr of the next copy operation
     size_t contiguous_elems = src->arrayLength; // the length of the copy operation
     ptrdiff_t jump_length = elem_size * dims[0]; // how far to jump until the next contiguous copy
     size_t copy_count = count; // how often to copy
@@ -658,7 +658,7 @@ UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const
     }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    uintptr_t nextdst = (uintptr_t)dst->dataPtr;
+    uintptr_t nextdst = (uintptr_t)dst->data;
     size_t copied = 0;
     for(size_t i = 0; i < copy_count; i++) {
         if(src->type->fixedSize) {
@@ -668,7 +668,7 @@ UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const
                 retval = UA_copy((const void*)(nextsrc + (j * elem_size)), (void*)(nextdst + (j * elem_size)),
                                  src->type);
             if(retval != UA_STATUSCODE_GOOD) {
-                UA_Array_delete(dst->dataPtr, src->type, copied);
+                UA_Array_delete(dst->data, src->type, copied);
                 return retval;
             }
             copied += contiguous_elems;
@@ -680,7 +680,7 @@ UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const
     if(src->arrayDimensionsSize > 0) {
         retval = UA_Array_copy(dims, (void**)&dst->arrayDimensions, &UA_TYPES[UA_TYPES_INT32], dims_count);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_Array_delete(dst->dataPtr, src->type, copied);
+            UA_Array_delete(dst->data, src->type, copied);
             return retval;
         }
         for(UA_Int32 k = 0; k < dims_count; k++)
@@ -713,7 +713,7 @@ UA_StatusCode UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 noElement
                                   const UA_DataType *type) {
     v->type = type;
     v->arrayLength = noElements;
-    v->dataPtr = array;
+    v->data = array;
     return UA_STATUSCODE_GOOD;
 }
 
