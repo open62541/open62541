@@ -84,8 +84,10 @@ int main(int argc, char *argv[]) {
 	UA_ClientNetworkLayer nl = ClientNetworkLayerTCP_new(UA_ConnectionConfig_standard);
     UA_StatusCode retval = UA_Client_connect(client, UA_ConnectionConfig_standard, nl,
                                              "opc.tcp://localhost:16664");
-	if(retval != UA_STATUSCODE_GOOD)
+	if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(client);
     	return retval;
+    }
 
     UA_ReadRequest req;
     UA_ReadRequest_init(&req);
