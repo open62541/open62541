@@ -593,8 +593,10 @@ static UA_StatusCode ClientNetworkLayerTCP_awaitResponse(ClientNetworkLayerTCP *
 
     	ret = recv(handle->sockfd, (char*)(response->data+already_received), response->length-already_received, 0);
 
-    	if(ret <= -1)
-    		return UA_STATUSCODE_BADINTERNALERROR;
+    	if(ret <= -1){
+    		usleep(10000);
+    		continue;
+    	}
     	if(ret == 0)
     		return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
