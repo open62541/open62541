@@ -19,7 +19,8 @@
 #include <sys/ioctl.h>
 #include <netdb.h> //gethostbyname for the client
 #define __USE_BSD
-#include <unistd.h> // read, write, close
+#include <unistd.h> // read, write, close, usleep
+#define Sleep(x) usleep((x)*1000)
 #include <arpa/inet.h>
 #define CLOSESOCKET(S) close(S)
 #endif
@@ -598,7 +599,7 @@ static UA_StatusCode ClientNetworkLayerTCP_awaitResponse(ClientNetworkLayerTCP *
     	ret = recv(handle->sockfd, (char*)(response->data+already_received), response->length-already_received, 0);
 
     	if(ret <= -1){
-    		usleep(10000);
+    		Sleep(100); //0.1 s
     		continue;
     	}
     	if(ret == 0)
