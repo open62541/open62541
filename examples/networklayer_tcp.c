@@ -595,7 +595,7 @@ static UA_StatusCode ClientNetworkLayerTCP_awaitResponse(ClientNetworkLayerTCP *
     UA_SecureConversationMessageHeader msgHeader;
 
     do{
-    	if(already_received>0 || ret <= -1)Sleep(100); //0.1 s
+    	if(already_received>0 || ret <= -1)Sleep(1); //1ms
 
     	ret = recv(handle->sockfd, (char*)(response->data+already_received), response->length-already_received, 0);
 
@@ -616,7 +616,7 @@ static UA_StatusCode ClientNetworkLayerTCP_awaitResponse(ClientNetworkLayerTCP *
     	//let us try to decode the length of the real message
     	UA_SecureConversationMessageHeader_decodeBinary(response, &offset, &msgHeader);
     	//printf("ret %d, length %d, already recv %d\n", ret, msgHeader.messageHeader.messageSize, already_received);
-    }while(msgHeader.messageHeader.messageSize == 0 || msgHeader.messageHeader.messageSize < already_received);
+    }while(msgHeader.messageHeader.messageSize == 0 || already_received < msgHeader.messageHeader.messageSize);
 
     response->length = already_received;
 
