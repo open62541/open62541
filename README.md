@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
     UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     UA_QualifiedName myIntegerName;
     UA_QUALIFIEDNAME_ASSIGN(myIntegerName, "the answer");
-    UA_NodeId myIntegerNodeId = UA_NODEID_STATIC(1, 442); /*UA_NODEID_NULL would assign a random free nodeid */
+    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer"); /*UA_NODEID_NULL would assign a random free nodeid */
     UA_NodeId parentNodeId = UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
@@ -93,7 +93,7 @@ int main(int argc, char *argv[]) {
     UA_ReadRequest_init(&req);
     req.nodesToRead = UA_ReadValueId_new();
     req.nodesToReadSize = 1;
-    req.nodesToRead[0].nodeId = UA_NODEID_STATIC(1, 442); /* assume this node exists */
+    req.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
     req.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
 
     UA_ReadResponse resp = UA_Client_read(client, &req);
