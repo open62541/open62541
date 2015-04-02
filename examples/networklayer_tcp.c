@@ -31,6 +31,10 @@
 
 #include "networklayer_tcp.h" // UA_MULTITHREADING is defined in here
 
+#include "ua_types.h" //TODO: this is a hack - refactor
+#include "ua_transport_generated.h" //TODO: this is a hack - refactor
+#include "ua_types_encoding_binary.h" //TODO: this is a hack - refactor
+
 #ifdef UA_MULTITHREADING
 #include <urcu/uatomic.h>
 #endif
@@ -588,6 +592,18 @@ static UA_StatusCode ClientNetworkLayerTCP_awaitResponse(ClientNetworkLayerTCP *
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
     response->length = ret;
+
+    //FIXME: receive even more
+    if(ret <= 4){
+    	return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    size_t offset = 0;
+    //let us try to decode the length of the real message
+    UA_SecureConversationMessageHeader msgHeader;
+    UA_SecureConversationMessageHeader_decodeBinary(response, &offset, &msgHeader);
+    printf("ret %d, length %d\n", ret, msgHeader.messageHeader.messageSize);
+
     return UA_STATUSCODE_GOOD;
 }
 
