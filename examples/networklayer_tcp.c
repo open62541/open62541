@@ -584,25 +584,34 @@ static UA_StatusCode ClientNetworkLayerTCP_awaitResponse(ClientNetworkLayerTCP *
 
     setsockopt(handle->sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tmptv,sizeof(struct timeval));
 
-    int ret = recv(handle->sockfd, (char*)response->data, response->length, 0);
+    int ret = 0;
 
-    if(ret <= -1)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    if(ret == 0)
-        return UA_STATUSCODE_BADSERVERNOTCONNECTED;
-
-    response->length = ret;
-
-    //FIXME: receive even more
-    if(ret <= 4){
-    	return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    size_t offset = 0;
-    //let us try to decode the length of the real message
+    unsigned int already_received = 0;
     UA_SecureConversationMessageHeader msgHeader;
-    UA_SecureConversationMessageHeader_decodeBinary(response, &offset, &msgHeader);
-    printf("ret %d, length %d\n", ret, msgHeader.messageHeader.messageSize);
+
+    do{
+
+    	ret = recv(handle->sockfd, (char*)(response->data+already_received), response->length-already_received, 0);
+
+    	if(ret <= -1)
+    		return UA_STATUSCODE_BADINTERNALERROR;
+    	if(ret == 0)
+    		return UA_STATUSCODE_BADSERVERNOTCONNECTED;
+
+    	//FIXME: receive even more
+    	if(ret <= 4){
+    		return UA_STATUSCODE_BADINTERNALERROR;
+    	}
+
+    	already_received+=ret;
+
+    	size_t offset = 0;
+    	//let us try to decode the length of the real message
+    	UA_SecureConversationMessageHeader_decodeBinary(response, &offset, &msgHeader);
+    	printf("ret %d, length %d, already recv %d\n", ret, msgHeader.messageHeader.messageSize, already_received);
+    }while(msgHeader.messageHeader.messageSize < already_received);
+
+    response->length = already_received;
 
     return UA_STATUSCODE_GOOD;
 }
