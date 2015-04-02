@@ -32,19 +32,9 @@
 
 #include "networklayer_tcp.h" // UA_MULTITHREADING is defined in here
 
-#ifdef NOT_AMALGATED
-	#include "ua_types.h" //TODO: this is a hack - refactor
-	#include "ua_transport_generated.h" //TODO: this is a hack - refactor
-	#include "ua_types_encoding_binary.h" //TODO: this is a hack - refactor
-#else
-    #include "open62541.h"
-#endif
-
 #ifdef UA_MULTITHREADING
 #include <urcu/uatomic.h>
 #endif
-
-
 
 struct ServerNetworklayer_TCP;
 
@@ -576,50 +566,14 @@ static UA_StatusCode ClientNetworkLayerTCP_send(ClientNetworkLayerTCP *handle, U
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode ClientNetworkLayerTCP_awaitResponse(ClientNetworkLayerTCP *handle, UA_ByteString *response,
-                                                         UA_UInt32 timeout) {
-    //FD_ZERO(&handle->read_fds);
-    //FD_SET(handle->sockfd, &handle->read_fds);//tcp socket
+static UA_StatusCode ClientNetworkLayerTCP_awaitResponse(ClientNetworkLayerTCP *handle,
+                                                         UA_ByteString *response, UA_UInt32 timeout) {
     struct timeval tmptv = {0, timeout};
-    /*int ret = select(handle->sockfd+1, &handle->read_fds, NULL, NULL, &tmptv);
-    if(ret <= -1)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    if(ret == 0)
-        return UA_STATUSCODE_BADTIMEOUT;*/
-
     setsockopt(handle->sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tmptv,sizeof(struct timeval));
-
-    int ret = 0;
-
-    unsigned int already_received = 0;
-    UA_SecureConversationMessageHeader msgHeader;
-
-    do{
-    	if(already_received>0 || ret <= -1)Sleep(1); //1ms
-
-    	ret = recv(handle->sockfd, (char*)(response->data+already_received), response->length-already_received, 0);
-
-    	if(ret <= -1){
-    		continue;
-    	}
-    	if(ret == 0)
-    		return UA_STATUSCODE_BADSERVERNOTCONNECTED;
-
-    	//FIXME: receive even more
-    	if(ret <= 4){
-    		return UA_STATUSCODE_BADINTERNALERROR;
-    	}
-
-    	already_received+=ret;
-
-    	size_t offset = 0;
-    	//let us try to decode the length of the real message
-    	UA_SecureConversationMessageHeader_decodeBinary(response, &offset, &msgHeader);
-    	//printf("ret %d, length %d, already recv %d\n", ret, msgHeader.messageHeader.messageSize, already_received);
-    }while(msgHeader.messageHeader.messageSize == 0 || already_received < msgHeader.messageHeader.messageSize);
-
-    response->length = already_received;
-
+    int ret = recv(handle->sockfd, (char*)response->data, response->length, 0);
+    if(ret == 0)
+        return UA_STATUSCODE_BADSERVERNOTCONNECTED;
+    response->length = ret;
     return UA_STATUSCODE_GOOD;
 }
 

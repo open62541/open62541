@@ -1,11 +1,76 @@
 #include "ua_util.h"
 #include "ua_securechannel.h"
 #include "ua_statuscodes.h"
+#include "ua_types_encoding_binary.h"
 
 // max message size is 64k
 const UA_ConnectionConfig UA_ConnectionConfig_standard =
     {.protocolVersion = 0, .sendBufferSize = 65536, .recvBufferSize  = 65536,
      .maxMessageSize = 65536, .maxChunkCount   = 1};
+
+UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString received)
+{
+    /* concat received to the incomplete message we have */
+    UA_ByteString current;
+    if(connection->incompleteMessage.length < 0)
+        current = received;
+    else {
+        UA_Byte *longer = UA_realloc(connection->incompleteMessage.data,
+                                     connection->incompleteMessage.length + received.length);
+        if(!longer) {
+            UA_ByteString_deleteMembers(&received);
+            UA_ByteString_deleteMembers(&connection->incompleteMessage);
+            connection->incompleteMessage.length = -1;
+            received.length = -1;
+            return received;
+        }
+        UA_memcpy(&longer[connection->incompleteMessage.length], received.data, received.length);
+        current.data = longer;
+        current.length = connection->incompleteMessage.length + received.length;
+    }
+
+    /* find the first non-complete message */
+    size_t end_pos = 0;
+    while(current.length - end_pos >= 32) {
+        if(!(current.data[0] == 'M' && current.data[1] == 'S' && current.data[2] == 'G') &&
+           !(current.data[0] == 'O' && current.data[1] == 'P' && current.data[2] == 'N') &&
+           !(current.data[0] == 'H' && current.data[1] == 'E' && current.data[2] == 'L') &&
+           !(current.data[0] == 'A' && current.data[1] == 'C' && current.data[2] == 'K') &&
+           !(current.data[0] == 'C' && current.data[1] == 'L' && current.data[2] == 'O')) {
+            current.length = end_pos; // throw the remaining bytestring away
+            break;
+        }
+        UA_Int32 length;
+        size_t pos = end_pos + 4;
+        UA_Int32_decodeBinary(&received, &pos, &length);
+        if(length < 32 || length > (UA_Int32)connection->localConf.maxMessageSize) {
+            current.length = end_pos; // throw the remaining bytestring away
+            break;
+        }
+        if(length + (UA_Int32)end_pos > current.length)
+            break; // the message is not complete
+        end_pos += length;
+    }
+
+    /* return all complete messages, retain the (last) incomplete one */
+    if(current.length == 0) {
+        UA_String_deleteMembers(&current);
+        current.length = -1;
+    } else {
+        if(current.length - end_pos > 0) {
+            connection->incompleteMessage.data = UA_malloc(current.length - end_pos);
+            if(!connection->incompleteMessage.data)
+                UA_ByteString_init(&connection->incompleteMessage);
+            else {
+                UA_memcpy(&current.data[end_pos], connection->incompleteMessage.data,
+                          current.length - end_pos);
+                connection->incompleteMessage.length = current.length - end_pos;
+            }
+        }
+        current.length = end_pos;
+    }
+    return current;
+}
 
 void UA_SecureChannel_init(UA_SecureChannel *channel) {
     UA_MessageSecurityMode_init(&channel->securityMode);
