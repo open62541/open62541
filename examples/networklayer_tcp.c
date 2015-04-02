@@ -31,9 +31,13 @@
 
 #include "networklayer_tcp.h" // UA_MULTITHREADING is defined in here
 
-#include "ua_types.h" //TODO: this is a hack - refactor
-#include "ua_transport_generated.h" //TODO: this is a hack - refactor
-#include "ua_types_encoding_binary.h" //TODO: this is a hack - refactor
+#ifdef NOT_AMALGATED
+	#include "ua_types.h" //TODO: this is a hack - refactor
+	#include "ua_transport_generated.h" //TODO: this is a hack - refactor
+	#include "ua_types_encoding_binary.h" //TODO: this is a hack - refactor
+#else
+    #include "open62541.h"
+#endif
 
 #ifdef UA_MULTITHREADING
 #include <urcu/uatomic.h>
