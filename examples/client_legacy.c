@@ -64,7 +64,7 @@ static int sendOpenSecureChannel(UA_Int32 sock) {
 
 	UA_UInt32 secureChannelId = 0;
 	UA_String securityPolicy;
-	UA_String_copycstring("http://opcfoundation.org/UA/SecurityPolicy#None", &securityPolicy);
+	securityPolicy = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
 
 	UA_String senderCert;
 	senderCert.data = UA_NULL;
@@ -147,8 +147,8 @@ static UA_Int32 sendCreateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 
 	rq.requestHeader.authenticationToken.identifierType = UA_NODEIDTYPE_NUMERIC;
 	rq.requestHeader.authenticationToken.namespaceIndex = 10;
 	UA_String_copy(endpointUrl, &rq.endpointUrl);
-	UA_String_copycstring("mysession", &rq.sessionName);
-	UA_String_copycstring("abcd", &rq.clientCertificate);
+	rq.sessionName = UA_STRING("mysession");
+	rq.clientCertificate = UA_STRING("abcd");
 	UA_ByteString_newMembers(&rq.clientNonce, 1);
 	rq.clientNonce.data[0] = 0;
 	rq.requestedSessionTimeout = 1200000;
@@ -501,7 +501,7 @@ int main(int argc, char *argv[]) {
 
     //Connect to remote server
 	UA_String endpoint;
-	UA_String_copycstring("none",&endpoint);
+	endpoint = UA_STRING("none");
 	ConnectionInfo connectionInfo;
 
 

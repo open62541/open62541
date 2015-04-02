@@ -75,8 +75,8 @@ UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager           *cm
         cm->maxChannelLifetime : request->requestedLifetime;
 
     UA_ByteString_copy(&request->clientNonce, &entry->channel.clientNonce);
-    UA_String_copycstring("http://opcfoundation.org/UA/SecurityPolicy#None",
-                          (UA_String *)&entry->channel.serverAsymAlgSettings.securityPolicyUri);
+    entry->channel.serverAsymAlgSettings.securityPolicyUri =
+        UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     LIST_INSERT_HEAD(&cm->channels, entry, pointers);
 
     response->serverProtocolVersion = 0;

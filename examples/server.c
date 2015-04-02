@@ -181,11 +181,10 @@ int main(int argc, char** argv) {
 		.read = readTimeData,
 		.release = releaseTimeData,
 		.write = NULL};
-	UA_QualifiedName dateName;
-	UA_QUALIFIEDNAME_ASSIGN(dateName, "current time");
+	const UA_QualifiedName dateName = UA_QUALIFIEDNAME_STATIC(0, "current time");
 	UA_Server_addDataSourceVariableNode(server, dateDataSource, dateName, UA_NODEID_NULL,
-                                        UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                        UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
 	if(!(temperatureFile = fopen("/sys/class/thermal/thermal_zone0/temp", "r"))){
 		UA_LOG_WARNING(logger, UA_LOGGERCATEGORY_USERLAND, "[Linux specific] Can not open temperature file, no temperature node will be added");
@@ -196,11 +195,10 @@ int main(int argc, char** argv) {
 			.read = readTemperature,
 			.release = releaseTemperature,
 			.write = NULL};
-		UA_QualifiedName ledName;
-		UA_QUALIFIEDNAME_ASSIGN(ledName, "cpu temperature");
+		UA_QualifiedName ledName = UA_QUALIFIEDNAME(0, "cpu temperature");
 		UA_Server_addDataSourceVariableNode(server, temperatureDataSource, ledName, UA_NODEID_NULL, 
-                                            UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                            UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 	}
 
 	if (	!(triggerFile = fopen("/sys/class/leds/led0/trigger", "w"))
@@ -223,21 +221,19 @@ int main(int argc, char** argv) {
 		.read = readLedStatus,
 		.release = releaseLedStatus,
 		.write = writeLedStatus};
-	UA_QualifiedName statusName;
-	UA_QUALIFIEDNAME_ASSIGN(statusName, "status LED");
+	const UA_QualifiedName statusName = UA_QUALIFIEDNAME_STATIC(0, "status LED");
 	UA_Server_addDataSourceVariableNode(server, ledStatusDataSource, statusName, UA_NODEID_NULL,
-                                        UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                        UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES));
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
 	// add a static variable node to the adresspace
     UA_Variant *myIntegerVariant = UA_Variant_new();
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    UA_QualifiedName myIntegerName;
-    UA_QUALIFIEDNAME_ASSIGN(myIntegerName, "the answer");
-    UA_NodeId myIntegerNodeId = UA_NODEID_STATIC(1, 442);
-    UA_NodeId parentNodeId = UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES);
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME_STATIC(0, "the answer");
+    UA_NodeId myIntegerNodeId = UA_NODEID_NUMERIC(1, 442);
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
                               myIntegerNodeId, parentNodeId, parentReferenceNodeId);
 

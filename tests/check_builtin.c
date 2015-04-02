@@ -1287,9 +1287,9 @@ START_TEST(UA_Array_copyUA_StringShallWorkOnExample) {
 	UA_String *srcArray = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 3);
 	UA_String *dstArray;
 
-	UA_String_copycstring("open", &srcArray[0]);
-	UA_String_copycstring("62541", &srcArray[1]);
-	UA_String_copycstring("opc ua", &srcArray[2]);
+	srcArray[0] = UA_STRING("open");
+	srcArray[1] = UA_STRING("62541");
+	srcArray[2] = UA_STRING("opc ua");
 	//when
 	UA_Array_copy((const void *)srcArray, (void **)&dstArray, &UA_TYPES[UA_TYPES_STRING], 3);
 	//then
@@ -1435,12 +1435,9 @@ END_TEST
 START_TEST(UA_LocalizedText_copycstringShallWorkOnInputExample) {
 	// given
 	const char src[8] = {'t', 'e', 'X', 't', '1', '2', '3', (char)0};
-	UA_LocalizedText dst;
+	UA_LocalizedText dst = UA_LOCALIZEDTEXT("", src);
 
-	// when
-	UA_StatusCode ret = UA_LocalizedText_copycstring(src, &dst);
 	// then
-	ck_assert_int_eq(ret, UA_STATUSCODE_GOOD);
 	ck_assert_int_eq('1', dst.text.data[4]);
 	ck_assert_int_eq(0, dst.locale.length);
 	ck_assert_int_eq(7, dst.text.length);
@@ -1506,9 +1503,9 @@ END_TEST
 START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
 	// given
 	UA_String *srcArray = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 3);
-	UA_String_copycstring("__open", &srcArray[0]);
-	UA_String_copycstring("_62541", &srcArray[1]);
-	UA_String_copycstring("opc ua", &srcArray[2]);
+	srcArray[0] = UA_STRING("__open");
+	srcArray[1] = UA_STRING("_62541");
+	srcArray[2] = UA_STRING("opc ua");
 
 	UA_Int32 *dimensions;
 	dimensions = UA_malloc(sizeof(UA_Int32));

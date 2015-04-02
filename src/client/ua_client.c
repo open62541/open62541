@@ -126,10 +126,10 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
 
 	UA_AsymmetricAlgorithmSecurityHeader asymHeader;
 	UA_AsymmetricAlgorithmSecurityHeader_init(&asymHeader);
-	UA_String_copycstring("http://opcfoundation.org/UA/SecurityPolicy#None", &asymHeader.securityPolicyUri);
+	asymHeader.securityPolicyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
 
     /* id of opensecurechannelrequest */
-	UA_NodeId requestType = UA_NODEID_STATIC(0, UA_NS0ID_OPENSECURECHANNELREQUEST + UA_ENCODINGOFFSET_BINARY);
+	UA_NodeId requestType = UA_NODEID_NUMERIC(0, UA_NS0ID_OPENSECURECHANNELREQUEST + UA_ENCODINGOFFSET_BINARY);
 
 	UA_OpenSecureChannelRequest opnSecRq;
 	UA_OpenSecureChannelRequest_init(&opnSecRq);
@@ -184,7 +184,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
 	UA_SequenceHeader_decodeBinary(&reply, &offset, &seqHeader);
 	UA_NodeId_decodeBinary(&reply, &offset, &requestType);
 
-	if(!UA_NodeId_equal(&requestType, &UA_NODEID_STATIC(0, UA_NS0ID_OPENSECURECHANNELRESPONSE +
+	if(!UA_NodeId_equal(&requestType, &UA_NODEID_NUMERIC(0, UA_NS0ID_OPENSECURECHANNELRESPONSE +
                                                         UA_ENCODINGOFFSET_BINARY))) {
         UA_ByteString_deleteMembers(&reply);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
@@ -230,7 +230,7 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
     seqHeader.sequenceNumber = ++client->sequenceNumber;
     seqHeader.requestId = ++client->requestId;
 
-	UA_NodeId requestId = UA_NODEID_STATIC(0, requestType->typeId.identifier.numeric +
+	UA_NodeId requestId = UA_NODEID_NUMERIC(0, requestType->typeId.identifier.numeric +
                                            UA_ENCODINGOFFSET_BINARY);
 
 	msgHeader.messageHeader.messageSize =
@@ -285,7 +285,7 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
     UA_NodeId responseId;
 	retval |= UA_NodeId_decodeBinary(&reply, &offset, &responseId);
 
-	if(!UA_NodeId_equal(&responseId, &UA_NODEID_STATIC(0, responseType->typeId.identifier.numeric +
+	if(!UA_NodeId_equal(&responseId, &UA_NODEID_NUMERIC(0, responseType->typeId.identifier.numeric +
                                                        UA_ENCODINGOFFSET_BINARY))) {
         UA_ByteString_deleteMembers(&reply);
         UA_SymmetricAlgorithmSecurityHeader_deleteMembers(&symHeader);
@@ -394,13 +394,13 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
 UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectionConfig conf,
                                 UA_ClientNetworkLayer networkLayer, char *endpointUrl)
 {
-    UA_StatusCode retval = UA_String_copycstring(endpointUrl, &client->endpointUrl);
-    if(retval != UA_STATUSCODE_GOOD)
+    client->endpointUrl = UA_STRING(endpointUrl);
+    if(client->endpointUrl.length < 0)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     client->networkLayer = networkLayer;
     client->connection.localConf = conf;
-    retval = networkLayer.connect(client->endpointUrl, client->networkLayer.nlHandle);
+    UA_StatusCode retval = networkLayer.connect(client->endpointUrl, client->networkLayer.nlHandle);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 

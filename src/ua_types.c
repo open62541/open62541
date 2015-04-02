@@ -105,21 +105,22 @@ UA_StatusCode UA_String_copy(UA_String const *src, UA_String *dst) {
     return UA_STATUSCODE_GOOD;
 }
 
-/* The c-string needs to be null-terminated. the string cannot be smaller than zero. */
-UA_StatusCode UA_String_copycstring(char const *src, UA_String *dst) {
-    UA_String_init(dst);
-    size_t length = (UA_UInt32) strlen(src);
+UA_String UA_String_fromChars(char const *src) {
+    UA_String str;
+    size_t length = strlen(src);
     if(length == 0) {
-        dst->length = 0;
-        dst->data = UA_NULL;
-        return UA_STATUSCODE_GOOD;
+        str.length = 0;
+        str.data = UA_NULL;
+        return str;
     }
-    dst->data = UA_malloc(length);
-    if(!dst->data)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_memcpy(dst->data, src, length);
-    dst->length = length;
-    return UA_STATUSCODE_GOOD;
+    str.data = UA_malloc(length);
+    if(!str.data) {
+        str.length = -1;
+        return str;
+    }
+    UA_memcpy(str.data, src, length);
+    str.length = length;
+    return str;
 }
 
 #define UA_STRING_COPYPRINTF_BUFSIZE 1024
@@ -428,6 +429,7 @@ UA_Boolean UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p) {
 
 /* QualifiedName */
 UA_TYPE_DELETE_DEFAULT(UA_QualifiedName)
+UA_TYPE_NEW_DEFAULT(UA_QualifiedName)
 void UA_QualifiedName_deleteMembers(UA_QualifiedName *p) {
     UA_String_deleteMembers(&p->name);
 }
@@ -437,7 +439,6 @@ void UA_QualifiedName_init(UA_QualifiedName *p) {
     p->namespaceIndex = 0;
 }
 
-UA_TYPE_NEW_DEFAULT(UA_QualifiedName)
 UA_StatusCode UA_QualifiedName_copy(UA_QualifiedName const *src, UA_QualifiedName *dst) {
     UA_StatusCode retval = UA_String_copy(&src->name, &dst->name);
     dst->namespaceIndex = src->namespaceIndex;
@@ -446,16 +447,11 @@ UA_StatusCode UA_QualifiedName_copy(UA_QualifiedName const *src, UA_QualifiedNam
         UA_QualifiedName_init(dst);
     }
     return retval;
-
-}
-
-UA_StatusCode UA_QualifiedName_copycstring(char const *src, UA_QualifiedName *dst) {
-    dst->namespaceIndex = 0;
-    return UA_String_copycstring(src, &dst->name);
 }
 
 /* LocalizedText */
 UA_TYPE_DELETE_DEFAULT(UA_LocalizedText)
+UA_TYPE_NEW_DEFAULT(UA_LocalizedText)
 void UA_LocalizedText_deleteMembers(UA_LocalizedText *p) {
     UA_String_deleteMembers(&p->locale);
     UA_String_deleteMembers(&p->text);
@@ -464,17 +460,6 @@ void UA_LocalizedText_deleteMembers(UA_LocalizedText *p) {
 void UA_LocalizedText_init(UA_LocalizedText *p) {
     UA_String_init(&p->locale);
     UA_String_init(&p->text);
-}
-
-UA_TYPE_NEW_DEFAULT(UA_LocalizedText)
-UA_StatusCode UA_LocalizedText_copycstring(char const *src, UA_LocalizedText *dst) {
-    UA_StatusCode retval = UA_String_copycstring("", &dst->locale);
-    retval |= UA_String_copycstring(src, &dst->text);
-    if(retval) {
-        UA_LocalizedText_deleteMembers(dst);
-        UA_LocalizedText_init(dst);
-    }
-    return retval;
 }
 
 UA_StatusCode UA_LocalizedText_copy(UA_LocalizedText const *src, UA_LocalizedText *dst) {
@@ -489,6 +474,7 @@ UA_StatusCode UA_LocalizedText_copy(UA_LocalizedText const *src, UA_LocalizedTex
 
 /* ExtensionObject */
 UA_TYPE_DELETE_DEFAULT(UA_ExtensionObject)
+UA_TYPE_NEW_DEFAULT(UA_ExtensionObject)
 void UA_ExtensionObject_deleteMembers(UA_ExtensionObject *p) {
     UA_NodeId_deleteMembers(&p->typeId);
     UA_ByteString_deleteMembers(&p->body);
@@ -500,7 +486,6 @@ void UA_ExtensionObject_init(UA_ExtensionObject *p) {
     UA_ByteString_init(&p->body);
 }
 
-UA_TYPE_NEW_DEFAULT(UA_ExtensionObject)
 UA_StatusCode UA_ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst) {
     UA_StatusCode retval = UA_ByteString_copy(&src->body, &dst->body);
     retval |= UA_NodeId_copy(&src->typeId, &dst->typeId);
