@@ -520,7 +520,7 @@ int main(int argc, char *argv[]) {
 
 	UA_DateTime tic, toc;
 	UA_Double *timeDiffs;
-	UA_Int32 received;
+	UA_Int32 received = 0;
 	timeDiffs = UA_Array_new(&UA_TYPES[UA_TYPES_DOUBLE], tries);
 	UA_Double sum = 0;
 
