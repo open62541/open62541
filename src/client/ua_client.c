@@ -214,6 +214,9 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
                                void *response, const UA_DataType *responseType, UA_Client *client,
                                UA_Boolean sendOnly)
 {
+	if(response)
+		UA_init(response, responseType);
+
     UA_NodeId_copy(&client->authenticationToken, &request->authenticationToken);
 
     UA_SecureConversationMessageHeader msgHeader;
