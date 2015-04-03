@@ -18,15 +18,8 @@
 #include <sys/socketvar.h>
 #include <sys/ioctl.h>
 #include <netdb.h> //gethostbyname for the client
-#ifndef _BSD_SOURCE
-	#define _BSD_SOURCE
-#endif
-#ifndef _DEFAULT_SOURCE
-	#define _DEFAULT_SOURCE
-#endif
-#ifndef __USE_BSD
-	#define __USE_BSD
-#endif
+#define _XOPEN_SOURCE 500 //some users need this for some reason
+#define __USE_BSD
 #include <unistd.h> // read, write, close
 #include <arpa/inet.h>
 #define CLOSESOCKET(S) close(S)
