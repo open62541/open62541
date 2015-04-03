@@ -12,14 +12,14 @@
 #include <ws2tcpip.h>
 #define CLOSESOCKET(S) closesocket(S)
 #else
+#define _XOPEN_SOURCE 500 //some users need this for some reason
+#define __USE_BSD
 #include <sys/select.h> 
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/socketvar.h>
 #include <sys/ioctl.h>
 #include <netdb.h> //gethostbyname for the client
-#define _XOPEN_SOURCE 500 //some users need this for some reason
-#define __USE_BSD
 #include <unistd.h> // read, write, close
 #include <arpa/inet.h>
 #define CLOSESOCKET(S) close(S)
