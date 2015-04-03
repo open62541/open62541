@@ -40,7 +40,7 @@ UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteS
             current.length = end_pos; // throw the remaining bytestring away
             break;
         }
-        UA_Int32 length;
+        UA_Int32 length = 0;
         size_t pos = end_pos + 4;
         UA_Int32_decodeBinary(&received, &pos, &length);
         if(length < 32 || length > (UA_Int32)connection->localConf.maxMessageSize) {
