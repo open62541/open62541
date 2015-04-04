@@ -36,10 +36,11 @@ add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat
     endif()
 	if(NOT WIN32)
 	    add_definitions(-fvisibility=hidden -fPIC)
+        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro")
 	endif()
     # binary size reduction settings
 	add_definitions(-fno-stack-protector -fno-unwind-tables -fno-asynchronous-unwind-tables -fno-math-errno -fmerge-all-constants -fno-ident)
-    set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
+    set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--hash-style=gnu -Wl,--build-id=none")
 endif()
 
 # build the main library
