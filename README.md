@@ -27,6 +27,7 @@ As an open source project, we invite new contributors to help improving open6254
 
 ### Example Server Implementation
 Compile the examples with the single [header](http://open62541.org/open62541.h) and [source](http://open62541.org/open62541.c) file distribution generated from the library source.
+With the GCC compiler, just run ```gcc -std=c99 <server.c> open62541.c -o server```.
 ```c
 #include <signal.h>
 #include "open62541.h"
@@ -36,34 +37,35 @@ Compile the examples with the single [header](http://open62541.org/open62541.h) 
 
 UA_Boolean running = UA_TRUE;
 void signalHandler(int sign) {
-	running = UA_FALSE;
+    running = UA_FALSE;
 }
 
 int main(int argc, char** argv) {
     /* catch ctrl-c */
-	signal(SIGINT, signalHandler);
+    signal(SIGINT, signalHandler);
 
     /* init the server */
-	UA_Server *server = UA_Server_new();
-    NetworklayerTCP *nl = ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, PORT);
-    UA_Server_addNetworkLayer(server, nl);
+    UA_Server *server = UA_Server_new();
+    UA_Server_addNetworkLayer(server,
+        ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, PORT));
+    UA_Server_setLogger(server, Logger_Stdout_new());
+
 
     /* add a variable node */
     UA_Variant *myIntegerVariant = UA_Variant_new();
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    UA_QualifiedName myIntegerName;
-    UA_QUALIFIEDNAME_ASSIGN(myIntegerName, "the answer");
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
-    UA_NodeId parentNodeId = UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES);
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
                               myIntegerNodeId, parentNodeId, parentReferenceNodeId);
 
     /* run the server loop */
     UA_StatusCode retval = UA_Server_run(server, WORKER_THREADS, &running);
-	UA_Server_delete(server);
-	return retval;
+    UA_Server_delete(server);
+    return retval;
 }
 ```
 
