@@ -25,8 +25,8 @@ add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat
                 -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -ffunction-sections -fdata-sections)
     if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
         add_definitions(-Wformat-nonliteral)
-        set (CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
-        set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
+        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
         set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
     else()
         add_definitions(-Wno-gnu-statement-expression)
@@ -35,8 +35,11 @@ add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s") # Strip binary
     endif()
 	if(NOT WIN32)
-	    add_definitions(-fstack-protector -fPIC -fvisibility=hidden)
+	    add_definitions(-fvisibility=hidden -fPIC)
 	endif()
+    # binary size reduction settings
+	add_definitions(-fno-stack-protector -fno-unwind-tables -fno-asynchronous-unwind-tables -fno-math-errno -fmerge-all-constants -fno-ident)
+    set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
 endif()
 
 # build the main library
