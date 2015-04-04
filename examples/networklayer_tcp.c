@@ -2,7 +2,8 @@
  * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
-
+#define _XOPEN_SOURCE 500 //some users need this for some reason
+#define __USE_BSD
 #include <stdlib.h> // malloc, free
 #ifdef _WIN32
 #include <malloc.h>
@@ -12,8 +13,6 @@
 #include <ws2tcpip.h>
 #define CLOSESOCKET(S) closesocket(S)
 #else
-#define _XOPEN_SOURCE 500 //some users need this for some reason
-#define __USE_BSD
 #include <sys/select.h> 
 #include <netinet/in.h>
 #include <netinet/tcp.h>
