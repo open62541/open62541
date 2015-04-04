@@ -19,28 +19,23 @@ endif()
 
 # compiler flags
 if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat
-                -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
-                -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes # -Wconversion -Wshadow 
-                -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -ffunction-sections -fdata-sections)
-    if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-        add_definitions(-Wformat-nonliteral)
-        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
-        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
-        set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
-    else()
-        add_definitions(-Wno-gnu-statement-expression)
-    endif()
-    if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s") # Strip binary
-    endif()
+    add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
+                    -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
+                    -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes -Wshadow # -Wconversion
+                    -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral)
+    # binary size reduction settings
+	add_definitions(-ffunction-sections -fdata-sections -fno-stack-protector -fno-unwind-tables
+                    -fno-asynchronous-unwind-tables -fno-math-errno -fmerge-all-constants -fno-ident)
+    set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
+    set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
 	if(NOT WIN32)
 	    add_definitions(-fvisibility=hidden -fPIC)
-        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro")
+        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
 	endif()
-    # binary size reduction settings
-	add_definitions(-fno-stack-protector -fno-unwind-tables -fno-asynchronous-unwind-tables -fno-math-errno -fmerge-all-constants -fno-ident)
-    set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--hash-style=gnu -Wl,--build-id=none")
+    if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s") # strip binary
+    endif()
 endif()
 
 # build the main library
