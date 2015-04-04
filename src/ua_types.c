@@ -295,6 +295,7 @@ UA_StatusCode UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length) {
 /* NodeId */
 UA_TYPE_NEW_DEFAULT(UA_NodeId)
 UA_TYPE_DELETE_DEFAULT(UA_NodeId)
+
 void UA_NodeId_init(UA_NodeId *p) {
     p->identifierType = UA_NODEIDTYPE_NUMERIC;
     p->namespaceIndex = 0;
@@ -430,8 +431,9 @@ UA_Boolean UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p) {
 /* StatusCode */
 
 /* QualifiedName */
-UA_TYPE_DELETE_DEFAULT(UA_QualifiedName)
 UA_TYPE_NEW_DEFAULT(UA_QualifiedName)
+UA_TYPE_DELETE_DEFAULT(UA_QualifiedName)
+
 void UA_QualifiedName_deleteMembers(UA_QualifiedName *p) {
     UA_String_deleteMembers(&p->name);
 }
@@ -452,8 +454,9 @@ UA_StatusCode UA_QualifiedName_copy(UA_QualifiedName const *src, UA_QualifiedNam
 }
 
 /* LocalizedText */
-UA_TYPE_DELETE_DEFAULT(UA_LocalizedText)
 UA_TYPE_NEW_DEFAULT(UA_LocalizedText)
+UA_TYPE_DELETE_DEFAULT(UA_LocalizedText)
+
 void UA_LocalizedText_deleteMembers(UA_LocalizedText *p) {
     UA_String_deleteMembers(&p->locale);
     UA_String_deleteMembers(&p->text);
@@ -475,8 +478,9 @@ UA_StatusCode UA_LocalizedText_copy(UA_LocalizedText const *src, UA_LocalizedTex
 }
 
 /* ExtensionObject */
-UA_TYPE_DELETE_DEFAULT(UA_ExtensionObject)
 UA_TYPE_NEW_DEFAULT(UA_ExtensionObject)
+UA_TYPE_DELETE_DEFAULT(UA_ExtensionObject)
+
 void UA_ExtensionObject_deleteMembers(UA_ExtensionObject *p) {
     UA_NodeId_deleteMembers(&p->typeId);
     UA_ByteString_deleteMembers(&p->body);
@@ -500,8 +504,9 @@ UA_StatusCode UA_ExtensionObject_copy(UA_ExtensionObject const *src, UA_Extensio
 }
 
 /* DataValue */
-UA_TYPE_DELETE_DEFAULT(UA_DataValue)
 UA_TYPE_NEW_DEFAULT(UA_DataValue)
+UA_TYPE_DELETE_DEFAULT(UA_DataValue)
+
 void UA_DataValue_deleteMembers(UA_DataValue *p) {
     UA_Variant_deleteMembers(&p->value);
 }
@@ -624,7 +629,9 @@ static UA_StatusCode testRangeWithVariant(const UA_Variant *v, const UA_NumericR
     }
 
     /* Compute the block size and the position of the first element */
-    size_t bs, bd, fe = 0;
+    size_t bs = 0;
+    size_t bd = 0;
+    size_t fe = 0;
     size_t running_dimssize = 1; // elements per block of dimensions k to k_max
     UA_Boolean found_contiguous = UA_FALSE;
     for(UA_Int32 k = dims_count - 1; k >= 0; k--) {
@@ -777,7 +784,9 @@ UA_StatusCode UA_Variant_setArrayCopy(UA_Variant *v, const void *array, UA_Int32
 }
 
 /* DiagnosticInfo */
+UA_TYPE_NEW_DEFAULT(UA_DiagnosticInfo)
 UA_TYPE_DELETE_DEFAULT(UA_DiagnosticInfo)
+
 void UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
     UA_String_deleteMembers(&p->additionalInfo);
     if(p->hasInnerDiagnosticInfo && p->innerDiagnosticInfo) {
@@ -786,7 +795,6 @@ void UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
     }
 }
 
-UA_TYPE_NEW_DEFAULT(UA_DiagnosticInfo)
 void UA_DiagnosticInfo_init(UA_DiagnosticInfo *p) {
 	*((UA_Byte*)p) = 0; // zero out the bitfield
     p->symbolicId          = 0;
