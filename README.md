@@ -1,7 +1,7 @@
 open62541
 =========
 
-open62541 (http://open62541.org) is an open source and free implementation of OPC UA (OPC Unified Architecture). open62541 is a C-based library that contains all the necessary tools to set up a dedicated OPC UA server, to integrate OPC UA-based communication into existing applications (linking with C++ projects [is possible](examples/server.cpp)), or to create an OPC UA client. An example server and client implementations can be found in the [/examples](examples/) directory or further down on this page.
+open62541 (http://open62541.org) is an open source and free implementation of OPC UA (OPC Unified Architecture). open62541 is a C-based library that contains all the necessary tools to set up a dedicated OPC UA server, to integrate OPC UA-based communication into existing applications (linking with C++ projects [is possible](examples/server.cpp)), or to create an OPC UA client. The library is distributed as a single pair of [header](http://open62541.org/open62541.h) and [source](http://open62541.org/open62541.c) files, that can be easily dropped into you project. An example server and client implementations can be found in the [/examples](examples/) directory or further down on this page.
 
 open62541 is licensed under the LGPL + static linking exception. That means **open62541 can be freely used also in commercial projects**, although changes to the open62541 library itself need to be released under the same license. The server and client implementations in the [/examples](examples/) directory are in the public domain (CC0 license). They can be used under any license and changes don't have to be published.
 
@@ -26,15 +26,10 @@ As an open source project, we invite new contributors to help improving open6254
 - Work on issues marked as "[easy hacks](https://github.com/acplt/open62541/labels/easy%20hack)"
 
 ### Example Server Implementation
+Compile the examples with the single [header](http://open62541.org/open62541.h) and [source](http://open62541.org/open62541.c) file distribution generated from the library source.
 ```c
 #include <signal.h>
-
-/* provided by the open62541 lib */
-#include "ua_server.h"
-
-/* provided by the user, implementations available in the /examples folder */
-#include "logger_stdout.h"
-#include "networklayer_tcp.h"
+#include "open62541.h"
 
 #define WORKER_THREADS 2 /* if multithreading is enabled */
 #define PORT 16664
@@ -59,7 +54,7 @@ int main(int argc, char** argv) {
     UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     UA_QualifiedName myIntegerName;
     UA_QUALIFIEDNAME_ASSIGN(myIntegerName, "the answer");
-    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer"); /*UA_NODEID_NULL would assign a random free nodeid */
+    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_NodeId parentNodeId = UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
@@ -75,9 +70,7 @@ int main(int argc, char** argv) {
 ### Example Client Implementation
 ```c
 #include <stdio.h>
-
-#include "ua_client.h"
-#include "networklayer_tcp.h"
+#include "open62541.h"
 
 int main(int argc, char *argv[]) {
 	UA_Client *client = UA_Client_new();

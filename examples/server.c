@@ -2,25 +2,24 @@
  * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
-#ifdef NOT_AMALGATED
-    #include "ua_types.h"
-    #include "ua_server.h"
-#else
-    #include "open62541.h"
-#endif
 
-#include <time.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h> 
-#include <signal.h>
 #define __USE_XOPEN2K
 #ifdef UA_MULTITHREADING
-#include <pthread.h>
+# include <pthread.h>
 #endif
 
-// provided by the user, implementations available in the /examples folder
-#include "logger_stdout.h"
-#include "networklayer_tcp.h"
+#ifdef NOT_AMALGATED
+# include <time.h>
+# include "ua_types.h"
+# include "ua_server.h"
+# include "logger_stdout.h"
+# include "networklayer_tcp.h"
+#else
+# include "open62541.h"
+#endif
 
 /****************************/
 /* Server-related variables */

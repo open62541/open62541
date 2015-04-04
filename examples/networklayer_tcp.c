@@ -2,40 +2,40 @@
  * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
+
+/* amalgamation removes these includes */
 #define _XOPEN_SOURCE 500 //some users need this for some reason
 #define __USE_BSD
 #include <stdlib.h> // malloc, free
-#ifdef _WIN32
-#include <malloc.h>
-#include <winsock2.h>
-#include <sys/types.h>
-#include <windows.h>
-#include <ws2tcpip.h>
-#define CLOSESOCKET(S) closesocket(S)
-#else
-#include <sys/select.h> 
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <sys/socketvar.h>
-#include <sys/ioctl.h>
-#include <netdb.h> //gethostbyname for the client
-#include <unistd.h> // read, write, close
-#include <arpa/inet.h>
-#define CLOSESOCKET(S) close(S)
-#endif
-
 #include <stdio.h>
-#include <errno.h> // errno, EINTR
-#include <fcntl.h> // fcntl
 #include <string.h> // memset
-
 #include "networklayer_tcp.h" // UA_MULTITHREADING is defined in here
-
 #ifdef UA_MULTITHREADING
-#include <urcu/uatomic.h>
+# include <urcu/uatomic.h>
 #endif
 
+/* with a space so amalgamation does not remove the includes */
+# include <errno.h> // errno, EINTR
+# include <fcntl.h> // fcntl
 
+#ifdef _WIN32
+# include <malloc.h>
+# include <winsock2.h>
+# include <sys/types.h>
+# include <windows.h>
+# include <ws2tcpip.h>
+# define CLOSESOCKET(S) closesocket(S)
+#else
+# include <sys/select.h> 
+# include <netinet/in.h>
+# include <netinet/tcp.h>
+# include <sys/socketvar.h>
+# include <sys/ioctl.h>
+# include <netdb.h> //gethostbyname for the client
+# include <unistd.h> // read, write, close
+# include <arpa/inet.h>
+# define CLOSESOCKET(S) close(S)
+#endif
 
 struct ServerNetworklayer_TCP;
 
