@@ -153,7 +153,10 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR
                                                                               ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c
                                                                               ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c
                DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${exported_headers} ${internal_headers}
-                       ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
+                       ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources}
+                       ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c)
+
+add_custom_target(amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c)
 if(ENABLE_AMALGAMATION)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c)
     include_directories(${PROJECT_BINARY_DIR})

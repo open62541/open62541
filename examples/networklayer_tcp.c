@@ -3,20 +3,13 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
 
-/* amalgamation removes these includes */
-#define _XOPEN_SOURCE 500 //some users need this for some reason
-#define __USE_BSD
-#include <stdlib.h> // malloc, free
-#include <stdio.h>
-#include <string.h> // memset
-#include "networklayer_tcp.h" // UA_MULTITHREADING is defined in here
-#ifdef UA_MULTITHREADING
-# include <urcu/uatomic.h>
+#ifdef NOT_AMALGATED
+# define _XOPEN_SOURCE 500 //some users need this for some reason
+# define __USE_BSD
+# include <stdlib.h> // malloc, free
+# include <stdio.h>
+# include <string.h> // memset
 #endif
-
-/* with a space so amalgamation does not remove the includes */
-# include <errno.h> // errno, EINTR
-# include <fcntl.h> // fcntl
 
 #ifdef _WIN32
 # include <malloc.h>
@@ -36,6 +29,15 @@
 # include <arpa/inet.h>
 # define CLOSESOCKET(S) close(S)
 #endif
+
+#include "networklayer_tcp.h" // UA_MULTITHREADING is defined in here
+#ifdef UA_MULTITHREADING
+# include <urcu/uatomic.h>
+#endif
+
+/* with a space so amalgamation does not remove the includes */
+# include <errno.h> // errno, EINTR
+# include <fcntl.h> // fcntl
 
 struct ServerNetworklayer_TCP;
 
