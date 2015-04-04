@@ -27,6 +27,7 @@ add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat
         add_definitions(-Wformat-nonliteral)
         set (CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
         set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
+        set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
     else()
         add_definitions(-Wno-gnu-statement-expression)
     endif()
@@ -37,7 +38,6 @@ add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat
 	    add_definitions(-fstack-protector -fPIC -fvisibility=hidden)
 	endif()
 endif()
-
 
 # build the main library
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
@@ -154,6 +154,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR
                                                                               ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c
                DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${exported_headers} ${internal_headers}
                        ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources}
+                       ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h
                        ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c)
 
 add_custom_target(amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c)
