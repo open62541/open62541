@@ -50,6 +50,7 @@ add_test(nodestore ${CMAKE_CURRENT_BINARY_DIR}/check_nodestore)
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
                    PRE_BUILD
                    COMMAND python ${PROJECT_SOURCE_DIR}/tools/hex2bin.py ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex
+                                  ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_CreateActivateSession.hex
                    DEPENDS ${PROJECT_SOURCE_DIR}/tools/hex2bin.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex)
 

@@ -375,22 +375,22 @@ UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 
 #define UA_NODEID_NUMERIC(NS_INDEX, NUMERICID) (UA_NodeId) {           \
         .namespaceIndex = NS_INDEX,                                    \
-        .identifierType = UA_NODEIDTYPE_NUMERIC,                        \
+        .identifierType = UA_NODEIDTYPE_NUMERIC,                       \
         .identifier.numeric = NUMERICID }
 
 #define UA_NODEID_STRING(NS_INDEX, CHARS) (UA_NodeId) {                \
         .namespaceIndex = NS_INDEX,                                    \
-        .identifierType = UA_NODEIDTYPE_STRING,                         \
+        .identifierType = UA_NODEIDTYPE_STRING,                        \
         .identifier.string = UA_STRING(CHARS) }
 
 #define UA_NODEID_GUID(NS_INDEX, GUID) (UA_NodeId) {                   \
         .namespaceIndex = NS_INDEX,                                    \
-        .identifierType = UA_NODEIDTYPE_GUID,                           \
+        .identifierType = UA_NODEIDTYPE_GUID,                          \
         .identifier.guid = GUID }
 
 #define UA_NODEID_BYTESTRING(NS_INDEX, CHARS) (UA_NodeId) {            \
         .namespaceIndex = NS_INDEX,                                    \
-        .identifierType = UA_NODEIDTYPE_BYTESTRING,                     \
+        .identifierType = UA_NODEIDTYPE_BYTESTRING,                    \
         .identifier.byteString = UA_STRING(CHARS) }
 
 #define UA_NODEID_NULL UA_NODEID_NUMERIC(0,0)
@@ -398,9 +398,9 @@ UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 /* ExpandedNodeId */
 UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 
-#define UA_EXPANDEDNODEID_NUMERIC(NS_INDEX, NUMERICID) (UA_ExpandedNodeId) {                \
+#define UA_EXPANDEDNODEID_NUMERIC(NS_INDEX, NUMERICID) (UA_ExpandedNodeId) {            \
         .nodeId = {.namespaceIndex = NS_INDEX, .identifierType = UA_NODEIDTYPE_NUMERIC, \
-                   .identifier.numeric = NUMERICID },                                    \
+                   .identifier.numeric = NUMERICID },                                   \
         .serverIndex = 0, .namespaceUri = {.data = (UA_Byte*)0, .length = -1} }
     
 /* QualifiedName */
@@ -422,12 +422,6 @@ UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
  *  - arrayLength >= 0: variant holds an array of the appropriate length
  *                      data can be NULL if arrayLength == 0
  */
-
-/**
- * Copy the variant, but use only a subset of the (multidimensional) array. Returns an error code if
- * the variant is no array or if the indicated range does not fit.
- */
-UA_StatusCode UA_EXPORT UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, UA_NumericRange range);
 
 /**
  * Set the variant to a scalar value that already resides in memory. The value takes on the
@@ -460,8 +454,8 @@ UA_StatusCode UA_EXPORT UA_Variant_setScalarCopy(UA_Variant *v, const void *p, c
  * @param type The datatype of the array
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array,
-                                            UA_Int32 noElements, const UA_DataType *type);
+UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 noElements,
+                                            const UA_DataType *type);
 
 /**
  * Set the variant to an array that is copied from an existing array.
@@ -472,8 +466,38 @@ UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array,
  * @param type The datatype of the array
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setArrayCopy(UA_Variant *v, const void *array,
-                                                UA_Int32 noElements, const UA_DataType *type);
+UA_StatusCode UA_EXPORT UA_Variant_setArrayCopy(UA_Variant *v, const void *array, UA_Int32 noElements,
+                                                const UA_DataType *type);
+
+/**
+ * Copy the variant, but use only a subset of the (multidimensional) array. Returns an error code if
+ * the variant is no array or if the indicated range does not fit.
+ */
+UA_StatusCode UA_EXPORT UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, UA_NumericRange range);
+
+/**
+ * Insert a range of data into an existing variant of the dimensionality. This overwrites data in
+ * the variant. The inserted data is managed by the variant (members are deleted with it).
+ *
+ * @param v The variant
+ * @param data The data array. Obviously the type must match the variant and the length the range.
+ * @param range The range of where the new data is inserted
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
+UA_StatusCode UA_EXPORT UA_Variant_setRange(UA_Variant *v, void *data, const UA_NumericRange range);
+
+/**
+ * Copies the variant and inserts data from the range. The inserted data is managed by the variant
+ * (members are deleted with it).
+ *
+ * @param src The source variant
+ * @param dst The target variant
+ * @param data The data array. Obviously the type must match the variant and the length the range.
+ * @param range The range of where the new data is inserted
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
+UA_StatusCode UA_EXPORT UA_Variant_setCopyRange(const UA_Variant *src, UA_Variant *dst, void *data,
+                                                const UA_NumericRange range);
 
 /****************************/
 /* Structured Type Handling */

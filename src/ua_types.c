@@ -81,12 +81,13 @@ UA_TYPE_DEFAULT(UA_Double)
 
 /* String */
 UA_TYPE_NEW_DEFAULT(UA_String)
+UA_TYPE_DELETE_DEFAULT(UA_String)
+
 void UA_String_init(UA_String *p) {
     p->length = -1;
     p->data   = UA_NULL;
 }
 
-UA_TYPE_DELETE_DEFAULT(UA_String)
 void UA_String_deleteMembers(UA_String *p) {
 	if(p->data) {
 		UA_free(p->data);
@@ -232,6 +233,7 @@ UA_StatusCode UA_DateTime_toString(UA_DateTime atime, UA_String *timeString) {
 }
 
 /* Guid */
+UA_TYPE_NEW_DEFAULT(UA_Guid)
 UA_TYPE_DELETEMEMBERS_NOACTION(UA_Guid)
 UA_TYPE_DELETE_DEFAULT(UA_Guid)
 
@@ -267,7 +269,6 @@ void UA_Guid_init(UA_Guid *p) {
     memset(p->data4, 0, sizeof(UA_Byte)*8);
 }
 
-UA_TYPE_NEW_DEFAULT(UA_Guid)
 UA_StatusCode UA_Guid_copy(UA_Guid const *src, UA_Guid *dst) {
     UA_memcpy((void *)dst, (const void *)src, sizeof(UA_Guid));
     return UA_STATUSCODE_GOOD;
@@ -292,13 +293,14 @@ UA_StatusCode UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length) {
 /* XmlElement */
 
 /* NodeId */
+UA_TYPE_NEW_DEFAULT(UA_NodeId)
+UA_TYPE_DELETE_DEFAULT(UA_NodeId)
 void UA_NodeId_init(UA_NodeId *p) {
     p->identifierType = UA_NODEIDTYPE_NUMERIC;
     p->namespaceIndex = 0;
     memset(&p->identifier, 0, sizeof(p->identifier));
 }
 
-UA_TYPE_NEW_DEFAULT(UA_NodeId)
 UA_StatusCode UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(src->identifierType) {
@@ -332,7 +334,6 @@ static UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id) {
         id ->identifier.numeric <= 25;
 }
 
-UA_TYPE_DELETE_DEFAULT(UA_NodeId)
 void UA_NodeId_deleteMembers(UA_NodeId *p) {
     switch(p->identifierType) {
     case UA_NODEIDTYPE_STRING:
@@ -397,7 +398,9 @@ UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
 }
 
 /* ExpandedNodeId */
+UA_TYPE_NEW_DEFAULT(UA_ExpandedNodeId)
 UA_TYPE_DELETE_DEFAULT(UA_ExpandedNodeId)
+
 void UA_ExpandedNodeId_deleteMembers(UA_ExpandedNodeId *p) {
     UA_NodeId_deleteMembers(&p->nodeId);
     UA_String_deleteMembers(&p->namespaceUri);
@@ -409,7 +412,6 @@ void UA_ExpandedNodeId_init(UA_ExpandedNodeId *p) {
     p->serverIndex = 0;
 }
 
-UA_TYPE_NEW_DEFAULT(UA_ExpandedNodeId)
 UA_StatusCode UA_ExpandedNodeId_copy(UA_ExpandedNodeId const *src, UA_ExpandedNodeId *dst) {
     UA_StatusCode retval = UA_NodeId_copy(&src->nodeId, &dst->nodeId);
     retval |= UA_String_copy(&src->namespaceUri, &dst->namespaceUri);
@@ -499,6 +501,7 @@ UA_StatusCode UA_ExtensionObject_copy(UA_ExtensionObject const *src, UA_Extensio
 
 /* DataValue */
 UA_TYPE_DELETE_DEFAULT(UA_DataValue)
+UA_TYPE_NEW_DEFAULT(UA_DataValue)
 void UA_DataValue_deleteMembers(UA_DataValue *p) {
     UA_Variant_deleteMembers(&p->value);
 }
@@ -513,7 +516,6 @@ void UA_DataValue_init(UA_DataValue *p) {
     UA_Variant_init(&p->value);
 }
 
-UA_TYPE_NEW_DEFAULT(UA_DataValue)
 UA_StatusCode UA_DataValue_copy(UA_DataValue const *src, UA_DataValue *dst) {
     UA_DataValue_init(dst);
     *((UA_Byte*)dst) = *((const UA_Byte*)src); // the bitfield
@@ -532,6 +534,8 @@ UA_StatusCode UA_DataValue_copy(UA_DataValue const *src, UA_DataValue *dst) {
 
 /* Variant */
 UA_TYPE_NEW_DEFAULT(UA_Variant)
+UA_TYPE_DELETE_DEFAULT(UA_Variant)
+
 void UA_Variant_init(UA_Variant *p) {
     p->storageType = UA_VARIANT_DATA;
     p->arrayLength = -1;
@@ -541,20 +545,19 @@ void UA_Variant_init(UA_Variant *p) {
     p->type = &UA_TYPES[UA_TYPES_BOOLEAN];
 }
 
-UA_TYPE_DELETE_DEFAULT(UA_Variant)
 void UA_Variant_deleteMembers(UA_Variant *p) {
-    if(p->storageType == UA_VARIANT_DATA) {
-        if(p->data) {
-            if(p->arrayLength == -1)
-                p->arrayLength = 1;
-            UA_Array_delete(p->data, p->type, p->arrayLength);
-            p->data = UA_NULL;
-            p->arrayLength = -1;
-        }
-        if(p->arrayDimensions) {
-            UA_free(p->arrayDimensions);
-            p->arrayDimensions = UA_NULL;
-        }
+    if(p->storageType != UA_VARIANT_DATA)
+        return;
+    if(p->data) {
+        if(p->arrayLength == -1)
+            p->arrayLength = 1;
+        UA_Array_delete(p->data, p->type, p->arrayLength);
+        p->data = UA_NULL;
+        p->arrayLength = -1;
+    }
+    if(p->arrayDimensions) {
+        UA_free(p->arrayDimensions);
+        p->arrayDimensions = UA_NULL;
     }
 }
 
@@ -583,26 +586,32 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
         }
         dst->arrayDimensionsSize = src->arrayDimensionsSize;
     }
-
     return retval;
 }
 
-UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRange range) {
-    UA_Variant_init(dst);
-    // test the integrity of the variant dimensions
+/**
+ * Tests if a range is compatible with a variant. If yes, the following values are set:
+ * - total: how many elements are indicated by the range
+ * - block_size: how big is each contiguous block of elements in the variant denoted by the range
+ * - block_distance: how many elements are between the blocks (beginning to beginning)
+ * - first_elem: where does the first block begin
+ */
+static UA_StatusCode testRangeWithVariant(const UA_Variant *v, const UA_NumericRange range, size_t *total,
+                                          size_t *block_size, size_t *block_distance, size_t *first_elem) {
+    /* Test the integrity of the source variant dimensions */
     UA_Int32 dims_count = 1;
-    const UA_Int32 *dims = &src->arrayLength; // default: the array has only one dimension
-    if(src->arrayDimensionsSize > 0) {
-        dims_count = src->arrayDimensionsSize;
-        dims = src->arrayDimensions;
+    const UA_Int32 *dims = &v->arrayLength; // default: the array has only one dimension
+    if(v->arrayDimensionsSize > 0) {
+        dims_count = v->arrayDimensionsSize;
+        dims = v->arrayDimensions;
         UA_Int32 elements = 1;
         for(UA_Int32 i = 0; i < dims_count; i++)
             elements *= dims[i];
-        if(elements != src->arrayLength)
+        if(elements != v->arrayLength)
             return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    // test the integrity of the range and count objects
+    /* Test the integrity of the range */
     size_t count = 1;
     if(range.dimensionsSize != dims_count)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -614,67 +623,123 @@ UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const
         count *= (range.dimensions[i].max - range.dimensions[i].min) + 1;
     }
 
-    dst->data = UA_malloc(src->type->memSize * count);
-    if(!dst->data)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    
-    // copy a subset of the tensor with as few calls as possible.
-    // shift from copying single elements to contiguous blocks
-    size_t elem_size = src->type->memSize;
-    uintptr_t nextsrc = (uintptr_t)src->data; // the start ptr of the next copy operation
-    size_t contiguous_elems = src->arrayLength; // the length of the copy operation
-    ptrdiff_t jump_length = elem_size * dims[0]; // how far to jump until the next contiguous copy
-    size_t copy_count = count; // how often to copy
-
-    size_t running_dimssize = 1; // how big is a contiguous block for the dimensions k_max to k
+    /* Compute the block size and the position of the first element */
+    size_t bs, bd, fe = 0;
+    size_t running_dimssize = 1; // elements per block of dimensions k to k_max
     UA_Boolean found_contiguous = UA_FALSE;
     for(UA_Int32 k = dims_count - 1; k >= 0; k--) {
-        if(!found_contiguous) {
-            if(range.dimensions[k].min != 0 || range.dimensions[k].max + 1 != (UA_UInt32)dims[k]) {
-                found_contiguous = UA_TRUE;
-                contiguous_elems = (range.dimensions[k].max - range.dimensions[k].min + 1) * running_dimssize;
-                jump_length = ((dims[k] * running_dimssize) - contiguous_elems) * elem_size;
-                copy_count /= range.dimensions[k].max - range.dimensions[k].min + 1;
-            } else
-                copy_count /= dims[k];
+        if(!found_contiguous && (range.dimensions[k].min != 0 ||
+                                 range.dimensions[k].max + 1 != (UA_UInt32)dims[k])) {
+            found_contiguous = UA_TRUE;
+            bs = (range.dimensions[k].max - range.dimensions[k].min + 1) * running_dimssize;
+            bd = dims[k] * running_dimssize;
         } 
-        nextsrc += running_dimssize * range.dimensions[k].min * elem_size;
+        fe += running_dimssize * range.dimensions[k].min;
         running_dimssize *= dims[k];
     }
+    *total = count;
+    *block_size = bs;
+    *block_distance = bd;
+    *first_elem = fe;
+    return UA_STATUSCODE_GOOD;
+}
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRange range) {
+    size_t count, block_size, block_distance, first_elem;
+    UA_StatusCode retval = testRangeWithVariant(src, range, &count, &block_size, &block_distance, &first_elem);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_Variant_init(dst);
+    size_t elem_size = src->type->memSize;
+    dst->data = UA_malloc(elem_size * count);
+    if(!dst->data)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Copy the range */
+    size_t block_count = count / block_size;
     uintptr_t nextdst = (uintptr_t)dst->data;
-    size_t copied = 0;
-    for(size_t i = 0; i < copy_count; i++) {
-        if(src->type->fixedSize) {
-            memcpy((void*)nextdst, (void*)nextsrc, elem_size * contiguous_elems);
-        } else {
-            for(size_t j = 0; j < contiguous_elems; j++)
-                retval = UA_copy((const void*)(nextsrc + (j * elem_size)), (void*)(nextdst + (j * elem_size)),
-                                 src->type);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_Array_delete(dst->data, src->type, copied);
-                return retval;
-            }
-            copied += contiguous_elems;
+    uintptr_t nextsrc = (uintptr_t)src->data + (elem_size * first_elem);
+    if(src->type->fixedSize) {
+        for(size_t i = 0; i < block_count; i++) {
+            memcpy((void*)nextdst, (void*)nextsrc, elem_size * block_size);
+            nextdst += block_size * elem_size;
+            nextsrc += block_distance * elem_size;
         }
-        nextdst += elem_size * contiguous_elems;
-        nextsrc += jump_length;
-    }
-
-    if(src->arrayDimensionsSize > 0) {
-        retval = UA_Array_copy(dims, (void**)&dst->arrayDimensions, &UA_TYPES[UA_TYPES_INT32], dims_count);
+    } else {
+        for(size_t i = 0; i < block_count; i++) {
+            for(size_t j = 0; j < block_size && retval == UA_STATUSCODE_GOOD; j++) {
+                retval = UA_copy((const void*)nextsrc, (void*)nextdst, src->type);
+                nextdst += elem_size;
+                nextsrc += elem_size;
+            }
+            nextsrc += (block_distance - block_size) * elem_size;
+        }
         if(retval != UA_STATUSCODE_GOOD) {
+            size_t copied = ((nextdst - elem_size) - (uintptr_t)dst->data) / elem_size;
             UA_Array_delete(dst->data, src->type, copied);
             return retval;
         }
-        for(UA_Int32 k = 0; k < dims_count; k++)
+    }
+
+    /* Copy the range dimensions*/
+    if(src->arrayDimensionsSize > 0) {
+        dst->arrayDimensions = UA_malloc(sizeof(UA_Int32) * src->arrayDimensionsSize);
+        if(!dst->arrayDimensions) {
+            UA_Array_delete(dst->data, src->type, count);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        for(UA_Int32 k = 0; k < src->arrayDimensionsSize; k++)
             dst->arrayDimensions[k] = range.dimensions[k].max - range.dimensions[k].min + 1;
-        dst->arrayDimensionsSize = dims_count;
+        dst->arrayDimensionsSize = src->arrayDimensionsSize;
     }
     dst->arrayLength = count;
     dst->type = src->type;
-    dst->storageType = UA_VARIANT_DATA;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_Variant_setRange(UA_Variant *v, void *data, const UA_NumericRange range) {
+    size_t count, block_size, block_distance, first_elem;
+    UA_StatusCode retval = testRangeWithVariant(v, range, &count, &block_size, &block_distance, &first_elem);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    size_t block_count = count / block_size;
+    size_t elem_size = v->type->memSize;
+    uintptr_t nextdst = (uintptr_t)v->data + (first_elem * elem_size);
+    uintptr_t nextsrc = (uintptr_t)data;
+    if(v->type->fixedSize) {
+        for(size_t i = 0; i < block_count; i++) {
+            memcpy((void*)nextdst, (void*)nextsrc, elem_size * block_size);
+            nextdst += block_size * elem_size;
+            nextsrc += block_distance * elem_size;
+        }
+    } else {
+        for(size_t i = 0; i < block_count; i++) {
+            for(size_t j = 0; j < block_size; j++) {
+                UA_deleteMembers((void*)nextdst, v->type);
+                nextdst += elem_size;
+            }
+            nextdst -= block_size * elem_size;
+            memcpy((void*)nextdst, (void*)nextsrc, elem_size * block_size);
+            nextdst += block_size * elem_size;
+            nextsrc += block_distance * elem_size;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_Variant_setCopyRange(const UA_Variant *src, UA_Variant *dst, void *data,
+                                      const UA_NumericRange range) {
+    // todo: don't copy the entire variant but only the retained parts
+    UA_StatusCode retval = UA_Variant_copy(src, dst);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    retval = UA_Variant_setRange(dst, data, range);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Variant_deleteMembers(dst);
+        return retval;
+    }
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1098,7 +1163,7 @@ UA_StatusCode UA_Array_copy(const void *src, void **dst, const UA_DataType *data
 
     if(retval != UA_STATUSCODE_GOOD)
         UA_Array_delete(*dst, dataType, noElements);
-        
+
     return retval;
 }
 
