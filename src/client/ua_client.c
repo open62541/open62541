@@ -126,7 +126,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
 
 	UA_AsymmetricAlgorithmSecurityHeader asymHeader;
 	UA_AsymmetricAlgorithmSecurityHeader_init(&asymHeader);
-	asymHeader.securityPolicyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+	asymHeader.securityPolicyUri = UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
 
     /* id of opensecurechannelrequest */
 	UA_NodeId requestType = UA_NODEID_NUMERIC(0, UA_NS0ID_OPENSECURECHANNELREQUEST + UA_ENCODINGOFFSET_BINARY);
@@ -394,7 +394,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
 UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectionConfig conf,
                                 UA_ClientNetworkLayer networkLayer, char *endpointUrl)
 {
-    client->endpointUrl = UA_STRING(endpointUrl);
+    client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
     if(client->endpointUrl.length < 0)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 

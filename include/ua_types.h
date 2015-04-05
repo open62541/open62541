@@ -324,7 +324,7 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_DiagnosticInfo)
     allocated. If the memory cannot be allocated, a null-string is returned. */
 UA_String UA_EXPORT UA_String_fromChars(char const *src);
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
-#define UA_STRING(CHARS) (const UA_String) {sizeof(CHARS), (UA_Byte*)CHARS }
+#define UA_STRING(CHARS) (const UA_String) {sizeof(CHARS)-1, (UA_Byte*)CHARS }
 #define UA_STRING_NULL (UA_String) {-1, (UA_Byte*)0 }
 
 /** Printf a char-array into a UA_String. Memory for the string data is allocated. */
@@ -416,11 +416,11 @@ UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 /* QualifiedName */
 #define UA_QUALIFIEDNAME(NS_INDEX, CHARS) (const UA_QualifiedName) {    \
         .namespaceIndex = NS_INDEX, .name = UA_STRING(CHARS) }
-#define UA_QUALIFIEDNAME_ALLOC(NS_INDEX, CHARS) (const UA_QualifiedName) {    \
+#define UA_QUALIFIEDNAME_ALLOC(NS_INDEX, CHARS) (UA_QualifiedName) {    \
         .namespaceIndex = NS_INDEX, .name = UA_STRING_ALLOC(CHARS) }
 
 /* LocalizedText */
-#define UA_LOCALIZEDTEXT(LOCALE, TEXT) (UA_LocalizedText) {     \
+#define UA_LOCALIZEDTEXT(LOCALE, TEXT) (const UA_LocalizedText) {     \
         .locale = UA_STRING(LOCALE), .text = UA_STRING(TEXT) }
 #define UA_LOCALIZEDTEXT_ALLOC(LOCALE, TEXT) (UA_LocalizedText) {             \
         .locale = UA_STRING_ALLOC(LOCALE), .text = UA_STRING_ALLOC(TEXT) }

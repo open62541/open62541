@@ -37,14 +37,18 @@ void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkL
     server->nlsSize++;
 
     if(networkLayer.discoveryUrl){
-		UA_String* newUrls = UA_realloc(server->description.discoveryUrls, sizeof(UA_String)*(server->description.discoveryUrlsSize+1)); //TODO: rework this pattern into *_array_insert
+        if(server->description.discoveryUrlsSize < 0)
+            server->description.discoveryUrlsSize = 0;
+		UA_String* newUrls = UA_realloc(server->description.discoveryUrls,
+                                        sizeof(UA_String)*(server->description.discoveryUrlsSize));
 		if(!newUrls) {
 			UA_LOG_ERROR(server->logger, UA_LOGGERCATEGORY_SERVER, "Adding discoveryUrl");
 			return;
 		}
 		server->description.discoveryUrls = newUrls;
-		UA_String_copy(networkLayer.discoveryUrl, &server->description.discoveryUrls[0]);
-		server->description.discoveryUrlsSize++;
+		UA_String_copy(networkLayer.discoveryUrl,
+                       &server->description.discoveryUrls[server->description.discoveryUrlsSize]);
+        server->description.discoveryUrlsSize++;
     }
 }
 

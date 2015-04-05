@@ -108,7 +108,7 @@ UA_StatusCode UA_String_copy(UA_String const *src, UA_String *dst) {
 
 UA_String UA_String_fromChars(char const *src) {
     UA_String str;
-    size_t length = strlen(src);
+    size_t length = sizeof(src)-1;
     if(length == 0) {
         str.length = 0;
         str.data = UA_NULL;
