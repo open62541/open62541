@@ -10,6 +10,10 @@ const UA_ConnectionConfig UA_ConnectionConfig_standard =
 
 UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString received)
 {
+	if(received.length == -1){
+		return received;
+	}
+
     /* concat received to the incomplete message we have */
     UA_ByteString current;
     if(connection->incompleteMessage.length < 0)
@@ -24,9 +28,12 @@ UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteS
             received.length = -1;
             return received;
         }
-        UA_memcpy(&longer[connection->incompleteMessage.length], received.data, received.length);
-        current.data = longer;
-        current.length = connection->incompleteMessage.length + received.length;
+        UA_memcpy(longer+connection->incompleteMessage.length, received.data, received.length);
+        UA_ByteString_deleteMembers(&received);
+        connection->incompleteMessage.data = longer;
+        connection->incompleteMessage.length = connection->incompleteMessage.length + received.length;
+        current.data = connection->incompleteMessage.data;
+        current.length = connection->incompleteMessage.length;
     }
 
     /* find the first non-complete message */
@@ -42,7 +49,8 @@ UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteS
         }
         UA_Int32 length = 0;
         size_t pos = end_pos + 4;
-        UA_Int32_decodeBinary(&received, &pos, &length);
+        if((UA_Int32)pos<=current.length)
+        	UA_Int32_decodeBinary(&current, &pos, &length);
         if(length < 32 || length > (UA_Int32)connection->localConf.maxMessageSize) {
             current.length = end_pos; // throw the remaining bytestring away
             break;
@@ -52,22 +60,58 @@ UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteS
         end_pos += length;
     }
 
-    /* return all complete messages, retain the (last) incomplete one */
-    if(current.length == 0) {
+    if(current.length == 0) { //flag was set to through everything away
         UA_String_deleteMembers(&current);
         current.length = -1;
-    } else {
-        if(current.length - end_pos > 0) {
-            connection->incompleteMessage.data = UA_malloc(current.length - end_pos);
-            if(!connection->incompleteMessage.data)
-                UA_ByteString_init(&connection->incompleteMessage);
-            else {
-                UA_memcpy(&current.data[end_pos], connection->incompleteMessage.data,
-                          current.length - end_pos);
-                connection->incompleteMessage.length = current.length - end_pos;
-            }
-        }
-        current.length = end_pos;
+        return current;
+    }
+
+    /* return all complete messages, retain the (last) incomplete one */
+    //the message is not ready - retain it
+    if(current.length - end_pos > 0) {
+    	if(connection->incompleteMessage.length < 0){
+    		connection->incompleteMessage.data = UA_malloc(current.length - end_pos);
+    		if(!connection->incompleteMessage.data)
+    			UA_ByteString_init(&connection->incompleteMessage);
+    		UA_memcpy(connection->incompleteMessage.data, current.data, current.length - end_pos);
+    		connection->incompleteMessage.length = current.length - end_pos;
+    		UA_ByteString_deleteMembers(&current);
+    		current.length = -1;
+    	}
+    }
+    if(end_pos == 0 && current.length - end_pos > 0){
+    	//incomplete - do not forget to destroy the buffer
+    	if(current.data==received.data)
+    		UA_ByteString_deleteMembers(&received);
+    	current.length = -1; //no complete message yet
+    }else{
+    	//a prefix is a complete message
+
+    	//we have some incomplete message saved
+    	if(connection->incompleteMessage.data){
+    		//prepare the output buffer - reuse the one from the socket
+    		current.data = UA_realloc(received.data, end_pos);
+    		if(!current.data){
+    	        UA_String_deleteMembers(&current);
+    	        current.length = -1;
+    			return current;
+    		}
+    		memcpy(current.data, connection->incompleteMessage.data, end_pos);
+
+    		//is there something left in the incomplete buffer?
+    		if((UA_Int32)end_pos <= connection->incompleteMessage.length){
+    			//yes - save the suffix
+    			memcpy(connection->incompleteMessage.data, connection->incompleteMessage.data+end_pos, connection->incompleteMessage.length - end_pos);
+    			//shrink the buffer
+    			connection->incompleteMessage.data = UA_realloc(connection->incompleteMessage.data, connection->incompleteMessage.length - end_pos);
+    			connection->incompleteMessage.length = connection->incompleteMessage.length - end_pos;
+    		}else{
+    			//no - cleanup
+    			UA_String_deleteMembers(&connection->incompleteMessage);
+    			connection->incompleteMessage.length = -1;
+    		}
+    	}
+    	current.length = end_pos;
     }
     return current;
 }

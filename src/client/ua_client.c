@@ -173,7 +173,15 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
     // parse the response
     UA_ByteString reply;
     UA_ByteString_newMembers(&reply, client->connection.localConf.recvBufferSize);
-    retval = client->networkLayer.awaitResponse(client->networkLayer.nlHandle, &reply, 1000);
+    do {
+        retval = client->networkLayer.awaitResponse(client->networkLayer.nlHandle, &reply, 1000);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_ByteString_deleteMembers(&reply);
+            return retval;
+        }
+        reply = UA_Connection_completeMessages(&client->connection, reply);
+    } while(reply.length < 0);
+
     if(retval) {
         UA_ByteString_deleteMembers(&reply);
         return retval;
@@ -350,6 +358,7 @@ static UA_StatusCode SessionHandshake(UA_Client *client) {
 	/* UA_String_copycstring("abcd", &rq.clientCertificate); */
 
     UA_CreateSessionResponse response;
+    UA_CreateSessionResponse_init(&response);
     synchronousRequest(&request, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
                        &response, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE],
                        client);
