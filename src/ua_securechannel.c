@@ -10,9 +10,9 @@ const UA_ConnectionConfig UA_ConnectionConfig_standard =
 
 UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString received)
 {
-	if(received.length == -1){
-		return received;
-	}
+    if(received.length == -1){
+        return received;
+    }
 
     /* concat received to the incomplete message we have */
     UA_ByteString current;
