@@ -180,7 +180,7 @@ int main(int argc, char** argv) {
 		.read = readTimeData,
 		.release = releaseTimeData,
 		.write = NULL};
-	const UA_QualifiedName dateName = UA_QUALIFIEDNAME_STATIC(0, "current time");
+	const UA_QualifiedName dateName = UA_QUALIFIEDNAME(0, "current time");
 	UA_Server_addDataSourceVariableNode(server, dateDataSource, dateName, UA_NODEID_NULL,
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
@@ -220,7 +220,7 @@ int main(int argc, char** argv) {
 		.read = readLedStatus,
 		.release = releaseLedStatus,
 		.write = writeLedStatus};
-	const UA_QualifiedName statusName = UA_QUALIFIEDNAME_STATIC(0, "status LED");
+	const UA_QualifiedName statusName = UA_QUALIFIEDNAME(0, "status LED");
 	UA_Server_addDataSourceVariableNode(server, ledStatusDataSource, statusName, UA_NODEID_NULL,
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
@@ -229,7 +229,7 @@ int main(int argc, char** argv) {
     UA_Variant *myIntegerVariant = UA_Variant_new();
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME_STATIC(0, "the answer");
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(0, "the answer");
     UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);

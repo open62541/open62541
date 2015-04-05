@@ -87,11 +87,10 @@ int main(int argc, char** argv) {
         void *data = UA_new(&UA_TYPES[i]);
         UA_Variant *variant = UA_Variant_new();
         UA_Variant_setScalar(variant, data, &UA_TYPES[i]);
-        UA_QualifiedName *nodeName = UA_QualifiedName_new();
         sprintf(str,"%d",i);
-        *nodeName = UA_QUALIFIEDNAME(1, str);
+        UA_QualifiedName nodeName = UA_QUALIFIEDNAME(1, str);
         UA_NodeId id = UA_NODEID_NUMERIC(1, 100 + i);
-        UA_Server_addVariableNode(server, variant, *nodeName, id,
+        UA_Server_addVariableNode(server, variant, nodeName, id,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
@@ -99,11 +98,10 @@ int main(int argc, char** argv) {
         data = UA_Array_new(&UA_TYPES[i], 10);
         variant = UA_Variant_new();
         UA_Variant_setArray(variant, data, 10, &UA_TYPES[i]);
-        nodeName = UA_QualifiedName_new();
         sprintf(str,"array of %d",i);
-        *nodeName = UA_QUALIFIEDNAME(1, str);
+        nodeName = UA_QUALIFIEDNAME(1, str);
         id = UA_NODEID_NUMERIC(1, 200 + i);
-        UA_Server_addVariableNode(server, variant, *nodeName, id,
+        UA_Server_addVariableNode(server, variant, nodeName, id,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
     }

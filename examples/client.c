@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
     UA_ReadRequest_init(&req);
     req.nodesToRead = UA_ReadValueId_new();
     req.nodesToReadSize = 1;
-    req.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer"); /* assume this node exists */
+    req.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer"); /* assume this node exists */
     req.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
 
     UA_ReadResponse resp = UA_Client_read(client, &req);

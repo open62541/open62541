@@ -195,19 +195,18 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
             UA_Boolean hasRange = UA_FALSE;
             UA_NumericRange range;
             if(id->indexRange.length > 0) {
-                hasRange = UA_TRUE;
                 retval = parse_numericrange(id->indexRange, &range);
                 if(retval != UA_STATUSCODE_GOOD)
                     break;
+                hasRange = UA_TRUE;
             }
 
             const UA_VariableNode *vn = (const UA_VariableNode*)node;
-
-            if(vn->variableType == UA_VARIABLENODETYPE_VARIANT) {
+            if(vn->valueSource == UA_VALUESOURCE_VARIANT) {
                 if(hasRange)
-                    retval |= UA_Variant_copyRange(&vn->variable.variant, &v->value, range);
+                    retval |= UA_Variant_copyRange(&vn->value.variant, &v->value, range);
                 else
-                    retval |= UA_Variant_copy(&vn->variable.variant, &v->value);
+                    retval |= UA_Variant_copy(&vn->value.variant, &v->value);
                 if(retval == UA_STATUSCODE_GOOD) {
                     v->hasValue = UA_TRUE;
                     handleSourceTimestamps(timestamps, v);
@@ -217,11 +216,11 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
                 UA_DataValue_init(&val);
                 UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
                                               timestamps == UA_TIMESTAMPSTORETURN_BOTH);
-                retval |= vn->variable.dataSource.read(vn->variable.dataSource.handle, sourceTimeStamp, &val);
+                retval |= vn->value.dataSource.read(vn->value.dataSource.handle, sourceTimeStamp, &val);
                 if(retval == UA_STATUSCODE_GOOD) {
                     retval |= UA_DataValue_copy(&val, v); // todo: selection of indexranges
                 }
-                vn->variable.dataSource.release(vn->variable.dataSource.handle, &val);
+                vn->value.dataSource.release(vn->value.dataSource.handle, &val);
             }
 
             if(hasRange)
@@ -229,31 +228,24 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
         }
         break;
 
-    case UA_ATTRIBUTEID_DATATYPE:
+    case UA_ATTRIBUTEID_DATATYPE: {
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-		v->hasValue = UA_TRUE;
-		if(node->nodeClass == UA_NODECLASS_VARIABLETYPE){
-			retval |= UA_Variant_setScalarCopy(&v->value,
-											  &((const UA_VariableTypeNode *)node)->value.type->typeId,
-											  &UA_TYPES[UA_TYPES_NODEID]);
-		} else {
-			const UA_VariableNode *vn = (const UA_VariableNode*)node;
-			if(vn->variableType == UA_VARIABLENODETYPE_VARIANT)
-				retval |= UA_Variant_setScalarCopy(&v->value, &vn->variable.variant.type->typeId,
-												  &UA_TYPES[UA_TYPES_NODEID]);
-			else {
-				UA_DataValue val;
-				UA_DataValue_init(&val);
-				retval |= vn->variable.dataSource.read(vn->variable.dataSource.handle, UA_FALSE, &val);
-				if(retval != UA_STATUSCODE_GOOD)
-					break;
-				retval |= UA_Variant_setScalarCopy(&v->value, &val.value.type->typeId,
-												  &UA_TYPES[UA_TYPES_NODEID]);
-				vn->variable.dataSource.release(vn->variable.dataSource.handle, &val);
-				if(retval != UA_STATUSCODE_GOOD)
-					break;
-			}
-		}
+        const UA_VariableNode *vn = (const UA_VariableNode*)node;
+        if(vn->valueSource == UA_VALUESOURCE_VARIANT)
+            retval = UA_Variant_setScalarCopy(&v->value, &vn->value.variant.type->typeId,
+                                              &UA_TYPES[UA_TYPES_NODEID]);
+        else {
+            UA_DataValue val;
+            UA_DataValue_init(&val);
+            retval = vn->value.dataSource.read(vn->value.dataSource.handle, UA_FALSE, &val);
+            if(retval != UA_STATUSCODE_GOOD)
+                break;
+            retval = UA_Variant_setScalarCopy(&v->value, &val.value.type->typeId, &UA_TYPES[UA_TYPES_NODEID]);
+            vn->value.dataSource.release(vn->value.dataSource.handle, &val);
+        }
+        if(retval == UA_STATUSCODE_GOOD)
+            v->hasValue = UA_TRUE;
+        }
         break;
 
     case UA_ATTRIBUTEID_VALUERANK:
@@ -266,21 +258,17 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         {
-        	//TODO: handle indexRange
-            if(node->nodeClass == UA_NODECLASS_VARIABLETYPE)
-                break;
-                
             const UA_VariableNode *vn = (const UA_VariableNode *)node;
-            if(vn->variableType == UA_VARIABLENODETYPE_VARIANT) {
-                retval = UA_Variant_setArrayCopy(&v->value, vn->variable.variant.arrayDimensions,
-                                                 vn->variable.variant.arrayDimensionsSize,
+            if(vn->valueSource == UA_VALUESOURCE_VARIANT) {
+                retval = UA_Variant_setArrayCopy(&v->value, vn->value.variant.arrayDimensions,
+                                                 vn->value.variant.arrayDimensionsSize,
                                                  &UA_TYPES[UA_TYPES_INT32]);
                 if(retval == UA_STATUSCODE_GOOD)
                     v->hasValue = UA_TRUE;
             } else {
                 UA_DataValue val;
                 UA_DataValue_init(&val);
-                retval |= vn->variable.dataSource.read(vn->variable.dataSource.handle, UA_FALSE, &val);
+                retval |= vn->value.dataSource.read(vn->value.dataSource.handle, UA_FALSE, &val);
                 if(retval != UA_STATUSCODE_GOOD)
                     break;
                 if(!val.hasValue)
@@ -288,7 +276,7 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
                 else
                     retval = UA_Variant_setArrayCopy(&v->value, val.value.arrayDimensions,
                                                      val.value.arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
-                vn->variable.dataSource.release(vn->variable.dataSource.handle, &val);
+                vn->value.dataSource.release(vn->value.dataSource.handle, &val);
             }
         }
         break;
@@ -440,6 +428,10 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
+    /* is there a value at all */
+    if(!wvalue->value.hasValue)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
     // we might repeat writing, e.g. when the node got replaced mid-work
     UA_Boolean done = UA_FALSE;
     while(!done) {
@@ -462,104 +454,95 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
         case UA_ATTRIBUTEID_EVENTNOTIFIER:
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
-        case UA_ATTRIBUTEID_VALUE:
-            if(node->nodeClass == UA_NODECLASS_VARIABLE) {
-                const UA_VariableNode *vn = (const UA_VariableNode*)node;
-                if(vn->variableType == UA_VARIABLENODETYPE_DATASOURCE) {
-                    if(!vn->variable.dataSource.write) {
-                        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-                        break;
-                    }
-                    retval = vn->variable.dataSource.write(vn->variable.dataSource.handle, &wvalue->value.value);
-                    done = UA_TRUE;
-                    break;
-                }
+        case UA_ATTRIBUTEID_VALUE: {
+            if(node->nodeClass != UA_NODECLASS_VARIABLE &&
+               node->nodeClass != UA_NODECLASS_VARIABLETYPE) {
+                retval = UA_STATUSCODE_BADTYPEMISMATCH;
+                break;
+            }
 
-                // array sizes are not compared
+            /* parse the range */
+            UA_Boolean hasRange = UA_FALSE;
+            UA_NumericRange range;
+            if(wvalue->indexRange.length > 0) {
+                retval = parse_numericrange(wvalue->indexRange, &range);
+                if(retval != UA_STATUSCODE_GOOD)
+                    break;
+                hasRange = UA_TRUE;
+            }
 
-                if(!wvalue->value.hasValue) {
-                    retval = UA_STATUSCODE_BADTYPEMISMATCH;
-                    break;
-                }
-
-                if(!UA_NodeId_equal(&vn->variable.variant.type->typeId, &wvalue->value.value.type->typeId)) {
-                    if(vn->variable.variant.type->namespaceZero && wvalue->value.value.type->namespaceZero &&
-                       vn->variable.variant.type->typeIndex == wvalue->value.value.type->typeIndex)
-                        // an enum was sent as an int32, or an opaque type as a bytestring
-                        wvalue->value.value.type = vn->variable.variant.type;
-                    else if(vn->variable.variant.type == &UA_TYPES[UA_TYPES_BYTE] &&
-                            (!vn->variable.variant.data || vn->variable.variant.arrayLength > -1) /* isArray */ &&
-                            wvalue->value.value.type == &UA_TYPES[UA_TYPES_BYTESTRING] &&
-                            wvalue->value.value.data && wvalue->value.value.arrayLength == -1 /* isScalar */) {
-                        // a string is written to a byte array
-                        UA_ByteString *str = (UA_ByteString*) wvalue->value.value.data;
-                        wvalue->value.value.arrayLength = str->length;
-                        wvalue->value.value.data = str->data;
-                        wvalue->value.value.type = &UA_TYPES[UA_TYPES_BYTE];
-                        UA_free(str);
-                    } else {
-                        retval = UA_STATUSCODE_BADTYPEMISMATCH;
-                        break;
-                    }
-                }
-
-                UA_VariableNode *newVn = UA_VariableNode_new();
-                if(!newVn) {
-                    retval = UA_STATUSCODE_BADOUTOFMEMORY;
-                    break;
-                }
-                retval = UA_VariableNode_copy(vn, newVn);
-                if(retval != UA_STATUSCODE_GOOD) {
-                    UA_VariableNode_delete(newVn);
-                    break;
-                }
-                retval = UA_Variant_copy(&wvalue->value.value, &newVn->variable.variant);
-                if(retval != UA_STATUSCODE_GOOD) {
-                    UA_VariableNode_delete(newVn);
-                    break;
-                }
-                if(UA_NodeStore_replace(server->nodestore, node, (UA_Node*)newVn,
-                                        UA_NULL) == UA_STATUSCODE_GOOD)
-                    done = UA_TRUE;
-                else
-                    UA_VariableNode_delete(newVn);
-            } else if(node->nodeClass == UA_NODECLASS_VARIABLETYPE) {
-                const UA_VariableTypeNode *vtn = (const UA_VariableTypeNode*)node;
-                if(!wvalue->value.hasValue) {
+            /* the relevant members are similar for variables and variabletypes */
+            const UA_VariableNode *vn = (const UA_VariableNode*)node;
+            if(vn->valueSource == UA_VALUESOURCE_DATASOURCE) {
+                if(!vn->value.dataSource.write) {
                     retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
                     break;
                 }
-                if(!UA_NodeId_equal(&vtn->value.type->typeId, &wvalue->value.value.type->typeId)) {
-                    if(!vtn->value.type->namespaceZero || wvalue->value.value.type->namespaceZero ||
-                       vtn->value.type->typeIndex != wvalue->value.value.type->typeIndex) {
-                        retval = UA_STATUSCODE_BADTYPEMISMATCH;
-                        break;
-                    }
-                    wvalue->value.value.type = vtn->value.type;
-                }
+                // todo: writing ranges
+                retval = vn->value.dataSource.write(vn->value.dataSource.handle, &wvalue->value.value);
+                done = UA_TRUE;
+                break;
+            }
+            const UA_Variant *oldV = &vn->value.variant;
 
-                UA_VariableTypeNode *newVtn = UA_VariableTypeNode_new();
-                if(!newVtn) {
-                    retval = UA_STATUSCODE_BADOUTOFMEMORY;
+            /* the nodeid on the wire may be != the nodeid in the node: opaque types, enums and bytestrings */
+            if(!UA_NodeId_equal(&oldV->type->typeId, &wvalue->value.value.type->typeId)) {
+                if(oldV->type->namespaceZero && wvalue->value.value.type->namespaceZero &&
+                   oldV->type->typeIndex == wvalue->value.value.type->typeIndex)
+                    /* An enum was sent as an int32, or an opaque type as a bytestring. This is
+                       detected with the typeIndex indicated the "true" datatype. */
+                    wvalue->value.value.type = oldV->type;
+                else if(oldV->type == &UA_TYPES[UA_TYPES_BYTE] &&
+                        (!oldV->data || vn->value.variant.arrayLength > -1) /* isArray */ &&
+                        wvalue->value.value.type == &UA_TYPES[UA_TYPES_BYTESTRING] &&
+                        wvalue->value.value.data && wvalue->value.value.arrayLength == -1 /* isScalar */) {
+                    /* a string is written to a byte array */
+                    UA_ByteString *str = (UA_ByteString*) wvalue->value.value.data;
+                    wvalue->value.value.arrayLength = str->length;
+                    wvalue->value.value.data = str->data;
+                    wvalue->value.value.type = &UA_TYPES[UA_TYPES_BYTE];
+                    UA_free(str);
+                } else {
+                    retval = UA_STATUSCODE_BADTYPEMISMATCH;
                     break;
                 }
-                retval = UA_VariableTypeNode_copy(vtn, newVtn);
-                if(retval != UA_STATUSCODE_GOOD) {
-                    UA_VariableTypeNode_delete(newVtn);
-                    break;
-                }
-                retval = UA_Variant_copy(&wvalue->value.value, &newVtn->value);
-                if(retval != UA_STATUSCODE_GOOD) {
-                    UA_VariableTypeNode_delete(newVtn);
-                    break;
-                }
-                if(UA_NodeStore_replace(server->nodestore, node, (UA_Node*)newVtn,
-                                        UA_NULL) == UA_STATUSCODE_GOOD)
-                    done = UA_TRUE;
-                else
-                    UA_VariableTypeNode_delete(newVtn);
-            } else {
-                retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            }
+
+            /* copy the node */
+            UA_VariableNode *newVn = (node->nodeClass == UA_NODECLASS_VARIABLE) ?
+                UA_VariableNode_new() : (UA_VariableNode*)UA_VariableTypeNode_new();
+            if(!newVn) {
+                retval = UA_STATUSCODE_BADOUTOFMEMORY;
+                break;
+            }
+            retval = (node->nodeClass == UA_NODECLASS_VARIABLE) ? UA_VariableNode_copy(vn, newVn) : 
+                UA_VariableTypeNode_copy((const UA_VariableTypeNode*)vn, (UA_VariableTypeNode*)newVn);
+            if(retval != UA_STATUSCODE_GOOD)
+                goto clean_up;
+                
+            /* insert the new value*/
+            if(hasRange)
+                retval = UA_Variant_setRange(&newVn->value.variant, wvalue->value.value.data, range);
+            else {
+                UA_Variant_deleteMembers(&newVn->value.variant);
+                retval = UA_Variant_copy(&wvalue->value.value, &newVn->value.variant);
+            }
+            if(retval != UA_STATUSCODE_GOOD ||
+               UA_NodeStore_replace(server->nodestore, node, (UA_Node*)newVn,
+                                    UA_NULL) != UA_STATUSCODE_GOOD)
+                goto clean_up;
+            if(hasRange)
+                UA_free(range.dimensions);
+            done = UA_TRUE;
+            break;
+
+            clean_up:
+            if(node->nodeClass == UA_NODECLASS_VARIABLE)
+                UA_VariableNode_delete(newVn);
+            else
+                UA_VariableTypeNode_delete((UA_VariableTypeNode*)newVn);
+            if(hasRange)
+                UA_free(range.dimensions);
             }
             break;
         case UA_ATTRIBUTEID_DATATYPE:
@@ -578,10 +561,9 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
             break;
         }
 
+        UA_NodeStore_release(node);
         if(retval != UA_STATUSCODE_GOOD)
             break;
-
-        UA_NodeStore_release(node);
     }
 
     return retval;

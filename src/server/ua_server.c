@@ -94,13 +94,13 @@ static UA_StatusCode readStatus(const void *handle, UA_Boolean sourceTimeStamp, 
     status->startTime   = ((const UA_Server*)handle)->startTime;
     status->currentTime = UA_DateTime_now();
     status->state       = UA_SERVERSTATE_RUNNING;
-    status->buildInfo.productUri = UA_STRING("http://www.open62541.org");
-    status->buildInfo.manufacturerName = UA_STRING("open62541");
-    status->buildInfo.productName = UA_STRING("open62541 OPC UA Server");
+    status->buildInfo.productUri = UA_STRING_ALLOC("http://www.open62541.org");
+    status->buildInfo.manufacturerName = UA_STRING_ALLOC("open62541");
+    status->buildInfo.productName = UA_STRING_ALLOC("open62541 OPC UA Server");
 #define STRINGIFY(x) #x //some magic
 #define TOSTRING(x) STRINGIFY(x) //some magic
-    status->buildInfo.softwareVersion = UA_STRING(TOSTRING(OPEN62541_VERSION_MAJOR) "." TOSTRING(OPEN62541_VERSION_MINOR) "." TOSTRING(OPEN62541_VERSION_PATCH));
-    status->buildInfo.buildNumber = UA_STRING("0");
+    status->buildInfo.softwareVersion = UA_STRING_ALLOC(TOSTRING(OPEN62541_VERSION_MAJOR) "." TOSTRING(OPEN62541_VERSION_MINOR) "." TOSTRING(OPEN62541_VERSION_PATCH));
+    status->buildInfo.buildNumber = UA_STRING_ALLOC("0");
     status->buildInfo.buildDate = ((const UA_Server*)handle)->buildDate;
     status->secondsTillShutdown = 0;
     value->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
@@ -143,9 +143,9 @@ static void releaseCurrentTime(const void *handle, UA_DataValue *value) {
 }
 
 static void copyNames(UA_Node *node, char *name) {
-    node->browseName = UA_QUALIFIEDNAME(0, name);
-    node->displayName = UA_LOCALIZEDTEXT("", name);
-    node->description = UA_LOCALIZEDTEXT("", name);
+    node->browseName = UA_QUALIFIEDNAME_ALLOC(0, name);
+    node->displayName = UA_LOCALIZEDTEXT_ALLOC("", name);
+    node->description = UA_LOCALIZEDTEXT_ALLOC("", name);
 }
 
 static void addDataTypeNode(UA_Server *server, char* name, UA_UInt32 datatypeid, UA_Int32 parent) {
@@ -162,8 +162,7 @@ static UA_VariableTypeNode* createVariableTypeNode(UA_Server *server, char* name
     copyNames((UA_Node*)variabletype, name);
     variabletype->nodeId.identifier.numeric = variabletypeid;
     variabletype->isAbstract = abstract;
-    variabletype->value.type = &UA_TYPES[UA_TYPES_VARIANT];
-
+    variabletype->value.variant.type = &UA_TYPES[UA_TYPES_VARIANT];
     return variabletype;
 }
 
@@ -211,11 +210,11 @@ UA_Server * UA_Server_new(void) {
 #define APPLICATION_URI "urn:unconfigured:open62541:open62541Server"
     // mockup application description
     UA_ApplicationDescription_init(&server->description);
-    server->description.productUri = UA_STRING(PRODUCT_URI);
-    server->description.applicationUri = UA_STRING(APPLICATION_URI);
+    server->description.productUri = UA_STRING_ALLOC(PRODUCT_URI);
+    server->description.applicationUri = UA_STRING_ALLOC(APPLICATION_URI);
     server->description.discoveryUrlsSize = 0;
 
-    server->description.applicationName = UA_LOCALIZEDTEXT("", "Unconfigured open62541 application");
+    server->description.applicationName = UA_LOCALIZEDTEXT_ALLOC("", "Unconfigured open62541 application");
     server->description.applicationType = UA_APPLICATIONTYPE_SERVER;
     server->externalNamespacesSize = 0;
     server->externalNamespaces = UA_NULL;
@@ -223,15 +222,15 @@ UA_Server * UA_Server_new(void) {
     UA_EndpointDescription *endpoint = UA_EndpointDescription_new(); // todo: check return code
     if(endpoint) {
         endpoint->securityMode = UA_MESSAGESECURITYMODE_NONE;
-        endpoint->securityPolicyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
-        endpoint->transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
+        endpoint->securityPolicyUri = UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
+        endpoint->transportProfileUri = UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
         endpoint->userIdentityTokens = UA_malloc(sizeof(UA_UserTokenPolicy));
         if(!endpoint->userIdentityTokens) {
             UA_EndpointDescription_delete(endpoint);
         } else {
             UA_UserTokenPolicy_init(endpoint->userIdentityTokens);
             endpoint->userIdentityTokens->tokenType = UA_USERTOKENTYPE_ANONYMOUS;
-            endpoint->userIdentityTokens->policyId = UA_STRING("my-anonymous-policy"); // defined per server
+            endpoint->userIdentityTokens->policyId = UA_STRING_ALLOC("my-anonymous-policy"); // defined per server
 
             /* UA_String_copy(endpointUrl, &endpoint->endpointUrl); */
             /* /\* The standard says "the HostName specified in the Server Certificate is the */
@@ -275,7 +274,7 @@ UA_Server * UA_Server_new(void) {
 
     UA_ReferenceTypeNode *hassubtype = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hassubtype, "HasSubtype");
-    hassubtype->inverseName = UA_LOCALIZEDTEXT("", "HasSupertype");
+    hassubtype->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "HasSupertype");
     hassubtype->nodeId.identifier.numeric = UA_NS0ID_HASSUBTYPE;
     hassubtype->isAbstract = UA_FALSE;
     hassubtype->symmetric  = UA_FALSE;
@@ -311,7 +310,7 @@ UA_Server * UA_Server_new(void) {
 
     UA_ReferenceTypeNode *organizes = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)organizes, "Organizes");
-    organizes->inverseName = UA_LOCALIZEDTEXT("", "OrganizedBy");
+    organizes->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "OrganizedBy");
     organizes->nodeId.identifier.numeric = UA_NS0ID_ORGANIZES;
     organizes->isAbstract = UA_FALSE;
     organizes->symmetric  = UA_FALSE;
@@ -321,7 +320,7 @@ UA_Server * UA_Server_new(void) {
 
     UA_ReferenceTypeNode *haseventsource = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)haseventsource, "HasEventSource");
-    haseventsource->inverseName = UA_LOCALIZEDTEXT("", "EventSourceOf");
+    haseventsource->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "EventSourceOf");
     haseventsource->nodeId.identifier.numeric = UA_NS0ID_HASEVENTSOURCE;
     haseventsource->isAbstract = UA_FALSE;
     haseventsource->symmetric  = UA_FALSE;
@@ -331,7 +330,7 @@ UA_Server * UA_Server_new(void) {
 
     UA_ReferenceTypeNode *hasmodellingrule = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hasmodellingrule, "HasModellingRule");
-    hasmodellingrule->inverseName = UA_LOCALIZEDTEXT("", "ModellingRuleOf");
+    hasmodellingrule->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "ModellingRuleOf");
     hasmodellingrule->nodeId.identifier.numeric = UA_NS0ID_HASMODELLINGRULE;
     hasmodellingrule->isAbstract = UA_FALSE;
     hasmodellingrule->symmetric  = UA_FALSE;
@@ -341,7 +340,7 @@ UA_Server * UA_Server_new(void) {
 
     UA_ReferenceTypeNode *hasencoding = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hasencoding, "HasEncoding");
-    hasencoding->inverseName = UA_LOCALIZEDTEXT("", "EncodingOf");
+    hasencoding->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "EncodingOf");
     hasencoding->nodeId.identifier.numeric = UA_NS0ID_HASENCODING;
     hasencoding->isAbstract = UA_FALSE;
     hasencoding->symmetric  = UA_FALSE;
@@ -351,7 +350,7 @@ UA_Server * UA_Server_new(void) {
 
     UA_ReferenceTypeNode *hasdescription = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hasdescription, "HasDescription");
-    hasdescription->inverseName = UA_LOCALIZEDTEXT("", "DescriptionOf");
+    hasdescription->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "DescriptionOf");
     hasdescription->nodeId.identifier.numeric = UA_NS0ID_HASDESCRIPTION;
     hasdescription->isAbstract = UA_FALSE;
     hasdescription->symmetric  = UA_FALSE;
@@ -361,7 +360,7 @@ UA_Server * UA_Server_new(void) {
 
     UA_ReferenceTypeNode *hastypedefinition = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hastypedefinition, "HasTypeDefinition");
-    hastypedefinition->inverseName = UA_LOCALIZEDTEXT("", "TypeDefinitionOf");
+    hastypedefinition->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "TypeDefinitionOf");
     hastypedefinition->nodeId.identifier.numeric = UA_NS0ID_HASTYPEDEFINITION;
     hastypedefinition->isAbstract = UA_FALSE;
     hastypedefinition->symmetric  = UA_FALSE;
@@ -371,7 +370,7 @@ UA_Server * UA_Server_new(void) {
 
     UA_ReferenceTypeNode *generatesevent = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)generatesevent, "GeneratesEvent");
-    generatesevent->inverseName = UA_LOCALIZEDTEXT("", "GeneratedBy");
+    generatesevent->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "GeneratedBy");
     generatesevent->nodeId.identifier.numeric = UA_NS0ID_GENERATESEVENT;
     generatesevent->isAbstract = UA_FALSE;
     generatesevent->symmetric  = UA_FALSE;
@@ -395,7 +394,7 @@ UA_Server * UA_Server_new(void) {
 
     UA_ReferenceTypeNode *hasproperty = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hasproperty, "HasProperty");
-    hasproperty->inverseName = UA_LOCALIZEDTEXT("", "PropertyOf");
+    hasproperty->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "PropertyOf");
     hasproperty->nodeId.identifier.numeric = UA_NS0ID_HASPROPERTY;
     hasproperty->isAbstract = UA_FALSE;
     hasproperty->symmetric  = UA_FALSE;
@@ -405,7 +404,7 @@ UA_Server * UA_Server_new(void) {
 
     UA_ReferenceTypeNode *hascomponent = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hascomponent, "HasComponent");
-    hascomponent->inverseName = UA_LOCALIZEDTEXT("", "ComponentOf");
+    hascomponent->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "ComponentOf");
     hascomponent->nodeId.identifier.numeric = UA_NS0ID_HASCOMPONENT;
     hascomponent->isAbstract = UA_FALSE;
     hascomponent->symmetric  = UA_FALSE;
@@ -415,7 +414,7 @@ UA_Server * UA_Server_new(void) {
 
     UA_ReferenceTypeNode *hasnotifier = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hasnotifier, "HasNotifier");
-    hasnotifier->inverseName = UA_LOCALIZEDTEXT("", "NotifierOf");
+    hasnotifier->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "NotifierOf");
     hasnotifier->nodeId.identifier.numeric = UA_NS0ID_HASNOTIFIER;
     hasnotifier->isAbstract = UA_FALSE;
     hasnotifier->symmetric  = UA_FALSE;
@@ -425,7 +424,7 @@ UA_Server * UA_Server_new(void) {
 
     UA_ReferenceTypeNode *hasorderedcomponent = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hasorderedcomponent, "HasOrderedComponent");
-    hasorderedcomponent->inverseName = UA_LOCALIZEDTEXT("", "OrderedComponentOf");
+    hasorderedcomponent->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "OrderedComponentOf");
     hasorderedcomponent->nodeId.identifier.numeric = UA_NS0ID_HASORDEREDCOMPONENT;
     hasorderedcomponent->isAbstract = UA_FALSE;
     hasorderedcomponent->symmetric  = UA_FALSE;
@@ -435,7 +434,7 @@ UA_Server * UA_Server_new(void) {
 
     UA_ReferenceTypeNode *hasmodelparent = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hasmodelparent, "HasModelParent");
-    hasmodelparent->inverseName = UA_LOCALIZEDTEXT("", "ModelParentOf");
+    hasmodelparent->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "ModelParentOf");
     hasmodelparent->nodeId.identifier.numeric = UA_NS0ID_HASMODELPARENT;
     hasmodelparent->isAbstract = UA_FALSE;
     hasmodelparent->symmetric  = UA_FALSE;
@@ -445,7 +444,7 @@ UA_Server * UA_Server_new(void) {
 
     UA_ReferenceTypeNode *fromstate = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)fromstate, "FromState");
-    fromstate->inverseName = UA_LOCALIZEDTEXT("", "ToTransition");
+    fromstate->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "ToTransition");
     fromstate->nodeId.identifier.numeric = UA_NS0ID_FROMSTATE;
     fromstate->isAbstract = UA_FALSE;
     fromstate->symmetric  = UA_FALSE;
@@ -455,7 +454,7 @@ UA_Server * UA_Server_new(void) {
 
     UA_ReferenceTypeNode *tostate = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)tostate, "ToState");
-    tostate->inverseName = UA_LOCALIZEDTEXT("", "FromTransition");
+    tostate->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "FromTransition");
     tostate->nodeId.identifier.numeric = UA_NS0ID_TOSTATE;
     tostate->isAbstract = UA_FALSE;
     tostate->symmetric  = UA_FALSE;
@@ -465,7 +464,7 @@ UA_Server * UA_Server_new(void) {
 
     UA_ReferenceTypeNode *hascause = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hascause, "HasCause");
-    hascause->inverseName = UA_LOCALIZEDTEXT("", "MayBeCausedBy");
+    hascause->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "MayBeCausedBy");
     hascause->nodeId.identifier.numeric = UA_NS0ID_HASCAUSE;
     hascause->isAbstract = UA_FALSE;
     hascause->symmetric  = UA_FALSE;
@@ -475,7 +474,7 @@ UA_Server * UA_Server_new(void) {
     
     UA_ReferenceTypeNode *haseffect = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)haseffect, "HasEffect");
-    haseffect->inverseName = UA_LOCALIZEDTEXT("", "MayBeEffectedBy");
+    haseffect->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "MayBeEffectedBy");
     haseffect->nodeId.identifier.numeric = UA_NS0ID_HASEFFECT;
     haseffect->isAbstract = UA_FALSE;
     haseffect->symmetric  = UA_FALSE;
@@ -485,7 +484,7 @@ UA_Server * UA_Server_new(void) {
 
     UA_ReferenceTypeNode *hashistoricalconfiguration = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hashistoricalconfiguration, "HasHistoricalConfiguration");
-    hashistoricalconfiguration->inverseName = UA_LOCALIZEDTEXT("", "HistoricalConfigurationOf");
+    hashistoricalconfiguration->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "HistoricalConfigurationOf");
     hashistoricalconfiguration->nodeId.identifier.numeric = UA_NS0ID_HASHISTORICALCONFIGURATION;
     hashistoricalconfiguration->isAbstract = UA_FALSE;
     hashistoricalconfiguration->symmetric  = UA_FALSE;
@@ -621,13 +620,12 @@ UA_Server * UA_Server_new(void) {
    UA_VariableNode *namespaceArray = UA_VariableNode_new();
    copyNames((UA_Node*)namespaceArray, "NamespaceArray");
    namespaceArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_NAMESPACEARRAY;
-   namespaceArray->variableType = UA_VARIABLENODETYPE_VARIANT;
-   namespaceArray->variable.variant.data = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 2);
-   namespaceArray->variable.variant.arrayLength = 2;
-   namespaceArray->variable.variant.type = &UA_TYPES[UA_TYPES_STRING];
+   namespaceArray->value.variant.data = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 2);
+   namespaceArray->value.variant.arrayLength = 2;
+   namespaceArray->value.variant.type = &UA_TYPES[UA_TYPES_STRING];
    // Fixme: Insert the external namespaces
-   ((UA_String *)namespaceArray->variable.variant.data)[0] = UA_STRING("http://opcfoundation.org/UA/");
-   ((UA_String *)namespaceArray->variable.variant.data)[1] = UA_STRING(APPLICATION_URI);
+   ((UA_String *)namespaceArray->value.variant.data)[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
+   ((UA_String *)namespaceArray->value.variant.data)[1] = UA_STRING_ALLOC(APPLICATION_URI);
    namespaceArray->valueRank = 1;
    namespaceArray->minimumSamplingInterval = 1.0;
    namespaceArray->historizing = UA_FALSE;
@@ -641,11 +639,10 @@ UA_Server * UA_Server_new(void) {
    UA_VariableNode *serverArray = UA_VariableNode_new();
    copyNames((UA_Node*)serverArray, "ServerArray");
    serverArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERARRAY;
-   serverArray->variableType = UA_VARIABLENODETYPE_VARIANT;
-   serverArray->variable.variant.data = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 1);
-   serverArray->variable.variant.arrayLength = 1;
-   serverArray->variable.variant.type = &UA_TYPES[UA_TYPES_STRING];
-   *(UA_String *)serverArray->variable.variant.data = UA_STRING(APPLICATION_URI);
+   serverArray->value.variant.data = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 1);
+   serverArray->value.variant.arrayLength = 1;
+   serverArray->value.variant.type = &UA_TYPES[UA_TYPES_STRING];
+   *(UA_String *)serverArray->value.variant.data = UA_STRING_ALLOC(APPLICATION_URI);
    serverArray->valueRank = 1;
    serverArray->minimumSamplingInterval = 1.0;
    serverArray->historizing = UA_FALSE;
@@ -666,11 +663,10 @@ UA_Server * UA_Server_new(void) {
    UA_VariableNode *localeIdArray = UA_VariableNode_new();
    copyNames((UA_Node*)localeIdArray, "LocaleIdArray");
    localeIdArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERCAPABILITIES_LOCALEIDARRAY;
-   localeIdArray->variableType = UA_VARIABLENODETYPE_VARIANT;
-   localeIdArray->variable.variant.data = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 2);
-   localeIdArray->variable.variant.arrayLength = 2;
-   localeIdArray->variable.variant.type = &UA_TYPES[UA_TYPES_STRING];
-   *(UA_String *)localeIdArray->variable.variant.data = UA_STRING("en");
+   localeIdArray->value.variant.data = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 2);
+   localeIdArray->value.variant.arrayLength = 2;
+   localeIdArray->value.variant.type = &UA_TYPES[UA_TYPES_STRING];
+   *(UA_String *)localeIdArray->value.variant.data = UA_STRING_ALLOC("en");
    localeIdArray->valueRank = 1;
    localeIdArray->minimumSamplingInterval = 1.0;
    localeIdArray->historizing = UA_FALSE;
@@ -683,8 +679,8 @@ UA_Server * UA_Server_new(void) {
    UA_VariableNode *serverstatus = UA_VariableNode_new();
    copyNames((UA_Node*)serverstatus, "ServerStatus");
    serverstatus->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS);
-   serverstatus->variableType = UA_VARIABLENODETYPE_DATASOURCE;
-   serverstatus->variable.dataSource = (UA_DataSource) {.handle = server, .read = readStatus,
+   serverstatus->valueSource = UA_VALUESOURCE_DATASOURCE;
+   serverstatus->value.dataSource = (UA_DataSource) {.handle = server, .read = readStatus,
 	   .release = releaseStatus, .write = UA_NULL};
    UA_Server_addNode(server, (UA_Node*)serverstatus, &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER),
 		   &UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT));
@@ -694,10 +690,9 @@ UA_Server * UA_Server_new(void) {
    *stateEnum = UA_SERVERSTATE_RUNNING;
    copyNames((UA_Node*)state, "State");
    state->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERSTATUS_STATE;
-   state->variableType = UA_VARIABLENODETYPE_VARIANT;
-   state->variable.variant.type = &UA_TYPES[UA_TYPES_SERVERSTATE];
-   state->variable.variant.arrayLength = -1;
-   state->variable.variant.data = stateEnum; // points into the other object.
+   state->value.variant.type = &UA_TYPES[UA_TYPES_SERVERSTATE];
+   state->value.variant.arrayLength = -1;
+   state->value.variant.data = stateEnum; // points into the other object.
    UA_NodeStore_insert(server->nodestore, (UA_Node*)state, UA_NULL);
    ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
 		   UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));
@@ -705,8 +700,8 @@ UA_Server * UA_Server_new(void) {
    UA_VariableNode *currenttime = UA_VariableNode_new();
    copyNames((UA_Node*)currenttime, "CurrentTime");
    currenttime->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
-   currenttime->variableType = UA_VARIABLENODETYPE_DATASOURCE;
-   currenttime->variable.dataSource = (UA_DataSource) {.handle = NULL, .read = readCurrentTime,
+   currenttime->valueSource = UA_VALUESOURCE_DATASOURCE;
+   currenttime->value.dataSource = (UA_DataSource) {.handle = NULL, .read = readCurrentTime,
 	   .release = releaseCurrentTime, .write = UA_NULL};
    UA_Server_addNode(server, (UA_Node*)currenttime, &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
 		   &UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT));

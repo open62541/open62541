@@ -323,9 +323,9 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_DiagnosticInfo)
 /** Copy a (zero terminated) char-array into a UA_String. Memory for the string data is
     allocated. If the memory cannot be allocated, a null-string is returned. */
 UA_String UA_EXPORT UA_String_fromChars(char const *src);
-#define UA_STRING(CHARS) UA_String_fromChars(CHARS)
+#define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
+#define UA_STRING(CHARS) (const UA_String) {sizeof(CHARS), (UA_Byte*)CHARS }
 #define UA_STRING_NULL (UA_String) {-1, (UA_Byte*)0 }
-#define UA_STRING_STATIC(CHARS) (const UA_String) {sizeof(CHARS), (UA_Byte*)CHARS }
 
 /** Printf a char-array into a UA_String. Memory for the string data is allocated. */
 UA_StatusCode UA_EXPORT UA_String_copyprintf(char const *fmt, UA_String *dst, ...);
@@ -378,20 +378,30 @@ UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
         .identifierType = UA_NODEIDTYPE_NUMERIC,                       \
         .identifier.numeric = NUMERICID }
 
-#define UA_NODEID_STRING(NS_INDEX, CHARS) (UA_NodeId) {                \
+#define UA_NODEID_STRING(NS_INDEX, CHARS) (const UA_NodeId) {          \
         .namespaceIndex = NS_INDEX,                                    \
         .identifierType = UA_NODEIDTYPE_STRING,                        \
         .identifier.string = UA_STRING(CHARS) }
+    
+#define UA_NODEID_STRING_ALLOC(NS_INDEX, CHARS) (const UA_NodeId) {    \
+        .namespaceIndex = NS_INDEX,                                    \
+        .identifierType = UA_NODEIDTYPE_STRING,                        \
+        .identifier.string = UA_STRING_ALLOC(CHARS) }
 
 #define UA_NODEID_GUID(NS_INDEX, GUID) (UA_NodeId) {                   \
         .namespaceIndex = NS_INDEX,                                    \
         .identifierType = UA_NODEIDTYPE_GUID,                          \
         .identifier.guid = GUID }
 
-#define UA_NODEID_BYTESTRING(NS_INDEX, CHARS) (UA_NodeId) {            \
+#define UA_NODEID_BYTESTRING(NS_INDEX, CHARS) (const UA_NodeId) {      \
         .namespaceIndex = NS_INDEX,                                    \
         .identifierType = UA_NODEIDTYPE_BYTESTRING,                    \
         .identifier.byteString = UA_STRING(CHARS) }
+
+#define UA_NODEID_BYTESTRING_ALLOC(NS_INDEX, CHARS) (const UA_NodeId) {\
+        .namespaceIndex = NS_INDEX,                                    \
+        .identifierType = UA_NODEIDTYPE_BYTESTRING,                    \
+        .identifier.byteString = UA_STRING_ALLOC(CHARS) }
 
 #define UA_NODEID_NULL UA_NODEID_NUMERIC(0,0)
 
@@ -404,14 +414,16 @@ UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
         .serverIndex = 0, .namespaceUri = {.data = (UA_Byte*)0, .length = -1} }
     
 /* QualifiedName */
-#define UA_QUALIFIEDNAME(NS_INDEX, NAME) (UA_QualifiedName) {   \
-        .namespaceIndex = NS_INDEX, .name = UA_STRING(NAME) }
-#define UA_QUALIFIEDNAME_STATIC(NS_INDEX, NAME) (const UA_QualifiedName) {    \
-        .namespaceIndex = NS_INDEX, .name = UA_STRING_STATIC(NAME) }
+#define UA_QUALIFIEDNAME(NS_INDEX, CHARS) (const UA_QualifiedName) {    \
+        .namespaceIndex = NS_INDEX, .name = UA_STRING(CHARS) }
+#define UA_QUALIFIEDNAME_ALLOC(NS_INDEX, CHARS) (const UA_QualifiedName) {    \
+        .namespaceIndex = NS_INDEX, .name = UA_STRING_ALLOC(CHARS) }
 
 /* LocalizedText */
-#define UA_LOCALIZEDTEXT(LOCALE, TEXT) (UA_LocalizedText) {             \
-        .locale = UA_String_fromChars(LOCALE), .text = UA_STRING(TEXT) }
+#define UA_LOCALIZEDTEXT(LOCALE, TEXT) (UA_LocalizedText) {     \
+        .locale = UA_STRING(LOCALE), .text = UA_STRING(TEXT) }
+#define UA_LOCALIZEDTEXT_ALLOC(LOCALE, TEXT) (UA_LocalizedText) {             \
+        .locale = UA_STRING_ALLOC(LOCALE), .text = UA_STRING_ALLOC(TEXT) }
 
 /* Variant */
 
