@@ -32,6 +32,11 @@ typedef struct {
 } UA_ObjectTypeNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_ObjectTypeNode)
 
+typedef enum {
+    UA_VALUESOURCE_VARIANT,
+    UA_VALUESOURCE_DATASOURCE
+} UA_ValueSource;
+
 typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Int32 valueRank; /**< n >= 1: the value is an array with the specified number of dimensions.
@@ -39,14 +44,12 @@ typedef struct {
                              n = -1: the value is a scalar.
                              n = -2: the value can be a scalar or an array with any number of dimensions.
                              n = -3:  the value can be a scalar or a one dimensional array. */
-    enum {
-        UA_VARIABLENODETYPE_VARIANT,
-        UA_VARIABLENODETYPE_DATASOURCE
-    } variableType;
+    UA_ValueSource valueSource;
     union {
         UA_Variant variant;
         UA_DataSource dataSource;
-    } variable;
+    } value;
+    /* <--- similar to variabletypenodes up to there--->*/
     UA_Byte accessLevel;
     UA_Byte userAccessLevel;
     UA_Double minimumSamplingInterval;
@@ -58,9 +61,14 @@ UA_StatusCode UA_VariableNode_copyWithoutRefsAndVariable(const UA_VariableNode *
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS
-    UA_Boolean isAbstract;
     UA_Int32 valueRank;
-    UA_Variant value;
+    UA_ValueSource valueSource;
+    union {
+        UA_Variant variant;
+        UA_DataSource dataSource;
+    } value;
+    /* <--- similar to variablenodes up to there--->*/
+    UA_Boolean isAbstract;
 } UA_VariableTypeNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_VariableTypeNode)
 

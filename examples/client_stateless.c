@@ -1,5 +1,5 @@
 /*
-	C ECHO client example using sockets
+ * C ECHO client example using sockets
  */
 #include <stdio.h>	//printf
 #include <string.h>	//strlen
@@ -8,10 +8,9 @@
 #include <unistd.h> // for close
 #include <stdlib.h> // pulls in declaration of malloc, free
 
-#include "ua_transport_generated.h"
 #include "ua_util.h"
 #include "ua_types_encoding_binary.h"
-
+#include "ua_transport_generated.h"
 
 int main(int argc , char *argv[])
 {

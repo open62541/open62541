@@ -100,8 +100,8 @@ UA_StatusCode UA_ObjectTypeNode_copy(const UA_ObjectTypeNode *src, UA_ObjectType
 void UA_VariableNode_init(UA_VariableNode *p) {
 	UA_Node_init((UA_Node*)p);
     p->nodeClass = UA_NODECLASS_VARIABLE;
-    p->variableType = UA_VARIABLENODETYPE_VARIANT;
-    UA_Variant_init(&p->variable.variant);
+    p->valueSource = UA_VALUESOURCE_VARIANT;
+    UA_Variant_init(&p->value.variant);
     p->valueRank = -2; // scalar or array of any dimension
     p->accessLevel = 0;
     p->userAccessLevel = 0;
@@ -118,8 +118,8 @@ UA_VariableNode * UA_VariableNode_new(void) {
 
 void UA_VariableNode_deleteMembers(UA_VariableNode *p) {
     UA_Node_deleteMembers((UA_Node*)p);
-    if(p->variableType == UA_VARIABLENODETYPE_VARIANT)
-        UA_Variant_deleteMembers(&p->variable.variant);
+    if(p->valueSource == UA_VALUESOURCE_VARIANT)
+        UA_Variant_deleteMembers(&p->value.variant);
 }
 
 void UA_VariableNode_delete(UA_VariableNode *p) {
@@ -130,11 +130,12 @@ void UA_VariableNode_delete(UA_VariableNode *p) {
 UA_StatusCode UA_VariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
     UA_VariableNode_init(dst);
 	UA_StatusCode retval = UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
-    dst->variableType = src->variableType;
-    if(src->variableType == UA_VARIABLENODETYPE_VARIANT)
-        retval = UA_Variant_copy(&src->variable.variant, &dst->variable.variant);
+    dst->valueRank = src->valueRank;
+    dst->valueSource = src->valueSource;
+    if(src->valueSource == UA_VALUESOURCE_VARIANT)
+        retval = UA_Variant_copy(&src->value.variant, &dst->value.variant);
     else
-        dst->variable.dataSource = src->variable.dataSource;
+        dst->value.dataSource = src->value.dataSource;
     if(retval) {
         UA_VariableNode_deleteMembers(dst);
         return retval;
@@ -150,8 +151,9 @@ UA_StatusCode UA_VariableNode_copy(const UA_VariableNode *src, UA_VariableNode *
 void UA_VariableTypeNode_init(UA_VariableTypeNode *p) {
 	UA_Node_init((UA_Node*)p);
     p->nodeClass = UA_NODECLASS_VARIABLETYPE;
-    UA_Variant_init(&p->value);
-    p->valueRank = 0;
+    p->valueSource = UA_VALUESOURCE_VARIANT;
+    UA_Variant_init(&p->value.variant);
+    p->valueRank = -2; // scalar or array of any dimension
     p->isAbstract = UA_FALSE;
 }
 
@@ -164,7 +166,8 @@ UA_VariableTypeNode * UA_VariableTypeNode_new(void) {
 
 void UA_VariableTypeNode_deleteMembers(UA_VariableTypeNode *p) {
     UA_Node_deleteMembers((UA_Node*)p);
-    UA_Variant_deleteMembers(&p->value);
+    if(p->valueSource == UA_VALUESOURCE_VARIANT)
+        UA_Variant_deleteMembers(&p->value.variant);
 }
 
 void UA_VariableTypeNode_delete(UA_VariableTypeNode *p) {
@@ -175,7 +178,12 @@ void UA_VariableTypeNode_delete(UA_VariableTypeNode *p) {
 UA_StatusCode UA_VariableTypeNode_copy(const UA_VariableTypeNode *src, UA_VariableTypeNode *dst) {
     UA_VariableTypeNode_init(dst);
 	UA_StatusCode retval = UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
-    retval |= UA_Variant_copy(&src->value, &dst->value);
+    dst->valueRank = src->valueRank;
+    dst->valueSource = src->valueSource;
+    if(src->valueSource == UA_VALUESOURCE_VARIANT)
+        UA_Variant_copy(&src->value.variant, &dst->value.variant);
+    else
+        dst->value.dataSource = src->value.dataSource;
     if(retval) {
         UA_VariableTypeNode_deleteMembers(dst);
         return retval;

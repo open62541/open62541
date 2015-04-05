@@ -11,10 +11,10 @@ extern "C" {
 #endif
 
 #ifdef NOT_AMALGATED
-    #include "ua_server.h"
-	#include "ua_client.h"
+#include "ua_server.h"
+#include "ua_client.h"
 #else
-    #include "open62541.h"
+#include "open62541.h"
 #endif
 
 /** @brief Create the TCP networklayer and listen to the specified port */

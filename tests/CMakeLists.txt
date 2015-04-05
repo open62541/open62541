@@ -50,13 +50,15 @@ add_test(nodestore ${CMAKE_CURRENT_BINARY_DIR}/check_nodestore)
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
                    PRE_BUILD
                    COMMAND python ${PROJECT_SOURCE_DIR}/tools/hex2bin.py ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex
+                                  ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_CreateActivateSession.hex
                    DEPENDS ${PROJECT_SOURCE_DIR}/tools/hex2bin.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex)
 
-add_executable(check_server_interaction_fileinput check_server_interaction_fileinput.c
-                                                  testing_networklayers.c
-                                                  ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c
-                                                  $<TARGET_OBJECTS:open62541-object>)
+set(check_fileinput_source check_server_interaction_fileinput.c testing_networklayers.c $<TARGET_OBJECTS:open62541-object>)
+if(NOT ENABLE_AMALGAMATION)
+    list(APPEND check_fileinput_source ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c)
+endif()
+add_executable(check_server_interaction_fileinput ${check_fileinput_source})
 
 target_include_directories(check_server_interaction_fileinput PRIVATE ${PROJECT_SOURCE_DIR}/examples)
 target_include_directories(check_server_interaction_fileinput PRIVATE ${PROJECT_BINARY_DIR})

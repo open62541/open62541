@@ -95,5 +95,7 @@ ServerNetworkLayerFileInput_new(UA_UInt32 files, char **filenames, void(*readCal
     nl.getWork = (UA_Int32 (*)(void*, UA_WorkItem**, UA_UInt16)) NetworkLayer_FileInput_getWork;
     nl.stop = (UA_Int32 (*)(void*, UA_WorkItem**)) NetworkLayer_FileInput_stop;
     nl.free = (void (*)(void*))NetworkLayer_FileInput_delete;
+    nl.discoveryUrl = UA_String_new();
+    *nl.discoveryUrl = UA_STRING_ALLOC("");
     return nl;
 }

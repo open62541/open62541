@@ -19,20 +19,23 @@ endif()
 
 # compiler flags
 if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat
-                -Wno-unused-parameter -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
-                -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes # -Wconversion -Wshadow 
-                -Winit-self -Wuninitialized -Wno-deprecated -Wformat-security -ffunction-sections -fdata-sections)
-    if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-        add_definitions(-Wformat-nonliteral)
-        set (CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
-        set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
-    else()
-        add_definitions(-Wno-gnu-statement-expression)
-    endif()
+    add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
+                    -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
+                    -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes # -Wshadow -Wconversion
+                    -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral)
+    # binary size reduction settings
+	add_definitions(-ffunction-sections -fdata-sections -fno-stack-protector -fno-unwind-tables
+                    -fno-asynchronous-unwind-tables -fno-math-errno -fmerge-all-constants -fno-ident)
+    set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
+    set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
 	if(NOT WIN32)
-	    add_definitions(-fstack-protector -fPIC -fvisibility=hidden)
+	    add_definitions(-fvisibility=hidden -fPIC)
+        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
 	endif()
+    if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s") # strip binary
+    endif()
 endif()
 
 # build the main library
@@ -138,19 +141,25 @@ if(BUILD_DEMO_NODESET)
 	add_definitions(-DDEMO_NODESET)
 endif()
 
-if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
-	set(AMALGATED ON)
-    ## build amalgamated source files
-    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c
-                   PRE_BUILD
-                   COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
-                   COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
-                                  ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${internal_headers} ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources}
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${exported_headers} ${internal_headers}
-                           ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
+option(ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c
+               PRE_BUILD
+               COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
+                                                                              ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h
+                                                                              ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h
+               COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
+                              ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${internal_headers} ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources}
+                                                                              ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c
+                                                                              ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c
+               DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${exported_headers} ${internal_headers}
+                       ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources}
+                       ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h
+                       ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c)
 
+add_custom_target(amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c)
+if(ENABLE_AMALGAMATION)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c)
-    add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-object>)
+    include_directories(${PROJECT_BINARY_DIR})
 else()
     add_definitions(-DNOT_AMALGATED)
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
@@ -159,7 +168,7 @@ else()
     include_directories(${PROJECT_SOURCE_DIR}/src)
     include_directories(${PROJECT_BINARY_DIR}/src_generated)
 endif()
-
+add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-object>)
 
 # build language bindings for the library
 option(ENABLE_BINDING_LUA "Build Lua bindings" OFF)
@@ -181,10 +190,12 @@ endif()
 # build example server
 option(BUILD_EXAMPLESERVER "Build the example server" OFF)
 if(BUILD_EXAMPLESERVER)
-    add_executable(exampleServer examples/server.c $<TARGET_OBJECTS:open62541-object> examples/networklayer_tcp.c examples/logger_stdout.c)
-    add_executable(exampleServer_simple examples/server_simple.c $<TARGET_OBJECTS:open62541-object> examples/networklayer_tcp.c examples/logger_stdout.c)
-    target_include_directories(exampleServer PRIVATE ${PROJECT_BINARY_DIR})
-    target_include_directories(exampleServer_simple PRIVATE ${PROJECT_BINARY_DIR})
+    set(server_source $<TARGET_OBJECTS:open62541-object>)
+    if(NOT ENABLE_AMALGAMATION)
+        list(APPEND server_source examples/networklayer_tcp.c examples/logger_stdout.c)
+    endif()
+    add_executable(exampleServer examples/server.c ${server_source})
+    add_executable(exampleServer_simple examples/server_simple.c ${server_source})
     if(WIN32)
         target_link_libraries(exampleServer ws2_32)
         target_link_libraries(exampleServer_simple ws2_32)
@@ -196,10 +207,6 @@ if(BUILD_EXAMPLESERVER)
         target_link_libraries(exampleServer urcu-cds urcu urcu-common pthread)
         target_link_libraries(exampleServer_simple urcu-cds urcu urcu-common pthread)
     endif()
-    if((CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang") AND (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release"))
-    	add_custom_command(TARGET exampleServer POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleServer>)
-		add_custom_command(TARGET exampleServer_simple POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleServer_simple>)
-	endif()
 endif()
 
 ## self-signed certificates
@@ -217,42 +224,22 @@ endif()
 # build example client
 option(BUILD_EXAMPLECLIENT "Build a test client" OFF)
 if(BUILD_EXAMPLECLIENT)
-	message(STATUS "Extensions: enabling client")
-	add_definitions( -DBENCHMARK=1 )
-	if(NOT AMALGATED)
-		add_executable(exampleClient_legacy $<TARGET_OBJECTS:open62541-object> examples/client_legacy.c)
-	endif()
-	add_executable(exampleClient $<TARGET_OBJECTS:open62541-object> examples/client.c examples/networklayer_tcp.c)
-    if(NOT AMALGATED)
-    	target_include_directories(exampleClient_legacy PRIVATE ${PROJECT_BINARY_DIR})
+	add_definitions(-DBENCHMARK)
+    set(client_source $<TARGET_OBJECTS:open62541-object>)
+    if(NOT ENABLE_AMALGAMATION)
+        list(APPEND client_source examples/networklayer_tcp.c examples/logger_stdout.c)
     endif()
-    target_include_directories(exampleClient PRIVATE ${PROJECT_BINARY_DIR})
+	add_executable(exampleClient examples/client.c ${client_source})
     if(WIN32)
-    	if(NOT AMALGATED)
-        	target_link_libraries(exampleClient_legacy ws2_32)
-        endif()
         target_link_libraries(exampleClient ws2_32)
     else()
-   		if(NOT AMALGATED)
-        	target_link_libraries(exampleClient_legacy rt)
-        endif()
         target_link_libraries(exampleClient rt)
     endif()
-    if ((CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang") AND (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release"))
-       if(NOT AMALGATED)
-       		add_custom_command(TARGET exampleClient_legacy POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleClient_legacy>)
-	   endif()
-	   add_custom_command(TARGET exampleClient POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:exampleClient>)
-	endif()
     if(EXTENSION_STATELESS)
-        add_executable(statelessClient ${PROJECT_BINARY_DIR}/open62541.c examples/client_stateless.c)
-        target_include_directories(statelessClient PRIVATE ${PROJECT_BINARY_DIR})
+        add_executable(statelessClient examples/client_stateless.c ${client_source})
         if(ENABLE_MULTITHREADING)
             target_link_libraries(statelessClient urcu-cds urcu urcu-common pthread)
         endif()
-        if ((CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang") AND (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release"))
-    	add_custom_command(TARGET statelessClient POST_BUILD COMMAND ${CMAKE_STRIP} $<TARGET_FILE:statelessClient>)
-		endif()
     endif()
 endif()
 

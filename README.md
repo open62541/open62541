@@ -1,7 +1,7 @@
 open62541
 =========
 
-open62541 (http://open62541.org) is an open source and free implementation of OPC UA (OPC Unified Architecture). open62541 is a C-based library that contains all the necessary tools to set up a dedicated OPC UA server, to integrate OPC UA-based communication into existing applications (linking with C++ projects [is possible](examples/server.cpp)), or to create an OPC UA client. An example server and client implementations can be found in the [/examples](examples/) directory or further down on this page.
+open62541 (http://open62541.org) is an open source and free implementation of OPC UA (OPC Unified Architecture). open62541 is a C-based library that contains all the necessary tools to set up a dedicated OPC UA server, to integrate OPC UA-based communication into existing applications (linking with C++ projects [is possible](examples/server.cpp)), or to create an OPC UA client. The library is distributed as a single pair of [header](http://open62541.org/open62541.h) and [source](http://open62541.org/open62541.c) files, that can be easily dropped into your project. An example server and client implementation can be found in the [/examples](examples/) directory or further down on this page.
 
 open62541 is licensed under the LGPL + static linking exception. That means **open62541 can be freely used also in commercial projects**, although changes to the open62541 library itself need to be released under the same license. The server and client implementations in the [/examples](examples/) directory are in the public domain (CC0 license). They can be used under any license and changes don't have to be published.
 
@@ -26,58 +26,52 @@ As an open source project, we invite new contributors to help improving open6254
 - Work on issues marked as "[easy hacks](https://github.com/acplt/open62541/labels/easy%20hack)"
 
 ### Example Server Implementation
+Compile the examples with the single [header](http://open62541.org/open62541.h) and [source](http://open62541.org/open62541.c) file distribution generated from the library source.
+With the GCC compiler, just run ```gcc -std=c99 <server.c> open62541.c -o server```.
 ```c
 #include <signal.h>
-
-/* provided by the open62541 lib */
-#include "ua_server.h"
-
-/* provided by the user, implementations available in the /examples folder */
-#include "logger_stdout.h"
-#include "networklayer_tcp.h"
+#include "open62541.h"
 
 #define WORKER_THREADS 2 /* if multithreading is enabled */
 #define PORT 16664
 
 UA_Boolean running = UA_TRUE;
 void signalHandler(int sign) {
-	running = UA_FALSE;
+    running = UA_FALSE;
 }
 
 int main(int argc, char** argv) {
     /* catch ctrl-c */
-	signal(SIGINT, signalHandler);
+    signal(SIGINT, signalHandler);
 
     /* init the server */
-	UA_Server *server = UA_Server_new();
-    NetworklayerTCP *nl = ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, PORT);
-    UA_Server_addNetworkLayer(server, nl);
+    UA_Server *server = UA_Server_new();
+    UA_Server_addNetworkLayer(server,
+        ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, PORT));
+    UA_Server_setLogger(server, Logger_Stdout_new());
 
     /* add a variable node */
     UA_Variant *myIntegerVariant = UA_Variant_new();
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    UA_QualifiedName myIntegerName;
-    UA_QUALIFIEDNAME_ASSIGN(myIntegerName, "the answer");
-    UA_NodeId myIntegerNodeId = UA_NODEID_STATIC(1, 442); /*UA_NODEID_NULL would assign a random free nodeid */
-    UA_NodeId parentNodeId = UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES);
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
+    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
                               myIntegerNodeId, parentNodeId, parentReferenceNodeId);
 
     /* run the server loop */
     UA_StatusCode retval = UA_Server_run(server, WORKER_THREADS, &running);
-	UA_Server_delete(server);
-	return retval;
+    UA_Server_delete(server);
+    return retval;
 }
 ```
 
 ### Example Client Implementation
 ```c
 #include <stdio.h>
-
-#include "ua_client.h"
-#include "networklayer_tcp.h"
+#include "open62541.h"
 
 int main(int argc, char *argv[]) {
 	UA_Client *client = UA_Client_new();
@@ -93,7 +87,7 @@ int main(int argc, char *argv[]) {
     UA_ReadRequest_init(&req);
     req.nodesToRead = UA_ReadValueId_new();
     req.nodesToReadSize = 1;
-    req.nodesToRead[0].nodeId = UA_NODEID_STATIC(1, 442); /* assume this node exists */
+    req.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
     req.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
 
     UA_ReadResponse resp = UA_Client_read(client, &req);

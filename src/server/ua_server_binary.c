@@ -100,8 +100,8 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
     respHeader.messageHeader.messageSize = 0;
     respHeader.secureChannelId = p.securityToken.channelId;
 
-    UA_NodeId responseType = UA_NODEID_STATIC(0, UA_NS0ID_OPENSECURECHANNELRESPONSE);
-    responseType.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
+    UA_NodeId responseType = UA_NODEID_NUMERIC(0, UA_NS0ID_OPENSECURECHANNELRESPONSE +
+                                               UA_ENCODINGOFFSET_BINARY);
 
     respHeader.messageHeader.messageSize =
         UA_SecureConversationMessageHeader_calcSizeBinary(&respHeader)

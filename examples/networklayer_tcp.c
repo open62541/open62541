@@ -3,38 +3,40 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
 
-#include <stdlib.h> // malloc, free
-#ifdef _WIN32
-#include <malloc.h>
-#include <winsock2.h>
-#include <sys/types.h>
-#include <windows.h>
-#include <ws2tcpip.h>
-#define CLOSESOCKET(S) closesocket(S)
-#else
-#include <sys/select.h> 
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <sys/socketvar.h>
-#include <sys/ioctl.h>
-#include <netdb.h> //gethostbyname for the client
-#define __USE_BSD
-#include <unistd.h> // read, write, close, usleep
-#define Sleep(x) usleep((x)*1000)
-#include <arpa/inet.h>
-#define CLOSESOCKET(S) close(S)
+#ifdef NOT_AMALGATED
+# define _XOPEN_SOURCE 500 //some users need this for some reason
+# define __USE_BSD
+# include <stdlib.h> // malloc, free
+# include <stdio.h>
+# include <string.h> // memset
 #endif
 
-#include <stdio.h>
-#include <errno.h> // errno, EINTR
-#include <fcntl.h> // fcntl
-#include <string.h> // memset
+#ifdef _WIN32
+# include <malloc.h>
+# include <winsock2.h>
+# include <sys/types.h>
+# include <windows.h>
+# include <ws2tcpip.h>
+# define CLOSESOCKET(S) closesocket(S)
+#else
+# include <sys/select.h> 
+# include <netinet/in.h>
+# include <netinet/tcp.h>
+# include <sys/ioctl.h>
+# include <netdb.h> //gethostbyname for the client
+# include <unistd.h> // read, write, close
+# include <arpa/inet.h>
+# define CLOSESOCKET(S) close(S)
+#endif
 
 #include "networklayer_tcp.h" // UA_MULTITHREADING is defined in here
-
 #ifdef UA_MULTITHREADING
-#include <urcu/uatomic.h>
+# include <urcu/uatomic.h>
 #endif
+
+/* with a space so amalgamation does not remove the includes */
+# include <errno.h> // errno, EINTR
+# include <fcntl.h> // fcntl
 
 struct ServerNetworklayer_TCP;
 
@@ -566,13 +568,26 @@ static UA_StatusCode ClientNetworkLayerTCP_send(ClientNetworkLayerTCP *handle, U
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode ClientNetworkLayerTCP_awaitResponse(ClientNetworkLayerTCP *handle,
-                                                         UA_ByteString *response, UA_UInt32 timeout) {
+static UA_StatusCode ClientNetworkLayerTCP_awaitResponse(ClientNetworkLayerTCP *handle, UA_ByteString *response,
+                                                         UA_UInt32 timeout) {
+    //FD_ZERO(&handle->read_fds);
+    //FD_SET(handle->sockfd, &handle->read_fds);//tcp socket
     struct timeval tmptv = {0, timeout};
+    /*int ret = select(handle->sockfd+1, &handle->read_fds, NULL, NULL, &tmptv);
+    if(ret <= -1)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(ret == 0)
+        return UA_STATUSCODE_BADTIMEOUT;*/
+
     setsockopt(handle->sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tmptv,sizeof(struct timeval));
+
     int ret = recv(handle->sockfd, (char*)response->data, response->length, 0);
+
+    if(ret <= -1)
+        return UA_STATUSCODE_BADINTERNALERROR;
     if(ret == 0)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
+
     response->length = ret;
     return UA_STATUSCODE_GOOD;
 }
