@@ -60,7 +60,7 @@ UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteS
 
     if(current.length == 0) {
         /* throw everything away */
-        UA_String_deleteMembers(&current);
+        UA_ByteString_deleteMembers(&current);
         current.length = -1;
         return current;
     }
@@ -68,8 +68,8 @@ UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteS
     if(end_pos == 0) {
         /* no complete message in current */
         connection->incompleteMessage = current;
-        UA_String_init(current);
-    } else if(current.length != end_pos) {
+        UA_ByteString_init(&current);
+    } else if(current.length != (UA_Int32)end_pos) {
         /* there is an incomplete message at the end of current */
         connection->incompleteMessage.data = UA_malloc(current.length - end_pos);
         if(connection->incompleteMessage.data) {
