@@ -70,3 +70,9 @@ tests/check_memory
 tests/check_namespace
 tests/coverage
 Makefile
+/CMakeCache.txt
+/CMakeFiles/
+/cmake_install.cmake
+/exampleClient
+/exampleClient_legacy
+/src_generated/
