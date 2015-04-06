@@ -22,7 +22,7 @@ the standard and cannot be changed. But you can use the <em>Call</em> service to
 methods on the server.
 
 For completeness, the following tables contain all services defined in the standard. Do not bother
-with their details, yet. We will introduce the different services later in the text. In open62541,
+with their details yet. We will introduce the different services later in the text. In open62541,
 each service is implemented in a single function. See the \ref services section for details.
 
 <b>Establishing communication</b>
@@ -101,9 +101,10 @@ then the size of the array is stored in an Int32 value just before the array its
 indicates an undefined array. Positive sizes (and zero) have the usual semantics.
 
 Most importantly, every service has a request and a response message defined as such a data
-structure. Their exact definitions can be looked up here:
+structure. The entire OPC UA protocol revolves around the exchange of these request and response
+messages. Their exact definitions can be looked up here:
 https://opcfoundation.org/UA/schemas/Opc.Ua.Types.bsd.xml. In open62541, we autogenerate the
 C-structs to handle the standard-defined structures automatically. See ua_types_generated.h for
-comparison. The entire OPC UA protocol revolves around the exchange of these request and response messages.
+comparison.
 
 */
