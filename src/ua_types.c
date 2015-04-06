@@ -89,10 +89,8 @@ void UA_String_init(UA_String *p) {
 }
 
 void UA_String_deleteMembers(UA_String *p) {
-	if(p->data) {
-		UA_free(p->data);
-        p->data = UA_NULL;
-    }
+    UA_free(p->data);
+    p->data = UA_NULL;
 }
 
 UA_StatusCode UA_String_copy(UA_String const *src, UA_String *dst) {
@@ -108,7 +106,7 @@ UA_StatusCode UA_String_copy(UA_String const *src, UA_String *dst) {
 
 UA_String UA_String_fromChars(char const *src) {
     UA_String str;
-    size_t length = sizeof(src)-1;
+    size_t length = strlen(src);
     if(length == 0) {
         str.length = 0;
         str.data = UA_NULL;

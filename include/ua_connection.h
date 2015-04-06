@@ -62,10 +62,15 @@ typedef struct UA_Connection {
     UA_SecureChannel   *channel;
     void (*write)(void *connection, UA_ByteStringArray buf);
     void (*close)(void *connection);
+    UA_ByteString incompleteMessage;
 } UA_Connection;
 
 void UA_EXPORT UA_Connection_detachSecureChannel(UA_Connection *connection);
 // void UA_Connection_attachSecureChannel(UA_Connection *connection);
+
+/** Returns a string of complete message (the length entry is decoded for that).
+    If the received message is incomplete, it is retained in the connection. */
+UA_ByteString UA_EXPORT UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString received);
 
 /** @} */
 

@@ -5,6 +5,7 @@
 #include "ua_transport_generated.h"
 
 struct UA_Client {
+    /* Connection */
     UA_ClientNetworkLayer networkLayer;
     UA_String endpointUrl;
     UA_Connection connection;
@@ -30,6 +31,7 @@ UA_Client * UA_Client_new(void) {
         return UA_NULL;
     UA_String_init(&client->endpointUrl);
     client->connection.state = UA_CONNECTION_OPENING;
+    UA_ByteString_init(&client->connection.incompleteMessage);
 
     client->sequenceNumber = 0;
     client->requestId = 0;
@@ -70,8 +72,8 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
 	hello.receiveBufferSize = conn->localConf.recvBufferSize;
 	hello.sendBufferSize = conn->localConf.sendBufferSize;
 
-	messageHeader.messageSize = UA_TcpHelloMessage_calcSizeBinary((UA_TcpHelloMessage const*) &hello) +
-                                UA_TcpMessageHeader_calcSizeBinary((UA_TcpMessageHeader const*) &messageHeader);
+	messageHeader.messageSize = UA_TcpHelloMessage_calcSizeBinary((UA_TcpHelloMessage const*)&hello) +
+                                UA_TcpMessageHeader_calcSizeBinary((UA_TcpMessageHeader const*)&messageHeader);
 	UA_ByteString message;
     message.data = UA_alloca(messageHeader.messageSize);
     message.length = messageHeader.messageSize;
@@ -171,7 +173,15 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
     // parse the response
     UA_ByteString reply;
     UA_ByteString_newMembers(&reply, client->connection.localConf.recvBufferSize);
-    retval = client->networkLayer.awaitResponse(client->networkLayer.nlHandle, &reply, 1000);
+    do {
+        retval = client->networkLayer.awaitResponse(client->networkLayer.nlHandle, &reply, 1000);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_ByteString_deleteMembers(&reply);
+            return retval;
+        }
+        reply = UA_Connection_completeMessages(&client->connection, reply);
+    } while(reply.length < 0);
+
     if(retval) {
         UA_ByteString_deleteMembers(&reply);
         return retval;
@@ -214,6 +224,9 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
                                void *response, const UA_DataType *responseType, UA_Client *client,
                                UA_Boolean sendOnly)
 {
+	if(response)
+		UA_init(response, responseType);
+
     UA_NodeId_copy(&client->authenticationToken, &request->authenticationToken);
 
     UA_SecureConversationMessageHeader msgHeader;
@@ -270,13 +283,16 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
 
     /* Response */
     UA_ByteString reply;
-    UA_ByteString_newMembers(&reply, client->connection.localConf.recvBufferSize);
-    retval = client->networkLayer.awaitResponse(client->networkLayer.nlHandle, &reply, 1000);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_deleteMembers(&reply);
-        respHeader->serviceResult = retval;
-        return;
-    }
+    do {
+        UA_ByteString_newMembers(&reply, client->connection.localConf.recvBufferSize);
+        retval = client->networkLayer.awaitResponse(client->networkLayer.nlHandle, &reply, 1000);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_ByteString_deleteMembers(&reply);
+            respHeader->serviceResult = retval;
+            return;
+        }
+        reply = UA_Connection_completeMessages(&client->connection, reply);
+    } while(reply.length < 0);
 
 	offset = 0;
 	retval |= UA_SecureConversationMessageHeader_decodeBinary(&reply, &offset, &msgHeader);
@@ -342,6 +358,7 @@ static UA_StatusCode SessionHandshake(UA_Client *client) {
 	/* UA_String_copycstring("abcd", &rq.clientCertificate); */
 
     UA_CreateSessionResponse response;
+    UA_CreateSessionResponse_init(&response);
     synchronousRequest(&request, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
                        &response, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE],
                        client);
