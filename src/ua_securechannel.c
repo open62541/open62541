@@ -65,15 +65,18 @@ UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteS
     }
 
     /* retain the incomplete message at the end */
-    if(current.length - end_pos > 0) {
+    if(end_pos == 0) {
+        connection->incompleteMessage = current;
+        UA_String_init(current);
+    } else if(current.length != end_pos) {
+        /* there is an incomplete message at the end of current */
         connection->incompleteMessage.data = UA_malloc(current.length - end_pos);
         if(connection->incompleteMessage.data) {
             UA_memcpy(connection->incompleteMessage.data, &current.data[end_pos], current.length - end_pos);
             connection->incompleteMessage.length = current.length - end_pos;
         }
+        current.length = end_pos;
     }
-
-    current.length = end_pos;
     return current;
 }
 
