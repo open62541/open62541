@@ -575,7 +575,7 @@ ClientNetworkLayerTCP_awaitResponse(ClientNetworkLayerTCP *handle, UA_ByteString
     setsockopt(handle->sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tmptv,sizeof(struct timeval));
     int ret = recv(handle->sockfd, (char*)response->data, response->length, 0);
     if(ret <= -1)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    	return UA_STATUSCODE_BADINTERNALERROR;
     if(ret == 0)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
     response->length = ret;

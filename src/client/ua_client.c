@@ -174,7 +174,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
     UA_ByteString reply;
     UA_ByteString_newMembers(&reply, client->connection.localConf.recvBufferSize);
     do {
-        retval = client->networkLayer.awaitResponse(client->networkLayer.nlHandle, &reply, 1000);
+        retval = client->networkLayer.awaitResponse(client->networkLayer.nlHandle, &reply, 500 * 1000);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_ByteString_deleteMembers(&reply);
             return retval;
@@ -285,7 +285,7 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
     UA_ByteString reply;
     do {
         UA_ByteString_newMembers(&reply, client->connection.localConf.recvBufferSize);
-        retval = client->networkLayer.awaitResponse(client->networkLayer.nlHandle, &reply, 1000);
+        retval = client->networkLayer.awaitResponse(client->networkLayer.nlHandle, &reply, 500 * 1000);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_ByteString_deleteMembers(&reply);
             respHeader->serviceResult = retval;
