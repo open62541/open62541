@@ -25,7 +25,7 @@ For completeness, the following tables contain all services defined in the stand
 with their details, yet. We will introduce the different services later in the text. In open62541,
 each service is implemented in a single function. See the \ref services section for details.
 
-<bf>Establishing communication</bf>
+<b>Establishing communication</b>
 
 <table>
 <tr> <th>Discovery Service Set </th><th>SecureChannel Service Set </th><th>Session Service Set </th></tr>
@@ -35,7 +35,7 @@ each service is implemented in a single function. See the \ref services section 
 <tr> <td></td><td></td><td>Cancel </td></tr>
 </table>
 
-<bf>Interaction with the information model</bf>
+<b>Interaction with the information model</b>
 
 <table>
 <tr> <th>NodeManagement Service Set </th><th>View Service Set </th><th>Query Service Set </th><th>Attribute Service Set </th><th>Method Service Set  </th></tr>
@@ -46,7 +46,7 @@ each service is implemented in a single function. See the \ref services section 
 <tr> <td></td><td>UnregisterNodes </td><td></td><td></td><td></td></tr>
 </table>
 
-<bf>Notifications</bf>
+<b>Notifications</b>
 
 <table>
 <tr> <th>MonitoredItem Service Set </th><th>Subscription Service Set  </th></tr>
@@ -59,8 +59,7 @@ each service is implemented in a single function. See the \ref services section 
 <tr> <td></td><td>DeleteSubscription </td></tr>
 </table>
 
-OPC UA, a web of nodes
-----------------------
+<h2>OPC UA, a web of nodes</h2>
 
 The information model in each OPC UA server is a web of interconnected nodes. There are eight
 different types of nodes. Depending on its type, every node contains different attributes. Some
@@ -80,9 +79,7 @@ Reference types can be
 - standard- or user-defined and
 - either non-hierarchical (e.g., indicating the type of a variable-node) or hierarchical (e.g., indicating a parent-child relationship).
 
-
-OPC UA, a protocol
-------------------
+<h2>OPC UA, a protocol</h2>
 
 The OPC UA protocol (both binary and XML-based) is based on 25 <em>built-in</em> datatypes. In
 open62541, these are defined in ua_types.h.
