@@ -169,6 +169,9 @@ else()
     include_directories(${PROJECT_BINARY_DIR}/src_generated)
 endif()
 add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-object>)
+if(WIN32 AND ENABLE_AMALGAMATION)
+    target_link_libraries(open62541 ws2_32) #since networklayer_tcp is linked into the amalgate
+endif()
 
 # build language bindings for the library
 option(ENABLE_BINDING_LUA "Build Lua bindings" OFF)
