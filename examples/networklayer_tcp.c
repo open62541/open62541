@@ -453,6 +453,7 @@ static UA_StatusCode ClientNetworkLayerTCP_connect(const UA_String endpointUrl, 
 
     //this is somewhat ugly, but atoi needs a c string
     char cstringEndpointUrl[endpointUrl.length+1];
+    memset(cstringEndpointUrl, 0, endpointUrl.length+1);
     memcpy(cstringEndpointUrl, endpointUrl.data, endpointUrl.length);
     cstringEndpointUrl[endpointUrl.length+1] = '0';
 
