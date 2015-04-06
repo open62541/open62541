@@ -39,7 +39,6 @@ void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkL
     if(networkLayer.discoveryUrl){
         if(server->description.discoveryUrlsSize < 0)
             server->description.discoveryUrlsSize = 0;
-        printf("%d!\n",server->description.discoveryUrlsSize);
 		UA_String* newUrls = UA_realloc(server->description.discoveryUrls,
                                         sizeof(UA_String)*(server->description.discoveryUrlsSize+1));
 		if(!newUrls) {
