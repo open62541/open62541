@@ -156,8 +156,8 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR
                        ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h
                        ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c)
 
-add_custom_target(amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c)
 if(ENABLE_AMALGAMATION)
+    add_custom_target(amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c)
     include_directories(${PROJECT_BINARY_DIR})
 else()
