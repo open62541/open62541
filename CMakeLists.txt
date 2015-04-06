@@ -47,11 +47,11 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_connection.h
                      ${PROJECT_SOURCE_DIR}/include/ua_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_client.h
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h	#TODO: needed until networklayer_tcp is fixed properly
-                     ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h) 			#TODO: needed until networklayer_tcp is fixed properly
+                     ${PROJECT_SOURCE_DIR}/include/ua_client.h)
 set(internal_headers ${PROJECT_SOURCE_DIR}/src/ua_util.h
                      ${PROJECT_SOURCE_DIR}/deps/queue.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
+                     ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
                      ${PROJECT_SOURCE_DIR}/src/ua_session.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h

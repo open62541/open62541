@@ -568,26 +568,16 @@ static UA_StatusCode ClientNetworkLayerTCP_send(ClientNetworkLayerTCP *handle, U
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode ClientNetworkLayerTCP_awaitResponse(ClientNetworkLayerTCP *handle, UA_ByteString *response,
-                                                         UA_UInt32 timeout) {
-    //FD_ZERO(&handle->read_fds);
-    //FD_SET(handle->sockfd, &handle->read_fds);//tcp socket
+static UA_StatusCode
+ClientNetworkLayerTCP_awaitResponse(ClientNetworkLayerTCP *handle, UA_ByteString *response,
+                                    UA_UInt32 timeout) {
     struct timeval tmptv = {0, timeout};
-    /*int ret = select(handle->sockfd+1, &handle->read_fds, NULL, NULL, &tmptv);
-    if(ret <= -1)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    if(ret == 0)
-        return UA_STATUSCODE_BADTIMEOUT;*/
-
     setsockopt(handle->sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tmptv,sizeof(struct timeval));
-
     int ret = recv(handle->sockfd, (char*)response->data, response->length, 0);
-
     if(ret <= -1)
         return UA_STATUSCODE_BADINTERNALERROR;
     if(ret == 0)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
-
     response->length = ret;
     return UA_STATUSCODE_GOOD;
 }
