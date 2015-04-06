@@ -26,7 +26,7 @@ As an open source project, we invite new contributors to help improving open6254
 - Work on issues marked as "[easy hacks](https://github.com/acplt/open62541/labels/easy%20hack)"
 
 ### Example Server Implementation
-Compile the examples with the single [header](http://open62541.org/open62541.h) and [source](http://open62541.org/open62541.c) file distribution generated from the library source.
+Compile the examples with the single file distribution `open62541.h` and `open62541.c` from the latest [release](https://github.com/acplt/open62541/releases).
 With the GCC compiler, just run ```gcc -std=c99 <server.c> open62541.c -o server```.
 ```c
 #include <signal.h>
