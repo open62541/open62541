@@ -96,6 +96,8 @@ deploy:
     - open62541-linux32.tar.gz
     - open62541-linux64.tar.gz
     - open62541-raspberrypi.tar.gz
+    - open62541.c
+    - open62541.h
   skip_cleanup: true
   on:
     tags: true

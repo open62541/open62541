@@ -11,8 +11,6 @@ cd open62541-www
 git rm -rf doc
 cp -r ../build/doc ./
 git add -A doc/*
-cp ../build/open62541.* ./
-git add open62541.*
 git config --global user.email "open62541-travis-ci@users.noreply.github.com"
 git config --global user.name "Open62541 travis-ci"
 git config --global push.default simple
