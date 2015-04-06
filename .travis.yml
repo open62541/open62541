@@ -50,6 +50,8 @@ script:
 - make -j
 - tar -pczf open62541-linux64.tar.gz ../README.md exampleServer exampleClient libopen62541.so open62541.h open62541.c
 - cp open62541-linux64.tar.gz ..
+- cp open62541.h .. #copy single file-release
+- cp open62541.c .. #copy single file-release
 - cd .. && rm build -rf && mkdir -p build && cd build
 - echo "Upgrade to gcc 4.8"
 - sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
