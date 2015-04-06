@@ -13,7 +13,7 @@ UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteS
     if(received.length == -1)
         return received;
 
-    /* concat received to the incomplete message we have */
+    /* concat the existing incomplete message with the new message */
     UA_ByteString current;
     if(connection->incompleteMessage.length < 0)
         current = received;
@@ -58,22 +58,26 @@ UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteS
         end_pos += length;
     }
 
-    if(current.length == 0) { /* throw everything away */
-        UA_String_deleteMembers(&current);
+    if(current.length == 0) {
+        /* throw everything away */
+        UA_ByteString_deleteMembers(&current);
         current.length = -1;
         return current;
     }
 
-    /* retain the incomplete message at the end */
-    if(current.length - end_pos > 0) {
+    if(end_pos == 0) {
+        /* no complete message in current */
+        connection->incompleteMessage = current;
+        UA_ByteString_init(&current);
+    } else if(current.length != (UA_Int32)end_pos) {
+        /* there is an incomplete message at the end of current */
         connection->incompleteMessage.data = UA_malloc(current.length - end_pos);
         if(connection->incompleteMessage.data) {
             UA_memcpy(connection->incompleteMessage.data, &current.data[end_pos], current.length - end_pos);
             connection->incompleteMessage.length = current.length - end_pos;
         }
+        current.length = end_pos;
     }
-
-    current.length = end_pos;
     return current;
 }
 
