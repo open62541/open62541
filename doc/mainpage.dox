@@ -1,29 +1,111 @@
 /**
 \mainpage Open62541 Developer Documentation
 
-<a href="http://en.wikipedia.org/wiki/OPC_Unified_Architecture">OPC UA</a>
-(short for OPC Universal Architecture) is a communication protocol originally
-developed in the context of industrial automation. OPC UA has been released as
-an “open” standard (meaning everybody can buy the document) in the IEC 62541
-series. As of late, it is marketed as the one standard for non-realtime
-industrial communication.
+<a href="http://en.wikipedia.org/wiki/OPC_Unified_Architecture">OPC UA</a> (short for OPC Universal
+Architecture) is a protocol for industrial communication and has been standardized in the IEC62541.
+At its core, OPC UA defines a set of services to interact with a server-side object-oriented
+information model. Besides the service-calls initiated by the client, push-notification of remote
+events (such as data changes) can be negotiated with the server. The client/server interaction is
+mapped either to a binary encoding and TCP-based transmission or to SOAP-based webservices. As of
+late, OPC UA is marketed as the one standard for non-realtime industrial communication.
 
-Remote clients can interact with a \ref server by calling remote \ref services.
-(The services are different from a remote procedure call that is provided via
-the "Call" service.) The server contains a rich information model that defines
-an object system on top of an ontology-like set of nodes and references between
-nodes. The data and its "meta model" can be inspected to discover variables,
-objects, object types, methods, data types, and so on. Roughly, the \ref
-services provide access to
+We believe that it is best to understand OPC UA *from the inside out*, building upon conceptually
+simple first principles. After establishing a first understanding, we go on explaining how these
+principles are realized in detail. Examples are given based on the *open62541* implementation of the
+standard.
 
-- Session management
-- CRUD operations on the node level
-- Remote procedure calls to methods defined in the address space
-- Subscriptions to events and variable changes where clients are notified via push messages.
+OPC UA, a collection of services
+--------------------------------
 
-The data structures the services process as in- and output can be encoded either
-as a binary stream or in XML. They are transported via a TCP-based custom
-protocol or via Webservices. Currently, open62541 supports only the binary
-encoding and TCP-based transport.
+In OPC-UA, all communication is based on service calls, each consisting of a request and a response
+message. Be careful to note the difference between services and methods. Services are pre-defined in
+the standard and cannot be changed. But you can use the *Call* service to invoke user-defined
+methods on the server.
+
+For completeness, the following tables contain all services defined in the standard. Do not bother
+with their details, yet. We will introduce the different services later in the text. In open62541,
+each service is implemented in a single function. See the \ref services section for details.
+
+__Establishing communication__
+
+| Discovery Service Set | SecureChannel Service Set | Session Service Set |
+|-----------------------|---------------------------|---------------------|
+| FindServers           | OpenSecureChannel         | CreateSession       |
+| GetEndpoints          | CloseSecureChannel        | ActivateSession     |
+| RegisterServer        |                           | CloseSession        |
+|                       |                           | Cancel              |
+
+__Interaction with the information model__
+
+| NodeManagement Service Set | View Service Set               | Query Service Set | Attribute Service Set | Method Service Set |
+|----------------------------|--------------------------------|-------------------|-----------------------|--------------------|
+| AddNodes                   | Browse                         | QueryFirst        | Read                  | Call               |
+| AddReferences              | BrowseNext                     | QueryNext         | HistoryRead           |                    |
+| DeleteNodes                | TranslateBrowsePathsToNodeIds  |                   | Write                 |                    |
+| DeleteReferences           | RegisterNodes                  |                   | HistoryUpdate         |                    |
+|                            | UnregisterNodes                |                   |                       |                    |
+
+__Notifications__
+
+| MonitoredItem Service Set | Subscription Service Set |
+|---------------------------|--------------------------|
+| CreateMonitoredItems      | CreateSubscription       |
+| ModifyMonitoredItems      | ModifySubscription       |
+| SetMonitoringMode         | SetPublishingMode        |
+| SetTriggering             | Publish                  |
+| DeleteMonitoredItems      | Republish                |
+|                           | TransferSubscription     |
+|                           | DeleteSubscription       |
+
+
+OPC UA, a web of nodes
+----------------------
+
+The information model in each OPC UA server is a web of interconnected nodes. There are eight
+different types of nodes. Depending on its type, every node contains different attributes. Some
+attributes, such as the *NodeId* (unique identifier) and the *BrowseName*, are contained in all node
+types.
+
+<table>
+<tr> <td>ReferenceTypeNode</td> <td>MethodNode</td> </tr>
+<tr> <td>DataTypeNode</td> <td>ObjectTypeNode</td> </tr>
+<tr> <td>VariableTypeNode</td> <td>ObjectNode</td> </tr>
+<tr> <td>VariableNode</td> <td>ViewNode</td> </tr>
+</table>
+                                                                                                            
+Nodes are interconnected by directed reference-triples of the form `(nodeid, referencetype,
+target-nodeid)`. Therefore an OPC UA information model is easiest imagined as a __web of nodes__.
+Reference types can be
+- standard- or user-defined and
+- either non-hierarchical (e.g., indicating the type of a variable-node) or hierarchical (e.g., indicating a parent-child relationship).
+
+
+OPC UA, a protocol
+------------------
+
+The OPC UA protocol (both binary and XML-based) is based on 25 *built-in* datatypes. In open62541, these
+are defined in ua_types.h.
+
+<table>
+<tr> <td>Boolean</td> <td>Float</td> <td>StatusCode</td> </tr>
+<tr> <td>SByte</td> <td>Double</td> <td>QualifiedName</td> </tr>
+<tr> <td>Byte</td> <td>String</td> <td>LocalizedText</td> </tr>
+<tr> <td>Int16</td> <td>DateTime</td> <td>ExtensionObject</td> </tr>
+<tr> <td>UInt16</td> <td>Guid</td> <td>DataValue</td> </tr>
+<tr> <td>Int32</td> <td>ByteString</td> <td>Variant</td> </tr>
+<tr> <td>UInt32</td> <td>XmlElement</td> <td>DiagnosticInfo</td> </tr>
+<tr> <td>Int64</td> <td>NodeId</td> <td> </td> </tr>
+<tr> <td>UInt64</td> <td>ExpandedNodeId</td> <td> </td> </tr>
+</table>
+
+The builtin datatypes are combined to more complex structures. When the structure contains an array,
+then the size of the array is stored in an Int32 value just before the array itself. A size of -1
+indicates an undefined array. Positive size (and zero) have the usual semantics.
+
+Most importantly, every service has a request and a response message defined as such a data
+structure. Their exact definitions can be looked up here:
+https://opcfoundation.org/UA/schemas/Opc.Ua.Types.bsd.xml. In open62541, we autogenerate the
+C-structs to handle the standard-defined structures automatically. See ua_types_generated.h for
+comparison. The entire OPC UA protocol revolves around the exchange of these request and response messages.
 
 */
