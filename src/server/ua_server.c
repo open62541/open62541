@@ -753,10 +753,9 @@ UA_Server * UA_Server_new(void) {
 	    void *value = UA_new(&UA_TYPES[type]);
 	    UA_Variant *variant = UA_Variant_new();
 	    UA_Variant_setScalar(variant, value, &UA_TYPES[type]);
-	    UA_QualifiedName myIntegerName;
 	    char name[15];
 	    sprintf(name, "%02d", type);
-	    UA_QUALIFIEDNAME_ASSIGN(myIntegerName, name);
+	    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, name);
 	    UA_Server_addVariableNode(server, variant, myIntegerName, UA_NODEID_NUMERIC(1, ++id),
 	                              UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
