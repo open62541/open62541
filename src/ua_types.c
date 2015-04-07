@@ -618,7 +618,7 @@ static UA_StatusCode testRangeWithVariant(const UA_Variant *v, const UA_NumericR
     size_t count = 1;
     if(range.dimensionsSize != dims_count)
         return UA_STATUSCODE_BADINTERNALERROR;
-    for(UA_Int32 i = 0; i < range.dimensionsSize; i++) {
+    for(UA_Int32 i = 0; i < dims_count; i++) {
         if(range.dimensions[i].min > range.dimensions[i].max)
             return UA_STATUSCODE_BADINDEXRANGEINVALID;
         if(range.dimensions[i].max > (UA_UInt32)*(dims+i))

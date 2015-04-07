@@ -182,13 +182,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
         reply = UA_Connection_completeMessages(&client->connection, reply);
     } while(reply.length < 0);
 
-    if(retval) {
-        UA_ByteString_deleteMembers(&reply);
-        return retval;
-    }
-
 	offset = 0;
-
 	UA_SecureConversationMessageHeader_decodeBinary(&reply, &offset, &messageHeader);
 	UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&reply, &offset, &asymHeader);
 	UA_SequenceHeader_decodeBinary(&reply, &offset, &seqHeader);
