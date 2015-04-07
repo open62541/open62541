@@ -373,6 +373,7 @@ UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 /** Is the nodeid a null-nodeid? */
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 
+#ifndef __cplusplus
 #define UA_NODEID_NUMERIC(NS_INDEX, NUMERICID) (UA_NodeId) {           \
         .namespaceIndex = NS_INDEX,                                    \
         .identifierType = UA_NODEIDTYPE_NUMERIC,                       \
@@ -402,6 +403,25 @@ UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
         .namespaceIndex = NS_INDEX,                                    \
         .identifierType = UA_NODEIDTYPE_BYTESTRING,                    \
         .identifier.byteString = UA_STRING_ALLOC(CHARS) }
+#else
+#define UA_NODEID_NUMERIC(NS_INDEX, NUMERICID) (UA_NodeId) {    \
+        NS_INDEX, UA_NodeId::UA_NODEIDTYPE_NUMERIC, NUMERICID }
+
+#define UA_NODEID_STRING(NS_INDEX, CHARS) (const UA_NodeId) {           \
+        NS_INDEX, UA_NodeId::UA_NODEIDTYPE_STRING, UA_STRING(CHARS) }
+
+#define UA_NODEID_STRING_ALLOC(NS_INDEX, CHARS) (const UA_NodeId) {     \
+        NS_INDEX, UA_NodeId::UA_NODEIDTYPE_STRING, UA_STRING_ALLOC(CHARS) }
+
+#define UA_NODEID_GUID(NS_INDEX, GUID) (UA_NodeId) {    \
+        NS_INDEX, UA_NodeId::UA_NODEIDTYPE_GUID, GUID }
+
+#define UA_NODEID_BYTESTRING(NS_INDEX, CHARS) (const UA_NodeId) {       \
+        NS_INDEX, UA_NodeId::UA_NODEIDTYPE_BYTESTRING, UA_STRING(CHARS) }
+
+#define UA_NODEID_BYTESTRING_ALLOC(NS_INDEX, CHARS) (const UA_NodeId) { \
+        NS_INDEX, UA_NodeId::UA_NODEIDTYPE_BYTESTRING, UA_STRING_ALLOC(CHARS) }
+#endif
 
 #define UA_NODEID_NULL UA_NODEID_NUMERIC(0,0)
 

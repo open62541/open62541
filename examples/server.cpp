@@ -4,21 +4,18 @@
  */
 #include <iostream>
 
-// provided by the open62541 lib
-#include "ua_server.h"
-
-// provided by the user, implementations available in the /examples folder
-#include "logger_stdout.h"
-#include "networklayer_tcp.h"
+#ifdef NOT_AMALGATED
+# include "ua_server.h"
+# include "logger_stdout.h"
+# include "networklayer_tcp.h"
+#else
+# include "open62541.h"
+#endif
 
 /**
  * Build Instructions (Linux)
- *
- * To build this C++ server, first compile the open62541 library. Then, compile the network layer and logging with a C compiler.
- * - gcc -std=c99 -c networklayer_tcp.c -I../include -I../build/src_generated
- * - gcc -std=c99 -c logger_stdout.c -I../include -I../build/src_generated
- * Lastly, compile and link the C++ server with
- * - g++ server.cpp networklayer_tcp.o logger_stdout.o ../build/libopen62541.a -I../include -I../build/src_generated -o server
+ * - gcc -std=c99 -c open62541.c
+ * - g++ server.cpp open62541.o -o server
  */
 
 using namespace std;
@@ -32,11 +29,10 @@ int main()
     UA_Variant *myIntegerVariant = UA_Variant_new();
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    UA_QualifiedName myIntegerName;
-    UA_QUALIFIEDNAME_ASSIGN(myIntegerName, "the answer");
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_NodeId myIntegerNodeId = UA_NODEID_NULL; /* assign a random free nodeid */
-    UA_NodeId parentNodeId = UA_NODEID_STATIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_STATIC(0, UA_NS0ID_ORGANIZES);
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
                               myIntegerNodeId, parentNodeId, parentReferenceNodeId);
 

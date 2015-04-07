@@ -596,7 +596,7 @@ UA_ClientNetworkLayer ClientNetworkLayerTCP_new(UA_ConnectionConfig conf) {
     layer.nlHandle = tcplayer;
     layer.connect = (UA_StatusCode (*)(const UA_String, void**)) ClientNetworkLayerTCP_connect;
     layer.disconnect = (void (*)(void*)) ClientNetworkLayerTCP_disconnect;
-    layer.delete = (void (*)(void*)) ClientNetworkLayerTCP_delete;
+    layer.destroy = (void (*)(void*)) ClientNetworkLayerTCP_delete;
     layer.send = (UA_StatusCode (*)(void*, UA_ByteStringArray)) ClientNetworkLayerTCP_send;
     layer.awaitResponse = (UA_StatusCode (*)(void*, UA_ByteString *, UA_UInt32))ClientNetworkLayerTCP_awaitResponse;
     return layer;

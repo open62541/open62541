@@ -213,6 +213,12 @@ void UA_EXPORT UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLaye
 
 /** @} */
 
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
+#ifndef __cplusplus /* the external nodestore does not work with c++ so far */
+
 /**
  * @ingroup nodestore
  *
@@ -283,8 +289,6 @@ typedef struct UA_ExternalNodeStore {
 
 /** @} */
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+#endif /* external nodestore */
 
 #endif /* UA_SERVER_H_ */

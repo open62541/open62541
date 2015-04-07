@@ -46,7 +46,7 @@ UA_Client * UA_Client_new(void) {
 }
 
 void UA_Client_delete(UA_Client* client){
-    client->networkLayer.delete(client->networkLayer.nlHandle);
+    client->networkLayer.destroy(client->networkLayer.nlHandle);
     UA_String_deleteMembers(&client->endpointUrl);
     // client->connection
 
