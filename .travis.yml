@@ -64,7 +64,7 @@ script:
 - make -j
 - cd .. && rm build -rf && mkdir -p build && cd build
 - echo "Debug build and unit tests (64 bit)"
-- cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_UNIT_TESTS=ON -DENABLE_COVERAGE=ON ..
+- cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_DEMO_NODESET=ON -DBUILD_UNIT_TESTS=ON -DENABLE_COVERAGE=ON ..
 - make -j && make test
 - coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../
 - cd .. && rm build -rf && mkdir -p build && cd build
