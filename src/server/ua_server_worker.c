@@ -17,9 +17,9 @@
 #define MAXTIMEOUT 50000 // max timeout in usec until the next main loop iteration
 #define BATCHSIZE 20 // max size of worklists that are dispatched to workers
 
-static void processWork(UA_Server *server, const UA_WorkItem *work, UA_Int32 workSize) {
+static void processWork(UA_Server *server, UA_WorkItem *work, UA_Int32 workSize) {
     for(UA_Int32 i = 0;i<workSize;i++) {
-        const UA_WorkItem *item = &work[i];
+        UA_WorkItem *item = &work[i];
         switch(item->type) {
         case UA_WORKITEMTYPE_BINARYNETWORKMESSAGE:
             UA_Server_processBinaryMessage(server, item->work.binaryNetworkMessage.connection,

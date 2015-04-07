@@ -47,15 +47,12 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
         UA_TcpMessageHeader_calcSizeBinary(&ackHeader);
 
     // The message is on the stack. That's ok since ack is very small.
-    UA_ByteString ack_msg = (UA_ByteString){
-        .length = ackHeader.messageSize,
-            .data = UA_alloca(ackHeader.messageSize)
-    };
+    UA_ByteString ack_msg = (UA_ByteString){ .length = ackHeader.messageSize,
+                                             .data = UA_alloca(ackHeader.messageSize) };
     size_t tmpPos = 0;
     UA_TcpMessageHeader_encodeBinary(&ackHeader, &ack_msg, &tmpPos);
     UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &ack_msg, &tmpPos);
     UA_ByteStringArray answer_buf = { .stringsSize = 1, .strings = &ack_msg };
-    // the string is freed internall in the (asynchronous) write
     connection->write(connection, answer_buf);
     UA_TcpHelloMessage_deleteMembers(&helloMessage);
 }
@@ -415,7 +412,11 @@ static void processCLO(UA_Connection *connection, UA_Server *server, const UA_By
     Service_CloseSecureChannel(server, secureChannelId);
 }
 
-void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg) {
+void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, UA_ByteString *msg) {
+    *msg = UA_Connection_completeMessages(connection, *msg);
+    if(msg->length <= 0)
+        return;
+
     size_t pos = 0;
     UA_TcpMessageHeader tcpMessageHeader;
     do {

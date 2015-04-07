@@ -114,6 +114,7 @@ static UA_StatusCode setNonBlocking(int sockid) {
 }
 
 static void freeConnectionCallback(UA_Server *server, TCPConnection *connection) {
+    UA_ByteString_deleteMembers(&connection->connection.incompleteMessage);
     free(connection);
 }
 
@@ -145,6 +146,7 @@ static UA_StatusCode ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_
     c->connection.channel = (void*)0;
     c->connection.close = (void (*)(void*))closeConnection;
     c->connection.write = (void (*)(void*, UA_ByteStringArray))writeCallback;
+    UA_ByteString_init(&c->connection.incompleteMessage);
 
     layer->conLinks = realloc(layer->conLinks, sizeof(ConnectionLink)*(layer->conLinksSize+1));
 	if(!layer->conLinks) {
