@@ -15,10 +15,11 @@ addons:
     build_command: make
     branch_pattern: coverity_scan
 before_install:
-- sudo apt-get install binutils-mingw-w64-i686 gcc-mingw-w64-i686
 - sudo add-apt-repository ppa:kalakris/cmake -y
+- sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
 - sudo apt-get update -qq
 - sudo apt-get install -qq --no-install-recommends build-essential cmake python-lxml gcc-multilib graphviz doxygen wget zip
+- sudo apt-get install binutils-mingw-w64-i686 gcc-mingw-w64-i686 gcc-4.8
 - wget http://security.ubuntu.com/ubuntu/pool/main/c/check/check_0.9.10-6ubuntu3_amd64.deb
 - sudo dpkg -i check_0.9.10-6ubuntu3_amd64.deb
 - wget https://launchpad.net/ubuntu/+source/liburcu/0.8.5-1ubuntu1/+build/6513813/+files/liburcu2_0.8.5-1ubuntu1_amd64.deb
@@ -26,6 +27,8 @@ before_install:
 - sudo dpkg -i liburcu2_0.8.5-1ubuntu1_amd64.deb
 - sudo dpkg -i liburcu-dev_0.8.5-1ubuntu1_amd64.deb
 - sudo pip install cpp-coveralls
+- sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
+- sudo update-alternatives --config gcc
 script:
 - echo "Checking the applicability of patches"
 - # ./tools/.checkPorts.sh
@@ -54,11 +57,6 @@ script:
 - cp open62541.c .. #copy single file-release
 - cd .. && rm build -rf && mkdir -p build && cd build
 - echo "Upgrade to gcc 4.8"
-- sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-- sudo apt-get update -qq
-- sudo apt-get install -qq gcc-4.8
-- sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
-- sudo update-alternatives --config gcc
 - echo "Compile multithreaded version"
 - cmake -DENABLE_MULTITHREADING=ON -DBUILD_EXAMPLESERVER=ON ..
 - make -j
