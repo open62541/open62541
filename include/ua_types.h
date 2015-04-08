@@ -204,8 +204,16 @@ typedef struct {
 } UA_NumericRange;
 
 /** @brief Variants store (arrays of) any data type. Either they provide a pointer to the data in
-    memory, or functions from which the data can be accessed. Variants are replaced together with
-    the data they store (exception: use a data source).*/
+ *   memory, or functions from which the data can be accessed. Variants are replaced together with
+ *   the data they store (exception: use a data source).
+ *
+ * Variant semantics:
+ *  - arrayLength = -1 && data == NULL: empty variant
+ *  - arrayLength = -1 && data == !NULL: variant holds a single element (a scalar)
+ *  - arrayLength >= 0: variant holds an array of the appropriate length
+ *                      data can be NULL if arrayLength == 0
+ */
+
 typedef struct {
     const UA_DataType *type;
     enum {
@@ -446,14 +454,6 @@ UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
         .locale = UA_STRING_ALLOC(LOCALE), .text = UA_STRING_ALLOC(TEXT) }
 
 /* Variant */
-
-/**
- * Variant semantics:
- *  - arrayLength = -1 && data == NULL: empty variant
- *  - arrayLength = -1 && data == !NULL: variant holds a single element (a scalar)
- *  - arrayLength >= 0: variant holds an array of the appropriate length
- *                      data can be NULL if arrayLength == 0
- */
 
 /**
  * Set the variant to a scalar value that already resides in memory. The value takes on the
