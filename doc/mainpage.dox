@@ -1,7 +1,7 @@
 /**
 \mainpage Open62541 Developer Documentation
 
-<a href="http://en.wikipedia.org/wiki/OPC_Unified_Architecture">OPC UA</a> (short for OPC Universal
+<a href="http://en.wikipedia.org/wiki/OPC_Unified_Architecture">OPC UA</a> (short for OPC Unified
 Architecture) is a protocol for industrial communication and has been standardized in the IEC62541.
 At its core, OPC UA defines a set of services to interact with a server-side object-oriented
 information model. Besides the service-calls initiated by the client, push-notification of remote
