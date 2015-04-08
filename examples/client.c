@@ -1,6 +1,7 @@
 #ifdef NOT_AMALGATED
 	#include "ua_types.h"
 	#include "ua_client.h"
+	#include "ua_nodeids.h"
 #else
 	#include "open62541.h"
 #endif
@@ -18,6 +19,29 @@ int main(int argc, char *argv[]) {
 		return retval;
 	}
 
+	// Browse some objects
+	UA_BrowseDescription bd;
+	UA_BrowseDescription_init(&bd);
+	bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+	bd.resultMask = 63;	// everything
+
+	UA_BrowseRequest breq;
+	UA_BrowseRequest_init(&breq);
+	breq.requestedMaxReferencesPerNode = 0;
+	breq.nodesToBrowse = &bd;
+	breq.nodesToBrowseSize = 1;
+
+	UA_BrowseResponse bresp = UA_Client_browse(client, &breq);
+	printf("result code: %d, results: %d, diagnostics: %d\n", bresp.responseHeader.serviceResult, bresp.resultsSize, bresp.diagnosticInfosSize);
+	puts("id, namespace, browse name, display name");
+	if (bresp.resultsSize > 0) for (int i = 0; i < bresp.resultsSize; ++i) {
+		if (bresp.results[i].referencesSize > 0) for (int j = 0; j < bresp.results[i].referencesSize; ++j) {
+			UA_ReferenceDescription *ref = &(bresp.results[i].references[j]);
+			printf("%d, %d, %.*s, %.*s\n", ref->nodeId.nodeId.identifier.numeric, ref->browseName.namespaceIndex, ref->browseName.name.length, ref->browseName.name.data, ref->displayName.text.length, ref->displayName.text.data);
+		}
+	}
+
+	// Read a node
 	UA_ReadRequest req;
 	UA_ReadRequest_init(&req);
 	req.nodesToRead = UA_ReadValueId_new();
