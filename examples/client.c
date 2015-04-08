@@ -40,6 +40,8 @@ int main(int argc, char *argv[]) {
 			printf("%d, %d, %.*s, %.*s\n", ref->nodeId.nodeId.identifier.numeric, ref->browseName.namespaceIndex, ref->browseName.name.length, ref->browseName.name.data, ref->displayName.text.length, ref->displayName.text.data);
 		}
 	}
+	UA_BrowseRequest_deleteMembers(&breq);
+	UA_BrowseResponse_deleteMembers(&bresp);
 
 	// Read a node
 	UA_ReadRequest req;
