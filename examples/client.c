@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
 	UA_BrowseDescription bd;
 	UA_BrowseDescription_init(&bd);
 	bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-	bd.resultMask = 63;	// everything
+	bd.resultMask = UA_BROWSERESULTMASK_ALL;	// everything
 
 	UA_BrowseRequest breq;
 	UA_BrowseRequest_init(&breq);
@@ -37,10 +37,15 @@ int main(int argc, char *argv[]) {
 	if (bresp.resultsSize > 0) for (int i = 0; i < bresp.resultsSize; ++i) {
 		if (bresp.results[i].referencesSize > 0) for (int j = 0; j < bresp.results[i].referencesSize; ++j) {
 			UA_ReferenceDescription *ref = &(bresp.results[i].references[j]);
-			printf("%d, %d, %.*s, %.*s\n", ref->nodeId.nodeId.identifier.numeric, ref->browseName.namespaceIndex, ref->browseName.name.length, ref->browseName.name.data, ref->displayName.text.length, ref->displayName.text.data);
+			if(ref->nodeId.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC){
+				printf("%d, %d, %.*s, %.*s\n", ref->nodeId.nodeId.identifier.numeric, ref->browseName.namespaceIndex, ref->browseName.name.length, ref->browseName.name.data, ref->displayName.text.length, ref->displayName.text.data);
+			}else if(ref->nodeId.nodeId.identifierType == UA_NODEIDTYPE_STRING){
+				printf("%.*s, %d, %.*s, %.*s\n", ref->nodeId.nodeId.identifier.string.length, ref->nodeId.nodeId.identifier.string.data, ref->browseName.namespaceIndex, ref->browseName.name.length, ref->browseName.name.data, ref->displayName.text.length, ref->displayName.text.data);
+			}else{
+				printf("--, %d, %.*s, %.*s\n", ref->browseName.namespaceIndex, ref->browseName.name.length, ref->browseName.name.data, ref->displayName.text.length, ref->displayName.text.data);
+			}
 		}
 	}
-	UA_BrowseRequest_deleteMembers(&breq);
 	UA_BrowseResponse_deleteMembers(&bresp);
 
 	// Read a node
