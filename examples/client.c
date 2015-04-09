@@ -21,21 +21,20 @@ int main(int argc, char *argv[]) {
 
 	// Browse some objects
 	printf("Browsing nodes in objects folder:\n");
-	UA_BrowseDescription* bd = UA_BrowseDescription_new();
-	bd->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER); //browse objects folder
-	bd->resultMask = UA_BROWSERESULTMASK_ALL;	//return everything
 
-	UA_BrowseRequest breq;
-	UA_BrowseRequest_init(&breq);
-	breq.requestedMaxReferencesPerNode = 0;
-	breq.nodesToBrowse = bd;
-	breq.nodesToBrowseSize = 1;
+	UA_BrowseRequest bReq;
+	UA_BrowseRequest_init(&bReq);
+	bReq.requestedMaxReferencesPerNode = 0;
+	bReq.nodesToBrowse = UA_BrowseDescription_new();
+	bReq.nodesToBrowseSize = 1;
+	bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER); //browse objects folder
+	bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL;	//return everything
 
-	UA_BrowseResponse bresp = UA_Client_browse(client, &breq);
+	UA_BrowseResponse bResp = UA_Client_browse(client, &bReq);
 	printf("%-9s %-16s %-16s %-16s\n", "NAMESPACE", "NODEID", "BROWSE NAME", "DISPLAY NAME");
-	for (int i = 0; i < bresp.resultsSize; ++i) {
-		for (int j = 0; j < bresp.results[i].referencesSize; ++j) {
-			UA_ReferenceDescription *ref = &(bresp.results[i].references[j]);
+	for (int i = 0; i < bResp.resultsSize; ++i) {
+		for (int j = 0; j < bResp.results[i].referencesSize; ++j) {
+			UA_ReferenceDescription *ref = &(bResp.results[i].references[j]);
 			if(ref->nodeId.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC){
 				printf("%-9d %-16d %-16.*s %-16.*s\n", ref->browseName.namespaceIndex, ref->nodeId.nodeId.identifier.numeric, ref->browseName.name.length, ref->browseName.name.data, ref->displayName.text.length, ref->displayName.text.data);
 			}else if(ref->nodeId.nodeId.identifierType == UA_NODEIDTYPE_STRING){
@@ -44,27 +43,52 @@ int main(int argc, char *argv[]) {
 			//TODO: distinguish further types
 		}
 	}
-	UA_BrowseRequest_deleteMembers(&breq);
-	UA_BrowseResponse_deleteMembers(&bresp);
+	UA_BrowseRequest_deleteMembers(&bReq);
+	UA_BrowseResponse_deleteMembers(&bResp);
 
-	// Read a node
+	UA_Int32 value = 0;
+	// Read node's value
 	printf("\nReading the value of node (1, \"the.answer\"):\n");
-	UA_ReadRequest req;
-	UA_ReadRequest_init(&req);
-	req.nodesToRead = UA_ReadValueId_new();
-	req.nodesToReadSize = 1;
-	req.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer"); /* assume this node exists */
-	req.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
+	UA_ReadRequest rReq;
+	UA_ReadRequest_init(&rReq);
+	rReq.nodesToRead = UA_ReadValueId_new();
+	rReq.nodesToReadSize = 1;
+	rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer"); /* assume this node exists */
+	rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
 
-	UA_ReadResponse resp = UA_Client_read(client, &req);
-	if(resp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
-	   resp.resultsSize > 0 && resp.results[0].hasValue &&
-	   resp.results[0].value.data /* an empty array returns a null-ptr */ &&
-	   resp.results[0].value.type == &UA_TYPES[UA_TYPES_INT32])
-		printf("the value is: %i\n", *(UA_Int32*)resp.results[0].value.data);
+	UA_ReadResponse rResp = UA_Client_read(client, &rReq);
+	if(rResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
+	   rResp.resultsSize > 0 && rResp.results[0].hasValue &&
+	   rResp.results[0].value.data /* an empty array returns a null-ptr */ &&
+	   rResp.results[0].value.type == &UA_TYPES[UA_TYPES_INT32]){
+		value = *(UA_Int32*)rResp.results[0].value.data;
+		printf("the value is: %i\n", value);
+	}
 
-	UA_ReadRequest_deleteMembers(&req);
-	UA_ReadResponse_deleteMembers(&resp);
+	UA_ReadRequest_deleteMembers(&rReq);
+	UA_ReadResponse_deleteMembers(&rResp);
+
+	value++;
+	// Write node's value
+	printf("\nWriting a value of node (1, \"the.answer\"):\n");
+	UA_WriteRequest wReq;
+	UA_WriteRequest_init(&wReq);
+	wReq.nodesToWrite = UA_WriteValue_new();
+	wReq.nodesToWriteSize = 1;
+	wReq.nodesToWrite[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer"); /* assume this node exists */
+	wReq.nodesToWrite[0].attributeId = UA_ATTRIBUTEID_VALUE;
+	wReq.nodesToWrite[0].value.hasValue = UA_TRUE;
+	wReq.nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_INT32];
+	wReq.nodesToWrite[0].value.value.storageType = UA_VARIANT_DATA_NODELETE; //do not free the integer on deletion
+	wReq.nodesToWrite[0].value.value.data = &value;
+
+	UA_WriteResponse wResp = UA_Client_write(client, &wReq);
+	if(wResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
+			printf("the new value is: %i\n", value);
+
+	UA_WriteRequest_deleteMembers(&wReq);
+	UA_WriteResponse_deleteMembers(&wResp);
+
 	UA_Client_disconnect(client);
 	UA_Client_delete(client);
 	return UA_STATUSCODE_GOOD;
