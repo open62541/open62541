@@ -20,35 +20,35 @@ int main(int argc, char *argv[]) {
 	}
 
 	// Browse some objects
-	UA_BrowseDescription bd;
-	UA_BrowseDescription_init(&bd);
-	bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-	bd.resultMask = UA_BROWSERESULTMASK_ALL;	// everything
+	printf("Browsing nodes in objects folder:\n");
+	UA_BrowseDescription* bd = UA_BrowseDescription_new();
+	bd->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER); //browse objects folder
+	bd->resultMask = UA_BROWSERESULTMASK_ALL;	//return everything
 
 	UA_BrowseRequest breq;
 	UA_BrowseRequest_init(&breq);
 	breq.requestedMaxReferencesPerNode = 0;
-	breq.nodesToBrowse = &bd;
+	breq.nodesToBrowse = bd;
 	breq.nodesToBrowseSize = 1;
 
 	UA_BrowseResponse bresp = UA_Client_browse(client, &breq);
-	printf("result code: %d, results: %d, diagnostics: %d\n", bresp.responseHeader.serviceResult, bresp.resultsSize, bresp.diagnosticInfosSize);
-	puts("id, namespace, browse name, display name");
-	if (bresp.resultsSize > 0) for (int i = 0; i < bresp.resultsSize; ++i) {
-		if (bresp.results[i].referencesSize > 0) for (int j = 0; j < bresp.results[i].referencesSize; ++j) {
+	printf("%-9s %-16s %-16s %-16s\n", "NAMESPACE", "NODEID", "BROWSE NAME", "DISPLAY NAME");
+	for (int i = 0; i < bresp.resultsSize; ++i) {
+		for (int j = 0; j < bresp.results[i].referencesSize; ++j) {
 			UA_ReferenceDescription *ref = &(bresp.results[i].references[j]);
 			if(ref->nodeId.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC){
-				printf("%d, %d, %.*s, %.*s\n", ref->nodeId.nodeId.identifier.numeric, ref->browseName.namespaceIndex, ref->browseName.name.length, ref->browseName.name.data, ref->displayName.text.length, ref->displayName.text.data);
+				printf("%-9d %-16d %-16.*s %-16.*s\n", ref->browseName.namespaceIndex, ref->nodeId.nodeId.identifier.numeric, ref->browseName.name.length, ref->browseName.name.data, ref->displayName.text.length, ref->displayName.text.data);
 			}else if(ref->nodeId.nodeId.identifierType == UA_NODEIDTYPE_STRING){
-				printf("%.*s, %d, %.*s, %.*s\n", ref->nodeId.nodeId.identifier.string.length, ref->nodeId.nodeId.identifier.string.data, ref->browseName.namespaceIndex, ref->browseName.name.length, ref->browseName.name.data, ref->displayName.text.length, ref->displayName.text.data);
-			}else{
-				printf("--, %d, %.*s, %.*s\n", ref->browseName.namespaceIndex, ref->browseName.name.length, ref->browseName.name.data, ref->displayName.text.length, ref->displayName.text.data);
+				printf("%-9d %-16.*s %-16.*s %-16.*s\n", ref->browseName.namespaceIndex, ref->nodeId.nodeId.identifier.string.length, ref->nodeId.nodeId.identifier.string.data, ref->browseName.name.length, ref->browseName.name.data, ref->displayName.text.length, ref->displayName.text.data);
 			}
+			//TODO: distinguish further types
 		}
 	}
+	UA_BrowseRequest_deleteMembers(&breq);
 	UA_BrowseResponse_deleteMembers(&bresp);
 
 	// Read a node
+	printf("\nReading the value of node (1, \"the.answer\"):\n");
 	UA_ReadRequest req;
 	UA_ReadRequest_init(&req);
 	req.nodesToRead = UA_ReadValueId_new();
@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
 	   resp.resultsSize > 0 && resp.results[0].hasValue &&
 	   resp.results[0].value.data /* an empty array returns a null-ptr */ &&
 	   resp.results[0].value.type == &UA_TYPES[UA_TYPES_INT32])
-		printf("the answer is: %i\n", *(UA_Int32*)resp.results[0].value.data);
+		printf("the value is: %i\n", *(UA_Int32*)resp.results[0].value.data);
 
 	UA_ReadRequest_deleteMembers(&req);
 	UA_ReadResponse_deleteMembers(&resp);
