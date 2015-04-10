@@ -231,30 +231,27 @@ UA_Server * UA_Server_new(void) {
         endpoint->securityMode = UA_MESSAGESECURITYMODE_NONE;
         endpoint->securityPolicyUri = UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
         endpoint->transportProfileUri = UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
-        if(!endpoint->userIdentityTokens) {
-            UA_EndpointDescription_delete(endpoint);
-        } else {
-            endpoint->userIdentityTokensSize = 2;
-        	endpoint->userIdentityTokens = UA_Array_new(&UA_TYPES[UA_TYPES_USERTOKENPOLICY], 2);
 
-            UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[0]);
-            endpoint->userIdentityTokens[0].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
-            endpoint->userIdentityTokens[0].policyId = UA_STRING_ALLOC("my-anonymous-policy"); // defined per server
+        endpoint->userIdentityTokensSize = 2;
+        endpoint->userIdentityTokens = UA_Array_new(&UA_TYPES[UA_TYPES_USERTOKENPOLICY], 2);
 
-            UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[1]);
-            endpoint->userIdentityTokens[1].tokenType = UA_USERTOKENTYPE_USERNAME;
-            endpoint->userIdentityTokens[1].policyId = UA_STRING_ALLOC("my-username-policy"); // defined per server
+        UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[0]);
+        endpoint->userIdentityTokens[0].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
+        endpoint->userIdentityTokens[0].policyId = UA_STRING_ALLOC("my-anonymous-policy"); // defined per server
 
-            /* UA_String_copy(endpointUrl, &endpoint->endpointUrl); */
-            /* /\* The standard says "the HostName specified in the Server Certificate is the */
-            /*    same as the HostName contained in the endpointUrl provided in the */
-            /*    EndpointDescription *\/ */
-            /* UA_String_copy(&server->serverCertificate, &endpoint->serverCertificate); */
-            UA_ApplicationDescription_copy(&server->description, &endpoint->server);
+        UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[1]);
+        endpoint->userIdentityTokens[1].tokenType = UA_USERTOKENTYPE_USERNAME;
+        endpoint->userIdentityTokens[1].policyId = UA_STRING_ALLOC("my-username-policy"); // defined per server
 
-            server->endpointDescriptions = endpoint;
-            server->endpointDescriptionsSize = 1;
-        }
+        /* UA_String_copy(endpointUrl, &endpoint->endpointUrl); */
+        /* /\* The standard says "the HostName specified in the Server Certificate is the */
+        /*    same as the HostName contained in the endpointUrl provided in the */
+        /*    EndpointDescription *\/ */
+        /* UA_String_copy(&server->serverCertificate, &endpoint->serverCertificate); */
+        UA_ApplicationDescription_copy(&server->description, &endpoint->server);
+
+        server->endpointDescriptions = endpoint;
+        server->endpointDescriptionsSize = 1;
     }
 
 #define MAXCHANNELCOUNT 100
