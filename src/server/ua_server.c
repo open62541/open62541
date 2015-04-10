@@ -232,9 +232,16 @@ UA_Server * UA_Server_new(void) {
         if(!endpoint->userIdentityTokens) {
             UA_EndpointDescription_delete(endpoint);
         } else {
-            UA_UserTokenPolicy_init(endpoint->userIdentityTokens);
-            endpoint->userIdentityTokens->tokenType = UA_USERTOKENTYPE_ANONYMOUS;
-            endpoint->userIdentityTokens->policyId = UA_STRING_ALLOC("my-anonymous-policy"); // defined per server
+            endpoint->userIdentityTokensSize = 2;
+        	endpoint->userIdentityTokens = UA_Array_new(&UA_TYPES[UA_TYPES_USERTOKENPOLICY], 2);
+
+            UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[0]);
+            endpoint->userIdentityTokens[0].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
+            endpoint->userIdentityTokens[0].policyId = UA_STRING_ALLOC("my-anonymous-policy"); // defined per server
+
+            UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[1]);
+            endpoint->userIdentityTokens[1].tokenType = UA_USERTOKENTYPE_USERNAME;
+            endpoint->userIdentityTokens[1].policyId = UA_STRING_ALLOC("my-username-policy"); // defined per server
 
             /* UA_String_copy(endpointUrl, &endpoint->endpointUrl); */
             /* /\* The standard says "the HostName specified in the Server Certificate is the */
@@ -243,7 +250,6 @@ UA_Server * UA_Server_new(void) {
             /* UA_String_copy(&server->serverCertificate, &endpoint->serverCertificate); */
             UA_ApplicationDescription_copy(&server->description, &endpoint->server);
 
-            endpoint->userIdentityTokensSize = 1;
             server->endpointDescriptions = endpoint;
             server->endpointDescriptionsSize = 1;
         }
