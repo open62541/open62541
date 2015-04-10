@@ -4,6 +4,7 @@
  */
 
 #include <signal.h>
+#include <errno.h> // errno, EINTR
 #include <stdio.h>
 #include <stdlib.h> 
 #define __USE_XOPEN2K
@@ -158,6 +159,31 @@ static void stopHandler(int sign) {
 	running = 0;
 }
 
+static UA_ByteString loadCertificate(void) {
+    UA_ByteString certificate = UA_STRING_NULL;
+	FILE *fp = NULL;
+	//FIXME: a potiential bug of locating the certificate, we need to get the path from the server's config
+	fp=fopen("localhost.der", "rb");
+
+	if(!fp) {
+        errno = 0; // we read errno also from the tcp layer...
+        return certificate;
+    }
+
+    fseek(fp, 0, SEEK_END);
+    certificate.length = ftell(fp);
+    certificate.data = malloc(certificate.length*sizeof(UA_Byte));
+	if(!certificate.data)
+		return certificate;
+
+    fseek(fp, 0, SEEK_SET);
+    if(fread(certificate.data, sizeof(UA_Byte), certificate.length, fp) < (size_t)certificate.length)
+        UA_ByteString_deleteMembers(&certificate); // error reading the cert
+    fclose(fp);
+
+    return certificate;
+}
+
 int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
 #ifdef UA_MULTITHREADING
@@ -167,6 +193,7 @@ int main(int argc, char** argv) {
 	UA_Server *server = UA_Server_new();
 	logger = Logger_Stdout_new();
 	UA_Server_setLogger(server, logger);
+	UA_Server_setServerCertificate(server, loadCertificate());
 	UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 
 	// print the status every 2 sec
