@@ -223,12 +223,14 @@ UA_Server * UA_Server_new(void) {
     server->externalNamespacesSize = 0;
     server->externalNamespaces = UA_NULL;
 
+    server->endpointDescriptions = UA_NULL;
+    server->endpointDescriptionsSize = 0;
+
     UA_EndpointDescription *endpoint = UA_EndpointDescription_new(); // todo: check return code
     if(endpoint) {
         endpoint->securityMode = UA_MESSAGESECURITYMODE_NONE;
         endpoint->securityPolicyUri = UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
         endpoint->transportProfileUri = UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
-        endpoint->userIdentityTokens = UA_malloc(sizeof(UA_UserTokenPolicy));
         if(!endpoint->userIdentityTokens) {
             UA_EndpointDescription_delete(endpoint);
         } else {

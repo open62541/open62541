@@ -160,7 +160,7 @@ static void stopHandler(int sign) {
 }
 
 static UA_ByteString loadCertificate(void) {
-    UA_ByteString certificate = UA_STRING_NULL;
+	UA_ByteString certificate = UA_STRING_NULL;
 	FILE *fp = NULL;
 	//FIXME: a potiential bug of locating the certificate, we need to get the path from the server's config
 	fp=fopen("localhost.der", "rb");
@@ -193,7 +193,9 @@ int main(int argc, char** argv) {
 	UA_Server *server = UA_Server_new();
 	logger = Logger_Stdout_new();
 	UA_Server_setLogger(server, logger);
-	UA_Server_setServerCertificate(server, loadCertificate());
+    UA_ByteString certificate = loadCertificate();
+    UA_Server_setServerCertificate(server, certificate);
+    UA_ByteString_deleteMembers(&certificate);
 	UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 
 	// print the status every 2 sec
