@@ -204,6 +204,11 @@ UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, UA_Node *no
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
 
+    if(node->nodeId.namespaceIndex >= server->namespacesSize) {
+        result.statusCode = UA_STATUSCODE_BADNODEIDINVALID;
+        return result;
+    }
+
     const UA_Node *parent = UA_NodeStore_get(server->nodestore, &parentNodeId->nodeId);
     if(!parent) {
         result.statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID;

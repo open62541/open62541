@@ -49,13 +49,14 @@ int main(int argc, char** argv) {
     UA_Server_addNetworkLayer(server,
         ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, PORT));
     UA_Server_setLogger(server, Logger_Stdout_new());
+    UA_UInt16 nsIndex = UA_Server_addNamespace(server, "myApplicationNamespace");
 
     /* add a variable node */
     UA_Variant *myIntegerVariant = UA_Variant_new();
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
-    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(nsIndex, "the answer");
+    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(nsIndex, "the.answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,

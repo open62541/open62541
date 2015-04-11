@@ -32,7 +32,7 @@ UA_Logger logger;
 /*************************/
 /* Read-only data source */
 /*************************/
-static UA_StatusCode readTimeData(const void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
+static UA_StatusCode readTimeData(void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
 	UA_DateTime *currentTime = UA_DateTime_new();
 	if(!currentTime)
 		return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -50,7 +50,7 @@ static UA_StatusCode readTimeData(const void *handle, UA_Boolean sourceTimeStamp
 	return UA_STATUSCODE_GOOD;
 }
 
-static void releaseTimeData(const void *handle, UA_DataValue *value) {
+static void releaseTimeData(void *handle, UA_DataValue *value) {
 	UA_DateTime_delete((UA_DateTime*)value->value.data);
 }
 
@@ -59,7 +59,7 @@ static void releaseTimeData(const void *handle, UA_DataValue *value) {
 /*      Only on Linux        */
 /*****************************/
 FILE* temperatureFile = NULL;
-static UA_StatusCode readTemperature(const void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
+static UA_StatusCode readTemperature(void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
 	UA_Double* currentTemperature = UA_Double_new();
 
 	if(!currentTemperature)
@@ -83,7 +83,7 @@ static UA_StatusCode readTemperature(const void *handle, UA_Boolean sourceTimeSt
 	return UA_STATUSCODE_GOOD;
 }
 
-static void releaseTemperature(const void *handle, UA_DataValue *value) {
+static void releaseTemperature(void *handle, UA_DataValue *value) {
 	UA_Double_delete((UA_Double*)value->value.data);
 }
 
@@ -97,7 +97,7 @@ FILE* triggerFile = NULL;
 FILE* ledFile = NULL;
 UA_Boolean ledStatus = 0;
 
-static UA_StatusCode readLedStatus(const void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
+static UA_StatusCode readLedStatus(void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
 	/* In order to reduce blocking time, we could alloc memory for every read
        and return a copy of the data. */
 #ifdef UA_MULTITHREADING
@@ -116,7 +116,7 @@ static UA_StatusCode readLedStatus(const void *handle, UA_Boolean sourceTimeStam
 	return UA_STATUSCODE_GOOD;
 }
 
-static void releaseLedStatus(const void *handle, UA_DataValue *value) {
+static void releaseLedStatus(void *handle, UA_DataValue *value) {
 	/* If we allocated memory for a specific read, free the content of the
        variantdata. */
 	value->value.arrayLength = -1;
@@ -126,7 +126,7 @@ static void releaseLedStatus(const void *handle, UA_DataValue *value) {
 #endif
 }
 
-static UA_StatusCode writeLedStatus(const void *handle, const UA_Variant *data) {
+static UA_StatusCode writeLedStatus(void *handle, const UA_Variant *data) {
 #ifdef UA_MULTITHREADING
 	pthread_rwlock_wrlock(&writeLock);
 #endif
@@ -197,6 +197,7 @@ int main(int argc, char** argv) {
     UA_Server_setServerCertificate(server, certificate);
     UA_ByteString_deleteMembers(&certificate);
 	UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
+    UA_UInt16 nsIndex = UA_Server_addNamespace(server, "myApplicationNamespace");
 
 	// print the status every 2 sec
 	UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL,
@@ -209,7 +210,7 @@ int main(int argc, char** argv) {
 		.read = readTimeData,
 		.release = releaseTimeData,
 		.write = NULL};
-	const UA_QualifiedName dateName = UA_QUALIFIEDNAME(0, "current time");
+	const UA_QualifiedName dateName = UA_QUALIFIEDNAME(nsIndex, "current time");
 	UA_Server_addDataSourceVariableNode(server, dateDataSource, dateName, UA_NODEID_NULL,
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
@@ -223,7 +224,7 @@ int main(int argc, char** argv) {
 			.read = readTemperature,
 			.release = releaseTemperature,
 			.write = NULL};
-		const UA_QualifiedName ledName = UA_QUALIFIEDNAME(0, "cpu temperature");
+		const UA_QualifiedName ledName = UA_QUALIFIEDNAME(nsIndex, "cpu temperature");
 		UA_Server_addDataSourceVariableNode(server, temperatureDataSource, ledName, UA_NODEID_NULL, 
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));

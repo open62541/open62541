@@ -33,6 +33,8 @@ struct UA_Server {
     UA_Logger logger;
 
     UA_NodeStore *nodestore;
+    UA_Int32 namespacesSize;
+    UA_String *namespaces;
     UA_Int32 externalNamespacesSize;
     UA_ExternalNamespace *externalNamespaces;
 

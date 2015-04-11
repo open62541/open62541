@@ -25,9 +25,9 @@ void Service_GetEndpoints(UA_Server *server, const UA_GetEndpointsRequest *reque
     for(UA_Int32 j = 0; j < server->endpointDescriptionsSize; j++) {
         relevant_endpoints[j] = UA_FALSE;
         if(request->profileUrisSize <= 0) {
-                relevant_endpoints[j] = UA_TRUE;
-                relevant_count++;
-                continue;
+            relevant_endpoints[j] = UA_TRUE;
+            relevant_count++;
+            continue;
         }
         for(UA_Int32 i = 0; i < request->profileUrisSize; i++) {
             if(UA_String_equal(&request->profileUris[i], &server->endpointDescriptions->transportProfileUri)) {

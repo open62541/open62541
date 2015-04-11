@@ -70,11 +70,14 @@ UA_StatusCode UA_EXPORT UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_
  * callback can be set to null.
  **/
 typedef struct {
-    const void *handle;
-    UA_StatusCode (*read)(const void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value);
-    void (*release)(const void *handle, UA_DataValue *value);
-    UA_StatusCode (*write)(const void *handle, const UA_Variant *data);
+    void *handle;
+    UA_StatusCode (*read)(void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value);
+    void (*release)(void *handle, UA_DataValue *value);
+    UA_StatusCode (*write)(void *handle, const UA_Variant *data);
 } UA_DataSource;
+
+/** @brief Add a new namespace to the server. Returns the index of the new namespace */
+UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
 
 /** Add a reference to the server's address space */
 UA_StatusCode UA_EXPORT UA_Server_addReference(UA_Server *server, const UA_AddReferencesItem *item);
@@ -213,10 +216,6 @@ void UA_EXPORT UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLaye
 
 /** @} */
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
-
 #ifndef __cplusplus /* the external nodestore does not work with c++ so far */
 
 /**
@@ -290,5 +289,9 @@ typedef struct UA_ExternalNodeStore {
 /** @} */
 
 #endif /* external nodestore */
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_SERVER_H_ */

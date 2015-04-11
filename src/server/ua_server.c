@@ -27,7 +27,8 @@ static void UA_ExternalNamespace_deleteMembers(UA_ExternalNamespace *ens) {
 /*****************/
 
 void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkLayer) {
-    UA_ServerNetworkLayer *newlayers = UA_realloc(server->nls, sizeof(UA_ServerNetworkLayer)*(server->nlsSize+1));
+    UA_ServerNetworkLayer *newlayers =
+        UA_realloc(server->nls, sizeof(UA_ServerNetworkLayer)*(server->nlsSize+1));
     if(!newlayers) {
         UA_LOG_ERROR(server->logger, UA_LOGGERCATEGORY_SERVER, "Networklayer added");
         return;
@@ -53,7 +54,7 @@ void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkL
 }
 
 void UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate) {
-    for(UA_Int32 i=0;i<server->endpointDescriptionsSize;i++)
+    for(UA_Int32 i = 0; i < server->endpointDescriptionsSize; i++)
         UA_ByteString_copy(&certificate, &server->endpointDescriptions[i].serverCertificate);
 }
 
@@ -61,12 +62,21 @@ void UA_Server_setLogger(UA_Server *server, UA_Logger logger) {
     server->logger = logger;
 }
 
+UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
+    server->namespaces = UA_realloc(server->namespaces, sizeof(UA_String) * (server->namespacesSize+1));
+    server->namespaces[server->namespacesSize] = UA_STRING_ALLOC(name);
+    server->namespacesSize++;
+    return server->namespacesSize-1;
+}
+
 /**********/
 /* Server */
 /**********/
 
+/* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
-	// The server needs to be stopped before it can be deleted
+	// Delete the timed work
+	UA_Server_deleteTimedWork(server);
 
 	// Delete all internal data
 	UA_ApplicationDescription_deleteMembers(&server->description);
@@ -74,14 +84,12 @@ void UA_Server_delete(UA_Server *server) {
 	UA_SessionManager_deleteMembers(&server->sessionManager);
 	UA_NodeStore_delete(server->nodestore);
 	UA_ByteString_deleteMembers(&server->serverCertificate);
-	UA_Array_delete(server->endpointDescriptions, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION], server->endpointDescriptionsSize);
-
-	// Delete the timed work
-	UA_Server_deleteTimedWork(server);
-
+    UA_Array_delete(server->namespaces, &UA_TYPES[UA_TYPES_STRING], server->namespacesSize);
+	UA_Array_delete(server->endpointDescriptions, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION],
+                    server->endpointDescriptionsSize);
 
 	// Delete the network layers
-	for(UA_Int32 i=0;i<server->nlsSize;i++) {
+	for(UA_Int32 i = 0; i < server->nlsSize; i++) {
 		server->nls[i].free(server->nls[i].nlHandle);
 	}
 	UA_free(server->nls);
@@ -93,7 +101,7 @@ void UA_Server_delete(UA_Server *server) {
 	UA_free(server);
 }
 
-static UA_StatusCode readStatus(const void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
+static UA_StatusCode readStatus(void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
     UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
     status->startTime   = ((const UA_Server*)handle)->startTime;
     status->currentTime = UA_DateTime_now();
@@ -120,11 +128,28 @@ static UA_StatusCode readStatus(const void *handle, UA_Boolean sourceTimeStamp, 
     return UA_STATUSCODE_GOOD;
 }
 
-static void releaseStatus(const void *handle, UA_DataValue *value) {
+static void releaseStatus(void *handle, UA_DataValue *value) {
     UA_DataValue_deleteMembers(value);
 }
 
-static UA_StatusCode readCurrentTime(const void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
+static UA_StatusCode readNamespaces(void *handle, UA_Boolean sourceTimestamp, UA_DataValue *value) {
+    UA_Server *server = (UA_Server*)handle;
+    value->hasValue = UA_TRUE;
+    value->value.storageType = UA_VARIANT_DATA_NODELETE;
+    value->value.type = &UA_TYPES[UA_TYPES_STRING];
+    value->value.arrayLength = server->namespacesSize;
+    value->value.data = server->namespaces;
+    if(sourceTimestamp) {
+        value->hasSourceTimestamp = UA_TRUE;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static void releaseNamespaces(void *handle, UA_DataValue *value) {
+}
+
+static UA_StatusCode readCurrentTime(void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
 	UA_DateTime *currentTime = UA_DateTime_new();
 	if(!currentTime)
 		return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -142,7 +167,7 @@ static UA_StatusCode readCurrentTime(const void *handle, UA_Boolean sourceTimeSt
 	return UA_STATUSCODE_GOOD;
 }
 
-static void releaseCurrentTime(const void *handle, UA_DataValue *value) {
+static void releaseCurrentTime(void *handle, UA_DataValue *value) {
 	UA_DateTime_delete((UA_DateTime*)value->value.data);
 }
 
@@ -161,7 +186,10 @@ static void addDataTypeNode(UA_Server *server, char* name, UA_UInt32 datatypeid,
                       &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 }
 
-static UA_VariableTypeNode* createVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid, UA_Int32 parent, UA_Boolean abstract) {
+static UA_VariableTypeNode*
+createVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
+                       UA_Int32 parent, UA_Boolean abstract)
+{
     UA_VariableTypeNode *variabletype = UA_VariableTypeNode_new();
     copyNames((UA_Node*)variabletype, name);
     variabletype->nodeId.identifier.numeric = variabletypeid;
@@ -170,7 +198,8 @@ static UA_VariableTypeNode* createVariableTypeNode(UA_Server *server, char* name
     return variabletype;
 }
 
-static void addVariableTypeNode_organized(UA_Server *server, char* name, UA_UInt32 variabletypeid, UA_Int32 parent, UA_Boolean abstract) {
+static void addVariableTypeNode_organized(UA_Server *server, char* name, UA_UInt32 variabletypeid,
+                                          UA_Int32 parent, UA_Boolean abstract) {
 	UA_VariableTypeNode *variabletype = createVariableTypeNode(server, name, variabletypeid, parent, abstract);
 
     UA_Server_addNode(server, (UA_Node*)variabletype,
@@ -178,7 +207,8 @@ static void addVariableTypeNode_organized(UA_Server *server, char* name, UA_UInt
                       &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 }
 
-static void addVariableTypeNode_subtype(UA_Server *server, char* name, UA_UInt32 variabletypeid, UA_Int32 parent, UA_Boolean abstract) {
+static void addVariableTypeNode_subtype(UA_Server *server, char* name, UA_UInt32 variabletypeid,
+                                        UA_Int32 parent, UA_Boolean abstract) {
 	UA_VariableTypeNode *variabletype = createVariableTypeNode(server, name, variabletypeid, parent, abstract);
 
     UA_Server_addNode(server, (UA_Node*)variabletype,
@@ -222,6 +252,10 @@ UA_Server * UA_Server_new(void) {
     server->description.applicationType = UA_APPLICATIONTYPE_SERVER;
     server->externalNamespacesSize = 0;
     server->externalNamespaces = UA_NULL;
+
+    server->namespaces = UA_String_new();
+    *server->namespaces = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
+    server->namespacesSize = 1;
 
     server->endpointDescriptions = UA_NULL;
     server->endpointDescriptionsSize = 0;
@@ -629,12 +663,9 @@ UA_Server * UA_Server_new(void) {
    UA_VariableNode *namespaceArray = UA_VariableNode_new();
    copyNames((UA_Node*)namespaceArray, "NamespaceArray");
    namespaceArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_NAMESPACEARRAY;
-   namespaceArray->value.variant.data = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 2);
-   namespaceArray->value.variant.arrayLength = 2;
-   namespaceArray->value.variant.type = &UA_TYPES[UA_TYPES_STRING];
-   // Fixme: Insert the external namespaces
-   ((UA_String *)namespaceArray->value.variant.data)[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
-   ((UA_String *)namespaceArray->value.variant.data)[1] = UA_STRING_ALLOC(APPLICATION_URI);
+   namespaceArray->valueSource = UA_VALUESOURCE_DATASOURCE;
+   namespaceArray->value.dataSource = (UA_DataSource) {.handle = server, .read = readNamespaces,
+	   .release = releaseNamespaces, .write = UA_NULL};
    namespaceArray->valueRank = 1;
    namespaceArray->minimumSamplingInterval = 1.0;
    namespaceArray->historizing = UA_FALSE;
