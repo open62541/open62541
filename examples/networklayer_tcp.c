@@ -318,9 +318,8 @@ static UA_StatusCode ServerNetworkLayerTCP_start(ServerNetworkLayerTCP *layer, U
 
 	setNonBlocking(layer->serversockfd);
 	listen(layer->serversockfd, MAXBACKLOG);
-    char msg[256];
-    sprintf(msg, "Listening on %.*s\n", layer->discoveryUrl.length, layer->discoveryUrl.data);
-    UA_LOG_INFO((*logger), UA_LOGGERCATEGORY_SERVER, msg);
+    UA_LOG_INFO((*logger), UA_LOGGERCATEGORY_SERVER, "Listening on %.*s",
+                layer->discoveryUrl.length, layer->discoveryUrl.data);
     return UA_STATUSCODE_GOOD;
 }
 

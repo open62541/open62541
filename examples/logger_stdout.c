@@ -4,6 +4,7 @@
  */
 
 #include <stdio.h>
+#include <stdarg.h>
 #include "logger_stdout.h"
 
 static void print_time(void) {
@@ -15,18 +16,30 @@ static void print_time(void) {
 }
 
 #define LOG_FUNCTION(LEVEL) \
-	static void log_##LEVEL(UA_LoggerCategory category, const char *msg) { \
+	static void log_##LEVEL(UA_LoggerCategory category, const char *msg, ...) { \
         printf("[");                                                    \
 		print_time();                                                   \
-        printf("] " #LEVEL "/%s\t%s\n", UA_LoggerCategoryNames[category], msg); \
+        va_list ap;                                                     \
+        va_start(ap, msg);                                              \
+        printf("] " #LEVEL "/%s\t", UA_LoggerCategoryNames[category]);  \
+        vprintf(msg, ap);                                               \
+        printf("\n");                                                   \
+        va_end(ap);                                                     \
 	}
 
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#endif
 LOG_FUNCTION(trace)
 LOG_FUNCTION(debug)
 LOG_FUNCTION(info)
 LOG_FUNCTION(warning)
 LOG_FUNCTION(error)
 LOG_FUNCTION(fatal)
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 UA_Logger Logger_Stdout_new(void) {
 	return (UA_Logger){

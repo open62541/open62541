@@ -192,11 +192,8 @@ static UA_StatusCode ServerNetworkLayerUDP_start(ServerNetworkLayerUDP *layer, U
 	}
 
 	setNonBlocking(layer->serversockfd);
-    char msg[256];
-    sprintf(msg, "Listening for UDP connections on %s:%d",
-            inet_ntoa(serv_addr.sin_addr),
-            ntohs(serv_addr.sin_port));
-    UA_LOG_INFO((*logger), UA_LOGGERCATEGORY_SERVER, msg);
+    UA_LOG_INFO((*logger), UA_LOGGERCATEGORY_SERVER, "Listening for UDP connections on %s:%d",
+                inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port));
     return UA_STATUSCODE_GOOD;
 }
 

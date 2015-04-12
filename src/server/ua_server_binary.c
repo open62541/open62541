@@ -332,10 +332,8 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         break;
 
     default: {
-        char logmsg[60];
-        sprintf(logmsg, "Unknown request: NodeId(ns=%d, i=%d)",
-                requestType.namespaceIndex, requestType.identifier.numeric);
-        UA_LOG_INFO(server->logger, UA_LOGGERCATEGORY_COMMUNICATION, logmsg);
+        UA_LOG_INFO(server->logger, UA_LOGGERCATEGORY_COMMUNICATION, "Unknown request: NodeId(ns=%d, i=%d)",
+                    requestType.namespaceIndex, requestType.identifier.numeric);
 
         UA_RequestHeader  p;
         UA_ResponseHeader r;
