@@ -23,6 +23,9 @@ struct UA_Client {
     /* Session */
     UA_NodeId sessionId;
     UA_NodeId authenticationToken;
+
+    /* Config */
+    UA_ClientConfig config;
 };
 
 UA_Client * UA_Client_new(void) {
@@ -42,7 +45,17 @@ UA_Client * UA_Client_new(void) {
     UA_ByteString_init(&client->serverNonce);
     
     UA_NodeId_init(&client->authenticationToken);
+
+    /* default clientConfig */
+    client->config.timeout = 500;
+
     return client;
+}
+
+UA_StatusCode UA_Client_setConfig(UA_Client* client, UA_ClientConfig config) {
+	if(client)
+		client->config = config;
+	return UA_STATUSCODE_GOOD;
 }
 
 void UA_Client_delete(UA_Client* client){
@@ -90,7 +103,7 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
 
     UA_Byte replybuf[1024];
     UA_ByteString reply = {.data = replybuf, .length = 1024};
-    retval = c->networkLayer.awaitResponse(c->networkLayer.nlHandle, &reply, 0);
+    retval = c->networkLayer.awaitResponse(c->networkLayer.nlHandle, &reply, c->config.timeout * 1000);
 	if (retval)
 		return retval;
 
@@ -174,7 +187,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
     UA_ByteString reply;
     UA_ByteString_newMembers(&reply, client->connection.localConf.recvBufferSize);
     do {
-        retval = client->networkLayer.awaitResponse(client->networkLayer.nlHandle, &reply, 500 * 1000);
+        retval = client->networkLayer.awaitResponse(client->networkLayer.nlHandle, &reply, client->config.timeout * 1000);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_ByteString_deleteMembers(&reply);
             return retval;
@@ -279,7 +292,7 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
     UA_ByteString reply;
     do {
         UA_ByteString_newMembers(&reply, client->connection.localConf.recvBufferSize);
-        retval = client->networkLayer.awaitResponse(client->networkLayer.nlHandle, &reply, 500 * 1000);
+        retval = client->networkLayer.awaitResponse(client->networkLayer.nlHandle, &reply, client->config.timeout * 1000);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_ByteString_deleteMembers(&reply);
             respHeader->serviceResult = retval;

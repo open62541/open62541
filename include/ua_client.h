@@ -28,8 +28,14 @@ typedef struct {
 struct UA_Client;
 typedef struct UA_Client UA_Client;
 
+typedef struct UA_ClientConfig {
+	UA_Int32 timeout; //sync resonse timeout
+} UA_ClientConfig;
+
 UA_Client UA_EXPORT * UA_Client_new(void);
 void UA_Client_delete(UA_Client* client);
+
+UA_StatusCode UA_EXPORT UA_Client_setConfig(UA_Client* client, UA_ClientConfig config);
 
 UA_StatusCode UA_EXPORT UA_Client_connect(UA_Client *client, UA_ConnectionConfig conf,
                                           UA_ClientNetworkLayer networkLayer, char *endpointUrl);
