@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
     signal(SIGINT, signalHandler);
 
     /* init the server */
-    UA_Server *server = UA_Server_new();
+    UA_Server *server = UA_Server_new(NULL);
     UA_Server_addNetworkLayer(server,
         ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, PORT));
     UA_Server_setLogger(server, Logger_Stdout_new());

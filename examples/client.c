@@ -10,8 +10,10 @@
 #include "networklayer_tcp.h"
 
 int main(int argc, char *argv[]) {
-    UA_Client *client = UA_Client_new();
-    client->config.timeout=500;
+    UA_ClientConfig config;
+    UA_ClientConfig_init(&config);
+    config.timeout = 500;
+    UA_Client *client = UA_Client_new(&config);
     UA_ClientNetworkLayer nl = ClientNetworkLayerTCP_new(UA_ConnectionConfig_standard);
     UA_StatusCode retval = UA_Client_connect(client, UA_ConnectionConfig_standard, nl,
             "opc.tcp://localhost:16664");
@@ -29,7 +31,7 @@ int main(int argc, char *argv[]) {
     bReq.nodesToBrowse = UA_BrowseDescription_new();
     bReq.nodesToBrowseSize = 1;
     bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER); //browse objects folder
-    bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL;	//return everything
+    bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; //return everything
 
     UA_BrowseResponse bResp = UA_Client_browse(client, &bReq);
     printf("%-9s %-16s %-16s %-16s\n", "NAMESPACE", "NODEID", "BROWSE NAME", "DISPLAY NAME");
@@ -59,9 +61,9 @@ int main(int argc, char *argv[]) {
 
     UA_ReadResponse rResp = UA_Client_read(client, &rReq);
     if(rResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
-            rResp.resultsSize > 0 && rResp.results[0].hasValue &&
-            rResp.results[0].value.data /* an empty array returns a null-ptr */ &&
-            rResp.results[0].value.type == &UA_TYPES[UA_TYPES_INT32]){
+       rResp.resultsSize > 0 && rResp.results[0].hasValue &&
+       rResp.results[0].value.data /* an empty array returns a null-ptr */ &&
+       rResp.results[0].value.type == &UA_TYPES[UA_TYPES_INT32]){
         value = *(UA_Int32*)rResp.results[0].value.data;
         printf("the value is: %i\n", value);
     }
@@ -85,7 +87,7 @@ int main(int argc, char *argv[]) {
 
     UA_WriteResponse wResp = UA_Client_write(client, &wReq);
     if(wResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
-        printf("the new value is: %i\n", value);
+            printf("the new value is: %i\n", value);
 
     UA_WriteRequest_deleteMembers(&wReq);
     UA_WriteResponse_deleteMembers(&wResp);

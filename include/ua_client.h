@@ -15,7 +15,7 @@ extern "C" {
  * is only concerned with getting messages to the client and receiving them.
  */
 typedef struct {
-	void *nlHandle;
+    void *nlHandle;
 
     UA_StatusCode (*connect)(const UA_String endpointUrl, void **resultHandle);
     void (*disconnect)(void *handle);
@@ -25,19 +25,17 @@ typedef struct {
     UA_StatusCode (*awaitResponse)(void *handle, UA_ByteString *response, UA_UInt32 timeout);
 } UA_ClientNetworkLayer;
 
+struct UA_Client;
+typedef struct UA_Client UA_Client;
 
 typedef struct UA_ClientConfig {
-	UA_Int32 timeout; //sync resonse timeout
+    UA_Int32 timeout; //sync resonse timeout
 } UA_ClientConfig;
 
-/*
- * This is the 'public part' of UA_Client_private
- */
-typedef struct UA_Client {
-	UA_ClientConfig config;
-} UA_Client;
+void UA_EXPORT UA_ClientConfig_init(UA_ClientConfig* config);
 
-UA_Client UA_EXPORT * UA_Client_new(void);
+UA_Client UA_EXPORT * UA_Client_new(UA_ClientConfig* config);
+
 void UA_Client_delete(UA_Client* client);
 
 UA_StatusCode UA_EXPORT UA_Client_connect(UA_Client *client, UA_ConnectionConfig conf,
