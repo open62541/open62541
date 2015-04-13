@@ -4,7 +4,7 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_transport_generated.h"
 
-struct UA_Client_private {
+typedef struct UA_Client_private {
 	/*** public ***/
     /* Config */
     UA_ClientConfig config;
@@ -28,7 +28,7 @@ struct UA_Client_private {
     /* Session */
     UA_NodeId sessionId;
     UA_NodeId authenticationToken;
-};
+} UA_Client_private;
 
 UA_Client * UA_Client_new(void) {
     UA_Client_private *client = UA_malloc(sizeof(UA_Client_private));

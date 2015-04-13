@@ -26,9 +26,6 @@ typedef struct {
 } UA_ClientNetworkLayer;
 
 
-struct UA_Client_private;
-typedef struct UA_Client_private UA_Client_private;
-
 typedef struct UA_ClientConfig {
 	UA_Int32 timeout; //sync resonse timeout
 } UA_ClientConfig;
