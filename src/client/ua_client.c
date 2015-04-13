@@ -4,8 +4,13 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_transport_generated.h"
 
-struct UA_Client {
-    /* Connection */
+struct UA_Client_private {
+	/*** public ***/
+    /* Config */
+    UA_ClientConfig config;
+
+    /*** private ***/
+	/* Connection */
     UA_ClientNetworkLayer networkLayer;
     UA_String endpointUrl;
     UA_Connection connection;
@@ -23,13 +28,10 @@ struct UA_Client {
     /* Session */
     UA_NodeId sessionId;
     UA_NodeId authenticationToken;
-
-    /* Config */
-    UA_ClientConfig config;
 };
 
 UA_Client * UA_Client_new(void) {
-    UA_Client *client = UA_malloc(sizeof(UA_Client));
+    UA_Client_private *client = UA_malloc(sizeof(UA_Client_private));
     if(!client)
         return UA_NULL;
     UA_String_init(&client->endpointUrl);
@@ -49,16 +51,11 @@ UA_Client * UA_Client_new(void) {
     /* default clientConfig */
     client->config.timeout = 500;
 
-    return client;
+    return (UA_Client*)client;
 }
 
-UA_StatusCode UA_Client_setConfig(UA_Client* client, UA_ClientConfig config) {
-	if(client)
-		client->config = config;
-	return UA_STATUSCODE_GOOD;
-}
-
-void UA_Client_delete(UA_Client* client){
+void UA_Client_delete(UA_Client* clientPublic){
+	UA_Client_private* client = (UA_Client_private*) clientPublic;
     client->networkLayer.destroy(client->networkLayer.nlHandle);
     UA_String_deleteMembers(&client->endpointUrl);
     // client->connection
@@ -71,7 +68,7 @@ void UA_Client_delete(UA_Client* client){
 }
 
 // The tcp connection is established. Now do the handshake
-static UA_StatusCode HelAckHandshake(UA_Client *c) {
+static UA_StatusCode HelAckHandshake(UA_Client_private *c) {
 	UA_TcpMessageHeader messageHeader;
     messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_HELF;
 
@@ -126,7 +123,7 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
 	return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
+static UA_StatusCode SecureChannelHandshake(UA_Client_private *client) {
     UA_ByteString_deleteMembers(&client->clientNonce); // if the handshake is repeated
 	UA_ByteString_newMembers(&client->clientNonce, 1);
 	client->clientNonce.data[0] = 0;
@@ -228,7 +225,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
 /** If the request fails, then the response is cast to UA_ResponseHeader (at the beginning of every
     response) and filled with the appropriate error code */
 static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *requestType,
-                               void *response, const UA_DataType *responseType, UA_Client *client,
+                               void *response, const UA_DataType *responseType, UA_Client_private *client,
                                UA_Boolean sendOnly)
 {
 	if(response)
@@ -323,11 +320,11 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
 }
 
 static void synchronousRequest(void *request, const UA_DataType *requestType,
-                               void *response, const UA_DataType *responseType, UA_Client *client){
+                               void *response, const UA_DataType *responseType, UA_Client_private *client){
 	sendReceiveRequest(request, requestType, response, responseType, client, UA_FALSE);
 }
 
-static UA_StatusCode ActivateSession(UA_Client *client) {
+static UA_StatusCode ActivateSession(UA_Client_private *client) {
 	UA_ActivateSessionRequest request;
 	UA_ActivateSessionRequest_init(&request);
 
@@ -346,8 +343,7 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
     return response.responseHeader.serviceResult; // not deleted
 }
 
-static UA_StatusCode SessionHandshake(UA_Client *client) {
-
+static UA_StatusCode SessionHandshake(UA_Client_private *client) {
     UA_CreateSessionRequest request;
     UA_CreateSessionRequest_init(&request);
 
@@ -377,7 +373,8 @@ static UA_StatusCode SessionHandshake(UA_Client *client) {
     return response.responseHeader.serviceResult; // not deleted
 }
 
-static UA_StatusCode CloseSession(UA_Client *client) {
+static UA_StatusCode CloseSession(UA_Client *clientPublic) {
+	UA_Client_private* client = (UA_Client_private*) clientPublic;
 	UA_CloseSessionRequest request;
 	UA_CloseSessionRequest_init(&request);
 
@@ -395,7 +392,8 @@ static UA_StatusCode CloseSession(UA_Client *client) {
     return response.responseHeader.serviceResult; // not deleted
 }
 
-static UA_StatusCode CloseSecureChannel(UA_Client *client) {
+static UA_StatusCode CloseSecureChannel(UA_Client *clientPublic) {
+	UA_Client_private* client = (UA_Client_private*) clientPublic;
 	UA_CloseSecureChannelRequest request;
     UA_CloseSecureChannelRequest_init(&request);
 
@@ -415,9 +413,10 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
 /*************************/
 
 
-UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectionConfig conf,
+UA_StatusCode UA_Client_connect(UA_Client *clientPublic, UA_ConnectionConfig conf,
                                 UA_ClientNetworkLayer networkLayer, char *endpointUrl)
 {
+	UA_Client_private* client = (UA_Client_private*) clientPublic;
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
     if(client->endpointUrl.length < 0)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -448,60 +447,68 @@ UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client) {
 }
 
 UA_ReadResponse UA_Client_read(UA_Client *client, UA_ReadRequest *request) {
+	UA_Client_private* clientPrivate = (UA_Client_private*)client;
     UA_ReadResponse response;
     synchronousRequest(request, &UA_TYPES[UA_TYPES_READREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_READRESPONSE], client);
+                       &UA_TYPES[UA_TYPES_READRESPONSE], clientPrivate);
     return response;
 }
 
 UA_WriteResponse UA_Client_write(UA_Client *client, UA_WriteRequest *request) {
+	UA_Client_private* clientPrivate = (UA_Client_private*)client;
     UA_WriteResponse response;
     synchronousRequest(request, &UA_TYPES[UA_TYPES_WRITEREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_WRITERESPONSE], client);
+                       &UA_TYPES[UA_TYPES_WRITERESPONSE], clientPrivate);
     return response;
 }
 
 UA_BrowseResponse UA_Client_browse(UA_Client *client, UA_BrowseRequest *request) {
+	UA_Client_private* clientPrivate = (UA_Client_private*)client;
     UA_BrowseResponse response;
     synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
+                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], clientPrivate);
     return response;
 }
 
 UA_TranslateBrowsePathsToNodeIdsResponse
     UA_Client_translateTranslateBrowsePathsToNodeIds(UA_Client *client,
                                                      UA_TranslateBrowsePathsToNodeIdsRequest *request) {
+	UA_Client_private* clientPrivate = (UA_Client_private*)client;
     UA_TranslateBrowsePathsToNodeIdsResponse response;
     synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
+                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], clientPrivate);
     return response;
 }
 
 UA_AddNodesResponse UA_Client_addNodes(UA_Client *client, UA_AddNodesRequest *request) {
+	UA_Client_private* clientPrivate = (UA_Client_private*)client;
     UA_AddNodesResponse response;
     synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
+                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], clientPrivate);
     return response;
 }
 
 UA_AddReferencesResponse UA_Client_addReferences(UA_Client *client, UA_AddReferencesRequest *request) {
+	UA_Client_private* clientPrivate = (UA_Client_private*)client;
     UA_AddReferencesResponse response;
     synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
+                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], clientPrivate);
     return response;
 }
 
 UA_DeleteNodesResponse UA_Client_deleteNodes(UA_Client *client, UA_DeleteNodesRequest *request) {
+	UA_Client_private* clientPrivate = (UA_Client_private*)client;
     UA_DeleteNodesResponse response;
     synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
+                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], clientPrivate);
     return response;
 }
 
 UA_DeleteReferencesResponse UA_EXPORT
 UA_Client_deleteReferences(UA_Client *client, UA_DeleteReferencesRequest *request) {
+	UA_Client_private* clientPrivate = (UA_Client_private*)client;
     UA_DeleteReferencesResponse response;
     synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
-    return response;;
+                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], clientPrivate);
+    return response;
 }

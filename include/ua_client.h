@@ -25,17 +25,22 @@ typedef struct {
     UA_StatusCode (*awaitResponse)(void *handle, UA_ByteString *response, UA_UInt32 timeout);
 } UA_ClientNetworkLayer;
 
-struct UA_Client;
-typedef struct UA_Client UA_Client;
+/*
+ * The client struct contains the client config as the first parameter, so it can be successfully cast to UA_ClientConfig
+ */
+struct UA_Client_private;
+typedef struct UA_Client_private UA_Client_private;
 
 typedef struct UA_ClientConfig {
 	UA_Int32 timeout; //sync resonse timeout
 } UA_ClientConfig;
 
+typedef struct UA_Client {
+	UA_ClientConfig config;
+} UA_Client;
+
 UA_Client UA_EXPORT * UA_Client_new(void);
 void UA_Client_delete(UA_Client* client);
-
-UA_StatusCode UA_EXPORT UA_Client_setConfig(UA_Client* client, UA_ClientConfig config);
 
 UA_StatusCode UA_EXPORT UA_Client_connect(UA_Client *client, UA_ConnectionConfig conf,
                                           UA_ClientNetworkLayer networkLayer, char *endpointUrl);
