@@ -25,9 +25,7 @@ typedef struct {
     UA_StatusCode (*awaitResponse)(void *handle, UA_ByteString *response, UA_UInt32 timeout);
 } UA_ClientNetworkLayer;
 
-/*
- * The client struct contains the client config as the first parameter, so it can be successfully cast to UA_ClientConfig
- */
+
 struct UA_Client_private;
 typedef struct UA_Client_private UA_Client_private;
 
@@ -35,6 +33,9 @@ typedef struct UA_ClientConfig {
 	UA_Int32 timeout; //sync resonse timeout
 } UA_ClientConfig;
 
+/*
+ * This is the 'public part' of UA_Client_private
+ */
 typedef struct UA_Client {
 	UA_ClientConfig config;
 } UA_Client;
