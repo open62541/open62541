@@ -599,8 +599,10 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
  * - block_distance: how many elements are between the blocks (beginning to beginning)
  * - first_elem: where does the first block begin
  */
-static UA_StatusCode testRangeWithVariant(const UA_Variant *v, const UA_NumericRange range, size_t *total,
-                                          size_t *block_size, size_t *block_distance, size_t *first_elem) {
+static UA_StatusCode
+testRangeWithVariant(const UA_Variant *v, const UA_NumericRange range, size_t *total,
+                     size_t *block_size, size_t *block_distance, size_t *first_elem)
+{
     /* Test the integrity of the source variant dimensions */
     UA_Int32 dims_count = 1;
     const UA_Int32 *dims = &v->arrayLength; // default: the array has only one dimension
@@ -807,7 +809,6 @@ void UA_DiagnosticInfo_init(UA_DiagnosticInfo *p) {
 UA_StatusCode UA_DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst) {
     UA_DiagnosticInfo_init(dst);
     *((UA_Byte*)dst) = *((const UA_Byte*)src); // the bitfield
-    
     dst->symbolicId = src->symbolicId;
     dst->namespaceUri = src->namespaceUri;
     dst->localizedText = src->localizedText;

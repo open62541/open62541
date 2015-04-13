@@ -2,10 +2,10 @@
 #include "ua_session.h"
 #include "ua_statuscodes.h"
 
-struct channel_list_entry {
+typedef struct channel_list_entry {
     UA_SecureChannel channel;
     LIST_ENTRY(channel_list_entry) pointers;
-};
+} channel_list_entry;
 
 UA_StatusCode UA_SecureChannelManager_init(UA_SecureChannelManager *cm, UA_UInt32 maxChannelCount,
                                            UA_UInt32 tokenLifetime, UA_UInt32 startChannelId,
@@ -19,8 +19,7 @@ UA_StatusCode UA_SecureChannelManager_init(UA_SecureChannelManager *cm, UA_UInt3
 }
 
 void UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm) {
-    struct channel_list_entry *current;
-    struct channel_list_entry *next = LIST_FIRST(&cm->channels);
+    channel_list_entry *current, *next = LIST_FIRST(&cm->channels);
     while(next) {
         current = next;
         next = LIST_NEXT(current, pointers);
@@ -34,10 +33,10 @@ void UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm) {
     }
 }
 
-UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager           *cm,
-                                           UA_Connection                     *conn,
+UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
                                            const UA_OpenSecureChannelRequest *request,
-                                           UA_OpenSecureChannelResponse      *response) {
+                                           UA_OpenSecureChannelResponse *response)
+{
     switch(request->securityMode) {
     case UA_MESSAGESECURITYMODE_INVALID:
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURITYMODEREJECTED;
@@ -58,7 +57,7 @@ UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager           *cm
         break;
     }
 
-    struct channel_list_entry *entry = UA_malloc(sizeof(struct channel_list_entry));
+    channel_list_entry *entry = UA_malloc(sizeof(channel_list_entry));
     if(!entry) return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_SecureChannel_init(&entry->channel);
 
@@ -70,9 +69,8 @@ UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager           *cm
     entry->channel.securityToken.channelId       = cm->lastChannelId++;
     entry->channel.securityToken.tokenId         = cm->lastTokenId++;
     entry->channel.securityToken.createdAt       = UA_DateTime_now();
-    entry->channel.securityToken.revisedLifetime =
-        request->requestedLifetime > cm->maxChannelLifetime ?
-        cm->maxChannelLifetime : request->requestedLifetime;
+    entry->channel.securityToken.revisedLifetime = (request->requestedLifetime > cm->maxChannelLifetime) ?
+                                                   cm->maxChannelLifetime : request->requestedLifetime;
 
     UA_ByteString_copy(&request->clientNonce, &entry->channel.clientNonce);
     entry->channel.serverAsymAlgSettings.securityPolicyUri =
@@ -88,16 +86,17 @@ UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager           *cm
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_SecureChannelManager_renew(UA_SecureChannelManager           *cm,
-                                            UA_Connection                     *conn,
+UA_StatusCode UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_Connection *conn,
                                             const UA_OpenSecureChannelRequest *request,
-                                            UA_OpenSecureChannelResponse      *response) {
+                                            UA_OpenSecureChannelResponse *response)
+{
     UA_SecureChannel *channel = conn->channel;
-    if(channel == UA_NULL) return UA_STATUSCODE_BADINTERNALERROR;
+    if(channel == UA_NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     channel->securityToken.tokenId         = cm->lastTokenId++;
     channel->securityToken.createdAt       = UA_DateTime_now(); // todo: is wanted?
-    channel->securityToken.revisedLifetime = request->requestedLifetime > cm->maxChannelLifetime ?
+    channel->securityToken.revisedLifetime = (request->requestedLifetime > cm->maxChannelLifetime) ?
                                              cm->maxChannelLifetime : request->requestedLifetime;
 
     if(channel->serverNonce.data != UA_NULL)
@@ -110,7 +109,7 @@ UA_StatusCode UA_SecureChannelManager_renew(UA_SecureChannelManager           *c
 }
 
 UA_SecureChannel * UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
-    struct channel_list_entry *entry;
+    channel_list_entry *entry;
     LIST_FOREACH(entry, &cm->channels, pointers) {
         if(entry->channel.securityToken.channelId == channelId)
             return &entry->channel;
@@ -119,9 +118,9 @@ UA_SecureChannel * UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_U
 }
 
 UA_StatusCode UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
-    //TODO lock access
-    // TODO: close the binaryconnection if it is still open. So we dö not have stray pointers..
-    struct channel_list_entry *entry;
+    // TODO lock access
+    // TODO: close the binaryconnection if it is still open. So we do not have stray pointers..
+    channel_list_entry *entry;
     LIST_FOREACH(entry, &cm->channels, pointers) {
         if(entry->channel.securityToken.channelId == channelId) {
             if(entry->channel.connection)

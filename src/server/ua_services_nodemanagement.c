@@ -250,7 +250,8 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
     for(UA_Int32 j = 0;j<server->externalNamespacesSize;j++) {
         size_t indexSize = 0;
         for(size_t i = 0;i < size;i++) {
-            if(request->nodesToAdd[i].requestedNewNodeId.nodeId.namespaceIndex != server->externalNamespaces[j].index)
+            if(request->nodesToAdd[i].requestedNewNodeId.nodeId.namespaceIndex !=
+               server->externalNamespaces[j].index)
                 continue;
             isExternal[i] = UA_TRUE;
             indices[indexSize] = i;
@@ -302,11 +303,9 @@ void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddR
 		}
 		if (indexSize == 0)
 			continue;
-		UA_ExternalNodeStore *ens =
-				&server->externalNamespaces[j].externalNodeStore;
-		ens->addReferences(ens->ensHandle, &request->requestHeader,
-				request->referencesToAdd, indices, indexSize, response->results,
-				response->diagnosticInfos);
+		UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
+		ens->addReferences(ens->ensHandle, &request->requestHeader, request->referencesToAdd,
+                           indices, indexSize, response->results, response->diagnosticInfos);
 	}
 	/* ### End External Namespaces */
 

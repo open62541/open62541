@@ -8,10 +8,10 @@
  implementation is choosen based on whether multithreading is enabled or not.
  */
 
-struct session_list_entry {
+typedef struct session_list_entry {
     UA_Session session;
     LIST_ENTRY(session_list_entry) pointers;
-};
+} session_list_entry;
 
 UA_StatusCode UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt32 maxSessionCount,
                                     UA_UInt32 maxSessionLifeTime, UA_UInt32 startSessionId) {
@@ -24,8 +24,7 @@ UA_StatusCode UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt3
 }
 
 void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager) {
-    struct session_list_entry *current;
-    struct session_list_entry *next = LIST_FIRST(&sessionManager->sessions);
+    session_list_entry *current, *next = LIST_FIRST(&sessionManager->sessions);
     while(next) {
         current = next;
         next = LIST_NEXT(current, pointers);
@@ -37,14 +36,16 @@ void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager) {
     }
 }
 
-UA_StatusCode UA_SessionManager_getSessionById(UA_SessionManager *sessionManager, const UA_NodeId *sessionId,
-                                               UA_Session **session) {
+UA_StatusCode
+UA_SessionManager_getSessionById(UA_SessionManager *sessionManager, const UA_NodeId *sessionId,
+                                 UA_Session **session)
+{
     if(sessionManager == UA_NULL) {
         *session = UA_NULL;
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    struct session_list_entry *current = UA_NULL;
+    session_list_entry *current = UA_NULL;
     LIST_FOREACH(current, &sessionManager->sessions, pointers) {
         if(UA_NodeId_equal(&current->session.sessionId, sessionId))
             break;
@@ -61,14 +62,16 @@ UA_StatusCode UA_SessionManager_getSessionById(UA_SessionManager *sessionManager
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_SessionManager_getSessionByToken(UA_SessionManager *sessionManager, const UA_NodeId *token,
-                                                  UA_Session **session) {
+UA_StatusCode
+UA_SessionManager_getSessionByToken(UA_SessionManager *sessionManager, const UA_NodeId *token,
+                                    UA_Session **session)
+{
     if(sessionManager == UA_NULL) {
         *session = UA_NULL;
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    struct session_list_entry *current = UA_NULL;
+    session_list_entry *current = UA_NULL;
     LIST_FOREACH(current, &sessionManager->sessions, pointers) {
         if(UA_NodeId_equal(&current->session.authenticationToken, token))
             break;
@@ -86,23 +89,25 @@ UA_StatusCode UA_SessionManager_getSessionByToken(UA_SessionManager *sessionMana
 }
 
 /** Creates and adds a session. */
-UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_SecureChannel *channel,
-												const UA_CreateSessionRequest *request, UA_Session **session) {
+UA_StatusCode
+UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_SecureChannel *channel,
+                                const UA_CreateSessionRequest *request, UA_Session **session)
+{
     if(sessionManager->currentSessionCount >= sessionManager->maxSessionCount)
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
 
-    struct session_list_entry *newentry = UA_malloc(sizeof(struct session_list_entry));
+    session_list_entry *newentry = UA_malloc(sizeof(session_list_entry));
     if(!newentry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_Session_init(&newentry->session);
-    newentry->session.sessionId = (UA_NodeId) {.namespaceIndex = 1, .identifierType = UA_NODEIDTYPE_NUMERIC,
-                                               .identifier.numeric = sessionManager->lastSessionId++ };
-    newentry->session.authenticationToken = (UA_NodeId) {.namespaceIndex = 1,
-                                                         .identifierType = UA_NODEIDTYPE_NUMERIC,
-                                                         .identifier.numeric = sessionManager->lastSessionId };
+    newentry->session.sessionId = UA_NODEID_NUMERIC(1, sessionManager->lastSessionId++);
+    newentry->session.authenticationToken = UA_NODEID_NUMERIC(1, sessionManager->lastSessionId);
     newentry->session.channel = channel;
-    newentry->session.timeout = (request->requestedSessionTimeout <= sessionManager->maxSessionLifeTime && request->requestedSessionTimeout>0) ? request->requestedSessionTimeout : sessionManager->maxSessionLifeTime;
+    newentry->session.timeout =
+        (request->requestedSessionTimeout <= sessionManager->maxSessionLifeTime &&
+         request->requestedSessionTimeout>0) ?
+        request->requestedSessionTimeout : sessionManager->maxSessionLifeTime;
     UA_Session_setExpirationDate(&newentry->session);
 
     sessionManager->currentSessionCount++;
@@ -111,8 +116,10 @@ UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_SessionManager_removeSession(UA_SessionManager *sessionManager, const UA_NodeId *sessionId) {
-    struct session_list_entry *current = UA_NULL;
+UA_StatusCode
+UA_SessionManager_removeSession(UA_SessionManager *sessionManager, const UA_NodeId *sessionId)
+{
+    session_list_entry *current = UA_NULL;
     LIST_FOREACH(current, &sessionManager->sessions, pointers) {
         if(UA_NodeId_equal(&current->session.sessionId, sessionId))
             break;
