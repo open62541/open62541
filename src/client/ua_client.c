@@ -28,15 +28,13 @@ struct UA_Client {
     UA_ClientConfig config;
 };
 
-/* Default config values */
-void UA_ClientConfig_init(UA_ClientConfig* config){
-    config->timeout = 500;
-}
+const UA_ClientConfig UA_ClientConfig_standard = (UA_ClientConfig) {.timeout = 500 };
 
-UA_Client * UA_Client_new(UA_ClientConfig* config) {
+UA_Client * UA_Client_new(UA_ClientConfig config) {
     UA_Client *client = UA_malloc(sizeof(UA_Client));
     if(!client)
         return UA_NULL;
+    client->config = config;
     UA_String_init(&client->endpointUrl);
     client->connection.state = UA_CONNECTION_OPENING;
     UA_ByteString_init(&client->connection.incompleteMessage);
@@ -50,12 +48,6 @@ UA_Client * UA_Client_new(UA_ClientConfig* config) {
     UA_ByteString_init(&client->serverNonce);
     
     UA_NodeId_init(&client->authenticationToken);
-
-    if(config){
-        client->config = *config;
-    }else{
-        UA_ClientConfig_init(&client->config);
-    }
 
     return client;
 }

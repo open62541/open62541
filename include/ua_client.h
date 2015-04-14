@@ -32,9 +32,9 @@ typedef struct UA_ClientConfig {
     UA_Int32 timeout; //sync resonse timeout
 } UA_ClientConfig;
 
-void UA_EXPORT UA_ClientConfig_init(UA_ClientConfig* config);
+extern const UA_ClientConfig UA_ClientConfig_standard;
 
-UA_Client UA_EXPORT * UA_Client_new(UA_ClientConfig* config);
+UA_Client UA_EXPORT * UA_Client_new(UA_ClientConfig config);
 
 void UA_Client_delete(UA_Client* client);
 
