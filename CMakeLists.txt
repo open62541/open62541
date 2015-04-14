@@ -35,8 +35,8 @@ if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
 	endif()
     if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
         add_definitions(-flto)
-        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -flto")
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s") # strip binary
+        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -flto -s")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -flto -s")
     endif()
 endif()
 
