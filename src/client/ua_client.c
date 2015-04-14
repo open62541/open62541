@@ -28,7 +28,7 @@ struct UA_Client {
     UA_ClientConfig config;
 };
 
-const UA_ClientConfig UA_ClientConfig_standard = (UA_ClientConfig) {.timeout = 500 };
+const UA_ClientConfig UA_ClientConfig_standard = { 500 };
 
 UA_Client * UA_Client_new(UA_ClientConfig config) {
     UA_Client *client = UA_malloc(sizeof(UA_Client));
