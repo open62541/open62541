@@ -95,10 +95,10 @@ int main(int argc, char *argv[]) {
     UA_ReadResponse resp = UA_Client_read(client, &req);
     if(resp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
        resp.resultsSize > 0 && resp.results[0].hasValue &&
-       resp.results[0].value.data /* an empty array returns a null-ptr */ &&
-       resp.results[0].value.type == &UA_TYPES[UA_TYPES_INT32]){
-           UA_Int32 value = *(UA_Int32*)resp.results[0].value.data;
-           printf("the value is: %i\n", value);
+       UA_Variant_isScalar(&resp.results[0].value) &&
+       resp.results[0].value.type == &UA_TYPES[UA_TYPES_INT32]) {
+           UA_Int32 *value = (UA_Int32*)resp.results[0].value.data;
+           printf("the value is: %i\n", *value);
    }
 
     UA_ReadRequest_deleteMembers(&req);

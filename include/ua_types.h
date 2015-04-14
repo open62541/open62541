@@ -456,6 +456,15 @@ UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 /* Variant */
 
 /**
+ * Returns true if the variant contains a scalar value. Note that empty variants contain an array of
+ * length -1 (undefined).
+ *
+ * @param v The variant
+ * @return Does the variant contain a scalar value.
+ */
+UA_Boolean UA_EXPORT UA_Variant_isScalar(UA_Variant *v);
+    
+/**
  * Set the variant to a scalar value that already resides in memory. The value takes on the
  * lifecycle of the variant and is deleted with it.
  *

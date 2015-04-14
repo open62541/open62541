@@ -592,6 +592,10 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
     return retval;
 }
 
+UA_Boolean UA_Variant_isScalar(UA_Variant *v) {
+    return (v->data != UA_NULL && v->arrayLength == -1);
+}
+
 /**
  * Tests if a range is compatible with a variant. If yes, the following values are set:
  * - total: how many elements are indicated by the range

@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) {
     UA_ReadResponse rResp = UA_Client_read(client, &rReq);
     if(rResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
        rResp.resultsSize > 0 && rResp.results[0].hasValue &&
-       rResp.results[0].value.data /* an empty array returns a null-ptr */ &&
+       UA_Variant_isScalar(&rResp.results[0].value) &&
        rResp.results[0].value.type == &UA_TYPES[UA_TYPES_INT32]){
         value = *(UA_Int32*)rResp.results[0].value.data;
         printf("the value is: %i\n", value);
