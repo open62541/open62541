@@ -58,15 +58,22 @@ typedef struct UA_SecureChannel UA_SecureChannel;
 struct UA_Connection;
 typedef struct UA_Connection UA_Connection;
 
+/**
+ * The connection to a single client (or server). The connection is defined independent of the
+ * underlying network layer implementation. This allows a plugging-in custom implementations (e.g.
+ * an embedded TCP stack)
+ */
 struct UA_Connection {
     UA_ConnectionState state;
     UA_ConnectionConfig localConf;
     UA_ConnectionConfig remoteConf;
-    UA_SecureChannel   *channel;
-    UA_Int32 sockfd; // most connections run on sockets. so we have the handle right here
-    void *handle; // a pointer to the networklayer (internal cleanup, etc.)
-    UA_ByteString incompleteMessage;
-    UA_StatusCode (*write)(UA_Connection *connection, UA_ByteStringArray buf);
+    UA_SecureChannel *channel; ///> The securechannel that is attached to this connection (or null)
+    UA_Int32 sockfd; ///> Most connectivity solutions run on sockets. Having the socket id here simplifies the design.
+    void *handle; ///> A pointer to the networklayer
+    UA_ByteString incompleteMessage; ///> Half-received messages (tcp is a streaming protocol) get stored here
+    UA_StatusCode (*getBuffer)(UA_Connection *connection, UA_ByteString *buf); ///> Attach a buffer according to localConf
+    void (*releaseBuffer)(UA_Connection *connection, UA_ByteString *buf); ///> Release the buffer
+    UA_StatusCode (*write)(UA_Connection *connection, UA_ByteStringArray buf); ///> The bytestrings cannot be reused after sending!
     UA_StatusCode (*recv)(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout); // timeout in milliseconds
     void (*close)(UA_Connection *connection);
 };
