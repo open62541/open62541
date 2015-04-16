@@ -26,6 +26,10 @@ static void UA_ExternalNamespace_deleteMembers(UA_ExternalNamespace *ens) {
 /* Configuration */
 /*****************/
 
+UA_Logger * UA_Server_getLogger(UA_Server *server) {
+    return &server->logger;
+}
+
 void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkLayer) {
     UA_ServerNetworkLayer *newlayers =
         UA_realloc(server->nls, sizeof(UA_ServerNetworkLayer)*(server->nlsSize+1));

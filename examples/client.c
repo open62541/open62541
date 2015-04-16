@@ -2,6 +2,7 @@
     #include "ua_types.h"
     #include "ua_client.h"
     #include "ua_nodeids.h"
+    #include "networklayer_tcp.h"
 #else
     #include "open62541.h"
 #endif
@@ -11,9 +12,8 @@
 
 int main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_ClientNetworkLayer nl = ClientNetworkLayerTCP_new(UA_ConnectionConfig_standard);
-    UA_StatusCode retval = UA_Client_connect(client, UA_ConnectionConfig_standard, nl,
-            "opc.tcp://localhost:16664");
+    UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
+                                             "opc.tcp://localhost:16664");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return retval;
@@ -35,10 +35,15 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < bResp.resultsSize; ++i) {
         for (int j = 0; j < bResp.results[i].referencesSize; ++j) {
             UA_ReferenceDescription *ref = &(bResp.results[i].references[j]);
-            if(ref->nodeId.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC){
-                printf("%-9d %-16d %-16.*s %-16.*s\n", ref->browseName.namespaceIndex, ref->nodeId.nodeId.identifier.numeric, ref->browseName.name.length, ref->browseName.name.data, ref->displayName.text.length, ref->displayName.text.data);
-            }else if(ref->nodeId.nodeId.identifierType == UA_NODEIDTYPE_STRING){
-                printf("%-9d %-16.*s %-16.*s %-16.*s\n", ref->browseName.namespaceIndex, ref->nodeId.nodeId.identifier.string.length, ref->nodeId.nodeId.identifier.string.data, ref->browseName.name.length, ref->browseName.name.data, ref->displayName.text.length, ref->displayName.text.data);
+            if(ref->nodeId.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC) {
+                printf("%-9d %-16d %-16.*s %-16.*s\n", ref->browseName.namespaceIndex,
+                       ref->nodeId.nodeId.identifier.numeric, ref->browseName.name.length,
+                       ref->browseName.name.data, ref->displayName.text.length, ref->displayName.text.data);
+            } else if(ref->nodeId.nodeId.identifierType == UA_NODEIDTYPE_STRING) {
+                printf("%-9d %-16.*s %-16.*s %-16.*s\n", ref->browseName.namespaceIndex,
+                       ref->nodeId.nodeId.identifier.string.length, ref->nodeId.nodeId.identifier.string.data,
+                       ref->browseName.name.length, ref->browseName.name.data, ref->displayName.text.length,
+                       ref->displayName.text.data);
             }
             //TODO: distinguish further types
         }
@@ -60,7 +65,7 @@ int main(int argc, char *argv[]) {
     if(rResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
        rResp.resultsSize > 0 && rResp.results[0].hasValue &&
        UA_Variant_isScalar(&rResp.results[0].value) &&
-       rResp.results[0].value.type == &UA_TYPES[UA_TYPES_INT32]){
+       rResp.results[0].value.type == &UA_TYPES[UA_TYPES_INT32]) {
         value = *(UA_Int32*)rResp.results[0].value.data;
         printf("the value is: %i\n", value);
     }

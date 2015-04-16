@@ -411,7 +411,6 @@ static void processCLO(UA_Connection *connection, UA_Server *server, const UA_By
 }
 
 void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, UA_ByteString *msg) {
-    *msg = UA_Connection_completeMessages(connection, *msg);
     if(msg->length <= 0)
         return;
 

@@ -41,6 +41,7 @@ void UA_EXPORT UA_Server_delete(UA_Server *server);
 
 /** Sets the logger used by the server */
 void UA_EXPORT UA_Server_setLogger(UA_Server *server, UA_Logger logger);
+UA_Logger UA_EXPORT * UA_Server_getLogger(UA_Server *server);
 
 /**
  * Runs the main loop of the server. In each iteration, this calls into the
@@ -96,11 +97,13 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
 typedef struct UA_WorkItem {
     enum {
         UA_WORKITEMTYPE_NOTHING,
+        UA_WORKITEMTYPE_CLOSECONNECTION,
         UA_WORKITEMTYPE_BINARYNETWORKMESSAGE,
         UA_WORKITEMTYPE_METHODCALL,
         UA_WORKITEMTYPE_DELAYEDMETHODCALL,
     } type;
     union {
+        UA_Connection *closeConnection;
         struct {
             UA_Connection *connection;
             UA_ByteString message;
