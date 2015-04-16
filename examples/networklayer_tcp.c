@@ -336,23 +336,9 @@ static UA_Int32 ServerNetworkLayerTCP_getWork(ServerNetworkLayerTCP *layer, UA_W
     struct timeval tmptv = {0, timeout * 1000};
     UA_Int32 resultsize = select(layer->highestfd+1, &layer->fdset, NULL, NULL, &tmptv);
 
-    // accept new connections (can only be a single one)
-    if(FD_ISSET(layer->serversockfd, &layer->fdset)) {
-        resultsize--;
-        struct sockaddr_in cli_addr;
-        socklen_t cli_len = sizeof(cli_addr);
-        int newsockfd = accept(layer->serversockfd, (struct sockaddr *) &cli_addr, &cli_len);
-        int i = 1;
-        setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&i, sizeof(i));
-        if (newsockfd >= 0) {
-            socket_set_nonblocking(newsockfd);
-            ServerNetworkLayerTCP_add(layer, newsockfd);
-        }
-    }
-
-    UA_WorkItem *items = malloc(sizeof(UA_WorkItem)*(resultsize+1));
-    if(!items) {
-        /* reattach the deletes so that they get deleted eventually.. */
+    UA_WorkItem *items;
+    if(resultsize < 0 || !(items = malloc(sizeof(UA_WorkItem)*(resultsize+1)))) {
+        /* abort .. reattach the deletes so that they get deleted eventually.. */
 #ifdef UA_MULTITHREADING
         struct DeleteList *last_delete = deletes;
         while(last_delete->next != NULL)
@@ -368,6 +354,20 @@ static UA_Int32 ServerNetworkLayerTCP_getWork(ServerNetworkLayerTCP *layer, UA_W
         *workItems = NULL;
         return 0;
     }
+
+    // accept new connections (can only be a single one)
+    if(FD_ISSET(layer->serversockfd, &layer->fdset)) {
+        resultsize--;
+        struct sockaddr_in cli_addr;
+        socklen_t cli_len = sizeof(cli_addr);
+        int newsockfd = accept(layer->serversockfd, (struct sockaddr *) &cli_addr, &cli_len);
+        int i = 1;
+        setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&i, sizeof(i));
+        if (newsockfd >= 0) {
+            socket_set_nonblocking(newsockfd);
+            ServerNetworkLayerTCP_add(layer, newsockfd);
+        }
+    }
     
     /* read from established sockets */
     UA_Int32 j = 0;
@@ -378,6 +378,7 @@ static UA_Int32 ServerNetworkLayerTCP_getWork(ServerNetworkLayerTCP *layer, UA_W
 
         if(!buf.data) {
             buf.data = malloc(sizeof(UA_Byte) * layer->conf.recvBufferSize);
+            buf.length = layer->conf.recvBufferSize;
             if(!buf.data)
                 break;
         }
