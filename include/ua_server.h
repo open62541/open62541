@@ -269,6 +269,10 @@ typedef UA_Int32 (*UA_ExternalNodeStore_browseNodes)
  UA_UInt32 *indices, UA_UInt32 indicesSize, UA_UInt32 requestedMaxReferencesPerNode,
  UA_BrowseResult *browseResults, UA_DiagnosticInfo *diagnosticInfos);
 
+typedef UA_Int32 (*UA_ExternalNodeStore_translateBrowsePathsToNodeIds)
+(void *ensHandle, const UA_RequestHeader *requestHeader, UA_BrowsePath *browsePath,
+ UA_UInt32 *indices, UA_UInt32 indicesSize, UA_BrowsePathResult *browsePathResults, UA_DiagnosticInfo *diagnosticInfos);
+
 typedef UA_Int32 (*UA_ExternalNodeStore_delete)(void *ensHandle);
 
 typedef struct UA_ExternalNodeStore {
@@ -278,6 +282,7 @@ typedef struct UA_ExternalNodeStore {
 	UA_ExternalNodeStore_writeNodes writeNodes;
 	UA_ExternalNodeStore_readNodes readNodes;
 	UA_ExternalNodeStore_browseNodes browseNodes;
+	UA_ExternalNodeStore_translateBrowsePathsToNodeIds translateBrowsePathsToNodeIds;
 	UA_ExternalNodeStore_addReferences addReferences;
 	UA_ExternalNodeStore_deleteReferences deleteReferences;
 	UA_ExternalNodeStore_delete destroy;
