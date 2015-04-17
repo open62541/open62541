@@ -364,20 +364,43 @@ static void translateBrowsePath(UA_Server *server, UA_Session *session, const UA
 void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                            const UA_TranslateBrowsePathsToNodeIdsRequest *request,
                                            UA_TranslateBrowsePathsToNodeIdsResponse *response) {
-    if(request->browsePathsSize <= 0) {
+    size_t size = request->browsePathsSize;
+	if(request->browsePathsSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }
 
-    response->results = UA_Array_new(&UA_TYPES[UA_TYPES_BROWSEPATHRESULT], request->browsePathsSize);
+    response->results = UA_Array_new(&UA_TYPES[UA_TYPES_BROWSEPATHRESULT], size);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
+    /* ### Begin External Namespaces */
+    UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
+    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
+    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
+    for(UA_Int32 j = 0;j<server->externalNamespacesSize;j++) {
+    	size_t indexSize = 0;
+    	for(size_t i = 0;i < size;i++) {
+    		if(request->browsePaths[i].startingNode.namespaceIndex != server->externalNamespaces[j].index)
+    			continue;
+    		isExternal[i] = UA_TRUE;
+    		indices[indexSize] = i;
+    		indexSize++;
+    	}
+    	if(indexSize == 0)
+    		continue;
 
-    response->resultsSize = request->browsePathsSize;
-    for(UA_Int32 i = 0;i < response->resultsSize;i++)
-        translateBrowsePath(server, session, &request->browsePaths[i], &response->results[i]);
+    	UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
+    	ens->translateBrowsePathsToNodeIds(ens->ensHandle, &request->requestHeader, request->browsePaths,
+    			indices, indexSize, response->results, response->diagnosticInfos);
+    }
+    /* ### End External Namespaces */
+    response->resultsSize = size;
+    for(size_t i = 0;i < size;i++){
+    	if(!isExternal[i])
+    		translateBrowsePath(server, session, &request->browsePaths[i], &response->results[i]);
+    }
 }
 
 void Service_RegisterNodes(UA_Server *server, UA_Session *session,
