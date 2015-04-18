@@ -148,9 +148,16 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
         UA_##TYPE##Response r;                                          \
         if(UA_##TYPE##Request_decodeBinary(msg, pos, &p))               \
             return;                                                     \
+        if(clientChannel->session &&                                    \
+           UA_NodeId_equal(&clientChannel->session->authenticationToken, \
+                           &p.requestHeader.authenticationToken))       \
+            clientSession = clientChannel->session;                     \
         UA_##TYPE##Response_init(&r);                                   \
         init_response_header(&p.requestHeader, &r.responseHeader);      \
-        Service_##TYPE(server, clientSession, &p, &r);                  \
+        if(!clientSession)                                              \
+            r.responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID; \
+        else                                                            \
+            Service_##TYPE(server, clientSession, &p, &r);              \
         ALLOC_MESSAGE(message, UA_##TYPE##Response_calcSizeBinary(&r)); \
         UA_##TYPE##Response_encodeBinary(&r, message, &sendOffset);     \
         UA_##TYPE##Request_deleteMembers(&p);                           \
@@ -172,12 +179,6 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         clientChannel = &anonymousChannel;
     }
 
-    UA_Session *clientSession = clientChannel->session;
-#ifdef EXTENSION_STATELESS
-    if(secureChannelId == 0)
-        clientSession = &anonymousSession;
-#endif
-
     // 2) Read the security header
     UA_UInt32 tokenId;
     UA_SequenceHeader sequenceHeader;
@@ -190,6 +191,12 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     //UA_SecureChannel_checkRequestId(channel,sequenceHeader.requestId);
     clientChannel->sequenceNumber = sequenceHeader.sequenceNumber;
     clientChannel->requestId = sequenceHeader.requestId;
+
+    UA_Session *clientSession = UA_NULL;
+#ifdef EXTENSION_STATELESS
+    if(clientChannel->session == UA_NULL && secureChannelId == 0)
+        clientSession = &anonymousSession;
+#endif
 
     // 3) Read the nodeid of the request
     UA_NodeId requestType;
@@ -287,21 +294,9 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         break;
     }
 
-    case UA_NS0ID_CLOSESESSIONREQUEST: {
-        UA_CloseSessionRequest  p;
-        UA_CloseSessionResponse r;
-        if(UA_CloseSessionRequest_decodeBinary(msg, pos, &p))
-            return;
-        UA_CloseSessionResponse_init(&r);
-        init_response_header(&p.requestHeader, &r.responseHeader);
-        Service_CloseSession(server, &p, &r);
-        ALLOC_MESSAGE(message, UA_CloseSessionResponse_calcSizeBinary(&r));
-        UA_CloseSessionResponse_encodeBinary(&r, message, &sendOffset);
-        UA_CloseSessionRequest_deleteMembers(&p);
-        UA_CloseSessionResponse_deleteMembers(&r);
-        responseType = requestType.identifier.numeric + 3;
+    case UA_NS0ID_CLOSESESSIONREQUEST:
+        INVOKE_SERVICE(CloseSession);
         break;
-    }
 
     case UA_NS0ID_READREQUEST:
         INVOKE_SERVICE(Read);
@@ -313,6 +308,10 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
 
     case UA_NS0ID_BROWSEREQUEST:
         INVOKE_SERVICE(Browse);
+        break;
+
+    case UA_NS0ID_BROWSENEXTREQUEST:
+        INVOKE_SERVICE(BrowseNext);
         break;
 
     case UA_NS0ID_ADDREFERENCESREQUEST:

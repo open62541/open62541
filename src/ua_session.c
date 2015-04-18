@@ -3,40 +3,32 @@
 #include "ua_statuscodes.h"
 
 UA_Session anonymousSession = {
-    .clientDescription =  {.applicationUri = {-1, UA_NULL},
-                           .productUri = {-1, UA_NULL},
+    .clientDescription =  {.applicationUri = {-1, UA_NULL}, .productUri = {-1, UA_NULL},
                            .applicationName = {.locale = {-1, UA_NULL}, .text = {-1, UA_NULL}},
                            .applicationType = UA_APPLICATIONTYPE_CLIENT,
-                           .gatewayServerUri = {-1, UA_NULL},
-                           .discoveryProfileUri = {-1, UA_NULL},
-                           .discoveryUrlsSize = -1,
-                           .discoveryUrls = UA_NULL},
+                           .gatewayServerUri = {-1, UA_NULL}, .discoveryProfileUri = {-1, UA_NULL},
+                           .discoveryUrlsSize = -1, .discoveryUrls = UA_NULL},
     .sessionName = {sizeof("Anonymous Session")-1, (UA_Byte*)"Anonymous Session"},
-    .authenticationToken = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, // is never used, as this session is not stored in the sessionmanager
+    .authenticationToken = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
+                            .identifier.numeric = 0}, 
     .sessionId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0},
-    .maxRequestMessageSize = UA_UINT32_MAX,
-    .maxResponseMessageSize = UA_UINT32_MAX,
-    .timeout = UA_INT64_MAX,
-    .validTill = UA_INT64_MAX,
-    .channel = UA_NULL};
+    .maxRequestMessageSize = UA_UINT32_MAX, .maxResponseMessageSize = UA_UINT32_MAX,
+    .timeout = UA_INT64_MAX, .validTill = UA_INT64_MAX, .channel = UA_NULL,
+    .continuationPoints = {UA_NULL}};
 
 UA_Session adminSession = {
-    .clientDescription =  {.applicationUri = {-1, UA_NULL},
-                           .productUri = {-1, UA_NULL},
+    .clientDescription =  {.applicationUri = {-1, UA_NULL}, .productUri = {-1, UA_NULL},
                            .applicationName = {.locale = {-1, UA_NULL}, .text = {-1, UA_NULL}},
                            .applicationType = UA_APPLICATIONTYPE_CLIENT,
-                           .gatewayServerUri = {-1, UA_NULL},
-                           .discoveryProfileUri = {-1, UA_NULL},
-                           .discoveryUrlsSize = -1,
-                           .discoveryUrls = UA_NULL},
+                           .gatewayServerUri = {-1, UA_NULL}, .discoveryProfileUri = {-1, UA_NULL},
+                           .discoveryUrlsSize = -1, .discoveryUrls = UA_NULL},
     .sessionName = {sizeof("Administrator Session")-1, (UA_Byte*)"Administrator Session"},
-    .authenticationToken = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 1}, // is never used, as this session is not stored in the sessionmanager
+    .authenticationToken = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
+                            .identifier.numeric = 1},
     .sessionId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 1},
-    .maxRequestMessageSize = UA_UINT32_MAX,
-    .maxResponseMessageSize = UA_UINT32_MAX,
-    .timeout = UA_INT64_MAX,
-    .validTill = UA_INT64_MAX,
-    .channel = UA_NULL};
+    .maxRequestMessageSize = UA_UINT32_MAX, .maxResponseMessageSize = UA_UINT32_MAX,
+    .timeout = UA_INT64_MAX, .validTill = UA_INT64_MAX, .channel = UA_NULL,
+    .continuationPoints = {UA_NULL}};
 
 UA_Session * UA_Session_new(void) {
     UA_Session *s = UA_malloc(sizeof(UA_Session));
@@ -63,6 +55,7 @@ void UA_Session_init(UA_Session *session) {
     session->timeout = 0;
     UA_DateTime_init(&session->validTill);
     session->channel = UA_NULL;
+    session->continuationPoints = (struct ContinuationPointList){UA_NULL};
 }
 
 void UA_Session_deleteMembers(UA_Session *session) {
@@ -71,6 +64,13 @@ void UA_Session_deleteMembers(UA_Session *session) {
     UA_NodeId_deleteMembers(&session->sessionId);
     UA_String_deleteMembers(&session->sessionName);
     session->channel = UA_NULL;
+    struct ContinuationPointEntry *cp;
+    while((cp = LIST_FIRST(&session->continuationPoints))) {
+        UA_ByteString_deleteMembers(&cp->identifier);
+        UA_BrowseDescription_deleteMembers(&cp->browseDescription);
+        LIST_REMOVE(cp, pointers);
+        UA_free(cp);
+    }
 }
 
 void UA_Session_delete(UA_Session *session) {

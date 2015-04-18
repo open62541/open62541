@@ -89,7 +89,7 @@ void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                              const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response);
 
 /** Used to terminate a Session. */
-void Service_CloseSession(UA_Server *server, const UA_CloseSessionRequest *request,
+void Service_CloseSession(UA_Server *server, UA_Session *session, const UA_CloseSessionRequest *request,
                           UA_CloseSessionResponse *response);
 // Service_Cancel
 /** @} */
@@ -136,14 +136,23 @@ void Service_DeleteReferences(UA_Server *server, UA_Session *session, const UA_D
  * further limited by the use of a View. This Browse Service also supports a
  * primitive filtering capability.
  */
-void Service_Browse(UA_Server *server, UA_Session *session,
-                    const UA_BrowseRequest *request, UA_BrowseResponse *response);
+void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseRequest *request,
+                    UA_BrowseResponse *response);
+
+/**
+ * Used to request the next set of Browse or BrowseNext response information
+ * that is too large to be sent in a single response. “Too large” in this
+ * context means that the Server is not able to return a larger response or that
+ * the number of results to return exceeds the maximum number of results to
+ * return that was specified by the Client in the original Browse request.
+ */
+void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseNextRequest *request,
+                        UA_BrowseNextResponse *response);
 
 /** Used to translate textual node paths to their respective ids. */
 void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                            const UA_TranslateBrowsePathsToNodeIdsRequest *request,
                                            UA_TranslateBrowsePathsToNodeIdsResponse *response);
-// Service_BrowseNext
 
 // Service_RegisterNodes
 void Service_RegisterNodes(UA_Server *server, UA_Session *session, const UA_RegisterNodesRequest *request,

@@ -53,8 +53,8 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
         channel->session = foundSession;
 }
 
-void Service_CloseSession(UA_Server *server, const UA_CloseSessionRequest *request,
-                              UA_CloseSessionResponse *response) {
+void Service_CloseSession(UA_Server *server, UA_Session *session, const UA_CloseSessionRequest *request,
+                          UA_CloseSessionResponse *response) {
 	UA_Session *foundSession;
 	UA_SessionManager_getSessionByToken(&server->sessionManager,
 			(const UA_NodeId*)&request->requestHeader.authenticationToken, &foundSession);
@@ -64,8 +64,6 @@ void Service_CloseSession(UA_Server *server, const UA_CloseSessionRequest *reque
 		return;
 	}
 
-	if(UA_SessionManager_removeSession(&server->sessionManager, &foundSession->sessionId) == UA_STATUSCODE_GOOD)
-		response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
-	else
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURECHANNELIDINVALID;
+	response->responseHeader.serviceResult =
+        UA_SessionManager_removeSession(&server->sessionManager, &session->sessionId);
 }

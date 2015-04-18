@@ -462,6 +462,13 @@ UA_BrowseResponse UA_Client_browse(UA_Client *client, UA_BrowseRequest *request)
     return response;
 }
 
+UA_BrowseNextResponse UA_Client_browseNext(UA_Client *client, UA_BrowseNextRequest *request) {
+    UA_BrowseNextResponse response;
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSENEXTREQUEST], &response,
+                       &UA_TYPES[UA_TYPES_BROWSENEXTRESPONSE], client);
+    return response;
+}
+
 UA_TranslateBrowsePathsToNodeIdsResponse
     UA_Client_translateTranslateBrowsePathsToNodeIds(UA_Client *client,
                                                      UA_TranslateBrowsePathsToNodeIdsRequest *request) {

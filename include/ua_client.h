@@ -49,6 +49,7 @@ UA_WriteResponse UA_EXPORT UA_Client_write(UA_Client *client, UA_WriteRequest *r
 
 /* View Service Set */    
 UA_BrowseResponse UA_EXPORT UA_Client_browse(UA_Client *client, UA_BrowseRequest *request);
+UA_BrowseNextResponse UA_EXPORT UA_Client_browseNext(UA_Client *client, UA_BrowseNextRequest *request);
 UA_TranslateBrowsePathsToNodeIdsResponse UA_EXPORT
     UA_Client_translateTranslateBrowsePathsToNodeIds(UA_Client *client,
                                                      UA_TranslateBrowsePathsToNodeIdsRequest *request);
