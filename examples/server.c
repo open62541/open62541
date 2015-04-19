@@ -190,14 +190,14 @@ int main(int argc, char** argv) {
 	pthread_rwlock_init(&writeLock, 0);
 #endif
 
-	UA_Server *server = UA_Server_new();
+	UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
 	logger = Logger_Stdout_new();
 	UA_Server_setLogger(server, logger);
     UA_ByteString certificate = loadCertificate();
     UA_Server_setServerCertificate(server, certificate);
     UA_ByteString_deleteMembers(&certificate);
 	UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-    UA_UInt16 nsIndex = UA_Server_addNamespace(server, "urn:unconfigured:open62541:open62541Server");
+    UA_UInt16 nsIndex = UA_Server_addNamespace(server, UA_ServerConfig_standard.Application_applicationURI);
 
 	// print the status every 2 sec
 	UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL,

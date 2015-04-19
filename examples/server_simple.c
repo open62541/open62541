@@ -59,14 +59,14 @@ static void testCallback(UA_Server *server, void *data) {
 int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-	UA_Server *server = UA_Server_new();
+	UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
     logger = Logger_Stdout_new();
     UA_Server_setLogger(server, logger);
     UA_ByteString certificate = loadCertificate();
     UA_Server_setServerCertificate(server, certificate);
     UA_ByteString_deleteMembers(&certificate);
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-    UA_Server_addNamespace(server, "urn:unconfigured:open62541:open62541Server");
+    UA_Server_addNamespace(server, UA_ServerConfig_standard.Application_applicationURI);
 
     UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL, .work.methodCall = {.method = testCallback, .data = NULL} };
     UA_Server_addRepeatedWorkItem(server, &work, 20000000, NULL); // call every 2 sec

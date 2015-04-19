@@ -59,6 +59,9 @@ struct UA_Server {
 
     UA_DateTime startTime;
     UA_DateTime buildDate;
+
+    /* Config */
+    UA_ServerConfig config;
 };
 
 void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, UA_ByteString *msg);

@@ -32,10 +32,18 @@ extern "C" {
  * @{
  */
 
+typedef struct UA_ServerConfig {
+    UA_Boolean  Login_enableAnonymous;
+    UA_Boolean  Login_enableUsernamePassword;
+    char*       Application_applicationURI;
+} UA_ServerConfig;
+
+extern const UA_ServerConfig UA_ServerConfig_standard;
+
 struct UA_Server;
 typedef struct UA_Server UA_Server;
 
-UA_Server UA_EXPORT * UA_Server_new(void);
+UA_Server UA_EXPORT * UA_Server_new(UA_ServerConfig config);
 void UA_EXPORT UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate);
 void UA_EXPORT UA_Server_delete(UA_Server *server);
 
