@@ -453,10 +453,10 @@ static UA_StatusCode ClientNetworkLayerTCP_connect(const UA_String endpointUrl, 
     }
 
     //this is somewhat ugly, but atoi needs a c string
-    char cstringEndpointUrl[endpointUrl.length+1];
+    char *cstringEndpointUrl = UA_alloca(sizeof(char) * endpointUrl.length+1);
     memset(cstringEndpointUrl, 0, endpointUrl.length+1);
     memcpy(cstringEndpointUrl, endpointUrl.data, endpointUrl.length);
-    cstringEndpointUrl[endpointUrl.length+1] = '0';
+    cstringEndpointUrl[endpointUrl.length + 1] = '0';
 
     UA_UInt16 portpos = 9;
     UA_UInt16 port = 0;

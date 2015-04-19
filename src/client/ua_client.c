@@ -433,7 +433,7 @@ UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectionConfig conf,
 }
 
 
-UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client) {
+UA_StatusCode UA_Client_disconnect(UA_Client *client) {
     UA_StatusCode retval;
     retval = CloseSession(client);
     if(retval == UA_STATUSCODE_GOOD)
@@ -499,8 +499,7 @@ UA_DeleteNodesResponse UA_Client_deleteNodes(UA_Client *client, UA_DeleteNodesRe
     return response;
 }
 
-UA_DeleteReferencesResponse UA_EXPORT
-UA_Client_deleteReferences(UA_Client *client, UA_DeleteReferencesRequest *request) {
+UA_DeleteReferencesResponse UA_Client_deleteReferences(UA_Client *client, UA_DeleteReferencesRequest *request) {
     UA_DeleteReferencesResponse response;
     synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
                        &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
