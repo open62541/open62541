@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
     UA_Server_setServerCertificate(server, certificate);
     UA_ByteString_deleteMembers(&certificate);
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-    UA_Server_addNamespace(server, "myApplicationNamespace");
+    UA_Server_addNamespace(server, "urn:unconfigured:open62541:open62541Server");
 
     UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL, .work.methodCall = {.method = testCallback, .data = NULL} };
     UA_Server_addRepeatedWorkItem(server, &work, 20000000, NULL); // call every 2 sec
