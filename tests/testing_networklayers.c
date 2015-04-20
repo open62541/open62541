@@ -4,19 +4,19 @@
 #include <assert.h>
 #include "testing_networklayers.h"
 
-typedef struct {
+typedef struct NetworkLayer_FileInput {
 	UA_Connection connection;
     UA_UInt32 files;
     char **filenames;
     UA_UInt32 files_read;
-    void (*writeCallback)(void *, UA_ByteStringArray buf);
+    UA_StatusCode (*writeCallback)(struct NetworkLayer_FileInput *handle, const UA_ByteString *buf);
     void (*readCallback)(void);
     void *callbackHandle;
 } NetworkLayer_FileInput;
 
 /** Accesses only the sockfd in the handle. Can be run from parallel threads. */
-static UA_StatusCode writeCallback(NetworkLayer_FileInput *handle, UA_ByteStringArray gather_buf) {
-    handle->writeCallback(handle->callbackHandle, gather_buf);
+static UA_StatusCode writeCallback(NetworkLayer_FileInput *handle, const UA_ByteString *buf) {
+    handle->writeCallback(handle->callbackHandle, buf);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -73,7 +73,7 @@ static void NetworkLayer_FileInput_delete(NetworkLayer_FileInput *layer) {
 
 UA_ServerNetworkLayer
 ServerNetworkLayerFileInput_new(UA_UInt32 files, char **filenames, void(*readCallback)(void),
-                                void(*writeCallback) (void*, UA_ByteStringArray buf),
+                                UA_StatusCode (*writeCallback) (void*, UA_ByteString *buf),
                                 void *callbackHandle)
 {
     NetworkLayer_FileInput *layer = malloc(sizeof(NetworkLayer_FileInput));
@@ -81,13 +81,13 @@ ServerNetworkLayerFileInput_new(UA_UInt32 files, char **filenames, void(*readCal
     layer->connection.localConf = UA_ConnectionConfig_standard;
     layer->connection.channel = (void*)0;
     layer->connection.close = (void (*)(UA_Connection*))closeCallback;
-    layer->connection.write = (UA_StatusCode (*)(UA_Connection*, UA_ByteStringArray))writeCallback;
+    layer->connection.write = (UA_StatusCode (*)(UA_Connection*, const UA_ByteString*))writeCallback;
 
     layer->files = files;
     layer->filenames = filenames;
     layer->files_read = 0;
     layer->readCallback = readCallback;
-    layer->writeCallback = writeCallback;
+    layer->writeCallback = (UA_StatusCode(*)(struct NetworkLayer_FileInput *handle, const UA_ByteString *buf)) writeCallback;
     layer->callbackHandle = callbackHandle;
     
     UA_ServerNetworkLayer nl;

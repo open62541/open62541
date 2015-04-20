@@ -15,7 +15,8 @@ UA_UInt32 read_count = 0;
 UA_UInt32 max_reads;
 char **filenames;
 
-static void writeCallback(void *handle, UA_ByteStringArray buf) {
+static UA_StatusCode writeCallback(void *handle, UA_ByteString *buf) {
+    return UA_STATUSCODE_GOOD;
 }
 
 static void readCallback(void) {

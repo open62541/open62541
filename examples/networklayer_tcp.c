@@ -38,48 +38,25 @@
 /* Generic Socket Functions */
 /****************************/
 
-static UA_StatusCode socket_write(UA_Connection *connection, UA_ByteStringArray gather_buf) {
-    UA_UInt32 total_len = 0, nWritten = 0;
-#ifdef _WIN32
-    LPWSABUF buf = _alloca(gather_buf.stringsSize * sizeof(WSABUF));
-    memset(buf, 0, sizeof(gather_buf.stringsSize * sizeof(WSABUF)));
-    for(UA_UInt32 i = 0; i<gather_buf.stringsSize; i++) {
-        buf[i].buf = (char*)gather_buf.strings[i].data;
-        buf[i].len = gather_buf.strings[i].length;
-        total_len += gather_buf.strings[i].length;
-    }
-    int result = 0;
-    while(nWritten < total_len) {
-        UA_UInt32 n = 0;
-        do {
-            result = WSASend(connection->sockfd, buf, gather_buf.stringsSize, (LPDWORD)&n, 0, NULL, NULL);
-            if(result != 0 &&WSAGetLastError() != WSAEINTR)
-                return UA_STATUSCODE_BADCONNECTIONCLOSED;
-        } while(result != 0);
-        nWritten += n;
-    }
-#else
-    struct iovec iov[gather_buf.stringsSize];
-    memset(iov, 0, sizeof(struct iovec)*gather_buf.stringsSize);
-    for(UA_UInt32 i=0;i<gather_buf.stringsSize;i++) {
-        iov[i].iov_base = gather_buf.strings[i].data;
-        iov[i].iov_len = gather_buf.strings[i].length;
-        total_len += gather_buf.strings[i].length;
-    }
-    struct msghdr message;
-    memset(&message, 0, sizeof(message));
-    message.msg_iov = iov;
-    message.msg_iovlen = gather_buf.stringsSize;
-    while (nWritten < total_len) {
+static UA_StatusCode socket_write(UA_Connection *connection, const UA_ByteString *buf) {
+    if(buf->length < 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_Int32 nWritten = 0;
+    while (nWritten < buf->length) {
         UA_Int32 n = 0;
         do {
-            n = sendmsg(connection->sockfd, &message, 0);
+#ifdef _WIN32
+            n = send((SOCKET)connection->sockfd, buf->data, buf->length, 0);
+            if(n != 0 &&WSAGetLastError() != WSAEINTR)
+                return UA_STATUSCODE_BADCONNECTIONCLOSED;
+#else
+            n = send(connection->sockfd, buf->data, buf->length, 0);
             if(n == -1L && errno != EINTR)
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
+#endif
         } while (n == -1L);
         nWritten += n;
     }
-#endif
     return UA_STATUSCODE_GOOD;
 }
 
@@ -88,11 +65,8 @@ static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *respo
     setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tmptv, sizeof(struct timeval));
     int ret = recv(connection->sockfd, (char*)response->data, response->length, 0);
     if(ret <= -1) {
-        if(errno == EAGAIN) {
-            UA_ByteString_deleteMembers(response);
-            UA_ByteString_init(response);
+        if(errno == EAGAIN)
             return UA_STATUSCODE_GOOD;
-        }
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     response->length = ret;
@@ -252,6 +226,7 @@ static UA_StatusCode ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_
     c->close = ServerNetworkLayerTCP_closeConnection;
     c->getBuffer = GetMallocedBuffer;
     c->releaseBuffer = ReleaseMallocedBuffer;
+    c->state = UA_CONNECTION_OPENING;
     struct ConnectionMapping *nm =
         realloc(layer->mappings, sizeof(struct ConnectionMapping)*(layer->mappingsSize+1));
     if(!nm) {

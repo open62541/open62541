@@ -11,14 +11,6 @@
 /** Max size of messages that are allocated on the stack */
 #define MAX_STACK_MESSAGE 65536
 
-static UA_StatusCode UA_ByteStringArray_deleteMembers(UA_ByteStringArray *stringarray) {
-    if(!stringarray)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    for(UA_UInt32 i = 0; i < stringarray->stringsSize; i++)
-        UA_String_deleteMembers(&stringarray->strings[i]);
-    return UA_STATUSCODE_GOOD;
-}
-
 static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size_t *pos) {
     UA_TcpHelloMessage helloMessage;
     if(UA_TcpHelloMessage_decodeBinary(msg, pos, &helloMessage) != UA_STATUSCODE_GOOD) {
@@ -32,6 +24,7 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
     connection->remoteConf.recvBufferSize = helloMessage.receiveBufferSize;
     connection->remoteConf.sendBufferSize = helloMessage.sendBufferSize;
     connection->state = UA_CONNECTION_ESTABLISHED;
+    UA_TcpHelloMessage_deleteMembers(&helloMessage);
 
     // build acknowledge response
     UA_TcpAcknowledgeMessage ackMessage;
@@ -43,18 +36,18 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
 
     UA_TcpMessageHeader ackHeader;
     ackHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_ACKF;
-    ackHeader.messageSize = UA_TcpAcknowledgeMessage_calcSizeBinary(&ackMessage) +
-        UA_TcpMessageHeader_calcSizeBinary(&ackHeader);
+    ackHeader.messageSize = UA_TcpMessageHeader_calcSizeBinary(&ackHeader) 
+        + UA_TcpAcknowledgeMessage_calcSizeBinary(&ackMessage);
 
-    // The message is on the stack. That's ok since ack is very small.
-    UA_ByteString ack_msg = (UA_ByteString){ .length = ackHeader.messageSize,
-                                             .data = UA_alloca(ackHeader.messageSize) };
+    UA_ByteString ack_msg;
+    if(connection->getBuffer(connection, &ack_msg, ackHeader.messageSize) != UA_STATUSCODE_GOOD)
+        return;
+
     size_t tmpPos = 0;
     UA_TcpMessageHeader_encodeBinary(&ackHeader, &ack_msg, &tmpPos);
     UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &ack_msg, &tmpPos);
-    UA_ByteStringArray answer_buf = { .stringsSize = 1, .strings = &ack_msg };
-    connection->write(connection, answer_buf);
-    UA_TcpHelloMessage_deleteMembers(&helloMessage);
+    connection->write(connection, &ack_msg);
+    connection->releaseBuffer(connection, &ack_msg);
 }
 
 static void processOPN(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg,
@@ -91,6 +84,7 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
     UA_OpenSecureChannelResponse p;
     UA_OpenSecureChannelResponse_init(&p);
     Service_OpenSecureChannel(server, connection, &r, &p);
+    UA_OpenSecureChannelRequest_deleteMembers(&r);
 
     UA_SecureConversationMessageHeader respHeader;
     respHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_OPNF;
@@ -107,10 +101,8 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
         + UA_NodeId_calcSizeBinary(&responseType)
         + UA_OpenSecureChannelResponse_calcSizeBinary(&p);
 
-    UA_ByteString resp_msg = (UA_ByteString){
-        .length = respHeader.messageHeader.messageSize,
-        .data = UA_alloca(respHeader.messageHeader.messageSize)
-    };
+    UA_ByteString resp_msg;
+    retval = connection->getBuffer(connection, &resp_msg, respHeader.messageHeader.messageSize);
 
     size_t tmpPos = 0;
     UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
@@ -119,10 +111,10 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
     UA_NodeId_encodeBinary(&responseType, &resp_msg, &tmpPos);
     UA_OpenSecureChannelResponse_encodeBinary(&p, &resp_msg, &tmpPos);
 
-    UA_OpenSecureChannelRequest_deleteMembers(&r);
     UA_OpenSecureChannelResponse_deleteMembers(&p);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
-    connection->write(connection, (UA_ByteStringArray){ .stringsSize = 1, .strings = &resp_msg });
+    connection->write(connection, &resp_msg);
+    connection->releaseBuffer(connection, &resp_msg);
 }
 
 static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r) {
@@ -146,11 +138,14 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
             r.responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID; \
         else                                                            \
             Service_##TYPE(server, clientSession, &p, &r);              \
-        connection->getBuffer(connection, message, UA_##TYPE##Response_calcSizeBinary(&r)); \
-        UA_##TYPE##Response_encodeBinary(&r, message, &sendOffset);     \
         UA_##TYPE##Request_deleteMembers(&p);                           \
+        retval = connection->getBuffer(connection, &message, headerSize + UA_##TYPE##Response_calcSizeBinary(&r)); \
+        if(retval != UA_STATUSCODE_GOOD) {                              \
+            UA_##TYPE##Response_deleteMembers(&r);                      \
+            return;                                                     \
+        }                                                               \
+        UA_##TYPE##Response_encodeBinary(&r, &message, &messagePos);    \
         UA_##TYPE##Response_deleteMembers(&r);                          \
-        responseType = requestType.identifier.numeric + 3;              \
     } while(0)
 
 static void processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, size_t *pos) {
@@ -188,25 +183,38 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         clientSession = &anonymousSession;
 #endif
 
-    // 3) Read the nodeid of the request
+    // 3) Build the header and compute the header size
+    UA_SecureConversationMessageHeader respHeader;
+    respHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
+    respHeader.messageHeader.messageSize = 0;
+    respHeader.secureChannelId = clientChannel->securityToken.channelId;
+
+    UA_SymmetricAlgorithmSecurityHeader symSecHeader;
+    symSecHeader.tokenId = clientChannel->securityToken.tokenId;
+
+    UA_SequenceHeader seqHeader;
+    seqHeader.sequenceNumber = clientChannel->sequenceNumber;
+    seqHeader.requestId = clientChannel->requestId;
+
+    // 4) process the request
+    UA_ByteString message;
     UA_NodeId requestType;
     if(UA_NodeId_decodeBinary(msg, pos, &requestType))
         return;
     if(requestType.identifierType != UA_NODEIDTYPE_NUMERIC) {
-        // That must not happen. The requestType does not have to be deleted at the end.
         UA_NodeId_deleteMembers(&requestType);
         return;
     }
 
-    // 4) process the request
-    UA_ByteString responseBufs[2]; // 0->header, 1->response payload
-    UA_UInt32 responseType;
-    UA_ByteString *header = &responseBufs[0];
-    UA_ByteString *message = &responseBufs[1];
-    size_t sendOffset = 0;
+    UA_NodeId response_nodeid = UA_NODEID_NUMERIC(0, requestType.identifier.numeric + 3);
+    UA_UInt32 headerSize = UA_SecureConversationMessageHeader_calcSizeBinary(&respHeader)
+        + UA_SymmetricAlgorithmSecurityHeader_calcSizeBinary(&symSecHeader)
+        + UA_SequenceHeader_calcSizeBinary(&seqHeader)
+        + UA_NodeId_calcSizeBinary(&response_nodeid);
+    size_t messagePos = headerSize;
 
-    //subtract UA_ENCODINGOFFSET_BINARY for binary encoding, if retval is set, this forces the default path
-    switch(requestType.identifier.numeric - UA_ENCODINGOFFSET_BINARY + retval) {
+    //subtract UA_ENCODINGOFFSET_BINARY for binary encoding
+    switch(requestType.identifier.numeric - UA_ENCODINGOFFSET_BINARY) {
     case UA_NS0ID_GETENDPOINTSREQUEST: {
         UA_GetEndpointsRequest  p;
         UA_GetEndpointsResponse r;
@@ -215,11 +223,14 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         UA_GetEndpointsResponse_init(&r);
         init_response_header(&p.requestHeader, &r.responseHeader);
         Service_GetEndpoints(server, &p, &r);
-        connection->getBuffer(connection, message, UA_GetEndpointsResponse_calcSizeBinary(&r));
-        UA_GetEndpointsResponse_encodeBinary(&r, message, &sendOffset);
         UA_GetEndpointsRequest_deleteMembers(&p);
+        retval = connection->getBuffer(connection, &message, headerSize + UA_GetEndpointsResponse_calcSizeBinary(&r));
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_GetEndpointsResponse_deleteMembers(&r);
+            return;
+        }
+        UA_GetEndpointsResponse_encodeBinary(&r, &message, &messagePos);
         UA_GetEndpointsResponse_deleteMembers(&r);
-        responseType = requestType.identifier.numeric + 3;
         break;
     }
 
@@ -231,11 +242,14 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         UA_FindServersResponse_init(&r);
         init_response_header(&p.requestHeader, &r.responseHeader);
         Service_FindServers(server, &p, &r);
-        connection->getBuffer(connection, message, UA_FindServersResponse_calcSizeBinary(&r));
-        UA_FindServersResponse_encodeBinary(&r, message, &sendOffset);
         UA_FindServersRequest_deleteMembers(&p);
+        retval = connection->getBuffer(connection, &message, headerSize + UA_FindServersResponse_calcSizeBinary(&r));
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_FindServersResponse_deleteMembers(&r);
+            return;
+        }
+        UA_FindServersResponse_encodeBinary(&r, &message, &messagePos);
         UA_FindServersResponse_deleteMembers(&r);
-        responseType = requestType.identifier.numeric + 3;
         break;
     }
 
@@ -247,11 +261,14 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         UA_CreateSessionResponse_init(&r);
         init_response_header(&p.requestHeader, &r.responseHeader);
         Service_CreateSession(server, clientChannel, &p, &r);
-        connection->getBuffer(connection, message, UA_CreateSessionResponse_calcSizeBinary(&r));
-        UA_CreateSessionResponse_encodeBinary(&r, message, &sendOffset);
         UA_CreateSessionRequest_deleteMembers(&p);
+        retval = connection->getBuffer(connection, &message, headerSize + UA_CreateSessionResponse_calcSizeBinary(&r));
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_CreateSessionResponse_deleteMembers(&r);
+            return;
+        }
+        UA_CreateSessionResponse_encodeBinary(&r, &message, &messagePos);
         UA_CreateSessionResponse_deleteMembers(&r);
-        responseType = requestType.identifier.numeric + 3;
         break;
     }
 
@@ -263,11 +280,14 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         UA_ActivateSessionResponse_init(&r);
         init_response_header(&p.requestHeader, &r.responseHeader);
         Service_ActivateSession(server, clientChannel, &p, &r);
-        connection->getBuffer(connection, message, UA_ActivateSessionResponse_calcSizeBinary(&r));
-        UA_ActivateSessionResponse_encodeBinary(&r, message, &sendOffset);
         UA_ActivateSessionRequest_deleteMembers(&p);
+        retval = connection->getBuffer(connection, &message, headerSize + UA_ActivateSessionResponse_calcSizeBinary(&r));
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_ActivateSessionResponse_deleteMembers(&r);
+            return;
+        }
+        UA_ActivateSessionResponse_encodeBinary(&r, &message, &messagePos);
         UA_ActivateSessionResponse_deleteMembers(&r);
-        responseType = requestType.identifier.numeric + 3;
         break;
     }
 
@@ -298,6 +318,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     case UA_NS0ID_TRANSLATEBROWSEPATHSTONODEIDSREQUEST:
         INVOKE_SERVICE(TranslateBrowsePathsToNodeIds);
         break;
+
     default: {
         UA_LOG_INFO(server->logger, UA_LOGGERCATEGORY_COMMUNICATION, "Unknown request: NodeId(ns=%d, i=%d)",
                     requestType.namespaceIndex, requestType.identifier.numeric);
@@ -312,54 +333,31 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         if(retval != UA_STATUSCODE_GOOD)
             r.serviceResult = retval;
 #endif
-        connection->getBuffer(connection, message, UA_ResponseHeader_calcSizeBinary(&r));
-        UA_ResponseHeader_encodeBinary(&r, message, &sendOffset);
         UA_RequestHeader_deleteMembers(&p);
+        retval = connection->getBuffer(connection, &message, headerSize + UA_ResponseHeader_calcSizeBinary(&r));
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_ResponseHeader_deleteMembers(&r);
+            return;
+        }
+        UA_ResponseHeader_encodeBinary(&r, &message, &messagePos);
         UA_ResponseHeader_deleteMembers(&r);
-        responseType = UA_NS0ID_RESPONSEHEADER + UA_ENCODINGOFFSET_BINARY;
+        response_nodeid = UA_NODEID_NUMERIC(0, UA_NS0ID_RESPONSEHEADER + UA_ENCODINGOFFSET_BINARY);
         break;
     }
     }
 
-    // 5) Build the header
-    UA_SecureConversationMessageHeader respHeader;
-    respHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
-    respHeader.messageHeader.messageSize = 0;
-    respHeader.secureChannelId = clientChannel->securityToken.channelId;
-
-    UA_SymmetricAlgorithmSecurityHeader symSecHeader;
-    symSecHeader.tokenId = clientChannel->securityToken.tokenId;
-
-    UA_SequenceHeader seqHeader;
-    seqHeader.sequenceNumber = clientChannel->sequenceNumber;
-    seqHeader.requestId = clientChannel->requestId;
-
-    UA_NodeId response_nodeid = { .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-        .identifier.numeric = responseType };
-
-    UA_UInt32 headerSize =
-        UA_SecureConversationMessageHeader_calcSizeBinary(&respHeader)
-        + UA_SymmetricAlgorithmSecurityHeader_calcSizeBinary(&symSecHeader)
-        + UA_SequenceHeader_calcSizeBinary(&seqHeader)
-        + UA_NodeId_calcSizeBinary(&response_nodeid);
-    respHeader.messageHeader.messageSize = headerSize + message->length;
-
-    size_t rpos = 0;
-    connection->getBuffer(connection, header, headerSize);
-    UA_SecureConversationMessageHeader_encodeBinary(&respHeader, header, &rpos);
-    UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader, header, &rpos);
-    UA_SequenceHeader_encodeBinary(&seqHeader, header, &rpos);
-    UA_NodeId_encodeBinary(&response_nodeid, header, &rpos);
+    messagePos = 0;
+    respHeader.messageHeader.messageSize = message.length;
+    UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &message, &messagePos);
+    UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader, &message, &messagePos);
+    UA_SequenceHeader_encodeBinary(&seqHeader, &message, &messagePos);
+    UA_NodeId_encodeBinary(&response_nodeid, &message, &messagePos);
 
     // todo: sign & encrypt
 
-    // 6) Send it over the wire.
-    UA_ByteStringArray responseBufArray;
-    responseBufArray.strings = responseBufs;
-    responseBufArray.stringsSize = 2;
-    connection->write(connection, responseBufArray);
-    connection->releaseBuffer(connection, header);
-    connection->releaseBuffer(connection, message);
+    // 5) Send it over the wire.
+    connection->write(connection, &message);
+    connection->releaseBuffer(connection, &message);
 }
 
 static void processCLO(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, size_t *pos) {

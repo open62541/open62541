@@ -91,38 +91,29 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     UA_TcpHelloMessage_encodeBinary(&hello, &message, &offset);
     UA_TcpHelloMessage_deleteMembers(&hello);
 
-    UA_ByteStringArray buf = {.stringsSize = 1, .strings = &message};
-    UA_StatusCode retval = c->connection.write(&c->connection, buf);
+    UA_StatusCode retval = c->connection.write(&c->connection, &message);
     if(retval)
         return retval;
 
-    UA_ByteString reply;
+    UA_ByteString reply = (UA_ByteString) {.length = 1024, .data = UA_alloca(1024)};
     do {
-        UA_ByteString_newMembers(&reply, 1024);
         retval = c->connection.recv(&c->connection, &reply, c->config.timeout);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_ByteString_deleteMembers(&reply);
+        if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        }
     } while(reply.length < 0);
 
     offset = 0;
     UA_TcpMessageHeader_decodeBinary(&reply, &offset, &messageHeader);
     UA_TcpAcknowledgeMessage ackMessage;
     retval = UA_TcpAcknowledgeMessage_decodeBinary(&reply, &offset, &ackMessage);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_TcpAcknowledgeMessage_deleteMembers(&ackMessage);
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    }
-    UA_ByteString_deleteMembers(&reply);
     conn->remoteConf.maxChunkCount = ackMessage.maxChunkCount;
     conn->remoteConf.maxMessageSize = ackMessage.maxMessageSize;
     conn->remoteConf.protocolVersion = ackMessage.protocolVersion;
     conn->remoteConf.recvBufferSize = ackMessage.receiveBufferSize;
     conn->remoteConf.sendBufferSize = ackMessage.sendBufferSize;
     conn->state = UA_CONNECTION_ESTABLISHED;
-
-    UA_TcpAcknowledgeMessage_deleteMembers(&ackMessage);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -178,18 +169,20 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
     UA_OpenSecureChannelRequest_deleteMembers(&opnSecRq);
 
-    UA_ByteStringArray buf = {.stringsSize = 1, .strings = &message};
-    UA_StatusCode retval = client->connection.write(&client->connection, buf);
+    UA_StatusCode retval = client->connection.write(&client->connection, &message);
     if(retval)
         return retval;
 
     // parse the response
     UA_ByteString reply;
     do {
-        UA_ByteString_newMembers(&reply, client->connection.localConf.recvBufferSize);
+        retval = client->connection.getBuffer(&client->connection, &reply,
+                                              client->connection.localConf.recvBufferSize);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
         retval = client->connection.recv(&client->connection, &reply, client->config.timeout);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_ByteString_deleteMembers(&reply);
+            client->connection.releaseBuffer(&client->connection, &reply);
             return retval;
         }
     } while(reply.length < 0);
@@ -201,15 +194,15 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
     UA_NodeId_decodeBinary(&reply, &offset, &requestType);
 
     if(!UA_NodeId_equal(&requestType, &UA_NODEID_NUMERIC(0, UA_NS0ID_OPENSECURECHANNELRESPONSE +
-                                                        UA_ENCODINGOFFSET_BINARY))) {
-        UA_ByteString_deleteMembers(&reply);
+                                                         UA_ENCODINGOFFSET_BINARY))) {
+        client->connection.releaseBuffer(&client->connection, &reply);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     UA_OpenSecureChannelResponse response;
     UA_OpenSecureChannelResponse_decodeBinary(&reply, &offset, &response);
-    UA_ByteString_deleteMembers(&reply);
+    client->connection.releaseBuffer(&client->connection, &reply);
     retval = response.responseHeader.serviceResult;
 
     if(retval == UA_STATUSCODE_GOOD) {
@@ -260,7 +253,7 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
         UA_calcSizeBinary(request, requestType);
 
     UA_ByteString message;
-    UA_StatusCode retval = UA_ByteString_newMembers(&message, msgHeader.messageHeader.messageSize);
+    UA_StatusCode retval = client->connection.getBuffer(&client->connection, &message, msgHeader.messageHeader.messageSize);
     if(retval != UA_STATUSCODE_GOOD) {
         // todo
     }
@@ -273,9 +266,8 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
     retval |= UA_NodeId_encodeBinary(&requestId, &message, &offset);
     retval |= UA_encodeBinary(request, requestType, &message, &offset);
 
-    UA_ByteStringArray buf = {.stringsSize = 1, .strings = &message};
-    retval = client->connection.write(&client->connection, buf);
-    UA_ByteString_deleteMembers(&message);
+    retval = client->connection.write(&client->connection, &message);
+    client->connection.releaseBuffer(&client->connection, &message);
 
     //TODO: rework to get return value
     if(sendOnly)
@@ -290,10 +282,10 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
     /* Response */
     UA_ByteString reply;
     do {
-        UA_ByteString_newMembers(&reply, client->connection.localConf.recvBufferSize);
+        client->connection.getBuffer(&client->connection, &reply, client->connection.localConf.recvBufferSize);
         retval = client->connection.recv(&client->connection, &reply, client->config.timeout);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_ByteString_deleteMembers(&reply);
+            client->connection.releaseBuffer(&client->connection, &reply);
             respHeader->serviceResult = retval;
             return;
         }
@@ -308,14 +300,14 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
 
     if(!UA_NodeId_equal(&responseId, &UA_NODEID_NUMERIC(0, responseType->typeId.identifier.numeric +
                                                        UA_ENCODINGOFFSET_BINARY))) {
-        UA_ByteString_deleteMembers(&reply);
+        client->connection.releaseBuffer(&client->connection, &reply);
         UA_SymmetricAlgorithmSecurityHeader_deleteMembers(&symHeader);
         respHeader->serviceResult = retval;
         return;
     }
 
     retval = UA_decodeBinary(&reply, &offset, response, responseType);
-    UA_ByteString_deleteMembers(&reply);
+    client->connection.releaseBuffer(&client->connection, &reply);
     if(retval != UA_STATUSCODE_GOOD)
         respHeader->serviceResult = retval;
 }
