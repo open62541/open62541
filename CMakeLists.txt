@@ -111,7 +111,9 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
 
 option(LOADGENERATEDNS "Generate and load UA XML Namespace 0 definition" OFF)
 if(LOADGENERATEDNS)
+add_definitions(-DLOADGENERATEDNS)
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
+                   ## Note: currently only Opc.Ua.NodeSet2.xml is included in the generated header. You can extend the call to include any number of XML files as parameters.
                    COMMAND python ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.xml ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
                    DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py  
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py  
