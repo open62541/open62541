@@ -163,6 +163,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     UA_SecureChannel *clientChannel = connection->channel;
 #ifdef EXTENSION_STATELESS
     UA_SecureChannel anonymousChannel;
+#ifdef EXTENSION_STATELESS
     if(!clientChannel) {
         UA_SecureChannel_init(&anonymousChannel);
         clientChannel = &anonymousChannel;
