@@ -42,7 +42,8 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 #undef RETURN
 #endif
 #define RETURN  UA_UserIdentityToken_deleteMembers(&token); \
-                UA_UserNameIdentityToken_deleteMembers(&username_token)
+                UA_UserNameIdentityToken_deleteMembers(&username_token); \
+                return
 void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
                              const UA_ActivateSessionRequest *request,
                              UA_ActivateSessionResponse *response) {
