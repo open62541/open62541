@@ -7,6 +7,7 @@
 #include <stdlib.h> 
 #include <signal.h>
 #include <errno.h> // errno, EINTR
+#include <string.h>
 
 #ifdef NOT_AMALGATED
     #include "ua_types.h"

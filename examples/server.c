@@ -6,7 +6,8 @@
 #include <signal.h>
 #include <errno.h> // errno, EINTR
 #include <stdio.h>
-#include <stdlib.h> 
+#include <stdlib.h>
+#include <string.h>
 #define __USE_XOPEN2K
 #ifdef UA_MULTITHREADING
 # include <pthread.h>
