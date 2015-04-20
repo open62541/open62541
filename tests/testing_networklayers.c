@@ -15,8 +15,9 @@ typedef struct {
 } NetworkLayer_FileInput;
 
 /** Accesses only the sockfd in the handle. Can be run from parallel threads. */
-static void writeCallback(NetworkLayer_FileInput *handle, UA_ByteStringArray gather_buf) {
+static UA_StatusCode writeCallback(NetworkLayer_FileInput *handle, UA_ByteStringArray gather_buf) {
     handle->writeCallback(handle->callbackHandle, gather_buf);
+    return UA_STATUSCODE_GOOD;
 }
 
 static void closeCallback(NetworkLayer_FileInput *handle) {
@@ -79,8 +80,8 @@ ServerNetworkLayerFileInput_new(UA_UInt32 files, char **filenames, void(*readCal
     layer->connection.state = UA_CONNECTION_OPENING;
     layer->connection.localConf = UA_ConnectionConfig_standard;
     layer->connection.channel = (void*)0;
-    layer->connection.close = (void (*)(void*))closeCallback;
-    layer->connection.write = (void (*)(void*, UA_ByteStringArray))writeCallback;
+    layer->connection.close = (void (*)(UA_Connection*))closeCallback;
+    layer->connection.write = (UA_StatusCode (*)(UA_Connection*, UA_ByteStringArray))writeCallback;
 
     layer->files = files;
     layer->filenames = filenames;

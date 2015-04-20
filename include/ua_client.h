@@ -8,39 +8,29 @@ extern "C" {
 #include "ua_util.h"
 #include "ua_types.h"
 #include "ua_connection.h"
+#include "ua_log.h"
 #include "ua_types_generated.h"
-
-/**
- * The client networklayer can handle only a single connection. The networklayer
- * is only concerned with getting messages to the client and receiving them.
- */
-typedef struct {
-    void *nlHandle;
-
-    UA_StatusCode (*connect)(const UA_String endpointUrl, void **resultHandle);
-    void (*disconnect)(void *handle);
-    void (*destroy)(void *handle);
-    UA_StatusCode (*send)(void *handle, UA_ByteStringArray gather_buf);
-    // the response buffer exists on the heap. the size shall correspond the the connection settings
-    UA_StatusCode (*awaitResponse)(void *handle, UA_ByteString *response, UA_UInt32 timeout);
-} UA_ClientNetworkLayer;
 
 struct UA_Client;
 typedef struct UA_Client UA_Client;
 
+/**
+ * The client networklayer is defined by a single function that fills a UA_Connection struct after
+ * successfully connecting.
+ */
+typedef UA_Connection (*UA_ConnectClientConnection)(char *endpointUrl, UA_Logger *logger);
+
 typedef struct UA_ClientConfig {
-    UA_Int32 timeout; //sync resonse timeout
+    UA_Int32 timeout; //sync response timeout
+    UA_ConnectionConfig localConnectionConfig;
 } UA_ClientConfig;
 
 extern const UA_ClientConfig UA_ClientConfig_standard;
-
-UA_Client UA_EXPORT * UA_Client_new(UA_ClientConfig config);
+UA_Client UA_EXPORT * UA_Client_new(UA_ClientConfig config, UA_Logger logger);
 
 void UA_Client_delete(UA_Client* client);
 
-UA_StatusCode UA_EXPORT UA_Client_connect(UA_Client *client, UA_ConnectionConfig conf,
-                                          UA_ClientNetworkLayer networkLayer, char *endpointUrl);
-
+UA_StatusCode UA_EXPORT UA_Client_connect(UA_Client *client, UA_ConnectClientConnection connFunc, char *endpointUrl);
 UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client);
 
 /* Attribute Service Set */

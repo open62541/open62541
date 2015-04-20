@@ -66,6 +66,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
+                ${PROJECT_SOURCE_DIR}/src/ua_connection.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_session.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
@@ -129,6 +130,8 @@ if(EXTENSION_UDP)
 	add_definitions(-DEXTENSION_STATELESS)
 	message(STATUS "Extensions: enabling udp")
 	add_definitions(-DEXTENSION_UDP)
+	add_executable(exampleServerUDP $<TARGET_OBJECTS:open62541-object> examples/networklayer_udp.c examples/server_udp.c)
+    target_link_libraries(exampleServerUDP rt)
 endif()
 
 option(EXTENSION_STATELESS "Enable stateless extension" OFF)
@@ -239,6 +242,9 @@ if(BUILD_EXAMPLECLIENT)
         target_link_libraries(exampleClient ws2_32)
     else()
         target_link_libraries(exampleClient rt)
+    endif()
+    if(ENABLE_MULTITHREADING)
+        target_link_libraries(exampleClient urcu-cds urcu urcu-common pthread)
     endif()
     if(EXTENSION_STATELESS)
         add_executable(statelessClient examples/client_stateless.c ${client_source})

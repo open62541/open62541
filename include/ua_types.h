@@ -368,6 +368,7 @@ UA_Boolean UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
 UA_Guid UA_EXPORT UA_Guid_random(UA_UInt32 *seed);
 
 /* ByteString */
+#define UA_BYTESTRING_NULL (UA_ByteString) {-1, (UA_Byte*)0 }
 #define UA_ByteString_equal(string1, string2) \
     UA_String_equal((const UA_String*) string1, (const UA_String*)string2)
 

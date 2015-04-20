@@ -19,7 +19,7 @@ extern "C" {
 
 /** @brief Create the TCP networklayer and listen to the specified port */
 UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UInt32 port);
-UA_ClientNetworkLayer ClientNetworkLayerTCP_new(UA_ConnectionConfig conf);
+UA_Connection ClientNetworkLayerTCP_connect(char *endpointUrl, UA_Logger *logger);
 
 #ifdef __cplusplus
 } // extern "C"
