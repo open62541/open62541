@@ -159,6 +159,15 @@ UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
     return (is == 0) ? UA_TRUE : UA_FALSE;
 }
 
+UA_Boolean UA_String_equalchars(const UA_String *string1, const char *charString) {
+    UA_String string2 = UA_String_fromChars(charString);
+    UA_Boolean result = UA_FALSE;
+    result = UA_String_equal(string1, &string2);
+    UA_String_deleteMembers(&string2);
+    return result;
+
+}
+
 /* DateTime */
 #define UNIX_EPOCH_BIAS_SEC 11644473600LL // Number of seconds from 1 Jan. 1601 00:00 to 1 Jan 1970 00:00 UTC
 #define HUNDRED_NANOSEC_PER_USEC 10LL

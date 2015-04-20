@@ -8,7 +8,16 @@
 
 const char *UA_LoggerCategoryNames[3] = {"communication", "server", "userland"};
 
-const UA_ServerConfig UA_ServerConfig_standard = { UA_TRUE, UA_TRUE, "urn:unconfigured:open62541:open62541Server"};
+const UA_ServerConfig UA_ServerConfig_standard = {
+        UA_TRUE,
+
+        UA_TRUE,
+        (char *[]){"user"},
+        (char *[]){"password"},
+        1,
+
+        "urn:unconfigured:open62541:open62541Server"
+};
 
 /**********************/
 /* Namespace Handling */
@@ -245,7 +254,6 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     UA_ByteString_init(&server->serverCertificate);
 
-#define PRODUCT_URI "http://open62541.org"
     // mockup application description
     UA_ApplicationDescription_init(&server->description);
     server->description.productUri = UA_STRING_ALLOC(PRODUCT_URI);
@@ -284,14 +292,14 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
         if(server->config.Login_enableAnonymous){
             UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
             endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
-            endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC("open62541-anonymous-policy"); // defined per server
+            endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(ANONYMOUS_POLICY); // defined per server
             currentIndex++;
         }
 
         if(server->config.Login_enableUsernamePassword){
-            UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[1]);
-            endpoint->userIdentityTokens[1].tokenType = UA_USERTOKENTYPE_USERNAME;
-            endpoint->userIdentityTokens[1].policyId = UA_STRING_ALLOC("open62541-username-policy"); // defined per server
+            UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
+            endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_USERNAME;
+            endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(USERNAME_POLICY); // defined per server
             currentIndex++;
         }
 

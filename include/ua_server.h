@@ -34,7 +34,12 @@ extern "C" {
 
 typedef struct UA_ServerConfig {
     UA_Boolean  Login_enableAnonymous;
+
     UA_Boolean  Login_enableUsernamePassword;
+    char**      Login_usernames;
+    char**      Login_passwords;
+    UA_UInt32   Login_loginsCount;
+
     char*       Application_applicationURI;
 } UA_ServerConfig;
 

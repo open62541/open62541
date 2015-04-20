@@ -7,6 +7,10 @@
 #include "ua_securechannel_manager.h"
 #include "ua_nodestore.h"
 
+#define PRODUCT_URI "http://open62541.org"
+#define ANONYMOUS_POLICY "open62541-anonymous-policy"
+#define USERNAME_POLICY "open62541-username-policy"
+
 /** Mapping of namespace-id and url to an external nodestore. For namespaces
     that have no mapping defined, the internal nodestore is used by default. */
 typedef struct UA_ExternalNamespace {
