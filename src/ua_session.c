@@ -30,12 +30,6 @@ UA_Session adminSession = {
     .timeout = UA_INT64_MAX, .validTill = UA_INT64_MAX, .channel = UA_NULL,
     .continuationPoints = {UA_NULL}};
 
-UA_Session * UA_Session_new(void) {
-    UA_Session *s = UA_malloc(sizeof(UA_Session));
-    if(s) UA_Session_init(s);
-    return s;
-}
-
 /* TODO: Nobody seems to call this function right now */
 static UA_StatusCode UA_Session_generateToken(UA_NodeId *newToken, UA_UInt32 *seed) {
     newToken->namespaceIndex = 0; // where else?
@@ -45,7 +39,6 @@ static UA_StatusCode UA_Session_generateToken(UA_NodeId *newToken, UA_UInt32 *se
 }
 
 void UA_Session_init(UA_Session *session) {
-    if(!session) return;
     UA_ApplicationDescription_init(&session->clientDescription);
     UA_NodeId_init(&session->authenticationToken);
     UA_NodeId_init(&session->sessionId);
@@ -73,17 +66,6 @@ void UA_Session_deleteMembers(UA_Session *session) {
     }
 }
 
-void UA_Session_delete(UA_Session *session) {
-    UA_Session_deleteMembers(session);
-    UA_free(session);
-}
-
-UA_Boolean UA_Session_compare(UA_Session *session1, UA_Session *session2) {
-    if(session1 && session2 && UA_NodeId_equal(&session1->sessionId, &session2->sessionId))
-        return UA_TRUE;
-    return UA_FALSE;
-}
-
 UA_StatusCode UA_Session_setExpirationDate(UA_Session *session) {
     if(!session)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -100,19 +82,20 @@ UA_StatusCode UA_Session_getPendingLifetime(UA_Session *session, UA_Double *pend
     return UA_STATUSCODE_GOOD;
 }
 
-void UA_SecureChannel_detachSession(UA_SecureChannel *channel) {
+void UA_Session_detachSecureChannel(UA_Session *session) {
 #ifdef UA_MULTITHREADING
-    UA_Session *session = channel->session;
-    if(session)
-        uatomic_cmpxchg(&session->channel, channel, UA_NULL);
-    uatomic_set(&channel->session, UA_NULL);
+    UA_SecureChannel *channel = session->channel;
+    if(channel)
+        uatomic_cmpxchg(&channel->session, session, UA_NULL);
+    uatomic_set(&session->channel, UA_NULL);
 #else
-    if(channel->session)
-        channel->session->channel = UA_NULL;
-    channel->session = UA_NULL;
+    if(session->channel)
+        session->channel->session = UA_NULL;
+    session->channel = UA_NULL;
 #endif
 }
 
+/* these functions are here, since they need to include ua_session.h */
 void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *session) {
 #ifdef UA_MULTITHREADING
     if(uatomic_cmpxchg(&session->channel, UA_NULL, channel) == UA_NULL)
@@ -125,15 +108,15 @@ void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *sessi
 #endif
 }
 
-void UA_Session_detachSecureChannel(UA_Session *session) {
+void UA_SecureChannel_detachSession(UA_SecureChannel *channel) {
 #ifdef UA_MULTITHREADING
-    UA_SecureChannel *channel = session->channel;
-    if(channel)
-        uatomic_cmpxchg(&channel->session, session, UA_NULL);
-    uatomic_set(&session->channel, UA_NULL);
+    UA_Session *session = channel->session;
+    if(session)
+        uatomic_cmpxchg(&session->channel, channel, UA_NULL);
+    uatomic_set(&channel->session, UA_NULL);
 #else
-    if(session->channel)
-        session->channel->session = UA_NULL;
-    session->channel = UA_NULL;
+    if(channel->session)
+        channel->session->channel = UA_NULL;
+    channel->session = UA_NULL;
 #endif
 }

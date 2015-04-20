@@ -6,9 +6,8 @@
 
 struct UA_Client {
     /* Connection */
-    UA_ClientNetworkLayer networkLayer;
-    UA_String endpointUrl;
     UA_Connection connection;
+    UA_String endpointUrl;
 
     UA_UInt32 sequenceNumber;
     UA_UInt32 requestId;
@@ -25,19 +24,22 @@ struct UA_Client {
     UA_NodeId authenticationToken;
 
     /* Config */
+    UA_Logger logger;
     UA_ClientConfig config;
 };
 
-const UA_ClientConfig UA_ClientConfig_standard = { 500 };
+const UA_ClientConfig UA_ClientConfig_standard =
+    { 5 /* ms receive timout */, {.protocolVersion = 0, .sendBufferSize = 65536, .recvBufferSize  = 65536,
+                                  .maxMessageSize = 65536, .maxChunkCount = 1}};
 
-UA_Client * UA_Client_new(UA_ClientConfig config) {
+UA_Client * UA_Client_new(UA_ClientConfig config, UA_Logger logger) {
     UA_Client *client = UA_malloc(sizeof(UA_Client));
     if(!client)
         return UA_NULL;
     client->config = config;
+    client->logger = logger;
     UA_String_init(&client->endpointUrl);
-    client->connection.state = UA_CONNECTION_OPENING;
-    UA_ByteString_init(&client->connection.incompleteMessage);
+    UA_Connection_init(&client->connection);
 
     client->sequenceNumber = 0;
     client->requestId = 0;
@@ -53,9 +55,9 @@ UA_Client * UA_Client_new(UA_ClientConfig config) {
 }
 
 void UA_Client_delete(UA_Client* client){
-    client->networkLayer.destroy(client->networkLayer.nlHandle);
+    UA_Connection_deleteMembers(&client->connection);
     UA_String_deleteMembers(&client->endpointUrl);
-    // client->connection
+    UA_Connection_deleteMembers(&client->connection);
 
     /* Secure Channel */
     UA_ByteString_deleteMembers(&client->clientNonce);
@@ -64,7 +66,6 @@ void UA_Client_delete(UA_Client* client){
     free(client);
 }
 
-// The tcp connection is established. Now do the handshake
 static UA_StatusCode HelAckHandshake(UA_Client *c) {
     UA_TcpMessageHeader messageHeader;
     messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_HELF;
@@ -91,15 +92,19 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     UA_TcpHelloMessage_deleteMembers(&hello);
 
     UA_ByteStringArray buf = {.stringsSize = 1, .strings = &message};
-    UA_StatusCode retval = c->networkLayer.send(c->networkLayer.nlHandle, buf);
+    UA_StatusCode retval = c->connection.write(&c->connection, buf);
     if(retval)
         return retval;
 
-    UA_Byte replybuf[1024];
-    UA_ByteString reply = {.data = replybuf, .length = 1024};
-    retval = c->networkLayer.awaitResponse(c->networkLayer.nlHandle, &reply, c->config.timeout * 1000);
-    if (retval)
-        return retval;
+    UA_ByteString reply;
+    do {
+        UA_ByteString_newMembers(&reply, 1024);
+        retval = c->connection.recv(&c->connection, &reply, c->config.timeout);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_ByteString_deleteMembers(&reply);
+            return retval;
+        }
+    } while(reply.length < 0);
 
     offset = 0;
     UA_TcpMessageHeader_decodeBinary(&reply, &offset, &messageHeader);
@@ -109,6 +114,7 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
         UA_TcpAcknowledgeMessage_deleteMembers(&ackMessage);
         return retval;
     }
+    UA_ByteString_deleteMembers(&reply);
     conn->remoteConf.maxChunkCount = ackMessage.maxChunkCount;
     conn->remoteConf.maxMessageSize = ackMessage.maxMessageSize;
     conn->remoteConf.protocolVersion = ackMessage.protocolVersion;
@@ -173,20 +179,19 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
     UA_OpenSecureChannelRequest_deleteMembers(&opnSecRq);
 
     UA_ByteStringArray buf = {.stringsSize = 1, .strings = &message};
-    UA_StatusCode retval = client->networkLayer.send(client->networkLayer.nlHandle, buf);
+    UA_StatusCode retval = client->connection.write(&client->connection, buf);
     if(retval)
         return retval;
 
     // parse the response
     UA_ByteString reply;
-    UA_ByteString_newMembers(&reply, client->connection.localConf.recvBufferSize);
     do {
-        retval = client->networkLayer.awaitResponse(client->networkLayer.nlHandle, &reply, client->config.timeout * 1000);
+        UA_ByteString_newMembers(&reply, client->connection.localConf.recvBufferSize);
+        retval = client->connection.recv(&client->connection, &reply, client->config.timeout);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_ByteString_deleteMembers(&reply);
             return retval;
         }
-        reply = UA_Connection_completeMessages(&client->connection, reply);
     } while(reply.length < 0);
 
     offset = 0;
@@ -269,7 +274,7 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
     retval |= UA_encodeBinary(request, requestType, &message, &offset);
 
     UA_ByteStringArray buf = {.stringsSize = 1, .strings = &message};
-    retval = client->networkLayer.send(client->networkLayer.nlHandle, buf);
+    retval = client->connection.write(&client->connection, buf);
     UA_ByteString_deleteMembers(&message);
 
     //TODO: rework to get return value
@@ -286,13 +291,12 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
     UA_ByteString reply;
     do {
         UA_ByteString_newMembers(&reply, client->connection.localConf.recvBufferSize);
-        retval = client->networkLayer.awaitResponse(client->networkLayer.nlHandle, &reply, client->config.timeout * 1000);
+        retval = client->connection.recv(&client->connection, &reply, client->config.timeout);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_ByteString_deleteMembers(&reply);
             respHeader->serviceResult = retval;
             return;
         }
-        reply = UA_Connection_completeMessages(&client->connection, reply);
     } while(reply.length < 0);
 
     offset = 0;
@@ -408,21 +412,17 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
 /* User-Facing Functions */
 /*************************/
 
+UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection connectFunc, char *endpointUrl) {
+    client->connection = connectFunc(endpointUrl, &client->logger);
+    if(client->connection.state != UA_CONNECTION_OPENING)
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
 
-UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectionConfig conf,
-                                UA_ClientNetworkLayer networkLayer, char *endpointUrl)
-{
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
     if(client->endpointUrl.length < 0)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    client->networkLayer = networkLayer;
-    client->connection.localConf = conf;
-    UA_StatusCode retval = networkLayer.connect(client->endpointUrl, client->networkLayer.nlHandle);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    retval = HelAckHandshake(client);
+    client->connection.localConf = client->config.localConnectionConfig;
+    UA_StatusCode retval = HelAckHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
         retval = SecureChannelHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
@@ -431,7 +431,6 @@ UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectionConfig conf,
         retval = ActivateSession(client);
     return retval;
 }
-
 
 UA_StatusCode UA_Client_disconnect(UA_Client *client) {
     UA_StatusCode retval;

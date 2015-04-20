@@ -40,15 +40,16 @@ void signalHandler(int sign) {
     running = UA_FALSE;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
     /* catch ctrl-c */
     signal(SIGINT, signalHandler);
 
     /* init the server */
     UA_Server *server = UA_Server_new();
+    UA_Server_setLogger(server, Logger_Stdout_new());
     UA_Server_addNetworkLayer(server,
         ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, PORT));
-    UA_Server_setLogger(server, Logger_Stdout_new());
     UA_UInt16 nsIndex = UA_Server_addNamespace(server, "myApplicationNamespace");
 
     /* add a variable node */
@@ -74,10 +75,10 @@ int main(int argc, char** argv) {
 #include <stdio.h>
 #include "open62541.h"
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_ClientNetworkLayer nl = ClientNetworkLayerTCP_new(UA_ConnectionConfig_standard);
-    UA_StatusCode retval = UA_Client_connect(client, UA_ConnectionConfig_standard, nl,
+    UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
                                              "opc.tcp://localhost:16664");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);

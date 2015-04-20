@@ -23,20 +23,17 @@ struct UA_SecureChannel {
     UA_ByteString  serverNonce;
     UA_UInt32      requestId;
     UA_UInt32      sequenceNumber;
-    UA_Connection *connection; // make this more generic when http connections exist
+    UA_Connection *connection;
     UA_Session    *session;
 };
 
 void UA_SecureChannel_init(UA_SecureChannel *channel);
 void UA_SecureChannel_deleteMembers(UA_SecureChannel *channel);
-void UA_SecureChannel_delete(UA_SecureChannel *channel);
-UA_Boolean UA_SecureChannel_compare(UA_SecureChannel *sc1, UA_SecureChannel *sc2);
 
 UA_StatusCode UA_SecureChannel_generateNonce(UA_ByteString *nonce);
 UA_StatusCode UA_SecureChannel_updateRequestId(UA_SecureChannel *channel, UA_UInt32 requestId);
 UA_StatusCode UA_SecureChannel_updateSequenceNumber(UA_SecureChannel *channel, UA_UInt32 sequenceNumber);
 
-void UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChannel *channel);
 void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *session);
 void UA_SecureChannel_detachSession(UA_SecureChannel *channel);
 
