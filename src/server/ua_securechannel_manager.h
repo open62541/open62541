@@ -4,6 +4,12 @@
 #include "ua_util.h"
 #include "ua_server.h"
 #include "ua_securechannel.h"
+#include "queue.h"
+
+typedef struct channel_list_entry {
+    UA_SecureChannel channel;
+    LIST_ENTRY(channel_list_entry) pointers;
+} channel_list_entry;
 
 typedef struct UA_SecureChannelManager {
     LIST_HEAD(channel_list, channel_list_entry) channels; // doubly-linked list of channels

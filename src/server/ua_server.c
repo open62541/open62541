@@ -115,6 +115,43 @@ void UA_Server_delete(UA_Server *server) {
 	UA_free(server);
 }
 
+/**
+ * Recurring cleanup. Removing unused and timed-out channels and sessions
+ * Todo: make this thread-safe
+ */
+static void UA_Server_cleanup(UA_Server *server, void *nothing) {
+    printf( "cleaning up...\n");
+    fflush(stdout);
+    UA_DateTime now = UA_DateTime_now();
+    channel_list_entry *entry;
+    /* remove channels that were not renewed or who have no connection attached */
+    LIST_FOREACH(entry, &server->secureChannelManager.channels, pointers) {
+        if(entry->channel.securityToken.createdAt +
+           (10000 * entry->channel.securityToken.revisedLifetime) > now ||
+           entry->channel.connection)
+            continue;
+        UA_Connection *c = entry->channel.connection;
+        UA_Connection_detachSecureChannel(c);
+        if(c) {
+            c->close(c);
+        }
+        UA_SecureChannel_detachSession(&entry->channel);
+        UA_SecureChannel_deleteMembers(&entry->channel);
+        LIST_REMOVE(entry, pointers);
+        UA_free(entry);
+    }
+
+    session_list_entry *sentry;
+    LIST_FOREACH(sentry, &server->sessionManager.sessions, pointers) {
+        if(sentry->session.validTill < now) {
+            LIST_REMOVE(sentry, pointers);
+            UA_SecureChannel_detachSession(sentry->session.channel);
+            UA_Session_deleteMembers(&sentry->session);
+            UA_free(sentry);
+        }
+    }
+}
+
 static UA_StatusCode readStatus(void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
     UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
     status->startTime   = ((const UA_Server*)handle)->startTime;
@@ -334,6 +371,10 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     UA_SessionManager_init(&server->sessionManager, MAXSESSIONCOUNT, MAXSESSIONLIFETIME, STARTSESSIONID);
 
     server->nodestore = UA_NodeStore_new();
+
+	/* UA_WorkItem cleanup = {.type = UA_WORKITEMTYPE_METHODCALL, */
+    /*                        .work.methodCall = {.method = UA_Server_cleanup, .data = NULL} }; */
+	/* UA_Server_addRepeatedWorkItem(server, &cleanup, 100000, NULL); */
 
     /**********************/
     /* Server Information */

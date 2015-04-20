@@ -8,11 +8,6 @@
  implementation is choosen based on whether multithreading is enabled or not.
  */
 
-typedef struct session_list_entry {
-    UA_Session session;
-    LIST_ENTRY(session_list_entry) pointers;
-} session_list_entry;
-
 UA_StatusCode UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt32 maxSessionCount,
                                     UA_UInt32 maxSessionLifeTime, UA_UInt32 startSessionId) {
     LIST_INIT(&sessionManager->sessions);
@@ -129,8 +124,7 @@ UA_SessionManager_removeSession(UA_SessionManager *sessionManager, const UA_Node
         return UA_STATUSCODE_BADINTERNALERROR;
 
     LIST_REMOVE(current, pointers);
-    if(current->session.channel)
-        current->session.channel->session = UA_NULL; // the channel is no longer attached to a session
+    UA_SecureChannel_detachSession(current->session.channel);
     UA_Session_deleteMembers(&current->session);
     UA_free(current);
     return UA_STATUSCODE_GOOD;

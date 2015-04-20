@@ -122,7 +122,7 @@ typedef struct UA_WorkItem {
             UA_ByteString message;
         } binaryNetworkMessage;
         struct {
-            void * data;
+            void *data;
             void (*method)(UA_Server *server, void *data);
         } methodCall;
     } work;

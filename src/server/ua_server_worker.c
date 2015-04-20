@@ -154,9 +154,9 @@ static UA_StatusCode addTimedWork(UA_Server *server, const UA_WorkItem *item, UA
         if(tw->repetitionInterval == repetitionInterval &&
            (repetitionInterval > 0 || tw->time == firstTime))
             break; // found a matching entry
+        lastTw = tw;
         if(tw->time > firstTime) {
             tw = UA_NULL; // not matchin entry exists
-            lastTw = tw;
             break;
         }
     }
@@ -285,11 +285,13 @@ static UA_UInt16 processTimedWork(UA_Server *server) {
 
     // check if the next timed work is sooner than the usual timeout
     UA_TimedWork *first = LIST_FIRST(&server->timedWork);
-    UA_UInt16 timeout = MAXTIMEOUT;
+    UA_Int32 timeout = MAXTIMEOUT;
     if(first) {
         timeout = (first->time - current)/10;
         if(timeout > MAXTIMEOUT)
-            timeout = MAXTIMEOUT;
+            return MAXTIMEOUT;
+        if(timeout < 0)
+            return 0;
     }
     return timeout;
 }
