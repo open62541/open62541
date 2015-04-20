@@ -130,6 +130,8 @@ if(EXTENSION_UDP)
 	add_definitions(-DEXTENSION_STATELESS)
 	message(STATUS "Extensions: enabling udp")
 	add_definitions(-DEXTENSION_UDP)
+	add_executable(exampleServerUDP $<TARGET_OBJECTS:open62541-object> examples/networklayer_udp.c examples/server_udp.c)
+    target_link_libraries(exampleServerUDP rt)
 endif()
 
 option(EXTENSION_STATELESS "Enable stateless extension" OFF)

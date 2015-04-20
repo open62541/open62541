@@ -3,6 +3,7 @@
     #include "ua_client.h"
     #include "ua_nodeids.h"
     #include "networklayer_tcp.h"
+    #include "logger_stdout.h"
 #else
     #include "open62541.h"
 #endif
@@ -11,7 +12,7 @@
 #include "networklayer_tcp.h"
 
 int main(int argc, char *argv[]) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
     UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
                                              "opc.tcp://localhost:16664");
     if(retval != UA_STATUSCODE_GOOD) {

@@ -57,7 +57,31 @@ addOneWayReferenceWithSession(UA_Server *server, UA_Session *session, const UA_A
     const UA_Node *node = UA_NodeStore_get(server->nodestore, &item->sourceNodeId);
     if(!node)
         return UA_STATUSCODE_BADINTERNALERROR;
-
+	UA_StatusCode retval = UA_STATUSCODE_GOOD;
+#ifndef UA_MULTITHREADING
+	size_t i = node->referencesSize;
+	if(node->referencesSize < 0)
+		i = 0;
+	UA_ReferenceNode *new_refs = UA_realloc(node->references, sizeof(UA_ReferenceNode) * (i + 1));
+	if(!new_refs)
+		retval = UA_STATUSCODE_BADOUTOFMEMORY;
+	else {
+		UA_ReferenceNode_init(&new_refs[i]);
+		retval = UA_NodeId_copy(&item->referenceTypeId, &new_refs[i].referenceTypeId);
+		new_refs[i].isInverse = !item->isForward;
+		retval |= UA_ExpandedNodeId_copy(&item->targetNodeId, &new_refs[i].targetId);
+		/* hack. be careful! possible only in the single-threaded case. */
+		UA_Node *mutable_node = (UA_Node*)(uintptr_t)node;
+		mutable_node->references = new_refs;
+		if(retval != UA_STATUSCODE_GOOD) {
+			UA_NodeId_deleteMembers(&new_refs[node->referencesSize].referenceTypeId);
+			UA_ExpandedNodeId_deleteMembers(&new_refs[node->referencesSize].targetId);
+		} else
+			mutable_node->referencesSize = i+1;
+	}
+	UA_NodeStore_release(node);
+	return retval;
+#else
     UA_Node *newNode = UA_NULL;
     void (*deleteNode)(UA_Node*) = UA_NULL;
     switch(node->nodeClass) {
@@ -119,7 +143,7 @@ addOneWayReferenceWithSession(UA_Server *server, UA_Session *session, const UA_A
     // insert the new reference
     UA_memcpy(new_refs, old_refs, sizeof(UA_ReferenceNode)*count);
     UA_ReferenceNode_init(&new_refs[count]);
-    UA_StatusCode retval = UA_NodeId_copy(&item->referenceTypeId, &new_refs[count].referenceTypeId);
+    retval = UA_NodeId_copy(&item->referenceTypeId, &new_refs[count].referenceTypeId);
     new_refs[count].isInverse = !item->isForward;
     retval |= UA_ExpandedNodeId_copy(&item->targetNodeId, &new_refs[count].targetId);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -135,13 +159,14 @@ addOneWayReferenceWithSession(UA_Server *server, UA_Session *session, const UA_A
     newNode->references = new_refs;
     newNode->referencesSize = ++count;
     retval = UA_NodeStore_replace(server->nodestore, node, newNode, UA_NULL);
-    UA_NodeStore_release(node);
-    if(retval != UA_STATUSCODE_BADINTERNALERROR)
-        return retval;
-    
-    // error presumably because the node was replaced and an old version was updated just try again
-    deleteNode(newNode);
-    return addOneWayReferenceWithSession(server, session, item);
+	UA_NodeStore_release(node);
+	if (retval == UA_STATUSCODE_BADINTERNALERROR) {
+		/* presumably because the node was replaced and an old version was updated at the same time. just try again */
+		deleteNode(newNode);
+		return addOneWayReferenceWithSession(server, session, item);
+	}
+	return retval;
+#endif
 }
 
 /* userland version of addReferenceWithSession */

@@ -3,12 +3,21 @@
 
 #include "ua_types.h"
 #include "ua_securechannel.h"
+#include "queue.h"
 
 /**
  *  @ingroup communication
  *
  * @{
  */
+
+struct ContinuationPointEntry {
+    LIST_ENTRY(ContinuationPointEntry) pointers;
+    UA_ByteString        identifier;
+    UA_BrowseDescription browseDescription;
+    UA_Int32            continuationIndex;
+    UA_UInt32            maxReferences;
+};
 
 struct UA_Session {
     UA_ApplicationDescription clientDescription;
@@ -20,6 +29,7 @@ struct UA_Session {
     UA_Int64          timeout;
     UA_DateTime       validTill;
     UA_SecureChannel *channel;
+    LIST_HEAD(ContinuationPointList, ContinuationPointEntry) continuationPoints;
 };
 
 extern UA_Session anonymousSession; ///< If anonymous access is allowed, this session is used internally (Session ID: 0)

@@ -8,6 +8,7 @@ extern "C" {
 #include "ua_util.h"
 #include "ua_types.h"
 #include "ua_connection.h"
+#include "ua_log.h"
 #include "ua_types_generated.h"
 
 struct UA_Client;
@@ -17,7 +18,7 @@ typedef struct UA_Client UA_Client;
  * The client networklayer is defined by a single function that fills a UA_Connection struct after
  * successfully connecting.
  */
-typedef UA_StatusCode (*UA_ConnectClientConnection)(UA_Client *client, UA_Connection *conn, char *endpointUrl);
+typedef UA_Connection (*UA_ConnectClientConnection)(char *endpointUrl, UA_Logger *logger);
 
 typedef struct UA_ClientConfig {
     UA_Int32 timeout; //sync response timeout
@@ -25,7 +26,7 @@ typedef struct UA_ClientConfig {
 } UA_ClientConfig;
 
 extern const UA_ClientConfig UA_ClientConfig_standard;
-UA_Client UA_EXPORT * UA_Client_new(UA_ClientConfig config);
+UA_Client UA_EXPORT * UA_Client_new(UA_ClientConfig config, UA_Logger logger);
 
 void UA_Client_delete(UA_Client* client);
 
@@ -38,6 +39,7 @@ UA_WriteResponse UA_EXPORT UA_Client_write(UA_Client *client, UA_WriteRequest *r
 
 /* View Service Set */    
 UA_BrowseResponse UA_EXPORT UA_Client_browse(UA_Client *client, UA_BrowseRequest *request);
+UA_BrowseNextResponse UA_EXPORT UA_Client_browseNext(UA_Client *client, UA_BrowseNextRequest *request);
 UA_TranslateBrowsePathsToNodeIdsResponse UA_EXPORT
     UA_Client_translateTranslateBrowsePathsToNodeIds(UA_Client *client,
                                                      UA_TranslateBrowsePathsToNodeIdsRequest *request);

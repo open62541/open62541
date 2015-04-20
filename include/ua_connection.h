@@ -71,7 +71,7 @@ struct UA_Connection {
     UA_Int32 sockfd; ///> Most connectivity solutions run on sockets. Having the socket id here simplifies the design.
     void *handle; ///> A pointer to the networklayer
     UA_ByteString incompleteMessage; ///> Half-received messages (tcp is a streaming protocol) get stored here
-    UA_StatusCode (*getBuffer)(UA_Connection *connection, UA_ByteString *buf); ///> Attach a buffer according to localConf
+    UA_StatusCode (*getBuffer)(UA_Connection *connection, UA_ByteString *buf, size_t minSize); ///> Attach the data array to the buffer. Fails if minSize is larger than remoteConf allows
     void (*releaseBuffer)(UA_Connection *connection, UA_ByteString *buf); ///> Release the buffer
     UA_StatusCode (*write)(UA_Connection *connection, UA_ByteStringArray buf); ///> The bytestrings cannot be reused after sending!
     UA_StatusCode (*recv)(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout); // timeout in milliseconds

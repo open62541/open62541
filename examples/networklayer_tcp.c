@@ -119,6 +119,20 @@ static UA_StatusCode socket_set_nonblocking(UA_Int32 sockfd) {
     return UA_STATUSCODE_GOOD;
 }
 
+/*****************************/
+/* Generic Buffer Management */
+/*****************************/
+
+static UA_StatusCode GetMallocedBuffer(UA_Connection *connection, UA_ByteString *buf, size_t minSize) {
+    if(minSize > connection->remoteConf.recvBufferSize)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_ByteString_newMembers(buf, minSize);
+}
+
+static void ReleaseMallocedBuffer(UA_Connection *connection, UA_ByteString *buf) {
+    UA_ByteString_deleteMembers(buf);
+}
+
 /***************************/
 /* Server NetworkLayer TCP */
 /***************************/
@@ -157,7 +171,7 @@ static UA_StatusCode socket_set_nonblocking(UA_Int32 sockfd) {
 
 typedef struct {
     /* config */
-    UA_Server *server;
+    UA_Logger *logger;
     UA_UInt32 port;
     UA_String discoveryUrl;
     UA_ConnectionConfig conf; /* todo: rename to localconf. */
@@ -209,9 +223,7 @@ static void ServerNetworkLayerTCP_closeConnection(UA_Connection *connection) {
         return;
     connection->state = UA_CONNECTION_CLOSED;
 #endif
-
     socket_close(connection);
-
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP*)connection->handle;
     struct DeleteList *d = malloc(sizeof(struct DeleteList));
     d->connection = connection;
@@ -232,65 +244,60 @@ static UA_StatusCode ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_
     UA_Connection *c = malloc(sizeof(UA_Connection));
     if(!c)
         return UA_STATUSCODE_BADINTERNALERROR;
-
     UA_Connection_init(c);
     c->sockfd = newsockfd;
     c->handle = layer;
     c->localConf = layer->conf;
     c->write = socket_write;
     c->close = ServerNetworkLayerTCP_closeConnection;
-
-    struct ConnectionMapping *nm = realloc(layer->mappings,
-                                           sizeof(struct ConnectionMapping)*(layer->mappingsSize+1));
+    c->getBuffer = GetMallocedBuffer;
+    c->releaseBuffer = ReleaseMallocedBuffer;
+    struct ConnectionMapping *nm =
+        realloc(layer->mappings, sizeof(struct ConnectionMapping)*(layer->mappingsSize+1));
     if(!nm) {
         free(c);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
     layer->mappings = nm;
     layer->mappings[layer->mappingsSize] = (struct ConnectionMapping){c, newsockfd};
     layer->mappingsSize++;
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode ServerNetworkLayerTCP_start(ServerNetworkLayerTCP *layer) {
-    UA_Logger *logger = UA_Server_getLogger(layer->server);
+static UA_StatusCode ServerNetworkLayerTCP_start(ServerNetworkLayerTCP *layer, UA_Logger *logger) {
+    layer->logger = logger;
 #ifdef _WIN32
     if((layer->serversockfd = socket(PF_INET, SOCK_STREAM,0)) == (UA_Int32)INVALID_SOCKET) {
-        UA_LOG_WARNING((*logger), UA_LOGGERCATEGORY_COMMUNICATION, "Error opening socket, code: %d",
+        UA_LOG_WARNING((*layer->logger), UA_LOGGERCATEGORY_COMMUNICATION, "Error opening socket, code: %d",
                        WSAGetLastError());
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 #else
     if((layer->serversockfd = socket(PF_INET, SOCK_STREAM, 0)) < 0) {
-        UA_LOG_WARNING((*logger), UA_LOGGERCATEGORY_COMMUNICATION, "Error opening socket");
+        UA_LOG_WARNING((*layer->logger), UA_LOGGERCATEGORY_COMMUNICATION, "Error opening socket");
         return UA_STATUSCODE_BADINTERNALERROR;
     } 
 #endif
-
-    const struct sockaddr_in serv_addr = {
-        .sin_family = AF_INET, .sin_addr.s_addr = INADDR_ANY,
-        .sin_port = htons(layer->port), .sin_zero = {0}};
-
+    const struct sockaddr_in serv_addr =
+        {.sin_family = AF_INET, .sin_addr.s_addr = INADDR_ANY,
+         .sin_port = htons(layer->port), .sin_zero = {0}};
     int optval = 1;
     if(setsockopt(layer->serversockfd, SOL_SOCKET,
                   SO_REUSEADDR, (const char *)&optval,
                   sizeof(optval)) == -1) {
-        UA_LOG_WARNING((*logger), UA_LOGGERCATEGORY_COMMUNICATION, "Error during setting of socket options");
+        UA_LOG_WARNING((*layer->logger), UA_LOGGERCATEGORY_COMMUNICATION, "Error during setting of socket options");
         CLOSESOCKET(layer->serversockfd);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-        
     if(bind(layer->serversockfd, (const struct sockaddr *)&serv_addr,
             sizeof(serv_addr)) < 0) {
-        UA_LOG_WARNING((*logger), UA_LOGGERCATEGORY_COMMUNICATION, "Error during socket binding");
+        UA_LOG_WARNING((*layer->logger), UA_LOGGERCATEGORY_COMMUNICATION, "Error during socket binding");
         CLOSESOCKET(layer->serversockfd);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
     socket_set_nonblocking(layer->serversockfd);
     listen(layer->serversockfd, MAXBACKLOG);
-    UA_LOG_INFO((*logger), UA_LOGGERCATEGORY_COMMUNICATION, "Listening on %.*s",
+    UA_LOG_INFO((*layer->logger), UA_LOGGERCATEGORY_COMMUNICATION, "Listening on %.*s",
                 layer->discoveryUrl.length, layer->discoveryUrl.data);
     return UA_STATUSCODE_GOOD;
 }
@@ -335,7 +342,6 @@ static UA_Int32 ServerNetworkLayerTCP_getWork(ServerNetworkLayerTCP *layer, UA_W
     setFDSet(layer);
     struct timeval tmptv = {0, timeout * 1000};
     UA_Int32 resultsize = select(layer->highestfd+1, &layer->fdset, NULL, NULL, &tmptv);
-
     UA_WorkItem *items;
     if(resultsize < 0 || !(items = malloc(sizeof(UA_WorkItem)*(resultsize+1)))) {
         /* abort .. reattach the deletes so that they get deleted eventually.. */
@@ -355,7 +361,7 @@ static UA_Int32 ServerNetworkLayerTCP_getWork(ServerNetworkLayerTCP *layer, UA_W
         return 0;
     }
 
-    // accept new connections (can only be a single one)
+    /* accept new connections (can only be a single one) */
     if(FD_ISSET(layer->serversockfd, &layer->fdset)) {
         resultsize--;
         struct sockaddr_in cli_addr;
@@ -375,14 +381,12 @@ static UA_Int32 ServerNetworkLayerTCP_getWork(ServerNetworkLayerTCP *layer, UA_W
     for(size_t i = 0; i < layer->mappingsSize && j < resultsize; i++) {
         if(!(FD_ISSET(layer->mappings[i].sockfd, &layer->fdset)))
             continue;
-
         if(!buf.data) {
             buf.data = malloc(sizeof(UA_Byte) * layer->conf.recvBufferSize);
             buf.length = layer->conf.recvBufferSize;
             if(!buf.data)
                 break;
         }
-        
         if(socket_recv(layer->mappings[i].connection, &buf, 0) == UA_STATUSCODE_GOOD) {
             items[j].type = UA_WORKITEMTYPE_BINARYNETWORKMESSAGE;
             items[j].work.binaryNetworkMessage.message = buf;
@@ -403,6 +407,7 @@ static UA_Int32 ServerNetworkLayerTCP_getWork(ServerNetworkLayerTCP *layer, UA_W
         j++;
     }
 
+    /* free the array if there is no work */
     if(j == 0) {
         free(items);
         *workItems = NULL;
@@ -423,7 +428,6 @@ static UA_Int32 ServerNetworkLayerTCP_stop(ServerNetworkLayerTCP *layer, UA_Work
     UA_WorkItem *items = malloc(sizeof(UA_WorkItem) * layer->mappingsSize);
     if(!items)
         return 0;
-
     for(size_t i = 0; i < layer->mappingsSize; i++) {
         items[i].type = UA_WORKITEMTYPE_CLOSECONNECTION;
         items[i].work.closeConnection = layer->mappings[i].connection;
@@ -445,7 +449,7 @@ static void ServerNetworkLayerTCP_delete(ServerNetworkLayerTCP *layer) {
     free(layer);
 }
 
-UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_Server *server, UA_ConnectionConfig conf, UA_UInt32 port) {
+UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UInt32 port) {
 #ifdef _WIN32
     WORD wVersionRequested;
     WSADATA wsaData;
@@ -453,7 +457,6 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_Server *server, UA_Connection
     WSAStartup(wVersionRequested, &wsaData);
 #endif
     ServerNetworkLayerTCP *layer = malloc(sizeof(ServerNetworkLayerTCP));
-    layer->server = server;
     layer->conf = conf;
     layer->mappingsSize = 0;
     layer->mappings = NULL;
@@ -477,16 +480,20 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_Server *server, UA_Connection
 /* Client NetworkLayer TCP */
 /***************************/
 
-UA_StatusCode ClientNetworkLayerTCP_connect(UA_Client *client, UA_Connection *conn, char *endpointUrl) {
+UA_Connection ClientNetworkLayerTCP_connect(char *endpointUrl, UA_Logger *logger) {
+    UA_Connection connection;
+    UA_Connection_init(&connection);
+
     size_t urlLength = strlen(endpointUrl);
     if(urlLength < 11 || urlLength >= 512) {
-        printf("server url size invalid\n");
-        return UA_STATUSCODE_BADINTERNALERROR;
+        UA_LOG_WARNING((*logger), UA_LOGGERCATEGORY_COMMUNICATION, "Server url size invalid");
+        return connection;
     }
     if(strncmp(endpointUrl, "opc.tcp://", 10) != 0) {
-        printf("server url does not begin with opc.tcp://\n");
-        return UA_STATUSCODE_BADINTERNALERROR;
+        UA_LOG_WARNING((*logger), UA_LOGGERCATEGORY_COMMUNICATION, "Server url does not begin with opc.tcp://");
+        return connection;
     }
+
     UA_UInt16 portpos = 9;
     UA_UInt16 port = 0;
     for(;portpos < urlLength-1; portpos++) {
@@ -496,8 +503,8 @@ UA_StatusCode ClientNetworkLayerTCP_connect(UA_Client *client, UA_Connection *co
         }
     }
     if(port == 0) {
-        printf("port invalid");
-        return UA_STATUSCODE_BADINTERNALERROR;
+        UA_LOG_WARNING((*logger), UA_LOGGERCATEGORY_COMMUNICATION, "Port invalid");
+        return connection;
     }
 
     char hostname[512];
@@ -509,30 +516,33 @@ UA_StatusCode ClientNetworkLayerTCP_connect(UA_Client *client, UA_Connection *co
     WSADATA wsaData;
     wVersionRequested = MAKEWORD(2, 2);
     WSAStartup(wVersionRequested, &wsaData);
-    if((conn->sockfd = socket(PF_INET, SOCK_STREAM,0)) == (UA_Int32)INVALID_SOCKET) {
+    if((connection.sockfd = socket(PF_INET, SOCK_STREAM,0)) == (UA_Int32)INVALID_SOCKET) {
 #else
-    if((conn->sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+    if((connection.sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
 #endif
-        printf("Could not create socket\n");
-        return UA_STATUSCODE_BADINTERNALERROR;
+        UA_LOG_WARNING((*logger), UA_LOGGERCATEGORY_COMMUNICATION, "Could not create socket");
+        return connection;
     }
     struct hostent *server = gethostbyname(hostname);
-    if (server == NULL) {
-        printf("DNS lookup of %s failed\n", hostname);
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(server == NULL) {
+        UA_LOG_WARNING((*logger), UA_LOGGERCATEGORY_COMMUNICATION, "DNS lookup of %s failed", hostname);
+        return connection;
     }
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
     memcpy((char *)&server_addr.sin_addr.s_addr, (char *)server->h_addr_list[0], server->h_length);
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(port);
-    if(connect(conn->sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
-        printf("Connect failed.\n");
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(connect(connection.sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
+        UA_LOG_WARNING((*logger), UA_LOGGERCATEGORY_COMMUNICATION, "Connection failed");
+        return connection;
     }
-    socket_set_nonblocking(conn->sockfd);
-    conn->write = socket_write;
-    conn->recv = socket_recv;
-    conn->close = socket_close;
-    return UA_STATUSCODE_GOOD;
+    connection.state = UA_CONNECTION_OPENING;
+    socket_set_nonblocking(connection.sockfd);
+    connection.write = socket_write;
+    connection.recv = socket_recv;
+    connection.close = socket_close;
+    connection.getBuffer = GetMallocedBuffer;
+    connection.releaseBuffer = ReleaseMallocedBuffer;
+    return connection;
 }

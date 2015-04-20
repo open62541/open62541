@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
     UA_ByteString certificate = loadCertificate();
     UA_Server_setServerCertificate(server, certificate);
     UA_ByteString_deleteMembers(&certificate);
-    UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(server, UA_ConnectionConfig_standard, 16664));
+    UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
     UA_Server_addNamespace(server, "myApplicationNamespace");
 
     UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL,

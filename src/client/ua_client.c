@@ -24,6 +24,7 @@ struct UA_Client {
     UA_NodeId authenticationToken;
 
     /* Config */
+    UA_Logger logger;
     UA_ClientConfig config;
 };
 
@@ -31,13 +32,13 @@ const UA_ClientConfig UA_ClientConfig_standard =
     { 5 /* ms receive timout */, {.protocolVersion = 0, .sendBufferSize = 65536, .recvBufferSize  = 65536,
                                   .maxMessageSize = 65536, .maxChunkCount = 1}};
 
-UA_Client * UA_Client_new(UA_ClientConfig config) {
+UA_Client * UA_Client_new(UA_ClientConfig config, UA_Logger logger) {
     UA_Client *client = UA_malloc(sizeof(UA_Client));
     if(!client)
         return UA_NULL;
     client->config = config;
+    client->logger = logger;
     UA_String_init(&client->endpointUrl);
-    client->connection.state = UA_CONNECTION_OPENING;
     UA_Connection_init(&client->connection);
 
     client->sequenceNumber = 0;
@@ -411,19 +412,17 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
 /* User-Facing Functions */
 /*************************/
 
-UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection connectFunc, char *endpointUrl)
-{
-    UA_StatusCode retval = connectFunc(client, &client->connection, endpointUrl);
-    if(retval != UA_STATUSCODE_GOOD) {
-        return retval;
-    }
+UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection connectFunc, char *endpointUrl) {
+    client->connection = connectFunc(endpointUrl, &client->logger);
+    if(client->connection.state != UA_CONNECTION_OPENING)
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
 
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
     if(client->endpointUrl.length < 0)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     client->connection.localConf = client->config.localConnectionConfig;
-    retval = HelAckHandshake(client);
+    UA_StatusCode retval = HelAckHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
         retval = SecureChannelHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
@@ -433,7 +432,7 @@ UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection co
     return retval;
 }
 
-UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client) {
+UA_StatusCode UA_Client_disconnect(UA_Client *client) {
     UA_StatusCode retval;
     retval = CloseSession(client);
     if(retval == UA_STATUSCODE_GOOD)
@@ -459,6 +458,13 @@ UA_BrowseResponse UA_Client_browse(UA_Client *client, UA_BrowseRequest *request)
     UA_BrowseResponse response;
     synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
                        &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
+    return response;
+}
+
+UA_BrowseNextResponse UA_Client_browseNext(UA_Client *client, UA_BrowseNextRequest *request) {
+    UA_BrowseNextResponse response;
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSENEXTREQUEST], &response,
+                       &UA_TYPES[UA_TYPES_BROWSENEXTRESPONSE], client);
     return response;
 }
 
@@ -492,8 +498,7 @@ UA_DeleteNodesResponse UA_Client_deleteNodes(UA_Client *client, UA_DeleteNodesRe
     return response;
 }
 
-UA_DeleteReferencesResponse UA_EXPORT
-UA_Client_deleteReferences(UA_Client *client, UA_DeleteReferencesRequest *request) {
+UA_DeleteReferencesResponse UA_Client_deleteReferences(UA_Client *client, UA_DeleteReferencesRequest *request) {
     UA_DeleteReferencesResponse response;
     synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
                        &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
