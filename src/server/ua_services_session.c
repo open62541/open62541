@@ -83,9 +83,8 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
         //todo cleanup session
         RETURN;
     }
-
     //username logins
-    if(UA_String_equalchars(&token.policyId, USERNAME_POLICY)){
+    else if(UA_String_equalchars(&token.policyId, USERNAME_POLICY)){
         if(!server->config.Login_enableUsernamePassword){
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
             //todo cleanup session
@@ -95,6 +94,12 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
         UA_UserNameIdentityToken_decodeBinary(&request->userIdentityToken.body, &offset, &username_token);
         if(username_token.encryptionAlgorithm.data != UA_NULL){
             //we only support encryption
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+            //todo cleanup session
+            RETURN;
+        }
+        if(username_token.userName.length == -1 && username_token.password.length == -1){
+            //empty username and password
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
             //todo cleanup session
             RETURN;
@@ -109,10 +114,14 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
         }
         if(!matched){
             //no username/pass matched
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
             //todo cleanup session
             RETURN;
         }
+   }else{
+       response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+       //todo cleanup session
+       RETURN;
    }
 
    //success - bind session to the channel
@@ -130,7 +139,7 @@ void Service_CloseSession(UA_Server *server, UA_Session *session, const UA_Close
 			(const UA_NodeId*)&request->requestHeader.authenticationToken, &foundSession);
 
 	if(foundSession == UA_NULL){
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+		response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
 		return;
 	}
 
