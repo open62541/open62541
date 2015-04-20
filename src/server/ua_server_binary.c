@@ -135,7 +135,7 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
         UA_##TYPE##Response_init(&r);                                   \
         init_response_header(&p.requestHeader, &r.responseHeader);      \
         if(!clientSession)                                              \
-            r.responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID; \
+            r.responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED; \
         else                                                            \
             Service_##TYPE(server, clientSession, &p, &r);              \
         UA_##TYPE##Request_deleteMembers(&p);                           \

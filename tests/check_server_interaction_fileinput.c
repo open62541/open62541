@@ -26,7 +26,7 @@ static void readCallback(void) {
 }
 
 START_TEST(readVariable) {
-	UA_Server *server = UA_Server_new();
+	UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
     UA_Server_setLogger(server, Logger_Stdout_new());
     UA_Server_addNetworkLayer(server, ServerNetworkLayerFileInput_new(max_reads, filenames, readCallback,
                                                                       writeCallback, NULL));

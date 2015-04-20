@@ -6,6 +6,18 @@
 #include "ua_services.h"
 #include "ua_nodeids.h"
 
+
+const UA_ServerConfig UA_ServerConfig_standard = {
+        UA_TRUE,
+
+        UA_TRUE,
+        (char *[]){"user"},
+        (char *[]){"password"},
+        1,
+
+        "urn:unconfigured:open62541:open62541Server"
+};
+
 /**********************/
 /* Namespace Handling */
 /**********************/
@@ -222,10 +234,13 @@ static void addVariableTypeNode_subtype(UA_Server *server, char* name, UA_UInt32
                       &UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE));
 }
 
-UA_Server * UA_Server_new(void) {
+UA_Server * UA_Server_new(UA_ServerConfig config) {
     UA_Server *server = UA_malloc(sizeof(UA_Server));
     if(!server)
         return UA_NULL;
+
+    //FIXME: config contains strings, for now its okay, but consider copying them aswell
+    server->config = config;
 
     LIST_INIT(&server->timedWork);
 #ifdef UA_MULTITHREADING
@@ -246,12 +261,10 @@ UA_Server * UA_Server_new(void) {
 
     UA_ByteString_init(&server->serverCertificate);
 
-#define PRODUCT_URI "http://open62541.org"
-#define APPLICATION_URI "urn:unconfigured:open62541:open62541Server"
     // mockup application description
     UA_ApplicationDescription_init(&server->description);
     server->description.productUri = UA_STRING_ALLOC(PRODUCT_URI);
-    server->description.applicationUri = UA_STRING_ALLOC(APPLICATION_URI);
+    server->description.applicationUri = UA_STRING_ALLOC(server->config.Application_applicationURI);
     server->description.discoveryUrlsSize = 0;
 
     server->description.applicationName = UA_LOCALIZEDTEXT_ALLOC("", "Unconfigured open62541 application");
@@ -272,16 +285,30 @@ UA_Server * UA_Server_new(void) {
         endpoint->securityPolicyUri = UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
         endpoint->transportProfileUri = UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
 
-        endpoint->userIdentityTokensSize = 2;
-        endpoint->userIdentityTokens = UA_Array_new(&UA_TYPES[UA_TYPES_USERTOKENPOLICY], 2);
+        int size = 0;
+        if(server->config.Login_enableAnonymous){
+            size++;
+        }
+        if(server->config.Login_enableUsernamePassword){
+            size++;
+        }
+        endpoint->userIdentityTokensSize = size;
+        endpoint->userIdentityTokens = UA_Array_new(&UA_TYPES[UA_TYPES_USERTOKENPOLICY], size);
 
-        UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[0]);
-        endpoint->userIdentityTokens[0].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
-        endpoint->userIdentityTokens[0].policyId = UA_STRING_ALLOC("my-anonymous-policy"); // defined per server
+        int currentIndex = 0;
+        if(server->config.Login_enableAnonymous){
+            UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
+            endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
+            endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(ANONYMOUS_POLICY); // defined per server
+            currentIndex++;
+        }
 
-        UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[1]);
-        endpoint->userIdentityTokens[1].tokenType = UA_USERTOKENTYPE_USERNAME;
-        endpoint->userIdentityTokens[1].policyId = UA_STRING_ALLOC("my-username-policy"); // defined per server
+        if(server->config.Login_enableUsernamePassword){
+            UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
+            endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_USERNAME;
+            endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(USERNAME_POLICY); // defined per server
+            currentIndex++;
+        }
 
         /* UA_String_copy(endpointUrl, &endpoint->endpointUrl); */
         /* /\* The standard says "the HostName specified in the Server Certificate is the */
@@ -727,7 +754,7 @@ UA_Server * UA_Server_new(void) {
    serverArray->value.variant.data = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 1);
    serverArray->value.variant.arrayLength = 1;
    serverArray->value.variant.type = &UA_TYPES[UA_TYPES_STRING];
-   *(UA_String *)serverArray->value.variant.data = UA_STRING_ALLOC(APPLICATION_URI);
+   *(UA_String *)serverArray->value.variant.data = UA_STRING_ALLOC(server->config.Application_applicationURI);
    serverArray->valueRank = 1;
    serverArray->minimumSamplingInterval = 1.0;
    serverArray->historizing = UA_FALSE;
