@@ -83,29 +83,33 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     messageHeader.messageSize = UA_TcpHelloMessage_calcSizeBinary((UA_TcpHelloMessage const*)&hello) +
                                 UA_TcpMessageHeader_calcSizeBinary((UA_TcpMessageHeader const*)&messageHeader);
     UA_ByteString message;
-    message.data = UA_alloca(messageHeader.messageSize);
-    message.length = messageHeader.messageSize;
+    UA_StatusCode retval = c->connection.getBuffer(&c->connection, &message, messageHeader.messageSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     size_t offset = 0;
     UA_TcpMessageHeader_encodeBinary(&messageHeader, &message, &offset);
     UA_TcpHelloMessage_encodeBinary(&hello, &message, &offset);
     UA_TcpHelloMessage_deleteMembers(&hello);
 
-    UA_StatusCode retval = c->connection.write(&c->connection, &message);
+    retval = c->connection.write(&c->connection, &message);
+    c->connection.releaseBuffer(&c->connection, &message);
     if(retval)
         return retval;
 
-    UA_ByteString reply = (UA_ByteString) {.length = 1024, .data = UA_alloca(1024)};
+    UA_ByteString reply;
+    UA_ByteString_init(&reply);
     do {
         retval = c->connection.recv(&c->connection, &reply, c->config.timeout);
-        if(retval != UA_STATUSCODE_GOOD)
+        if(retval == UA_STATUSCODE_BADINTERNALERROR)
             return retval;
-    } while(reply.length < 0);
+    } while(retval != UA_STATUSCODE_GOOD);
 
     offset = 0;
     UA_TcpMessageHeader_decodeBinary(&reply, &offset, &messageHeader);
     UA_TcpAcknowledgeMessage ackMessage;
     retval = UA_TcpAcknowledgeMessage_decodeBinary(&reply, &offset, &ackMessage);
+    c->connection.releaseBuffer(&c->connection, &reply);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     conn->remoteConf.maxChunkCount = ackMessage.maxChunkCount;
@@ -156,8 +160,13 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
         UA_OpenSecureChannelRequest_calcSizeBinary(&opnSecRq);
 
     UA_ByteString message;
-    message.data = UA_alloca(messageHeader.messageHeader.messageSize);
-    message.length = messageHeader.messageHeader.messageSize;
+    UA_StatusCode retval = client->connection.getBuffer(&client->connection, &message,
+                                                        messageHeader.messageHeader.messageSize);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+        UA_OpenSecureChannelRequest_deleteMembers(&opnSecRq);
+        return retval;
+    }
 
     size_t offset = 0;
     UA_SecureConversationMessageHeader_encodeBinary(&messageHeader, &message, &offset);
@@ -169,23 +178,19 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
     UA_OpenSecureChannelRequest_deleteMembers(&opnSecRq);
 
-    UA_StatusCode retval = client->connection.write(&client->connection, &message);
+    retval = client->connection.write(&client->connection, &message);
+    client->connection.releaseBuffer(&client->connection, &message);
     if(retval)
         return retval;
 
     // parse the response
     UA_ByteString reply;
+    UA_ByteString_init(&reply);
     do {
-        retval = client->connection.getBuffer(&client->connection, &reply,
-                                              client->connection.localConf.recvBufferSize);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
         retval = client->connection.recv(&client->connection, &reply, client->config.timeout);
-        if(retval != UA_STATUSCODE_GOOD) {
-            client->connection.releaseBuffer(&client->connection, &reply);
+        if(retval == UA_STATUSCODE_BADINTERNALERROR)
             return retval;
-        }
-    } while(reply.length < 0);
+    } while(retval != UA_STATUSCODE_GOOD);
 
     offset = 0;
     UA_SecureConversationMessageHeader_decodeBinary(&reply, &offset, &messageHeader);
@@ -197,6 +202,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
                                                          UA_ENCODINGOFFSET_BINARY))) {
         client->connection.releaseBuffer(&client->connection, &reply);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+        UA_NodeId_deleteMembers(&requestType);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -221,8 +227,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
     response) and filled with the appropriate error code */
 static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *requestType,
                                void *response, const UA_DataType *responseType, UA_Client *client,
-                               UA_Boolean sendOnly)
-{
+                               UA_Boolean sendOnly) {
     if(response)
         UA_init(response, responseType);
 
@@ -281,15 +286,14 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
 
     /* Response */
     UA_ByteString reply;
+    UA_ByteString_init(&reply);
     do {
-        client->connection.getBuffer(&client->connection, &reply, client->connection.localConf.recvBufferSize);
         retval = client->connection.recv(&client->connection, &reply, client->config.timeout);
-        if(retval != UA_STATUSCODE_GOOD) {
-            client->connection.releaseBuffer(&client->connection, &reply);
+        if(retval == UA_STATUSCODE_BADINTERNALERROR) {
             respHeader->serviceResult = retval;
             return;
         }
-    } while(reply.length < 0);
+    } while(retval != UA_STATUSCODE_GOOD);
 
     offset = 0;
     retval |= UA_SecureConversationMessageHeader_decodeBinary(&reply, &offset, &msgHeader);
@@ -312,8 +316,8 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
         respHeader->serviceResult = retval;
 }
 
-static void synchronousRequest(void *request, const UA_DataType *requestType,
-                               void *response, const UA_DataType *responseType, UA_Client *client){
+static void synchronousRequest(void *request, const UA_DataType *requestType, void *response,
+                               const UA_DataType *responseType, UA_Client *client) {
     sendReceiveRequest(request, requestType, response, responseType, client, UA_FALSE);
 }
 
@@ -337,7 +341,6 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
 }
 
 static UA_StatusCode SessionHandshake(UA_Client *client) {
-
     UA_CreateSessionRequest request;
     UA_CreateSessionRequest_init(&request);
 

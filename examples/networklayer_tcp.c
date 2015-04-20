@@ -50,7 +50,7 @@ static UA_StatusCode socket_write(UA_Connection *connection, const UA_ByteString
             if(n != 0 &&WSAGetLastError() != WSAEINTR)
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
 #else
-            n = send(connection->sockfd, buf->data, buf->length, 0);
+            n = send(connection->sockfd, buf->data, buf->length, MSG_NOSIGNAL);
             if(n == -1L && errno != EINTR)
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
 #endif
@@ -61,12 +61,19 @@ static UA_StatusCode socket_write(UA_Connection *connection, const UA_ByteString
 }
 
 static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(response->data == UA_NULL)
+        retval = connection->getBuffer(connection, response, connection->localConf.recvBufferSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
     struct timeval tmptv = {0, timeout * 1000};
     setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tmptv, sizeof(struct timeval));
     int ret = recv(connection->sockfd, (char*)response->data, response->length, 0);
     if(ret <= -1) {
-        if(errno == EAGAIN)
-            return UA_STATUSCODE_GOOD;
+        if(errno == EAGAIN) {
+            return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+        }
+        connection->releaseBuffer(connection, response);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     response->length = ret;
@@ -98,8 +105,6 @@ static UA_StatusCode socket_set_nonblocking(UA_Int32 sockfd) {
 /*****************************/
 
 static UA_StatusCode GetMallocedBuffer(UA_Connection *connection, UA_ByteString *buf, size_t minSize) {
-    if(minSize > connection->remoteConf.recvBufferSize)
-        return UA_STATUSCODE_BADINTERNALERROR;
     return UA_ByteString_newMembers(buf, minSize);
 }
 
