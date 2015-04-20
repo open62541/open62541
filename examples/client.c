@@ -9,7 +9,6 @@
 #endif
 
 #include <stdio.h>
-#include "networklayer_tcp.h"
 
 int main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
