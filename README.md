@@ -40,7 +40,8 @@ void signalHandler(int sign) {
     running = UA_FALSE;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
     /* catch ctrl-c */
     signal(SIGINT, signalHandler);
 
@@ -74,7 +75,8 @@ int main(int argc, char** argv) {
 #include <stdio.h>
 #include "open62541.h"
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
     UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
                                              "opc.tcp://localhost:16664");
