@@ -342,7 +342,7 @@ UA_StatusCode UA_EXPORT UA_String_copyprintf(char const *fmt, UA_String *dst, ..
 UA_Boolean UA_EXPORT UA_String_equal(const UA_String *string1, const UA_String *string2);
 
 /** Compares an UA String with a char array */
-UA_Boolean UA_EXPORT UA_String_equalchars(const UA_String *string1, const char *charString);
+UA_Boolean UA_EXPORT UA_String_equalchars(const UA_String *string1, char *charString);
 
 /* DateTime */
 /** Returns the current time */

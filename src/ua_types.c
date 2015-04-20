@@ -159,13 +159,9 @@ UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
     return (is == 0) ? UA_TRUE : UA_FALSE;
 }
 
-UA_Boolean UA_String_equalchars(const UA_String *string1, const char *charString) {
-    UA_String string2 = UA_String_fromChars(charString);
-    UA_Boolean result = UA_FALSE;
-    result = UA_String_equal(string1, &string2);
-    UA_String_deleteMembers(&string2);
-    return result;
-
+UA_Boolean UA_String_equalchars(const UA_String *string1, char *charString) {
+    UA_String string2 = UA_STRING(charString);
+    return UA_String_equal(string1, &string2);
 }
 
 /* DateTime */
