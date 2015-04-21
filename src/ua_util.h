@@ -10,6 +10,8 @@
 #endif
 #ifndef _POSIX_SOURCE
 # define _POSIX_SOURCE
+#endif
+#ifndef _POSIX_C_SOURCE
 # define _POSIX_C_SOURCE 199309L
 #endif
 #ifndef _BSD_SOURCE
