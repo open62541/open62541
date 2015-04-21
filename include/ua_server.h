@@ -32,10 +32,23 @@ extern "C" {
  * @{
  */
 
+typedef struct UA_ServerConfig {
+    UA_Boolean  Login_enableAnonymous;
+
+    UA_Boolean  Login_enableUsernamePassword;
+    char**      Login_usernames;
+    char**      Login_passwords;
+    UA_UInt32   Login_loginsCount;
+
+    char*       Application_applicationURI;
+} UA_ServerConfig;
+
+extern const UA_ServerConfig UA_ServerConfig_standard;
+
 struct UA_Server;
 typedef struct UA_Server UA_Server;
 
-UA_Server UA_EXPORT * UA_Server_new(void);
+UA_Server UA_EXPORT * UA_Server_new(UA_ServerConfig config);
 void UA_EXPORT UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate);
 void UA_EXPORT UA_Server_delete(UA_Server *server);
 
@@ -109,7 +122,7 @@ typedef struct UA_WorkItem {
             UA_ByteString message;
         } binaryNetworkMessage;
         struct {
-            void * data;
+            void *data;
             void (*method)(UA_Server *server, void *data);
         } methodCall;
     } work;

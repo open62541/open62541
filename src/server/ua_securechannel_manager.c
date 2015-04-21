@@ -2,11 +2,6 @@
 #include "ua_session.h"
 #include "ua_statuscodes.h"
 
-typedef struct channel_list_entry {
-    UA_SecureChannel channel;
-    LIST_ENTRY(channel_list_entry) pointers;
-} channel_list_entry;
-
 UA_StatusCode UA_SecureChannelManager_init(UA_SecureChannelManager *cm, UA_UInt32 maxChannelCount,
                                            UA_UInt32 tokenLifetime, UA_UInt32 startChannelId,
                                            UA_UInt32 startTokenId) {
@@ -119,20 +114,19 @@ UA_SecureChannel * UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_U
 
 UA_StatusCode UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
     // TODO lock access
-    // TODO: close the binaryconnection if it is still open. So we do not have stray pointers..
     channel_list_entry *entry;
     LIST_FOREACH(entry, &cm->channels, pointers) {
         if(entry->channel.securityToken.channelId == channelId) {
-            if(entry->channel.connection)
-                entry->channel.connection->channel = UA_NULL; // remove pointer back to the channel
-            if(entry->channel.session)
-                entry->channel.session->channel = UA_NULL; // remove ponter back to the channel
+            UA_Connection *c = entry->channel.connection;
+            if(c) {
+                UA_Connection_detachSecureChannel(c);
+                c->close(c);
+            }
             UA_SecureChannel_deleteMembers(&entry->channel);
             LIST_REMOVE(entry, pointers);
             UA_free(entry);
             return UA_STATUSCODE_GOOD;
         }
     }
-    //TODO notify server application that secureChannel has been closed part 6 - §7.1.4
     return UA_STATUSCODE_BADINTERNALERROR;
 }

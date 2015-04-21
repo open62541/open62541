@@ -28,13 +28,6 @@ extern "C" {
  * @{
  */
 
-/** Used for zero-copy communication. The array of bytestrings is sent over the
-   network as a single buffer. */
-typedef struct UA_ByteStringArray {
-    UA_UInt32      stringsSize;
-    UA_ByteString *strings;
-} UA_ByteStringArray;
-
 typedef enum UA_ConnectionState {
     UA_CONNECTION_OPENING, ///< The socket is open, but the HEL/ACK handshake is not done
     UA_CONNECTION_ESTABLISHED, ///< The socket is open and the connection configured
@@ -73,8 +66,16 @@ struct UA_Connection {
     UA_ByteString incompleteMessage; ///> Half-received messages (tcp is a streaming protocol) get stored here
     UA_StatusCode (*getBuffer)(UA_Connection *connection, UA_ByteString *buf, size_t minSize); ///> Attach the data array to the buffer. Fails if minSize is larger than remoteConf allows
     void (*releaseBuffer)(UA_Connection *connection, UA_ByteString *buf); ///> Release the buffer
-    UA_StatusCode (*write)(UA_Connection *connection, UA_ByteStringArray buf); ///> The bytestrings cannot be reused after sending!
-    UA_StatusCode (*recv)(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout); // timeout in milliseconds
+    UA_StatusCode (*write)(UA_Connection *connection, const UA_ByteString *buf); ///> The bytestrings cannot be reused after sending!
+   /**
+     * Receive a message from the remote connection
+	 * @param connection The connection
+	 * @param response The response string. It is allocated by the connection and needs to be freed with connection->releaseBuffer
+     * @param timeout Timeout of the recv operation in milliseconds
+     * @return Returns UA_STATUSCODE_BADCOMMUNICATIONERROR if the recv operation can be repeated, UA_STATUSCODE_GOOD if it succeeded and
+     * UA_STATUSCODE_BADCONNECTIONCLOSED if the connection was closed.
+	 */
+    UA_StatusCode (*recv)(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout);
     void (*close)(UA_Connection *connection);
 };
 
