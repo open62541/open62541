@@ -103,7 +103,7 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     UA_ByteString_init(&reply);
     do {
         retval = c->connection.recv(&c->connection, &reply, c->config.timeout);
-        if(retval == UA_STATUSCODE_BADINTERNALERROR)
+        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
             return retval;
     } while(retval != UA_STATUSCODE_GOOD);
 
@@ -190,7 +190,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
     UA_ByteString_init(&reply);
     do {
         retval = client->connection.recv(&client->connection, &reply, client->config.timeout);
-        if(retval == UA_STATUSCODE_BADINTERNALERROR)
+        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
             return retval;
     } while(retval != UA_STATUSCODE_GOOD);
 
@@ -291,7 +291,7 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
     UA_ByteString_init(&reply);
     do {
         retval = client->connection.recv(&client->connection, &reply, client->config.timeout);
-        if(retval == UA_STATUSCODE_BADINTERNALERROR) {
+        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
             respHeader->serviceResult = retval;
             return;
         }

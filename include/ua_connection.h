@@ -67,7 +67,15 @@ struct UA_Connection {
     UA_StatusCode (*getBuffer)(UA_Connection *connection, UA_ByteString *buf, size_t minSize); ///> Attach the data array to the buffer. Fails if minSize is larger than remoteConf allows
     void (*releaseBuffer)(UA_Connection *connection, UA_ByteString *buf); ///> Release the buffer
     UA_StatusCode (*write)(UA_Connection *connection, const UA_ByteString *buf); ///> The bytestrings cannot be reused after sending!
-    UA_StatusCode (*recv)(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout); // timeout in milliseconds
+   /**
+     * Receive a message from the remote connection
+	 * @param connection The connection
+	 * @param response The response string. It is allocated by the connection and needs to be freed with connection->releaseBuffer
+     * @param timeout Timeout of the recv operation in milliseconds
+     * @return Returns UA_STATUSCODE_BADCOMMUNICATIONERROR if the recv operation can be repeated, UA_STATUSCODE_GOOD if it succeeded and
+     * UA_STATUSCODE_BADCONNECTIONCLOSED if the connection was closed.
+	 */
+    UA_StatusCode (*recv)(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout);
     void (*close)(UA_Connection *connection);
 };
 
