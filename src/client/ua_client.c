@@ -4,6 +4,8 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_transport_generated.h"
 
+#define ANONYMOUS_POLICY "open62541-anonymous-policy"
+
 struct UA_Client {
     /* Connection */
     UA_Connection connection;
@@ -329,6 +331,19 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
     request.requestHeader.authenticationToken = client->authenticationToken;
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
+
+    UA_AnonymousIdentityToken identityToken;
+    UA_AnonymousIdentityToken_init(&identityToken);
+    identityToken.policyId = UA_STRING(ANONYMOUS_POLICY);
+
+    //manual ExtensionObject encoding of the identityToken
+    request.userIdentityToken.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
+    request.userIdentityToken.typeId = UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN].typeId;
+    request.userIdentityToken.typeId.identifier.numeric+=UA_ENCODINGOFFSET_BINARY;
+
+    UA_ByteString_newMembers(&request.userIdentityToken.body, identityToken.policyId.length+4);
+    size_t offset = 0;
+    UA_ByteString_encodeBinary(&identityToken.policyId,&request.userIdentityToken.body,&offset);
 
     UA_ActivateSessionResponse response;
     synchronousRequest(&request, &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],

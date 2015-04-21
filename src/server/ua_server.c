@@ -8,7 +8,7 @@
 
 
 const UA_ServerConfig UA_ServerConfig_standard = {
-        UA_FALSE,
+        UA_TRUE,
 
         UA_TRUE,
         (char *[]){"username"},
