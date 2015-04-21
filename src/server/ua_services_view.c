@@ -472,11 +472,12 @@ static void translateBrowsePath(UA_Server *server, UA_Session *session, const UA
 void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                            const UA_TranslateBrowsePathsToNodeIdsRequest *request,
                                            UA_TranslateBrowsePathsToNodeIdsResponse *response) {
-    size_t size = request->browsePathsSize;
-	if(size <= 0) {
+	if(request->browsePathsSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }
+
+    size_t size = request->browsePathsSize;
 
     response->results = UA_Array_new(&UA_TYPES[UA_TYPES_BROWSEPATHRESULT], size);
     if(!response->results) {
