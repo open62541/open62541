@@ -8,10 +8,10 @@
 
 
 const UA_ServerConfig UA_ServerConfig_standard = {
-        UA_TRUE,
+        UA_FALSE,
 
         UA_TRUE,
-        (char *[]){"user"},
+        (char *[]){"username"},
         (char *[]){"password"},
         1,
 

@@ -77,19 +77,12 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
     }
 
     //anonymous logins
-    if(!server->config.Login_enableAnonymous && UA_String_equalchars(&token.policyId, ANONYMOUS_POLICY)){
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-        UA_UserIdentityToken_deleteMembers(&token);
-        //todo cleanup session
+    if(server->config.Login_enableAnonymous && UA_String_equalchars(&token.policyId, ANONYMOUS_POLICY)){
+        //success - bind session to the channel
+        channel->session = foundSession;
         RETURN;
-    }
     //username logins
-    else if(UA_String_equalchars(&token.policyId, USERNAME_POLICY)){
-        if(!server->config.Login_enableUsernamePassword){
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-            //todo cleanup session
-            RETURN;
-        }
+    }else if(server->config.Login_enableUsernamePassword && UA_String_equalchars(&token.policyId, USERNAME_POLICY)){
         offset = 0;
         UA_UserNameIdentityToken_decodeBinary(&request->userIdentityToken.body, &offset, &username_token);
         if(username_token.encryptionAlgorithm.data != UA_NULL){
@@ -104,30 +97,26 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
             //todo cleanup session
             RETURN;
         }
-        UA_Boolean matched = UA_FALSE;
         for(UA_UInt32 i=0;i<server->config.Login_loginsCount;++i){
             if(UA_String_equalchars(&username_token.userName, server->config.Login_usernames[i])
             && UA_String_equalchars(&username_token.password, server->config.Login_passwords[i])){
-                matched = UA_TRUE;
-                break;
+                //success - bind session to the channel
+                channel->session = foundSession;
+                RETURN;
             }
         }
-        if(!matched){
-            //no username/pass matched
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
-            //todo cleanup session
-            RETURN;
-        }
-   }else{
-       response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        //no username/pass matched
+       response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
        //todo cleanup session
        RETURN;
-   }
+    }
 
-   //success - bind session to the channel
-   channel->session = foundSession;
+    //default case - no login
+    response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+    //todo cleanup session
+    RETURN;
 
-   RETURN;
+
 
 }
 #undef RETURN
