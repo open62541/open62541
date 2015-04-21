@@ -356,7 +356,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
         server->endpointDescriptions = endpoint;
         server->endpointDescriptionsSize = 1;
-    }
+    } 
 
 #define MAXCHANNELCOUNT 100
 #define STARTCHANNELID 1
@@ -415,11 +415,10 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 #define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
     server->buildDate = (mktime(&ct) + UNIX_EPOCH_BIAS_SEC) * HUNDRED_NANOSEC_PER_SEC;
 
-#ifndef LOADGENERATEDNS
     /**************/
     /* References */
     /**************/
-
+    
     /* bootstrap by manually inserting "references" and "hassubtype" */
     UA_ReferenceTypeNode *references = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)references, "References");
@@ -628,7 +627,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     UA_Server_addNode(server, (UA_Node*)hascause,
                       &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
                       &UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE));
-
+    
     UA_ReferenceTypeNode *haseffect = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)haseffect, "HasEffect");
     haseffect->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "MayBeEffectedBy");
@@ -915,9 +914,6 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
         UA_Server_addVariableNode(server, arrayvar, myIntegerName, UA_NODEID_NUMERIC(1, ++id),
                                   UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
    }
-#endif
-#else
-  #include "ua_namespaceinit_generated.h"
 #endif
 
    return server;

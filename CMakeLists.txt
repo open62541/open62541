@@ -46,7 +46,6 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
                      ${PROJECT_SOURCE_DIR}/include/ua_connection.h
                      ${PROJECT_SOURCE_DIR}/include/ua_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
@@ -108,27 +107,6 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                    COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_nodeids.py ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nodeids.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
-
-option(LOADGENERATEDNS "Generate and load UA XML Namespace 0 definition" OFF)
-if(LOADGENERATEDNS)
-add_definitions(-DLOADGENERATEDNS)
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
-                   ## Note: currently only Opc.Ua.NodeSet2.xml is included in the generated header. You can extend the call to include any number of XML files as parameters.
-                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.xml ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
-                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
-)
-else()
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
-                   COMMAND touch ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
-		   DEPENDS
-)
-endif()
 
 ## logging
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
