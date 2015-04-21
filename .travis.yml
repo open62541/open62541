@@ -15,7 +15,7 @@ addons:
     build_command: make
     branch_pattern: coverity_scan
 before_install:
-- sudo apt-get install binutils-mingw-w64-i686 gcc-mingw-w64-i686
+- sudo apt-get install binutils-mingw-w64-i686 gcc-mingw-w64-i686 mingw-w64
 - sudo add-apt-repository ppa:kalakris/cmake -y
 - sudo apt-get update -qq
 - sudo apt-get install -qq --no-install-recommends build-essential cmake python-lxml gcc-multilib graphviz doxygen wget zip
@@ -32,12 +32,19 @@ script:
 - echo "Testing builds"
 - mkdir -p build
 - cd build
-- echo "Cross compile release build for MinGW"
+- echo "Cross compile release build for MinGW 32 bit"
 - cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw32.cmake -DENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLESERVER=ON -DBUILD_EXAMPLECLIENT=ON ..
 - make -j
 - cp ../README.md .
 - zip open62541-win32.zip README.md exampleServer.exe exampleClient.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
 - cp open62541-win32.zip ..
+- cd .. && rm build -rf && mkdir -p build && cd build
+- echo "Cross compile release build for MinGW 64 bit"
+- cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw64.cmake -DENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLESERVER=ON -DBUILD_EXAMPLECLIENT=ON ..
+- make -j
+- cp ../README.md .
+- zip open62541-win64.zip README.md exampleServer.exe exampleClient.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
+- cp open62541-win64.zip ..
 - cd .. && rm build -rf && mkdir -p build && cd build
 - echo "Cross compile release build for 32-bit linux"
 - cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-gcc-m32.cmake -DENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLESERVER=ON -DBUILD_EXAMPLECLIENT=ON ..
@@ -95,6 +102,7 @@ deploy:
     secure: PKCoA7MBRtHloIbNF4Qj5LQyCafjekfVeFXlMBd9KmC0ynNuef+D7nn38f/jo25/b0Ii7r+hgslkQPezbKyEqo2zcCB8Pn8TWau2hbzKM/dUCPoN90HVaQcRjUi8P2Y+QkouwyPWSujBL35/X5QiAntRotCSbZx4fkyiN8cU95o=
   file: 
     - open62541-win32.zip
+    - open62541-win64.zip
     - open62541-linux32.tar.gz
     - open62541-linux64.tar.gz
     - open62541-raspberrypi.tar.gz
