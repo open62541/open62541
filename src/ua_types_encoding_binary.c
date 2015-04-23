@@ -908,7 +908,7 @@ size_t UA_calcSizeBinary(const void *p, const UA_DataType *dataType) {
         if(member->namespaceZero)
             memberType = &UA_TYPES[member->memberTypeIndex];
         else
-            memberType = dataType - dataType->typeIndex + member->memberTypeIndex;
+            memberType = &dataType[member->memberTypeIndex - dataType->typeIndex];
 
         if(member->isArray) {
             ptr += (member->padding >> 3);
@@ -991,7 +991,7 @@ UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_B
         if(member->namespaceZero)
             memberType = &UA_TYPES[member->memberTypeIndex];
         else
-            memberType = dataType - dataType->typeIndex + member->memberTypeIndex;
+            memberType = &dataType[member->memberTypeIndex - dataType->typeIndex];
 
         if(member->isArray) {
             ptr += (member->padding >> 3);
@@ -1075,7 +1075,7 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *ds
         if(member->namespaceZero)
             memberType = &UA_TYPES[member->memberTypeIndex];
         else
-            memberType = dataType - dataType->typeIndex + member->memberTypeIndex;
+            memberType = &dataType[member->memberTypeIndex - dataType->typeIndex] ;
 
         if(member->isArray) {
             ptr += (member->padding >> 3);
