@@ -84,6 +84,7 @@ static UA_StatusCode findsubtypes(UA_NodeStore *ns, const UA_NodeId *root, UA_No
     const UA_Node *node = UA_NodeStore_get(ns, root);
     if(!node || node->nodeClass != UA_NODECLASS_REFERENCETYPE)  {
         UA_NodeStore_release(node);
+        UA_free(results);
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
     UA_NodeStore_release(node);

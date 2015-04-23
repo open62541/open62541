@@ -870,7 +870,7 @@ void UA_init(void *p, const UA_DataType *dataType) {
         ptr += member->padding;
         if(!member->namespaceZero) {
             // pointer arithmetic
-            const UA_DataType *memberType = dataType - dataType->typeIndex + member->memberTypeIndex;
+            const UA_DataType *memberType = &dataType[member->memberTypeIndex - dataType->typeIndex];
             UA_init((void*)ptr, memberType);
             ptr += memberType->memSize;
             continue;
@@ -953,7 +953,7 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
         if(member->namespaceZero)
             memberType = &UA_TYPES[member->memberTypeIndex];
         else
-            memberType = dataType - dataType->typeIndex + member->memberTypeIndex;
+            memberType = &dataType[member->memberTypeIndex - dataType->typeIndex];
 
         if(member->isArray) {
             ptrs += (member->padding >> 3);
@@ -1059,7 +1059,7 @@ void UA_deleteMembers(void *p, const UA_DataType *dataType) {
         if(member->namespaceZero)
             memberType = &UA_TYPES[member->memberTypeIndex];
         else
-            memberType = dataType - dataType->typeIndex + member->memberTypeIndex;
+            memberType = &dataType[member->memberTypeIndex - dataType->typeIndex];
 
         if(member->isArray) {
             ptr += (member->padding >> 3);
@@ -1171,7 +1171,7 @@ UA_StatusCode UA_Array_copy(const void *src, void **dst, const UA_DataType *data
     uintptr_t ptrs = (uintptr_t)src;
     uintptr_t ptrd = (uintptr_t)*dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(int i=0;i<noElements; i++) {
+    for(int i = 0; i < noElements; i++) {
         retval = UA_copy((void*)ptrs, (void*)ptrd, dataType);
         ptrs += dataType->memSize;
         ptrd += dataType->memSize;

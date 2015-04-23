@@ -120,34 +120,37 @@ void UA_Server_delete(UA_Server *server) {
  * Todo: make this thread-safe
  */
 static void UA_Server_cleanup(UA_Server *server, void *nothing) {
-    printf( "cleaning up...\n");
-    fflush(stdout);
     UA_DateTime now = UA_DateTime_now();
-    channel_list_entry *entry;
+    channel_list_entry *entry = LIST_FIRST(&server->secureChannelManager.channels);
     /* remove channels that were not renewed or who have no connection attached */
-    LIST_FOREACH(entry, &server->secureChannelManager.channels, pointers) {
+    while(entry) {
         if(entry->channel.securityToken.createdAt +
            (10000 * entry->channel.securityToken.revisedLifetime) > now ||
-           entry->channel.connection)
-            continue;
-        UA_Connection *c = entry->channel.connection;
-        UA_Connection_detachSecureChannel(c);
-        if(c) {
-            c->close(c);
+           entry->channel.connection) {
+            entry = LIST_NEXT(entry, pointers);
+        } else {
+            channel_list_entry *next = LIST_NEXT(entry, pointers);
+            LIST_REMOVE(entry, pointers);
+            UA_Connection *c = entry->channel.connection;
+            UA_Connection_detachSecureChannel(c);
+            if(c)
+                c->close(c);
+            UA_SecureChannel_detachSession(&entry->channel);
+            UA_SecureChannel_deleteMembers(&entry->channel);
+            UA_free(entry);
+            entry = next;
         }
-        UA_SecureChannel_detachSession(&entry->channel);
-        UA_SecureChannel_deleteMembers(&entry->channel);
-        LIST_REMOVE(entry, pointers);
-        UA_free(entry);
     }
 
-    session_list_entry *sentry;
-    LIST_FOREACH(sentry, &server->sessionManager.sessions, pointers) {
+    session_list_entry *sentry = LIST_FIRST(&server->sessionManager.sessions);
+    while(sentry) {
         if(sentry->session.validTill < now) {
+            session_list_entry *next = LIST_NEXT(sentry, pointers);
             LIST_REMOVE(sentry, pointers);
             UA_SecureChannel_detachSession(sentry->session.channel);
             UA_Session_deleteMembers(&sentry->session);
             UA_free(sentry);
+            sentry = next;
         }
     }
 }
