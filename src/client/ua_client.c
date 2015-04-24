@@ -59,8 +59,8 @@ UA_Client * UA_Client_new(UA_ClientConfig config, UA_Logger logger) {
 
 void UA_Client_delete(UA_Client* client){
     UA_Connection_deleteMembers(&client->connection);
-    UA_String_deleteMembers(&client->endpointUrl);
     UA_Connection_deleteMembers(&client->connection);
+    UA_String_deleteMembers(&client->endpointUrl);
 
     /* Secure Channel */
     UA_ByteString_deleteMembers(&client->clientNonce);
@@ -353,6 +353,7 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
                        &response, &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE],
                        client);
 
+    UA_AnonymousIdentityToken_deleteMembers(&identityToken);
     UA_ActivateSessionRequest_deleteMembers(&request);
     UA_ActivateSessionResponse_deleteMembers(&response);
     return response.responseHeader.serviceResult; // not deleted
@@ -367,7 +368,7 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
 
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
-    UA_String_copy(&request.endpointUrl, &client->endpointUrl);
+    UA_String_copy(&client->endpointUrl, &request.endpointUrl);
 
     request.profileUrisSize = 1;
     request.profileUris = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], request.profileUrisSize);
