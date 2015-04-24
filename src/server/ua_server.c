@@ -125,16 +125,17 @@ static void UA_Server_cleanup(UA_Server *server, void *nothing) {
     /* remove channels that were not renewed or who have no connection attached */
     while(entry) {
         if(entry->channel.securityToken.createdAt +
-           (10000 * entry->channel.securityToken.revisedLifetime) > now ||
+           (10000 * entry->channel.securityToken.revisedLifetime) > now &&
            entry->channel.connection) {
             entry = LIST_NEXT(entry, pointers);
         } else {
             channel_list_entry *next = LIST_NEXT(entry, pointers);
             LIST_REMOVE(entry, pointers);
             UA_Connection *c = entry->channel.connection;
-            UA_Connection_detachSecureChannel(c);
-            if(c)
+			if (c) {
+                UA_Connection_detachSecureChannel(c);
                 c->close(c);
+            }
             UA_SecureChannel_detachSession(&entry->channel);
             UA_SecureChannel_deleteMembers(&entry->channel);
             UA_free(entry);
