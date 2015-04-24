@@ -4,8 +4,6 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_transport_generated.h"
 
-#define ANONYMOUS_POLICY "open62541-anonymous-policy"
-
 struct UA_Client {
     /* Connection */
     UA_Connection connection;
@@ -20,6 +18,9 @@ struct UA_Client {
     UA_ByteString serverNonce;
     /* UA_SequenceHeader sequenceHdr; */
     /* UA_NodeId authenticationToken; */
+
+    /* IdentityToken */
+    UA_UserTokenPolicy token;
 
     /* Session */
     UA_NodeId sessionId;
@@ -64,6 +65,8 @@ void UA_Client_delete(UA_Client* client){
     /* Secure Channel */
     UA_ByteString_deleteMembers(&client->clientNonce);
     UA_ByteString_deleteMembers(&client->serverNonce);
+
+    UA_UserTokenPolicy_deleteMembers(&client->token);
 
     free(client);
 }
@@ -334,7 +337,7 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
 
     UA_AnonymousIdentityToken identityToken;
     UA_AnonymousIdentityToken_init(&identityToken);
-    identityToken.policyId = UA_STRING(ANONYMOUS_POLICY);
+    UA_String_copy(&client->token.policyId, &identityToken.policyId);
 
     //manual ExtensionObject encoding of the identityToken
     request.userIdentityToken.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
@@ -352,6 +355,62 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
 
     UA_ActivateSessionRequest_deleteMembers(&request);
     UA_ActivateSessionResponse_deleteMembers(&response);
+    return response.responseHeader.serviceResult; // not deleted
+}
+
+static UA_StatusCode EndpointsHandshake(UA_Client *client) {
+    UA_GetEndpointsRequest request;
+    UA_GetEndpointsRequest_init(&request);
+
+    // todo: is this needed for all requests?
+    UA_NodeId_copy(&client->authenticationToken, &request.requestHeader.authenticationToken);
+
+    request.requestHeader.timestamp = UA_DateTime_now();
+    request.requestHeader.timeoutHint = 10000;
+    UA_String_copy(&request.endpointUrl, &client->endpointUrl);
+
+    request.profileUrisSize = 1;
+    request.profileUris = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], request.profileUrisSize);
+    request.profileUris[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
+
+    UA_GetEndpointsResponse response;
+    UA_GetEndpointsResponse_init(&response);
+    synchronousRequest(&request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE],
+                       client);
+
+    UA_Boolean endpointFound = UA_FALSE;
+    UA_Boolean tokenFound = UA_FALSE;
+    for(UA_Int32 i=0; i<response.endpointsSize; ++i){
+        UA_EndpointDescription* endpoint = &response.endpoints[i];
+        /* look out for an endpoint without security */
+        if(UA_String_equal(&endpoint->securityPolicyUri, &UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None"))){
+            endpointFound = UA_TRUE;
+            /* endpoint with no security found */
+            /* look for a user token policy with an anonymous token */
+            for(UA_Int32 j=0; j<endpoint->userIdentityTokensSize; ++j){
+                UA_UserTokenPolicy* userToken = &endpoint->userIdentityTokens[j];
+                if(userToken->tokenType == UA_USERTOKENTYPE_ANONYMOUS){
+                    tokenFound = UA_TRUE;
+                    UA_UserTokenPolicy_copy(userToken, &client->token);
+                    break;
+                }
+            }
+        }
+    }
+
+    UA_GetEndpointsRequest_deleteMembers(&request);
+    UA_GetEndpointsResponse_deleteMembers(&response);
+
+    if(!endpointFound){
+        printf("No suitable endpoint found\n");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    if(!tokenFound){
+        printf("No anonymous token found\n");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     return response.responseHeader.serviceResult; // not deleted
 }
 
@@ -435,6 +494,8 @@ UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection co
     UA_StatusCode retval = HelAckHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
         retval = SecureChannelHandshake(client);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = EndpointsHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
         retval = SessionHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
