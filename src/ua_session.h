@@ -21,6 +21,7 @@ struct ContinuationPointEntry {
 
 struct UA_Session {
     UA_ApplicationDescription clientDescription;
+    UA_Boolean        activated;
     UA_String         sessionName;
     UA_NodeId         authenticationToken;
     UA_NodeId         sessionId;

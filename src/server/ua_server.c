@@ -11,9 +11,9 @@ const UA_ServerConfig UA_ServerConfig_standard = {
         UA_TRUE,
 
         UA_TRUE,
-        (char *[]){"username"},
-        (char *[]){"password"},
-        1,
+        (char *[]){"user1","user2"},
+        (char *[]){"password","password1"},
+        2,
 
         "urn:unconfigured:open62541:open62541Server"
 };

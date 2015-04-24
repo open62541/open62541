@@ -23,6 +23,9 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 	if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
 		return;
 
+	//bind session to channel
+	channel->session = newSession;
+
     //TODO get maxResponseMessageSize internally
     newSession->maxResponseMessageSize = request->maxResponseMessageSize;
     response->sessionId = newSession->sessionId;
@@ -54,11 +57,9 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
                                         &foundSession);
 
 	if(foundSession == UA_NULL){
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         return;
 	}
-
-
 
     UA_UserIdentityToken token;
     UA_UserIdentityToken_init(&token);
@@ -78,8 +79,9 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
 
     //anonymous logins
     if(server->config.Login_enableAnonymous && UA_String_equalchars(&token.policyId, ANONYMOUS_POLICY)){
-        //success - bind session to the channel
+        //success - activate
         channel->session = foundSession;
+        channel->session->activated = UA_TRUE;
         RETURN;
     //username logins
     }else if(server->config.Login_enableUsernamePassword && UA_String_equalchars(&token.policyId, USERNAME_POLICY)){
@@ -100,8 +102,9 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
         for(UA_UInt32 i=0;i<server->config.Login_loginsCount;++i){
             if(UA_String_equalchars(&username_token.userName, server->config.Login_usernames[i])
             && UA_String_equalchars(&username_token.password, server->config.Login_passwords[i])){
-                //success - bind session to the channel
+                //success - activate
                 channel->session = foundSession;
+                channel->session->activated = UA_TRUE;
                 RETURN;
             }
         }
