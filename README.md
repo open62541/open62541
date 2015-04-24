@@ -50,7 +50,7 @@ int main(int argc, char** argv)
     UA_Server_setLogger(server, Logger_Stdout_new());
     UA_Server_addNetworkLayer(server,
         ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, PORT));
-    UA_UInt16 nsIndex = UA_Server_addNamespace(server, "myApplicationNamespace");
+    UA_UInt16 nsIndex = UA_Server_addNamespace(server, UA_ServerConfig_standard.Application_applicationURI);
 
     /* add a variable node */
     UA_Variant *myIntegerVariant = UA_Variant_new();
