@@ -133,6 +133,9 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
         if(!clientChannel->session || !UA_NodeId_equal(&clientChannel->session->authenticationToken,\
                 &p.requestHeader.authenticationToken))                  \
             r.responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;     \
+        else if(clientChannel->session->channel != clientChannel){      \
+            r.responseHeader.serviceResult = UA_STATUSCODE_BADSECURECHANNELIDINVALID; \
+        }                                                               \
         else if(clientChannel->session->activated == UA_FALSE){         \
             UA_SessionManager_removeSession(&server->sessionManager, &clientChannel->session->sessionId); \
             r.responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED; \

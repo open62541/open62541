@@ -122,6 +122,7 @@ UA_StatusCode UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt
                 UA_Connection_detachSecureChannel(c);
                 c->close(c);
             }
+            entry->channel.session = UA_NULL;
             UA_SecureChannel_deleteMembers(&entry->channel);
             LIST_REMOVE(entry, pointers);
             UA_free(entry);
