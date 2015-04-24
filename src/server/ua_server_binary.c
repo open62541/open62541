@@ -128,16 +128,18 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
         UA_##TYPE##Response r;                                          \
         if(UA_##TYPE##Request_decodeBinary(msg, pos, &p))               \
             return;                                                     \
-        if(clientChannel->session &&                                    \
-           UA_NodeId_equal(&clientChannel->session->authenticationToken, \
-                           &p.requestHeader.authenticationToken))       \
-            clientSession = clientChannel->session;                     \
         UA_##TYPE##Response_init(&r);                                   \
         init_response_header(&p.requestHeader, &r.responseHeader);      \
-        if(!clientSession)                                              \
+        if(!clientChannel->session || !UA_NodeId_equal(&clientChannel->session->authenticationToken,\
+                &p.requestHeader.authenticationToken))                  \
+            r.responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;     \
+        else if(clientChannel->session->activated == UA_FALSE){         \
+            UA_SessionManager_removeSession(&server->sessionManager, &clientChannel->session->sessionId); \
             r.responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED; \
-        else                                                            \
+        }else{                                                          \
+            clientSession = clientChannel->session;                     \
             Service_##TYPE(server, clientSession, &p, &r);              \
+        }                                                               \
         UA_##TYPE##Request_deleteMembers(&p);                           \
         retval = connection->getBuffer(connection, &message, headerSize + UA_##TYPE##Response_calcSizeBinary(&r)); \
         if(retval != UA_STATUSCODE_GOOD) {                              \
