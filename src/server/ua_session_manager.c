@@ -24,8 +24,8 @@ void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager) {
         current = next;
         next = LIST_NEXT(current, pointers);
         LIST_REMOVE(current, pointers);
-        if(current->session.channel)
-            current->session.channel->session = UA_NULL; // the channel is no longer attached to a session
+        //if(current->session.channel)
+        //    current->session.channel->session = UA_NULL; // the channel is no longer attached to a session
         UA_Session_deleteMembers(&current->session);
         UA_free(current);
     }

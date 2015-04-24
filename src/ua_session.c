@@ -71,7 +71,7 @@ UA_StatusCode UA_Session_setExpirationDate(UA_Session *session) {
     if(!session)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    session->validTill = UA_DateTime_now() + session->timeout * 100000; //timeout in ms
+    session->validTill = UA_DateTime_now() + session->timeout * 10000; //timeout in ms
     return UA_STATUSCODE_GOOD;
 }
 
@@ -79,7 +79,7 @@ UA_StatusCode UA_Session_getPendingLifetime(UA_Session *session, UA_Double *pend
     if(!session)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    *pendingLifetime_ms = (session->validTill - UA_DateTime_now())/10000000; //difference in ms
+    *pendingLifetime_ms = (session->validTill - UA_DateTime_now())/10000; //difference in ms
     return UA_STATUSCODE_GOOD;
 }
 

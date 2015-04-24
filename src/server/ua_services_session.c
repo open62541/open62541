@@ -61,6 +61,12 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
         return;
 	}
 
+	if(foundSession->validTill < UA_DateTime_now()){
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+        //TODO: maybe delete session? or wait for a recurring cleanup?
+        return;
+	}
+
     UA_UserIdentityToken token;
     UA_UserIdentityToken_init(&token);
     size_t offset = 0;
@@ -82,6 +88,10 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
         //success - activate
         channel->session = foundSession;
         channel->session->activated = UA_TRUE;
+        //TODO: not sure if we have to do this, tests seem to work
+        //if(foundSession->channel) //in case session is being rebound
+        //    foundSession->channel->session = UA_NULL;
+        foundSession->channel=channel;
         RETURN;
     //username logins
     }else if(server->config.Login_enableUsernamePassword && UA_String_equalchars(&token.policyId, USERNAME_POLICY)){
@@ -105,6 +115,10 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
                 //success - activate
                 channel->session = foundSession;
                 channel->session->activated = UA_TRUE;
+                //TODO: not sure if we have to do this, tests seem to work
+                //if(foundSession->channel) //in case session is being rebound
+                //    foundSession->channel->session = UA_NULL;
+                foundSession->channel=channel;
                 RETURN;
             }
         }
