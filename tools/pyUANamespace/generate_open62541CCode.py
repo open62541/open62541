@@ -5,9 +5,11 @@
 ### Author:  Chris Iatrou (ichrispa@core-vector.net)
 ### Version: rev 13
 ###
-### This program was created for educational purposes and is released into the
-### public domain under the General Public Licence. A copy of the GNU GPL is
-### available under http://www.gnu.org/licenses/gpl-3.0.html.
+### This program was created for educational purposes and has been 
+### contributed to the open62541 project by the author. All licensing 
+### terms for this source is inherited by the terms and conditions
+### specified for by the open62541 project (see the projects readme
+### file for more information on the LGPL terms and restrictions).
 ###
 ### This program is not meant to be used in a production environment. The
 ### author is not liable for any complications arising due to the use of
@@ -17,12 +19,13 @@
 from sys import argv, exit
 from os import path
 from ua_namespace import *
+from logger import *
 
 def usage():
   print "Skript usage:"
   print "generate_open62541CCode <namespace XML> [namespace.xml[ namespace.xml[...]]] <output file>"
   print ""
-  print "generate_open62541CCode will first read all XML files passed on the command line, then "
+  print "generate_open62541CCode will first read all XML files passed on the command line, then " 
   print "link and check the namespace. All nodes that fullfill the basic requirements will then be"
   print "printed as C-Code intended to be included in the open62541 OPC-UA Server that will"
   print "initialize the corresponding name space."
@@ -31,6 +34,9 @@ if __name__ == '__main__':
   # Check if the parameters given correspond to actual files
   infiles = []
   ouffile = ""
+  
+  GLOBAL_LOG_LEVEL = LOG_LEVEL_INFO
+  
   if len(argv) < 2:
     usage()
     exit(1)
@@ -38,18 +44,16 @@ if __name__ == '__main__':
     if path.exists(filename):
       infiles.append(filename)
     else:
-      print "File " + str(filename) + " does not exist."
+      log(None, "File " + str(filename) + " does not exist.", LOG_LEVEL_ERROR)
       usage()
       exit(1)
 
   # Creating the header is tendious. We can skip the entire process if
   # the header exists.
-#  if path.exists(argv[-1]):
-#    print "Header " + str(argv[-1]) + " already exists."
-#    print "Header generation is a lengthy process, please delete the header"
-#    print "  if you really want namespace 0 to be recompiled from the XML"
-#    print "  file."
-#    exit(0)
+  if path.exists(argv[-1]):
+    log(None, "File " + str(filename) + " does already exists.", LOG_LEVEL_INFO)
+    log(None, "Header generation will be skipped. Delete the header and rerun this script if necessary.", LOG_LEVEL_INFO)
+    exit(0)
 
   # Open the output file
   outfile = open(argv[-1], r"w+")
@@ -63,10 +67,11 @@ if __name__ == '__main__':
 
   # Parse the XML files
   for xmlfile in infiles:
-    print "Parsing " + xmlfile
+    log(None, "Parsing " + str(xmlfile), LOG_LEVEL_INFO)
     ns.parseXML(xmlfile)
 
   # Link the references in the namespace
+  log(None, "Linking namespace nodes and references", LOG_LEVEL_INFO)
   ns.linkOpenPointers()
 
   # Remove nodes that are not printable or contain parsing errors, such as
@@ -78,13 +83,16 @@ if __name__ == '__main__':
   # Ex. <rpm>123</rpm> is not encodable
   #     only after parsing the datatypes, it is known that
   #     rpm is encoded as a double
+  log(None, "Building datatype encoding rules", LOG_LEVEL_INFO)
   ns.buildEncodingRules()
 
   # Allocate/Parse the data values. In order to do this, we must have run
   # buidEncodingRules.
+  log(None, "Allocating variables", LOG_LEVEL_INFO)
   ns.allocateVariables()
 
   # Create the C Code
+  log(None, "Generating Header", LOG_LEVEL_INFO)
   for line in ns.printOpen62541Header():
     outfile.write(line+"\n")
 

@@ -5,9 +5,11 @@
 ### Author:  Chris Iatrou (ichrispa@core-vector.net)
 ### Version: rev 13
 ###
-### This program was created for educational purposes and is released into the
-### public domain under the General Public Licence. A copy of the GNU GPL is
-### available under http://www.gnu.org/licenses/gpl-3.0.html.
+### This program was created for educational purposes and has been 
+### contributed to the open62541 project by the author. All licensing 
+### terms for this source is inherited by the terms and conditions
+### specified for by the open62541 project (see the projects readme
+### file for more information on the LGPL terms and restrictions).
 ###
 ### This program is not meant to be used in a production environment. The
 ### author is not liable for any complications arising due to the use of
