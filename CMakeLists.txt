@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.8)
-# set(CMAKE_VERBOSE_MAKEFILE on)
+# set(CMAKE_VERBOSE_MAKEFILE ON)
 
 project(open62541 C)
 set(open62541_VERSION_MAJOR 0)

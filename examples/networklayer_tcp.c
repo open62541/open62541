@@ -377,9 +377,9 @@ static UA_Int32 ServerNetworkLayerTCP_getWork(ServerNetworkLayerTCP *layer, UA_W
                 break;
         }
         if(socket_recv(layer->mappings[i].connection, &buf, 0) == UA_STATUSCODE_GOOD) {
-            items[j].type = UA_WORKITEMTYPE_BINARYNETWORKMESSAGE;
-            items[j].work.binaryNetworkMessage.message = buf;
-            items[j].work.binaryNetworkMessage.connection = layer->mappings[i].connection;
+            items[j].type = UA_WORKITEMTYPE_BINARYMESSAGE;
+            items[j].work.binaryMessage.message = buf;
+            items[j].work.binaryMessage.connection = layer->mappings[i].connection;
             buf.data = NULL;
         } else {
             items[j].type = UA_WORKITEMTYPE_CLOSECONNECTION;

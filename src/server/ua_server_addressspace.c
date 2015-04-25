@@ -185,7 +185,7 @@ UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session, const 
     // Is this for an external nodestore?
     UA_ExternalNodeStore *ensFirst = UA_NULL;
     UA_ExternalNodeStore *ensSecond = UA_NULL;
-    for(UA_Int32 j = 0;j<server->externalNamespacesSize && (!ensFirst || !ensSecond);j++) {
+    for(size_t j = 0;j<server->externalNamespacesSize && (!ensFirst || !ensSecond);j++) {
         if(item->sourceNodeId.namespaceIndex == server->externalNamespaces[j].index)
             ensFirst = &server->externalNamespaces[j].externalNodeStore;
         if(item->targetNodeId.nodeId.namespaceIndex == server->externalNamespaces[j].index)

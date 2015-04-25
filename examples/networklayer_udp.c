@@ -188,9 +188,9 @@ static UA_Int32 ServerNetworkLayerUDP_getWork(ServerNetworkLayerUDP *layer, UA_W
             c->connection.getBuffer = GetMallocedBuffer;
             c->connection.releaseBuffer = ReleaseMallocedBuffer;
             c->connection.handle = layer;
-            items[j].type = UA_WORKITEMTYPE_BINARYNETWORKMESSAGE;
-            items[j].work.binaryNetworkMessage.message = buf;
-            items[j].work.binaryNetworkMessage.connection = (UA_Connection*)c;
+            items[j].type = UA_WORKITEMTYPE_BINARYMESSAGE;
+            items[j].work.binaryMessage.message = buf;
+            items[j].work.binaryMessage.connection = (UA_Connection*)c;
             buf.data = NULL;
             j++;
         }

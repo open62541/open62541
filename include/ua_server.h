@@ -112,7 +112,7 @@ typedef struct UA_WorkItem {
     enum {
         UA_WORKITEMTYPE_NOTHING,
         UA_WORKITEMTYPE_CLOSECONNECTION,
-        UA_WORKITEMTYPE_BINARYNETWORKMESSAGE,
+        UA_WORKITEMTYPE_BINARYMESSAGE,
         UA_WORKITEMTYPE_METHODCALL,
         UA_WORKITEMTYPE_DELAYEDMETHODCALL,
     } type;
@@ -121,7 +121,7 @@ typedef struct UA_WorkItem {
         struct {
             UA_Connection *connection;
             UA_ByteString message;
-        } binaryNetworkMessage;
+        } binaryMessage;
         struct {
             void *data;
             void (*method)(UA_Server *server, void *data);
@@ -156,7 +156,7 @@ UA_Server_addTimedWorkItem(UA_Server *server, const UA_WorkItem *work,
  *        freed but copied to an internal representation.
  *
  * @param interval The work that is executed repeatedly with the given interval
- *        (in 100ns). If work with the same repetition interval already exists,
+ *        (in ms). If work with the same repetition interval already exists,
  *        the first execution might occur sooner.
  *
  * @param resultWorkGuid Upon success, the pointed value is set to the guid of

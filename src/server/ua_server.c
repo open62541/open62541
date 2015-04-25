@@ -9,12 +9,10 @@
 
 const UA_ServerConfig UA_ServerConfig_standard = {
         UA_TRUE,
-
         UA_TRUE,
         (char *[]){"user1","user2"},
         (char *[]){"password","password1"},
         2,
-
         "urn:unconfigured:open62541:open62541Server",
         "Unconfigured open62541 application"
 };
@@ -43,14 +41,14 @@ UA_Logger * UA_Server_getLogger(UA_Server *server) {
 
 void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkLayer) {
     UA_ServerNetworkLayer *newlayers =
-        UA_realloc(server->nls, sizeof(UA_ServerNetworkLayer)*(server->nlsSize+1));
+        UA_realloc(server->networkLayers, sizeof(UA_ServerNetworkLayer)*(server->networkLayersSize+1));
     if(!newlayers) {
         UA_LOG_ERROR(server->logger, UA_LOGGERCATEGORY_SERVER, "Networklayer added");
         return;
     }
-    server->nls = newlayers;
-    server->nls[server->nlsSize] = networkLayer;
-    server->nlsSize++;
+    server->networkLayers = newlayers;
+    server->networkLayers[server->networkLayersSize] = networkLayer;
+    server->networkLayersSize++;
 
     if(networkLayer.discoveryUrl){
         if(server->description.discoveryUrlsSize < 0)
@@ -104,10 +102,10 @@ void UA_Server_delete(UA_Server *server) {
                     server->endpointDescriptionsSize);
 
     // Delete the network layers
-    for(UA_Int32 i = 0; i < server->nlsSize; i++) {
-        server->nls[i].free(server->nls[i].nlHandle);
+    for(size_t i = 0; i < server->networkLayersSize; i++) {
+        server->networkLayers[i].free(server->networkLayers[i].nlHandle);
     }
-    UA_free(server->nls);
+    UA_free(server->networkLayers);
 
 #ifdef UA_MULTITHREADING
     pthread_cond_destroy(&server->dispatchQueue_condition); // so the workers don't spin if the queue is empty
@@ -308,8 +306,8 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     server->random_seed = (UA_UInt32)UA_DateTime_now();
 
     // networklayers
-    server->nls = UA_NULL;
-    server->nlsSize = 0;
+    server->networkLayers = UA_NULL;
+    server->networkLayersSize = 0;
 
     UA_ByteString_init(&server->serverCertificate);
 
@@ -387,9 +385,9 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     server->nodestore = UA_NodeStore_new();
 
-    /* UA_WorkItem cleanup = {.type = UA_WORKITEMTYPE_METHODCALL, */
-    /*                        .work.methodCall = {.method = UA_Server_cleanup, .data = NULL} }; */
-    /* UA_Server_addRepeatedWorkItem(server, &cleanup, 100000, NULL); */
+    UA_WorkItem cleanup = {.type = UA_WORKITEMTYPE_METHODCALL,
+                           .work.methodCall = {.method = UA_Server_cleanup, .data = NULL} };
+    UA_Server_addRepeatedWorkItem(server, &cleanup, 10000, NULL);
 
     /**********************/
     /* Server Information */

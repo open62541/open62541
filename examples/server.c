@@ -203,7 +203,7 @@ int main(int argc, char** argv) {
 	// print the status every 2 sec
 	UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL,
 			.work.methodCall = {.method = printLedStatus, .data = NULL} };
-	UA_Server_addRepeatedWorkItem(server, &work, 20000000, NULL);
+	UA_Server_addRepeatedWorkItem(server, &work, 2000, NULL);
 
 	// add node with the datetime data source
 	UA_DataSource dateDataSource = (UA_DataSource)

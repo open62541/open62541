@@ -247,7 +247,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
     UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
-    for(UA_Int32 j = 0;j<server->externalNamespacesSize;j++) {
+    for(size_t j = 0; j <server->externalNamespacesSize; j++) {
         size_t indexSize = 0;
         for(size_t i = 0;i < size;i++) {
             if(request->nodesToAdd[i].requestedNewNodeId.nodeId.namespaceIndex !=
@@ -291,21 +291,21 @@ void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddR
 	UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
 	UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
 	UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
-	for(UA_Int32 j = 0; j < server->externalNamespacesSize; j++) {
-		size_t indexSize = 0;
+	for(size_t j = 0; j < server->externalNamespacesSize; j++) {
+		size_t indicesSize = 0;
 		for(size_t i = 0;i < size;i++) {
 			if(request->referencesToAdd[i].sourceNodeId.namespaceIndex
 					!= server->externalNamespaces[j].index)
 				continue;
 			isExternal[i] = UA_TRUE;
-			indices[indexSize] = i;
-			indexSize++;
+			indices[indicesSize] = i;
+			indicesSize++;
 		}
-		if (indexSize == 0)
+		if (indicesSize == 0)
 			continue;
 		UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
 		ens->addReferences(ens->ensHandle, &request->requestHeader, request->referencesToAdd,
-                           indices, indexSize, response->results, response->diagnosticInfos);
+                           indices, indicesSize, response->results, response->diagnosticInfos);
 	}
 	/* ### End External Namespaces */
 

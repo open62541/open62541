@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
 
     UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL,
                         .work.methodCall = {.method = testCallback, .data = NULL} };
-    UA_Server_addRepeatedWorkItem(server, &work, 20000000, NULL); // call every 2 sec
+    UA_Server_addRepeatedWorkItem(server, &work, 2000, NULL); // call every 2 sec
 
 	// add a variable node to the adresspace
     UA_Variant *myIntegerVariant = UA_Variant_new();
