@@ -215,10 +215,7 @@ static UA_StatusCode readCurrentTime(void *handle, UA_Boolean sourceTimeStamp, U
         return UA_STATUSCODE_BADOUTOFMEMORY;
     *currentTime = UA_DateTime_now();
     value->value.type = &UA_TYPES[UA_TYPES_DATETIME];
-    value->value.arrayLength = -1;
     value->value.data = currentTime;
-    value->value.arrayDimensionsSize = -1;
-    value->value.arrayDimensions = NULL;
     value->hasValue = UA_TRUE;
     if(sourceTimeStamp) {
         value->hasSourceTimestamp = UA_TRUE;
