@@ -47,11 +47,11 @@ static UA_StatusCode socket_write(UA_Connection *connection, const UA_ByteString
         do {
 #ifdef _WIN32
             n = send((SOCKET)connection->sockfd, (const char*)buf->data, buf->length, 0);
-            if(n < 0 && WSAGetLastError() != WSAEINTR)
+            if(n < 0 && WSAGetLastError() != WSAEINTR && WSAGetLastError() != WSAEWOULDBLOCK)
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
 #else
             n = send(connection->sockfd, (const char*)buf->data, buf->length, MSG_NOSIGNAL);
-            if(n == -1L && errno != EINTR)
+            if(n == -1L && errno != EINTR && errno != EAGAIN)
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
 #endif
         } while (n == -1L);
