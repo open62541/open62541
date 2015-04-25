@@ -246,14 +246,14 @@ static void addDataTypeNode(UA_Server *server, char* name, UA_UInt32 datatypeid,
                       &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 }
 
-static void addObjectTypeNode(UA_Server *server, char* name, UA_UInt32 objecttypeid, UA_Int32 parent) {
+static void addObjectTypeNode(UA_Server *server, char* name, UA_UInt32 objecttypeid, UA_Int32 parent,
+                              UA_Int32 parentreference) {
     UA_ObjectTypeNode *objecttype = UA_ObjectTypeNode_new();
     copyNames((UA_Node*)objecttype, name);
     objecttype->nodeId.identifier.numeric = objecttypeid;
-    printf("parent %i\n", parent);
     UA_Server_addNode(server, (UA_Node*)objecttype,
                       &UA_EXPANDEDNODEID_NUMERIC(0, parent),
-                      &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+                      &UA_NODEID_NUMERIC(0, parentreference));
 }
 
 static UA_VariableTypeNode*
@@ -664,27 +664,6 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
                       &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_AGGREGATES),
                       &UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE));
 
-    /**********************/
-    /* Basic Object Types */
-    /**********************/
-
-    UA_ObjectTypeNode *baseObjectType = UA_ObjectTypeNode_new();
-    baseObjectType->nodeId.identifier.numeric = UA_NS0ID_BASEOBJECTTYPE;
-    copyNames((UA_Node*)baseObjectType, "BaseObjectType");
-    UA_NodeStore_insert(server->nodestore, (UA_Node*)baseObjectType, UA_NULL);
-
-    UA_ObjectTypeNode *baseDataVarialbeType = UA_ObjectTypeNode_new();
-    baseDataVarialbeType->nodeId.identifier.numeric = UA_NS0ID_BASEDATAVARIABLETYPE;
-    copyNames((UA_Node*)baseDataVarialbeType, "BaseDataVariableType");
-    UA_NodeStore_insert(server->nodestore, (UA_Node*)baseDataVarialbeType, UA_NULL);
-
-    UA_ObjectTypeNode *folderType = UA_ObjectTypeNode_new();
-    folderType->nodeId.identifier.numeric = UA_NS0ID_FOLDERTYPE;
-    copyNames((UA_Node*)folderType, "FolderType");
-    UA_NodeStore_insert(server->nodestore, (UA_Node*)folderType, UA_NULL);
-    ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
-
     /*****************/
     /* Basic Folders */
     /*****************/
@@ -693,39 +672,55 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     copyNames((UA_Node*)root, "Root");
     root->nodeId.identifier.numeric = UA_NS0ID_ROOTFOLDER;
     UA_NodeStore_insert(server->nodestore, (UA_Node*)root, UA_NULL);
-    ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
-           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
 
     UA_ObjectNode *objects = UA_ObjectNode_new();
     copyNames((UA_Node*)objects, "Objects");
     objects->nodeId.identifier.numeric = UA_NS0ID_OBJECTSFOLDER;
     UA_Server_addNode(server, (UA_Node*)objects,
-           &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER),
-           &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
-    ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
-           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+        &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER),
+        &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
     UA_ObjectNode *types = UA_ObjectNode_new();
     copyNames((UA_Node*)types, "Types");
     types->nodeId.identifier.numeric = UA_NS0ID_TYPESFOLDER;
     UA_Server_addNode(server, (UA_Node*)types,
-           &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER),
-           &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
-    ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
-           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+        &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER),
+        &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
     UA_ObjectNode *views = UA_ObjectNode_new();
     copyNames((UA_Node*)views, "Views");
     views->nodeId.identifier.numeric = UA_NS0ID_VIEWSFOLDER;
     UA_Server_addNode(server, (UA_Node*)views,
-           &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER),
-           &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
-    ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
-                 UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+        &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER),
+        &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
     /**********************/
-    /* Further Data Types */
+    /* Basic Object Types */
     /**********************/
+
+    UA_ObjectNode *objecttypes = UA_ObjectNode_new();
+    copyNames((UA_Node*)objecttypes, "ObjectTypes");
+    objecttypes->nodeId.identifier.numeric = UA_NS0ID_OBJECTTYPESFOLDER;
+    UA_Server_addNode(server, (UA_Node*)objecttypes,
+        &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER),
+        &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+
+    addObjectTypeNode(server, "BaseObjectType", UA_NS0ID_BASEOBJECTTYPE, UA_NS0ID_OBJECTTYPESFOLDER, UA_NS0ID_ORGANIZES);
+    addObjectTypeNode(server, "FolderType", UA_NS0ID_FOLDERTYPE, UA_NS0ID_BASEOBJECTTYPE, UA_NS0ID_HASSUBTYPE);
+    ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTTYPESFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
+        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+    ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
+        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+    ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
+        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+    ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
+        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+    ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
+        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+
+    /**************/
+    /* Data Types */
+    /**************/
 
     UA_ObjectNode *datatypes = UA_ObjectNode_new();
     copyNames((UA_Node*)datatypes, "DataTypes");
@@ -776,25 +771,12 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
    ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_VARIABLETYPESFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
                 UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
    addVariableTypeNode_organized(server, "BaseVariableType", UA_NS0ID_BASEVARIABLETYPE, UA_NS0ID_VARIABLETYPESFOLDER, UA_TRUE);
+   addVariableTypeNode_subtype(server, "BaseDataVariableType", UA_NS0ID_BASEDATAVARIABLETYPE, UA_NS0ID_BASEVARIABLETYPE, UA_FALSE);
    addVariableTypeNode_subtype(server, "PropertyType", UA_NS0ID_PROPERTYTYPE, UA_NS0ID_BASEVARIABLETYPE, UA_FALSE);
 
-   /****************/
-   /* Object Types */
-   /****************/
-   UA_ObjectNode *objecttypes = UA_ObjectNode_new();
-   copyNames((UA_Node*)objecttypes, "ObjectTypes");
-   objecttypes->nodeId.identifier.numeric = UA_NS0ID_OBJECTTYPESFOLDER;
-   UA_Server_addNode(server, (UA_Node*)objecttypes,
-                     &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER),
-                     &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
-   ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTTYPESFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
-                UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
-
-   addObjectTypeNode(server, "BaseObjectType", UA_NS0ID_BASEOBJECTTYPE, UA_NS0ID_OBJECTTYPESFOLDER);
-
-   /*******************/
-   /* Further Objects */
-   /*******************/
+   /*********************/
+   /* The Server Object */
+   /*********************/
 
    UA_ObjectNode *servernode = UA_ObjectNode_new();
    copyNames((UA_Node*)servernode, "Server");
@@ -911,6 +893,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
            &UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT));
 
 #ifdef DEMO_NODESET
+
    /**************/
    /* Demo Nodes */
    /**************/
