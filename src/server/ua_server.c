@@ -151,6 +151,8 @@ static void UA_Server_cleanup(UA_Server *server, void *nothing) {
             UA_Session_deleteMembers(&sentry->session);
             UA_free(sentry);
             sentry = next;
+        } else {
+            sentry = LIST_NEXT(sentry, pointers);
         }
     }
 }

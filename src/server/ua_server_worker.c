@@ -15,8 +15,8 @@
 #define MAXTIMEOUT 50000 // max timeout in usec until the next main loop iteration
 #define BATCHSIZE 20 // max size of worklists that are dispatched to workers
 
-static void processWork(UA_Server *server, UA_WorkItem *work, UA_Int32 workSize) {
-    for(UA_Int32 i = 0; i < workSize; i++) {
+static void processWork(UA_Server *server, UA_WorkItem *work, size_t workSize) {
+    for(size_t i = 0; i < workSize; i++) {
         UA_WorkItem *item = &work[i];
         switch(item->type) {
         case UA_WORKITEMTYPE_BINARYMESSAGE:
@@ -249,7 +249,8 @@ static UA_UInt16 processTimedWork(UA_Server *server) {
         }
 #else
         // 1) Process the work since it is past its due date
-        processWork(server, tw->work, tw->workSize); // does not free the work
+        for(size_t i = 0; i < tw->workSize; i++)
+            processWork(server, &tw->work[i].work, 1);
 
         // 2) If the work is repeated, add it back into the list. Otherwise remove it.
         if(tw->interval > 0) {
