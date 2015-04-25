@@ -133,8 +133,6 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
     //todo cleanup session
     RETURN;
 
-
-
 }
 #undef RETURN
 

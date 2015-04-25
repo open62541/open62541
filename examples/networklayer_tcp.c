@@ -329,7 +329,7 @@ static UA_Int32 ServerNetworkLayerTCP_getWork(ServerNetworkLayerTCP *layer, UA_W
 #endif
     removeMappings(layer, deletes);
     setFDSet(layer);
-    struct timeval tmptv = {0, timeout * 1000};
+    struct timeval tmptv = {0, timeout};
     UA_Int32 resultsize = select(layer->highestfd+1, &layer->fdset, NULL, NULL, &tmptv);
     UA_WorkItem *items;
     if(resultsize < 0 || !(items = malloc(sizeof(UA_WorkItem)*(resultsize+1)))) {

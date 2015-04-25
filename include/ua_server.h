@@ -197,7 +197,7 @@ typedef struct {
      *
      * @param workItems When the returned integer is positive, *workItems points
      * to an array of WorkItems of the returned size.
-     * @param timeout The timeout during which an event must arrive.
+     * @param timeout The timeout during which an event must arrive in microseconds
      * @return The size of the returned workItems array. If the result is
      * negative, an error has occured.
      */
