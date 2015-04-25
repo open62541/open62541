@@ -41,6 +41,7 @@ typedef struct UA_ServerConfig {
     UA_UInt32   Login_loginsCount;
 
     char*       Application_applicationURI;
+    char*       Application_applicationName;
 } UA_ServerConfig;
 
 extern const UA_ServerConfig UA_ServerConfig_standard;
