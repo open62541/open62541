@@ -24,14 +24,15 @@ static UA_StatusCode fillrefdescr(UA_NodeStore *ns, const UA_Node *curr, UA_Refe
         retval |= UA_QualifiedName_copy(&curr->browseName, &descr->browseName);
     if(mask & UA_BROWSERESULTMASK_DISPLAYNAME)
         retval |= UA_LocalizedText_copy(&curr->displayName, &descr->displayName);
-    if(mask & UA_BROWSERESULTMASK_TYPEDEFINITION &&
-       (curr->nodeClass == UA_NODECLASS_OBJECT || curr->nodeClass == UA_NODECLASS_VARIABLE)) {
-        for(UA_Int32 i = 0; i < curr->referencesSize; i++) {
-            UA_ReferenceNode *refnode = &curr->references[i];
-            if(refnode->referenceTypeId.identifier.numeric != UA_NS0ID_HASTYPEDEFINITION)
-                continue;
-            retval |= UA_ExpandedNodeId_copy(&refnode->targetId, &descr->typeDefinition);
-            break;
+    if(mask & UA_BROWSERESULTMASK_TYPEDEFINITION){
+        if(curr->nodeClass == UA_NODECLASS_OBJECT || curr->nodeClass == UA_NODECLASS_VARIABLE) {
+            for(UA_Int32 i = 0; i < curr->referencesSize; i++) {
+                UA_ReferenceNode *refnode = &curr->references[i];
+                if(refnode->referenceTypeId.identifier.numeric != UA_NS0ID_HASTYPEDEFINITION)
+                    continue;
+                retval |= UA_ExpandedNodeId_copy(&refnode->targetId, &descr->typeDefinition);
+                break;
+            }
         }
     }
 
@@ -161,6 +162,13 @@ static void browse(UA_NodeStore *ns, struct ContinuationPointEntry **cp, const U
     UA_NodeId *relevant_refs = UA_NULL;
     // what are the relevant references?
     UA_Boolean all_refs = UA_NodeId_isNull(&descr->referenceTypeId);
+
+    //check if reference type id exists
+    if(!all_refs && UA_NodeStore_get(ns, &descr->referenceTypeId) == UA_NULL) {
+        result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+        return;
+    }
+
     if(!all_refs) {
         if(descr->includeSubtypes) {
             result->statusCode = findsubtypes(ns, &descr->referenceTypeId, &relevant_refs,

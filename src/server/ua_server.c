@@ -246,6 +246,16 @@ static void addDataTypeNode(UA_Server *server, char* name, UA_UInt32 datatypeid,
                       &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 }
 
+static void addObjectTypeNode(UA_Server *server, char* name, UA_UInt32 objecttypeid, UA_Int32 parent) {
+    UA_ObjectTypeNode *objecttype = UA_ObjectTypeNode_new();
+    copyNames((UA_Node*)objecttype, name);
+    objecttype->nodeId.identifier.numeric = objecttypeid;
+    printf("parent %i\n", parent);
+    UA_Server_addNode(server, (UA_Node*)objecttype,
+                      &UA_EXPANDEDNODEID_NUMERIC(0, parent),
+                      &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+}
+
 static UA_VariableTypeNode*
 createVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
                        UA_Int32 parent, UA_Boolean abstract)
@@ -766,6 +776,20 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
                 UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
    addVariableTypeNode_organized(server, "BaseVariableType", UA_NS0ID_BASEVARIABLETYPE, UA_NS0ID_VARIABLETYPESFOLDER, UA_TRUE);
    addVariableTypeNode_subtype(server, "PropertyType", UA_NS0ID_PROPERTYTYPE, UA_NS0ID_BASEVARIABLETYPE, UA_FALSE);
+
+   /****************/
+   /* Object Types */
+   /****************/
+   UA_ObjectNode *objecttypes = UA_ObjectNode_new();
+   copyNames((UA_Node*)objecttypes, "ObjectTypes");
+   objecttypes->nodeId.identifier.numeric = UA_NS0ID_OBJECTTYPESFOLDER;
+   UA_Server_addNode(server, (UA_Node*)objecttypes,
+                     &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER),
+                     &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+   ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTTYPESFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
+                UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+
+   addObjectTypeNode(server, "BaseObjectType", UA_NS0ID_BASEOBJECTTYPE, UA_NS0ID_OBJECTTYPESFOLDER);
 
    /*******************/
    /* Further Objects */
