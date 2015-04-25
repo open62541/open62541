@@ -11,8 +11,8 @@ if not os.path.exists(sys.argv[1]):
     
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-
 os.environ['HOSTNAME'] = socket.gethostname()
+os.environ['OPENSSL_CONF'] = os.path.join(os.getcwd(), "localhost.cnf")
 
 os.system("""openssl genrsa -out ca.key 2048""")
 os.system("""openssl req \
