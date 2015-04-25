@@ -53,9 +53,9 @@ NetworkLayer_FileInput_getWork(NetworkLayer_FileInput *layer, UA_WorkItem **work
         
     *workItems = malloc(sizeof(UA_WorkItem));
     UA_WorkItem *work = *workItems;
-    work->type = UA_WORKITEMTYPE_BINARYNETWORKMESSAGE;
-    work->work.binaryNetworkMessage.connection = &layer->connection;
-    work->work.binaryNetworkMessage.message = (UA_ByteString){.length = bytes_read, .data = (UA_Byte*)buf};
+    work->type = UA_WORKITEMTYPE_BINARYMESSAGE;
+    work->work.binaryMessage.connection = &layer->connection;
+    work->work.binaryMessage.message = (UA_ByteString){.length = bytes_read, .data = (UA_Byte*)buf};
 
     return 1;
 }
