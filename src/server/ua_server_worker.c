@@ -234,11 +234,11 @@ static UA_UInt16 processTimedWork(UA_Server *server) {
             UA_WorkItem *workCopy = UA_malloc(sizeof(UA_WorkItem) * tw->workSize);
             UA_memcpy(workCopy, tw->work, sizeof(UA_WorkItem) * tw->workSize);
             dispatchWork(server, tw->workSize, workCopy); // frees the work pointer
-            tw->time += tw->interval;
+            tw->nextTime += tw->interval;
             struct TimedWork *prevTw = tw; // after which tw do we insert?
             while(UA_TRUE) {
                 struct TimedWork *n = LIST_NEXT(prevTw, pointers);
-                if(!n || n->time > tw->time)
+                if(!n || n->nextTime > tw->nextTime)
                     break;
                 prevTw = n;
             }
@@ -318,7 +318,7 @@ struct DelayedWork {
 };
 
 // Dispatched as a methodcall-WorkItem when the delayedwork is added
-static void getCounters(UA_Server *server, DelayedWork *delayed) {
+static void getCounters(UA_Server *server, struct DelayedWork *delayed) {
     UA_UInt32 *counters = UA_malloc(server->nThreads * sizeof(UA_UInt32));
     for(UA_UInt16 i = 0;i<server->nThreads;i++)
         counters[i] = *server->workerCounters[i];
@@ -331,7 +331,7 @@ static void getCounters(UA_Server *server, DelayedWork *delayed) {
 static void addDelayedWork(UA_Server *server, UA_WorkItem work) {
     struct DelayedWork *dw = server->delayedWork;
     if(!dw || dw->workItemsCount >= DELAYEDWORKSIZE) {
-        struct DelayedWork *newwork = UA_malloc(sizeof(DelayedWork));
+        struct DelayedWork *newwork = UA_malloc(sizeof(struct DelayedWork));
         newwork->workItems = UA_malloc(sizeof(UA_WorkItem)*DELAYEDWORKSIZE);
         newwork->workItemsCount = 0;
         newwork->workerCounters = UA_NULL;
