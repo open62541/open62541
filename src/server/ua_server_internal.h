@@ -20,52 +20,53 @@ typedef struct UA_ExternalNamespace {
 } UA_ExternalNamespace;
 
 // forward declarations
-struct UA_TimedWork;
-typedef struct UA_TimedWork UA_TimedWork;
+struct TimedWork;
 
-struct UA_DelayedWork;
-typedef struct UA_DelayedWork UA_DelayedWork;
+struct DelayedWork;
 
 struct UA_Server {
+    /* Config */
+    UA_ServerConfig config;
+    UA_Logger logger;
+    UA_UInt32 random_seed;
+
+    /* Meta */
+    UA_DateTime startTime;
+    UA_DateTime buildDate;
     UA_ApplicationDescription description;
     UA_Int32 endpointDescriptionsSize;
     UA_EndpointDescription *endpointDescriptions;
 
+    /* Communication */
+    size_t networkLayersSize;
+    UA_ServerNetworkLayer *networkLayers;
+
+    /* Security */
     UA_ByteString serverCertificate;
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;
-    UA_Logger logger;
 
+    /* Address Space */
     UA_NodeStore *nodestore;
-    UA_Int32 namespacesSize;
+    size_t namespacesSize;
     UA_String *namespaces;
-    UA_Int32 externalNamespacesSize;
+    size_t externalNamespacesSize;
     UA_ExternalNamespace *externalNamespaces;
 
-    UA_Int32 nlsSize;
-    UA_ServerNetworkLayer *nls;
-
-    UA_UInt32 random_seed;
+    /* Workload Management */
+    LIST_HEAD(TimedWorkList, TimedWork) timedWork;
 
 #ifdef UA_MULTITHREADING
     UA_Boolean *running;
     UA_UInt16 nThreads;
     UA_UInt32 **workerCounters;
-    UA_DelayedWork *delayedWork;
+    struct DelayedWork *delayedWork;
 
     // worker threads wait on the queue
 	struct cds_wfcq_head dispatchQueue_head;
 	struct cds_wfcq_tail dispatchQueue_tail;
     pthread_cond_t dispatchQueue_condition; // so the workers don't spin if the queue is empty
 #endif
-
-    LIST_HEAD(UA_TimedWorkList, UA_TimedWork) timedWork;
-
-    UA_DateTime startTime;
-    UA_DateTime buildDate;
-
-    /* Config */
-    UA_ServerConfig config;
 };
 
 void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, UA_ByteString *msg);

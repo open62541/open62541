@@ -288,7 +288,7 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
     UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
-    for(UA_Int32 j = 0;j<server->externalNamespacesSize;j++) {
+    for(size_t j = 0; j < server->externalNamespacesSize; j++) {
         size_t indexSize = 0;
         for(size_t i = 0;i < size;i++) {
             if(request->nodesToBrowse[i].nodeId.namespaceIndex != server->externalNamespaces[j].index)
@@ -299,7 +299,6 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
         }
         if(indexSize == 0)
             continue;
-
         UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
         ens->browseNodes(ens->ensHandle, &request->requestHeader, request->nodesToBrowse, indices, indexSize,
                          request->requestedMaxReferencesPerNode, response->results, response->diagnosticInfos);
@@ -498,7 +497,7 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
     UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
-    for(UA_Int32 j = 0;j<server->externalNamespacesSize;j++) {
+    for(size_t j = 0; j < server->externalNamespacesSize; j++) {
     	size_t indexSize = 0;
     	for(size_t i = 0;i < size;i++) {
     		if(request->browsePaths[i].startingNode.namespaceIndex != server->externalNamespaces[j].index)
@@ -509,7 +508,6 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
     	}
     	if(indexSize == 0)
     		continue;
-
     	UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
     	ens->translateBrowsePathsToNodeIds(ens->ensHandle, &request->requestHeader, request->browsePaths,
     			indices, indexSize, response->results, response->diagnosticInfos);
