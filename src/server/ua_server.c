@@ -147,7 +147,8 @@ static void UA_Server_cleanup(UA_Server *server, void *nothing) {
         if(sentry->session.validTill < now) {
             session_list_entry *next = LIST_NEXT(sentry, pointers);
             LIST_REMOVE(sentry, pointers);
-            UA_SecureChannel_detachSession(sentry->session.channel);
+            if(sentry->session.channel)
+                UA_SecureChannel_detachSession(sentry->session.channel);
             UA_Session_deleteMembers(&sentry->session);
             UA_free(sentry);
             sentry = next;
@@ -384,9 +385,9 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     server->nodestore = UA_NodeStore_new();
 
-   // UA_WorkItem cleanup = {.type = UA_WORKITEMTYPE_METHODCALL,
-   //                        .work.methodCall = {.method = UA_Server_cleanup, .data = NULL} };
-   // UA_Server_addRepeatedWorkItem(server, &cleanup, 10000, NULL);
+    UA_WorkItem cleanup = {.type = UA_WORKITEMTYPE_METHODCALL,
+                           .work.methodCall = {.method = UA_Server_cleanup, .data = NULL} };
+    UA_Server_addRepeatedWorkItem(server, &cleanup, 10000, NULL);
 
     /**********************/
     /* Server Information */

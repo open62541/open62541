@@ -31,56 +31,16 @@ void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager) {
     }
 }
 
-UA_StatusCode
-UA_SessionManager_getSessionById(UA_SessionManager *sessionManager, const UA_NodeId *sessionId,
-                                 UA_Session **session)
-{
-    if(sessionManager == UA_NULL) {
-        *session = UA_NULL;
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    session_list_entry *current = UA_NULL;
-    LIST_FOREACH(current, &sessionManager->sessions, pointers) {
-        if(UA_NodeId_equal(&current->session.sessionId, sessionId))
-            break;
-    }
-
-    if(!current) {
-        *session = UA_NULL;
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    // Lifetime handling is not done here, but in a regular cleanup by the
-    // server. If the session still exists, then it is valid.
-    *session = &current->session;
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_SessionManager_getSessionByToken(UA_SessionManager *sessionManager, const UA_NodeId *token,
-                                    UA_Session **session)
-{
-    if(sessionManager == UA_NULL) {
-        *session = UA_NULL;
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
+UA_Session * UA_SessionManager_getSession(UA_SessionManager *sessionManager,
+                                          const UA_NodeId *token) {
     session_list_entry *current = UA_NULL;
     LIST_FOREACH(current, &sessionManager->sessions, pointers) {
         if(UA_NodeId_equal(&current->session.authenticationToken, token))
             break;
     }
-
-    if(!current) {
-        *session = UA_NULL;
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    // Lifetime handling is not done here, but in a regular cleanup by the
-    // server. If the session still exists, then it is valid.
-    *session = &current->session;
-    return UA_STATUSCODE_GOOD;
+    if(!current || UA_DateTime_now() > current->session.validTill)
+        return UA_NULL;
+    return &current->session;
 }
 
 /** Creates and adds a session. */
@@ -103,7 +63,7 @@ UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_SecureChan
         (request->requestedSessionTimeout <= sessionManager->maxSessionLifeTime &&
          request->requestedSessionTimeout>0) ?
         request->requestedSessionTimeout : sessionManager->maxSessionLifeTime;
-    UA_Session_setExpirationDate(&newentry->session);
+    UA_Session_updateLifetime(&newentry->session);
 
     sessionManager->currentSessionCount++;
     LIST_INSERT_HEAD(&sessionManager->sessions, newentry, pointers);

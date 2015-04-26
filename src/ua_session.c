@@ -30,14 +30,6 @@ UA_Session adminSession = {
     .timeout = UA_INT64_MAX, .validTill = UA_INT64_MAX, .channel = UA_NULL,
     .continuationPoints = {UA_NULL}};
 
-/* TODO: Nobody seems to call this function right now */
-static UA_StatusCode UA_Session_generateToken(UA_NodeId *newToken, UA_UInt32 *seed) {
-    newToken->namespaceIndex = 0; // where else?
-    newToken->identifierType = UA_NODEIDTYPE_GUID;
-    newToken->identifier.guid = UA_Guid_random(seed);
-    return UA_STATUSCODE_GOOD;
-}
-
 void UA_Session_init(UA_Session *session) {
     UA_ApplicationDescription_init(&session->clientDescription);
     session->activated = UA_FALSE;
@@ -67,20 +59,8 @@ void UA_Session_deleteMembers(UA_Session *session) {
     }
 }
 
-UA_StatusCode UA_Session_setExpirationDate(UA_Session *session) {
-    if(!session)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
+void UA_Session_updateLifetime(UA_Session *session) {
     session->validTill = UA_DateTime_now() + session->timeout * 10000; //timeout in ms
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode UA_Session_getPendingLifetime(UA_Session *session, UA_Double *pendingLifetime_ms) {
-    if(!session)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    *pendingLifetime_ms = (session->validTill - UA_DateTime_now())/10000; //difference in ms
-    return UA_STATUSCODE_GOOD;
 }
 
 void UA_Session_detachSecureChannel(UA_Session *session) {

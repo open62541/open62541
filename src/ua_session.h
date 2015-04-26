@@ -39,12 +39,8 @@ extern UA_Session adminSession; ///< Local access to the services (for startup a
 void UA_Session_init(UA_Session *session);
 void UA_Session_deleteMembers(UA_Session *session);
 
-/** If any activity on a session happens, the timeout must be extended */
-UA_StatusCode UA_Session_updateLifetime(UA_Session *session);
-/** Set up the point in time till the session is valid */
-UA_StatusCode UA_Session_setExpirationDate(UA_Session *session);
-/** Gets the sessions pending lifetime (calculated from the timeout which was set) */
-UA_StatusCode UA_Session_getPendingLifetime(UA_Session *session, UA_Double *pendingLifetime);
+/** If any activity on a session happens, the timeout is extended */
+void UA_Session_updateLifetime(UA_Session *session);
 
 void UA_Session_detachSecureChannel(UA_Session *session);
 

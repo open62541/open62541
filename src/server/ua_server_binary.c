@@ -123,35 +123,44 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
     r->timestamp = UA_DateTime_now();
 }
 
+/* The request/response are casted to the header (first element of their struct) */
+static void invoke_service(UA_Server *server, UA_SecureChannel *channel,
+                           UA_RequestHeader *request, UA_ResponseHeader *response,
+                           void (*service)(UA_Server*, UA_Session*, void*, void*)) {
+    init_response_header(request, response);
+    if(!channel->session ||
+        !UA_NodeId_equal(&channel->session->authenticationToken,
+                         &request->authenticationToken))
+        response->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+    else if(channel->session->channel != channel)
+            response->serviceResult = UA_STATUSCODE_BADSECURECHANNELIDINVALID;
+    else if(channel->session->activated == UA_FALSE)
+            response->serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
+    else {
+            UA_Session_updateLifetime(channel->session);
+            service(server, channel->session, request, response);
+        }
+}
+
 #define INVOKE_SERVICE(TYPE) do {                                       \
         UA_##TYPE##Request p;                                           \
         UA_##TYPE##Response r;                                          \
         if(UA_##TYPE##Request_decodeBinary(msg, pos, &p))               \
             return;                                                     \
         UA_##TYPE##Response_init(&r);                                   \
-        init_response_header(&p.requestHeader, &r.responseHeader);      \
-        if(!clientChannel->session || !UA_NodeId_equal(&clientChannel->session->authenticationToken,\
-                &p.requestHeader.authenticationToken))                  \
-            r.responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;     \
-        else if(clientChannel->session->channel != clientChannel){      \
-            r.responseHeader.serviceResult = UA_STATUSCODE_BADSECURECHANNELIDINVALID; \
-        }                                                               \
-        else if(clientChannel->session->activated == UA_FALSE){         \
-            UA_SessionManager_removeSession(&server->sessionManager, &clientChannel->session->sessionId); \
-            r.responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED; \
-        }else{                                                          \
-            clientSession = clientChannel->session;                     \
-            Service_##TYPE(server, clientSession, &p, &r);              \
-        }                                                               \
+        invoke_service(server, clientChannel, &p.requestHeader,         \
+                       &r.responseHeader,                               \
+                       (void (*)(UA_Server*, UA_Session*, void*,void*))Service_##TYPE); \
         UA_##TYPE##Request_deleteMembers(&p);                           \
-        retval = connection->getBuffer(connection, &message, headerSize + UA_##TYPE##Response_calcSizeBinary(&r)); \
+        retval = connection->getBuffer(connection, &message,            \
+                     headerSize + UA_##TYPE##Response_calcSizeBinary(&r)); \
         if(retval != UA_STATUSCODE_GOOD) {                              \
             UA_##TYPE##Response_deleteMembers(&r);                      \
             return;                                                     \
         }                                                               \
         UA_##TYPE##Response_encodeBinary(&r, &message, &messagePos);    \
         UA_##TYPE##Response_deleteMembers(&r);                          \
-    } while(0)
+} while(0)
 
 static void processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, size_t *pos) {
     // 1) Read in the securechannel
@@ -165,6 +174,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     UA_SecureChannel anonymousChannel;
     if(!clientChannel) {
         UA_SecureChannel_init(&anonymousChannel);
+        anonymousChannel->session = &anonymousSession;
         clientChannel = &anonymousChannel;
     }
 #endif
@@ -181,12 +191,6 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     //UA_SecureChannel_checkRequestId(channel,sequenceHeader.requestId);
     clientChannel->sequenceNumber = sequenceHeader.sequenceNumber;
     clientChannel->requestId = sequenceHeader.requestId;
-
-    UA_Session *clientSession = UA_NULL;
-#ifdef EXTENSION_STATELESS
-    if(clientChannel == &anonymousChannel)
-        clientSession = &anonymousSession;
-#endif
 
     // 3) Build the header and compute the header size
     UA_SecureConversationMessageHeader respHeader;
