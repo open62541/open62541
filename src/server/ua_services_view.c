@@ -75,20 +75,20 @@ is_relevant: ;
  * array to process the newly found referencetype nodeids (emulated recursion).
  */
 static UA_StatusCode findsubtypes(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **reftypes,
-                                  size_t *reftypes_count)
-{
+                                  size_t *reftypes_count) {
+    const UA_Node *node = UA_NodeStore_get(ns, root);
+    if(!node)
+        return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+    if(node->nodeClass != UA_NODECLASS_REFERENCETYPE)  {
+        UA_NodeStore_release(node);
+        return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+    }
+    UA_NodeStore_release(node);
+
     size_t results_size = 20; // probably too big, but saves mallocs
     UA_NodeId *results = UA_malloc(sizeof(UA_NodeId) * results_size);
     if(!results)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    const UA_Node *node = UA_NodeStore_get(ns, root);
-    if(!node || node->nodeClass != UA_NODECLASS_REFERENCETYPE)  {
-        UA_NodeStore_release(node);
-        UA_free(results);
-        return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
-    }
-    UA_NodeStore_release(node);
 
     UA_StatusCode retval = UA_NodeId_copy(root, &results[0]);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -528,13 +528,15 @@ void Service_RegisterNodes(UA_Server *server, UA_Session *session, const UA_Regi
                            UA_RegisterNodesResponse *response) {
 	//TODO: hang the nodeids to the session if really needed
 	response->responseHeader.timestamp = UA_DateTime_now();
-	response->registeredNodeIdsSize = request->nodesToRegisterSize;
-	response->registeredNodeIds = request->nodesToRegister;
-	if(request->nodesToRegisterSize==0)
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-	if(UA_NodeId_equal(&request->requestHeader.authenticationToken, &UA_NODEID_NULL) ||
-       !UA_NodeId_equal(&request->requestHeader.authenticationToken, &session->authenticationToken))
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+    if(request->nodesToRegisterSize <= 0)
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+    else {
+        response->responseHeader.serviceResult =
+            UA_Array_copy(request->nodesToRegister, (void**)&response->registeredNodeIds, &UA_TYPES[UA_TYPES_NODEID],
+                request->nodesToRegisterSize);
+        if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD)
+            response->registeredNodeIdsSize = request->nodesToRegisterSize;
+    }
 }
 
 void Service_UnregisterNodes(UA_Server *server, UA_Session *session, const UA_UnregisterNodesRequest *request,
@@ -543,7 +545,4 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session, const UA_Un
 	response->responseHeader.timestamp = UA_DateTime_now();
 	if(request->nodesToUnregisterSize==0)
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-	if(UA_NodeId_equal(&request->requestHeader.authenticationToken, &UA_NODEID_NULL) ||
-       !UA_NodeId_equal(&request->requestHeader.authenticationToken, &session->authenticationToken))
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
 }
