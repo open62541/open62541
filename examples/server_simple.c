@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
     UA_Server_setServerCertificate(server, certificate);
     UA_ByteString_deleteMembers(&certificate);
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-    UA_Server_addNamespace(server, UA_ServerConfig_standard.Application_applicationURI);
+    UA_UInt16 nsIndex = UA_Server_addNamespace(server, UA_ServerConfig_standard.Application_applicationURI);
 
     UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL,
                         .work.methodCall = {.method = testCallback, .data = NULL} };
@@ -77,18 +77,19 @@ int main(int argc, char** argv) {
     UA_Variant *myIntegerVariant = UA_Variant_new();
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
-    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer"); /* UA_NODEID_NULL would assign a random free nodeid */
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(nsIndex, "the answer");
+    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(nsIndex, "the.answer"); /* UA_NODEID_NULL would assign a random free nodeid */
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
                               myIntegerNodeId, parentNodeId, parentReferenceNodeId);
-    
+
+/*
 #ifdef BENCHMARK
     UA_UInt32 nodeCount = 50;
     char str[32];
     for(UA_UInt32 i = 0;i<nodeCount;i++) {
-        /* scalar */
+        // scalar
         void *data = UA_new(&UA_TYPES[i]);
         UA_Variant *variant = UA_Variant_new();
         UA_Variant_setScalar(variant, data, &UA_TYPES[i]);
@@ -99,7 +100,7 @@ int main(int argc, char** argv) {
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
-        /* array */
+        // array
         data = UA_Array_new(&UA_TYPES[i], 10);
         variant = UA_Variant_new();
         UA_Variant_setArray(variant, data, 10, &UA_TYPES[i]);
@@ -111,7 +112,7 @@ int main(int argc, char** argv) {
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
     }
 #endif
-
+*/
     UA_StatusCode retval = UA_Server_run(server, 1, &running);
 	UA_Server_delete(server);
 

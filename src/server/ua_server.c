@@ -908,37 +908,37 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
    /* Demo Nodes */
    /**************/
 
-#define DEMOID 990
+#define DEMOID 50000
    UA_ObjectNode *demo = UA_ObjectNode_new();
    copyNames((UA_Node*)demo, "Demo");
-   demo->nodeId = UA_NODEID_NUMERIC(1, DEMOID);
+   demo->nodeId = UA_NODEID_NUMERIC(0, DEMOID);
    UA_Server_addNode(server, (UA_Node*)demo,
            &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
            &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
-   ADDREFERENCE(UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
+   ADDREFERENCE(UA_NODEID_NUMERIC(0, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
 
-#define SCALARID 991
+#define SCALARID 50001
    UA_ObjectNode *scalar = UA_ObjectNode_new();
    copyNames((UA_Node*)scalar, "Scalar");
-   scalar->nodeId = UA_NODEID_NUMERIC(1, SCALARID);
+   scalar->nodeId = UA_NODEID_NUMERIC(0, SCALARID);
    UA_Server_addNode(server, (UA_Node*)scalar,
-           &UA_EXPANDEDNODEID_NUMERIC(1, DEMOID),
+           &UA_EXPANDEDNODEID_NUMERIC(0, DEMOID),
            &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
-   ADDREFERENCE(UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
+   ADDREFERENCE(UA_NODEID_NUMERIC(0, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
 
-#define ARRAYID 992
+#define ARRAYID 50002
    UA_ObjectNode *array = UA_ObjectNode_new();
    copyNames((UA_Node*)array, "Arrays");
-   array->nodeId = UA_NODEID_NUMERIC(1, ARRAYID);
+   array->nodeId = UA_NODEID_NUMERIC(0, ARRAYID);
    UA_Server_addNode(server, (UA_Node*)array,
-           &UA_EXPANDEDNODEID_NUMERIC(1, DEMOID),
+           &UA_EXPANDEDNODEID_NUMERIC(0, DEMOID),
            &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
-   ADDREFERENCE(UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
+   ADDREFERENCE(UA_NODEID_NUMERIC(0, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
 
-   UA_UInt32 id = 1000; //running id in namespace 1
+   UA_UInt32 id = 51000; //running id in namespace 0
    for(UA_UInt32 type = 0; UA_IS_BUILTIN(type); type++) {
        if(type == UA_TYPES_VARIANT || type == UA_TYPES_DIAGNOSTICINFO)
            continue;
@@ -948,15 +948,15 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
         UA_Variant_setScalar(variant, value, &UA_TYPES[type]);
         char name[15];
         sprintf(name, "%02d", type);
-        UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, name);
-        UA_Server_addVariableNode(server, variant, myIntegerName, UA_NODEID_NUMERIC(1, ++id),
-                                  UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+        UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(0, name);
+        UA_Server_addVariableNode(server, variant, myIntegerName, UA_NODEID_NUMERIC(0, ++id),
+                                  UA_NODEID_NUMERIC(0, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
         //add an array node for every built-in type
         UA_Variant *arrayvar = UA_Variant_new();
         UA_Variant_setArray(arrayvar, UA_Array_new(&UA_TYPES[type], 10), 10, &UA_TYPES[type]);
-        UA_Server_addVariableNode(server, arrayvar, myIntegerName, UA_NODEID_NUMERIC(1, ++id),
-                                  UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+        UA_Server_addVariableNode(server, arrayvar, myIntegerName, UA_NODEID_NUMERIC(0, ++id),
+                                  UA_NODEID_NUMERIC(0, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
    }
 #endif
 
