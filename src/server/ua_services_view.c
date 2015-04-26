@@ -160,14 +160,7 @@ static void browse(UA_NodeStore *ns, struct ContinuationPointEntry **cp, const U
     
     size_t relevant_refs_size = 0;
     UA_NodeId *relevant_refs = UA_NULL;
-    // what are the relevant references?
     UA_Boolean all_refs = UA_NodeId_isNull(&descr->referenceTypeId);
-
-    //check if reference type id exists
-    if(!all_refs && UA_NodeStore_get(ns, &descr->referenceTypeId) == UA_NULL) {
-        result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
-        return;
-    }
 
     if(!all_refs) {
         if(descr->includeSubtypes) {
@@ -176,6 +169,16 @@ static void browse(UA_NodeStore *ns, struct ContinuationPointEntry **cp, const U
             if(result->statusCode != UA_STATUSCODE_GOOD)
                 return;
         } else {
+            const UA_Node *rootRef = UA_NodeStore_get(ns, &descr->referenceTypeId);
+            if(!rootRef) {
+                result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+                return;
+            } else if(rootRef->nodeClass != UA_NODECLASS_REFERENCETYPE) {
+                UA_NodeStore_release(rootRef);
+                result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+                return;
+            }
+            UA_NodeStore_release(rootRef);
             relevant_refs = (UA_NodeId*)(uintptr_t)&descr->referenceTypeId;
             relevant_refs_size = 1;
         }
