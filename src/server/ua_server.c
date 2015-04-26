@@ -384,9 +384,9 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     server->nodestore = UA_NodeStore_new();
 
-    UA_WorkItem cleanup = {.type = UA_WORKITEMTYPE_METHODCALL,
-                           .work.methodCall = {.method = UA_Server_cleanup, .data = NULL} };
-    UA_Server_addRepeatedWorkItem(server, &cleanup, 10000, NULL);
+   // UA_WorkItem cleanup = {.type = UA_WORKITEMTYPE_METHODCALL,
+   //                        .work.methodCall = {.method = UA_Server_cleanup, .data = NULL} };
+   // UA_Server_addRepeatedWorkItem(server, &cleanup, 10000, NULL);
 
     /**********************/
     /* Server Information */
