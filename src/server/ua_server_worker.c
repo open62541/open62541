@@ -297,7 +297,7 @@ void UA_Server_deleteTimedWork(UA_Server *server) {
         current = next;
         next = LIST_NEXT(current, pointers);
         LIST_REMOVE(current, pointers);
-        UA_free(current->workIds);
+        UA_free(current->work);
         UA_free(current);
     }
 }

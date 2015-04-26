@@ -225,8 +225,8 @@ int main(int argc, char** argv) {
 			.read = readTemperature,
 			.release = releaseTemperature,
 			.write = NULL};
-		const UA_QualifiedName ledName = UA_QUALIFIEDNAME(nsIndex, "cpu temperature");
-		UA_Server_addDataSourceVariableNode(server, temperatureDataSource, ledName, UA_NODEID_NULL, 
+		const UA_QualifiedName tempName = UA_QUALIFIEDNAME(nsIndex, "cpu temperature");
+		UA_Server_addDataSourceVariableNode(server, temperatureDataSource, tempName, UA_NODEID_NULL,
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 	}
