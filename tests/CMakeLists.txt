@@ -47,21 +47,21 @@ add_test(nodestore ${CMAKE_CURRENT_BINARY_DIR}/check_nodestore)
 
 # test with canned interactions from files
 
-add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
-                   PRE_BUILD
-                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/hex2bin.py ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex
-                                  ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_CreateActivateSession.hex
-                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/hex2bin.py
-                           ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex)
+#add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
+#                   PRE_BUILD
+#                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/hex2bin.py ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex
+#                                  ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_CreateActivateSession.hex
+#                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/hex2bin.py
+#                           ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex)
 
-set(check_fileinput_source check_server_interaction_fileinput.c testing_networklayers.c $<TARGET_OBJECTS:open62541-object>)
-if(NOT ENABLE_AMALGAMATION)
-    list(APPEND check_fileinput_source ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c)
-endif()
-add_executable(check_server_interaction_fileinput ${check_fileinput_source})
+#set(check_fileinput_source check_server_interaction_fileinput.c testing_networklayers.c $<TARGET_OBJECTS:open62541-object>)
+#if(NOT ENABLE_AMALGAMATION)
+#    list(APPEND check_fileinput_source ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c)
+#endif()
+#add_executable(check_server_interaction_fileinput ${check_fileinput_source})
 
-target_include_directories(check_server_interaction_fileinput PRIVATE ${PROJECT_SOURCE_DIR}/examples)
-target_include_directories(check_server_interaction_fileinput PRIVATE ${PROJECT_BINARY_DIR})
-target_link_libraries(check_server_interaction_fileinput ${LIBS})
-add_test(server_interaction_fileinput ${CMAKE_CURRENT_BINARY_DIR}/check_server_interaction_fileinput ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin)
-add_custom_target(server_interaction_fileinput ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin)
+#target_include_directories(check_server_interaction_fileinput PRIVATE ${PROJECT_SOURCE_DIR}/examples)
+#target_include_directories(check_server_interaction_fileinput PRIVATE ${PROJECT_BINARY_DIR})
+#target_link_libraries(check_server_interaction_fileinput ${LIBS})
+#add_test(server_interaction_fileinput ${CMAKE_CURRENT_BINARY_DIR}/check_server_interaction_fileinput ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin)
+#add_custom_target(server_interaction_fileinput ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin)
