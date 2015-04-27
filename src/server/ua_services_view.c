@@ -78,7 +78,7 @@ static UA_StatusCode findsubtypes(UA_NodeStore *ns, const UA_NodeId *root, UA_No
                                   size_t *reftypes_count) {
     const UA_Node *node = UA_NodeStore_get(ns, root);
     if(!node)
-        return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+        return UA_STATUSCODE_BADNOMATCH;
     if(node->nodeClass != UA_NODECLASS_REFERENCETYPE)  {
         UA_NodeStore_release(node);
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
@@ -387,8 +387,11 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
         all_refs = UA_TRUE;
     else if(!elem->includeSubtypes)
         reftypes = (UA_NodeId*)(uintptr_t)&elem->referenceTypeId; // ptr magic due to const cast
-    else
+    else {
         retval = findsubtypes(server->nodestore, &elem->referenceTypeId, &reftypes, &reftypes_count);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
 
     for(UA_Int32 i = 0; i < node->referencesSize && retval == UA_STATUSCODE_GOOD; i++) {
         UA_Boolean match = all_refs;
