@@ -276,18 +276,21 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
     retval |= UA_NodeId_encodeBinary(&requestId, &message, &offset);
     retval |= UA_encodeBinary(request, requestType, &message, &offset);
 
-    retval = client->connection.write(&client->connection, &message);
+    retval |= client->connection.write(&client->connection, &message);
+
+    UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
+
     client->connection.releaseBuffer(&client->connection, &message);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        //send failed
+        respHeader->serviceResult = retval;
+        return;
+    }
 
     //TODO: rework to get return value
     if(sendOnly)
         return;
-
-    UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
-    if(retval != UA_STATUSCODE_GOOD) {
-        respHeader->serviceResult = retval;
-        return;
-    }
 
     /* Response */
     UA_ByteString reply;
