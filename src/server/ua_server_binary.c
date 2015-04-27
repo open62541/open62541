@@ -174,7 +174,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     UA_SecureChannel anonymousChannel;
     if(!clientChannel) {
         UA_SecureChannel_init(&anonymousChannel);
-        anonymousChannel->session = &anonymousSession;
+        anonymousChannel.session = &anonymousSession;
         clientChannel = &anonymousChannel;
     }
 #endif
