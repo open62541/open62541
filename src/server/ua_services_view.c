@@ -267,7 +267,7 @@ static void browse(UA_NodeStore *ns, struct ContinuationPointEntry **cp, const U
 
 cleanup:
     UA_NodeStore_release(node);
-    if(!all_refs && descr->includeSubtypes)
+    if(!all_refs && *cp && descr->includeSubtypes)
         UA_Array_delete(relevant_refs, &UA_TYPES[UA_TYPES_NODEID], relevant_refs_size);
 }
 
