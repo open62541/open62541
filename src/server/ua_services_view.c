@@ -209,7 +209,8 @@ static void browse(UA_NodeStore *ns, struct ContinuationPointEntry **cp, const U
 
     size_t count = 0;
     size_t skipped = 0;
-    for(UA_Int32 i = 0; i < node->referencesSize && count < real_maxrefs; i++) {
+    UA_Int32 i = 0;
+    for(; i < node->referencesSize && count < real_maxrefs; i++) {
         const UA_Node *current = relevant_node(ns, descr, all_refs, &node->references[i],
                                                relevant_refs, relevant_refs_size);
         if(!current)
@@ -234,13 +235,15 @@ static void browse(UA_NodeStore *ns, struct ContinuationPointEntry **cp, const U
 
     if(*cp) {
         (*cp)->continuationIndex += count;
-        if((*cp)->continuationIndex == node->referencesSize) {
-            /* remove a finished continuationPoint */
+        if(i == node->referencesSize) {
+            /* all references done, remove a finished continuationPoint */
             UA_ByteString_deleteMembers(&(*cp)->identifier);
             UA_BrowseDescription_deleteMembers(&(*cp)->browseDescription);
             LIST_REMOVE(*cp, pointers);
             UA_free(*cp);
             *cp = UA_NULL;
+        } else {
+            UA_ByteString_copy(&(*cp)->identifier, &result->continuationPoint);
         }
     } else if(maxrefs != 0 && count >= maxrefs) {
         /* create a continuationPoint */

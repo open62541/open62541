@@ -847,6 +847,21 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
    ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_LOCALEIDARRAY), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE));
 
+   UA_VariableNode *maxBrowseContinuationPoints = UA_VariableNode_new();
+   copyNames((UA_Node*)maxBrowseContinuationPoints, "MaxBrowseContinuationPoints");
+   maxBrowseContinuationPoints->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXBROWSECONTINUATIONPOINTS;
+   UA_UInt16 *maxBrowseContinuationPointsValue = UA_UInt16_new();
+   *maxBrowseContinuationPointsValue = 0;
+   maxBrowseContinuationPoints->value.variant.data = maxBrowseContinuationPointsValue;
+   maxBrowseContinuationPoints->value.variant.arrayLength = -1;
+   maxBrowseContinuationPoints->value.variant.type = &UA_TYPES[UA_TYPES_UINT16];
+   UA_Server_addNode(server, (UA_Node*)maxBrowseContinuationPoints,
+       &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES),
+       &UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY));
+   ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXBROWSECONTINUATIONPOINTS),
+       UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
+       UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE));
+
    UA_ObjectNode *serverdiagnostics = UA_ObjectNode_new();
    copyNames((UA_Node*)serverdiagnostics, "ServerDiagnostics");
    serverdiagnostics->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERDIAGNOSTICS;
