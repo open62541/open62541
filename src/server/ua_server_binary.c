@@ -329,8 +329,12 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         break;
 
     default: {
-        UA_LOG_INFO(server->logger, UA_LOGGERCATEGORY_COMMUNICATION, "Unknown request: NodeId(ns=%d, i=%d)",
-                    requestType.namespaceIndex, requestType.identifier.numeric);
+        if(requestType.namespaceIndex == 0 && requestType.identifier.numeric==787){
+            UA_LOG_INFO(server->logger, UA_LOGGERCATEGORY_COMMUNICATION, "Client requested a subscription that are not supported, the message will be skipped");
+        }else{
+            UA_LOG_INFO(server->logger, UA_LOGGERCATEGORY_COMMUNICATION, "Unknown request: NodeId(ns=%d, i=%d)",
+                        requestType.namespaceIndex, requestType.identifier.numeric);
+        }
         UA_RequestHeader  p;
         UA_ResponseHeader r;
         if(UA_RequestHeader_decodeBinary(msg, pos, &p) != UA_STATUSCODE_GOOD)
