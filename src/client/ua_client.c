@@ -31,7 +31,7 @@ struct UA_Client {
     UA_ClientConfig config;
 };
 
-const UA_ClientConfig UA_ClientConfig_standard =
+UA_EXPORT const UA_ClientConfig UA_ClientConfig_standard =
     { 5 /* ms receive timout */, {.protocolVersion = 0, .sendBufferSize = 65536, .recvBufferSize  = 65536,
                                   .maxMessageSize = 65536, .maxChunkCount = 1}};
 

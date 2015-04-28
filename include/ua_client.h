@@ -28,7 +28,7 @@ typedef struct UA_ClientConfig {
 extern const UA_ClientConfig UA_ClientConfig_standard;
 UA_Client UA_EXPORT * UA_Client_new(UA_ClientConfig config, UA_Logger logger);
 
-void UA_Client_delete(UA_Client* client);
+UA_EXPORT void UA_Client_delete(UA_Client* client);
 
 UA_StatusCode UA_EXPORT UA_Client_connect(UA_Client *client, UA_ConnectClientConnection connFunc, char *endpointUrl);
 UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client);
