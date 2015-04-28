@@ -136,21 +136,30 @@ static UA_StatusCode findsubtypes(UA_NodeStore *ns, const UA_NodeId *root, UA_No
     return UA_STATUSCODE_GOOD;
 }
 
-/* Results for a single browsedescription. Call this either with an existing continuationpoint from
-   which we take the entire context for the search. Or, call with a browsedescription and maxrefs
-   value. If we need to create a new continuationpoint, it will be alloced and the new pointer
-   stored in *cp.
+/**
+ * Results for a single browsedescription. This is the inner loop for both Browse and BrowseNext
+ * @param ns The nodstore where the to-be-browsed node can be found
+ * @param cp If (*cp) points to a continuationpoint, we continue from there.
+ *           If (*cp) is null, we can set it to a new continuation point
+ * @param descr If no cp is set, we take the browsedescription from there
+ * @param maxrefs The maximum number of references the client has requested
+ * @param result The entry in the request
  */
-static void browse(UA_NodeStore *ns, struct ContinuationPointEntry **cp, const UA_BrowseDescription *descr, 
-                   UA_UInt32 maxrefs, UA_BrowseResult *result)
-{
+static void browse(UA_NodeStore *ns, struct ContinuationPointEntry **cpp, const UA_BrowseDescription *descr, 
+                   UA_UInt32 maxrefs, UA_BrowseResult *result) {
     UA_UInt32 continuationIndex = 0;
-    if(*cp) {
-        descr = &(*cp)->browseDescription;
-        maxrefs = (*cp)->maxReferences;
-        continuationIndex = (*cp)->continuationIndex;
+    struct ContinuationPointEntry *cp = UA_NULL;
+    if(cpp)
+        cp = *cpp;
+    
+    /* set the browsedescription if a cp is given */
+    if(cp) {
+        descr = &cp->browseDescription;
+        maxrefs = cp->maxReferences;
+        continuationIndex = cp->continuationIndex;
     }
 
+    /* is the browsedirection valid? */
     if(descr->browseDirection != UA_BROWSEDIRECTION_BOTH &&
        descr->browseDirection != UA_BROWSEDIRECTION_FORWARD &&
        descr->browseDirection != UA_BROWSEDIRECTION_INVERSE) {
@@ -158,14 +167,13 @@ static void browse(UA_NodeStore *ns, struct ContinuationPointEntry **cp, const U
         return;
     }
     
+    /* get the references that match the browsedescription */
     size_t relevant_refs_size = 0;
     UA_NodeId *relevant_refs = UA_NULL;
     UA_Boolean all_refs = UA_NodeId_isNull(&descr->referenceTypeId);
-
     if(!all_refs) {
         if(descr->includeSubtypes) {
-            result->statusCode = findsubtypes(ns, &descr->referenceTypeId, &relevant_refs,
-                                              &relevant_refs_size);
+            result->statusCode = findsubtypes(ns, &descr->referenceTypeId, &relevant_refs, &relevant_refs_size);
             if(result->statusCode != UA_STATUSCODE_GOOD)
                 return;
         } else {
@@ -184,7 +192,7 @@ static void browse(UA_NodeStore *ns, struct ContinuationPointEntry **cp, const U
         }
     }
 
-    // get the node
+    /* get the node */
     const UA_Node *node = UA_NodeStore_get(ns, &descr->nodeId);
     if(!node) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -193,11 +201,16 @@ static void browse(UA_NodeStore *ns, struct ContinuationPointEntry **cp, const U
         return;
     }
 
+    /* if the node has no references, just return */
     if(node->referencesSize <= 0) {
         result->referencesSize = 0;
-        goto cleanup;
+        UA_NodeStore_release(node);
+        if(!all_refs && descr->includeSubtypes)
+            UA_Array_delete(relevant_refs, &UA_TYPES[UA_TYPES_NODEID], relevant_refs_size);
+        return;
     }
 
+    /* how many references can we return at most? */
     UA_UInt32 real_maxrefs = maxrefs;
     if(real_maxrefs == 0)
         real_maxrefs = node->referencesSize;
@@ -207,6 +220,7 @@ static void browse(UA_NodeStore *ns, struct ContinuationPointEntry **cp, const U
         goto cleanup;
     }
 
+    /* loop over the node's references */
     size_t count = 0;
     size_t skipped = 0;
     UA_Int32 i = 0;
@@ -226,49 +240,55 @@ static void browse(UA_NodeStore *ns, struct ContinuationPointEntry **cp, const U
         if(retval != UA_STATUSCODE_GOOD) {
             UA_Array_delete(result->references, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION], count);
             result->references = UA_NULL;
-            count = 0;
+            result->referencesSize = 0;
             result->statusCode = UA_STATUSCODE_UNCERTAINNOTALLNODESAVAILABLE;
             goto cleanup;
         }
         count++;
     }
 
-    if(*cp) {
-        (*cp)->continuationIndex += count;
-        if(i == node->referencesSize) {
-            /* all references done, remove a finished continuationPoint */
-            UA_ByteString_deleteMembers(&(*cp)->identifier);
-            UA_BrowseDescription_deleteMembers(&(*cp)->browseDescription);
-            LIST_REMOVE(*cp, pointers);
-            UA_free(*cp);
-            *cp = UA_NULL;
-        } else {
-            UA_ByteString_copy(&(*cp)->identifier, &result->continuationPoint);
-        }
-    } else if(maxrefs != 0 && count >= maxrefs) {
-        /* create a continuationPoint */
-        *cp = UA_malloc(sizeof(struct ContinuationPointEntry));
-        UA_BrowseDescription_copy(descr,&(*cp)->browseDescription);
-        (*cp)->maxReferences = maxrefs;
-        (*cp)->continuationIndex = count;
-        UA_Guid *ident = UA_Guid_new();
-        UA_UInt32 seed = (uintptr_t)*cp;
-        *ident = UA_Guid_random(&seed);
-        (*cp)->identifier.data = (UA_Byte*)ident;
-        (*cp)->identifier.length = sizeof(UA_Guid);
-    }
-    
-    if(count > 0)
-        result->referencesSize = count;
-    else {
+    result->referencesSize = count;
+    if(count == 0) {
         UA_free(result->references);
         result->references = UA_NULL;
     }
 
-cleanup:
+    cleanup:
     UA_NodeStore_release(node);
-    if(!all_refs && *cp && descr->includeSubtypes)
+    if(!all_refs && descr->includeSubtypes)
         UA_Array_delete(relevant_refs, &UA_TYPES[UA_TYPES_NODEID], relevant_refs_size);
+    if(result->statusCode != UA_STATUSCODE_GOOD)
+        return;
+
+    /* create, update, delete continuation points */
+    if(cp) {
+        if(i == node->referencesSize) {
+            /* all done, remove a finished continuationPoint */
+            UA_ByteString_deleteMembers(&cp->identifier);
+            UA_BrowseDescription_deleteMembers(&cp->browseDescription);
+            LIST_REMOVE(cp, pointers);
+            UA_free(cp);
+            cp = UA_NULL;
+        } else {
+            /* update the cp and return the cp identifier */
+            cp->continuationIndex += count;
+            UA_ByteString_copy(&cp->identifier, &result->continuationPoint);
+        }
+    } else if(maxrefs != 0 && count >= maxrefs) {
+        /* create a continuationPoint, it is added to the session in the calling Service_Browse */
+        cp = UA_malloc(sizeof(struct ContinuationPointEntry));
+        if(!cp)
+            return;
+        UA_BrowseDescription_copy(descr, &cp->browseDescription);
+        cp->maxReferences = maxrefs;
+        cp->continuationIndex = count;
+        UA_Guid *ident = UA_Guid_new();
+        UA_UInt32 seed = (uintptr_t)cp;
+        *ident = UA_Guid_random(&seed);
+        cp->identifier.data = (UA_Byte*)ident;
+        cp->identifier.length = sizeof(UA_Guid);
+        *cpp = cp;
+    }
 }
 
 void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseRequest *request,
