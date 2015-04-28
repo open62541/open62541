@@ -70,7 +70,7 @@ UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Conne
     if(entry->channel.securityToken.revisedLifetime == 0){
         entry->channel.securityToken.revisedLifetime = cm->maxChannelLifetime;
         //FIXME: I'd log it, but there is no pointer to the logger
-        printf("Warning: client requests token lifetime of 0 in OpenSecureChannelRequest setting it to %llu\n", cm->maxChannelLifetime);
+        // printf("Warning: client requests token lifetime of 0 in OpenSecureChannelRequest setting it to %llu\n", cm->maxChannelLifetime);
     }
 
     UA_ByteString_copy(&request->clientNonce, &entry->channel.clientNonce);
@@ -103,7 +103,7 @@ UA_StatusCode UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_Conn
     if(channel->securityToken.revisedLifetime == 0){
         channel->securityToken.revisedLifetime = cm->maxChannelLifetime;
         //FIXME: I'd log it, but there is no pointer to the logger
-        printf("Warning: client requests token lifetime of 0 in renewing SecureChannel setting it to %llu\n", cm->maxChannelLifetime);
+        // printf("Warning: client requests token lifetime of 0 in renewing SecureChannel setting it to %llu\n", cm->maxChannelLifetime);
     }
 
     if(channel->serverNonce.data != UA_NULL)

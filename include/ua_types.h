@@ -321,12 +321,6 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_DiagnosticInfo)
 /* Custom functions for the builtin datatypes */
 /**********************************************/
 
-#ifdef __cplusplus
-#define CPP_ONLY(STR) STR
-#else
-#define CPP_ONLY(STR)
-#endif
-
 /* String */
 /** Copy a (zero terminated) char-array into a UA_String. Memory for the string data is
     allocated. If the memory cannot be allocated, a null-string is returned. */
@@ -420,9 +414,9 @@ UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
         .namespaceIndex = NS_INDEX, .name = UA_STRING_ALLOC(CHARS) }
 
 /* LocalizedText */
-#define UA_LOCALIZEDTEXT(LOCALE, TEXT) (const UA_LocalizedText) {     \
+#define UA_LOCALIZEDTEXT(LOCALE, TEXT) (const UA_LocalizedText) {       \
         .locale = UA_STRING(LOCALE), .text = UA_STRING(TEXT) }
-#define UA_LOCALIZEDTEXT_ALLOC(LOCALE, TEXT) (UA_LocalizedText) {             \
+#define UA_LOCALIZEDTEXT_ALLOC(LOCALE, TEXT) (UA_LocalizedText) {       \
         .locale = UA_STRING_ALLOC(LOCALE), .text = UA_STRING_ALLOC(TEXT) }
 
 /* Variant */
@@ -533,8 +527,8 @@ typedef struct {
                                                   namespace may contain members from the same
                                                   namespace or ns0 only.*/
     UA_Byte padding UA_BITFIELD(5); /**< How much padding is there before this member element? For
-                                         arrays this is split into 2 bytes padding for for the
-                                         length index (max 4 bytes) and 3 bytes padding for the
+                                         arrays this is split into 2 bytes padding before the
+                                         length index (max 4 bytes) and 3 bytes padding before the
                                          pointer (max 8 bytes) */
     UA_Boolean isArray UA_BITFIELD(1); ///< The member is an array of the given type
 } UA_DataTypeMember;
@@ -543,7 +537,7 @@ struct UA_DataType {
     UA_NodeId typeId; ///< The nodeid of the type
     ptrdiff_t memSize UA_BITFIELD(16); ///< Size of the struct in memory
     UA_UInt16 typeIndex UA_BITFIELD(13); ///< Index of the type in the datatypetable
-    UA_Boolean namespaceZero UA_BITFIELD(1); ///< The type is defined in namespace zero.
+    UA_Boolean namespaceZero UA_BITFIELD(1); ///< The type is defined in namespace zero
     UA_Boolean fixedSize UA_BITFIELD(1); ///< The type (and its members) contains no pointers
     UA_Boolean zeroCopyable UA_BITFIELD(1); ///< Can the type be copied directly off the stream?
     UA_Byte membersSize; ///< How many members does the type have?
