@@ -82,7 +82,9 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_attribute.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client.c)
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
+                ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c 
+                ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c)
                 ##TODO: make client stuff optional
 
 ## generate code from xml definitions
@@ -174,7 +176,7 @@ else()
     include_directories(${PROJECT_BINARY_DIR}/src_generated)
 endif()
 add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-object>)
-if(WIN32 AND ENABLE_AMALGAMATION)
+if(WIN32)
     target_link_libraries(open62541 ws2_32) #since networklayer_tcp is linked into the amalgate
 endif()
 
@@ -199,9 +201,9 @@ endif()
 option(BUILD_EXAMPLESERVER "Build the example server" OFF)
 if(BUILD_EXAMPLESERVER)
     set(server_source $<TARGET_OBJECTS:open62541-object>)
-    if(NOT ENABLE_AMALGAMATION)
-        list(APPEND server_source examples/networklayer_tcp.c examples/logger_stdout.c)
-    endif()
+    #if(NOT ENABLE_AMALGAMATION)
+    #    list(APPEND server_source examples/networklayer_tcp.c examples/logger_stdout.c)
+    #endif()
     add_executable(exampleServer examples/server.c ${server_source})
     add_executable(exampleServer_simple examples/server_simple.c ${server_source})
     add_executable(exampleServer_so examples/server.c)
@@ -239,11 +241,11 @@ option(BUILD_EXAMPLECLIENT "Build a test client" OFF)
 if(BUILD_EXAMPLECLIENT)
 	add_definitions(-DBENCHMARK)
     set(client_source $<TARGET_OBJECTS:open62541-object>)
-    if(NOT ENABLE_AMALGAMATION)
-        list(APPEND client_source examples/networklayer_tcp.c examples/logger_stdout.c)
-    endif()
+    #if(NOT ENABLE_AMALGAMATION)
+    #    list(APPEND client_source examples/networklayer_tcp.c examples/logger_stdout.c)
+    #endif()
 	add_executable(exampleClient examples/client.c ${client_source})
-	add_executable(exampleClient_so examples/client.c ${client_source})
+	add_executable(exampleClient_so examples/client.c)
 	target_link_libraries(exampleClient_so open62541)
     if(WIN32)
         target_link_libraries(exampleClient ws2_32)
