@@ -84,7 +84,7 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
         if(username_token.encryptionAlgorithm.data != UA_NULL) {
             /* 3.1) we only support encryption */
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-        } else  if(username_token.userName.length == -1 || username_token.password.length == -1){
+        } else  if(username_token.userName.length == -1 && username_token.password.length == -1){
             /* 3.2) empty username and password */
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
         } else {
