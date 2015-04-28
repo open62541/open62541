@@ -49,7 +49,9 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_connection.h
                      ${PROJECT_SOURCE_DIR}/include/ua_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_client.h)
+                     ${PROJECT_SOURCE_DIR}/include/ua_client.h
+                     ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h 
+                     ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h)
 set(internal_headers ${PROJECT_SOURCE_DIR}/src/ua_util.h
                      ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
@@ -152,16 +154,12 @@ option(ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c
                PRE_BUILD
                COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
-                                                                              ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h
-                                                                              ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h
+
                COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
                               ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${internal_headers} ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources}
-                                                                              ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c
-                                                                              ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c
+
                DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${exported_headers} ${internal_headers}
-                       ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources}
-                       ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h
-                       ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c)
+                       ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
 
 if(ENABLE_AMALGAMATION)
     add_custom_target(amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c)
