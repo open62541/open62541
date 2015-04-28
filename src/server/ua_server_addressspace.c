@@ -14,7 +14,7 @@ UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_Qualifi
     UA_ExpandedNodeId_init(&parentId);
     UA_NodeId_copy(&parentNodeId, &parentId.nodeId);
     UA_AddNodesResult res =
-        UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node, &parentId, &referenceTypeId);
+        UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node, parentId, referenceTypeId);
     ADDREFERENCE(res.addedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
                  UA_EXPANDEDNODEID_NUMERIC(0, value->type->typeId.identifier.numeric));
     if(res.statusCode != UA_STATUSCODE_GOOD) {
@@ -41,7 +41,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
     UA_ExpandedNodeId_init(&parentId);
     UA_NodeId_copy(&parentNodeId, &parentId.nodeId);
     UA_AddNodesResult res =
-        UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node, &parentId, &referenceTypeId);
+        UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node, parentId, referenceTypeId);
     ADDREFERENCE(res.addedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
                  UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE));
     if(res.statusCode != UA_STATUSCODE_GOOD)
@@ -216,15 +216,15 @@ UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session, const 
 
 /* userland version of addNodeWithSession */
 UA_AddNodesResult
-UA_Server_addNode(UA_Server *server, UA_Node *node, const UA_ExpandedNodeId *parentNodeId,
-                  const UA_NodeId *referenceTypeId)
+UA_Server_addNode(UA_Server *server, UA_Node *node, const UA_ExpandedNodeId parentNodeId,
+                  const UA_NodeId referenceTypeId)
 {
     return UA_Server_addNodeWithSession(server, &adminSession, node, parentNodeId, referenceTypeId);
 }
 
 UA_AddNodesResult
 UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, UA_Node *node,
-                             const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId)
+                             const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId)
 {
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
@@ -234,14 +234,14 @@ UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, UA_Node *no
         return result;
     }
 
-    const UA_Node *parent = UA_NodeStore_get(server->nodestore, &parentNodeId->nodeId);
+    const UA_Node *parent = UA_NodeStore_get(server->nodestore, &parentNodeId.nodeId);
     if(!parent) {
         result.statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID;
         return result;
     }
 
     const UA_ReferenceTypeNode *referenceType =
-        (const UA_ReferenceTypeNode *)UA_NodeStore_get(server->nodestore, referenceTypeId);
+        (const UA_ReferenceTypeNode *)UA_NodeStore_get(server->nodestore, &referenceTypeId);
     if(!referenceType) {
         result.statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
         goto ret;

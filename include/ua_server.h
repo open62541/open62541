@@ -44,7 +44,7 @@ typedef struct UA_ServerConfig {
     char*       Application_applicationName;
 } UA_ServerConfig;
 
-extern const UA_ServerConfig UA_ServerConfig_standard;
+extern UA_EXPORT const UA_ServerConfig UA_ServerConfig_standard;
 
 struct UA_Server;
 typedef struct UA_Server UA_Server;

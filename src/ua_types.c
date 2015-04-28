@@ -104,7 +104,7 @@ UA_StatusCode UA_String_copy(UA_String const *src, UA_String *dst) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_String UA_String_fromChars(char const *src) {
+UA_String UA_String_fromChars(char const src[]) {
     UA_String str;
     size_t length = strlen(src);
     if(length == 0) {
@@ -122,9 +122,9 @@ UA_String UA_String_fromChars(char const *src) {
     return str;
 }
 
-#define UA_STRING_COPYPRINTF_BUFSIZE 1024
-UA_StatusCode UA_String_copyprintf(char const *fmt, UA_String *dst, ...) {
-    char src[UA_STRING_COPYPRINTF_BUFSIZE];
+#define UA_STRING_ALLOCPRINTF_BUFSIZE 1024
+UA_StatusCode UA_String_copyprintf(char const fmt[], UA_String *dst, ...) {
+    char src[UA_STRING_ALLOCPRINTF_BUFSIZE];
     va_list ap;
     va_start(ap, dst);
 #if defined(__GNUC__) || defined(__clang__)
@@ -132,7 +132,7 @@ UA_StatusCode UA_String_copyprintf(char const *fmt, UA_String *dst, ...) {
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
     // vsnprintf should only take a literal and no variable to be secure
-    UA_Int32 len = vsnprintf(src, UA_STRING_COPYPRINTF_BUFSIZE, fmt, ap);
+    UA_Int32 len = vsnprintf(src, UA_STRING_ALLOCPRINTF_BUFSIZE, fmt, ap);
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
@@ -140,7 +140,7 @@ UA_StatusCode UA_String_copyprintf(char const *fmt, UA_String *dst, ...) {
     if(len < 0)  // FIXME: old glibc 2.0 would return -1 when truncated
         return UA_STATUSCODE_BADINTERNALERROR;
     // since glibc 2.1 vsnprintf returns the len that would have resulted if buf were large enough
-    len = ( len > UA_STRING_COPYPRINTF_BUFSIZE ? UA_STRING_COPYPRINTF_BUFSIZE : len );
+    len = ( len > UA_STRING_ALLOCPRINTF_BUFSIZE ? UA_STRING_ALLOCPRINTF_BUFSIZE : len );
     if(!(dst->data = UA_malloc((UA_UInt32)len)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_memcpy((void *)dst->data, src, (UA_UInt32)len);
@@ -333,11 +333,6 @@ UA_StatusCode UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst) {
     return retval;
 }
 
-static UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id) {
-    return id ->namespaceIndex == 0 && 1 <= id ->identifier.numeric &&
-        id ->identifier.numeric <= 25;
-}
-
 void UA_NodeId_deleteMembers(UA_NodeId *p) {
     switch(p->identifierType) {
     case UA_NODEIDTYPE_STRING:
@@ -399,6 +394,62 @@ UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
         return UA_FALSE;
     }
     return UA_TRUE;
+}
+
+UA_NodeId UA_NodeId_fromInteger(UA_UInt16 nsIndex, UA_Int32 identifier) {
+    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_NUMERIC,
+                         .identifier.numeric = identifier };
+}
+
+UA_NodeId UA_NodeId_fromCharString(UA_UInt16 nsIndex, char identifier[]) {
+    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_STRING,
+                         .identifier.string = UA_STRING(identifier) };
+}
+
+UA_NodeId UA_NodeId_fromCharStringCopy(UA_UInt16 nsIndex, char const identifier[]) {
+    return (UA_NodeId) {.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_STRING,
+                        .identifier.string = UA_STRING_ALLOC(identifier) };
+}
+
+UA_NodeId UA_NodeId_fromString(UA_UInt16 nsIndex, UA_String identifier) {
+    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_STRING,
+                         .identifier.string = identifier };
+}
+
+UA_NodeId UA_NodeId_fromStringCopy(UA_UInt16 nsIndex, UA_String identifier) {
+    UA_NodeId id;
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_STRING;
+    UA_String_copy(&identifier, &id.identifier.string);
+    return id;
+}
+
+UA_NodeId UA_NodeId_fromGuid(UA_UInt16 nsIndex, UA_Guid identifier) {
+    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_GUID,
+                         .identifier.guid = identifier };
+}
+
+UA_NodeId UA_NodeId_fromCharByteString(UA_UInt16 nsIndex, char identifier[]) {
+    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_BYTESTRING,
+                         .identifier.byteString = UA_STRING(identifier) };
+}
+
+UA_NodeId UA_NodeId_fromCharByteStringCopy(UA_UInt16 nsIndex, char const identifier[]) {
+    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_BYTESTRING,
+                         .identifier.byteString = UA_STRING_ALLOC(identifier) };
+}
+
+UA_NodeId UA_NodeId_fromByteString(UA_UInt16 nsIndex, UA_ByteString identifier) {
+    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_BYTESTRING,
+                         .identifier.byteString = identifier };
+}
+
+UA_NodeId UA_NodeId_fromByteStringCopy(UA_UInt16 nsIndex, UA_ByteString identifier) {
+    UA_NodeId id;
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_BYTESTRING;
+    UA_ByteString_copy(&identifier, &id.identifier.byteString);
+    return id;
 }
 
 /* ExpandedNodeId */

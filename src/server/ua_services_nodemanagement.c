@@ -207,8 +207,8 @@ static void addNodeFromAttributes(UA_Server *server, UA_Session *session, UA_Add
         return;
 
     // add the node
-    *result = UA_Server_addNodeWithSession(server, session, node, &item->parentNodeId,
-                                           &item->referenceTypeId);
+    *result = UA_Server_addNodeWithSession(server, session, node, item->parentNodeId,
+                                           item->referenceTypeId);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         switch (node->nodeClass) {
         case UA_NODECLASS_OBJECT:

@@ -330,13 +330,14 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_DiagnosticInfo)
 /* String */
 /** Copy a (zero terminated) char-array into a UA_String. Memory for the string data is
     allocated. If the memory cannot be allocated, a null-string is returned. */
-UA_String UA_EXPORT UA_String_fromChars(char const *src);
+UA_String UA_EXPORT UA_String_fromChars(char const src[]);
+
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
-#define UA_STRING(CHARS) (const UA_String) {strlen(CHARS), (UA_Byte*)CHARS }
+#define UA_STRING(CHARS) (UA_String) {strlen(CHARS), (UA_Byte*)CHARS }
 #define UA_STRING_NULL (UA_String) {-1, (UA_Byte*)0 }
 
 /** Printf a char-array into a UA_String. Memory for the string data is allocated. */
-UA_StatusCode UA_EXPORT UA_String_copyprintf(char const *fmt, UA_String *dst, ...);
+UA_StatusCode UA_EXPORT UA_String_copyprintf(char const fmt[], UA_String *dst, ...);
 
 /** Compares two strings */
 UA_Boolean UA_EXPORT UA_String_equal(const UA_String *string1, const UA_String *string2);
@@ -385,56 +386,23 @@ UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 /** Is the nodeid a null-nodeid? */
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 
-#ifndef __cplusplus
-#define UA_NODEID_NUMERIC(NS_INDEX, NUMERICID) (UA_NodeId) {           \
-        .namespaceIndex = NS_INDEX,                                    \
-        .identifierType = UA_NODEIDTYPE_NUMERIC,                       \
-        .identifier.numeric = NUMERICID }
+UA_NodeId UA_EXPORT UA_NodeId_fromInteger(UA_UInt16 nsIndex, UA_Int32 identifier);
+UA_NodeId UA_EXPORT UA_NodeId_fromCharString(UA_UInt16 nsIndex, char identifier[]);
+UA_NodeId UA_EXPORT UA_NodeId_fromCharStringCopy(UA_UInt16 nsIndex, char const identifier[]);
+UA_NodeId UA_EXPORT UA_NodeId_fromString(UA_UInt16 nsIndex, UA_String identifier);
+UA_NodeId UA_EXPORT UA_NodeId_fromStringCopy(UA_UInt16 nsIndex, UA_String identifier);
+UA_NodeId UA_EXPORT UA_NodeId_fromGuid(UA_UInt16 nsIndex, UA_Guid identifier);
+UA_NodeId UA_EXPORT UA_NodeId_fromCharByteString(UA_UInt16 nsIndex, char identifier[]);
+UA_NodeId UA_EXPORT UA_NodeId_fromCharByteStringCopy(UA_UInt16 nsIndex, char const identifier[]);
+UA_NodeId UA_EXPORT UA_NodeId_fromByteString(UA_UInt16 nsIndex, UA_ByteString identifier);
+UA_NodeId UA_EXPORT UA_NodeId_fromByteStringCopy(UA_UInt16 nsIndex, UA_ByteString identifier);
 
-#define UA_NODEID_STRING(NS_INDEX, CHARS) (const UA_NodeId) {          \
-        .namespaceIndex = NS_INDEX,                                    \
-        .identifierType = UA_NODEIDTYPE_STRING,                        \
-        .identifier.string = UA_STRING(CHARS) }
-    
-#define UA_NODEID_STRING_ALLOC(NS_INDEX, CHARS) (const UA_NodeId) {    \
-        .namespaceIndex = NS_INDEX,                                    \
-        .identifierType = UA_NODEIDTYPE_STRING,                        \
-        .identifier.string = UA_STRING_ALLOC(CHARS) }
-
-#define UA_NODEID_GUID(NS_INDEX, GUID) (UA_NodeId) {                   \
-        .namespaceIndex = NS_INDEX,                                    \
-        .identifierType = UA_NODEIDTYPE_GUID,                          \
-        .identifier.guid = GUID }
-
-#define UA_NODEID_BYTESTRING(NS_INDEX, CHARS) (const UA_NodeId) {      \
-        .namespaceIndex = NS_INDEX,                                    \
-        .identifierType = UA_NODEIDTYPE_BYTESTRING,                    \
-        .identifier.byteString = UA_STRING(CHARS) }
-
-#define UA_NODEID_BYTESTRING_ALLOC(NS_INDEX, CHARS) (const UA_NodeId) {\
-        .namespaceIndex = NS_INDEX,                                    \
-        .identifierType = UA_NODEIDTYPE_BYTESTRING,                    \
-        .identifier.byteString = UA_STRING_ALLOC(CHARS) }
-#else
-#define UA_NODEID_NUMERIC(NS_INDEX, NUMERICID) (UA_NodeId) {    \
-        NS_INDEX, UA_NodeId::UA_NODEIDTYPE_NUMERIC, NUMERICID }
-
-#define UA_NODEID_STRING(NS_INDEX, CHARS) (const UA_NodeId) {           \
-        NS_INDEX, UA_NodeId::UA_NODEIDTYPE_STRING, UA_STRING(CHARS) }
-
-#define UA_NODEID_STRING_ALLOC(NS_INDEX, CHARS) (const UA_NodeId) {     \
-        NS_INDEX, UA_NodeId::UA_NODEIDTYPE_STRING, UA_STRING_ALLOC(CHARS) }
-
-#define UA_NODEID_GUID(NS_INDEX, GUID) (UA_NodeId) {    \
-        NS_INDEX, UA_NodeId::UA_NODEIDTYPE_GUID, GUID }
-
-#define UA_NODEID_BYTESTRING(NS_INDEX, CHARS) (const UA_NodeId) {       \
-        NS_INDEX, UA_NodeId::UA_NODEIDTYPE_BYTESTRING, UA_STRING(CHARS) }
-
-#define UA_NODEID_BYTESTRING_ALLOC(NS_INDEX, CHARS) (const UA_NodeId) { \
-        NS_INDEX, UA_NodeId::UA_NODEIDTYPE_BYTESTRING, UA_STRING_ALLOC(CHARS) }
-#endif
-
+#define UA_NODEID_NUMERIC(NS_INDEX, NUMERICID) UA_NodeId_fromInteger(NS_INDEX, NUMERICID)
+#define UA_NODEID_STRING(NS_INDEX, CHARS) UA_NodeId_fromCharString(NS_INDEX, CHARS)
+#define UA_NODEID_STRING_ALLOC(NS_INDEX, CHARS) UA_NodeId_fromCharStringCopy(NS_INDEX, CHARS)
+#define UA_NODEID_GUID(NS_INDEX, GUID) UA_NodeId_fromGuid(NS_INDEX, GUID)
+#define UA_NODEID_BYTESTRING(NS_INDEX, CHARS) UA_NodeId_fromCharByteString(NS_INDEX, CHARS)
+#define UA_NODEID_BYTESTRING_ALLOC(NS_INDEX, CHARS) UA_NodeId_fromCharStringCopy(NS_INDEX, CHARS)
 #define UA_NODEID_NULL UA_NODEID_NUMERIC(0,0)
 
 /* ExpandedNodeId */

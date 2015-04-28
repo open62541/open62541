@@ -22,7 +22,7 @@ using namespace std;
 
 int main()
 {
-	UA_Server *server = UA_Server_new();
+	UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 
 	// add a variable node to the adresspace
