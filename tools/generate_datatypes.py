@@ -157,7 +157,7 @@ class EnumerationType(object):
 
     def typedef_c(self):
         return "typedef enum { \n    " + \
-            ",\n    ".join(map(lambda (key,value) : key.upper() + " = " + value,self.elements.iteritems())) + \
+            ",\n    ".join(map(lambda kv : kv[0].upper() + " = " + kv[1], self.elements.iteritems())) + \
             "\n} " + self.name + ";"
 
     def typelayout_c(self, namespace_0, description, outname):
