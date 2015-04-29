@@ -30,8 +30,12 @@ for fname in args.inputs:
                     includes.append(inc)
 
 file = open(args.outfile, 'w')
-file.write('''/*
- * Copyright (C) 2014 the contributors as stated in the AUTHORS file
+file.write('''/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES 
+ * visit http://open62541.org/ for information about this software
+ */
+ 
+ /*
+ * Copyright (C) 2015 the contributors as stated in the AUTHORS file
  *
  * This file is part of open62541. open62541 is free software: you can
  * redistribute it and/or modify it under the terms of the GNU Lesser General
@@ -43,9 +47,7 @@ file.write('''/*
  * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
  * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
  * details.
- */
-
-/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES */\n\n''')
+ */\n\n''')
 
 if not is_c:
     file.write('''#ifndef %s
