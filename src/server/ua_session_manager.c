@@ -24,15 +24,31 @@ void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager) {
         current = next;
         next = LIST_NEXT(current, pointers);
         LIST_REMOVE(current, pointers);
-        //if(current->session.channel)
-        //    current->session.channel->session = UA_NULL; // the channel is no longer attached to a session
+        if(current->session.channel)
+            UA_SecureChannel_detachSession(current->session.channel);
         UA_Session_deleteMembers(&current->session);
         UA_free(current);
     }
 }
 
-UA_Session * UA_SessionManager_getSession(UA_SessionManager *sessionManager,
-                                          const UA_NodeId *token) {
+void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sessionManager, UA_DateTime now) {
+    session_list_entry *sentry = LIST_FIRST(&sessionManager->sessions);
+    while(sentry) {
+        if(sentry->session.validTill < now) {
+            session_list_entry *next = LIST_NEXT(sentry, pointers);
+            LIST_REMOVE(sentry, pointers);
+            if(sentry->session.channel)
+                UA_SecureChannel_detachSession(sentry->session.channel);
+            UA_Session_deleteMembers(&sentry->session);
+            UA_free(sentry);
+            sentry = next;
+        } else {
+            sentry = LIST_NEXT(sentry, pointers);
+        }
+    }
+}
+
+UA_Session * UA_SessionManager_getSession(UA_SessionManager *sessionManager, const UA_NodeId *token) {
     session_list_entry *current = UA_NULL;
     LIST_FOREACH(current, &sessionManager->sessions, pointers) {
         if(UA_NodeId_equal(&current->session.authenticationToken, token))
@@ -49,6 +65,9 @@ UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_SecureChan
                                 const UA_CreateSessionRequest *request, UA_Session **session)
 {
     if(sessionManager->currentSessionCount >= sessionManager->maxSessionCount)
+        return UA_STATUSCODE_BADTOOMANYSESSIONS;
+
+    if(channel->session != UA_NULL)
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
 
     session_list_entry *newentry = UA_malloc(sizeof(session_list_entry));
@@ -74,7 +93,7 @@ UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_SecureChan
 UA_StatusCode
 UA_SessionManager_removeSession(UA_SessionManager *sessionManager, const UA_NodeId *sessionId)
 {
-    session_list_entry *current = UA_NULL;
+    session_list_entry *current;
     LIST_FOREACH(current, &sessionManager->sessions, pointers) {
         if(UA_NodeId_equal(&current->session.sessionId, sessionId))
             break;

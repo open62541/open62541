@@ -24,6 +24,8 @@ UA_StatusCode UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt3
 
 void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager);
 
+void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sessionManager, UA_DateTime now);
+
 UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager,
                                               UA_SecureChannel *channel, const UA_CreateSessionRequest *request, UA_Session **session);
 

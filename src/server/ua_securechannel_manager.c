@@ -28,46 +28,62 @@ void UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm) {
     }
 }
 
+void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_DateTime now) {
+    channel_list_entry *entry = LIST_FIRST(&cm->channels);
+    /* remove channels that were not renewed or who have no connection attached */
+    while(entry) {
+        if(entry->channel.securityToken.createdAt +
+            (10000 * entry->channel.securityToken.revisedLifetime) > now &&
+            entry->channel.connection) {
+            entry = LIST_NEXT(entry, pointers);
+        }
+        else {
+            channel_list_entry *next = LIST_NEXT(entry, pointers);
+            LIST_REMOVE(entry, pointers);
+            UA_Connection *c = entry->channel.connection;
+            if(c) {
+                UA_Connection_detachSecureChannel(c);
+                c->close(c);
+            }
+            UA_SecureChannel_detachSession(&entry->channel);
+            UA_SecureChannel_deleteMembers(&entry->channel);
+            UA_free(entry);
+            entry = next;
+        }
+    }
+}
+
+
 UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
                                            const UA_OpenSecureChannelRequest *request,
-                                           UA_OpenSecureChannelResponse *response)
-{
+                                           UA_OpenSecureChannelResponse *response) {
     switch(request->securityMode) {
+    case UA_MESSAGESECURITYMODE_NONE:
+        break;
     case UA_MESSAGESECURITYMODE_INVALID:
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURITYMODEREJECTED;
-        return response->responseHeader.serviceResult;
-
-        // fall through and handle afterwards
-    /* case UA_MESSAGESECURITYMODE_NONE: */
-    /*     UA_ByteString_copy(&request->clientNonce, &entry->channel.clientNonce); */
-    /*     break; */
-
     case UA_MESSAGESECURITYMODE_SIGN:
     case UA_MESSAGESECURITYMODE_SIGNANDENCRYPT:
+    default:
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURITYMODEREJECTED;
         return response->responseHeader.serviceResult;
-
-    default:
-        // do nothing
-        break;
     }
 
     channel_list_entry *entry = UA_malloc(sizeof(channel_list_entry));
-    if(!entry) return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_SecureChannel_init(&entry->channel);
+    if(!entry)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    UA_SecureChannel_init(&entry->channel);
     response->responseHeader.stringTableSize = 0;
     response->responseHeader.timestamp       = UA_DateTime_now();
+    response->serverProtocolVersion = 0;
 
-    entry->channel.connection = conn;
-    conn->channel = &entry->channel;
     entry->channel.securityToken.channelId       = cm->lastChannelId++;
     entry->channel.securityToken.tokenId         = cm->lastTokenId++;
     entry->channel.securityToken.createdAt       = UA_DateTime_now();
     entry->channel.securityToken.revisedLifetime = (request->requestedLifetime > cm->maxChannelLifetime) ?
                                                    cm->maxChannelLifetime : request->requestedLifetime;
     //FIXME: pragmatic workaround to get clients requesting lifetime of 0 working
-    if(entry->channel.securityToken.revisedLifetime == 0){
+    if(entry->channel.securityToken.revisedLifetime == 0) {
         entry->channel.securityToken.revisedLifetime = cm->maxChannelLifetime;
         //FIXME: I'd log it, but there is no pointer to the logger
         // printf("Warning: client requests token lifetime of 0 in OpenSecureChannelRequest setting it to %llu\n", cm->maxChannelLifetime);
@@ -76,13 +92,13 @@ UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Conne
     UA_ByteString_copy(&request->clientNonce, &entry->channel.clientNonce);
     entry->channel.serverAsymAlgSettings.securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
-    LIST_INSERT_HEAD(&cm->channels, entry, pointers);
 
-    response->serverProtocolVersion = 0;
     UA_SecureChannel_generateNonce(&entry->channel.serverNonce);
     UA_ByteString_copy(&entry->channel.serverNonce, &response->serverNonce);
     UA_ChannelSecurityToken_copy(&entry->channel.securityToken, &response->securityToken);
-    conn->channel = &entry->channel;
+
+    UA_Connection_attachSecureChannel(conn, &entry->channel);
+    LIST_INSERT_HEAD(&cm->channels, entry, pointers);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -128,18 +144,20 @@ UA_StatusCode UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt
     // TODO lock access
     channel_list_entry *entry;
     LIST_FOREACH(entry, &cm->channels, pointers) {
-        if(entry->channel.securityToken.channelId == channelId) {
-            UA_Connection *c = entry->channel.connection;
-            if(c) {
-                UA_Connection_detachSecureChannel(c);
-                c->close(c);
-            }
-            entry->channel.session = UA_NULL;
-            UA_SecureChannel_deleteMembers(&entry->channel);
-            LIST_REMOVE(entry, pointers);
-            UA_free(entry);
-            return UA_STATUSCODE_GOOD;
-        }
+        if(entry->channel.securityToken.channelId == channelId)
+            break;
     }
-    return UA_STATUSCODE_BADINTERNALERROR;
+    if(!entry)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    LIST_REMOVE(entry, pointers);
+    UA_Connection *c = entry->channel.connection;
+    if(c) {
+        UA_Connection_detachSecureChannel(c);
+        c->close(c);
+    }
+    UA_SecureChannel_detachSession(&entry->channel);
+    UA_SecureChannel_deleteMembers(&entry->channel);
+    UA_free(entry);
+    return UA_STATUSCODE_GOOD;
 }

@@ -113,48 +113,11 @@ void UA_Server_delete(UA_Server *server) {
     UA_free(server);
 }
 
-/**
- * Recurring cleanup. Removing unused and timed-out channels and sessions
- * Todo: make this thread-safe
- */
+/* Recurring cleanup. Removing unused and timed-out channels and sessions */
 static void UA_Server_cleanup(UA_Server *server, void *nothing) {
     UA_DateTime now = UA_DateTime_now();
-    channel_list_entry *entry = LIST_FIRST(&server->secureChannelManager.channels);
-    /* remove channels that were not renewed or who have no connection attached */
-    while(entry) {
-        if(entry->channel.securityToken.createdAt +
-           (10000 * entry->channel.securityToken.revisedLifetime) > now &&
-           entry->channel.connection) {
-            entry = LIST_NEXT(entry, pointers);
-        } else {
-            channel_list_entry *next = LIST_NEXT(entry, pointers);
-            LIST_REMOVE(entry, pointers);
-            UA_Connection *c = entry->channel.connection;
-            if (c) {
-                UA_Connection_detachSecureChannel(c);
-                c->close(c);
-            }
-            UA_SecureChannel_detachSession(&entry->channel);
-            UA_SecureChannel_deleteMembers(&entry->channel);
-            UA_free(entry);
-            entry = next;
-        }
-    }
-
-    session_list_entry *sentry = LIST_FIRST(&server->sessionManager.sessions);
-    while(sentry) {
-        if(sentry->session.validTill < now) {
-            session_list_entry *next = LIST_NEXT(sentry, pointers);
-            LIST_REMOVE(sentry, pointers);
-            if(sentry->session.channel)
-                UA_SecureChannel_detachSession(sentry->session.channel);
-            UA_Session_deleteMembers(&sentry->session);
-            UA_free(sentry);
-            sentry = next;
-        } else {
-            sentry = LIST_NEXT(sentry, pointers);
-        }
-    }
+    UA_SessionManager_cleanupTimedOut(&server->sessionManager, now);
+    UA_SecureChannelManager_cleanupTimedOut(&server->secureChannelManager, now);
 }
 
 static UA_StatusCode readStatus(void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {

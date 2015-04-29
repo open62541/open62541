@@ -25,6 +25,7 @@ UA_StatusCode UA_SecureChannelManager_init(UA_SecureChannelManager *cm, UA_UInt3
                                            UA_UInt32 tokenLifetime, UA_UInt32 startChannelId,
                                            UA_UInt32 startTokenId);
 void UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm);
+void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_DateTime now);
 UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
                                            const UA_OpenSecureChannelRequest *request,
                                            UA_OpenSecureChannelResponse *response);
