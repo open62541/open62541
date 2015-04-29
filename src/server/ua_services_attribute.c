@@ -528,14 +528,14 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
                 UA_Variant_deleteMembers(&newVn->value.variant);
                 retval = UA_Variant_copy(&wvalue->value.value, &newVn->value.variant);
             }
-            if(retval != UA_STATUSCODE_GOOD ||
-               UA_NodeStore_replace(server->nodestore, node, (UA_Node*)newVn,
-                                    UA_NULL) != UA_STATUSCODE_GOOD)
-                goto clean_up;
-            if(hasRange)
-                UA_free(range.dimensions);
-            done = UA_TRUE;
-            break;
+
+            if(retval == UA_STATUSCODE_GOOD &&
+                UA_NodeStore_replace(server->nodestore, node, (UA_Node*)newVn, UA_NULL) == UA_STATUSCODE_GOOD) {
+                if(hasRange)
+                    UA_free(range.dimensions);
+                done = UA_TRUE;
+                break;
+            }
 
             clean_up:
             if(node->nodeClass == UA_NODECLASS_VARIABLE)

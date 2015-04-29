@@ -617,15 +617,16 @@ void UA_Variant_deleteMembers(UA_Variant *p) {
     if(p->arrayDimensions) {
         UA_free(p->arrayDimensions);
         p->arrayDimensions = UA_NULL;
+        p->arrayDimensionsSize = -1;
     }
 }
 
 UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
     UA_Variant_init(dst);
-    UA_Int32 tmp = src->arrayLength;
-    if(src->arrayLength == -1 && src->data)
-        tmp = 1;
-    UA_StatusCode retval = UA_Array_copy(src->data, &dst->data, src->type, tmp);
+    UA_Int32 elements = src->arrayLength;
+    if(UA_Variant_isScalar(src))
+        elements = 1;
+    UA_StatusCode retval = UA_Array_copy(src->data, &dst->data, src->type, elements);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Variant_deleteMembers(dst);
         UA_Variant_init(dst);
@@ -648,7 +649,7 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
     return retval;
 }
 
-UA_Boolean UA_Variant_isScalar(UA_Variant *v) {
+UA_Boolean UA_Variant_isScalar(const UA_Variant *v) {
     return (v->data != UA_NULL && v->arrayLength == -1);
 }
 

@@ -428,7 +428,7 @@ UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
  * @param v The variant
  * @return Does the variant contain a scalar value.
  */
-UA_Boolean UA_EXPORT UA_Variant_isScalar(UA_Variant *v);
+UA_Boolean UA_EXPORT UA_Variant_isScalar(const UA_Variant *v);
     
 /**
  * Set the variant to a scalar value that already resides in memory. The value takes on the
