@@ -2,12 +2,22 @@ cmake_minimum_required(VERSION 2.8.8)
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 
 project(open62541 C)
-set(open62541_VERSION_MAJOR 0)
-set(open62541_VERSION_MINOR 0)
-set(open62541_VERSION_PATCH 0)
-add_definitions(-DOPEN62541_VERSION_MAJOR=${open62541_VERSION_MAJOR})
-add_definitions(-DOPEN62541_VERSION_MINOR=${open62541_VERSION_MINOR})
-add_definitions(-DOPEN62541_VERSION_PATCH=${open62541_VERSION_PATCH})
+
+find_package(Git)
+if(GIT_FOUND)
+    execute_process(COMMAND ${GIT_EXECUTABLE} describe --abbrev=4 --dirty --always --tags RESULT_VARIABLE res_var OUTPUT_VARIABLE GIT_COM_ID )
+    if( NOT ${res_var} EQUAL 0 )
+        set( GIT_COMMIT_ID "git commit id unknown")
+        message( WARNING "Git failed (not a repo, or no tags). Build will not contain git revision info." )
+    endif()
+    string( REPLACE "\n" "" GIT_COMMIT_ID ${GIT_COM_ID} )
+else()
+    set( GIT_COMMIT_ID "unknown (git not found!)")
+    message( WARNING "Git not found. Build will not contain git revision info." )
+endif()
+add_definitions("-DVERSION=${GIT_COMMIT_ID}")
+
+MESSAGE (STATUS "Git version:"  ${GIT_COMMIT_ID})
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -153,9 +163,9 @@ endif()
 option(ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c
                PRE_BUILD
-               COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
+               COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${GIT_COMMIT_ID} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
 
-               COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
+               COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${GIT_COMMIT_ID} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
                               ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${internal_headers} ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources}
 
                DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${exported_headers} ${internal_headers}

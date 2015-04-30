@@ -3,6 +3,7 @@ import re
 import argparse
 
 parser = argparse.ArgumentParser()
+parser.add_argument('version', help='version to include')
 parser.add_argument('outfile', help='outfile w/o extension')
 parser.add_argument('inputs', nargs='*', action='store', help='input filenames')
 args = parser.parse_args()
@@ -32,6 +33,7 @@ for fname in args.inputs:
 file = open(args.outfile, 'w')
 file.write('''/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES 
  * visit http://open62541.org/ for information about this software
+ * Git-Revision: %s
  */
  
  /*
@@ -47,7 +49,7 @@ file.write('''/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62
  * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
  * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
  * details.
- */\n\n''')
+ */\n\n''' % args.version)
 
 if not is_c:
     file.write('''#ifndef %s

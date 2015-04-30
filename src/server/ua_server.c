@@ -124,7 +124,7 @@ static void UA_Server_cleanup(UA_Server *server, void *nothing) {
 #define PRODUCT_NAME "open62541 OPC UA Server"
 #define STRINGIFY(x) #x //some magic
 #define TOSTRING(x) STRINGIFY(x) //some magic
-#define SOFTWARE_VERSION TOSTRING(OPEN62541_VERSION_MAJOR) "." TOSTRING(OPEN62541_VERSION_MINOR) "." TOSTRING(OPEN62541_VERSION_PATCH)
+#define SOFTWARE_VERSION TOSTRING(VERSION)
 #define BUILD_NUMBER "0"
 
 static void getBulidInfo(const UA_Server* server, UA_BuildInfo *buildInfo){
@@ -929,7 +929,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
        copyNames((UA_Node*)manufacturername, "ManufacturererName");
        manufacturername->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_MANUFACTURERNAME);
        manufacturername->value.variant.data = UA_String_new();
-       *((UA_String*)manufacturername->value.variant.data) = UA_STRING_ALLOC(MANUFACRURER_NAME);
+       *((UA_String*)manufacturername->value.variant.data) = UA_STRING_ALLOC(MANUFACTURER_NAME);
        manufacturername->value.variant.type = &UA_TYPES[UA_TYPES_STRING];
        UA_Server_addNode(server, (UA_Node*)manufacturername, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO),
                UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT));
@@ -948,7 +948,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE));
 
        UA_VariableNode *softwareversion = UA_VariableNode_new();
-       copyNames((UA_Node*)softwareversion, "SoftwareName");
+       copyNames((UA_Node*)softwareversion, "SoftwareVersion");
        softwareversion->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_SOFTWAREVERSION);
        softwareversion->value.variant.data = UA_String_new();
        *((UA_String*)softwareversion->value.variant.data) = UA_STRING_ALLOC(SOFTWARE_VERSION);
