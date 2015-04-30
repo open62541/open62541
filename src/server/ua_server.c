@@ -120,7 +120,7 @@ static void UA_Server_cleanup(UA_Server *server, void *nothing) {
     UA_SecureChannelManager_cleanupTimedOut(&server->secureChannelManager, now);
 }
 
-#define MANUFACRURER_NAME "open62541"
+#define MANUFACTURER_NAME "open62541"
 #define PRODUCT_NAME "open62541 OPC UA Server"
 #define STRINGIFY(x) #x //some magic
 #define TOSTRING(x) STRINGIFY(x) //some magic
@@ -129,7 +129,7 @@ static void UA_Server_cleanup(UA_Server *server, void *nothing) {
 
 static void getBulidInfo(const UA_Server* server, UA_BuildInfo *buildInfo){
     buildInfo->productUri = UA_STRING_ALLOC(PRODUCT_URI);
-    buildInfo->manufacturerName = UA_STRING_ALLOC(MANUFACRURER_NAME);
+    buildInfo->manufacturerName = UA_STRING_ALLOC(MANUFACTURER_NAME);
     buildInfo->productName = UA_STRING_ALLOC(PRODUCT_NAME);
     buildInfo->softwareVersion = UA_STRING_ALLOC(SOFTWARE_VERSION);
     buildInfo->buildNumber = UA_STRING_ALLOC(BUILD_NUMBER);
