@@ -75,7 +75,7 @@ else:
 for fname in args.inputs:
     if not "util.h" in fname:
         with open(fname) as infile:
-            file.write("/*********************************** amalgamated original file \"" + infile + "\" ***********************************/\n")
+            file.write("/*********************************** amalgamated original file \"" + fname + "\" ***********************************/\n")
             for line in infile:
                 inc_res = include_re.match(line)
                 guard_res = guard_re.match(line)
