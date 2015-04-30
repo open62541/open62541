@@ -477,33 +477,35 @@ UA_StatusCode UA_EXPORT UA_Variant_setArrayCopy(UA_Variant *v, const void *array
                                                 const UA_DataType *type);
 
 /**
- * Copy the variant, but use only a subset of the (multidimensional) array. Returns an error code if
- * the variant is no array or if the indicated range does not fit.
+ * Copy the variant, but use only a subset of the (multidimensional) array into a variant. Returns
+ * an error code if the variant is not an array or if the indicated range does not fit.
  */
 UA_StatusCode UA_EXPORT UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, UA_NumericRange range);
 
 /**
- * Insert a range of data into an existing variant of the dimensionality. This overwrites data in
- * the variant. The inserted data is managed by the variant (members are deleted with it).
+ * Insert a range of data into an existing variant. The data array can't be reused afterwards if it
+ * contains types without a fixed size (e.g. strings) since they take on the lifetime of the
+ * variant.
  *
  * @param v The variant
- * @param data The data array. Obviously the type must match the variant and the length the range.
+ * @param dataArray The data array. The type must match the variant
+ * @param dataarraySize The length of the data array. This is checked to match the range size.
  * @param range The range of where the new data is inserted
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setRange(UA_Variant *v, void *data, const UA_NumericRange range);
+UA_StatusCode UA_EXPORT UA_Variant_setRange(UA_Variant *v, void *dataArray, UA_Int32 dataArraySize,
+                                            const UA_NumericRange range);
 
 /**
- * Copies the variant and inserts data from the range. The inserted data is managed by the variant
- * (members are deleted with it).
+ * Deep-copy a range of data into an existing variant.
  *
- * @param src The source variant
- * @param dst The target variant
- * @param data The data array. Obviously the type must match the variant and the length the range.
+ * @param v The variant
+ * @param dataArray The data array. The type must match the variant
+ * @param dataarraySize The length of the data array. This is checked to match the range size.
  * @param range The range of where the new data is inserted
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setCopyRange(const UA_Variant *src, UA_Variant *dst, void *data,
+UA_StatusCode UA_EXPORT UA_Variant_setRangeCopy(UA_Variant *v, const void *dataArray, UA_Int32 dataArraySize,
                                                 const UA_NumericRange range);
 
 /****************************/

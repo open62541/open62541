@@ -680,7 +680,7 @@ testRangeWithVariant(const UA_Variant *v, const UA_NumericRange range, size_t *t
     /* Test the integrity of the range */
     size_t count = 1;
     if(range.dimensionsSize != dims_count)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
     for(UA_Int32 i = 0; i < dims_count; i++) {
         if(range.dimensions[i].min > range.dimensions[i].max)
             return UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -766,47 +766,63 @@ UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Variant_setRange(UA_Variant *v, void *data, const UA_NumericRange range) {
+UA_StatusCode UA_Variant_setRange(UA_Variant *v, void *dataArray, UA_Int32 dataArraySize,
+                                  const UA_NumericRange range) {
     size_t count, block_size, block_distance, first_elem;
     UA_StatusCode retval = testRangeWithVariant(v, range, &count, &block_size, &block_distance, &first_elem);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+    if((UA_Int32)count != dataArraySize)
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
     size_t block_count = count / block_size;
     size_t elem_size = v->type->memSize;
     uintptr_t nextdst = (uintptr_t)v->data + (first_elem * elem_size);
-    uintptr_t nextsrc = (uintptr_t)data;
-    if(v->type->fixedSize) {
-        for(size_t i = 0; i < block_count; i++) {
-            memcpy((void*)nextdst, (void*)nextsrc, elem_size * block_size);
-            nextdst += block_size * elem_size;
-            nextsrc += block_distance * elem_size;
-        }
-    } else {
-        for(size_t i = 0; i < block_count; i++) {
+    uintptr_t nextsrc = (uintptr_t)dataArray;
+    for(size_t i = 0; i < block_count; i++) {
+        if(!v->type->fixedSize) {
             for(size_t j = 0; j < block_size; j++) {
                 UA_deleteMembers((void*)nextdst, v->type);
                 nextdst += elem_size;
             }
             nextdst -= block_size * elem_size;
-            memcpy((void*)nextdst, (void*)nextsrc, elem_size * block_size);
-            nextdst += block_size * elem_size;
-            nextsrc += block_distance * elem_size;
         }
+        memcpy((void*)nextdst, (void*)nextsrc, elem_size * block_size);
+        nextsrc += block_size * elem_size;
+        nextdst += block_distance * elem_size;
     }
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Variant_setCopyRange(const UA_Variant *src, UA_Variant *dst, void *data,
-                                      const UA_NumericRange range) {
-    // todo: don't copy the entire variant but only the retained parts
-    UA_StatusCode retval = UA_Variant_copy(src, dst);
+UA_StatusCode UA_EXPORT UA_Variant_setRangeCopy(UA_Variant *v, const void *dataArray, UA_Int32 dataArraySize,
+                                                const UA_NumericRange range) {
+    size_t count, block_size, block_distance, first_elem;
+    UA_StatusCode retval = testRangeWithVariant(v, range, &count, &block_size, &block_distance, &first_elem);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    retval = UA_Variant_setRange(dst, data, range);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Variant_deleteMembers(dst);
-        return retval;
+    if((UA_Int32)count != dataArraySize)
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+
+    size_t block_count = count / block_size;
+    size_t elem_size = v->type->memSize;
+    uintptr_t nextdst = (uintptr_t)v->data + (first_elem * elem_size);
+    uintptr_t nextsrc = (uintptr_t)dataArray;
+    if(v->type->fixedSize) {
+        for(size_t i = 0; i < block_count; i++) {
+            memcpy((void*)nextdst, (void*)nextsrc, elem_size * block_size);
+            nextsrc += block_size * elem_size;
+            nextdst += block_distance * elem_size;
+        }
+    } else {
+        for(size_t i = 0; i < block_count; i++) {
+            for(size_t j = 0; j < block_size; j++) {
+                UA_deleteMembers((void*)nextdst, v->type);
+                UA_copy((void*)nextsrc, (void*)nextdst, v->type);
+                nextdst += elem_size;
+                nextsrc += elem_size;
+            }
+            nextdst += (block_distance - block_size) * elem_size;
+        }
     }
     return UA_STATUSCODE_GOOD;
 }

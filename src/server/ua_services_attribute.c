@@ -92,10 +92,11 @@ static void handleSourceTimestamps(UA_TimestampsToReturn timestamps, UA_DataValu
 /** Reads a single attribute from a node in the nodestore. */
 static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
                       const UA_ReadValueId *id, UA_DataValue *v) {
-
+    UA_String binEncoding = UA_STRING("DefaultBinary");
+    UA_String xmlEncoding = UA_STRING("DefaultXml");
 	if(id->dataEncoding.name.length >= 0){
-		if(memcmp(id->dataEncoding.name.data, "DefaultBinary", 13) != 0 &&
-           memcmp(id->dataEncoding.name.data, "DefaultXml", 10) != 0) {
+		if(!UA_String_equal(&binEncoding, &id->dataEncoding.name) &&
+           !UA_String_equal(&xmlEncoding, &id->dataEncoding.name)) {
 			v->hasStatus = UA_TRUE;
 			v->status = UA_STATUSCODE_BADDATAENCODINGINVALID;
 			return;
@@ -493,10 +494,9 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
                     /* An enum was sent as an int32, or an opaque type as a bytestring. This is
                        detected with the typeIndex indicated the "true" datatype. */
                     wvalue->value.value.type = oldV->type;
-                else if(oldV->type == &UA_TYPES[UA_TYPES_BYTE] &&
-                        (!oldV->data || vn->value.variant.arrayLength > -1) /* isArray */ &&
+                else if(oldV->type == &UA_TYPES[UA_TYPES_BYTE] && !UA_Variant_isScalar(oldV) &&
                         wvalue->value.value.type == &UA_TYPES[UA_TYPES_BYTESTRING] &&
-                        wvalue->value.value.data && wvalue->value.value.arrayLength == -1 /* isScalar */) {
+                        UA_Variant_isScalar(&wvalue->value.value)) {
                     /* a string is written to a byte array */
                     UA_ByteString *str = (UA_ByteString*) wvalue->value.value.data;
                     wvalue->value.value.arrayLength = str->length;
@@ -521,16 +521,17 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
             if(retval != UA_STATUSCODE_GOOD)
                 goto clean_up;
                 
-            /* insert the new value*/
+            /* insert the new value */
             if(hasRange)
-                retval = UA_Variant_setRange(&newVn->value.variant, wvalue->value.value.data, range);
+                retval = UA_Variant_setRangeCopy(&newVn->value.variant, wvalue->value.value.data,
+                                                 wvalue->value.value.arrayLength, range);
             else {
                 UA_Variant_deleteMembers(&newVn->value.variant);
                 retval = UA_Variant_copy(&wvalue->value.value, &newVn->value.variant);
             }
 
-            if(retval == UA_STATUSCODE_GOOD &&
-                UA_NodeStore_replace(server->nodestore, node, (UA_Node*)newVn, UA_NULL) == UA_STATUSCODE_GOOD) {
+            if(retval == UA_STATUSCODE_GOOD && UA_NodeStore_replace(server->nodestore, node,
+                                                   (UA_Node*)newVn, UA_NULL) == UA_STATUSCODE_GOOD) {
                 if(hasRange)
                     UA_free(range.dimensions);
                 done = UA_TRUE;
@@ -570,8 +571,8 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
     return retval;
 }
 
-void Service_Write(UA_Server *server, UA_Session *session,
-                   const UA_WriteRequest *request, UA_WriteResponse *response) {
+void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,
+                   UA_WriteResponse *response) {
     UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
 
     if(request->nodesToWriteSize <= 0){
