@@ -41,7 +41,7 @@ void UA_Session_init(UA_Session *session) {
     session->timeout = 0;
     UA_DateTime_init(&session->validTill);
     session->channel = UA_NULL;
-    session->continuationPoints = (struct ContinuationPointList){UA_NULL};
+    LIST_INIT(&session->continuationPoints);
 }
 
 void UA_Session_deleteMembers(UA_Session *session) {
