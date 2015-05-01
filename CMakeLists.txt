@@ -38,6 +38,10 @@ if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
         set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -flto -s")
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -flto -s")
     endif()
+    option(ENABLESUBSCRIPTIONS "Enable compilation of subscription and monitoring support." OFF)
+    if (ENABLESUBSCRIPTIONS)
+        add_definitions(-DENABLESUBSCRIPTIONS)
+    endif()
 endif()
 
 # build the main library
@@ -83,6 +87,8 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_attribute.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c)
                 ##TODO: make client stuff optional
 
