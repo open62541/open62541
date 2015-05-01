@@ -246,6 +246,7 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
 // Service_DeleteMonitoredItems
 /** @} */
 
+#ifdef ENABLESUBSCRIPTIONS
 /**
  * @name Subscription Service Set
  *
@@ -253,24 +254,25 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
  *
  * @{
  */
-// Service_CreateSubscription
-/* UA_Int32 Service_CreateSubscription(UA_Server *server, UA_Session *session, */
-/*                                     const UA_CreateSubscriptionRequest *request, */
-/*                                     UA_CreateSubscriptionResponse *response); */
-// Service_ModifySubscription
-// Service_SetPublishingMode
-/* UA_Int32 Service_SetPublishingMode(UA_Server *server, UA_Session *session, */
-/*                                    const UA_SetPublishingModeRequest *request, */
-/*                                    UA_SetPublishingModeResponse *response); */
-
-/* UA_Int32 Service_Publish(UA_Server *server, UA_Session *session, */
-/*                          const UA_PublishRequest *request, */
-/*                          UA_PublishResponse *response); */
+    
+UA_Int32 Service_CreateSubscription(UA_Server *server, UA_Session *session,
+                                    const UA_CreateSubscriptionRequest *request,
+                                    UA_CreateSubscriptionResponse *response);
+//~ Service_ModifySubscription
+//~ Service_SetPublishingMode
+//~ UA_Int32 Service_SetPublishingMode(UA_Server *server, UA_Session *session,
+                                    //~ const UA_SetPublishingModeRequest *request,
+                                    //~ UA_SetPublishingModeResponse *response);
+//~ 
+//~ UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
+                         //~ const UA_PublishRequest *request,
+                         //~ UA_PublishResponse *response);
 
 // Service_Republish
 // Service_TransferSubscription
 // Service_DeleteSubscription
 /** @} */
 /** @} */
+#endif
 
 #endif /* UA_SERVICES_H_ */

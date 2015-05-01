@@ -7,6 +7,10 @@
 #include "ua_securechannel_manager.h"
 #include "ua_nodestore.h"
 
+#ifdef ENABLESUBSCRIPTIONS
+#include "ua_subscription_manager.h"
+#endif
+
 #define PRODUCT_URI "http://open62541.org"
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
@@ -46,6 +50,11 @@ struct UA_Server {
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;
 
+    /* Subscriptions and Monitoring */
+#ifdef ENABLESUBSCRIPTIONS
+    UA_SubscriptionManager subscriptionManager;
+#endif
+    
     /* Address Space */
     UA_NodeStore *nodestore;
     size_t namespacesSize;

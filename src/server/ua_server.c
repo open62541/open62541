@@ -6,6 +6,9 @@
 #include "ua_services.h"
 #include "ua_nodeids.h"
 
+#ifdef ENABLESUBSCRIPTIONS
+#include "ua_subscription_manager.h"
+#endif
 
 const UA_ServerConfig UA_ServerConfig_standard = {
         UA_TRUE,
@@ -304,6 +307,10 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     // random seed
     server->random_seed = (UA_UInt32)UA_DateTime_now();
+    
+#ifdef ENABLESUBSCRIPTIONS
+    SubscriptionManager_init(server);
+#endif
 
     // networklayers
     server->networkLayers = UA_NULL;

@@ -225,7 +225,7 @@ static UA_UInt16 processTimedWork(UA_Server *server) {
 #ifdef UA_MULTITHREADING
         if(tw->repetitionInterval > 0) {
             // copy the entry and insert at the new location
-            UA_WorkItem *workCopy = UA_malloc(sizeof(UA_WorkItem) * tw->workSize);
+            UA_WorkItem *workCopy = (UA_WorkItem *) UA_malloc(sizeof(UA_WorkItem) * tw->workSize);
             UA_memcpy(workCopy, tw->work, sizeof(UA_WorkItem) * tw->workSize);
             dispatchWork(server, tw->workSize, workCopy); // frees the work pointer
             tw->time += tw->repetitionInterval;
@@ -249,7 +249,7 @@ static UA_UInt16 processTimedWork(UA_Server *server) {
         }
 #else
         // 1) Process the work since it is past its due date
-        processWork(server, tw->work, tw->workSize); // does not free the work
+        processWork(server, (UA_WorkItem *) tw->work, tw->workSize); // does not free the work
 
         // 2) If the work is repeated, add it back into the list. Otherwise remove it.
         if(tw->interval > 0) {

@@ -295,7 +295,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         UA_ActivateSessionResponse_deleteMembers(&r);
         break;
     }
-
+    
     case UA_NS0ID_CLOSESESSIONREQUEST:
         INVOKE_SERVICE(CloseSession);
         break;
@@ -323,6 +323,12 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     case UA_NS0ID_TRANSLATEBROWSEPATHSTONODEIDSREQUEST:
         INVOKE_SERVICE(TranslateBrowsePathsToNodeIds);
         break;
+
+#ifdef ENABLESUBSCRIPTIONS    
+    case UA_NS0ID_CREATESUBSCRIPTIONREQUEST:
+        INVOKE_SERVICE(CreateSubscription);
+        break;
+#endif
 
     default: {
         UA_LOG_INFO(server->logger, UA_LOGGERCATEGORY_COMMUNICATION, "Unknown request: NodeId(ns=%d, i=%d)",
