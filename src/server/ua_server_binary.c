@@ -128,18 +128,23 @@ static void invoke_service(UA_Server *server, UA_SecureChannel *channel,
                            UA_RequestHeader *request, UA_ResponseHeader *response,
                            void (*service)(UA_Server*, UA_Session*, void*, void*)) {
     init_response_header(request, response);
-    if(!channel->session ||
-        !UA_NodeId_equal(&channel->session->authenticationToken,
-                         &request->authenticationToken))
+    /* try to get the session from the securechannel first */
+    UA_Session *session = UA_SecureChannel_getSession(channel, &request->authenticationToken);
+    if(!session)
+        session = UA_SessionManager_getSession(&server->sessionManager, &request->authenticationToken);
+    if(!session)
         response->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-    else if(channel->session->channel != channel)
-            response->serviceResult = UA_STATUSCODE_BADSECURECHANNELIDINVALID;
-    else if(channel->session->activated == UA_FALSE)
-            response->serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
+    else if(session->activated == UA_FALSE) {
+        response->serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
+        /* the session is invalidated */
+        UA_SessionManager_removeSession(&server->sessionManager, &request->authenticationToken);
+    }
+    else if(session->channel != channel)
+        response->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
     else {
-            UA_Session_updateLifetime(channel->session);
-            service(server, channel->session, request, response);
-        }
+            UA_Session_updateLifetime(session);
+            service(server, session, request, response);
+    }
 }
 
 #define INVOKE_SERVICE(TYPE) do {                                       \

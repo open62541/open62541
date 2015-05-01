@@ -2,12 +2,6 @@
 #include "ua_statuscodes.h"
 #include "ua_util.h"
 
-/**
- The functions in this file are not thread-safe. For multi-threaded access, a
- second implementation should be provided. See for example, how a nodestore
- implementation is choosen based on whether multithreading is enabled or not.
- */
-
 UA_StatusCode UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt32 maxSessionCount,
                                     UA_UInt32 maxSessionLifeTime, UA_UInt32 startSessionId) {
     LIST_INIT(&sessionManager->sessions);
@@ -19,14 +13,10 @@ UA_StatusCode UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt3
 }
 
 void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager) {
-    session_list_entry *current, *next = LIST_FIRST(&sessionManager->sessions);
-    while(next) {
-        current = next;
-        next = LIST_NEXT(current, pointers);
+    session_list_entry *current;
+    while((current = LIST_FIRST(&sessionManager->sessions))) {
         LIST_REMOVE(current, pointers);
-        if(current->session.channel)
-            UA_SecureChannel_detachSession(current->session.channel);
-        UA_Session_deleteMembers(&current->session);
+        UA_Session_deleteMembersCleanup(&current->session);
         UA_free(current);
     }
 }
@@ -37,10 +27,9 @@ void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sessionManager, UA_Dat
         if(sentry->session.validTill < now) {
             session_list_entry *next = LIST_NEXT(sentry, pointers);
             LIST_REMOVE(sentry, pointers);
-            if(sentry->session.channel)
-                UA_SecureChannel_detachSession(sentry->session.channel);
-            UA_Session_deleteMembers(&sentry->session);
+            UA_Session_deleteMembersCleanup(&sentry->session);
             UA_free(sentry);
+            sessionManager->currentSessionCount--;
             sentry = next;
         } else {
             sentry = LIST_NEXT(sentry, pointers);
@@ -59,52 +48,41 @@ UA_Session * UA_SessionManager_getSession(UA_SessionManager *sessionManager, con
     return &current->session;
 }
 
-/** Creates and adds a session. */
-UA_StatusCode
-UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_SecureChannel *channel,
-                                const UA_CreateSessionRequest *request, UA_Session **session)
-{
+/** Creates and adds a session. But it is not yet attached to a secure channel. */
+UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_SecureChannel *channel,
+                                              const UA_CreateSessionRequest *request, UA_Session **session) {
     if(sessionManager->currentSessionCount >= sessionManager->maxSessionCount)
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
-
-    if(channel->session != UA_NULL)
-        return UA_STATUSCODE_BADTOOMANYSESSIONS;
-
     session_list_entry *newentry = UA_malloc(sizeof(session_list_entry));
     if(!newentry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-
+    sessionManager->currentSessionCount++;
     UA_Session_init(&newentry->session);
     newentry->session.sessionId = UA_NODEID_NUMERIC(1, sessionManager->lastSessionId++);
-    newentry->session.authenticationToken = UA_NODEID_NUMERIC(1, sessionManager->lastSessionId);
-    newentry->session.channel = channel;
+    UA_UInt32 randSeed = sessionManager->lastSessionId;
+    newentry->session.authenticationToken =
+        UA_NODEID_GUID(1, UA_Guid_random(&randSeed));
     newentry->session.timeout =
         (request->requestedSessionTimeout <= sessionManager->maxSessionLifeTime &&
          request->requestedSessionTimeout>0) ?
         request->requestedSessionTimeout : sessionManager->maxSessionLifeTime;
     UA_Session_updateLifetime(&newentry->session);
-
-    sessionManager->currentSessionCount++;
     LIST_INSERT_HEAD(&sessionManager->sessions, newentry, pointers);
     *session = &newentry->session;
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_SessionManager_removeSession(UA_SessionManager *sessionManager, const UA_NodeId *sessionId)
-{
+UA_StatusCode UA_SessionManager_removeSession(UA_SessionManager *sessionManager, const UA_NodeId *token) {
     session_list_entry *current;
     LIST_FOREACH(current, &sessionManager->sessions, pointers) {
-        if(UA_NodeId_equal(&current->session.sessionId, sessionId))
+        if(UA_NodeId_equal(&current->session.authenticationToken, token))
             break;
     }
-
     if(!current)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
     LIST_REMOVE(current, pointers);
-    UA_SecureChannel_detachSession(current->session.channel);
-    UA_Session_deleteMembers(&current->session);
+    UA_Session_deleteMembersCleanup(&current->session);
     UA_free(current);
+    sessionManager->currentSessionCount--;
     return UA_STATUSCODE_GOOD;
 }

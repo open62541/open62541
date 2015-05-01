@@ -1,5 +1,6 @@
 #include "ua_util.h"
 #include "ua_securechannel.h"
+#include "ua_session.h"
 #include "ua_statuscodes.h"
 
 void UA_SecureChannel_init(UA_SecureChannel *channel) {
@@ -12,15 +13,25 @@ void UA_SecureChannel_init(UA_SecureChannel *channel) {
     channel->requestId = 0;
     channel->sequenceNumber = 0;
     channel->connection = UA_NULL;
-    channel->session    = UA_NULL;
+    LIST_INIT(&channel->sessions);
 }
 
-void UA_SecureChannel_deleteMembers(UA_SecureChannel *channel) {
+void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&channel->serverAsymAlgSettings);
     UA_ByteString_deleteMembers(&channel->serverNonce);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&channel->clientAsymAlgSettings);
     UA_ByteString_deleteMembers(&channel->clientNonce);
     UA_ChannelSecurityToken_deleteMembers(&channel->securityToken);
+    UA_Connection *c = channel->connection;
+    if(c) {
+        UA_Connection_detachSecureChannel(c);
+        c->close(c);
+    }
+    /* just remove the pointers and free the linked list (not the sessions) */
+    struct SessionEntry *se;
+    while((se = LIST_FIRST(&channel->sessions))) {
+        UA_SecureChannel_detachSession(channel, se->session); /* the se is deleted inside */
+    }
 }
 
 //TODO implement real nonce generator - DUMMY function
@@ -48,28 +59,47 @@ UA_StatusCode UA_SecureChannel_updateSequenceNumber(UA_SecureChannel *channel, U
     return UA_STATUSCODE_GOOD;
 }
 
-/* these need ua_securechannel.h */
-void UA_Connection_detachSecureChannel(UA_Connection *connection) {
+void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *session) {
+    struct SessionEntry *se = UA_malloc(sizeof(struct SessionEntry));
+    if(!se)
+        return;
+    se->session = session;
 #ifdef UA_MULTITHREADING
-    UA_SecureChannel *channel = connection->channel;
-    if(channel)
-        uatomic_cmpxchg(&channel->connection, connection, UA_NULL);
-    uatomic_set(&connection->channel, UA_NULL);
+    if(uatomic_cmpxchg(&session->channel, UA_NULL, channel) != UA_NULL) {
+        UA_free(se);
+        return;
+    }
 #else
-    if(connection->channel)
-        connection->channel->connection = UA_NULL;
-    connection->channel = UA_NULL;
+    if(session->channel != UA_NULL) {
+        UA_free(se);
+        return;
+    }
+    session->channel = channel;
 #endif
+    LIST_INSERT_HEAD(&channel->sessions, se, pointers);
 }
 
-void UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChannel *channel) {
-#ifdef UA_MULTITHREADING
-    if(uatomic_cmpxchg(&channel->connection, UA_NULL, connection) == UA_NULL)
-        uatomic_set(&connection->channel, channel);
-#else
-    if(channel->connection != UA_NULL)
-        return;
-    channel->connection = connection;
-    connection->channel = channel;
-#endif
+void UA_SecureChannel_detachSession(UA_SecureChannel *channel, UA_Session *session) {
+    if(session)
+        session->channel = UA_NULL;
+    struct SessionEntry *se;
+    LIST_FOREACH(se, &channel->sessions, pointers) {
+        if(se->session != session)
+            continue;
+        LIST_REMOVE(se, pointers);
+        UA_free(se);
+        break;
+    }
+}
+
+UA_Session * UA_SecureChannel_getSession(UA_SecureChannel *channel, UA_NodeId *token) {
+    struct SessionEntry *se;
+    LIST_FOREACH(se, &channel->sessions, pointers) {
+        if(UA_NodeId_equal(&se->session->authenticationToken, token))
+            break;
+    }
+    if(se)
+        return se->session;
+    else
+        return UA_NULL;
 }

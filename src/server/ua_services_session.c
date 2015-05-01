@@ -7,7 +7,6 @@
 void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                            const UA_CreateSessionRequest *request,
                            UA_CreateSessionResponse *response) {
-
     response->serverEndpoints = UA_malloc(sizeof(UA_EndpointDescription));
     if(!response->serverEndpoints || (response->responseHeader.serviceResult =
         UA_EndpointDescription_copy(server->endpointDescriptions, response->serverEndpoints)) !=
@@ -15,16 +14,11 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     response->serverEndpointsSize = 1;
 
-    // creates a session and adds a pointer to the channel. Only when the
-    // session is activated will the channel point to the session as well
 	UA_Session *newSession;
     response->responseHeader.serviceResult = UA_SessionManager_createSession(&server->sessionManager,
                                                                              channel, request, &newSession);
 	if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
 		return;
-
-	//bind session to channel
-	channel->session = newSession;
 
     //TODO get maxResponseMessageSize internally
     newSession->maxResponseMessageSize = request->maxResponseMessageSize;
@@ -36,12 +30,12 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         response->responseHeader.serviceResult |=
             UA_ByteString_copy(&server->endpointDescriptions->serverCertificate, &response->serverCertificate);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_SessionManager_removeSession(&server->sessionManager, &newSession->sessionId);
+        UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
          return;
     }
 }
 
-void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
+void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                              const UA_ActivateSessionRequest *request,
                              UA_ActivateSessionResponse *response) {
     // make the channel know about the session
@@ -49,12 +43,10 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
         UA_SessionManager_getSession(&server->sessionManager,
                                      (const UA_NodeId*)&request->requestHeader.authenticationToken);
 
-	if(foundSession == UA_NULL){
+	if(foundSession == UA_NULL) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         return;
-	}
-
-	if(foundSession->validTill < UA_DateTime_now()){
+	} else if(foundSession->validTill < UA_DateTime_now()) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         return;
 	}
@@ -70,14 +62,16 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
     if(token.policyId.data == UA_NULL) {
         /* 1) no policy defined */
         response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-    } else if(server->config.Login_enableAnonymous && UA_String_equalchars(&token.policyId, ANONYMOUS_POLICY)) {
+    } else if(server->config.Login_enableAnonymous &&
+              UA_String_equalchars(&token.policyId, ANONYMOUS_POLICY)) {
         /* 2) anonymous logins */
-        if(foundSession->channel)
-            UA_Session_detachSecureChannel(foundSession);
+        if(foundSession->channel && foundSession->channel != channel)
+            UA_SecureChannel_detachSession(foundSession->channel, foundSession);
         UA_SecureChannel_attachSession(channel, foundSession);
         foundSession->activated = UA_TRUE;
         UA_Session_updateLifetime(foundSession);
-    } else if(server->config.Login_enableUsernamePassword && UA_String_equalchars(&token.policyId, USERNAME_POLICY)) {
+    } else if(server->config.Login_enableUsernamePassword &&
+              UA_String_equalchars(&token.policyId, USERNAME_POLICY)) {
         /* 3) username logins */
         offset = 0;
         UA_UserNameIdentityToken_decodeBinary(&request->userIdentityToken.body, &offset, &username_token);
@@ -94,8 +88,8 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
                 if(UA_String_equalchars(&username_token.userName, server->config.Login_usernames[i])
                     && UA_String_equalchars(&username_token.password, server->config.Login_passwords[i])) {
                     /* success - activate */
-                    if(foundSession->channel)
-                        UA_Session_detachSecureChannel(foundSession);
+                    if(foundSession->channel && foundSession->channel != channel)
+                        UA_SecureChannel_detachSession(foundSession->channel, foundSession);
                     UA_SecureChannel_attachSession(channel, foundSession);
                     foundSession->activated = UA_TRUE;
                     UA_Session_updateLifetime(foundSession);
@@ -119,12 +113,9 @@ void Service_CloseSession(UA_Server *server, UA_Session *session, const UA_Close
 	UA_Session *foundSession =
         UA_SessionManager_getSession(&server->sessionManager,
 		                             (const UA_NodeId*)&request->requestHeader.authenticationToken);
-
-	if(foundSession == UA_NULL){
+	if(foundSession == UA_NULL)
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-		return;
-	}
-
-	response->responseHeader.serviceResult =
-        UA_SessionManager_removeSession(&server->sessionManager, &session->sessionId);
+	else 
+        response->responseHeader.serviceResult =
+            UA_SessionManager_removeSession(&server->sessionManager, &session->authenticationToken);
 }

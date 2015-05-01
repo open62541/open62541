@@ -44,12 +44,11 @@ void UA_Session_init(UA_Session *session) {
     LIST_INIT(&session->continuationPoints);
 }
 
-void UA_Session_deleteMembers(UA_Session *session) {
+void UA_Session_deleteMembersCleanup(UA_Session *session) {
     UA_ApplicationDescription_deleteMembers(&session->clientDescription);
     UA_NodeId_deleteMembers(&session->authenticationToken);
     UA_NodeId_deleteMembers(&session->sessionId);
     UA_String_deleteMembers(&session->sessionName);
-    session->channel = UA_NULL;
     struct ContinuationPointEntry *cp;
     while((cp = LIST_FIRST(&session->continuationPoints))) {
         UA_ByteString_deleteMembers(&cp->identifier);
@@ -57,47 +56,10 @@ void UA_Session_deleteMembers(UA_Session *session) {
         LIST_REMOVE(cp, pointers);
         UA_free(cp);
     }
+    if(session->channel)
+        UA_SecureChannel_detachSession(session->channel, session);
 }
 
 void UA_Session_updateLifetime(UA_Session *session) {
     session->validTill = UA_DateTime_now() + session->timeout * 10000; //timeout in ms
-}
-
-void UA_Session_detachSecureChannel(UA_Session *session) {
-#ifdef UA_MULTITHREADING
-    UA_SecureChannel *channel = session->channel;
-    if(channel)
-        uatomic_cmpxchg(&channel->session, session, UA_NULL);
-    uatomic_set(&session->channel, UA_NULL);
-#else
-    if(session->channel)
-        session->channel->session = UA_NULL;
-    session->channel = UA_NULL;
-#endif
-}
-
-/* these functions are here, since they need to include ua_session.h */
-void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *session) {
-#ifdef UA_MULTITHREADING
-    if(uatomic_cmpxchg(&session->channel, UA_NULL, channel) == UA_NULL)
-        uatomic_set(&channel->session, session);
-#else
-    if(session->channel != UA_NULL)
-        return;
-    session->channel = channel;
-    channel->session = session;
-#endif
-}
-
-void UA_SecureChannel_detachSession(UA_SecureChannel *channel) {
-#ifdef UA_MULTITHREADING
-    UA_Session *session = channel->session;
-    if(session)
-        uatomic_cmpxchg(&session->channel, channel, UA_NULL);
-    uatomic_set(&channel->session, UA_NULL);
-#else
-    if(channel->session)
-        channel->session->channel = UA_NULL;
-    channel->session = UA_NULL;
-#endif
 }

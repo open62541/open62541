@@ -14,17 +14,12 @@ UA_StatusCode UA_SecureChannelManager_init(UA_SecureChannelManager *cm, UA_UInt3
 }
 
 void UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm) {
-    channel_list_entry *current, *next = LIST_FIRST(&cm->channels);
-    while(next) {
-        current = next;
-        next = LIST_NEXT(current, pointers);
+    channel_list_entry *current = LIST_FIRST(&cm->channels);
+    while(current) {
         LIST_REMOVE(current, pointers);
-        if(current->channel.session)
-            current->channel.session->channel = UA_NULL;
-        if(current->channel.connection)
-            current->channel.connection->channel = UA_NULL;
-        UA_SecureChannel_deleteMembers(&current->channel);
+        UA_SecureChannel_deleteMembersCleanup(&current->channel);
         UA_free(current);
+        current = LIST_FIRST(&cm->channels);
     }
 }
 
@@ -40,13 +35,7 @@ void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_Dat
         else {
             channel_list_entry *next = LIST_NEXT(entry, pointers);
             LIST_REMOVE(entry, pointers);
-            UA_Connection *c = entry->channel.connection;
-            if(c) {
-                UA_Connection_detachSecureChannel(c);
-                c->close(c);
-            }
-            UA_SecureChannel_detachSession(&entry->channel);
-            UA_SecureChannel_deleteMembers(&entry->channel);
+            UA_SecureChannel_deleteMembersCleanup(&entry->channel);
             UA_free(entry);
             entry = next;
         }
@@ -127,7 +116,6 @@ UA_StatusCode UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_Conn
     UA_SecureChannel_generateNonce(&channel->serverNonce);
     UA_ByteString_copy(&channel->serverNonce, &response->serverNonce);
     UA_ChannelSecurityToken_copy(&channel->securityToken, &response->securityToken);
-
     return UA_STATUSCODE_GOOD;
 }
 
@@ -141,7 +129,6 @@ UA_SecureChannel * UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_U
 }
 
 UA_StatusCode UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
-    // TODO lock access
     channel_list_entry *entry;
     LIST_FOREACH(entry, &cm->channels, pointers) {
         if(entry->channel.securityToken.channelId == channelId)
@@ -149,15 +136,8 @@ UA_StatusCode UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt
     }
     if(!entry)
         return UA_STATUSCODE_BADINTERNALERROR;
-
     LIST_REMOVE(entry, pointers);
-    UA_Connection *c = entry->channel.connection;
-    if(c) {
-        UA_Connection_detachSecureChannel(c);
-        c->close(c);
-    }
-    UA_SecureChannel_detachSession(&entry->channel);
-    UA_SecureChannel_deleteMembers(&entry->channel);
+    UA_SecureChannel_deleteMembersCleanup(&entry->channel);
     UA_free(entry);
     return UA_STATUSCODE_GOOD;
 }
