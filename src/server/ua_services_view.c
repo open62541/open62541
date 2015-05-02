@@ -238,6 +238,7 @@ static void browse(UA_NodeStore *ns, struct ContinuationPointEntry **cpp, const 
         }
         UA_StatusCode retval = fillrefdescr(ns, current, &node->references[referencesIndex], descr->resultMask,
                                             &result->references[referencesCount]);
+
         UA_NodeStore_release(current);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_Array_delete(result->references, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION], referencesCount);

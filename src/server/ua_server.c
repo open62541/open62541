@@ -408,6 +408,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     references->nodeId.identifier.numeric = UA_NS0ID_REFERENCES;
     references->isAbstract = UA_TRUE;
     references->symmetric  = UA_TRUE;
+    references->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "References");
     // this node has no parent??
     UA_NodeStore_insert(server->nodestore, (UA_Node*)references, UA_NULL);
 
@@ -661,6 +662,16 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
         UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER),
         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
+    UA_ObjectNode *referencetypes = UA_ObjectNode_new();
+    copyNames((UA_Node*)referencetypes, "ReferenceTypes");
+    referencetypes->nodeId.identifier.numeric = UA_NS0ID_REFERENCETYPESFOLDER;
+    UA_Server_addNode(server, (UA_Node*)referencetypes,
+        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+
+    ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_REFERENCETYPESFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_REFERENCES));
+
     /**********************/
     /* Basic Object Types */
     /**********************/
@@ -683,6 +694,8 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
         UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
     ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
+        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+    ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_REFERENCETYPESFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
         UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
     addObjectTypeNode(server, "ServerType", UA_NS0ID_SERVERTYPE, UA_NS0ID_BASEOBJECTTYPE, UA_NS0ID_HASSUBTYPE);
     addObjectTypeNode(server, "ServerDiagnosticsType", UA_NS0ID_SERVERDIAGNOSTICSTYPE, UA_NS0ID_BASEOBJECTTYPE, UA_NS0ID_HASSUBTYPE);
@@ -1056,6 +1069,5 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
                                   UA_NODEID_NUMERIC(0, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
    }
 #endif
-
    return server;
 }
