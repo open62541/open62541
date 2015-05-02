@@ -7,14 +7,13 @@
 #include "ua_nodeids.h"
 
 const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
-        UA_TRUE,
-        UA_TRUE,
-        (char *[]){"user1","user2"},
-        (char *[]){"password","password1"},
-        2,
-        "urn:unconfigured:open62541:open62541Server",
-        "open62541"
-};
+    .Login_enableAnonymous = UA_TRUE,
+    .Login_enableUsernamePassword = UA_TRUE,
+    .Login_usernames = (char *[]){"user1","user2"},
+    .Login_passwords = (char *[]){"password","password1"},
+    .Login_loginsCount = 2,
+    .Application_applicationURI = "urn:unconfigured:open62541:open62541Server",
+    .Application_applicationName = "open62541" };
 
 /**********************/
 /* Namespace Handling */

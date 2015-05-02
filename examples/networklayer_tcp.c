@@ -431,10 +431,11 @@ static UA_Int32 ServerNetworkLayerTCP_stop(ServerNetworkLayerTCP *layer, UA_Work
 /* run only when the server is stopped */
 static void ServerNetworkLayerTCP_delete(ServerNetworkLayerTCP *layer) {
     UA_String_deleteMembers(&layer->discoveryUrl);
+    removeMappings(layer, layer->deletes);
+    freeConnections(NULL, layer->deletes);
     for(size_t i = 0; i < layer->mappingsSize; i++)
         free(layer->mappings[i].connection);
     free(layer->mappings);
-    freeConnections(NULL, layer->deletes);
     free(layer);
 }
 

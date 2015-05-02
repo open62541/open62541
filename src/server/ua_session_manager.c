@@ -53,19 +53,21 @@ UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager,
                                               const UA_CreateSessionRequest *request, UA_Session **session) {
     if(sessionManager->currentSessionCount >= sessionManager->maxSessionCount)
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
+
     session_list_entry *newentry = UA_malloc(sizeof(session_list_entry));
     if(!newentry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+
     sessionManager->currentSessionCount++;
     UA_Session_init(&newentry->session);
     newentry->session.sessionId = UA_NODEID_NUMERIC(1, sessionManager->lastSessionId++);
     UA_UInt32 randSeed = sessionManager->lastSessionId;
-    newentry->session.authenticationToken =
-        UA_NODEID_GUID(1, UA_Guid_random(&randSeed));
-    newentry->session.timeout =
-        (request->requestedSessionTimeout <= sessionManager->maxSessionLifeTime &&
-         request->requestedSessionTimeout>0) ?
-        request->requestedSessionTimeout : sessionManager->maxSessionLifeTime;
+    newentry->session.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random(&randSeed));
+    if(request->requestedSessionTimeout <= sessionManager->maxSessionLifeTime &&
+       request->requestedSessionTimeout > 0)
+        newentry->session.timeout = request->requestedSessionTimeout;
+    else
+        newentry->session.timeout = sessionManager->maxSessionLifeTime; // todo: remove when the CTT is fixed
     UA_Session_updateLifetime(&newentry->session);
     LIST_INSERT_HEAD(&sessionManager->sessions, newentry, pointers);
     *session = &newentry->session;
