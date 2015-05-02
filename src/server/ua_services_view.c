@@ -138,6 +138,7 @@ static UA_StatusCode findsubtypes(UA_NodeStore *ns, const UA_NodeId *root, UA_No
 
 /**
  * Results for a single browsedescription. This is the inner loop for both Browse and BrowseNext
+ * @param session Session to save continuationpoints
  * @param ns The nodstore where the to-be-browsed node can be found
  * @param cp If (*cp) points to a continuationpoint, we continue from there.
  *           If (*cp) is null, we can set it to a new continuation point
@@ -145,7 +146,7 @@ static UA_StatusCode findsubtypes(UA_NodeStore *ns, const UA_NodeId *root, UA_No
  * @param maxrefs The maximum number of references the client has requested
  * @param result The entry in the request
  */
-static void browse(UA_NodeStore *ns, struct ContinuationPointEntry **cpp, const UA_BrowseDescription *descr, 
+static void browse(UA_Session *session, UA_NodeStore *ns, struct ContinuationPointEntry **cpp, const UA_BrowseDescription *descr,
                    UA_UInt32 maxrefs, UA_BrowseResult *result) {
     UA_UInt32 continuationIndex = 0;
     size_t referencesCount = 0;
@@ -270,6 +271,7 @@ static void browse(UA_NodeStore *ns, struct ContinuationPointEntry **cpp, const 
             UA_ByteString_deleteMembers(&cp->identifier);
             UA_BrowseDescription_deleteMembers(&cp->browseDescription);
             LIST_REMOVE(cp, pointers);
+            session->availableContinuationPoints++;
             UA_free(cp);
             cp = UA_NULL;
         } else {
@@ -338,11 +340,16 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
     for(size_t i = 0; i < size; i++) {
         if(!isExternal[i]) {
             struct ContinuationPointEntry *cp = UA_NULL;
-            browse(server->nodestore, &cp, &request->nodesToBrowse[i],
-                   request->requestedMaxReferencesPerNode, &response->results[i]);
+            browse(session, server->nodestore, &cp, &request->nodesToBrowse[i],
+                    request->requestedMaxReferencesPerNode, &response->results[i]);
             if(cp) {
-                LIST_INSERT_HEAD(&session->continuationPoints, cp, pointers);
-                UA_ByteString_copy(&cp->identifier, &response->results[i].continuationPoint);
+                if(session->availableContinuationPoints>0){
+                    LIST_INSERT_HEAD(&session->continuationPoints, cp, pointers);
+                    UA_ByteString_copy(&cp->identifier, &response->results[i].continuationPoint);
+                    session->availableContinuationPoints--;
+                }else{
+                    response->results[i].statusCode = UA_STATUSCODE_BADNOCONTINUATIONPOINTS;
+                }
             }
         }
     }
@@ -374,16 +381,21 @@ void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseN
            if(!cp)
                response->results[i].statusCode = UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
            else
-               browse(server->nodestore, &cp, UA_NULL, 0, &response->results[i]);
+               browse(session, server->nodestore, &cp, UA_NULL, 0, &response->results[i]);
        }
    } else {
+       response->resultsSize = size;
+       response->results = UA_Array_new(&UA_TYPES[UA_TYPES_BROWSERESULT], size);
        for(size_t i = 0; i < size; i++) {
+           response->results[i].statusCode = UA_STATUSCODE_GOOD;
+
            struct ContinuationPointEntry *cp = UA_NULL;
            LIST_FOREACH(cp, &session->continuationPoints, pointers) {
                if(UA_ByteString_equal(&cp->identifier, &request->continuationPoints[i])) {
                    UA_ByteString_deleteMembers(&cp->identifier);
                    UA_BrowseDescription_deleteMembers(&cp->browseDescription);
                    LIST_REMOVE(cp, pointers);
+                   session->availableContinuationPoints++;
                    UA_free(cp);
                    break;
                }

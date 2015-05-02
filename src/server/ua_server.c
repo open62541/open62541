@@ -838,7 +838,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     copyNames((UA_Node*)maxBrowseContinuationPoints, "MaxBrowseContinuationPoints");
     maxBrowseContinuationPoints->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXBROWSECONTINUATIONPOINTS;
     maxBrowseContinuationPoints->value.variant.data = UA_UInt16_new();
-    *((UA_UInt16*)maxBrowseContinuationPoints->value.variant.data) = 1;
+    *((UA_UInt16*)maxBrowseContinuationPoints->value.variant.data) = MAXCONTINUATIONPOINTS;
     maxBrowseContinuationPoints->value.variant.type = &UA_TYPES[UA_TYPES_UINT16];
     UA_Server_addNode(server, (UA_Node*)maxBrowseContinuationPoints,
         UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES),

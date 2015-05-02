@@ -5,6 +5,8 @@
 #include "ua_types.h"
 #include "ua_securechannel.h"
 
+#define MAXCONTINUATIONPOINTS 5
+
 /**
  *  @ingroup communication
  *
@@ -30,6 +32,7 @@ struct UA_Session {
     UA_Int64          timeout;
     UA_DateTime       validTill;
     UA_SecureChannel *channel;
+    UA_UInt16 availableContinuationPoints;
     LIST_HEAD(ContinuationPointList, ContinuationPointEntry) continuationPoints;
 };
 
