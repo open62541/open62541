@@ -48,5 +48,9 @@ os.remove("localhost.csr")
 os.remove("ca.key")
 os.remove("ca.srl")
 
+if os.path.isfile(os.path.join(sys.argv[1], "localhost.der")):
+	os.remove(os.path.join(sys.argv[1], "localhost.der"))
 shutil.move("localhost.der", sys.argv[1])
+if os.path.isfile(os.path.join(sys.argv[1], "ca.crt")):
+	os.remove(os.path.join(sys.argv[1], "ca.crt"))
 shutil.move("ca.crt", sys.argv[1])

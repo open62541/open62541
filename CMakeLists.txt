@@ -235,6 +235,7 @@ endif()
 option(GENERATE_SELFSIGNED "Generate self-signed certificates" OFF)
 if(GENERATE_SELFSIGNED)
     message(STATUS "Enabling self-signed certificates")
+    find_package(OpenSSL REQUIRED)
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/localhost.der
                               ${PROJECT_BINARY_DIR}/ca.crt
                    COMMAND python ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${PROJECT_BINARY_DIR}
