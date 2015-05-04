@@ -235,6 +235,8 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
                                UA_Boolean sendOnly) {
     if(response)
         UA_init(response, responseType);
+    else
+        return;
 
     UA_NodeId_copy(&client->authenticationToken, &request->authenticationToken);
 
@@ -265,7 +267,8 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
     UA_ByteString message;
     UA_StatusCode retval = client->connection.getBuffer(&client->connection, &message, msgHeader.messageHeader.messageSize);
     if(retval != UA_STATUSCODE_GOOD) {
-        // todo
+        // todo: print error message
+        return;
     }
 
     size_t offset = 0;

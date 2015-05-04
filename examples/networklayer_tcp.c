@@ -62,12 +62,14 @@ static UA_StatusCode socket_write(UA_Connection *connection, const UA_ByteString
 
 static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-	if(response->data == UA_NULL)
+	if(response->data == NULL)
         retval = connection->getBuffer(connection, response, connection->localConf.recvBufferSize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     struct timeval tmptv = {0, timeout * 1000};
-    setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tmptv, sizeof(struct timeval));
+    if(0 != setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tmptv, sizeof(struct timeval))){
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     int ret = recv(connection->sockfd, (char*)response->data, response->length, 0);
 	if(ret == 0) {
 		connection->releaseBuffer(connection, response);
@@ -214,6 +216,9 @@ static void ServerNetworkLayerTCP_closeConnection(UA_Connection *connection) {
     socket_close(connection);
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP*)connection->handle;
     struct DeleteList *d = malloc(sizeof(struct DeleteList));
+    if(!d){
+        return;
+    }
     d->connection = connection;
 #ifdef UA_MULTITHREADING
     while(1) {
@@ -446,7 +451,13 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
     wVersionRequested = MAKEWORD(2, 2);
     WSAStartup(wVersionRequested, &wsaData);
 #endif
+    UA_ServerNetworkLayer nl;
+    UA_ServerNetworkLayer_init(&nl);
+
     ServerNetworkLayerTCP *layer = malloc(sizeof(ServerNetworkLayerTCP));
+    if(!layer){
+        return nl;
+    }
     layer->conf = conf;
     layer->mappingsSize = 0;
     layer->mappings = NULL;
@@ -456,7 +467,6 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
     gethostname(hostname, 255);
     UA_String_copyprintf("opc.tcp://%s:%d", &layer->discoveryUrl, hostname, port);
 
-    UA_ServerNetworkLayer nl;
     nl.nlHandle = layer;
     nl.start = (UA_StatusCode (*)(void*, UA_Logger *logger))ServerNetworkLayerTCP_start;
     nl.getWork = (UA_Int32 (*)(void*, UA_WorkItem**, UA_UInt16))ServerNetworkLayerTCP_getWork;

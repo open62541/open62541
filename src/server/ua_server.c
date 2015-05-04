@@ -37,6 +37,11 @@ UA_Logger * UA_Server_getLogger(UA_Server *server) {
     return &server->logger;
 }
 
+void UA_ServerNetworkLayer_init(UA_ServerNetworkLayer *nl){
+    memset(nl,0,sizeof(UA_ServerNetworkLayer));
+}
+
+
 void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkLayer) {
     UA_ServerNetworkLayer *newlayers =
         UA_realloc(server->networkLayers, sizeof(UA_ServerNetworkLayer)*(server->networkLayersSize+1));

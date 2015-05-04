@@ -229,6 +229,11 @@ typedef struct {
 } UA_ServerNetworkLayer;
 
 /**
+ * Initializes server network layer with save values
+ */
+void UA_EXPORT UA_ServerNetworkLayer_init(UA_ServerNetworkLayer *nl);
+
+/**
  * Adds a network layer to the server. The network layer is destroyed together
  * with the server. Do not use it after adding it as it might be moved around on
  * the heap.

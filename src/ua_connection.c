@@ -19,6 +19,7 @@ void UA_Connection_init(UA_Connection *connection) {
     connection->write = UA_NULL;
     connection->close = UA_NULL;
     connection->recv = UA_NULL;
+    connection->getBuffer = UA_NULL;
 }
 
 void UA_Connection_deleteMembers(UA_Connection *connection) {
