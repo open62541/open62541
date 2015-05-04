@@ -52,9 +52,9 @@ void UA_Session_deleteMembersCleanup(UA_Session *session) {
     UA_String_deleteMembers(&session->sessionName);
     struct ContinuationPointEntry *cp;
     while((cp = LIST_FIRST(&session->continuationPoints))) {
+        LIST_REMOVE(cp, pointers);
         UA_ByteString_deleteMembers(&cp->identifier);
         UA_BrowseDescription_deleteMembers(&cp->browseDescription);
-        LIST_REMOVE(cp, pointers);
         UA_free(cp);
     }
     if(session->channel)
