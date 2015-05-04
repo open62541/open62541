@@ -14,6 +14,8 @@ void SubscriptionManager_init(UA_Server *server) {
     manager->GlobalLifeTimeCount           = (UA_UInt32_BoundedValue) { .maxValue = 15000, .minValue = 0, .currentValue=0 };
     manager->GlobalKeepAliveCount          = (UA_UInt32_BoundedValue) { .maxValue = 100,   .minValue = 0, .currentValue=0 };
     manager->GlobalNotificationsPerPublish = (UA_Int32_BoundedValue)  { .maxValue = 1000,  .minValue = 1, .currentValue=0 };
+    manager->GlobalSamplingInterval        = (UA_UInt32_BoundedValue) { .maxValue = 100,   .minValue = 0, .currentValue=0 };
+    manager->GlobalQueueSize               = (UA_UInt32_BoundedValue) { .maxValue = 100,   .minValue = 0, .currentValue=0 };
     
     manager->ServerSubscriptions = (UA_ListOfUASubscriptions *) malloc (sizeof(UA_ListOfUASubscriptions));
     LIST_INIT(manager->ServerSubscriptions);
@@ -29,6 +31,12 @@ UA_Subscription *UA_Subscription_new(UA_Int32 SubscriptionID) {
     new->SubscriptionID = SubscriptionID;
     new->MonitoredItems = (UA_ListOfUAMonitoredItems *) malloc (sizeof(UA_ListOfUAMonitoredItems));
     LIST_INIT(new->MonitoredItems);
+    
+    return new;
+}
+
+UA_MonitoredItem *UA_MonitoredItem_new() {
+    UA_MonitoredItem *new = (UA_MonitoredItem *) malloc(sizeof(UA_MonitoredItem));
     
     return new;
 }
@@ -59,6 +67,6 @@ void SubscriptionManager_deleteSubscription(UA_SubscriptionManager *manager, UA_
     if (sub != NULL) LIST_REMOVE(sub, listEntry);
     
     return;
-}
+} 
 
 #endif //#ifdef ENABLESUBSCRIPTIONS

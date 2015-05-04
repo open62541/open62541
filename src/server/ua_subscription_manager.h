@@ -19,10 +19,15 @@ typedef struct {
 } UA_UInt32_BoundedValue;
 
 typedef struct UA_MonitoredItem_s {
-    UA_UInt32 TimestampsToReturn;
-    UA_UInt32 MonitoringMode;
-    UA_NodeId ItemNodeId;
-    UA_UInt32 AttributeID;
+    UA_UInt32  ItemId;
+    UA_UInt32  TimestampsToReturn;
+    UA_UInt32  MonitoringMode;
+    UA_NodeId  ItemNodeId;
+    UA_UInt32  AttributeID;
+    UA_UInt32  ClientHandle;
+    UA_UInt32  SamplingInterval;
+    UA_UInt32  QueueSize;
+    UA_Boolean DiscardOldest;
     // FIXME: indexRange is ignored; array values default to element 0
     // FIXME: dataEncoding is hardcoded to UA binary
     LIST_ENTRY(UA_MonitoredItem_s) listEntry;
@@ -47,6 +52,8 @@ typedef struct UA_SubscriptionManager_s {
     UA_UInt32_BoundedValue GlobalLifeTimeCount;
     UA_UInt32_BoundedValue GlobalKeepAliveCount;
     UA_Int32_BoundedValue  GlobalNotificationsPerPublish;
+    UA_UInt32_BoundedValue GlobalSamplingInterval;
+    UA_UInt32_BoundedValue GlobalQueueSize;
     UA_Int32 LastSessionID;
     UA_ListOfUASubscriptions *ServerSubscriptions;
 } UA_SubscriptionManager;
@@ -56,6 +63,7 @@ UA_Subscription *UA_Subscription_new(UA_Int32 SubscriptionID);
 void SubscriptionManager_addSubscription(UA_SubscriptionManager *manager, UA_Subscription *subscription);
 UA_Subscription *SubscriptionManager_getSubscriptionByID(UA_SubscriptionManager *manager, UA_Int32 SubscriptionID);
 void SubscriptionManager_deleteSubscription(UA_SubscriptionManager *manager, UA_Int32 SubscriptionID);
+UA_MonitoredItem *UA_MonitoredItem_new(void);
 
 #endif  // ifndef... define UA_SUBSCRIPTION_MANAGER_H_
 #endif  // ifdef EnableSubscriptions ...
