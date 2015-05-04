@@ -34,14 +34,14 @@ script:
 - cd build
 - cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_DOCUMENTATION=ON ..
 - make -j doc
-- cp doc ..
+- cp -r doc ..
 - echo "Testing builds"
 - cd .. && rm build -rf && mkdir -p build && cd build
 - echo "Cross compile release build for MinGW 32 bit"
 - cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw32.cmake -DENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLESERVER=ON -DBUILD_EXAMPLECLIENT=ON ..
 - make -j
 - cp ../README.md .
-- cp ../doc .
+- cp -r ../doc .
 - zip open62541-win32.zip doc README.md server_static.exe server.exe client.exe client_static.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
 - cp open62541-win32.zip ..
 - cd .. && rm build -rf && mkdir -p build && cd build
@@ -49,7 +49,7 @@ script:
 - cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw64.cmake -DENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLESERVER=ON -DBUILD_EXAMPLECLIENT=ON ..
 - make -j
 - cp ../README.md .
-- cp ../doc .
+- cp -r ../doc .
 - zip open62541-win64.zip doc README.md server_static.exe server.exe client.exe client_static.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
 - cp open62541-win64.zip ..
 - cd .. && rm build -rf && mkdir -p build && cd build
