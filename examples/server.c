@@ -151,12 +151,8 @@ static UA_StatusCode writeLedStatus(void *handle, const UA_Variant *data) {
 	return UA_STATUSCODE_GOOD;
 }
 
-static void printLedStatus(UA_Server *server, void *data) {
-	UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, ledStatus ? "LED is on" : "LED is off");
-}
-
 static void stopHandler(int sign) {
-	printf("Received Ctrl-C\n");
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Received Ctrl-C\n");
 	running = 0;
 }
 
@@ -199,11 +195,6 @@ int main(int argc, char** argv) {
     UA_ByteString_deleteMembers(&certificate);
 	UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 
-	// print the status every 2 sec
-	UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL,
-			.work.methodCall = {.method = printLedStatus, .data = NULL} };
-	UA_Server_addRepeatedWorkItem(server, &work, 2000, NULL);
-
 	// add node with the datetime data source
 	UA_DataSource dateDataSource = (UA_DataSource)
         {.handle = NULL,
@@ -215,10 +206,9 @@ int main(int argc, char** argv) {
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
-	if(!(temperatureFile = fopen("/sys/class/thermal/thermal_zone0/temp", "r"))){
-		UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "[Linux specific] Can not open temperature file, no temperature node will be added");
-	} else {
-		// add node with the datetime data source
+	//cpu temperature monitoring for linux machines
+	if((temperatureFile = fopen("/sys/class/thermal/thermal_zone0/temp", "r"))){
+		// add node with the data source
 		UA_DataSource temperatureDataSource = (UA_DataSource)
     	    {.handle = NULL,
 			.read = readTemperature,
@@ -230,11 +220,9 @@ int main(int argc, char** argv) {
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 	}
 
-	if (	!(triggerFile = fopen("/sys/class/leds/led0/trigger", "w"))
-		|| 	!(ledFile = fopen("/sys/class/leds/led0/brightness", "w"))) {
-		UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "[Raspberry Pi specific] Can not open trigger or LED file (try to run server with sudo if on a Raspberry PI)");
-		UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "An LED node will be added but no physical LED will be operated");
-	} else {
+	//LED control for rpi
+	if (	(triggerFile = fopen("/sys/class/leds/led0/trigger", "w"))
+		&& 	(ledFile = fopen("/sys/class/leds/led0/brightness", "w"))) {
 		//setting led mode to manual
 		fprintf(triggerFile, "%s", "none");
 		fflush(triggerFile);
@@ -242,18 +230,18 @@ int main(int argc, char** argv) {
 		//turning off led initially
 		fprintf(ledFile, "%s", "1");
 		fflush(ledFile);
-	}
 
-	// add node with the LED status data source
-	UA_DataSource ledStatusDataSource = (UA_DataSource)
-   		{.handle = NULL,
-		.read = readLedStatus,
-		.release = releaseLedStatus,
-		.write = writeLedStatus};
-	const UA_QualifiedName statusName = UA_QUALIFIEDNAME(0, "status LED");
-	UA_Server_addDataSourceVariableNode(server, ledStatusDataSource, statusName, UA_NODEID_NULL,
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+        // add node with the LED status data source
+        UA_DataSource ledStatusDataSource = (UA_DataSource)
+            {.handle = NULL,
+            .read = readLedStatus,
+            .release = releaseLedStatus,
+            .write = writeLedStatus};
+        const UA_QualifiedName statusName = UA_QUALIFIEDNAME(0, "status LED");
+        UA_Server_addDataSourceVariableNode(server, ledStatusDataSource, statusName, UA_NODEID_NULL,
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+    }
 
 	// add a static variable node to the adresspace
     UA_Variant *myIntegerVariant = UA_Variant_new();

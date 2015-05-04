@@ -136,6 +136,14 @@ static UA_StatusCode findsubtypes(UA_NodeStore *ns, const UA_NodeId *root, UA_No
     return UA_STATUSCODE_GOOD;
 }
 
+static void removeCp(struct ContinuationPointEntry *cp, UA_Session* session){
+    session->availableContinuationPoints++;
+    UA_ByteString_deleteMembers(&cp->identifier);
+    UA_BrowseDescription_deleteMembers(&cp->browseDescription);
+    LIST_REMOVE(cp, pointers);
+    UA_free(cp);
+}
+
 /**
  * Results for a single browsedescription. This is the inner loop for both Browse and BrowseNext
  * @param session Session to save continuationpoints
@@ -262,11 +270,7 @@ static void browse(UA_Session *session, UA_NodeStore *ns, struct ContinuationPoi
     if(cp) {
         if(referencesIndex == node->referencesSize) {
             /* all done, remove a finished continuationPoint */
-            session->availableContinuationPoints++;
-            UA_ByteString_deleteMembers(&cp->identifier);
-            UA_BrowseDescription_deleteMembers(&cp->browseDescription);
-            LIST_REMOVE(cp, pointers);
-            UA_free(cp);
+            removeCp(cp, session);
         } else {
             /* update the cp and return the cp identifier */
             cp->continuationIndex += referencesCount;
@@ -382,11 +386,7 @@ void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseN
            struct ContinuationPointEntry *cp = UA_NULL;
            LIST_FOREACH(cp, &session->continuationPoints, pointers) {
                if(UA_ByteString_equal(&cp->identifier, &request->continuationPoints[i])) {
-                   LIST_REMOVE(cp, pointers);
-                   UA_ByteString_deleteMembers(&cp->identifier);
-                   UA_BrowseDescription_deleteMembers(&cp->browseDescription);
-                   UA_free(cp);
-                   session->availableContinuationPoints++;
+                   removeCp(cp, session);
                    break;
                }
            }
