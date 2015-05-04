@@ -42,7 +42,7 @@ script:
 - make -j
 - cp ../README.md .
 - cp -r ../doc .
-- zip open62541-win32.zip doc README.md server_static.exe server.exe client.exe client_static.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
+- zip -r open62541-win32.zip doc README.md server_static.exe server.exe client.exe client_static.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
 - cp open62541-win32.zip ..
 - cd .. && rm build -rf && mkdir -p build && cd build
 - echo "Cross compile release build for MinGW 64 bit"
@@ -50,7 +50,7 @@ script:
 - make -j
 - cp ../README.md .
 - cp -r ../doc .
-- zip open62541-win64.zip doc README.md server_static.exe server.exe client.exe client_static.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
+- zip -r open62541-win64.zip doc README.md server_static.exe server.exe client.exe client_static.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
 - cp open62541-win64.zip ..
 - cd .. && rm build -rf && mkdir -p build && cd build
 - echo "Cross compile release build for 32-bit linux"
