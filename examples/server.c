@@ -198,7 +198,6 @@ int main(int argc, char** argv) {
     UA_Server_setServerCertificate(server, certificate);
     UA_ByteString_deleteMembers(&certificate);
 	UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-    UA_UInt16 nsIndex = UA_Server_addNamespace(server, UA_ServerConfig_standard.Application_applicationURI);
 
 	// print the status every 2 sec
 	UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL,
@@ -211,7 +210,7 @@ int main(int argc, char** argv) {
 		.read = readTimeData,
 		.release = releaseTimeData,
 		.write = NULL};
-	const UA_QualifiedName dateName = UA_QUALIFIEDNAME(nsIndex, "current time");
+	const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
 	UA_Server_addDataSourceVariableNode(server, dateDataSource, dateName, UA_NODEID_NULL,
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
@@ -225,7 +224,7 @@ int main(int argc, char** argv) {
 			.read = readTemperature,
 			.release = releaseTemperature,
 			.write = NULL};
-		const UA_QualifiedName tempName = UA_QUALIFIEDNAME(nsIndex, "cpu temperature");
+		const UA_QualifiedName tempName = UA_QUALIFIEDNAME(1, "cpu temperature");
 		UA_Server_addDataSourceVariableNode(server, temperatureDataSource, tempName, UA_NODEID_NULL,
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));

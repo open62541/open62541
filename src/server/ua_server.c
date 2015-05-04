@@ -226,8 +226,7 @@ static void addObjectTypeNode(UA_Server *server, char* name, UA_UInt32 objecttyp
 
 static UA_VariableTypeNode*
 createVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
-                       UA_Int32 parent, UA_Boolean abstract)
-{
+                       UA_Int32 parent, UA_Boolean abstract) {
     UA_VariableTypeNode *variabletype = UA_VariableTypeNode_new();
     copyNames((UA_Node*)variabletype, name);
     variabletype->nodeId.identifier.numeric = variabletypeid;
@@ -239,7 +238,6 @@ createVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
 static void addVariableTypeNode_organized(UA_Server *server, char* name, UA_UInt32 variabletypeid,
                                           UA_Int32 parent, UA_Boolean abstract) {
     UA_VariableTypeNode *variabletype = createVariableTypeNode(server, name, variabletypeid, parent, abstract);
-
     UA_Server_addNode(server, (UA_Node*)variabletype,
                       UA_EXPANDEDNODEID_NUMERIC(0, parent),
                       UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
@@ -248,7 +246,6 @@ static void addVariableTypeNode_organized(UA_Server *server, char* name, UA_UInt
 static void addVariableTypeNode_subtype(UA_Server *server, char* name, UA_UInt32 variabletypeid,
                                         UA_Int32 parent, UA_Boolean abstract) {
     UA_VariableTypeNode *variabletype = createVariableTypeNode(server, name, variabletypeid, parent, abstract);
-
     UA_Server_addNode(server, (UA_Node*)variabletype,
                       UA_EXPANDEDNODEID_NUMERIC(0, parent),
                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE));
@@ -292,9 +289,11 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     server->externalNamespacesSize = 0;
     server->externalNamespaces = UA_NULL;
 
-    server->namespaces = UA_String_new();
-    *server->namespaces = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
-    server->namespacesSize = 1;
+    /* ns0 and ns1 */
+    server->namespaces = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 2);
+    server->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
+    UA_String_copy(&server->description.applicationUri, &server->namespaces[1]);
+    server->namespacesSize = 2;
 
     server->endpointDescriptions = UA_NULL;
     server->endpointDescriptionsSize = 0;
