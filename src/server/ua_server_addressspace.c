@@ -27,6 +27,33 @@ UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_Qualifi
 }
 
 UA_StatusCode
+UA_Server_addObjectNode(UA_Server *server, const UA_QualifiedName browseName,
+                          UA_NodeId nodeId, const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId, const UA_NodeId typeDefinition)
+{
+    UA_ObjectNode *node = UA_ObjectNode_new();
+    UA_NodeId_copy(&nodeId, &node->nodeId);
+    UA_QualifiedName_copy(&browseName, &node->browseName);
+    UA_String_copy(&browseName.name, &node->displayName.text);
+    UA_ExpandedNodeId parentId; // we need an expandednodeid
+    UA_ExpandedNodeId_init(&parentId);
+    UA_NodeId_copy(&parentNodeId, &parentId.nodeId);
+    UA_AddNodesResult res =
+        UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node, parentId, referenceTypeId);
+    if(res.statusCode != UA_STATUSCODE_GOOD) {
+        UA_ObjectNode_delete(node);
+    }
+    UA_AddNodesResult_deleteMembers(&res);
+
+    if(!(UA_NodeId_isNull(&typeDefinition))){
+        UA_ExpandedNodeId typeDefid; // we need an expandednodeid
+        UA_ExpandedNodeId_init(&typeDefid);
+        UA_NodeId_copy(&typeDefinition, &typeDefid.nodeId);
+        ADDREFERENCE(res.addedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION), typeDefid);
+    }
+    return res.statusCode;
+}
+
+UA_StatusCode
 UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
                                     const UA_QualifiedName browseName, UA_NodeId nodeId,
                                     const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId)

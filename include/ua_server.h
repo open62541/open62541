@@ -102,6 +102,10 @@ UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_Qualifi
                           UA_NodeId nodeId, const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId);
 
 UA_StatusCode UA_EXPORT
+UA_Server_addObjectNode(UA_Server *server, const UA_QualifiedName browseName,
+                          UA_NodeId nodeId, const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId, const UA_NodeId typeDefinition);
+
+UA_StatusCode UA_EXPORT
 UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
                                     const UA_QualifiedName browseName, UA_NodeId nodeId,
                                     const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId);

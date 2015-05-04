@@ -267,6 +267,40 @@ int main(int argc, char** argv) {
     UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
                               myIntegerNodeId, parentNodeId, parentReferenceNodeId);
 
+   /**************/
+   /* Demo Nodes */
+   /**************/
+
+#define DEMOID 50000
+   UA_Server_addObjectNode(server,UA_QUALIFIEDNAME(1, "Demo"), UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+
+#define SCALARID 50001
+   UA_Server_addObjectNode(server,UA_QUALIFIEDNAME(1, "Scalar"), UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+
+#define ARRAYID 50002
+   UA_Server_addObjectNode(server,UA_QUALIFIEDNAME(1, "Array"), UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+
+   UA_UInt32 id = 51000; //running id in namespace 0
+   for(UA_UInt32 type = 0; UA_IS_BUILTIN(type); type++) {
+       if(type == UA_TYPES_VARIANT || type == UA_TYPES_DIAGNOSTICINFO)
+           continue;
+       //add a scalar node for every built-in type
+        void *value = UA_new(&UA_TYPES[type]);
+        UA_Variant *variant = UA_Variant_new();
+        UA_Variant_setScalar(variant, value, &UA_TYPES[type]);
+        char name[15];
+        sprintf(name, "%02d", type);
+        UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, name);
+        UA_Server_addVariableNode(server, variant, myIntegerName, UA_NODEID_NUMERIC(1, ++id),
+                                  UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+
+        //add an array node for every built-in type
+        UA_Variant *arrayvar = UA_Variant_new();
+        UA_Variant_setArray(arrayvar, UA_Array_new(&UA_TYPES[type], 10), 10, &UA_TYPES[type]);
+        UA_Server_addVariableNode(server, arrayvar, myIntegerName, UA_NODEID_NUMERIC(1, ++id),
+                                  UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+   }
+
 	//start server
 	UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false
 
