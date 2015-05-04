@@ -174,8 +174,11 @@ static UA_StatusCode addTimedWork(UA_Server *server, const UA_WorkItem *item, UA
         if(matchingTw->pointers.le_prev)
             *matchingTw->pointers.le_prev = matchingTw;
         UA_WorkItem *newItems = UA_realloc(matchingTw->work, sizeof(UA_WorkItem)*(matchingTw->workSize + 1));
-        if(!newItems)
+        if(!newItems){
+            UA_free(matchingTw);
             return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+
         matchingTw->work = newItems;
     } else {
         /* create a new entry */
@@ -190,10 +193,6 @@ static UA_StatusCode addTimedWork(UA_Server *server, const UA_WorkItem *item, UA
         matchingTw->workSize = 0;
         matchingTw->nextTime = firstTime;
         matchingTw->interval = interval;
-        if(lastTw)
-            LIST_INSERT_AFTER(lastTw, matchingTw, pointers);
-        else
-            LIST_INSERT_HEAD(&server->timedWork, matchingTw, pointers);
     }
     if(resultWorkGuid) {
         matchingTw->workIds[matchingTw->workSize] = UA_Guid_random(&server->random_seed);
@@ -201,6 +200,10 @@ static UA_StatusCode addTimedWork(UA_Server *server, const UA_WorkItem *item, UA
     }
     matchingTw->work[matchingTw->workSize] = *item;
     matchingTw->workSize++;
+    if(lastTw)
+        LIST_INSERT_AFTER(lastTw, matchingTw, pointers);
+    else
+        LIST_INSERT_HEAD(&server->timedWork, matchingTw, pointers);
     return UA_STATUSCODE_GOOD;
 }
 
