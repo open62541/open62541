@@ -305,15 +305,16 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }
+
     size_t size = request->nodesToBrowseSize;
-    
     response->results = UA_Array_new(&UA_TYPES[UA_TYPES_BROWSERESULT], size);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
+    response->resultsSize = size;
     
-    /* ### Begin External Namespaces */
+#ifdef UA_EXTERNAL_NAMESPACES
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
     UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
@@ -332,15 +333,14 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
         ens->browseNodes(ens->ensHandle, &request->requestHeader, request->nodesToBrowse, indices, indexSize,
                          request->requestedMaxReferencesPerNode, response->results, response->diagnosticInfos);
     }
-    /* ### End External Namespaces */
+#endif
 
-    response->resultsSize = size;
     for(size_t i = 0; i < size; i++) {
-        if(!isExternal[i]) {
+#ifdef UA_EXTERNAL_NAMESPACES
+        if(!isExternal[i])
+#endif
             browse(session, server->nodestore, UA_NULL, &request->nodesToBrowse[i],
-                    request->requestedMaxReferencesPerNode, &response->results[i]);
-
-        }
+                   request->requestedMaxReferencesPerNode, &response->results[i]);
     }
 }
 
@@ -529,7 +529,7 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
         return;
     }
 
-    /* ### Begin External Namespaces */
+#ifdef UA_EXTERNAL_NAMESPACES
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
     UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
@@ -548,11 +548,13 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
     	ens->translateBrowsePathsToNodeIds(ens->ensHandle, &request->requestHeader, request->browsePaths,
     			indices, indexSize, response->results, response->diagnosticInfos);
     }
-    /* ### End External Namespaces */
+#endif
 
     response->resultsSize = size;
-    for(size_t i = 0; i < size; i++){
+    for(size_t i = 0; i < size; i++) {
+#ifdef UA_EXTERNAL_NAMESPACES
     	if(!isExternal[i])
+#endif
     		translateBrowsePath(server, session, &request->browsePaths[i], &response->results[i]);
     }
 }

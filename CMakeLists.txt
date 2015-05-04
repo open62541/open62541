@@ -126,13 +126,18 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 
 ## multithreading
-option(ENABLE_MULTITHREADING "Enable multithreading" OFF)
+option(ENABLE_MULTITHREADING "Enable multithreading (experimental)" OFF)
 if(ENABLE_MULTITHREADING)
     add_definitions(-DUA_MULTITHREADING)
     find_package(Threads REQUIRED)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_concurrent.c)
 else()
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.c)
+endif()
+
+option(ENABLE_EXTERNAL_NAMESPACES "Enable namespace handling by an external component (experimental)" OFF)
+if(ENABLE_EXTERNAL_NAMESPACES)
+    add_definitions(-DUA_EXTERNAL_NAMESPACES)
 endif()
 
 ## set the precompiler flags

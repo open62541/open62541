@@ -209,7 +209,9 @@ UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session, const 
     if(item->targetServerUri.length > 0)
         return UA_STATUSCODE_BADNOTIMPLEMENTED; // currently no expandednodeids are allowed
     
-    // Is this for an external nodestore?
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+#ifdef UA_EXTERNAL_NAMESPACES
     UA_ExternalNodeStore *ensFirst = UA_NULL;
     UA_ExternalNodeStore *ensSecond = UA_NULL;
     for(size_t j = 0;j<server->externalNamespacesSize && (!ensFirst || !ensSecond);j++) {
@@ -219,10 +221,10 @@ UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session, const 
             ensSecond = &server->externalNamespaces[j].externalNodeStore;
     }
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(ensFirst) {
         // todo: use external nodestore
     } else
+#endif
         retval = addOneWayReferenceWithSession(server, session, item);
 
     if(retval) return retval;
@@ -232,12 +234,14 @@ UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session, const 
     secondItem.targetNodeId.nodeId = item->sourceNodeId;
     secondItem.sourceNodeId = item->targetNodeId.nodeId;
     secondItem.isForward = !item->isForward;
+#ifdef UA_EXTERNAL_NAMESPACES
     if(ensSecond) {
         // todo: use external nodestore
     } else
+#endif
         retval = addOneWayReferenceWithSession (server, session, &secondItem);
-    // todo: remove reference if the second direction failed
 
+    // todo: remove reference if the second direction failed
     return retval;
 } 
 

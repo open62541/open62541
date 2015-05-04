@@ -368,7 +368,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
         return;
     }
 
-    /* ### Begin External Namespaces */
+#ifdef UA_EXTERNAL_NAMESPACES
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
     UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
@@ -387,10 +387,12 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
         ens->readNodes(ens->ensHandle, &request->requestHeader, request->nodesToRead,
                        indices, indexSize, response->results, UA_FALSE, response->diagnosticInfos);
     }
-    /* ### End External Namespaces */
+#endif
 
     for(size_t i = 0;i < size;i++) {
+#ifdef UA_EXTERNAL_NAMESPACES
         if(!isExternal[i])
+#endif
             readValue(server, request->timestampsToReturn, &request->nodesToRead[i], &response->results[i]);
     }
 
@@ -586,7 +588,7 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
         return;
     }
 
-    /* ### Begin External Namespaces */
+#ifdef UA_EXTERNAL_NAMESPACES
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * request->nodesToWriteSize);
     UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToWriteSize);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * request->nodesToWriteSize);
@@ -606,11 +608,13 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
         ens->writeNodes(ens->ensHandle, &request->requestHeader, request->nodesToWrite,
                         indices, indexSize, response->results, response->diagnosticInfos);
     }
-    /* ### End External Namespaces */
+#endif
     
     response->resultsSize = request->nodesToWriteSize;
     for(UA_Int32 i = 0;i < request->nodesToWriteSize;i++) {
+#ifdef UA_EXTERNAL_NAMESPACES
         if(!isExternal[i])
+#endif
             response->results[i] = writeValue(server, &request->nodesToWrite[i]);
     }
 }
