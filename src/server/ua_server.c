@@ -41,7 +41,7 @@ void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkL
     UA_ServerNetworkLayer *newlayers =
         UA_realloc(server->networkLayers, sizeof(UA_ServerNetworkLayer)*(server->networkLayersSize+1));
     if(!newlayers) {
-        UA_LOG_ERROR(server->logger, UA_LOGGERCATEGORY_SERVER, "Networklayer added");
+        UA_LOG_ERROR(server->logger, UA_LOGCATEGORY_SERVER, "Networklayer added");
         return;
     }
     server->networkLayers = newlayers;
@@ -54,7 +54,7 @@ void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkL
         UA_String* newUrls = UA_realloc(server->description.discoveryUrls,
                                         sizeof(UA_String)*(server->description.discoveryUrlsSize+1));
         if(!newUrls) {
-            UA_LOG_ERROR(server->logger, UA_LOGGERCATEGORY_SERVER, "Adding discoveryUrl");
+            UA_LOG_ERROR(server->logger, UA_LOGCATEGORY_SERVER, "Adding discoveryUrl");
             return;
         }
         server->description.discoveryUrls = newUrls;
@@ -267,7 +267,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 #endif
 
     // logger
-    server->logger = (UA_Logger){ UA_NULL, UA_NULL, UA_NULL, UA_NULL, UA_NULL, UA_NULL };
+    server->logger = UA_NULL;
 
     // random seed
     server->random_seed = (UA_UInt32)UA_DateTime_now();

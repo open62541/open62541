@@ -335,9 +335,10 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
 
     default: {
         if(requestType.namespaceIndex == 0 && requestType.identifier.numeric==787){
-            UA_LOG_INFO(server->logger, UA_LOGGERCATEGORY_COMMUNICATION, "Client requested a subscription that are not supported, the message will be skipped");
+            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_COMMUNICATION,
+                        "Client requested a subscription that are not supported, the message will be skipped");
         }else{
-            UA_LOG_INFO(server->logger, UA_LOGGERCATEGORY_COMMUNICATION, "Unknown request: NodeId(ns=%d, i=%d)",
+            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_COMMUNICATION, "Unknown request: NodeId(ns=%d, i=%d)",
                         requestType.namespaceIndex, requestType.identifier.numeric);
         }
         UA_RequestHeader  p;
@@ -394,7 +395,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
     UA_TcpMessageHeader tcpMessageHeader;
     do {
         if(UA_TcpMessageHeader_decodeBinary(msg, &pos, &tcpMessageHeader) != UA_STATUSCODE_GOOD) {
-            UA_LOG_INFO(server->logger, UA_LOGGERCATEGORY_COMMUNICATION, "Decoding of message header failed");
+            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_COMMUNICATION, "Decoding of message header failed");
             connection->close(connection);
             break;
         }
@@ -427,7 +428,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
 
         UA_TcpMessageHeader_deleteMembers(&tcpMessageHeader);
         if(pos != targetpos) {
-            UA_LOG_INFO(server->logger, UA_LOGGERCATEGORY_COMMUNICATION,
+            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_COMMUNICATION,
                         "The message was not entirely processed, skipping to the end");
             pos = targetpos;
         }

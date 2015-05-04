@@ -54,7 +54,7 @@ static UA_ByteString loadCertificate(void) {
 }
 
 static void testCallback(UA_Server *server, void *data) {
-    logger.log_info(UA_LOGGERCATEGORY_USERLAND, "testcallback");
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "testcallback");
 }
 
 int main(int argc, char** argv) {

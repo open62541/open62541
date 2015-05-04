@@ -69,7 +69,7 @@ static UA_StatusCode readTemperature(void *handle, UA_Boolean sourceTimeStamp, U
 	fseek(temperatureFile, 0, SEEK_SET);
 
 	if(fscanf(temperatureFile, "%lf", currentTemperature) != 1){
-		UA_LOG_WARNING(logger, UA_LOGGERCATEGORY_USERLAND, "Can not parse temperature");
+		UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "Can not parse temperature");
 		exit(1);
 	}
 
@@ -152,7 +152,7 @@ static UA_StatusCode writeLedStatus(void *handle, const UA_Variant *data) {
 }
 
 static void printLedStatus(UA_Server *server, void *data) {
-	UA_LOG_INFO(logger, UA_LOGGERCATEGORY_SERVER, ledStatus ? "LED is on" : "LED is off");
+	UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, ledStatus ? "LED is on" : "LED is off");
 }
 
 static void stopHandler(int sign) {
@@ -216,7 +216,7 @@ int main(int argc, char** argv) {
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
 	if(!(temperatureFile = fopen("/sys/class/thermal/thermal_zone0/temp", "r"))){
-		UA_LOG_WARNING(logger, UA_LOGGERCATEGORY_USERLAND, "[Linux specific] Can not open temperature file, no temperature node will be added");
+		UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "[Linux specific] Can not open temperature file, no temperature node will be added");
 	} else {
 		// add node with the datetime data source
 		UA_DataSource temperatureDataSource = (UA_DataSource)
@@ -232,8 +232,8 @@ int main(int argc, char** argv) {
 
 	if (	!(triggerFile = fopen("/sys/class/leds/led0/trigger", "w"))
 		|| 	!(ledFile = fopen("/sys/class/leds/led0/brightness", "w"))) {
-		UA_LOG_WARNING(logger, UA_LOGGERCATEGORY_USERLAND, "[Raspberry Pi specific] Can not open trigger or LED file (try to run server with sudo if on a Raspberry PI)");
-		UA_LOG_WARNING(logger, UA_LOGGERCATEGORY_USERLAND, "An LED node will be added but no physical LED will be operated");
+		UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "[Raspberry Pi specific] Can not open trigger or LED file (try to run server with sudo if on a Raspberry PI)");
+		UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "An LED node will be added but no physical LED will be operated");
 	} else {
 		//setting led mode to manual
 		fprintf(triggerFile, "%s", "none");

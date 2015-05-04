@@ -3,8 +3,6 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_securechannel.h"
 
-const char *UA_LoggerCategoryNames[4] = {"communication", "server", "client", "userland"};
-
 // max message size is 64k
 const UA_ConnectionConfig UA_ConnectionConfig_standard =
     {.protocolVersion = 0, .sendBufferSize = 65536, .recvBufferSize  = 65536,
