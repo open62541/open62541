@@ -164,44 +164,43 @@ static UA_StatusCode addTimedWork(UA_Server *server, const UA_WorkItem *item, UA
         }
     }
     
-    struct TimedWork *newWork;
     if(matchingTw) {
         /* append to matching entry */
-        newWork = UA_realloc(matchingTw, sizeof(struct TimedWork) + sizeof(UA_Guid)*(matchingTw->workSize + 1));
-        if(!newWork)
+        matchingTw = UA_realloc(matchingTw, sizeof(struct TimedWork) + sizeof(UA_Guid)*(matchingTw->workSize + 1));
+        if(!matchingTw)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        if(newWork->pointers.le_next)
-            newWork->pointers.le_next->pointers.le_prev = &newWork->pointers.le_next;
-        if(newWork->pointers.le_prev)
-            *newWork->pointers.le_prev = newWork;
-        UA_WorkItem *newItems = UA_realloc(newWork->work, sizeof(UA_WorkItem)*(matchingTw->workSize + 1));
+        if(matchingTw->pointers.le_next)
+            matchingTw->pointers.le_next->pointers.le_prev = &matchingTw->pointers.le_next;
+        if(matchingTw->pointers.le_prev)
+            *matchingTw->pointers.le_prev = matchingTw;
+        UA_WorkItem *newItems = UA_realloc(matchingTw->work, sizeof(UA_WorkItem)*(matchingTw->workSize + 1));
         if(!newItems)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        newWork->work = newItems;
+        matchingTw->work = newItems;
     } else {
         /* create a new entry */
-        newWork = UA_malloc(sizeof(struct TimedWork) + sizeof(UA_Guid));
-        if(!newWork)
+        matchingTw = UA_malloc(sizeof(struct TimedWork) + sizeof(UA_Guid));
+        if(!matchingTw)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        newWork->work = UA_malloc(sizeof(UA_WorkItem));
-        if(!newWork->work) {
-            UA_free(newWork);
+        matchingTw->work = UA_malloc(sizeof(UA_WorkItem));
+        if(!matchingTw->work) {
+            UA_free(matchingTw);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
-        newWork->workSize = 0;
-        newWork->nextTime = firstTime;
-        newWork->interval = interval;
+        matchingTw->workSize = 0;
+        matchingTw->nextTime = firstTime;
+        matchingTw->interval = interval;
         if(lastTw)
-            LIST_INSERT_AFTER(lastTw, newWork, pointers);
+            LIST_INSERT_AFTER(lastTw, matchingTw, pointers);
         else
-            LIST_INSERT_HEAD(&server->timedWork, newWork, pointers);
+            LIST_INSERT_HEAD(&server->timedWork, matchingTw, pointers);
     }
     if(resultWorkGuid) {
-        newWork->workIds[newWork->workSize] = UA_Guid_random(&server->random_seed);
-        *resultWorkGuid = newWork->workIds[matchingTw->workSize];
+        matchingTw->workIds[matchingTw->workSize] = UA_Guid_random(&server->random_seed);
+        *resultWorkGuid = matchingTw->workIds[matchingTw->workSize];
     }
-    newWork->work[newWork->workSize] = *item;
-    newWork->workSize++;
+    matchingTw->work[matchingTw->workSize] = *item;
+    matchingTw->workSize++;
     return UA_STATUSCODE_GOOD;
 }
 
