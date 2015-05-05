@@ -10,8 +10,6 @@
 #endif
 #ifndef _POSIX_SOURCE
 # define _POSIX_SOURCE
-#endif
-#ifndef _POSIX_C_SOURCE
 # define _POSIX_C_SOURCE 199309L
 #endif
 #ifndef _BSD_SOURCE
@@ -31,6 +29,8 @@
 
 #ifdef _WIN32
 # include <malloc.h>
+#else
+# include <alloca.h>
 #endif
 
 #define UA_NULL ((void *)0)
@@ -50,14 +50,9 @@
 #define UA_memset(ptr, value, size) memset(ptr, value, size)
 
 #ifdef _WIN32
-    # define UA_alloca(SIZE) _alloca(SIZE)
+# define UA_alloca(SIZE) _alloca(SIZE)
 #else
- #ifdef __GNUC__
-    # define UA_alloca(size)   __builtin_alloca (size)
- #else
-    # include <alloca.h>
-    # define UA_alloca(SIZE) alloca(SIZE)
- #endif
+# define UA_alloca(SIZE) alloca(SIZE)
 #endif
 
 /********************/
@@ -75,7 +70,9 @@
 # undef SLIST_ENTRY
 # define RAND(SEED) (UA_UInt32)rand()
 #else
-# include <endian.h>
+# if !(defined htole16 && defined htole32 && defined htole64 && defined le16toh && defined le32toh && defined le64toh)
+#  include <endian.h>
+# endif
 # include <sys/time.h>
 # define RAND(SEED) (UA_UInt32)rand_r(SEED)
 #endif
