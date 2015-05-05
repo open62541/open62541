@@ -131,7 +131,7 @@ static void UA_Server_cleanup(UA_Server *server, void *nothing) {
 #define SOFTWARE_VERSION TOSTRING(VERSION)
 #define BUILD_NUMBER "0"
 
-static void getBulidInfo(const UA_Server* server, UA_BuildInfo *buildInfo){
+static void getBulidInfo(const UA_Server* server, UA_BuildInfo *buildInfo) {
     buildInfo->productUri = UA_STRING_ALLOC(PRODUCT_URI);
     buildInfo->manufacturerName = UA_STRING_ALLOC(MANUFACTURER_NAME);
     buildInfo->productName = UA_STRING_ALLOC(PRODUCT_NAME);
