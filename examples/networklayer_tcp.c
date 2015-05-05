@@ -401,6 +401,9 @@ static UA_Int32 ServerNetworkLayerTCP_getWork(ServerNetworkLayerTCP *layer, UA_W
         j++;
     }
 
+    if(buf.data)
+        free(buf.data);
+
     /* free the array if there is no work */
     if(j == 0) {
         free(items);

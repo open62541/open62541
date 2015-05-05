@@ -103,16 +103,21 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
 
     UA_ByteString resp_msg;
     retval = connection->getBuffer(connection, &resp_msg, respHeader.messageHeader.messageSize);
-
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_OpenSecureChannelResponse_deleteMembers(&p);
+        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+        return;
+    }
+        
     size_t tmpPos = 0;
     UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
     UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &resp_msg, &tmpPos); // just mirror back
     UA_SequenceHeader_encodeBinary(&seqHeader, &resp_msg, &tmpPos); // just mirror back
     UA_NodeId_encodeBinary(&responseType, &resp_msg, &tmpPos);
     UA_OpenSecureChannelResponse_encodeBinary(&p, &resp_msg, &tmpPos);
-
     UA_OpenSecureChannelResponse_deleteMembers(&p);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+
     connection->write(connection, &resp_msg);
     connection->releaseBuffer(connection, &resp_msg);
 }

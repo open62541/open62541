@@ -480,12 +480,12 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
             if(vn->valueSource == UA_VALUESOURCE_DATASOURCE) {
                 if(!vn->value.dataSource.write) {
                     retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-                    break;
+                    goto clean_up_range;
                 }
                 // todo: writing ranges
                 retval = vn->value.dataSource.write(vn->value.dataSource.handle, &wvalue->value.value);
                 done = UA_TRUE;
-                break;
+                goto clean_up_range;
             }
             const UA_Variant *oldV = &vn->value.variant;
 
@@ -507,7 +507,7 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
                     UA_free(str);
                 } else {
                     retval = UA_STATUSCODE_BADTYPEMISMATCH;
-                    break;
+                    goto clean_up_range;
                 }
             }
 
@@ -516,7 +516,7 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
                 UA_VariableNode_new() : (UA_VariableNode*)UA_VariableTypeNode_new();
             if(!newVn) {
                 retval = UA_STATUSCODE_BADOUTOFMEMORY;
-                break;
+                goto clean_up_range;
             }
             retval = (node->nodeClass == UA_NODECLASS_VARIABLE) ? UA_VariableNode_copy(vn, newVn) : 
                 UA_VariableTypeNode_copy((const UA_VariableTypeNode*)vn, (UA_VariableTypeNode*)newVn);
@@ -534,10 +534,8 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
 
             if(retval == UA_STATUSCODE_GOOD && UA_NodeStore_replace(server->nodestore, node,
                                                    (UA_Node*)newVn, UA_NULL) == UA_STATUSCODE_GOOD) {
-                if(hasRange)
-                    UA_free(range.dimensions);
                 done = UA_TRUE;
-                break;
+                goto clean_up_range;
             }
 
             clean_up:
@@ -545,6 +543,7 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
                 UA_VariableNode_delete(newVn);
             else
                 UA_VariableTypeNode_delete((UA_VariableTypeNode*)newVn);
+            clean_up_range:
             if(hasRange)
                 UA_free(range.dimensions);
             }
