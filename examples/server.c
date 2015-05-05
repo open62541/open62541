@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h> //access
+
 #define __USE_XOPEN2K
 #ifdef UA_MULTITHREADING
 # include <pthread.h>
@@ -221,26 +223,31 @@ int main(int argc, char** argv) {
 	}
 
 	//LED control for rpi
-	if (	(triggerFile = fopen("/sys/class/leds/led0/trigger", "w"))
-		&& 	(ledFile = fopen("/sys/class/leds/led0/brightness", "w"))) {
-		//setting led mode to manual
-		fprintf(triggerFile, "%s", "none");
-		fflush(triggerFile);
+	if(  access("/sys/class/leds/led0/trigger", F_OK ) != -1
+	  || access("/sys/class/leds/led0/brightness", F_OK ) != -1){
+        if (	(triggerFile = fopen("/sys/class/leds/led0/trigger", "w"))
+            && 	(ledFile = fopen("/sys/class/leds/led0/brightness", "w"))) {
+            //setting led mode to manual
+            fprintf(triggerFile, "%s", "none");
+            fflush(triggerFile);
 
-		//turning off led initially
-		fprintf(ledFile, "%s", "1");
-		fflush(ledFile);
+            //turning off led initially
+            fprintf(ledFile, "%s", "1");
+            fflush(ledFile);
 
-        // add node with the LED status data source
-        UA_DataSource ledStatusDataSource = (UA_DataSource)
-            {.handle = NULL,
-            .read = readLedStatus,
-            .release = releaseLedStatus,
-            .write = writeLedStatus};
-        const UA_QualifiedName statusName = UA_QUALIFIEDNAME(0, "status LED");
-        UA_Server_addDataSourceVariableNode(server, ledStatusDataSource, statusName, UA_NODEID_NULL,
-                                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+            // add node with the LED status data source
+            UA_DataSource ledStatusDataSource = (UA_DataSource)
+                {.handle = NULL,
+                .read = readLedStatus,
+                .release = releaseLedStatus,
+                .write = writeLedStatus};
+            const UA_QualifiedName statusName = UA_QUALIFIEDNAME(0, "status LED");
+            UA_Server_addDataSourceVariableNode(server, ledStatusDataSource, statusName, UA_NODEID_NULL,
+                                                UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                                UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+        }else{
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "[Raspberry Pi] LED file exist, but I have no access (try to run server with sudo)");
+        }
     }
 
 	// add a static variable node to the adresspace
