@@ -12,7 +12,7 @@
  *    all previous work has actually finished (only for multithreading)
  */
 
-#define MAXTIMEOUT 5000 // max timeout in microsec until the next main loop iteration
+#define MAXTIMEOUT 50000 // max timeout in microsec until the next main loop iteration
 #define BATCHSIZE 20 // max size of worklists that are dispatched to workers
 
 static void processWork(UA_Server *server, UA_WorkItem *work, size_t workSize) {

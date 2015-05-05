@@ -79,8 +79,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
 
 /* Adds a one-way reference to the local nodestore */
 static UA_StatusCode
-addOneWayReferenceWithSession(UA_Server *server, UA_Session *session, const UA_AddReferencesItem *item)
-{
+addOneWayReferenceWithSession(UA_Server *server, UA_Session *session, const UA_AddReferencesItem *item) {
     const UA_Node *node = UA_NodeStore_get(server->nodestore, &item->sourceNodeId);
     if(!node)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -89,7 +88,8 @@ addOneWayReferenceWithSession(UA_Server *server, UA_Session *session, const UA_A
 	size_t i = node->referencesSize;
 	if(node->referencesSize < 0)
 		i = 0;
-	UA_ReferenceNode *new_refs = UA_realloc(node->references, sizeof(UA_ReferenceNode) * (i + 1));
+    size_t refssize = (i+1) | 3; // so the realloc is not necessary every time
+	UA_ReferenceNode *new_refs = UA_realloc(node->references, sizeof(UA_ReferenceNode) * refssize);
 	if(!new_refs)
 		retval = UA_STATUSCODE_BADOUTOFMEMORY;
 	else {
