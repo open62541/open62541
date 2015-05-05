@@ -75,7 +75,21 @@
 # undef SLIST_ENTRY
 # define RAND(SEED) (UA_UInt32)rand()
 #else
-# include <endian.h>
+# if !(defined htole16 && defined htole32 && defined htole64 && defined le16toh && defined le32toh && defined le64toh)
+#  include <endian.h>
+#  if !(defined htole16 && defined htole32 && defined htole64 && defined le16toh && defined le32toh && defined le64toh)
+#   if ( __BYTE_ORDER != __LITTLE_ENDIAN )
+#    error "Host byte order is not little-endian and no appropriate conversion functions are defined. (Have a look at ua_config.h)"
+#   else
+#    define htole16(x) x
+#    define htole32(x) x
+#    define htole64(x) x
+#    define le16toh(x) x
+#    define le32toh(x) x
+#    define le64toh(x) x
+#   endif
+#  endif
+# endif
 # include <sys/time.h>
 # define RAND(SEED) (UA_UInt32)rand_r(SEED)
 #endif

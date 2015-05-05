@@ -29,4 +29,13 @@
 #  endif
 #endif
 
+/*	Define your own htoleXX and leXXtoh here if needed.
+	Otherwise the ones defined in endian.h are used		*/
+//	#define htole16(x)	{...}(x)
+//	#define htole32(x)	{...}(x)
+//	#define htole64(x)	{...}(x)
+//	#define le16toh(x)	{...}(x)
+//	#define le32toh(x)	{...}(x)
+//	#define le64toh(x)	{...}(x)
+
 #endif /* UA_CONFIG_H_ */
