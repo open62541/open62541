@@ -152,7 +152,6 @@ UA_Int32 Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->subscriptionIdsSize;
     response->results     = retStat;
-    response->responseHeader.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
     return 0;
 } 
 
