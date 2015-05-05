@@ -118,6 +118,14 @@ UA_Int32 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
 UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
                          const UA_PublishRequest *request,
                          UA_PublishResponse *response) {
+    
+    // Verify Session
+    response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
+    if (session == NULL ) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;           
+    else if ( session->channel == NULL || session->activated == UA_FALSE) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
+    if ( response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) return 0;
+    
+    // FIXME
     response->responseHeader.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
     return 0;
 }
@@ -125,6 +133,26 @@ UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
 UA_Int32 Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                                      const UA_DeleteSubscriptionsRequest *request,
                                      UA_DeleteSubscriptionsResponse *response) {
+    UA_StatusCode *retStat;
+    
+    // Verify Session
+    response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
+    if (session == NULL ) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;           
+    else if ( session->channel == NULL || session->activated == UA_FALSE) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
+    if ( response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) return 0;
+    
+    retStat = (UA_StatusCode *) malloc(sizeof(UA_StatusCode) * request->subscriptionIdsSize);
+    if (retStat==NULL) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return -1;
+    }
+    
+    for(int i=0; i<request->subscriptionIdsSize;i++) {
+        retStat[i] = SubscriptionManager_deleteSubscription(&(server->subscriptionManager), request->subscriptionIds[i]);
+    }
+    response->resultsSize = request->subscriptionIdsSize;
+    response->results     = retStat;
+    response->responseHeader.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
     return 0;
 } 
 

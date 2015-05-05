@@ -60,13 +60,25 @@ UA_Subscription *SubscriptionManager_getSubscriptionByID(UA_SubscriptionManager 
     return retsub;
 }
 
-void SubscriptionManager_deleteSubscription(UA_SubscriptionManager *manager, UA_Int32 SubscriptionID) {
-    UA_Subscription *sub;
+UA_Int32 SubscriptionManager_deleteSubscription(UA_SubscriptionManager *manager, UA_Int32 SubscriptionID) {
+    UA_Subscription  *sub;
+    UA_MonitoredItem *mon;
     
-    sub = SubscriptionManager_getSubscriptionByID(manager, SubscriptionID);
-    if (sub != NULL) LIST_REMOVE(sub, listEntry);
+    sub = SubscriptionManager_getSubscriptionByID(manager, SubscriptionID);    
+    if (sub != NULL) {
+        while (sub->MonitoredItems->lh_first != NULL)  {
+           mon = sub->MonitoredItems->lh_first;
+           LIST_REMOVE(sub->MonitoredItems->lh_first, listEntry);
+           free(mon);
+        }
+    }
+    else {
+        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+    }
+    LIST_REMOVE(sub, listEntry);
+    free(sub);
     
-    return;
+    return UA_STATUSCODE_GOOD;
 } 
 
 #endif //#ifdef ENABLESUBSCRIPTIONS

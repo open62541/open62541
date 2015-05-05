@@ -62,7 +62,7 @@ void SubscriptionManager_init(UA_Server *server);
 UA_Subscription *UA_Subscription_new(UA_Int32 SubscriptionID);
 void SubscriptionManager_addSubscription(UA_SubscriptionManager *manager, UA_Subscription *subscription);
 UA_Subscription *SubscriptionManager_getSubscriptionByID(UA_SubscriptionManager *manager, UA_Int32 SubscriptionID);
-void SubscriptionManager_deleteSubscription(UA_SubscriptionManager *manager, UA_Int32 SubscriptionID);
+UA_Int32  SubscriptionManager_deleteSubscription(UA_SubscriptionManager *manager, UA_Int32 SubscriptionID);
 UA_MonitoredItem *UA_MonitoredItem_new(void);
 
 #endif  // ifndef... define UA_SUBSCRIPTION_MANAGER_H_
