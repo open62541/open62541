@@ -78,12 +78,12 @@ static void writeCallbackUDP(UDPConnection *handle, UA_ByteStringArray gather_bu
 	}
 	struct sockaddr_in *sin = NULL;
 	if (handle->from.sa_family == AF_INET) {
-#if defined(__GNUC__) || defined(__clang__)
+#if ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4 || defined(__clang__))
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-align"
 #endif
 	    sin = (struct sockaddr_in *) &(handle->from);
-#if defined(__GNUC__) || defined(__clang__)
+#if ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4 || defined(__clang__))
 #pragma GCC diagnostic pop
 #endif
 	} else {
