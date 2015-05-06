@@ -141,7 +141,7 @@ if(ENABLE_EXTERNAL_NAMESPACES)
 endif()
 
 ## set the precompiler flags
-configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
+configure_file("include/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
 
 ## extensions
 option(EXTENSION_UDP "Enable udp extension" OFF)
