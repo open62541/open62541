@@ -23,8 +23,6 @@ extern "C" {
 #include "ua_config.h"
 
 /**
- * @ingroup server
- *
  * @defgroup logging Logging
  *
  * @brief Custom logging solutions can be "plugged in" with this interface

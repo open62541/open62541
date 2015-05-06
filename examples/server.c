@@ -35,7 +35,13 @@ UA_Logger logger;
 /*************************/
 /* Read-only data source */
 /*************************/
-static UA_StatusCode readTimeData(void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
+static UA_StatusCode readTimeData(void *handle, UA_Boolean sourceTimeStamp,
+                                  const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = UA_TRUE;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
 	UA_DateTime *currentTime = UA_DateTime_new();
 	if(!currentTime)
 		return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -54,7 +60,8 @@ static UA_StatusCode readTimeData(void *handle, UA_Boolean sourceTimeStamp, UA_D
 }
 
 static void releaseTimeData(void *handle, UA_DataValue *value) {
-	UA_DateTime_delete((UA_DateTime*)value->value.data);
+    if(value->hasValue)
+        UA_DateTime_delete((UA_DateTime*)value->value.data);
 }
 
 /*****************************/
@@ -62,7 +69,14 @@ static void releaseTimeData(void *handle, UA_DataValue *value) {
 /*      Only on Linux        */
 /*****************************/
 FILE* temperatureFile = NULL;
-static UA_StatusCode readTemperature(void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
+static UA_StatusCode readTemperature(void *handle, UA_Boolean sourceTimeStamp,
+                                     const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = UA_TRUE;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+
 	UA_Double* currentTemperature = UA_Double_new();
 
 	if(!currentTemperature)
@@ -87,7 +101,8 @@ static UA_StatusCode readTemperature(void *handle, UA_Boolean sourceTimeStamp, U
 }
 
 static void releaseTemperature(void *handle, UA_DataValue *value) {
-	UA_Double_delete((UA_Double*)value->value.data);
+    if(value->hasValue)
+        UA_Double_delete((UA_Double*)value->value.data);
 }
 
 /*************************/
@@ -100,7 +115,14 @@ FILE* triggerFile = NULL;
 FILE* ledFile = NULL;
 UA_Boolean ledStatus = 0;
 
-static UA_StatusCode readLedStatus(void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
+static UA_StatusCode readLedStatus(void *handle, UA_Boolean sourceTimeStamp,
+                                   const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = UA_TRUE;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+
 	/* In order to reduce blocking time, we could alloc memory for every read
        and return a copy of the data. */
 #ifdef UA_MULTITHREADING
@@ -120,6 +142,8 @@ static UA_StatusCode readLedStatus(void *handle, UA_Boolean sourceTimeStamp, UA_
 }
 
 static void releaseLedStatus(void *handle, UA_DataValue *value) {
+    if(!value->hasValue)
+        return;
 	/* If we allocated memory for a specific read, free the content of the
        variantdata. */
 	value->value.arrayLength = -1;
@@ -129,7 +153,10 @@ static void releaseLedStatus(void *handle, UA_DataValue *value) {
 #endif
 }
 
-static UA_StatusCode writeLedStatus(void *handle, const UA_Variant *data) {
+static UA_StatusCode writeLedStatus(void *handle, const UA_Variant *data, const UA_NumericRange *range) {
+    if(range)
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+    
 #ifdef UA_MULTITHREADING
 	pthread_rwlock_wrlock(&writeLock);
 #endif

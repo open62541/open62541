@@ -5,9 +5,7 @@
 #include "ua_nodestore.h"
 #include "ua_util.h"
 
-static UA_StatusCode
-parse_numericrange(const UA_String str, UA_NumericRange *range)
-{
+static UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range) {
     if(str.length < 0 || str.length >= 1023)
         return UA_STATUSCODE_BADINTERNALERROR;
     char *cstring = UA_alloca(str.length+1);
@@ -15,7 +13,7 @@ parse_numericrange(const UA_String str, UA_NumericRange *range)
     cstring[str.length] = 0;
     UA_Int32 index = 0;
     size_t dimensionsIndex = 0;
-    size_t dimensionsMax = 3; // more should be uncommon
+    size_t dimensionsMax = 3; // more should be uncommon, realloc if necessary
     struct UA_NumericRangeDimension *dimensions = UA_malloc(sizeof(struct UA_NumericRangeDimension) * 3);
     if(!dimensions)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -217,11 +215,14 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
                 UA_DataValue_init(&val);
                 UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
                                               timestamps == UA_TIMESTAMPSTORETURN_BOTH);
-                retval |= vn->value.dataSource.read(vn->value.dataSource.handle, sourceTimeStamp, &val);
+                if(hasRange)
+                    retval |= vn->value.dataSource.read(vn->value.dataSource.handle, sourceTimeStamp, &range, &val);
+                else
+                    retval |= vn->value.dataSource.read(vn->value.dataSource.handle, sourceTimeStamp, UA_NULL, &val);
                 if(retval == UA_STATUSCODE_GOOD) {
-                    retval |= UA_DataValue_copy(&val, v); // todo: selection of indexranges
+                    retval |= UA_DataValue_copy(&val, v); // todo: still too much copying necessary!!
+                    vn->value.dataSource.release(vn->value.dataSource.handle, &val);
                 }
-                vn->value.dataSource.release(vn->value.dataSource.handle, &val);
             }
 
             if(hasRange)
@@ -238,7 +239,7 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
         else {
             UA_DataValue val;
             UA_DataValue_init(&val);
-            retval = vn->value.dataSource.read(vn->value.dataSource.handle, UA_FALSE, &val);
+            retval = vn->value.dataSource.read(vn->value.dataSource.handle, UA_FALSE, UA_NULL, &val);
             if(retval != UA_STATUSCODE_GOOD)
                 break;
             retval = UA_Variant_setScalarCopy(&v->value, &val.value.type->typeId, &UA_TYPES[UA_TYPES_NODEID]);
@@ -269,7 +270,7 @@ static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
             } else {
                 UA_DataValue val;
                 UA_DataValue_init(&val);
-                retval |= vn->value.dataSource.read(vn->value.dataSource.handle, UA_FALSE, &val);
+                retval |= vn->value.dataSource.read(vn->value.dataSource.handle, UA_FALSE, UA_NULL, &val);
                 if(retval != UA_STATUSCODE_GOOD)
                     break;
                 if(!val.hasValue)
@@ -483,7 +484,10 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
                     goto clean_up_range;
                 }
                 // todo: writing ranges
-                retval = vn->value.dataSource.write(vn->value.dataSource.handle, &wvalue->value.value);
+                if(hasRange)
+                    retval = vn->value.dataSource.write(vn->value.dataSource.handle, &wvalue->value.value, &range);
+                else
+                    retval = vn->value.dataSource.write(vn->value.dataSource.handle, &wvalue->value.value, UA_NULL);
                 done = UA_TRUE;
                 goto clean_up_range;
             }

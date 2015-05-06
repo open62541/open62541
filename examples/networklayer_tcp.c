@@ -455,7 +455,7 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
     WSAStartup(wVersionRequested, &wsaData);
 #endif
     UA_ServerNetworkLayer nl;
-    UA_ServerNetworkLayer_init(&nl);
+    memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
 
     ServerNetworkLayerTCP *layer = malloc(sizeof(ServerNetworkLayerTCP));
     if(!layer){

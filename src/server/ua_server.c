@@ -33,14 +33,9 @@ static void UA_ExternalNamespace_deleteMembers(UA_ExternalNamespace *ens) {
 /* Configuration */
 /*****************/
 
-UA_Logger * UA_Server_getLogger(UA_Server *server) {
-    return &server->logger;
+UA_Logger UA_Server_getLogger(UA_Server *server) {
+    return server->logger;
 }
-
-void UA_ServerNetworkLayer_init(UA_ServerNetworkLayer *nl){
-    memset(nl,0,sizeof(UA_ServerNetworkLayer));
-}
-
 
 void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkLayer) {
     UA_ServerNetworkLayer *newlayers =
@@ -140,7 +135,13 @@ static void getBulidInfo(const UA_Server* server, UA_BuildInfo *buildInfo) {
     buildInfo->buildDate = server->buildDate;
 }
 
-static UA_StatusCode readStatus(void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
+static UA_StatusCode readStatus(void *handle, UA_Boolean sourceTimeStamp,
+                                const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = UA_TRUE;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
     UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
     status->startTime   = ((const UA_Server*)handle)->startTime;
     status->currentTime = UA_DateTime_now();
@@ -162,13 +163,21 @@ static UA_StatusCode readStatus(void *handle, UA_Boolean sourceTimeStamp, UA_Dat
 }
 
 static void releaseStatus(void *handle, UA_DataValue *value) {
+    if(!value->hasValue)
+        return;
     UA_ServerStatusDataType_delete((UA_ServerStatusDataType*)value->value.data);
     value->value.data = UA_NULL;
     value->hasValue = UA_FALSE;
     UA_DataValue_deleteMembers(value);
 }
 
-static UA_StatusCode readNamespaces(void *handle, UA_Boolean sourceTimestamp, UA_DataValue *value) {
+static UA_StatusCode readNamespaces(void *handle, UA_Boolean sourceTimestamp,
+                                    const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = UA_TRUE;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
     UA_Server *server = (UA_Server*)handle;
     value->hasValue = UA_TRUE;
     value->value.storageType = UA_VARIANT_DATA_NODELETE;
@@ -185,7 +194,13 @@ static UA_StatusCode readNamespaces(void *handle, UA_Boolean sourceTimestamp, UA
 static void releaseNamespaces(void *handle, UA_DataValue *value) {
 }
 
-static UA_StatusCode readCurrentTime(void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
+static UA_StatusCode readCurrentTime(void *handle, UA_Boolean sourceTimeStamp,
+                                     const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = UA_TRUE;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
     UA_DateTime *currentTime = UA_DateTime_new();
     if(!currentTime)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -201,7 +216,8 @@ static UA_StatusCode readCurrentTime(void *handle, UA_Boolean sourceTimeStamp, U
 }
 
 static void releaseCurrentTime(void *handle, UA_DataValue *value) {
-    UA_DateTime_delete((UA_DateTime*)value->value.data);
+    if(value->hasValue)
+        UA_DateTime_delete((UA_DateTime*)value->value.data);
 }
 
 static void copyNames(UA_Node *node, char *name) {
