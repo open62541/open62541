@@ -7,12 +7,12 @@
 void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                            const UA_CreateSessionRequest *request,
                            UA_CreateSessionResponse *response) {
-    response->serverEndpoints = UA_malloc(sizeof(UA_EndpointDescription));
-    if(!response->serverEndpoints || (response->responseHeader.serviceResult =
-        UA_EndpointDescription_copy(server->endpointDescriptions, response->serverEndpoints)) !=
-       UA_STATUSCODE_GOOD)
+    response->responseHeader.serviceResult =
+        UA_Array_copy(server->endpointDescriptions, (void**)&response->serverEndpoints,
+                      &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION], server->endpointDescriptionsSize);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
-    response->serverEndpointsSize = 1;
+    response->serverEndpointsSize = server->endpointDescriptionsSize;
 
 	UA_Session *newSession;
     response->responseHeader.serviceResult = UA_SessionManager_createSession(&server->sessionManager,

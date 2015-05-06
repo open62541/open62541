@@ -13,8 +13,6 @@ void Service_FindServers(UA_Server *server, const UA_FindServersRequest *request
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-    UA_String_deleteMembers(response->servers->discoveryUrls);
-    UA_String_copy(&request->endpointUrl, response->servers->discoveryUrls);
 	response->serversSize = 1;
 }
 
@@ -49,23 +47,10 @@ void Service_GetEndpoints(UA_Server *server, const UA_GetEndpointsRequest *reque
         return;
     }
 
-    size_t k = 0;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(UA_Int32 j = 0; j < server->endpointDescriptionsSize && retval == UA_STATUSCODE_GOOD; j++) {
-        if(relevant_endpoints[j] != UA_TRUE)
-            continue;
-        retval = UA_copy(&server->endpointDescriptions[j], &response->endpoints[j],
-                         &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-        UA_String_deleteMembers(&response->endpoints[j].endpointUrl);
-        UA_String_copy(&request->endpointUrl, &response->endpoints[j].endpointUrl);
-        k++;
-    }
-
-    if(retval != UA_STATUSCODE_GOOD) {
-        response->responseHeader.serviceResult = retval;
-        UA_Array_delete(response->endpoints, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION], --k);
-        return;
-    }
-    response->endpointsSize = relevant_count;
+    response->responseHeader.serviceResult =
+        UA_Array_copy(server->endpointDescriptions, (void**)&response->endpoints,
+                      &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION], server->endpointDescriptionsSize);
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD)
+        response->endpointsSize = relevant_count;
 }
 
