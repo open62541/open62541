@@ -18,7 +18,7 @@ static void print_time(void) {
 const char *LogLevelNames[6] = {"trace", "debug", "info", "warning", "error", "fatal"};
 const char *LogCategoryNames[4] = {"communication", "server", "client", "userland"};
 
-#if ((__GNUC__ >= 4 && __GNUC_MINOR__ >= 6) || defined(__clang__))
+#if ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4 || defined(__clang__))
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
@@ -32,7 +32,7 @@ static void Logger_Stdout(UA_LogLevel level, UA_LogCategory category, const char
     printf("\n");
     va_end(ap);
 }
-#if ((__GNUC__ >= 4 && __GNUC_MINOR__ >= 6) || defined(__clang__))
+#if ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4 || defined(__clang__))
 #pragma GCC diagnostic pop
 #endif
 
