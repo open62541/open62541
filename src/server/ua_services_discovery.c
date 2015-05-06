@@ -47,10 +47,20 @@ void Service_GetEndpoints(UA_Server *server, const UA_GetEndpointsRequest *reque
         return;
     }
 
-    response->responseHeader.serviceResult =
-        UA_Array_copy(server->endpointDescriptions, (void**)&response->endpoints,
-                      &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION], server->endpointDescriptionsSize);
-    if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD)
-        response->endpointsSize = relevant_count;
+    size_t k = 0;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    for(UA_Int32 j = 0; j < server->endpointDescriptionsSize && retval == UA_STATUSCODE_GOOD; j++) {
+        if(relevant_endpoints[j] != UA_TRUE)
+            continue;
+        retval = UA_EndpointDescription_copy(&server->endpointDescriptions[j], &response->endpoints[k]);
+        k++;
+    }
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        response->responseHeader.serviceResult = retval;
+        UA_Array_delete(response->endpoints, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION], --k);
+        return;
+    }
+    response->endpointsSize = relevant_count;
 }
 
