@@ -5,6 +5,10 @@
 #include "ua_securechannel.h"
 #include "queue.h"
 
+#ifdef ENABLESUBSCRIPTIONS
+#include "server/ua_subscription_manager.h"
+#endif
+
 /**
  *  @ingroup communication
  *
@@ -29,6 +33,9 @@ struct UA_Session {
     UA_UInt32         maxResponseMessageSize;
     UA_Int64          timeout;
     UA_DateTime       validTill;
+    #ifdef ENABLESUBSCRIPTIONS
+        UA_SubscriptionManager subscriptionManager;
+    #endif
     UA_SecureChannel *channel;
     LIST_HEAD(ContinuationPointList, ContinuationPointEntry) continuationPoints;
 };

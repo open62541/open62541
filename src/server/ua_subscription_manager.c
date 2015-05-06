@@ -5,8 +5,8 @@
 
 #include <stdio.h> // Remove later, debugging only
 
-void SubscriptionManager_init(UA_Server *server) {
-    UA_SubscriptionManager *manager = &(server->subscriptionManager);
+void SubscriptionManager_init(UA_Session *session) {
+    UA_SubscriptionManager *manager = &(session->subscriptionManager);
 
     /* FIXME: These init values are empirical. Maybe they should be part
      *        of the server config? */
@@ -20,8 +20,7 @@ void SubscriptionManager_init(UA_Server *server) {
     manager->ServerSubscriptions = (UA_ListOfUASubscriptions *) malloc (sizeof(UA_ListOfUASubscriptions));
     LIST_INIT(manager->ServerSubscriptions);
     
-    // Do this after the malloc to provide some basic degree of entropy
-    manager->LastSessionID = (UA_UInt32) (server->random_seed + (UA_UInt32)UA_DateTime_now());
+    manager->LastSessionID = (UA_UInt32) UA_DateTime_now();
     return;
 }
 
@@ -80,5 +79,9 @@ UA_Int32 SubscriptionManager_deleteSubscription(UA_SubscriptionManager *manager,
     
     return UA_STATUSCODE_GOOD;
 } 
+
+// void MonitoredItem_UpdateQueue(UA_MonitoredItem *monitoredItem) {
+    //
+//}
 
 #endif //#ifdef ENABLESUBSCRIPTIONS

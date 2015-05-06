@@ -58,7 +58,7 @@ typedef struct UA_SubscriptionManager_s {
     UA_ListOfUASubscriptions *ServerSubscriptions;
 } UA_SubscriptionManager;
 
-void SubscriptionManager_init(UA_Server *server);
+void SubscriptionManager_init(UA_Session *session);
 UA_Subscription *UA_Subscription_new(UA_Int32 SubscriptionID);
 void SubscriptionManager_addSubscription(UA_SubscriptionManager *manager, UA_Subscription *subscription);
 UA_Subscription *SubscriptionManager_getSubscriptionByID(UA_SubscriptionManager *manager, UA_Int32 SubscriptionID);

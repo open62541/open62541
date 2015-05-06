@@ -27,23 +27,23 @@ UA_Int32 Service_CreateSubscription(UA_Server *server, UA_Session *session,
     if ( response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) return 0;
     
     // Create Subscription and Response
-    response->subscriptionId = ++(server->subscriptionManager.LastSessionID);
+    response->subscriptionId = ++(session->subscriptionManager.LastSessionID);
     newSubscription = UA_Subscription_new(response->subscriptionId);
     
-    UA_BOUNDEDVALUE_SETWBOUNDS(server->subscriptionManager.GlobalPublishingInterval, request->requestedPublishingInterval, response->revisedPublishingInterval);
+    UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.GlobalPublishingInterval, request->requestedPublishingInterval, response->revisedPublishingInterval);
     newSubscription->PublishingInterval = response->revisedPublishingInterval;
     
-    UA_BOUNDEDVALUE_SETWBOUNDS(server->subscriptionManager.GlobalLifeTimeCount,  request->requestedLifetimeCount, response->revisedLifetimeCount);
-    newSubscription->LifeTime = (UA_UInt32_BoundedValue)  { .minValue=server->subscriptionManager.GlobalLifeTimeCount.minValue, .maxValue=server->subscriptionManager.GlobalLifeTimeCount.maxValue, .currentValue=response->revisedLifetimeCount};
+    UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.GlobalLifeTimeCount,  request->requestedLifetimeCount, response->revisedLifetimeCount);
+    newSubscription->LifeTime = (UA_UInt32_BoundedValue)  { .minValue=session->subscriptionManager.GlobalLifeTimeCount.minValue, .maxValue=session->subscriptionManager.GlobalLifeTimeCount.maxValue, .currentValue=response->revisedLifetimeCount};
     
-    UA_BOUNDEDVALUE_SETWBOUNDS(server->subscriptionManager.GlobalKeepAliveCount, request->requestedMaxKeepAliveCount, response->revisedMaxKeepAliveCount);
-    newSubscription->KeepAliveCount = (UA_UInt32_BoundedValue)  { .minValue=server->subscriptionManager.GlobalKeepAliveCount.minValue, .maxValue=server->subscriptionManager.GlobalKeepAliveCount.maxValue, .currentValue=response->revisedMaxKeepAliveCount};
+    UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.GlobalKeepAliveCount, request->requestedMaxKeepAliveCount, response->revisedMaxKeepAliveCount);
+    newSubscription->KeepAliveCount = (UA_UInt32_BoundedValue)  { .minValue=session->subscriptionManager.GlobalKeepAliveCount.minValue, .maxValue=session->subscriptionManager.GlobalKeepAliveCount.maxValue, .currentValue=response->revisedMaxKeepAliveCount};
     
     newSubscription->NotificationsPerPublish = request->maxNotificationsPerPublish;
     newSubscription->PublishingMode          = request->publishingEnabled;
     newSubscription->Priority                = request->priority;
     
-    SubscriptionManager_addSubscription(&(server->subscriptionManager), newSubscription);    
+    SubscriptionManager_addSubscription(&(session->subscriptionManager), newSubscription);    
     
     return (UA_Int32) 0;
 }
@@ -58,7 +58,7 @@ UA_Int32 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
     
     // Verify Session and Subscription
     response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
-    sub=SubscriptionManager_getSubscriptionByID(&(server->subscriptionManager), request->subscriptionId);
+    sub=SubscriptionManager_getSubscriptionByID(&(session->subscriptionManager), request->subscriptionId);
     if (session == NULL ) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;           
     else if ( session->channel == NULL || session->activated == UA_FALSE) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
     else if ( sub == NULL) response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
@@ -97,15 +97,15 @@ UA_Int32 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
             
             newMon = UA_MonitoredItem_new();
             memcpy(&(newMon->ItemNodeId), &(thisItemsRequest->itemToMonitor.nodeId), sizeof(UA_NodeId));
-            newMon->ItemId = ++(server->subscriptionManager.LastSessionID);
+            newMon->ItemId = ++(session->subscriptionManager.LastSessionID);
             thisItemsResult->monitoredItemId = newMon->ItemId;
             
             newMon->ClientHandle = thisItemsRequest->requestedParameters.clientHandle;
             
-            UA_BOUNDEDVALUE_SETWBOUNDS(server->subscriptionManager.GlobalSamplingInterval , thisItemsRequest->requestedParameters.samplingInterval, thisItemsResult->revisedSamplingInterval);
+            UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.GlobalSamplingInterval , thisItemsRequest->requestedParameters.samplingInterval, thisItemsResult->revisedSamplingInterval);
             newMon->SamplingInterval = thisItemsResult->revisedSamplingInterval;
             
-            UA_BOUNDEDVALUE_SETWBOUNDS(server->subscriptionManager.GlobalQueueSize, thisItemsRequest->requestedParameters.queueSize, thisItemsResult->revisedQueueSize);
+            UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.GlobalQueueSize, thisItemsRequest->requestedParameters.queueSize, thisItemsResult->revisedQueueSize);
             newMon->QueueSize = thisItemsResult->revisedQueueSize;
             
             LIST_INSERT_HEAD(sub->MonitoredItems, newMon, listEntry);
@@ -148,7 +148,7 @@ UA_Int32 Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
     }
     
     for(int i=0; i<request->subscriptionIdsSize;i++) {
-        retStat[i] = SubscriptionManager_deleteSubscription(&(server->subscriptionManager), request->subscriptionIds[i]);
+        retStat[i] = SubscriptionManager_deleteSubscription(&(session->subscriptionManager), request->subscriptionIds[i]);
     }
     response->resultsSize = request->subscriptionIdsSize;
     response->results     = retStat;

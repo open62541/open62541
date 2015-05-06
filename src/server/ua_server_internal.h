@@ -49,11 +49,6 @@ struct UA_Server {
     UA_ByteString serverCertificate;
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;
-
-    /* Subscriptions and Monitoring */
-#ifdef ENABLESUBSCRIPTIONS
-    UA_SubscriptionManager subscriptionManager;
-#endif
     
     /* Address Space */
     UA_NodeStore *nodestore;

@@ -50,6 +50,9 @@ void UA_Session_init(UA_Session *session) {
     UA_DateTime_init(&session->validTill);
     session->channel = UA_NULL;
     session->continuationPoints = (struct ContinuationPointList){UA_NULL};
+    #ifdef ENABLESUBSCRIPTIONS
+        SubscriptionManager_init(session);
+    #endif
 }
 
 void UA_Session_deleteMembers(UA_Session *session) {
