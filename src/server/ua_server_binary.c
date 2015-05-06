@@ -22,6 +22,10 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
     connection->remoteConf.maxMessageSize = helloMessage.maxMessageSize;
     connection->remoteConf.protocolVersion = helloMessage.protocolVersion;
     connection->remoteConf.recvBufferSize = helloMessage.receiveBufferSize;
+    if(connection->localConf.sendBufferSize > helloMessage.receiveBufferSize)
+        connection->localConf.sendBufferSize = helloMessage.receiveBufferSize;
+    if(connection->localConf.recvBufferSize > helloMessage.sendBufferSize)
+        connection->localConf.recvBufferSize = helloMessage.sendBufferSize;
     connection->remoteConf.sendBufferSize = helloMessage.sendBufferSize;
     connection->state = UA_CONNECTION_ESTABLISHED;
     UA_TcpHelloMessage_deleteMembers(&helloMessage);
