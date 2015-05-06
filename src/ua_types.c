@@ -127,13 +127,13 @@ UA_StatusCode UA_String_copyprintf(char const fmt[], UA_String *dst, ...) {
     char src[UA_STRING_ALLOCPRINTF_BUFSIZE];
     va_list ap;
     va_start(ap, dst);
-#if defined(__GNUC__) || defined(__clang__)
+#if ((__GNUC__ >= 4 && __GNUC_MINOR__ >= 6) || defined(__clang__))
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
     // vsnprintf should only take a literal and no variable to be secure
     UA_Int32 len = vsnprintf(src, UA_STRING_ALLOCPRINTF_BUFSIZE, fmt, ap);
-#if defined(__GNUC__) || defined(__clang__)
+#if ((__GNUC__ >= 4 && __GNUC_MINOR__ >= 6) || defined(__clang__))
 #pragma GCC diagnostic pop
 #endif
     va_end(ap);
