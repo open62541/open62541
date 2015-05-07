@@ -328,6 +328,18 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     case UA_NS0ID_CREATESUBSCRIPTIONREQUEST:
         INVOKE_SERVICE(CreateSubscription);
         break;
+    case UA_NS0ID_PUBLISHREQUEST:
+        INVOKE_SERVICE(Publish);
+        break;
+    case UA_NS0ID_DELETESUBSCRIPTIONSREQUEST:
+        INVOKE_SERVICE(DeleteSubscriptions);
+        break;
+    case UA_NS0ID_CREATEMONITOREDITEMSREQUEST:
+        INVOKE_SERVICE(CreateMonitoredItems);
+        break;
+    case UA_NS0ID_DELETEMONITOREDITEMSREQUEST:
+        INVOKE_SERVICE(DeleteMonitoredItems);
+        break;
 #endif
 
     default: {
