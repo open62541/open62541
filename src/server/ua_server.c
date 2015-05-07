@@ -62,7 +62,8 @@ void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkL
                        &server->description.discoveryUrls[server->description.discoveryUrlsSize]);
         server->description.discoveryUrlsSize++;
         for(UA_Int32 i = 0; i < server->endpointDescriptionsSize; i++)
-            UA_String_copy(networkLayer.discoveryUrl, &server->endpointDescriptions[i].endpointUrl);
+            if(!server->endpointDescriptions[i].endpointUrl.data)
+                UA_String_copy(networkLayer.discoveryUrl, &server->endpointDescriptions[i].endpointUrl);
     }
 }
 
