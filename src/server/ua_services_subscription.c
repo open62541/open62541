@@ -6,7 +6,6 @@
 #include "ua_util.h"
 #include "ua_nodestore.h"
 
-
 #include "ua_log.h" // Remove later, debugging only
 
 #define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST) { \
@@ -37,7 +36,7 @@ UA_Int32 Service_CreateSubscription(UA_Server *server, UA_Session *session,
     newSubscription->LifeTime = (UA_UInt32_BoundedValue)  { .minValue=session->subscriptionManager.GlobalLifeTimeCount.minValue, .maxValue=session->subscriptionManager.GlobalLifeTimeCount.maxValue, .currentValue=response->revisedLifetimeCount};
     
     UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.GlobalKeepAliveCount, request->requestedMaxKeepAliveCount, response->revisedMaxKeepAliveCount);
-    newSubscription->KeepAliveCount = (UA_UInt32_BoundedValue)  { .minValue=session->subscriptionManager.GlobalKeepAliveCount.minValue, .maxValue=session->subscriptionManager.GlobalKeepAliveCount.maxValue, .currentValue=response->revisedMaxKeepAliveCount};
+    newSubscription->KeepAliveCount = (UA_Int32_BoundedValue)  { .minValue=session->subscriptionManager.GlobalKeepAliveCount.minValue, .maxValue=session->subscriptionManager.GlobalKeepAliveCount.maxValue, .currentValue=response->revisedMaxKeepAliveCount};
     
     newSubscription->NotificationsPerPublish = request->maxNotificationsPerPublish;
     newSubscription->PublishingMode          = request->publishingEnabled;
@@ -96,7 +95,7 @@ UA_Int32 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
             thisItemsResult->statusCode = UA_STATUSCODE_GOOD;
             
             newMon = UA_MonitoredItem_new();
-            memcpy(&(newMon->ItemNodeId), &(thisItemsRequest->itemToMonitor.nodeId), sizeof(UA_NodeId));
+            newMon->monitoredNode = UA_NodeStore_get(server->nodestore, (const UA_NodeId *) &(thisItemsRequest->itemToMonitor.nodeId));
             newMon->ItemId = ++(session->subscriptionManager.LastSessionID);
             thisItemsResult->monitoredItemId = newMon->ItemId;
             
@@ -106,7 +105,9 @@ UA_Int32 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
             newMon->SamplingInterval = thisItemsResult->revisedSamplingInterval;
             
             UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.GlobalQueueSize, thisItemsRequest->requestedParameters.queueSize, thisItemsResult->revisedQueueSize);
-            newMon->QueueSize = thisItemsResult->revisedQueueSize;
+            newMon->QueueSize = (UA_UInt32_BoundedValue) { .maxValue=(thisItemsResult->revisedQueueSize) + 1, .minValue=0, .currentValue=0 };
+            
+            newMon->DiscardOldest = thisItemsRequest->requestedParameters.discardOldest;
             
             LIST_INSERT_HEAD(sub->MonitoredItems, newMon, listEntry);
         }
@@ -119,13 +120,35 @@ UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
                          const UA_PublishRequest *request,
                          UA_PublishResponse *response) {
     
-    // Verify Session
+    UA_Subscription  *sub;
+    //UA_MonitoredItem *mon;
+    UA_SubscriptionManager *manager;
+    
+    // Verify Session and Subscription
     response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
     if (session == NULL ) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;           
     else if ( session->channel == NULL || session->activated == UA_FALSE) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
     if ( response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) return 0;
+
+    manager = &(session->subscriptionManager);    
+    for (sub=(manager->ServerSubscriptions)->lh_first; sub != NULL; sub = sub->listEntry.le_next) {
+        Subscription_updateNotifications(sub);
+        /*
+        printf("Publish: Session Subscription %i\n", sub->SubscriptionID);
+        for(mon=sub->MonitoredItems->lh_first; mon != NULL; mon=mon->listEntry.le_next) {
+            printf("Publish: Session Subscription %i, Monitored Item %i\n", sub->SubscriptionID, mon->ItemId);
+            //MonitoredItem_QueuePushDataValue(mon);
+            printf("QueueSize: %i, %i\n", mon->QueueSize.currentValue, mon->QueueSize.maxValue);
+        }
+        */
+    }
     
-    // FIXME
+    response->subscriptionId = 0;
+    response->availableSequenceNumbersSize = 0;
+    response->availableSequenceNumbers = 0;
+    response->moreNotifications = UA_FALSE;
+    response->resultsSize = 0;
+
     response->responseHeader.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
     return 0;
 }
@@ -155,4 +178,43 @@ UA_Int32 Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
     return 0;
 } 
 
+UA_Int32 Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
+                                      const UA_DeleteMonitoredItemsRequest *request,
+                                      UA_DeleteMonitoredItemsResponse *response) {
+    UA_SubscriptionManager *manager;
+    UA_Subscription *sub;
+    UA_Int32 *resultCodes;
+    
+    // Verify Session
+    response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
+    if (session == NULL ) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;           
+    else if ( session->channel == NULL || session->activated == UA_FALSE) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
+    if ( response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) return 0;
+    
+    response->diagnosticInfosSize=0;
+    response->resultsSize=0;
+    
+    manager = &(session->subscriptionManager);
+    
+    sub = SubscriptionManager_getSubscriptionByID(manager, request->subscriptionId);
+    
+    if (sub == NULL) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+        return 0;
+    }
+    
+    resultCodes = (UA_Int32 *) malloc(sizeof(UA_UInt32) * request->monitoredItemIdsSize);
+    if (resultCodes == NULL) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return 0;
+    }
+
+    response->results = (UA_StatusCode *) resultCodes;
+    response->resultsSize = request->monitoredItemIdsSize;
+    for(int i=0; i < request->monitoredItemIdsSize; i++) {
+        resultCodes[i] = SubscriptionManager_deleteMonitoredItem(manager, sub->SubscriptionID, (request->monitoredItemIds)[i]);
+    }
+    
+    return 0;
+}
 #endif //#ifdef ENABLESUBSCRIPTIONS
