@@ -237,13 +237,16 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
  * links to be deleted, but has no effect on the MonitoredItems referenced by
  * the triggered items.
  */
-/* UA_Int32 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session, */
-/*                                       const UA_CreateMonitoredItemsRequest *request, */
-/*                                       UA_CreateMonitoredItemsResponse *response); */
+UA_Int32 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
+                                       const UA_CreateMonitoredItemsRequest *request, 
+                                       UA_CreateMonitoredItemsResponse *response);
 // Service_ModifyMonitoredItems
 // Service_SetMonitoringMode
 // Service_SetTriggering
-// Service_DeleteMonitoredItems
+UA_Int32 Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
+                                      const UA_DeleteMonitoredItemsRequest *request,
+                                      UA_DeleteMonitoredItemsResponse *response);
+                                      
 /** @} */
 
 #ifdef ENABLESUBSCRIPTIONS
@@ -258,16 +261,20 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
 UA_Int32 Service_CreateSubscription(UA_Server *server, UA_Session *session,
                                     const UA_CreateSubscriptionRequest *request,
                                     UA_CreateSubscriptionResponse *response);
+
+UA_Int32 Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
+                                     const UA_DeleteSubscriptionsRequest *request,
+                                     UA_DeleteSubscriptionsResponse *response);
+                                     
+UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
+                         const UA_PublishRequest *request,
+                         UA_PublishResponse *response);
+                         
 //~ Service_ModifySubscription
 //~ Service_SetPublishingMode
 //~ UA_Int32 Service_SetPublishingMode(UA_Server *server, UA_Session *session,
                                     //~ const UA_SetPublishingModeRequest *request,
                                     //~ UA_SetPublishingModeResponse *response);
-//~ 
-//~ UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
-                         //~ const UA_PublishRequest *request,
-                         //~ UA_PublishResponse *response);
-
 // Service_Republish
 // Service_TransferSubscription
 // Service_DeleteSubscription
