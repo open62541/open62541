@@ -126,6 +126,13 @@ UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
     
     // Verify Session and Subscription
     response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
+    response->diagnosticInfosSize = 0;
+    response->availableSequenceNumbersSize = 0;
+    response->resultsSize = 0;
+    response->subscriptionId = 0;
+    response->moreNotifications = UA_FALSE;
+    response->notificationMessage.notificationDataSize = 0;
+    
     if (session == NULL ) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;           
     else if ( session->channel == NULL || session->activated == UA_FALSE) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
     if ( response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) return 0;
@@ -133,22 +140,28 @@ UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
     manager = &(session->subscriptionManager);    
     for (sub=(manager->ServerSubscriptions)->lh_first; sub != NULL; sub = sub->listEntry.le_next) {
         Subscription_updateNotifications(sub);
-        /*
-        printf("Publish: Session Subscription %i\n", sub->SubscriptionID);
-        for(mon=sub->MonitoredItems->lh_first; mon != NULL; mon=mon->listEntry.le_next) {
-            printf("Publish: Session Subscription %i, Monitored Item %i\n", sub->SubscriptionID, mon->ItemId);
-            //MonitoredItem_QueuePushDataValue(mon);
-            printf("QueueSize: %i, %i\n", mon->QueueSize.currentValue, mon->QueueSize.maxValue);
-        }
-        */
+        if (Subscription_queuedNotifications(sub) > 0) {
+	  response->subscriptionId = sub->SubscriptionID;
+	  
+	  Subscription_copyTopNotificationMessage(&(response->notificationMessage), sub);
+	  
+	  if (sub->unpublishedNotifications->lh_first->notification->sequenceNumber > sub->SequenceNumber) {
+	    // If this is a keepalive message, its seqNo is the next seqNo to be used for an actual msg.
+	    response->availableSequenceNumbersSize = 0;
+	    // .. and must be deleted
+	    Subscription_deleteUnpublishedNotification(sub->SequenceNumber + 1, sub);
+	  }
+	  else {
+	    response->availableSequenceNumbersSize = Subscription_queuedNotifications(sub);
+	    response->availableSequenceNumbers = Subscription_getAvailableSequenceNumbers(sub);
+	  }	  
+	  //printf("Publish: Session Subscription %i; Queued %i, #SeqNo %i\n", sub->SubscriptionID, Subscription_queuedNotifications(sub), sub->SequenceNumber);
+	  
+	  return 0;
+	}
     }
     
-    response->subscriptionId = 0;
-    response->availableSequenceNumbersSize = 0;
-    response->availableSequenceNumbers = 0;
-    response->moreNotifications = UA_FALSE;
-    response->resultsSize = 0;
-
+    
     response->responseHeader.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
     return 0;
 }
@@ -164,7 +177,7 @@ UA_Int32 Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
     else if ( session->channel == NULL || session->activated == UA_FALSE) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
     if ( response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) return 0;
     
-    retStat = (UA_StatusCode *) malloc(sizeof(UA_StatusCode) * request->subscriptionIdsSize);
+    retStat = (UA_UInt32 *) malloc(sizeof(UA_UInt32) * request->subscriptionIdsSize);
     if (retStat==NULL) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return -1;

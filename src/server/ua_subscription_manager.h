@@ -1,4 +1,4 @@
-#ifdef ENABLESUBSCRIPTIONS
+#ifdef  ENABLESUBSCRIPTIONS
 #ifndef UA_SUBSCRIPTION_MANAGER_H_
 #define UA_SUBSCRIPTION_MANAGER_H_
 
@@ -6,6 +6,15 @@
 #include "ua_types.h"
 #include "queue.h"
 #include "ua_nodestore.h"
+
+#define LIST_INITENTRY(item,entry) { \
+  (item)->entry.le_next = NULL; \
+  (item)->entry.le_prev = NULL; \
+}; 
+
+#define INITPOINTER(src) { \
+  (src)=NULL; \
+}
 
 typedef struct {
     UA_Int32 currentValue;
@@ -43,7 +52,7 @@ typedef struct UA_MonitoredItem_s {
 } UA_MonitoredItem;
 
 typedef struct UA_unpublishedNotification_s {
-    UA_NotificationMessage notification;
+    UA_NotificationMessage 		     *notification;
     LIST_ENTRY(UA_unpublishedNotification_s) listEntry;
 } UA_unpublishedNotification;
 
@@ -82,9 +91,12 @@ UA_Subscription *SubscriptionManager_getSubscriptionByID(UA_SubscriptionManager 
 UA_Int32        SubscriptionManager_deleteSubscription(UA_SubscriptionManager *manager, UA_Int32 SubscriptionID);
 UA_Int32        SubscriptionManager_deleteMonitoredItem(UA_SubscriptionManager *manager, UA_Int32 SubscriptionID, UA_UInt32 MonitoredItemID);
 
-UA_Subscription *UA_Subscription_new(UA_Int32 SubscriptionID);
-void            Subscription_updateNotifications(UA_Subscription *subscription);
-int             Subscription_queuedNotifications(UA_Subscription *subscription);
+UA_Subscription 	*UA_Subscription_new(UA_Int32 SubscriptionID);
+void            	Subscription_updateNotifications(UA_Subscription *subscription);
+UA_UInt32       	Subscription_queuedNotifications(UA_Subscription *subscription);
+UA_UInt32 		*Subscription_getAvailableSequenceNumbers(UA_Subscription *sub);
+void 			Subscription_copyTopNotificationMessage(UA_NotificationMessage *dst, UA_Subscription *sub);
+void   Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Subscription *sub);
 
 UA_MonitoredItem *UA_MonitoredItem_new(void);
 void             MonitoredItem_delete(UA_MonitoredItem *monitoredItem);

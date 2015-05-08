@@ -1,6 +1,7 @@
 #ifdef ENABLESUBSCRIPTIONS
 #include "ua_types.h"
 #include "ua_server_internal.h"
+#include "ua_nodestore.h"
 #include "ua_subscription_manager.h"
 
 #include <stdio.h> // Remove later, debugging only
@@ -32,6 +33,7 @@ UA_Subscription *UA_Subscription_new(UA_Int32 SubscriptionID) {
     new->SequenceNumber = 0;
     new->MonitoredItems = (UA_ListOfUAMonitoredItems *) malloc (sizeof(UA_ListOfUAMonitoredItems));
     LIST_INIT(new->MonitoredItems);
+    LIST_INITENTRY(new, listEntry);
     new->unpublishedNotifications = (UA_ListOfUnpublishedNotifications *) malloc(sizeof(UA_ListOfUnpublishedNotifications));
     LIST_INIT(new->unpublishedNotifications);
     return new;
@@ -44,7 +46,8 @@ UA_MonitoredItem *UA_MonitoredItem_new() {
     new->LastSampled = 0;
     
     LIST_INIT(new->queue);
-    
+    LIST_INITENTRY(new, listEntry);
+    INITPOINTER(new->monitoredNode);
     return new;
 }
 
@@ -130,15 +133,15 @@ UA_Int32 SubscriptionManager_deleteSubscription(UA_SubscriptionManager *manager,
     return UA_STATUSCODE_GOOD;
 } 
 
-int Subscription_queuedNotifications(UA_Subscription *subscription) {
-    int j = 0;
+UA_UInt32 Subscription_queuedNotifications(UA_Subscription *subscription) {
+    UA_UInt32 j = 0;
     if (subscription == NULL) return 0;
     
     for(UA_unpublishedNotification *i = subscription->unpublishedNotifications->lh_first; i != NULL; i=(i->listEntry).le_next) j++;
     
     return j;
 }
-    
+
 void Subscription_updateNotifications(UA_Subscription *subscription) {
     UA_MonitoredItem *mon;
     //MonitoredItem_queuedValue *queuedValue;
@@ -147,7 +150,7 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
     
     if (subscription == NULL) return;
     if ((subscription->LastPublished + subscription->PublishingInterval) > UA_DateTime_now()) return;
-       
+         
     // Check if any MonitoredItem Queues hold data
     for(mon=subscription->MonitoredItems->lh_first; mon!= NULL; mon=mon->listEntry.le_next) {
         if (mon->queue->lh_first != NULL) {
@@ -167,15 +170,18 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
         // Decrement KeepAlive
         subscription->KeepAliveCount.currentValue--;
         // +- Generate KeepAlive msg if counter overruns
-        if (subscription->KeepAliveCount.currentValue < subscription->KeepAliveCount.minValue) {
+        if (subscription->KeepAliveCount.currentValue <= subscription->KeepAliveCount.minValue || subscription->KeepAliveCount.currentValue > subscription->KeepAliveCount.maxValue) {
             msg = (UA_unpublishedNotification *) malloc(sizeof(UA_unpublishedNotification));
-            msg->notification.sequenceNumber = (subscription->SequenceNumber)++;
-            msg->notification.publishTime    = UA_DateTime_now();
-            msg->notification.notificationDataSize = monItemsWithData;
-            msg->notification.sequenceNumber = subscription->SequenceNumber++;
-            msg->notification.notificationDataSize = 0;
-            
-            LIST_INSERT_HEAD(subscription->unpublishedNotifications, msg, listEntry);
+	    LIST_INITENTRY(msg, listEntry);
+	    INITPOINTER(msg->notification);
+	    
+	    msg->notification = (UA_NotificationMessage *) malloc(sizeof(UA_NotificationMessage));
+	    INITPOINTER(msg->notification->notificationData);
+	    msg->notification->sequenceNumber = (subscription->SequenceNumber)+1; // KeepAlive uses next message, but does not increment counter
+            msg->notification->publishTime    = UA_DateTime_now();
+            msg->notification->notificationDataSize = 0;
+	    
+	    LIST_INSERT_HEAD(subscription->unpublishedNotifications, msg, listEntry);
             subscription->KeepAliveCount.currentValue = subscription->KeepAliveCount.maxValue;
         }
         
@@ -183,25 +189,18 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
     }
     
     // One or more MonitoredItems hold data -> create a new NotificationMessage
-    printf("UpdateNotification: creating NotificationMessage for %i items holding data\n", msg->notification.notificationDataSize);
     
     // +- Create Array of NotificationData
     // +- Clear Queue
     
     // Fill the NotificationMessage with NotificationData
-    for(mon=subscription->MonitoredItems->lh_first; mon!= NULL; mon=mon->listEntry.le_next) {
-        if (mon->queue->lh_first != NULL) {
-            printf("UpdateNotification: monitored %i\n", mon->ItemId);
-            if (msg == NULL) {
-                
-            }
-        }
-    }
+    
     return;
 }
 
 void MonitoredItem_ClearQueue(UA_MonitoredItem *monitoredItem) {
-    if (monitoredItem == NULL) return;
+  
+  if (monitoredItem == NULL) return;
     while(monitoredItem->queue->lh_first != NULL) {
         LIST_REMOVE(monitoredItem->queue->lh_first, listEntry);
     }
@@ -216,6 +215,7 @@ void MonitoredItem_QueuePushDataValue(UA_MonitoredItem *monitoredItem) {
     if( (monitoredItem->LastSampled + monitoredItem->SamplingInterval) > UA_DateTime_now()) return;
     
     newvalue = (MonitoredItem_queuedValue *) malloc(sizeof(MonitoredItem_queuedValue));
+    LIST_INITENTRY(newvalue,listEntry);
     
     // Create new Value
     switch(monitoredItem->AttributeID) {
@@ -275,7 +275,6 @@ void MonitoredItem_QueuePushDataValue(UA_MonitoredItem *monitoredItem) {
         break;
     }
     
-    printf("MonitoredItem AddValue: %i,%i\n", (monitoredItem->QueueSize).currentValue, (monitoredItem->QueueSize).maxValue);
     if ((monitoredItem->QueueSize).currentValue >= (monitoredItem->QueueSize).maxValue) {
         if (monitoredItem->DiscardOldest == UA_TRUE && monitoredItem->queue->lh_first != NULL ) {
             for(queueItem = monitoredItem->queue->lh_first; queueItem->listEntry.le_next != NULL; queueItem = queueItem->listEntry.le_next) {}
@@ -295,4 +294,72 @@ void MonitoredItem_QueuePushDataValue(UA_MonitoredItem *monitoredItem) {
     return;
 }
 
+UA_UInt32 *Subscription_getAvailableSequenceNumbers(UA_Subscription *sub) {
+  UA_UInt32 *seqArray;
+  int i;
+  UA_unpublishedNotification *not;
+  
+  if (sub == NULL) return NULL;
+  
+  seqArray = (UA_UInt32 *) malloc(sizeof(UA_UInt32) * Subscription_queuedNotifications(sub));
+  if (seqArray == NULL ) return NULL;
+  
+  i = 0;
+  for(not = sub->unpublishedNotifications->lh_first; not != NULL; not=(not->listEntry).le_next) {
+    seqArray[i] = not->notification->sequenceNumber;
+    i++;
+  }
+  
+  return seqArray;
+  
+}
+
+void Subscription_copyTopNotificationMessage(UA_NotificationMessage *dst, UA_Subscription *sub) {
+    UA_NotificationMessage *latest;
+    
+    if (dst == NULL) return;
+    
+    if (Subscription_queuedNotifications(sub) == 0) {
+      dst->notificationDataSize = 0;
+      dst->publishTime = UA_DateTime_now();
+      dst->sequenceNumber = 0;
+      return;
+    }
+    
+    latest = sub->unpublishedNotifications->lh_first->notification;
+    dst->notificationDataSize = latest->notificationDataSize;
+    dst->publishTime = latest->publishTime;
+    dst->sequenceNumber = latest->sequenceNumber;
+    
+    if (latest->notificationDataSize == 0) return;
+    
+    dst->notificationData = (UA_ExtensionObject *) malloc(sizeof(UA_ExtensionObject));
+    dst->notificationData->encoding = latest->notificationData->encoding;
+    dst->notificationData->typeId   = latest->notificationData->typeId;
+    dst->notificationData->body.length = 0;
+    
+    return;
+}
+
+void Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Subscription *sub) {
+  UA_unpublishedNotification *not;
+
+  for(not=sub->unpublishedNotifications->lh_first; not != NULL; not=not->listEntry.le_next) {
+    if (not->notification->sequenceNumber == seqNo) { 
+      LIST_REMOVE(not, listEntry);
+      if (not->notification != NULL) {
+	if (not->notification->notificationData != NULL) {
+	  if (not->notification->notificationData->body.data != NULL) {
+	    UA_free(not->notification->notificationData->body.data);
+	  }
+	  UA_free(not->notification->notificationData);
+	}
+	UA_free(not->notification);
+      }
+      UA_free(not);
+    }
+  }
+
+  return;
+}
 #endif //#ifdef ENABLESUBSCRIPTIONS
