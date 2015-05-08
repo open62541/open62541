@@ -32,9 +32,10 @@ script:
 - echo "Documentation build"
 - mkdir -p build
 - cd build
-- cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_DOCUMENTATION=ON ..
+- cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_DOCUMENTATION=ON -DGENERATE_SELFSIGNED=ON ..
 - make -j doc
 - cp -r doc ..
+- cp server_cert.der ..
 - echo "Testing builds"
 - cd .. && rm build -rf && mkdir -p build && cd build
 - echo "Cross compile release build for MinGW 32 bit"
@@ -44,7 +45,8 @@ script:
 - cp ../LICENSE .
 - cp ../AUTHORS .
 - cp -r ../doc .
-- zip -r open62541-win32.zip doc LICENSE AUTHORS README.md server_static.exe server.exe client.exe client_static.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
+- cp ../server_cert.der .
+- zip -r open62541-win32.zip doc server_cert.der LICENSE AUTHORS README.md server_static.exe server.exe client.exe client_static.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
 - cp open62541-win32.zip ..
 - cd .. && rm build -rf && mkdir -p build && cd build
 - echo "Cross compile release build for MinGW 64 bit"
@@ -54,19 +56,20 @@ script:
 - cp ../LICENSE .
 - cp ../AUTHORS .
 - cp -r ../doc .
-- zip -r open62541-win64.zip doc LICENSE AUTHORS README.md server_static.exe server.exe client.exe client_static.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
+- cp ../server_cert.der .
+- zip -r open62541-win64.zip doc server_cert.der LICENSE AUTHORS README.md server_static.exe server.exe client.exe client_static.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
 - cp open62541-win64.zip ..
 - cd .. && rm build -rf && mkdir -p build && cd build
 - echo "Cross compile release build for 32-bit linux"
 - cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-gcc-m32.cmake -DENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLESERVER=ON -DBUILD_EXAMPLECLIENT=ON ..
 - make -j
-- tar -pczf open62541-linux32.tar.gz ../doc ../LICENSE ../AUTHORS ../README.md server_static server client_static client libopen62541.so open62541.h open62541.c
+- tar -pczf open62541-linux32.tar.gz ../doc ../server_cert.der ../LICENSE ../AUTHORS ../README.md server_static server client_static client libopen62541.so open62541.h open62541.c
 - cp open62541-linux32.tar.gz ..
 - cd .. && rm build -rf && mkdir -p build && cd build
 - echo "Compile release build for 64-bit linux"
 - cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_AMALGAMATION=ON -DBUILD_EXAMPLESERVER=ON -DBUILD_EXAMPLECLIENT=ON ..
 - make -j
-- tar -pczf open62541-linux64.tar.gz ../doc ../LICENSE ../AUTHORS ../README.md server_static server client_static client libopen62541.so open62541.h open62541.c
+- tar -pczf open62541-linux64.tar.gz ../doc ../server_cert.der ../LICENSE ../AUTHORS ../README.md server_static server client_static client libopen62541.so open62541.h open62541.c
 - cp open62541-linux64.tar.gz ..
 - cp open62541.h .. #copy single file-release
 - cp open62541.c .. #copy single file-release
@@ -98,7 +101,7 @@ before_deploy:
 - export PATH=$PATH:~/tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian-x64/bin/
 - cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-rpi64.cmake -DENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLESERVER=ON -DBUILD_EXAMPLECLIENT=ON ..
 - make -j
-- tar -pczf open62541-raspberrypi.tar.gz ../doc ../LICENSE ../AUTHORS ../README.md server_static server client_static client libopen62541.so open62541.h open62541.c
+- tar -pczf open62541-raspberrypi.tar.gz ../doc ../server_cert.der ../LICENSE ../AUTHORS ../README.md server_static server client_static client libopen62541.so open62541.h open62541.c
 - cp open62541-raspberrypi.tar.gz ..
 - cd ..
 deploy:
