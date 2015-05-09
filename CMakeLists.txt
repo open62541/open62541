@@ -17,7 +17,7 @@ else()
 endif()
 add_definitions("-DVERSION=${GIT_COMMIT_ID}")
 
-MESSAGE (STATUS "Git version:"  ${GIT_COMMIT_ID})
+MESSAGE (STATUS "Git version: "  ${GIT_COMMIT_ID})
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
