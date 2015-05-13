@@ -1,3 +1,7 @@
+#ifndef ENABLESUBSCRIPTIONS
+#define ENABLESUBSCRIPTIONS
+#endif
+
 #ifdef  ENABLESUBSCRIPTIONS
 #ifndef UA_SUBSCRIPTION_MANAGER_H_
 #define UA_SUBSCRIPTION_MANAGER_H_
@@ -16,6 +20,8 @@
   (src)=NULL; \
 }
 
+#define ISNOTZERO(value) ((value == 0) ? 0 : 1)
+
 typedef struct {
     UA_Int32 currentValue;
     UA_Int32 minValue;
@@ -28,6 +34,8 @@ typedef struct {
     UA_UInt32 maxValue;
 } UA_UInt32_BoundedValue;
 
+typedef enum MONITOREITEM_TYPE_ENUM {MONITOREDITEM_CHANGENOTIFY_T=1, MONITOREDITEM_STATUSNOTIFY_T=2, MONITOREDITEM_EVENTNOTIFY_T=4 } MONITOREITEM_TYPE;
+
 typedef struct MonitoredItem_queuedValue_s {
     UA_Variant value;
     LIST_ENTRY(MonitoredItem_queuedValue_s) listEntry;
@@ -36,6 +44,7 @@ typedef struct MonitoredItem_queuedValue_s {
 typedef LIST_HEAD(UA_ListOfQueuedDataValues_s, MonitoredItem_queuedValue_s) UA_ListOfQueuedDataValues;
 typedef struct UA_MonitoredItem_s {
     UA_UInt32                       ItemId;
+    MONITOREITEM_TYPE		    MonitoredItemType;
     UA_UInt32                       TimestampsToReturn;
     UA_UInt32                       MonitoringMode;
     const void                      *monitoredNode; // Pointer to a node of any type
@@ -96,12 +105,12 @@ void            	Subscription_updateNotifications(UA_Subscription *subscription)
 UA_UInt32       	Subscription_queuedNotifications(UA_Subscription *subscription);
 UA_UInt32 		*Subscription_getAvailableSequenceNumbers(UA_Subscription *sub);
 void 			Subscription_copyTopNotificationMessage(UA_NotificationMessage *dst, UA_Subscription *sub);
-void   Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Subscription *sub);
+void   			Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Subscription *sub);
 
 UA_MonitoredItem *UA_MonitoredItem_new(void);
 void             MonitoredItem_delete(UA_MonitoredItem *monitoredItem);
 void             MonitoredItem_QueuePushDataValue(UA_MonitoredItem *monitoredItem);
 void             MonitoredItem_ClearQueue(UA_MonitoredItem *monitoredItem);
-
+int MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *dst, UA_MonitoredItem *monitoredItem);
 #endif  // ifndef... define UA_SUBSCRIPTION_MANAGER_H_
 #endif  // ifdef EnableSubscriptions ...

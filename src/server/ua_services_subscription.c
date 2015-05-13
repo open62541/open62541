@@ -1,3 +1,7 @@
+#ifndef ENABLESUBSCRIPTIONS
+#define ENABLESUBSCRIPTIONS
+#endif
+
 #ifdef ENABLESUBSCRIPTIONS
 #include "ua_services.h"
 #include "ua_server_internal.h"
@@ -76,7 +80,7 @@ UA_Int32 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
     response->resultsSize = request->itemsToCreateSize;
     response->results = createResults;
     
-    for(int i=0;i<request->itemsToCreateSize;i++) {
+    for(int i=0; i<request->itemsToCreateSize; i++) {
         thisItemsRequest = &(request->itemsToCreate[i]);
         thisItemsResult  = &(createResults[i]);
         
@@ -106,7 +110,9 @@ UA_Int32 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
             
             UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.GlobalQueueSize, thisItemsRequest->requestedParameters.queueSize, thisItemsResult->revisedQueueSize);
             newMon->QueueSize = (UA_UInt32_BoundedValue) { .maxValue=(thisItemsResult->revisedQueueSize) + 1, .minValue=0, .currentValue=0 };
-            
+            newMon->AttributeID = thisItemsRequest->itemToMonitor.attributeId;
+            newMon->MonitoredItemType = MONITOREDITEM_CHANGENOTIFY_T;
+
             newMon->DiscardOldest = thisItemsRequest->requestedParameters.discardOldest;
             
             LIST_INSERT_HEAD(sub->MonitoredItems, newMon, listEntry);
@@ -121,12 +127,13 @@ UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
                          UA_PublishResponse *response) {
     
     UA_Subscription  *sub;
-    //UA_MonitoredItem *mon;
+    UA_MonitoredItem *mon;
     UA_SubscriptionManager *manager;
     
     // Verify Session and Subscription
     response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
     response->diagnosticInfosSize = 0;
+    response->diagnosticInfos     = 0;
     response->availableSequenceNumbersSize = 0;
     response->resultsSize = 0;
     response->subscriptionId = 0;
@@ -139,7 +146,12 @@ UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
 
     manager = &(session->subscriptionManager);    
     for (sub=(manager->ServerSubscriptions)->lh_first; sub != NULL; sub = sub->listEntry.le_next) {
-        Subscription_updateNotifications(sub);
+	if (sub->MonitoredItems->lh_first != NULL) {  
+	  for(mon=sub->MonitoredItems->lh_first; mon != NULL; mon=mon->listEntry.le_next) {
+	    MonitoredItem_QueuePushDataValue(mon);
+	  }
+	}
+	Subscription_updateNotifications(sub);
         if (Subscription_queuedNotifications(sub) > 0) {
 	  response->subscriptionId = sub->SubscriptionID;
 	  
@@ -155,14 +167,13 @@ UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
 	    response->availableSequenceNumbersSize = Subscription_queuedNotifications(sub);
 	    response->availableSequenceNumbers = Subscription_getAvailableSequenceNumbers(sub);
 	  }	  
-	  //printf("Publish: Session Subscription %i; Queued %i, #SeqNo %i\n", sub->SubscriptionID, Subscription_queuedNotifications(sub), sub->SequenceNumber);
 	  
 	  return 0;
 	}
     }
     
-    
-    response->responseHeader.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
+    response->diagnosticInfosSize = 0;
+    response->diagnosticInfos     = 0;
     return 0;
 }
 
