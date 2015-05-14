@@ -91,7 +91,7 @@ script:
 - coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../
 - cd .. 
 after_success:
-- ./tools/.deployDoxygen.sh
+- ./tools/.deployGH.sh
 - ./tools/.coverity.sh
 before_deploy:
 - rm build -rf && mkdir -p build && cd build
