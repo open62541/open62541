@@ -22,6 +22,7 @@ typedef UA_Connection (*UA_ConnectClientConnection)(char *endpointUrl, UA_Logger
 
 typedef struct UA_ClientConfig {
     UA_Int32 timeout; //sync response timeout
+    UA_Int32 secureChannelLifeTime; // lifetime in ms (then the channel needs to be renewed)
     UA_ConnectionConfig localConnectionConfig;
 } UA_ClientConfig;
 
@@ -32,6 +33,8 @@ UA_EXPORT void UA_Client_delete(UA_Client* client);
 
 UA_StatusCode UA_EXPORT UA_Client_connect(UA_Client *client, UA_ConnectClientConnection connFunc, char *endpointUrl);
 UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client);
+
+UA_StatusCode UA_EXPORT UA_Client_renewSecureChannel(UA_Client *client);
 
 /* Attribute Service Set */
 UA_ReadResponse UA_EXPORT UA_Client_read(UA_Client *client, UA_ReadRequest *request);
