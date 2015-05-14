@@ -32,8 +32,9 @@ struct UA_Client {
 };
 
 const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard =
-    { 5 /* ms receive timout */, {.protocolVersion = 0, .sendBufferSize = 65536, .recvBufferSize  = 65536,
-                                  .maxMessageSize = 65536, .maxChunkCount = 1}};
+    { 5 /* ms receive timout */, 30000,
+      {.protocolVersion = 0, .sendBufferSize = 65536, .recvBufferSize  = 65536,
+       .maxMessageSize = 65536, .maxChunkCount = 1}};
 
 UA_Client * UA_Client_new(UA_ClientConfig config, UA_Logger logger) {
     UA_Client *client = UA_malloc(sizeof(UA_Client));
@@ -126,7 +127,7 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
+static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
     UA_ByteString_deleteMembers(&client->clientNonce); // if the handshake is repeated
     UA_ByteString_newMembers(&client->clientNonce, 1);
     client->clientNonce.data[0] = 0;
@@ -149,13 +150,15 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
     UA_OpenSecureChannelRequest opnSecRq;
     UA_OpenSecureChannelRequest_init(&opnSecRq);
     opnSecRq.requestHeader.timestamp = UA_DateTime_now();
-    UA_ByteString_copy(&client->clientNonce, &opnSecRq.clientNonce);
-    opnSecRq.requestedLifetime = 30000;
-    opnSecRq.securityMode = UA_MESSAGESECURITYMODE_NONE;
-    opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_ISSUE;
-    opnSecRq.requestHeader.authenticationToken.identifier.numeric = 10;
-    opnSecRq.requestHeader.authenticationToken.identifierType = UA_NODEIDTYPE_NUMERIC;
-    opnSecRq.requestHeader.authenticationToken.namespaceIndex = 10;
+    opnSecRq.requestHeader.authenticationToken = client->authenticationToken;
+    opnSecRq.requestedLifetime = client->config.secureChannelLifeTime;
+    if(renew) {
+        opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_RENEW;
+    } else {
+        opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_ISSUE;
+        UA_ByteString_copy(&client->clientNonce, &opnSecRq.clientNonce);
+        opnSecRq.securityMode = UA_MESSAGESECURITYMODE_NONE;
+    }
 
     messageHeader.messageHeader.messageSize =
         UA_SecureConversationMessageHeader_calcSizeBinary(&messageHeader) +
@@ -216,7 +219,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client) {
     client->connection.releaseBuffer(&client->connection, &reply);
     retval = response.responseHeader.serviceResult;
 
-    if(retval == UA_STATUSCODE_GOOD) {
+    if(!renew && retval == UA_STATUSCODE_GOOD) {
         UA_ChannelSecurityToken_copy(&response.securityToken, &client->securityToken);
         UA_ByteString_deleteMembers(&client->serverNonce); // if the handshake is repeated
         UA_ByteString_copy(&response.serverNonce, &client->serverNonce);
@@ -500,7 +503,7 @@ UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection co
     client->connection.localConf = client->config.localConnectionConfig;
     UA_StatusCode retval = HelAckHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
-        retval = SecureChannelHandshake(client);
+        retval = SecureChannelHandshake(client, UA_FALSE);
     if(retval == UA_STATUSCODE_GOOD)
         retval = EndpointsHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
@@ -516,6 +519,10 @@ UA_StatusCode UA_Client_disconnect(UA_Client *client) {
     if(retval == UA_STATUSCODE_GOOD)
         retval = CloseSecureChannel(client);
     return retval;
+}
+
+UA_StatusCode UA_Client_renewSecureChannel(UA_Client *client) {
+    return SecureChannelHandshake(client, UA_TRUE);
 }
 
 UA_ReadResponse UA_Client_read(UA_Client *client, UA_ReadRequest *request) {
