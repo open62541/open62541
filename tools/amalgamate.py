@@ -1,6 +1,7 @@
 from __future__ import print_function
 import re
 import argparse
+import os.path
 
 parser = argparse.ArgumentParser()
 parser.add_argument('version', help='version to include')
@@ -92,3 +93,5 @@ if not is_c:
 
 #endif /* %s */''' % (outname.upper() + "_H_"))
 file.close()
+
+print ("The size of "+args.outfile+" is "+ str(os.path.getsize(args.outfile)))
