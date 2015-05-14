@@ -1,3 +1,4 @@
+#include <ua_types_generated.h>
 #include "ua_client.h"
 #include "ua_nodeids.h"
 #include "ua_types.h"
@@ -29,10 +30,11 @@ struct UA_Client {
     /* Config */
     UA_Logger logger;
     UA_ClientConfig config;
+    UA_DateTime scExpiresAt;
 };
 
 const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard =
-    { 5 /* ms receive timout */, 30000,
+    { 5 /* ms receive timout */, 30000, 2000,
       {.protocolVersion = 0, .sendBufferSize = 65536, .recvBufferSize  = 65536,
        .maxMessageSize = 65536, .maxChunkCount = 1}};
 
@@ -47,6 +49,8 @@ UA_Client * UA_Client_new(UA_ClientConfig config, UA_Logger logger) {
 
     client->sequenceNumber = 0;
     client->requestId = 0;
+
+    client->scExpiresAt = 0;
 
     /* Secure Channel */
     UA_ChannelSecurityToken_deleteMembers(&client->securityToken);
@@ -216,6 +220,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
 
     UA_OpenSecureChannelResponse response;
     UA_OpenSecureChannelResponse_decodeBinary(&reply, &offset, &response);
+    client->scExpiresAt = UA_DateTime_now() + response.securityToken.revisedLifetime * 10000;
     client->connection.releaseBuffer(&client->connection, &reply);
     retval = response.responseHeader.serviceResult;
 
@@ -236,6 +241,12 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
 static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *requestType,
                                void *response, const UA_DataType *responseType, UA_Client *client,
                                UA_Boolean sendOnly) {
+
+    //check if sc needs to be renewed
+    if(client->scExpiresAt-UA_DateTime_now() <= client->config.timeToRenewSecureChannel * 10000){ //less than 3 seconds left to expire -> renew
+        UA_Client_renewSecureChannel(client);
+    }
+
     if(response)
         UA_init(response, responseType);
     else
