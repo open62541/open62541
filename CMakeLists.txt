@@ -161,18 +161,23 @@ if(EXTENSION_STATELESS)
 endif()
 
 option(ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                PRE_BUILD
                COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${GIT_COMMIT_ID} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
+
+
+               DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${exported_headers} ${internal_headers})
+
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
+               PRE_BUILD
 
                COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${GIT_COMMIT_ID} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
                               ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${internal_headers} ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources}
 
-               DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${exported_headers} ${internal_headers}
-                       ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
+               DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
 
 if(ENABLE_AMALGAMATION)
-    add_custom_target(amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c)
+    add_custom_target(amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c)
     include_directories(${PROJECT_BINARY_DIR})
 else()
