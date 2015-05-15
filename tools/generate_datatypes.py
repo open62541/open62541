@@ -61,7 +61,7 @@ minimal_types = ["InvalidType", "Node", "NodeClass", "ReferenceNode", "Applicati
                  "UserIdentityToken", "UserNameIdentityToken", "AnonymousIdentityToken" ];
 
 subscription_types = [ "DeleteMonitoredItemsRequest", "DeleteMonitoredItemsResponse", "NotificationMessage",
-                  "MonitoredItemNotification", "DataChangeNotification"];                
+                  "MonitoredItemNotification", "DataChangeNotification"  ];
 
 class TypeDescription(object):
     def __init__(self, name, nodeid, namespaceid):
