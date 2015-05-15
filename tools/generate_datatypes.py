@@ -58,10 +58,11 @@ minimal_types = ["InvalidType", "Node", "NodeClass", "ReferenceNode", "Applicati
                  "NodeAttributesMask","DeleteNodesItem", "DeleteNodesRequest", "DeleteNodesResponse",
                  "DeleteReferencesItem", "DeleteReferencesRequest", "DeleteReferencesResponse",
                  "RegisterNodesRequest", "RegisterNodesResponse", "UnregisterNodesRequest", "UnregisterNodesResponse", 
-                 "UserIdentityToken", "UserNameIdentityToken", "AnonymousIdentityToken", 
-                 "DeleteMonitoredItemsRequest", "DeleteMonitoredItemsResponse", "NotificationMessage",
-                 "MonitoredItemNotification", "DataChangeNotification" ];
-                 
+                 "UserIdentityToken", "UserNameIdentityToken", "AnonymousIdentityToken" ];
+
+subscription_types = [ "DeleteMonitoredItemsRequest", "DeleteMonitoredItemsResponse", "NotificationMessage",
+                  "MonitoredItemNotification", "DataChangeNotification"];                
+
 class TypeDescription(object):
     def __init__(self, name, nodeid, namespaceid):
         self.name = name # without the UA_ prefix
@@ -430,6 +431,7 @@ def parseTypeDefinitions(xmlDescription, existing_types = OrderedDict()):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--ns0-types-xml', nargs=1, help='xml-definition of the ns0 types that are assumed to already exist')
+parser.add_argument('--enable-subscription-types', nargs=1, help='Generate datatypes necessary for Montoring and Subscriptions.')
 parser.add_argument('--typedescriptions', nargs=1, help='csv file with type descriptions')
 parser.add_argument('namespace_id', type=int, help='the id of the target namespace')
 parser.add_argument('types_xml', help='path/to/Opc.Ua.Types.bsd')
@@ -439,6 +441,8 @@ args = parser.parse_args()
 outname = args.outfile.split("/")[-1] 
 inname = args.types_xml.split("/")[-1]
 existing_types = OrderedDict()
+if args.enable_subscription_types:
+    minimal_types = minimal_types + subscription_types
 if args.namespace_id == 0 or args.ns0_types_xml:
     existing_types = OrderedDict([(t, BuiltinType(t)) for t in builtin_types])
 if args.ns0_types_xml:
