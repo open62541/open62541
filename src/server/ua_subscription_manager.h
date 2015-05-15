@@ -1,7 +1,3 @@
-#ifndef ENABLESUBSCRIPTIONS
-#define ENABLESUBSCRIPTIONS
-#endif
-
 #ifdef  ENABLESUBSCRIPTIONS
 #ifndef UA_SUBSCRIPTION_MANAGER_H_
 #define UA_SUBSCRIPTION_MANAGER_H_
@@ -47,13 +43,14 @@ typedef struct UA_MonitoredItem_s {
     MONITOREITEM_TYPE		    MonitoredItemType;
     UA_UInt32                       TimestampsToReturn;
     UA_UInt32                       MonitoringMode;
-    const void                      *monitoredNode; // Pointer to a node of any type
+    const UA_Node                   *monitoredNode; // Pointer to a node of any type
     UA_UInt32                       AttributeID;
     UA_UInt32                       ClientHandle;
     UA_UInt32                       SamplingInterval;
-    UA_DateTime                     LastSampled;
     UA_UInt32_BoundedValue          QueueSize;
     UA_Boolean                      DiscardOldest;
+    UA_DateTime                     LastSampled;
+    UA_ByteString                   *LastSeenValue;
     // FIXME: indexRange is ignored; array values default to element 0
     // FIXME: dataEncoding is hardcoded to UA binary
     LIST_ENTRY(UA_MonitoredItem_s)  listEntry;
@@ -105,12 +102,14 @@ void            	Subscription_updateNotifications(UA_Subscription *subscription)
 UA_UInt32       	Subscription_queuedNotifications(UA_Subscription *subscription);
 UA_UInt32 		*Subscription_getAvailableSequenceNumbers(UA_Subscription *sub);
 void 			Subscription_copyTopNotificationMessage(UA_NotificationMessage *dst, UA_Subscription *sub);
-void   			Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Subscription *sub);
+UA_UInt32		Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Subscription *sub);
+void                    Subscription_generateKeepAlive(UA_Subscription *subscription);
 
 UA_MonitoredItem *UA_MonitoredItem_new(void);
 void             MonitoredItem_delete(UA_MonitoredItem *monitoredItem);
 void             MonitoredItem_QueuePushDataValue(UA_MonitoredItem *monitoredItem);
 void             MonitoredItem_ClearQueue(UA_MonitoredItem *monitoredItem);
-int MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *dst, UA_MonitoredItem *monitoredItem);
+UA_Boolean       MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 AttributeID, const UA_Node *src, UA_Variant *dst);
+int              MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *dst, UA_MonitoredItem *monitoredItem);
 #endif  // ifndef... define UA_SUBSCRIPTION_MANAGER_H_
 #endif  // ifdef EnableSubscriptions ...
