@@ -76,11 +76,11 @@ UA_StatusCode UA_EXPORT UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_
 /**
  * The prologue part of UA_Server_run (no need to use if you call UA_Server_run)
  */
-UA_StatusCode UA_EXPORT UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads);
+UA_StatusCode UA_EXPORT UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running);
 /**
  * The epilogue part of UA_Server_run (no need to use if you call UA_Server_run)
  */
-UA_StatusCode UA_EXPORT UA_Server_run_shutdown(UA_Server *server);
+UA_StatusCode UA_EXPORT UA_Server_run_shutdown(UA_Server *server, UA_UInt16 nThreads);
 /**
  * One iteration of UA_Server_run (no need to use if you call UA_Server_run)
  */
