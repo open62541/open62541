@@ -50,7 +50,7 @@ typedef struct UA_MonitoredItem_s {
     UA_UInt32_BoundedValue          QueueSize;
     UA_Boolean                      DiscardOldest;
     UA_DateTime                     LastSampled;
-    UA_ByteString                   *LastSeenValue;
+    UA_ByteString                   LastSampledValue;
     // FIXME: indexRange is ignored; array values default to element 0
     // FIXME: dataEncoding is hardcoded to UA binary
     LIST_ENTRY(UA_MonitoredItem_s)  listEntry;
