@@ -60,6 +60,7 @@ struct UA_Server {
     UA_Boolean *running;
     UA_UInt16 nThreads;
     UA_UInt32 **workerCounters;
+    pthread_t *thr;
     struct DelayedWork *delayedWork;
 
     // worker threads wait on the queue

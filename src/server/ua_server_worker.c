@@ -436,85 +436,102 @@ static void dispatchDelayedWork(UA_Server *server, void *data /* not used, but n
 /* Main Server Loop */
 /********************/
 
-UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running) {
+UA_StatusCode UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running){
 #ifdef UA_MULTITHREADING
     // 1) Prepare the threads
     server->running = running; // the threads need to access the variable
     server->nThreads = nThreads;
     pthread_cond_init(&server->dispatchQueue_condition, 0);
-    pthread_t *thr = UA_malloc(nThreads * sizeof(pthread_t));
+    server->thr = UA_malloc(nThreads * sizeof(pthread_t));
     server->workerCounters = UA_malloc(nThreads * sizeof(UA_UInt32 *));
     for(UA_UInt32 i=0;i<nThreads;i++) {
         struct workerStartData *startData = UA_malloc(sizeof(struct workerStartData));
         startData->server = server;
         startData->workerCounter = &server->workerCounters[i];
-        pthread_create(&thr[i], UA_NULL, (void* (*)(void*))workerLoop, startData);
+        pthread_create(&server->thr[i], UA_NULL, (void* (*)(void*))workerLoop, startData);
     }
 
     UA_WorkItem processDelayed = {.type = UA_WORKITEMTYPE_METHODCALL,
-                                  .work.methodCall = {.method = dispatchDelayedWork,
-                                                      .data = UA_NULL} };
+            .work.methodCall = {.method = dispatchDelayedWork,
+                    .data = UA_NULL} };
     UA_Server_addRepeatedWorkItem(server, &processDelayed, 10000000, UA_NULL);
 #endif
 
-    // 2) Start the networklayers
-    for(size_t i = 0; i <server->networkLayersSize; i++)
-        server->networkLayers[i].start(server->networkLayers[i].nlHandle, &server->logger);
+// 2) Start the networklayers
+for(size_t i = 0; i <server->networkLayersSize; i++)
+    server->networkLayers[i].start(server->networkLayers[i].nlHandle, &server->logger);
+
+return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_Server_run_getAndProcessWork(UA_Server *server, UA_Boolean *running){
+    // 3.1) Process timed work
+    UA_UInt16 timeout = processTimedWork(server);
+
+    // 3.2) Get work from the networklayer and dispatch it
+    for(size_t i = 0; i < server->networkLayersSize; i++) {
+        UA_ServerNetworkLayer *nl = &server->networkLayers[i];
+        UA_WorkItem *work;
+        UA_Int32 workSize;
+        if(*running) {
+            if(i == server->networkLayersSize-1)
+                workSize = nl->getWork(nl->nlHandle, &work, timeout);
+            else
+                workSize = nl->getWork(nl->nlHandle, &work, 0);
+        } else {
+            workSize = server->networkLayers[i].stop(nl->nlHandle, &work);
+        }
+
+#ifdef UA_MULTITHREADING
+// Filter out delayed work
+for(UA_Int32 k=0;k<workSize;k++) {
+    if(work[k].type != UA_WORKITEMTYPE_DELAYEDMETHODCALL)
+        continue;
+    addDelayedWork(server, work[k]);
+    work[k].type = UA_WORKITEMTYPE_NOTHING;
+}
+dispatchWork(server, workSize, work);
+if(workSize > 0)
+    pthread_cond_broadcast(&server->dispatchQueue_condition);
+#else
+processWork(server, work, workSize);
+if(workSize > 0)
+    UA_free(work);
+#endif
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_Server_run_shutdown(UA_Server *server, UA_UInt16 nThreads){
+#ifdef UA_MULTITHREADING
+    // 4) Clean up: Wait until all worker threads finish, then empty the
+    // dispatch queue, then process the remaining delayed work
+    for(UA_UInt32 i=0;i<nThreads;i++) {
+        pthread_join(server->thr[i], UA_NULL);
+        UA_free(server->workerCounters[i]);
+    }
+    UA_free(server->workerCounters);
+    UA_free(server->thr);
+    emptyDispatchQueue(server);
+    processDelayedWork(server);
+#endif
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running) {
+    UA_Server_run_startup(server, nThreads, running);
 
     // 3) The loop
     while(1) {
-        // 3.1) Process timed work
-        UA_UInt16 timeout = processTimedWork(server);
-
-        // 3.2) Get work from the networklayer and dispatch it
-        for(size_t i = 0; i < server->networkLayersSize; i++) {
-            UA_ServerNetworkLayer *nl = &server->networkLayers[i];
-            UA_WorkItem *work;
-            UA_Int32 workSize;
-            if(*running) {
-            	if(i == server->networkLayersSize-1)
-            		workSize = nl->getWork(nl->nlHandle, &work, timeout);
-            	else
-            		workSize = nl->getWork(nl->nlHandle, &work, 0);
-            } else {
-                workSize = server->networkLayers[i].stop(nl->nlHandle, &work);
-            }
-
-#ifdef UA_MULTITHREADING
-            // Filter out delayed work
-            for(UA_Int32 k=0;k<workSize;k++) {
-                if(work[k].type != UA_WORKITEMTYPE_DELAYEDMETHODCALL)
-                    continue;
-                addDelayedWork(server, work[k]);
-                work[k].type = UA_WORKITEMTYPE_NOTHING;
-            }
-            dispatchWork(server, workSize, work);
-            if(workSize > 0)
-                pthread_cond_broadcast(&server->dispatchQueue_condition); 
-#else
-            processWork(server, work, workSize);
-            if(workSize > 0)
-                UA_free(work);
-#endif
-        }
+        UA_Server_run_getAndProcessWork(server, running);
 
         // 3.3) Exit?
         if(!*running)
             break;
     }
 
-#ifdef UA_MULTITHREADING
-    // 4) Clean up: Wait until all worker threads finish, then empty the
-    // dispatch queue, then process the remaining delayed work
-    for(UA_UInt32 i=0;i<nThreads;i++) {
-        pthread_join(thr[i], UA_NULL);
-        UA_free(server->workerCounters[i]);
-    }
-    UA_free(server->workerCounters);
-    UA_free(thr);
-    emptyDispatchQueue(server);
-    processDelayedWork(server);
-#endif
+    UA_Server_run_shutdown(server, nThreads);
 
     return UA_STATUSCODE_GOOD;
 }

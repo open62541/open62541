@@ -74,6 +74,20 @@ UA_Logger UA_EXPORT UA_Server_getLogger(UA_Server *server);
 UA_StatusCode UA_EXPORT UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running);
 
 /**
+ * The prologue part of UA_Server_run (no need to use if you call UA_Server_run)
+ */
+UA_StatusCode UA_EXPORT UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running);
+/**
+ * The epilogue part of UA_Server_run (no need to use if you call UA_Server_run)
+ */
+UA_StatusCode UA_EXPORT UA_Server_run_shutdown(UA_Server *server, UA_UInt16 nThreads);
+/**
+ * One iteration of UA_Server_run (no need to use if you call UA_Server_run)
+ */
+UA_StatusCode UA_EXPORT UA_Server_run_getAndProcessWork(UA_Server *server, UA_Boolean *running);
+
+
+/**
  * Datasources are the interface to local data providers. Implementors of datasources need to
  * provide functions for the callbacks in this structure. After every read, the handle needs to be
  * released to indicate that the pointer is no longer accessed. As a rule, datasources are never
