@@ -220,6 +220,7 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
 // Service_Call
 /** @} */
 
+#ifdef ENABLESUBSCRIPTIONS
 /**
  * @name MonitoredItem Service Set
  *
@@ -249,7 +250,6 @@ UA_Int32 Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
                                       
 /** @} */
 
-#ifdef ENABLESUBSCRIPTIONS
 /**
  * @name Subscription Service Set
  *
