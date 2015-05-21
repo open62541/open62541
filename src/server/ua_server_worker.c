@@ -436,19 +436,19 @@ static void dispatchDelayedWork(UA_Server *server, void *data /* not used, but n
 /* Main Server Loop */
 /********************/
 
-UA_StatusCode UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads){
+UA_StatusCode UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running){
 #ifdef UA_MULTITHREADING
     // 1) Prepare the threads
     server->running = running; // the threads need to access the variable
     server->nThreads = nThreads;
     pthread_cond_init(&server->dispatchQueue_condition, 0);
-    pthread_t *thr = UA_malloc(nThreads * sizeof(pthread_t));
+    server->thr = UA_malloc(nThreads * sizeof(pthread_t));
     server->workerCounters = UA_malloc(nThreads * sizeof(UA_UInt32 *));
     for(UA_UInt32 i=0;i<nThreads;i++) {
         struct workerStartData *startData = UA_malloc(sizeof(struct workerStartData));
         startData->server = server;
         startData->workerCounter = &server->workerCounters[i];
-        pthread_create(&thr[i], UA_NULL, (void* (*)(void*))workerLoop, startData);
+        pthread_create(&server->thr[i], UA_NULL, (void* (*)(void*))workerLoop, startData);
     }
 
     UA_WorkItem processDelayed = {.type = UA_WORKITEMTYPE_METHODCALL,
@@ -502,16 +502,16 @@ if(workSize > 0)
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Server_run_shutdown(UA_Server *server){
+UA_StatusCode UA_Server_run_shutdown(UA_Server *server, UA_UInt16 nThreads){
 #ifdef UA_MULTITHREADING
     // 4) Clean up: Wait until all worker threads finish, then empty the
     // dispatch queue, then process the remaining delayed work
     for(UA_UInt32 i=0;i<nThreads;i++) {
-        pthread_join(thr[i], UA_NULL);
+        pthread_join(server->thr[i], UA_NULL);
         UA_free(server->workerCounters[i]);
     }
     UA_free(server->workerCounters);
-    UA_free(thr);
+    UA_free(server->thr);
     emptyDispatchQueue(server);
     processDelayedWork(server);
 #endif
@@ -520,7 +520,7 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server){
 }
 
 UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running) {
-    UA_Server_run_startup(server, nThreads);
+    UA_Server_run_startup(server, nThreads, running);
 
     // 3) The loop
     while(1) {
@@ -531,7 +531,7 @@ UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *r
             break;
     }
 
-    UA_Server_run_shutdown(server);
+    UA_Server_run_shutdown(server, nThreads);
 
     return UA_STATUSCODE_GOOD;
 }
