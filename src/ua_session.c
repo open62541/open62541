@@ -41,7 +41,7 @@ void UA_Session_init(UA_Session *session) {
     session->timeout = 0;
     UA_DateTime_init(&session->validTill);
     session->channel = UA_NULL;
-    #ifdef ENABLESUBSCRIPTIONS
+    #ifdef ENABLE_SUBSCRIPTIONS
         SubscriptionManager_init(session);
     #endif
     session->availableContinuationPoints = MAXCONTINUATIONPOINTS;
@@ -62,6 +62,9 @@ void UA_Session_deleteMembersCleanup(UA_Session *session) {
     }
     if(session->channel)
         UA_SecureChannel_detachSession(session->channel, session);
+    #ifdef ENABLE_SUBSCRIPTIONS
+        SubscriptionManager_deleteMembers(session);
+    #endif
 }
 
 void UA_Session_updateLifetime(UA_Session *session) {

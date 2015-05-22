@@ -1,4 +1,4 @@
-#ifdef ENABLESUBSCRIPTIONS
+#ifdef ENABLE_SUBSCRIPTIONS
 #include "ua_services.h"
 #include "ua_server_internal.h"
 #include "ua_subscription_manager.h"
@@ -63,7 +63,7 @@ UA_Int32 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
     
     // Allocate Result Array
     if (request->itemsToCreateSize > 0) {
-        createResults = (UA_MonitoredItemCreateResult *) malloc(sizeof(UA_MonitoredItemCreateResult) * (request->itemsToCreateSize));
+        createResults = (UA_MonitoredItemCreateResult *) UA_malloc(sizeof(UA_MonitoredItemCreateResult) * (request->itemsToCreateSize));
         if (createResults == NULL) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
             return 0;
@@ -145,7 +145,7 @@ UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
     
     // Delete Acknowledged Subscription Messages
     response->resultsSize = request->subscriptionAcknowledgementsSize;
-    response->results     = (UA_StatusCode *) malloc(sizeof(UA_StatusCode)*(response->resultsSize));
+    response->results     = (UA_StatusCode *) UA_malloc(sizeof(UA_StatusCode)*(response->resultsSize));
     for(int i=0; i<request->subscriptionAcknowledgementsSize;i++ ) {
       response->results[i] = UA_STATUSCODE_GOOD;
       sub = SubscriptionManager_getSubscriptionByID(&(session->subscriptionManager), request->subscriptionAcknowledgements[i].subscriptionId);
@@ -226,7 +226,7 @@ UA_Int32 Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
     else if ( session->channel == NULL || session->activated == UA_FALSE) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
     if ( response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) return 0;
     
-    retStat = (UA_UInt32 *) malloc(sizeof(UA_UInt32) * request->subscriptionIdsSize);
+    retStat = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32) * request->subscriptionIdsSize);
     if (retStat==NULL) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return -1;
@@ -265,7 +265,7 @@ UA_Int32 Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
         return 0;
     }
     
-    resultCodes = (UA_Int32 *) malloc(sizeof(UA_UInt32) * request->monitoredItemIdsSize);
+    resultCodes = (UA_Int32 *) UA_malloc(sizeof(UA_UInt32) * request->monitoredItemIdsSize);
     if (resultCodes == NULL) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return 0;
@@ -279,4 +279,4 @@ UA_Int32 Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
     
     return 0;
 }
-#endif //#ifdef ENABLESUBSCRIPTIONS
+#endif //#ifdef ENABLE_SUBSCRIPTIONS

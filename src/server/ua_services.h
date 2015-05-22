@@ -220,7 +220,7 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
 // Service_Call
 /** @} */
 
-#ifdef ENABLESUBSCRIPTIONS
+#ifdef ENABLE_SUBSCRIPTIONS
 /**
  * @name MonitoredItem Service Set
  *

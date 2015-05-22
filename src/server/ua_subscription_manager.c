@@ -1,4 +1,4 @@
-#ifdef ENABLESUBSCRIPTIONS
+#ifdef ENABLE_SUBSCRIPTIONS
 #include "ua_types.h"
 #include "ua_server_internal.h"
 #include "ua_nodestore.h"
@@ -16,30 +16,38 @@ void SubscriptionManager_init(UA_Session *session) {
     manager->GlobalSamplingInterval        = (UA_UInt32_BoundedValue) { .maxValue = 100,   .minValue = 0, .currentValue=0 };
     manager->GlobalQueueSize               = (UA_UInt32_BoundedValue) { .maxValue = 100,   .minValue = 0, .currentValue=0 };
     
-    manager->ServerSubscriptions = (UA_ListOfUASubscriptions *) malloc (sizeof(UA_ListOfUASubscriptions));
+    manager->ServerSubscriptions = (UA_ListOfUASubscriptions *) UA_malloc (sizeof(UA_ListOfUASubscriptions));
     LIST_INIT(manager->ServerSubscriptions);
     
     manager->LastSessionID = (UA_UInt32) UA_DateTime_now();
     return;
 }
 
+void SubscriptionManager_deleteMembers(UA_Session *session) {
+    UA_SubscriptionManager *manager = &(session->subscriptionManager);
+
+    UA_free(manager->ServerSubscriptions);
+
+    return;
+}
+
 UA_Subscription *UA_Subscription_new(UA_Int32 SubscriptionID) {
-    UA_Subscription *new = (UA_Subscription *) malloc(sizeof(UA_Subscription));
+    UA_Subscription *new = (UA_Subscription *) UA_malloc(sizeof(UA_Subscription));
     
     new->SubscriptionID = SubscriptionID;
     new->LastPublished  = 0;
     new->SequenceNumber = 0;
-    new->MonitoredItems = (UA_ListOfUAMonitoredItems *) malloc (sizeof(UA_ListOfUAMonitoredItems));
+    new->MonitoredItems = (UA_ListOfUAMonitoredItems *) UA_malloc (sizeof(UA_ListOfUAMonitoredItems));
     LIST_INIT(new->MonitoredItems);
     LIST_INITENTRY(new, listEntry);
-    new->unpublishedNotifications = (UA_ListOfUnpublishedNotifications *) malloc(sizeof(UA_ListOfUnpublishedNotifications));
+    new->unpublishedNotifications = (UA_ListOfUnpublishedNotifications *) UA_malloc(sizeof(UA_ListOfUnpublishedNotifications));
     LIST_INIT(new->unpublishedNotifications);
     return new;
 }
 
 UA_MonitoredItem *UA_MonitoredItem_new() {
-    UA_MonitoredItem *new = (UA_MonitoredItem *) malloc(sizeof(UA_MonitoredItem));
-    new->queue       = (UA_ListOfQueuedDataValues *) malloc (sizeof(UA_ListOfQueuedDataValues));
+    UA_MonitoredItem *new = (UA_MonitoredItem *) UA_malloc(sizeof(UA_MonitoredItem));
+    new->queue       = (UA_ListOfQueuedDataValues *) UA_malloc (sizeof(UA_ListOfQueuedDataValues));
     new->QueueSize   = (UA_UInt32_BoundedValue) { .minValue = 0, .maxValue = 0, .currentValue = 0};
     new->LastSampled = 0;
     
@@ -153,11 +161,11 @@ void Subscription_generateKeepAlive(UA_Subscription *subscription) {
   UA_unpublishedNotification *msg = NULL;
   
   if (subscription->KeepAliveCount.currentValue <= subscription->KeepAliveCount.minValue || subscription->KeepAliveCount.currentValue > subscription->KeepAliveCount.maxValue) {
-    msg = (UA_unpublishedNotification *) malloc(sizeof(UA_unpublishedNotification));
+    msg = (UA_unpublishedNotification *) UA_malloc(sizeof(UA_unpublishedNotification));
     LIST_INITENTRY(msg, listEntry);
     INITPOINTER(msg->notification);
     
-    msg->notification = (UA_NotificationMessage *) malloc(sizeof(UA_NotificationMessage));
+    msg->notification = (UA_NotificationMessage *) UA_malloc(sizeof(UA_NotificationMessage));
     INITPOINTER(msg->notification->notificationData);
     msg->notification->sequenceNumber = (subscription->SequenceNumber)+1; // KeepAlive uses next message, but does not increment counter
     msg->notification->publishTime    = UA_DateTime_now();
@@ -210,11 +218,11 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
         return;
     }
     
-    msg = (UA_unpublishedNotification *) malloc(sizeof(UA_unpublishedNotification));
+    msg = (UA_unpublishedNotification *) UA_malloc(sizeof(UA_unpublishedNotification));
     LIST_INITENTRY(msg, listEntry);
     INITPOINTER(msg->notification);
     
-    msg->notification = (UA_NotificationMessage *) malloc(sizeof(UA_NotificationMessage));
+    msg->notification = (UA_NotificationMessage *) UA_malloc(sizeof(UA_NotificationMessage));
     INITPOINTER(msg->notification->notificationData);
     msg->notification->sequenceNumber = subscription->SequenceNumber++;
     msg->notification->publishTime    = UA_DateTime_now();
@@ -222,7 +230,7 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
     // NotificationData is an array of Change, Status and Event messages, each containing the appropriate
     // list of Queued values from all monitoredItems of that type
     msg->notification->notificationDataSize = ISNOTZERO(monItemsChangeT);// + ISNOTZERO(monItemsEventT) + ISNOTZERO(monItemsStatusT);
-    msg->notification->notificationData = (UA_ExtensionObject *) malloc(sizeof(UA_ExtensionObject) * msg->notification->notificationDataSize);
+    msg->notification->notificationData = (UA_ExtensionObject *) UA_malloc(sizeof(UA_ExtensionObject) * msg->notification->notificationDataSize);
     
     for(int notmsgn=0; notmsgn < msg->notification->notificationDataSize; notmsgn++) {
       // Set the notification message type and encoding for each of 
@@ -232,10 +240,10 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
       
       if(notmsgn == 0) {
 	// Construct a DataChangeNotification
-	changeNotification = (UA_DataChangeNotification *) malloc(sizeof(UA_DataChangeNotification));
+	changeNotification = (UA_DataChangeNotification *) UA_malloc(sizeof(UA_DataChangeNotification));
 	
 	// Create one DataChangeNotification for each queue item held in each monitoredItems queue:
-	changeNotification->monitoredItems      = (UA_MonitoredItemNotification *) malloc(sizeof(UA_MonitoredItemNotification) * monItemsChangeT);
+	changeNotification->monitoredItems      = (UA_MonitoredItemNotification *) UA_malloc(sizeof(UA_MonitoredItemNotification) * monItemsChangeT);
 	
         // Scan all monitoredItems in this subscription and have their queue transformed into an Array of
         // the propper NotificationMessageType (Status, Change, Event)
@@ -251,7 +259,7 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
         changeNotification->diagnosticInfos     = NULL;
         
 	(msg->notification->notificationData[notmsgn]).body.length = UA_calcSizeBinary(changeNotification, &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION]);
-        (msg->notification->notificationData[notmsgn]).body.data   =  malloc((msg->notification->notificationData[notmsgn]).body.length);
+        (msg->notification->notificationData[notmsgn]).body.data   =  UA_malloc((msg->notification->notificationData[notmsgn]).body.length);
         
         notificationOffset = 0;
         UA_encodeBinary((const void *) changeNotification, &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION], &(msg->notification->notificationData[notmsgn].body), &notificationOffset);
@@ -415,7 +423,7 @@ void MonitoredItem_QueuePushDataValue(UA_MonitoredItem *monitoredItem) {
     return;
   }
   
-  newvalue = (MonitoredItem_queuedValue *) malloc(sizeof(MonitoredItem_queuedValue));
+  newvalue = (MonitoredItem_queuedValue *) UA_malloc(sizeof(MonitoredItem_queuedValue));
   LIST_INITENTRY(newvalue,listEntry);
   newvalue->value.arrayLength         = 0;
   newvalue->value.arrayDimensionsSize = 0;
@@ -447,7 +455,7 @@ void MonitoredItem_QueuePushDataValue(UA_MonitoredItem *monitoredItem) {
   }
   
   newValueAsByteString.length = UA_calcSizeBinary((const void *) &(newvalue->value), &UA_TYPES[UA_TYPES_VARIANT]);
-  newValueAsByteString.data   = malloc(newValueAsByteString.length);
+  newValueAsByteString.data   = UA_malloc(newValueAsByteString.length);
   UA_encodeBinary((const void *) &(newvalue->value), &UA_TYPES[UA_TYPES_VARIANT], &(newValueAsByteString), &encodingOffset );
   
   if(monitoredItem->LastSampledValue.data == NULL) { 
@@ -477,7 +485,7 @@ UA_UInt32 *Subscription_getAvailableSequenceNumbers(UA_Subscription *sub) {
   
   if (sub == NULL) return NULL;
   
-  seqArray = (UA_UInt32 *) malloc(sizeof(UA_UInt32) * Subscription_queuedNotifications(sub));
+  seqArray = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32) * Subscription_queuedNotifications(sub));
   if (seqArray == NULL ) return NULL;
   
   i = 0;
@@ -509,11 +517,11 @@ void Subscription_copyTopNotificationMessage(UA_NotificationMessage *dst, UA_Sub
     
     if (latest->notificationDataSize == 0) return;
     
-    dst->notificationData = (UA_ExtensionObject *) malloc(sizeof(UA_ExtensionObject));
+    dst->notificationData = (UA_ExtensionObject *) UA_malloc(sizeof(UA_ExtensionObject));
     dst->notificationData->encoding = latest->notificationData->encoding;
     dst->notificationData->typeId   = latest->notificationData->typeId;
     dst->notificationData->body.length = latest->notificationData->body.length;
-    dst->notificationData->body.data   = malloc(latest->notificationData->body.length);
+    dst->notificationData->body.data   = UA_malloc(latest->notificationData->body.length);
     UA_ByteString_copy((UA_String *) &(latest->notificationData->body), (UA_String *) &(dst->notificationData->body));
     
     return;
@@ -543,4 +551,4 @@ UA_UInt32 Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Subscri
 
   return deletedItems;
 }
-#endif //#ifdef ENABLESUBSCRIPTIONS
+#endif //#ifdef ENABLE_SUBSCRIPTIONS

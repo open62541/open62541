@@ -49,9 +49,9 @@ if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
         set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -s")
     endif()
-    option(ENABLESUBSCRIPTIONS "Enable compilation of subscription and monitoring support." OFF)
-    if (ENABLESUBSCRIPTIONS)
-        add_definitions(-DENABLESUBSCRIPTIONS)
+    option(ENABLE_SUBSCRIPTIONS "Enable compilation of subscription and monitoring support." OFF)
+    if (ENABLE_SUBSCRIPTIONS)
+        add_definitions(-DENABLE_SUBSCRIPTIONS)
     endif()
 endif()
 
@@ -110,7 +110,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 
 # As requested by @sten: separate generation of headers for subscriptions from pico-server
-if(ENABLESUBSCRIPTIONS)
+if(ENABLE_SUBSCRIPTIONS)
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                    PRE_BUILD
