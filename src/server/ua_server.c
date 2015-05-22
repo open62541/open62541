@@ -142,8 +142,8 @@ static void UA_Server_cleanup(UA_Server *server, void *nothing) {
     }
 
     session_list_entry *sentry = LIST_FIRST(&server->sessionManager.sessions);
-    while(sentry) {  
-      if(sentry->session.validTill < now) {
+    while(sentry) {
+        if(sentry->session.validTill < now) {
             session_list_entry *next = LIST_NEXT(sentry, pointers);
             LIST_REMOVE(sentry, pointers);
             UA_SecureChannel_detachSession(sentry->session.channel);
@@ -151,7 +151,6 @@ static void UA_Server_cleanup(UA_Server *server, void *nothing) {
             UA_free(sentry);
             sentry = next;
         }
-        now = UA_DateTime_now();
     }
 }
 
