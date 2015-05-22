@@ -366,7 +366,8 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 AttributeID, cons
           samplingError = UA_FALSE;
         }
         else if (srcAsVariableNode->valueSource == UA_VALUESOURCE_DATASOURCE) {
-          if (srcAsVariableNode->value.dataSource.read(((const UA_VariableNode *) src)->value.dataSource.handle, (UA_Boolean) UA_TRUE, &sourceDataValue) == UA_STATUSCODE_GOOD) {
+            // todo: handle numeric ranges
+            if (srcAsVariableNode->value.dataSource.read(((const UA_VariableNode *) src)->value.dataSource.handle, (UA_Boolean) UA_TRUE, UA_NULL, &sourceDataValue) == UA_STATUSCODE_GOOD) {
             UA_Variant_copy( (const UA_Variant *) &(sourceDataValue.value), dst);
             samplingError = UA_FALSE;
           }
