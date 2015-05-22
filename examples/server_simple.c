@@ -32,7 +32,7 @@ static UA_ByteString loadCertificate(void) {
     UA_ByteString certificate = UA_STRING_NULL;
 	FILE *fp = NULL;
 	//FIXME: a potiential bug of locating the certificate, we need to get the path from the server's config
-	fp=fopen("localhost.der", "rb");
+	fp=fopen("server_cert.der", "rb");
 
 	if(!fp) {
         errno = 0; // we read errno also from the tcp layer...
@@ -54,7 +54,7 @@ static UA_ByteString loadCertificate(void) {
 }
 
 static void testCallback(UA_Server *server, void *data) {
-    logger.log_info(UA_LOGGERCATEGORY_USERLAND, "testcallback");
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "testcallback");
 }
 
 int main(int argc, char** argv) {
@@ -67,7 +67,6 @@ int main(int argc, char** argv) {
     UA_Server_setServerCertificate(server, certificate);
     UA_ByteString_deleteMembers(&certificate);
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-    UA_Server_addNamespace(server, UA_ServerConfig_standard.Application_applicationURI);
 
     UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL,
                         .work.methodCall = {.method = testCallback, .data = NULL} };
@@ -83,12 +82,13 @@ int main(int argc, char** argv) {
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
                               myIntegerNodeId, parentNodeId, parentReferenceNodeId);
-    
+
+/*
 #ifdef BENCHMARK
     UA_UInt32 nodeCount = 50;
     char str[32];
     for(UA_UInt32 i = 0;i<nodeCount;i++) {
-        /* scalar */
+        // scalar
         void *data = UA_new(&UA_TYPES[i]);
         UA_Variant *variant = UA_Variant_new();
         UA_Variant_setScalar(variant, data, &UA_TYPES[i]);
@@ -99,7 +99,7 @@ int main(int argc, char** argv) {
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
-        /* array */
+        // array
         data = UA_Array_new(&UA_TYPES[i], 10);
         variant = UA_Variant_new();
         UA_Variant_setArray(variant, data, 10, &UA_TYPES[i]);
@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
     }
 #endif
-
+*/
     UA_StatusCode retval = UA_Server_run(server, 1, &running);
 	UA_Server_delete(server);
 

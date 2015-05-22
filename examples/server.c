@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h> //access
+
 #define __USE_XOPEN2K
 #ifdef UA_MULTITHREADING
 # include <pthread.h>
@@ -33,7 +35,13 @@ UA_Logger logger;
 /*************************/
 /* Read-only data source */
 /*************************/
-static UA_StatusCode readTimeData(void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
+static UA_StatusCode readTimeData(void *handle, UA_Boolean sourceTimeStamp,
+                                  const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = UA_TRUE;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
 	UA_DateTime *currentTime = UA_DateTime_new();
 	if(!currentTime)
 		return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -52,7 +60,8 @@ static UA_StatusCode readTimeData(void *handle, UA_Boolean sourceTimeStamp, UA_D
 }
 
 static void releaseTimeData(void *handle, UA_DataValue *value) {
-	UA_DateTime_delete((UA_DateTime*)value->value.data);
+    if(value->hasValue)
+        UA_DateTime_delete((UA_DateTime*)value->value.data);
 }
 
 /*****************************/
@@ -60,7 +69,14 @@ static void releaseTimeData(void *handle, UA_DataValue *value) {
 /*      Only on Linux        */
 /*****************************/
 FILE* temperatureFile = NULL;
-static UA_StatusCode readTemperature(void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
+static UA_StatusCode readTemperature(void *handle, UA_Boolean sourceTimeStamp,
+                                     const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = UA_TRUE;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+
 	UA_Double* currentTemperature = UA_Double_new();
 
 	if(!currentTemperature)
@@ -69,7 +85,7 @@ static UA_StatusCode readTemperature(void *handle, UA_Boolean sourceTimeStamp, U
 	fseek(temperatureFile, 0, SEEK_SET);
 
 	if(fscanf(temperatureFile, "%lf", currentTemperature) != 1){
-		UA_LOG_WARNING(logger, UA_LOGGERCATEGORY_USERLAND, "Can not parse temperature");
+		UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "Can not parse temperature");
 		exit(1);
 	}
 
@@ -85,7 +101,8 @@ static UA_StatusCode readTemperature(void *handle, UA_Boolean sourceTimeStamp, U
 }
 
 static void releaseTemperature(void *handle, UA_DataValue *value) {
-	UA_Double_delete((UA_Double*)value->value.data);
+    if(value->hasValue)
+        UA_Double_delete((UA_Double*)value->value.data);
 }
 
 /*************************/
@@ -98,7 +115,14 @@ FILE* triggerFile = NULL;
 FILE* ledFile = NULL;
 UA_Boolean ledStatus = 0;
 
-static UA_StatusCode readLedStatus(void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value) {
+static UA_StatusCode readLedStatus(void *handle, UA_Boolean sourceTimeStamp,
+                                   const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = UA_TRUE;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+
 	/* In order to reduce blocking time, we could alloc memory for every read
        and return a copy of the data. */
 #ifdef UA_MULTITHREADING
@@ -118,6 +142,8 @@ static UA_StatusCode readLedStatus(void *handle, UA_Boolean sourceTimeStamp, UA_
 }
 
 static void releaseLedStatus(void *handle, UA_DataValue *value) {
+    if(!value->hasValue)
+        return;
 	/* If we allocated memory for a specific read, free the content of the
        variantdata. */
 	value->value.arrayLength = -1;
@@ -127,7 +153,10 @@ static void releaseLedStatus(void *handle, UA_DataValue *value) {
 #endif
 }
 
-static UA_StatusCode writeLedStatus(void *handle, const UA_Variant *data) {
+static UA_StatusCode writeLedStatus(void *handle, const UA_Variant *data, const UA_NumericRange *range) {
+    if(range)
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+    
 #ifdef UA_MULTITHREADING
 	pthread_rwlock_wrlock(&writeLock);
 #endif
@@ -151,12 +180,8 @@ static UA_StatusCode writeLedStatus(void *handle, const UA_Variant *data) {
 	return UA_STATUSCODE_GOOD;
 }
 
-static void printLedStatus(UA_Server *server, void *data) {
-	UA_LOG_INFO(logger, UA_LOGGERCATEGORY_SERVER, ledStatus ? "LED is on" : "LED is off");
-}
-
 static void stopHandler(int sign) {
-	printf("Received Ctrl-C\n");
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Received Ctrl-C\n");
 	running = 0;
 }
 
@@ -164,7 +189,7 @@ static UA_ByteString loadCertificate(void) {
 	UA_ByteString certificate = UA_STRING_NULL;
 	FILE *fp = NULL;
 	//FIXME: a potiential bug of locating the certificate, we need to get the path from the server's config
-	fp=fopen("localhost.der", "rb");
+	fp=fopen("server_cert.der", "rb");
 
 	if(!fp) {
         errno = 0; // we read errno also from the tcp layer...
@@ -198,12 +223,6 @@ int main(int argc, char** argv) {
     UA_Server_setServerCertificate(server, certificate);
     UA_ByteString_deleteMembers(&certificate);
 	UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-    UA_UInt16 nsIndex = UA_Server_addNamespace(server, UA_ServerConfig_standard.Application_applicationURI);
-
-	// print the status every 2 sec
-	UA_WorkItem work = {.type = UA_WORKITEMTYPE_METHODCALL,
-			.work.methodCall = {.method = printLedStatus, .data = NULL} };
-	UA_Server_addRepeatedWorkItem(server, &work, 2000, NULL);
 
 	// add node with the datetime data source
 	UA_DataSource dateDataSource = (UA_DataSource)
@@ -211,50 +230,52 @@ int main(int argc, char** argv) {
 		.read = readTimeData,
 		.release = releaseTimeData,
 		.write = NULL};
-	const UA_QualifiedName dateName = UA_QUALIFIEDNAME(nsIndex, "current time");
+	const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
 	UA_Server_addDataSourceVariableNode(server, dateDataSource, dateName, UA_NODEID_NULL,
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
-	if(!(temperatureFile = fopen("/sys/class/thermal/thermal_zone0/temp", "r"))){
-		UA_LOG_WARNING(logger, UA_LOGGERCATEGORY_USERLAND, "[Linux specific] Can not open temperature file, no temperature node will be added");
-	} else {
-		// add node with the datetime data source
+	//cpu temperature monitoring for linux machines
+	if((temperatureFile = fopen("/sys/class/thermal/thermal_zone0/temp", "r"))){
+		// add node with the data source
 		UA_DataSource temperatureDataSource = (UA_DataSource)
     	    {.handle = NULL,
 			.read = readTemperature,
 			.release = releaseTemperature,
 			.write = NULL};
-		const UA_QualifiedName ledName = UA_QUALIFIEDNAME(nsIndex, "cpu temperature");
-		UA_Server_addDataSourceVariableNode(server, temperatureDataSource, ledName, UA_NODEID_NULL, 
+		const UA_QualifiedName tempName = UA_QUALIFIEDNAME(1, "cpu temperature");
+		UA_Server_addDataSourceVariableNode(server, temperatureDataSource, tempName, UA_NODEID_NULL,
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 	}
 
-	if (	!(triggerFile = fopen("/sys/class/leds/led0/trigger", "w"))
-		|| 	!(ledFile = fopen("/sys/class/leds/led0/brightness", "w"))) {
-		UA_LOG_WARNING(logger, UA_LOGGERCATEGORY_USERLAND, "[Raspberry Pi specific] Can not open trigger or LED file (try to run server with sudo if on a Raspberry PI)");
-		UA_LOG_WARNING(logger, UA_LOGGERCATEGORY_USERLAND, "An LED node will be added but no physical LED will be operated");
-	} else {
-		//setting led mode to manual
-		fprintf(triggerFile, "%s", "none");
-		fflush(triggerFile);
+	//LED control for rpi
+	if(  access("/sys/class/leds/led0/trigger", F_OK ) != -1
+	  || access("/sys/class/leds/led0/brightness", F_OK ) != -1){
+        if (	(triggerFile = fopen("/sys/class/leds/led0/trigger", "w"))
+            && 	(ledFile = fopen("/sys/class/leds/led0/brightness", "w"))) {
+            //setting led mode to manual
+            fprintf(triggerFile, "%s", "none");
+            fflush(triggerFile);
 
-		//turning off led initially
-		fprintf(ledFile, "%s", "1");
-		fflush(ledFile);
-	}
+            //turning off led initially
+            fprintf(ledFile, "%s", "1");
+            fflush(ledFile);
 
-	// add node with the LED status data source
-	UA_DataSource ledStatusDataSource = (UA_DataSource)
-   		{.handle = NULL,
-		.read = readLedStatus,
-		.release = releaseLedStatus,
-		.write = writeLedStatus};
-	const UA_QualifiedName statusName = UA_QUALIFIEDNAME(0, "status LED");
-	UA_Server_addDataSourceVariableNode(server, ledStatusDataSource, statusName, UA_NODEID_NULL,
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+            // add node with the LED status data source
+            UA_DataSource ledStatusDataSource = (UA_DataSource)
+                {.handle = NULL,
+                .read = readLedStatus,
+                .release = releaseLedStatus,
+                .write = writeLedStatus};
+            const UA_QualifiedName statusName = UA_QUALIFIEDNAME(0, "status LED");
+            UA_Server_addDataSourceVariableNode(server, ledStatusDataSource, statusName, UA_NODEID_NULL,
+                                                UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                                UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+        }else{
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "[Raspberry Pi] LED file exist, but I have no access (try to run server with sudo)");
+        }
+    }
 
 	// add a static variable node to the adresspace
     UA_Variant *myIntegerVariant = UA_Variant_new();
@@ -266,6 +287,40 @@ int main(int argc, char** argv) {
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
                               myIntegerNodeId, parentNodeId, parentReferenceNodeId);
+
+   /**************/
+   /* Demo Nodes */
+   /**************/
+
+#define DEMOID 50000
+   UA_Server_addObjectNode(server,UA_QUALIFIEDNAME(1, "Demo"), UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+
+#define SCALARID 50001
+   UA_Server_addObjectNode(server,UA_QUALIFIEDNAME(1, "Scalar"), UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+
+#define ARRAYID 50002
+   UA_Server_addObjectNode(server,UA_QUALIFIEDNAME(1, "Array"), UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+
+   UA_UInt32 id = 51000; //running id in namespace 0
+   for(UA_UInt32 type = 0; UA_IS_BUILTIN(type); type++) {
+       if(type == UA_TYPES_VARIANT || type == UA_TYPES_DIAGNOSTICINFO)
+           continue;
+       //add a scalar node for every built-in type
+        void *value = UA_new(&UA_TYPES[type]);
+        UA_Variant *variant = UA_Variant_new();
+        UA_Variant_setScalar(variant, value, &UA_TYPES[type]);
+        char name[15];
+        sprintf(name, "%02d", type);
+        UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, name);
+        UA_Server_addVariableNode(server, variant, myIntegerName, UA_NODEID_NUMERIC(1, ++id),
+                                  UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+
+        //add an array node for every built-in type
+        UA_Variant *arrayvar = UA_Variant_new();
+        UA_Variant_setArray(arrayvar, UA_Array_new(&UA_TYPES[type], 10), 10, &UA_TYPES[type]);
+        UA_Server_addVariableNode(server, arrayvar, myIntegerName, UA_NODEID_NUMERIC(1, ++id),
+                                  UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+   }
 
 	//start server
 	UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false

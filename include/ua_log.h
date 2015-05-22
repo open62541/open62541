@@ -23,8 +23,6 @@ extern "C" {
 #include "ua_config.h"
 
 /**
- * @ingroup server
- *
  * @defgroup logging Logging
  *
  * @brief Custom logging solutions can be "plugged in" with this interface
@@ -32,62 +30,62 @@ extern "C" {
  * @{
  */
 
-typedef enum UA_LoggerCategory {
-    UA_LOGGERCATEGORY_COMMUNICATION,
-    UA_LOGGERCATEGORY_SERVER,
-    UA_LOGGERCATEGORY_CLIENT,
-    UA_LOGGERCATEGORY_USERLAND
-} UA_LoggerCategory;
+typedef enum {
+    UA_LOGLEVEL_TRACE,
+    UA_LOGLEVEL_DEBUG,
+    UA_LOGLEVEL_INFO,
+    UA_LOGLEVEL_WARNING,
+    UA_LOGLEVEL_ERROR,
+    UA_LOGLEVEL_FATAL
+} UA_LogLevel;
 
-extern UA_EXPORT const char *UA_LoggerCategoryNames[4];
-
-typedef struct UA_Logger {
-    void (*log_trace)(UA_LoggerCategory category, const char *msg, ...);
-    void (*log_debug)(UA_LoggerCategory category, const char *msg, ...);
-    void (*log_info)(UA_LoggerCategory category, const char *msg, ...);
-    void (*log_warning)(UA_LoggerCategory category, const char *msg, ...);
-    void (*log_error)(UA_LoggerCategory category, const char *msg, ...);
-    void (*log_fatal)(UA_LoggerCategory category, const char *msg, ...);
-} UA_Logger;
+typedef enum {
+    UA_LOGCATEGORY_COMMUNICATION,
+    UA_LOGCATEGORY_SERVER,
+    UA_LOGCATEGORY_CLIENT,
+    UA_LOGCATEGORY_USERLAND
+} UA_LogCategory;
+    
+typedef void (*UA_Logger)(UA_LogLevel level, UA_LogCategory category, const char *msg, ...);
 
 #if UA_LOGLEVEL <= 100
 #define UA_LOG_TRACE(LOGGER, CATEGORY, ...) do { \
-        if(LOGGER.log_trace) LOGGER.log_trace(CATEGORY, __VA_ARGS__); } while(0)
+        if(LOGGER) LOGGER(UA_LOGLEVEL_TRACE, CATEGORY, __VA_ARGS__); } while(0)
 #else
 #define UA_LOG_TRACE(LOGGER, CATEGORY, ...) do {} while(0)
 #endif
 
 #if UA_LOGLEVEL <= 200
 #define UA_LOG_DEBUG(LOGGER, CATEGORY, ...) do { \
-        if(LOGGER.log_debug) LOGGER.log_debug(CATEGORY, __VA_ARGS__); } while(0)
+        if(LOGGER) LOGGER(UA_LOGLEVEL_DEBUG, CATEGORY, __VA_ARGS__); } while(0)
 #else
 #define UA_LOG_DEBUG(LOGGER, CATEGORY, ...) do {} while(0)
 #endif
 
 #if UA_LOGLEVEL <= 300
 #define UA_LOG_INFO(LOGGER, CATEGORY, ...) do { \
-        if(LOGGER.log_info) LOGGER.log_info(CATEGORY, __VA_ARGS__); } while(0)
+        if(LOGGER) LOGGER(UA_LOGLEVEL_INFO, CATEGORY, __VA_ARGS__); } while(0)
 #else
 #define UA_LOG_INFO(LOGGER, CATEGORY, ...) do {} while(0)
 #endif
 
 #if UA_LOGLEVEL <= 400
 #define UA_LOG_WARNING(LOGGER, CATEGORY, ...) do { \
-        if(LOGGER.log_warning) LOGGER.log_warning(CATEGORY, __VA_ARGS__); } while(0)
+        if(LOGGER) LOGGER(UA_LOGLEVEL_WARNING, CATEGORY, __VA_ARGS__); } while(0)
 #else
 #define UA_LOG_WARNING(LOGGER, CATEGORY, ...) do {} while(0)
 #endif
 
 #if UA_LOGLEVEL <= 500
 #define UA_LOG_ERROR(LOGGER, CATEGORY, ...) do { \
-        if(LOGGER.log_error) LOGGER.log_error(CATEGORY, __VA_ARGS__); } while(0)
+        if(LOGGER) LOGGER(UA_LOGLEVEL_ERROR, CATEGORY, __VA_ARGS__); } while(0)
 #else
 #define UA_LOG_ERROR(LOGGER, CATEGORY, ...) do {} while(0)
 #endif
 
 #if UA_LOGLEVEL <= 600
 #define UA_LOG_FATAL(LOGGER, CATEGORY, ...) do { \
-        if(LOGGER.log_fatal) LOGGER.log_fatal(CATEGORY, __VA_ARGS__); } while(0)
+        if(LOGGER) LOGGER(UA_LOGLEVEL_FATAL, CATEGORY, __VA_ARGS__); } while(0)
 #else
 #define UA_LOG_FATAL(LOGGER, CATEGORY, ...) do {} while(0)
 #endif

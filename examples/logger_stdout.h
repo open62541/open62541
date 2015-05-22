@@ -14,6 +14,6 @@
 #endif
 
 /** Initialises the logger for the current thread. */
-UA_Logger Logger_Stdout_new(void);
+UA_EXPORT UA_Logger Logger_Stdout_new(void);
 
 #endif /* LOGGER_STDOUT_H_ */

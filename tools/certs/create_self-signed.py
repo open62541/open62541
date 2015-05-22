@@ -40,7 +40,7 @@ os.system("""openssl x509 -req \
 	-out localhost.crt \
 	-extensions v3_ca \
 	-extfile localhost.cnf""")
-os.system("""openssl x509 -in localhost.crt -outform der -out localhost.der""")
+os.system("""openssl x509 -in localhost.crt -outform der -out server_cert.der""")
 #we will need these files later
 os.remove("localhost.key") #we will need it later
 os.remove("localhost.crt")
@@ -48,5 +48,9 @@ os.remove("localhost.csr")
 os.remove("ca.key")
 os.remove("ca.srl")
 
-shutil.move("localhost.der", sys.argv[1])
+if os.path.isfile(os.path.join(sys.argv[1], "server_cert.der")):
+	os.remove(os.path.join(sys.argv[1], "server_cert.der"))
+shutil.move("server_cert.der", sys.argv[1])
+if os.path.isfile(os.path.join(sys.argv[1], "ca.crt")):
+	os.remove(os.path.join(sys.argv[1], "ca.crt"))
 shutil.move("ca.crt", sys.argv[1])

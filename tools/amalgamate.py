@@ -1,8 +1,10 @@
 from __future__ import print_function
 import re
 import argparse
+import os.path
 
 parser = argparse.ArgumentParser()
+parser.add_argument('version', help='version to include')
 parser.add_argument('outfile', help='outfile w/o extension')
 parser.add_argument('inputs', nargs='*', action='store', help='input filenames')
 args = parser.parse_args()
@@ -30,8 +32,13 @@ for fname in args.inputs:
                     includes.append(inc)
 
 file = open(args.outfile, 'w')
-file.write('''/*
- * Copyright (C) 2014 the contributors as stated in the AUTHORS file
+file.write('''/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES 
+ * visit http://open62541.org/ for information about this software
+ * Git-Revision: %s
+ */
+ 
+ /*
+ * Copyright (C) 2015 the contributors as stated in the AUTHORS file
  *
  * This file is part of open62541. open62541 is free software: you can
  * redistribute it and/or modify it under the terms of the GNU Lesser General
@@ -43,9 +50,7 @@ file.write('''/*
  * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
  * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
  * details.
- */
-
-/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES */\n\n''')
+ */\n\n''' % args.version)
 
 if not is_c:
     file.write('''#ifndef %s
@@ -73,6 +78,7 @@ else:
 for fname in args.inputs:
     if not "util.h" in fname:
         with open(fname) as infile:
+            file.write("/*********************************** amalgamated original file \"" + fname + "\" ***********************************/\n")
             for line in infile:
                 inc_res = include_re.match(line)
                 guard_res = guard_re.match(line)
@@ -87,3 +93,5 @@ if not is_c:
 
 #endif /* %s */''' % (outname.upper() + "_H_"))
 file.close()
+
+print ("The size of "+args.outfile+" is "+ str(os.path.getsize(args.outfile)))

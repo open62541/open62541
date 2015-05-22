@@ -19,6 +19,8 @@ For discussion and help, you can use
 - our [IRC channel](http://webchat.freenode.net/?channels=%23open62541)
 - the [bugtracker](https://github.com/acplt/open62541/issues)
 
+Auomated builds of 50 last single-file distributions are available [here](http://open62541.org/releases)
+
 ### Contribute to open62541
 As an open source project, we invite new contributors to help improving open62541. If you are a developer, your bugfixes and new features are very welcome. Note that there are ways to contribute even without deep knowledge of the project or the UA standard:
 - [Report bugs](https://github.com/acplt/open62541/issues)
@@ -50,15 +52,13 @@ int main(int argc, char** argv)
     UA_Server_setLogger(server, Logger_Stdout_new());
     UA_Server_addNetworkLayer(server,
         ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, PORT));
-    UA_UInt16 nsIndex = UA_Server_addNamespace(server, 
-                                  UA_ServerConfig_standard.Application_applicationURI);
 
     /* add a variable node */
     UA_Variant *myIntegerVariant = UA_Variant_new();
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(nsIndex, "the answer");
-    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(nsIndex, "the.answer");
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
+    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
@@ -78,7 +78,7 @@ int main(int argc, char** argv)
 
 int main(int argc, char *argv[])
 {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
     UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
                                              "opc.tcp://localhost:16664");
     if(retval != UA_STATUSCODE_GOOD) {
@@ -91,7 +91,8 @@ int main(int argc, char *argv[])
     UA_ReadRequest_init(&req);
     req.nodesToRead = UA_ReadValueId_new();
     req.nodesToReadSize = 1;
-    req.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+    /* copy the nodeid-string to the heap (deleted with the req) */
+    req.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
     req.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
 
     UA_ReadResponse resp = UA_Client_read(client, &req);

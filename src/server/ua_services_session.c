@@ -7,24 +7,18 @@
 void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                            const UA_CreateSessionRequest *request,
                            UA_CreateSessionResponse *response) {
-
-    response->serverEndpoints = UA_malloc(sizeof(UA_EndpointDescription));
-    if(!response->serverEndpoints || (response->responseHeader.serviceResult =
-        UA_EndpointDescription_copy(server->endpointDescriptions, response->serverEndpoints)) !=
-       UA_STATUSCODE_GOOD)
+    response->responseHeader.serviceResult =
+        UA_Array_copy(server->endpointDescriptions, (void**)&response->serverEndpoints,
+                      &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION], server->endpointDescriptionsSize);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
-    response->serverEndpointsSize = 1;
+    response->serverEndpointsSize = server->endpointDescriptionsSize;
 
-    // creates a session and adds a pointer to the channel. Only when the
-    // session is activated will the channel point to the session as well
 	UA_Session *newSession;
     response->responseHeader.serviceResult = UA_SessionManager_createSession(&server->sessionManager,
                                                                              channel, request, &newSession);
 	if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
 		return;
-
-	//bind session to channel
-	channel->session = newSession;
 
     //TODO get maxResponseMessageSize internally
     newSession->maxResponseMessageSize = request->maxResponseMessageSize;
@@ -36,34 +30,24 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         response->responseHeader.serviceResult |=
             UA_ByteString_copy(&server->endpointDescriptions->serverCertificate, &response->serverCertificate);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_SessionManager_removeSession(&server->sessionManager, &newSession->sessionId);
+        UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
          return;
     }
 }
 
-#ifdef RETURN
-#undef RETURN
-#endif
-#define RETURN  UA_UserIdentityToken_deleteMembers(&token); \
-                UA_UserNameIdentityToken_deleteMembers(&username_token); \
-                return
-void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
+void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                              const UA_ActivateSessionRequest *request,
                              UA_ActivateSessionResponse *response) {
     // make the channel know about the session
-	UA_Session *foundSession;
-	UA_SessionManager_getSessionByToken(&server->sessionManager,
-                                        (const UA_NodeId*)&request->requestHeader.authenticationToken,
-                                        &foundSession);
+	UA_Session *foundSession =
+        UA_SessionManager_getSession(&server->sessionManager,
+                                     (const UA_NodeId*)&request->requestHeader.authenticationToken);
 
-	if(foundSession == UA_NULL){
+	if(foundSession == UA_NULL) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         return;
-	}
-
-	if(foundSession->validTill < UA_DateTime_now()){
+	} else if(foundSession->validTill < UA_DateTime_now()) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-        //TODO: maybe delete session? or wait for a recurring cleanup?
         return;
 	}
 
@@ -75,80 +59,63 @@ void Service_ActivateSession(UA_Server *server,UA_SecureChannel *channel,
     UA_UserNameIdentityToken username_token;
     UA_UserNameIdentityToken_init(&username_token);
 
-    //check policies
-
-    if(token.policyId.data == UA_NULL){ //user identity token is NULL
+    if(token.policyId.data == UA_NULL) {
+        /* 1) no policy defined */
         response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-        //todo cleanup session
-        RETURN;
-    }
-
-    //anonymous logins
-    if(server->config.Login_enableAnonymous && UA_String_equalchars(&token.policyId, ANONYMOUS_POLICY)){
-        //success - activate
-        channel->session = foundSession;
-        channel->session->activated = UA_TRUE;
-        //TODO: not sure if we have to do this, tests seem to work
-        //if(foundSession->channel) //in case session is being rebound
-        //    foundSession->channel->session = UA_NULL;
-        foundSession->channel=channel;
-        RETURN;
-    //username logins
-    }else if(server->config.Login_enableUsernamePassword && UA_String_equalchars(&token.policyId, USERNAME_POLICY)){
+    } else if(server->config.Login_enableAnonymous &&
+              UA_String_equalchars(&token.policyId, ANONYMOUS_POLICY)) {
+        /* 2) anonymous logins */
+        if(foundSession->channel && foundSession->channel != channel)
+            UA_SecureChannel_detachSession(foundSession->channel, foundSession);
+        UA_SecureChannel_attachSession(channel, foundSession);
+        foundSession->activated = UA_TRUE;
+        UA_Session_updateLifetime(foundSession);
+    } else if(server->config.Login_enableUsernamePassword &&
+              UA_String_equalchars(&token.policyId, USERNAME_POLICY)) {
+        /* 3) username logins */
         offset = 0;
         UA_UserNameIdentityToken_decodeBinary(&request->userIdentityToken.body, &offset, &username_token);
-        if(username_token.encryptionAlgorithm.data != UA_NULL){
-            //we only support encryption
+        if(username_token.encryptionAlgorithm.data != UA_NULL) {
+            /* 3.1) we only support encryption */
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-            //todo cleanup session
-            RETURN;
-        }
-        if(username_token.userName.length == -1 && username_token.password.length == -1){
-            //empty username and password
+        } else  if(username_token.userName.length == -1 && username_token.password.length == -1){
+            /* 3.2) empty username and password */
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-            //todo cleanup session
-            RETURN;
-        }
-        for(UA_UInt32 i=0;i<server->config.Login_loginsCount;++i){
-            if(UA_String_equalchars(&username_token.userName, server->config.Login_usernames[i])
-            && UA_String_equalchars(&username_token.password, server->config.Login_passwords[i])){
-                //success - activate
-                channel->session = foundSession;
-                channel->session->activated = UA_TRUE;
-                //TODO: not sure if we have to do this, tests seem to work
-                //if(foundSession->channel) //in case session is being rebound
-                //    foundSession->channel->session = UA_NULL;
-                foundSession->channel=channel;
-                RETURN;
+        } else {
+            /* 3.3) ok, trying to match the username */
+            UA_UInt32 i = 0;
+            for(; i < server->config.Login_loginsCount; ++i) {
+                if(UA_String_equalchars(&username_token.userName, server->config.Login_usernames[i])
+                    && UA_String_equalchars(&username_token.password, server->config.Login_passwords[i])) {
+                    /* success - activate */
+                    if(foundSession->channel && foundSession->channel != channel)
+                        UA_SecureChannel_detachSession(foundSession->channel, foundSession);
+                    UA_SecureChannel_attachSession(channel, foundSession);
+                    foundSession->activated = UA_TRUE;
+                    UA_Session_updateLifetime(foundSession);
+                    break;
+                }
             }
+            /* no username/pass matched */
+            if(i >= server->config.Login_loginsCount)
+                response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
         }
-        //no username/pass matched
-       response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
-       //todo cleanup session
-       RETURN;
+    } else {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
     }
-
-    //default case - no login
-    response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-    //todo cleanup session
-    RETURN;
-
-
-
+    UA_UserIdentityToken_deleteMembers(&token);
+    UA_UserNameIdentityToken_deleteMembers(&username_token);
+    return;
 }
-#undef RETURN
 
 void Service_CloseSession(UA_Server *server, UA_Session *session, const UA_CloseSessionRequest *request,
                           UA_CloseSessionResponse *response) {
-	UA_Session *foundSession;
-	UA_SessionManager_getSessionByToken(&server->sessionManager,
-			(const UA_NodeId*)&request->requestHeader.authenticationToken, &foundSession);
-
-	if(foundSession == UA_NULL){
+	UA_Session *foundSession =
+        UA_SessionManager_getSession(&server->sessionManager,
+		                             (const UA_NodeId*)&request->requestHeader.authenticationToken);
+	if(foundSession == UA_NULL)
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-		return;
-	}
-
-	response->responseHeader.serviceResult =
-        UA_SessionManager_removeSession(&server->sessionManager, &session->sessionId);
+	else 
+        response->responseHeader.serviceResult =
+            UA_SessionManager_removeSession(&server->sessionManager, &session->authenticationToken);
 }

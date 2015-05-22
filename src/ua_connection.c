@@ -1,8 +1,7 @@
 #include "ua_util.h"
 #include "ua_connection.h"
 #include "ua_types_encoding_binary.h"
-
-const char *UA_LoggerCategoryNames[4] = {"communication", "server", "client", "userland"};
+#include "ua_securechannel.h"
 
 // max message size is 64k
 const UA_ConnectionConfig UA_ConnectionConfig_standard =
@@ -20,6 +19,8 @@ void UA_Connection_init(UA_Connection *connection) {
     connection->write = UA_NULL;
     connection->close = UA_NULL;
     connection->recv = UA_NULL;
+    connection->getBuffer = UA_NULL;
+    connection->releaseBuffer = UA_NULL;
 }
 
 void UA_Connection_deleteMembers(UA_Connection *connection) {
@@ -97,4 +98,29 @@ UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteS
         current.length = end_pos;
     }
     return current;
+}
+
+void UA_Connection_detachSecureChannel(UA_Connection *connection) {
+#ifdef UA_MULTITHREADING
+    UA_SecureChannel *channel = connection->channel;
+    if(channel)
+        uatomic_cmpxchg(&channel->connection, connection, UA_NULL);
+    uatomic_set(&connection->channel, UA_NULL);
+#else
+    if(connection->channel)
+        connection->channel->connection = UA_NULL;
+    connection->channel = UA_NULL;
+#endif
+}
+
+void UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChannel *channel) {
+#ifdef UA_MULTITHREADING
+    if(uatomic_cmpxchg(&channel->connection, UA_NULL, connection) == UA_NULL)
+        uatomic_set(&connection->channel, channel);
+#else
+    if(channel->connection != UA_NULL)
+        return;
+    channel->connection = connection;
+    connection->channel = channel;
+#endif
 }

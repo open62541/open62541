@@ -263,16 +263,12 @@ typedef struct UA_DiagnosticInfo {
     struct UA_DiagnosticInfo *innerDiagnosticInfo;
 } UA_DiagnosticInfo;
 
-#ifndef SWIG
 #define UA_TYPE_HANDLING_FUNCTIONS(TYPE)                             \
     TYPE UA_EXPORT * TYPE##_new(void);                               \
     void UA_EXPORT TYPE##_init(TYPE * p);                            \
     void UA_EXPORT TYPE##_delete(TYPE * p);                          \
     void UA_EXPORT TYPE##_deleteMembers(TYPE * p);                   \
     UA_StatusCode UA_EXPORT TYPE##_copy(const TYPE *src, TYPE *dst);
-#else
-#define UA_TYPE_HANDLING_FUNCTIONS(TYPE)
-#endif
 
 /* Functions for all types */
 UA_TYPE_HANDLING_FUNCTIONS(UA_Boolean)
@@ -321,22 +317,17 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_DiagnosticInfo)
 /* Custom functions for the builtin datatypes */
 /**********************************************/
 
-#ifdef __cplusplus
-#define CPP_ONLY(STR) STR
-#else
-#define CPP_ONLY(STR)
-#endif
-
 /* String */
 /** Copy a (zero terminated) char-array into a UA_String. Memory for the string data is
     allocated. If the memory cannot be allocated, a null-string is returned. */
-UA_String UA_EXPORT UA_String_fromChars(char const *src);
+UA_String UA_EXPORT UA_String_fromChars(char const src[]);
+
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
-#define UA_STRING(CHARS) (const UA_String) {strlen(CHARS), (UA_Byte*)CHARS }
+#define UA_STRING(CHARS) (UA_String) {strlen(CHARS), (UA_Byte*)CHARS }
 #define UA_STRING_NULL (UA_String) {-1, (UA_Byte*)0 }
 
 /** Printf a char-array into a UA_String. Memory for the string data is allocated. */
-UA_StatusCode UA_EXPORT UA_String_copyprintf(char const *fmt, UA_String *dst, ...);
+UA_StatusCode UA_EXPORT UA_String_copyprintf(char const fmt[], UA_String *dst, ...);
 
 /** Compares two strings */
 UA_Boolean UA_EXPORT UA_String_equal(const UA_String *string1, const UA_String *string2);
@@ -385,56 +376,23 @@ UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 /** Is the nodeid a null-nodeid? */
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 
-#ifndef __cplusplus
-#define UA_NODEID_NUMERIC(NS_INDEX, NUMERICID) (UA_NodeId) {           \
-        .namespaceIndex = NS_INDEX,                                    \
-        .identifierType = UA_NODEIDTYPE_NUMERIC,                       \
-        .identifier.numeric = NUMERICID }
+UA_NodeId UA_EXPORT UA_NodeId_fromInteger(UA_UInt16 nsIndex, UA_Int32 identifier);
+UA_NodeId UA_EXPORT UA_NodeId_fromCharString(UA_UInt16 nsIndex, char identifier[]);
+UA_NodeId UA_EXPORT UA_NodeId_fromCharStringCopy(UA_UInt16 nsIndex, char const identifier[]);
+UA_NodeId UA_EXPORT UA_NodeId_fromString(UA_UInt16 nsIndex, UA_String identifier);
+UA_NodeId UA_EXPORT UA_NodeId_fromStringCopy(UA_UInt16 nsIndex, UA_String identifier);
+UA_NodeId UA_EXPORT UA_NodeId_fromGuid(UA_UInt16 nsIndex, UA_Guid identifier);
+UA_NodeId UA_EXPORT UA_NodeId_fromCharByteString(UA_UInt16 nsIndex, char identifier[]);
+UA_NodeId UA_EXPORT UA_NodeId_fromCharByteStringCopy(UA_UInt16 nsIndex, char const identifier[]);
+UA_NodeId UA_EXPORT UA_NodeId_fromByteString(UA_UInt16 nsIndex, UA_ByteString identifier);
+UA_NodeId UA_EXPORT UA_NodeId_fromByteStringCopy(UA_UInt16 nsIndex, UA_ByteString identifier);
 
-#define UA_NODEID_STRING(NS_INDEX, CHARS) (const UA_NodeId) {          \
-        .namespaceIndex = NS_INDEX,                                    \
-        .identifierType = UA_NODEIDTYPE_STRING,                        \
-        .identifier.string = UA_STRING(CHARS) }
-    
-#define UA_NODEID_STRING_ALLOC(NS_INDEX, CHARS) (const UA_NodeId) {    \
-        .namespaceIndex = NS_INDEX,                                    \
-        .identifierType = UA_NODEIDTYPE_STRING,                        \
-        .identifier.string = UA_STRING_ALLOC(CHARS) }
-
-#define UA_NODEID_GUID(NS_INDEX, GUID) (UA_NodeId) {                   \
-        .namespaceIndex = NS_INDEX,                                    \
-        .identifierType = UA_NODEIDTYPE_GUID,                          \
-        .identifier.guid = GUID }
-
-#define UA_NODEID_BYTESTRING(NS_INDEX, CHARS) (const UA_NodeId) {      \
-        .namespaceIndex = NS_INDEX,                                    \
-        .identifierType = UA_NODEIDTYPE_BYTESTRING,                    \
-        .identifier.byteString = UA_STRING(CHARS) }
-
-#define UA_NODEID_BYTESTRING_ALLOC(NS_INDEX, CHARS) (const UA_NodeId) {\
-        .namespaceIndex = NS_INDEX,                                    \
-        .identifierType = UA_NODEIDTYPE_BYTESTRING,                    \
-        .identifier.byteString = UA_STRING_ALLOC(CHARS) }
-#else
-#define UA_NODEID_NUMERIC(NS_INDEX, NUMERICID) (UA_NodeId) {    \
-        NS_INDEX, UA_NodeId::UA_NODEIDTYPE_NUMERIC, NUMERICID }
-
-#define UA_NODEID_STRING(NS_INDEX, CHARS) (const UA_NodeId) {           \
-        NS_INDEX, UA_NodeId::UA_NODEIDTYPE_STRING, UA_STRING(CHARS) }
-
-#define UA_NODEID_STRING_ALLOC(NS_INDEX, CHARS) (const UA_NodeId) {     \
-        NS_INDEX, UA_NodeId::UA_NODEIDTYPE_STRING, UA_STRING_ALLOC(CHARS) }
-
-#define UA_NODEID_GUID(NS_INDEX, GUID) (UA_NodeId) {    \
-        NS_INDEX, UA_NodeId::UA_NODEIDTYPE_GUID, GUID }
-
-#define UA_NODEID_BYTESTRING(NS_INDEX, CHARS) (const UA_NodeId) {       \
-        NS_INDEX, UA_NodeId::UA_NODEIDTYPE_BYTESTRING, UA_STRING(CHARS) }
-
-#define UA_NODEID_BYTESTRING_ALLOC(NS_INDEX, CHARS) (const UA_NodeId) { \
-        NS_INDEX, UA_NodeId::UA_NODEIDTYPE_BYTESTRING, UA_STRING_ALLOC(CHARS) }
-#endif
-
+#define UA_NODEID_NUMERIC(NS_INDEX, NUMERICID) UA_NodeId_fromInteger(NS_INDEX, NUMERICID)
+#define UA_NODEID_STRING(NS_INDEX, CHARS) UA_NodeId_fromCharString(NS_INDEX, CHARS)
+#define UA_NODEID_STRING_ALLOC(NS_INDEX, CHARS) UA_NodeId_fromCharStringCopy(NS_INDEX, CHARS)
+#define UA_NODEID_GUID(NS_INDEX, GUID) UA_NodeId_fromGuid(NS_INDEX, GUID)
+#define UA_NODEID_BYTESTRING(NS_INDEX, CHARS) UA_NodeId_fromCharByteString(NS_INDEX, CHARS)
+#define UA_NODEID_BYTESTRING_ALLOC(NS_INDEX, CHARS) UA_NodeId_fromCharStringCopy(NS_INDEX, CHARS)
 #define UA_NODEID_NULL UA_NODEID_NUMERIC(0,0)
 
 /* ExpandedNodeId */
@@ -452,9 +410,9 @@ UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
         .namespaceIndex = NS_INDEX, .name = UA_STRING_ALLOC(CHARS) }
 
 /* LocalizedText */
-#define UA_LOCALIZEDTEXT(LOCALE, TEXT) (const UA_LocalizedText) {     \
+#define UA_LOCALIZEDTEXT(LOCALE, TEXT) (const UA_LocalizedText) {       \
         .locale = UA_STRING(LOCALE), .text = UA_STRING(TEXT) }
-#define UA_LOCALIZEDTEXT_ALLOC(LOCALE, TEXT) (UA_LocalizedText) {             \
+#define UA_LOCALIZEDTEXT_ALLOC(LOCALE, TEXT) (UA_LocalizedText) {       \
         .locale = UA_STRING_ALLOC(LOCALE), .text = UA_STRING_ALLOC(TEXT) }
 
 /* Variant */
@@ -466,7 +424,7 @@ UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
  * @param v The variant
  * @return Does the variant contain a scalar value.
  */
-UA_Boolean UA_EXPORT UA_Variant_isScalar(UA_Variant *v);
+UA_Boolean UA_EXPORT UA_Variant_isScalar(const UA_Variant *v);
     
 /**
  * Set the variant to a scalar value that already resides in memory. The value takes on the
@@ -515,33 +473,35 @@ UA_StatusCode UA_EXPORT UA_Variant_setArrayCopy(UA_Variant *v, const void *array
                                                 const UA_DataType *type);
 
 /**
- * Copy the variant, but use only a subset of the (multidimensional) array. Returns an error code if
- * the variant is no array or if the indicated range does not fit.
+ * Copy the variant, but use only a subset of the (multidimensional) array into a variant. Returns
+ * an error code if the variant is not an array or if the indicated range does not fit.
  */
 UA_StatusCode UA_EXPORT UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, UA_NumericRange range);
 
 /**
- * Insert a range of data into an existing variant of the dimensionality. This overwrites data in
- * the variant. The inserted data is managed by the variant (members are deleted with it).
+ * Insert a range of data into an existing variant. The data array can't be reused afterwards if it
+ * contains types without a fixed size (e.g. strings) since they take on the lifetime of the
+ * variant.
  *
  * @param v The variant
- * @param data The data array. Obviously the type must match the variant and the length the range.
+ * @param dataArray The data array. The type must match the variant
+ * @param dataarraySize The length of the data array. This is checked to match the range size.
  * @param range The range of where the new data is inserted
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setRange(UA_Variant *v, void *data, const UA_NumericRange range);
+UA_StatusCode UA_EXPORT UA_Variant_setRange(UA_Variant *v, void *dataArray, UA_Int32 dataArraySize,
+                                            const UA_NumericRange range);
 
 /**
- * Copies the variant and inserts data from the range. The inserted data is managed by the variant
- * (members are deleted with it).
+ * Deep-copy a range of data into an existing variant.
  *
- * @param src The source variant
- * @param dst The target variant
- * @param data The data array. Obviously the type must match the variant and the length the range.
+ * @param v The variant
+ * @param dataArray The data array. The type must match the variant
+ * @param dataarraySize The length of the data array. This is checked to match the range size.
  * @param range The range of where the new data is inserted
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setCopyRange(const UA_Variant *src, UA_Variant *dst, void *data,
+UA_StatusCode UA_EXPORT UA_Variant_setRangeCopy(UA_Variant *v, const void *dataArray, UA_Int32 dataArraySize,
                                                 const UA_NumericRange range);
 
 /****************************/
@@ -565,8 +525,8 @@ typedef struct {
                                                   namespace may contain members from the same
                                                   namespace or ns0 only.*/
     UA_Byte padding UA_BITFIELD(5); /**< How much padding is there before this member element? For
-                                         arrays this is split into 2 bytes padding for for the
-                                         length index (max 4 bytes) and 3 bytes padding for the
+                                         arrays this is split into 2 bytes padding before the
+                                         length index (max 4 bytes) and 3 bytes padding before the
                                          pointer (max 8 bytes) */
     UA_Boolean isArray UA_BITFIELD(1); ///< The member is an array of the given type
 } UA_DataTypeMember;
@@ -575,7 +535,7 @@ struct UA_DataType {
     UA_NodeId typeId; ///< The nodeid of the type
     ptrdiff_t memSize UA_BITFIELD(16); ///< Size of the struct in memory
     UA_UInt16 typeIndex UA_BITFIELD(13); ///< Index of the type in the datatypetable
-    UA_Boolean namespaceZero UA_BITFIELD(1); ///< The type is defined in namespace zero.
+    UA_Boolean namespaceZero UA_BITFIELD(1); ///< The type is defined in namespace zero
     UA_Boolean fixedSize UA_BITFIELD(1); ///< The type (and its members) contains no pointers
     UA_Boolean zeroCopyable UA_BITFIELD(1); ///< Can the type be copied directly off the stream?
     UA_Byte membersSize; ///< How many members does the type have?

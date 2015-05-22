@@ -2,12 +2,23 @@ cmake_minimum_required(VERSION 2.8.8)
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 
 project(open62541 C)
-set(open62541_VERSION_MAJOR 0)
-set(open62541_VERSION_MINOR 0)
-set(open62541_VERSION_PATCH 0)
-add_definitions(-DOPEN62541_VERSION_MAJOR=${open62541_VERSION_MAJOR})
-add_definitions(-DOPEN62541_VERSION_MINOR=${open62541_VERSION_MINOR})
-add_definitions(-DOPEN62541_VERSION_PATCH=${open62541_VERSION_PATCH})
+
+find_package(Git)
+if(GIT_FOUND)
+    execute_process(COMMAND ${GIT_EXECUTABLE} describe --abbrev=7 --dirty --always --tags RESULT_VARIABLE res_var OUTPUT_VARIABLE GIT_COM_ID )
+    if( NOT ${res_var} EQUAL 0 )
+        set( GIT_COMMIT_ID "git commit id unknown")
+        message( WARNING "Git failed (not a repo, or no tags). Build will not contain git revision info." )
+    else()
+        string( REPLACE "\n" "" GIT_COMMIT_ID ${GIT_COM_ID} )
+    endif()
+else()
+    set( GIT_COMMIT_ID "unknown (git not found!)")
+    message( WARNING "Git not found. Build will not contain git revision info." )
+endif()
+add_definitions("-DVERSION=${GIT_COMMIT_ID}")
+
+MESSAGE (STATUS "Git version: "  ${GIT_COMMIT_ID})
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -34,9 +45,9 @@ if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
         set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
 	endif()
     if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
-        add_definitions(-flto)
-        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -flto -s")
-        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -flto -s")
+#        add_definitions(-flto)
+        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -s")
     endif()
     option(ENABLESUBSCRIPTIONS "Enable compilation of subscription and monitoring support." OFF)
     if (ENABLESUBSCRIPTIONS)
@@ -50,11 +61,12 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
                      ${PROJECT_SOURCE_DIR}/include/ua_connection.h
                      ${PROJECT_SOURCE_DIR}/include/ua_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_client.h)
+                     ${PROJECT_SOURCE_DIR}/include/ua_client.h
+                     ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h 
+                     ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h)
 set(internal_headers ${PROJECT_SOURCE_DIR}/src/ua_util.h
                      ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
@@ -89,7 +101,9 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.c
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client.c)
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
+                ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c 
+                ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c)
                 ##TODO: make client stuff optional
 
 ## generate code from xml definitions
@@ -127,32 +141,11 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nodeids.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
 
-option(LOADGENERATEDNS "Generate and load UA XML Namespace 0 definition" OFF)
-if(LOADGENERATEDNS)
-add_definitions(-DLOADGENERATEDNS)
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
-                   ## Note: currently only Opc.Ua.NodeSet2.xml is included in the generated header. You can extend the call to include any number of XML files as parameters.
-                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.xml ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
-                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
-)
-else()
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
-                   COMMAND touch ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
-		   DEPENDS
-)
-endif()
-
 ## logging
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 
 ## multithreading
-option(ENABLE_MULTITHREADING "Enable multithreading" OFF)
+option(ENABLE_MULTITHREADING "Enable multithreading (experimental)" OFF)
 if(ENABLE_MULTITHREADING)
     add_definitions(-DUA_MULTITHREADING)
     find_package(Threads REQUIRED)
@@ -161,8 +154,13 @@ else()
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.c)
 endif()
 
+option(ENABLE_EXTERNAL_NAMESPACES "Enable namespace handling by an external component (experimental)" OFF)
+if(ENABLE_EXTERNAL_NAMESPACES)
+    add_definitions(-DUA_EXTERNAL_NAMESPACES)
+endif()
+
 ## set the precompiler flags
-configure_file("src/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
+configure_file("include/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
 
 ## extensions
 option(EXTENSION_UDP "Enable udp extension" OFF)
@@ -180,29 +178,24 @@ if(EXTENSION_STATELESS)
 	add_definitions(-DEXTENSION_STATELESS)
 endif()
 
-option(BUILD_DEMO_NODESET "Create a demo node for every built-in datatype" OFF)
-if(BUILD_DEMO_NODESET)
-	message(STATUS "Enabling demo nodeset")
-	add_definitions(-DDEMO_NODESET)
-endif()
-
 option(ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                PRE_BUILD
-               COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
-                                                                              ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h
-                                                                              ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h
-               COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
+               COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${GIT_COMMIT_ID} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
+
+
+               DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${exported_headers} ${internal_headers})
+
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
+               PRE_BUILD
+
+               COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${GIT_COMMIT_ID} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
                               ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${internal_headers} ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources}
-                                                                              ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c
-                                                                              ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c
-               DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${exported_headers} ${internal_headers}
-                       ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources}
-                       ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h
-                       ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c)
+
+               DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
 
 if(ENABLE_AMALGAMATION)
-    add_custom_target(amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c)
+    add_custom_target(amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c)
     include_directories(${PROJECT_BINARY_DIR})
 else()
@@ -213,8 +206,10 @@ else()
     include_directories(${PROJECT_SOURCE_DIR}/src)
     include_directories(${PROJECT_BINARY_DIR}/src_generated)
 endif()
+target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING)
 add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-object>)
-if(WIN32 AND ENABLE_AMALGAMATION)
+target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING)
+if(WIN32)
     target_link_libraries(open62541 ws2_32) #since networklayer_tcp is linked into the amalgate
 endif()
 
@@ -239,21 +234,23 @@ endif()
 option(BUILD_EXAMPLESERVER "Build the example server" OFF)
 if(BUILD_EXAMPLESERVER)
     set(server_source $<TARGET_OBJECTS:open62541-object>)
-    if(NOT ENABLE_AMALGAMATION)
-        list(APPEND server_source examples/networklayer_tcp.c examples/logger_stdout.c)
-    endif()
-    add_executable(exampleServer examples/server.c ${server_source})
-    add_executable(exampleServer_simple examples/server_simple.c ${server_source})
+    add_executable(server_static examples/server.c ${server_source})
+    add_executable(server_simple examples/server_simple.c ${server_source})
+    add_executable(server examples/server.c)
+	target_link_libraries(server open62541)
     if(WIN32)
-        target_link_libraries(exampleServer ws2_32)
-        target_link_libraries(exampleServer_simple ws2_32)
+        target_link_libraries(server_static ws2_32)
+        target_link_libraries(server_simple ws2_32)
+        target_link_libraries(server ws2_32)
     else()
-        target_link_libraries(exampleServer rt)
-        target_link_libraries(exampleServer_simple rt)
+        target_link_libraries(server_static rt)
+        target_link_libraries(server_simple rt)
+        target_link_libraries(server rt)
     endif()
     if(ENABLE_MULTITHREADING)
-        target_link_libraries(exampleServer urcu-cds urcu urcu-common pthread)
-        target_link_libraries(exampleServer_simple urcu-cds urcu urcu-common pthread)
+        target_link_libraries(server_static urcu-cds urcu urcu-common pthread)
+        target_link_libraries(server_simple urcu-cds urcu urcu-common pthread)
+        target_link_libraries(server urcu-cds urcu urcu-common pthread)
     endif()
 endif()
 
@@ -261,6 +258,7 @@ endif()
 option(GENERATE_SELFSIGNED "Generate self-signed certificates" OFF)
 if(GENERATE_SELFSIGNED)
     message(STATUS "Enabling self-signed certificates")
+    find_package(OpenSSL REQUIRED)
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/localhost.der
                               ${PROJECT_BINARY_DIR}/ca.crt
                    COMMAND python ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${PROJECT_BINARY_DIR}
@@ -274,22 +272,24 @@ option(BUILD_EXAMPLECLIENT "Build a test client" OFF)
 if(BUILD_EXAMPLECLIENT)
 	add_definitions(-DBENCHMARK)
     set(client_source $<TARGET_OBJECTS:open62541-object>)
-    if(NOT ENABLE_AMALGAMATION)
-        list(APPEND client_source examples/networklayer_tcp.c examples/logger_stdout.c)
-    endif()
-	add_executable(exampleClient examples/client.c ${client_source})
+	add_executable(client_static examples/client.c ${client_source})
+	add_executable(client examples/client.c)
+	target_link_libraries(client open62541)
     if(WIN32)
-        target_link_libraries(exampleClient ws2_32)
+        target_link_libraries(client_static ws2_32)
+        target_link_libraries(client ws2_32)
     else()
-        target_link_libraries(exampleClient rt)
+        target_link_libraries(client_static rt)
+        target_link_libraries(client rt)
     endif()
     if(ENABLE_MULTITHREADING)
-        target_link_libraries(exampleClient urcu-cds urcu urcu-common pthread)
+        target_link_libraries(client_static urcu-cds urcu urcu-common pthread)
+        target_link_libraries(client urcu-cds urcu urcu-common pthread)
     endif()
     if(EXTENSION_STATELESS)
-        add_executable(statelessClient examples/client_stateless.c ${client_source})
+        add_executable(client_stateless examples/client_stateless.c ${client_source})
         if(ENABLE_MULTITHREADING)
-            target_link_libraries(statelessClient urcu-cds urcu urcu-common pthread)
+            target_link_libraries(client_stateless urcu-cds urcu urcu-common pthread)
         endif()
     endif()
 endif()

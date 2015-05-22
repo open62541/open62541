@@ -18,12 +18,12 @@ static hash_t hash_array(const UA_Byte *data, UA_UInt32 len, UA_UInt32 seed) {
     static const uint32_t n  = 0xe6546b64;
     hash_t hash = seed;
     /* Somce compilers emit a warning when casting from a byte array to ints. */
-#if defined(__GNUC__) || defined(__clang__)
+#if ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4 || defined(__clang__))
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-align"
 #endif
     blocks = (const uint32_t *)data;
-#if defined(__GNUC__) || defined(__clang__)
+#if ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4 || defined(__clang__))
 #pragma GCC diagnostic pop
 #endif
     for(int32_t i = 0;i < nblocks;i++) {

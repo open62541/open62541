@@ -30,14 +30,6 @@ UA_Session adminSession = {
     .timeout = UA_INT64_MAX, .validTill = UA_INT64_MAX, .channel = UA_NULL,
     .continuationPoints = {UA_NULL}};
 
-/* TODO: Nobody seems to call this function right now */
-static UA_StatusCode UA_Session_generateToken(UA_NodeId *newToken, UA_UInt32 *seed) {
-    newToken->namespaceIndex = 0; // where else?
-    newToken->identifierType = UA_NODEIDTYPE_GUID;
-    newToken->identifier.guid = UA_Guid_random(seed);
-    return UA_STATUSCODE_GOOD;
-}
-
 void UA_Session_init(UA_Session *session) {
     UA_ApplicationDescription_init(&session->clientDescription);
     session->activated = UA_FALSE;
@@ -49,79 +41,29 @@ void UA_Session_init(UA_Session *session) {
     session->timeout = 0;
     UA_DateTime_init(&session->validTill);
     session->channel = UA_NULL;
-    session->continuationPoints = (struct ContinuationPointList){UA_NULL};
     #ifdef ENABLESUBSCRIPTIONS
         SubscriptionManager_init(session);
     #endif
+    session->availableContinuationPoints = MAXCONTINUATIONPOINTS;
+    LIST_INIT(&session->continuationPoints);
 }
 
-void UA_Session_deleteMembers(UA_Session *session) {
+void UA_Session_deleteMembersCleanup(UA_Session *session) {
     UA_ApplicationDescription_deleteMembers(&session->clientDescription);
     UA_NodeId_deleteMembers(&session->authenticationToken);
     UA_NodeId_deleteMembers(&session->sessionId);
     UA_String_deleteMembers(&session->sessionName);
-    session->channel = UA_NULL;
     struct ContinuationPointEntry *cp;
     while((cp = LIST_FIRST(&session->continuationPoints))) {
+        LIST_REMOVE(cp, pointers);
         UA_ByteString_deleteMembers(&cp->identifier);
         UA_BrowseDescription_deleteMembers(&cp->browseDescription);
-        LIST_REMOVE(cp, pointers);
         UA_free(cp);
     }
-}
-
-UA_StatusCode UA_Session_setExpirationDate(UA_Session *session) {
-    if(!session)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    session->validTill = UA_DateTime_now() + session->timeout * 10000; //timeout in ms
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode UA_Session_getPendingLifetime(UA_Session *session, UA_Double *pendingLifetime_ms) {
-    if(!session)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    *pendingLifetime_ms = (session->validTill - UA_DateTime_now())/10000; //difference in ms
-    return UA_STATUSCODE_GOOD;
-}
-
-void UA_Session_detachSecureChannel(UA_Session *session) {
-#ifdef UA_MULTITHREADING
-    UA_SecureChannel *channel = session->channel;
-    if(channel)
-        uatomic_cmpxchg(&channel->session, session, UA_NULL);
-    uatomic_set(&session->channel, UA_NULL);
-#else
     if(session->channel)
-        session->channel->session = UA_NULL;
-    session->channel = UA_NULL;
-#endif
+        UA_SecureChannel_detachSession(session->channel, session);
 }
 
-/* these functions are here, since they need to include ua_session.h */
-void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *session) {
-#ifdef UA_MULTITHREADING
-    if(uatomic_cmpxchg(&session->channel, UA_NULL, channel) == UA_NULL)
-        uatomic_set(&channel->session, session);
-#else
-    if(session->channel != UA_NULL)
-        return;
-    session->channel = channel;
-    channel->session = session;
-#endif
-}
-
-void UA_SecureChannel_detachSession(UA_SecureChannel *channel) {
-#ifdef UA_MULTITHREADING
-    UA_Session *session = channel->session;
-    if(session)
-        uatomic_cmpxchg(&session->channel, channel, UA_NULL);
-    uatomic_set(&channel->session, UA_NULL);
-#else
-    if(channel == NULL) return;
-    if(channel->session)
-        channel->session->channel = UA_NULL;
-    channel->session = UA_NULL;
-#endif
+void UA_Session_updateLifetime(UA_Session *session) {
+    session->validTill = UA_DateTime_now() + session->timeout * 10000; //timeout in ms
 }

@@ -104,7 +104,7 @@ UA_StatusCode UA_String_copy(UA_String const *src, UA_String *dst) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_String UA_String_fromChars(char const *src) {
+UA_String UA_String_fromChars(char const src[]) {
     UA_String str;
     size_t length = strlen(src);
     if(length == 0) {
@@ -122,25 +122,25 @@ UA_String UA_String_fromChars(char const *src) {
     return str;
 }
 
-#define UA_STRING_COPYPRINTF_BUFSIZE 1024
-UA_StatusCode UA_String_copyprintf(char const *fmt, UA_String *dst, ...) {
-    char src[UA_STRING_COPYPRINTF_BUFSIZE];
+#define UA_STRING_ALLOCPRINTF_BUFSIZE 1024
+UA_StatusCode UA_String_copyprintf(char const fmt[], UA_String *dst, ...) {
+    char src[UA_STRING_ALLOCPRINTF_BUFSIZE];
     va_list ap;
     va_start(ap, dst);
-#if defined(__GNUC__) || defined(__clang__)
+#if ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4 || defined(__clang__))
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
     // vsnprintf should only take a literal and no variable to be secure
-    UA_Int32 len = vsnprintf(src, UA_STRING_COPYPRINTF_BUFSIZE, fmt, ap);
-#if defined(__GNUC__) || defined(__clang__)
+    UA_Int32 len = vsnprintf(src, UA_STRING_ALLOCPRINTF_BUFSIZE, fmt, ap);
+#if ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4 || defined(__clang__))
 #pragma GCC diagnostic pop
 #endif
     va_end(ap);
     if(len < 0)  // FIXME: old glibc 2.0 would return -1 when truncated
         return UA_STATUSCODE_BADINTERNALERROR;
     // since glibc 2.1 vsnprintf returns the len that would have resulted if buf were large enough
-    len = ( len > UA_STRING_COPYPRINTF_BUFSIZE ? UA_STRING_COPYPRINTF_BUFSIZE : len );
+    len = ( len > UA_STRING_ALLOCPRINTF_BUFSIZE ? UA_STRING_ALLOCPRINTF_BUFSIZE : len );
     if(!(dst->data = UA_malloc((UA_UInt32)len)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_memcpy((void *)dst->data, src, (UA_UInt32)len);
@@ -333,11 +333,6 @@ UA_StatusCode UA_NodeId_copy(UA_NodeId const *src, UA_NodeId *dst) {
     return retval;
 }
 
-static UA_Boolean UA_NodeId_isBasicType(UA_NodeId const *id) {
-    return id ->namespaceIndex == 0 && 1 <= id ->identifier.numeric &&
-        id ->identifier.numeric <= 25;
-}
-
 void UA_NodeId_deleteMembers(UA_NodeId *p) {
     switch(p->identifierType) {
     case UA_NODEIDTYPE_STRING:
@@ -399,6 +394,62 @@ UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
         return UA_FALSE;
     }
     return UA_TRUE;
+}
+
+UA_NodeId UA_NodeId_fromInteger(UA_UInt16 nsIndex, UA_Int32 identifier) {
+    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_NUMERIC,
+                         .identifier.numeric = identifier };
+}
+
+UA_NodeId UA_NodeId_fromCharString(UA_UInt16 nsIndex, char identifier[]) {
+    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_STRING,
+                         .identifier.string = UA_STRING(identifier) };
+}
+
+UA_NodeId UA_NodeId_fromCharStringCopy(UA_UInt16 nsIndex, char const identifier[]) {
+    return (UA_NodeId) {.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_STRING,
+                        .identifier.string = UA_STRING_ALLOC(identifier) };
+}
+
+UA_NodeId UA_NodeId_fromString(UA_UInt16 nsIndex, UA_String identifier) {
+    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_STRING,
+                         .identifier.string = identifier };
+}
+
+UA_NodeId UA_NodeId_fromStringCopy(UA_UInt16 nsIndex, UA_String identifier) {
+    UA_NodeId id;
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_STRING;
+    UA_String_copy(&identifier, &id.identifier.string);
+    return id;
+}
+
+UA_NodeId UA_NodeId_fromGuid(UA_UInt16 nsIndex, UA_Guid identifier) {
+    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_GUID,
+                         .identifier.guid = identifier };
+}
+
+UA_NodeId UA_NodeId_fromCharByteString(UA_UInt16 nsIndex, char identifier[]) {
+    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_BYTESTRING,
+                         .identifier.byteString = UA_STRING(identifier) };
+}
+
+UA_NodeId UA_NodeId_fromCharByteStringCopy(UA_UInt16 nsIndex, char const identifier[]) {
+    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_BYTESTRING,
+                         .identifier.byteString = UA_STRING_ALLOC(identifier) };
+}
+
+UA_NodeId UA_NodeId_fromByteString(UA_UInt16 nsIndex, UA_ByteString identifier) {
+    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_BYTESTRING,
+                         .identifier.byteString = identifier };
+}
+
+UA_NodeId UA_NodeId_fromByteStringCopy(UA_UInt16 nsIndex, UA_ByteString identifier) {
+    UA_NodeId id;
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_BYTESTRING;
+    UA_ByteString_copy(&identifier, &id.identifier.byteString);
+    return id;
 }
 
 /* ExpandedNodeId */
@@ -566,15 +617,16 @@ void UA_Variant_deleteMembers(UA_Variant *p) {
     if(p->arrayDimensions) {
         UA_free(p->arrayDimensions);
         p->arrayDimensions = UA_NULL;
+        p->arrayDimensionsSize = -1;
     }
 }
 
 UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
     UA_Variant_init(dst);
-    UA_Int32 tmp = src->arrayLength;
-    if(src->arrayLength == -1 && src->data)
-        tmp = 1;
-    UA_StatusCode retval = UA_Array_copy(src->data, &dst->data, src->type, tmp);
+    UA_Int32 elements = src->arrayLength;
+    if(UA_Variant_isScalar(src))
+        elements = 1;
+    UA_StatusCode retval = UA_Array_copy(src->data, &dst->data, src->type, elements);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Variant_deleteMembers(dst);
         UA_Variant_init(dst);
@@ -597,7 +649,7 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
     return retval;
 }
 
-UA_Boolean UA_Variant_isScalar(UA_Variant *v) {
+UA_Boolean UA_Variant_isScalar(const UA_Variant *v) {
     return (v->data != UA_NULL && v->arrayLength == -1);
 }
 
@@ -628,7 +680,7 @@ testRangeWithVariant(const UA_Variant *v, const UA_NumericRange range, size_t *t
     /* Test the integrity of the range */
     size_t count = 1;
     if(range.dimensionsSize != dims_count)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
     for(UA_Int32 i = 0; i < dims_count; i++) {
         if(range.dimensions[i].min > range.dimensions[i].max)
             return UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -714,47 +766,63 @@ UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Variant_setRange(UA_Variant *v, void *data, const UA_NumericRange range) {
+UA_StatusCode UA_Variant_setRange(UA_Variant *v, void *dataArray, UA_Int32 dataArraySize,
+                                  const UA_NumericRange range) {
     size_t count, block_size, block_distance, first_elem;
     UA_StatusCode retval = testRangeWithVariant(v, range, &count, &block_size, &block_distance, &first_elem);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+    if((UA_Int32)count != dataArraySize)
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
     size_t block_count = count / block_size;
     size_t elem_size = v->type->memSize;
     uintptr_t nextdst = (uintptr_t)v->data + (first_elem * elem_size);
-    uintptr_t nextsrc = (uintptr_t)data;
-    if(v->type->fixedSize) {
-        for(size_t i = 0; i < block_count; i++) {
-            memcpy((void*)nextdst, (void*)nextsrc, elem_size * block_size);
-            nextdst += block_size * elem_size;
-            nextsrc += block_distance * elem_size;
-        }
-    } else {
-        for(size_t i = 0; i < block_count; i++) {
+    uintptr_t nextsrc = (uintptr_t)dataArray;
+    for(size_t i = 0; i < block_count; i++) {
+        if(!v->type->fixedSize) {
             for(size_t j = 0; j < block_size; j++) {
                 UA_deleteMembers((void*)nextdst, v->type);
                 nextdst += elem_size;
             }
             nextdst -= block_size * elem_size;
-            memcpy((void*)nextdst, (void*)nextsrc, elem_size * block_size);
-            nextdst += block_size * elem_size;
-            nextsrc += block_distance * elem_size;
         }
+        memcpy((void*)nextdst, (void*)nextsrc, elem_size * block_size);
+        nextsrc += block_size * elem_size;
+        nextdst += block_distance * elem_size;
     }
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Variant_setCopyRange(const UA_Variant *src, UA_Variant *dst, void *data,
-                                      const UA_NumericRange range) {
-    // todo: don't copy the entire variant but only the retained parts
-    UA_StatusCode retval = UA_Variant_copy(src, dst);
+UA_StatusCode UA_EXPORT UA_Variant_setRangeCopy(UA_Variant *v, const void *dataArray, UA_Int32 dataArraySize,
+                                                const UA_NumericRange range) {
+    size_t count, block_size, block_distance, first_elem;
+    UA_StatusCode retval = testRangeWithVariant(v, range, &count, &block_size, &block_distance, &first_elem);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    retval = UA_Variant_setRange(dst, data, range);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Variant_deleteMembers(dst);
-        return retval;
+    if((UA_Int32)count != dataArraySize)
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+
+    size_t block_count = count / block_size;
+    size_t elem_size = v->type->memSize;
+    uintptr_t nextdst = (uintptr_t)v->data + (first_elem * elem_size);
+    uintptr_t nextsrc = (uintptr_t)dataArray;
+    if(v->type->fixedSize) {
+        for(size_t i = 0; i < block_count; i++) {
+            memcpy((void*)nextdst, (void*)nextsrc, elem_size * block_size);
+            nextsrc += block_size * elem_size;
+            nextdst += block_distance * elem_size;
+        }
+    } else {
+        for(size_t i = 0; i < block_count; i++) {
+            for(size_t j = 0; j < block_size; j++) {
+                UA_deleteMembers((void*)nextdst, v->type);
+                UA_copy((void*)nextsrc, (void*)nextdst, v->type);
+                nextdst += elem_size;
+                nextsrc += elem_size;
+            }
+            nextdst += (block_distance - block_size) * elem_size;
+        }
     }
     return UA_STATUSCODE_GOOD;
 }

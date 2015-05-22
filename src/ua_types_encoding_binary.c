@@ -1080,7 +1080,7 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *ds
         if(member->isArray) {
             ptr += (member->padding >> 3);
             UA_Int32 *noElements = (UA_Int32*)ptr;
-            UA_Int32 tempNoElements;
+            UA_Int32 tempNoElements = 0;
             retval |= UA_Int32_decodeBinary(src, offset, &tempNoElements);
             if(retval)
                 continue;

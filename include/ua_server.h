@@ -44,7 +44,7 @@ typedef struct UA_ServerConfig {
     char*       Application_applicationName;
 } UA_ServerConfig;
 
-extern const UA_ServerConfig UA_ServerConfig_standard;
+extern UA_EXPORT const UA_ServerConfig UA_ServerConfig_standard;
 
 struct UA_Server;
 typedef struct UA_Server UA_Server;
@@ -55,7 +55,7 @@ void UA_EXPORT UA_Server_delete(UA_Server *server);
 
 /** Sets the logger used by the server */
 void UA_EXPORT UA_Server_setLogger(UA_Server *server, UA_Logger logger);
-UA_Logger UA_EXPORT * UA_Server_getLogger(UA_Server *server);
+UA_Logger UA_EXPORT UA_Server_getLogger(UA_Server *server);
 
 /**
  * Runs the main loop of the server. In each iteration, this calls into the
@@ -73,22 +73,67 @@ UA_Logger UA_EXPORT * UA_Server_getLogger(UA_Server *server);
  */
 UA_StatusCode UA_EXPORT UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running);
 
-/** @brief A datasource is the interface to interact with a local data provider.
- *
- * Implementors of datasources need to provide functions for the callbacks in
- * this structure. After every read, the handle needs to be released to indicate
- * that the pointer is no longer accessed. As a rule, datasources are never
- * copied, but only their content. The only way to write into a datasource is
- * via the write-service.
+/**
+ * The prologue part of UA_Server_run (no need to use if you call UA_Server_run)
+ */
+UA_StatusCode UA_EXPORT UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running);
+/**
+ * The epilogue part of UA_Server_run (no need to use if you call UA_Server_run)
+ */
+UA_StatusCode UA_EXPORT UA_Server_run_shutdown(UA_Server *server, UA_UInt16 nThreads);
+/**
+ * One iteration of UA_Server_run (no need to use if you call UA_Server_run)
+ */
+UA_StatusCode UA_EXPORT UA_Server_run_getAndProcessWork(UA_Server *server, UA_Boolean *running);
+
+
+/**
+ * Datasources are the interface to local data providers. Implementors of datasources need to
+ * provide functions for the callbacks in this structure. After every read, the handle needs to be
+ * released to indicate that the pointer is no longer accessed. As a rule, datasources are never
+ * copied, but only their content. The only way to write into a datasource is via the write-service.
  *
  * It is expected that the read and release callbacks are implemented. The write
  * callback can be set to null.
- **/
+ */
 typedef struct {
-    void *handle;
-    UA_StatusCode (*read)(void *handle, UA_Boolean sourceTimeStamp, UA_DataValue *value);
+    void *handle; ///> A custom pointer to reuse the same datasource functions for multiple sources
+
+    /**
+     * Read current data from the data source
+     *
+     * @param handle An optional pointer to user-defined data for the specific data source
+     * @param includeSourceTimeStamp If true, then the datasource is expected to set the source
+     *        timestamp in the returned value
+     * @param range If not null, then the datasource shall return only a selection of the (nonscalar)
+     *        data. Set UA_STATUSCODE_BADINDEXRANGEINVALID in the value if this does not apply.
+     * @param value The (non-null) DataValue that is returned to the client. The data source sets the
+     *        read data, the result status and optionally a sourcetimestamp.
+     * @return Returns a status code for logging. Error codes intended for the original caller are set
+     *         in the value. If an error is returned, then no releasing of the value is done.
+     */
+    UA_StatusCode (*read)(void *handle, UA_Boolean includeSourceTimeStamp, const UA_NumericRange *range,
+                          UA_DataValue *value);
+
+    /**
+     * Release data that was allocated during a read (and/or release locks in the data source)
+     *
+     * @param handle An optional pointer to user-defined data for the specific data source
+     * @param value The DataValue that was used for a successful read.
+     */
     void (*release)(void *handle, UA_DataValue *value);
-    UA_StatusCode (*write)(void *handle, const UA_Variant *data);
+
+    /**
+     * Write into a data source. The write member of UA_DataSource can be empty if the operation
+     * is unsupported.
+     *
+     * @param handle An optional pointer to user-defined data for the specific data source
+     * @param data The data to be written into the data source
+     * @param range An optional data range. If the data source is scalar or does not support writing
+     *        of ranges, then an error code is returned.
+     * @return Returns a status code that is returned to the user
+     */
+    UA_StatusCode (*write)(void *handle, const UA_Variant *data, const UA_NumericRange *range);
 } UA_DataSource;
 
 /** @brief Add a new namespace to the server. Returns the index of the new namespace */
@@ -102,12 +147,16 @@ UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_Qualifi
                           UA_NodeId nodeId, const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId);
 
 UA_StatusCode UA_EXPORT
+UA_Server_addObjectNode(UA_Server *server, const UA_QualifiedName browseName,
+                        UA_NodeId nodeId, const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                        const UA_NodeId typeDefinition);
+
+UA_StatusCode UA_EXPORT
 UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
                                     const UA_QualifiedName browseName, UA_NodeId nodeId,
                                     const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId);
 
-/** Work that is run in the main loop (singlethreaded) or dispatched to a worker
-    thread. */
+/** Work that is run in the main loop (singlethreaded) or dispatched to a worker thread */
 typedef struct UA_WorkItem {
     enum {
         UA_WORKITEMTYPE_NOTHING,
@@ -197,7 +246,7 @@ typedef struct {
      *
      * @param workItems When the returned integer is positive, *workItems points
      * to an array of WorkItems of the returned size.
-     * @param timeout The timeout during which an event must arrive.
+     * @param timeout The timeout during which an event must arrive in microseconds
      * @return The size of the returned workItems array. If the result is
      * negative, an error has occured.
      */

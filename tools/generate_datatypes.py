@@ -161,7 +161,7 @@ class EnumerationType(object):
 
     def typedef_c(self):
         return "typedef enum { \n    " + \
-            ",\n    ".join(map(lambda (key,value) : key.upper() + " = " + value,self.elements.iteritems())) + \
+            ",\n    ".join(map(lambda kv : kv[0].upper() + " = " + kv[1], self.elements.iteritems())) + \
             "\n} " + self.name + ";"
 
     def typelayout_c(self, namespace_0, description, outname):
@@ -311,7 +311,7 @@ class StructType(object):
         return layout + "}"
 
     def functions_c(self, typeTableName):
-        return '''#define %s_new() UA_new(%s)
+        return '''#define %s_new() (%s*)UA_new(%s)
 #define %s_init(p) UA_init(p, %s)
 #define %s_delete(p) UA_delete(p, %s)
 #define %s_deleteMembers(p) UA_deleteMembers(p, %s)
@@ -319,7 +319,7 @@ class StructType(object):
 #define %s_calcSizeBinary(p) UA_calcSizeBinary(p, %s)
 #define %s_encodeBinary(src, dst, offset) UA_encodeBinary(src, %s, dst, offset)
 #define %s_decodeBinary(src, offset, dst) UA_decodeBinary(src, offset, dst, %s)''' % \
-    tuple(itertools.chain(*itertools.repeat([self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 8)))
+    tuple([self.name] + list(itertools.chain(*itertools.repeat([self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 8))))
 
 def parseTypeDefinitions(xmlDescription, existing_types = OrderedDict()):
     '''Returns an ordered dict that maps names to types. The order is such that

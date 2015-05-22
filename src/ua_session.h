@@ -1,9 +1,11 @@
 #ifndef UA_SESSION_H_
 #define UA_SESSION_H_
 
+#include "queue.h"
 #include "ua_types.h"
 #include "ua_securechannel.h"
-#include "queue.h"
+
+#define MAXCONTINUATIONPOINTS 5
 
 #ifdef ENABLESUBSCRIPTIONS
 #include "server/ua_subscription_manager.h"
@@ -37,6 +39,7 @@ struct UA_Session {
         UA_SubscriptionManager subscriptionManager;
     #endif
     UA_SecureChannel *channel;
+    UA_UInt16 availableContinuationPoints;
     LIST_HEAD(ContinuationPointList, ContinuationPointEntry) continuationPoints;
 };
 
@@ -44,16 +47,10 @@ extern UA_Session anonymousSession; ///< If anonymous access is allowed, this se
 extern UA_Session adminSession; ///< Local access to the services (for startup and maintenance) uses this Session with all possible access rights (Session ID: 1)
 
 void UA_Session_init(UA_Session *session);
-void UA_Session_deleteMembers(UA_Session *session);
+void UA_Session_deleteMembersCleanup(UA_Session *session);
 
-/** If any activity on a session happens, the timeout must be extended */
-UA_StatusCode UA_Session_updateLifetime(UA_Session *session);
-/** Set up the point in time till the session is valid */
-UA_StatusCode UA_Session_setExpirationDate(UA_Session *session);
-/** Gets the sessions pending lifetime (calculated from the timeout which was set) */
-UA_StatusCode UA_Session_getPendingLifetime(UA_Session *session, UA_Double *pendingLifetime);
-
-void UA_Session_detachSecureChannel(UA_Session *session);
+/** If any activity on a session happens, the timeout is extended */
+void UA_Session_updateLifetime(UA_Session *session);
 
 /** @} */
 

@@ -53,10 +53,9 @@ NetworkLayer_FileInput_getWork(NetworkLayer_FileInput *layer, UA_WorkItem **work
         
     *workItems = malloc(sizeof(UA_WorkItem));
     UA_WorkItem *work = *workItems;
-    work->type = UA_WORKITEMTYPE_BINARYNETWORKMESSAGE;
-    work->work.binaryNetworkMessage.connection = &layer->connection;
-    work->work.binaryNetworkMessage.message = (UA_ByteString){.length = bytes_read, .data = (UA_Byte*)buf};
-
+    work->type = UA_WORKITEMTYPE_BINARYMESSAGE;
+    work->work.binaryMessage.connection = &layer->connection;
+    work->work.binaryMessage.message = (UA_ByteString){.length = bytes_read, .data = (UA_Byte*)buf};
     return 1;
 }
 
@@ -70,6 +69,17 @@ static void NetworkLayer_FileInput_delete(NetworkLayer_FileInput *layer) {
 	free(layer);
 }
 
+static UA_StatusCode NetworkLayer_FileInput_getBuffer(UA_Connection *connection, UA_ByteString *buf, size_t minSize) {
+    buf->data = malloc(minSize);
+    if(!buf->data)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    buf->length = minSize;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void NetworkLayer_FileInput_releaseBuffer(UA_Connection *connection, UA_ByteString *buf) {
+    UA_ByteString_deleteMembers(buf);
+}
 
 UA_ServerNetworkLayer
 ServerNetworkLayerFileInput_new(UA_UInt32 files, char **filenames, void(*readCallback)(void),
@@ -82,6 +92,8 @@ ServerNetworkLayerFileInput_new(UA_UInt32 files, char **filenames, void(*readCal
     layer->connection.channel = (void*)0;
     layer->connection.close = (void (*)(UA_Connection*))closeCallback;
     layer->connection.write = (UA_StatusCode (*)(UA_Connection*, const UA_ByteString*))writeCallback;
+    layer->connection.releaseBuffer = NetworkLayer_FileInput_releaseBuffer;
+    layer->connection.getBuffer = NetworkLayer_FileInput_getBuffer;
 
     layer->files = files;
     layer->filenames = filenames;

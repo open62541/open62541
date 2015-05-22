@@ -15,39 +15,27 @@ static void print_time(void) {
 	UA_ByteString_deleteMembers(&str);
 }
 
-#define LOG_FUNCTION(LEVEL) \
-	static void log_##LEVEL(UA_LoggerCategory category, const char *msg, ...) { \
-        printf("[");                                                    \
-		print_time();                                                   \
-        va_list ap;                                                     \
-        va_start(ap, msg);                                              \
-        printf("] " #LEVEL "/%s\t", UA_LoggerCategoryNames[category]);  \
-        vprintf(msg, ap);                                               \
-        printf("\n");                                                   \
-        va_end(ap);                                                     \
-	}
+const char *LogLevelNames[6] = {"trace", "debug", "info", "warning", "error", "fatal"};
+const char *LogCategoryNames[4] = {"communication", "server", "client", "userland"};
 
-#if defined(__GNUC__) || defined(__clang__)
+#if ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4 || defined(__clang__))
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
-LOG_FUNCTION(trace)
-LOG_FUNCTION(debug)
-LOG_FUNCTION(info)
-LOG_FUNCTION(warning)
-LOG_FUNCTION(error)
-LOG_FUNCTION(fatal)
-#if defined(__GNUC__) || defined(__clang__)
+static void Logger_Stdout(UA_LogLevel level, UA_LogCategory category, const char *msg, ...) {
+    printf("[");
+    print_time();
+    va_list ap;
+    va_start(ap, msg);
+    printf("] %s/%s\t", LogLevelNames[level], LogCategoryNames[category]);
+    vprintf(msg, ap);
+    printf("\n");
+    va_end(ap);
+}
+#if ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4 || defined(__clang__))
 #pragma GCC diagnostic pop
 #endif
 
 UA_Logger Logger_Stdout_new(void) {
-	return (UA_Logger){
-		.log_trace = log_trace,
-		.log_debug = log_debug,
-		.log_info = log_info,
-		.log_warning = log_warning,
-		.log_error = log_error,
-		.log_fatal = log_fatal
-	};
+	return Logger_Stdout;
 }

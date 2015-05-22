@@ -49,7 +49,7 @@ struct UA_Server {
     UA_ByteString serverCertificate;
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;
-    
+
     /* Address Space */
     UA_NodeStore *nodestore;
     size_t namespacesSize;
@@ -64,6 +64,7 @@ struct UA_Server {
     UA_Boolean *running;
     UA_UInt16 nThreads;
     UA_UInt32 **workerCounters;
+    pthread_t *thr;
     struct DelayedWork *delayedWork;
 
     // worker threads wait on the queue
@@ -76,11 +77,11 @@ struct UA_Server {
 void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, UA_ByteString *msg);
 
 UA_AddNodesResult UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, UA_Node *node,
-                                               const UA_ExpandedNodeId *parentNodeId,
-                                               const UA_NodeId *referenceTypeId);
+                                               const UA_ExpandedNodeId parentNodeId,
+                                               const UA_NodeId referenceTypeId);
 
-UA_AddNodesResult UA_Server_addNode(UA_Server *server, UA_Node *node, const UA_ExpandedNodeId *parentNodeId,
-                                    const UA_NodeId *referenceTypeId);
+UA_AddNodesResult UA_Server_addNode(UA_Server *server, UA_Node *node, const UA_ExpandedNodeId parentNodeId,
+                                    const UA_NodeId referenceTypeId);
 
 UA_StatusCode UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session, const UA_AddReferencesItem *item);
 

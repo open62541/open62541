@@ -12,11 +12,11 @@
  *    all previous work has actually finished (only for multithreading)
  */
 
-#define MAXTIMEOUT 50000 // max timeout in usec until the next main loop iteration
+#define MAXTIMEOUT 50000 // max timeout in microsec until the next main loop iteration
 #define BATCHSIZE 20 // max size of worklists that are dispatched to workers
 
-static void processWork(UA_Server *server, UA_WorkItem *work, UA_Int32 workSize) {
-    for(UA_Int32 i = 0; i < workSize; i++) {
+static void processWork(UA_Server *server, UA_WorkItem *work, size_t workSize) {
+    for(size_t i = 0; i < workSize; i++) {
         UA_WorkItem *item = &work[i];
         switch(item->type) {
         case UA_WORKITEMTYPE_BINARYMESSAGE:
@@ -135,71 +135,98 @@ static void emptyDispatchQueue(UA_Server *server) {
 /* Timed Work */
 /**************/
 
+/**
+ * The TimedWork structure contains an array of workitems that are either executed at the same time
+ * or in the same repetition inverval. The linked list is sorted, so we can stop traversing when the
+ * first element has nextTime > now.
+ */
 struct TimedWork {
     LIST_ENTRY(TimedWork) pointers;
     UA_DateTime nextTime;
-    UA_UInt32 interval; ///> in ms resolution, 0 means no repetition
+    UA_UInt32 interval; ///> in 100ns resolution, 0 means no repetition
     size_t workSize;
-    struct {
-        UA_WorkItem work;
-        UA_Guid workId;
-    } work[];
+    UA_WorkItem *work;
+    UA_Guid workIds[];
 };
 
-/* The item is copied and not freed by this function. */
+/* Traverse the list until there is a TimedWork to which the item can be added or we reached the
+   end. The item is copied into the TimedWork and not freed by this function. The interval is in
+   100ns resolution */
 static UA_StatusCode addTimedWork(UA_Server *server, const UA_WorkItem *item, UA_DateTime firstTime,
-                                  UA_UInt32 repetitionInterval, UA_Guid *resultWorkGuid) {
-    struct TimedWork *lastTw = UA_NULL, *matchingTw = UA_NULL;
+                                  UA_UInt32 interval, UA_Guid *resultWorkGuid) {
+    struct TimedWork *matchingTw = UA_NULL; // add the item here
+    struct TimedWork *lastTw = UA_NULL; // if there is no matchingTw, add a new TimedWork after this entry
+    struct TimedWork *tempTw;
 
     /* search for matching entry */
-    if(repetitionInterval == 0) {
-        LIST_FOREACH(lastTw, &server->timedWork, pointers) {
-            if(lastTw->nextTime == firstTime) {
-                if(lastTw->nextTime == firstTime)
-                    matchingTw = lastTw;
+    tempTw = LIST_FIRST(&server->timedWork);
+    if(interval == 0) {
+        /* single execution. the time needs to match */
+        while(tempTw) {
+            if(tempTw->nextTime >= firstTime) {
+                if(tempTw->nextTime == firstTime)
+                    matchingTw = tempTw;
                 break;
             }
+            lastTw = tempTw;
+            tempTw = LIST_NEXT(lastTw, pointers);
         }
     } else {
-        LIST_FOREACH(matchingTw, &server->timedWork, pointers) {
-            if(repetitionInterval == matchingTw->interval)
+        /* repeated execution. the interval needs to match */
+        while(tempTw) {
+            if(interval == tempTw->interval) {
+                matchingTw = tempTw;
                 break;
+            }
+            if(tempTw->nextTime > firstTime)
+                break;
+            lastTw = tempTw;
+            tempTw = LIST_NEXT(lastTw, pointers);
         }
     }
     
-    struct TimedWork *newWork;
     if(matchingTw) {
         /* append to matching entry */
-        newWork = UA_realloc(matchingTw, sizeof(struct TimedWork) + (sizeof(UA_WorkItem)*matchingTw->workSize + 1));
-        if(!newWork)
+        matchingTw = UA_realloc(matchingTw, sizeof(struct TimedWork) + sizeof(UA_Guid)*(matchingTw->workSize + 1));
+        if(!matchingTw)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        if(newWork->pointers.le_next)
-            newWork->pointers.le_next->pointers.le_prev = &newWork->pointers.le_next;
-        if(newWork->pointers.le_prev)
-            *newWork->pointers.le_prev = newWork;
+        if(matchingTw->pointers.le_next)
+            matchingTw->pointers.le_next->pointers.le_prev = &matchingTw->pointers.le_next;
+        if(matchingTw->pointers.le_prev)
+            *matchingTw->pointers.le_prev = matchingTw;
+        UA_WorkItem *newItems = UA_realloc(matchingTw->work, sizeof(UA_WorkItem)*(matchingTw->workSize + 1));
+        if(!newItems)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        matchingTw->work = newItems;
     } else {
         /* create a new entry */
-        newWork = UA_malloc(sizeof(struct TimedWork) + sizeof(UA_WorkItem));
-        if(!newWork)
+        matchingTw = UA_malloc(sizeof(struct TimedWork) + sizeof(UA_Guid));
+        if(!matchingTw)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        newWork->workSize = 0;
-        newWork->nextTime = firstTime;
-        newWork->interval = repetitionInterval;
+        matchingTw->work = UA_malloc(sizeof(UA_WorkItem));
+        if(!matchingTw->work) {
+            UA_free(matchingTw);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        matchingTw->workSize = 0;
+        matchingTw->nextTime = firstTime;
+        matchingTw->interval = interval;
         if(lastTw)
-            LIST_INSERT_AFTER(lastTw, newWork, pointers);
+            LIST_INSERT_AFTER(lastTw, matchingTw, pointers);
         else
-            LIST_INSERT_HEAD(&server->timedWork, newWork, pointers);
+            LIST_INSERT_HEAD(&server->timedWork, matchingTw, pointers);
     }
-    newWork->work[newWork->workSize].work = *item;
+    matchingTw->work[matchingTw->workSize] = *item;
+    matchingTw->workSize++;
+
+    /* create a guid for finding and deleting the timed work later on */
     if(resultWorkGuid) {
-        newWork->work[newWork->workSize].workId = UA_Guid_random(&server->random_seed);
-        *resultWorkGuid = newWork->work[matchingTw->workSize - 1].workId;
+        matchingTw->workIds[matchingTw->workSize] = UA_Guid_random(&server->random_seed);
+        *resultWorkGuid = matchingTw->workIds[matchingTw->workSize];
     }
-    newWork->workSize++;
     return UA_STATUSCODE_GOOD;
 }
 
-// Currently, these functions need to get the server mutex, but should be sufficiently fast
 UA_StatusCode UA_Server_addTimedWorkItem(UA_Server *server, const UA_WorkItem *work, UA_DateTime executionTime,
                                          UA_Guid *resultWorkGuid) {
     return addTimedWork(server, work, executionTime, 0, resultWorkGuid);
@@ -207,7 +234,7 @@ UA_StatusCode UA_Server_addTimedWorkItem(UA_Server *server, const UA_WorkItem *w
 
 UA_StatusCode UA_Server_addRepeatedWorkItem(UA_Server *server, const UA_WorkItem *work, UA_UInt32 interval,
                                             UA_Guid *resultWorkGuid) {
-    return addTimedWork(server, work, UA_DateTime_now() + interval * 1000, interval * 1000, resultWorkGuid);
+    return addTimedWork(server, work, UA_DateTime_now() + interval * 10000, interval * 10000, resultWorkGuid);
 }
 
 /** Dispatches timed work, returns the timeout until the next timed work in ms */
@@ -223,17 +250,16 @@ static UA_UInt16 processTimedWork(UA_Server *server) {
         next = LIST_NEXT(tw, pointers);
 
 #ifdef UA_MULTITHREADING
-        if(tw->repetitionInterval > 0) {
+        if(tw->interval > 0) {
             // copy the entry and insert at the new location
             UA_WorkItem *workCopy = (UA_WorkItem *) UA_malloc(sizeof(UA_WorkItem) * tw->workSize);
             UA_memcpy(workCopy, tw->work, sizeof(UA_WorkItem) * tw->workSize);
             dispatchWork(server, tw->workSize, workCopy); // frees the work pointer
-            tw->time += tw->repetitionInterval;
-
+            tw->nextTime += tw->interval;
             struct TimedWork *prevTw = tw; // after which tw do we insert?
             while(UA_TRUE) {
                 struct TimedWork *n = LIST_NEXT(prevTw, pointers);
-                if(!n || n->time > tw->time)
+                if(!n || n->nextTime > tw->nextTime)
                     break;
                 prevTw = n;
             }
@@ -244,16 +270,17 @@ static UA_UInt16 processTimedWork(UA_Server *server) {
         } else {
             dispatchWork(server, tw->workSize, tw->work); // frees the work pointer
             LIST_REMOVE(tw, pointers);
-            UA_free(tw->workIds);
             UA_free(tw);
         }
 #else
         // 1) Process the work since it is past its due date
-        processWork(server, (UA_WorkItem *) tw->work, tw->workSize); // does not free the work
+        processWork(server, tw->work, tw->workSize); // does not free the work ptr
 
         // 2) If the work is repeated, add it back into the list. Otherwise remove it.
         if(tw->interval > 0) {
-            tw->nextTime += tw->interval * 10;
+            tw->nextTime += tw->interval;
+            if(tw->nextTime < current)
+                tw->nextTime = current;
             struct TimedWork *prevTw = tw;
             while(UA_TRUE) {
                 struct TimedWork *n = LIST_NEXT(prevTw, pointers);
@@ -267,6 +294,7 @@ static UA_UInt16 processTimedWork(UA_Server *server) {
             }
         } else {
             LIST_REMOVE(tw, pointers);
+            UA_free(tw->work);
             UA_free(tw);
         }
 #endif
@@ -276,7 +304,7 @@ static UA_UInt16 processTimedWork(UA_Server *server) {
     struct TimedWork *first = LIST_FIRST(&server->timedWork);
     UA_UInt16 timeout = MAXTIMEOUT;
     if(first) {
-        timeout = (first->nextTime - current)/10000;
+        timeout = (first->nextTime - current)/10;
         if(timeout > MAXTIMEOUT)
             return MAXTIMEOUT;
     }
@@ -290,6 +318,7 @@ void UA_Server_deleteTimedWork(UA_Server *server) {
         current = next;
         next = LIST_NEXT(current, pointers);
         LIST_REMOVE(current, pointers);
+        UA_free(current->work);
         UA_free(current);
     }
 }
@@ -310,7 +339,7 @@ struct DelayedWork {
 };
 
 // Dispatched as a methodcall-WorkItem when the delayedwork is added
-static void getCounters(UA_Server *server, DelayedWork *delayed) {
+static void getCounters(UA_Server *server, struct DelayedWork *delayed) {
     UA_UInt32 *counters = UA_malloc(server->nThreads * sizeof(UA_UInt32));
     for(UA_UInt16 i = 0;i<server->nThreads;i++)
         counters[i] = *server->workerCounters[i];
@@ -323,7 +352,7 @@ static void getCounters(UA_Server *server, DelayedWork *delayed) {
 static void addDelayedWork(UA_Server *server, UA_WorkItem work) {
     struct DelayedWork *dw = server->delayedWork;
     if(!dw || dw->workItemsCount >= DELAYEDWORKSIZE) {
-        struct DelayedWork *newwork = UA_malloc(sizeof(DelayedWork));
+        struct DelayedWork *newwork = UA_malloc(sizeof(struct DelayedWork));
         newwork->workItems = UA_malloc(sizeof(UA_WorkItem)*DELAYEDWORKSIZE);
         newwork->workItemsCount = 0;
         newwork->workerCounters = UA_NULL;
@@ -407,24 +436,24 @@ static void dispatchDelayedWork(UA_Server *server, void *data /* not used, but n
 /* Main Server Loop */
 /********************/
 
-UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running) {
+UA_StatusCode UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running){
 #ifdef UA_MULTITHREADING
     // 1) Prepare the threads
     server->running = running; // the threads need to access the variable
     server->nThreads = nThreads;
     pthread_cond_init(&server->dispatchQueue_condition, 0);
-    pthread_t *thr = UA_malloc(nThreads * sizeof(pthread_t));
+    server->thr = UA_malloc(nThreads * sizeof(pthread_t));
     server->workerCounters = UA_malloc(nThreads * sizeof(UA_UInt32 *));
     for(UA_UInt32 i=0;i<nThreads;i++) {
         struct workerStartData *startData = UA_malloc(sizeof(struct workerStartData));
         startData->server = server;
         startData->workerCounter = &server->workerCounters[i];
-        pthread_create(&thr[i], UA_NULL, (void* (*)(void*))workerLoop, startData);
+        pthread_create(&server->thr[i], UA_NULL, (void* (*)(void*))workerLoop, startData);
     }
 
     UA_WorkItem processDelayed = {.type = UA_WORKITEMTYPE_METHODCALL,
-                                  .work.methodCall = {.method = dispatchDelayedWork,
-                                                      .data = UA_NULL} };
+            .work.methodCall = {.method = dispatchDelayedWork,
+                    .data = UA_NULL} };
     UA_Server_addRepeatedWorkItem(server, &processDelayed, 10000000, UA_NULL);
 #endif
 
@@ -432,60 +461,77 @@ UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *r
     for(size_t i = 0; i <server->networkLayersSize; i++)
         server->networkLayers[i].start(server->networkLayers[i].nlHandle, &server->logger);
 
-    //3) The loop
-    while(1) {
-        // 3.1) Process timed work
-        UA_UInt16 timeout = processTimedWork(server);
+    return UA_STATUSCODE_GOOD;
+}
 
-        // 3.2) Get work from the networklayer and dispatch it
-        for(size_t i = 0; i < server->networkLayersSize; i++) {
-            UA_ServerNetworkLayer *nl = &server->networkLayers[i];
-            UA_WorkItem *work;
-            UA_Int32 workSize;
-            if(*running) {
-            	if(i == server->networkLayersSize-1)
-            		workSize = nl->getWork(nl->nlHandle, &work, timeout);
-            	else
-            		workSize = nl->getWork(nl->nlHandle, &work, 0);
-            } else {
-                workSize = server->networkLayers[i].stop(nl->nlHandle, &work);
-            }
+UA_StatusCode UA_Server_run_getAndProcessWork(UA_Server *server, UA_Boolean *running){
+    // 3.1) Process timed work
+    UA_UInt16 timeout = processTimedWork(server);
+
+    // 3.2) Get work from the networklayer and dispatch it
+    for(size_t i = 0; i < server->networkLayersSize; i++) {
+        UA_ServerNetworkLayer *nl = &server->networkLayers[i];
+        UA_WorkItem *work;
+        UA_Int32 workSize;
+        if(*running) {
+            if(i == server->networkLayersSize-1)
+                workSize = nl->getWork(nl->nlHandle, &work, timeout);
+            else
+                workSize = nl->getWork(nl->nlHandle, &work, 0);
+        } else {
+            workSize = server->networkLayers[i].stop(nl->nlHandle, &work);
+        }
 
 #ifdef UA_MULTITHREADING
-            // Filter out delayed work
-            for(UA_Int32 k=0;k<workSize;k++) {
-                if(work[k].type != UA_WORKITEMTYPE_DELAYEDMETHODCALL)
-                    continue;
-                addDelayedWork(server, work[k]);
-                work[k].type = UA_WORKITEMTYPE_NOTHING;
-            }
-            dispatchWork(server, workSize, work);
-            if(workSize > 0)
-                pthread_cond_broadcast(&server->dispatchQueue_condition); 
+// Filter out delayed work
+for(UA_Int32 k=0;k<workSize;k++) {
+    if(work[k].type != UA_WORKITEMTYPE_DELAYEDMETHODCALL)
+        continue;
+    addDelayedWork(server, work[k]);
+    work[k].type = UA_WORKITEMTYPE_NOTHING;
+}
+dispatchWork(server, workSize, work);
+if(workSize > 0)
+    pthread_cond_broadcast(&server->dispatchQueue_condition);
 #else
-            processWork(server, work, workSize);
-            if(workSize > 0)
-                UA_free(work);
+processWork(server, work, workSize);
+if(workSize > 0)
+    UA_free(work);
 #endif
-        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_Server_run_shutdown(UA_Server *server, UA_UInt16 nThreads){
+#ifdef UA_MULTITHREADING
+    // 4) Clean up: Wait until all worker threads finish, then empty the
+    // dispatch queue, then process the remaining delayed work
+    for(UA_UInt32 i=0;i<nThreads;i++) {
+        pthread_join(server->thr[i], UA_NULL);
+        UA_free(server->workerCounters[i]);
+    }
+    UA_free(server->workerCounters);
+    UA_free(server->thr);
+    emptyDispatchQueue(server);
+    processDelayedWork(server);
+#endif
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running) {
+    UA_Server_run_startup(server, nThreads, running);
+
+    // 3) The loop
+    while(1) {
+        UA_Server_run_getAndProcessWork(server, running);
 
         // 3.3) Exit?
         if(!*running)
             break;
     }
 
-#ifdef UA_MULTITHREADING
-    // 4) Clean up: Wait until all worker threads finish, then empty the
-    // dispatch queue, then process the remaining delayed work
-    for(UA_UInt32 i=0;i<nThreads;i++) {
-        pthread_join(thr[i], UA_NULL);
-        UA_free(server->workerCounters[i]);
-    }
-    UA_free(server->workerCounters);
-    UA_free(thr);
-    emptyDispatchQueue(server);
-    processDelayedWork(server);
-#endif
+    UA_Server_run_shutdown(server, nThreads);
 
     return UA_STATUSCODE_GOOD;
 }

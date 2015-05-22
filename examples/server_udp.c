@@ -28,7 +28,6 @@ int main(int argc, char** argv) {
 
 	UA_Server *server = UA_Server_new();
     UA_Server_addNetworkLayer(server, ServerNetworkLayerUDP_new(UA_ConnectionConfig_standard, 16664));
-    UA_Server_addNamespace(server, "myApplicationNamespace");
 
 	// add a variable node to the adresspace
     UA_Variant *myIntegerVariant = UA_Variant_new();
