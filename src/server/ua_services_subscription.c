@@ -134,6 +134,8 @@ UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
     response->moreNotifications = UA_FALSE;
     response->notificationMessage.notificationDataSize = 0;
     
+    //printf("Validity: %lu, %lu\n", session->validTill - UA_DateTime_now(), session->timeout);
+    
     if (session == NULL ) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;           
     else if ( session->channel == NULL || session->activated == UA_FALSE) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
     if ( response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) return 0;
@@ -185,6 +187,8 @@ UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
 	    response->availableSequenceNumbers = Subscription_getAvailableSequenceNumbers(sub);
 	  }	  
 	  
+	  // FIXME: This should be in processMSG();
+	  session->validTill = UA_DateTime_now() + session->timeout * 10000;
 	  return 0;
 	}
     }
@@ -202,6 +206,9 @@ UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
       Subscription_deleteUnpublishedNotification(sub->SequenceNumber + 1, sub);
       response->availableSequenceNumbersSize = 0;
     }
+    
+    // FIXME: This should be in processMSG();
+    session->validTill = UA_DateTime_now() + session->timeout * 10000;
     
     response->diagnosticInfosSize = 0;
     response->diagnosticInfos     = 0;
