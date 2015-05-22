@@ -119,6 +119,7 @@ void UA_SecureChannel_detachSession(UA_SecureChannel *channel) {
         uatomic_cmpxchg(&session->channel, channel, UA_NULL);
     uatomic_set(&channel->session, UA_NULL);
 #else
+    if(channel == NULL) return;
     if(channel->session)
         channel->session->channel = UA_NULL;
     channel->session = UA_NULL;
