@@ -1,7 +1,3 @@
-#ifndef  ENABLE_SUBSCRIPTIONS
-#define ENABLE_SUBSCRIPTIONS
-#endif
-
 #ifdef ENABLE_SUBSCRIPTIONS
 
 #include "ua_subscription.h"

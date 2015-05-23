@@ -2,6 +2,7 @@
 #include "ua_services.h"
 #include "ua_server_internal.h"
 #include "ua_subscription_manager.h"
+#include "ua_subscription.h"
 #include "ua_statuscodes.h"
 #include "ua_util.h"
 #include "ua_nodestore.h"
@@ -121,9 +122,7 @@ void Service_Publish(UA_Server *server, UA_Session *session,
     response->subscriptionId = 0;
     response->moreNotifications = UA_FALSE;
     response->notificationMessage.notificationDataSize = 0;
-    
-    //printf("Validity: %lu, %lu\n", session->validTill - UA_DateTime_now(), session->timeout);
-    
+        
     manager = &(session->subscriptionManager);    
     if (manager == NULL) return;
     
