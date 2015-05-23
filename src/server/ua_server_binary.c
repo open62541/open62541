@@ -139,21 +139,18 @@ static void invoke_service(UA_Server *server, UA_SecureChannel *channel,
     init_response_header(request, response);
     /* try to get the session from the securechannel first */
     UA_Session *session = UA_SecureChannel_getSession(channel, &request->authenticationToken);
-    if(!session)
-        session = UA_SessionManager_getSession(&server->sessionManager, &request->authenticationToken);
-    if(!session)
+    if(!session || session->channel != channel) {
         response->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+        return;
+    }
     else if(session->activated == UA_FALSE) {
         response->serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
         /* the session is invalidated */
         UA_SessionManager_removeSession(&server->sessionManager, &request->authenticationToken);
+        return;
     }
-    else if(session->channel != channel)
-        response->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-    else {
-            UA_Session_updateLifetime(session);
-            service(server, session, request, response);
-    }
+    UA_Session_updateLifetime(session);
+    service(server, session, request, response);
 }
 
 #define INVOKE_SERVICE(TYPE) do {                                       \

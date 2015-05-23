@@ -7,14 +7,11 @@
 #include "queue.h"
 #include "ua_nodestore.h"
 
-#define LIST_INITENTRY(item,entry) { \
+#define LIST_INITENTRY(item,entry) \
   (item)->entry.le_next = NULL; \
-  (item)->entry.le_prev = NULL; \
-}; 
+  (item)->entry.le_prev = NULL;
 
-#define INITPOINTER(src) { \
-  (src)=NULL; \
-}
+#define INITPOINTER(src) (src) = NULL;
 
 #define ISNOTZERO(value) ((value == 0) ? 0 : 1)
 
@@ -30,7 +27,10 @@ typedef struct {
     UA_UInt32 maxValue;
 } UA_UInt32_BoundedValue;
 
-typedef enum MONITOREITEM_TYPE_ENUM {MONITOREDITEM_CHANGENOTIFY_T=1, MONITOREDITEM_STATUSNOTIFY_T=2, MONITOREDITEM_EVENTNOTIFY_T=4 } MONITOREITEM_TYPE;
+typedef enum MONITOREDITEM_TYPE_ENUM {
+    MONITOREDITEM_CHANGENOTIFY_T = 1,
+    MONITOREDITEM_STATUSNOTIFY_T = 2,
+    MONITOREDITEM_EVENTNOTIFY_T = 4 } MONITOREDITEM_TYPE;
 
 typedef struct MonitoredItem_queuedValue_s {
     UA_Variant value;
@@ -40,7 +40,7 @@ typedef struct MonitoredItem_queuedValue_s {
 typedef LIST_HEAD(UA_ListOfQueuedDataValues_s, MonitoredItem_queuedValue_s) UA_ListOfQueuedDataValues;
 typedef struct UA_MonitoredItem_s {
     UA_UInt32                       ItemId;
-    MONITOREITEM_TYPE		    MonitoredItemType;
+    MONITOREDITEM_TYPE		    MonitoredItemType;
     UA_UInt32                       TimestampsToReturn;
     UA_UInt32                       MonitoringMode;
     const UA_Node                   *monitoredNode; // Pointer to a node of any type

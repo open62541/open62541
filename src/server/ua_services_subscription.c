@@ -12,16 +12,10 @@
     else DST = SRC; \
     }
 
-UA_Int32 Service_CreateSubscription(UA_Server *server, UA_Session *session,
-                                     const UA_CreateSubscriptionRequest *request,
-                                     UA_CreateSubscriptionResponse *response) {
+void Service_CreateSubscription(UA_Server *server, UA_Session *session,
+                                const UA_CreateSubscriptionRequest *request,
+                                UA_CreateSubscriptionResponse *response) {
     UA_Subscription *newSubscription;
-    
-    // Verify Session
-    response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
-    if (session == NULL ) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;           
-    else if ( session->channel == NULL || session->activated == UA_FALSE) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
-    if ( response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) return 0;
     
     // Create Subscription and Response
     response->subscriptionId = ++(session->subscriptionManager.LastSessionID);
@@ -41,35 +35,33 @@ UA_Int32 Service_CreateSubscription(UA_Server *server, UA_Session *session,
     newSubscription->Priority                = request->priority;
     
     SubscriptionManager_addSubscription(&(session->subscriptionManager), newSubscription);    
-    
-    return (UA_Int32) 0;
 }
 
-UA_Int32 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
-                                      const UA_CreateMonitoredItemsRequest *request,
-                                      UA_CreateMonitoredItemsResponse *response) {
+void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
+                                  const UA_CreateMonitoredItemsRequest *request,
+                                  UA_CreateMonitoredItemsResponse *response) {
     UA_MonitoredItem *newMon;
     UA_Subscription  *sub;
     UA_MonitoredItemCreateResult *createResults, *thisItemsResult;
     UA_MonitoredItemCreateRequest *thisItemsRequest;
     
     // Verify Session and Subscription
-    response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
-    sub=SubscriptionManager_getSubscriptionByID(&(session->subscriptionManager), request->subscriptionId);
-    if (session == NULL ) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;           
-    else if ( session->channel == NULL || session->activated == UA_FALSE) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
-    else if ( sub == NULL) response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-    if ( response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) return 0;
+    sub = SubscriptionManager_getSubscriptionByID(&(session->subscriptionManager), request->subscriptionId);
+    if(!sub) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+        return;
+    }
     
     // Allocate Result Array
     if (request->itemsToCreateSize > 0) {
         createResults = (UA_MonitoredItemCreateResult *) UA_malloc(sizeof(UA_MonitoredItemCreateResult) * (request->itemsToCreateSize));
         if (createResults == NULL) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-            return 0;
+            return;
         }
     }
-    else return 0;
+    else
+        return;
     
     response->resultsSize = request->itemsToCreateSize;
     response->results = createResults;
@@ -112,14 +104,10 @@ UA_Int32 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
             LIST_INSERT_HEAD(sub->MonitoredItems, newMon, listEntry);
         }
     }
-    
-    return 0;
 }
 
-UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
-                         const UA_PublishRequest *request,
-                         UA_PublishResponse *response) {
-    
+void Service_Publish(UA_Server *server, UA_Session *session,
+                     const UA_PublishRequest *request, UA_PublishResponse *response) {
     UA_Subscription  *sub;
     UA_MonitoredItem *mon;
     UA_SubscriptionManager *manager;
@@ -136,12 +124,8 @@ UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
     
     //printf("Validity: %lu, %lu\n", session->validTill - UA_DateTime_now(), session->timeout);
     
-    if (session == NULL ) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;           
-    else if ( session->channel == NULL || session->activated == UA_FALSE) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
-    if ( response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) return 0;
-
     manager = &(session->subscriptionManager);    
-    if (manager == NULL) return 0;
+    if (manager == NULL) return;
     
     // Delete Acknowledged Subscription Messages
     response->resultsSize = request->subscriptionAcknowledgementsSize;
@@ -189,7 +173,7 @@ UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
 	  
 	  // FIXME: This should be in processMSG();
 	  session->validTill = UA_DateTime_now() + session->timeout * 10000;
-	  return 0;
+	  return;
 	}
     }
     
@@ -209,49 +193,30 @@ UA_Int32 Service_Publish(UA_Server *server, UA_Session *session,
     
     // FIXME: This should be in processMSG();
     session->validTill = UA_DateTime_now() + session->timeout * 10000;
-    
     response->diagnosticInfosSize = 0;
     response->diagnosticInfos     = 0;
-    return 0;
 }
 
-UA_Int32 Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
-                                     const UA_DeleteSubscriptionsRequest *request,
-                                     UA_DeleteSubscriptionsResponse *response) {
-    UA_StatusCode *retStat;
-    
-    // Verify Session
-    response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
-    if (session == NULL ) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;           
-    else if ( session->channel == NULL || session->activated == UA_FALSE) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
-    if ( response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) return 0;
-    
-    retStat = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32) * request->subscriptionIdsSize);
-    if (retStat==NULL) {
+void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
+                                 const UA_DeleteSubscriptionsRequest *request,
+                                 UA_DeleteSubscriptionsResponse *response) {
+    response->results = UA_malloc(sizeof(UA_UInt32) * request->subscriptionIdsSize);
+    if (!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return -1;
-    }
-    
-    for(int i=0; i<request->subscriptionIdsSize;i++) {
-        retStat[i] = SubscriptionManager_deleteSubscription(&(session->subscriptionManager), request->subscriptionIds[i]);
+        return;
     }
     response->resultsSize = request->subscriptionIdsSize;
-    response->results     = retStat;
-    return 0;
+    for(int i=0; i<request->subscriptionIdsSize;i++)
+        response->results[i] = SubscriptionManager_deleteSubscription(&(session->subscriptionManager),
+                                                                      request->subscriptionIds[i]);
 } 
 
-UA_Int32 Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
-                                      const UA_DeleteMonitoredItemsRequest *request,
-                                      UA_DeleteMonitoredItemsResponse *response) {
+void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
+                                  const UA_DeleteMonitoredItemsRequest *request,
+                                  UA_DeleteMonitoredItemsResponse *response) {
     UA_SubscriptionManager *manager;
     UA_Subscription *sub;
     UA_Int32 *resultCodes;
-    
-    // Verify Session
-    response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
-    if (session == NULL ) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;           
-    else if ( session->channel == NULL || session->activated == UA_FALSE) response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
-    if ( response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) return 0;
     
     response->diagnosticInfosSize=0;
     response->resultsSize=0;
@@ -262,13 +227,13 @@ UA_Int32 Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
     
     if (sub == NULL) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-        return 0;
+        return;
     }
     
     resultCodes = (UA_Int32 *) UA_malloc(sizeof(UA_UInt32) * request->monitoredItemIdsSize);
     if (resultCodes == NULL) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return 0;
+        return;
     }
 
     response->results = (UA_StatusCode *) resultCodes;
@@ -276,7 +241,5 @@ UA_Int32 Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
     for(int i=0; i < request->monitoredItemIdsSize; i++) {
         resultCodes[i] = SubscriptionManager_deleteMonitoredItem(manager, sub->SubscriptionID, (request->monitoredItemIds)[i]);
     }
-    
-    return 0;
 }
 #endif //#ifdef ENABLE_SUBSCRIPTIONS
