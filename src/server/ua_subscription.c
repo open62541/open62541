@@ -1,3 +1,7 @@
+#ifndef  ENABLE_SUBSCRIPTIONS
+#define ENABLE_SUBSCRIPTIONS
+#endif
+
 #ifdef ENABLE_SUBSCRIPTIONS
 
 #include "ua_subscription.h"
@@ -286,7 +290,11 @@ void MonitoredItem_ClearQueue(UA_MonitoredItem *monitoredItem) {
     while(monitoredItem->queue.lh_first) {
         val = monitoredItem->queue.lh_first;
         LIST_REMOVE(val, listEntry);
-        UA_free(val);
+	if(val->value.data != NULL) {
+	  UA_Variant_deleteMembers(val->value.data);
+	  UA_free(val->value.data);
+	}
+	UA_free(val);
     }
     monitoredItem->QueueSize.currentValue = 0;
 }
@@ -434,6 +442,7 @@ void MonitoredItem_QueuePushDataValue(UA_MonitoredItem *monitoredItem) {
   }
   else {
     if (UA_String_equal((UA_String *) &newValueAsByteString, (UA_String *) &(monitoredItem->LastSampledValue)) == UA_TRUE) {
+      UA_free(newvalue);
       UA_free(newValueAsByteString.data);
       return;
     }
