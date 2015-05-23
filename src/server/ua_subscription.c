@@ -1,3 +1,7 @@
+#ifndef  ENABLE_SUBSCRIPTIONS
+#define ENABLE_SUBSCRIPTIONS
+#endif
+
 #ifdef ENABLE_SUBSCRIPTIONS
 
 #include "ua_subscription.h"
@@ -287,7 +291,7 @@ void MonitoredItem_ClearQueue(UA_MonitoredItem *monitoredItem) {
         val = monitoredItem->queue.lh_first;
         LIST_REMOVE(val, listEntry);
 	if(val->value.data != NULL) {
-	  UA_Variant_deleteMembers(val->value.data);
+	  UA_Variant_deleteMembers(&(val->value));
 	  UA_free(val->value.data);
 	}
 	UA_free(val);
@@ -348,9 +352,14 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 AttributeID, cons
           samplingError = UA_FALSE;
         }
         else if (srcAsVariableNode->valueSource == UA_VALUESOURCE_DATASOURCE) {
-            // todo: handle numeric ranges
-            if (srcAsVariableNode->value.dataSource.read(((const UA_VariableNode *) src)->value.dataSource.handle, (UA_Boolean) UA_TRUE, UA_NULL, &sourceDataValue) == UA_STATUSCODE_GOOD) {
-            UA_Variant_copy( (const UA_Variant *) &(sourceDataValue.value), dst);
+          // todo: handle numeric ranges
+          if (srcAsVariableNode->value.dataSource.read(((const UA_VariableNode *) src)->value.dataSource.handle, (UA_Boolean) UA_TRUE, UA_NULL, &sourceDataValue) == UA_STATUSCODE_GOOD) {
+	    UA_Variant_copy( (const UA_Variant *) &(sourceDataValue.value), dst);
+	    if (sourceDataValue.value.data != NULL) {
+	      UA_deleteMembers(sourceDataValue.value.data, sourceDataValue.value.type);
+	      UA_free(sourceDataValue.value.data);
+	    }
+	    UA_DataValue_deleteMembers(&sourceDataValue);
             samplingError = UA_FALSE;
           }
         }
@@ -422,6 +431,10 @@ void MonitoredItem_QueuePushDataValue(UA_MonitoredItem *monitoredItem) {
   
   // Only add a value if we have sampled it correctly and it fits into the queue;
   if ( samplingError != UA_FALSE || newvalue->value.type == NULL || (monitoredItem->QueueSize).currentValue >= (monitoredItem->QueueSize).maxValue) {
+    if (newvalue->value.data != NULL ) {
+      UA_Variant_deleteMembers(&(newvalue->value));
+      UA_free(&(newvalue->value));
+    }
     UA_free(newvalue);
     return;
   }
@@ -435,9 +448,14 @@ void MonitoredItem_QueuePushDataValue(UA_MonitoredItem *monitoredItem) {
     LIST_INSERT_HEAD(&monitoredItem->queue, newvalue, listEntry);
     (monitoredItem->QueueSize).currentValue++;
     monitoredItem->LastSampled = UA_DateTime_now();
+    UA_free(newValueAsByteString.data);
   }
   else {
     if (UA_String_equal((UA_String *) &newValueAsByteString, (UA_String *) &(monitoredItem->LastSampledValue)) == UA_TRUE) {
+      if (newvalue->value.data != NULL ) {
+	UA_Variant_deleteMembers(&(newvalue->value));
+	UA_free(&(newvalue->value));
+      }
       UA_free(newvalue);
       UA_free(newValueAsByteString.data);
       return;
@@ -447,7 +465,10 @@ void MonitoredItem_QueuePushDataValue(UA_MonitoredItem *monitoredItem) {
     LIST_INSERT_HEAD(&monitoredItem->queue, newvalue, listEntry);
     (monitoredItem->QueueSize).currentValue++;
     monitoredItem->LastSampled = UA_DateTime_now();
+    UA_free(newValueAsByteString.data);
   }
+  
+  return;
 }
 
 #endif
