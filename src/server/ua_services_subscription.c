@@ -97,11 +97,11 @@ void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
             UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.GlobalQueueSize, thisItemsRequest->requestedParameters.queueSize, thisItemsResult->revisedQueueSize);
             newMon->QueueSize = (UA_UInt32_BoundedValue) { .maxValue=(thisItemsResult->revisedQueueSize) + 1, .minValue=0, .currentValue=0 };
             newMon->AttributeID = thisItemsRequest->itemToMonitor.attributeId;
-            newMon->MonitoredItemType = MONITOREDITEM_CHANGENOTIFY_T;
+            newMon->MonitoredItemType = MONITOREDITEM_TYPE_CHANGENOTIFY;
 
             newMon->DiscardOldest = thisItemsRequest->requestedParameters.discardOldest;
             
-            LIST_INSERT_HEAD(sub->MonitoredItems, newMon, listEntry);
+            LIST_INSERT_HEAD(&sub->MonitoredItems, newMon, listEntry);
         }
     }
 }
@@ -146,11 +146,11 @@ void Service_Publish(UA_Server *server, UA_Session *session,
     for (sub=(manager->ServerSubscriptions)->lh_first; sub != NULL; sub = sub->listEntry.le_next) {
 	
         // FIXME: We are forcing a value update for monitored items. This should be done by the event system.
-        if (sub->MonitoredItems->lh_first != NULL) {  
-	  for(mon=sub->MonitoredItems->lh_first; mon != NULL; mon=mon->listEntry.le_next) {
-            MonitoredItem_QueuePushDataValue(mon);
-	  }
-	}
+        if (sub->MonitoredItems.lh_first != NULL) {  
+            for(mon=sub->MonitoredItems.lh_first; mon != NULL; mon=mon->listEntry.le_next) {
+                MonitoredItem_QueuePushDataValue(mon);
+            }
+        }
 	
 	// FIXME: We are forcing notification updates for the subscription. This should be done by a timed work item.
 	Subscription_updateNotifications(sub);
@@ -160,7 +160,7 @@ void Service_Publish(UA_Server *server, UA_Session *session,
 	  
 	  Subscription_copyTopNotificationMessage(&(response->notificationMessage), sub);
 	  
-	  if (sub->unpublishedNotifications->lh_first->notification->sequenceNumber > sub->SequenceNumber) {
+	  if (sub->unpublishedNotifications.lh_first->notification->sequenceNumber > sub->SequenceNumber) {
 	    // If this is a keepalive message, its seqNo is the next seqNo to be used for an actual msg.
 	    response->availableSequenceNumbersSize = 0;
 	    // .. and must be deleted
