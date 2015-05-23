@@ -140,7 +140,12 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
         
         notificationOffset = 0;
         UA_encodeBinary((const void *) changeNotification, &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION], &(msg->notification->notificationData[notmsgn].body), &notificationOffset);
-
+	
+	// FIXME: Not properly freed!
+	for(unsigned int i=0; i<monItemsChangeT; i++) {
+	  UA_MonitoredItemNotification *thisNotification = &(changeNotification->monitoredItems[i]);
+	  UA_DataValue_deleteMembers(&(thisNotification->value));
+	}
         UA_free(changeNotification->monitoredItems);
         UA_free(changeNotification);
       }
@@ -454,9 +459,11 @@ void MonitoredItem_QueuePushDataValue(UA_MonitoredItem *monitoredItem) {
     if (UA_String_equal((UA_String *) &newValueAsByteString, (UA_String *) &(monitoredItem->LastSampledValue)) == UA_TRUE) {
       if (newvalue->value.data != NULL ) {
 	UA_Variant_deleteMembers(&(newvalue->value));
-	UA_free(&(newvalue->value));
+	UA_free(&(newvalue->value)); // Same addr as newvalue
       }
-      UA_free(newvalue);
+      else {
+	UA_free(newvalue); // Same address as newvalue->value
+      }
       UA_free(newValueAsByteString.data);
       return;
     }
