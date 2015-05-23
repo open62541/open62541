@@ -196,8 +196,6 @@ void Subscription_copyTopNotificationMessage(UA_NotificationMessage *dst, UA_Sub
     dst->notificationData = (UA_ExtensionObject *) UA_malloc(sizeof(UA_ExtensionObject));
     dst->notificationData->encoding = latest->notificationData->encoding;
     dst->notificationData->typeId   = latest->notificationData->typeId;
-    dst->notificationData->body.length = latest->notificationData->body.length;
-    dst->notificationData->body.data   = UA_malloc(latest->notificationData->body.length);
     UA_ByteString_copy((UA_String *) &(latest->notificationData->body),
                        (UA_String *) &(dst->notificationData->body));
 }
