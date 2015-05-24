@@ -357,6 +357,7 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 AttributeID, cons
 	    if (sourceDataValue.value.data != NULL) {
 	      UA_deleteMembers(sourceDataValue.value.data, sourceDataValue.value.type);
 	      UA_free(sourceDataValue.value.data);
+              sourceDataValue.value.data = NULL;
 	    }
 	    UA_DataValue_deleteMembers(&sourceDataValue);
             samplingError = UA_FALSE;
