@@ -87,6 +87,7 @@ void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
             
             newMon = UA_MonitoredItem_new();
             newMon->monitoredNode = UA_NodeStore_get(server->nodestore, (const UA_NodeId *) &(thisItemsRequest->itemToMonitor.nodeId));
+            UA_NodeId_copy(&(newMon->monitoredNode->nodeId), &(newMon->monitoredNodeId));
             newMon->ItemId = ++(session->subscriptionManager.LastSessionID);
             thisItemsResult->monitoredItemId = newMon->ItemId;
             
@@ -147,7 +148,7 @@ void Service_Publish(UA_Server *server, UA_Session *session,
         // FIXME: We are forcing a value update for monitored items. This should be done by the event system.
         if (sub->MonitoredItems.lh_first != NULL) {  
             for(mon=sub->MonitoredItems.lh_first; mon != NULL; mon=mon->listEntry.le_next) {
-                MonitoredItem_QueuePushDataValue(mon);
+                MonitoredItem_QueuePushDataValue(server, mon);
             }
         }
 	
