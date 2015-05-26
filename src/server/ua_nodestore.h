@@ -28,15 +28,15 @@
 struct UA_NodeStore;
 typedef struct UA_NodeStore UA_NodeStore;
 
-/** Create a new namespace */
+/** Create a new nodestore */
 UA_NodeStore * UA_NodeStore_new(void);
 
-/** Delete the namespace and all nodes in it */
+/** Delete the nodestore and all nodes in it */
 void UA_NodeStore_delete(UA_NodeStore *ns);
 
 /**
- * Inserts a new node into the namespace. If the nodeid is zero, then a fresh
- * numeric nodeid from namespace 1 is assigned. The memory of the original node
+ * Inserts a new node into the nodestore. If the nodeid is zero, then a fresh
+ * numeric nodeid from nodestore 1 is assigned. The memory of the original node
  * is freed and the content is moved to a managed (immutable) node. If inserted
  * is not NULL, then a pointer to the managed node is returned (and must be
  * released).
@@ -51,31 +51,32 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, const UA_Node
 UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode, UA_Node *node, const UA_Node **inserted);
 
 /**
- * Remove a node from the namespace. Always succeeds, even if the node was not
+ * Remove a node from the nodestore. Always succeeds, even if the node was not
  * found.
  */
 UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid);
 
 /**
- * Retrieve a node (read-only) from the namespace. Nodes are immutable. They
- * can only be replaced. After the Node is no longer used, the locked entry
- * needs to be released.
+ * Retrieve a managed node (read-only) from the nodestore. Nodes are reference-
+ * counted (for garbage collection) and immutable. They can only be replaced
+ * entirely. After the node is no longer used, it needs to be released to decrease
+ * the reference count.
  */
 const UA_Node * UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid);
 
 /**
- * Release a managed node. Do never insert a node that isn't stored in a
- * namespace.
+ * Release a managed node. Do never call this with a node that isn't managed by a
+ * nodestore.
  */
 void UA_NodeStore_release(const UA_Node *managed);
 
 /**
- * A function that can be evaluated on all entries in a namespace via
+ * A function that can be evaluated on all entries in a nodestore via
  * UA_NodeStore_iterate. Note that the visitor is read-only on the nodes.
  */
 typedef void (*UA_NodeStore_nodeVisitor)(const UA_Node *node);
 
-/** Iterate over all nodes in a namespace. */
+/** Iterate over all nodes in a nodestore. */
 void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor);
 
 /** @} */
