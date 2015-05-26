@@ -76,7 +76,9 @@ void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
         thisItemsResult->filterResult.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED;
         thisItemsResult->filterResult.body     = UA_BYTESTRING_NULL;
         
-        if (UA_NodeStore_get(server->nodestore, (const UA_NodeId *) &(thisItemsRequest->itemToMonitor.nodeId)) == UA_NULL) {
+        const UA_Node *target;
+        target = UA_NodeStore_get(server->nodestore, (const UA_NodeId *) &(thisItemsRequest->itemToMonitor.nodeId));
+        if (target == NULL) {
             thisItemsResult->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
             thisItemsResult->monitoredItemId = 0;
             thisItemsResult->revisedSamplingInterval = 0;
@@ -86,7 +88,7 @@ void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
             thisItemsResult->statusCode = UA_STATUSCODE_GOOD;
             
             newMon = UA_MonitoredItem_new();
-            newMon->monitoredNode = UA_NodeStore_get(server->nodestore, (const UA_NodeId *) &(thisItemsRequest->itemToMonitor.nodeId));
+            newMon->monitoredNode = target;
             UA_NodeId_copy(&(newMon->monitoredNode->nodeId), &(newMon->monitoredNodeId));
             newMon->ItemId = ++(session->subscriptionManager.LastSessionID);
             thisItemsResult->monitoredItemId = newMon->ItemId;
@@ -104,6 +106,7 @@ void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
             newMon->DiscardOldest = thisItemsRequest->requestedParameters.discardOldest;
             
             LIST_INSERT_HEAD(&sub->MonitoredItems, newMon, listEntry);
+            UA_NodeStore_release(target);
         }
     }
 }
