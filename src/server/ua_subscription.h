@@ -1,3 +1,7 @@
+#ifndef ENABLE_SUBSCRIPTIONS
+#define ENABLE_SUBSCRIPTIONS
+#endif
+
 #ifdef  ENABLE_SUBSCRIPTIONS
 #ifndef UA_SUBSCRIPTION_H_
 #define UA_SUBSCRIPTION_H_
@@ -6,6 +10,7 @@
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_nodes.h"
+
 
 #define LIST_INITENTRY(item,entry) \
   (item)->entry.le_next = NULL; \
@@ -17,6 +22,10 @@
 /*****************/
 /* MonitoredItem */
 /*****************/
+
+// This will force the monitored UA_Node* to be retrieved from the
+// Nodestore based on its UA_NodeId on each PushQueueValue call.
+#define MONITOREDITEM_FORCE_NODEPOINTER_VERIFY
 
 typedef struct {
     UA_Int32 currentValue;
@@ -46,7 +55,8 @@ typedef struct UA_MonitoredItem_s {
     MONITOREDITEM_TYPE		    MonitoredItemType;
     UA_UInt32                       TimestampsToReturn;
     UA_UInt32                       MonitoringMode;
-    const UA_Node                   *monitoredNode; // Pointer to a node of any type
+    const UA_Node                  *monitoredNode; // Pointer to a node of any type
+    UA_NodeId                       monitoredNodeId; 
     UA_UInt32                       AttributeID;
     UA_UInt32                       ClientHandle;
     UA_UInt32                       SamplingInterval;
@@ -62,7 +72,7 @@ typedef struct UA_MonitoredItem_s {
 
 UA_MonitoredItem *UA_MonitoredItem_new(void);
 void MonitoredItem_delete(UA_MonitoredItem *monitoredItem);
-void MonitoredItem_QueuePushDataValue(UA_MonitoredItem *monitoredItem);
+void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monitoredItem);
 void MonitoredItem_ClearQueue(UA_MonitoredItem *monitoredItem);
 UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 AttributeID, const UA_Node *src,
                                                      UA_Variant *dst);
