@@ -416,6 +416,7 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
     return;
   if (target != monitoredItem->monitoredNode)
     monitoredItem->monitoredNode = target;
+  UA_NodeStore_release(target);
 #endif
   
   newvalue = (MonitoredItem_queuedValue *) UA_malloc(sizeof(MonitoredItem_queuedValue));
