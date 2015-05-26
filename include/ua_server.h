@@ -354,9 +354,9 @@ typedef struct UA_ExternalNodeStore {
 	UA_ExternalNodeStore_delete destroy;
 } UA_ExternalNodeStore;
 
-/* UA_StatusCode UA_EXPORT */
-/* UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, const UA_String *url, UA_ExternalNodeStore *nodeStore); */
 
+UA_StatusCode UA_EXPORT
+UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, const UA_String *url, UA_ExternalNodeStore *nodeStore);
 /** @} */
 
 #endif /* external nodestore */

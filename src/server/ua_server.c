@@ -19,6 +19,7 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
 /* Namespace Handling */
 /**********************/
 
+#ifdef UA_EXTERNAL_NAMESPACE
 static void UA_ExternalNamespace_init(UA_ExternalNamespace *ens) {
     ens->index = 0;
     UA_String_init(&ens->url);
@@ -29,6 +30,33 @@ static void UA_ExternalNamespace_deleteMembers(UA_ExternalNamespace *ens) {
     ens->externalNodeStore.destroy(ens->externalNodeStore.ensHandle);
 }
 
+UA_StatusCode UA_EXPORT
+UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, const UA_String *url, UA_ExternalNodeStore *nodeStore)
+{
+	if(nodeStore == UA_NULL){
+		return UA_STATUSCODE_BADARGUMENTSMISSING;
+	}
+	//do not allow double indices
+	if(server->externalNamespaces->index == namespaceIndex){
+		return UA_STATUSCODE_BADINDEXRANGEINVALID;
+	}
+    server->externalNamespaces = UA_realloc(server->externalNamespaces, sizeof(UA_ExternalNamespace) * (server->externalNamespacesSize+1));
+    server->externalNamespaces[server->externalNamespacesSize].externalNodeStore = *nodeStore;
+    server->externalNamespaces[server->externalNamespacesSize].index = namespaceIndex;
+    UA_String_copy(url,&server->externalNamespaces[server->externalNamespacesSize].url);
+    server->externalNamespacesSize++;
+    return UA_STATUSCODE_GOOD;
+
+
+}
+#endif /* UA_EXTERNAL_NAMESPACE*/
+
+UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
+    server->namespaces = UA_realloc(server->namespaces, sizeof(UA_String) * (server->namespacesSize+1));
+    server->namespaces[server->namespacesSize] = UA_STRING_ALLOC(name);
+    server->namespacesSize++;
+    return server->namespacesSize-1;
+}
 /*****************/
 /* Configuration */
 /*****************/
@@ -76,12 +104,6 @@ void UA_Server_setLogger(UA_Server *server, UA_Logger logger) {
     server->logger = logger;
 }
 
-UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
-    server->namespaces = UA_realloc(server->namespaces, sizeof(UA_String) * (server->namespacesSize+1));
-    server->namespaces[server->namespacesSize] = UA_STRING_ALLOC(name);
-    server->namespacesSize++;
-    return server->namespacesSize-1;
-}
 
 /**********/
 /* Server */
