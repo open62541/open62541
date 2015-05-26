@@ -515,10 +515,8 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
                 }
             }
 
-            UA_VariableNode *newVn = UA_NULL;
-#ifndef ENABLE_MULTITHREADING
             /* copy the node */
-            newVn = (node->nodeClass == UA_NODECLASS_VARIABLE) ?
+            UA_VariableNode *newVn = (node->nodeClass == UA_NODECLASS_VARIABLE) ?
                 UA_VariableNode_new() : (UA_VariableNode*)UA_VariableTypeNode_new();
             if(!newVn) {
                 retval = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -528,10 +526,7 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
                 UA_VariableTypeNode_copy((const UA_VariableTypeNode*)vn, (UA_VariableTypeNode*)newVn);
             if(retval != UA_STATUSCODE_GOOD)
                 goto clean_up;
-#else
-            //no copy if no multi-threading is used
-            newVn = vn;
-#endif
+                
             /* insert the new value */
             if(hasRange)
                 retval = UA_Variant_setRangeCopy(&newVn->value.variant, wvalue->value.value.data,
@@ -541,26 +536,17 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
                 retval = UA_Variant_copy(&wvalue->value.value, &newVn->value.variant);
             }
 
-            if(retval == UA_STATUSCODE_GOOD) {
-#ifndef ENABLE_MULTITHREADING
-                //do not replace the node if no multi-threading is used
-                if(UA_NodeStore_replace(server->nodestore, node,
-                                     (UA_Node*)newVn, UA_NULL) == UA_STATUSCODE_GOOD){
-#endif
+            if(retval == UA_STATUSCODE_GOOD && UA_NodeStore_replace(server->nodestore, node,
+                                                   (UA_Node*)newVn, UA_NULL) == UA_STATUSCODE_GOOD) {
                 done = UA_TRUE;
                 goto clean_up_range;
-#ifndef ENABLE_MULTITHREADING
-                }
-#endif
             }
 
             clean_up:
-#ifndef ENABLE_MULTITHREADING
             if(node->nodeClass == UA_NODECLASS_VARIABLE)
                 UA_VariableNode_delete(newVn);
             else
                 UA_VariableTypeNode_delete((UA_VariableTypeNode*)newVn);
-#endif
             clean_up_range:
             if(hasRange)
                 UA_free(range.dimensions);
