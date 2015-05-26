@@ -1,7 +1,12 @@
+#ifndef ENABLE_SUBSCRIPTIONS
+#define ENABLE_SUBSCRIPTIONS
+#endif
+
 #ifdef ENABLE_SUBSCRIPTIONS
 
 #include "ua_subscription.h"
-
+#include "ua_server_internal.h"
+#include "ua_nodestore.h"
 /****************/
 /* Subscription */
 /****************/
@@ -254,6 +259,7 @@ void MonitoredItem_delete(UA_MonitoredItem *monitoredItem) {
       UA_free(monitoredItem->LastSampledValue.data);
     }
     
+    UA_NodeId_deleteMembers(&(monitoredItem->monitoredNodeId));
     UA_free(monitoredItem);
 }
 
@@ -390,7 +396,7 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 AttributeID, cons
   return samplingError;
 }
 
-void MonitoredItem_QueuePushDataValue(UA_MonitoredItem *monitoredItem) {
+void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monitoredItem) {
   MonitoredItem_queuedValue *newvalue = NULL, *queueItem = NULL;
   UA_Boolean samplingError = UA_TRUE; 
   UA_ByteString newValueAsByteString = { .length=0, .data=NULL };
@@ -403,6 +409,18 @@ void MonitoredItem_QueuePushDataValue(UA_MonitoredItem *monitoredItem) {
   // another function to handle status and events.
   if (monitoredItem->MonitoredItemType != MONITOREDITEM_TYPE_CHANGENOTIFY)
       return;
+  
+  // Verify that the *Node being monitored is still valid
+  // Looking up the in the nodestore is only necessary if we suspect that it is changed during writes
+  // e.g. in multithreaded applications
+#ifdef MONITOREDITEM_FORCE_NODEPOINTER_VERIFY
+  const UA_Node *target;
+  target = UA_NodeStore_get((const UA_NodeStore *) (server->nodestore), (const UA_NodeId *) &( monitoredItem->monitoredNodeId));
+  if (target == NULL)
+    return;
+  if (target != monitoredItem->monitoredNode)
+    monitoredItem->monitoredNode = target;
+#endif
   
   newvalue = (MonitoredItem_queuedValue *) UA_malloc(sizeof(MonitoredItem_queuedValue));
   LIST_INITENTRY(newvalue,listEntry);
