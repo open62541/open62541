@@ -575,28 +575,28 @@ UA_TranslateBrowsePathsToNodeIdsResponse
 
 UA_AddNodesResponse UA_Client_addNodes(UA_Client *client, UA_AddNodesRequest *request) {
     UA_AddNodesResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_ADDNODESREQUEST], &response,
+                       &UA_TYPES[UA_TYPES_ADDNODESRESPONSE], client);
     return response;
 }
 
 UA_AddReferencesResponse UA_Client_addReferences(UA_Client *client, UA_AddReferencesRequest *request) {
     UA_AddReferencesResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_ADDREFERENCESREQUEST], &response,
+                       &UA_TYPES[UA_TYPES_ADDREFERENCESRESPONSE], client);
     return response;
 }
 
 UA_DeleteNodesResponse UA_Client_deleteNodes(UA_Client *client, UA_DeleteNodesRequest *request) {
     UA_DeleteNodesResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_DELETENODESREQUEST], &response,
+                       &UA_TYPES[UA_TYPES_DELETENODESRESPONSE], client);
     return response;
 }
 
 UA_DeleteReferencesResponse UA_Client_deleteReferences(UA_Client *client, UA_DeleteReferencesRequest *request) {
     UA_DeleteReferencesResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
+    synchronousRequest(request, &UA_TYPES[UA_TYPES_DELETEREFERENCESREQUEST], &response,
+                       &UA_TYPES[UA_TYPES_DELETEREFERENCESRESPONSE], client);
     return response;;
 }
