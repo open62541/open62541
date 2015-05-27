@@ -605,6 +605,35 @@ UA_DeleteReferencesResponse UA_Client_deleteReferences(UA_Client *client, UA_Del
 /* User-Facing Macros-Function    */
 /**********************************/
 
+#define ADDNODES_COPYDEFAULTATTRIBUTES(REQUEST,ATTRIBUTES) do {                           \
+    ATTRIBUTES.specifiedAttributes = 0;                                                   \
+    if(! UA_LocalizedText_copy(&description, &(ATTRIBUTES.description)))                  \
+        ATTRIBUTES.specifiedAttributes |=  UA_NODEATTRIBUTESMASK_DESCRIPTION;             \
+    if(! UA_LocalizedText_copy(&displayName, &(ATTRIBUTES.displayName)))                  \
+        ATTRIBUTES.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;              \
+    ATTRIBUTES.userWriteMask       = userWriteMask;                                       \
+    ATTRIBUTES.specifiedAttributes |= UA_NODEATTRIBUTESMASK_USERWRITEMASK;                \
+    ATTRIBUTES.writeMask           = writeMask;                                           \
+    ATTRIBUTES.specifiedAttributes |= UA_NODEATTRIBUTESMASK_WRITEMASK;                    \
+    UA_QualifiedName_copy(&browseName, &(REQUEST.nodesToAdd[0].browseName));              \
+    UA_ExpandedNodeId_copy(&parentNodeId, &(REQUEST.nodesToAdd[0].parentNodeId));         \
+    UA_NodeId_copy(&referenceTypeId, &(REQUEST.nodesToAdd[0].referenceTypeId));           \
+    UA_ExpandedNodeId_copy(&typeDefinition, &(REQUEST.nodesToAdd[0].typeDefinition));     \
+    REQUEST.nodesToAddSize = 1;                                                           \
+    REQUEST.nodesToAdd[0].requestedNewNodeId = UA_EXPANDEDNODEID_NUMERIC(1, 0);           \
+} while(0)
+
+#define ADDNODES_PACK_AND_SEND(PREQUEST,PATTRIBUTES,PNODETYPE) do {                                                                     \
+    PREQUEST.nodesToAdd[0].nodeAttributes.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;                                  \
+    PREQUEST.nodesToAdd[0].nodeAttributes.typeId   = UA_NODEID_NUMERIC(0, UA_NS0ID_##PNODETYPE##ATTRIBUTES + UA_ENCODINGOFFSET_BINARY); \
+    PREQUEST.nodesToAdd[0].nodeAttributes.body.length = UA_calcSizeBinary(&PATTRIBUTES, &UA_TYPES[UA_TYPES_##PNODETYPE##ATTRIBUTES]);   \
+    PREQUEST.nodesToAdd[0].nodeAttributes.body.data = (void *) malloc(PREQUEST.nodesToAdd[0].nodeAttributes.body.length);               \
+    size_t encOffset = 0;                                                                                                               \
+    UA_encodeBinary(&PATTRIBUTES,&UA_TYPES[UA_TYPES_##PNODETYPE##ATTRIBUTES], &(PREQUEST.nodesToAdd[0].nodeAttributes.body), &encOffset);       \
+    *(adRes) = UA_Client_addNodes(client, &PREQUEST);                                                                                   \
+    UA_AddNodesRequest_deleteMembers(&PREQUEST);                                                                                        \
+} while(0)
+
 /* NodeManagement */
 UA_AddNodesResponse *UA_Client_createObjectNode(UA_Client *client, UA_QualifiedName browseName, UA_LocalizedText displayName, 
                                                 UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
@@ -621,37 +650,61 @@ UA_AddNodesResponse *UA_Client_createObjectNode(UA_Client *client, UA_QualifiedN
     adReq.nodesToAdd = (UA_AddNodesItem *) UA_AddNodesItem_new();
     UA_AddNodesItem_init(adReq.nodesToAdd);
     
-    vAtt.specifiedAttributes = 0; //  | UA_NODEATTRIBUTESMASK_EVENTNOTIFIER | UA_NODEATTRIBUTESMASK_USERWRITEMASK | UA_NODEATTRIBUTESMASK_WRITEMASK;
-    if(! UA_LocalizedText_copy(&description, &(vAtt.description)))
-        vAtt.specifiedAttributes |=  UA_NODEATTRIBUTESMASK_DESCRIPTION;
-    if(! UA_LocalizedText_copy(&displayName, &(vAtt.displayName)))
-        vAtt.specifiedAttributes |= UA_NODEATTRIBUTESMASK_DISPLAYNAME;
+    // Default node properties and attributes
+    ADDNODES_COPYDEFAULTATTRIBUTES(adReq, vAtt);
     
-    vAtt.eventNotifier       = 0;
-    vAtt.userWriteMask       = userWriteMask;
-    vAtt.writeMask           = writeMask;
-
-    adReq.nodesToAddSize = 1;
+    // Specific to objects
     adReq.nodesToAdd[0].nodeClass = UA_NODECLASS_OBJECT;
-    adReq.nodesToAdd[0].requestedNewNodeId = UA_EXPANDEDNODEID_NUMERIC(1, 0);
+    vAtt.eventNotifier       = 0;
+    vAtt.specifiedAttributes |= UA_NODEATTRIBUTESMASK_EVENTNOTIFIER;
     
-    
-    UA_QualifiedName_copy(&browseName, &(adReq.nodesToAdd[0].browseName));
-    UA_ExpandedNodeId_copy(&parentNodeId, &(adReq.nodesToAdd[0].parentNodeId));
-    UA_NodeId_copy(&referenceTypeId, &(adReq.nodesToAdd[0].referenceTypeId));
-    UA_ExpandedNodeId_copy(&typeDefinition, &(adReq.nodesToAdd[0].typeDefinition));
-    
-    adReq.nodesToAdd[0].nodeAttributes.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
-    adReq.nodesToAdd[0].nodeAttributes.typeId   = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTATTRIBUTES + UA_ENCODINGOFFSET_BINARY);
-    adReq.nodesToAdd[0].nodeAttributes.body.length = UA_calcSizeBinary(&vAtt, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES]);
-    adReq.nodesToAdd[0].nodeAttributes.body.data = (void *) malloc(adReq.nodesToAdd[0].nodeAttributes.body.length);
-    size_t encOffset = 0;
-    UA_encodeBinary(&vAtt, &UA_TYPES[UA_TYPES_NODEATTRIBUTES], &(adReq.nodesToAdd[0].nodeAttributes.body), &encOffset);
-
-    *(adRes) = UA_Client_addNodes(client, &adReq);
-    UA_AddNodesRequest_deleteMembers(&adReq);
+    ADDNODES_PACK_AND_SEND(adReq,vAtt,OBJECT);
     
     return adRes;
 }
 
-
+UA_AddNodesResponse *UA_Client_createVariableNode(UA_Client *client, UA_QualifiedName browseName, UA_LocalizedText displayName, 
+                                                  UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
+                                                  UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition, 
+                                                  UA_NodeId dataType, UA_Variant *value ) {
+    UA_AddNodesRequest adReq;
+    UA_AddNodesRequest_init(&adReq);
+    
+    UA_AddNodesResponse *adRes;
+    adRes = UA_AddNodesResponse_new();
+    UA_AddNodesResponse_init(adRes);
+    
+    UA_VariableAttributes vAtt;
+    UA_VariableAttributes_init(&vAtt);
+    adReq.nodesToAdd = (UA_AddNodesItem *) UA_AddNodesItem_new();
+    UA_AddNodesItem_init(adReq.nodesToAdd);
+    
+    // Default node properties and attributes
+    ADDNODES_COPYDEFAULTATTRIBUTES(adReq, vAtt);
+    
+    // Specific to objects
+    adReq.nodesToAdd[0].nodeClass = UA_NODECLASS_VARIABLE;
+    vAtt.accessLevel              = 0;
+    vAtt.specifiedAttributes |= UA_NODEATTRIBUTESMASK_ACCESSLEVEL;
+    vAtt.userAccessLevel          = 0;
+    vAtt.specifiedAttributes |= UA_NODEATTRIBUTESMASK_USERACCESSLEVEL;
+    vAtt.minimumSamplingInterval  = 100;
+    vAtt.specifiedAttributes |= UA_NODEATTRIBUTESMASK_MINIMUMSAMPLINGINTERVAL;
+    vAtt.historizing              = UA_FALSE;
+    vAtt.specifiedAttributes |= UA_NODEATTRIBUTESMASK_HISTORIZING;
+    
+    if (value != NULL) {
+        UA_Variant_copy(value, &(vAtt.value));
+        vAtt.specifiedAttributes |= UA_NODEATTRIBUTESMASK_VALUE;
+        vAtt.valueRank            = -2;
+        vAtt.specifiedAttributes |= UA_NODEATTRIBUTESMASK_VALUERANK;
+        // These are defined by the variant
+        //vAtt.arrayDimensionsSize  = value->arrayDimensionsSize;
+        //vAtt.arrayDimensions      = NULL;
+    }
+    UA_NodeId_copy(&dataType, &(vAtt.dataType));
+    
+    ADDNODES_PACK_AND_SEND(adReq,vAtt,VARIABLE);
+    
+    return adRes;
+}
