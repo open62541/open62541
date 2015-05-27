@@ -57,9 +57,17 @@ UA_DeleteNodesResponse UA_EXPORT UA_Client_deleteNodes(UA_Client *client, UA_Del
 UA_DeleteReferencesResponse UA_EXPORT
     UA_Client_deleteReferences(UA_Client *client, UA_DeleteReferencesRequest *request);
 
-UA_AddNodesResponse UA_EXPORT *UA_Client_createObjectNode(UA_Client *client, UA_QualifiedName browseName, UA_LocalizedText displayName, 
-                                            UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
-                                            UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition );
+    
+/* Client-Side Macro/Procy functions */
+UA_AddNodesResponse UA_EXPORT *UA_Client_createObjectNode(  UA_Client *client, UA_QualifiedName browseName, UA_LocalizedText displayName, 
+                                                            UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
+                                                            UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition);
+
+UA_AddNodesResponse UA_EXPORT *UA_Client_createVariableNode(UA_Client *client, UA_QualifiedName browseName, UA_LocalizedText displayName, 
+                                                  UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
+                                                  UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition, 
+                                                  UA_NodeId dataType, UA_Variant *value );
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
