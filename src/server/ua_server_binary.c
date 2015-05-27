@@ -338,7 +338,11 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     case UA_NS0ID_TRANSLATEBROWSEPATHSTONODEIDSREQUEST:
         INVOKE_SERVICE(TranslateBrowsePathsToNodeIds);
         break;
-
+#ifdef ENABLE_NODEMANAGEMENT
+    case UA_NS0ID_ADDNODESREQUEST:
+      INVOKE_SERVICE(AddNodes);
+      break;
+#endif
 #ifdef ENABLE_SUBSCRIPTIONS    
     case UA_NS0ID_CREATESUBSCRIPTIONREQUEST:
         INVOKE_SERVICE(CreateSubscription);
