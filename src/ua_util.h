@@ -50,7 +50,6 @@
 #define UA_memset(ptr, value, size) memset(ptr, value, size)
 
 #ifdef NO_ALLOCA
-
 #else
 #ifdef _WIN32
     # define UA_alloca(SIZE) _alloca(SIZE)

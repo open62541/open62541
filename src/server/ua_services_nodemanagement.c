@@ -246,9 +246,14 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
     }
 
 #ifdef UA_EXTERNAL_NAMESPACES
+#ifdef NO_ALLOCA
+    UA_Boolean isExternal[size];
+    UA_UInt32 indices[size];
+#else
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
-    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
+#endif /*NO_ALLOCA */
+    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
     for(size_t j = 0; j <server->externalNamespacesSize; j++) {
         size_t indexSize = 0;
         for(size_t i = 0;i < size;i++) {
@@ -292,9 +297,14 @@ void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddR
 	UA_memset(response->results, UA_STATUSCODE_GOOD, sizeof(UA_StatusCode) * size);
 
 #ifdef UA_EXTERNAL_NAMESPACES
-	UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
-	UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
-	UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
+#ifdef NO_ALLOCA
+    UA_Boolean isExternal[size];
+    UA_UInt32 indices[size];
+#else
+    UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
+    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
+#endif /*NO_ALLOCA */
+    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
 	for(size_t j = 0; j < server->externalNamespacesSize; j++) {
 		size_t indicesSize = 0;
 		for(size_t i = 0;i < size;i++) {
