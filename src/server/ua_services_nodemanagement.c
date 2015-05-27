@@ -19,8 +19,6 @@
         vnode->writeMask = attr.writeMask;                                 \
       if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_USERWRITEMASK)   \
         vnode->userWriteMask = attr.userWriteMask;                         \
-      if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_EVENTNOTIFIER)   \
-        vnode->eventNotifier = attr.eventNotifier;                         \
     } while(0)
 
 static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node **new_node) {
@@ -96,7 +94,9 @@ static UA_StatusCode parseObjectNode(UA_ExtensionObject *attributes, UA_Node **n
     }
 
     // now copy all the attributes. This potentially removes them from the decoded attributes.
-    COPY_STANDARDATTRIBUTES
+    COPY_STANDARDATTRIBUTES;
+    if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_EVENTNOTIFIER)
+      vnode->eventNotifier = attr.eventNotifier;
     UA_ObjectAttributes_deleteMembers(&attr);
     *new_node = (UA_Node*) vnode;
     return UA_STATUSCODE_GOOD;
@@ -208,7 +208,11 @@ static void addNodeFromAttributes(UA_Server *server, UA_Session *session, UA_Add
 
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
-
+    
+    // The BrowseName was not included with the NodeAttribute ExtensionObject
+    UA_QualifiedName_init(&(node->browseName));
+    UA_QualifiedName_copy(&(item->browseName), &(node->browseName));
+    
     // add the node
     *result = UA_Server_addNodeWithSession(server, session, node, item->parentNodeId,
                                            item->referenceTypeId);
