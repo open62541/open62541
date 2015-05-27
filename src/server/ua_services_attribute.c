@@ -8,7 +8,11 @@
 static UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range) {
     if(str.length < 0 || str.length >= 1023)
         return UA_STATUSCODE_BADINTERNALERROR;
+#ifdef NO_ALLOCA
+    char cstring[str.length+1]
+#else
     char *cstring = UA_alloca(str.length+1);
+#endif
     UA_memcpy(cstring, str.data, str.length);
     cstring[str.length] = 0;
     UA_Int32 index = 0;
@@ -370,9 +374,14 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
     }
 
 #ifdef UA_EXTERNAL_NAMESPACES
+#ifdef NO_ALLOCA
+    UA_Boolean isExternal[size];
+    UA_UInt32 indices[size];
+#else
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
-    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
+#endif /*NO_ALLOCA */
+    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
     for(size_t j = 0;j<server->externalNamespacesSize;j++) {
         size_t indexSize = 0;
         for(size_t i = 0;i < size;i++) {
@@ -592,9 +601,14 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
     }
 
 #ifdef UA_EXTERNAL_NAMESPACES
+#ifdef NO_ALLOCA
+    UA_Boolean isExternal[request->nodesToWriteSize];
+    UA_UInt32 indices[request->nodesToWriteSize];
+#else
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * request->nodesToWriteSize);
-    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToWriteSize);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * request->nodesToWriteSize);
+#endif /*NO_ALLOCA */
+    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToWriteSize);
     for(size_t j = 0; j < server->externalNamespacesSize; j++) {
         UA_UInt32 indexSize = 0;
         for(UA_Int32 i = 0; i < request->nodesToWriteSize; i++) {

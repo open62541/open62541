@@ -18,7 +18,11 @@ void Service_FindServers(UA_Server *server, const UA_FindServersRequest *request
 
 void Service_GetEndpoints(UA_Server *server, const UA_GetEndpointsRequest *request, UA_GetEndpointsResponse *response) {
     /* test if the supported binary profile shall be returned */
-    UA_Boolean *relevant_endpoints = UA_alloca(sizeof(UA_Boolean)*server->endpointDescriptionsSize);
+#ifdef NO_ALLOCA
+	UA_Boolean relevant_endpoints[server->endpointDescriptionsSize];
+#else
+	UA_Boolean *relevant_endpoints = UA_alloca(sizeof(UA_Boolean)*server->endpointDescriptionsSize);
+#endif /*NO_ALLOCA */
     size_t relevant_count = 0;
     for(UA_Int32 j = 0; j < server->endpointDescriptionsSize; j++) {
         relevant_endpoints[j] = UA_FALSE;
