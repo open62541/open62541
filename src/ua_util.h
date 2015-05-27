@@ -49,6 +49,9 @@
 #define UA_memcpy(dst, src, size) memcpy(dst, src, size)
 #define UA_memset(ptr, value, size) memset(ptr, value, size)
 
+#ifdef NO_ALLOCA
+
+#else
 #ifdef _WIN32
     # define UA_alloca(SIZE) _alloca(SIZE)
 #else
@@ -59,7 +62,7 @@
     # define UA_alloca(SIZE) alloca(SIZE)
  #endif
 #endif
-
+#endif /* NO_ALLOCA */
 /********************/
 /* System Libraries */
 /********************/
