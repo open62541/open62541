@@ -1,8 +1,7 @@
-#ifdef ENABLE_SUBSCRIPTIONS
-
 #include "ua_subscription.h"
 #include "ua_server_internal.h"
 #include "ua_nodestore.h"
+
 /****************/
 /* Subscription */
 /****************/
@@ -222,7 +221,6 @@ UA_UInt32 Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Subscri
     }
     return deletedItems;
 }
-
 
 /*****************/
 /* MonitoredItem */
@@ -487,5 +485,3 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
   
   return;
 }
-
-#endif

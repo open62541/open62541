@@ -1,4 +1,3 @@
-#ifdef ENABLE_SUBSCRIPTIONS
 #include "ua_types.h"
 #include "ua_server_internal.h"
 #include "ua_nodestore.h"
@@ -94,5 +93,3 @@ UA_Int32 SubscriptionManager_deleteSubscription(UA_SubscriptionManager *manager,
     UA_free(sub);
     return UA_STATUSCODE_GOOD;
 } 
-
-#endif //#ifdef ENABLE_SUBSCRIPTIONS

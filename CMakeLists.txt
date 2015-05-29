@@ -99,9 +99,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_attribute.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c 
                 ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c)
@@ -112,6 +109,11 @@ file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 
 # As requested by @sten: separate generation of headers for subscriptions from pico-server
 if(ENABLE_SUBSCRIPTIONS)
+
+  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
+                          ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
+                          ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.c)
+
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                    PRE_BUILD

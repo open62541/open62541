@@ -1,4 +1,3 @@
-#ifdef  ENABLE_SUBSCRIPTIONS
 #ifndef UA_SUBSCRIPTION_MANAGER_H_
 #define UA_SUBSCRIPTION_MANAGER_H_
 
@@ -30,4 +29,3 @@ UA_Int32 SubscriptionManager_deleteMonitoredItem(UA_SubscriptionManager *manager
                                                  UA_UInt32 MonitoredItemID);
 
 #endif  // ifndef... define UA_SUBSCRIPTION_MANAGER_H_
-#endif  // ifdef EnableSubscriptions ...

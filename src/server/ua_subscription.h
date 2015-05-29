@@ -1,4 +1,3 @@
-#ifdef  ENABLE_SUBSCRIPTIONS
 #ifndef UA_SUBSCRIPTION_H_
 #define UA_SUBSCRIPTION_H_
 
@@ -6,7 +5,6 @@
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_nodes.h"
-
 
 #define LIST_INITENTRY(item,entry) \
   (item)->entry.le_next = NULL; \
@@ -108,4 +106,3 @@ UA_UInt32 Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Subscri
 void Subscription_generateKeepAlive(UA_Subscription *subscription);
 
 #endif //UA_SUBSCRIPTION_H_
-#endif //ENABLE_SUBSCRIPTIONS

@@ -1,4 +1,3 @@
-#ifdef ENABLE_SUBSCRIPTIONS
 #include "ua_services.h"
 #include "ua_server_internal.h"
 #include "ua_subscription_manager.h"
@@ -245,4 +244,3 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
         resultCodes[i] = SubscriptionManager_deleteMonitoredItem(manager, sub->SubscriptionID, (request->monitoredItemIds)[i]);
     }
 }
-#endif //#ifdef ENABLE_SUBSCRIPTIONS
