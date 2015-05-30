@@ -82,13 +82,11 @@ void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
             thisItemsResult->monitoredItemId = 0;
             thisItemsResult->revisedSamplingInterval = 0;
             thisItemsResult->revisedQueueSize = 0;
-        }
-        else {
+        } else {
             thisItemsResult->statusCode = UA_STATUSCODE_GOOD;
             
             newMon = UA_MonitoredItem_new();
-            newMon->monitoredNode = target;
-            UA_NodeId_copy(&(newMon->monitoredNode->nodeId), &(newMon->monitoredNodeId));
+            UA_NodeId_copy(&target->nodeId, &newMon->monitoredNodeId);
             newMon->ItemId = ++(session->subscriptionManager.LastSessionID);
             thisItemsResult->monitoredItemId = newMon->ItemId;
             

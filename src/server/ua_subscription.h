@@ -17,10 +17,6 @@
 /* MonitoredItem */
 /*****************/
 
-// This will force the monitored UA_Node* to be retrieved from the
-// Nodestore based on its UA_NodeId on each PushQueueValue call.
-#define MONITOREDITEM_FORCE_NODEPOINTER_VERIFY
-
 typedef struct {
     UA_Int32 currentValue;
     UA_Int32 minValue;
@@ -49,7 +45,6 @@ typedef struct UA_MonitoredItem_s {
     MONITOREDITEM_TYPE		    MonitoredItemType;
     UA_UInt32                       TimestampsToReturn;
     UA_UInt32                       MonitoringMode;
-    const UA_Node                  *monitoredNode; // Pointer to a node of any type
     UA_NodeId                       monitoredNodeId; 
     UA_UInt32                       AttributeID;
     UA_UInt32                       ClientHandle;

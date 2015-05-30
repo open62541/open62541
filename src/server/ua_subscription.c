@@ -236,7 +236,7 @@ UA_MonitoredItem *UA_MonitoredItem_new() {
     
     LIST_INIT(&new->queue);
     LIST_INITENTRY(new, listEntry);
-    INITPOINTER(new->monitoredNode);
+    UA_NodeId_init(&new->monitoredNodeId);
     INITPOINTER(new->LastSampledValue.data );
     return new;
 }
@@ -403,21 +403,10 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
   // another function to handle status and events.
   if (monitoredItem->MonitoredItemType != MONITOREDITEM_TYPE_CHANGENOTIFY)
       return;
-  
-  // Verify that the *Node being monitored is still valid
-  // Looking up the in the nodestore is only necessary if we suspect that it is changed during writes
-  // e.g. in multithreaded applications
-#ifdef MONITOREDITEM_FORCE_NODEPOINTER_VERIFY
-  const UA_Node *target;
-  target = UA_NodeStore_get((const UA_NodeStore *) (server->nodestore), (const UA_NodeId *) &( monitoredItem->monitoredNodeId));
-  if (target == NULL)
-    return;
-  if (target != monitoredItem->monitoredNode)
-    monitoredItem->monitoredNode = target;
-  UA_NodeStore_release(target);
-#endif
-  
+
   newvalue = (MonitoredItem_queuedValue *) UA_malloc(sizeof(MonitoredItem_queuedValue));
+  if(!newvalue)
+      return;
   LIST_INITENTRY(newvalue,listEntry);
   newvalue->value.arrayLength         = 0;
   newvalue->value.arrayDimensionsSize = 0;
@@ -425,12 +414,25 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
   newvalue->value.data                = NULL;
   newvalue->value.type                = NULL;
   
-  samplingError = MonitoredItem_CopyMonitoredValueToVariant(monitoredItem->AttributeID, monitoredItem->monitoredNode, &(newvalue->value));
+  // Verify that the *Node being monitored is still valid
+  // Looking up the in the nodestore is only necessary if we suspect that it is changed during writes
+  // e.g. in multithreaded applications
+  const UA_Node *target = UA_NodeStore_get(server->nodestore, &monitoredItem->monitoredNodeId);
+  if(!target) {
+      UA_free(newvalue);
+      return;
+  }
   
-  if ((monitoredItem->QueueSize).currentValue >= (monitoredItem->QueueSize).maxValue) {
-    if (newvalue->value.type != NULL && monitoredItem->DiscardOldest == UA_TRUE && monitoredItem->queue.lh_first != NULL ) {
-          for(queueItem = monitoredItem->queue.lh_first; queueItem->listEntry.le_next != NULL; queueItem = queueItem->listEntry.le_next) {}
-
+  samplingError = MonitoredItem_CopyMonitoredValueToVariant(monitoredItem->AttributeID, target,
+                                                            &newvalue->value);
+  UA_NodeStore_release(target);
+  
+  if(monitoredItem->QueueSize.currentValue >= monitoredItem->QueueSize.maxValue) {
+    if(newvalue->value.type && monitoredItem->DiscardOldest == UA_TRUE &&
+        monitoredItem->queue.lh_first != NULL ) {
+        for(queueItem = monitoredItem->queue.lh_first;
+            queueItem->listEntry.le_next != NULL;
+            queueItem = queueItem->listEntry.le_next) {}
           LIST_REMOVE(queueItem, listEntry);
           UA_free(queueItem);
           (monitoredItem->QueueSize).currentValue--;
