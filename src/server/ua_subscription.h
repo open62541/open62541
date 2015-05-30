@@ -6,10 +6,6 @@
 #include "ua_types_generated.h"
 #include "ua_nodes.h"
 
-#define LIST_INITENTRY(item,entry) \
-  (item)->entry.le_next = NULL; \
-  (item)->entry.le_prev = NULL;
-
 #define INITPOINTER(src) (src) = NULL;
 #define ISNOTZERO(value) ((value == 0) ? 0 : 1)
 
