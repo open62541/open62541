@@ -7,7 +7,6 @@
 #include "ua_nodestore.h"
 #include "ua_subscription.h"
 
-typedef LIST_HEAD(UA_ListOfUASubscriptions_s, UA_Subscription_s) UA_ListOfUASubscriptions;
 typedef struct UA_SubscriptionManager_s {
     UA_Int32_BoundedValue    GlobalPublishingInterval;
     UA_UInt32_BoundedValue   GlobalLifeTimeCount;
@@ -16,7 +15,7 @@ typedef struct UA_SubscriptionManager_s {
     UA_UInt32_BoundedValue   GlobalSamplingInterval;
     UA_UInt32_BoundedValue   GlobalQueueSize;
     UA_Int32                 LastSessionID;
-    UA_ListOfUASubscriptions *ServerSubscriptions;
+    LIST_HEAD(UA_ListOfUASubscriptions, UA_Subscription_s) ServerSubscriptions;
 } UA_SubscriptionManager;
 
 void SubscriptionManager_init(UA_Session *session);

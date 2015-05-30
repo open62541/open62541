@@ -143,7 +143,7 @@ void Service_Publish(UA_Server *server, UA_Session *session,
     }
     
     // See if any new data is available
-    for (sub=(manager->ServerSubscriptions)->lh_first; sub != NULL; sub = sub->listEntry.le_next) {
+    for (sub=manager->ServerSubscriptions.lh_first; sub != NULL; sub = sub->listEntry.le_next) {
 	
         // FIXME: We are forcing a value update for monitored items. This should be done by the event system.
         if (sub->MonitoredItems.lh_first != NULL) {  
@@ -181,7 +181,7 @@ void Service_Publish(UA_Server *server, UA_Session *session,
     //        return something to the client.
     //        If no subscriptions have notifications, force one to generate a keepalive so we don't return an 
     //        empty message
-    sub = manager->ServerSubscriptions->lh_first;
+    sub = manager->ServerSubscriptions.lh_first;
     if ( sub != NULL) {
       response->subscriptionId = sub->SubscriptionID;
       sub->KeepAliveCount.currentValue=sub->KeepAliveCount.minValue;

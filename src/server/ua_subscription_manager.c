@@ -14,25 +14,23 @@ void SubscriptionManager_init(UA_Session *session) {
     manager->GlobalNotificationsPerPublish = (UA_Int32_BoundedValue)  { .maxValue = 1000, .minValue = 1, .currentValue=0 };
     manager->GlobalSamplingInterval = (UA_UInt32_BoundedValue) { .maxValue = 100, .minValue = 0, .currentValue=0 };
     manager->GlobalQueueSize = (UA_UInt32_BoundedValue) { .maxValue = 100, .minValue = 0, .currentValue=0 };
-    
-    manager->ServerSubscriptions = (UA_ListOfUASubscriptions *) UA_malloc (sizeof(UA_ListOfUASubscriptions));
-    LIST_INIT(manager->ServerSubscriptions);
+    LIST_INIT(&manager->ServerSubscriptions);
     manager->LastSessionID = (UA_UInt32) UA_DateTime_now();
 }
 
 void SubscriptionManager_deleteMembers(UA_Session *session) {
-    UA_SubscriptionManager *manager = &(session->subscriptionManager);
-    UA_free(manager->ServerSubscriptions);
+    // UA_SubscriptionManager *manager = &(session->subscriptionManager);
+    // todo: delete all subscriptions and monitored items
 }
 
 void SubscriptionManager_addSubscription(UA_SubscriptionManager *manager, UA_Subscription *newSubscription) {
-    LIST_INSERT_HEAD(manager->ServerSubscriptions, newSubscription, listEntry);
+    LIST_INSERT_HEAD(&manager->ServerSubscriptions, newSubscription, listEntry);
 }
 
 UA_Subscription *SubscriptionManager_getSubscriptionByID(UA_SubscriptionManager *manager,
                                                          UA_Int32 SubscriptionID) {
     UA_Subscription *sub;
-    LIST_FOREACH(sub, manager->ServerSubscriptions, listEntry) {
+    LIST_FOREACH(sub, &manager->ServerSubscriptions, listEntry) {
         if(sub->SubscriptionID == SubscriptionID)
             break;
     }
@@ -53,25 +51,21 @@ UA_Int32 SubscriptionManager_deleteMonitoredItem(UA_SubscriptionManager *manager
             return UA_STATUSCODE_GOOD;
         }
     }
-    
     return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 }
 
 UA_Int32 SubscriptionManager_deleteSubscription(UA_SubscriptionManager *manager, UA_Int32 SubscriptionID) {
-    UA_Subscription  *sub;
-    UA_MonitoredItem *mon;
-    UA_unpublishedNotification *notify;
-    
-    sub = SubscriptionManager_getSubscriptionByID(manager, SubscriptionID);    
-    if(sub) {
-        // Delete registered subscriptions
-        while((mon = LIST_FIRST(&sub->MonitoredItems)))
-           MonitoredItem_delete(mon);
-    } else {
+    UA_Subscription *sub = SubscriptionManager_getSubscriptionByID(manager, SubscriptionID);    
+    if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-    }
+
+    // Delete registered subscriptions
+    UA_MonitoredItem *mon;
+    while((mon = LIST_FIRST(&sub->MonitoredItems)))
+        MonitoredItem_delete(mon);
     
     // Delete queued notification messages
+    UA_unpublishedNotification *notify;
     while((notify = LIST_FIRST(&sub->unpublishedNotifications))) {
        LIST_REMOVE(notify, listEntry);
        UA_free(notify);
