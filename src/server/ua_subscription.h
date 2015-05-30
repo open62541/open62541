@@ -35,9 +35,9 @@ typedef enum {
     MONITOREDITEM_TYPE_EVENTNOTIFY = 4
 } MONITOREDITEM_TYPE;
 
-typedef struct MonitoredItem_queuedValue_s {
+typedef struct MonitoredItem_queuedValue {
     UA_Variant value;
-    LIST_ENTRY(MonitoredItem_queuedValue_s) listEntry;
+    TAILQ_ENTRY(MonitoredItem_queuedValue) listEntry;
 } MonitoredItem_queuedValue;
 
 typedef struct UA_MonitoredItem_s {
@@ -56,7 +56,7 @@ typedef struct UA_MonitoredItem_s {
     // FIXME: indexRange is ignored; array values default to element 0
     // FIXME: dataEncoding is hardcoded to UA binary
     LIST_ENTRY(UA_MonitoredItem_s)  listEntry;
-    LIST_HEAD(UA_ListOfQueuedDataValues, MonitoredItem_queuedValue_s) queue;
+    TAILQ_HEAD(QueueOfQueueDataValues, MonitoredItem_queuedValue) queue;
 } UA_MonitoredItem;
 
 UA_MonitoredItem *UA_MonitoredItem_new(void);
