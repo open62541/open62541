@@ -7,7 +7,7 @@
 #include "ua_nodestore.h"
 #include "ua_subscription.h"
 
-typedef struct UA_SubscriptionManager_s {
+typedef struct UA_SubscriptionManager {
     UA_Int32_BoundedValue    GlobalPublishingInterval;
     UA_UInt32_BoundedValue   GlobalLifeTimeCount;
     UA_UInt32_BoundedValue   GlobalKeepAliveCount;
@@ -27,4 +27,4 @@ UA_Int32 SubscriptionManager_deleteSubscription(UA_SubscriptionManager *manager,
 UA_Int32 SubscriptionManager_deleteMonitoredItem(UA_SubscriptionManager *manager, UA_Int32 SubscriptionID,
                                                  UA_UInt32 MonitoredItemID);
 
-#endif  // ifndef... define UA_SUBSCRIPTION_MANAGER_H_
+#endif /* UA_SUBSCRIPTION_MANAGER_H_ */

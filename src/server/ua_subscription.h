@@ -96,4 +96,4 @@ void Subscription_copyTopNotificationMessage(UA_NotificationMessage *dst, UA_Sub
 UA_UInt32 Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Subscription *sub);
 void Subscription_generateKeepAlive(UA_Subscription *subscription);
 
-#endif //UA_SUBSCRIPTION_H_
+#endif /* UA_SUBSCRIPTION_H_ */

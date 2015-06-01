@@ -67,8 +67,8 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/src/ua_util.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
                      ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_session.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h
+                     ${PROJECT_SOURCE_DIR}/src/ua_session.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.h
@@ -108,7 +108,11 @@ if(ENABLE_SUBSCRIPTIONS)
   list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
                           ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
                           ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.c)
-
+  ##append subscription headers at before ua_session.
+  list(FIND internal_headers "${PROJECT_SOURCE_DIR}/src/ua_session.h" UaSessionPos)
+  list(INSERT internal_headers  ${UaSessionPos} ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
+                          ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.h)
+                          
   add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                             ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                      PRE_BUILD
