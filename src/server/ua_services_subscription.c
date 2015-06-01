@@ -232,6 +232,6 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
 
     response->resultsSize = request->monitoredItemIdsSize;
     for(int i=0; i < request->monitoredItemIdsSize; i++)
-        resultCodes[i] = SubscriptionManager_deleteMonitoredItem(manager, sub->SubscriptionID,
+        response->results[i] = SubscriptionManager_deleteMonitoredItem(manager, sub->SubscriptionID,
                                                                  request->monitoredItemIds[i]);
 }
