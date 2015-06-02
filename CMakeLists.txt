@@ -62,7 +62,8 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
                      ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h 
-                     ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h)
+                     ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h)
 set(internal_headers ${PROJECT_SOURCE_DIR}/src/ua_util.h
                      ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
@@ -122,6 +123,26 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                    COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_nodeids.py ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nodeids.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
+
+option(LOADGENERATEDNS "Generate and load UA XML Namespace 0 definition" OFF)
+if(LOADGENERATEDNS)
+add_definitions(-DLOADGENERATEDNS)
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
+                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.xml ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
+                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py  
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py  
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py  
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py  
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py  
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py  
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
+)
+else()
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
+                   COMMAND touch ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
+                  DEPENDS
+)
+endif()
 
 ## logging
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
