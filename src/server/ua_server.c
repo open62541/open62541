@@ -443,6 +443,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 #define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
     server->buildDate = (mktime(&ct) + UNIX_EPOCH_BIAS_SEC) * HUNDRED_NANOSEC_PER_SEC;
 
+#ifndef LOADGENERATEDNS
     /**************/
     /* References */
     /**************/
@@ -1056,6 +1057,8 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
                UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT));
        ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_SHUTDOWNREASON), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE));
-
+#else
+    #include "ua_namespaceinit_generated.h"
+#endif
    return server;
 }
