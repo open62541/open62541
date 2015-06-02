@@ -5,8 +5,8 @@
 ### Author:  Chris Iatrou (ichrispa@core-vector.net)
 ### Version: rev 13
 ###
-### This program was created for educational purposes and has been 
-### contributed to the open62541 project by the author. All licensing 
+### This program was created for educational purposes and has been
+### contributed to the open62541 project by the author. All licensing
 ### terms for this source is inherited by the terms and conditions
 ### specified for by the open62541 project (see the projects readme
 ### file for more information on the LGPL terms and restrictions).
@@ -610,7 +610,7 @@ class opcua_node_t:
     if not (parent[0] in unPrintedNodes) and (parent[0] != None):
       if parent[1].referenceType() != None:
         code.append("// Referencing node found and declared as parent: " + str(parent[0].id()) + "/" + str(parent[0].__node_browseName__) + " using " + str(parent[1].referenceType().id()) + "/" + str(parent[1].referenceType().__node_browseName__))
-        code.append("UA_Server_addNode(server, (UA_Node*) " + self.getCodePrintableID() + ", &" + codegen.getCreateExpandedNodeIDMacro(parent[0]) + ", &" + codegen.getCreateNodeIDMacro(parent[1].referenceType()) + ");")
+        code.append("UA_Server_addNode(server, (UA_Node*) " + self.getCodePrintableID() + ", " + codegen.getCreateExpandedNodeIDMacro(parent[0]) + ", " + codegen.getCreateNodeIDMacro(parent[1].referenceType()) + ");")
     # Otherwise use the "Bootstrapping" method and we will get registered
     # with other nodes later.
     else:
