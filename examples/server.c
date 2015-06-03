@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h> //access
+#include <io.h> //access
 
 #define __USE_XOPEN2K
 #ifdef UA_MULTITHREADING

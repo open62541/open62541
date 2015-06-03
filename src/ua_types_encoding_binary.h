@@ -32,8 +32,8 @@
 
 #define UA_TYPE_BINARY_ENCODING(TYPE)                                   \
     size_t TYPE##_calcSizeBinary(TYPE const *p);                        \
-    UA_StatusCode TYPE##_encodeBinary(TYPE const *src, UA_ByteString *dst, size_t *restrict offset); \
-    UA_StatusCode TYPE##_decodeBinary(UA_ByteString const *src, size_t *restrict offset, TYPE *dst);
+    UA_StatusCode TYPE##_encodeBinary(TYPE const *src, UA_ByteString *dst, size_t *__restrict offset); \
+    UA_StatusCode TYPE##_decodeBinary(UA_ByteString const *src, size_t *__restrict offset, TYPE *dst);
 
 UA_TYPE_BINARY_ENCODING(UA_Boolean)
 UA_TYPE_BINARY_ENCODING(UA_SByte)
@@ -63,8 +63,8 @@ UA_TYPE_BINARY_ENCODING(UA_DiagnosticInfo)
 
 size_t UA_calcSizeBinary(const void *p, const UA_DataType *dataType);
 UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_ByteString *dst,
-                              size_t *restrict offset);
-UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *restrict offset, void *dst,
+                              size_t *__restrict offset);
+UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *__restrict offset, void *dst,
                               const UA_DataType *dataType);
 /// @} /* end of group */
 
