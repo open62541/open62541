@@ -19,7 +19,7 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
 /* Namespace Handling */
 /**********************/
 
-#ifdef UA_EXTERNAL_NAMESPACE
+#ifdef UA_EXTERNAL_NAMESPACES
 static void UA_ExternalNamespace_init(UA_ExternalNamespace *ens) {
     ens->index = 0;
     UA_String_init(&ens->url);
@@ -50,7 +50,7 @@ UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, cons
 
 
 }
-#endif /* UA_EXTERNAL_NAMESPACE*/
+#endif /* UA_EXTERNAL_NAMESPACES*/
 
 UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     server->namespaces = UA_realloc(server->namespaces, sizeof(UA_String) * (server->namespacesSize+1));
