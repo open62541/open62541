@@ -33,6 +33,13 @@
 # include <malloc.h>
 #endif
 
+/* Visual Studio needs __restrict */
+#if defined(_MSC_VER) && _MSC_VER >= 1400
+    #define UA_RESTRICT __restrict
+#else
+    #define UA_RESTRICT restrict
+#endif
+
 #define UA_NULL ((void *)0)
 
 // subtract from nodeids to get from the encoding to the content
