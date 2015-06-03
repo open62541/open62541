@@ -37,8 +37,9 @@ UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, cons
 		return UA_STATUSCODE_BADARGUMENTSMISSING;
 	}
 	//do not allow double indices
-	if(server->externalNamespaces->index == namespaceIndex){
-		return UA_STATUSCODE_BADINDEXRANGEINVALID;
+	for(UA_UInt32 i = 0; i < server->externalNamespacesSize; i++){
+		if(server->externalNamespaces[i].index == namespaceIndex)
+			return UA_STATUSCODE_BADINDEXRANGEINVALID;
 	}
     server->externalNamespaces = UA_realloc(server->externalNamespaces, sizeof(UA_ExternalNamespace) * (server->externalNamespacesSize+1));
     server->externalNamespaces[server->externalNamespacesSize].externalNodeStore = *nodeStore;
