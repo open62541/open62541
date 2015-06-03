@@ -5,8 +5,8 @@
 ### Author:  Chris Iatrou (ichrispa@core-vector.net)
 ### Version: rev 13
 ###
-### This program was created for educational purposes and has been 
-### contributed to the open62541 project by the author. All licensing 
+### This program was created for educational purposes and has been
+### contributed to the open62541 project by the author. All licensing
 ### terms for this source is inherited by the terms and conditions
 ### specified for by the open62541 project (see the projects readme
 ### file for more information on the LGPL terms and restrictions).

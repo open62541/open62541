@@ -5,8 +5,8 @@
 ### Author:  Chris Iatrou (ichrispa@core-vector.net)
 ### Version: rev 13
 ###
-### This program was created for educational purposes and has been 
-### contributed to the open62541 project by the author. All licensing 
+### This program was created for educational purposes and has been
+### contributed to the open62541 project by the author. All licensing
 ### terms for this source is inherited by the terms and conditions
 ### specified for by the open62541 project (see the projects readme
 ### file for more information on the LGPL terms and restrictions).
@@ -195,8 +195,14 @@ class opcua_namespace():
       id = opcua_node_id_t(id)
 
     if self.nodeids.has_key(str(id)):
-      log(self,  "Error: XMLElement with duplicate ID " + str(id) + " found, node will not be created!", LOG_LEVEL_ERROR)
-      return
+      # Normal behavior: Do not allow duplicates, first one wins
+      #log(self,  "XMLElement with duplicate ID " + str(id) + " found, node will not be created!", LOG_LEVEL_ERROR)
+      #return
+      # Open62541 behavior for header generation: Replace the duplicate with the new node
+      log(self,  "XMLElement with duplicate ID " + str(id) + " found, node will be replaced!", LOG_LEVEL_INFO)
+      nd = self.getNodeByIDString(str(id))
+      self.nodes.remove(nd)
+      self.nodeids.pop(str(nd.id()))
 
     node = None
     if (ndtype == 'variable'):
@@ -223,6 +229,20 @@ class opcua_namespace():
 
     self.nodes.append(node)
     self.nodeids[str(node.id())] = node
+
+  def removeNodeById(self, nodeId):
+    nd = self.getNodeByIDString(nodeId)
+    if nd == None:
+      return False
+
+    log(self, "Removing nodeId " + str(nodeId), LOG_LEVEL_DEBUG)
+    self.nodes.remove(nd)
+    if nd.getInverseReferences() != None:
+      for ref in nd.getInverseReferences():
+        src = ref.target();
+        src.removeReferenceToNode(nd)
+
+    return True
 
   def registerBinaryIndirectPointer(self, node):
     """ Appends a node to the list of nodes that should be contained in the
@@ -473,7 +493,7 @@ class opcua_namespace():
     file.write("}\n")
     file.close()
 
-  def printOpen62541Header(self):
+  def printOpen62541Header(self, printedExternally=[]):
     unPrintedNodes = []
     unPrintedRefs  = []
     code = []
@@ -485,8 +505,12 @@ class opcua_namespace():
     # Populate the unPrinted-Lists with everything we have.
     # Every Time a nodes printfunction is called, it will pop itself and
     #   all printed references from these lists.
-    unPrintedNodes = unPrintedNodes + self.nodes
     for n in self.nodes:
+      if not n in printedExternally:
+        unPrintedNodes.append(n)
+      else:
+        log(self, "Node " + str(n.id()) + " is being ignored.", LOG_LEVEL_DEBUG)
+    for n in unPrintedNodes:
       for r in n.getReferences():
         if (r.target() != None) and (r.target().id() != None) and (r.parent() != None):
           unPrintedRefs.append(r)

@@ -5,8 +5,8 @@
 ### Author:  Chris Iatrou (ichrispa@core-vector.net)
 ### Version: rev 13
 ###
-### This program was created for educational purposes and has been 
-### contributed to the open62541 project by the author. All licensing 
+### This program was created for educational purposes and has been
+### contributed to the open62541 project by the author. All licensing
 ### terms for this source is inherited by the terms and conditions
 ### specified for by the open62541 project (see the projects readme
 ### file for more information on the LGPL terms and restrictions).
@@ -23,30 +23,67 @@ from logger import *
 
 def usage():
   print "Skript usage:"
-  print "generate_open62541CCode <namespace XML> [namespace.xml[ namespace.xml[...]]] <output file>"
+  print "generate_open62541CCode [-i <ignorefile> | -b <blacklistfile>] <namespace XML> [namespace.xml[ namespace.xml[...]]] <output file>"
   print ""
-  print "generate_open62541CCode will first read all XML files passed on the command line, then " 
+  print "generate_open62541CCode will first read all XML files passed on the command line, then "
   print "link and check the namespace. All nodes that fullfill the basic requirements will then be"
   print "printed as C-Code intended to be included in the open62541 OPC-UA Server that will"
   print "initialize the corresponding name space."
+  print ""
+  print "Additional Arguments:"
+  print """   -i <ignoreFile>     Loads a list of NodeIDs stored in ignoreFile (one NodeID per line)
+                       The compiler will assume that these Nodes have been created externally
+                       and not generate any code for them. They will however be linked to
+                       from other nodes."""
+  print """   -b <blacklistFile>  Loads a list of NodeIDs stored in blacklistFile (one NodeID per line)
+                       Any of the nodeIds encountered in this file will be removed from the namespace
+                       prior to compilation. Any references to these nodes will also be removed"""
+  print """   namespaceXML Any number of namespace descriptions in XML format. Note that the
+                       last description of a node encountered will be used and all prior definitions
+                       are discarded."""
 
 if __name__ == '__main__':
   # Check if the parameters given correspond to actual files
   infiles = []
   ouffile = ""
-  
-  GLOBAL_LOG_LEVEL = LOG_LEVEL_INFO
-  
+  ignoreFiles = []
+  blacklistFiles = []
+
+  GLOBAL_LOG_LEVEL = LOG_LEVEL_DEBUG
+
+  arg_isIgnore    = False
+  arg_isBlacklist = False
   if len(argv) < 2:
     usage()
     exit(1)
   for filename in argv[1:-1]:
-    if path.exists(filename):
-      infiles.append(filename)
+    if arg_isIgnore:
+      arg_isIgnore = False
+      if path.exists(filename):
+        ignoreFiles.append(filename)
+      else:
+        log(None, "File " + str(filename) + " does not exist.", LOG_LEVEL_ERROR)
+        usage()
+        exit(1)
+    elif arg_isBlacklist:
+      arg_isBlacklist = False
+      if path.exists(filename):
+        blacklistFiles.append(filename)
+      else:
+        log(None, "File " + str(filename) + " does not exist.", LOG_LEVEL_ERROR)
+        usage()
+        exit(1)
     else:
-      log(None, "File " + str(filename) + " does not exist.", LOG_LEVEL_ERROR)
-      usage()
-      exit(1)
+      if path.exists(filename):
+        infiles.append(filename)
+      elif filename.lower() == "-i" or filename.lower() == "--ignore" :
+        arg_isIgnore = True
+      elif filename.lower() == "-b" or filename.lower() == "--blacklist" :
+        arg_isBlacklist = True
+      else:
+        log(None, "File " + str(filename) + " does not exist.", LOG_LEVEL_ERROR)
+        usage()
+        exit(1)
 
   # Creating the header is tendious. We can skip the entire process if
   # the header exists.
@@ -70,6 +107,20 @@ if __name__ == '__main__':
     log(None, "Parsing " + str(xmlfile), LOG_LEVEL_INFO)
     ns.parseXML(xmlfile)
 
+  # Remove blacklisted nodes from the namespace
+  # Doing this now ensures that unlinkable pointers will be cleanly removed
+  # during sanitation.
+  for blacklist in blacklistFiles:
+    bl = open(blacklist, "r")
+    for line in bl.readlines():
+      line = line.replace(" ","")
+      id = line.replace("\n","")
+      if ns.getNodeByIDString(id) == None:
+        log(None, "Can't blacklist node, namespace does currently not contain a node with id " + str(id), LOG_LEVEL_WARN)
+      else:
+        ns.removeNodeById(line)
+    bl.close()
+
   # Link the references in the namespace
   log(None, "Linking namespace nodes and references", LOG_LEVEL_INFO)
   ns.linkOpenPointers()
@@ -91,9 +142,25 @@ if __name__ == '__main__':
   log(None, "Allocating variables", LOG_LEVEL_INFO)
   ns.allocateVariables()
 
+  # Users may have manually defined some nodes in their code already (such as serverStatus).
+  # To prevent those nodes from being reprinted, we will simply mark them as already
+  # converted to C-Code. That way, they will still be reffered to by other nodes, but
+  # they will not be created themselves.
+  ignoreNodes = []
+  for ignore in ignoreFiles:
+    ig = open(ignore, "r")
+    for line in ig.readlines():
+      line = line.replace(" ","")
+      id = line.replace("\n","")
+      if ns.getNodeByIDString(id) == None:
+        log(None, "Can't ignore node, Namespace does currently not contain a node with id " + str(id), LOG_LEVEL_WARN)
+      else:
+        ignoreNodes.append(ns.getNodeByIDString(id))
+    ig.close()
+
   # Create the C Code
   log(None, "Generating Header", LOG_LEVEL_INFO)
-  for line in ns.printOpen62541Header():
+  for line in ns.printOpen62541Header(ignoreNodes):
     outfile.write(line+"\n")
 
   outfile.close()

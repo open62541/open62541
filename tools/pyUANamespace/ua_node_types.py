@@ -262,6 +262,13 @@ class opcua_node_t:
     if ref in self.__node_references__:
       self.__node_references__.remove(ref)
 
+  def removeReferenceToNode(self, targetNode):
+    tmp = []
+    if ref in self.__node_references__:
+      if ref.target() != targetNode:
+        tmp.append(ref)
+    self.__node_references__ = tmp
+
   def addInverseReferenceTarget(self, node):
     """ Adds a reference to the inverse reference list of this node.
 
