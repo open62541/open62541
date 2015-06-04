@@ -205,7 +205,9 @@ static UA_StatusCode addRepeatedJob(UA_Server *server, struct AddRepeatedJob * r
         matchingTw = UA_realloc(matchingTw, sizeof(struct RepeatedJobs) +
                                 (sizeof(struct IdentifiedJob) * (matchingTw->jobsSize + 1)));
         if(!matchingTw) {
+#ifdef UA_MULTITHREADING
             UA_free(arw);
+#endif
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
 
@@ -218,7 +220,9 @@ static UA_StatusCode addRepeatedJob(UA_Server *server, struct AddRepeatedJob * r
         /* create a new entry */
         matchingTw = UA_malloc(sizeof(struct RepeatedJobs) + sizeof(struct IdentifiedJob));
         if(!matchingTw) {
+#ifdef UA_MULTITHREADING
             UA_free(arw);
+#endif
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         matchingTw->jobsSize = 0;
