@@ -30,12 +30,11 @@ static void UA_ExternalNamespace_deleteMembers(UA_ExternalNamespace *ens) {
     ens->externalNodeStore.destroy(ens->externalNodeStore.ensHandle);
 }
 
-UA_StatusCode UA_EXPORT
-UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, const UA_String *url, UA_ExternalNodeStore *nodeStore)
-{
-	if(nodeStore == UA_NULL){
+UA_StatusCode UA_EXPORT UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex,
+                                                       const UA_String *url, UA_ExternalNodeStore *nodeStore) {
+	if(nodeStore == UA_NULL)
 		return UA_STATUSCODE_BADARGUMENTSMISSING;
-	}
+
 	//do not allow double indices
 	for(UA_UInt32 i = 0; i < server->externalNamespacesSize; i++){
 		if(server->externalNamespaces[i].index == namespaceIndex)
@@ -47,8 +46,6 @@ UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, cons
     UA_String_copy(url,&server->externalNamespaces[server->externalNamespacesSize].url);
     server->externalNamespacesSize++;
     return UA_STATUSCODE_GOOD;
-
-
 }
 #endif /* UA_EXTERNAL_NAMESPACES*/
 
@@ -58,6 +55,7 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     server->namespacesSize++;
     return server->namespacesSize-1;
 }
+
 /*****************/
 /* Configuration */
 /*****************/
@@ -67,8 +65,8 @@ UA_Logger UA_Server_getLogger(UA_Server *server) {
 }
 
 void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkLayer) {
-    UA_ServerNetworkLayer *newlayers =
-        UA_realloc(server->networkLayers, sizeof(UA_ServerNetworkLayer)*(server->networkLayersSize+1));
+    UA_ServerNetworkLayer *newlayers = UA_realloc(server->networkLayers,
+                                                  sizeof(UA_ServerNetworkLayer)*(server->networkLayersSize+1));
     if(!newlayers) {
         UA_LOG_ERROR(server->logger, UA_LOGCATEGORY_SERVER, "Networklayer added");
         return;
@@ -77,7 +75,7 @@ void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkL
     server->networkLayers[server->networkLayersSize] = networkLayer;
     server->networkLayersSize++;
 
-    if(networkLayer.discoveryUrl){
+    if(networkLayer.discoveryUrl) {
         if(server->description.discoveryUrlsSize < 0)
             server->description.discoveryUrlsSize = 0;
         UA_String* newUrls = UA_realloc(server->description.discoveryUrls,
@@ -113,7 +111,7 @@ void UA_Server_setLogger(UA_Server *server, UA_Logger logger) {
 /* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
     // Delete the timed work
-    UA_Server_deleteTimedWork(server);
+    UA_Server_deleteAllRepeatedJobs(server);
 
     // Delete all internal data
     UA_ApplicationDescription_deleteMembers(&server->description);
@@ -134,6 +132,7 @@ void UA_Server_delete(UA_Server *server) {
 #ifdef UA_MULTITHREADING
     pthread_cond_destroy(&server->dispatchQueue_condition); // so the workers don't spin if the queue is empty
     rcu_barrier(); // wait for all scheduled call_rcu work to complete
+   	rcu_unregister_thread();
 #endif
     UA_free(server);
 }
@@ -306,11 +305,13 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     //FIXME: config contains strings, for now its okay, but consider copying them aswell
     server->config = config;
 
-    LIST_INIT(&server->timedWork);
+    LIST_INIT(&server->repeatedJobs);
 #ifdef UA_MULTITHREADING
     rcu_init();
+   	rcu_register_thread();
     cds_wfcq_init(&server->dispatchQueue_head, &server->dispatchQueue_tail);
-    server->delayedWork = UA_NULL;
+    cds_lfs_init(&server->mainLoopJobs);
+    server->delayedJobs = UA_NULL;
 #endif
 
     // logger
@@ -401,9 +402,9 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     server->nodestore = UA_NodeStore_new();
 
-    UA_WorkItem cleanup = {.type = UA_WORKITEMTYPE_METHODCALL,
-                           .work.methodCall = {.method = UA_Server_cleanup, .data = NULL} };
-    UA_Server_addRepeatedWorkItem(server, &cleanup, 10000, NULL);
+    UA_Job cleanup = {.type = UA_JOBTYPE_METHODCALL,
+                      .job.methodCall = {.method = UA_Server_cleanup, .data = NULL} };
+    UA_Server_addRepeatedJob(server, cleanup, 10000, NULL);
 
     /**********************/
     /* Server Information */
@@ -411,19 +412,21 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     server->startTime = UA_DateTime_now();
     static struct tm ct;
-    ct.tm_year = (__DATE__[7] - '0') * 1000 +  (__DATE__[8] - '0') * 100 + (__DATE__[9] - '0') * 10 + (__DATE__[10] - '0')- 1900;
-    if ((__DATE__[0]=='J') && (__DATE__[1]=='a') && (__DATE__[2]=='n')) ct.tm_mon = 1-1;
-    else if ((__DATE__[0]=='F') && (__DATE__[1]=='e') && (__DATE__[2]=='b')) ct.tm_mon = 2-1;
-    else if ((__DATE__[0]=='M') && (__DATE__[1]=='a') && (__DATE__[2]=='r')) ct.tm_mon = 3-1;
-    else if ((__DATE__[0]=='A') && (__DATE__[1]=='p') && (__DATE__[2]=='r')) ct.tm_mon = 4-1;
-    else if ((__DATE__[0]=='M') && (__DATE__[1]=='a') && (__DATE__[2]=='y')) ct.tm_mon = 5-1;
-    else if ((__DATE__[0]=='J') && (__DATE__[1]=='u') && (__DATE__[2]=='n')) ct.tm_mon = 6-1;
-    else if ((__DATE__[0]=='J') && (__DATE__[1]=='u') && (__DATE__[2]=='l')) ct.tm_mon = 7-1;
-    else if ((__DATE__[0]=='A') && (__DATE__[1]=='u') && (__DATE__[2]=='g')) ct.tm_mon = 8-1;
-    else if ((__DATE__[0]=='S') && (__DATE__[1]=='e') && (__DATE__[2]=='p')) ct.tm_mon = 9-1;
-    else if ((__DATE__[0]=='O') && (__DATE__[1]=='c') && (__DATE__[2]=='t')) ct.tm_mon = 10-1;
-    else if ((__DATE__[0]=='N') && (__DATE__[1]=='o') && (__DATE__[2]=='v')) ct.tm_mon = 11-1;
-    else if ((__DATE__[0]=='D') && (__DATE__[1]=='e') && (__DATE__[2]=='c')) ct.tm_mon = 12-1;
+    ct.tm_year = (__DATE__[7] - '0') * 1000 +  (__DATE__[8] - '0') * 100 +
+        (__DATE__[9] - '0') * 10 + (__DATE__[10] - '0')- 1900;
+
+    if(__DATE__[0]=='J' && __DATE__[1]=='a' && __DATE__[2]=='n') ct.tm_mon = 1-1;
+    else if(__DATE__[0]=='F' && __DATE__[1]=='e' && __DATE__[2]=='b') ct.tm_mon = 2-1;
+    else if(__DATE__[0]=='M' && __DATE__[1]=='a' && __DATE__[2]=='r') ct.tm_mon = 3-1;
+    else if(__DATE__[0]=='A' && __DATE__[1]=='p' && __DATE__[2]=='r') ct.tm_mon = 4-1;
+    else if(__DATE__[0]=='M' && __DATE__[1]=='a' && __DATE__[2]=='y') ct.tm_mon = 5-1;
+    else if(__DATE__[0]=='J' && __DATE__[1]=='u' && __DATE__[2]=='n') ct.tm_mon = 6-1;
+    else if(__DATE__[0]=='J' && __DATE__[1]=='u' && __DATE__[2]=='l') ct.tm_mon = 7-1;
+    else if(__DATE__[0]=='A' && __DATE__[1]=='u' && __DATE__[2]=='g') ct.tm_mon = 8-1;
+    else if(__DATE__[0]=='S' && __DATE__[1]=='e' && __DATE__[2]=='p') ct.tm_mon = 9-1;
+    else if(__DATE__[0]=='O' && __DATE__[1]=='c' && __DATE__[2]=='t') ct.tm_mon = 10-1;
+    else if(__DATE__[0]=='N' && __DATE__[1]=='o' && __DATE__[2]=='v') ct.tm_mon = 11-1;
+    else if(__DATE__[0]=='D' && __DATE__[1]=='e' && __DATE__[2]=='c') ct.tm_mon = 12-1;
 
     // special case to handle __DATE__ not inserting leading zero on day of month
     // if Day of month is less than 10 - it inserts a blank character

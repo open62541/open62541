@@ -118,6 +118,7 @@
 # include <urcu/compiler.h> // for caa_container_of
 # include <urcu/uatomic.h>
 # include <urcu/rculfhash.h>
+#include <urcu/lfstack.h>
 #endif
 
 #endif /* UA_UTIL_H_ */
