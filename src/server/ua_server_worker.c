@@ -231,7 +231,9 @@ static UA_StatusCode addRepeatedJob(UA_Server *server, struct AddRepeatedJob * r
     }
     matchingTw->jobs[matchingTw->jobsSize] = arw->job;
     matchingTw->jobsSize++;
+#ifdef UA_MULTITHREADING
     UA_free(arw);
+#endif
     return UA_STATUSCODE_GOOD;
 }
 
