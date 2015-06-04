@@ -33,6 +33,13 @@
 # include <malloc.h>
 #endif
 
+/* Visual Studio needs __restrict */
+#ifdef _MSC_VER
+    #define UA_RESTRICT __restrict
+#else
+    #define UA_RESTRICT restrict
+#endif
+
 #define UA_NULL ((void *)0)
 
 // subtract from nodeids to get from the encoding to the content
@@ -49,6 +56,8 @@
 #define UA_memcpy(dst, src, size) memcpy(dst, src, size)
 #define UA_memset(ptr, value, size) memset(ptr, value, size)
 
+#ifdef NO_ALLOCA
+#else
 #ifdef _WIN32
     # define UA_alloca(SIZE) _alloca(SIZE)
 #else
@@ -59,7 +68,7 @@
     # define UA_alloca(SIZE) alloca(SIZE)
  #endif
 #endif
-
+#endif /* NO_ALLOCA */
 /********************/
 /* System Libraries */
 /********************/
@@ -109,6 +118,7 @@
 # include <urcu/compiler.h> // for caa_container_of
 # include <urcu/uatomic.h>
 # include <urcu/rculfhash.h>
+#include <urcu/lfstack.h>
 #endif
 
 #endif /* UA_UTIL_H_ */
