@@ -5,8 +5,8 @@
 ### Author:  Chris Iatrou (ichrispa@core-vector.net)
 ### Version: rev 13
 ###
-### This program was created for educational purposes and has been 
-### contributed to the open62541 project by the author. All licensing 
+### This program was created for educational purposes and has been
+### contributed to the open62541 project by the author. All licensing
 ### terms for this source is inherited by the terms and conditions
 ### specified for by the open62541 project (see the projects readme
 ### file for more information on the LGPL terms and restrictions).
@@ -22,8 +22,8 @@ from ua_constants import *
 __unique_item_id = 0
 
 class open62541_MacroHelper():
-  def __init__(self):
-    pass
+  def __init__(self, supressGenerationOfAttribute=[]):
+    self.supressGenerationOfAttribute = supressGenerationOfAttribute
 
   def getCreateExpandedNodeIDMacro(self, node):
     if node.id().i != None:
@@ -106,28 +106,49 @@ class open62541_MacroHelper():
       nodetype = "UA_NodeTypeNotFoundorGeneric"
 
     code.append(nodetype + " *" + node.getCodePrintableID() + " = " + nodetype + "_new();")
-    code.append(node.getCodePrintableID() + "->browseName = UA_QUALIFIEDNAME_ALLOC(" +  str(node.id().ns) + ", \"" + node.browseName() + "\");")
-    code.append(node.getCodePrintableID() + "->displayName = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" +  node.displayName() + "\");")
-    code.append(node.getCodePrintableID() + "->description = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" +  node.description() + "\");")
-    code.append(node.getCodePrintableID() + "->writeMask = (UA_Int32) " +  str(node.__node_writeMask__) + ";")
-    code.append(node.getCodePrintableID() + "->userWriteMask = (UA_Int32) " + str(node.__node_userWriteMask__) + ";")
+    if not "browsename" in self.supressGenerationOfAttribute:
+      code.append(node.getCodePrintableID() + "->browseName = UA_QUALIFIEDNAME_ALLOC(" +  str(node.id().ns) + ", \"" + node.browseName() + "\");")
+    else:
+      code.append(node.getCodePrintableID() + "->browseName = UA_NULL;")
+    if not "displayname" in self.supressGenerationOfAttribute:
+      code.append(node.getCodePrintableID() + "->displayName = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" +  node.displayName() + "\");")
+    else:
+      code.append(node.getCodePrintableID() + "->displayName = UA_NULL;")
+    if not "description" in self.supressGenerationOfAttribute:
+      code.append(node.getCodePrintableID() + "->description = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" +  node.description() + "\");")
+    else:
+      code.append(node.getCodePrintableID() + "->description = UA_NULL;")
+
+    if not "writemask" in self.supressGenerationOfAttribute:
+      code.append(node.getCodePrintableID() + "->writeMask = (UA_Int32) " +  str(node.__node_writeMask__) + ";")
+    if not "userwritemask" in self.supressGenerationOfAttribute:
+      code.append(node.getCodePrintableID() + "->userWriteMask = (UA_Int32) " + str(node.__node_userWriteMask__) + ";")
     #FIXME: Allocate descriptions, etc.
 
-    if node.id().i != None:
-      code.append(node.getCodePrintableID() + "->nodeId.identifier.numeric = " + str(node.id().i) + ";")
-    elif node.id().b != None:
-      log(self, "ByteString IDs for nodes has not been implemented yet.", LOG_LEVEL_ERROR)
-      return []
-    elif node.id().g != None:
-      #<jpfr> the string is sth like { .length = 111, .data = <ptr> }
-      #<jpfr> there you _may_ alloc the <ptr> on the heap
-      #<jpfr> for the guid, just set it to {.data1 = 111, .data2 = 2222, ....
-      log(self, "GUIDs for nodes has not been implemented yet.", LOG_LEVEL_ERROR)
-      return []
-    elif node.id().s != None:
-      code.append(node.getCodePrintableID() + "->nodeId.identifier.numeric = UA_STRING_ALLOC(\"" + str(node.id().i) + "\");")
+    if not "nodeid" in self.supressGenerationOfAttribute:
+      code.append(node.getCodePrintableID() + "->nodeId.namespaceIndex = " + str(node.id().ns) + ";")
+      if node.id().i != None:
+        code.append(node.getCodePrintableID() + "->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;")
+        code.append(node.getCodePrintableID() + "->nodeId.identifier.numeric = " + str(node.id().i) + ";")
+      elif node.id().b != None:
+        code.append(node.getCodePrintableID() + "->nodeId.identifierType = UA_NODEIDTYPE_BYTESTRING;")
+        log(self, "ByteString IDs for nodes has not been implemented yet.", LOG_LEVEL_ERROR)
+        return []
+      elif node.id().g != None:
+        #<jpfr> the string is sth like { .length = 111, .data = <ptr> }
+        #<jpfr> there you _may_ alloc the <ptr> on the heap
+        #<jpfr> for the guid, just set it to {.data1 = 111, .data2 = 2222, ....
+        code.append(node.getCodePrintableID() + "->nodeId.identifierType = UA_NODEIDTYPE_GUID;")
+        log(self, "GUIDs for nodes has not been implemented yet.", LOG_LEVEL_ERROR)
+        return []
+      elif node.id().s != None:
+        code.append(node.getCodePrintableID() + "->nodeId.identifierType = UA_NODEIDTYPE_STRING;")
+        code.append(node.getCodePrintableID() + "->nodeId.identifier.numeric = UA_STRING_ALLOC(\"" + str(node.id().i) + "\");")
+      else:
+        log(self, "Node ID is not numeric, bytestring, guid or string. I do not know how to create c code for that...", LOG_LEVEL_ERROR)
+        return []
     else:
-      log(self, "Node ID is not numeric, bytestring, guid or string. I do not know how to create c code for that...", LOG_LEVEL_ERROR)
-      return []
+      code.append(node.getCodePrintableID() + "->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;")
+      code.append(node.getCodePrintableID() + "->nodeId.identifier.numeric = 0;")
 
     return code
