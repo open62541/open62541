@@ -106,7 +106,7 @@ class open62541_MacroHelper():
       nodetype = "UA_NodeTypeNotFoundorGeneric"
 
     code.append(nodetype + " *" + node.getCodePrintableID() + " = " + nodetype + "_new();")
-    code.append(nodetype + "_init(&" + node.getCodePrintableID() + ");")
+    code.append(nodetype + "_init(" + node.getCodePrintableID() + ");")
     if not "browsename" in self.supressGenerationOfAttribute:
       code.append(node.getCodePrintableID() + "->browseName = UA_QUALIFIEDNAME_ALLOC(" +  str(node.id().ns) + ", \"" + node.browseName() + "\");")
     if not "displayname" in self.supressGenerationOfAttribute:
