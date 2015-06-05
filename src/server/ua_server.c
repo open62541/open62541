@@ -446,8 +446,9 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     /**************/
     /* References */
     /**************/
-    
+#ifndef LOADGENERATEDNS
     /* bootstrap by manually inserting "references" and "hassubtype" */
+
     UA_ReferenceTypeNode *references = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)references, "References");
     references->nodeId.identifier.numeric = UA_NS0ID_REFERENCES;
@@ -676,7 +677,6 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     UA_Server_addNode(server, (UA_Node*)hashistoricalconfiguration,
                       UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_AGGREGATES),
                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE));
-
     /*****************/
     /* Basic Folders */
     /*****************/
@@ -806,6 +806,12 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
    addVariableTypeNode_organized(server, "BaseVariableType", UA_NS0ID_BASEVARIABLETYPE, UA_NS0ID_VARIABLETYPESFOLDER, UA_TRUE);
    addVariableTypeNode_subtype(server, "BaseDataVariableType", UA_NS0ID_BASEDATAVARIABLETYPE, UA_NS0ID_BASEVARIABLETYPE, UA_FALSE);
    addVariableTypeNode_subtype(server, "PropertyType", UA_NS0ID_PROPERTYTYPE, UA_NS0ID_BASEVARIABLETYPE, UA_FALSE);
+#endif
+
+   //overlay the existing nodes with the generated namespace
+#ifdef LOADGENERATEDNS
+   #include "ua_namespaceinit_generated.h"
+#endif
 
    /*********************/
    /* The Server Object */
@@ -1056,10 +1062,6 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
                UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT));
        ADDREFERENCE(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_SHUTDOWNREASON), UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE));
-//overlay the existing nodes with the generated namespace
-//existing nodes will not be created -> errors are ignored
-#ifdef LOADGENERATEDNS
-    #include "ua_namespaceinit_generated.h"
-#endif
+
    return server;
 }
