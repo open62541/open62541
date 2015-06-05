@@ -591,7 +591,7 @@ class opcua_node_t:
     """
     return []
 
-  def printOpen62541CCode(self, unPrintedNodes=[], unPrintedReferences=[]):
+  def printOpen62541CCode(self, unPrintedNodes=[], unPrintedReferences=[], supressGenerationOfAttribute=[]):
     """ printOpen62541CCode
 
         Returns a list of strings containing the C-code necessary to intialize
@@ -600,7 +600,7 @@ class opcua_node_t:
         Note that this function will fail if the nodeid is non-numeric, as
         there is no UA_EXPANDEDNNODEID_[STRING|GUID|BYTESTRING] macro.
     """
-    codegen = open62541_MacroHelper()
+    codegen = open62541_MacroHelper(supressGenerationOfAttribute=supressGenerationOfAttribute)
     code = []
     code.append("")
 
@@ -844,10 +844,12 @@ class opcua_node_variable_t(opcua_node_t):
   def sanitizeSubType(self):
     if not isinstance(self.dataType(), opcua_referencePointer_t):
       log(self, "DataType " + str(self.dataType()) + " of " + str(self.id()) + " is not a pointer (DataType is manditory for variables).", LOG_LEVEL_ERROR)
+      self.__dataType__ = None
       return False
 
     if not isinstance(self.dataType().target(), opcua_node_t):
       log(self, "DataType " + str(self.dataType().target()) + " of " + str(self.id()) + " does not point to a node (DataType is manditory for variables).", LOG_LEVEL_ERROR)
+      self.__dataType__ = None
       return False
     return True
 
@@ -950,7 +952,7 @@ class opcua_node_variable_t(opcua_node_t):
 
     # Delegate the encoding of the datavalue to the helper if we have
     # determined a valid encoding
-    if self.dataType() != None and self.dataType().target().isEncodable():
+    if self.dataType() != None and (isinstance(self.dataType().target(), opcua_node_dataType_t) and self.dataType().target().isEncodable()):
       if self.value() != None:
         code = code + self.value().printOpen62541CCode()
     return code
