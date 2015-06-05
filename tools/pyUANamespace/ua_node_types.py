@@ -730,16 +730,12 @@ class opcua_node_referenceType_t(opcua_node_t):
 
   def printOpen62541CCode_Subtype(self):
     code = []
-    code.append(self.getCodePrintableID() + "->inverseName = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" + self.inverseName() + "\");")
+    # Note that UA_FALSE is default here
     if self.isAbstract():
       code.append(self.getCodePrintableID() + "->isAbstract = UA_TRUE;")
-    else:
-      code.append(self.getCodePrintableID() + "->isAbstract = UA_FALSE;")
 
     if self.symmetric():
       code.append(self.getCodePrintableID() + "->symmetric  = UA_TRUE;")
-    else:
-      code.append(self.getCodePrintableID() + "->symmetric  = UA_FALSE;")
 
     if self.__reference_inverseName__ != "":
       code.append(self.getCodePrintableID() + "->inverseName  = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" + self.__reference_inverseName__ + "\");")
