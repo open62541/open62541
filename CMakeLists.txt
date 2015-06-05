@@ -128,7 +128,7 @@ option(LOADGENERATEDNS "Generate and load UA XML Namespace 0 definition" OFF)
 if(LOADGENERATEDNS)
 add_definitions(-DLOADGENERATEDNS)
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
-                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_AssumeExternal.txt -s description -b ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist.txt ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.xml ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
+                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_AssumeExternal.txt -s description -b ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist.txt ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
                    DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py  
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py  
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py  
