@@ -1,4 +1,4 @@
-#!/usr/bin/env/python
+#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 ###
@@ -38,6 +38,9 @@ def usage():
   print """   -b <blacklistFile>  Loads a list of NodeIDs stored in blacklistFile (one NodeID per line)
                        Any of the nodeIds encountered in this file will be removed from the namespace
                        prior to compilation. Any references to these nodes will also be removed"""
+  print """   -s <attribute>  Suppresses the generation of some node attributes. Currently supported
+                       options are 'description', 'browseName', 'displayName', 'writeMask', 'userWriteMask'
+                       and 'nodeid'."""
   print """   namespaceXML Any number of namespace descriptions in XML format. Note that the
                        last description of a node encountered will be used and all prior definitions
                        are discarded."""
@@ -48,11 +51,13 @@ if __name__ == '__main__':
   ouffile = ""
   ignoreFiles = []
   blacklistFiles = []
+  supressGenerationOfAttribute=[]
 
   GLOBAL_LOG_LEVEL = LOG_LEVEL_DEBUG
 
   arg_isIgnore    = False
   arg_isBlacklist = False
+  arg_isSupress   = False
   if len(argv) < 2:
     usage()
     exit(1)
@@ -73,6 +78,9 @@ if __name__ == '__main__':
         log(None, "File " + str(filename) + " does not exist.", LOG_LEVEL_ERROR)
         usage()
         exit(1)
+    elif arg_isSupress:
+      arg_isSupress = False
+      supressGenerationOfAttribute.append(filename.lower())
     else:
       if path.exists(filename):
         infiles.append(filename)
@@ -80,6 +88,8 @@ if __name__ == '__main__':
         arg_isIgnore = True
       elif filename.lower() == "-b" or filename.lower() == "--blacklist" :
         arg_isBlacklist = True
+      elif filename.lower() == "-s" or filename.lower() == "--suppress" :
+        arg_isSupress = True
       else:
         log(None, "File " + str(filename) + " does not exist.", LOG_LEVEL_ERROR)
         usage()
@@ -88,7 +98,7 @@ if __name__ == '__main__':
   # Creating the header is tendious. We can skip the entire process if
   # the header exists.
   if path.exists(argv[-1]):
-    log(None, "File " + str(filename) + " does already exists.", LOG_LEVEL_INFO)
+    log(None, "File " + str(argv[-1]) + " does already exists.", LOG_LEVEL_INFO)
     log(None, "Header generation will be skipped. Delete the header and rerun this script if necessary.", LOG_LEVEL_INFO)
     exit(0)
 
@@ -160,7 +170,9 @@ if __name__ == '__main__':
 
   # Create the C Code
   log(None, "Generating Header", LOG_LEVEL_INFO)
-  for line in ns.printOpen62541Header(ignoreNodes):
+  for line in ns.printOpen62541Header(ignoreNodes, supressGenerationOfAttribute):
     outfile.write(line+"\n")
 
   outfile.close()
+
+  exit(0)
