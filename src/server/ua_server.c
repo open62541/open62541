@@ -6,6 +6,10 @@
 #include "ua_services.h"
 #include "ua_nodeids.h"
 
+#ifdef LOADGENERATEDNS
+  #include "ua_namespaceinit_generated.h"
+#endif
+
 const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     .Login_enableAnonymous = UA_TRUE,
     .Login_enableUsernamePassword = UA_TRUE,
@@ -810,7 +814,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
    //overlay the existing nodes with the generated namespace
 #ifdef LOADGENERATEDNS
-   #include "ua_namespaceinit_generated.h"
+   ua_namespaceinit_generated(server);
 #endif
 
    /*********************/
