@@ -106,29 +106,26 @@ class open62541_MacroHelper():
       nodetype = "UA_NodeTypeNotFoundorGeneric"
 
     code.append(nodetype + " *" + node.getCodePrintableID() + " = " + nodetype + "_new();")
+    code.append(nodetype + "_init(&" + node.getCodePrintableID() + ");")
     if not "browsename" in self.supressGenerationOfAttribute:
       code.append(node.getCodePrintableID() + "->browseName = UA_QUALIFIEDNAME_ALLOC(" +  str(node.id().ns) + ", \"" + node.browseName() + "\");")
-    else:
-      code.append(node.getCodePrintableID() + "->browseName = UA_NULL;")
     if not "displayname" in self.supressGenerationOfAttribute:
       code.append(node.getCodePrintableID() + "->displayName = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" +  node.displayName() + "\");")
-    else:
-      code.append(node.getCodePrintableID() + "->displayName = UA_NULL;")
     if not "description" in self.supressGenerationOfAttribute:
       code.append(node.getCodePrintableID() + "->description = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" +  node.description() + "\");")
-    else:
-      code.append(node.getCodePrintableID() + "->description = UA_NULL;")
 
     if not "writemask" in self.supressGenerationOfAttribute:
-      code.append(node.getCodePrintableID() + "->writeMask = (UA_Int32) " +  str(node.__node_writeMask__) + ";")
+        if node.__node_writeMask__ != 0:
+          code.append(node.getCodePrintableID() + "->writeMask = (UA_Int32) " +  str(node.__node_writeMask__) + ";")
     if not "userwritemask" in self.supressGenerationOfAttribute:
-      code.append(node.getCodePrintableID() + "->userWriteMask = (UA_Int32) " + str(node.__node_userWriteMask__) + ";")
+        if node.__node_userWriteMask__ != 0:
+          code.append(node.getCodePrintableID() + "->userWriteMask = (UA_Int32) " + str(node.__node_userWriteMask__) + ";")
     #FIXME: Allocate descriptions, etc.
 
     if not "nodeid" in self.supressGenerationOfAttribute:
-      code.append(node.getCodePrintableID() + "->nodeId.namespaceIndex = " + str(node.id().ns) + ";")
+      if node.id().ns != 0:
+        code.append(node.getCodePrintableID() + "->nodeId.namespaceIndex = " + str(node.id().ns) + ";")
       if node.id().i != None:
-        code.append(node.getCodePrintableID() + "->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;")
         code.append(node.getCodePrintableID() + "->nodeId.identifier.numeric = " + str(node.id().i) + ";")
       elif node.id().b != None:
         code.append(node.getCodePrintableID() + "->nodeId.identifierType = UA_NODEIDTYPE_BYTESTRING;")
@@ -147,8 +144,5 @@ class open62541_MacroHelper():
       else:
         log(self, "Node ID is not numeric, bytestring, guid or string. I do not know how to create c code for that...", LOG_LEVEL_ERROR)
         return []
-    else:
-      code.append(node.getCodePrintableID() + "->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;")
-      code.append(node.getCodePrintableID() + "->nodeId.identifier.numeric = 0;")
 
     return code
