@@ -493,10 +493,11 @@ class opcua_namespace():
     file.write("}\n")
     file.close()
 
-  def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[]):
+  def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename=""):
     unPrintedNodes = []
     unPrintedRefs  = []
     code = []
+    header = []
 
     # Some macros (UA_EXPANDEDNODEID_MACRO()...) are easily created, but
     # bulky. This class will help to offload some code.
@@ -516,7 +517,17 @@ class opcua_namespace():
           unPrintedRefs.append(r)
 
     log(self, str(len(unPrintedNodes)) + " Nodes, " + str(len(unPrintedRefs)) +  "References need to get printed.", LOG_LEVEL_DEBUG)
-    code.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n */")
+    code.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
+    header.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
+
+    header.append('#include "server/ua_server_internal.h"')
+    header.append('#include "server/ua_nodes.h"')
+    header.append('#include "ua_types.h"')
+    header.append("extern inline void "+outfilename+"(UA_Server *server);\n")
+
+    code.append('#include "'+outfilename+'.h"')
+    code.append("inline void "+outfilename+"(UA_Server *server) {")
+
 
     # Find all references necessary to create the namespace and
     # "Bootstrap" them so all other nodes can safely use these referencetypes whenever
@@ -529,7 +540,7 @@ class opcua_namespace():
           refsUsed.append(r.referenceType())
     log(self, str(len(refsUsed)) + " reference types are used in the namespace, which will now get bootstrapped.", LOG_LEVEL_DEBUG)
     for r in refsUsed:
-      code = code + r.printOpen62541CCode(unPrintedNodes, unPrintedRefs, supressGenerationOfAttribute=supressGenerationOfAttribute);
+      code = code + r.printOpen62541CCode(unPrintedNodes, unPrintedRefs);
 
     # Note to self: do NOT - NOT! - try to iterate over unPrintedNodes!
     #               Nodes remove themselves from this list when printed.
@@ -565,8 +576,8 @@ class opcua_namespace():
     else:
       log(self, "Printing succeeded for all references", LOG_LEVEL_DEBUG)
 
-    #code.append("}")
-    return code
+    code.append("}")
+    return (header,code)
 
 ###
 ### Testing
