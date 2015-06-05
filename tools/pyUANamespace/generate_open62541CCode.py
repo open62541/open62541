@@ -30,6 +30,12 @@ def usage():
   print "printed as C-Code intended to be included in the open62541 OPC-UA Server that will"
   print "initialize the corresponding name space."
   print ""
+  print "Manditory Arguments:"
+  print "<namespace XML>    At least one Namespace XML file must be passed."
+  print "<output file>      The basename for the <output file>.c and <output file.h> files to be generated."
+  print "                   This will also be the function name used in the header and c-file."
+  print ""
+  print ""
   print "Additional Arguments:"
   print """   -i <ignoreFile>     Loads a list of NodeIDs stored in ignoreFile (one NodeID per line)
                        The compiler will assume that these Nodes have been created externally
@@ -97,13 +103,14 @@ if __name__ == '__main__':
 
   # Creating the header is tendious. We can skip the entire process if
   # the header exists.
-  if path.exists(argv[-1]):
+  if path.exists(argv[-1]+".c") or path.exists(argv[-1]+".h"):
     log(None, "File " + str(argv[-1]) + " does already exists.", LOG_LEVEL_INFO)
     log(None, "Header generation will be skipped. Delete the header and rerun this script if necessary.", LOG_LEVEL_INFO)
     exit(0)
 
   # Open the output file
-  outfile = open(argv[-1], r"w+")
+  outfilec = open(argv[-1]+".c", r"w+")
+  outfileh = open(argv[-1]+".h", r"w+")
 
   # Create a new namespace
   # Note that the name is actually completely symbolic, it has no other
@@ -170,9 +177,14 @@ if __name__ == '__main__':
 
   # Create the C Code
   log(None, "Generating Header", LOG_LEVEL_INFO)
-  for line in ns.printOpen62541Header(ignoreNodes, supressGenerationOfAttribute):
-    outfile.write(line+"\n")
+  # Returns a tuple of (["Header","lines"],["Code","lines","generated"])
+  generatedCode=ns.printOpen62541Header(ignoreNodes, supressGenerationOfAttribute, outfilename=path.basename(argv[-1]))
+  for line in generatedCode[0]:
+    outfileh.write(line+"\n")
+  for line in generatedCode[1]:
+    outfilec.write(line+"\n")
 
-  outfile.close()
+  outfilec.close()
+  outfileh.close()
 
   exit(0)
