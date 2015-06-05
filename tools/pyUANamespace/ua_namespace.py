@@ -493,14 +493,14 @@ class opcua_namespace():
     file.write("}\n")
     file.close()
 
-  def printOpen62541Header(self, printedExternally=[]):
+  def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[]):
     unPrintedNodes = []
     unPrintedRefs  = []
     code = []
 
     # Some macros (UA_EXPANDEDNODEID_MACRO()...) are easily created, but
     # bulky. This class will help to offload some code.
-    codegen = open62541_MacroHelper()
+    codegen = open62541_MacroHelper(supressGenerationOfAttribute=supressGenerationOfAttribute)
 
     # Populate the unPrinted-Lists with everything we have.
     # Every Time a nodes printfunction is called, it will pop itself and
@@ -529,13 +529,13 @@ class opcua_namespace():
           refsUsed.append(r.referenceType())
     log(self, str(len(refsUsed)) + " reference types are used in the namespace, which will now get bootstrapped.", LOG_LEVEL_DEBUG)
     for r in refsUsed:
-      code = code + r.printOpen62541CCode(unPrintedNodes, unPrintedRefs);
+      code = code + r.printOpen62541CCode(unPrintedNodes, unPrintedRefs, supressGenerationOfAttribute=supressGenerationOfAttribute);
 
     # Note to self: do NOT - NOT! - try to iterate over unPrintedNodes!
     #               Nodes remove themselves from this list when printed.
     log(self, "Printing all other nodes.", LOG_LEVEL_DEBUG)
     for n in self.nodes:
-      code = code + n.printOpen62541CCode(unPrintedNodes, unPrintedRefs)
+      code = code + n.printOpen62541CCode(unPrintedNodes, unPrintedRefs, supressGenerationOfAttribute=supressGenerationOfAttribute)
 
     if len(unPrintedNodes) != 0:
       log(self, "" + str(len(unPrintedNodes)) + " nodes could not be translated to code.", LOG_LEVEL_WARN)
