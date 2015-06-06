@@ -79,20 +79,11 @@ UA_AddNodesResult UA_Server_addNodeWithSession(UA_Server *server, UA_Session *se
 UA_AddNodesResult UA_Server_addNode(UA_Server *server, UA_Node *node, const UA_ExpandedNodeId parentNodeId,
                                     const UA_NodeId referenceTypeId);
 
-UA_StatusCode UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session, const UA_AddReferencesItem *item);
+UA_StatusCode UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session,
+                                                const UA_AddReferencesItem *item);
 
 UA_StatusCode UA_Server_addDelayedJob(UA_Server *server, UA_Job job);
 
 void UA_Server_deleteAllRepeatedJobs(UA_Server *server);
-
-#define ADDREFERENCE(NODEID, REFTYPE_NODEID, TARGET_EXPNODEID) do {     \
-        UA_AddReferencesItem item;                                      \
-        UA_AddReferencesItem_init(&item);                               \
-        item.sourceNodeId = NODEID;                                     \
-        item.referenceTypeId = REFTYPE_NODEID;                          \
-        item.isForward = UA_TRUE;                                       \
-        item.targetNodeId = TARGET_EXPNODEID;                           \
-        UA_Server_addReference(server, &item);                          \
-    } while(0)
 
 #endif /* UA_SERVER_INTERNAL_H_ */
