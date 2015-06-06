@@ -2,6 +2,7 @@
 #include "ua_securechannel.h"
 #include "ua_session.h"
 #include "ua_statuscodes.h"
+#include "ua_types_encoding_binary.h"
 
 void UA_SecureChannel_init(UA_SecureChannel *channel) {
     UA_MessageSecurityMode_init(&channel->securityMode);
@@ -10,7 +11,6 @@ void UA_SecureChannel_init(UA_SecureChannel *channel) {
     UA_AsymmetricAlgorithmSecurityHeader_init(&channel->serverAsymAlgSettings);
     UA_ByteString_init(&channel->clientNonce);
     UA_ByteString_init(&channel->serverNonce);
-    channel->requestId = 0;
     channel->sequenceNumber = 0;
     channel->connection = UA_NULL;
     LIST_INIT(&channel->sessions);
@@ -40,22 +40,6 @@ UA_StatusCode UA_SecureChannel_generateNonce(UA_ByteString *nonce) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     nonce->length  = 1;
     nonce->data[0] = 'a';
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode UA_SecureChannel_updateRequestId(UA_SecureChannel *channel, UA_UInt32 requestId) {
-    //TODO review checking of request id
-    if(channel->requestId+1 != requestId)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    channel->requestId++;
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode UA_SecureChannel_updateSequenceNumber(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
-    //TODO review checking of sequence
-    if(channel->sequenceNumber+1  != sequenceNumber)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    channel->sequenceNumber++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -98,8 +82,61 @@ UA_Session * UA_SecureChannel_getSession(UA_SecureChannel *channel, UA_NodeId *t
         if(UA_NodeId_equal(&se->session->authenticationToken, token))
             break;
     }
-    if(se)
-        return se->session;
-    else
+    if(!se)
         return UA_NULL;
+    return se->session;
+}
+
+UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
+                                                  const void *content,
+                                                  const UA_DataType *contentType) {
+    UA_Connection *connection = channel->connection;
+    if(!connection)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_NodeId typeId = contentType->typeId;
+    if(typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    typeId.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
+
+    UA_SecureConversationMessageHeader respHeader;
+    respHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
+    respHeader.messageHeader.messageSize = 0;
+    respHeader.secureChannelId = channel->securityToken.channelId;
+
+    UA_SymmetricAlgorithmSecurityHeader symSecHeader;
+    symSecHeader.tokenId = channel->securityToken.tokenId;
+
+    UA_SequenceHeader seqHeader;
+    seqHeader.requestId = requestId;
+
+    respHeader.messageHeader.messageSize =
+        UA_SecureConversationMessageHeader_calcSizeBinary(&respHeader)
+        + UA_SymmetricAlgorithmSecurityHeader_calcSizeBinary(&symSecHeader)
+        + UA_SequenceHeader_calcSizeBinary(&seqHeader)
+        + UA_NodeId_calcSizeBinary(&typeId)
+        + UA_calcSizeBinary(content, contentType);
+
+    UA_ByteString message;
+    UA_StatusCode retval = connection->getBuffer(connection, &message, respHeader.messageHeader.messageSize);
+    if(retval)
+        return retval;
+
+    /* do this only now, so the sequence number does not increase if sth fails */
+#ifndef UA_MULTITHREADING
+    seqHeader.sequenceNumber = ++channel->sequenceNumber;
+#else
+    seqHeader.sequenceNumber = uatomic_add_return(&channel->sequenceNumber, 1);
+#endif
+
+    size_t messagePos = 0;
+    UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &message, &messagePos);
+    UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader, &message, &messagePos);
+    UA_SequenceHeader_encodeBinary(&seqHeader, &message, &messagePos);
+    UA_NodeId_encodeBinary(&typeId, &message, &messagePos);
+    UA_encodeBinary(content, contentType, &message, &messagePos);
+    
+    connection->write(connection, &message);
+    connection->releaseBuffer(connection, &message);
+    return UA_STATUSCODE_GOOD;
 }
