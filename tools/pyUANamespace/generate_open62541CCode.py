@@ -22,7 +22,7 @@ from ua_namespace import *
 from logger import *
 
 def usage():
-  print "Skript usage:"
+  print "Script usage:"
   print "generate_open62541CCode [-i <ignorefile> | -b <blacklistfile>] <namespace XML> [namespace.xml[ namespace.xml[...]]] <output file>"
   print ""
   print "generate_open62541CCode will first read all XML files passed on the command line, then "
@@ -32,7 +32,7 @@ def usage():
   print ""
   print "Manditory Arguments:"
   print "<namespace XML>    At least one Namespace XML file must be passed."
-  print "<output file>      The basename for the <output file>.c and <output file.h> files to be generated."
+  print "<output file>      The basename for the <output file>.h files to be generated."
   print "                   This will also be the function name used in the header and c-file."
   print ""
   print ""
@@ -109,7 +109,6 @@ if __name__ == '__main__':
     exit(0)
 
   # Open the output file
-  outfilec = open(argv[-1]+".c", r"w+")
   outfileh = open(argv[-1]+".h", r"w+")
 
   # Create a new namespace
@@ -179,12 +178,9 @@ if __name__ == '__main__':
   log(None, "Generating Header", LOG_LEVEL_INFO)
   # Returns a tuple of (["Header","lines"],["Code","lines","generated"])
   generatedCode=ns.printOpen62541Header(ignoreNodes, supressGenerationOfAttribute, outfilename=path.basename(argv[-1]))
-  for line in generatedCode[0]:
+  for line in generatedCode:
     outfileh.write(line+"\n")
-  for line in generatedCode[1]:
-    outfilec.write(line+"\n")
 
-  outfilec.close()
   outfileh.close()
 
   exit(0)

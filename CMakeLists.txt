@@ -33,7 +33,7 @@ if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
     add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
                     -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
                     -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes # -Wshadow -Wconversion
-                    -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral -fgnu89-inline)
+                    -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral)
     # binary size reduction settings
 	add_definitions(-ffunction-sections -fdata-sections -fno-stack-protector -fno-unwind-tables
                     -fno-asynchronous-unwind-tables -fno-math-errno -fmerge-all-constants -fno-ident)
@@ -80,7 +80,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
-                ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c
                 ${PROJECT_SOURCE_DIR}/src/ua_connection.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_session.c
@@ -128,21 +127,18 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
 option(LOADGENERATEDNS "Generate and load UA XML Namespace 0 definition" OFF)
 if(LOADGENERATEDNS)
 add_definitions(-DLOADGENERATEDNS)
+list(APPEND internal_headers ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h)
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c
+                   PRE_BUILD
                    COMMAND python ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_AssumeExternal.txt -s description -b ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist.txt ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated
-                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py  
+                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py  
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py  
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py  
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py  
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py  
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py  
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
-)
-else()
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
-                   COMMAND touch ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
-                  DEPENDS
 )
 endif()
 
