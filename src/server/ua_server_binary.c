@@ -147,7 +147,7 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
 static void invoke_service(UA_Server *server, UA_SecureChannel *channel,
                            UA_UInt32 requestId, UA_RequestHeader *request, const UA_DataType *responseType,
                            void (*service)(UA_Server*, UA_Session*, void*, void*)) {
-    UA_ResponseHeader *response = UA_alloca(responseType->memSize); // bigger than the response header only
+    UA_ResponseHeader *response = UA_alloca(responseType->memSize);
     UA_init(response, responseType);
     init_response_header(request, response);
     /* try to get the session from the securechannel first */
@@ -187,8 +187,8 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     if(retval != UA_STATUSCODE_GOOD)
         return;
 
-    UA_SecureChannel *clientChannel = connection->channel;
     /* the anonymous channel is used e.g. to allow getEndpoints without a channel */
+    UA_SecureChannel *clientChannel = connection->channel;
     UA_SecureChannel anonymousChannel;
     if(!clientChannel) {
         UA_SecureChannel_init(&anonymousChannel);
@@ -305,13 +305,12 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         INVOKE_SERVICE(TranslateBrowsePathsToNodeIds, UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE);
         break;
     default: {
-        if(requestType.namespaceIndex == 0 && requestType.identifier.numeric==787) {
+        if(requestType.namespaceIndex == 0 && requestType.identifier.numeric==787)
             UA_LOG_INFO(server->logger, UA_LOGCATEGORY_COMMUNICATION,
                         "Client requested a subscription that are not supported, the message will be skipped");
-        } else {
+        else
             UA_LOG_INFO(server->logger, UA_LOGCATEGORY_COMMUNICATION, "Unknown request: NodeId(ns=%d, i=%d)",
                         requestType.namespaceIndex, requestType.identifier.numeric);
-        }
         UA_RequestHeader p;
         UA_ResponseHeader r;
         if(UA_RequestHeader_decodeBinary(msg, pos, &p) != UA_STATUSCODE_GOOD)
@@ -346,7 +345,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
     size_t pos = 0;
     UA_TcpMessageHeader tcpMessageHeader;
     do {
-        if(UA_TcpMessageHeader_decodeBinary(msg, &pos, &tcpMessageHeader) != UA_STATUSCODE_GOOD) {
+        if(UA_TcpMessageHeader_decodeBinary(msg, &pos, &tcpMessageHeader)) {
             UA_LOG_INFO(server->logger, UA_LOGCATEGORY_COMMUNICATION, "Decoding of message header failed");
             connection->close(connection);
             break;
@@ -362,15 +361,12 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             processOPN(connection, server, msg, &pos);
             break;
         case UA_MESSAGETYPEANDFINAL_MSGF & 0xffffff:
-#ifdef EXTENSION_STATELESS
-            processMSG(connection, server, msg, &pos);
-            break;
-#endif
-            if(connection->state != UA_CONNECTION_ESTABLISHED) {
+#ifndef EXTENSION_STATELESS
+            if(connection->state != UA_CONNECTION_ESTABLISHED)
                 connection->close(connection);
-                break;
-            }
-            processMSG(connection, server, msg, &pos);
+            else
+#endif
+                processMSG(connection, server, msg, &pos);
             break;
         case UA_MESSAGETYPEANDFINAL_CLOF & 0xffffff:
             processCLO(connection, server, msg, &pos);
