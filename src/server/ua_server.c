@@ -6,7 +6,7 @@
 #include "ua_services.h"
 #include "ua_nodeids.h"
 
-#ifdef LOADGENERATEDNS
+#ifdef ENABLE_GENERATE_NAMESPACE0
 #include "ua_namespaceinit_generated.h"
 #endif
 
@@ -450,7 +450,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     /**************/
     /* References */
     /**************/
-#ifndef LOADGENERATEDNS
+#ifndef ENABLE_GENERATE_NAMESPACE0
     /* bootstrap by manually inserting "references" and "hassubtype" */
 
     UA_ReferenceTypeNode *references = UA_ReferenceTypeNode_new();
@@ -812,7 +812,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
    addVariableTypeNode_subtype(server, "PropertyType", UA_NS0ID_PROPERTYTYPE, UA_NS0ID_BASEVARIABLETYPE, UA_FALSE);
 #endif
 
-#ifdef LOADGENERATEDNS
+#ifdef ENABLE_GENERATE_NAMESPACE0
    //load the generated namespace
    ua_namespaceinit_generated(server);
 #endif

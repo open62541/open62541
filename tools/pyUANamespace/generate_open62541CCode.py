@@ -32,7 +32,7 @@ def usage():
   print ""
   print "Manditory Arguments:"
   print "<namespace XML>    At least one Namespace XML file must be passed."
-  print "<output file>      The basename for the <output file>.h files to be generated."
+  print "<output file>      The basename for the <output file>.c and <output file>.h files to be generated."
   print "                   This will also be the function name used in the header and c-file."
   print ""
   print ""
@@ -103,13 +103,14 @@ if __name__ == '__main__':
 
   # Creating the header is tendious. We can skip the entire process if
   # the header exists.
-  if path.exists(argv[-1]+".c") or path.exists(argv[-1]+".h"):
-    log(None, "File " + str(argv[-1]) + " does already exists.", LOG_LEVEL_INFO)
-    log(None, "Header generation will be skipped. Delete the header and rerun this script if necessary.", LOG_LEVEL_INFO)
-    exit(0)
+  #if path.exists(argv[-1]+".c") or path.exists(argv[-1]+".h"):
+  #  log(None, "File " + str(argv[-1]) + " does already exists.", LOG_LEVEL_INFO)
+  #  log(None, "Header generation will be skipped. Delete the header and rerun this script if necessary.", LOG_LEVEL_INFO)
+  #  exit(0)
 
   # Open the output file
   outfileh = open(argv[-1]+".h", r"w+")
+  outfilec = open(argv[-1]+".c", r"w+")
 
   # Create a new namespace
   # Note that the name is actually completely symbolic, it has no other
@@ -178,9 +179,12 @@ if __name__ == '__main__':
   log(None, "Generating Header", LOG_LEVEL_INFO)
   # Returns a tuple of (["Header","lines"],["Code","lines","generated"])
   generatedCode=ns.printOpen62541Header(ignoreNodes, supressGenerationOfAttribute, outfilename=path.basename(argv[-1]))
-  for line in generatedCode:
+  for line in generatedCode[0]:
     outfileh.write(line+"\n")
-
+  for line in generatedCode[1]:
+    outfilec.write(line+"\n")
+ 
+  outfilec.close()
   outfileh.close()
 
   exit(0)

@@ -497,6 +497,7 @@ class opcua_namespace():
     unPrintedNodes = []
     unPrintedRefs  = []
     code = []
+    header = []
 
     # Some macros (UA_EXPANDEDNODEID_MACRO()...) are easily created, but
     # bulky. This class will help to offload some code.
@@ -516,16 +517,20 @@ class opcua_namespace():
           unPrintedRefs.append(r)
 
     log(self, str(len(unPrintedNodes)) + " Nodes, " + str(len(unPrintedRefs)) +  "References need to get printed.", LOG_LEVEL_DEBUG)
+    header.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
     code.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
     
-    code.append("#ifndef "+outfilename.upper()+"_H_")
-    code.append("#define "+outfilename.upper()+"_H_")
+    header.append("#ifndef "+outfilename.upper()+"_H_")
+    header.append("#define "+outfilename.upper()+"_H_")
     
-    code.append('#include "server/ua_server_internal.h"')
-    code.append('#include "server/ua_nodes.h"')
-    code.append('#include "ua_types.h"')
+    header.append('#include "server/ua_server_internal.h"')
+    header.append('#include "server/ua_nodes.h"')
+    header.append('#include "ua_types.h"')
+    header.append("extern void "+outfilename+"(UA_Server *server);\n")
+    header.append("#endif /* "+outfilename.upper()+"_H_ */")
 
-    code.append("static void "+outfilename+"(UA_Server *server) {")
+    code.append('#include "'+outfilename+'.h"')
+    code.append("inline void "+outfilename+"(UA_Server *server) {")
 
 
     # Find all references necessary to create the namespace and
@@ -576,8 +581,7 @@ class opcua_namespace():
       log(self, "Printing succeeded for all references", LOG_LEVEL_DEBUG)
 
     code.append("}")
-    code.append("#endif /* "+outfilename.upper()+"_H_ */")
-    return code
+    return (header,code)
 
 ###
 ### Testing
