@@ -142,7 +142,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_g
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py)
 
 list(APPEND internal_headers ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h)
-list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src_generated/ua_namespaceinit_generated.c)
+list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c)
 endif()
 
 ## logging

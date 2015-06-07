@@ -938,8 +938,8 @@ class opcua_node_variable_t(opcua_node_t):
 
     if self.historizing():
       code.append(self.getCodePrintableID() + "->historizing = UA_TRUE;")
-    else:
-      code.append(self.getCodePrintableID() + "->historizing = UA_FALSE;")
+    #else:
+      #code.append(self.getCodePrintableID() + "->historizing = UA_FALSE;")
 
     code.append(self.getCodePrintableID() + "->minimumSamplingInterval = (UA_Double) " + str(self.minimumSamplingInterval()) + ";")
     code.append(self.getCodePrintableID() + "->userAccessLevel = (UA_Int32) " + str(self.userAccessLevel()) + ";")
@@ -1044,8 +1044,8 @@ class opcua_node_objectType_t(opcua_node_t):
 
     if (self.isAbstract()):
       code.append(self.getCodePrintableID() + "->isAbstract = UA_TRUE;")
-    else:
-      code.append(self.getCodePrintableID() + "->isAbstract = UA_FALSE;")
+    #else:
+    #  code.append(self.getCodePrintableID() + "->isAbstract = UA_FALSE;")
 
     return code
 
