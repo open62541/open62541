@@ -132,7 +132,8 @@ typedef struct {
 UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
 
 /** Add a reference to the server's address space */
-UA_StatusCode UA_EXPORT UA_Server_addReference(UA_Server *server, const UA_AddReferencesItem *item);
+UA_StatusCode UA_EXPORT UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId,
+                                               const UA_NodeId refTypeId, const UA_ExpandedNodeId targetId);
 
 UA_StatusCode UA_EXPORT
 UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_QualifiedName browseName, 
