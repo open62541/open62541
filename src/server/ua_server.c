@@ -6,10 +6,6 @@
 #include "ua_services.h"
 #include "ua_nodeids.h"
 
-#ifdef ENABLE_GENERATE_NAMESPACE0
-#include "ua_namespaceinit_generated.h"
-#endif
-
 const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     .Login_enableAnonymous = UA_TRUE,
     .Login_enableUsernamePassword = UA_TRUE,
@@ -476,7 +472,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     /**************/
     /* References */
     /**************/
-#ifndef ENABLE_GENERATE_NAMESPACE0
+    
     /* Bootstrap by manually inserting "references" and "hassubtype" */
     UA_ReferenceTypeNode *references = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)references, "References");
@@ -813,12 +809,6 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
                                UA_NS0ID_BASEVARIABLETYPE, UA_FALSE);
    addVariableTypeNode_subtype(server, "PropertyType", UA_NS0ID_PROPERTYTYPE,
                                UA_NS0ID_BASEVARIABLETYPE, UA_FALSE);
-#endif
-
-#ifdef ENABLE_GENERATE_NAMESPACE0
-   //load the generated namespace
-   ua_namespaceinit_generated(server);
-#endif
 
    /*********************/
    /* The Server Object */
