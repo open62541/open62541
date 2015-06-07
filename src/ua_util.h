@@ -33,13 +33,6 @@
 # include <malloc.h>
 #endif
 
-/* Visual Studio needs __restrict */
-#ifdef _MSC_VER
-    #define UA_RESTRICT __restrict
-#else
-    #define UA_RESTRICT restrict
-#endif
-
 #define UA_NULL ((void *)0)
 
 // subtract from nodeids to get from the encoding to the content
@@ -118,7 +111,6 @@
 # include <urcu/compiler.h> // for caa_container_of
 # include <urcu/uatomic.h>
 # include <urcu/rculfhash.h>
-#include <urcu/lfstack.h>
 #endif
 
 #endif /* UA_UTIL_H_ */

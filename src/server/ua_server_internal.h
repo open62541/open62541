@@ -19,6 +19,11 @@ typedef struct UA_ExternalNamespace {
 	UA_ExternalNodeStore externalNodeStore;
 } UA_ExternalNamespace;
 
+// forward declarations
+struct TimedWork;
+
+struct DelayedWork;
+
 struct UA_Server {
     /* Config */
     UA_ServerConfig config;
@@ -48,25 +53,20 @@ struct UA_Server {
     size_t externalNamespacesSize;
     UA_ExternalNamespace *externalNamespaces;
 
-    /* Jobs with a repetition interval */
-    LIST_HEAD(RepeatedJobsList, RepeatedJobs) repeatedJobs;
+    /* Workload Management */
+    LIST_HEAD(TimedWorkList, TimedWork) timedWork;
 
 #ifdef UA_MULTITHREADING
-    /* Dispatch queue head for the worker threads (the tail should not be in the same cache line) */
-	struct cds_wfcq_head dispatchQueue_head;
-
     UA_Boolean *running;
     UA_UInt16 nThreads;
     UA_UInt32 **workerCounters;
     pthread_t *thr;
+    struct DelayedWork *delayedWork;
 
-    struct cds_lfs_stack mainLoopJobs; /* Work that shall be executed only in the main loop and not
-                                          by worker threads */
-    struct DelayedJobs *delayedJobs;
-
-    pthread_cond_t dispatchQueue_condition; /* so the workers don't spin if the queue is empty */
-    /* Dispatch queue tail for the worker threads */
+    // worker threads wait on the queue
+	struct cds_wfcq_head dispatchQueue_head;
 	struct cds_wfcq_tail dispatchQueue_tail;
+    pthread_cond_t dispatchQueue_condition; // so the workers don't spin if the queue is empty
 #endif
 };
 
@@ -79,11 +79,18 @@ UA_AddNodesResult UA_Server_addNodeWithSession(UA_Server *server, UA_Session *se
 UA_AddNodesResult UA_Server_addNode(UA_Server *server, UA_Node *node, const UA_ExpandedNodeId parentNodeId,
                                     const UA_NodeId referenceTypeId);
 
-UA_StatusCode UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session,
-                                                const UA_AddReferencesItem *item);
+UA_StatusCode UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session, const UA_AddReferencesItem *item);
 
-UA_StatusCode UA_Server_addDelayedJob(UA_Server *server, UA_Job job);
+void UA_Server_deleteTimedWork(UA_Server *server);
 
-void UA_Server_deleteAllRepeatedJobs(UA_Server *server);
+#define ADDREFERENCE(NODEID, REFTYPE_NODEID, TARGET_EXPNODEID) do {     \
+        UA_AddReferencesItem item;                                      \
+        UA_AddReferencesItem_init(&item);                               \
+        item.sourceNodeId = NODEID;                                     \
+        item.referenceTypeId = REFTYPE_NODEID;                          \
+        item.isForward = UA_TRUE;                                       \
+        item.targetNodeId = TARGET_EXPNODEID;                           \
+        UA_Server_addReference(server, &item);                          \
+    } while(0)
 
 #endif /* UA_SERVER_INTERNAL_H_ */

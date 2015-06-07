@@ -55,13 +55,27 @@ class open62541_MacroHelper():
 
   def getCreateStandaloneReference(self, sourcenode, reference):
   # As reference from open62541 (we need to alter the attributes)
-  #    UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId, const UA_NodeId refTypeId,
-  #                                   const UA_ExpandedNodeId targetId)
+  #    #define ADDREFERENCE(NODEID, REFTYPE_NODEID, TARGET_EXPNODEID) do {     \
+  #        UA_AddReferencesItem item;                                      \
+  #        UA_AddReferencesItem_init(&item);                               \
+  #        item.sourceNodeId = NODEID;                                     \
+  #        item.referenceTypeId = REFTYPE_NODEID;                          \
+  #        item.isForward = UA_TRUE;                                       \
+  #        item.targetNodeId = TARGET_EXPNODEID;                           \
+  #        UA_Server_addReference(server, &item);                          \
+  #    } while(0)
     code = []
+    refid = "ref_" + reference.getCodePrintableID()
+    code.append("UA_AddReferencesItem " + refid + ";")
+    code.append("UA_AddReferencesItem_init(&" + refid + ");")
+    code.append(refid + ".sourceNodeId = " + self.getCreateNodeIDMacro(sourcenode) + ";")
+    code.append(refid + ".referenceTypeId = " + self.getCreateNodeIDMacro(reference.referenceType()) + ";")
     if reference.isForward():
-      code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", "+self.getCreateExpandedNodeIDMacro(reference.target())+");")
+      code.append(refid + ".isForward = UA_TRUE;")
     else:
-      code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(reference.target()) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", "+self.getCreateExpandedNodeIDMacro(sourcenode)+");")
+      code.append(refid + ".isForward = UA_FALSE;")
+    code.append(refid + ".targetNodeId = " + self.getCreateExpandedNodeIDMacro(reference.target()) + ";")
+    code.append("UA_Server_addReference(server, &" + refid + ");")
     return code
 
   def getCreateNode(self, node):
@@ -92,6 +106,7 @@ class open62541_MacroHelper():
       nodetype = "UA_NodeTypeNotFoundorGeneric"
 
     code.append(nodetype + " *" + node.getCodePrintableID() + " = " + nodetype + "_new();")
+    code.append(nodetype + "_init(" + node.getCodePrintableID() + ");")
     if not "browsename" in self.supressGenerationOfAttribute:
       code.append(node.getCodePrintableID() + "->browseName = UA_QUALIFIEDNAME_ALLOC(" +  str(node.id().ns) + ", \"" + node.browseName() + "\");")
     if not "displayname" in self.supressGenerationOfAttribute:

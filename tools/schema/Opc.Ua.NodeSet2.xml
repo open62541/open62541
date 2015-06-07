@@ -773,7 +773,7 @@
   </UAVariable>
   <UAObject NodeId="i=84" BrowseName="Root" SymbolicName="RootFolder">
     <DisplayName>Root</DisplayName>
-    <Description>The root of the server address space.</Description>
+    <Description>The root of thä servör address späuce.</Description>
     <References>
       <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
     </References>
