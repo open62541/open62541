@@ -323,6 +323,7 @@ class opcua_value_t():
         code.append("UA_Variant *" + self.parent.getCodePrintableID() + "_variant = UA_Variant_new();")
         code.append("UA_" + self.value[0].stringRepresentation + " " + valueName + " = " + self.value[0].printOpen62541CCode_SubType() + ";")
         code.append("UA_Variant_setScalarCopy(" + self.parent.getCodePrintableID() + "_variant, &" + valueName + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
+        code.append("UA_" + self.value[0].stringRepresentation + "_deleteMembers(&" + valueName + ");")
         code.append(self.parent.getCodePrintableID() + "->value.variant = *" + self.parent.getCodePrintableID() + "_variant;")
     return code
 
