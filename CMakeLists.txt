@@ -124,22 +124,26 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nodeids.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
 
-option(LOADGENERATEDNS "Generate and load UA XML Namespace 0 definition" OFF)
-if(LOADGENERATEDNS)
-add_definitions(-DLOADGENERATEDNS)
-list(APPEND internal_headers ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h)
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
+option(ENABLE_GENERATE_NAMESPACE0 "Generate and load UA XML Namespace 0 definition" OFF)
+if(ENABLE_GENERATE_NAMESPACE0)
+add_definitions(-DENABLE_GENERATE_NAMESPACE0)
+set(GENERATE_NAMESPACE0_FILE "Opc.Ua.NodeSet2.xml" CACHE STRING "Namespace definition XML file")
+set_property(CACHE GENERATE_NAMESPACE0_FILE PROPERTY STRINGS Opc.Ua.NodeSet2.xml Opc.Ua.NodeSet2.Minimal.xml)
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
                    PRE_BUILD
-                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_AssumeExternal.txt -s description -b ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist.txt ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated
-                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml
+                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_AssumeExternal.txt -s description -b ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist.txt ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE} ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated
+                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE}
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py  
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py  
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py  
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py  
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py  
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
-)
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py)
+
+list(APPEND internal_headers ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h)
+list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src_generated/ua_namespaceinit_generated.c)
 endif()
 
 ## logging

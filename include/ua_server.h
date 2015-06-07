@@ -58,43 +58,35 @@ void UA_EXPORT UA_Server_setLogger(UA_Server *server, UA_Logger logger);
 UA_Logger UA_EXPORT UA_Server_getLogger(UA_Server *server);
 
 /**
- * Runs the main loop of the server. In each iteration, this calls into the
- * networklayers to see if work have arrived and checks if timed events need to
- * be triggered.
+ * Runs the main loop of the server. In each iteration, this calls into the networklayers to see if
+ * jobs have arrived and checks if repeated jobs need to be triggered.
  *
  * @param server The server object
- * @param nThreads The number of worker threads. Is ignored if MULTITHREADING is
- * not activated.
- * @param running Points to a booloean value on the heap. When running is set to
- * false, the worker threads and the main loop close and the server is shut
- * down.
+ *
+ * @param nThreads The number of worker threads. Is ignored if MULTITHREADING is not activated.
+ *
+ * @param running Points to a booloean value on the heap. When running is set to false, the worker
+ * threads and the main loop close and the server is shut down.
+ *
  * @return Indicates whether the server shut down cleanly
  *
  */
 UA_StatusCode UA_EXPORT UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running);
 
-/**
- * The prologue part of UA_Server_run (no need to use if you call UA_Server_run)
- */
+/* The prologue part of UA_Server_run (no need to use if you call UA_Server_run) */
 UA_StatusCode UA_EXPORT UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running);
-/**
- * The epilogue part of UA_Server_run (no need to use if you call UA_Server_run)
- */
+/* The epilogue part of UA_Server_run (no need to use if you call UA_Server_run) */
 UA_StatusCode UA_EXPORT UA_Server_run_shutdown(UA_Server *server, UA_UInt16 nThreads);
-/**
- * One iteration of UA_Server_run (no need to use if you call UA_Server_run)
- */
-UA_StatusCode UA_EXPORT UA_Server_run_getAndProcessWork(UA_Server *server, UA_Boolean *running);
-
+/* One iteration of UA_Server_run (no need to use if you call UA_Server_run) */
+UA_StatusCode UA_EXPORT UA_Server_run_mainloop(UA_Server *server, UA_Boolean *running);
 
 /**
  * Datasources are the interface to local data providers. Implementors of datasources need to
  * provide functions for the callbacks in this structure. After every read, the handle needs to be
  * released to indicate that the pointer is no longer accessed. As a rule, datasources are never
  * copied, but only their content. The only way to write into a datasource is via the write-service.
- *
- * It is expected that the read and release callbacks are implemented. The write
- * callback can be set to null.
+ * It is expected that the read and release callbacks are implemented. The write callback can be set
+ * to null.
  */
 typedef struct {
     void *handle; ///> A custom pointer to reuse the same datasource functions for multiple sources
@@ -140,7 +132,8 @@ typedef struct {
 UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
 
 /** Add a reference to the server's address space */
-UA_StatusCode UA_EXPORT UA_Server_addReference(UA_Server *server, const UA_AddReferencesItem *item);
+UA_StatusCode UA_EXPORT UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId,
+                                               const UA_NodeId refTypeId, const UA_ExpandedNodeId targetId);
 
 UA_StatusCode UA_EXPORT
 UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_QualifiedName browseName, 
@@ -156,14 +149,14 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
                                     const UA_QualifiedName browseName, UA_NodeId nodeId,
                                     const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId);
 
-/** Work that is run in the main loop (singlethreaded) or dispatched to a worker thread */
-typedef struct UA_WorkItem {
+/** Jobs describe work that is ececuted once or repeatedly. */
+typedef struct {
     enum {
-        UA_WORKITEMTYPE_NOTHING,
-        UA_WORKITEMTYPE_CLOSECONNECTION,
-        UA_WORKITEMTYPE_BINARYMESSAGE,
-        UA_WORKITEMTYPE_METHODCALL,
-        UA_WORKITEMTYPE_DELAYEDMETHODCALL,
+        UA_JOBTYPE_NOTHING,
+        UA_JOBTYPE_CLOSECONNECTION,
+        UA_JOBTYPE_BINARYMESSAGE,
+        UA_JOBTYPE_METHODCALL,
+        UA_JOBTYPE_DELAYEDMETHODCALL,
     } type;
     union {
         UA_Connection *closeConnection;
@@ -175,51 +168,38 @@ typedef struct UA_WorkItem {
             void *data;
             void (*method)(UA_Server *server, void *data);
         } methodCall;
-    } work;
-} UA_WorkItem;
+    } job;
+} UA_Job;
 
 /**
  * @param server The server object.
  *
- * @param work Pointer to the WorkItem that shall be added. The pointer is not
- *        freed but copied to an internal representation.
+ * @param job Pointer to the job that shall be added. The pointer is not freed but copied to an
+ *        internal representation.
  *
- * @param executionTime The time when the work shall be executed. If the time lies in the
- *        past, the work will be executed in the next iteration of the server's
- *        main loop
+ * @param interval The job shall be repeatedly executed with the given interval (in ms). The
+ *        interval must be larger than 5ms. The first execution occurs at now() + interval at the
+ *        latest.
  *
- * @param resultWorkGuid Upon success, the pointed value is set to the guid of
- *        the workitem in the server queue. This can be used to cancel the work
- *        later on. If the pointer is null, the guid is not set.
+ * @param jobId Set to the guid of the repeated job. This can be used to cancel the job later on. If
+ *        the pointer is null, the guid is not set.
  *
  * @return Upon sucess, UA_STATUSCODE_GOOD is returned. An error code otherwise.
  */
-UA_StatusCode UA_EXPORT
-UA_Server_addTimedWorkItem(UA_Server *server, const UA_WorkItem *work,
-                           UA_DateTime executionTime, UA_Guid *resultWorkGuid);
+UA_StatusCode UA_EXPORT UA_Server_addRepeatedJob(UA_Server *server, UA_Job job, UA_UInt32 interval,
+                                                 UA_Guid *jobId);
 
 /**
+ * Remove repeated job. The entry will be removed asynchronously during the
+ * next iteration of the server main loop.
+ *
  * @param server The server object.
  *
- * @param work Pointer to the WorkItem that shall be added. The pointer is not
- *        freed but copied to an internal representation.
- *
- * @param interval The work that is executed repeatedly with the given interval
- *        (in ms). If work with the same repetition interval already exists,
- *        the first execution might occur sooner.
- *
- * @param resultWorkGuid Upon success, the pointed value is set to the guid of
- *        the workitem in the server queue. This can be used to cancel the work
- *        later on. If the pointer is null, the guid is not set.
+ * @param jobId The id of the job that shall be removed.
  *
  * @return Upon sucess, UA_STATUSCODE_GOOD is returned. An error code otherwise.
  */
-UA_StatusCode UA_EXPORT
-UA_Server_addRepeatedWorkItem(UA_Server *server, const UA_WorkItem *work,
-                              UA_UInt32 interval, UA_Guid *resultWorkGuid);
-
-/** Remove timed or repeated work */
-/* UA_Boolean UA_EXPORT UA_Server_removeWorkItem(UA_Server *server, UA_Guid workId); */
+UA_StatusCode UA_EXPORT UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid jobId);
 
 /**
  * Interface to the binary network layers. This structure is returned from the
@@ -239,29 +219,29 @@ typedef struct {
     UA_StatusCode (*start)(void *nlHandle, UA_Logger *logger);
     
     /**
-     * Gets called from the main server loop and returns the work that
-     * accumulated (messages and close events) for dispatch. The networklayer
-     * does not wait on connections but returns immediately the work that
-     * accumulated.
+     * Gets called from the main server loop and returns the jobs (accumulated messages and close
+     * events) for dispatch.
      *
-     * @param workItems When the returned integer is positive, *workItems points
-     * to an array of WorkItems of the returned size.
+     * @param jobs When the returned integer is positive, *jobs points to an array of UA_Job of the
+     * returned size.
+     *
      * @param timeout The timeout during which an event must arrive in microseconds
-     * @return The size of the returned workItems array. If the result is
-     * negative, an error has occured.
+     
+     * @return The size of the jobs array. If the result is negative, an error has
+     * occured.
      */
-    UA_Int32 (*getWork)(void *nlhandle, UA_WorkItem **workItems, UA_UInt16 timeout);
+    UA_Int32 (*getJobs)(void *nlhandle, UA_Job **jobs, UA_UInt16 timeout);
 
     /**
-     * Closes the network connection and returns all the work that needs to
-     * be finished before the network layer can be safely deleted.
+     * Closes the network connection and returns all the jobs that need to be finished before the
+     * network layer can be safely deleted.
      *
-     * @param workItems When the returned integer is positive, *workItems points
-     * to an array of WorkItems of the returned size.
-     * @return The size of the returned workItems array. If the result is
-     * negative, an error has occured.
+     * @param jobs When the returned integer is positive, jobs points to an array of UA_Job of the
+     * returned size.
+     *
+     * @return The size of the jobs array. If the result is negative, an error has occured.
      */
-    UA_Int32 (*stop)(void *nlhandle, UA_WorkItem **workItems);
+    UA_Int32 (*stop)(void *nlhandle, UA_Job **jobs);
 
     /** Deletes the network layer. Call only after a successful shutdown. */
     void (*free)(void *nlhandle);
