@@ -8,11 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef _MSC_VER
-    #include <io.h> //access
-#else
-    #include <unistd.h> //access
-#endif
+#include <unistd.h> //access
 
 #define __USE_XOPEN2K
 #ifdef UA_MULTITHREADING

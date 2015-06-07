@@ -15,8 +15,8 @@ UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_Qualifi
     UA_NodeId_copy(&parentNodeId, &parentId.nodeId);
     UA_AddNodesResult res =
         UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node, parentId, referenceTypeId);
-    UA_Server_addReference(server, res.addedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
-                           UA_EXPANDEDNODEID_NUMERIC(0, value->type->typeId.identifier.numeric));
+    ADDREFERENCE(res.addedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
+                 UA_EXPANDEDNODEID_NUMERIC(0, value->type->typeId.identifier.numeric));
     if(res.statusCode != UA_STATUSCODE_GOOD) {
         UA_Variant_init(&node->value.variant);
         UA_VariableNode_delete(node);
@@ -48,8 +48,7 @@ UA_Server_addObjectNode(UA_Server *server, const UA_QualifiedName browseName,
         UA_ExpandedNodeId typeDefid; // we need an expandednodeid
         UA_ExpandedNodeId_init(&typeDefid);
         UA_NodeId_copy(&typeDefinition, &typeDefid.nodeId);
-        UA_Server_addReference(server, res.addedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
-                               typeDefid);
+        ADDREFERENCE(res.addedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION), typeDefid);
     }
     return res.statusCode;
 }
@@ -70,8 +69,8 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
     UA_NodeId_copy(&parentNodeId, &parentId.nodeId);
     UA_AddNodesResult res =
         UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node, parentId, referenceTypeId);
-    UA_Server_addReference(server, res.addedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
-                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE));
+    ADDREFERENCE(res.addedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
+                 UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE));
     if(res.statusCode != UA_STATUSCODE_GOOD)
         UA_VariableNode_delete(node);
     UA_AddNodesResult_deleteMembers(&res);
@@ -198,22 +197,18 @@ addOneWayReferenceWithSession(UA_Server *server, UA_Session *session, const UA_A
 }
 
 /* userland version of addReferenceWithSession */
-UA_StatusCode UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId, const UA_NodeId refTypeId,
-                                     const UA_ExpandedNodeId targetId) {
-    UA_AddReferencesItem item;
-    UA_AddReferencesItem_init(&item);
-    item.sourceNodeId = sourceId;
-    item.referenceTypeId = refTypeId;
-    item.isForward = UA_TRUE;
-    item.targetNodeId = targetId;
-    return UA_Server_addReferenceWithSession(server, &adminSession, &item);
+UA_StatusCode
+UA_Server_addReference(UA_Server *server, const UA_AddReferencesItem *item)
+{
+    return UA_Server_addReferenceWithSession(server, &adminSession, item);
 }
 
-UA_StatusCode UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session,
-                                                const UA_AddReferencesItem *item) {
+UA_StatusCode
+UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session, const UA_AddReferencesItem *item)
+{
     if(item->targetServerUri.length > 0)
         return UA_STATUSCODE_BADNOTIMPLEMENTED; // currently no expandednodeids are allowed
-
+    
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
 #ifdef UA_EXTERNAL_NAMESPACES
@@ -232,8 +227,7 @@ UA_StatusCode UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *s
 #endif
         retval = addOneWayReferenceWithSession(server, session, item);
 
-    if(retval)
-        return retval;
+    if(retval) return retval;
 
     UA_AddReferencesItem secondItem;
     secondItem = *item;
@@ -322,7 +316,7 @@ UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, UA_Node *no
     item.referenceTypeId = referenceType->nodeId;
     item.isForward = UA_FALSE;
     item.targetNodeId.nodeId = parent->nodeId;
-    UA_Server_addReferenceWithSession(server, session, &item);
+    UA_Server_addReference(server, &item);
 
     // todo: error handling. remove new node from nodestore
 

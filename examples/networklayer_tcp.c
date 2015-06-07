@@ -323,8 +323,8 @@ static void removeMappings(ServerNetworkLayerTCP *layer, struct DeleteList *d) {
     }
 }
 
-static UA_Int32 ServerNetworkLayerTCP_getJobs(ServerNetworkLayerTCP *layer, UA_Job **jobs, UA_UInt16 timeout) {
-    /* remove the deleted sockets from the array */
+static UA_Int32 ServerNetworkLayerTCP_getWork(ServerNetworkLayerTCP *layer, UA_WorkItem **workItems,
+                                              UA_UInt16 timeout) {
     struct DeleteList *deletes;
 #ifdef UA_MULTITHREADING
         deletes = uatomic_xchg(&layer->deletes, NULL);
@@ -333,10 +333,27 @@ static UA_Int32 ServerNetworkLayerTCP_getJobs(ServerNetworkLayerTCP *layer, UA_J
         layer->deletes = NULL;
 #endif
     removeMappings(layer, deletes);
-
     setFDSet(layer);
     struct timeval tmptv = {0, timeout};
     UA_Int32 resultsize = select(layer->highestfd+1, &layer->fdset, NULL, NULL, &tmptv);
+    UA_WorkItem *items;
+    if(resultsize < 0 || !(items = malloc(sizeof(UA_WorkItem)*(resultsize+1)))) {
+        /* abort .. reattach the deletes so that they get deleted eventually.. */
+#ifdef UA_MULTITHREADING
+        struct DeleteList *last_delete = deletes;
+        while(last_delete->next != NULL)
+            last_delete = last_delete->next;
+        while(1) {
+            last_delete->next = layer->deletes;
+            if(uatomic_cmpxchg(&layer->deletes, last_delete->next, deletes) == last_delete->next)
+                break;
+        }
+#else
+        layer->deletes = deletes;
+#endif
+        *workItems = NULL;
+        return 0;
+    }
 
     /* accept new connections (can only be a single one) */
     if(FD_ISSET(layer->serversockfd, &layer->fdset)) {
@@ -351,36 +368,7 @@ static UA_Int32 ServerNetworkLayerTCP_getJobs(ServerNetworkLayerTCP *layer, UA_J
             ServerNetworkLayerTCP_add(layer, newsockfd);
         }
     }
-
-    if(!deletes && resultsize <= 0) {
-        *jobs = NULL;
-        return 0;
-    }
-    if(resultsize < 0)
-        resultsize = 0;
-    UA_Int32 deletesJob = 0;
-    if(deletes)
-        deletesJob = 1;
-        
-    UA_Job *items = malloc(sizeof(UA_Job) * (resultsize + deletesJob));
-    if(deletes && !items) {
-        /* abort. reattach the deletes so that they get deleted eventually. */
-#ifdef UA_MULTITHREADING
-        struct DeleteList *last_delete;
-        while(deletes) {
-            last_delete = deletes;
-            deletes = deletes->next;
-        }
-        while(1) {
-            last_delete->next = layer->deletes;
-            if(uatomic_cmpxchg(&layer->deletes, last_delete->next, deletes) == last_delete->next)
-                break;
-        }
-#else
-        layer->deletes = deletes;
-#endif
-    }
-
+    
     /* read from established sockets */
     UA_Int32 j = 0;
     UA_ByteString buf = UA_BYTESTRING_NULL;
@@ -394,38 +382,38 @@ static UA_Int32 ServerNetworkLayerTCP_getJobs(ServerNetworkLayerTCP *layer, UA_J
                 break;
         }
         if(socket_recv(layer->mappings[i].connection, &buf, 0) == UA_STATUSCODE_GOOD) {
-            items[j].type = UA_JOBTYPE_BINARYMESSAGE;
-            items[j].job.binaryMessage.message = buf;
-            items[j].job.binaryMessage.connection = layer->mappings[i].connection;
+            items[j].type = UA_WORKITEMTYPE_BINARYMESSAGE;
+            items[j].work.binaryMessage.message = buf;
+            items[j].work.binaryMessage.connection = layer->mappings[i].connection;
             buf.data = NULL;
         } else {
-            items[j].type = UA_JOBTYPE_CLOSECONNECTION;
-            items[j].job.closeConnection = layer->mappings[i].connection;
+            items[j].type = UA_WORKITEMTYPE_CLOSECONNECTION;
+            items[j].work.closeConnection = layer->mappings[i].connection;
         }
         j++;
     }
 
-    /* add the delayed job that frees the connections */
+    /* add the delayed work that frees the connections */
     if(deletes) {
-        items[j].type = UA_JOBTYPE_DELAYEDMETHODCALL;
-        items[j].job.methodCall.data = deletes;
-        items[j].job.methodCall.method = (void (*)(UA_Server *server, void *data))freeConnections;
+        items[j].type = UA_WORKITEMTYPE_DELAYEDMETHODCALL;
+        items[j].work.methodCall.data = deletes;
+        items[j].work.methodCall.method = (void (*)(UA_Server *server, void *data))freeConnections;
         j++;
     }
 
     if(buf.data)
         free(buf.data);
 
-    /* free the array if there is no job */
+    /* free the array if there is no work */
     if(j == 0) {
         free(items);
-        *jobs = NULL;
+        *workItems = NULL;
     } else
-        *jobs = items;
+        *workItems = items;
     return j;
 }
 
-static UA_Int32 ServerNetworkLayerTCP_stop(ServerNetworkLayerTCP *layer, UA_Job **jobs) {
+static UA_Int32 ServerNetworkLayerTCP_stop(ServerNetworkLayerTCP *layer, UA_WorkItem **workItems) {
     struct DeleteList *deletes;
 #ifdef UA_MULTITHREADING
         deletes = uatomic_xchg(&layer->deletes, NULL);
@@ -434,17 +422,17 @@ static UA_Int32 ServerNetworkLayerTCP_stop(ServerNetworkLayerTCP *layer, UA_Job 
         layer->deletes = NULL;
 #endif
     removeMappings(layer, deletes);
-    UA_Job *items = malloc(sizeof(UA_Job) * layer->mappingsSize);
+    UA_WorkItem *items = malloc(sizeof(UA_WorkItem) * layer->mappingsSize);
     if(!items)
         return 0;
     for(size_t i = 0; i < layer->mappingsSize; i++) {
-        items[i].type = UA_JOBTYPE_CLOSECONNECTION;
-        items[i].job.closeConnection = layer->mappings[i].connection;
+        items[i].type = UA_WORKITEMTYPE_CLOSECONNECTION;
+        items[i].work.closeConnection = layer->mappings[i].connection;
     }
 #ifdef _WIN32
     WSACleanup();
 #endif
-    *jobs = items;
+    *workItems = items;
     return layer->mappingsSize;
 }
 
@@ -484,8 +472,8 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
 
     nl.nlHandle = layer;
     nl.start = (UA_StatusCode (*)(void*, UA_Logger *logger))ServerNetworkLayerTCP_start;
-    nl.getJobs = (UA_Int32 (*)(void*, UA_Job**, UA_UInt16))ServerNetworkLayerTCP_getJobs;
-    nl.stop = (UA_Int32 (*)(void*, UA_Job**))ServerNetworkLayerTCP_stop;
+    nl.getWork = (UA_Int32 (*)(void*, UA_WorkItem**, UA_UInt16))ServerNetworkLayerTCP_getWork;
+    nl.stop = (UA_Int32 (*)(void*, UA_WorkItem**))ServerNetworkLayerTCP_stop;
     nl.free = (void (*)(void*))ServerNetworkLayerTCP_delete;
     nl.discoveryUrl = &layer->discoveryUrl;
     return nl;
