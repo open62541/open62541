@@ -1,29 +1,19 @@
-#include <ua_types_generated.h>
+#include "ua_types_generated.h"
 #include "ua_client.h"
 #include "ua_nodeids.h"
-#include "ua_types.h"
+#include "ua_securechannel.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_transport_generated.h"
 
 struct UA_Client {
     /* Connection */
     UA_Connection connection;
+    UA_SecureChannel channel;
     UA_String endpointUrl;
-
-    UA_UInt32 sequenceNumber;
     UA_UInt32 requestId;
 
-    /* Secure Channel */
-    UA_ChannelSecurityToken securityToken;
-    UA_ByteString clientNonce;
-    UA_ByteString serverNonce;
-    /* UA_SequenceHeader sequenceHdr; */
-    /* UA_NodeId authenticationToken; */
-
-    /* IdentityToken */
-    UA_UserTokenPolicy token;
-
     /* Session */
+    UA_UserTokenPolicy token;
     UA_NodeId sessionId;
     UA_NodeId authenticationToken;
 
@@ -42,37 +32,27 @@ UA_Client * UA_Client_new(UA_ClientConfig config, UA_Logger logger) {
     UA_Client *client = UA_malloc(sizeof(UA_Client));
     if(!client)
         return UA_NULL;
-    client->config = config;
-    client->logger = logger;
-    UA_String_init(&client->endpointUrl);
-    UA_Connection_init(&client->connection);
 
-    client->sequenceNumber = 0;
+    UA_Connection_init(&client->connection);
+    UA_SecureChannel_init(&client->channel);
+    client->channel.connection = &client->connection;
+    UA_String_init(&client->endpointUrl);
     client->requestId = 0;
 
-    client->scExpiresAt = 0;
-
-    /* Secure Channel */
-    UA_ChannelSecurityToken_deleteMembers(&client->securityToken);
-    UA_ByteString_init(&client->clientNonce);
-    UA_ByteString_init(&client->serverNonce);
-    
     UA_NodeId_init(&client->authenticationToken);
 
+    client->logger = logger;
+    client->config = config;
+    client->scExpiresAt = 0;
+    
     return client;
 }
 
 void UA_Client_delete(UA_Client* client){
     UA_Connection_deleteMembers(&client->connection);
-    UA_Connection_deleteMembers(&client->connection);
+    UA_SecureChannel_deleteMembersCleanup(&client->channel);
     UA_String_deleteMembers(&client->endpointUrl);
-
-    /* Secure Channel */
-    UA_ByteString_deleteMembers(&client->clientNonce);
-    UA_ByteString_deleteMembers(&client->serverNonce);
-
     UA_UserTokenPolicy_deleteMembers(&client->token);
-
     free(client);
 }
 
@@ -132,16 +112,12 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
 }
 
 static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
-    UA_ByteString_deleteMembers(&client->clientNonce); // if the handshake is repeated
-    UA_ByteString_newMembers(&client->clientNonce, 1);
-    client->clientNonce.data[0] = 0;
-
     UA_SecureConversationMessageHeader messageHeader;
     messageHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_OPNF;
     messageHeader.secureChannelId = 0;
 
     UA_SequenceHeader seqHeader;
-    seqHeader.sequenceNumber = ++client->sequenceNumber;
+    seqHeader.sequenceNumber = ++client->channel.sequenceNumber;
     seqHeader.requestId = ++client->requestId;
 
     UA_AsymmetricAlgorithmSecurityHeader asymHeader;
@@ -160,7 +136,8 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_RENEW;
     } else {
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_ISSUE;
-        UA_ByteString_copy(&client->clientNonce, &opnSecRq.clientNonce);
+        UA_SecureChannel_generateNonce(&client->channel.clientNonce);
+        UA_ByteString_copy(&client->channel.clientNonce, &opnSecRq.clientNonce);
         opnSecRq.securityMode = UA_MESSAGESECURITYMODE_NONE;
     }
 
@@ -225,9 +202,9 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     retval = response.responseHeader.serviceResult;
 
     if(!renew && retval == UA_STATUSCODE_GOOD) {
-        UA_ChannelSecurityToken_copy(&response.securityToken, &client->securityToken);
-        UA_ByteString_deleteMembers(&client->serverNonce); // if the handshake is repeated
-        UA_ByteString_copy(&response.serverNonce, &client->serverNonce);
+        UA_ChannelSecurityToken_copy(&response.securityToken, &client->channel.securityToken);
+        UA_ByteString_deleteMembers(&client->channel.serverNonce); // if the handshake is repeated
+        UA_ByteString_copy(&response.serverNonce, &client->channel.serverNonce);
     }
 
     UA_OpenSecureChannelResponse_deleteMembers(&response);
@@ -238,78 +215,28 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
 
 /** If the request fails, then the response is cast to UA_ResponseHeader (at the beginning of every
     response) and filled with the appropriate error code */
-static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *requestType,
-                               void *response, const UA_DataType *responseType, UA_Client *client,
-                               UA_Boolean sendOnly) {
-
-    //check if sc needs to be renewed
-    if(client->scExpiresAt-UA_DateTime_now() <= client->config.timeToRenewSecureChannel * 10000){ //less than 3 seconds left to expire -> renew
+static void synchronousRequest(UA_Client *client, const void *request, const UA_DataType *requestType,
+                               void *response, const UA_DataType *responseType) {
+    /* Check if sc needs to be renewed */
+    if(client->scExpiresAt - UA_DateTime_now() <= client->config.timeToRenewSecureChannel * 10000 )
         UA_Client_renewSecureChannel(client);
-    }
 
-    if(response)
-        UA_init(response, responseType);
-    else
+    if(!response)
         return;
+    UA_init(response, responseType);
 
-    UA_NodeId_copy(&client->authenticationToken, &request->authenticationToken);
-
-    UA_SecureConversationMessageHeader msgHeader;
-    if(sendOnly)
-        msgHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_CLOF;
-    else
-        msgHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
-    msgHeader.secureChannelId = client->securityToken.channelId;
-
-    UA_SymmetricAlgorithmSecurityHeader symHeader;
-    symHeader.tokenId = client->securityToken.tokenId;
-    
-    UA_SequenceHeader seqHeader;
-    seqHeader.sequenceNumber = ++client->sequenceNumber;
-    seqHeader.requestId = ++client->requestId;
-
-    UA_NodeId requestId = UA_NODEID_NUMERIC(0, requestType->typeId.identifier.numeric +
-                                           UA_ENCODINGOFFSET_BINARY);
-
-    msgHeader.messageHeader.messageSize =
-        UA_SecureConversationMessageHeader_calcSizeBinary(&msgHeader) +
-        UA_SymmetricAlgorithmSecurityHeader_calcSizeBinary(&symHeader) +
-        UA_SequenceHeader_calcSizeBinary(&seqHeader) +
-        UA_NodeId_calcSizeBinary(&requestId) +
-        UA_calcSizeBinary(request, requestType);
-
-    UA_ByteString message;
-    UA_StatusCode retval = client->connection.getBuffer(&client->connection, &message, msgHeader.messageHeader.messageSize);
-    if(retval != UA_STATUSCODE_GOOD) {
-        // todo: print error message
-        return;
-    }
-
-    size_t offset = 0;
-    retval |= UA_SecureConversationMessageHeader_encodeBinary(&msgHeader, &message, &offset);
-    retval |= UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symHeader, &message, &offset);
-    retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &message, &offset);
-
-    retval |= UA_NodeId_encodeBinary(&requestId, &message, &offset);
-    retval |= UA_encodeBinary(request, requestType, &message, &offset);
-
-    retval |= client->connection.write(&client->connection, &message);
-
+    /* Send the request */
+    UA_UInt32 requestId = ++client->requestId;
+    UA_StatusCode retval = UA_SecureChannel_sendBinaryMessage(&client->channel, requestId,
+                                                              request, requestType);
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
-
-    client->connection.releaseBuffer(&client->connection, &message);
-
-    if(retval != UA_STATUSCODE_GOOD) {
-        //send failed
+    if(retval) {
         respHeader->serviceResult = retval;
         return;
     }
 
-    //TODO: rework to get return value
-    if(sendOnly)
-        return;
-
-    /* Response */
+    /* Retrieve the response */
+    // Todo: push this into the generic securechannel implementation for client and server
     UA_ByteString reply;
     UA_ByteString_init(&reply);
     do {
@@ -320,18 +247,22 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
         }
     } while(retval != UA_STATUSCODE_GOOD);
 
-    offset = 0;
+    size_t offset = 0;
+    UA_SecureConversationMessageHeader msgHeader;
     retval |= UA_SecureConversationMessageHeader_decodeBinary(&reply, &offset, &msgHeader);
+    UA_SymmetricAlgorithmSecurityHeader symHeader;
     retval |= UA_SymmetricAlgorithmSecurityHeader_decodeBinary(&reply, &offset, &symHeader);
+    UA_SequenceHeader seqHeader;
     retval |= UA_SequenceHeader_decodeBinary(&reply, &offset, &seqHeader);
     UA_NodeId responseId;
     retval |= UA_NodeId_decodeBinary(&reply, &offset, &responseId);
     UA_NodeId expectedNodeId = UA_NODEID_NUMERIC(0, responseType->typeId.identifier.numeric +
                                                  UA_ENCODINGOFFSET_BINARY);
-    if(!UA_NodeId_equal(&responseId, &expectedNodeId)) {
+    if(!UA_NodeId_equal(&responseId, &expectedNodeId) || seqHeader.requestId != requestId) {
+        // Todo: we need to demux responses since a publish responses may come at any time
         client->connection.releaseBuffer(&client->connection, &reply);
         UA_SymmetricAlgorithmSecurityHeader_deleteMembers(&symHeader);
-        respHeader->serviceResult = retval;
+        respHeader->serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return;
     }
 
@@ -339,11 +270,6 @@ static void sendReceiveRequest(UA_RequestHeader *request, const UA_DataType *req
     client->connection.releaseBuffer(&client->connection, &reply);
     if(retval != UA_STATUSCODE_GOOD)
         respHeader->serviceResult = retval;
-}
-
-static void synchronousRequest(void *request, const UA_DataType *requestType, void *response,
-                               const UA_DataType *responseType, UA_Client *client) {
-    sendReceiveRequest(request, requestType, response, responseType, client, UA_FALSE);
 }
 
 static UA_StatusCode ActivateSession(UA_Client *client) {
@@ -369,9 +295,8 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
     UA_ByteString_encodeBinary(&identityToken.policyId,&request.userIdentityToken.body,&offset);
 
     UA_ActivateSessionResponse response;
-    synchronousRequest(&request, &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
-                       &response, &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE],
-                       client);
+    synchronousRequest(client, &request, &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]);
 
     UA_AnonymousIdentityToken_deleteMembers(&identityToken);
     UA_ActivateSessionRequest_deleteMembers(&request);
@@ -382,41 +307,37 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
 static UA_StatusCode EndpointsHandshake(UA_Client *client) {
     UA_GetEndpointsRequest request;
     UA_GetEndpointsRequest_init(&request);
-
-    // todo: is this needed for all requests?
     UA_NodeId_copy(&client->authenticationToken, &request.requestHeader.authenticationToken);
-
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
     UA_String_copy(&client->endpointUrl, &request.endpointUrl);
-
     request.profileUrisSize = 1;
     request.profileUris = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], request.profileUrisSize);
-    request.profileUris[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
+    *request.profileUris = UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
 
     UA_GetEndpointsResponse response;
     UA_GetEndpointsResponse_init(&response);
-    synchronousRequest(&request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
-                       &response, &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE],
-                       client);
+    synchronousRequest(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE]);
 
     UA_Boolean endpointFound = UA_FALSE;
     UA_Boolean tokenFound = UA_FALSE;
     for(UA_Int32 i=0; i<response.endpointsSize; ++i){
         UA_EndpointDescription* endpoint = &response.endpoints[i];
         /* look out for an endpoint without security */
-        if(UA_String_equal(&endpoint->securityPolicyUri, &UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None"))){
-            endpointFound = UA_TRUE;
-            /* endpoint with no security found */
-            /* look for a user token policy with an anonymous token */
-            for(UA_Int32 j=0; j<endpoint->userIdentityTokensSize; ++j){
-                UA_UserTokenPolicy* userToken = &endpoint->userIdentityTokens[j];
-                if(userToken->tokenType == UA_USERTOKENTYPE_ANONYMOUS){
-                    tokenFound = UA_TRUE;
-                    UA_UserTokenPolicy_copy(userToken, &client->token);
-                    break;
-                }
-            }
+        if(!UA_String_equal(&endpoint->securityPolicyUri,
+                            &UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None")))
+            continue;
+        endpointFound = UA_TRUE;
+        /* endpoint with no security found */
+        /* look for a user token policy with an anonymous token */
+        for(UA_Int32 j=0; j<endpoint->userIdentityTokensSize; ++j) {
+            UA_UserTokenPolicy* userToken = &endpoint->userIdentityTokens[j];
+            if(userToken->tokenType != UA_USERTOKENTYPE_ANONYMOUS)
+                continue;
+            tokenFound = UA_TRUE;
+            UA_UserTokenPolicy_copy(userToken, &client->token);
+            break;
         }
     }
 
@@ -424,15 +345,14 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
     UA_GetEndpointsResponse_deleteMembers(&response);
 
     if(!endpointFound){
-        printf("No suitable endpoint found\n");
+        UA_LOG_ERROR(client->logger, UA_LOGCATEGORY_CLIENT, "No suitable endpoint found");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     if(!tokenFound){
-        printf("No anonymous token found\n");
+        UA_LOG_ERROR(client->logger, UA_LOGCATEGORY_CLIENT, "No anonymous token found");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
-    return response.responseHeader.serviceResult; // not deleted
+    return response.responseHeader.serviceResult;
 }
 
 static UA_StatusCode SessionHandshake(UA_Client *client) {
@@ -441,22 +361,16 @@ static UA_StatusCode SessionHandshake(UA_Client *client) {
 
     // todo: is this needed for all requests?
     UA_NodeId_copy(&client->authenticationToken, &request.requestHeader.authenticationToken);
-
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
-    UA_ByteString_copy(&client->clientNonce, &request.clientNonce);
+    UA_ByteString_copy(&client->channel.clientNonce, &request.clientNonce);
     request.requestedSessionTimeout = 1200000;
     request.maxResponseMessageSize = UA_INT32_MAX;
 
-    /* UA_String_copy(endpointUrl, &rq.endpointUrl); */
-    /* UA_String_copycstring("mysession", &rq.sessionName); */
-    /* UA_String_copycstring("abcd", &rq.clientCertificate); */
-
     UA_CreateSessionResponse response;
     UA_CreateSessionResponse_init(&response);
-    synchronousRequest(&request, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
-                       &response, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE],
-                       client);
+    synchronousRequest(client, &request, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
 
     UA_NodeId_copy(&response.authenticationToken, &client->authenticationToken);
 
@@ -474,9 +388,8 @@ static UA_StatusCode CloseSession(UA_Client *client) {
     request.deleteSubscriptions = UA_TRUE;
     UA_NodeId_copy(&client->authenticationToken, &request.requestHeader.authenticationToken);
     UA_CreateSessionResponse response;
-    synchronousRequest(&request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
-                       &response, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE],
-                       client);
+    synchronousRequest(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
 
     UA_CloseSessionRequest_deleteMembers(&request);
     UA_CloseSessionResponse_deleteMembers(&response);
@@ -484,18 +397,50 @@ static UA_StatusCode CloseSession(UA_Client *client) {
 }
 
 static UA_StatusCode CloseSecureChannel(UA_Client *client) {
+    UA_SecureChannel *channel = &client->channel;
     UA_CloseSecureChannelRequest request;
     UA_CloseSecureChannelRequest_init(&request);
-
     request.requestHeader.requestHandle = 1; //TODO: magic number?
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
     request.requestHeader.authenticationToken = client->authenticationToken;
-    sendReceiveRequest(&request.requestHeader, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST], UA_NULL, UA_NULL,
-                       client, UA_TRUE);
 
-    return UA_STATUSCODE_GOOD;
+    UA_SecureConversationMessageHeader msgHeader;
+    msgHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_CLOF;
+    msgHeader.secureChannelId = client->channel.securityToken.channelId;
 
+    UA_SymmetricAlgorithmSecurityHeader symHeader;
+    symHeader.tokenId = channel->securityToken.tokenId;
+    
+    UA_SequenceHeader seqHeader;
+    seqHeader.sequenceNumber = ++channel->sequenceNumber;
+    seqHeader.requestId = ++client->requestId;
+
+    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CLOSESECURECHANNELREQUEST + UA_ENCODINGOFFSET_BINARY);
+
+    msgHeader.messageHeader.messageSize =
+        UA_SecureConversationMessageHeader_calcSizeBinary(&msgHeader) +
+        UA_SymmetricAlgorithmSecurityHeader_calcSizeBinary(&symHeader) +
+        UA_SequenceHeader_calcSizeBinary(&seqHeader) +
+        UA_NodeId_calcSizeBinary(&typeId) +
+        UA_calcSizeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
+
+    UA_ByteString message;
+    UA_StatusCode retval = client->connection.getBuffer(&client->connection, &message,
+                                                        msgHeader.messageHeader.messageSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    size_t offset = 0;
+    retval |= UA_SecureConversationMessageHeader_encodeBinary(&msgHeader, &message, &offset);
+    retval |= UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symHeader, &message, &offset);
+    retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &message, &offset);
+    retval |= UA_NodeId_encodeBinary(&typeId, &message, &offset);
+    retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST], &message, &offset);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = client->connection.write(&client->connection, &message);
+    client->connection.releaseBuffer(&client->connection, &message);
+    return retval;
 }
 
 /*************************/
@@ -538,29 +483,29 @@ UA_StatusCode UA_Client_renewSecureChannel(UA_Client *client) {
 
 UA_ReadResponse UA_Client_read(UA_Client *client, UA_ReadRequest *request) {
     UA_ReadResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_READREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_READRESPONSE], client);
+    synchronousRequest(client, request, &UA_TYPES[UA_TYPES_READREQUEST], &response,
+                       &UA_TYPES[UA_TYPES_READRESPONSE]);
     return response;
 }
 
 UA_WriteResponse UA_Client_write(UA_Client *client, UA_WriteRequest *request) {
     UA_WriteResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_WRITEREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_WRITERESPONSE], client);
+    synchronousRequest(client, request, &UA_TYPES[UA_TYPES_WRITEREQUEST], &response,
+                       &UA_TYPES[UA_TYPES_WRITERESPONSE]);
     return response;
 }
 
 UA_BrowseResponse UA_Client_browse(UA_Client *client, UA_BrowseRequest *request) {
     UA_BrowseResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
+    synchronousRequest(client, request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
+                       &UA_TYPES[UA_TYPES_BROWSERESPONSE]);
     return response;
 }
 
 UA_BrowseNextResponse UA_Client_browseNext(UA_Client *client, UA_BrowseNextRequest *request) {
     UA_BrowseNextResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSENEXTREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_BROWSENEXTRESPONSE], client);
+    synchronousRequest(client, request, &UA_TYPES[UA_TYPES_BROWSENEXTREQUEST], &response,
+                       &UA_TYPES[UA_TYPES_BROWSENEXTRESPONSE]);
     return response;
 }
 
@@ -568,35 +513,35 @@ UA_TranslateBrowsePathsToNodeIdsResponse
     UA_Client_translateTranslateBrowsePathsToNodeIds(UA_Client *client,
                                                      UA_TranslateBrowsePathsToNodeIdsRequest *request) {
     UA_TranslateBrowsePathsToNodeIdsResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_BROWSEREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], client);
+    synchronousRequest(client, request, &UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE]);
     return response;
 }
 
 UA_AddNodesResponse UA_Client_addNodes(UA_Client *client, UA_AddNodesRequest *request) {
     UA_AddNodesResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_ADDNODESREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_ADDNODESRESPONSE], client);
+    synchronousRequest(client, request, &UA_TYPES[UA_TYPES_ADDNODESREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_ADDNODESRESPONSE]);
     return response;
 }
 
 UA_AddReferencesResponse UA_Client_addReferences(UA_Client *client, UA_AddReferencesRequest *request) {
     UA_AddReferencesResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_ADDREFERENCESREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_ADDREFERENCESRESPONSE], client);
+    synchronousRequest(client, request, &UA_TYPES[UA_TYPES_ADDREFERENCESREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_ADDREFERENCESRESPONSE]);
     return response;
 }
 
 UA_DeleteNodesResponse UA_Client_deleteNodes(UA_Client *client, UA_DeleteNodesRequest *request) {
     UA_DeleteNodesResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_DELETENODESREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_DELETENODESRESPONSE], client);
+    synchronousRequest(client, request, &UA_TYPES[UA_TYPES_DELETENODESREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_DELETENODESRESPONSE]);
     return response;
 }
 
 UA_DeleteReferencesResponse UA_Client_deleteReferences(UA_Client *client, UA_DeleteReferencesRequest *request) {
     UA_DeleteReferencesResponse response;
-    synchronousRequest(request, &UA_TYPES[UA_TYPES_DELETEREFERENCESREQUEST], &response,
-                       &UA_TYPES[UA_TYPES_DELETEREFERENCESRESPONSE], client);
-    return response;;
+    synchronousRequest(client, request, &UA_TYPES[UA_TYPES_DELETEREFERENCESREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_DELETEREFERENCESRESPONSE]);
+    return response;
 }

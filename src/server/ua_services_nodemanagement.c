@@ -333,7 +333,7 @@ void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddR
 #ifdef UA_EXTERNAL_NAMESPACES
 		if(!isExternal[i])
 #endif
-			UA_Server_addReference(server, &request->referencesToAdd[i]);
+			UA_Server_addReferenceWithSession(server, session, &request->referencesToAdd[i]);
 	}
 }
 

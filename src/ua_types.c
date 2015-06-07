@@ -1240,7 +1240,7 @@ UA_StatusCode UA_Array_copy(const void *src, void **dst, const UA_DataType *data
     uintptr_t ptrd = (uintptr_t)*dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(int i = 0; i < noElements; i++) {
-        retval = UA_copy((void*)ptrs, (void*)ptrd, dataType);
+        retval |= UA_copy((void*)ptrs, (void*)ptrd, dataType);
         ptrs += dataType->memSize;
         ptrd += dataType->memSize;
     }
