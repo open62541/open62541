@@ -82,6 +82,9 @@ UA_AddNodesResult UA_Server_addNode(UA_Server *server, UA_Node *node, const UA_E
 UA_StatusCode UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session,
                                                 const UA_AddReferencesItem *item);
 
+UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session *session, 
+                                                   const UA_AddReferencesItem *item);
+
 UA_StatusCode UA_Server_addDelayedJob(UA_Server *server, UA_Job job);
 
 void UA_Server_deleteAllRepeatedJobs(UA_Server *server);
