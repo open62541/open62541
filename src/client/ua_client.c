@@ -468,13 +468,13 @@ UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection co
         retval = ActivateSession(client);
         
     #ifdef MATLAB_MEX_FILE
-       if(retval == UA_STATUSCODE_GOOD){
-        mexMakeMemoryPersistent(client);    
-        mexMakeMemoryPersistent(&client->connection);
-        mexMakeMemoryPersistent(client->endpointUrl.data);
-	mexMakeMemoryPersistent(client->clientNonce.data);
-	mexMakeMemoryPersistent(client->serverNonce.data);
-        }
+	if(retval == UA_STATUSCODE_GOOD){
+	    mexMakeMemoryPersistent(client);    
+	    mexMakeMemoryPersistent(&client->connection);
+	    mexMakeMemoryPersistent(client->endpointUrl.data);
+	    mexMakeMemoryPersistent(client->clientNonce.data);
+	    mexMakeMemoryPersistent(client->serverNonce.data);
+	}
     #endif
         
     return retval;
