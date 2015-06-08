@@ -58,10 +58,17 @@ class open62541_MacroHelper():
   #    UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId, const UA_NodeId refTypeId,
   #                                   const UA_ExpandedNodeId targetId)
     code = []
+    refid = "ref_" + reference.getCodePrintableID()
+    code.append("UA_AddReferencesItem " + refid + ";")
+    code.append("UA_AddReferencesItem_init(&" + refid + ");")
+    code.append(refid + ".sourceNodeId = " + self.getCreateNodeIDMacro(sourcenode) + ";")
+    code.append(refid + ".referenceTypeId = " + self.getCreateNodeIDMacro(reference.referenceType()) + ";")
     if reference.isForward():
-      code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", "+self.getCreateExpandedNodeIDMacro(reference.target())+");")
+      code.append(refid + ".isForward = UA_TRUE;")
     else:
-      code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(reference.target()) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", "+self.getCreateExpandedNodeIDMacro(sourcenode)+");")
+      code.append(refid + ".isForward = UA_FALSE;")
+    code.append(refid + ".targetNodeId = " + self.getCreateExpandedNodeIDMacro(reference.target()) + ";")
+    code.append("addOneWayReferenceWithSession(server, (UA_Session *) UA_NULL, &" + refid + ");")
     return code
 
   def getCreateNode(self, node):
