@@ -49,10 +49,18 @@
 #define UA_assert(ignore) assert(ignore)
 
 /* Replace the macros with functions for custom allocators if necessary */
+#ifdef MATLAB_MEX_FILE /* Is this file being compiled as a MEX-file? */
+#define UA_free(ptr) mxFree(ptr)
+#define UA_malloc(size) mxMalloc(size)
+#define UA_calloc(num, size) mxCalloc(num, size)
+#define UA_realloc(ptr, size) mxRealloc(ptr, size)
+#else
 #define UA_free(ptr) free(ptr)
 #define UA_malloc(size) malloc(size)
 #define UA_calloc(num, size) calloc(num, size)
 #define UA_realloc(ptr, size) realloc(ptr, size)
+#endif
+
 #define UA_memcpy(dst, src, size) memcpy(dst, src, size)
 #define UA_memset(ptr, value, size) memset(ptr, value, size)
 
