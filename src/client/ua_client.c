@@ -472,8 +472,8 @@ UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection co
         mexMakeMemoryPersistent(client);    
         mexMakeMemoryPersistent(&client->connection);
         mexMakeMemoryPersistent(client->endpointUrl.data);
-		mexMakeMemoryPersistent(client->clientNonce.data);
-		mexMakeMemoryPersistent(client->serverNonce.data);
+	mexMakeMemoryPersistent(client->clientNonce.data);
+	mexMakeMemoryPersistent(client->serverNonce.data);
         }
     #endif
         
