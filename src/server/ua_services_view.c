@@ -45,7 +45,7 @@ static UA_StatusCode fillrefdescr(UA_NodeStore *ns, const UA_Node *curr, UA_Refe
    so, it is retrieved from the Nodestore. If not, null is returned. */
 static const UA_Node *relevant_node(UA_Server *server, UA_NodeStore *ns, const UA_BrowseDescription *descr,
                                     UA_Boolean return_all, UA_ReferenceNode *reference,
-                                    UA_NodeId *relevant, size_t relevant_count)
+                                    UA_NodeId *relevant, size_t relevant_count, UA_Boolean *isExternal)
 {
     if(reference->isInverse == UA_TRUE && descr->browseDirection == UA_BROWSEDIRECTION_FORWARD)
         return UA_NULL;
@@ -60,19 +60,19 @@ static const UA_Node *relevant_node(UA_Server *server, UA_NodeStore *ns, const U
         return UA_NULL;
     }
 is_relevant: ;
+	*isExternal = UA_FALSE;
 #ifdef UA_EXTERNAL_NAMESPACES
 	const UA_Node *node = NULL;
-	UA_Boolean isExternal = UA_FALSE;
 	size_t nsIndex;
 	for(nsIndex = 0; nsIndex < server->externalNamespacesSize; nsIndex++) {
 		if(reference->targetId.nodeId.namespaceIndex != server->externalNamespaces[nsIndex].index)
 			continue;
 		else{
-			isExternal = UA_TRUE;
+			*isExternal = UA_TRUE;
 			break;
 		}
 	}
-	if(isExternal == UA_FALSE){
+	if(*isExternal == UA_FALSE){
 		node = UA_NodeStore_get(ns, &reference->targetId.nodeId);
 	} else {
 		/*	prepare a read request in the external nodestore	*/
@@ -131,8 +131,8 @@ is_relevant: ;
 #endif
     if(node && descr->nodeClassMask != 0 && (node->nodeClass & descr->nodeClassMask) == 0) {
 #ifdef UA_EXTERNAL_NAMESPACES
-    	if(isExternal == UA_TRUE){
-    		;
+    	if(*isExternal == UA_TRUE){
+    		UA_ObjectNode_delete((UA_ObjectNode*)node);
     	} else
 #endif
     	UA_NodeStore_release(node);
@@ -303,19 +303,38 @@ static void browse(UA_Server *server, UA_Session *session, UA_NodeStore *ns, str
 
     /* loop over the node's references */
     size_t skipped = 0;
+    UA_Boolean isExternal = UA_FALSE;
     for(; referencesIndex < node->referencesSize && referencesCount < real_maxrefs; referencesIndex++) {
-        const UA_Node *current = relevant_node(server, ns, descr, all_refs, &node->references[referencesIndex],
-                                               relevant_refs, relevant_refs_size);
+    	isExternal = UA_FALSE;
+    	const UA_Node *current = relevant_node(server, ns, descr, all_refs, &node->references[referencesIndex],
+                                               relevant_refs, relevant_refs_size, &isExternal);
         if(!current)
             continue;
         if(skipped < continuationIndex) {
-            UA_NodeStore_release(current);
+#ifdef UA_EXTERNAL_NAMESPACES
+        	if(isExternal == UA_TRUE){
+        		/*	relevant_node returns a node malloced with UA_ObjectNode_new if it is external (there is no UA_Node_new function)	*/
+        		UA_ObjectNode_delete((UA_ObjectNode*)current);
+        	} else {
+        		UA_NodeStore_release(current);
+        	}
+#else
+        	UA_NodeStore_release(current);
+#endif
             skipped++;
             continue;
         }
         UA_StatusCode retval = fillrefdescr(ns, current, &node->references[referencesIndex], descr->resultMask,
                                             &result->references[referencesCount]);
-        UA_NodeStore_release(current);
+#ifdef UA_EXTERNAL_NAMESPACES
+        if(isExternal == UA_TRUE){
+        	UA_ObjectNode_delete((UA_ObjectNode*)current);
+        } else {
+        	UA_NodeStore_release(current);
+        }
+#else
+        	UA_NodeStore_release(current);
+#endif
         if(retval != UA_STATUSCODE_GOOD) {
             UA_Array_delete(result->references, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION], referencesCount);
             result->references = UA_NULL;
