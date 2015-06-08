@@ -52,7 +52,7 @@
 #ifndef UA_free
     #define UA_free(ptr) free(ptr)
 #endif
-#ifndef UA_free
+#ifndef UA_malloc
     #define UA_malloc(size) malloc(size)
 #endif
 #ifndef UA_calloc
