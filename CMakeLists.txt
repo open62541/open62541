@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 2.8.8)
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 
 project(open62541 C)
+#TODO: check for python-lxml
+
+FIND_PACKAGE(PythonInterp REQUIRED)
 
 find_package(Git)
 if(GIT_FOUND)
