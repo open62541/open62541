@@ -635,7 +635,6 @@ class opcua_node_t:
           if (len(tmprefs) == 0):
             code.append("// This node has the following references that can be created:")
           code = code + codegen.getCreateStandaloneReference(self, r)
-          code.append("")
           tmprefs.append(r)
     # Remove printed refs from list
     for r in tmprefs:
@@ -655,7 +654,6 @@ class opcua_node_t:
           if (len(tmprefs) == 0):
             code.append("//  Creating this node has resolved the following open references:")
           code = code + codegen.getCreateStandaloneReference(r.parent(), r)
-          code.append("")
           tmprefs.append(r)
     # Remove printed refs from list
     for r in tmprefs:
