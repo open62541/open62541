@@ -215,11 +215,18 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
 
 /** If the request fails, then the response is cast to UA_ResponseHeader (at the beginning of every
     response) and filled with the appropriate error code */
-static void synchronousRequest(UA_Client *client, const void *request, const UA_DataType *requestType,
+static void synchronousRequest(UA_Client *client, void *request, const UA_DataType *requestType,
                                void *response, const UA_DataType *responseType) {
     /* Check if sc needs to be renewed */
     if(client->scExpiresAt - UA_DateTime_now() <= client->config.timeToRenewSecureChannel * 10000 )
         UA_Client_renewSecureChannel(client);
+
+    /* Copy authenticationToken token to request header */
+    typedef struct {
+        UA_RequestHeader requestHeader;
+    } headerOnlyRequest;
+    /* The cast is valid, since all requests start with a requestHeader */
+    UA_NodeId_copy(&client->authenticationToken, &((headerOnlyRequest*)request)->requestHeader.authenticationToken);
 
     if(!response)
         return;
