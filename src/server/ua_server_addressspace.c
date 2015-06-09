@@ -79,7 +79,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
 }
 
 /* Adds a one-way reference to the local nodestore */
-static UA_StatusCode
+UA_StatusCode
 addOneWayReferenceWithSession(UA_Server *server, UA_Session *session, const UA_AddReferencesItem *item) {
     const UA_Node *node = UA_NodeStore_get(server->nodestore, &item->sourceNodeId);
     if(!node)
