@@ -58,17 +58,23 @@ class open62541_MacroHelper():
   #    UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId, const UA_NodeId refTypeId,
   #                                   const UA_ExpandedNodeId targetId)
     code = []
-    refid = "ref_" + reference.getCodePrintableID()
-    code.append("UA_AddReferencesItem " + refid + ";")
-    code.append("UA_AddReferencesItem_init(&" + refid + ");")
-    code.append(refid + ".sourceNodeId = " + self.getCreateNodeIDMacro(sourcenode) + ";")
-    code.append(refid + ".referenceTypeId = " + self.getCreateNodeIDMacro(reference.referenceType()) + ";")
+    #refid = "ref_" + reference.getCodePrintableID()
+    #code.append("UA_AddReferencesItem " + refid + ";")
+    #code.append("UA_AddReferencesItem_init(&" + refid + ");")
+    #code.append(refid + ".sourceNodeId = " + self.getCreateNodeIDMacro(sourcenode) + ";")
+    #code.append(refid + ".referenceTypeId = " + self.getCreateNodeIDMacro(reference.referenceType()) + ";")
+    #if reference.isForward():
+      #code.append(refid + ".isForward = UA_TRUE;")
+    #else:
+      #code.append(refid + ".isForward = UA_FALSE;")
+    #code.append(refid + ".targetNodeId = " + self.getCreateExpandedNodeIDMacro(reference.target()) + ";")
+    #code.append("addOneWayReferenceWithSession(server, (UA_Session *) UA_NULL, &" + refid + ");")
+    
     if reference.isForward():
-      code.append(refid + ".isForward = UA_TRUE;")
+      code.append("UA_Server_AddMonodirectionalReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", UA_TRUE);")
     else:
-      code.append(refid + ".isForward = UA_FALSE;")
-    code.append(refid + ".targetNodeId = " + self.getCreateExpandedNodeIDMacro(reference.target()) + ";")
-    code.append("addOneWayReferenceWithSession(server, (UA_Session *) UA_NULL, &" + refid + ");")
+      code.append("UA_Server_AddMonodirectionalReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", UA_FALSE);")
+    
     return code
 
   def getCreateNode(self, node):
