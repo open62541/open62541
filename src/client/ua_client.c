@@ -39,7 +39,7 @@ const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard =
        .maxMessageSize = 65536, .maxChunkCount = 1}};
 
 UA_Client * UA_Client_new(UA_ClientConfig config, UA_Logger logger) {
-    UA_Client *client = UA_malloc(sizeof(UA_Client));
+    UA_Client *client = UA_calloc(1, sizeof(UA_Client));
     if(!client)
         return UA_NULL;
     client->config = config;

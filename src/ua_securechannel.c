@@ -25,7 +25,8 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
     UA_Connection *c = channel->connection;
     if(c) {
         UA_Connection_detachSecureChannel(c);
-        c->close(c);
+        if(c->close)
+            c->close(c);
     }
     /* just remove the pointers and free the linked list (not the sessions) */
     struct SessionEntry *se;
