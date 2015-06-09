@@ -149,6 +149,10 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
                                     const UA_QualifiedName browseName, UA_NodeId nodeId,
                                     const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId);
 
+UA_StatusCode UA_EXPORT
+UA_Server_AddMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId, UA_ExpandedNodeId targetNodeId, 
+                                      UA_NodeId referenceTypeId, UA_Boolean isforward);
+
 /** Jobs describe work that is ececuted once or repeatedly. */
 typedef struct {
     enum {
