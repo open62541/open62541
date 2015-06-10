@@ -204,6 +204,47 @@ void Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishReq
     response->diagnosticInfos     = 0;
 }
 
+void Service_ModifySubscription(UA_Server *server, UA_Session *session,
+                                 const UA_ModifySubscriptionRequest *request,
+                                 UA_ModifySubscriptionResponse *response) {
+    UA_Subscription *sub;
+    
+    response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
+    
+    sub = SubscriptionManager_getSubscriptionByID(&(session->subscriptionManager), request->subscriptionId);
+    if (!sub) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+        return;
+    }
+    
+    
+    UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.GlobalPublishingInterval,
+                               request->requestedPublishingInterval, response->revisedPublishingInterval);
+    sub->PublishingInterval = response->revisedPublishingInterval;
+    
+    UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.GlobalLifeTimeCount,
+                               request->requestedLifetimeCount, response->revisedLifetimeCount);
+    sub->LifeTime = (UA_UInt32_BoundedValue)  {
+        .minValue=session->subscriptionManager.GlobalLifeTimeCount.minValue,
+        .maxValue=session->subscriptionManager.GlobalLifeTimeCount.maxValue,
+        .currentValue=response->revisedLifetimeCount};
+        
+    UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.GlobalKeepAliveCount,
+                                request->requestedMaxKeepAliveCount, response->revisedMaxKeepAliveCount);
+    sub->KeepAliveCount = (UA_Int32_BoundedValue)  {
+        .minValue=session->subscriptionManager.GlobalKeepAliveCount.minValue,
+        .maxValue=session->subscriptionManager.GlobalKeepAliveCount.maxValue,
+        .currentValue=response->revisedMaxKeepAliveCount};
+        
+    sub->NotificationsPerPublish = request->maxNotificationsPerPublish;
+    sub->Priority                = request->priority;
+    
+    printf("Unregister returned: %u\n", Subscription_unregisterUpdateJob(server, sub));
+    Subscription_registerUpdateJob(server, sub);
+    printf("Modified\n");
+    return;
+}
+
 void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                                  const UA_DeleteSubscriptionsRequest *request,
                                  UA_DeleteSubscriptionsResponse *response) {

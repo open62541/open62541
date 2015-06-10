@@ -323,7 +323,7 @@ UA_StatusCode Subscription_unregisterUpdateJob(UA_Server *server, UA_Subscriptio
     
     retval |= UA_Server_removeRepeatedJob(server, sub->timedUpdateJobGuid);
     sub->timedUpdateIsRegistered = UA_FALSE;
-    return UA_FALSE;
+    return retval;
 }
 
 
