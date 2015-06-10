@@ -19,17 +19,21 @@ includes = []
 
 is_c = False
 
+print ("Starting amalgamating file "+ args.outfile, flush=True)
+
 for fname in args.inputs:
     if("util.h" in fname):
         is_c = True
         continue
-    with open(fname) as infile:
+    with open(fname, encoding="utf8") as infile:
+        print ("Integrating file '" + fname + "'...", end="", flush=True),
         for line in infile:
             res = include_re.match(line)
             if res:
                 inc = res.group(1)
                 if not inc in includes and not inc[0] == '"':
                     includes.append(inc)
+        print ("done."),
 
 file = open(args.outfile, 'w')
 file.write('''/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES 
@@ -70,20 +74,24 @@ else:
 #endif\n\n''')
     for fname in args.inputs:
         if "ua_config.h" in fname or "ua_util.h" in fname:
-            with open(fname) as infile:
+            with open(fname, encoding="utf8") as infile:
+                print ("Integrating file '" + fname + "'...", end="", flush=True),
                 for line in infile:
                     file.write(line)
+                print ("done."),
     file.write("#include \"" + outname + ".h\"\n")
 
 for fname in args.inputs:
     if not "util.h" in fname:
-        with open(fname) as infile:
+        with open(fname, encoding="utf8") as infile:
             file.write("/*********************************** amalgamated original file \"" + fname + "\" ***********************************/\n")
+            print ("Integrating file '" + fname + "'...", end="", flush=True),
             for line in infile:
                 inc_res = include_re.match(line)
                 guard_res = guard_re.match(line)
                 if not inc_res and not guard_res:
                     file.write(line)
+            print ("done."),
 
 if not is_c:
     file.write('''
@@ -94,4 +102,4 @@ if not is_c:
 #endif /* %s */''' % (outname.upper() + "_H_"))
 file.close()
 
-print ("The size of "+args.outfile+" is "+ str(os.path.getsize(args.outfile)))
+print ("The size of "+args.outfile+" is "+ str(os.path.getsize(args.outfile))+" Bytes.", flush=True)
