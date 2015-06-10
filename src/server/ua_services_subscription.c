@@ -214,7 +214,7 @@ void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->subscriptionIdsSize;
     for(int i=0; i<request->subscriptionIdsSize;i++)
-        response->results[i] = SubscriptionManager_deleteSubscription(&(session->subscriptionManager),
+        response->results[i] = SubscriptionManager_deleteSubscription(server, &(session->subscriptionManager),
                                                                       request->subscriptionIds[i]);
 } 
 

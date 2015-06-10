@@ -70,22 +70,12 @@ UA_Int32 SubscriptionManager_deleteMonitoredItem(UA_SubscriptionManager *manager
     return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 }
 
-UA_Int32 SubscriptionManager_deleteSubscription(UA_SubscriptionManager *manager, UA_Int32 SubscriptionID) {
+UA_Int32 SubscriptionManager_deleteSubscription(UA_Server *server, UA_SubscriptionManager *manager, UA_Int32 SubscriptionID) {
     UA_Subscription *sub = SubscriptionManager_getSubscriptionByID(manager, SubscriptionID);    
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
-    // Delete registered subscriptions
-    UA_MonitoredItem *mon;
-    while((mon = LIST_FIRST(&sub->MonitoredItems)))
-        MonitoredItem_delete(mon);
-    
-    // Delete queued notification messages
-    UA_unpublishedNotification *notify;
-    while((notify = LIST_FIRST(&sub->unpublishedNotifications))) {
-       LIST_REMOVE(notify, listEntry);
-       UA_free(notify);
-    }
+    UA_Subscription_deleteMembers(server, sub);
     
     LIST_REMOVE(sub, listEntry);
     UA_free(sub);

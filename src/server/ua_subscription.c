@@ -21,7 +21,7 @@ UA_Subscription *UA_Subscription_new(UA_Int32 SubscriptionID) {
     return new;
 }
 
-void UA_Subscription_deleteMembers(UA_Subscription *subscription) {
+void UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *subscription) {
     UA_unpublishedNotification *not;
     UA_MonitoredItem *mon;
     
@@ -45,8 +45,10 @@ void UA_Subscription_deleteMembers(UA_Subscription *subscription) {
     
     // Unhook/Unregister any timed work assiociated with this subscription
     if (subscription->timedUpdateJob != UA_NULL)
+        Subscription_unregisterUpdateJob(server, subscription);
         UA_free(subscription->timedUpdateJob);
-    // TODO: Server_removeTimedWork(timedUpdateJob)
+    
+    return;
 }
 
 UA_UInt32 Subscription_queuedNotifications(UA_Subscription *subscription) {
@@ -270,7 +272,7 @@ static void Subscription_timedUpdateNotificationsJob(UA_Server *server, void *da
     // FIXME: This should be done by the event system
     LIST_FOREACH(mon, &sub->MonitoredItems, listEntry)
         MonitoredItem_QueuePushDataValue(server, mon);
-       
+    
     Subscription_updateNotifications(sub);
     return;
 }
@@ -290,7 +292,7 @@ UA_StatusCode Subscription_createdUpdateJob(UA_Server *server, UA_Guid jobId, UA
     *                     .job.methodCall = { .method = Subscription_timedUpdateNotificationsJob, .data = sub } };
     */
    *theWork = (UA_Job) {  .type = UA_JOBTYPE_METHODCALL,
-                          . job.methodCall = {.method = Subscription_timedUpdateNotificationsJob, .data = sub} };
+                          .job.methodCall = {.method = Subscription_timedUpdateNotificationsJob, .data = sub} };
    
    sub->timedUpdateJobGuid = jobId;
    sub->timedUpdateJob     = theWork;
@@ -306,17 +308,22 @@ UA_StatusCode Subscription_registerUpdateJob(UA_Server *server, UA_Subscription 
     if (sub->PublishingInterval <= 5 ) 
         return UA_STATUSCODE_BADNOTSUPPORTED;
     
+    // Practically enough, the client sends a uint32 in ms, which we store as datetime, which here is required in as uint32 in ms as the interval
     retval |= UA_Server_addRepeatedJob(server, (UA_Job) *(sub->timedUpdateJob), (UA_UInt32) (sub->PublishingInterval), &(sub->timedUpdateJobGuid));
-    printf("Attempt reg...\n");
     if (!retval) {
         sub->timedUpdateIsRegistered = UA_TRUE;
-        printf("done with %u\n", (UA_UInt32) (sub->PublishingInterval));
     }
     return retval;
 }
 
 UA_StatusCode Subscription_unregisterUpdateJob(UA_Server *server, UA_Subscription *sub) {
-    return 0;
+    UA_Int32 retval = UA_STATUSCODE_GOOD;
+    if (server == UA_NULL || sub == UA_NULL)
+        return UA_STATUSCODE_BADSERVERINDEXINVALID;
+    
+    retval |= UA_Server_removeRepeatedJob(server, sub->timedUpdateJobGuid);
+    sub->timedUpdateIsRegistered = UA_FALSE;
+    return UA_FALSE;
 }
 
 
