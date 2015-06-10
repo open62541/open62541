@@ -81,33 +81,35 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
 /* Userspace Version of addOneWayReferenceWithSession*/
 UA_StatusCode
 UA_Server_AddMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId, UA_ExpandedNodeId targetNodeId, UA_NodeId referenceTypeId, UA_Boolean isforward) {
-    UA_AddReferencesItem *ref;
+    UA_AddReferencesItem ref;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     
-    ref = UA_AddReferencesItem_new();
-    
-    if (server == UA_NULL) 
+    if (server == UA_NULL) {
         retval |= UA_STATUSCODE_BADSERVERINDEXINVALID;
+        return retval;
+    }
     
-    retval |= UA_NodeId_copy((const UA_NodeId *) &sourceNodeId, &ref->sourceNodeId);
-    retval |= UA_ExpandedNodeId_copy((const UA_ExpandedNodeId *) &targetNodeId, &ref->targetNodeId);
-    retval |= UA_NodeId_copy((const UA_NodeId *) &referenceTypeId, &ref->referenceTypeId);
+    UA_AddReferencesItem_init(&ref);
+
+    retval |= UA_NodeId_copy((const UA_NodeId *) &sourceNodeId, &ref.sourceNodeId);
+    retval |= UA_ExpandedNodeId_copy((const UA_ExpandedNodeId *) &targetNodeId, &ref.targetNodeId);
+    retval |= UA_NodeId_copy((const UA_NodeId *) &referenceTypeId, &ref.referenceTypeId);
     
     if (isforward == UA_TRUE)
-        ref->isForward = UA_TRUE;
+        ref.isForward = UA_TRUE;
     
-    const UA_Node *target = UA_NodeStore_get(server->nodestore, (const UA_NodeId*) &ref->targetNodeId);
+    const UA_Node *target = UA_NodeStore_get(server->nodestore, (const UA_NodeId*) &ref.targetNodeId);
     if(target == UA_NULL)
         retval |= UA_STATUSCODE_BADNODEIDINVALID;
     else {
-        ref->targetNodeClass = target->nodeClass;
+        ref.targetNodeClass = target->nodeClass;
     }
     if (!retval) {
-        retval |= addOneWayReferenceWithSession(server, (UA_Session *) UA_NULL, ref);
+        retval |= addOneWayReferenceWithSession(server, (UA_Session *) UA_NULL, &ref);
     }
     
     
-    UA_AddReferencesItem_deleteMembers(ref);
+    UA_AddReferencesItem_deleteMembers(&ref);
     return retval;
 }
     
