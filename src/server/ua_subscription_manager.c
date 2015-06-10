@@ -16,6 +16,22 @@ void SubscriptionManager_init(UA_Session *session) {
     manager->GlobalQueueSize = (UA_UInt32_BoundedValue) { .maxValue = 100, .minValue = 0, .currentValue=0 };
     LIST_INIT(&manager->ServerSubscriptions);
     manager->LastSessionID = (UA_UInt32) UA_DateTime_now();
+    
+    // Initialize a GUID with a 2^64 time dependant part, then fold the time in on itself to provide a more randomish
+    // Counter
+    unsigned long guidInitH = (UA_UInt64) UA_DateTime_now();
+    manager->LastJobGuid.data1 = (UA_UInt16) (guidInitH >> 32);
+    manager->LastJobGuid.data2 = (UA_UInt16) (guidInitH >> 16);
+    manager->LastJobGuid.data3 = (UA_UInt16) (guidInitH);
+    unsigned long guidInitL = (UA_UInt64) UA_DateTime_now();
+    manager->LastJobGuid.data4[0] = (UA_Byte) guidInitL;
+    manager->LastJobGuid.data4[1] = (UA_Byte) (guidInitL >> 8); 
+    manager->LastJobGuid.data4[2] = (UA_Byte) (guidInitL >> 16);
+    manager->LastJobGuid.data4[3] = (UA_Byte) (guidInitL >> 24);
+    manager->LastJobGuid.data4[4] = (UA_Byte) (manager->LastJobGuid.data4[0]) ^ (guidInitL >> 32);
+    manager->LastJobGuid.data4[5] = (UA_Byte) (manager->LastJobGuid.data4[0]) ^ (guidInitL >> 40);
+    manager->LastJobGuid.data4[6] = (UA_Byte) (manager->LastJobGuid.data4[1]) ^ (guidInitL >> 48);
+    manager->LastJobGuid.data4[7] = (UA_Byte) (manager->LastJobGuid.data4[0]) ^ (guidInitL >> 58);
 }
 
 void SubscriptionManager_deleteMembers(UA_Session *session) {
@@ -75,3 +91,20 @@ UA_Int32 SubscriptionManager_deleteSubscription(UA_SubscriptionManager *manager,
     UA_free(sub);
     return UA_STATUSCODE_GOOD;
 } 
+
+UA_UInt32 SubscriptionManager_getUniqueUIntID(UA_SubscriptionManager *manager) {
+    UA_UInt32 id = ++(manager->LastSessionID);
+    return id;
+}
+
+UA_Guid SubscriptionManager_getUniqueGUID(UA_SubscriptionManager *manager) {
+    UA_Guid id;
+    unsigned long *incremental;
+    
+    incremental = (unsigned long *) &manager->LastJobGuid.data4[0];
+    incremental++;
+    
+    UA_Guid_copy(&(manager->LastJobGuid), &id);
+    
+    return id;
+}

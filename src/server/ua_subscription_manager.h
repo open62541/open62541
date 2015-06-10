@@ -15,6 +15,7 @@ typedef struct UA_SubscriptionManager {
     UA_UInt32_BoundedValue   GlobalSamplingInterval;
     UA_UInt32_BoundedValue   GlobalQueueSize;
     UA_Int32                 LastSessionID;
+    UA_Guid                  LastJobGuid;
     LIST_HEAD(UA_ListOfUASubscriptions, UA_Subscription_s) ServerSubscriptions;
 } UA_SubscriptionManager;
 
@@ -27,4 +28,6 @@ UA_Int32 SubscriptionManager_deleteSubscription(UA_SubscriptionManager *manager,
 UA_Int32 SubscriptionManager_deleteMonitoredItem(UA_SubscriptionManager *manager, UA_Int32 SubscriptionID,
                                                  UA_UInt32 MonitoredItemID);
 
+UA_UInt32 SubscriptionManager_getUniqueUIntID(UA_SubscriptionManager *manager);
+UA_Guid SubscriptionManager_getUniqueGUID(UA_SubscriptionManager *manager);
 #endif /* UA_SUBSCRIPTION_MANAGER_H_ */

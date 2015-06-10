@@ -18,7 +18,7 @@ void Service_CreateSubscription(UA_Server *server, UA_Session *session,
     UA_Subscription *newSubscription;
     
     // Create Subscription and Response
-    response->subscriptionId = ++(session->subscriptionManager.LastSessionID);
+    response->subscriptionId = SubscriptionManager_getUniqueUIntID(&(session->subscriptionManager));
     newSubscription = UA_Subscription_new(response->subscriptionId);
     
     UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.GlobalPublishingInterval,
@@ -43,6 +43,8 @@ void Service_CreateSubscription(UA_Server *server, UA_Session *session,
     newSubscription->PublishingMode          = request->publishingEnabled;
     newSubscription->Priority                = request->priority;
     
+    UA_Guid jobId = SubscriptionManager_getUniqueGUID(&(session->subscriptionManager));
+    Subscriptions_createdUpdateJob(server, jobId, newSubscription);
     SubscriptionManager_addSubscription(&(session->subscriptionManager), newSubscription);    
 }
 

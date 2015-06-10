@@ -13,9 +13,39 @@ UA_Subscription *UA_Subscription_new(UA_Int32 SubscriptionID) {
     new->SubscriptionID = SubscriptionID;
     new->LastPublished  = 0;
     new->SequenceNumber = 0;
+    memset(&new->timedUpdateJobGuid, 0, sizeof(UA_Guid));
+    new->timedUpdateJob     = UA_NULL;
     LIST_INIT(&new->MonitoredItems);
     LIST_INIT(&new->unpublishedNotifications);
     return new;
+}
+
+void UA_Subscription_deleteMembers(UA_Subscription *subscription) {
+    UA_unpublishedNotification *not;
+    UA_MonitoredItem *mon;
+    
+    // Just in case any parallel process attempts to acces this subscription
+    // while we are deleting it... make it vanish.
+    subscription->SubscriptionID = 0;
+    
+    // Delete monitored Items
+    while(subscription->MonitoredItems.lh_first != NULL) {
+        mon = subscription->MonitoredItems.lh_first;
+        LIST_REMOVE(mon, listEntry);
+        MonitoredItem_delete(mon);
+    }
+    
+    // Delete unpublished Notifications
+    while(subscription->unpublishedNotifications.lh_first !=  NULL) {
+        not = subscription->unpublishedNotifications.lh_first;
+        LIST_REMOVE(not, listEntry);
+        Subscription_deleteUnpublishedNotification(not->notification->sequenceNumber, subscription);
+    }
+    
+    // Unhook/Unregister any timed work assiociated with this subscription
+    if (subscription->timedUpdateJob != UA_NULL)
+        UA_free(subscription->timedUpdateJob);
+    // TODO: Server_removeTimedWork(timedUpdateJob)
 }
 
 UA_UInt32 Subscription_queuedNotifications(UA_Subscription *subscription) {
@@ -198,10 +228,11 @@ void Subscription_copyTopNotificationMessage(UA_NotificationMessage *dst, UA_Sub
 }
 
 UA_UInt32 Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Subscription *sub) {
-    UA_unpublishedNotification *not;
+    UA_unpublishedNotification *not, *nxtnot = UA_NULL;
     UA_UInt32 deletedItems = 0;
   
-    for(not=sub->unpublishedNotifications.lh_first; not != NULL; not=not->listEntry.le_next) {
+    for(not=sub->unpublishedNotifications.lh_first; not != NULL; not=nxtnot) {
+        nxtnot = not->listEntry.le_next;
         if(not->notification->sequenceNumber != seqNo)
             continue;
         LIST_REMOVE(not, listEntry);
@@ -213,10 +244,42 @@ UA_UInt32 Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Subscri
             }
             UA_free(not->notification);
         }
+        
         UA_free(not);
         deletedItems++;
     }
     return deletedItems;
+}
+
+
+static void Subscription_timedUpdateNotificationsJob(UA_Server *server, void *data) {
+    // Timed-Worker/Job Version of updateNotifications
+    return;
+}
+
+
+UA_StatusCode Subscriptions_createdUpdateJob(UA_Server *server, UA_Guid jobId, UA_Subscription *sub) {
+    if (server == UA_NULL || sub == UA_NULL)
+        return UA_STATUSCODE_BADSERVERINDEXINVALID;
+    
+    UA_Job *theWork;
+    theWork = (UA_Job *) malloc(sizeof(UA_Job));
+    if (!theWork)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    
+   /*
+    *   UA_Job theWork = {.type = UA_JOBTYPE_METHODCALL, 
+    *                     .job.methodCall = { .method = Subscription_timedUpdateNotificationsJob, .data = sub } };
+    */
+   *theWork = (UA_Job) {  .type = UA_JOBTYPE_METHODCALL,
+                          .job.methodCall = {.method = Subscription_timedUpdateNotificationsJob, .data = NULL} };
+   
+   sub->timedUpdateJobGuid = jobId;
+   sub->timedUpdateJob     = theWork;
+   
+   //UA_Server_addRepeatedJob(server, );
+   
+   return UA_STATUSCODE_GOOD;
 }
 
 /*****************/

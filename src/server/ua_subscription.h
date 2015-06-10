@@ -83,17 +83,22 @@ typedef struct UA_Subscription_s {
     UA_Boolean                          PublishingMode;
     UA_UInt32                           Priority;
     UA_UInt32                           SequenceNumber;
+    UA_Guid                             timedUpdateJobGuid;
+    UA_Job                              *timedUpdateJob;
     LIST_ENTRY(UA_Subscription_s)       listEntry;
     LIST_HEAD(UA_ListOfUnpublishedNotifications, UA_unpublishedNotification_s) unpublishedNotifications;
     LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem_s) MonitoredItems;
 } UA_Subscription;
 
 UA_Subscription *UA_Subscription_new(UA_Int32 SubscriptionID);
+void UA_Subscription_deleteMembers(UA_Subscription *subscription);
 void Subscription_updateNotifications(UA_Subscription *subscription);
 UA_UInt32 Subscription_queuedNotifications(UA_Subscription *subscription);
 UA_UInt32 *Subscription_getAvailableSequenceNumbers(UA_Subscription *sub);
 void Subscription_copyTopNotificationMessage(UA_NotificationMessage *dst, UA_Subscription *sub);
 UA_UInt32 Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Subscription *sub);
 void Subscription_generateKeepAlive(UA_Subscription *subscription);
+UA_StatusCode Subscriptions_createdUpdateJob(UA_Server *server, UA_Guid jobId, UA_Subscription *sub);
+static void Subscription_timedUpdateNotificationsJob(UA_Server *server, void *data);
 
 #endif /* UA_SUBSCRIPTION_H_ */
