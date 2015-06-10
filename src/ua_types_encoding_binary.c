@@ -27,12 +27,15 @@ static UA_StatusCode UA_Array_encodeBinary(const void *src, UA_Int32 noElements,
                                            UA_ByteString *dst, size_t *UA_RESTRICT offset) {
     if(noElements <= -1)
         noElements = -1;
-    UA_Int32_encodeBinary(&noElements, dst, offset);
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode retval = UA_Int32_encodeBinary(&noElements, dst, offset);
+    if(retval)
+        return retval;
     if(dataType->zeroCopyable) {
-        if(dst->length < *offset + (dataType->memSize * (size_t)noElements))
+        if(noElements <= 0)
+            return UA_STATUSCODE_GOOD;
+        if((size_t)dst->length < *offset + (dataType->memSize * (size_t)noElements))
             return UA_STATUSCODE_BADENCODINGERROR;
-        memcpy(&dst[*offset], src, dataType->memSize * (size_t)noElements);
+        memcpy(&dst->data[*offset], src, dataType->memSize * (size_t)noElements);
         *offset += dataType->memSize * (size_t)noElements;
     } else {
         uintptr_t ptr = (uintptr_t)src;
@@ -64,9 +67,9 @@ static UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, size_t *UA_
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(dataType->zeroCopyable) {
-        if(src->length < *offset + (dataType->memSize * (size_t)noElements))
+        if((size_t)src->length < *offset + (dataType->memSize * (size_t)noElements))
             return UA_STATUSCODE_BADDECODINGERROR;
-        memcpy(*dst, &src[*offset], dataType->memSize * (size_t)noElements);
+        memcpy(*dst, &src->data[*offset], dataType->memSize * (size_t)noElements);
         *offset += dataType->memSize * (size_t)noElements;
     } else {
         uintptr_t ptr = (uintptr_t)*dst;
