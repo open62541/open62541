@@ -2,6 +2,7 @@ from __future__ import print_function
 import re
 import argparse
 import os.path
+import io
 
 parser = argparse.ArgumentParser()
 parser.add_argument('version', help='version to include')
@@ -25,7 +26,7 @@ for fname in args.inputs:
     if("util.h" in fname):
         is_c = True
         continue
-    with open(fname, encoding="utf8") as infile:
+    with io.open(fname, encoding="utf8") as infile:
         print ("Integrating file '" + fname + "'...", end=""),
         for line in infile:
             res = include_re.match(line)
@@ -35,7 +36,7 @@ for fname in args.inputs:
                     includes.append(inc)
         print ("done."),
 
-file = open(args.outfile, 'w')
+file = io.open(args.outfile, 'w')
 file.write('''/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES 
  * visit http://open62541.org/ for information about this software
  * Git-Revision: %s
@@ -74,7 +75,7 @@ else:
 #endif\n\n''')
     for fname in args.inputs:
         if "ua_config.h" in fname or "ua_util.h" in fname:
-            with open(fname, encoding="utf8") as infile:
+            with io.open(fname, encoding="utf8") as infile:
                 print ("Integrating file '" + fname + "'...", end=""),
                 for line in infile:
                     file.write(line)
@@ -83,7 +84,7 @@ else:
 
 for fname in args.inputs:
     if not "util.h" in fname:
-        with open(fname, encoding="utf8") as infile:
+        with io.open(fname, encoding="utf8") as infile:
             file.write("/*********************************** amalgamated original file \"" + fname + "\" ***********************************/\n")
             print ("Integrating file '" + fname + "'...", end=""),
             for line in infile:
