@@ -2,6 +2,7 @@ from __future__ import print_function
 import re
 import argparse
 import os.path
+import io
 
 parser = argparse.ArgumentParser()
 parser.add_argument('version', help='version to include')
@@ -19,20 +20,24 @@ includes = []
 
 is_c = False
 
+print ("Starting amalgamating file "+ args.outfile)
+
 for fname in args.inputs:
     if("util.h" in fname):
         is_c = True
         continue
-    with open(fname) as infile:
+    with io.open(fname, encoding="utf8") as infile:
+        print ("Integrating file '" + fname + "'...", end=""),
         for line in infile:
             res = include_re.match(line)
             if res:
                 inc = res.group(1)
                 if not inc in includes and not inc[0] == '"':
                     includes.append(inc)
+        print ("done."),
 
-file = open(args.outfile, 'w')
-file.write('''/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES 
+file = io.open(args.outfile, 'w')
+file.write(u'''/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES 
  * visit http://open62541.org/ for information about this software
  * Git-Revision: %s
  */
@@ -53,45 +58,49 @@ file.write('''/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62
  */\n\n''' % args.version)
 
 if not is_c:
-    file.write('''#ifndef %s
+    file.write(u'''#ifndef %s
 #define %s
 
 #ifdef __cplusplus
 extern "C" {
-#endif\n\n''' % (outname.upper() + "_H_", outname.upper() + "_H_") )
+#endif\n\n''' % (outname.upper() + u"_H_", outname.upper() + u"_H_") )
 
 if not is_c:
     for inc in includes:
-        file.write("#include " + inc + "\n")
+        file.write(u"#include " + inc + "\n")
 else:
-    file.write("#define UA_AMALGAMATE\n")
-    file.write('''#ifndef UA_DYNAMIC_LINKING
+    file.write(u"#define UA_AMALGAMATE\n")
+    file.write(u'''#ifndef UA_DYNAMIC_LINKING
 # define UA_DYNAMIC_LINKING
 #endif\n\n''')
     for fname in args.inputs:
         if "ua_config.h" in fname or "ua_util.h" in fname:
-            with open(fname) as infile:
+            with io.open(fname, encoding="utf8") as infile:
+                print ("Integrating file '" + fname + "'...", end=""),
                 for line in infile:
                     file.write(line)
-    file.write("#include \"" + outname + ".h\"\n")
+                print ("done."),
+    file.write(u"#include \"" + outname + ".h\"\n")
 
 for fname in args.inputs:
     if not "util.h" in fname:
-        with open(fname) as infile:
-            file.write("/*********************************** amalgamated original file \"" + fname + "\" ***********************************/\n")
+        with io.open(fname, encoding="utf8") as infile:
+            file.write(u"/*********************************** amalgamated original file \"" + fname + u"\" ***********************************/\n")
+            print ("Integrating file '" + fname + "'...", end=""),
             for line in infile:
                 inc_res = include_re.match(line)
                 guard_res = guard_re.match(line)
                 if not inc_res and not guard_res:
                     file.write(line)
+            print ("done."),
 
 if not is_c:
-    file.write('''
+    file.write(u'''
 #ifdef __cplusplus
 } // extern "C"
 #endif
 
-#endif /* %s */''' % (outname.upper() + "_H_"))
+#endif /* %s */''' % (outname.upper() + u"_H_"))
 file.close()
 
-print ("The size of "+args.outfile+" is "+ str(os.path.getsize(args.outfile)))
+print ("The size of "+args.outfile+" is "+ str(os.path.getsize(args.outfile))+" Bytes.")
