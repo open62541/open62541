@@ -58,19 +58,19 @@ file.write(u'''/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN6
  */\n\n''' % args.version)
 
 if not is_c:
-    file.write('''#ifndef %s
+    file.write(u'''#ifndef %s
 #define %s
 
 #ifdef __cplusplus
 extern "C" {
-#endif\n\n''' % (outname.upper() + "_H_", outname.upper() + "_H_") )
+#endif\n\n''' % (outname.upper() + u"_H_", outname.upper() + u"_H_") )
 
 if not is_c:
     for inc in includes:
-        file.write("#include " + inc + "\n")
+        file.write(u"#include " + inc + "\n")
 else:
-    file.write("#define UA_AMALGAMATE\n")
-    file.write('''#ifndef UA_DYNAMIC_LINKING
+    file.write(u"#define UA_AMALGAMATE\n")
+    file.write(u'''#ifndef UA_DYNAMIC_LINKING
 # define UA_DYNAMIC_LINKING
 #endif\n\n''')
     for fname in args.inputs:
@@ -80,12 +80,12 @@ else:
                 for line in infile:
                     file.write(line)
                 print ("done."),
-    file.write("#include \"" + outname + ".h\"\n")
+    file.write(u"#include \"" + outname + ".h\"\n")
 
 for fname in args.inputs:
     if not "util.h" in fname:
         with io.open(fname, encoding="utf8") as infile:
-            file.write("/*********************************** amalgamated original file \"" + fname + "\" ***********************************/\n")
+            file.write(u"/*********************************** amalgamated original file \"" + fname + u"\" ***********************************/\n")
             print ("Integrating file '" + fname + "'...", end=""),
             for line in infile:
                 inc_res = include_re.match(line)
@@ -95,12 +95,12 @@ for fname in args.inputs:
             print ("done."),
 
 if not is_c:
-    file.write('''
+    file.write(u'''
 #ifdef __cplusplus
 } // extern "C"
 #endif
 
-#endif /* %s */''' % (outname.upper() + "_H_"))
+#endif /* %s */''' % (outname.upper() + u"_H_"))
 file.close()
 
 print ("The size of "+args.outfile+" is "+ str(os.path.getsize(args.outfile))+" Bytes.")
