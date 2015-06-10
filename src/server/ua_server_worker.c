@@ -181,7 +181,7 @@ struct AddRepeatedJob {
 };
 
 /* internal. call only from the main loop. */
-static UA_StatusCode addRepeatedJob(UA_Server *server, struct AddRepeatedJob * restrict arw) {
+static UA_StatusCode addRepeatedJob(UA_Server *server, struct AddRepeatedJob * UA_RESTRICT arw) {
     struct RepeatedJobs *matchingTw = UA_NULL; // add the item here
     struct RepeatedJobs *lastTw = UA_NULL; // if there is no repeated job, add a new one this entry
     struct RepeatedJobs *tempTw;
