@@ -8,7 +8,10 @@ FIND_PACKAGE(PythonInterp REQUIRED)
 # Find Python-lxml
 execute_process ( COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())" OUTPUT_VARIABLE PYTHON_SITE_PACKAGES OUTPUT_STRIP_TRAILING_WHITESPACE)
 if(NOT EXISTS "${PYTHON_SITE_PACKAGES}/lxml")
-    message( FATAL_ERROR "Python-lxml is not installed.")
+    execute_process ( COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(True))" OUTPUT_VARIABLE PYTHON_SITE_PACKAGES OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(NOT EXISTS "${PYTHON_SITE_PACKAGES}/lxml")
+        message( FATAL_ERROR "Python-lxml is not installed.")
+    endif()
 endif()
 
 find_package(Git)
