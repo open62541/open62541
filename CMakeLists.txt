@@ -2,9 +2,14 @@ cmake_minimum_required(VERSION 2.8.8)
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 
 project(open62541 C)
-#TODO: check for python-lxml
 
 FIND_PACKAGE(PythonInterp REQUIRED)
+
+# Find Python-lxml
+execute_process ( COMMAND python -c "from distutils.sysconfig import get_python_lib; print get_python_lib()" OUTPUT_VARIABLE PYTHON_SITE_PACKAGES OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(NOT EXISTS "${PYTHON_SITE_PACKAGES}/lxml")
+    message( FATAL_ERROR "Python-lxml is not installed.")
+endif()
 
 find_package(Git)
 if(GIT_FOUND)
