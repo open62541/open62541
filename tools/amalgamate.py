@@ -37,7 +37,7 @@ for fname in args.inputs:
         print ("done."),
 
 file = io.open(args.outfile, 'w')
-file.write('''/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES 
+file.write(u'''/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES 
  * visit http://open62541.org/ for information about this software
  * Git-Revision: %s
  */
