@@ -44,7 +44,8 @@ void Service_CreateSubscription(UA_Server *server, UA_Session *session,
     newSubscription->Priority                = request->priority;
     
     UA_Guid jobId = SubscriptionManager_getUniqueGUID(&(session->subscriptionManager));
-    Subscriptions_createdUpdateJob(server, jobId, newSubscription);
+    Subscription_createdUpdateJob(server, jobId, newSubscription);
+    Subscription_registerUpdateJob(server, newSubscription);
     SubscriptionManager_addSubscription(&(session->subscriptionManager), newSubscription);    
 }
 
@@ -153,16 +154,20 @@ void Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishReq
     
     // See if any new data is available
     LIST_FOREACH(sub, &manager->ServerSubscriptions, listEntry) {
-        // FIXME: We are forcing a value update for monitored items. This should be done by the event system.
-        LIST_FOREACH(mon, &sub->MonitoredItems, listEntry)
-            MonitoredItem_QueuePushDataValue(server, mon);
-	
-        // FIXME: We are forcing notification updates for the subscription. This
-        // should be done by a timed work item.
-        Subscription_updateNotifications(sub);
+        if (sub->timedUpdateIsRegistered == UA_FALSE) {
+            // FIXME: We are forcing a value update for monitored items. This should be done by the event system.
+            // NOTE:  There is a clone of this functionality in the Subscription_timedUpdateNotificationsJob
+            LIST_FOREACH(mon, &sub->MonitoredItems, listEntry)
+                MonitoredItem_QueuePushDataValue(server, mon);
+            
+            // FIXME: We are forcing notification updates for the subscription. This
+            // should be done by a timed work item.
+            Subscription_updateNotifications(sub);
+        }
+        
         if(Subscription_queuedNotifications(sub) <= 0)
             continue;
-
+        
         response->subscriptionId = sub->SubscriptionID;
         Subscription_copyTopNotificationMessage(&(response->notificationMessage), sub);
         if (sub->unpublishedNotifications.lh_first->notification->sequenceNumber > sub->SequenceNumber) {

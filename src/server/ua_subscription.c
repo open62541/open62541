@@ -14,7 +14,8 @@ UA_Subscription *UA_Subscription_new(UA_Int32 SubscriptionID) {
     new->LastPublished  = 0;
     new->SequenceNumber = 0;
     memset(&new->timedUpdateJobGuid, 0, sizeof(UA_Guid));
-    new->timedUpdateJob     = UA_NULL;
+    new->timedUpdateJob          = UA_NULL;
+    new->timedUpdateIsRegistered = UA_FALSE;
     LIST_INIT(&new->MonitoredItems);
     LIST_INIT(&new->unpublishedNotifications);
     return new;
@@ -254,14 +255,31 @@ UA_UInt32 Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Subscri
 
 static void Subscription_timedUpdateNotificationsJob(UA_Server *server, void *data) {
     // Timed-Worker/Job Version of updateNotifications
+    UA_Subscription *sub = (UA_Subscription *) data;
+    UA_MonitoredItem *mon;
+    
+    if (!data || !server)
+        return;
+    
+    // This is set by the Subscription_delete function to detere us from fiddling with
+    // this subscription if it is being deleted (not technically thread save, but better
+    // then nothing at all)
+    if (sub->SubscriptionID == 0)
+        return;
+    
+    // FIXME: This should be done by the event system
+    LIST_FOREACH(mon, &sub->MonitoredItems, listEntry)
+        MonitoredItem_QueuePushDataValue(server, mon);
+       
+    Subscription_updateNotifications(sub);
     return;
 }
 
 
-UA_StatusCode Subscriptions_createdUpdateJob(UA_Server *server, UA_Guid jobId, UA_Subscription *sub) {
+UA_StatusCode Subscription_createdUpdateJob(UA_Server *server, UA_Guid jobId, UA_Subscription *sub) {
     if (server == UA_NULL || sub == UA_NULL)
         return UA_STATUSCODE_BADSERVERINDEXINVALID;
-    
+        
     UA_Job *theWork;
     theWork = (UA_Job *) malloc(sizeof(UA_Job));
     if (!theWork)
@@ -272,15 +290,35 @@ UA_StatusCode Subscriptions_createdUpdateJob(UA_Server *server, UA_Guid jobId, U
     *                     .job.methodCall = { .method = Subscription_timedUpdateNotificationsJob, .data = sub } };
     */
    *theWork = (UA_Job) {  .type = UA_JOBTYPE_METHODCALL,
-                          .job.methodCall = {.method = Subscription_timedUpdateNotificationsJob, .data = NULL} };
+                          . job.methodCall = {.method = Subscription_timedUpdateNotificationsJob, .data = sub} };
    
    sub->timedUpdateJobGuid = jobId;
    sub->timedUpdateJob     = theWork;
    
-   //UA_Server_addRepeatedJob(server, );
-   
    return UA_STATUSCODE_GOOD;
 }
+
+UA_StatusCode Subscription_registerUpdateJob(UA_Server *server, UA_Subscription *sub) {
+    UA_Int32 retval = UA_STATUSCODE_GOOD;
+    if (server == UA_NULL || sub == UA_NULL)
+        return UA_STATUSCODE_BADSERVERINDEXINVALID;
+    
+    if (sub->PublishingInterval <= 5 ) 
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    
+    retval |= UA_Server_addRepeatedJob(server, (UA_Job) *(sub->timedUpdateJob), (UA_UInt32) (sub->PublishingInterval), &(sub->timedUpdateJobGuid));
+    printf("Attempt reg...\n");
+    if (!retval) {
+        sub->timedUpdateIsRegistered = UA_TRUE;
+        printf("done with %u\n", (UA_UInt32) (sub->PublishingInterval));
+    }
+    return retval;
+}
+
+UA_StatusCode Subscription_unregisterUpdateJob(UA_Server *server, UA_Subscription *sub) {
+    return 0;
+}
+
 
 /*****************/
 /* MonitoredItem */
