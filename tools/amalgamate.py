@@ -19,14 +19,14 @@ includes = []
 
 is_c = False
 
-print ("Starting amalgamating file "+ args.outfile, flush=True)
+print ("Starting amalgamating file "+ args.outfile)
 
 for fname in args.inputs:
     if("util.h" in fname):
         is_c = True
         continue
     with open(fname, encoding="utf8") as infile:
-        print ("Integrating file '" + fname + "'...", end="", flush=True),
+        print ("Integrating file '" + fname + "'...", end=""),
         for line in infile:
             res = include_re.match(line)
             if res:
@@ -75,7 +75,7 @@ else:
     for fname in args.inputs:
         if "ua_config.h" in fname or "ua_util.h" in fname:
             with open(fname, encoding="utf8") as infile:
-                print ("Integrating file '" + fname + "'...", end="", flush=True),
+                print ("Integrating file '" + fname + "'...", end=""),
                 for line in infile:
                     file.write(line)
                 print ("done."),
@@ -85,7 +85,7 @@ for fname in args.inputs:
     if not "util.h" in fname:
         with open(fname, encoding="utf8") as infile:
             file.write("/*********************************** amalgamated original file \"" + fname + "\" ***********************************/\n")
-            print ("Integrating file '" + fname + "'...", end="", flush=True),
+            print ("Integrating file '" + fname + "'...", end=""),
             for line in infile:
                 inc_res = include_re.match(line)
                 guard_res = guard_re.match(line)
@@ -102,4 +102,4 @@ if not is_c:
 #endif /* %s */''' % (outname.upper() + "_H_"))
 file.close()
 
-print ("The size of "+args.outfile+" is "+ str(os.path.getsize(args.outfile))+" Bytes.", flush=True)
+print ("The size of "+args.outfile+" is "+ str(os.path.getsize(args.outfile))+" Bytes.")
