@@ -18,6 +18,7 @@ struct UA_Client {
     UA_NodeId authenticationToken;
     
 #ifdef ENABLE_SUBSCRIPTIONS
+    UA_Int32 monitoredItemHandles;
     LIST_HEAD(UA_ListOfClientSubscriptionItems, UA_Client_Subscription_s) subscriptions;
 #endif
     
@@ -50,6 +51,7 @@ UA_Client * UA_Client_new(UA_ClientConfig config, UA_Logger logger) {
     client->scExpiresAt = 0;
 
 #ifdef ENABLE_SUBSCRIPTIONS
+    client->monitoredItemHandles = 0;
     LIST_INIT(&client->subscriptions);
 #endif
     return client;
@@ -576,6 +578,20 @@ UA_DeleteSubscriptionsResponse UA_Client_deleteSubscriptions(UA_Client *client, 
     return response;
 }
 
+UA_CreateMonitoredItemsResponse UA_Client_createMonitoredItems(UA_Client *client, UA_CreateMonitoredItemsRequest *request) {
+    UA_CreateMonitoredItemsResponse response;
+    synchronousRequest(client, request, &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE]);
+    return response;
+}
+
+UA_DeleteMonitoredItemsResponse UA_Client_deleteMonitoredItems(UA_Client *client, UA_DeleteMonitoredItemsRequest *request) {
+    UA_DeleteMonitoredItemsResponse response;
+    synchronousRequest(client, request, &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE]);
+    return response;
+}
+
 UA_Int32 UA_Client_newSubscription(UA_Client *client) {
     UA_Int32 retval;
     UA_CreateSubscriptionRequest aReq;
@@ -592,7 +608,7 @@ UA_Int32 UA_Client_newSubscription(UA_Client *client) {
     
     aRes = UA_Client_createSubscription(client, &aReq);
     
-    if (!aRes.responseHeader.serviceResult) {
+    if (aRes.responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
         UA_Client_Subscription *newSub = UA_malloc(sizeof(UA_Client_Subscription));
         LIST_INIT(&newSub->MonitoredItems);
         
@@ -614,12 +630,7 @@ UA_Int32 UA_Client_newSubscription(UA_Client *client) {
     return retval;
 }
 
-void UA_Client_modifySubscription(UA_Client *client) {}
-void UA_Client_addMonitoredItem(UA_Client *client) {}
-void UA_Client_publish(UA_Client *client) {}
-void UA_Client_removeMonitoredItem(UA_Client *client) {}
-
-UA_StatusCode UA_Client_removeSubscription(UA_Client *client, UA_Int32 subscriptionId) {
+UA_StatusCode UA_Client_removeSubscription(UA_Client *client, UA_UInt32 subscriptionId) {
     UA_Client_Subscription *sub;
     UA_StatusCode retval;
     
@@ -649,7 +660,7 @@ UA_StatusCode UA_Client_removeSubscription(UA_Client *client, UA_Int32 subscript
     else
         retval = response.responseHeader.serviceResult;
     
-    if (!retval) {
+    if (retval == UA_STATUSCODE_GOOD) {
         LIST_REMOVE(sub, listEntry);
         // FIXME: On the serverside, monitoredItems are deleted along with the
         // subscription... on the clientside not yet.
@@ -659,4 +670,131 @@ UA_StatusCode UA_Client_removeSubscription(UA_Client *client, UA_Int32 subscript
     UA_DeleteSubscriptionsResponse_deleteMembers(&response);
     return retval;
 }
+
+UA_UInt32 UA_Client_monitorItemChanges(UA_Client *client, UA_UInt32 subscriptionId, UA_NodeId nodeId, UA_UInt32 attributeID, void *handlingFunction) {
+    UA_Client_Subscription *sub;
+    UA_StatusCode retval = 0;
+    
+    LIST_FOREACH(sub, &(client->subscriptions), listEntry) {
+        if (sub->SubscriptionID == subscriptionId)
+            break;
+    }
+    
+    // Maybe the same problem as in DeleteSubscription... ask the server?
+    if (sub == NULL)
+        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+    
+    UA_CreateMonitoredItemsRequest request;
+    UA_CreateMonitoredItemsResponse response;
+    UA_CreateMonitoredItemsRequest_init(&request);
+    UA_CreateMonitoredItemsResponse_init(&response);
+    request.subscriptionId = subscriptionId;
+    request.itemsToCreateSize = 1;
+    request.itemsToCreate = UA_MonitoredItemCreateRequest_new();
+    UA_NodeId_copy(&nodeId, &((request.itemsToCreate[0]).itemToMonitor.nodeId));
+    (request.itemsToCreate[0]).itemToMonitor.attributeId = attributeID;
+    (request.itemsToCreate[0]).monitoringMode = UA_MONITORINGMODE_REPORTING;
+    (request.itemsToCreate[0]).requestedParameters.clientHandle = ++(client->monitoredItemHandles);
+    (request.itemsToCreate[0]).requestedParameters.samplingInterval = sub->PublishingInterval;
+    (request.itemsToCreate[0]).requestedParameters.discardOldest = UA_TRUE;
+    (request.itemsToCreate[0]).requestedParameters.queueSize = 1;
+    // Filter can be left void for now, only changes are supported (UA_Expert does the same with changeItems)
+    
+    response = UA_Client_createMonitoredItems(client, &request);
+    
+    // slight misuse of retval here to check if the deletion was successfull.
+    if (response.resultsSize == 0)
+        retval = response.responseHeader.serviceResult;
+    else
+        retval = response.results[0].statusCode;
+    
+    if (retval == UA_STATUSCODE_GOOD) {
+        UA_Client_MonitoredItem *newMon = (UA_Client_MonitoredItem *) UA_malloc(sizeof(UA_Client_MonitoredItem));
+        newMon->MonitoringMode = UA_MONITORINGMODE_REPORTING;
+        UA_NodeId_copy(&nodeId, &(newMon->monitoredNodeId)); 
+        newMon->AttributeID = attributeID;
+        newMon->ClientHandle = client->monitoredItemHandles;
+        newMon->SamplingInterval = sub->PublishingInterval;
+        newMon->QueueSize = 1;
+        newMon->DiscardOldest = UA_TRUE;
+        newMon->handler = handlingFunction;
+        newMon->MonitoredItemId = response.results[0].monitoredItemId;
+        
+        LIST_INSERT_HEAD(&(sub->MonitoredItems), newMon, listEntry);
+        retval = newMon->MonitoredItemId ;
+    }
+    else {
+        retval = 0;
+    }
+    
+    UA_CreateMonitoredItemsRequest_deleteMembers(&request);
+    UA_CreateMonitoredItemsResponse_deleteMembers(&response);
+    
+    return retval;
+}
+
+UA_StatusCode UA_Client_unMonitorItemChanges(UA_Client *client, UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId ) {
+    UA_Client_Subscription *sub;
+    UA_StatusCode retval = 0;
+    
+    LIST_FOREACH(sub, &(client->subscriptions), listEntry) {
+        if (sub->SubscriptionID == subscriptionId)
+            break;
+    }
+    // Maybe the same problem as in DeleteSubscription... ask the server?
+    if (sub == NULL)
+        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+    
+    UA_Client_MonitoredItem *mon;
+    LIST_FOREACH(mon, &(sub->MonitoredItems), listEntry) {
+        if (mon->MonitoredItemId == monitoredItemId)
+            break;
+    }
+    // Also... ask the server?
+    if(mon==NULL) {
+        return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+    }
+    
+    UA_DeleteMonitoredItemsRequest request;
+    UA_DeleteMonitoredItemsResponse response;
+    UA_DeleteMonitoredItemsRequest_init(&request);
+    UA_DeleteMonitoredItemsResponse_init(&response);
+    
+    request.subscriptionId = sub->SubscriptionID;
+    request.monitoredItemIdsSize = 1;
+    request.monitoredItemIds = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32));
+    request.monitoredItemIds[0] = mon->MonitoredItemId;
+    
+    response = UA_Client_deleteMonitoredItems(client, &request);
+    if (response.resultsSize > 1)
+        retval = response.results[0];
+    else
+        retval = response.responseHeader.serviceResult;
+    
+    if (retval == 0) {
+        LIST_REMOVE(mon, listEntry);
+        UA_free(mon);
+    }
+    
+    UA_DeleteMonitoredItemsRequest_deleteMembers(&request);
+    UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
+    
+    return retval;
+}
+
+void UA_Client_modifySubscription(UA_Client *client) {}
+
+void UA_Client_publish(UA_Client *client) {
+    UA_PublishRequest request;
+    UA_PublishResponse response;
+    UA_PublishRequest_init(&request);
+    UA_PublishResponse_init(&response);
+    
+    UA_PublishRequest_deleteMembers(&request);
+    UA_PublishResponse_deleteMembers(&response);
+    return;
+}
+
+
+
 #endif

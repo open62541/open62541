@@ -10,6 +10,12 @@
 
 #include <stdio.h>
 
+void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value);
+void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value) {
+    printf("Handler called");
+    return;
+}
+
 int main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
     UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
@@ -98,6 +104,16 @@ int main(int argc, char *argv[]) {
     UA_Int32 subId = UA_Client_newSubscription(client);
     if (subId)
         printf("Create subscription succeeded, id %u\n", subId);
+    
+    // Monitor TheAnswer
+    UA_NodeId monitorThis;
+    monitorThis = UA_NODEID_STRING_ALLOC(1, "the.answer");
+    UA_UInt32 monId = UA_Client_monitorItemChanges(client, subId, monitorThis, UA_ATTRIBUTEID_VALUE, &handler_TheAnswerChanged );
+    if (monId)
+        printf("Monitoring 'the.answer', id %u\n", subId);
+    UA_NodeId_deleteMembers(&monitorThis);
+    UA_Client_unMonitorItemChanges(client, subId, monId);
+    
     if(!UA_Client_removeSubscription(client, subId))
         printf("Subscription removed\n");
     
