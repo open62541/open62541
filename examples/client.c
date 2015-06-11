@@ -98,6 +98,8 @@ int main(int argc, char *argv[]) {
     UA_Int32 subId = UA_Client_newSubscription(client);
     if (subId)
         printf("Create subscription succeeded, id %u\n", subId);
+    if(!UA_Client_removeSubscription(client, subId))
+        printf("Subscription removed\n");
     
     UA_Client_disconnect(client);
     UA_Client_delete(client);

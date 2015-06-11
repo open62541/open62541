@@ -569,7 +569,15 @@ UA_CreateSubscriptionResponse UA_Client_createSubscription(UA_Client *client, UA
     return response;
 }
 
+UA_DeleteSubscriptionsResponse UA_Client_deleteSubscriptions(UA_Client *client, UA_DeleteSubscriptionsRequest *request) {
+    UA_DeleteSubscriptionsResponse response;
+    synchronousRequest(client, request, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE]);
+    return response;
+}
+
 UA_Int32 UA_Client_newSubscription(UA_Client *client) {
+    UA_Int32 retval;
     UA_CreateSubscriptionRequest aReq;
     UA_CreateSubscriptionResponse aRes;
     UA_CreateSubscriptionRequest_init(&aReq);
@@ -582,17 +590,73 @@ UA_Int32 UA_Client_newSubscription(UA_Client *client) {
     aReq.requestedMaxKeepAliveCount = 10;
     aReq.requestedPublishingInterval = 100;
     
-    UA_Client_createSubscription(client, &aReq);
+    aRes = UA_Client_createSubscription(client, &aReq);
     
-    printf("Subscription ID: %u\n", aRes.subscriptionId);
+    if (!aRes.responseHeader.serviceResult) {
+        UA_Client_Subscription *newSub = UA_malloc(sizeof(UA_Client_Subscription));
+        LIST_INIT(&newSub->MonitoredItems);
+        
+        newSub->LifeTime = aRes.revisedLifetimeCount;
+        newSub->KeepAliveCount = aRes.revisedMaxKeepAliveCount;
+        newSub->PublishingInterval = aRes.revisedPublishingInterval;
+        newSub->SubscriptionID = aRes.subscriptionId;
+        newSub->NotificationsPerPublish = aReq.maxNotificationsPerPublish;
+        newSub->Priority = aReq.priority;
+        retval = newSub->SubscriptionID;
+        LIST_INSERT_HEAD(&(client->subscriptions), newSub, listEntry);
+    }
+    else {
+        retval = 0;
+    }
+    
     UA_CreateSubscriptionResponse_deleteMembers(&aRes);
     UA_CreateSubscriptionRequest_deleteMembers(&aReq);
-    return 0;
+    return retval;
 }
 
 void UA_Client_modifySubscription(UA_Client *client) {}
 void UA_Client_addMonitoredItem(UA_Client *client) {}
 void UA_Client_publish(UA_Client *client) {}
 void UA_Client_removeMonitoredItem(UA_Client *client) {}
-void UA_Client_deleteSubscription(UA_Client *client) {}
+
+UA_StatusCode UA_Client_removeSubscription(UA_Client *client, UA_Int32 subscriptionId) {
+    UA_Client_Subscription *sub;
+    UA_StatusCode retval;
+    
+    LIST_FOREACH(sub, &(client->subscriptions), listEntry) {
+        if (sub->SubscriptionID == subscriptionId)
+            break;
+    }
+    
+    // Problem? We do not have this subscription registeres. Maybe the server should
+    // be consulted at this point?
+    if (sub == NULL)
+        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+    
+    UA_DeleteSubscriptionsRequest  request;
+    UA_DeleteSubscriptionsResponse response;
+    UA_DeleteSubscriptionsRequest_init(&request);
+    UA_DeleteSubscriptionsResponse_init(&response);
+    
+    request.subscriptionIdsSize=1;
+    request.subscriptionIds = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32));
+    *(request.subscriptionIds) = sub->SubscriptionID;
+    
+    response = UA_Client_deleteSubscriptions(client, &request);
+    
+    if (response.resultsSize > 0)
+        retval = response.results[0];
+    else
+        retval = response.responseHeader.serviceResult;
+    
+    if (!retval) {
+        LIST_REMOVE(sub, listEntry);
+        // FIXME: On the serverside, monitoredItems are deleted along with the
+        // subscription... on the clientside not yet.
+        UA_free(sub);
+    }
+    UA_DeleteSubscriptionsRequest_deleteMembers(&request);
+    UA_DeleteSubscriptionsResponse_deleteMembers(&response);
+    return retval;
+}
 #endif

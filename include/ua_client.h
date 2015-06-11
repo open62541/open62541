@@ -83,19 +83,22 @@ typedef struct UA_Client_Subscription_s {
     UA_DateTime  PublishingInterval;
     UA_Int32     SubscriptionID;
     UA_Int32     NotificationsPerPublish;
-    UA_Boolean   PublishingMode;
     UA_UInt32    Priority;
     LIST_ENTRY(UA_Client_Subscription_s) listEntry; //?
     LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem_s) MonitoredItems;
 } UA_Client_Subscription;
 
 UA_CreateSubscriptionResponse UA_EXPORT UA_Client_createSubscription(UA_Client *client, UA_CreateSubscriptionRequest *request);
+UA_DeleteSubscriptionsResponse UA_Client_deleteSubscriptions(UA_Client *client, UA_DeleteSubscriptionsRequest *request);
 
 UA_Int32 UA_EXPORT UA_Client_newSubscription(UA_Client *client);
+UA_StatusCode UA_EXPORT UA_Client_removeSubscription(UA_Client *client, UA_Int32 subscriptionId);
+
 void UA_EXPORT UA_Client_modifySubscription(UA_Client *client);
 void UA_EXPORT UA_Client_addMonitoredItem(UA_Client *client);
 void UA_EXPORT UA_Client_publish(UA_Client *client);
 void UA_EXPORT UA_Client_removeMonitoredItem(UA_Client *client);
-void UA_EXPORT UA_Client_deleteSubscription(UA_Client *client);
+
+
 #endif
 #endif /* UA_CLIENT_H_ */
