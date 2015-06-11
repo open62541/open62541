@@ -160,8 +160,12 @@ class EnumerationType(object):
         return True
 
     def typedef_c(self):
+        if sys.version_info[0] < 3:
+            values = self.elements.iteritems()
+        else:
+            values = self.elements.items()
         return "typedef enum { \n    " + \
-            ",\n    ".join(map(lambda kv : kv[0].upper() + " = " + kv[1], self.elements.iteritems())) + \
+            ",\n    ".join(map(lambda kv : kv[0].upper() + " = " + kv[1], values)) + \
             "\n} " + self.name + ";"
 
     def typelayout_c(self, namespace_0, description, outname):
@@ -257,7 +261,11 @@ class StructType(object):
         if len(self.members) == 0:
             return "typedef void * " + self.name + ";"
         returnstr =  "typedef struct {\n"
-        for name, member in self.members.iteritems():
+        if sys.version_info[0] < 3:
+            values = self.members.iteritems()
+        else:
+            values = self.members.items()
+        for name, member in values:
             if member.isArray:
                 returnstr += "    UA_Int32 " + name + "Size;\n"
                 returnstr += "    " + member.memberType.name + " *" +name + ";\n"
@@ -291,7 +299,10 @@ class StructType(object):
                 before_endpos = "0"
                 thispos = "offsetof(%s, %s)" % (self.name, member.name)
                 if index > 0:
-                    before = self.members.values()[index-1]
+                    if sys.version_info[0] < 3:
+                        before = self.members.values()[index-1]
+                    else:
+                        before = list(self.members.values())[index-1]
                     before_endpos = "(offsetof(%s, %s)" % (self.name, before.name)
                     if before.isArray:
                         before_endpos += " + sizeof(void*))"
@@ -446,10 +457,16 @@ if args.enable_subscription_types:
 if args.namespace_id == 0 or args.ns0_types_xml:
     existing_types = OrderedDict([(t, BuiltinType(t)) for t in builtin_types])
 if args.ns0_types_xml:
-    OrderedDict(existing_types.items() + parseTypeDefinitions(args.ns0_types_xml[0], existing_types).items())
+    if sys.version_info[0] < 3:
+        OrderedDict(existing_types.items() + parseTypeDefinitions(args.ns0_types_xml[0], existing_types).items())
+    else:
+        OrderedDict(list(existing_types.items()) + list(parseTypeDefinitions(args.ns0_types_xml[0], existing_types).items()))
 types = parseTypeDefinitions(args.types_xml, existing_types)
 if args.namespace_id == 0:
-    types = OrderedDict(existing_types.items() + types.items())
+    if sys.version_info[0] < 3:
+        types = OrderedDict(existing_types.items() + types.items())
+    else:
+        types = OrderedDict(list(existing_types.items()) + list(types.items()))
 
 typedescriptions = {}
 if args.typedescriptions:
@@ -495,7 +512,12 @@ printh("#define " + outname.upper() + "_COUNT %s\n" % (str(len(types))))
 printh("extern UA_EXPORT const UA_DataType *" + outname.upper() + ";\n")
 
 i = 0
-for t in types.itervalues():
+if sys.version_info[0] < 3:
+    values = types.itervalues()
+else:
+    values = types.values()
+
+for t in values:
     if type(t) != BuiltinType:
         printh("")
         if t.description != "":
@@ -525,7 +547,11 @@ printc('''/**
 #include "ua_types.h"
 #include "''' + outname + '''_generated.h"\n
 const UA_DataType *''' + outname.upper() + ''' = (UA_DataType[]){''')
-for t in types.itervalues():
+if sys.version_info[0] < 3:
+    values = types.itervalues()
+else:
+    values = types.values()
+for t in values:
     printc("")
     printc("/* " + t.name + " */")
     if args.typedescriptions:

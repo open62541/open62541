@@ -604,7 +604,7 @@ void UA_EXPORT * UA_Array_new(const UA_DataType *dataType, UA_Int32 noElements);
 /**
  * Allocates and copies an array. dst is set to (void*)0 if not enough memory is available.
  *
- * @param src The memory location of the souce array
+ * @param src The memory location of the source array
  * @param dst The memory location where the pointer to the destination array is written
  * @param dataType The datatype of the array members
  * @param noElements The size of the array

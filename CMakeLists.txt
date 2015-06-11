@@ -3,6 +3,17 @@ cmake_minimum_required(VERSION 2.8.8)
 
 project(open62541 C)
 
+FIND_PACKAGE(PythonInterp REQUIRED)
+
+# Find Python-lxml
+execute_process ( COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())" OUTPUT_VARIABLE PYTHON_SITE_PACKAGES OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(NOT EXISTS "${PYTHON_SITE_PACKAGES}/lxml")
+    execute_process ( COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(True))" OUTPUT_VARIABLE PYTHON_SITE_PACKAGES OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(NOT EXISTS "${PYTHON_SITE_PACKAGES}/lxml")
+        message( FATAL_ERROR "Python-lxml is not installed.")
+    endif()
+endif()
+
 find_package(Git)
 if(GIT_FOUND)
     execute_process(COMMAND ${GIT_EXECUTABLE} describe --abbrev=7 --dirty --always --tags RESULT_VARIABLE res_var OUTPUT_VARIABLE GIT_COM_ID )
@@ -82,9 +93,9 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_session.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
-				${PROJECT_SOURCE_DIR}/src/server/ua_server_addressspace.c
-				${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
-				${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_addressspace.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_worker.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.c
@@ -124,7 +135,7 @@ else()
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                    PRE_BUILD
-                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --typedescriptions ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv 0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --typedescriptions ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv 0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
@@ -133,15 +144,37 @@ endif()
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
                    PRE_BUILD
-                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --ns0-types-xml ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd 1 ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_transport
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --ns0-types-xml ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd 1 ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_transport
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
 
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                    PRE_BUILD
-                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/generate_nodeids.py ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_nodeids.py ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nodeids.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
+
+option(ENABLE_GENERATE_NAMESPACE0 "Generate and load UA XML Namespace 0 definition" OFF)
+if(ENABLE_GENERATE_NAMESPACE0)
+add_definitions(-DENABLE_GENERATE_NAMESPACE0)
+set(GENERATE_NAMESPACE0_FILE "Opc.Ua.NodeSet2.xml" CACHE STRING "Namespace definition XML file")
+set_property(CACHE GENERATE_NAMESPACE0_FILE PROPERTY STRINGS Opc.Ua.NodeSet2.xml Opc.Ua.NodeSet2.Minimal.xml)
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
+                   PRE_BUILD
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_AssumeExternal.txt -s description -b ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist.txt ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE} ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated
+                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE}
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py  
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py  
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py  
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py  
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py  
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py  
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py)
+
+list(APPEND internal_headers ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h)
+list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c)
+endif()
 
 ## logging
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
@@ -183,7 +216,7 @@ endif()
 option(ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                PRE_BUILD
-               COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${GIT_COMMIT_ID} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
+               COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${GIT_COMMIT_ID} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
 
 
                DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${exported_headers} ${internal_headers})
@@ -191,7 +224,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                PRE_BUILD
 
-               COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${GIT_COMMIT_ID} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
+               COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${GIT_COMMIT_ID} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
                               ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${internal_headers} ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources}
 
                DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
@@ -263,7 +296,7 @@ if(GENERATE_SELFSIGNED)
     find_package(OpenSSL REQUIRED)
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/server_cert.der
                               ${PROJECT_BINARY_DIR}/ca.crt
-                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${PROJECT_BINARY_DIR}
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${PROJECT_BINARY_DIR}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/create_self-signed.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/localhost.cnf)
     add_custom_target(selfsigned ALL DEPENDS ${PROJECT_BINARY_DIR}/server_cert.der ${PROJECT_BINARY_DIR}/ca.crt)

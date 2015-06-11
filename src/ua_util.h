@@ -49,10 +49,19 @@
 #define UA_assert(ignore) assert(ignore)
 
 /* Replace the macros with functions for custom allocators if necessary */
-#define UA_free(ptr) free(ptr)
-#define UA_malloc(size) malloc(size)
-#define UA_calloc(num, size) calloc(num, size)
-#define UA_realloc(ptr, size) realloc(ptr, size)
+#ifndef UA_free
+    #define UA_free(ptr) free(ptr)
+#endif
+#ifndef UA_malloc
+    #define UA_malloc(size) malloc(size)
+#endif
+#ifndef UA_calloc
+    #define UA_calloc(num, size) calloc(num, size)
+#endif
+#ifndef UA_realloc
+    #define UA_realloc(ptr, size) realloc(ptr, size)
+#endif
+
 #define UA_memcpy(dst, src, size) memcpy(dst, src, size)
 #define UA_memset(ptr, value, size) memset(ptr, value, size)
 

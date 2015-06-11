@@ -141,7 +141,7 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
 
 /**
  * Used to request the next set of Browse or BrowseNext response information
- * that is too large to be sent in a single response. “Too large” in this
+ * that is too large to be sent in a single response. "Too large" in this
  * context means that the Server is not able to return a larger response or that
  * the number of results to return exceeds the maximum number of results to
  * return that was specified by the Client in the original Browse request.

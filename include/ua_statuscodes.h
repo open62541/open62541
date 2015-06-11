@@ -77,7 +77,7 @@ enum UA_StatusCode {
 	UA_STATUSCODE_BADSTRUCTUREMISSING = 0x80460000, // A mandatory structured parameter was missing or null.
 	UA_STATUSCODE_BADEVENTFILTERINVALID = 0x80470000, // The event filter is not valid.
 	UA_STATUSCODE_BADCONTENTFILTERINVALID = 0x80480000, // The content filter is not valid.
-	UA_STATUSCODE_BADFILTEROPERATORINVALID = 0x80c10000, // An unregognized operator was provided in a filter.
+	UA_STATUSCODE_BADFILTEROPERATORINVALID = 0x80c10000, // An unrecognized operator was provided in a filter.
 	UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED = 0x80c20000, // A valid operator was provided, but the server does not provide support for this filter operator.
 	UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH = 0x80c30000, // The number of operands provided for the filter operator was less then expected for the operand provided.
 	UA_STATUSCODE_BADFILTEROPERANDINVALID = 0x80490000, // The operand used in a content filter is not valid.
@@ -100,7 +100,7 @@ enum UA_StatusCode {
 	UA_STATUSCODE_BADAPPLICATIONSIGNATUREINVALID = 0x80580000, // The signature generated with the client certificate is missing or invalid.
 	UA_STATUSCODE_BADNOVALIDCERTIFICATES = 0x80590000, // The client did not provide at least one software certificate that is valid and meets the profile requirements for the server.
 	UA_STATUSCODE_BADIDENTITYCHANGENOTSUPPORTED = 0x80c60000, // The Server does not support changing the user identity assigned to the session.
-	UA_STATUSCODE_BADREQUESTCANCELLEDBYREQUEST = 0x805a0000, // The request was cancelled by the client with the Cancel service.
+	UA_STATUSCODE_BADREQUESTCANCELLEDBYREQUEST = 0x805a0000, // The request was canceled by the client with the Cancel service.
 	UA_STATUSCODE_BADPARENTNODEIDINVALID = 0x805b0000, // The parent node id does not to refer to a valid node.
 	UA_STATUSCODE_BADREFERENCENOTALLOWED = 0x805c0000, // The reference could not be created because it violates constraints imposed by the data model.
 	UA_STATUSCODE_BADNODEIDREJECTED = 0x805d0000, // The requested node id was reject because it was either invalid or server does not allow node ids to be specified by the client.
@@ -201,7 +201,7 @@ enum UA_StatusCode {
 	UA_STATUSCODE_BADAGGREGATENOTSUPPORTED = 0x80d50000, // The requested Aggregate is not support by the server.
 	UA_STATUSCODE_BADAGGREGATEINVALIDINPUTS = 0x80d60000, // The aggregate value could not be derived due to invalid data inputs.
 	UA_STATUSCODE_BADAGGREGATECONFIGURATIONREJECTED = 0x80da0000, // The aggregate configuration is not valid for specified node.
-	UA_STATUSCODE_GOODDATAIGNORED = 0x00d90000, // The request pecifies fields which are not valid for the EventType or cannot be saved by the historian.
+	UA_STATUSCODE_GOODDATAIGNORED = 0x00d90000, // The request specifies fields which are not valid for the EventType or cannot be saved by the historian.
 	UA_STATUSCODE_GOODCOMMUNICATIONEVENT = 0x00a70000, // The communication layer has raised an event.
 	UA_STATUSCODE_GOODSHUTDOWNEVENT = 0x00a80000, // The system is shutting down.
 	UA_STATUSCODE_GOODCALLAGAIN = 0x00a90000, // The operation is not finished and needs to be called again.
