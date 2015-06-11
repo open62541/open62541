@@ -519,10 +519,10 @@ class opcua_namespace():
     log(self, str(len(unPrintedNodes)) + " Nodes, " + str(len(unPrintedRefs)) +  "References need to get printed.", LOG_LEVEL_DEBUG)
     header.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
     code.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
-    
+
     header.append("#ifndef "+outfilename.upper()+"_H_")
     header.append("#define "+outfilename.upper()+"_H_")
-    
+
     header.append('#include "server/ua_server_internal.h"')
     header.append('#include "server/ua_nodes.h"')
     header.append('#include "ua_types.h"')
@@ -616,7 +616,7 @@ class testing:
     ns = [self.namespace.getRoot()]
 
     i = 0
-    print "Starting depth search on " + str(len(allnodes)) + " nodes starting with from " + str(ns)
+    #print "Starting depth search on " + str(len(allnodes)) + " nodes starting with from " + str(ns)
     while (len(ns) < len(allnodes)):
       i = i + 1;
       tmp = [];

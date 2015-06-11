@@ -103,6 +103,38 @@ class opcua_referencePointer_t():
         refid = refid + i
     return refid
 
+  def __str__(self):
+    retval=""
+    if isinstance(self.parent(), opcua_node_t):
+      if isinstance(self.parent().id(), opcua_node_id_t):
+        retval=retval + str(self.parent().id()) + "--["
+      else:
+        retval=retval + "(?) --["
+    else:
+      retval=retval + "(?) --["
+
+    if isinstance(self.referenceType(), opcua_node_t):
+      retval=retval + str(self.referenceType().browseName()) + "]-->"
+    else:
+      retval=retval + "?]-->"
+
+    if isinstance(self.target(), opcua_node_t):
+      if isinstance(self.target().id(), opcua_node_id_t):
+        retval=retval + str(self.target().id())
+      else:
+        retval=retval + "(?) "
+    else:
+      retval=retval + "(?) "
+
+    if self.isForward() or self.isHidden():
+      retval = retval + " <"
+      if self.isForward():
+        retval = retval + "F"
+      if self.isHidden():
+        retval = retval + "H"
+      retval = retval + ">"
+    return retval
+
   def __cmp__(self, other):
     if not isinstance(other, opcua_referencePointer_t):
       return -1
@@ -468,10 +500,14 @@ class opcua_node_t:
     # Remove unlinked references
     tmp = []
     for r in self.getReferences():
-      if isinstance(r.target(), opcua_node_t):
-        tmp.append(r)
-      else:
+      if not isinstance(r, opcua_node_t):
+        log(self, "Reference is not a reference!?.", LOG_LEVEL_ERROR)
+      elif not isinstance(r.referenceType(), opcua_node_t):
+        log(self, "Reference has no valid reference type and will be removed.", LOG_LEVEL_ERROR)
+      elif not isinstance(r.target(), opcua_node_t):
         log(self, "Reference to " + str(r.target()) + " is not a node. It has been removed.", LOG_LEVEL_WARN)
+      else:
+        tmp.append(r)
     self.__node_references__ = tmp
 
     # Make sure that every inverse referenced node actually does reference us
@@ -698,6 +734,13 @@ class opcua_node_referenceType_t(opcua_node_t):
     if isinstance(data, str):
       self.__reference_inverseName__ = data
     return self.__reference_inverseName__
+
+  def sanitizeSubType(self):
+    if not isinstance(self.referenceType(), opcua_referencePointer_t):
+      log(self, "ReferenceType " + str(self.dataType()) + " of " + str(self.id()) + " is not a pointer (ReferenceType is manditory for references).", LOG_LEVEL_ERROR)
+      self.__reference_referenceType__ = None
+      return False
+    return True
 
   def parseXMLSubType(self, xmlelement):
     for (at, av) in xmlelement.attributes.items():
