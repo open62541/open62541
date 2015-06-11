@@ -65,7 +65,7 @@ UA_Logger UA_EXPORT UA_Server_getLogger(UA_Server *server);
  *
  * @param nThreads The number of worker threads. Is ignored if MULTITHREADING is not activated.
  *
- * @param running Points to a booloean value on the heap. When running is set to false, the worker
+ * @param running Points to a boolean value on the heap. When running is set to false, the worker
  * threads and the main loop close and the server is shut down.
  *
  * @return Indicates whether the server shut down cleanly
@@ -153,7 +153,7 @@ UA_StatusCode UA_EXPORT
 UA_Server_AddMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId, UA_ExpandedNodeId targetNodeId, 
                                       UA_NodeId referenceTypeId, UA_Boolean isforward);
 
-/** Jobs describe work that is ececuted once or repeatedly. */
+/** Jobs describe work that is executed once or repeatedly. */
 typedef struct {
     enum {
         UA_JOBTYPE_NOTHING,
@@ -188,7 +188,7 @@ typedef struct {
  * @param jobId Set to the guid of the repeated job. This can be used to cancel the job later on. If
  *        the pointer is null, the guid is not set.
  *
- * @return Upon sucess, UA_STATUSCODE_GOOD is returned. An error code otherwise.
+ * @return Upon success, UA_STATUSCODE_GOOD is returned. An error code otherwise.
  */
 UA_StatusCode UA_EXPORT UA_Server_addRepeatedJob(UA_Server *server, UA_Job job, UA_UInt32 interval,
                                                  UA_Guid *jobId);
@@ -231,8 +231,7 @@ typedef struct {
      *
      * @param timeout The timeout during which an event must arrive in microseconds
      
-     * @return The size of the jobs array. If the result is negative, an error has
-     * occured.
+     * @return The size of the jobs array. If the result is negative, an error has occurred.
      */
     UA_Int32 (*getJobs)(void *nlhandle, UA_Job **jobs, UA_UInt16 timeout);
 
@@ -243,7 +242,7 @@ typedef struct {
      * @param jobs When the returned integer is positive, jobs points to an array of UA_Job of the
      * returned size.
      *
-     * @return The size of the jobs array. If the result is negative, an error has occured.
+     * @return The size of the jobs array. If the result is negative, an error has occurred.
      */
     UA_Int32 (*stop)(void *nlhandle, UA_Job **jobs);
 

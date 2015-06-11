@@ -453,13 +453,13 @@ if args.ns0_types_xml:
     if sys.version_info[0] < 3:
         OrderedDict(existing_types.items() + parseTypeDefinitions(args.ns0_types_xml[0], existing_types).items())
     else:
-        OrderedDict(existing_types.items() | parseTypeDefinitions(args.ns0_types_xml[0], existing_types).items())
+        OrderedDict(list(existing_types.items()) + list(parseTypeDefinitions(args.ns0_types_xml[0], existing_types).items()))
 types = parseTypeDefinitions(args.types_xml, existing_types)
 if args.namespace_id == 0:
     if sys.version_info[0] < 3:
         types = OrderedDict(existing_types.items() + types.items())
     else:
-        types = OrderedDict(existing_types.items() | types.items())
+        types = OrderedDict(list(existing_types.items()) + list(types.items()))
 
 typedescriptions = {}
 if args.typedescriptions:

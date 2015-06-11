@@ -1,7 +1,7 @@
 #ifndef UA_CONFIG_H_
 #define UA_CONFIG_H_
 
-/* Buid options and configuration (set by cmake) */
+/* Build options and configuration (set by cmake) */
 
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
 #cmakedefine UA_MULTITHREADING

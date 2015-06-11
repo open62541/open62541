@@ -163,7 +163,7 @@ struct IdentifiedJob {
 
 /**
  * The RepeatedJobs structure contains an array of jobs that are either executed with the same
- * repetition inverval. The linked list is sorted, so we can stop traversing when the first element
+ * repetition interval. The linked list is sorted, so we can stop traversing when the first element
  * has nextTime > now.
  */
 struct RepeatedJobs {
@@ -535,7 +535,7 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads, UA_Bo
 #endif
 
     /* Start the networklayers */
-    for(size_t i = 0; i <server->networkLayersSize; i++)
+    for(size_t i = 0; i < server->networkLayersSize; i++)
         server->networkLayers[i].start(server->networkLayers[i].nlHandle, &server->logger);
 
     return UA_STATUSCODE_GOOD;
