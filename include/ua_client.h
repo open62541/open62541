@@ -61,4 +61,41 @@ UA_DeleteReferencesResponse UA_EXPORT
 } // extern "C"
 #endif
 
+
+#ifdef ENABLE_SUBSCRIPTIONS
+
+typedef struct UA_Client_MonitoredItem_s {
+    UA_UInt32          ItemId;
+    UA_UInt32          TimestampsToReturn;
+    UA_UInt32          MonitoringMode;
+    UA_NodeId          monitoredNodeId; 
+    UA_UInt32          AttributeID;
+    UA_UInt32          ClientHandle;
+    UA_UInt32          SamplingInterval;
+    UA_UInt32          QueueSize;
+    UA_Boolean         DiscardOldest;
+    LIST_ENTRY(UA_Client_MonitoredItem_s)  listEntry;
+} UA_Client_MonitoredItem;
+
+typedef struct UA_Client_Subscription_s {
+    UA_UInt32    LifeTime;
+    UA_Int32     KeepAliveCount;
+    UA_DateTime  PublishingInterval;
+    UA_Int32     SubscriptionID;
+    UA_Int32     NotificationsPerPublish;
+    UA_Boolean   PublishingMode;
+    UA_UInt32    Priority;
+    LIST_ENTRY(UA_Client_Subscription_s) listEntry; //?
+    LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem_s) MonitoredItems;
+} UA_Client_Subscription;
+
+UA_CreateSubscriptionResponse UA_EXPORT UA_Client_createSubscription(UA_Client *client, UA_CreateSubscriptionRequest *request);
+
+UA_Int32 UA_EXPORT UA_Client_newSubscription(UA_Client *client);
+void UA_EXPORT UA_Client_modifySubscription(UA_Client *client);
+void UA_EXPORT UA_Client_addMonitoredItem(UA_Client *client);
+void UA_EXPORT UA_Client_publish(UA_Client *client);
+void UA_EXPORT UA_Client_removeMonitoredItem(UA_Client *client);
+void UA_EXPORT UA_Client_deleteSubscription(UA_Client *client);
+#endif
 #endif /* UA_CLIENT_H_ */

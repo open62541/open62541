@@ -16,7 +16,11 @@ struct UA_Client {
     UA_UserTokenPolicy token;
     UA_NodeId sessionId;
     UA_NodeId authenticationToken;
-
+    
+#ifdef ENABLE_SUBSCRIPTIONS
+    LIST_HEAD(UA_ListOfClientSubscriptionItems, UA_Client_Subscription_s) subscriptions;
+#endif
+    
     /* Config */
     UA_Logger logger;
     UA_ClientConfig config;
@@ -44,7 +48,10 @@ UA_Client * UA_Client_new(UA_ClientConfig config, UA_Logger logger) {
     client->logger = logger;
     client->config = config;
     client->scExpiresAt = 0;
-    
+
+#ifdef ENABLE_SUBSCRIPTIONS
+    LIST_INIT(&client->subscriptions);
+#endif
     return client;
 }
 
@@ -545,3 +552,39 @@ UA_DeleteReferencesResponse UA_Client_deleteReferences(UA_Client *client, UA_Del
                        &response, &UA_TYPES[UA_TYPES_DELETEREFERENCESRESPONSE]);
     return response;
 }
+
+#ifdef ENABLE_SUBSCRIPTIONS
+UA_CreateSubscriptionResponse UA_Client_createSubscription(UA_Client *client, UA_CreateSubscriptionRequest *request) {
+    UA_CreateSubscriptionResponse response;
+    synchronousRequest(client, request, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE]);
+    return response;
+}
+
+UA_Int32 UA_Client_newSubscription(UA_Client *client) {
+    UA_CreateSubscriptionRequest aReq;
+    UA_CreateSubscriptionResponse aRes;
+    UA_CreateSubscriptionRequest_init(&aReq);
+    UA_CreateSubscriptionResponse_init(&aRes);
+    
+    aReq.maxNotificationsPerPublish = 10;
+    aReq.priority = 0;
+    aReq.publishingEnabled = UA_TRUE;
+    aReq.requestedLifetimeCount = 100;
+    aReq.requestedMaxKeepAliveCount = 10;
+    aReq.requestedPublishingInterval = 100;
+    
+    UA_Client_createSubscription(client, &aReq);
+    
+    printf("Subscription ID: %u\n", aRes.subscriptionId);
+    UA_CreateSubscriptionResponse_deleteMembers(&aRes);
+    UA_CreateSubscriptionRequest_deleteMembers(&aReq);
+    return 0;
+}
+
+void UA_Client_modifySubscription(UA_Client *client) {}
+void UA_Client_addMonitoredItem(UA_Client *client) {}
+void UA_Client_publish(UA_Client *client) {}
+void UA_Client_removeMonitoredItem(UA_Client *client) {}
+void UA_Client_deleteSubscription(UA_Client *client) {}
+#endif
