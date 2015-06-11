@@ -500,7 +500,7 @@ class opcua_node_t:
     # Remove unlinked references
     tmp = []
     for r in self.getReferences():
-      if not isinstance(r, opcua_node_t):
+      if not isinstance(r, opcua_referencePointer_t):
         log(self, "Reference is not a reference!?.", LOG_LEVEL_ERROR)
       elif not isinstance(r.referenceType(), opcua_node_t):
         log(self, "Reference has no valid reference type and will be removed.", LOG_LEVEL_ERROR)
@@ -737,7 +737,7 @@ class opcua_node_referenceType_t(opcua_node_t):
 
   def sanitizeSubType(self):
     if not isinstance(self.referenceType(), opcua_referencePointer_t):
-      log(self, "ReferenceType " + str(self.dataType()) + " of " + str(self.id()) + " is not a pointer (ReferenceType is manditory for references).", LOG_LEVEL_ERROR)
+      log(self, "ReferenceType " + str(self.referenceType()) + " of " + str(self.id()) + " is not a pointer (ReferenceType is manditory for references).", LOG_LEVEL_ERROR)
       self.__reference_referenceType__ = None
       return False
     return True
