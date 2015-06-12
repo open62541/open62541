@@ -12,7 +12,7 @@
 
 void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value);
 void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value) {
-    printf("Handler called");
+    printf("The Answer has changed!\n");
     return;
 }
 
@@ -56,7 +56,22 @@ int main(int argc, char *argv[]) {
     }
     UA_BrowseRequest_deleteMembers(&bReq);
     UA_BrowseResponse_deleteMembers(&bResp);
-
+    
+    // Create a subscription
+    UA_Int32 subId = UA_Client_newSubscription(client, 0);
+    if (subId)
+        printf("Create subscription succeeded, id %u\n", subId);
+    
+    // Monitor TheAnswer
+    UA_NodeId monitorThis;
+    monitorThis = UA_NODEID_STRING_ALLOC(1, "the.answer");
+    UA_UInt32 monId = UA_Client_monitorItemChanges(client, subId, monitorThis, UA_ATTRIBUTEID_VALUE, &handler_TheAnswerChanged );
+    if (monId)
+        printf("Monitoring 'the.answer', id %u\n", subId);
+    UA_NodeId_deleteMembers(&monitorThis);
+    UA_Client_doPublish(client);
+    UA_Client_doPublish(client);
+    
     UA_Int32 value = 0;
     // Read node's value
     printf("\nReading the value of node (1, \"the.answer\"):\n");
@@ -100,20 +115,9 @@ int main(int argc, char *argv[]) {
     UA_WriteRequest_deleteMembers(&wReq);
     UA_WriteResponse_deleteMembers(&wResp);
     
-    // Create a subscription
-    UA_Int32 subId = UA_Client_newSubscription(client);
-    if (subId)
-        printf("Create subscription succeeded, id %u\n", subId);
+    UA_Client_doPublish(client);
     
-    // Monitor TheAnswer
-    UA_NodeId monitorThis;
-    monitorThis = UA_NODEID_STRING_ALLOC(1, "the.answer");
-    UA_UInt32 monId = UA_Client_monitorItemChanges(client, subId, monitorThis, UA_ATTRIBUTEID_VALUE, &handler_TheAnswerChanged );
-    if (monId)
-        printf("Monitoring 'the.answer', id %u\n", subId);
-    UA_NodeId_deleteMembers(&monitorThis);
-    UA_Client_unMonitorItemChanges(client, subId, monId);
-    
+    // Delete our subscription (which also unmonitors all items)
     if(!UA_Client_removeSubscription(client, subId))
         printf("Subscription removed\n");
     
