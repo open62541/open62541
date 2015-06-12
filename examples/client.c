@@ -57,20 +57,26 @@ int main(int argc, char *argv[]) {
     UA_BrowseRequest_deleteMembers(&bReq);
     UA_BrowseResponse_deleteMembers(&bResp);
     
-    // Create a subscription
+#ifdef ENABLE_SUBSCRIPTIONS
+    // Create a subscription with interval 0 (immediate)...
     UA_Int32 subId = UA_Client_newSubscription(client, 0);
     if (subId)
         printf("Create subscription succeeded, id %u\n", subId);
     
-    // Monitor TheAnswer
+    // .. and monitor TheAnswer
     UA_NodeId monitorThis;
     monitorThis = UA_NODEID_STRING_ALLOC(1, "the.answer");
     UA_UInt32 monId = UA_Client_monitorItemChanges(client, subId, monitorThis, UA_ATTRIBUTEID_VALUE, &handler_TheAnswerChanged );
     if (monId)
         printf("Monitoring 'the.answer', id %u\n", subId);
     UA_NodeId_deleteMembers(&monitorThis);
+    
+    // First Publish always generates data (current value) and call out handler.
     UA_Client_doPublish(client);
+    
+    // This should not generate anything
     UA_Client_doPublish(client);
+#endif
     
     UA_Int32 value = 0;
     // Read node's value
@@ -114,12 +120,15 @@ int main(int argc, char *argv[]) {
 
     UA_WriteRequest_deleteMembers(&wReq);
     UA_WriteResponse_deleteMembers(&wResp);
-    
+
+#ifdef ENABLE_SUBSCRIPTIONS
+    // Take another look at the.answer... this should call the handler.
     UA_Client_doPublish(client);
     
     // Delete our subscription (which also unmonitors all items)
     if(!UA_Client_removeSubscription(client, subId))
         printf("Subscription removed\n");
+#endif
     
     UA_Client_disconnect(client);
     UA_Client_delete(client);
