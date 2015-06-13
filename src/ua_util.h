@@ -71,7 +71,7 @@
     # define UA_alloca(SIZE) _alloca(SIZE)
 #else
  #ifdef __GNUC__
-    # define UA_alloca(size)   __builtin_alloca (size)
+    # define UA_alloca(size) __builtin_alloca (size)
  #else
     # include <alloca.h>
     # define UA_alloca(SIZE) alloca(SIZE)

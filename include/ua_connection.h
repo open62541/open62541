@@ -65,8 +65,15 @@ struct UA_Connection {
     void *handle; ///> A pointer to the networklayer
     UA_ByteString incompleteMessage; ///> Half-received messages (tcp is a streaming protocol) get stored here
     UA_StatusCode (*getBuffer)(UA_Connection *connection, UA_ByteString *buf, size_t minSize); ///> Attach the data array to the buffer. Fails if minSize is larger than remoteConf allows
-    void (*releaseBuffer)(UA_Connection *connection, UA_ByteString *buf); ///> Release the buffer
-    UA_StatusCode (*write)(UA_Connection *connection, const UA_ByteString *buf); ///> The bytestrings cannot be reused after sending!
+    void (*releaseBuffer)(UA_Connection *connection, UA_ByteString *buf); ///> Release the buffer manually
+    /**
+     * Sends a message over the connection.
+     * @param connection The connection
+     * @param buf The message buffer is potentially reused (or freed) internally if sending succeeds.
+     * @param buflen Since the buffer is potentially reused, we provide a separate content length.
+     * @return Returns an error code or UA_STATUSCODE_GOOD.
+     */
+    UA_StatusCode (*write)(UA_Connection *connection, UA_ByteString *buf, size_t buflen);
    /**
      * Receive a message from the remote connection
 	 * @param connection The connection
