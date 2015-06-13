@@ -203,21 +203,25 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
 
     //UA_SecureChannel_checkSequenceNumber(channel,sequenceHeader.sequenceNumber);
     //UA_SecureChannel_checkRequestId(channel,sequenceHeader.requestId);
-    clientChannel->sequenceNumber = sequenceHeader.sequenceNumber;
-    clientChannel->requestId = sequenceHeader.requestId;
+    if(clientChannel) {
+        clientChannel->sequenceNumber = sequenceHeader.sequenceNumber;
+        clientChannel->requestId = sequenceHeader.requestId;
+    }
 
     // 3) Build the header and compute the header size
     UA_SecureConversationMessageHeader respHeader;
     respHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
     respHeader.messageHeader.messageSize = 0;
-    respHeader.secureChannelId = clientChannel->securityToken.channelId;
+    if(clientChannel)
+        respHeader.secureChannelId = clientChannel->securityToken.channelId;
 
     UA_SymmetricAlgorithmSecurityHeader symSecHeader;
-    symSecHeader.tokenId = clientChannel->securityToken.tokenId;
+    if(clientChannel)
+        symSecHeader.tokenId = clientChannel->securityToken.tokenId;
 
     UA_SequenceHeader seqHeader;
-    seqHeader.sequenceNumber = clientChannel->sequenceNumber;
-    seqHeader.requestId = clientChannel->requestId;
+    seqHeader.sequenceNumber = sequenceHeader.sequenceNumber;
+    seqHeader.requestId = sequenceHeader.requestId;
 
     // 4) process the request
     UA_ByteString message;

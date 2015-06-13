@@ -38,6 +38,11 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                              const UA_ActivateSessionRequest *request,
                              UA_ActivateSessionResponse *response) {
+    if(!channel) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURECHANNELIDINVALID;
+        return;
+    }
+
     // make the channel know about the session
 	UA_Session *foundSession =
         UA_SessionManager_getSession(&server->sessionManager,
