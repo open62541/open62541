@@ -178,7 +178,7 @@ typedef struct {
 
 static UA_StatusCode ServerNetworkLayerGetBuffer(UA_Connection *connection, UA_ByteString *buf, size_t minSize) {
 #ifdef UA_MULTITHREADING
-    return UA_ByteStringnewMembers(buf, minSize);
+    return UA_ByteString_newMembers(buf, minSize);
 #else
     ServerNetworkLayerTCP *layer = connection->handle;
     *buf = layer->buffer;
