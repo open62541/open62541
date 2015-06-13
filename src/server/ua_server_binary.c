@@ -354,26 +354,26 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
             UA_LOG_INFO(server->logger, UA_LOGCATEGORY_COMMUNICATION, "Unknown request: NodeId(ns=%d, i=%d)",
                         requestType.namespaceIndex, requestType.identifier.numeric);
         }
-        UA_RequestHeader  p;
-        UA_ResponseHeader r;
+        UA_RequestHeader p;
+        UA_ServiceFault r;
         if(UA_RequestHeader_decodeBinary(msg, pos, &p) != UA_STATUSCODE_GOOD)
             return;
-        UA_ResponseHeader_init(&r);
-        init_response_header(&p, &r);
-        r.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
+        UA_ServiceFault_init(&r);
+        init_response_header(&p, &r.responseHeader);
+        r.responseHeader.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
 #ifdef EXTENSION_STATELESS
         if(retval != UA_STATUSCODE_GOOD)
             r.serviceResult = retval;
 #endif
         UA_RequestHeader_deleteMembers(&p);
-        retval = connection->getBuffer(connection, &message, headerSize + UA_ResponseHeader_calcSizeBinary(&r));
+        retval = connection->getBuffer(connection, &message, headerSize + UA_ServiceFault_calcSizeBinary(&r));
         if(retval != UA_STATUSCODE_GOOD) {
             UA_ResponseHeader_deleteMembers(&r);
             return;
         }
-        UA_ResponseHeader_encodeBinary(&r, &message, &messagePos);
-        UA_ResponseHeader_deleteMembers(&r);
-        response_nodeid = UA_NODEID_NUMERIC(0, UA_NS0ID_RESPONSEHEADER + UA_ENCODINGOFFSET_BINARY);
+        UA_ServiceFault_encodeBinary(&r, &message, &messagePos);
+        UA_ServiceFault_deleteMembers(&r);
+        response_nodeid = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVICEFAULT + UA_ENCODINGOFFSET_BINARY);
         break;
     }
     }
