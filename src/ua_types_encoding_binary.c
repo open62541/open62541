@@ -172,7 +172,7 @@ UA_StatusCode UA_UInt16_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRI
     if((UA_Int32)(*offset + sizeof(UA_UInt16)) > src->length)
         return UA_STATUSCODE_BADDECODINGERROR;
     UA_UInt16 value = *((UA_UInt16*)&src->data[*offset]);
-#ifndef UA_NON_LITTLEENDIAN_ARCHITECTURE
+#ifdef UA_NON_LITTLEENDIAN_ARCHITECTURE
     value = le16toh(value);
 #endif
     *dst = value;
@@ -189,7 +189,7 @@ UA_StatusCode UA_UInt32_encodeBinary(UA_UInt32 const *src, UA_ByteString * dst, 
     if((UA_Int32)(*offset + sizeof(UA_UInt32)) > dst->length )
         return UA_STATUSCODE_BADENCODINGERROR;
     UA_UInt32 *dst_ptr = (UA_UInt32*)&dst->data[*offset];
-#ifndef UA_NON_LITTLEENDIAN_ARCHITECTURE
+#ifdef UA_NON_LITTLEENDIAN_ARCHITECTURE
     *dst_ptr = htole32(*src);
 #else
     *dst_ptr = *src;
@@ -219,7 +219,7 @@ UA_StatusCode UA_UInt64_encodeBinary(UA_UInt64 const *src, UA_ByteString *dst, s
     if((UA_Int32)(*offset + sizeof(UA_UInt64)) > dst->length )
         return UA_STATUSCODE_BADENCODINGERROR;
     UA_UInt64 *dst_ptr = (UA_UInt64*)&dst->data[*offset];
-#ifndef UA_NON_LITTLEENDIAN_ARCHITECTURE
+#ifdef UA_NON_LITTLEENDIAN_ARCHITECTURE
     *dst_ptr = htole64(*src);
 #else
     *dst_ptr = *src;
@@ -232,7 +232,7 @@ UA_StatusCode UA_UInt64_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRI
     if((UA_Int32)(*offset + sizeof(UA_UInt64)) > src->length)
         return UA_STATUSCODE_BADDECODINGERROR;
     UA_UInt64 value = *((UA_UInt64*)&src->data[*offset]);
-#ifndef UA_NON_LITTLEENDIAN_ARCHITECTURE
+#ifdef UA_NON_LITTLEENDIAN_ARCHITECTURE
     value = le64toh(value);
 #endif
     *dst = value;

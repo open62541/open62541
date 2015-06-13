@@ -50,8 +50,8 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
     size_t tmpPos = 0;
     UA_TcpMessageHeader_encodeBinary(&ackHeader, &ack_msg, &tmpPos);
     UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &ack_msg, &tmpPos);
-    connection->write(connection, &ack_msg);
-    connection->releaseBuffer(connection, &ack_msg);
+    if(connection->write(connection, &ack_msg, ackHeader.messageSize) != UA_STATUSCODE_GOOD)
+        connection->releaseBuffer(connection, &ack_msg);
 }
 
 static void processOPN(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg,
@@ -133,8 +133,9 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
     UA_OpenSecureChannelResponse_deleteMembers(&p);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
 
-    connection->write(connection, &resp_msg);
-    connection->releaseBuffer(connection, &resp_msg);
+    if(connection->write(connection, &resp_msg,
+                         respHeader.messageHeader.messageSize) != UA_STATUSCODE_GOOD)
+        connection->releaseBuffer(connection, &resp_msg);
 }
 
 static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r) {
@@ -389,6 +390,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
         case UA_MESSAGETYPEANDFINAL_CLOF & 0xffffff:
             processCLO(connection, server, msg, &pos);
             connection->close(connection);
+            UA_ByteString_deleteMembers(msg);
             return;
         }
 
@@ -399,4 +401,5 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             pos = targetpos;
         }
     } while(msg->length > (UA_Int32)pos);
+    UA_ByteString_deleteMembers(msg);
 }

@@ -38,25 +38,26 @@
 /* Generic Socket Functions */
 /****************************/
 
-static UA_StatusCode socket_write(UA_Connection *connection, const UA_ByteString *buf) {
-    if(buf->length < 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_Int32 nWritten = 0;
-    while (nWritten < buf->length) {
+static UA_StatusCode socket_write(UA_Connection *connection, UA_ByteString *buf, size_t buflen) {
+    size_t nWritten = 0;
+    while (nWritten < buflen) {
         UA_Int32 n = 0;
         do {
 #ifdef _WIN32
-            n = send((SOCKET)connection->sockfd, (const char*)buf->data, buf->length, 0);
+            n = send((SOCKET)connection->sockfd, (const char*)buf->data, buflen, 0);
             if(n < 0 && WSAGetLastError() != WSAEINTR && WSAGetLastError() != WSAEWOULDBLOCK)
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
 #else
-            n = send(connection->sockfd, (const char*)buf->data, buf->length, MSG_NOSIGNAL);
+            n = send(connection->sockfd, (const char*)buf->data, buflen, MSG_NOSIGNAL);
             if(n == -1L && errno != EINTR && errno != EAGAIN)
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
 #endif
         } while (n == -1L);
         nWritten += n;
     }
+#ifdef UA_MULTITHREADING
+    UA_ByteString_deleteMembers(buf);
+#endif
     return UA_STATUSCODE_GOOD;
 }
 
@@ -111,18 +112,6 @@ static UA_StatusCode socket_set_nonblocking(UA_Int32 sockfd) {
     return UA_STATUSCODE_GOOD;
 }
 
-/*****************************/
-/* Generic Buffer Management */
-/*****************************/
-
-static UA_StatusCode GetMallocedBuffer(UA_Connection *connection, UA_ByteString *buf, size_t minSize) {
-    return UA_ByteString_newMembers(buf, minSize);
-}
-
-static void ReleaseMallocedBuffer(UA_Connection *connection, UA_ByteString *buf) {
-    UA_ByteString_deleteMembers(buf);
-}
-
 /***************************/
 /* Server NetworkLayer TCP */
 /***************************/
@@ -166,6 +155,10 @@ typedef struct {
     UA_String discoveryUrl;
     UA_ConnectionConfig conf; /* todo: rename to localconf. */
 
+#ifndef UA_MULTITHREADING
+    UA_ByteString buffer; // message buffer that is reused
+#endif
+
     /* open sockets and connections */
     fd_set fdset;
     UA_Int32 serversockfd;
@@ -182,6 +175,22 @@ typedef struct {
         UA_Connection *connection;
     } *deletes;
 } ServerNetworkLayerTCP;
+
+static UA_StatusCode ServerNetworkLayerGetBuffer(UA_Connection *connection, UA_ByteString *buf, size_t minSize) {
+#ifdef UA_MULTITHREADING
+    return UA_ByteStringnewMembers(buf, minSize);
+#else
+    ServerNetworkLayerTCP *layer = connection->handle;
+    *buf = layer->buffer;
+    return UA_STATUSCODE_GOOD;
+#endif
+}
+
+static void ServerNetworkLayerReleaseBuffer(UA_Connection *connection, UA_ByteString *buf) {
+#ifdef UA_MULTITHREADING
+    UA_ByteString_deleteMembers(buf);
+#endif
+}
 
 /* after every select, we need to reset the sockets we want to listen on */
 static void setFDSet(ServerNetworkLayerTCP *layer) {
@@ -243,8 +252,8 @@ static UA_StatusCode ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_
     c->localConf = layer->conf;
     c->write = socket_write;
     c->close = ServerNetworkLayerTCP_closeConnection;
-    c->getBuffer = GetMallocedBuffer;
-    c->releaseBuffer = ReleaseMallocedBuffer;
+    c->getBuffer = ServerNetworkLayerGetBuffer;
+    c->releaseBuffer = ServerNetworkLayerReleaseBuffer;
     c->state = UA_CONNECTION_OPENING;
     struct ConnectionMapping *nm =
         realloc(layer->mappings, sizeof(struct ConnectionMapping)*(layer->mappingsSize+1));
@@ -453,6 +462,9 @@ static void ServerNetworkLayerTCP_delete(ServerNetworkLayerTCP *layer) {
     UA_String_deleteMembers(&layer->discoveryUrl);
     removeMappings(layer, layer->deletes);
     freeConnections(NULL, layer->deletes);
+#ifndef UA_MULTITHREADING
+    UA_ByteString_deleteMembers(&layer->buffer);
+#endif
     for(size_t i = 0; i < layer->mappingsSize; i++)
         free(layer->mappings[i].connection);
     free(layer->mappings);
@@ -482,6 +494,10 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
     gethostname(hostname, 255);
     UA_String_copyprintf("opc.tcp://%s:%d", &layer->discoveryUrl, hostname, port);
 
+#ifndef UA_MULTITHREADING
+    layer->buffer = (UA_ByteString){.length = conf.maxMessageSize, .data = malloc(conf.maxMessageSize)};
+#endif
+
     nl.nlHandle = layer;
     nl.start = (UA_StatusCode (*)(void*, UA_Logger *logger))ServerNetworkLayerTCP_start;
     nl.getJobs = (UA_Int32 (*)(void*, UA_Job**, UA_UInt16))ServerNetworkLayerTCP_getJobs;
@@ -495,9 +511,39 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
 /* Client NetworkLayer TCP */
 /***************************/
 
-UA_Connection ClientNetworkLayerTCP_connect(char *endpointUrl, UA_Logger *logger) {
+static UA_StatusCode ClientNetworkLayerGetBuffer(UA_Connection *connection, UA_ByteString *buf, size_t minSize) {
+#ifdef UA_MULTITHREADING
+    *buf = *(UA_ByteString*)connection->handle;
+    return UA_STATUSCODE_GOOD;
+#else
+    return UA_ByteString_newMembers(buf, minSize);
+#endif
+}
+
+static void ClientNetworkLayerReleaseBuffer(UA_Connection *connection, UA_ByteString *buf) {
+#ifdef UA_MULTITHREADING
+    UA_ByteString_deleteMembers(buf);
+#endif
+}
+
+static void ClientNetworkLayerClose(UA_Connection *connection) {
+    socket_close(connection);
+#ifndef UA_MULTITHREADING
+    UA_ByteString_delete(connection->handle);
+#endif
+}
+
+/* we have no networklayer. instead, attach the reusable buffer to the handle */
+UA_Connection ClientNetworkLayerTCP_connect(UA_ConnectionConfig localConf, char *endpointUrl,
+                                            UA_Logger *logger) {
     UA_Connection connection;
     UA_Connection_init(&connection);
+    connection.localConf = localConf;
+
+#ifndef UA_MULTITHREADING
+    connection.handle = UA_ByteString_new();
+    UA_ByteString_newMembers(connection.handle, localConf.maxMessageSize);
+#endif
 
     size_t urlLength = strlen(endpointUrl);
     if(urlLength < 11 || urlLength >= 512) {
@@ -556,8 +602,8 @@ UA_Connection ClientNetworkLayerTCP_connect(char *endpointUrl, UA_Logger *logger
     //socket_set_nonblocking(connection.sockfd);
     connection.write = socket_write;
     connection.recv = socket_recv;
-    connection.close = socket_close;
-    connection.getBuffer = GetMallocedBuffer;
-    connection.releaseBuffer = ReleaseMallocedBuffer;
+    connection.close = ClientNetworkLayerClose;
+    connection.getBuffer = ClientNetworkLayerGetBuffer;
+    connection.releaseBuffer = ClientNetworkLayerReleaseBuffer;
     return connection;
 }

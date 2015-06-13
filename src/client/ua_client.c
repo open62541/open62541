@@ -93,8 +93,9 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     UA_TcpHelloMessage_encodeBinary(&hello, &message, &offset);
     UA_TcpHelloMessage_deleteMembers(&hello);
 
-    retval = c->connection.write(&c->connection, &message);
-    c->connection.releaseBuffer(&c->connection, &message);
+    retval = c->connection.write(&c->connection, &message, messageHeader.messageSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        c->connection.releaseBuffer(&c->connection, &message);
     if(retval)
         return retval;
 
@@ -178,8 +179,10 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
     UA_OpenSecureChannelRequest_deleteMembers(&opnSecRq);
 
-    retval = client->connection.write(&client->connection, &message);
-    client->connection.releaseBuffer(&client->connection, &message);
+    retval = client->connection.write(&client->connection, &message,
+                                      messageHeader.messageHeader.messageSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        client->connection.releaseBuffer(&client->connection, &message);
     if(retval)
         return retval;
 
@@ -456,7 +459,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     retval |= UA_NodeId_encodeBinary(&typeId, &message, &offset);
     retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST], &message, &offset);
     if(retval == UA_STATUSCODE_GOOD)
-        retval = client->connection.write(&client->connection, &message);
+        retval = client->connection.write(&client->connection, &message, msgHeader.messageHeader.messageSize);
     client->connection.releaseBuffer(&client->connection, &message);
     return retval;
 }
@@ -466,7 +469,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
 /*************************/
 
 UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection connectFunc, char *endpointUrl) {
-    client->connection = connectFunc(endpointUrl, &client->logger);
+    client->connection = connectFunc(UA_ConnectionConfig_standard, endpointUrl, &client->logger);
     if(client->connection.state != UA_CONNECTION_OPENING)
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
 

@@ -137,7 +137,7 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     UA_NodeId_encodeBinary(&typeId, &message, &messagePos);
     UA_encodeBinary(content, contentType, &message, &messagePos);
     
-    connection->write(connection, &message);
-    connection->releaseBuffer(connection, &message);
+    if(connection->write(connection, &message, respHeader.messageHeader.messageSize) != UA_STATUSCODE_GOOD)
+        connection->releaseBuffer(connection, &message);
     return UA_STATUSCODE_GOOD;
 }
