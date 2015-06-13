@@ -1201,9 +1201,6 @@ void UA_delete(void *p, const UA_DataType *dataType) {
 /******************/
 
 void* UA_Array_new(const UA_DataType *dataType, UA_Int32 noElements) {
-    if(noElements <= 0)
-        return UA_NULL;
-
     if((UA_Int32)dataType->memSize * noElements < 0 || dataType->memSize * noElements > MAX_ARRAY_SIZE )
         return UA_NULL;
 
