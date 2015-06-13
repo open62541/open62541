@@ -38,4 +38,9 @@
 //	#define le32toh(x)	{...}(x)
 //	#define le64toh(x)	{...}(x)
 
+#if defined(htole16) || defined(htole32) || defined(htole64) || \
+    defined(le16toh) || defined(le32toh) || defined(le64toh)
+#define UA_NON_LITTLEENDIAN_ARCHITECTURE
+#endif
+
 #endif /* UA_CONFIG_H_ */
