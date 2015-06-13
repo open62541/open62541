@@ -313,19 +313,20 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
             UA_LOG_INFO(server->logger, UA_LOGCATEGORY_COMMUNICATION, "Unknown request: NodeId(ns=%d, i=%d)",
                         requestType.namespaceIndex, requestType.identifier.numeric);
         UA_RequestHeader p;
-        UA_ResponseHeader r;
+        UA_ServiceFault r;
         if(UA_RequestHeader_decodeBinary(msg, pos, &p) != UA_STATUSCODE_GOOD)
             return;
-        UA_ResponseHeader_init(&r);
-        init_response_header(&p, &r);
-        r.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
+        UA_ServiceFault_init(&r);
+        init_response_header(&p, &r.responseHeader);
+        r.responseHeader.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
 #ifdef EXTENSION_STATELESS
         if(retval != UA_STATUSCODE_GOOD)
             r.serviceResult = retval;
 #endif
         UA_RequestHeader_deleteMembers(&p);
         UA_SecureChannel_sendBinaryMessage(clientChannel, sequenceHeader.requestId,
-            &r, &UA_TYPES[UA_TYPES_RESPONSEHEADER]);
+            &r, &UA_TYPES[UA_TYPES_SERVICEFAULT]);
+        UA_ServiceFault_deleteMembers(&r);
         break;
     }
     }
