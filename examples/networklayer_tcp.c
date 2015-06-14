@@ -514,7 +514,7 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
 /***************************/
 
 static UA_StatusCode ClientNetworkLayerGetBuffer(UA_Connection *connection, UA_ByteString *buf, size_t minSize) {
-#ifdef UA_MULTITHREADING
+#ifndef UA_MULTITHREADING
     *buf = *(UA_ByteString*)connection->handle;
     return UA_STATUSCODE_GOOD;
 #else
