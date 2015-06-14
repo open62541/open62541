@@ -536,7 +536,7 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads, UA_Bo
 
     /* Start the networklayers */
     for(size_t i = 0; i < server->networkLayersSize; i++)
-        server->networkLayers[i].start(server->networkLayers[i].nlHandle, &server->logger);
+        server->networkLayers[i].start(&server->networkLayers[i], &server->logger);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -556,11 +556,11 @@ UA_StatusCode UA_Server_run_mainloop(UA_Server *server, UA_Boolean *running) {
         UA_Int32 jobsSize;
         if(*running) {
             if(i == server->networkLayersSize-1)
-                jobsSize = nl->getJobs(nl->nlHandle, &jobs, timeout);
+                jobsSize = nl->getJobs(nl, &jobs, timeout);
             else
-                jobsSize = nl->getJobs(nl->nlHandle, &jobs, 0);
+                jobsSize = nl->getJobs(nl, &jobs, 0);
         } else
-            jobsSize = server->networkLayers[i].stop(nl->nlHandle, &jobs);
+            jobsSize = server->networkLayers[i].stop(nl, &jobs);
 
 #ifdef UA_MULTITHREADING
         /* Filter out delayed work */

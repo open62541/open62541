@@ -152,7 +152,6 @@ typedef struct {
     /* config */
     UA_Logger *logger;
     UA_UInt32 port;
-    UA_String discoveryUrl;
     UA_ConnectionConfig conf; /* todo: rename to localconf. */
 
 #ifndef UA_MULTITHREADING
@@ -176,7 +175,8 @@ typedef struct {
     } *deletes;
 } ServerNetworkLayerTCP;
 
-static UA_StatusCode ServerNetworkLayerGetBuffer(UA_Connection *connection, UA_ByteString *buf, size_t minSize) {
+static UA_StatusCode ServerNetworkLayerGetBuffer(UA_Connection *connection, UA_ByteString *buf,
+                                                 size_t minSize) {
 #ifdef UA_MULTITHREADING
     return UA_ByteString_newMembers(buf, minSize);
 #else
@@ -267,7 +267,8 @@ static UA_StatusCode ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode ServerNetworkLayerTCP_start(ServerNetworkLayerTCP *layer, UA_Logger *logger) {
+static UA_StatusCode ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Logger *logger) {
+    ServerNetworkLayerTCP *layer = nl->handle;
     layer->logger = logger;
 #ifdef _WIN32
     if((layer->serversockfd = socket(PF_INET, SOCK_STREAM,0)) == (UA_Int32)INVALID_SOCKET) {
@@ -301,7 +302,7 @@ static UA_StatusCode ServerNetworkLayerTCP_start(ServerNetworkLayerTCP *layer, U
     socket_set_nonblocking(layer->serversockfd);
     listen(layer->serversockfd, MAXBACKLOG);
     UA_LOG_INFO((*layer->logger), UA_LOGCATEGORY_COMMUNICATION, "Listening on %.*s",
-                layer->discoveryUrl.length, layer->discoveryUrl.data);
+                nl->discoveryUrl.length, nl->discoveryUrl.data);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -332,7 +333,8 @@ static void removeMappings(ServerNetworkLayerTCP *layer, struct DeleteList *d) {
     }
 }
 
-static UA_Int32 ServerNetworkLayerTCP_getJobs(ServerNetworkLayerTCP *layer, UA_Job **jobs, UA_UInt16 timeout) {
+static UA_Int32 ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt16 timeout) {
+    ServerNetworkLayerTCP *layer = nl->handle;
     /* remove the deleted sockets from the array */
     struct DeleteList *deletes;
 #ifdef UA_MULTITHREADING
@@ -434,7 +436,8 @@ static UA_Int32 ServerNetworkLayerTCP_getJobs(ServerNetworkLayerTCP *layer, UA_J
     return j;
 }
 
-static UA_Int32 ServerNetworkLayerTCP_stop(ServerNetworkLayerTCP *layer, UA_Job **jobs) {
+static UA_Int32 ServerNetworkLayerTCP_stop(UA_ServerNetworkLayer *nl, UA_Job **jobs) {
+    ServerNetworkLayerTCP *layer = nl->handle;
     struct DeleteList *deletes;
 #ifdef UA_MULTITHREADING
         deletes = uatomic_xchg(&layer->deletes, NULL);
@@ -458,8 +461,8 @@ static UA_Int32 ServerNetworkLayerTCP_stop(ServerNetworkLayerTCP *layer, UA_Job 
 }
 
 /* run only when the server is stopped */
-static void ServerNetworkLayerTCP_delete(ServerNetworkLayerTCP *layer) {
-    UA_String_deleteMembers(&layer->discoveryUrl);
+static void ServerNetworkLayerTCP_delete(UA_ServerNetworkLayer *nl) {
+    ServerNetworkLayerTCP *layer = nl->handle;
     removeMappings(layer, layer->deletes);
     freeConnections(NULL, layer->deletes);
 #ifndef UA_MULTITHREADING
@@ -492,18 +495,17 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
     layer->deletes = NULL;
     char hostname[256];
     gethostname(hostname, 255);
-    UA_String_copyprintf("opc.tcp://%s:%d", &layer->discoveryUrl, hostname, port);
+    UA_String_copyprintf("opc.tcp://%s:%d", &nl.discoveryUrl, hostname, port);
 
 #ifndef UA_MULTITHREADING
     layer->buffer = (UA_ByteString){.length = conf.maxMessageSize, .data = malloc(conf.maxMessageSize)};
 #endif
 
-    nl.nlHandle = layer;
-    nl.start = (UA_StatusCode (*)(void*, UA_Logger *logger))ServerNetworkLayerTCP_start;
-    nl.getJobs = (UA_Int32 (*)(void*, UA_Job**, UA_UInt16))ServerNetworkLayerTCP_getJobs;
-    nl.stop = (UA_Int32 (*)(void*, UA_Job**))ServerNetworkLayerTCP_stop;
-    nl.free = (void (*)(void*))ServerNetworkLayerTCP_delete;
-    nl.discoveryUrl = &layer->discoveryUrl;
+    nl.handle = layer;
+    nl.start = ServerNetworkLayerTCP_start;
+    nl.getJobs = ServerNetworkLayerTCP_getJobs;
+    nl.stop = ServerNetworkLayerTCP_stop;
+    nl.free = ServerNetworkLayerTCP_delete;
     return nl;
 }
 

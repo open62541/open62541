@@ -105,23 +105,21 @@ void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkL
     server->networkLayers[server->networkLayersSize] = networkLayer;
     server->networkLayersSize++;
 
-    if(networkLayer.discoveryUrl) {
-        if(server->description.discoveryUrlsSize < 0)
-            server->description.discoveryUrlsSize = 0;
-        UA_String* newUrls = UA_realloc(server->description.discoveryUrls,
-                                        sizeof(UA_String)*(server->description.discoveryUrlsSize+1));
-        if(!newUrls) {
-            UA_LOG_ERROR(server->logger, UA_LOGCATEGORY_SERVER, "Adding discoveryUrl");
-            return;
-        }
-        server->description.discoveryUrls = newUrls;
-        UA_String_copy(networkLayer.discoveryUrl,
-                       &server->description.discoveryUrls[server->description.discoveryUrlsSize]);
-        server->description.discoveryUrlsSize++;
-        for(UA_Int32 i = 0; i < server->endpointDescriptionsSize; i++)
-            if(!server->endpointDescriptions[i].endpointUrl.data)
-                UA_String_copy(networkLayer.discoveryUrl, &server->endpointDescriptions[i].endpointUrl);
+    if(server->description.discoveryUrlsSize < 0)
+        server->description.discoveryUrlsSize = 0;
+    UA_String* newUrls = UA_realloc(server->description.discoveryUrls,
+                                    sizeof(UA_String)*(server->description.discoveryUrlsSize+1));
+    if(!newUrls) {
+        UA_LOG_ERROR(server->logger, UA_LOGCATEGORY_SERVER, "Adding discoveryUrl");
+        return;
     }
+    server->description.discoveryUrls = newUrls;
+    UA_String_copy(&networkLayer.discoveryUrl,
+                   &server->description.discoveryUrls[server->description.discoveryUrlsSize]);
+    server->description.discoveryUrlsSize++;
+    for(UA_Int32 i = 0; i < server->endpointDescriptionsSize; i++)
+        if(!server->endpointDescriptions[i].endpointUrl.data)
+            UA_String_copy(&networkLayer.discoveryUrl, &server->endpointDescriptions[i].endpointUrl);
 }
 
 void UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate) {
@@ -155,7 +153,8 @@ void UA_Server_delete(UA_Server *server) {
 
     // Delete the network layers
     for(size_t i = 0; i < server->networkLayersSize; i++) {
-        server->networkLayers[i].free(server->networkLayers[i].nlHandle);
+        UA_String_deleteMembers(&server->networkLayers[i].discoveryUrl);
+        server->networkLayers[i].free(&server->networkLayers[i]);
     }
     UA_free(server->networkLayers);
 
