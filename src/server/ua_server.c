@@ -154,7 +154,7 @@ void UA_Server_delete(UA_Server *server) {
     // Delete the network layers
     for(size_t i = 0; i < server->networkLayersSize; i++) {
         UA_String_deleteMembers(&server->networkLayers[i].discoveryUrl);
-        server->networkLayers[i].free(&server->networkLayers[i]);
+        server->networkLayers[i].deleteMembers(&server->networkLayers[i]);
     }
     UA_free(server->networkLayers);
 

@@ -461,7 +461,7 @@ static UA_Int32 ServerNetworkLayerTCP_stop(UA_ServerNetworkLayer *nl, UA_Job **j
 }
 
 /* run only when the server is stopped */
-static void ServerNetworkLayerTCP_delete(UA_ServerNetworkLayer *nl) {
+static void ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
     ServerNetworkLayerTCP *layer = nl->handle;
     removeMappings(layer, layer->deletes);
     freeConnections(NULL, layer->deletes);
@@ -505,7 +505,7 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
     nl.start = ServerNetworkLayerTCP_start;
     nl.getJobs = ServerNetworkLayerTCP_getJobs;
     nl.stop = ServerNetworkLayerTCP_stop;
-    nl.free = ServerNetworkLayerTCP_delete;
+    nl.deleteMembers = ServerNetworkLayerTCP_deleteMembers;
     return nl;
 }
 

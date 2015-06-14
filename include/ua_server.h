@@ -249,7 +249,7 @@ typedef struct UA_ServerNetworkLayer {
     UA_Int32 (*stop)(struct UA_ServerNetworkLayer *nl, UA_Job **jobs);
 
     /** Deletes the network layer. Call only after a successful shutdown. */
-    void (*free)(struct UA_ServerNetworkLayer *nl);
+    void (*deleteMembers)(struct UA_ServerNetworkLayer *nl);
 } UA_ServerNetworkLayer;
 
 /**
