@@ -125,7 +125,7 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
         UA_ServiceFault r;
         UA_ServiceFault_init(&r);
         r.responseHeader = *(const UA_ResponseHeader*)content;
-        r.responseHeader.serviceResult = retval;
+        r.responseHeader.serviceResult = UA_STATUSCODE_BADRESPONSETOOLARGE;
         size_t messagePos = 24;
         UA_NodeId_encodeBinary(&UA_TYPES[UA_TYPES_SERVICEFAULT].typeId, &message, &messagePos);
         UA_encodeBinary(&r, &UA_TYPES[UA_TYPES_SERVICEFAULT], &message, &messagePos);
