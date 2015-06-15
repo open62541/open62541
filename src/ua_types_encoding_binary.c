@@ -65,7 +65,7 @@ static UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, size_t *UA_
     if(*offset + ((dataType->memSize * noElements)/32) > (UA_UInt32)src->length)
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    *dst = UA_malloc(dataType->memSize * noElements);
+    *dst = UA_calloc(1, dataType->memSize * noElements);
     if(!*dst)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -1175,11 +1175,13 @@ UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_B
 
 UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, void *dst,
                               const UA_DataType *dataType) {
-    UA_init(dst, dataType);
+    /* skipping init seems to bring about 10% of performance and no valgrind warning*/
+    //UA_init(dst, dataType);
     uintptr_t ptr = (uintptr_t)dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Byte membersSize = dataType->membersSize;
-    for(size_t i = 0; i < membersSize && retval == UA_STATUSCODE_GOOD; i++) {
+    size_t i = 0;
+    for(i = 0; i < membersSize && retval == UA_STATUSCODE_GOOD; i++) {
         const UA_DataTypeMember *member = &dataType->members[i];
         const UA_DataType *memberType;
         if(member->namespaceZero)
@@ -1262,6 +1264,6 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offs
         ptr += memberType->memSize;
     }
     if(retval != UA_STATUSCODE_GOOD)
-        UA_deleteMembers(dst, dataType);
+        UA_deleteMembersUntil(dst, dataType, i);
     return retval;
 }
