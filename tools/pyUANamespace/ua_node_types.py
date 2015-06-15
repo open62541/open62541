@@ -642,7 +642,7 @@ class opcua_node_t:
     codegen = open62541_MacroHelper(supressGenerationOfAttribute=supressGenerationOfAttribute)
     code = []
     code.append("")
-
+    code.append("do {")
     # Just to be sure...
     if not (self in unPrintedNodes):
       log(self, str(self) + " attempted to reprint already printed node " + str(self)+ ".", LOG_LEVEL_WARN)
@@ -702,7 +702,8 @@ class opcua_node_t:
     if self in unPrintedNodes:
       # This is necessery to make printing work at all!
       unPrintedNodes.remove(self)
-
+    
+    code.append("} while(0);")
     return code
 
 class opcua_node_referenceType_t(opcua_node_t):
