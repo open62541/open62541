@@ -134,7 +134,10 @@ class opcua_referencePointer_t():
         retval = retval + "H"
       retval = retval + ">"
     return retval
-
+    
+  def __repr__(self):
+      return self.__str__()
+  
   def __cmp__(self, other):
     if not isinstance(other, opcua_referencePointer_t):
       return -1

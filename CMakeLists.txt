@@ -179,6 +179,13 @@ endif()
 ## logging
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 
+# Enable Methodcall service
+option(ENABLE_METHODCALLS "Enable CallMethod/MethodCall service set" OFF)
+if(ENABLE_METHODCALLS)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_services_call.c)
+    add_definitions(-DENABLE_METHODCALLS)
+endif()
+
 ## multithreading
 option(ENABLE_MULTITHREADING "Enable multithreading (experimental)" OFF)
 if(ENABLE_MULTITHREADING)

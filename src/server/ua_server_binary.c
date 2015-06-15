@@ -322,7 +322,11 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         INVOKE_SERVICE(DeleteMonitoredItems, UA_TYPES_DELETEMONITOREDITEMSRESPONSE);
         break;
 #endif
-
+#ifdef ENABLE_METHODCALLS
+    case UA_NS0ID_CALLREQUEST:
+        INVOKE_SERVICE(Call, UA_TYPES_CALLRESPONSE);
+        break;
+#endif
     default: {
         if(requestType.namespaceIndex == 0 && requestType.identifier.numeric==787)
             UA_LOG_INFO(server->logger, UA_LOGCATEGORY_COMMUNICATION,
