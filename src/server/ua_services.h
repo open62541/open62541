@@ -286,8 +286,8 @@ void Service_Publish(UA_Server *server, UA_Session *session,
 #endif
 
 #ifdef ENABLE_METHODCALLS
-void Service_MethodCall(UA_Server *server, UA_Session *session,
-                        const UA_CallMethodRequest *request,
-                        UA_CallMethodResult *response);
+void Service_Call(UA_Server *server, UA_Session *session,
+                  const UA_CallRequest *request,
+                  UA_CallResponse *response);
 #endif
 #endif /* UA_SERVICES_H_ */

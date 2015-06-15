@@ -11,6 +11,10 @@
 #include "ua_subscription_manager.h"
 #endif
 
+#ifdef ENABLE_METHODCALLS
+#include "ua_methodcall_manager.h"
+#endif
+
 #define PRODUCT_URI "http://open62541.org"
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
@@ -51,9 +55,14 @@ struct UA_Server {
     UA_String *namespaces;
     size_t externalNamespacesSize;
     UA_ExternalNamespace *externalNamespaces;
-
+     
     /* Jobs with a repetition interval */
     LIST_HEAD(RepeatedJobsList, RepeatedJobs) repeatedJobs;
+
+    /* Method hooks  */
+#ifdef ENABLE_METHODCALLS
+    UA_MethodCall_Manager *methodCallManager;
+#endif
 
 #ifdef UA_MULTITHREADING
     /* Dispatch queue head for the worker threads (the tail should not be in the same cache line) */
