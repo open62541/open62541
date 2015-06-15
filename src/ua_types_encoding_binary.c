@@ -1175,8 +1175,7 @@ UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_B
 
 UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, void *dst,
                               const UA_DataType *dataType) {
-    /* skipping init seems to bring about 10% of performance and no valgrind warning*/
-    //UA_init(dst, dataType);
+    UA_init(dst, dataType);
     uintptr_t ptr = (uintptr_t)dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Byte membersSize = dataType->membersSize;
