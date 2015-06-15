@@ -506,7 +506,7 @@ static UA_StatusCode ClientNetworkLayerGetBuffer(UA_Connection *connection, UA_B
     *buf = *(UA_ByteString*)connection->handle;
     return UA_STATUSCODE_GOOD;
 #else
-    return UA_ByteString_newMembers(buf, minSize);
+    return UA_ByteString_newMembers(buf, connection->remoteConf.recvBufferSize);
 #endif
 }
 
