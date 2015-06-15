@@ -415,7 +415,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
 #define MAXCHANNELCOUNT 100
 #define STARTCHANNELID 1
-#define TOKENLIFETIME 600000
+#define TOKENLIFETIME 600000 //this is in milliseconds
 #define STARTTOKENID 1
     UA_SecureChannelManager_init(&server->secureChannelManager, MAXCHANNELCOUNT,
                                  TOKENLIFETIME, STARTCHANNELID, STARTTOKENID);
