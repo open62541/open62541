@@ -67,6 +67,7 @@ static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *respo
         return UA_STATUSCODE_BADOUTOFMEMORY;
     struct timeval tmptv = {0, timeout * 1000};
     if(0 != setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tmptv, sizeof(struct timeval))){
+		UA_free(response->data);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     int ret = recv(connection->sockfd, (char*)response->data, connection->localConf.recvBufferSize, 0);
@@ -75,16 +76,17 @@ static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *respo
 		connection->close(connection);
 		return UA_STATUSCODE_BADCONNECTIONCLOSED;
 	} else if(ret < 0) {
+        UA_free(response->data);
 #ifdef _WIN32
 		if(WSAGetLastError() == WSAEINTR || WSAGetLastError() == WSAEWOULDBLOCK) {
 #else
 		if (errno == EAGAIN) {
 #endif
             return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+        } else {
+            connection->close(connection);
+            return UA_STATUSCODE_BADCONNECTIONCLOSED;
         }
-		UA_free(response->data);
-		connection->close(connection);
-        return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
     response->length = ret;
     *response = UA_Connection_completeMessages(connection, *response);

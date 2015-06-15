@@ -239,7 +239,10 @@ static void synchronousRequest(UA_Client *client, void *request, const UA_DataTy
                                                               request, requestType);
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
     if(retval) {
-        respHeader->serviceResult = retval;
+        if(retval == UA_STATUSCODE_BADENCODINGERROR)
+            respHeader->serviceResult = UA_STATUSCODE_BADREQUESTTOOLARGE;
+        else
+            respHeader->serviceResult = retval;
         return;
     }
 

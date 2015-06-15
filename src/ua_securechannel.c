@@ -120,16 +120,9 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     retval |= UA_NodeId_encodeBinary(&typeId, &message, &messagePos);
     retval |= UA_encodeBinary(content, contentType, &message, &messagePos);
 
-    /* write a failure message if necessary */
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServiceFault r;
-        UA_ServiceFault_init(&r);
-        r.responseHeader = *(const UA_ResponseHeader*)content;
-        r.responseHeader.serviceResult = UA_STATUSCODE_BADRESPONSETOOLARGE;
-        size_t messagePos = 24;
-        UA_NodeId_encodeBinary(&UA_TYPES[UA_TYPES_SERVICEFAULT].typeId, &message, &messagePos);
-        UA_encodeBinary(&r, &UA_TYPES[UA_TYPES_SERVICEFAULT], &message, &messagePos);
-        UA_ServiceFault_init(&r);
+        connection->releaseBuffer(connection, &message);
+        return retval;
     }
 
     /* now write the header with the size */
@@ -145,7 +138,8 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader, &message, &messagePos);
     UA_SequenceHeader_encodeBinary(&seqHeader, &message, &messagePos);
     
-    if(connection->write(connection, &message, respHeader.messageHeader.messageSize) != UA_STATUSCODE_GOOD)
+    retval = connection->write(connection, &message, respHeader.messageHeader.messageSize);
+    if(retval != UA_STATUSCODE_GOOD)
         connection->releaseBuffer(connection, &message);
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }

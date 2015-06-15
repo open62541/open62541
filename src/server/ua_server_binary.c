@@ -148,8 +148,8 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
 }
 
 /* The request/response are casted to the header (first element of their struct) */
-static void invoke_service(UA_Server *server, UA_SecureChannel *channel,
-                           UA_UInt32 requestId, UA_RequestHeader *request, const UA_DataType *responseType,
+static void invoke_service(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
+                           UA_RequestHeader *request, const UA_DataType *responseType,
                            void (*service)(UA_Server*, UA_Session*, void*, void*)) {
     UA_ResponseHeader *response = UA_alloca(responseType->memSize);
     UA_init(response, responseType);
@@ -170,7 +170,14 @@ static void invoke_service(UA_Server *server, UA_SecureChannel *channel,
         UA_Session_updateLifetime(session);
         service(server, session, request, response);
     }
-    UA_SecureChannel_sendBinaryMessage(channel, requestId, response, responseType);
+    UA_StatusCode retval = UA_SecureChannel_sendBinaryMessage(channel, requestId, response, responseType);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(retval == UA_STATUSCODE_BADENCODINGERROR)
+            response->serviceResult = UA_STATUSCODE_BADRESPONSETOOLARGE;
+        else
+            response->serviceResult = retval;
+        UA_SecureChannel_sendBinaryMessage(channel, requestId, response, &UA_TYPES[UA_TYPES_SERVICEFAULT]);
+    }
     UA_deleteMembers(response, responseType);
 }
 
@@ -316,20 +323,20 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
             UA_LOG_INFO(server->logger, UA_LOGCATEGORY_COMMUNICATION, "Unknown request: NodeId(ns=%d, i=%d)",
                         requestType.namespaceIndex, requestType.identifier.numeric);
         UA_RequestHeader p;
-        UA_ServiceFault r;
+        UA_ResponseHeader r;
         if(UA_RequestHeader_decodeBinary(msg, pos, &p) != UA_STATUSCODE_GOOD)
             return;
-        UA_ServiceFault_init(&r);
-        init_response_header(&p, &r.responseHeader);
-        r.responseHeader.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
+        UA_ResponseHeader_init(&r);
+        init_response_header(&p, &r);
+        r.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
 #ifdef EXTENSION_STATELESS
         if(retval != UA_STATUSCODE_GOOD)
             r.serviceResult = retval;
 #endif
+        UA_SecureChannel_sendBinaryMessage(clientChannel, sequenceHeader.requestId, &r,
+                                           &UA_TYPES[UA_TYPES_SERVICEFAULT]);
         UA_RequestHeader_deleteMembers(&p);
-        UA_SecureChannel_sendBinaryMessage(clientChannel, sequenceHeader.requestId,
-            &r, &UA_TYPES[UA_TYPES_SERVICEFAULT]);
-        UA_ServiceFault_deleteMembers(&r);
+        UA_ResponseHeader_deleteMembers(&r);
         break;
     }
     }
