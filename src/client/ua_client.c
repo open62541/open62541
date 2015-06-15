@@ -73,7 +73,7 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     messageHeader.messageSize = UA_TcpHelloMessage_calcSizeBinary((UA_TcpHelloMessage const*)&hello) +
                                 UA_TcpMessageHeader_calcSizeBinary((UA_TcpMessageHeader const*)&messageHeader);
     UA_ByteString message;
-    UA_StatusCode retval = c->connection.getBuffer(&c->connection, &message, messageHeader.messageSize);
+    UA_StatusCode retval = c->connection.getBuffer(&c->connection, &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -150,8 +150,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         UA_OpenSecureChannelRequest_calcSizeBinary(&opnSecRq);
 
     UA_ByteString message;
-    UA_StatusCode retval = client->connection.getBuffer(&client->connection, &message,
-                                                        messageHeader.messageHeader.messageSize);
+    UA_StatusCode retval = client->connection.getBuffer(&client->connection, &message);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         UA_OpenSecureChannelRequest_deleteMembers(&opnSecRq);
@@ -436,8 +435,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
         UA_calcSizeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
 
     UA_ByteString message;
-    UA_StatusCode retval = client->connection.getBuffer(&client->connection, &message,
-                                                        msgHeader.messageHeader.messageSize);
+    UA_StatusCode retval = client->connection.getBuffer(&client->connection, &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 

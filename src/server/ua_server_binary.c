@@ -40,11 +40,12 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
 
     UA_TcpMessageHeader ackHeader;
     ackHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_ACKF;
-    ackHeader.messageSize = UA_TcpMessageHeader_calcSizeBinary(&ackHeader) 
-        + UA_TcpAcknowledgeMessage_calcSizeBinary(&ackMessage);
+    ackHeader.messageSize =  8 + 20;
+    /* == UA_TcpMessageHeader_calcSizeBinary(&ackHeader) +
+       UA_TcpAcknowledgeMessage_calcSizeBinary(&ackMessage) */
 
     UA_ByteString ack_msg;
-    if(connection->getBuffer(connection, &ack_msg, ackHeader.messageSize) != UA_STATUSCODE_GOOD)
+    if(connection->getBuffer(connection, &ack_msg) != UA_STATUSCODE_GOOD)
         return;
 
     size_t tmpPos = 0;
@@ -109,33 +110,35 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
     UA_NodeId responseType = UA_NODEID_NUMERIC(0, UA_NS0ID_OPENSECURECHANNELRESPONSE +
                                                UA_ENCODINGOFFSET_BINARY);
 
-    respHeader.messageHeader.messageSize =
-        UA_SecureConversationMessageHeader_calcSizeBinary(&respHeader)
-        + UA_AsymmetricAlgorithmSecurityHeader_calcSizeBinary(&asymHeader)
-        + UA_SequenceHeader_calcSizeBinary(&seqHeader)
-        + UA_NodeId_calcSizeBinary(&responseType)
-        + UA_OpenSecureChannelResponse_calcSizeBinary(&p);
-
     UA_ByteString resp_msg;
-    retval = connection->getBuffer(connection, &resp_msg, respHeader.messageHeader.messageSize);
+    retval = connection->getBuffer(connection, &resp_msg);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_OpenSecureChannelResponse_deleteMembers(&p);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         return;
     }
         
-    size_t tmpPos = 0;
-    UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
-    UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &resp_msg, &tmpPos); // just mirror back
-    UA_SequenceHeader_encodeBinary(&seqHeader, &resp_msg, &tmpPos); // just mirror back
-    UA_NodeId_encodeBinary(&responseType, &resp_msg, &tmpPos);
-    UA_OpenSecureChannelResponse_encodeBinary(&p, &resp_msg, &tmpPos);
+    size_t tmpPos = 12; /* skip the secureconversationmessageheader for now */
+    retval |= UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &resp_msg, &tmpPos); // just mirror back
+    retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &resp_msg, &tmpPos); // just mirror back
+    retval |= UA_NodeId_encodeBinary(&responseType, &resp_msg, &tmpPos);
+    retval |= UA_OpenSecureChannelResponse_encodeBinary(&p, &resp_msg, &tmpPos);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        connection->releaseBuffer(connection, &resp_msg);
+        connection->close(connection);
+    } else {
+        respHeader.messageHeader.messageSize = tmpPos;
+        tmpPos = 0;
+        UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
+
+        if(connection->write(connection, &resp_msg,
+                             respHeader.messageHeader.messageSize) != UA_STATUSCODE_GOOD)
+            connection->releaseBuffer(connection, &resp_msg);
+    }
+
     UA_OpenSecureChannelResponse_deleteMembers(&p);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
-
-    if(connection->write(connection, &resp_msg,
-                         respHeader.messageHeader.messageSize) != UA_STATUSCODE_GOOD)
-        connection->releaseBuffer(connection, &resp_msg);
 }
 
 static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r) {

@@ -62,18 +62,16 @@ static UA_StatusCode socket_write(UA_Connection *connection, UA_ByteString *buf,
 }
 
 static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-	if(response->data == NULL)
-        retval = connection->getBuffer(connection, response, connection->localConf.recvBufferSize);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    response->data = malloc(connection->localConf.recvBufferSize);
+    if(!response->data)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     struct timeval tmptv = {0, timeout * 1000};
     if(0 != setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tmptv, sizeof(struct timeval))){
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    int ret = recv(connection->sockfd, (char*)response->data, response->length, 0);
+    int ret = recv(connection->sockfd, (char*)response->data, connection->localConf.recvBufferSize, 0);
 	if(ret == 0) {
-		connection->releaseBuffer(connection, response);
+		UA_free(response->data);
 		connection->close(connection);
 		return UA_STATUSCODE_BADCONNECTIONCLOSED;
 	} else if(ret < 0) {
@@ -84,7 +82,7 @@ static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *respo
 #endif
             return UA_STATUSCODE_BADCOMMUNICATIONERROR;
         }
-        connection->releaseBuffer(connection, response);
+		UA_free(response->data);
 		connection->close(connection);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
@@ -175,10 +173,9 @@ typedef struct {
     } *deletes;
 } ServerNetworkLayerTCP;
 
-static UA_StatusCode ServerNetworkLayerGetBuffer(UA_Connection *connection, UA_ByteString *buf,
-                                                 size_t minSize) {
+static UA_StatusCode ServerNetworkLayerGetBuffer(UA_Connection *connection, UA_ByteString *buf) {
 #ifdef UA_MULTITHREADING
-    return UA_ByteString_newMembers(buf, minSize);
+    return UA_ByteString_newMembers(buf, connection->remoteConf.recvBufferSize);
 #else
     ServerNetworkLayerTCP *layer = connection->handle;
     *buf = layer->buffer;
@@ -398,12 +395,6 @@ static UA_Int32 ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job 
     for(size_t i = 0; i < layer->mappingsSize && j < resultsize; i++) {
         if(!(FD_ISSET(layer->mappings[i].sockfd, &layer->fdset)))
             continue;
-        if(!buf.data) {
-            buf.data = malloc(sizeof(UA_Byte) * layer->conf.recvBufferSize);
-            buf.length = layer->conf.recvBufferSize;
-            if(!buf.data)
-                break;
-        }
         if(socket_recv(layer->mappings[i].connection, &buf, 0) == UA_STATUSCODE_GOOD) {
             items[j].type = UA_JOBTYPE_BINARYMESSAGE;
             items[j].job.binaryMessage.message = buf;
@@ -423,9 +414,6 @@ static UA_Int32 ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job 
         items[j].job.methodCall.method = (void (*)(UA_Server *server, void *data))freeConnections;
         j++;
     }
-
-    if(buf.data)
-        free(buf.data);
 
     /* free the array if there is no job */
     if(j == 0) {
@@ -513,7 +501,7 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
 /* Client NetworkLayer TCP */
 /***************************/
 
-static UA_StatusCode ClientNetworkLayerGetBuffer(UA_Connection *connection, UA_ByteString *buf, size_t minSize) {
+static UA_StatusCode ClientNetworkLayerGetBuffer(UA_Connection *connection, UA_ByteString *buf) {
 #ifndef UA_MULTITHREADING
     *buf = *(UA_ByteString*)connection->handle;
     return UA_STATUSCODE_GOOD;

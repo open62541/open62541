@@ -10,8 +10,8 @@ const UA_ConnectionConfig UA_ConnectionConfig_standard =
 
 void UA_Connection_init(UA_Connection *connection) {
     connection->state = UA_CONNECTION_CLOSED;
-    connection->localConf = (UA_ConnectionConfig){0,0,0,0,0};
-    connection->remoteConf = (UA_ConnectionConfig){0,0,0,0,0};
+    connection->localConf = UA_ConnectionConfig_standard;
+    connection->remoteConf = UA_ConnectionConfig_standard;
     connection->channel = UA_NULL;
     connection->sockfd = 0;
     connection->handle = UA_NULL;
