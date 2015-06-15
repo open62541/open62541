@@ -296,7 +296,10 @@ size_t UA_String_calcSizeBinary(UA_String const *string) {
 }
 
 UA_StatusCode UA_String_encodeBinary(UA_String const *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
-    if((UA_Int32)(*offset + UA_String_calcSizeBinary(src)) > dst->length)
+    UA_Int32 end = *offset + 4;
+    if(src->length > 0)
+        end += src->length;
+    if(end > dst->length)
         return UA_STATUSCODE_BADENCODINGERROR;
 
     UA_StatusCode retval = UA_Int32_encodeBinary(&src->length, dst, offset);
@@ -833,6 +836,7 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
     if(!isArray)
         numToEncode = 1;
     for(UA_Int32 i=0;i<numToEncode;i++) {
+        size_t oldoffset; // before encoding the actual content
         if(!isBuiltin) {
             /* The type is wrapped inside an extensionobject*/
             // todo: offest holds only for namespace 0
@@ -840,10 +844,15 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
                                                            UA_ENCODINGOFFSET_BINARY);
             UA_Byte eoEncoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
             retval |= UA_Byte_encodeBinary(&eoEncoding, dst, offset);
-            UA_Int32 eoEncodingLength = UA_calcSizeBinary(src->data, src->type);
-            retval |= UA_Int32_encodeBinary(&eoEncodingLength, dst, offset);
+            *offset += 4;
+            oldoffset = *offset;
         }
         retval |= UA_encodeBinary((void*)ptr, src->type, dst, offset);
+        if(!isBuiltin) {
+            UA_Int32 encodingLength = *offset - oldoffset;
+            oldoffset -= 4;
+            UA_Int32_encodeBinary(&encodingLength, dst, &oldoffset);
+        }
         ptr += memSize;
     }
     if(hasDimensions)
