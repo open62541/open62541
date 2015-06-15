@@ -100,7 +100,7 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     UA_TcpMessageHeader_decodeBinary(&reply, &offset, &messageHeader);
     UA_TcpAcknowledgeMessage ackMessage;
     retval = UA_TcpAcknowledgeMessage_decodeBinary(&reply, &offset, &ackMessage);
-    c->connection.releaseBuffer(&c->connection, &reply);
+    UA_ByteString_deleteMembers(&reply);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     conn->remoteConf.maxChunkCount = ackMessage.maxChunkCount;
@@ -167,8 +167,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
     UA_OpenSecureChannelRequest_deleteMembers(&opnSecRq);
 
-    retval = client->connection.write(&client->connection, &message,
-                                      messageHeader.messageHeader.messageSize);
+    retval = client->connection.write(&client->connection, &message, messageHeader.messageHeader.messageSize);
     if(retval != UA_STATUSCODE_GOOD)
         client->connection.releaseBuffer(&client->connection, &message);
     if(retval)
@@ -191,7 +190,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     UA_NodeId expectedRequest = UA_NODEID_NUMERIC(0, UA_NS0ID_OPENSECURECHANNELRESPONSE +
                                                   UA_ENCODINGOFFSET_BINARY);
     if(!UA_NodeId_equal(&requestType, &expectedRequest)) {
-        client->connection.releaseBuffer(&client->connection, &reply);
+        UA_ByteString_deleteMembers(&reply);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         UA_NodeId_deleteMembers(&requestType);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -200,7 +199,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     UA_OpenSecureChannelResponse response;
     UA_OpenSecureChannelResponse_decodeBinary(&reply, &offset, &response);
     client->scExpiresAt = UA_DateTime_now() + response.securityToken.revisedLifetime * 10000;
-    client->connection.releaseBuffer(&client->connection, &reply);
+    UA_ByteString_deleteMembers(&reply);
     retval = response.responseHeader.serviceResult;
 
     if(!renew && retval == UA_STATUSCODE_GOOD) {
@@ -269,14 +268,14 @@ static void synchronousRequest(UA_Client *client, void *request, const UA_DataTy
                                                  UA_ENCODINGOFFSET_BINARY);
     if(!UA_NodeId_equal(&responseId, &expectedNodeId) || seqHeader.requestId != requestId) {
         // Todo: we need to demux responses since a publish responses may come at any time
-        client->connection.releaseBuffer(&client->connection, &reply);
+        UA_ByteString_deleteMembers(&reply);
         UA_SymmetricAlgorithmSecurityHeader_deleteMembers(&symHeader);
         respHeader->serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return;
     }
 
     retval = UA_decodeBinary(&reply, &offset, response, responseType);
-    client->connection.releaseBuffer(&client->connection, &reply);
+    UA_ByteString_deleteMembers(&reply);
     if(retval != UA_STATUSCODE_GOOD)
         respHeader->serviceResult = retval;
 }
@@ -445,9 +444,12 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &message, &offset);
     retval |= UA_NodeId_encodeBinary(&typeId, &message, &offset);
     retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST], &message, &offset);
-    if(retval == UA_STATUSCODE_GOOD)
+    if(retval == UA_STATUSCODE_GOOD) {
         retval = client->connection.write(&client->connection, &message, msgHeader.messageHeader.messageSize);
-    client->connection.releaseBuffer(&client->connection, &message);
+        if(retval != UA_STATUSCODE_GOOD)
+            client->connection.releaseBuffer(&client->connection, &message);
+    } else
+        client->connection.releaseBuffer(&client->connection, &message);
     return retval;
 }
 
