@@ -8,6 +8,10 @@
 #include "ua_session_manager.h"
 #include "ua_nodeids.h"
 
+#ifdef ENABLE_METHODCALLS
+#include "ua_methodcall_manager.h"
+#endif
+
 /** Max size of messages that are allocated on the stack */
 #define MAX_STACK_MESSAGE 65536
 
@@ -304,6 +308,11 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     case UA_NS0ID_TRANSLATEBROWSEPATHSTONODEIDSREQUEST:
         INVOKE_SERVICE(TranslateBrowsePathsToNodeIds, UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE);
         break;
+#ifdef ENABLE_METHODCALLS
+    case UA_NS0ID_CALLREQUEST:
+        INVOKE_SERVICE(Call, UA_TYPES_CALLRESPONSE);
+        break;
+#endif
     default: {
         if(requestType.namespaceIndex == 0 && requestType.identifier.numeric==787)
             UA_LOG_INFO(server->logger, UA_LOGCATEGORY_COMMUNICATION,

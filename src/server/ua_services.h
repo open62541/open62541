@@ -273,4 +273,9 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
 /** @} */
 /** @} */
 
+#ifdef ENABLE_METHODCALLS
+void Service_Call(UA_Server *server, UA_Session *session,
+                  const UA_CallRequest *request,
+                  UA_CallResponse *response);
+#endif
 #endif /* UA_SERVICES_H_ */
