@@ -579,6 +579,8 @@ UA_StatusCode UA_EXPORT UA_copy(const void *src, void *dst, const UA_DataType *d
  */
 void UA_EXPORT UA_deleteMembers(void *p, const UA_DataType *dataType);
 
+void UA_EXPORT UA_deleteMembersUntil(void *p, const UA_DataType *dataType, UA_Int32 lastMember);
+
 /**
  * Deletes (frees) a variable and all of its content.
  *
