@@ -1117,11 +1117,18 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
 }
 
 void UA_deleteMembers(void *p, const UA_DataType *dataType) {
+    UA_deleteMembersUntil(p, dataType, -1);
+}
+
+void UA_deleteMembersUntil(void *p, const UA_DataType *dataType, UA_Int32 lastMember) {
     uintptr_t ptr = (uintptr_t)p;
     if(dataType->fixedSize)
         return;
     UA_Byte membersSize = dataType->membersSize;
     for(size_t i=0;i<membersSize; i++) {
+        if(lastMember > -1 && (UA_Int32)i > lastMember){
+            return;
+        }
         const UA_DataTypeMember *member = &dataType->members[i];
         const UA_DataType *memberType;
         if(member->namespaceZero)
@@ -1185,7 +1192,11 @@ void UA_deleteMembers(void *p, const UA_DataType *dataType) {
             break;
         default:
             // QualifiedName, LocalizedText and strings are treated as structures, also
-            UA_deleteMembers((void*)ptr, memberType);
+            if(lastMember > -1){
+                UA_deleteMembersUntil((void*)ptr, memberType, lastMember-i);
+            }
+            else
+                UA_deleteMembers((void*)ptr, memberType);
         }
         ptr += memberType->memSize;
     }
@@ -1201,9 +1212,6 @@ void UA_delete(void *p, const UA_DataType *dataType) {
 /******************/
 
 void* UA_Array_new(const UA_DataType *dataType, UA_Int32 noElements) {
-    if(noElements <= 0)
-        return UA_NULL;
-
     if((UA_Int32)dataType->memSize * noElements < 0 || dataType->memSize * noElements > MAX_ARRAY_SIZE )
         return UA_NULL;
 

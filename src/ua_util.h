@@ -71,13 +71,14 @@
     # define UA_alloca(SIZE) _alloca(SIZE)
 #else
  #ifdef __GNUC__
-    # define UA_alloca(size)   __builtin_alloca (size)
+    # define UA_alloca(size) __builtin_alloca (size)
  #else
     # include <alloca.h>
     # define UA_alloca(SIZE) alloca(SIZE)
  #endif
 #endif
 #endif /* NO_ALLOCA */
+
 /********************/
 /* System Libraries */
 /********************/
@@ -93,23 +94,16 @@
 # undef SLIST_ENTRY
 # define RAND(SEED) (UA_UInt32)rand()
 #else
-# if !(defined htole16 && defined htole32 && defined htole64 && defined le16toh && defined le32toh && defined le64toh)
-#  include <endian.h>
-#  if !(defined htole16 && defined htole32 && defined htole64 && defined le16toh && defined le32toh && defined le64toh)
+# include <sys/time.h>
+# define RAND(SEED) (UA_UInt32)rand_r(SEED)
+# ifndef UA_NON_LITTLEENDIAN_ARCHITECTURE
+#  if defined(__linux__) || defined(__APPLE__)
+#   include <endian.h>
 #   if ( __BYTE_ORDER != __LITTLE_ENDIAN )
-#    error "Host byte order is not little-endian and no appropriate conversion functions are defined. (Have a look at ua_config.h)"
-#   else
-#    define htole16(x) x
-#    define htole32(x) x
-#    define htole64(x) x
-#    define le16toh(x) x
-#    define le32toh(x) x
-#    define le64toh(x) x
+#    define UA_NON_LITTLEENDIAN_ARCHITECTURE
 #   endif
 #  endif
 # endif
-# include <sys/time.h>
-# define RAND(SEED) (UA_UInt32)rand_r(SEED)
 #endif
 
 /*************************/
@@ -124,7 +118,6 @@
 # define _LGPL_SOURCE
 # include <urcu.h>
 # include <urcu/wfcqueue.h>
-# include <urcu/compiler.h> // for caa_container_of
 # include <urcu/uatomic.h>
 # include <urcu/rculfhash.h>
 #include <urcu/lfstack.h>

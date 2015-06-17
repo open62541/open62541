@@ -212,48 +212,44 @@ UA_StatusCode UA_EXPORT UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid j
  * in parallel but only sequentially from the server's main loop. So the network
  * layer does not need to be thread-safe.
  */
-typedef struct {
-    void *nlHandle;
+typedef struct UA_ServerNetworkLayer {
+    void *handle;
+    UA_String discoveryUrl;
 
     /**
      * Starts listening on the the networklayer.
      *
+     * @param nl The network layer
+     * @param logger The logger
      * @return Returns UA_STATUSCODE_GOOD or an error code.
      */
-    UA_StatusCode (*start)(void *nlHandle, UA_Logger *logger);
+    UA_StatusCode (*start)(struct UA_ServerNetworkLayer *nl, UA_Logger *logger);
     
     /**
      * Gets called from the main server loop and returns the jobs (accumulated messages and close
      * events) for dispatch.
      *
+     * @param nl The network layer
      * @param jobs When the returned integer is positive, *jobs points to an array of UA_Job of the
      * returned size.
-     *
      * @param timeout The timeout during which an event must arrive in microseconds
-     
      * @return The size of the jobs array. If the result is negative, an error has occurred.
      */
-    UA_Int32 (*getJobs)(void *nlhandle, UA_Job **jobs, UA_UInt16 timeout);
+    UA_Int32 (*getJobs)(struct UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt16 timeout);
 
     /**
      * Closes the network connection and returns all the jobs that need to be finished before the
      * network layer can be safely deleted.
      *
+     * @param nl The network layer
      * @param jobs When the returned integer is positive, jobs points to an array of UA_Job of the
      * returned size.
-     *
      * @return The size of the jobs array. If the result is negative, an error has occurred.
      */
-    UA_Int32 (*stop)(void *nlhandle, UA_Job **jobs);
+    UA_Int32 (*stop)(struct UA_ServerNetworkLayer *nl, UA_Job **jobs);
 
     /** Deletes the network layer. Call only after a successful shutdown. */
-    void (*free)(void *nlhandle);
-
-    /**
-     * String containing the discovery URL that will be add to the server's list
-     * contains the protocol the host and the port of the layer
-     */
-    UA_String* discoveryUrl;
+    void (*deleteMembers)(struct UA_ServerNetworkLayer *nl);
 } UA_ServerNetworkLayer;
 
 /**

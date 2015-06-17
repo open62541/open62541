@@ -111,33 +111,35 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     UA_SequenceHeader seqHeader;
     seqHeader.requestId = requestId;
 
-    respHeader.messageHeader.messageSize =
-        UA_SecureConversationMessageHeader_calcSizeBinary(&respHeader)
-        + UA_SymmetricAlgorithmSecurityHeader_calcSizeBinary(&symSecHeader)
-        + UA_SequenceHeader_calcSizeBinary(&seqHeader)
-        + UA_NodeId_calcSizeBinary(&typeId)
-        + UA_calcSizeBinary(content, contentType);
-
     UA_ByteString message;
-    UA_StatusCode retval = connection->getBuffer(connection, &message, respHeader.messageHeader.messageSize);
-    if(retval)
+    UA_StatusCode retval = connection->getBuffer(connection, &message);
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* do this only now, so the sequence number does not increase if sth fails */
+    size_t messagePos = 24; // after the headers
+    retval |= UA_NodeId_encodeBinary(&typeId, &message, &messagePos);
+    retval |= UA_encodeBinary(content, contentType, &message, &messagePos);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        connection->releaseBuffer(connection, &message);
+        return retval;
+    }
+
+    /* now write the header with the size */
+    respHeader.messageHeader.messageSize = messagePos;
 #ifndef UA_MULTITHREADING
     seqHeader.sequenceNumber = ++channel->sequenceNumber;
 #else
     seqHeader.sequenceNumber = uatomic_add_return(&channel->sequenceNumber, 1);
 #endif
 
-    size_t messagePos = 0;
+    messagePos = 0;
     UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &message, &messagePos);
     UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader, &message, &messagePos);
     UA_SequenceHeader_encodeBinary(&seqHeader, &message, &messagePos);
-    UA_NodeId_encodeBinary(&typeId, &message, &messagePos);
-    UA_encodeBinary(content, contentType, &message, &messagePos);
     
-    connection->write(connection, &message);
-    connection->releaseBuffer(connection, &message);
-    return UA_STATUSCODE_GOOD;
+    retval = connection->write(connection, &message, respHeader.messageHeader.messageSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        connection->releaseBuffer(connection, &message);
+    return retval;
 }

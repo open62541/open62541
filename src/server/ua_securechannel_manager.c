@@ -28,7 +28,7 @@ void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_Dat
     /* remove channels that were not renewed or who have no connection attached */
     while(entry) {
         if(entry->channel.securityToken.createdAt +
-            (10000 * entry->channel.securityToken.revisedLifetime) > now &&
+            (UA_DateTime)entry->channel.securityToken.revisedLifetime*10000 > now &&
             entry->channel.connection) {
             entry = LIST_NEXT(entry, pointers);
         }
