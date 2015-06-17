@@ -23,6 +23,7 @@
 # include <time.h>
 # include "ua_types.h"
 # include "ua_server.h"
+# include "server/ua_methodcall_manager.h"
 # include "logger_stdout.h"
 # include "networklayer_tcp.h"
 #else
@@ -184,6 +185,21 @@ static UA_StatusCode writeLedStatus(void *handle, const UA_Variant *data, const 
 	return UA_STATUSCODE_GOOD;
 }
 
+static void getMonitoredItems(const UA_Node *object, const UA_ArgumentsList *InputArguments, UA_ArgumentsList *OutputArguments) {
+    UA_String tmp = UA_STRING_ALLOC("Hello World");
+    UA_String *myString = UA_String_new();
+    UA_String_copy(&tmp, myString);
+    
+    OutputArguments->arguments = (UA_Variant *) UA_Variant_new();
+    UA_Variant_setScalar(&OutputArguments->arguments[0], myString, &UA_TYPES[UA_TYPES_STRING]);
+    OutputArguments->argumentsSize = 1;
+    
+    printf("getMonitoredItems was called\n");
+    
+    UA_String_deleteMembers(&tmp);
+    return;
+} 
+
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Received Ctrl-C\n");
 	running = 0;
@@ -325,7 +341,8 @@ int main(int argc, char** argv) {
         UA_Server_addVariableNode(server, arrayvar, myIntegerName, UA_NODEID_NUMERIC(1, ++id),
                                   UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
    }
-
+        
+        UA_Server_attachMethod_toNode(server, UA_NODEID_NUMERIC(0, 11489), (UA_Variant **) &getMonitoredItems);
 	//start server
 	UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false
 

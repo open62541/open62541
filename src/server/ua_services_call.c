@@ -58,20 +58,37 @@ void Service_Call(UA_Server *server, UA_Session *session,
                 
             }
         }
+        UA_NodeStore_release(methodCalled);
         if (response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             return;
         }
         
         // Lookup Method Hook
+        UA_MethodCall_Manager *manager = server->methodCallManager;
+        UA_NodeAttachedMethod *hook = UA_MethodCallManager_getMethodByNodeId(manager, methodCalled->nodeId);
         
-        UA_NodeStore_release(methodCalled);
-        // Call Method right here.
+        UA_ArgumentsList *inArgs  = UA_ArgumentsList_new(rq->inputArgumentsSize, rq->inputArgumentsSize);
+        UA_ArgumentsList *outArgs = UA_ArgumentsList_new(1, 0);
         
-        // Wait for return value
+        inArgs->arguments  = rq->inputArguments;
+        
+        // Call method if available
+        if (hook != NULL)
+            hook->method(withObject, inArgs, outArgs);
         UA_NodeStore_release(withObject);
+       
+        rs->outputArgumentsSize = outArgs->argumentsSize;
+        if (outArgs->argumentsSize > 0)
+            rs->outputArguments = (UA_Variant *) UA_malloc(sizeof(UA_Variant) * outArgs->argumentsSize);
+        for (unsigned int i=0; i < outArgs->argumentsSize; i++) {
+            UA_Variant_copy(&outArgs->arguments[i], &rs->outputArguments[i]);
+            UA_Variant_deleteMembers(&outArgs->arguments[i]);
+        }
+        
+        UA_ArgumentsList_destroy(inArgs);
+        UA_ArgumentsList_destroy(outArgs);
     }
-    
-    
+
     return;
 }
 #endif

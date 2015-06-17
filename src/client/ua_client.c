@@ -553,3 +553,36 @@ UA_DeleteReferencesResponse UA_Client_deleteReferences(UA_Client *client, UA_Del
                        &response, &UA_TYPES[UA_TYPES_DELETEREFERENCESRESPONSE]);
     return response;
 }
+
+#ifdef ENABLE_METHODCALLS
+UA_CallResponse UA_Client_call(UA_Client *client, UA_CallRequest *request) {
+    UA_CallResponse response;
+    synchronousRequest(client, request, &UA_TYPES[UA_TYPES_CALLREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
+    return response;
+}
+
+UA_ArgumentsList *UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId, UA_ArgumentsList *inputArguments) {
+    UA_ArgumentsList *outputArguments = UA_ArgumentsList_new(0,0);
+    
+    UA_CallRequest request;
+    request.methodsToCallSize = 1;
+    request.methodsToCall = (UA_CallMethodRequest *) UA_malloc(sizeof(UA_CallMethodRequest));
+    UA_CallMethodRequest *rq = &request.methodsToCall[0];
+    
+    UA_NodeId_copy(&methodNodeId, &rq->methodId);
+    UA_NodeId_copy(&objectNodeId, &rq->objectId);
+    rq->inputArgumentsSize=inputArguments->argumentsSize;
+    rq->inputArguments = (UA_Variant *) UA_malloc(sizeof(UA_Variant) * rq->inputArgumentsSize);
+    for(int i=0; i<rq->inputArgumentsSize; i++) {
+        UA_Variant_copy(&inputArguments->arguments[i], &rq->inputArguments[i]);
+    }
+    
+    UA_CallResponse response;
+    response = UA_Client_call(client, &request);
+    if (response.responseHeader.serviceResult != 0)
+        return UA_NULL;
+    
+    return outputArguments;
+}
+#endif

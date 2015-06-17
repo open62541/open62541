@@ -159,6 +159,9 @@ void UA_Server_delete(UA_Server *server) {
     }
     UA_free(server->networkLayers);
 
+#ifdef ENABLE_METHODCALLS
+    UA_MethodCallManager_destroy(server->methodCallManager);
+#endif
 #ifdef UA_MULTITHREADING
     pthread_cond_destroy(&server->dispatchQueue_condition); // so the workers don't spin if the queue is empty
     rcu_barrier(); // wait for all scheduled call_rcu work to complete
