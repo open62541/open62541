@@ -15,13 +15,16 @@ typedef struct UA_ArgumentsList_s {
 }
 UA_ArgumentsList;
 
+/* Note: Struct is part of UA_MethodNode to separate method-call specific information
+ *       from the acutal node (currently, this is only the methods address).
+ */
 typedef struct UA_NodeAttachedMethod_s {
-    //UA_NodeId methodNodeId;
     void* (*method)(const void *object, const UA_ArgumentsList *InputArguments, UA_ArgumentsList *OutputArguments);
-    //LIST_ENTRY(UA_NodeAttachedMethod_s) listEntry;
 } UA_NodeAttachedMethod;
 
-/* Method Hook/List management */
+/* Method Hook/List management 
+ * Note: This method is not used in nodes (could be deleted in the future).
+ */
 UA_NodeAttachedMethod *UA_NodeAttachedMethod_new(void);
 
 UA_ArgumentsList UA_EXPORT *UA_ArgumentsList_new(UA_UInt32 statusSize, UA_UInt32 argumentsSize);
