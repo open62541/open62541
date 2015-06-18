@@ -96,22 +96,28 @@ int main(int argc, char *argv[]) {
 
 #ifdef ENABLE_METHODCALLS
     UA_ArgumentsList *inargs, *outargs;
-    inargs = UA_ArgumentsList_new(0,2);
+    inargs = UA_ArgumentsList_new(2,2);
     inargs->argumentsSize = 2;
+    
     UA_UInt32 *argIntP, argInt;
     argInt  = 42;
     argIntP = UA_UInt32_new();
     UA_UInt32_copy(&argInt, argIntP);
+    UA_Variant_setScalar(&inargs->arguments[0], argIntP, &UA_TYPES[UA_TYPES_UINT32]);
+    
     UA_String *argStringP, argString;
     argString = UA_STRING_ALLOC("Hello Server");
     argStringP = UA_String_new();
     UA_String_copy(&argString,  argStringP);
-    
-    UA_Variant_setScalar(&inargs->arguments[0], argStringP, &UA_TYPES[UA_TYPES_STRING]);
-    UA_Variant_setScalar(&inargs->arguments[1], argIntP, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&inargs->arguments[1], argStringP, &UA_TYPES[UA_TYPES_STRING]);
     
     outargs = UA_Client_CallServerMethod(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERTYPE), UA_NODEID_NUMERIC(0, 11489), inargs );
-    printf("Call Returned %u args.\n", outargs->argumentsSize);
+    if (outargs->status[0] == UA_STATUSCODE_GOOD) {
+        printf("Method call was successfull, %u statuscodes and %u returned values available.\n", outargs->statusSize, outargs->argumentsSize);
+        for (unsigned int i=1; i<outargs->statusSize; i++) {
+            printf("... Argument %u acknowledged with status %u\n", i-1, outargs->status[i]);
+        }
+    }
 #endif
     UA_Client_disconnect(client);
     UA_Client_delete(client);

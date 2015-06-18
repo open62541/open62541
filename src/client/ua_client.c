@@ -569,19 +569,19 @@ UA_CallResponse UA_Client_call(UA_Client *client, UA_CallRequest *request) {
 }
 
 UA_ArgumentsList *UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId, UA_ArgumentsList *inputArguments) {
-    UA_ArgumentsList *outputArguments = UA_ArgumentsList_new(0,0);
-    
     UA_CallRequest request;
+    UA_CallRequest_init(&request);
+    
     request.methodsToCallSize = 1;
     request.methodsToCall = (UA_CallMethodRequest *) UA_malloc(sizeof(UA_CallMethodRequest));
     UA_CallMethodRequest *rq = &request.methodsToCall[0];
     
     UA_NodeId_copy(&methodNodeId, &rq->methodId);
     UA_NodeId_copy(&objectNodeId, &rq->objectId);
-    rq->inputArgumentsSize=inputArguments->argumentsSize;
+    rq->inputArgumentsSize = inputArguments->argumentsSize;
     rq->inputArguments = (UA_Variant *) UA_malloc(sizeof(UA_Variant) * rq->inputArgumentsSize);
     for(int i=0; i<rq->inputArgumentsSize; i++) {
-        UA_Variant_copy(&inputArguments->arguments[i], &rq->inputArguments[i]);
+       UA_Variant_copy(&inputArguments->arguments[i], &rq->inputArguments[i]);
     }
     
     UA_CallResponse response;
@@ -589,6 +589,23 @@ UA_ArgumentsList *UA_Client_CallServerMethod(UA_Client *client, UA_NodeId object
     if (response.responseHeader.serviceResult != 0)
         return UA_NULL;
     
+    UA_CallMethodResult *rs;
+    UA_ArgumentsList *outputArguments = UA_NULL;
+    if (response.resultsSize > 0) {
+        rs = &response.results[0];
+        outputArguments = UA_ArgumentsList_new(1 + rs->inputArgumentResultsSize,rs->outputArgumentsSize);
+        outputArguments->status[0] = rs->statusCode;
+        for(int i=0; i<rs->inputArgumentResultsSize; i++) {
+            outputArguments->status[i+1] = rs->inputArgumentResults[i];
+        }
+        for(int i=0; i<rs->outputArgumentsSize; i++) {
+            UA_Variant_copy(&rs->outputArguments[i], &outputArguments->arguments[i]);
+        }
+    }
+    else {
+        outputArguments = UA_ArgumentsList_new(1, 0);
+        outputArguments->status[0] = response.responseHeader.serviceResult;
+    }
     return outputArguments;
 }
 #endif
