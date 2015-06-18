@@ -68,9 +68,10 @@ void Service_Call(UA_Server *server, UA_Session *session,
         UA_NodeAttachedMethod *hook = UA_MethodCallManager_getMethodByNodeId(manager, methodCalled->nodeId);
         
         UA_ArgumentsList *inArgs  = UA_ArgumentsList_new(rq->inputArgumentsSize, rq->inputArgumentsSize);
-        UA_ArgumentsList *outArgs = UA_ArgumentsList_new(1, 0);
+        for(unsigned int i=0; i<inArgs->argumentsSize; i++)
+            UA_Variant_copy(&rq->inputArguments[i], &inArgs->arguments[i]);
         
-        inArgs->arguments  = rq->inputArguments;
+        UA_ArgumentsList *outArgs = UA_ArgumentsList_new(1, 0);
         
         // Call method if available
         if (hook != NULL)

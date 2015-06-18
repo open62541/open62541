@@ -32,7 +32,7 @@ void UA_MethodCallManager_destroy(UA_MethodCall_Manager *manager) {
 
 /* Method Hook/List management */
 UA_NodeAttachedMethod *UA_NodeAttachedMethod_new(void) {
-    UA_NodeAttachedMethod *newItem = (UA_NodeAttachedMethod *) malloc(sizeof(UA_NodeAttachedMethod));
+    UA_NodeAttachedMethod *newItem = (UA_NodeAttachedMethod *) UA_malloc(sizeof(UA_NodeAttachedMethod));
     newItem->method = UA_NULL;
     UA_NodeId_init(&newItem->methodNodeId);
     newItem->listEntry.le_next=NULL;
@@ -61,9 +61,9 @@ UA_ArgumentsList *UA_ArgumentsList_new(UA_UInt32 statusSize, UA_UInt32 arguments
             UA_StatusCode_init(&newAList->status[i]);
     }
     if (argumentsSize > 0) {
-        newAList->arguments = (UA_Variant *) UA_malloc(sizeof(UA_StatusCode) * argumentsSize);
+        newAList->arguments = (UA_Variant *) UA_malloc(sizeof(UA_Variant) * argumentsSize);
         for (unsigned int i=0; i<argumentsSize; i++)
-            UA_Variant_init(&(newAList->arguments[i]));
+            UA_Variant_init(&newAList->arguments[i]);
     }
     return newAList;
 }
