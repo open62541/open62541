@@ -9,9 +9,6 @@
 UA_NodeAttachedMethod *UA_NodeAttachedMethod_new(void) {
     UA_NodeAttachedMethod *newItem = (UA_NodeAttachedMethod *) UA_malloc(sizeof(UA_NodeAttachedMethod));
     newItem->method = UA_NULL;
-    //UA_NodeId_init(&newItem->methodNodeId);
-    //newItem->listEntry.le_next=NULL;
-    //newItem->listEntry.le_prev=NULL;
     return newItem;
 }
 
@@ -51,11 +48,46 @@ void UA_ArgumentsList_destroy(UA_ArgumentsList *value) {
 
 /* User facing functions */
 UA_StatusCode UA_Server_detachMethod_fromNode(UA_Server *server, const UA_NodeId methodNodeId) {
-    return UA_STATUSCODE_GOOD;
+    const UA_Node *methodNode = UA_NodeStore_get(server->nodestore, (const UA_NodeId *) &methodNodeId);
+    
+    if (server == UA_NULL)
+        return UA_STATUSCODE_BADSERVERINDEXINVALID;
+    
+    if (methodNode == UA_NULL)
+        return UA_STATUSCODE_BADNODEIDINVALID;
+    
+    if ( methodNode->nodeClass != UA_NODECLASS_METHOD)
+        return UA_STATUSCODE_BADMETHODINVALID;
+    
+    UA_MethodNode *replacement = UA_MethodNode_new();
+    if (!replacement) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    retval |= UA_MethodNode_copy((const UA_MethodNode *) methodNode, replacement);
+    if( retval != UA_STATUSCODE_GOOD) {
+        return retval;
+    }
+    replacement->executable = UA_FALSE;
+    replacement->attachedMethod.method = UA_NULL;
+    
+    retval |= UA_NodeStore_replace(server->nodestore, methodNode, (UA_Node *) replacement, UA_NULL);
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_MethodNode_delete(replacement);
+        return retval;
+    }
+    UA_NodeStore_release(methodNode);
+    
+    // Cannot change a constant node.
+    //((UA_MethodNode *) methodNode)->executable = UA_TRUE;
+    // FIXME: This should be set by the namespace/server, not this handler.
+    //((UA_MethodNode *) methodNode)->userExecutable = UA_TRUE;
+    return retval;
 }
 
-UA_StatusCode UA_Server_attachMethod_toNode(UA_Server *server, UA_NodeId methodNodeID, void *method) {    
-    const UA_Node *methodNode = UA_NodeStore_get(server->nodestore, (const UA_NodeId *) &methodNodeID);
+UA_StatusCode UA_Server_attachMethod_toNode(UA_Server *server, UA_NodeId methodNodeId, void *method) {    
+    const UA_Node *methodNode = UA_NodeStore_get(server->nodestore, (const UA_NodeId *) &methodNodeId);
     
     if (server == UA_NULL)
         return UA_STATUSCODE_BADSERVERINDEXINVALID;
@@ -80,6 +112,7 @@ UA_StatusCode UA_Server_attachMethod_toNode(UA_Server *server, UA_NodeId methodN
         return retval;
     }
     replacement->attachedMethod.method = method;
+    replacement->executable = UA_TRUE;
     
     retval |= UA_NodeStore_replace(server->nodestore, methodNode, (UA_Node *) replacement, UA_NULL);
     if (retval != UA_STATUSCODE_GOOD) {
