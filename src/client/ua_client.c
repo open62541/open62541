@@ -593,10 +593,10 @@ UA_ArgumentsList *UA_Client_CallServerMethod(UA_Client *client, UA_NodeId object
     UA_ArgumentsList *outputArguments = UA_NULL;
     if (response.resultsSize > 0) {
         rs = &response.results[0];
-        outputArguments = UA_ArgumentsList_new(1 + rs->inputArgumentResultsSize,rs->outputArgumentsSize);
-        outputArguments->status[0] = rs->statusCode;
+        outputArguments = UA_ArgumentsList_new(rs->inputArgumentResultsSize,rs->outputArgumentsSize);
+        outputArguments->callResult = rs->statusCode;
         for(int i=0; i<rs->inputArgumentResultsSize; i++) {
-            outputArguments->status[i+1] = rs->inputArgumentResults[i];
+            outputArguments->status[i] = rs->inputArgumentResults[i];
         }
         for(int i=0; i<rs->outputArgumentsSize; i++) {
             UA_Variant_copy(&rs->outputArguments[i], &outputArguments->arguments[i]);

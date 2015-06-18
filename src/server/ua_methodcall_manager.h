@@ -7,6 +7,7 @@
 #include "ua_nodes.h"
 
 typedef struct UA_ArgumentsList_s {
+    UA_StatusCode callResult;
     UA_UInt32     statusSize;
     UA_StatusCode *status;
     UA_UInt32     argumentsSize;

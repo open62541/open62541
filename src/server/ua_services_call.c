@@ -71,13 +71,21 @@ void Service_Call(UA_Server *server, UA_Session *session,
         for(unsigned int i=0; i<inArgs->argumentsSize; i++)
             UA_Variant_copy(&rq->inputArguments[i], &inArgs->arguments[i]);
         
-        UA_ArgumentsList *outArgs = UA_ArgumentsList_new(1, 0);
+        UA_ArgumentsList *outArgs = UA_ArgumentsList_new(rq->inputArgumentsSize, 0);
         
         // Call method if available
         if (hook != NULL)
             hook->method(withObject, inArgs, outArgs);
         UA_NodeStore_release(withObject);
-       
+        
+        // Copy StatusCode and Argumentresults of the outputArguments
+        rs->statusCode = outArgs->callResult;
+        rs->inputArgumentResultsSize = outArgs->statusSize;
+        if(outArgs->statusSize > 0)
+            rs->inputArgumentResults = (UA_StatusCode *) UA_malloc(sizeof(UA_StatusCode) * outArgs->statusSize);
+        for (unsigned int i=0; i < outArgs->statusSize; i++) {
+            outArgs->status[i] = rs->inputArgumentResults[i];
+        }
         rs->outputArgumentsSize = outArgs->argumentsSize;
         if (outArgs->argumentsSize > 0)
             rs->outputArguments = (UA_Variant *) UA_malloc(sizeof(UA_Variant) * outArgs->argumentsSize);

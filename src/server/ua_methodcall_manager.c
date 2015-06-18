@@ -54,7 +54,7 @@ UA_ArgumentsList *UA_ArgumentsList_new(UA_UInt32 statusSize, UA_UInt32 arguments
     UA_ArgumentsList *newAList = (UA_ArgumentsList *) UA_malloc(sizeof(UA_ArgumentsList));
     newAList->argumentsSize = argumentsSize;
     newAList->statusSize = statusSize;
-    
+    newAList->callResult = UA_STATUSCODE_GOOD;
     if (statusSize > 0) {
         newAList->status = (UA_StatusCode *) UA_malloc(sizeof(UA_StatusCode) * statusSize);
         for (unsigned int i=0; i<statusSize; i++)
