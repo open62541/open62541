@@ -213,7 +213,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     }
 
     /* Read the security header */
-    UA_UInt32 tokenId;
+    UA_UInt32 tokenId = 0;
     UA_SequenceHeader sequenceHeader;
     retval = UA_UInt32_decodeBinary(msg, pos, &tokenId);
     retval |= UA_SequenceHeader_decodeBinary(msg, pos, &sequenceHeader);
