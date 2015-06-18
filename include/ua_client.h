@@ -64,7 +64,8 @@ UA_DeleteReferencesResponse UA_EXPORT
 
 #ifdef ENABLE_METHODCALLS
 UA_CallResponse UA_EXPORT UA_Client_call(UA_Client *client, UA_CallRequest *request);
-UA_ArgumentsList UA_EXPORT *UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId, UA_ArgumentsList *inputArguments);
+UA_StatusCode UA_EXPORT UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId, 
+                                                       UA_ArgumentsList *inputArguments, UA_ArgumentsList **outputArguments);
 #endif
     
 #ifdef __cplusplus

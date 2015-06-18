@@ -568,7 +568,7 @@ UA_CallResponse UA_Client_call(UA_Client *client, UA_CallRequest *request) {
     return response;
 }
 
-UA_ArgumentsList *UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId, UA_ArgumentsList *inputArguments) {
+UA_StatusCode UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId, UA_ArgumentsList *inputArguments, UA_ArgumentsList **outputArguments) {
     UA_CallRequest request;
     UA_CallRequest_init(&request);
     
@@ -587,25 +587,31 @@ UA_ArgumentsList *UA_Client_CallServerMethod(UA_Client *client, UA_NodeId object
     UA_CallResponse response;
     response = UA_Client_call(client, &request);
     if (response.responseHeader.serviceResult != 0)
-        return UA_NULL;
+        return response.responseHeader.serviceResult;
     
     UA_CallMethodResult *rs;
-    UA_ArgumentsList *outputArguments = UA_NULL;
+    UA_ArgumentsList *outArgs = UA_NULL;
     if (response.resultsSize > 0) {
         rs = &response.results[0];
-        outputArguments = UA_ArgumentsList_new(rs->inputArgumentResultsSize,rs->outputArgumentsSize);
-        outputArguments->callResult = rs->statusCode;
+        outArgs = UA_ArgumentsList_new(rs->inputArgumentResultsSize,rs->outputArgumentsSize);
+        outArgs->callResult = rs->statusCode;
         for(int i=0; i<rs->inputArgumentResultsSize; i++) {
-            outputArguments->status[i] = rs->inputArgumentResults[i];
+            outArgs->status[i] = rs->inputArgumentResults[i];
         }
         for(int i=0; i<rs->outputArgumentsSize; i++) {
-            UA_Variant_copy(&rs->outputArguments[i], &outputArguments->arguments[i]);
+            UA_Variant_copy(&rs->outputArguments[i], &outArgs->arguments[i]);
         }
     }
     else {
-        outputArguments = UA_ArgumentsList_new(1, 0);
-        outputArguments->status[0] = response.responseHeader.serviceResult;
+        outArgs = UA_ArgumentsList_new(1, 0);
+        outArgs->status[0] = response.responseHeader.serviceResult;
     }
-    return outputArguments;
+    
+    (*outputArguments) = outArgs;
+    // Note: if statement to convince compiler that we are
+    //       using the output args
+    if((*outputArguments) == UA_NULL) 
+        return outArgs->callResult;
+    return outArgs->callResult;
 }
 #endif

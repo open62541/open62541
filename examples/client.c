@@ -111,11 +111,10 @@ int main(int argc, char *argv[]) {
     UA_String_copy(&argString,  argStringP);
     UA_Variant_setScalar(&inargs->arguments[1], argStringP, &UA_TYPES[UA_TYPES_STRING]);
     
-    outargs = UA_Client_CallServerMethod(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERTYPE), UA_NODEID_NUMERIC(0, 11489), inargs );
-    if (outargs->callResult == UA_STATUSCODE_GOOD) {
-        printf("Method call was successfull, %u statuscodes and %u returned values available.\n", outargs->statusSize, outargs->argumentsSize);
-        for (unsigned int i=0; i<outargs->statusSize; i++) {
-            printf("... Argument %u acknowledged with status %u\n", i, outargs->status[i]);
+    if (UA_Client_CallServerMethod(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERTYPE), UA_NODEID_NUMERIC(0, 11489), inargs, &outargs) == UA_STATUSCODE_GOOD) {
+        printf("Method call was successfull, %u statuscodes and %u returned values available.\n", (outargs)->statusSize, (outargs)->argumentsSize);
+        for (unsigned int i=0; i<(outargs)->statusSize; i++) {
+            printf("... Argument %u acknowledged with status %u\n", i, (outargs)->status[i]);
         }
     }
 #endif
