@@ -94,7 +94,6 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel){
     if(channel->nextSecurityToken.tokenId==0) //no security token issued
         return;
 
-    printf("revolved\n");
     //FIXME: not thread-safe
     //swap tokens
     memcpy(&channel->securityToken, &channel->nextSecurityToken, sizeof(UA_ChannelSecurityToken));
