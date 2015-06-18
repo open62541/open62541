@@ -7,6 +7,7 @@
 void UA_SecureChannel_init(UA_SecureChannel *channel) {
     UA_MessageSecurityMode_init(&channel->securityMode);
     UA_ChannelSecurityToken_init(&channel->securityToken);
+    UA_ChannelSecurityToken_init(&channel->nextSecurityToken);
     UA_AsymmetricAlgorithmSecurityHeader_init(&channel->clientAsymAlgSettings);
     UA_AsymmetricAlgorithmSecurityHeader_init(&channel->serverAsymAlgSettings);
     UA_ByteString_init(&channel->clientNonce);
@@ -21,7 +22,8 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
     UA_ByteString_deleteMembers(&channel->serverNonce);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&channel->clientAsymAlgSettings);
     UA_ByteString_deleteMembers(&channel->clientNonce);
-    UA_ChannelSecurityToken_deleteMembers(&channel->securityToken);
+    UA_ChannelSecurityToken_deleteMembers(&channel->securityToken); //FIXME: not really needed
+    UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken); //FIXME: not really needed
     UA_Connection *c = channel->connection;
     if(c) {
         UA_Connection_detachSecureChannel(c);
@@ -86,6 +88,17 @@ UA_Session * UA_SecureChannel_getSession(UA_SecureChannel *channel, UA_NodeId *t
     if(!se)
         return UA_NULL;
     return se->session;
+}
+
+void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel){
+    if(channel->nextSecurityToken.tokenId==0) //no security token issued
+        return;
+
+    printf("revolved\n");
+    //FIXME: not thread-safe
+    //swap tokens
+    memcpy(&channel->securityToken, &channel->nextSecurityToken, sizeof(UA_ChannelSecurityToken));
+    UA_ChannelSecurityToken_init(&channel->nextSecurityToken);
 }
 
 UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestId,

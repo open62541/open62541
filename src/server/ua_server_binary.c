@@ -6,8 +6,6 @@
 #include "ua_statuscodes.h"
 #include "ua_securechannel_manager.h"
 #include "ua_session_manager.h"
-#include "ua_nodeids.h"
-
 /** Max size of messages that are allocated on the stack */
 #define MAX_STACK_MESSAGE 65536
 
@@ -100,7 +98,11 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
     }
 
     /* send the response with an asymmetric security header */
-    seqHeader.sequenceNumber = channel->sequenceNumber;
+#ifndef UA_MULTITHREADING
+    seqHeader.sequenceNumber = ++channel->sequenceNumber;
+#else
+    seqHeader.sequenceNumber = uatomic_add_return(&channel->sequenceNumber, 1);
+#endif
 
     UA_SecureConversationMessageHeader respHeader;
     respHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_OPNF;
@@ -215,8 +217,19 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     UA_SequenceHeader sequenceHeader;
     retval = UA_UInt32_decodeBinary(msg, pos, &tokenId);
     retval |= UA_SequenceHeader_decodeBinary(msg, pos, &sequenceHeader);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD || tokenId==0) //0 is invalid
         return;
+
+    if(clientChannel != &anonymousChannel){
+        if(tokenId!=clientChannel->securityToken.tokenId){
+            //is client using a newly issued token?
+            if(tokenId==clientChannel->nextSecurityToken.tokenId){ //tokenId is not 0
+                UA_SecureChannel_revolveTokens(clientChannel);
+            }else{
+                //FIXME: how to react to this, what do we have to return? Or just kill the channel
+            }
+        }
+    }
 
     /* Read the request type */
     UA_NodeId requestType;
@@ -374,9 +387,11 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             break;
         case UA_MESSAGETYPEANDFINAL_MSGF & 0xffffff:
 #ifndef EXTENSION_STATELESS
-            if(connection->state != UA_CONNECTION_ESTABLISHED)
+            if(connection->state != UA_CONNECTION_ESTABLISHED){
                 connection->close(connection);
-            else
+                UA_ByteString_deleteMembers(msg);
+                return;
+            }else
 #endif
                 processMSG(connection, server, msg, &pos);
             break;
