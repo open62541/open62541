@@ -158,9 +158,6 @@ void UA_Server_delete(UA_Server *server) {
     }
     UA_free(server->networkLayers);
 
-#ifdef ENABLE_METHODCALLS
-    UA_MethodCallManager_destroy(server->methodCallManager);
-#endif
 #ifdef UA_MULTITHREADING
     pthread_cond_destroy(&server->dispatchQueue_condition); // so the workers don't spin if the queue is empty
     rcu_barrier(); // wait for all scheduled call_rcu work to complete
@@ -474,13 +471,6 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 #define HUNDRED_NANOSEC_PER_USEC 10LL
 #define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
     server->buildDate = (mktime(&ct) + UNIX_EPOCH_BIAS_SEC) * HUNDRED_NANOSEC_PER_SEC;
-
-#ifdef ENABLE_METHODCALLS
-    /**************************/
-    /* Method Hook Management */
-    /**************************/
-    server->methodCallManager = UA_MethodCallManager_new();
-#endif
     
     /**************/
     /* References */

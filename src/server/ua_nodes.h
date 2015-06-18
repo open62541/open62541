@@ -5,6 +5,10 @@
 #include "ua_types_generated.h"
 #include "ua_types_encoding_binary.h"
 
+#ifdef ENABLE_METHODCALLS
+#include "ua_methodcall_manager.h"
+#endif
+
 #define UA_STANDARD_NODEMEMBERS                 \
     UA_NodeId nodeId;                           \
     UA_NodeClass nodeClass;                     \
@@ -84,6 +88,9 @@ typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Boolean executable;
     UA_Boolean userExecutable;
+#ifdef ENABLE_METHODCALLS
+    UA_NodeAttachedMethod *attachedMethod;
+#endif
 } UA_MethodNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_MethodNode)
 

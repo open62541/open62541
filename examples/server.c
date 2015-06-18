@@ -23,7 +23,10 @@
 # include <time.h>
 # include "ua_types.h"
 # include "ua_server.h"
+#ifdef ENABLE_METHODCALLS
 # include "server/ua_methodcall_manager.h"
+# include "server/ua_nodes.h"
+#endif
 # include "logger_stdout.h"
 # include "networklayer_tcp.h"
 #else
@@ -342,7 +345,7 @@ int main(int argc, char** argv) {
                                   UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
    }
         
-        UA_Server_attachMethod_toNode(server, UA_NODEID_NUMERIC(0, 11489), (UA_Variant **) &getMonitoredItems);
+        //UA_Server_attachMethod_toNode(server, UA_NODEID_NUMERIC(0, 11489), (UA_Variant **) &getMonitoredItems);
 	//start server
 	UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false
 

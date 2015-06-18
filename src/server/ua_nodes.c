@@ -1,6 +1,10 @@
 #include "ua_nodes.h"
 #include "ua_util.h"
 
+#ifdef ENABLE_GENERATE_NAMESPACE0
+#include "ua_methodcall_manager.h"
+#endif
+
 /* UA_Node */
 static void UA_Node_init(UA_Node *p) {
 	UA_NodeId_init(&p->nodeId);
@@ -238,6 +242,9 @@ void UA_MethodNode_init(UA_MethodNode *p) {
     p->nodeClass = UA_NODECLASS_METHOD;
     p->executable = UA_FALSE;
     p->userExecutable = UA_FALSE;
+#ifdef ENABLE_METHODCALLS
+    p->attachedMethod  = UA_NodeAttachedMethod_new();;
+#endif
 }
 
 UA_MethodNode * UA_MethodNode_new(void) {
@@ -248,23 +255,36 @@ UA_MethodNode * UA_MethodNode_new(void) {
 }
 
 void UA_MethodNode_deleteMembers(UA_MethodNode *p) {
+#ifdef ENABLE_METHODCALLS
+    if(p->attachedMethod != UA_NULL) {
+        p->attachedMethod->method = UA_NULL;
+        UA_free(p->attachedMethod);
+    }
+#endif
     UA_Node_deleteMembers((UA_Node*)p);
 }
 
 void UA_MethodNode_delete(UA_MethodNode *p) {
     UA_MethodNode_deleteMembers(p);
+#ifdef ENABLE_METHODCALLS
+    UA_free(p->attachedMethod);
+    p->attachedMethod  = UA_NULL;
+#endif
     UA_free(p);
 }
 
 UA_StatusCode UA_MethodNode_copy(const UA_MethodNode *src, UA_MethodNode *dst) {
     dst->executable = src->executable;
     dst->userExecutable = src->userExecutable;
-	return UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
+#ifdef ENABLE_METHODCALLS
+    dst->attachedMethod = src->attachedMethod;
+#endif
+    return UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
 }
 
 /* UA_ViewNode */
 void UA_ViewNode_init(UA_ViewNode *p) {
-	UA_Node_init((UA_Node*)p);
+    UA_Node_init((UA_Node*)p);
     p->nodeClass = UA_NODECLASS_VIEW;
     p->containsNoLoops = UA_FALSE;
     p->eventNotifier = 0;

@@ -12,7 +12,7 @@ void Service_Call(UA_Server *server, UA_Session *session,
     
     if (request->methodsToCall == UA_NULL) return;
     
-    response->responseHeader.serviceResult = UA_STATUSCODE_BADNODECLASSINVALID;
+    response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
     response->resultsSize=request->methodsToCallSize;
     response->results = (UA_CallMethodResult *) UA_malloc(sizeof(UA_CallMethodResult)*response->resultsSize);
     
@@ -53,19 +53,19 @@ void Service_Call(UA_Server *server, UA_Session *session,
             if(withObject->references[i].referenceTypeId.identifier.numeric == UA_NS0ID_HASCOMPONENT) {
                 // FIXME: Not checking any subtypes of HasComponent at the moment
                 if (UA_NodeId_equal(&withObject->references[i].targetId.nodeId, &methodCalled->nodeId)) {
-                    response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
+                    rs->statusCode = UA_STATUSCODE_GOOD;
                 }
                 
             }
         }
-        UA_NodeStore_release(methodCalled);
-        if (response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-            return;
-        }
+        if ( rs->statusCode != UA_STATUSCODE_GOOD)
+            continue;
         
-        // Lookup Method Hook
-        UA_MethodCall_Manager *manager = server->methodCallManager;
-        UA_NodeAttachedMethod *hook = UA_MethodCallManager_getMethodByNodeId(manager, methodCalled->nodeId);
+        if(((const UA_MethodNode *) methodCalled)->executable     == UA_FALSE ||
+           ((const UA_MethodNode *) methodCalled)->userExecutable == UA_FALSE ) {
+            rs->statusCode = UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?
+            continue;
+        }
         
         UA_ArgumentsList *inArgs  = UA_ArgumentsList_new(rq->inputArgumentsSize, rq->inputArgumentsSize);
         for(unsigned int i=0; i<inArgs->argumentsSize; i++)
@@ -74,9 +74,11 @@ void Service_Call(UA_Server *server, UA_Session *session,
         UA_ArgumentsList *outArgs = UA_ArgumentsList_new(rq->inputArgumentsSize, 0);
         
         // Call method if available
-        if (hook != NULL)
-            hook->method(withObject, inArgs, outArgs);
+        if (((const UA_MethodNode *) methodCalled)->attachedMethod != UA_NULL &&
+            ((const UA_MethodNode *) methodCalled)->attachedMethod->method != UA_NULL)
+            ((const UA_MethodNode *) methodCalled)->attachedMethod->method(withObject, inArgs, outArgs);
         UA_NodeStore_release(withObject);
+        UA_NodeStore_release(methodCalled);
         
         // Copy StatusCode and Argumentresults of the outputArguments
         rs->statusCode = outArgs->callResult;
