@@ -80,7 +80,7 @@ static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *respo
 #ifdef _WIN32
 		if(WSAGetLastError() == WSAEINTR || WSAGetLastError() == WSAEWOULDBLOCK) {
 #else
-		if (errno == EAGAIN) {
+		if (errno == EAGAIN || errno == EWOULDBLOCK) {
 #endif
             return UA_STATUSCODE_BADCOMMUNICATIONERROR;
         } else {
@@ -397,7 +397,7 @@ static UA_Int32 ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job 
     for(size_t i = 0; i < layer->mappingsSize && j < resultsize; i++) {
         if(!(FD_ISSET(layer->mappings[i].sockfd, &layer->fdset)))
             continue;
-        if(socket_recv(layer->mappings[i].connection, &buf, 0) == UA_STATUSCODE_GOOD) {
+        if(socket_recv(layer->mappings[i].connection, &buf, 0) == UA_STATUSCODE_GOOD && buf.length!=-1) {
             items[j].type = UA_JOBTYPE_BINARYMESSAGE;
             items[j].job.binaryMessage.message = buf;
             items[j].job.binaryMessage.connection = layer->mappings[i].connection;
