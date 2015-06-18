@@ -10,8 +10,8 @@ UA_NodeAttachedMethod *UA_NodeAttachedMethod_new(void) {
     UA_NodeAttachedMethod *newItem = (UA_NodeAttachedMethod *) UA_malloc(sizeof(UA_NodeAttachedMethod));
     newItem->method = UA_NULL;
     //UA_NodeId_init(&newItem->methodNodeId);
-    newItem->listEntry.le_next=NULL;
-    newItem->listEntry.le_prev=NULL;
+    //newItem->listEntry.le_next=NULL;
+    //newItem->listEntry.le_prev=NULL;
     return newItem;
 }
 
@@ -68,11 +68,29 @@ UA_StatusCode UA_Server_attachMethod_toNode(UA_Server *server, UA_NodeId methodN
     
     if ( methodNode->nodeClass != UA_NODECLASS_METHOD)
         return UA_STATUSCODE_BADMETHODINVALID;
-        
-    ((const UA_MethodNode *) methodNode)->attachedMethod->method = method;
+    
+    UA_MethodNode *replacement = UA_MethodNode_new();
+    if (!replacement) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    retval |= UA_MethodNode_copy((const UA_MethodNode *) methodNode, replacement);
+    if( retval != UA_STATUSCODE_GOOD) {
+        return retval;
+    }
+    replacement->attachedMethod.method = method;
+    
+    retval |= UA_NodeStore_replace(server->nodestore, methodNode, (UA_Node *) replacement, UA_NULL);
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_MethodNode_delete(replacement);
+        return retval;
+    }
+    UA_NodeStore_release(methodNode);
+    
     // Cannot change a constant node.
     //((UA_MethodNode *) methodNode)->executable = UA_TRUE;
     // FIXME: This should be set by the namespace/server, not this handler.
     //((UA_MethodNode *) methodNode)->userExecutable = UA_TRUE;
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }

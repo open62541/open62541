@@ -18,7 +18,7 @@ UA_ArgumentsList;
 typedef struct UA_NodeAttachedMethod_s {
     //UA_NodeId methodNodeId;
     void* (*method)(const void *object, const UA_ArgumentsList *InputArguments, UA_ArgumentsList *OutputArguments);
-    LIST_ENTRY(UA_NodeAttachedMethod_s) listEntry;
+    //LIST_ENTRY(UA_NodeAttachedMethod_s) listEntry;
 } UA_NodeAttachedMethod;
 
 /* Method Hook/List management */

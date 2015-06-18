@@ -223,7 +223,7 @@ void UA_ReferenceTypeNode_delete(UA_ReferenceTypeNode *p) {
 }
 
 UA_StatusCode UA_ReferenceTypeNode_copy(const UA_ReferenceTypeNode *src, UA_ReferenceTypeNode *dst) {
-	UA_StatusCode retval = UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
+    UA_StatusCode retval = UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
     if(retval)
         return retval;
     retval = UA_LocalizedText_copy(&src->inverseName, &dst->inverseName);
@@ -238,12 +238,12 @@ UA_StatusCode UA_ReferenceTypeNode_copy(const UA_ReferenceTypeNode *src, UA_Refe
 
 /* UA_MethodNode */
 void UA_MethodNode_init(UA_MethodNode *p) {
-	UA_Node_init((UA_Node*)p);
+    UA_Node_init((UA_Node*)p);
     p->nodeClass = UA_NODECLASS_METHOD;
     p->executable = UA_FALSE;
     p->userExecutable = UA_FALSE;
 #ifdef ENABLE_METHODCALLS
-    p->attachedMethod  = UA_NodeAttachedMethod_new();;
+    p->attachedMethod.method = UA_NULL;
 #endif
 }
 
@@ -256,10 +256,7 @@ UA_MethodNode * UA_MethodNode_new(void) {
 
 void UA_MethodNode_deleteMembers(UA_MethodNode *p) {
 #ifdef ENABLE_METHODCALLS
-    if(p->attachedMethod != UA_NULL) {
-        p->attachedMethod->method = UA_NULL;
-        UA_free(p->attachedMethod);
-    }
+    p->attachedMethod.method = UA_NULL;
 #endif
     UA_Node_deleteMembers((UA_Node*)p);
 }
@@ -267,8 +264,7 @@ void UA_MethodNode_deleteMembers(UA_MethodNode *p) {
 void UA_MethodNode_delete(UA_MethodNode *p) {
     UA_MethodNode_deleteMembers(p);
 #ifdef ENABLE_METHODCALLS
-    UA_free(p->attachedMethod);
-    p->attachedMethod  = UA_NULL;
+    p->attachedMethod.method  = UA_NULL;
 #endif
     UA_free(p);
 }

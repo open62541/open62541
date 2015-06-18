@@ -345,7 +345,7 @@ int main(int argc, char** argv) {
                                   UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
    }
         
-        //UA_Server_attachMethod_toNode(server, UA_NODEID_NUMERIC(0, 11489), (UA_Variant **) &getMonitoredItems);
+        UA_Server_attachMethod_toNode(server, UA_NODEID_NUMERIC(0, 11489), (UA_Variant **) &getMonitoredItems);
 	//start server
 	UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false
 

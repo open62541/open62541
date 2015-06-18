@@ -71,12 +71,16 @@ void Service_Call(UA_Server *server, UA_Session *session,
         for(unsigned int i=0; i<inArgs->argumentsSize; i++)
             UA_Variant_copy(&rq->inputArguments[i], &inArgs->arguments[i]);
         
-        UA_ArgumentsList *outArgs = UA_ArgumentsList_new(rq->inputArgumentsSize, 0);
-        
         // Call method if available
-        if (((const UA_MethodNode *) methodCalled)->attachedMethod != UA_NULL &&
-            ((const UA_MethodNode *) methodCalled)->attachedMethod->method != UA_NULL)
-            ((const UA_MethodNode *) methodCalled)->attachedMethod->method(withObject, inArgs, outArgs);
+        UA_ArgumentsList *outArgs;
+        if (((const UA_MethodNode *) methodCalled)->attachedMethod.method != UA_NULL) {
+            outArgs = UA_ArgumentsList_new(rq->inputArgumentsSize, 0);
+            ((const UA_MethodNode *) methodCalled)->attachedMethod.method(withObject, inArgs, outArgs);
+        }
+        else {
+            outArgs = UA_ArgumentsList_new(0, 0);
+            outArgs->callResult = UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?
+        }
         UA_NodeStore_release(withObject);
         UA_NodeStore_release(methodCalled);
         

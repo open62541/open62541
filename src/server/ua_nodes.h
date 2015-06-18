@@ -89,7 +89,7 @@ typedef struct {
     UA_Boolean executable;
     UA_Boolean userExecutable;
 #ifdef ENABLE_METHODCALLS
-    UA_NodeAttachedMethod *attachedMethod;
+    UA_NodeAttachedMethod attachedMethod;
 #endif
 } UA_MethodNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_MethodNode)
