@@ -1216,9 +1216,9 @@ void* UA_Array_new(const UA_DataType *dataType, UA_Int32 noElements) {
         return UA_NULL;
 
     if(dataType->fixedSize)
-        return calloc(noElements, dataType->memSize);
+        return UA_calloc(noElements, dataType->memSize);
 
-    void *p = malloc(dataType->memSize * (size_t)noElements);
+    void *p = UA_malloc(dataType->memSize * (size_t)noElements);
     if(!p)
         return p;
 

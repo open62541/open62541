@@ -39,7 +39,6 @@ void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_Dat
             entry = LIST_NEXT(entry, pointers);
         }
         else {
-            printf("kill\n");
             channel_list_entry *next = LIST_NEXT(entry, pointers);
             LIST_REMOVE(entry, pointers);
             UA_SecureChannel_deleteMembersCleanup(&entry->channel);
