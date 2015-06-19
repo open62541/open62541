@@ -256,7 +256,7 @@ static void synchronousRequest(UA_Client *client, void *request, const UA_DataTy
             respHeader->serviceResult = retval;
             return;
         }
-    } while(retval != UA_STATUSCODE_GOOD);
+    } while(retval != UA_STATUSCODE_GOOD || reply.length == -1);
 
     size_t offset = 0;
     UA_SecureConversationMessageHeader msgHeader;
