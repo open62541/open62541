@@ -253,6 +253,7 @@ static void synchronousRequest(UA_Client *client, void *request, const UA_DataTy
     do {
         retval = client->connection.recv(&client->connection, &reply, client->config.timeout);
         if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
+            client->connection.state = UA_CONNECTION_CLOSED;
             respHeader->serviceResult = retval;
             return;
         }
@@ -479,12 +480,15 @@ UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection co
         retval = SessionHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
         retval = ActivateSession(client);
-        
+    if(retval == UA_STATUSCODE_GOOD)
+        client->connection.state = UA_CONNECTION_ESTABLISHED;
     return retval;
 }
 
 UA_StatusCode UA_Client_disconnect(UA_Client *client) {
     UA_StatusCode retval;
+    if(client->channel.connection->state != UA_CONNECTION_ESTABLISHED)
+        return UA_STATUSCODE_GOOD;
     retval = CloseSession(client);
     if(retval == UA_STATUSCODE_GOOD)
         retval = CloseSecureChannel(client);

@@ -519,6 +519,9 @@ static void ClientNetworkLayerReleaseBuffer(UA_Connection *connection, UA_ByteSt
 }
 
 static void ClientNetworkLayerClose(UA_Connection *connection) {
+    if(connection->state == UA_CONNECTION_CLOSED)
+        return;
+    connection->state = UA_CONNECTION_CLOSED;
     socket_close(connection);
 #ifndef UA_MULTITHREADING
     UA_ByteString_delete(connection->handle);
