@@ -106,8 +106,6 @@ UA_StatusCode UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_Conn
     if(channel == UA_NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    printf("new token issued\n");
-
     //if no new security token is already issued
     if(channel->nextSecurityToken.tokenId == 0){
         channel->nextSecurityToken.channelId       = channel->securityToken.channelId;
