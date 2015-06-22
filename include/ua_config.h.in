@@ -28,7 +28,14 @@
 #    define UA_EXPORT
 #  endif
 #endif
-
+#ifdef __arm__
+  #infdef __ARM_FEATURE_UNALIGNED
+    #define UA_ALIGNED_MEMORY_ACCESS
+  #endif /* __ARM_FEATURE_UNALIGNED */
+  #ifdef __ARM_ARCH_4T__
+    #define UA_MIXED_ENDIAN
+  #endif /*__ARM_ARCH_4T__ */
+#endif /*  __arm__ */
 /*	Define your own htoleXX and leXXtoh here if needed.
 	Otherwise the ones defined in endian.h are used		*/
 //	#define htole16(x)	{...}(x)
