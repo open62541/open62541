@@ -840,7 +840,6 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
        .release = releaseNamespaces, .write = UA_NULL};
    namespaceArray->valueRank = 1;
    namespaceArray->minimumSamplingInterval = 1.0;
-   namespaceArray->historizing = UA_FALSE;
    UA_Server_addNode(server, (UA_Node*)namespaceArray, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER),
                      nodeIdHasProperty);
    UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY), nodeIdHasTypeDefinition,
@@ -855,7 +854,6 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
    *(UA_String *)serverArray->value.variant.data = UA_STRING_ALLOC(server->config.Application_applicationURI);
    serverArray->valueRank = 1;
    serverArray->minimumSamplingInterval = 1.0;
-   serverArray->historizing = UA_FALSE;
    UA_Server_addNode(server, (UA_Node*)serverArray, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER),
                      nodeIdHasProperty);
    UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERARRAY),
@@ -879,7 +877,6 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
    *(UA_String *)localeIdArray->value.variant.data = UA_STRING_ALLOC("en");
    localeIdArray->valueRank = 1;
    localeIdArray->minimumSamplingInterval = 1.0;
-   localeIdArray->historizing = UA_FALSE;
    UA_Server_addNode(server, (UA_Node*)localeIdArray,
                      UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES), nodeIdHasProperty);
    UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_LOCALEIDARRAY),
@@ -898,6 +895,39 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
                            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXBROWSECONTINUATIONPOINTS),
                            nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE));
 
+    /** ServerProfileArray **/
+#define MAX_PROFILEARRAY 16 //a *magic* limit to the number of supported profiles
+#define ADDPROFILEARRAY(x) profileArray[profileArraySize++] = UA_STRING_ALLOC(x)
+    UA_String profileArray[MAX_PROFILEARRAY];
+    UA_UInt16  profileArraySize = 0;
+    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/NanoEmbeddedDevice");
+
+#ifdef ENABLE_SERVICESET_NODEMANAGEMENT
+    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/NodeManagement");
+#endif
+#ifdef ENABLE_SERVICESET_METHOD
+    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/Methods");
+#endif
+#ifdef ENABLE_SUBSCRIPTIONS
+    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/EmbeddedDataChangeSubscription");
+#endif
+
+    UA_VariableNode *serverProfileArray = UA_VariableNode_new();
+    copyNames((UA_Node*)serverProfileArray, "ServerProfileArray");
+    serverProfileArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERCAPABILITIES_SERVERPROFILEARRAY;
+    serverProfileArray->value.variant.arrayLength = profileArraySize;
+    serverProfileArray->value.variant.data = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], profileArraySize);
+    serverProfileArray->value.variant.type = &UA_TYPES[UA_TYPES_STRING];
+    for(UA_UInt16 i=0;i<profileArraySize;i++){
+        ((UA_String *)serverProfileArray->value.variant.data)[i] = profileArray[i];
+    }
+    serverProfileArray->valueRank = 1;
+    serverProfileArray->minimumSamplingInterval = 1.0;
+    UA_Server_addNode(server, (UA_Node*)serverProfileArray,
+                      UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES), nodeIdHasProperty);
+    UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_SERVERPROFILEARRAY),
+                           nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE));
+
     UA_ObjectNode *serverdiagnostics = UA_ObjectNode_new();
     copyNames((UA_Node*)serverdiagnostics, "ServerDiagnostics");
     serverdiagnostics->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERDIAGNOSTICS;
@@ -914,7 +944,6 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
      enabledFlag->value.variant.type = &UA_TYPES[UA_TYPES_BOOLEAN];
      enabledFlag->valueRank = 1;
      enabledFlag->minimumSamplingInterval = 1.0;
-     enabledFlag->historizing = UA_FALSE;
      UA_Server_addNode(server, (UA_Node*)enabledFlag,
                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS), nodeIdHasProperty);
      UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_ENABLEDFLAG),
@@ -932,7 +961,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
       UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
                              nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVERSTATUSTYPE));
 
-      UA_VariableNode *starttime = UA_VariableNode_new();
+     UA_VariableNode *starttime = UA_VariableNode_new();
       copyNames((UA_Node*)starttime, "StartTime");
       starttime->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME);
       starttime->value.variant.storageType = UA_VARIANT_DATA_NODELETE;
@@ -943,7 +972,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
       UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME),
                              nodeIdHasTypeDefinition, expandedNodeIdBaseDataVariabletype);
 
-      UA_VariableNode *currenttime = UA_VariableNode_new();
+     UA_VariableNode *currenttime = UA_VariableNode_new();
       copyNames((UA_Node*)currenttime, "CurrentTime");
       currenttime->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
       currenttime->valueSource = UA_VALUESOURCE_DATASOURCE;
@@ -956,8 +985,8 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
       UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME),
                              nodeIdHasTypeDefinition, expandedNodeIdBaseDataVariabletype);
 
-      UA_VariableNode *state = UA_VariableNode_new();
-      UA_ServerState *stateEnum = UA_ServerState_new();
+     UA_VariableNode *state = UA_VariableNode_new();
+     UA_ServerState *stateEnum = UA_ServerState_new();
       *stateEnum = UA_SERVERSTATE_RUNNING;
       copyNames((UA_Node*)state, "State");
       state->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERSTATUS_STATE;
