@@ -202,7 +202,7 @@ UA_StatusCode UA_UInt32_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRI
     if((UA_Int32)(*offset + sizeof(UA_UInt32)) > src->length)
         return UA_STATUSCODE_BADDECODINGERROR;
     UA_UInt32 value = *((UA_UInt32*)&src->data[*offset]);
-#ifndef _WIN32
+#ifndef UA_NON_LITTLEENDIAN_ARCHITECTURE
     value = le32toh(value);
 #endif
     *dst = value;

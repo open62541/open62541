@@ -37,10 +37,6 @@
 //	#define le16toh(x)	{...}(x)
 //	#define le32toh(x)	{...}(x)
 //	#define le64toh(x)	{...}(x)
-
-#if defined(htole16) || defined(htole32) || defined(htole64) || \
-    defined(le16toh) || defined(le32toh) || defined(le64toh)
-#define UA_NON_LITTLEENDIAN_ARCHITECTURE
-#endif
+//  #define UA_NON_LITTLEENDIAN_ARCHITECTURE
 
 #endif /* UA_CONFIG_H_ */
