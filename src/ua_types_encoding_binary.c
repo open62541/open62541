@@ -172,7 +172,7 @@ UA_StatusCode UA_UInt16_encodeBinary(UA_UInt16 const *src, UA_ByteString *dst,
 		size_t *UA_RESTRICT offset) {
 	if ((UA_Int32) (*offset + sizeof(UA_UInt16)) > dst->length)
 		return UA_STATUSCODE_BADENCODINGERROR;
-#ifdef UA_NO_ALIGNED_MEMORY_ACCESS
+#ifdef UA_ALIGNED_MEMORY_ACCESS
 	dst->data[(*offset)++] = (*src & 0x00FF) >> 0;
 	dst->data[(*offset)++] = (*src & 0xFF00) >> 8;
 #else
@@ -183,7 +183,7 @@ UA_StatusCode UA_UInt16_encodeBinary(UA_UInt16 const *src, UA_ByteString *dst,
 	*dst_ptr = *src;
 #endif
 	*offset += 2;
-#endif /* UA_NO_ALIGNED_MEMORY_ACCESS */
+#endif /* UA_ALIGNED_MEMORY_ACCESS */
 	return UA_STATUSCODE_GOOD;
 }
 
@@ -191,7 +191,7 @@ UA_StatusCode UA_UInt16_decodeBinary(UA_ByteString const *src,
 		size_t *UA_RESTRICT offset, UA_UInt16 *dst) {
 	if ((UA_Int32) (*offset + sizeof(UA_UInt16)) > src->length)
 		return UA_STATUSCODE_BADDECODINGERROR;
-#ifdef UA_NO_ALIGNED_MEMORY_ACCESS
+#ifdef UA_ALIGNED_MEMORY_ACCESS
 	*dst = (UA_UInt16) src->data[(*offset)++] << 0;
 	*dst += (UA_UInt16) src->data[(*offset)++] << 8;
 #else
@@ -201,7 +201,7 @@ UA_StatusCode UA_UInt16_decodeBinary(UA_ByteString const *src,
 #endif /* UA_NON_LITTLEENDIAN_ARCHITECTURE */
 	*dst = value;
 	*offset += 2;
-#endif /* UA_NO_ALIGNED_MEMORY_ACCESS  */
+#endif /* UA_ALIGNED_MEMORY_ACCESS  */
 	return UA_STATUSCODE_GOOD;
 }
 
@@ -214,7 +214,7 @@ UA_StatusCode UA_UInt32_encodeBinary(UA_UInt32 const *src, UA_ByteString * dst,
 		size_t *UA_RESTRICT offset) {
 	if ((UA_Int32) (*offset + sizeof(UA_UInt32)) > dst->length)
 		return UA_STATUSCODE_BADENCODINGERROR;
-#ifdef UA_NO_ALIGNED_MEMORY_ACCESS
+#ifdef UA_ALIGNED_MEMORY_ACCESS
 	dst->data[(*offset)++] = (*src & 0x000000FF) >> 0;
 	dst->data[(*offset)++] = (*src & 0x0000FF00) >> 8;
 	dst->data[(*offset)++] = (*src & 0x00FF0000) >> 16;
@@ -227,7 +227,7 @@ UA_StatusCode UA_UInt32_encodeBinary(UA_UInt32 const *src, UA_ByteString * dst,
 	*dst_ptr = *src;
 #endif
 	*offset += 4;
-#endif /* UA_NO_ALIGNED_MEMORY_ACCESS  */
+#endif /* UA_ALIGNED_MEMORY_ACCESS  */
 	return UA_STATUSCODE_GOOD;
 }
 
@@ -235,7 +235,7 @@ UA_StatusCode UA_UInt32_decodeBinary(UA_ByteString const *src,
 		size_t *UA_RESTRICT offset, UA_UInt32 * dst) {
 	if ((UA_Int32) (*offset + sizeof(UA_UInt32)) > src->length)
 		return UA_STATUSCODE_BADDECODINGERROR;
-#ifdef UA_NO_ALIGNED_MEMORY_ACCESS
+#ifdef UA_ALIGNED_MEMORY_ACCESS
 	*dst = (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF));
 	*dst += (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF) << 8);
 	*dst += (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF) << 16);
@@ -247,7 +247,7 @@ UA_StatusCode UA_UInt32_decodeBinary(UA_ByteString const *src,
 #endif /* UA_NON_LITTLEENDIAN_ARCHITECTURE */
 	*dst = value;
 	*offset += 4;
-#endif /* UA_NO_ALIGNED_MEMORY_ACCESS  */
+#endif /* UA_ALIGNED_MEMORY_ACCESS  */
 	return UA_STATUSCODE_GOOD;
 }
 
@@ -260,7 +260,7 @@ UA_StatusCode UA_UInt64_encodeBinary(UA_UInt64 const *src, UA_ByteString *dst,
 		size_t *UA_RESTRICT offset) {
 	if ((UA_Int32) (*offset + sizeof(UA_UInt64)) > dst->length)
 		return UA_STATUSCODE_BADENCODINGERROR;
-#ifdef UA_NO_ALIGNED_MEMORY_ACCESS
+#ifdef UA_ALIGNED_MEMORY_ACCESS
 	dst->data[(*offset)++] = (*src & 0x00000000000000FF) >> 0;
 	dst->data[(*offset)++] = (*src & 0x000000000000FF00) >> 8;
 	dst->data[(*offset)++] = (*src & 0x0000000000FF0000) >> 16;
@@ -277,7 +277,7 @@ UA_StatusCode UA_UInt64_encodeBinary(UA_UInt64 const *src, UA_ByteString *dst,
 	*dst_ptr = *src;
 #endif /* UA_NON_LITTLEENDIAN_ARCHITECTURE */
 	*offset += 8;
-#endif /* UA_NO_ALIGNED_MEMORY_ACCESS  */
+#endif /* UA_ALIGNED_MEMORY_ACCESS  */
 	return UA_STATUSCODE_GOOD;
 }
 
@@ -285,7 +285,7 @@ UA_StatusCode UA_UInt64_decodeBinary(UA_ByteString const *src,
 		size_t *UA_RESTRICT offset, UA_UInt64 * dst) {
 	if ((UA_Int32) (*offset + sizeof(UA_UInt64)) > src->length)
 		return UA_STATUSCODE_BADDECODINGERROR;
-#ifdef UA_NO_ALIGNED_MEMORY_ACCESS
+#ifdef UA_ALIGNED_MEMORY_ACCESS
 	*dst = (UA_UInt64) src->data[(*offset)++];
 	*dst += (UA_UInt64) src->data[(*offset)++] << 8;
 	*dst += (UA_UInt64) src->data[(*offset)++] << 16;
@@ -301,7 +301,7 @@ UA_StatusCode UA_UInt64_decodeBinary(UA_ByteString const *src,
 #endif /* UA_NON_LITTLEENDIAN_ARCHITECTURE */
 	*dst = value;
 	*offset += 8;
-#endif /* UA_NO_ALIGNED_MEMORY_ACCESS  */
+#endif /* UA_ALIGNED_MEMORY_ACCESS  */
 	return UA_STATUSCODE_GOOD;
 }
 

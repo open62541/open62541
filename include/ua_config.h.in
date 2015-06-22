@@ -29,7 +29,7 @@
 #  endif
 #endif
 #ifdef __arm__
-  #infdef __ARM_FEATURE_UNALIGNED
+  #ifndef __ARM_FEATURE_UNALIGNED
     #define UA_ALIGNED_MEMORY_ACCESS
   #endif /* __ARM_FEATURE_UNALIGNED */
   #ifdef __ARM_ARCH_4T__
