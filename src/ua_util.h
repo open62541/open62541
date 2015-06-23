@@ -5,22 +5,6 @@
 # include "ua_config.h"
 #endif
 
-#ifndef __USE_POSIX
-# define __USE_POSIX
-#endif
-#ifndef _POSIX_SOURCE
-# define _POSIX_SOURCE
-#endif
-#ifndef _POSIX_C_SOURCE
-# define _POSIX_C_SOURCE 199309L
-#endif
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-
 /*********************/
 /* Memory Management */
 /*********************/
@@ -66,11 +50,10 @@
 #define UA_memset(ptr, value, size) memset(ptr, value, size)
 
 #ifndef NO_ALLOCA
-# ifdef _WIN32
-#  define UA_alloca(SIZE) _alloca(SIZE)
-# endif
 # ifdef __GNUC__
 #  define UA_alloca(size) __builtin_alloca (size)
+# elif defined(_WIN32)
+#  define UA_alloca(SIZE) _alloca(SIZE)
 # else
 #  include <alloca.h>
 #  define UA_alloca(SIZE) alloca(SIZE)
