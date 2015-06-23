@@ -73,18 +73,20 @@ static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *respo
     int ret = recv(connection->sockfd, (char*)response->data, connection->localConf.recvBufferSize, 0);
 	if(ret == 0) {
 		UA_free(response->data);
-		connection->close(connection);
-		return UA_STATUSCODE_BADCONNECTIONCLOSED;
+        UA_ByteString_init(response);
+		return UA_STATUSCODE_GOOD; /* no response -> retry */
 	} else if(ret < 0) {
         UA_free(response->data);
+        UA_ByteString_init(response);
 #ifdef _WIN32
 		if(WSAGetLastError() == WSAEINTR || WSAGetLastError() == WSAEWOULDBLOCK) {
 #else
 		if (errno == EAGAIN || errno == EWOULDBLOCK) {
 #endif
-            return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+            return UA_STATUSCODE_GOOD; /* retry */
         } else {
             connection->close(connection);
+            connection->state = UA_CONNECTION_CLOSED;
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
         }
     }

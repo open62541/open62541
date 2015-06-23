@@ -176,12 +176,11 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         return retval;
     }
 
-    // parse the response
     UA_ByteString reply;
     UA_ByteString_init(&reply);
     do {
         retval = client->connection.recv(&client->connection, &reply, client->config.timeout);
-        if(retval == UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD)
             return retval;
     } while(!reply.data);
 
@@ -216,7 +215,6 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     UA_OpenSecureChannelResponse_deleteMembers(&response);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
     return retval;
-
 }
 
 /** If the request fails, then the response is cast to UA_ResponseHeader (at the beginning of every
@@ -257,12 +255,11 @@ static void synchronousRequest(UA_Client *client, void *request, const UA_DataTy
     UA_ByteString_init(&reply);
     do {
         retval = client->connection.recv(&client->connection, &reply, client->config.timeout);
-        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
-            client->connection.state = UA_CONNECTION_CLOSED;
+        if(retval != UA_STATUSCODE_GOOD) {
             respHeader->serviceResult = retval;
             return;
         }
-    } while(retval != UA_STATUSCODE_GOOD || reply.length == -1);
+    } while(!reply.data);
 
     size_t offset = 0;
     UA_SecureConversationMessageHeader msgHeader;
