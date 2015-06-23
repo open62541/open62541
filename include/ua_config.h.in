@@ -1,6 +1,10 @@
 #ifndef UA_CONFIG_H_
 #define UA_CONFIG_H_
 
+#ifndef _XOPEN_SOURCE
+# define _XOPEN_SOURCE 500
+#endif
+
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
 #cmakedefine UA_MULTITHREADING
 
