@@ -73,18 +73,20 @@ static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *respo
     int ret = recv(connection->sockfd, (char*)response->data, connection->localConf.recvBufferSize, 0);
 	if(ret == 0) {
 		UA_free(response->data);
-		connection->close(connection);
-		return UA_STATUSCODE_BADCONNECTIONCLOSED;
+        UA_ByteString_init(response);
+		return UA_STATUSCODE_GOOD; /* no response -> retry */
 	} else if(ret < 0) {
         UA_free(response->data);
+        UA_ByteString_init(response);
 #ifdef _WIN32
 		if(WSAGetLastError() == WSAEINTR || WSAGetLastError() == WSAEWOULDBLOCK) {
 #else
-		if (errno == EAGAIN) {
+		if (errno == EAGAIN || errno == EWOULDBLOCK) {
 #endif
-            return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+            return UA_STATUSCODE_GOOD; /* retry */
         } else {
             connection->close(connection);
+            connection->state = UA_CONNECTION_CLOSED;
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
         }
     }
@@ -398,6 +400,8 @@ static UA_Int32 ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job 
         if(!(FD_ISSET(layer->mappings[i].sockfd, &layer->fdset)))
             continue;
         if(socket_recv(layer->mappings[i].connection, &buf, 0) == UA_STATUSCODE_GOOD) {
+            if(!buf.data)
+                continue;
             items[j].type = UA_JOBTYPE_BINARYMESSAGE;
             items[j].job.binaryMessage.message = buf;
             items[j].job.binaryMessage.connection = layer->mappings[i].connection;
@@ -519,6 +523,9 @@ static void ClientNetworkLayerReleaseBuffer(UA_Connection *connection, UA_ByteSt
 }
 
 static void ClientNetworkLayerClose(UA_Connection *connection) {
+    if(connection->state == UA_CONNECTION_CLOSED)
+        return;
+    connection->state = UA_CONNECTION_CLOSED;
     socket_close(connection);
 #ifndef UA_MULTITHREADING
     UA_ByteString_delete(connection->handle);

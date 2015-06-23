@@ -51,8 +51,9 @@ START_TEST(encodeShallYieldDecode) {
 	UA_ByteString msg1, msg2;
 	size_t pos = 0;
 	void *obj1 = UA_new(&UA_TYPES[_i]);
-	UA_ByteString_newMembers(&msg1, UA_calcSizeBinary(obj1, &UA_TYPES[_i]));
+	UA_ByteString_newMembers(&msg1, 65000); // fixed buf size
     UA_StatusCode retval = UA_encodeBinary(obj1, &UA_TYPES[_i], &msg1, &pos);
+    msg1.length = pos;
 	if(retval != UA_STATUSCODE_GOOD) {
 		UA_delete(obj1, &UA_TYPES[_i]);
 		UA_ByteString_deleteMembers(&msg1);
@@ -63,13 +64,15 @@ START_TEST(encodeShallYieldDecode) {
 	void *obj2 = UA_new(&UA_TYPES[_i]);
 	pos = 0; retval = UA_decodeBinary(&msg1, &pos, obj2, &UA_TYPES[_i]);
 	ck_assert_msg(retval == UA_STATUSCODE_GOOD, "messages differ idx=%d,nodeid=%i", _i, UA_TYPES[_i].typeId.identifier.numeric);
-	retval = UA_ByteString_newMembers(&msg2, UA_calcSizeBinary(obj2, &UA_TYPES[_i]));
+	retval = UA_ByteString_newMembers(&msg2, 65000);
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	pos = 0; retval = UA_encodeBinary(obj2, &UA_TYPES[_i], &msg2, &pos);
+    msg2.length = pos;
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
 	// then
-	ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == UA_TRUE, "messages differ idx=%d,nodeid=%i", _i, UA_TYPES[_i].typeId.identifier.numeric);
+	ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == UA_TRUE, "messages differ idx=%d,nodeid=%i", _i,
+                  UA_TYPES[_i].typeId.identifier.numeric);
 
 	// finally
 	UA_delete(obj1, &UA_TYPES[_i]);
@@ -84,7 +87,7 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
 	UA_ByteString msg1;
 	void *obj1 = UA_new(&UA_TYPES[_i]);
 	size_t pos = 0;
-	UA_ByteString_newMembers(&msg1, UA_calcSizeBinary(obj1, &UA_TYPES[_i]));
+	UA_ByteString_newMembers(&msg1, 65000); // fixed buf size
     UA_StatusCode retval = UA_encodeBinary(obj1, &UA_TYPES[_i], &msg1, &pos);
 	UA_delete(obj1, &UA_TYPES[_i]);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -94,7 +97,7 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
 	// when
 	void *obj2 = UA_new(&UA_TYPES[_i]);
 	pos = 0;
-	msg1.length = msg1.length / 2;
+	msg1.length = pos / 2;
 	//fprintf(stderr,"testing %s with half buffer\n",UA_TYPES[_i].name);
 	UA_decodeBinary(&msg1, &pos, obj2, &UA_TYPES[_i]);
 	//then

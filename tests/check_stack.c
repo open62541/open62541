@@ -558,26 +558,6 @@ START_TEST(UA_SecureConversationMessageFooter_copyShallWorkOnInputExample) {
 }
 END_TEST
 
-START_TEST(UA_SecureConversationMessageFooter_calcSizeBinaryShallWorkOnInputExample) {
-	// given
-	UA_SecureConversationMessageFooter src;
-	UA_SecureConversationMessageFooter_init(&src);
-	UA_Byte srcByte[3] = {24, 57, 87};
-	src.padding = srcByte;
-	src.paddingSize = 3;
-	src.signature = 5;
-
-	const UA_SecureConversationMessageFooter srcConst = src;
-
-	UA_Int32 ret;
-
-	// when
-	ret = UA_SecureConversationMessageFooter_calcSizeBinary(&srcConst);
-	// then
-	ck_assert_int_eq(ret, 8);
-}
-END_TEST
-
 START_TEST(UA_SecureConversationMessageFooter_encodeBinaryShallWorkOnInputExample) {
 //	// given
 //	UA_SecureConversationMessageFooter src = {3, (UA_Byte*)"447", 5};;
@@ -639,7 +619,6 @@ Suite *testSuite() {
 	tcase_add_test(tc_transport, UA_SecureConversationMessageHeader_copyShallWorkOnInputExample);
 	tcase_add_test(tc_transport, UA_SequenceHeader_copyShallWorkOnInputExample);
 	tcase_add_test(tc_transport, UA_SecureConversationMessageFooter_copyShallWorkOnInputExample);
-	tcase_add_test(tc_transport, UA_SecureConversationMessageFooter_calcSizeBinaryShallWorkOnInputExample);
 	tcase_add_test(tc_transport, UA_SecureConversationMessageFooter_encodeBinaryShallWorkOnInputExample);
 	tcase_add_test(tc_transport, UA_SecureConversationMessageAbortBody_copyShallWorkOnInputExample);
 	suite_add_tcase(s, tc_transport);

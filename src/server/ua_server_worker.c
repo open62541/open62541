@@ -34,8 +34,6 @@ static void processJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {
         case UA_JOBTYPE_BINARYMESSAGE:
             UA_Server_processBinaryMessage(server, job->job.binaryMessage.connection,
                                            &job->job.binaryMessage.message);
-            UA_Connection *c = job->job.binaryMessage.connection;
-            c->releaseBuffer(job->job.binaryMessage.connection, &job->job.binaryMessage.message);
             break;
         case UA_JOBTYPE_CLOSECONNECTION:
             UA_Connection_detachSecureChannel(job->job.closeConnection);

@@ -39,7 +39,6 @@ void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_Dat
             entry = LIST_NEXT(entry, pointers);
         }
         else {
-            printf("kill\n");
             channel_list_entry *next = LIST_NEXT(entry, pointers);
             LIST_REMOVE(entry, pointers);
             UA_SecureChannel_deleteMembersCleanup(&entry->channel);
@@ -106,8 +105,6 @@ UA_StatusCode UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_Conn
     UA_SecureChannel *channel = conn->channel;
     if(channel == UA_NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-
-    printf("new token issued\n");
 
     //if no new security token is already issued
     if(channel->nextSecurityToken.tokenId == 0){

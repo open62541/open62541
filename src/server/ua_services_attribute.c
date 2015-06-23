@@ -92,7 +92,10 @@ static void handleSourceTimestamps(UA_TimestampsToReturn timestamps, UA_DataValu
 }
 
 /** Reads a single attribute from a node in the nodestore. */
-static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
+#ifndef BUILD_UNIT_TESTS
+static
+#endif
+void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
                       const UA_ReadValueId *id, UA_DataValue *v) {
     UA_String binEncoding = UA_STRING("DefaultBinary");
     UA_String xmlEncoding = UA_STRING("DefaultXml");
@@ -422,16 +425,21 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 		expireArray = UA_Array_new(&UA_TYPES[UA_TYPES_DATETIME], request->nodesToReadSize);
 		variant.data = expireArray;
 
-		UA_ByteString str;
-		UA_ByteString_init(&str);
-
 		/*expires in 20 seconds*/
 		for(UA_Int32 i = 0;i < response->resultsSize;i++) {
 			expireArray[i] = UA_DateTime_now() + 20 * 100 * 1000 * 1000;
 		}
 		size_t offset = 0;
-		str.data = UA_malloc(UA_Variant_calcSizeBinary(&variant));
-		str.length = UA_Variant_calcSizeBinary(&variant);
+        UA_Connection *c = UA_NULL;
+        UA_SecureChannel *sc = session->channel;
+        if(sc)
+            c = session->sc;
+        if(!c) {
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+            return;
+        }
+		UA_ByteString str;
+        UA_ByteString_newMembers(&str, c->remoteConf.maxMessageSize);
 		UA_Variant_encodeBinary(&variant, &str, &offset);
 		additionalHeader.body = str;
 		response->responseHeader.additionalHeader = additionalHeader;

@@ -184,9 +184,8 @@ class EnumerationType(object):
 #define %s_delete(p) UA_Int32_delete((UA_Int32*)p)
 #define %s_deleteMembers(p) UA_Int32_deleteMembers((UA_Int32*)p)
 #define %s_copy(src, dst) UA_Int32_copy((const UA_Int32*)src, (UA_Int32*)dst)
-#define %s_calcSizeBinary(p) UA_Int32_calcSizeBinary((UA_Int32*)p)
 #define %s_encodeBinary(src, dst, offset) UA_Int32_encodeBinary((UA_Int32*)src, dst, offset)
-#define %s_decodeBinary(src, offset, dst) UA_Int32_decodeBinary(src, offset, (UA_Int32*)dst)''' % tuple(itertools.repeat(self.name, 9))
+#define %s_decodeBinary(src, offset, dst) UA_Int32_decodeBinary(src, offset, (UA_Int32*)dst)''' % tuple(itertools.repeat(self.name, 8))
 
 class OpaqueType(object):
     def __init__(self, name, description = ""):
@@ -218,7 +217,6 @@ class OpaqueType(object):
 #define %s_delete UA_ByteString_delete
 #define %s_deleteMembers UA_ByteString_deleteMembers
 #define %s_copy UA_ByteString_copy
-#define %s_calcSizeBinary UA_ByteString_calcSizeBinary
 #define %s_encodeBinary UA_ByteString_encodeBinary
 #define %s_decodeBinary UA_ByteString_decodeBinary''' % tuple(itertools.repeat(self.name, 8))
 
@@ -325,10 +323,9 @@ class StructType(object):
 #define %s_delete(p) UA_delete(p, %s)
 #define %s_deleteMembers(p) UA_deleteMembers(p, %s)
 #define %s_copy(src, dst) UA_copy(src, dst, %s)
-#define %s_calcSizeBinary(p) UA_calcSizeBinary(p, %s)
 #define %s_encodeBinary(src, dst, offset) UA_encodeBinary(src, %s, dst, offset)
 #define %s_decodeBinary(src, offset, dst) UA_decodeBinary(src, offset, dst, %s)''' % \
-    tuple([self.name] + list(itertools.chain(*itertools.repeat([self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 8))))
+    tuple([self.name] + list(itertools.chain(*itertools.repeat([self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 7))))
 
 def parseTypeDefinitions(xmlDescription, existing_types = OrderedDict()):
     '''Returns an ordered dict that maps names to types. The order is such that
