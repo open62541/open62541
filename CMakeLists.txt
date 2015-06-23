@@ -312,6 +312,7 @@ endif()
 # build unit tests
 option(BUILD_UNIT_TESTS "Run unit tests after building" OFF)
 if(BUILD_UNIT_TESTS)
+	add_definitions(-DBUILD_UNIT_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
