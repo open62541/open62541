@@ -92,7 +92,12 @@ static void handleSourceTimestamps(UA_TimestampsToReturn timestamps, UA_DataValu
 }
 
 /** Reads a single attribute from a node in the nodestore. */
-static void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
+#define DEBUG
+#ifdef DEBUG
+#else
+static
+#endif
+void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
                       const UA_ReadValueId *id, UA_DataValue *v) {
     UA_String binEncoding = UA_STRING("DefaultBinary");
     UA_String xmlEncoding = UA_STRING("DefaultXml");
