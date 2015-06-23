@@ -23,10 +23,6 @@
 # include <time.h>
 # include "ua_types.h"
 # include "ua_server.h"
-#ifdef ENABLE_METHODCALLS
-# include "server/ua_methodcall_manager.h"
-# include "server/ua_nodes.h"
-#endif
 # include "logger_stdout.h"
 # include "networklayer_tcp.h"
 #else
@@ -189,19 +185,9 @@ static UA_StatusCode writeLedStatus(void *handle, const UA_Variant *data, const 
 }
 
 #ifdef ENABLE_METHODCALLS
-static void getMonitoredItems(const UA_Node *object, const UA_ArgumentsList *InputArguments, UA_ArgumentsList *OutputArguments) {
-    UA_String tmp = UA_STRING_ALLOC("Hello World");
-    UA_String *myString = UA_String_new();
-    UA_String_copy(&tmp, myString);
-    
-    OutputArguments->arguments = (UA_Variant *) UA_Variant_new();
-    UA_Variant_setScalar(&OutputArguments->arguments[0], myString, &UA_TYPES[UA_TYPES_STRING]);
-    OutputArguments->argumentsSize = 1;
-    
-    printf("getMonitoredItems was called\n");
-    
-    UA_String_deleteMembers(&tmp);
-    return;
+static UA_StatusCode ping(const UA_NodeId objectId, const UA_Variant *input, UA_Variant *output) {
+    printf("Ping!\n");
+    return UA_STATUSCODE_GOOD;
 } 
 #endif
 
@@ -346,9 +332,13 @@ int main(int argc, char** argv) {
         UA_Server_addVariableNode(server, arrayvar, myIntegerName, UA_NODEID_NUMERIC(1, ++id),
                                   UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
    }
+
 #ifdef ENABLE_METHODCALLS
-        UA_Server_attachMethod_toNode(server, UA_NODEID_NUMERIC(0, 11489), (UA_Variant **) &getMonitoredItems);
+   UA_Server_addMethodNode(server, UA_QUALIFIEDNAME(0, "Ping"), UA_NODEID_NULL,
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), 
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), ping, 0, UA_NULL, 0, UA_NULL);
 #endif
+
 	//start server
 	UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false
 

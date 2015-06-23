@@ -226,7 +226,7 @@ typedef struct {
     UA_Int32  arrayLength;  ///< the number of elements in the data-pointer
     void     *data; ///< points to the scalar or array data
     UA_Int32  arrayDimensionsSize; ///< the number of dimensions the data-array has
-    UA_Int32 *arrayDimensions; ///< the length of each dimension of the data-array
+    UA_UInt32 *arrayDimensions; ///< the length of each dimension of the data-array
 } UA_Variant;
 
 /** @brief A data value with an associated status code and timestamps. */

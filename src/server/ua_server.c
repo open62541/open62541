@@ -131,7 +131,6 @@ void UA_Server_setLogger(UA_Server *server, UA_Logger logger) {
     server->logger = logger;
 }
 
-
 /**********/
 /* Server */
 /**********/

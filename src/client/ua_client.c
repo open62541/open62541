@@ -579,7 +579,7 @@ UA_DeleteReferencesResponse UA_Client_deleteReferences(UA_Client *client, UA_Del
     return response;
 }
 
-#ifdef ENABLE_METHODCALLS
+#ifdef xxENABLE_METHODCALLS
 UA_CallResponse UA_Client_call(UA_Client *client, UA_CallRequest *request) {
     UA_CallResponse response;
     synchronousRequest(client, request, &UA_TYPES[UA_TYPES_CALLREQUEST],

@@ -198,18 +198,18 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
     			handleSourceTimestamps(timestamps, v);
             }
 
-            UA_Boolean hasRange = UA_FALSE;
             UA_NumericRange range;
+            UA_NumericRange *rangePtr = UA_NULL;
             if(id->indexRange.length > 0) {
                 retval = parse_numericrange(id->indexRange, &range);
                 if(retval != UA_STATUSCODE_GOOD)
                     break;
-                hasRange = UA_TRUE;
+                rangePtr = &range;
             }
 
             const UA_VariableNode *vn = (const UA_VariableNode*)node;
             if(vn->valueSource == UA_VALUESOURCE_VARIANT) {
-                if(hasRange)
+                if(rangePtr)
                     retval |= UA_Variant_copyRange(&vn->value.variant, &v->value, range);
                 else
                     retval |= UA_Variant_copy(&vn->value.variant, &v->value);
@@ -218,21 +218,13 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
                     handleSourceTimestamps(timestamps, v);
                 }
             } else {
-                UA_DataValue val;
-                UA_DataValue_init(&val);
                 UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
                                               timestamps == UA_TIMESTAMPSTORETURN_BOTH);
-                if(hasRange)
-                    retval |= vn->value.dataSource.read(vn->value.dataSource.handle, sourceTimeStamp, &range, &val);
-                else
-                    retval |= vn->value.dataSource.read(vn->value.dataSource.handle, sourceTimeStamp, UA_NULL, &val);
-                if(retval == UA_STATUSCODE_GOOD) {
-                    retval |= UA_DataValue_copy(&val, v); // todo: still too much copying necessary!!
-                    vn->value.dataSource.release(vn->value.dataSource.handle, &val);
-                }
+                retval |= vn->value.dataSource.read(vn->value.dataSource.handle, sourceTimeStamp, rangePtr, v);
+                vn->value.dataSource.release(vn->value.dataSource.handle, v);
             }
 
-            if(hasRange)
+            if(rangePtr)
                 UA_free(range.dimensions);
         }
         break;

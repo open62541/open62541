@@ -11,10 +11,6 @@ extern "C" {
 #include "ua_log.h"
 #include "ua_types_generated.h"
 
-#ifdef ENABLE_METHODCALLS
-#include "server/ua_methodcall_manager.h"
-#endif
-    
 struct UA_Client;
 typedef struct UA_Client UA_Client;
 
@@ -62,7 +58,7 @@ UA_DeleteNodesResponse UA_EXPORT UA_Client_deleteNodes(UA_Client *client, UA_Del
 UA_DeleteReferencesResponse UA_EXPORT
     UA_Client_deleteReferences(UA_Client *client, UA_DeleteReferencesRequest *request);
 
-#ifdef ENABLE_METHODCALLS
+#ifdef xxENABLE_METHODCALLS
 UA_CallResponse UA_EXPORT UA_Client_call(UA_Client *client, UA_CallRequest *request);
 UA_StatusCode UA_EXPORT UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId, 
                                                        UA_ArgumentsList *inputArguments, UA_ArgumentsList **outputArguments);

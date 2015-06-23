@@ -5,10 +5,6 @@
 #include "ua_types_generated.h"
 #include "ua_types_encoding_binary.h"
 
-#ifdef ENABLE_METHODCALLS
-#include "ua_methodcall_manager.h"
-#endif
-
 #define UA_STANDARD_NODEMEMBERS                 \
     UA_NodeId nodeId;                           \
     UA_NodeClass nodeClass;                     \
@@ -24,17 +20,29 @@ typedef struct {
     UA_STANDARD_NODEMEMBERS
 } UA_Node;
 
+/**************/
+/* ObjectNode */
+/**************/
+
 typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Byte eventNotifier;
 } UA_ObjectNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_ObjectNode)
 
+/******************/
+/* ObjectTypeNode */
+/******************/
+
 typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Boolean isAbstract;
 } UA_ObjectTypeNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_ObjectTypeNode)
+
+/****************/
+/* VariableNode */
+/****************/
 
 typedef enum {
     UA_VALUESOURCE_VARIANT,
@@ -76,6 +84,10 @@ typedef struct {
 } UA_VariableTypeNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_VariableTypeNode)
 
+/*********************/
+/* ReferenceTypeNode */
+/*********************/
+
 typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Boolean isAbstract;
@@ -84,15 +96,27 @@ typedef struct {
 } UA_ReferenceTypeNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_ReferenceTypeNode)
 
+/**************/
+/* MethodNode */
+/**************/
+
+#ifdef ENABLE_METHODCALLS
 typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Boolean executable;
     UA_Boolean userExecutable;
-#ifdef ENABLE_METHODCALLS
-    UA_NodeAttachedMethod attachedMethod;
-#endif
+    UA_MethodCallback method;
+    UA_Int32 inputArgumentsSize;
+    UA_Argument *inputArguments;
+    UA_Int32 outputArgumentsSize;
+    UA_Argument *outputArguments;
 } UA_MethodNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_MethodNode)
+#endif
+
+/************/
+/* ViewNode */
+/************/
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS
@@ -100,6 +124,10 @@ typedef struct {
     UA_Byte eventNotifier;
 } UA_ViewNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_ViewNode)
+
+/****************/
+/* DataTypeNode */
+/****************/
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS
