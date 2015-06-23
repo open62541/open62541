@@ -167,7 +167,8 @@ START_TEST(ReadSingleAttributeNodeClassWithoutTimestamp)
 				&resp);
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		//ck_assert_int_eq(&UA_TYPES[UA_TYPES_NODECLASS],resp.value.type);
+		ck_assert_int_eq(&UA_TYPES[UA_TYPES_INT32],resp.value.type);
+		ck_assert_int_eq(*(UA_Int32*)resp.value.data,UA_NODECLASS_VARIABLE);
 	}END_TEST
 
 START_TEST(ReadSingleAttributeBrowseNameWithoutTimestamp)
@@ -283,13 +284,13 @@ START_TEST(ReadSingleAttributeWriteMaskWithoutTimestamp)
 
 		readValue(server, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0],
 				&resp);
-		//UA_UInt32* respval;
-		//respval = (UA_UInt32*) resp.value.data;
-		//UA_VariableNode* compNode = makeCompareSequence();
+
+		UA_UInt32* respval;
+		respval = (UA_UInt32*) resp.value.data;
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
 		ck_assert_int_eq(&UA_TYPES[UA_TYPES_UINT32], resp.value.type);
-		//ck_assert_int_eq(*(UA_UInt32* )compNode->writeMask,respval);
+		ck_assert_int_eq(0,*respval);
 	}END_TEST
 
 START_TEST(ReadSingleAttributeUserWriteMaskWithoutTimestamp)
@@ -308,8 +309,12 @@ START_TEST(ReadSingleAttributeUserWriteMaskWithoutTimestamp)
 		readValue(server, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0],
 				&resp);
 
+		UA_UInt32* respval;
+		respval = (UA_UInt32*) resp.value.data;
+
 		ck_assert_int_eq(-1, resp.value.arrayLength);
 		ck_assert_int_eq(&UA_TYPES[UA_TYPES_UINT32], resp.value.type);
+		ck_assert_int_eq(0,*respval);
 	}END_TEST
 
 START_TEST(ReadSingleAttributeIsAbstractWithoutTimestamp)
@@ -596,13 +601,14 @@ START_TEST(ReadSingleAttributeExecutableWithoutTimestamp)
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+		rReq.nodesToRead[0].nodeId.identifier.numeric = UA_NS0ID_METHODNODE;
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_EXECUTABLE;
 
 		readValue(server, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
 		ck_assert_int_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type);
+		ck_assert(*(UA_Boolean*)resp.value.data==UA_FALSE);
 	}END_TEST
 
 START_TEST(ReadSingleAttributeUserExecutableWithoutTimestamp)
@@ -615,7 +621,7 @@ START_TEST(ReadSingleAttributeUserExecutableWithoutTimestamp)
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+		rReq.nodesToRead[0].nodeId.identifier.numeric = UA_NS0ID_METHODNODE;
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_USEREXECUTABLE;
 
 		readValue(server, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0],
@@ -623,6 +629,7 @@ START_TEST(ReadSingleAttributeUserExecutableWithoutTimestamp)
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
 		ck_assert_int_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type);
+		ck_assert(*(UA_Boolean*)resp.value.data==UA_FALSE);
 	}END_TEST
 
 static Suite * testSuite_services_attributes(void) {
