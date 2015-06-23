@@ -1,49 +1,57 @@
 #ifndef UA_CONFIG_H_
 #define UA_CONFIG_H_
 
-/* Build options and configuration (set by cmake) */
-
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
 #cmakedefine UA_MULTITHREADING
 
 /* Function Export */
 #ifdef _WIN32
-#  ifdef UA_DYNAMIC_LINKING
-#    ifdef __GNUC__
-#      define UA_EXPORT __attribute__ ((dllexport))
-#    else
-#      define UA_EXPORT __declspec(dllexport)
-#    endif
+# ifdef UA_DYNAMIC_LINKING
+#  ifdef __GNUC__
+#   define UA_EXPORT __attribute__ ((dllexport))
 #  else
-#    ifdef __GNUC__
-#      define UA_EXPORT __attribute__ ((dllexport))
-#    else
-#      define UA_EXPORT __declspec(dllimport)
-#    endif
+#   define UA_EXPORT __declspec(dllexport)
 #  endif
+# else
+#  ifdef __GNUC__
+#   define UA_EXPORT __attribute__ ((dllexport))
+#  else
+#   define UA_EXPORT __declspec(dllimport)
+#  endif
+# endif
 #else
-#  if __GNUC__ || __clang__
-#    define UA_EXPORT __attribute__ ((visibility ("default")))
-#  else
-#    define UA_EXPORT
-#  endif
+# if __GNUC__ || __clang__
+#  define UA_EXPORT __attribute__ ((visibility ("default")))
+# else
+#  define UA_EXPORT
+# endif
 #endif
-#ifdef __arm__
-  #ifndef __ARM_FEATURE_UNALIGNED
-    #define UA_ALIGNED_MEMORY_ACCESS
-  #endif /* __ARM_FEATURE_UNALIGNED */
-  #ifdef __ARM_ARCH_4T__
-    #define UA_MIXED_ENDIAN
-  #endif /*__ARM_ARCH_4T__ */
-#endif /*  __arm__ */
-/*	Define your own htoleXX and leXXtoh here if needed.
-	Otherwise the ones defined in endian.h are used		*/
-//	#define htole16(x)	{...}(x)
-//	#define htole32(x)	{...}(x)
-//	#define htole64(x)	{...}(x)
-//	#define le16toh(x)	{...}(x)
-//	#define le32toh(x)	{...}(x)
-//	#define le64toh(x)	{...}(x)
-//  #define UA_NON_LITTLEENDIAN_ARCHITECTURE
+
+/* Endianness */
+#if defined(__linux__) || defined(__APPLE__)
+# include <endian.h>
+# if ( __BYTE_ORDER != __LITTLE_ENDIAN )
+#  define UA_NON_LITTLEENDIAN_ARCHITECTURE
+# endif
+#endif
+
+/* Force non-little endian manually by setting the following. */
+// #define UA_NON_LITTLEENDIAN_ARCHITECTURE
+// #define htole16(x) {...}(x)
+// #define htole32(x) {...}(x)
+// #define htole64(x) {...}(x)
+// #define le16toh(x) {...}(x)
+// #define le32toh(x) {...}(x)
+// #define le64toh(x) {...}(x)
+
+/* Mixed Endian */
+#ifdef __ARM_ARCH_4T__
+# define UA_MIXED_ENDIAN
+#endif
+
+/* Aligned Memory Access */
+#if defined(__arm__) && !defined(__ARM_FEATURE_UNALIGNED)
+# define UA_ALIGNED_MEMORY_ACCESS
+#endif
 
 #endif /* UA_CONFIG_H_ */
