@@ -196,11 +196,12 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session, const UA_Un
  */
 void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request,
                   UA_ReadResponse *response);
-#define TEST
-#ifdef TEST
+
+/* Mock-Up of the function signature for Unit Tests */
+#ifdef BUILD_UNIT_TESTS
 void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
                       const UA_ReadValueId *id, UA_DataValue *v);
-#endif /*DEBUG */
+#endif
 
 // Service_HistoryRead
 /**

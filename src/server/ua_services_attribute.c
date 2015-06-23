@@ -92,9 +92,7 @@ static void handleSourceTimestamps(UA_TimestampsToReturn timestamps, UA_DataValu
 }
 
 /** Reads a single attribute from a node in the nodestore. */
-#define DEBUG
-#ifdef DEBUG
-#else
+#ifndef BUILD_UNIT_TESTS
 static
 #endif
 void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
