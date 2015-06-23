@@ -61,7 +61,7 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_HELF;
 
     UA_TcpHelloMessage hello;
-    UA_String_copy(&c->endpointUrl, &hello.endpointUrl);
+    UA_String_copy(&c->endpointUrl, &hello.endpointUrl); /* must be less than 4096 bytes */
 
     UA_Connection *conn = &c->connection;
     hello.maxChunkCount = conn->localConf.maxChunkCount;
@@ -70,31 +70,35 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     hello.receiveBufferSize = conn->localConf.recvBufferSize;
     hello.sendBufferSize = conn->localConf.sendBufferSize;
 
-    messageHeader.messageSize = UA_TcpHelloMessage_calcSizeBinary((UA_TcpHelloMessage const*)&hello) +
-                                UA_TcpMessageHeader_calcSizeBinary((UA_TcpMessageHeader const*)&messageHeader);
     UA_ByteString message;
     UA_StatusCode retval = c->connection.getBuffer(&c->connection, &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    size_t offset = 0;
-    UA_TcpMessageHeader_encodeBinary(&messageHeader, &message, &offset);
-    UA_TcpHelloMessage_encodeBinary(&hello, &message, &offset);
+    size_t offset = 8;
+    retval |= UA_TcpHelloMessage_encodeBinary(&hello, &message, &offset);
+    messageHeader.messageSize = offset;
+    offset = 0;
+    retval |= UA_TcpMessageHeader_encodeBinary(&messageHeader, &message, &offset);
     UA_TcpHelloMessage_deleteMembers(&hello);
+    if(retval != UA_STATUSCODE_GOOD) {
+        c->connection.releaseBuffer(&c->connection, &message);
+        return retval;
+    }
 
     retval = c->connection.write(&c->connection, &message, messageHeader.messageSize);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
         c->connection.releaseBuffer(&c->connection, &message);
-    if(retval)
         return retval;
+    }
 
     UA_ByteString reply;
     UA_ByteString_init(&reply);
     do {
         retval = c->connection.recv(&c->connection, &reply, c->config.timeout);
-        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
+        if(retval != UA_STATUSCODE_GOOD)
             return retval;
-    } while(retval != UA_STATUSCODE_GOOD);
+    } while(!reply.data);
 
     offset = 0;
     UA_TcpMessageHeader_decodeBinary(&reply, &offset, &messageHeader);
@@ -142,13 +146,6 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         opnSecRq.securityMode = UA_MESSAGESECURITYMODE_NONE;
     }
 
-    messageHeader.messageHeader.messageSize =
-        UA_SecureConversationMessageHeader_calcSizeBinary(&messageHeader) +
-        UA_AsymmetricAlgorithmSecurityHeader_calcSizeBinary(&asymHeader) +
-        UA_SequenceHeader_calcSizeBinary(&seqHeader) +
-        UA_NodeId_calcSizeBinary(&requestType) +
-        UA_OpenSecureChannelRequest_calcSizeBinary(&opnSecRq);
-
     UA_ByteString message;
     UA_StatusCode retval = client->connection.getBuffer(&client->connection, &message);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -157,30 +154,36 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         return retval;
     }
 
-    size_t offset = 0;
-    UA_SecureConversationMessageHeader_encodeBinary(&messageHeader, &message, &offset);
-    UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &message, &offset);
-    UA_SequenceHeader_encodeBinary(&seqHeader, &message, &offset);
-    UA_NodeId_encodeBinary(&requestType, &message, &offset);
-    UA_OpenSecureChannelRequest_encodeBinary(&opnSecRq, &message, &offset);
+    size_t offset = 12;
+    retval = UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &message, &offset);
+    retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &message, &offset);
+    retval |= UA_NodeId_encodeBinary(&requestType, &message, &offset);
+    retval |= UA_OpenSecureChannelRequest_encodeBinary(&opnSecRq, &message, &offset);
+    messageHeader.messageHeader.messageSize = offset;
+    offset = 0;
+    retval |= UA_SecureConversationMessageHeader_encodeBinary(&messageHeader, &message, &offset);
 
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
     UA_OpenSecureChannelRequest_deleteMembers(&opnSecRq);
+    if(retval != UA_STATUSCODE_GOOD) {
+        client->connection.releaseBuffer(&client->connection, &message);
+        return retval;
+    }
 
     retval = client->connection.write(&client->connection, &message, messageHeader.messageHeader.messageSize);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
         client->connection.releaseBuffer(&client->connection, &message);
-    if(retval)
         return retval;
+    }
 
     // parse the response
     UA_ByteString reply;
     UA_ByteString_init(&reply);
     do {
         retval = client->connection.recv(&client->connection, &reply, client->config.timeout);
-        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
+        if(retval == UA_STATUSCODE_GOOD)
             return retval;
-    } while(retval != UA_STATUSCODE_GOOD);
+    } while(!reply.data);
 
     offset = 0;
     UA_SecureConversationMessageHeader_decodeBinary(&reply, &offset, &messageHeader);
@@ -193,6 +196,8 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         UA_ByteString_deleteMembers(&reply);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         UA_NodeId_deleteMembers(&requestType);
+        UA_LOG_ERROR(client->logger, UA_LOGCATEGORY_CLIENT,
+                     "Reply answers the wrong request. Expected OpenSecureChannelResponse.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -239,7 +244,7 @@ static void synchronousRequest(UA_Client *client, void *request, const UA_DataTy
                                                               request, requestType);
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
     if(retval) {
-        if(retval == UA_STATUSCODE_BADENCODINGERROR)
+        if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED)
             respHeader->serviceResult = UA_STATUSCODE_BADREQUESTTOOLARGE;
         else
             respHeader->serviceResult = retval;
@@ -270,15 +275,29 @@ static void synchronousRequest(UA_Client *client, void *request, const UA_DataTy
     retval |= UA_NodeId_decodeBinary(&reply, &offset, &responseId);
     UA_NodeId expectedNodeId = UA_NODEID_NUMERIC(0, responseType->typeId.identifier.numeric +
                                                  UA_ENCODINGOFFSET_BINARY);
-    if(!UA_NodeId_equal(&responseId, &expectedNodeId) || seqHeader.requestId != requestId) {
-        // Todo: we need to demux responses since a publish responses may come at any time
-        UA_ByteString_deleteMembers(&reply);
-        UA_SymmetricAlgorithmSecurityHeader_deleteMembers(&symHeader);
-        respHeader->serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-        return;
-    }
 
+    if(retval != UA_STATUSCODE_GOOD)
+        goto finish;
+
+    /* Todo: we need to demux responses since a publish responses may come at any time */
+    if(!UA_NodeId_equal(&responseId, &expectedNodeId) || seqHeader.requestId != requestId) {
+        if(responseId.identifier.numeric != UA_NS0ID_SERVICEFAULT + UA_ENCODINGOFFSET_BINARY) {
+            UA_LOG_ERROR(client->logger, UA_LOGCATEGORY_CLIENT,
+                         "Reply answers the wrong request. Expected ns=%i,i=%i. But retrieved ns=%i,i=%i",
+                         expectedNodeId.namespaceIndex, expectedNodeId.identifier.numeric,
+                         responseId.namespaceIndex, responseId.identifier.numeric);
+            respHeader->serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+        } else
+            retval = UA_decodeBinary(&reply, &offset, respHeader, &UA_TYPES[UA_TYPES_SERVICEFAULT]);
+        goto finish;
+    } 
+    
     retval = UA_decodeBinary(&reply, &offset, response, responseType);
+    if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED)
+        retval = UA_STATUSCODE_BADRESPONSETOOLARGE;
+
+ finish:
+    UA_SymmetricAlgorithmSecurityHeader_deleteMembers(&symHeader);
     UA_ByteString_deleteMembers(&reply);
     if(retval != UA_STATUSCODE_GOOD)
         respHeader->serviceResult = retval;
@@ -430,29 +449,28 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
 
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CLOSESECURECHANNELREQUEST + UA_ENCODINGOFFSET_BINARY);
 
-    msgHeader.messageHeader.messageSize =
-        UA_SecureConversationMessageHeader_calcSizeBinary(&msgHeader) +
-        UA_SymmetricAlgorithmSecurityHeader_calcSizeBinary(&symHeader) +
-        UA_SequenceHeader_calcSizeBinary(&seqHeader) +
-        UA_NodeId_calcSizeBinary(&typeId) +
-        UA_calcSizeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
-
     UA_ByteString message;
     UA_StatusCode retval = client->connection.getBuffer(&client->connection, &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    size_t offset = 0;
-    retval |= UA_SecureConversationMessageHeader_encodeBinary(&msgHeader, &message, &offset);
+    size_t offset = 12;
     retval |= UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symHeader, &message, &offset);
     retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &message, &offset);
     retval |= UA_NodeId_encodeBinary(&typeId, &message, &offset);
     retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST], &message, &offset);
-    if(retval == UA_STATUSCODE_GOOD) {
-        retval = client->connection.write(&client->connection, &message, msgHeader.messageHeader.messageSize);
-        if(retval != UA_STATUSCODE_GOOD)
-            client->connection.releaseBuffer(&client->connection, &message);
-    } else
+
+    msgHeader.messageHeader.messageSize = offset;
+    offset = 0;
+    retval |= UA_SecureConversationMessageHeader_encodeBinary(&msgHeader, &message, &offset);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        client->connection.releaseBuffer(&client->connection, &message);
+        return retval;
+    }
+        
+    retval = client->connection.write(&client->connection, &message, msgHeader.messageHeader.messageSize);
+    if(retval != UA_STATUSCODE_GOOD)
         client->connection.releaseBuffer(&client->connection, &message);
     return retval;
 }

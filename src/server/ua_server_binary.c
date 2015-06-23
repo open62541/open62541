@@ -38,9 +38,7 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
 
     UA_TcpMessageHeader ackHeader;
     ackHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_ACKF;
-    ackHeader.messageSize =  8 + 20;
-    /* == UA_TcpMessageHeader_calcSizeBinary(&ackHeader) +
-       UA_TcpAcknowledgeMessage_calcSizeBinary(&ackMessage) */
+    ackHeader.messageSize =  8 + 20; /* ackHeader + ackMessage */
 
     UA_ByteString ack_msg;
     if(connection->getBuffer(connection, &ack_msg) != UA_STATUSCODE_GOOD)
@@ -174,7 +172,7 @@ static void invoke_service(UA_Server *server, UA_SecureChannel *channel, UA_UInt
     }
     UA_StatusCode retval = UA_SecureChannel_sendBinaryMessage(channel, requestId, response, responseType);
     if(retval != UA_STATUSCODE_GOOD) {
-        if(retval == UA_STATUSCODE_BADENCODINGERROR)
+        if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED)
             response->serviceResult = UA_STATUSCODE_BADRESPONSETOOLARGE;
         else
             response->serviceResult = retval;

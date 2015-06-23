@@ -16,9 +16,6 @@
  * All datatypes have similar functions with a common postfix. DO NOT CALL THESE
  * FUNCTIONS WITH NULL-POINTERS IF IT IS NOT EXPLICITLY PERMITTED.
  *
- * - _calcSize: Returns the size of the (encoded) variable in bytes. This length
- *   is used to allocate the bytestring for later encoding.
- *
  * - _encode: Encodes a variable into a bytestring. If an error occurs
  *   (indicated by the return value), the bytestring may be left in an
  *   inconsistent state.
@@ -32,7 +29,6 @@
  */
 
 #define UA_TYPE_BINARY_ENCODING(TYPE)                                   \
-    size_t TYPE##_calcSizeBinary(TYPE const *p);                        \
     UA_StatusCode TYPE##_encodeBinary(TYPE const *src, UA_ByteString *dst, size_t *UA_RESTRICT offset); \
     UA_StatusCode TYPE##_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset, TYPE *dst);
 
@@ -62,11 +58,10 @@ UA_TYPE_BINARY_ENCODING(UA_DataValue)
 UA_TYPE_BINARY_ENCODING(UA_Variant)
 UA_TYPE_BINARY_ENCODING(UA_DiagnosticInfo)
 
-size_t UA_calcSizeBinary(const void *p, const UA_DataType *dataType);
 UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_ByteString *dst,
                               size_t *UA_RESTRICT offset);
 UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t * UA_RESTRICT offset, void *dst,
                               const UA_DataType *dataType);
-/// @} /* end of group */
+/// @}
 
 #endif /* UA_TYPES_ENCODING_BINARY_H_ */
