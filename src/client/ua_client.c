@@ -600,15 +600,15 @@ UA_DeleteReferencesResponse UA_Client_deleteReferences(UA_Client *client, UA_Del
     REQUEST.nodesToAddSize = 1;                                                           \
     } while(0)
     
-#define ADDNODES_PACK_AND_SEND(PREQUEST,PATTRIBUTES,PNODETYPE) do {                                                                     \
-    PREQUEST.nodesToAdd[0].nodeAttributes.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;                                  \
-    PREQUEST.nodesToAdd[0].nodeAttributes.typeId   = UA_NODEID_NUMERIC(0, UA_NS0ID_##PNODETYPE##ATTRIBUTES + UA_ENCODINGOFFSET_BINARY); \
-    PREQUEST.nodesToAdd[0].nodeAttributes.body.length = UA_calcSizeBinary(&PATTRIBUTES, &UA_TYPES[UA_TYPES_##PNODETYPE##ATTRIBUTES]);   \
-    PREQUEST.nodesToAdd[0].nodeAttributes.body.data = (void *) malloc(PREQUEST.nodesToAdd[0].nodeAttributes.body.length);               \
-    size_t encOffset = 0;                                                                                                               \
-    UA_encodeBinary(&PATTRIBUTES,&UA_TYPES[UA_TYPES_##PNODETYPE##ATTRIBUTES], &(PREQUEST.nodesToAdd[0].nodeAttributes.body), &encOffset);       \
-    *(adRes) = UA_Client_addNodes(client, &PREQUEST);                                                                                   \
-    UA_AddNodesRequest_deleteMembers(&PREQUEST);                                                                                        \
+#define ADDNODES_PACK_AND_SEND(PREQUEST,PATTRIBUTES,PNODETYPE) do {                                                                       \
+    PREQUEST.nodesToAdd[0].nodeAttributes.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;                                    \
+    PREQUEST.nodesToAdd[0].nodeAttributes.typeId   = UA_NODEID_NUMERIC(0, UA_NS0ID_##PNODETYPE##ATTRIBUTES + UA_ENCODINGOFFSET_BINARY);   \
+    size_t encOffset = 0;                                                                                                                 \
+    UA_ByteString_newMembers(&PREQUEST.nodesToAdd[0].nodeAttributes.body, client->connection.remoteConf.maxMessageSize);                  \
+    UA_encodeBinary(&PATTRIBUTES,&UA_TYPES[UA_TYPES_##PNODETYPE##ATTRIBUTES], &(PREQUEST.nodesToAdd[0].nodeAttributes.body), &encOffset); \
+    PREQUEST.nodesToAdd[0].nodeAttributes.body.length = encOffset;                                                                                 \
+    *(adRes) = UA_Client_addNodes(client, &PREQUEST);                                                                                     \
+    UA_AddNodesRequest_deleteMembers(&PREQUEST);                                                                                          \
 } while(0)
     
 /* NodeManagement */
@@ -635,8 +635,8 @@ UA_AddNodesResponse *UA_Client_createObjectNode(UA_Client *client, UA_ExpandedNo
     vAtt.eventNotifier       = 0;
     vAtt.specifiedAttributes |= UA_NODEATTRIBUTESMASK_EVENTNOTIFIER;
 
-    ADDNODES_PACK_AND_SEND(adReq,vAtt,OBJECT);
-
+    ADDNODES_PACK_AND_SEND(adReq,vAtt,OBJECT); 
+    
     return adRes;
 }
 
