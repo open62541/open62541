@@ -237,17 +237,14 @@ UA_StatusCode UA_ReferenceTypeNode_copy(const UA_ReferenceTypeNode *src, UA_Refe
 }
 
 /* UA_MethodNode */
-#ifdef ENABLE_METHODCALLS
 void UA_MethodNode_init(UA_MethodNode *p) {
     UA_Node_init((UA_Node*)p);
     p->nodeClass = UA_NODECLASS_METHOD;
     p->executable = UA_FALSE;
     p->userExecutable = UA_FALSE;
-    p->method = UA_NULL;
-    p->inputArgumentsSize = -1;
-    p->inputArguments = UA_NULL;
-    p->outputArgumentsSize = -1;
-    p->outputArguments = UA_NULL;
+#ifdef ENABLE_METHODCALLS
+    p->attachedMethod.method = UA_NULL;
+#endif
 }
 
 UA_MethodNode * UA_MethodNode_new(void) {
@@ -258,39 +255,28 @@ UA_MethodNode * UA_MethodNode_new(void) {
 }
 
 void UA_MethodNode_deleteMembers(UA_MethodNode *p) {
+#ifdef ENABLE_METHODCALLS
+    p->attachedMethod.method = UA_NULL;
+#endif
     UA_Node_deleteMembers((UA_Node*)p);
-    p->method = UA_NULL;
-    UA_Array_delete(p->inputArguments, &UA_TYPES[UA_TYPES_ARGUMENT], p->inputArgumentsSize);
-    p->inputArgumentsSize = -1;
-    UA_Array_delete(p->outputArguments, &UA_TYPES[UA_TYPES_ARGUMENT], p->outputArgumentsSize);
-    p->outputArgumentsSize = -1;
 }
 
 void UA_MethodNode_delete(UA_MethodNode *p) {
     UA_MethodNode_deleteMembers(p);
+#ifdef ENABLE_METHODCALLS
+    p->attachedMethod.method  = UA_NULL;
+#endif
     UA_free(p);
 }
 
 UA_StatusCode UA_MethodNode_copy(const UA_MethodNode *src, UA_MethodNode *dst) {
-    UA_StatusCode retval = UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
     dst->executable = src->executable;
     dst->userExecutable = src->userExecutable;
-    dst->method = src->method;
-    retval = UA_Array_copy(src->inputArguments, (void**)&dst->inputArguments, &UA_TYPES[UA_TYPES_ARGUMENT],
-                           src->inputArgumentsSize);
-    if(retval == UA_STATUSCODE_GOOD)
-        dst->inputArgumentsSize = src->inputArgumentsSize;
-    retval = UA_Array_copy(src->outputArguments, (void**)&dst->outputArguments, &UA_TYPES[UA_TYPES_ARGUMENT],
-                           src->outputArgumentsSize);
-    if(retval == UA_STATUSCODE_GOOD)
-        dst->inputArgumentsSize = src->inputArgumentsSize;
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_MethodNode_deleteMembers(dst);
-    return retval;
-}
+#ifdef ENABLE_METHODCALLS
+    dst->attachedMethod = src->attachedMethod;
 #endif
+    return UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
+}
 
 /* UA_ViewNode */
 void UA_ViewNode_init(UA_ViewNode *p) {

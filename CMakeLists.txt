@@ -164,6 +164,8 @@ option(ENABLE_METHODCALLS "Enable CallMethod/MethodCall service set" OFF)
 if(ENABLE_METHODCALLS)
     add_definitions(-DENABLE_METHODCALLS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_services_call.c)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_methodcall_manager.c)
+    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/server/ua_methodcall_manager.h)
 endif()
 
 ## multithreading

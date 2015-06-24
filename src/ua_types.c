@@ -638,7 +638,7 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
 
     if(src->arrayDimensions) {
         retval |= UA_Array_copy(src->arrayDimensions, (void **)&dst->arrayDimensions,
-                                &UA_TYPES[UA_TYPES_UINT32], src->arrayDimensionsSize);
+                                &UA_TYPES[UA_TYPES_INT32], src->arrayDimensionsSize);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_Variant_deleteMembers(dst);
             UA_Variant_init(dst);
@@ -660,15 +660,13 @@ UA_Boolean UA_Variant_isScalar(const UA_Variant *v) {
  * - block_distance: how many elements are between the blocks (beginning to beginning)
  * - first_elem: where does the first block begin
  */
-static UA_StatusCode testRangeWithVariant(const UA_Variant *v, const UA_NumericRange range, size_t *total,
-                                          size_t *block_size, size_t *block_distance, size_t *first_elem) {
-    /* No scalar variants */
-    if(v->arrayLength < 0)
-        return UA_FALSE;
-
+static UA_StatusCode
+testRangeWithVariant(const UA_Variant *v, const UA_NumericRange range, size_t *total,
+                     size_t *block_size, size_t *block_distance, size_t *first_elem)
+{
     /* Test the integrity of the source variant dimensions */
     UA_Int32 dims_count = 1;
-    const UA_UInt32 *dims = (const UA_UInt32*)&v->arrayLength; // default: the array has only one dimension
+    const UA_Int32 *dims = &v->arrayLength; // default: the array has only one dimension
     if(v->arrayDimensionsSize > 0) {
         dims_count = v->arrayDimensionsSize;
         dims = v->arrayDimensions;
@@ -692,11 +690,14 @@ static UA_StatusCode testRangeWithVariant(const UA_Variant *v, const UA_NumericR
     }
 
     /* Compute the block size and the position of the first element */
-    size_t bs = 0, bd = 0, fe = 0;
-    size_t running_dimssize = 1; /* elements per block of dimensions k to k_max */
+    size_t bs = 0;
+    size_t bd = 0;
+    size_t fe = 0;
+    size_t running_dimssize = 1; // elements per block of dimensions k to k_max
     UA_Boolean found_contiguous = UA_FALSE;
     for(UA_Int32 k = dims_count - 1; k >= 0; k--) {
-        if(!found_contiguous && (range.dimensions[k].min != 0 || range.dimensions[k].max + 1 != dims[k])) {
+        if(!found_contiguous && (range.dimensions[k].min != 0 ||
+                                 range.dimensions[k].max + 1 != (UA_UInt32)dims[k])) {
             found_contiguous = UA_TRUE;
             bs = (range.dimensions[k].max - range.dimensions[k].min + 1) * running_dimssize;
             bd = dims[k] * running_dimssize;
