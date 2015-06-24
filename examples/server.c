@@ -27,20 +27,6 @@
 # include "networklayer_tcp.h"
 #else
 # include "open62541.h"
-    #ifdef _MSC_VER
-        #ifndef R_OK
-            #define R_OK    4               /* Test for read permission.  */
-        #endif
-        #ifndef R_OK
-            #define W_OK    2               /* Test for write permission.  */
-        #endif
-        #ifndef X_OK
-            #define X_OK    1               /* Test for execute permission.  */
-        #endif
-        #ifndef F_OK
-            #define F_OK    0               /* Test for existence.  */
-        #endif
-    #endif
 #endif
 
 /****************************/
@@ -253,6 +239,7 @@ int main(int argc, char** argv) {
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
+#ifndef _WIN32
 	//cpu temperature monitoring for linux machines
 	if((temperatureFile = fopen("/sys/class/thermal/thermal_zone0/temp", "r"))){
 		// add node with the data source
@@ -294,6 +281,7 @@ int main(int argc, char** argv) {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "[Raspberry Pi] LED file exist, but I have no access (try to run server with sudo)");
         }
     }
+#endif
 
 	// add a static variable node to the adresspace
     UA_Variant *myIntegerVariant = UA_Variant_new();
