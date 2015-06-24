@@ -259,6 +259,7 @@ int main(int argc, char** argv) {
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
+#ifndef _WIN32
 	//cpu temperature monitoring for linux machines
 	if((temperatureFile = fopen("/sys/class/thermal/thermal_zone0/temp", "r"))){
 		// add node with the data source
@@ -300,6 +301,7 @@ int main(int argc, char** argv) {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "[Raspberry Pi] LED file exist, but I have no access (try to run server with sudo)");
         }
     }
+#endif
 
 	// add a static variable node to the adresspace
     UA_Variant *myIntegerVariant = UA_Variant_new();

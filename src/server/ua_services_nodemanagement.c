@@ -5,20 +5,21 @@
 #include "ua_session.h"
 #include "ua_util.h"
 
-#define COPY_STANDARDATTRIBUTES do {                                    \
-    if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_DISPLAYNAME) {  \
-        vnode->displayName = attr.displayName;                          \
-        UA_LocalizedText_init(&attr.displayName);                       \
-    }                                                                   \
-    if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_DESCRIPTION) {  \
-        vnode->description = attr.description;                          \
-        UA_LocalizedText_init(&attr.description);                       \
-    }                                                                   \
-    if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_WRITEMASK)      \
-        vnode->writeMask = attr.writeMask;                              \
-    if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_USERWRITEMASK)  \
-        vnode->userWriteMask = attr.userWriteMask;                      \
-    } while(0)
+#define COPY_STANDARDATTRIBUTES do {                                       \
+    if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_DISPLAYNAME) {     \
+        vnode->displayName = attr.displayName;                             \
+        UA_LocalizedText_copy(&attr.displayName, &(vnode->displayName));   \
+        UA_LocalizedText_init(&attr.displayName);                          \
+    }                                                                      \
+    if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_DESCRIPTION) {     \
+        UA_LocalizedText_copy(&attr.description, &(vnode->description));   \
+        UA_LocalizedText_init(&attr.description);                          \
+    }                                                                      \
+    if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_WRITEMASK)         \
+        vnode->writeMask = attr.writeMask;                                 \
+    if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_USERWRITEMASK)     \
+        vnode->userWriteMask = attr.userWriteMask;                         \
+} while(0)
 
 static UA_StatusCode parseVariableNode(UA_ExtensionObject *attributes, UA_Node **new_node) {
     if(attributes->typeId.identifier.numeric !=
@@ -207,7 +208,12 @@ static void addNodeFromAttributes(UA_Server *server, UA_Session *session, UA_Add
 
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
-
+    
+    // The BrowseName was not included with the NodeAttribute ExtensionObject
+    UA_QualifiedName_init(&(node->browseName));
+    UA_QualifiedName_copy(&(item->browseName), &(node->browseName));
+    UA_NodeId_copy(&item->requestedNewNodeId.nodeId, &node->nodeId);
+    
     // add the node
     *result = UA_Server_addNodeWithSession(server, session, node, item->parentNodeId,
                                            item->referenceTypeId);
@@ -244,7 +250,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-
+    
 #ifdef UA_EXTERNAL_NAMESPACES
 #ifdef NO_ALLOCA
     UA_Boolean isExternal[size];
