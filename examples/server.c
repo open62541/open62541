@@ -213,36 +213,16 @@ static UA_ByteString loadCertificate(void) {
 
     return certificate;
 }
-static UA_StatusCode UA_Double_encodeBinary(UA_Double const *src, UA_ByteString *dst,
-		size_t* offset) {
-	if ((UA_Int32) (*offset + sizeof(UA_Double)) > dst->length)
-		return UA_STATUSCODE_BADENCODINGERROR;
 
-    /* ARM7TDMI Half Little Endian Byte order for Double 3 2 1 0 7 6 5 4 */
-
-	UA_Byte srcDouble[sizeof(UA_Double)];
-	memcpy(&srcDouble,src,sizeof(UA_Double));
-
-
-	dst->data[(*offset)++] = srcDouble[4];
-	dst->data[(*offset)++] = srcDouble[5];
-	dst->data[(*offset)++] = srcDouble[6];
-	dst->data[(*offset)++] = srcDouble[7];
-	dst->data[(*offset)++] = srcDouble[0];
-	dst->data[(*offset)++] = srcDouble[1];
-	dst->data[(*offset)++] = srcDouble[2];
-	dst->data[(*offset)++] = srcDouble[3];
-	return UA_STATUSCODE_GOOD;
-}
 int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
 #ifdef UA_MULTITHREADING
 	pthread_rwlock_init(&writeLock, 0);
 #endif
 
-	UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-	logger = Logger_Stdout_new();
-	UA_Server_setLogger(server, logger);
+    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+    logger = Logger_Stdout_new();
+    UA_Server_setLogger(server, logger);
     UA_ByteString certificate = loadCertificate();
     UA_Server_setServerCertificate(server, certificate);
     UA_ByteString_deleteMembers(&certificate);
