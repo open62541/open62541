@@ -51,11 +51,13 @@
 /* Mixed Endian */
 #ifdef __ARM_ARCH_4T__
 # define UA_MIXED_ENDIAN
+# define UA_NON_LITTLEENDIAN_ARCHITECTURE
 #endif
 
 /* Aligned Memory Access */
 #if defined(__arm__) && !defined(__ARM_FEATURE_UNALIGNED)
 # define UA_ALIGNED_MEMORY_ACCESS
 #endif
+
 
 #endif /* UA_CONFIG_H_ */

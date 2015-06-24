@@ -516,6 +516,7 @@ static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
                    oldV->type->typeIndex == wvalue->value.value.type->typeIndex)
                     /* An enum was sent as an int32, or an opaque type as a bytestring. This is
                        detected with the typeIndex indicated the "true" datatype. */
+
                     wvalue->value.value.type = oldV->type;
                 else if(oldV->type == &UA_TYPES[UA_TYPES_BYTE] && !UA_Variant_isScalar(oldV) &&
                         wvalue->value.value.type == &UA_TYPES[UA_TYPES_BYTESTRING] &&
