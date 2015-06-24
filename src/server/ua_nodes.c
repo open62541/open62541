@@ -244,6 +244,10 @@ void UA_MethodNode_init(UA_MethodNode *p) {
     p->userExecutable = UA_FALSE;
 #ifdef ENABLE_METHODCALLS
     p->attachedMethod.method = UA_NULL;
+    p->inputArguments     = UA_NULL;
+    p->inputArgumentsSize = -1;
+    p->outputArguments     = UA_NULL;
+    p->outputArgumentsSize = -1;
 #endif
 }
 
@@ -257,6 +261,10 @@ UA_MethodNode * UA_MethodNode_new(void) {
 void UA_MethodNode_deleteMembers(UA_MethodNode *p) {
 #ifdef ENABLE_METHODCALLS
     p->attachedMethod.method = UA_NULL;
+    UA_Array_delete(p->inputArguments, &UA_TYPES[UA_TYPES_ARGUMENT], p->inputArgumentsSize);
+    p->inputArgumentsSize = -1;
+    UA_Array_delete(p->outputArguments, &UA_TYPES[UA_TYPES_ARGUMENT], p->outputArgumentsSize);
+    p->outputArgumentsSize = -1;
 #endif
     UA_Node_deleteMembers((UA_Node*)p);
 }
@@ -270,12 +278,25 @@ void UA_MethodNode_delete(UA_MethodNode *p) {
 }
 
 UA_StatusCode UA_MethodNode_copy(const UA_MethodNode *src, UA_MethodNode *dst) {
+    UA_StatusCode retval = UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
     dst->executable = src->executable;
     dst->userExecutable = src->userExecutable;
 #ifdef ENABLE_METHODCALLS
     dst->attachedMethod = src->attachedMethod;
+    retval = UA_Array_copy(src->inputArguments, (void**)&dst->inputArguments, &UA_TYPES[UA_TYPES_ARGUMENT],
+                           src->inputArgumentsSize);
+    if(retval == UA_STATUSCODE_GOOD)
+        dst->inputArgumentsSize = src->inputArgumentsSize;
+    retval = UA_Array_copy(src->outputArguments, (void**)&dst->outputArguments, &UA_TYPES[UA_TYPES_ARGUMENT],
+                           src->outputArgumentsSize);
+    if(retval == UA_STATUSCODE_GOOD)
+        dst->inputArgumentsSize = src->inputArgumentsSize;
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_MethodNode_deleteMembers(dst);
 #endif
-    return UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
+    return retval;
 }
 
 /* UA_ViewNode */

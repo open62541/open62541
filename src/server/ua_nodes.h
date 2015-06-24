@@ -90,6 +90,10 @@ typedef struct {
     UA_Boolean userExecutable;
 #ifdef ENABLE_METHODCALLS
     UA_NodeAttachedMethod attachedMethod;
+    UA_UInt32   inputArgumentsSize;
+    UA_Argument *inputArguments;
+    UA_UInt32   outputArgumentsSize;
+    UA_Argument *outputArguments;
 #endif
 } UA_MethodNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_MethodNode)

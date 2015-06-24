@@ -6,6 +6,11 @@
 
 #ifdef ENABLE_METHODCALLS
 
+UA_Boolean argConformsToDefinition(UA_Variant *arg, UA_Argument *argDefinition);
+UA_Boolean argConformsToDefinition(UA_Variant *arg, UA_Argument *argDefinition) {
+    return UA_TRUE;
+}
+
 void Service_Call(UA_Server *server, UA_Session *session,
                   const UA_CallRequest *request,
                   UA_CallResponse *response) {
