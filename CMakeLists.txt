@@ -174,6 +174,12 @@ if(ENABLE_EXTERNAL_NAMESPACES)
     add_definitions(-DUA_EXTERNAL_NAMESPACES)
 endif()
 
+## enable dynamic nodeset
+option(ENABLE_ADDNODES "Enable dynamic addition of nodes" ON)
+if(ENABLE_ADDNODES)
+    add_definitions(-DENABLE_ADDNODES )
+endif()
+
 ## set the precompiler flags
 configure_file("include/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
 
