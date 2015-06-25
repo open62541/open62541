@@ -5,8 +5,8 @@
 ### Author:  Chris Iatrou (ichrispa@core-vector.net)
 ### Version: rev 13
 ###
-### This program was created for educational purposes and has been 
-### contributed to the open62541 project by the author. All licensing 
+### This program was created for educational purposes and has been
+### contributed to the open62541 project by the author. All licensing
 ### terms for this source is inherited by the terms and conditions
 ### specified for by the open62541 project (see the projects readme
 ### file for more information on the LGPL terms and restrictions).
@@ -19,6 +19,7 @@
 import xml.dom.minidom as dom
 from ua_constants import *
 from logger import *
+from open62541_MacroHelper import open62541_MacroHelper
 
 def getNextElementNode(xmlvalue):
   if xmlvalue == None:
@@ -51,6 +52,14 @@ class opcua_value_t():
                        'string', 'bytestring', 'localizedtext', 'statuscode', \
                        'diagnosticinfo', 'nodeid', 'guid', 'datetime', \
                        'qualifiedname', 'expandednodeid', 'xmlelement']
+    self.dataType = None
+    self.encodingRule = []
+
+  def setEncodingRule(self, encoding):
+    self.encodingRule = encoding
+
+  def getEncodingRule(self):
+    return self.encodingRule
 
   def alias(self, data=None):
     if not data == None:
@@ -67,55 +76,78 @@ class opcua_value_t():
       self.__value__ = data
     return self.__value__
 
-  def getTypeByString(self, stringName):
+  def getTypeByString(self, stringName, encodingRule):
     stringName = str(stringName.lower())
     if stringName == 'boolean':
-      return opcua_BuiltinType_boolean_t(self.parent)
+      t = opcua_BuiltinType_boolean_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'int32':
-      return opcua_BuiltinType_int32_t(self.parent)
+      t = opcua_BuiltinType_int32_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'uint32':
-      return opcua_BuiltinType_uint32_t(self.parent)
+      t = opcua_BuiltinType_uint32_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'int16':
-      return opcua_BuiltinType_int16_t(self.parent)
+      t = opcua_BuiltinType_int16_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'uint16':
-      return opcua_BuiltinType_uint16_t(self.parent)
+      t = opcua_BuiltinType_uint16_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'int64':
-      return opcua_BuiltinType_int64_t(self.parent)
+      t = opcua_BuiltinType_int64_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'uint64':
-      return opcua_BuiltinType_uint64_t(self.parent)
+      t = opcua_BuiltinType_uint64_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'byte':
-      return opcua_BuiltinType_byte_t(self.parent)
+      t = opcua_BuiltinType_byte_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'sbyte':
-      return opcua_BuiltinType_sbyte_t(self.parent)
+      t = opcua_BuiltinType_sbyte_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'float':
-      return opcua_BuiltinType_float_t(self.parent)
+      t = opcua_BuiltinType_float_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'double':
-      return opcua_BuiltinType_double_t(self.parent)
+      t = opcua_BuiltinType_double_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'string':
-      return opcua_BuiltinType_string_t(self.parent)
+      t = opcua_BuiltinType_string_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'bytestring':
-      return opcua_BuiltinType_bytestring_t(self.parent)
+      t = opcua_BuiltinType_bytestring_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'localizedtext':
-      return opcua_BuiltinType_localizedtext_t(self.parent)
+      t = opcua_BuiltinType_localizedtext_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'statuscode':
-      return opcua_BuiltinType_statuscode_t(self.parent)
+      t = opcua_BuiltinType_statuscode_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'diagnosticinfo':
-      return opcua_BuiltinType_diagnosticinfo_t(self.parent)
+      t = opcua_BuiltinType_diagnosticinfo_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'nodeid':
-      return opcua_BuiltinType_nodeid_t(self.parent)
+      t = opcua_BuiltinType_nodeid_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'guid':
-      return opcua_BuiltinType_guid_t(self.parent)
+      t = opcua_BuiltinType_guid_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'datetime':
-      return opcua_BuiltinType_datetime_t(self.parent)
+      t = opcua_BuiltinType_datetime_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'qualifiedname':
-      return opcua_BuiltinType_qualifiedname_t(self.parent)
+      t = opcua_BuiltinType_qualifiedname_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'expandednodeid':
-      return opcua_BuiltinType_expandednodeid_t(self.parent)
+      t = opcua_BuiltinType_expandednodeid_t(self.parent)
+      t.setEncodingRule(encodingRule)
     elif stringName == 'xmlelement':
-      return opcua_BuiltinType_xmlelement_t(self.parent)
+      t = opcua_BuiltinType_xmlelement_t(self.parent)
+      t.setEncodingRule(encodingRule)
     else:
       log(self, "No class representing stringName " + stringName + " was found. Cannot create builtinType.")
       return None
+    return t
 
   def parseXML(self, xmlvalue):
     log(self, "parsing xmlvalue for " + self.parent.browseName() + " (" + str(self.parent.id()) + ") according to " + str(self.parent.dataType().target().getEncoding()))
@@ -163,7 +195,7 @@ class opcua_value_t():
     # such as extension Objects.
     if len(enc) == 1:
       # 0: ['BuiltinType']          either builtin type
-      # 1: [ [ 'Alias', [...]] ] or single alias for possible multipart
+      # 1: [ [ 'Alias', [...], n] ] or single alias for possible multipart
       if isinstance(enc[0], str):
         # 0: 'BuiltinType'
         if alias != None:
@@ -171,7 +203,7 @@ class opcua_value_t():
             log(self, "Expected XML element with tag " + alias + " but found " + xmlvalue.tagName + " instead", LOG_LEVEL_ERROR)
             return None
           else:
-            t = self.getTypeByString(enc[0])
+            t = self.getTypeByString(enc[0], enc)
             t.alias(alias)
             t.parseXML(xmlvalue)
             return t
@@ -179,15 +211,15 @@ class opcua_value_t():
           if not self.isBuiltinByString(xmlvalue.tagName):
             log(self, "Expected XML describing builtin type " + enc[0] + " but found " + xmlvalue.tagName + " instead", LOG_LEVEL_ERROR)
           else:
-            t = self.getTypeByString(enc[0])
+            t = self.getTypeByString(enc[0], enc)
             t.parseXML(xmlvalue)
             return t
       else:
-        # 1: ['Alias', [...]]
+        # 1: ['Alias', [...], n]
         # Let the next elif handle this
         return self.__parseXMLSingleValue(xmlvalue, alias=alias, encodingPart=enc[0])
-    elif len(enc) == 2 and isinstance(enc[0], str):
-      # [ 'Alias', [...] ]          aliased multipart
+    elif len(enc) == 3 and isinstance(enc[0], str):
+      # [ 'Alias', [...], 0 ]          aliased multipart
       if alias == None:
         alias = enc[0]
       # if we have an alias and the next field is multipart, keep the alias
@@ -209,7 +241,7 @@ class opcua_value_t():
         return None
 
       extobj = opcua_BuiltinType_extensionObject_t(self.parent)
-
+      extobj.setEncodingRule(enc)
       etype = xmlvalue.getElementsByTagName("TypeId")
       if len(etype) == 0:
         log(self, "Did not find <TypeId> for ExtensionObject", LOG_LEVEL_ERROR)
@@ -277,10 +309,11 @@ class opcua_value_t():
   def __repr__(self):
     return self.__str__()
 
-  def printOpen62541CCode_SubType(self):
+  def printOpen62541CCode_SubType(self, asIndirect=True):
     return ""
 
   def printOpen62541CCode(self):
+    codegen = open62541_MacroHelper()
     code = []
     valueName = self.parent.getCodePrintableID() + "_variant_DataContents"
 
@@ -301,6 +334,7 @@ class opcua_value_t():
         log(self, "Don't know how to print array of StatusCode in node " + str(self.parent.id()), LOG_LEVEL_WARN)
       else:
         code.append("UA_Variant *" + self.parent.getCodePrintableID() + "_variant = UA_Variant_new();")
+        code.append(self.parent.getCodePrintableID() + "_variant->type = &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "];")
         code.append("UA_" + self.value[0].stringRepresentation + " " + valueName + "[" + str(len(self.value)) + "];")
         for v in self.value:
           code.append(valueName + "[" + str(self.value.index(v)) + "] = " + v.printOpen62541CCode_SubType() + ";")
@@ -314,17 +348,25 @@ class opcua_value_t():
         log(self, "Don't know how to print scalar DateTime in node " + str(self.parent.id()), LOG_LEVEL_WARN)
       elif self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_DIAGNOSTICINFO:
         log(self, "Don't know how to print scalar DiagnosticInfo in node " + str(self.parent.id()), LOG_LEVEL_WARN)
-      elif self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
-        log(self, "Don't know how to print scalar ExtensionObject in node " + str(self.parent.id()), LOG_LEVEL_WARN)
       elif self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_STATUSCODE:
         log(self, "Don't know how to print scalar StatusCode in node " + str(self.parent.id()), LOG_LEVEL_WARN)
       else:
         # The following strategy applies to all other types, in particular strings and numerics.
+        if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
+          code = code + self.value[0].printOpen62541CCode_SubType_build()
         code.append("UA_Variant *" + self.parent.getCodePrintableID() + "_variant = UA_Variant_new();")
-        code.append("UA_" + self.value[0].stringRepresentation + " " + valueName + " = " + self.value[0].printOpen62541CCode_SubType() + ";")
-        code.append("UA_Variant_setScalarCopy(" + self.parent.getCodePrintableID() + "_variant, &" + valueName + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
-        code.append("UA_" + self.value[0].stringRepresentation + "_deleteMembers(&" + valueName + ");")
-        code.append(self.parent.getCodePrintableID() + "->value.variant = *" + self.parent.getCodePrintableID() + "_variant;")
+        code.append(self.parent.getCodePrintableID() + "_variant->type = &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "];")
+        if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
+          code.append("UA_" + self.value[0].stringRepresentation + " *" + valueName + " = " + self.value[0].printOpen62541CCode_SubType() + ";")
+          code.append("UA_Variant_setScalarCopy(" + self.parent.getCodePrintableID() + "_variant, " + valueName + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
+          #FIXME: There is no membership definition for extensionObjects generated in this function.
+          code.append("UA_" + self.value[0].stringRepresentation + "_deleteMembers(" + valueName + ");")
+          code.append(self.parent.getCodePrintableID() + "->value.variant = *" + self.parent.getCodePrintableID() + "_variant;")
+        else:
+          code.append("UA_" + self.value[0].stringRepresentation + " " + valueName + " = " + self.value[0].printOpen62541CCode_SubType() + ";")
+          code.append("UA_Variant_setScalarCopy(" + self.parent.getCodePrintableID() + "_variant, &" + valueName + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
+          code.append("UA_" + self.value[0].stringRepresentation + "_deleteMembers(&" + valueName + ");")
+          code.append(self.parent.getCodePrintableID() + "->value.variant = *" + self.parent.getCodePrintableID() + "_variant;")
     return code
 
 
@@ -344,6 +386,103 @@ class opcua_BuiltinType_extensionObject_t(opcua_value_t):
     if not data == None:
       self.__typeId__ = data
     return self.__typeId__
+
+  def getCodeInstanceName(self):
+    return self.__codeInstanceName__
+
+  def setCodeInstanceName(self, recursionDepth, arrayIndex):
+    self.__inVariableRecursionDepth__ = recursionDepth
+    self.__inVariableArrayIndex__ = arrayIndex
+    self.__codeInstanceName__ = self.parent.getCodePrintableID() + "_" + str(self.alias()) + "_" + str(arrayIndex) + "_" + str(recursionDepth)
+    return self.__codeInstanceName__
+
+  def printOpen62541CCode_SubType_build(self, recursionDepth=0, arrayIndex=0):
+    code = [""]
+    codegen = open62541_MacroHelper();
+
+    log(self, "Building extensionObject for " + str(self.parent.id()))
+    log(self, "Value    " + str(self.value))
+    log(self, "Encoding " + str(self.getEncodingRule()))
+
+    self.setCodeInstanceName(recursionDepth, arrayIndex)
+    # If there are any ExtensionObjects instide this ExtensionObject, we need to
+    # generate one-time-structs for them too before we can proceed;
+    for subv in self.value:
+      if isinstance(subv, list):
+        log(self, "ExtensionObject contains an ExtensionObject, which is currently not encodable!", LOG_LEVEL_ERR)
+
+    code.append("struct {")
+    for field in self.getEncodingRule():
+      ptrSym = ""
+      # If this is an Array, this is pointer to its contents with a AliasOfFieldSize entry
+      if field[2] != 0:
+        code.append("  UA_Int32 " + str(field[0]) + "Size;")
+        ptrSym = "*"
+      if len(field[1]) == 1:
+        code.append("  UA_" + str(field[1][0]) + " " + ptrSym + str(field[0]) + ";")
+      else:
+        code.append("  UA_ExtensionObject " + " " + ptrSym + str(field[0]) + ";")
+    code.append("} " + self.getCodeInstanceName() + "_struct;")
+
+    # Assign data to the struct contents
+    # Track the encoding rule definition to detect arrays and/or ExtensionObjects
+    encFieldIdx = 0
+    for subv in self.value:
+      encField = self.getEncodingRule()[encFieldIdx]
+      encFieldIdx = encFieldIdx + 1;
+      log(self, "Encoding of field " + subv.alias() + " is " + str(subv.getEncodingRule()) + "defined by " + str(encField))
+      # Check if this is an array
+      if encField[2] == 0:
+        code.append(self.getCodeInstanceName()+"_struct."+subv.alias() + " = " + subv.printOpen62541CCode_SubType(asIndirect=False) + ";")
+      else:
+        if isinstance(subv, list):
+          # this is an array
+          code.append(self.getCodeInstanceName()+"_struct."+subv.alias() + "Size = " + str(len(subv)) + ";")
+          code.append(self.getCodeInstanceName()+"_struct."+subv.alias()+" = (UA_" + subv.stringRepresentation + " *) UA_malloc(sizeof(UA_" + subv.stringRepresentation + ")*"+ str(len(subv))+");")
+          log(self, "Encoding included array of " + str(len(subv)) + " values.")
+          for subvidx in range(0,len(subv)):
+            subvv = subv[subvidx]
+            log(self, "  " + str(subvix) + " " + str(subvv))
+            code.append(self.getCodeInstanceName()+"_struct."+subv.alias() + "[" + str(subvidx) + "] = " + subvv.printOpen62541CCode_SubType(asIndirect=True) + ";")
+          code.append("}")
+        else:
+          code.append(self.getCodeInstanceName()+"_struct."+subv.alias() + "Size = 1;")
+          code.append(self.getCodeInstanceName()+"_struct."+subv.alias()+" = (UA_" + subv.stringRepresentation + " *) UA_malloc(sizeof(UA_" + subv.stringRepresentation + "));")
+          code.append(self.getCodeInstanceName()+"_struct."+subv.alias() + "[0]  = " + subv.printOpen62541CCode_SubType(asIndirect=True) + ";")
+
+
+    # Allocate some memory
+    code.append("UA_ExtensionObject *" + self.getCodeInstanceName() + " =  UA_ExtensionObject_new();")
+    code.append(self.getCodeInstanceName() + "->encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;")
+    code.append(self.getCodeInstanceName() + "->typeId = " + codegen.getCreateNodeIDMacro(self.parent.dataType().target()) + ";")
+    code.append("UA_ByteString_newMembers(&" + self.getCodeInstanceName() + "->body, 65000);" )
+
+    # Encode each value as a bytestring seperately.
+    code.append("size_t " + self.getCodeInstanceName() + "_encOffset = 0;" )
+    encFieldIdx = 0;
+    for subv in self.value:
+      encField = self.getEncodingRule()[encFieldIdx]
+      encFieldIdx = encFieldIdx + 1;
+      if encField[2] == 0:
+        code.append("UA_" + subv.stringRepresentation + "_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + ", &" + self.getCodeInstanceName() + "->body, &" + self.getCodeInstanceName() + "_encOffset);" )
+      else:
+        if isinstance(subv, list):
+          for subvidx in range(0,len(subv)):
+            code.append("UA_" + subv.stringRepresentation + "_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + "[" + str(subvidx) + "], &" + self.getCodeInstanceName() + "->body, &" + self.getCodeInstanceName() + "_encOffset);" )
+        else:
+          code.append("UA_" + subv.stringRepresentation + "_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + "[0], &" + self.getCodeInstanceName() + "->body, &" + self.getCodeInstanceName() + "_encOffset);" )
+
+    # Reallocate the memory by swapping the 65k Bytestring for a new one
+    code.append(self.getCodeInstanceName() + "->body.length = " + self.getCodeInstanceName() + "_encOffset;");
+    code.append("UA_Byte *" + self.getCodeInstanceName() + "_newBody = (UA_Byte *) UA_malloc(" + self.getCodeInstanceName() + "_encOffset );" )
+    code.append("memcpy(" + self.getCodeInstanceName() + "_newBody, " + self.getCodeInstanceName() + "->body.data, " + self.getCodeInstanceName() + "_encOffset);" )
+    code.append("UA_Byte *" + self.getCodeInstanceName() + "_oldBody = " + self.getCodeInstanceName() + "->body.data;");
+    code.append(self.getCodeInstanceName() + "->body.data = " +self.getCodeInstanceName() + "_newBody;")
+    code.append("UA_free(" + self.getCodeInstanceName() + "_oldBody);")
+    return code
+
+  def printOpen62541CCode_SubType(self, asIndirect=True):
+    return str(self.getCodeInstanceName())
 
   def __str__(self):
     return "'" + self.alias() + "':" + self.stringRepresentation + "(" + str(self.value) + ")"
@@ -408,8 +547,11 @@ class opcua_BuiltinType_localizedtext_t(opcua_value_t):
       else:
         self.value.append(tmp[0].firstChild.data)
 
-  def printOpen62541CCode_SubType(self):
-      code = "UA_LOCALIZEDTEXT_ALLOC(\"" + str(self.value[0]) + "\", \"" + str(self.value[1].encode('utf-8')) + "\")"
+  def printOpen62541CCode_SubType(self, asIndirect=True):
+      if asIndirect==True:
+        code = "UA_LOCALIZEDTEXT_ALLOC(\"" + str(self.value[0]) + "\", \"" + str(self.value[1].encode('utf-8')) + "\")"
+      else:
+        code = "UA_LOCALIZEDTEXT(\"" + str(self.value[0]) + "\", \"" + str(self.value[1].encode('utf-8')) + "\")"
       return code
 
 class opcua_BuiltinType_expandednodeid_t(opcua_value_t):
@@ -426,7 +568,7 @@ class opcua_BuiltinType_expandednodeid_t(opcua_value_t):
 
     log(self, "Not implemented", LOG_LEVEL_ERR)
 
-  def printOpen62541CCode_SubType(self):
+  def printOpen62541CCode_SubType(self, asIndirect=True):
     #FIXME! This one is definetely broken!
     code = ""
     return code
@@ -466,6 +608,22 @@ class opcua_BuiltinType_nodeid_t(opcua_value_t):
       self.value = self.parent.getNamespace().getNodeByIDString(unicode(xmlvalue.firstChild.data))
       if self.value == None:
         log(self, "Node with id " + str(unicode(xmlvalue.firstChild.data)) + " was not found in namespace.", LOG_LEVEL_ERROR)
+
+  def printOpen62541CCode_SubType(self, asIndirect=True):
+    if self.value == None:
+      return "UA_NODEID_NUMERIC(0,0)"
+    nodeId = self.value.id()
+    if nodeId.i != None:
+      return "UA_NODEID_NUMERIC(" + str(nodeId.ns) + ", " + str(nodeId.i) + ")"
+    elif nodeId.s != None:
+      return "UA_NODEID_STRING("  + str(nodeId.ns) + ", " + str(nodeId.s) + ")"
+    elif nodeId.b != None:
+      log(self, "NodeID Generation macro for bytestrings has not been implemented.")
+      return "UA_NODEID_NUMERIC(0,0)"
+    elif nodeId.g != None:
+      log(self, "NodeID Generation macro for guids has not been implemented.")
+      return "UA_NODEID_NUMERIC(0,0)"
+    return "UA_NODEID_NUMERIC(0,0)"
 
 class opcua_BuiltinType_datetime_t(opcua_value_t):
   def setStringReprentation(self):
@@ -550,7 +708,7 @@ class opcua_BuiltinType_qualifiedname_t(opcua_value_t):
         self.value = [0]
         self.value.append(unicode(xmlvalue.firstChild.data))
 
-  def printOpen62541CCode_SubType(self):
+  def printOpen62541CCode_SubType(self, asIndirect=True):
       code = "UA_QUALIFIEDNAME_ALLOC(" + str(self.value[0]) + ", \"" + self.value[1].encode('utf-8') + "\")"
       return code
 
@@ -654,7 +812,7 @@ class opcua_BuiltinType_boolean_t(opcua_value_t):
       else:
         self.value = True
 
-  def printOpen62541CCode_SubType(self):
+  def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_byte_t(opcua_value_t):
@@ -688,7 +846,7 @@ class opcua_BuiltinType_byte_t(opcua_value_t):
       except:
         log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
 
-  def printOpen62541CCode_SubType(self):
+  def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_sbyte_t(opcua_value_t):
@@ -722,7 +880,7 @@ class opcua_BuiltinType_sbyte_t(opcua_value_t):
       except:
         log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
 
-  def printOpen62541CCode_SubType(self):
+  def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_int16_t(opcua_value_t):
@@ -756,7 +914,7 @@ class opcua_BuiltinType_int16_t(opcua_value_t):
       except:
         log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
 
-  def printOpen62541CCode_SubType(self):
+  def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_uint16_t(opcua_value_t):
@@ -790,7 +948,7 @@ class opcua_BuiltinType_uint16_t(opcua_value_t):
       except:
         log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
 
-  def printOpen62541CCode_SubType(self):
+  def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_int32_t(opcua_value_t):
@@ -824,7 +982,7 @@ class opcua_BuiltinType_int32_t(opcua_value_t):
       except:
         log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
 
-  def printOpen62541CCode_SubType(self):
+  def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_uint32_t(opcua_value_t):
@@ -858,7 +1016,7 @@ class opcua_BuiltinType_uint32_t(opcua_value_t):
       except:
         log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
 
-  def printOpen62541CCode_SubType(self):
+  def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_int64_t(opcua_value_t):
@@ -888,7 +1046,7 @@ class opcua_BuiltinType_int64_t(opcua_value_t):
       except:
         log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
 
-  def printOpen62541CCode_SubType(self):
+  def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_uint64_t(opcua_value_t):
@@ -922,7 +1080,7 @@ class opcua_BuiltinType_uint64_t(opcua_value_t):
       except:
         log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
 
-  def printOpen62541CCode_SubType(self):
+  def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_float_t(opcua_value_t):
@@ -956,7 +1114,7 @@ class opcua_BuiltinType_float_t(opcua_value_t):
       except:
         log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
 
-  def printOpen62541CCode_SubType(self):
+  def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_double_t(opcua_value_t):
@@ -990,7 +1148,7 @@ class opcua_BuiltinType_double_t(opcua_value_t):
       except:
         log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
 
-  def printOpen62541CCode_SubType(self):
+  def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_string_t(opcua_value_t):
@@ -1026,7 +1184,7 @@ class opcua_BuiltinType_string_t(opcua_value_t):
     else:
       self.value = str(unicode(xmlvalue.firstChild.data))
 
-  def printOpen62541CCode_SubType(self):
+  def printOpen62541CCode_SubType(self, asIndirect=True):
       code = "UA_STRING_ALLOC(\"" + self.value.encode('utf-8') + "\")"
       return code
 
@@ -1037,7 +1195,7 @@ class opcua_BuiltinType_xmlelement_t(opcua_BuiltinType_string_t):
   def setNumericRepresentation(self):
     self.__binTypeId__ = BUILTINTYPE_TYPEID_XMLELEMENT
 
-  def printOpen62541CCode_SubType(self):
+  def printOpen62541CCode_SubType(self, asIndirect=True):
       code = "UA_XMLELEMENT_ALLOC(\"" + self.value.encode('utf-8') + "\")"
       return code
 
@@ -1069,7 +1227,7 @@ class opcua_BuiltinType_bytestring_t(opcua_value_t):
     else:
       self.value = str(unicode(xmlvalue.firstChild.data))
 
-  def printOpen62541CCode_SubType(self):
+  def printOpen62541CCode_SubType(self, asIndirect=True):
       bs = ""
       for line in self.value:
         bs = bs + str(line).replace("\n","");
