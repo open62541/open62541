@@ -1,0 +1,18 @@
+version: '{build}'
+os: Visual Studio 2015 RC
+clone_folder: c:\projects\open62541
+before_build:
+- python -m pip install lxml
+build_script:
+- cd c:\projects\open62541
+- md build
+- cd build
+- cmake -DBUILD_EXAMPLESERVER:BOOL=ON -DBUILD_EXAMPLECLIENT:BOOL=ON -G"Visual Studio 12 2013" ..
+- msbuild open62541.sln
+- echo "Testing amalgamation"
+- cd ..
+- rd /s /q build
+- md build
+- cd build
+- cmake -DBUILD_EXAMPLESERVER:BOOL=ON -DBUILD_EXAMPLECLIENT:BOOL=ON -DENABLE_AMALGAMATION:BOOL=ON -G"Visual Studio 12 2013" ..
+- msbuild open62541.sln 

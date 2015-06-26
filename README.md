@@ -7,6 +7,7 @@ open62541 is licensed under the LGPL + static linking exception. That means **op
 
 [![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
 [![Build Status](https://travis-ci.org/acplt/open62541.png?branch=master)](https://travis-ci.org/acplt/open62541)
+[![MSVS build status](https://ci.appveyor.com/api/projects/status/w2geggs5s28gfu6t/branch/master?svg=true)](https://ci.appveyor.com/project/Stasik0/open62541/branch/master)
 [![Coverage Status](https://coveralls.io/repos/acplt/open62541/badge.png?branch=master)](https://coveralls.io/r/acplt/open62541?branch=master)
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/1864/badge.svg)](https://scan.coverity.com/projects/1864)
 

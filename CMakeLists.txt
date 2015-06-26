@@ -40,7 +40,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # compiler flags
-if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
                     -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
                     -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes # -Wshadow -Wconversion
