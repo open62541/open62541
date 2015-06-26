@@ -5,36 +5,23 @@ import os.path
 import io
 
 parser = argparse.ArgumentParser()
-parser.add_argument('version', help='version to include')
-parser.add_argument('outfile', help='outfile w/o extension')
+parser.add_argument('version', help='file version')
+parser.add_argument('outfile', help='outfile with extension .c/.h')
 parser.add_argument('inputs', nargs='*', action='store', help='input filenames')
 args = parser.parse_args()
 
 outname = args.outfile.split("/")[-1]
+is_c = False
+if outname[-2:] == ".c":
+    is_c = True
 pos = outname.find(".")
 if pos > 0:
     outname = outname[:pos]
-include_re = re.compile("^#include ([\"<].*[\">]).*$")
+include_re = re.compile("^#include (\".*\").*$")
 guard_re = re.compile("^#(?:(?:ifndef|define) [A-Z_]+_H_|endif /\* [A-Z_]+_H_ \*/)")
 includes = []
 
-is_c = False
-
 print ("Starting amalgamating file "+ args.outfile)
-
-for fname in args.inputs:
-    if("util.h" in fname):
-        is_c = True
-        continue
-    with io.open(fname, encoding="utf8") as infile:
-        print ("Integrating file '" + fname + "'...", end=""),
-        for line in infile:
-            res = include_re.match(line)
-            if res:
-                inc = res.group(1)
-                if not inc in includes and not inc[0] == '"':
-                    includes.append(inc)
-        print ("done."),
 
 file = io.open(args.outfile, 'w')
 file.write(u'''/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES 
@@ -68,31 +55,25 @@ extern "C" {
 if not is_c:
     for inc in includes:
         file.write(u"#include " + inc + "\n")
+    file.write(u'''#ifndef UA_AMALGAMATE
+# define UA_AMALGAMATE
+#endif\n\n''')
 else:
-    file.write(u"#define UA_AMALGAMATE\n")
     file.write(u'''#ifndef UA_DYNAMIC_LINKING
 # define UA_DYNAMIC_LINKING
 #endif\n\n''')
-    for fname in args.inputs:
-        if "ua_config.h" in fname or "ua_util.h" in fname:
-            with io.open(fname, encoding="utf8") as infile:
-                print ("Integrating file '" + fname + "'...", end=""),
-                for line in infile:
-                    file.write(line)
-                print ("done."),
     file.write(u"#include \"" + outname + ".h\"\n")
 
 for fname in args.inputs:
-    if not "util.h" in fname:
-        with io.open(fname, encoding="utf8") as infile:
-            file.write(u"/*********************************** amalgamated original file \"" + fname + u"\" ***********************************/\n")
-            print ("Integrating file '" + fname + "'...", end=""),
-            for line in infile:
-                inc_res = include_re.match(line)
-                guard_res = guard_re.match(line)
-                if not inc_res and not guard_res:
-                    file.write(line)
-            print ("done."),
+    with io.open(fname, encoding="utf8") as infile:
+        file.write(u"\n/*********************************** amalgamated original file \"" + fname + u"\" ***********************************/\n\n")
+        print ("Integrating file '" + fname + "'...", end=""),
+        for line in infile:
+            inc_res = include_re.match(line)
+            guard_res = guard_re.match(line)
+            if not inc_res and not guard_res:
+                file.write(line)
+        print ("done."),
 
 if not is_c:
     file.write(u'''

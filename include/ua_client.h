@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-#include "ua_util.h"
+#include "ua_config.h"
 #include "ua_types.h"
 #include "ua_connection.h"
 #include "ua_log.h"

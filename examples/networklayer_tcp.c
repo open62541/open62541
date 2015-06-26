@@ -3,11 +3,11 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
 
-#ifdef NOT_AMALGATED
-# define _XOPEN_SOURCE 500 //some users need this for some reason
-# include <stdlib.h> // malloc, free
-# include <string.h> // memset
-#endif
+#include "networklayer_tcp.h"
+
+#include <stdlib.h> // malloc, free
+#include <string.h> // memset
+#include <errno.h>
 
 #ifdef _WIN32
 # include <malloc.h>
@@ -26,13 +26,9 @@
 # define CLOSESOCKET(S) close(S)
 #endif
 
-#include "networklayer_tcp.h" // UA_MULTITHREADING is defined in here
 #ifdef UA_MULTITHREADING
 # include <urcu/uatomic.h>
 #endif
-
-/* with a space, so the include is not removed during amalgamation */
-# include <errno.h>
 
 /****************************/
 /* Generic Socket Functions */
@@ -67,16 +63,16 @@ static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *respo
         return UA_STATUSCODE_BADOUTOFMEMORY;
     struct timeval tmptv = {0, timeout * 1000};
     if(0 != setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tmptv, sizeof(struct timeval))){
-		UA_free(response->data);
+		free(response->data);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     int ret = recv(connection->sockfd, (char*)response->data, connection->localConf.recvBufferSize, 0);
 	if(ret == 0) {
-		UA_free(response->data);
+		free(response->data);
         UA_ByteString_init(response);
 		return UA_STATUSCODE_GOOD; /* no response -> retry */
 	} else if(ret < 0) {
-        UA_free(response->data);
+        free(response->data);
         UA_ByteString_init(response);
 #ifdef _WIN32
 		if(WSAGetLastError() == WSAEINTR || WSAGetLastError() == WSAEWOULDBLOCK) {

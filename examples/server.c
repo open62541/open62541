@@ -3,30 +3,29 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
 
+#ifdef UA_AMALGAMATE
+# include "open62541.h"
+#else
+# include <time.h>
+# include "ua_types.h"
+# include "ua_server.h"
+# include "logger_stdout.h"
+# include "networklayer_tcp.h"
+#endif
+
 #include <signal.h>
 #include <errno.h> // errno, EINTR
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #ifdef _MSC_VER
-    #include <io.h> //access
+# include <io.h> //access
 #else
-    #include <unistd.h> //access
+# include <unistd.h> //access
 #endif
 
-#define __USE_XOPEN2K
 #ifdef UA_MULTITHREADING
 # include <pthread.h>
-#endif
-
-#ifdef NOT_AMALGATED
-# include <time.h>
-# include "ua_types.h"
-# include "ua_server.h"
-# include "logger_stdout.h"
-# include "networklayer_tcp.h"
-#else
-# include "open62541.h"
 #endif
 
 /****************************/

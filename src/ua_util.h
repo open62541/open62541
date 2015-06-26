@@ -1,9 +1,7 @@
 #ifndef UA_UTIL_H_
 #define UA_UTIL_H_
 
-#ifndef UA_AMALGAMATE
-# include "ua_config.h"
-#endif
+#include "ua_config.h"
 
 /*********************/
 /* Memory Management */
@@ -19,9 +17,9 @@
 
 /* Visual Studio needs __restrict */
 #ifdef _MSC_VER
-    #define UA_RESTRICT __restrict
+# define UA_RESTRICT __restrict
 #else
-    #define UA_RESTRICT restrict
+# define UA_RESTRICT restrict
 #endif
 
 #define UA_NULL ((void *)0)
@@ -83,9 +81,7 @@
 /* External Dependencies */
 /*************************/
 
-#ifndef UA_AMALGAMATE
-# include "queue.h"
-#endif
+#include "queue.h"
 
 #ifdef UA_MULTITHREADING
 # define _LGPL_SOURCE

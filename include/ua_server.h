@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "ua_config.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_nodeids.h"
