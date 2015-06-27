@@ -111,8 +111,8 @@ typedef double UA_Double;
 
 /** @brief A sequence of Unicode characters. */
 typedef struct {
-    UA_Int32 length;
-    UA_Byte *data;
+    UA_Int32 length; ///< The length of the string
+    UA_Byte *data; ///< The string's content (not null-terminated)
 } UA_String;
 
 /** @brief An instance in time.
@@ -138,26 +138,26 @@ typedef UA_String UA_XmlElement;
 /** @brief An identifier for a node in the address space of an OPC UA Server. */
 /* The shortened numeric types are introduced during encoding. */
 typedef struct {
-    UA_UInt16 namespaceIndex;
-    enum {
+    UA_UInt16 namespaceIndex; ///< The namespace index of the node
+    enum UA_NodeIdType {
         UA_NODEIDTYPE_NUMERIC    = 2,
         UA_NODEIDTYPE_STRING     = 3,
         UA_NODEIDTYPE_GUID       = 4,
         UA_NODEIDTYPE_BYTESTRING = 5
-    } identifierType;
+    } identifierType; ///< The type of the node identifier
     union {
         UA_UInt32     numeric;
         UA_String     string;
         UA_Guid       guid;
         UA_ByteString byteString;
-    } identifier;
+    } identifier; ///< The node identifier
 } UA_NodeId;
 
 /** @brief A NodeId that allows the namespace URI to be specified instead of an index. */
 typedef struct {
-    UA_NodeId nodeId;
-    UA_String namespaceUri; // not encoded if length=-1
-    UA_UInt32 serverIndex;  // not encoded if 0
+    UA_NodeId nodeId; ///< The nodeid without extensions
+    UA_String namespaceUri; ///< The Uri of the namespace (tindex in the nodeId is ignored)
+    UA_UInt32 serverIndex;  ///< The index of the server
 } UA_ExpandedNodeId;
 
 #include "ua_statuscodes.h"
@@ -166,42 +166,30 @@ typedef enum UA_StatusCode UA_StatusCode; // StatusCodes aren't an enum(=int) si
 
 /** @brief A name qualified by a namespace. */
 typedef struct {
-    UA_UInt16 namespaceIndex;
-    UA_String name;
+    UA_UInt16 namespaceIndex; ///< The namespace index
+    UA_String name; ///< The actual name
 } UA_QualifiedName;
 
 /** @brief Human readable text with an optional locale identifier. */
 typedef struct {
-    UA_String locale;
-    UA_String text;
+    UA_String locale; ///< The locale (e.g. "en-US")
+    UA_String text; ///< The actual text
 } UA_LocalizedText;
 
 /** @brief A structure that contains an application specific data type that may
     not be recognized by the receiver. */
 typedef struct {
-    UA_NodeId typeId;
+    UA_NodeId typeId; ///< The nodeid of the datatype
     enum {
         UA_EXTENSIONOBJECT_ENCODINGMASK_NOBODYISENCODED  = 0,
         UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING = 1,
         UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISXML        = 2
-    } encoding;
-    UA_ByteString body; // contains either the bytestring or a pointer to the memory-object
+    } encoding; ///< The encoding of the contained data
+    UA_ByteString body; ///< The bytestring of the encoded data
 } UA_ExtensionObject;
 
 struct UA_DataType;
 typedef struct UA_DataType UA_DataType; 
-
-/** @brief NumericRanges are used select a subset in a (multidimensional) variant array.
-    NumericRange has no official type structure in the standard. Officially, it only exists as an
-    encoded string, such as "1:2,0:3,5". The colon separates min/max index and the comma separates
-    dimensions. A single value indicates a range with a single element (min==max). */
-typedef struct {
-    UA_Int32 dimensionsSize;
-    struct UA_NumericRangeDimension {
-        UA_UInt32 min;
-        UA_UInt32 max;
-    } *dimensions;
-} UA_NumericRange;
 
 /** @brief Variants store (arrays of) any data type. Either they provide a pointer to the data in
  *   memory, or functions from which the data can be accessed. Variants are replaced together with
@@ -215,14 +203,14 @@ typedef struct {
  */
 
 typedef struct {
-    const UA_DataType *type;
+    const UA_DataType *type; ///< The nodeid of the datatype
     enum {
         UA_VARIANT_DATA, ///< The data is "owned" by this variant (copied and deleted together)
         UA_VARIANT_DATA_NODELETE, /**< The data is "borrowed" by the variant and shall not be
                                        deleted at the end of this variant's lifecycle. It is not
                                        possible to overwrite borrowed data due to concurrent access.
                                        Use a custom datasource with a mutex. */
-    } storageType;
+    } storageType; ///< Shall the data be deleted together with the variant
     UA_Int32  arrayLength;  ///< the number of elements in the data-pointer
     void     *data; ///< points to the scalar or array data
     UA_Int32  arrayDimensionsSize; ///< the number of dimensions the data-array has
@@ -322,18 +310,15 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_DiagnosticInfo)
     allocated. If the memory cannot be allocated, a null-string is returned. */
 UA_String UA_EXPORT UA_String_fromChars(char const src[]);
 
-#define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
-#define UA_STRING(CHARS) (UA_String) {strlen(CHARS), (UA_Byte*)CHARS }
 #define UA_STRING_NULL (UA_String) {-1, (UA_Byte*)0 }
-
-/** Printf a char-array into a UA_String. Memory for the string data is allocated. */
-UA_StatusCode UA_EXPORT UA_String_copyprintf(char const fmt[], UA_String *dst, ...);
+#define UA_STRING(CHARS) (UA_String) {strlen(CHARS), (UA_Byte*)CHARS }
+#define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
 
 /** Compares two strings */
 UA_Boolean UA_EXPORT UA_String_equal(const UA_String *string1, const UA_String *string2);
 
-/** Compares an UA String with a char array */
-UA_Boolean UA_EXPORT UA_String_equalchars(const UA_String *string1, char *charString);
+/** Printf a char-array into a UA_String. Memory for the string data is allocated. */
+UA_StatusCode UA_EXPORT UA_String_copyprintf(char const fmt[], UA_String *dst, ...);
 
 /* DateTime */
 /** Returns the current time */
@@ -471,6 +456,18 @@ UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32
  */
 UA_StatusCode UA_EXPORT UA_Variant_setArrayCopy(UA_Variant *v, const void *array, UA_Int32 noElements,
                                                 const UA_DataType *type);
+
+/** @brief NumericRanges are used select a subset in a (multidimensional) variant array.
+    NumericRange has no official type structure in the standard. Officially, it only exists as an
+    encoded string, such as "1:2,0:3,5". The colon separates min/max index and the comma separates
+    dimensions. A single value indicates a range with a single element (min==max). */
+typedef struct {
+    UA_Int32 dimensionsSize;
+    struct UA_NumericRangeDimension {
+        UA_UInt32 min;
+        UA_UInt32 max;
+    } *dimensions;
+} UA_NumericRange;
 
 /**
  * Copy the variant, but use only a subset of the (multidimensional) array into a variant. Returns

@@ -95,8 +95,7 @@ static void handleSourceTimestamps(UA_TimestampsToReturn timestamps, UA_DataValu
 #ifndef BUILD_UNIT_TESTS
 static
 #endif
-void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
-                      const UA_ReadValueId *id, UA_DataValue *v) {
+void readValue(UA_Server *server, UA_TimestampsToReturn timestamps, const UA_ReadValueId *id, UA_DataValue *v) {
     UA_String binEncoding = UA_STRING("DefaultBinary");
     UA_String xmlEncoding = UA_STRING("DefaultXml");
 	if(id->dataEncoding.name.length >= 0){
