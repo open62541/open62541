@@ -24,6 +24,7 @@
 # include <unistd.h> //access
 #endif
 
+#define __USE_XOPEN2K
 #ifdef UA_MULTITHREADING
 # include <pthread.h>
 #endif
