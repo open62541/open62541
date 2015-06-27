@@ -1,14 +1,14 @@
-#ifdef NOT_AMALGATED
-    #include "ua_types.h"
-    #include "ua_client.h"
-    #include "ua_nodeids.h"
-    #include "networklayer_tcp.h"
-    #include "logger_stdout.h"
-    #include "ua_types_encoding_binary.h"
+#ifdef UA_AMALGAMATE
+# include "open62541.h"
+# include <string.h>
+# include <stdlib.h>
 #else
-    #include "open62541.h"
-    #include <string.h>
-    #include <stdlib.h>
+# include "ua_types.h"
+# include "ua_client.h"
+# include "ua_nodeids.h"
+# include "networklayer_tcp.h"
+# include "logger_stdout.h"
+# include "ua_types_encoding_binary.h"
 #endif
 
 #include <stdio.h>
