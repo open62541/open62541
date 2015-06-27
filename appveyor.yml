@@ -16,3 +16,19 @@ build_script:
 - cd build
 - cmake -DBUILD_EXAMPLESERVER:BOOL=ON -DBUILD_EXAMPLECLIENT:BOOL=ON -DENABLE_AMALGAMATION:BOOL=ON -G"Visual Studio 12 2013" ..
 - msbuild open62541.sln 
+- cp C:\projects\open62541\build\open62541.c C:\projects\open62541\build\Debug\open62541.c
+- cp C:\projects\open62541\build\open62541.h C:\projects\open62541\build\Debug\open62541.h
+- cd ..
+- echo "Win 64 build"
+- md build64
+- cd build64
+- cmake -DBUILD_EXAMPLESERVER:BOOL=ON -DBUILD_EXAMPLECLIENT:BOOL=ON -DENABLE_AMALGAMATION:BOOL=ON -G"Visual Studio 12 2013 Win64" ..
+- msbuild open62541.sln 
+- cp C:\projects\open62541\build64\open62541.c C:\projects\open62541\build64\Debug\open62541.c
+- cp C:\projects\open62541\build64\open62541.h C:\projects\open62541\build64\Debug\open62541.h
+- cd ..
+after_build:
+- 7z a open62541-win32.zip %APPVEYOR_BUILD_FOLDER%\build\Debug\*
+- 7z a open62541-win64.zip %APPVEYOR_BUILD_FOLDER%\build64\Debug\*
+- appveyor PushArtifact open62541-win32.zip
+- appveyor PushArtifact open62541-win64.zip
