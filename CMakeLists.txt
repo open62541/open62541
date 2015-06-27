@@ -330,15 +330,19 @@ if(BUILD_UNIT_TESTS)
 endif()
 
 # build documentation
-option(BUILD_DOCUMENTATION "Generate doxygen documentation" OFF)
+option(BUILD_DOCUMENTATION "Generate doxygen/sphinx documentation" OFF)
 if(BUILD_DOCUMENTATION)
-    find_package(Doxygen)
-        if(NOT DOXYGEN_FOUND)
-            message(FATAL_ERROR "Doxygen is not installed or not properly configured")
-        endif(NOT DOXYGEN_FOUND)
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/doc/Doxyfile.in ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile @ONLY)
-    add_custom_target(doc
-                      ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
-                      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    find_package(Doxygen REQUIRED)
+    find_package(Sphinx REQUIRED)
+    configure_file(${PROJECT_SOURCE_DIR}/doc/Doxyfile.in ${PROJECT_BINARY_DIR}/Doxyfile @ONLY)
+    configure_file(${PROJECT_SOURCE_DIR}/doc/conf.py ${PROJECT_BINARY_DIR}/conf.py @ONLY)
+    add_custom_target(doxygen
+                      ${DOXYGEN_EXECUTABLE} ${PROJECT_BINARY_DIR}/Doxyfile
+                      WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
                       COMMENT "Generating API documentation with Doxygen")
+    add_custom_target(doc ${SPHINX_EXECUTABLE}
+      -b html -c "${PROJECT_BINARY_DIR}"
+      "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_BINARY_DIR}/doc/sphinx"
+      DEPENDS doxygen
+      COMMENT "Building HTML documentation with Sphinx")
 endif()
