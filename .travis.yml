@@ -28,6 +28,7 @@ before_install:
 - sudo pip install cpp-coveralls
 - sudo pip install sphinx
 - sudo pip install breathe
+- sudo pip install sphinx_rtd_theme
 script:
 - echo "Checking the applicability of patches"
 - # ./tools/.checkPorts.sh
