@@ -198,18 +198,18 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
     			handleSourceTimestamps(timestamps, v);
             }
 
-            UA_Boolean hasRange = UA_FALSE;
             UA_NumericRange range;
+            UA_NumericRange *rangeptr = UA_NULL;
             if(id->indexRange.length > 0) {
                 retval = parse_numericrange(id->indexRange, &range);
                 if(retval != UA_STATUSCODE_GOOD)
                     break;
-                hasRange = UA_TRUE;
+                rangeptr = &range;
             }
 
             const UA_VariableNode *vn = (const UA_VariableNode*)node;
             if(vn->valueSource == UA_VALUESOURCE_VARIANT) {
-                if(hasRange)
+                if(rangeptr)
                     retval |= UA_Variant_copyRange(&vn->value.variant, &v->value, range);
                 else
                     retval |= UA_Variant_copy(&vn->value.variant, &v->value);
@@ -218,21 +218,11 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
                     handleSourceTimestamps(timestamps, v);
                 }
             } else {
-                UA_DataValue val;
-                UA_DataValue_init(&val);
-                UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
-                                              timestamps == UA_TIMESTAMPSTORETURN_BOTH);
-                if(hasRange)
-                    retval |= vn->value.dataSource.read(vn->value.dataSource.handle, sourceTimeStamp, &range, &val);
-                else
-                    retval |= vn->value.dataSource.read(vn->value.dataSource.handle, sourceTimeStamp, UA_NULL, &val);
-                if(retval == UA_STATUSCODE_GOOD) {
-                    retval |= UA_DataValue_copy(&val, v); // todo: still too much copying necessary!!
-                    vn->value.dataSource.release(vn->value.dataSource.handle, &val);
-                }
+                UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE || timestamps == UA_TIMESTAMPSTORETURN_BOTH);
+                retval |= vn->value.dataSource.read(vn->value.dataSource.handle, sourceTimeStamp, rangeptr, v);
             }
 
-            if(hasRange)
+            if(rangeptr)
                 UA_free(range.dimensions);
         }
         break;
@@ -241,8 +231,7 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
 		CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         const UA_VariableNode *vn = (const UA_VariableNode*)node;
         if(vn->valueSource == UA_VALUESOURCE_VARIANT)
-            retval = UA_Variant_setScalarCopy(&v->value, &vn->value.variant.type->typeId,
-                                              &UA_TYPES[UA_TYPES_NODEID]);
+            retval = UA_Variant_setScalarCopy(&v->value, &vn->value.variant.type->typeId, &UA_TYPES[UA_TYPES_NODEID]);
         else {
             UA_DataValue val;
             UA_DataValue_init(&val);
@@ -250,8 +239,9 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
             if(retval != UA_STATUSCODE_GOOD)
                 break;
             retval = UA_Variant_setScalarCopy(&v->value, &val.value.type->typeId, &UA_TYPES[UA_TYPES_NODEID]);
-            vn->value.dataSource.release(vn->value.dataSource.handle, &val);
+            UA_DataValue_deleteMembers(&val);
         }
+
         if(retval == UA_STATUSCODE_GOOD)
             v->hasValue = UA_TRUE;
         }
@@ -260,8 +250,7 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
     case UA_ATTRIBUTEID_VALUERANK:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         v->hasValue = UA_TRUE;
-        retval |= UA_Variant_setScalarCopy(&v->value, &((const UA_VariableTypeNode *)node)->valueRank,
-                                          &UA_TYPES[UA_TYPES_INT32]);
+        retval |= UA_Variant_setScalarCopy(&v->value, &((const UA_VariableTypeNode *)node)->valueRank, &UA_TYPES[UA_TYPES_INT32]);
         break;
 
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
@@ -269,9 +258,7 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
         {
             const UA_VariableNode *vn = (const UA_VariableNode *)node;
             if(vn->valueSource == UA_VALUESOURCE_VARIANT) {
-                retval = UA_Variant_setArrayCopy(&v->value, vn->value.variant.arrayDimensions,
-                                                 vn->value.variant.arrayDimensionsSize,
-                                                 &UA_TYPES[UA_TYPES_INT32]);
+                retval = UA_Variant_setArrayCopy(&v->value, vn->value.variant.arrayDimensions, vn->value.variant.arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
                 if(retval == UA_STATUSCODE_GOOD)
                     v->hasValue = UA_TRUE;
             } else {
@@ -280,12 +267,8 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
                 retval |= vn->value.dataSource.read(vn->value.dataSource.handle, UA_FALSE, UA_NULL, &val);
                 if(retval != UA_STATUSCODE_GOOD)
                     break;
-                if(!val.hasValue)
-                    retval = UA_STATUSCODE_BADNOTREADABLE;
-                else
-                    retval = UA_Variant_setArrayCopy(&v->value, val.value.arrayDimensions,
-                                                     val.value.arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
-                vn->value.dataSource.release(vn->value.dataSource.handle, &val);
+                retval = UA_Variant_setArrayCopy(&v->value, val.value.arrayDimensions, val.value.arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
+                UA_DataValue_deleteMembers(&val);
             }
         }
         break;
@@ -293,43 +276,37 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
     case UA_ATTRIBUTEID_ACCESSLEVEL:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         v->hasValue = UA_TRUE;
-        retval |= UA_Variant_setScalarCopy(&v->value, &((const UA_VariableNode *)node)->accessLevel,
-                                          &UA_TYPES[UA_TYPES_BYTE]);
+        retval |= UA_Variant_setScalarCopy(&v->value, &((const UA_VariableNode *)node)->accessLevel, &UA_TYPES[UA_TYPES_BYTE]);
         break;
 
     case UA_ATTRIBUTEID_USERACCESSLEVEL:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         v->hasValue = UA_TRUE;
-        retval |= UA_Variant_setScalarCopy(&v->value, &((const UA_VariableNode *)node)->userAccessLevel,
-                                          &UA_TYPES[UA_TYPES_BYTE]);
+        retval |= UA_Variant_setScalarCopy(&v->value, &((const UA_VariableNode *)node)->userAccessLevel, &UA_TYPES[UA_TYPES_BYTE]);
         break;
 
     case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         v->hasValue = UA_TRUE;
-        retval |= UA_Variant_setScalarCopy(&v->value, &((const UA_VariableNode *)node)->minimumSamplingInterval,
-                                          &UA_TYPES[UA_TYPES_DOUBLE]);
+        retval |= UA_Variant_setScalarCopy(&v->value, &((const UA_VariableNode *)node)->minimumSamplingInterval, &UA_TYPES[UA_TYPES_DOUBLE]);
         break;
 
     case UA_ATTRIBUTEID_HISTORIZING:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         v->hasValue = UA_TRUE;
-        retval |= UA_Variant_setScalarCopy(&v->value, &((const UA_VariableNode *)node)->historizing,
-                                          &UA_TYPES[UA_TYPES_BOOLEAN]);
+        retval |= UA_Variant_setScalarCopy(&v->value, &((const UA_VariableNode *)node)->historizing, &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
 
     case UA_ATTRIBUTEID_EXECUTABLE:
         CHECK_NODECLASS(UA_NODECLASS_METHOD);
         v->hasValue = UA_TRUE;
-        retval |= UA_Variant_setScalarCopy(&v->value, &((const UA_MethodNode *)node)->executable,
-                                          &UA_TYPES[UA_TYPES_BOOLEAN]);
+        retval |= UA_Variant_setScalarCopy(&v->value, &((const UA_MethodNode *)node)->executable, &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
 
     case UA_ATTRIBUTEID_USEREXECUTABLE:
         CHECK_NODECLASS(UA_NODECLASS_METHOD);
         v->hasValue = UA_TRUE;
-        retval |= UA_Variant_setScalarCopy(&v->value, &((const UA_MethodNode *)node)->userExecutable,
-                                          &UA_TYPES[UA_TYPES_BOOLEAN]);
+        retval |= UA_Variant_setScalarCopy(&v->value, &((const UA_MethodNode *)node)->userExecutable, &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
 
     default:
