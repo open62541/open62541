@@ -77,6 +77,8 @@ UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_B
                               size_t *UA_RESTRICT offset);
 UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t * UA_RESTRICT offset, void *dst,
                               const UA_DataType *dataType);
+size_t UA_calcSizeBinary(const void *p, const UA_DataType *dataType);
+
 /// @}
 
 #endif /* UA_TYPES_ENCODING_BINARY_H_ */
