@@ -405,11 +405,11 @@ UA_StatusCode UA_EXPORT UA_Variant_setScalarCopy(UA_Variant *v, const void *p, c
  *
  * @param v The variant
  * @param array A pointer to the array data
- * @param noElements The size of the array
+ * @param elements The size of the array
  * @param type The datatype of the array
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 noElements,
+UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 elements,
                                             const UA_DataType *type);
 
 /**
@@ -417,11 +417,11 @@ UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32
  *
  * @param v The variant
  * @param array A pointer to the array data
- * @param noElements The size of the array
+ * @param elements The size of the array
  * @param type The datatype of the array
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setArrayCopy(UA_Variant *v, const void *array, UA_Int32 noElements,
+UA_StatusCode UA_EXPORT UA_Variant_setArrayCopy(UA_Variant *v, const void *array, UA_Int32 elements,
                                                 const UA_DataType *type);
 
 /** @brief NumericRanges are used select a subset in a (multidimensional)
@@ -440,6 +440,11 @@ typedef struct {
 /**
  * Copy the variant, but use only a subset of the (multidimensional) array into a variant. Returns
  * an error code if the variant is not an array or if the indicated range does not fit.
+ *
+ * @param src The source variant
+ * @param dst The target variant
+ * @param range The range of the copied data
+ * @return Returns UA_STATUSCODE_GOOD or an error code
  */
 UA_StatusCode UA_EXPORT UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, UA_NumericRange range);
 
@@ -450,9 +455,9 @@ UA_StatusCode UA_EXPORT UA_Variant_copyRange(const UA_Variant *src, UA_Variant *
  *
  * @param v The variant
  * @param dataArray The data array. The type must match the variant
- * @param dataarraySize The length of the data array. This is checked to match the range size.
+ * @param dataArraySize The length of the data array. This is checked to match the range size.
  * @param range The range of where the new data is inserted
- * @return Indicates whether the operation succeeded or returns an error code
+ * @return Returns UA_STATUSCODE_GOOD or an error code
  */
 UA_StatusCode UA_EXPORT UA_Variant_setRange(UA_Variant *v, void *dataArray, UA_Int32 dataArraySize,
                                             const UA_NumericRange range);
@@ -462,9 +467,9 @@ UA_StatusCode UA_EXPORT UA_Variant_setRange(UA_Variant *v, void *dataArray, UA_I
  *
  * @param v The variant
  * @param dataArray The data array. The type must match the variant
- * @param dataarraySize The length of the data array. This is checked to match the range size.
+ * @param dataArraySize The length of the data array. This is checked to match the range size.
  * @param range The range of where the new data is inserted
- * @return Indicates whether the operation succeeded or returns an error code
+ * @return Returns UA_STATUSCODE_GOOD or an error code
  */
 UA_StatusCode UA_EXPORT UA_Variant_setRangeCopy(UA_Variant *v, const void *dataArray, UA_Int32 dataArraySize,
                                                 const UA_NumericRange range);
@@ -564,9 +569,10 @@ void UA_EXPORT UA_delete(void *p, const UA_DataType *dataType);
  * Allocates and initializes an array of variables of a specific type
  *
  * @param dataType The datatype description
+ * @param elements The number of elements in the array
  * @return Returns the memory location of the variable or (void*)0 if no memory could be allocated
  */
-void UA_EXPORT * UA_Array_new(const UA_DataType *dataType, UA_Int32 noElements);
+void UA_EXPORT * UA_Array_new(const UA_DataType *dataType, UA_Int32 elements);
 
 /**
  * Allocates and copies an array. dst is set to (void*)0 if not enough memory is available.
@@ -574,19 +580,19 @@ void UA_EXPORT * UA_Array_new(const UA_DataType *dataType, UA_Int32 noElements);
  * @param src The memory location of the source array
  * @param dst The memory location where the pointer to the destination array is written
  * @param dataType The datatype of the array members
- * @param noElements The size of the array
+ * @param elements The size of the array
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Array_copy(const void *src, void **dst, const UA_DataType *dataType, UA_Int32 noElements);
+UA_StatusCode UA_EXPORT UA_Array_copy(const void *src, void **dst, const UA_DataType *dataType, UA_Int32 elements);
 
 /**
  * Deletes an array.
  *
- * @param src The memory location of the array
+ * @param p The memory location of the array
  * @param dataType The datatype of the array members
- * @param noElements The size of the array
+ * @param elements The size of the array
  */
-void UA_EXPORT UA_Array_delete(void *p, const UA_DataType *dataType, UA_Int32 noElements);
+void UA_EXPORT UA_Array_delete(void *p, const UA_DataType *dataType, UA_Int32 elements);
 
 /* These are not generated from XML. Server *and* client need them. */
 typedef enum {
