@@ -20,7 +20,7 @@ For discussion and help, you can use
 - our [IRC channel](http://webchat.freenode.net/?channels=%23open62541)
 - the [bugtracker](https://github.com/acplt/open62541/issues)
 
-Auomated builds of 50 last single-file distributions are available [here](http://open62541.org/releases)
+Automated builds of 50 last single-file distributions are available [here](http://open62541.org/releases)
 
 ### Contribute to open62541
 As an open source project, we invite new contributors to help improving open62541. If you are a developer, your bugfixes and new features are very welcome. Note that there are ways to contribute even without deep knowledge of the project or the UA standard:
