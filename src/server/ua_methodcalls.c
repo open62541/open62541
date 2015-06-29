@@ -3,14 +3,8 @@
 #include "ua_statuscodes.h"
 #include "ua_util.h"
 #include "ua_nodestore.h"
-#include "ua_methodcall_manager.h"
-
-/* Method Hook/List management */
-UA_NodeAttachedMethod *UA_NodeAttachedMethod_new(void) {
-    UA_NodeAttachedMethod *newItem = (UA_NodeAttachedMethod *) UA_malloc(sizeof(UA_NodeAttachedMethod));
-    newItem->method = UA_NULL;
-    return newItem;
-}
+#include "ua_methodcalls.h"
+#include "ua_nodes.h"
 
 UA_ArgumentsList *UA_ArgumentsList_new(UA_UInt32 statusSize, UA_UInt32 argumentsSize){
     UA_ArgumentsList *newAList = (UA_ArgumentsList *) UA_malloc(sizeof(UA_ArgumentsList));
@@ -70,7 +64,7 @@ UA_StatusCode UA_Server_detachMethod_fromNode(UA_Server *server, const UA_NodeId
         return retval;
     }
     replacement->executable = UA_FALSE;
-    replacement->attachedMethod.method = UA_NULL;
+    replacement->attachedMethod = UA_NULL;
     
     retval |= UA_NodeStore_replace(server->nodestore, methodNode, (UA_Node *) replacement, UA_NULL);
     if (retval != UA_STATUSCODE_GOOD) {
@@ -111,7 +105,7 @@ UA_StatusCode UA_Server_attachMethod_toNode(UA_Server *server, UA_NodeId methodN
     if( retval != UA_STATUSCODE_GOOD) {
         return retval;
     }
-    replacement->attachedMethod.method = method;
+    replacement->attachedMethod = method;
     replacement->executable = UA_TRUE;
     
     retval |= UA_NodeStore_replace(server->nodestore, methodNode, (UA_Node *) replacement, UA_NULL);

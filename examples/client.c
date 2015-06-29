@@ -95,6 +95,9 @@ int main(int argc, char *argv[]) {
     UA_WriteResponse_deleteMembers(&wResp);
 
 #ifdef ENABLE_METHODCALLS
+    /* Note:  This example requires Namespace 0 Node 11489 (ServerType -> GetMonitoredItems) 
+       FIXME: Provide a namespace 0 independant example on the server side
+     */
     UA_ArgumentsList *inargs, *outargs;
     inargs = UA_ArgumentsList_new(2,2);
     inargs->argumentsSize = 2;

@@ -4,10 +4,7 @@
 #include "ua_server.h"
 #include "ua_types_generated.h"
 #include "ua_types_encoding_binary.h"
-
-#ifdef ENABLE_METHODCALLS
-#include "ua_methodcall_manager.h"
-#endif
+#include "ua_methodcalls.h"
 
 #define UA_STANDARD_NODEMEMBERS                 \
     UA_NodeId nodeId;                           \
@@ -24,11 +21,19 @@ typedef struct {
     UA_STANDARD_NODEMEMBERS
 } UA_Node;
 
+/**************/
+/* ObjectNode */
+/**************/
+
 typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Byte eventNotifier;
 } UA_ObjectNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_ObjectNode)
+
+/******************/
+/* ObjectTypeNode */
+/******************/
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS
@@ -40,6 +45,10 @@ typedef enum {
     UA_VALUESOURCE_VARIANT,
     UA_VALUESOURCE_DATASOURCE
 } UA_ValueSource;
+
+/****************/
+/* VariableNode */
+/****************/
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS
@@ -63,6 +72,10 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_VariableNode)
 /** Make a copy but leave out the references and the variable */
 UA_StatusCode UA_VariableNode_copyWithoutRefsAndVariable(const UA_VariableNode *src, UA_VariableNode *dst);
 
+/********************/
+/* VariableTypeNode */
+/********************/
+
 typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Int32 valueRank;
@@ -76,6 +89,10 @@ typedef struct {
 } UA_VariableTypeNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_VariableTypeNode)
 
+/*********************/
+/* ReferenceTypeNode */
+/*********************/
+
 typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Boolean isAbstract;
@@ -84,19 +101,23 @@ typedef struct {
 } UA_ReferenceTypeNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_ReferenceTypeNode)
 
+/***********************/
+/* ReferenceMethodNode */
+/***********************/
+
 typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Boolean executable;
     UA_Boolean userExecutable;
 #ifdef ENABLE_METHODCALLS
-    UA_NodeAttachedMethod attachedMethod;
-    UA_UInt32   inputArgumentsSize;
-    UA_Argument *inputArguments;
-    UA_UInt32   outputArgumentsSize;
-    UA_Argument *outputArguments;
+    UA_StatusCode (*attachedMethod)(const UA_ObjectNode *object, const UA_ArgumentsList *inputArguments, UA_ArgumentsList *outputArguments);
 #endif
 } UA_MethodNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_MethodNode)
+
+/************/
+/* ViewNode */
+/************/
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS
@@ -104,6 +125,10 @@ typedef struct {
     UA_Byte eventNotifier;
 } UA_ViewNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_ViewNode)
+
+/****************/
+/* DataTypeNode */
+/****************/
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS

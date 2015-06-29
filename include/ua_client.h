@@ -12,7 +12,7 @@ extern "C" {
 #include "ua_types_generated.h"
 
 #ifdef ENABLE_METHODCALLS
-#include "server/ua_methodcall_manager.h"
+    #include "server/ua_methodcalls.h"
 #endif
     
 struct UA_Client;

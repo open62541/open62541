@@ -8,7 +8,7 @@
 #include "ua_session_manager.h"
 
 #ifdef ENABLE_METHODCALLS
-#include "ua_methodcall_manager.h"
+#include "ua_methodcalls.h"
 #endif
 /** Max size of messages that are allocated on the stack */
 #define MAX_STACK_MESSAGE 65536

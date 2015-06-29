@@ -24,7 +24,7 @@
 # include "ua_types.h"
 # include "ua_server.h"
 #ifdef ENABLE_METHODCALLS
-# include "server/ua_methodcall_manager.h"
+# include "server/ua_methodcalls.h"
 # include "server/ua_nodes.h"
 #endif
 # include "logger_stdout.h"
