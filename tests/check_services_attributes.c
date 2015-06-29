@@ -46,16 +46,13 @@ static UA_Server* makeTestSequence(void) {
 	UA_Server_addObjectNode(server,UA_QUALIFIEDNAME(1, "Demo"), UA_NODEID_NUMERIC(1, 50), UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
 
 	/* ReferenceTypeNode */
-    UA_ReferenceTypeNode *hierarchicalreferences = UA_ReferenceTypeNode_new();
-    copyNames((UA_Node*)hierarchicalreferences, "Hierarchicalreferences");
-    hierarchicalreferences->nodeId.identifier.numeric = UA_NS0ID_HIERARCHICALREFERENCES;
-    hierarchicalreferences->isAbstract = UA_TRUE;
-    hierarchicalreferences->symmetric  = UA_FALSE;
-    hierarchicalreferences->inverseName = UA_LOCALIZEDTEXT("", "test");
-
-    UA_Server_addNode(server, (UA_Node*)hierarchicalreferences,
-                      UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_REFERENCES),
-                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE));
+	UA_ReferenceTypeNode *organizes = UA_ReferenceTypeNode_new();
+	copyNames((UA_Node*)organizes, "Organizes");
+	organizes->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "OrganizedBy");
+	organizes->nodeId.identifier.numeric = UA_NS0ID_ORGANIZES;
+	organizes->isAbstract = UA_FALSE;
+	organizes->symmetric  = UA_FALSE;
+	UA_Server_addNode(server, (UA_Node*)organizes, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES), UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE));
 
 	/* ViewNode */
     UA_ViewNode *viewtest = UA_ViewNode_new();
@@ -327,7 +324,7 @@ START_TEST(ReadSingleAttributeIsAbstractWithoutTimestamp)
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId.identifier.numeric = UA_NS0ID_HIERARCHICALREFERENCES;
+		rReq.nodesToRead[0].nodeId.identifier.numeric = UA_NS0ID_ORGANIZES;
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_ISABSTRACT;
 
 		readValue(server, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0],
@@ -335,7 +332,7 @@ START_TEST(ReadSingleAttributeIsAbstractWithoutTimestamp)
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
 		ck_assert_int_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type);
-		ck_assert(*(UA_Boolean* )resp.value.data==UA_TRUE);
+		ck_assert(*(UA_Boolean* )resp.value.data==UA_FALSE);
 	}END_TEST
 
 START_TEST(ReadSingleAttributeSymmetricWithoutTimestamp)
@@ -348,7 +345,7 @@ START_TEST(ReadSingleAttributeSymmetricWithoutTimestamp)
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId.identifier.numeric = UA_NS0ID_HIERARCHICALREFERENCES;
+		rReq.nodesToRead[0].nodeId.identifier.numeric = UA_NS0ID_ORGANIZES;
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_SYMMETRIC;
 
 		readValue(server, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0],
@@ -369,19 +366,19 @@ START_TEST(ReadSingleAttributeInverseNameWithoutTimestamp)
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId.identifier.numeric = UA_NS0ID_HIERARCHICALREFERENCES;
+		rReq.nodesToRead[0].nodeId.identifier.numeric = UA_NS0ID_ORGANIZES;
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_INVERSENAME;
 
 		readValue(server, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0],
 				&resp);
 
-		/*UA_LocalizedText* respval;
+		UA_LocalizedText* respval;
 		respval = (UA_LocalizedText*) resp.value.data;
-		const UA_LocalizedText comp = UA_LOCALIZEDTEXT("", "test");
-*/
+		const UA_LocalizedText comp = UA_LOCALIZEDTEXT("", "OrganizedBy");
+
 		ck_assert_int_eq(-1, resp.value.arrayLength);
 		ck_assert_int_eq(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT],resp.value.type);
-		/*ck_assert_int_eq(comp.text.length, respval->text.length);
+		ck_assert_int_eq(comp.text.length, respval->text.length);
 		for (int var = 0; var < respval->text.length - 1; ++var) {
 			ck_assert_int_eq(comp.text.data[var], respval->text.data[var]);
 		}
@@ -389,7 +386,7 @@ START_TEST(ReadSingleAttributeInverseNameWithoutTimestamp)
 		for (int var = 0; var < respval->locale.length - 1; ++var) {
 			ck_assert_int_eq(comp.locale.data[var], respval->locale.data[var]);
 		}
-		UA_free(respval);*/
+		UA_free(respval);
 	}END_TEST
 
 START_TEST(ReadSingleAttributeContainsNoLoopsWithoutTimestamp)
@@ -450,13 +447,13 @@ START_TEST(ReadSingleAttributeDataTypeWithoutTimestamp)
 		readValue(server, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0],
 				&resp);
 
-		//UA_NodeId* respval;
-		//respval = (UA_NodeId*) resp.value.data;
-		//const UA_VariableNode compNode = makeCompareSequence();
-		//const UA_NodeId comp = compNode;
+		UA_NodeId* respval;
+		respval = (UA_NodeId*) resp.value.data;
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
 		ck_assert_int_eq(&UA_TYPES[UA_TYPES_NODEID], resp.value.type);
+		ck_assert_int_eq(respval->namespaceIndex,0);
+		ck_assert_int_eq(respval->identifier.numeric,UA_NS0ID_INT32);
 	}END_TEST
 
 START_TEST(ReadSingleAttributeValueRankWithoutTimestamp)
@@ -499,6 +496,7 @@ START_TEST(ReadSingleAttributeArrayDimensionsWithoutTimestamp)
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
 		ck_assert_int_eq(&UA_TYPES[UA_TYPES_INT32], resp.value.type);
+		ck_assert_int_eq((UA_Int32*)resp.value.data,0);
 	}END_TEST
 
 START_TEST(ReadSingleAttributeAccessLevelWithoutTimestamp)
@@ -561,13 +559,15 @@ START_TEST(ReadSingleAttributeMinimumSamplingIntervalWithoutTimestamp)
 		readValue(server, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0],
 				&resp);
 
-		//UA_Double* respval;
-		//respval = (UA_Double*) resp.value.data;
-		//UA_VariableNode* compNode = makeCompareSequence();
+		UA_Double* respval;
+		respval = (UA_Double*) resp.value.data;
+		UA_VariableNode *compNode = makeCompareSequence();
+		UA_Double comp;
+		comp = (UA_Double) compNode->minimumSamplingInterval;
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
 		ck_assert_int_eq(&UA_TYPES[UA_TYPES_DOUBLE], resp.value.type);
-		//ck_assert_int_eq(compNode->minimumSamplingInterval,respval);
+		ck_assert(*respval == comp);
 	}END_TEST
 
 START_TEST(ReadSingleAttributeHistorizingWithoutTimestamp)
