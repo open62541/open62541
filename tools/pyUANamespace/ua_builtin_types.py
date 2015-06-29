@@ -320,7 +320,15 @@ class opcua_value_t():
     # self.value either contains a list of multiple identical BUILTINTYPES, or it
     # contains a single builtintype (which may be a container); choose if we need
     # to create an array or a single variable.
-    if len(self.value) > 1:
+    # Note that some genious defined that there are arrays of size 1, which are
+    # distinctly different then a single value, so we need to check that as well
+    # Semantics:
+    # -3: Scalar or 1-dim
+    # -2: Scalar or x-dim | x>0
+    # -1: Scalar
+    #  0: x-dim | x>0
+    #  n: n-dim | n>0
+    if self.parent.valueRank() != -1 and (self.parent.valueRank() >=0 or (len(self.value) > 1 and (self.parent.valueRank() != -2 or self.parent.valueRank() != -3))):
       # User the following strategy for all directly mappable values a la 'UA_Type MyInt = (UA_Type) 23;'
       if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_GUID:
         log(self, "Don't know how to print array of GUID in node " + str(self.parent.id()), LOG_LEVEL_WARN)
@@ -328,16 +336,24 @@ class opcua_value_t():
         log(self, "Don't know how to print array of DateTime in node " + str(self.parent.id()), LOG_LEVEL_WARN)
       elif self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_DIAGNOSTICINFO:
         log(self, "Don't know how to print array of DiagnosticInfo in node " + str(self.parent.id()), LOG_LEVEL_WARN)
-      elif self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
-        log(self, "Don't know how to print array of Extensionobject in node " + str(self.parent.id()), LOG_LEVEL_WARN)
       elif self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_STATUSCODE:
         log(self, "Don't know how to print array of StatusCode in node " + str(self.parent.id()), LOG_LEVEL_WARN)
       else:
+        if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
+          for v in self.value:
+            log(self, "Building extObj array index " + str(self.value.index(v)))
+            code = code + v.printOpen62541CCode_SubType_build(arrayIndex=self.value.index(v))
         code.append("UA_Variant *" + self.parent.getCodePrintableID() + "_variant = UA_Variant_new();")
         code.append(self.parent.getCodePrintableID() + "_variant->type = &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "];")
         code.append("UA_" + self.value[0].stringRepresentation + " " + valueName + "[" + str(len(self.value)) + "];")
-        for v in self.value:
-          code.append(valueName + "[" + str(self.value.index(v)) + "] = " + v.printOpen62541CCode_SubType() + ";")
+        if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
+          for v in self.value:
+            log(self, "Printing extObj array index " + str(self.value.index(v)))
+            code.append(valueName + "[" + str(self.value.index(v)) + "] = " + v.printOpen62541CCode_SubType(asIndirect=False) + ";")
+            code.append("UA_free(" + v.printOpen62541CCode_SubType() + ");")
+        else:
+          for v in self.value:
+            code.append(valueName + "[" + str(self.value.index(v)) + "] = " + v.printOpen62541CCode_SubType() + ";")
         code.append("UA_Variant_setArrayCopy(" + self.parent.getCodePrintableID() + "_variant, &" + valueName + ", (UA_Int32) " + str(len(self.value)) + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
         code.append(self.parent.getCodePrintableID() + "->value.variant = *" + self.parent.getCodePrintableID() + "_variant;")
     else:
@@ -454,7 +470,7 @@ class opcua_BuiltinType_extensionObject_t(opcua_value_t):
     # Allocate some memory
     code.append("UA_ExtensionObject *" + self.getCodeInstanceName() + " =  UA_ExtensionObject_new();")
     code.append(self.getCodeInstanceName() + "->encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;")
-    code.append(self.getCodeInstanceName() + "->typeId = " + codegen.getCreateNodeIDMacro(self.parent.dataType().target()) + ";")
+    code.append(self.getCodeInstanceName() + "->typeId = UA_NODEID_NUMERIC(" + str(self.parent.dataType().target().id().ns) + ", " + str(self.parent.dataType().target().id().i) + "+ UA_ENCODINGOFFSET_BINARY);")
     code.append("UA_ByteString_newMembers(&" + self.getCodeInstanceName() + "->body, 65000);" )
 
     # Encode each value as a bytestring seperately.
@@ -479,9 +495,12 @@ class opcua_BuiltinType_extensionObject_t(opcua_value_t):
     code.append("UA_Byte *" + self.getCodeInstanceName() + "_oldBody = " + self.getCodeInstanceName() + "->body.data;");
     code.append(self.getCodeInstanceName() + "->body.data = " +self.getCodeInstanceName() + "_newBody;")
     code.append("UA_free(" + self.getCodeInstanceName() + "_oldBody);")
+    code.append("")
     return code
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
+    if asIndirect == False:
+      return "*" + str(self.getCodeInstanceName())
     return str(self.getCodeInstanceName())
 
   def __str__(self):
