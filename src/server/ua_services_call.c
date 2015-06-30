@@ -30,10 +30,48 @@ const UA_VariableNode *getArgumentsVariableNode(UA_Server *server, const UA_Meth
     return UA_NULL;
 }
 
+UA_StatusCode statisfySignature(UA_Variant *var, UA_Argument arg);
+UA_StatusCode statisfySignature(UA_Variant *var, UA_Argument arg) {
+    if (!UA_NodeId_equal(&var->type->typeId, &arg.dataType) )
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    
+    // Note: The namespace compiler will compile nodes with their actual array dimensions, never -1
+    if (arg.arrayDimensionsSize > 0 && var->arrayDimensionsSize > 0)
+        if (var->arrayDimensionsSize != arg.arrayDimensionsSize) 
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        
+        // Continue with jpfr's statisfySignature from here on
+        /* ValueRank Semantics
+         *  n >= 1: the value is an array with the specified number of dimens*ions.
+         *  n = 0: the value is an array with one or more dimensions.
+         *  n = -1: the value is a scalar.
+         *  n = -2: the value can be a scalar or an array with any number of dimensions.
+         *  n = -3:  the value can be a scalar or a one dimensional array. */
+        UA_Boolean scalar = UA_Variant_isScalar(var);
+        if(arg.valueRank == 0 && scalar)
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        if(arg.valueRank == -1 && !scalar)
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        if(arg.valueRank == -3 && var->arrayDimensionsSize > 1)
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        if(arg.valueRank >= 1 && var->arrayDimensionsSize != arg.arrayDimensionsSize)
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        
+        if(arg.arrayDimensionsSize >= 1) {
+            if(arg.arrayDimensionsSize != var->arrayDimensionsSize)
+                return UA_STATUSCODE_BADINVALIDARGUMENT;
+            for(UA_Int32 i = 0; i < arg.arrayDimensionsSize; i++) {
+                if(arg.arrayDimensions[i] != (UA_UInt32) var->arrayDimensions[i])
+                    return UA_STATUSCODE_BADINVALIDARGUMENT;
+            }
+        }
+   return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode argConformsToDefinition(UA_CallMethodRequest *rs, const UA_VariableNode *argDefinition) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     
-    if (argDefinition->value.variant.type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
+    if (argDefinition->value.variant.type != &UA_TYPES[UA_TYPES_ARGUMENT] && argDefinition->value.variant.type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
         return UA_STATUSCODE_BADINTERNALERROR;
     if(rs->inputArgumentsSize < argDefinition->value.variant.arrayLength) 
         return UA_STATUSCODE_BADARGUMENTSMISSING;
@@ -47,47 +85,21 @@ UA_StatusCode argConformsToDefinition(UA_CallMethodRequest *rs, const UA_Variabl
     UA_NodeId ArgumentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ARGUMENT + UA_ENCODINGOFFSET_BINARY);
     for(int i = 0; i<rs->inputArgumentsSize; i++) {
         var = &rs->inputArguments[i];
-        thisArgDefExtObj = &((const UA_ExtensionObject *) (argDefinition->value.variant.data))[i];
-        decodingOffset = 0;
         
-        if(!UA_NodeId_equal(&ArgumentNodeId, &thisArgDefExtObj->typeId))
-            return UA_STATUSCODE_BADINTERNALERROR;
+        if (argDefinition->value.variant.type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) {
+            thisArgDefExtObj = &((const UA_ExtensionObject *) (argDefinition->value.variant.data))[i];
+            decodingOffset = 0;
             
-        UA_decodeBinary(&thisArgDefExtObj->body, &decodingOffset, &arg, &UA_TYPES[UA_TYPES_ARGUMENT]);
-        
-        if (!UA_NodeId_equal(&var->type->typeId, &arg.dataType) )
-            return UA_STATUSCODE_BADINVALIDARGUMENT;
-        
-        // Note: The namespace compiler will compile nodes with their actual array dimensions, never -1
-        if (arg.arrayDimensionsSize > 0 && var->arrayDimensionsSize > 0)
-            if (var->arrayDimensionsSize != arg.arrayDimensionsSize) 
-                return UA_STATUSCODE_BADINVALIDARGUMENT;
-        
-        // Continue with jpfr's statisfySignature from here on
-        /* ValueRank Semantics
-           n >= 1: the value is an array with the specified number of dimens*ions.
-           n = 0: the value is an array with one or more dimensions.
-           n = -1: the value is a scalar.
-           n = -2: the value can be a scalar or an array with any number of dimensions.
-           n = -3:  the value can be a scalar or a one dimensional array. */
-        UA_Boolean scalar = UA_Variant_isScalar(var);
-        if(arg.valueRank == 0 && scalar)
-            return UA_STATUSCODE_BADINVALIDARGUMENT;
-        if(arg.valueRank == -1 && !scalar)
-            return UA_STATUSCODE_BADINVALIDARGUMENT;
-        if(arg.valueRank == -3 && var->arrayDimensionsSize > 1)
-            return UA_STATUSCODE_BADINVALIDARGUMENT;
-        if(arg.valueRank >= 1 && var->arrayDimensionsSize != arg.arrayDimensionsSize)
-            return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-        if(arg.arrayDimensionsSize >= 1) {
-            if(arg.arrayDimensionsSize != var->arrayDimensionsSize)
-                return UA_STATUSCODE_BADINVALIDARGUMENT;
-            for(UA_Int32 i = 0; i < arg.arrayDimensionsSize; i++) {
-                if(arg.arrayDimensions[i] != (UA_UInt32) var->arrayDimensions[i])
-                    return UA_STATUSCODE_BADINVALIDARGUMENT;
-            }
+            if(!UA_NodeId_equal(&ArgumentNodeId, &thisArgDefExtObj->typeId))
+                return UA_STATUSCODE_BADINTERNALERROR;
+                
+            UA_decodeBinary(&thisArgDefExtObj->body, &decodingOffset, &arg, &UA_TYPES[UA_TYPES_ARGUMENT]);
         }
+        else if (argDefinition->value.variant.type == &UA_TYPES[UA_TYPES_ARGUMENT]) {
+            arg = ((UA_Argument *) argDefinition->value.variant.data)[i];
+        }
+        retval |= statisfySignature(var, arg);
+        
     }
     
     return retval;

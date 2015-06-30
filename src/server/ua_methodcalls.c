@@ -144,7 +144,8 @@ UA_StatusCode UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName 
         return addRes.statusCode;
     
     // Create InputArguments
-    UA_NodeId argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0);
+    // FIXME: This ID should be random, but ns=1;i=0 doesn't return a new id at the moment
+    UA_NodeId argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, nodeId.identifier.numeric+1);
     UA_VariableNode *inputArgumentsVariableNode  = UA_VariableNode_new();
     retval |= UA_NodeId_copy(&argId, &inputArgumentsVariableNode->nodeId);
     inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME(0,"InputArguments");
@@ -160,7 +161,8 @@ UA_StatusCode UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName 
         return addRes.statusCode;
     
     // Create OutputArguments
-    argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0);
+    // FIXME: This ID should be random, but ns=1;i=0 doesn't return a new id at the moment
+    argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, nodeId.identifier.numeric+2);
     UA_VariableNode *outputArgumentsVariableNode  = UA_VariableNode_new();
     retval |= UA_NodeId_copy(&argId, &outputArgumentsVariableNode->nodeId);
     outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME(0,"OutputArguments");
