@@ -333,6 +333,11 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
 #ifdef ENABLE_METHODCALLS
     case UA_NS0ID_CALLREQUEST:
         INVOKE_SERVICE(Call, UA_TYPES_CALLRESPONSE);
+	break;
+#endif
+#ifdef ENABLE_ADDNODES 
+    case UA_NS0ID_ADDNODESREQUEST:
+        INVOKE_SERVICE(AddNodes, UA_TYPES_ADDNODESRESPONSE);
         break;
 #endif
     default: {

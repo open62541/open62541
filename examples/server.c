@@ -31,6 +31,20 @@
 # include "networklayer_tcp.h"
 #else
 # include "open62541.h"
+    #ifdef _MSC_VER
+        #ifndef R_OK
+            #define R_OK    4               /* Test for read permission.  */
+        #endif
+        #ifndef R_OK
+            #define W_OK    2               /* Test for write permission.  */
+        #endif
+        #ifndef X_OK
+            #define X_OK    1               /* Test for execute permission.  */
+        #endif
+        #ifndef F_OK
+            #define F_OK    0               /* Test for existence.  */
+        #endif
+    #endif
 #endif
 
 /****************************/
