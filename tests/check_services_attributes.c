@@ -632,6 +632,84 @@ START_TEST(ReadSingleAttributeUserExecutableWithoutTimestamp)
 		ck_assert(*(UA_Boolean*)resp.value.data==UA_FALSE);
 	}END_TEST
 
+START_TEST(WriteSingleAttributeValue)
+	{
+		UA_Server *server = makeTestSequence();
+
+		UA_WriteValue wValue;
+		UA_WriteValue_init(&wValue);
+		UA_Variant *myIntegerVariant = UA_Variant_new();
+		UA_Int32 myInteger = 20;
+		UA_Variant_setScalarCopy(myIntegerVariant, &myInteger,
+						&UA_TYPES[UA_TYPES_INT32]);
+		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
+		wValue.attributeId = UA_ATTRIBUTEID_VALUE;
+		wValue.value.hasValue = UA_TRUE;
+		wValue.value.value = *myIntegerVariant;
+		UA_StatusCode retval = writeValue(server, &wValue);
+
+		UA_DataValue resp;
+		UA_DataValue_init(&resp);
+		UA_ReadRequest rReq;
+		UA_ReadRequest_init(&rReq);
+		rReq.nodesToRead = UA_ReadValueId_new();
+		rReq.nodesToReadSize = 1;
+		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
+
+		readValue(server, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0],
+					&resp);
+
+		ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+		ck_assert(wValue.value.hasValue);
+		const UA_Node *node = UA_NodeStore_get(server->nodestore, &wValue.nodeId);
+		ck_assert_int_eq(node->nodeClass, UA_NODECLASS_VARIABLE);
+		const UA_VariableNode *vn = (const UA_VariableNode*)node;
+		const UA_Variant *oldV = &vn->value.variant;
+		ck_assert_int_eq(&oldV->type->typeId, &wValue.value.value.type->typeId);
+
+		ck_assert_int_eq(20, *(UA_Int32* )resp.value.data);
+	}END_TEST
+
+START_TEST(WriteSingleAttributeEventNotifier)
+	{
+		UA_Server *server = makeTestSequence();
+
+		UA_WriteValue wValue;
+		UA_WriteValue_init(&wValue);
+		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
+		wValue.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
+		wValue.value.hasValue = UA_TRUE;
+		UA_StatusCode retval = writeValue(server, &wValue);
+		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+	}END_TEST
+
+START_TEST(WriteSingleAttributeUserExecutable)
+	{
+		UA_Server *server = makeTestSequence();
+
+		UA_WriteValue wValue;
+		UA_WriteValue_init(&wValue);
+		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
+		wValue.attributeId = UA_ATTRIBUTEID_USEREXECUTABLE;
+		wValue.value.hasValue = UA_TRUE;
+		UA_StatusCode retval = writeValue(server, &wValue);
+		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+	}END_TEST
+
+START_TEST(WriteSingleAttributeNoValue)
+	{
+		UA_Server *server = makeTestSequence();
+
+		UA_WriteValue wValue;
+		UA_WriteValue_init(&wValue);
+		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
+		wValue.attributeId = UA_ATTRIBUTEID_USEREXECUTABLE;
+		wValue.value.hasValue = UA_FALSE;
+		UA_StatusCode retval = writeValue(server, &wValue);
+		ck_assert_int_eq(retval, UA_STATUSCODE_BADTYPEMISMATCH);
+	}END_TEST
+
 static Suite * testSuite_services_attributes(void) {
 	Suite *s = suite_create("services_attributes_read");
 
@@ -682,6 +760,15 @@ static Suite * testSuite_services_attributes(void) {
 			ReadSingleAttributeUserExecutableWithoutTimestamp);
 
 	suite_add_tcase(s, tc_readSingleAttributes);
+
+	TCase *tc_writeSingleAttributes = tcase_create("writeSingleAttributes");
+	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValue);
+	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeEventNotifier);
+	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeUserExecutable);
+	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeNoValue);
+
+	suite_add_tcase(s, tc_writeSingleAttributes);
+
 	return s;
 }
 
