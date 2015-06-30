@@ -400,6 +400,7 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 AttributeID, cons
                                                      UA_Variant *dst) {
     UA_Boolean samplingError = UA_TRUE; 
     UA_DataValue sourceDataValue;
+    UA_DataValue_init(&sourceDataValue);
     const UA_VariableNode *srcAsVariableNode = (const UA_VariableNode *) src;
   
     // FIXME: Not all AttributeIDs can be monitored yet
