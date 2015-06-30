@@ -144,12 +144,12 @@ UA_StatusCode UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName 
         return addRes.statusCode;
     
     // Create InputArguments
-    // FIXME: This ID should be random, but ns=1;i=0 doesn't return a new id at the moment
-    UA_NodeId argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, nodeId.identifier.numeric+1);
+    UA_NodeId argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0); 
     UA_VariableNode *inputArgumentsVariableNode  = UA_VariableNode_new();
     retval |= UA_NodeId_copy(&argId, &inputArgumentsVariableNode->nodeId);
     inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME(0,"InputArguments");
     inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT("en_US", "InputArguments");
+    inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT("en_US", "InputArguments");
     inputArgumentsVariableNode->valueRank = 1;
     inputArgumentsVariableNode->value.variant.data = UA_malloc(sizeof(UA_Argument) * inputArgumentsSize);
     UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant, inputArguments, inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
@@ -161,12 +161,12 @@ UA_StatusCode UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName 
         return addRes.statusCode;
     
     // Create OutputArguments
-    // FIXME: This ID should be random, but ns=1;i=0 doesn't return a new id at the moment
-    argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, nodeId.identifier.numeric+2);
+    argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0);
     UA_VariableNode *outputArgumentsVariableNode  = UA_VariableNode_new();
     retval |= UA_NodeId_copy(&argId, &outputArgumentsVariableNode->nodeId);
     outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME(0,"OutputArguments");
     outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT("en_US", "OutputArguments");
+    outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT("en_US", "OutputArguments");
     inputArgumentsVariableNode->valueRank = 1;
     inputArgumentsVariableNode->value.variant.data = UA_malloc(sizeof(UA_Argument) * outputArgumentsSize);
     UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant, inputArguments, outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
