@@ -121,3 +121,59 @@ UA_StatusCode UA_Server_attachMethod_toNode(UA_Server *server, UA_NodeId methodN
     //((UA_MethodNode *) methodNode)->userExecutable = UA_TRUE;
     return retval;
 }
+
+UA_StatusCode UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA_NodeId nodeId,
+                        const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId, void *method, 
+                        UA_Int32 inputArgumentsSize, const UA_Argument *inputArguments, 
+                        UA_Int32 outputArgumentsSize, const UA_Argument *outputArguments) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    
+    UA_MethodNode *newMethod = UA_MethodNode_new();
+    UA_NodeId_copy(&nodeId, &newMethod->nodeId);
+    UA_QualifiedName_copy(&browseName, &newMethod->browseName);
+    UA_ExpandedNodeId *methodExpandedNodeId = UA_ExpandedNodeId_new();
+    UA_NodeId_copy(&newMethod->nodeId, &methodExpandedNodeId->nodeId);
+    UA_String_copy(&browseName.name, &newMethod->displayName.text);
+    
+    newMethod->attachedMethod = method;
+    newMethod->executable = UA_TRUE;
+    newMethod->userExecutable = UA_TRUE;
+    
+    UA_AddNodesResult addRes = UA_Server_addNode(server, (UA_Node *) newMethod, parentNodeId, referenceTypeId);
+    if (addRes.statusCode != UA_STATUSCODE_GOOD)
+        return addRes.statusCode;
+    
+    // Create InputArguments
+    UA_NodeId argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0);
+    UA_VariableNode *inputArgumentsVariableNode  = UA_VariableNode_new();
+    retval |= UA_NodeId_copy(&argId, &inputArgumentsVariableNode->nodeId);
+    inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME(0,"InputArguments");
+    inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT("en_US", "InputArguments");
+    inputArgumentsVariableNode->valueRank = 1;
+    inputArgumentsVariableNode->value.variant.data = UA_malloc(sizeof(UA_Argument) * inputArgumentsSize);
+    UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant, inputArguments, inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
+    
+    addRes = UA_Server_addNode(server, (UA_Node *) inputArgumentsVariableNode, *methodExpandedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY));
+
+    if (addRes.statusCode != UA_STATUSCODE_GOOD)
+        // TODO Remove node
+        return addRes.statusCode;
+    
+    // Create OutputArguments
+    argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0);
+    UA_VariableNode *outputArgumentsVariableNode  = UA_VariableNode_new();
+    retval |= UA_NodeId_copy(&argId, &outputArgumentsVariableNode->nodeId);
+    outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME(0,"OutputArguments");
+    outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT("en_US", "OutputArguments");
+    inputArgumentsVariableNode->valueRank = 1;
+    inputArgumentsVariableNode->value.variant.data = UA_malloc(sizeof(UA_Argument) * outputArgumentsSize);
+    UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant, inputArguments, outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
+    // Create Arguments Variant
+    addRes = UA_Server_addNode(server, (UA_Node *) outputArgumentsVariableNode, *methodExpandedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY));
+    
+    if (addRes.statusCode != UA_STATUSCODE_GOOD)
+        // TODO Remove node
+        return addRes.statusCode;
+    
+    return retval;
+}

@@ -347,6 +347,26 @@ int main(int argc, char** argv) {
                                   UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
    }
 #ifdef ENABLE_METHODCALLS
+        UA_Argument *inputArguments = UA_Argument_new();
+        inputArguments->arrayDimensionsSize = -1;
+        inputArguments->arrayDimensions = UA_NULL;
+        inputArguments->dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_UINT32);
+        inputArguments->description = UA_LOCALIZEDTEXT("en_US", "An Integer" );
+        inputArguments->name = UA_STRING("Input an integer");
+        inputArguments->valueRank = -1;
+        UA_Argument *outputArguments = UA_Argument_new();
+        outputArguments->arrayDimensionsSize = -1;
+        outputArguments->arrayDimensions = UA_NULL;
+        outputArguments->dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_UINT32);
+        outputArguments->description = UA_LOCALIZEDTEXT("en_US", "An Integer" );
+        outputArguments->name = UA_STRING("Input an integer");
+        outputArguments->valueRank = -1;
+        
+        UA_Server_addMethodNode(server, UA_QUALIFIEDNAME(1,"ping"), UA_NODEID_NUMERIC(1,62541),
+                                UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                &getMonitoredItems, (UA_Int32) 1, inputArguments, 
+                                (UA_Int32) 1, outputArguments);
+
         UA_Server_attachMethod_toNode(server, UA_NODEID_NUMERIC(0, 11489), (UA_Variant **) &getMonitoredItems);
 #endif
 	//start server
