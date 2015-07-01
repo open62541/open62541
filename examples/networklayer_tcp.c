@@ -70,7 +70,9 @@ static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *respo
 	if(ret == 0) {
 		free(response->data);
         UA_ByteString_init(response);
-		return UA_STATUSCODE_GOOD; /* no response -> retry */
+        connection->close(connection);
+        connection->state = UA_CONNECTION_CLOSED;
+        return UA_CONNECTION_CLOSED; /* ret == 0 -> server has closed the connection */
 	} else if(ret < 0) {
         free(response->data);
         UA_ByteString_init(response);
