@@ -146,7 +146,7 @@ UA_Server_AddMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId,
 typedef struct {
     enum {
         UA_JOBTYPE_NOTHING,
-        UA_JOBTYPE_CLOSECONNECTION,
+        UA_JOBTYPE_DETACHCONNECTION,
         UA_JOBTYPE_BINARYMESSAGE,
         UA_JOBTYPE_METHODCALL,
         UA_JOBTYPE_DELAYEDMETHODCALL,
