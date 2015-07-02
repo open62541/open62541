@@ -110,7 +110,7 @@ typedef struct {
     UA_Boolean executable;
     UA_Boolean userExecutable;
 #ifdef ENABLE_METHODCALLS
-    UA_StatusCode (*attachedMethod)(const UA_ObjectNode *object, const UA_ArgumentsList *inputArguments, UA_ArgumentsList *outputArguments);
+    UA_MethodCallback attachedMethod;
 #endif
 } UA_MethodNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_MethodNode)

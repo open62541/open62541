@@ -122,10 +122,12 @@ UA_StatusCode UA_Server_attachMethod_toNode(UA_Server *server, UA_NodeId methodN
     return retval;
 }
 
-UA_StatusCode UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA_NodeId nodeId,
-                        const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId, void *method, 
-                        UA_Int32 inputArgumentsSize, const UA_Argument *inputArguments, 
-                        UA_Int32 outputArgumentsSize, const UA_Argument *outputArguments) {
+UA_StatusCode
+UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA_NodeId nodeId,
+                        const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
+                        UA_MethodCallback method, UA_Int32 inputArgumentsSize,
+                        const UA_Argument *inputArguments, UA_Int32 outputArgumentsSize,
+                        const UA_Argument *outputArguments) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     
     UA_MethodNode *newMethod = UA_MethodNode_new();
@@ -167,9 +169,9 @@ UA_StatusCode UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName 
     outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME(0,"OutputArguments");
     outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT("en_US", "OutputArguments");
     outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT("en_US", "OutputArguments");
-    inputArgumentsVariableNode->valueRank = 1;
-    inputArgumentsVariableNode->value.variant.data = UA_malloc(sizeof(UA_Argument) * outputArgumentsSize);
-    UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant, inputArguments, outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
+    outputArgumentsVariableNode->valueRank = 1;
+    outputArgumentsVariableNode->value.variant.data = UA_malloc(sizeof(UA_Argument) * outputArgumentsSize);
+    UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.variant, outputArguments, outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
     // Create Arguments Variant
     addRes = UA_Server_addNode(server, (UA_Node *) outputArgumentsVariableNode, *methodExpandedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY));
     

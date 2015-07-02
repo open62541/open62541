@@ -18,13 +18,14 @@ const UA_VariableNode *getArgumentsVariableNode(UA_Server *server, const UA_Meth
         if (ofMethod->references[i].isInverse == UA_FALSE && 
             UA_NodeId_equal(&hasProperty, &ofMethod->references[i].referenceTypeId)) {
             refTarget = UA_NodeStore_get(server->nodestore, &ofMethod->references[i].targetId.nodeId);
-            if (refTarget) {
-                if (refTarget->nodeClass == UA_NODECLASS_VARIABLE && 
-                    refTarget->browseName.namespaceIndex == 0 &&
-                    UA_String_equal(&withBrowseName, &refTarget->browseName.name)) {
-                    return (const UA_VariableNode*) refTarget;
-                }
+            if(!refTarget)
+                continue;
+            if (refTarget->nodeClass == UA_NODECLASS_VARIABLE && 
+                refTarget->browseName.namespaceIndex == 0 &&
+                UA_String_equal(&withBrowseName, &refTarget->browseName.name)) {
+                return (const UA_VariableNode*) refTarget;
             }
+            UA_NodeStore_release(refTarget);
         }
     }
     return UA_NULL;
@@ -125,7 +126,7 @@ void Service_Call(UA_Server *server, UA_Session *session,
         rs->outputArgumentsSize = 0;
         
         /* Get/Check Nodes */
-        const UA_Node *methodCalled = UA_NodeStore_get(server->nodestore, &rq->methodId);
+        const UA_MethodNode *methodCalled = (const UA_MethodNode*) UA_NodeStore_get(server->nodestore, &rq->methodId);
         if (methodCalled == UA_NULL) {
             rs->statusCode = UA_STATUSCODE_BADMETHODINVALID;
             continue;
@@ -170,58 +171,39 @@ void Service_Call(UA_Server *server, UA_Session *session,
         }
 
         /* Verify Input Argument count, types and sizes */
-        const UA_VariableNode *inputArguments = getArgumentsVariableNode(server, (const UA_MethodNode *) methodCalled, UA_STRING("InputArguments"));
+        const UA_VariableNode *inputArguments = getArgumentsVariableNode(server, methodCalled, UA_STRING("InputArguments"));
         if(inputArguments) {
             // Expects arguments
             rs->statusCode = argConformsToDefinition(rq, inputArguments);
+            UA_NodeStore_release((const UA_Node*)inputArguments);
             if (rs->statusCode != UA_STATUSCODE_GOOD)
                 continue;
-        }
-        else if (rq->inputArgumentsSize > 0) {
+        } else if (rq->inputArgumentsSize > 0) {
             // Expects no arguments, but got some
             rs->statusCode = UA_STATUSCODE_BADINVALIDARGUMENT;
+            UA_NodeStore_release((const UA_Node*)inputArguments);
+            continue;
+        }
+
+        const UA_VariableNode *outputArguments = getArgumentsVariableNode(server, methodCalled, UA_STRING("OutputArguments"));
+        if(!outputArguments) {
+            rs->statusCode = UA_STATUSCODE_BADINTERNALERROR;
+            UA_NodeStore_release((const UA_Node*)outputArguments);
             continue;
         }
         
-        
-        
-        UA_ArgumentsList *inArgs  = UA_ArgumentsList_new(rq->inputArgumentsSize, rq->inputArgumentsSize);
-        for(unsigned int i=0; i<inArgs->argumentsSize; i++)
-            UA_Variant_copy(&rq->inputArguments[i], &inArgs->arguments[i]);
-        
         // Call method if available
-        UA_ArgumentsList *outArgs;
-        if (((const UA_MethodNode *) methodCalled)->attachedMethod != UA_NULL) {
-            outArgs = UA_ArgumentsList_new(rq->inputArgumentsSize, 0);
-            ((const UA_MethodNode *) methodCalled)->attachedMethod(withObject, inArgs, outArgs);
+        if (methodCalled->attachedMethod) {
+            rs->outputArguments = UA_Array_new(&UA_TYPES[UA_TYPES_VARIANT], outputArguments->value.variant.arrayLength);
+            rs->outputArgumentsSize = outputArguments->value.variant.arrayLength;
+            rs->statusCode = methodCalled->attachedMethod(withObject->nodeId, rq->inputArguments, rs->outputArguments);
         }
-        else {
-            outArgs = UA_ArgumentsList_new(0, 0);
-            outArgs->callResult = UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?
-        }
-        UA_NodeStore_release((const UA_Node *) withObject);
-        UA_NodeStore_release(methodCalled);
-        
-        // Copy StatusCode and Argumentresults of the outputArguments
-        rs->statusCode = outArgs->callResult;
-        rs->inputArgumentResultsSize = outArgs->statusSize;
-        if(outArgs->statusSize > 0)
-            rs->inputArgumentResults = (UA_StatusCode *) UA_malloc(sizeof(UA_StatusCode) * outArgs->statusSize);
-        for (unsigned int i=0; i < outArgs->statusSize; i++) {
-            outArgs->status[i] = rs->inputArgumentResults[i];
-        }
-        rs->outputArgumentsSize = outArgs->argumentsSize;
-        if (outArgs->argumentsSize > 0)
-            rs->outputArguments = (UA_Variant *) UA_malloc(sizeof(UA_Variant) * outArgs->argumentsSize);
-        for (unsigned int i=0; i < outArgs->argumentsSize; i++) {
-            UA_Variant_copy(&outArgs->arguments[i], &rs->outputArguments[i]);
-            UA_Variant_deleteMembers(&outArgs->arguments[i]);
-        }
-        
-        UA_ArgumentsList_destroy(inArgs);
-        UA_ArgumentsList_destroy(outArgs);
-    }
+        else
+            rs->statusCode = UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?
 
-    return;
+        UA_NodeStore_release((const UA_Node*)outputArguments);
+        UA_NodeStore_release((const UA_Node *)withObject);
+        UA_NodeStore_release((const UA_Node *)methodCalled);
+    }
 }
 #endif

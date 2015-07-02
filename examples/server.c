@@ -23,10 +23,6 @@
 # include <time.h>
 # include "ua_types.h"
 # include "ua_server.h"
-#ifdef ENABLE_METHODCALLS
-# include "server/ua_methodcalls.h"
-# include "server/ua_nodes.h"
-#endif
 # include "logger_stdout.h"
 # include "networklayer_tcp.h"
 #else
@@ -203,19 +199,11 @@ static UA_StatusCode writeLedStatus(void *handle, const UA_Variant *data, const 
 }
 
 #ifdef ENABLE_METHODCALLS
-static void getMonitoredItems(const UA_Node *object, const UA_ArgumentsList *InputArguments, UA_ArgumentsList *OutputArguments) {
-    UA_String tmp = UA_STRING_ALLOC("Hello World");
-    UA_String *myString = UA_String_new();
-    UA_String_copy(&tmp, myString);
-    
-    OutputArguments->arguments = (UA_Variant *) UA_Variant_new();
-    UA_Variant_setScalar(&OutputArguments->arguments[0], myString, &UA_TYPES[UA_TYPES_STRING]);
-    OutputArguments->argumentsSize = 1;
-    
+static UA_StatusCode getMonitoredItems(const UA_NodeId objectId, const UA_Variant *input, UA_Variant *output) {
+    UA_String tmp = UA_STRING("Hello World");
+    UA_Variant_setScalarCopy(output, &tmp, &UA_TYPES[UA_TYPES_STRING]);
     printf("getMonitoredItems was called\n");
-    
-    UA_String_deleteMembers(&tmp);
-    return;
+    return UA_STATUSCODE_GOOD;
 } 
 #endif
 
@@ -364,15 +352,15 @@ int main(int argc, char** argv) {
         UA_Argument *inputArguments = UA_Argument_new();
         inputArguments->arrayDimensionsSize = -1;
         inputArguments->arrayDimensions = UA_NULL;
-        inputArguments->dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_UINT32);
-        inputArguments->description = UA_LOCALIZEDTEXT("en_US", "An Integer" );
+        inputArguments->dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+        inputArguments->description = UA_LOCALIZEDTEXT("en_US", "A String");
         inputArguments->name = UA_STRING("Input an integer");
         inputArguments->valueRank = -1;
         UA_Argument *outputArguments = UA_Argument_new();
         outputArguments->arrayDimensionsSize = -1;
         outputArguments->arrayDimensions = UA_NULL;
-        outputArguments->dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_UINT32);
-        outputArguments->description = UA_LOCALIZEDTEXT("en_US", "An Integer" );
+        outputArguments->dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+        outputArguments->description = UA_LOCALIZEDTEXT("en_US", "A String");
         outputArguments->name = UA_STRING("Input an integer");
         outputArguments->valueRank = -1;
         

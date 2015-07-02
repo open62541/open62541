@@ -20,14 +20,6 @@ void             UA_EXPORT UA_ArgumentsList_destroy(UA_ArgumentsList *value);
 
 /* User facing functions */
 UA_StatusCode UA_EXPORT UA_Server_detachMethod_fromNode(UA_Server *server, UA_NodeId const methodNodeId);
-UA_StatusCode UA_EXPORT UA_Server_attachMethod_toNode(UA_Server *server, UA_NodeId methodNodeID, void *method) ;
+UA_StatusCode UA_EXPORT UA_Server_attachMethod_toNode(UA_Server *server, UA_NodeId methodNodeID, void *method);
 
-#ifdef ENABLE_METHODCALLS
-UA_StatusCode UA_EXPORT
-UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA_NodeId nodeId,
-                        const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
-                        void  *method, UA_Int32 inputArgumentsSize,
-                        const UA_Argument *inputArguments, UA_Int32 outputArgumentsSize,
-                        const UA_Argument *outputArguments);
-#endif
-#endif
+#endif /* UA_METHODCALL_H */
