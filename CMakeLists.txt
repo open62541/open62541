@@ -216,11 +216,11 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers} ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
 
 if(ENABLE_AMALGAMATION)
-    add_definitions(-DUA_AMALGAMATE)
     add_custom_target(amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
     include_directories(${PROJECT_BINARY_DIR})
 else()
+    add_definitions(-DUA_NO_AMALGAMATION)
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
     include_directories(${PROJECT_SOURCE_DIR}/include)
     include_directories(${PROJECT_SOURCE_DIR}/deps)

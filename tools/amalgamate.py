@@ -55,9 +55,6 @@ extern "C" {
 if not is_c:
     for inc in includes:
         file.write(u"#include " + inc + "\n")
-    file.write(u'''#ifndef UA_AMALGAMATE
-# define UA_AMALGAMATE
-#endif\n\n''')
 else:
     file.write(u'''#ifndef UA_DYNAMIC_LINKING
 # define UA_DYNAMIC_LINKING
