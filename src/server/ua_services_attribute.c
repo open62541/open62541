@@ -5,7 +5,10 @@
 #include "ua_nodestore.h"
 #include "ua_util.h"
 
-static UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range) {
+#ifndef BUILD_UNIT_TESTS
+static
+#endif
+UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range) {
     if(str.length < 0 || str.length >= 1023)
         return UA_STATUSCODE_BADINTERNALERROR;
 #ifdef NO_ALLOCA
