@@ -961,6 +961,23 @@ START_TEST(WriteSingleAttributeNoValue)
 		ck_assert_int_eq(retval, UA_STATUSCODE_BADTYPEMISMATCH);
 	}END_TEST
 
+START_TEST(numericRange)
+	{
+		//UA_Server *server = makeTestSequence();
+
+        UA_NumericRange range;
+		const UA_String str = (UA_String){9, (UA_Byte*)"1:2,0:3,5"};
+		UA_StatusCode retval = parse_numericrange(str, &range);
+		ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+		ck_assert_int_eq(range.dimensionsSize,3);
+		ck_assert_int_eq(range.dimensions[0].min,1);
+		ck_assert_int_eq(range.dimensions[0].max,2);
+		ck_assert_int_eq(range.dimensions[1].min,0);
+		ck_assert_int_eq(range.dimensions[1].max,3);
+		ck_assert_int_eq(range.dimensions[2].min,5);
+		ck_assert_int_eq(range.dimensions[2].max,5);
+	}END_TEST
+
 static Suite * testSuite_services_attributes(void) {
 	Suite *s = suite_create("services_attributes_read");
 
@@ -1038,6 +1055,10 @@ static Suite * testSuite_services_attributes(void) {
 	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeNoValue);
 
 	suite_add_tcase(s, tc_writeSingleAttributes);
+
+	TCase *tc_parseNumericRange = tcase_create("parseNumericRange");
+	tcase_add_test(tc_parseNumericRange, numericRange);
+	suite_add_tcase(s, tc_parseNumericRange);
 
 	return s;
 }
