@@ -71,7 +71,7 @@ void Service_CloseSecureChannel(UA_Server *server, UA_Int32 channelId);
 /**
  * Used by an OPC UA Client to create a Session and the Server returns two
  * values which uniquely identify the Session. The first value is the sessionId
- * which is used to identify the Session in the audit logs and in the Server’s
+ * which is used to identify the Session in the audit logs and in the Server's
  * address space. The second is the authenticationToken which is used to
  * associate an incoming request with a Session.
  */
