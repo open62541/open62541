@@ -23,6 +23,7 @@ struct SessionEntry {
 struct UA_SecureChannel {
     UA_MessageSecurityMode  securityMode;
     UA_ChannelSecurityToken securityToken; // the channelId is contained in the securityToken
+    UA_ChannelSecurityToken nextSecurityToken; // the channelId is contained in the securityToken
     UA_AsymmetricAlgorithmSecurityHeader clientAsymAlgSettings;
     UA_AsymmetricAlgorithmSecurityHeader serverAsymAlgSettings;
     UA_ByteString  clientNonce;
@@ -44,6 +45,7 @@ UA_Session * UA_SecureChannel_getSession(UA_SecureChannel *channel, UA_NodeId *t
 UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
                                                   const void *content, const UA_DataType *contentType);
 
+void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel);
 /** @} */
 
 #endif /* UA_SECURECHANNEL_H_ */

@@ -7,6 +7,7 @@ open62541 is licensed under the LGPL + static linking exception. That means **op
 
 [![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
 [![Build Status](https://travis-ci.org/acplt/open62541.png?branch=master)](https://travis-ci.org/acplt/open62541)
+[![MSVS build status](https://ci.appveyor.com/api/projects/status/w2geggs5s28gfu6t/branch/master?svg=true)](https://ci.appveyor.com/project/Stasik0/open62541/branch/master)
 [![Coverage Status](https://coveralls.io/repos/acplt/open62541/badge.png?branch=master)](https://coveralls.io/r/acplt/open62541?branch=master)
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/1864/badge.svg)](https://scan.coverity.com/projects/1864)
 
@@ -19,7 +20,8 @@ For discussion and help, you can use
 - our [IRC channel](http://webchat.freenode.net/?channels=%23open62541)
 - the [bugtracker](https://github.com/acplt/open62541/issues)
 
-Auomated builds of 50 last single-file distributions are available [here](http://open62541.org/releases)
+Automated builds of 50 last single-file distributions are available [here](http://open62541.org/releases).
+Automatically compiled MSVC binaries are available [here](https://ci.appveyor.com/project/Stasik0/open62541/build/artifacts).
 
 ### Contribute to open62541
 As an open source project, we invite new contributors to help improving open62541. If you are a developer, your bugfixes and new features are very welcome. Note that there are ways to contribute even without deep knowledge of the project or the UA standard:

@@ -71,7 +71,7 @@ void Service_CloseSecureChannel(UA_Server *server, UA_Int32 channelId);
 /**
  * Used by an OPC UA Client to create a Session and the Server returns two
  * values which uniquely identify the Session. The first value is the sessionId
- * which is used to identify the Session in the audit logs and in the Server’s
+ * which is used to identify the Session in the audit logs and in the Server's
  * address space. The second is the authenticationToken which is used to
  * associate an incoming request with a Session.
  */
@@ -196,8 +196,14 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session, const UA_Un
  */
 void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request,
                   UA_ReadResponse *response);
-// Service_HistoryRead
 
+/* Mock-Up of the function signature for Unit Tests */
+#ifdef BUILD_UNIT_TESTS
+void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
+                      const UA_ReadValueId *id, UA_DataValue *v);
+#endif
+
+// Service_HistoryRead
 /**
  * Used to write one or more Attributes of one or more Nodes. For constructed
  * Attribute values whose elements are indexed, such as an array, this Service

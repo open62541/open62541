@@ -1,25 +1,7 @@
 #ifndef UA_UTIL_H_
 #define UA_UTIL_H_
 
-#ifndef UA_AMALGAMATE
-# include "ua_config.h"
-#endif
-
-#ifndef __USE_POSIX
-# define __USE_POSIX
-#endif
-#ifndef _POSIX_SOURCE
-# define _POSIX_SOURCE
-#endif
-#ifndef _POSIX_C_SOURCE
-# define _POSIX_C_SOURCE 199309L
-#endif
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
+#include "ua_config.h"
 
 /*********************/
 /* Memory Management */
@@ -35,9 +17,9 @@
 
 /* Visual Studio needs __restrict */
 #ifdef _MSC_VER
-    #define UA_RESTRICT __restrict
+# define UA_RESTRICT __restrict
 #else
-    #define UA_RESTRICT restrict
+# define UA_RESTRICT restrict
 #endif
 
 /* Visual Studio does not know fnct/unistd file access results */
@@ -66,34 +48,31 @@
 
 /* Replace the macros with functions for custom allocators if necessary */
 #ifndef UA_free
-    #define UA_free(ptr) free(ptr)
+# define UA_free(ptr) free(ptr)
 #endif
 #ifndef UA_malloc
-    #define UA_malloc(size) malloc(size)
+# define UA_malloc(size) malloc(size)
 #endif
 #ifndef UA_calloc
-    #define UA_calloc(num, size) calloc(num, size)
+# define UA_calloc(num, size) calloc(num, size)
 #endif
 #ifndef UA_realloc
-    #define UA_realloc(ptr, size) realloc(ptr, size)
+# define UA_realloc(ptr, size) realloc(ptr, size)
 #endif
 
 #define UA_memcpy(dst, src, size) memcpy(dst, src, size)
 #define UA_memset(ptr, value, size) memset(ptr, value, size)
 
-#ifdef NO_ALLOCA
-#else
-#ifdef _WIN32
-    # define UA_alloca(SIZE) _alloca(SIZE)
-#else
- #ifdef __GNUC__
-    # define UA_alloca(size) __builtin_alloca (size)
- #else
-    # include <alloca.h>
-    # define UA_alloca(SIZE) alloca(SIZE)
- #endif
+#ifndef NO_ALLOCA
+# ifdef __GNUC__
+#  define UA_alloca(size) __builtin_alloca (size)
+# elif defined(_WIN32)
+#  define UA_alloca(SIZE) _alloca(SIZE)
+# else
+#  include <alloca.h>
+#  define UA_alloca(SIZE) alloca(SIZE)
+# endif
 #endif
-#endif /* NO_ALLOCA */
 
 /********************/
 /* System Libraries */
@@ -112,23 +91,13 @@
 #else
 # include <sys/time.h>
 # define RAND(SEED) (UA_UInt32)rand_r(SEED)
-# ifndef UA_NON_LITTLEENDIAN_ARCHITECTURE
-#  if defined(__linux__) || defined(__APPLE__)
-#   include <endian.h>
-#   if ( __BYTE_ORDER != __LITTLE_ENDIAN )
-#    define UA_NON_LITTLEENDIAN_ARCHITECTURE
-#   endif
-#  endif
-# endif
 #endif
 
 /*************************/
 /* External Dependencies */
 /*************************/
 
-#ifndef UA_AMALGAMATE
-# include "queue.h"
-#endif
+#include "queue.h"
 
 #ifdef UA_MULTITHREADING
 # define _LGPL_SOURCE

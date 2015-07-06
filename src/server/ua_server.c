@@ -59,6 +59,17 @@ static void UA_ExternalNamespace_deleteMembers(UA_ExternalNamespace *ens) {
     ens->externalNodeStore.destroy(ens->externalNodeStore.ensHandle);
 }
 
+static void UA_Server_deleteExternalNamespaces(UA_Server *server){
+	for(UA_UInt32 i = 0; i < server->externalNamespacesSize; i++){
+		UA_ExternalNamespace_deleteMembers(&(server->externalNamespaces[i]));
+	}
+	if(server->externalNamespacesSize > 0){
+		UA_free(server->externalNamespaces);
+		server->externalNamespaces = UA_NULL;
+		server->externalNamespacesSize = 0;
+	}
+}
+
 UA_StatusCode UA_EXPORT UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex,
                                                        const UA_String *url, UA_ExternalNodeStore *nodeStore) {
 	if(nodeStore == UA_NULL)
@@ -105,23 +116,21 @@ void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkL
     server->networkLayers[server->networkLayersSize] = networkLayer;
     server->networkLayersSize++;
 
-    if(networkLayer.discoveryUrl) {
-        if(server->description.discoveryUrlsSize < 0)
-            server->description.discoveryUrlsSize = 0;
-        UA_String* newUrls = UA_realloc(server->description.discoveryUrls,
-                                        sizeof(UA_String)*(server->description.discoveryUrlsSize+1));
-        if(!newUrls) {
-            UA_LOG_ERROR(server->logger, UA_LOGCATEGORY_SERVER, "Adding discoveryUrl");
-            return;
-        }
-        server->description.discoveryUrls = newUrls;
-        UA_String_copy(networkLayer.discoveryUrl,
-                       &server->description.discoveryUrls[server->description.discoveryUrlsSize]);
-        server->description.discoveryUrlsSize++;
-        for(UA_Int32 i = 0; i < server->endpointDescriptionsSize; i++)
-            if(!server->endpointDescriptions[i].endpointUrl.data)
-                UA_String_copy(networkLayer.discoveryUrl, &server->endpointDescriptions[i].endpointUrl);
+    if(server->description.discoveryUrlsSize < 0)
+        server->description.discoveryUrlsSize = 0;
+    UA_String* newUrls = UA_realloc(server->description.discoveryUrls,
+                                    sizeof(UA_String)*(server->description.discoveryUrlsSize+1));
+    if(!newUrls) {
+        UA_LOG_ERROR(server->logger, UA_LOGCATEGORY_SERVER, "Adding discoveryUrl");
+        return;
     }
+    server->description.discoveryUrls = newUrls;
+    UA_String_copy(&networkLayer.discoveryUrl,
+                   &server->description.discoveryUrls[server->description.discoveryUrlsSize]);
+    server->description.discoveryUrlsSize++;
+    for(UA_Int32 i = 0; i < server->endpointDescriptionsSize; i++)
+        if(!server->endpointDescriptions[i].endpointUrl.data)
+            UA_String_copy(&networkLayer.discoveryUrl, &server->endpointDescriptions[i].endpointUrl);
 }
 
 void UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate) {
@@ -148,6 +157,9 @@ void UA_Server_delete(UA_Server *server) {
     UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
     UA_SessionManager_deleteMembers(&server->sessionManager);
     UA_NodeStore_delete(server->nodestore);
+#ifdef UA_EXTERNAL_NAMESPACES
+    UA_Server_deleteExternalNamespaces(server);
+#endif
     UA_ByteString_deleteMembers(&server->serverCertificate);
     UA_Array_delete(server->namespaces, &UA_TYPES[UA_TYPES_STRING], server->namespacesSize);
     UA_Array_delete(server->endpointDescriptions, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION],
@@ -155,7 +167,8 @@ void UA_Server_delete(UA_Server *server) {
 
     // Delete the network layers
     for(size_t i = 0; i < server->networkLayersSize; i++) {
-        server->networkLayers[i].free(server->networkLayers[i].nlHandle);
+        UA_String_deleteMembers(&server->networkLayers[i].discoveryUrl);
+        server->networkLayers[i].deleteMembers(&server->networkLayers[i]);
     }
     UA_free(server->networkLayers);
 
@@ -190,13 +203,13 @@ static void getBulidInfo(const UA_Server* server, UA_BuildInfo *buildInfo) {
     buildInfo->buildDate = server->buildDate;
 }
 
-static UA_StatusCode readStatus(void *handle, UA_Boolean sourceTimeStamp,
-                                const UA_NumericRange *range, UA_DataValue *value) {
+static UA_StatusCode readStatus(void *handle, UA_Boolean sourceTimeStamp, const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
         value->hasStatus = UA_TRUE;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
         return UA_STATUSCODE_GOOD;
     }
+    
     UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
     status->startTime   = ((const UA_Server*)handle)->startTime;
     status->currentTime = UA_DateTime_now();
@@ -217,36 +230,22 @@ static UA_StatusCode readStatus(void *handle, UA_Boolean sourceTimeStamp,
     return UA_STATUSCODE_GOOD;
 }
 
-static void releaseStatus(void *handle, UA_DataValue *value) {
-    if(!value->hasValue)
-        return;
-    UA_ServerStatusDataType_delete((UA_ServerStatusDataType*)value->value.data);
-    value->value.data = UA_NULL;
-    value->hasValue = UA_FALSE;
-    UA_DataValue_deleteMembers(value);
-}
-
-static UA_StatusCode readNamespaces(void *handle, UA_Boolean sourceTimestamp,
-                                    const UA_NumericRange *range, UA_DataValue *value) {
+static UA_StatusCode readNamespaces(void *handle, UA_Boolean sourceTimestamp, const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
         value->hasStatus = UA_TRUE;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
         return UA_STATUSCODE_GOOD;
     }
     UA_Server *server = (UA_Server*)handle;
+    UA_StatusCode retval = UA_Variant_setArrayCopy(&value->value, server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
     value->hasValue = UA_TRUE;
-    value->value.storageType = UA_VARIANT_DATA_NODELETE;
-    value->value.type = &UA_TYPES[UA_TYPES_STRING];
-    value->value.arrayLength = server->namespacesSize;
-    value->value.data = server->namespaces;
     if(sourceTimestamp) {
         value->hasSourceTimestamp = UA_TRUE;
         value->sourceTimestamp = UA_DateTime_now();
     }
     return UA_STATUSCODE_GOOD;
-}
-
-static void releaseNamespaces(void *handle, UA_DataValue *value) {
 }
 
 static UA_StatusCode readCurrentTime(void *handle, UA_Boolean sourceTimeStamp,
@@ -268,11 +267,6 @@ static UA_StatusCode readCurrentTime(void *handle, UA_Boolean sourceTimeStamp,
         value->sourceTimestamp = *currentTime;
     }
     return UA_STATUSCODE_GOOD;
-}
-
-static void releaseCurrentTime(void *handle, UA_DataValue *value) {
-    if(value->hasValue)
-        UA_DateTime_delete((UA_DateTime*)value->value.data);
 }
 
 static void copyNames(UA_Node *node, char *name) {
@@ -416,7 +410,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
 #define MAXCHANNELCOUNT 100
 #define STARTCHANNELID 1
-#define TOKENLIFETIME 600000
+#define TOKENLIFETIME 600000 //this is in milliseconds //600000 seems to be the minimal allowet time for UaExpert
 #define STARTTOKENID 1
     UA_SecureChannelManager_init(&server->secureChannelManager, MAXCHANNELCOUNT,
                                  TOKENLIFETIME, STARTCHANNELID, STARTTOKENID);
@@ -835,12 +829,9 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
    copyNames((UA_Node*)namespaceArray, "NamespaceArray");
    namespaceArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_NAMESPACEARRAY;
    namespaceArray->valueSource = UA_VALUESOURCE_DATASOURCE;
-   namespaceArray->value.dataSource = (UA_DataSource) {
-       .handle = server, .read = readNamespaces,
-       .release = releaseNamespaces, .write = UA_NULL};
+   namespaceArray->value.dataSource = (UA_DataSource) {.handle = server, .read = readNamespaces, .write = UA_NULL};
    namespaceArray->valueRank = 1;
    namespaceArray->minimumSamplingInterval = 1.0;
-   namespaceArray->historizing = UA_FALSE;
    UA_Server_addNode(server, (UA_Node*)namespaceArray, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER),
                      nodeIdHasProperty);
    UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY), nodeIdHasTypeDefinition,
@@ -855,7 +846,6 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
    *(UA_String *)serverArray->value.variant.data = UA_STRING_ALLOC(server->config.Application_applicationURI);
    serverArray->valueRank = 1;
    serverArray->minimumSamplingInterval = 1.0;
-   serverArray->historizing = UA_FALSE;
    UA_Server_addNode(server, (UA_Node*)serverArray, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER),
                      nodeIdHasProperty);
    UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERARRAY),
@@ -879,7 +869,6 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
    *(UA_String *)localeIdArray->value.variant.data = UA_STRING_ALLOC("en");
    localeIdArray->valueRank = 1;
    localeIdArray->minimumSamplingInterval = 1.0;
-   localeIdArray->historizing = UA_FALSE;
    UA_Server_addNode(server, (UA_Node*)localeIdArray,
                      UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES), nodeIdHasProperty);
    UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_LOCALEIDARRAY),
@@ -898,6 +887,39 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
                            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXBROWSECONTINUATIONPOINTS),
                            nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE));
 
+    /** ServerProfileArray **/
+#define MAX_PROFILEARRAY 16 //a *magic* limit to the number of supported profiles
+#define ADDPROFILEARRAY(x) profileArray[profileArraySize++] = UA_STRING_ALLOC(x)
+    UA_String profileArray[MAX_PROFILEARRAY];
+    UA_UInt16  profileArraySize = 0;
+    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/NanoEmbeddedDevice");
+
+#ifdef ENABLE_SERVICESET_NODEMANAGEMENT
+    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/NodeManagement");
+#endif
+#ifdef ENABLE_SERVICESET_METHOD
+    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/Methods");
+#endif
+#ifdef ENABLE_SUBSCRIPTIONS
+    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/EmbeddedDataChangeSubscription");
+#endif
+
+    UA_VariableNode *serverProfileArray = UA_VariableNode_new();
+    copyNames((UA_Node*)serverProfileArray, "ServerProfileArray");
+    serverProfileArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERCAPABILITIES_SERVERPROFILEARRAY;
+    serverProfileArray->value.variant.arrayLength = profileArraySize;
+    serverProfileArray->value.variant.data = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], profileArraySize);
+    serverProfileArray->value.variant.type = &UA_TYPES[UA_TYPES_STRING];
+    for(UA_UInt16 i=0;i<profileArraySize;i++){
+        ((UA_String *)serverProfileArray->value.variant.data)[i] = profileArray[i];
+    }
+    serverProfileArray->valueRank = 1;
+    serverProfileArray->minimumSamplingInterval = 1.0;
+    UA_Server_addNode(server, (UA_Node*)serverProfileArray,
+                      UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES), nodeIdHasProperty);
+    UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_SERVERPROFILEARRAY),
+                           nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE));
+
     UA_ObjectNode *serverdiagnostics = UA_ObjectNode_new();
     copyNames((UA_Node*)serverdiagnostics, "ServerDiagnostics");
     serverdiagnostics->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERDIAGNOSTICS;
@@ -914,7 +936,6 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
      enabledFlag->value.variant.type = &UA_TYPES[UA_TYPES_BOOLEAN];
      enabledFlag->valueRank = 1;
      enabledFlag->minimumSamplingInterval = 1.0;
-     enabledFlag->historizing = UA_FALSE;
      UA_Server_addNode(server, (UA_Node*)enabledFlag,
                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS), nodeIdHasProperty);
      UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_ENABLEDFLAG),
@@ -924,15 +945,13 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
       copyNames((UA_Node*)serverstatus, "ServerStatus");
       serverstatus->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS);
       serverstatus->valueSource = UA_VALUESOURCE_DATASOURCE;
-      serverstatus->value.dataSource = (UA_DataSource) {
-          .handle = server, .read = readStatus,
-          .release = releaseStatus, .write = UA_NULL};
+      serverstatus->value.dataSource = (UA_DataSource) {.handle = server, .read = readStatus, .write = UA_NULL};
       UA_Server_addNode(server, (UA_Node*)serverstatus, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER),
                         nodeIdHasComponent);
       UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
                              nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVERSTATUSTYPE));
 
-      UA_VariableNode *starttime = UA_VariableNode_new();
+     UA_VariableNode *starttime = UA_VariableNode_new();
       copyNames((UA_Node*)starttime, "StartTime");
       starttime->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME);
       starttime->value.variant.storageType = UA_VARIANT_DATA_NODELETE;
@@ -943,21 +962,19 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
       UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME),
                              nodeIdHasTypeDefinition, expandedNodeIdBaseDataVariabletype);
 
-      UA_VariableNode *currenttime = UA_VariableNode_new();
+     UA_VariableNode *currenttime = UA_VariableNode_new();
       copyNames((UA_Node*)currenttime, "CurrentTime");
       currenttime->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
       currenttime->valueSource = UA_VALUESOURCE_DATASOURCE;
-      currenttime->value.dataSource = (UA_DataSource) {
-          .handle = NULL, .read = readCurrentTime,
-          .release = releaseCurrentTime, .write = UA_NULL};
+      currenttime->value.dataSource = (UA_DataSource) {.handle = NULL, .read = readCurrentTime, .write = UA_NULL};
       UA_Server_addNode(server, (UA_Node*)currenttime,
                         UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
                         nodeIdHasComponent);
       UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME),
                              nodeIdHasTypeDefinition, expandedNodeIdBaseDataVariabletype);
 
-      UA_VariableNode *state = UA_VariableNode_new();
-      UA_ServerState *stateEnum = UA_ServerState_new();
+     UA_VariableNode *state = UA_VariableNode_new();
+     UA_ServerState *stateEnum = UA_ServerState_new();
       *stateEnum = UA_SERVERSTATE_RUNNING;
       copyNames((UA_Node*)state, "State");
       state->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERSTATUS_STATE;

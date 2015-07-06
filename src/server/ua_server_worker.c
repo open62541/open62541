@@ -34,12 +34,9 @@ static void processJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {
         case UA_JOBTYPE_BINARYMESSAGE:
             UA_Server_processBinaryMessage(server, job->job.binaryMessage.connection,
                                            &job->job.binaryMessage.message);
-            UA_Connection *c = job->job.binaryMessage.connection;
-            c->releaseBuffer(job->job.binaryMessage.connection, &job->job.binaryMessage.message);
             break;
-        case UA_JOBTYPE_CLOSECONNECTION:
+        case UA_JOBTYPE_DETACHCONNECTION:
             UA_Connection_detachSecureChannel(job->job.closeConnection);
-            job->job.closeConnection->close(job->job.closeConnection);
             break;
         case UA_JOBTYPE_METHODCALL:
         case UA_JOBTYPE_DELAYEDMETHODCALL:
@@ -536,7 +533,7 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads, UA_Bo
 
     /* Start the networklayers */
     for(size_t i = 0; i < server->networkLayersSize; i++)
-        server->networkLayers[i].start(server->networkLayers[i].nlHandle, &server->logger);
+        server->networkLayers[i].start(&server->networkLayers[i], &server->logger);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -556,11 +553,11 @@ UA_StatusCode UA_Server_run_mainloop(UA_Server *server, UA_Boolean *running) {
         UA_Int32 jobsSize;
         if(*running) {
             if(i == server->networkLayersSize-1)
-                jobsSize = nl->getJobs(nl->nlHandle, &jobs, timeout);
+                jobsSize = nl->getJobs(nl, &jobs, timeout);
             else
-                jobsSize = nl->getJobs(nl->nlHandle, &jobs, 0);
+                jobsSize = nl->getJobs(nl, &jobs, 0);
         } else
-            jobsSize = server->networkLayers[i].stop(nl->nlHandle, &jobs);
+            jobsSize = server->networkLayers[i].stop(nl, &jobs);
 
 #ifdef UA_MULTITHREADING
         /* Filter out delayed work */

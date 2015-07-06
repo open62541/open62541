@@ -5,11 +5,12 @@
 extern "C" {
 #endif
 
-#include "ua_util.h"
+#include "ua_config.h"
 #include "ua_types.h"
 #include "ua_connection.h"
 #include "ua_log.h"
 #include "ua_types_generated.h"
+#include "queue.h"
 
 struct UA_Client;
 typedef struct UA_Client UA_Client;
@@ -57,7 +58,27 @@ UA_AddReferencesResponse UA_EXPORT
 UA_DeleteNodesResponse UA_EXPORT UA_Client_deleteNodes(UA_Client *client, UA_DeleteNodesRequest *request);
 UA_DeleteReferencesResponse UA_EXPORT
     UA_Client_deleteReferences(UA_Client *client, UA_DeleteReferencesRequest *request);
-    
+
+
+/* Client-Side Macro/Procy functions */
+UA_AddNodesResponse UA_EXPORT *UA_Client_createObjectNode(  UA_Client *client, UA_ExpandedNodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
+                                                            UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
+                                                            UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition);
+
+UA_AddNodesResponse UA_EXPORT *UA_Client_createVariableNode(UA_Client *client, UA_ExpandedNodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
+                                                            UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
+                                                            UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition, 
+                                                            UA_NodeId dataType, UA_Variant *value );
+
+UA_AddNodesResponse UA_EXPORT *UA_Client_createReferenceTypeNode(UA_Client *client, UA_ExpandedNodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
+                                                            UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
+                                                            UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition,
+                                                            UA_LocalizedText inverseName );
+
+UA_AddNodesResponse UA_EXPORT *UA_Client_createObjectTypeNode(UA_Client *client, UA_ExpandedNodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
+                                                            UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
+                                                            UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

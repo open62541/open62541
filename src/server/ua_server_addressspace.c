@@ -331,8 +331,13 @@ UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, UA_Node *no
     }
 
     // todo: test if the referencetype is hierarchical
+    //FIXME: a bit dirty workaround of preserving namespace
+    //namespace index is assumed to be valid
     const UA_Node *managed = UA_NULL;
-    if(UA_NodeId_isNull(&node->nodeId)) {
+    UA_NodeId tempNodeid;
+    UA_NodeId_copy(&node->nodeId, &tempNodeid);
+    tempNodeid.namespaceIndex = 0;
+    if(UA_NodeId_isNull(&tempNodeid)) {
         if(UA_NodeStore_insert(server->nodestore, node, &managed) != UA_STATUSCODE_GOOD) {
             result.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
             goto ret2;

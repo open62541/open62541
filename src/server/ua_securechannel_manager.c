@@ -28,8 +28,14 @@ void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_Dat
     /* remove channels that were not renewed or who have no connection attached */
     while(entry) {
         if(entry->channel.securityToken.createdAt +
-            (10000 * entry->channel.securityToken.revisedLifetime) > now &&
+            (UA_DateTime)entry->channel.securityToken.revisedLifetime*10000 > now &&
             entry->channel.connection) {
+            entry = LIST_NEXT(entry, pointers);
+        }else if(entry->channel.nextSecurityToken.tokenId > 0 &&
+                 entry->channel.nextSecurityToken.createdAt +
+                (UA_DateTime)entry->channel.nextSecurityToken.revisedLifetime*10000 > now &&
+                entry->channel.connection){
+            UA_SecureChannel_revolveTokens(&entry->channel);
             entry = LIST_NEXT(entry, pointers);
         }
         else {
@@ -99,22 +105,30 @@ UA_StatusCode UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_Conn
     if(channel == UA_NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    channel->securityToken.tokenId         = cm->lastTokenId++;
-    channel->securityToken.createdAt       = UA_DateTime_now(); // todo: is wanted?
-    channel->securityToken.revisedLifetime = (request->requestedLifetime > cm->maxChannelLifetime) ?
-                                             cm->maxChannelLifetime : request->requestedLifetime;
-    //FIXME: pragmatic workaround to get clients requesting lifetime of 0 working
-    if(channel->securityToken.revisedLifetime == 0){
-        channel->securityToken.revisedLifetime = cm->maxChannelLifetime;
-        //FIXME: I'd log it, but there is no pointer to the logger
-        // printf("Warning: client requests token lifetime of 0 in renewing SecureChannel setting it to %llu\n", cm->maxChannelLifetime);
-    }
+    //if no new security token is already issued
+    if(channel->nextSecurityToken.tokenId == 0){
+        channel->nextSecurityToken.channelId       = channel->securityToken.channelId;
+        //FIXME: UaExpert seems not to use new the new tokenid
+        channel->nextSecurityToken.tokenId         = cm->lastTokenId++;
+        //channel->nextSecurityToken.tokenId         = channel->securityToken.tokenId;
+        channel->nextSecurityToken.createdAt       = UA_DateTime_now();
+        channel->nextSecurityToken.revisedLifetime = (request->requestedLifetime > cm->maxChannelLifetime) ?
+                                                 cm->maxChannelLifetime : request->requestedLifetime;
 
-    if(channel->serverNonce.data != UA_NULL)
-        UA_ByteString_deleteMembers(&channel->serverNonce);
-    UA_SecureChannel_generateNonce(&channel->serverNonce);
+        //FIXME: pragmatic workaround to get clients requesting lifetime of 0 working
+        if(channel->nextSecurityToken.revisedLifetime == 0){
+            channel->nextSecurityToken.revisedLifetime = cm->maxChannelLifetime;
+            //FIXME: I'd log it, but there is no pointer to the logger
+            // printf("Warning: client requests token lifetime of 0 in renewing SecureChannel setting it to %llu\n", cm->maxChannelLifetime);
+        }
+
+    }
+    if(channel->clientNonce.data)
+        UA_ByteString_deleteMembers(&channel->clientNonce);
+    UA_ByteString_copy(&request->clientNonce, &channel->clientNonce);
+
     UA_ByteString_copy(&channel->serverNonce, &response->serverNonce);
-    UA_ChannelSecurityToken_copy(&channel->securityToken, &response->securityToken);
+    UA_ChannelSecurityToken_copy(&channel->nextSecurityToken, &response->securityToken);
     return UA_STATUSCODE_GOOD;
 }
 

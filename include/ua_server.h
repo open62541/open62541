@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "ua_config.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_nodeids.h"
@@ -81,18 +82,15 @@ UA_StatusCode UA_EXPORT UA_Server_run_shutdown(UA_Server *server, UA_UInt16 nThr
 UA_StatusCode UA_EXPORT UA_Server_run_mainloop(UA_Server *server, UA_Boolean *running);
 
 /**
- * Datasources are the interface to local data providers. Implementors of datasources need to
- * provide functions for the callbacks in this structure. After every read, the handle needs to be
- * released to indicate that the pointer is no longer accessed. As a rule, datasources are never
- * copied, but only their content. The only way to write into a datasource is via the write-service.
- * It is expected that the read and release callbacks are implemented. The write callback can be set
+ * Datasources are the interface to local data providers. It is expected that
+ * the read and release callbacks are implemented. The write callback can be set
  * to null.
  */
 typedef struct {
     void *handle; ///> A custom pointer to reuse the same datasource functions for multiple sources
 
     /**
-     * Read current data from the data source
+     * Copies the data from the source into the provided value.
      *
      * @param handle An optional pointer to user-defined data for the specific data source
      * @param includeSourceTimeStamp If true, then the datasource is expected to set the source
@@ -104,16 +102,7 @@ typedef struct {
      * @return Returns a status code for logging. Error codes intended for the original caller are set
      *         in the value. If an error is returned, then no releasing of the value is done.
      */
-    UA_StatusCode (*read)(void *handle, UA_Boolean includeSourceTimeStamp, const UA_NumericRange *range,
-                          UA_DataValue *value);
-
-    /**
-     * Release data that was allocated during a read (and/or release locks in the data source)
-     *
-     * @param handle An optional pointer to user-defined data for the specific data source
-     * @param value The DataValue that was used for a successful read.
-     */
-    void (*release)(void *handle, UA_DataValue *value);
+    UA_StatusCode (*read)(void *handle, UA_Boolean includeSourceTimeStamp, const UA_NumericRange *range, UA_DataValue *value);
 
     /**
      * Write into a data source. The write member of UA_DataSource can be empty if the operation
@@ -157,7 +146,7 @@ UA_Server_AddMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId,
 typedef struct {
     enum {
         UA_JOBTYPE_NOTHING,
-        UA_JOBTYPE_CLOSECONNECTION,
+        UA_JOBTYPE_DETACHCONNECTION,
         UA_JOBTYPE_BINARYMESSAGE,
         UA_JOBTYPE_METHODCALL,
         UA_JOBTYPE_DELAYEDMETHODCALL,
@@ -212,48 +201,44 @@ UA_StatusCode UA_EXPORT UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid j
  * in parallel but only sequentially from the server's main loop. So the network
  * layer does not need to be thread-safe.
  */
-typedef struct {
-    void *nlHandle;
+typedef struct UA_ServerNetworkLayer {
+    void *handle;
+    UA_String discoveryUrl;
 
     /**
      * Starts listening on the the networklayer.
      *
+     * @param nl The network layer
+     * @param logger The logger
      * @return Returns UA_STATUSCODE_GOOD or an error code.
      */
-    UA_StatusCode (*start)(void *nlHandle, UA_Logger *logger);
+    UA_StatusCode (*start)(struct UA_ServerNetworkLayer *nl, UA_Logger *logger);
     
     /**
      * Gets called from the main server loop and returns the jobs (accumulated messages and close
      * events) for dispatch.
      *
+     * @param nl The network layer
      * @param jobs When the returned integer is positive, *jobs points to an array of UA_Job of the
      * returned size.
-     *
      * @param timeout The timeout during which an event must arrive in microseconds
-     
      * @return The size of the jobs array. If the result is negative, an error has occurred.
      */
-    UA_Int32 (*getJobs)(void *nlhandle, UA_Job **jobs, UA_UInt16 timeout);
+    UA_Int32 (*getJobs)(struct UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt16 timeout);
 
     /**
      * Closes the network connection and returns all the jobs that need to be finished before the
      * network layer can be safely deleted.
      *
+     * @param nl The network layer
      * @param jobs When the returned integer is positive, jobs points to an array of UA_Job of the
      * returned size.
-     *
      * @return The size of the jobs array. If the result is negative, an error has occurred.
      */
-    UA_Int32 (*stop)(void *nlhandle, UA_Job **jobs);
+    UA_Int32 (*stop)(struct UA_ServerNetworkLayer *nl, UA_Job **jobs);
 
     /** Deletes the network layer. Call only after a successful shutdown. */
-    void (*free)(void *nlhandle);
-
-    /**
-     * String containing the discovery URL that will be add to the server's list
-     * contains the protocol the host and the port of the layer
-     */
-    UA_String* discoveryUrl;
+    void (*deleteMembers)(struct UA_ServerNetworkLayer *nl);
 } UA_ServerNetworkLayer;
 
 /**

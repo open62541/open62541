@@ -18,13 +18,13 @@ find_package(Git)
 if(GIT_FOUND)
     execute_process(COMMAND ${GIT_EXECUTABLE} describe --abbrev=7 --dirty --always --tags RESULT_VARIABLE res_var OUTPUT_VARIABLE GIT_COM_ID )
     if( NOT ${res_var} EQUAL 0 )
-        set( GIT_COMMIT_ID "git commit id unknown")
+        set( GIT_COMMIT_ID "unknown--git-commit-id-unknown")
         message( WARNING "Git failed (not a repo, or no tags). Build will not contain git revision info." )
     else()
         string( REPLACE "\n" "" GIT_COMMIT_ID ${GIT_COM_ID} )
     endif()
 else()
-    set( GIT_COMMIT_ID "unknown (git not found!)")
+    set( GIT_COMMIT_ID "unknown--no-git-found")
     message( WARNING "Git not found. Build will not contain git revision info." )
 endif()
 add_definitions("-DVERSION=${GIT_COMMIT_ID}")
@@ -40,7 +40,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # compiler flags
-if(CMAKE_COMPILER_IS_GNUCC OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
                     -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
                     -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes # -Wshadow -Wconversion
@@ -194,6 +194,12 @@ if(ENABLE_EXTERNAL_NAMESPACES)
     add_definitions(-DUA_EXTERNAL_NAMESPACES)
 endif()
 
+## enable dynamic nodeset
+option(ENABLE_ADDNODES "Enable dynamic addition of nodes" ON)
+if(ENABLE_ADDNODES)
+    add_definitions(-DENABLE_ADDNODES )
+endif()
+
 ## set the precompiler flags
 configure_file("include/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
 
@@ -225,16 +231,16 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                PRE_BUILD
 
                COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${GIT_COMMIT_ID} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
-                              ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${internal_headers} ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources}
+                                            ${internal_headers} ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources}
 
-               DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${PROJECT_BINARY_DIR}/src_generated/ua_config.h ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
+               DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers} ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
 
 if(ENABLE_AMALGAMATION)
-    add_custom_target(amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
-    add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c)
+    add_custom_target(amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c)
+    add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
     include_directories(${PROJECT_BINARY_DIR})
 else()
-    add_definitions(-DNOT_AMALGATED)
+    add_definitions(-DUA_NO_AMALGAMATION)
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
     include_directories(${PROJECT_SOURCE_DIR}/include)
     include_directories(${PROJECT_SOURCE_DIR}/deps)
@@ -272,7 +278,10 @@ if(BUILD_EXAMPLESERVER)
     add_executable(server_static examples/server.c ${server_source})
     add_executable(server_simple examples/server_simple.c ${server_source})
     add_executable(server examples/server.c)
-	target_link_libraries(server open62541)
+    if(ENABLE_AMALGAMATION)
+       ADD_DEPENDENCIES(server amalgamation) 
+    endif()
+    target_link_libraries(server open62541)
     if(WIN32)
         target_link_libraries(server_static ws2_32)
         target_link_libraries(server_simple ws2_32)
@@ -308,7 +317,10 @@ if(BUILD_EXAMPLECLIENT)
 	add_definitions(-DBENCHMARK)
     set(client_source $<TARGET_OBJECTS:open62541-object>)
 	add_executable(client_static examples/client.c ${client_source})
-	add_executable(client examples/client.c)
+    add_executable(client examples/client.c)
+	if(ENABLE_AMALGAMATION)
+	   ADD_DEPENDENCIES(client amalgamation) 
+	endif()
 	target_link_libraries(client open62541)
     if(WIN32)
         target_link_libraries(client_static ws2_32)
@@ -332,20 +344,25 @@ endif()
 # build unit tests
 option(BUILD_UNIT_TESTS "Run unit tests after building" OFF)
 if(BUILD_UNIT_TESTS)
+	add_definitions(-DBUILD_UNIT_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
 
 # build documentation
-option(BUILD_DOCUMENTATION "Generate doxygen documentation" OFF)
+option(BUILD_DOCUMENTATION "Generate doxygen/sphinx documentation" OFF)
 if(BUILD_DOCUMENTATION)
-    find_package(Doxygen)
-        if(NOT DOXYGEN_FOUND)
-            message(FATAL_ERROR "Doxygen is not installed or not properly configured")
-        endif(NOT DOXYGEN_FOUND)
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/doc/Doxyfile.in ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile @ONLY)
-    add_custom_target(doc
-                      ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
-                      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    find_package(Doxygen REQUIRED)
+    find_package(Sphinx REQUIRED)
+    configure_file(${PROJECT_SOURCE_DIR}/doc/Doxyfile.in ${PROJECT_BINARY_DIR}/Doxyfile @ONLY)
+    configure_file(${PROJECT_SOURCE_DIR}/doc/conf.py ${PROJECT_BINARY_DIR}/conf.py @ONLY)
+    add_custom_target(doxygen
+                      ${DOXYGEN_EXECUTABLE} ${PROJECT_BINARY_DIR}/Doxyfile
+                      WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
                       COMMENT "Generating API documentation with Doxygen")
+    add_custom_target(doc ${SPHINX_EXECUTABLE}
+      -b html -c "${PROJECT_BINARY_DIR}"
+      "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_BINARY_DIR}/doc/sphinx"
+      DEPENDS doxygen
+      COMMENT "Building HTML documentation with Sphinx")
 endif()

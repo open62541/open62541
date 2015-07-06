@@ -59,19 +59,19 @@ void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     UA_UserNameIdentityToken username_token;
     UA_UserNameIdentityToken_init(&username_token);
 
+    UA_String ap = UA_STRING(ANONYMOUS_POLICY);
+    UA_String up = UA_STRING(USERNAME_POLICY);
     if(token.policyId.data == UA_NULL) {
         /* 1) no policy defined */
         response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-    } else if(server->config.Login_enableAnonymous &&
-              UA_String_equalchars(&token.policyId, ANONYMOUS_POLICY)) {
+    } else if(server->config.Login_enableAnonymous && UA_String_equal(&token.policyId, &ap)) {
         /* 2) anonymous logins */
         if(foundSession->channel && foundSession->channel != channel)
             UA_SecureChannel_detachSession(foundSession->channel, foundSession);
         UA_SecureChannel_attachSession(channel, foundSession);
         foundSession->activated = UA_TRUE;
         UA_Session_updateLifetime(foundSession);
-    } else if(server->config.Login_enableUsernamePassword &&
-              UA_String_equalchars(&token.policyId, USERNAME_POLICY)) {
+    } else if(server->config.Login_enableUsernamePassword && UA_String_equal(&token.policyId, &up)) {
         /* 3) username logins */
         offset = 0;
         UA_UserNameIdentityToken_decodeBinary(&request->userIdentityToken.body, &offset, &username_token);
@@ -85,8 +85,10 @@ void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
             /* 3.3) ok, trying to match the username */
             UA_UInt32 i = 0;
             for(; i < server->config.Login_loginsCount; ++i) {
-                if(UA_String_equalchars(&username_token.userName, server->config.Login_usernames[i])
-                    && UA_String_equalchars(&username_token.password, server->config.Login_passwords[i])) {
+                UA_String user = UA_STRING(server->config.Login_usernames[i]);
+                UA_String pw = UA_STRING(server->config.Login_passwords[i]);
+                if(UA_String_equal(&username_token.userName, &user) &&
+                   UA_String_equal(&username_token.password, &pw)) {
                     /* success - activate */
                     if(foundSession->channel && foundSession->channel != channel)
                         UA_SecureChannel_detachSession(foundSession->channel, foundSession);
