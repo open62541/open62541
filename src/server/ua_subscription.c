@@ -167,7 +167,7 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
             msg->notification->notificationData[notmsgn].body.length =
                 UA_calcSizeBinary(changeNotification, &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION]);
             msg->notification->notificationData[notmsgn].body.data   =
-                UA_malloc((msg->notification->notificationData[notmsgn]).body.length);
+                UA_calloc(0, (msg->notification->notificationData[notmsgn]).body.length);
         
             notificationOffset = 0;
             UA_encodeBinary(changeNotification, &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION],
@@ -508,11 +508,10 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
     newvalue = UA_malloc(sizeof(MonitoredItem_queuedValue));
     if(!newvalue)
         return;
-    newvalue->value.arrayLength         = 0;
-    newvalue->value.arrayDimensionsSize = 0;
-    newvalue->value.arrayDimensions     = NULL;
-    newvalue->value.data                = NULL;
-    newvalue->value.type                = NULL;
+
+    newvalue->listEntry.tqe_next = UA_NULL;
+    newvalue->listEntry.tqe_prev = UA_NULL;
+    UA_Variant_init(&newvalue->value);
   
     // Verify that the *Node being monitored is still valid
     // Looking up the in the nodestore is only necessary if we suspect that it is changed during writes
