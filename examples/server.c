@@ -3,14 +3,14 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
 
-#ifdef UA_AMALGAMATE
-# include "open62541.h"
-#else
+#ifdef UA_NO_AMALGAMATION
 # include <time.h>
 # include "ua_types.h"
 # include "ua_server.h"
 # include "logger_stdout.h"
 # include "networklayer_tcp.h"
+#else
+# include "open62541.h"
 #endif
 
 #include <signal.h>

@@ -9,13 +9,13 @@
 #include <errno.h> // errno, EINTR
 #include <string.h>
 
-#ifdef UA_AMALGAMATE
-# include "open62541.h"
-#else
+#ifdef UA_NO_AMALGAMATION
 # include "ua_types.h"
 # include "ua_server.h"
 # include "logger_stdout.h"
 # include "networklayer_tcp.h"
+#else
+# include "open62541.h"
 #endif
 
 UA_Boolean running = 1;
