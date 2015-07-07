@@ -591,51 +591,39 @@ UA_CallResponse UA_Client_call(UA_Client *client, UA_CallRequest *request) {
     return response;
 }
 
-UA_StatusCode UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId, UA_ArgumentsList *inputArguments, UA_ArgumentsList **outputArguments) {
+UA_StatusCode UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId,
+                                         UA_Int32 inputSize, const UA_Variant *input,
+                                         UA_Int32 *outputSize, UA_Variant **output) {
     UA_CallRequest request;
     UA_CallRequest_init(&request);
     
     request.methodsToCallSize = 1;
-    request.methodsToCall = (UA_CallMethodRequest *) UA_malloc(sizeof(UA_CallMethodRequest));
+    request.methodsToCall = UA_CallMethodRequest_new();
+    if(!request.methodsToCall)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
     UA_CallMethodRequest *rq = &request.methodsToCall[0];
-    
     UA_NodeId_copy(&methodNodeId, &rq->methodId);
     UA_NodeId_copy(&objectNodeId, &rq->objectId);
-    rq->inputArgumentsSize = inputArguments->argumentsSize;
-    rq->inputArguments = (UA_Variant *) UA_malloc(sizeof(UA_Variant) * rq->inputArgumentsSize);
-    for(int i=0; i<rq->inputArgumentsSize; i++) {
-       UA_Variant_copy(&inputArguments->arguments[i], &rq->inputArguments[i]);
-    }
+    rq->inputArguments = (void*)(uintptr_t)input; // cast const...
+    rq->inputArgumentsSize = inputSize;
     
     UA_CallResponse response;
     response = UA_Client_call(client, &request);
-    if (response.responseHeader.serviceResult != 0)
-        return response.responseHeader.serviceResult;
-    
-    UA_CallMethodResult *rs;
-    UA_ArgumentsList *outArgs = UA_NULL;
-    if (response.resultsSize > 0) {
-        rs = &response.results[0];
-        outArgs = UA_ArgumentsList_new(rs->inputArgumentResultsSize,rs->outputArgumentsSize);
-        outArgs->callResult = rs->statusCode;
-        for(int i=0; i<rs->inputArgumentResultsSize; i++) {
-            outArgs->status[i] = rs->inputArgumentResults[i];
-        }
-        for(int i=0; i<rs->outputArgumentsSize; i++) {
-            UA_Variant_copy(&rs->outputArguments[i], &outArgs->arguments[i]);
-        }
+    rq->inputArguments = UA_NULL;
+    rq->inputArgumentsSize = -1;
+    UA_CallRequest_deleteMembers(&request);
+    UA_StatusCode retval = response.responseHeader.serviceResult;
+    retval |= response.results[0].statusCode;
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        *output = response.results[0].outputArguments;
+        *outputSize = response.results[0].outputArgumentsSize;
+        response.results[0].outputArguments = UA_NULL;
+        response.results[0].outputArgumentsSize = -1;
     }
-    else {
-        outArgs = UA_ArgumentsList_new(1, 0);
-        outArgs->status[0] = response.responseHeader.serviceResult;
-    }
-    
-    (*outputArguments) = outArgs;
-    // Note: if statement to convince compiler that we are
-    //       using the output args
-    if((*outputArguments) == UA_NULL) 
-        return outArgs->callResult;
-    return outArgs->callResult;
+    UA_CallResponse_deleteMembers(&response);
+    return retval;
 }
 #endif
 

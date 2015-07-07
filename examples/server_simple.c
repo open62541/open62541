@@ -9,16 +9,14 @@
 #include <errno.h> // errno, EINTR
 #include <string.h>
 
-#ifdef NOT_AMALGATED
-    #include "ua_types.h"
-    #include "ua_server.h"
+#ifdef UA_NO_AMALGAMATION
+# include "ua_types.h"
+# include "ua_server.h"
+# include "logger_stdout.h"
+# include "networklayer_tcp.h"
 #else
-    #include "open62541.h"
+# include "open62541.h"
 #endif
-
-// provided by the user, implementations available in the /examples folder
-#include "logger_stdout.h"
-#include "networklayer_tcp.h"
 
 UA_Boolean running = 1;
 UA_Logger logger;

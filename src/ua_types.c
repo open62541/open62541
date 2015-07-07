@@ -159,11 +159,6 @@ UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
     return (is == 0) ? UA_TRUE : UA_FALSE;
 }
 
-UA_Boolean UA_String_equalchars(const UA_String *string1, char *charString) {
-    UA_String string2 = UA_STRING(charString);
-    return UA_String_equal(string1, &string2);
-}
-
 /* DateTime */
 #define UNIX_EPOCH_BIAS_SEC 11644473600LL // Number of seconds from 1 Jan. 1601 00:00 to 1 Jan 1970 00:00 UTC
 #define HUNDRED_NANOSEC_PER_USEC 10LL
@@ -843,21 +838,21 @@ UA_StatusCode UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_Da
     return UA_Variant_setArray(v, new, -1, type);
 }
 
-UA_StatusCode UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 noElements,
+UA_StatusCode UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 elements,
                                   const UA_DataType *type) {
     v->type = type;
-    v->arrayLength = noElements;
+    v->arrayLength = elements;
     v->data = array;
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Variant_setArrayCopy(UA_Variant *v, const void *array, UA_Int32 noElements,
+UA_StatusCode UA_Variant_setArrayCopy(UA_Variant *v, const void *array, UA_Int32 elements,
                                       const UA_DataType *type) {
     void *new;
-    UA_StatusCode retval = UA_Array_copy(array, &new, type, noElements);
+    UA_StatusCode retval = UA_Array_copy(array, &new, type, elements);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    return UA_Variant_setArray(v, new, noElements, type);
+    return UA_Variant_setArray(v, new, elements, type);
 }
 
 /* DiagnosticInfo */
@@ -1027,16 +1022,16 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
             ptrs += (member->padding >> 3);
             ptrd += (member->padding >> 3);
             UA_Int32 *dstNoElements = (UA_Int32*)ptrd;
-            const UA_Int32 noElements = *((const UA_Int32*)ptrs);
+            const UA_Int32 elements = *((const UA_Int32*)ptrs);
             ptrs += sizeof(UA_Int32) + (member->padding & 0x07);
             ptrd += sizeof(UA_Int32) + (member->padding & 0x07);
-            retval = UA_Array_copy(*(void* const*)ptrs, (void**)ptrd, memberType, noElements);
+            retval = UA_Array_copy(*(void* const*)ptrs, (void**)ptrd, memberType, elements);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_deleteMembers(dst, dataType);
                 UA_init(dst, dataType);
                 return retval;
             }
-            *dstNoElements = noElements;
+            *dstNoElements = elements;
             ptrs += sizeof(void*);
             ptrd += sizeof(void*);
             continue;
@@ -1138,9 +1133,9 @@ void UA_deleteMembersUntil(void *p, const UA_DataType *dataType, UA_Int32 lastMe
 
         if(member->isArray) {
             ptr += (member->padding >> 3);
-            UA_Int32 noElements = *((UA_Int32*)ptr);
+            UA_Int32 elements = *((UA_Int32*)ptr);
             ptr += sizeof(UA_Int32) + (member->padding & 0x07);
-            UA_Array_delete(*(void**)ptr, memberType, noElements);
+            UA_Array_delete(*(void**)ptr, memberType, elements);
             *(void**)ptr = UA_NULL;
             ptr += sizeof(void*);
             continue;
@@ -1211,58 +1206,58 @@ void UA_delete(void *p, const UA_DataType *dataType) {
 /* Array Handling */
 /******************/
 
-void* UA_Array_new(const UA_DataType *dataType, UA_Int32 noElements) {
-    if((UA_Int32)dataType->memSize * noElements < 0 || dataType->memSize * noElements > MAX_ARRAY_SIZE )
+void* UA_Array_new(const UA_DataType *dataType, UA_Int32 elements) {
+    if((UA_Int32)dataType->memSize * elements < 0 || dataType->memSize * elements > MAX_ARRAY_SIZE )
         return UA_NULL;
 
     if(dataType->fixedSize)
-        return UA_calloc(noElements, dataType->memSize);
+        return UA_calloc(elements, dataType->memSize);
 
-    void *p = UA_malloc(dataType->memSize * (size_t)noElements);
+    void *p = UA_malloc(dataType->memSize * (size_t)elements);
     if(!p)
         return p;
 
     uintptr_t ptr = (uintptr_t)p;
-    for(int i = 0; i<noElements; i++) {
+    for(int i = 0; i<elements; i++) {
         UA_init((void*)ptr, dataType);
         ptr += dataType->memSize;
     }
     return p;
 }
 
-UA_StatusCode UA_Array_copy(const void *src, void **dst, const UA_DataType *dataType, UA_Int32 noElements) {
-    if(noElements <= 0) {
+UA_StatusCode UA_Array_copy(const void *src, void **dst, const UA_DataType *dataType, UA_Int32 elements) {
+    if(elements <= 0) {
         *dst = UA_NULL;
         return UA_STATUSCODE_GOOD;
     }
 
-    if(!(*dst = UA_malloc((size_t)noElements * dataType->memSize)))
+    if(!(*dst = UA_malloc((size_t)elements * dataType->memSize)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     if(dataType->fixedSize) {
-        memcpy(*dst, src, dataType->memSize * (size_t)noElements);
+        memcpy(*dst, src, dataType->memSize * (size_t)elements);
         return UA_STATUSCODE_GOOD;
     }
 
     uintptr_t ptrs = (uintptr_t)src;
     uintptr_t ptrd = (uintptr_t)*dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(int i = 0; i < noElements; i++) {
+    for(int i = 0; i < elements; i++) {
         retval |= UA_copy((void*)ptrs, (void*)ptrd, dataType);
         ptrs += dataType->memSize;
         ptrd += dataType->memSize;
     }
 
     if(retval != UA_STATUSCODE_GOOD)
-        UA_Array_delete(*dst, dataType, noElements);
+        UA_Array_delete(*dst, dataType, elements);
 
     return retval;
 }
 
-void UA_Array_delete(void *p, const UA_DataType *dataType, UA_Int32 noElements) {
+void UA_Array_delete(void *p, const UA_DataType *dataType, UA_Int32 elements) {
     if(!dataType->fixedSize) {
         uintptr_t ptr = (uintptr_t)p;
-        for(UA_Int32 i = 0; i<noElements; i++) {
+        for(UA_Int32 i = 0; i < elements; i++) {
             UA_deleteMembers((void*)ptr, dataType);
             ptr += dataType->memSize;
         }

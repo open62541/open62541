@@ -35,9 +35,8 @@ static void processJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {
             UA_Server_processBinaryMessage(server, job->job.binaryMessage.connection,
                                            &job->job.binaryMessage.message);
             break;
-        case UA_JOBTYPE_CLOSECONNECTION:
+        case UA_JOBTYPE_DETACHCONNECTION:
             UA_Connection_detachSecureChannel(job->job.closeConnection);
-            job->job.closeConnection->close(job->job.closeConnection);
             break;
         case UA_JOBTYPE_METHODCALL:
         case UA_JOBTYPE_DELAYEDMETHODCALL:

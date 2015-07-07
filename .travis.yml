@@ -26,6 +26,9 @@ before_install:
 - sudo dpkg -i liburcu2_0.8.5-1ubuntu1_amd64.deb
 - sudo dpkg -i liburcu-dev_0.8.5-1ubuntu1_amd64.deb
 - sudo pip install cpp-coveralls
+- sudo pip install sphinx
+- sudo pip install breathe
+- sudo pip install sphinx_rtd_theme
 script:
 - echo "Checking the applicability of patches"
 - # ./tools/.checkPorts.sh
@@ -88,7 +91,7 @@ script:
 - echo "Debug build and unit tests (64 bit)"
 - cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_DEMO_NODESET=ON -DBUILD_UNIT_TESTS=ON -DENABLE_COVERAGE=ON ..
 - make && make test
-- coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../
+- (coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ ; exit 0)
 - cd .. 
 after_success:
 - ./tools/.deployGH.sh

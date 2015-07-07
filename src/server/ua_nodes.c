@@ -1,10 +1,6 @@
 #include "ua_nodes.h"
 #include "ua_util.h"
 
-#ifdef ENABLE_GENERATE_NAMESPACE0
-#include "ua_methodcalls.h"
-#endif
-
 /* UA_Node */
 static void UA_Node_init(UA_Node *p) {
 	UA_NodeId_init(&p->nodeId);

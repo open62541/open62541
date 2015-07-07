@@ -1,14 +1,14 @@
-#ifdef NOT_AMALGATED
-    #include "ua_types.h"
-    #include "ua_client.h"
-    #include "ua_nodeids.h"
-    #include "networklayer_tcp.h"
-    #include "logger_stdout.h"
-    #include "ua_types_encoding_binary.h"
+#ifdef UA_NO_AMALGAMATION
+# include "ua_types.h"
+# include "ua_client.h"
+# include "ua_nodeids.h"
+# include "networklayer_tcp.h"
+# include "logger_stdout.h"
+# include "ua_types_encoding_binary.h"
 #else
-    #include "open62541.h"
-    #include <string.h>
-    #include <stdlib.h>
+# include "open62541.h"
+# include <string.h>
+# include <stdlib.h>
 #endif
 
 #include <stdio.h>
@@ -100,28 +100,24 @@ int main(int argc, char *argv[]) {
     /* Note:  This example requires Namespace 0 Node 11489 (ServerType -> GetMonitoredItems) 
        FIXME: Provide a namespace 0 independant example on the server side
      */
-    UA_ArgumentsList *inargs, *outargs;
-    inargs = UA_ArgumentsList_new(2,2);
-    inargs->argumentsSize = 2;
+    UA_Variant input;
     
-    UA_UInt32 *argIntP, argInt;
-    argInt  = 42;
-    argIntP = UA_UInt32_new();
-    UA_UInt32_copy(&argInt, argIntP);
-    UA_Variant_setScalar(&inargs->arguments[0], argIntP, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_String argString = UA_STRING("Hello Server");
+    UA_Variant_init(&input);
+    UA_Variant_setScalarCopy(&input, &argString, &UA_TYPES[UA_TYPES_STRING]);
     
-    UA_String *argStringP, argString;
-    argString = UA_STRING_ALLOC("Hello Server");
-    argStringP = UA_String_new();
-    UA_String_copy(&argString,  argStringP);
-    UA_Variant_setScalar(&inargs->arguments[1], argStringP, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Int32 outputSize;
+    UA_Variant *output;
     
-    if (UA_Client_CallServerMethod(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERTYPE), UA_NODEID_NUMERIC(0, 11489), inargs, &outargs) == UA_STATUSCODE_GOOD) {
-        printf("Method call was successfull, %u statuscodes and %u returned values available.\n", (outargs)->statusSize, (outargs)->argumentsSize);
-        for (unsigned int i=0; i<(outargs)->statusSize; i++) {
-            printf("... Argument %u acknowledged with status %u\n", i, (outargs)->status[i]);
-        }
+    retval = UA_Client_CallServerMethod(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(1, 62541), 1, &input, &outputSize, &output);
+    if(retval == UA_STATUSCODE_GOOD) {
+        printf("Method call was successfull, and %i returned values available.\n", outputSize);
+        UA_Array_delete(output, &UA_TYPES[UA_TYPES_VARIANT], outputSize);
+    } else {
+        printf("Method call was unsuccessfull, and %x returned values available.\n", retval);
     }
+    UA_Variant_deleteMembers(&input);
+
 #endif
 #ifdef ENABLE_ADDNODES 
     /* Create a new object type node */

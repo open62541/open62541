@@ -4,7 +4,6 @@
 #include "ua_server.h"
 #include "ua_types_generated.h"
 #include "ua_types_encoding_binary.h"
-#include "ua_methodcalls.h"
 
 #define UA_STANDARD_NODEMEMBERS                 \
     UA_NodeId nodeId;                           \

@@ -33,24 +33,39 @@
     UA_StatusCode TYPE##_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset, TYPE *dst);
 
 UA_TYPE_BINARY_ENCODING(UA_Boolean)
-UA_TYPE_BINARY_ENCODING(UA_SByte)
 UA_TYPE_BINARY_ENCODING(UA_Byte)
-UA_TYPE_BINARY_ENCODING(UA_Int16)
+#define UA_SByte_encodeBinary(src, dst, offset) UA_Byte_encodeBinary((const UA_Byte *)src, dst, offset)
+#define UA_SByte_decodeBinary(src, offset, dst) UA_Byte_decodeBinary(src, offset, (UA_Byte *)dst)
 UA_TYPE_BINARY_ENCODING(UA_UInt16)
-UA_TYPE_BINARY_ENCODING(UA_Int32)
+#define UA_Int16_encodeBinary(src, dst, offset) UA_UInt16_encodeBinary((const UA_UInt16 *)src, dst, offset)
+#define UA_Int16_decodeBinary(src, offset, dst) UA_UInt16_decodeBinary(src, offset, (UA_UInt16 *)dst)
 UA_TYPE_BINARY_ENCODING(UA_UInt32)
-UA_TYPE_BINARY_ENCODING(UA_Int64)
+#define UA_Int32_encodeBinary(src, dst, offset) UA_UInt32_encodeBinary((const UA_UInt32 *)src, dst, offset)
+#define UA_Int32_decodeBinary(src, offset, dst) UA_UInt32_decodeBinary(src, offset, (UA_UInt32 *)dst)
 UA_TYPE_BINARY_ENCODING(UA_UInt64)
-UA_TYPE_BINARY_ENCODING(UA_Float)
-UA_TYPE_BINARY_ENCODING(UA_Double)
+#define UA_Int64_encodeBinary(src, dst, offset) UA_UInt64_encodeBinary((const UA_UInt64 *)src, dst, offset)
+#define UA_Int64_decodeBinary(src, offset, dst) UA_UInt64_decodeBinary(src, offset, (UA_UInt64 *)dst)
+#ifdef UA_MIXED_ENDIAN
+ UA_TYPE_BINARY_ENCODING(UA_Float)
+ UA_TYPE_BINARY_ENCODING(UA_Double)
+#else
+ #define UA_Float_encodeBinary(src, dst, offset) UA_UInt32_encodeBinary((const UA_UInt32 *)src, dst, offset)
+ #define UA_Float_decodeBinary(src, offset, dst) UA_UInt32_decodeBinary(src, offset, (UA_UInt32 *)dst)
+ #define UA_Double_encodeBinary(src, dst, offset) UA_UInt64_encodeBinary((const UA_UInt64 *)src, dst, offset)
+ #define UA_Double_decodeBinary(src, offset, dst) UA_UInt64_decodeBinary(src, offset, (UA_UInt64 *)dst)
+#endif
 UA_TYPE_BINARY_ENCODING(UA_String)
-UA_TYPE_BINARY_ENCODING(UA_DateTime)
+#define UA_DateTime_encodeBinary(src, dst, offset) UA_UInt64_encodeBinary((const UA_UInt64 *)src, dst, offset)
+#define UA_DateTime_decodeBinary(src, offset, dst) UA_UInt64_decodeBinary(src, offset, (UA_UInt64 *)dst)
 UA_TYPE_BINARY_ENCODING(UA_Guid)
-UA_TYPE_BINARY_ENCODING(UA_ByteString)
-UA_TYPE_BINARY_ENCODING(UA_XmlElement)
+#define UA_ByteString_encodeBinary(src, dst, offset) UA_String_encodeBinary((const UA_String *)src, dst, offset)
+#define UA_ByteString_decodeBinary(src, offset, dst) UA_String_decodeBinary(src, offset, (UA_String *)dst)
+#define UA_XmlElement_encodeBinary(src, dst, offset) UA_String_encodeBinary((const UA_String *)src, dst, offset)
+#define UA_XmlElement_decodeBinary(src, offset, dst) UA_String_decodeBinary(src, offset, (UA_String *)dst)
 UA_TYPE_BINARY_ENCODING(UA_NodeId)
 UA_TYPE_BINARY_ENCODING(UA_ExpandedNodeId)
-UA_TYPE_BINARY_ENCODING(UA_StatusCode)
+#define UA_StatusCode_encodeBinary(src, dst, offset) UA_UInt32_encodeBinary((const UA_UInt32 *)src, dst, offset)
+#define UA_StatusCode_decodeBinary(src, offset, dst) UA_UInt32_decodeBinary(src, offset, (UA_UInt32 *)dst)
 UA_TYPE_BINARY_ENCODING(UA_QualifiedName)
 UA_TYPE_BINARY_ENCODING(UA_LocalizedText)
 UA_TYPE_BINARY_ENCODING(UA_ExtensionObject)
@@ -62,6 +77,8 @@ UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_B
                               size_t *UA_RESTRICT offset);
 UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t * UA_RESTRICT offset, void *dst,
                               const UA_DataType *dataType);
+size_t UA_calcSizeBinary(const void *p, const UA_DataType *dataType);
+
 /// @}
 
 #endif /* UA_TYPES_ENCODING_BINARY_H_ */

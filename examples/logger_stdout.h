@@ -6,12 +6,8 @@
 #ifndef LOGGER_STDOUT_H_
 #define LOGGER_STDOUT_H_
 
-#ifdef NOT_AMALGATED
-    #include "ua_types.h"
-    #include "ua_log.h"
-#else
-    #include "open62541.h"
-#endif
+#include "ua_types.h"
+#include "ua_log.h"
 
 /** Initialises the logger for the current thread. */
 UA_EXPORT UA_Logger Logger_Stdout_new(void);

@@ -5,15 +5,11 @@
 extern "C" {
 #endif
 
-#include "ua_util.h"
+#include "ua_config.h"
 #include "ua_types.h"
 #include "ua_connection.h"
 #include "ua_log.h"
 #include "ua_types_generated.h"
-
-#ifdef ENABLE_METHODCALLS
-    #include "server/ua_methodcalls.h"
-#endif
     
 struct UA_Client;
 typedef struct UA_Client UA_Client;
@@ -66,8 +62,9 @@ UA_DeleteReferencesResponse UA_EXPORT
 /* Client-Side Macro/Procy functions */
 #ifdef ENABLE_METHODCALLS
 UA_CallResponse UA_EXPORT UA_Client_call(UA_Client *client, UA_CallRequest *request);
-UA_StatusCode UA_EXPORT UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId, 
-                                                       UA_ArgumentsList *inputArguments, UA_ArgumentsList **outputArguments);
+UA_StatusCode UA_EXPORT UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId,
+                                                   UA_Int32 inputSize, const UA_Variant *input,
+                                                   UA_Int32 *outputSize, UA_Variant **output);
 #endif
     
 UA_AddNodesResponse UA_EXPORT *UA_Client_createObjectNode(  UA_Client *client, UA_ExpandedNodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 

@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "ua_config.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_nodeids.h"
@@ -81,18 +82,15 @@ UA_StatusCode UA_EXPORT UA_Server_run_shutdown(UA_Server *server, UA_UInt16 nThr
 UA_StatusCode UA_EXPORT UA_Server_run_mainloop(UA_Server *server, UA_Boolean *running);
 
 /**
- * Datasources are the interface to local data providers. Implementors of datasources need to
- * provide functions for the callbacks in this structure. After every read, the handle needs to be
- * released to indicate that the pointer is no longer accessed. As a rule, datasources are never
- * copied, but only their content. The only way to write into a datasource is via the write-service.
- * It is expected that the read and release callbacks are implemented. The write callback can be set
+ * Datasources are the interface to local data providers. It is expected that
+ * the read and release callbacks are implemented. The write callback can be set
  * to null.
  */
 typedef struct {
     void *handle; ///> A custom pointer to reuse the same datasource functions for multiple sources
 
     /**
-     * Read current data from the data source
+     * Copies the data from the source into the provided value.
      *
      * @param handle An optional pointer to user-defined data for the specific data source
      * @param includeSourceTimeStamp If true, then the datasource is expected to set the source
@@ -104,16 +102,7 @@ typedef struct {
      * @return Returns a status code for logging. Error codes intended for the original caller are set
      *         in the value. If an error is returned, then no releasing of the value is done.
      */
-    UA_StatusCode (*read)(void *handle, UA_Boolean includeSourceTimeStamp, const UA_NumericRange *range,
-                          UA_DataValue *value);
-
-    /**
-     * Release data that was allocated during a read (and/or release locks in the data source)
-     *
-     * @param handle An optional pointer to user-defined data for the specific data source
-     * @param value The DataValue that was used for a successful read.
-     */
-    void (*release)(void *handle, UA_DataValue *value);
+    UA_StatusCode (*read)(void *handle, UA_Boolean includeSourceTimeStamp, const UA_NumericRange *range, UA_DataValue *value);
 
     /**
      * Write into a data source. The write member of UA_DataSource can be empty if the operation
@@ -171,7 +160,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
 typedef struct {
     enum {
         UA_JOBTYPE_NOTHING,
-        UA_JOBTYPE_CLOSECONNECTION,
+        UA_JOBTYPE_DETACHCONNECTION,
         UA_JOBTYPE_BINARYMESSAGE,
         UA_JOBTYPE_METHODCALL,
         UA_JOBTYPE_DELAYEDMETHODCALL,

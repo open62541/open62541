@@ -178,8 +178,6 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, const UA_Node
         if(((UA_Node *)&entry->node)->nodeClass==UA_NODECLASS_VARIABLE){ //set namespaceIndex in browseName in case id is generated
         	((UA_VariableNode*)&entry->node)->browseName.namespaceIndex=((UA_Node *)&entry->node)->nodeId.namespaceIndex;
         }
-        //set namespaceIndex in browseName in case id is generated
-        ((UA_Node *)&entry->node)->browseName.namespaceIndex=node->nodeId.namespaceIndex;
 
         unsigned long identifier;
         long before, after;
