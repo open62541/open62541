@@ -149,11 +149,10 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
     UA_NodeId argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0); 
     UA_VariableNode *inputArgumentsVariableNode  = UA_VariableNode_new();
     retval |= UA_NodeId_copy(&argId, &inputArgumentsVariableNode->nodeId);
-    inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME(0,"InputArguments");
-    inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT("en_US", "InputArguments");
-    inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT("en_US", "InputArguments");
+    inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME_ALLOC(0,"InputArguments");
+    inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
+    inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
     inputArgumentsVariableNode->valueRank = 1;
-    inputArgumentsVariableNode->value.variant.data = UA_malloc(sizeof(UA_Argument) * inputArgumentsSize);
     UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant, inputArguments, inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
     
     addRes = UA_Server_addNode(server, (UA_Node *) inputArgumentsVariableNode, *methodExpandedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY));
@@ -166,11 +165,10 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
     argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0);
     UA_VariableNode *outputArgumentsVariableNode  = UA_VariableNode_new();
     retval |= UA_NodeId_copy(&argId, &outputArgumentsVariableNode->nodeId);
-    outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME(0,"OutputArguments");
-    outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT("en_US", "OutputArguments");
-    outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT("en_US", "OutputArguments");
+    outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME_ALLOC(0,"OutputArguments");
+    outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
+    outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
     outputArgumentsVariableNode->valueRank = 1;
-    outputArgumentsVariableNode->value.variant.data = UA_malloc(sizeof(UA_Argument) * outputArgumentsSize);
     UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.variant, outputArguments, outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
     // Create Arguments Variant
     addRes = UA_Server_addNode(server, (UA_Node *) outputArgumentsVariableNode, *methodExpandedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY));
