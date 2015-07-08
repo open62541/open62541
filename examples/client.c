@@ -90,6 +90,10 @@ int main(int argc, char *argv[]) {
     wReq.nodesToWrite[0].value.value.storageType = UA_VARIANT_DATA_NODELETE; //do not free the integer on deletion
     wReq.nodesToWrite[0].value.value.data = &value;
     
+
+
+
+
     UA_WriteResponse wResp = UA_Client_write(client, &wReq);
     if(wResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
             printf("the new value is: %i\n", value);

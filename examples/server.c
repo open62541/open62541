@@ -273,6 +273,28 @@ int main(int argc, char** argv) {
                                   UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
    }
 
+   //add a multidimensional Int32 array node for testing purpose
+   void *value = UA_new(&UA_TYPES[UA_TYPES_INT32]);
+   UA_Variant *variant = UA_Variant_new();
+   UA_Variant_setScalar(variant, value, &UA_TYPES[UA_TYPES_INT32]);
+   char myMultiArrayTypename[15];
+   sprintf(myMultiArrayTypename, "%02d", 99);
+   UA_QualifiedName myMultiArrayType = UA_QUALIFIEDNAME(1, myMultiArrayTypename);
+
+   UA_Variant *arrayvar = UA_Variant_new();
+   UA_Int32 *myMultiArray = UA_Array_new(&UA_TYPES[UA_TYPES_INT32],10);
+   arrayvar->arrayDimensions = UA_Array_new(&UA_TYPES[UA_TYPES_INT32],2);
+   arrayvar->arrayDimensions[0] = 2;
+   arrayvar->arrayDimensions[1] = 5;
+   arrayvar->arrayDimensionsSize = 2;
+   arrayvar->arrayLength = 10;
+   arrayvar->data = myMultiArray;
+   arrayvar->type = &UA_TYPES[UA_TYPES_INT32];
+   UA_Server_addVariableNode(server, arrayvar, myMultiArrayType, UA_NODEID_NUMERIC(1, 31415),
+                             UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+
+
+
 	//start server
 	UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false
 
