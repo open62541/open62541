@@ -303,7 +303,6 @@ int main(int argc, char** argv) {
    UA_Server_addVariableNode(server, arrayvar, myMultiArrayType, UA_NODEID_NUMERIC(1, 31415),
                              UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
-
 #ifdef ENABLE_METHODCALLS
    UA_Argument inputArguments;
    UA_Argument_init(&inputArguments);
@@ -327,7 +326,6 @@ int main(int argc, char** argv) {
                            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                            &getMonitoredItems, 1, &inputArguments, 1, &outputArguments);
 #endif
-
 	//start server
 	UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false
 
