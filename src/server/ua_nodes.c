@@ -219,7 +219,7 @@ void UA_ReferenceTypeNode_delete(UA_ReferenceTypeNode *p) {
 }
 
 UA_StatusCode UA_ReferenceTypeNode_copy(const UA_ReferenceTypeNode *src, UA_ReferenceTypeNode *dst) {
-	UA_StatusCode retval = UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
+    UA_StatusCode retval = UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
     if(retval)
         return retval;
     retval = UA_LocalizedText_copy(&src->inverseName, &dst->inverseName);
@@ -234,10 +234,13 @@ UA_StatusCode UA_ReferenceTypeNode_copy(const UA_ReferenceTypeNode *src, UA_Refe
 
 /* UA_MethodNode */
 void UA_MethodNode_init(UA_MethodNode *p) {
-	UA_Node_init((UA_Node*)p);
+    UA_Node_init((UA_Node*)p);
     p->nodeClass = UA_NODECLASS_METHOD;
     p->executable = UA_FALSE;
     p->userExecutable = UA_FALSE;
+#ifdef ENABLE_METHODCALLS
+    p->attachedMethod      = UA_NULL;
+#endif
 }
 
 UA_MethodNode * UA_MethodNode_new(void) {
@@ -248,23 +251,35 @@ UA_MethodNode * UA_MethodNode_new(void) {
 }
 
 void UA_MethodNode_deleteMembers(UA_MethodNode *p) {
+#ifdef ENABLE_METHODCALLS
+    p->attachedMethod = UA_NULL;
+#endif
     UA_Node_deleteMembers((UA_Node*)p);
 }
 
 void UA_MethodNode_delete(UA_MethodNode *p) {
     UA_MethodNode_deleteMembers(p);
+#ifdef ENABLE_METHODCALLS
+    p->attachedMethod = UA_NULL;
+#endif
     UA_free(p);
 }
 
 UA_StatusCode UA_MethodNode_copy(const UA_MethodNode *src, UA_MethodNode *dst) {
+    UA_StatusCode retval = UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
     dst->executable = src->executable;
     dst->userExecutable = src->userExecutable;
-	return UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
+#ifdef ENABLE_METHODCALLS
+    dst->attachedMethod = src->attachedMethod;
+#endif
+    return retval;
 }
 
 /* UA_ViewNode */
 void UA_ViewNode_init(UA_ViewNode *p) {
-	UA_Node_init((UA_Node*)p);
+    UA_Node_init((UA_Node*)p);
     p->nodeClass = UA_NODECLASS_VIEW;
     p->containsNoLoops = UA_FALSE;
     p->eventNotifier = 0;

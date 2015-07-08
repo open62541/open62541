@@ -271,6 +271,7 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, const UA_Node
                 identifier -= size;
         }
     } else {
+        UA_NodeId_deleteMembers(&tempNodeid);
         if(containsNodeId(ns, &node->nodeId, &slot))
             return UA_STATUSCODE_BADNODEIDEXISTS;
     }

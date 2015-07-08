@@ -145,6 +145,15 @@ static UA_StatusCode writeLedStatus(void *handle, const UA_Variant *data, const 
 	return UA_STATUSCODE_GOOD;
 }
 
+#ifdef ENABLE_METHODCALLS
+static UA_StatusCode getMonitoredItems(const UA_NodeId objectId, const UA_Variant *input, UA_Variant *output) {
+    UA_String tmp = UA_STRING("Hello World");
+    UA_Variant_setScalarCopy(output, &tmp, &UA_TYPES[UA_TYPES_STRING]);
+    printf("getMonitoredItems was called\n");
+    return UA_STATUSCODE_GOOD;
+} 
+#endif
+
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Received Ctrl-C\n");
 	running = 0;
@@ -273,6 +282,7 @@ int main(int argc, char** argv) {
                                   UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
    }
 
+
    //add a multidimensional Int32 array node for testing purpose
    void *value = UA_new(&UA_TYPES[UA_TYPES_INT32]);
    UA_Variant *variant = UA_Variant_new();
@@ -294,6 +304,29 @@ int main(int argc, char** argv) {
                              UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
 
+#ifdef ENABLE_METHODCALLS
+   UA_Argument inputArguments;
+   UA_Argument_init(&inputArguments);
+   inputArguments.arrayDimensionsSize = -1;
+   inputArguments.arrayDimensions = NULL;
+   inputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+   inputArguments.description = UA_LOCALIZEDTEXT("en_US", "A String");
+   inputArguments.name = UA_STRING("Input an integer");
+   inputArguments.valueRank = -1;
+
+   UA_Argument outputArguments;
+   UA_Argument_init(&outputArguments);
+   outputArguments.arrayDimensionsSize = -1;
+   outputArguments.arrayDimensions = NULL;
+   outputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+   outputArguments.description = UA_LOCALIZEDTEXT("en_US", "A String");
+   outputArguments.name = UA_STRING("Input an integer");
+   outputArguments.valueRank = -1;
+        
+   UA_Server_addMethodNode(server, UA_QUALIFIEDNAME(1,"ping"), UA_NODEID_NUMERIC(1,62541),
+                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                           &getMonitoredItems, 1, &inputArguments, 1, &outputArguments);
+#endif
 
 	//start server
 	UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false

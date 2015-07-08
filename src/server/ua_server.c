@@ -466,7 +466,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 #define HUNDRED_NANOSEC_PER_USEC 10LL
 #define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
     server->buildDate = (mktime(&ct) + UNIX_EPOCH_BIAS_SEC) * HUNDRED_NANOSEC_PER_SEC;
-
+    
     /**************/
     /* References */
     /**************/

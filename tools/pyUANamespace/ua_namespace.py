@@ -532,7 +532,6 @@ class opcua_namespace():
     code.append('#include "'+outfilename+'.h"')
     code.append("inline void "+outfilename+"(UA_Server *server) {")
 
-
     # Find all references necessary to create the namespace and
     # "Bootstrap" them so all other nodes can safely use these referencetypes whenever
     # they can locate both source and target of the reference.

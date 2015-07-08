@@ -5,7 +5,10 @@
 #include "ua_nodestore.h"
 #include "ua_util.h"
 
-static UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range) {
+#ifndef BUILD_UNIT_TESTS
+static
+#endif
+UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range) {
     if(str.length < 0 || str.length >= 1023)
         return UA_STATUSCODE_BADINTERNALERROR;
 #ifdef NO_ALLOCA
@@ -423,7 +426,10 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 #endif
 }
 
-static UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
+#ifndef BUILD_UNIT_TESTS
+static
+#endif
+UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* is there a value at all */

@@ -188,6 +188,11 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session, const UA_Un
  * @{
  */
 
+/* Mock-Up of the function signature for Unit Tests */
+#ifdef BUILD_UNIT_TESTS
+UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range);
+#endif
+
 /**
  * Used to read one or more Attributes of one or more Nodes. For constructed
  * Attribute values whose elements are indexed, such as an array, this Service
@@ -212,6 +217,12 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
  */
 void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,
                    UA_WriteResponse *response);
+
+/* Mock-Up of the function signature for Unit Tests */
+#ifdef BUILD_UNIT_TESTS
+UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue);
+#endif
+
 // Service_HistoryUpdate
 /** @} */
 
@@ -279,4 +290,9 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
 /** @} */
 /** @} */
 
+#ifdef ENABLE_METHODCALLS
+void Service_Call(UA_Server *server, UA_Session *session,
+                  const UA_CallRequest *request,
+                  UA_CallResponse *response);
+#endif
 #endif /* UA_SERVICES_H_ */
