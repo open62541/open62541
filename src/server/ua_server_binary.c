@@ -6,6 +6,7 @@
 #include "ua_statuscodes.h"
 #include "ua_securechannel_manager.h"
 #include "ua_session_manager.h"
+
 /** Max size of messages that are allocated on the stack */
 #define MAX_STACK_MESSAGE 65536
 
@@ -326,6 +327,11 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     case UA_NS0ID_TRANSLATEBROWSEPATHSTONODEIDSREQUEST:
         INVOKE_SERVICE(TranslateBrowsePathsToNodeIds, UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE);
         break;
+#ifdef ENABLE_METHODCALLS
+    case UA_NS0ID_CALLREQUEST:
+        INVOKE_SERVICE(Call, UA_TYPES_CALLRESPONSE);
+	break;
+#endif
 #ifdef ENABLE_ADDNODES 
     case UA_NS0ID_ADDNODESREQUEST:
         INVOKE_SERVICE(AddNodes, UA_TYPES_ADDNODESRESPONSE);

@@ -57,8 +57,9 @@ minimal_types = ["InvalidType", "Node", "NodeClass", "ReferenceNode", "Applicati
                  "NodeAttributes","ReferenceTypeAttributes", "ViewAttributes", "ObjectTypeAttributes",
                  "NodeAttributesMask","DeleteNodesItem", "DeleteNodesRequest", "DeleteNodesResponse",
                  "DeleteReferencesItem", "DeleteReferencesRequest", "DeleteReferencesResponse",
-                 "RegisterNodesRequest", "RegisterNodesResponse", "UnregisterNodesRequest", "UnregisterNodesResponse",
-                 "UserIdentityToken", "UserNameIdentityToken", "AnonymousIdentityToken", "ServiceFault"]
+                 "RegisterNodesRequest", "RegisterNodesResponse", "UnregisterNodesRequest", "UnregisterNodesResponse", 
+                 "UserIdentityToken", "UserNameIdentityToken", "AnonymousIdentityToken", "ServiceFault",
+                 "CallMethodRequest", "CallMethodResult", "CallResponse", "CallRequest", "Argument"]
 
 class TypeDescription(object):
     def __init__(self, name, nodeid, namespaceid):

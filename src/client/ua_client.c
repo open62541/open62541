@@ -579,9 +579,54 @@ UA_DeleteReferencesResponse UA_Client_deleteReferences(UA_Client *client, UA_Del
     return response;
 }
 
+
 /**********************************/
 /* User-Facing Macros-Function    */
 /**********************************/
+#ifdef ENABLE_METHODCALLS
+UA_CallResponse UA_Client_call(UA_Client *client, UA_CallRequest *request) {
+    UA_CallResponse response;
+    synchronousRequest(client, request, &UA_TYPES[UA_TYPES_CALLREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
+    return response;
+}
+
+UA_StatusCode UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId,
+                                         UA_Int32 inputSize, const UA_Variant *input,
+                                         UA_Int32 *outputSize, UA_Variant **output) {
+    UA_CallRequest request;
+    UA_CallRequest_init(&request);
+    
+    request.methodsToCallSize = 1;
+    request.methodsToCall = UA_CallMethodRequest_new();
+    if(!request.methodsToCall)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_CallMethodRequest *rq = &request.methodsToCall[0];
+    UA_NodeId_copy(&methodNodeId, &rq->methodId);
+    UA_NodeId_copy(&objectNodeId, &rq->objectId);
+    rq->inputArguments = (void*)(uintptr_t)input; // cast const...
+    rq->inputArgumentsSize = inputSize;
+    
+    UA_CallResponse response;
+    response = UA_Client_call(client, &request);
+    rq->inputArguments = UA_NULL;
+    rq->inputArgumentsSize = -1;
+    UA_CallRequest_deleteMembers(&request);
+    UA_StatusCode retval = response.responseHeader.serviceResult;
+    retval |= response.results[0].statusCode;
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        *output = response.results[0].outputArguments;
+        *outputSize = response.results[0].outputArgumentsSize;
+        response.results[0].outputArguments = UA_NULL;
+        response.results[0].outputArgumentsSize = -1;
+    }
+    UA_CallResponse_deleteMembers(&response);
+    return retval;
+}
+#endif
+
 #define ADDNODES_COPYDEFAULTATTRIBUTES(REQUEST,ATTRIBUTES) do {                           \
     ATTRIBUTES.specifiedAttributes = 0;                                                   \
     if(! UA_LocalizedText_copy(&description, &(ATTRIBUTES.description)))                  \
