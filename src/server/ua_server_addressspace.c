@@ -335,6 +335,7 @@ UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, UA_Node *no
     //namespace index is assumed to be valid
     const UA_Node *managed = UA_NULL;
     UA_NodeId tempNodeid;
+    UA_NodeId_init(&tempNodeid);
     UA_NodeId_copy(&node->nodeId, &tempNodeid);
     tempNodeid.namespaceIndex = 0;
     if(UA_NodeId_isNull(&tempNodeid)) {
