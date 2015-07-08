@@ -4,6 +4,7 @@
 #include "queue.h"
 #include "ua_types.h"
 #include "ua_securechannel.h"
+#include "ua_server.h"
 
 #define MAXCONTINUATIONPOINTS 5
 
