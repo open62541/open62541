@@ -21,11 +21,11 @@ UA_Subscription *UA_Subscription_new(UA_Int32 SubscriptionID) {
     return new;
 }
 
-void UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *subscription) {
+void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server) {
     UA_unpublishedNotification *not;
     UA_MonitoredItem *mon;
     
-    // Just in case any parallel process attempts to acces this subscription
+    // Just in case any parallel process attempts to access this subscription
     // while we are deleting it... make it vanish.
     subscription->SubscriptionID = 0;
     
@@ -44,9 +44,10 @@ void UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *subscript
     }
     
     // Unhook/Unregister any timed work assiociated with this subscription
-    if (subscription->timedUpdateJob != UA_NULL)
+    if (subscription->timedUpdateJob != UA_NULL){
         Subscription_unregisterUpdateJob(server, subscription);
         UA_free(subscription->timedUpdateJob);
+    }
     
     return;
 }
@@ -167,7 +168,7 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
             msg->notification->notificationData[notmsgn].body.length =
                 UA_calcSizeBinary(changeNotification, &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION]);
             msg->notification->notificationData[notmsgn].body.data   =
-                UA_calloc(0, (msg->notification->notificationData[notmsgn]).body.length);
+                UA_calloc((msg->notification->notificationData[notmsgn]).body.length, sizeof(void*));
         
             notificationOffset = 0;
             UA_encodeBinary(changeNotification, &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION],
@@ -512,6 +513,7 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
     newvalue->listEntry.tqe_next = UA_NULL;
     newvalue->listEntry.tqe_prev = UA_NULL;
     UA_Variant_init(&newvalue->value);
+
   
     // Verify that the *Node being monitored is still valid
     // Looking up the in the nodestore is only necessary if we suspect that it is changed during writes

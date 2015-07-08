@@ -34,9 +34,14 @@ void SubscriptionManager_init(UA_Session *session) {
     manager->LastJobGuid.data4[7] = (UA_Byte) (manager->LastJobGuid.data4[0]) ^ (guidInitL >> 58);
 }
 
-void SubscriptionManager_deleteMembers(UA_Session *session) {
-    // UA_SubscriptionManager *manager = &(session->subscriptionManager);
-    // todo: delete all subscriptions and monitored items
+void SubscriptionManager_deleteMembers(UA_Session *session, UA_Server *server) {
+    UA_SubscriptionManager *manager = &(session->subscriptionManager);
+    UA_Subscription *current;
+    while((current = LIST_FIRST(&manager->ServerSubscriptions))) {
+        LIST_REMOVE(current, listEntry);
+        UA_Subscription_deleteMembers(current, server);
+        UA_free(current);
+    }
 }
 
 void SubscriptionManager_addSubscription(UA_SubscriptionManager *manager, UA_Subscription *newSubscription) {
@@ -75,7 +80,7 @@ UA_Int32 SubscriptionManager_deleteSubscription(UA_Server *server, UA_Subscripti
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
-    UA_Subscription_deleteMembers(server, sub);
+    UA_Subscription_deleteMembers(sub, server);
     
     LIST_REMOVE(sub, listEntry);
     UA_free(sub);

@@ -92,7 +92,7 @@ typedef struct UA_Subscription_s {
 } UA_Subscription;
 
 UA_Subscription *UA_Subscription_new(UA_Int32 SubscriptionID);
-void UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *subscription);
+void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server);
 void Subscription_updateNotifications(UA_Subscription *subscription);
 UA_UInt32 Subscription_queuedNotifications(UA_Subscription *subscription);
 UA_UInt32 *Subscription_getAvailableSequenceNumbers(UA_Subscription *sub);

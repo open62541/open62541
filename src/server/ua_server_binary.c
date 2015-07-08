@@ -161,7 +161,7 @@ static void invoke_service(UA_Server *server, UA_SecureChannel *channel, UA_UInt
     } else if(session->activated == UA_FALSE) {
         response->serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
         /* the session is invalidated FIXME: do this delayed*/
-        UA_SessionManager_removeSession(&server->sessionManager, &request->authenticationToken);
+        UA_SessionManager_removeSession(&server->sessionManager, server, &request->authenticationToken);
     } else {
         UA_Session_updateLifetime(session);
         service(server, session, request, response);

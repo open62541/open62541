@@ -20,7 +20,7 @@ typedef struct UA_SubscriptionManager {
 } UA_SubscriptionManager;
 
 void SubscriptionManager_init(UA_Session *session);
-void SubscriptionManager_deleteMembers(UA_Session *session);
+void SubscriptionManager_deleteMembers(UA_Session *session, UA_Server *server);
 void SubscriptionManager_addSubscription(UA_SubscriptionManager *manager, UA_Subscription *subscription);
 UA_Subscription *SubscriptionManager_getSubscriptionByID(UA_SubscriptionManager *manager,
                                                          UA_Int32 SubscriptionID);

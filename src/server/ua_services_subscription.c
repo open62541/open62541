@@ -123,15 +123,9 @@ void Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishReq
     UA_Subscription  *sub;
     UA_MonitoredItem *mon;
     
+    UA_PublishResponse_init(response);
     // Verify Session and Subscription
     response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
-    response->diagnosticInfosSize = 0;
-    response->diagnosticInfos     = 0;
-    response->availableSequenceNumbersSize = 0;
-    response->resultsSize = 0;
-    response->subscriptionId = 0;
-    response->moreNotifications = UA_FALSE;
-    response->notificationMessage.notificationDataSize = 0;
         
     UA_SubscriptionManager *manager= &session->subscriptionManager;
     if(!manager)
