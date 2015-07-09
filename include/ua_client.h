@@ -111,7 +111,7 @@ typedef struct UA_Client_Subscription_s {
     UA_Int32     NotificationsPerPublish;
     UA_UInt32    Priority;
     LIST_ENTRY(UA_Client_Subscription_s) listEntry; 
-    LIST_HEAD(UA_ListOfUAMonitoredItems, UA_Client_MonitoredItem_s) MonitoredItems;
+    LIST_HEAD(UA_ListOfClientMonitoredItems, UA_Client_MonitoredItem_s) MonitoredItems;
 } UA_Client_Subscription;
 
 UA_CreateSubscriptionResponse   UA_EXPORT UA_Client_createSubscription(UA_Client *client, UA_CreateSubscriptionRequest *request);
