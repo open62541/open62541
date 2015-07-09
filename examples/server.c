@@ -287,8 +287,8 @@ int main(int argc, char** argv) {
 
         //add an matrix node for every built-in type
         arrayvar = UA_Variant_new();
-        void* myMultiArray = UA_Array_new(&UA_TYPES[UA_TYPES_INT32],9);
-        arrayvar->arrayDimensions = UA_Array_new(&UA_TYPES[type],2);
+        void* myMultiArray = UA_Array_new(&UA_TYPES[type],9);
+        arrayvar->arrayDimensions = UA_Array_new(&UA_TYPES[UA_TYPES_INT32],2);
         arrayvar->arrayDimensions[0] = 3;
         arrayvar->arrayDimensions[1] = 3;
         arrayvar->arrayDimensionsSize = 2;
