@@ -5,6 +5,7 @@ Welcome to open62541's documentation!
    :maxdepth: 2
    :hidden:
 
+   building
    datatypes
 
 `OPC UA <http://en.wikipedia.org/wiki/OPC_Unified_Architecture>`_ (short for OPC
