@@ -50,6 +50,7 @@ Building with CMake on Windows (Visual Studio)
 - Open a command shell (cmd) and run
 
 .. code-block:: bat
+
    cd <path-to>\open62541
    mkdir build
    cd build
