@@ -328,6 +328,11 @@ class opcua_value_t():
     # -1: Scalar
     #  0: x-dim | x>0
     #  n: n-dim | n>0
+    if (len(self.value) == 0):
+      return code
+    if not isinstance(self.value[0], opcua_value_t):
+      return code
+  
     if self.parent.valueRank() != -1 and (self.parent.valueRank() >=0 or (len(self.value) > 1 and (self.parent.valueRank() != -2 or self.parent.valueRank() != -3))):
       # User the following strategy for all directly mappable values a la 'UA_Type MyInt = (UA_Type) 23;'
       if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_GUID:
