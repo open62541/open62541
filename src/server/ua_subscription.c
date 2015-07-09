@@ -22,21 +22,21 @@ UA_Subscription *UA_Subscription_new(UA_Int32 SubscriptionID) {
 }
 
 void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server) {
-    UA_unpublishedNotification *not;
-    UA_MonitoredItem *mon;
+    UA_unpublishedNotification *not, *tmp_not;
+    UA_MonitoredItem *mon, *tmp_mon;
     
     // Just in case any parallel process attempts to access this subscription
     // while we are deleting it... make it vanish.
     subscription->SubscriptionID = 0;
     
     // Delete monitored Items
-    while((mon = LIST_FIRST(&subscription->MonitoredItems))) {
+    LIST_FOREACH_SAFE(mon, &subscription->MonitoredItems, listEntry, tmp_mon) {
         LIST_REMOVE(mon, listEntry);
         MonitoredItem_delete(mon);
     }
     
     // Delete unpublished Notifications
-    while((not = LIST_FIRST(&subscription->unpublishedNotifications))) {
+    LIST_FOREACH_SAFE(not, &subscription->unpublishedNotifications, listEntry, tmp_not) {
         LIST_REMOVE(not, listEntry);
         Subscription_deleteUnpublishedNotification(not->notification->sequenceNumber, subscription);
     }
@@ -46,8 +46,6 @@ void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *ser
         Subscription_unregisterUpdateJob(server, subscription);
         UA_free(subscription->timedUpdateJob);
     }
-    
-    return;
 }
 
 UA_UInt32 Subscription_queuedNotifications(UA_Subscription *subscription) {
@@ -220,7 +218,8 @@ void Subscription_copyTopNotificationMessage(UA_NotificationMessage *dst, UA_Sub
     dst->publishTime = latest->publishTime;
     dst->sequenceNumber = latest->sequenceNumber;
     
-    if(latest->notificationDataSize == 0) return;
+    if(latest->notificationDataSize == 0)
+        return;
     
     dst->notificationData = (UA_ExtensionObject *) UA_malloc(sizeof(UA_ExtensionObject));
     dst->notificationData->encoding = latest->notificationData->encoding;
@@ -270,7 +269,6 @@ static void Subscription_timedUpdateNotificationsJob(UA_Server *server, void *da
         MonitoredItem_QueuePushDataValue(server, mon);
     
     Subscription_updateNotifications(sub);
-    return;
 }
 
 
@@ -376,8 +374,8 @@ int MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *d
 }
 
 void MonitoredItem_ClearQueue(UA_MonitoredItem *monitoredItem) {
-    MonitoredItem_queuedValue *val;
-    while((val = TAILQ_FIRST(&monitoredItem->queue))) {
+    MonitoredItem_queuedValue *val, *val_tmp;
+    TAILQ_FOREACH_SAFE(val, &monitoredItem->queue, listEntry, val_tmp) {
         TAILQ_REMOVE(&monitoredItem->queue, val, listEntry);
         UA_Variant_deleteMembers(&val->value);
         UA_free(val);
@@ -390,36 +388,36 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 AttributeID, cons
     UA_Boolean samplingError = UA_TRUE; 
     UA_DataValue sourceDataValue;
     UA_DataValue_init(&sourceDataValue);
-    const UA_VariableNode *srcAsVariableNode = (const UA_VariableNode *) src;
+    const UA_VariableNode *srcAsVariableNode = (const UA_VariableNode*)src;
   
     // FIXME: Not all AttributeIDs can be monitored yet
     switch(AttributeID) {
     case UA_ATTRIBUTEID_NODEID:
-        UA_Variant_setScalarCopy(dst, (const UA_NodeId *) &(src->nodeId), &UA_TYPES[UA_TYPES_NODEID]);
+        UA_Variant_setScalarCopy(dst, (const UA_NodeId*)&src->nodeId, &UA_TYPES[UA_TYPES_NODEID]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_NODECLASS:
-        UA_Variant_setScalarCopy(dst, (const UA_Int32 *) &(src->nodeClass), &UA_TYPES[UA_TYPES_INT32]);
+        UA_Variant_setScalarCopy(dst, (const UA_Int32*)&src->nodeClass, &UA_TYPES[UA_TYPES_INT32]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_BROWSENAME:
-        UA_Variant_setScalarCopy(dst, (const UA_String *) &(src->browseName), &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+        UA_Variant_setScalarCopy(dst, (const UA_String*)&src->browseName, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_DISPLAYNAME:
-        UA_Variant_setScalarCopy(dst, (const UA_String *) &(src->displayName), &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        UA_Variant_setScalarCopy(dst, (const UA_String*)&src->displayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_DESCRIPTION:
-        UA_Variant_setScalarCopy(dst, (const UA_String *) &(src->displayName), &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        UA_Variant_setScalarCopy(dst, (const UA_String*)&src->displayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_WRITEMASK:
-        UA_Variant_setScalarCopy(dst, (const UA_String *) &(src->writeMask), &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalarCopy(dst, (const UA_String*)&src->writeMask, &UA_TYPES[UA_TYPES_UINT32]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_USERWRITEMASK:
-        UA_Variant_setScalarCopy(dst, (const UA_String *) &(src->writeMask), &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalarCopy(dst, (const UA_String*)&src->writeMask, &UA_TYPES[UA_TYPES_UINT32]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_ISABSTRACT:
@@ -438,19 +436,21 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 AttributeID, cons
             if(srcAsVariableNode->valueSource == UA_VALUESOURCE_VARIANT) {
                 UA_Variant_copy(&vsrc->value.variant, dst);
                 samplingError = UA_FALSE;
-            } else if(srcAsVariableNode->valueSource == UA_VALUESOURCE_DATASOURCE) {
+            } else {
+                if(srcAsVariableNode->valueSource != UA_VALUESOURCE_DATASOURCE)
+                    break;
                 // todo: handle numeric ranges
                 if(srcAsVariableNode->value.dataSource.read(vsrc->value.dataSource.handle, UA_TRUE, UA_NULL,
-                                                            &sourceDataValue) == UA_STATUSCODE_GOOD) {
-                    UA_Variant_copy(&sourceDataValue.value, dst);
-                    if(sourceDataValue.value.data != NULL) {
-                        UA_deleteMembers(sourceDataValue.value.data, sourceDataValue.value.type);
-                        UA_free(sourceDataValue.value.data);
-                        sourceDataValue.value.data = NULL;
-                    }
-                    UA_DataValue_deleteMembers(&sourceDataValue);
-                    samplingError = UA_FALSE;
+                                                            &sourceDataValue) != UA_STATUSCODE_GOOD)
+                    break;
+                UA_Variant_copy(&sourceDataValue.value, dst);
+                if(sourceDataValue.value.data) {
+                    UA_deleteMembers(sourceDataValue.value.data, sourceDataValue.value.type);
+                    UA_free(sourceDataValue.value.data);
+                    sourceDataValue.value.data = UA_NULL;
                 }
+                UA_DataValue_deleteMembers(&sourceDataValue);
+                samplingError = UA_FALSE;
             }
         }
         break;
