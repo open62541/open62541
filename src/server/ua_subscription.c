@@ -30,15 +30,13 @@ void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *ser
     subscription->SubscriptionID = 0;
     
     // Delete monitored Items
-    while(subscription->MonitoredItems.lh_first != NULL) {
-        mon = subscription->MonitoredItems.lh_first;
+    while((mon = LIST_FIRST(&subscription->MonitoredItems))) {
         LIST_REMOVE(mon, listEntry);
         MonitoredItem_delete(mon);
     }
     
     // Delete unpublished Notifications
-    while(subscription->unpublishedNotifications.lh_first !=  NULL) {
-        not = subscription->unpublishedNotifications.lh_first;
+    while((not = LIST_FIRST(&subscription->unpublishedNotifications))) {
         LIST_REMOVE(not, listEntry);
         Subscription_deleteUnpublishedNotification(not->notification->sequenceNumber, subscription);
     }
@@ -217,7 +215,7 @@ void Subscription_copyTopNotificationMessage(UA_NotificationMessage *dst, UA_Sub
       return;
     }
     
-    latest = sub->unpublishedNotifications.lh_first->notification;
+    latest = LIST_FIRST(&sub->unpublishedNotifications)->notification;
     dst->notificationDataSize = latest->notificationDataSize;
     dst->publishTime = latest->publishTime;
     dst->sequenceNumber = latest->sequenceNumber;
@@ -232,23 +230,20 @@ void Subscription_copyTopNotificationMessage(UA_NotificationMessage *dst, UA_Sub
 }
 
 UA_UInt32 Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Subscription *sub) {
-    UA_unpublishedNotification *not, *nxtnot = UA_NULL;
     UA_UInt32 deletedItems = 0;
-  
-    for(not=sub->unpublishedNotifications.lh_first; not != NULL; not=nxtnot) {
-        nxtnot = not->listEntry.le_next;
+    UA_unpublishedNotification *not, *tmp;
+    LIST_FOREACH_SAFE(not, &sub->unpublishedNotifications, listEntry, tmp) {
         if(not->notification->sequenceNumber != seqNo)
             continue;
         LIST_REMOVE(not, listEntry);
-        if(not->notification != NULL) {
-            if(not->notification->notificationData != NULL) {
-                if(not->notification->notificationData->body.data != NULL)
+        if(not->notification) {
+            if(not->notification->notificationData) {
+                if(not->notification->notificationData->body.data)
                     UA_free(not->notification->notificationData->body.data);
                 UA_free(not->notification->notificationData);
             }
             UA_free(not->notification);
         }
-        
         UA_free(not);
         deletedItems++;
     }
@@ -298,7 +293,6 @@ UA_StatusCode Subscription_createdUpdateJob(UA_Server *server, UA_Guid jobId, UA
 }
 
 UA_StatusCode Subscription_registerUpdateJob(UA_Server *server, UA_Subscription *sub) {
-    UA_Int32 retval = UA_STATUSCODE_GOOD;
     if(server == UA_NULL || sub == UA_NULL)
         return UA_STATUSCODE_BADSERVERINDEXINVALID;
     
@@ -307,11 +301,11 @@ UA_StatusCode Subscription_registerUpdateJob(UA_Server *server, UA_Subscription 
     
     // Practically enough, the client sends a uint32 in ms, which we store as datetime, which here is required in as uint32 in ms as the interval
 #ifdef _MSC_VER
-    retval |= UA_Server_addRepeatedJob(server, *(sub->timedUpdateJob), sub->PublishingInterval,
-                                       &sub->timedUpdateJobGuid);
+    UA_Int32 retval = UA_Server_addRepeatedJob(server, *(sub->timedUpdateJob), sub->PublishingInterval,
+                                               &sub->timedUpdateJobGuid);
 #else
-    retval |= UA_Server_addRepeatedJob(server, *sub->timedUpdateJob, sub->PublishingInterval,
-                                       &sub->timedUpdateJobGuid);
+    UA_StatusCode retval = UA_Server_addRepeatedJob(server, *sub->timedUpdateJob, sub->PublishingInterval,
+                                                    &sub->timedUpdateJobGuid);
 #endif
     if(!retval)
         sub->timedUpdateIsRegistered = UA_TRUE;
@@ -319,15 +313,12 @@ UA_StatusCode Subscription_registerUpdateJob(UA_Server *server, UA_Subscription 
 }
 
 UA_StatusCode Subscription_unregisterUpdateJob(UA_Server *server, UA_Subscription *sub) {
-    UA_Int32 retval = UA_STATUSCODE_GOOD;
     if(server == UA_NULL || sub == UA_NULL)
         return UA_STATUSCODE_BADSERVERINDEXINVALID;
-    
-    retval |= UA_Server_removeRepeatedJob(server, sub->timedUpdateJobGuid);
+    UA_Int32 retval = UA_Server_removeRepeatedJob(server, sub->timedUpdateJobGuid);
     sub->timedUpdateIsRegistered = UA_FALSE;
     return retval;
 }
-
 
 /*****************/
 /* MonitoredItem */
