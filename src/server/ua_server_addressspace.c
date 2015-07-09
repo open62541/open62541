@@ -468,7 +468,7 @@ UA_Server_attachMethod_toNode(UA_Server *server, UA_NodeId methodNodeId, UA_Meth
     UA_NodeStore_release(attachToMethod);
     
     replacementMethod->attachedMethod = method;
-    UA_NodeStore_replace(server->nodestore, attachToMethod, (UA_Node *) replacementMethod, UA_NULL);
+    retval |= UA_NodeStore_replace(server->nodestore, attachToMethod, (UA_Node *) replacementMethod, UA_NULL);
     return retval;
 }
 #endif
