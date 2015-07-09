@@ -56,7 +56,6 @@ if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
         set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
 	endif()
     if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
-#        add_definitions(-flto)
         set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -s")
     endif()
@@ -79,8 +78,8 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/src/ua_util.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
                      ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_session.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h
+                     ${PROJECT_SOURCE_DIR}/src/ua_session.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.h
@@ -113,6 +112,26 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
 
 ## generate code from xml definitions
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
+
+option(ENABLE_SUBSCRIPTIONS "Enable compilation of subscription and monitoring support." OFF)
+if(ENABLE_SUBSCRIPTIONS)
+  add_definitions(-DENABLE_SUBSCRIPTIONS)
+  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
+                          ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
+                          ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.c)
+  ##append subscription headers at before ua_session.
+  list(FIND internal_headers "${PROJECT_SOURCE_DIR}/src/ua_session.h" UaSessionPos)
+  list(INSERT internal_headers  ${UaSessionPos} ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
+                          ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.h)
+                          
+  add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
+                            ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
+                     PRE_BUILD
+                     COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --enable-subscription-types=1 --typedescriptions ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv 0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types
+                     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
+                             ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
+                             ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
+else()
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                    PRE_BUILD
@@ -120,6 +139,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
+endif()
 
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h

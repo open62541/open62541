@@ -13,6 +13,12 @@
 
 #include <stdio.h>
 
+void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value);
+void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value) {
+    printf("The Answer has changed!\n");
+    return;
+}
+
 int main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
     UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
@@ -53,7 +59,28 @@ int main(int argc, char *argv[]) {
     }
     UA_BrowseRequest_deleteMembers(&bReq);
     UA_BrowseResponse_deleteMembers(&bResp);
-
+    
+#ifdef ENABLE_SUBSCRIPTIONS
+    // Create a subscription with interval 0 (immediate)...
+    UA_Int32 subId = UA_Client_newSubscription(client, 0);
+    if (subId)
+        printf("Create subscription succeeded, id %u\n", subId);
+    
+    // .. and monitor TheAnswer
+    UA_NodeId monitorThis;
+    monitorThis = UA_NODEID_STRING_ALLOC(1, "the.answer");
+    UA_UInt32 monId = UA_Client_monitorItemChanges(client, subId, monitorThis, UA_ATTRIBUTEID_VALUE, &handler_TheAnswerChanged );
+    if (monId)
+        printf("Monitoring 'the.answer', id %u\n", subId);
+    UA_NodeId_deleteMembers(&monitorThis);
+    
+    // First Publish always generates data (current value) and call out handler.
+    UA_Client_doPublish(client);
+    
+    // This should not generate anything
+    UA_Client_doPublish(client);
+#endif
+    
     UA_Int32 value = 0;
     // Read node's value
     printf("\nReading the value of node (1, \"the.answer\"):\n");
@@ -96,6 +123,15 @@ int main(int argc, char *argv[]) {
     UA_WriteRequest_deleteMembers(&wReq);
     UA_WriteResponse_deleteMembers(&wResp);
 
+#ifdef ENABLE_SUBSCRIPTIONS
+    // Take another look at the.answer... this should call the handler.
+    UA_Client_doPublish(client);
+    
+    // Delete our subscription (which also unmonitors all items)
+    if(!UA_Client_removeSubscription(client, subId))
+        printf("Subscription removed\n");
+#endif
+    
 #ifdef ENABLE_METHODCALLS
     /* Note:  This example requires Namespace 0 Node 11489 (ServerType -> GetMonitoredItems) 
        FIXME: Provide a namespace 0 independant example on the server side
@@ -109,7 +145,8 @@ int main(int argc, char *argv[]) {
     UA_Int32 outputSize;
     UA_Variant *output;
     
-    retval = UA_Client_CallServerMethod(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(1, 62541), 1, &input, &outputSize, &output);
+    retval = UA_Client_CallServerMethod(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                        UA_NODEID_NUMERIC(1, 62541), 1, &input, &outputSize, &output);
     if(retval == UA_STATUSCODE_GOOD) {
         printf("Method call was successfull, and %i returned values available.\n", outputSize);
         UA_Array_delete(output, &UA_TYPES[UA_TYPES_VARIANT], outputSize);
@@ -119,6 +156,7 @@ int main(int argc, char *argv[]) {
     UA_Variant_deleteMembers(&input);
 
 #endif
+
 #ifdef ENABLE_ADDNODES 
     /* Create a new object type node */
     // New ReferenceType

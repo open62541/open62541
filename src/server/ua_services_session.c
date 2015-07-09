@@ -30,7 +30,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         response->responseHeader.serviceResult |=
             UA_ByteString_copy(&server->endpointDescriptions->serverCertificate, &response->serverCertificate);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
+        UA_SessionManager_removeSession(&server->sessionManager, server, &newSession->authenticationToken);
          return;
     }
 }
@@ -119,5 +119,5 @@ void Service_CloseSession(UA_Server *server, UA_Session *session, const UA_Close
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
 	else 
         response->responseHeader.serviceResult =
-            UA_SessionManager_removeSession(&server->sessionManager, &session->authenticationToken);
+            UA_SessionManager_removeSession(&server->sessionManager, server, &session->authenticationToken);
 }

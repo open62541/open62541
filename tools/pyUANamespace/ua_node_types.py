@@ -712,7 +712,7 @@ class opcua_node_t:
     if self in unPrintedNodes:
       # This is necessery to make printing work at all!
       unPrintedNodes.remove(self)
-
+    
     code.append("} while(0);")
     return code
 

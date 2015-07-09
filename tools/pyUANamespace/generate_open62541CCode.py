@@ -60,7 +60,7 @@ if __name__ == '__main__':
   supressGenerationOfAttribute=[]
 
   GLOBAL_LOG_LEVEL = LOG_LEVEL_DEBUG
-
+  
   arg_isIgnore    = False
   arg_isBlacklist = False
   arg_isSupress   = False
@@ -174,7 +174,7 @@ if __name__ == '__main__':
       else:
         ignoreNodes.append(ns.getNodeByIDString(id))
     ig.close()
-
+  
   # Create the C Code
   log(None, "Generating Header", LOG_LEVEL_INFO)
   # Returns a tuple of (["Header","lines"],["Code","lines","generated"])

@@ -48,7 +48,7 @@ minimal_types = ["InvalidType", "Node", "NodeClass", "ReferenceNode", "Applicati
                  "TranslateBrowsePathsToNodeIdsResponse", "BrowsePath", "BrowsePathResult", "RelativePath",
                  "BrowsePathTarget", "RelativePathElement", "CreateSubscriptionRequest", "CreateSubscriptionResponse",
                  "BrowseResponse", "BrowseResult", "ReferenceDescription", "BrowseRequest", "ViewDescription",
-                 "BrowseNextRequest", "BrowseNextResponse",
+                 "BrowseNextRequest", "BrowseNextResponse", "DeleteSubscriptionsRequest", "DeleteSubscriptionsResponse",
                  "BrowseDescription", "BrowseDirection", "CloseSessionRequest", "AddNodesRequest", "AddNodesResponse",
                  "AddNodesItem", "AddNodesResult", "DeleteNodesItem","AddReferencesRequest", "AddReferencesResponse",
                  "AddReferencesItem","DeleteReferencesItem", "VariableNode", "MethodNode", "VariableTypeNode",
@@ -60,6 +60,10 @@ minimal_types = ["InvalidType", "Node", "NodeClass", "ReferenceNode", "Applicati
                  "RegisterNodesRequest", "RegisterNodesResponse", "UnregisterNodesRequest", "UnregisterNodesResponse", 
                  "UserIdentityToken", "UserNameIdentityToken", "AnonymousIdentityToken", "ServiceFault",
                  "CallMethodRequest", "CallMethodResult", "CallResponse", "CallRequest", "Argument"]
+
+subscription_types = ["DeleteMonitoredItemsRequest", "DeleteMonitoredItemsResponse", "NotificationMessage",
+                      "MonitoredItemNotification", "DataChangeNotification", "ModifySubscriptionRequest",
+                      "ModifySubscriptionResponse"]
 
 class TypeDescription(object):
     def __init__(self, name, nodeid, namespaceid):
@@ -437,6 +441,7 @@ def parseTypeDefinitions(xmlDescription, existing_types = OrderedDict()):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--ns0-types-xml', nargs=1, help='xml-definition of the ns0 types that are assumed to already exist')
+parser.add_argument('--enable-subscription-types', nargs=1, help='Generate datatypes necessary for Montoring and Subscriptions.')
 parser.add_argument('--typedescriptions', nargs=1, help='csv file with type descriptions')
 parser.add_argument('namespace_id', type=int, help='the id of the target namespace')
 parser.add_argument('types_xml', help='path/to/Opc.Ua.Types.bsd')
@@ -446,6 +451,8 @@ args = parser.parse_args()
 outname = args.outfile.split("/")[-1] 
 inname = args.types_xml.split("/")[-1]
 existing_types = OrderedDict()
+if args.enable_subscription_types:
+    minimal_types = minimal_types + subscription_types
 if args.namespace_id == 0 or args.ns0_types_xml:
     existing_types = OrderedDict([(t, BuiltinType(t)) for t in builtin_types])
 if args.ns0_types_xml:

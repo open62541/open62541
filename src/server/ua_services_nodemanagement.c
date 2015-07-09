@@ -96,7 +96,7 @@ static UA_StatusCode parseObjectNode(UA_ExtensionObject *attributes, UA_Node **n
     // now copy all the attributes. This potentially removes them from the decoded attributes.
     COPY_STANDARDATTRIBUTES;
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_EVENTNOTIFIER)
-        vnode->eventNotifier = attr.eventNotifier;
+      vnode->eventNotifier = attr.eventNotifier;
     UA_ObjectAttributes_deleteMembers(&attr);
     *new_node = (UA_Node*) vnode;
     return UA_STATUSCODE_GOOD;

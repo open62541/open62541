@@ -12,22 +12,22 @@ UA_StatusCode UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt3
     return UA_STATUSCODE_GOOD;
 }
 
-void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager) {
+void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager, UA_Server *server) {
     session_list_entry *current;
     while((current = LIST_FIRST(&sessionManager->sessions))) {
         LIST_REMOVE(current, pointers);
-        UA_Session_deleteMembersCleanup(&current->session);
+        UA_Session_deleteMembersCleanup(&current->session, server);
         UA_free(current);
     }
 }
 
-void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sessionManager, UA_DateTime now) {
+void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sessionManager, UA_Server* server, UA_DateTime now) {
     session_list_entry *sentry = LIST_FIRST(&sessionManager->sessions);
     while(sentry) {
         if(sentry->session.validTill < now) {
             session_list_entry *next = LIST_NEXT(sentry, pointers);
             LIST_REMOVE(sentry, pointers);
-            UA_Session_deleteMembersCleanup(&sentry->session);
+            UA_Session_deleteMembersCleanup(&sentry->session, server);
             UA_free(sentry);
             sessionManager->currentSessionCount--;
             sentry = next;
@@ -74,7 +74,7 @@ UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_SessionManager_removeSession(UA_SessionManager *sessionManager, const UA_NodeId *token) {
+UA_StatusCode UA_SessionManager_removeSession(UA_SessionManager *sessionManager, UA_Server* server, const UA_NodeId *token) {
     session_list_entry *current;
     LIST_FOREACH(current, &sessionManager->sessions, pointers) {
         if(UA_NodeId_equal(&current->session.authenticationToken, token))
@@ -83,7 +83,7 @@ UA_StatusCode UA_SessionManager_removeSession(UA_SessionManager *sessionManager,
     if(!current)
         return UA_STATUSCODE_BADSESSIONIDINVALID;
     LIST_REMOVE(current, pointers);
-    UA_Session_deleteMembersCleanup(&current->session);
+    UA_Session_deleteMembersCleanup(&current->session, server);
     UA_free(current);
     sessionManager->currentSessionCount--;
     return UA_STATUSCODE_GOOD;

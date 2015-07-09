@@ -181,8 +181,8 @@ void Service_Call(UA_Server *server, UA_Session *session, const UA_CallRequest *
         const UA_VariableNode *outputArguments = getArgumentsVariableNode(server, methodCalled,
                                                                           UA_STRING("OutputArguments"));
         if(!outputArguments) {
+            // A MethodNode must have an OutputArguments variable (which may be empty)
             rs->statusCode = UA_STATUSCODE_BADINTERNALERROR;
-            UA_NodeStore_release((const UA_Node*)outputArguments);
             continue;
         }
         
@@ -196,8 +196,11 @@ void Service_Call(UA_Server *server, UA_Session *session, const UA_CallRequest *
         }
         else
             rs->statusCode = UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?
-
-        UA_NodeStore_release((const UA_Node*)outputArguments);
+            
+        /* FIXME: Verify Output Argument count, types and sizes */
+        if(outputArguments) {
+            UA_NodeStore_release((const UA_Node*)outputArguments);
+        }
         UA_NodeStore_release((const UA_Node *)withObject);
         UA_NodeStore_release((const UA_Node *)methodCalled);
     }

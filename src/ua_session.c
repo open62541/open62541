@@ -41,11 +41,14 @@ void UA_Session_init(UA_Session *session) {
     session->timeout = 0;
     UA_DateTime_init(&session->validTill);
     session->channel = UA_NULL;
+#ifdef ENABLE_SUBSCRIPTIONS
+    SubscriptionManager_init(session);
+#endif
     session->availableContinuationPoints = MAXCONTINUATIONPOINTS;
     LIST_INIT(&session->continuationPoints);
 }
 
-void UA_Session_deleteMembersCleanup(UA_Session *session) {
+void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
     UA_ApplicationDescription_deleteMembers(&session->clientDescription);
     UA_NodeId_deleteMembers(&session->authenticationToken);
     UA_NodeId_deleteMembers(&session->sessionId);
@@ -59,6 +62,9 @@ void UA_Session_deleteMembersCleanup(UA_Session *session) {
     }
     if(session->channel)
         UA_SecureChannel_detachSession(session->channel, session);
+#ifdef ENABLE_SUBSCRIPTIONS
+    SubscriptionManager_deleteMembers(session, server);
+#endif
 }
 
 void UA_Session_updateLifetime(UA_Session *session) {

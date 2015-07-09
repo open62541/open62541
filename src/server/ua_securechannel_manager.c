@@ -48,7 +48,6 @@ void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_Dat
     }
 }
 
-
 UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
                                            const UA_OpenSecureChannelRequest *request,
                                            UA_OpenSecureChannelResponse *response) {

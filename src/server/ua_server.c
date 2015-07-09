@@ -155,7 +155,7 @@ void UA_Server_delete(UA_Server *server) {
     // Delete all internal data
     UA_ApplicationDescription_deleteMembers(&server->description);
     UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
-    UA_SessionManager_deleteMembers(&server->sessionManager);
+    UA_SessionManager_deleteMembers(&server->sessionManager, server);
     UA_NodeStore_delete(server->nodestore);
 #ifdef UA_EXTERNAL_NAMESPACES
     UA_Server_deleteExternalNamespaces(server);
@@ -183,7 +183,7 @@ void UA_Server_delete(UA_Server *server) {
 /* Recurring cleanup. Removing unused and timed-out channels and sessions */
 static void UA_Server_cleanup(UA_Server *server, void *nothing) {
     UA_DateTime now = UA_DateTime_now();
-    UA_SessionManager_cleanupTimedOut(&server->sessionManager, now);
+    UA_SessionManager_cleanupTimedOut(&server->sessionManager, server, now);
     UA_SecureChannelManager_cleanupTimedOut(&server->secureChannelManager, now);
 }
 
@@ -792,7 +792,6 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     addDataTypeNode(server, "DiagnosticInfo", UA_NS0ID_DIAGNOSTICINFO, UA_NS0ID_BASEDATATYPE);
     addDataTypeNode(server, "Enumeration", UA_NS0ID_ENUMERATION, UA_NS0ID_BASEDATATYPE);
         addDataTypeNode(server, "ServerState", UA_NS0ID_SERVERSTATE, UA_NS0ID_ENUMERATION);
-
 
    UA_ObjectNode *variabletypes = UA_ObjectNode_new();
    copyNames((UA_Node*)variabletypes, "VariableTypes");
