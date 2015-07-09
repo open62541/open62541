@@ -2,12 +2,8 @@
  * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
-#include <time.h>
-#include <stdio.h>
-#include <stdlib.h> 
+
 #include <signal.h>
-#include <errno.h> // errno, EINTR
-#include <string.h>
 
 #ifdef UA_NO_AMALGAMATION
 # include "ua_types.h"
@@ -22,19 +18,19 @@ UA_Boolean running = 1;
 UA_Logger logger;
 
 static void stopHandler(int sign) {
-    printf("Received Ctrl-C\n");
-	running = 0;
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
+    running = 0;
 }
 
 int main(int argc, char** argv) {
-	signal(SIGINT, stopHandler); /* catches ctrl-c */
+    signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-	UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
     logger = Logger_Stdout_new();
     UA_Server_setLogger(server, logger);
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 
-	/* add a variable node to the adresspace */
+    /* add a variable node to the adresspace */
     UA_Variant *myIntegerVariant = UA_Variant_new();
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
@@ -46,7 +42,7 @@ int main(int argc, char** argv) {
                               myIntegerNodeId, parentNodeId, parentReferenceNodeId);
 
     UA_StatusCode retval = UA_Server_run(server, 1, &running);
-	UA_Server_delete(server);
+    UA_Server_delete(server);
 
-	return retval;
+    return retval;
 }
