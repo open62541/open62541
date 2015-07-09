@@ -147,8 +147,7 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
             changeNotification = UA_malloc(sizeof(UA_DataChangeNotification));
 	
             // Create one DataChangeNotification for each queue item held in each monitoredItems queue:
-            changeNotification->monitoredItems =
-                UA_malloc(sizeof(UA_MonitoredItemNotification) * monItemsChangeT);
+            changeNotification->monitoredItems = UA_Array_new(&UA_TYPES[UA_TYPES_MONITOREDITEMNOTIFICATION], monItemsChangeT);
 	
             // Scan all monitoredItems in this subscription and have their queue transformed into an Array of
             // the propper NotificationMessageType (Status, Change, Event)

@@ -261,6 +261,10 @@ int main(int argc, char** argv) {
    UA_Server_addObjectNode(server,UA_QUALIFIEDNAME(1, "Array"), UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(1, DEMOID),
                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
 
+#define MATRIXID 50003
+   UA_Server_addObjectNode(server,UA_QUALIFIEDNAME(1, "Matrix"), UA_NODEID_NUMERIC(1, MATRIXID), UA_NODEID_NUMERIC(1, DEMOID),
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+
    UA_UInt32 id = 51000; //running id in namespace 0
    for(UA_UInt32 type = 0; UA_IS_BUILTIN(type); type++) {
        if(type == UA_TYPES_VARIANT || type == UA_TYPES_DIAGNOSTICINFO)
@@ -271,37 +275,32 @@ int main(int argc, char** argv) {
         UA_Variant_setScalar(variant, value, &UA_TYPES[type]);
         char name[15];
         sprintf(name, "%02d", type);
-        UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, name);
-        UA_Server_addVariableNode(server, variant, myIntegerName, UA_NODEID_NUMERIC(1, ++id),
+        UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(1, name);
+        UA_Server_addVariableNode(server, variant, qualifiedName, UA_NODEID_NUMERIC(1, ++id),
                                   UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
         //add an array node for every built-in type
         UA_Variant *arrayvar = UA_Variant_new();
         UA_Variant_setArray(arrayvar, UA_Array_new(&UA_TYPES[type], 10), 10, &UA_TYPES[type]);
-        UA_Server_addVariableNode(server, arrayvar, myIntegerName, UA_NODEID_NUMERIC(1, ++id),
+        UA_Server_addVariableNode(server, arrayvar, qualifiedName, UA_NODEID_NUMERIC(1, ++id),
                                   UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+
+        //add an matrix node for every built-in type
+        arrayvar = UA_Variant_new();
+        void* myMultiArray = UA_Array_new(&UA_TYPES[type],9);
+        arrayvar->arrayDimensions = UA_Array_new(&UA_TYPES[UA_TYPES_INT32],2);
+        arrayvar->arrayDimensions[0] = 3;
+        arrayvar->arrayDimensions[1] = 3;
+        arrayvar->arrayDimensionsSize = 2;
+        arrayvar->arrayLength = 9;
+        arrayvar->data = myMultiArray;
+        arrayvar->type = &UA_TYPES[type];
+        UA_Server_addVariableNode(server, arrayvar, qualifiedName, UA_NODEID_NUMERIC(1, ++id),
+                                  UA_NODEID_NUMERIC(1, MATRIXID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
    }
 
 
-   //add a multidimensional Int32 array node for testing purpose
-   void *value = UA_new(&UA_TYPES[UA_TYPES_INT32]);
-   UA_Variant *variant = UA_Variant_new();
-   UA_Variant_setScalar(variant, value, &UA_TYPES[UA_TYPES_INT32]);
-   char myMultiArrayTypename[15];
-   sprintf(myMultiArrayTypename, "%02d", 99);
-   UA_QualifiedName myMultiArrayType = UA_QUALIFIEDNAME(1, myMultiArrayTypename);
 
-   UA_Variant *arrayvar = UA_Variant_new();
-   UA_Int32 *myMultiArray = UA_Array_new(&UA_TYPES[UA_TYPES_INT32],10);
-   arrayvar->arrayDimensions = UA_Array_new(&UA_TYPES[UA_TYPES_INT32],2);
-   arrayvar->arrayDimensions[0] = 2;
-   arrayvar->arrayDimensions[1] = 5;
-   arrayvar->arrayDimensionsSize = 2;
-   arrayvar->arrayLength = 10;
-   arrayvar->data = myMultiArray;
-   arrayvar->type = &UA_TYPES[UA_TYPES_INT32];
-   UA_Server_addVariableNode(server, arrayvar, myMultiArrayType, UA_NODEID_NUMERIC(1, 31415),
-                             UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
 #ifdef ENABLE_METHODCALLS
    UA_Argument inputArguments;
