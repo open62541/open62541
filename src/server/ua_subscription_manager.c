@@ -19,19 +19,35 @@ void SubscriptionManager_init(UA_Session *session) {
     
     // Initialize a GUID with a 2^64 time dependant part, then fold the time in on itself to provide a more randomish
     // Counter
-    unsigned long guidInitH = (UA_UInt64) UA_DateTime_now();
-    manager->LastJobGuid.data1 = (UA_UInt16) (guidInitH >> 32);
-    manager->LastJobGuid.data2 = (UA_UInt16) (guidInitH >> 16);
-    manager->LastJobGuid.data3 = (UA_UInt16) (guidInitH);
-    unsigned long guidInitL = (UA_UInt64) UA_DateTime_now();
-    manager->LastJobGuid.data4[0] = (UA_Byte) guidInitL;
-    manager->LastJobGuid.data4[1] = (UA_Byte) (guidInitL >> 8); 
-    manager->LastJobGuid.data4[2] = (UA_Byte) (guidInitL >> 16);
-    manager->LastJobGuid.data4[3] = (UA_Byte) (guidInitL >> 24);
-    manager->LastJobGuid.data4[4] = (UA_Byte) (manager->LastJobGuid.data4[0]) ^ (guidInitL >> 32);
-    manager->LastJobGuid.data4[5] = (UA_Byte) (manager->LastJobGuid.data4[0]) ^ (guidInitL >> 40);
-    manager->LastJobGuid.data4[6] = (UA_Byte) (manager->LastJobGuid.data4[1]) ^ (guidInitL >> 48);
-    manager->LastJobGuid.data4[7] = (UA_Byte) (manager->LastJobGuid.data4[0]) ^ (guidInitL >> 58);
+    // NOTE: On a 32 bit plattform, assigning 64 bit (2 regs) is allowed by the compiler, but shifting though multiple
+    //       regs is usually not. To support both 32 and 64bit, the struct splits the 64Bit timestamp into two parts.
+    union {
+        struct {
+            UA_UInt32 ui32h;
+            UA_UInt32 ui32l;
+        };
+        UA_UInt64 ui64;
+    } guidInitH;
+    guidInitH.ui64 = (UA_UInt64) UA_DateTime_now();
+    manager->LastJobGuid.data1 = guidInitH.ui32h;
+    manager->LastJobGuid.data2 = (UA_UInt16) (guidInitH.ui32l >> 16);
+    manager->LastJobGuid.data3 = (UA_UInt16) (guidInitH.ui32l);
+    union {
+        struct {
+            UA_UInt32 ui32h;
+            UA_UInt32 ui32l;
+        };
+        UA_UInt64 ui64;
+    } guidInitL;
+    guidInitL.ui64 = (UA_UInt64) UA_DateTime_now();
+    manager->LastJobGuid.data4[0] = (UA_Byte) guidInitL.ui32l;
+    manager->LastJobGuid.data4[1] = (UA_Byte) (guidInitL.ui32l >> 8); 
+    manager->LastJobGuid.data4[2] = (UA_Byte) (guidInitL.ui32l >> 16);
+    manager->LastJobGuid.data4[3] = (UA_Byte) (guidInitL.ui32l >> 24);
+    manager->LastJobGuid.data4[4] = (UA_Byte) (manager->LastJobGuid.data4[0]) ^ (guidInitL.ui32h);
+    manager->LastJobGuid.data4[5] = (UA_Byte) (manager->LastJobGuid.data4[0]) ^ (guidInitL.ui32h >> 8);
+    manager->LastJobGuid.data4[6] = (UA_Byte) (manager->LastJobGuid.data4[1]) ^ (guidInitL.ui32h >> 16);
+    manager->LastJobGuid.data4[7] = (UA_Byte) (manager->LastJobGuid.data4[0]) ^ (guidInitL.ui32h >> 24);
 }
 
 void SubscriptionManager_deleteMembers(UA_Session *session, UA_Server *server) {
