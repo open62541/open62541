@@ -661,10 +661,8 @@ UA_Int32 UA_Client_newSubscription(UA_Client *client, UA_Int32 publishInterval) 
         newSub->Priority = aReq.priority;
         retval = newSub->SubscriptionID;
         LIST_INSERT_HEAD(&(client->subscriptions), newSub, listEntry);
-    }
-    else {
+    } else
         retval = 0;
-    }
     
     UA_CreateSubscriptionResponse_deleteMembers(&aRes);
     UA_CreateSubscriptionRequest_deleteMembers(&aReq);
@@ -717,7 +715,8 @@ UA_StatusCode UA_Client_removeSubscription(UA_Client *client, UA_UInt32 subscrip
     return retval;
 }
 
-UA_UInt32 UA_Client_monitorItemChanges(UA_Client *client, UA_UInt32 subscriptionId, UA_NodeId nodeId, UA_UInt32 attributeID, void *handlingFunction) {
+UA_UInt32 UA_Client_monitorItemChanges(UA_Client *client, UA_UInt32 subscriptionId,
+                                       UA_NodeId nodeId, UA_UInt32 attributeID, void *handlingFunction) {
     UA_Client_Subscription *sub;
     UA_StatusCode retval = 0;
     
@@ -949,6 +948,50 @@ void UA_Client_doPublish(UA_Client *client) {
 /**********************************/
 /* User-Facing Macros-Function    */
 /**********************************/
+#ifdef ENABLE_METHODCALLS
+UA_CallResponse UA_Client_call(UA_Client *client, UA_CallRequest *request) {
+    UA_CallResponse response;
+    synchronousRequest(client, request, &UA_TYPES[UA_TYPES_CALLREQUEST],
+                       &response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
+    return response;
+}
+
+UA_StatusCode UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId,
+                                         UA_Int32 inputSize, const UA_Variant *input,
+                                         UA_Int32 *outputSize, UA_Variant **output) {
+    UA_CallRequest request;
+    UA_CallRequest_init(&request);
+    
+    request.methodsToCallSize = 1;
+    request.methodsToCall = UA_CallMethodRequest_new();
+    if(!request.methodsToCall)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_CallMethodRequest *rq = &request.methodsToCall[0];
+    UA_NodeId_copy(&methodNodeId, &rq->methodId);
+    UA_NodeId_copy(&objectNodeId, &rq->objectId);
+    rq->inputArguments = (void*)(uintptr_t)input; // cast const...
+    rq->inputArgumentsSize = inputSize;
+    
+    UA_CallResponse response;
+    response = UA_Client_call(client, &request);
+    rq->inputArguments = UA_NULL;
+    rq->inputArgumentsSize = -1;
+    UA_CallRequest_deleteMembers(&request);
+    UA_StatusCode retval = response.responseHeader.serviceResult;
+    retval |= response.results[0].statusCode;
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        *output = response.results[0].outputArguments;
+        *outputSize = response.results[0].outputArgumentsSize;
+        response.results[0].outputArguments = UA_NULL;
+        response.results[0].outputArgumentsSize = -1;
+    }
+    UA_CallResponse_deleteMembers(&response);
+    return retval;
+}
+#endif
+
 #define ADDNODES_COPYDEFAULTATTRIBUTES(REQUEST,ATTRIBUTES) do {                           \
     ATTRIBUTES.specifiedAttributes = 0;                                                   \
     if(! UA_LocalizedText_copy(&description, &(ATTRIBUTES.description)))                  \

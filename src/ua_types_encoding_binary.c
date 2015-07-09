@@ -856,7 +856,7 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, size_t *UA_RESTR
     /* array dimensions */
     if(isArray && (encodingByte & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS)) {
         retval = UA_Int32_decodeBinary(src, offset, &dst->arrayDimensionsSize);
-        retval |= UA_Array_decodeBinary(src, offset, dst->arrayDimensionsSize, &dst->data,
+        retval |= UA_Array_decodeBinary(src, offset, dst->arrayDimensionsSize,(void**) &dst->arrayDimensions,
                                         &UA_TYPES[UA_TYPES_INT32]);
         if(retval != UA_STATUSCODE_GOOD) {
             dst->arrayDimensionsSize = -1;

@@ -134,10 +134,10 @@ class opcua_referencePointer_t():
         retval = retval + "H"
       retval = retval + ">"
     return retval
-    
+
   def __repr__(self):
       return self.__str__()
-  
+
   def __cmp__(self, other):
     if not isinstance(other, opcua_referencePointer_t):
       return -1
@@ -643,6 +643,7 @@ class opcua_node_t:
     code = []
     code.append("")
     code.append("do {")
+
     # Just to be sure...
     if not (self in unPrintedNodes):
       log(self, str(self) + " attempted to reprint already printed node " + str(self)+ ".", LOG_LEVEL_WARN)
@@ -992,19 +993,18 @@ class opcua_node_variable_t(opcua_node_t):
 
     if self.historizing():
       code.append(self.getCodePrintableID() + "->historizing = UA_TRUE;")
-    #else:
-      #code.append(self.getCodePrintableID() + "->historizing = UA_FALSE;")
 
     code.append(self.getCodePrintableID() + "->minimumSamplingInterval = (UA_Double) " + str(self.minimumSamplingInterval()) + ";")
     code.append(self.getCodePrintableID() + "->userAccessLevel = (UA_Int32) " + str(self.userAccessLevel()) + ";")
     code.append(self.getCodePrintableID() + "->accessLevel = (UA_Int32) " + str(self.accessLevel()) + ";")
     code.append(self.getCodePrintableID() + "->valueRank = (UA_Int32) " + str(self.valueRank()) + ";")
 
-    # Delegate the encoding of the datavalue to the helper if we have
-    # determined a valid encoding
-    if self.dataType() != None and (isinstance(self.dataType().target(), opcua_node_dataType_t) and self.dataType().target().isEncodable()):
-      if self.value() != None:
-        code = code + self.value().printOpen62541CCode()
+    if self.dataType() != None and isinstance(self.dataType().target(), opcua_node_dataType_t):
+      # Delegate the encoding of the datavalue to the helper if we have
+      # determined a valid encoding
+      if self.dataType().target().isEncodable():
+        if self.value() != None:
+          code = code + self.value().printOpen62541CCode()
     return code
 
 class opcua_node_method_t(opcua_node_t):
@@ -1056,15 +1056,12 @@ class opcua_node_method_t(opcua_node_t):
 
   def printOpen62541CCode_Subtype(self):
     code = []
+
+    # UA_False is default for booleans on _init()
     if self.executable():
       code.append(self.getCodePrintableID() + "->executable = UA_TRUE;")
-    else:
-      code.append(self.getCodePrintableID() + "->executable = UA_FALSE;")
-
     if self.userExecutable():
       code.append(self.getCodePrintableID() + "->userExecutable = UA_TRUE;")
-    else:
-      code.append(self.getCodePrintableID() + "->userExecutable = UA_FALSE;")
 
     return code
 
@@ -1348,7 +1345,7 @@ class opcua_node_dataType_t(opcua_node_t):
               self.__encodable__ = False
               break
             else:
-              self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [self.browseName(), subenc]
+              self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [self.browseName(), subenc, 0]
       if len(self.__baseTypeEncoding__) == 0:
         log(self, prefix + "No viable definition for " + self.browseName() + " " + str(self.id()) + " found.")
         self.__encodable__ = False
@@ -1364,6 +1361,7 @@ class opcua_node_dataType_t(opcua_node_t):
 
     isEnum = True
     isSubType = True
+    hasValueRank = 0
 
     # We need to store the definition as ordered data, but can't use orderedDict
     # for backward compatibility with Python 2.6 and 3.4
@@ -1376,6 +1374,7 @@ class opcua_node_dataType_t(opcua_node_t):
         fname  = ""
         fdtype = ""
         enumVal = ""
+        hasValueRank = 0
         for at,av in x.attributes.items():
           if at == "DataType":
             fdtype = str(av)
@@ -1386,6 +1385,7 @@ class opcua_node_dataType_t(opcua_node_t):
             enumVal = int(av)
             isSubType = False
           elif at == "ValueRank":
+            hasValueRank = int(av)
             log(self, "Arrays or matrices (ValueRank) are not supported for datatypes. This DT will become scalar.", LOG_LEVEL_WARN)
           else:
             log(self, "Unknown Field Attribute " + str(at), LOG_LEVEL_WARN)
@@ -1412,10 +1412,12 @@ class opcua_node_dataType_t(opcua_node_t):
             # The node in the datatype element was found. we inherit its encoding,
             # but must still ensure that the dtnode is itself validly encodable
             typeDict.append([fname, dtnode])
-            fdtype = str(dtnode.browseName())
+            if hasValueRank < 0:
+              hasValueRank = 0
+            fdtype = str(dtnode.browseName()) + "+"*hasValueRank
             log(self,  prefix + fname + " : " + fdtype + " -> " + str(dtnode.id()))
             subenc = dtnode.buildEncoding(indent=indent+1)
-            self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [[fname, subenc]]
+            self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [[fname, subenc, hasValueRank]]
             if not dtnode.isEncodable():
               # If we inherit an encoding from an unencodable not, this node is
               # also not encodable

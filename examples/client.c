@@ -132,6 +132,31 @@ int main(int argc, char *argv[]) {
         printf("Subscription removed\n");
 #endif
     
+#ifdef ENABLE_METHODCALLS
+    /* Note:  This example requires Namespace 0 Node 11489 (ServerType -> GetMonitoredItems) 
+       FIXME: Provide a namespace 0 independant example on the server side
+     */
+    UA_Variant input;
+    
+    UA_String argString = UA_STRING("Hello Server");
+    UA_Variant_init(&input);
+    UA_Variant_setScalarCopy(&input, &argString, &UA_TYPES[UA_TYPES_STRING]);
+    
+    UA_Int32 outputSize;
+    UA_Variant *output;
+    
+    retval = UA_Client_CallServerMethod(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                        UA_NODEID_NUMERIC(1, 62541), 1, &input, &outputSize, &output);
+    if(retval == UA_STATUSCODE_GOOD) {
+        printf("Method call was successfull, and %i returned values available.\n", outputSize);
+        UA_Array_delete(output, &UA_TYPES[UA_TYPES_VARIANT], outputSize);
+    } else {
+        printf("Method call was unsuccessfull, and %x returned values available.\n", retval);
+    }
+    UA_Variant_deleteMembers(&input);
+
+#endif
+
 #ifdef ENABLE_ADDNODES 
     /* Create a new object type node */
     // New ReferenceType
@@ -208,7 +233,6 @@ int main(int argc, char *argv[]) {
     free(theValue);
     /* Done creating a new node*/
 #endif
-
     UA_Client_disconnect(client);
     UA_Client_delete(client);
     return UA_STATUSCODE_GOOD;
