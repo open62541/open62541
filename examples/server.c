@@ -77,7 +77,8 @@ static UA_StatusCode readTemperature(void *handle, UA_Boolean sourceTimeStamp, c
 	if(!currentTemperature)
 		return UA_STATUSCODE_BADOUTOFMEMORY;
 
-	fseek(temperatureFile, 0, SEEK_SET);
+	rewind(temperatureFile);
+	fflush(temperatureFile);
 
 	if(fscanf(temperatureFile, "%lf", currentTemperature) != 1){
 		UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "Can not parse temperature");
@@ -86,6 +87,8 @@ static UA_StatusCode readTemperature(void *handle, UA_Boolean sourceTimeStamp, c
 
 	*currentTemperature /= 1000.0;
 
+	value->sourceTimestamp = UA_DateTime_now();
+	value->hasSourceTimestamp = UA_TRUE;
 	value->value.type = &UA_TYPES[UA_TYPES_DOUBLE];
 	value->value.arrayLength = -1;
 	value->value.data = currentTemperature;
