@@ -154,6 +154,9 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
                         UA_MethodCallback method, UA_Int32 inputArgumentsSize,
                         const UA_Argument *inputArguments, UA_Int32 outputArgumentsSize,
                         const UA_Argument *outputArguments);
+
+UA_StatusCode UA_EXPORT
+UA_Server_attachMethod_toNode(UA_Server *server, UA_NodeId methodNodeId, UA_MethodCallback method);
 #endif
 
 /** Jobs describe work that is executed once or repeatedly. */

@@ -445,4 +445,30 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
     
     return retval;
 }
+
+UA_StatusCode
+UA_Server_attachMethod_toNode(UA_Server *server, UA_NodeId methodNodeId, UA_MethodCallback method) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    const UA_Node *attachToMethod;
+    UA_MethodNode *replacementMethod = UA_MethodNode_new();
+    
+    if (!method)
+        return UA_STATUSCODE_BADMETHODINVALID;
+    if (!server)
+        return UA_STATUSCODE_BADSERVERINDEXINVALID;
+    
+    attachToMethod =  UA_NodeStore_get(server->nodestore, &methodNodeId);
+    if (!attachToMethod)
+        return UA_STATUSCODE_BADNODEIDINVALID;
+    
+    if (attachToMethod->nodeClass != UA_NODECLASS_METHOD)
+        return UA_STATUSCODE_BADNODEIDINVALID;
+    
+    UA_MethodNode_copy((const UA_MethodNode *) attachToMethod, replacementMethod);
+    UA_NodeStore_release(attachToMethod);
+    
+    replacementMethod->attachedMethod = method;
+    retval |= UA_NodeStore_replace(server->nodestore, attachToMethod, (UA_Node *) replacementMethod, UA_NULL);
+    return retval;
+}
 #endif

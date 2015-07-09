@@ -106,7 +106,11 @@ class open62541_MacroHelper():
 
     code.append(nodetype + " *" + node.getCodePrintableID() + " = " + nodetype + "_new();")
     if not "browsename" in self.supressGenerationOfAttribute:
-      code.append(node.getCodePrintableID() + "->browseName = UA_QUALIFIEDNAME_ALLOC(" +  str(node.id().ns) + ", \"" + node.browseName() + "\");")
+      extrNs = node.browseName().split(":")
+      if len(extrNs) > 1:
+        code.append(node.getCodePrintableID() + "->browseName = UA_QUALIFIEDNAME_ALLOC(" +  str(extrNs[0]) + ", \"" + extrNs[1] + "\");")
+      else:
+        code.append(node.getCodePrintableID() + "->browseName = UA_QUALIFIEDNAME_ALLOC(0, \"" + node.browseName() + "\");")
     if not "displayname" in self.supressGenerationOfAttribute:
       code.append(node.getCodePrintableID() + "->displayName = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" +  node.displayName() + "\");")
     if not "description" in self.supressGenerationOfAttribute:
