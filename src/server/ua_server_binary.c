@@ -341,6 +341,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         break;
     case UA_NS0ID_DELETEMONITOREDITEMSREQUEST:
         INVOKE_SERVICE(DeleteMonitoredItems, UA_TYPES_DELETEMONITOREDITEMSRESPONSE);
+        break;
 #endif
 #ifdef ENABLE_METHODCALLS
     case UA_NS0ID_CALLREQUEST:
