@@ -54,7 +54,7 @@ Building with CMake on Windows (Visual Studio)
    mkdir build
    cd build
    <path-to>\cmake.exe .. -G "Visual Studio 14 2015"
-   # Or use cmake-gui for a graphical user-interface
+   :: You can use use cmake-gui for a graphical user-interface to select single features
 
 - Then open "build\open62541.sln" in Visual Studio 2015 and build as usual
    
