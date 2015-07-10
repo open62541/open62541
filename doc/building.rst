@@ -62,6 +62,3 @@ Building with CMake on Windows (Visual Studio)
 Build Options
 -------------
 
-
-Building the Examples
-=====================
