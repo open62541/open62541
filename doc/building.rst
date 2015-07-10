@@ -12,12 +12,12 @@ Using the GCC compiler, the following calls build the library on Linux.
    gcc -shared open62541.o -o libopen62541.so
    
 
-Building with CMake on Ubuntu
+Building with CMake on Ubuntu or Debian
 -----------------------------
 
 .. code-block:: bash
    
-   sudo apt-get install git build-essential gcc cmake python python-lxml
+   sudo apt-get install git build-essential gcc pkg-config cmake python python-lxml
 
    # enable additional features
    sudo apt-get install libexpat1-dev # for XML-encodingi
