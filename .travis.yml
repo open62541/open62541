@@ -81,7 +81,7 @@ script:
 - echo "Upgrade to gcc 4.8"
 - sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
 - sudo apt-get update -qq
-- sudo apt-get install -qq gcc-4.8
+- sudo apt-get install -qq gcc-4.8 valgrind
 - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
 - sudo update-alternatives --config gcc
 - echo "Compile multithreaded version"
@@ -91,6 +91,8 @@ script:
 - echo "Debug build and unit tests (64 bit)"
 - cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_DEMO_NODESET=ON -DBUILD_UNIT_TESTS=ON -DENABLE_COVERAGE=ON ..
 - make && make test
+- echo "Run valgrind to see if the server leaks memory (just starting up and closing..)
+- valgrind --error-exitcode=3 ./server & export pid=$!; sleep 2; kill -INT $pid; wait $pid
 - (coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ ; exit 0)
 - cd .. 
 after_success:
