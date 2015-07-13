@@ -42,9 +42,9 @@ endif()
 # compiler flags
 if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
-                    -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
-                    -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes # -Wshadow -Wconversion
-                    -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral)
+                      -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
+                      -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes # -Wshadow -Wconversion
+                      -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral)
     # binary size reduction settings
 	add_definitions(-ffunction-sections -fdata-sections -fno-stack-protector -fno-unwind-tables
                     -fno-asynchronous-unwind-tables -fno-math-errno -fmerge-all-constants -fno-ident)
@@ -52,8 +52,10 @@ if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
     set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
 	if(NOT WIN32)
+     if(NOT CYGWIN)
 	    add_definitions(-fvisibility=hidden -fPIC)
         set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
+      endif()
 	endif()
     if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
         set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
@@ -71,7 +73,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
-                     ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h 
+                     ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h
                      ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h)
 set(internal_headers ${PROJECT_SOURCE_DIR}/src/ua_util.h
                      ${PROJECT_SOURCE_DIR}/deps/queue.h
@@ -106,7 +108,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
-                ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c 
+                ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c
                 ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c)
                 ##TODO: make client stuff optional
 
@@ -123,7 +125,7 @@ if(ENABLE_SUBSCRIPTIONS)
   list(FIND internal_headers "${PROJECT_SOURCE_DIR}/src/ua_session.h" UaSessionPos)
   list(INSERT internal_headers  ${UaSessionPos} ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
                           ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.h)
-                          
+
   add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                             ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                      PRE_BUILD
@@ -164,12 +166,12 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_g
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_AssumeExternal.txt -s description -b ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist.txt ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE} ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated
                    DEPENDS ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE}
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py  
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py)
 
 list(APPEND internal_headers ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h)
@@ -285,7 +287,7 @@ if(BUILD_EXAMPLESERVER)
     add_executable(server_static examples/server.c ${server_source})
     add_executable(server examples/server.c)
     if(ENABLE_AMALGAMATION)
-       ADD_DEPENDENCIES(server amalgamation) 
+       ADD_DEPENDENCIES(server amalgamation)
     endif()
     target_link_libraries(server open62541)
     if(WIN32)
@@ -322,7 +324,7 @@ if(BUILD_EXAMPLECLIENT)
 	add_executable(client_static examples/client.c ${client_source})
     add_executable(client examples/client.c)
 	if(ENABLE_AMALGAMATION)
-	   ADD_DEPENDENCIES(client amalgamation) 
+	   ADD_DEPENDENCIES(client amalgamation)
 	endif()
 	target_link_libraries(client open62541)
     if(WIN32)
