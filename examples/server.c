@@ -24,11 +24,12 @@
 # include <unistd.h> //access
 #endif
 
+#ifndef __USE_XOPEN2K
 #define __USE_XOPEN2K
 #ifdef UA_MULTITHREADING
 # include <pthread.h>
 #endif
-
+#endif
 /****************************/
 /* Server-related variables */
 /****************************/
@@ -125,7 +126,7 @@ static UA_StatusCode readLedStatus(void *handle, UA_Boolean sourceTimeStamp, con
 static UA_StatusCode writeLedStatus(void *handle, const UA_Variant *data, const UA_NumericRange *range) {
     if(range)
         return UA_STATUSCODE_BADINDEXRANGEINVALID;
-    
+
 #ifdef UA_MULTITHREADING
 	pthread_rwlock_wrlock(&writeLock);
 #endif
@@ -154,7 +155,7 @@ static UA_StatusCode getMonitoredItems(const UA_NodeId objectId, const UA_Varian
     UA_Variant_setScalarCopy(output, &tmp, &UA_TYPES[UA_TYPES_STRING]);
     printf("getMonitoredItems was called\n");
     return UA_STATUSCODE_GOOD;
-} 
+}
 #endif
 
 static void stopHandler(int sign) {
@@ -323,7 +324,7 @@ int main(int argc, char** argv) {
    outputArguments.description = UA_LOCALIZEDTEXT("en_US", "A String");
    outputArguments.name = UA_STRING("Input an integer");
    outputArguments.valueRank = -1;
-        
+
    UA_Server_addMethodNode(server, UA_QUALIFIEDNAME(1,"ping"), UA_NODEID_NUMERIC(1,62541),
                            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                            &getMonitoredItems, 1, &inputArguments, 1, &outputArguments);

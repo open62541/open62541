@@ -89,8 +89,11 @@
 # undef SLIST_ENTRY
 # define RAND(SEED) (UA_UInt32)rand()
 #else
-# include <sys/time.h>
-# define RAND(SEED) (UA_UInt32)rand_r(SEED)
+  #ifdef __CYGWIN__
+  extern int rand_r (unsigned int *__seed);
+  #endif
+  # include <sys/time.h>
+  # define RAND(SEED) (UA_UInt32)rand_r(SEED)
 #endif
 
 /*************************/
