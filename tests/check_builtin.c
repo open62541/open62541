@@ -1059,7 +1059,7 @@ START_TEST(UA_Float_encodeShallWorkOnExample) {
 }
 END_TEST
 
-/*START_TEST(UA_Double_encodeShallWorkOnExample)
+START_TEST(UA_Double_encodeShallWorkOnExample)
    {
     // given
     UA_Double src;
@@ -1068,18 +1068,19 @@ END_TEST
                     };
     UA_ByteString dst = {16,data};
 
-    UA_Int32 retval, pos = 0;
+    UA_Int32 retval;
+    size_t pos = 0;
 
     // when test 1
     src = -6.5;
-    retval = UA_Double_encodeBinary(&src, &pos, &dst);
+    retval = UA_Double_encodeBinary(&src, &dst, &pos);
     // then test 1
     ck_assert_int_eq(pos, 8);
-    ck_assert_int_eq(dst.data[6], 0xD0);
+    ck_assert_int_eq(dst.data[6], 0x1A);
     ck_assert_int_eq(dst.data[7], 0xC0);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
    }
-   END_TEST*/
+END_TEST
 
 START_TEST(UA_String_encodeShallWorkOnExample) {
     // given
@@ -1726,7 +1727,7 @@ static Suite *testSuite_builtin(void) {
     tcase_add_test(tc_encode, UA_Int64_encodeNegativeShallEncodeLittleEndian);
     tcase_add_test(tc_encode, UA_Int64_encodeShallEncodeLittleEndian);
     tcase_add_test(tc_encode, UA_Float_encodeShallWorkOnExample);
-    //tcase_add_test(tc_encode, UA_Double_encodeShallWorkOnExample);
+    tcase_add_test(tc_encode, UA_Double_encodeShallWorkOnExample);
     tcase_add_test(tc_encode, UA_String_encodeShallWorkOnExample);
     tcase_add_test(tc_encode, UA_DataValue_encodeShallWorkOnExampleWithoutVariant);
     tcase_add_test(tc_encode, UA_DataValue_encodeShallWorkOnExampleWithVariant);
