@@ -86,7 +86,8 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/src/ua_util.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
-                     ${PROJECT_SOURCE_DIR}/src/server/ua_services.h)
+                     ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
+                     ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c

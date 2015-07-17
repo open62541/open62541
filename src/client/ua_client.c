@@ -4,6 +4,7 @@
 #include "ua_securechannel.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_transport_generated.h"
+#include "ua_client_internal.h"
 
 struct UA_Client {
     /* Connection */

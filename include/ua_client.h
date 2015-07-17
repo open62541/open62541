@@ -10,7 +10,6 @@ extern "C" {
 #include "ua_connection.h"
 #include "ua_log.h"
 #include "ua_types_generated.h"
-#include "queue.h"
 
 struct UA_Client;
 typedef struct UA_Client UA_Client;
@@ -86,60 +85,22 @@ UA_AddNodesResponse UA_EXPORT *UA_Client_createObjectTypeNode(UA_Client *client,
                                                             UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
                                                             UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition);
 
+
+#ifdef ENABLE_SUBSCRIPTIONS
+UA_Int32      UA_EXPORT UA_Client_newSubscription(UA_Client *client, UA_Int32 publishInterval);
+UA_StatusCode UA_EXPORT UA_Client_removeSubscription(UA_Client *client, UA_UInt32 subscriptionId);
+//void UA_EXPORT UA_Client_modifySubscription(UA_Client *client);
+void UA_EXPORT UA_Client_doPublish(UA_Client *client);
+
+UA_UInt32     UA_EXPORT UA_Client_monitorItemChanges(UA_Client *client, UA_UInt32 subscriptionId,
+                                                     UA_NodeId nodeId, UA_UInt32 attributeID,
+                                                     void *handlingFunction);
+UA_StatusCode UA_EXPORT UA_Client_unMonitorItemChanges(UA_Client *client, UA_UInt32 subscriptionId,
+                                                       UA_UInt32 monitoredItemId );
+#endif
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
 
-
-#ifdef ENABLE_SUBSCRIPTIONS
-typedef struct UA_Client_NotificationsAckNumber_s {
-    UA_SubscriptionAcknowledgement subAck;
-    LIST_ENTRY(UA_Client_NotificationsAckNumber_s) listEntry;
-} UA_Client_NotificationsAckNumber;
-
-typedef struct UA_Client_MonitoredItem_s {
-    UA_UInt32          MonitoredItemId;
-    UA_UInt32          MonitoringMode;
-    UA_NodeId          monitoredNodeId; 
-    UA_UInt32          AttributeID;
-    UA_UInt32          ClientHandle;
-    UA_UInt32          SamplingInterval;
-    UA_UInt32          QueueSize;
-    UA_Boolean         DiscardOldest;
-    void               (*handler)(UA_UInt32 handle, UA_DataValue *value);
-    LIST_ENTRY(UA_Client_MonitoredItem_s)  listEntry;
-} UA_Client_MonitoredItem;
-
-typedef struct UA_Client_Subscription_s {
-    UA_UInt32    LifeTime;
-    UA_Int32     KeepAliveCount;
-    UA_DateTime  PublishingInterval;
-    UA_UInt32    SubscriptionID;
-    UA_Int32     NotificationsPerPublish;
-    UA_UInt32    Priority;
-    LIST_ENTRY(UA_Client_Subscription_s) listEntry; 
-    LIST_HEAD(UA_ListOfClientMonitoredItems, UA_Client_MonitoredItem_s) MonitoredItems;
-} UA_Client_Subscription;
-
-UA_CreateSubscriptionResponse   UA_EXPORT UA_Client_createSubscription(UA_Client *client, UA_CreateSubscriptionRequest *request);
-UA_ModifySubscriptionResponse   UA_EXPORT UA_Client_modifySubscription(UA_Client *client, UA_ModifySubscriptionRequest *request);
-UA_DeleteSubscriptionsResponse  UA_EXPORT UA_Client_deleteSubscriptions(UA_Client *client, UA_DeleteSubscriptionsRequest *request);
-UA_CreateMonitoredItemsResponse UA_EXPORT UA_Client_createMonitoredItems(UA_Client *client, UA_CreateMonitoredItemsRequest *request);
-UA_DeleteMonitoredItemsResponse UA_EXPORT UA_Client_deleteMonitoredItems(UA_Client *client, UA_DeleteMonitoredItemsRequest *request);
-UA_PublishResponse              UA_EXPORT UA_Client_publish(UA_Client *client, UA_PublishRequest *request);
-
-UA_Int32      UA_EXPORT UA_Client_newSubscription(UA_Client *client, UA_Int32 publishInterval);
-UA_StatusCode UA_EXPORT UA_Client_removeSubscription(UA_Client *client, UA_UInt32 subscriptionId);
-//void UA_EXPORT UA_Client_modifySubscription(UA_Client *client);
-
-UA_UInt32     UA_EXPORT UA_Client_monitorItemChanges(UA_Client *client, UA_UInt32 subscriptionId, 
-                                                     UA_NodeId nodeId, UA_UInt32 attributeID, 
-                                                     void *handlingFunction);
-UA_StatusCode UA_EXPORT UA_Client_unMonitorItemChanges(UA_Client *client, UA_UInt32 subscriptionId, 
-                                                       UA_UInt32 monitoredItemId );
-
-void UA_EXPORT UA_Client_doPublish(UA_Client *client);
-UA_Boolean UA_Client_processPublishRx(UA_Client *client, UA_PublishResponse response);
-
-#endif
 #endif /* UA_CLIENT_H_ */
