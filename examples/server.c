@@ -24,11 +24,13 @@
 # include <unistd.h> //access
 #endif
 
-#ifndef __USE_XOPEN2K
-#define __USE_XOPEN2K
 #ifdef UA_MULTITHREADING
-# include <pthread.h>
-#endif
+# ifdef UA_NO_AMALGAMATION
+#  ifndef __USE_XOPEN2K
+#   define __USE_XOPEN2K
+#  endif
+# endif
+#include <pthread.h>
 #endif
 /****************************/
 /* Server-related variables */
