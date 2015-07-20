@@ -397,16 +397,15 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
     newMethod->executable = UA_TRUE;
     newMethod->userExecutable = UA_TRUE;
 
-    UA_ExpandedNodeId methodExpandedNodeId;
-    UA_ExpandedNodeId_init(&methodExpandedNodeId);
-    UA_NodeId_copy(&newMethod->nodeId, &methodExpandedNodeId.nodeId);
-    
     UA_AddNodesResult addRes = UA_Server_addNode(server, (UA_Node *) newMethod, parentNodeId, referenceTypeId);
     if (addRes.statusCode != UA_STATUSCODE_GOOD) {
         UA_MethodNode_delete(newMethod);
-        UA_ExpandedNodeId_deleteMembers(&methodExpandedNodeId);
         return addRes.statusCode;
     }
+    
+    UA_ExpandedNodeId methodExpandedNodeId;
+    UA_ExpandedNodeId_init(&methodExpandedNodeId);
+    UA_NodeId_copy(&addRes.addedNodeId, &methodExpandedNodeId.nodeId);
     
     // Create InputArguments
     UA_NodeId argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0); 
