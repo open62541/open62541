@@ -533,10 +533,11 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
     UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_VARIANT], &newValueAsByteString, &encodingOffset);
   
     if(!monitoredItem->lastSampledValue.data) { 
-        monitoredItem->lastSampledValue = newValueAsByteString;
+        UA_ByteString_copy(&newValueAsByteString, &monitoredItem->lastSampledValue);
         TAILQ_INSERT_HEAD(&monitoredItem->queue, newvalue, listEntry);
         monitoredItem->queueSize.currentValue++;
         monitoredItem->lastSampled = UA_DateTime_now();
+        UA_free(newValueAsByteString.data);
     } else {
         if(UA_String_equal(&newValueAsByteString, &monitoredItem->lastSampledValue) == UA_TRUE) {
             UA_Variant_deleteMembers(&newvalue->value);

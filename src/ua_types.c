@@ -155,7 +155,7 @@ UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
         return UA_FALSE;
 
     // casts are needed to overcome signed warnings
-    UA_Int32 is = strncmp((char const *)string1->data, (char const *)string2->data, (size_t)string1->length);
+    UA_Int32 is = memcmp((char const *)string1->data, (char const *)string2->data, (size_t)string1->length);
     return (is == 0) ? UA_TRUE : UA_FALSE;
 }
 
