@@ -192,7 +192,7 @@ endif()
 ## multithreading
 option(ENABLE_MULTITHREADING "Enable multithreading (experimental)" OFF)
 if(ENABLE_MULTITHREADING)
-    add_definitions(-DUA_MULTITHREADING)
+	set(UA_MULTITHREADING ON) #to propagate it to the config file
     find_package(Threads REQUIRED)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_concurrent.c)
 else()
