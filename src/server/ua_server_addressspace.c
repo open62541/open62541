@@ -3,18 +3,17 @@
 
 UA_StatusCode
 UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_QualifiedName browseName, 
-                          UA_NodeId nodeId, const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId)
-{
+                          UA_NodeId nodeId, const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId) {
     UA_VariableNode *node = UA_VariableNode_new();
     node->value.variant = *value; // copy content
     UA_NodeId_copy(&nodeId, &node->nodeId);
     UA_QualifiedName_copy(&browseName, &node->browseName);
     UA_String_copy(&browseName.name, &node->displayName.text);
-    UA_ExpandedNodeId parentId; // we need an expandednodeid
+    UA_ExpandedNodeId parentId;
     UA_ExpandedNodeId_init(&parentId);
     UA_NodeId_copy(&parentNodeId, &parentId.nodeId);
-    UA_AddNodesResult res =
-        UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node, parentId, referenceTypeId);
+    UA_AddNodesResult res = UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node,
+                                                         parentId, referenceTypeId);
     UA_Server_addReference(server, res.addedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
                            UA_EXPANDEDNODEID_NUMERIC(0, value->type->typeId.identifier.numeric));
     if(res.statusCode != UA_STATUSCODE_GOOD) {
@@ -27,9 +26,9 @@ UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_Qualifi
 }
 
 UA_StatusCode
-UA_Server_addObjectNode(UA_Server *server, const UA_QualifiedName browseName,
-                          UA_NodeId nodeId, const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId, const UA_NodeId typeDefinition)
-{
+UA_Server_addObjectNode(UA_Server *server, const UA_QualifiedName browseName, UA_NodeId nodeId,
+                        const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                        const UA_NodeId typeDefinition) {
     UA_ObjectNode *node = UA_ObjectNode_new();
     UA_NodeId_copy(&nodeId, &node->nodeId);
     UA_QualifiedName_copy(&browseName, &node->browseName);
@@ -37,14 +36,13 @@ UA_Server_addObjectNode(UA_Server *server, const UA_QualifiedName browseName,
     UA_ExpandedNodeId parentId; // we need an expandednodeid
     UA_ExpandedNodeId_init(&parentId);
     UA_NodeId_copy(&parentNodeId, &parentId.nodeId);
-    UA_AddNodesResult res =
-        UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node, parentId, referenceTypeId);
-    if(res.statusCode != UA_STATUSCODE_GOOD) {
+    UA_AddNodesResult res = UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node,
+                                                         parentId, referenceTypeId);
+    if(res.statusCode != UA_STATUSCODE_GOOD)
         UA_ObjectNode_delete(node);
-    }
     UA_AddNodesResult_deleteMembers(&res);
 
-    if(!(UA_NodeId_isNull(&typeDefinition))){
+    if(!UA_NodeId_isNull(&typeDefinition)) {
         UA_ExpandedNodeId typeDefid; // we need an expandednodeid
         UA_ExpandedNodeId_init(&typeDefid);
         UA_NodeId_copy(&typeDefinition, &typeDefid.nodeId);
@@ -57,8 +55,7 @@ UA_Server_addObjectNode(UA_Server *server, const UA_QualifiedName browseName,
 UA_StatusCode
 UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
                                     const UA_QualifiedName browseName, UA_NodeId nodeId,
-                                    const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId)
-{
+                                    const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId) {
     UA_VariableNode *node = UA_VariableNode_new();
     node->valueSource = UA_VALUESOURCE_DATASOURCE;
     node->value.dataSource = dataSource;
@@ -68,8 +65,8 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
     UA_ExpandedNodeId parentId; // dummy exapndednodeid
     UA_ExpandedNodeId_init(&parentId);
     UA_NodeId_copy(&parentNodeId, &parentId.nodeId);
-    UA_AddNodesResult res =
-        UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node, parentId, referenceTypeId);
+    UA_AddNodesResult res = UA_Server_addNodeWithSession(server, &adminSession, (UA_Node*)node,
+                                                         parentId, referenceTypeId);
     UA_Server_addReference(server, res.addedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
                            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE));
     if(res.statusCode != UA_STATUSCODE_GOOD)
@@ -80,35 +77,29 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
 
 /* Userspace Version of addOneWayReferenceWithSession*/
 UA_StatusCode
-UA_Server_AddMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId, UA_ExpandedNodeId targetNodeId, UA_NodeId referenceTypeId, UA_Boolean isforward) {
+UA_Server_AddMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId, UA_ExpandedNodeId targetNodeId,
+                                      UA_NodeId referenceTypeId, UA_Boolean isforward) {
     UA_AddReferencesItem ref;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    
-    if (server == UA_NULL) {
-        retval |= UA_STATUSCODE_BADSERVERINDEXINVALID;
-        return retval;
-    }
-    
     UA_AddReferencesItem_init(&ref);
+    UA_StatusCode retval = UA_NodeId_copy(&sourceNodeId, &ref.sourceNodeId);
+    retval |= UA_ExpandedNodeId_copy(&targetNodeId, &ref.targetNodeId);
+    retval |= UA_NodeId_copy(&referenceTypeId, &ref.referenceTypeId);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    
+    const UA_Node *target = UA_NodeStore_get(server->nodestore, &ref.targetNodeId.nodeId);
+    if(!target) {
+        retval = UA_STATUSCODE_BADNODEIDINVALID;
+        goto cleanup;
+    }
 
-    retval |= UA_NodeId_copy((const UA_NodeId *) &sourceNodeId, &ref.sourceNodeId);
-    retval |= UA_ExpandedNodeId_copy((const UA_ExpandedNodeId *) &targetNodeId, &ref.targetNodeId);
-    retval |= UA_NodeId_copy((const UA_NodeId *) &referenceTypeId, &ref.referenceTypeId);
-    
-    if (isforward == UA_TRUE)
+    if(isforward == UA_TRUE)
         ref.isForward = UA_TRUE;
-    
-    const UA_Node *target = UA_NodeStore_get(server->nodestore, (const UA_NodeId*) &ref.targetNodeId);
-    if(target == UA_NULL)
-        retval |= UA_STATUSCODE_BADNODEIDINVALID;
-    else {
-        ref.targetNodeClass = target->nodeClass;
-    }
-    if (!retval) {
-        retval |= addOneWayReferenceWithSession(server, (UA_Session *) UA_NULL, &ref);
-    }
-    
-    
+    ref.targetNodeClass = target->nodeClass;
+    UA_NodeStore_release(target);
+    retval = addOneWayReferenceWithSession(server, (UA_Session *) UA_NULL, &ref);
+
+ cleanup:
     UA_AddReferencesItem_deleteMembers(&ref);
     return retval;
 }
@@ -224,8 +215,9 @@ addOneWayReferenceWithSession(UA_Server *server, UA_Session *session, const UA_A
     newNode->referencesSize = ++count;
     retval = UA_NodeStore_replace(server->nodestore, node, newNode, UA_NULL);
 	UA_NodeStore_release(node);
-	if (retval == UA_STATUSCODE_BADINTERNALERROR) {
-		/* presumably because the node was replaced and an old version was updated at the same time. just try again */
+	if(retval == UA_STATUSCODE_BADINTERNALERROR) {
+		/* presumably because the node was replaced and an old version was updated at the same time.
+           just try again */
 		deleteNode(newNode);
 		return addOneWayReferenceWithSession(server, session, item);
 	}
@@ -290,15 +282,13 @@ UA_StatusCode UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *s
 /* userland version of addNodeWithSession */
 UA_AddNodesResult
 UA_Server_addNode(UA_Server *server, UA_Node *node, const UA_ExpandedNodeId parentNodeId,
-                  const UA_NodeId referenceTypeId)
-{
+                  const UA_NodeId referenceTypeId) {
     return UA_Server_addNodeWithSession(server, &adminSession, node, parentNodeId, referenceTypeId);
 }
 
 UA_AddNodesResult
 UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, UA_Node *node,
-                             const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId)
-{
+                             const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId) {
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
 
@@ -367,7 +357,6 @@ UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, UA_Node *no
     UA_Server_addReferenceWithSession(server, session, &item);
 
     // todo: error handling. remove new node from nodestore
-
     UA_NodeStore_release(managed);
     
  ret2:
@@ -375,7 +364,6 @@ UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, UA_Node *no
     UA_NodeStore_release((const UA_Node*)referenceType);
  ret:
     UA_NodeStore_release(parent);
-
     return result;
 }
 
@@ -386,13 +374,10 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
                         UA_MethodCallback method, UA_Int32 inputArgumentsSize,
                         const UA_Argument *inputArguments, UA_Int32 outputArgumentsSize,
                         const UA_Argument *outputArguments) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    
     UA_MethodNode *newMethod = UA_MethodNode_new();
     UA_NodeId_copy(&nodeId, &newMethod->nodeId);
     UA_QualifiedName_copy(&browseName, &newMethod->browseName);
     UA_String_copy(&browseName.name, &newMethod->displayName.text);
-    
     newMethod->attachedMethod = method;
     newMethod->executable = UA_TRUE;
     newMethod->userExecutable = UA_TRUE;
@@ -401,32 +386,32 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
     UA_ExpandedNodeId_init(&methodExpandedNodeId);
     UA_NodeId_copy(&newMethod->nodeId, &methodExpandedNodeId.nodeId);
     
-    UA_AddNodesResult addRes = UA_Server_addNode(server, (UA_Node *) newMethod, parentNodeId, referenceTypeId);
-    if (addRes.statusCode != UA_STATUSCODE_GOOD) {
+    UA_AddNodesResult addRes = UA_Server_addNode(server, (UA_Node*)newMethod, parentNodeId, referenceTypeId);
+    if(addRes.statusCode != UA_STATUSCODE_GOOD) {
         UA_MethodNode_delete(newMethod);
         UA_ExpandedNodeId_deleteMembers(&methodExpandedNodeId);
         return addRes.statusCode;
     }
     
-    // Create InputArguments
+    /* create InputArguments */
     UA_NodeId argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0); 
     UA_VariableNode *inputArgumentsVariableNode  = UA_VariableNode_new();
-    retval |= UA_NodeId_copy(&argId, &inputArgumentsVariableNode->nodeId);
+    UA_StatusCode retval = UA_NodeId_copy(&argId, &inputArgumentsVariableNode->nodeId);
     inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME_ALLOC(0,"InputArguments");
     inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
     inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
     inputArgumentsVariableNode->valueRank = 1;
-    UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant, inputArguments, inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
-    
-    addRes = UA_Server_addNode(server, (UA_Node *) inputArgumentsVariableNode, methodExpandedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY));
-
-    if (addRes.statusCode != UA_STATUSCODE_GOOD) {
+    UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant, inputArguments,
+                            inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
+    addRes = UA_Server_addNode(server, (UA_Node*)inputArgumentsVariableNode, methodExpandedNodeId,
+                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY));
+    if(addRes.statusCode != UA_STATUSCODE_GOOD) {
         UA_ExpandedNodeId_deleteMembers(&methodExpandedNodeId);
         // TODO Remove node
         return addRes.statusCode;
     }
     
-    // Create OutputArguments
+    /* create OutputArguments */
     argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0);
     UA_VariableNode *outputArgumentsVariableNode  = UA_VariableNode_new();
     retval |= UA_NodeId_copy(&argId, &outputArgumentsVariableNode->nodeId);
@@ -434,41 +419,14 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
     outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
     outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
     outputArgumentsVariableNode->valueRank = 1;
-    UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.variant, outputArguments, outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
-    // Create Arguments Variant
-    addRes = UA_Server_addNode(server, (UA_Node *) outputArgumentsVariableNode, methodExpandedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY));
-
+    UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.variant, outputArguments,
+                            outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
+    addRes = UA_Server_addNode(server, (UA_Node*)outputArgumentsVariableNode, methodExpandedNodeId,
+                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY));
     UA_ExpandedNodeId_deleteMembers(&methodExpandedNodeId);
-    if (addRes.statusCode != UA_STATUSCODE_GOOD)
+    if(addRes.statusCode != UA_STATUSCODE_GOOD)
         // TODO Remove node
-        return addRes.statusCode;
-    
-    return retval;
-}
-
-UA_StatusCode
-UA_Server_attachMethod_toNode(UA_Server *server, UA_NodeId methodNodeId, UA_MethodCallback method) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    const UA_Node *attachToMethod;
-    UA_MethodNode *replacementMethod = UA_MethodNode_new();
-    
-    if (!method)
-        return UA_STATUSCODE_BADMETHODINVALID;
-    if (!server)
-        return UA_STATUSCODE_BADSERVERINDEXINVALID;
-    
-    attachToMethod =  UA_NodeStore_get(server->nodestore, &methodNodeId);
-    if (!attachToMethod)
-        return UA_STATUSCODE_BADNODEIDINVALID;
-    
-    if (attachToMethod->nodeClass != UA_NODECLASS_METHOD)
-        return UA_STATUSCODE_BADNODEIDINVALID;
-    
-    UA_MethodNode_copy((const UA_MethodNode *) attachToMethod, replacementMethod);
-    UA_NodeStore_release(attachToMethod);
-    
-    replacementMethod->attachedMethod = method;
-    retval |= UA_NodeStore_replace(server->nodestore, attachToMethod, (UA_Node *) replacementMethod, UA_NULL);
+        retval = addRes.statusCode;
     return retval;
 }
 #endif
