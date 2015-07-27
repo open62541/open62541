@@ -5,6 +5,10 @@ project(open62541 C)
 
 FIND_PACKAGE(PythonInterp REQUIRED)
 
+set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -march=armv7-r")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -march=armv7-r")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=armv7-r")
+
 # Find Python-lxml
 execute_process ( COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())" OUTPUT_VARIABLE PYTHON_SITE_PACKAGES OUTPUT_STRIP_TRAILING_WHITESPACE)
 if(NOT EXISTS "${PYTHON_SITE_PACKAGES}/lxml")
