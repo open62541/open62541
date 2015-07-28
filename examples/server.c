@@ -208,7 +208,7 @@ int main(int argc, char** argv) {
 	UA_DataSource dateDataSource = (UA_DataSource) {.handle = NULL, .read = readTimeData, .write = NULL};
 	const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
 	UA_Server_addDataSourceVariableNode(server, dateDataSource, dateName, UA_NODEID_NULL,
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), NULL);
 
 #ifndef _WIN32
 	//cpu temperature monitoring for linux machines
@@ -217,7 +217,7 @@ int main(int argc, char** argv) {
 		UA_DataSource temperatureDataSource = (UA_DataSource) {.handle = NULL, .read = readTemperature, .write = NULL};
 		const UA_QualifiedName tempName = UA_QUALIFIEDNAME(1, "cpu temperature");
 		UA_Server_addDataSourceVariableNode(server, temperatureDataSource, tempName, UA_NODEID_NULL,
-                                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+                                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), NULL);
 	}
 
 	//LED control for rpi
@@ -236,7 +236,7 @@ int main(int argc, char** argv) {
             const UA_QualifiedName statusName = UA_QUALIFIEDNAME(0, "status LED");
             UA_Server_addDataSourceVariableNode(server, ledStatusDataSource, statusName, UA_NODEID_NULL,
                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                                UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+                                                UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), NULL);
         } else {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "[Raspberry Pi] LED file exist, but I have no access (try to run server with sudo)");
         }
@@ -252,7 +252,7 @@ int main(int argc, char** argv) {
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
-                              myIntegerNodeId, parentNodeId, parentReferenceNodeId);
+                              myIntegerNodeId, parentNodeId, parentReferenceNodeId, NULL);
 
    /**************/
    /* Demo Nodes */
@@ -260,19 +260,19 @@ int main(int argc, char** argv) {
 
 #define DEMOID 50000
    UA_Server_addObjectNode(server,UA_QUALIFIEDNAME(1, "Demo"), UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
 
 #define SCALARID 50001
    UA_Server_addObjectNode(server,UA_QUALIFIEDNAME(1, "Scalar"), UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(1, DEMOID),
-                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
 
 #define ARRAYID 50002
    UA_Server_addObjectNode(server,UA_QUALIFIEDNAME(1, "Array"), UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(1, DEMOID),
-                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
 
 #define MATRIXID 50003
    UA_Server_addObjectNode(server,UA_QUALIFIEDNAME(1, "Matrix"), UA_NODEID_NUMERIC(1, MATRIXID), UA_NODEID_NUMERIC(1, DEMOID),
-                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
 
    UA_UInt32 id = 51000; //running id in namespace 0
    for(UA_UInt32 type = 0; UA_IS_BUILTIN(type); type++) {
@@ -286,13 +286,13 @@ int main(int argc, char** argv) {
         sprintf(name, "%02d", type);
         UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(1, name);
         UA_Server_addVariableNode(server, variant, qualifiedName, UA_NODEID_NUMERIC(1, ++id),
-                                  UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+                                  UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), NULL);
 
         //add an array node for every built-in type
         UA_Variant *arrayvar = UA_Variant_new();
         UA_Variant_setArray(arrayvar, UA_Array_new(&UA_TYPES[type], 10), 10, &UA_TYPES[type]);
         UA_Server_addVariableNode(server, arrayvar, qualifiedName, UA_NODEID_NUMERIC(1, ++id),
-                                  UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+                                  UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), NULL);
 
         //add an matrix node for every built-in type
         arrayvar = UA_Variant_new();
@@ -305,7 +305,7 @@ int main(int argc, char** argv) {
         arrayvar->data = myMultiArray;
         arrayvar->type = &UA_TYPES[type];
         UA_Server_addVariableNode(server, arrayvar, qualifiedName, UA_NODEID_NUMERIC(1, ++id),
-                                  UA_NODEID_NUMERIC(1, MATRIXID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+                                  UA_NODEID_NUMERIC(1, MATRIXID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), NULL);
    }
 
 
@@ -330,9 +330,10 @@ int main(int argc, char** argv) {
    outputArguments.name = UA_STRING("Input an integer");
    outputArguments.valueRank = -1;
 
+   UA_NodeId methodId; // Retrieve the actual ID if this node if a random id as in UA_NODEID_NUMERIC(1,0) is used
    UA_Server_addMethodNode(server, UA_QUALIFIEDNAME(1,"ping"), UA_NODEID_NUMERIC(1,62541),
                            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                           &getMonitoredItems, 1, &inputArguments, 1, &outputArguments);
+                           &getMonitoredItems, 1, &inputArguments, 1, &outputArguments, &methodId);
 #endif
 	//start server
 	UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false

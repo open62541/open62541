@@ -3,7 +3,8 @@
 
 UA_StatusCode
 UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_QualifiedName browseName, 
-                          UA_NodeId nodeId, const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId) {
+                          UA_NodeId nodeId, const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                          UA_NodeId *createdNodeId) {
     UA_VariableNode *node = UA_VariableNode_new();
     node->value.variant = *value; // copy content
     UA_NodeId_copy(&nodeId, &node->nodeId);
@@ -19,8 +20,10 @@ UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_Qualifi
     if(res.statusCode != UA_STATUSCODE_GOOD) {
         UA_Variant_init(&node->value.variant);
         UA_VariableNode_delete(node);
-    } else
+    } else 
         UA_free(value);
+    if (createdNodeId != UA_NULL)
+      UA_NodeId_copy(&res.addedNodeId, createdNodeId);
     UA_AddNodesResult_deleteMembers(&res);
     return res.statusCode;
 }
@@ -28,7 +31,8 @@ UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_Qualifi
 UA_StatusCode
 UA_Server_addObjectNode(UA_Server *server, const UA_QualifiedName browseName, UA_NodeId nodeId,
                         const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                        const UA_NodeId typeDefinition) {
+                        const UA_NodeId typeDefinition,
+                        UA_NodeId *createdNodeId) {
     UA_ObjectNode *node = UA_ObjectNode_new();
     UA_NodeId_copy(&nodeId, &node->nodeId);
     UA_QualifiedName_copy(&browseName, &node->browseName);
@@ -40,6 +44,8 @@ UA_Server_addObjectNode(UA_Server *server, const UA_QualifiedName browseName, UA
                                                          parentId, referenceTypeId);
     if(res.statusCode != UA_STATUSCODE_GOOD)
         UA_ObjectNode_delete(node);
+    if (createdNodeId != UA_NULL)
+      UA_NodeId_copy(&res.addedNodeId, createdNodeId);
     UA_AddNodesResult_deleteMembers(&res);
 
     if(!UA_NodeId_isNull(&typeDefinition)) {
@@ -55,7 +61,8 @@ UA_Server_addObjectNode(UA_Server *server, const UA_QualifiedName browseName, UA
 UA_StatusCode
 UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
                                     const UA_QualifiedName browseName, UA_NodeId nodeId,
-                                    const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId) {
+                                    const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                                    UA_NodeId *createdNodeId) {
     UA_VariableNode *node = UA_VariableNode_new();
     node->valueSource = UA_VALUESOURCE_DATASOURCE;
     node->value.dataSource = dataSource;
@@ -71,6 +78,8 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
                            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE));
     if(res.statusCode != UA_STATUSCODE_GOOD)
         UA_VariableNode_delete(node);
+    if (createdNodeId != UA_NULL)
+      UA_NodeId_copy(&res.addedNodeId, createdNodeId);
     UA_AddNodesResult_deleteMembers(&res);
     return res.statusCode;
 }
@@ -373,7 +382,8 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
                         const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
                         UA_MethodCallback method, UA_Int32 inputArgumentsSize,
                         const UA_Argument *inputArguments, UA_Int32 outputArgumentsSize,
-                        const UA_Argument *outputArguments) {
+                        const UA_Argument *outputArguments,
+                        UA_NodeId *createdNodeId) {
     UA_MethodNode *newMethod = UA_MethodNode_new();
     UA_NodeId_copy(&nodeId, &newMethod->nodeId);
     UA_QualifiedName_copy(&browseName, &newMethod->browseName);
@@ -381,16 +391,19 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
     newMethod->attachedMethod = method;
     newMethod->executable = UA_TRUE;
     newMethod->userExecutable = UA_TRUE;
-
-    UA_ExpandedNodeId methodExpandedNodeId;
-    UA_ExpandedNodeId_init(&methodExpandedNodeId);
-    UA_NodeId_copy(&newMethod->nodeId, &methodExpandedNodeId.nodeId);
     
     UA_AddNodesResult addRes = UA_Server_addNode(server, (UA_Node*)newMethod, parentNodeId, referenceTypeId);
     if(addRes.statusCode != UA_STATUSCODE_GOOD) {
         UA_MethodNode_delete(newMethod);
         return addRes.statusCode;
     }
+    
+    UA_ExpandedNodeId methodExpandedNodeId;
+    UA_ExpandedNodeId_init(&methodExpandedNodeId);
+    UA_NodeId_copy(&addRes.addedNodeId, &methodExpandedNodeId.nodeId);
+    
+    if (createdNodeId != UA_NULL)
+      UA_NodeId_copy(&addRes.addedNodeId, createdNodeId);
     
     /* create InputArguments */
     UA_NodeId argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0); 
@@ -409,6 +422,8 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
         // TODO Remove node
         return addRes.statusCode;
     }
+    if (createdNodeId != UA_NULL)
+      UA_NodeId_copy(&addRes.addedNodeId, createdNodeId);
     
     /* create OutputArguments */
     argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0);
