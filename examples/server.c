@@ -35,6 +35,7 @@
 # endif
 #include <pthread.h>
 #endif
+
 /****************************/
 /* Server-related variables */
 /****************************/
@@ -193,7 +194,7 @@ static UA_ByteString loadCertificate(void) {
 UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId);
 UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId) {  
   printf("References ns=%d;i=%d using i=%d ", childId.namespaceIndex, childId.identifier.numeric, referenceTypeId.identifier.numeric);
-  if (isInverse != UA_TRUE) {
+  if (isInverse == UA_TRUE) {
     printf(" (inverse)");
   }
   printf("\n");
@@ -207,7 +208,7 @@ int main(int argc, char** argv) {
 	pthread_rwlock_init(&writeLock, 0);
 #endif
 
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+    UA_Server *server; = UA_Server_new(UA_ServerConfig_standard);
     logger = Logger_Stdout_new();
     UA_Server_setLogger(server, logger);
     UA_ByteString certificate = loadCertificate();
