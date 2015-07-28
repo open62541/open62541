@@ -40,10 +40,10 @@ static UA_Server* makeTestSequence(void) {
 	UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
 	UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
 	UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
-			myIntegerNodeId, parentNodeId, parentReferenceNodeId);
+                                  myIntegerNodeId, parentNodeId, parentReferenceNodeId, NULL);
 
 	/* ObjectNode */
-	UA_Server_addObjectNode(server,UA_QUALIFIEDNAME(1, "Demo"), UA_NODEID_NUMERIC(1, 50), UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+	UA_Server_addObjectNode(server,UA_QUALIFIEDNAME(1, "Demo"), UA_NODEID_NUMERIC(1, 50), UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
 
 	/* ReferenceTypeNode */
 	UA_ReferenceTypeNode *organizes = UA_ReferenceTypeNode_new();
