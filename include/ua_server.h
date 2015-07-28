@@ -164,7 +164,31 @@ UA_Server_AddMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId,
 #ifdef ENABLE_METHODCALLS
 typedef UA_StatusCode (*UA_MethodCallback)(const UA_NodeId objectId, const UA_Variant *input,
                                            UA_Variant *output);
-    
+/** Creates a serverside method including input- and output variable descriptions
+ * 
+ * @param server The server object.
+ * 
+ * @param browseName BrowseName to be used for the new method.
+ * 
+ * @param nodeId Requested NodeId for the new method. If a numeric ID with i=0 is used, the server will assign a random unused id.
+ * 
+ * @param parentNodeId Parent node containing this method. Note that an ObjectNode needs to reference the method with hasProperty in order for the method to be callable.
+ * 
+ * @param referenceTypeId Reference type ID to be used by the parent to reference the new method.
+ * 
+ * @param method Userspace Method/Function of type UA_MethodCallback to be called when a client invokes the method using the Call Service Set.
+ * 
+ * @param inputArgumentsSize Number of input arguments expected to be passed by a calling client.
+ * 
+ * @param inputArguments Description of input arguments expected to be passed by a calling client.
+ * 
+ * @param outputArgumentsSize Description of output arguments expected to be passed by a calling client.
+ * 
+ * @param outputArguments Description of output arguments expected to be passed by a calling client.
+ * 
+ * @param createdNodeId Actual nodeId of the new method node if UA_StatusCode indicates success. Can be used to determine the random unique ID assigned by the server if i=0 was passed as a nodeId.
+ * 
+ */
 UA_StatusCode UA_EXPORT
 UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA_NodeId nodeId,
                         const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
@@ -173,6 +197,20 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
                         const UA_Argument *outputArguments,
                         UA_NodeId *createdNodeId);
 #endif
+
+typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId);
+
+/** Iterate over all nodes referenced by parentNodeId by calling the callback function for each child node
+ * 
+ * @param server The server object.
+ *
+ * @param parentNodeId The NodeId of the parent whose references are to be iterated over
+ *
+ * @param callback The function of type UA_NodeIteratorCallback to be called for each referenced child
+ *
+ * @return Upon success, UA_STATUSCODE_GOOD is returned. An error code otherwise.
+ */
+UA_StatusCode UA_EXPORT UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback);
 
 /** Jobs describe work that is executed once or repeatedly. */
 typedef struct {

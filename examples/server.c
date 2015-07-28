@@ -190,6 +190,17 @@ static UA_ByteString loadCertificate(void) {
     return certificate;
 }
 
+UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId);
+UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId) {  
+  printf("References ns=%d;i=%d using i=%d ", childId.namespaceIndex, childId.identifier.numeric, referenceTypeId.identifier.numeric);
+  if (isInverse != UA_TRUE) {
+    printf(" (inverse)");
+  }
+  printf("\n");
+  
+  return UA_STATUSCODE_GOOD;
+}
+
 int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
 #ifdef UA_MULTITHREADING
@@ -332,7 +343,12 @@ int main(int argc, char** argv) {
                            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                            &getMonitoredItems, 1, &inputArguments, 1, &outputArguments, &methodId);
 #endif
-	//start server
+   
+   // Example for iterating over all nodes referenced by "Objects":
+   printf("Nodes connected to 'Objects':\n=============================\n");
+   UA_Server_forEachChildNodeCall(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter);
+   
+   //start server
 	UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false
 
 	//ctrl-c received -> clean up
