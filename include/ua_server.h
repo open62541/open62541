@@ -125,6 +125,19 @@ UA_StatusCode UA_EXPORT UA_Server_addReference(UA_Server *server, const UA_NodeI
                                                const UA_NodeId refTypeId, const UA_ExpandedNodeId targetId);
 
 UA_StatusCode UA_EXPORT
+UA_Server_deleteNode(UA_Server *server, UA_NodeId nodeId);
+
+#define UA_SERVER_DELETENODEALIAS_DECL(TYPE) \
+UA_StatusCode UA_EXPORT UA_Server_delete##TYPE##Node(UA_Server *server, UA_NodeId nodeId);
+
+UA_SERVER_DELETENODEALIAS_DECL(Object)
+UA_SERVER_DELETENODEALIAS_DECL(Variable)
+
+#ifdef ENABLE_METHODCALLS
+UA_SERVER_DELETENODEALIAS_DECL(Method)
+#endif
+
+UA_StatusCode UA_EXPORT
 UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_QualifiedName browseName, 
                           UA_NodeId nodeId, const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                           UA_NodeId *createdNodeId

@@ -308,9 +308,6 @@ int main(int argc, char** argv) {
                                   UA_NODEID_NUMERIC(1, MATRIXID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), NULL);
    }
 
-
-
-
 #ifdef ENABLE_METHODCALLS
    UA_Argument inputArguments;
    UA_Argument_init(&inputArguments);

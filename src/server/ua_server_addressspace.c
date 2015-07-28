@@ -1,6 +1,66 @@
 #include "ua_server.h"
 #include "ua_server_internal.h"
 
+#define UA_SERVER_DELETENODEALIAS(TYPE) \
+UA_StatusCode UA_Server_delete##TYPE##Node(UA_Server *server, UA_NodeId nodeId) { \
+  return UA_Server_deleteNode(server, nodeId); \
+}
+
+UA_StatusCode 
+UA_Server_deleteNode(UA_Server *server, UA_NodeId nodeId) {
+  union nodeUnion {
+    const UA_Node *delNodeConst;
+    UA_Node *delNode;
+  } ptrs;
+  ptrs.delNodeConst = UA_NodeStore_get(server->nodestore, &nodeId);
+  
+  if (!ptrs.delNodeConst)
+    return UA_STATUSCODE_BADNODEIDINVALID;
+  UA_NodeStore_release(ptrs.delNodeConst);
+  
+  // Remove the node from the hashmap/slot
+  UA_NodeStore_remove(server->nodestore, &nodeId);
+  
+  /* Note: this is done by deleteEntry() in _remove()!
+   * FIXME: Delete unreachable child nodes???
+  switch(ptrs.delNode->nodeClass) {
+    case UA_NODECLASS_DATATYPE:
+      UA_DataTypeNode_delete((UA_DataTypeNode *) ptrs.delNode);
+      break;
+    case UA_NODECLASS_METHOD:
+      UA_MethodNode_delete((UA_MethodNode *) ptrs.delNode);
+      break;      
+    case UA_NODECLASS_OBJECT:
+      UA_ObjectNode_delete((UA_ObjectNode *) ptrs.delNode);
+      break;      
+    case UA_NODECLASS_OBJECTTYPE:
+      UA_ObjectTypeNode_delete((UA_ObjectTypeNode *) ptrs.delNode);
+      break;      
+    case UA_NODECLASS_REFERENCETYPE:
+      UA_ReferenceTypeNode_delete((UA_ReferenceTypeNode *) ptrs.delNode);
+      break;      
+    case UA_NODECLASS_VARIABLE:
+      UA_VariableNode_delete((UA_VariableNode *) ptrs.delNode);
+      break;      
+    case UA_NODECLASS_VARIABLETYPE:
+      UA_VariableTypeNode_delete((UA_VariableTypeNode *) ptrs.delNode);
+      break;      
+    case UA_NODECLASS_VIEW:
+      UA_ViewNode_delete((UA_ViewNode *) ptrs.delNode);
+      break;      
+    default:
+      break;
+  } */
+  
+  return UA_STATUSCODE_GOOD;
+}
+
+UA_SERVER_DELETENODEALIAS(Object)
+UA_SERVER_DELETENODEALIAS(Variable)
+#ifdef ENABLE_METHODCALLS
+UA_SERVER_DELETENODEALIAS(Method)
+#endif
+
 UA_StatusCode
 UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_QualifiedName browseName, 
                           UA_NodeId nodeId, const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
