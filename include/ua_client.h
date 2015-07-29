@@ -99,6 +99,14 @@ UA_StatusCode UA_EXPORT UA_Client_unMonitorItemChanges(UA_Client *client, UA_UIn
                                                        UA_UInt32 monitoredItemId );
 #endif
 
+#ifndef _HAVE_UA_NODEITERATORCALLBACK_D
+#define _HAVE_UA_NODEITERATORCALLBACK_D
+typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId);
+#endif
+
+UA_StatusCode UA_EXPORT
+UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

@@ -346,7 +346,10 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
                         UA_NodeId *createdNodeId);
 #endif
 
+#ifndef _HAVE_UA_NODEITERATORCALLBACK_D
+#define _HAVE_UA_NODEITERATORCALLBACK_D
 typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId);
+#endif
 
 /** Iterate over all nodes referenced by parentNodeId by calling the callback function for each child node
  * 

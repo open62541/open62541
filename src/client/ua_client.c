@@ -1194,3 +1194,56 @@ UA_StatusCode UA_Client_addObjectTypeNode(UA_Client *client, UA_NodeId reqId, UA
     UA_AddNodesResponse_deleteMembers(adRes);
     return retval;
 }
+
+UA_StatusCode 
+UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback) {
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  
+  UA_BrowseRequest  brq;
+  UA_BrowseRequest_init(&brq);
+  UA_BrowseResponse brs;
+  UA_BrowseResponse_init(&brs);
+  brq.nodesToBrowseSize = 1;
+  brq.requestedMaxReferencesPerNode = 0;
+  brq.nodesToBrowse = UA_BrowseDescription_new();
+  brq.nodesToBrowse[0].browseDirection = UA_BROWSEDIRECTION_BOTH;
+  brq.nodesToBrowse[0].includeSubtypes = UA_TRUE;
+  UA_NodeId_copy(&parentNodeId, &brq.nodesToBrowse[0].nodeId);
+  brq.nodesToBrowse[0].resultMask =UA_BROWSERESULTMASK_ALL;
+  brs = UA_Client_browse(client, &brq);
+  
+  UA_BrowseRequest_deleteMembers(&brq);
+  if (brs.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    UA_BrowseResponse_deleteMembers(&brq);
+    return brs.responseHeader.serviceResult;
+  }
+  if (brs.resultsSize < 1) {
+    UA_BrowseResponse_deleteMembers(&brq);
+    return UA_STATUSCODE_GOOD;
+  }
+  if (brs.results[0].statusCode != UA_STATUSCODE_GOOD) {
+    UA_BrowseResponse_deleteMembers(&brq);
+    return brs.results[0].statusCode;
+  }
+  
+  UA_Boolean isInverse;
+  UA_NodeId *childId = UA_NodeId_new();
+  UA_NodeId *refTypeId = UA_NodeId_new();
+  for (int i = 0; i < brs.results[0].referencesSize; i++) {
+    isInverse = UA_FALSE;
+    if (brs.results[0].references[i].isForward == UA_FALSE)
+      isInverse = UA_TRUE;
+    UA_NodeId_copy(&brs.results[0].references[i].nodeId.nodeId, childId);
+    UA_NodeId_copy(&brs.results[0].references[i].referenceTypeId, refTypeId);
+    //UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId
+    callback(*childId, isInverse, *refTypeId);
+    
+    UA_NodeId_deleteMembers(childId);
+    UA_NodeId_deleteMembers(refTypeId);
+  }
+  UA_NodeId_delete(childId);
+  UA_NodeId_delete(refTypeId);
+  
+  UA_BrowseResponse_deleteMembers(&brs);
+  return retval;
+}

@@ -28,35 +28,35 @@ static void copyNames(UA_Node *node, char *name) {
 
 
 static UA_Server* makeTestSequence(void) {
-	UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
 
-	/* VariableNode */
-	UA_Variant *myIntegerVariant = UA_Variant_new();
-	UA_Int32 myInteger = 42;
-	UA_Variant_setScalarCopy(myIntegerVariant, &myInteger,
-			&UA_TYPES[UA_TYPES_INT32]);
-	const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
-	const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
-	UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-	UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-        UA_Server_addVariableNode(server, myIntegerNodeId, myIntegerName, UA_LOCALIZEDTEXT("en_US",""), UA_LOCALIZEDTEXT("en_US",""),
-                                  parentNodeId, parentReferenceNodeId, 0, 0, myIntegerVariant, NULL);
+    /* VariableNode */
+    UA_Variant *myIntegerVariant = UA_Variant_new();
+    UA_Int32 myInteger = 42;
+    UA_Variant_setScalarCopy(myIntegerVariant, &myInteger,
+                    &UA_TYPES[UA_TYPES_INT32]);
+    const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
+    const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_Server_addVariableNode(server, myIntegerNodeId, myIntegerName, UA_LOCALIZEDTEXT("en_US",""), UA_LOCALIZEDTEXT("en_US",""),
+                              parentNodeId, parentReferenceNodeId, 0, 0, myIntegerVariant, NULL);
 
-	/* ObjectNode */
-        UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 50), UA_QUALIFIEDNAME(1, "Demo"), UA_LOCALIZEDTEXT("en_US","Demo"), 
-                                UA_LOCALIZEDTEXT("en_US","Demo"), UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), 
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), 0, 0, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
+    /* ObjectNode */
+    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 50), UA_QUALIFIEDNAME(1, "Demo"), UA_LOCALIZEDTEXT("en_US","Demo"), 
+                            UA_LOCALIZEDTEXT("en_US","Demo"), UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), 
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), 0, 0, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
 
-	/* ReferenceTypeNode */
-	UA_ReferenceTypeNode *organizes = UA_ReferenceTypeNode_new();
-	copyNames((UA_Node*)organizes, "Organizes");
-	organizes->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "OrganizedBy");
-	organizes->nodeId.identifier.numeric = UA_NS0ID_ORGANIZES;
-	organizes->isAbstract = UA_FALSE;
-	organizes->symmetric  = UA_FALSE;
-	UA_Server_addNode(server, (UA_Node*)organizes, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES), UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE));
+    /* ReferenceTypeNode */
+    UA_ReferenceTypeNode *organizes = UA_ReferenceTypeNode_new();
+    copyNames((UA_Node*)organizes, "Organizes");
+    organizes->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "OrganizedBy");
+    organizes->nodeId.identifier.numeric = UA_NS0ID_ORGANIZES;
+    organizes->isAbstract = UA_FALSE;
+    organizes->symmetric  = UA_FALSE;
+    UA_Server_addNode(server, (UA_Node*)organizes, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES), UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE));
 
-	/* ViewNode */
+    /* ViewNode */
     UA_ViewNode *viewtest = UA_ViewNode_new();
     copyNames((UA_Node*)viewtest, "Viewtest");
     viewtest->nodeId.identifier.numeric = UA_NS0ID_VIEWNODE;

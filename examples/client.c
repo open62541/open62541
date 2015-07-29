@@ -19,6 +19,17 @@ void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value) {
     return;
 }
 
+UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId);
+UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId) {  
+  printf("References ns=%d;i=%d using i=%d ", childId.namespaceIndex, childId.identifier.numeric, referenceTypeId.identifier.numeric);
+  if (isInverse == UA_TRUE) {
+    printf(" (inverse)");
+  }
+  printf("\n");
+  
+  return UA_STATUSCODE_GOOD;
+}
+
 int main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
     UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
@@ -232,6 +243,8 @@ int main(int argc, char *argv[]) {
     free(theValue);
     /* Done creating a new node*/
 #endif
+    UA_Client_forEachChildNodeCall(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter);
+    
     UA_Client_disconnect(client);
     UA_Client_delete(client);
     return UA_STATUSCODE_GOOD;
