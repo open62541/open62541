@@ -67,23 +67,23 @@ UA_StatusCode UA_EXPORT UA_Client_CallServerMethod(UA_Client *client, UA_NodeId 
                                                    UA_Int32 *outputSize, UA_Variant **output);
 #endif
     
-UA_AddNodesResponse UA_EXPORT *UA_Client_createObjectNode(  UA_Client *client, UA_ExpandedNodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
-                                                            UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
-                                                            UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition);
+UA_StatusCode UA_EXPORT UA_Client_addObjectNode( UA_Client *client, UA_NodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
+                                                 UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
+                                                 UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition, UA_NodeId *createdNodeId);
 
-UA_AddNodesResponse UA_EXPORT *UA_Client_createVariableNode(UA_Client *client, UA_ExpandedNodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
-                                                            UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
-                                                            UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition, 
-                                                            UA_NodeId dataType, UA_Variant *value );
+UA_StatusCode UA_EXPORT UA_Client_addVariableNode( UA_Client *client, UA_NodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
+                                                   UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
+                                                   UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_Variant *value, UA_NodeId *createdNodeId);
 
-UA_AddNodesResponse UA_EXPORT *UA_Client_createReferenceTypeNode(UA_Client *client, UA_ExpandedNodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
-                                                            UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
-                                                            UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition,
-                                                            UA_LocalizedText inverseName );
+UA_StatusCode UA_EXPORT UA_Client_addReferenceTypeNode( UA_Client *client, UA_NodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
+                                                        UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
+                                                        UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition,
+                                                        UA_LocalizedText inverseName, UA_NodeId *createdNodeId );
 
-UA_AddNodesResponse UA_EXPORT *UA_Client_createObjectTypeNode(UA_Client *client, UA_ExpandedNodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
-                                                            UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
-                                                            UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition);
+UA_StatusCode UA_EXPORT UA_Client_addObjectTypeNode( UA_Client *client, UA_NodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
+                                                     UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
+                                                     UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition, UA_Boolean isAbstract, 
+                                                     UA_NodeId *createdNodeId);
 
 
 #ifdef ENABLE_SUBSCRIPTIONS

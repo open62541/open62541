@@ -163,7 +163,7 @@ open62541 is a highly configurable stack that lets you turn several features on 
 
 A detailed list of all configuration options is given in the documentation of open62541. This tutorial will introduce you to some of these options one by one in due course, but I will mention a couple of non-feature related options at this point to give readers a heads-up on the advantages and consequences of using them.
 
-A word of warning: If you change cmake options, always make sure that you have a clean build directory first (unless you know what you are doing). CMake will *not* reliably detect changes to non-source files, such as source files for scripts and generators. Always run ``make clean`` between builds.
+**Warning:** If you change cmake options, always make sure that you have a clean build directory first (unless you know what you are doing). CMake will *not* reliably detect changes to non-source files, such as source files for scripts and generators. Always run ``make clean`` between builds, and remove the ``CMakeCache.txt`` file from your build directory to make super-double-extra-sure that your build is clean before executing cmake.
 
 **ENABLE_AMALGAMATION**
 
@@ -258,7 +258,7 @@ There are several ways of building open62541, and all have their advantages and 
  * RelWithDebInfo: Will run mediocre optimization and include debugging symbols (-O2 -g)
  * MinSizeRel: Will run string optimziation and include no debugging info (-Os -DNBEBUG)
 
-**WARNING:** If you are generating namespaces (please read the following sections), the compiler will try to optimize a function with 32k lines of generated code. This will propably result in a compilation run of >60Minutes (79min; 8-Core AMD FX; 16GB RAM; 64Bit Linux). Please ping build type ``Debug`` if you intend to compile large namespaces.
+**WARNING:** If you are generating namespaces (please read the following sections), the compiler will try to optimize a function with 32k lines of generated code. This will propably result in a compilation run of >60Minutes (79min; 8-Core AMD FX; 16GB RAM; 64Bit Linux). Please pick build type ``Debug`` if you intend to compile large namespaces.
 
 Conclusion
 ----------

@@ -158,6 +158,46 @@ UA_SERVER_DELETENODEALIAS_DECL(Object)
  */
 UA_SERVER_DELETENODEALIAS_DECL(Variable)
 
+/** Deletes a ReferenceType node from the nodestore. This is a high-level alias for UA_Server_deleteNode()
+ * 
+ * @param server The server object
+ * @param nodeId ID of the node to be deleted
+ * 
+ * @return Return UA_STATUSCODE_GOOD if the node was deleted or an appropriate errorcode if the node was not found
+ *         or cannot be deleted.
+ */
+UA_SERVER_DELETENODEALIAS_DECL(ReferenceType)
+
+/** Deletes a View Node from the nodestore. This is a high-level alias for UA_Server_deleteNode()
+ * 
+ * @param server The server object
+ * @param nodeId ID of the node to be deleted
+ * 
+ * @return Return UA_STATUSCODE_GOOD if the node was deleted or an appropriate errorcode if the node was not found
+ *         or cannot be deleted.
+ */
+UA_SERVER_DELETENODEALIAS_DECL(View)
+
+/** Deletes a VariableType node from the nodestore. This is a high-level alias for UA_Server_deleteNode()
+ * 
+ * @param server The server object
+ * @param nodeId ID of the node to be deleted
+ * 
+ * @return Return UA_STATUSCODE_GOOD if the node was deleted or an appropriate errorcode if the node was not found
+ *         or cannot be deleted.
+ */
+UA_SERVER_DELETENODEALIAS_DECL(VariableType)
+
+/** Deletes a DataType Node from the nodestore. This is a high-level alias for UA_Server_deleteNode()
+ * 
+ * @param server The server object
+ * @param nodeId ID of the node to be deleted
+ * 
+ * @return Return UA_STATUSCODE_GOOD if the node was deleted or an appropriate errorcode if the node was not found
+ *         or cannot be deleted.
+ */
+UA_SERVER_DELETENODEALIAS_DECL(DataType)
+
 #ifdef ENABLE_METHODCALLS
 /** Deletes an MethodNode from the nodestore. This is a high-level alias for UA_Server_deleteNode()
  *
@@ -198,17 +238,65 @@ UA_Server_deleteNodeCopy(UA_Server *server, void **node);
 UA_StatusCode UA_EXPORT 
 UA_Server_getNodeCopy(UA_Server *server, UA_NodeId nodeId, void **copyInto);
 
+/** A new variable Node with a value passed in variant.
+ *
+ * @param server The server object
+ * @param nodeId        The requested nodeId of the new node. Use the numeric id with i=0 to get a new ID from the server.
+ * @param browseName    The qualified name of this node
+ * @param displayName   The localized text shown when displaying the node
+ * @param description   The localized human readable description
+ * @param parentNodeId  The node under which this node exists ("parent")
+ * @param referenceTypeId Reference type used by the parent to reference this node
+ * @param userWriteMask Bitmask defining the user write permissions
+ * @param writeMask     Bitmask defining the write permissions
+ * @param value         A variant containing the value to be assigned to this node.
+ * @param copyInto Pointer to a NULL pointer that will hold the copy of the node on a successfull return.
+ * 
+ * @return Return UA_STATUSCODE_GOOD if the node was created or an appropriate error code if not.
+ */
 UA_StatusCode UA_EXPORT
-UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_QualifiedName browseName, 
-                          UA_NodeId nodeId, const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                          UA_NodeId *createdNodeId
-                         );
+UA_Server_addVariableNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
+                          UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
+                          const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
+                          UA_Variant *value, UA_NodeId *createdNodeId);
 
 UA_StatusCode UA_EXPORT
-UA_Server_addObjectNode(UA_Server *server, const UA_QualifiedName browseName,
-                        UA_NodeId nodeId, const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                        const UA_NodeId typeDefinition,
-                        UA_NodeId *createdNodeId);
+UA_Server_addObjectNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
+                        UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
+                        const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
+                        const UA_ExpandedNodeId typeDefinition, UA_NodeId *createdNodeId);
+
+UA_StatusCode UA_EXPORT 
+UA_Server_addReferenceTypeNode(UA_Server *server, UA_NodeId nodeId, UA_QualifiedName browseName, 
+                               UA_LocalizedText displayName, UA_LocalizedText description, UA_NodeId parentNodeId, 
+                               const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
+                               const UA_ExpandedNodeId typeDefinition, UA_LocalizedText inverseName, UA_NodeId *createdNodeId );
+
+UA_StatusCode UA_EXPORT
+UA_Server_addObjectTypeNode(UA_Server *server, UA_NodeId nodeId, UA_QualifiedName browseName, 
+                            UA_LocalizedText displayName, UA_LocalizedText description, UA_NodeId parentNodeId, 
+                            UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
+                            UA_ExpandedNodeId typeDefinition, UA_Boolean isAbstract,  
+                            UA_NodeId *createdNodeId );
+
+UA_StatusCode UA_EXPORT 
+UA_Server_addVariableTypeNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
+                              UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
+                              const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
+                              UA_Variant *value,  UA_Int32 valueRank, UA_Boolean isAbstract, UA_NodeId *createdNodeId);
+
+UA_StatusCode UA_EXPORT
+UA_Server_addDataTypeNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
+                          UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
+                          const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
+                          UA_ExpandedNodeId typeDefinition, UA_Boolean isAbstract, UA_NodeId *createdNodeId);
+
+
+UA_StatusCode UA_EXPORT
+UA_Server_addViewNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
+                      UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
+                      const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
+                      UA_ExpandedNodeId typeDefinition, UA_NodeId *createdNodeId);
 
 UA_StatusCode UA_EXPORT
 UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
@@ -220,7 +308,6 @@ UA_StatusCode UA_EXPORT
 UA_Server_AddMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId,
                                       UA_ExpandedNodeId targetNodeId, UA_NodeId referenceTypeId,
                                       UA_Boolean isforward);
-
 
 #ifdef ENABLE_METHODCALLS
 typedef UA_StatusCode (*UA_MethodCallback)(const UA_NodeId objectId, const UA_Variant *input,
