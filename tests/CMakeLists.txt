@@ -47,6 +47,12 @@ add_executable(check_nodestore check_nodestore.c $<TARGET_OBJECTS:open62541-obje
 target_link_libraries(check_nodestore ${LIBS})
 add_test(nodestore ${CMAKE_CURRENT_BINARY_DIR}/check_nodestore)
 
+
+
+add_executable(check_session check_session.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(check_session ${LIBS})
+add_test(session ${CMAKE_CURRENT_BINARY_DIR}/check_session)
+
 # add_executable(check_startup check_startup.c)
 # target_link_libraries(check_startup ${LIBS})
 # add_test(startup ${CMAKE_CURRENT_BINARY_DIR}/check_startup)
