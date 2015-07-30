@@ -1573,11 +1573,45 @@ UA_Client_appendDataTypeNodeAttributes(UA_Client *client, void *dst) {
   return retval;
 }
 
+UA_StatusCode UA_Client_appendMethodNodeAttributes(UA_Client *client, void *dst) {
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  UA_MethodNode *target = (UA_MethodNode *) dst;
+  UA_ReadRequest  *rrq = UA_ReadRequest_new();
+  UA_ReadResponse rrs;
+  
+  /* Read node attributes:
+   * UA_ATTRIBUTEID_USEREXECUTABLE          = 22
+   * UA_ATTRIBUTEID_EXECUTABLE              = 21,
+   */
+  rrq->nodesToReadSize = 2;
+  rrq->nodesToRead = (UA_ReadValueId*) UA_malloc(sizeof(UA_ReadValueId) * rrq->nodesToReadSize);
+  for(int i = 0; i < rrq->nodesToReadSize; i++) {
+    UA_ReadValueId_init(&rrq->nodesToRead[i]);
+    rrq->nodesToRead[i].attributeId = (UA_UInt32 ) i+21;
+    UA_NodeId_copy(&target->nodeId, &rrq->nodesToRead[i].nodeId);
+  }
+  
+  rrs = UA_Client_read(client, rrq);
+  UA_ReadRequest_delete(rrq);
+  if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+    return rrs.responseHeader.serviceResult;
+  if (rrs.resultsSize != rrq->nodesToReadSize)
+    return rrs.responseHeader.serviceResult;
+  
+  if (rrs.results[0].value.data != NULL)
+    UA_Boolean_copy((UA_Boolean *) rrs.results[0].value.data, &target->executable);
+  if (rrs.results[1].value.data != NULL)
+    UA_Boolean_copy((UA_Boolean *) rrs.results[1].value.data, &target->userExecutable);
+  
+  UA_ReadResponse_deleteMembers(&rrs);
+  return retval;
+}
+
 UA_StatusCode 
 UA_Client_getNodeCopy(UA_Client *client, UA_NodeId nodeId, void **copyInto) {
   UA_ReadRequest  *rrq = UA_ReadRequest_new();
   UA_ReadResponse rrs;
-  
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
   *copyInto = UA_NULL;
   /* Read default node attributes:
       UA_ATTRIBUTEID_NODEID                  = 1,
@@ -1606,55 +1640,54 @@ UA_Client_getNodeCopy(UA_Client *client, UA_NodeId nodeId, void **copyInto) {
   switch(*nodeClass) {
     case UA_NODECLASS_OBJECT:
       *copyInto = UA_ObjectNode_new();
-      UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      retval |= UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      retval |= UA_Client_appendObjectNodeAttributes(client, *copyInto);
       break;
     case UA_NODECLASS_OBJECTTYPE:
       *copyInto = UA_ObjectTypeNode_new();
-      UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      retval |= UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      retval |= UA_Client_appendObjectTypeNodeAttributes(client, *copyInto);
       break;
     case UA_NODECLASS_VARIABLE:
       *copyInto = UA_VariableNode_new();
-      UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
-      UA_Client_appendVariableNodeAttributes(client, *copyInto);
+      retval |= UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      retval |= UA_Client_appendVariableNodeAttributes(client, *copyInto);
       break;
     case UA_NODECLASS_VARIABLETYPE:
       *copyInto = UA_VariableTypeNode_new();
-      UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      retval |= UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      retval |= UA_Client_appendVariableTypeNodeAttributes(client, *copyInto);
       break;
     case UA_NODECLASS_REFERENCETYPE:
       *copyInto = UA_ReferenceTypeNode_new();
-      UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      retval |= UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      retval |= UA_Client_appendReferenceTypeNodeAttributes(client, *copyInto);
       break;
     case UA_NODECLASS_METHOD:
       *copyInto = UA_MethodNode_new();
-      UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      retval |= UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      retval |= UA_Client_appendMethodNodeAttributes(client, *copyInto);
       break;
     case UA_NODECLASS_VIEW:
       *copyInto = UA_ViewNode_new();
-      UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      retval |= UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      retval |= UA_Client_appendViewNodeAttributes(client, *copyInto);
       break;
     case UA_NODECLASS_DATATYPE:
       *copyInto = UA_DataTypeNode_new();
-      UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      retval |= UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      retval |= UA_Client_appendDataTypeNodeAttributes(client, *copyInto);
       break;
     default:
       UA_ReadRequest_delete(rrq);
       UA_ReadResponse_deleteMembers(&rrs);
       return UA_STATUSCODE_BADNODECLASSINVALID;
   }
-  /*
-  UA_ATTRIBUTEID_ISABSTRACT              = 8,
-  
-  UA_ATTRIBUTEID_SYMMETRIC               = 9,
-  UA_ATTRIBUTEID_INVERSENAME             = 10,
  
-  UA_ATTRIBUTEID_CONTAINSNOLOOPS         = 11,
-  UA_ATTRIBUTEID_EVENTNOTIFIER           = 12,
-  
-  UA_ATTRIBUTEID_EXECUTABLE              = 21,
-  UA_ATTRIBUTEID_USEREXECUTABLE          = 22
-  */
-  
   UA_ReadResponse_deleteMembers(&rrs);
-  return 0;
+  return retval;
+}
+
+UA_StatusCode UA_Client_deleteNodeCopy(UA_Client *client, void **node) {
+  return UA_Server_deleteNodeCopy(UA_NULL, node);
 }

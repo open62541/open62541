@@ -124,9 +124,13 @@ UA_StatusCode
 UA_Client_appendViewNodeAttributes(UA_Client *client, void *dst);
 UA_StatusCode 
 UA_Client_appendDataTypeNodeAttributes(UA_Client *client, void *dst);
+UA_StatusCode 
+UA_Client_appendMethodNodeAttributes(UA_Client *client, void *dst);
 
 UA_StatusCode UA_EXPORT 
 UA_Client_getNodeCopy(UA_Client *client, UA_NodeId nodeId, void **copyInto);
+UA_StatusCode UA_EXPORT 
+UA_Client_deleteNodeCopy(UA_Client *client, void **node);
 
 #ifdef __cplusplus
 } // extern "C"
