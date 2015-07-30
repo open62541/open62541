@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
-                              myIntegerNodeId, parentNodeId, parentReferenceNodeId);
+                              myIntegerNodeId, parentNodeId, parentReferenceNodeId, NULL);
 
     UA_StatusCode retval = UA_Server_run(server, 1, &running);
     UA_Server_delete(server);
