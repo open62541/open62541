@@ -138,75 +138,15 @@ UA_Server_deleteNode(UA_Server *server, UA_NodeId nodeId);
 #define UA_SERVER_DELETENODEALIAS_DECL(TYPE) \
 UA_StatusCode UA_EXPORT UA_Server_delete##TYPE##Node(UA_Server *server, UA_NodeId nodeId);
 
-/** Deletes an ObjectNode from the nodestore. This is a high-level alias for UA_Server_deleteNode()
- *
- * @param server The server object
- * @param nodeId ID of the node to be deleted
- * 
- * @return Return UA_STATUSCODE_GOOD if the node was deleted or an appropriate errorcode if the node was not found
- *         or cannot be deleted.
- */
 UA_SERVER_DELETENODEALIAS_DECL(Object)
-
-/** Deletes a VariableNode from the nodestore. This is a high-level alias for UA_Server_deleteNode()
- *
- * @param server The server object
- * @param nodeId ID of the node to be deleted
- * 
- * @return Return UA_STATUSCODE_GOOD if the node was deleted or an appropriate errorcode if the node was not found
- *         or cannot be deleted.
- */
 UA_SERVER_DELETENODEALIAS_DECL(Variable)
-
-/** Deletes a ReferenceType node from the nodestore. This is a high-level alias for UA_Server_deleteNode()
- * 
- * @param server The server object
- * @param nodeId ID of the node to be deleted
- * 
- * @return Return UA_STATUSCODE_GOOD if the node was deleted or an appropriate errorcode if the node was not found
- *         or cannot be deleted.
- */
 UA_SERVER_DELETENODEALIAS_DECL(ReferenceType)
-
-/** Deletes a View Node from the nodestore. This is a high-level alias for UA_Server_deleteNode()
- * 
- * @param server The server object
- * @param nodeId ID of the node to be deleted
- * 
- * @return Return UA_STATUSCODE_GOOD if the node was deleted or an appropriate errorcode if the node was not found
- *         or cannot be deleted.
- */
 UA_SERVER_DELETENODEALIAS_DECL(View)
-
-/** Deletes a VariableType node from the nodestore. This is a high-level alias for UA_Server_deleteNode()
- * 
- * @param server The server object
- * @param nodeId ID of the node to be deleted
- * 
- * @return Return UA_STATUSCODE_GOOD if the node was deleted or an appropriate errorcode if the node was not found
- *         or cannot be deleted.
- */
 UA_SERVER_DELETENODEALIAS_DECL(VariableType)
-
-/** Deletes a DataType Node from the nodestore. This is a high-level alias for UA_Server_deleteNode()
- * 
- * @param server The server object
- * @param nodeId ID of the node to be deleted
- * 
- * @return Return UA_STATUSCODE_GOOD if the node was deleted or an appropriate errorcode if the node was not found
- *         or cannot be deleted.
- */
 UA_SERVER_DELETENODEALIAS_DECL(DataType)
 
 #ifdef ENABLE_METHODCALLS
-/** Deletes an MethodNode from the nodestore. This is a high-level alias for UA_Server_deleteNode()
- *
- * @param server The server object
- * @param nodeId ID of the node to be deleted
- * 
- * @return Return UA_STATUSCODE_GOOD if the node was deleted or an appropriate errorcode if the node was not found
- *         or cannot be deleted.
- */
+
 UA_SERVER_DELETENODEALIAS_DECL(Method)
 #endif
 
