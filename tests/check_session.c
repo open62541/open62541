@@ -13,7 +13,7 @@
 #include "server/ua_services.h"
 #include "ua_statuscodes.h"
 #include "check.h"
-
+#include "ua_util.h"
 
 
 START_TEST(Session_init_ShallWork)
