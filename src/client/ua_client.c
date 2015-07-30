@@ -1209,7 +1209,7 @@ UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId, UA_Nod
   brq.nodesToBrowse[0].browseDirection = UA_BROWSEDIRECTION_BOTH;
   brq.nodesToBrowse[0].includeSubtypes = UA_TRUE;
   UA_NodeId_copy(&parentNodeId, &brq.nodesToBrowse[0].nodeId);
-  brq.nodesToBrowse[0].resultMask =UA_BROWSERESULTMASK_ALL;
+  brq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL;
   brs = UA_Client_browse(client, &brq);
   
   UA_BrowseRequest_deleteMembers(&brq);
@@ -1246,4 +1246,415 @@ UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId, UA_Nod
   
   UA_BrowseResponse_deleteMembers(&brs);
   return retval;
+}
+
+#include "server/ua_nodes.h"
+
+UA_StatusCode 
+UA_Client_copyBaseAttributes(UA_Client *client, UA_ReadResponse *readResponseSrc, void *dst) {
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  UA_Node *target = (UA_Node *) dst;
+  if (readResponseSrc->results[0].value.data != UA_NULL)
+    retval |= UA_NodeId_copy((UA_NodeId *) readResponseSrc->results[0].value.data, &target->nodeId);
+  if (readResponseSrc->results[1].value.data != UA_NULL)
+    retval |= UA_NodeClass_copy((UA_NodeClass *) readResponseSrc->results[1].value.data, &target->nodeClass);
+  if (readResponseSrc->results[2].value.data != UA_NULL)
+    retval |= UA_QualifiedName_copy((UA_QualifiedName *) readResponseSrc->results[2].value.data, &target->browseName);
+  if (readResponseSrc->results[3].value.data != UA_NULL)
+    retval |= UA_LocalizedText_copy((UA_LocalizedText *) readResponseSrc->results[3].value.data, &target->displayName);
+  if (readResponseSrc->results[4].value.data != UA_NULL)
+    retval |= UA_LocalizedText_copy((UA_LocalizedText *) readResponseSrc->results[4].value.data, &target->description);
+  if (readResponseSrc->results[5].value.data != UA_NULL)  
+    retval |= UA_UInt32_copy((UA_UInt32 *) readResponseSrc->results[5].value.data, &target->writeMask);
+  if (readResponseSrc->results[6].value.data != UA_NULL)  
+    retval |= UA_UInt32_copy((UA_UInt32 *) readResponseSrc->results[6].value.data, &target->userWriteMask);
+  
+  target->referencesSize = 0;
+  target->references = UA_NULL;
+  
+  UA_BrowseRequest *brq = UA_BrowseRequest_new();
+  UA_BrowseResponse brs;
+  UA_BrowseResult_init(&brs);
+  brq->nodesToBrowseSize = 1;
+  brq->requestedMaxReferencesPerNode = 0;
+  brq->nodesToBrowse = UA_BrowseDescription_new();
+  brq->nodesToBrowse[0].browseDirection = UA_BROWSEDIRECTION_BOTH;
+  brq->nodesToBrowse[0].includeSubtypes = UA_TRUE;
+  UA_NodeId_copy((UA_NodeId *) readResponseSrc->results[0].value.data, &brq->nodesToBrowse[0].nodeId);
+  brq->nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL;
+  brs = UA_Client_browse(client, brq);
+  UA_BrowseRequest_delete(brq);
+  
+  if (brs.responseHeader.serviceResult!= UA_STATUSCODE_GOOD || brs.resultsSize != 1) {
+    UA_BrowseResponse_deleteMembers(&brs);
+    return retval;
+  }
+  if (brs.results[0].statusCode != UA_STATUSCODE_GOOD) {
+    UA_BrowseResponse_deleteMembers(&brs);
+    return retval;
+  }
+  
+  /* typedef struct {
+   U A_NodeId referenceTypeId; *
+   UA_Boolean isInverse;
+   UA_ExpandedNodeId targetId; */
+  target->referencesSize = brs.results[0].referencesSize;
+  target->references = (UA_ReferenceNode *) UA_malloc(sizeof(UA_ReferenceNode) *  brs.results[0].referencesSize);
+  for (int i=0; i<brs.results[0].referencesSize; i++) {
+    target->references[i].isInverse = UA_FALSE;
+    if (brs.results[0].references->isForward == UA_FALSE)
+      target->references[i].isInverse = UA_TRUE;
+    UA_NodeId_copy(&brs.results[0].references->nodeId.nodeId, &target->references[i].referenceTypeId); 
+    UA_ExpandedNodeId_init(&target->references[i].targetId);
+    UA_NodeId_copy(&brs.results[0].references->referenceTypeId, &target->references[i].targetId.nodeId);
+  }
+  
+  UA_BrowseResponse_deleteMembers(&brs);
+  return retval;
+}
+
+UA_StatusCode 
+UA_Client_appendObjectNodeAttributes(UA_Client *client, void *dst) {
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  UA_ObjectNode *target = (UA_ObjectNode *) dst;
+  UA_ReadRequest  *rrq = UA_ReadRequest_new();
+  UA_ReadResponse rrs;
+  
+  /* Read node attributes:
+      UA_ATTRIBUTEID_EVENTNOTIFIER           = 12
+   */
+  rrq->nodesToReadSize = 1;
+  rrq->nodesToRead = (UA_ReadValueId*) UA_malloc(sizeof(UA_ReadValueId) * rrq->nodesToReadSize);
+  for(int i = 0; i < rrq->nodesToReadSize; i++) {
+    UA_ReadValueId_init(&rrq->nodesToRead[i]);
+    rrq->nodesToRead[i].attributeId = (UA_UInt32 ) i+12;
+    UA_NodeId_copy(&target->nodeId, &rrq->nodesToRead[i].nodeId);
+  }
+  rrs = UA_Client_read(client, rrq);
+  UA_ReadRequest_delete(rrq);
+  if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+    return rrs.responseHeader.serviceResult;
+  if (rrs.resultsSize != rrq->nodesToReadSize)
+    return rrs.responseHeader.serviceResult;
+  
+  if (rrs.results[0].value.data != NULL)
+    UA_Byte_copy((UA_Byte *) rrs.results[0].value.data, &target->eventNotifier);
+  
+  UA_ReadResponse_deleteMembers(&rrs);
+  return retval;
+}
+
+UA_StatusCode 
+UA_Client_appendObjectTypeNodeAttributes(UA_Client *client, void *dst) {
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  UA_ObjectTypeNode *target = (UA_ObjectTypeNode *) dst;
+  UA_ReadRequest  *rrq = UA_ReadRequest_new();
+  UA_ReadResponse rrs;
+  
+  /* Read node attributes:
+   * UA_ATTRIBUTEID_ISABSTRACT              = 8,
+   */
+  rrq->nodesToReadSize = 1;
+  rrq->nodesToRead = (UA_ReadValueId*) UA_malloc(sizeof(UA_ReadValueId) * rrq->nodesToReadSize);
+  for(int i = 0; i < rrq->nodesToReadSize; i++) {
+    UA_ReadValueId_init(&rrq->nodesToRead[i]);
+    rrq->nodesToRead[i].attributeId = (UA_UInt32 ) i+8;
+    UA_NodeId_copy(&target->nodeId, &rrq->nodesToRead[i].nodeId);
+  }
+  rrs = UA_Client_read(client, rrq);
+  UA_ReadRequest_delete(rrq);
+  if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+    return rrs.responseHeader.serviceResult;
+  if (rrs.resultsSize != rrq->nodesToReadSize)
+    return rrs.responseHeader.serviceResult;
+  
+  if (rrs.results[0].value.data != NULL)
+    UA_Boolean_copy((UA_Boolean *) rrs.results[0].value.data, &target->isAbstract);
+  
+  UA_ReadResponse_deleteMembers(&rrs);
+  return retval;
+}
+
+UA_StatusCode 
+UA_Client_appendVariableNodeAttributes(UA_Client *client, void *dst) {
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  UA_VariableNode *target = (UA_VariableNode *) dst;
+  
+  UA_ReadRequest  *rrq = UA_ReadRequest_new();
+  UA_ReadResponse rrs;
+  
+   /* Read node attributes:    
+      UA_ATTRIBUTEID_VALUE                   = 13,
+      UA_ATTRIBUTEID_DATATYPE                = 14, // Req. but not used (is in variant)
+      UA_ATTRIBUTEID_ARRAYDIMENSIONS         = 16, // Req. but not used (is in variant)
+      
+      UA_ATTRIBUTEID_VALUERANK               = 15,
+      UA_ATTRIBUTEID_ACCESSLEVEL             = 17,
+      UA_ATTRIBUTEID_USERACCESSLEVEL         = 18,
+      UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL = 19,
+      UA_ATTRIBUTEID_HISTORIZING             = 20,
+   */
+  rrq->nodesToReadSize = 8;
+  rrq->nodesToRead = (UA_ReadValueId*) UA_malloc(sizeof(UA_ReadValueId) * rrq->nodesToReadSize);
+  for(int i = 0; i < rrq->nodesToReadSize; i++) {
+    UA_ReadValueId_init(&rrq->nodesToRead[i]);
+    rrq->nodesToRead[i].attributeId = (UA_UInt32 ) i+13;
+    UA_NodeId_copy(&target->nodeId, &rrq->nodesToRead[i].nodeId);
+  }
+  rrs = UA_Client_read(client, rrq);
+  UA_ReadRequest_delete(rrq);
+  if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+    return rrs.responseHeader.serviceResult;
+  if (rrs.resultsSize != rrq->nodesToReadSize)
+    return rrs.responseHeader.serviceResult;
+
+  if (rrs.results[0].value.data != NULL)
+    UA_Variant_copy((UA_Variant *) &rrs.results[0].value, &target->value.variant);
+  if (rrs.results[3].value.data != NULL)
+    UA_Int32_copy((UA_Int32 *) rrs.results[3].value.data, &target->valueRank);
+  if (rrs.results[4].value.data != NULL)
+    UA_Byte_copy((UA_Byte *) rrs.results[4].value.data, &target->accessLevel);
+  if (rrs.results[5].value.data != NULL)
+    UA_Byte_copy((UA_Byte *) rrs.results[5].value.data, &target->userAccessLevel);
+  if (rrs.results[6].value.data != NULL)
+    UA_Double_copy((UA_Double *) rrs.results[6].value.data, &target->minimumSamplingInterval);
+  if (rrs.results[7].value.data != NULL)
+    UA_Boolean_copy((UA_Boolean *) rrs.results[7].value.data, &target->historizing);
+  
+  UA_ReadResponse_deleteMembers(&rrs);
+  return retval;
+}
+
+UA_StatusCode 
+UA_Client_appendVariableTypeNodeAttributes(UA_Client *client, void *dst) {
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  UA_VariableTypeNode *target = (UA_VariableTypeNode *) dst;
+  UA_ReadRequest  *rrq = UA_ReadRequest_new();
+  UA_ReadResponse rrs;
+  
+  /* Read node attributes:
+      UA_ATTRIBUTEID_ISABSTRACT              = 8,
+      UA_ATTRIBUTEID_VALUE                   = 13,
+      UA_ATTRIBUTEID_DATATYPE                = 14, // Req. but not used (is in variant)
+      UA_ATTRIBUTEID_ARRAYDIMENSIONS         = 16, // Req. but not used (is in variant)
+      
+      UA_ATTRIBUTEID_VALUERANK               = 15,
+      
+   */
+  rrq->nodesToReadSize = 8;
+  rrq->nodesToRead = (UA_ReadValueId*) UA_malloc(sizeof(UA_ReadValueId) * rrq->nodesToReadSize);
+  for(int i = 0; i < rrq->nodesToReadSize; i++) {
+    UA_ReadValueId_init(&rrq->nodesToRead[i]);
+    rrq->nodesToRead[i].attributeId = (UA_UInt32 ) i+13;
+    UA_NodeId_copy(&target->nodeId, &rrq->nodesToRead[i].nodeId);
+  }
+  rrq->nodesToRead[0].attributeId = UA_ATTRIBUTEID_ISABSTRACT;
+  
+  rrs = UA_Client_read(client, rrq);
+  UA_ReadRequest_delete(rrq);
+  if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+    return rrs.responseHeader.serviceResult;
+  if (rrs.resultsSize != rrq->nodesToReadSize)
+    return rrs.responseHeader.serviceResult;
+  
+  if (rrs.results[0].value.data != NULL)
+    UA_Boolean_copy((UA_Boolean *) rrs.results[0].value.data, &target->isAbstract);
+  if (rrs.results[1].value.data != NULL)
+    UA_Variant_copy((UA_Variant *) &rrs.results[1].value, &target->value.variant);
+  if (rrs.results[2].value.data != NULL)
+    UA_Int32_copy((UA_Int32 *) rrs.results[2].value.data, &target->valueRank);
+  
+  
+  UA_ReadResponse_deleteMembers(&rrs);
+  return retval;
+}
+
+UA_StatusCode 
+UA_Client_appendReferenceTypeNodeAttributes(UA_Client *client, void *dst) {
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  UA_ReferenceTypeNode *target = (UA_ReferenceTypeNode *) dst;
+  UA_ReadRequest  *rrq = UA_ReadRequest_new();
+  UA_ReadResponse rrs;
+  
+  /* Read node attributes:
+      UA_ATTRIBUTEID_SYMMETRIC               = 9,
+      UA_ATTRIBUTEID_INVERSENAME             = 10,
+   *  UA_ATTRIBUTEID_ISABSTRACT              = 8,
+   */
+  rrq->nodesToReadSize = 3;
+  rrq->nodesToRead = (UA_ReadValueId*) UA_malloc(sizeof(UA_ReadValueId) * rrq->nodesToReadSize);
+  for(int i = 0; i < rrq->nodesToReadSize; i++) {
+    UA_ReadValueId_init(&rrq->nodesToRead[i]);
+    rrq->nodesToRead[i].attributeId = (UA_UInt32 ) i+8;
+    UA_NodeId_copy(&target->nodeId, &rrq->nodesToRead[i].nodeId);
+  }
+  rrs = UA_Client_read(client, rrq);
+  UA_ReadRequest_delete(rrq);
+  if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+    return rrs.responseHeader.serviceResult;
+  if (rrs.resultsSize != rrq->nodesToReadSize)
+    return rrs.responseHeader.serviceResult;
+  
+  if (rrs.results[0].value.data != NULL)
+    UA_Boolean_copy((UA_Boolean *) rrs.results[0].value.data, &target->isAbstract);
+  if (rrs.results[1].value.data != NULL)
+    UA_Boolean_copy((UA_Boolean *) rrs.results[1].value.data, &target->symmetric);
+  if (rrs.results[2].value.data != NULL)
+    UA_LocalizedText_copy((UA_LocalizedText *) rrs.results[2].value.data, &target->inverseName);
+  
+  UA_ReadResponse_deleteMembers(&rrs);
+  return retval;
+  return retval;
+}
+
+UA_StatusCode 
+UA_Client_appendViewNodeAttributes(UA_Client *client, void *dst) {
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  UA_ViewNode *target = (UA_ViewNode *) dst;
+  UA_ReadRequest  *rrq = UA_ReadRequest_new();
+  UA_ReadResponse rrs;
+  
+  /* Read node attributes:
+      UA_ATTRIBUTEID_CONTAINSNOLOOPS         = 11,
+      UA_ATTRIBUTEID_EVENTNOTIFIER           = 12,
+   */
+  rrq->nodesToReadSize = 2;
+  rrq->nodesToRead = (UA_ReadValueId*) UA_malloc(sizeof(UA_ReadValueId) * rrq->nodesToReadSize);
+  for(int i = 0; i < rrq->nodesToReadSize; i++) {
+    UA_ReadValueId_init(&rrq->nodesToRead[i]);
+    rrq->nodesToRead[i].attributeId = (UA_UInt32 ) i+11;
+    UA_NodeId_copy(&target->nodeId, &rrq->nodesToRead[i].nodeId);
+  }
+  rrs = UA_Client_read(client, rrq);
+  UA_ReadRequest_delete(rrq);
+  if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+    return rrs.responseHeader.serviceResult;
+  if (rrs.resultsSize != rrq->nodesToReadSize)
+    return rrs.responseHeader.serviceResult;
+  
+  if (rrs.results[0].value.data != NULL)
+    UA_Boolean_copy((UA_Boolean *) rrs.results[0].value.data, &target->containsNoLoops);
+  if (rrs.results[1].value.data != NULL)
+    UA_Byte_copy((UA_Byte *) rrs.results[1].value.data, &target->eventNotifier);
+  
+  UA_ReadResponse_deleteMembers(&rrs);
+  return retval;
+  return retval;
+}
+
+UA_StatusCode 
+UA_Client_appendDataTypeNodeAttributes(UA_Client *client, void *dst) {
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  UA_DataTypeNode *target = (UA_DataTypeNode *) dst;
+  UA_ReadRequest  *rrq = UA_ReadRequest_new();
+  UA_ReadResponse rrs;
+  
+  /* Read node attributes:
+   * UA_ATTRIBUTEID_ISABSTRACT              = 8,
+   */
+  rrq->nodesToReadSize = 1;
+  rrq->nodesToRead = (UA_ReadValueId*) UA_malloc(sizeof(UA_ReadValueId) * rrq->nodesToReadSize);
+  for(int i = 0; i < rrq->nodesToReadSize; i++) {
+    UA_ReadValueId_init(&rrq->nodesToRead[i]);
+    rrq->nodesToRead[i].attributeId = (UA_UInt32 ) i+8;
+    UA_NodeId_copy(&target->nodeId, &rrq->nodesToRead[i].nodeId);
+  }
+  rrs = UA_Client_read(client, rrq);
+  UA_ReadRequest_delete(rrq);
+  if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+    return rrs.responseHeader.serviceResult;
+  if (rrs.resultsSize != rrq->nodesToReadSize)
+    return rrs.responseHeader.serviceResult;
+  
+  if (rrs.results[0].value.data != NULL)
+    UA_Boolean_copy((UA_Boolean *) rrs.results[0].value.data, &target->isAbstract);
+  
+  UA_ReadResponse_deleteMembers(&rrs);
+  return retval;
+}
+
+UA_StatusCode 
+UA_Client_getNodeCopy(UA_Client *client, UA_NodeId nodeId, void **copyInto) {
+  UA_ReadRequest  *rrq = UA_ReadRequest_new();
+  UA_ReadResponse rrs;
+  
+  *copyInto = UA_NULL;
+  /* Read default node attributes:
+      UA_ATTRIBUTEID_NODEID                  = 1,
+      UA_ATTRIBUTEID_NODECLASS               = 2,
+      UA_ATTRIBUTEID_BROWSENAME              = 3,
+      UA_ATTRIBUTEID_DISPLAYNAME             = 4,
+      UA_ATTRIBUTEID_DESCRIPTION             = 5,
+      UA_ATTRIBUTEID_WRITEMASK               = 6,
+      UA_ATTRIBUTEID_USERWRITEMASK           = 7,
+   */
+  rrq->nodesToReadSize = 7;
+  rrq->nodesToRead = (UA_ReadValueId*) UA_malloc(sizeof(UA_ReadValueId) * rrq->nodesToReadSize);
+  for(int i = 0; i < rrq->nodesToReadSize; i++) {
+    UA_ReadValueId_init(&rrq->nodesToRead[i]);
+    rrq->nodesToRead[i].attributeId = (UA_UInt32 ) i+1;
+    UA_NodeId_copy(&nodeId, &rrq->nodesToRead[i].nodeId);
+  }
+  rrs = UA_Client_read(client, rrq);
+  if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+    return rrs.responseHeader.serviceResult;
+  if (rrs.resultsSize != rrq->nodesToReadSize)
+    return rrs.responseHeader.serviceResult;
+  UA_ReadRequest_delete(rrq);
+  
+  UA_UInt32 *nodeClass = rrs.results[1].value.data;
+  switch(*nodeClass) {
+    case UA_NODECLASS_OBJECT:
+      *copyInto = UA_ObjectNode_new();
+      UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      break;
+    case UA_NODECLASS_OBJECTTYPE:
+      *copyInto = UA_ObjectTypeNode_new();
+      UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      break;
+    case UA_NODECLASS_VARIABLE:
+      *copyInto = UA_VariableNode_new();
+      UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      UA_Client_appendVariableNodeAttributes(client, *copyInto);
+      break;
+    case UA_NODECLASS_VARIABLETYPE:
+      *copyInto = UA_VariableTypeNode_new();
+      UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      break;
+    case UA_NODECLASS_REFERENCETYPE:
+      *copyInto = UA_ReferenceTypeNode_new();
+      UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      break;
+    case UA_NODECLASS_METHOD:
+      *copyInto = UA_MethodNode_new();
+      UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      break;
+    case UA_NODECLASS_VIEW:
+      *copyInto = UA_ViewNode_new();
+      UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      break;
+    case UA_NODECLASS_DATATYPE:
+      *copyInto = UA_DataTypeNode_new();
+      UA_Client_copyBaseAttributes(client, &rrs, *copyInto);
+      break;
+    default:
+      UA_ReadRequest_delete(rrq);
+      UA_ReadResponse_deleteMembers(&rrs);
+      return UA_STATUSCODE_BADNODECLASSINVALID;
+  }
+  /*
+  UA_ATTRIBUTEID_ISABSTRACT              = 8,
+  
+  UA_ATTRIBUTEID_SYMMETRIC               = 9,
+  UA_ATTRIBUTEID_INVERSENAME             = 10,
+ 
+  UA_ATTRIBUTEID_CONTAINSNOLOOPS         = 11,
+  UA_ATTRIBUTEID_EVENTNOTIFIER           = 12,
+  
+  UA_ATTRIBUTEID_EXECUTABLE              = 21,
+  UA_ATTRIBUTEID_USEREXECUTABLE          = 22
+  */
+  
+  UA_ReadResponse_deleteMembers(&rrs);
+  return 0;
 }

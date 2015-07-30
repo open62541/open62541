@@ -107,6 +107,27 @@ typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean i
 UA_StatusCode UA_EXPORT
 UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback);
 
+UA_StatusCode 
+UA_Client_copyBaseAttributes(UA_Client *client, UA_ReadResponse *readResponseSrc, void *dst);
+
+UA_StatusCode 
+UA_Client_appendObjectNodeAttributes(UA_Client *client, void *dst);
+UA_StatusCode 
+UA_Client_appendObjectTypeNodeAttributes(UA_Client *client, void *dst);
+UA_StatusCode 
+UA_Client_appendVariableNodeAttributes(UA_Client *client, void *dst);
+UA_StatusCode 
+UA_Client_appendVariableTypeNodeAttributes(UA_Client *client, void *dst);
+UA_StatusCode 
+UA_Client_appendReferenceTypeNodeAttributes(UA_Client *client, void *dst);
+UA_StatusCode 
+UA_Client_appendViewNodeAttributes(UA_Client *client, void *dst);
+UA_StatusCode 
+UA_Client_appendDataTypeNodeAttributes(UA_Client *client, void *dst);
+
+UA_StatusCode UA_EXPORT 
+UA_Client_getNodeCopy(UA_Client *client, UA_NodeId nodeId, void **copyInto);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
