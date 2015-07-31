@@ -562,7 +562,6 @@ addOneWayReferenceWithSession(UA_Server *server, UA_Session *session, const UA_A
 #endif
 }
 
-UA_StatusCode deleteOneWayReferenceWithSession(UA_Server *server, UA_Session *session, const UA_DeleteReferencesItem *item);
 UA_StatusCode deleteOneWayReferenceWithSession(UA_Server *server, UA_Session *session, const UA_DeleteReferencesItem *item) {
   UA_Node *node = UA_NULL;
   UA_StatusCode retval = UA_Server_getNodeCopy(server, item->sourceNodeId, (void *) &node);

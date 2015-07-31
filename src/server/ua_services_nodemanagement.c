@@ -237,8 +237,7 @@ static void addNodeFromAttributes(UA_Server *server, UA_Session *session, UA_Add
     }
 }
 
-UA_StatusCode deleteNode(UA_Server *server, UA_NodeId nodeId, UA_Boolean deleteReferences);
-UA_StatusCode deleteNode(UA_Server *server, UA_NodeId nodeId, UA_Boolean deleteReferences) {
+static UA_StatusCode deleteNode(UA_Server *server, UA_NodeId nodeId, UA_Boolean deleteReferences) {
   const UA_Node *delNode = UA_NodeStore_get(server->nodestore, &nodeId);
   if (!delNode)
     return UA_STATUSCODE_BADNODEIDINVALID;
