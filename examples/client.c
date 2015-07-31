@@ -5,12 +5,12 @@
 # include "networklayer_tcp.h"
 # include "logger_stdout.h"
 # include "ua_types_encoding_binary.h"
+#include "ua_nodes.h"
 #else
 # include "open62541.h"
 # include <string.h>
 # include <stdlib.h>
 #endif
-
 #include <stdio.h>
 
 void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value);
@@ -243,7 +243,12 @@ int main(int argc, char *argv[]) {
     free(theValue);
     /* Done creating a new node*/
 #endif
+    // Iterate over all nodes in 'Objects'
     UA_Client_forEachChildNodeCall(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter);
+    
+    // Get a copy of the node 'TheNewVariableNode'
+    void *theCopy;
+    UA_Client_getNodeCopy(client, retNodeId, (void*) &theCopy);
     
     UA_Client_disconnect(client);
     UA_Client_delete(client);
