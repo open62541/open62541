@@ -993,6 +993,28 @@ UA_StatusCode UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNode
 }
 #endif
 
+/* Delete Node */
+UA_StatusCode UA_Client_deleteNode(UA_Client *client, UA_NodeId nodeId) {
+  UA_DeleteNodesRequest *drq = UA_DeleteNodesRequest_new();
+  UA_DeleteNodesResponse drs;
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  
+  drq->nodesToDeleteSize = 1;
+  drq->nodesToDelete = (UA_DeleteNodesItem *) UA_malloc(sizeof(UA_DeleteNodesItem));
+  drq->nodesToDelete[0].deleteTargetReferences = UA_TRUE;
+  UA_NodeId_copy(&nodeId, &drq->nodesToDelete[0].nodeId);
+  drs = UA_Client_deleteNodes(client, drq);
+  
+  if (drs.responseHeader.serviceResult != UA_STATUSCODE_GOOD || drs.resultsSize < 1)
+    return drs.responseHeader.serviceResult;
+  
+  retval = drs.results[0];
+    
+  UA_DeleteNodesRequest_delete(drq);
+  UA_DeleteNodesResponse_deleteMembers(&drs);
+  return retval;
+}
+
 #define ADDNODES_COPYDEFAULTATTRIBUTES(REQUEST,ATTRIBUTES) do {                           \
     ATTRIBUTES.specifiedAttributes = 0;                                                   \
     if(! UA_LocalizedText_copy(&description, &(ATTRIBUTES.description)))                  \

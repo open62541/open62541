@@ -562,6 +562,63 @@ addOneWayReferenceWithSession(UA_Server *server, UA_Session *session, const UA_A
 #endif
 }
 
+UA_StatusCode deleteOneWayReferenceWithSession(UA_Server *server, UA_Session *session, const UA_DeleteReferencesItem *item);
+UA_StatusCode deleteOneWayReferenceWithSession(UA_Server *server, UA_Session *session, const UA_DeleteReferencesItem *item) {
+  UA_Node *node = UA_NULL;
+  UA_StatusCode retval = UA_Server_getNodeCopy(server, item->sourceNodeId, (void *) &node);
+  if (!node)
+    return retval;
+  
+  // Copy all that do not target the targetNode in a new array
+  UA_ReferenceNode *newRefs = (UA_ReferenceNode*) UA_malloc(sizeof(UA_ReferenceNode) * node->referencesSize);
+  UA_UInt32 newRefCount = 0;
+  for(int refn = 0; refn < node->referencesSize; refn++) {
+    // Completely different target node:
+    if (!UA_NodeId_equal(&item->targetNodeId.nodeId, &node->references[refn].targetId.nodeId)) {
+      UA_ReferenceNode_copy(&node->references[refn], &newRefs[newRefCount]);
+      newRefCount++;
+    }
+    else {
+      // Correct target node, wrong referenceType
+      if (!UA_NodeId_equal(&item->referenceTypeId, &node->references[refn].referenceTypeId)) {
+        UA_ReferenceNode_copy(&node->references[refn], &newRefs[newRefCount]);
+        newRefCount++;
+      }
+      else {
+        // Correct target, correct referenceType, wrong direction
+        // FIXME: Check semantics of deleteBidirectional: does it mean we delete any forward or inverse refs 
+        //        in this node (assumed here) OR does it mean we remove Invers refs from target node??
+        if (item->deleteBidirectional == UA_FALSE && (item->isForward != node->references[refn].isInverse)) {
+          UA_ReferenceNode_copy(&node->references[refn], &newRefs[newRefCount]);
+          newRefCount++;
+        }
+        // else... everything matches, don't copy this node into the new reference array. 
+      }
+    }
+  }
+  
+  // Reallocate
+  UA_ReferenceNode *tmp = UA_realloc(newRefs, sizeof(UA_ReferenceNode) * newRefCount);
+  if (!tmp) {
+    if (newRefCount > 0) 
+      UA_free(newRefs); //realloc with zero size is equal to free!
+    UA_Server_deleteNodeCopy(server, (void *) &node);
+    return UA_STATUSCODE_BADOUTOFMEMORY;
+  }
+  newRefs = tmp;
+  
+  // Swap old references in node for new ones, then free old array
+  tmp = node->references;
+  node->referencesSize = newRefCount;
+  node->references = newRefs;
+  if (tmp)
+    UA_free(tmp);
+  
+  const UA_Node *inserted;
+  retval |= UA_NodeStore_replace(server->nodestore, (const UA_Node *) node, node, &inserted);
+  return retval;
+}
+
 /* userland version of addReferenceWithSession */
 UA_StatusCode UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId, const UA_NodeId refTypeId,
                                      const UA_ExpandedNodeId targetId) {

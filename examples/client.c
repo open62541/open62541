@@ -250,6 +250,8 @@ int main(int argc, char *argv[]) {
     void *theCopy;
     UA_Client_getNodeCopy(client, retNodeId, (void*) &theCopy);
     
+    UA_Client_deleteNode(client, UA_NODEID_NUMERIC(1,62541));
+    
     UA_Client_disconnect(client);
     UA_Client_delete(client);
     return UA_STATUSCODE_GOOD;

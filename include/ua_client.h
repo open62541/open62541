@@ -60,6 +60,10 @@ UA_DeleteReferencesResponse UA_EXPORT
 
 
 /* Client-Side Macro/Procy functions */
+
+UA_StatusCode UA_EXPORT
+UA_Client_deleteNode(UA_Client *client, UA_NodeId nodeId);
+
 #ifdef ENABLE_METHODCALLS
 UA_CallResponse UA_EXPORT UA_Client_call(UA_Client *client, UA_CallRequest *request);
 UA_StatusCode UA_EXPORT UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId,
