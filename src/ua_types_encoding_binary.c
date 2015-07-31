@@ -791,7 +791,7 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
 
 /* The resulting variant always has the storagetype UA_VARIANT_DATA. Currently,
  we only support ns0 types (todo: attach typedescriptions to datatypenodes) */
-UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset, UA_Variant *dst) {
+UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, size_t *offset, UA_Variant *dst) {
     UA_Variant_init(dst);
     UA_Byte encodingByte;
     UA_StatusCode retval = UA_Byte_decodeBinary(src, offset, &encodingByte);
@@ -803,38 +803,34 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, size_t *UA_RESTR
     if(typeIndex > 24) /* must be builtin */
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    if(isArray) {
+    if(isArray || typeIndex != UA_TYPES_EXTENSIONOBJECT) {
+        /* an array or a single builtin */
         const UA_DataType *dataType = &UA_TYPES[typeIndex];
         UA_Int32 arraySize = -1;
-        retval |= UA_Int32_decodeBinary(src, offset, &arraySize);
-        retval |= UA_Array_decodeBinary(src, offset, arraySize, &dst->data, dataType);
+        if(isArray) {
+            retval |= UA_Int32_decodeBinary(src, offset, &arraySize);
+            if(retval != UA_STATUSCODE_GOOD)
+                return retval;
+        }
+        retval |= UA_Array_decodeBinary(src, offset, (!isArray && arraySize==-1) ? 1: arraySize, &dst->data, dataType);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        dst->arrayLength = arraySize;
-        dst->type = dataType;
-    } else if(typeIndex != UA_TYPES_EXTENSIONOBJECT) {
-        const UA_DataType *dataType = &UA_TYPES[typeIndex];
-        retval |= UA_Array_decodeBinary(src, offset, 1, &dst->data, dataType);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+        dst->arrayLength = arraySize; // for deleteMembers
         dst->type = dataType;
     } else {
         /* a single extensionobject */
         size_t oldoffset = *offset;
         UA_NodeId typeId;
-        retval = UA_NodeId_decodeBinary(src, offset, &typeId);
-        if(retval != UA_STATUSCODE_GOOD)
+        if((retval |= UA_NodeId_decodeBinary(src, offset, &typeId)) != UA_STATUSCODE_GOOD)
             return retval;
         UA_Byte EOencodingByte;
-        retval = UA_Byte_decodeBinary(src, offset, &EOencodingByte);
-        if(retval != UA_STATUSCODE_GOOD) {
+        if((retval |= UA_Byte_decodeBinary(src, offset, &EOencodingByte)) != UA_STATUSCODE_GOOD) {
             UA_NodeId_deleteMembers(&typeId);
             return retval;
         }
         const UA_DataType *dataType = UA_NULL;
         if(typeId.namespaceIndex == 0 && EOencodingByte == UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING) {
-            /* find the datatype (ins ns0) of the extension object */
-            for(typeIndex = 0; typeIndex < UA_TYPES_COUNT; typeIndex++) {
+            for(typeIndex = 0;typeIndex < UA_TYPES_COUNT; typeIndex++) {
                 if(UA_NodeId_equal(&typeId, &UA_TYPES[typeIndex].typeId)) {
                     dataType = &UA_TYPES[typeIndex];
                     break;
@@ -846,8 +842,8 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, size_t *UA_RESTR
             *offset = oldoffset;
             dataType = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
         }
-        retval = UA_decodeBinary(src, offset, dst->data, dataType);
-        if(retval != UA_STATUSCODE_GOOD)
+        dst->data = UA_malloc(dataType->memSize);
+        if((retval |= UA_decodeBinary(src, offset, dst->data, dataType)) != UA_STATUSCODE_GOOD)
             return retval;
         dst->type = dataType;
         dst->arrayLength = -1;
@@ -855,15 +851,17 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, size_t *UA_RESTR
 
     /* array dimensions */
     if(isArray && (encodingByte & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS)) {
-        retval = UA_Int32_decodeBinary(src, offset, &dst->arrayDimensionsSize);
-        retval |= UA_Array_decodeBinary(src, offset, dst->arrayDimensionsSize,(void**) &dst->arrayDimensions,
-                                        &UA_TYPES[UA_TYPES_INT32]);
+        retval |= UA_Int32_decodeBinary(src, offset, &dst->arrayDimensionsSize);
+        if(retval == UA_STATUSCODE_GOOD)
+            retval |= UA_Array_decodeBinary(src, offset, dst->arrayDimensionsSize,
+                                            &dst->data, &UA_TYPES[UA_TYPES_INT32]);
         if(retval != UA_STATUSCODE_GOOD) {
             dst->arrayDimensionsSize = -1;
             UA_Variant_deleteMembers(dst);
+            return retval;
         }
     }
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 
 /* DiagnosticInfo */
