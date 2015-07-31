@@ -306,8 +306,8 @@ Supposing the client wants to clean up? All we need to do is to pass the nodeId 
       return 0;
     } 
 
-Assigning and changing values to variableNodes
-----------------------------------------------
+Assigning and changing values
+-----------------------------
 
 
 Callback concept and datasources

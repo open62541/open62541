@@ -303,6 +303,8 @@ typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean i
  */
 UA_StatusCode UA_EXPORT UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback);
 
+UA_StatusCode UA_EXPORT UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void *value);
+
 /** Jobs describe work that is executed once or repeatedly. */
 typedef struct {
     enum {

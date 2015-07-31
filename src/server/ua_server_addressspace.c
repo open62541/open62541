@@ -827,4 +827,180 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
         retval = addRes.statusCode;
     return retval;
 }
+
+#define SETATTRIBUTE_ASSERTNODECLASS(CLASS) {                   \
+if ((anyTypeNode.node->nodeClass & ( CLASS )) == 0) {                     \
+    UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);          \
+    return UA_STATUSCODE_BADNODECLASSINVALID;                   \
+  }                                                             \
+}
+  
+#define SETATTRIBUTE_ASSERTTYPECORRECT(TYPE) { \
+  UA_NodeId expectedType = UA_NODEID_NUMERIC(0, UA_NS0ID_##TYPE); \
+  if (!UA_NodeId_equal(&dataType->typeId, &expectedType)) {       \
+    UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);            \
+    return UA_STATUSCODE_BADTYPEMISMATCH;                         \
+  }                                                               \
+}\
+    
+UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void *value) {
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  
+  if (!value)
+    return UA_STATUSCODE_BADNOTHINGTODO;
+  
+  union {
+    UA_Node *node;
+    UA_ObjectNode *oObj;
+    UA_ObjectTypeNode *otObj;
+    UA_VariableNode *vObj;
+    UA_VariableTypeNode *vtObj;
+    UA_ReferenceTypeNode *rtObj;
+    UA_MethodNode *mObj;
+    UA_DataTypeNode *dtObj;
+    UA_ViewNode *vwObj;
+  } anyTypeNode;
+  retval = UA_Server_getNodeCopy(server, nodeId, (void **) &anyTypeNode.node);
+  
+  UA_UInt32  *nInt;
+  UA_Boolean *nBool;
+  UA_Boolean *nByte;
+  UA_Variant *nVariant;
+  UA_Double  *nDouble;
+  switch(attributeId) {
+    case UA_ATTRIBUTEID_NODEID:
+      UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      break;
+    case UA_ATTRIBUTEID_NODECLASS:
+      UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      break;
+    case UA_ATTRIBUTEID_BROWSENAME:
+      UA_QualifiedName_deleteMembers(&anyTypeNode.node->browseName);
+      UA_QualifiedName_copy((UA_QualifiedName *) value, &anyTypeNode.node->browseName);
+      break;
+    case UA_ATTRIBUTEID_DISPLAYNAME:
+      UA_LocalizedText_deleteMembers(&anyTypeNode.node->displayName);
+      UA_LocalizedText_copy((UA_LocalizedText *) value, &anyTypeNode.node->displayName);
+      break;
+    case UA_ATTRIBUTEID_DESCRIPTION:
+      UA_LocalizedText_deleteMembers(&anyTypeNode.node->description);
+      UA_LocalizedText_copy((UA_LocalizedText *) value, &anyTypeNode.node->description);
+      break;
+    case UA_ATTRIBUTEID_WRITEMASK:
+      nInt = (UA_UInt32*) value;
+      anyTypeNode.node->writeMask = *nInt;
+      break;
+    case UA_ATTRIBUTEID_USERWRITEMASK:
+      nInt = (UA_UInt32*) value;
+      anyTypeNode.node->userWriteMask = *nInt;
+      break;    
+    case UA_ATTRIBUTEID_ISABSTRACT:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_REFERENCETYPE | UA_NODECLASS_VARIABLETYPE | UA_NODECLASS_DATATYPE)
+      nBool = (UA_Boolean *) value;
+      switch(anyTypeNode.node->nodeClass) {
+        case UA_NODECLASS_OBJECTTYPE:
+          anyTypeNode.otObj->isAbstract = *nBool;
+          break;
+        case UA_NODECLASS_REFERENCETYPE:
+          anyTypeNode.rtObj->isAbstract = *nBool;
+          break;
+        case UA_NODECLASS_VARIABLETYPE:
+          anyTypeNode.vtObj->isAbstract = *nBool;
+          break;
+        case UA_NODECLASS_DATATYPE:
+          anyTypeNode.dtObj->isAbstract = *nBool;
+          break;
+        default:
+          UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+          return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+          break;
+      }
+      break;
+    case UA_ATTRIBUTEID_SYMMETRIC:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_REFERENCETYPE)
+      nBool = (UA_Boolean *) value;
+      anyTypeNode.rtObj->symmetric = *nBool;
+      break;
+    case UA_ATTRIBUTEID_INVERSENAME:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_REFERENCETYPE)
+      break;
+    case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VIEW)
+      nBool = (UA_Boolean *) value;
+      anyTypeNode.vwObj->containsNoLoops = *nBool;
+      break;
+    case UA_ATTRIBUTEID_EVENTNOTIFIER:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT)
+      nByte = value;
+      switch(anyTypeNode.node->nodeClass) {
+        case UA_NODECLASS_VIEW:
+          anyTypeNode.vwObj->eventNotifier = *nByte;
+          break;
+        case UA_NODECLASS_OBJECT:
+          anyTypeNode.oObj->eventNotifier = *nByte;
+          break;
+        default:
+          UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+          return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+          break;
+      }
+      break;
+    case UA_ATTRIBUTEID_VALUE:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE)
+      if(anyTypeNode.vObj->valueSource == UA_VALUESOURCE_DATASOURCE) {
+        UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+        return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      }
+      nVariant = value;
+      UA_Variant_deleteMembers(&anyTypeNode.vObj->value.variant);
+      UA_Variant_copy(nVariant, &anyTypeNode.vObj->value.variant);
+      break;
+    case UA_ATTRIBUTEID_DATATYPE:
+      UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      break;
+    case UA_ATTRIBUTEID_VALUERANK:
+      UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      break;
+    case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
+      UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      break;
+    case UA_ATTRIBUTEID_ACCESSLEVEL:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VARIABLE)
+      nInt = (UA_UInt32*) value;
+      anyTypeNode.node->userWriteMask = *nInt;
+      break;
+    case UA_ATTRIBUTEID_USERACCESSLEVEL:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VARIABLE)
+      nInt = (UA_UInt32*) value;
+      anyTypeNode.node->userWriteMask = *nInt;
+      break;
+    case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VARIABLE)
+      nDouble = (UA_Double *) value;
+      anyTypeNode.vObj->minimumSamplingInterval = *nDouble;
+      break;
+    case UA_ATTRIBUTEID_HISTORIZING:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VARIABLE)
+      nBool = (UA_Boolean *) value;
+      anyTypeNode.vObj->historizing= *nBool;
+      break;
+    case UA_ATTRIBUTEID_EXECUTABLE:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_METHOD)
+      nBool = (UA_Boolean *) value;
+      anyTypeNode.mObj->executable= *nBool;
+      break;
+    case UA_ATTRIBUTEID_USEREXECUTABLE:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_METHOD)
+      nBool = (UA_Boolean *) value;
+      anyTypeNode.mObj->userExecutable= *nBool;
+      break;
+  }
+  UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+  return retval;
+}
 #endif
