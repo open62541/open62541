@@ -770,6 +770,7 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, size_t *offset, 
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
         }
+        dst->data = UA_malloc(dataType->memSize & ((!isArray && arraySize==-1) ? 1: arraySize));
         retval |= UA_Array_decodeBinary(src, offset, (!isArray && arraySize==-1) ? 1: arraySize, &dst->data, dataType);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
@@ -800,6 +801,7 @@ UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, size_t *offset, 
             *offset = oldoffset;
             dataType = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
         }
+        dst->data = UA_new(dataType);
         if((retval |= UA_decodeBinary(src, offset, dst->data, dataType)) != UA_STATUSCODE_GOOD)
             return retval;
         dst->type = dataType;
