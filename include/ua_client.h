@@ -64,6 +64,23 @@ UA_DeleteReferencesResponse UA_EXPORT
 UA_StatusCode UA_EXPORT
 UA_Client_deleteNode(UA_Client *client, UA_NodeId nodeId);
 
+#define UA_CLIENT_DELETENODETYPEALIAS_DECL(TYPE) \
+UA_StatusCode UA_EXPORT UA_Client_delete##TYPE##Node(UA_Client *client, UA_NodeId nodeId);
+
+UA_CLIENT_DELETENODETYPEALIAS_DECL(Object)
+
+UA_CLIENT_DELETENODETYPEALIAS_DECL(Variable)
+
+UA_CLIENT_DELETENODETYPEALIAS_DECL(ObjectType)
+
+UA_CLIENT_DELETENODETYPEALIAS_DECL(VariableType)
+
+UA_CLIENT_DELETENODETYPEALIAS_DECL(DataType)
+
+UA_CLIENT_DELETENODETYPEALIAS_DECL(Method)
+
+UA_CLIENT_DELETENODETYPEALIAS_DECL(View)
+
 #ifdef ENABLE_METHODCALLS
 UA_CallResponse UA_EXPORT UA_Client_call(UA_Client *client, UA_CallRequest *request);
 UA_StatusCode UA_EXPORT UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId,

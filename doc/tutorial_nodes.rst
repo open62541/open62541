@@ -145,26 +145,32 @@ Adding and deleting nodes
 
 The current server example is very boring and the client doesn't do anything but connecting and disconnecting. We will fix that now by adding our own nodes at runtime (as opposed to loading them from an XML file) and we will do so once from our server and once from our client.
 
-The user does not have direct access to the nodestore of the server; so even the server application cannot directly manipulate the memory nodes are stored in. Instead, a series of API calls allow the userspace to interact with the servers nodestore. How the functions do their job is hidden - especially for the client, who uses services to create/delete nodes. To the user however this provides a substantial simplifaction. Arguments passed to these functions may vary depending on the type of the node; but if they exist for both client and server, they can be used symmetrically. The following table shows you which add|delete (written as ``(add|delete)``) functions are available in the high-level abstractions of the API.
+The user does not have direct access to the nodestore of the server; so even the server application cannot directly manipulate the memory nodes are stored in. Instead, a series of API calls allow the userspace to interact with the servers nodestore. How the functions do their job is hidden - especially for the client, who uses services to create/delete nodes. To the user however this provides a substantial simplifaction. Arguments passed to these functions may vary depending on the type of the node; but if they exist for both client and server, they can be used symmetrically. 
+
+You can pick an appropriate function for adding and deleting nodes by sticking to the following regular expression::
+
+  UA_(Client|Server)_(add|delete)<TYPE>Node();
+
+The following table shows which of these functions are currently implemented.
 
 +--------------+--------+--------+
 | Node Type    | Server | Client |
 +==============+========+========+
-| Object       |  ✔,✔   |  ✔,✘   |
+| Object       |  ✔,✔   |  ✔,✔   |
 +--------------+--------+--------+
-| Variable     |  ✔,✔   |  ✔,✘   |
+| Variable     |  ✔,✔   |  ✔,✔   |
 +--------------+--------+--------+
-| Method       |  ✔,✔   |  ✘,✘   |
+| Method       |  ✔,✔   |  ✘,✔   |
 +--------------+--------+--------+
-| ReferenceType|  ✔,✔   |  ✔,✘   |
+| ReferenceType|  ✔,✔   |  ✔,✔   |
 +--------------+--------+--------+
-| ObjectType   |  ✔,✔   |  ✔,✘   |
+| ObjectType   |  ✔,✔   |  ✔,✔   |
 +--------------+--------+--------+
-| VariableType |  ✔,✔   |  ✘,✘   |
+| VariableType |  ✔,✔   |  ✘,✔   |
 +--------------+--------+--------+
-| DataType     |  ✔,✔   |  ✘,✘   |
+| DataType     |  ✔,✔   |  ✘,✔   |
 +--------------+--------+--------+
-| View         |  ✔,✔   |  ✘,✘   |
+| View         |  ✔,✔   |  ✘,✔   |
 +--------------+--------+--------+
 
 **FIXME**: The client should be able to do more than that. Please check back with us to see if we have come around to implement that feature.
@@ -227,9 +233,78 @@ Why was the NodeId myObjectsId passed? When creating dynamic node instances at r
     if (retval)
       printf("Create node failed\n");
 
-However, we will need that nodeId to actually have the client create a couple of nodes.
+However, we will need that nodeId to actually have the client create a couple of nodes. To have the Client actually create a node, say an Object, we just need to pick the propper function and insert it into the example::
 
+    #include <stdio.h>
 
+    #include "ua_types.h"
+    #include "ua_server.h"
+    #include "logger_stdout.h"
+    #include "networklayer_tcp.h"
+
+    int main(void) {
+      UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
+      UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect, "opc.tcp://localhost:16664");
+      if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(client);
+        return retval;
+      }
+      
+      // Add a new node with a server-picked nodeId
+      UA_NodeId addedNodeId;
+      UA_StatusCode retval = UA_Client_addObjectNode( 
+        client, UA_NODEID_NUMERIC(1,0), UA_QUALIFIEDNAME(1, "ClientSideObject1"), 
+        UA_LOCALIZEDTEXT("en_US", "ClientSideObject1"),
+        UA_LOCALIZEDTEXT("en_US", "A dynamic object node added by the client."),
+        UA_NODEID_NUMERIC(1, 1000), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), 0, 0,
+        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), &addedNodeId
+      );
+      if (retval)
+        printf("Create node failed\n");
+      
+      UA_Client_disconnect(client);
+      UA_Client_delete(client);
+      return 0;
+    } 
+
+If you start the server, run the client and take a look at the server with UAExpert afterwards, you will see that the client has created a new node under the 'MyObjects' node created by the server. We are passing the NodeId (1,0), so the server will pick an appropriate ID for this new node when he creates it.
+
+Supposing the client wants to clean up? All we need to do is to pass the nodeId returned by the server.::
+
+    #include <stdio.h>
+
+    #include "ua_types.h"
+    #include "ua_server.h"
+    #include "logger_stdout.h"
+    #include "networklayer_tcp.h"
+
+    int main(void) {
+      UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
+      UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect, "opc.tcp://localhost:16664");
+      if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(client);
+        return retval;
+      }
+      
+      // Add a new node with a server-picked nodeId
+      UA_NodeId addedNodeId;
+      UA_StatusCode retval = UA_Client_addObjectNode( 
+        client, UA_NODEID_NUMERIC(1,0), UA_QUALIFIEDNAME(1, "ClientSideObject1"), 
+        UA_LOCALIZEDTEXT("en_US", "ClientSideObject1"),
+        UA_LOCALIZEDTEXT("en_US", "A dynamic object node added by the client."),
+        UA_NODEID_NUMERIC(1, 1000), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), 0, 0,
+        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), &addedNodeId
+      );
+      if (retval)
+        printf("Create node failed\n");
+      
+      // Cleanup the newly created node
+      UA_Client_deleteObjectNode(client, addedNodeId);
+      
+      UA_Client_disconnect(client);
+      UA_Client_delete(client);
+      return 0;
+    } 
 
 Assigning and changing values to variableNodes
 ----------------------------------------------

@@ -994,6 +994,11 @@ UA_StatusCode UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNode
 #endif
 
 /* Delete Node */
+#define UA_CLIENT_DELETENODETYPEALIAS(TYPE) \
+UA_StatusCode UA_Client_delete##TYPE##Node(UA_Client *client, UA_NodeId nodeId) { \
+  return UA_Client_deleteNode(client, nodeId);\
+}
+
 UA_StatusCode UA_Client_deleteNode(UA_Client *client, UA_NodeId nodeId) {
   UA_DeleteNodesRequest *drq = UA_DeleteNodesRequest_new();
   UA_DeleteNodesResponse drs;
@@ -1014,6 +1019,20 @@ UA_StatusCode UA_Client_deleteNode(UA_Client *client, UA_NodeId nodeId) {
   UA_DeleteNodesResponse_deleteMembers(&drs);
   return retval;
 }
+
+UA_CLIENT_DELETENODETYPEALIAS(Object)
+
+UA_CLIENT_DELETENODETYPEALIAS(Variable)
+
+UA_CLIENT_DELETENODETYPEALIAS(ObjectType)
+
+UA_CLIENT_DELETENODETYPEALIAS(VariableType)
+
+UA_CLIENT_DELETENODETYPEALIAS(DataType)
+
+UA_CLIENT_DELETENODETYPEALIAS(Method)
+
+UA_CLIENT_DELETENODETYPEALIAS(View)
 
 #define ADDNODES_COPYDEFAULTATTRIBUTES(REQUEST,ATTRIBUTES) do {                           \
     ATTRIBUTES.specifiedAttributes = 0;                                                   \
