@@ -1822,11 +1822,11 @@ UA_Client_setAttributeValue(UA_Client *client, UA_NodeId nodeId, UA_AttributeId 
       break;
     case UA_ATTRIBUTEID_ACCESSLEVEL:
       wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_UINT32];
-      SETATTRIBUTE_COPYTYPEVALUE(UInt32);
+      SETATTRIBUTE_COPYTYPEVALUE(Byte);
       break;
     case UA_ATTRIBUTEID_USERACCESSLEVEL:
       wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_UINT32];
-      SETATTRIBUTE_COPYTYPEVALUE(UInt32);
+      SETATTRIBUTE_COPYTYPEVALUE(Byte);
       break;
     case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
       wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_DOUBLE];
@@ -1950,10 +1950,10 @@ UA_Client_getAttributeValue(UA_Client *client, UA_NodeId nodeId, UA_AttributeId 
       return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
       break;
     case UA_ATTRIBUTEID_ACCESSLEVEL:
-      GETATTRIBUTE_COPYTYPEVALUE(UInt32)
+      GETATTRIBUTE_COPYTYPEVALUE(Byte)
       break;
     case UA_ATTRIBUTEID_USERACCESSLEVEL:
-      GETATTRIBUTE_COPYTYPEVALUE(UInt32)
+      GETATTRIBUTE_COPYTYPEVALUE(Byte)
       break;
     case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
       GETATTRIBUTE_COPYTYPEVALUE(Double)
