@@ -861,6 +861,8 @@ UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, U
     UA_ViewNode *vwObj;
   } anyTypeNode;
   retval = UA_Server_getNodeCopy(server, nodeId, (void **) &anyTypeNode.node);
+  if (retval)
+    return retval;
   
   UA_UInt32  *nInt;
   UA_Boolean *nBool;
@@ -925,6 +927,8 @@ UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, U
       break;
     case UA_ATTRIBUTEID_INVERSENAME:
       SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_REFERENCETYPE)
+      UA_LocalizedText_deleteMembers(&anyTypeNode.rtObj->inverseName);
+      UA_LocalizedText_copy((UA_LocalizedText *) value, &anyTypeNode.rtObj->inverseName);
       break;
     case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
       SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VIEW)
@@ -1000,7 +1004,14 @@ UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, U
       anyTypeNode.mObj->userExecutable= *nBool;
       break;
   }
-  UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+  
+  const UA_Node *oldNode = UA_NodeStore_get(server->nodestore, &nodeId);
+  const UA_Node **inserted = UA_NULL;
+  retval |= UA_NodeStore_replace(server->nodestore, oldNode, anyTypeNode.node, inserted);
+  UA_NodeStore_release(oldNode);
+  
+  // Node Copy deleted by nodeEntryFromNode() during nodestore_replace()!
+  //UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
   return retval;
 }
 #endif

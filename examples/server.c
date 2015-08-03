@@ -353,6 +353,10 @@ int main(int argc, char** argv) {
   printf("Nodes connected to 'Objects':\n=============================\n");
   UA_Server_forEachChildNodeCall(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter);
   
+  // Some easy localization
+  UA_LocalizedText objectsName = UA_LOCALIZEDTEXT("de_DE", "Objekte");
+  UA_Server_setAttributeValue(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_ATTRIBUTEID_DISPLAYNAME, (void *) &objectsName);
+  
   //start server
   UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false
 
@@ -368,7 +372,7 @@ int main(int argc, char** argv) {
           fprintf(triggerFile, "%s", "mmc0");
           fclose(triggerFile);
   }
-
+  
   if(ledFile)
     fclose(ledFile);
 
