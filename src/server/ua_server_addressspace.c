@@ -866,7 +866,7 @@ UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, U
   
   UA_UInt32  *nInt;
   UA_Boolean *nBool;
-  UA_Boolean *nByte;
+  UA_Byte    *nByte;
   UA_Variant *nVariant;
   UA_Double  *nDouble;
   switch(attributeId) {
@@ -937,7 +937,7 @@ UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, U
       break;
     case UA_ATTRIBUTEID_EVENTNOTIFIER:
       SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT)
-      nByte = value;
+      nByte = (UA_Byte *) value;
       switch(anyTypeNode.node->nodeClass) {
         case UA_NODECLASS_VIEW:
           anyTypeNode.vwObj->eventNotifier = *nByte;
@@ -975,13 +975,13 @@ UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, U
       break;
     case UA_ATTRIBUTEID_ACCESSLEVEL:
       SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VARIABLE)
-      nInt = (UA_UInt32*) value;
-      anyTypeNode.node->userWriteMask = *nInt;
+      nByte = (UA_Byte*) value;
+      anyTypeNode.vObj->accessLevel = *nByte;
       break;
     case UA_ATTRIBUTEID_USERACCESSLEVEL:
       SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VARIABLE)
-      nInt = (UA_UInt32*) value;
-      anyTypeNode.node->userWriteMask = *nInt;
+      nByte = (UA_Byte*) value;
+      anyTypeNode.vObj->userAccessLevel = *nByte;
       break;
     case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
       SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VARIABLE)
@@ -1003,6 +1003,10 @@ UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, U
       nBool = (UA_Boolean *) value;
       anyTypeNode.mObj->userExecutable= *nBool;
       break;
+    default:
+      UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      break;
   }
   
   const UA_Node *oldNode = UA_NodeStore_get(server->nodestore, &nodeId);
@@ -1012,6 +1016,173 @@ UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, U
   
   // Node Copy deleted by nodeEntryFromNode() during nodestore_replace()!
   //UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+  return retval;
+}
+
+#define SERVER_GETATTRIBUTE_COPYTYPEVALUE(TYPE, SRC) \
+  *value = (void *) UA_##TYPE##_new();               \
+  UA_##TYPE##_copy( SRC, (UA_##TYPE *) *value  );    \
+  
+UA_StatusCode UA_Server_getAttributeValue(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void **value) {
+  union {
+    UA_Node *node;
+    UA_ObjectNode *oObj;
+    UA_ObjectTypeNode *otObj;
+    UA_VariableNode *vObj;
+    UA_VariableTypeNode *vtObj;
+    UA_ReferenceTypeNode *rtObj;
+    UA_MethodNode *mObj;
+    UA_DataTypeNode *dtObj;
+    UA_ViewNode *vwObj;
+  } anyTypeNode;
+  
+  UA_StatusCode retval = UA_Server_getNodeCopy(server, nodeId, (void **) &anyTypeNode.node);
+  if (retval != UA_STATUSCODE_GOOD)
+    return retval;
+  
+  switch(attributeId) {
+    case UA_ATTRIBUTEID_NODEID:
+      SERVER_GETATTRIBUTE_COPYTYPEVALUE(NodeId, &anyTypeNode.node->nodeId);
+      break;
+    case UA_ATTRIBUTEID_NODECLASS:
+      SERVER_GETATTRIBUTE_COPYTYPEVALUE(NodeClass, &anyTypeNode.node->nodeClass);
+      break;
+    case UA_ATTRIBUTEID_BROWSENAME:
+      SERVER_GETATTRIBUTE_COPYTYPEVALUE(QualifiedName, &anyTypeNode.node->browseName);
+      break;
+    case UA_ATTRIBUTEID_DISPLAYNAME:
+      SERVER_GETATTRIBUTE_COPYTYPEVALUE(LocalizedText, &anyTypeNode.node->displayName);
+      break;
+    case UA_ATTRIBUTEID_DESCRIPTION:
+      SERVER_GETATTRIBUTE_COPYTYPEVALUE(LocalizedText, &anyTypeNode.node->description);
+      break;
+    case UA_ATTRIBUTEID_WRITEMASK:
+      SERVER_GETATTRIBUTE_COPYTYPEVALUE(UInt32, &anyTypeNode.node->writeMask);
+      break;
+    case UA_ATTRIBUTEID_USERWRITEMASK:
+      SERVER_GETATTRIBUTE_COPYTYPEVALUE(UInt32, &anyTypeNode.node->userWriteMask);
+      break;    
+    case UA_ATTRIBUTEID_ISABSTRACT:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_REFERENCETYPE | UA_NODECLASS_VARIABLETYPE | UA_NODECLASS_DATATYPE)
+      switch(anyTypeNode.node->nodeClass) {
+        case UA_NODECLASS_OBJECTTYPE:
+          SERVER_GETATTRIBUTE_COPYTYPEVALUE(Boolean, &anyTypeNode.otObj->isAbstract);
+          break;
+        case UA_NODECLASS_REFERENCETYPE:
+          SERVER_GETATTRIBUTE_COPYTYPEVALUE(Boolean, &anyTypeNode.rtObj->isAbstract);
+          break;
+        case UA_NODECLASS_VARIABLETYPE:
+          SERVER_GETATTRIBUTE_COPYTYPEVALUE(Boolean, &anyTypeNode.vtObj->isAbstract);
+          break;
+        case UA_NODECLASS_DATATYPE:
+          SERVER_GETATTRIBUTE_COPYTYPEVALUE(Boolean, &anyTypeNode.dtObj->isAbstract);
+          break;
+        default:
+          UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+          return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+          break;
+      }
+      break;
+    case UA_ATTRIBUTEID_SYMMETRIC:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_REFERENCETYPE)
+      SERVER_GETATTRIBUTE_COPYTYPEVALUE(Boolean, &anyTypeNode.rtObj->symmetric);
+      break;
+    case UA_ATTRIBUTEID_INVERSENAME:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_REFERENCETYPE)
+      SERVER_GETATTRIBUTE_COPYTYPEVALUE(LocalizedText, &anyTypeNode.rtObj->inverseName);
+      break;
+    case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VIEW)
+      SERVER_GETATTRIBUTE_COPYTYPEVALUE(Boolean, &anyTypeNode.vwObj->containsNoLoops);
+      break;
+    case UA_ATTRIBUTEID_EVENTNOTIFIER:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT)
+      switch(anyTypeNode.node->nodeClass) {
+        case UA_NODECLASS_VIEW:
+          SERVER_GETATTRIBUTE_COPYTYPEVALUE(Byte, &anyTypeNode.vwObj->eventNotifier);
+          break;
+        case UA_NODECLASS_OBJECT:
+          SERVER_GETATTRIBUTE_COPYTYPEVALUE(Byte, &anyTypeNode.oObj->eventNotifier);
+          break;
+        default:
+          UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+          return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+          break;
+      }
+      break;
+    case UA_ATTRIBUTEID_VALUE:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE)
+      switch(anyTypeNode.node->nodeClass) {
+        case UA_NODECLASS_VARIABLE:
+          *value = UA_Variant_new();
+          if(anyTypeNode.vObj->valueSource == UA_VALUESOURCE_VARIANT) {
+            retval |= UA_Variant_copy(&anyTypeNode.vObj->value.variant, *value);
+          } else {
+            UA_DataValue ds;
+            UA_DataValue_init(&ds);
+            retval |= anyTypeNode.vObj->value.dataSource.read(anyTypeNode.vObj->value.dataSource.handle, UA_FALSE, UA_NULL, &ds);
+            UA_Variant_copy(&ds.value, *value);
+          }
+          break;
+        case UA_NODECLASS_VARIABLETYPE:
+          // Note: Precicely the same as variableNode above!
+          *value = UA_Variant_new();
+          if(anyTypeNode.vtObj->valueSource == UA_VALUESOURCE_VARIANT) {
+            retval |= UA_Variant_copy(&anyTypeNode.vtObj->value.variant, *value);
+          } else {
+            UA_DataValue ds;
+            UA_DataValue_init(&ds);
+            retval |= anyTypeNode.vtObj->value.dataSource.read(anyTypeNode.vtObj->value.dataSource.handle, UA_FALSE, UA_NULL, &ds);
+            UA_Variant_copy(&ds.value, *value);
+          }
+          break;
+        default:
+          UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+          return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      }
+      break;
+    case UA_ATTRIBUTEID_DATATYPE:
+      UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      break;
+    case UA_ATTRIBUTEID_VALUERANK:
+      UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      break;
+    case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
+      UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      break;
+    case UA_ATTRIBUTEID_ACCESSLEVEL:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VARIABLE)
+      SERVER_GETATTRIBUTE_COPYTYPEVALUE(Byte, &anyTypeNode.vObj->accessLevel);
+      break;
+    case UA_ATTRIBUTEID_USERACCESSLEVEL:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VARIABLE)
+      SERVER_GETATTRIBUTE_COPYTYPEVALUE(Byte, &anyTypeNode.vObj->userAccessLevel);
+      break;
+    case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VARIABLE)
+      SERVER_GETATTRIBUTE_COPYTYPEVALUE(Double, &anyTypeNode.vObj->minimumSamplingInterval);
+      break;
+    case UA_ATTRIBUTEID_HISTORIZING:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VARIABLE)
+      SERVER_GETATTRIBUTE_COPYTYPEVALUE(Boolean, &anyTypeNode.vObj->historizing);
+      break;
+    case UA_ATTRIBUTEID_EXECUTABLE:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_METHOD)
+      SERVER_GETATTRIBUTE_COPYTYPEVALUE(Boolean, &anyTypeNode.mObj->executable);
+      break;
+    case UA_ATTRIBUTEID_USEREXECUTABLE:
+      SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_METHOD)
+      SERVER_GETATTRIBUTE_COPYTYPEVALUE(Boolean, &anyTypeNode.mObj->userExecutable);
+      break;
+    default:
+      UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      break;
+  }
+  
   return retval;
 }
 #endif

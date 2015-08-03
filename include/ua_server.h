@@ -305,6 +305,8 @@ UA_StatusCode UA_EXPORT UA_Server_forEachChildNodeCall(UA_Server *server, UA_Nod
 
 UA_StatusCode UA_EXPORT UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void *value);
 
+UA_StatusCode UA_EXPORT UA_Server_getAttributeValue(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void **value);
+
 /** Jobs describe work that is executed once or repeatedly. */
 typedef struct {
     enum {
