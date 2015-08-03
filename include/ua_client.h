@@ -153,6 +153,11 @@ UA_Client_getNodeCopy(UA_Client *client, UA_NodeId nodeId, void **copyInto);
 UA_StatusCode UA_EXPORT 
 UA_Client_deleteNodeCopy(UA_Client *client, void **node);
 
+UA_StatusCode UA_EXPORT 
+UA_Client_setAttributeValue(UA_Client *client, UA_NodeId nodeId, UA_AttributeId attributeId, void *value);
+UA_StatusCode UA_EXPORT 
+UA_Client_getAttributeValue(UA_Client *client, UA_NodeId nodeId, UA_AttributeId attributeId, void **value);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

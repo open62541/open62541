@@ -306,10 +306,8 @@ Supposing the client wants to clean up? All we need to do is to pass the nodeId 
       return 0;
     } 
 
-Assigning and changing values
------------------------------
+Conclusion
+----------
 
-
-Callback concept and datasources
---------------------------------
+In this tutorial you learned how to create a client and create or delete nodes on the server and client side. In the next tutorial, we will cover how to manipulate node contents and how to use callbacks in datasources for ever changing variables (such as time or temperature data) on the serverside.
 

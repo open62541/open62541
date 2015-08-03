@@ -1732,3 +1732,247 @@ UA_Client_getNodeCopy(UA_Client *client, UA_NodeId nodeId, void **copyInto) {
 UA_StatusCode UA_Client_deleteNodeCopy(UA_Client *client, void **node) {
   return UA_Server_deleteNodeCopy(UA_NULL, node);
 }
+
+#define SETATTRIBUTE_COPYTYPEVALUE(TYPE)                                                       \
+wrq->nodesToWrite[0].value.value.data = UA_##TYPE##_new();                                     \
+UA_##TYPE##_copy((UA_##TYPE *) value, (UA_##TYPE *) wrq->nodesToWrite[0].value.value.data);
+
+UA_StatusCode 
+UA_Client_setAttributeValue(UA_Client *client, UA_NodeId nodeId, UA_AttributeId attributeId, void *value) {
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  
+  UA_WriteRequest *wrq = UA_WriteRequest_new();
+  UA_WriteResponse wrs;
+  UA_WriteResponse_init(&wrs);
+  wrq->nodesToWriteSize = 1;
+  wrq->nodesToWrite = UA_WriteValue_new();
+  UA_NodeId_copy(&nodeId, &wrq->nodesToWrite[0].nodeId);
+  wrq->nodesToWrite[0].attributeId = attributeId;
+  wrq->nodesToWrite[0].value.hasValue = UA_TRUE;
+  wrq->nodesToWrite[0].value.value.storageType = UA_VARIANT_DATA;
+  
+  switch(attributeId) {
+    case UA_ATTRIBUTEID_NODEID:
+      UA_WriteRequest_delete(wrq);
+      UA_WriteResponse_deleteMembers(&wrs);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      break;
+    case UA_ATTRIBUTEID_NODECLASS:
+      UA_WriteRequest_delete(wrq);
+      UA_WriteResponse_deleteMembers(&wrs);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      break;
+    case UA_ATTRIBUTEID_BROWSENAME:
+      wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_QUALIFIEDNAME];
+      SETATTRIBUTE_COPYTYPEVALUE(QualifiedName);
+      break;
+    case UA_ATTRIBUTEID_DISPLAYNAME:
+      wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
+      SETATTRIBUTE_COPYTYPEVALUE(LocalizedText);
+      break;
+    case UA_ATTRIBUTEID_DESCRIPTION:
+      wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
+      SETATTRIBUTE_COPYTYPEVALUE(LocalizedText);
+      break;
+    case UA_ATTRIBUTEID_WRITEMASK:
+      wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_UINT32];
+      SETATTRIBUTE_COPYTYPEVALUE(UInt32);
+      break;
+    case UA_ATTRIBUTEID_USERWRITEMASK:
+      wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_UINT32];
+      SETATTRIBUTE_COPYTYPEVALUE(UInt32);
+      break;    
+    case UA_ATTRIBUTEID_ISABSTRACT:
+      wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_BOOLEAN];
+      SETATTRIBUTE_COPYTYPEVALUE(Boolean);
+      break;
+    case UA_ATTRIBUTEID_SYMMETRIC:
+      wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_BOOLEAN];
+      SETATTRIBUTE_COPYTYPEVALUE(Boolean);
+      break;
+    case UA_ATTRIBUTEID_INVERSENAME:
+      wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
+      SETATTRIBUTE_COPYTYPEVALUE(LocalizedText);
+      break;
+    case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
+      wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_BOOLEAN];
+      SETATTRIBUTE_COPYTYPEVALUE(Boolean);
+      break;
+    case UA_ATTRIBUTEID_EVENTNOTIFIER:
+      wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_BYTE];
+      SETATTRIBUTE_COPYTYPEVALUE(Byte); 
+      break;
+    case UA_ATTRIBUTEID_VALUE:
+      UA_Variant_copy((UA_Variant *) value, (UA_Variant *) &wrq->nodesToWrite[0].value.value);
+      break;
+    case UA_ATTRIBUTEID_DATATYPE:
+      UA_WriteRequest_delete(wrq);
+      UA_WriteResponse_deleteMembers(&wrs);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      break;
+    case UA_ATTRIBUTEID_VALUERANK:
+      UA_WriteRequest_delete(wrq);
+      UA_WriteResponse_deleteMembers(&wrs);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      break;
+    case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
+      UA_WriteRequest_delete(wrq);
+      UA_WriteResponse_deleteMembers(&wrs);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      break;
+    case UA_ATTRIBUTEID_ACCESSLEVEL:
+      wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_UINT32];
+      SETATTRIBUTE_COPYTYPEVALUE(UInt32);
+      break;
+    case UA_ATTRIBUTEID_USERACCESSLEVEL:
+      wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_UINT32];
+      SETATTRIBUTE_COPYTYPEVALUE(UInt32);
+      break;
+    case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
+      wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_DOUBLE];
+      SETATTRIBUTE_COPYTYPEVALUE(Double);
+      break;
+    case UA_ATTRIBUTEID_HISTORIZING:
+      wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_BOOLEAN];
+      SETATTRIBUTE_COPYTYPEVALUE(Boolean);
+      break;
+    case UA_ATTRIBUTEID_EXECUTABLE:
+      wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_BOOLEAN];
+      SETATTRIBUTE_COPYTYPEVALUE(Boolean);
+      break;
+    case UA_ATTRIBUTEID_USEREXECUTABLE:
+      wrq->nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_BOOLEAN];
+      SETATTRIBUTE_COPYTYPEVALUE(Boolean);
+      break;
+    default:
+      UA_WriteRequest_delete(wrq);
+      UA_WriteResponse_deleteMembers(&wrs);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+  }
+  
+  wrs = UA_Client_write(client, wrq);
+  UA_WriteRequest_delete(wrq);
+  
+  if (wrs.responseHeader.serviceResult)
+    return wrs.responseHeader.serviceResult;
+  if (wrs.resultsSize != 1)
+    return wrs.responseHeader.serviceResult;
+  
+  retval = wrs.results[0];
+  
+  UA_WriteResponse_deleteMembers(&wrs);
+  return retval;
+}
+
+#define GETATTRIBUTE_COPYTYPEVALUE(TYPE)                                           \
+if (rrs.results[0].hasValue == UA_TRUE) {                                          \
+  *value = (void *) UA_##TYPE##_new();                                             \
+  UA_##TYPE##_copy((UA_##TYPE *) rrs.results[0].value.data, (UA_##TYPE *) *value  ); \
+}
+  
+UA_StatusCode UA_EXPORT 
+UA_Client_getAttributeValue(UA_Client *client, UA_NodeId nodeId, UA_AttributeId attributeId, void **value) {
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  UA_ReadRequest *rrq = UA_ReadRequest_new();
+  UA_ReadResponse rrs;
+  UA_ReadResponse_init(&rrs);
+  *value = UA_NULL;
+  
+  rrq->timestampsToReturn = UA_TIMESTAMPSTORETURN_NEITHER;
+  rrq->nodesToReadSize = 1;
+  rrq->nodesToRead = UA_ReadValueId_new();
+  rrq->nodesToRead[0].attributeId = attributeId;
+  UA_NodeId_copy(&nodeId, &rrq->nodesToRead[0].nodeId);
+  
+  rrs = UA_Client_read(client, rrq);
+  UA_ReadRequest_delete(rrq);
+  
+  if(rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+    return rrs.responseHeader.serviceResult;
+  if(rrs.resultsSize < 1)
+    return rrs.responseHeader.serviceResult;
+  if (rrs.results[0].status != UA_STATUSCODE_GOOD)
+    return rrs.results[0].status;
+  
+  switch(attributeId) {
+    case UA_ATTRIBUTEID_NODEID:
+      GETATTRIBUTE_COPYTYPEVALUE(NodeId)
+      break;
+    case UA_ATTRIBUTEID_NODECLASS:
+      GETATTRIBUTE_COPYTYPEVALUE(NodeClass)
+      break;
+    case UA_ATTRIBUTEID_BROWSENAME:
+      GETATTRIBUTE_COPYTYPEVALUE(QualifiedName)
+      break;
+    case UA_ATTRIBUTEID_DISPLAYNAME:
+      GETATTRIBUTE_COPYTYPEVALUE(LocalizedText)
+      break;
+    case UA_ATTRIBUTEID_DESCRIPTION:
+      GETATTRIBUTE_COPYTYPEVALUE(LocalizedText)
+      break;
+    case UA_ATTRIBUTEID_WRITEMASK:
+      GETATTRIBUTE_COPYTYPEVALUE(UInt32)
+      break;
+    case UA_ATTRIBUTEID_USERWRITEMASK:
+      GETATTRIBUTE_COPYTYPEVALUE(UInt32)
+      break;    
+    case UA_ATTRIBUTEID_ISABSTRACT:
+      GETATTRIBUTE_COPYTYPEVALUE(Boolean)
+      break;
+    case UA_ATTRIBUTEID_SYMMETRIC:
+      GETATTRIBUTE_COPYTYPEVALUE(Boolean)
+      break;
+    case UA_ATTRIBUTEID_INVERSENAME:
+      GETATTRIBUTE_COPYTYPEVALUE(LocalizedText)
+      break;
+    case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
+      GETATTRIBUTE_COPYTYPEVALUE(Boolean)
+      break;
+    case UA_ATTRIBUTEID_EVENTNOTIFIER:
+      GETATTRIBUTE_COPYTYPEVALUE(Byte)
+      break;
+    case UA_ATTRIBUTEID_VALUE:
+      GETATTRIBUTE_COPYTYPEVALUE(Variant)
+      break;
+    case UA_ATTRIBUTEID_DATATYPE:
+      *value = UA_NULL;
+      UA_ReadResponse_deleteMembers(&rrs);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      break;
+    case UA_ATTRIBUTEID_VALUERANK:
+      *value = UA_NULL;
+      UA_ReadResponse_deleteMembers(&rrs);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      break;
+    case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
+      *value = UA_NULL;
+      UA_ReadResponse_deleteMembers(&rrs);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+      break;
+    case UA_ATTRIBUTEID_ACCESSLEVEL:
+      GETATTRIBUTE_COPYTYPEVALUE(UInt32)
+      break;
+    case UA_ATTRIBUTEID_USERACCESSLEVEL:
+      GETATTRIBUTE_COPYTYPEVALUE(UInt32)
+      break;
+    case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
+      GETATTRIBUTE_COPYTYPEVALUE(Double)
+      break;
+    case UA_ATTRIBUTEID_HISTORIZING:
+      GETATTRIBUTE_COPYTYPEVALUE(Boolean)
+      break;
+    case UA_ATTRIBUTEID_EXECUTABLE:
+      GETATTRIBUTE_COPYTYPEVALUE(Boolean)
+      break;
+    case UA_ATTRIBUTEID_USEREXECUTABLE:
+      GETATTRIBUTE_COPYTYPEVALUE(Boolean)
+      break;
+    default:
+      *value = UA_NULL;
+      UA_ReadResponse_deleteMembers(&rrs);
+      return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+  }
+  
+  UA_ReadResponse_deleteMembers(&rrs);
+  return retval;
+}
