@@ -1050,9 +1050,7 @@ class opcua_node_variable_t(opcua_node_t):
         if self.value() != None:
           code = code + self.value().printOpen62541CCode(bootstrapping)
           return code
-    if bootstrapping == False:
-      # Otherwise create a dummy variant to statisfy UA_Server_addVariableNode()
-      code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_Variant_new();")
+    code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_Variant_new();")
     return code
   
   def printOpen62541CCode_Subtype(self, bootstrapping = True):
@@ -1075,7 +1073,8 @@ class opcua_node_variable_t(opcua_node_t):
     code.append(self.getCodePrintableID() + "->userAccessLevel = (UA_Int32) " + str(self.userAccessLevel()) + ";")
     code.append(self.getCodePrintableID() + "->accessLevel = (UA_Int32) " + str(self.accessLevel()) + ";")
     code.append(self.getCodePrintableID() + "->valueRank = (UA_Int32) " + str(self.valueRank()) + ";")
-    
+    # The variant is guaranteed to exist by SubtypeEarly()
+    code.append(self.getCodePrintableID() + "->value.variant = *" + self.getCodePrintableID() + "_variant;")
     return code
 
 class opcua_node_method_t(opcua_node_t):
@@ -1301,9 +1300,7 @@ class opcua_node_variableType_t(opcua_node_t):
         if self.value() != None:
           code = code + self.value().printOpen62541CCode(bootstrapping)
           return code
-    if bootstrapping == False:
-      # Otherwise create a dummy variant to statisfy UA_Server_addVariableNode()
-      code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_Variant_new();")
+    code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_Variant_new();")
     return code
   
   def printOpen62541CCode_Subtype(self, bootstrapping = True):
@@ -1323,6 +1320,9 @@ class opcua_node_variableType_t(opcua_node_t):
       code.append(self.getCodePrintableID() + "->isAbstract = UA_TRUE;")
     else:
       code.append(self.getCodePrintableID() + "->isAbstract = UA_FALSE;")
+    
+    # The variant is guaranteed to exist by SubtypeEarly()
+    code.append(self.getCodePrintableID() + "->value.variant = *" + self.getCodePrintableID() + "_variant;")
     return code
 
 class opcua_node_dataType_t(opcua_node_t):

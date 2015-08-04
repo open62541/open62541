@@ -29,7 +29,7 @@ LOG_LEVEL_ERROR  = 0
 LOG_LEVEL_SILENT = -1
 
 # Change the following to filter logging output
-GLOBAL_LOG_LEVEL = LOG_LEVEL_DEBUG
+GLOBAL_LOG_LEVEL = LOG_LEVEL_SILENT
 
 def log(callee, logstr, level=LOG_LEVEL_DEBUG):
   prefixes = { LOG_LEVEL_DEBUG : "DBG: ",
