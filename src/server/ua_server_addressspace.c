@@ -762,24 +762,32 @@ UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, UA_Node *no
 
 #ifdef ENABLE_METHODCALLS
 UA_StatusCode
-UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA_NodeId nodeId,
-                        const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
-                        UA_MethodCallback method, UA_Int32 inputArgumentsSize,
-                        const UA_Argument *inputArguments, UA_Int32 outputArgumentsSize,
-                        const UA_Argument *outputArguments,
-                        UA_NodeId *createdNodeId) {
+UA_Server_addMethodNode(UA_Server* server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
+                        UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
+                        const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
+                        UA_MethodCallback method, UA_Int32 inputArgumentsSize, const UA_Argument* inputArguments, 
+                        UA_Int32 outputArgumentsSize, const UA_Argument* outputArguments, 
+                        UA_NodeId* createdNodeId) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_MethodNode *newMethod = UA_MethodNode_new();
     UA_NodeId_copy(&nodeId, &newMethod->nodeId);
     UA_QualifiedName_copy(&browseName, &newMethod->browseName);
-    UA_String_copy(&browseName.name, &newMethod->displayName.text);
+    UA_LocalizedText_copy(&displayName, &newMethod->displayName);
+    UA_LocalizedText_copy(&description, &newMethod->description);
+    newMethod->writeMask = writeMask;
+    newMethod->userWriteMask = userWriteMask;
     newMethod->attachedMethod = method;
     newMethod->executable = UA_TRUE;
     newMethod->userExecutable = UA_TRUE;
     
-    UA_AddNodesResult addRes = UA_Server_addNode(server, (UA_Node*)newMethod, parentNodeId, referenceTypeId);
-    if(addRes.statusCode != UA_STATUSCODE_GOOD) {
+    UA_ExpandedNodeId parentExpandedNodeId;
+    UA_ExpandedNodeId_init(&parentExpandedNodeId);
+    UA_NodeId_copy(&parentNodeId, &parentExpandedNodeId.nodeId);
+    UA_AddNodesResult addRes = UA_Server_addNode(server, (UA_Node*)newMethod, parentExpandedNodeId, referenceTypeId);
+    retval |= addRes.statusCode;
+    if(retval!= UA_STATUSCODE_GOOD) {
         UA_MethodNode_delete(newMethod);
-        return addRes.statusCode;
+        return retval;
     }
     
     UA_ExpandedNodeId methodExpandedNodeId;
@@ -789,10 +797,17 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
     if (createdNodeId != UA_NULL)
       UA_NodeId_copy(&addRes.addedNodeId, createdNodeId);
     
+    /* Only proceed with creating in/outputArguments if the method and both arguments are not
+     * UA_NULL; otherwise this is a pretty strong indicator that this node was generated,
+     * in which case these arguments will be created later and individually.
+     */
+    if (method == UA_NULL && inputArguments == UA_NULL && outputArguments == UA_NULL && inputArgumentsSize == 0 && outputArgumentsSize == 0)
+      return retval;
+    
     /* create InputArguments */
     UA_NodeId argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0); 
     UA_VariableNode *inputArgumentsVariableNode  = UA_VariableNode_new();
-    UA_StatusCode retval = UA_NodeId_copy(&argId, &inputArgumentsVariableNode->nodeId);
+    retval |= UA_NodeId_copy(&argId, &inputArgumentsVariableNode->nodeId);
     inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME_ALLOC(0,"InputArguments");
     inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
     inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");

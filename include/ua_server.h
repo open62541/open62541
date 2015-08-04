@@ -200,12 +200,14 @@ UA_Server_addVariableNode(UA_Server *server, UA_NodeId nodeId, const UA_Qualifie
                           const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
                           UA_Variant *value, UA_NodeId *createdNodeId);
 
+// Missing: eventNotifier
 UA_StatusCode UA_EXPORT
 UA_Server_addObjectNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
                         UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
                         const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
                         const UA_ExpandedNodeId typeDefinition, UA_NodeId *createdNodeId);
 
+// Missing: isAbstract, symmetric
 UA_StatusCode UA_EXPORT 
 UA_Server_addReferenceTypeNode(UA_Server *server, UA_NodeId nodeId, UA_QualifiedName browseName, 
                                UA_LocalizedText displayName, UA_LocalizedText description, UA_NodeId parentNodeId, 
@@ -278,11 +280,11 @@ typedef UA_StatusCode (*UA_MethodCallback)(const UA_NodeId objectId, const UA_Va
  * 
  */
 UA_StatusCode UA_EXPORT
-UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA_NodeId nodeId,
-                        const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
-                        UA_MethodCallback method, UA_Int32 inputArgumentsSize,
-                        const UA_Argument *inputArguments, UA_Int32 outputArgumentsSize,
-                        const UA_Argument *outputArguments,
+UA_Server_addMethodNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName,
+                        UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
+                        const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
+                        UA_MethodCallback method, UA_Int32 inputArgumentsSize, const UA_Argument *inputArguments, 
+                        UA_Int32 outputArgumentsSize, const UA_Argument *outputArguments,
                         UA_NodeId *createdNodeId);
 #endif
 

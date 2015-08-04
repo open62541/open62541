@@ -65,9 +65,10 @@ int main(int argc, char** argv) {
     outputArguments.name = UA_STRING("MyOutput");
     outputArguments.valueRank = -1;
         
-    UA_Server_addMethodNode(server, UA_QUALIFIEDNAME(1, "hello world"), UA_NODEID_NUMERIC(1,62541),
-                            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                            &helloWorldMethod, 1, &inputArguments, 1, &outputArguments, NULL);
+    UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541), UA_QUALIFIEDNAME(1, "hello world"), 
+                            UA_LOCALIZEDTEXT("en_US","Hello World"), UA_LOCALIZEDTEXT("en_US","Say `Hello World`"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                            0, 0, &helloWorldMethod, 1, &inputArguments, 1, &outputArguments, NULL);
 
     /* start server */
     UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false

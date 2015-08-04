@@ -438,7 +438,30 @@ class opcua_namespace():
       file.write(n.printDot())
     file.write("}\n")
     file.close()
-
+  
+  def getSubTypesOf(self, tdNodes = None, currentNode = None, hasSubtypeRefNode = None):
+    # If this is a toplevel call, collect the following information as defaults
+    if tdNodes == None: 
+      tdNodes = []
+    if currentNode == None:
+      currentNode = self.getNodeByBrowseName("HasTypeDefinition")
+      tdNodes.append(currentNode)
+      if len(tdNodes) < 1:
+        return []
+    if hasSubtypeRefNode == None:
+      hasSubtypeRefNode = self.getNodeByBrowseName("HasSubtype")
+      if hasSubtypeRefNode == None:
+        return tdNodes
+    
+    # collect all subtypes of this node
+    for ref in currentNode.getReferences():
+      if ref.isForward() and ref.referenceType().id() == hasSubtypeRefNode.id():
+        tdNodes.append(ref.target())
+        self.getTypeDefinitionNodes(tdNodes=tdNodes, currentNode = ref.target(), hasSubtypeRefNode=hasSubtypeRefNode)
+    
+    return tdNodes
+      
+  
   def printDotGraphWalk(self, depth=1, filename="out.dot", rootNode=None, followInverse = False, excludeNodeIds=[]):
     """ Outputs a graphiz/dot description the nodes centered around rootNode.
 

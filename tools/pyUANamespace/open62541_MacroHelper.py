@@ -76,8 +76,46 @@ class open62541_MacroHelper():
       code.append("UA_Server_AddMonodirectionalReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", UA_FALSE);")
 
     return code
-
-  def getCreateNode(self, node):
+                               
+  def getCreateNodeNoBootstrap(self, node, parentNode, parentReference):
+    code = []
+    code.append("// Node: " + str(node) + ", " + str(node.browseName()))
+    if node.nodeClass() == NODE_CLASS_OBJECT:
+      code.append("UA_Server_addObjectNode(server, ")
+    elif node.nodeClass() == NODE_CLASS_VARIABLE:
+      code.append("UA_Server_addVariableNode(server,")
+    elif node.nodeClass() == NODE_CLASS_METHOD:
+      code.append("UA_Server_addMethodNode(server,")
+    elif node.nodeClass() == NODE_CLASS_OBJECTTYPE:
+      code.append("UA_Server_addObjectTypeNode(server,")
+    elif node.nodeClass() == NODE_CLASS_REFERENCETYPE:
+      code.append("UA_Server_addReferenceTypeNode(server,")
+    elif node.nodeClass() == NODE_CLASS_VARIABLETYPE:
+      code.append("UA_Server_addVariableTypeNode(server,")
+    elif node.nodeClass() == NODE_CLASS_DATATYPE:
+      code.append("UA_Server_addDataTypeNode(server,")
+    elif node.nodeClass() == NODE_CLASS_VIEW:
+      code.append("UA_Server_addViewNode(server,")
+    elif node.nodeClass() == NODE_CLASS_METHODTYPE:
+      code.append("UA_Server_addMethodTypeNode(server,")
+    else:
+      return []
+    
+    code.append("       " + str(self.getCreateNodeIDMacro(node)) + ",") # NodeId
+    extrNs = node.browseName().split(":")
+    if len(extrNs) > 1:
+      code.append("       UA_QUALIFIEDNAME(\"" +  str(extrNs[0]) + "\", \"" + extrNs[1] + "\"),")  # browseName
+    else:
+      code.append("       UA_QUALIFIEDNAME(0, \"" + str(node.browseName()) + "\"),")  # browseName
+    code.append("       UA_LOCALIZEDTEXT(\"\", \"" + str(node.displayName()) + "\"),")  # displayName
+    code.append("       UA_LOCALIZEDTEXT(\"\", \"" + str(node.description()) + "\"),")  # description
+    code.append("       " + str(self.getCreateNodeIDMacro(parentNode)) + ",") # ParentNode
+    code.append("       " + str(self.getCreateNodeIDMacro(parentReference.referenceType())) + ",") # ReferenceTypeId
+    code.append("       " + str(node.writeMask()) + ", " + str(node.userWriteMask()) + ",") # write/userWriteMask
+      
+    return code
+    
+  def getCreateNodeBootstrap(self, node):
     nodetype = ""
     code = []
 
