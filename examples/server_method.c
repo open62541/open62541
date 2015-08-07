@@ -64,15 +64,20 @@ int main(int argc, char** argv) {
     outputArguments.description = UA_LOCALIZEDTEXT("en_US", "A String");
     outputArguments.name = UA_STRING("MyOutput");
     outputArguments.valueRank = -1;
-        
+    UA_NodeId createdNodeId;
+    UA_Server_addObjectNode(server,UA_QUALIFIEDNAME(1, "hello world object node"),UA_NODEID_NUMERIC(1,31415),
+    		UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+    		UA_NODEID_NUMERIC(0,UA_NS0ID_OBJECTNODE),&createdNodeId);
+
     UA_Server_addMethodNode(server, UA_QUALIFIEDNAME(1, "hello world"), UA_NODEID_NUMERIC(1,62541),
-                            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                            UA_EXPANDEDNODEID_NUMERIC(1, 31415), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             &helloWorldMethod, 1, &inputArguments, 1, &outputArguments, NULL);
 
     /* start server */
     UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false
 
     /* ctrl-c received -> clean up */
+
     UA_Server_delete(server);
     return retval;
 }
