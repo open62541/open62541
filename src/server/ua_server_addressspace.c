@@ -25,6 +25,7 @@ UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_Qualifi
     if (createdNodeId != UA_NULL)
       UA_NodeId_copy(&res.addedNodeId, createdNodeId);
     UA_AddNodesResult_deleteMembers(&res);
+    UA_ExpandedNodeId_deleteMembers(&parentId);
     return res.statusCode;
 }
 
@@ -47,14 +48,16 @@ UA_Server_addObjectNode(UA_Server *server, const UA_QualifiedName browseName, UA
     if (createdNodeId != UA_NULL)
       UA_NodeId_copy(&res.addedNodeId, createdNodeId);
     UA_AddNodesResult_deleteMembers(&res);
-
+    UA_ExpandedNodeId_deleteMembers(&parentId);
     if(!UA_NodeId_isNull(&typeDefinition)) {
         UA_ExpandedNodeId typeDefid; // we need an expandednodeid
         UA_ExpandedNodeId_init(&typeDefid);
         UA_NodeId_copy(&typeDefinition, &typeDefid.nodeId);
         UA_Server_addReference(server, res.addedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
                                typeDefid);
+        UA_ExpandedNodeId_deleteMembers(&typeDefid);
     }
+
     return res.statusCode;
 }
 
@@ -81,6 +84,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
     if (createdNodeId != UA_NULL)
       UA_NodeId_copy(&res.addedNodeId, createdNodeId);
     UA_AddNodesResult_deleteMembers(&res);
+    UA_ExpandedNodeId_deleteMembers(&parentId);
     return res.statusCode;
 }
 

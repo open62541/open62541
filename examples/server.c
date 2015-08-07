@@ -309,8 +309,6 @@ int main(int argc, char** argv) {
    }
 
 
-
-
 #ifdef ENABLE_METHODCALLS
    UA_Argument inputArguments;
    UA_Argument_init(&inputArguments);
