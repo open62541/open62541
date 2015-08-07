@@ -22,6 +22,7 @@ UA_Server_addVariableNode(UA_Server *server, UA_Variant *value, const UA_Qualifi
         UA_VariableNode_delete(node);
     } else
         UA_free(value);
+    UA_ExpandedNodeId_deleteMembers(&parentId);
     UA_AddNodesResult_deleteMembers(&res);
     return res.statusCode;
 }
@@ -45,11 +46,13 @@ UA_Server_addObjectNode(UA_Server *server, const UA_QualifiedName browseName,
     UA_AddNodesResult_deleteMembers(&res);
 
     if(!(UA_NodeId_isNull(&typeDefinition))){
-        UA_ExpandedNodeId typeDefid; // we need an expandednodeid
-        UA_ExpandedNodeId_init(&typeDefid);
-        UA_NodeId_copy(&typeDefinition, &typeDefid.nodeId);
-        ADDREFERENCE(res.addedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION), typeDefid);
+        UA_ExpandedNodeId typeDefId; // we need an expandednodeid
+        UA_ExpandedNodeId_init(&typeDefId);
+        UA_NodeId_copy(&typeDefinition, &typeDefId.nodeId);
+        ADDREFERENCE(res.addedNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION), typeDefId);
+        UA_ExpandedNodeId_deleteMembers(&typeDefId);
     }
+    UA_ExpandedNodeId_deleteMembers(&parentId);
     return res.statusCode;
 }
 
@@ -74,6 +77,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
     if(res.statusCode != UA_STATUSCODE_GOOD)
         UA_VariableNode_delete(node);
     UA_AddNodesResult_deleteMembers(&res);
+    UA_ExpandedNodeId_deleteMembers(&parentId);
     return res.statusCode;
 }
 
