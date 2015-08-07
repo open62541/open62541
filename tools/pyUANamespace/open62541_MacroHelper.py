@@ -104,7 +104,7 @@ class open62541_MacroHelper():
     code.append("       " + str(self.getCreateNodeIDMacro(node)) + ",") # NodeId
     extrNs = node.browseName().split(":")
     if len(extrNs) > 1:
-      code.append("       UA_QUALIFIEDNAME(\"" +  str(extrNs[0]) + "\", \"" + extrNs[1] + "\"),")  # browseName
+      code.append("       UA_QUALIFIEDNAME(" +  str(extrNs[0]) + ", \"" + extrNs[1] + "\"),")  # browseName
     else:
       code.append("       UA_QUALIFIEDNAME(0, \"" + str(node.browseName()) + "\"),")  # browseName
     code.append("       UA_LOCALIZEDTEXT(\"\", \"" + str(node.displayName()) + "\"),")  # displayName
