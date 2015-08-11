@@ -511,6 +511,8 @@ static void processMainLoopJobs(UA_Server *server) {
 #endif
 
 UA_StatusCode UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running) {
+UA_StatusCode result = UA_STATUSCODE_GOOD;
+
 #ifdef UA_MULTITHREADING
     /* Prepare the worker threads */
     server->running = running; // the threads need to access the variable
@@ -533,9 +535,9 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads, UA_Bo
 
     /* Start the networklayers */
     for(size_t i = 0; i < server->networkLayersSize; i++)
-        server->networkLayers[i].start(&server->networkLayers[i], &server->logger);
+        result |= server->networkLayers[i].start(&server->networkLayers[i], &server->logger);
 
-    return UA_STATUSCODE_GOOD;
+    return result;
 }
 
 UA_StatusCode UA_Server_run_mainloop(UA_Server *server, UA_Boolean *running) {
@@ -610,9 +612,10 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server, UA_UInt16 nThreads){
 }
 
 UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running) {
-    UA_Server_run_startup(server, nThreads, running);
-    while(*running) {
-        UA_Server_run_mainloop(server, running);
+    if(UA_STATUSCODE_GOOD == UA_Server_run_startup(server, nThreads, running)){
+        while(*running) {
+            UA_Server_run_mainloop(server, running);
+        }
     }
     UA_Server_run_shutdown(server, nThreads);
     return UA_STATUSCODE_GOOD;
