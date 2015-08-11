@@ -843,6 +843,8 @@ UA_Server_addMethodNode(UA_Server* server, UA_NodeId nodeId, const UA_QualifiedN
     return retval;
 }
 
+#endif
+
 #define SETATTRIBUTE_ASSERTNODECLASS(CLASS) {                   \
 if ((anyTypeNode.node->nodeClass & ( CLASS )) == 0) {                     \
     UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);          \
@@ -1200,4 +1202,3 @@ UA_StatusCode UA_Server_getAttributeValue(UA_Server *server, UA_NodeId nodeId, U
   
   return retval;
 }
-#endif
