@@ -1,4 +1,5 @@
 include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${PROJECT_BINARY_DIR}/src_generated)
 
 set(LIBS open62541)
 if(NOT WIN32)
@@ -15,6 +16,22 @@ target_link_libraries(server_variable ${LIBS})
 
 add_executable(server_repeated_job server_repeated_job.c)
 target_link_libraries(server_repeated_job ${LIBS})
+
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
+               PRE_BUILD
+               COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.xml ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml ${PROJECT_BINARY_DIR}/src_generated/nodeset
+               DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
+                       ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py
+                       ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
+                       ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py
+                       ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
+                       ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py
+                       ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
+                       ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
+                       ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
+               
+add_executable(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c)
+target_link_libraries(server_nodeset ${LIBS})
 
 if(ENABLE_METHODCALLS)
   add_executable(server_method server_method.c)
