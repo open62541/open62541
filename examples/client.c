@@ -242,6 +242,9 @@ int main(int argc, char *argv[]) {
 
     free(theValue);
     /* Done creating a new node*/
+#else
+  // retNodeId is needed for the next test
+  UA_NodeId retNodeId = UA_NODEID_STRING(1, "the.answer");
 #endif
     // Iterate over all nodes in 'Objects'
     UA_Client_forEachChildNodeCall(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter);
