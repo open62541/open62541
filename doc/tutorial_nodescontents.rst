@@ -80,6 +80,13 @@ Examining node copies
 
 ``` UA_(Server|Client)_destroyNodeCopy()```
 
+Compile XML Namespaces
+----------------------
+
+Stasiks comfy CMake method.
+
+Manual script call.
+
 Creating object instances
 -------------------------
 

@@ -39,7 +39,7 @@ static UA_Server* makeTestSequence(void) {
     const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_Server_addVariableNode(server, myIntegerNodeId, myIntegerName, UA_LOCALIZEDTEXT("en_US",""), UA_LOCALIZEDTEXT("en_US",""),
+    UA_Server_addVariableNode(server, myIntegerNodeId, myIntegerName, UA_LOCALIZEDTEXT("en_US","the answer"), UA_LOCALIZEDTEXT("en_US","the answer"),
                               parentNodeId, parentReferenceNodeId, 0, 0, myIntegerVariant, NULL);
 
     /* ObjectNode */
@@ -85,14 +85,16 @@ static UA_VariableNode* makeCompareSequence(void) {
 	UA_Variant_setScalarCopy(myIntegerVariant, &myInteger,
 			&UA_TYPES[UA_TYPES_INT32]);
 	const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
-	const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
+	const UA_LocalizedText myIntegerDisplName = UA_LOCALIZEDTEXT("en_US", "the answer");
+        const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
 	UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
 	//UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
 	node->value.variant=*myIntegerVariant;
 	UA_NodeId_copy(&myIntegerNodeId,&node->nodeId);
 	UA_QualifiedName_copy(&myIntegerName,&node->browseName);
-	UA_String_copy(&myIntegerName.name,&node->displayName.text);
-	UA_ExpandedNodeId parentId;
+        UA_LocalizedText_copy(&myIntegerDisplName, &node->displayName);
+        UA_LocalizedText_copy(&myIntegerDisplName, &node->description);
+        UA_ExpandedNodeId parentId;
 	UA_ExpandedNodeId_init(&parentId);
 	UA_NodeId_copy(&parentNodeId,&parentId.nodeId);
 

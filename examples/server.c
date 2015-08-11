@@ -263,7 +263,7 @@ int main(int argc, char** argv) {
   const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
   UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
   UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-  UA_Server_addVariableNode(server, myIntegerNodeId, myIntegerName, UA_LOCALIZEDTEXT("en_US","My Integer"), UA_LOCALIZEDTEXT("en_US","My Integer"),
+  UA_Server_addVariableNode(server, myIntegerNodeId, myIntegerName, UA_LOCALIZEDTEXT("en_US", "the answer"), UA_LOCALIZEDTEXT("en_US", "the answer"),
                             parentNodeId, parentReferenceNodeId, 0, 0, myIntegerVariant, NULL);
 
   /**************/

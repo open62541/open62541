@@ -26,8 +26,8 @@ Before we can get started you will require the stack. You may either clone the c
    Checking connectivity... done.
    ichrispa@Cassandra:>
 
-Then create a build directory and read the next section.
-::
+Then create a build directory and read the next section.::
+   
    ichrispa@Cassandra:> cd open62541
    ichrispa@Cassandra:open62541> mkdir build
    ichrispa@Cassandra:open62541/build> cd build
