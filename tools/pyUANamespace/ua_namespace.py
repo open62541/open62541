@@ -516,16 +516,101 @@ class opcua_namespace():
     file.write("}\n")
     file.close()
 
+  def __reorder_getMinWeightNode__(self, nmatrix):
+    rcind = -1
+    rind = -1
+    minweight = -1
+    minweightnd = None
+    for row in nmatrix:
+      rcind += 1
+      if row[0] == None:
+        continue
+      w = sum(row[1:])
+      if minweight < 0:
+        rind = rcind
+        minweight = w
+        minweightnd = row[0]
+      elif w < minweight:
+        rind = rcind
+        minweight = w
+        minweightnd = row[0]
+    return (rind, minweightnd, minweight)
+  
+  def reorderNodesMinDependencies(self):
+    # create a matrix represtantion of all node
+    #
+    nmatrix = []
+    for n in range(0,len(self.nodes)):
+      nmatrix.append([None] + [0]*len(self.nodes))
+    
+    typeRefs = []
+    tn = self.getNodeByBrowseName("HasTypeDefinition")
+    if tn != None:
+      typeRefs.append(tn)
+      typeRefs = typeRefs + self.getSubTypesOf(currentNode=tn)
+    subTypeRefs = []
+    tn = self.getNodeByBrowseName("HasSubtype")
+    if tn  != None:
+      subTypeRefs.append(tn)
+      subTypeRefs = subTypeRefs + self.getSubTypesOf(currentNode=tn)
+    
+    log(self, "Building connectivity matrix for node order optimization.")
+    # Set column 0 to contain the node
+    for node in self.nodes:
+      nind = self.nodes.index(node)
+      nmatrix[nind][0] = node
+      
+    # Determine the dependencies of all nodes
+    for node in self.nodes:
+      nind = self.nodes.index(node)
+      #print "Examining node " + str(nind) + " " + str(node)
+      for ref in node.getReferences():
+        if isinstance(ref.target(), opcua_node_t):
+          tind = self.nodes.index(ref.target())
+          # Typedefinition of this node has precedence over this node
+          if ref.referenceType() in typeRefs and ref.isForward():
+            nmatrix[nind][tind+1] += 1
+          # isSubTypeOf/typeDefinition of this node has precedence over this node
+          elif ref.referenceType() in subTypeRefs and not ref.isForward():
+            nmatrix[nind][tind+1] += 1
+          # Else the target depends on us
+          elif ref.isForward():
+            nmatrix[tind][nind+1] += 1
+    
+    log(self, "Using Djikstra topological sorting to determine printing order.")
+    reorder = []
+    while len(reorder) < len(self.nodes):
+      (nind, node, w) = self.__reorder_getMinWeightNode__(nmatrix)
+      #print  str(100*float(len(reorder))/len(self.nodes)) + "% " + str(w) + " " + str(node) + " " + str(node.browseName())
+      reorder.append(node)
+      for ref in node.getReferences():
+        if isinstance(ref.target(), opcua_node_t):
+          tind = self.nodes.index(ref.target())
+          if ref.referenceType() in typeRefs and ref.isForward():
+            nmatrix[nind][tind+1] -= 1
+          elif ref.referenceType() in subTypeRefs and not ref.isForward():
+            nmatrix[nind][tind+1] -= 1
+          elif ref.isForward():
+            nmatrix[tind][nind+1] -= 1
+      nmatrix[nind][0] = None
+    self.nodes = reorder
+    log(self, "Nodes reordered.")
+    return
+  
   def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename=""):
     unPrintedNodes = []
     unPrintedRefs  = []
     code = []
     header = []
-
+    
+    # Reorder our nodes to produce a bare minimum of bootstrapping dependencies
+    log(self, "Reordering nodes for minimal dependencies during printing.")
+    self.reorderNodesMinDependencies()
+    
     # Some macros (UA_EXPANDEDNODEID_MACRO()...) are easily created, but
     # bulky. This class will help to offload some code.
     codegen = open62541_MacroHelper(supressGenerationOfAttribute=supressGenerationOfAttribute)
-
+    
     # Populate the unPrinted-Lists with everything we have.
     # Every Time a nodes printfunction is called, it will pop itself and
     #   all printed references from these lists.
@@ -562,7 +647,8 @@ class opcua_namespace():
     refsUsed = []
     for n in self.nodes:
       for r in n.getReferences():
-        if not r.referenceType() in refsUsed:
+        # Only print valid refernces in namespace 0 (users will not want their refs bootstrapped)
+        if not r.referenceType() in refsUsed and r.referenceType() != None and r.referenceType().id().ns == 0:
           refsUsed.append(r.referenceType())
     log(self, str(len(refsUsed)) + " reference types are used in the namespace, which will now get bootstrapped.", LOG_LEVEL_DEBUG)
     for r in refsUsed:

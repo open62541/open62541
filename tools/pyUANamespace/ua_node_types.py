@@ -631,7 +631,7 @@ class opcua_node_t:
     """
     return []
   
-  def printOpen62541CCode_Subtype(self, bootstrapping = True):
+  def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     """ printOpen62541CCode_Subtype
 
         Appends node type specific information to the nodes  UA_Server_addNode 
@@ -788,29 +788,32 @@ class opcua_node_referenceType_t(opcua_node_t):
         else:
           log(self,  "Unprocessable XML Element: " + x.tagName, LOG_LEVEL_INFO)
 
-  def printOpen62541CCode_Subtype(self, bootstrapping = True):
+  def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     code = []
     codegen = open62541_MacroHelper()
     
     # Detect if this is bootstrapping or if we are attempting to use userspace...
     if bootstrapping == False:
       typeDefs = self.getNamespace().getSubTypesOf() # defaults to TypeDefinition
-      myType = None
+      myTypeRef = None
       for ref in self.getReferences():
         if ref.referenceType() in typeDefs:
-          myType = ref.target()
+          myTypeRef = ref
           break
-      if myType==None:
+      if myTypeRef==None:
         for ref in self.getReferences():
           if ref.referenceType().browseName() == "HasSubtype" and ref.isForward() == False:
-            myType = ref.target()
+            myTypeRef = ref
             break
-      if myType==None:
+      if myTypeRef==None:
         log(self, str(self) + " failed to locate a type definition, assuming BaseDataType.", LOG_LEVEL_WARN)
         code.append("       // No valid typeDefinition found; assuming BaseDataType")
         code.append("       UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE),")
       else:
-        code.append("       " + codegen.getCreateExpandedNodeIDMacro(myType) + ",")
+        code.append("       " + codegen.getCreateExpandedNodeIDMacro(myTypeRef.target()) + ",")
+        if myTypeRef in unPrintedReferences:
+          unPrintedReferences.remove(myTypeRef)
+          
       code.append("       UA_LOCALIZEDTEXT(\"\",\"" + str(self.inverseName()) + "\"),");
       code.append("       // FIXME: Missing, isAbstract")
       code.append("       // FIXME: Missing, symmetric")
@@ -852,29 +855,31 @@ class opcua_node_object_t(opcua_node_t):
       if x.nodeType == x.ELEMENT_NODE:
         log(self,  "Unprocessable XML Element: " + x.tagName, LOG_LEVEL_INFO)
 
-  def printOpen62541CCode_Subtype(self, bootstrapping = True):
+  def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     code = []
     codegen = open62541_MacroHelper()
     
     # Detect if this is bootstrapping or if we are attempting to use userspace...
     if bootstrapping == False:
       typeDefs = self.getNamespace().getSubTypesOf() # defaults to TypeDefinition
-      myType = None
+      myTypeRef = None
       for ref in self.getReferences():
         if ref.referenceType() in typeDefs:
-          myType = ref.target()
+          myTypeRef = ref
           break
-      if myType==None:
+      if myTypeRef==None:
         for ref in self.getReferences():
           if ref.referenceType().browseName() == "HasSubtype" and ref.isForward() == False:
-            myType = ref.target()
+            myTypeRef = ref
             break
-      if myType==None:
+      if myTypeRef==None:
         log(self, str(self) + " failed to locate a type definition, assuming BaseObjectType.", LOG_LEVEL_WARN)
         code.append("       // No valid typeDefinition found; assuming BaseObjectType")
         code.append("       UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),")
       else:
-        code.append("       " + codegen.getCreateExpandedNodeIDMacro(myType) + ",")
+        code.append("       " + codegen.getCreateExpandedNodeIDMacro(myTypeRef.target()) + ",")
+        if myTypeRef in unPrintedReferences:
+          unPrintedReferences.remove(myTypeRef)
       
       #FIXME: No event notifier in UA_Server_addNode call!
       return code
@@ -1053,7 +1058,7 @@ class opcua_node_variable_t(opcua_node_t):
     code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_Variant_new();")
     return code
   
-  def printOpen62541CCode_Subtype(self, bootstrapping = True):
+  def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     code = []
     codegen = open62541_MacroHelper()
     
@@ -1124,7 +1129,7 @@ class opcua_node_method_t(opcua_node_t):
       if x.nodeType == x.ELEMENT_NODE:
         log(self,  "Unprocessable XML Element: " + x.tagName, LOG_LEVEL_INFO)
 
-  def printOpen62541CCode_Subtype(self, bootstrapping = True):
+  def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     code = []
     
     # Detect if this is bootstrapping or if we are attempting to use userspace...
@@ -1171,29 +1176,32 @@ class opcua_node_objectType_t(opcua_node_t):
       if x.nodeType == x.ELEMENT_NODE:
         log(self,  "Unprocessable XML Element: " + x.tagName, LOG_LEVEL_INFO)
 
-  def printOpen62541CCode_Subtype(self, bootstrapping = True):
+  def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     code = []
     codegen = open62541_MacroHelper();
     
     # Detect if this is bootstrapping or if we are attempting to use userspace...
     if bootstrapping == False:
       typeDefs = self.getNamespace().getSubTypesOf() # defaults to TypeDefinition
-      myType = None
+      myTypeRef = None
       for ref in self.getReferences():
         if ref.referenceType() in typeDefs:
-          myType = ref.target()
+          myTypeRef = ref
           break
-      if myType==None:
+      if myTypeRef==None:
         for ref in self.getReferences():
           if ref.referenceType().browseName() == "HasSubtype" and ref.isForward() == False:
-            myType = ref.target()
+            myTypeRef = ref
             break
-      if myType==None:
+      if myTypeRef==None:
         log(self, str(self) + " failed to locate a type definition, assuming BaseObjectType.", LOG_LEVEL_WARN)
         code.append("       // No valid typeDefinition found; assuming BaseObjectType")
         code.append("       UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),")
       else:
-        code.append("       " + codegen.getCreateExpandedNodeIDMacro(myType) + ",")
+        code.append("       " + codegen.getCreateExpandedNodeIDMacro(myTypeRef.target()) + ",")
+        if myTypeRef in unPrintedReferences:
+          code.append("       // removed " + str(myTypeRef))
+          unPrintedReferences.remove(myTypeRef)
       
       if (self.isAbstract()):
         code.append("       UA_TRUE,")
@@ -1303,7 +1311,7 @@ class opcua_node_variableType_t(opcua_node_t):
     code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_Variant_new();")
     return code
   
-  def printOpen62541CCode_Subtype(self, bootstrapping = True):
+  def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     code = []
     codegen = open62541_MacroHelper()
     
@@ -1632,29 +1640,31 @@ class opcua_node_dataType_t(opcua_node_t):
           else:
             return opcua_value_t(None).getTypeByString(enc[0]).getNumericRepresentation()
 
-  def printOpen62541CCode_Subtype(self, bootstrapping = True):
+  def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     code = []
     codegen = open62541_MacroHelper()
     
     # Detect if this is bootstrapping or if we are attempting to use userspace...
     if bootstrapping == False:
       typeDefs = self.getNamespace().getSubTypesOf() # defaults to TypeDefinition
-      myType = None
+      myTypeRef = None
       for ref in self.getReferences():
         if ref.referenceType() in typeDefs:
-          myType = ref.target()
+          myTypeRef = ref
           break
-      if myType==None:
+      if myTypeRef==None:
         for ref in self.getReferences():
           if ref.referenceType().browseName() == "HasSubtype" and ref.isForward() == False:
-            myType = ref.target()
+            myTypeRef = ref
             break
-      if myType==None:
+      if myTypeRef==None:
         log(self, str(self) + " failed to locate a type definition, assuming BaseDataType.", LOG_LEVEL_WARN)
         code.append("       // No valid typeDefinition found; assuming BaseDataType")
         code.append("       UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE),")
       else:
-        code.append("       " + codegen.getCreateExpandedNodeIDMacro(myType) + ",")
+        code.append("       " + codegen.getCreateExpandedNodeIDMacro(myTypeRef.target()) + ",")
+        if myTypeRef in unPrintedReferences:
+          unPrintedReferences.remove(myTypeRef)
       
       if (self.isAbstract()):
         code.append("       UA_TRUE,")
@@ -1695,29 +1705,32 @@ class opcua_node_view_t(opcua_node_t):
       if x.nodeType == x.ELEMENT_NODE:
         log(self,  "Unprocessable XML Element: " + x.tagName, LOG_LEVEL_INFO)
 
-  def printOpen62541CCode_Subtype(self, bootstrapping = True):
+  def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     code = []
     codegen = open62541_MacroHelper()
     
     # Detect if this is bootstrapping or if we are attempting to use userspace...
     if bootstrapping == False:
       typeDefs = self.getNamespace().getSubTypesOf() # defaults to TypeDefinition
-      myType = None
+      myTypeRef = None
       for ref in self.getReferences():
         if ref.referenceType() in typeDefs:
-          myType = ref.target()
+          myTypeRef = ref
           break
-      if myType==None:
+      if myTypeRef==None:
         for ref in self.getReferences():
           if ref.referenceType().browseName() == "HasSubtype" and ref.isForward() == False:
-            myType = ref.target()
+            myTypeRef = ref
             break
-      if myType==None:
+      if myTypeRef==None:
         log(self, str(self) + " failed to locate a type definition, assuming BaseViewType.", LOG_LEVEL_WARN)
         code.append("       // No valid typeDefinition found; assuming BaseViewType")
         code.append("       UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEViewTYPE),")
       else:
-        code.append("       " + codegen.getCreateExpandedNodeIDMacro(myType) + ",")
+        code.append("       " + codegen.getCreateExpandedNodeIDMacro(myTypeRef.target()) + ",")
+        if myTypeRef in unPrintedReferences:
+          unPrintedReferences.remove(myTypeRef)
+          
       code.append("       // FIXME: Missing eventNotifier")
       code.append("       // FIXME: Missing containsNoLoops")
       return code
