@@ -146,7 +146,6 @@ UA_SERVER_DELETENODEALIAS_DECL(VariableType)
 UA_SERVER_DELETENODEALIAS_DECL(DataType)
 
 #ifdef ENABLE_METHODCALLS
-
 UA_SERVER_DELETENODEALIAS_DECL(Method)
 #endif
 
@@ -155,7 +154,7 @@ UA_SERVER_DELETENODEALIAS_DECL(Method)
  * instead.
  *
  * @param server The server object
- * @param nodeId ID of the node copy to be deleted
+ * @param node   A copy of any node-type struct created with getNodeCopy; must *not* be managed by the nodestore.
  * 
  * @return Return UA_STATUSCODE_GOOD if the node was deleted or an appropriate errorcode if the node was not found
  *         or cannot be deleted.
@@ -190,7 +189,7 @@ UA_Server_getNodeCopy(UA_Server *server, UA_NodeId nodeId, void **copyInto);
  * @param userWriteMask Bitmask defining the user write permissions
  * @param writeMask     Bitmask defining the write permissions
  * @param value         A variant containing the value to be assigned to this node.
- * @param copyInto Pointer to a NULL pointer that will hold the copy of the node on a successfull return.
+ * @param createdNodeId Pointer to a NULL pointer that will hold the copy of the nodeId on a successfull return.
  * 
  * @return Return UA_STATUSCODE_GOOD if the node was created or an appropriate error code if not.
  */
