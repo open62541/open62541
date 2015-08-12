@@ -5,14 +5,13 @@
 #include "ua_session.h"
 #include "ua_util.h"
 
-#define COPY_STANDARDATTRIBUTES do {                                       \
+#define COPY_STANDARDATTRIBUTES do {  \
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_DISPLAYNAME) {     \
         vnode->displayName = attr.displayName;                             \
-        UA_LocalizedText_copy(&attr.displayName, &(vnode->displayName));   \
         UA_LocalizedText_init(&attr.displayName);                          \
     }                                                                      \
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_DESCRIPTION) {     \
-        UA_LocalizedText_copy(&attr.description, &(vnode->description));   \
+        vnode->description = attr.description;                             \
         UA_LocalizedText_init(&attr.description);                          \
     }                                                                      \
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_WRITEMASK)         \
