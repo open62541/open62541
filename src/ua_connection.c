@@ -24,9 +24,6 @@ void UA_Connection_init(UA_Connection *connection) {
 }
 
 void UA_Connection_deleteMembers(UA_Connection *connection) {
-#ifndef UA_MULTITHREADING
-    UA_ByteString_delete((UA_ByteString*)connection->handle);
-#endif
     UA_ByteString_deleteMembers(&connection->incompleteMessage);
 }
 

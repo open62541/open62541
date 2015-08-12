@@ -514,11 +514,12 @@ UA_Connection ClientNetworkLayerTCP_connect(UA_ConnectionConfig localConf, char 
     memcpy((char *)&server_addr.sin_addr.s_addr, (char *)server->h_addr_list[0], server->h_length);
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(port);
+    connection.state = UA_CONNECTION_OPENING;
     if(connect(connection.sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
+        ClientNetworkLayerClose(&connection);
         UA_LOG_WARNING((*logger), UA_LOGCATEGORY_COMMUNICATION, "Connection failed");
         return connection;
     }
-    connection.state = UA_CONNECTION_OPENING;
     //socket_set_nonblocking(connection.sockfd);
     connection.write = socket_write;
     connection.recv = socket_recv;
