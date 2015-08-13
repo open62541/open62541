@@ -697,8 +697,10 @@ UA_StatusCode UA_Client_removeSubscription(UA_Client *client, UA_UInt32 subscrip
     LIST_FOREACH(mon, &(sub->MonitoredItems), listEntry) {
         retval |= UA_Client_unMonitorItemChanges(client, sub->SubscriptionID, mon->MonitoredItemId);
     }
-    if (retval != UA_STATUSCODE_GOOD)
+    if (retval != UA_STATUSCODE_GOOD){
+	    UA_DeleteSubscriptionsRequest_deleteMembers(&request);
         return retval;
+    }
     
     response = UA_Client_deleteSubscriptions(client, &request);
     
