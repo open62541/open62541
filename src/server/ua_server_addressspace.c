@@ -427,9 +427,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
         // TODO Remove node
         return addRes.statusCode;
     }
-    if (createdNodeId != UA_NULL)
-      UA_NodeId_copy(&addRes.addedNodeId, createdNodeId);
-    
+
     /* create OutputArguments */
     argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0);
     UA_VariableNode *outputArgumentsVariableNode  = UA_VariableNode_new();
