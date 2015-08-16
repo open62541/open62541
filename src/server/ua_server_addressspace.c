@@ -408,6 +408,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
     
     if (createdNodeId != UA_NULL)
       UA_NodeId_copy(&addRes.addedNodeId, createdNodeId);
+    UA_AddNodesResult_deleteMembers(&addRes);
     
     /* create InputArguments */
     UA_NodeId argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0); 
@@ -419,7 +420,6 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
     inputArgumentsVariableNode->valueRank = 1;
     UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant, inputArguments,
                             inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
-    UA_AddNodesResult_deleteMembers(&addRes);
     addRes = UA_Server_addNode(server, (UA_Node*)inputArgumentsVariableNode, methodExpandedNodeId,
                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY));
     if(addRes.statusCode != UA_STATUSCODE_GOOD) {
@@ -427,6 +427,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
         // TODO Remove node
         return addRes.statusCode;
     }
+    UA_AddNodesResult_deleteMembers(&addRes);
 
     /* create OutputArguments */
     argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0);
@@ -438,7 +439,6 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
     outputArgumentsVariableNode->valueRank = 1;
     UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.variant, outputArguments,
                             outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
-    UA_AddNodesResult_deleteMembers(&addRes);
     addRes = UA_Server_addNode(server, (UA_Node*)outputArgumentsVariableNode, methodExpandedNodeId,
                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY));
     UA_ExpandedNodeId_deleteMembers(&methodExpandedNodeId);
