@@ -424,6 +424,8 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY));
     if(addRes.statusCode != UA_STATUSCODE_GOOD) {
         UA_ExpandedNodeId_deleteMembers(&methodExpandedNodeId);
+        if(createdNodeId != UA_NULL)
+            UA_NodeId_deleteMembers(createdNodeId);    	
         // TODO Remove node
         return addRes.statusCode;
     }
@@ -443,8 +445,12 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY));
     UA_ExpandedNodeId_deleteMembers(&methodExpandedNodeId);
     if(addRes.statusCode != UA_STATUSCODE_GOOD)
+    {
+        if(createdNodeId != UA_NULL)
+            UA_NodeId_deleteMembers(createdNodeId);    	
         // TODO Remove node
         retval = addRes.statusCode;
+    }
     UA_AddNodesResult_deleteMembers(&addRes);
     return retval;
 }
