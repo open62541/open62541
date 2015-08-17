@@ -821,6 +821,7 @@ UA_StatusCode UA_Client_unMonitorItemChanges(UA_Client *client, UA_UInt32 subscr
     
     if (retval == 0) {
         LIST_REMOVE(mon, listEntry);
+        UA_NodeId_deleteMembers(&mon->monitoredNodeId);
         UA_free(mon);
     }
     
