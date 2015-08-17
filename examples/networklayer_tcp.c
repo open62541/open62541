@@ -354,6 +354,12 @@ static UA_Int32 ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job 
         j++;
     }
 
+    if (j == 0)
+    {
+    	free(js);
+    	js = NULL;
+    }
+
     *jobs = js;
     return j;
 }

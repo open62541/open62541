@@ -408,6 +408,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
     
     if (createdNodeId != UA_NULL)
       UA_NodeId_copy(&addRes.addedNodeId, createdNodeId);
+    UA_AddNodesResult_deleteMembers(&addRes);
     
     /* create InputArguments */
     UA_NodeId argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0); 
@@ -426,9 +427,8 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
         // TODO Remove node
         return addRes.statusCode;
     }
-    if (createdNodeId != UA_NULL)
-      UA_NodeId_copy(&addRes.addedNodeId, createdNodeId);
-    
+    UA_AddNodesResult_deleteMembers(&addRes);
+
     /* create OutputArguments */
     argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0);
     UA_VariableNode *outputArgumentsVariableNode  = UA_VariableNode_new();
@@ -445,6 +445,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
     if(addRes.statusCode != UA_STATUSCODE_GOOD)
         // TODO Remove node
         retval = addRes.statusCode;
+    UA_AddNodesResult_deleteMembers(&addRes);
     return retval;
 }
 #endif

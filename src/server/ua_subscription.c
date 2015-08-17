@@ -37,7 +37,6 @@ void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *ser
     
     // Delete unpublished Notifications
     LIST_FOREACH_SAFE(not, &subscription->unpublishedNotifications, listEntry, tmp_not) {
-        LIST_REMOVE(not, listEntry);
         Subscription_deleteUnpublishedNotification(not->notification->sequenceNumber, subscription);
     }
     
