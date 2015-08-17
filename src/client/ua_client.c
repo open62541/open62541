@@ -693,8 +693,8 @@ UA_StatusCode UA_Client_removeSubscription(UA_Client *client, UA_UInt32 subscrip
     request.subscriptionIds = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32));
     *(request.subscriptionIds) = sub->SubscriptionID;
     
-    UA_Client_MonitoredItem *mon;
-    LIST_FOREACH(mon, &(sub->MonitoredItems), listEntry) {
+    UA_Client_MonitoredItem *mon, *tmpmon;
+    LIST_FOREACH_SAFE(mon, &(sub->MonitoredItems), listEntry, tmpmon) {
         retval |= UA_Client_unMonitorItemChanges(client, sub->SubscriptionID, mon->MonitoredItemId);
     }
     if (retval != UA_STATUSCODE_GOOD){
@@ -793,8 +793,8 @@ UA_StatusCode UA_Client_unMonitorItemChanges(UA_Client *client, UA_UInt32 subscr
     if (sub == NULL)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     
-    UA_Client_MonitoredItem *mon;
-    LIST_FOREACH(mon, &(sub->MonitoredItems), listEntry) {
+    UA_Client_MonitoredItem *mon, *tmpmon;
+    LIST_FOREACH_SAFE(mon, &(sub->MonitoredItems), listEntry, tmpmon) {
         if (mon->MonitoredItemId == monitoredItemId)
             break;
     }
