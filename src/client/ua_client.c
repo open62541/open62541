@@ -882,6 +882,7 @@ UA_Boolean UA_Client_processPublishRx(UA_Client *client, UA_PublishResponse resp
                         }
                     }
                 }
+                UA_DataChangeNotification_deleteMembers(&dataChangeNotification);
             }
             else if (msg.notificationData[k].typeId.namespaceIndex == 0 && msg.notificationData[k].typeId.identifier.numeric == 820 ) {
                 //FIXME: This is a statusChangeNotification (not supported yet)
