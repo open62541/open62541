@@ -249,11 +249,17 @@ int main(int argc, char *argv[]) {
     // Iterate over all nodes in 'Objects'
     UA_Client_forEachChildNodeCall(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter);
     
-    // Get a copy of the node 'TheNewVariableNode'
+    // Get a copy of the node 'TheNewVariableNode' and delete it
     void *theCopy;
     UA_Client_getNodeCopy(client, retNodeId, (void*) &theCopy);
+    UA_Client_deleteNodeCopy(client, &theCopy);
     
+    // Delete a serverside node
     UA_Client_deleteMethodNode(client, UA_NODEID_NUMERIC(1,62541));
+    
+    // Set a localized string version of "Objects"
+    UA_LocalizedText objectsLocale = UA_LOCALIZEDTEXT("de_DE", "Die Objekte");
+    UA_Client_setAttributeValue(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_ATTRIBUTEID_WRITEMASK, (void *) &objectsLocale);
     
     UA_Client_disconnect(client);
     UA_Client_delete(client);

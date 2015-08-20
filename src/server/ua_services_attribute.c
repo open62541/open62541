@@ -426,6 +426,16 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 #endif
 }
 
+#define SETATTRIBUTE_IF_DATATYPE_IS(EXP_DT)                                                                             \
+/* The Userspace setAttribute expects the value being passed being the correct type and has no own means for checking   \
+   We need to check for setAttribute if the dataType is correct                                                         \
+*/                                                                                                                      \
+expectType = UA_NODEID_NUMERIC(0, UA_NS0ID_##EXP_DT);                                                                   \
+if (! UA_NodeId_equal(&expectType, &wvalue->value.value.type->typeId))                                                  \
+  retval |= UA_STATUSCODE_BADTYPEMISMATCH;                                                                              \
+else                                                                                                                    \
+  retval = UA_Server_setAttributeValue(server, wvalue->nodeId, wvalue->attributeId, (void *) wvalue->value.value.data); \
+
 #ifndef BUILD_UNIT_TESTS
 static
 #endif
@@ -438,26 +448,87 @@ UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
 
     // we might repeat writing, e.g. when the node got replaced mid-work
     UA_Boolean done = UA_FALSE;
+    UA_NodeId expectType;
     while(!done) {
         const UA_Node *node = UA_NodeStore_get(server->nodestore, &wvalue->nodeId);
         if(!node)
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
         switch(wvalue->attributeId) {
-        case UA_ATTRIBUTEID_NODEID:
-        case UA_ATTRIBUTEID_NODECLASS:
         case UA_ATTRIBUTEID_BROWSENAME:
+          SETATTRIBUTE_IF_DATATYPE_IS(QUALIFIEDNAME)
+          done = UA_TRUE;
+          break;
         case UA_ATTRIBUTEID_DISPLAYNAME:
+          SETATTRIBUTE_IF_DATATYPE_IS(UINT32)
+          done = UA_TRUE;
+          break;
         case UA_ATTRIBUTEID_DESCRIPTION:
+          SETATTRIBUTE_IF_DATATYPE_IS(UINT32)
+          done = UA_TRUE;
+          break;
         case UA_ATTRIBUTEID_WRITEMASK:
+          SETATTRIBUTE_IF_DATATYPE_IS(UINT32)
+          done = UA_TRUE;
+          break;
         case UA_ATTRIBUTEID_USERWRITEMASK:
+          SETATTRIBUTE_IF_DATATYPE_IS(UINT32)
+          done = UA_TRUE;
+          break;
         case UA_ATTRIBUTEID_ISABSTRACT:
+          SETATTRIBUTE_IF_DATATYPE_IS(BOOLEAN)
+          done = UA_TRUE;
+          break;
         case UA_ATTRIBUTEID_SYMMETRIC:
+          SETATTRIBUTE_IF_DATATYPE_IS(BOOLEAN)
+          done = UA_TRUE;
+          break;
         case UA_ATTRIBUTEID_INVERSENAME:
+          SETATTRIBUTE_IF_DATATYPE_IS(UINT32)
+          done = UA_TRUE;
+          break;
         case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
+          SETATTRIBUTE_IF_DATATYPE_IS(BOOLEAN)
+          done = UA_TRUE;
+          break;
         case UA_ATTRIBUTEID_EVENTNOTIFIER:
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
+          SETATTRIBUTE_IF_DATATYPE_IS(BYTE)
+          done = UA_TRUE;
+          break;
+        case UA_ATTRIBUTEID_VALUERANK:
+          SETATTRIBUTE_IF_DATATYPE_IS(INT32)
+          done = UA_TRUE;
+          break;
+        case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
+          SETATTRIBUTE_IF_DATATYPE_IS(INT32)
+          done = UA_TRUE;
+          break;
+        case UA_ATTRIBUTEID_ACCESSLEVEL:
+          SETATTRIBUTE_IF_DATATYPE_IS(UINT32)
+          done = UA_TRUE;
+          break;
+        case UA_ATTRIBUTEID_USERACCESSLEVEL:
+          SETATTRIBUTE_IF_DATATYPE_IS(UINT32)
+          done = UA_TRUE;
+          break;
+        case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
+          SETATTRIBUTE_IF_DATATYPE_IS(DOUBLE)
+          done = UA_TRUE;
+          break;
+        case UA_ATTRIBUTEID_HISTORIZING:
+          SETATTRIBUTE_IF_DATATYPE_IS(BOOLEAN)
+          done = UA_TRUE;
+          break;
+        case UA_ATTRIBUTEID_EXECUTABLE:
+          SETATTRIBUTE_IF_DATATYPE_IS(BOOLEAN)
+          done = UA_TRUE;
+          break;
+        case UA_ATTRIBUTEID_USEREXECUTABLE:
+          SETATTRIBUTE_IF_DATATYPE_IS(LOCALIZEDTEXT)
+          done = UA_TRUE;
+          break;
+        // The value logic implemented by jpfr is far more advanced that that in the userspace, so we use that
+        // here
         case UA_ATTRIBUTEID_VALUE: {
             if(node->nodeClass != UA_NODECLASS_VARIABLE &&
                node->nodeClass != UA_NODECLASS_VARIABLETYPE) {
@@ -552,17 +623,9 @@ UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
                 UA_free(range.dimensions);
             }
             break;
+        case UA_ATTRIBUTEID_NODEID:
+        case UA_ATTRIBUTEID_NODECLASS:
         case UA_ATTRIBUTEID_DATATYPE:
-        case UA_ATTRIBUTEID_VALUERANK:
-        case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
-        case UA_ATTRIBUTEID_ACCESSLEVEL:
-        case UA_ATTRIBUTEID_USERACCESSLEVEL:
-        case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
-        case UA_ATTRIBUTEID_HISTORIZING:
-        case UA_ATTRIBUTEID_EXECUTABLE:
-        case UA_ATTRIBUTEID_USEREXECUTABLE:
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            break;
         default:
             retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
             break;
