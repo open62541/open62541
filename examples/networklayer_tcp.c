@@ -23,6 +23,9 @@
 # include <netdb.h> //gethostbyname for the client
 # include <unistd.h> // read, write, close
 # include <arpa/inet.h>
+#ifdef __QNX__
+#include <sys/socket.h>
+#endif
 # define CLOSESOCKET(S) close(S)
 #endif
 
