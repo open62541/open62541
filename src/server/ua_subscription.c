@@ -156,7 +156,7 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
                 monItemsChangeT += MonitoredItem_QueueToDataChangeNotifications(&changeNotification->monitoredItems[monItemsChangeT], mon);
                 MonitoredItem_ClearQueue(mon);
             }
-
+            
             changeNotification->monitoredItemsSize  = monItemsChangeT;
             changeNotification->diagnosticInfosSize = 0;
             changeNotification->diagnosticInfos     = UA_NULL;
@@ -355,10 +355,10 @@ int MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *d
     TAILQ_FOREACH(queueItem, &monitoredItem->queue, listEntry) {
         dst[queueSize].clientHandle = monitoredItem->clientHandle;
         dst[queueSize].value.hasServerPicoseconds = UA_FALSE;
-        dst[queueSize].value.hasServerTimestamp   = UA_FALSE;
-        dst[queueSize].value.serverTimestamp      = UA_FALSE;
-        dst[queueSize].value.hasSourcePicoseconds = UA_FALSE;
-        dst[queueSize].value.hasSourceTimestamp   = UA_FALSE;
+        dst[queueSize].value.hasServerTimestamp   = UA_TRUE;
+        dst[queueSize].value.serverTimestamp      = UA_DateTime_now();
+        dst[queueSize].value.hasSourcePicoseconds = UA_TRUE;
+        dst[queueSize].value.hasSourceTimestamp   = UA_DateTime_now();
         dst[queueSize].value.hasValue             = UA_TRUE;
         dst[queueSize].value.status = UA_STATUSCODE_GOOD;
     
