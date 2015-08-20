@@ -43,29 +43,7 @@ static UA_StatusCode IncInt32ArrayValues(const UA_NodeId objectId,
 
 	return UA_STATUSCODE_GOOD;
 }
-static UA_StatusCode callWithDifferentInputArgTypes(const UA_NodeId objectId,
-		const UA_Variant *input, UA_Variant *output) {
 
-	UA_String *string = (UA_String*) (input[0].data);
-	UA_Int32 *number = (UA_Int32*) (input[1].data);
-	UA_String tmp;
-	UA_Double tmpDouble;
-
-	//tmp = UA_STRING_ALLOC(string);
-
-	UA_String_copy(string, &tmp);
-	tmpDouble = *number;
-
-	UA_Variant_setScalarCopy(&output[0], &tmp, &UA_TYPES[UA_TYPES_STRING]);
-	UA_Variant_setScalarCopy(&output[1], &tmpDouble,
-			&UA_TYPES[UA_TYPES_DOUBLE]);
-
-	UA_String_deleteMembers(&tmp);
-	UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER,
-			"Call with different Arg types was called");
-	return UA_STATUSCODE_GOOD;
-
-}
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
