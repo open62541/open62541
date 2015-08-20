@@ -32,6 +32,7 @@ static UA_StatusCode helloWorldMethod(const UA_NodeId objectId,
 	UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Hello World was called");
 	return UA_STATUSCODE_GOOD;
 }
+
 static UA_StatusCode IncInt32ArrayValues(const UA_NodeId objectId,
 		const UA_Variant *input, UA_Variant *output) {
 
@@ -118,10 +119,6 @@ int main(int argc, char** argv) {
 			UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
 			UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), &IncInt32ArrayValues,
 			1, &inputArguments, 1, &outputArguments, NULL);
-
-
-
-
 
 	/* start server */
 	UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false
