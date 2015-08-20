@@ -50,7 +50,7 @@ static UA_StatusCode statisfySignature(UA_Variant *var, UA_Argument arg) {
             return UA_STATUSCODE_BADINVALIDARGUMENT;
         if(arg.valueRank == -3 && var->arrayDimensionsSize > 1)
             return UA_STATUSCODE_BADINVALIDARGUMENT;
-        if(arg.valueRank >= 1 && var->arrayDimensionsSize != arg.arrayDimensionsSize)
+        if(arg.valueRank > 1 && var->arrayDimensionsSize != arg.arrayDimensionsSize)
             return UA_STATUSCODE_BADINVALIDARGUMENT;
         
         //variants do not always encode the dimension flag (e.g. 1d array)
