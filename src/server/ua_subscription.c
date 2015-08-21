@@ -357,8 +357,9 @@ int MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *d
         dst[queueSize].value.hasServerPicoseconds = UA_FALSE;
         dst[queueSize].value.hasServerTimestamp   = UA_TRUE;
         dst[queueSize].value.serverTimestamp      = UA_DateTime_now();
-        dst[queueSize].value.hasSourcePicoseconds = UA_TRUE;
-        dst[queueSize].value.hasSourceTimestamp   = UA_DateTime_now();
+        dst[queueSize].value.hasSourcePicoseconds = UA_FALSE;
+        dst[queueSize].value.hasSourceTimestamp   = UA_TRUE;
+        dst[queueSize].value.sourceTimestamp      = UA_DateTime_now();
         dst[queueSize].value.hasValue             = UA_TRUE;
         dst[queueSize].value.status = UA_STATUSCODE_GOOD;
     
