@@ -129,7 +129,7 @@ UA_StatusCode UA_Server_deleteNodeCopy(UA_Server *server, void **nodeptr) {
 } 
 
 UA_StatusCode 
-UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback) {
+UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback, void *handle) {
   UA_StatusCode retval = UA_STATUSCODE_GOOD;
   const UA_Node *parent = UA_NodeStore_get(server->nodestore, &parentNodeId);
   if (!parent)
@@ -137,7 +137,7 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId, UA_Nod
   
   for(int i=0; i<parent->referencesSize; i++) {
     UA_ReferenceNode *ref = &parent->references[i];
-    retval |= callback(ref->targetId.nodeId, ref->isInverse, ref->referenceTypeId);
+    retval |= callback(ref->targetId.nodeId, ref->isInverse, ref->referenceTypeId, handle);
   }
   
   UA_NodeStore_release(parent);

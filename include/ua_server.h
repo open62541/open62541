@@ -289,7 +289,7 @@ UA_Server_addMethodNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedN
 
 #ifndef _HAVE_UA_NODEITERATORCALLBACK_D
 #define _HAVE_UA_NODEITERATORCALLBACK_D
-typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId);
+typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle);
 #endif
 
 /** Iterate over all nodes referenced by parentNodeId by calling the callback function for each child node
@@ -302,7 +302,7 @@ typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean i
  *
  * @return Upon success, UA_STATUSCODE_GOOD is returned. An error code otherwise.
  */
-UA_StatusCode UA_EXPORT UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback);
+UA_StatusCode UA_EXPORT UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback, void *handle);
 
 UA_StatusCode UA_EXPORT UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void *value);
 

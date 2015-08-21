@@ -957,7 +957,7 @@ UA_CallResponse UA_Client_call(UA_Client *client, UA_CallRequest *request) {
     return response;
 }
 
-UA_StatusCode UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId,
+UA_StatusCode UA_Client_callServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId,
                                          UA_Int32 inputSize, const UA_Variant *input,
                                          UA_Int32 *outputSize, UA_Variant **output) {
     UA_CallRequest request;
@@ -988,9 +988,7 @@ UA_StatusCode UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNode
         response.results[0].outputArguments = UA_NULL;
         response.results[0].outputArgumentsSize = -1;
     }
-    else {
-      retval |= response.responseHeader.serviceResult;
-    }
+    
     UA_CallResponse_deleteMembers(&response);
     return retval;
 }
@@ -1240,7 +1238,7 @@ UA_StatusCode UA_Client_addObjectTypeNode(UA_Client *client, UA_NodeId reqId, UA
 }
 
 UA_StatusCode 
-UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback) {
+UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback, void *handle) {
   UA_StatusCode retval = UA_STATUSCODE_GOOD;
   
   UA_BrowseRequest  brq;
@@ -1280,7 +1278,7 @@ UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId, UA_Nod
     UA_NodeId_copy(&brs.results[0].references[i].nodeId.nodeId, childId);
     UA_NodeId_copy(&brs.results[0].references[i].referenceTypeId, refTypeId);
     //UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId
-    callback(*childId, isInverse, *refTypeId);
+    callback(*childId, isInverse, *refTypeId, NULL);
     
     UA_NodeId_deleteMembers(childId);
     UA_NodeId_deleteMembers(refTypeId);

@@ -19,8 +19,8 @@ void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value) {
     return;
 }
 
-UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId);
-UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId) {  
+UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle);
+UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {  
   printf("References ns=%d;i=%d using i=%d ", childId.namespaceIndex, childId.identifier.numeric, referenceTypeId.identifier.numeric);
   if (isInverse == UA_TRUE) {
     printf(" (inverse)");
@@ -156,7 +156,7 @@ int main(int argc, char *argv[]) {
     UA_Int32 outputSize;
     UA_Variant *output;
     
-    retval = UA_Client_CallServerMethod(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+    retval = UA_Client_callServerMethod(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(1, 62541), 1, &input, &outputSize, &output);
     if(retval == UA_STATUSCODE_GOOD) {
         printf("Method call was successfull, and %i returned values available.\n", outputSize);
@@ -246,23 +246,23 @@ int main(int argc, char *argv[]) {
   // retNodeId is needed for the next test
   UA_NodeId retNodeId = UA_NODEID_STRING(1, "the.answer");
 #endif
-    // Iterate over all nodes in 'Objects'
-    UA_Client_forEachChildNodeCall(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter);
+  // Iterate over all nodes in 'Objects'
+  UA_Client_forEachChildNodeCall(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter, NULL);
     
-    // Get a copy of the node 'TheNewVariableNode' and delete it
-    void *theCopy;
-    UA_Client_getNodeCopy(client, retNodeId, (void*) &theCopy);
-    UA_Client_deleteNodeCopy(client, &theCopy);
-    
-    // Delete a serverside node
-    UA_Client_deleteMethodNode(client, UA_NODEID_NUMERIC(1,62541));
-    
-    // Set a localized string version of "Objects"
-    UA_LocalizedText objectsLocale = UA_LOCALIZEDTEXT("de_DE", "Die Objekte");
-    UA_Client_setAttributeValue(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_ATTRIBUTEID_WRITEMASK, (void *) &objectsLocale);
-    
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
-    return UA_STATUSCODE_GOOD;
+  // Get a copy of the node 'TheNewVariableNode' and delete it
+  void *theCopy;
+  UA_Client_getNodeCopy(client, retNodeId, (void*) &theCopy);
+  UA_Client_deleteNodeCopy(client, &theCopy);
+  
+  // Delete a serverside node
+  UA_Client_deleteMethodNode(client, UA_NODEID_NUMERIC(1,62541));
+  
+  // Set a localized string version of "Objects"
+  UA_LocalizedText objectsLocale = UA_LOCALIZEDTEXT("de_DE", "Die Objekte");
+  UA_Client_setAttributeValue(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_ATTRIBUTEID_WRITEMASK, (void *) &objectsLocale);
+  
+  UA_Client_disconnect(client);
+  UA_Client_delete(client);
+  return UA_STATUSCODE_GOOD;
 }
 

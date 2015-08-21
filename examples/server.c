@@ -116,17 +116,18 @@ FILE* ledFile = NULL;
 UA_Boolean ledStatus = 0;
 
 static UA_StatusCode readLedStatus(void *handle, UA_Boolean sourceTimeStamp, const UA_NumericRange *range, UA_DataValue *value) {
-    if(range)
-        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+  if(range)
+    return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
-    UA_StatusCode retval = UA_Variant_setScalarCopy(&value->value, &ledStatus, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-	if(sourceTimeStamp) {
-		value->sourceTimestamp = UA_DateTime_now();
-		value->hasSourceTimestamp = UA_TRUE;
-	}
-	return UA_STATUSCODE_GOOD;
+  UA_StatusCode retval = UA_Variant_setScalarCopy(&value->value, &ledStatus, &UA_TYPES[UA_TYPES_BOOLEAN]);
+  if(retval != UA_STATUSCODE_GOOD)
+    return retval;
+  
+  if(sourceTimeStamp) {
+          value->sourceTimestamp = UA_DateTime_now();
+          value->hasSourceTimestamp = UA_TRUE;
+  }
+  return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode writeLedStatus(void *handle, const UA_Variant *data, const UA_NumericRange *range) {
@@ -191,8 +192,8 @@ static UA_ByteString loadCertificate(void) {
     return certificate;
 }
 
-UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId);
-UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId) {  
+UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle);
+UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {  
   printf("References ns=%d;i=%d using i=%d ", childId.namespaceIndex, childId.identifier.numeric, referenceTypeId.identifier.numeric);
   if (isInverse == UA_TRUE) {
     printf(" (inverse)");
@@ -214,13 +215,13 @@ int main(int argc, char** argv) {
   UA_ByteString certificate = loadCertificate();
   UA_Server_setServerCertificate(server, certificate);
   UA_ByteString_deleteMembers(&certificate);
-      UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
+  UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 
-      // add node with the datetime data source
-      UA_DataSource dateDataSource = (UA_DataSource) {.handle = NULL, .read = readTimeData, .write = NULL};
-      const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
-      UA_Server_addDataSourceVariableNode(server, dateDataSource, dateName, UA_NODEID_NULL,
-                                      UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), NULL);
+  // add node with the datetime data source
+  UA_DataSource dateDataSource = (UA_DataSource) {.handle = NULL, .read = readTimeData, .write = NULL};
+  const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
+  UA_Server_addDataSourceVariableNode(server, dateDataSource, dateName, UA_NODEID_NULL,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), NULL);
 
 #ifndef _WIN32
   //cpu temperature monitoring for linux machines
@@ -353,7 +354,7 @@ int main(int argc, char** argv) {
    
   // Example for iterating over all nodes referenced by "Objects":
   printf("Nodes connected to 'Objects':\n=============================\n");
-  UA_Server_forEachChildNodeCall(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter);
+  UA_Server_forEachChildNodeCall(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter, NULL);
   
   // Some easy localization
   UA_LocalizedText objectsName = UA_LOCALIZEDTEXT("de_DE", "Objekte");

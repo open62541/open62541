@@ -460,11 +460,11 @@ UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
           done = UA_TRUE;
           break;
         case UA_ATTRIBUTEID_DISPLAYNAME:
-          SETATTRIBUTE_IF_DATATYPE_IS(UINT32)
+          SETATTRIBUTE_IF_DATATYPE_IS(LOCALIZEDTEXT)
           done = UA_TRUE;
           break;
         case UA_ATTRIBUTEID_DESCRIPTION:
-          SETATTRIBUTE_IF_DATATYPE_IS(UINT32)
+          SETATTRIBUTE_IF_DATATYPE_IS(LOCALIZEDTEXT)
           done = UA_TRUE;
           break;
         case UA_ATTRIBUTEID_WRITEMASK:
