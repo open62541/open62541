@@ -5,7 +5,7 @@
 # include "networklayer_tcp.h"
 # include "logger_stdout.h"
 # include "ua_types_encoding_binary.h"
-#include "ua_nodes.h"
+#include "server/ua_nodes.h"
 #else
 # include "open62541.h"
 # include <string.h>

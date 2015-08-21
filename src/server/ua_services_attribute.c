@@ -484,7 +484,7 @@ UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
           done = UA_TRUE;
           break;
         case UA_ATTRIBUTEID_INVERSENAME:
-          SETATTRIBUTE_IF_DATATYPE_IS(UINT32)
+          SETATTRIBUTE_IF_DATATYPE_IS(LOCALIZEDTEXT)
           done = UA_TRUE;
           break;
         case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
@@ -524,7 +524,7 @@ UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
           done = UA_TRUE;
           break;
         case UA_ATTRIBUTEID_USEREXECUTABLE:
-          SETATTRIBUTE_IF_DATATYPE_IS(LOCALIZEDTEXT)
+          SETATTRIBUTE_IF_DATATYPE_IS(BOOLEAN)
           done = UA_TRUE;
           break;
         // The value logic implemented by jpfr is far more advanced that that in the userspace, so we use that
@@ -627,7 +627,7 @@ UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
         case UA_ATTRIBUTEID_NODECLASS:
         case UA_ATTRIBUTEID_DATATYPE:
         default:
-            retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
             break;
         }
 
