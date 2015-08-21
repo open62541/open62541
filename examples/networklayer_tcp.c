@@ -48,8 +48,10 @@ static UA_StatusCode socket_write(UA_Connection *connection, UA_ByteString *buf,
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
 #else
             n = send(connection->sockfd, (const char*)buf->data, buflen, MSG_NOSIGNAL);
-            if(n == -1L && errno != EINTR && errno != EAGAIN)
+            if(n == -1L && errno != EINTR && errno != EAGAIN){
+                connection->close(connection);
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
+            }
 #endif
         } while (n == -1L);
         nWritten += n;
@@ -77,6 +79,7 @@ static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *respo
 		free(response->data);
         UA_ByteString_init(response);
         socket_close(connection);
+        connection->close(connection);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     int ret = recv(connection->sockfd, (char*)response->data, connection->localConf.recvBufferSize, 0);
@@ -84,6 +87,7 @@ static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *respo
 		free(response->data);
         UA_ByteString_init(response);
         socket_close(connection);
+        connection->close(connection);
         return UA_CONNECTION_CLOSED; /* ret == 0 -> server has closed the connection */
 	} else if(ret < 0) {
         free(response->data);
@@ -96,6 +100,7 @@ static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *respo
             return UA_STATUSCODE_GOOD; /* retry */
         } else {
             socket_close(connection);
+            connection->close(connection);
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
         }
     }
