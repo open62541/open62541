@@ -12,7 +12,6 @@
 #include "ua_util.h"
 #include "server/ua_server_internal.h"
 
-
 //#include "server/ua_services_attribute.c"
 
 #ifdef UA_MULTITHREADING
@@ -668,14 +667,16 @@ START_TEST(WriteSingleAttributeNodeclass)
 START_TEST(WriteSingleAttributeBrowseName)
 	{
 		UA_Server *server = makeTestSequence();
-
+		
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+		UA_QualifiedName testValue = UA_QUALIFIEDNAME(1, "the.answer");
+		UA_Variant_setScalarCopy(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_BROWSENAME;
 		wValue.value.hasValue = UA_TRUE;
 		UA_StatusCode retval = writeValue(server, &wValue);
-		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+		ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	}END_TEST
 
 START_TEST(WriteSingleAttributeDisplayName)
@@ -684,11 +685,13 @@ START_TEST(WriteSingleAttributeDisplayName)
 
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+		UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en_EN", "the.answer");
+		UA_Variant_setScalarCopy(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+		wValue.value.hasValue = UA_TRUE;
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
-		wValue.value.hasValue = UA_TRUE;
 		UA_StatusCode retval = writeValue(server, &wValue);
-		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+		ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	}END_TEST
 
 START_TEST(WriteSingleAttributeDescription)
@@ -697,11 +700,15 @@ START_TEST(WriteSingleAttributeDescription)
 
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+		UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en_EN", "the.answer");
+		UA_Variant_setScalarCopy(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+		wValue.value.hasValue = UA_TRUE;
+		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_DESCRIPTION;
 		wValue.value.hasValue = UA_TRUE;
 		UA_StatusCode retval = writeValue(server, &wValue);
-		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+		ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	}END_TEST
 
 START_TEST(WriteSingleAttributeWriteMask)
@@ -710,11 +717,14 @@ START_TEST(WriteSingleAttributeWriteMask)
 
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+		UA_Int32 testValue = 0;
+		UA_Variant_setScalarCopy(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_UINT32]);
+		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_WRITEMASK;
 		wValue.value.hasValue = UA_TRUE;
 		UA_StatusCode retval = writeValue(server, &wValue);
-		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+		ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	}END_TEST
 
 START_TEST(WriteSingleAttributeUserWriteMask)
@@ -723,11 +733,13 @@ START_TEST(WriteSingleAttributeUserWriteMask)
 
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+		UA_Int32 testValue = 0;
+		UA_Variant_setScalarCopy(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_UINT32]);
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_USERWRITEMASK;
 		wValue.value.hasValue = UA_TRUE;
 		UA_StatusCode retval = writeValue(server, &wValue);
-		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+		ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	}END_TEST
 
 START_TEST(WriteSingleAttributeIsAbstract)
@@ -736,11 +748,13 @@ START_TEST(WriteSingleAttributeIsAbstract)
 
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+		UA_Boolean testValue = UA_TRUE;
+		UA_Variant_setScalarCopy(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_ISABSTRACT;
 		wValue.value.hasValue = UA_TRUE;
 		UA_StatusCode retval = writeValue(server, &wValue);
-		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+		ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
 	}END_TEST
 
 START_TEST(WriteSingleAttributeSymmetric)
@@ -749,11 +763,13 @@ START_TEST(WriteSingleAttributeSymmetric)
 
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+		UA_Boolean testValue = UA_TRUE;
+		UA_Variant_setScalarCopy(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_SYMMETRIC;
 		wValue.value.hasValue = UA_TRUE;
 		UA_StatusCode retval = writeValue(server, &wValue);
-		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+		ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
 	}END_TEST
 
 START_TEST(WriteSingleAttributeInverseName)
@@ -762,11 +778,13 @@ START_TEST(WriteSingleAttributeInverseName)
 
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+		UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en_US", "not.the.answer");
+		UA_Variant_setScalarCopy(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_INVERSENAME;
 		wValue.value.hasValue = UA_TRUE;
 		UA_StatusCode retval = writeValue(server, &wValue);
-		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+		ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
 	}END_TEST
 
 START_TEST(WriteSingleAttributeContainsNoLoops)
@@ -775,11 +793,13 @@ START_TEST(WriteSingleAttributeContainsNoLoops)
 
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+		UA_Boolean testValue = UA_TRUE;
+		UA_Variant_setScalarCopy(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_CONTAINSNOLOOPS;
 		wValue.value.hasValue = UA_TRUE;
 		UA_StatusCode retval = writeValue(server, &wValue);
-		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+		ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
 	}END_TEST
 
 START_TEST(WriteSingleAttributeEventNotifier)
@@ -788,11 +808,13 @@ START_TEST(WriteSingleAttributeEventNotifier)
 
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+		UA_Byte testValue = 0;
+		UA_Variant_setScalarCopy(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BYTE]);
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
 		wValue.value.hasValue = UA_TRUE;
 		UA_StatusCode retval = writeValue(server, &wValue);
-		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+		ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
 	}END_TEST
 
 
@@ -854,11 +876,14 @@ START_TEST(WriteSingleAttributeValueRank)
 
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+		UA_Int32 testValue = -1;
+		UA_Variant_setScalarCopy(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_INT32]);
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_VALUERANK;
 		wValue.value.hasValue = UA_TRUE;
 		UA_StatusCode retval = writeValue(server, &wValue);
-		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+		// Returns attributeInvalid, since variant/value may be writable
+		ck_assert_int_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
 	}END_TEST
 
 START_TEST(WriteSingleAttributeArrayDimensions)
@@ -867,11 +892,14 @@ START_TEST(WriteSingleAttributeArrayDimensions)
 
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+		UA_Int32 testValue[] = {-1,-1,-1};
+		UA_Variant_setArrayCopy(&wValue.value.value, &testValue, 3, &UA_TYPES[UA_TYPES_INT32]);
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_ARRAYDIMENSIONS;
 		wValue.value.hasValue = UA_TRUE;
 		UA_StatusCode retval = writeValue(server, &wValue);
-		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+		// Returns attributeInvalid, since variant/value may be writable
+		ck_assert_int_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
 	}END_TEST
 
 START_TEST(WriteSingleAttributeAccessLevel)
@@ -880,11 +908,13 @@ START_TEST(WriteSingleAttributeAccessLevel)
 
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+		UA_UInt32 testValue = 0;
+		UA_Variant_setScalarCopy(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_UINT32]);
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_ACCESSLEVEL;
 		wValue.value.hasValue = UA_TRUE;
 		UA_StatusCode retval = writeValue(server, &wValue);
-		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+		ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	}END_TEST
 
 START_TEST(WriteSingleAttributeUserAccessLevel)
@@ -893,11 +923,13 @@ START_TEST(WriteSingleAttributeUserAccessLevel)
 
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+		UA_UInt32 testValue = 0;
+		UA_Variant_setScalarCopy(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_UINT32]);
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_USERACCESSLEVEL;
 		wValue.value.hasValue = UA_TRUE;
 		UA_StatusCode retval = writeValue(server, &wValue);
-		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+		ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	}END_TEST
 
 START_TEST(WriteSingleAttributeMinimumSamplingInterval)
@@ -906,11 +938,13 @@ START_TEST(WriteSingleAttributeMinimumSamplingInterval)
 
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+		UA_Double testValue = 0.0;
+		UA_Variant_setScalarCopy(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_DOUBLE]);
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL;
 		wValue.value.hasValue = UA_TRUE;
 		UA_StatusCode retval = writeValue(server, &wValue);
-		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+		ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	}END_TEST
 
 START_TEST(WriteSingleAttributeHistorizing)
@@ -919,11 +953,13 @@ START_TEST(WriteSingleAttributeHistorizing)
 
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+		UA_Boolean testValue = UA_TRUE;
+		UA_Variant_setScalarCopy(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_HISTORIZING;
 		wValue.value.hasValue = UA_TRUE;
 		UA_StatusCode retval = writeValue(server, &wValue);
-		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+		ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	}END_TEST
 
 START_TEST(WriteSingleAttributeExecutable)
@@ -932,11 +968,13 @@ START_TEST(WriteSingleAttributeExecutable)
 
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+		UA_Boolean testValue = UA_TRUE;
+		UA_Variant_setScalarCopy(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_EXECUTABLE;
 		wValue.value.hasValue = UA_TRUE;
 		UA_StatusCode retval = writeValue(server, &wValue);
-		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+		ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
 	}END_TEST
 
 START_TEST(WriteSingleAttributeUserExecutable)
@@ -945,11 +983,13 @@ START_TEST(WriteSingleAttributeUserExecutable)
 
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+		UA_Boolean testValue = UA_TRUE;
+		UA_Variant_setScalarCopy(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_USEREXECUTABLE;
 		wValue.value.hasValue = UA_TRUE;
 		UA_StatusCode retval = writeValue(server, &wValue);
-		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+		ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
 	}END_TEST
 
 START_TEST(WriteSingleAttributeNoValue)
