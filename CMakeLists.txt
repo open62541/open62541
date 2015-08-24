@@ -118,7 +118,7 @@ file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 
 option(ENABLE_SUBSCRIPTIONS "Enable compilation of subscription and monitoring support." OFF)
 if(ENABLE_SUBSCRIPTIONS)
-  add_definitions(-DENABLE_SUBSCRIPTIONS)
+  set(ENABLE_SUBSCRIPTIONS ON) #to propagate it to the config file
   list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
                           ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
                           ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.c)
@@ -185,7 +185,7 @@ set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 # Enable Methodcall service
 option(ENABLE_METHODCALLS "Enable CallMethod/MethodCall service set" OFF)
 if(ENABLE_METHODCALLS)
-    add_definitions(-DENABLE_METHODCALLS)
+    set(ENABLE_METHODCALLS ON) #to propagate it to the config file
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_services_call.c)
 endif()
 
