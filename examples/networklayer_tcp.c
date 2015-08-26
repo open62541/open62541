@@ -58,7 +58,6 @@ static UA_StatusCode socket_write(UA_Connection *connection, UA_ByteString *buf,
 #else
             n = send(connection->sockfd, (const char*)buf->data, buflen, MSG_NOSIGNAL);
             if(n == -1L && errno != EINTR && errno != EAGAIN){
-                connection->close(connection);
                 socket_close(connection);
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
             }
@@ -82,7 +81,6 @@ static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *respo
     if(0 != setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tmptv, sizeof(struct timeval))){
 		free(response->data);
         UA_ByteString_init(response);
-        connection->close(connection);
         socket_close(connection);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -90,7 +88,6 @@ static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *respo
 	if(ret == 0) {
 		free(response->data);
         UA_ByteString_init(response);
-        connection->close(connection);
         socket_close(connection);
         return UA_CONNECTION_CLOSED; /* ret == 0 -> server has closed the connection */
 	} else if(ret < 0) {
@@ -103,7 +100,6 @@ static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *respo
 #endif
             return UA_STATUSCODE_GOOD; /* retry */
         } else {
-            connection->close(connection);
             socket_close(connection);
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
         }
