@@ -1203,3 +1203,307 @@ UA_StatusCode UA_Server_getAttributeValue(UA_Server *server, UA_NodeId nodeId, U
   
   return retval;
 }
+
+UA_StatusCode UA_Server_appendInstanceOfSupertype(UA_Server *server, UA_NodeId nodeId, UA_NodeId appendToNodeId, 
+                                                  UA_InstantiationCallback *callback);
+UA_StatusCode UA_Server_appendInstanceOfSupertype(UA_Server *server, UA_NodeId nodeId, UA_NodeId appendToNodeId, 
+                                                  UA_InstantiationCallback *callback)  {
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  UA_Int32 inheritedFromIdsSize = 0;
+  UA_NodeId *inheritedFromIds = NULL;
+  
+  UA_Node *typeDefNode;
+  UA_Server_getNodeCopy(server, nodeId, (void *) &typeDefNode);
+  if (typeDefNode == NULL) {
+    return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+  }
+  if (!typeDefNode->nodeClass == UA_NODECLASS_OBJECTTYPE) {
+    UA_Server_deleteNodeCopy(server, (void **) &typeDefNode);
+    return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+  }
+  
+  // These refs will be examined later. 
+  // FIXME: Create these arrays dynamically to include any subtypes as well
+  UA_Int32 subtypeRefsSize = 1;
+  UA_NodeId subtypeRefs[] = { UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE)};
+  UA_Int32 componentRefsSize = 2;
+  UA_NodeId componentRefs[] = { UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY)};
+  
+  UA_ReferenceNode ref;
+  UA_Boolean refTypeValid;
+  UA_NodeClass *refClass;
+  UA_Node      *nodeClone;
+  UA_ExpandedNodeId *objectRootExpanded = UA_ExpandedNodeId_new();
+  UA_NodeId_copy(&appendToNodeId, &objectRootExpanded->nodeId );
+  UA_VariableNode *newVarNode;
+  UA_VariableTypeNode *varTypeNode;
+  for(int i=0; i<typeDefNode->referencesSize; i++) {
+    ref = typeDefNode->references[i];
+    if (ref.isInverse == UA_FALSE)
+      continue;
+    refTypeValid = UA_FALSE;
+    for (int j=0; j<subtypeRefsSize; j++) {
+      if (UA_NodeId_equal(&subtypeRefs[j], &ref.referenceTypeId)) {
+        refTypeValid = UA_TRUE;
+        break;
+      }
+    } // End check isSubtype ref
+    if (!refTypeValid) 
+      continue;
+    
+    // Check if already tried to inherit from this node (there is such a thing as duplicate refs)
+    refTypeValid = UA_TRUE;
+    for (int k=0; k<inheritedFromIdsSize; k++) {
+      if (UA_NodeId_equal(&inheritedFromIds[k], &ref.targetId.nodeId)) {
+        refTypeValid = UA_FALSE;
+        break;
+      }
+    }
+    if (!refTypeValid) 
+      continue;
+    
+    // Go ahead and inherit this nodes variables and methods (not objects!)
+    inheritedFromIdsSize++;
+    inheritedFromIds = UA_realloc(inheritedFromIds, sizeof(UA_NodeId) * inheritedFromIdsSize);
+    UA_NodeId_copy(&ref.targetId.nodeId, &inheritedFromIds[inheritedFromIdsSize-1]);
+    UA_Server_appendInstanceOfSupertype(server, ref.targetId.nodeId, appendToNodeId, callback);
+  } // End check all hassubtype refs
+  inheritedFromIdsSize = 0;
+  UA_free(inheritedFromIds);
+  
+  for(int i=0; i<typeDefNode->referencesSize; i++) {
+    ref = typeDefNode->references[i];
+    if (ref.isInverse)
+      continue;
+    refTypeValid = UA_FALSE;
+    for (int j=0; j<componentRefsSize; j++) {
+      if (UA_NodeId_equal(&componentRefs[j], &ref.referenceTypeId)) {
+        refTypeValid = UA_TRUE;
+        break;
+      }
+    } // End check hasComponent ref
+    if (!refTypeValid) 
+      continue;
+    
+    // What type of node is this?
+    refClass = NULL;
+    UA_Server_getAttributeValue(server, ref.targetId.nodeId, UA_ATTRIBUTEID_NODECLASS, (void **) &refClass);
+    switch (*refClass) {
+      case UA_NODECLASS_VARIABLE: // Just clone the variable node with a new nodeId
+        UA_Server_getNodeCopy(server, ref.targetId.nodeId, (void **) &nodeClone);
+        UA_NodeId_init(&nodeClone->nodeId);
+        nodeClone->nodeId.namespaceIndex = appendToNodeId.namespaceIndex;
+        if (nodeClone != NULL)
+          UA_Server_addNode(server, nodeClone,  *objectRootExpanded, ref.referenceTypeId);
+        break;
+      case UA_NODECLASS_VARIABLETYPE: // Convert from a value protoype to a value, then add it
+        UA_Server_getNodeCopy(server, ref.targetId.nodeId, (void **) &varTypeNode);
+        newVarNode = UA_VariableNode_new();
+        newVarNode->nodeId.namespaceIndex = appendToNodeId.namespaceIndex;
+        UA_QualifiedName_copy(&varTypeNode->browseName, &varTypeNode->browseName);
+        UA_LocalizedText_copy(&varTypeNode->displayName, &varTypeNode->displayName);
+        UA_LocalizedText_copy(&varTypeNode->description, &varTypeNode->description);
+        newVarNode->writeMask = varTypeNode->writeMask;
+        newVarNode->userWriteMask = varTypeNode->userWriteMask;
+        newVarNode->valueRank = varTypeNode->valueRank;
+        
+        newVarNode->valueSource = varTypeNode->valueSource;
+        if (varTypeNode->valueSource == UA_VALUESOURCE_DATASOURCE)
+          newVarNode->value.dataSource = varTypeNode->value.dataSource;
+        else
+          UA_Variant_copy(&varTypeNode->value.variant, &newVarNode->value.variant);
+        
+        UA_Server_addNode(server, (UA_Node *) newVarNode, *objectRootExpanded, ref.referenceTypeId);
+        UA_Server_deleteNodeCopy(server, (void **) &newVarNode);
+        UA_Server_deleteNodeCopy(server, (void **) &varTypeNode);
+        break;
+      case UA_NODECLASS_METHOD: // Link this method (don't clone the node)
+        UA_Server_AddMonodirectionalReference(server, appendToNodeId, ref.targetId, ref.referenceTypeId, UA_TRUE);
+        break;
+      default:
+        printf("We don't care about nodeclass %d\n", *refClass);
+    }
+    UA_NodeClass_delete(refClass);
+  }
+  UA_ExpandedNodeId_delete(objectRootExpanded);
+  UA_Server_deleteNodeCopy(server, (void **) &typeDefNode);
+  return retval;
+}
+
+UA_StatusCode UA_Server_addInstanceOf(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName,
+                        UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
+                        const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
+                        const UA_ExpandedNodeId typeDefinition, UA_InstantiationCallback *callback, UA_NodeId *createdNodeId) 
+{
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  
+  UA_Int32 inheritedFromIdsSize = 0;
+  UA_NodeId *inheritedFromIds = NULL;
+  
+  UA_Node *typeDefNode;
+  UA_Server_getNodeCopy(server, typeDefinition.nodeId, (void *) &typeDefNode);
+  
+  if (typeDefNode == NULL) {
+    return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+  }
+  if (!typeDefNode->nodeClass == UA_NODECLASS_OBJECTTYPE) {
+    UA_Server_deleteNodeCopy(server, (void **) &typeDefNode);
+    return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+  }
+  
+  // Create the object root as specified by the user
+  UA_NodeId objectRoot;
+  retval |= UA_Server_addObjectNode(server, nodeId, browseName, displayName, description, 
+                          parentNodeId, referenceTypeId, userWriteMask, writeMask,
+                          typeDefinition, &objectRoot
+  );
+  if (retval)
+    return retval;
+  
+  // These refs will be examined later. 
+  // FIXME: Create these arrays dynamically to include any subtypes as well
+  UA_Int32 subtypeRefsSize = 1;
+  UA_NodeId subtypeRefs[] = { UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE)};
+  UA_Int32 componentRefsSize = 2;
+  UA_NodeId componentRefs[] = { UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY)};
+  UA_Int32 typedefRefsSize = 1;
+  UA_NodeId typedefRefs[] = { UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION)};
+  
+  UA_ReferenceNode ref;
+  UA_Boolean refTypeValid;
+  UA_NodeClass *refClass;
+  UA_Node      *nodeClone;
+  UA_ExpandedNodeId *objectRootExpanded = UA_ExpandedNodeId_new();
+  UA_VariableNode *newVarNode;
+  UA_VariableTypeNode *varTypeNode;
+  UA_NodeId_copy(&objectRoot, &objectRootExpanded->nodeId );
+  
+  // (1) If this node is a subtype of any other node, create its things first
+  for(int i=0; i<typeDefNode->referencesSize; i++) {
+    ref = typeDefNode->references[i];
+    if (ref.isInverse == UA_FALSE)
+      continue;
+    refTypeValid = UA_FALSE;
+    for (int j=0; j<subtypeRefsSize; j++) {
+      if (UA_NodeId_equal(&subtypeRefs[j], &ref.referenceTypeId)) {
+        refTypeValid = UA_TRUE;
+        break;
+      }
+    } // End check isSubtype ref
+    if (!refTypeValid) 
+      continue;
+    
+    // Check if already tried to inherit from this node (there is such a thing as duplicate refs)
+    refTypeValid = UA_TRUE;
+    for (int k=0; k<inheritedFromIdsSize; k++) {
+      if (UA_NodeId_equal(&inheritedFromIds[k], &ref.targetId.nodeId)) {
+        refTypeValid = UA_FALSE;
+        break;
+      }
+    }
+    if (!refTypeValid) 
+      continue;
+    
+    // Go ahead and inherit this nodes variables and methods (not objects!)
+    inheritedFromIdsSize++;
+    inheritedFromIds = UA_realloc(inheritedFromIds, sizeof(UA_NodeId) * inheritedFromIdsSize);
+    UA_NodeId_copy(&ref.targetId.nodeId, &inheritedFromIds[inheritedFromIdsSize-1]);
+    UA_Server_appendInstanceOfSupertype(server, ref.targetId.nodeId, objectRoot, callback);
+  } // End check all hassubtype refs
+  inheritedFromIdsSize = 0;
+  UA_free(inheritedFromIds); 
+  
+  // (2) For each object or variable referenced with hasComponent or hasProperty, create a new node of that
+  //     type for this objectRoot
+  for(int i=0; i<typeDefNode->referencesSize; i++) {
+    ref = typeDefNode->references[i];
+    if (ref.isInverse)
+      continue;
+    refTypeValid = UA_FALSE;
+    for (int j=0; j<componentRefsSize; j++) {
+      if (UA_NodeId_equal(&componentRefs[j], &ref.referenceTypeId)) {
+        refTypeValid = UA_TRUE;
+        break;
+      }
+    } // End check hasComponent ref
+    if (!refTypeValid) 
+      continue;
+    
+    // What type of node is this?
+    refClass = NULL;
+    UA_Server_getAttributeValue(server, ref.targetId.nodeId, UA_ATTRIBUTEID_NODECLASS, (void **) &refClass);
+    switch (*refClass) {
+      case UA_NODECLASS_VARIABLE: // Just clone the variable node with a new nodeId
+        UA_Server_getNodeCopy(server, ref.targetId.nodeId, (void **) &nodeClone);
+        UA_NodeId_init(&nodeClone->nodeId);
+        nodeClone->nodeId.namespaceIndex = objectRoot.namespaceIndex;
+        if (nodeClone != NULL)
+          UA_Server_addNode(server, nodeClone,  *objectRootExpanded, ref.referenceTypeId);
+        break;
+      case UA_NODECLASS_VARIABLETYPE: // Convert from a value protoype to a value, then add it
+        UA_Server_getNodeCopy(server, ref.targetId.nodeId, (void **) &varTypeNode);
+        newVarNode = UA_VariableNode_new();
+        newVarNode->nodeId.namespaceIndex = objectRoot.namespaceIndex;
+        UA_QualifiedName_copy(&varTypeNode->browseName, &varTypeNode->browseName);
+        UA_LocalizedText_copy(&varTypeNode->displayName, &varTypeNode->displayName);
+        UA_LocalizedText_copy(&varTypeNode->description, &varTypeNode->description);
+        newVarNode->writeMask = varTypeNode->writeMask;
+        newVarNode->userWriteMask = varTypeNode->userWriteMask;
+        newVarNode->valueRank = varTypeNode->valueRank;
+        
+        newVarNode->valueSource = varTypeNode->valueSource;
+        if (varTypeNode->valueSource == UA_VALUESOURCE_DATASOURCE)
+          newVarNode->value.dataSource = varTypeNode->value.dataSource;
+        else
+          UA_Variant_copy(&varTypeNode->value.variant, &newVarNode->value.variant);
+        
+        UA_Server_addNode(server, (UA_Node *) newVarNode, *objectRootExpanded, ref.referenceTypeId);
+        UA_Server_deleteNodeCopy(server, (void **) &newVarNode);
+        UA_Server_deleteNodeCopy(server, (void **) &varTypeNode);
+        break;
+      case UA_NODECLASS_OBJECT: // An object may have it's own inheritance or child nodes
+        UA_Server_getNodeCopy(server, ref.targetId.nodeId, (void **) &nodeClone);
+        if (nodeClone == UA_NULL)
+          break; // switch
+          
+        // Retrieve this nodes type definition
+        UA_ExpandedNodeId_init(objectRootExpanded); // Slight misuse of an unsused ExpandedNodeId to encode the typeDefinition
+        for(int k=0; k<nodeClone->referencesSize; k++) {
+          refTypeValid = UA_FALSE;
+          for (int j=0; j<typedefRefsSize; j++) {
+            if (UA_NodeId_equal(&typedefRefs[j], &nodeClone->references[k].referenceTypeId)) {
+              refTypeValid = UA_TRUE;
+              UA_ExpandedNodeId_copy(&nodeClone->references[k].targetId, objectRootExpanded);
+              break;
+            }
+          } // End check isTypedef ref
+          if (!refTypeValid) 
+            continue;
+        } // End iterate over nodeClone refs
+        
+        if (!refTypeValid) // This may be plain wrong, but since got this far...
+          objectRootExpanded->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
+        // ... we might as well keep going
+        
+        UA_Server_addInstanceOf(server, UA_NODEID_NUMERIC(objectRoot.namespaceIndex, 0), nodeClone->browseName,
+                                nodeClone->displayName, nodeClone->description, objectRoot, 
+                                ref.referenceTypeId,nodeClone->userWriteMask, nodeClone->writeMask, 
+                                *objectRootExpanded, callback, NULL
+        );
+        UA_Server_deleteNodeCopy(server, (void **) &nodeClone);
+        UA_ExpandedNodeId_deleteMembers(objectRootExpanded); // since we only borrowed this, reset it
+        UA_NodeId_copy(&objectRoot, &objectRootExpanded->nodeId );
+        break;
+      case UA_NODECLASS_METHOD: // Link this method (don't clone the node)
+        UA_Server_AddMonodirectionalReference(server, objectRoot, ref.targetId, ref.referenceTypeId, UA_TRUE);
+        break;
+      default:
+        printf("We don't care about nodeclass %d\n", *refClass);
+    }
+    UA_NodeClass_delete(refClass);
+  }
+
+  UA_ExpandedNodeId_delete(objectRootExpanded);
+  UA_Server_deleteNodeCopy(server, (void **) &typeDefNode);
+  return retval;
+}

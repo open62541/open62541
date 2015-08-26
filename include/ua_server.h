@@ -495,6 +495,17 @@ UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, cons
 
 #endif /* external nodestore */
 
+#ifndef _HAVE_UA_INSTANTIONCALLBACK_D
+#define _HAVE_UA_INSTANTIONCALLBACK_D
+typedef UA_StatusCode (*UA_InstantiationCallback)(UA_NodeId objectId, UA_NodeId definitionId, void *handle);
+#endif
+
+UA_StatusCode UA_EXPORT
+UA_Server_addInstanceOf(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName,
+                        UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
+                        const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
+                        const UA_ExpandedNodeId typeDefinition, UA_InstantiationCallback *callback, UA_NodeId *createdNodeId);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
