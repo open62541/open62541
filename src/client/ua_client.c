@@ -513,7 +513,7 @@ UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection co
 }
 
 UA_StatusCode UA_Client_disconnect(UA_Client *client) {
-    UA_StatusCode retval;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(client->channel.connection->state == UA_CONNECTION_ESTABLISHED){
         retval = CloseSession(client);
         if(retval == UA_STATUSCODE_GOOD)

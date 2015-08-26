@@ -27,10 +27,6 @@ int main(int argc, char *argv[]) {
         UA_Client_delete(client);
         return retval;
     }
-    UA_Client_disconnect(client);
-    retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
-                                             "opc.tcp://localhost:16664");
-
     // Browse some objects
     printf("Browsing nodes in objects folder:\n");
 
