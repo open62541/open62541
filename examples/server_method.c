@@ -18,7 +18,7 @@
 UA_Boolean running = UA_TRUE;
 UA_Logger logger;
 
-static UA_StatusCode helloWorldMethod(const UA_NodeId objectId, const UA_Variant *input, UA_Variant *output) {
+static UA_StatusCode helloWorldMethod(const UA_NodeId objectId, const UA_Variant *input, UA_Variant *output, void *handle) {
     UA_String *inputStr = (UA_String*)input->data;
     UA_String tmp = UA_STRING_ALLOC("Hello ");
     if(inputStr->length > 0) {
@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541), UA_QUALIFIEDNAME(1, "hello world"), 
                             UA_LOCALIZEDTEXT("en_US","Hello World"), UA_LOCALIZEDTEXT("en_US","Say `Hello World`"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                            0, 0, &helloWorldMethod, 1, &inputArguments, 1, &outputArguments, NULL);
+                            0, 0, &helloWorldMethod, NULL, 1, &inputArguments, 1, &outputArguments, NULL);
 
     /* start server */
     UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false

@@ -252,7 +252,7 @@ UA_Server_AddMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId,
 
 #ifdef ENABLE_METHODCALLS
 typedef UA_StatusCode (*UA_MethodCallback)(const UA_NodeId objectId, const UA_Variant *input,
-                                           UA_Variant *output);
+                                           UA_Variant *output, void *handle);
 /** Creates a serverside method including input- and output variable descriptions
  * 
  * @param server The server object.
@@ -282,7 +282,7 @@ UA_StatusCode UA_EXPORT
 UA_Server_addMethodNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName,
                         UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
                         const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
-                        UA_MethodCallback method, UA_Int32 inputArgumentsSize, const UA_Argument *inputArguments, 
+                        UA_MethodCallback method, void *handle, UA_Int32 inputArgumentsSize, const UA_Argument *inputArguments, 
                         UA_Int32 outputArgumentsSize, const UA_Argument *outputArguments,
                         UA_NodeId *createdNodeId);
 #endif

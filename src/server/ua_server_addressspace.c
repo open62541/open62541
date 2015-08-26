@@ -765,7 +765,7 @@ UA_StatusCode
 UA_Server_addMethodNode(UA_Server* server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
                         UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
                         const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
-                        UA_MethodCallback method, UA_Int32 inputArgumentsSize, const UA_Argument* inputArguments, 
+                        UA_MethodCallback method, void *handle, UA_Int32 inputArgumentsSize, const UA_Argument* inputArguments, 
                         UA_Int32 outputArgumentsSize, const UA_Argument* outputArguments, 
                         UA_NodeId* createdNodeId) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -777,6 +777,7 @@ UA_Server_addMethodNode(UA_Server* server, UA_NodeId nodeId, const UA_QualifiedN
     newMethod->writeMask = writeMask;
     newMethod->userWriteMask = userWriteMask;
     newMethod->attachedMethod = method;
+    newMethod->methodHandle   = handle;
     newMethod->executable = UA_TRUE;
     newMethod->userExecutable = UA_TRUE;
     

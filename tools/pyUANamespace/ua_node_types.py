@@ -1137,6 +1137,7 @@ class opcua_node_method_t(opcua_node_t):
       code.append("       // Note: in/outputArguments are added by attaching the variable nodes,")
       code.append("       //       not by including the in the addMethodNode() call.")
       code.append("       UA_NULL,")
+      code.append("       UA_NULL,")
       code.append("       0, UA_NULL,")
       code.append("       0, UA_NULL,")
       code.append("       // FIXME: Missing executable")

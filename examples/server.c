@@ -157,8 +157,9 @@ static UA_StatusCode writeLedStatus(void *handle, const UA_Variant *data, const 
 }
 
 #ifdef ENABLE_METHODCALLS
-static UA_StatusCode getMonitoredItems(const UA_NodeId objectId, const UA_Variant *input, UA_Variant *output) {
+static UA_StatusCode getMonitoredItems(const UA_NodeId objectId, const UA_Variant *input, UA_Variant *output, void *handle) {
     UA_String tmp = UA_STRING("Hello World");
+    //UA_Server *theServer = (UA_Server *) handle; // Commented, would result in "unused variable" error
     UA_Variant_setScalarCopy(output, &tmp, &UA_TYPES[UA_TYPES_STRING]);
     printf("getMonitoredItems was called\n");
     return UA_STATUSCODE_GOOD;
@@ -348,8 +349,10 @@ int main(int argc, char** argv) {
   UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541), UA_QUALIFIEDNAME(1,"ping"), UA_LOCALIZEDTEXT("en_US", "ping"),
                           UA_LOCALIZEDTEXT("en_US", "Return a single argument as passed by the caller"),
                           UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                          0,0,
-                          &getMonitoredItems, 1, &inputArguments, 1, &outputArguments, &methodId);
+                          0, 0,
+                          &getMonitoredItems, // Call this method
+                          (void *) server,    // Pass our server pointer as a handle to the method
+                          1, &inputArguments, 1, &outputArguments, &methodId);
 #endif
    
   // Example for iterating over all nodes referenced by "Objects":

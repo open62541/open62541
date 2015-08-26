@@ -173,7 +173,7 @@ static void callMethod(UA_Server *server, UA_Session *session, UA_CallMethodRequ
                                                outputArguments->value.variant.arrayLength);
         result->outputArgumentsSize = outputArguments->value.variant.arrayLength;
         result->statusCode = methodCalled->attachedMethod(withObject->nodeId, request->inputArguments,
-                                                          result->outputArguments);
+                                                          result->outputArguments, methodCalled->methodHandle);
     }
     else
         result->statusCode = UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?

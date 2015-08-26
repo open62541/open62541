@@ -109,6 +109,7 @@ typedef struct {
     UA_Boolean executable;
     UA_Boolean userExecutable;
 #ifdef ENABLE_METHODCALLS
+    void *methodHandle;
     UA_MethodCallback attachedMethod;
 #endif
 } UA_MethodNode;
