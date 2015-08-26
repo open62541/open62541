@@ -514,11 +514,17 @@ UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection co
 
 UA_StatusCode UA_Client_disconnect(UA_Client *client) {
     UA_StatusCode retval;
-    if(client->channel.connection->state != UA_CONNECTION_ESTABLISHED)
-        return UA_STATUSCODE_GOOD;
-    retval = CloseSession(client);
-    if(retval == UA_STATUSCODE_GOOD)
-        retval = CloseSecureChannel(client);
+    if(client->channel.connection->state == UA_CONNECTION_ESTABLISHED){
+        retval = CloseSession(client);
+        if(retval == UA_STATUSCODE_GOOD)
+            retval = CloseSecureChannel(client);
+    }
+    UA_Connection* c = client->channel.connection;
+    if(c){
+        UA_Connection_detachSecureChannel(c);
+        if(c->close)
+            c->close(c);
+    }
     return retval;
 }
 
