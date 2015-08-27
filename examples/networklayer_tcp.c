@@ -458,13 +458,14 @@ static void ClientNetworkLayerReleaseBuffer(UA_Connection *connection, UA_ByteSt
 }
 
 static void ClientNetworkLayerClose(UA_Connection *connection) {
+#ifndef UA_MULTITHREADING
+    UA_ByteString_delete(connection->handle);
+    connection->handle = NULL;
+#endif
     if(connection->state == UA_CONNECTION_CLOSED)
         return;
     connection->state = UA_CONNECTION_CLOSED;
     socket_close(connection);
-#ifndef UA_MULTITHREADING
-    UA_ByteString_delete(connection->handle);
-#endif
 }
 
 /* we have no networklayer. instead, attach the reusable buffer to the handle */
