@@ -60,11 +60,14 @@ UA_Client * UA_Client_new(UA_ClientConfig config, UA_Logger logger) {
     return client;
 }
 
-void UA_Client_delete(UA_Client* client){
+void UA_Client_deleteMembers(UA_Client* client){
     UA_Connection_deleteMembers(&client->connection);
     UA_SecureChannel_deleteMembersCleanup(&client->channel);
     UA_String_deleteMembers(&client->endpointUrl);
     UA_UserTokenPolicy_deleteMembers(&client->token);
+}
+void UA_Client_delete(UA_Client* client){
+    UA_Client_deleteMembers(client);
     UA_free(client);
 }
 
@@ -519,12 +522,7 @@ UA_StatusCode UA_Client_disconnect(UA_Client *client) {
         if(retval == UA_STATUSCODE_GOOD)
             retval = CloseSecureChannel(client);
     }
-    UA_Connection* c = client->channel.connection;
-    if(c){
-        UA_Connection_detachSecureChannel(c);
-        if(c->close)
-            c->close(c);
-    }
+    UA_Client_deleteMembers(client);
     return retval;
 }
 
