@@ -38,7 +38,16 @@ class open62541_MacroHelper():
       return ""
     else:
       return ""
-
+  
+  def getNodeIdDefineString(self, node):
+    code = []
+    extrNs = node.browseName().split(":")
+    if len(extrNs) > 1:
+      code.append("#define UA_NS"  + str(node.id().ns) + "ID_" + extrNs[1].upper())
+    else:
+      code.append("#define UA_NS"  + str(node.id().ns) + "ID_" + extrNs[0].upper())
+    return code
+  
   def getCreateNodeIDMacro(self, node):
     if node.id().i != None:
       return "UA_NODEID_NUMERIC(" + str(node.id().ns) + ", " + str(node.id().i) + ")"

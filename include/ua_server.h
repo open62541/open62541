@@ -500,6 +500,21 @@ UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, cons
 typedef UA_StatusCode (*UA_InstantiationCallback)(UA_NodeId objectId, UA_NodeId definitionId, void *handle);
 #endif
 
+typedef struct arrayOfNodeIds_s {
+  UA_Int32  size;
+  UA_NodeId *ids;
+} arrayOfNodeIds;
+
+UA_StatusCode 
+UA_Server_appendInstanceOfSupertype(UA_Server *server, UA_NodeId nodeId, UA_NodeId appendToNodeId, 
+                                    arrayOfNodeIds *subtypeRefs, arrayOfNodeIds *componentRefs, 
+                                    UA_InstantiationCallback *callback, arrayOfNodeIds *instantiatedTypes);
+
+void 
+UA_Server_addInstanceOf_instatiateChildNode(UA_Server *server, 
+                                            arrayOfNodeIds *subtypeRefs, arrayOfNodeIds *componentRefs, arrayOfNodeIds *typedefRefs,
+                                            UA_NodeId objectRoot, UA_InstantiationCallback *callback, void *typeDefNode,
+                                            UA_Boolean instantiateObjects, arrayOfNodeIds *instantiatedTypes);
 UA_StatusCode UA_EXPORT
 UA_Server_addInstanceOf(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName,
                         UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 

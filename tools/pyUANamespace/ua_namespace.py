@@ -23,6 +23,7 @@ from struct import pack as structpack
 from logger import *;
 from ua_builtin_types import *;
 from ua_node_types import *;
+from ua_constants import *;
 from open62541_MacroHelper import open62541_MacroHelper
 
 def getNextElementNode(xmlvalue):
@@ -634,8 +635,6 @@ class opcua_namespace():
     header.append('#include "server/ua_server_internal.h"')
     header.append('#include "server/ua_nodes.h"')
     header.append('#include "ua_types.h"')
-    header.append("extern void "+outfilename+"(UA_Server *server);\n")
-    header.append("#endif /* "+outfilename.upper()+"_H_ */")
 
     code.append('#include "'+outfilename+'.h"')
     code.append("inline void "+outfilename+"(UA_Server *server) {")
@@ -646,6 +645,13 @@ class opcua_namespace():
     log(self, "Collecting all references used in the namespace.", LOG_LEVEL_DEBUG)
     refsUsed = []
     for n in self.nodes:
+      # Since we are already looping over all nodes, use this chance to print NodeId defines
+      if n.id().ns != 0:
+        nc = n.nodeClass()
+        if nc != NODE_CLASS_OBJECT and nc != NODE_CLASS_VARIABLE and nc != NODE_CLASS_VIEW:
+          header = header + codegen.getNodeIdDefineString(n)
+          
+      # Now for the actual references...
       for r in n.getReferences():
         # Only print valid refernces in namespace 0 (users will not want their refs bootstrapped)
         if not r.referenceType() in refsUsed and r.referenceType() != None and r.referenceType().id().ns == 0:
@@ -653,7 +659,10 @@ class opcua_namespace():
     log(self, str(len(refsUsed)) + " reference types are used in the namespace, which will now get bootstrapped.", LOG_LEVEL_DEBUG)
     for r in refsUsed:
       code = code + r.printOpen62541CCode(unPrintedNodes, unPrintedRefs);
-
+    
+    header.append("extern void "+outfilename+"(UA_Server *server);\n")
+    header.append("#endif /* "+outfilename.upper()+"_H_ */")
+    
     # Note to self: do NOT - NOT! - try to iterate over unPrintedNodes!
     #               Nodes remove themselves from this list when printed.
     log(self, "Printing all other nodes.", LOG_LEVEL_DEBUG)
