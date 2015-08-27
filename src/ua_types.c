@@ -89,6 +89,7 @@ void UA_String_init(UA_String *p) {
 }
 
 void UA_String_deleteMembers(UA_String *p) {
+	if(!p)return;
     UA_free(p->data);
     p->data = UA_NULL;
 }
