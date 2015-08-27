@@ -163,6 +163,44 @@ As an example, we will create a simple object model using UA Modeller and embed 
         </UAVariable>
     </UANodeSet>
 
+Or, more consiscly, this::
+
+   +------------------+
+   |  <<ObjectType>>  |
+   |   FieldDevice    |
+   +------------------+
+             |              +------------------+
+             |              |   <<Variable>>   |
+             |------------->| ManufacturerName |
+             | hasComponent +------------------+
+             |              +------------------+
+             |              |   <<Variable>>   |
+             |------------->|    ModelName     |
+             | hasComponent +------------------+
+             |              +----------------+
+             |              | <<ObjectType>> |
+             '------------->|      Pump      |
+                hasSubtype  +----------------+
+                                     |
+                                     |
+                                     |                +------------------+
+                                     |                |   <<Variable>>   |
+                                     |--------------->|     MotorRPM     |
+                                     |  hasComponent  +------------------+
+                                     |                +------------------+
+                                     |                |   <<Variable>>   |
+                                     |--------------->|       isOn       |
+                                     |  hasComponent  +------------------+
+                                     |                +------------------+    +------------------+
+                                     |                |    <<Method>>    |    |   <<Variable>>   |
+                                     |--------------->|    startPump     |--->| outputArguments  |
+                                     |  hasProperty   +------------------+    +------------------+
+                                     |                +------------------+    +------------------+
+                                     |                |    <<Method>>    |    |   <<Variable>>   |
+                                     '--------------->|     stopPump     |--->| outputArguments  |
+                                        hasProperty   +------------------+    +------------------+
+
+                 
 UA Modeler prepends the namespace qualifier "uax:" to some fields - this is not supported by the namespace compiler, who has strict aliasing rules concerning field names. If a datatype defines a field called "Argument", the compiler expects to find "<Argument>" tags, not "<uax:Argument>". Remove/Substitute such fields to remove namespace qualifiers.
 
 The namespace compiler can be invoked manually and has numerous options. In its simplest form, an invokation will look like this::
@@ -244,6 +282,16 @@ And at this point, you are going to see the compiler hanging again. If you speci
   Linking C shared library libopen62541.so
   [100%] Built target open62541
 
+If you open the header ``src_generated/ua_namespaceinit_generated.h`` and take a short look at the generated defines, you will notice the following definitions have been created::
+  
+  #define UA_NS1ID_PROVIDESINPUTTO
+  #define UA_NS1ID_FIELDDEVICE
+  #define UA_NS1ID_PUMP
+  #define UA_NS1ID_STARTPUMP
+  #define UA_NS1ID_STOPPUMP
+
+These definitions are generated for all types, but not variables, objects or views (as their names may be ambiguous and may not a be unique identifier). You can use these definitions in your code as you already used the ``UA_NS0ID_`` equivalents.
+  
 Now switch back to your own source directory and update your libopen62541 library (in case you have not linked it into the build folder). Compile our example server as follows::
   
   ichrispa@Cassandra:open62541/build-tutorials> gcc -g -std=c99 -Wl,-rpath,`pwd` -I ./include -L . -DENABLE_METHODCALLS -o server ./server.c -lopen62541
@@ -262,13 +310,118 @@ A minor list of some of the miriad things that can go wrong:
 Creating object instances
 -------------------------
 
-``` UA_(Server|Client)_createInstanceOf()```
+Defining an object type is only usefull if it ends up making our lives easier in some way (though it is always the proper thing to do). One of the key benefits of defining object types is being able to create object instances fairly easily. As an example, we will modify the server to create 2 pump instances::
+
+    #include <stdio.h>
+    #include <signal.h>
+
+    # include "ua_types.h"
+    # include "ua_server.h"
+    # include "ua_namespaceinit_generated.h"
+    # include "logger_stdout.h"
+    # include "networklayer_tcp.h"
+
+    UA_Boolean running;
+    UA_Int32 global_accessCounter = 0;
+
+    void stopHandler(int signal) {
+      running = 0;
+    }
+
+    UA_StatusCode pumpInstantiationCallback(UA_NodeId objectId, UA_NodeId definitionId, void *handle);
+    UA_StatusCode pumpInstantiationCallback(UA_NodeId objectId, UA_NodeId definitionId, void *handle) {
+      printf("Created new node ns=%d;i=%d according to template ns=%d;i=%d (handle was %d)\n", objectId.namespaceIndex, objectId.identifier.numeric,
+              definitionId.namespaceIndex, definitionId.identifier.numeric, *((UA_Int32 *) handle));
+      return UA_STATUSCODE_GOOD;
+    }
+
+    int main(void) {
+      signal(SIGINT,  stopHandler);
+      signal(SIGTERM, stopHandler);
+
+      UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+      UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
+      running = UA_TRUE;
+
+      UA_Int32 myHandle = 42;
+      UA_Server_addInstanceOf(server, UA_NODEID_NUMERIC(1, 0),
+                              UA_QUALIFIEDNAME(1, "Pump1"), UA_LOCALIZEDTEXT("en_US","Pump1"), UA_LOCALIZEDTEXT("en_US","A pump!"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                              0, 0, UA_EXPANDEDNODEID_NUMERIC(1, UA_NS1ID_PUMP), pumpInstantiationCallback, (void *) &myHandle, NULL);
+      
+      UA_Server_addInstanceOf(server, UA_NODEID_NUMERIC(1, 0),
+                              UA_QUALIFIEDNAME(1, "Pump2"), UA_LOCALIZEDTEXT("en_US","Pump2"), UA_LOCALIZEDTEXT("en_US","Another pump!"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                              0, 0, UA_EXPANDEDNODEID_NUMERIC(1, UA_NS1ID_PUMP), pumpInstantiationCallback, (void *) &myHandle, NULL);
+                              
+      UA_Server_run(server, 1, &running);
+      UA_Server_delete(server);
+
+      printf("Bye\n");
+      return 0;
+    }
 
 
+Make sure you have updated the headers and libs in your project, then recompile and run the server. Make especially sure you have added ``ua_namespaceinit_generated.h`` to your include folder and that you have removed any references to header in ``server``. The only include you are going to need is ``ua_types.h``.
+
+As you can see instantiating an object is not much different from creating an object node. The main difference is that you *must* use an objectType node as typeDefinition and you (may) pass a callback function (``pumpInstantiationCallback``) and a handle (``myHandle``). You should already be familiar with callbacks and handles from our previous tutorial and you can easily derive how the callback is used by running the server binary, which produces the following output::
+
+  Created new node ns=1;i=1505 according to template ns=1;i=6001
+  Created new node ns=1;i=1506 according to template ns=1;i=6002
+  Created new node ns=1;i=1507 according to template ns=1;i=6003
+  Created new node ns=1;i=1508 according to template ns=1;i=6004
+  Created new node ns=1;i=1510 according to template ns=1;i=6001
+  Created new node ns=1;i=1511 according to template ns=1;i=6002
+  Created new node ns=1;i=1512 according to template ns=1;i=6003
+  Created new node ns=1;i=1513 according to template ns=1;i=6004
+
+
+If you start the server and inspect the nodes with UA Expert, you will find two pumps in the objects folder, which look like this::
+
+       +------------+
+       | <<Object>> |
+       |   Pump1    |
+       +------------+
+              |
+              |  +------------------+
+              |->|   <<Variable>>   |
+              |  | ManufacturerName |
+              |  +------------------+
+              |  +------------------+
+              |  |   <<Variable>>   |
+              |->|    ModelName     |
+              |  +------------------+
+              |  +------------------+
+              |  |   <<Variable>>   |
+              |->|     MotorRPM     |
+              |  +------------------+
+              |  +------------------+
+              |  |   <<Variable>>   |
+              |->|       isOn       |
+              |  +------------------+
+              |  +------------------+    +------------------+
+              |  |    <<Method>>    |    |   <<Variable>>   |
+              |->|    startPump     |--->| outputArguments  |
+              |  +------------------+    +------------------+
+              |  +------------------+    +------------------+
+              |  |    <<Method>>    |    |   <<Variable>>   |
+              '->|     stopPump     |--->| outputArguments  |
+                 +------------------+    +------------------+
+
+As you can see the pump has inherited it's parents attributes (ManufacturerName and ModelName). You may also notice that the callback was not called for the methods, even though they are obviously where they are supposed to be. Methods, in contrast to objects and variables, are never cloned but instead only linked. The reason is that you will quite propably attach a method callback to a central method, not each object. Objects are instantiated if they are *below* the object you are creating, so any object (like an object called associatedServer of ServerType) that is part of pump will be instantiated as well. Objects *above* you object are never instantiated, so the same ServerType object in Fielddevices would have been ommitted (the reason is that the recursive instantiation function protects itself from infinite recursions, which are hard to track when first ascending, then redescending into a tree).
+
+For each object and variable created by the call, the callback was invoked. The callback gives you the nodeId of the new node along with the Id of the Type template used to create it. You can thereby effectively use setAttributeValue() functions (or others) to adapt the properties of these new nodes, as they can be identified by there templates.
+
+If you want to overwrite an attribute of the parent definition, you will have to delete the node instantiated by the parent's template (this as a **FIXME** for developers).
+    
 Iterating over Child nodes
 --------------------------
 
-``` UA_(Server|Client)_forEachChildNodeCall();```
+A common usecase is wanting to perform something akin to ``for each node referenced by X, call ...``; you may for example be searching for a specific browseName or instance which was created with a dynamic nodeId. There is no way of telling what you are searching for beforehand (inverse hasComponents, typedefinitions, etc.), but all usescases of "searching for" basically means iterating over each reference of a node.
+
+Since searching in nodes is a common operation, the high-level branch provides a function to help you perform this operation: `` UA_(Server|Client)_forEachChildNodeCall();``.
+
+**WIP:** use findNodeByBrowseName as an example.
 
 Examining node copies
 ---------------------
