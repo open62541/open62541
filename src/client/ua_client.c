@@ -65,7 +65,7 @@ void UA_Client_delete(UA_Client* client){
     UA_SecureChannel_deleteMembersCleanup(&client->channel);
     UA_String_deleteMembers(&client->endpointUrl);
     UA_UserTokenPolicy_deleteMembers(&client->token);
-    free(client);
+    UA_free(client);
 }
 
 static UA_StatusCode HelAckHandshake(UA_Client *c) {
