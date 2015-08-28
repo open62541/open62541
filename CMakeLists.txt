@@ -78,18 +78,18 @@ endif()
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_statuscodes.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_util.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
                      ${PROJECT_SOURCE_DIR}/include/ua_connection.h
                      ${PROJECT_SOURCE_DIR}/include/ua_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
                      ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h
                      ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h)
-set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
+set(internal_headers ${PROJECT_SOURCE_DIR}/src/ua_util.h
+                     ${PROJECT_SOURCE_DIR}/deps/queue.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
+                     ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h
                      ${PROJECT_SOURCE_DIR}/src/ua_session.h
@@ -359,11 +359,8 @@ if(BUILD_EXAMPLECLIENT)
         target_link_libraries(client_static urcu-cds urcu urcu-common pthread)
         target_link_libraries(client urcu-cds urcu urcu-common pthread)
     endif()
-    if(EXTENSION_STATELESS)
+    if(EXTENSION_STATELESS AND NOT ENABLE_AMALGAMATION)
         add_executable(client_stateless examples/client_stateless.c ${client_source})
-        if(ENABLE_AMALGAMATION)
-          ADD_DEPENDENCIES(client amalgamation)
-        endif()
         if(ENABLE_MULTITHREADING)
             target_link_libraries(client_stateless urcu-cds urcu urcu-common pthread)
         endif()
