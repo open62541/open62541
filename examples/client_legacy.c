@@ -11,7 +11,7 @@
 #include <unistd.h> // for close
 #include <stdlib.h> // pulls in declaration of malloc, free
 
-#ifdef NOT_AMALGATED
+#ifdef UA_NO_AMALGAMATION
     #include "ua_transport_generated.h"
     #include "ua_types_encoding_binary.h"
     #include "ua_util.h"
@@ -281,7 +281,7 @@ static UA_Int32 sendActivateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt3
 	rq.requestHeader.authenticationToken = authenticationToken;
 	rq.requestHeader.timestamp = UA_DateTime_now();
 	rq.requestHeader.timeoutHint = 10000;
-    
+
 	msghdr.messageSize  = 16 + UA_TcpMessageHeader_calcSizeBinary(&msghdr) + UA_NodeId_calcSizeBinary(&type) +
                           UA_ActivateSessionRequest_calcSizeBinary(&rq);
 

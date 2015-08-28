@@ -5,7 +5,7 @@
 #include <iostream>
 #include <cstring>
 
-#ifdef NOT_AMALGATED
+#ifdef UA_NO_AMALGAMATION
 # include "ua_server.h"
 # include "logger_stdout.h"
 # include "networklayer_tcp.h"

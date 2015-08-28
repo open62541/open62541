@@ -24,7 +24,7 @@ UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range) {
     struct UA_NumericRangeDimension *dimensions = UA_malloc(sizeof(struct UA_NumericRangeDimension) * 3);
     if(!dimensions)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    
+
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     do {
         UA_Int32 min, max;
@@ -45,7 +45,7 @@ UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range) {
             }
             index += progress;
         }
-        
+
         if(dimensionsIndex >= dimensionsMax) {
             struct UA_NumericRangeDimension *newDimensions =
                 UA_realloc(dimensions, sizeof(struct UA_NumericRangeDimension) * 2 * dimensionsMax);
@@ -66,7 +66,7 @@ UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range) {
         UA_free(dimensions);
         return retval;
     }
-        
+
     range->dimensions = dimensions;
     range->dimensionsSize = dimensionsIndex;
     return retval;
@@ -411,9 +411,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 		size_t offset = 0;
         UA_Connection *c = UA_NULL;
         UA_SecureChannel *sc = session->channel;
-        if(sc)
-            c = session->sc;
-        if(!c) {
+        if(!sc) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
             return;
         }
@@ -522,11 +520,11 @@ UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
                 retval = UA_STATUSCODE_BADOUTOFMEMORY;
                 goto clean_up_range;
             }
-            retval = (node->nodeClass == UA_NODECLASS_VARIABLE) ? UA_VariableNode_copy(vn, newVn) : 
+            retval = (node->nodeClass == UA_NODECLASS_VARIABLE) ? UA_VariableNode_copy(vn, newVn) :
                 UA_VariableTypeNode_copy((const UA_VariableTypeNode*)vn, (UA_VariableTypeNode*)newVn);
             if(retval != UA_STATUSCODE_GOOD)
                 goto clean_up;
-                
+
             /* insert the new value */
             if(hasRange)
                 retval = UA_Variant_setRangeCopy(&newVn->value.variant, wvalue->value.value.data,
@@ -617,7 +615,7 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
                         indices, indexSize, response->results, response->diagnosticInfos);
     }
 #endif
-    
+
     response->resultsSize = request->nodesToWriteSize;
     for(UA_Int32 i = 0;i < request->nodesToWriteSize;i++) {
 #ifdef UA_EXTERNAL_NAMESPACES

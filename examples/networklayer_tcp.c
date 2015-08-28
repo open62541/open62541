@@ -16,7 +16,7 @@
 # define CLOSESOCKET(S) closesocket(S)
 #else
 # include <fcntl.h>
-# include <sys/select.h> 
+# include <sys/select.h>
 # include <netinet/in.h>
 # include <netinet/tcp.h>
 # include <sys/ioctl.h>
@@ -33,6 +33,9 @@
 # include <urcu/uatomic.h>
 #endif
 
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
 /****************************/
 /* Generic Socket Functions */
 /****************************/
@@ -89,7 +92,7 @@ static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *respo
 		free(response->data);
         UA_ByteString_init(response);
         socket_close(connection);
-        return UA_CONNECTION_CLOSED; /* ret == 0 -> server has closed the connection */
+        return UA_STATUSCODE_BADCONNECTIONCLOSED; /* ret == 0 -> server has closed the connection */
 	} else if(ret < 0) {
         free(response->data);
         UA_ByteString_init(response);
@@ -273,7 +276,7 @@ static UA_StatusCode ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_L
     if((layer->serversockfd = socket(PF_INET, SOCK_STREAM, 0)) < 0) {
         UA_LOG_WARNING((*layer->logger), UA_LOGCATEGORY_COMMUNICATION, "Error opening socket");
         return UA_STATUSCODE_BADINTERNALERROR;
-    } 
+    }
 #endif
     const struct sockaddr_in serv_addr =
         {.sin_family = AF_INET, .sin_addr.s_addr = INADDR_ANY,
@@ -535,6 +538,14 @@ UA_Connection ClientNetworkLayerTCP_connect(UA_ConnectionConfig localConf, char 
         UA_LOG_WARNING((*logger), UA_LOGCATEGORY_COMMUNICATION, "Connection failed");
         return connection;
     }
+
+#ifdef SO_NOSIGPIPE
+    int val = 1;
+    if (setsockopt(connection.sockfd, SOL_SOCKET, SO_NOSIGPIPE, (void*)&val, sizeof(val)) < 0) {
+    UA_LOG_WARNING((*logger), UA_LOGCATEGORY_COMMUNICATION, "Couldn't set SO_NOSIGPIPE");
+    }
+#endif
+
     //socket_set_nonblocking(connection.sockfd);
     connection.write = socket_write;
     connection.recv = socket_recv;

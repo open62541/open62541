@@ -48,18 +48,29 @@ if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     # binary size reduction settings
 	add_definitions(-ffunction-sections -fdata-sections -fno-stack-protector -fno-unwind-tables
                     -fno-asynchronous-unwind-tables -fno-math-errno -fmerge-all-constants -fno-ident)
-    set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
+    if (APPLE)
+        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-dead_strip")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-dead_strip")
+    else()
+        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
+    endif()
     set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
 	if(NOT WIN32)
      if(NOT CYGWIN)
 	    add_definitions(-fvisibility=hidden -fPIC)
-        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
+        if (NOT APPLE)
+          set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
+        endif()
       endif()
 	endif()
     if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
         set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -s")
+    endif()
+    if (APPLE)
+        set(CMAKE_MACOSX_RPATH 1)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_DARWIN_C_SOURCE=1")
     endif()
 endif()
 
@@ -67,18 +78,18 @@ endif()
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_statuscodes.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
+                     ${PROJECT_SOURCE_DIR}/src/ua_util.h
+                     ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
                      ${PROJECT_SOURCE_DIR}/include/ua_connection.h
                      ${PROJECT_SOURCE_DIR}/include/ua_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
                      ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h
                      ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h)
-set(internal_headers ${PROJECT_SOURCE_DIR}/src/ua_util.h
-                     ${PROJECT_SOURCE_DIR}/deps/queue.h
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
+set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h
                      ${PROJECT_SOURCE_DIR}/src/ua_session.h
@@ -220,7 +231,13 @@ if(EXTENSION_UDP)
 	message(STATUS "Extensions: enabling udp")
 	add_definitions(-DEXTENSION_UDP)
 	add_executable(exampleServerUDP $<TARGET_OBJECTS:open62541-object> examples/networklayer_udp.c examples/server_udp.c)
-    target_link_libraries(exampleServerUDP rt)
+  target_link_libraries(exampleServerUDP urcu-cds urcu urcu-common)
+  if(ENABLE_AMALGAMATION)
+     ADD_DEPENDENCIES(exampleServerUDP amalgamation)
+  endif()
+    if (NOT APPLE)
+      target_link_libraries(exampleServerUDP rt)
+    endif()
 endif()
 
 option(EXTENSION_STATELESS "Enable stateless extension" OFF)
@@ -263,6 +280,9 @@ target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING)
 if(WIN32)
     target_link_libraries(open62541 ws2_32) #since networklayer_tcp is linked into the amalgate
 endif()
+if(ENABLE_MULTITHREADING)
+  target_link_libraries(open62541 urcu-cds urcu urcu-common pthread)
+endif()
 
 # build language bindings for the library
 option(ENABLE_BINDING_LUA "Build Lua bindings" OFF)
@@ -294,7 +314,7 @@ if(BUILD_EXAMPLESERVER)
     if(WIN32)
         target_link_libraries(server_static ws2_32)
         target_link_libraries(server ws2_32)
-    else()
+    elseif(NOT APPLE)
         target_link_libraries(server_static rt)
         target_link_libraries(server rt)
     endif()
@@ -331,7 +351,7 @@ if(BUILD_EXAMPLECLIENT)
     if(WIN32)
         target_link_libraries(client_static ws2_32)
         target_link_libraries(client ws2_32)
-    else()
+    elseif(NOT APPLE)
         target_link_libraries(client_static rt)
         target_link_libraries(client rt)
     endif()
@@ -341,6 +361,9 @@ if(BUILD_EXAMPLECLIENT)
     endif()
     if(EXTENSION_STATELESS)
         add_executable(client_stateless examples/client_stateless.c ${client_source})
+        if(ENABLE_AMALGAMATION)
+          ADD_DEPENDENCIES(client amalgamation)
+        endif()
         if(ENABLE_MULTITHREADING)
             target_link_libraries(client_stateless urcu-cds urcu urcu-common pthread)
         endif()

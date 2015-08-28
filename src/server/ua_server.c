@@ -39,10 +39,13 @@ static const UA_ExpandedNodeId expandedNodeIdBaseDataVariabletype = {
     .nodeId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
                .identifier.numeric = UA_NS0ID_HASTYPEDEFINITION},
     .namespaceUri = {.length = -1, .data = UA_NULL}, .serverIndex = 0};
+
+#ifndef ENABLE_GENERATE_NAMESPACE0
 static const UA_ExpandedNodeId expandedNodeIdNonHierarchicalReferences = {
     .nodeId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
                .identifier.numeric = UA_NS0ID_NONHIERARCHICALREFERENCES},
     .namespaceUri = {.length = -1, .data = UA_NULL}, .serverIndex = 0};
+#endif
 
 /**********************/
 /* Namespace Handling */
