@@ -1278,7 +1278,7 @@ UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId, UA_Nod
     UA_NodeId_copy(&brs.results[0].references[i].nodeId.nodeId, childId);
     UA_NodeId_copy(&brs.results[0].references[i].referenceTypeId, refTypeId);
     //UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId
-    callback(*childId, isInverse, *refTypeId, NULL);
+    callback(*childId, isInverse, *refTypeId, handle);
     
     UA_NodeId_deleteMembers(childId);
     UA_NodeId_deleteMembers(refTypeId);

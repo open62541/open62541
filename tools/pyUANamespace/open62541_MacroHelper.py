@@ -43,9 +43,9 @@ class open62541_MacroHelper():
     code = []
     extrNs = node.browseName().split(":")
     if len(extrNs) > 1:
-      code.append("#define UA_NS"  + str(node.id().ns) + "ID_" + extrNs[1].upper())
+      code.append("#define UA_NS"  + str(node.id().ns) + "ID_" + extrNs[1].upper() + " " + str(node.id().i))
     else:
-      code.append("#define UA_NS"  + str(node.id().ns) + "ID_" + extrNs[0].upper())
+      code.append("#define UA_NS"  + str(node.id().ns) + "ID_" + extrNs[0].upper() + " " + str(node.id().i))
     return code
   
   def getCreateNodeIDMacro(self, node):

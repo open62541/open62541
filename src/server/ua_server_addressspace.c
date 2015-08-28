@@ -1228,8 +1228,8 @@ UA_StatusCode UA_Server_getAttributeValue(UA_Server *server, UA_NodeId nodeId, U
 } \
 
 static void UA_Server_addInstanceOf_inheritParentAttributes(UA_Server *server, arrayOfNodeIds *subtypeRefs, arrayOfNodeIds *componentRefs, 
-                                                            UA_NodeId objectRoot, UA_InstantiationCallback *callback, UA_ObjectTypeNode *typeDefNode,
-                                                            arrayOfNodeIds *instantiatedTypes) 
+                                                            UA_NodeId objectRoot, UA_InstantiationCallback callback, UA_ObjectTypeNode *typeDefNode,
+                                                            arrayOfNodeIds *instantiatedTypes, void *handle) 
 {
   UA_Boolean refTypeValid;
   UA_ReferenceNode ref;
@@ -1249,7 +1249,7 @@ static void UA_Server_addInstanceOf_inheritParentAttributes(UA_Server *server, a
       continue;
     // Go ahead and inherit this nodes variables and methods (not objects!)
     arrayOfNodeIds_addNodeId(visitedNodes, ref.targetId.nodeId);
-    UA_Server_appendInstanceOfSupertype(server, ref.targetId.nodeId, objectRoot, subtypeRefs, componentRefs, callback, instantiatedTypes);
+    UA_Server_appendInstanceOfSupertype(server, ref.targetId.nodeId, objectRoot, subtypeRefs, componentRefs, callback, instantiatedTypes, handle);
   } // End check all hassubtype refs
   arrayOfNodeIds_deleteMembers(visitedNodes);
   return;
@@ -1258,7 +1258,8 @@ static void UA_Server_addInstanceOf_inheritParentAttributes(UA_Server *server, a
 static void UA_Server_addInstanceOf_instatiateChildObject(UA_Server *server, 
                                                           arrayOfNodeIds *subtypeRefs, arrayOfNodeIds *componentRefs, arrayOfNodeIds *typedefRefs,
                                                           UA_Node *objectCopy, UA_NodeId parentId, UA_ExpandedNodeId typeDefinition, UA_NodeId referenceTypeId,
-                                                          UA_InstantiationCallback *callback, UA_Boolean instantiateObjects, arrayOfNodeIds *instantiatedTypes) 
+                                                          UA_InstantiationCallback callback, UA_Boolean instantiateObjects, arrayOfNodeIds *instantiatedTypes, 
+                                                          void *handle) 
 {
   UA_StatusCode retval = UA_STATUSCODE_GOOD;
   
@@ -1286,29 +1287,27 @@ static void UA_Server_addInstanceOf_instatiateChildObject(UA_Server *server,
                                     typeDefinition, &objectRoot);
   if (retval)
     return;
-   
-  UA_ExpandedNodeId *objectRootExpanded = UA_ExpandedNodeId_new();
-  UA_NodeId_copy(&objectRoot, &objectRootExpanded->nodeId );
+  
+  if (callback != NULL)
+    callback(objectRoot, typeDefinition.nodeId, handle);
   
   // (1) If this node is a subtype of any other node, create its things first
   UA_Server_addInstanceOf_inheritParentAttributes(server, subtypeRefs, componentRefs, objectRoot, callback, 
-                                                  (UA_ObjectTypeNode *) typeDefNode, instantiatedTypes);
+                                                  (UA_ObjectTypeNode *) typeDefNode, instantiatedTypes, handle);
   
   // (2) For each object or variable referenced with hasComponent or hasProperty, create a new node of that
   //     type for this objectRoot
   UA_Server_addInstanceOf_instatiateChildNode(server, subtypeRefs, componentRefs, typedefRefs,
                                               objectRoot, callback, (UA_ObjectTypeNode *) typeDefNode, 
-                                              UA_TRUE, instantiatedTypes);
+                                              UA_TRUE, instantiatedTypes, handle);
   
-  UA_ExpandedNodeId_delete(objectRootExpanded);
-  UA_Server_deleteNodeCopy(server, (void **) &typeDefNode);
   return;
 }
   
 void UA_Server_addInstanceOf_instatiateChildNode(UA_Server *server, 
                                                 arrayOfNodeIds *subtypeRefs, arrayOfNodeIds *componentRefs, arrayOfNodeIds *typedefRefs,
-                                                UA_NodeId objectRoot, UA_InstantiationCallback *callback, void *typeDefNode,
-                                                UA_Boolean instantiateObjects, arrayOfNodeIds *instantiatedTypes) 
+                                                UA_NodeId objectRoot, UA_InstantiationCallback callback, void *typeDefNode,
+                                                UA_Boolean instantiateObjects, arrayOfNodeIds *instantiatedTypes, void *handle) 
 {
   UA_Boolean refTypeValid;
   UA_NodeClass *refClass;
@@ -1318,7 +1317,7 @@ void UA_Server_addInstanceOf_instatiateChildNode(UA_Server *server,
   UA_VariableTypeNode *varTypeNode;
   UA_ReferenceNode ref;
   UA_NodeId_copy(&objectRoot, &objectRootExpanded->nodeId );
-  
+  UA_AddNodesResult adres;
   for(int i=0; i< ((UA_ObjectTypeNode *) typeDefNode)->referencesSize; i++) {
     ref = ((UA_ObjectTypeNode *) typeDefNode)->references[i];
     if (ref.isInverse)
@@ -1335,8 +1334,11 @@ void UA_Server_addInstanceOf_instatiateChildNode(UA_Server *server,
         UA_Server_getNodeCopy(server, ref.targetId.nodeId, (void **) &nodeClone);
         UA_NodeId_init(&nodeClone->nodeId);
         nodeClone->nodeId.namespaceIndex = objectRoot.namespaceIndex;
-        if (nodeClone != NULL)
-          UA_Server_addNode(server, nodeClone,  *objectRootExpanded, ref.referenceTypeId);
+        if (nodeClone != NULL) {
+          adres = UA_Server_addNode(server, nodeClone,  *objectRootExpanded, ref.referenceTypeId);
+          if (callback != NULL)
+            callback(adres.addedNodeId, ref.targetId.nodeId, handle);
+        }
         break;
       case UA_NODECLASS_VARIABLETYPE: // Convert from a value protoype to a value, then add it
         UA_Server_getNodeCopy(server, ref.targetId.nodeId, (void **) &varTypeNode);
@@ -1355,7 +1357,9 @@ void UA_Server_addInstanceOf_instatiateChildNode(UA_Server *server,
         else
           UA_Variant_copy(&varTypeNode->value.variant, &newVarNode->value.variant);
         
-        UA_Server_addNode(server, (UA_Node *) newVarNode, *objectRootExpanded, ref.referenceTypeId);
+        adres = UA_Server_addNode(server, (UA_Node *) newVarNode, *objectRootExpanded, ref.referenceTypeId);
+        if (callback != NULL)
+          callback(adres.addedNodeId, ref.targetId.nodeId, handle);
         UA_Server_deleteNodeCopy(server, (void **) &newVarNode);
         UA_Server_deleteNodeCopy(server, (void **) &varTypeNode);
         break;
@@ -1386,7 +1390,7 @@ void UA_Server_addInstanceOf_instatiateChildNode(UA_Server *server,
           
           UA_Server_addInstanceOf_instatiateChildObject(server, subtypeRefs, componentRefs, typedefRefs, nodeClone,
                                                         objectRoot, *objectRootExpanded, ref.referenceTypeId,
-                                                        callback, UA_TRUE, instantiatedTypes);
+                                                        callback, UA_TRUE, instantiatedTypes, handle);
           instantiatedTypes->size = lastArrayDepth;
           instantiatedTypes->ids = (UA_NodeId *) realloc(instantiatedTypes->ids, lastArrayDepth);
           
@@ -1407,35 +1411,38 @@ void UA_Server_addInstanceOf_instatiateChildNode(UA_Server *server,
 
 UA_StatusCode UA_Server_appendInstanceOfSupertype(UA_Server *server, UA_NodeId nodeId, UA_NodeId appendToNodeId, 
                                                   arrayOfNodeIds *subtypeRefs, arrayOfNodeIds *componentRefs, 
-                                                  UA_InstantiationCallback *callback, arrayOfNodeIds *instantiatedTypes)  {
-UA_StatusCode retval = UA_STATUSCODE_GOOD;
+                                                  UA_InstantiationCallback callback, arrayOfNodeIds *instantiatedTypes, 
+                                                  void *handle)  
+{
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
-UA_Node *typeDefNode;
-UA_Server_getNodeCopy(server, nodeId, (void *) &typeDefNode);
-if (typeDefNode == NULL) {
-return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
-}
-if (!typeDefNode->nodeClass == UA_NODECLASS_OBJECTTYPE) {
-UA_Server_deleteNodeCopy(server, (void **) &typeDefNode);
-return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
-}
+  UA_Node *typeDefNode;
+  UA_Server_getNodeCopy(server, nodeId, (void *) &typeDefNode);
+  if (typeDefNode == NULL) {
+  return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+  }
+  if (!typeDefNode->nodeClass == UA_NODECLASS_OBJECTTYPE) {
+  UA_Server_deleteNodeCopy(server, (void **) &typeDefNode);
+  return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+  }
 
-UA_ExpandedNodeId *objectRootExpanded = UA_ExpandedNodeId_new();
-UA_NodeId_copy(&appendToNodeId, &objectRootExpanded->nodeId );
-// (1) If this node is a subtype of any other node, create its things first
-UA_Server_addInstanceOf_inheritParentAttributes(server, subtypeRefs, componentRefs, appendToNodeId, callback, 
-                                                (UA_ObjectTypeNode *) typeDefNode, instantiatedTypes);
+  UA_ExpandedNodeId *objectRootExpanded = UA_ExpandedNodeId_new();
+  UA_NodeId_copy(&appendToNodeId, &objectRootExpanded->nodeId );
+  // (1) If this node is a subtype of any other node, create its things first
+  UA_Server_addInstanceOf_inheritParentAttributes(server, subtypeRefs, componentRefs, appendToNodeId, callback, 
+                                                  (UA_ObjectTypeNode *) typeDefNode, instantiatedTypes, handle);
 
-UA_Server_addInstanceOf_instatiateChildNode(server, subtypeRefs, componentRefs, UA_NULL, 
-                                            appendToNodeId, callback, (UA_ObjectTypeNode *) typeDefNode, 
-                                            UA_FALSE, instantiatedTypes);
-return retval;
+  UA_Server_addInstanceOf_instatiateChildNode(server, subtypeRefs, componentRefs, UA_NULL, 
+                                              appendToNodeId, callback, (UA_ObjectTypeNode *) typeDefNode, 
+                                              UA_FALSE, instantiatedTypes, handle);
+  return retval;
 }
 
 UA_StatusCode UA_Server_addInstanceOf(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName,
                         UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
                         const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
-                        const UA_ExpandedNodeId typeDefinition, UA_InstantiationCallback *callback, UA_NodeId *createdNodeId) 
+                        const UA_ExpandedNodeId typeDefinition, UA_InstantiationCallback callback, void *handle, 
+                        UA_NodeId *createdNodeId) 
 {
   UA_StatusCode retval = UA_STATUSCODE_GOOD;
   
@@ -1482,13 +1489,13 @@ UA_StatusCode UA_Server_addInstanceOf(UA_Server *server, UA_NodeId nodeId, const
   
   // (1) If this node is a subtype of any other node, create its things first
   UA_Server_addInstanceOf_inheritParentAttributes(server, &subtypeRefs, &componentRefs, objectRoot, callback, 
-                                                  (UA_ObjectTypeNode *) typeDefNode, &instantiatedTypes);
+                                                  (UA_ObjectTypeNode *) typeDefNode, &instantiatedTypes, handle);
   
   // (2) For each object or variable referenced with hasComponent or hasProperty, create a new node of that
   //     type for this objectRoot
   UA_Server_addInstanceOf_instatiateChildNode(server, &subtypeRefs, &componentRefs, &typedefRefs,
                                               objectRoot, callback, (UA_ObjectTypeNode *) typeDefNode, 
-                                              UA_TRUE, &instantiatedTypes);
+                                              UA_TRUE, &instantiatedTypes, handle);
   arrayOfNodeIds_deleteMembers(instantiatedTypes);
   
   UA_ExpandedNodeId_delete(objectRootExpanded);
