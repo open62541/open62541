@@ -6,7 +6,16 @@
 #include "ua_transport_generated.h"
 #include "ua_client_internal.h"
 
+typedef enum {
+       UA_CLIENTSTATE_READY,
+       UA_CLIENTSTATE_CONNECTED,
+       UA_CLIENTSTATE_ERRORED
+} UA_Client_State;
+
 struct UA_Client {
+    /* State */ //maybe it should be visible to user
+    UA_Client_State state;
+
     /* Connection */
     UA_Connection connection;
     UA_SecureChannel channel;
@@ -40,6 +49,18 @@ UA_Client * UA_Client_new(UA_ClientConfig config, UA_Logger logger) {
     if(!client)
         return UA_NULL;
 
+    UA_Client_init(client, config, logger);
+    return client;
+}
+
+void UA_Client_reset(UA_Client* client){
+    UA_Client_deleteMembers(client);
+    UA_Client_init(client, client->config, client->logger);
+}
+
+void UA_Client_init(UA_Client* client, UA_ClientConfig config, UA_Logger logger){
+    client->state = UA_CLIENTSTATE_READY;
+
     UA_Connection_init(&client->connection);
     UA_SecureChannel_init(&client->channel);
     client->channel.connection = &client->connection;
@@ -57,17 +78,20 @@ UA_Client * UA_Client_new(UA_ClientConfig config, UA_Logger logger) {
     LIST_INIT(&client->pendingNotificationsAcks);
     LIST_INIT(&client->subscriptions);
 #endif
-    return client;
 }
 
 void UA_Client_deleteMembers(UA_Client* client){
+    if(client->state == UA_CLIENTSTATE_READY) //initialized client has no dynamic memory allocated
+        return;
     UA_Connection_deleteMembers(&client->connection);
     UA_SecureChannel_deleteMembersCleanup(&client->channel);
-    UA_String_deleteMembers(&client->endpointUrl);
+    if(client->endpointUrl.data)
+        UA_String_deleteMembers(&client->endpointUrl);
     UA_UserTokenPolicy_deleteMembers(&client->token);
 }
 void UA_Client_delete(UA_Client* client){
-    UA_Client_deleteMembers(client);
+    if(client->state != UA_CLIENTSTATE_READY)
+        UA_Client_deleteMembers(client);
     UA_free(client);
 }
 
@@ -261,6 +285,7 @@ static void synchronousRequest(UA_Client *client, void *request, const UA_DataTy
             respHeader->serviceResult = UA_STATUSCODE_BADREQUESTTOOLARGE;
         else
             respHeader->serviceResult = retval;
+        client->state = UA_CLIENTSTATE_ERRORED;
         return;
     }
 
@@ -275,6 +300,11 @@ static void synchronousRequest(UA_Client *client, void *request, const UA_DataTy
             return;
         }
     } while(!reply.data);
+
+    if(retval){
+        client->state = UA_CLIENTSTATE_ERRORED;
+        return;
+    }
 
     size_t offset = 0;
     UA_SecureConversationMessageHeader msgHeader;
@@ -311,8 +341,10 @@ static void synchronousRequest(UA_Client *client, void *request, const UA_DataTy
  finish:
     UA_SymmetricAlgorithmSecurityHeader_deleteMembers(&symHeader);
     UA_ByteString_deleteMembers(&reply);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD){
+        client->state = UA_CLIENTSTATE_ERRORED;
         respHeader->serviceResult = retval;
+    }
 }
 
 static UA_StatusCode ActivateSession(UA_Client *client) {
@@ -492,16 +524,30 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
 /*************************/
 
 UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection connectFunc, char *endpointUrl) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    /** make the function more convenient to the end-user **/
+    if(client->state == UA_CLIENTSTATE_CONNECTED){
+        UA_Client_disconnect(client);
+    }
+    if(client->state == UA_CLIENTSTATE_ERRORED){
+        UA_Client_reset(client);
+    }
+
     client->connection = connectFunc(UA_ConnectionConfig_standard, endpointUrl, &client->logger);
-    if(client->connection.state != UA_CONNECTION_OPENING)
-        return UA_STATUSCODE_BADCONNECTIONCLOSED;
+    if(client->connection.state != UA_CONNECTION_OPENING){
+        retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
+        goto cleanup;
+    }
 
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
-    if(client->endpointUrl.length < 0)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(client->endpointUrl.length < 0){
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
 
     client->connection.localConf = client->config.localConnectionConfig;
-    UA_StatusCode retval = HelAckHandshake(client);
+    retval = HelAckHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
         retval = SecureChannelHandshake(client, UA_FALSE);
     if(retval == UA_STATUSCODE_GOOD)
@@ -510,9 +556,18 @@ UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection co
         retval = SessionHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
         retval = ActivateSession(client);
-    if(retval == UA_STATUSCODE_GOOD)
+    if(retval == UA_STATUSCODE_GOOD){
         client->connection.state = UA_CONNECTION_ESTABLISHED;
+        client->state = UA_CLIENTSTATE_CONNECTED;
+    }else{
+        goto cleanup;
+    }
     return retval;
+
+    cleanup:
+        client->state = UA_CLIENTSTATE_ERRORED;
+        UA_Client_reset(client);
+        return retval;
 }
 
 UA_StatusCode UA_Client_disconnect(UA_Client *client) {
@@ -522,7 +577,7 @@ UA_StatusCode UA_Client_disconnect(UA_Client *client) {
         if(retval == UA_STATUSCODE_GOOD)
             retval = CloseSecureChannel(client);
     }
-    UA_Client_deleteMembers(client);
+    UA_Client_reset(client);
     return retval;
 }
 
