@@ -22,6 +22,16 @@
  * - Remove the entry from the list
  * - mark it as "dead" with an atomic operation
  * - add a delayed job that frees the memory when all concurrent operations have completed
+ * 
+ * This approach to concurrently accessible memory is known as epoch based reclamation [1]. According to
+ * [2], it performs competitively well on many-core systems. Our version of EBR does however not require
+ * a global epoch. Instead, every worker thread has its own epoch counter that we observe for changes.
+ * 
+ * [1] Fraser, K. 2003. Practical lock freedom. Ph.D. thesis. Computer Laboratory, University of Cambridge.
+ * [2] Hart, T. E., McKenney, P. E., Brown, A. D., & Walpole, J. (2007). Performance of memory reclamation
+ *     for lockless synchronization. Journal of Parallel and Distributed Computing, 67(12), 1270-1285.
+ * 
+ * 
  */
 
 #define MAXTIMEOUT 50000 // max timeout in microsec until the next main loop iteration
