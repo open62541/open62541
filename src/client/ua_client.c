@@ -297,14 +297,10 @@ static void synchronousRequest(UA_Client *client, void *request, const UA_DataTy
         retval = client->connection.recv(&client->connection, &reply, client->config.timeout);
         if(retval != UA_STATUSCODE_GOOD) {
             respHeader->serviceResult = retval;
+            client->state = UA_CLIENTSTATE_ERRORED;
             return;
         }
     } while(!reply.data);
-
-    if(retval){
-        client->state = UA_CLIENTSTATE_ERRORED;
-        return;
-    }
 
     size_t offset = 0;
     UA_SecureConversationMessageHeader msgHeader;
