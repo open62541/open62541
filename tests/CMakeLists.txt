@@ -8,13 +8,16 @@ find_package(Threads REQUIRED)
 
 set(LIBS ${CHECK_LIBRARIES})
 if(NOT WIN32)
-    list(APPEND LIBS rt pthread)
+  list(APPEND LIBS pthread)
+  if (NOT APPLE)
+    list(APPEND LIBS rt)
+  endif()
 else()
     list(APPEND LIBS ws2_32)
 endif()
-if(MULTITHREADING)
+if(ENABLE_MULTITHREADING)
     list(APPEND LIBS urcu-cds urcu urcu-common)
-endif(MULTITHREADING)
+endif(ENABLE_MULTITHREADING)
 
 # the unit test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library

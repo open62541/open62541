@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-#ifdef NOT_AMALGATED
+#ifdef UA_NO_AMALGAMATION
 # include "ua_server.h"
 #else
 # include "open62541.h"

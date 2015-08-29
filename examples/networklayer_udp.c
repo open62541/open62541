@@ -17,7 +17,7 @@
 # include <errno.h> // errno, EINTR
 # include <fcntl.h> // fcntl
 # include <strings.h> //bzero
-# include <sys/select.h> 
+# include <sys/select.h>
 # include <netinet/in.h>
 # include <netinet/tcp.h>
 # include <sys/socketvar.h>
@@ -38,11 +38,8 @@
 /*****************************/
 /* Generic Buffer Management */
 /*****************************/
-
-static UA_StatusCode GetMallocedBuffer(UA_Connection *connection, UA_ByteString *buf, size_t minSize) {
-    if(minSize > connection->remoteConf.recvBufferSize)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    return UA_ByteString_newMembers(buf, minSize);
+static UA_StatusCode GetMallocedBuffer(UA_Connection *connection, UA_ByteString *buf) {
+    return UA_ByteString_newMembers(buf, connection->remoteConf.recvBufferSize);
 }
 
 static void ReleaseMallocedBuffer(UA_Connection *connection, UA_ByteString *buf) {
@@ -71,41 +68,44 @@ typedef struct {
 } ServerNetworkLayerUDP;
 
 /** Accesses only the sockfd in the handle. Can be run from parallel threads. */
-static void writeCallbackUDP(UDPConnection *handle, UA_ByteStringArray gather_buf) {
-	UA_UInt32 total_len = 0, nWritten = 0;
-	struct iovec iov[gather_buf.stringsSize];
-	for(UA_UInt32 i=0;i<gather_buf.stringsSize;i++) {
-		iov[i] = (struct iovec) {.iov_base = gather_buf.strings[i].data,
-                                 .iov_len = gather_buf.strings[i].length};
-		total_len += gather_buf.strings[i].length;
-	}
+static UA_StatusCode writeCallbackUDP(UDPConnection *handle, UA_ByteString *buf, size_t buflen) {
+	UA_UInt32 nWritten = 0;
+	struct iovec iov;
+	iov = (struct iovec) {.iov_base = buf->data, .iov_len = buf->length};
+
 	struct sockaddr_in *sin = NULL;
 	if (handle->from.sa_family == AF_INET) {
+
 #if ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4 || defined(__clang__))
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-align"
 #endif
+
 	    sin = (struct sockaddr_in *) &(handle->from);
+
 #if ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4 || defined(__clang__))
 #pragma GCC diagnostic pop
 #endif
+
 	} else {
 		//FIXME:
-		return;
+		return UA_STATUSCODE_BADINTERNALERROR;
 	}
-	struct msghdr message = {.msg_name = sin, .msg_namelen = handle->fromlen, .msg_iov = iov,
-							 .msg_iovlen = gather_buf.stringsSize, .msg_control = NULL,
+	struct msghdr message = {.msg_name = sin, .msg_namelen = handle->fromlen, .msg_iov = &iov,
+							 .msg_iovlen = 1, .msg_control = NULL,
 							 .msg_controllen = 0, .msg_flags = 0};
-	while (nWritten < total_len) {
+	while (nWritten < buflen) {
 		UA_Int32 n = 0;
 		do {
-            n = sendmsg(((ServerNetworkLayerUDP*)handle->connection.handle)->serversockfd, &message, 0);
-            if(n == -1L) {
-            	printf("ERROR:%i\n", errno);
-            }
-        } while (n == -1L && errno == EINTR);
-        nWritten += n;
+        n = sendmsg(((ServerNetworkLayerUDP*)handle->connection.handle)->serversockfd, &message, 0);
+        if(n == -1L) {
+          printf("ERROR:%i\n", errno);
+        }
+    } while (n == -1L && errno == EINTR);
+    nWritten += n;
 	}
+
+  return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode socket_set_nonblocking(UA_Int32 sockfd) {
@@ -124,12 +124,13 @@ static void closeConnectionUDP(UDPConnection *handle) {
 	free(handle);
 }
 
-static UA_StatusCode ServerNetworkLayerUDP_start(ServerNetworkLayerUDP *layer, UA_Logger *logger) {
+static UA_StatusCode ServerNetworkLayerUDP_start(UA_ServerNetworkLayer *nl, UA_Logger *logger) {
+    ServerNetworkLayerUDP *layer = nl->handle;
     layer->logger = logger;
     if((layer->serversockfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
 		perror("ERROR opening socket");
 		return UA_STATUSCODE_BADINTERNALERROR;
-	} 
+	}
 	const struct sockaddr_in serv_addr =
         {.sin_family = AF_INET, .sin_addr.s_addr = INADDR_ANY,
          .sin_port = htons(layer->port), .sin_zero = {0}};
@@ -153,9 +154,10 @@ static UA_StatusCode ServerNetworkLayerUDP_start(ServerNetworkLayerUDP *layer, U
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_Int32 ServerNetworkLayerUDP_getWork(ServerNetworkLayerUDP *layer, UA_WorkItem **workItems,
+static UA_Int32 ServerNetworkLayerUDP_getWork(UA_ServerNetworkLayer *nl, UA_Job **workItems,
                                               UA_UInt16 timeout) {
-    UA_WorkItem *items = NULL;
+    ServerNetworkLayerUDP *layer = nl->handle;
+    UA_Job *items = NULL;
     setFDSet(layer);
     struct timeval tmptv = {0, timeout};
     UA_Int32 resultsize = select(layer->serversockfd+1, &layer->fdset, NULL, NULL, &tmptv);
@@ -163,7 +165,7 @@ static UA_Int32 ServerNetworkLayerUDP_getWork(ServerNetworkLayerUDP *layer, UA_W
         *workItems = items;
         return 0;
     }
-    items = malloc(sizeof(UA_WorkItem)*(resultsize));
+    items = malloc(sizeof(UA_Job)*(resultsize));
 	// read from established sockets
     UA_Int32 j = 0;
 	UA_ByteString buf = {-1, NULL};
@@ -187,13 +189,13 @@ static UA_Int32 ServerNetworkLayerUDP_getWork(ServerNetworkLayerUDP *layer, UA_W
             c->connection.localConf = layer->conf;
             c->connection.channel = NULL;
             c->connection.close = (void (*)(UA_Connection*))closeConnectionUDP;
-            c->connection.write = (UA_StatusCode (*)(UA_Connection*, UA_ByteStringArray))writeCallbackUDP;
+            c->connection.write = (UA_StatusCode (*)(UA_Connection*, UA_ByteString*, size_t))writeCallbackUDP;
             c->connection.getBuffer = GetMallocedBuffer;
             c->connection.releaseBuffer = ReleaseMallocedBuffer;
             c->connection.handle = layer;
-            items[j].type = UA_WORKITEMTYPE_BINARYMESSAGE;
-            items[j].work.binaryMessage.message = buf;
-            items[j].work.binaryMessage.connection = (UA_Connection*)c;
+            items[j].type = UA_JOBTYPE_BINARYMESSAGE;
+            items[j].job.binaryMessage.message = buf;
+            items[j].job.binaryMessage.connection = (UA_Connection*)c;
             buf.data = NULL;
             j++;
         }
@@ -207,26 +209,27 @@ static UA_Int32 ServerNetworkLayerUDP_getWork(ServerNetworkLayerUDP *layer, UA_W
     return j;
 }
 
-static UA_Int32 ServerNetworkLayerUDP_stop(ServerNetworkLayerUDP * layer, UA_WorkItem **workItems) {
+static UA_Int32 ServerNetworkLayerUDP_stop(UA_ServerNetworkLayer *nl, UA_Job **workItems) {
+  ServerNetworkLayerUDP *layer = nl->handle;
 	CLOSESOCKET(layer->serversockfd);
 	return 0;
 }
 
-static void ServerNetworkLayerUDP_delete(ServerNetworkLayerUDP *layer) {
-	free(layer);
+static void ServerNetworkLayerUDP_delete(UA_ServerNetworkLayer *nl) {
+	free(nl);
 }
 
 UA_ServerNetworkLayer ServerNetworkLayerUDP_new(UA_ConnectionConfig conf, UA_UInt32 port) {
     ServerNetworkLayerUDP *udplayer = malloc(sizeof(ServerNetworkLayerUDP));
-	udplayer->conf = conf;
+	  udplayer->conf = conf;
     udplayer->port = port;
 
     UA_ServerNetworkLayer nl;
-    nl.nlHandle = udplayer;
-    nl.start = (UA_StatusCode (*)(void*, UA_Logger *logger))ServerNetworkLayerUDP_start;
-    nl.getWork = (UA_Int32 (*)(void*, UA_WorkItem**, UA_UInt16)) ServerNetworkLayerUDP_getWork;
-    nl.stop = (UA_Int32 (*)(void*, UA_WorkItem**)) ServerNetworkLayerUDP_stop;
-    nl.free = (void (*)(void*))ServerNetworkLayerUDP_delete;
-    nl.discoveryUrl = NULL;
+    nl.handle = udplayer;
+    nl.start = ServerNetworkLayerUDP_start;
+    nl.getJobs = ServerNetworkLayerUDP_getWork;
+    nl.stop = ServerNetworkLayerUDP_stop;
+    nl.deleteMembers = ServerNetworkLayerUDP_delete;
+    nl.discoveryUrl = UA_STRING("");
     return nl;
 }

@@ -151,7 +151,7 @@ UA_Server_AddMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId,
 #ifdef ENABLE_METHODCALLS
 typedef UA_StatusCode (*UA_MethodCallback)(const UA_NodeId objectId, const UA_Variant *input,
                                            UA_Variant *output);
-    
+
 UA_StatusCode UA_EXPORT
 UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA_NodeId nodeId,
                         const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
@@ -232,7 +232,7 @@ typedef struct UA_ServerNetworkLayer {
      * @return Returns UA_STATUSCODE_GOOD or an error code.
      */
     UA_StatusCode (*start)(struct UA_ServerNetworkLayer *nl, UA_Logger *logger);
-    
+
     /**
      * Gets called from the main server loop and returns the jobs (accumulated messages and close
      * events) for dispatch.
@@ -341,9 +341,11 @@ typedef struct UA_ExternalNodeStore {
 	UA_ExternalNodeStore_delete destroy;
 } UA_ExternalNodeStore;
 
-
+#ifdef UA_EXTERNAL_NAMESPACES
 UA_StatusCode UA_EXPORT
 UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, const UA_String *url, UA_ExternalNodeStore *nodeStore);
+#endif /* UA_EXTERNAL_NAMESPACES*/
+
 /** @} */
 
 #endif /* external nodestore */

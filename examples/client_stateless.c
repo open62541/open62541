@@ -8,9 +8,13 @@
 #include <unistd.h> // for close
 #include <stdlib.h> // pulls in declaration of malloc, free
 
-#include "ua_util.h"
-#include "ua_types_encoding_binary.h"
-#include "ua_transport_generated.h"
+#ifdef UA_NO_AMALGAMATION
+	#include "ua_util.h"
+	#include "ua_types_encoding_binary.h"
+	#include "ua_transport_generated.h"
+#else
+    #include "open62541.h"
+#endif
 
 int main(int argc , char *argv[])
 {
@@ -19,9 +23,8 @@ int main(int argc , char *argv[])
 	UA_ByteString message;
 	message.data = (UA_Byte*)malloc(1000*sizeof(UA_Byte));
 	message.length = 1000;
-	UA_UInt32 messageEncodedLength = 0;
 	UA_Byte server_reply[2000];
-	unsigned int messagepos = 0;
+	size_t messagepos = 0;
 
 	//Create socket
 #ifdef EXTENSION_UDP
@@ -81,28 +84,22 @@ int main(int argc , char *argv[])
 	req.nodesToRead[0].nodeId.identifier.numeric = 2255;
 	UA_QualifiedName_init(&(req.nodesToRead[0].dataEncoding));
 
-
-	messageEncodedLength = UA_TcpMessageHeader_calcSizeBinary(&reqTcpHeader) +
-			UA_UInt32_calcSizeBinary(&reqSecureChannelId)+
-			UA_UInt32_calcSizeBinary(&reqTokenId)+
-			UA_SequenceHeader_calcSizeBinary(&reqSequenceHeader)+
-			UA_NodeId_calcSizeBinary(&reqRequestType) +
-			UA_ReadRequest_calcSizeBinary(&req);
-
 	UA_TcpMessageHeader_init(&reqTcpHeader);
 	reqTcpHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
-	reqTcpHeader.messageSize = messageEncodedLength;
 
-	UA_TcpMessageHeader_encodeBinary(&reqTcpHeader, &message, &messagepos);
+	messagepos = 8;
 	UA_UInt32_encodeBinary(&reqSecureChannelId, &message, &messagepos);
 	UA_UInt32_encodeBinary(&reqTokenId, &message, &messagepos);
 	UA_SequenceHeader_encodeBinary(&reqSequenceHeader, &message, &messagepos);
 	UA_NodeId_encodeBinary(&reqRequestType, &message, &messagepos);
 	UA_ReadRequest_encodeBinary(&req, &message, &messagepos);
 
+	reqTcpHeader.messageSize = messagepos;
+	messagepos = 0;
+	UA_TcpMessageHeader_encodeBinary(&reqTcpHeader, &message, &messagepos);
 
 	//Send some data
-	if( send(sock , message.data, messagepos , 0) < 0)
+	if( send(sock , message.data, reqTcpHeader.messageSize , 0) < 0)
 	{
 		puts("Send failed");
 		return 1;

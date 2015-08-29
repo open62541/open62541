@@ -1,7 +1,7 @@
 #ifndef TESTING_NETWORKLAYERS_H_
 #define TESTING_NETWORKLAYERS_H_
 
-#ifdef NOT_AMALGATED
+#ifdef UA_NO_AMALGAMATION
 # include "ua_server.h"
 #else
 # include "open62541.h"
