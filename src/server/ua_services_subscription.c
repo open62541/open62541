@@ -191,7 +191,7 @@ void Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishReq
     // subscriptions have notifications, force one to generate a keepalive so we
     // don't return an empty message
     sub = LIST_FIRST(&manager->serverSubscriptions);
-    if(!sub) {
+    if(sub) {
         response->subscriptionId = sub->subscriptionID;
         sub->keepAliveCount.currentValue=sub->keepAliveCount.minValue;
         Subscription_generateKeepAlive(sub);

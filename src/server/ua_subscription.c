@@ -37,7 +37,6 @@ void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *ser
     
     // Delete unpublished Notifications
     LIST_FOREACH_SAFE(not, &subscription->unpublishedNotifications, listEntry, tmp_not) {
-        LIST_REMOVE(not, listEntry);
         Subscription_deleteUnpublishedNotification(not->notification->sequenceNumber, subscription);
     }
     
@@ -81,7 +80,7 @@ void Subscription_generateKeepAlive(UA_Subscription *subscription) {
 void Subscription_updateNotifications(UA_Subscription *subscription) {
     UA_MonitoredItem *mon;
     //MonitoredItem_queuedValue *queuedValue;
-    UA_unpublishedNotification *msg = NULL;
+    UA_unpublishedNotification *msg = NULL, *tempmsg;
     UA_UInt32 monItemsChangeT = 0, monItemsStatusT = 0, monItemsEventT = 0;
     UA_DataChangeNotification *changeNotification;
     size_t notificationOffset;
@@ -106,9 +105,8 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
     // FIXME: This is hardcoded to 100 because it is not covered by the spec but we need to protect the server!
     if(Subscription_queuedNotifications(subscription) >= 10) {
         // Remove last entry
-        LIST_FOREACH(msg, &subscription->unpublishedNotifications, listEntry)
-            LIST_REMOVE(msg, listEntry);
-        UA_free(msg);
+        LIST_FOREACH_SAFE(msg, &subscription->unpublishedNotifications, listEntry, tempmsg)
+            Subscription_deleteUnpublishedNotification(msg->notification->sequenceNumber, subscription);
     }
     
     if(monItemsChangeT == 0 && monItemsEventT == 0 && monItemsStatusT == 0) {

@@ -22,6 +22,16 @@
  * - Remove the entry from the list
  * - mark it as "dead" with an atomic operation
  * - add a delayed job that frees the memory when all concurrent operations have completed
+ * 
+ * This approach to concurrently accessible memory is known as epoch based reclamation [1]. According to
+ * [2], it performs competitively well on many-core systems. Our version of EBR does however not require
+ * a global epoch. Instead, every worker thread has its own epoch counter that we observe for changes.
+ * 
+ * [1] Fraser, K. 2003. Practical lock freedom. Ph.D. thesis. Computer Laboratory, University of Cambridge.
+ * [2] Hart, T. E., McKenney, P. E., Brown, A. D., & Walpole, J. (2007). Performance of memory reclamation
+ *     for lockless synchronization. Journal of Parallel and Distributed Computing, 67(12), 1270-1285.
+ * 
+ * 
  */
 
 #define MAXTIMEOUT 50000 // max timeout in microsec until the next main loop iteration
@@ -511,6 +521,8 @@ static void processMainLoopJobs(UA_Server *server) {
 #endif
 
 UA_StatusCode UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running) {
+UA_StatusCode result = UA_STATUSCODE_GOOD;
+
 #ifdef UA_MULTITHREADING
     /* Prepare the worker threads */
     server->running = running; // the threads need to access the variable
@@ -533,9 +545,9 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads, UA_Bo
 
     /* Start the networklayers */
     for(size_t i = 0; i < server->networkLayersSize; i++)
-        server->networkLayers[i].start(&server->networkLayers[i], &server->logger);
+        result |= server->networkLayers[i].start(&server->networkLayers[i], &server->logger);
 
-    return UA_STATUSCODE_GOOD;
+    return result;
 }
 
 UA_StatusCode UA_Server_run_mainloop(UA_Server *server, UA_Boolean *running) {
@@ -610,9 +622,10 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server, UA_UInt16 nThreads){
 }
 
 UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running) {
-    UA_Server_run_startup(server, nThreads, running);
-    while(*running) {
-        UA_Server_run_mainloop(server, running);
+    if(UA_STATUSCODE_GOOD == UA_Server_run_startup(server, nThreads, running)){
+        while(*running) {
+            UA_Server_run_mainloop(server, running);
+        }
     }
     UA_Server_run_shutdown(server, nThreads);
     return UA_STATUSCODE_GOOD;

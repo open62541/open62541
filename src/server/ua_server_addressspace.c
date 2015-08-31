@@ -175,7 +175,8 @@ UA_Server_addVariableNode(UA_Server *server, UA_NodeId nodeId, const UA_Qualifie
     if (createdNodeId != UA_NULL)
       UA_NodeId_copy(&res.addedNodeId, createdNodeId);
     UA_AddNodesResult_deleteMembers(&res);
-    return retval ;
+    UA_ExpandedNodeId_deleteMembers(&parentId);
+    return retval;
 }
 
 UA_StatusCode
@@ -797,6 +798,7 @@ UA_Server_addMethodNode(UA_Server* server, UA_NodeId nodeId, const UA_QualifiedN
     
     if (createdNodeId != UA_NULL)
       UA_NodeId_copy(&addRes.addedNodeId, createdNodeId);
+    UA_AddNodesResult_deleteMembers(&addRes);
     
     /* Only proceed with creating in/outputArguments if the method and both arguments are not
      * UA_NULL; otherwise this is a pretty strong indicator that this node was generated,
@@ -819,12 +821,13 @@ UA_Server_addMethodNode(UA_Server* server, UA_NodeId nodeId, const UA_QualifiedN
                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY));
     if(addRes.statusCode != UA_STATUSCODE_GOOD) {
         UA_ExpandedNodeId_deleteMembers(&methodExpandedNodeId);
+        if(createdNodeId != UA_NULL)
+            UA_NodeId_deleteMembers(createdNodeId);    	
         // TODO Remove node
         return addRes.statusCode;
     }
-    if (createdNodeId != UA_NULL)
-      UA_NodeId_copy(&addRes.addedNodeId, createdNodeId);
-    
+    UA_AddNodesResult_deleteMembers(&addRes);
+
     /* create OutputArguments */
     argId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0);
     UA_VariableNode *outputArgumentsVariableNode  = UA_VariableNode_new();
@@ -839,8 +842,13 @@ UA_Server_addMethodNode(UA_Server* server, UA_NodeId nodeId, const UA_QualifiedN
                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY));
     UA_ExpandedNodeId_deleteMembers(&methodExpandedNodeId);
     if(addRes.statusCode != UA_STATUSCODE_GOOD)
+    {
+        if(createdNodeId != UA_NULL)
+            UA_NodeId_deleteMembers(createdNodeId);    	
         // TODO Remove node
         retval = addRes.statusCode;
+    }
+    UA_AddNodesResult_deleteMembers(&addRes);
     return retval;
 }
 

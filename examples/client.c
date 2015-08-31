@@ -34,11 +34,11 @@ int main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
     UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
                                              "opc.tcp://localhost:16664");
+
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return retval;
     }
-
     // Browse some objects
     printf("Browsing nodes in objects folder:\n");
 

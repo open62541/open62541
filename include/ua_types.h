@@ -345,7 +345,7 @@ UA_NodeId UA_EXPORT UA_NodeId_fromByteStringCopy(UA_UInt16 nsIndex, UA_ByteStrin
 #define UA_NODEID_STRING_ALLOC(NSID, CHARS) UA_NodeId_fromCharStringCopy(NSID, CHARS)
 #define UA_NODEID_GUID(NSID, GUID) UA_NodeId_fromGuid(NSID, GUID)
 #define UA_NODEID_BYTESTRING(NSID, CHARS) UA_NodeId_fromCharByteString(NSID, CHARS)
-#define UA_NODEID_BYTESTRING_ALLOC(NSID, CHARS) UA_NodeId_fromCharStringCopy(NSID, CHARS)
+#define UA_NODEID_BYTESTRING_ALLOC(NSID, CHARS) UA_NodeId_fromCharByteStringCopy(NSID, CHARS)
 #define UA_NODEID_NULL UA_NODEID_NUMERIC(0,0)
 
 /* ExpandedNodeId */

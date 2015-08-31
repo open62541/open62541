@@ -377,7 +377,7 @@ START_TEST(ReadSingleAttributeInverseNameWithoutTimestamp)
 
 		UA_LocalizedText* respval;
 		respval = (UA_LocalizedText*) resp.value.data;
-		const UA_LocalizedText comp = UA_LOCALIZEDTEXT("", "OrganizedBy");
+		const UA_LocalizedText comp = UA_LOCALIZEDTEXT("en_US", "OrganizedBy");
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
 		ck_assert_int_eq(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT],resp.value.type);
