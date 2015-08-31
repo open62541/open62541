@@ -271,8 +271,8 @@ static UA_StatusCode readCurrentTime(void *handle, UA_Boolean sourceTimeStamp,
 
 static void copyNames(UA_Node *node, char *name) {
     node->browseName = UA_QUALIFIEDNAME_ALLOC(0, name);
-    node->displayName = UA_LOCALIZEDTEXT_ALLOC("", name);
-    node->description = UA_LOCALIZEDTEXT_ALLOC("", name);
+    node->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", name);
+    node->description = UA_LOCALIZEDTEXT_ALLOC("en_US", name);
 }
 
 static void addDataTypeNode(UA_Server *server, char* name, UA_UInt32 datatypeid, UA_Int32 parent) {
@@ -351,7 +351,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     server->description.applicationUri = UA_STRING_ALLOC(server->config.Application_applicationURI);
     server->description.discoveryUrlsSize = 0;
 
-    server->description.applicationName = UA_LOCALIZEDTEXT_ALLOC("", server->config.Application_applicationName);
+    server->description.applicationName = UA_LOCALIZEDTEXT_ALLOC("en_US", server->config.Application_applicationName);
     server->description.applicationType = UA_APPLICATIONTYPE_SERVER;
     server->externalNamespacesSize = 0;
     server->externalNamespaces = UA_NULL;
@@ -477,13 +477,13 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     references->nodeId.identifier.numeric = UA_NS0ID_REFERENCES;
     references->isAbstract = UA_TRUE;
     references->symmetric  = UA_TRUE;
-    references->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "References");
+    references->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "References");
     /* The reference to root is later inserted */
     UA_NodeStore_insert(server->nodestore, (UA_Node*)references, UA_NULL);
 
     UA_ReferenceTypeNode *hassubtype = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hassubtype, "HasSubtype");
-    hassubtype->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "HasSupertype");
+    hassubtype->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "HasSupertype");
     hassubtype->nodeId.identifier.numeric = UA_NS0ID_HASSUBTYPE;
     hassubtype->isAbstract = UA_FALSE;
     hassubtype->symmetric  = UA_FALSE;
@@ -517,7 +517,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     UA_ReferenceTypeNode *organizes = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)organizes, "Organizes");
-    organizes->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "OrganizedBy");
+    organizes->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OrganizedBy");
     organizes->nodeId.identifier.numeric = UA_NS0ID_ORGANIZES;
     organizes->isAbstract = UA_FALSE;
     organizes->symmetric  = UA_FALSE;
@@ -526,7 +526,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     UA_ReferenceTypeNode *haseventsource = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)haseventsource, "HasEventSource");
-    haseventsource->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "EventSourceOf");
+    haseventsource->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "EventSourceOf");
     haseventsource->nodeId.identifier.numeric = UA_NS0ID_HASEVENTSOURCE;
     haseventsource->isAbstract = UA_FALSE;
     haseventsource->symmetric  = UA_FALSE;
@@ -535,7 +535,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     UA_ReferenceTypeNode *hasmodellingrule = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hasmodellingrule, "HasModellingRule");
-    hasmodellingrule->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "ModellingRuleOf");
+    hasmodellingrule->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "ModellingRuleOf");
     hasmodellingrule->nodeId.identifier.numeric = UA_NS0ID_HASMODELLINGRULE;
     hasmodellingrule->isAbstract = UA_FALSE;
     hasmodellingrule->symmetric  = UA_FALSE;
@@ -544,7 +544,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     UA_ReferenceTypeNode *hasencoding = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hasencoding, "HasEncoding");
-    hasencoding->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "EncodingOf");
+    hasencoding->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "EncodingOf");
     hasencoding->nodeId.identifier.numeric = UA_NS0ID_HASENCODING;
     hasencoding->isAbstract = UA_FALSE;
     hasencoding->symmetric  = UA_FALSE;
@@ -552,7 +552,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     UA_ReferenceTypeNode *hasdescription = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hasdescription, "HasDescription");
-    hasdescription->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "DescriptionOf");
+    hasdescription->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "DescriptionOf");
     hasdescription->nodeId.identifier.numeric = UA_NS0ID_HASDESCRIPTION;
     hasdescription->isAbstract = UA_FALSE;
     hasdescription->symmetric  = UA_FALSE;
@@ -561,7 +561,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     UA_ReferenceTypeNode *hastypedefinition = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hastypedefinition, "HasTypeDefinition");
-    hastypedefinition->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "TypeDefinitionOf");
+    hastypedefinition->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "TypeDefinitionOf");
     hastypedefinition->nodeId.identifier.numeric = UA_NS0ID_HASTYPEDEFINITION;
     hastypedefinition->isAbstract = UA_FALSE;
     hastypedefinition->symmetric  = UA_FALSE;
@@ -570,7 +570,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     UA_ReferenceTypeNode *generatesevent = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)generatesevent, "GeneratesEvent");
-    generatesevent->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "GeneratedBy");
+    generatesevent->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "GeneratedBy");
     generatesevent->nodeId.identifier.numeric = UA_NS0ID_GENERATESEVENT;
     generatesevent->isAbstract = UA_FALSE;
     generatesevent->symmetric  = UA_FALSE;
@@ -592,7 +592,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     UA_ReferenceTypeNode *hasproperty = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hasproperty, "HasProperty");
-    hasproperty->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "PropertyOf");
+    hasproperty->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "PropertyOf");
     hasproperty->nodeId.identifier.numeric = UA_NS0ID_HASPROPERTY;
     hasproperty->isAbstract = UA_FALSE;
     hasproperty->symmetric  = UA_FALSE;
@@ -601,7 +601,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     UA_ReferenceTypeNode *hascomponent = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hascomponent, "HasComponent");
-    hascomponent->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "ComponentOf");
+    hascomponent->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "ComponentOf");
     hascomponent->nodeId.identifier.numeric = UA_NS0ID_HASCOMPONENT;
     hascomponent->isAbstract = UA_FALSE;
     hascomponent->symmetric  = UA_FALSE;
@@ -610,7 +610,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     UA_ReferenceTypeNode *hasnotifier = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hasnotifier, "HasNotifier");
-    hasnotifier->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "NotifierOf");
+    hasnotifier->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "NotifierOf");
     hasnotifier->nodeId.identifier.numeric = UA_NS0ID_HASNOTIFIER;
     hasnotifier->isAbstract = UA_FALSE;
     hasnotifier->symmetric  = UA_FALSE;
@@ -619,7 +619,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     UA_ReferenceTypeNode *hasorderedcomponent = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hasorderedcomponent, "HasOrderedComponent");
-    hasorderedcomponent->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "OrderedComponentOf");
+    hasorderedcomponent->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OrderedComponentOf");
     hasorderedcomponent->nodeId.identifier.numeric = UA_NS0ID_HASORDEREDCOMPONENT;
     hasorderedcomponent->isAbstract = UA_FALSE;
     hasorderedcomponent->symmetric  = UA_FALSE;
@@ -628,7 +628,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     UA_ReferenceTypeNode *hasmodelparent = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hasmodelparent, "HasModelParent");
-    hasmodelparent->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "ModelParentOf");
+    hasmodelparent->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "ModelParentOf");
     hasmodelparent->nodeId.identifier.numeric = UA_NS0ID_HASMODELPARENT;
     hasmodelparent->isAbstract = UA_FALSE;
     hasmodelparent->symmetric  = UA_FALSE;
@@ -637,7 +637,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     UA_ReferenceTypeNode *fromstate = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)fromstate, "FromState");
-    fromstate->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "ToTransition");
+    fromstate->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "ToTransition");
     fromstate->nodeId.identifier.numeric = UA_NS0ID_FROMSTATE;
     fromstate->isAbstract = UA_FALSE;
     fromstate->symmetric  = UA_FALSE;
@@ -645,7 +645,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     UA_ReferenceTypeNode *tostate = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)tostate, "ToState");
-    tostate->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "FromTransition");
+    tostate->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "FromTransition");
     tostate->nodeId.identifier.numeric = UA_NS0ID_TOSTATE;
     tostate->isAbstract = UA_FALSE;
     tostate->symmetric  = UA_FALSE;
@@ -653,7 +653,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     UA_ReferenceTypeNode *hascause = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hascause, "HasCause");
-    hascause->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "MayBeCausedBy");
+    hascause->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "MayBeCausedBy");
     hascause->nodeId.identifier.numeric = UA_NS0ID_HASCAUSE;
     hascause->isAbstract = UA_FALSE;
     hascause->symmetric  = UA_FALSE;
@@ -661,7 +661,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     
     UA_ReferenceTypeNode *haseffect = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)haseffect, "HasEffect");
-    haseffect->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "MayBeEffectedBy");
+    haseffect->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "MayBeEffectedBy");
     haseffect->nodeId.identifier.numeric = UA_NS0ID_HASEFFECT;
     haseffect->isAbstract = UA_FALSE;
     haseffect->symmetric  = UA_FALSE;
@@ -669,7 +669,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 
     UA_ReferenceTypeNode *hashistoricalconfiguration = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hashistoricalconfiguration, "HasHistoricalConfiguration");
-    hashistoricalconfiguration->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "HistoricalConfigurationOf");
+    hashistoricalconfiguration->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "HistoricalConfigurationOf");
     hashistoricalconfiguration->nodeId.identifier.numeric = UA_NS0ID_HASHISTORICALCONFIGURATION;
     hashistoricalconfiguration->isAbstract = UA_FALSE;
     hashistoricalconfiguration->symmetric  = UA_FALSE;
