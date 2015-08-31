@@ -1,6 +1,11 @@
 #include "ua_util.h"
 #include "ua_server_internal.h"
 
+#if defined(__APPLE__) || defined(__MACH__)
+#include <mach/clock.h>
+#include <mach/mach.h>
+#endif
+
 /**
  * There are four types of job execution:
  *
@@ -89,7 +94,7 @@ static void dispatchJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {
         cds_wfcq_node_init(&wln->node);
         cds_wfcq_enqueue(&server->dispatchQueue_head, &server->dispatchQueue_tail, &wln->node);
         jobsSize -= size;
-    } 
+    }
 }
 
 // throwaway struct to bring data into the worker threads
@@ -106,7 +111,7 @@ static void * workerLoop(struct workerStartData *startInfo) {
     *startInfo->workerCounter = c;
     UA_Server *server = startInfo->server;
     UA_free(startInfo);
-    
+
     pthread_mutex_t mutex; // required for the condition variable
     pthread_mutex_init(&mutex,0);
     pthread_mutex_lock(&mutex);
@@ -121,7 +126,17 @@ static void * workerLoop(struct workerStartData *startInfo) {
             UA_free(wln);
         } else {
             /* sleep until a work arrives (and wakes up all worker threads) */
-            clock_gettime(CLOCK_REALTIME, &to);
+            #if defined(__APPLE__) || defined(__MACH__) // OS X does not have clock_gettime, use clock_get_time
+              clock_serv_t cclock;
+              mach_timespec_t mts;
+              host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
+              clock_get_time(cclock, &mts);
+              mach_port_deallocate(mach_task_self(), cclock);
+              to.tv_sec = mts.tv_sec;
+              to.tv_nsec = mts.tv_nsec;
+            #else
+              clock_gettime(CLOCK_REALTIME, &to);
+            #endif
             to.tv_sec += 2;
             pthread_cond_timedwait(&server->dispatchQueue_condition, &mutex, &to);
         }
@@ -196,7 +211,7 @@ static UA_StatusCode addRepeatedJob(UA_Server *server, struct AddRepeatedJob * U
         lastTw = tempTw;
         tempTw = LIST_NEXT(lastTw, pointers);
     }
-    
+
     if(matchingTw) {
         /* append to matching entry */
         matchingTw = UA_realloc(matchingTw, sizeof(struct RepeatedJobs) +
