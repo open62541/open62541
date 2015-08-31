@@ -658,7 +658,7 @@ class opcua_node_t:
       if parent[1].referenceType() != None:
         code.append("// Referencing node found and declared as parent: " + str(parent[0].id()) + "/" + str(parent[0].__node_browseName__) + " using " + str(parent[1].referenceType().id()) + "/" + str(parent[1].referenceType().__node_browseName__))
         code.append("UA_Server_addNode(server, (UA_Node*) " + self.getCodePrintableID() + ", " + codegen.getCreateExpandedNodeIDMacro(parent[0]) + ", " + codegen.getCreateNodeIDMacro(parent[1].referenceType()) + ");")
-    
+
     # Otherwise use the "Bootstrapping" method and we will get registered
     # with other nodes later.
     else:
@@ -668,8 +668,9 @@ class opcua_node_t:
     (parentNode, parentRef) = self.getFirstParentNode()
     if not (parentNode in unPrintedNodes) and (parentNode != None):
       if parentRef.referenceType() != None:
-        code.append("// Referencing node found and declared as parent: " + str(parentNode .id()) + "/" + str(parentNode .__node_browseName__) + " using " + str(parentRef.referenceType().id()) + "/" + str(parentRef.referenceType().__node_browseName__))
-        code.append("UA_Server_addNode(server, (UA_Node*) " + self.getCodePrintableID() + ", " + codegen.getCreateExpandedNodeIDMacro(parentNode ) + ", " + codegen.getCreateNodeIDMacro(parentRef.referenceType()) + ");")
+        if not ((parent[0] != None) and (parent[1].referenceType() != None) and (parentNode == parent[0]) and (parentRef.referenceType() == parent[1].referenceType())):
+          code.append("// Referencing node found and declared as parent: " + str(parentNode .id()) + "/" + str(parentNode .__node_browseName__) + " using " + str(parentRef.referenceType().id()) + "/" + str(parentRef.referenceType().__node_browseName__))
+          code.append("UA_Server_addNode(server, (UA_Node*) " + self.getCodePrintableID() + ", " + codegen.getCreateExpandedNodeIDMacro(parentNode ) + ", " + codegen.getCreateNodeIDMacro(parentRef.referenceType()) + ");")
         # Parent to child reference is added by the server, do not reprint that reference
         if parentRef in unPrintedReferences:
           unPrintedReferences.remove(parentRef)
@@ -712,7 +713,7 @@ class opcua_node_t:
     if self in unPrintedNodes:
       # This is necessery to make printing work at all!
       unPrintedNodes.remove(self)
-    
+
     code.append("} while(0);")
     return code
 
