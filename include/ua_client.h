@@ -63,51 +63,30 @@ UA_DeleteReferencesResponse UA_EXPORT
 
 
 /* Client-Side Macro/Procy functions */
-
-UA_StatusCode UA_EXPORT
-UA_Client_deleteNode(UA_Client *client, UA_NodeId nodeId);
-
-#define UA_CLIENT_DELETENODETYPEALIAS_DECL(TYPE) \
-UA_StatusCode UA_EXPORT UA_Client_delete##TYPE##Node(UA_Client *client, UA_NodeId nodeId);
-
-UA_CLIENT_DELETENODETYPEALIAS_DECL(Object)
-
-UA_CLIENT_DELETENODETYPEALIAS_DECL(Variable)
-
-UA_CLIENT_DELETENODETYPEALIAS_DECL(ObjectType)
-
-UA_CLIENT_DELETENODETYPEALIAS_DECL(VariableType)
-
-UA_CLIENT_DELETENODETYPEALIAS_DECL(DataType)
-
-UA_CLIENT_DELETENODETYPEALIAS_DECL(Method)
-
-UA_CLIENT_DELETENODETYPEALIAS_DECL(View)
-
 #ifdef ENABLE_METHODCALLS
 UA_CallResponse UA_EXPORT UA_Client_call(UA_Client *client, UA_CallRequest *request);
-UA_StatusCode UA_EXPORT UA_Client_callServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId,
+UA_StatusCode UA_EXPORT UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId,
                                                    UA_Int32 inputSize, const UA_Variant *input,
                                                    UA_Int32 *outputSize, UA_Variant **output);
 #endif
     
-UA_StatusCode UA_EXPORT UA_Client_addObjectNode( UA_Client *client, UA_NodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
-                                                 UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
-                                                 UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition, UA_NodeId *createdNodeId);
+UA_AddNodesResponse UA_EXPORT *UA_Client_createObjectNode(  UA_Client *client, UA_ExpandedNodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
+                                                            UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
+                                                            UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition);
 
-UA_StatusCode UA_EXPORT UA_Client_addVariableNode( UA_Client *client, UA_NodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
-                                                   UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
-                                                   UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_Variant *value, UA_NodeId *createdNodeId);
+UA_AddNodesResponse UA_EXPORT *UA_Client_createVariableNode(UA_Client *client, UA_ExpandedNodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
+                                                            UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
+                                                            UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition, 
+                                                            UA_NodeId dataType, UA_Variant *value );
 
-UA_StatusCode UA_EXPORT UA_Client_addReferenceTypeNode( UA_Client *client, UA_NodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
-                                                        UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
-                                                        UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition,
-                                                        UA_LocalizedText inverseName, UA_NodeId *createdNodeId );
+UA_AddNodesResponse UA_EXPORT *UA_Client_createReferenceTypeNode(UA_Client *client, UA_ExpandedNodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
+                                                            UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
+                                                            UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition,
+                                                            UA_LocalizedText inverseName );
 
-UA_StatusCode UA_EXPORT UA_Client_addObjectTypeNode( UA_Client *client, UA_NodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
-                                                     UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
-                                                     UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition, UA_Boolean isAbstract, 
-                                                     UA_NodeId *createdNodeId);
+UA_AddNodesResponse UA_EXPORT *UA_Client_createObjectTypeNode(UA_Client *client, UA_ExpandedNodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
+                                                            UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
+                                                            UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition);
 
 
 #ifdef ENABLE_SUBSCRIPTIONS
@@ -122,44 +101,6 @@ UA_UInt32     UA_EXPORT UA_Client_monitorItemChanges(UA_Client *client, UA_UInt3
 UA_StatusCode UA_EXPORT UA_Client_unMonitorItemChanges(UA_Client *client, UA_UInt32 subscriptionId,
                                                        UA_UInt32 monitoredItemId );
 #endif
-
-#ifndef _HAVE_UA_NODEITERATORCALLBACK_D
-#define _HAVE_UA_NODEITERATORCALLBACK_D
-typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle);
-#endif
-
-UA_StatusCode UA_EXPORT
-UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback, void *handle);
-
-UA_StatusCode 
-UA_Client_copyBaseAttributes(UA_Client *client, UA_ReadResponse *readResponseSrc, void *dst);
-
-UA_StatusCode 
-UA_Client_appendObjectNodeAttributes(UA_Client *client, void *dst);
-UA_StatusCode 
-UA_Client_appendObjectTypeNodeAttributes(UA_Client *client, void *dst);
-UA_StatusCode 
-UA_Client_appendVariableNodeAttributes(UA_Client *client, void *dst);
-UA_StatusCode 
-UA_Client_appendVariableTypeNodeAttributes(UA_Client *client, void *dst);
-UA_StatusCode 
-UA_Client_appendReferenceTypeNodeAttributes(UA_Client *client, void *dst);
-UA_StatusCode 
-UA_Client_appendViewNodeAttributes(UA_Client *client, void *dst);
-UA_StatusCode 
-UA_Client_appendDataTypeNodeAttributes(UA_Client *client, void *dst);
-UA_StatusCode 
-UA_Client_appendMethodNodeAttributes(UA_Client *client, void *dst);
-
-UA_StatusCode UA_EXPORT 
-UA_Client_getNodeCopy(UA_Client *client, UA_NodeId nodeId, void **copyInto);
-UA_StatusCode UA_EXPORT 
-UA_Client_deleteNodeCopy(UA_Client *client, void **node);
-
-UA_StatusCode UA_EXPORT 
-UA_Client_setAttributeValue(UA_Client *client, UA_NodeId nodeId, UA_AttributeId attributeId, void *value);
-UA_StatusCode UA_EXPORT 
-UA_Client_getAttributeValue(UA_Client *client, UA_NodeId nodeId, UA_AttributeId attributeId, void **value);
 
 #ifdef __cplusplus
 } // extern "C"
