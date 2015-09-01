@@ -23,6 +23,7 @@ from struct import pack as structpack
 from logger import *;
 from ua_builtin_types import *;
 from ua_node_types import *;
+from ua_constants import *;
 from open62541_MacroHelper import open62541_MacroHelper
 
 def getNextElementNode(xmlvalue):
@@ -438,7 +439,30 @@ class opcua_namespace():
       file.write(n.printDot())
     file.write("}\n")
     file.close()
-
+  
+  def getSubTypesOf(self, tdNodes = None, currentNode = None, hasSubtypeRefNode = None):
+    # If this is a toplevel call, collect the following information as defaults
+    if tdNodes == None: 
+      tdNodes = []
+    if currentNode == None:
+      currentNode = self.getNodeByBrowseName("HasTypeDefinition")
+      tdNodes.append(currentNode)
+      if len(tdNodes) < 1:
+        return []
+    if hasSubtypeRefNode == None:
+      hasSubtypeRefNode = self.getNodeByBrowseName("HasSubtype")
+      if hasSubtypeRefNode == None:
+        return tdNodes
+    
+    # collect all subtypes of this node
+    for ref in currentNode.getReferences():
+      if ref.isForward() and ref.referenceType().id() == hasSubtypeRefNode.id():
+        tdNodes.append(ref.target())
+        self.getTypeDefinitionNodes(tdNodes=tdNodes, currentNode = ref.target(), hasSubtypeRefNode=hasSubtypeRefNode)
+    
+    return tdNodes
+      
+  
   def printDotGraphWalk(self, depth=1, filename="out.dot", rootNode=None, followInverse = False, excludeNodeIds=[]):
     """ Outputs a graphiz/dot description the nodes centered around rootNode.
 
@@ -493,16 +517,101 @@ class opcua_namespace():
     file.write("}\n")
     file.close()
 
+  def __reorder_getMinWeightNode__(self, nmatrix):
+    rcind = -1
+    rind = -1
+    minweight = -1
+    minweightnd = None
+    for row in nmatrix:
+      rcind += 1
+      if row[0] == None:
+        continue
+      w = sum(row[1:])
+      if minweight < 0:
+        rind = rcind
+        minweight = w
+        minweightnd = row[0]
+      elif w < minweight:
+        rind = rcind
+        minweight = w
+        minweightnd = row[0]
+    return (rind, minweightnd, minweight)
+  
+  def reorderNodesMinDependencies(self):
+    # create a matrix represtantion of all node
+    #
+    nmatrix = []
+    for n in range(0,len(self.nodes)):
+      nmatrix.append([None] + [0]*len(self.nodes))
+    
+    typeRefs = []
+    tn = self.getNodeByBrowseName("HasTypeDefinition")
+    if tn != None:
+      typeRefs.append(tn)
+      typeRefs = typeRefs + self.getSubTypesOf(currentNode=tn)
+    subTypeRefs = []
+    tn = self.getNodeByBrowseName("HasSubtype")
+    if tn  != None:
+      subTypeRefs.append(tn)
+      subTypeRefs = subTypeRefs + self.getSubTypesOf(currentNode=tn)
+    
+    log(self, "Building connectivity matrix for node order optimization.")
+    # Set column 0 to contain the node
+    for node in self.nodes:
+      nind = self.nodes.index(node)
+      nmatrix[nind][0] = node
+      
+    # Determine the dependencies of all nodes
+    for node in self.nodes:
+      nind = self.nodes.index(node)
+      #print "Examining node " + str(nind) + " " + str(node)
+      for ref in node.getReferences():
+        if isinstance(ref.target(), opcua_node_t):
+          tind = self.nodes.index(ref.target())
+          # Typedefinition of this node has precedence over this node
+          if ref.referenceType() in typeRefs and ref.isForward():
+            nmatrix[nind][tind+1] += 1
+          # isSubTypeOf/typeDefinition of this node has precedence over this node
+          elif ref.referenceType() in subTypeRefs and not ref.isForward():
+            nmatrix[nind][tind+1] += 1
+          # Else the target depends on us
+          elif ref.isForward():
+            nmatrix[tind][nind+1] += 1
+    
+    log(self, "Using Djikstra topological sorting to determine printing order.")
+    reorder = []
+    while len(reorder) < len(self.nodes):
+      (nind, node, w) = self.__reorder_getMinWeightNode__(nmatrix)
+      #print  str(100*float(len(reorder))/len(self.nodes)) + "% " + str(w) + " " + str(node) + " " + str(node.browseName())
+      reorder.append(node)
+      for ref in node.getReferences():
+        if isinstance(ref.target(), opcua_node_t):
+          tind = self.nodes.index(ref.target())
+          if ref.referenceType() in typeRefs and ref.isForward():
+            nmatrix[nind][tind+1] -= 1
+          elif ref.referenceType() in subTypeRefs and not ref.isForward():
+            nmatrix[nind][tind+1] -= 1
+          elif ref.isForward():
+            nmatrix[tind][nind+1] -= 1
+      nmatrix[nind][0] = None
+    self.nodes = reorder
+    log(self, "Nodes reordered.")
+    return
+  
   def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename=""):
     unPrintedNodes = []
     unPrintedRefs  = []
     code = []
     header = []
-
+    
+    # Reorder our nodes to produce a bare minimum of bootstrapping dependencies
+    log(self, "Reordering nodes for minimal dependencies during printing.")
+    self.reorderNodesMinDependencies()
+    
     # Some macros (UA_EXPANDEDNODEID_MACRO()...) are easily created, but
     # bulky. This class will help to offload some code.
     codegen = open62541_MacroHelper(supressGenerationOfAttribute=supressGenerationOfAttribute)
-
+    
     # Populate the unPrinted-Lists with everything we have.
     # Every Time a nodes printfunction is called, it will pop itself and
     #   all printed references from these lists.
@@ -526,8 +635,6 @@ class opcua_namespace():
     header.append('#include "server/ua_server_internal.h"')
     header.append('#include "server/ua_nodes.h"')
     header.append('#include "ua_types.h"')
-    header.append("extern void "+outfilename+"(UA_Server *server);\n")
-    header.append("#endif /* "+outfilename.upper()+"_H_ */")
 
     code.append('#include "'+outfilename+'.h"')
     code.append("inline void "+outfilename+"(UA_Server *server) {")
@@ -538,13 +645,24 @@ class opcua_namespace():
     log(self, "Collecting all references used in the namespace.", LOG_LEVEL_DEBUG)
     refsUsed = []
     for n in self.nodes:
+      # Since we are already looping over all nodes, use this chance to print NodeId defines
+      if n.id().ns != 0:
+        nc = n.nodeClass()
+        if nc != NODE_CLASS_OBJECT and nc != NODE_CLASS_VARIABLE and nc != NODE_CLASS_VIEW:
+          header = header + codegen.getNodeIdDefineString(n)
+          
+      # Now for the actual references...
       for r in n.getReferences():
-        if not r.referenceType() in refsUsed:
+        # Only print valid refernces in namespace 0 (users will not want their refs bootstrapped)
+        if not r.referenceType() in refsUsed and r.referenceType() != None and r.referenceType().id().ns == 0:
           refsUsed.append(r.referenceType())
     log(self, str(len(refsUsed)) + " reference types are used in the namespace, which will now get bootstrapped.", LOG_LEVEL_DEBUG)
     for r in refsUsed:
       code = code + r.printOpen62541CCode(unPrintedNodes, unPrintedRefs);
-
+    
+    header.append("extern void "+outfilename+"(UA_Server *server);\n")
+    header.append("#endif /* "+outfilename.upper()+"_H_ */")
+    
     # Note to self: do NOT - NOT! - try to iterate over unPrintedNodes!
     #               Nodes remove themselves from this list when printed.
     log(self, "Printing all other nodes.", LOG_LEVEL_DEBUG)

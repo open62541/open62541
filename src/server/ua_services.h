@@ -299,12 +299,20 @@ void Service_Publish(UA_Server *server, UA_Session *session,
 // Service_TransferSubscription
 // Service_DeleteSubscription
 /** @} */
-/** @} */
 #endif
 
 #ifdef ENABLE_METHODCALLS
+/**
+ * @name Call Service Set
+ *
+ * Calls are used to execute serverside methods.
+ *
+ * @{
+ */
 void Service_Call(UA_Server *server, UA_Session *session,
                   const UA_CallRequest *request,
                   UA_CallResponse *response);
+/** @} */
 #endif
 #endif /* UA_SERVICES_H_ */
+/** @} */

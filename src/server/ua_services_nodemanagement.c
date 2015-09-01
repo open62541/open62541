@@ -236,6 +236,30 @@ static void addNodeFromAttributes(UA_Server *server, UA_Session *session, UA_Add
     }
 }
 
+static UA_StatusCode deleteNode(UA_Server *server, UA_NodeId nodeId, UA_Boolean deleteReferences) {
+  const UA_Node *delNode = UA_NodeStore_get(server->nodestore, &nodeId);
+  if (!delNode)
+    return UA_STATUSCODE_BADNODEIDINVALID;
+  
+  // Find and remove all References to this node if so requested.
+  if(deleteReferences == UA_TRUE) {
+    UA_DeleteReferencesItem *delItem = UA_DeleteReferencesItem_new();
+    delItem->deleteBidirectional = UA_TRUE; // WARNING: Current semantics in deleteOneWayReference is 'delete forward or inverse'
+    UA_NodeId_copy(&nodeId, &delItem->targetNodeId.nodeId);
+    
+    for(int i=0; i<delNode->referencesSize; i++) {
+      UA_NodeId_copy(&delNode->references[i].targetId.nodeId, &delItem->sourceNodeId);
+      
+      UA_NodeId_deleteMembers(&delItem->sourceNodeId);
+    }
+    
+    UA_DeleteReferencesItem_delete(delItem);
+  }
+  
+  UA_NodeStore_release(delNode);
+  return UA_NodeStore_remove(server->nodestore, &nodeId);
+}
+
 void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesRequest *request,
                       UA_AddNodesResponse *response) {
     if(request->nodesToAddSize <= 0) {
@@ -339,10 +363,23 @@ void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddR
 
 void Service_DeleteNodes(UA_Server *server, UA_Session *session, const UA_DeleteNodesRequest *request,
                          UA_DeleteNodesResponse *response) {
-
+  UA_StatusCode retval = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
+  
+  response->resultsSize = request->nodesToDeleteSize;
+  response->results = (UA_StatusCode *) UA_malloc(sizeof(UA_StatusCode) * request->nodesToDeleteSize);
+  
+  UA_DeleteNodesItem *item;
+  for(int i=0; i<request->nodesToDeleteSize; i++) {
+    item = &request->nodesToDelete[i];
+    response->results[i] = deleteNode(server, item->nodeId, item->deleteTargetReferences);
+  }
+  
+  response->responseHeader.serviceResult = retval;
 }
 
 void Service_DeleteReferences(UA_Server *server, UA_Session *session, const UA_DeleteReferencesRequest *request,
                               UA_DeleteReferencesResponse *response) {
-
+  UA_StatusCode retval = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
+  
+  response->responseHeader.serviceResult = retval;
 }

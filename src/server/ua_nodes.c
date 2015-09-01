@@ -239,6 +239,7 @@ void UA_MethodNode_init(UA_MethodNode *p) {
     p->executable = UA_FALSE;
     p->userExecutable = UA_FALSE;
 #ifdef ENABLE_METHODCALLS
+    p->methodHandle        = UA_NULL;
     p->attachedMethod      = UA_NULL;
 #endif
 }
@@ -260,6 +261,7 @@ void UA_MethodNode_deleteMembers(UA_MethodNode *p) {
 void UA_MethodNode_delete(UA_MethodNode *p) {
     UA_MethodNode_deleteMembers(p);
 #ifdef ENABLE_METHODCALLS
+    p->methodHandle   = UA_NULL;
     p->attachedMethod = UA_NULL;
 #endif
     UA_free(p);
@@ -272,6 +274,7 @@ UA_StatusCode UA_MethodNode_copy(const UA_MethodNode *src, UA_MethodNode *dst) {
     dst->executable = src->executable;
     dst->userExecutable = src->userExecutable;
 #ifdef ENABLE_METHODCALLS
+    dst->methodHandle  = src->methodHandle;
     dst->attachedMethod = src->attachedMethod;
 #endif
     return retval;

@@ -13,7 +13,7 @@ Using the GCC compiler, the following calls build the library on Linux.
    
 
 Building with CMake on Ubuntu or Debian
------------------------------
+---------------------------------------
 
 .. code-block:: bash
    

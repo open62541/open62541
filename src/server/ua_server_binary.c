@@ -352,6 +352,9 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     case UA_NS0ID_ADDNODESREQUEST:
         INVOKE_SERVICE(AddNodes, UA_TYPES_ADDNODESRESPONSE);
         break;
+    case UA_NS0ID_DELETENODESREQUEST:
+      INVOKE_SERVICE(DeleteNodes, UA_TYPES_DELETENODESRESPONSE);
+      break;
 #endif
     default: {
         if(requestType.namespaceIndex == 0 && requestType.identifier.numeric==787)
