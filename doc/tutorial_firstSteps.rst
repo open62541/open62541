@@ -27,7 +27,7 @@ Before we can get started you will require the stack. You may either clone the c
    ichrispa@Cassandra:>
 
 Then create a build directory and read the next section.::
-   
+
    ichrispa@Cassandra:> cd open62541
    ichrispa@Cassandra:open62541> mkdir build
    ichrispa@Cassandra:open62541/build> cd build
@@ -149,7 +149,8 @@ This is all that is needed to start your OPC UA Server. Compile the the server w
 
 Some notes: You are using a dynamically linked library (libopen62541.so), which needs to be locates in your dynamic linkers search path. Unless you copy libopen62541.so into a common folder like /lib or /usr/lib, the linker will fail to find the library and complain (i.e. not run the application). ``-Wl,-rpath,`pwd``` adds your present working directory to the relative searchpaths of the linker when executing the binary (you can also use ``-Wl,-rpath,.`` if the binary and the library are always in the same directory).
 
-::
+Now execute the server::
+
    ichrispa@Cassandra:myServerApp> ./myServer
 
 You have now compiled and started your first OPC UA Server. Though quite unspectacular and only terminatable with ``CTRL+C`` (SIGTERM) at the moment, you can already launch it and browse around with UA Expert. The Server will be listening on localhost:16664 - go ahead and give it a try.
