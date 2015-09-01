@@ -117,7 +117,7 @@ START_TEST(ReadSingleAttributeValueWithoutTimestamp)
 				&resp);
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_INT32], resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_INT32], resp.value.type);
 		ck_assert_int_eq(42, *(UA_Int32* )resp.value.data);
 	}END_TEST
 
@@ -141,7 +141,7 @@ START_TEST(ReadSingleAttributeNodeIdWithoutTimestamp)
 		const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_NODEID], resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_NODEID], resp.value.type);
 		ck_assert_int_eq(1, respval->namespaceIndex);
 		for (int var = 0; var < respval->identifier.string.length; ++var) {
 			ck_assert_int_eq(myIntegerNodeId.identifier.string.data[var],
@@ -167,7 +167,7 @@ START_TEST(ReadSingleAttributeNodeClassWithoutTimestamp)
 				&resp);
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_INT32],resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_INT32],resp.value.type);
 		ck_assert_int_eq(*(UA_Int32*)resp.value.data,UA_NODECLASS_VARIABLE);
 	}END_TEST
 
@@ -193,7 +193,7 @@ START_TEST(ReadSingleAttributeBrowseNameWithoutTimestamp)
 				"the answer");
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_QUALIFIEDNAME], resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_QUALIFIEDNAME], resp.value.type);
 		ck_assert_int_eq(1, respval->namespaceIndex);
 		ck_assert_int_eq(myIntegerName.name.length, respval->name.length);
 		for (int var = 0; var < respval->name.length - 1; ++var) {
@@ -225,7 +225,7 @@ START_TEST(ReadSingleAttributeDisplayNameWithoutTimestamp)
 		UA_VariableNode* compNode = makeCompareSequence();
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT], resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT], resp.value.type);
 		ck_assert_int_eq(comp.text.length, respval->text.length);
 		for (int var = 0; var < respval->text.length - 1; ++var) {
 			ck_assert_int_eq(comp.text.data[var], respval->text.data[var]);
@@ -257,7 +257,7 @@ START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp)
 		UA_VariableNode* compNode = makeCompareSequence();
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT], resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT], resp.value.type);
 		ck_assert_int_eq(compNode->description.locale.length, respval->locale.length);
 				for (int var = 0; var < respval->locale.length - 1; ++var) {
 					ck_assert_int_eq(compNode->description.locale.data[var], respval->locale.data[var]);
@@ -289,7 +289,7 @@ START_TEST(ReadSingleAttributeWriteMaskWithoutTimestamp)
 		respval = (UA_UInt32*) resp.value.data;
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_UINT32], resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_UINT32], resp.value.type);
 		ck_assert_int_eq(0,*respval);
 	}END_TEST
 
@@ -313,7 +313,7 @@ START_TEST(ReadSingleAttributeUserWriteMaskWithoutTimestamp)
 		respval = (UA_UInt32*) resp.value.data;
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_UINT32], resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_UINT32], resp.value.type);
 		ck_assert_int_eq(0,*respval);
 	}END_TEST
 
@@ -334,7 +334,7 @@ START_TEST(ReadSingleAttributeIsAbstractWithoutTimestamp)
 				&resp);
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type);
 		ck_assert(*(UA_Boolean* )resp.value.data==UA_FALSE);
 	}END_TEST
 
@@ -355,7 +355,7 @@ START_TEST(ReadSingleAttributeSymmetricWithoutTimestamp)
 				&resp);
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type);
 		ck_assert(*(UA_Boolean* )resp.value.data==UA_FALSE);
 	}END_TEST
 
@@ -380,7 +380,7 @@ START_TEST(ReadSingleAttributeInverseNameWithoutTimestamp)
 		const UA_LocalizedText comp = UA_LOCALIZEDTEXT("en_US", "OrganizedBy");
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT],resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT],resp.value.type);
 		ck_assert_int_eq(comp.text.length, respval->text.length);
 		for (int var = 0; var < respval->text.length - 1; ++var) {
 			ck_assert_int_eq(comp.text.data[var], respval->text.data[var]);
@@ -409,7 +409,7 @@ START_TEST(ReadSingleAttributeContainsNoLoopsWithoutTimestamp)
 				&resp);
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type);
 		ck_assert(*(UA_Boolean* )resp.value.data==UA_FALSE);
 	}END_TEST
 
@@ -430,7 +430,7 @@ START_TEST(ReadSingleAttributeEventNotifierWithoutTimestamp)
 				&resp);
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_BYTE],resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BYTE],resp.value.type);
 		ck_assert_int_eq(*(UA_Byte*)resp.value.data, 0);
 	}END_TEST
 
@@ -454,7 +454,7 @@ START_TEST(ReadSingleAttributeDataTypeWithoutTimestamp)
 		respval = (UA_NodeId*) resp.value.data;
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_NODEID], resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_NODEID], resp.value.type);
 		ck_assert_int_eq(respval->namespaceIndex,0);
 		ck_assert_int_eq(respval->identifier.numeric,UA_NS0ID_INT32);
 	}END_TEST
@@ -476,7 +476,7 @@ START_TEST(ReadSingleAttributeValueRankWithoutTimestamp)
 				&resp);
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_INT32], resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_INT32], resp.value.type);
 
 		ck_assert_int_eq(-2, *(UA_Int32* )resp.value.data);
 	}END_TEST
@@ -498,8 +498,8 @@ START_TEST(ReadSingleAttributeArrayDimensionsWithoutTimestamp)
 				&resp);
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_INT32], resp.value.type);
-		ck_assert_int_eq((UA_Int32*)resp.value.data,0);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_INT32], resp.value.type);
+		ck_assert_ptr_eq((UA_Int32*)resp.value.data,0);
 	}END_TEST
 
 START_TEST(ReadSingleAttributeAccessLevelWithoutTimestamp)
@@ -519,7 +519,7 @@ START_TEST(ReadSingleAttributeAccessLevelWithoutTimestamp)
 				&resp);
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_BYTE], resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BYTE], resp.value.type);
 		ck_assert_int_eq(*(UA_Byte*)resp.value.data, 0);
 	}END_TEST
 
@@ -541,7 +541,7 @@ START_TEST(ReadSingleAttributeUserAccessLevelWithoutTimestamp)
 		UA_VariableNode* compNode = makeCompareSequence();
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_BYTE], resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BYTE], resp.value.type);
 		ck_assert_int_eq(*(UA_Byte*)resp.value.data, compNode->userAccessLevel);
 	}END_TEST
 
@@ -569,7 +569,7 @@ START_TEST(ReadSingleAttributeMinimumSamplingIntervalWithoutTimestamp)
 		comp = (UA_Double) compNode->minimumSamplingInterval;
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_DOUBLE], resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_DOUBLE], resp.value.type);
 		ck_assert(*respval == comp);
 	}END_TEST
 
@@ -590,7 +590,7 @@ START_TEST(ReadSingleAttributeHistorizingWithoutTimestamp)
 				&resp);
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type);
 		ck_assert(*(UA_Boolean* )resp.value.data==UA_FALSE);
 	}END_TEST
 
@@ -610,7 +610,7 @@ START_TEST(ReadSingleAttributeExecutableWithoutTimestamp)
 		readValue(server, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type);
 		ck_assert(*(UA_Boolean*)resp.value.data==UA_FALSE);
 	}END_TEST
 
@@ -631,7 +631,7 @@ START_TEST(ReadSingleAttributeUserExecutableWithoutTimestamp)
 				&resp);
 
 		ck_assert_int_eq(-1, resp.value.arrayLength);
-		ck_assert_int_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type);
+		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type);
 		ck_assert(*(UA_Boolean*)resp.value.data==UA_FALSE);
 	}END_TEST
 
@@ -852,7 +852,7 @@ START_TEST(WriteSingleAttributeValue)
 		ck_assert_int_eq(node->nodeClass, UA_NODECLASS_VARIABLE);
 		const UA_VariableNode *vn = (const UA_VariableNode*)node;
 		const UA_Variant *oldV = &vn->value.variant;
-		ck_assert_int_eq(&oldV->type->typeId, &wValue.value.value.type->typeId);
+		ck_assert_ptr_eq(&oldV->type->typeId, &wValue.value.value.type->typeId);
 
 		ck_assert_int_eq(20, *(UA_Int32* )resp.value.data);
 	}END_TEST
