@@ -143,7 +143,8 @@ class opcua_referencePointer_t():
       return -1
     if other.target() == self.target():
       if other.referenceType() == self.referenceType():
-        return 0
+        if other.isForward() == self.isForward():
+	  return 0
     return 1
 
 
@@ -667,9 +668,17 @@ class opcua_node_t:
       code = code + codegen.getCreateNodeNoBootstrap(self, parentNode, parentRef)
       code = code + self.printOpen62541CCode_Subtype(bootstrapping = False)
       code.append("       UA_NULL);") # createdNodeId, wraps up the UA_Server_add<XYType>Node() call
+      if self.nodeClass() == NODE_CLASS_METHOD:
+	code.append("#endif //ENABLE_METHODCALL") # ifdef added by codegen when methods are detected
       # Parent to child reference is added by the server, do not reprint that reference
       if parentRef in unPrintedReferences:
         unPrintedReferences.remove(parentRef)
+      # the UA_Server_addNode function will use addReference which creates a biderectional reference; remove any inverse
+      # references to our parent to avoid duplicate refs
+      for ref in self.getReferences():
+	if ref.target() == parentNode and ref.referenceType() == parentRef.referenceType() and ref.isForward() == False:
+	  while ref in unPrintedReferences:
+	    unPrintedReferences.remove(ref)
     # Otherwise use the "Bootstrapping" method and we will get registered with other nodes later.
     else:
       code = code + self.printOpen62541CCode_SubtypeEarly(bootstrapping = True)

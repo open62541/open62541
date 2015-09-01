@@ -94,6 +94,7 @@ class open62541_MacroHelper():
     elif node.nodeClass() == NODE_CLASS_VARIABLE:
       code.append("UA_Server_addVariableNode(server,")
     elif node.nodeClass() == NODE_CLASS_METHOD:
+      code.append("#ifdef ENABLE_METHODCALL")
       code.append("UA_Server_addMethodNode(server,")
     elif node.nodeClass() == NODE_CLASS_OBJECTTYPE:
       code.append("UA_Server_addObjectTypeNode(server,")
