@@ -1283,7 +1283,7 @@ static void UA_Server_addInstanceOf_instatiateChildObject(UA_Server *server,
   if (typeDefNode == NULL) {
     return;
   }
-  if (!typeDefNode->nodeClass == UA_NODECLASS_OBJECTTYPE) {
+  if (typeDefNode->nodeClass != UA_NODECLASS_OBJECTTYPE) {
     UA_Server_deleteNodeCopy(server, (void **) &typeDefNode);
     return;
   }
@@ -1429,7 +1429,7 @@ UA_StatusCode UA_Server_appendInstanceOfSupertype(UA_Server *server, UA_NodeId n
   if (typeDefNode == NULL) {
   return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
   }
-  if (!typeDefNode->nodeClass == UA_NODECLASS_OBJECTTYPE) {
+  if (typeDefNode->nodeClass != UA_NODECLASS_OBJECTTYPE) {
   UA_Server_deleteNodeCopy(server, (void **) &typeDefNode);
   return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
   }
@@ -1460,7 +1460,7 @@ UA_StatusCode UA_Server_addInstanceOf(UA_Server *server, UA_NodeId nodeId, const
   if (typeDefNode == NULL) {
     return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
   }
-  if (!typeDefNode->nodeClass == UA_NODECLASS_OBJECTTYPE) {
+  if (typeDefNode->nodeClass != UA_NODECLASS_OBJECTTYPE) {
     UA_Server_deleteNodeCopy(server, (void **) &typeDefNode);
     return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
   }
