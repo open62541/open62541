@@ -1435,13 +1435,10 @@ UA_StatusCode UA_Server_appendInstanceOfSupertype(UA_Server *server, UA_NodeId n
   if (typeDefNode == UA_NULL) {
   return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
   }
-<<<<<<< HEAD
+
   if (typeDefNode->nodeClass != UA_NODECLASS_OBJECTTYPE) {
-=======
-  if (!(typeDefNode->nodeClass == UA_NODECLASS_OBJECTTYPE)) {
->>>>>>> api_hl_abstractions
-  UA_Server_deleteNodeCopy(server, (void **) &typeDefNode);
-  return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+    UA_Server_deleteNodeCopy(server, (void **) &typeDefNode);
+    return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
   }
 
   UA_ExpandedNodeId *objectRootExpanded = UA_ExpandedNodeId_new();
@@ -1472,11 +1469,8 @@ UA_StatusCode UA_Server_addInstanceOf(UA_Server *server, UA_NodeId nodeId, const
   if (typeDefNode == UA_NULL) {
     return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
   }
-<<<<<<< HEAD
+
   if (typeDefNode->nodeClass != UA_NODECLASS_OBJECTTYPE) {
-=======
-  if (!(typeDefNode->nodeClass == UA_NODECLASS_OBJECTTYPE)) {
->>>>>>> api_hl_abstractions
     UA_Server_deleteNodeCopy(server, (void **) &typeDefNode);
     return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
   }
