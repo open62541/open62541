@@ -40,7 +40,7 @@ struct UA_Client {
 };
 
 const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard =
-    { 5 /* ms receive timout */, 30000, 2000,
+    { .timeout = 5 /* ms receive timout */, .secureChannelLifeTime = 30000, .timeToRenewSecureChannel = 2000,
       {.protocolVersion = 0, .sendBufferSize = 65536, .recvBufferSize  = 65536,
        .maxMessageSize = 65536, .maxChunkCount = 1}};
 
@@ -156,6 +156,11 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
 }
 
 static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
+    /* Check if sc is still valid */
+    if(renew && client->scExpiresAt - UA_DateTime_now() > client->config.timeToRenewSecureChannel * 10000 ){
+        return UA_STATUSCODE_GOOD;
+    }
+
     UA_SecureConversationMessageHeader messageHeader;
     messageHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_OPNF;
     messageHeader.secureChannelId = 0;
@@ -265,14 +270,12 @@ static void synchronousRequest(UA_Client *client, void *request, const UA_DataTy
         return;
     UA_init(response, responseType);
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
-    /* Check if sc needs to be renewed */
-    if(client->scExpiresAt - UA_DateTime_now() <= client->config.timeToRenewSecureChannel * 10000 ){
-        retval = UA_Client_renewSecureChannel(client);
-        if(retval != UA_STATUSCODE_GOOD) {
-            respHeader->serviceResult = retval;
-            client->state = UA_CLIENTSTATE_ERRORED;
-            return;
-        }
+    //make sure we have a valid session
+    retval = UA_Client_renewSecureChannel(client);
+    if(retval != UA_STATUSCODE_GOOD) {
+        respHeader->serviceResult = retval;
+        client->state = UA_CLIENTSTATE_ERRORED;
+        return;
     }
 
     /* Copy authenticationToken token to request header */
