@@ -1069,14 +1069,14 @@ UA_StatusCode UA_Client_deleteNode(UA_Client *client, UA_NodeId nodeId) {
   drq->nodesToDelete[0].deleteTargetReferences = UA_TRUE;
   UA_NodeId_copy(&nodeId, &drq->nodesToDelete[0].nodeId);
   drs = UA_Client_deleteNodes(client, drq);
-  
-  if (drs.responseHeader.serviceResult != UA_STATUSCODE_GOOD || drs.resultsSize < 1)
-    return drs.responseHeader.serviceResult;
-  
-  retval = drs.results[0];
-    
   UA_DeleteNodesRequest_delete(drq);
+  
+  if (drs.responseHeader.serviceResult != UA_STATUSCODE_GOOD || drs.resultsSize < 1) {
+    UA_DeleteNodesResponse_deleteMembers(&drs);
+    return drs.responseHeader.serviceResult;
+  }
   UA_DeleteNodesResponse_deleteMembers(&drs);
+  retval = drs.results[0];
   return retval;
 }
 
@@ -1131,12 +1131,10 @@ UA_StatusCode UA_Client_addObjectNode(UA_Client *client, UA_NodeId reqId, UA_Qua
                                       UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
                                       UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition, UA_NodeId *createdNodeId) {
     UA_AddNodesRequest adReq;
-    UA_StatusCode retval;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_AddNodesRequest_init(&adReq);
 
-    UA_AddNodesResponse *adRes;
-    adRes = UA_AddNodesResponse_new();
-    UA_AddNodesResponse_init(adRes);
+    UA_AddNodesResponse *adRes  = UA_AddNodesResponse_new();
 
     UA_ObjectAttributes vAtt;
     UA_ObjectAttributes_init(&vAtt);
@@ -1155,10 +1153,10 @@ UA_StatusCode UA_Client_addObjectNode(UA_Client *client, UA_NodeId reqId, UA_Qua
     
     if(adRes->responseHeader.serviceResult != UA_STATUSCODE_GOOD || adRes->resultsSize == 0)
       retval = adRes->responseHeader.serviceResult;
-    retval = adRes->results[0].statusCode;
+    retval |= adRes->results[0].statusCode;
     if(createdNodeId != NULL)
       UA_NodeId_copy(&adRes->results[0].addedNodeId, createdNodeId);
-    UA_AddNodesResponse_deleteMembers(adRes);
+    UA_AddNodesResponse_delete(adRes);
     return retval;
 }
 
@@ -1166,12 +1164,10 @@ UA_StatusCode UA_Client_addVariableNode(UA_Client *client, UA_NodeId reqId, UA_Q
                                         UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
                                         UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_Variant *value, UA_NodeId *createdNodeId) {
     UA_AddNodesRequest adReq;
-    UA_StatusCode retval;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_AddNodesRequest_init(&adReq);
     
-    UA_AddNodesResponse *adRes;
-    adRes = UA_AddNodesResponse_new();
-    UA_AddNodesResponse_init(adRes);
+    UA_AddNodesResponse *adRes = UA_AddNodesResponse_new();
     
     UA_VariableAttributes vAtt;
     UA_VariableAttributes_init(&vAtt);
@@ -1204,17 +1200,17 @@ UA_StatusCode UA_Client_addVariableNode(UA_Client *client, UA_NodeId reqId, UA_Q
         // These are defined by the variant
         //vAtt.arrayDimensionsSize  = value->arrayDimensionsSize;
         //vAtt.arrayDimensions      = NULL;
+        UA_NodeId_copy(&value->type->typeId, &(vAtt.dataType));
     }
-    UA_NodeId_copy(&value->type->typeId, &(vAtt.dataType));
     
     ADDNODES_PACK_AND_SEND(adReq,vAtt,VARIABLE);
     
     if(adRes->responseHeader.serviceResult != UA_STATUSCODE_GOOD || adRes->resultsSize == 0)
       retval = adRes->responseHeader.serviceResult;
-    retval = adRes->results[0].statusCode;
+    retval |= adRes->results[0].statusCode;
     if(createdNodeId != NULL)
       UA_NodeId_copy(&adRes->results[0].addedNodeId, createdNodeId);
-    UA_AddNodesResponse_deleteMembers(adRes);
+    UA_AddNodesResponse_delete(adRes);
     return retval;
 }
 
@@ -1223,12 +1219,10 @@ UA_StatusCode UA_Client_addReferenceTypeNode( UA_Client *client, UA_NodeId reqId
                                               UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition,
                                               UA_LocalizedText inverseName, UA_NodeId *createdNodeId ) {
     UA_AddNodesRequest adReq;
-    UA_StatusCode retval;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_AddNodesRequest_init(&adReq);
     
-    UA_AddNodesResponse *adRes;
-    adRes = UA_AddNodesResponse_new();
-    UA_AddNodesResponse_init(adRes);
+    UA_AddNodesResponse *adRes = UA_AddNodesResponse_new();
     
     UA_ReferenceTypeAttributes vAtt;
     UA_ReferenceTypeAttributes_init(&vAtt);
@@ -1252,10 +1246,10 @@ UA_StatusCode UA_Client_addReferenceTypeNode( UA_Client *client, UA_NodeId reqId
     
     if(adRes->responseHeader.serviceResult != UA_STATUSCODE_GOOD || adRes->resultsSize == 0)
       retval = adRes->responseHeader.serviceResult;
-    retval = adRes->results[0].statusCode;
+    retval |= adRes->results[0].statusCode;
     if(createdNodeId != NULL)
       UA_NodeId_copy(&adRes->results[0].addedNodeId, createdNodeId);
-    UA_AddNodesResponse_deleteMembers(adRes);
+    UA_AddNodesResponse_delete(adRes);
     return retval;
 }
 
@@ -1264,11 +1258,10 @@ UA_StatusCode UA_Client_addObjectTypeNode(UA_Client *client, UA_NodeId reqId, UA
                                           UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition, UA_Boolean isAbstract,
                                           UA_NodeId *createdNodeId) {
     UA_AddNodesRequest adReq;
-    UA_StatusCode retval;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_AddNodesRequest_init(&adReq);
     
-    UA_AddNodesResponse *adRes;
-    adRes = UA_AddNodesResponse_new();
+    UA_AddNodesResponse *adRes = UA_AddNodesResponse_new();
     UA_AddNodesResponse_init(adRes);
     
     UA_ObjectTypeAttributes vAtt;
@@ -1289,10 +1282,10 @@ UA_StatusCode UA_Client_addObjectTypeNode(UA_Client *client, UA_NodeId reqId, UA
     
     if(adRes->responseHeader.serviceResult != UA_STATUSCODE_GOOD || adRes->resultsSize == 0)
       retval = adRes->responseHeader.serviceResult;
-    retval = adRes->results[0].statusCode;
+    retval |= adRes->results[0].statusCode;
     if(createdNodeId != NULL)
       UA_NodeId_copy(&adRes->results[0].addedNodeId, createdNodeId);
-    UA_AddNodesResponse_deleteMembers(adRes);
+    UA_AddNodesResponse_delete(adRes);
     return retval;
 }
 
@@ -1432,11 +1425,13 @@ UA_Client_appendObjectNodeAttributes(UA_Client *client, void *dst) {
     UA_NodeId_copy(&target->nodeId, &rrq->nodesToRead[i].nodeId);
   }
   rrs = UA_Client_read(client, rrq);
-  UA_ReadRequest_delete(rrq);
   if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-    return rrs.responseHeader.serviceResult;
+    retval =  rrs.responseHeader.serviceResult;
   if (rrs.resultsSize != rrq->nodesToReadSize)
-    return rrs.responseHeader.serviceResult;
+    retval = rrs.responseHeader.serviceResult;
+  UA_ReadRequest_delete(rrq);
+  if (!(retval == UA_STATUSCODE_GOOD))
+    return retval;
   
   if (rrs.results[0].value.data != NULL)
     UA_Byte_copy((UA_Byte *) rrs.results[0].value.data, &target->eventNotifier);
@@ -1463,11 +1458,13 @@ UA_Client_appendObjectTypeNodeAttributes(UA_Client *client, void *dst) {
     UA_NodeId_copy(&target->nodeId, &rrq->nodesToRead[i].nodeId);
   }
   rrs = UA_Client_read(client, rrq);
-  UA_ReadRequest_delete(rrq);
   if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-    return rrs.responseHeader.serviceResult;
+    retval =  rrs.responseHeader.serviceResult;
   if (rrs.resultsSize != rrq->nodesToReadSize)
-    return rrs.responseHeader.serviceResult;
+    retval = rrs.responseHeader.serviceResult;
+  UA_ReadRequest_delete(rrq);
+  if (!(retval == UA_STATUSCODE_GOOD))
+    return retval;
   
   if (rrs.results[0].value.data != NULL)
     UA_Boolean_copy((UA_Boolean *) rrs.results[0].value.data, &target->isAbstract);
@@ -1503,11 +1500,13 @@ UA_Client_appendVariableNodeAttributes(UA_Client *client, void *dst) {
     UA_NodeId_copy(&target->nodeId, &rrq->nodesToRead[i].nodeId);
   }
   rrs = UA_Client_read(client, rrq);
-  UA_ReadRequest_delete(rrq);
   if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-    return rrs.responseHeader.serviceResult;
+    retval =  rrs.responseHeader.serviceResult;
   if (rrs.resultsSize != rrq->nodesToReadSize)
-    return rrs.responseHeader.serviceResult;
+    retval = rrs.responseHeader.serviceResult;
+  UA_ReadRequest_delete(rrq);
+  if (!(retval == UA_STATUSCODE_GOOD))
+    return retval;
 
   if (rrs.results[0].value.data != NULL)
     UA_Variant_copy((UA_Variant *) &rrs.results[0].value, &target->value.variant);
@@ -1552,11 +1551,13 @@ UA_Client_appendVariableTypeNodeAttributes(UA_Client *client, void *dst) {
   rrq->nodesToRead[0].attributeId = UA_ATTRIBUTEID_ISABSTRACT;
   
   rrs = UA_Client_read(client, rrq);
-  UA_ReadRequest_delete(rrq);
   if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-    return rrs.responseHeader.serviceResult;
+    retval =  rrs.responseHeader.serviceResult;
   if (rrs.resultsSize != rrq->nodesToReadSize)
-    return rrs.responseHeader.serviceResult;
+    retval = rrs.responseHeader.serviceResult;
+  UA_ReadRequest_delete(rrq);
+  if (!(retval == UA_STATUSCODE_GOOD))
+    return retval;
   
   if (rrs.results[0].value.data != NULL)
     UA_Boolean_copy((UA_Boolean *) rrs.results[0].value.data, &target->isAbstract);
@@ -1590,11 +1591,13 @@ UA_Client_appendReferenceTypeNodeAttributes(UA_Client *client, void *dst) {
     UA_NodeId_copy(&target->nodeId, &rrq->nodesToRead[i].nodeId);
   }
   rrs = UA_Client_read(client, rrq);
-  UA_ReadRequest_delete(rrq);
   if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-    return rrs.responseHeader.serviceResult;
+    retval =  rrs.responseHeader.serviceResult;
   if (rrs.resultsSize != rrq->nodesToReadSize)
-    return rrs.responseHeader.serviceResult;
+    retval = rrs.responseHeader.serviceResult;
+  UA_ReadRequest_delete(rrq);
+  if (!(retval == UA_STATUSCODE_GOOD))
+    return retval;
   
   if (rrs.results[0].value.data != NULL)
     UA_Boolean_copy((UA_Boolean *) rrs.results[0].value.data, &target->isAbstract);
@@ -1604,7 +1607,6 @@ UA_Client_appendReferenceTypeNodeAttributes(UA_Client *client, void *dst) {
     UA_LocalizedText_copy((UA_LocalizedText *) rrs.results[2].value.data, &target->inverseName);
   
   UA_ReadResponse_deleteMembers(&rrs);
-  return retval;
   return retval;
 }
 
@@ -1627,11 +1629,13 @@ UA_Client_appendViewNodeAttributes(UA_Client *client, void *dst) {
     UA_NodeId_copy(&target->nodeId, &rrq->nodesToRead[i].nodeId);
   }
   rrs = UA_Client_read(client, rrq);
-  UA_ReadRequest_delete(rrq);
   if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-    return rrs.responseHeader.serviceResult;
+    retval =  rrs.responseHeader.serviceResult;
   if (rrs.resultsSize != rrq->nodesToReadSize)
-    return rrs.responseHeader.serviceResult;
+    retval = rrs.responseHeader.serviceResult;
+  UA_ReadRequest_delete(rrq);
+  if (!(retval == UA_STATUSCODE_GOOD))
+    return retval;
   
   if (rrs.results[0].value.data != NULL)
     UA_Boolean_copy((UA_Boolean *) rrs.results[0].value.data, &target->containsNoLoops);
@@ -1639,7 +1643,6 @@ UA_Client_appendViewNodeAttributes(UA_Client *client, void *dst) {
     UA_Byte_copy((UA_Byte *) rrs.results[1].value.data, &target->eventNotifier);
   
   UA_ReadResponse_deleteMembers(&rrs);
-  return retval;
   return retval;
 }
 
@@ -1661,11 +1664,13 @@ UA_Client_appendDataTypeNodeAttributes(UA_Client *client, void *dst) {
     UA_NodeId_copy(&target->nodeId, &rrq->nodesToRead[i].nodeId);
   }
   rrs = UA_Client_read(client, rrq);
-  UA_ReadRequest_delete(rrq);
   if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-    return rrs.responseHeader.serviceResult;
+    retval =  rrs.responseHeader.serviceResult;
   if (rrs.resultsSize != rrq->nodesToReadSize)
-    return rrs.responseHeader.serviceResult;
+    retval = rrs.responseHeader.serviceResult;
+  UA_ReadRequest_delete(rrq);
+  if (!(retval == UA_STATUSCODE_GOOD))
+    return retval;
   
   if (rrs.results[0].value.data != NULL)
     UA_Boolean_copy((UA_Boolean *) rrs.results[0].value.data, &target->isAbstract);
@@ -1693,11 +1698,13 @@ UA_StatusCode UA_Client_appendMethodNodeAttributes(UA_Client *client, void *dst)
   }
   
   rrs = UA_Client_read(client, rrq);
-  UA_ReadRequest_delete(rrq);
   if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-    return rrs.responseHeader.serviceResult;
+    retval =  rrs.responseHeader.serviceResult;
   if (rrs.resultsSize != rrq->nodesToReadSize)
-    return rrs.responseHeader.serviceResult;
+    retval = rrs.responseHeader.serviceResult;
+  UA_ReadRequest_delete(rrq);
+  if (!(retval == UA_STATUSCODE_GOOD))
+    return retval;
   
   if (rrs.results[0].value.data != NULL)
     UA_Boolean_copy((UA_Boolean *) rrs.results[0].value.data, &target->executable);
@@ -1731,10 +1738,14 @@ UA_Client_getNodeCopy(UA_Client *client, UA_NodeId nodeId, void **copyInto) {
     UA_NodeId_copy(&nodeId, &rrq->nodesToRead[i].nodeId);
   }
   rrs = UA_Client_read(client, rrq);
-  if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+  if (rrs.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    UA_ReadRequest_delete(rrq);
     return rrs.responseHeader.serviceResult;
-  if (rrs.resultsSize != rrq->nodesToReadSize)
+  }
+  if (rrs.resultsSize != rrq->nodesToReadSize) {
+    UA_ReadRequest_delete(rrq);
     return rrs.responseHeader.serviceResult;
+  }
   UA_ReadRequest_delete(rrq);
   
   UA_UInt32 *nodeClass = rrs.results[1].value.data;
@@ -1780,7 +1791,6 @@ UA_Client_getNodeCopy(UA_Client *client, UA_NodeId nodeId, void **copyInto) {
       retval |= UA_Client_appendDataTypeNodeAttributes(client, *copyInto);
       break;
     default:
-      UA_ReadRequest_delete(rrq);
       UA_ReadResponse_deleteMembers(&rrs);
       return UA_STATUSCODE_BADNODECLASSINVALID;
   }

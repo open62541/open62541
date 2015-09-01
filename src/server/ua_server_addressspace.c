@@ -1241,7 +1241,7 @@ static void UA_Server_addInstanceOf_inheritParentAttributes(UA_Server *server, a
 {
   UA_Boolean refTypeValid;
   UA_ReferenceNode ref;
-  arrayOfNodeIds visitedNodes = (arrayOfNodeIds) {.size=0, .ids = NULL};
+  arrayOfNodeIds visitedNodes = (arrayOfNodeIds) {.size=0, .ids = UA_NULL};
   for(int i=0; i<typeDefNode->referencesSize; i++) {
     ref = typeDefNode->references[i];
     if (ref.isInverse == UA_FALSE)
@@ -1280,9 +1280,10 @@ static void UA_Server_addInstanceOf_instatiateChildObject(UA_Server *server,
   UA_Node *typeDefNode;
   UA_Server_getNodeCopy(server, typeDefinition.nodeId, (void *) &typeDefNode);
   
-  if (typeDefNode == NULL) {
+  if (typeDefNode == UA_NULL) {
     return;
   }
+
   if (typeDefNode->nodeClass != UA_NODECLASS_OBJECTTYPE) {
     UA_Server_deleteNodeCopy(server, (void **) &typeDefNode);
     return;
@@ -1296,7 +1297,7 @@ static void UA_Server_addInstanceOf_instatiateChildObject(UA_Server *server,
   if (retval)
     return;
   
-  if (callback != NULL)
+  if (callback != UA_NULL)
     callback(objectRoot, typeDefinition.nodeId, handle);
   
   // (1) If this node is a subtype of any other node, create its things first
@@ -1335,16 +1336,18 @@ void UA_Server_addInstanceOf_instatiateChildNode(UA_Server *server,
       continue;
     
     // What type of node is this?
-    refClass = NULL;
+    refClass = UA_NULL;
     UA_Server_getAttributeValue(server, ref.targetId.nodeId, UA_ATTRIBUTEID_NODECLASS, (void **) &refClass);
     switch (*refClass) {
       case UA_NODECLASS_VARIABLE: // Just clone the variable node with a new nodeId
         UA_Server_getNodeCopy(server, ref.targetId.nodeId, (void **) &nodeClone);
+        if (nodeClone == UA_NULL)
+          break;
         UA_NodeId_init(&nodeClone->nodeId);
         nodeClone->nodeId.namespaceIndex = objectRoot.namespaceIndex;
-        if (nodeClone != NULL) {
+        if (nodeClone != UA_NULL) {
           adres = UA_Server_addNode(server, nodeClone,  *objectRootExpanded, ref.referenceTypeId);
-          if (callback != NULL)
+          if (callback != UA_NULL)
             callback(adres.addedNodeId, ref.targetId.nodeId, handle);
         }
         break;
@@ -1366,7 +1369,7 @@ void UA_Server_addInstanceOf_instatiateChildNode(UA_Server *server,
           UA_Variant_copy(&varTypeNode->value.variant, &newVarNode->value.variant);
         
         adres = UA_Server_addNode(server, (UA_Node *) newVarNode, *objectRootExpanded, ref.referenceTypeId);
-        if (callback != NULL)
+        if (callback != UA_NULL)
           callback(adres.addedNodeId, ref.targetId.nodeId, handle);
         UA_Server_deleteNodeCopy(server, (void **) &newVarNode);
         UA_Server_deleteNodeCopy(server, (void **) &varTypeNode);
@@ -1414,6 +1417,9 @@ void UA_Server_addInstanceOf_instatiateChildNode(UA_Server *server,
     }
     UA_NodeClass_delete(refClass);
   }
+  
+  if (objectRootExpanded != UA_NULL)
+    UA_ExpandedNodeId_delete(objectRootExpanded);
   return;
 }
 
@@ -1424,12 +1430,16 @@ UA_StatusCode UA_Server_appendInstanceOfSupertype(UA_Server *server, UA_NodeId n
 {
   UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
-  UA_Node *typeDefNode;
+  UA_Node *typeDefNode = UA_NULL;
   UA_Server_getNodeCopy(server, nodeId, (void *) &typeDefNode);
-  if (typeDefNode == NULL) {
+  if (typeDefNode == UA_NULL) {
   return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
   }
+<<<<<<< HEAD
   if (typeDefNode->nodeClass != UA_NODECLASS_OBJECTTYPE) {
+=======
+  if (!(typeDefNode->nodeClass == UA_NODECLASS_OBJECTTYPE)) {
+>>>>>>> api_hl_abstractions
   UA_Server_deleteNodeCopy(server, (void **) &typeDefNode);
   return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
   }
@@ -1443,6 +1453,8 @@ UA_StatusCode UA_Server_appendInstanceOfSupertype(UA_Server *server, UA_NodeId n
   UA_Server_addInstanceOf_instatiateChildNode(server, subtypeRefs, componentRefs, UA_NULL, 
                                               appendToNodeId, callback, (UA_ObjectTypeNode *) typeDefNode, 
                                               UA_FALSE, instantiatedTypes, handle);
+  if (objectRootExpanded != UA_NULL)
+    UA_ExpandedNodeId_delete(objectRootExpanded);
   return retval;
 }
 
@@ -1454,13 +1466,17 @@ UA_StatusCode UA_Server_addInstanceOf(UA_Server *server, UA_NodeId nodeId, const
 {
   UA_StatusCode retval = UA_STATUSCODE_GOOD;
   
-  UA_Node *typeDefNode;
+  UA_Node *typeDefNode = UA_NULL;
   UA_Server_getNodeCopy(server, typeDefinition.nodeId, (void *) &typeDefNode);
   
-  if (typeDefNode == NULL) {
+  if (typeDefNode == UA_NULL) {
     return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
   }
+<<<<<<< HEAD
   if (typeDefNode->nodeClass != UA_NODECLASS_OBJECTTYPE) {
+=======
+  if (!(typeDefNode->nodeClass == UA_NODECLASS_OBJECTTYPE)) {
+>>>>>>> api_hl_abstractions
     UA_Server_deleteNodeCopy(server, (void **) &typeDefNode);
     return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
   }
