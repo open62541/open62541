@@ -31,13 +31,13 @@ START_TEST(Session_init_ShallWork)
 	ck_assert_int_eq(session.activated,UA_FALSE);
 	ck_assert_int_eq(session.authenticationToken.identifier.numeric,tmpNodeId.identifier.numeric);
 	ck_assert_int_eq(session.availableContinuationPoints,MAXCONTINUATIONPOINTS);
-    ck_assert_int_eq(session.channel,UA_NULL);
-    ck_assert_int_eq(session.clientDescription.applicationName.locale.data,UA_NULL);
-    ck_assert_int_eq(session.continuationPoints.lh_first, UA_NULL);
+    ck_assert_ptr_eq(session.channel,UA_NULL);
+    ck_assert_ptr_eq(session.clientDescription.applicationName.locale.data,UA_NULL);
+    ck_assert_ptr_eq(session.continuationPoints.lh_first, UA_NULL);
     ck_assert_int_eq(session.maxRequestMessageSize,0);
     ck_assert_int_eq(session.maxResponseMessageSize,0);
     ck_assert_int_eq(session.sessionId.identifier.numeric,tmpNodeId.identifier.numeric);
-    ck_assert_int_eq(session.sessionName.data,UA_NULL);
+    ck_assert_ptr_eq(session.sessionName.data,UA_NULL);
     ck_assert_int_eq(session.timeout,0);
     ck_assert_int_eq(session.validTill,tmpDateTime);
 
