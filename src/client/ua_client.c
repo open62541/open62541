@@ -260,9 +260,20 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     response) and filled with the appropriate error code */
 static void synchronousRequest(UA_Client *client, void *request, const UA_DataType *requestType,
                                void *response, const UA_DataType *responseType) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(!response)
+        return;
+    UA_init(response, responseType);
+    UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
     /* Check if sc needs to be renewed */
-    if(client->scExpiresAt - UA_DateTime_now() <= client->config.timeToRenewSecureChannel * 10000 )
-        UA_Client_renewSecureChannel(client);
+    if(client->scExpiresAt - UA_DateTime_now() <= client->config.timeToRenewSecureChannel * 10000 ){
+        retval = UA_Client_renewSecureChannel(client);
+        if(retval != UA_STATUSCODE_GOOD) {
+            respHeader->serviceResult = retval;
+            client->state = UA_CLIENTSTATE_ERRORED;
+            return;
+        }
+    }
 
     /* Copy authenticationToken token to request header */
     typedef struct {
@@ -271,15 +282,10 @@ static void synchronousRequest(UA_Client *client, void *request, const UA_DataTy
     /* The cast is valid, since all requests start with a requestHeader */
     UA_NodeId_copy(&client->authenticationToken, &((headerOnlyRequest*)request)->requestHeader.authenticationToken);
 
-    if(!response)
-        return;
-    UA_init(response, responseType);
-
     /* Send the request */
     UA_UInt32 requestId = ++client->requestId;
-    UA_StatusCode retval = UA_SecureChannel_sendBinaryMessage(&client->channel, requestId,
+    retval = UA_SecureChannel_sendBinaryMessage(&client->channel, requestId,
                                                               request, requestType);
-    UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
     if(retval) {
         if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED)
             respHeader->serviceResult = UA_STATUSCODE_BADREQUESTTOOLARGE;
