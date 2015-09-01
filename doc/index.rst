@@ -2,11 +2,12 @@ Welcome to open62541's documentation!
 =====================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :hidden:
 
    building
    datatypes
+   tutorials
 
 `OPC UA <http://en.wikipedia.org/wiki/OPC_Unified_Architecture>`_ (short for OPC
 Unified Architecture) is a protocol for industrial communication and has been
