@@ -465,7 +465,8 @@ static void ClientNetworkLayerReleaseBuffer(UA_Connection *connection, UA_ByteSt
 
 static void ClientNetworkLayerClose(UA_Connection *connection) {
 #ifndef UA_MULTITHREADING
-    UA_ByteString_delete(connection->handle);
+    if(connection->handle)
+        UA_ByteString_delete(connection->handle);
     connection->handle = NULL;
 #endif
     if(connection->state == UA_CONNECTION_CLOSED)
