@@ -1,6 +1,7 @@
 language: c
 compiler:
 - gcc
+- clang
 env:
   global:
   - secure: nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo=
@@ -19,8 +20,9 @@ before_install:
 - sudo add-apt-repository ppa:kalakris/cmake -y
 - sudo apt-get update -qq
 - sudo apt-get install -qq --no-install-recommends build-essential cmake python-lxml gcc-multilib graphviz doxygen wget zip
-- wget http://security.ubuntu.com/ubuntu/pool/main/c/check/check_0.9.10-6ubuntu3_amd64.deb
-- sudo dpkg -i check_0.9.10-6ubuntu3_amd64.deb
+- sudo apt-get install libsubunit-dev #for check_0.10.0
+- wget http://ftp.de.debian.org/debian/pool/main/c/check/check_0.10.0-2_amd64.deb
+- sudo dpkg -i check_0.10.0-2_amd64.deb
 - wget https://launchpad.net/ubuntu/+source/liburcu/0.8.5-1ubuntu1/+build/6513813/+files/liburcu2_0.8.5-1ubuntu1_amd64.deb
 - wget https://launchpad.net/ubuntu/+source/liburcu/0.8.5-1ubuntu1/+build/6513813/+files/liburcu-dev_0.8.5-1ubuntu1_amd64.deb
 - sudo dpkg -i liburcu2_0.8.5-1ubuntu1_amd64.deb
@@ -92,12 +94,14 @@ script:
 - cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_DEMO_NODESET=ON -DBUILD_UNIT_TESTS=ON -DBUILD_EXAMPLESERVER=ON -DENABLE_COVERAGE=ON ..
 - make && make test
 - echo "Run valgrind to see if the server leaks memory (just starting up and closing..)"
-- valgrind --error-exitcode=3 ./server & export pid=$!; sleep 2; kill -INT $pid; wait $pid
-- (coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ ; exit 0)
+- if [[ ! ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "clang") ]]; then
+  (valgrind --error-exitcode=3 ./server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
+  (coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ ; exit 0);
+  fi
 - cd .. 
 after_success:
-- ./tools/.deployGH.sh
-- ./tools/.coverity.sh
+- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc") ]]; ./tools/.deployGH.sh; fi;
+- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc") ]]; ./tools/.coverity.sh; fi;
 before_deploy:
 - rm build -rf && mkdir -p build && cd build
 - echo "Cross compile release build for Raspberry Pi"
@@ -125,3 +129,4 @@ deploy:
   skip_cleanup: true
   on:
     tags: true
+    condition: $CC = gcc
