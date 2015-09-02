@@ -666,7 +666,7 @@ class opcua_node_t:
       code.append("// Referencing node found and declared as parent: " + str(parentNode .id()) + "/" + str(parentNode .__node_browseName__) + " using " + str(parentRef.referenceType().id()) + "/" + str(parentRef.referenceType().__node_browseName__))
       code = code + self.printOpen62541CCode_SubtypeEarly(bootstrapping = False)
       code = code + codegen.getCreateNodeNoBootstrap(self, parentNode, parentRef)
-      code = code + self.printOpen62541CCode_Subtype(bootstrapping = False)
+      code = code + self.printOpen62541CCode_Subtype(unPrintedReferences = unPrintedReferences, bootstrapping = False)
       code.append("       UA_NULL);") # createdNodeId, wraps up the UA_Server_add<XYType>Node() call
       if self.nodeClass() == NODE_CLASS_METHOD:
 	code.append("#endif //ENABLE_METHODCALL") # ifdef added by codegen when methods are detected
@@ -683,7 +683,7 @@ class opcua_node_t:
     else:
       code = code + self.printOpen62541CCode_SubtypeEarly(bootstrapping = True)
       code = code + codegen.getCreateNodeBootstrap(self)
-      code = code + self.printOpen62541CCode_Subtype(bootstrapping = True)
+      code = code + self.printOpen62541CCode_Subtype(unPrintedReferences = unPrintedReferences, bootstrapping = True)
       code.append("// Parent node does not exist yet. This node will be bootstrapped and linked later.")
       code.append("UA_NodeStore_insert(server->nodestore, (UA_Node*) " + self.getCodePrintableID() + ", UA_NULL);")
       
@@ -820,7 +820,7 @@ class opcua_node_referenceType_t(opcua_node_t):
         code.append("       UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE),")
       else:
         code.append("       " + codegen.getCreateExpandedNodeIDMacro(myTypeRef.target()) + ",")
-        if myTypeRef in unPrintedReferences:
+        while myTypeRef in unPrintedReferences:
           unPrintedReferences.remove(myTypeRef)
           
       code.append("       UA_LOCALIZEDTEXT(\"\",\"" + str(self.inverseName()) + "\"),");
@@ -867,7 +867,7 @@ class opcua_node_object_t(opcua_node_t):
   def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     code = []
     codegen = open62541_MacroHelper()
-    
+      
     # Detect if this is bootstrapping or if we are attempting to use userspace...
     if bootstrapping == False:
       typeDefs = self.getNamespace().getSubTypesOf() # defaults to TypeDefinition
@@ -887,7 +887,7 @@ class opcua_node_object_t(opcua_node_t):
         code.append("       UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),")
       else:
         code.append("       " + codegen.getCreateExpandedNodeIDMacro(myTypeRef.target()) + ",")
-        if myTypeRef in unPrintedReferences:
+        while myTypeRef in unPrintedReferences:
           unPrintedReferences.remove(myTypeRef)
       
       #FIXME: No event notifier in UA_Server_addNode call!
@@ -1209,7 +1209,7 @@ class opcua_node_objectType_t(opcua_node_t):
         code.append("       UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),")
       else:
         code.append("       " + codegen.getCreateExpandedNodeIDMacro(myTypeRef.target()) + ",")
-        if myTypeRef in unPrintedReferences:
+        while myTypeRef in unPrintedReferences:
           code.append("       // removed " + str(myTypeRef))
           unPrintedReferences.remove(myTypeRef)
       
@@ -1673,7 +1673,7 @@ class opcua_node_dataType_t(opcua_node_t):
         code.append("       UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE),")
       else:
         code.append("       " + codegen.getCreateExpandedNodeIDMacro(myTypeRef.target()) + ",")
-        if myTypeRef in unPrintedReferences:
+        while myTypeRef in unPrintedReferences:
           unPrintedReferences.remove(myTypeRef)
       
       if (self.isAbstract()):
@@ -1738,7 +1738,7 @@ class opcua_node_view_t(opcua_node_t):
         code.append("       UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEViewTYPE),")
       else:
         code.append("       " + codegen.getCreateExpandedNodeIDMacro(myTypeRef.target()) + ",")
-        if myTypeRef in unPrintedReferences:
+        while myTypeRef in unPrintedReferences:
           unPrintedReferences.remove(myTypeRef)
           
       code.append("       // FIXME: Missing eventNotifier")
