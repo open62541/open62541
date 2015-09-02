@@ -1048,13 +1048,15 @@ UA_StatusCode UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNode
     rq->inputArgumentsSize = -1;
     UA_CallRequest_deleteMembers(&request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
-    retval |= response.results[0].statusCode;
+    if(response.resultsSize > 0){
+        retval |= response.results[0].statusCode;
 
-    if(retval == UA_STATUSCODE_GOOD) {
-        *output = response.results[0].outputArguments;
-        *outputSize = response.results[0].outputArgumentsSize;
-        response.results[0].outputArguments = UA_NULL;
-        response.results[0].outputArgumentsSize = -1;
+        if(retval == UA_STATUSCODE_GOOD) {
+            *output = response.results[0].outputArguments;
+            *outputSize = response.results[0].outputArgumentsSize;
+            response.results[0].outputArguments = UA_NULL;
+            response.results[0].outputArgumentsSize = -1;
+        }
     }
     UA_CallResponse_deleteMembers(&response);
     return retval;
