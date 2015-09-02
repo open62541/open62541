@@ -63,13 +63,13 @@ typedef uint32_t UA_UInt32;
 
 /** @brief An integer value between -10 223 372 036 854 775 808 and 9 223 372 036 854 775 807 */
 typedef int64_t UA_Int64;
-#define UA_INT64_MAX 9223372036854775807
-#define UA_INT64_MIN -9223372036854775808
+#define UA_INT64_MAX (int64_t)9223372036854775807
+#define UA_INT64_MIN (int64_t)-9223372036854775808
 
 /** @brief An integer value between 0 and 18 446 744 073 709 551 615. */
 typedef uint64_t UA_UInt64;
-#define UA_UINT64_MAX = 18446744073709551615
-#define UA_UINT64_MIN = 0
+#define UA_UINT64_MAX (int64_t)18446744073709551615
+#define UA_UINT64_MIN (int64_t)0
 
 /** @brief An IEEE single precision (32 bit) floating point value. */
 typedef float UA_Float;
@@ -105,14 +105,16 @@ typedef UA_String UA_XmlElement;
 
 /** @brief An identifier for a node in the address space of an OPC UA Server. */
 /* The shortened numeric types are introduced during encoding. */
+enum UA_NodeIdType {
+    UA_NODEIDTYPE_NUMERIC    = 2,
+    UA_NODEIDTYPE_STRING     = 3,
+    UA_NODEIDTYPE_GUID       = 4,
+    UA_NODEIDTYPE_BYTESTRING = 5
+};
+
 typedef struct {
     UA_UInt16 namespaceIndex; ///< The namespace index of the node
-    enum UA_NodeIdType {
-        UA_NODEIDTYPE_NUMERIC    = 2,
-        UA_NODEIDTYPE_STRING     = 3,
-        UA_NODEIDTYPE_GUID       = 4,
-        UA_NODEIDTYPE_BYTESTRING = 5
-    } identifierType; ///< The type of the node identifier
+    enum UA_NodeIdType identifierType; ///< The type of the node identifier
     union {
         UA_UInt32     numeric;
         UA_String     string;
@@ -257,11 +259,11 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_Guid)
 #define UA_XmlElement_copy UA_String_copy
 UA_TYPE_HANDLING_FUNCTIONS(UA_NodeId)
 UA_TYPE_HANDLING_FUNCTIONS(UA_ExpandedNodeId)
-#define UA_StatusCode_new(p) UA_Int32_new((UA_Int32*)p)
+#define UA_StatusCode_new() UA_Int32_new()
 #define UA_StatusCode_init(p) UA_Int32_init((UA_Int32*)p)
 #define UA_StatusCode_delete(p) UA_Int32_delete((UA_Int32*)p)
 #define UA_StatusCode_deleteMembers(p) UA_Int32_deleteMembers((UA_Int32*)p)
-#define UA_StatusCode_copy(p) UA_Int32_copy((UA_Int32*)p)
+#define UA_StatusCode_copy(p, q) UA_Int32_copy((UA_Int32*)p, (UA_Int32*)q)
 UA_TYPE_HANDLING_FUNCTIONS(UA_QualifiedName)
 UA_TYPE_HANDLING_FUNCTIONS(UA_LocalizedText)
 UA_TYPE_HANDLING_FUNCTIONS(UA_ExtensionObject)

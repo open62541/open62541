@@ -14,7 +14,7 @@ if(ENABLE_BINDING_LUA)
     set_target_properties(open62541-lua PROPERTIES COMPILE_FLAGS "-Wno-error")
     target_include_directories(open62541-lua PUBLIC ${LUA_INCLUDE_DIR} ${PROJECT_SOURCE_DIR}/include
                                                     ${PROJECT_BINARY_DIR}/src_generated)
-    target_link_libraries(open62541-lua open62541-static)
+    target_link_libraries(open62541-lua open62541 lua)
     set_target_properties(open62541-lua PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lua
                                                    OUTPUT_NAME open62541 PREFIX "")
 endif()
@@ -32,7 +32,7 @@ if(ENABLE_BINDING_PYTHON)
     set_target_properties(open62541-python PROPERTIES COMPILE_FLAGS "-Wno-error")
     target_include_directories(open62541-python PUBLIC ${PYTHON_INCLUDE_DIR} ${PROJECT_SOURCE_DIR}/include
                                                        ${PROJECT_BINARY_DIR}/src_generated)
-    target_link_libraries(open62541-python open62541-static)
+    target_link_libraries(open62541-python open62541 python)
     set_target_properties(open62541-python PROPERTIES
                                            LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/python
                                            OUTPUT_NAME _open62541 PREFIX "")

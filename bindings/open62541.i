@@ -4,6 +4,25 @@
 #include "ua_server.h"
 %}
 
+#if defined(SWIGPYTHON)
+%{
+/* avoid no previous prototype warning/error */
+#if PY_VERSION_HEX >= 0x03000000
+PyObject*
+#else
+void
+#endif
+SWIG_init (void);
+%}
+#endif
+
+#if defined(SWIGLUA)
+%{
+/* avoid no previous prototype warning/error */
+SWIGEXPORT int SWIG_init (lua_State* L);
+%}
+#endif
+
 %define UA_TYPE_HANDLING_FUNCTIONS_SWIG(TYPE)
     TYPE * TYPE##_new(void);
     void TYPE##_init(TYPE * p);
