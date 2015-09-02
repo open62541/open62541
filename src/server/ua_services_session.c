@@ -61,10 +61,15 @@ void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
     UA_String ap = UA_STRING(ANONYMOUS_POLICY);
     UA_String up = UA_STRING(USERNAME_POLICY);
-    if(token.policyId.data == UA_NULL) {
-        /* 1) no policy defined */
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-    } else if(server->config.Login_enableAnonymous && UA_String_equal(&token.policyId, &ap)) {
+    //(Compatibility notice)
+    //Siemens OPC Scout v10 provides an empty policyId, this is not okay
+    //For compatibility we will assume that empty policyId == ANONYMOUS_POLICY
+    //if(token.policyId.data == UA_NULL) {
+    //    /* 1) no policy defined */
+    //    response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+    //} else
+    //(End Compatibility notice)
+    if(server->config.Login_enableAnonymous && (token.policyId.data == UA_NULL || UA_String_equal(&token.policyId, &ap))) {
         /* 2) anonymous logins */
         if(foundSession->channel && foundSession->channel != channel)
             UA_SecureChannel_detachSession(foundSession->channel, foundSession);
