@@ -1,5 +1,5 @@
-First steps with open62541
-==========================
+First steps with open62541-server
+=================================
 
 This tutorial will attempt to guide you through your first steps with open62541. It offers a bit of a more "hands on" approach to learning how to use this stack by talking you through building several small example OPC UA server/client applications.
 
@@ -16,7 +16,7 @@ For now, this tutorial will assume that you are using an up-to-date Linux or BSD
 
 Before we can get started you will require the stack. You may either clone the current master or download a ZIP/TGZ archive from github. Let's assume that you want to clone the github repository. Open a shell, navigate to a folder of your choice and clone the repository::
 
-   ichrispa@Cassandra:> git clone https://github.com/acplt/open62541
+   :> git clone https://github.com/acplt/open62541
    Cloning into './open62541'...
    remote: Counting objects: 14443, done.
    remote: Compressing objects: 100% (148/148), done.
@@ -24,13 +24,13 @@ Before we can get started you will require the stack. You may either clone the c
    Receiving objects: 100% (14443/14443), 7.18 MiB | 654.00 KiB/s, done.
    Resolving deltas: 100% (10894/10894), done.
    Checking connectivity... done.
-   ichrispa@Cassandra:>
+   :>
 
 Then create a build directory and read the next section.::
 
-   ichrispa@Cassandra:> cd open62541
-   ichrispa@Cassandra:open62541> mkdir build
-   ichrispa@Cassandra:open62541/build> cd build
+   :> cd open62541
+   :open62541> mkdir build
+   :open62541/build> cd build
   
 Note that the shell used here was BASH. You might have to adapt some of the following examples for your shell if you prefer tcsh or csh.
 
@@ -39,7 +39,7 @@ Verifying your build environment
 
 Let's proceed with the default stack build, which will give you an impression of what you should see if your building process is successfull::
 
-   ichrispa@Cassandra:open62541/build> cmake ../
+   :open62541/build> cmake ../
    -- The C compiler identification is GNU 4.8.3
    -- Check for working C compiler: /usr/bin/cc
    -- Check for working C compiler: /usr/bin/cc -- works
@@ -53,7 +53,7 @@ Let's proceed with the default stack build, which will give you an impression of
    -- Generating done
    -- Build files have been written to: /home/ichrispa/work/svn/working_copies/tmpopen/build
 
-   ichrispa@Cassandra:open62541/build> make
+   :open62541/build> make
    [  3%] Generating src_generated/ua_nodeids.h
    [  7%] Generating src_generated/ua_types_generated.c, src_generated/ua_types_generated.h
    [ 11%] Generating src_generated/ua_transport_generated.c, src_generated/ua_transport_generated.h
@@ -87,7 +87,7 @@ Let's proceed with the default stack build, which will give you an impression of
    Linking C shared library libopen62541.so
    [100%] Built target open62541
 
-   ichrispa@Cassandra:open62541/build>
+   :open62541/build>
    
 The line where ``cmake ../`` is executed tells cmake to prepare the build process in the current subdirectory. ``make`` then executes the generated Makefiles which build the stack. At this point, a shared library named *libopen62541.so* should have been generated in the build folder. By using this library and the header files contained in the ``open62541/include`` folder you can enable your applications to use the open62541 OPC UA server and client stack.
 
@@ -96,15 +96,15 @@ Creating your first server
 
 Let's build a very rudimentary server. Create a separate folder for your application and copy the necessary source files into an a subfolder named ``include``. Don't forget to also copy the shared library. Then create a new C sourcefile called ``myServer.c``. If you choose to use a shell, the whole process should look like this::
 
-   ichrispa@Cassandra:open62541/build> cd ../../
-   ichrispa@Cassandra:> mkdir myServerApp
-   ichrispa@Cassandra:> cd myServerApp
-   ichrispa@Cassandra:myServerApp> mkdir include
-   ichrispa@Cassandra:myServerApp> cp ../open62541/include/* ./include
-   ichrispa@Cassandra:myServerApp> cp ../open62541/examples/*.h ./include
-   ichrispa@Cassandra:myServerApp> cp ../open62541/build/src_generated/*.h ./include
-   ichrispa@Cassandra:myServerApp> cp ../open62541/build/*.so .
-   ichrispa@Cassandra:myServerApp> tree
+   :open62541/build> cd ../../
+   :> mkdir myServerApp
+   :> cd myServerApp
+   :myServerApp> mkdir include
+   :myServerApp> cp ../open62541/include/* ./include
+   :myServerApp> cp ../open62541/examples/*.h ./include
+   :myServerApp> cp ../open62541/build/src_generated/*.h ./include
+   :myServerApp> cp ../open62541/build/*.so .
+   :myServerApp> tree
    .
    |-- include
    |   |-- logger_stdout.h
@@ -122,7 +122,7 @@ Let's build a very rudimentary server. Create a separate folder for your applica
    |   `-- ua_types.h
    |-- libopen62541.so
    `-- myServer.c
-   ichrispa@Cassandra:myServerApp> touch myServer.c
+   :myServerApp> touch myServer.c
 
 Open myServer.c and write/paste your minimal server application::
 
@@ -146,13 +146,13 @@ Open myServer.c and write/paste your minimal server application::
 
 This is all that is needed to start your OPC UA Server. Compile the the server with GCC using the following command::
 
-   ichrispa@Cassandra:myServerApp> gcc -Wl,-rpath,`pwd` -I ./include -L ./ ./myServer.c -o myServer  -lopen62541
+   :myServerApp> gcc -Wl,-rpath,`pwd` -I ./include -L ./ ./myServer.c -o myServer  -lopen62541
 
 Some notes: You are using a dynamically linked library (libopen62541.so), which needs to be locates in your dynamic linkers search path. Unless you copy libopen62541.so into a common folder like /lib or /usr/lib, the linker will fail to find the library and complain (i.e. not run the application). ``-Wl,-rpath,`pwd``` adds your present working directory to the relative searchpaths of the linker when executing the binary (you can also use ``-Wl,-rpath,.`` if the binary and the library are always in the same directory).
 
 Now execute the server::
 
-   ichrispa@Cassandra:myServerApp> ./myServer
+   :myServerApp> ./myServer
 
 You have now compiled and started your first OPC UA Server. Though quite unspectacular and only terminatable with ``CTRL+C`` (SIGTERM) at the moment, you can already launch it and browse around with UA Expert. The Server will be listening on localhost:16664 - go ahead and give it a try.
 
@@ -171,9 +171,9 @@ A detailed list of all configuration options is given in the documentation of op
 
 This one might appear quite mysterious at first... this option will enable a python script (tools/amalgate.py) that will merge all headers of open62541 into a single header and c files into a single c file. Why? The most obvious answer is that you might not want to use a shared library in your project, but compile everything into your own binary. Let's give that a try... get back into the build folder ``make clean`` and then try this::
 
-   ichrispa@Cassandra:open62541/build> make clean
-   ichrispa@Cassandra:open62541/build> cmake -DENABLE_AMALGAMATION=On ../
-   ichrispa@Cassandra:open62541/build> make
+   :open62541/build> make clean
+   :open62541/build> cmake -DENABLE_AMALGAMATION=On ../
+   :open62541/build> make
    [  5%] Generating open62541.h
    Starting amalgamating file /open62541/build/open62541.h
    Integrating file '/open62541/build/src_generated/ua_config.h'...done.
@@ -191,15 +191,15 @@ This one might appear quite mysterious at first... this option will enable a pyt
    [ 61%] Built target open62541-object
    Scanning dependencies of target open62541
    Linking C shared library libopen62541.so
-   ichrispa@Cassandra:open62541/build> 
+   :open62541/build> 
 
 Switch back to your MyServerApp directory and recompile your binary, this time embedding all open62541 functionality in one executable::
 
-   ichrispa@Cassandra:open62541/build> cd ../../myServerApp
-   ichrispa@Cassandra:open62541/build> cp ../open62541/build/open62541.* .
-   ichrispa@Cassandra:myServerApp> gcc -std=c99 -I ./ -c ./open62541.c
-   ichrispa@Cassandra:myServerApp> gcc -std=c99 -I ./include -o myServer myServer.c open62541.o
-   ichrispa@Cassandra:myServerApp> ./myServer
+   :open62541/build> cd ../../myServerApp
+   :open62541/build> cp ../open62541/build/open62541.* .
+   :myServerApp> gcc -std=c99 -I ./ -c ./open62541.c
+   :myServerApp> gcc -std=c99 -I ./include -o myServer myServer.c open62541.o
+   :myServerApp> ./myServer
    
 You can now start the server and browse around as before. As you might have noticed, no shared library is required anymore. That makes the application more portable or runnable on systems without dynamic linking support and allows you to use functions that are not exported by the library (which propably means we haven't documented them as thouroughly...); on the other hand the application is also much bigger, so if you intend to also use a client with open62541, you might be inclined to overthink amalgamation.
 
@@ -224,8 +224,8 @@ Open myServer.c and simplify it to::
    
 It can now also be compiled without the include directory, i.e., ::
 
-   ichrispa@Cassandra:myServerApp> gcc -std=c99 myServer.c open62541.c -o myServer
-   ichrispa@Cassandra:myServerApp> ./myServer
+   :myServerApp> gcc -std=c99 myServer.c open62541.c -o myServer
+   :myServerApp> ./myServer
 
 Please note that at times the amalgamation script has... well, bugs. It might include files in the wrong order or include features even though the feature is turned off. Please report problems with amalgamation so we can improve it.
 
@@ -235,12 +235,12 @@ If you build your stack with the above two options, you will enable the example 
 
 Unfortunately, these examples include just about everything the stack can do... which makes them rather bad examples for newcomers seeking an easy introduction. They are also dynamically configured by the CMake options, so they might be a bit more difficult to read. Non the less you can find any of the concepts demonstrated here in these examples as well and you can build them like so (and this is what you will see when you run them)::
 
-   ichrispa@Cassandra:open62541/build> make clean
-   ichrispa@Cassandra:open62541/build> cmake -BUILD_EXAMPLECLIENT=On -BUILD_EXAMPLESERVER=On ../
-   ichrispa@Cassandra:open62541/build> make
-   ichrispa@Cassandra:open62541/build> ./server &
+   :open62541/build> make clean
+   :open62541/build> cmake -BUILD_EXAMPLECLIENT=On -BUILD_EXAMPLESERVER=On ../
+   :open62541/build> make
+   :open62541/build> ./server &
    [07/28/2015 21:42:07.977.352] info/communication        Listening on opc.tcp://Cassandra:16664
-   ichrispa@Cassandra:open62541/build> ./client
+   :open62541/build> ./client
    Browsing nodes in objects folder:
    NAMESPACE NODEID           BROWSE NAME      DISPLAY NAME    
    0         61               FolderType       FolderType      
@@ -265,10 +265,10 @@ Unfortunately, these examples include just about everything the stack can do... 
    Created 'NewObjectType' with numeric NodeID 12134
    Created 'NewObject' with numeric NodeID 176
    Created 'NewVariable' with numeric NodeID 177
-   ichrispa@Cassandra:open62541/build> fg
+   :open62541/build> fg
    ./server
    [07/28/2015 21:43:21.815.890] info/server   Received Ctrl-C
-   ichrispa@Cassandra:open62541/build> 
+   :open62541/build> 
    
 **BUILD_DOCUMENTATION**
 
