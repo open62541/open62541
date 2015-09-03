@@ -246,7 +246,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
                                     UA_NodeId *createdNodeId);
 
 UA_StatusCode UA_EXPORT
-UA_Server_AddMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId,
+UA_Server_addMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId,
                                       UA_ExpandedNodeId targetNodeId, UA_NodeId referenceTypeId,
                                       UA_Boolean isforward);
 

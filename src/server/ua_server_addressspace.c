@@ -415,7 +415,7 @@ UA_StatusCode UA_Server_addObjectTypeNode ( UA_Server *server, UA_NodeId nodeId,
 
 /* Userspace Version of addOneWayReferenceWithSession*/
 UA_StatusCode
-UA_Server_AddMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId, UA_ExpandedNodeId targetNodeId,
+UA_Server_addMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId, UA_ExpandedNodeId targetNodeId,
                                       UA_NodeId referenceTypeId, UA_Boolean isforward) {
     UA_AddReferencesItem ref;
     UA_AddReferencesItem_init(&ref);
@@ -1410,7 +1410,7 @@ void UA_Server_addInstanceOf_instatiateChildNode(UA_Server *server,
           UA_NodeId_copy(&objectRoot, &objectRootExpanded->nodeId );
           break;
       case UA_NODECLASS_METHOD: // Link this method (don't clone the node)
-        UA_Server_AddMonodirectionalReference(server, objectRoot, ref.targetId, ref.referenceTypeId, UA_TRUE);
+        UA_Server_addMonodirectionalReference(server, objectRoot, ref.targetId, ref.referenceTypeId, UA_TRUE);
         break;
       default:
         break;

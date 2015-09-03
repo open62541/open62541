@@ -176,6 +176,13 @@ Let us extend the client with with an action reading node's value::
     #include "networklayer_tcp.h"
 
     int main(void) {
+      UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
+      UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect, "opc.tcp://localhost:16664");
+      if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(client);
+        return retval;
+      }
+      
       //variable to store data
       UA_DateTime raw_date = 0;
 
@@ -266,5 +273,6 @@ Now you should see raw time and a formatted date::
 
 Further tasks
 -------------
+* Try to connect to some other OPC UA server by changing "opc.tcp://localhost:16664" to an appropriate address (remember that the queried node is contained in any OPC UA server).
 * Display the value of the variable node (ns=1,i="the.answer") containing an "Int32" from the example server (which is built in :doc:`tutorial_firstStepsServer`). Note that the identifier of this node is a string type: use "UA_NODEID_STRING_ALLOC". The answer can be found in "examples/exampleClient.c".
 * Try to set the value of the variable node (ns=1,i="the.answer") containing an "Int32" from the example server (which is built in :doc:`tutorial_firstStepsServer`) using "UA_Client_write" function. The example server needs some more modifications, i.e., changing request types. The answer can be found in "examples/exampleClient.c".
