@@ -17,6 +17,9 @@ endif(ENABLE_MULTITHREADING)
 add_executable(server_variable server_variable.c)
 target_link_libraries(server_variable ${LIBS})
 
+add_executable(server_datasource server_datasource.c)
+target_link_libraries(server_datasource ${LIBS})
+
 add_executable(server_repeated_job server_repeated_job.c)
 target_link_libraries(server_repeated_job ${LIBS})
 

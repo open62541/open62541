@@ -119,9 +119,9 @@ class open62541_MacroHelper():
       code.append("       UA_QUALIFIEDNAME(0, \"" + str(node.browseName()) + "\"),")  # browseName
     code.append("       UA_LOCALIZEDTEXT(\"\", \"" + str(node.displayName()) + "\"),")  # displayName
     code.append("       UA_LOCALIZEDTEXT(\"\", \"" + str(node.description()) + "\"),")  # description
+    code.append("       " + str(node.writeMask()) + ", " + str(node.userWriteMask()) + ",") # write/userWriteMask
     code.append("       " + str(self.getCreateNodeIDMacro(parentNode)) + ",") # ParentNode
     code.append("       " + str(self.getCreateNodeIDMacro(parentReference.referenceType())) + ",") # ReferenceTypeId
-    code.append("       " + str(node.writeMask()) + ", " + str(node.userWriteMask()) + ",") # write/userWriteMask
       
     return code
     

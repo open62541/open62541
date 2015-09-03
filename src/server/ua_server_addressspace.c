@@ -145,10 +145,14 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId, UA_Nod
 }
 
 UA_StatusCode
-UA_Server_addVariableNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
-                          UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
-                          const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
-                          UA_Variant *value, UA_NodeId *createdNodeId) {
+UA_Server_addVariableNode(UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName browseName,
+                          const UA_LocalizedText displayName, const UA_LocalizedText description, const UA_UInt32 userWriteMask, const UA_UInt32 writeMask,
+
+                          const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+
+                          UA_Variant *value,
+
+                          UA_NodeId *createdNodeId) {
     UA_VariableNode *node = UA_VariableNode_new();
     UA_StatusCode retval;
     node->value.variant = *value; // copy content
@@ -180,10 +184,14 @@ UA_Server_addVariableNode(UA_Server *server, UA_NodeId nodeId, const UA_Qualifie
 }
 
 UA_StatusCode
-UA_Server_addObjectNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
-                        UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
-                        const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, 
-                        UA_UInt32 writeMask, const UA_ExpandedNodeId typeDefinition, UA_NodeId *createdNodeId) {
+UA_Server_addObjectNode(UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName browseName,
+                        const UA_LocalizedText displayName, const UA_LocalizedText description, const UA_UInt32 userWriteMask, const UA_UInt32 writeMask,
+
+                        const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+
+                        const UA_ExpandedNodeId typeDefinition,
+
+                        UA_NodeId *createdNodeId){
     UA_ObjectNode *node = UA_ObjectNode_new();
     UA_StatusCode retval;
     
@@ -212,9 +220,14 @@ UA_Server_addObjectNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedN
 }
 
 UA_StatusCode
-UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
-                                    const UA_QualifiedName browseName, UA_NodeId nodeId,
-                                    const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName browseName,
+                                    const UA_LocalizedText displayName, const UA_LocalizedText description,  const UA_UInt32 userWriteMask, const UA_UInt32 writeMask,
+
+                                    const UA_NodeId parentNodeId,
+                                    const UA_NodeId referenceTypeId,
+
+                                    const UA_DataSource dataSource,
+
                                     UA_NodeId *createdNodeId) {
     UA_VariableNode *node = UA_VariableNode_new();
     UA_StatusCode retval;
@@ -223,7 +236,10 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
     node->value.dataSource = dataSource;
     UA_NodeId_copy(&nodeId, &node->nodeId);
     UA_QualifiedName_copy(&browseName, &node->browseName);
-    UA_String_copy(&browseName.name, &node->displayName.text);
+    UA_LocalizedText_copy(&displayName, &node->displayName);
+    UA_LocalizedText_copy(&description, &node->description);
+    node->writeMask = writeMask;
+    node->userWriteMask = userWriteMask;
     UA_ExpandedNodeId parentId; // dummy exapndednodeid
     UA_ExpandedNodeId_init(&parentId);
     UA_NodeId_copy(&parentNodeId, &parentId.nodeId);
@@ -242,10 +258,17 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
 
                                     
 UA_StatusCode
-UA_Server_addVariableTypeNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
-                              UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
-                              const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
-                              UA_Variant *value,  UA_Int32 valueRank, UA_Boolean isAbstract, UA_NodeId *createdNodeId) {
+UA_Server_addVariableTypeNode(UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName browseName,
+        const UA_LocalizedText displayName, const UA_LocalizedText description, const UA_UInt32 userWriteMask, const UA_UInt32 writeMask,
+
+        const UA_NodeId parentNodeId,
+        const UA_NodeId referenceTypeId,
+
+        UA_Variant *value,
+        const UA_Int32 valueRank,
+        const UA_Boolean isAbstract,
+
+        UA_NodeId *createdNodeId) {
     UA_VariableTypeNode *node = UA_VariableTypeNode_new();
     UA_StatusCode retval;
     node->value.variant = *value; // copy content
@@ -278,10 +301,16 @@ UA_Server_addVariableTypeNode(UA_Server *server, UA_NodeId nodeId, const UA_Qual
 }
 
 UA_StatusCode
-UA_Server_addDataTypeNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
-                          UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
-                          const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
-                          UA_ExpandedNodeId typeDefinition, UA_Boolean isAbstract, UA_NodeId *createdNodeId) {
+UA_Server_addDataTypeNode(UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName browseName,
+        const UA_LocalizedText displayName, const UA_LocalizedText description, const UA_UInt32 userWriteMask, const UA_UInt32 writeMask,
+
+        const UA_NodeId parentNodeId,
+        const UA_NodeId referenceTypeId,
+
+        const UA_ExpandedNodeId typeDefinition,
+        const UA_Boolean isAbstract,
+
+        UA_NodeId *createdNodeId) {
   UA_DataTypeNode *node = UA_DataTypeNode_new();
   UA_StatusCode retval;
   
@@ -312,10 +341,15 @@ UA_Server_addDataTypeNode(UA_Server *server, UA_NodeId nodeId, const UA_Qualifie
 }
 
 UA_StatusCode
-UA_Server_addViewNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
-                          UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
-                          const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
-                          UA_ExpandedNodeId typeDefinition, UA_NodeId *createdNodeId) {
+UA_Server_addViewNode(UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName browseName,
+        const UA_LocalizedText displayName, const UA_LocalizedText description, const UA_UInt32 userWriteMask, const UA_UInt32 writeMask,
+
+        const UA_NodeId parentNodeId,
+        const UA_NodeId referenceTypeId,
+
+        const UA_ExpandedNodeId typeDefinition,
+
+        UA_NodeId *createdNodeId) {
   UA_ViewNode *node = UA_ViewNode_new();
   UA_StatusCode retval;
   
@@ -346,11 +380,15 @@ UA_Server_addViewNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedNam
   return retval;
 }
 
-UA_StatusCode UA_Server_addReferenceTypeNode (UA_Server *server, UA_NodeId nodeId, UA_QualifiedName browseName, 
-                                              UA_LocalizedText displayName, UA_LocalizedText description, UA_NodeId parentNodeId, 
-                                              UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
-                                              UA_ExpandedNodeId typeDefinition, UA_LocalizedText inverseName, 
-                                              UA_NodeId *createdNodeId ){
+UA_StatusCode UA_Server_addReferenceTypeNode (UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName browseName,
+        const UA_LocalizedText displayName, const UA_LocalizedText description, const UA_UInt32 userWriteMask, const UA_UInt32 writeMask,
+
+        const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+
+        const UA_ExpandedNodeId typeDefinition,
+        const UA_LocalizedText inverseName,
+
+        UA_NodeId *createdNodeId ){
   UA_ReferenceTypeNode *node = UA_ReferenceTypeNode_new();
   UA_StatusCode retval;
   
@@ -379,11 +417,15 @@ UA_StatusCode UA_Server_addReferenceTypeNode (UA_Server *server, UA_NodeId nodeI
   return retval;
 }
 
-UA_StatusCode UA_Server_addObjectTypeNode ( UA_Server *server, UA_NodeId nodeId, UA_QualifiedName browseName, 
-                                          UA_LocalizedText displayName, UA_LocalizedText description, UA_NodeId parentNodeId, 
-                                          UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
-                                          UA_ExpandedNodeId typeDefinition, UA_Boolean isAbstract, 
-                                          UA_NodeId *createdNodeId ){
+UA_StatusCode UA_Server_addObjectTypeNode (UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName browseName,
+        const UA_LocalizedText displayName, const UA_LocalizedText description, const UA_UInt32 userWriteMask, const UA_UInt32 writeMask,
+
+        const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+
+        const UA_ExpandedNodeId typeDefinition,
+        const UA_Boolean isAbstract,
+
+        UA_NodeId *createdNodeId ){
   UA_ObjectTypeNode *node = UA_ObjectTypeNode_new();
   UA_StatusCode retval;
   
@@ -763,7 +805,7 @@ UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, UA_Node *no
 
 #ifdef ENABLE_METHODCALLS
 UA_StatusCode
-UA_Server_addMethodNode(UA_Server* server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
+UA_Server_addMethodNode(UA_Server* server, const UA_NodeId nodeId, const UA_QualifiedName browseName,
                         UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
                         const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
                         UA_MethodCallback method, void *handle, UA_Int32 inputArgumentsSize, const UA_Argument* inputArguments, 
@@ -1292,8 +1334,8 @@ static void UA_Server_addInstanceOf_instatiateChildObject(UA_Server *server,
   // Create the object root as specified by the user
   UA_NodeId objectRoot;
   retval |= UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(parentId.namespaceIndex, 0), objectCopy->browseName, objectCopy->displayName, 
-                                    objectCopy->description, parentId, referenceTypeId, objectCopy->userWriteMask, objectCopy->writeMask,
-                                    typeDefinition, &objectRoot);
+                                    objectCopy->description, objectCopy->userWriteMask, objectCopy->writeMask,
+                                      parentId, referenceTypeId, typeDefinition, &objectRoot);
   if (retval)
     return;
   
@@ -1477,8 +1519,8 @@ UA_StatusCode UA_Server_addInstanceOf(UA_Server *server, UA_NodeId nodeId, const
   
   // Create the object root as specified by the user
   UA_NodeId objectRoot;
-  retval |= UA_Server_addObjectNode(server, nodeId, browseName, displayName, description, 
-                          parentNodeId, referenceTypeId, userWriteMask, writeMask,
+  retval |= UA_Server_addObjectNode(server, nodeId, browseName, displayName, description, userWriteMask, writeMask,
+                          parentNodeId, referenceTypeId,
                           typeDefinition, &objectRoot
   );
   if (retval)

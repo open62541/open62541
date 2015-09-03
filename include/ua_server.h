@@ -184,67 +184,108 @@ UA_Server_getNodeCopy(UA_Server *server, UA_NodeId nodeId, void **copyInto);
  * @param browseName    The qualified name of this node
  * @param displayName   The localized text shown when displaying the node
  * @param description   The localized human readable description
- * @param parentNodeId  The node under which this node exists ("parent")
- * @param referenceTypeId Reference type used by the parent to reference this node
  * @param userWriteMask Bitmask defining the user write permissions
  * @param writeMask     Bitmask defining the write permissions
+ * @param parentNodeId  The node under which this node exists ("parent")
+ * @param referenceTypeId Reference type used by the parent to reference this node
  * @param value         A variant containing the value to be assigned to this node.
  * @param createdNodeId Pointer to a NULL pointer that will hold the copy of the nodeId on a successfull return.
  * 
  * @return Return UA_STATUSCODE_GOOD if the node was created or an appropriate error code if not.
  */
 UA_StatusCode UA_EXPORT
-UA_Server_addVariableNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
-                          UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
-                          const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
-                          UA_Variant *value, UA_NodeId *createdNodeId);
+UA_Server_addVariableNode(UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName browseName,
+                          const UA_LocalizedText displayName, const UA_LocalizedText description, const UA_UInt32 userWriteMask, const UA_UInt32 writeMask,
+
+                          const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+
+                          UA_Variant *value,
+
+                          UA_NodeId *createdNodeId);
 
 // Missing: eventNotifier
 UA_StatusCode UA_EXPORT
-UA_Server_addObjectNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
-                        UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
-                        const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
-                        const UA_ExpandedNodeId typeDefinition, UA_NodeId *createdNodeId);
+UA_Server_addObjectNode(UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName browseName,
+                        const UA_LocalizedText displayName, const UA_LocalizedText description, const UA_UInt32 userWriteMask, const UA_UInt32 writeMask,
+
+                        const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+
+                        const UA_ExpandedNodeId typeDefinition,
+
+                        UA_NodeId *createdNodeId);
 
 // Missing: isAbstract, symmetric
 UA_StatusCode UA_EXPORT 
-UA_Server_addReferenceTypeNode(UA_Server *server, UA_NodeId nodeId, UA_QualifiedName browseName, 
-                               UA_LocalizedText displayName, UA_LocalizedText description, UA_NodeId parentNodeId, 
-                               const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
-                               const UA_ExpandedNodeId typeDefinition, UA_LocalizedText inverseName, UA_NodeId *createdNodeId );
+UA_Server_addReferenceTypeNode(UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName browseName,
+                               const UA_LocalizedText displayName, const UA_LocalizedText description, const UA_UInt32 userWriteMask, const UA_UInt32 writeMask,
+
+                               const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+
+                               const UA_ExpandedNodeId typeDefinition,
+                               const UA_LocalizedText inverseName,
+
+                               UA_NodeId *createdNodeId );
 
 UA_StatusCode UA_EXPORT
-UA_Server_addObjectTypeNode(UA_Server *server, UA_NodeId nodeId, UA_QualifiedName browseName, 
-                            UA_LocalizedText displayName, UA_LocalizedText description, UA_NodeId parentNodeId, 
-                            UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
-                            UA_ExpandedNodeId typeDefinition, UA_Boolean isAbstract,  
+UA_Server_addObjectTypeNode(UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName browseName,
+                            const UA_LocalizedText displayName, const UA_LocalizedText description,  const UA_UInt32 userWriteMask, const UA_UInt32 writeMask,
+
+                            const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+
+                            const UA_ExpandedNodeId typeDefinition,
+                            const UA_Boolean isAbstract,
+
                             UA_NodeId *createdNodeId );
 
 UA_StatusCode UA_EXPORT 
-UA_Server_addVariableTypeNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
-                              UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
-                              const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
-                              UA_Variant *value,  UA_Int32 valueRank, UA_Boolean isAbstract, UA_NodeId *createdNodeId);
+UA_Server_addVariableTypeNode(UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName browseName,
+                              const UA_LocalizedText displayName, const UA_LocalizedText description, const UA_UInt32 userWriteMask, const UA_UInt32 writeMask,
+
+                              const UA_NodeId parentNodeId,
+                              const UA_NodeId referenceTypeId,
+
+                              UA_Variant *value,
+                              const UA_Int32 valueRank,
+                              const UA_Boolean isAbstract,
+
+                              UA_NodeId *createdNodeId);
 
 UA_StatusCode UA_EXPORT
-UA_Server_addDataTypeNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
-                          UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
-                          const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
-                          UA_ExpandedNodeId typeDefinition, UA_Boolean isAbstract, UA_NodeId *createdNodeId);
+UA_Server_addDataTypeNode(UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName browseName,
+                          const UA_LocalizedText displayName, const UA_LocalizedText description, const UA_UInt32 userWriteMask, const UA_UInt32 writeMask,
+
+                          const UA_NodeId parentNodeId,
+                          const UA_NodeId referenceTypeId,
+
+                          const UA_ExpandedNodeId typeDefinition,
+                          const UA_Boolean isAbstract,
+
+                          UA_NodeId *createdNodeId);
 
 
 UA_StatusCode UA_EXPORT
-UA_Server_addViewNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName, 
-                      UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
-                      const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
-                      UA_ExpandedNodeId typeDefinition, UA_NodeId *createdNodeId);
+UA_Server_addViewNode(UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName browseName,
+                      const UA_LocalizedText displayName, const UA_LocalizedText description, const UA_UInt32 userWriteMask, const UA_UInt32 writeMask,
+
+                      const UA_NodeId parentNodeId,
+                      const UA_NodeId referenceTypeId,
+
+                      const UA_ExpandedNodeId typeDefinition,
+
+                      UA_NodeId *createdNodeId);
 
 UA_StatusCode UA_EXPORT
-UA_Server_addDataSourceVariableNode(UA_Server *server, UA_DataSource dataSource,
-                                    const UA_QualifiedName browseName, UA_NodeId nodeId,
-                                    const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName browseName,
+                                    const UA_LocalizedText displayName, const UA_LocalizedText description,  const UA_UInt32 userWriteMask, const UA_UInt32 writeMask,
+
+                                    const UA_NodeId parentNodeId,
+                                    const UA_NodeId referenceTypeId,
+
+                                    const UA_DataSource dataSource,
+
                                     UA_NodeId *createdNodeId);
 
+/* --------------------- */
 UA_StatusCode UA_EXPORT
 UA_Server_addMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId,
                                       UA_ExpandedNodeId targetNodeId, UA_NodeId referenceTypeId,
@@ -279,7 +320,7 @@ typedef UA_StatusCode (*UA_MethodCallback)(const UA_NodeId objectId, const UA_Va
  * 
  */
 UA_StatusCode UA_EXPORT
-UA_Server_addMethodNode(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName,
+UA_Server_addMethodNode(UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName browseName,
                         UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
                         const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
                         UA_MethodCallback method, void *handle, UA_Int32 inputArgumentsSize, const UA_Argument *inputArguments, 

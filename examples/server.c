@@ -223,8 +223,15 @@ int main(int argc, char** argv) {
   // add node with the datetime data source
   UA_DataSource dateDataSource = (UA_DataSource) {.handle = NULL, .read = readTimeData, .write = NULL};
   const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
-  UA_Server_addDataSourceVariableNode(server, dateDataSource, dateName, UA_NODEID_NULL,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), NULL);
+  const UA_LocalizedText dateNameBrowseName = UA_LOCALIZEDTEXT("en_US","current time");
+  UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL, dateName, dateNameBrowseName, dateNameBrowseName, 0, 0,
+
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+
+                                  dateDataSource,
+
+                                  NULL);
 
 #ifndef _WIN32
   //cpu temperature monitoring for linux machines
@@ -232,8 +239,15 @@ int main(int argc, char** argv) {
           // add node with the data source
           UA_DataSource temperatureDataSource = (UA_DataSource) {.handle = NULL, .read = readTemperature, .write = NULL};
           const UA_QualifiedName tempName = UA_QUALIFIEDNAME(1, "cpu temperature");
-          UA_Server_addDataSourceVariableNode(server, temperatureDataSource, tempName, UA_NODEID_NULL,
-                                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), NULL);
+          const UA_LocalizedText tempNameBrowseName = UA_LOCALIZEDTEXT("en_US","temperature");
+          UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL, tempName, tempNameBrowseName, tempNameBrowseName, 0, 0,
+
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+
+                                            temperatureDataSource,
+
+                                            NULL);
   }
 
   //LED control for rpi
@@ -250,9 +264,15 @@ int main(int argc, char** argv) {
       // add node with the LED status data source
       UA_DataSource ledStatusDataSource = (UA_DataSource) {.handle = NULL, .read = readLedStatus, .write = writeLedStatus};
       const UA_QualifiedName statusName = UA_QUALIFIEDNAME(0, "status LED");
-      UA_Server_addDataSourceVariableNode(server, ledStatusDataSource, statusName, UA_NODEID_NULL,
-                                          UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                          UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), NULL);
+      const UA_LocalizedText statusNameBrowseName = UA_LOCALIZEDTEXT("en_US","status LED");
+      UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL, statusName, statusNameBrowseName, statusNameBrowseName, 0, 0,
+
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+
+                                        ledStatusDataSource,
+
+                                        NULL);
     } else {
       UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "[Raspberry Pi] LED file exist, but I have no access (try to run server with sudo)");
     }
@@ -267,32 +287,32 @@ int main(int argc, char** argv) {
   const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
   UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
   UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-  UA_Server_addVariableNode(server, myIntegerNodeId, myIntegerName, UA_LOCALIZEDTEXT("en_US", "the answer"), UA_LOCALIZEDTEXT("en_US", "the answer"),
-                            parentNodeId, parentReferenceNodeId, 0, 0, myIntegerVariant, NULL);
+  UA_Server_addVariableNode(server, myIntegerNodeId, myIntegerName, UA_LOCALIZEDTEXT("en_US", "the answer"), UA_LOCALIZEDTEXT("en_US", "the answer"),  0, 0,
+                            parentNodeId, parentReferenceNodeId, myIntegerVariant, NULL);
 
   /**************/
   /* Demo Nodes */
   /**************/
 
 #define DEMOID 50000
-  UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, DEMOID), UA_QUALIFIEDNAME(1, "Demo"), UA_LOCALIZEDTEXT("en_US","Demo"), 
-                          UA_LOCALIZEDTEXT("en_US","Demo"), UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), 
-                          0, 0, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
+  UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, DEMOID), UA_QUALIFIEDNAME(1, "Demo"), UA_LOCALIZEDTEXT("en_US","Demo"),
+                          UA_LOCALIZEDTEXT("en_US","Demo"), 0, 0, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                          UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
 
 #define SCALARID 50001
   UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, SCALARID), UA_QUALIFIEDNAME(1, "Scalar"), UA_LOCALIZEDTEXT("en_US","Demo"), 
-                          UA_LOCALIZEDTEXT("en_US","Demo"), UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), 
-                          0, 0, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
+                          UA_LOCALIZEDTEXT("en_US","Demo"), 0, 0, UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                          UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
 
 #define ARRAYID 50002
   UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, ARRAYID), UA_QUALIFIEDNAME(1, "Array"), UA_LOCALIZEDTEXT("en_US","Demo"), 
-                          UA_LOCALIZEDTEXT("en_US","Demo"), UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), 
-                          0, 0, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
+                          UA_LOCALIZEDTEXT("en_US","Demo"), 0, 0, UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                          UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
 
 #define MATRIXID 50003
   UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, MATRIXID), UA_QUALIFIEDNAME(1, "Matrix"), UA_LOCALIZEDTEXT("en_US","Demo"), 
-                          UA_LOCALIZEDTEXT("en_US","Demo"), UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), 
-                          0, 0,  UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
+                          UA_LOCALIZEDTEXT("en_US","Demo"), 0, 0, UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                          UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
 
   UA_UInt32 id = 51000; //running id in namespace 0
   for(UA_UInt32 type = 0; UA_IS_BUILTIN(type); type++) {
@@ -305,14 +325,14 @@ int main(int argc, char** argv) {
     char name[15];
     sprintf(name, "%02d", type);
     UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(1, name);
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), qualifiedName, UA_LOCALIZEDTEXT("en_US",""), UA_LOCALIZEDTEXT("en_US",""),
-                              UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), 0, 0, variant, NULL);
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), qualifiedName, UA_LOCALIZEDTEXT("en_US",""), UA_LOCALIZEDTEXT("en_US",""), 0, 0,
+                              UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), variant, NULL);
 
     //add an array node for every built-in type
     UA_Variant *arrayvar = UA_Variant_new();
     UA_Variant_setArray(arrayvar, UA_Array_new(&UA_TYPES[type], 10), 10, &UA_TYPES[type]);
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), qualifiedName, UA_LOCALIZEDTEXT("en_US",""), UA_LOCALIZEDTEXT("en_US",""),
-                              UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), 0, 0, arrayvar, NULL);
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), qualifiedName, UA_LOCALIZEDTEXT("en_US",""), UA_LOCALIZEDTEXT("en_US",""), 0, 0,
+                              UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), arrayvar, NULL);
 
     //add an matrix node for every built-in type
     arrayvar = UA_Variant_new();
@@ -325,7 +345,7 @@ int main(int argc, char** argv) {
     arrayvar->data = myMultiArray;
     arrayvar->type = &UA_TYPES[type];
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), qualifiedName, UA_LOCALIZEDTEXT("en_US",""), UA_LOCALIZEDTEXT("en_US",""),
-                              UA_NODEID_NUMERIC(1, MATRIXID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), 0, 0, arrayvar, NULL);
+                              0, 0, UA_NODEID_NUMERIC(1, MATRIXID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), arrayvar, NULL);
   }
 
 #ifdef ENABLE_METHODCALLS
