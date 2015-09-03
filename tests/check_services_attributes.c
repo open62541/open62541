@@ -38,13 +38,13 @@ static UA_Server* makeTestSequence(void) {
     const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_Server_addVariableNode(server, myIntegerNodeId, myIntegerName, UA_LOCALIZEDTEXT("en_US","the answer"), UA_LOCALIZEDTEXT("en_US","the answer"),
-                              parentNodeId, parentReferenceNodeId, 0, 0, myIntegerVariant, NULL);
+    UA_Server_addVariableNode(server, myIntegerNodeId, myIntegerName, UA_LOCALIZEDTEXT("en_US","the answer"), UA_LOCALIZEDTEXT("en_US","the answer"), 0, 0,
+                              parentNodeId, parentReferenceNodeId, myIntegerVariant, NULL);
 
     /* ObjectNode */
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 50), UA_QUALIFIEDNAME(1, "Demo"), UA_LOCALIZEDTEXT("en_US","Demo"), 
-                            UA_LOCALIZEDTEXT("en_US","Demo"), UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), 
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), 0, 0, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
+                            UA_LOCALIZEDTEXT("en_US","Demo"), 0, 0, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
 
     /* ReferenceTypeNode */
     UA_ReferenceTypeNode *organizes = UA_ReferenceTypeNode_new();
