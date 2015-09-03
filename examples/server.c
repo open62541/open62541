@@ -387,10 +387,10 @@ int main(int argc, char** argv) {
                           1, &inputArguments, 1, &outputArguments, &methodId);
   
   // Dettach the method from the methodNode
-  UA_Server_attachMethod_toNode(server, UA_NODEID_NUMERIC(1,62541), NULL, NULL);
+  UA_Server_setAttribute_method(server, UA_NODEID_NUMERIC(1,62541), NULL, NULL);
   
   // Reaettach the method from the methodNode
-  UA_Server_attachMethod_toNode(server, UA_NODEID_NUMERIC(1,62541), &getMonitoredItems, (void *) server);
+  UA_Server_setAttribute_method(server, UA_NODEID_NUMERIC(1,62541), &getMonitoredItems, (void *) server);
 #endif
    
   // Example for iterating over all nodes referenced by "Objects":

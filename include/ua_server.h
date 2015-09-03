@@ -326,10 +326,6 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId nodeId, const UA_Qual
                         UA_MethodCallback method, void *handle, UA_Int32 inputArgumentsSize, const UA_Argument *inputArguments, 
                         UA_Int32 outputArgumentsSize, const UA_Argument *outputArguments,
                         UA_NodeId *createdNodeId);
-
-
-UA_StatusCode UA_EXPORT
-UA_Server_attachMethod_toNode(UA_Server *server, UA_NodeId methodNodeId, UA_MethodCallback method, void *handle);
 #endif
 
 #ifndef _HAVE_UA_NODEITERATORCALLBACK_D
@@ -349,69 +345,71 @@ typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean i
  */
 UA_StatusCode UA_EXPORT UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback, void *handle);
 
-UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void *value);
+UA_StatusCode UA_EXPORT UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void *value);
+// Attribute specific macros for setAttribute_are defined in ua_server_addressspace.c
+#define UA_Server_setAttribute_nodeId(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_NODEID, (UA_NodeId *) VALUE);
+#define UA_Server_setAttribute_nodeClass(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_NODECLASS, (UA_NodeClass *) VALUE);
+#define UA_Server_setAttribute_browseName(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_BROWSENAME, (UA_QualifiedName *) VALUE);
+#define UA_Server_setAttribute_displayName(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_DISPLAYNAME, (UA_LocalizedText *) VALUE);
+#define UA_Server_setAttribute_description(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_DESCRIPTION, (UA_LocalizedText *) VALUE);
+#define UA_Server_setAttribute_writeMask(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_WRITEMASK, (UA_UInt32 *) VALUE);
+#define UA_Server_setAttribute_userWriteMask(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_USERWRITEMASK, (UA_UInt32 *) VALUE);
+#define UA_Server_setAttribute_isAbstract(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_ISABSTRACT, (UA_Boolean *) VALUE);
+#define UA_Server_setAttribute_symmetric(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_SYMMETRIC, (UA_Boolean *) VALUE);
+#define UA_Server_setAttribute_inverseName(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_INVERSENAME, (UA_LocalizedText *) VALUE);
+#define UA_Server_setAttribute_containsNoLoops(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_CONTAINSNOLOOPS, (UA_Boolean *) VALUE);
+#define UA_Server_setAttribute_eventNotifier(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_EVENTNOTIFIER, (UA_Byte *) VALUE);
+#define UA_Server_setAttribute_value(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_VALUE, (UA_Variant *) VALUE);
+#define UA_Server_setAttribute_dataType(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_DATATYPE, (UA_NodeId *) VALUE);
+#define UA_Server_setAttribute_valueRank(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_VALUERANK, (UA_Int32 *) VALUE);
+#define UA_Server_setAttribute_arrayDimensions(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_ARRAYDIMENSIONS, (UA_Int32 *) VALUE);
+#define UA_Server_setAttribute_accessLevel(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_ACCESSLEVEL, (UA_UInt32 *) VALUE);
+#define UA_Server_setAttribute_userAccessLevel(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_USERACCESSLEVEL, (UA_UInt32 *) VALUE);
+#define UA_Server_setAttribute_minimumSamplingInterval(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL, (UA_Double *) VALUE);
+#define UA_Server_setAttribute_historizing(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_HISTORIZING, (UA_Boolean *) VALUE);
+#define UA_Server_setAttribute_executable(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_EXECUTABLE, (UA_Boolean *) VALUE);
+#define UA_Server_setAttribute_userExecutable(SERVER, NODEID, VALUE) UA_Server_setAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_USEREXECUTABLE, (UA_Boolean *) VALUE);
+
+#ifdef ENABLE_METHODCALLS
+UA_StatusCode UA_EXPORT
+UA_Server_setAttribute_method(UA_Server *server, UA_NodeId methodNodeId, UA_MethodCallback method, void *handle);
+#endif
 
 UA_StatusCode UA_EXPORT
 UA_Server_setAttribute_DataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource *value);
 
-#define UA_SERVER_SETATTRIBUTEDECL(ATTRIBUTEID, ATTRIBUTEIDNAME, ATTRIBUTETYPE) \
-UA_StatusCode UA_EXPORT \
-UA_Server_setAttribute_##ATTRIBUTEIDNAME(UA_Server *server, UA_NodeId nodeId, ATTRIBUTETYPE *value); \
+UA_StatusCode UA_EXPORT
+UA_Server_getAttributeValue(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void **value);
+#define UA_Server_getAttribute_nodeId(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_NODEID, (UA_NodeId **) VALUE);
+#define UA_Server_getAttribute_nodeClass(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_NODECLASS, (UA_NodeClass **) VALUE);
+#define UA_Server_getAttribute_browseName(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_BROWSENAME, (UA_QualifiedName **) VALUE);
+#define UA_Server_getAttribute_displayName(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_DISPLAYNAME, (UA_LocalizedText **) VALUE);
+#define UA_Server_getAttribute_description(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_DESCRIPTION, (UA_LocalizedText **) VALUE);
+#define UA_Server_getAttribute_writeMask(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_WRITEMASK, (UA_UInt32 **) VALUE);
+#define UA_Server_getAttribute_userWriteMask(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_USERWRITEMASK, (UA_UInt32 **) VALUE);
+#define UA_Server_getAttribute_isAbstract(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_ISABSTRACT, (UA_Boolean **) VALUE);
+#define UA_Server_getAttribute_symmetric(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_SYMMETRIC, (UA_Boolean **) VALUE);
+#define UA_Server_getAttribute_inverseName(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_INVERSENAME, (UA_LocalizedText **) VALUE);
+#define UA_Server_getAttribute_containsNoLoops(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_CONTAINSNOLOOPS, (UA_Boolean **) VALUE);
+#define UA_Server_getAttribute_eventNotifier(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_EVENTNOTIFIER, (UA_Byte **) VALUE);
+#define UA_Server_getAttribute_value(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_VALUE, (UA_Variant **) VALUE);
+#define UA_Server_getAttribute_dataType(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_DATATYPE, (UA_NodeId **) VALUE);
+#define UA_Server_getAttribute_valueRank(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_VALUERANK, (UA_Int32 **) VALUE);
+#define UA_Server_getAttribute_arrayDimensions(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_ARRAYDIMENSIONS, (UA_Int32 **) VALUE);
+#define UA_Server_getAttribute_accessLevel(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_ACCESSLEVEL, (UA_UInt32 **) VALUE);
+#define UA_Server_getAttribute_userAccessLevel(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_USERACCESSLEVEL, (UA_UInt32 **) VALUE);
+#define UA_Server_getAttribute_minimumSamplingInterval(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL, (UA_Double **) VALUE);
+#define UA_Server_getAttribute_historizing(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_HISTORIZING, (UA_Boolean **) VALUE);
+#define UA_Server_getAttribute_executable(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_EXECUTABLE, (UA_Boolean **) VALUE);
+#define UA_Server_getAttribute_userExecutable(SERVER, NODEID, VALUE) UA_Server_getAttributeValue(SERVER, NODEID, UA_ATTRIBUTEID_USEREXECUTABLE, (UA_Boolean **) VALUE);
 
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_NODEID, nodeId, UA_NodeId)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_NODECLASS, nodeClass, UA_NodeClass)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_BROWSENAME, browseName, UA_QualifiedName)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_DISPLAYNAME, displayName, UA_LocalizedText)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_DESCRIPTION, description, UA_LocalizedText)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_WRITEMASK, writeMask, UA_UInt32)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_USERWRITEMASK, userWriteMask, UA_UInt32)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_ISABSTRACT, isAbstract, UA_Boolean)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_SYMMETRIC, symmetric, UA_Boolean)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_INVERSENAME, inverseName, UA_LocalizedText)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_CONTAINSNOLOOPS, containsNoLoops, UA_Boolean)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_EVENTNOTIFIER, eventNotifier, UA_Byte)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_VALUE, value, UA_Variant)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_DATATYPE, dataType, UA_NodeId)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_VALUERANK, valueRank, UA_Int32)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_ARRAYDIMENSIONS, arrayDimensions, UA_Int32)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_ACCESSLEVEL, accessLevel, UA_UInt32)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_USERACCESSLEVEL, userAccessLevel, UA_UInt32)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL, minimumSamplingInterval, UA_Double)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_HISTORIZING, historizing, UA_Boolean)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_EXECUTABLE, executable, UA_Boolean)
-UA_SERVER_SETATTRIBUTEDECL(UA_ATTRIBUTEID_USEREXECUTABLE, userExecutable, UA_Boolean)
-
-UA_StatusCode UA_Server_getAttributeValue(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void **value);
+#ifdef ENABLE_METHODCALLS
+UA_StatusCode UA_EXPORT
+UA_Server_getAttribute_method(UA_Server *server, UA_NodeId methodNodeId, UA_MethodCallback *method);
+#endif
 
 UA_StatusCode UA_EXPORT
 UA_Server_getAttribute_DataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource **value);
-
-#define UA_SERVER_GETATTRIBUTEDECL(ATTRIBUTEID, ATTRIBUTEIDNAME, ATTRIBUTETYPE) \
-UA_StatusCode UA_EXPORT \
-UA_Server_getAttribute_##ATTRIBUTEIDNAME(UA_Server *server, UA_NodeId nodeId, ATTRIBUTETYPE **value); \
-
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_NODEID, nodeId, UA_NodeId)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_NODECLASS, nodeClass, UA_NodeClass)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_BROWSENAME, browseName, UA_QualifiedName)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_DISPLAYNAME, displayName, UA_LocalizedText)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_DESCRIPTION, description, UA_LocalizedText)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_WRITEMASK, writeMask, UA_UInt32)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_USERWRITEMASK, userWriteMask, UA_UInt32)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_ISABSTRACT, isAbstract, UA_Boolean)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_SYMMETRIC, symmetric, UA_Boolean)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_INVERSENAME, inverseName, UA_LocalizedText)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_CONTAINSNOLOOPS, containsNoLoops, UA_Boolean)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_EVENTNOTIFIER, eventNotifier, UA_Byte)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_VALUE, value, UA_Variant)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_DATATYPE, dataType, UA_NodeId)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_VALUERANK, valueRank, UA_Int32)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_ARRAYDIMENSIONS, arrayDimensions, UA_Int32)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_ACCESSLEVEL, accessLevel, UA_UInt32)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_USERACCESSLEVEL, userAccessLevel, UA_UInt32)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL, minimumSamplingInterval, UA_Double)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_HISTORIZING, historizing, UA_Boolean)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_EXECUTABLE, executable, UA_Boolean)
-UA_SERVER_GETATTRIBUTEDECL(UA_ATTRIBUTEID_USEREXECUTABLE, userExecutable, UA_Boolean)
 
 /** Jobs describe work that is executed once or repeatedly. */
 typedef struct {
