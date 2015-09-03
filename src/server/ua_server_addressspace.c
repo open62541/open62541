@@ -894,6 +894,39 @@ UA_Server_addMethodNode(UA_Server* server, const UA_NodeId nodeId, const UA_Qual
     return retval;
 }
 
+/* Allow userspace to attach a method to one defined via XML or to switch an attached method for another */
+UA_StatusCode
+UA_Server_attachMethod_toNode(UA_Server *server, UA_NodeId methodNodeId, UA_MethodCallback method, void *handle) {
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  const UA_Node *attachToMethod = UA_NULL;
+  UA_MethodNode *replacementMethod = UA_NULL;
+  
+  if (!method)
+    return UA_STATUSCODE_BADMETHODINVALID;
+
+  if (!server)
+    return UA_STATUSCODE_BADSERVERINDEXINVALID;
+  
+  attachToMethod =  UA_NodeStore_get(server->nodestore, &methodNodeId);
+  if (!attachToMethod)
+    return UA_STATUSCODE_BADNODEIDINVALID;
+  
+  if (attachToMethod->nodeClass != UA_NODECLASS_METHOD){
+    UA_NodeStore_release(attachToMethod);
+    return UA_STATUSCODE_BADNODEIDINVALID;
+  }
+  
+  replacementMethod = UA_MethodNode_new();
+
+  UA_MethodNode_copy((const UA_MethodNode *) attachToMethod, replacementMethod);
+  
+  replacementMethod->attachedMethod = method;
+  replacementMethod->methodHandle   = handle;
+  UA_NodeStore_replace(server->nodestore, attachToMethod, (UA_Node *) replacementMethod, UA_NULL);
+  UA_NodeStore_release(attachToMethod);
+
+  return retval;
+}
 #endif
 
 #define SETATTRIBUTE_ASSERTNODECLASS(CLASS) {                   \
@@ -1087,6 +1120,79 @@ UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, U
   return retval;
 }
 
+UA_StatusCode
+UA_Server_setAttribute_DataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource *value) {
+  union {
+    UA_Node *anyNode;
+    UA_VariableNode *varNode;
+    UA_VariableTypeNode *varTNode;
+  } node;
+  UA_StatusCode retval;
+  retval = UA_Server_getNodeCopy(server, nodeId, (void **) &node.anyNode);
+  
+  if (retval != UA_STATUSCODE_GOOD || node.anyNode == UA_NULL)
+    return retval;
+  
+  if (node.anyNode->nodeClass != UA_NODECLASS_VARIABLE && node.anyNode->nodeClass != UA_NODECLASS_VARIABLETYPE) {
+    UA_Server_deleteNodeCopy(server, (void **) &node);
+    return UA_STATUSCODE_BADNODECLASSINVALID;
+  }
+  
+  if (node.anyNode->nodeClass == UA_NODECLASS_VARIABLE) {
+    if (node.varNode->valueSource == UA_VALUESOURCE_VARIANT) {
+      UA_Variant_deleteMembers(&node.varNode->value.variant);
+    }
+    node.varNode->valueSource = UA_VALUESOURCE_DATASOURCE;
+    node.varNode->value.dataSource.handle = value->handle;
+    node.varNode->value.dataSource.read   = value->read;
+    node.varNode->value.dataSource.write  = value->write;
+  }
+  else {
+    if (node.varTNode->valueSource == UA_VALUESOURCE_VARIANT) {
+      UA_Variant_deleteMembers(&node.varTNode->value.variant);
+    }
+    node.varTNode->valueSource = UA_VALUESOURCE_DATASOURCE;
+    node.varTNode->value.dataSource.handle = value->handle;
+    node.varTNode->value.dataSource.read   = value->read;
+    node.varTNode->value.dataSource.write  = value->write;
+  }
+  
+  const UA_Node **inserted = UA_NULL;
+  const UA_Node *oldNode = UA_NodeStore_get(server->nodestore, &node.anyNode->nodeId);
+  retval |= UA_NodeStore_replace(server->nodestore, oldNode, node.anyNode, inserted);
+  UA_NodeStore_release(oldNode);
+ 
+  return retval;
+}
+
+#define UA_SERVER_SETATTRIBUTEDEF(ATTRIBUTEID, ATTRIBUTEIDNAME, ATTRIBUTETYPE) \
+UA_StatusCode \
+UA_Server_setAttribute_##ATTRIBUTEIDNAME (UA_Server *server, UA_NodeId nodeId, ATTRIBUTETYPE *value) { \
+  return UA_Server_setAttributeValue(server, nodeId, ATTRIBUTEID , (void *) value);\
+}
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_NODEID, nodeId, UA_NodeId)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_NODECLASS, nodeClass, UA_NodeClass)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_BROWSENAME, browseName, UA_QualifiedName)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_DISPLAYNAME, displayName, UA_LocalizedText)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_DESCRIPTION, description, UA_LocalizedText)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_WRITEMASK, writeMask, UA_UInt32)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_USERWRITEMASK, userWriteMask, UA_UInt32)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_ISABSTRACT, isAbstract, UA_Boolean)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_SYMMETRIC, symmetric, UA_Boolean)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_INVERSENAME, inverseName, UA_LocalizedText)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_CONTAINSNOLOOPS, containsNoLoops, UA_Boolean)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_EVENTNOTIFIER, eventNotifier, UA_Byte)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_VALUE, value, UA_Variant)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_DATATYPE, dataType, UA_NodeId)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_VALUERANK, valueRank, UA_Int32)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_ARRAYDIMENSIONS, arrayDimensions, UA_Int32)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_ACCESSLEVEL, accessLevel, UA_UInt32)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_USERACCESSLEVEL, userAccessLevel, UA_UInt32)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL, minimumSamplingInterval, UA_Double)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_HISTORIZING, historizing, UA_Boolean)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_EXECUTABLE, executable, UA_Boolean)
+UA_SERVER_SETATTRIBUTEDEF(UA_ATTRIBUTEID_USEREXECUTABLE, userExecutable, UA_Boolean)
+
 #define SERVER_GETATTRIBUTE_COPYTYPEVALUE(TYPE, SRC) \
   *value = (void *) UA_##TYPE##_new();               \
   UA_##TYPE##_copy( SRC, (UA_##TYPE *) *value  );    \
@@ -1254,7 +1360,79 @@ UA_StatusCode UA_Server_getAttributeValue(UA_Server *server, UA_NodeId nodeId, U
   return retval;
 }
 
+UA_StatusCode
+UA_Server_getAttribute_DataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource **value) {
+  union {
+    UA_Node *anyNode;
+    UA_VariableNode *varNode;
+    UA_VariableTypeNode *varTNode;
+  } node;
+  UA_StatusCode retval;
+  *value = UA_NULL;
+  
+  retval = UA_Server_getNodeCopy(server, nodeId, (void **) &node.anyNode);
+  if (retval != UA_STATUSCODE_GOOD || node.anyNode == UA_NULL)
+    return retval;
+  
+  if (node.anyNode->nodeClass != UA_NODECLASS_VARIABLE && node.anyNode->nodeClass != UA_NODECLASS_VARIABLETYPE) {
+    UA_Server_deleteNodeCopy(server, (void **) &node);
+    return UA_STATUSCODE_BADNODECLASSINVALID;
+  }
+  
+  if (node.anyNode->nodeClass == UA_NODECLASS_VARIABLE) {
+    if (node.varNode->valueSource == UA_VALUESOURCE_VARIANT) {
+      retval |= UA_Server_deleteNodeCopy(server, (void **) &node);
+      return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    *value = (UA_DataSource *) UA_malloc(sizeof(UA_DataSource));
+    (*(value))->handle = node.varNode->value.dataSource.handle;
+    (*(value))->read   = node.varNode->value.dataSource.read;
+    (*(value))->write  = node.varNode->value.dataSource.write;
+  }
+  else {
+    if (node.varTNode->valueSource == UA_VALUESOURCE_VARIANT) {
+      retval |= UA_Server_deleteNodeCopy(server, (void **) &node);
+      return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    *value = (UA_DataSource *) UA_malloc(sizeof(UA_DataSource));
+    (*(value))->handle = node.varNode->value.dataSource.handle;
+    (*(value))->read   = node.varNode->value.dataSource.read;
+    (*(value))->write  = node.varNode->value.dataSource.write;
+  }
+  
+  retval |= UA_Server_deleteNodeCopy(server, (void **) &node);
+  return retval;
+}
 
+#define UA_SERVER_GETATTRIBUTEDEF(ATTRIBUTEID, ATTRIBUTEIDNAME, ATTRIBUTETYPE) \
+UA_StatusCode \
+UA_Server_getAttribute_##ATTRIBUTEIDNAME (UA_Server *server, UA_NodeId nodeId, ATTRIBUTETYPE **value) { \
+  return UA_Server_getAttributeValue(server, nodeId, ATTRIBUTEID , (void **) value);\
+}
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_NODEID, nodeId, UA_NodeId)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_NODECLASS, nodeClass, UA_NodeClass)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_BROWSENAME, browseName, UA_QualifiedName)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_DISPLAYNAME, displayName, UA_LocalizedText)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_DESCRIPTION, description, UA_LocalizedText)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_WRITEMASK, writeMask, UA_UInt32)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_USERWRITEMASK, userWriteMask, UA_UInt32)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_ISABSTRACT, isAbstract, UA_Boolean)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_SYMMETRIC, symmetric, UA_Boolean)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_INVERSENAME, inverseName, UA_LocalizedText)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_CONTAINSNOLOOPS, containsNoLoops, UA_Boolean)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_EVENTNOTIFIER, eventNotifier, UA_Byte)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_VALUE, value, UA_Variant)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_DATATYPE, dataType, UA_NodeId)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_VALUERANK, valueRank, UA_Int32)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_ARRAYDIMENSIONS, arrayDimensions, UA_Int32)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_ACCESSLEVEL, accessLevel, UA_UInt32)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_USERACCESSLEVEL, userAccessLevel, UA_UInt32)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL, minimumSamplingInterval, UA_Double)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_HISTORIZING, historizing, UA_Boolean)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_EXECUTABLE, executable, UA_Boolean)
+UA_SERVER_GETATTRIBUTEDEF(UA_ATTRIBUTEID_USEREXECUTABLE, userExecutable, UA_Boolean)
+
+UA_StatusCode UA_Server_getAttributeValue(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void **value);
 #define arrayOfNodeIds_addNodeId(ARRAYNAME, NODEID) { \
   ARRAYNAME.size++; \
   ARRAYNAME.ids = UA_realloc(ARRAYNAME.ids, sizeof(UA_NodeId) * ARRAYNAME.size); \
@@ -1562,3 +1740,4 @@ UA_StatusCode UA_Server_addInstanceOf(UA_Server *server, UA_NodeId nodeId, const
   UA_Server_deleteNodeCopy(server, (void **) &typeDefNode);
   return retval;
 }
+
