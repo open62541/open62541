@@ -966,7 +966,7 @@ UA_Boolean UA_Client_processPublishRx(UA_Client *client, UA_PublishResponse resp
             break;
     }
     if (tmpAck == NULL ){
-        tmpAck = (UA_Client_NotificationsAckNumber *) malloc(sizeof(UA_Client_NotificationsAckNumber));
+        tmpAck = (UA_Client_NotificationsAckNumber *) UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
         tmpAck->subAck.sequenceNumber = msg.sequenceNumber;
         tmpAck->subAck.subscriptionId = sub->SubscriptionID;
         LIST_INSERT_HEAD(&(client->pendingNotificationsAcks), tmpAck, listEntry);

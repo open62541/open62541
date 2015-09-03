@@ -273,7 +273,7 @@ UA_StatusCode Subscription_createdUpdateJob(UA_Server *server, UA_Guid jobId, UA
         return UA_STATUSCODE_BADSERVERINDEXINVALID;
         
     UA_Job *theWork;
-    theWork = (UA_Job *) malloc(sizeof(UA_Job));
+    theWork = (UA_Job *) UA_malloc(sizeof(UA_Job));
     if(!theWork)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     
