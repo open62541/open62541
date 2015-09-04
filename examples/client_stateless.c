@@ -19,7 +19,7 @@ int main(int argc , char *argv[])
 	UA_ByteString message;
 	message.data = (UA_Byte*)malloc(1000*sizeof(UA_Byte));
 	message.length = 1000;
-	UA_UInt32 messageEncodedLength = 0;
+	//UA_UInt32 messageEncodedLength = 0;
 	UA_Byte server_reply[2000];
 	unsigned int messagepos = 0;
 
@@ -82,16 +82,15 @@ int main(int argc , char *argv[])
 	UA_QualifiedName_init(&(req.nodesToRead[0].dataEncoding));
 
 
-	messageEncodedLength = UA_TcpMessageHeader_calcSizeBinary(&reqTcpHeader) +
+	/**messageEncodedLength = UA_TcpMessageHeader_calcSizeBinary(&reqTcpHeader) +
 			UA_UInt32_calcSizeBinary(&reqSecureChannelId)+
 			UA_UInt32_calcSizeBinary(&reqTokenId)+
 			UA_SequenceHeader_calcSizeBinary(&reqSequenceHeader)+
 			UA_NodeId_calcSizeBinary(&reqRequestType) +
-			UA_ReadRequest_calcSizeBinary(&req);
+			UA_ReadRequest_calcSizeBinary(&req);**/
 
 	UA_TcpMessageHeader_init(&reqTcpHeader);
 	reqTcpHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
-	reqTcpHeader.messageSize = messageEncodedLength;
 
 	UA_TcpMessageHeader_encodeBinary(&reqTcpHeader, &message, &messagepos);
 	UA_UInt32_encodeBinary(&reqSecureChannelId, &message, &messagepos);
@@ -99,6 +98,15 @@ int main(int argc , char *argv[])
 	UA_SequenceHeader_encodeBinary(&reqSequenceHeader, &message, &messagepos);
 	UA_NodeId_encodeBinary(&reqRequestType, &message, &messagepos);
 	UA_ReadRequest_encodeBinary(&req, &message, &messagepos);
+    reqTcpHeader.messageSize = messagepos;
+    messagepos=0;
+
+    UA_TcpMessageHeader_encodeBinary(&reqTcpHeader, &message, &messagepos);
+    UA_UInt32_encodeBinary(&reqSecureChannelId, &message, &messagepos);
+    UA_UInt32_encodeBinary(&reqTokenId, &message, &messagepos);
+    UA_SequenceHeader_encodeBinary(&reqSequenceHeader, &message, &messagepos);
+    UA_NodeId_encodeBinary(&reqRequestType, &message, &messagepos);
+    UA_ReadRequest_encodeBinary(&req, &message, &messagepos);
 
 
 	//Send some data

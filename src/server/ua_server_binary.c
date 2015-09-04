@@ -203,7 +203,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         anonymousChannel.connection = connection;
         clientChannel = &anonymousChannel;
 #ifdef EXTENSION_STATELESS
-        anonymousChannel.session = &anonymousSession;
+        UA_SecureChannel_attachSession(&anonymousChannel, &anonymousSession);
 #endif
     }
 
@@ -212,7 +212,11 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     UA_SequenceHeader sequenceHeader;
     retval = UA_UInt32_decodeBinary(msg, pos, &tokenId);
     retval |= UA_SequenceHeader_decodeBinary(msg, pos, &sequenceHeader);
+#ifndef EXTENSION_STATELESS
     if(retval != UA_STATUSCODE_GOOD || tokenId==0) //0 is invalid
+#else
+    if(retval != UA_STATUSCODE_GOOD)
+#endif
         return;
 
     if(clientChannel != &anonymousChannel){
@@ -372,7 +376,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         r.responseHeader.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
 #ifdef EXTENSION_STATELESS
         if(retval != UA_STATUSCODE_GOOD)
-            r.serviceResult = retval;
+            r.responseHeader.serviceResult = retval;
 #endif
         UA_SecureChannel_sendBinaryMessage(clientChannel, sequenceHeader.requestId, &r,
                                            &UA_TYPES[UA_TYPES_SERVICEFAULT]);

@@ -411,9 +411,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 		size_t offset = 0;
         UA_Connection *c = UA_NULL;
         UA_SecureChannel *sc = session->channel;
-        if(sc)
-            c = session->sc;
-        if(!c) {
+        if(!sc) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
             return;
         }
