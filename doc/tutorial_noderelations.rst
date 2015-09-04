@@ -1,7 +1,7 @@
 Examining and interacting with node relations
 =============================================
 
-In the past tutorials you learned to compile the stack in various configurations, create/delete nodes and manage variables. The core of OPC UA are it's data modelling capabilities, and you will invariably find yourself confronted to investigate these relations during runtime. This tutorial will show you how to interact with object and types hierarchies and how to create your own.
+In the past tutorials you have learned to compile the stack in various configurations, create/delete nodes and manage variables. The core of OPC UA is its data modelling capabilities, and you will invariably find yourself confronted to investigate these relations during runtime. This tutorial will show you how to interact with object and type hierarchies and how to create your own.
 
 Compile XML Namespaces
 ----------------------
