@@ -28,6 +28,7 @@ before_install:
 - sudo dpkg -i liburcu2_0.8.5-1ubuntu1_amd64.deb
 - sudo dpkg -i liburcu-dev_0.8.5-1ubuntu1_amd64.deb
 - sudo pip install cpp-coveralls
+- sudo pip install Pygments
 - sudo pip install sphinx
 - sudo pip install breathe
 - sudo pip install sphinx_rtd_theme
