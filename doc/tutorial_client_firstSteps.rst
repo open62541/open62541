@@ -61,53 +61,6 @@ Let's recompile both server and client - if you feel up to it, you can create a 
 
     :myApp> gcc -Wl,-rpath=./ -L./ -I ./include -o myClient myClient.c  -lopen62541
 
-We will also make a slight change to our server: We want it to exit cleanly when pressing ``CTRL+C``. We will add signal handler for SIGINT and SIGTERM to accomplish that to the server::
-
-    #include <stdio.h>
-    #include <signal.h>
-
-    # include "ua_types.h"
-    # include "ua_server.h"
-    # include "logger_stdout.h"
-    # include "networklayer_tcp.h"
-
-    UA_Boolean running;
-    UA_Logger logger;
-
-    void stopHandler(int signal) {
-      running = 0;
-    }
-
-    int main(void) {
-      signal(SIGINT,  stopHandler);
-      signal(SIGTERM, stopHandler);
-      
-      UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-      logger = Logger_Stdout_new();
-      UA_Server_setLogger(server, logger);
-      UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-      running = UA_TRUE;
-      UA_Server_run(server, 1, &running);
-      UA_Server_delete(server);
-      
-      printf("Terminated\n");
-      return 0;
-    }
-And then of course, recompile it::
-
-    :myApp> gcc -Wl,-rpath=./ -L./ -I ./include -o myServer myServer.c  -lopen62541
-
-You can now start and background the server, run the client, and then terminate the server like so::
-
-    :myApp> ./myServer &
-    [xx/yy/zz aa:bb:cc.dd.ee] info/communication	Listening on opc.tcp://localhost:16664
-    [1] 2114
-    :myApp> ./myClient && killall myServer
-    Terminated
-    [1]+  Done                    ./myServer
-    :myApp> 
-
-Notice how the server received the SIGTERM signal from kill and exited cleany? We also used the return value of our client by inserting the ``&&``, so kill is only called after a clean client exit (``return 0``).
 
 Asserting success/failure
 -------------------------
@@ -264,6 +217,8 @@ As the last step for this tutorial, we are going to convert the raw date value i
       UA_Client_delete(client);
       return 0;
     }
+
+Note that this file can be found as "examples/client_firstSteps.c" in the repository.
     
 Now you should see raw time and a formatted date::
 

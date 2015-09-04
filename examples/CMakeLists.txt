@@ -20,6 +20,13 @@ target_link_libraries(server_variable ${LIBS})
 add_executable(server_datasource server_datasource.c)
 target_link_libraries(server_datasource ${LIBS})
 
+add_executable(server_firstSteps server_firstSteps.c)
+target_link_libraries(server_firstSteps ${LIBS})
+
+add_executable(client_firstSteps client_firstSteps.c)
+target_link_libraries(client_firstSteps ${LIBS})
+
+
 add_executable(server_repeated_job server_repeated_job.c)
 target_link_libraries(server_repeated_job ${LIBS})
 

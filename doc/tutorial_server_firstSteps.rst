@@ -156,6 +156,57 @@ Now execute the server::
 
 You have now compiled and started your first OPC UA Server. Though quite unspectacular and only terminatable with ``CTRL+C`` (SIGTERM) at the moment, you can already launch it and browse around with UA Expert. The Server will be listening on localhost:16664 - go ahead and give it a try.
 
+We will also make a slight change to our server: We want it to exit cleanly when pressing ``CTRL+C``. We will add signal handler for SIGINT and SIGTERM to accomplish that to the server::
+
+    #include <stdio.h>
+    #include <signal.h>
+
+    # include "ua_types.h"
+    # include "ua_server.h"
+    # include "logger_stdout.h"
+    # include "networklayer_tcp.h"
+
+    UA_Boolean running;
+    UA_Logger logger;
+
+    static void stopHandler(int signal) {
+      running = UA_FALSE;
+    }
+
+    int main(void) {
+      signal(SIGINT,  stopHandler);
+      signal(SIGTERM, stopHandler);
+      
+      UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+      logger = Logger_Stdout_new();
+      UA_Server_setLogger(server, logger);
+      UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
+      running = UA_TRUE;
+      UA_Server_run(server, 1, &running);
+      UA_Server_delete(server);
+      
+      printf("Terminated\n");
+      return 0;
+    }
+
+Note that this file can be found as "examples/server_firstSteps.c" in the repository.
+    
+And then of course, recompile it::
+
+    :myApp> gcc -Wl,-rpath=./ -L./ -I ./include -o myServer myServer.c  -lopen62541
+
+You can now start and background the server, run the client, and then terminate the server like so::
+
+    :myApp> ./myServer &
+    [xx/yy/zz aa:bb:cc.dd.ee] info/communication	Listening on opc.tcp://localhost:16664
+    [1] 2114
+    :myApp> ./myClient && killall myServer
+    Terminated
+    [1]+  Done                    ./myServer
+    :myApp> 
+
+Notice how the server received the SIGTERM signal from kill and exited cleany? We also used the return value of our client by inserting the ``&&``, so kill is only called after a clean client exit (``return 0``).
+
 Introduction to Configuration options (Amalgamation)
 ----------------------------------------------------
 

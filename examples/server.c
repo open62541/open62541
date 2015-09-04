@@ -197,11 +197,11 @@ static UA_ByteString loadCertificate(void) {
 
 UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle);
 UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {  
-  printf("References ns=%d;i=%d using i=%d ", childId.namespaceIndex, childId.identifier.numeric, referenceTypeId.identifier.numeric);
+  /*printf("References ns=%d;i=%d using i=%d ", childId.namespaceIndex, childId.identifier.numeric, referenceTypeId.identifier.numeric);
   if (isInverse == UA_TRUE) {
     printf(" (inverse)");
   }
-  printf("\n");
+  printf("\n");*/
   
   return UA_STATUSCODE_GOOD;
 }
@@ -394,7 +394,7 @@ int main(int argc, char** argv) {
 #endif
    
   // Example for iterating over all nodes referenced by "Objects":
-  printf("Nodes connected to 'Objects':\n=============================\n");
+  //printf("Nodes connected to 'Objects':\n=============================\n");
   UA_Server_forEachChildNodeCall(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter, NULL);
   
   // Some easy localization

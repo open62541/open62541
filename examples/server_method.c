@@ -32,13 +32,13 @@ static UA_StatusCode helloWorldMethod(const UA_NodeId objectId, const UA_Variant
         return UA_STATUSCODE_GOOD;
 } 
 
-static UA_StatusCode IncInt32ArrayValues(const UA_NodeId objectId,
+static UA_StatusCode IncInt32ArrayValuesMethod(const UA_NodeId objectId,
                                          const UA_Variant *input, UA_Variant *output, void *handle) {
 
 
 	UA_Variant_setArrayCopy(output,input->data,5,&UA_TYPES[UA_TYPES_INT32]);
 	for(int i = 0; i< input->arrayLength; i++){
-		((UA_Int32*)output->data)[i] = ((UA_Int32*)input->data)[i] + 2;
+		((UA_Int32*)output->data)[i] = ((UA_Int32*)input->data)[i] + 1;
 	}
 
 	return UA_STATUSCODE_GOOD;
@@ -57,6 +57,7 @@ int main(int argc, char** argv) {
     UA_Server_setLogger(server, logger);
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 
+    //EXAMPLE 1
     /* add the method node with the callback */
     UA_Argument inputArguments;
     UA_Argument_init(&inputArguments);
@@ -78,9 +79,12 @@ int main(int argc, char** argv) {
         
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541), UA_QUALIFIEDNAME(1, "hello world"), 
                             UA_LOCALIZEDTEXT("en_US","Hello World"), UA_LOCALIZEDTEXT("en_US","Say `Hello World`"),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             0, 0, &helloWorldMethod, NULL, 1, &inputArguments, 1, &outputArguments, NULL);
 
+    //END OF EXAMPLE 1
+
+    //EXAMPLE 2
     /* add another method node: output argument as 1d Int32 array*/
     // define input arguments
     UA_Argument_init(&inputArguments);
@@ -104,18 +108,19 @@ int main(int argc, char** argv) {
     outputArguments.description = UA_LOCALIZEDTEXT("en_US",
                     "increment each array index");
     outputArguments.name = UA_STRING(
-                    "output is the array, each index is incremented");
+                    "output is the array, each index is incremented by one");
     outputArguments.valueRank = 1;
 
     UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "IncInt32ArrayValues"), UA_QUALIFIEDNAME(1, "IncInt32ArrayValues"),
                             UA_LOCALIZEDTEXT("en_US","1dArrayExample"), UA_LOCALIZEDTEXT("en_US","1dArrayExample"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), 
-                            0, 0, &IncInt32ArrayValues, NULL, 1, &inputArguments, 1, &outputArguments, NULL);
+                            0, 0, &IncInt32ArrayValuesMethod, NULL, 1, &inputArguments, 1, &outputArguments, NULL);
+    //END OF EXAMPLE 2
 
     /* start server */
     UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false
 
-        /* ctrl-c received -> clean up */
+    /* ctrl-c received -> clean up */
     UA_UInt32_delete(pInputDimensions);
     UA_UInt32_delete(pOutputDimensions);
     UA_Server_delete(server);
