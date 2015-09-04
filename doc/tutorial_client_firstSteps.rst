@@ -35,7 +35,9 @@ As a recap, your directory structure should now look like this::
 
 Note that I have linked the library into the folder to spare me the trouble of copying it every time I change/rebuild the stack.
 
-To create a really basic client, navigate back into the myApp folder from the previous tutorial and create a client::
+To create a really basic client, navigate back into the myApp folder from the previous tutorial and create a client:
+
+.. code-block:: c
 
     #include <stdio.h>
 
@@ -119,7 +121,9 @@ Reading variable's node value
 
 In this example we are going to read node (n=0,i=2258), i.e. a node in namespace 0 with a numerical id 2258. This node is present in every server (since it is located in namespace 0) and contains server current time (encoded as UInt64).
 
-Let us extend the client with with an action reading node's value::
+Let us extend the client with with an action reading node's value:
+
+.. code-block:: c
 
     #include <stdio.h>
 
@@ -167,10 +171,12 @@ You should see raw time in milliseconds since January 1, 1601 UTC midnight::
 
     :myApp> ./myClient
     :myApp> raw date is: 130856974061125520
-    
+
 Firstly we constructed a read request "rReq", it contains 1 node's attribute we want to query for. The attribute is filled with the numeric id "UA_NODEID_NUMERIC(0, 2258)" and the attribute we are reading "UA_ATTRIBUTEID_VALUE". After the read request was sent, we can find the actual read value in the read response.
 
-As the last step for this tutorial, we are going to convert the raw date value into a well formatted string::
+As the last step for this tutorial, we are going to convert the raw date value into a well formatted string:
+
+.. code-block:: c
 
     #include <stdio.h>
     
