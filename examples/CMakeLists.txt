@@ -1,7 +1,7 @@
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_BINARY_DIR}/src_generated)
 
-set(LIBS open62541)
+set(LIBS open62541-static)
 if(NOT WIN32)
     list(APPEND LIBS pthread)
     if (NOT APPLE)
