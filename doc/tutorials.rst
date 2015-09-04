@@ -60,4 +60,4 @@ Contents:
 Tutorial 5: Nodeset handling
 ------------------------------
 
-:doc:`tutorial_noderelations.rst`
+:doc:`tutorial_noderelations`
