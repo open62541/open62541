@@ -910,7 +910,7 @@ if ((anyTypeNode.node->nodeClass & ( CLASS )) == 0) {                     \
   }                                                               \
 }\
     
-UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void *value) {
+UA_StatusCode UA_Server_setNodeAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_AttributeId attributeId, const void *value) {
   UA_StatusCode retval = UA_STATUSCODE_GOOD;
   
   if (!value)
@@ -931,11 +931,6 @@ UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, U
   if (retval)
     return retval;
   
-  UA_UInt32  *nInt;
-  UA_Boolean *nBool;
-  UA_Byte    *nByte;
-  UA_Variant *nVariant;
-  UA_Double  *nDouble;
   switch(attributeId) {
     case UA_ATTRIBUTEID_NODEID:
       UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
@@ -947,39 +942,30 @@ UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, U
       break;
     case UA_ATTRIBUTEID_BROWSENAME:
       UA_QualifiedName_deleteMembers(&anyTypeNode.node->browseName);
-      UA_QualifiedName_copy((UA_QualifiedName *) value, &anyTypeNode.node->browseName);
+      UA_QualifiedName_copy((const UA_QualifiedName *) value, &anyTypeNode.node->browseName);
       break;
     case UA_ATTRIBUTEID_DISPLAYNAME:
       UA_LocalizedText_deleteMembers(&anyTypeNode.node->displayName);
-      UA_LocalizedText_copy((UA_LocalizedText *) value, &anyTypeNode.node->displayName);
+      UA_LocalizedText_copy((const UA_LocalizedText *) value, &anyTypeNode.node->displayName);
       break;
     case UA_ATTRIBUTEID_DESCRIPTION:
       UA_LocalizedText_deleteMembers(&anyTypeNode.node->description);
-      UA_LocalizedText_copy((UA_LocalizedText *) value, &anyTypeNode.node->description);
+      UA_LocalizedText_copy((const UA_LocalizedText *) value, &anyTypeNode.node->description);
       break;
     case UA_ATTRIBUTEID_WRITEMASK:
-      nInt = (UA_UInt32*) value;
-      anyTypeNode.node->writeMask = *nInt;
+      anyTypeNode.node->writeMask = *(const UA_UInt32*) value;
       break;
     case UA_ATTRIBUTEID_USERWRITEMASK:
-      nInt = (UA_UInt32*) value;
-      anyTypeNode.node->userWriteMask = *nInt;
+      anyTypeNode.node->userWriteMask = *(const UA_UInt32*) value;
       break;    
     case UA_ATTRIBUTEID_ISABSTRACT:
       SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_REFERENCETYPE | UA_NODECLASS_VARIABLETYPE | UA_NODECLASS_DATATYPE)
-      nBool = (UA_Boolean *) value;
       switch(anyTypeNode.node->nodeClass) {
         case UA_NODECLASS_OBJECTTYPE:
-          anyTypeNode.otObj->isAbstract = *nBool;
-          break;
         case UA_NODECLASS_REFERENCETYPE:
-          anyTypeNode.rtObj->isAbstract = *nBool;
-          break;
         case UA_NODECLASS_VARIABLETYPE:
-          anyTypeNode.vtObj->isAbstract = *nBool;
-          break;
         case UA_NODECLASS_DATATYPE:
-          anyTypeNode.dtObj->isAbstract = *nBool;
+          anyTypeNode.otObj->isAbstract = *(const UA_Boolean *) value;
           break;
         default:
           UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
@@ -989,28 +975,23 @@ UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, U
       break;
     case UA_ATTRIBUTEID_SYMMETRIC:
       SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_REFERENCETYPE)
-      nBool = (UA_Boolean *) value;
-      anyTypeNode.rtObj->symmetric = *nBool;
+      anyTypeNode.rtObj->symmetric = *(const UA_Boolean *) value;
       break;
     case UA_ATTRIBUTEID_INVERSENAME:
       SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_REFERENCETYPE)
       UA_LocalizedText_deleteMembers(&anyTypeNode.rtObj->inverseName);
-      UA_LocalizedText_copy((UA_LocalizedText *) value, &anyTypeNode.rtObj->inverseName);
+      UA_LocalizedText_copy((const UA_LocalizedText *) value, &anyTypeNode.rtObj->inverseName);
       break;
     case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
       SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VIEW)
-      nBool = (UA_Boolean *) value;
-      anyTypeNode.vwObj->containsNoLoops = *nBool;
+      anyTypeNode.vwObj->containsNoLoops = *(const UA_Boolean *) value;
       break;
     case UA_ATTRIBUTEID_EVENTNOTIFIER:
       SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT)
-      nByte = (UA_Byte *) value;
       switch(anyTypeNode.node->nodeClass) {
         case UA_NODECLASS_VIEW:
-          anyTypeNode.vwObj->eventNotifier = *nByte;
-          break;
         case UA_NODECLASS_OBJECT:
-          anyTypeNode.oObj->eventNotifier = *nByte;
+          anyTypeNode.vwObj->eventNotifier = *(const UA_Byte *) value;
           break;
         default:
           UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
@@ -1024,9 +1005,8 @@ UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, U
         UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
         return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
       }
-      nVariant = value;
       UA_Variant_deleteMembers(&anyTypeNode.vObj->value.variant);
-      UA_Variant_copy(nVariant, &anyTypeNode.vObj->value.variant);
+      UA_Variant_copy((const UA_Variant*)value, &anyTypeNode.vObj->value.variant);
       break;
     case UA_ATTRIBUTEID_DATATYPE:
       UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
@@ -1042,33 +1022,27 @@ UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, U
       break;
     case UA_ATTRIBUTEID_ACCESSLEVEL:
       SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VARIABLE)
-      nByte = (UA_Byte*) value;
-      anyTypeNode.vObj->accessLevel = *nByte;
+      anyTypeNode.vObj->accessLevel = *(const UA_Byte*) value;
       break;
     case UA_ATTRIBUTEID_USERACCESSLEVEL:
       SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VARIABLE)
-      nByte = (UA_Byte*) value;
-      anyTypeNode.vObj->userAccessLevel = *nByte;
+      anyTypeNode.vObj->userAccessLevel = *(const UA_Byte*) value;
       break;
     case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
       SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VARIABLE)
-      nDouble = (UA_Double *) value;
-      anyTypeNode.vObj->minimumSamplingInterval = *nDouble;
+      anyTypeNode.vObj->minimumSamplingInterval = *(const UA_Double *) value;
       break;
     case UA_ATTRIBUTEID_HISTORIZING:
       SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_VARIABLE)
-      nBool = (UA_Boolean *) value;
-      anyTypeNode.vObj->historizing= *nBool;
+      anyTypeNode.vObj->historizing = *(const UA_Boolean *) value;
       break;
     case UA_ATTRIBUTEID_EXECUTABLE:
       SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_METHOD)
-      nBool = (UA_Boolean *) value;
-      anyTypeNode.mObj->executable= *nBool;
+      anyTypeNode.mObj->executable = *(const UA_Boolean *) value;
       break;
     case UA_ATTRIBUTEID_USEREXECUTABLE:
       SETATTRIBUTE_ASSERTNODECLASS(UA_NODECLASS_METHOD)
-      nBool = (UA_Boolean *) value;
-      anyTypeNode.mObj->userExecutable= *nBool;
+      anyTypeNode.mObj->userExecutable = *(const UA_Boolean *) value;
       break;
     default:
       UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
@@ -1089,7 +1063,7 @@ UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, U
 #ifdef ENABLE_METHODCALLS
 /* Allow userspace to attach a method to one defined via XML or to switch an attached method for another */
 UA_StatusCode
-UA_Server_setAttribute_method(UA_Server *server, UA_NodeId methodNodeId, UA_MethodCallback method, void *handle) {
+UA_Server_setNodeAttribute_method(UA_Server *server, UA_NodeId methodNodeId, UA_MethodCallback method, void *handle) {
   UA_StatusCode retval = UA_STATUSCODE_GOOD;
   const UA_Node *attachToMethod = UA_NULL;
   UA_MethodNode *replacementMethod = UA_NULL;
@@ -1123,7 +1097,7 @@ UA_Server_setAttribute_method(UA_Server *server, UA_NodeId methodNodeId, UA_Meth
 #endif
 
 UA_StatusCode
-UA_Server_setAttribute_DataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource *value) {
+UA_Server_setNodeAttribute_valueDataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource *value) {
   union {
     UA_Node *anyNode;
     UA_VariableNode *varNode;
@@ -1171,7 +1145,7 @@ UA_Server_setAttribute_DataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSo
   *value = (void *) UA_##TYPE##_new();               \
   UA_##TYPE##_copy( SRC, (UA_##TYPE *) *value  );    \
   
-UA_StatusCode UA_Server_getAttributeValue(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void **value) {
+UA_StatusCode UA_Server_getNodeAttribute(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void **value) {
   union {
     UA_Node *node;
     UA_ObjectNode *oObj;
@@ -1335,7 +1309,7 @@ UA_StatusCode UA_Server_getAttributeValue(UA_Server *server, UA_NodeId nodeId, U
 }
 
 #ifdef ENABLE_METHODCALLS
-UA_StatusCode UA_Server_getAttribute_method(UA_Server *server, UA_NodeId methodNodeId, UA_MethodCallback *method) {
+UA_StatusCode UA_Server_getNodeAttribute_method(UA_Server *server, UA_NodeId methodNodeId, UA_MethodCallback *method) {
   union {
     UA_Node *anyNode;
     UA_MethodNode *mNode;
@@ -1362,7 +1336,7 @@ UA_StatusCode UA_Server_getAttribute_method(UA_Server *server, UA_NodeId methodN
 #endif
 
 UA_StatusCode
-UA_Server_getAttribute_DataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource **value) {
+UA_Server_getNodeAttribute_valueDataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource **value) {
   union {
     UA_Node *anyNode;
     UA_VariableNode *varNode;
@@ -1530,7 +1504,7 @@ void UA_Server_addInstanceOf_instatiateChildNode(UA_Server *server,
     
     // What type of node is this?
     refClass = UA_NULL;
-    UA_Server_getAttributeValue(server, ref.targetId.nodeId, UA_ATTRIBUTEID_NODECLASS, (void **) &refClass);
+    UA_Server_getNodeAttribute(server, ref.targetId.nodeId, UA_ATTRIBUTEID_NODECLASS, (void **) &refClass);
     switch (*refClass) {
       case UA_NODECLASS_VARIABLE: // Just clone the variable node with a new nodeId
         UA_Server_getNodeCopy(server, ref.targetId.nodeId, (void **) &nodeClone);

@@ -432,7 +432,7 @@ expectType = UA_NODEID_NUMERIC(0, UA_NS0ID_##EXP_DT);                           
 if (! UA_NodeId_equal(&expectType, &wvalue->value.value.type->typeId))                                                  \
   retval |= UA_STATUSCODE_BADTYPEMISMATCH;                                                                              \
 else                                                                                                                    \
-  retval = UA_Server_setAttributeValue(server, wvalue->nodeId, wvalue->attributeId, (void *) wvalue->value.value.data); \
+  retval = UA_Server_setNodeAttribute(server, wvalue->nodeId, wvalue->attributeId, (void *) wvalue->value.value.data); \
 
 #ifndef BUILD_UNIT_TESTS
 static

@@ -36,8 +36,10 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJEC
                        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
                        ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
                
-add_executable(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c)
-target_link_libraries(server_nodeset ${LIBS})
+if(ENABLE_GENERATE_NAMESPACE0)
+  add_executable(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c)
+  target_link_libraries(server_nodeset ${LIBS})
+endif()
 
 if(ENABLE_METHODCALLS)
   add_executable(server_method server_method.c)

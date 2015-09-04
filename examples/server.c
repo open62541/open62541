@@ -226,23 +226,18 @@ int main(int argc, char** argv) {
   const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
   const UA_LocalizedText dateNameBrowseName = UA_LOCALIZEDTEXT("en_US","current time");
   UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL, dateName, dateNameBrowseName, dateNameBrowseName, 0, 0,
-
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-
-                                  dateDataSource,
-
-                                  &nodeId_currentTime);
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                  dateDataSource, &nodeId_currentTime);
 
   // Get and reattach the datasource
   UA_DataSource *dataSourceCopy = NULL;
-  UA_Server_getAttribute_DataSource(server, nodeId_currentTime, &dataSourceCopy);
+  UA_Server_getNodeAttribute_valueDataSource(server, nodeId_currentTime, &dataSourceCopy);
   if (dataSourceCopy == NULL)
     UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "The returned dataSource is invalid");
   else if (dataSourceCopy->read != dateDataSource.read)
     UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "The returned dataSource is not the same as we set?");
   else
-    UA_Server_setAttribute_DataSource(server, nodeId_currentTime, dataSourceCopy);
+    UA_Server_setNodeAttribute_valueDataSource(server, nodeId_currentTime, dataSourceCopy);
   free(dataSourceCopy);
 #ifndef _WIN32
   //cpu temperature monitoring for linux machines
@@ -252,13 +247,8 @@ int main(int argc, char** argv) {
           const UA_QualifiedName tempName = UA_QUALIFIEDNAME(1, "cpu temperature");
           const UA_LocalizedText tempNameBrowseName = UA_LOCALIZEDTEXT("en_US","temperature");
           UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL, tempName, tempNameBrowseName, tempNameBrowseName, 0, 0,
-
-                                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-
-                                            temperatureDataSource,
-
-                                            NULL);
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                            temperatureDataSource, NULL);
   }
 
   //LED control for rpi
@@ -387,10 +377,10 @@ int main(int argc, char** argv) {
                           1, &inputArguments, 1, &outputArguments, &methodId);
   
   // Dettach the method from the methodNode
-  UA_Server_setAttribute_method(server, UA_NODEID_NUMERIC(1,62541), NULL, NULL);
+  UA_Server_setNodeAttribute_method(server, UA_NODEID_NUMERIC(1,62541), NULL, NULL);
   
   // Reaettach the method from the methodNode
-  UA_Server_setAttribute_method(server, UA_NODEID_NUMERIC(1,62541), &getMonitoredItems, (void *) server);
+  UA_Server_setNodeAttribute_method(server, UA_NODEID_NUMERIC(1,62541), &getMonitoredItems, (void *) server);
 #endif
    
   // Example for iterating over all nodes referenced by "Objects":
@@ -399,7 +389,7 @@ int main(int argc, char** argv) {
   
   // Some easy localization
   UA_LocalizedText objectsName = UA_LOCALIZEDTEXT("de_DE", "Objekte");
-  UA_Server_setAttribute_displayName(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), &objectsName);
+  UA_Server_setNodeAttribute_displayName(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), objectsName);
   
   //start server
   UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false
