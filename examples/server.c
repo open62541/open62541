@@ -119,7 +119,9 @@ static UA_StatusCode readLedStatus(void *handle, UA_Boolean sourceTimeStamp, con
   if(range)
     return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
+  value->hasValue = UA_TRUE;
   UA_StatusCode retval = UA_Variant_setScalarCopy(&value->value, &ledStatus, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
   if(retval != UA_STATUSCODE_GOOD)
     return retval;
   
