@@ -13,25 +13,25 @@ As a recap, your directory structure should now look like this::
   :myApp> ln -s ../open62541/build/*so ./
   :myApp> tree
   .
-  ├── include
-  │   ├── logger_stdout.h
-  │   ├── networklayer_tcp.h
-  │   ├── networklayer_udp.h
-  │   ├── open62541.h
-  │   ├── ua_client.h
-  │   ├── ua_config.h
-  │   ├── ua_config.h.in
-  │   ├── ua_connection.h
-  │   ├── ua_log.h
-  │   ├── ua_nodeids.h
-  │   ├── ua_server.h
-  │   ├── ua_statuscodes.h
-  │   ├── ua_transport_generated.h
-  │   ├── ua_types_generated.h
-  │   └── ua_types.h
-  ├── libopen62541.so -> ../../open62541/build/libopen62541.so
-  ├── myServer
-  └── myServer.c
+  +── include
+  │   +── logger_stdout.h
+  │   +── networklayer_tcp.h
+  │   +── networklayer_udp.h
+  │   +── open62541.h
+  │   +── ua_client.h
+  │   +── ua_config.h
+  │   +── ua_config.h.in
+  │   +── ua_connection.h
+  │   +── ua_log.h
+  │   +── ua_nodeids.h
+  │   +── ua_server.h
+  │   +── ua_statuscodes.h
+  │   +── ua_transport_generated.h
+  │   +── ua_types_generated.h
+  │   +── ua_types.h
+  +── libopen62541.so -> ../../open62541/build/libopen62541.so
+  +── myServer
+  +── myServer.c
 
 Note that I have linked the library into the folder to spare me the trouble of copying it every time I change/rebuild the stack.
 

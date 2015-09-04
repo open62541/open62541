@@ -1,8 +1,9 @@
 Tutorials
 =========
 
-Tutorial 1: First steps with open62541-server
-------------------------------
+This section contains sructured tutorials
+   
+**Tutorial 1: First steps with open62541-server**
 
 :doc:`tutorial_server_firstSteps`
 
@@ -16,10 +17,9 @@ Contents:
 
 * Compiling built-in server and client examples
 
-Tutorial 2: First steps with open62541-client
-------------------------------
+**Tutorial 2: First steps with open62541-client**
 
-:doc:`tutorial_server_firstSteps`
+:doc:`tutorial_client_firstSteps`
 
 Contents:
 
@@ -33,8 +33,7 @@ Contents:
 
 * Introduction to stings
 
-Tutorial 3: Adding nodes to a server and connecting nodes to user-defined values
-------------------------------
+**Tutorial 3: Adding nodes to a server and connecting nodes to user-defined values**
 
 :doc:`tutorial_server_variables`
 
@@ -48,8 +47,7 @@ Contents:
 
 * Connecting node to a callback function
 
-Tutorial 4: Adding server-side methods
-------------------------------
+**Tutorial 4: Adding server-side methods**
 
 :doc:`tutorial_server_method`
 
@@ -57,7 +55,16 @@ Contents:
 
 * Defining server-side method nodes
 
-Tutorial 5: Nodeset handling
-------------------------------
+**Tutorial 5: Nodeset handling**
 
 :doc:`tutorial_noderelations`
+
+.. toctree::
+   :maxdepth: 2
+   :hidden:
+
+   tutorial_server_firstSteps
+   tutorial_client_firstSteps
+   tutorial_server_variables
+   tutorial_server_method
+   tutorial_noderelations
