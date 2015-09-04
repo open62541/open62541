@@ -16,6 +16,7 @@
 ### this program.
 ###
 
+from __future__ import print_function
 import inspect
 
 ###
@@ -40,6 +41,6 @@ def log(callee, logstr, level=LOG_LEVEL_DEBUG):
             }
   if level <= GLOBAL_LOG_LEVEL:
     if prefixes.has_key(level):
-      print str(prefixes[level]) + callee.__class__.__name__ + "." + inspect.stack()[1][3] +  "(): " + logstr
+      print(str(prefixes[level]) + callee.__class__.__name__ + "." + inspect.stack()[1][3] +  "(): " + logstr)
     else:
-      print callee.__class__.__name__  + "." + inspect.stack()[1][3] + "(): " + logstr
+      print(callee.__class__.__name__  + "." + inspect.stack()[1][3] + "(): " + logstr)

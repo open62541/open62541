@@ -16,6 +16,7 @@
 ### this program.
 ###
 
+import sys
 import xml.dom.minidom as dom
 from ua_constants import *
 from logger import *
@@ -29,6 +30,10 @@ def getNextElementNode(xmlvalue):
     xmlvalue = xmlvalue.nextSibling
   return xmlvalue
 
+if sys.version_info[0] >= 3:
+  # strings are already parsed to unicode
+  def unicode(s):
+    return s
 
 class opcua_value_t():
   value = None
@@ -835,12 +840,12 @@ class opcua_BuiltinType_boolean_t(opcua_value_t):
     # Catch XML <Boolean /> by setting the value to a default
     if xmlvalue.firstChild == None:
       log(self, "No value is given. Setting to default 0")
-      self.value = False
+      self.value = "UA_FALSE"
     else:
       if "false" in unicode(xmlvalue.firstChild.data).lower():
-        self.value = False
+        self.value = "UA_FALSE"
       else:
-        self.value = True
+        self.value = "UA_TRUE"
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
