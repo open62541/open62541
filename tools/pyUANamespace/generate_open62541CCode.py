@@ -16,40 +16,37 @@
 ### this program.
 ###
 
+from __future__ import print_function
 from sys import argv, exit
 from os import path
 from ua_namespace import *
 from logger import *
 
 def usage():
-  print "Script usage:"
-  print "generate_open62541CCode [-i <ignorefile> | -b <blacklistfile>] <namespace XML> [namespace.xml[ namespace.xml[...]]] <output file>"
-  print ""
-  print "generate_open62541CCode will first read all XML files passed on the command line, then "
-  print "link and check the namespace. All nodes that fullfill the basic requirements will then be"
-  print "printed as C-Code intended to be included in the open62541 OPC-UA Server that will"
-  print "initialize the corresponding name space."
-  print ""
-  print "Manditory Arguments:"
-  print "<namespace XML>    At least one Namespace XML file must be passed."
-  print "<output file>      The basename for the <output file>.c and <output file>.h files to be generated."
-  print "                   This will also be the function name used in the header and c-file."
-  print ""
-  print ""
-  print "Additional Arguments:"
-  print """   -i <ignoreFile>     Loads a list of NodeIDs stored in ignoreFile (one NodeID per line)
+  print("Script usage:")
+  print("generate_open62541CCode [-i <ignorefile> | -b <blacklistfile>] <namespace XML> [namespace.xml[ namespace.xml[...]]] <output file>\n")
+  print("generate_open62541CCode will first read all XML files passed on the command line, then ")
+  print("link and check the namespace. All nodes that fullfill the basic requirements will then be")
+  print("printed as C-Code intended to be included in the open62541 OPC-UA Server that will")
+  print("initialize the corresponding name space.\n")
+  print("Manditory Arguments:")
+  print("<namespace XML>    At least one Namespace XML file must be passed.")
+  print("<output file>      The basename for the <output file>.c and <output file>.h files to be generated.")
+  print("                   This will also be the function name used in the header and c-file.\n\n")
+  print("Additional Arguments:")
+  print("""   -i <ignoreFile>     Loads a list of NodeIDs stored in ignoreFile (one NodeID per line)
                        The compiler will assume that these Nodes have been created externally
                        and not generate any code for them. They will however be linked to
-                       from other nodes."""
-  print """   -b <blacklistFile>  Loads a list of NodeIDs stored in blacklistFile (one NodeID per line)
+                       from other nodes.""")
+  print("""   -b <blacklistFile>  Loads a list of NodeIDs stored in blacklistFile (one NodeID per line)
                        Any of the nodeIds encountered in this file will be removed from the namespace
-                       prior to compilation. Any references to these nodes will also be removed"""
-  print """   -s <attribute>  Suppresses the generation of some node attributes. Currently supported
+                       prior to compilation. Any references to these nodes will also be removed""")
+  print("""   -s <attribute>  Suppresses the generation of some node attributes. Currently supported
                        options are 'description', 'browseName', 'displayName', 'writeMask', 'userWriteMask'
-                       and 'nodeid'."""
-  print """   namespaceXML Any number of namespace descriptions in XML format. Note that the
+                       and 'nodeid'.""")
+  print("""   namespaceXML Any number of namespace descriptions in XML format. Note that the
                        last description of a node encountered will be used and all prior definitions
-                       are discarded."""
+                       are discarded.""")
 
 if __name__ == '__main__':
   # Check if the parameters given correspond to actual files

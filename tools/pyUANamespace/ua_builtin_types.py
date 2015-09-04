@@ -16,6 +16,7 @@
 ### this program.
 ###
 
+import sys
 import xml.dom.minidom as dom
 from ua_constants import *
 from logger import *
@@ -29,6 +30,10 @@ def getNextElementNode(xmlvalue):
     xmlvalue = xmlvalue.nextSibling
   return xmlvalue
 
+if sys.version_info[0] >= 3:
+  # strings are already parsed to unicode
+  def unicode(s):
+    return s
 
 class opcua_value_t():
   value = None

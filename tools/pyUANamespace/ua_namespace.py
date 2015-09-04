@@ -16,7 +16,8 @@
 ### this program.
 ###
 
-
+from __future__ import print_function
+import sys
 from time import struct_time, strftime, strptime, mktime
 from struct import pack as structpack
 
@@ -112,8 +113,11 @@ class opcua_namespace():
       if al.nodeType == al.ELEMENT_NODE:
         if al.hasAttribute("Alias"):
           aliasst = al.getAttribute("Alias")
-          aliasnd = unicode(al.firstChild.data)
-          if not self.aliases.has_key(aliasst):
+          if sys.version_info[0] < 3:
+            aliasnd = unicode(al.firstChild.data)
+          else:
+            aliasnd = al.firstChild.data
+          if not aliasst in self.aliases:
             self.aliases[aliasst] = aliasnd
             log(self, "Added new alias \"" + str(aliasst) + "\" == \"" + str(aliasnd) + "\"")
           else:
@@ -195,7 +199,7 @@ class opcua_namespace():
     else:
       id = opcua_node_id_t(id)
 
-    if self.nodeids.has_key(str(id)):
+    if str(id) in self.nodeids:
       # Normal behavior: Do not allow duplicates, first one wins
       #log(self,  "XMLElement with duplicate ID " + str(id) + " found, node will not be created!", LOG_LEVEL_ERROR)
       #return
@@ -294,7 +298,7 @@ class opcua_namespace():
         log(self, "XML Element or NodeType " + ndType + " is unknown and will be ignored", LOG_LEVEL_WARN)
         continue
 
-      if not typedict.has_key(ndType):
+      if not ndType in typedict:
         typedict[ndType] = 1
       else:
         typedict[ndType] = typedict[ndType] + 1
@@ -737,17 +741,17 @@ class testing:
     while (len(ns) < len(allnodes)):
       i = i + 1;
       tmp = [];
-      print "Iteration: " + str(i)
+      print("Iteration: " + str(i))
       for n in ns:
         tmp.append(n)
         for r in n.getReferences():
           if (not r.target() in tmp):
            tmp.append(r.target())
-      print "...tmp, " + str(len(tmp)) + " nodes discovered"
+      print("...tmp, " + str(len(tmp)) + " nodes discovered")
       ns = []
       for n in tmp:
         ns.append(n)
-      print "...done, " + str(len(ns)) + " nodes discovered"
+      print("...done, " + str(len(ns)) + " nodes discovered")
 
     log(self, "Phase 5: Printing pretty graph")
     self.namespace.printDotGraphWalk(depth=1, rootNode=self.namespace.getNodeByIDString("i=84"), followInverse=False, excludeNodeIds=["i=29", "i=22", "i=25"])

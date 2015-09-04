@@ -16,6 +16,7 @@
 ### this program.
 ###
 
+import sys
 from logger import *;
 from ua_builtin_types import *;
 from open62541_MacroHelper import open62541_MacroHelper
@@ -144,7 +145,7 @@ class opcua_referencePointer_t():
     if other.target() == self.target():
       if other.referenceType() == self.referenceType():
         if other.isForward() == self.isForward():
-	  return 0
+          return 0
     return 1
 
 
@@ -412,7 +413,9 @@ class opcua_node_t:
     """
     if isinstance(data, str):
       self.__node_browseName__ = data
-    return self.__node_browseName__.encode('utf-8')
+    if sys.version_info[0] < 3:
+      return self.__node_browseName__.encode('utf-8')
+    return self.__node_browseName__
 
   def displayName(self, data=None):
     """ Sets the display name attribute if data is passed.
@@ -669,16 +672,16 @@ class opcua_node_t:
       code = code + self.printOpen62541CCode_Subtype(unPrintedReferences = unPrintedReferences, bootstrapping = False)
       code.append("       UA_NULL);") # createdNodeId, wraps up the UA_Server_add<XYType>Node() call
       if self.nodeClass() == NODE_CLASS_METHOD:
-	code.append("#endif //ENABLE_METHODCALL") # ifdef added by codegen when methods are detected
+        code.append("#endif //ENABLE_METHODCALL") # ifdef added by codegen when methods are detected
       # Parent to child reference is added by the server, do not reprint that reference
       if parentRef in unPrintedReferences:
         unPrintedReferences.remove(parentRef)
       # the UA_Server_addNode function will use addReference which creates a biderectional reference; remove any inverse
       # references to our parent to avoid duplicate refs
       for ref in self.getReferences():
-	if ref.target() == parentNode and ref.referenceType() == parentRef.referenceType() and ref.isForward() == False:
-	  while ref in unPrintedReferences:
-	    unPrintedReferences.remove(ref)
+        if ref.target() == parentNode and ref.referenceType() == parentRef.referenceType() and ref.isForward() == False:
+          while ref in unPrintedReferences:
+            unPrintedReferences.remove(ref)
     # Otherwise use the "Bootstrapping" method and we will get registered with other nodes later.
     else:
       code = code + self.printOpen62541CCode_SubtypeEarly(bootstrapping = True)
@@ -896,6 +899,11 @@ class opcua_node_object_t(opcua_node_t):
     # We are being bootstrapped! Add the raw attributes to the node.
     code.append(self.getCodePrintableID() + "->eventNotifier = (UA_Byte) " + str(self.eventNotifier()) + ";")
     return code
+
+if sys.version_info[0] >= 3:
+  # strings are already parsed to unicode
+  def unicode(s):
+    return s
 
 class opcua_node_variable_t(opcua_node_t):
   __value__               = 0
