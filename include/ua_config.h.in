@@ -67,5 +67,11 @@
 # define UA_ALIGNED_MEMORY_ACCESS
 #endif
 
+#ifdef _MSC_VER
+# define UA_INLINE __inline
+#else
+# define UA_INLINE inline
+#endif
+
 
 #endif /* UA_CONFIG_H_ */
