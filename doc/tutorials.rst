@@ -56,3 +56,8 @@ Tutorial 4: Adding server-side methods
 Contents:
 
 * Defining server-side method nodes
+
+Tutorial 5: Nodeset handling
+------------------------------
+
+:doc:`tutorial_noderelations.rst`
