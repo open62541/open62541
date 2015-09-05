@@ -312,18 +312,18 @@ int main(int argc, char** argv) {
                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
 
 #define SCALARID 50001
-  UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, SCALARID), UA_QUALIFIEDNAME(1, "Scalar"), UA_LOCALIZEDTEXT("en_US","Demo"), 
-                          UA_LOCALIZEDTEXT("en_US","Demo"), 0, 0, UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+  UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, SCALARID), UA_QUALIFIEDNAME(1, "Scalar"), UA_LOCALIZEDTEXT("en_US","Scalar"),
+                          UA_LOCALIZEDTEXT("en_US","Scalar"), 0, 0, UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
 
 #define ARRAYID 50002
-  UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, ARRAYID), UA_QUALIFIEDNAME(1, "Array"), UA_LOCALIZEDTEXT("en_US","Demo"), 
-                          UA_LOCALIZEDTEXT("en_US","Demo"), 0, 0, UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+  UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, ARRAYID), UA_QUALIFIEDNAME(1, "Array"), UA_LOCALIZEDTEXT("en_US","Array"),
+                          UA_LOCALIZEDTEXT("en_US","Array"), 0, 0, UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
 
 #define MATRIXID 50003
-  UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, MATRIXID), UA_QUALIFIEDNAME(1, "Matrix"), UA_LOCALIZEDTEXT("en_US","Demo"), 
-                          UA_LOCALIZEDTEXT("en_US","Demo"), 0, 0, UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+  UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, MATRIXID), UA_QUALIFIEDNAME(1, "Matrix"), UA_LOCALIZEDTEXT("en_US","Matrix"),
+                          UA_LOCALIZEDTEXT("en_US","Matrix"), 0, 0, UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
 
   UA_UInt32 id = 51000; //running id in namespace 0
@@ -337,13 +337,13 @@ int main(int argc, char** argv) {
     char name[15];
     sprintf(name, "%02d", type);
     UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(1, name);
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), qualifiedName, UA_LOCALIZEDTEXT("en_US",""), UA_LOCALIZEDTEXT("en_US",""), 0, 0,
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), qualifiedName, UA_LOCALIZEDTEXT("en_US",name), UA_LOCALIZEDTEXT("en_US",name), 0, 0,
                               UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), variant, NULL);
 
     //add an array node for every built-in type
     UA_Variant *arrayvar = UA_Variant_new();
     UA_Variant_setArray(arrayvar, UA_Array_new(&UA_TYPES[type], 10), 10, &UA_TYPES[type]);
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), qualifiedName, UA_LOCALIZEDTEXT("en_US",""), UA_LOCALIZEDTEXT("en_US",""), 0, 0,
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), qualifiedName, UA_LOCALIZEDTEXT("en_US",name), UA_LOCALIZEDTEXT("en_US",name), 0, 0,
                               UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), arrayvar, NULL);
 
     //add an matrix node for every built-in type
