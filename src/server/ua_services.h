@@ -218,10 +218,8 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
 void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,
                    UA_WriteResponse *response);
 
-/* Mock-Up of the function signature for Unit Tests */
-#ifdef BUILD_UNIT_TESTS
-UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue);
-#endif
+/** Single attribute writes are exposed to the userspace */
+UA_StatusCode UA_Service_Write_single(UA_Server *server, UA_Session *session, const UA_WriteValue *wvalue);
 
 // Service_HistoryUpdate
 /** @} */
