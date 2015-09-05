@@ -1,7 +1,7 @@
 First steps with open62541-client
 ===================================
 
-In the previous :doc:`tutorial_firstStepsServer` tutorial, you should have gotten your build environment verified and created a first OPC UA server using the open62541 stack. The created server however doesn't do much yet and there is no client to interact with the server. We are going to remedy that in this tutorial by creating some nodes and variables.
+In the previous :doc:`tutorial_server_firstSteps` tutorial, you should have gotten your build environment verified and created a first OPC UA server using the open62541 stack. The created server however doesn't do much yet and there is no client to interact with the server. We are going to remedy that in this tutorial by creating some nodes and variables.
 
 ----------------------
 
@@ -235,5 +235,5 @@ Now you should see raw time and a formatted date::
 Further tasks
 -------------
 * Try to connect to some other OPC UA server by changing "opc.tcp://localhost:16664" to an appropriate address (remember that the queried node is contained in any OPC UA server).
-* Display the value of the variable node (ns=1,i="the.answer") containing an "Int32" from the example server (which is built in :doc:`tutorial_firstStepsServer`). Note that the identifier of this node is a string type: use "UA_NODEID_STRING_ALLOC". The answer can be found in "examples/exampleClient.c".
-* Try to set the value of the variable node (ns=1,i="the.answer") containing an "Int32" from the example server (which is built in :doc:`tutorial_firstStepsServer`) using "UA_Client_write" function. The example server needs some more modifications, i.e., changing request types. The answer can be found in "examples/exampleClient.c".
+* Display the value of the variable node (ns=1,i="the.answer") containing an "Int32" from the example server (which is built in :doc:`tutorial_server_firstSteps`). Note that the identifier of this node is a string type: use "UA_NODEID_STRING_ALLOC". The answer can be found in "examples/exampleClient.c".
+* Try to set the value of the variable node (ns=1,i="the.answer") containing an "Int32" from the example server (which is built in :doc:`tutorial_server_firstSteps`) using "UA_Client_write" function. The example server needs some more modifications, i.e., changing request types. The answer can be found in "examples/exampleClient.c".

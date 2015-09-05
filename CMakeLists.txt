@@ -393,6 +393,11 @@ if(BUILD_DOCUMENTATION)
                       ${DOXYGEN_EXECUTABLE} ${PROJECT_BINARY_DIR}/Doxyfile
                       WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
                       COMMENT "Generating API documentation with Doxygen")
+    add_custom_target(latex ${SPHINX_EXECUTABLE}
+      -b latex -c "${PROJECT_BINARY_DIR}"
+      "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_BINARY_DIR}/doc/sphinx"
+      DEPENDS doxygen
+      COMMENT "Building LaTeX sources for documentation with Sphinx")
     add_custom_target(doc ${SPHINX_EXECUTABLE}
       -b html -c "${PROJECT_BINARY_DIR}"
       "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_BINARY_DIR}/doc/sphinx"
