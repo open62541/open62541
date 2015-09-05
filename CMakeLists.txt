@@ -401,6 +401,7 @@ if(BUILD_DOCUMENTATION)
     add_custom_target(doc ${SPHINX_EXECUTABLE}
       -b html -c "${PROJECT_BINARY_DIR}"
       "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_BINARY_DIR}/doc/sphinx"
+      COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/doc/open62541_html.png" "${PROJECT_BINARY_DIR}/doc/sphinx/_static/"
       DEPENDS doxygen
       COMMENT "Building HTML documentation with Sphinx")
 endif()
