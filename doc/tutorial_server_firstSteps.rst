@@ -124,7 +124,9 @@ Let's build a very rudimentary server. Create a separate folder for your applica
    `-- myServer.c
    :myServerApp> touch myServer.c
 
-Open myServer.c and write/paste your minimal server application::
+Open myServer.c and write/paste your minimal server application:
+
+.. code-block:: c
 
    #include <stdio.h>
 
@@ -156,15 +158,17 @@ Now execute the server::
 
 You have now compiled and started your first OPC UA Server. Though quite unspectacular and only terminatable with ``CTRL+C`` (SIGTERM) at the moment, you can already launch it and browse around with UA Expert. The Server will be listening on localhost:16664 - go ahead and give it a try.
 
-We will also make a slight change to our server: We want it to exit cleanly when pressing ``CTRL+C``. We will add signal handler for SIGINT and SIGTERM to accomplish that to the server::
+We will also make a slight change to our server: We want it to exit cleanly when pressing ``CTRL+C``. We will add signal handler for SIGINT and SIGTERM to accomplish that to the server:
+
+.. code-block:: c
 
     #include <stdio.h>
     #include <signal.h>
 
-    # include "ua_types.h"
-    # include "ua_server.h"
-    # include "logger_stdout.h"
-    # include "networklayer_tcp.h"
+    #include "ua_types.h"
+    #include "ua_server.h"
+    #include "logger_stdout.h"
+    #include "networklayer_tcp.h"
 
     UA_Boolean running;
     UA_Logger logger;
@@ -256,11 +260,12 @@ You can now start the server and browse around as before. As you might have noti
 
 The next step is to simplify the header dependencies. Instead of picking header files one-by-one, we can use the copied amalgamated header including all the public headers dependencies.
 
-Open myServer.c and simplify it to::
+Open myServer.c and simplify it to:
+
+.. code-block:: c
 
    #include <stdio.h>
-
-   # include "open62541.h"
+   #include "open62541.h"
 
    UA_Boolean running;
    int main(void) {

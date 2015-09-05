@@ -1,13 +1,15 @@
 Adding nodes to a server and connecting nodes to user-defined values
-======================
+====================================================================
 
 This tutorial shows how to add variable nodes to a server and how these can be connected to user-defined values and callbacks.
 
 Firstly, we need to introduce a concept of Variants. This is a data structure able to hold any datatype.
 
 Variants
----------------------
-The datatype UA_Variant a belongs to the built-in datatypes of OPC UA and is used as a container type. A Variant can hold any other built-in scalar datatype (except Variants) or array built-in datatype (array of variants too). The variant is structured like this in open62541::
+--------
+The datatype UA_Variant a belongs to the built-in datatypes of OPC UA and is used as a container type. A Variant can hold any other built-in scalar datatype (except Variants) or array built-in datatype (array of variants too). The variant is structured like this in open62541:
+
+.. code-block:: c
 
 	typedef struct {
 		const UA_DataType *type; ///< The nodeid of the datatype
@@ -43,14 +45,14 @@ The members of the struct are
 * arrayDimensions: dimensinos array in case the array is interpreted as a multi-dimensional construction, e.g., [5,5] for a 5x5 matrix
 
 Adding a variable node to the server that contains a user-defined variable
----------------------
+--------------------------------------------------------------------------
 
 This simple case allows to 'inject' a pre-defined variable into a variable node. The variable is wrapped by a "UA_Variant" before being insterted into the node.
 
 Consider 'examples/server_variable.c' in the repository. The examples are compiled if the Cmake option BUILD_EXAMPLE is turned on.
 
-Adding a variable node to the server that contains a user-defined callback.
----------------------
+Adding a variable node to the server that contains a user-defined callback
+--------------------------------------------------------------------------
 
 The latter case allows to define callback functions that are executed on read or write of the node. In this case an "UA_DataSource" containing the respective callback pointer is intserted into the node.
 

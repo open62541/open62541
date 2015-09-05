@@ -1,9 +1,7 @@
 First steps with open62541-client
-===================================
+=================================
 
 In the previous :doc:`tutorial_server_firstSteps` tutorial, you should have gotten your build environment verified and created a first OPC UA server using the open62541 stack. The created server however doesn't do much yet and there is no client to interact with the server. We are going to remedy that in this tutorial by creating some nodes and variables.
-
-----------------------
 
 You should already have a basic server from the previous tutorial. open62541 provides both a server- and clientside API, so creating a client is equally as easy as creating a server. We are going to use dynamic linking (libopen62541.so) from now on, because our client and server will share a lot of code. Reusing the shared library will considerably reduce the overhead. To avoid confusion, remove the amalgated open62541.c/h files from your example directory.
 
@@ -70,7 +68,8 @@ Asserting success/failure
 Almost all functions of the open62541 API will return a ``UA_StatusCode``, which in the C world would be represented by a ``unsigned int``. OPC UA defines large number of good and bad return codes represented by this number. The constant UA_STATUSCODE_GOOD is defined as 0 in ``include/ua_statuscodes.h`` along with many other return codes. It pays off to check the return code of your function calls, as we already did implicitly in the client.
 
 Minimalistic introduction to OPC UA nodes and node IDs
------------------------
+------------------------------------------------------
+
 OPC UA nodespace model defines 9 standard attribute for every node:
 
 +---------------+----------------+
