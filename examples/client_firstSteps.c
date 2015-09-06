@@ -3,10 +3,14 @@
 
 #include <stdio.h>
 
-#include "ua_types.h"
-#include "ua_server.h"
-#include "logger_stdout.h"
-#include "networklayer_tcp.h"
+#ifdef UA_NO_AMALGAMATION
+# include "ua_types.h"
+# include "ua_server.h"
+# include "logger_stdout.h"
+# include "networklayer_tcp.h"
+#else
+# include "open62541.h"
+#endif
 
 int main(void) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
