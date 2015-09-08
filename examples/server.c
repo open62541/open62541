@@ -356,7 +356,7 @@ int main(int argc, char** argv) {
     arrayvar->arrayLength = 9;
     arrayvar->data = myMultiArray;
     arrayvar->type = &UA_TYPES[type];
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), qualifiedName, UA_LOCALIZEDTEXT("en_US",""), UA_LOCALIZEDTEXT("en_US",""),
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), qualifiedName, UA_LOCALIZEDTEXT("en_US",name), UA_LOCALIZEDTEXT("en_US",name),
                               0, 0, UA_NODEID_NUMERIC(1, MATRIXID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), arrayvar, NULL);
   }
 
