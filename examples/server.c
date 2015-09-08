@@ -209,7 +209,7 @@ UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId refere
 }
 
 int main(int argc, char** argv) {
-  signal(SIGINT, stopHandler)   /* catches ctrl-c */
+  signal(SIGINT, stopHandler); /* catches ctrl-c */
 #ifdef UA_MULTITHREADING
   pthread_rwlock_init(&writeLock, 0);
 #endif
