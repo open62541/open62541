@@ -1,9 +1,9 @@
+#include "ua_util.h"
 #include "ua_server_internal.h"
 #include "ua_services.h"
 #include "ua_statuscodes.h"
 #include "ua_nodestore.h"
 #include "ua_session.h"
-#include "ua_util.h"
 
 #define COPY_STANDARDATTRIBUTES do {  \
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_DISPLAYNAME) {     \

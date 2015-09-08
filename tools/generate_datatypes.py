@@ -183,13 +183,15 @@ class EnumerationType(object):
             ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = UA_TYPES_INT32 }"
 
     def functions_c(self, typeTableName):
-        return '''#define %s_new (%s*)UA_Int32_new
-#define %s_init(p) UA_Int32_init((UA_Int32*)p)
-#define %s_delete(p) UA_Int32_delete((UA_Int32*)p)
-#define %s_deleteMembers(p) UA_Int32_deleteMembers((UA_Int32*)p)
-#define %s_copy(src, dst) UA_Int32_copy((const UA_Int32*)src, (UA_Int32*)dst)
-#define %s_encodeBinary(src, dst, offset) UA_Int32_encodeBinary((UA_Int32*)src, dst, offset)
-#define %s_decodeBinary(src, offset, dst) UA_Int32_decodeBinary(src, offset, (UA_Int32*)dst)''' % tuple(itertools.repeat(self.name, 8))
+        return '''static UA_INLINE %s * %s_new(void) { %s *v = (%s*)UA_Int32_new(); return v; }
+static UA_INLINE void %s_init(%s *p) { UA_Int32_init((UA_Int32*)p); }
+static UA_INLINE void %s_delete(%s *p) { UA_Int32_delete((UA_Int32*)p); }
+static UA_INLINE void %s_deleteMembers(%s *p) { }
+static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { return UA_Int32_copy((const UA_Int32*)src, (UA_Int32*)dst); }
+#ifdef UA_INTERNAL
+static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src, UA_ByteString *dst, size_t *offset) { return UA_Int32_encodeBinary((const UA_Int32*)src, dst, offset); }
+static UA_INLINE UA_StatusCode %s_decodeBinary(const UA_ByteString *src, size_t *offset, %s *dst) { return UA_Int32_decodeBinary(src, offset, (UA_Int32*)dst); }
+#endif''' % tuple(itertools.repeat(self.name, 17))
 
 class OpaqueType(object):
     def __init__(self, name, description = ""):
@@ -216,13 +218,15 @@ class OpaqueType(object):
             ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = UA_TYPES_BYTESTRING }"
 
     def functions_c(self, typeTableName):
-        return '''#define %s_new UA_ByteString_new
-#define %s_init UA_ByteString_init
-#define %s_delete UA_ByteString_delete
-#define %s_deleteMembers UA_ByteString_deleteMembers
-#define %s_copy UA_ByteString_copy
-#define %s_encodeBinary UA_ByteString_encodeBinary
-#define %s_decodeBinary UA_ByteString_decodeBinary''' % tuple(itertools.repeat(self.name, 8))
+        return '''static UA_INLINE %s * %s_new(void) { %s *v = (%s*)UA_ByteString_new(); return v; }
+static UA_INLINE void %s_init(%s *p) { UA_ByteString_init((UA_ByteString*)p); }
+static UA_INLINE void %s_delete(%s *p) { UA_ByteString_delete((UA_ByteString*)p); }
+static UA_INLINE void %s_deleteMembers(%s *p) { }
+static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { return UA_ByteString_copy((const UA_ByteString*)src, (UA_ByteString*)dst); }
+#ifdef UA_INTERNAL
+static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src, UA_ByteString *dst, size_t *offset) { return UA_ByteString_encodeBinary((UA_ByteString*)src, dst, offset); }
+static UA_INLINE UA_StatusCode %s_decodeBinary(const UA_ByteString *src, size_t *offset, %s *dst) { return UA_ByteString_decodeBinary(src, offset, (UA_ByteString*)dst); }
+#endif''' % tuple(itertools.repeat(self.name, 17))
 
 class StructMember(object):
     def __init__(self, name, memberType, isArray):
@@ -322,14 +326,18 @@ class StructType(object):
         return layout + "}"
 
     def functions_c(self, typeTableName):
-        return '''#define %s_new() (%s*)UA_new(%s)
-#define %s_init(p) UA_init(p, %s)
-#define %s_delete(p) UA_delete(p, %s)
-#define %s_deleteMembers(p) UA_deleteMembers(p, %s)
-#define %s_copy(src, dst) UA_copy(src, dst, %s)
-#define %s_encodeBinary(src, dst, offset) UA_encodeBinary(src, %s, dst, offset)
-#define %s_decodeBinary(src, offset, dst) UA_decodeBinary(src, offset, dst, %s)''' % \
-    tuple([self.name] + list(itertools.chain(*itertools.repeat([self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 7))))
+        return '''static UA_INLINE %s * %s_new(void) { return UA_new(%s); }
+static UA_INLINE void %s_init(%s *p) { UA_init(p, %s); }
+static UA_INLINE void %s_delete(%s *p) { UA_delete(p, %s); }
+static UA_INLINE void %s_deleteMembers(%s *p) { UA_deleteMembers(p, %s); }
+static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { return UA_copy(src, dst, %s); }
+#ifdef UA_INTERNAL
+static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src, UA_ByteString *dst, size_t *offset) { return UA_encodeBinary(src, %s, dst, offset); }
+static UA_INLINE UA_StatusCode %s_decodeBinary(const UA_ByteString *src, size_t *offset, %s *dst) { return UA_decodeBinary(src, offset, dst, %s); }
+#endif''' % \
+    tuple(list(itertools.chain(*itertools.repeat([self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 4)))
+          + [self.name, self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"]
+          + list(itertools.chain(*itertools.repeat([self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 2))))
 
 def parseTypeDefinitions(xmlDescription, existing_types = OrderedDict()):
     '''Returns an ordered dict that maps names to types. The order is such that
@@ -494,7 +502,10 @@ printh('''/**
 extern "C" {
 #endif
 
-#include "ua_types.h" '''
+#include "ua_types.h"
+#ifdef UA_INTERNAL
+# include "ua_types_encoding_binary.h"
+#endif'''
  + ('\n#include "ua_types_generated.h"\n' if args.namespace_id != 0 else '') + '''
 
 /**

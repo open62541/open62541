@@ -1,5 +1,6 @@
-#include "ua_types_generated.h"
+#include "ua_util.h"
 #include "ua_client.h"
+#include "ua_types_generated.h"
 #include "ua_nodeids.h"
 #include "ua_securechannel.h"
 #include "ua_types_encoding_binary.h"
@@ -467,7 +468,7 @@ static UA_StatusCode CloseSession(UA_Client *client) {
     request.requestHeader.timeoutHint = 10000;
     request.deleteSubscriptions = UA_TRUE;
     UA_NodeId_copy(&client->authenticationToken, &request.requestHeader.authenticationToken);
-    UA_CreateSessionResponse response;
+    UA_CloseSessionResponse response;
     synchronousRequest(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
                        &response, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
 

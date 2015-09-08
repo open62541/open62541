@@ -1,6 +1,7 @@
 #ifndef UA_SERVICES_H_
 #define UA_SERVICES_H_
 
+#include "ua_util.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_server.h"

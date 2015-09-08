@@ -3,6 +3,9 @@
 
 #include "ua_config.h"
 
+ /* This activates the encoding definitions in the types_generated headers */
+#define UA_INTERNAL
+
 /*********************/
 /* Memory Management */
 /*********************/
