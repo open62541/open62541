@@ -1,6 +1,6 @@
 /*
  * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
  */
 //to compile with single file releases:
 // * single-threaded: gcc -std=c99 server.c open62541.c -o server
