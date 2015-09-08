@@ -37,11 +37,7 @@ int main(void) {
             UA_Variant_isScalar(&rResp.results[0].value) &&
             rResp.results[0].value.type == &UA_TYPES[UA_TYPES_DATETIME]) {
         raw_date = *(UA_DateTime*)rResp.results[0].value.data;
-        #ifdef _WIN32
-           printf("raw date is: %I64u\n", raw_date);
-        #else
-           printf("raw date is: %llu\n", raw_date);
-        #endif
+        printf("raw date is: %" PRId64 "\n", raw_date);
         UA_DateTime_toString(raw_date, string_date);
         printf("string date is: %.*s\n", string_date->length, string_date->data);
     }

@@ -81,7 +81,6 @@
 #include <stdarg.h> // va_start, va_end
 #include <time.h>
 #include <stdio.h> // printf
-#include <inttypes.h>
 
 #ifdef _WIN32
 # include <winsock2.h> //needed for amalgation
