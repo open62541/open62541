@@ -14,6 +14,9 @@ if(ENABLE_MULTITHREADING)
     list(APPEND LIBS urcu-cds urcu urcu-common)
 endif(ENABLE_MULTITHREADING)
 
+add_executable(server_readspeed server_readspeed.c)
+target_link_libraries(server_readspeed ${LIBS})
+
 add_executable(server_variable server_variable.c)
 target_link_libraries(server_variable ${LIBS})
 
