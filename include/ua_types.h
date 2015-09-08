@@ -31,7 +31,7 @@ typedef bool UA_Boolean;
 #define UA_TRUE true
 #define UA_FALSE false
 
-/** @brief An integer value between -129 and 127. */
+/** @brief An integer value between -128 and 127. */
 typedef int8_t UA_SByte;
 #define UA_SBYTE_MAX 127
 #define UA_SBYTE_MIN -128

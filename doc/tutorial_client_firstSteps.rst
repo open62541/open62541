@@ -155,7 +155,7 @@ Let us extend the client with with an action reading node's value:
          UA_Variant_isScalar(&rResp.results[0].value) &&
          rResp.results[0].value.type == &UA_TYPES[UA_TYPES_DATETIME]) {
              raw_date = *(UA_DateTime*)rResp.results[0].value.data;
-             printf("raw date is: %llu\n", raw_date);
+             printf("raw date is: %" PRId64 "\n", raw_date);
       }
       
       UA_ReadRequest_deleteMembers(&rReq);
