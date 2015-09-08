@@ -741,6 +741,7 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
     }
 
     UA_NodeId typeId;
+    UA_NodeId_init(&typeId);
     if(isBuiltin)
         /* Do an extra lookup. E.g. UA_ServerState is encoded as UA_UINT32. The
            typeindex points to the true type. */
