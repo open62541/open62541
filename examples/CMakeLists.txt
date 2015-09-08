@@ -29,11 +29,6 @@ target_link_libraries(server_firstSteps ${LIBS})
 add_executable(client_firstSteps client_firstSteps.c)
 target_link_libraries(client_firstSteps ${LIBS})
 
-if(NOT MSVC)
-add_executable(server_repeated_job server_repeated_job.c)
-target_link_libraries(server_repeated_job ${LIBS})
-endif()
-
 if(NOT ENABLE_AMALGAMATION)
 	add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
 		           PRE_BUILD

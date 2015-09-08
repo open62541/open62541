@@ -398,11 +398,6 @@ if(BUILD_EXAMPLES)
     add_executable(server_variable ${PROJECT_SOURCE_DIR}/examples/server_variable.c $<TARGET_OBJECTS:open62541-object>)
 	target_link_libraries(server_variable ${LIBS})
 
-if(NOT MSVC)
-	add_executable(server_readspeed ${PROJECT_SOURCE_DIR}/examples/server_readspeed.c $<TARGET_OBJECTS:open62541-object>)
-	target_link_libraries(server_readspeed ${LIBS})
-endif()
-
 	add_executable(server_datasource ${PROJECT_SOURCE_DIR}/examples/server_datasource.c $<TARGET_OBJECTS:open62541-object>)
 	target_link_libraries(server_datasource ${LIBS})
 
