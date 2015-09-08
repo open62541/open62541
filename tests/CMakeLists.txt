@@ -8,7 +8,7 @@ find_package(Threads REQUIRED)
 
 set(LIBS ${CHECK_LIBRARIES})
 if(NOT WIN32)
-  list(APPEND LIBS pthread)
+  list(APPEND LIBS pthread m subunit)
   if (NOT APPLE)
     list(APPEND LIBS rt)
   endif()
