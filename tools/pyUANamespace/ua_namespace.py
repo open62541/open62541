@@ -639,9 +639,9 @@ class opcua_namespace():
     header.append('#include "server/ua_server_internal.h"')
     header.append('#include "server/ua_nodes.h"')
     header.append('#include "ua_types.h"')
+    header.append('#define UA_NULL NULL')
     header.append('#else')
     header.append('#include "open62541.h"')
-    header.append('#define UA_NULL NULL')
     header.append('#endif')
       
     code.append('#include "'+outfilename+'.h"')
