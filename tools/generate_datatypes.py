@@ -187,11 +187,11 @@ class EnumerationType(object):
 static UA_INLINE void %s_init(%s *p) { UA_Int32_init((UA_Int32*)p); }
 static UA_INLINE void %s_delete(%s *p) { UA_Int32_delete((UA_Int32*)p); }
 static UA_INLINE void %s_deleteMembers(%s *p) { }
-static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { return UA_Int32_copy((const UA_Int32*)src, (UA_Int32*)dst); }
-#ifdef UA_INTERNAL
-static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src, UA_ByteString *dst, size_t *offset) { return UA_Int32_encodeBinary((const UA_Int32*)src, dst, offset); }
-static UA_INLINE UA_StatusCode %s_decodeBinary(const UA_ByteString *src, size_t *offset, %s *dst) { return UA_Int32_decodeBinary(src, offset, (UA_Int32*)dst); }
-#endif''' % tuple(itertools.repeat(self.name, 17))
+static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { return UA_Int32_copy((const UA_Int32*)src, (UA_Int32*)dst); }''' % tuple(itertools.repeat(self.name, 13))
+
+    def encoding_h(self, typeTableName):
+        return '''static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src, UA_ByteString *dst, size_t *offset) { return UA_Int32_encodeBinary((const UA_Int32*)src, dst, offset); }
+static UA_INLINE UA_StatusCode %s_decodeBinary(const UA_ByteString *src, size_t *offset, %s *dst) { return UA_Int32_decodeBinary(src, offset, (UA_Int32*)dst); }''' % tuple(itertools.repeat(self.name, 4))
 
 class OpaqueType(object):
     def __init__(self, name, description = ""):
@@ -222,11 +222,11 @@ class OpaqueType(object):
 static UA_INLINE void %s_init(%s *p) { UA_ByteString_init((UA_ByteString*)p); }
 static UA_INLINE void %s_delete(%s *p) { UA_ByteString_delete((UA_ByteString*)p); }
 static UA_INLINE void %s_deleteMembers(%s *p) { }
-static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { return UA_ByteString_copy((const UA_ByteString*)src, (UA_ByteString*)dst); }
-#ifdef UA_INTERNAL
-static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src, UA_ByteString *dst, size_t *offset) { return UA_ByteString_encodeBinary((UA_ByteString*)src, dst, offset); }
-static UA_INLINE UA_StatusCode %s_decodeBinary(const UA_ByteString *src, size_t *offset, %s *dst) { return UA_ByteString_decodeBinary(src, offset, (UA_ByteString*)dst); }
-#endif''' % tuple(itertools.repeat(self.name, 17))
+static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { return UA_ByteString_copy((const UA_ByteString*)src, (UA_ByteString*)dst); }''' % tuple(itertools.repeat(self.name, 13))
+
+    def encoding_h(self, typeTableName):
+        return '''static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src, UA_ByteString *dst, size_t *offset) { return UA_ByteString_encodeBinary((UA_ByteString*)src, dst, offset); }
+static UA_INLINE UA_StatusCode %s_decodeBinary(const UA_ByteString *src, size_t *offset, %s *dst) { return UA_ByteString_decodeBinary(src, offset, (UA_ByteString*)dst); }''' % tuple(itertools.repeat(self.name, 4))
 
 class StructMember(object):
     def __init__(self, name, memberType, isArray):
@@ -330,14 +330,14 @@ class StructType(object):
 static UA_INLINE void %s_init(%s *p) { UA_init(p, %s); }
 static UA_INLINE void %s_delete(%s *p) { UA_delete(p, %s); }
 static UA_INLINE void %s_deleteMembers(%s *p) { UA_deleteMembers(p, %s); }
-static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { return UA_copy(src, dst, %s); }
-#ifdef UA_INTERNAL
-static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src, UA_ByteString *dst, size_t *offset) { return UA_encodeBinary(src, %s, dst, offset); }
-static UA_INLINE UA_StatusCode %s_decodeBinary(const UA_ByteString *src, size_t *offset, %s *dst) { return UA_decodeBinary(src, offset, dst, %s); }
-#endif''' % \
+static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { return UA_copy(src, dst, %s); }''' % \
     tuple(list(itertools.chain(*itertools.repeat([self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 4)))
-          + [self.name, self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"]
-          + list(itertools.chain(*itertools.repeat([self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 2))))
+          + [self.name, self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"])
+
+    def encoding_h(self, typeTableName):
+        return '''static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src, UA_ByteString *dst, size_t *offset) { return UA_encodeBinary(src, %s, dst, offset); }
+static UA_INLINE UA_StatusCode %s_decodeBinary(const UA_ByteString *src, size_t *offset, %s *dst) { return UA_decodeBinary(src, offset, dst, %s); }''' % \
+    tuple(list(itertools.chain(*itertools.repeat([self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 2))))
 
 def parseTypeDefinitions(xmlDescription, existing_types = OrderedDict()):
     '''Returns an ordered dict that maps names to types. The order is such that
@@ -480,9 +480,12 @@ if args.typedescriptions:
     typedescriptions = parseTypeDescriptions(args.typedescriptions, args.namespace_id)
 
 fh = open(args.outfile + "_generated.h",'w')
+fe = open(args.outfile + "_generated_encoding_binary.h",'w')
 fc = open(args.outfile + "_generated.c",'w')
 def printh(string):
     print(string, end='\n', file=fh)
+def printe(string):
+    print(string, end='\n', file=fe)
 def printc(string):
     print(string, end='\n', file=fc)
 
@@ -504,7 +507,7 @@ extern "C" {
 
 #include "ua_types.h"
 #ifdef UA_INTERNAL
-# include "ua_types_encoding_binary.h"
+#include "ua_types_encoding_binary.h"
 #endif'''
  + ('\n#include "ua_types_generated.h"\n' if args.namespace_id != 0 else '') + '''
 
@@ -545,6 +548,17 @@ printh('''
 #endif\n
 #endif /* %s_GENERATED_H_ */''' % outname.upper())
 
+printe('''/**
+* @file ''' + outname + '''_generated_encoding_binary.h
+*
+* @brief Binary encoding for autogenerated data types
+*
+* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '''
+* on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + '''
+*/\n
+#include "ua_types_encoding_binary.h"
+#include "''' + outname + '''_generated.h"''')
+
 printc('''/**
 * @file ''' + outname + '''_generated.c
 *
@@ -569,6 +583,10 @@ for t in values:
     else:
         td = None
     printc(t.typelayout_c(args.namespace_id == 0, td, outname) + ",")
+    if not type(t) == BuiltinType:
+        printe("")
+        printe("/* " + t.name + " */")
+        printe(t.encoding_h(outname.upper()))
 printc("};\n")
 # if args.typedescriptions:
 #     printc('const UA_UInt32 *' + outname.upper() + '_IDS = (UA_UInt32[]){')
@@ -577,4 +595,5 @@ printc("};\n")
 #     printc("};")
 
 fh.close()
+fe.close()
 fc.close()

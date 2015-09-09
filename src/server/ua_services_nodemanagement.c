@@ -4,6 +4,7 @@
 #include "ua_statuscodes.h"
 #include "ua_nodestore.h"
 #include "ua_session.h"
+#include "ua_types_generated_encoding_binary.h"
 
 #define COPY_STANDARDATTRIBUTES do {  \
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_DISPLAYNAME) {     \
