@@ -5,6 +5,13 @@
 #include "ua_types_generated.h"
 #include "ua_types_encoding_binary.h"
 
+#define UA_TYPE_HANDLING_FUNCTIONS(TYPE)                             \
+    TYPE UA_EXPORT * TYPE##_new(void);                               \
+    void UA_EXPORT TYPE##_init(TYPE * p);                            \
+    void UA_EXPORT TYPE##_delete(TYPE * p);                          \
+    void UA_EXPORT TYPE##_deleteMembers(TYPE * p);                   \
+    UA_StatusCode UA_EXPORT TYPE##_copy(const TYPE *src, TYPE *dst);
+
 #define UA_STANDARD_NODEMEMBERS                 \
     UA_NodeId nodeId;                           \
     UA_NodeClass nodeClass;                     \
