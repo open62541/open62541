@@ -914,7 +914,7 @@ UA_Boolean UA_Client_processPublishRx(UA_Client *client, UA_PublishResponse resp
     for(int i=0; i<response.resultsSize && nxtAck != NULL; i++) {
         tmpAck = nxtAck;
         nxtAck = tmpAck->listEntry.le_next;
-        if (response.results[i] == UA_STATUSCODE_GOOD) {
+        if (response.results[i] == UA_STATUSCODE_GOOD || response.results[i] == UA_STATUSCODE_BADSEQUENCENUMBERINVALID) {
             LIST_REMOVE(tmpAck, listEntry);
             UA_free(tmpAck);
         }
@@ -999,7 +999,6 @@ void UA_Client_doPublish(UA_Client *client) {
         
         index = 0;
         LIST_FOREACH(ack, &(client->pendingNotificationsAcks), listEntry) {
-            ack = client->pendingNotificationsAcks.lh_first;
             request.subscriptionAcknowledgements[index].sequenceNumber = ack->subAck.sequenceNumber;
             request.subscriptionAcknowledgements[index].subscriptionId = ack->subAck.subscriptionId;
             index++;
