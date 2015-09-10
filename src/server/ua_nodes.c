@@ -71,8 +71,8 @@ void UA_Node_deleteAnyNodeClass(UA_Node *node) {
     }
 }
 
-typedef const UA_Node *(*UA_CopyNodeFunction)(const UA_Node *src, UA_Node *dst);
-typedef const UA_Node *(*UA_NewNodeFunction)(void);
+typedef UA_Node *(*UA_NewNodeFunction)(void);
+typedef UA_StatusCode *(*UA_CopyNodeFunction)(const UA_Node *src, UA_Node *dst);
 typedef void (*UA_DeleteNodeFunction)(UA_Node *p);
 
 UA_Node * UA_Node_copyAnyNodeClass(const UA_Node *node) {

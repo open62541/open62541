@@ -433,7 +433,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 			break;														\
 		} } while(0)
 
-UA_StatusCode UA_Service_Write_single(UA_Server *server, UA_Session *session, const UA_WriteValue *wvalue) {
+UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, const UA_WriteValue *wvalue) {
 	UA_assert(server != UA_NULL && session != UA_NULL && wvalue != UA_NULL);
 
 	union {
@@ -454,6 +454,11 @@ UA_StatusCode UA_Service_Write_single(UA_Server *server, UA_Session *session, co
   
 	void *value = wvalue->value.value.data;
 	switch(wvalue->attributeId) {
+    case UA_ATTRIBUTEID_NODEID:
+    case UA_ATTRIBUTEID_NODECLASS:
+    case UA_ATTRIBUTEID_DATATYPE:
+		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+		break;
 	case UA_ATTRIBUTEID_BROWSENAME:
 		CHECK_DATATYPE(QUALIFIEDNAME);
 		UA_QualifiedName_deleteMembers(&anyTypeNode.node->browseName);
@@ -662,6 +667,6 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
 #ifdef UA_EXTERNAL_NAMESPACES
         if(!isExternal[i])
 #endif
-		  response->results[i] = UA_Service_Write_single(server, session, &request->nodesToWrite[i]);
+		  response->results[i] = Service_Write_single(server, session, &request->nodesToWrite[i]);
     }
 }

@@ -133,6 +133,9 @@ UA_StatusCode UA_EXPORT UA_Server_addReference(UA_Server *server, const UA_NodeI
  */
 UA_StatusCode UA_EXPORT UA_Server_deleteNode(UA_Server *server, UA_NodeId nodeId);
 
+UA_StatusCode UA_Server_getNodeCopy(UA_Server *server, UA_NodeId nodeId, void **copyInto);
+UA_StatusCode UA_Server_deleteNodeCopy(UA_Server *server, void **nodeptr);
+
 /** A new variable Node with a value passed in variant.
  *
  * @param server The server object
@@ -316,10 +319,19 @@ UA_StatusCode UA_EXPORT
 UA_Server_setNodeAttribute_valueDataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource *value);
 
 UA_StatusCode UA_EXPORT
-UA_Server_getNodeAttribute(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void **value);
+UA_Server_getNodeAttribute(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, UA_Variant *v);
+
+UA_StatusCode UA_EXPORT
+UA_Server_getNodeAttributeUnpacked(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void *v);
   
-#define UA_Server_getNodeAttribute_nodeId(SERVER, NODEID, VALUE) UA_Server_getAttribute(SERVER, NODEID, UA_ATTRIBUTEID_NODEID, (UA_NodeId **) VALUE);
-#define UA_Server_getNodeAttribute_nodeClass(SERVER, NODEID, VALUE) UA_Server_getAttribute(SERVER, NODEID, UA_ATTRIBUTEID_NODECLASS, (UA_NodeClass **) VALUE);
+static UA_INLINE UA_StatusCode UA_Server_getNodeAttribute_nodeId(UA_Server *server, UA_NodeId nodeId, UA_NodeId *outNodeId) {
+    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_NODEID, outNodeId);
+}
+
+static UA_INLINE UA_StatusCode UA_Server_getNodeAttribute_nodeClass(UA_Server *server, UA_NodeId nodeId, UA_NodeClass *outNodeClass) {
+    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_NODECLASS, outNodeClass);
+}
+
 #define UA_Server_getNodeAttribute_browseName(SERVER, NODEID, VALUE) UA_Server_getAttribute(SERVER, NODEID, UA_ATTRIBUTEID_BROWSENAME, (UA_QualifiedName **) VALUE);
 #define UA_Server_getNodeAttribute_displayName(SERVER, NODEID, VALUE) UA_Server_getAttribute(SERVER, NODEID, UA_ATTRIBUTEID_DISPLAYNAME, (UA_LocalizedText **) VALUE);
 #define UA_Server_getNodeAttribute_description(SERVER, NODEID, VALUE) UA_Server_getAttribute(SERVER, NODEID, UA_ATTRIBUTEID_DESCRIPTION, (UA_LocalizedText **) VALUE);
