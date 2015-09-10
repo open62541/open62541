@@ -128,53 +128,10 @@ UA_StatusCode UA_EXPORT UA_Server_addReference(UA_Server *server, const UA_NodeI
  *
  * @param server The server object
  * @param nodeId ID of the node to be deleted
-
  * @return Return UA_STATUSCODE_GOOD if the node was deleted or an appropriate errorcode if the node was not found
  *         or cannot be deleted.
  */
 UA_StatusCode UA_EXPORT UA_Server_deleteNode(UA_Server *server, UA_NodeId nodeId);
-
-#define UA_SERVER_DELETENODEALIAS_DECL(TYPE) \
-UA_StatusCode UA_EXPORT UA_Server_delete##TYPE##Node(UA_Server *server, UA_NodeId nodeId);
-
-UA_SERVER_DELETENODEALIAS_DECL(Object)
-UA_SERVER_DELETENODEALIAS_DECL(Variable)
-UA_SERVER_DELETENODEALIAS_DECL(ReferenceType)
-UA_SERVER_DELETENODEALIAS_DECL(View)
-UA_SERVER_DELETENODEALIAS_DECL(VariableType)
-UA_SERVER_DELETENODEALIAS_DECL(DataType)
-
-#ifdef ENABLE_METHODCALLS
-UA_SERVER_DELETENODEALIAS_DECL(Method)
-#endif
-
-/** Deletes a copied instance of a node by deallocating it and all its attributes. This assumes that the node was
- * priorly copied using getNodeCopy. To delete nodes that are located in the nodestore, use UA_Server_deleteNode()
- * instead.
- *
- * @param server The server object
- * @param node   A copy of any node-type struct created with getNodeCopy; must *not* be managed by the nodestore.
- * 
- * @return Return UA_STATUSCODE_GOOD if the node was deleted or an appropriate errorcode if the node was not found
- *         or cannot be deleted.
- */
-UA_StatusCode UA_EXPORT 
-UA_Server_deleteNodeCopy(UA_Server *server, void **node);
-
-/** Creates a deep copy of a node located in the nodestore and returns it to the userspace. Note that any manipulation
- * of this copied node is not reflected by the server, but otherwise not accessible attributes of the node's struct
- * can be examined in bulk. node->nodeClass can be used to cast the node to a specific node type. Use 
- * UA_Server_deleteNodeCopy() to deallocate this node.
- *
- * @param server The server object
- * @param nodeId ID of the node copy to be copied
- * @param copyInto Pointer to a NULL pointer that will hold the copy of the node on a successfull return.
- * 
- * @return Return UA_STATUSCODE_GOOD if the node was copied or an appropriate errorcode if the node was not found
- *         or cannot be copied.
- */
-UA_StatusCode UA_EXPORT 
-UA_Server_getNodeCopy(UA_Server *server, UA_NodeId nodeId, void **copyInto);
 
 /** A new variable Node with a value passed in variant.
  *
@@ -189,7 +146,6 @@ UA_Server_getNodeCopy(UA_Server *server, UA_NodeId nodeId, void **copyInto);
  * @param referenceTypeId Reference type used by the parent to reference this node
  * @param value         A variant containing the value to be assigned to this node.
  * @param createdNodeId Pointer to a NULL pointer that will hold the copy of the nodeId on a successfull return.
- * 
  * @return Return UA_STATUSCODE_GOOD if the node was created or an appropriate error code if not.
  */
 UA_StatusCode UA_EXPORT

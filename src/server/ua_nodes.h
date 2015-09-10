@@ -20,6 +20,9 @@ typedef struct {
     UA_STANDARD_NODEMEMBERS
 } UA_Node;
 
+void UA_Node_deleteAnyNodeClass(UA_Node *node);
+UA_Node * UA_Node_copyAnyNodeClass(const UA_Node *node);
+
 /**************/
 /* ObjectNode */
 /**************/

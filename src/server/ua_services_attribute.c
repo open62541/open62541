@@ -95,10 +95,8 @@ static void handleSourceTimestamps(UA_TimestampsToReturn timestamps, UA_DataValu
 }
 
 /** Reads a single attribute from a node in the nodestore. */
-#ifndef BUILD_UNIT_TESTS
-static
-#endif
-void readValue(UA_Server *server, UA_TimestampsToReturn timestamps, const UA_ReadValueId *id, UA_DataValue *v) {
+void Service_Read_single(UA_Server *server, UA_Session *session, UA_TimestampsToReturn timestamps,
+                         const UA_ReadValueId *id, UA_DataValue *v) {
     UA_String binEncoding = UA_STRING("DefaultBinary");
     UA_String xmlEncoding = UA_STRING("DefaultXml");
 	if(id->dataEncoding.name.length >= 0){
@@ -260,7 +258,8 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps, const UA_Rea
         {
             const UA_VariableNode *vn = (const UA_VariableNode *)node;
             if(vn->valueSource == UA_VALUESOURCE_VARIANT) {
-                retval = UA_Variant_setArrayCopy(&v->value, vn->value.variant.arrayDimensions, vn->value.variant.arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
+                retval = UA_Variant_setArrayCopy(&v->value, vn->value.variant.arrayDimensions,
+                                                 vn->value.variant.arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
                 if(retval == UA_STATUSCODE_GOOD)
                     v->hasValue = UA_TRUE;
             } else {
@@ -269,7 +268,8 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps, const UA_Rea
                 retval |= vn->value.dataSource.read(vn->value.dataSource.handle, UA_FALSE, UA_NULL, &val);
                 if(retval != UA_STATUSCODE_GOOD)
                     break;
-                retval = UA_Variant_setArrayCopy(&v->value, val.value.arrayDimensions, val.value.arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
+                retval = UA_Variant_setArrayCopy(&v->value, val.value.arrayDimensions, val.value.arrayDimensionsSize,
+                                                 &UA_TYPES[UA_TYPES_INT32]);
                 UA_DataValue_deleteMembers(&val);
             }
         }
@@ -290,7 +290,8 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps, const UA_Rea
     case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         v->hasValue = UA_TRUE;
-        retval |= UA_Variant_setScalarCopy(&v->value, &((const UA_VariableNode *)node)->minimumSamplingInterval, &UA_TYPES[UA_TYPES_DOUBLE]);
+        retval |= UA_Variant_setScalarCopy(&v->value, &((const UA_VariableNode *)node)->minimumSamplingInterval,
+                                           &UA_TYPES[UA_TYPES_DOUBLE]);
         break;
 
     case UA_ATTRIBUTEID_HISTORIZING:
@@ -356,13 +357,8 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
     }
 
 #ifdef UA_EXTERNAL_NAMESPACES
-#ifdef NO_ALLOCA
     UA_Boolean isExternal[size];
     UA_UInt32 indices[size];
-#else
-    UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
-    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
-#endif /*NO_ALLOCA */
     UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
     for(size_t j = 0;j<server->externalNamespacesSize;j++) {
         size_t indexSize = 0;
@@ -385,7 +381,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 #ifdef UA_EXTERNAL_NAMESPACES
         if(!isExternal[i])
 #endif
-            readValue(server, request->timestampsToReturn, &request->nodesToRead[i], &response->results[i]);
+            Service_Read_single(server, session, request->timestampsToReturn, &request->nodesToRead[i], &response->results[i]);
     }
 
 #ifdef EXTENSION_STATELESS

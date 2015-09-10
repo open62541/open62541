@@ -202,12 +202,8 @@ UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range);
  */
 void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request,
                   UA_ReadResponse *response);
-
-/* Mock-Up of the function signature for Unit Tests */
-#ifdef BUILD_UNIT_TESTS
-void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
-                      const UA_ReadValueId *id, UA_DataValue *v);
-#endif
+void Service_Read_single(UA_Server *server, UA_Session *session, UA_TimestampsToReturn timestamps,
+                         const UA_ReadValueId *id, UA_DataValue *v);
 
 // Service_HistoryRead
 /**
