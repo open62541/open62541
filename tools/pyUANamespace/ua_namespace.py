@@ -633,15 +633,20 @@ class opcua_namespace():
     header.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
     code.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
 
-    header.append("#ifndef "+outfilename.upper()+"_H_")
-    header.append("#define "+outfilename.upper()+"_H_")
-
+    header.append('#ifndef '+outfilename.upper()+'_H_')
+    header.append('#define '+outfilename.upper()+'_H_')
+    header.append('#ifdef UA_NO_AMALGAMATION')
     header.append('#include "server/ua_server_internal.h"')
     header.append('#include "server/ua_nodes.h"')
+    header.append('#include "ua_util.h"')
     header.append('#include "ua_types.h"')
-
+    header.append('#else')
+    header.append('#include "open62541.h"')
+    header.append('#define UA_NULL ((void *)0)')
+    header.append('#endif')
+      
     code.append('#include "'+outfilename+'.h"')
-    code.append("inline void "+outfilename+"(UA_Server *server) {")
+    code.append("UA_INLINE void "+outfilename+"(UA_Server *server) {")
 
     # Find all references necessary to create the namespace and
     # "Bootstrap" them so all other nodes can safely use these referencetypes whenever

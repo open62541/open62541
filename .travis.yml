@@ -28,6 +28,7 @@ before_install:
 - sudo dpkg -i liburcu2_0.8.5-1ubuntu1_amd64.deb
 - sudo dpkg -i liburcu-dev_0.8.5-1ubuntu1_amd64.deb
 - sudo pip install cpp-coveralls
+- sudo pip install Pygments
 - sudo pip install sphinx
 - sudo pip install breathe
 - sudo pip install sphinx_rtd_theme
@@ -100,8 +101,8 @@ script:
   fi
 - cd .. 
 after_success:
-- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc") ]]; then ./tools/.deployGH.sh; fi
-- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc") ]]; then ./tools/.coverity.sh; fi
+- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master") ]]; then ./tools/.deployGH.sh; fi
+- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master") ]]; then ./tools/.coverity.sh; fi
 before_deploy:
 - rm build -rf && mkdir -p build && cd build
 - echo "Cross compile release build for Raspberry Pi"

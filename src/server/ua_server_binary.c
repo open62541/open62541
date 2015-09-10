@@ -1,11 +1,11 @@
 #include "ua_util.h"
 #include "ua_server_internal.h"
-#include "ua_types_encoding_binary.h"
-#include "ua_transport_generated.h"
 #include "ua_services.h"
-#include "ua_statuscodes.h"
 #include "ua_securechannel_manager.h"
 #include "ua_session_manager.h"
+#include "ua_types_generated_encoding_binary.h"
+#include "ua_transport_generated.h"
+#include "ua_transport_generated_encoding_binary.h"
 
 /** Max size of messages that are allocated on the stack */
 #define MAX_STACK_MESSAGE 65536

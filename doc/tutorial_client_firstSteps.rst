@@ -1,9 +1,7 @@
 First steps with open62541-client
-===================================
+=================================
 
-In the previous :doc:`tutorial_firstStepsServer` tutorial, you should have gotten your build environment verified and created a first OPC UA server using the open62541 stack. The created server however doesn't do much yet and there is no client to interact with the server. We are going to remedy that in this tutorial by creating some nodes and variables.
-
-----------------------
+In the previous :doc:`tutorial_server_firstSteps` tutorial, you should have gotten your build environment verified and created a first OPC UA server using the open62541 stack. The created server however doesn't do much yet and there is no client to interact with the server. We are going to remedy that in this tutorial by creating some nodes and variables.
 
 You should already have a basic server from the previous tutorial. open62541 provides both a server- and clientside API, so creating a client is equally as easy as creating a server. We are going to use dynamic linking (libopen62541.so) from now on, because our client and server will share a lot of code. Reusing the shared library will considerably reduce the overhead. To avoid confusion, remove the amalgated open62541.c/h files from your example directory.
 
@@ -13,29 +11,31 @@ As a recap, your directory structure should now look like this::
   :myApp> ln -s ../open62541/build/*so ./
   :myApp> tree
   .
-  ├── include
-  │   ├── logger_stdout.h
-  │   ├── networklayer_tcp.h
-  │   ├── networklayer_udp.h
-  │   ├── open62541.h
-  │   ├── ua_client.h
-  │   ├── ua_config.h
-  │   ├── ua_config.h.in
-  │   ├── ua_connection.h
-  │   ├── ua_log.h
-  │   ├── ua_nodeids.h
-  │   ├── ua_server.h
-  │   ├── ua_statuscodes.h
-  │   ├── ua_transport_generated.h
-  │   ├── ua_types_generated.h
-  │   └── ua_types.h
-  ├── libopen62541.so -> ../../open62541/build/libopen62541.so
-  ├── myServer
-  └── myServer.c
+  +── include
+  │   +── logger_stdout.h
+  │   +── networklayer_tcp.h
+  │   +── networklayer_udp.h
+  │   +── open62541.h
+  │   +── ua_client.h
+  │   +── ua_config.h
+  │   +── ua_config.h.in
+  │   +── ua_connection.h
+  │   +── ua_log.h
+  │   +── ua_nodeids.h
+  │   +── ua_server.h
+  │   +── ua_statuscodes.h
+  │   +── ua_transport_generated.h
+  │   +── ua_types_generated.h
+  │   +── ua_types.h
+  +── libopen62541.so -> ../../open62541/build/libopen62541.so
+  +── myServer
+  +── myServer.c
 
 Note that I have linked the library into the folder to spare me the trouble of copying it every time I change/rebuild the stack.
 
-To create a really basic client, navigate back into the myApp folder from the previous tutorial and create a client::
+To create a really basic client, navigate back into the myApp folder from the previous tutorial and create a client:
+
+.. code-block:: c
 
     #include <stdio.h>
 
@@ -61,53 +61,6 @@ Let's recompile both server and client - if you feel up to it, you can create a 
 
     :myApp> gcc -Wl,-rpath=./ -L./ -I ./include -o myClient myClient.c  -lopen62541
 
-We will also make a slight change to our server: We want it to exit cleanly when pressing ``CTRL+C``. We will add signal handler for SIGINT and SIGTERM to accomplish that to the server::
-
-    #include <stdio.h>
-    #include <signal.h>
-
-    # include "ua_types.h"
-    # include "ua_server.h"
-    # include "logger_stdout.h"
-    # include "networklayer_tcp.h"
-
-    UA_Boolean running;
-    UA_Logger logger;
-
-    void stopHandler(int signal) {
-      running = 0;
-    }
-
-    int main(void) {
-      signal(SIGINT,  stopHandler);
-      signal(SIGTERM, stopHandler);
-      
-      UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-      logger = Logger_Stdout_new();
-      UA_Server_setLogger(server, logger);
-      UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-      running = UA_TRUE;
-      UA_Server_run(server, 1, &running);
-      UA_Server_delete(server);
-      
-      printf("Terminated\n");
-      return 0;
-    }
-And then of course, recompile it::
-
-    :myApp> gcc -Wl,-rpath=./ -L./ -I ./include -o myServer myServer.c  -lopen62541
-
-You can now start and background the server, run the client, and then terminate the server like so::
-
-    :myApp> ./myServer &
-    [xx/yy/zz aa:bb:cc.dd.ee] info/communication	Listening on opc.tcp://localhost:16664
-    [1] 2114
-    :myApp> ./myClient && killall myServer
-    Terminated
-    [1]+  Done                    ./myServer
-    :myApp> 
-
-Notice how the server received the SIGTERM signal from kill and exited cleany? We also used the return value of our client by inserting the ``&&``, so kill is only called after a clean client exit (``return 0``).
 
 Asserting success/failure
 -------------------------
@@ -115,7 +68,8 @@ Asserting success/failure
 Almost all functions of the open62541 API will return a ``UA_StatusCode``, which in the C world would be represented by a ``unsigned int``. OPC UA defines large number of good and bad return codes represented by this number. The constant UA_STATUSCODE_GOOD is defined as 0 in ``include/ua_statuscodes.h`` along with many other return codes. It pays off to check the return code of your function calls, as we already did implicitly in the client.
 
 Minimalistic introduction to OPC UA nodes and node IDs
------------------------
+------------------------------------------------------
+
 OPC UA nodespace model defines 9 standard attribute for every node:
 
 +---------------+----------------+
@@ -166,7 +120,9 @@ Reading variable's node value
 
 In this example we are going to read node (n=0,i=2258), i.e. a node in namespace 0 with a numerical id 2258. This node is present in every server (since it is located in namespace 0) and contains server current time (encoded as UInt64).
 
-Let us extend the client with with an action reading node's value::
+Let us extend the client with with an action reading node's value:
+
+.. code-block:: c
 
     #include <stdio.h>
 
@@ -199,7 +155,7 @@ Let us extend the client with with an action reading node's value::
          UA_Variant_isScalar(&rResp.results[0].value) &&
          rResp.results[0].value.type == &UA_TYPES[UA_TYPES_DATETIME]) {
              raw_date = *(UA_DateTime*)rResp.results[0].value.data;
-             printf("raw date is: %llu\n", raw_date);
+             printf("raw date is: %" PRId64 "\n", raw_date);
       }
       
       UA_ReadRequest_deleteMembers(&rReq);
@@ -214,10 +170,12 @@ You should see raw time in milliseconds since January 1, 1601 UTC midnight::
 
     :myApp> ./myClient
     :myApp> raw date is: 130856974061125520
-    
+
 Firstly we constructed a read request "rReq", it contains 1 node's attribute we want to query for. The attribute is filled with the numeric id "UA_NODEID_NUMERIC(0, 2258)" and the attribute we are reading "UA_ATTRIBUTEID_VALUE". After the read request was sent, we can find the actual read value in the read response.
 
-As the last step for this tutorial, we are going to convert the raw date value into a well formatted string::
+As the last step for this tutorial, we are going to convert the raw date value into a well formatted string:
+
+.. code-block:: c
 
     #include <stdio.h>
     
@@ -264,6 +222,8 @@ As the last step for this tutorial, we are going to convert the raw date value i
       UA_Client_delete(client);
       return 0;
     }
+
+Note that this file can be found as "examples/client_firstSteps.c" in the repository.
     
 Now you should see raw time and a formatted date::
 
@@ -274,5 +234,5 @@ Now you should see raw time and a formatted date::
 Further tasks
 -------------
 * Try to connect to some other OPC UA server by changing "opc.tcp://localhost:16664" to an appropriate address (remember that the queried node is contained in any OPC UA server).
-* Display the value of the variable node (ns=1,i="the.answer") containing an "Int32" from the example server (which is built in :doc:`tutorial_firstStepsServer`). Note that the identifier of this node is a string type: use "UA_NODEID_STRING_ALLOC". The answer can be found in "examples/exampleClient.c".
-* Try to set the value of the variable node (ns=1,i="the.answer") containing an "Int32" from the example server (which is built in :doc:`tutorial_firstStepsServer`) using "UA_Client_write" function. The example server needs some more modifications, i.e., changing request types. The answer can be found in "examples/exampleClient.c".
+* Display the value of the variable node (ns=1,i="the.answer") containing an "Int32" from the example server (which is built in :doc:`tutorial_server_firstSteps`). Note that the identifier of this node is a string type: use "UA_NODEID_STRING_ALLOC". The answer can be found in "examples/exampleClient.c".
+* Try to set the value of the variable node (ns=1,i="the.answer") containing an "Int32" from the example server (which is built in :doc:`tutorial_server_firstSteps`) using "UA_Client_write" function. The example server needs some more modifications, i.e., changing request types. The answer can be found in "examples/exampleClient.c".

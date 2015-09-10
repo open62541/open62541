@@ -1,9 +1,12 @@
-#include "ua_types_generated.h"
+#include "ua_util.h"
 #include "ua_client.h"
+#include "ua_types_generated.h"
 #include "ua_nodeids.h"
 #include "ua_securechannel.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_transport_generated.h"
+#include "ua_types_generated_encoding_binary.h"
+#include "ua_transport_generated_encoding_binary.h"
 #include "ua_client_internal.h"
 
 typedef enum {
@@ -467,7 +470,7 @@ static UA_StatusCode CloseSession(UA_Client *client) {
     request.requestHeader.timeoutHint = 10000;
     request.deleteSubscriptions = UA_TRUE;
     UA_NodeId_copy(&client->authenticationToken, &request.requestHeader.authenticationToken);
-    UA_CreateSessionResponse response;
+    UA_CloseSessionResponse response;
     synchronousRequest(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
                        &response, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
 
@@ -911,7 +914,7 @@ UA_Boolean UA_Client_processPublishRx(UA_Client *client, UA_PublishResponse resp
     for(int i=0; i<response.resultsSize && nxtAck != NULL; i++) {
         tmpAck = nxtAck;
         nxtAck = tmpAck->listEntry.le_next;
-        if (response.results[i] == UA_STATUSCODE_GOOD) {
+        if (response.results[i] == UA_STATUSCODE_GOOD || response.results[i] == UA_STATUSCODE_BADSEQUENCENUMBERINVALID) {
             LIST_REMOVE(tmpAck, listEntry);
             UA_free(tmpAck);
         }
@@ -969,6 +972,8 @@ UA_Boolean UA_Client_processPublishRx(UA_Client *client, UA_PublishResponse resp
         tmpAck = (UA_Client_NotificationsAckNumber *) UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
         tmpAck->subAck.sequenceNumber = msg.sequenceNumber;
         tmpAck->subAck.subscriptionId = sub->SubscriptionID;
+	tmpAck->listEntry.le_next = UA_NULL;
+	tmpAck->listEntry.le_prev = UA_NULL;
         LIST_INSERT_HEAD(&(client->pendingNotificationsAcks), tmpAck, listEntry);
     }
     
@@ -994,7 +999,6 @@ void UA_Client_doPublish(UA_Client *client) {
         
         index = 0;
         LIST_FOREACH(ack, &(client->pendingNotificationsAcks), listEntry) {
-            ack = client->pendingNotificationsAcks.lh_first;
             request.subscriptionAcknowledgements[index].sequenceNumber = ack->subAck.sequenceNumber;
             request.subscriptionAcknowledgements[index].subscriptionId = ack->subAck.subscriptionId;
             index++;

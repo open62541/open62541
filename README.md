@@ -26,7 +26,7 @@ Automatically compiled MSVC binaries are available [here](https://ci.appveyor.co
 ### Contribute to open62541
 As an open source project, we invite new contributors to help improving open62541. If you are a developer, your bugfixes and new features are very welcome. Note that there are ways to contribute even without deep knowledge of the project or the UA standard:
 - [Report bugs](https://github.com/acplt/open62541/issues)
-- Improve the [documentation](http://open62541.org/doc)
+- Improve the [documentation for 0.1](http://open62541.org/doc) and [documentation for 0.2](http://open62541.org/doc/sphinx)
 - Work on issues marked as "[easy hacks](https://github.com/acplt/open62541/labels/easy%20hack)"
 
 ### Example Server Implementation

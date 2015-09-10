@@ -58,7 +58,12 @@ if not is_c:
 else:
     file.write(u'''#ifndef UA_DYNAMIC_LINKING
 # define UA_DYNAMIC_LINKING
-#endif\n\n''')
+#endif
+
+#ifndef UA_INTERNAL
+#define UA_INTERNAL
+#endif
+\n''')
     file.write(u"#include \"" + outname + ".h\"\n")
 
 for fname in args.inputs:

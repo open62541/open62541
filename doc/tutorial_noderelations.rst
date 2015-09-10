@@ -1,7 +1,7 @@
 Examining and interacting with node relations
 =============================================
 
-In the past tutorials you learned to compile the stack in various configurations, create/delete nodes and manage variables. The core of OPC UA are it's data modelling capabilities, and you will invariably find yourself confronted to investigate these relations during runtime. This tutorial will show you how to interact with object and types hierarchies and how to create your own.
+In the past tutorials you have learned to compile the stack in various configurations, create/delete nodes and manage variables. The core of OPC UA is its data modelling capabilities, and you will invariably find yourself confronted to investigate these relations during runtime. This tutorial will show you how to interact with object and type hierarchies and how to create your own.
 
 Compile XML Namespaces
 ----------------------
@@ -10,7 +10,9 @@ So far we have made due with the hardcoded mini-namespace in the server stack. W
 
 Note beforehand that the pyUANamespace compiler you can find in the *tools* subfolder is *not* a XML transformation tool but a compiler. That means that it will create an internal representation (dAST) when parsing the XML files and attempt to understand this representation in order to generate C Code. In consequence, the compiler will refuse to print any inconsistencies or invalid nodes.
 
-As an example, we will create a simple object model using UA Modeller and embed this into the servers nodeset, which is exported to the following XML file::
+As an example, we will create a simple object model using UA Modeller and embed this into the servers nodeset, which is exported to the following XML file:
+
+.. code-block:: xml
 
     <UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd" xmlns:s1="http://yourorganisation.org/example_nodeset/" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
         <NamespaceUris>
@@ -282,7 +284,9 @@ And at this point, you are going to see the compiler hanging again. If you speci
   Linking C shared library libopen62541.so
   [100%] Built target open62541
 
-If you open the header ``src_generated/ua_namespaceinit_generated.h`` and take a short look at the generated defines, you will notice the following definitions have been created::
+If you open the header ``src_generated/ua_namespaceinit_generated.h`` and take a short look at the generated defines, you will notice the following definitions have been created:
+
+.. code-block:: c
   
   #define UA_NS1ID_PROVIDESINPUTTO
   #define UA_NS1ID_FIELDDEVICE
@@ -310,16 +314,18 @@ A minor list of some of the miriad things that can go wrong:
 Creating object instances
 -------------------------
 
-Defining an object type is only usefull if it ends up making our lives easier in some way (though it is always the proper thing to do). One of the key benefits of defining object types is being able to create object instances fairly easily. As an example, we will modify the server to create 2 pump instances::
+Defining an object type is only usefull if it ends up making our lives easier in some way (though it is always the proper thing to do). One of the key benefits of defining object types is being able to create object instances fairly easily. As an example, we will modify the server to create 2 pump instances:
+
+.. code-block:: c
 
     #include <stdio.h>
     #include <signal.h>
 
-    # include "ua_types.h"
-    # include "ua_server.h"
-    # include "ua_namespaceinit_generated.h"
-    # include "logger_stdout.h"
-    # include "networklayer_tcp.h"
+    #include "ua_types.h"
+    #include "ua_server.h"
+    #include "ua_namespaceinit_generated.h"
+    #include "logger_stdout.h"
+    #include "networklayer_tcp.h"
 
     UA_Boolean running;
     UA_Int32 global_accessCounter = 0;
@@ -418,7 +424,9 @@ Iterating over Child nodes
 
 A common usecase is wanting to perform something akin to ``for each node referenced by X, call ...``; you may for example be searching for a specific browseName or instance which was created with a dynamic nodeId. There is no way of telling what you are searching for beforehand (inverse hasComponents, typedefinitions, etc.), but all usescases of "searching for" basically means iterating over each reference of a node.
 
-Since searching in nodes is a common operation, the high-level branch provides a function to help you perform this operation:  ``UA_(Server|Client)_forEachChildNodeCall();``. These functions will iterate over all references of a given node, invoking a callback (with a handle) for every found reference. Since in our last tutorial we created a server that instantiates two pumps, we are now going to build a client that will search for pumps in all object instances on the server.::
+Since searching in nodes is a common operation, the high-level branch provides a function to help you perform this operation:  ``UA_(Server|Client)_forEachChildNodeCall();``. These functions will iterate over all references of a given node, invoking a callback (with a handle) for every found reference. Since in our last tutorial we created a server that instantiates two pumps, we are now going to build a client that will search for pumps in all object instances on the server.
+
+.. code-block:: c
 
     #include <stdio.h>
 
@@ -502,16 +510,18 @@ You can use the handle to contain a pointer to a struct, which can hold multiple
 Examining node copies
 ---------------------
 
-So far we have always used the getAttribute() functions to inspect node contents. There may be isolated cases where these are insuficient because you want to examine the properties of a node "in bulk". As mentioned in the first tutorials, the user can not directly interact with the servers nodestore; but the userspace may request a copy of a node, including all its attributes and references. The following functions server the purpose of getting and getting rid of node copies::
+So far we have always used the getAttribute() functions to inspect node contents. There may be isolated cases where these are insuficient because you want to examine the properties of a node "in bulk". As mentioned in the first tutorials, the user can not directly interact with the servers nodestore; but the userspace may request a copy of a node, including all its attributes and references. The following functions server the purpose of getting and getting rid of node copies.
+
+.. code-block:: c
   
     UA_(Server|Client)_getNodeCopy()
     UA_(Server|Client)_destroyNodeCopy()
 
-
 Since you are trying to see a struct (node types) that are usually hidden from userspace, you will have to include ``include/ua_nodes.h``, ``src/ua_types_encoding_binary.h`` and ``deps/queue.h`` in addition to the previous includes (link them into the includes folder).
 
-Let's suppose we wanted to do something elaborate with our pump instance that was returned by the iterator of the previous example, or simply "print" all its fields. We could modify the above client's main function like so::
+Let's suppose we wanted to do something elaborate with our pump instance that was returned by the iterator of the previous example, or simply "print" all its fields. We could modify the above client's main function like so:
 
+.. code-block:: c
 
     int main(void) {
       UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
