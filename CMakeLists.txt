@@ -272,8 +272,8 @@ else()
     include_directories(${PROJECT_SOURCE_DIR}/include)
     include_directories(${PROJECT_SOURCE_DIR}/deps)
     include_directories(${PROJECT_SOURCE_DIR}/src)
-    include_directories(${PROJECT_BINARY_DIR}/src_generated)
 endif()
+include_directories(${PROJECT_BINARY_DIR}/src_generated) #needed to locate an include of examples/server_nodeset.c
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING)
 
 add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-object>)
@@ -414,23 +414,21 @@ if(BUILD_EXAMPLES)
 	add_executable(server_repeated_job ${PROJECT_SOURCE_DIR}/examples/server_repeated_job.c $<TARGET_OBJECTS:open62541-object>)
 	target_link_libraries(server_repeated_job ${LIBS})
 
-	if(NOT ENABLE_AMALGAMATION)
-		add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
-						   PRE_BUILD
-						   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.xml ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml ${PROJECT_BINARY_DIR}/src_generated/nodeset
-						   DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-						           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py
-						           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
-						           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py
-						           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
-						           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py
-						           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
-						           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
-						           ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
-						   
-		add_executable(server_nodeset ${PROJECT_SOURCE_DIR}/examples/server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c $<TARGET_OBJECTS:open62541-object>)
-		target_link_libraries(server_nodeset ${LIBS})
-	endif()
+	add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
+					   PRE_BUILD
+					   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.xml ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml ${PROJECT_BINARY_DIR}/src_generated/nodeset
+					   DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
+					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py
+					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
+					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py
+					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
+					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py
+					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
+					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
+					           ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
+					   
+	add_executable(server_nodeset ${PROJECT_SOURCE_DIR}/examples/server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c $<TARGET_OBJECTS:open62541-object>)
+	target_link_libraries(server_nodeset ${LIBS})
 
 	if(ENABLE_METHODCALLS)
 	  add_executable(server_method ${PROJECT_SOURCE_DIR}/examples/server_method.c $<TARGET_OBJECTS:open62541-object>)
