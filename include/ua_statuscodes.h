@@ -1,7 +1,8 @@
 #ifndef OPCUA_STATUSCODES_H_
 #define OPCUA_STATUSCODES_H_
 
-enum UA_StatusCode {
+/** A numeric identifier for a error or condition that is associated with a value or an operation. */
+typedef enum {
 	UA_STATUSCODE_GOOD = 0x00,
 	UA_STATUSCODE_BADUNEXPECTEDERROR = 0x80010000, // An unexpected error occurred.
 	UA_STATUSCODE_BADINTERNALERROR = 0x80020000, // An internal error occurred as a result of a programming or configuration error.
@@ -219,6 +220,6 @@ enum UA_StatusCode {
 	UA_STATUSCODE_BADWOULDBLOCK = 0x80b50000, // Non blocking behaviour is required and the operation would block.
 	UA_STATUSCODE_BADSYNTAXERROR = 0x80b60000, // A value had an invalid syntax.
 	UA_STATUSCODE_BADMAXCONNECTIONSREACHED = 0x80b70000 // The operation could not be finished because all available connections are in use.
-};
+} UA_StatusCode;
 
 #endif /* UA_STATUSCODES_H_ */

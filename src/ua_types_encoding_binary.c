@@ -909,7 +909,7 @@ UA_StatusCode UA_DiagnosticInfo_decodeBinary(UA_ByteString const *src, size_t *U
         dst->innerDiagnosticInfo = UA_malloc(sizeof(UA_DiagnosticInfo));
         if(dst->innerDiagnosticInfo) {
             if(UA_DiagnosticInfo_decodeBinary(src, offset,
-                    dst->innerDiagnosticInfo) != UA_STATUSCODE_GOOD) {
+                                              dst->innerDiagnosticInfo) != UA_STATUSCODE_GOOD) {
                 UA_free(dst->innerDiagnosticInfo);
                 dst->innerDiagnosticInfo = UA_NULL;
                 retval |= UA_STATUSCODE_BADINTERNALERROR;
@@ -1250,22 +1250,22 @@ static size_t UA_DataValue_calcSizeBinary(UA_DataValue const *p) {
     return length;
 }
 
-static size_t UA_DiagnosticInfo_calcSizeBinary(UA_DiagnosticInfo const *ptr) {
+static size_t UA_DiagnosticInfo_calcSizeBinary(UA_DiagnosticInfo const *p) {
     size_t length = sizeof(UA_Byte);
-    if(ptr->hasSymbolicId)
+    if(p->hasSymbolicId)
         length += sizeof(UA_Int32);
-    if(ptr->hasNamespaceUri)
+    if(p->hasNamespaceUri)
         length += sizeof(UA_Int32);
-    if(ptr->hasLocalizedText)
+    if(p->hasLocalizedText)
         length += sizeof(UA_Int32);
-    if(ptr->hasLocale)
+    if(p->hasLocale)
         length += sizeof(UA_Int32);
-    if(ptr->hasAdditionalInfo)
-        length += UA_String_calcSizeBinary(&ptr->additionalInfo);
-    if(ptr->hasInnerStatusCode)
+    if(p->hasAdditionalInfo)
+        length += UA_String_calcSizeBinary(&p->additionalInfo);
+    if(p->hasInnerStatusCode)
         length += sizeof(UA_StatusCode);
-    if(ptr->hasInnerDiagnosticInfo)
-        length += UA_DiagnosticInfo_calcSizeBinary(ptr->innerDiagnosticInfo);
+    if(p->hasInnerDiagnosticInfo)
+        length += UA_DiagnosticInfo_calcSizeBinary(p->innerDiagnosticInfo);
     return length;
 }
 
