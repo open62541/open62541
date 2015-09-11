@@ -221,7 +221,7 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps, const UA_Rea
                 }
             } else {
                 UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE || timestamps == UA_TIMESTAMPSTORETURN_BOTH);
-                retval |= vn->value.dataSource.read(vn->value.dataSource.handle, sourceTimeStamp, rangeptr, v);
+                retval |= vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId, sourceTimeStamp, rangeptr, v);
             }
 
             if(rangeptr)
@@ -237,7 +237,7 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps, const UA_Rea
         else {
             UA_DataValue val;
             UA_DataValue_init(&val);
-            retval = vn->value.dataSource.read(vn->value.dataSource.handle, UA_FALSE, UA_NULL, &val);
+            retval = vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId, UA_FALSE, UA_NULL, &val);
             if(retval != UA_STATUSCODE_GOOD)
                 break;
             retval = UA_Variant_setScalarCopy(&v->value, &val.value.type->typeId, &UA_TYPES[UA_TYPES_NODEID]);
@@ -266,7 +266,7 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps, const UA_Rea
             } else {
                 UA_DataValue val;
                 UA_DataValue_init(&val);
-                retval |= vn->value.dataSource.read(vn->value.dataSource.handle, UA_FALSE, UA_NULL, &val);
+                retval |= vn->value.dataSource.read(vn->value.dataSource.handle, node->nodeId, UA_FALSE, UA_NULL, &val);
                 if(retval != UA_STATUSCODE_GOOD)
                     break;
                 retval = UA_Variant_setArrayCopy(&v->value, val.value.arrayDimensions, val.value.arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
@@ -553,9 +553,9 @@ UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue) {
                 }
                 // todo: writing ranges
                 if(hasRange)
-                    retval = vn->value.dataSource.write(vn->value.dataSource.handle, &wvalue->value.value, &range);
+                    retval = vn->value.dataSource.write(vn->value.dataSource.handle, wvalue->nodeId, &wvalue->value.value, &range);
                 else
-                    retval = vn->value.dataSource.write(vn->value.dataSource.handle, &wvalue->value.value, UA_NULL);
+                    retval = vn->value.dataSource.write(vn->value.dataSource.handle, wvalue->nodeId, &wvalue->value.value, UA_NULL);
                 done = UA_TRUE;
                 goto clean_up_range;
             }

@@ -46,7 +46,7 @@ UA_Logger logger;
 /*************************/
 /* Read-only data source */
 /*************************/
-static UA_StatusCode readTimeData(void *handle, UA_Boolean sourceTimeStamp, const UA_NumericRange *range, UA_DataValue *value) {
+static UA_StatusCode readTimeData(void *handle, const UA_NodeId nodeId, UA_Boolean sourceTimeStamp, const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
         value->hasStatus = UA_TRUE;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -72,7 +72,7 @@ static UA_StatusCode readTimeData(void *handle, UA_Boolean sourceTimeStamp, cons
 /*      Only on Linux        */
 /*****************************/
 FILE* temperatureFile = NULL;
-static UA_StatusCode readTemperature(void *handle, UA_Boolean sourceTimeStamp, const UA_NumericRange *range, UA_DataValue *value) {
+static UA_StatusCode readTemperature(void *handle, const UA_NodeId nodeId, UA_Boolean sourceTimeStamp, const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
         value->hasStatus = UA_TRUE;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -115,7 +115,7 @@ FILE* triggerFile = NULL;
 FILE* ledFile = NULL;
 UA_Boolean ledStatus = 0;
 
-static UA_StatusCode readLedStatus(void *handle, UA_Boolean sourceTimeStamp, const UA_NumericRange *range, UA_DataValue *value) {
+static UA_StatusCode readLedStatus(void *handle, UA_NodeId nodeid, UA_Boolean sourceTimeStamp, const UA_NumericRange *range, UA_DataValue *value) {
   if(range)
     return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
@@ -132,7 +132,7 @@ static UA_StatusCode readLedStatus(void *handle, UA_Boolean sourceTimeStamp, con
   return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode writeLedStatus(void *handle, const UA_Variant *data, const UA_NumericRange *range) {
+static UA_StatusCode writeLedStatus(void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range) {
     if(range)
         return UA_STATUSCODE_BADINDEXRANGEINVALID;
 

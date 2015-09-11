@@ -23,17 +23,21 @@ static void stopHandler(int sign) {
     running = 0;
 }
 
-static UA_StatusCode readInteger(void *handle, UA_Boolean sourceTimeStamp, const UA_NumericRange *range, UA_DataValue *dataValue) {
+static UA_StatusCode readInteger(void *handle, UA_NodeId nodeid, UA_Boolean sourceTimeStamp, const UA_NumericRange *range, UA_DataValue *dataValue) {
     dataValue->hasValue = UA_TRUE;
     UA_Variant_setScalarCopy(&dataValue->value, (UA_UInt32*)handle, &UA_TYPES[UA_TYPES_INT32]);
+    //note that this is only possible if the identifier is a string - but we are sure to have one here
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Node read %.*s",nodeid.identifier.string.length, nodeid.identifier.string.data);
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "read value %i", *(UA_UInt32*)handle);
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode writeInteger(void *handle, const UA_Variant *data, const UA_NumericRange *range){
+static UA_StatusCode writeInteger(void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range){
     if(UA_Variant_isScalar(data) && data->type == &UA_TYPES[UA_TYPES_INT32] && data->data){
         *(UA_UInt32*)handle = *(UA_Int32*)data->data;
     }
+    //note that this is only possible if the identifier is a string - but we are sure to have one here
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Node written %.*s",nodeid.identifier.string.length, nodeid.identifier.string.data);
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "written value %i", *(UA_UInt32*)handle);
     return UA_STATUSCODE_GOOD;
 }
