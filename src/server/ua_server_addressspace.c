@@ -1268,7 +1268,7 @@ UA_StatusCode UA_Server_getAttributeValue(UA_Server *server, UA_NodeId nodeId, U
           } else {
             UA_DataValue ds;
             UA_DataValue_init(&ds);
-            retval |= anyTypeNode.vObj->value.dataSource.read(anyTypeNode.vObj->value.dataSource.handle, UA_FALSE, UA_NULL, &ds);
+            retval |= anyTypeNode.vObj->value.dataSource.read(anyTypeNode.vObj->value.dataSource.handle, nodeId, UA_FALSE, UA_NULL, &ds);
             UA_Variant_copy(&ds.value, *value);
           }
           break;
@@ -1280,7 +1280,7 @@ UA_StatusCode UA_Server_getAttributeValue(UA_Server *server, UA_NodeId nodeId, U
           } else {
             UA_DataValue ds;
             UA_DataValue_init(&ds);
-            retval |= anyTypeNode.vtObj->value.dataSource.read(anyTypeNode.vtObj->value.dataSource.handle, UA_FALSE, UA_NULL, &ds);
+            retval |= anyTypeNode.vtObj->value.dataSource.read(anyTypeNode.vtObj->value.dataSource.handle, nodeId, UA_FALSE, UA_NULL, &ds);
             UA_Variant_copy(&ds.value, *value);
           }
           break;

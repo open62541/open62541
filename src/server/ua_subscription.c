@@ -437,7 +437,7 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
                 if(srcAsVariableNode->valueSource != UA_VALUESOURCE_DATASOURCE)
                     break;
                 // todo: handle numeric ranges
-                if(srcAsVariableNode->value.dataSource.read(vsrc->value.dataSource.handle, UA_TRUE, UA_NULL,
+                if(srcAsVariableNode->value.dataSource.read(vsrc->value.dataSource.handle, vsrc->nodeId, UA_TRUE, UA_NULL,
                                                             &sourceDataValue) != UA_STATUSCODE_GOOD)
                     break;
                 UA_Variant_copy(&sourceDataValue.value, dst);
