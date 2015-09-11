@@ -36,14 +36,15 @@ static UA_StatusCode UA_Array_encodeBinary(const void *src, UA_Int32 noElements,
 }
 
 static UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset,
-                                           UA_Int32 noElements, void **dst, const UA_DataType *dataType) {
-    if(noElements <= 0) {
+                                           UA_Int32 noElements_signed, void **dst, const UA_DataType *dataType) {
+    if(noElements_signed <= 0) {
         *dst = UA_NULL;
         return UA_STATUSCODE_GOOD;
     }
 
-    if((UA_Int32) dataType->memSize * noElements
-            < 0|| dataType->memSize * noElements > MAX_ARRAY_SIZE)
+    size_t noElements = (size_t)noElements_signed; //is guaranteed positive
+
+    if(dataType->memSize * noElements > MAX_ARRAY_SIZE)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* filter out arrays that can obviously not be parsed, because the message is too small */
@@ -67,7 +68,7 @@ static UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, size_t *UA_
 #endif
 
     uintptr_t ptr = (uintptr_t) *dst;
-    UA_Int32 i;
+    size_t i = 0;
     for(i = 0; i < noElements && retval == UA_STATUSCODE_GOOD; i++) {
         retval = UA_decodeBinary(src, offset, (void*) ptr, dataType);
         ptr += dataType->memSize;
