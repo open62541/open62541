@@ -80,6 +80,9 @@ script:
 - cp open62541-linux64.tar.gz ..
 - cp open62541.h .. #copy single file-release
 - cp open62541.c .. #copy single file-release
+- echo "Building the C++ example"
+- gcc -std=c99 -c open62541.c
+- g++ ../examples/server.cpp -I./ open62541.o -o cpp-server
 - cd .. && rm build -rf && mkdir -p build && cd build
 - echo "Upgrade to gcc 4.8"
 - sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
