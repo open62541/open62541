@@ -420,18 +420,18 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 #endif
 }
 
-#define CHECK_DATATYPE(EXP_DT) do {										\
+#define CHECK_DATATYPE(EXP_DT)                                          \
 		if(!wvalue->value.hasValue || &UA_TYPES[UA_TYPES_##EXP_DT] != wvalue->value.value.type || \
 		   !UA_Variant_isScalar(&wvalue->value.value)) {				\
 			retval |= UA_STATUSCODE_BADTYPEMISMATCH;					\
 			break;														\
-		} } while(0)
+		}
 
-#define CHECK_NODECLASS_WRITE(CLASS) do {										\
+#define CHECK_NODECLASS_WRITE(CLASS)                                    \
 		if((anyTypeNode.node->nodeClass & (CLASS)) == 0) {				\
 			retval |= UA_STATUSCODE_BADNODECLASSINVALID;				\
 			break;														\
-		} } while(0)
+		}
 
 UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, const UA_WriteValue *wvalue) {
 	UA_assert(server != UA_NULL && session != UA_NULL && wvalue != UA_NULL);

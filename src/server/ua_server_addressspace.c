@@ -356,6 +356,7 @@ UA_StatusCode UA_Server_addReferenceTypeNode (UA_Server *server, const UA_NodeId
   UA_QualifiedName_copy(&browseName, &node->browseName);
   UA_LocalizedText_copy(&displayName, &node->displayName);
   UA_LocalizedText_copy(&description, &node->description);
+  UA_LocalizedText_copy(&inverseName, &node->inverseName);
   node->writeMask = writeMask;
   node->userWriteMask = userWriteMask;
   UA_ExpandedNodeId parentId; // we need an expandednodeid
