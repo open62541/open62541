@@ -216,7 +216,7 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
                    UA_WriteResponse *response);
 
 /** Single attribute writes are exposed to the userspace */
-UA_StatusCode UA_Service_Write_single(UA_Server *server, UA_Session *session, const UA_WriteValue *wvalue);
+UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, const UA_WriteValue *wvalue);
 
 // Service_HistoryUpdate
 /** @} */
