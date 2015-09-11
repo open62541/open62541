@@ -507,7 +507,7 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
         return UA_STATUSCODE_BADBROWSENAMEINVALID;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_NodeId *reftypes;
+    UA_NodeId *reftypes = UA_NULL;
     size_t reftypes_count = 1; // all_refs or no subtypes => 1
     UA_Boolean all_refs = UA_FALSE;
     if(UA_NodeId_isNull(&elem->referenceTypeId))
