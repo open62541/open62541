@@ -143,7 +143,7 @@ UA_StatusCode UA_UInt16_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRI
 
 #ifdef UA_ALIGNED_MEMORY_ACCESS
     *dst = (UA_UInt16) src->data[(*offset)++] << 0;
-    *dst += (UA_UInt16) src->data[(*offset)++] << 8;
+    *dst |= (UA_UInt16) src->data[(*offset)++] << 8;
 #else
     *dst = *((UA_UInt16*) &src->data[*offset]);
     *offset += 2;
@@ -183,9 +183,9 @@ UA_StatusCode UA_UInt32_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRI
 
 #ifdef UA_ALIGNED_MEMORY_ACCESS
     *dst = (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF));
-    *dst += (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF) << 8);
-    *dst += (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF) << 16);
-    *dst += (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF) << 24);
+    *dst |= (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF) << 8);
+    *dst |= (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF) << 16);
+    *dst |= (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF) << 24);
 #else
     *dst = *((UA_UInt32*) &src->data[*offset]);
     *offset += 4;
@@ -229,13 +229,13 @@ UA_StatusCode UA_UInt64_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRI
 
 #ifdef UA_ALIGNED_MEMORY_ACCESS
     *dst = (UA_UInt64) src->data[(*offset)++];
-    *dst += (UA_UInt64) src->data[(*offset)++] << 8;
-    *dst += (UA_UInt64) src->data[(*offset)++] << 16;
-    *dst += (UA_UInt64) src->data[(*offset)++] << 24;
-    *dst += (UA_UInt64) src->data[(*offset)++] << 32;
-    *dst += (UA_UInt64) src->data[(*offset)++] << 40;
-    *dst += (UA_UInt64) src->data[(*offset)++] << 48;
-    *dst += (UA_UInt64) src->data[(*offset)++] << 56;
+    *dst |= (UA_UInt64) src->data[(*offset)++] << 8;
+    *dst |= (UA_UInt64) src->data[(*offset)++] << 16;
+    *dst |= (UA_UInt64) src->data[(*offset)++] << 24;
+    *dst |= (UA_UInt64) src->data[(*offset)++] << 32;
+    *dst |= (UA_UInt64) src->data[(*offset)++] << 40;
+    *dst |= (UA_UInt64) src->data[(*offset)++] << 48;
+    *dst |= (UA_UInt64) src->data[(*offset)++] << 56;
 #else
     *dst = *((UA_UInt64*) &src->data[*offset]);
     *offset += 8;
