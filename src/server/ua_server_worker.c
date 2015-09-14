@@ -42,8 +42,13 @@
 #define MAXTIMEOUT 50000 // max timeout in microsec until the next main loop iteration
 #define BATCHSIZE 20 // max number of jobs that are dispatched at once to workers
 
-static void processJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {
-    for(size_t i = 0; i < jobsSize; i++) {
+/**
+ * server:		UA server context
+ * jobs: 		pointer to array of jobs or NULL if jobsSize == -1
+ * jobsSize: 	nr. of valid jobs or -1
+*/
+static void processJobs(UA_Server *server, UA_Job *jobs, UA_Int32 jobsSize) {
+    for (UA_Int32 i = 0; i < jobsSize; i++) {
         UA_Job *job = &jobs[i];
         switch(job->type) {
         case UA_JOBTYPE_BINARYMESSAGE:
@@ -346,10 +351,11 @@ static UA_UInt16 processRepeatedJobs(UA_Server *server) {
     }
 
     // check if the next repeated job is sooner than the usual timeout
+    // calc in 32 bit must be ok
     struct RepeatedJobs *first = LIST_FIRST(&server->repeatedJobs);
-    UA_UInt16 timeout = MAXTIMEOUT;
+    UA_UInt32 timeout = MAXTIMEOUT;
     if(first) {
-        timeout = (first->nextTime - current)/10;
+        timeout = (UA_UInt32)((first->nextTime - current) / 10);
         if(timeout > MAXTIMEOUT)
             return MAXTIMEOUT;
     }

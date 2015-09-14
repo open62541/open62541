@@ -294,13 +294,8 @@ UA_StatusCode Subscription_registerUpdateJob(UA_Server *server, UA_Subscription 
         return UA_STATUSCODE_BADNOTSUPPORTED;
     
     // Practically enough, the client sends a uint32 in ms, which we store as datetime, which here is required in as uint32 in ms as the interval
-#ifdef _MSC_VER
-    UA_Int32 retval = UA_Server_addRepeatedJob(server, *(sub->timedUpdateJob), sub->publishingInterval,
-                                               &sub->timedUpdateJobGuid);
-#else
     UA_StatusCode retval = UA_Server_addRepeatedJob(server, *sub->timedUpdateJob, sub->publishingInterval,
                                                     &sub->timedUpdateJobGuid);
-#endif
     if(!retval)
         sub->timedUpdateIsRegistered = UA_TRUE;
     return retval;
