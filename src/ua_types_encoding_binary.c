@@ -433,7 +433,7 @@ UA_StatusCode UA_NodeId_encodeBinary(UA_NodeId const *src, UA_ByteString * dst, 
             /* UA_NODEIDTYPE_FOURBYTE */
             srcByte = UA_NODEIDTYPE_FOURBYTE;
             retval |= UA_Byte_encodeBinary(&srcByte, dst, offset);
-            srcByte = src->namespaceIndex;
+            srcByte = (UA_Byte)src->namespaceIndex;
             srcUInt16 = src->identifier.numeric;
             retval |= UA_Byte_encodeBinary(&srcByte, dst, offset);
             retval |= UA_UInt16_encodeBinary(&srcUInt16, dst, offset);
@@ -793,7 +793,7 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
 
 /* The resulting variant always has the storagetype UA_VARIANT_DATA. Currently,
  we only support ns0 types (todo: attach typedescriptions to datatypenodes) */
-UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, size_t *offset, UA_Variant *dst) {
+UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset, UA_Variant *dst) {
     UA_Variant_init(dst);
     UA_Byte encodingByte;
     UA_StatusCode retval = UA_Byte_decodeBinary(src, offset, &encodingByte);

@@ -513,7 +513,7 @@ UA_StatusCode UA_EXPORT UA_Variant_setArrayCopy(UA_Variant *v, const void *array
  * @param range The range of the copied data
  * @return Returns UA_STATUSCODE_GOOD or an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, UA_NumericRange range);
+UA_StatusCode UA_EXPORT UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRange range);
 
 /**
  * Insert a range of data into an existing variant. The data array can't be reused afterwards if it

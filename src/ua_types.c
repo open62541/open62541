@@ -171,7 +171,7 @@ int gettimeofday(struct timeval *tp, struct timezone *tzp) {
     SystemTimeToFileTime(&st, &ft);
     ul.LowPart  = ft.dwLowDateTime;
     ul.HighPart = ft.dwHighDateTime;
-    tp->tv_sec  = (ul.QuadPart - epoch) / 10000000L;
+    tp->tv_sec  = (long)((ul.QuadPart - epoch) / 10000000L);
     tp->tv_usec = st.wMilliseconds * 1000;
     return 0;
 }
