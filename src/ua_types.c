@@ -3,6 +3,12 @@
 #include "ua_statuscodes.h"
 #include "ua_types_generated.h"
 
+/*************************/
+/* External Dependencies */
+/*************************/
+#include "pcg_basic.h"
+
+
 /*****************/
 /* Helper Macros */
 /*****************/
@@ -226,17 +232,19 @@ UA_Boolean UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
 }
 
 UA_Guid UA_Guid_random(UA_UInt32 *seed) {
+    pcg32_random_t rng;
+    pcg32_srandom_r(&rng, *seed, UA_DateTime_now());
     UA_Guid result;
-    result.data1 = RAND(seed);
-    UA_UInt32 r = RAND(seed);
+    result.data1 = (UA_UInt32)pcg32_random_r(&rng);
+    UA_UInt32 r = (UA_UInt32)pcg32_random_r(&rng);
     result.data2 = (UA_UInt16) r;
     result.data3 = (UA_UInt16) (r >> 16);
-    r = RAND(seed);
+    r = (UA_UInt32)pcg32_random_r(&rng);
     result.data4[0] = (UA_Byte)r;
     result.data4[1] = (UA_Byte)(r >> 4);
     result.data4[2] = (UA_Byte)(r >> 8);
     result.data4[3] = (UA_Byte)(r >> 12);
-    r = RAND(seed);
+    r = (UA_UInt32)pcg32_random_r(&rng);
     result.data4[4] = (UA_Byte)r;
     result.data4[5] = (UA_Byte)(r >> 4);
     result.data4[6] = (UA_Byte)(r >> 8);

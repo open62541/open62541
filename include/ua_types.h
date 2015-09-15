@@ -29,6 +29,7 @@ extern "C" {
 #include "ua_config.h"
 #include "ua_statuscodes.h"
 
+
 /** A two-state logical value (true or false). */
 typedef bool UA_Boolean;
 #define UA_TRUE true
