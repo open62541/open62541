@@ -361,7 +361,7 @@ void UA_EXPORT UA_Guid_delete(UA_Guid *p);
 static UA_INLINE void UA_Guid_deleteMembers(UA_Guid *p) { }
 static UA_INLINE UA_StatusCode UA_Guid_copy(const UA_Guid *src, UA_Guid *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
 UA_Boolean UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
-UA_Guid UA_EXPORT UA_Guid_random(pcg32_random_t* rngptr); ///> Do not use for security-critical entropy!
+UA_Guid UA_EXPORT UA_Guid_random(UA_UInt32 *seed); ///> Do not use for security-critical entropy!
 
 /* ByteString */
 static UA_INLINE UA_ByteString * UA_ByteString_new(void) { return UA_String_new(); }

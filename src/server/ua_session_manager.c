@@ -61,9 +61,8 @@ UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager,
     sessionManager->currentSessionCount++;
     UA_Session_init(&newentry->session);
     newentry->session.sessionId = UA_NODEID_NUMERIC(1, sessionManager->lastSessionId++);
-    pcg32_random_t rng;
-    pcg32_srandom_r(&rng, sessionManager->lastSessionId, UA_DateTime_now());
-    newentry->session.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random(&rng));
+    UA_UInt32 randSeed = (UA_UInt32)(sessionManager->lastSessionId + UA_DateTime_now());
+    newentry->session.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random(&randSeed));
     if(request->requestedSessionTimeout <= sessionManager->maxSessionLifeTime &&
        request->requestedSessionTimeout > 0)
         newentry->session.timeout = request->requestedSessionTimeout;
