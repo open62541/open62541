@@ -23,7 +23,7 @@ static void stopHandler(int sign) {
     running = 0;
 }
 
-static UA_StatusCode readInteger(void *handle, UA_NodeId nodeid, UA_Boolean sourceTimeStamp, const UA_NumericRange *range, UA_DataValue *dataValue) {
+static UA_StatusCode readInteger(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp, const UA_NumericRange *range, UA_DataValue *dataValue) {
     dataValue->hasValue = UA_TRUE;
     UA_Variant_setScalarCopy(&dataValue->value, (UA_UInt32*)handle, &UA_TYPES[UA_TYPES_INT32]);
     //note that this is only possible if the identifier is a string - but we are sure to have one here
