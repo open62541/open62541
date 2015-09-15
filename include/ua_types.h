@@ -350,7 +350,11 @@ UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime time);
 
 /* Guid */
 UA_Guid UA_EXPORT * UA_Guid_new(void);
-static UA_INLINE void UA_Guid_init(UA_Guid *p) { *p = (UA_Guid){0,0,0,{0,0,0,0,0,0,0,0}}; }
+static UA_INLINE void UA_Guid_init(UA_Guid *p) 
+{ 
+    //*p = (UA_Guid){0,0,0,{0,0,0,0,0,0,0,0}}; 
+    memset(p, 0, sizeof(*p));
+}
 void UA_EXPORT UA_Guid_delete(UA_Guid *p);
 static UA_INLINE void UA_Guid_deleteMembers(UA_Guid *p) { }
 static UA_INLINE UA_StatusCode UA_Guid_copy(const UA_Guid *src, UA_Guid *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }

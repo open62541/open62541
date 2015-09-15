@@ -334,7 +334,17 @@ static UA_UInt16 processRepeatedJobs(UA_Server *server) {
         dispatchJobs(server, jobsCopy, tw->jobsSize); // frees the job pointer
 #else
         for(size_t i=0;i<tw->jobsSize;i++)
+        {
             processJobs(server, &tw->jobs[i].job, 1); // does not free the job ptr
+            if (tw->jobs[i].job.type == UA_JOBTYPE_METHODCALL
+                && tw->jobs[i].job.job.methodCall.method == UA_Server_cleanup)
+            {
+                // UA_Server_cleanup may delete members
+                // next is invalid Pointer
+                // this no solution
+                next = LIST_NEXT(tw, pointers);
+            }
+        }
 #endif
         tw->nextTime += tw->interval;
         struct RepeatedJobs *prevTw = tw; // after which tw do we insert?
@@ -345,6 +355,8 @@ static UA_UInt16 processRepeatedJobs(UA_Server *server) {
             prevTw = n;
         }
         if(prevTw != tw) {
+            // this is very dangerous
+            // so UA_Server_cleanup job comes up
             LIST_REMOVE(tw, pointers);
             LIST_INSERT_AFTER(prevTw, tw, pointers);
         }

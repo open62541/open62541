@@ -630,6 +630,9 @@ UA_Server_addInstanceOf(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedN
                         const UA_ExpandedNodeId typeDefinition, UA_InstantiationCallback callback, void *handle, 
                         UA_NodeId *createdNodeId);
 
+// Debug Stuff
+void UA_Server_cleanup(UA_Server *server, void *nothing);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
