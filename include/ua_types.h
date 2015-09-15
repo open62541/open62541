@@ -28,11 +28,6 @@ extern "C" {
 #endif
 #include "ua_config.h"
 #include "ua_statuscodes.h"
-  
-/*************************/
-/* External Dependencies */
-/*************************/
-#include "pcg_basic.h"
 
 
 /** A two-state logical value (true or false). */

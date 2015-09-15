@@ -3,6 +3,12 @@
 #include "ua_statuscodes.h"
 #include "ua_types_generated.h"
 
+/*************************/
+/* External Dependencies */
+/*************************/
+#include "pcg_basic.h"
+
+
 /*****************/
 /* Helper Macros */
 /*****************/
