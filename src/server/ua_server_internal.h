@@ -27,7 +27,7 @@ struct UA_Server {
     /* Config */
     UA_ServerConfig config;
     UA_Logger logger;
-    UA_UInt32 random_seed;
+    pcg32_random_t rng;  // random number generator from pcg32
 
     /* Meta */
     UA_DateTime startTime;

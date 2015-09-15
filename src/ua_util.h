@@ -86,13 +86,8 @@
 # include <winsock2.h> //needed for amalgation
 # include <windows.h>
 # undef SLIST_ENTRY
-# define RAND(SEED) (UA_UInt32)rand()
 #else
-  #ifdef __CYGWIN__
-  extern int rand_r (unsigned int *__seed);
-  #endif
-  # include <sys/time.h>
-  # define RAND(SEED) (UA_UInt32)rand_r(SEED)
+# include <sys/time.h>
 #endif
 
 /*************************/

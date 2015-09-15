@@ -338,8 +338,8 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     // logger
     server->logger = UA_NULL;
 
-    // random seed
-    server->random_seed = (UA_UInt32)UA_DateTime_now();
+    // initialize random number generator
+    pcg32_srandom_r(&server->rng, (UA_UInt64)&server, (UA_UInt64) UA_DateTime_now());
 
     // networklayers
     server->networkLayers = UA_NULL;

@@ -378,8 +378,9 @@ static void browse(UA_Server *server, UA_Session *session, UA_NodeStore *ns, str
         cp->maxReferences = maxrefs;
         cp->continuationIndex = referencesCount;
         UA_Guid *ident = UA_Guid_new();
-        UA_UInt32 seed = (uintptr_t)cp;
-        *ident = UA_Guid_random(&seed);
+        pcg32_random_t rng;
+        pcg32_srandom_r(&rng, (uintptr_t)cp, UA_DateTime_now());
+        *ident = UA_Guid_random(&rng);
         cp->identifier.data = (UA_Byte*)ident;
         cp->identifier.length = sizeof(UA_Guid);
         UA_ByteString_copy(&cp->identifier, &result->continuationPoint);

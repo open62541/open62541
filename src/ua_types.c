@@ -225,18 +225,18 @@ UA_Boolean UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
     return UA_FALSE;
 }
 
-UA_Guid UA_Guid_random(UA_UInt32 *seed) {
+UA_Guid UA_Guid_random(pcg32_random_t* rngptr) {
     UA_Guid result;
-    result.data1 = RAND(seed);
-    UA_UInt32 r = RAND(seed);
+    result.data1 = (UA_UInt32)pcg32_random_r(rngptr);
+    UA_UInt32 r = (UA_UInt32)pcg32_random_r(rngptr);
     result.data2 = (UA_UInt16) r;
     result.data3 = (UA_UInt16) (r >> 16);
-    r = RAND(seed);
+    r = (UA_UInt32)pcg32_random_r(rngptr);
     result.data4[0] = (UA_Byte)r;
     result.data4[1] = (UA_Byte)(r >> 4);
     result.data4[2] = (UA_Byte)(r >> 8);
     result.data4[3] = (UA_Byte)(r >> 12);
-    r = RAND(seed);
+    r = (UA_UInt32)pcg32_random_r(rngptr);
     result.data4[4] = (UA_Byte)r;
     result.data4[5] = (UA_Byte)(r >> 4);
     result.data4[6] = (UA_Byte)(r >> 8);
