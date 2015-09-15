@@ -11,12 +11,12 @@ late, OPC UA is marketed as the one standard for non-realtime industrial communi
 
 We believe that it is best to understand OPC UA <em>from the inside out</em>, building upon conceptually
 simple first principles. After establishing a first understanding, we go on explaining how these
-principles are realized in detail. Examples are given based on the </em>open62541</em> implementation of the
+principles are realized in detail. Examples are given based on the <em>open62541</em> implementation of the
 standard.
 
 <h2>OPC UA, a collection of services</h2>
 
-In OPC-UA, all communication is based on service calls, each consisting of a request and a response
+In OPC UA, all communication is based on service calls, each consisting of a request and a response
 message. Be careful to note the difference between services and methods. Services are pre-defined in
 the standard and cannot be changed. But you can use the <em>Call</em> service to invoke user-defined
 methods on the server.
@@ -96,7 +96,7 @@ open62541, these are defined in ua_types.h.
 <tr> <td>UInt64</td> <td>ExpandedNodeId</td> <td> </td> </tr>
 </table>
 
-The builtin datatypes are combined to more complex structures. When the structure contains an array,
+The builtin datatypes are combined into more complex structures. When the structure contains an array,
 then the size of the array is stored in an Int32 value just before the array itself. A size of -1
 indicates an undefined array. Positive sizes (and zero) have the usual semantics.
 
