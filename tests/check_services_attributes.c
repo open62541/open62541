@@ -105,7 +105,7 @@ START_TEST(ReadSingleAttributeValueWithoutTimestamp) {
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
 		Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
 		ck_assert_int_eq(-1, resp.value.arrayLength);
@@ -124,19 +124,15 @@ START_TEST(ReadSingleAttributeNodeIdWithoutTimestamp) {
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_NODEID;
 		Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
-		UA_NodeId* respval = (UA_NodeId*) resp.value.data;
 		const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
 		ck_assert_int_eq(-1, resp.value.arrayLength);
 		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_NODEID], resp.value.type);
+		UA_NodeId* respval = (UA_NodeId*) resp.value.data;
 		ck_assert_int_eq(1, respval->namespaceIndex);
-		for (int var = 0; var < respval->identifier.string.length; ++var) {
-			ck_assert_int_eq(myIntegerNodeId.identifier.string.data[var],
-					respval->identifier.string.data[var]);
-		}
-		UA_free(respval);
+		ck_assert(UA_String_equal(&myIntegerNodeId.identifier.string, &respval->identifier.string));
         UA_ReadRequest_deleteMembers(&rReq);
         UA_DataValue_deleteMembers(&resp);
         UA_Server_delete(server);
@@ -150,7 +146,7 @@ START_TEST(ReadSingleAttributeNodeClassWithoutTimestamp) {
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_NODECLASS;
 		Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
 		ck_assert_int_eq(-1, resp.value.arrayLength);
@@ -169,7 +165,7 @@ START_TEST(ReadSingleAttributeBrowseNameWithoutTimestamp) {
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_BROWSENAME;
 		Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
 		UA_QualifiedName* respval = (UA_QualifiedName*) resp.value.data;
@@ -177,12 +173,7 @@ START_TEST(ReadSingleAttributeBrowseNameWithoutTimestamp) {
 		ck_assert_int_eq(-1, resp.value.arrayLength);
 		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_QUALIFIEDNAME], resp.value.type);
 		ck_assert_int_eq(1, respval->namespaceIndex);
-		ck_assert_int_eq(myIntegerName.name.length, respval->name.length);
-		for (int var = 0; var < respval->name.length - 1; ++var) {
-			ck_assert_int_eq(myIntegerName.name.data[var],
-					respval->name.data[var]);
-		}
-		UA_free(respval);
+		ck_assert(UA_String_equal(&myIntegerName.name, &respval->name));
         UA_ReadRequest_deleteMembers(&rReq);
         UA_DataValue_deleteMembers(&resp);
         UA_Server_delete(server);
@@ -196,7 +187,7 @@ START_TEST(ReadSingleAttributeDisplayNameWithoutTimestamp) {
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
 		Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
 		UA_LocalizedText* respval = (UA_LocalizedText*) resp.value.data;
@@ -204,15 +195,8 @@ START_TEST(ReadSingleAttributeDisplayNameWithoutTimestamp) {
 		UA_VariableNode* compNode = makeCompareSequence();
 		ck_assert_int_eq(-1, resp.value.arrayLength);
 		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT], resp.value.type);
-		ck_assert_int_eq(comp.text.length, respval->text.length);
-		for (int var = 0; var < respval->text.length - 1; ++var) {
-			ck_assert_int_eq(comp.text.data[var], respval->text.data[var]);
-		}
-		ck_assert_int_eq(compNode->displayName.locale.length, respval->locale.length);
-		for (int var = 0; var < respval->locale.length - 1; ++var) {
-			ck_assert_int_eq(compNode->displayName.locale.data[var], respval->locale.data[var]);
-		}
-		UA_free(respval);
+		ck_assert(UA_String_equal(&comp.text, &respval->text));
+		ck_assert(UA_String_equal(&compNode->displayName.locale, &respval->locale));
         UA_Server_delete(server);
         UA_ReadRequest_deleteMembers(&rReq);
         UA_DataValue_deleteMembers(&resp);
@@ -227,22 +211,15 @@ START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_DESCRIPTION;
 		Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
 		UA_LocalizedText* respval = (UA_LocalizedText*) resp.value.data;
 		UA_VariableNode* compNode = makeCompareSequence();
 		ck_assert_int_eq(-1, resp.value.arrayLength);
 		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT], resp.value.type);
-		ck_assert_int_eq(compNode->description.locale.length, respval->locale.length);
-        for (int var = 0; var < respval->locale.length - 1; ++var) {
-            ck_assert_int_eq(compNode->description.locale.data[var], respval->locale.data[var]);
-        }
-		ck_assert_int_eq(compNode->description.text.length, respval->text.length);
-		for (int var = 0; var < respval->text.length - 1; ++var) {
-			ck_assert_int_eq(compNode->description.text.data[var], respval->text.data[var]);
-		}
-		UA_free(respval);
+		ck_assert(UA_String_equal(&compNode->description.locale, &respval->locale));
+		ck_assert(UA_String_equal(&compNode->description.text, &respval->text));
         UA_ReadRequest_deleteMembers(&rReq);
         UA_DataValue_deleteMembers(&resp);
         UA_VariableNode_delete(compNode);
@@ -257,7 +234,7 @@ START_TEST(ReadSingleAttributeWriteMaskWithoutTimestamp) {
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_WRITEMASK;
 		Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
 		UA_UInt32* respval = (UA_UInt32*) resp.value.data;
@@ -277,7 +254,7 @@ START_TEST(ReadSingleAttributeUserWriteMaskWithoutTimestamp) {
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_USERWRITEMASK;
 		Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
 		UA_UInt32* respval = (UA_UInt32*) resp.value.data;
@@ -342,15 +319,8 @@ START_TEST(ReadSingleAttributeInverseNameWithoutTimestamp) {
 		const UA_LocalizedText comp = UA_LOCALIZEDTEXT("en_US", "OrganizedBy");
 		ck_assert_int_eq(-1, resp.value.arrayLength);
 		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT],resp.value.type);
-		ck_assert_int_eq(comp.text.length, respval->text.length);
-		for (int var = 0; var < respval->text.length - 1; ++var) {
-			ck_assert_int_eq(comp.text.data[var], respval->text.data[var]);
-		}
-		ck_assert_int_eq(comp.locale.length, respval->locale.length);
-		for (int var = 0; var < respval->locale.length - 1; ++var) {
-			ck_assert_int_eq(comp.locale.data[var], respval->locale.data[var]);
-		}
-		UA_free(respval);
+		ck_assert(UA_String_equal(&comp.text, &respval->text));
+        ck_assert(UA_String_equal(&comp.locale, &respval->locale));
         UA_ReadRequest_deleteMembers(&rReq);
         UA_DataValue_deleteMembers(&resp);
         UA_Server_delete(server);
@@ -402,7 +372,7 @@ START_TEST(ReadSingleAttributeDataTypeWithoutTimestamp) {
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_DATATYPE;
 		Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
 		UA_NodeId* respval = (UA_NodeId*) resp.value.data;
@@ -423,7 +393,7 @@ START_TEST(ReadSingleAttributeValueRankWithoutTimestamp) {
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUERANK;
 		Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
 		ck_assert_int_eq(-1, resp.value.arrayLength);
@@ -442,7 +412,7 @@ START_TEST(ReadSingleAttributeArrayDimensionsWithoutTimestamp) {
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_ARRAYDIMENSIONS;
 		Service_Read_single(server, &adminSession,  UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
 		ck_assert_int_eq(-1, resp.value.arrayLength);
@@ -461,7 +431,7 @@ START_TEST(ReadSingleAttributeAccessLevelWithoutTimestamp) {
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_ACCESSLEVEL;
 		Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
 		ck_assert_int_eq(-1, resp.value.arrayLength);
@@ -480,7 +450,7 @@ START_TEST(ReadSingleAttributeUserAccessLevelWithoutTimestamp) {
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_USERACCESSLEVEL;
 		Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
 		UA_VariableNode* compNode = makeCompareSequence();
@@ -501,7 +471,7 @@ START_TEST(ReadSingleAttributeMinimumSamplingIntervalWithoutTimestamp) {
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL;
 		Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
 		UA_Double* respval = (UA_Double*) resp.value.data;
@@ -524,7 +494,7 @@ START_TEST(ReadSingleAttributeHistorizingWithoutTimestamp) {
 		UA_ReadRequest_init(&rReq);
 		rReq.nodesToRead = UA_ReadValueId_new();
 		rReq.nodesToReadSize = 1;
-		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
+		rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
 		rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_HISTORIZING;
 		Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
 		ck_assert_int_eq(-1, resp.value.arrayLength);
