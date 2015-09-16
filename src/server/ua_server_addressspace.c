@@ -604,7 +604,7 @@ UA_StatusCode deleteOneWayReferenceWithSession(UA_Server *server, UA_Session *se
         UA_Node_deleteAnyNodeClass(editable);
     } else if(UA_NodeStore_replace(server->nodestore, orig, editable, UA_NULL) != UA_STATUSCODE_GOOD) {
         /* the node was changed by another thread. repeat. */
-        UA_Node_deleteAnyNodeClass(edited);
+        UA_Node_deleteAnyNodeClass(editable);
         UA_NodeStore_release(orig);
         goto repeat_deleteref_oneway;
     }
