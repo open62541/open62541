@@ -155,7 +155,7 @@ UA_Server_addVariableNode(UA_Server *server, const UA_NodeId nodeId, const UA_Qu
                           UA_NodeId *createdNodeId) {
     UA_VariableNode *node = UA_VariableNode_new();
     UA_StatusCode retval;
-    node->value.variant = *value; // copy content
+    node->value.variantAndCallback.variant = *value; // copy content
     UA_NodeId_copy(&nodeId, &node->nodeId);
     UA_QualifiedName_copy(&browseName, &node->browseName);
     UA_LocalizedText_copy(&displayName, &node->displayName);
@@ -171,7 +171,7 @@ UA_Server_addVariableNode(UA_Server *server, const UA_NodeId nodeId, const UA_Qu
                            UA_EXPANDEDNODEID_NUMERIC(0, value->type->typeId.identifier.numeric));
     
     if(res.statusCode != UA_STATUSCODE_GOOD) {
-        UA_Variant_init(&node->value.variant);
+        UA_Variant_init(&node->value.variantAndCallback.variant);
         UA_VariableNode_delete(node);
     } else 
         UA_free(value);
@@ -271,7 +271,7 @@ UA_Server_addVariableTypeNode(UA_Server *server, const UA_NodeId nodeId, const U
         UA_NodeId *createdNodeId) {
     UA_VariableTypeNode *node = UA_VariableTypeNode_new();
     UA_StatusCode retval;
-    node->value.variant = *value; // copy content
+    node->value.variantAndCallback.variant = *value; // copy content
     UA_NodeId_copy(&nodeId, &node->nodeId);
     UA_QualifiedName_copy(&browseName, &node->browseName);
     UA_LocalizedText_copy(&displayName, &node->displayName);
@@ -289,7 +289,7 @@ UA_Server_addVariableTypeNode(UA_Server *server, const UA_NodeId nodeId, const U
                            UA_EXPANDEDNODEID_NUMERIC(0, value->type->typeId.identifier.numeric));
     
     if(res.statusCode != UA_STATUSCODE_GOOD) {
-        UA_Variant_init(&node->value.variant);
+        UA_Variant_init(&node->value.variantAndCallback.variant);
         UA_VariableTypeNode_delete(node);
     } else 
         UA_free(value);
@@ -857,7 +857,7 @@ UA_Server_addMethodNode(UA_Server* server, const UA_NodeId nodeId, const UA_Qual
     inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
     inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
     inputArgumentsVariableNode->valueRank = 1;
-    UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant, inputArguments,
+    UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variantAndCallback.variant, inputArguments,
                             inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
     addRes = UA_Server_addNode(server, (UA_Node*)inputArgumentsVariableNode, methodExpandedNodeId,
                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY));
@@ -878,7 +878,7 @@ UA_Server_addMethodNode(UA_Server* server, const UA_NodeId nodeId, const UA_Qual
     outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
     outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
     outputArgumentsVariableNode->valueRank = 1;
-    UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.variant, outputArguments,
+    UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.variantAndCallback.variant, outputArguments,
                             outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
     addRes = UA_Server_addNode(server, (UA_Node*)outputArgumentsVariableNode, methodExpandedNodeId,
                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY));
@@ -1025,8 +1025,8 @@ UA_StatusCode UA_Server_setAttributeValue(UA_Server *server, UA_NodeId nodeId, U
         return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
       }
       nVariant = value;
-      UA_Variant_deleteMembers(&anyTypeNode.vObj->value.variant);
-      UA_Variant_copy(nVariant, &anyTypeNode.vObj->value.variant);
+      UA_Variant_deleteMembers(&anyTypeNode.vObj->value.variantAndCallback.variant);
+      UA_Variant_copy(nVariant, &anyTypeNode.vObj->value.variantAndCallback.variant);
       break;
     case UA_ATTRIBUTEID_DATATYPE:
       UA_Server_deleteNodeCopy(server, (void **) &anyTypeNode.node);
@@ -1123,7 +1123,7 @@ UA_Server_setAttribute_method(UA_Server *server, UA_NodeId methodNodeId, UA_Meth
 #endif
 
 UA_StatusCode
-UA_Server_setAttribute_DataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource *value) {
+UA_Server_setAttribute_DataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource value) {
   union {
     UA_Node *anyNode;
     UA_VariableNode *varNode;
@@ -1142,21 +1142,18 @@ UA_Server_setAttribute_DataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSo
   
   if (node.anyNode->nodeClass == UA_NODECLASS_VARIABLE) {
     if (node.varNode->valueSource == UA_VALUESOURCE_VARIANT) {
-      UA_Variant_deleteMembers(&node.varNode->value.variant);
+      UA_Variant_deleteMembers(&node.varNode->value.variantAndCallback.variant);
     }
     node.varNode->valueSource = UA_VALUESOURCE_DATASOURCE;
-    node.varNode->value.dataSource.handle = value->handle;
-    node.varNode->value.dataSource.read   = value->read;
-    node.varNode->value.dataSource.write  = value->write;
+    node.varNode->value.dataSource = value;
   }
+  //UA_NODECLASS_VARIABLE_TYPE
   else {
     if (node.varTNode->valueSource == UA_VALUESOURCE_VARIANT) {
-      UA_Variant_deleteMembers(&node.varTNode->value.variant);
+      UA_Variant_deleteMembers(&node.varTNode->value.variantAndCallback.variant);
     }
     node.varTNode->valueSource = UA_VALUESOURCE_DATASOURCE;
-    node.varTNode->value.dataSource.handle = value->handle;
-    node.varTNode->value.dataSource.read   = value->read;
-    node.varTNode->value.dataSource.write  = value->write;
+    node.varTNode->value.dataSource = value;
   }
   
   const UA_Node **inserted = UA_NULL;
@@ -1164,6 +1161,44 @@ UA_Server_setAttribute_DataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSo
   retval |= UA_NodeStore_replace(server->nodestore, oldNode, node.anyNode, inserted);
   UA_NodeStore_release(oldNode);
  
+  return retval;
+}
+
+UA_StatusCode
+UA_Server_setAttribute_UserspaceCallback(UA_Server *server, UA_NodeId nodeId, UA_UserspaceCallback value) {
+  union {
+    UA_Node *anyNode;
+    UA_VariableNode *varNode;
+    UA_VariableTypeNode *varTNode;
+  } node;
+  UA_StatusCode retval;
+  retval = UA_Server_getNodeCopy(server, nodeId, (void **) &node.anyNode);
+
+  if (retval != UA_STATUSCODE_GOOD || node.anyNode == UA_NULL)
+    return retval;
+
+  if (node.anyNode->nodeClass != UA_NODECLASS_VARIABLE && node.anyNode->nodeClass != UA_NODECLASS_VARIABLETYPE) {
+    UA_Server_deleteNodeCopy(server, (void **) &node);
+    return UA_STATUSCODE_BADNODECLASSINVALID;
+  }
+
+  if(node.varNode->valueSource == UA_VALUESOURCE_DATASOURCE){
+    return UA_STATUSCODE_BADNODECLASSINVALID;
+  }
+
+  if (node.anyNode->nodeClass == UA_NODECLASS_VARIABLE) {
+    node.varNode->value.variantAndCallback.callback = value;
+  }
+  //UA_NODECLASS_VARIABLE_TYPE
+  else {
+      node.varTNode->value.variantAndCallback.callback = value;
+  }
+
+  const UA_Node **inserted = UA_NULL;
+  const UA_Node *oldNode = UA_NodeStore_get(server->nodestore, &node.anyNode->nodeId);
+  retval |= UA_NodeStore_replace(server->nodestore, oldNode, node.anyNode, inserted);
+  UA_NodeStore_release(oldNode);
+
   return retval;
 }
 
@@ -1264,7 +1299,9 @@ UA_StatusCode UA_Server_getAttributeValue(UA_Server *server, UA_NodeId nodeId, U
         case UA_NODECLASS_VARIABLE:
           *value = UA_Variant_new();
           if(anyTypeNode.vObj->valueSource == UA_VALUESOURCE_VARIANT) {
-            retval |= UA_Variant_copy(&anyTypeNode.vObj->value.variant, *value);
+            retval |= UA_Variant_copy(&anyTypeNode.vObj->value.variantAndCallback.variant, *value);
+            if(anyTypeNode.vObj->value.variantAndCallback.callback.onRead)
+                anyTypeNode.vObj->value.variantAndCallback.callback.onRead(anyTypeNode.vObj->value.variantAndCallback.callback.handle, nodeId, *value, UA_NULL);
           } else {
             UA_DataValue ds;
             UA_DataValue_init(&ds);
@@ -1276,7 +1313,9 @@ UA_StatusCode UA_Server_getAttributeValue(UA_Server *server, UA_NodeId nodeId, U
           // Note: Precicely the same as variableNode above!
           *value = UA_Variant_new();
           if(anyTypeNode.vtObj->valueSource == UA_VALUESOURCE_VARIANT) {
-            retval |= UA_Variant_copy(&anyTypeNode.vtObj->value.variant, *value);
+            retval |= UA_Variant_copy(&anyTypeNode.vtObj->value.variantAndCallback.variant, *value);
+            if(anyTypeNode.vtObj->value.variantAndCallback.callback.onRead)
+                anyTypeNode.vtObj->value.variantAndCallback.callback.onRead(anyTypeNode.vtObj->value.variantAndCallback.callback.handle, nodeId, *value, UA_NULL);
           } else {
             UA_DataValue ds;
             UA_DataValue_init(&ds);
@@ -1558,8 +1597,10 @@ void UA_Server_addInstanceOf_instatiateChildNode(UA_Server *server,
         newVarNode->valueSource = varTypeNode->valueSource;
         if (varTypeNode->valueSource == UA_VALUESOURCE_DATASOURCE)
           newVarNode->value.dataSource = varTypeNode->value.dataSource;
-        else
-          UA_Variant_copy(&varTypeNode->value.variant, &newVarNode->value.variant);
+        else{
+          newVarNode->value.variantAndCallback.callback = varTypeNode->value.variantAndCallback.callback;
+          UA_Variant_copy(&varTypeNode->value.variantAndCallback.variant, &newVarNode->value.variantAndCallback.variant);
+        }
         
         adres = UA_Server_addNode(server, (UA_Node *) newVarNode, *objectRootExpanded, ref.referenceTypeId);
         if (callback != UA_NULL)

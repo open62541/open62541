@@ -119,6 +119,12 @@ typedef struct {
     UA_StatusCode (*write)(void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range);
 } UA_DataSource;
 
+typedef struct {
+    void *handle;
+    void (*onRead)(void *handle, const UA_NodeId nodeid,  const UA_Variant *data, const UA_NumericRange *range);
+    void (*onWrite)(void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range);
+} UA_UserspaceCallback;
+
 /** @brief Add a new namespace to the server. Returns the index of the new namespace */
 UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
 
@@ -378,7 +384,10 @@ UA_Server_setAttribute_method(UA_Server *server, UA_NodeId methodNodeId, UA_Meth
 #endif
 
 UA_StatusCode UA_EXPORT
-UA_Server_setAttribute_DataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource *value);
+UA_Server_setAttribute_DataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource value);
+
+UA_StatusCode UA_EXPORT
+UA_Server_setAttribute_UserspaceCallback(UA_Server *server, UA_NodeId nodeId, UA_UserspaceCallback value);
 
 UA_StatusCode UA_EXPORT
 UA_Server_getAttributeValue(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void **value);

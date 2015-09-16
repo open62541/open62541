@@ -426,7 +426,8 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
         if(src->nodeClass == UA_NODECLASS_VARIABLE) {
             const UA_VariableNode *vsrc = (const UA_VariableNode*)src;
             if(srcAsVariableNode->valueSource == UA_VALUESOURCE_VARIANT) {
-                UA_Variant_copy(&vsrc->value.variant, dst);
+                UA_Variant_copy(&vsrc->value.variantAndCallback.variant, dst);
+                //no onRead callback here since triggered by a subscription
                 samplingError = UA_FALSE;
             } else {
                 if(srcAsVariableNode->valueSource != UA_VALUESOURCE_DATASOURCE)
