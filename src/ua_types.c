@@ -3,11 +3,7 @@
 #include "ua_statuscodes.h"
 #include "ua_types_generated.h"
 
-/*************************/
-/* External Dependencies */
-/*************************/
 #include "pcg_basic.h"
-
 
 /*****************/
 /* Helper Macros */
@@ -33,6 +29,20 @@
         TYPE##_deleteMembers(p);     \
         UA_free(p);                  \
     }
+
+/***************************/
+/* Random Number Generator */
+/***************************/
+
+static UA_THREAD_LOCAL pcg32_random_t rng = PCG32_INITIALIZER;
+
+UA_EXPORT void UA_random_seed(UA_UInt64 seed) {
+    pcg32_srandom_r(&rng, seed, UA_DateTime_now());
+}
+
+UA_EXPORT UA_UInt32 UA_random(void) {
+    return (UA_UInt32)pcg32_random_r(&rng);
+}
 
 /*****************/
 /* Builtin Types */
@@ -232,8 +242,6 @@ UA_Boolean UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
 }
 
 UA_Guid UA_Guid_random(UA_UInt32 *seed) {
-    pcg32_random_t rng;
-    pcg32_srandom_r(&rng, *seed, UA_DateTime_now());
     UA_Guid result;
     result.data1 = (UA_UInt32)pcg32_random_r(&rng);
     UA_UInt32 r = (UA_UInt32)pcg32_random_r(&rng);

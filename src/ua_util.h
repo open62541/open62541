@@ -74,6 +74,22 @@
 # endif
 #endif
 
+/************************/
+/* Thread Local Storage */
+/************************/
+
+#ifdef UA_MULTITHREADING
+# ifdef __GNUC__
+#  define UA_THREAD_LOCAL __thread
+# elif defined(_MSC_VER)
+#  define UA_THREAD_LOCAL __declspec(thread)
+# else
+#  error No thread local storage keyword defined for this compiler
+# endif
+#else
+# define UA_THREAD_LOCAL
+#endif
+
 /********************/
 /* System Libraries */
 /********************/

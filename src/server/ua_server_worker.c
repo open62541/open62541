@@ -120,6 +120,9 @@ struct workerStartData {
 
 /** Waits until jobs arrive in the dispatch queue and processes them. */
 static void * workerLoop(struct workerStartData *startInfo) {
+    /* Initialized the (thread local) random seed */
+    UA_random_seed((uintptr_t)startInfo);
+
    	rcu_register_thread();
     UA_UInt32 *c = UA_malloc(sizeof(UA_UInt32));
     uatomic_set(c, 0);
