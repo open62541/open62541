@@ -16,7 +16,7 @@ typedef struct UA_SessionManager {
     UA_UInt32    maxSessionCount;
     UA_Int32     lastSessionId;
     UA_UInt32    currentSessionCount;
-    UA_DateTime  maxSessionLifeTime;
+    UA_DateTime  maxSessionLifeTime;    // time in [ms]
 } UA_SessionManager;
 
 UA_StatusCode UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt32 maxSessionCount,

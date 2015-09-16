@@ -20,76 +20,77 @@
 extern "C" {
 #endif
 
+#ifndef UA_FFI_BINDINGS
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
+#endif
 #include "ua_config.h"
+#include "ua_statuscodes.h"
 
-/** @brief A two-state logical value (true or false). */
+/** A two-state logical value (true or false). */
 typedef bool UA_Boolean;
 #define UA_TRUE true
 #define UA_FALSE false
 
-/** @brief An integer value between -128 and 127. */
+/** An integer value between -128 and 127. */
 typedef int8_t UA_SByte;
 #define UA_SBYTE_MAX 127
 #define UA_SBYTE_MIN -128
 
-/** @brief An integer value between 0 and 256. */
+/** An integer value between 0 and 256. */
 typedef uint8_t UA_Byte;
 #define UA_BYTE_MAX 256
 #define UA_BYTE_MIN 0
 
-/** @brief An integer value between -32 768 and 32 767. */
+/** An integer value between -32 768 and 32 767. */
 typedef int16_t UA_Int16;
 #define UA_INT16_MAX 32767
 #define UA_INT16_MIN -32768
 
-/** @brief An integer value between 0 and 65 535. */
+/** An integer value between 0 and 65 535. */
 typedef uint16_t UA_UInt16;
 #define UA_UINT16_MAX 65535
 #define UA_UINT16_MIN 0
 
-/** @brief An integer value between -2 147 483 648 and 2 147 483 647. */
+/** An integer value between -2 147 483 648 and 2 147 483 647. */
 typedef int32_t UA_Int32;
 #define UA_INT32_MAX 2147483647
 #define UA_INT32_MIN -2147483648
 
-/** @brief An integer value between 0 and 429 4967 295. */
+/** An integer value between 0 and 429 4967 295. */
 typedef uint32_t UA_UInt32;
 #define UA_UINT32_MAX 4294967295
 #define UA_UINT32_MIN 0
 
-/** @brief An integer value between -10 223 372 036 854 775 808 and 9 223 372 036 854 775 807 */
+/** An integer value between -10 223 372 036 854 775 808 and 9 223 372 036 854 775 807 */
 typedef int64_t UA_Int64;
 #define UA_INT64_MAX (int64_t)9223372036854775807
 #define UA_INT64_MIN (int64_t)-9223372036854775808
 
-/** @brief An integer value between 0 and 18 446 744 073 709 551 615. */
+/** An integer value between 0 and 18 446 744 073 709 551 615. */
 typedef uint64_t UA_UInt64;
 #define UA_UINT64_MAX (int64_t)18446744073709551615
 #define UA_UINT64_MIN (int64_t)0
 
-/** @brief An IEEE single precision (32 bit) floating point value. */
+/** An IEEE single precision (32 bit) floating point value. */
 typedef float UA_Float;
 
-/** @brief An IEEE double precision (64 bit) floating point value. */
+/** An IEEE double precision (64 bit) floating point value. */
 typedef double UA_Double;
 
-/** @brief A sequence of Unicode characters. */
+/** A sequence of Unicode characters. */
 typedef struct {
     UA_Int32 length; ///< The length of the string
     UA_Byte *data; ///< The string's content (not null-terminated)
 } UA_String;
 
-/** @brief An instance in time.
- * A DateTime value is encoded as a 64-bit signed integer which represents the
- * number of 100 nanosecond intervals since January 1, 1601 (UTC).
- */
-typedef UA_Int64 UA_DateTime; // 100 nanosecond resolution
+/** An instance in time. A DateTime value is encoded as a 64-bit signed integer which represents the
+    number of 100 nanosecond intervals since January 1, 1601 (UTC). */
+typedef UA_Int64 UA_DateTime;
 
-/** @brief A 16 byte value that can be used as a globally unique identifier. */
+/** A 16 byte value that can be used as a globally unique identifier. */
 typedef struct {
     UA_UInt32 data1;
     UA_UInt16 data2;
@@ -97,14 +98,12 @@ typedef struct {
     UA_Byte   data4[8];
 } UA_Guid;
 
-/** @brief A sequence of octets. */
+/** A sequence of octets. */
 typedef UA_String UA_ByteString;
 
-/** @brief An XML element. */
+/** An XML element. */
 typedef UA_String UA_XmlElement;
 
-/** @brief An identifier for a node in the address space of an OPC UA Server. */
-/* The shortened numeric types are introduced during encoding. */
 enum UA_NodeIdType {
     UA_NODEIDTYPE_NUMERIC    = 2,
     UA_NODEIDTYPE_STRING     = 3,
@@ -112,6 +111,8 @@ enum UA_NodeIdType {
     UA_NODEIDTYPE_BYTESTRING = 5
 };
 
+/** An identifier for a node in the address space of an OPC UA Server. The shortened numeric types
+    are introduced during encoding. */
 typedef struct {
     UA_UInt16 namespaceIndex; ///< The namespace index of the node
     enum UA_NodeIdType identifierType; ///< The type of the node identifier
@@ -123,31 +124,27 @@ typedef struct {
     } identifier; ///< The node identifier
 } UA_NodeId;
 
-/** @brief A NodeId that allows the namespace URI to be specified instead of an index. */
+/** A NodeId that allows the namespace URI to be specified instead of an index. */
 typedef struct {
     UA_NodeId nodeId; ///< The nodeid without extensions
     UA_String namespaceUri; ///< The Uri of the namespace (tindex in the nodeId is ignored)
     UA_UInt32 serverIndex;  ///< The index of the server
 } UA_ExpandedNodeId;
 
-#include "ua_statuscodes.h"
-/** @brief A numeric identifier for a error or condition that is associated with a value or an operation. */
-typedef enum UA_StatusCode UA_StatusCode; // StatusCodes aren't an enum(=int) since 32 unsigned bits are needed. See also ua_statuscodes.h */
-
-/** @brief A name qualified by a namespace. */
+/** A name qualified by a namespace. */
 typedef struct {
     UA_UInt16 namespaceIndex; ///< The namespace index
     UA_String name; ///< The actual name
 } UA_QualifiedName;
 
-/** @brief Human readable text with an optional locale identifier. */
+/** Human readable text with an optional locale identifier. */
 typedef struct {
     UA_String locale; ///< The locale (e.g. "en-US")
     UA_String text; ///< The actual text
 } UA_LocalizedText;
 
-/** @brief A structure that contains an application specific data type that may
-    not be recognized by the receiver. */
+/** A structure that contains an application specific data type that may not be recognized by the
+    receiver. */
 typedef struct {
     UA_NodeId typeId; ///< The nodeid of the datatype
     enum {
@@ -158,10 +155,24 @@ typedef struct {
     UA_ByteString body; ///< The bytestring of the encoded data
 } UA_ExtensionObject;
 
+/* Forward Declaration of UA_DataType */
 struct UA_DataType;
 typedef struct UA_DataType UA_DataType; 
 
-/** @brief Variants store (arrays of) any data type. Either they provide a pointer to the data in
+/* NumericRanges are used select a subset in a (multidimensional) variant array.
+ * NumericRange has no official type structure in the standard. On the wire, it
+ * only exists as an encoded string, such as "1:2,0:3,5". The colon separates
+ * min/max index and the comma separates dimensions. A single value indicates a
+ * range with a single element (min==max). */
+typedef struct {
+    UA_Int32 dimensionsSize;
+    struct UA_NumericRangeDimension {
+        UA_UInt32 min;
+        UA_UInt32 max;
+    } *dimensions;
+} UA_NumericRange;
+
+ /** Variants store (arrays of) any data type. Either they provide a pointer to the data in
  *   memory, or functions from which the data can be accessed. Variants are replaced together with
  *   the data they store (exception: use a data source).
  *
@@ -171,7 +182,6 @@ typedef struct UA_DataType UA_DataType;
  *  - arrayLength >= 0: variant holds an array of the appropriate length
  *                      data can be NULL if arrayLength == 0
  */
-
 typedef struct {
     const UA_DataType *type; ///< The nodeid of the datatype
     enum {
@@ -187,7 +197,7 @@ typedef struct {
     UA_Int32 *arrayDimensions; ///< the length of each dimension of the data-array
 } UA_Variant;
 
-/** @brief A data value with an associated status code and timestamps. */
+/** A data value with an associated status code and timestamps. */
 typedef struct {
     UA_Boolean    hasValue : 1;
     UA_Boolean    hasStatus : 1;
@@ -203,7 +213,7 @@ typedef struct {
     UA_Int16      serverPicoseconds;
 } UA_DataValue;
 
-/** @brief A structure that contains detailed error and diagnostic information associated with a StatusCode. */
+/** A structure that contains detailed error and diagnostic information associated with a StatusCode. */
 typedef struct UA_DiagnosticInfo {
     UA_Boolean    hasSymbolicId : 1;
     UA_Boolean    hasNamespaceUri : 1;
@@ -221,78 +231,108 @@ typedef struct UA_DiagnosticInfo {
     struct UA_DiagnosticInfo *innerDiagnosticInfo;
 } UA_DiagnosticInfo;
 
-#define UA_TYPE_HANDLING_FUNCTIONS(TYPE)                             \
-    TYPE UA_EXPORT * TYPE##_new(void);                               \
-    void UA_EXPORT TYPE##_init(TYPE * p);                            \
-    void UA_EXPORT TYPE##_delete(TYPE * p);                          \
-    void UA_EXPORT TYPE##_deleteMembers(TYPE * p);                   \
-    UA_StatusCode UA_EXPORT TYPE##_copy(const TYPE *src, TYPE *dst);
+/***************************/
+/* Type Handling Functions */
+/***************************/
 
-/* Functions for all types */
-UA_TYPE_HANDLING_FUNCTIONS(UA_Boolean)
-UA_TYPE_HANDLING_FUNCTIONS(UA_SByte)
-UA_TYPE_HANDLING_FUNCTIONS(UA_Byte)
-UA_TYPE_HANDLING_FUNCTIONS(UA_Int16)
-UA_TYPE_HANDLING_FUNCTIONS(UA_UInt16)
-UA_TYPE_HANDLING_FUNCTIONS(UA_Int32)
-UA_TYPE_HANDLING_FUNCTIONS(UA_UInt32)
-UA_TYPE_HANDLING_FUNCTIONS(UA_Int64)
-UA_TYPE_HANDLING_FUNCTIONS(UA_UInt64)
-UA_TYPE_HANDLING_FUNCTIONS(UA_Float)
-UA_TYPE_HANDLING_FUNCTIONS(UA_Double)
-UA_TYPE_HANDLING_FUNCTIONS(UA_String)
-#define UA_DateTime_new UA_Int64_new
-#define UA_DateTime_init UA_Int64_init
-#define UA_DateTime_delete UA_Int64_delete
-#define UA_DateTime_deleteMembers UA_Int64_deleteMembers
-#define UA_DateTime_copy UA_Int64_copy
-UA_TYPE_HANDLING_FUNCTIONS(UA_Guid)
-#define UA_ByteString_new UA_String_new
-#define UA_ByteString_init UA_String_init
-#define UA_ByteString_delete UA_String_delete
-#define UA_ByteString_deleteMembers UA_String_deleteMembers
-#define UA_ByteString_copy UA_String_copy
-#define UA_XmlElement_new UA_String_new
-#define UA_XmlElement_init UA_String_init
-#define UA_XmlElement_delete UA_String_delete
-#define UA_XmlElement_deleteMembers UA_String_deleteMembers
-#define UA_XmlElement_copy UA_String_copy
-UA_TYPE_HANDLING_FUNCTIONS(UA_NodeId)
-UA_TYPE_HANDLING_FUNCTIONS(UA_ExpandedNodeId)
-#define UA_StatusCode_new() UA_Int32_new()
-#define UA_StatusCode_init(p) UA_Int32_init((UA_Int32*)p)
-#define UA_StatusCode_delete(p) UA_Int32_delete((UA_Int32*)p)
-#define UA_StatusCode_deleteMembers(p) UA_Int32_deleteMembers((UA_Int32*)p)
-#define UA_StatusCode_copy(p, q) UA_Int32_copy((UA_Int32*)p, (UA_Int32*)q)
-UA_TYPE_HANDLING_FUNCTIONS(UA_QualifiedName)
-UA_TYPE_HANDLING_FUNCTIONS(UA_LocalizedText)
-UA_TYPE_HANDLING_FUNCTIONS(UA_ExtensionObject)
-UA_TYPE_HANDLING_FUNCTIONS(UA_DataValue)
-UA_TYPE_HANDLING_FUNCTIONS(UA_Variant)
-UA_TYPE_HANDLING_FUNCTIONS(UA_DiagnosticInfo)
+/* Boolean */
+UA_Boolean UA_EXPORT * UA_Boolean_new(void);
+static UA_INLINE void UA_Boolean_init(UA_Boolean *p) { *p = UA_FALSE; }
+void UA_EXPORT UA_Boolean_delete(UA_Boolean *p);
+static UA_INLINE void UA_Boolean_deleteMembers(UA_Boolean *p) { }
+static UA_INLINE UA_StatusCode UA_Boolean_copy(const UA_Boolean *src, UA_Boolean *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
 
-/**********************************************/
-/* Custom functions for the builtin datatypes */
-/**********************************************/
+/* SByte */
+UA_SByte UA_EXPORT * UA_SByte_new(void);
+static UA_INLINE void UA_SByte_init(UA_SByte *p) { *p = 0; }
+void UA_EXPORT UA_SByte_delete(UA_SByte *p);
+static UA_INLINE void UA_SByte_deleteMembers(UA_SByte *p) { }
+static UA_INLINE UA_StatusCode UA_SByte_copy(const UA_SByte *src, UA_SByte *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+
+/* Byte */
+UA_Byte UA_EXPORT * UA_Byte_new(void);
+static UA_INLINE void UA_Byte_init(UA_Byte *p) { *p = 0; }
+void UA_EXPORT UA_Byte_delete(UA_Byte *p);
+static UA_INLINE void UA_Byte_deleteMembers(UA_Byte *p) { }
+static UA_INLINE UA_StatusCode UA_Byte_copy(const UA_Byte *src, UA_Byte *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+
+/* Int16 */
+UA_Int16 UA_EXPORT * UA_Int16_new(void);
+static UA_INLINE void UA_Int16_init(UA_Int16 *p) { *p = 0; }
+void UA_EXPORT UA_Int16_delete(UA_Int16 *p);
+static UA_INLINE void UA_Int16_deleteMembers(UA_Int16 *p) { }
+static UA_INLINE UA_StatusCode UA_Int16_copy(const UA_Int16 *src, UA_Int16 *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+
+/* UInt16 */
+UA_UInt16 UA_EXPORT * UA_UInt16_new(void);
+static UA_INLINE void UA_UInt16_init(UA_UInt16 *p) { *p = 0; }
+void UA_EXPORT UA_UInt16_delete(UA_UInt16 *p);
+static UA_INLINE void UA_UInt16_deleteMembers(UA_UInt16 *p) { }
+static UA_INLINE UA_StatusCode UA_UInt16_copy(const UA_UInt16 *src, UA_UInt16 *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+
+/* Int32 */
+UA_Int32 UA_EXPORT * UA_Int32_new(void);
+static UA_INLINE void UA_Int32_init(UA_Int32 *p) { *p = 0; }
+void UA_EXPORT UA_Int32_delete(UA_Int32 *p);
+static UA_INLINE void UA_Int32_deleteMembers(UA_Int32 *p) { }
+static UA_INLINE UA_StatusCode UA_Int32_copy(const UA_Int32 *src, UA_Int32 *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+
+/* UInt32 */
+UA_UInt32 UA_EXPORT * UA_UInt32_new(void);
+static UA_INLINE void UA_UInt32_init(UA_UInt32 *p) { *p = 0; }
+void UA_EXPORT UA_UInt32_delete(UA_UInt32 *p);
+static UA_INLINE void UA_UInt32_deleteMembers(UA_UInt32 *p) { }
+static UA_INLINE UA_StatusCode UA_UInt32_copy(const UA_UInt32 *src, UA_UInt32 *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+
+/* Int64 */
+UA_Int64 UA_EXPORT * UA_Int64_new(void);
+static UA_INLINE void UA_Int64_init(UA_Int64 *p) { *p = 0; }
+void UA_EXPORT UA_Int64_delete(UA_Int64 *p);
+static UA_INLINE void UA_Int64_deleteMembers(UA_Int64 *p) { }
+static UA_INLINE UA_StatusCode UA_Int64_copy(const UA_Int64 *src, UA_Int64 *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+
+/* UInt64 */
+UA_UInt64 UA_EXPORT * UA_UInt64_new(void);
+static UA_INLINE void UA_UInt64_init(UA_UInt64 *p) { *p = 0; }
+void UA_EXPORT UA_UInt64_delete(UA_UInt64 *p);
+static UA_INLINE void UA_UInt64_deleteMembers(UA_UInt64 *p) { }
+static UA_INLINE UA_StatusCode UA_UInt64_copy(const UA_UInt64 *src, UA_UInt64 *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+
+/* Float */
+UA_Float UA_EXPORT * UA_Float_new(void);
+static UA_INLINE void UA_Float_init(UA_Float *p) { *p = 0.0f; }
+void UA_EXPORT UA_Float_delete(UA_Float *p);
+static UA_INLINE void UA_Float_deleteMembers(UA_Float *p) { }
+static UA_INLINE UA_StatusCode UA_Float_copy(const UA_Float *src, UA_Float *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+
+/* Double */
+UA_Double UA_EXPORT * UA_Double_new(void);
+static UA_INLINE void UA_Double_init(UA_Double *p) { *p = 0.0f; }
+void UA_EXPORT UA_Double_delete(UA_Double *p);
+static UA_INLINE void UA_Double_deleteMembers(UA_Double *p) { }
+static UA_INLINE UA_StatusCode UA_Double_copy(const UA_Double *src, UA_Double *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
 
 /* String */
-/** Copy a (zero terminated) char-array into a UA_String. Memory for the string data is
-    allocated. If the memory cannot be allocated, a null-string is returned. */
-UA_String UA_EXPORT UA_String_fromChars(char const src[]);
-
+UA_String UA_EXPORT * UA_String_new(void);
+void UA_EXPORT UA_String_init(UA_String *p);
+void UA_EXPORT UA_String_delete(UA_String *p);
+void UA_EXPORT UA_String_deleteMembers(UA_String *p);
+UA_StatusCode UA_EXPORT UA_String_copy(const UA_String *src, UA_String *dst);
+UA_String UA_EXPORT UA_String_fromChars(char const src[]); ///> Copies the char-array on the heap. Returns a null-string when alloc fails.
+UA_Boolean UA_EXPORT UA_String_equal(const UA_String *string1, const UA_String *string2); ///> Compares two strings
+UA_StatusCode UA_EXPORT UA_String_copyprintf(char const fmt[], UA_String *dst, ...); ///> Printf a char-array into a UA_String. Memory for the string data is allocated.
 #define UA_STRING_NULL (UA_String) {-1, (UA_Byte*)0 }
 #define UA_STRING(CHARS) (UA_String) {strlen(CHARS), (UA_Byte*)CHARS }
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
 
-/** Compares two strings */
-UA_Boolean UA_EXPORT UA_String_equal(const UA_String *string1, const UA_String *string2);
-
-/** Printf a char-array into a UA_String. Memory for the string data is allocated. */
-UA_StatusCode UA_EXPORT UA_String_copyprintf(char const fmt[], UA_String *dst, ...);
-
 /* DateTime */
-/** Returns the current time */
-UA_DateTime UA_EXPORT UA_DateTime_now(void);
+UA_DateTime UA_EXPORT * UA_DateTime_new(void);
+static UA_INLINE void UA_DateTime_init(UA_DateTime *p) { *p = 0.0f; }
+void UA_EXPORT UA_DateTime_delete(UA_DateTime *p);
+static UA_INLINE void UA_DateTime_deleteMembers(UA_DateTime *p) { }
+static UA_INLINE UA_StatusCode UA_DateTime_copy(const UA_DateTime *src, UA_DateTime *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+UA_DateTime UA_EXPORT UA_DateTime_now(void); ///> The current time
+UA_StatusCode UA_EXPORT UA_DateTime_toString(UA_DateTime time, UA_String *timeString);
 
 typedef struct UA_DateTimeStruct {
     UA_Int16 nanoSec;
@@ -307,30 +347,41 @@ typedef struct UA_DateTimeStruct {
 } UA_DateTimeStruct;
 
 UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime time);
-UA_StatusCode UA_EXPORT UA_DateTime_toString(UA_DateTime time, UA_String *timeString);
 
 /* Guid */
-/** Compares two guids */
+UA_Guid UA_EXPORT * UA_Guid_new(void);
+static UA_INLINE void UA_Guid_init(UA_Guid *p) { *p = (UA_Guid){0,0,0,{0,0,0,0,0,0,0,0}}; }
+void UA_EXPORT UA_Guid_delete(UA_Guid *p);
+static UA_INLINE void UA_Guid_deleteMembers(UA_Guid *p) { }
+static UA_INLINE UA_StatusCode UA_Guid_copy(const UA_Guid *src, UA_Guid *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
 UA_Boolean UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
-    
-/** Returns a randomly generated guid. Do not use for security-critical entropy! */
-UA_Guid UA_EXPORT UA_Guid_random(UA_UInt32 *seed);
+UA_Guid UA_EXPORT UA_Guid_random(UA_UInt32 *seed); ///> Do not use for security-critical entropy!
 
 /* ByteString */
+static UA_INLINE UA_ByteString * UA_ByteString_new(void) { return UA_String_new(); }
+static UA_INLINE void UA_ByteString_init(UA_ByteString *p) { UA_String_init(p); }
+static UA_INLINE void UA_ByteString_delete(UA_ByteString *p) { UA_String_delete(p); }
+static UA_INLINE void UA_ByteString_deleteMembers(UA_ByteString *p) { UA_String_deleteMembers(p); }
+static UA_INLINE UA_StatusCode UA_ByteString_copy(const UA_ByteString *src, UA_ByteString *dst) { return UA_String_copy(src, dst); }
 #define UA_BYTESTRING_NULL (UA_ByteString) {-1, (UA_Byte*)0 }
-#define UA_ByteString_equal(string1, string2) \
-    UA_String_equal((const UA_String*) string1, (const UA_String*)string2)
+#define UA_ByteString_equal(string1, string2) UA_String_equal((const UA_String*) string1, (const UA_String*)string2)
+UA_StatusCode UA_EXPORT UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length); ///> Allocates memory of size length for the bytestring. The content is not set to zero.
 
-/** Allocates memory of size length for the bytestring. The content is not set to zero. */
-UA_StatusCode UA_EXPORT UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length);
+/* XmlElement */
+static UA_INLINE UA_XmlElement * UA_XmlElement_new(void) { return UA_String_new(); }
+static UA_INLINE void UA_XmlElement_init(UA_XmlElement *p) { UA_String_init(p); }
+static UA_INLINE void UA_XmlElement_delete(UA_XmlElement *p) { UA_String_delete(p); }
+static UA_INLINE void UA_XmlElement_deleteMembers(UA_XmlElement *p) { UA_String_deleteMembers(p); }
+static UA_INLINE UA_StatusCode UA_XmlElement_copy(const UA_XmlElement *src, UA_XmlElement *dst) { return UA_String_copy(src, dst); }
 
 /* NodeId */
-/** Compares two nodeids */
+UA_NodeId UA_EXPORT * UA_NodeId_new(void);
+void UA_EXPORT UA_NodeId_init(UA_NodeId *p);
+void UA_EXPORT UA_NodeId_delete(UA_NodeId *p);
+void UA_EXPORT UA_NodeId_deleteMembers(UA_NodeId *p);
+UA_StatusCode UA_EXPORT UA_NodeId_copy(const UA_NodeId *src, UA_NodeId *dst);
 UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
-
-/** Is the nodeid a null-nodeid? */
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
-
 UA_NodeId UA_EXPORT UA_NodeId_fromInteger(UA_UInt16 nsIndex, UA_Int32 identifier);
 UA_NodeId UA_EXPORT UA_NodeId_fromCharString(UA_UInt16 nsIndex, char identifier[]);
 UA_NodeId UA_EXPORT UA_NodeId_fromCharStringCopy(UA_UInt16 nsIndex, char const identifier[]);
@@ -341,36 +392,64 @@ UA_NodeId UA_EXPORT UA_NodeId_fromCharByteString(UA_UInt16 nsIndex, char identif
 UA_NodeId UA_EXPORT UA_NodeId_fromCharByteStringCopy(UA_UInt16 nsIndex, char const identifier[]);
 UA_NodeId UA_EXPORT UA_NodeId_fromByteString(UA_UInt16 nsIndex, UA_ByteString identifier);
 UA_NodeId UA_EXPORT UA_NodeId_fromByteStringCopy(UA_UInt16 nsIndex, UA_ByteString identifier);
-
 #define UA_NODEID_NUMERIC(NSID, NUMERICID) UA_NodeId_fromInteger(NSID, NUMERICID)
 #define UA_NODEID_STRING(NSID, CHARS) UA_NodeId_fromCharString(NSID, CHARS)
 #define UA_NODEID_STRING_ALLOC(NSID, CHARS) UA_NodeId_fromCharStringCopy(NSID, CHARS)
 #define UA_NODEID_GUID(NSID, GUID) UA_NodeId_fromGuid(NSID, GUID)
 #define UA_NODEID_BYTESTRING(NSID, CHARS) UA_NodeId_fromCharByteString(NSID, CHARS)
 #define UA_NODEID_BYTESTRING_ALLOC(NSID, CHARS) UA_NodeId_fromCharByteStringCopy(NSID, CHARS)
-#define UA_NODEID_NULL UA_NODEID_NUMERIC(0,0)
+#define UA_NODEID_NULL (UA_NodeId){0, UA_NODEIDTYPE_NUMERIC, {0}}
 
 /* ExpandedNodeId */
+UA_ExpandedNodeId UA_EXPORT * UA_ExpandedNodeId_new(void);
+void UA_EXPORT UA_ExpandedNodeId_init(UA_ExpandedNodeId *p);
+void UA_EXPORT UA_ExpandedNodeId_delete(UA_ExpandedNodeId *p);
+void UA_EXPORT UA_ExpandedNodeId_deleteMembers(UA_ExpandedNodeId *p);
+UA_StatusCode UA_EXPORT UA_ExpandedNodeId_copy(const UA_ExpandedNodeId *src, UA_ExpandedNodeId *dst);
 UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
-
 #define UA_EXPANDEDNODEID_NUMERIC(NSID, NUMERICID) (UA_ExpandedNodeId) {            \
         .nodeId = {.namespaceIndex = NSID, .identifierType = UA_NODEIDTYPE_NUMERIC, \
-                   .identifier.numeric = NUMERICID },                                   \
+                   .identifier.numeric = NUMERICID },                               \
         .serverIndex = 0, .namespaceUri = {.data = (UA_Byte*)0, .length = -1} }
-    
+
+/* StatusCode */
+UA_StatusCode UA_EXPORT * UA_StatusCode_new(void);
+static UA_INLINE void UA_StatusCode_init(UA_StatusCode *p) { *p = UA_STATUSCODE_GOOD; }
+void UA_EXPORT UA_StatusCode_delete(UA_StatusCode *p);
+static UA_INLINE void UA_StatusCode_deleteMembers(UA_StatusCode *p) { }
+static UA_INLINE UA_StatusCode UA_StatusCode_copy(const UA_StatusCode *src, UA_StatusCode *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+
 /* QualifiedName */
-#define UA_QUALIFIEDNAME(NSID, CHARS) (const UA_QualifiedName) {    \
-        .namespaceIndex = NSID, .name = UA_STRING(CHARS) }
-#define UA_QUALIFIEDNAME_ALLOC(NSID, CHARS) (UA_QualifiedName) {    \
-        .namespaceIndex = NSID, .name = UA_STRING_ALLOC(CHARS) }
+UA_QualifiedName UA_EXPORT * UA_QualifiedName_new(void);
+void UA_EXPORT UA_QualifiedName_init(UA_QualifiedName *p);
+void UA_EXPORT UA_QualifiedName_delete(UA_QualifiedName *p);
+void UA_EXPORT UA_QualifiedName_deleteMembers(UA_QualifiedName *p);
+UA_StatusCode UA_EXPORT UA_QualifiedName_copy(const UA_QualifiedName *src, UA_QualifiedName *dst);
+#define UA_QUALIFIEDNAME(NSID, CHARS) (const UA_QualifiedName) { .namespaceIndex = NSID, .name = UA_STRING(CHARS) }
+#define UA_QUALIFIEDNAME_ALLOC(NSID, CHARS) (UA_QualifiedName) { .namespaceIndex = NSID, .name = UA_STRING_ALLOC(CHARS) }
 
 /* LocalizedText */
-#define UA_LOCALIZEDTEXT(LOCALE, TEXT) (const UA_LocalizedText) {       \
-        .locale = UA_STRING(LOCALE), .text = UA_STRING(TEXT) }
-#define UA_LOCALIZEDTEXT_ALLOC(LOCALE, TEXT) (UA_LocalizedText) {       \
-        .locale = UA_STRING_ALLOC(LOCALE), .text = UA_STRING_ALLOC(TEXT) }
+UA_LocalizedText UA_EXPORT * UA_LocalizedText_new(void);
+void UA_EXPORT UA_LocalizedText_init(UA_LocalizedText *p);
+void UA_EXPORT UA_LocalizedText_delete(UA_LocalizedText *p);
+void UA_EXPORT UA_LocalizedText_deleteMembers(UA_LocalizedText *p);
+UA_StatusCode UA_EXPORT UA_LocalizedText_copy(const UA_LocalizedText *src, UA_LocalizedText *dst);
+#define UA_LOCALIZEDTEXT(LOCALE, TEXT) (const UA_LocalizedText) { .locale = UA_STRING(LOCALE), .text = UA_STRING(TEXT) }
+#define UA_LOCALIZEDTEXT_ALLOC(LOCALE, TEXT) (UA_LocalizedText) { .locale = UA_STRING_ALLOC(LOCALE), .text = UA_STRING_ALLOC(TEXT) }
+
+/* ExtensionObject */
+UA_ExtensionObject UA_EXPORT * UA_ExtensionObject_new(void);
+void UA_EXPORT UA_ExtensionObject_init(UA_ExtensionObject *p);
+void UA_EXPORT UA_ExtensionObject_delete(UA_ExtensionObject *p);
+void UA_EXPORT UA_ExtensionObject_deleteMembers(UA_ExtensionObject *p);
+UA_StatusCode UA_EXPORT UA_ExtensionObject_copy(const UA_ExtensionObject *src, UA_ExtensionObject *dst);
 
 /* Variant */
+UA_Variant UA_EXPORT * UA_Variant_new(void);
+void UA_EXPORT UA_Variant_init(UA_Variant *p);
+void UA_EXPORT UA_Variant_delete(UA_Variant *p);
+void UA_EXPORT UA_Variant_deleteMembers(UA_Variant *p);
+UA_StatusCode UA_EXPORT UA_Variant_copy(const UA_Variant *src, UA_Variant *dst);
 
 /**
  * Returns true if the variant contains a scalar value. Note that empty variants contain an array of
@@ -412,8 +491,7 @@ UA_StatusCode UA_EXPORT UA_Variant_setScalarCopy(UA_Variant *v, const void *p, c
  * @param type The datatype of the array
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 elements,
-                                            const UA_DataType *type);
+UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 elements, const UA_DataType *type);
 
 /**
  * Set the variant to an array that is copied from an existing array.
@@ -424,21 +502,7 @@ UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32
  * @param type The datatype of the array
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setArrayCopy(UA_Variant *v, const void *array, UA_Int32 elements,
-                                                const UA_DataType *type);
-
-/** @brief NumericRanges are used select a subset in a (multidimensional)
-    variant array. NumericRange has no official type structure in the standard.
-    On the wire, it only exists as an encoded string, such as "1:2,0:3,5". The
-    colon separates min/max index and the comma separates dimensions. A single
-    value indicates a range with a single element (min==max). */
-typedef struct {
-    UA_Int32 dimensionsSize;
-    struct UA_NumericRangeDimension {
-        UA_UInt32 min;
-        UA_UInt32 max;
-    } *dimensions;
-} UA_NumericRange;
+UA_StatusCode UA_EXPORT UA_Variant_setArrayCopy(UA_Variant *v, const void *array, UA_Int32 elements, const UA_DataType *type);
 
 /**
  * Copy the variant, but use only a subset of the (multidimensional) array into a variant. Returns
@@ -449,7 +513,7 @@ typedef struct {
  * @param range The range of the copied data
  * @return Returns UA_STATUSCODE_GOOD or an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, UA_NumericRange range);
+UA_StatusCode UA_EXPORT UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRange range);
 
 /**
  * Insert a range of data into an existing variant. The data array can't be reused afterwards if it
@@ -462,8 +526,7 @@ UA_StatusCode UA_EXPORT UA_Variant_copyRange(const UA_Variant *src, UA_Variant *
  * @param range The range of where the new data is inserted
  * @return Returns UA_STATUSCODE_GOOD or an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setRange(UA_Variant *v, void *dataArray, UA_Int32 dataArraySize,
-                                            const UA_NumericRange range);
+UA_StatusCode UA_EXPORT UA_Variant_setRange(UA_Variant *v, void *dataArray, UA_Int32 dataArraySize, const UA_NumericRange range);
 
 /**
  * Deep-copy a range of data into an existing variant.
@@ -474,8 +537,21 @@ UA_StatusCode UA_EXPORT UA_Variant_setRange(UA_Variant *v, void *dataArray, UA_I
  * @param range The range of where the new data is inserted
  * @return Returns UA_STATUSCODE_GOOD or an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setRangeCopy(UA_Variant *v, const void *dataArray, UA_Int32 dataArraySize,
-                                                const UA_NumericRange range);
+UA_StatusCode UA_EXPORT UA_Variant_setRangeCopy(UA_Variant *v, const void *dataArray, UA_Int32 dataArraySize, const UA_NumericRange range);
+
+/* DataValue */
+UA_DataValue UA_EXPORT * UA_DataValue_new(void);
+void UA_EXPORT UA_DataValue_init(UA_DataValue *p);
+void UA_EXPORT UA_DataValue_delete(UA_DataValue *p);
+void UA_EXPORT UA_DataValue_deleteMembers(UA_DataValue *p);
+UA_StatusCode UA_EXPORT UA_DataValue_copy(const UA_DataValue *src, UA_DataValue *dst);
+
+/* DiagnosticInfo */
+UA_DiagnosticInfo UA_EXPORT * UA_DiagnosticInfo_new(void);
+void UA_EXPORT UA_DiagnosticInfo_init(UA_DiagnosticInfo *p);
+void UA_EXPORT UA_DiagnosticInfo_delete(UA_DiagnosticInfo *p);
+void UA_EXPORT UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p);
+UA_StatusCode UA_EXPORT UA_DiagnosticInfo_copy(const UA_DiagnosticInfo *src, UA_DiagnosticInfo *dst);
 
 /****************************/
 /* Structured Type Handling */
@@ -483,35 +559,27 @@ UA_StatusCode UA_EXPORT UA_Variant_setRangeCopy(UA_Variant *v, const void *dataA
 
 #define UA_MAX_TYPE_MEMBERS 13 // Maximum number of members per complex type
 
-#ifndef _WIN32
-# define UA_BITFIELD(SIZE) : SIZE
-#else
-# define UA_BITFIELD(SIZE)
-#endif
-
 #define UA_IS_BUILTIN(ID) (ID <= UA_TYPES_DIAGNOSTICINFO)
 
 typedef struct {
-    UA_UInt16 memberTypeIndex UA_BITFIELD(9); ///< Index of the member in the datatypetable
-    UA_Boolean namespaceZero UA_BITFIELD(1); /**< The type of the member is defined in namespace
-                                                  zero. In this implementation, types from custom
-                                                  namespace may contain members from the same
-                                                  namespace or ns0 only.*/
-    UA_Byte padding UA_BITFIELD(5); /**< How much padding is there before this member element? For
-                                         arrays this is split into 2 bytes padding before the
-                                         length index (max 4 bytes) and 3 bytes padding before the
-                                         pointer (max 8 bytes) */
-    UA_Boolean isArray UA_BITFIELD(1); ///< The member is an array of the given type
+    UA_UInt16 memberTypeIndex; ///< Index of the member in the datatypetable
+    UA_Byte padding; /**< How much padding is there before this member element? For arrays this is
+                          split into 2 bytes padding before the length index (max 4 bytes) and 3
+                          bytes padding before the pointer (max 8 bytes) */
+    UA_Boolean namespaceZero : 1; /**< The type of the member is defined in namespace zero. In this
+                                       implementation, types from custom namespace may contain
+                                       members from the same namespace or ns0 only.*/
+    UA_Boolean isArray : 1; ///< The member is an array of the given type
 } UA_DataTypeMember;
     
 struct UA_DataType {
     UA_NodeId typeId; ///< The nodeid of the type
-    ptrdiff_t memSize UA_BITFIELD(16); ///< Size of the struct in memory
-    UA_UInt16 typeIndex UA_BITFIELD(13); ///< Index of the type in the datatypetable
-    UA_Boolean namespaceZero UA_BITFIELD(1); ///< The type is defined in namespace zero
-    UA_Boolean fixedSize UA_BITFIELD(1); ///< The type (and its members) contains no pointers
-    UA_Boolean zeroCopyable UA_BITFIELD(1); ///< Can the type be copied directly off the stream?
+    UA_UInt16 memSize; ///< Size of the struct in memory
+    UA_UInt16 typeIndex; ///< Index of the type in the datatypetable
     UA_Byte membersSize; ///< How many members does the type have?
+    UA_Boolean namespaceZero : 1; ///< The type is defined in namespace zero
+    UA_Boolean fixedSize : 1; ///< The type (and its members contains no pointers
+    UA_Boolean zeroCopyable : 1; ///< Can the type be copied directly off the stream?
     UA_DataTypeMember members[UA_MAX_TYPE_MEMBERS];
 };
 
@@ -622,6 +690,17 @@ typedef enum {
     UA_ATTRIBUTEID_EXECUTABLE              = 21,
     UA_ATTRIBUTEID_USEREXECUTABLE          = 22
 } UA_AttributeId;
+
+/***************************/
+/* Random Number Generator */
+/***************************/
+
+/**
+ * If UA_MULTITHREADING is enabled, then the seed is stored in thread local storage. The seed is
+ * initialized for every thread in the server/client.
+ */
+UA_EXPORT void UA_random_seed(UA_UInt64 seed);
+UA_EXPORT UA_UInt32 UA_random(void);
 
 #ifdef __cplusplus
 } // extern "C"

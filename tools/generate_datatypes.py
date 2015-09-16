@@ -326,13 +326,13 @@ class StructType(object):
         return layout + "}"
 
     def functions_c(self, typeTableName):
-        return '''static UA_INLINE %s * %s_new(void) { return UA_new(%s); }
-static UA_INLINE void %s_init(%s *p) { UA_init(p, %s); }
+        return '''static UA_INLINE void %s_init(%s *p) { UA_init(p, %s); }
 static UA_INLINE void %s_delete(%s *p) { UA_delete(p, %s); }
 static UA_INLINE void %s_deleteMembers(%s *p) { UA_deleteMembers(p, %s); }
+static UA_INLINE %s * %s_new(void) { return (%s *) UA_new(%s); }
 static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { return UA_copy(src, dst, %s); }''' % \
-    tuple(list(itertools.chain(*itertools.repeat([self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 4)))
-          + [self.name, self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"])
+    tuple(  list(itertools.chain(*itertools.repeat([self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 3)))
+          + list(itertools.chain(*itertools.repeat([self.name, self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 2))) )
 
     def encoding_h(self, typeTableName):
         return '''static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src, UA_ByteString *dst, size_t *offset) { return UA_encodeBinary(src, %s, dst, offset); }

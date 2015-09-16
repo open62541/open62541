@@ -36,14 +36,15 @@ static UA_StatusCode UA_Array_encodeBinary(const void *src, UA_Int32 noElements,
 }
 
 static UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset,
-                                           UA_Int32 noElements, void **dst, const UA_DataType *dataType) {
-    if(noElements <= 0) {
+                                           UA_Int32 noElements_signed, void **dst, const UA_DataType *dataType) {
+    if(noElements_signed <= 0) {
         *dst = UA_NULL;
         return UA_STATUSCODE_GOOD;
     }
 
-    if((UA_Int32) dataType->memSize * noElements
-            < 0|| dataType->memSize * noElements > MAX_ARRAY_SIZE)
+    size_t noElements = (size_t)noElements_signed; //is guaranteed positive
+
+    if(dataType->memSize * noElements > MAX_ARRAY_SIZE)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* filter out arrays that can obviously not be parsed, because the message is too small */
@@ -67,7 +68,7 @@ static UA_StatusCode UA_Array_decodeBinary(const UA_ByteString *src, size_t *UA_
 #endif
 
     uintptr_t ptr = (uintptr_t) *dst;
-    UA_Int32 i;
+    size_t i = 0;
     for(i = 0; i < noElements && retval == UA_STATUSCODE_GOOD; i++) {
         retval = UA_decodeBinary(src, offset, (void*) ptr, dataType);
         ptr += dataType->memSize;
@@ -143,7 +144,7 @@ UA_StatusCode UA_UInt16_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRI
 
 #ifdef UA_ALIGNED_MEMORY_ACCESS
     *dst = (UA_UInt16) src->data[(*offset)++] << 0;
-    *dst += (UA_UInt16) src->data[(*offset)++] << 8;
+    *dst |= (UA_UInt16) src->data[(*offset)++] << 8;
 #else
     *dst = *((UA_UInt16*) &src->data[*offset]);
     *offset += 2;
@@ -183,9 +184,9 @@ UA_StatusCode UA_UInt32_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRI
 
 #ifdef UA_ALIGNED_MEMORY_ACCESS
     *dst = (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF));
-    *dst += (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF) << 8);
-    *dst += (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF) << 16);
-    *dst += (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF) << 24);
+    *dst |= (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF) << 8);
+    *dst |= (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF) << 16);
+    *dst |= (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF) << 24);
 #else
     *dst = *((UA_UInt32*) &src->data[*offset]);
     *offset += 4;
@@ -229,13 +230,13 @@ UA_StatusCode UA_UInt64_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRI
 
 #ifdef UA_ALIGNED_MEMORY_ACCESS
     *dst = (UA_UInt64) src->data[(*offset)++];
-    *dst += (UA_UInt64) src->data[(*offset)++] << 8;
-    *dst += (UA_UInt64) src->data[(*offset)++] << 16;
-    *dst += (UA_UInt64) src->data[(*offset)++] << 24;
-    *dst += (UA_UInt64) src->data[(*offset)++] << 32;
-    *dst += (UA_UInt64) src->data[(*offset)++] << 40;
-    *dst += (UA_UInt64) src->data[(*offset)++] << 48;
-    *dst += (UA_UInt64) src->data[(*offset)++] << 56;
+    *dst |= (UA_UInt64) src->data[(*offset)++] << 8;
+    *dst |= (UA_UInt64) src->data[(*offset)++] << 16;
+    *dst |= (UA_UInt64) src->data[(*offset)++] << 24;
+    *dst |= (UA_UInt64) src->data[(*offset)++] << 32;
+    *dst |= (UA_UInt64) src->data[(*offset)++] << 40;
+    *dst |= (UA_UInt64) src->data[(*offset)++] << 48;
+    *dst |= (UA_UInt64) src->data[(*offset)++] << 56;
 #else
     *dst = *((UA_UInt64*) &src->data[*offset]);
     *offset += 8;
@@ -432,7 +433,7 @@ UA_StatusCode UA_NodeId_encodeBinary(UA_NodeId const *src, UA_ByteString * dst, 
             /* UA_NODEIDTYPE_FOURBYTE */
             srcByte = UA_NODEIDTYPE_FOURBYTE;
             retval |= UA_Byte_encodeBinary(&srcByte, dst, offset);
-            srcByte = src->namespaceIndex;
+            srcByte = (UA_Byte)src->namespaceIndex;
             srcUInt16 = src->identifier.numeric;
             retval |= UA_Byte_encodeBinary(&srcByte, dst, offset);
             retval |= UA_UInt16_encodeBinary(&srcUInt16, dst, offset);
@@ -792,7 +793,7 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
 
 /* The resulting variant always has the storagetype UA_VARIANT_DATA. Currently,
  we only support ns0 types (todo: attach typedescriptions to datatypenodes) */
-UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, size_t *offset, UA_Variant *dst) {
+UA_StatusCode UA_Variant_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset, UA_Variant *dst) {
     UA_Variant_init(dst);
     UA_Byte encodingByte;
     UA_StatusCode retval = UA_Byte_decodeBinary(src, offset, &encodingByte);
@@ -909,7 +910,7 @@ UA_StatusCode UA_DiagnosticInfo_decodeBinary(UA_ByteString const *src, size_t *U
         dst->innerDiagnosticInfo = UA_malloc(sizeof(UA_DiagnosticInfo));
         if(dst->innerDiagnosticInfo) {
             if(UA_DiagnosticInfo_decodeBinary(src, offset,
-                    dst->innerDiagnosticInfo) != UA_STATUSCODE_GOOD) {
+                                              dst->innerDiagnosticInfo) != UA_STATUSCODE_GOOD) {
                 UA_free(dst->innerDiagnosticInfo);
                 dst->innerDiagnosticInfo = UA_NULL;
                 retval |= UA_STATUSCODE_BADINTERNALERROR;
@@ -1250,22 +1251,22 @@ static size_t UA_DataValue_calcSizeBinary(UA_DataValue const *p) {
     return length;
 }
 
-static size_t UA_DiagnosticInfo_calcSizeBinary(UA_DiagnosticInfo const *ptr) {
+static size_t UA_DiagnosticInfo_calcSizeBinary(UA_DiagnosticInfo const *p) {
     size_t length = sizeof(UA_Byte);
-    if(ptr->hasSymbolicId)
+    if(p->hasSymbolicId)
         length += sizeof(UA_Int32);
-    if(ptr->hasNamespaceUri)
+    if(p->hasNamespaceUri)
         length += sizeof(UA_Int32);
-    if(ptr->hasLocalizedText)
+    if(p->hasLocalizedText)
         length += sizeof(UA_Int32);
-    if(ptr->hasLocale)
+    if(p->hasLocale)
         length += sizeof(UA_Int32);
-    if(ptr->hasAdditionalInfo)
-        length += UA_String_calcSizeBinary(&ptr->additionalInfo);
-    if(ptr->hasInnerStatusCode)
+    if(p->hasAdditionalInfo)
+        length += UA_String_calcSizeBinary(&p->additionalInfo);
+    if(p->hasInnerStatusCode)
         length += sizeof(UA_StatusCode);
-    if(ptr->hasInnerDiagnosticInfo)
-        length += UA_DiagnosticInfo_calcSizeBinary(ptr->innerDiagnosticInfo);
+    if(p->hasInnerDiagnosticInfo)
+        length += UA_DiagnosticInfo_calcSizeBinary(p->innerDiagnosticInfo);
     return length;
 }
 

@@ -294,13 +294,8 @@ UA_StatusCode Subscription_registerUpdateJob(UA_Server *server, UA_Subscription 
         return UA_STATUSCODE_BADNOTSUPPORTED;
     
     // Practically enough, the client sends a uint32 in ms, which we store as datetime, which here is required in as uint32 in ms as the interval
-#ifdef _MSC_VER
-    UA_Int32 retval = UA_Server_addRepeatedJob(server, *(sub->timedUpdateJob), sub->publishingInterval,
-                                               &sub->timedUpdateJobGuid);
-#else
     UA_StatusCode retval = UA_Server_addRepeatedJob(server, *sub->timedUpdateJob, sub->publishingInterval,
                                                     &sub->timedUpdateJobGuid);
-#endif
     if(!retval)
         sub->timedUpdateIsRegistered = UA_TRUE;
     return retval;
@@ -437,7 +432,7 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
                 if(srcAsVariableNode->valueSource != UA_VALUESOURCE_DATASOURCE)
                     break;
                 // todo: handle numeric ranges
-                if(srcAsVariableNode->value.dataSource.read(vsrc->value.dataSource.handle, UA_TRUE, UA_NULL,
+                if(srcAsVariableNode->value.dataSource.read(vsrc->value.dataSource.handle, vsrc->nodeId, UA_TRUE, UA_NULL,
                                                             &sourceDataValue) != UA_STATUSCODE_GOOD)
                     break;
                 UA_Variant_copy(&sourceDataValue.value, dst);

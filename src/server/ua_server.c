@@ -205,7 +205,7 @@ static void getBulidInfo(const UA_Server* server, UA_BuildInfo *buildInfo) {
     buildInfo->buildDate = server->buildDate;
 }
 
-static UA_StatusCode readStatus(void *handle, UA_Boolean sourceTimeStamp, const UA_NumericRange *range, UA_DataValue *value) {
+static UA_StatusCode readStatus(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp, const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
         value->hasStatus = UA_TRUE;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -232,7 +232,7 @@ static UA_StatusCode readStatus(void *handle, UA_Boolean sourceTimeStamp, const 
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode readNamespaces(void *handle, UA_Boolean sourceTimestamp, const UA_NumericRange *range, UA_DataValue *value) {
+static UA_StatusCode readNamespaces(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimestamp, const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
         value->hasStatus = UA_TRUE;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -250,7 +250,7 @@ static UA_StatusCode readNamespaces(void *handle, UA_Boolean sourceTimestamp, co
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode readCurrentTime(void *handle, UA_Boolean sourceTimeStamp,
+static UA_StatusCode readCurrentTime(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
                                      const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
         value->hasStatus = UA_TRUE;

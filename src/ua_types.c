@@ -3,27 +3,21 @@
 #include "ua_statuscodes.h"
 #include "ua_types_generated.h"
 
+#include "pcg_basic.h"
+
 /*****************/
 /* Helper Macros */
 /*****************/
 
 #define UA_TYPE_DEFAULT(TYPE)            \
     UA_TYPE_NEW_DEFAULT(TYPE)            \
-    UA_TYPE_INIT_DEFAULT(TYPE)           \
-    UA_TYPE_DELETEMEMBERS_NOACTION(TYPE) \
-    UA_TYPE_DELETE_DEFAULT(TYPE)         \
-    UA_TYPE_COPY_DEFAULT(TYPE)           \
+    UA_TYPE_DELETE_DEFAULT(TYPE)
 
 #define UA_TYPE_NEW_DEFAULT(TYPE)                              \
     TYPE * TYPE##_new() {                                      \
         TYPE *p = UA_malloc(sizeof(TYPE));                     \
         if(p) TYPE##_init(p);                                  \
         return p;                                              \
-    }
-
-#define UA_TYPE_INIT_DEFAULT(TYPE) \
-    void TYPE##_init(TYPE * p) {   \
-        *p = (TYPE)0;              \
     }
 
 #define UA_TYPE_DELETEMEMBERS_NOACTION(TYPE) \
@@ -36,11 +30,19 @@
         UA_free(p);                  \
     }
 
-#define UA_TYPE_COPY_DEFAULT(TYPE)                             \
-    UA_StatusCode TYPE##_copy(TYPE const *src, TYPE *dst) {    \
-        *dst = *src;                                           \
-        return UA_STATUSCODE_GOOD;                             \
-    }
+/***************************/
+/* Random Number Generator */
+/***************************/
+
+static UA_THREAD_LOCAL pcg32_random_t rng = PCG32_INITIALIZER;
+
+UA_EXPORT void UA_random_seed(UA_UInt64 seed) {
+    pcg32_srandom_r(&rng, seed, UA_DateTime_now());
+}
+
+UA_EXPORT UA_UInt32 UA_random(void) {
+    return (UA_UInt32)pcg32_random_r(&rng);
+}
 
 /*****************/
 /* Builtin Types */
@@ -160,6 +162,7 @@ UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
 }
 
 /* DateTime */
+UA_TYPE_DEFAULT(UA_DateTime)
 #define UNIX_EPOCH_BIAS_SEC 11644473600LL // Number of seconds from 1 Jan. 1601 00:00 to 1 Jan 1970 00:00 UTC
 #define HUNDRED_NANOSEC_PER_USEC 10LL
 #define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
@@ -184,7 +187,7 @@ int gettimeofday(struct timeval *tp, struct timezone *tzp) {
     SystemTimeToFileTime(&st, &ft);
     ul.LowPart  = ft.dwLowDateTime;
     ul.HighPart = ft.dwHighDateTime;
-    tp->tv_sec  = (ul.QuadPart - epoch) / 10000000L;
+    tp->tv_sec  = (long)((ul.QuadPart - epoch) / 10000000L);
     tp->tv_usec = st.wMilliseconds * 1000;
     return 0;
 }
@@ -231,10 +234,7 @@ UA_StatusCode UA_DateTime_toString(UA_DateTime atime, UA_String *timeString) {
 }
 
 /* Guid */
-UA_TYPE_NEW_DEFAULT(UA_Guid)
-UA_TYPE_DELETEMEMBERS_NOACTION(UA_Guid)
-UA_TYPE_DELETE_DEFAULT(UA_Guid)
-
+UA_TYPE_DEFAULT(UA_Guid)
 UA_Boolean UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
     if(memcmp(g1, g2, sizeof(UA_Guid)) == 0)
         return UA_TRUE;
@@ -243,33 +243,21 @@ UA_Boolean UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
 
 UA_Guid UA_Guid_random(UA_UInt32 *seed) {
     UA_Guid result;
-    result.data1 = RAND(seed);
-    UA_UInt32 r = RAND(seed);
+    result.data1 = (UA_UInt32)pcg32_random_r(&rng);
+    UA_UInt32 r = (UA_UInt32)pcg32_random_r(&rng);
     result.data2 = (UA_UInt16) r;
     result.data3 = (UA_UInt16) (r >> 16);
-    r = RAND(seed);
+    r = (UA_UInt32)pcg32_random_r(&rng);
     result.data4[0] = (UA_Byte)r;
     result.data4[1] = (UA_Byte)(r >> 4);
     result.data4[2] = (UA_Byte)(r >> 8);
     result.data4[3] = (UA_Byte)(r >> 12);
-    r = RAND(seed);
+    r = (UA_UInt32)pcg32_random_r(&rng);
     result.data4[4] = (UA_Byte)r;
     result.data4[5] = (UA_Byte)(r >> 4);
     result.data4[6] = (UA_Byte)(r >> 8);
     result.data4[7] = (UA_Byte)(r >> 12);
     return result;
-}
-
-void UA_Guid_init(UA_Guid *p) {
-    p->data1 = 0;
-    p->data2 = 0;
-    p->data3 = 0;
-    memset(p->data4, 0, sizeof(UA_Byte)*8);
-}
-
-UA_StatusCode UA_Guid_copy(UA_Guid const *src, UA_Guid *dst) {
-    UA_memcpy((void *)dst, (const void *)src, sizeof(UA_Guid));
-    return UA_STATUSCODE_GOOD;
 }
 
 /* ByteString */
@@ -561,24 +549,14 @@ void UA_DataValue_deleteMembers(UA_DataValue *p) {
 }
 
 void UA_DataValue_init(UA_DataValue *p) {
-    *((UA_Byte*)p) = 0; // zero out the bitfield
-    p->serverPicoseconds = 0;
-    UA_DateTime_init(&p->serverTimestamp);
-    p->sourcePicoseconds = 0;
-    UA_DateTime_init(&p->sourceTimestamp);
-    UA_StatusCode_init(&p->status);
+    UA_memset(p, 0, sizeof(UA_DataValue));
     UA_Variant_init(&p->value);
 }
 
 UA_StatusCode UA_DataValue_copy(UA_DataValue const *src, UA_DataValue *dst) {
-    UA_DataValue_init(dst);
-    *((UA_Byte*)dst) = *((const UA_Byte*)src); // the bitfield
-    UA_StatusCode retval = UA_DateTime_copy(&src->serverTimestamp, &dst->serverTimestamp);
-    retval |= UA_DateTime_copy(&src->sourceTimestamp, &dst->sourceTimestamp);
-    retval |= UA_Variant_copy(&src->value, &dst->value);
-    dst->serverPicoseconds = src->serverPicoseconds;
-    dst->sourcePicoseconds = src->sourcePicoseconds;
-    dst->status = src->status;
+    UA_memcpy(dst, src, sizeof(UA_DataValue));
+    UA_Variant_init(&dst->value);
+    UA_StatusCode retval = UA_Variant_copy(&src->value, &dst->value);
     if(retval) {
         UA_DataValue_deleteMembers(dst);
         UA_DataValue_init(dst);
@@ -745,7 +723,7 @@ UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const
         }
     }
 
-    /* Copy the range dimensions*/
+    /* Copy the range dimensions */
     if(src->arrayDimensionsSize > 0) {
         dst->arrayDimensions = UA_malloc(sizeof(UA_Int32) * src->arrayDimensionsSize);
         if(!dst->arrayDimensions) {
@@ -868,24 +846,14 @@ void UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
 }
 
 void UA_DiagnosticInfo_init(UA_DiagnosticInfo *p) {
-	*((UA_Byte*)p) = 0; // zero out the bitfield
-    p->symbolicId          = 0;
-    p->namespaceUri        = 0;
-    p->localizedText       = 0;
-    p->locale              = 0;
+    UA_memset(p, 0, sizeof(UA_DiagnosticInfo));
     UA_String_init(&p->additionalInfo);
-    p->innerDiagnosticInfo = UA_NULL;
-    UA_StatusCode_init(&p->innerStatusCode);
 }
 
 UA_StatusCode UA_DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst) {
-    UA_DiagnosticInfo_init(dst);
-    *((UA_Byte*)dst) = *((const UA_Byte*)src); // the bitfield
-    dst->symbolicId = src->symbolicId;
-    dst->namespaceUri = src->namespaceUri;
-    dst->localizedText = src->localizedText;
-    dst->locale = src->locale;
-    dst->innerStatusCode = src->innerStatusCode;
+    UA_memcpy(dst, src, sizeof(UA_DiagnosticInfo));
+    UA_String_init(&dst->additionalInfo);
+    dst->innerDiagnosticInfo = UA_NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(src->hasAdditionalInfo)
        retval = UA_String_copy(&src->additionalInfo, &dst->additionalInfo);
@@ -893,11 +861,11 @@ UA_StatusCode UA_DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_Diagnostic
         if((dst->innerDiagnosticInfo = UA_malloc(sizeof(UA_DiagnosticInfo)))) {
             retval |= UA_DiagnosticInfo_copy(src->innerDiagnosticInfo, dst->innerDiagnosticInfo);
             dst->hasInnerDiagnosticInfo = src->hasInnerDiagnosticInfo;
-        }
-        else
+        } else {
             retval |= UA_STATUSCODE_BADOUTOFMEMORY;
+        }
     }
-    if(retval) {
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_DiagnosticInfo_deleteMembers(dst);
         UA_DiagnosticInfo_init(dst);
     }

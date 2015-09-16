@@ -37,8 +37,11 @@ int main()
     UA_NodeId myIntegerNodeId = UA_NODEID_NULL; /* assign a random free nodeid */
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
-                              myIntegerNodeId, parentNodeId, parentReferenceNodeId);
+    UA_Server_addVariableNode(server, myIntegerNodeId, myIntegerName,
+                              UA_LOCALIZEDTEXT("", "the.answer"),
+                              UA_LOCALIZEDTEXT("", ""), 0, 0,
+                              parentNodeId, parentReferenceNodeId,
+                              myIntegerVariant, NULL);
 
     UA_Boolean running = UA_TRUE;
     UA_StatusCode retval = UA_Server_run(server, 1, &running);

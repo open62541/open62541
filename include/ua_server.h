@@ -93,6 +93,7 @@ typedef struct {
      * Copies the data from the source into the provided value.
      *
      * @param handle An optional pointer to user-defined data for the specific data source
+     * @param nodeid Id of the read node
      * @param includeSourceTimeStamp If true, then the datasource is expected to set the source
      *        timestamp in the returned value
      * @param range If not null, then the datasource shall return only a selection of the (nonscalar)
@@ -102,19 +103,20 @@ typedef struct {
      * @return Returns a status code for logging. Error codes intended for the original caller are set
      *         in the value. If an error is returned, then no releasing of the value is done.
      */
-    UA_StatusCode (*read)(void *handle, UA_Boolean includeSourceTimeStamp, const UA_NumericRange *range, UA_DataValue *value);
+    UA_StatusCode (*read)(void *handle, const UA_NodeId nodeid,  UA_Boolean includeSourceTimeStamp, const UA_NumericRange *range, UA_DataValue *value);
 
     /**
      * Write into a data source. The write member of UA_DataSource can be empty if the operation
      * is unsupported.
      *
      * @param handle An optional pointer to user-defined data for the specific data source
+     * @param nodeid Id of the node being written to
      * @param data The data to be written into the data source
      * @param range An optional data range. If the data source is scalar or does not support writing
      *        of ranges, then an error code is returned.
      * @return Returns a status code that is returned to the user
      */
-    UA_StatusCode (*write)(void *handle, const UA_Variant *data, const UA_NumericRange *range);
+    UA_StatusCode (*write)(void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range);
 } UA_DataSource;
 
 /** @brief Add a new namespace to the server. Returns the index of the new namespace */
