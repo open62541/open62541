@@ -450,6 +450,8 @@ UA_ServerNetworkLayer ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UIn
 
 static UA_StatusCode ClientNetworkLayerGetBuffer(UA_Connection *connection, UA_ByteString *buf) {
 #ifndef UA_MULTITHREADING
+    if(connection->state == UA_CONNECTION_CLOSED)
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
     *buf = *(UA_ByteString*)connection->handle;
     return UA_STATUSCODE_GOOD;
 #else
