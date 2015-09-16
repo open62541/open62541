@@ -278,6 +278,10 @@ typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean i
  */
 UA_StatusCode UA_EXPORT UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback, void *handle);
 
+/***********************/
+/* Set Node Attributes */
+/***********************/
+
 UA_StatusCode UA_EXPORT UA_Server_setNodeAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_AttributeId attributeId, const UA_Variant value);
 
 #define UA_SERVER_SETNODEATTRIBUTE_DECL(ATTRIBUTE, ATTRIBUTEID, TYPE, TYPEINDEX)	\
@@ -314,11 +318,16 @@ UA_SERVER_SETNODEATTRIBUTE_DECL(userExecutable, UA_ATTRIBUTEID_USEREXECUTABLE, U
 
 #ifdef ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT
-UA_Server_setNodeAttribute_method(UA_Server *server, UA_NodeId methodNodeId, UA_MethodCallback method, void *handle);
+UA_Server_setNodeAttribute_method(UA_Server *server, UA_NodeId methodNodeId,
+                                  UA_MethodCallback method, void *handle);
 #endif
 
 UA_StatusCode UA_EXPORT
 UA_Server_setNodeAttribute_valueDataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource *value);
+
+/***********************/
+/* Get Node Attributes */
+/***********************/
 
 UA_StatusCode UA_EXPORT
 UA_Server_getNodeAttribute(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, UA_Variant *v);
@@ -327,33 +336,61 @@ UA_StatusCode UA_EXPORT
 UA_Server_getNodeAttributeUnpacked(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void *v);
   
 static UA_INLINE UA_StatusCode UA_Server_getNodeAttribute_nodeId(UA_Server *server, UA_NodeId nodeId, UA_NodeId *outNodeId) {
-    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_NODEID, outNodeId);
-}
+    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_NODEID, outNodeId); }
 
 static UA_INLINE UA_StatusCode UA_Server_getNodeAttribute_nodeClass(UA_Server *server, UA_NodeId nodeId, UA_NodeClass *outNodeClass) {
-    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_NODECLASS, outNodeClass);
-}
+    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_NODECLASS, outNodeClass); }
 
-#define UA_Server_getNodeAttribute_browseName(SERVER, NODEID, VALUE) UA_Server_getAttribute(SERVER, NODEID, UA_ATTRIBUTEID_BROWSENAME, (UA_QualifiedName **) VALUE);
-#define UA_Server_getNodeAttribute_displayName(SERVER, NODEID, VALUE) UA_Server_getAttribute(SERVER, NODEID, UA_ATTRIBUTEID_DISPLAYNAME, (UA_LocalizedText **) VALUE);
-#define UA_Server_getNodeAttribute_description(SERVER, NODEID, VALUE) UA_Server_getAttribute(SERVER, NODEID, UA_ATTRIBUTEID_DESCRIPTION, (UA_LocalizedText **) VALUE);
-#define UA_Server_getNodeAttribute_writeMask(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_WRITEMASK, (UA_UInt32 **) VALUE);
-#define UA_Server_getNodeAttribute_userWriteMask(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_USERWRITEMASK, (UA_UInt32 **) VALUE);
-#define UA_Server_getNodeAttribute_isAbstract(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_ISABSTRACT, (UA_Boolean **) VALUE);
-#define UA_Server_getNodeAttribute_symmetric(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_SYMMETRIC, (UA_Boolean **) VALUE);
-#define UA_Server_getNodeAttribute_inverseName(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_INVERSENAME, (UA_LocalizedText **) VALUE);
-#define UA_Server_getNodeAttribute_containsNoLoops(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_CONTAINSNOLOOPS, (UA_Boolean **) VALUE);
-#define UA_Server_getNodeAttribute_eventNotifier(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_EVENTNOTIFIER, (UA_Byte **) VALUE);
-#define UA_Server_getNodeAttribute_value(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_VALUE, (UA_Variant **) VALUE);
-#define UA_Server_getNodeAttribute_dataType(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_DATATYPE, (UA_NodeId **) VALUE);
-#define UA_Server_getNodeAttribute_valueRank(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_VALUERANK, (UA_Int32 **) VALUE);
-#define UA_Server_getNodeAttribute_arrayDimensions(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_ARRAYDIMENSIONS, (UA_Int32 **) VALUE);
-#define UA_Server_getNodeAttribute_accessLevel(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_ACCESSLEVEL, (UA_UInt32 **) VALUE);
-#define UA_Server_getNodeAttribute_userAccessLevel(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_USERACCESSLEVEL, (UA_UInt32 **) VALUE);
-#define UA_Server_getNodeAttribute_minimumSamplingInterval(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL, (UA_Double **) VALUE);
-#define UA_Server_getNodeAttribute_historizing(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_HISTORIZING, (UA_Boolean **) VALUE);
-#define UA_Server_getNodeAttribute_executable(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_EXECUTABLE, (UA_Boolean **) VALUE);
-#define UA_Server_getNodeAttribute_userExecutable(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_USEREXECUTABLE, (UA_Boolean **) VALUE);
+static UA_INLINE UA_StatusCode UA_Server_getNodeAttribute_browseName(UA_Server *server, UA_NodeId nodeId, UA_QualifiedName *outBrowseName) {
+    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_BROWSENAME, outBrowseName); }
+
+static UA_INLINE UA_StatusCode UA_Server_getNodeAttribute_displayName(UA_Server *server, UA_NodeId nodeId, UA_LocalizedText *outDisplayName) {
+    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_DISPLAYNAME, outDisplayName); }
+
+static UA_INLINE UA_StatusCode UA_Server_getNodeAttribute_description(UA_Server *server, UA_NodeId nodeId, UA_LocalizedText *outDescription) {
+    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_DESCRIPTION, outDescription); }
+
+// #define UA_Server_getNodeAttribute_writeMask(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_WRITEMASK, (UA_UInt32 **) VALUE);
+// #define UA_Server_getNodeAttribute_userWriteMask(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_USERWRITEMASK, (UA_UInt32 **) VALUE);
+
+static UA_INLINE UA_StatusCode UA_Server_getNodeAttribute_isAbstract(UA_Server *server, UA_NodeId nodeId, UA_Boolean *outIsAbstract) {
+    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_ISABSTRACT, outIsAbstract); }
+
+static UA_INLINE UA_StatusCode UA_Server_getNodeAttribute_symmetric(UA_Server *server, UA_NodeId nodeId, UA_Boolean *outSymmetric) {
+    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_SYMMETRIC, outSymmetric); }
+
+static UA_INLINE UA_StatusCode UA_Server_getNodeAttribute_inverseName(UA_Server *server, UA_NodeId nodeId, UA_LocalizedText *outInverseName) {
+    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_INVERSENAME, outInverseName); }
+
+static UA_INLINE UA_StatusCode UA_Server_getNodeAttribute_containsNoLoops(UA_Server *server, UA_NodeId nodeId, UA_Boolean *outContainsNoLoops) {
+    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_CONTAINSNOLOOPS, outContainsNoLoops); }
+
+static UA_INLINE UA_StatusCode UA_Server_getNodeAttribute_eventNotifier(UA_Server *server, UA_NodeId nodeId, UA_Byte *outEventNotifier) {
+    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER, outEventNotifier); }
+
+static UA_INLINE UA_StatusCode UA_Server_getNodeAttribute_value(UA_Server *server, UA_NodeId nodeId, UA_Variant *outValue) {
+    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_VALUE, outValue); }
+
+static UA_INLINE UA_StatusCode UA_Server_getNodeAttribute_dataType(UA_Server *server, UA_NodeId nodeId, UA_Variant *outDataType) {
+    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_DATATYPE, outDataType); }
+
+static UA_INLINE UA_StatusCode UA_Server_getNodeAttribute_valueRank(UA_Server *server, UA_NodeId nodeId, UA_Int32 *outValueRank) {
+    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_VALUERANK, outValueRank); }
+
+static UA_INLINE UA_StatusCode UA_Server_getNodeAttribute_arrayDimensions(UA_Server *server, UA_NodeId nodeId, UA_Int32 *outArrayDimensions) {
+    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_ARRAYDIMENSIONS, outArrayDimensions); }
+
+// #define UA_Server_getNodeAttribute_accessLevel(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_ACCESSLEVEL, (UA_UInt32 **) VALUE);
+// #define UA_Server_getNodeAttribute_userAccessLevel(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_USERACCESSLEVEL, (UA_UInt32 **) VALUE);
+
+static UA_INLINE UA_StatusCode UA_Server_getNodeAttribute_minimumSamplingInterval(UA_Server *server, UA_NodeId nodeId, UA_Double *outMinimumSamplingInterval) {
+    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL, outMinimumSamplingInterval); }
+
+static UA_INLINE UA_StatusCode UA_Server_getNodeAttribute_historizing(UA_Server *server, UA_NodeId nodeId, UA_Double *outHistorizing) {
+    return UA_Server_getNodeAttributeUnpacked(server, nodeId, UA_ATTRIBUTEID_HISTORIZING, outHistorizing); }
+
+// #define UA_Server_getNodeAttribute_executable(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_EXECUTABLE, (UA_Boolean **) VALUE);
+// #define UA_Server_getNodeAttribute_userExecutable(SERVER, NODEID, VALUE) UA_Server_getNodeAttribute(SERVER, NODEID, UA_ATTRIBUTEID_USEREXECUTABLE, (UA_Boolean **) VALUE);
 
 #ifdef ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT
