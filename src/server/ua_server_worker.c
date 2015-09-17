@@ -316,14 +316,12 @@ UA_StatusCode UA_Server_addRepeatedJob(UA_Server *server, UA_Job job, UA_UInt32 
 /* Returns the timeout until the next repeated job in ms */
 static UA_UInt16 processRepeatedJobs(UA_Server *server) {
     UA_DateTime current = UA_DateTime_now();
-    struct RepeatedJobs *next = LIST_FIRST(&server->repeatedJobs);
-    struct RepeatedJobs *tw = UA_NULL;
+    struct RepeatedJobs *tw = LIST_FIRST(&server->repeatedJobs);
 
-    while(next) {
-        tw = next;
+    while (tw) {
+        //tw = nextjob;
         if(tw->nextTime > current)
             break;
-        next = LIST_NEXT(tw, pointers);
 
 #ifdef UA_MULTITHREADING
         // copy the entry and insert at the new location
@@ -336,8 +334,13 @@ static UA_UInt16 processRepeatedJobs(UA_Server *server) {
             jobsCopy[i] = tw->jobs[i].job;
         dispatchJobs(server, jobsCopy, tw->jobsSize); // frees the job pointer
 #else
-        for(size_t i=0;i<tw->jobsSize;i++)
+        for (size_t i = 0; i < tw->jobsSize; i++)
+        {
+            // be carefull
+            // methodCall may sort the list but dont delete entries
             processJobs(server, &tw->jobs[i].job, 1); // does not free the job ptr
+            // LIST_NEXT(tw, pointers) is still vaid
+        }
 #endif
         tw->nextTime += tw->interval;
         struct RepeatedJobs *prevTw = tw; // after which tw do we insert?
@@ -347,10 +350,12 @@ static UA_UInt16 processRepeatedJobs(UA_Server *server) {
                 break;
             prevTw = n;
         }
-        if(prevTw != tw) {
+        struct RepeatedJobs *nextTw = LIST_NEXT(tw, pointers);
+        if (prevTw != tw) {
             LIST_REMOVE(tw, pointers);
             LIST_INSERT_AFTER(prevTw, tw, pointers);
         }
+        tw = nextTw;
     }
 
     // check if the next repeated job is sooner than the usual timeout

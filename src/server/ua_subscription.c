@@ -22,7 +22,6 @@ UA_Subscription *UA_Subscription_new(UA_Int32 subscriptionID) {
 }
 
 void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server) {
-    UA_unpublishedNotification *not, *tmp_not;
     UA_MonitoredItem *mon, *tmp_mon;
     
     // Just in case any parallel process attempts to access this subscription
@@ -36,9 +35,7 @@ void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *ser
     }
     
     // Delete unpublished Notifications
-    LIST_FOREACH_SAFE(not, &subscription->unpublishedNotifications, listEntry, tmp_not) {
-        Subscription_deleteUnpublishedNotification(not->notification->sequenceNumber, subscription);
-    }
+    Subscription_deleteUnpublishedNotification(0, true, subscription);
     
     // Unhook/Unregister any timed work assiociated with this subscription
     if(subscription->timedUpdateJob != UA_NULL){
@@ -80,7 +77,7 @@ void Subscription_generateKeepAlive(UA_Subscription *subscription) {
 void Subscription_updateNotifications(UA_Subscription *subscription) {
     UA_MonitoredItem *mon;
     //MonitoredItem_queuedValue *queuedValue;
-    UA_unpublishedNotification *msg = NULL, *tempmsg;
+    UA_unpublishedNotification *msg;
     UA_UInt32 monItemsChangeT = 0, monItemsStatusT = 0, monItemsEventT = 0;
     UA_DataChangeNotification *changeNotification;
     size_t notificationOffset;
@@ -105,8 +102,7 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
     // FIXME: This is hardcoded to 100 because it is not covered by the spec but we need to protect the server!
     if(Subscription_queuedNotifications(subscription) >= 10) {
         // Remove last entry
-        LIST_FOREACH_SAFE(msg, &subscription->unpublishedNotifications, listEntry, tempmsg)
-            Subscription_deleteUnpublishedNotification(msg->notification->sequenceNumber, subscription);
+        Subscription_deleteUnpublishedNotification(0, true, subscription);
     }
     
     if(monItemsChangeT == 0 && monItemsEventT == 0 && monItemsStatusT == 0) {
@@ -224,11 +220,11 @@ void Subscription_copyTopNotificationMessage(UA_NotificationMessage *dst, UA_Sub
                        &dst->notificationData->body);
 }
 
-UA_UInt32 Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Subscription *sub) {
+UA_UInt32 Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Boolean bDeleteAll, UA_Subscription *sub) {
     UA_UInt32 deletedItems = 0;
     UA_unpublishedNotification *not, *tmp;
     LIST_FOREACH_SAFE(not, &sub->unpublishedNotifications, listEntry, tmp) {
-        if(not->notification->sequenceNumber != seqNo)
+        if (!bDeleteAll && not->notification->sequenceNumber != seqNo)
             continue;
         LIST_REMOVE(not, listEntry);
         if(not->notification) {
