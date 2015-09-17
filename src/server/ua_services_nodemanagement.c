@@ -276,13 +276,8 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
     }
     
 #ifdef UA_EXTERNAL_NAMESPACES
-#ifdef NO_ALLOCA
     UA_Boolean isExternal[size];
     UA_UInt32 indices[size];
-#else
-    UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
-    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
-#endif /*NO_ALLOCA */
     UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
     for(size_t j = 0; j <server->externalNamespacesSize; j++) {
         size_t indexSize = 0;
@@ -378,7 +373,8 @@ void Service_DeleteNodes(UA_Server *server, UA_Session *session, const UA_Delete
   response->responseHeader.serviceResult = retval;
 }
 
-void Service_DeleteReferences(UA_Server *server, UA_Session *session, const UA_DeleteReferencesRequest *request,
+void Service_DeleteReferences(UA_Server *server, UA_Session *session,
+                              const UA_DeleteReferencesRequest *request,
                               UA_DeleteReferencesResponse *response) {
   UA_StatusCode retval = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
   

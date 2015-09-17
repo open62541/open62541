@@ -318,11 +318,11 @@ void UA_EXPORT UA_String_init(UA_String *p);
 void UA_EXPORT UA_String_delete(UA_String *p);
 void UA_EXPORT UA_String_deleteMembers(UA_String *p);
 UA_StatusCode UA_EXPORT UA_String_copy(const UA_String *src, UA_String *dst);
-UA_String UA_EXPORT UA_String_fromChars(char const src[]); ///> Copies the char-array on the heap. Returns a null-string when alloc fails.
-UA_Boolean UA_EXPORT UA_String_equal(const UA_String *string1, const UA_String *string2); ///> Compares two strings
+UA_String UA_EXPORT UA_String_fromChars(char const src[]); ///> Copies the content on the heap. Returns a null-string when alloc fails.
+UA_Boolean UA_EXPORT UA_String_equal(const UA_String *s1, const UA_String *s2); ///> Compares two strings
 UA_StatusCode UA_EXPORT UA_String_copyprintf(char const fmt[], UA_String *dst, ...); ///> Printf a char-array into a UA_String. Memory for the string data is allocated.
-#define UA_STRING_NULL (UA_String) {-1, (UA_Byte*)0 }
-#define UA_STRING(CHARS) (UA_String) {strlen(CHARS), (UA_Byte*)CHARS }
+#define UA_STRING_NULL (UA_String){-1, (UA_Byte*)0 }
+#define UA_STRING(CHARS) (UA_String){sizeof(CHARS)-1, (UA_Byte*)CHARS }
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
 
 /* DateTime */
@@ -491,7 +491,8 @@ UA_StatusCode UA_EXPORT UA_Variant_setScalarCopy(UA_Variant *v, const void *p, c
  * @param type The datatype of the array
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 elements, const UA_DataType *type);
+UA_StatusCode UA_EXPORT
+UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 elements, const UA_DataType *type);
 
 /**
  * Set the variant to an array that is copied from an existing array.
@@ -502,7 +503,8 @@ UA_StatusCode UA_EXPORT UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32
  * @param type The datatype of the array
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setArrayCopy(UA_Variant *v, const void *array, UA_Int32 elements, const UA_DataType *type);
+UA_StatusCode UA_EXPORT
+UA_Variant_setArrayCopy(UA_Variant *v, const void *array, UA_Int32 elements, const UA_DataType *type);
 
 /**
  * Copy the variant, but use only a subset of the (multidimensional) array into a variant. Returns
@@ -513,7 +515,8 @@ UA_StatusCode UA_EXPORT UA_Variant_setArrayCopy(UA_Variant *v, const void *array
  * @param range The range of the copied data
  * @return Returns UA_STATUSCODE_GOOD or an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRange range);
+UA_StatusCode UA_EXPORT
+UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRange range);
 
 /**
  * Insert a range of data into an existing variant. The data array can't be reused afterwards if it
@@ -526,7 +529,8 @@ UA_StatusCode UA_EXPORT UA_Variant_copyRange(const UA_Variant *src, UA_Variant *
  * @param range The range of where the new data is inserted
  * @return Returns UA_STATUSCODE_GOOD or an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setRange(UA_Variant *v, void *dataArray, UA_Int32 dataArraySize, const UA_NumericRange range);
+UA_StatusCode UA_EXPORT
+UA_Variant_setRange(UA_Variant *v, void *dataArray, UA_Int32 dataArraySize, const UA_NumericRange range);
 
 /**
  * Deep-copy a range of data into an existing variant.
@@ -537,7 +541,9 @@ UA_StatusCode UA_EXPORT UA_Variant_setRange(UA_Variant *v, void *dataArray, UA_I
  * @param range The range of where the new data is inserted
  * @return Returns UA_STATUSCODE_GOOD or an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setRangeCopy(UA_Variant *v, const void *dataArray, UA_Int32 dataArraySize, const UA_NumericRange range);
+UA_StatusCode UA_EXPORT
+UA_Variant_setRangeCopy(UA_Variant *v, const void *dataArray, UA_Int32 dataArraySize,
+                        const UA_NumericRange range);
 
 /* DataValue */
 UA_DataValue UA_EXPORT * UA_DataValue_new(void);

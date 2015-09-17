@@ -131,8 +131,9 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_MethodNode)
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS
-    UA_Boolean containsNoLoops;
     UA_Byte eventNotifier;
+    /* <-- the same as objectnode until here --> */
+    UA_Boolean containsNoLoops;
 } UA_ViewNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_ViewNode)
 

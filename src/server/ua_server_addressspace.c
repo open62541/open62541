@@ -913,25 +913,3 @@ UA_Server_getNodeAttribute_valueDataSource(UA_Server *server, UA_NodeId nodeId, 
     UA_NodeStore_release((const UA_Node*)node);
     return UA_STATUSCODE_GOOD;
 }
-
-#define arrayOfNodeIds_addNodeId(ARRAYNAME, NODEID) { \
-  ARRAYNAME.size++; \
-  ARRAYNAME.ids = UA_realloc(ARRAYNAME.ids, sizeof(UA_NodeId) * ARRAYNAME.size); \
-  UA_NodeId_copy(&NODEID, &ARRAYNAME.ids[ARRAYNAME.size-1]); \
-}
-
-#define arrayOfNodeIds_deleteMembers(ARRAYNAME) { \
-  if (ARRAYNAME.size > 0)   \
-    UA_free(ARRAYNAME.ids); \
-  ARRAYNAME.size = 0;       \
-}
-
-#define arrayOfNodeIds_idInArray(ARRAYNAME, NODEID, BOOLEAN, BOOLINIT) { \
-  BOOLEAN = BOOLINIT;\
-  for (int z=0; z<ARRAYNAME.size; z++) {\
-    if (UA_NodeId_equal(&ARRAYNAME.ids[z], &NODEID)) {\
-      BOOLEAN = !BOOLINIT; \
-      break; \
-    } \
-  } \
-}
