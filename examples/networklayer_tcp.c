@@ -58,10 +58,10 @@ static UA_StatusCode socket_write(UA_Connection *connection, UA_ByteString *buf,
             n = send((SOCKET)connection->sockfd, (const char*)buf->data, buflen, 0);
 			const int last_error = WSAGetLastError();
             if(n < 0 && last_error != WSAEINTR && last_error != WSAEWOULDBLOCK){
-                connection->close(connection);
-                socket_close(connection);
-                return UA_STATUSCODE_BADCONNECTIONCLOSED;
-            }
+            connection->close(connection);
+            socket_close(connection);
+            return UA_STATUSCODE_BADCONNECTIONCLOSED;
+           }
 #else
             n = send(connection->sockfd, (const char*)buf->data, buflen, MSG_NOSIGNAL);
             if(n == -1L && errno != EINTR && errno != EAGAIN){
