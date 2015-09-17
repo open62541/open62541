@@ -375,9 +375,10 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
     
     if (identityToken.policyId.length >= 0)
       UA_ByteString_newMembers(&request.userIdentityToken.body, identityToken.policyId.length+4);
-    else
+    else {
       identityToken.policyId.length = -1;
       UA_ByteString_newMembers(&request.userIdentityToken.body, 4);
+    }
     
     size_t offset = 0;
     UA_ByteString_encodeBinary(&identityToken.policyId,&request.userIdentityToken.body,&offset);
