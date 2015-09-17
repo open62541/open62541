@@ -276,8 +276,13 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
     }
     
 #ifdef UA_EXTERNAL_NAMESPACES
+#ifdef _MSVC_VER
+    UA_Boolean *isExternal = UA_alloca(size);
+    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32)*size);
+#else
     UA_Boolean isExternal[size];
     UA_UInt32 indices[size];
+#endif
     UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
     for(size_t j = 0; j <server->externalNamespacesSize; j++) {
         size_t indexSize = 0;
