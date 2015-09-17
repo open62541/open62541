@@ -65,7 +65,7 @@ UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager,
     newentry->session.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random(&randSeed));
     if(request->requestedSessionTimeout <= sessionManager->maxSessionLifeTime &&
        request->requestedSessionTimeout > 0)
-        newentry->session.timeout = request->requestedSessionTimeout;
+        newentry->session.timeout = (UA_Int64)request->requestedSessionTimeout;
     else
         newentry->session.timeout = sessionManager->maxSessionLifeTime; // todo: remove when the CTT is fixed
     UA_Session_updateLifetime(&newentry->session);
