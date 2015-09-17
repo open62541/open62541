@@ -56,7 +56,8 @@ static UA_StatusCode socket_write(UA_Connection *connection, UA_ByteString *buf,
         do {
 #ifdef _WIN32
             n = send((SOCKET)connection->sockfd, (const char*)buf->data, buflen, 0);
-            if(n < 0 && WSAGetLastError() != WSAEINTR && WSAGetLastError() != WSAEWOULDBLOCK){
+            const int last_error = WSAGetLastError();
+            if(n < 0 && last_error != WSAEINTR && last_error != WSAEWOULDBLOCK){
                 connection->close(connection);
                 socket_close(connection);
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
@@ -100,7 +101,8 @@ static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *respo
         free(response->data);
         UA_ByteString_init(response);
 #ifdef _WIN32
-		if(WSAGetLastError() == WSAEINTR || WSAGetLastError() == WSAEWOULDBLOCK) {
+        const int last_error = WSAGetLastError();
+        if(last_error == WSAEINTR || last_error == WSAEWOULDBLOCK) {
 #else
 		if(errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
 #endif
