@@ -691,6 +691,17 @@ typedef enum {
     UA_ATTRIBUTEID_USEREXECUTABLE          = 22
 } UA_AttributeId;
 
+/***************************/
+/* Random Number Generator */
+/***************************/
+
+/**
+ * If UA_MULTITHREADING is enabled, then the seed is stored in thread local storage. The seed is
+ * initialized for every thread in the server/client.
+ */
+UA_EXPORT void UA_random_seed(UA_UInt64 seed);
+UA_EXPORT UA_UInt32 UA_random(void);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
