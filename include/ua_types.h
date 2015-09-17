@@ -322,7 +322,7 @@ UA_String UA_EXPORT UA_String_fromChars(char const src[]); ///> Copies the conte
 UA_Boolean UA_EXPORT UA_String_equal(const UA_String *s1, const UA_String *s2); ///> Compares two strings
 UA_StatusCode UA_EXPORT UA_String_copyprintf(char const fmt[], UA_String *dst, ...); ///> Printf a char-array into a UA_String. Memory for the string data is allocated.
 #define UA_STRING_NULL (UA_String){-1, (UA_Byte*)0 }
-#define UA_STRING(CHARS) (UA_String){sizeof(CHARS)-1, (UA_Byte*)CHARS }
+#define UA_STRING(CHARS) (UA_String){strlen(CHARS), (UA_Byte*)CHARS }
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
 
 /* DateTime */

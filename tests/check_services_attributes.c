@@ -498,7 +498,7 @@ START_TEST(ReadSingleAttributeHistorizingWithoutTimestamp) {
 		Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
 		ck_assert_int_eq(-1, resp.value.arrayLength);
 		ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type);
-		ck_assert(*(UA_Boolean* )resp.value.data==UA_FALSE);
+		ck_assert(*(UA_Boolean*)resp.value.data==UA_FALSE);
         UA_ReadRequest_deleteMembers(&rReq);
         UA_DataValue_deleteMembers(&resp);
         UA_Server_delete(server);

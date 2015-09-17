@@ -184,7 +184,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session, const UA_Timest
 		return;
 	}
 
-    UA_Node const *node = UA_NodeStore_get(server->nodestore, &(id->nodeId));
+    UA_Node const *node = UA_NodeStore_get(server->nodestore, &id->nodeId);
     if(!node) {
         v->hasStatus = UA_TRUE;
         v->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
