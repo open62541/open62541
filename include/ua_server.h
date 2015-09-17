@@ -135,9 +135,6 @@ UA_StatusCode UA_EXPORT UA_Server_addReference(UA_Server *server, const UA_NodeI
  */
 UA_StatusCode UA_EXPORT UA_Server_deleteNode(UA_Server *server, UA_NodeId nodeId);
 
-UA_StatusCode UA_Server_getNodeCopy(UA_Server *server, UA_NodeId nodeId, void **copyInto);
-UA_StatusCode UA_Server_deleteNodeCopy(UA_Server *server, void **nodeptr);
-
 /** A new variable Node with a value passed in variant.
  *
  * @param server The server object
@@ -323,7 +320,7 @@ UA_Server_setNodeAttribute_method(UA_Server *server, UA_NodeId methodNodeId,
 #endif
 
 UA_StatusCode UA_EXPORT
-UA_Server_setNodeAttribute_valueDataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource *value);
+UA_Server_setNodeAttribute_valueDataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource dataSource);
 
 /***********************/
 /* Get Node Attributes */
@@ -398,7 +395,7 @@ UA_Server_getNodeAttribute_method(UA_Server *server, UA_NodeId methodNodeId, UA_
 #endif
 
 UA_StatusCode UA_EXPORT
-UA_Server_getNodeAttribute_valueDataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource **value);
+UA_Server_getNodeAttribute_valueDataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource *dataSource);
 
 /** Jobs describe work that is executed once or repeatedly. */
 typedef struct {

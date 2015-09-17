@@ -215,8 +215,8 @@ void Service_Read_single(UA_Server *server, UA_Session *session, UA_TimestampsTo
 void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,
                    UA_WriteResponse *response);
 
-/** Single attribute writes are exposed to the userspace */
-UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, const UA_WriteValue *wvalue);
+/** Single attribute writes are exposed to the userspace. The wvalue may be destroyed (deleteMembers) */
+UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, UA_WriteValue *wvalue);
 
 // Service_HistoryUpdate
 /** @} */

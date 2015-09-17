@@ -232,15 +232,12 @@ int main(int argc, char** argv) {
                                   dateDataSource, &nodeId_currentTime);
 
   // Get and reattach the datasource
-  UA_DataSource *dataSourceCopy = NULL;
+  UA_DataSource dataSourceCopy;
   UA_Server_getNodeAttribute_valueDataSource(server, nodeId_currentTime, &dataSourceCopy);
-  if (dataSourceCopy == NULL)
-    UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "The returned dataSource is invalid");
-  else if (dataSourceCopy->read != dateDataSource.read)
+  if (dataSourceCopy.read != dateDataSource.read)
     UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "The returned dataSource is not the same as we set?");
   else
     UA_Server_setNodeAttribute_valueDataSource(server, nodeId_currentTime, dataSourceCopy);
-  free(dataSourceCopy);
 #ifndef _WIN32
   //cpu temperature monitoring for linux machines
   if((temperatureFile = fopen("/sys/class/thermal/thermal_zone0/temp", "r"))) {
