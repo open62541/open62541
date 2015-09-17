@@ -502,7 +502,7 @@ UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, UA_Wr
     UA_Node *editable = (UA_Node*)(uintptr_t)orig;
 #else
     UA_Node *editable = UA_Node_copyAnyNodeClass(orig);
-    if(!new) {
+    if(!editable) {
         UA_NodeStore_release(orig);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
