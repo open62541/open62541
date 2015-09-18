@@ -12,8 +12,6 @@
 #include "ua_util.h"
 #include "server/ua_server_internal.h"
 
-//#include "server/ua_services_attribute.c"
-
 #ifdef UA_MULTITHREADING
 #include <pthread.h>
 #include <urcu.h>
@@ -24,7 +22,6 @@ static void copyNames(UA_Node *node, char *name) {
     node->displayName = UA_LOCALIZEDTEXT_ALLOC("", name);
     node->description = UA_LOCALIZEDTEXT_ALLOC("", name);
 }
-
 
 static UA_Server* makeTestSequence(void) {
     UA_Server *server = UA_Server_new(UA_ServerConfig_standard);

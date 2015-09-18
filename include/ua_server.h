@@ -279,7 +279,15 @@ UA_StatusCode UA_EXPORT UA_Server_forEachChildNodeCall(UA_Server *server, UA_Nod
 /* Set Node Attributes */
 /***********************/
 
-UA_StatusCode UA_EXPORT UA_Server_setNodeAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_AttributeId attributeId, const UA_Variant value);
+/* The variant is being deleteMembered internally. May save some cycles since we don't copy the attribute. */
+UA_StatusCode UA_EXPORT
+UA_Server_setNodeAttributeDestructive(UA_Server *server, const UA_NodeId nodeId,
+                                      const UA_AttributeId attributeId, UA_Variant *value);
+
+/* Don't use. There are typed versions of this function with no additional overhead.  */
+UA_StatusCode UA_EXPORT
+UA_Server_setNodeAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_AttributeId attributeId,
+                           UA_DataType *type, const void *value);
 
 #define UA_SERVER_SETNODEATTRIBUTE_DECL(ATTRIBUTE, ATTRIBUTEID, TYPE, TYPEINDEX)	\
   static UA_INLINE UA_StatusCode UA_Server_setNodeAttribute_##ATTRIBUTE(UA_Server *server, const UA_NodeId nodeId, const TYPE value) { \

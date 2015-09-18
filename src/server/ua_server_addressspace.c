@@ -753,14 +753,26 @@ UA_Server_addMethodNode(UA_Server* server, const UA_NodeId nodeId, const UA_Qual
     return retval;
 }
 #endif
-    
+
 UA_StatusCode UA_Server_setNodeAttribute(UA_Server *server, const UA_NodeId nodeId,
-                                         const UA_AttributeId attributeId, const UA_Variant value) {
+                                         const UA_AttributeId attributeId, const UA_DataType *type,
+                                         const void *value) {
     UA_WriteValue wvalue;
     UA_WriteValue_init(&wvalue);
     wvalue.nodeId = nodeId;
     wvalue.attributeId = attributeId;
-    wvalue.value.value = value;
+    UA_Variant_setScalar(&wvalue.value.value, type, value);
+    wvalue.value.hasValue = UA_TRUE;
+    return Service_Write_single(server, &adminSession, &wvalue);
+}
+
+UA_StatusCode UA_Server_setNodeAttribute_value(UA_Server *server, const UA_NodeId nodeId,
+                                               const UA_DataType *type, const UA_Variant *value) {
+    UA_WriteValue wvalue;
+    UA_WriteValue_init(&wvalue);
+    wvalue.nodeId = nodeId;
+    wvalue.attributeId = attributeId;
+    wvalue.value.value = *value;
     wvalue.value.hasValue = UA_TRUE;
     return Service_Write_single(server, &adminSession, &wvalue);
 }

@@ -9,9 +9,21 @@
 /**
  * Information Model Consistency
  *
- * 
+ * The following consistency assertions *always* hold:
+ *
+ * - There are no directed cycles of hierarchical references
+ * - All nodes have a hierarchical relation to at least one father node
+ * - Variables and Objects contain all mandatory children according to their type
+ *
+ * The following consistency assertions *eventually* hold:
+ *
+ * - All references (except those pointing to external servers with an expandednodeid) are two-way
+ *   (present in the source and the target node)
+ * - The target of all references exists in the information model
  *
  */
+
+// TOOD: Ensure that the consistency guarantuees hold until v0.2
 
 /**************************/
 /* Parse Node Definitions */

@@ -403,6 +403,28 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 /* Write Attribute */
 /*******************/
 
+/**
+ * Ownership of data during writing
+ *
+ * The content of the UA_WriteValue can be moved into the new variable. Not copied. But we need to
+ * make sure, that we don't free the data when the updated node points to it. This means resetting
+ * the wvalue.value.
+ *
+ * 1. Clone the node
+ * 2. Move the new data into the node by overwriting. Do not deep-copy.
+ * 3. Insert the updated node.
+ * 3.1 If this fails, we reset the part of the node that points to the new data and retry
+ * 3.2 If this succeeds, the data ownership has moved, _init the wvalue.value
+ */
+
+typedef void (*initWriteValueContent)(void *value);
+typedef void (*resetMovedData)(UA_Node *node);
+static void resetBrowseName(UA_Node *node) { UA_QualifiedName_init(&editable->browseName); }
+static void resetDisplayName(UA_Node *node) { UA_LocalizedText_init(&editable->displayName); }
+static void resetDescription(UA_Node *node) { UA_LocalizedText_init(&editable->description); }
+static void resetInverseName(UA_Node *node) { UA_LocalizedText_init(&editable->inverseName); }
+static void resetValue(UA_Node *node) { UA_Variant_init(&((UA_VariableNode*)editable)->value.variant); }
+
 #define CHECK_DATATYPE(EXP_DT)                                          \
     if(!wvalue->value.hasValue ||                                       \
        &UA_TYPES[UA_TYPES_##EXP_DT] != wvalue->value.value.type ||      \
@@ -417,99 +439,158 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
         break;                                                          \
     }
 
-/* clone the node and replace the value. orig can also be a variabletypenode. */
-static UA_StatusCode copyValueIntoNode(UA_VariableNode *node, UA_WriteValue *wvalue) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+static UA_StatusCode
+Service_Write_single_Value(UA_Server *server, const UA_VariableNode *node, UA_Session *session,
+                           UA_WriteValue *wvalue, UA_Node **outEditable) {
+    UA_assert(wvalue->attributeId == UA_ATTRIBUTEID_VALUE);
+    UA_assert(node->nodeClass == UA_NODECLASS_VARIABLE || orig->nodeClass == UA_NODECLASS_VARIABLETYPE);
 
-    /* parse the range */
+    /* Parse the range */
     UA_Boolean hasRange = UA_FALSE;
     UA_NumericRange range;
     if(wvalue->indexRange.length > 0) {
         retval = parse_numericrange(wvalue->indexRange, &range);
         if(retval != UA_STATUSCODE_GOOD)
-            goto clean_up;
+            return retval;
         hasRange = UA_TRUE;
     }
 
-    /* the relevant members are similar for variables and variabletypes */
-    UA_Variant *oldV = &node->value.variant;
-    UA_Variant *newV = &wvalue->value.value;
-    if(node->valueSource == UA_VALUESOURCE_VARIANT) {
-
-        /* the nodeid on the wire may be != the nodeid in the node: opaque types, enums and bytestrings */
-        UA_WriteValue cast_wv;
-        if(!UA_NodeId_equal(&oldV->type->typeId, &newV->type->typeId)) {
-            cast_wv = *wvalue;
-            wvalue = &cast_wv;
-            newV = &cast_wv.value.value;
-            if(oldV->type->namespaceZero && newV->type->namespaceZero &&
-               oldV->type->typeIndex == newV->type->typeIndex) {
-                /* An enum was sent as an int32, or an opaque type as a bytestring. This is
-                   detected with the typeIndex indicated the "true" datatype. */
-                cast_wv.value.value.type = oldV->type;
-            } else if(oldV->type == &UA_TYPES[UA_TYPES_BYTE] && !UA_Variant_isScalar(oldV) &&
-                      newV->type == &UA_TYPES[UA_TYPES_BYTESTRING] && UA_Variant_isScalar(newV)) {
-                /* a string is written to a byte array */
-                UA_ByteString *str = (UA_ByteString*) newV->data;
-                newV->arrayLength = str->length;
-                newV->data = str->data;
-                newV->type = &UA_TYPES[UA_TYPES_BYTE];
-            } else {
-                retval = UA_STATUSCODE_BADTYPEMISMATCH;
-                goto clean_up;
-            }
-        }
-        
-        /* insert the value */
-        if(!hasRange) {
-            /* don't copy, take the pointers and invalidate the write_value */
-            UA_Variant_deleteMembers(oldV);
-            *oldV = *newV;
-            UA_Variant_init(newV);
-        } else {
-            retval = UA_Variant_setRange(oldV, newV->data, newV->arrayLength, range);
-        }
-
-    } else /* node->valueSource == UA_VALUESOURCE_DATASOURCE */ {
-        if(!node->value.dataSource.write) {
-            retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            goto clean_up;
-        }
+    /* Writing into a datasource does not require copying the node */
+    if(node->dataSource == UA_VALUESOURCE_DATASOURCE) {
         if(!hasRange)
             retval = node->value.dataSource.write(node->value.dataSource.handle, node->nodeId, newV, UA_NULL);
         else
             retval = node->value.dataSource.write(node->value.dataSource.handle, node->nodeId, newV, &range);
+        goto clean_up;
     }
+
+    UA_VariableNode *editable = UA_NULL;
+#ifndef UA_MULTITHREADING
+    editable = (UA_VariableNode*)(uintptr_t)node;
+#else
+    /* Copy the node without the actual value */
+    if(node->nodeClass == UA_NODECLASS_VARIABLE) {
+        editable = UA_VariableNode_new();
+        if(!editable) {
+            retval = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto clean_up;
+        }
+        UA_memcpy(editable, node, sizeof(UA_VariableNode));
+    } else {
+        editable = (UA_VariableNode*)UA_VariableTypeNode_new();
+        if(!editable) {
+            retval = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto clean_up;
+        }
+        UA_memcpy(editable, node, sizeof(UA_VariableTypeNode));
+    }
+    UA_Variant_init(&editable->value.variant);
+#endif
+
+    /* The nodeid on the wire may be != the nodeid in the node: opaque types, enums and bytestrings.
+       newV contains the correct type definition. */
+    UA_Variant *newV = &wvalue->value.value;
+    UA_Variant *oldV = &node->value.variant;
+    UA_Variant cast_v;
+    if(!UA_NodeId_equal(&oldV->type->typeId, &newV->type->typeId)) {
+        cast_v = *wvalue.value.value;
+        newV = &cast_v;
+        if(oldV->type->namespaceZero && newV->type->namespaceZero &&
+           oldV->type->typeIndex == newV->type->typeIndex) {
+            /* An enum was sent as an int32, or an opaque type as a bytestring. This is
+               detected with the typeIndex indicated the "true" datatype. */
+            newV->type = oldV->type;
+        } else if(oldV->type == &UA_TYPES[UA_TYPES_BYTE] && !UA_Variant_isScalar(oldV) &&
+                  newV->type == &UA_TYPES[UA_TYPES_BYTESTRING] && UA_Variant_isScalar(newV)) {
+            /* a string is written to a byte array */
+            UA_ByteString *str = (UA_ByteString*) newV->data;
+            newV->arrayLength = str->length;
+            newV->data = str->data;
+            newV->type = &UA_TYPES[UA_TYPES_BYTE];
+        } else {
+            retval = UA_STATUSCODE_BADTYPEMISMATCH;
+            goto clean_up;
+        }
+    }
+
+    
+#ifndef UA_MULTITHREADING
+    if(!hasRange) {
+        /* Move the data pointer */
+        UA_Variant_deleteMembers(&editable->value.variant);
+        editable->value.variant = *newV;
+    } else {
+        retval = UA_Variant_setRange(&editable->value.variant, newV->data, newV->arrayLength, range);
+        UA_free(newV->data);
+    }
+    /* Init the wvalue. We won't have to retry. */
+    UA_Variant_init(&wvalue->value);
+#else
+    if(!hasRange) {
+        /* Move data pointer. The wvalue will be _inited only when the node was successfully replaced. */
+        editable->value.variant = *newV;
+    } else {
+        /* Copy the old variant. Then copy the new value inside */
+        retval = UA_Variant_copy(&node->value.variant, editable->value.variant);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto clean_up;
+        retval = UA_Variant_setRange(&editable->value.variant, newV->data, newV->arrayLength, range);
+    }
+#endif
 
  clean_up:
     if(hasRange)
         UA_free(range.dimensions);
+#ifndef UA_MULTITHREADING
+    *outEditable = UA_NULL;
+#else
+    if(!retval == UA_STATUSCODE_GOOD && editable) {
+        UA_Node_deleteAnyNodeClass((UA_Node*)editable);
+        editable = UA_NULL;
+    }
+    *outEditable = editable;
+#endif
     return retval;
 }
 
 UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, UA_WriteValue *wvalue) {
-	UA_assert(server != UA_NULL && session != UA_NULL && wvalue != UA_NULL);
-    if(!wvalue->value.hasValue)
+    if(!wvalue->value.hasValue || !wvalue->value.value.data)
         return UA_STATUSCODE_BADNODATA; // TODO: is this the right return code?
     const UA_Node *orig;
+
  retryWriteSingle:
     orig = UA_NodeStore_get(server->nodestore, &wvalue->nodeId);
     if(!orig)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_Node *editable = UA_NULL;
+    if(wvalue->attributeId == UA_ATTRIBUTEID_VALUE &&
+       (orig->nodeClass == UA_NODECLASS_VARIABLE || orig->nodeClass == UA_NODECLASS_VARIABLETYPE)) {
+        /* sets editable if we need to replace a node. Otherwise we can return.  */
+        retval = Service_Write_single_Value(server, orig, session, wvalue, &editable);
+        if(!editable) {
+            UA_NodeStore_release(orig);
+            return retval;
+        }
+    }
+
+    initWriteValue init = UA_NULL;
 #ifndef UA_MULTITHREADING
     /* We cheat if multithreading is not enabled and treat the node as mutable. */
-    UA_Node *editable = (UA_Node*)(uintptr_t)orig;
+    /* for setting a variable value (non-multithreaded) we never arrive here. */
+    editable = (UA_Node*)(uintptr_t)orig;
 #else
-    UA_Node *editable = UA_Node_copyAnyNodeClass(orig);
     if(!editable) {
-        UA_NodeStore_release(orig);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+        editable = UA_Node_copyAnyNodeClass(orig);
+        if(!editable) {
+            UA_NodeStore_release(orig);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
     }
 #endif
 
     void *value = wvalue->value.value.data;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
 	switch(wvalue->attributeId) {
     case UA_ATTRIBUTEID_NODEID:
     case UA_ATTRIBUTEID_NODECLASS:
@@ -519,7 +600,7 @@ UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, UA_Wr
 	case UA_ATTRIBUTEID_BROWSENAME:
 		CHECK_DATATYPE(QUALIFIEDNAME);
 		UA_QualifiedName_deleteMembers(&editable->browseName);
-		UA_QualifiedName_copy((UA_QualifiedName*)value, &editable->browseName);
+        editable->browseName = *(UA_QualifiedName*)value;
 		break;
 	case UA_ATTRIBUTEID_DISPLAYNAME:
 		CHECK_DATATYPE(LOCALIZEDTEXT);
