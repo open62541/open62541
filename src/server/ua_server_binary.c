@@ -166,7 +166,9 @@ static void invoke_service(UA_Server *server, UA_SecureChannel *channel, UA_UInt
             || responseType->typeIndex == UA_TYPES_BROWSERESPONSE)
     ){
         session = &anonymousSession;
-#else
+        service(server, session, request, response);
+    }else{
+#endif
     if(!session || session->channel != channel) {
         response->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
     } else if(session->activated == UA_FALSE) {
@@ -175,9 +177,11 @@ static void invoke_service(UA_Server *server, UA_SecureChannel *channel, UA_UInt
         UA_SessionManager_removeSession(&server->sessionManager, server, &request->authenticationToken);
     } else {
         UA_Session_updateLifetime(session);
-#endif
         service(server, session, request, response);
     }
+#ifdef EXTENSION_STATELESS
+    }
+#endif
     UA_StatusCode retval = UA_SecureChannel_sendBinaryMessage(channel, requestId, response, responseType);
     if(retval != UA_STATUSCODE_GOOD) {
         if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED)
@@ -401,8 +405,6 @@ static void processCLO(UA_Connection *connection, UA_Server *server, const UA_By
 }
 
 void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, UA_ByteString *msg) {
-    if(msg->length <= 0)
-        return;
     size_t pos = 0;
     UA_TcpMessageHeader tcpMessageHeader;
     do {
