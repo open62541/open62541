@@ -157,6 +157,16 @@ static void invoke_service(UA_Server *server, UA_SecureChannel *channel, UA_UInt
     init_response_header(request, response);
     /* try to get the session from the securechannel first */
     UA_Session *session = UA_SecureChannel_getSession(channel, &request->authenticationToken);
+#ifdef EXTENSION_STATELESS
+    if(request->authenticationToken.namespaceIndex == 0
+            && request->authenticationToken.identifierType == UA_NODEIDTYPE_NUMERIC
+            && request->authenticationToken.identifier.numeric == 0
+    && (responseType->typeIndex == UA_TYPES_READRESPONSE
+            || responseType->typeIndex == UA_TYPES_WRITERESPONSE
+            || responseType->typeIndex == UA_TYPES_BROWSERESPONSE)
+    ){
+        session = &anonymousSession;
+#else
     if(!session || session->channel != channel) {
         response->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
     } else if(session->activated == UA_FALSE) {
@@ -165,6 +175,7 @@ static void invoke_service(UA_Server *server, UA_SecureChannel *channel, UA_UInt
         UA_SessionManager_removeSession(&server->sessionManager, server, &request->authenticationToken);
     } else {
         UA_Session_updateLifetime(session);
+#endif
         service(server, session, request, response);
     }
     UA_StatusCode retval = UA_SecureChannel_sendBinaryMessage(channel, requestId, response, responseType);
@@ -202,9 +213,6 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         UA_SecureChannel_init(&anonymousChannel);
         anonymousChannel.connection = connection;
         clientChannel = &anonymousChannel;
-#ifdef EXTENSION_STATELESS
-        UA_SecureChannel_attachSession(&anonymousChannel, &anonymousSession);
-#endif
     }
 
     /* Read the security header */
@@ -374,10 +382,6 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         UA_ServiceFault_init(&r);
         init_response_header(&p, &r.responseHeader);
         r.responseHeader.serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
-#ifdef EXTENSION_STATELESS
-        if(retval != UA_STATUSCODE_GOOD)
-            r.responseHeader.serviceResult = retval;
-#endif
         UA_SecureChannel_sendBinaryMessage(clientChannel, sequenceHeader.requestId, &r,
                                            &UA_TYPES[UA_TYPES_SERVICEFAULT]);
         UA_RequestHeader_deleteMembers(&p);
