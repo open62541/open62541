@@ -22,6 +22,7 @@ typedef struct ConnectionInfo {
 	UA_SequenceHeader sequenceHdr;
 	UA_NodeId authenticationToken;
 	UA_UInt32 tokenId;
+	UA_UInt32 reqestHandle;
 } ConnectionInfo;
 
 static UA_Int32 sendHello(UA_Int32 sock, UA_String *endpointURL) {
@@ -190,12 +191,10 @@ static UA_Int32 closeSession(ConnectionInfo *connectionInfo) {
 	UA_CloseSessionRequest rq;
     UA_CloseSessionRequest_init(&rq);
 
-	rq.requestHeader.requestHandle = 1;
+	rq.requestHeader.requestHandle = connectionInfo->reqestHandle++;
 	rq.requestHeader.timestamp = UA_DateTime_now();
 	rq.requestHeader.timeoutHint = 10000;
-	rq.requestHeader.authenticationToken.identifier.numeric = 10;
-	rq.requestHeader.authenticationToken.identifierType = UA_NODEIDTYPE_NUMERIC;
-	rq.requestHeader.authenticationToken.namespaceIndex = 10;
+	rq.requestHeader.authenticationToken = connectionInfo->authenticationToken;
     rq.deleteSubscriptions = UA_TRUE;
 
 	UA_TcpMessageHeader msghdr;
@@ -217,7 +216,9 @@ static UA_Int32 closeSession(ConnectionInfo *connectionInfo) {
 	UA_TcpMessageHeader_encodeBinary(&msghdr, &message, &offset);
 	UA_UInt32_encodeBinary(&connectionInfo->channelId, &message, &offset);
 	UA_UInt32_encodeBinary(&connectionInfo->tokenId, &message, &offset);
+	connectionInfo->sequenceHdr.sequenceNumber++;
 	UA_UInt32_encodeBinary(&connectionInfo->sequenceHdr.sequenceNumber, &message, &offset);
+	connectionInfo->sequenceHdr.requestId++;
 	UA_UInt32_encodeBinary(&connectionInfo->sequenceHdr.requestId, &message, &offset);
 	UA_NodeId_encodeBinary(&type, &message, &offset);
 	UA_CloseSessionRequest_encodeBinary(&rq, &message, &offset);
@@ -357,7 +358,7 @@ static UA_Int64 sendReadRequest(ConnectionInfo *connectionInfo, UA_Int32 nodeIds
 	rq.requestHeader.timestamp = UA_DateTime_now();
 	rq.requestHeader.authenticationToken = connectionInfo->authenticationToken;
 	rq.timestampsToReturn = 0x03;
-	rq.requestHeader.requestHandle = 1 + connectionInfo->sequenceHdr.requestId;
+	rq.requestHeader.requestHandle = connectionInfo->reqestHandle++;
 
     //workaround to get length calculated
     offset = 0;
@@ -370,7 +371,9 @@ static UA_Int64 sendReadRequest(ConnectionInfo *connectionInfo, UA_Int32 nodeIds
 	UA_TcpMessageHeader_encodeBinary(&msghdr,message,&offset);
 	UA_UInt32_encodeBinary(&tmpChannelId, message, &offset);
 	UA_UInt32_encodeBinary(&connectionInfo->tokenId, message, &offset);
+	connectionInfo->sequenceHdr.sequenceNumber++;
 	UA_UInt32_encodeBinary(&connectionInfo->sequenceHdr.sequenceNumber, message, &offset);
+	connectionInfo->sequenceHdr.requestId++;
 	UA_UInt32_encodeBinary(&connectionInfo->sequenceHdr.requestId, message, &offset);
 	UA_NodeId_encodeBinary(&type,message,&offset);
 	UA_ReadRequest_encodeBinary(&rq, message, &offset);
@@ -418,6 +421,7 @@ static int ua_client_connectUA(char* ipaddress,int port, UA_String *endpointUrl,
 			connectionInfo->channelId=0;
 			UA_SequenceHeader_init(&connectionInfo->sequenceHdr);
 			connectionInfo->tokenId=0;
+			connectionInfo->reqestHandle = 1;
 			return 0;
 		}else{
 			sendHello(sock, endpointUrl);
@@ -452,6 +456,10 @@ static int ua_client_connectUA(char* ipaddress,int port, UA_String *endpointUrl,
 			sendActivateSession(sock, connectionInfo->channelId, connectionInfo->tokenId, 53, 3,
 					connectionInfo->authenticationToken);
 			recv(sock, reply.data, reply.length, 0);
+
+			connectionInfo->sequenceHdr.requestId = 3;
+			connectionInfo->sequenceHdr.sequenceNumber = 53;
+			connectionInfo->reqestHandle = 3;
 
 			UA_OpenSecureChannelResponse_deleteMembers(&openSecChannelRsp);
 
