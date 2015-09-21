@@ -11,13 +11,10 @@
 #include <unistd.h> // for close
 #include <stdlib.h> // pulls in declaration of malloc, free
 
-#ifdef NOT_AMALGATED
-    #include "ua_transport_generated.h"
-    #include "ua_types_encoding_binary.h"
-    #include "ua_util.h"
-#else
-    #include "open62541.h"
-#endif
+//this legacy stuff can not be build with amalgamation options, since it need internal APIs
+#include "ua_util.h"
+#include "ua_transport_generated_encoding_binary.h"
+#include "ua_types_generated_encoding_binary.h"
 
 typedef struct ConnectionInfo {
 	UA_Int32 socket;
@@ -25,6 +22,7 @@ typedef struct ConnectionInfo {
 	UA_SequenceHeader sequenceHdr;
 	UA_NodeId authenticationToken;
 	UA_UInt32 tokenId;
+	UA_UInt32 reqestHandle;
 } ConnectionInfo;
 
 static UA_Int32 sendHello(UA_Int32 sock, UA_String *endpointURL) {
@@ -40,14 +38,17 @@ static UA_Int32 sendHello(UA_Int32 sock, UA_String *endpointURL) {
 	hello.receiveBufferSize = 65536;
 	hello.sendBufferSize = 65536;
 
-	messageHeader.messageSize = UA_TcpHelloMessage_calcSizeBinary((UA_TcpHelloMessage const*) &hello) +
-                                UA_TcpMessageHeader_calcSizeBinary((UA_TcpMessageHeader const*) &messageHeader);
 	UA_ByteString message;
-	UA_ByteString_newMembers(&message, messageHeader.messageSize);
+	UA_ByteString_newMembers(&message, 1024);
 
 	size_t offset = 0;
 	UA_TcpMessageHeader_encodeBinary((UA_TcpMessageHeader const*) &messageHeader, &message, &offset);
 	UA_TcpHelloMessage_encodeBinary((UA_TcpHelloMessage const*) &hello, &message, &offset);
+    messageHeader.messageSize = offset;
+
+	offset = 0;
+    UA_TcpMessageHeader_encodeBinary((UA_TcpMessageHeader const*) &messageHeader, &message, &offset);
+    UA_TcpHelloMessage_encodeBinary((UA_TcpHelloMessage const*) &hello, &message, &offset);
 
 	UA_Int32 sendret = send(sock, message.data, offset, 0);
 
@@ -112,7 +113,7 @@ static int sendOpenSecureChannel(UA_Int32 sock) {
 	UA_OpenSecureChannelRequest_encodeBinary(&opnSecRq, &message, &offset);
 
     UA_OpenSecureChannelRequest_deleteMembers(&opnSecRq);
-	UA_String_deleteMembers(&securityPolicy);
+	//UA_String_deleteMembers(&securityPolicy);
 
 	UA_Int32 sendret = send(sock, message.data, offset, 0);
 	UA_ByteString_deleteMembers(&message);
@@ -154,8 +155,13 @@ static UA_Int32 sendCreateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 
 	rq.requestedSessionTimeout = 1200000;
 	rq.maxResponseMessageSize = UA_INT32_MAX;
 
-	msghdr.messageSize = 16 + UA_TcpMessageHeader_calcSizeBinary(&msghdr) + UA_NodeId_calcSizeBinary(&type) +
-                         UA_CreateSessionRequest_calcSizeBinary(&rq);
+	//workaround to get length calculated
+	offset = 0;
+	UA_CreateSessionRequest_encodeBinary(&rq, &message, &offset);
+	UA_TcpMessageHeader_encodeBinary(&msghdr, &message, &offset);
+	UA_NodeId_encodeBinary(&type, &message, &offset);
+	msghdr.messageSize = 16 + offset;
+	offset = 0;
 
 	UA_TcpMessageHeader_encodeBinary(&msghdr, &message, &offset);
 	UA_UInt32_encodeBinary(&tmpChannelId, &message, &offset);
@@ -167,7 +173,8 @@ static UA_Int32 sendCreateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt32 
 
 	UA_Int32 sendret = send(sock, message.data, offset, 0);
 	UA_ByteString_deleteMembers(&message);
-	UA_CreateSessionRequest_deleteMembers(&rq);
+	//fixme: potential leak
+	//UA_CreateSessionRequest_deleteMembers(&rq);
 	if (sendret < 0) {
 		printf("send opensecurechannel failed");
 		return 1;
@@ -184,12 +191,10 @@ static UA_Int32 closeSession(ConnectionInfo *connectionInfo) {
 	UA_CloseSessionRequest rq;
     UA_CloseSessionRequest_init(&rq);
 
-	rq.requestHeader.requestHandle = 1;
+	rq.requestHeader.requestHandle = connectionInfo->reqestHandle++;
 	rq.requestHeader.timestamp = UA_DateTime_now();
 	rq.requestHeader.timeoutHint = 10000;
-	rq.requestHeader.authenticationToken.identifier.numeric = 10;
-	rq.requestHeader.authenticationToken.identifierType = UA_NODEIDTYPE_NUMERIC;
-	rq.requestHeader.authenticationToken.namespaceIndex = 10;
+	rq.requestHeader.authenticationToken = connectionInfo->authenticationToken;
     rq.deleteSubscriptions = UA_TRUE;
 
 	UA_TcpMessageHeader msghdr;
@@ -200,13 +205,20 @@ static UA_Int32 closeSession(ConnectionInfo *connectionInfo) {
 	type.identifierType = UA_NODEIDTYPE_NUMERIC;
 	type.namespaceIndex = 0;
 
-	msghdr.messageSize = 16 + UA_TcpMessageHeader_calcSizeBinary(&msghdr) + UA_NodeId_calcSizeBinary(&type) +
-                         UA_CloseSessionRequest_calcSizeBinary(&rq);
+    //workaround to get length calculated
+    offset = 0;
+    UA_CloseSessionRequest_encodeBinary(&rq, &message, &offset);
+    UA_TcpMessageHeader_encodeBinary(&msghdr, &message, &offset);
+    UA_NodeId_encodeBinary(&type, &message, &offset);
+    msghdr.messageSize = 16 + offset;
+    offset = 0;
 
 	UA_TcpMessageHeader_encodeBinary(&msghdr, &message, &offset);
 	UA_UInt32_encodeBinary(&connectionInfo->channelId, &message, &offset);
 	UA_UInt32_encodeBinary(&connectionInfo->tokenId, &message, &offset);
+	connectionInfo->sequenceHdr.sequenceNumber++;
 	UA_UInt32_encodeBinary(&connectionInfo->sequenceHdr.sequenceNumber, &message, &offset);
+	connectionInfo->sequenceHdr.requestId++;
 	UA_UInt32_encodeBinary(&connectionInfo->sequenceHdr.requestId, &message, &offset);
 	UA_NodeId_encodeBinary(&type, &message, &offset);
 	UA_CloseSessionRequest_encodeBinary(&rq, &message, &offset);
@@ -241,8 +253,12 @@ static UA_Int32 closeSecureChannel(ConnectionInfo *connectionInfo) {
 	UA_TcpMessageHeader msghdr;
 	msghdr.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_CLOF;
 
-	msghdr.messageSize = 4 + UA_TcpMessageHeader_calcSizeBinary(&msghdr) +
-                         UA_CloseSecureChannelRequest_calcSizeBinary(&rq);
+	//workaround to get length calculated
+	offset = 0;
+	UA_CloseSecureChannelRequest_encodeBinary(&rq, &message, &offset);
+	UA_TcpMessageHeader_encodeBinary(&msghdr, &message, &offset);
+	msghdr.messageSize = 4 + offset;
+	offset = 0;
 
 	UA_TcpMessageHeader_encodeBinary(&msghdr, &message, &offset);
 	UA_UInt32_encodeBinary(&connectionInfo->channelId, &message, &offset);
@@ -282,8 +298,13 @@ static UA_Int32 sendActivateSession(UA_Int32 sock, UA_UInt32 channelId, UA_UInt3
 	rq.requestHeader.timestamp = UA_DateTime_now();
 	rq.requestHeader.timeoutHint = 10000;
     
-	msghdr.messageSize  = 16 + UA_TcpMessageHeader_calcSizeBinary(&msghdr) + UA_NodeId_calcSizeBinary(&type) +
-                          UA_ActivateSessionRequest_calcSizeBinary(&rq);
+    //workaround to get length calculated
+    offset = 0;
+    UA_ActivateSessionRequest_encodeBinary(&rq, message, &offset);
+    UA_TcpMessageHeader_encodeBinary(&msghdr, message, &offset);
+    UA_NodeId_encodeBinary(&type, message, &offset);
+    msghdr.messageSize = 16 + offset;
+    offset = 0;
 
 	UA_TcpMessageHeader_encodeBinary(&msghdr, message, &offset);
 	UA_UInt32_encodeBinary(&tmpChannelId, message, &offset);
@@ -337,15 +358,22 @@ static UA_Int64 sendReadRequest(ConnectionInfo *connectionInfo, UA_Int32 nodeIds
 	rq.requestHeader.timestamp = UA_DateTime_now();
 	rq.requestHeader.authenticationToken = connectionInfo->authenticationToken;
 	rq.timestampsToReturn = 0x03;
-	rq.requestHeader.requestHandle = 1 + connectionInfo->sequenceHdr.requestId;
+	rq.requestHeader.requestHandle = connectionInfo->reqestHandle++;
 
-	msghdr.messageSize = 16 + UA_TcpMessageHeader_calcSizeBinary(&msghdr) + UA_NodeId_calcSizeBinary(&type) +
-                         UA_ReadRequest_calcSizeBinary(&rq);
+    //workaround to get length calculated
+    offset = 0;
+    UA_ReadRequest_encodeBinary(&rq, message, &offset);
+    UA_TcpMessageHeader_encodeBinary(&msghdr, message, &offset);
+    UA_NodeId_encodeBinary(&type, message, &offset);
+    msghdr.messageSize = 16 + offset;
+    offset = 0;
 
 	UA_TcpMessageHeader_encodeBinary(&msghdr,message,&offset);
 	UA_UInt32_encodeBinary(&tmpChannelId, message, &offset);
 	UA_UInt32_encodeBinary(&connectionInfo->tokenId, message, &offset);
+	connectionInfo->sequenceHdr.sequenceNumber++;
 	UA_UInt32_encodeBinary(&connectionInfo->sequenceHdr.sequenceNumber, message, &offset);
+	connectionInfo->sequenceHdr.requestId++;
 	UA_UInt32_encodeBinary(&connectionInfo->sequenceHdr.requestId, message, &offset);
 	UA_NodeId_encodeBinary(&type,message,&offset);
 	UA_ReadRequest_encodeBinary(&rq, message, &offset);
@@ -393,6 +421,7 @@ static int ua_client_connectUA(char* ipaddress,int port, UA_String *endpointUrl,
 			connectionInfo->channelId=0;
 			UA_SequenceHeader_init(&connectionInfo->sequenceHdr);
 			connectionInfo->tokenId=0;
+			connectionInfo->reqestHandle = 1;
 			return 0;
 		}else{
 			sendHello(sock, endpointUrl);
@@ -427,6 +456,10 @@ static int ua_client_connectUA(char* ipaddress,int port, UA_String *endpointUrl,
 			sendActivateSession(sock, connectionInfo->channelId, connectionInfo->tokenId, 53, 3,
 					connectionInfo->authenticationToken);
 			recv(sock, reply.data, reply.length, 0);
+
+			connectionInfo->sequenceHdr.requestId = 3;
+			connectionInfo->sequenceHdr.sequenceNumber = 53;
+			connectionInfo->reqestHandle = 3;
 
 			UA_OpenSecureChannelResponse_deleteMembers(&openSecChannelRsp);
 

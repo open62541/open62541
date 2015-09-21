@@ -5,6 +5,10 @@
 
 #include "pcg_basic.h"
 
+#ifdef _MSC_VER
+#include <strsafe.h>
+#endif
+
 /*****************/
 /* Helper Macros */
 /*****************/
@@ -228,8 +232,15 @@ UA_StatusCode UA_DateTime_toString(UA_DateTime atime, UA_String *timeString) {
     timeString->length = 31;
 
     UA_DateTimeStruct tSt = UA_DateTime_toStruct(atime);
-    sprintf((char*)timeString->data, "%02d/%02d/%04d %02d:%02d:%02d.%03d.%03d.%03d", tSt.month, tSt.day, tSt.year,
-            tSt.hour, tSt.min, tSt.sec, tSt.milliSec, tSt.microSec, tSt.nanoSec);
+#ifdef _MSC_VER
+    StringCchPrintf((char*)timeString->data, (size_t)timeString->length,
+        "%02d/%02d/%04d %02d:%02d:%02d.%03d.%03d.%03d",
+        tSt.month, tSt.day, tSt.year, tSt.hour, tSt.min, tSt.sec, tSt.milliSec, tSt.microSec, tSt.nanoSec);
+#else
+    sprintf((char*)timeString->data,
+        "%02d/%02d/%04d %02d:%02d:%02d.%03d.%03d.%03d", 
+        tSt.month, tSt.day, tSt.year, tSt.hour, tSt.min, tSt.sec, tSt.milliSec, tSt.microSec, tSt.nanoSec);
+#endif
     return UA_STATUSCODE_GOOD;
 }
 

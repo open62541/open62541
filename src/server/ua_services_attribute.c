@@ -163,7 +163,8 @@ static UA_StatusCode getVariableNodeArrayDimensions(const UA_VariableNode *vn, U
 }
 
 static const UA_String binEncoding = {sizeof("DefaultBinary")-1, (UA_Byte*)"DefaultBinary"};
-static const UA_String xmlEncoding = {sizeof("DefaultXml")-1, (UA_Byte*)"DefaultXml"};
+/* clang complains about unused variables */
+// static const UA_String xmlEncoding = {sizeof("DefaultXml")-1, (UA_Byte*)"DefaultXml"};
 
 /** Reads a single attribute from a node in the nodestore. */
 void Service_Read_single(UA_Server *server, UA_Session *session, const UA_TimestampsToReturn timestamps,
@@ -365,12 +366,11 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 		/* expiry header */
 		UA_ExtensionObject additionalHeader;
 		UA_ExtensionObject_init(&additionalHeader);
+		additionalHeader.typeId = UA_TYPES[UA_TYPES_VARIANT].typeId;
 		additionalHeader.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
 
 		UA_Variant variant;
 		UA_Variant_init(&variant);
-		variant.type = &UA_TYPES[UA_TYPES_DATETIME];
-		variant.arrayLength = request->nodesToReadSize;
 
 		UA_DateTime* expireArray = UA_NULL;
 		expireArray = UA_Array_new(&UA_TYPES[UA_TYPES_DATETIME], request->nodesToReadSize);
@@ -380,17 +380,17 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 		for(UA_Int32 i = 0;i < response->resultsSize;i++) {
 			expireArray[i] = UA_DateTime_now() + 20 * 100 * 1000 * 1000;
 		}
+		UA_Variant_setArray(&variant, expireArray, request->nodesToReadSize, &UA_TYPES[UA_TYPES_DATETIME]);
+
 		size_t offset = 0;
-        UA_Connection *c = UA_NULL;
-        UA_SecureChannel *sc = session->channel;
-        if(!sc) {
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-            return;
-        }
 		UA_ByteString str;
-        UA_ByteString_newMembers(&str, c->remoteConf.maxMessageSize);
+        UA_ByteString_newMembers(&str, 65536);
 		UA_Variant_encodeBinary(&variant, &str, &offset);
+
+        UA_Array_delete(expireArray, &UA_TYPES[UA_TYPES_DATETIME], request->nodesToReadSize);
+
 		additionalHeader.body = str;
+		additionalHeader.body.length = offset;
 		response->responseHeader.additionalHeader = additionalHeader;
     }
 #endif

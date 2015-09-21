@@ -372,8 +372,14 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
     request.userIdentityToken.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
     request.userIdentityToken.typeId = UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN].typeId;
     request.userIdentityToken.typeId.identifier.numeric+=UA_ENCODINGOFFSET_BINARY;
-
-    UA_ByteString_newMembers(&request.userIdentityToken.body, identityToken.policyId.length+4);
+    
+    if (identityToken.policyId.length >= 0)
+      UA_ByteString_newMembers(&request.userIdentityToken.body, identityToken.policyId.length+4);
+    else {
+      identityToken.policyId.length = -1;
+      UA_ByteString_newMembers(&request.userIdentityToken.body, 4);
+    }
+    
     size_t offset = 0;
     UA_ByteString_encodeBinary(&identityToken.policyId,&request.userIdentityToken.body,&offset);
 

@@ -327,7 +327,7 @@ UA_StatusCode UA_EXPORT UA_String_copyprintf(char const fmt[], UA_String *dst, .
 
 /* DateTime */
 UA_DateTime UA_EXPORT * UA_DateTime_new(void);
-static UA_INLINE void UA_DateTime_init(UA_DateTime *p) { *p = 0.0f; }
+static UA_INLINE void UA_DateTime_init(UA_DateTime *p) { *p = (UA_DateTime)0.0f; }
 void UA_EXPORT UA_DateTime_delete(UA_DateTime *p);
 static UA_INLINE void UA_DateTime_deleteMembers(UA_DateTime *p) { }
 static UA_INLINE UA_StatusCode UA_DateTime_copy(const UA_DateTime *src, UA_DateTime *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
