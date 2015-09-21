@@ -51,9 +51,13 @@ cd .. && rm build -rf && mkdir -p build && cd build
 echo "Upgrade to gcc 4.8"
 sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
 sudo apt-get update -qq
-sudo apt-get install -qq gcc-4.8 valgrind
+sudo apt-get install -qq gcc-4.8 g++-4.8 valgrind
 sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
 sudo update-alternatives --config gcc
+echo "Building the C++ example"
+gcc -std=c99 -c open62541.c
+g++-4.8 ../examples/server.cpp -I./ open62541.o -o cpp-server
+cd .. && rm build -rf && mkdir -p build && cd build
 echo "Compile multithreaded version"
 cmake -DENABLE_MULTITHREADING=ON -DBUILD_EXAMPLESERVER=ON ..
 make
