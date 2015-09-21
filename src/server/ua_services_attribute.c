@@ -16,7 +16,7 @@ UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range) {
     if(str.length < 0 || str.length >= 1023)
         return UA_STATUSCODE_BADINTERNALERROR;
 #ifdef _MSVC_VER
-    char *cstring = UA_alloca(str.length+1);
+    char *cstring = (char*)UA_alloca(sizeof(char)*str.length+1);
 #else
     char cstring[str.length+1];
 #endif
