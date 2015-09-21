@@ -47,7 +47,6 @@ tar -pczf open62541-linux64.tar.gz ../doc ../server_cert.der ../LICENSE ../AUTHO
 cp open62541-linux64.tar.gz ..
 cp open62541.h .. #copy single file-release
 cp open62541.c .. #copy single file-release
-cd .. && rm build -rf && mkdir -p build && cd build
 echo "Upgrade to gcc 4.8"
 sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
 sudo apt-get update -qq
