@@ -545,9 +545,11 @@ START_TEST(WriteSingleAttributeNodeId) {
 		UA_Server *server = makeTestSequence();
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+        UA_NodeId *id = UA_NodeId_new();
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_NODEID;
 		wValue.value.hasValue = UA_TRUE;
+        UA_Variant_setScalar(&wValue.value.value, id, &UA_TYPES[UA_TYPES_NODEID]);
 		UA_StatusCode retval = Service_Write_single(server, &adminSession, &wValue);
 		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
         UA_Server_delete(server);
@@ -558,8 +560,10 @@ START_TEST(WriteSingleAttributeNodeclass) {
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
+        UA_NodeClass *class = UA_NodeClass_new();
 		wValue.attributeId = UA_ATTRIBUTEID_NODECLASS;
 		wValue.value.hasValue = UA_TRUE;
+        UA_Variant_setScalar(&wValue.value.value, class, &UA_TYPES[UA_TYPES_NODECLASS]);
 		UA_StatusCode retval = Service_Write_single(server, &adminSession, &wValue);
 		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
         UA_Server_delete(server);
@@ -741,9 +745,11 @@ START_TEST(WriteSingleAttributeDataType) {
 		UA_Server *server = makeTestSequence();
 		UA_WriteValue wValue;
 		UA_WriteValue_init(&wValue);
+        UA_NodeId *typeId = UA_NodeId_new();
 		wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
 		wValue.attributeId = UA_ATTRIBUTEID_DATATYPE;
 		wValue.value.hasValue = UA_TRUE;
+        UA_Variant_setScalar(&wValue.value.value, typeId, &UA_TYPES[UA_TYPES_NODEID]);
 		UA_StatusCode retval = Service_Write_single(server, &adminSession, &wValue);
 		ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
         UA_Server_delete(server);

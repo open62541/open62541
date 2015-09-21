@@ -42,28 +42,28 @@ static UA_StatusCode UA_Node_copy(const UA_Node *src, UA_Node *dst) {
 
 void UA_Node_deleteAnyNodeClass(UA_Node *node) {
     switch(node->nodeClass) {
-    UA_NODECLASS_OBJECT:
+    case UA_NODECLASS_OBJECT:
         UA_ObjectNode_delete((UA_ObjectNode*)node);
         break;
-    UA_NODECLASS_VARIABLE:
+    case UA_NODECLASS_VARIABLE:
         UA_VariableNode_delete((UA_VariableNode*)node);
         break;
-    UA_NODECLASS_METHOD:
+    case UA_NODECLASS_METHOD:
         UA_MethodNode_delete((UA_MethodNode*)node);
         break;
-    UA_NODECLASS_OBJECTTYPE:
+    case UA_NODECLASS_OBJECTTYPE:
         UA_ObjectTypeNode_delete((UA_ObjectTypeNode*)node);
         break;
-    UA_NODECLASS_VARIABLETYPE:
+    case UA_NODECLASS_VARIABLETYPE:
         UA_VariableTypeNode_delete((UA_VariableTypeNode*)node);
         break;
-    UA_NODECLASS_REFERENCETYPE:
+    case UA_NODECLASS_REFERENCETYPE:
         UA_ReferenceTypeNode_delete((UA_ReferenceTypeNode*)node);
         break;
-    UA_NODECLASS_DATATYPE:
+    case UA_NODECLASS_DATATYPE:
         UA_DataTypeNode_delete((UA_DataTypeNode*)node);
         break;
-    UA_NODECLASS_VIEW:
+    case UA_NODECLASS_VIEW:
         UA_ViewNode_delete((UA_ViewNode*)node);
         break;
     default:
@@ -81,48 +81,49 @@ UA_Node * UA_Node_copyAnyNodeClass(const UA_Node *node) {
     UA_DeleteNodeFunction deleteNode;
 
     switch(node->nodeClass) {
-    UA_NODECLASS_OBJECT:
+    case UA_NODECLASS_OBJECT:
         newNode = (UA_NewNodeFunction)UA_ObjectNode_new;
         copyNode = (UA_CopyNodeFunction)UA_ObjectNode_copy;
         deleteNode = (UA_DeleteNodeFunction)UA_ObjectNode_delete;
         break;
-    UA_NODECLASS_VARIABLE:
+    case UA_NODECLASS_VARIABLE:
         newNode = (UA_NewNodeFunction)UA_VariableNode_new;
         copyNode = (UA_CopyNodeFunction)UA_VariableNode_copy;
         deleteNode = (UA_DeleteNodeFunction)UA_VariableNode_delete;
         break;
-    UA_NODECLASS_METHOD:
+    case UA_NODECLASS_METHOD:
         newNode = (UA_NewNodeFunction)UA_MethodNode_new;
         copyNode = (UA_CopyNodeFunction)UA_MethodNode_copy;
         deleteNode = (UA_DeleteNodeFunction)UA_MethodNode_delete;
         break;
-    UA_NODECLASS_OBJECTTYPE:
+    case UA_NODECLASS_OBJECTTYPE:
         newNode = (UA_NewNodeFunction)UA_ObjectTypeNode_new;
         copyNode = (UA_CopyNodeFunction)UA_ObjectTypeNode_copy;
         deleteNode = (UA_DeleteNodeFunction)UA_ObjectTypeNode_delete;
         break;
-    UA_NODECLASS_VARIABLETYPE:
+    case UA_NODECLASS_VARIABLETYPE:
         newNode = (UA_NewNodeFunction)UA_VariableTypeNode_new;
         copyNode = (UA_CopyNodeFunction)UA_VariableTypeNode_copy;
         deleteNode = (UA_DeleteNodeFunction)UA_VariableTypeNode_delete;
         break;
-    UA_NODECLASS_REFERENCETYPE:
+    case UA_NODECLASS_REFERENCETYPE:
         newNode = (UA_NewNodeFunction)UA_ReferenceTypeNode_new;
         copyNode = (UA_CopyNodeFunction)UA_ReferenceTypeNode_copy;
         deleteNode = (UA_DeleteNodeFunction)UA_ReferenceTypeNode_delete;
         break;
-    UA_NODECLASS_DATATYPE:
+    case UA_NODECLASS_DATATYPE:
         newNode = (UA_NewNodeFunction)UA_DataTypeNode_new;
         copyNode = (UA_CopyNodeFunction)UA_DataTypeNode_copy;
         deleteNode = (UA_DeleteNodeFunction)UA_DataTypeNode_delete;
         break;
-    UA_NODECLASS_VIEW:
+    case UA_NODECLASS_VIEW:
         newNode = (UA_NewNodeFunction)UA_ViewNode_new;
         copyNode = (UA_CopyNodeFunction)UA_ViewNode_copy;
         deleteNode = (UA_DeleteNodeFunction)UA_ViewNode_delete;
         break;
     default:
         return UA_NULL;
+        break;
     }
 
     UA_Node *copy = newNode();

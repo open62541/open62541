@@ -761,9 +761,12 @@ UA_StatusCode UA_Server_setNodeAttribute(UA_Server *server, const UA_NodeId node
     UA_WriteValue_init(&wvalue);
     wvalue.nodeId = nodeId;
     wvalue.attributeId = attributeId;
-    UA_Variant_setScalar(&wvalue.value.value, type, value);
+    UA_Variant_setScalarCopy(&wvalue.value.value, type, value);
     wvalue.value.hasValue = UA_TRUE;
-    return Service_Write_single(server, &adminSession, &wvalue);
+    UA_StatusCode retval = Service_Write_single(server, &adminSession, &wvalue);
+    UA_NodeId_init(&wvalue.nodeId);
+    UA_WriteValue_deleteMembers(&wvalue);
+    return retval;
 }
 
 UA_StatusCode UA_Server_setNodeAttribute_value(UA_Server *server, const UA_NodeId nodeId,
@@ -771,10 +774,31 @@ UA_StatusCode UA_Server_setNodeAttribute_value(UA_Server *server, const UA_NodeI
     UA_WriteValue wvalue;
     UA_WriteValue_init(&wvalue);
     wvalue.nodeId = nodeId;
-    wvalue.attributeId = attributeId;
-    wvalue.value.value = *value;
+    wvalue.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_StatusCode retval = UA_Variant_copy(value, &wvalue.value.value);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
     wvalue.value.hasValue = UA_TRUE;
-    return Service_Write_single(server, &adminSession, &wvalue);
+    retval = Service_Write_single(server, &adminSession, &wvalue);
+    UA_NodeId_init(&wvalue.nodeId);
+    UA_WriteValue_deleteMembers(&wvalue);
+    return retval;
+}
+
+UA_StatusCode
+UA_Server_setNodeAttribute_value_destructive(UA_Server *server, const UA_NodeId nodeId,
+                                             const UA_DataType *type, UA_Variant *value) {
+    UA_WriteValue wvalue;
+    UA_WriteValue_init(&wvalue);
+    wvalue.nodeId = nodeId;
+    wvalue.attributeId = UA_ATTRIBUTEID_VALUE;
+    wvalue.value.value = *value;
+    UA_Variant_init(value);
+    wvalue.value.hasValue = UA_TRUE;
+    UA_StatusCode retval = Service_Write_single(server, &adminSession, &wvalue);
+    UA_NodeId_init(&wvalue.nodeId);
+    UA_WriteValue_deleteMembers(&wvalue);
+    return retval;
 }
 
 #ifdef ENABLE_METHODCALLS
@@ -814,7 +838,7 @@ UA_Server_setNodeAttribute_method(UA_Server *server, UA_NodeId methodNodeId, UA_
 #endif
 
 UA_StatusCode
-UA_Server_setNodeAttribute_valueDataSource(UA_Server *server, const UA_NodeId nodeId, UA_DataSource dataSource) {
+UA_Server_setNodeAttribute_value_dataSource(UA_Server *server, const UA_NodeId nodeId, UA_DataSource dataSource) {
     const UA_Node *orig;
  retrySetDataSource:
     orig = UA_NodeStore_get(server->nodestore, &nodeId);
@@ -869,7 +893,9 @@ UA_Server_getNodeAttribute(UA_Server *server, const UA_NodeId nodeId,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Server_getNodeAttributeUnpacked(UA_Server *server, const UA_NodeId nodeId, const UA_AttributeId attributeId, void *v) {
+UA_StatusCode
+UA_Server_getNodeAttribute_unboxed(UA_Server *server, const UA_NodeId nodeId,
+                                   const UA_AttributeId attributeId, void *v) {
     UA_Variant out;
     UA_Variant_init(&out);
     UA_StatusCode retval = UA_Server_getNodeAttribute(server, nodeId, attributeId, &out); 
@@ -893,19 +919,19 @@ UA_Server_getNodeAttribute_method(UA_Server *server, UA_NodeId nodeId, UA_Method
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     
-    if(node.anyNode->nodeClass != UA_NODECLASS_METHOD) {
+    if(node->nodeClass != UA_NODECLASS_METHOD) {
         UA_NodeStore_release(node);
         return UA_STATUSCODE_BADNODECLASSINVALID;
     }
 
-    *method = ((UA_MethodNode*)node)->attachToMethod;
+    *method = ((const UA_MethodNode*)node)->attachedMethod;
     UA_NodeStore_release(node);
     return UA_STATUSCODE_GOOD;
 }
 #endif
 
 UA_StatusCode
-UA_Server_getNodeAttribute_valueDataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource *dataSource) {
+UA_Server_getNodeAttribute_value_dataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource *dataSource) {
     const UA_VariableNode *node = (const UA_VariableNode*)UA_NodeStore_get(server->nodestore, &nodeId);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
