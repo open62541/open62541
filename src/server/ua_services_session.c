@@ -22,7 +22,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     //TODO get maxResponseMessageSize internally
     newSession->maxResponseMessageSize = request->maxResponseMessageSize;
     response->sessionId = newSession->sessionId;
-    response->revisedSessionTimeout = newSession->timeout;
+    response->revisedSessionTimeout = (UA_Double)newSession->timeout;
     response->authenticationToken = newSession->authenticationToken;
     response->responseHeader.serviceResult = UA_String_copy(&request->sessionName, &newSession->sessionName);
     if(server->endpointDescriptions)

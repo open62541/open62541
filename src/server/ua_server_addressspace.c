@@ -1596,7 +1596,7 @@ void UA_Server_addInstanceOf_instatiateChildNode(UA_Server *server,
                                                         objectRoot, *objectRootExpanded, ref.referenceTypeId,
                                                         callback, UA_TRUE, instantiatedTypes, handle);
           instantiatedTypes->size = lastArrayDepth;
-          instantiatedTypes->ids = (UA_NodeId *) realloc(instantiatedTypes->ids, lastArrayDepth);
+          instantiatedTypes->ids = (UA_NodeId *) UA_realloc(instantiatedTypes->ids, lastArrayDepth);
           
           UA_Server_deleteNodeCopy(server, (void **) &nodeClone);
           UA_ExpandedNodeId_deleteMembers(objectRootExpanded); // since we only borrowed this, reset it

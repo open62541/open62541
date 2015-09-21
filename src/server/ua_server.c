@@ -96,7 +96,7 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     server->namespaces = UA_realloc(server->namespaces, sizeof(UA_String) * (server->namespacesSize+1));
     server->namespaces[server->namespacesSize] = UA_STRING_ALLOC(name);
     server->namespacesSize++;
-    return server->namespacesSize-1;
+    return ((UA_UInt16)server->namespacesSize - 1);
 }
 
 /*****************/

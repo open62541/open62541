@@ -246,6 +246,9 @@ if(EXTENSION_UDP)
   endif()
 endif()
 
+option(LEGACY "Enable LEGACY code" OFF)
+mark_as_advanced(LEGACY)
+
 option(EXTENSION_STATELESS "Enable stateless extension" OFF)
 if(EXTENSION_STATELESS)
 	message(STATUS "Extensions: enabling stateless")
@@ -367,12 +370,16 @@ if(BUILD_EXAMPLECLIENT)
         target_link_libraries(client_static urcu-cds urcu urcu-common pthread)
         target_link_libraries(client urcu-cds urcu urcu-common pthread)
     endif()
-    if(EXTENSION_STATELESS)
+    if(EXTENSION_STATELESS AND NOT ENABLE_AMALGAMATION)
         add_executable(client_stateless examples/client_stateless.c ${client_source})
         if(ENABLE_MULTITHREADING)
             target_link_libraries(client_stateless urcu-cds urcu urcu-common pthread)
         endif()
     endif()
+    if(LEGACY AND NOT ENABLE_AMALGAMATION)
+    	add_executable(client_legacy ${PROJECT_SOURCE_DIR}/examples/client_legacy.c $<TARGET_OBJECTS:open62541-object>)
+		target_link_libraries(client_legacy ${LIBS})
+	endif()
 endif()
 
 # build unit tests
@@ -400,7 +407,7 @@ if(BUILD_EXAMPLES)
 	if(ENABLE_MULTITHREADING)
 		list(APPEND LIBS urcu-cds urcu urcu-common)
 	endif(ENABLE_MULTITHREADING)
-
+	
     add_executable(server_variable ${PROJECT_SOURCE_DIR}/examples/server_variable.c $<TARGET_OBJECTS:open62541-object>)
 	target_link_libraries(server_variable ${LIBS})
 
