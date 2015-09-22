@@ -881,21 +881,7 @@ UA_Server_setNodeAttribute_value_dataSource(UA_Server *server, const UA_NodeId n
 
 UA_StatusCode
 UA_Server_getNodeAttribute(UA_Server *server, const UA_NodeId nodeId,
-                           UA_AttributeId attributeId, UA_Variant *v) {
-    const UA_ReadValueId rvi = {.nodeId = nodeId, .attributeId = attributeId, .indexRange = UA_STRING_NULL,
-                                .dataEncoding = UA_QUALIFIEDNAME(0, "DefaultBinary")};
-    UA_DataValue dv;
-    UA_DataValue_init(&dv);
-    Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rvi, &dv);
-    if(dv.hasStatus && dv.status != UA_STATUSCODE_GOOD)
-        return dv.status;
-    *v = dv.value; // The caller needs to free the content eventually
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Server_getNodeAttribute_unboxed(UA_Server *server, const UA_NodeId nodeId,
-                                   const UA_AttributeId attributeId, void *v) {
+                           const UA_AttributeId attributeId, void *v) {
     UA_Variant out;
     UA_Variant_init(&out);
     UA_StatusCode retval = UA_Server_getNodeAttribute(server, nodeId, attributeId, &out); 
