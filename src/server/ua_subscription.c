@@ -12,7 +12,7 @@ UA_Subscription *UA_Subscription_new(UA_Int32 subscriptionID) {
         return UA_NULL;
     new->subscriptionID = subscriptionID;
     new->lastPublished  = 0;
-    new->sequenceNumber = 0;
+    new->sequenceNumber = 1;
     memset(&new->timedUpdateJobGuid, 0, sizeof(UA_Guid));
     new->timedUpdateJob          = UA_NULL;
     new->timedUpdateIsRegistered = UA_FALSE;
@@ -109,7 +109,9 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
         // Decrement KeepAlive
         subscription->keepAliveCount.currentValue--;
         // +- Generate KeepAlive msg if counter overruns
-        Subscription_generateKeepAlive(subscription);
+        if (subscription->keepAliveCount.currentValue < subscription->keepAliveCount.minValue)
+          Subscription_generateKeepAlive(subscription);
+        
         return;
     }
     

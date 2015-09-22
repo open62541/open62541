@@ -295,13 +295,6 @@ if(ENABLE_MULTITHREADING)
   target_link_libraries(open62541-static urcu-cds urcu urcu-common pthread)
 endif()
 
-# build language bindings for the library
-option(ENABLE_BINDING_LUA "Build Lua bindings" OFF)
-option(ENABLE_BINDING_PYTHON "Build Python bindings" OFF)
-if(ENABLE_BINDING_LUA OR ENABLE_BINDING_PYTHON)
-    add_subdirectory(bindings)
-endif()
-
 # coverage
 option(ENABLE_COVERAGE "Enable gcov coverage" OFF)
 if(ENABLE_COVERAGE)
