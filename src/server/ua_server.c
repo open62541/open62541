@@ -1280,13 +1280,9 @@ UA_Server_getNodeAttribute_value_dataSource(UA_Server *server, UA_NodeId nodeId,
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
-    if(node->nodeClass != UA_NODECLASS_VARIABLE &&
-       node->nodeClass != UA_NODECLASS_VARIABLETYPE) {
-        UA_NodeStore_release((const UA_Node*)node);
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-    }
-
-    if(node->valueSource != UA_VALUESOURCE_DATASOURCE) {
+    if((node->nodeClass != UA_NODECLASS_VARIABLE &&
+        node->nodeClass != UA_NODECLASS_VARIABLETYPE) ||
+       node->valueSource != UA_VALUESOURCE_DATASOURCE) {
         UA_NodeStore_release((const UA_Node*)node);
         return UA_STATUSCODE_BADNODECLASSINVALID;
     }
