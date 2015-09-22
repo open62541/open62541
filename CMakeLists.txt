@@ -43,7 +43,6 @@ endif()
 if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
                       -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
-                      -Wno-sizeof-array-argument
                       -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes # -Wshadow -Wconversion
                       -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral)
     # binary size reduction settings
