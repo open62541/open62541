@@ -1679,23 +1679,26 @@ UA_StatusCode UA_Server_addInstanceOf(UA_Server *server, UA_NodeId nodeId, const
   
   // These refs will be examined later. 
   // FIXME: Create these arrays dynamically to include any subtypes as well
+  UA_NodeId* tempArraySubtypeRefs = (UA_NodeId[]) { UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE)};
   arrayOfNodeIds subtypeRefs = (arrayOfNodeIds) {
     .size  = 1,
-    .ids   = (UA_NodeId[]) { UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE)}
+    .ids   = tempArraySubtypeRefs
   };
+  UA_NodeId* tempArrayComponentRefs = (UA_NodeId[]) { UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY)};
   arrayOfNodeIds componentRefs = (arrayOfNodeIds) {
     .size = 2,
-    .ids  = (UA_NodeId[]) { UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY)}
+    .ids  = tempArrayComponentRefs
   };
+  UA_NodeId* tempArrayTypedefRefs = (UA_NodeId[]) { UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION)};
   arrayOfNodeIds typedefRefs = (arrayOfNodeIds) {
     .size = 1,
-    .ids  = (UA_NodeId[]) { UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION)}
+    .ids  = tempArrayTypedefRefs
   };
   
   UA_ExpandedNodeId *objectRootExpanded = UA_ExpandedNodeId_new();
   UA_NodeId_copy(&objectRoot, &objectRootExpanded->nodeId );
   
-  arrayOfNodeIds instantiatedTypes = (arrayOfNodeIds ) {.size=0, .ids=NULL};
+  arrayOfNodeIds instantiatedTypes = (arrayOfNodeIds ) {.size=0, .ids=UA_NULL};
   arrayOfNodeIds_addNodeId(instantiatedTypes, typeDefNode->nodeId);
   
   // (1) If this node is a subtype of any other node, create its things first
