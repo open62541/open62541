@@ -124,7 +124,8 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     seqHeader.requestId = requestId;
 
     UA_ByteString message;
-    UA_StatusCode retval = connection->getBuffer(connection, &message);
+    UA_StatusCode retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
+                                                     &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -133,7 +134,7 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     retval |= UA_encodeBinary(content, contentType, &message, &messagePos);
 
     if(retval != UA_STATUSCODE_GOOD) {
-        connection->releaseBuffer(connection, &message);
+        connection->releaseSendBuffer(connection, &message);
         return retval;
     }
 
@@ -149,9 +150,8 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &message, &messagePos);
     UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader, &message, &messagePos);
     UA_SequenceHeader_encodeBinary(&seqHeader, &message, &messagePos);
-    
-    retval = connection->write(connection, &message, respHeader.messageHeader.messageSize);
-    if(retval != UA_STATUSCODE_GOOD)
-        connection->releaseBuffer(connection, &message);
+    message.length = respHeader.messageHeader.messageSize;
+
+    retval = connection->send(connection, &message);
     return retval;
 }

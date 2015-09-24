@@ -10,14 +10,14 @@
 extern "C" {
 #endif
 
-#ifdef NOT_AMALGATED
-# include "ua_server.h"
-#else
-# include "open62541.h"
-#endif
+#include "ua_server.h"
+#include "ua_client.h"
 
 /** @brief Create the UDP networklayer and listen to the specified port */
-UA_ServerNetworkLayer ServerNetworkLayerUDP_new(UA_ConnectionConfig conf, UA_UInt32 port);
+UA_ServerNetworkLayer UA_EXPORT * ServerNetworkLayerUDP_new(UA_ConnectionConfig conf, UA_UInt32 port);
+
+UA_Connection UA_EXPORT
+ClientNetworkLayerUDP_connect(UA_ConnectionConfig conf, char endpointUrl[], UA_Logger logger);
 
 #ifdef __cplusplus
 } // extern "C"
