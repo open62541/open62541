@@ -88,7 +88,7 @@ static UA_VariableNode* makeCompareSequence(void) {
         const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
 	UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
 	//UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-	node->value.variantAndCallback.variant=*myIntegerVariant;
+	node->value.variant.value = *myIntegerVariant;
 	UA_NodeId_copy(&myIntegerNodeId,&node->nodeId);
 	UA_QualifiedName_copy(&myIntegerName,&node->browseName);
         UA_LocalizedText_copy(&myIntegerDisplName, &node->displayName);
@@ -851,7 +851,7 @@ START_TEST(WriteSingleAttributeValue)
 		const UA_Node *node = UA_NodeStore_get(server->nodestore, &wValue.nodeId);
 		ck_assert_int_eq(node->nodeClass, UA_NODECLASS_VARIABLE);
 		const UA_VariableNode *vn = (const UA_VariableNode*)node;
-		const UA_Variant *oldV = &vn->value.variantAndCallback.variant;
+		const UA_Variant *oldV = &vn->value.variant.value;
 		ck_assert_ptr_eq(&oldV->type->typeId, &wValue.value.value.type->typeId);
 
 		ck_assert_int_eq(20, *(UA_Int32* )resp.value.data);

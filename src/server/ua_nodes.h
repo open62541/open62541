@@ -66,9 +66,9 @@ typedef struct {
     UA_ValueSource valueSource;
     union {
         struct {
-        UA_Variant variant;
-        UA_UserspaceCallback callback;
-        } variantAndCallback;
+        UA_Variant value;
+        UA_ValueCallback callback;
+        } variant;
         UA_DataSource dataSource;
     } value;
     /* <--- similar to variabletypenodes up to there--->*/
@@ -91,9 +91,9 @@ typedef struct {
     UA_ValueSource valueSource;
     union {
         struct {
-            UA_Variant variant;
-            UA_UserspaceCallback callback;
-        } variantAndCallback;
+            UA_Variant value;
+            UA_ValueCallback callback;
+        } variant;
         UA_DataSource dataSource;
     } value;
     /* <--- similar to variablenodes up to there--->*/

@@ -103,7 +103,8 @@ typedef struct {
      * @return Returns a status code for logging. Error codes intended for the original caller are set
      *         in the value. If an error is returned, then no releasing of the value is done.
      */
-    UA_StatusCode (*read)(void *handle, const UA_NodeId nodeid,  UA_Boolean includeSourceTimeStamp, const UA_NumericRange *range, UA_DataValue *value);
+    UA_StatusCode (*read)(void *handle, const UA_NodeId nodeid, UA_Boolean includeSourceTimeStamp,
+                          const UA_NumericRange *range, UA_DataValue *value);
 
     /**
      * Write into a data source. The write member of UA_DataSource can be empty if the operation
@@ -119,11 +120,13 @@ typedef struct {
     UA_StatusCode (*write)(void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range);
 } UA_DataSource;
 
+/* Value Callbacks can be attach to value and value type nodes. If not-null, they are called before
+   reading and after writing respectively */
 typedef struct {
     void *handle;
-    void (*onRead)(void *handle, const UA_NodeId nodeid,  const UA_Variant *data, const UA_NumericRange *range);
+    void (*onRead)(void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range);
     void (*onWrite)(void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range);
-} UA_UserspaceCallback;
+} UA_ValueCallback;
 
 /** @brief Add a new namespace to the server. Returns the index of the new namespace */
 UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
@@ -386,8 +389,9 @@ UA_Server_setAttribute_method(UA_Server *server, UA_NodeId methodNodeId, UA_Meth
 UA_StatusCode UA_EXPORT
 UA_Server_setAttribute_DataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource value);
 
+/* Succeeds only if the node contains a variant value */
 UA_StatusCode UA_EXPORT
-UA_Server_setAttribute_UserspaceCallback(UA_Server *server, UA_NodeId nodeId, UA_UserspaceCallback value);
+UA_Server_setAttribute_valueCallback(UA_Server *server, UA_NodeId nodeId, UA_ValueCallback callback);
 
 UA_StatusCode UA_EXPORT
 UA_Server_getAttributeValue(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void **value);
