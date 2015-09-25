@@ -107,9 +107,9 @@ UA_Logger UA_Server_getLogger(UA_Server *server) {
     return server->logger;
 }
 
-void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkLayer) {
-    UA_ServerNetworkLayer *newlayers = UA_realloc(server->networkLayers,
-                                                  sizeof(UA_ServerNetworkLayer)*(server->networkLayersSize+1));
+void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer *networkLayer) {
+    UA_ServerNetworkLayer **newlayers =
+        UA_realloc(server->networkLayers, sizeof(void*)*(server->networkLayersSize+1));
     if(!newlayers) {
         UA_LOG_ERROR(server->logger, UA_LOGCATEGORY_SERVER, "Networklayer added");
         return;
@@ -127,12 +127,12 @@ void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkL
         return;
     }
     server->description.discoveryUrls = newUrls;
-    UA_String_copy(&networkLayer.discoveryUrl,
+    UA_String_copy(&networkLayer->discoveryUrl,
                    &server->description.discoveryUrls[server->description.discoveryUrlsSize]);
     server->description.discoveryUrlsSize++;
     for(UA_Int32 i = 0; i < server->endpointDescriptionsSize; i++)
         if(!server->endpointDescriptions[i].endpointUrl.data)
-            UA_String_copy(&networkLayer.discoveryUrl, &server->endpointDescriptions[i].endpointUrl);
+            UA_String_copy(&networkLayer->discoveryUrl, &server->endpointDescriptions[i].endpointUrl);
 }
 
 void UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate) {
@@ -169,8 +169,9 @@ void UA_Server_delete(UA_Server *server) {
 
     // Delete the network layers
     for(size_t i = 0; i < server->networkLayersSize; i++) {
-        UA_String_deleteMembers(&server->networkLayers[i].discoveryUrl);
-        server->networkLayers[i].deleteMembers(&server->networkLayers[i]);
+        UA_String_deleteMembers(&server->networkLayers[i]->discoveryUrl);
+        server->networkLayers[i]->deleteMembers(server->networkLayers[i]);
+        UA_free(server->networkLayers[i]);
     }
     UA_free(server->networkLayers);
 

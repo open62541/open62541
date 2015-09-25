@@ -19,7 +19,7 @@ typedef struct UA_Client UA_Client;
  * successfully connecting.
  */
 typedef UA_Connection (*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, char *endpointUrl,
-                                                    UA_Logger *logger);
+                                                    UA_Logger logger);
 
 typedef struct UA_ClientConfig {
     UA_Int32 timeout; //sync response timeout

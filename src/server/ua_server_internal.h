@@ -38,7 +38,7 @@ struct UA_Server {
 
     /* Communication */
     size_t networkLayersSize;
-    UA_ServerNetworkLayer *networkLayers;
+    UA_ServerNetworkLayer **networkLayers;
 
     /* Security */
     UA_ByteString serverCertificate;
