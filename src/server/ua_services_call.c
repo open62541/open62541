@@ -73,12 +73,12 @@ static UA_StatusCode statisfySignature(UA_Variant *var, UA_Argument arg) {
 }
 
 static UA_StatusCode argConformsToDefinition(UA_CallMethodRequest *rs, const UA_VariableNode *argDefinition) {
-    if(argDefinition->value.variant.type != &UA_TYPES[UA_TYPES_ARGUMENT] &&
-        argDefinition->value.variant.type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
+    if(argDefinition->value.variant.value.type != &UA_TYPES[UA_TYPES_ARGUMENT] &&
+        argDefinition->value.variant.value.type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
         return UA_STATUSCODE_BADINTERNALERROR;
-    if(rs->inputArgumentsSize < argDefinition->value.variant.arrayLength) 
+    if(rs->inputArgumentsSize < argDefinition->value.variant.value.arrayLength)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
-    if(rs->inputArgumentsSize > argDefinition->value.variant.arrayLength)
+    if(rs->inputArgumentsSize > argDefinition->value.variant.value.arrayLength)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     
     const UA_ExtensionObject *thisArgDefExtObj;
@@ -89,16 +89,16 @@ static UA_StatusCode argConformsToDefinition(UA_CallMethodRequest *rs, const UA_
     UA_NodeId ArgumentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ARGUMENT + UA_ENCODINGOFFSET_BINARY);
     for(int i = 0; i<rs->inputArgumentsSize; i++) {
         var = &rs->inputArguments[i];
-        if(argDefinition->value.variant.type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) {
-            thisArgDefExtObj = &((const UA_ExtensionObject *) (argDefinition->value.variant.data))[i];
+        if(argDefinition->value.variant.value.type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) {
+            thisArgDefExtObj = &((const UA_ExtensionObject *) (argDefinition->value.variant.value.data))[i];
             decodingOffset = 0;
             
             if(!UA_NodeId_equal(&ArgumentNodeId, &thisArgDefExtObj->typeId))
                 return UA_STATUSCODE_BADINTERNALERROR;
                 
             UA_decodeBinary(&thisArgDefExtObj->body, &decodingOffset, &arg, &UA_TYPES[UA_TYPES_ARGUMENT]);
-        } else if(argDefinition->value.variant.type == &UA_TYPES[UA_TYPES_ARGUMENT])
-            arg = ((UA_Argument *) argDefinition->value.variant.data)[i];
+        } else if(argDefinition->value.variant.value.type == &UA_TYPES[UA_TYPES_ARGUMENT])
+            arg = ((UA_Argument *) argDefinition->value.variant.value.data)[i];
         retval |= statisfySignature(var, arg);
     }
     return retval;
@@ -178,8 +178,8 @@ static void callMethod(UA_Server *server, UA_Session *session, UA_CallMethodRequ
     // Call method if available
     if(methodCalled->attachedMethod) {
         result->outputArguments = UA_Array_new(&UA_TYPES[UA_TYPES_VARIANT],
-                                               outputArguments->value.variant.arrayLength);
-        result->outputArgumentsSize = outputArguments->value.variant.arrayLength;
+                                               outputArguments->value.variant.value.arrayLength);
+        result->outputArgumentsSize = outputArguments->value.variant.value.arrayLength;
         result->statusCode = methodCalled->attachedMethod(withObject->nodeId, request->inputArguments,
                                                           result->outputArguments, methodCalled->methodHandle);
     }

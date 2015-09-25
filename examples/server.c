@@ -244,7 +244,7 @@ int main(int argc, char** argv) {
   else if (dataSourceCopy->read != dateDataSource.read)
     UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "The returned dataSource is not the same as we set?");
   else
-    UA_Server_setAttribute_DataSource(server, nodeId_currentTime, dataSourceCopy);
+    UA_Server_setAttribute_DataSource(server, nodeId_currentTime, *dataSourceCopy);
   free(dataSourceCopy);
 #ifndef _WIN32
   //cpu temperature monitoring for linux machines
