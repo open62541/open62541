@@ -187,7 +187,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_RENEW;
     } else {
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_ISSUE;
-        UA_SecureChannel_generateNonce(&client->channel.clientNonce);
+        UA_ByteString_init(&client->channel.clientNonce);
         UA_ByteString_copy(&client->channel.clientNonce, &opnSecRq.clientNonce);
         opnSecRq.securityMode = UA_MESSAGESECURITYMODE_NONE;
     }
