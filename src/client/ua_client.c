@@ -29,6 +29,7 @@ struct UA_Client {
     UA_UserTokenPolicy token;
     UA_NodeId sessionId;
     UA_NodeId authenticationToken;
+    UA_UInt32 requestHandle;
     
 #ifdef ENABLE_SUBSCRIPTIONS
     UA_Int32 monitoredItemHandles;
@@ -71,6 +72,7 @@ void UA_Client_init(UA_Client* client, UA_ClientConfig config, UA_Logger logger)
     client->requestId = 0;
 
     UA_NodeId_init(&client->authenticationToken);
+    client->requestHandle = 0;
 
     client->logger = logger;
     client->config = config;
@@ -280,12 +282,20 @@ static void synchronousRequest(UA_Client *client, void *request, const UA_DataTy
         return;
     }
 
-    /* Copy authenticationToken token to request header */
+    /* HANDLING REQUEST HEADER PARAMETERS */
     typedef struct {
         UA_RequestHeader requestHeader;
     } headerOnlyRequest;
     /* The cast is valid, since all requests start with a requestHeader */
+
+    /* Copy authenticationToken token to request header */
     UA_NodeId_copy(&client->authenticationToken, &((headerOnlyRequest*)request)->requestHeader.authenticationToken);
+
+    ((headerOnlyRequest*)request)->requestHeader.timestamp = UA_DateTime_now();
+
+    ((headerOnlyRequest*)request)->requestHeader.requestHandle = ++client->requestHandle;
+
+    /*/HANDLING REQUEST HEADER PARAMETERS */
 
     /* Send the request */
     UA_UInt32 requestId = ++client->requestId;
