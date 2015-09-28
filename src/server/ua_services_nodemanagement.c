@@ -30,14 +30,14 @@
 /************/
 
 void Service_AddNodes_single(UA_Server *server, UA_Session *session, UA_Node *node,
-                             const UA_ExpandedNodeId *parentNodeId,
+                             const UA_NodeId *parentNodeId,
                              const UA_NodeId *referenceTypeId, UA_AddNodesResult *result) {
     if(node->nodeId.namespaceIndex >= server->namespacesSize) {
         result->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
         return;
     }
 
-    const UA_Node *parent = UA_NodeStore_get(server->nodestore, &parentNodeId->nodeId);
+    const UA_Node *parent = UA_NodeStore_get(server->nodestore, parentNodeId);
     if(!parent) {
         result->statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID;
         return;
@@ -155,7 +155,8 @@ Service_AddNodes_single_fromVariableAttributes(UA_Server *server, UA_Session *se
     /*     UA_NodeId_init(&attr.dataType); */
     /* } */
 
-    Service_AddNodes_single(server, session, (UA_Node*)vnode, &item->parentNodeId, &item->referenceTypeId, result);
+    Service_AddNodes_single(server, session, (UA_Node*)vnode, &item->parentNodeId.nodeId,
+                            &item->referenceTypeId, result);
     if(result->statusCode != UA_STATUSCODE_GOOD)
         UA_VariableNode_delete(vnode);
 }
@@ -172,7 +173,8 @@ Service_AddNodes_single_fromObjectAttributes(UA_Server *server, UA_Session *sess
     moveStandardAttributes((UA_Node*)onode, item, (UA_NodeAttributes*)attr);
     onode->eventNotifier = attr->eventNotifier;
 
-    Service_AddNodes_single(server, session, (UA_Node*)onode, &item->parentNodeId, &item->referenceTypeId, result);
+    Service_AddNodes_single(server, session, (UA_Node*)onode, &item->parentNodeId.nodeId,
+                            &item->referenceTypeId, result);
     if(result->statusCode != UA_STATUSCODE_GOOD)
         UA_ObjectNode_delete(onode);
 }
@@ -192,7 +194,8 @@ Service_AddNodes_single_fromReferenceTypeAttributes(UA_Server *server, UA_Sessio
     rtnode->inverseName = attr->inverseName;
     UA_LocalizedText_init(&attr->inverseName);
 
-    Service_AddNodes_single(server, session, (UA_Node*)rtnode, &item->parentNodeId, &item->referenceTypeId, result);
+    Service_AddNodes_single(server, session, (UA_Node*)rtnode, &item->parentNodeId.nodeId,
+                            &item->referenceTypeId, result);
     if(result->statusCode != UA_STATUSCODE_GOOD)
         UA_ReferenceTypeNode_delete(rtnode);
 }
@@ -209,7 +212,8 @@ Service_AddNodes_single_fromObjectTypeAttributes(UA_Server *server, UA_Session *
     moveStandardAttributes((UA_Node*)otnode, item, (UA_NodeAttributes*)attr);
     otnode->isAbstract = attr->isAbstract;
 
-    Service_AddNodes_single(server, session, (UA_Node*)otnode, &item->parentNodeId, &item->referenceTypeId, result);
+    Service_AddNodes_single(server, session, (UA_Node*)otnode, &item->parentNodeId.nodeId,
+                            &item->referenceTypeId, result);
     if(result->statusCode != UA_STATUSCODE_GOOD)
         UA_ObjectTypeNode_delete(otnode);
 }
@@ -231,7 +235,8 @@ Service_AddNodes_single_fromVariableTypeAttributes(UA_Server *server, UA_Session
     // array dimensions are taken from the value
     vtnode->isAbstract = attr->isAbstract;
 
-    Service_AddNodes_single(server, session, (UA_Node*)vtnode, &item->parentNodeId, &item->referenceTypeId, result);
+    Service_AddNodes_single(server, session, (UA_Node*)vtnode, &item->parentNodeId.nodeId,
+                            &item->referenceTypeId, result);
     if(result->statusCode != UA_STATUSCODE_GOOD)
         UA_VariableTypeNode_delete(vtnode);
 }
@@ -249,7 +254,8 @@ Service_AddNodes_single_fromViewAttributes(UA_Server *server, UA_Session *sessio
     vnode->containsNoLoops = attr->containsNoLoops;
     vnode->eventNotifier = attr->eventNotifier;
 
-    Service_AddNodes_single(server, session, (UA_Node*)vnode, &item->parentNodeId, &item->referenceTypeId, result);
+    Service_AddNodes_single(server, session, (UA_Node*)vnode, &item->parentNodeId.nodeId,
+                            &item->referenceTypeId, result);
     if(result->statusCode != UA_STATUSCODE_GOOD)
         UA_ViewNode_delete(vnode);
 }
@@ -266,7 +272,8 @@ Service_AddNodes_single_fromDataTypeAttributes(UA_Server *server, UA_Session *se
     moveStandardAttributes((UA_Node*)dtnode, item, (UA_NodeAttributes*)attr);
     dtnode->isAbstract = attr->isAbstract;
 
-    Service_AddNodes_single(server, session, (UA_Node*)dtnode, &item->parentNodeId, &item->referenceTypeId, result);
+    Service_AddNodes_single(server, session, (UA_Node*)dtnode,
+                            &item->parentNodeId.nodeId, &item->referenceTypeId, result);
     if(result->statusCode != UA_STATUSCODE_GOOD)
         UA_DataTypeNode_delete(dtnode);
 }
@@ -404,9 +411,9 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
 /**************************************************/
 
 UA_AddNodesResult
-UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_ExpandedNodeId requestedNewNodeId,
-                                    const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
-                                    const UA_QualifiedName browseName, const UA_ExpandedNodeId typeDefinition,
+UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                                    const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                                    const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
                                     const UA_VariableAttributes attr, const UA_DataSource dataSource) {
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
@@ -415,10 +422,10 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_ExpandedNodeId r
     UA_AddNodesItem_init(&item);
     result.statusCode = UA_QualifiedName_copy(&browseName, &item.browseName);
     item.nodeClass = UA_NODECLASS_METHOD;
-    result.statusCode |= UA_ExpandedNodeId_copy(&parentNodeId, &item.parentNodeId);
+    result.statusCode |= UA_NodeId_copy(&parentNodeId, &item.parentNodeId.nodeId);
     result.statusCode |= UA_NodeId_copy(&referenceTypeId, &item.referenceTypeId);
-    result.statusCode |= UA_ExpandedNodeId_copy(&requestedNewNodeId, &item.requestedNewNodeId);
-    result.statusCode |= UA_ExpandedNodeId_copy(&typeDefinition, &item.typeDefinition);
+    result.statusCode |= UA_NodeId_copy(&requestedNewNodeId, &item.requestedNewNodeId.nodeId);
+    result.statusCode |= UA_NodeId_copy(&typeDefinition, &item.typeDefinition.nodeId);
     
     UA_VariableAttributes attrCopy;
     result.statusCode |= UA_VariableAttributes_copy(&attr, &attrCopy);
@@ -445,7 +452,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_ExpandedNodeId r
     node->minimumSamplingInterval = attr.minimumSamplingInterval;
     node->valueRank = attr.valueRank;
 
-    Service_AddNodes_single(server, &adminSession, (UA_Node*)node, &item.parentNodeId,
+    Service_AddNodes_single(server, &adminSession, (UA_Node*)node, &item.parentNodeId.nodeId,
                             &item.referenceTypeId, &result);
     UA_AddNodesItem_deleteMembers(&item);
     UA_VariableAttributes_deleteMembers(&attrCopy);
