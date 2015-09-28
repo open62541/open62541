@@ -3,14 +3,13 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
 #include <time.h>
-#include "ua_types.h"
-
 #include <stdio.h>
 #include <stdlib.h> 
 #include <signal.h>
 
 // provided by the open62541 lib
-#include "ua_server.h"
+# include "ua_types.h"
+# include "ua_server.h"
 
 // provided by the user, implementations available in the /examples folder
 #include "logger_stdout.h"
@@ -26,8 +25,9 @@ static void stopHandler(int sign) {
 int main(int argc, char** argv) {
 	signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-	UA_Server *server = UA_Server_new();
-    UA_Server_addNetworkLayer(server, ServerNetworkLayerUDP_new(UA_ConnectionConfig_standard, 16664));
+	UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+    UA_ServerNetworkLayer *nl = ServerNetworkLayerUDP_new(UA_ConnectionConfig_standard, 16664);
+    UA_Server_addNetworkLayer(server, nl);
 
 	// add a variable node to the adresspace
     UA_Variant *myIntegerVariant = UA_Variant_new();
@@ -35,11 +35,12 @@ int main(int argc, char** argv) {
     UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
+    UA_LocalizedText myIntegerBrowseName = UA_LOCALIZEDTEXT("en_US","the answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
-                              myIntegerNodeId, parentNodeId, parentReferenceNodeId);
-
+    UA_Server_addVariableNode(server, myIntegerNodeId, myIntegerName, myIntegerBrowseName,
+                              myIntegerBrowseName, 0,0,
+                              parentNodeId, parentReferenceNodeId, myIntegerVariant, NULL);
 
     UA_StatusCode retval = UA_Server_run(server, 1, &running);
 	UA_Server_delete(server);

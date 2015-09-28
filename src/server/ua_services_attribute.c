@@ -99,28 +99,33 @@ static void handleSourceTimestamps(UA_TimestampsToReturn timestamps, UA_DataValu
 static UA_StatusCode getVariableNodeValue(const UA_VariableNode *vn, const UA_TimestampsToReturn timestamps,
                                           const UA_ReadValueId *id, UA_DataValue *v) {
     UA_NumericRange range;
+    UA_NumericRange *rangeptr = UA_NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_Boolean hasRange = UA_FALSE;
     if(id->indexRange.length > 0) {
         retval = parse_numericrange(id->indexRange, &range);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        hasRange = UA_TRUE;
+        rangeptr = &range;
     }
 
     if(vn->valueSource == UA_VALUESOURCE_VARIANT) {
-        if(hasRange)
+        if(vn->value.variant.callback.onRead)
+            vn->value.variant.callback.onRead(vn->value.variant.callback.handle, vn->nodeId,
+                                              &v->value, rangeptr);
+        if(rangeptr)
             retval = UA_Variant_copyRange(&vn->value.variant, &v->value, range);
         else
             retval = UA_Variant_copy(&vn->value.variant, &v->value);
+        if(retval == UA_STATUSCODE_GOOD)
+            handleSourceTimestamps(timestamps, v);
     } else {
         UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
                                       timestamps == UA_TIMESTAMPSTORETURN_BOTH);
         retval = vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId,
-                                            sourceTimeStamp, &range, v);
+                                           sourceTimeStamp, &rangeptr, v);
     }
 
-    if(hasRange)
+    if(rangeptr)
         UA_free(range.dimensions);
     return retval;
 }
@@ -446,14 +451,14 @@ Service_Write_single_Value(UA_Server *server, UA_Session *session, UA_VariableNo
     UA_assert(node->valueSource == UA_VALUESOURCE_VARIANT);
 
     /* Parse the range */
-    UA_Boolean hasRange = UA_FALSE;
     UA_NumericRange range;
+    UA_NumericRange *rangeptr = UA_NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(wvalue->indexRange.length > 0) {
         retval = parse_numericrange(wvalue->indexRange, &range);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        hasRange = UA_TRUE;
+        rangeptr = &range;
     }
 
     /* The nodeid on the wire may be != the nodeid in the node: opaque types, enums and bytestrings.
@@ -477,13 +482,13 @@ Service_Write_single_Value(UA_Server *server, UA_Session *session, UA_VariableNo
             newV->data = str->data;
             newV->type = &UA_TYPES[UA_TYPES_BYTE];
         } else {
-            if(hasRange)
+            if(rangeptr)
                 UA_free(range.dimensions);
             return UA_STATUSCODE_BADTYPEMISMATCH;
         }
     }
     
-    if(!hasRange) {
+    if(!rangeptr) {
         // TODO: Avoid copying the whole node and then delete the old value for multithreading
         UA_Variant_deleteMembers(&node->value.variant);
         node->value.variant = *newV;
@@ -491,8 +496,11 @@ Service_Write_single_Value(UA_Server *server, UA_Session *session, UA_VariableNo
     } else {
         retval = UA_Variant_setRangeCopy(&node->value.variant, newV->data, newV->arrayLength, range);
     }
+    if(node->value.variant.callback.onWrite)
+        node->value.variant.callback.onWrite(node->value.variant.callback.handle, node->nodeId,
+                                             &node->value.variant.value, rangeptr);
 
-    if(hasRange)
+    if(rangeptr)
         UA_free(range.dimensions);
     return retval;
 }
@@ -632,9 +640,7 @@ UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, UA_Wr
         UA_Node_deleteAnyNodeClass(copy);
         return retval;
     }
-#endif
        
-#ifdef UA_MULTITHREADING
     retval = UA_NodeStore_replace(server->nodestore, orig, copy, UA_NULL);
 	UA_NodeStore_release(orig);
     if(retval != UA_STATUSCODE_GOOD) {

@@ -68,7 +68,10 @@ typedef struct {
                              n = -3:  the value can be a scalar or a one dimensional array. */
     UA_ValueSource valueSource;
     union {
-        UA_Variant variant;
+        struct {
+        UA_Variant value;
+        UA_ValueCallback callback;
+        } variant;
         UA_DataSource dataSource;
     } value;
     /* <--- similar to variabletypenodes up to there--->*/
@@ -90,7 +93,10 @@ typedef struct {
     UA_Int32 valueRank;
     UA_ValueSource valueSource;
     union {
-        UA_Variant variant;
+        struct {
+            UA_Variant value;
+            UA_ValueCallback callback;
+        } variant;
         UA_DataSource dataSource;
     } value;
     /* <--- similar to variablenodes up to there--->*/

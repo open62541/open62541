@@ -82,7 +82,7 @@ static UA_VariableNode* makeCompareSequence(void) {
     const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
 	UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
 	//UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-	node->value.variant=*myIntegerVariant;
+	node->value.variant.value = *myIntegerVariant;
 	UA_NodeId_copy(&myIntegerNodeId,&node->nodeId);
 	UA_QualifiedName_copy(&myIntegerName,&node->browseName);
     UA_LocalizedText_copy(&myIntegerDisplName, &node->displayName);

@@ -82,6 +82,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_job.h
                      ${PROJECT_SOURCE_DIR}/include/ua_connection.h
                      ${PROJECT_SOURCE_DIR}/include/ua_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
@@ -293,13 +294,6 @@ endif()
 if(ENABLE_MULTITHREADING)
   target_link_libraries(open62541 urcu-cds urcu urcu-common pthread)
   target_link_libraries(open62541-static urcu-cds urcu urcu-common pthread)
-endif()
-
-# build language bindings for the library
-option(ENABLE_BINDING_LUA "Build Lua bindings" OFF)
-option(ENABLE_BINDING_PYTHON "Build Python bindings" OFF)
-if(ENABLE_BINDING_LUA OR ENABLE_BINDING_PYTHON)
-    add_subdirectory(bindings)
 endif()
 
 # coverage

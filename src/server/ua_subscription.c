@@ -12,7 +12,7 @@ UA_Subscription *UA_Subscription_new(UA_Int32 subscriptionID) {
         return UA_NULL;
     new->subscriptionID = subscriptionID;
     new->lastPublished  = 0;
-    new->sequenceNumber = 0;
+    new->sequenceNumber = 1;
     memset(&new->timedUpdateJobGuid, 0, sizeof(UA_Guid));
     new->timedUpdateJob          = UA_NULL;
     new->timedUpdateIsRegistered = UA_FALSE;
@@ -113,7 +113,9 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
         // Decrement KeepAlive
         subscription->keepAliveCount.currentValue--;
         // +- Generate KeepAlive msg if counter overruns
-        Subscription_generateKeepAlive(subscription);
+        if (subscription->keepAliveCount.currentValue < subscription->keepAliveCount.minValue)
+          Subscription_generateKeepAlive(subscription);
+        
         return;
     }
     
@@ -426,7 +428,8 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
         if(src->nodeClass == UA_NODECLASS_VARIABLE) {
             const UA_VariableNode *vsrc = (const UA_VariableNode*)src;
             if(srcAsVariableNode->valueSource == UA_VALUESOURCE_VARIANT) {
-                UA_Variant_copy(&vsrc->value.variant, dst);
+                UA_Variant_copy(&vsrc->value.variant.value, dst);
+                //no onRead callback here since triggered by a subscription
                 samplingError = UA_FALSE;
             } else {
                 if(srcAsVariableNode->valueSource != UA_VALUESOURCE_DATASOURCE)

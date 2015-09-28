@@ -42,18 +42,18 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
     ackHeader.messageSize =  8 + 20; /* ackHeader + ackMessage */
 
     UA_ByteString ack_msg;
-    if(connection->getBuffer(connection, &ack_msg) != UA_STATUSCODE_GOOD)
+    if(connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
+                                 &ack_msg) != UA_STATUSCODE_GOOD)
         return;
 
     size_t tmpPos = 0;
     UA_TcpMessageHeader_encodeBinary(&ackHeader, &ack_msg, &tmpPos);
     UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &ack_msg, &tmpPos);
-    if(connection->write(connection, &ack_msg, ackHeader.messageSize) != UA_STATUSCODE_GOOD)
-        connection->releaseBuffer(connection, &ack_msg);
+    ack_msg.length = ackHeader.messageSize;
+    connection->send(connection, &ack_msg);
 }
 
-static void processOPN(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg,
-                       size_t *pos) {
+static void processOPN(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, size_t *pos) {
     if(connection->state != UA_CONNECTION_ESTABLISHED) {
         connection->close(connection);
         return;
@@ -112,7 +112,7 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
                                                UA_ENCODINGOFFSET_BINARY);
 
     UA_ByteString resp_msg;
-    retval = connection->getBuffer(connection, &resp_msg);
+    retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize, &resp_msg);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_OpenSecureChannelResponse_deleteMembers(&p);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
@@ -126,16 +126,14 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
     retval |= UA_OpenSecureChannelResponse_encodeBinary(&p, &resp_msg, &tmpPos);
 
     if(retval != UA_STATUSCODE_GOOD) {
-        connection->releaseBuffer(connection, &resp_msg);
+        connection->releaseSendBuffer(connection, &resp_msg);
         connection->close(connection);
     } else {
         respHeader.messageHeader.messageSize = tmpPos;
         tmpPos = 0;
         UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
-
-        if(connection->write(connection, &resp_msg,
-                             respHeader.messageHeader.messageSize) != UA_STATUSCODE_GOOD)
-            connection->releaseBuffer(connection, &resp_msg);
+        resp_msg.length = respHeader.messageHeader.messageSize;
+        connection->send(connection, &resp_msg);
     }
 
     UA_OpenSecureChannelResponse_deleteMembers(&p);
@@ -173,8 +171,8 @@ static void invoke_service(UA_Server *server, UA_SecureChannel *channel, UA_UInt
         response->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
     } else if(session->activated == UA_FALSE) {
         response->serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
-        /* the session is invalidated FIXME: do this delayed*/
-        UA_SessionManager_removeSession(&server->sessionManager, server, &request->authenticationToken);
+        /* /\* the session is invalidated FIXME: do this delayed*\/ */
+        /* UA_SessionManager_removeSession(&server->sessionManager, server, &request->authenticationToken); */
     } else {
         UA_Session_updateLifetime(session);
         service(server, session, request, response);
@@ -225,21 +223,20 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     retval = UA_UInt32_decodeBinary(msg, pos, &tokenId);
     retval |= UA_SequenceHeader_decodeBinary(msg, pos, &sequenceHeader);
 #ifndef EXTENSION_STATELESS
-    if(retval != UA_STATUSCODE_GOOD || tokenId==0) //0 is invalid
+    if(retval != UA_STATUSCODE_GOOD || tokenId == 0) // 0 is invalid
+        return;
 #else
     if(retval != UA_STATUSCODE_GOOD)
-#endif
         return;
+#endif
 
-    if(clientChannel != &anonymousChannel){
-        if(tokenId!=clientChannel->securityToken.tokenId){
-            //is client using a newly issued token?
-            if(tokenId==clientChannel->nextSecurityToken.tokenId){ //tokenId is not 0
-                UA_SecureChannel_revolveTokens(clientChannel);
-            }else{
-                //FIXME: how to react to this, what do we have to return? Or just kill the channel
-            }
+    if(clientChannel != &anonymousChannel && tokenId != clientChannel->securityToken.tokenId) {
+        if(tokenId != clientChannel->nextSecurityToken.tokenId) {
+            /* close the securechannel but keep the connection open */
+            Service_CloseSecureChannel(server, clientChannel->securityToken.channelId);
+            return;
         }
+        UA_SecureChannel_revolveTokens(clientChannel);
     }
 
     /* Read the request type */
@@ -415,7 +412,6 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
         }
 
         size_t targetpos = pos - 8 + tcpMessageHeader.messageSize;
-
         switch(tcpMessageHeader.messageTypeAndFinal & 0xffffff) {
         case UA_MESSAGETYPEANDFINAL_HELF & 0xffffff:
             processHEL(connection, msg, &pos);
@@ -425,18 +421,16 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             break;
         case UA_MESSAGETYPEANDFINAL_MSGF & 0xffffff:
 #ifndef EXTENSION_STATELESS
-            if(connection->state != UA_CONNECTION_ESTABLISHED){
+            if(connection->state != UA_CONNECTION_ESTABLISHED) {
                 connection->close(connection);
-                UA_ByteString_deleteMembers(msg);
                 return;
-            }else
+            } else
 #endif
                 processMSG(connection, server, msg, &pos);
             break;
         case UA_MESSAGETYPEANDFINAL_CLOF & 0xffffff:
             processCLO(connection, server, msg, &pos);
             connection->close(connection);
-            UA_ByteString_deleteMembers(msg);
             return;
         }
 
@@ -447,5 +441,4 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             pos = targetpos;
         }
     } while(msg->length > (UA_Int32)pos);
-    UA_ByteString_deleteMembers(msg);
 }

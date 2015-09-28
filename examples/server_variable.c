@@ -22,6 +22,14 @@ static void stopHandler(int sign) {
     running = 0;
 }
 
+static void onRead(void *handle, const UA_NodeId nodeid,  const UA_Variant *data, const UA_NumericRange *range){
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "onRead; handle is: %i", (uintptr_t)handle);
+}
+
+static void onWrite(void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range){
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "onWrite; handle is: %i", (uintptr_t)handle);
+}
+
 int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
@@ -43,6 +51,9 @@ int main(int argc, char** argv) {
 
     UA_Server_addVariableNode(server, myIntegerNodeId, myIntegerName, myIntegerBrowseName, myIntegerBrowseName, 0, 0,
                               parentNodeId, parentReferenceNodeId, myIntegerVariant, NULL);
+
+    UA_ValueCallback callback = {(void*)7, onRead, onWrite};
+    UA_Server_setAttribute_valueCallback(server, myIntegerNodeId, callback);
 
     UA_StatusCode retval = UA_Server_run(server, 1, &running);
     UA_Server_delete(server);

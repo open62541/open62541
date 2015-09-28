@@ -90,7 +90,7 @@ static UA_StatusCode parseVariableNode(const UA_ExtensionObject *attributes, UA_
     /* } */
 
     if(attr.specifiedAttributes & UA_NODEATTRIBUTESMASK_VALUE) {
-        vnode->value.variant = attr.value;
+        vnode->value.variant.value = attr.value;
         UA_Variant_init(&attr.value);
     }
 

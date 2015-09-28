@@ -51,15 +51,24 @@ static void processJobs(UA_Server *server, UA_Job *jobs, UA_Int32 jobsSize) {
     for (UA_Int32 i = 0; i < jobsSize; i++) {
         UA_Job *job = &jobs[i];
         switch(job->type) {
-        case UA_JOBTYPE_BINARYMESSAGE:
-            UA_Server_processBinaryMessage(server, job->job.binaryMessage.connection,
-                                           &job->job.binaryMessage.message);
+        case UA_JOBTYPE_NOTHING:
             break;
         case UA_JOBTYPE_DETACHCONNECTION:
             UA_Connection_detachSecureChannel(job->job.closeConnection);
             break;
+        case UA_JOBTYPE_BINARYMESSAGE_NETWORKLAYER:
+            UA_Server_processBinaryMessage(server, job->job.binaryMessage.connection,
+                                           &job->job.binaryMessage.message);
+            UA_Connection *connection = job->job.binaryMessage.connection;
+            connection->releaseRecvBuffer(connection, &job->job.binaryMessage.message);
+            break;
+        case UA_JOBTYPE_BINARYMESSAGE_ALLOCATED:
+            UA_Server_processBinaryMessage(server, job->job.binaryMessage.connection,
+                                           &job->job.binaryMessage.message);
+            UA_ByteString_deleteMembers(&job->job.binaryMessage.message);
+            break;
         case UA_JOBTYPE_METHODCALL:
-        case UA_JOBTYPE_DELAYEDMETHODCALL:
+        case UA_JOBTYPE_METHODCALL_DELAYED:
             job->job.methodCall.method(server, job->job.methodCall.data);
             break;
         default:
@@ -569,7 +578,7 @@ UA_StatusCode result = UA_STATUSCODE_GOOD;
 
     /* Start the networklayers */
     for(size_t i = 0; i < server->networkLayersSize; i++)
-        result |= server->networkLayers[i].start(&server->networkLayers[i], &server->logger);
+        result |= server->networkLayers[i]->start(server->networkLayers[i], server->logger);
 
     return result;
 }
@@ -584,7 +593,7 @@ UA_StatusCode UA_Server_run_mainloop(UA_Server *server, UA_Boolean *running) {
 
     /* Get work from the networklayer */
     for(size_t i = 0; i < server->networkLayersSize; i++) {
-        UA_ServerNetworkLayer *nl = &server->networkLayers[i];
+        UA_ServerNetworkLayer *nl = server->networkLayers[i];
         UA_Job *jobs;
         UA_Int32 jobsSize;
         if(*running) {
@@ -593,12 +602,12 @@ UA_StatusCode UA_Server_run_mainloop(UA_Server *server, UA_Boolean *running) {
             else
                 jobsSize = nl->getJobs(nl, &jobs, 0);
         } else
-            jobsSize = server->networkLayers[i].stop(nl, &jobs);
+            jobsSize = server->networkLayers[i]->stop(nl, &jobs);
 
 #ifdef UA_MULTITHREADING
         /* Filter out delayed work */
         for(UA_Int32 k=0;k<jobsSize;k++) {
-            if(jobs[k].type != UA_JOBTYPE_DELAYEDMETHODCALL)
+            if(jobs[k].type != UA_JOBTYPE_METHODCALL_DELAYED)
                 continue;
             addDelayedJob(server, &jobs[k]);
             jobs[k].type = UA_JOBTYPE_NOTHING;
