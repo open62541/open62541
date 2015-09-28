@@ -97,6 +97,7 @@ void UA_String_init(UA_String *p) {
 void UA_String_deleteMembers(UA_String *p) {
     UA_free(p->data);
     p->data = UA_NULL;
+    p->length = -1;
 }
 
 UA_StatusCode UA_String_copy(UA_String const *src, UA_String *dst) {

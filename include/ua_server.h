@@ -24,9 +24,10 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_nodeids.h"
-#include "ua_connection.h"
 #include "ua_log.h"
-  
+#include "ua_job.h"
+#include "ua_connection.h"
+
 /**
  * @defgroup server Server
  *
@@ -46,9 +47,6 @@ typedef struct UA_ServerConfig {
 } UA_ServerConfig;
 
 extern UA_EXPORT const UA_ServerConfig UA_ServerConfig_standard;
-
-struct UA_Server;
-typedef struct UA_Server UA_Server;
 
 UA_Server UA_EXPORT * UA_Server_new(UA_ServerConfig config);
 void UA_EXPORT UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate);
@@ -103,7 +101,8 @@ typedef struct {
      * @return Returns a status code for logging. Error codes intended for the original caller are set
      *         in the value. If an error is returned, then no releasing of the value is done.
      */
-    UA_StatusCode (*read)(void *handle, const UA_NodeId nodeid,  UA_Boolean includeSourceTimeStamp, const UA_NumericRange *range, UA_DataValue *value);
+    UA_StatusCode (*read)(void *handle, const UA_NodeId nodeid, UA_Boolean includeSourceTimeStamp,
+                          const UA_NumericRange *range, UA_DataValue *value);
 
     /**
      * Write into a data source. The write member of UA_DataSource can be empty if the operation
@@ -118,6 +117,14 @@ typedef struct {
      */
     UA_StatusCode (*write)(void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range);
 } UA_DataSource;
+
+/* Value Callbacks can be attach to value and value type nodes. If not-null, they are called before
+   reading and after writing respectively */
+typedef struct {
+    void *handle;
+    void (*onRead)(void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range);
+    void (*onWrite)(void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range);
+} UA_ValueCallback;
 
 /** @brief Add a new namespace to the server. Returns the index of the new namespace */
 UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
@@ -378,7 +385,11 @@ UA_Server_setAttribute_method(UA_Server *server, UA_NodeId methodNodeId, UA_Meth
 #endif
 
 UA_StatusCode UA_EXPORT
-UA_Server_setAttribute_DataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource *value);
+UA_Server_setAttribute_DataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource value);
+
+/* Succeeds only if the node contains a variant value */
+UA_StatusCode UA_EXPORT
+UA_Server_setAttribute_valueCallback(UA_Server *server, UA_NodeId nodeId, UA_ValueCallback callback);
 
 UA_StatusCode UA_EXPORT
 UA_Server_getAttributeValue(UA_Server *server, UA_NodeId nodeId, UA_AttributeId attributeId, void **value);
@@ -413,28 +424,6 @@ UA_Server_getAttribute_method(UA_Server *server, UA_NodeId methodNodeId, UA_Meth
 UA_StatusCode UA_EXPORT
 UA_Server_getAttribute_DataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource **value);
 
-/** Jobs describe work that is executed once or repeatedly. */
-typedef struct {
-    enum {
-        UA_JOBTYPE_NOTHING,
-        UA_JOBTYPE_DETACHCONNECTION,
-        UA_JOBTYPE_BINARYMESSAGE,
-        UA_JOBTYPE_METHODCALL,
-        UA_JOBTYPE_DELAYEDMETHODCALL,
-    } type;
-    union {
-        UA_Connection *closeConnection;
-        struct {
-            UA_Connection *connection;
-            UA_ByteString message;
-        } binaryMessage;
-        struct {
-            void *data;
-            void (*method)(UA_Server *server, void *data);
-        } methodCall;
-    } job;
-} UA_Job;
-
 /**
  * @param server The server object.
  *
@@ -454,8 +443,8 @@ UA_StatusCode UA_EXPORT UA_Server_addRepeatedJob(UA_Server *server, UA_Job job, 
                                                  UA_Guid *jobId);
 
 /**
- * Remove repeated job. The entry will be removed asynchronously during the
- * next iteration of the server main loop.
+ * Remove repeated job. The entry will be removed asynchronously during the next iteration of the
+ * server main loop.
  *
  * @param server The server object.
  *
@@ -473,8 +462,8 @@ UA_StatusCode UA_EXPORT UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid j
  * layer does not need to be thread-safe.
  */
 typedef struct UA_ServerNetworkLayer {
-    void *handle;
     UA_String discoveryUrl;
+    UA_Logger logger; ///< Set during _start
 
     /**
      * Starts listening on the the networklayer.
@@ -483,30 +472,30 @@ typedef struct UA_ServerNetworkLayer {
      * @param logger The logger
      * @return Returns UA_STATUSCODE_GOOD or an error code.
      */
-    UA_StatusCode (*start)(struct UA_ServerNetworkLayer *nl, UA_Logger *logger);
+    UA_StatusCode (*start)(struct UA_ServerNetworkLayer *nl, UA_Logger logger);
     
     /**
      * Gets called from the main server loop and returns the jobs (accumulated messages and close
      * events) for dispatch.
      *
      * @param nl The network layer
-     * @param jobs When the returned integer is positive, *jobs points to an array of UA_Job of the
+     * @param jobs When the returned integer is >0, *jobs points to an array of UA_Job of the
      * returned size.
      * @param timeout The timeout during which an event must arrive in microseconds
      * @return The size of the jobs array. If the result is negative, an error has occurred.
      */
-    UA_Int32 (*getJobs)(struct UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt16 timeout);
+    size_t (*getJobs)(struct UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt16 timeout);
 
     /**
      * Closes the network connection and returns all the jobs that need to be finished before the
      * network layer can be safely deleted.
      *
      * @param nl The network layer
-     * @param jobs When the returned integer is positive, jobs points to an array of UA_Job of the
+     * @param jobs When the returned integer is >0, jobs points to an array of UA_Job of the
      * returned size.
      * @return The size of the jobs array. If the result is negative, an error has occurred.
      */
-    UA_Int32 (*stop)(struct UA_ServerNetworkLayer *nl, UA_Job **jobs);
+    size_t (*stop)(struct UA_ServerNetworkLayer *nl, UA_Job **jobs);
 
     /** Deletes the network layer. Call only after a successful shutdown. */
     void (*deleteMembers)(struct UA_ServerNetworkLayer *nl);
@@ -517,7 +506,7 @@ typedef struct UA_ServerNetworkLayer {
  * with the server. Do not use it after adding it as it might be moved around on
  * the heap.
  */
-void UA_EXPORT UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer networkLayer);
+void UA_EXPORT UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer *networkLayer);
 
 /** @} */
 
@@ -575,8 +564,8 @@ typedef UA_Int32 (*UA_ExternalNodeStore_browseNodes)
  UA_BrowseResult *browseResults, UA_DiagnosticInfo *diagnosticInfos);
 
 typedef UA_Int32 (*UA_ExternalNodeStore_translateBrowsePathsToNodeIds)
-(void *ensHandle, const UA_RequestHeader *requestHeader, UA_BrowsePath *browsePath,
- UA_UInt32 *indices, UA_UInt32 indicesSize, UA_BrowsePathResult *browsePathResults, UA_DiagnosticInfo *diagnosticInfos);
+(void *ensHandle, const UA_RequestHeader *requestHeader, UA_BrowsePath *browsePath, UA_UInt32 *indices,
+ UA_UInt32 indicesSize, UA_BrowsePathResult *browsePathResults, UA_DiagnosticInfo *diagnosticInfos);
 
 typedef UA_Int32 (*UA_ExternalNodeStore_delete)(void *ensHandle);
 

@@ -29,6 +29,7 @@ struct UA_Client {
     UA_UserTokenPolicy token;
     UA_NodeId sessionId;
     UA_NodeId authenticationToken;
+    UA_UInt32 requestHandle;
     
 #ifdef ENABLE_SUBSCRIPTIONS
     UA_Int32 monitoredItemHandles;
@@ -71,6 +72,7 @@ void UA_Client_init(UA_Client* client, UA_ClientConfig config, UA_Logger logger)
     client->requestId = 0;
 
     UA_NodeId_init(&client->authenticationToken);
+    client->requestHandle = 0;
 
     client->logger = logger;
     client->config = config;
@@ -113,7 +115,7 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     hello.sendBufferSize = conn->localConf.sendBufferSize;
 
     UA_ByteString message;
-    UA_StatusCode retval = c->connection.getBuffer(&c->connection, &message);
+    UA_StatusCode retval = c->connection.getSendBuffer(&c->connection, c->connection.remoteConf.recvBufferSize, &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -124,15 +126,14 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     retval |= UA_TcpMessageHeader_encodeBinary(&messageHeader, &message, &offset);
     UA_TcpHelloMessage_deleteMembers(&hello);
     if(retval != UA_STATUSCODE_GOOD) {
-        c->connection.releaseBuffer(&c->connection, &message);
+        c->connection.releaseSendBuffer(&c->connection, &message);
         return retval;
     }
 
-    retval = c->connection.write(&c->connection, &message, messageHeader.messageSize);
-    if(retval != UA_STATUSCODE_GOOD) {
-        c->connection.releaseBuffer(&c->connection, &message);
+    message.length = messageHeader.messageSize;
+    retval = c->connection.send(&c->connection, &message);
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    }
 
     UA_ByteString reply;
     UA_ByteString_init(&reply);
@@ -188,13 +189,14 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_RENEW;
     } else {
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_ISSUE;
-        UA_SecureChannel_generateNonce(&client->channel.clientNonce);
+        UA_ByteString_init(&client->channel.clientNonce);
         UA_ByteString_copy(&client->channel.clientNonce, &opnSecRq.clientNonce);
         opnSecRq.securityMode = UA_MESSAGESECURITYMODE_NONE;
     }
 
     UA_ByteString message;
-    UA_StatusCode retval = client->connection.getBuffer(&client->connection, &message);
+    UA_Connection *c = &client->connection;
+    UA_StatusCode retval = c->getSendBuffer(c, c->remoteConf.recvBufferSize, &message);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         UA_OpenSecureChannelRequest_deleteMembers(&opnSecRq);
@@ -213,15 +215,14 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
     UA_OpenSecureChannelRequest_deleteMembers(&opnSecRq);
     if(retval != UA_STATUSCODE_GOOD) {
-        client->connection.releaseBuffer(&client->connection, &message);
+        client->connection.releaseSendBuffer(&client->connection, &message);
         return retval;
     }
 
-    retval = client->connection.write(&client->connection, &message, messageHeader.messageHeader.messageSize);
-    if(retval != UA_STATUSCODE_GOOD) {
-        client->connection.releaseBuffer(&client->connection, &message);
+    message.length = messageHeader.messageHeader.messageSize;
+    retval = client->connection.send(&client->connection, &message);
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    }
 
     UA_ByteString reply;
     UA_ByteString_init(&reply);
@@ -281,12 +282,20 @@ static void synchronousRequest(UA_Client *client, void *request, const UA_DataTy
         return;
     }
 
-    /* Copy authenticationToken token to request header */
+    /* HANDLING REQUEST HEADER PARAMETERS */
     typedef struct {
         UA_RequestHeader requestHeader;
     } headerOnlyRequest;
     /* The cast is valid, since all requests start with a requestHeader */
+
+    /* Copy authenticationToken token to request header */
     UA_NodeId_copy(&client->authenticationToken, &((headerOnlyRequest*)request)->requestHeader.authenticationToken);
+
+    ((headerOnlyRequest*)request)->requestHeader.timestamp = UA_DateTime_now();
+
+    ((headerOnlyRequest*)request)->requestHeader.requestHandle = ++client->requestHandle;
+
+    /*/HANDLING REQUEST HEADER PARAMETERS */
 
     /* Send the request */
     UA_UInt32 requestId = ++client->requestId;
@@ -508,7 +517,8 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CLOSESECURECHANNELREQUEST + UA_ENCODINGOFFSET_BINARY);
 
     UA_ByteString message;
-    UA_StatusCode retval = client->connection.getBuffer(&client->connection, &message);
+    UA_Connection *c = &client->connection;
+    UA_StatusCode retval = c->getSendBuffer(c, c->remoteConf.recvBufferSize, &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -523,13 +533,12 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     retval |= UA_SecureConversationMessageHeader_encodeBinary(&msgHeader, &message, &offset);
 
     if(retval != UA_STATUSCODE_GOOD) {
-        client->connection.releaseBuffer(&client->connection, &message);
+        client->connection.releaseSendBuffer(&client->connection, &message);
         return retval;
     }
         
-    retval = client->connection.write(&client->connection, &message, msgHeader.messageHeader.messageSize);
-    if(retval != UA_STATUSCODE_GOOD)
-        client->connection.releaseBuffer(&client->connection, &message);
+    message.length = msgHeader.messageHeader.messageSize;
+    retval = client->connection.send(&client->connection, &message);
     return retval;
 }
 
@@ -548,7 +557,7 @@ UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection co
         UA_Client_reset(client);
     }
 
-    client->connection = connectFunc(UA_ConnectionConfig_standard, endpointUrl, &client->logger);
+    client->connection = connectFunc(UA_ConnectionConfig_standard, endpointUrl, client->logger);
     if(client->connection.state != UA_CONNECTION_OPENING){
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
         goto cleanup;

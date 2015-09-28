@@ -21,12 +21,7 @@ extern "C" {
 #endif
 
 #include "ua_types.h"
-
-/**
- * @defgroup communication Communication
- *
- * @{
- */
+#include "ua_job.h"
 
 typedef enum UA_ConnectionState {
     UA_CONNECTION_OPENING, ///< The socket is open, but the HEL/ACK handshake is not done
@@ -48,9 +43,6 @@ extern const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard;
 struct UA_SecureChannel;
 typedef struct UA_SecureChannel UA_SecureChannel;
 
-struct UA_Connection;
-typedef struct UA_Connection UA_Connection;
-
 /**
  * The connection to a single client (or server). The connection is defined independent of the
  * underlying network layer implementation. This allows a plugging-in custom implementations (e.g.
@@ -60,29 +52,42 @@ struct UA_Connection {
     UA_ConnectionState state;
     UA_ConnectionConfig localConf;
     UA_ConnectionConfig remoteConf;
-    UA_SecureChannel *channel; ///> The securechannel that is attached to this connection (or null)
-    UA_Int32 sockfd; ///> Most connectivity solutions run on sockets. Having the socket id here simplifies the design.
-    void *handle; ///> A pointer to the networklayer
-    UA_ByteString incompleteMessage; ///> Half-received messages (tcp is a streaming protocol) get stored here
-    UA_StatusCode (*getBuffer)(UA_Connection *connection, UA_ByteString *buf); ///> Get a buffer of the maximum remote recv size
-    void (*releaseBuffer)(UA_Connection *connection, UA_ByteString *buf); ///> Release the buffer manually
+    UA_SecureChannel *channel; ///< The securechannel that is attached to this connection (or null)
+    UA_Int32 sockfd; ///< Most connectivity solutions run on sockets. Having the socket id here
+                     ///  simplifies the design.
+    void *handle; ///< A pointer to the networklayer
+    UA_ByteString incompleteMessage; ///< A half-received message (TCP is a streaming protocol) is stored here
+
+    /** Get a buffer for sending */
+    UA_StatusCode (*getSendBuffer)(UA_Connection *connection, UA_Int32 length, UA_ByteString *buf);
+
+    /** Release the send buffer manually */
+    void (*releaseSendBuffer)(UA_Connection *connection, UA_ByteString *buf);
+
     /**
      * Sends a message over the connection.
      * @param connection The connection
-     * @param buf The message buffer is potentially reused (or freed) internally if sending succeeds.
-     * @param buflen Since the buffer is potentially reused, we provide a separate content length.
+     * @param buf The message buffer is always released (freed) internally
      * @return Returns an error code or UA_STATUSCODE_GOOD.
      */
-    UA_StatusCode (*write)(UA_Connection *connection, UA_ByteString *buf, size_t buflen);
+    UA_StatusCode (*send)(UA_Connection *connection, UA_ByteString *buf);
+
    /**
      * Receive a message from the remote connection
 	 * @param connection The connection
-	 * @param response The response string. It is allocated by the connection and needs to be freed with connection->releaseBuffer
+	 * @param response The response string. It is allocated by the connection and needs to be freed
+              with connection->releaseBuffer
      * @param timeout Timeout of the recv operation in milliseconds
-     * @return Returns UA_STATUSCODE_BADCOMMUNICATIONERROR if the recv operation can be repeated, UA_STATUSCODE_GOOD if it succeeded and
-     * UA_STATUSCODE_BADCONNECTIONCLOSED if the connection was closed.
+     * @return Returns UA_STATUSCODE_BADCOMMUNICATIONERROR if the recv operation can be repeated,
+     *         UA_STATUSCODE_GOOD if it succeeded and UA_STATUSCODE_BADCONNECTIONCLOSED if the
+     *         connection was closed.
 	 */
     UA_StatusCode (*recv)(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout);
+
+    /** Release the buffer of a received message */
+    void (*releaseRecvBuffer)(UA_Connection *connection, UA_ByteString *buf);
+
+    /** Close the connection */
     void (*close)(UA_Connection *connection);
 };
 
@@ -92,11 +97,11 @@ void UA_EXPORT UA_Connection_deleteMembers(UA_Connection *connection);
 void UA_EXPORT UA_Connection_detachSecureChannel(UA_Connection *connection);
 void UA_EXPORT UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChannel *channel);
 
-/** Returns a string of complete message (the length entry is decoded for that).
-    If the received message is incomplete, it is retained in the connection. */
-UA_ByteString UA_EXPORT UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString received);
-
-/** @} */
+/** Returns a job that contains either a message-bytestring managed by the network layer or a
+    message-bytestring that was newly allocated (or a nothing-job). Half-received messages are
+    attached to the connection. The next completion tries to create a complete message with the next
+    buffer the connection receives. */
+UA_Job UA_EXPORT UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString received);
 
 #ifdef __cplusplus
 } // extern "C"
