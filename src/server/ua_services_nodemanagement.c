@@ -404,24 +404,24 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
 /**************************************************/
 
 UA_AddNodesResult
-UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_ExpandedNodeId *requestedNewNodeId,
-                                    const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                                    const UA_QualifiedName *browseName, const UA_ExpandedNodeId *typeDefinition,
-                                    const UA_VariableAttributes *attr, const UA_DataSource *dataSource) {
+UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_ExpandedNodeId requestedNewNodeId,
+                                    const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
+                                    const UA_QualifiedName browseName, const UA_ExpandedNodeId typeDefinition,
+                                    const UA_VariableAttributes attr, const UA_DataSource dataSource) {
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
 
     UA_AddNodesItem item;
     UA_AddNodesItem_init(&item);
-    result.statusCode = UA_QualifiedName_copy(browseName, &item.browseName);
+    result.statusCode = UA_QualifiedName_copy(&browseName, &item.browseName);
     item.nodeClass = UA_NODECLASS_METHOD;
-    result.statusCode |= UA_ExpandedNodeId_copy(parentNodeId, &item.parentNodeId);
-    result.statusCode |= UA_NodeId_copy(referenceTypeId, &item.referenceTypeId);
-    result.statusCode |= UA_ExpandedNodeId_copy(requestedNewNodeId, &item.requestedNewNodeId);
-    result.statusCode |= UA_ExpandedNodeId_copy(typeDefinition, &item.typeDefinition);
+    result.statusCode |= UA_ExpandedNodeId_copy(&parentNodeId, &item.parentNodeId);
+    result.statusCode |= UA_NodeId_copy(&referenceTypeId, &item.referenceTypeId);
+    result.statusCode |= UA_ExpandedNodeId_copy(&requestedNewNodeId, &item.requestedNewNodeId);
+    result.statusCode |= UA_ExpandedNodeId_copy(&typeDefinition, &item.typeDefinition);
     
     UA_VariableAttributes attrCopy;
-    result.statusCode |= UA_VariableAttributes_copy(attr, &attrCopy);
+    result.statusCode |= UA_VariableAttributes_copy(&attr, &attrCopy);
     if(result.statusCode != UA_STATUSCODE_GOOD) {
         UA_AddNodesItem_deleteMembers(&item);
         UA_VariableAttributes_deleteMembers(&attrCopy);
@@ -438,12 +438,12 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_ExpandedNodeId *
 
     moveStandardAttributes((UA_Node*)node, &item, (UA_NodeAttributes*)&attrCopy);
     node->valueSource = UA_VALUESOURCE_DATASOURCE;
-    node->value.dataSource = *dataSource;
-    node->accessLevel = attr->accessLevel;
-    node->userAccessLevel = attr->userAccessLevel;
-    node->historizing = attr->historizing;
-    node->minimumSamplingInterval = attr->minimumSamplingInterval;
-    node->valueRank = attr->valueRank;
+    node->value.dataSource = dataSource;
+    node->accessLevel = attr.accessLevel;
+    node->userAccessLevel = attr.userAccessLevel;
+    node->historizing = attr.historizing;
+    node->minimumSamplingInterval = attr.minimumSamplingInterval;
+    node->valueRank = attr.valueRank;
 
     Service_AddNodes_single(server, &adminSession, (UA_Node*)node, &item.parentNodeId,
                             &item.referenceTypeId, &result);
@@ -457,9 +457,9 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_ExpandedNodeId *
 
 #ifdef ENABLE_METHODCALLS
 UA_AddNodesResult UA_EXPORT
-UA_Server_addMethodNode(UA_Server *server, const UA_ExpandedNodeId *requestedNewNodeId,
-                        const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                        const UA_QualifiedName *browseName, const UA_NodeAttributes *attr,
+UA_Server_addMethodNode(UA_Server *server, const UA_ExpandedNodeId requestedNewNodeId,
+                        const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
+                        const UA_QualifiedName browseName, const UA_NodeAttributes attr,
                         UA_MethodCallback method, void *handle,
                         UA_Int32 inputArgumentsSize, const UA_Argument* inputArguments, 
                         UA_Int32 outputArgumentsSize, const UA_Argument* outputArguments) {
@@ -468,14 +468,14 @@ UA_Server_addMethodNode(UA_Server *server, const UA_ExpandedNodeId *requestedNew
     
     UA_AddNodesItem item;
     UA_AddNodesItem_init(&item);
-    result.statusCode = UA_QualifiedName_copy(browseName, &item.browseName);
+    result.statusCode = UA_QualifiedName_copy(&browseName, &item.browseName);
     item.nodeClass = UA_NODECLASS_METHOD;
-    result.statusCode |= UA_ExpandedNodeId_copy(parentNodeId, &item.parentNodeId);
-    result.statusCode |= UA_NodeId_copy(referenceTypeId, &item.referenceTypeId);
-    result.statusCode |= UA_ExpandedNodeId_copy(requestedNewNodeId, &item.requestedNewNodeId);
+    result.statusCode |= UA_ExpandedNodeId_copy(&parentNodeId, &item.parentNodeId);
+    result.statusCode |= UA_NodeId_copy(&referenceTypeId, &item.referenceTypeId);
+    result.statusCode |= UA_ExpandedNodeId_copy(&requestedNewNodeId, &item.requestedNewNodeId);
     
     UA_NodeAttributes attrCopy;
-    result.statusCode |= UA_NodeAttributes_copy(attr, &attrCopy);
+    result.statusCode |= UA_NodeAttributes_copy(&attr, &attrCopy);
     if(result.statusCode != UA_STATUSCODE_GOOD) {
         UA_AddNodesItem_deleteMembers(&item);
         UA_NodeAttributes_deleteMembers(&attrCopy);

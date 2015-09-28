@@ -6,6 +6,7 @@
 #include "ua_types_generated.h"
 #include "ua_server.h"
 #include "ua_session.h"
+#include "ua_nodes.h"
 
 /**
  * @ingroup server

@@ -141,22 +141,21 @@ addNodeInternal(UA_Server *server, UA_Node *node, const UA_ExpandedNodeId *paren
 }
 
 UA_AddNodesResult
-UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_ExpandedNodeId *requestedNewNodeId,
-                  const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                  const UA_QualifiedName *browseName, const UA_ExpandedNodeId *typeDefinition,
+UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_ExpandedNodeId requestedNewNodeId,
+                  const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
+                  const UA_QualifiedName browseName, const UA_ExpandedNodeId typeDefinition,
                   const UA_NodeAttributes *attr, const UA_DataType *attributeType) {
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
 
     UA_AddNodesItem item;
     UA_AddNodesItem_init(&item);
-    result.statusCode = UA_QualifiedName_copy(browseName, &item.browseName);
+    result.statusCode = UA_QualifiedName_copy(&browseName, &item.browseName);
     item.nodeClass = nodeClass;
-    result.statusCode |= UA_ExpandedNodeId_copy(parentNodeId, &item.parentNodeId);
-    result.statusCode |= UA_NodeId_copy(referenceTypeId, &item.referenceTypeId);
-    result.statusCode |= UA_ExpandedNodeId_copy(requestedNewNodeId, &item.requestedNewNodeId);
-    if(typeDefinition)
-        result.statusCode |= UA_ExpandedNodeId_copy(typeDefinition, &item.typeDefinition);
+    result.statusCode |= UA_ExpandedNodeId_copy(&parentNodeId, &item.parentNodeId);
+    result.statusCode |= UA_NodeId_copy(&referenceTypeId, &item.referenceTypeId);
+    result.statusCode |= UA_ExpandedNodeId_copy(&requestedNewNodeId, &item.requestedNewNodeId);
+    result.statusCode |= UA_ExpandedNodeId_copy(&typeDefinition, &item.typeDefinition);
     UA_NodeAttributes *attrCopy = UA_alloca(attributeType->memSize);
     result.statusCode |= UA_copy(attr, attrCopy, attributeType);
     if(result.statusCode == UA_STATUSCODE_GOOD)

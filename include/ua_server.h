@@ -144,87 +144,86 @@ UA_StatusCode UA_EXPORT UA_Server_deleteNode(UA_Server *server, UA_NodeId nodeId
 
 /* Don't use this function. There are typed versions as inline functions. */
 UA_AddNodesResult UA_EXPORT
-UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_ExpandedNodeId *requestedNewNodeId,
-                  const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                  const UA_QualifiedName *browseName, const UA_ExpandedNodeId *typeDefinition,
+UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_ExpandedNodeId requestedNewNodeId,
+                  const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
+                  const UA_QualifiedName browseName, const UA_ExpandedNodeId typeDefinition,
                   const UA_NodeAttributes *attr, const UA_DataType *attributeType);
 
 static inline UA_AddNodesResult
-UA_Server_addVariableNode(UA_Server *server, const UA_ExpandedNodeId *requestedNewNodeId,
-                          const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                          const UA_QualifiedName *browseName, const UA_ExpandedNodeId *typeDefinition,
-                          const UA_VariableAttributes *attr) {
+UA_Server_addVariableNode(UA_Server *server, const UA_ExpandedNodeId requestedNewNodeId,
+                          const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
+                          const UA_QualifiedName browseName, const UA_ExpandedNodeId typeDefinition,
+                          const UA_VariableAttributes attr) {
     return UA_Server_addNode(server, UA_NODECLASS_VARIABLE, requestedNewNodeId, parentNodeId,
-                             referenceTypeId, browseName, typeDefinition, (const UA_NodeAttributes*)attr,
+                             referenceTypeId, browseName, typeDefinition, (const UA_NodeAttributes*)&attr,
                              &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES]); }
 
 static inline UA_AddNodesResult
-UA_Server_addVariableTypeNode(UA_Server *server, const UA_ExpandedNodeId *requestedNewNodeId,
-                          const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                          const UA_QualifiedName *browseName, const UA_VariableTypeAttributes *attr) {
+UA_Server_addVariableTypeNode(UA_Server *server, const UA_ExpandedNodeId requestedNewNodeId,
+                          const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
+                          const UA_QualifiedName browseName, const UA_VariableTypeAttributes attr) {
     return UA_Server_addNode(server, UA_NODECLASS_VARIABLETYPE, requestedNewNodeId, parentNodeId,
-                             referenceTypeId, browseName, NULL, (const UA_NodeAttributes*)attr,
+                             referenceTypeId, browseName, UA_EXPANDEDNODEID_NULL, (const UA_NodeAttributes*)&attr,
                              &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES]); }
 
 static inline UA_AddNodesResult
-UA_Server_addObjectNode(UA_Server *server, const UA_ExpandedNodeId *requestedNewNodeId,
-                          const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                          const UA_QualifiedName *browseName, const UA_ExpandedNodeId *typeDefinition,
-                          const UA_ObjectAttributes *attr) {
+UA_Server_addObjectNode(UA_Server *server, const UA_ExpandedNodeId requestedNewNodeId,
+                          const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
+                          const UA_QualifiedName browseName, const UA_ExpandedNodeId typeDefinition,
+                          const UA_ObjectAttributes attr) {
     return UA_Server_addNode(server, UA_NODECLASS_OBJECT, requestedNewNodeId, parentNodeId,
-                             referenceTypeId, browseName, typeDefinition, (const UA_NodeAttributes*)attr,
+                             referenceTypeId, browseName, typeDefinition, (const UA_NodeAttributes*)&attr,
                              &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES]); }
 
 static inline UA_AddNodesResult
-UA_Server_addObjectTypeNode(UA_Server *server, const UA_ExpandedNodeId *requestedNewNodeId,
-                          const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                          const UA_QualifiedName *browseName, const UA_ObjectTypeAttributes *attr) {
+UA_Server_addObjectTypeNode(UA_Server *server, const UA_ExpandedNodeId requestedNewNodeId,
+                          const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
+                          const UA_QualifiedName browseName, const UA_ObjectTypeAttributes attr) {
     return UA_Server_addNode(server, UA_NODECLASS_OBJECTTYPE, requestedNewNodeId, parentNodeId,
-                             referenceTypeId, browseName, NULL, (const UA_NodeAttributes*)attr,
+                             referenceTypeId, browseName, UA_EXPANDEDNODEID_NULL, (const UA_NodeAttributes*)&attr,
                              &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES]); }
 
 static inline UA_AddNodesResult
-UA_Server_addViewNode(UA_Server *server, const UA_ExpandedNodeId *requestedNewNodeId,
-                          const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                          const UA_QualifiedName *browseName, const UA_ViewAttributes *attr) {
+UA_Server_addViewNode(UA_Server *server, const UA_ExpandedNodeId requestedNewNodeId,
+                          const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
+                          const UA_QualifiedName browseName, const UA_ViewAttributes attr) {
     return UA_Server_addNode(server, UA_NODECLASS_VIEW, requestedNewNodeId, parentNodeId,
-                             referenceTypeId, browseName, NULL, (const UA_NodeAttributes*)attr,
+                             referenceTypeId, browseName, UA_EXPANDEDNODEID_NULL, (const UA_NodeAttributes*)&attr,
                              &UA_TYPES[UA_TYPES_VIEWATTRIBUTES]); }
 
 static inline UA_AddNodesResult
-UA_Server_addReferenceTypeNode(UA_Server *server, const UA_ExpandedNodeId *requestedNewNodeId,
-                          const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                          const UA_QualifiedName *browseName, const UA_ReferenceTypeAttributes *attr) {
+UA_Server_addReferenceTypeNode(UA_Server *server, const UA_ExpandedNodeId requestedNewNodeId,
+                          const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
+                          const UA_QualifiedName browseName, const UA_ReferenceTypeAttributes attr) {
     return UA_Server_addNode(server, UA_NODECLASS_REFERENCETYPE, requestedNewNodeId, parentNodeId,
-                             referenceTypeId, browseName, NULL, (const UA_NodeAttributes*)attr,
+                             referenceTypeId, browseName, UA_EXPANDEDNODEID_NULL, (const UA_NodeAttributes*)&attr,
                              &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES]); }
 
 static inline UA_AddNodesResult
-UA_Server_addDataTypeNode(UA_Server *server, const UA_ExpandedNodeId *requestedNewNodeId,
-                          const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                          const UA_QualifiedName *browseName, const UA_DataTypeAttributes *attr) {
+UA_Server_addDataTypeNode(UA_Server *server, const UA_ExpandedNodeId requestedNewNodeId,
+                          const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
+                          const UA_QualifiedName browseName, const UA_DataTypeAttributes attr) {
     return UA_Server_addNode(server, UA_NODECLASS_DATATYPE, requestedNewNodeId, parentNodeId,
-                             referenceTypeId, browseName, NULL, (const UA_NodeAttributes*)attr,
+                             referenceTypeId, browseName, UA_EXPANDEDNODEID_NULL, (const UA_NodeAttributes*)&attr,
                              &UA_TYPES[UA_TYPES_DATATYPEATTRIBUTES]); }
 
 UA_AddNodesResult UA_EXPORT
-UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_ExpandedNodeId *requestedNewNodeId,
-                                    const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                                    const UA_QualifiedName *browseName, const UA_ExpandedNodeId *typeDefinition,
-                                    const UA_VariableAttributes *attr, const UA_DataSource *dataSource);
+UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_ExpandedNodeId requestedNewNodeId,
+                                    const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
+                                    const UA_QualifiedName browseName, const UA_ExpandedNodeId typeDefinition,
+                                    const UA_VariableAttributes attr, const UA_DataSource dataSource);
 
 UA_StatusCode UA_EXPORT
-UA_Server_addMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId,
-                                      UA_ExpandedNodeId targetNodeId, UA_NodeId referenceTypeId,
-                                      UA_Boolean isforward);
+UA_Server_addMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId, UA_ExpandedNodeId targetNodeId,
+                                      UA_NodeId referenceTypeId, UA_Boolean isforward);
 
 #ifdef ENABLE_METHODCALLS
 typedef UA_StatusCode (*UA_MethodCallback)(const UA_NodeId objectId, const UA_Variant *input,
                                            UA_Variant *output, void *handle);
 UA_AddNodesResult UA_EXPORT
-UA_Server_addMethodNode(UA_Server *server, const UA_ExpandedNodeId *requestedNewNodeId,
-                        const UA_ExpandedNodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                        const UA_QualifiedName *browseName, const UA_NodeAttributes *attr,
+UA_Server_addMethodNode(UA_Server *server, const UA_ExpandedNodeId requestedNewNodeId,
+                        const UA_ExpandedNodeId parentNodeId, const UA_NodeId referenceTypeId,
+                        const UA_QualifiedName browseName, const UA_NodeAttributes attr,
                         UA_MethodCallback method, void *handle,
                         UA_Int32 inputArgumentsSize, const UA_Argument* inputArguments, 
                         UA_Int32 outputArgumentsSize, const UA_Argument* outputArguments);
@@ -597,35 +596,6 @@ UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, cons
 /** @} */
 
 #endif /* external nodestore */
-
-#ifndef _HAVE_UA_INSTANTIONCALLBACK_D
-#define _HAVE_UA_INSTANTIONCALLBACK_D
-typedef UA_StatusCode (*UA_InstantiationCallback)(UA_NodeId objectId, UA_NodeId definitionId, void *handle);
-#endif
-
-typedef struct arrayOfNodeIds_s {
-  UA_Int32  size;
-  UA_NodeId *ids;
-} arrayOfNodeIds;
-
-UA_StatusCode UA_EXPORT
-UA_Server_appendInstanceOfSupertype(UA_Server *server, UA_NodeId nodeId, UA_NodeId appendToNodeId, 
-                                    arrayOfNodeIds *subtypeRefs, arrayOfNodeIds *componentRefs, 
-                                    UA_InstantiationCallback callback, arrayOfNodeIds *instantiatedTypes, 
-                                    void *handle);
-
-void UA_EXPORT
-UA_Server_addInstanceOf_instatiateChildNode(UA_Server *server, 
-                                                 arrayOfNodeIds *subtypeRefs, arrayOfNodeIds *componentRefs, arrayOfNodeIds *typedefRefs,
-                                                 UA_NodeId objectRoot, UA_InstantiationCallback callback, void *typeDefNode,
-                                                 UA_Boolean instantiateObjects, arrayOfNodeIds *instantiatedTypes, void *handle);
-                                                 
-UA_StatusCode UA_EXPORT
-UA_Server_addInstanceOf(UA_Server *server, UA_NodeId nodeId, const UA_QualifiedName browseName,
-                        UA_LocalizedText displayName, UA_LocalizedText description, const UA_NodeId parentNodeId, 
-                        const UA_NodeId referenceTypeId, UA_UInt32 userWriteMask, UA_UInt32 writeMask, 
-                        const UA_ExpandedNodeId typeDefinition, UA_InstantiationCallback callback, void *handle, 
-                        UA_NodeId *createdNodeId);
 
 #ifdef __cplusplus
 } // extern "C"
