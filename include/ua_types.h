@@ -392,7 +392,9 @@ UA_NodeId UA_EXPORT UA_NodeId_fromCharByteString(UA_UInt16 nsIndex, char identif
 UA_NodeId UA_EXPORT UA_NodeId_fromCharByteStringCopy(UA_UInt16 nsIndex, char const identifier[]);
 UA_NodeId UA_EXPORT UA_NodeId_fromByteString(UA_UInt16 nsIndex, UA_ByteString identifier);
 UA_NodeId UA_EXPORT UA_NodeId_fromByteStringCopy(UA_UInt16 nsIndex, UA_ByteString identifier);
-#define UA_NODEID_NUMERIC(NSID, NUMERICID) UA_NodeId_fromInteger(NSID, NUMERICID)
+#define UA_NODEID_NUMERIC(NSID, NUMERICID) (UA_NodeId){                 \
+        .namespaceIndex = NSID, .identifierType = UA_NODEIDTYPE_NUMERIC, \
+            .identifier.numeric = NUMERICID }
 #define UA_NODEID_STRING(NSID, CHARS) UA_NodeId_fromCharString(NSID, CHARS)
 #define UA_NODEID_STRING_ALLOC(NSID, CHARS) UA_NodeId_fromCharStringCopy(NSID, CHARS)
 #define UA_NODEID_GUID(NSID, GUID) UA_NodeId_fromGuid(NSID, GUID)
@@ -411,6 +413,14 @@ UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
         .nodeId = {.namespaceIndex = NSID, .identifierType = UA_NODEIDTYPE_NUMERIC, \
                    .identifier.numeric = NUMERICID },                               \
         .serverIndex = 0, .namespaceUri = {.data = (UA_Byte*)0, .length = -1} }
+#define UA_EXPANDEDNODEID_STRING(NSID, CHARS) (UA_ExpandedNodeId) { \
+        .nodeId = {.namespaceIndex = NSID, .identifierType = UA_NODEIDTYPE_STRING, \
+                   .identifier.string = {strlen(CHARS), (UA_Byte*)CHARS} }, \
+            .serverIndex = 0, .namespaceUri = {.data = (UA_Byte*)0, .length = -1} }
+#define UA_EXPANDEDNODEID_NULL (UA_ExpandedNodeId) {                    \
+        .nodeId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, \
+                   .identifier.numeric = 0 },                           \
+            .serverIndex = 0, .namespaceUri = {.data = (UA_Byte*)0, .length = -1} }
 
 /* StatusCode */
 UA_StatusCode UA_EXPORT * UA_StatusCode_new(void);

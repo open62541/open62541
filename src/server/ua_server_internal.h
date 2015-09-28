@@ -76,22 +76,6 @@ struct UA_Server {
 
 void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, UA_ByteString *msg);
 
-UA_AddNodesResult UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, UA_Node *node,
-                                               const UA_ExpandedNodeId parentNodeId,
-                                               const UA_NodeId referenceTypeId);
-
-UA_AddNodesResult UA_Server_addNode(UA_Server *server, UA_Node *node, const UA_ExpandedNodeId parentNodeId,
-                                    const UA_NodeId referenceTypeId);
-
-UA_StatusCode UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session,
-                                                const UA_AddReferencesItem *item);
-
-UA_StatusCode deleteOneWayReferenceWithSession(UA_Server *server, UA_Session *session, 
-                                               const UA_DeleteReferencesItem *item);
-
-UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session *session, 
-                                            const UA_AddReferencesItem *item);
-
 UA_StatusCode UA_Server_addDelayedJob(UA_Server *server, UA_Job job);
 
 void UA_Server_deleteAllRepeatedJobs(UA_Server *server);

@@ -225,11 +225,15 @@ int main(int argc, char** argv) {
   // add node with the datetime data source
   UA_NodeId nodeId_currentTime;
   UA_DataSource dateDataSource = (UA_DataSource) {.handle = NULL, .read = readTimeData, .write = NULL};
+  UA_VariableAttributes v_attr;
+  UA_VariableAttributes_init(&v_attr);
+  v_attr.description = UA_LOCALIZEDTEXT("en_US","current time");
+  v_attr.displayName = UA_LOCALIZEDTEXT("en_US","current time");
   const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
-  const UA_LocalizedText dateNameBrowseName = UA_LOCALIZEDTEXT("en_US","current time");
-  UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL, dateName, dateNameBrowseName, dateNameBrowseName, 0, 0,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                  dateDataSource, &nodeId_currentTime);
+  UA_Server_addDataSourceVariableNode(server, &UA_EXPANDEDNODEID_NULL,
+                                      &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                      &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                      &dateName, NULL, &v_attr, &dateDataSource);
 
   // Get and reattach the datasource
   UA_DataSource dataSourceCopy;
@@ -239,18 +243,21 @@ int main(int argc, char** argv) {
   else
     UA_Server_setNodeAttribute_value_dataSource(server, nodeId_currentTime, dataSourceCopy);
 #ifndef _WIN32
-  //cpu temperature monitoring for linux machines
+  /* cpu temperature monitoring for linux machines */
   if((temperatureFile = fopen("/sys/class/thermal/thermal_zone0/temp", "r"))) {
           // add node with the data source
           UA_DataSource temperatureDataSource = (UA_DataSource) {.handle = NULL, .read = readTemperature, .write = NULL};
           const UA_QualifiedName tempName = UA_QUALIFIEDNAME(1, "cpu temperature");
-          const UA_LocalizedText tempNameBrowseName = UA_LOCALIZEDTEXT("en_US","temperature");
-          UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL, tempName, tempNameBrowseName, tempNameBrowseName, 0, 0,
-                                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                            temperatureDataSource, NULL);
+          UA_VariableAttributes_init(&v_attr);
+          v_attr.description = UA_LOCALIZEDTEXT("en_US","temperature");
+          v_attr.displayName = UA_LOCALIZEDTEXT("en_US","temperature");
+          UA_Server_addDataSourceVariableNode(server, &UA_EXPANDEDNODEID_NULL,
+                                              &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                              &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                              &tempName, NULL, &v_attr, &temperatureDataSource);
   }
 
-  //LED control for rpi
+  /* LED control for rpi */
   if(access("/sys/class/leds/led0/trigger", F_OK ) != -1 || access("/sys/class/leds/led0/brightness", F_OK ) != -1) {
     if((triggerFile = fopen("/sys/class/leds/led0/trigger", "w")) && (ledFile = fopen("/sys/class/leds/led0/brightness", "w"))) {
       //setting led mode to manual
@@ -263,88 +270,112 @@ int main(int argc, char** argv) {
 
       // add node with the LED status data source
       UA_DataSource ledStatusDataSource = (UA_DataSource) {.handle = NULL, .read = readLedStatus, .write = writeLedStatus};
+      UA_VariableAttributes_init(&v_attr);
+      v_attr.description = UA_LOCALIZEDTEXT("en_US","status LED");
+      v_attr.displayName = UA_LOCALIZEDTEXT("en_US","status LED");
       const UA_QualifiedName statusName = UA_QUALIFIEDNAME(0, "status LED");
-      const UA_LocalizedText statusNameBrowseName = UA_LOCALIZEDTEXT("en_US","status LED");
-      UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL, statusName, statusNameBrowseName, statusNameBrowseName, 0, 0,
-
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-
-                                        ledStatusDataSource,
-
-                                        NULL);
-    } else {
-      UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "[Raspberry Pi] LED file exist, but I have no access (try to run server with sudo)");
-    }
+      UA_Server_addDataSourceVariableNode(server, &UA_EXPANDEDNODEID_NULL,
+                                          &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                          &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                          &statusName, NULL, &v_attr, &ledStatusDataSource);
+    } else
+      UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND,
+                     "[Raspberry Pi] LED file exist, but is not accessible (try to run server with sudo)");
   }
 #endif
 
   // add a static variable node to the adresspace
-  UA_Variant *myIntegerVariant = UA_Variant_new();
+  UA_VariableAttributes myVar;
+  UA_VariableAttributes_init(&myVar);
+  myVar.description = UA_LOCALIZEDTEXT("en_US", "the answer");
+  myVar.displayName = UA_LOCALIZEDTEXT("en_US", "the answer");
   UA_Int32 myInteger = 42;
-  UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+  UA_Variant_setScalarCopy(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
   const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
-  const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
-  UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+  const UA_ExpandedNodeId myIntegerNodeId = UA_EXPANDEDNODEID_STRING(1, "the.answer");
+  UA_ExpandedNodeId parentNodeId = UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
   UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-  UA_Server_addVariableNode(server, myIntegerNodeId, myIntegerName, UA_LOCALIZEDTEXT("en_US", "the answer"), UA_LOCALIZEDTEXT("en_US", "the answer"),  0, 0,
-                            parentNodeId, parentReferenceNodeId, myIntegerVariant, NULL);
+  UA_Server_addVariableNode(server, &myIntegerNodeId, &parentNodeId, &parentReferenceNodeId,
+                            &myIntegerName, NULL, &myVar);
+  UA_Variant_deleteMembers(&myVar.value);
+
   /**************/
   /* Demo Nodes */
   /**************/
 
 #define DEMOID 50000
-  UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, DEMOID), UA_QUALIFIEDNAME(1, "Demo"), UA_LOCALIZEDTEXT("en_US","Demo"),
-                          UA_LOCALIZEDTEXT("en_US","Demo"), 0, 0, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                          UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
+  UA_ObjectAttributes object_attr;
+  UA_ObjectAttributes_init(&object_attr);
+  object_attr.description = UA_LOCALIZEDTEXT("en_US","Demo");
+  object_attr.displayName = UA_LOCALIZEDTEXT("en_US","Demo");
+  UA_Server_addObjectNode(server, &UA_EXPANDEDNODEID_NUMERIC(1, DEMOID),
+                          &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                          &UA_QUALIFIEDNAME(1, "Demo"), NULL, &object_attr);
 
 #define SCALARID 50001
-  UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, SCALARID), UA_QUALIFIEDNAME(1, "Scalar"), UA_LOCALIZEDTEXT("en_US","Scalar"),
-                          UA_LOCALIZEDTEXT("en_US","Scalar"), 0, 0, UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                          UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
+  object_attr.description = UA_LOCALIZEDTEXT("en_US","Scalar");
+  object_attr.displayName = UA_LOCALIZEDTEXT("en_US","Scalar");
+  UA_Server_addObjectNode(server, &UA_EXPANDEDNODEID_NUMERIC(1, SCALARID),
+                          &UA_EXPANDEDNODEID_NUMERIC(1, DEMOID), &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                          &UA_QUALIFIEDNAME(1, "Scalar"), NULL, &object_attr);
 
 #define ARRAYID 50002
-  UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, ARRAYID), UA_QUALIFIEDNAME(1, "Array"), UA_LOCALIZEDTEXT("en_US","Array"),
-                          UA_LOCALIZEDTEXT("en_US","Array"), 0, 0, UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                          UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
+  object_attr.description = UA_LOCALIZEDTEXT("en_US","Array");
+  object_attr.displayName = UA_LOCALIZEDTEXT("en_US","Array");
+  UA_Server_addObjectNode(server, &UA_EXPANDEDNODEID_NUMERIC(1, ARRAYID),
+                          &UA_EXPANDEDNODEID_NUMERIC(1, DEMOID), &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                          &UA_QUALIFIEDNAME(1, "Array"), NULL, &object_attr);
 
 #define MATRIXID 50003
-  UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, MATRIXID), UA_QUALIFIEDNAME(1, "Matrix"), UA_LOCALIZEDTEXT("en_US","Matrix"),
-                          UA_LOCALIZEDTEXT("en_US","Matrix"), 0, 0, UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                          UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), NULL);
+  object_attr.description = UA_LOCALIZEDTEXT("en_US","Matrix");
+  object_attr.displayName = UA_LOCALIZEDTEXT("en_US","Matrix");
+  UA_Server_addObjectNode(server, &UA_EXPANDEDNODEID_NUMERIC(1, MATRIXID),
+                          &UA_EXPANDEDNODEID_NUMERIC(1, DEMOID), &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                          &UA_QUALIFIEDNAME(1, "Matrix"), NULL, &object_attr);
 
-  UA_UInt32 id = 51000; //running id in namespace 0
+  UA_UInt32 id = 51000; // running id in namespace 0
   for(UA_UInt32 type = 0; UA_IS_BUILTIN(type); type++) {
     if(type == UA_TYPES_VARIANT || type == UA_TYPES_DIAGNOSTICINFO)
         continue;
-    //add a scalar node for every built-in type
-    void *value = UA_new(&UA_TYPES[type]);
-    UA_Variant *variant = UA_Variant_new();
-    UA_Variant_setScalar(variant, value, &UA_TYPES[type]);
+
+    UA_VariableAttributes attr;
+    UA_VariableAttributes_init(&attr);
     char name[15];
     sprintf(name, "%02d", type);
+    attr.displayName = UA_LOCALIZEDTEXT("en_US",name);
     UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(1, name);
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), qualifiedName, UA_LOCALIZEDTEXT("en_US",name), UA_LOCALIZEDTEXT("en_US",name), 0, 0,
-                              UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), variant, NULL);
 
-    //add an array node for every built-in type
-    UA_Variant *arrayvar = UA_Variant_new();
-    UA_Variant_setArray(arrayvar, UA_Array_new(&UA_TYPES[type], 10), 10, &UA_TYPES[type]);
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), qualifiedName, UA_LOCALIZEDTEXT("en_US",name), UA_LOCALIZEDTEXT("en_US",name), 0, 0,
-                              UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), arrayvar, NULL);
+    /* add a scalar node for every built-in type */
+    void *value = UA_new(&UA_TYPES[type]);
+    UA_Variant_setScalar(&attr.value, value, &UA_TYPES[type]);
+    UA_Server_addVariableNode(server, &UA_EXPANDEDNODEID_NUMERIC(1, ++id),
+                              &UA_EXPANDEDNODEID_NUMERIC(1, SCALARID),
+                              &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                              &qualifiedName, NULL, &attr);
+    UA_Variant_deleteMembers(&attr.value);
 
-    //add an matrix node for every built-in type
-    arrayvar = UA_Variant_new();
+    /* add an array node for every built-in type */
+    UA_Variant_setArray(&attr.value, UA_Array_new(&UA_TYPES[type], 10), 10, &UA_TYPES[type]);
+    UA_Server_addVariableNode(server, &UA_EXPANDEDNODEID_NUMERIC(1, ++id),
+                              &UA_EXPANDEDNODEID_NUMERIC(1, ARRAYID),
+                              &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                              &qualifiedName, NULL, &attr);
+    UA_Variant_deleteMembers(&attr.value);
+
+    /* add an matrix node for every built-in type */
     void* myMultiArray = UA_Array_new(&UA_TYPES[type],9);
-    arrayvar->arrayDimensions = UA_Array_new(&UA_TYPES[UA_TYPES_INT32],2);
-    arrayvar->arrayDimensions[0] = 3;
-    arrayvar->arrayDimensions[1] = 3;
-    arrayvar->arrayDimensionsSize = 2;
-    arrayvar->arrayLength = 9;
-    arrayvar->data = myMultiArray;
-    arrayvar->type = &UA_TYPES[type];
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), qualifiedName, UA_LOCALIZEDTEXT("en_US",name), UA_LOCALIZEDTEXT("en_US",name),
-                              0, 0, UA_NODEID_NUMERIC(1, MATRIXID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), arrayvar, NULL);
+    attr.value.arrayDimensions = UA_Array_new(&UA_TYPES[UA_TYPES_INT32],2);
+    attr.value.arrayDimensions[0] = 3;
+    attr.value.arrayDimensions[1] = 3;
+    attr.value.arrayDimensionsSize = 2;
+    attr.value.arrayLength = 9;
+    attr.value.data = myMultiArray;
+    attr.value.type = &UA_TYPES[type];
+    UA_Server_addVariableNode(server, &UA_EXPANDEDNODEID_NUMERIC(1, ++id),
+                              &UA_EXPANDEDNODEID_NUMERIC(1, MATRIXID),
+                              &UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                              &qualifiedName, NULL, &attr);
+    UA_Variant_deleteMembers(&attr.value);
   }
 
 #ifdef ENABLE_METHODCALLS
@@ -366,20 +397,17 @@ int main(int argc, char** argv) {
   outputArguments.name = UA_STRING("Input an integer");
   outputArguments.valueRank = -1;
 
-  UA_NodeId methodId; // Retrieve the actual ID if this node if a random id as in UA_NODEID_NUMERIC(1,0) is used
-  UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541), UA_QUALIFIEDNAME(1,"ping"), UA_LOCALIZEDTEXT("en_US", "ping"),
-                          UA_LOCALIZEDTEXT("en_US", "Return a single argument as passed by the caller"),
-                          UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                          0, 0,
+  UA_NodeAttributes addmethodattributes;
+  UA_NodeAttributes_init(&addmethodattributes);
+  addmethodattributes.description = UA_LOCALIZEDTEXT("en_US", "Return a single argument as passed by the caller");
+  addmethodattributes.displayName = UA_LOCALIZEDTEXT("en_US", "ping");
+  UA_Server_addMethodNode(server, &UA_EXPANDEDNODEID_NUMERIC(1,62541),
+                          &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                          &UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                          &UA_QUALIFIEDNAME(1,"ping"), &addmethodattributes,
                           &getMonitoredItems, // Call this method
                           (void *) server,    // Pass our server pointer as a handle to the method
-                          1, &inputArguments, 1, &outputArguments, &methodId);
-  
-  // Dettach the method from the methodNode
-  UA_Server_setNodeAttribute_method(server, UA_NODEID_NUMERIC(1,62541), NULL, NULL);
-  
-  // Reaettach the method from the methodNode
-  UA_Server_setNodeAttribute_method(server, UA_NODEID_NUMERIC(1,62541), &getMonitoredItems, (void *) server);
+                          1, &inputArguments, 1, &outputArguments);
 #endif
    
   // Example for iterating over all nodes referenced by "Objects":

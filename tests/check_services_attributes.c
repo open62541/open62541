@@ -52,23 +52,22 @@ static UA_Server* makeTestSequence(void) {
     organizes->isAbstract = UA_FALSE;
     organizes->symmetric  = UA_FALSE;
     UA_Server_addNode(server, (UA_Node*)organizes,
-                          UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES),
-                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE));
+                          &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES),
+                          &UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE));
 
     /* ViewNode */
     UA_ViewNode *viewtest = UA_ViewNode_new();
     copyNames((UA_Node*)viewtest, "Viewtest");
     viewtest->nodeId.identifier.numeric = UA_NS0ID_VIEWNODE;
-    UA_Server_addNode(server, (UA_Node*)viewtest, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER),
-                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE));
+    UA_Server_addNode(server, (UA_Node*)viewtest, &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER),
+                      &UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE));
 
 	/* MethodNode */
     UA_MethodNode *methodtest = UA_MethodNode_new();
     copyNames((UA_Node*)methodtest, "Methodtest");
     methodtest->nodeId.identifier.numeric = UA_NS0ID_METHODNODE;
-    UA_Server_addNode(server, (UA_Node*)methodtest,
-                      UA_EXPANDEDNODEID_NUMERIC(0, 3),
-                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE));
+    UA_Server_addNode(server, (UA_Node*)methodtest, &UA_EXPANDEDNODEID_NUMERIC(0, 3),
+                      &UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE));
 	return server;
 }
 

@@ -113,16 +113,16 @@ static UA_StatusCode getVariableNodeValue(const UA_VariableNode *vn, const UA_Ti
             vn->value.variant.callback.onRead(vn->value.variant.callback.handle, vn->nodeId,
                                               &v->value, rangeptr);
         if(rangeptr)
-            retval = UA_Variant_copyRange(&vn->value.variant, &v->value, range);
+            retval = UA_Variant_copyRange(&vn->value.variant.value, &v->value, range);
         else
-            retval = UA_Variant_copy(&vn->value.variant, &v->value);
+            retval = UA_Variant_copy(&vn->value.variant.value, &v->value);
         if(retval == UA_STATUSCODE_GOOD)
             handleSourceTimestamps(timestamps, v);
     } else {
         UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
                                       timestamps == UA_TIMESTAMPSTORETURN_BOTH);
         retval = vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId,
-                                           sourceTimeStamp, &rangeptr, v);
+                                           sourceTimeStamp, rangeptr, v);
     }
 
     if(rangeptr)
@@ -133,7 +133,7 @@ static UA_StatusCode getVariableNodeValue(const UA_VariableNode *vn, const UA_Ti
 static UA_StatusCode getVariableNodeDataType(const UA_VariableNode *vn, UA_DataValue *v) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(vn->valueSource == UA_VALUESOURCE_VARIANT) {
-        retval = UA_Variant_setScalarCopy(&v->value, &vn->value.variant.type->typeId,
+        retval = UA_Variant_setScalarCopy(&v->value, &vn->value.variant.value.type->typeId,
                                           &UA_TYPES[UA_TYPES_NODEID]);
     } else {
         /* Read from the datasource to see the data type */
@@ -151,8 +151,8 @@ static UA_StatusCode getVariableNodeDataType(const UA_VariableNode *vn, UA_DataV
 static UA_StatusCode getVariableNodeArrayDimensions(const UA_VariableNode *vn, UA_DataValue *v) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(vn->valueSource == UA_VALUESOURCE_VARIANT) {
-        retval = UA_Variant_setArrayCopy(&v->value, vn->value.variant.arrayDimensions,
-                                         vn->value.variant.arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
+        retval = UA_Variant_setArrayCopy(&v->value, vn->value.variant.value.arrayDimensions,
+                                         vn->value.variant.value.arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
     } else {
         /* Read the datasource to see the array dimensions */
         UA_DataValue val;
@@ -464,7 +464,7 @@ Service_Write_single_Value(UA_Server *server, UA_Session *session, UA_VariableNo
     /* The nodeid on the wire may be != the nodeid in the node: opaque types, enums and bytestrings.
        nodeV contains the correct type definition. */
     UA_Variant *newV = &wvalue->value.value;
-    UA_Variant *oldV = &node->value.variant;
+    UA_Variant *oldV = &node->value.variant.value;
     UA_Variant cast_v;
     if(!UA_NodeId_equal(&oldV->type->typeId, &newV->type->typeId)) {
         cast_v = wvalue->value.value;
@@ -490,11 +490,11 @@ Service_Write_single_Value(UA_Server *server, UA_Session *session, UA_VariableNo
     
     if(!rangeptr) {
         // TODO: Avoid copying the whole node and then delete the old value for multithreading
-        UA_Variant_deleteMembers(&node->value.variant);
-        node->value.variant = *newV;
+        UA_Variant_deleteMembers(&node->value.variant.value);
+        node->value.variant.value = *newV;
         UA_Variant_init(&wvalue->value.value);
     } else {
-        retval = UA_Variant_setRangeCopy(&node->value.variant, newV->data, newV->arrayLength, range);
+        retval = UA_Variant_setRangeCopy(&node->value.variant.value, newV->data, newV->arrayLength, range);
     }
     if(node->value.variant.callback.onWrite)
         node->value.variant.callback.onWrite(node->value.variant.callback.handle, node->nodeId,
