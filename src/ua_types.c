@@ -38,14 +38,14 @@
 /* Random Number Generator */
 /***************************/
 
-static UA_THREAD_LOCAL pcg32_random_t rng = PCG32_INITIALIZER;
+static UA_THREAD_LOCAL pcg32_random_t UA_rng = PCG32_INITIALIZER;
 
 UA_EXPORT void UA_random_seed(UA_UInt64 seed) {
-    pcg32_srandom_r(&rng, seed, UA_DateTime_now());
+    pcg32_srandom_r(&UA_rng, seed, UA_DateTime_now());
 }
 
 UA_EXPORT UA_UInt32 UA_random(void) {
-    return (UA_UInt32)pcg32_random_r(&rng);
+    return (UA_UInt32)pcg32_random_r(&UA_rng);
 }
 
 /*****************/
@@ -255,16 +255,16 @@ UA_Boolean UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
 
 UA_Guid UA_Guid_random(UA_UInt32 *seed) {
     UA_Guid result;
-    result.data1 = (UA_UInt32)pcg32_random_r(&rng);
-    UA_UInt32 r = (UA_UInt32)pcg32_random_r(&rng);
+    result.data1 = (UA_UInt32)pcg32_random_r(&UA_rng);
+    UA_UInt32 r = (UA_UInt32)pcg32_random_r(&UA_rng);
     result.data2 = (UA_UInt16) r;
     result.data3 = (UA_UInt16) (r >> 16);
-    r = (UA_UInt32)pcg32_random_r(&rng);
+    r = (UA_UInt32)pcg32_random_r(&UA_rng);
     result.data4[0] = (UA_Byte)r;
     result.data4[1] = (UA_Byte)(r >> 4);
     result.data4[2] = (UA_Byte)(r >> 8);
     result.data4[3] = (UA_Byte)(r >> 12);
-    r = (UA_UInt32)pcg32_random_r(&rng);
+    r = (UA_UInt32)pcg32_random_r(&UA_rng);
     result.data4[4] = (UA_Byte)r;
     result.data4[5] = (UA_Byte)(r >> 4);
     result.data4[6] = (UA_Byte)(r >> 8);

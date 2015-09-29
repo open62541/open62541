@@ -48,17 +48,6 @@ static UA_Server* makeTestSequence(void) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE),
                             obj_attr);
 
-    /* /\* ReferenceTypeNode *\/ */
-    /* UA_ReferenceTypeNode *organizes = UA_ReferenceTypeNode_new(); */
-    /* copyNames((UA_Node*)organizes, "Organizes"); */
-    /* organizes->inverseName = UA_LOCALIZEDTEXT_ALLOC("", "OrganizedBy"); */
-    /* organizes->nodeId.identifier.numeric = UA_NS0ID_ORGANIZES; */
-    /* organizes->isAbstract = UA_FALSE; */
-    /* organizes->symmetric  = UA_FALSE; */
-    /* UA_Server_addNode(server, (UA_Node*)organizes, */
-    /*                       &UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES), */
-    /*                       &UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE)); */
-
     /* ViewNode */
     UA_ViewAttributes view_attr;
     UA_ViewAttributes_init(&view_attr);
