@@ -22,12 +22,15 @@ static void stopHandler(int sign) {
     running = 0;
 }
 
-static void onRead(void *handle, const UA_NodeId nodeid,  const UA_Variant *data, const UA_NumericRange *range){
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "onRead; handle is: %i", (uintptr_t)handle);
+static void onRead(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
+                   const UA_NumericRange *range) {
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND,
+                "onRead; handle is: %i", (uintptr_t)handle);
 }
 
-static void onWrite(void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range){
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "onWrite; handle is: %i", (uintptr_t)handle);
+static void onWrite(void *h, const UA_NodeId nodeid, const UA_Variant *data,
+                    const UA_NumericRange *range) {
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "onWrite; handle: %i", (uintptr_t)h);
 }
 
 int main(int argc, char** argv) {
@@ -36,7 +39,9 @@ int main(int argc, char** argv) {
     UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
     logger = Logger_Stdout_new();
     UA_Server_setLogger(server, logger);
-    UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
+    UA_ServerNetworkLayer *nl;
+    nl = ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664);
+    UA_Server_addNetworkLayer(server, nl);
 
     /* add a variable node to the address space */
     UA_VariableAttributes attr;
@@ -49,8 +54,9 @@ int main(int argc, char** argv) {
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId, parentReferenceNodeId,
-                              myIntegerName, UA_NODEID_NULL, attr);
+    UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
+                              parentReferenceNodeId, myIntegerName,
+                              UA_NODEID_NULL, attr);
 
     UA_ValueCallback callback = {(void*)7, onRead, onWrite};
     UA_Server_setAttribute_value_callback(server, myIntegerNodeId, callback);

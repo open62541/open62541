@@ -213,8 +213,6 @@ typedef struct {
 UA_StatusCode UA_EXPORT UA_Server_addReference(UA_Server *server, const UA_NodeId *sourceId,
                                                const UA_NodeId *refTypeId, const UA_ExpandedNodeId *targetId);
 
-UA_StatusCode UA_EXPORT UA_Server_deleteNode(UA_Server *server, UA_NodeId nodeId);
-
 /* Don't use this function. There are typed versions as inline functions. */
 UA_AddNodesResult UA_EXPORT
 UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_NodeId requestedNewNodeId,
@@ -296,11 +294,13 @@ typedef UA_StatusCode (*UA_MethodCallback)(const UA_NodeId objectId, const UA_Va
 UA_AddNodesResult UA_EXPORT
 UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                        const UA_QualifiedName browseName, const UA_NodeAttributes attr,
+                        const UA_QualifiedName browseName, const UA_MethodAttributes attr,
                         UA_MethodCallback method, void *handle,
                         UA_Int32 inputArgumentsSize, const UA_Argument* inputArguments, 
                         UA_Int32 outputArgumentsSize, const UA_Argument* outputArguments);
 #endif
+
+UA_StatusCode UA_EXPORT UA_Server_deleteNode(UA_Server *server, UA_NodeId nodeId);
 
 typedef UA_StatusCode (*UA_NodeIteratorCallback) (UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle);
 

@@ -429,8 +429,8 @@ if(BUILD_EXAMPLES)
 					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
 					           ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
 					   
-	add_executable(server_nodeset ${PROJECT_SOURCE_DIR}/examples/server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c $<TARGET_OBJECTS:open62541-object>)
-	target_link_libraries(server_nodeset ${LIBS})
+	# add_executable(server_nodeset ${PROJECT_SOURCE_DIR}/examples/server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c $<TARGET_OBJECTS:open62541-object>)
+	# target_link_libraries(server_nodeset ${LIBS})
 
 	if(ENABLE_METHODCALLS)
 	  add_executable(server_method ${PROJECT_SOURCE_DIR}/examples/server_method.c $<TARGET_OBJECTS:open62541-object>)

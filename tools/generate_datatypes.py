@@ -54,7 +54,7 @@ minimal_types = ["InvalidType", "Node", "NodeClass", "ReferenceNode", "Applicati
                  "AddReferencesItem","DeleteReferencesItem", "VariableNode", "MethodNode", "VariableTypeNode",
                  "ViewNode", "ReferenceTypeNode", "BrowseResultMask", "ServerState", "ServerStatusDataType", "BuildInfo",
                  "ObjectNode", "DataTypeNode", "ObjectTypeNode", "IdType", "NodeAttributes",
-                 "VariableAttributes", "ObjectAttributes", "ReferenceTypeAttributes", "ViewAttributes",
+                 "VariableAttributes", "ObjectAttributes", "ReferenceTypeAttributes", "ViewAttributes", "MethodAttributes",
                  "ObjectTypeAttributes", "VariableTypeAttributes", "DataTypeAttributes", "NodeAttributesMask",
                  "DeleteNodesItem", "DeleteNodesRequest", "DeleteNodesResponse",
                  "DeleteReferencesItem", "DeleteReferencesRequest", "DeleteReferencesResponse",
