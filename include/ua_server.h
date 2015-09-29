@@ -210,8 +210,9 @@ typedef struct {
 /*******************/
 
 /** Add a reference to the server's address space */
-UA_StatusCode UA_EXPORT UA_Server_addReference(UA_Server *server, const UA_NodeId *sourceId,
-                                               const UA_NodeId *refTypeId, const UA_ExpandedNodeId *targetId);
+UA_StatusCode UA_EXPORT
+UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId, const UA_NodeId refTypeId,
+                       const UA_ExpandedNodeId targetId);
 
 /* Don't use this function. There are typed versions as inline functions. */
 UA_AddNodesResult UA_EXPORT

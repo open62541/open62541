@@ -34,6 +34,13 @@
         UA_free(p);                  \
     }
 
+const UA_String UA_STRING_NULL = {.length = -1, .data = (UA_Byte*)0 };
+const UA_ByteString UA_BYTESTRING_NULL = {.length = -1, .data = (UA_Byte*)0 };
+const UA_NodeId UA_NODEID_NULL = {0, UA_NODEIDTYPE_NUMERIC, {0}};
+const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {
+    .nodeId = { .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0 },
+    .namespaceUri = {.length = -1, .data = (UA_Byte*)0}, .serverIndex = 0 };
+
 /***************************/
 /* Random Number Generator */
 /***************************/
@@ -389,11 +396,6 @@ UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
         return UA_FALSE;
     }
     return UA_TRUE;
-}
-
-UA_NodeId UA_NodeId_fromInteger(UA_UInt16 nsIndex, UA_Int32 identifier) {
-    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_NUMERIC,
-                         .identifier.numeric = identifier };
 }
 
 UA_NodeId UA_NodeId_fromCharString(UA_UInt16 nsIndex, char identifier[]) {

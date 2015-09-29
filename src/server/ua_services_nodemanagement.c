@@ -534,8 +534,9 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant.value, inputArguments,
                             inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
     UA_AddNodesResult inputAddRes;
+    const UA_NodeId hasproperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
     Service_AddNodes_single(server, &adminSession, (UA_Node*)inputArgumentsVariableNode,
-                            &parent.nodeId, &UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), &inputAddRes);
+                            &parent.nodeId, &hasproperty, &inputAddRes);
     // todo: check if adding succeeded
     UA_AddNodesResult_deleteMembers(&inputAddRes);
 
@@ -550,8 +551,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                             outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
     UA_AddNodesResult outputAddRes;
     Service_AddNodes_single(server, &adminSession, (UA_Node*)outputArgumentsVariableNode,
-                            &parent.nodeId, &UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            &outputAddRes);
+                            &parent.nodeId, &hasproperty, &outputAddRes);
     // todo: check if adding succeeded
     UA_AddNodesResult_deleteMembers(&outputAddRes);
 
