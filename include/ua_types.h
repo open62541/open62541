@@ -321,7 +321,7 @@ UA_StatusCode UA_EXPORT UA_String_copy(const UA_String *src, UA_String *dst);
 UA_String UA_EXPORT UA_String_fromChars(char const src[]); ///> Copies the content on the heap. Returns a null-string when alloc fails.
 UA_Boolean UA_EXPORT UA_String_equal(const UA_String *s1, const UA_String *s2); ///> Compares two strings
 UA_StatusCode UA_EXPORT UA_String_copyprintf(char const fmt[], UA_String *dst, ...); ///> Printf a char-array into a UA_String. Memory for the string data is allocated.
-extern const UA_String UA_STRING_NULL;
+UA_EXPORT extern const UA_String UA_STRING_NULL;
 static UA_INLINE UA_String UA_STRING(char *chars) {
     return (UA_String){strlen(chars), (UA_Byte*)chars }; }
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
@@ -365,7 +365,7 @@ static UA_INLINE void UA_ByteString_delete(UA_ByteString *p) { UA_String_delete(
 static UA_INLINE void UA_ByteString_deleteMembers(UA_ByteString *p) { UA_String_deleteMembers(p); }
 static UA_INLINE UA_StatusCode UA_ByteString_copy(const UA_ByteString *src, UA_ByteString *dst) {
     return UA_String_copy(src, dst); }
-extern const UA_ByteString UA_BYTESTRING_NULL;
+UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
 #define UA_ByteString_equal(string1, string2) UA_String_equal((const UA_String*) string1, (const UA_String*)string2)
 UA_StatusCode UA_EXPORT UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length); ///> Allocates memory of size length for the bytestring. The content is not set to zero.
 
@@ -402,7 +402,7 @@ static UA_INLINE UA_NodeId UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_Int32 identif
 #define UA_NODEID_GUID(NSID, GUID) UA_NodeId_fromGuid(NSID, GUID)
 #define UA_NODEID_BYTESTRING(NSID, CHARS) UA_NodeId_fromCharByteString(NSID, CHARS)
 #define UA_NODEID_BYTESTRING_ALLOC(NSID, CHARS) UA_NodeId_fromCharByteStringCopy(NSID, CHARS)
-extern const UA_NodeId UA_NODEID_NULL;
+UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
 
 /* ExpandedNodeId */
 UA_ExpandedNodeId UA_EXPORT * UA_ExpandedNodeId_new(void);
@@ -419,7 +419,7 @@ UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
         .nodeId = {.namespaceIndex = NSID, .identifierType = UA_NODEIDTYPE_STRING, \
                    .identifier.string = {strlen(CHARS), (UA_Byte*)CHARS} }, \
             .serverIndex = 0, .namespaceUri = {.data = (UA_Byte*)0, .length = -1} }
-extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
+UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
 
 /* StatusCode */
 UA_StatusCode UA_EXPORT * UA_StatusCode_new(void);

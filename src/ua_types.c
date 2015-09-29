@@ -34,10 +34,10 @@
         UA_free(p);                  \
     }
 
-const UA_String UA_STRING_NULL = {.length = -1, .data = (UA_Byte*)0 };
-const UA_ByteString UA_BYTESTRING_NULL = {.length = -1, .data = (UA_Byte*)0 };
-const UA_NodeId UA_NODEID_NULL = {0, UA_NODEIDTYPE_NUMERIC, {0}};
-const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {
+UA_EXPORT const UA_String UA_STRING_NULL = {.length = -1, .data = (UA_Byte*)0 };
+UA_EXPORT const UA_ByteString UA_BYTESTRING_NULL = {.length = -1, .data = (UA_Byte*)0 };
+UA_EXPORT const UA_NodeId UA_NODEID_NULL = {0, UA_NODEIDTYPE_NUMERIC, {0}};
+UA_EXPORT const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {
     .nodeId = { .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0 },
     .namespaceUri = {.length = -1, .data = (UA_Byte*)0}, .serverIndex = 0 };
 
