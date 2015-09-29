@@ -365,16 +365,21 @@ static UA_INLINE void UA_ByteString_delete(UA_ByteString *p) { UA_String_delete(
 static UA_INLINE void UA_ByteString_deleteMembers(UA_ByteString *p) { UA_String_deleteMembers(p); }
 static UA_INLINE UA_StatusCode UA_ByteString_copy(const UA_ByteString *src, UA_ByteString *dst) {
     return UA_String_copy(src, dst); }
-UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
 #define UA_ByteString_equal(string1, string2) UA_String_equal((const UA_String*) string1, (const UA_String*)string2)
-UA_StatusCode UA_EXPORT UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length); ///> Allocates memory of size length for the bytestring. The content is not set to zero.
+/* Allocates memory of size length for the bytestring. The content is not set to zero. */
+UA_StatusCode UA_EXPORT UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length);
+UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
+static UA_INLINE UA_ByteString UA_BYTESTRING(char *chars) {
+    return (UA_ByteString){strlen(chars), (UA_Byte*)chars }; }
+#define UA_BYTESTRING_ALLOC(CHARS) (UA_ByteString)UA_String_fromChars(CHARS)
 
 /* XmlElement */
 static UA_INLINE UA_XmlElement * UA_XmlElement_new(void) { return UA_String_new(); }
 static UA_INLINE void UA_XmlElement_init(UA_XmlElement *p) { UA_String_init(p); }
 static UA_INLINE void UA_XmlElement_delete(UA_XmlElement *p) { UA_String_delete(p); }
 static UA_INLINE void UA_XmlElement_deleteMembers(UA_XmlElement *p) { UA_String_deleteMembers(p); }
-static UA_INLINE UA_StatusCode UA_XmlElement_copy(const UA_XmlElement *src, UA_XmlElement *dst) { return UA_String_copy(src, dst); }
+static UA_INLINE UA_StatusCode UA_XmlElement_copy(const UA_XmlElement *src, UA_XmlElement *dst) {
+    return UA_String_copy(src, dst); }
 
 /* NodeId */
 UA_NodeId UA_EXPORT * UA_NodeId_new(void);
@@ -394,15 +399,25 @@ UA_NodeId UA_EXPORT UA_NodeId_fromCharByteString(UA_UInt16 nsIndex, char identif
 UA_NodeId UA_EXPORT UA_NodeId_fromCharByteStringCopy(UA_UInt16 nsIndex, char const identifier[]);
 UA_NodeId UA_EXPORT UA_NodeId_fromByteString(UA_UInt16 nsIndex, UA_ByteString identifier);
 UA_NodeId UA_EXPORT UA_NodeId_fromByteStringCopy(UA_UInt16 nsIndex, UA_ByteString identifier);
+UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
 static UA_INLINE UA_NodeId UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_Int32 identifier) {
     return (UA_NodeId){.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_NUMERIC,
             .identifier.numeric = identifier }; }
-#define UA_NODEID_STRING(NSID, CHARS) UA_NodeId_fromCharString(NSID, CHARS)
-#define UA_NODEID_STRING_ALLOC(NSID, CHARS) UA_NodeId_fromCharStringCopy(NSID, CHARS)
-#define UA_NODEID_GUID(NSID, GUID) UA_NodeId_fromGuid(NSID, GUID)
-#define UA_NODEID_BYTESTRING(NSID, CHARS) UA_NodeId_fromCharByteString(NSID, CHARS)
-#define UA_NODEID_BYTESTRING_ALLOC(NSID, CHARS) UA_NodeId_fromCharByteStringCopy(NSID, CHARS)
-UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
+static UA_INLINE UA_NodeId UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars) {
+    return (UA_NodeId){.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_STRING,
+            .identifier.string = UA_STRING(chars) }; }
+static UA_INLINE UA_NodeId UA_NODEID_STRING_ALLOC(UA_UInt16 nsIndex, char *chars) {
+    return (UA_NodeId){.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_STRING,
+            .identifier.string = UA_STRING_ALLOC(chars) }; }
+static UA_INLINE UA_NodeId UA_NODEID_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
+    return (UA_NodeId){.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_GUID,
+            .identifier.guid = guid }; }
+static UA_INLINE UA_NodeId UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
+    return (UA_NodeId){.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_BYTESTRING,
+            .identifier.byteString = UA_BYTESTRING(chars) }; }
+static UA_INLINE UA_NodeId UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, char *chars) {
+    return (UA_NodeId){.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_BYTESTRING,
+            .identifier.byteString = UA_BYTESTRING_ALLOC(chars) }; }
 
 /* ExpandedNodeId */
 UA_ExpandedNodeId UA_EXPORT * UA_ExpandedNodeId_new(void);
@@ -411,22 +426,33 @@ void UA_EXPORT UA_ExpandedNodeId_delete(UA_ExpandedNodeId *p);
 void UA_EXPORT UA_ExpandedNodeId_deleteMembers(UA_ExpandedNodeId *p);
 UA_StatusCode UA_EXPORT UA_ExpandedNodeId_copy(const UA_ExpandedNodeId *src, UA_ExpandedNodeId *dst);
 UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
-#define UA_EXPANDEDNODEID_NUMERIC(NSID, NUMERICID) (UA_ExpandedNodeId) {            \
-        .nodeId = {.namespaceIndex = NSID, .identifierType = UA_NODEIDTYPE_NUMERIC, \
-                   .identifier.numeric = NUMERICID },                               \
-        .serverIndex = 0, .namespaceUri = {.data = (UA_Byte*)0, .length = -1} }
-#define UA_EXPANDEDNODEID_STRING(NSID, CHARS) (UA_ExpandedNodeId) { \
-        .nodeId = {.namespaceIndex = NSID, .identifierType = UA_NODEIDTYPE_STRING, \
-                   .identifier.string = {strlen(CHARS), (UA_Byte*)CHARS} }, \
-            .serverIndex = 0, .namespaceUri = {.data = (UA_Byte*)0, .length = -1} }
 UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
+static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_Int32 identifier) {
+    return (UA_ExpandedNodeId) {.nodeId = {.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_NUMERIC,
+               .identifier.numeric = identifier }, .serverIndex = 0, .namespaceUri = UA_STRING_NULL}; }
+static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_STRING(UA_UInt16 nsIndex, char *chars) {
+    return (UA_ExpandedNodeId) {.nodeId = {.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_STRING,
+               .identifier.string = UA_STRING(chars) }, .serverIndex = 0, .namespaceUri = UA_STRING_NULL}; }
+static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_STRING_ALLOC(UA_UInt16 nsIndex, char *chars) {
+    return (UA_ExpandedNodeId) {.nodeId = {.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_STRING,
+               .identifier.string = UA_STRING_ALLOC(chars) }, .serverIndex = 0, .namespaceUri = UA_STRING_NULL}; }
+static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_STRING_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
+    return (UA_ExpandedNodeId) {.nodeId = {.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_GUID,
+               .identifier.guid = guid }, .serverIndex = 0, .namespaceUri = UA_STRING_NULL}; }
+static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
+    return (UA_ExpandedNodeId) {.nodeId = {.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_BYTESTRING,
+               .identifier.byteString = UA_BYTESTRING(chars) }, .serverIndex = 0, .namespaceUri = UA_STRING_NULL}; }
+static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, char *chars) {
+    return (UA_ExpandedNodeId) {.nodeId = {.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_BYTESTRING,
+               .identifier.byteString = UA_BYTESTRING_ALLOC(chars) }, .serverIndex = 0, .namespaceUri = UA_STRING_NULL}; }
 
 /* StatusCode */
 UA_StatusCode UA_EXPORT * UA_StatusCode_new(void);
 static UA_INLINE void UA_StatusCode_init(UA_StatusCode *p) { *p = UA_STATUSCODE_GOOD; }
 void UA_EXPORT UA_StatusCode_delete(UA_StatusCode *p);
 static UA_INLINE void UA_StatusCode_deleteMembers(UA_StatusCode *p) { }
-static UA_INLINE UA_StatusCode UA_StatusCode_copy(const UA_StatusCode *src, UA_StatusCode *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+static UA_INLINE UA_StatusCode UA_StatusCode_copy(const UA_StatusCode *src, UA_StatusCode *dst) {
+    *dst = *src; return UA_STATUSCODE_GOOD; }
 
 /* QualifiedName */
 UA_QualifiedName UA_EXPORT * UA_QualifiedName_new(void);
@@ -434,8 +460,10 @@ void UA_EXPORT UA_QualifiedName_init(UA_QualifiedName *p);
 void UA_EXPORT UA_QualifiedName_delete(UA_QualifiedName *p);
 void UA_EXPORT UA_QualifiedName_deleteMembers(UA_QualifiedName *p);
 UA_StatusCode UA_EXPORT UA_QualifiedName_copy(const UA_QualifiedName *src, UA_QualifiedName *dst);
-#define UA_QUALIFIEDNAME(NSID, CHARS) (const UA_QualifiedName) { .namespaceIndex = NSID, .name = UA_STRING(CHARS) }
-#define UA_QUALIFIEDNAME_ALLOC(NSID, CHARS) (UA_QualifiedName) { .namespaceIndex = NSID, .name = UA_STRING_ALLOC(CHARS) }
+static UA_INLINE UA_QualifiedName UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars) {
+    return (UA_QualifiedName){.namespaceIndex = nsIndex, .name = UA_STRING(chars) }; }
+static UA_INLINE UA_QualifiedName UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, char *chars) {
+    return (UA_QualifiedName){.namespaceIndex = nsIndex, .name = UA_STRING_ALLOC(chars) }; }
 
 /* LocalizedText */
 UA_LocalizedText UA_EXPORT * UA_LocalizedText_new(void);
@@ -443,8 +471,10 @@ void UA_EXPORT UA_LocalizedText_init(UA_LocalizedText *p);
 void UA_EXPORT UA_LocalizedText_delete(UA_LocalizedText *p);
 void UA_EXPORT UA_LocalizedText_deleteMembers(UA_LocalizedText *p);
 UA_StatusCode UA_EXPORT UA_LocalizedText_copy(const UA_LocalizedText *src, UA_LocalizedText *dst);
-#define UA_LOCALIZEDTEXT(LOCALE, TEXT) (const UA_LocalizedText) { .locale = UA_STRING(LOCALE), .text = UA_STRING(TEXT) }
-#define UA_LOCALIZEDTEXT_ALLOC(LOCALE, TEXT) (UA_LocalizedText) { .locale = UA_STRING_ALLOC(LOCALE), .text = UA_STRING_ALLOC(TEXT) }
+static UA_INLINE UA_LocalizedText UA_LOCALIZEDTEXT(char *locale, char *text) {
+    return (UA_LocalizedText) {.locale = UA_STRING(locale), .text = UA_STRING(text) }; }
+static UA_INLINE UA_LocalizedText UA_LOCALIZEDTEXT_ALLOC(char *locale, char *text) {
+    return (UA_LocalizedText) {.locale = UA_STRING_ALLOC(locale), .text = UA_STRING_ALLOC(text) }; }
 
 /* ExtensionObject */
 UA_ExtensionObject UA_EXPORT * UA_ExtensionObject_new(void);
@@ -529,8 +559,8 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRan
 
 /**
  * Insert a range of data into an existing variant. The data array can't be reused afterwards if it
- * contains types without a fixed size (e.g. strings) since they take on the lifetime of the
- * variant.
+ * contains types without a fixed size (e.g. strings) since the members are moved into the variant
+ * and take on its lifecycle.
  *
  * @param v The variant
  * @param dataArray The data array. The type must match the variant
@@ -679,6 +709,10 @@ UA_StatusCode UA_EXPORT UA_Array_copy(const void *src, void **dst, const UA_Data
  * @param elements The size of the array
  */
 void UA_EXPORT UA_Array_delete(void *p, const UA_DataType *dataType, UA_Int32 elements);
+
+/**********************/
+/* Node Attribute Ids */
+/**********************/
 
 /* These are not generated from XML. Server *and* client need them. */
 typedef enum {
