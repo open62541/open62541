@@ -26,9 +26,8 @@
  * @{
  */
 // Service_FindServers
-void Service_FindServers(UA_Server                    *server,
-                          const UA_FindServersRequest *request,
-                          UA_FindServersResponse      *response);
+void Service_FindServers(UA_Server *server, const UA_FindServersRequest *request,
+                         UA_FindServersResponse *response);
 /**
  * Returns the Endpoints supported by a Server and all of the configuration
  * information required to establish a SecureChannel and a Session.
@@ -241,7 +240,10 @@ UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, UA_Wr
  *
  * @{
  */
-// Service_Call
+#ifdef ENABLE_METHODCALLS
+void Service_Call(UA_Server *server, UA_Session *session, const UA_CallRequest *request,
+                  UA_CallResponse *response);
+#endif
 /** @} */
 
 #ifdef ENABLE_SUBSCRIPTIONS
@@ -297,29 +299,16 @@ void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
 void Service_Publish(UA_Server *server, UA_Session *session,
                      const UA_PublishRequest *request, UA_PublishResponse *response);
                          
-//~ Service_ModifySubscription
-//~ Service_SetPublishingMode
-//~ UA_Int32 Service_SetPublishingMode(UA_Server *server, UA_Session *session,
-                                    //~ const UA_SetPublishingModeRequest *request,
-                                    //~ UA_SetPublishingModeResponse *response);
+// Service_ModifySubscription
+// Service_SetPublishingMode
+// UA_Int32 Service_SetPublishingMode(UA_Server *server, UA_Session *session,
+                                  // const UA_SetPublishingModeRequest *request,
+                                  // UA_SetPublishingModeResponse *response);
 // Service_Republish
 // Service_TransferSubscription
 // Service_DeleteSubscription
 /** @} */
 #endif
 
-#ifdef ENABLE_METHODCALLS
-/**
- * @name Call Service Set
- *
- * Calls are used to execute serverside methods.
- *
- * @{
- */
-void Service_Call(UA_Server *server, UA_Session *session,
-                  const UA_CallRequest *request,
-                  UA_CallResponse *response);
-/** @} */
-#endif
 #endif /* UA_SERVICES_H_ */
 /** @} */
