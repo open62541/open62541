@@ -562,6 +562,9 @@ UA_StatusCode UA_EXPORT UA_DiagnosticInfo_copy(const UA_DiagnosticInfo *src, UA_
 #define UA_IS_BUILTIN(ID) (ID <= UA_TYPES_DIAGNOSTICINFO)
 
 typedef struct {
+#ifdef ENABLE_TYPEINTROSPECTION
+    const char *memberName;
+#endif
     UA_UInt16 memberTypeIndex; ///< Index of the member in the datatypetable
     UA_Byte padding; /**< How much padding is there before this member element? For arrays this is
                           split into 2 bytes padding before the length index (max 4 bytes) and 3
@@ -573,6 +576,9 @@ typedef struct {
 } UA_DataTypeMember;
     
 struct UA_DataType {
+#ifdef ENABLE_TYPEINTROSPECTION
+    const char *typeName;
+#endif
     UA_NodeId typeId; ///< The nodeid of the type
     UA_UInt16 memSize; ///< Size of the struct in memory
     UA_UInt16 typeIndex; ///< Index of the type in the datatypetable
