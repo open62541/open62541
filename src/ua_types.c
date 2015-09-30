@@ -398,57 +398,6 @@ UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
     return UA_TRUE;
 }
 
-UA_NodeId UA_NodeId_fromCharString(UA_UInt16 nsIndex, char identifier[]) {
-    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_STRING,
-                         .identifier.string = UA_STRING(identifier) };
-}
-
-UA_NodeId UA_NodeId_fromCharStringCopy(UA_UInt16 nsIndex, char const identifier[]) {
-    return (UA_NodeId) {.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_STRING,
-                        .identifier.string = UA_STRING_ALLOC(identifier) };
-}
-
-UA_NodeId UA_NodeId_fromString(UA_UInt16 nsIndex, UA_String identifier) {
-    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_STRING,
-                         .identifier.string = identifier };
-}
-
-UA_NodeId UA_NodeId_fromStringCopy(UA_UInt16 nsIndex, UA_String identifier) {
-    UA_NodeId id;
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_STRING;
-    UA_String_copy(&identifier, &id.identifier.string);
-    return id;
-}
-
-UA_NodeId UA_NodeId_fromGuid(UA_UInt16 nsIndex, UA_Guid identifier) {
-    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_GUID,
-                         .identifier.guid = identifier };
-}
-
-UA_NodeId UA_NodeId_fromCharByteString(UA_UInt16 nsIndex, char identifier[]) {
-    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_BYTESTRING,
-                         .identifier.byteString = UA_STRING(identifier) };
-}
-
-UA_NodeId UA_NodeId_fromCharByteStringCopy(UA_UInt16 nsIndex, char const identifier[]) {
-    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_BYTESTRING,
-                         .identifier.byteString = UA_STRING_ALLOC(identifier) };
-}
-
-UA_NodeId UA_NodeId_fromByteString(UA_UInt16 nsIndex, UA_ByteString identifier) {
-    return (UA_NodeId) { .namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_BYTESTRING,
-                         .identifier.byteString = identifier };
-}
-
-UA_NodeId UA_NodeId_fromByteStringCopy(UA_UInt16 nsIndex, UA_ByteString identifier) {
-    UA_NodeId id;
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_BYTESTRING;
-    UA_ByteString_copy(&identifier, &id.identifier.byteString);
-    return id;
-}
-
 /* ExpandedNodeId */
 UA_TYPE_NEW_DEFAULT(UA_ExpandedNodeId)
 UA_TYPE_DELETE_DEFAULT(UA_ExpandedNodeId)
