@@ -42,8 +42,7 @@ void Service_AddNodes_single(UA_Server *server, UA_Session *session, UA_Node *no
     }
 
     // todo: test if the referencetype is hierarchical
-    //FIXME: a bit dirty workaround of preserving namespace
-    //namespace index is assumed to be valid
+    // todo: namespace index is assumed to be valid
     const UA_Node *managed = UA_NULL;
     UA_NodeId tempNodeid = node->nodeId;
     tempNodeid.namespaceIndex = 0;
@@ -648,26 +647,23 @@ void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddR
 
 UA_StatusCode Service_DeleteNodes_single(UA_Server *server, UA_Session *session, UA_NodeId nodeId,
                                          UA_Boolean deleteReferences) {
-    const UA_Node *delNode = UA_NodeStore_get(server->nodestore, &nodeId);
-    if (!delNode)
+    const UA_Node *node = UA_NodeStore_get(server->nodestore, &nodeId);
+    if(!node)
         return UA_STATUSCODE_BADNODEIDINVALID;
-  
-    // Find and remove all References to this node if so requested.
     if(deleteReferences == UA_TRUE) {
         UA_DeleteReferencesItem delItem;
         UA_DeleteReferencesItem_init(&delItem);
         delItem.deleteBidirectional = UA_FALSE;
         UA_NodeId_copy(&nodeId, &delItem.targetNodeId.nodeId);
-        for(int i=0; i<delNode->referencesSize; i++) {
-            delItem.sourceNodeId = delNode->references[i].targetId.nodeId;
-            delItem.isForward = delNode->references[i].isInverse;
+        for(int i = 0; i < node->referencesSize; i++) {
+            delItem.sourceNodeId = node->references[i].targetId.nodeId;
+            delItem.isForward = node->references[i].isInverse;
             Service_DeleteReferences_single(server, session, &delItem);
         }
         UA_NodeId_init(&delItem.sourceNodeId);
         UA_DeleteReferencesItem_deleteMembers(&delItem);
     }
-  
-    UA_NodeStore_release(delNode);
+    UA_NodeStore_release(node);
     return UA_NodeStore_remove(server->nodestore, &nodeId);
 }
 
