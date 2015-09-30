@@ -405,6 +405,36 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 /* Write Attribute */
 /*******************/
 
+UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+                                 UA_EditNodeCallback callback, void *data) {
+    UA_StatusCode retval;
+    do {
+        retval = UA_STATUSCODE_GOOD;
+        const UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
+        if(!node)
+            return UA_STATUSCODE_BADNODEIDUNKNOWN;
+#ifndef UA_MULTITHREADING
+        retval = callback(server, session, (UA_Node*)(uintptr_t)node, data);
+        UA_NodeStore_release(node);
+        return retval;
+#else
+        UA_Node *copy = UA_Node_copyAnyNodeClass(node);
+        UA_NodeStore_release(node);
+        if(!copy)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        retval = callback(server, session, copy, data);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_Node_deleteAnyNodeClass(copy);
+            return retval;
+        }
+        retval = UA_NodeStore_replace(server->nodestore, orig, copy, UA_NULL);
+        if(retval != UA_STATUSCODE_GOOD)
+            UA_Node_deleteAnyNodeClass(copy);
+#endif
+    } while(retval != UA_STATUSCODE_GOOD);
+    return UA_STATUSCODE_GOOD;
+}
+
 #define CHECK_DATATYPE(EXP_DT)                                          \
     if(!wvalue->value.hasValue ||                                       \
        &UA_TYPES[UA_TYPES_##EXP_DT] != wvalue->value.value.type ||      \
@@ -414,7 +444,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
     }
 
 #define CHECK_NODECLASS_WRITE(CLASS)                                    \
-    if((copy->nodeClass & (CLASS)) == 0) {                              \
+    if((node->nodeClass & (CLASS)) == 0) {                              \
         retval = UA_STATUSCODE_BADNODECLASSINVALID;                     \
         break;                                                          \
     }
@@ -444,8 +474,7 @@ Service_Write_single_ValueDataSource(UA_Server *server, UA_Session *session, con
 
 /* In the multithreaded case, node is a copy */
 static UA_StatusCode
-Service_Write_single_Value(UA_Server *server, UA_Session *session, UA_VariableNode *node,
-                           UA_WriteValue *wvalue) {
+MoveValueIntoNode(UA_Server *server, UA_Session *session, UA_VariableNode *node, UA_WriteValue *wvalue) {
     UA_assert(wvalue->attributeId == UA_ATTRIBUTEID_VALUE);
     UA_assert(node->nodeClass == UA_NODECLASS_VARIABLE || node->nodeClass == UA_NODECLASS_VARIABLETYPE);
     UA_assert(node->valueSource == UA_VALUESOURCE_VARIANT);
@@ -505,34 +534,9 @@ Service_Write_single_Value(UA_Server *server, UA_Session *session, UA_VariableNo
     return retval;
 }
 
-UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, UA_WriteValue *wvalue) {
-    if(!wvalue->value.hasValue || !wvalue->value.value.data)
-        return UA_STATUSCODE_BADNODATA; // TODO: is this the right return code?
-    const UA_Node *orig;
-    UA_StatusCode retval;
-
- retryWriteSingle:
-    retval = UA_STATUSCODE_GOOD;
-    orig = UA_NodeStore_get(server->nodestore, &wvalue->nodeId);
-    if(!orig)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
-
-    if(wvalue->attributeId == UA_ATTRIBUTEID_VALUE && 
-       orig->nodeClass & (UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLE) &&
-       ((const UA_VariableNode*)orig)->valueSource == UA_VALUESOURCE_DATASOURCE) {
-        return Service_Write_single_ValueDataSource(server, session, (const UA_VariableNode*)orig, wvalue);
-    }
-    
-#ifndef UA_MULTITHREADING
-    UA_Node *copy = (UA_Node*)(uintptr_t)orig;
-#else
-    UA_Node *copy = UA_Node_copyAnyNodeClass(orig);
-    if(!copy) {
-        UA_NodeStore_release(orig);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-#endif
-
+static UA_StatusCode
+MoveAttributeIntoNode(UA_Server *server, UA_Session *session, UA_Node *node, UA_WriteValue *wvalue) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     void *value = wvalue->value.value.data;
 	switch(wvalue->attributeId) {
     case UA_ATTRIBUTEID_NODEID:
@@ -542,45 +546,45 @@ UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, UA_Wr
 		break;
 	case UA_ATTRIBUTEID_BROWSENAME:
 		CHECK_DATATYPE(QUALIFIEDNAME);
-		UA_QualifiedName_deleteMembers(&copy->browseName);
-        copy->browseName = *(UA_QualifiedName*)value;
+		UA_QualifiedName_deleteMembers(&node->browseName);
+        node->browseName = *(UA_QualifiedName*)value;
         UA_QualifiedName_init((UA_QualifiedName*)value);
 		break;
 	case UA_ATTRIBUTEID_DISPLAYNAME:
 		CHECK_DATATYPE(LOCALIZEDTEXT);
-		UA_LocalizedText_deleteMembers(&copy->displayName);
-        copy->displayName = *(UA_LocalizedText*)value;
+		UA_LocalizedText_deleteMembers(&node->displayName);
+        node->displayName = *(UA_LocalizedText*)value;
 		UA_LocalizedText_init((UA_LocalizedText*)value);
 		break;
 	case UA_ATTRIBUTEID_DESCRIPTION:
 		CHECK_DATATYPE(LOCALIZEDTEXT);
-		UA_LocalizedText_deleteMembers(&copy->description);
-        copy->description = *(UA_LocalizedText*)value;
+		UA_LocalizedText_deleteMembers(&node->description);
+        node->description = *(UA_LocalizedText*)value;
 		UA_LocalizedText_init((UA_LocalizedText*)value);
 		break;
 	case UA_ATTRIBUTEID_WRITEMASK:
 		CHECK_DATATYPE(UINT32);
-		copy->writeMask = *(UA_UInt32*)value;
+		node->writeMask = *(UA_UInt32*)value;
 		break;
 	case UA_ATTRIBUTEID_USERWRITEMASK:
 		CHECK_DATATYPE(UINT32);
-		copy->userWriteMask = *(UA_UInt32*)value;
+		node->userWriteMask = *(UA_UInt32*)value;
 		break;    
 	case UA_ATTRIBUTEID_ISABSTRACT:
 		CHECK_NODECLASS_WRITE(UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_REFERENCETYPE |
                               UA_NODECLASS_VARIABLETYPE | UA_NODECLASS_DATATYPE);
 		CHECK_DATATYPE(BOOLEAN);
-		((UA_ObjectTypeNode*)copy)->isAbstract = *(UA_Boolean*)value;
+		((UA_ObjectTypeNode*)node)->isAbstract = *(UA_Boolean*)value;
 		break;
 	case UA_ATTRIBUTEID_SYMMETRIC:
 		CHECK_NODECLASS_WRITE(UA_NODECLASS_REFERENCETYPE);
 		CHECK_DATATYPE(BOOLEAN);
-		((UA_ReferenceTypeNode*)copy)->symmetric = *(UA_Boolean*)value;
+		((UA_ReferenceTypeNode*)node)->symmetric = *(UA_Boolean*)value;
 		break;
 	case UA_ATTRIBUTEID_INVERSENAME:
 		CHECK_NODECLASS_WRITE(UA_NODECLASS_REFERENCETYPE);
 		CHECK_DATATYPE(LOCALIZEDTEXT);
-        UA_ReferenceTypeNode *n = (UA_ReferenceTypeNode*)copy;
+        UA_ReferenceTypeNode *n = (UA_ReferenceTypeNode*)node;
 		UA_LocalizedText_deleteMembers(&n->inverseName);
         n->inverseName = *(UA_LocalizedText*)value;
 		UA_LocalizedText_init((UA_LocalizedText*)value);
@@ -588,70 +592,71 @@ UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, UA_Wr
 	case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
 		CHECK_NODECLASS_WRITE(UA_NODECLASS_VIEW);
 		CHECK_DATATYPE(BOOLEAN);
-        ((UA_ViewNode*)copy)->containsNoLoops = *(UA_Boolean*)value;
+        ((UA_ViewNode*)node)->containsNoLoops = *(UA_Boolean*)value;
 		break;
 	case UA_ATTRIBUTEID_EVENTNOTIFIER:
 		CHECK_NODECLASS_WRITE(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT);
 		CHECK_DATATYPE(BYTE);
-        ((UA_ViewNode*)copy)->eventNotifier = *(UA_Byte*)value;
+        ((UA_ViewNode*)node)->eventNotifier = *(UA_Byte*)value;
 		break;
 	case UA_ATTRIBUTEID_VALUE:
 		CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        retval = Service_Write_single_Value(server, session, (UA_VariableNode*)copy, wvalue);
+        retval = MoveValueIntoNode(server, session, (UA_VariableNode*)node, wvalue);
 		break;
 	case UA_ATTRIBUTEID_ACCESSLEVEL:
 		CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
 		CHECK_DATATYPE(BYTE);
-		((UA_VariableNode*)copy)->accessLevel = *(UA_Byte*)value;
+		((UA_VariableNode*)node)->accessLevel = *(UA_Byte*)value;
 		break;
 	case UA_ATTRIBUTEID_USERACCESSLEVEL:
 		CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
 		CHECK_DATATYPE(BYTE);
-		((UA_VariableNode*)copy)->userAccessLevel = *(UA_Byte*)value;
+		((UA_VariableNode*)node)->userAccessLevel = *(UA_Byte*)value;
 		break;
 	case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
 		CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
 		CHECK_DATATYPE(DOUBLE);
-		((UA_VariableNode*)copy)->minimumSamplingInterval = *(UA_Double*)value;
+		((UA_VariableNode*)node)->minimumSamplingInterval = *(UA_Double*)value;
 		break;
 	case UA_ATTRIBUTEID_HISTORIZING:
 		CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
 		CHECK_DATATYPE(BOOLEAN);
-		((UA_VariableNode*)copy)->historizing = *(UA_Boolean*)value;
+		((UA_VariableNode*)node)->historizing = *(UA_Boolean*)value;
 		break;
 	case UA_ATTRIBUTEID_EXECUTABLE:
 		CHECK_NODECLASS_WRITE(UA_NODECLASS_METHOD);
 		CHECK_DATATYPE(BOOLEAN);
-		((UA_MethodNode*)copy)->executable = *(UA_Boolean*)value;
+		((UA_MethodNode*)node)->executable = *(UA_Boolean*)value;
 		break;
 	case UA_ATTRIBUTEID_USEREXECUTABLE:
 		CHECK_NODECLASS_WRITE(UA_NODECLASS_METHOD);
 		CHECK_DATATYPE(BOOLEAN);
-		((UA_MethodNode*)copy)->userExecutable = *(UA_Boolean*)value;
+		((UA_MethodNode*)node)->userExecutable = *(UA_Boolean*)value;
 		break;
 	default:
 		retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
 		break;
 	}
+    return retval;
+}
 
-#ifdef UA_MULTITHREADING
-    if(retval != UA_STATUSCODE_GOOD) {
+UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, UA_WriteValue *wvalue) {
+    if(!wvalue->value.hasValue || !wvalue->value.value.data)
+        return UA_STATUSCODE_BADNODATA; // TODO: is this the right return code?
+    if(wvalue->attributeId == UA_ATTRIBUTEID_VALUE) {
+        const UA_Node *orig = UA_NodeStore_get(server->nodestore, &wvalue->nodeId);
+        if(!orig)
+            return UA_STATUSCODE_BADNODEIDUNKNOWN;
+        if(orig->nodeClass & (UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLE) &&
+           ((const UA_VariableNode*)orig)->valueSource == UA_VALUESOURCE_DATASOURCE) {
+            UA_StatusCode retval = Service_Write_single_ValueDataSource(server, session, (const UA_VariableNode*)orig, wvalue);
+            UA_NodeStore_release(orig);
+            return retval;
+        }
         UA_NodeStore_release(orig);
-        UA_Node_deleteAnyNodeClass(copy);
-        return retval;
     }
-       
-    retval = UA_NodeStore_replace(server->nodestore, orig, copy, UA_NULL);
-	UA_NodeStore_release(orig);
-    if(retval != UA_STATUSCODE_GOOD) {
-        /* The node was replaced under our feet. Retry. */
-        UA_Node_deleteAnyNodeClass(copy);
-        goto retryWriteSingle;
-    }
-#else
-	UA_NodeStore_release(orig);
-#endif
-	return retval;
+    return UA_Server_editNode(server, session, &wvalue->nodeId,
+                              (UA_EditNodeCallback)MoveAttributeIntoNode, wvalue);
 }
 
 void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,

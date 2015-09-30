@@ -74,6 +74,13 @@ struct UA_Server {
 #endif
 };
 
+typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server *server, UA_Session*, UA_Node*, void*);
+
+/* Calls callback on the node. In the multithreaded case, the node is copied before and replaced in
+   the nodestore. */
+UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+                                 UA_EditNodeCallback callback, void *data);
+
 void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, UA_ByteString *msg);
 
 UA_StatusCode UA_Server_addDelayedJob(UA_Server *server, UA_Job job);

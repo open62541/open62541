@@ -324,9 +324,6 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     case UA_NS0ID_BROWSENEXTREQUEST:
         INVOKE_SERVICE(BrowseNext, UA_TYPES_BROWSENEXTRESPONSE);
         break;
-    case UA_NS0ID_ADDREFERENCESREQUEST:
-        INVOKE_SERVICE(AddReferences, UA_TYPES_ADDREFERENCESRESPONSE);
-        break;
     case UA_NS0ID_REGISTERNODESREQUEST:
         INVOKE_SERVICE(RegisterNodes, UA_TYPES_REGISTERNODESRESPONSE);
         break;
@@ -361,12 +358,18 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         INVOKE_SERVICE(Call, UA_TYPES_CALLRESPONSE);
 	break;
 #endif
-#ifdef ENABLE_ADDNODES 
+#ifdef ENABLE_NODEMANAGEMENT
     case UA_NS0ID_ADDNODESREQUEST:
         INVOKE_SERVICE(AddNodes, UA_TYPES_ADDNODESRESPONSE);
         break;
+    case UA_NS0ID_ADDREFERENCESREQUEST:
+        INVOKE_SERVICE(AddReferences, UA_TYPES_ADDREFERENCESRESPONSE);
+        break;
     case UA_NS0ID_DELETENODESREQUEST:
       INVOKE_SERVICE(DeleteNodes, UA_TYPES_DELETENODESRESPONSE);
+      break;
+    case UA_NS0ID_DELETEREFERENCESREQUEST:
+      INVOKE_SERVICE(DeleteReferences, UA_TYPES_DELETEREFERENCESRESPONSE);
       break;
 #endif
     default: {

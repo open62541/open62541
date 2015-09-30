@@ -119,8 +119,8 @@ ENABLE_* group
 
 This group contains build options related to the supported OPC UA features.
 
-**ENABLE_ADDNODES**
-   AddNodes services in sever and client
+**ENABLE_NODEMANAGEMENT**
+   Node management services (adding and removing nodes and references) in server and client
 **ENABLE_AMALGAMATION**
    Compile a single-file release files open62541.c and open62541.h
 **ENABLE_COVERAGE**

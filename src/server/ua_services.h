@@ -130,6 +130,8 @@ UA_StatusCode Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
 /** Used to delete one or more References of a Node. */
 void Service_DeleteReferences(UA_Server *server, UA_Session *session, const UA_DeleteReferencesRequest *request,
                               UA_DeleteReferencesResponse *response);
+UA_StatusCode Service_DeleteReferences_single(UA_Server *server, UA_Session *session,
+                                              const UA_DeleteReferencesItem *item);
 
 /** @} */
 
