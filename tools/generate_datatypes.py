@@ -39,9 +39,9 @@ minimal_types = ["InvalidType", "Node", "NodeClass", "ReferenceNode", "Applicati
                  "SecurityTokenRequestType", "MessageSecurityMode", "CloseSessionResponse", "CloseSessionRquest",
                  "ActivateSessionRequest", "ActivateSessionResponse", "SignatureData", "SignedSoftwareCertificate",
                  "CreateSessionResponse", "CreateSessionRequest", "EndpointDescription", "UserTokenPolicy", "UserTokenType",
-                 "GetEndpointsRequest", "GetEndpointsResponse", "PublishRequest", "PublishResponse", "FindServersRequest", "FindServersResponse",
-                 "SetPublishingModeResponse", "SubscriptionAcknowledgement", "NotificationMessage", "ExtensionObject",
-                 "Structure", "ReadRequest", "ReadResponse", "ReadValueId", "TimestampsToReturn", "WriteRequest",
+                 "GetEndpointsRequest", "GetEndpointsResponse", "PublishRequest", "PublishResponse", "FindServersRequest",
+                 "FindServersResponse", "SetPublishingModeResponse", "SubscriptionAcknowledgement", "NotificationMessage",
+                 "ExtensionObject", "Structure", "ReadRequest", "ReadResponse", "ReadValueId", "TimestampsToReturn", "WriteRequest",
                  "WriteResponse", "WriteValue", "SetPublishingModeRequest", "CreateMonitoredItemsResponse",
                  "MonitoredItemCreateResult", "CreateMonitoredItemsRequest", "MonitoredItemCreateRequest",
                  "MonitoringMode", "MonitoringParameters", "TranslateBrowsePathsToNodeIdsRequest",
@@ -116,30 +116,34 @@ class BuiltinType(object):
             typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % \
                      (description.namespaceid, description.nodeid)
         if self.name in ["UA_String", "UA_ByteString", "UA_XmlElement"]:
-            return "{.typeId = " + typeid + \
+            return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
                 ".memSize = sizeof(" + self.name + "), " + \
                 ".namespaceZero = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
                 ".membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_BYTE, .namespaceZero = UA_TRUE, " + \
+                (".memberName = (char*)0, " if typeintrospection else "") + \
                 ".padding = offsetof(UA_String, data) - sizeof(UA_Int32), .isArray = UA_TRUE }}, " + \
                 ".typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
 
         if self.name == "UA_QualifiedName":
-            return "{.typeId = " + typeid + \
+            return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
                 ".memSize = sizeof(UA_QualifiedName), " + \
                 ".namespaceZero = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
                 ".membersSize = 2, .members = {" + \
                 "\n\t{.memberTypeIndex = UA_TYPES_UINT16, .namespaceZero = UA_TRUE, " + \
+                (".memberName = (char*)0, " if typeintrospection else "") + \
                 ".padding = 0, .isArray = UA_FALSE }," + \
                 "\n\t{.memberTypeIndex = UA_TYPES_STRING, .namespaceZero = UA_TRUE, " + \
+                (".memberName = (char*)0, " if typeintrospection else "") + \
                 ".padding = offsetof(UA_QualifiedName, name) - sizeof(UA_UInt16), .isArray = UA_FALSE }},\n" + \
                 ".typeIndex = UA_TYPES_QUALIFIEDNAME }"
                 
-        return "{.typeId = " + typeid + \
+        return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
             ".memSize = sizeof(" + self.name + "), " + \
             ".namespaceZero = UA_TRUE, " + \
             ".fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
             ", .zeroCopyable = " + ("UA_TRUE" if self.zero_copy() else "UA_FALSE") + \
             ", .membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_" + self.name[3:].upper() + "," + \
+            (".memberName = (char*)0, " if typeintrospection else "") + \
             ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, " + \
             ".typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
 
@@ -180,6 +184,7 @@ class EnumerationType(object):
             ".namespaceZero = UA_TRUE, " + \
             ".fixedSize = UA_TRUE, .zeroCopyable = UA_TRUE, " + \
             ".membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_INT32," + \
+            (".memberName = (char*)0, " if typeintrospection else "") + \
             ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = UA_TYPES_INT32 }"
 
     def functions_c(self, typeTableName):
@@ -212,9 +217,10 @@ class OpaqueType(object):
             typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, "
         else:
             typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
-        return "{.typeId = " + typeid + \
+        return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
             ".memSize = sizeof(" + self.name + "), .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
             ".namespaceZero = UA_TRUE, .membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_BYTESTRING," + \
+            (".memberName = (char*)0, " if typeintrospection else "") + \
             ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = UA_TYPES_BYTESTRING }"
 
     def functions_c(self, typeTableName):
@@ -282,7 +288,7 @@ class StructType(object):
             typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, "
         else:
             typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
-        layout = "{.typeId = "+ typeid + \
+        layout = (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
                  ".memSize = sizeof(" + self.name + "), "+ \
                  ".namespaceZero = " + ("UA_TRUE" if namespace_0 else "UA_FALSE") + \
                  ", .fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
@@ -294,6 +300,7 @@ class StructType(object):
             layout += "\n\t.members={"
             for index, member in enumerate(self.members.values()):
                 layout += "\n\t{" + \
+                          ((".memberName = \"" + member.name[0].upper() + member.name[1:] + "\", ") if typeintrospection else "") + \
                           ".memberTypeIndex = " + ("UA_TYPES_" + member.memberType.name[3:].upper() if args.namespace_id == 0 or member.memberType.name in existing_types else \
                                                    outname.upper() + "_" + member.memberType.name[3:].upper()) + ", " + \
                           ".namespaceZero = "+ \
@@ -451,6 +458,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--ns0-types-xml', nargs=1, help='xml-definition of the ns0 types that are assumed to already exist')
 parser.add_argument('--enable-subscription-types', nargs=1, help='Generate datatypes necessary for Montoring and Subscriptions.')
 parser.add_argument('--typedescriptions', nargs=1, help='csv file with type descriptions')
+parser.add_argument('--typeintrospection', help='add the type and member names to the idatatype structures', action='store_true')
 parser.add_argument('namespace_id', type=int, help='the id of the target namespace')
 parser.add_argument('types_xml', help='path/to/Opc.Ua.Types.bsd')
 parser.add_argument('outfile', help='output file w/o extension')
@@ -458,6 +466,7 @@ parser.add_argument('outfile', help='output file w/o extension')
 args = parser.parse_args()
 outname = args.outfile.split("/")[-1] 
 inname = args.types_xml.split("/")[-1]
+typeintrospection = args.typeintrospection
 existing_types = OrderedDict()
 if args.enable_subscription_types:
     minimal_types = minimal_types + subscription_types

@@ -9,6 +9,7 @@
 #cmakedefine UA_MULTITHREADING
 #cmakedefine ENABLE_METHODCALLS
 #cmakedefine ENABLE_SUBSCRIPTIONS
+#cmakedefine ENABLE_TYPEINTROSPECTION
 
 /* Function Export */
 #ifdef _WIN32
