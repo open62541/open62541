@@ -179,7 +179,7 @@ class EnumerationType(object):
             typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, "
         else:
             typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
-        return "{.typeId = " + typeid + \
+        return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
             ".memSize = sizeof(" + self.name + "), " +\
             ".namespaceZero = UA_TRUE, " + \
             ".fixedSize = UA_TRUE, .zeroCopyable = UA_TRUE, " + \
