@@ -573,7 +573,7 @@ UA_StatusCode Service_AddReferences_single(UA_Server *server, UA_Session *sessio
     /* cast away the const to loop the call through UA_Server_editNode */
     UA_StatusCode retval = UA_Server_editNode(server, session, &item->sourceNodeId,
                                               (UA_EditNodeCallback)addOneWayReference,
-                                              (void*)(uintptr_t)item);
+                                              item);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -716,7 +716,7 @@ deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node, con
 UA_StatusCode
 Service_DeleteReferences_single(UA_Server *server, UA_Session *session, const UA_DeleteReferencesItem *item) {
     UA_StatusCode retval = UA_Server_editNode(server, session, &item->sourceNodeId,
-                                       (UA_EditNodeCallback)deleteOneWayReference, (void*)(uintptr_t)item);
+                                       (UA_EditNodeCallback)deleteOneWayReference, item);
     if(!item->deleteBidirectional || item->targetNodeId.serverIndex != 0)
         return retval;
     UA_DeleteReferencesItem secondItem;

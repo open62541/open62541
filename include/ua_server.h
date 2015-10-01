@@ -354,10 +354,12 @@ UA_Server_setNodeAttribute_value_destructive(UA_Server *server, const UA_NodeId 
 
 /* Succeeds only if the node contains a variant value */
 UA_StatusCode UA_EXPORT
-UA_Server_setAttribute_value_callback(UA_Server *server, UA_NodeId nodeId, UA_ValueCallback callback);
+UA_Server_setAttribute_value_callback(UA_Server *server, const UA_NodeId nodeId,
+                                      const UA_ValueCallback callback);
 
 UA_StatusCode UA_EXPORT
-UA_Server_setNodeAttribute_value_dataSource(UA_Server *server, UA_NodeId nodeId, UA_DataSource dataSource);
+UA_Server_setNodeAttribute_value_dataSource(UA_Server *server, const UA_NodeId nodeId,
+                                            const UA_DataSource dataSource);
 
 /* Don't use this function. There are typed versions with no additional overhead. */
 UA_StatusCode UA_EXPORT

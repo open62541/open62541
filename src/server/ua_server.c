@@ -1223,131 +1223,65 @@ UA_Server_setNodeAttribute_value_destructive(UA_Server *server, const UA_NodeId 
 }
 
 #ifdef ENABLE_METHODCALLS
+struct methodAndHandle {
+    UA_MethodCallback method;
+    void *handle;
+};
+
+static UA_StatusCode replaceMethod(UA_Server *server, UA_Session *session, UA_MethodNode *node,
+                                   const struct methodAndHandle *mah) {
+
+    if(node->nodeClass != UA_NODECLASS_METHOD)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    node->attachedMethod = mah->method;
+    node->methodHandle   = mah->handle;
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
-UA_Server_setNodeAttribute_method(UA_Server *server, UA_NodeId methodNodeId,
+UA_Server_setNodeAttribute_method(UA_Server *server, const UA_NodeId methodNodeId,
                                   UA_MethodCallback method, void *handle) {
-    UA_StatusCode retval;
- retrySetMethod:
-    retval = UA_STATUSCODE_GOOD;
-  
-    const UA_Node *attachToMethod =  UA_NodeStore_get(server->nodestore, &methodNodeId);
-    if(!attachToMethod)
-        return UA_STATUSCODE_BADNODEIDINVALID;
-  
-    if(attachToMethod->nodeClass != UA_NODECLASS_METHOD) {
-        UA_NodeStore_release(attachToMethod);
-        return UA_STATUSCODE_BADNODEIDINVALID;
-    }
-  
-    UA_MethodNode *replacementMethod = UA_MethodNode_new();
-    if(!replacementMethod) {
-        UA_NodeStore_release(attachToMethod);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    retval = UA_MethodNode_copy((const UA_MethodNode *) attachToMethod, replacementMethod);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_MethodNode_delete(replacementMethod);
-        UA_NodeStore_release(attachToMethod);
-        return retval;
-    }
-  
-    replacementMethod->attachedMethod = method;
-    replacementMethod->methodHandle   = handle;
-    retval = UA_NodeStore_replace(server->nodestore, attachToMethod, (UA_Node *) replacementMethod, UA_NULL);
-    UA_NodeStore_release(attachToMethod);
-
-    /* The node was replaced before we could... */
-    if(retval != UA_STATUSCODE_GOOD)
-        goto retrySetMethod;
-    return retval;
+    struct methodAndHandle mah;
+    mah.method = method;
+    mah.handle = handle;
+    return UA_Server_editNode(server, &adminSession, &methodNodeId,
+                              (UA_EditNodeCallback)replaceMethod, &mah);
 }
 #endif
 
-UA_StatusCode UA_EXPORT
-UA_Server_setAttribute_value_callback(UA_Server *server, UA_NodeId nodeId,
-                                      UA_ValueCallback callback) {
-    const UA_Node *orig;
- retrySetValueCallback:
-    orig = UA_NodeStore_get(server->nodestore, &nodeId);
-    if(!orig)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
-
-    if(orig->nodeClass != UA_NODECLASS_VARIABLE &&
-       orig->nodeClass != UA_NODECLASS_VARIABLETYPE) {
-        UA_NodeStore_release(orig);
+static UA_StatusCode setValueCallback(UA_Server *server, UA_Session *session, UA_VariableNode *node,
+                                      UA_ValueCallback *callback) {
+    if(node->nodeClass != UA_NODECLASS_VARIABLE &&
+       node->nodeClass != UA_NODECLASS_VARIABLETYPE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    }
-    
-#ifndef UA_MULTITHREADING
-    /* We cheat if multithreading is not enabled and treat the node as mutable. */
-    UA_VariableNode *editable = (UA_VariableNode*)(uintptr_t)orig;
-#else
-    UA_VariableNode *editable = (UA_VariableNode*)UA_Node_copyAnyNodeClass(orig);
-    if(!editable) {
-        UA_NodeStore_release(orig);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-#endif
-
-    editable->value.variant.callback = callback;
-  
-#ifdef UA_MULTITHREADING
-    UA_StatusCode retval;
-    retval = UA_NodeStore_replace(server->nodestore, orig, (UA_Node*)editable, UA_NULL);
-    if(retval != UA_STATUSCODE_GOOD) {
-        /* The node was replaced in the background */
-        UA_NodeStore_release(orig);
-        goto retrySetValueCallback;
-    }
-#endif
-    UA_NodeStore_release(orig);
+    node->value.variant.callback = *callback;
     return UA_STATUSCODE_GOOD;
-    
+}
+
+UA_StatusCode UA_EXPORT
+UA_Server_setAttribute_value_callback(UA_Server *server, const UA_NodeId nodeId,
+                                      const UA_ValueCallback callback) {
+    return UA_Server_editNode(server, &adminSession, &nodeId,
+                              (UA_EditNodeCallback)setValueCallback, &callback);
+}
+
+static UA_StatusCode
+setDataSource(UA_Server *server, UA_Session *session, UA_VariableNode* node, UA_DataSource *dataSource) {
+    if(node->nodeClass != UA_NODECLASS_VARIABLE &&
+       node->nodeClass != UA_NODECLASS_VARIABLETYPE)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    if(node->valueSource == UA_VALUESOURCE_VARIANT)
+        UA_Variant_deleteMembers(&node->value.variant.value);
+    node->value.dataSource = *dataSource;
+    node->valueSource = UA_VALUESOURCE_DATASOURCE;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
 UA_Server_setNodeAttribute_value_dataSource(UA_Server *server, const UA_NodeId nodeId,
-                                            UA_DataSource dataSource) {
-    const UA_Node *orig;
- retrySetDataSource:
-    orig = UA_NodeStore_get(server->nodestore, &nodeId);
-    if(!orig)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
-
-    if(orig->nodeClass != UA_NODECLASS_VARIABLE &&
-       orig->nodeClass != UA_NODECLASS_VARIABLETYPE) {
-        UA_NodeStore_release(orig);
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-    }
-    
-#ifndef UA_MULTITHREADING
-    /* We cheat if multithreading is not enabled and treat the node as mutable. */
-    UA_VariableNode *editable = (UA_VariableNode*)(uintptr_t)orig;
-#else
-    UA_VariableNode *editable = (UA_VariableNode*)UA_Node_copyAnyNodeClass(orig);
-    if(!editable) {
-        UA_NodeStore_release(orig);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-#endif
-
-    if(editable->valueSource == UA_VALUESOURCE_VARIANT)
-        UA_Variant_deleteMembers(&editable->value.variant.value);
-    editable->value.dataSource = dataSource;
-    editable->valueSource = UA_VALUESOURCE_DATASOURCE;
-  
-#ifdef UA_MULTITHREADING
-    UA_StatusCode retval;
-    retval = UA_NodeStore_replace(server->nodestore, orig, (UA_Node*)editable, UA_NULL);
-    if(retval != UA_STATUSCODE_GOOD) {
-        /* The node was replaced in the background */
-        UA_NodeStore_release(orig);
-        goto retrySetDataSource;
-    }
-#endif
-    UA_NodeStore_release(orig);
-    return UA_STATUSCODE_GOOD;
+                                            const UA_DataSource dataSource) {
+    return UA_Server_editNode(server, &adminSession, &nodeId,
+                              (UA_EditNodeCallback)setDataSource, &dataSource);
 }
 
 UA_StatusCode

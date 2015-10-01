@@ -406,7 +406,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 /*******************/
 
 UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
-                                 UA_EditNodeCallback callback, void *data) {
+                                 UA_EditNodeCallback callback, const void *data) {
     UA_StatusCode retval;
     do {
         retval = UA_STATUSCODE_GOOD;
