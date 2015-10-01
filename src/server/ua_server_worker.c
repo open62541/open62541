@@ -325,14 +325,11 @@ UA_StatusCode UA_Server_addRepeatedJob(UA_Server *server, UA_Job job, UA_UInt32 
 /* Returns the timeout until the next repeated job in ms */
 static UA_UInt16 processRepeatedJobs(UA_Server *server) {
     UA_DateTime current = UA_DateTime_now();
-    struct RepeatedJobs *next = LIST_FIRST(&server->repeatedJobs);
     struct RepeatedJobs *tw = UA_NULL;
 
-    while(next) {
-        tw = next;
+    while((tw = LIST_FIRST(&server->repeatedJobs)) != UA_NULL) {
         if(tw->nextTime > current)
             break;
-        next = LIST_NEXT(tw, pointers);
 
 #ifdef UA_MULTITHREADING
         // copy the entry and insert at the new location
@@ -346,10 +343,12 @@ static UA_UInt16 processRepeatedJobs(UA_Server *server) {
         dispatchJobs(server, jobsCopy, tw->jobsSize); // frees the job pointer
 #else
         for(size_t i=0;i<tw->jobsSize;i++)
+            //processJobs may sort the list but dont delete entries
             processJobs(server, &tw->jobs[i].job, 1); // does not free the job ptr
 #endif
         tw->nextTime += tw->interval;
-        struct RepeatedJobs *prevTw = tw; // after which tw do we insert?
+        //start iterating the list from the beginning
+        struct RepeatedJobs *prevTw = LIST_FIRST(&server->repeatedJobs); // after which tw do we insert?
         while(UA_TRUE) {
             struct RepeatedJobs *n = LIST_NEXT(prevTw, pointers);
             if(!n || n->nextTime > tw->nextTime)

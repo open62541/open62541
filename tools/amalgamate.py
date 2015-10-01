@@ -24,7 +24,7 @@ includes = []
 print ("Starting amalgamating file "+ args.outfile)
 
 file = io.open(args.outfile, 'w')
-file.write(u'''/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES 
+file.write(u"""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES 
  * visit http://open62541.org/ for information about this software
  * Git-Revision: %s
  */
@@ -42,7 +42,8 @@ file.write(u'''/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN6
  * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
  * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
  * details.
- */\n\n''' % args.version)
+ */\n\n
+ """ % args.version)
 
 if not is_c:
     file.write(u'''#ifndef %s

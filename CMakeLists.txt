@@ -133,6 +133,14 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
 ## generate code from xml definitions
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 
+option(ENABLE_TYPEINTROSPECTION "Add the type and member names to the internal structures" OFF)
+mark_as_advanced(ENABLE_TYPEINTROSPECTION)
+if(ENABLE_TYPEINTROSPECTION)
+  set(generate_typeintrospection "--typeintrospection")
+else()
+  set(generate_typeintrospection "")
+endif()
+
 option(ENABLE_SUBSCRIPTIONS "Enable compilation of subscription and monitoring support." OFF)
 if(ENABLE_SUBSCRIPTIONS)
   set(ENABLE_SUBSCRIPTIONS ON) #to propagate it to the config file
@@ -148,7 +156,7 @@ if(ENABLE_SUBSCRIPTIONS)
                             ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                             ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
                      PRE_BUILD
-                     COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --enable-subscription-types=1 --typedescriptions ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv 0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types
+                     COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --enable-subscription-types=1 ${generate_typeintrospection} --typedescriptions ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv 0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types
                      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
                              ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
                              ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
@@ -157,7 +165,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
                    PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --typedescriptions ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv 0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py ${generate_typeintrospection} --typedescriptions ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv 0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
@@ -167,7 +175,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_gener
                           ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
                           ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
                    PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --ns0-types-xml ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd 1 ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_transport
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py ${generate_typeintrospection} --ns0-types-xml ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd 1 ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_transport
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
 
@@ -246,8 +254,8 @@ if(EXTENSION_UDP)
   endif()
 endif()
 
-option(LEGACY "Enable LEGACY code" OFF)
-mark_as_advanced(LEGACY)
+option(ENABLE_LEGACY "Enable LEGACY code" OFF)
+mark_as_advanced(ENABLE_LEGACY)
 
 option(EXTENSION_STATELESS "Enable stateless extension" OFF)
 if(EXTENSION_STATELESS)
@@ -369,7 +377,7 @@ if(BUILD_EXAMPLECLIENT)
             target_link_libraries(client_stateless urcu-cds urcu urcu-common pthread)
         endif()
     endif()
-    if(LEGACY AND NOT ENABLE_AMALGAMATION)
+    if(ENABLE_LEGACY AND NOT ENABLE_AMALGAMATION)
     	add_executable(client_legacy ${PROJECT_SOURCE_DIR}/examples/client_legacy.c $<TARGET_OBJECTS:open62541-object>)
 		target_link_libraries(client_legacy ${LIBS})
 	endif()

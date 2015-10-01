@@ -21,7 +21,7 @@ void Service_CreateSubscription(UA_Server *server, UA_Session *session,
     /* set the publishing interval */
     UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalPublishingInterval,
                                request->requestedPublishingInterval, response->revisedPublishingInterval);
-    newSubscription->publishingInterval = response->revisedPublishingInterval;
+    newSubscription->publishingInterval = (UA_DateTime)response->revisedPublishingInterval;
     
     /* set the subscription lifetime (deleted when no publish requests arrive within this time) */
     UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalLifeTimeCount,
@@ -83,7 +83,7 @@ static void createMonitoredItems(UA_Server *server, UA_Session *session, UA_Subs
     UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalSamplingInterval,
                                request->requestedParameters.samplingInterval,
                                result->revisedSamplingInterval);
-    newMon->samplingInterval = result->revisedSamplingInterval;
+    newMon->samplingInterval = (UA_UInt32)result->revisedSamplingInterval;
 
     /* set the queue size */
     UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalQueueSize,
@@ -148,7 +148,7 @@ void Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishReq
             response->results[i] = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
             continue;
         }
-        if(Subscription_deleteUnpublishedNotification(request->subscriptionAcknowledgements[i].sequenceNumber, sub) == 0)
+        if(Subscription_deleteUnpublishedNotification(request->subscriptionAcknowledgements[i].sequenceNumber, false, sub) == 0)
             response->results[i] = UA_STATUSCODE_BADSEQUENCENUMBERINVALID;
     }
     
@@ -176,7 +176,7 @@ void Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishReq
             // If this is a keepalive message, its seqNo is the next seqNo to be used for an actual msg.
             response->availableSequenceNumbersSize = 0;
             // .. and must be deleted
-            Subscription_deleteUnpublishedNotification(sub->sequenceNumber + 1, sub);
+            Subscription_deleteUnpublishedNotification(sub->sequenceNumber + 1, false, sub);
         } else {
             response->availableSequenceNumbersSize = Subscription_queuedNotifications(sub);
             response->availableSequenceNumbers = Subscription_getAvailableSequenceNumbers(sub);
@@ -196,7 +196,7 @@ void Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishReq
         sub->keepAliveCount.currentValue=sub->keepAliveCount.minValue;
         Subscription_generateKeepAlive(sub);
         Subscription_copyTopNotificationMessage(&response->notificationMessage, sub);
-        Subscription_deleteUnpublishedNotification(sub->sequenceNumber + 1, sub);
+        Subscription_deleteUnpublishedNotification(sub->sequenceNumber + 1, false, sub);
     }
     
     // FIXME: This should be in processMSG();
@@ -215,7 +215,7 @@ void Service_ModifySubscription(UA_Server *server, UA_Session *session,
     
     UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalPublishingInterval,
                                request->requestedPublishingInterval, response->revisedPublishingInterval);
-    sub->publishingInterval = response->revisedPublishingInterval;
+    sub->publishingInterval = (UA_DateTime)response->revisedPublishingInterval;
     
     UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalLifeTimeCount,
                                request->requestedLifetimeCount, response->revisedLifetimeCount);
