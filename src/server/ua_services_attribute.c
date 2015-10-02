@@ -409,7 +409,6 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const U
                                  UA_EditNodeCallback callback, const void *data) {
     UA_StatusCode retval;
     do {
-        retval = UA_STATUSCODE_GOOD;
         const UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
         if(!node)
             return UA_STATUSCODE_BADNODEIDUNKNOWN;

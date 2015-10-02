@@ -58,6 +58,7 @@ static UA_Server* makeTestSequence(void) {
                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                           UA_QUALIFIEDNAME_ALLOC(0, "Viewtest"), view_attr);
 
+#ifdef ENABLE_METHODCALLS
 	/* MethodNode */
     UA_MethodAttributes ma;
     UA_MethodAttributes_init(&ma);
@@ -68,6 +69,7 @@ static UA_Server* makeTestSequence(void) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                             UA_QUALIFIEDNAME_ALLOC(0, "Methodtest"), ma,
                             NULL, NULL, -1, NULL, -1, NULL);
+#endif
 
 	return server;
 }
@@ -502,6 +504,7 @@ START_TEST(ReadSingleAttributeHistorizingWithoutTimestamp) {
 } END_TEST
 
 START_TEST(ReadSingleAttributeExecutableWithoutTimestamp) {
+#ifdef ENABLE_METHODCALLS
     UA_Server *server = makeTestSequence();
     UA_DataValue resp;
     UA_DataValue_init(&resp);
@@ -518,9 +521,11 @@ START_TEST(ReadSingleAttributeExecutableWithoutTimestamp) {
     UA_DataValue_deleteMembers(&resp);
     UA_ReadRequest_deleteMembers(&rReq);
     UA_Server_delete(server);
+#endif
 } END_TEST
 
 START_TEST(ReadSingleAttributeUserExecutableWithoutTimestamp) {
+#ifdef ENABLE_METHODCALLS
     UA_Server *server = makeTestSequence();
     UA_DataValue resp;
     UA_DataValue_init(&resp);
@@ -537,6 +542,7 @@ START_TEST(ReadSingleAttributeUserExecutableWithoutTimestamp) {
     UA_DataValue_deleteMembers(&resp);
     UA_ReadRequest_deleteMembers(&rReq);
     UA_Server_delete(server);
+#endif
 } END_TEST
 
 /* Tests for writeValue method */

@@ -84,8 +84,8 @@ UA_StatusCode UA_EXPORT UA_Server_run_mainloop(UA_Server *server, UA_Boolean *ru
  *        the pointer is null, the guid is not set.
  * @return Upon success, UA_STATUSCODE_GOOD is returned. An error code otherwise.
  */
-UA_StatusCode UA_EXPORT UA_Server_addRepeatedJob(UA_Server *server, UA_Job job, UA_UInt32 interval,
-                                                 UA_Guid *jobId);
+UA_StatusCode UA_EXPORT UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
+                                                 UA_UInt32 interval, UA_Guid *jobId);
 
 /**
  * Remove repeated job. The entry will be removed asynchronously during the next iteration of the
@@ -303,7 +303,8 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
 
 UA_StatusCode UA_EXPORT UA_Server_deleteNode(UA_Server *server, UA_NodeId nodeId);
 
-typedef UA_StatusCode (*UA_NodeIteratorCallback) (UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle);
+typedef UA_StatusCode (*UA_NodeIteratorCallback) (UA_NodeId childId, UA_Boolean isInverse,
+                                                  UA_NodeId referenceTypeId, void *handle);
 
 /** Iterate over all nodes referenced by parentNodeId by calling the callback function for each
  * child node
@@ -317,7 +318,8 @@ typedef UA_StatusCode (*UA_NodeIteratorCallback) (UA_NodeId childId, UA_Boolean 
  * @return Upon success, UA_STATUSCODE_GOOD is returned. An error code otherwise.
  */
 UA_StatusCode UA_EXPORT
-UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback, void *handle);
+UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
+                               UA_NodeIteratorCallback callback, void *handle);
 
 /***********************/
 /* Set Node Attributes */
@@ -345,7 +347,7 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId, UA_Nod
 
 UA_StatusCode UA_EXPORT
 UA_Server_setNodeAttribute_value(UA_Server *server, const UA_NodeId nodeId,
-                                 const UA_DataType *type, const UA_Variant *value);
+                                 const UA_DataType *type, const UA_Variant value);
 
 /* The value is moved into the node (not copied). The value variant is _inited internally. */
 UA_StatusCode UA_EXPORT
@@ -367,46 +369,63 @@ UA_Server_setNodeAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_A
                            const UA_DataType *type, const void *value);
 
 static UA_INLINE UA_StatusCode
-UA_Server_setNodeAttribute_browseName(UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName *browseName) {
-    return UA_Server_setNodeAttribute(server, nodeId, UA_ATTRIBUTEID_BROWSENAME, &UA_TYPES[UA_TYPES_QUALIFIEDNAME], browseName); }
+UA_Server_setNodeAttribute_browseName(UA_Server *server, const UA_NodeId nodeId,
+                                      const UA_QualifiedName browseName) {
+    return UA_Server_setNodeAttribute(server, nodeId, UA_ATTRIBUTEID_BROWSENAME,
+                                      &UA_TYPES[UA_TYPES_QUALIFIEDNAME], &browseName); }
 
 static UA_INLINE UA_StatusCode
-UA_Server_setNodeAttribute_displayName(UA_Server *server, const UA_NodeId nodeId, const UA_LocalizedText *displayName) {
-    return UA_Server_setNodeAttribute(server, nodeId, UA_ATTRIBUTEID_DISPLAYNAME, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], displayName); }
+UA_Server_setNodeAttribute_displayName(UA_Server *server, const UA_NodeId nodeId,
+                                       const UA_LocalizedText displayName) {
+    return UA_Server_setNodeAttribute(server, nodeId, UA_ATTRIBUTEID_DISPLAYNAME,
+                                      &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &displayName); }
 
 static UA_INLINE UA_StatusCode
-UA_Server_setNodeAttribute_description(UA_Server *server, const UA_NodeId nodeId, const UA_LocalizedText *description) {
-    return UA_Server_setNodeAttribute(server, nodeId, UA_ATTRIBUTEID_DESCRIPTION, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], description); }
+UA_Server_setNodeAttribute_description(UA_Server *server, const UA_NodeId nodeId,
+                                       const UA_LocalizedText description) {
+    return UA_Server_setNodeAttribute(server, nodeId, UA_ATTRIBUTEID_DESCRIPTION,
+                                      &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &description); }
 
 static UA_INLINE UA_StatusCode
-UA_Server_setNodeAttribute_isAbstract(UA_Server *server, const UA_NodeId nodeId, const UA_Boolean *isAbstract) {
-    return UA_Server_setNodeAttribute(server, nodeId, UA_ATTRIBUTEID_ISABSTRACT, &UA_TYPES[UA_TYPES_BOOLEAN], isAbstract); }
+UA_Server_setNodeAttribute_isAbstract(UA_Server *server, const UA_NodeId nodeId,
+                                      const UA_Boolean isAbstract) {
+    return UA_Server_setNodeAttribute(server, nodeId, UA_ATTRIBUTEID_ISABSTRACT,
+                                      &UA_TYPES[UA_TYPES_BOOLEAN], &isAbstract); }
 
 static UA_INLINE UA_StatusCode
-UA_Server_setNodeAttribute_inverseName(UA_Server *server, const UA_NodeId nodeId, const UA_LocalizedText *inverseName) {
-    return UA_Server_setNodeAttribute(server, nodeId, UA_ATTRIBUTEID_INVERSENAME, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], inverseName); }
+UA_Server_setNodeAttribute_inverseName(UA_Server *server, const UA_NodeId nodeId,
+                                       const UA_LocalizedText inverseName) {
+    return UA_Server_setNodeAttribute(server, nodeId, UA_ATTRIBUTEID_INVERSENAME,
+                                      &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &inverseName); }
 
 static UA_INLINE UA_StatusCode
-UA_Server_setNodeAttribute_containtsNoLoops(UA_Server *server, const UA_NodeId nodeId, const UA_Boolean *containsNoLoops) {
-    return UA_Server_setNodeAttribute(server, nodeId, UA_ATTRIBUTEID_CONTAINSNOLOOPS, &UA_TYPES[UA_TYPES_BOOLEAN], containsNoLoops); }
+UA_Server_setNodeAttribute_containtsNoLoops(UA_Server *server, const UA_NodeId nodeId,
+                                            const UA_Boolean containsNoLoops) {
+    return UA_Server_setNodeAttribute(server, nodeId, UA_ATTRIBUTEID_CONTAINSNOLOOPS,
+                                      &UA_TYPES[UA_TYPES_BOOLEAN], &containsNoLoops); }
 
 static UA_INLINE UA_StatusCode
-UA_Server_setNodeAttribute_eventNotifier(UA_Server *server, const UA_NodeId nodeId, const UA_Byte *eventNotifier) {
-    return UA_Server_setNodeAttribute(server, nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER, &UA_TYPES[UA_TYPES_BYTE], eventNotifier); }
+UA_Server_setNodeAttribute_eventNotifier(UA_Server *server, const UA_NodeId nodeId,
+                                         const UA_Byte eventNotifier) {
+    return UA_Server_setNodeAttribute(server, nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER,
+                                      &UA_TYPES[UA_TYPES_BYTE], &eventNotifier); }
 
 static UA_INLINE UA_StatusCode
 UA_Server_setNodeAttribute_minimumSamplingInterval(UA_Server *server, const UA_NodeId nodeId,
-                                                   const UA_Double *miniumSamplingInterval) {
+                                                   const UA_Double miniumSamplingInterval) {
     return UA_Server_setNodeAttribute(server, nodeId, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
-                                      &UA_TYPES[UA_TYPES_DOUBLE], miniumSamplingInterval); }
+                                      &UA_TYPES[UA_TYPES_DOUBLE], &miniumSamplingInterval); }
 
 static UA_INLINE UA_StatusCode
-UA_Server_setNodeAttribute_executable(UA_Server *server, const UA_NodeId nodeId, const UA_Boolean *executable) {
-    return UA_Server_setNodeAttribute(server, nodeId, UA_ATTRIBUTEID_EXECUTABLE, &UA_TYPES[UA_TYPES_BOOLEAN], executable); }
+UA_Server_setNodeAttribute_executable(UA_Server *server, const UA_NodeId nodeId,
+                                      const UA_Boolean executable) {
+    return UA_Server_setNodeAttribute(server, nodeId, UA_ATTRIBUTEID_EXECUTABLE,
+                                      &UA_TYPES[UA_TYPES_BOOLEAN], &executable); }
 
 #ifdef ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT
-UA_Server_setNodeAttribute_method(UA_Server *server, UA_NodeId methodNodeId, UA_MethodCallback method, void *handle);
+UA_Server_setNodeAttribute_method(UA_Server *server, UA_NodeId methodNodeId,
+                                  UA_MethodCallback method, void *handle);
 #endif
 
 /***********************/
@@ -492,8 +511,10 @@ UA_Server_getNodeAttribute_accessLevel(UA_Server *server, UA_NodeId nodeId, UA_U
     return UA_Server_getNodeAttribute(server, nodeId, UA_ATTRIBUTEID_ACCESSLEVEL, outAccessLevel); }
 
 static UA_INLINE UA_StatusCode
-UA_Server_getNodeAttribute_minimumSamplingInterval(UA_Server *server, UA_NodeId nodeId, UA_Double *outMinimumSamplingInterval) {
-    return UA_Server_getNodeAttribute(server, nodeId, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL, outMinimumSamplingInterval); }
+UA_Server_getNodeAttribute_minimumSamplingInterval(UA_Server *server, UA_NodeId nodeId,
+                                                   UA_Double *outMinimumSamplingInterval) {
+    return UA_Server_getNodeAttribute(server, nodeId, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
+                                      outMinimumSamplingInterval); }
 
 static UA_INLINE UA_StatusCode
 UA_Server_getNodeAttribute_historizing(UA_Server *server, UA_NodeId nodeId, UA_Double *outHistorizing) {
@@ -582,7 +603,8 @@ typedef struct UA_ExternalNodeStore {
 
 #ifdef UA_EXTERNAL_NAMESPACES
 UA_StatusCode UA_EXPORT
-UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, const UA_String *url, UA_ExternalNodeStore *nodeStore);
+UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex,
+                               const UA_String *url, UA_ExternalNodeStore *nodeStore);
 #endif /* UA_EXTERNAL_NAMESPACES*/
 /** @} */
 

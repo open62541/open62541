@@ -1191,12 +1191,12 @@ UA_Server_setNodeAttribute(UA_Server *server, const UA_NodeId nodeId,
 
 UA_StatusCode
 UA_Server_setNodeAttribute_value(UA_Server *server, const UA_NodeId nodeId,
-                                 const UA_DataType *type, const UA_Variant *value) {
+                                 const UA_DataType *type, const UA_Variant value) {
     UA_WriteValue wvalue;
     UA_WriteValue_init(&wvalue);
     wvalue.nodeId = nodeId;
     wvalue.attributeId = UA_ATTRIBUTEID_VALUE;
-    UA_StatusCode retval = UA_Variant_copy(value, &wvalue.value.value);
+    UA_StatusCode retval = UA_Variant_copy(&value, &wvalue.value.value);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     wvalue.value.hasValue = UA_TRUE;
