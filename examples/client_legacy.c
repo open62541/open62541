@@ -630,7 +630,7 @@ int main(int argc, char *argv[]) {
      **/
 
     for(UA_UInt32 i = 0; i < tries + runIn + runOut; i++) {
-        if(i >= runIn && i <= runIn+tries)
+        if(i >= runIn && i < runIn+tries)
             tic = UA_DateTime_now();
         if(defaultParams){
             if(ua_client_connectUA("127.0.0.1",atoi("16664"),&endpoint,&connectionInfo,stateless,udp) != 0){
@@ -652,16 +652,17 @@ int main(int argc, char *argv[]) {
             closeSecureChannel(&connectionInfo);
         }
         close(connectionInfo.socket);
-        if(i >= runIn && i <= runIn+tries){
+        if(i >= runIn && i < runIn+tries){
             toc = UA_DateTime_now() - tic;
-            timeDiffs[i] = (UA_Double)toc/(UA_Double)1e4;
-            sum = sum + timeDiffs[i];
+            timeDiffs[i-runIn] = (UA_Double)toc/(UA_Double)1e4;
+            sum = sum + timeDiffs[i-runIn];
         }
     }
 
     /* REQUEST END*/
 
     UA_Double mean = sum / tries;
+    printf("total time for requests: %16.10f ms \n",sum);
     printf("mean time for handling request: %16.10f ms \n",mean);
 
     if(received>0)
