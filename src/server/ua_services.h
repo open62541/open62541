@@ -108,11 +108,8 @@ void Service_CloseSession(UA_Server *server, UA_Session *session, const UA_Close
 /** Used to add one or more Nodes into the AddressSpace hierarchy. */
 void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesRequest *request,
                       UA_AddNodesResponse *response);
-void Service_AddNodes_single(UA_Server *server, UA_Session *session, UA_Node *node,
-                             const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                             UA_AddNodesResult *result);
-void Service_AddNodes_single_fromAttributes(UA_Server *server, UA_Session *session, UA_AddNodesItem *item,
-                                            UA_NodeAttributes *attr, const UA_DataType *attributeType, UA_AddNodesResult *result);
+void Service_AddNodes_single(UA_Server *server, UA_Session *session, UA_AddNodesItem *item,
+                             UA_NodeAttributes *attr, const UA_DataType *attributeType, UA_AddNodesResult *result);
 
 /** Used to add one or more References to one or more Nodes. */
 void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddReferencesRequest *request,

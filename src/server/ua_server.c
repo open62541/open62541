@@ -141,8 +141,8 @@ addNodeInternal(UA_Server *server, UA_Node *node, const UA_NodeId parentNodeId,
                 const UA_NodeId referenceTypeId) {
     UA_AddNodesResult res;
     UA_AddNodesResult_init(&res);
-    Service_AddNodes_single(server, &adminSession, node, &parentNodeId,
-                            &referenceTypeId, &res);
+    UA_Server_addExistingNode(server, &adminSession, node, &parentNodeId,
+                              &referenceTypeId, &res);
     return res;
 }
 
@@ -167,8 +167,8 @@ UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
     UA_NodeAttributes *attrCopy = UA_alloca(attributeType->memSize);
     result.statusCode |= UA_copy(attr, attrCopy, attributeType);
     if(result.statusCode == UA_STATUSCODE_GOOD)
-        Service_AddNodes_single_fromAttributes(server, &adminSession, &item,
-                                               attrCopy, attributeType, &result);
+        Service_AddNodes_single(server, &adminSession, &item,
+                                attrCopy, attributeType, &result);
 
     UA_AddNodesItem_deleteMembers(&item);
     UA_deleteMembers(attrCopy, attributeType);
