@@ -140,9 +140,30 @@ Service_AddNodes_single_fromVariableAttributes(UA_Server *server, UA_Session *se
         UA_VariableNode_delete(vnode);
 }
 
+static UA_StatusCode
+setInstanceHandle(UA_Server *server, UA_Session *session, UA_ObjectNode *node, void *instanceHandle) {
+    node->instanceHandle = instanceHandle;
+    return UA_STATUSCODE_GOOD;
+}
+
 static void
 Service_AddNodes_single_fromObjectAttributes(UA_Server *server, UA_Session *session, UA_AddNodesItem *item,
                                              UA_ObjectAttributes *attr, UA_AddNodesResult *result) {
+    /* Get the parent node */
+    const UA_Node *parent = UA_NULL;
+    if(!UA_NodeId_isNull(&item->parentNodeId.nodeId)) {
+        parent = UA_NodeStore_get(server->nodestore, &item->parentNodeId.nodeId);
+        if(!parent) {
+            result->statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID;
+            return;
+        }
+        if(parent->nodeClass == UA_NODECLASS_OBJECTTYPE) {
+            UA_NodeStore_release(parent);
+            result->statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID;
+            return;
+        }
+    }
+    
     UA_ObjectNode *onode = UA_ObjectNode_new();
     if(!onode) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -154,13 +175,27 @@ Service_AddNodes_single_fromObjectAttributes(UA_Server *server, UA_Session *sess
 
     UA_Server_addExistingNode(server, session, (UA_Node*)onode, &item->parentNodeId.nodeId,
                               &item->referenceTypeId, result);
-    if(result->statusCode != UA_STATUSCODE_GOOD)
+    if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_ObjectNode_delete(onode);
+        return;
+    }
+
+    if(!parent)
+        return;
+
+    /* call the constructor */
+    void *instanceHandle =
+        ((const UA_ObjectTypeNode*)parent)->instanceManagement.constructor(result->addedNodeId);
+    UA_Server_editNode(server, session, &result->addedNodeId,
+                (UA_EditNodeCallback)setInstanceHandle, instanceHandle);
+    UA_NodeStore_release(parent);
+    return;
 }
 
 static void
-Service_AddNodes_single_fromReferenceTypeAttributes(UA_Server *server, UA_Session *session, UA_AddNodesItem *item,
-                                                    UA_ReferenceTypeAttributes *attr, UA_AddNodesResult *result) {
+Service_AddNodes_single_fromReferenceTypeAttributes(UA_Server *server, UA_Session *session,
+                                                    UA_AddNodesItem *item, UA_ReferenceTypeAttributes *attr,
+                                                    UA_AddNodesResult *result) {
     UA_ReferenceTypeNode *rtnode = UA_ReferenceTypeNode_new();
     if(!rtnode) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;

@@ -141,6 +141,7 @@ void UA_ObjectNode_init(UA_ObjectNode *p) {
 	UA_Node_init((UA_Node*)p);
     p->nodeClass = UA_NODECLASS_OBJECT;
     p->eventNotifier = 0;
+    p->instanceHandle = UA_NULL;
 }
 
 UA_ObjectNode * UA_ObjectNode_new(void) {
@@ -161,6 +162,7 @@ void UA_ObjectNode_delete(UA_ObjectNode *p) {
 
 UA_StatusCode UA_ObjectNode_copy(const UA_ObjectNode *src, UA_ObjectNode *dst) {
     dst->eventNotifier = src->eventNotifier;
+    dst->instanceHandle = src->instanceHandle;
 	return UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
 }
 
@@ -169,6 +171,7 @@ void UA_ObjectTypeNode_init(UA_ObjectTypeNode *p) {
 	UA_Node_init((UA_Node*)p);
     p->nodeClass = UA_NODECLASS_OBJECTTYPE;
     p->isAbstract = UA_FALSE;
+    p->instanceManagement = (UA_ObjectInstanceManagement){UA_NULL};
 }
 
 UA_ObjectTypeNode * UA_ObjectTypeNode_new(void) {
@@ -189,6 +192,7 @@ void UA_ObjectTypeNode_delete(UA_ObjectTypeNode *p) {
 
 UA_StatusCode UA_ObjectTypeNode_copy(const UA_ObjectTypeNode *src, UA_ObjectTypeNode *dst) {
     dst->isAbstract = src->isAbstract;
+    dst->instanceManagement = src->instanceManagement;
 	return UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
 }
 
@@ -229,10 +233,10 @@ UA_StatusCode UA_VariableNode_copy(const UA_VariableNode *src, UA_VariableNode *
 	UA_StatusCode retval = UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
     dst->valueRank = src->valueRank;
     dst->valueSource = src->valueSource;
-    if(src->valueSource == UA_VALUESOURCE_VARIANT){
+    if(src->valueSource == UA_VALUESOURCE_VARIANT) {
         retval = UA_Variant_copy(&src->value.variant.value, &dst->value.variant.value);
         dst->value.variant.callback = src->value.variant.callback;
-    }else
+    } else
         dst->value.dataSource = src->value.dataSource;
     if(retval) {
         UA_VariableNode_deleteMembers(dst);

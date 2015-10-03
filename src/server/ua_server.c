@@ -1284,6 +1284,22 @@ UA_Server_setNodeAttribute_value_dataSource(UA_Server *server, const UA_NodeId n
                               (UA_EditNodeCallback)setDataSource, &dataSource);
 }
 
+static UA_StatusCode
+setObjectManagement(UA_Server *server, UA_Session *session, UA_ObjectTypeNode* node,
+                    UA_ObjectInstanceManagement *oim) {
+    if(node->nodeClass != UA_NODECLASS_OBJECTTYPE)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    node->instanceManagement = *oim;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_EXPORT
+UA_Server_setObjectInstanceManagement(UA_Server *server, UA_NodeId nodeId,
+                                      UA_ObjectInstanceManagement oim) {
+    return UA_Server_editNode(server, &adminSession, &nodeId,
+                              (UA_EditNodeCallback)setObjectManagement, &oim);
+}
+
 UA_StatusCode
 UA_Server_getNodeAttribute(UA_Server *server, const UA_NodeId nodeId,
                            const UA_AttributeId attributeId, void *v) {
