@@ -103,7 +103,7 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
 }
 
 UA_StatusCode UA_Server_deleteNode(UA_Server *server, UA_NodeId nodeId) {
-    return Service_DeleteNodes_single(server, &adminSession, nodeId, UA_TRUE);
+    return Service_DeleteNodes_single(server, &adminSession, &nodeId, UA_TRUE);
 }
 
 UA_StatusCode

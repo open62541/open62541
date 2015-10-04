@@ -120,7 +120,7 @@ UA_StatusCode Service_AddReferences_single(UA_Server *server, UA_Session *sessio
 /** Used to delete one or more Nodes from the AddressSpace. */
 void Service_DeleteNodes(UA_Server *server, UA_Session *session, const UA_DeleteNodesRequest *request,
                          UA_DeleteNodesResponse *response);
-UA_StatusCode Service_DeleteNodes_single(UA_Server *server, UA_Session *session, UA_NodeId nodeId,
+UA_StatusCode Service_DeleteNodes_single(UA_Server *server, UA_Session *session, UA_NodeId *nodeId,
                                          UA_Boolean deleteReferences);
 
 /** Used to delete one or more References of a Node. */

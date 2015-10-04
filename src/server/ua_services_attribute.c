@@ -223,27 +223,27 @@ void Service_Read_single(UA_Server *server, UA_Session *session, const UA_Timest
     case UA_ATTRIBUTEID_ISABSTRACT:
         CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE | UA_NODECLASS_OBJECTTYPE |
                         UA_NODECLASS_VARIABLETYPE | UA_NODECLASS_DATATYPE);
-        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_ReferenceTypeNode *)node)->isAbstract,
+        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_ReferenceTypeNode*)node)->isAbstract,
                                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
     case UA_ATTRIBUTEID_SYMMETRIC:
         CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE);
-        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_ReferenceTypeNode *)node)->symmetric,
+        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_ReferenceTypeNode*)node)->symmetric,
                                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
     case UA_ATTRIBUTEID_INVERSENAME:
         CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE);
-        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_ReferenceTypeNode *)node)->inverseName,
+        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_ReferenceTypeNode*)node)->inverseName,
                                           &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         break;
     case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
         CHECK_NODECLASS(UA_NODECLASS_VIEW);
-        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_ViewNode *)node)->containsNoLoops,
+        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_ViewNode*)node)->containsNoLoops,
                                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
     case UA_ATTRIBUTEID_EVENTNOTIFIER:
         CHECK_NODECLASS(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT);
-        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_ViewNode *)node)->eventNotifier,
+        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_ViewNode*)node)->eventNotifier,
                                           &UA_TYPES[UA_TYPES_BYTE]);
         break;
     case UA_ATTRIBUTEID_VALUE:
@@ -256,7 +256,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session, const UA_Timest
         break;
     case UA_ATTRIBUTEID_VALUERANK:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_VariableTypeNode *)node)->valueRank,
+        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_VariableTypeNode*)node)->valueRank,
                                            &UA_TYPES[UA_TYPES_INT32]);
         break;
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
@@ -280,17 +280,17 @@ void Service_Read_single(UA_Server *server, UA_Session *session, const UA_Timest
         break;
     case UA_ATTRIBUTEID_HISTORIZING:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
-        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_VariableNode *)node)->historizing,
+        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_VariableNode*)node)->historizing,
                                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
     case UA_ATTRIBUTEID_EXECUTABLE:
         CHECK_NODECLASS(UA_NODECLASS_METHOD);
-        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_MethodNode *)node)->executable,
+        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_MethodNode*)node)->executable,
                                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
     case UA_ATTRIBUTEID_USEREXECUTABLE:
         CHECK_NODECLASS(UA_NODECLASS_METHOD);
-        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_MethodNode *)node)->userExecutable,
+        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_MethodNode*)node)->userExecutable,
                                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
     default:

@@ -354,6 +354,7 @@ START_TEST(ReadSingleAttributeEventNotifierWithoutTimestamp) {
     rReq.nodesToRead[0].nodeId = UA_NODEID_NUMERIC(1, 50);
     rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
     Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
     ck_assert_int_eq(-1, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BYTE],resp.value.type);
     ck_assert_int_eq(*(UA_Byte*)resp.value.data, 0);

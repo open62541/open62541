@@ -319,28 +319,30 @@ int main(int argc, char** argv) {
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, DEMOID),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Demo"),
-                            UA_NODEID_NULL, object_attr);
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr);
 
 #define SCALARID 50001
     object_attr.description = UA_LOCALIZEDTEXT("en_US","Scalar");
     object_attr.displayName = UA_LOCALIZEDTEXT("en_US","Scalar");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, SCALARID),
                             UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                            UA_QUALIFIEDNAME(1, "Scalar"), UA_NODEID_NULL, object_attr);
+                            UA_QUALIFIEDNAME(1, "Scalar"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr);
 
 #define ARRAYID 50002
     object_attr.description = UA_LOCALIZEDTEXT("en_US","Array");
     object_attr.displayName = UA_LOCALIZEDTEXT("en_US","Array");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, ARRAYID),
                             UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                            UA_QUALIFIEDNAME(1, "Array"), UA_NODEID_NULL, object_attr);
+                            UA_QUALIFIEDNAME(1, "Array"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr);
 
 #define MATRIXID 50003
     object_attr.description = UA_LOCALIZEDTEXT("en_US","Matrix");
     object_attr.displayName = UA_LOCALIZEDTEXT("en_US","Matrix");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, MATRIXID), UA_NODEID_NUMERIC(1, DEMOID),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Matrix"),
-                            UA_NODEID_NULL, object_attr);
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr);
 
     UA_UInt32 id = 51000; // running id in namespace 0
     for(UA_UInt32 type = 0; UA_IS_BUILTIN(type); type++) {
