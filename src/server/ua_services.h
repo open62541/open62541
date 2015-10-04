@@ -148,6 +148,9 @@ UA_StatusCode Service_DeleteReferences_single(UA_Server *server, UA_Session *ses
 void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseRequest *request,
                     UA_BrowseResponse *response);
 
+void Service_Browse_single(UA_Server *server, UA_Session *session, struct ContinuationPointEntry *cp,
+                           const UA_BrowseDescription *descr, UA_UInt32 maxrefs, UA_BrowseResult *result);
+
 /**
  * Used to request the next set of Browse or BrowseNext response information
  * that is too large to be sent in a single response. "Too large" in this
