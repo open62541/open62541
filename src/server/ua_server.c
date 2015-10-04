@@ -167,8 +167,7 @@ UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
     UA_NodeAttributes *attrCopy = UA_alloca(attributeType->memSize);
     result.statusCode |= UA_copy(attr, attrCopy, attributeType);
     if(result.statusCode == UA_STATUSCODE_GOOD)
-        Service_AddNodes_single(server, &adminSession, &item,
-                                attrCopy, attributeType, &result);
+        Service_AddNodes_single(server, &adminSession, &item, attrCopy, &result);
 
     UA_AddNodesItem_deleteMembers(&item);
     UA_deleteMembers(attrCopy, attributeType);
