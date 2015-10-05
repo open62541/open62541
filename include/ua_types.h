@@ -323,7 +323,10 @@ UA_Boolean UA_EXPORT UA_String_equal(const UA_String *s1, const UA_String *s2); 
 UA_StatusCode UA_EXPORT UA_String_copyprintf(char const fmt[], UA_String *dst, ...); ///> Printf a char-array into a UA_String. Memory for the string data is allocated.
 UA_EXPORT extern const UA_String UA_STRING_NULL;
 static UA_INLINE UA_String UA_STRING(char *chars) {
-    return (UA_String){strlen(chars), (UA_Byte*)chars }; }
+    UA_String str;
+    str.length = strlen(chars);
+    str.data = (UA_Byte*)chars;
+    return str; }
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
 
 /* DateTime */
@@ -351,7 +354,7 @@ UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime time);
 
 /* Guid */
 UA_Guid UA_EXPORT * UA_Guid_new(void);
-static UA_INLINE void UA_Guid_init(UA_Guid *p) { *p = (UA_Guid){0,0,0,{0,0,0,0,0,0,0,0}}; }
+static UA_INLINE void UA_Guid_init(UA_Guid *p) { memset(p, 0, sizeof(UA_Guid)); }
 void UA_EXPORT UA_Guid_delete(UA_Guid *p);
 static UA_INLINE void UA_Guid_deleteMembers(UA_Guid *p) { }
 static UA_INLINE UA_StatusCode UA_Guid_copy(const UA_Guid *src, UA_Guid *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
@@ -370,7 +373,10 @@ static UA_INLINE UA_StatusCode UA_ByteString_copy(const UA_ByteString *src, UA_B
 UA_StatusCode UA_EXPORT UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length);
 UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
 static UA_INLINE UA_ByteString UA_BYTESTRING(char *chars) {
-    return (UA_ByteString){strlen(chars), (UA_Byte*)chars }; }
+    UA_ByteString str;
+    str.length = strlen(chars);
+    str.data = (UA_Byte*)chars;
+    return str; }
 #define UA_BYTESTRING_ALLOC(CHARS) (UA_ByteString)UA_String_fromChars(CHARS)
 
 /* XmlElement */
@@ -401,23 +407,41 @@ UA_NodeId UA_EXPORT UA_NodeId_fromByteString(UA_UInt16 nsIndex, UA_ByteString id
 UA_NodeId UA_EXPORT UA_NodeId_fromByteStringCopy(UA_UInt16 nsIndex, UA_ByteString identifier);
 UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
 static UA_INLINE UA_NodeId UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_Int32 identifier) {
-    return (UA_NodeId){.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_NUMERIC,
-            .identifier.numeric = identifier }; }
+    UA_NodeId id;
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_NUMERIC;
+    id.identifier.numeric = identifier;
+    return id; }
 static UA_INLINE UA_NodeId UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars) {
-    return (UA_NodeId){.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_STRING,
-            .identifier.string = UA_STRING(chars) }; }
+    UA_NodeId id;
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_STRING;
+    id.identifier.string = UA_STRING(chars);
+    return id; }
 static UA_INLINE UA_NodeId UA_NODEID_STRING_ALLOC(UA_UInt16 nsIndex, char *chars) {
-    return (UA_NodeId){.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_STRING,
-            .identifier.string = UA_STRING_ALLOC(chars) }; }
+    UA_NodeId id;
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_STRING;
+    id.identifier.string = UA_STRING_ALLOC(chars);
+    return id; }
 static UA_INLINE UA_NodeId UA_NODEID_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
-    return (UA_NodeId){.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_GUID,
-            .identifier.guid = guid }; }
+    UA_NodeId id;
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_GUID;
+    id.identifier.guid = guid;
+    return id; }
 static UA_INLINE UA_NodeId UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
-    return (UA_NodeId){.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_BYTESTRING,
-            .identifier.byteString = UA_BYTESTRING(chars) }; }
+    UA_NodeId id;
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_BYTESTRING;
+    id.identifier.string = UA_BYTESTRING(chars);
+    return id; }
 static UA_INLINE UA_NodeId UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, char *chars) {
-    return (UA_NodeId){.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_BYTESTRING,
-            .identifier.byteString = UA_BYTESTRING_ALLOC(chars) }; }
+    UA_NodeId id;
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_BYTESTRING;
+    id.identifier.string = UA_BYTESTRING_ALLOC(chars);
+    return id; }
 
 /* ExpandedNodeId */
 UA_ExpandedNodeId UA_EXPORT * UA_ExpandedNodeId_new(void);
@@ -428,23 +452,41 @@ UA_StatusCode UA_EXPORT UA_ExpandedNodeId_copy(const UA_ExpandedNodeId *src, UA_
 UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
 static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_Int32 identifier) {
-    return (UA_ExpandedNodeId) {.nodeId = {.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_NUMERIC,
-               .identifier.numeric = identifier }, .serverIndex = 0, .namespaceUri = UA_STRING_NULL}; }
+    UA_ExpandedNodeId id;
+    id.nodeId = UA_NODEID_NUMERIC(nsIndex, identifier);
+    id.serverIndex = 0;
+    id.namespaceUri = UA_STRING_NULL;
+    return id; }
 static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_STRING(UA_UInt16 nsIndex, char *chars) {
-    return (UA_ExpandedNodeId) {.nodeId = {.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_STRING,
-               .identifier.string = UA_STRING(chars) }, .serverIndex = 0, .namespaceUri = UA_STRING_NULL}; }
+    UA_ExpandedNodeId id;
+    id.nodeId = UA_NODEID_STRING(nsIndex, chars);
+    id.serverIndex = 0;
+    id.namespaceUri = UA_STRING_NULL;
+    return id; }
 static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_STRING_ALLOC(UA_UInt16 nsIndex, char *chars) {
-    return (UA_ExpandedNodeId) {.nodeId = {.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_STRING,
-               .identifier.string = UA_STRING_ALLOC(chars) }, .serverIndex = 0, .namespaceUri = UA_STRING_NULL}; }
+    UA_ExpandedNodeId id;
+    id.nodeId = UA_NODEID_STRING_ALLOC(nsIndex, chars);
+    id.serverIndex = 0;
+    id.namespaceUri = UA_STRING_NULL;
+    return id; }
 static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_STRING_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
-    return (UA_ExpandedNodeId) {.nodeId = {.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_GUID,
-               .identifier.guid = guid }, .serverIndex = 0, .namespaceUri = UA_STRING_NULL}; }
+    UA_ExpandedNodeId id;
+    id.nodeId = UA_NODEID_GUID(nsIndex, guid);
+    id.serverIndex = 0;
+    id.namespaceUri = UA_STRING_NULL;
+    return id; }
 static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
-    return (UA_ExpandedNodeId) {.nodeId = {.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_BYTESTRING,
-               .identifier.byteString = UA_BYTESTRING(chars) }, .serverIndex = 0, .namespaceUri = UA_STRING_NULL}; }
+    UA_ExpandedNodeId id;
+    id.nodeId = UA_NODEID_BYTESTRING(nsIndex, chars);
+    id.serverIndex = 0;
+    id.namespaceUri = UA_STRING_NULL;
+    return id; }
 static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, char *chars) {
-    return (UA_ExpandedNodeId) {.nodeId = {.namespaceIndex = nsIndex, .identifierType = UA_NODEIDTYPE_BYTESTRING,
-               .identifier.byteString = UA_BYTESTRING_ALLOC(chars) }, .serverIndex = 0, .namespaceUri = UA_STRING_NULL}; }
+    UA_ExpandedNodeId id;
+    id.nodeId = UA_NODEID_BYTESTRING_ALLOC(nsIndex, chars);
+    id.serverIndex = 0;
+    id.namespaceUri = UA_STRING_NULL;
+    return id; }
 
 /* StatusCode */
 UA_StatusCode UA_EXPORT * UA_StatusCode_new(void);
@@ -461,9 +503,15 @@ void UA_EXPORT UA_QualifiedName_delete(UA_QualifiedName *p);
 void UA_EXPORT UA_QualifiedName_deleteMembers(UA_QualifiedName *p);
 UA_StatusCode UA_EXPORT UA_QualifiedName_copy(const UA_QualifiedName *src, UA_QualifiedName *dst);
 static UA_INLINE UA_QualifiedName UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars) {
-    return (UA_QualifiedName){.namespaceIndex = nsIndex, .name = UA_STRING(chars) }; }
+    UA_QualifiedName qn;
+    qn.namespaceIndex = nsIndex;
+    qn.name = UA_STRING(chars);
+    return qn; }
 static UA_INLINE UA_QualifiedName UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, char *chars) {
-    return (UA_QualifiedName){.namespaceIndex = nsIndex, .name = UA_STRING_ALLOC(chars) }; }
+    UA_QualifiedName qn;
+    qn.namespaceIndex = nsIndex;
+    qn.name = UA_STRING_ALLOC(chars);
+    return qn; }
 
 /* LocalizedText */
 UA_LocalizedText UA_EXPORT * UA_LocalizedText_new(void);
@@ -472,9 +520,15 @@ void UA_EXPORT UA_LocalizedText_delete(UA_LocalizedText *p);
 void UA_EXPORT UA_LocalizedText_deleteMembers(UA_LocalizedText *p);
 UA_StatusCode UA_EXPORT UA_LocalizedText_copy(const UA_LocalizedText *src, UA_LocalizedText *dst);
 static UA_INLINE UA_LocalizedText UA_LOCALIZEDTEXT(char *locale, char *text) {
-    return (UA_LocalizedText) {.locale = UA_STRING(locale), .text = UA_STRING(text) }; }
+    UA_LocalizedText lt;
+    lt.locale = UA_STRING(locale);
+    lt.text = UA_STRING(text);
+    return lt; }
 static UA_INLINE UA_LocalizedText UA_LOCALIZEDTEXT_ALLOC(char *locale, char *text) {
-    return (UA_LocalizedText) {.locale = UA_STRING_ALLOC(locale), .text = UA_STRING_ALLOC(text) }; }
+    UA_LocalizedText lt;
+    lt.locale = UA_STRING_ALLOC(locale);
+    lt.text = UA_STRING_ALLOC(text);
+    return lt; }
 
 /* ExtensionObject */
 UA_ExtensionObject UA_EXPORT * UA_ExtensionObject_new(void);
