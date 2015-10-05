@@ -426,7 +426,7 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const U
             UA_Node_deleteAnyNodeClass(copy);
             return retval;
         }
-        retval = UA_NodeStore_replace(server->nodestore, orig, copy, UA_NULL);
+        retval = UA_NodeStore_replace(server->nodestore, node, copy, UA_NULL);
         if(retval != UA_STATUSCODE_GOOD)
             UA_Node_deleteAnyNodeClass(copy);
 #endif
