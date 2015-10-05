@@ -434,13 +434,13 @@ static UA_INLINE UA_NodeId UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) 
     UA_NodeId id;
     id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_BYTESTRING;
-    id.identifier.string = UA_BYTESTRING(chars);
+    id.identifier.byteString = UA_BYTESTRING(chars);
     return id; }
 static UA_INLINE UA_NodeId UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, char *chars) {
     UA_NodeId id;
     id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_BYTESTRING;
-    id.identifier.string = UA_BYTESTRING_ALLOC(chars);
+    id.identifier.byteString = UA_BYTESTRING_ALLOC(chars);
     return id; }
 
 /* ExpandedNodeId */
