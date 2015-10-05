@@ -377,7 +377,13 @@ static UA_INLINE UA_ByteString UA_BYTESTRING(char *chars) {
     str.length = strlen(chars);
     str.data = (UA_Byte*)chars;
     return str; }
-#define UA_BYTESTRING_ALLOC(CHARS) (UA_ByteString)UA_String_fromChars(CHARS)
+static UA_INLINE UA_ByteString UA_BYTESTRING_ALLOC(const char *chars) {
+    UA_String str = UA_String_fromChars(chars);
+    UA_ByteString bstr;
+    bstr.length = str.length;
+    bstr.data = str.data;
+    return bstr;
+}
 
 /* XmlElement */
 static UA_INLINE UA_XmlElement * UA_XmlElement_new(void) { return UA_String_new(); }
