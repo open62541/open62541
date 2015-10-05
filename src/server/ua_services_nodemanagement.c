@@ -573,11 +573,11 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
 /* Add Special Nodes (not possible over the wire) */
 /**************************************************/
 
-UA_AddNodesResult
+UA_StatusCode UA_EXPORT
 UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                                     const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                                     const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
-                                    const UA_VariableAttributes attr, const UA_DataSource dataSource) {
+                                    const UA_VariableAttributes attr, const UA_DataSource dataSource, UA_NodeId *outNewNodeId) {
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
 
@@ -595,15 +595,14 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
     if(result.statusCode != UA_STATUSCODE_GOOD) {
         UA_AddNodesItem_deleteMembers(&item);
         UA_VariableAttributes_deleteMembers(&attrCopy);
-        return result;
+        return result.statusCode;
     }
 
     UA_VariableNode *node = UA_VariableNode_new();
     if(!node) {
-        result.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         UA_AddNodesItem_deleteMembers(&item);
         UA_VariableAttributes_deleteMembers(&attrCopy);
-        return result;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     moveStandardAttributes((UA_Node*)node, &item, (UA_NodeAttributes*)&attrCopy);
@@ -622,17 +621,23 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
 
     if(result.statusCode != UA_STATUSCODE_GOOD)
         UA_VariableNode_delete(node);
-    return result;
+
+    if(outNewNodeId && result.statusCode == UA_STATUSCODE_GOOD)
+        *outNewNodeId = result.addedNodeId;
+    else
+        UA_AddNodesResult_deleteMembers(&result);
+    return result.statusCode;
 }
 
 #ifdef ENABLE_METHODCALLS
-UA_AddNodesResult UA_EXPORT
+UA_StatusCode UA_EXPORT
 UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                         const UA_QualifiedName browseName, const UA_MethodAttributes attr,
                         UA_MethodCallback method, void *handle,
                         UA_Int32 inputArgumentsSize, const UA_Argument* inputArguments, 
-                        UA_Int32 outputArgumentsSize, const UA_Argument* outputArguments) {
+                        UA_Int32 outputArgumentsSize, const UA_Argument* outputArguments,
+                        UA_NodeId *outNewNodeId) {
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
     
@@ -649,7 +654,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     if(result.statusCode != UA_STATUSCODE_GOOD) {
         UA_AddNodesItem_deleteMembers(&item);
         UA_MethodAttributes_deleteMembers(&attrCopy);
-        return result;
+        return result.statusCode;
     }
 
     UA_MethodNode *node = UA_MethodNode_new();
@@ -657,7 +662,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
         result.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         UA_AddNodesItem_deleteMembers(&item);
         UA_MethodAttributes_deleteMembers(&attrCopy);
-        return result;
+        return result.statusCode;
     }
     
     moveStandardAttributes((UA_Node*)node, &item, (UA_NodeAttributes*)&attrCopy);
@@ -670,55 +675,51 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
 
     UA_Server_addExistingNode(server, &adminSession, (UA_Node*)node, &item.parentNodeId.nodeId,
                               &item.referenceTypeId, &result);
-    if(result.statusCode != UA_STATUSCODE_GOOD) {
+    if(result.statusCode != UA_STATUSCODE_GOOD)
         UA_MethodNode_delete(node);
-        return result;
+    
+    if(result.statusCode == UA_STATUSCODE_GOOD && method != UA_NULL) {
+        UA_ExpandedNodeId parent;
+        UA_ExpandedNodeId_init(&parent);
+        parent.nodeId = result.addedNodeId;
+    
+        /* create InputArguments */
+        UA_VariableNode *inputArgumentsVariableNode = UA_VariableNode_new();
+        inputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
+        inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME_ALLOC(0,"InputArguments");
+        inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
+        inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
+        inputArgumentsVariableNode->valueRank = 1;
+        UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant.value, inputArguments,
+                                inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
+        UA_AddNodesResult inputAddRes;
+        const UA_NodeId hasproperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+        UA_Server_addExistingNode(server, &adminSession, (UA_Node*)inputArgumentsVariableNode,
+                                  &parent.nodeId, &hasproperty, &inputAddRes);
+        // todo: check if adding succeeded
+        UA_AddNodesResult_deleteMembers(&inputAddRes);
+
+        /* create OutputArguments */
+        UA_VariableNode *outputArgumentsVariableNode  = UA_VariableNode_new();
+        outputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
+        outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME_ALLOC(0,"OutputArguments");
+        outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
+        outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
+        outputArgumentsVariableNode->valueRank = 1;
+        UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.variant.value, outputArguments,
+                                outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
+        UA_AddNodesResult outputAddRes;
+        UA_Server_addExistingNode(server, &adminSession, (UA_Node*)outputArgumentsVariableNode,
+                                  &parent.nodeId, &hasproperty, &outputAddRes);
+        // todo: check if adding succeeded
+        UA_AddNodesResult_deleteMembers(&outputAddRes);
     }
-    
-    /* Only proceed with creating in/outputArguments if the method and both arguments are not
-     * UA_NULL; otherwise this is a pretty strong indicator that this node was generated,
-     * in which case these arguments will be created later and individually.
-     */
-    if(method == UA_NULL && inputArguments == UA_NULL && outputArguments == UA_NULL &&
-       inputArgumentsSize <= 0 && outputArgumentsSize <= 0)
-        return result;
 
-    UA_ExpandedNodeId parent;
-    UA_ExpandedNodeId_init(&parent);
-    parent.nodeId = result.addedNodeId;
-    
-    /* create InputArguments */
-    UA_VariableNode *inputArgumentsVariableNode = UA_VariableNode_new();
-    inputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
-    inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME_ALLOC(0,"InputArguments");
-    inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
-    inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
-    inputArgumentsVariableNode->valueRank = 1;
-    UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant.value, inputArguments,
-                            inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
-    UA_AddNodesResult inputAddRes;
-    const UA_NodeId hasproperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    UA_Server_addExistingNode(server, &adminSession, (UA_Node*)inputArgumentsVariableNode,
-                              &parent.nodeId, &hasproperty, &inputAddRes);
-    // todo: check if adding succeeded
-    UA_AddNodesResult_deleteMembers(&inputAddRes);
-
-    /* create OutputArguments */
-    UA_VariableNode *outputArgumentsVariableNode  = UA_VariableNode_new();
-    outputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
-    outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME_ALLOC(0,"OutputArguments");
-    outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
-    outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
-    outputArgumentsVariableNode->valueRank = 1;
-    UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.variant.value, outputArguments,
-                            outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
-    UA_AddNodesResult outputAddRes;
-    UA_Server_addExistingNode(server, &adminSession, (UA_Node*)outputArgumentsVariableNode,
-                              &parent.nodeId, &hasproperty, &outputAddRes);
-    // todo: check if adding succeeded
-    UA_AddNodesResult_deleteMembers(&outputAddRes);
-
-    return result;
+    if(outNewNodeId && result.statusCode == UA_STATUSCODE_GOOD)
+        *outNewNodeId = result.addedNodeId;
+    else
+        UA_AddNodesResult_deleteMembers(&result);
+    return result.statusCode;
 }
 #endif
 

@@ -34,7 +34,7 @@ static UA_Server* makeTestSequence(void) {
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, vattr);
+                              UA_NODEID_NULL, vattr, NULL);
 
     /* ObjectNode */
     UA_ObjectAttributes obj_attr;
@@ -46,7 +46,7 @@ static UA_Server* makeTestSequence(void) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                             UA_QUALIFIEDNAME(1, "Demo"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE),
-                            obj_attr);
+                            obj_attr, NULL);
 
     /* ViewNode */
     UA_ViewAttributes view_attr;
@@ -56,7 +56,7 @@ static UA_Server* makeTestSequence(void) {
     UA_Server_addViewNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWNODE),
                           UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER),
                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                          UA_QUALIFIEDNAME_ALLOC(0, "Viewtest"), view_attr);
+                          UA_QUALIFIEDNAME_ALLOC(0, "Viewtest"), view_attr, NULL);
 
 #ifdef ENABLE_METHODCALLS
 	/* MethodNode */
@@ -68,7 +68,7 @@ static UA_Server* makeTestSequence(void) {
                             UA_NODEID_NUMERIC(0, 3),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                             UA_QUALIFIEDNAME_ALLOC(0, "Methodtest"), ma,
-                            NULL, NULL, -1, NULL, -1, NULL);
+                            NULL, NULL, -1, NULL, -1, NULL, NULL);
 #endif
 
 	return server;
@@ -958,8 +958,7 @@ int main(void) {
 	Suite *s;
 	s = testSuite_services_attributes();
 	SRunner *sr = srunner_create(s);
-	srunner_set_log(sr, "test.log");
-	srunner_set_fork_status(sr, CK_NOFORK);
+	// srunner_set_fork_status(sr, CK_NOFORK);
 	srunner_run_all(sr, CK_NORMAL);
 
 	number_failed += srunner_ntests_failed(sr);

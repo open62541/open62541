@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
     UA_Server_addDataSourceVariableNode(server, myIntegerNodeId,
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                        myIntegerName, UA_NODEID_NULL, attr, dateDataSource);
+                                        myIntegerName, UA_NODEID_NULL, attr, dateDataSource, NULL);
 
     UA_StatusCode retval = UA_Server_run(server, 1, &running);
     UA_Server_delete(server);

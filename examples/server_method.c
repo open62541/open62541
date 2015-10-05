@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "hello world"), 
                             helloAttr, &helloWorldMethod, NULL,
-                            1, &inputArguments, 1, &outputArguments);
+                            1, &inputArguments, 1, &outputArguments, NULL);
 
     //END OF EXAMPLE 1
 
@@ -129,7 +129,7 @@ int main(int argc, char** argv) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), 
                             UA_QUALIFIEDNAME(1, "IncInt32ArrayValues"),
                             incAttr, &IncInt32ArrayValuesMethod, NULL,
-                            1, &inputArguments, 1, &outputArguments);
+                            1, &inputArguments, 1, &outputArguments, NULL);
     //END OF EXAMPLE 2
 
     /* start server */

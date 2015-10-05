@@ -147,12 +147,12 @@ addNodeInternal(UA_Server *server, UA_Node *node, const UA_NodeId parentNodeId,
     return res;
 }
 
-UA_AddNodesResult
+UA_StatusCode
 UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
                   const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
                   const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
                   const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
-                  const UA_DataType *attributeType) {
+                  const UA_DataType *attributeType, UA_NodeId *outNewNodeId) {
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
 
@@ -170,9 +170,13 @@ UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
     if(result.statusCode == UA_STATUSCODE_GOOD)
         Service_AddNodes_single(server, &adminSession, &item, attrCopy, &result);
 
+    if(outNewNodeId && result.statusCode == UA_STATUSCODE_GOOD)
+        *outNewNodeId = result.addedNodeId;
+    else
+        UA_AddNodesResult_deleteMembers(&result);
     UA_AddNodesItem_deleteMembers(&item);
     UA_deleteMembers(attrCopy, attributeType);
-    return result;
+    return result.statusCode;
 }
 
 /*****************/

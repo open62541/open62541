@@ -126,11 +126,10 @@ class open62541_MacroHelper():
     else:
       code.append("UA_QualifiedName nodeName = UA_QUALIFIEDNAME(0, \"" + str(node.browseName()) + "\");")
 
-    code.append("UA_AddNodesResult res = UA_Server_add%sNode(server, nodeId, parentNodeId, parentReferenceNodeId, nodeName" % nodetype)
+    code.append("UA_Server_add%sNode(server, nodeId, parentNodeId, parentReferenceNodeId, nodeName" % nodetype)
     if nodetype in ["Object", "Variable"]:
       code.append("       , typeDefinition")
-    code.append("       , attr);")
-    code.append("UA_AddNodesResult_deleteMembers(&res);")
+    code.append("       , attr, NULL);")
       
     return code
     

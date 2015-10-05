@@ -54,10 +54,9 @@ int main(int argc, char** argv) {
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_AddNodesResult res = UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
-                                                      parentReferenceNodeId, myIntegerName,
-                                                      UA_NODEID_NULL, attr);
-    UA_AddNodesResult_deleteMembers(&res);
+    UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
+                              parentReferenceNodeId, myIntegerName,
+                              UA_NODEID_NULL, attr, NULL);
 
     UA_ValueCallback callback = {(void*)7, onRead, onWrite};
     UA_Server_setAttribute_value_callback(server, myIntegerNodeId, callback);
