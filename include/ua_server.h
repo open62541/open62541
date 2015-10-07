@@ -510,8 +510,6 @@ void UA_EXPORT UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLaye
 
 /** @} */
 
-#ifndef __cplusplus /* the external nodestore does not work with c++ so far */
-
 /**
  * @ingroup nodestore
  *
@@ -588,7 +586,6 @@ UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, cons
 #endif /* UA_EXTERNAL_NAMESPACES*/
 /** @} */
 
-#endif /* external nodestore */
 
 #ifndef _HAVE_UA_INSTANTIONCALLBACK_D
 #define _HAVE_UA_INSTANTIONCALLBACK_D
