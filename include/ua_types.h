@@ -455,7 +455,6 @@ void UA_EXPORT UA_ExpandedNodeId_init(UA_ExpandedNodeId *p);
 void UA_EXPORT UA_ExpandedNodeId_delete(UA_ExpandedNodeId *p);
 void UA_EXPORT UA_ExpandedNodeId_deleteMembers(UA_ExpandedNodeId *p);
 UA_StatusCode UA_EXPORT UA_ExpandedNodeId_copy(const UA_ExpandedNodeId *src, UA_ExpandedNodeId *dst);
-UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
 static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_Int32 identifier) {
     UA_ExpandedNodeId id;
@@ -731,7 +730,7 @@ UA_StatusCode UA_EXPORT UA_copy(const void *src, void *dst, const UA_DataType *d
  */
 void UA_EXPORT UA_deleteMembers(void *p, const UA_DataType *dataType);
 
-void UA_EXPORT UA_deleteMembersUntil(void *p, const UA_DataType *dataType, UA_Int32 lastMember);
+void UA_EXPORT UA_deleteMembersUntil(void *p, const UA_DataType *dataType, size_t lastMember);
 
 /**
  * Deletes (frees) a variable and all of its content.

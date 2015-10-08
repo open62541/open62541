@@ -930,7 +930,47 @@ UA_StatusCode UA_DiagnosticInfo_decodeBinary(UA_ByteString const *src, size_t *U
 
 UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_ByteString *dst,
                               size_t *UA_RESTRICT offset) {
-    uintptr_t ptr = (uintptr_t) src;
+    /* builtin types */
+    switch (dataType->typeIndex) {
+    case UA_TYPES_BOOLEAN:
+    case UA_TYPES_SBYTE:
+    case UA_TYPES_BYTE:
+        return UA_Byte_encodeBinary((const UA_Byte*)src, dst, offset);
+    case UA_TYPES_INT16:
+    case UA_TYPES_UINT16:
+        return UA_UInt16_encodeBinary((const UA_UInt16*)src, dst, offset);
+    case UA_TYPES_INT32:
+    case UA_TYPES_UINT32:
+    case UA_TYPES_STATUSCODE:
+        return UA_UInt32_encodeBinary((const UA_UInt32*)src, dst, offset);
+    case UA_TYPES_INT64:
+    case UA_TYPES_UINT64:
+    case UA_TYPES_DATETIME:
+        return UA_UInt64_encodeBinary((const UA_UInt64*)src, dst, offset);
+    case UA_TYPES_FLOAT:
+        return UA_Float_encodeBinary((const UA_Float*)src, dst, offset);
+    case UA_TYPES_DOUBLE:
+        return UA_Double_encodeBinary((const UA_Double*)src, dst, offset);
+    case UA_TYPES_GUID:
+        return UA_Guid_encodeBinary((const UA_Guid*)src, dst, offset);
+    case UA_TYPES_NODEID:
+        return UA_NodeId_encodeBinary((const UA_NodeId*)src, dst, offset);
+    case UA_TYPES_EXPANDEDNODEID:
+        return UA_ExpandedNodeId_encodeBinary((const UA_ExpandedNodeId*)src, dst, offset);
+    case UA_TYPES_LOCALIZEDTEXT:
+        return UA_LocalizedText_encodeBinary((const UA_LocalizedText*)src, dst, offset);
+    case UA_TYPES_EXTENSIONOBJECT:
+        return UA_ExtensionObject_encodeBinary((const UA_ExtensionObject*)src, dst, offset);
+    case UA_TYPES_DATAVALUE:
+        return UA_DataValue_encodeBinary((const UA_DataValue*)src, dst, offset);
+    case UA_TYPES_VARIANT:
+        return UA_Variant_encodeBinary((const UA_Variant*)src, dst, offset);
+    case UA_TYPES_DIAGNOSTICINFO:
+        return UA_DiagnosticInfo_encodeBinary((const UA_DiagnosticInfo*)src, dst, offset);
+    }
+
+    /* structured type */
+    uintptr_t ptr = (uintptr_t)src;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Byte membersSize = dataType->membersSize;
     for(size_t i = 0; i < membersSize && retval == UA_STATUSCODE_GOOD; i++) {
@@ -940,84 +980,63 @@ UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_B
             memberType = &UA_TYPES[member->memberTypeIndex];
         else
             memberType = &dataType[member->memberTypeIndex - dataType->typeIndex];
-        if(member->isArray) {
+        if(!member->isArray) {
+            ptr += member->padding;
+            retval = UA_encodeBinary((const void*) ptr, memberType, dst, offset);
+            ptr += memberType->memSize;
+        } else {
             ptr += (member->padding >> 3);
             const UA_Int32 noElements = *((const UA_Int32*) ptr);
             ptr += sizeof(UA_Int32) + (member->padding & 0x07);
             retval = UA_Array_encodeBinary(*(void * const *) ptr, noElements, memberType, dst, offset);
             ptr += sizeof(void*);
-            continue;
         }
-
-        ptr += member->padding;
-        if(!member->namespaceZero) {
-            UA_encodeBinary((const void*) ptr, memberType, dst, offset);
-            ptr += memberType->memSize;
-            continue;
-        }
-
-        switch (member->memberTypeIndex) {
-        case UA_TYPES_BOOLEAN:
-        case UA_TYPES_SBYTE:
-        case UA_TYPES_BYTE:
-            retval = UA_Byte_encodeBinary((const UA_Byte*) ptr, dst, offset);
-            break;
-        case UA_TYPES_INT16:
-        case UA_TYPES_UINT16:
-            retval = UA_UInt16_encodeBinary((const UA_UInt16*) ptr, dst, offset);
-            break;
-        case UA_TYPES_INT32:
-        case UA_TYPES_UINT32:
-        case UA_TYPES_STATUSCODE:
-            retval = UA_UInt32_encodeBinary((const UA_UInt32*) ptr, dst, offset);
-            break;
-        case UA_TYPES_INT64:
-        case UA_TYPES_UINT64:
-        case UA_TYPES_DATETIME:
-            retval = UA_UInt64_encodeBinary((const UA_UInt64*) ptr, dst, offset);
-            break;
-        case UA_TYPES_FLOAT:
-            retval = UA_Float_encodeBinary((const UA_Float*) ptr, dst, offset);
-            break;
-        case UA_TYPES_DOUBLE:
-            retval = UA_Double_encodeBinary((const UA_Double*) ptr, dst, offset);
-            break;
-        case UA_TYPES_GUID:
-            retval = UA_Guid_encodeBinary((const UA_Guid*) ptr, dst, offset);
-            break;
-        case UA_TYPES_NODEID:
-            retval = UA_NodeId_encodeBinary((const UA_NodeId*) ptr, dst, offset);
-            break;
-        case UA_TYPES_EXPANDEDNODEID:
-            retval = UA_ExpandedNodeId_encodeBinary((const UA_ExpandedNodeId*) ptr, dst, offset);
-            break;
-        case UA_TYPES_LOCALIZEDTEXT:
-            retval = UA_LocalizedText_encodeBinary((const UA_LocalizedText*) ptr, dst, offset);
-            break;
-        case UA_TYPES_EXTENSIONOBJECT:
-            retval = UA_ExtensionObject_encodeBinary((const UA_ExtensionObject*) ptr, dst, offset);
-            break;
-        case UA_TYPES_DATAVALUE:
-            retval = UA_DataValue_encodeBinary((const UA_DataValue*) ptr, dst, offset);
-            break;
-        case UA_TYPES_VARIANT:
-            retval = UA_Variant_encodeBinary((const UA_Variant*) ptr, dst, offset);
-            break;
-        case UA_TYPES_DIAGNOSTICINFO:
-            retval = UA_DiagnosticInfo_encodeBinary((const UA_DiagnosticInfo*) ptr, dst, offset);
-            break;
-        default:
-            // also handles UA_TYPES_QUALIFIEDNAME, UA_TYPES_STRING, UA_TYPES_BYTESTRING,
-            // UA_TYPES_XMLELEMENT
-            retval = UA_encodeBinary((const void*) ptr, memberType, dst, offset);
-        }
-        ptr += memberType->memSize;
     }
     return retval;
 }
 
 UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset,
                               void *dst, const UA_DataType *dataType) {
+    /* builtin types */
+    switch (dataType->typeIndex) {
+    case UA_TYPES_BOOLEAN:
+    case UA_TYPES_SBYTE:
+    case UA_TYPES_BYTE:
+        return UA_Byte_decodeBinary(src, offset, (UA_Byte*)dst);
+    case UA_TYPES_INT16:
+    case UA_TYPES_UINT16:
+        return UA_Int16_decodeBinary(src, offset, (UA_Int16*)dst);
+    case UA_TYPES_INT32:
+    case UA_TYPES_UINT32:
+    case UA_TYPES_STATUSCODE:
+        return UA_UInt32_decodeBinary(src, offset, (UA_UInt32*)dst);
+    case UA_TYPES_INT64:
+    case UA_TYPES_UINT64:
+    case UA_TYPES_DATETIME:
+        return UA_UInt64_decodeBinary(src, offset, (UA_UInt64*)dst);
+    case UA_TYPES_FLOAT:
+        return UA_Float_decodeBinary(src, offset, (UA_Float*)dst);
+    case UA_TYPES_DOUBLE:
+        return UA_Double_decodeBinary(src, offset, (UA_Double*)dst);
+    case UA_TYPES_GUID:
+        return UA_Guid_decodeBinary(src, offset, (UA_Guid*)dst);
+    case UA_TYPES_NODEID:
+        return UA_NodeId_decodeBinary(src, offset, (UA_NodeId*)dst);
+    case UA_TYPES_EXPANDEDNODEID:
+        return UA_ExpandedNodeId_decodeBinary(src, offset, (UA_ExpandedNodeId*)dst);
+    case UA_TYPES_LOCALIZEDTEXT:
+        return UA_LocalizedText_decodeBinary(src, offset, (UA_LocalizedText*)dst);
+    case UA_TYPES_EXTENSIONOBJECT:
+        return UA_ExtensionObject_decodeBinary(src, offset, (UA_ExtensionObject*)dst);
+    case UA_TYPES_DATAVALUE:
+        return UA_DataValue_decodeBinary(src, offset, (UA_DataValue*)dst);
+    case UA_TYPES_VARIANT:
+        return UA_Variant_decodeBinary(src, offset, (UA_Variant*)dst);
+    case UA_TYPES_DIAGNOSTICINFO:
+        return UA_DiagnosticInfo_decodeBinary(src, offset, (UA_DiagnosticInfo*)dst);
+    }
+
+    /* structured types */
     uintptr_t ptr = (uintptr_t) dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Byte membersSize = dataType->membersSize;
@@ -1029,84 +1048,24 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offs
             memberType = &UA_TYPES[member->memberTypeIndex];
         else
             memberType = &dataType[member->memberTypeIndex - dataType->typeIndex];
-        if(member->isArray) {
+        if(!member->isArray) {
+            ptr += member->padding;
+            retval = UA_decodeBinary(src, offset, (void*)ptr, memberType);
+            ptr += memberType->memSize;
+        } else {
             ptr += (member->padding >> 3);
             UA_Int32 *noElements = (UA_Int32*) ptr;
             UA_Int32 tempNoElements = 0;
-            retval |= UA_Int32_decodeBinary(src, offset, &tempNoElements);
-            if(retval)
-                continue;
+            retval = UA_Int32_decodeBinary(src, offset, &tempNoElements);
+            if(retval != UA_STATUSCODE_GOOD)
+                break;
             ptr += sizeof(UA_Int32) + (member->padding & 0x07);
-            retval = UA_Array_decodeBinary(src, offset, tempNoElements, (void**) ptr, memberType);
-            if(retval == UA_STATUSCODE_GOOD)
-                *noElements = tempNoElements;
+            retval = UA_Array_decodeBinary(src, offset, tempNoElements, (void**)ptr, memberType);
+            if(retval != UA_STATUSCODE_GOOD)
+                break;
+            *noElements = tempNoElements;
             ptr += sizeof(void*);
-            continue;
         }
-
-        ptr += member->padding;
-        if(!member->namespaceZero) {
-            UA_decodeBinary(src, offset, (void*) ptr, memberType);
-            ptr += memberType->memSize;
-            continue;
-        }
-
-        switch (member->memberTypeIndex) {
-        case UA_TYPES_BOOLEAN:
-        case UA_TYPES_SBYTE:
-        case UA_TYPES_BYTE:
-            retval = UA_Byte_decodeBinary(src, offset, (UA_Byte*) ptr);
-            break;
-        case UA_TYPES_INT16:
-        case UA_TYPES_UINT16:
-            retval = UA_Int16_decodeBinary(src, offset, (UA_Int16*) ptr);
-            break;
-        case UA_TYPES_INT32:
-        case UA_TYPES_UINT32:
-        case UA_TYPES_STATUSCODE:
-            retval = UA_UInt32_decodeBinary(src, offset, (UA_UInt32*) ptr);
-            break;
-        case UA_TYPES_INT64:
-        case UA_TYPES_UINT64:
-        case UA_TYPES_DATETIME:
-            retval = UA_UInt64_decodeBinary(src, offset, (UA_UInt64*) ptr);
-            break;
-        case UA_TYPES_FLOAT:
-            retval = UA_Float_decodeBinary(src, offset, (UA_Float*) ptr);
-            break;
-        case UA_TYPES_DOUBLE:
-            retval = UA_Double_decodeBinary(src, offset, (UA_Double*) ptr);
-            break;
-        case UA_TYPES_GUID:
-            retval = UA_Guid_decodeBinary(src, offset, (UA_Guid*) ptr);
-            break;
-        case UA_TYPES_NODEID:
-            retval = UA_NodeId_decodeBinary(src, offset, (UA_NodeId*) ptr);
-            break;
-        case UA_TYPES_EXPANDEDNODEID:
-            retval = UA_ExpandedNodeId_decodeBinary(src, offset, (UA_ExpandedNodeId*) ptr);
-            break;
-        case UA_TYPES_LOCALIZEDTEXT:
-            retval = UA_LocalizedText_decodeBinary(src, offset, (UA_LocalizedText*) ptr);
-            break;
-        case UA_TYPES_EXTENSIONOBJECT:
-            retval = UA_ExtensionObject_decodeBinary(src, offset, (UA_ExtensionObject*) ptr);
-            break;
-        case UA_TYPES_DATAVALUE:
-            retval = UA_DataValue_decodeBinary(src, offset, (UA_DataValue*) ptr);
-            break;
-        case UA_TYPES_VARIANT:
-            retval = UA_Variant_decodeBinary(src, offset, (UA_Variant*) ptr);
-            break;
-        case UA_TYPES_DIAGNOSTICINFO:
-            retval = UA_DiagnosticInfo_decodeBinary(src, offset, (UA_DiagnosticInfo*) ptr);
-            break;
-        default:
-            // also handles UA_TYPES_QUALIFIEDNAME, UA_TYPES_STRING, UA_TYPES_BYTESTRING,
-            // UA_TYPES_XMLELEMENT
-            retval = UA_decodeBinary(src, offset, (void*) ptr, memberType);
-        }
-        ptr += memberType->memSize;
     }
     if(retval != UA_STATUSCODE_GOOD)
         UA_deleteMembersUntil(dst, dataType, i);
@@ -1271,6 +1230,44 @@ static size_t UA_DiagnosticInfo_calcSizeBinary(UA_DiagnosticInfo const *p) {
 }
 
 size_t UA_calcSizeBinary(const void *p, const UA_DataType *dataType) {
+    /* builtin types */
+    switch (dataType->typeIndex) {
+    case UA_TYPES_BOOLEAN:
+    case UA_TYPES_SBYTE:
+    case UA_TYPES_BYTE:
+        return 1;
+    case UA_TYPES_INT16:
+    case UA_TYPES_UINT16:
+        return 2;
+    case UA_TYPES_INT32:
+    case UA_TYPES_UINT32:
+    case UA_TYPES_STATUSCODE:
+    case UA_TYPES_FLOAT:
+        return 4;
+    case UA_TYPES_INT64:
+    case UA_TYPES_UINT64:
+    case UA_TYPES_DOUBLE:
+    case UA_TYPES_DATETIME:
+        return 8;
+    case UA_TYPES_GUID:
+        return 16;
+    case UA_TYPES_NODEID:
+        return UA_NodeId_calcSizeBinary((const UA_NodeId*)p);
+    case UA_TYPES_EXPANDEDNODEID:
+        return UA_ExpandedNodeId_calcSizeBinary((const UA_ExpandedNodeId*)p);
+    case UA_TYPES_LOCALIZEDTEXT:
+        return UA_LocalizedText_calcSizeBinary((const UA_LocalizedText*)p);
+    case UA_TYPES_EXTENSIONOBJECT:
+        return UA_ExtensionObject_calcSizeBinary((const UA_ExtensionObject*)p);
+    case UA_TYPES_DATAVALUE:
+        return UA_DataValue_calcSizeBinary((const UA_DataValue*)p);
+    case UA_TYPES_VARIANT:
+        return UA_Variant_calcSizeBinary((const UA_Variant*)p);
+    case UA_TYPES_DIAGNOSTICINFO:
+        return UA_DiagnosticInfo_calcSizeBinary((const UA_DiagnosticInfo*)p);
+    }
+
+    /* structured types */
     size_t size = 0;
     uintptr_t ptr = (uintptr_t) p;
     UA_Byte membersSize = dataType->membersSize;
@@ -1281,73 +1278,18 @@ size_t UA_calcSizeBinary(const void *p, const UA_DataType *dataType) {
             memberType = &UA_TYPES[member->memberTypeIndex];
         else
             memberType = &dataType[member->memberTypeIndex - dataType->typeIndex];
-
-        if(member->isArray) {
+        if(!member->isArray) {
+            ptr += member->padding;
+            size += UA_calcSizeBinary((const void*)ptr, memberType);
+            ptr += memberType->memSize;
+        } else {
             ptr += (member->padding >> 3);
             const UA_Int32 elements = *((const UA_Int32*) ptr);
             ptr += sizeof(UA_Int32) + (member->padding & 0x07);
-            size += UA_Array_calcSizeBinary(*(void * const *) ptr, elements, memberType);
+            size += UA_Array_calcSizeBinary(*(void * const *)ptr, elements, memberType);
             ptr += sizeof(void*);
             continue;
         }
-
-        ptr += member->padding;
-        if(!member->namespaceZero) {
-            size += UA_calcSizeBinary((const void*) ptr, memberType);
-            ptr += memberType->memSize;
-            continue;
-        }
-
-        switch (member->memberTypeIndex) {
-        case UA_TYPES_BOOLEAN:
-        case UA_TYPES_SBYTE:
-        case UA_TYPES_BYTE:
-            size += 1;
-            break;
-        case UA_TYPES_INT16:
-        case UA_TYPES_UINT16:
-            size += 2;
-            break;
-        case UA_TYPES_INT32:
-        case UA_TYPES_UINT32:
-        case UA_TYPES_STATUSCODE:
-        case UA_TYPES_FLOAT:
-            size += 4;
-            break;
-        case UA_TYPES_INT64:
-        case UA_TYPES_UINT64:
-        case UA_TYPES_DOUBLE:
-        case UA_TYPES_DATETIME:
-            size += 8;
-            break;
-        case UA_TYPES_GUID:
-            size += 16;
-            break;
-        case UA_TYPES_NODEID:
-            size += UA_NodeId_calcSizeBinary((const UA_NodeId*) ptr);
-            break;
-        case UA_TYPES_EXPANDEDNODEID:
-            size += UA_ExpandedNodeId_calcSizeBinary((const UA_ExpandedNodeId*) ptr);
-            break;
-        case UA_TYPES_LOCALIZEDTEXT:
-            size += UA_LocalizedText_calcSizeBinary((const UA_LocalizedText*) ptr);
-            break;
-        case UA_TYPES_EXTENSIONOBJECT:
-            size += UA_ExtensionObject_calcSizeBinary((const UA_ExtensionObject*) ptr);
-            break;
-        case UA_TYPES_DATAVALUE:
-            size += UA_DataValue_calcSizeBinary((const UA_DataValue*) ptr);
-            break;
-        case UA_TYPES_VARIANT:
-            size += UA_Variant_calcSizeBinary((const UA_Variant*) ptr);
-            break;
-        case UA_TYPES_DIAGNOSTICINFO:
-            size += UA_DiagnosticInfo_calcSizeBinary((const UA_DiagnosticInfo*) ptr);
-            break;
-        default:
-            size += UA_calcSizeBinary((const void*) ptr, memberType);
-        }
-        ptr += memberType->memSize;
     }
     return size;
 }
