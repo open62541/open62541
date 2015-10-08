@@ -424,7 +424,7 @@ static UA_INLINE UA_NodeId UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars) {
     id.identifierType = UA_NODEIDTYPE_STRING;
     id.identifier.string = UA_STRING(chars);
     return id; }
-static UA_INLINE UA_NodeId UA_NODEID_STRING_ALLOC(UA_UInt16 nsIndex, char *chars) {
+static UA_INLINE UA_NodeId UA_NODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
     UA_NodeId id;
     id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_STRING;
@@ -442,7 +442,7 @@ static UA_INLINE UA_NodeId UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) 
     id.identifierType = UA_NODEIDTYPE_BYTESTRING;
     id.identifier.byteString = UA_BYTESTRING(chars);
     return id; }
-static UA_INLINE UA_NodeId UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, char *chars) {
+static UA_INLINE UA_NodeId UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
     UA_NodeId id;
     id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_BYTESTRING;
@@ -469,7 +469,7 @@ static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_STRING(UA_UInt16 nsIndex, c
     id.serverIndex = 0;
     id.namespaceUri = UA_STRING_NULL;
     return id; }
-static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_STRING_ALLOC(UA_UInt16 nsIndex, char *chars) {
+static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
     UA_ExpandedNodeId id;
     id.nodeId = UA_NODEID_STRING_ALLOC(nsIndex, chars);
     id.serverIndex = 0;
@@ -487,7 +487,7 @@ static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsInde
     id.serverIndex = 0;
     id.namespaceUri = UA_STRING_NULL;
     return id; }
-static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, char *chars) {
+static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
     UA_ExpandedNodeId id;
     id.nodeId = UA_NODEID_BYTESTRING_ALLOC(nsIndex, chars);
     id.serverIndex = 0;
@@ -513,7 +513,7 @@ static UA_INLINE UA_QualifiedName UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *char
     qn.namespaceIndex = nsIndex;
     qn.name = UA_STRING(chars);
     return qn; }
-static UA_INLINE UA_QualifiedName UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, char *chars) {
+static UA_INLINE UA_QualifiedName UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, const char *chars) {
     UA_QualifiedName qn;
     qn.namespaceIndex = nsIndex;
     qn.name = UA_STRING_ALLOC(chars);
@@ -530,7 +530,7 @@ static UA_INLINE UA_LocalizedText UA_LOCALIZEDTEXT(char *locale, char *text) {
     lt.locale = UA_STRING(locale);
     lt.text = UA_STRING(text);
     return lt; }
-static UA_INLINE UA_LocalizedText UA_LOCALIZEDTEXT_ALLOC(char *locale, char *text) {
+static UA_INLINE UA_LocalizedText UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text) {
     UA_LocalizedText lt;
     lt.locale = UA_STRING_ALLOC(locale);
     lt.text = UA_STRING_ALLOC(text);

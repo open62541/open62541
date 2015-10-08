@@ -451,8 +451,11 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     server->description.applicationName =
         UA_LOCALIZEDTEXT_ALLOC("en_US", server->config.Application_applicationName);
     server->description.applicationType = UA_APPLICATIONTYPE_SERVER;
+
+#ifdef UA_EXTERNAL_NAMESPACES
     server->externalNamespacesSize = 0;
     server->externalNamespaces = UA_NULL;
+#endif
 
     /* ns0 and ns1 */
     server->namespaces = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 2);

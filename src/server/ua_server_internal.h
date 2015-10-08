@@ -15,6 +15,7 @@
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
 
+#ifdef UA_EXTERNAL_NAMESPACES
 /** Mapping of namespace-id and url to an external nodestore. For namespaces
     that have no mapping defined, the internal nodestore is used by default. */
 typedef struct UA_ExternalNamespace {
@@ -22,6 +23,7 @@ typedef struct UA_ExternalNamespace {
 	UA_String url;
 	UA_ExternalNodeStore externalNodeStore;
 } UA_ExternalNamespace;
+#endif
 
 struct UA_Server {
     /* Config */
@@ -49,8 +51,11 @@ struct UA_Server {
     UA_NodeStore *nodestore;
     size_t namespacesSize;
     UA_String *namespaces;
+
+#ifdef UA_EXTERNAL_NAMESPACES
     size_t externalNamespacesSize;
     UA_ExternalNamespace *externalNamespaces;
+#endif
      
     /* Jobs with a repetition interval */
     LIST_HEAD(RepeatedJobsList, RepeatedJobs) repeatedJobs;
