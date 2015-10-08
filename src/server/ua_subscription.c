@@ -345,16 +345,11 @@ int MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *d
     // Count instead of relying on the items currentValue
     TAILQ_FOREACH(queueItem, &monitoredItem->queue, listEntry) {
         dst[queueSize].clientHandle = monitoredItem->clientHandle;
+        UA_DataValue_copy(&queueItem->value, &dst[queueSize].value);
+
         dst[queueSize].value.hasServerPicoseconds = UA_FALSE;
         dst[queueSize].value.hasServerTimestamp   = UA_TRUE;
         dst[queueSize].value.serverTimestamp      = UA_DateTime_now();
-        dst[queueSize].value.hasSourcePicoseconds = UA_FALSE;
-        dst[queueSize].value.hasSourceTimestamp   = UA_TRUE;
-        dst[queueSize].value.sourceTimestamp      = UA_DateTime_now();
-        dst[queueSize].value.hasValue             = UA_TRUE;
-        dst[queueSize].value.status = UA_STATUSCODE_GOOD;
-    
-        UA_Variant_copy(&(queueItem->value), &(dst[queueSize].value.value));
     
         // Do not create variants with no type -> will make calcSizeBinary() segfault.
         if(dst[queueSize].value.value.type)
@@ -374,7 +369,7 @@ void MonitoredItem_ClearQueue(UA_MonitoredItem *monitoredItem) {
 }
 
 UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, const UA_Node *src,
-                                                     UA_Variant *dst) {
+                                                     UA_DataValue *dst) {
     UA_Boolean samplingError = UA_TRUE; 
     UA_DataValue sourceDataValue;
     UA_DataValue_init(&sourceDataValue);
@@ -383,31 +378,31 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
     // FIXME: Not all attributeIDs can be monitored yet
     switch(attributeID) {
     case UA_ATTRIBUTEID_NODEID:
-        UA_Variant_setScalarCopy(dst, (const UA_NodeId*)&src->nodeId, &UA_TYPES[UA_TYPES_NODEID]);
+        UA_Variant_setScalarCopy(&dst->value, (const UA_NodeId*)&src->nodeId, &UA_TYPES[UA_TYPES_NODEID]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_NODECLASS:
-        UA_Variant_setScalarCopy(dst, (const UA_Int32*)&src->nodeClass, &UA_TYPES[UA_TYPES_INT32]);
+        UA_Variant_setScalarCopy(&dst->value, (const UA_Int32*)&src->nodeClass, &UA_TYPES[UA_TYPES_INT32]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_BROWSENAME:
-        UA_Variant_setScalarCopy(dst, (const UA_String*)&src->browseName, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+        UA_Variant_setScalarCopy(&dst->value, (const UA_String*)&src->browseName, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_DISPLAYNAME:
-        UA_Variant_setScalarCopy(dst, (const UA_String*)&src->displayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        UA_Variant_setScalarCopy(&dst->value, (const UA_String*)&src->displayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_DESCRIPTION:
-        UA_Variant_setScalarCopy(dst, (const UA_String*)&src->displayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        UA_Variant_setScalarCopy(&dst->value, (const UA_String*)&src->displayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_WRITEMASK:
-        UA_Variant_setScalarCopy(dst, (const UA_String*)&src->writeMask, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalarCopy(&dst->value, (const UA_String*)&src->writeMask, &UA_TYPES[UA_TYPES_UINT32]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_USERWRITEMASK:
-        UA_Variant_setScalarCopy(dst, (const UA_String*)&src->writeMask, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalarCopy(&dst->value, (const UA_String*)&src->writeMask, &UA_TYPES[UA_TYPES_UINT32]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_ISABSTRACT:
@@ -424,7 +419,7 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
         if(src->nodeClass == UA_NODECLASS_VARIABLE) {
             const UA_VariableNode *vsrc = (const UA_VariableNode*)src;
             if(srcAsVariableNode->valueSource == UA_VALUESOURCE_VARIANT) {
-                UA_Variant_copy(&vsrc->value.variant.value, dst);
+                UA_Variant_copy(&vsrc->value.variant.value, &dst->value);
                 //no onRead callback here since triggered by a subscription
                 samplingError = UA_FALSE;
             } else {
@@ -434,7 +429,7 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
                 if(srcAsVariableNode->value.dataSource.read(vsrc->value.dataSource.handle, vsrc->nodeId, UA_TRUE, UA_NULL,
                                                             &sourceDataValue) != UA_STATUSCODE_GOOD)
                     break;
-                UA_Variant_copy(&sourceDataValue.value, dst);
+                UA_DataValue_copy(&sourceDataValue, dst);
                 if(sourceDataValue.value.data) {
                     UA_deleteMembers(sourceDataValue.value.data, sourceDataValue.value.type);
                     UA_free(sourceDataValue.value.data);
@@ -488,7 +483,7 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
 
     newvalue->listEntry.tqe_next = UA_NULL;
     newvalue->listEntry.tqe_prev = UA_NULL;
-    UA_Variant_init(&newvalue->value);
+    UA_DataValue_init(&newvalue->value);
 
     // Verify that the *Node being monitored is still valid
     // Looking up the in the nodestore is only necessary if we suspect that it is changed during writes
@@ -501,9 +496,10 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
   
     UA_Boolean samplingError = MonitoredItem_CopyMonitoredValueToVariant(monitoredItem->attributeID, target,
                                                                          &newvalue->value);
+
     UA_NodeStore_release(target);
-    if(samplingError != UA_FALSE || !newvalue->value.type) {
-        UA_Variant_deleteMembers(&newvalue->value);
+    if(samplingError != UA_FALSE || !newvalue->value.value.type) {
+        UA_DataValue_deleteMembers(&newvalue->value);
         UA_free(newvalue);
         return;
     }
@@ -521,9 +517,9 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
     }
   
     // encode the data to find if its different to the previous
-    newValueAsByteString.length = UA_calcSizeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_VARIANT]);
+    newValueAsByteString.length = UA_calcSizeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE]);
     newValueAsByteString.data   = UA_malloc(newValueAsByteString.length);
-    UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_VARIANT], &newValueAsByteString, &encodingOffset);
+    UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE], &newValueAsByteString, &encodingOffset);
   
     if(!monitoredItem->lastSampledValue.data) { 
         UA_ByteString_copy(&newValueAsByteString, &monitoredItem->lastSampledValue);
@@ -533,7 +529,7 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
         UA_free(newValueAsByteString.data);
     } else {
         if(UA_String_equal(&newValueAsByteString, &monitoredItem->lastSampledValue) == UA_TRUE) {
-            UA_Variant_deleteMembers(&newvalue->value);
+            UA_DataValue_deleteMembers(&newvalue->value);
             UA_free(newvalue);
             UA_String_deleteMembers(&newValueAsByteString);
             return;
