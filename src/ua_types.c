@@ -893,10 +893,6 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
         return UA_STATUSCODE_GOOD;
     }
     switch(dataType->typeIndex) {
-        /* fixed size */
-        /* UA_TYPES_BOOLEAN, UA_TYPES_SBYTE, UA_TYPES_BYTE, UA_TYPES_INT16, UA_TYPES_UINT16, */
-        /* UA_TYPES_INT32, UA_TYPES_UINT32, UA_TYPES_STATUSCODE, UA_TYPES_FLOAT, UA_TYPES_INT64, */
-        /* UA_TYPES_UINT64, UA_TYPES_DOUBLE, UA_TYPES_DATETIME, UA_TYPES_GUID */
     case UA_TYPES_NODEID:
         return UA_NodeId_copy((const UA_NodeId*)src, (UA_NodeId*)dst);
     case UA_TYPES_EXTENSIONOBJECT:
