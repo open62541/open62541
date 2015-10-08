@@ -86,7 +86,7 @@ typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server *server, UA_Session*, UA_
 UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                                  UA_EditNodeCallback callback, const void *data);
 
-void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, UA_ByteString *msg);
+void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
 
 UA_StatusCode UA_Server_addDelayedJob(UA_Server *server, UA_Job job);
 

@@ -404,7 +404,12 @@ static void processCLO(UA_Connection *connection, UA_Server *server, const UA_By
     Service_CloseSecureChannel(server, secureChannelId);
 }
 
-void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, UA_ByteString *msg) {
+/**
+ * process binary message received from socket
+ * dose not modify UA_ByteString you have to free it youself.
+ * use of connection->getSendBuffer() and connection->sent() to answer Message
+ */
+void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg) {
     size_t pos = 0;
     UA_TcpMessageHeader tcpMessageHeader;
     do {

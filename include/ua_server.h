@@ -541,16 +541,9 @@ UA_StatusCode UA_EXPORT
 UA_Server_getNodeAttribute_method(UA_Server *server, UA_NodeId methodNodeId, UA_MethodCallback *method);
 #endif
 
-#ifndef __cplusplus /* the external nodestore does not work with c++ so far */
-
 /**
- * @ingroup nodestore
- *
- * @defgroup external_nodestore External Nodestore
- *
- * @brief An external application that manages its own data and data model
- *
- * To plug in outside data sources, one can use
+ * An external application that manages its own data and data model. To plug in
+ * outside data sources, one can use
  *
  * - VariableNodes with a data source (functions that are called for read and write access)
  * - An external nodestore that is mapped to specific namespaces
@@ -615,15 +608,7 @@ typedef struct UA_ExternalNodeStore {
 
 #ifdef UA_EXTERNAL_NAMESPACES
 UA_StatusCode UA_EXPORT
-UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex,
-                               const UA_String *url, UA_ExternalNodeStore *nodeStore);
-#endif /* UA_EXTERNAL_NAMESPACES*/
-/** @} */
-
-#endif /* external nodestore */
-
-#ifdef __cplusplus
-} // extern "C"
-#endif
-
+UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, const UA_String *url,
+                               UA_ExternalNodeStore *nodeStore);
+#endif /* __cplusplus */
 #endif /* UA_SERVER_H_ */
