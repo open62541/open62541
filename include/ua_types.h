@@ -409,8 +409,8 @@ UA_StatusCode UA_EXPORT UA_ExpandedNodeId_copy(const UA_ExpandedNodeId *src, UA_
 UA_Boolean UA_EXPORT UA_ExpandedNodeId_isNull(const UA_ExpandedNodeId *p);
 #define UA_EXPANDEDNODEID_NUMERIC(NSID, NUMERICID) (UA_ExpandedNodeId) {            \
         .nodeId = {.namespaceIndex = NSID, .identifierType = UA_NODEIDTYPE_NUMERIC, \
-                   .identifier.numeric = NUMERICID },                               \
-        .serverIndex = 0, .namespaceUri = {.data = (UA_Byte*)0, .length = -1} }
+                   .identifier = {.numeric = NUMERICID }},                          \
+        .namespaceUri = {.length = -1, .data = (UA_Byte*)0}, .serverIndex = 0 }
 
 /* StatusCode */
 UA_StatusCode UA_EXPORT * UA_StatusCode_new(void);
