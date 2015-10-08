@@ -384,7 +384,8 @@ static size_t ServerNetworkLayerTCP_getJobs(ServerNetworkLayerTCP *layer, UA_Job
 }
 
 static size_t ServerNetworkLayerTCP_stop(ServerNetworkLayerTCP *layer, UA_Job **jobs) {
-    close(layer->serversockfd);
+    shutdown(layer->serversockfd,2);
+    CLOSESOCKET(layer->serversockfd);
     UA_Job *items = malloc(sizeof(UA_Job) * layer->mappingsSize * 2);
     if(!items)
         return 0;
