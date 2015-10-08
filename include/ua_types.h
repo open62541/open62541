@@ -495,7 +495,7 @@ static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 
     return id; }
 
 /* StatusCode */
-UA_StatusCode UA_EXPORT * UA_StatusCode_new(void);
+static UA_INLINE UA_StatusCode * UA_StatusCode_new(void) { return (UA_StatusCode*)UA_Int32_new(); }
 static UA_INLINE void UA_StatusCode_init(UA_StatusCode *p) { *p = UA_STATUSCODE_GOOD; }
 void UA_EXPORT UA_StatusCode_delete(UA_StatusCode *p);
 static UA_INLINE void UA_StatusCode_deleteMembers(UA_StatusCode *p) { }

@@ -358,7 +358,7 @@ referenceTypeNodeFromAttributes(UA_AddNodesItem *item, UA_ReferenceTypeAttribute
     UA_ReferenceTypeNode *rtnode = UA_ReferenceTypeNode_new();
     if(!rtnode)
         return UA_NULL;
-    moveStandardAttributes((UA_Node*)rtnode, item, (UA_NodeAttributes*)&attr);
+    moveStandardAttributes((UA_Node*)rtnode, item, (UA_NodeAttributes*)attr);
     rtnode->isAbstract = attr->isAbstract;
     rtnode->symmetric = attr->symmetric;
     rtnode->inverseName = attr->inverseName;
