@@ -138,7 +138,7 @@ class BuiltinType(object):
                 ".padding = offsetof(UA_ExpandedNodeId, namespaceUri) - sizeof(UA_NodeId), .isArray = UA_FALSE }," + \
                 "\n\t{.memberTypeIndex = UA_TYPES_UINT32, .namespaceZero = UA_TRUE, " + \
                 (".memberName = \"serverIndex\", " if typeintrospection else "") + \
-                ".padding = offsetof(UA_ExpandedNodeId, serverIndex) - offsetof(UA_ExpandedNodeId, namespaceUri) - sizeof(UA_UInt32), .isArray = UA_FALSE }},\n" + \
+                ".padding = offsetof(UA_ExpandedNodeId, serverIndex) - offsetof(UA_ExpandedNodeId, namespaceUri) - sizeof(UA_String), .isArray = UA_FALSE }},\n" + \
                 ".typeIndex = UA_TYPES_EXPANDEDNODEID }"
 
         if self.name == "UA_QualifiedName":
