@@ -378,31 +378,31 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
     // FIXME: Not all attributeIDs can be monitored yet
     switch(attributeID) {
     case UA_ATTRIBUTEID_NODEID:
-        UA_Variant_setScalarCopy(dst, (const UA_NodeId*)&src->nodeId, &UA_TYPES[UA_TYPES_NODEID]);
+        UA_Variant_setScalarCopy(&dst->value, (const UA_NodeId*)&src->nodeId, &UA_TYPES[UA_TYPES_NODEID]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_NODECLASS:
-        UA_Variant_setScalarCopy(dst, (const UA_Int32*)&src->nodeClass, &UA_TYPES[UA_TYPES_INT32]);
+        UA_Variant_setScalarCopy(&dst->value, (const UA_Int32*)&src->nodeClass, &UA_TYPES[UA_TYPES_INT32]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_BROWSENAME:
-        UA_Variant_setScalarCopy(dst, (const UA_String*)&src->browseName, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+        UA_Variant_setScalarCopy(&dst->value, (const UA_String*)&src->browseName, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_DISPLAYNAME:
-        UA_Variant_setScalarCopy(dst, (const UA_String*)&src->displayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        UA_Variant_setScalarCopy(&dst->value, (const UA_String*)&src->displayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_DESCRIPTION:
-        UA_Variant_setScalarCopy(dst, (const UA_String*)&src->displayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        UA_Variant_setScalarCopy(&dst->value, (const UA_String*)&src->displayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_WRITEMASK:
-        UA_Variant_setScalarCopy(dst, (const UA_String*)&src->writeMask, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalarCopy(&dst->value, (const UA_String*)&src->writeMask, &UA_TYPES[UA_TYPES_UINT32]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_USERWRITEMASK:
-        UA_Variant_setScalarCopy(dst, (const UA_String*)&src->writeMask, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalarCopy(&dst->value, (const UA_String*)&src->writeMask, &UA_TYPES[UA_TYPES_UINT32]);
         samplingError = UA_FALSE;
         break;
     case UA_ATTRIBUTEID_ISABSTRACT:
@@ -419,7 +419,7 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
         if(src->nodeClass == UA_NODECLASS_VARIABLE) {
             const UA_VariableNode *vsrc = (const UA_VariableNode*)src;
             if(srcAsVariableNode->valueSource == UA_VALUESOURCE_VARIANT) {
-                UA_Variant_copy(&vsrc->value.variant.value, dst);
+                UA_Variant_copy(&vsrc->value.variant.value, &dst->value);
                 //no onRead callback here since triggered by a subscription
                 samplingError = UA_FALSE;
             } else {
