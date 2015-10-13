@@ -32,7 +32,7 @@ typedef enum {
 } UA_MONITOREDITEM_TYPE;
 
 typedef struct MonitoredItem_queuedValue {
-    UA_Variant value;
+    UA_DataValue value;
     TAILQ_ENTRY(MonitoredItem_queuedValue) listEntry;
 } MonitoredItem_queuedValue;
 
@@ -60,7 +60,7 @@ void MonitoredItem_delete(UA_MonitoredItem *monitoredItem);
 void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monitoredItem);
 void MonitoredItem_ClearQueue(UA_MonitoredItem *monitoredItem);
 UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, const UA_Node *src,
-                                                     UA_Variant *dst);
+                                                     UA_DataValue *dst);
 int MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *dst,
                                                  UA_MonitoredItem *monitoredItem);
 
