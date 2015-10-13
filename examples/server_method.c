@@ -18,7 +18,9 @@
 UA_Boolean running = UA_TRUE;
 UA_Logger logger;
 
-static UA_StatusCode helloWorldMethod(const UA_NodeId objectId, const UA_Variant *input, UA_Variant *output, void *handle) {
+static UA_StatusCode
+helloWorldMethod(const UA_NodeId objectId, const UA_Variant *input,
+                 UA_Variant *output, void *handle) {
         UA_String *inputStr = (UA_String*)input->data;
         UA_String tmp = UA_STRING_ALLOC("Hello ");
         if(inputStr->length > 0) {
@@ -32,15 +34,12 @@ static UA_StatusCode helloWorldMethod(const UA_NodeId objectId, const UA_Variant
         return UA_STATUSCODE_GOOD;
 } 
 
-static UA_StatusCode IncInt32ArrayValuesMethod(const UA_NodeId objectId,
-                                         const UA_Variant *input, UA_Variant *output, void *handle) {
-
-
-	UA_Variant_setArrayCopy(output,input->data,5,&UA_TYPES[UA_TYPES_INT32]);
-	for(int i = 0; i< input->arrayLength; i++){
+static UA_StatusCode
+IncInt32ArrayValuesMethod(const UA_NodeId objectId, const UA_Variant *input,
+                          UA_Variant *output, void *handle) {
+	UA_Variant_setArrayCopy(output, input->data, 5, &UA_TYPES[UA_TYPES_INT32]);
+	for(int i = 0; i< input->arrayLength; i++)
 		((UA_Int32*)output->data)[i] = ((UA_Int32*)input->data)[i] + 1;
-	}
-
 	return UA_STATUSCODE_GOOD;
 }
 
@@ -48,6 +47,7 @@ static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = 0;
 }
+
 int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
@@ -77,10 +77,18 @@ int main(int argc, char** argv) {
     outputArguments.name = UA_STRING("MyOutput");
     outputArguments.valueRank = -1;
         
-    UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541), UA_QUALIFIEDNAME(1, "hello world"), 
-                            UA_LOCALIZEDTEXT("en_US","Hello World"), UA_LOCALIZEDTEXT("en_US","Say `Hello World`"),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                            0, 0, &helloWorldMethod, NULL, 1, &inputArguments, 1, &outputArguments, NULL);
+    UA_MethodAttributes helloAttr;
+    UA_MethodAttributes_init(&helloAttr);
+    helloAttr.description = UA_LOCALIZEDTEXT("en_US","Say `Hello World`");
+    helloAttr.displayName = UA_LOCALIZEDTEXT("en_US","Hello World");
+    helloAttr.executable = UA_TRUE;
+    helloAttr.userExecutable = UA_TRUE;
+    UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_QUALIFIEDNAME(1, "hello world"), 
+                            helloAttr, &helloWorldMethod, NULL,
+                            1, &inputArguments, 1, &outputArguments, NULL);
 
     //END OF EXAMPLE 1
 
@@ -105,20 +113,27 @@ int main(int argc, char** argv) {
     pOutputDimensions[0] = 5;
     outputArguments.arrayDimensions = pOutputDimensions;
     outputArguments.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-    outputArguments.description = UA_LOCALIZEDTEXT("en_US",
-                    "increment each array index");
-    outputArguments.name = UA_STRING(
-                    "output is the array, each index is incremented by one");
+    outputArguments.description = UA_LOCALIZEDTEXT("en_US", "increment each array index");
+    outputArguments.name = UA_STRING("output is the array, each index is incremented by one");
     outputArguments.valueRank = 1;
 
-    UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "IncInt32ArrayValues"), UA_QUALIFIEDNAME(1, "IncInt32ArrayValues"),
-                            UA_LOCALIZEDTEXT("en_US","1dArrayExample"), UA_LOCALIZEDTEXT("en_US","1dArrayExample"),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), 
-                            0, 0, &IncInt32ArrayValuesMethod, NULL, 1, &inputArguments, 1, &outputArguments, NULL);
+    
+    UA_MethodAttributes incAttr;
+    UA_MethodAttributes_init(&incAttr);
+    incAttr.description = UA_LOCALIZEDTEXT("en_US","1dArrayExample");
+    incAttr.displayName = UA_LOCALIZEDTEXT("en_US","1dArrayExample");
+    incAttr.executable = UA_TRUE;
+    incAttr.userExecutable = UA_TRUE;
+    UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "IncInt32ArrayValues"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), 
+                            UA_QUALIFIEDNAME(1, "IncInt32ArrayValues"),
+                            incAttr, &IncInt32ArrayValuesMethod, NULL,
+                            1, &inputArguments, 1, &outputArguments, NULL);
     //END OF EXAMPLE 2
 
     /* start server */
-    UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false
+    UA_StatusCode retval = UA_Server_run(server, 1, &running);
 
     /* ctrl-c received -> clean up */
     UA_UInt32_delete(pInputDimensions);

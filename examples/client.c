@@ -157,7 +157,7 @@ int main(int argc, char *argv[]) {
 
 #endif
 
-#ifdef ENABLE_ADDNODES 
+#ifdef ENABLE_NODEMANAGEMENT 
     /* Create a new object type node */
     // New ReferenceType
     UA_AddNodesResponse *adResp = UA_Client_createReferenceTypeNode(client,

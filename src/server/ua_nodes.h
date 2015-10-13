@@ -27,6 +27,9 @@ typedef struct {
     UA_STANDARD_NODEMEMBERS
 } UA_Node;
 
+void UA_Node_deleteAnyNodeClass(UA_Node *node);
+UA_Node * UA_Node_copyAnyNodeClass(const UA_Node *node);
+
 /**************/
 /* ObjectNode */
 /**************/
@@ -34,6 +37,7 @@ typedef struct {
 typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Byte eventNotifier;
+    void *instanceHandle;
 } UA_ObjectNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_ObjectNode)
 
@@ -44,6 +48,7 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_ObjectNode)
 typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Boolean isAbstract;
+    UA_ObjectInstanceManagement instanceManagement;
 } UA_ObjectTypeNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_ObjectTypeNode)
 
@@ -134,8 +139,9 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_MethodNode)
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS
-    UA_Boolean containsNoLoops;
     UA_Byte eventNotifier;
+    /* <-- the same as objectnode until here --> */
+    UA_Boolean containsNoLoops;
 } UA_ViewNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_ViewNode)
 

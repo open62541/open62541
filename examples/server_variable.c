@@ -22,12 +22,15 @@ static void stopHandler(int sign) {
     running = 0;
 }
 
-static void onRead(void *handle, const UA_NodeId nodeid,  const UA_Variant *data, const UA_NumericRange *range){
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "onRead; handle is: %i", (uintptr_t)handle);
+static void onRead(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
+                   const UA_NumericRange *range) {
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND,
+                "onRead; handle is: %i", (uintptr_t)handle);
 }
 
-static void onWrite(void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range){
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "onWrite; handle is: %i", (uintptr_t)handle);
+static void onWrite(void *h, const UA_NodeId nodeid, const UA_Variant *data,
+                    const UA_NumericRange *range) {
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "onWrite; handle: %i", (uintptr_t)h);
 }
 
 int main(int argc, char** argv) {
@@ -36,24 +39,27 @@ int main(int argc, char** argv) {
     UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
     logger = Logger_Stdout_new();
     UA_Server_setLogger(server, logger);
-    UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
+    UA_ServerNetworkLayer *nl;
+    nl = ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664);
+    UA_Server_addNetworkLayer(server, nl);
 
     /* add a variable node to the address space */
-    UA_Variant *myIntegerVariant = UA_Variant_new();
+    UA_VariableAttributes attr;
+    UA_VariableAttributes_init(&attr);
     UA_Int32 myInteger = 42;
-    UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    //NOTE: the link between myInteger and the value of the node is lost here, you can safely reuse myInteger
+    UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    attr.description = UA_LOCALIZEDTEXT("en_US","the answer");
+    attr.displayName = UA_LOCALIZEDTEXT("en_US","the answer");
+    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
-    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer"); /* UA_NODEID_NULL would assign a random free nodeid */
-    UA_LocalizedText myIntegerBrowseName = UA_LOCALIZEDTEXT("en_US","the answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-
-    UA_Server_addVariableNode(server, myIntegerNodeId, myIntegerName, myIntegerBrowseName, myIntegerBrowseName, 0, 0,
-                              parentNodeId, parentReferenceNodeId, myIntegerVariant, NULL);
+    UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
+                              parentReferenceNodeId, myIntegerName,
+                              UA_NODEID_NULL, attr, NULL);
 
     UA_ValueCallback callback = {(void*)7, onRead, onWrite};
-    UA_Server_setAttribute_valueCallback(server, myIntegerNodeId, callback);
+    UA_Server_setAttribute_value_callback(server, myIntegerNodeId, callback);
 
     UA_StatusCode retval = UA_Server_run(server, 1, &running);
     UA_Server_delete(server);

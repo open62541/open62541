@@ -43,7 +43,7 @@ endif()
 if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
                       -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
-                      -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes # -Wshadow -Wconversion
+                      -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes #-Wshadow #-Wconversion
                       -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral)
     # binary size reduction settings
     add_definitions(-ffunction-sections -fdata-sections -fno-stack-protector -fno-unwind-tables
@@ -113,7 +113,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_session.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_server_addressspace.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_worker.c
@@ -234,9 +233,9 @@ if(ENABLE_EXTERNAL_NAMESPACES)
 endif()
 
 ## enable dynamic nodeset
-option(ENABLE_ADDNODES "Enable dynamic addition of nodes" ON)
-if(ENABLE_ADDNODES)
-    add_definitions(-DENABLE_ADDNODES )
+option(ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes" ON)
+if(ENABLE_NODEMANAGEMENT)
+    add_definitions(-DENABLE_NODEMANAGEMENT)
 endif()
 
 ## set the precompiler flags

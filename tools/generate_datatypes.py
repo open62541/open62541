@@ -53,9 +53,10 @@ minimal_types = ["InvalidType", "Node", "NodeClass", "ReferenceNode", "Applicati
                  "AddNodesItem", "AddNodesResult", "DeleteNodesItem","AddReferencesRequest", "AddReferencesResponse",
                  "AddReferencesItem","DeleteReferencesItem", "VariableNode", "MethodNode", "VariableTypeNode",
                  "ViewNode", "ReferenceTypeNode", "BrowseResultMask", "ServerState", "ServerStatusDataType", "BuildInfo",
-                 "ObjectNode", "DataTypeNode", "ObjectTypeNode", "IdType", "VariableAttributes", "ObjectAttributes",
-                 "NodeAttributes","ReferenceTypeAttributes", "ViewAttributes", "ObjectTypeAttributes",
-                 "NodeAttributesMask","DeleteNodesItem", "DeleteNodesRequest", "DeleteNodesResponse",
+                 "ObjectNode", "DataTypeNode", "ObjectTypeNode", "IdType", "NodeAttributes",
+                 "VariableAttributes", "ObjectAttributes", "ReferenceTypeAttributes", "ViewAttributes", "MethodAttributes",
+                 "ObjectTypeAttributes", "VariableTypeAttributes", "DataTypeAttributes", "NodeAttributesMask",
+                 "DeleteNodesItem", "DeleteNodesRequest", "DeleteNodesResponse",
                  "DeleteReferencesItem", "DeleteReferencesRequest", "DeleteReferencesResponse",
                  "RegisterNodesRequest", "RegisterNodesResponse", "UnregisterNodesRequest", "UnregisterNodesResponse", 
                  "UserIdentityToken", "UserNameIdentityToken", "AnonymousIdentityToken", "ServiceFault",
@@ -124,28 +125,54 @@ class BuiltinType(object):
                 ".padding = offsetof(UA_String, data) - sizeof(UA_Int32), .isArray = UA_TRUE }}, " + \
                 ".typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
 
+        if self.name == "UA_ExpandedNodeId":
+            return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
+                ".memSize = sizeof(UA_ExpandedNodeId), " + \
+                ".namespaceZero = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
+                ".membersSize = 3, .members = {" + \
+                "\n\t{.memberTypeIndex = UA_TYPES_NODEID, .namespaceZero = UA_TRUE, " + \
+                (".memberName = \"nodeId\", " if typeintrospection else "") + \
+                ".padding = 0, .isArray = UA_FALSE }," + \
+                "\n\t{.memberTypeIndex = UA_TYPES_STRING, .namespaceZero = UA_TRUE, " + \
+                (".memberName = \"namespaceUri\", " if typeintrospection else "") + \
+                ".padding = offsetof(UA_ExpandedNodeId, namespaceUri) - sizeof(UA_NodeId), .isArray = UA_FALSE }," + \
+                "\n\t{.memberTypeIndex = UA_TYPES_UINT32, .namespaceZero = UA_TRUE, " + \
+                (".memberName = \"serverIndex\", " if typeintrospection else "") + \
+                ".padding = offsetof(UA_ExpandedNodeId, serverIndex) - offsetof(UA_ExpandedNodeId, namespaceUri) - sizeof(UA_String), .isArray = UA_FALSE }},\n" + \
+                ".typeIndex = UA_TYPES_EXPANDEDNODEID }"
+
         if self.name == "UA_QualifiedName":
             return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
                 ".memSize = sizeof(UA_QualifiedName), " + \
                 ".namespaceZero = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
                 ".membersSize = 2, .members = {" + \
                 "\n\t{.memberTypeIndex = UA_TYPES_UINT16, .namespaceZero = UA_TRUE, " + \
-                (".memberName = (char*)0, " if typeintrospection else "") + \
+                (".memberName = \"namespaceIndex\", " if typeintrospection else "") + \
                 ".padding = 0, .isArray = UA_FALSE }," + \
                 "\n\t{.memberTypeIndex = UA_TYPES_STRING, .namespaceZero = UA_TRUE, " + \
-                (".memberName = (char*)0, " if typeintrospection else "") + \
-                ".padding = offsetof(UA_QualifiedName, name) - sizeof(UA_UInt16), .isArray = UA_FALSE }},\n" + \
+                (".memberName = \"name\", " if typeintrospection else "") + \
+                ".padding = offsetof(UA_QualifiedName, name)-sizeof(UA_UInt16), .isArray = UA_FALSE }},\n" + \
                 ".typeIndex = UA_TYPES_QUALIFIEDNAME }"
-                
+
+        if self.name == "UA_LocalizedText":
+            return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
+                ".memSize = sizeof(UA_LocalizedText), " + \
+                ".namespaceZero = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
+                ".membersSize = 2, .members = {" + \
+                "\n\t{.memberTypeIndex = UA_TYPES_STRING, .namespaceZero = UA_TRUE, " + \
+                (".memberName = \"locale\", " if typeintrospection else "") + \
+                ".padding = 0, .isArray = UA_FALSE }," + \
+                "\n\t{.memberTypeIndex = UA_TYPES_STRING, .namespaceZero = UA_TRUE, " + \
+                (".memberName = \"text\", " if typeintrospection else "") + \
+                ".padding = offsetof(UA_LocalizedText, text)-sizeof(UA_String), .isArray = UA_FALSE }},\n" + \
+                ".typeIndex = UA_TYPES_LOCALIZEDTEXT }"
+
         return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
             ".memSize = sizeof(" + self.name + "), " + \
             ".namespaceZero = UA_TRUE, " + \
             ".fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
             ", .zeroCopyable = " + ("UA_TRUE" if self.zero_copy() else "UA_FALSE") + \
-            ", .membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_" + self.name[3:].upper() + "," + \
-            (".memberName = (char*)0, " if typeintrospection else "") + \
-            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, " + \
-            ".typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
+            ", .membersSize = 0, .typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
 
 class EnumerationType(object):
     def __init__(self, name, description = "", elements = OrderedDict()):

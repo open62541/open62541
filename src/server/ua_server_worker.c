@@ -628,6 +628,11 @@ UA_StatusCode UA_Server_run_mainloop(UA_Server *server, UA_Boolean *running) {
 }
 
 UA_StatusCode UA_Server_run_shutdown(UA_Server *server, UA_UInt16 nThreads){
+    UA_Job *stopJobs;
+    for(size_t i = 0; i < server->networkLayersSize; i++) {
+        size_t stopJobsSize = server->networkLayers[i]->stop(server->networkLayers[i], &stopJobs);
+        processJobs(server, stopJobs, stopJobsSize);
+    }
 #ifdef UA_MULTITHREADING
     /* Wait for all worker threads to finish */
     for(UA_UInt32 i=0;i<nThreads;i++) {

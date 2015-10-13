@@ -420,11 +420,12 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
 
     UA_Boolean endpointFound = UA_FALSE;
     UA_Boolean tokenFound = UA_FALSE;
+    UA_String securityNone = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     for(UA_Int32 i=0; i<response.endpointsSize; ++i){
         UA_EndpointDescription* endpoint = &response.endpoints[i];
         /* look out for an endpoint without security */
         if(!UA_String_equal(&endpoint->securityPolicyUri,
-                            &UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None")))
+                            &securityNone))
             continue;
         endpointFound = UA_TRUE;
         /* endpoint with no security found */

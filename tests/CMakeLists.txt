@@ -46,11 +46,13 @@ add_executable(check_services_attributes check_services_attributes.c $<TARGET_OB
 target_link_libraries(check_services_attributes ${LIBS})
 add_test(services_attributes ${CMAKE_CURRENT_BINARY_DIR}/check_services_attributes)
 
+add_executable(check_services_nodemanagement check_services_nodemanagement.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(check_services_nodemanagement ${LIBS})
+add_test(services_nodemanagement ${CMAKE_CURRENT_BINARY_DIR}/check_services_nodemanagement)
+
 add_executable(check_nodestore check_nodestore.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_nodestore ${LIBS})
 add_test(nodestore ${CMAKE_CURRENT_BINARY_DIR}/check_nodestore)
-
-
 
 add_executable(check_session check_session.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_session ${LIBS})

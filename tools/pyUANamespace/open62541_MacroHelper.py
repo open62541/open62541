@@ -80,48 +80,56 @@ class open62541_MacroHelper():
     #code.append("addOneWayReferenceWithSession(server, (UA_Session *) UA_NULL, &" + refid + ");")
 
     if reference.isForward():
-      code.append("UA_Server_addMonodirectionalReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", UA_TRUE);")
+      code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", UA_TRUE);")
     else:
-      code.append("UA_Server_addMonodirectionalReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", UA_FALSE);")
-
+      code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", UA_FALSE);")
     return code
                                
   def getCreateNodeNoBootstrap(self, node, parentNode, parentReference):
     code = []
     code.append("// Node: " + str(node) + ", " + str(node.browseName()))
+
     if node.nodeClass() == NODE_CLASS_OBJECT:
-      code.append("UA_Server_addObjectNode(server, ")
+      nodetype = "Object"
     elif node.nodeClass() == NODE_CLASS_VARIABLE:
-      code.append("UA_Server_addVariableNode(server,")
+      nodetype = "Variable"
     elif node.nodeClass() == NODE_CLASS_METHOD:
-      code.append("#ifdef ENABLE_METHODCALL")
-      code.append("UA_Server_addMethodNode(server,")
+      nodetype = "Method"
     elif node.nodeClass() == NODE_CLASS_OBJECTTYPE:
-      code.append("UA_Server_addObjectTypeNode(server,")
+      nodetype = "ObjectType"
     elif node.nodeClass() == NODE_CLASS_REFERENCETYPE:
-      code.append("UA_Server_addReferenceTypeNode(server,")
+      nodetype = "ReferenceType"
     elif node.nodeClass() == NODE_CLASS_VARIABLETYPE:
-      code.append("UA_Server_addVariableTypeNode(server,")
+      nodetype = "VariableType"
     elif node.nodeClass() == NODE_CLASS_DATATYPE:
-      code.append("UA_Server_addDataTypeNode(server,")
+      nodetype = "DataType"
     elif node.nodeClass() == NODE_CLASS_VIEW:
-      code.append("UA_Server_addViewNode(server,")
-    elif node.nodeClass() == NODE_CLASS_METHODTYPE:
-      code.append("UA_Server_addMethodTypeNode(server,")
+      nodetype = "View"
     else:
-      return []
+      code.append("/* undefined nodeclass */")
+      return code;
+
+    code.append("UA_%sAttributes attr;" % nodetype)
+    code.append("UA_%sAttributes_init(&attr);" %  nodetype); 
+
+    code.append("attr.displayName = UA_LOCALIZEDTEXT(\"\", \"" + str(node.displayName()) + "\");")
+    code.append("attr.description = UA_LOCALIZEDTEXT(\"\", \"" + str(node.description()) + "\");")
     
-    code.append("       " + str(self.getCreateNodeIDMacro(node)) + ",") # NodeId
+    code.append("UA_NodeId nodeId = " + str(self.getCreateNodeIDMacro(node)) + ";")
+    if nodetype in ["Object", "Variable"]:
+      code.append("UA_NodeId typeDefinition = UA_NODEID_NULL;") # todo instantiation of object and variable types
+    code.append("UA_NodeId parentNodeId = " + str(self.getCreateNodeIDMacro(parentNode)) + ";")
+    code.append("UA_NodeId parentReferenceNodeId = " + str(self.getCreateNodeIDMacro(parentReference.referenceType())) + ";")
     extrNs = node.browseName().split(":")
     if len(extrNs) > 1:
-      code.append("       UA_QUALIFIEDNAME(" +  str(extrNs[0]) + ", \"" + extrNs[1] + "\"),")  # browseName
+      code.append("UA_QualifiedName nodeName = UA_QUALIFIEDNAME(" +  str(extrNs[0]) + ", \"" + extrNs[1] + "\");")
     else:
-      code.append("       UA_QUALIFIEDNAME(0, \"" + str(node.browseName()) + "\"),")  # browseName
-    code.append("       UA_LOCALIZEDTEXT(\"\", \"" + str(node.displayName()) + "\"),")  # displayName
-    code.append("       UA_LOCALIZEDTEXT(\"\", \"" + str(node.description()) + "\"),")  # description
-    code.append("       " + str(node.writeMask()) + ", " + str(node.userWriteMask()) + ",") # write/userWriteMask
-    code.append("       " + str(self.getCreateNodeIDMacro(parentNode)) + ",") # ParentNode
-    code.append("       " + str(self.getCreateNodeIDMacro(parentReference.referenceType())) + ",") # ReferenceTypeId
+      code.append("UA_QualifiedName nodeName = UA_QUALIFIEDNAME(0, \"" + str(node.browseName()) + "\");")
+
+    code.append("UA_Server_add%sNode(server, nodeId, parentNodeId, parentReferenceNodeId, nodeName" % nodetype)
+    if nodetype in ["Object", "Variable"]:
+      code.append("       , typeDefinition")
+    code.append("       , attr, NULL);")
       
     return code
     
@@ -130,27 +138,29 @@ class open62541_MacroHelper():
     code = []
 
     code.append("// Node: " + str(node) + ", " + str(node.browseName()))
+    code.append("/* sorry, nodebootstrap needs to be updated */")
 
     if node.nodeClass() == NODE_CLASS_OBJECT:
-      nodetype = "UA_ObjectNode"
+      nodetype = "Object"
     elif node.nodeClass() == NODE_CLASS_VARIABLE:
-      nodetype = "UA_VariableNode"
+      nodetype = "Variable"
     elif node.nodeClass() == NODE_CLASS_METHOD:
-      nodetype = "UA_MethodNode"
+      nodetype = "Method"
     elif node.nodeClass() == NODE_CLASS_OBJECTTYPE:
-      nodetype = "UA_ObjectTypeNode"
+      nodetype = "ObjectType"
     elif node.nodeClass() == NODE_CLASS_REFERENCETYPE:
-      nodetype = "UA_ReferenceTypeNode"
+      nodetype = "ReferenceType"
     elif node.nodeClass() == NODE_CLASS_VARIABLETYPE:
-      nodetype = "UA_VariableTypeNode"
+      nodetype = "VariableType"
     elif node.nodeClass() == NODE_CLASS_DATATYPE:
-      nodetype = "UA_DataTypeNode"
+      nodetype = "DataType"
     elif node.nodeClass() == NODE_CLASS_VIEW:
-      nodetype = "UA_ViewNode"
-    elif node.nodeClass() == NODE_CLASS_METHODTYPE:
-      nodetype = "UA_MethodTypeNode"
+      nodetype = "View"
     else:
-      nodetype = "UA_NodeTypeNotFoundorGeneric"
+      code.append("/* undefined nodeclass */")
+      return;
+
+    code.append("UA_%sAttributes attr;\nUA_%sAttributes_init(&attr);" % (nodetype, nodetype)); 
 
     code.append(nodetype + " *" + node.getCodePrintableID() + " = " + nodetype + "_new();")
     if not "browsename" in self.supressGenerationOfAttribute:

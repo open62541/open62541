@@ -15,6 +15,7 @@
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
 
+#ifdef UA_EXTERNAL_NAMESPACES
 /** Mapping of namespace-id and url to an external nodestore. For namespaces
     that have no mapping defined, the internal nodestore is used by default. */
 typedef struct UA_ExternalNamespace {
@@ -22,6 +23,7 @@ typedef struct UA_ExternalNamespace {
 	UA_String url;
 	UA_ExternalNodeStore externalNodeStore;
 } UA_ExternalNamespace;
+#endif
 
 struct UA_Server {
     /* Config */
@@ -49,8 +51,11 @@ struct UA_Server {
     UA_NodeStore *nodestore;
     size_t namespacesSize;
     UA_String *namespaces;
+
+#ifdef UA_EXTERNAL_NAMESPACES
     size_t externalNamespacesSize;
     UA_ExternalNamespace *externalNamespaces;
+#endif
      
     /* Jobs with a repetition interval */
     LIST_HEAD(RepeatedJobsList, RepeatedJobs) repeatedJobs;
@@ -74,23 +79,19 @@ struct UA_Server {
 #endif
 };
 
+/* The node is assumed to be "finished", i.e. no instantiation from inheritance is necessary */
+void UA_Server_addExistingNode(UA_Server *server, UA_Session *session, UA_Node *node,
+                               const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
+                               UA_AddNodesResult *result);
+
+typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server *server, UA_Session*, UA_Node*, const void*);
+
+/* Calls callback on the node. In the multithreaded case, the node is copied before and replaced in
+   the nodestore. */
+UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+                                 UA_EditNodeCallback callback, const void *data);
+
 void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
-
-UA_AddNodesResult UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, UA_Node *node,
-                                               const UA_ExpandedNodeId parentNodeId,
-                                               const UA_NodeId referenceTypeId);
-
-UA_AddNodesResult UA_Server_addNode(UA_Server *server, UA_Node *node, const UA_ExpandedNodeId parentNodeId,
-                                    const UA_NodeId referenceTypeId);
-
-UA_StatusCode UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session,
-                                                const UA_AddReferencesItem *item);
-
-UA_StatusCode deleteOneWayReferenceWithSession(UA_Server *server, UA_Session *session, 
-                                               const UA_DeleteReferencesItem *item);
-
-UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session *session, 
-                                            const UA_AddReferencesItem *item);
 
 UA_StatusCode UA_Server_addDelayedJob(UA_Server *server, UA_Job job);
 

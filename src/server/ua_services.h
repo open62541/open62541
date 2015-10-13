@@ -6,6 +6,7 @@
 #include "ua_types_generated.h"
 #include "ua_server.h"
 #include "ua_session.h"
+#include "ua_nodes.h"
 
 /**
  * @ingroup server
@@ -25,9 +26,8 @@
  * @{
  */
 // Service_FindServers
-void Service_FindServers(UA_Server                    *server,
-                          const UA_FindServersRequest *request,
-                          UA_FindServersResponse      *response);
+void Service_FindServers(UA_Server *server, const UA_FindServersRequest *request,
+                         UA_FindServersResponse *response);
 /**
  * Returns the Endpoints supported by a Server and all of the configuration
  * information required to establish a SecureChannel and a Session.
@@ -108,18 +108,26 @@ void Service_CloseSession(UA_Server *server, UA_Session *session, const UA_Close
 /** Used to add one or more Nodes into the AddressSpace hierarchy. */
 void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesRequest *request,
                       UA_AddNodesResponse *response);
+void Service_AddNodes_single(UA_Server *server, UA_Session *session, UA_AddNodesItem *item,
+                             UA_NodeAttributes *attr, UA_AddNodesResult *result);
 
 /** Used to add one or more References to one or more Nodes. */
 void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddReferencesRequest *request,
                            UA_AddReferencesResponse *response);
+UA_StatusCode Service_AddReferences_single(UA_Server *server, UA_Session *session,
+                                           const UA_AddReferencesItem *item);
 
 /** Used to delete one or more Nodes from the AddressSpace. */
 void Service_DeleteNodes(UA_Server *server, UA_Session *session, const UA_DeleteNodesRequest *request,
                          UA_DeleteNodesResponse *response);
+UA_StatusCode Service_DeleteNodes_single(UA_Server *server, UA_Session *session, UA_NodeId *nodeId,
+                                         UA_Boolean deleteReferences);
 
 /** Used to delete one or more References of a Node. */
 void Service_DeleteReferences(UA_Server *server, UA_Session *session, const UA_DeleteReferencesRequest *request,
                               UA_DeleteReferencesResponse *response);
+UA_StatusCode Service_DeleteReferences_single(UA_Server *server, UA_Session *session,
+                                              const UA_DeleteReferencesItem *item);
 
 /** @} */
 
@@ -139,6 +147,9 @@ void Service_DeleteReferences(UA_Server *server, UA_Session *session, const UA_D
  */
 void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseRequest *request,
                     UA_BrowseResponse *response);
+
+void Service_Browse_single(UA_Server *server, UA_Session *session, struct ContinuationPointEntry *cp,
+                           const UA_BrowseDescription *descr, UA_UInt32 maxrefs, UA_BrowseResult *result);
 
 /**
  * Used to request the next set of Browse or BrowseNext response information
@@ -202,12 +213,8 @@ UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range);
  */
 void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request,
                   UA_ReadResponse *response);
-
-/* Mock-Up of the function signature for Unit Tests */
-#ifdef BUILD_UNIT_TESTS
-void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
-                      const UA_ReadValueId *id, UA_DataValue *v);
-#endif
+void Service_Read_single(UA_Server *server, UA_Session *session, UA_TimestampsToReturn timestamps,
+                         const UA_ReadValueId *id, UA_DataValue *v);
 
 // Service_HistoryRead
 /**
@@ -219,10 +226,8 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
 void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,
                    UA_WriteResponse *response);
 
-/* Mock-Up of the function signature for Unit Tests */
-#ifdef BUILD_UNIT_TESTS
-UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue);
-#endif
+/** Single attribute writes are exposed to the userspace. The wvalue may be destroyed (deleteMembers) */
+UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, UA_WriteValue *wvalue);
 
 // Service_HistoryUpdate
 /** @} */
@@ -235,7 +240,10 @@ UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue);
  *
  * @{
  */
-// Service_Call
+#ifdef ENABLE_METHODCALLS
+void Service_Call(UA_Server *server, UA_Session *session, const UA_CallRequest *request,
+                  UA_CallResponse *response);
+#endif
 /** @} */
 
 #ifdef ENABLE_SUBSCRIPTIONS
@@ -291,29 +299,16 @@ void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
 void Service_Publish(UA_Server *server, UA_Session *session,
                      const UA_PublishRequest *request, UA_PublishResponse *response);
                          
-//~ Service_ModifySubscription
-//~ Service_SetPublishingMode
-//~ UA_Int32 Service_SetPublishingMode(UA_Server *server, UA_Session *session,
-                                    //~ const UA_SetPublishingModeRequest *request,
-                                    //~ UA_SetPublishingModeResponse *response);
+// Service_ModifySubscription
+// Service_SetPublishingMode
+// UA_Int32 Service_SetPublishingMode(UA_Server *server, UA_Session *session,
+                                  // const UA_SetPublishingModeRequest *request,
+                                  // UA_SetPublishingModeResponse *response);
 // Service_Republish
 // Service_TransferSubscription
 // Service_DeleteSubscription
 /** @} */
 #endif
 
-#ifdef ENABLE_METHODCALLS
-/**
- * @name Call Service Set
- *
- * Calls are used to execute serverside methods.
- *
- * @{
- */
-void Service_Call(UA_Server *server, UA_Session *session,
-                  const UA_CallRequest *request,
-                  UA_CallResponse *response);
-/** @} */
-#endif
 #endif /* UA_SERVICES_H_ */
 /** @} */
