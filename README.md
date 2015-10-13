@@ -5,11 +5,14 @@ open62541 (http://open62541.org) is an open source and free implementation of OP
 
 open62541 is licensed under the LGPL + static linking exception. That means **open62541 can be freely used also in commercial projects**, although changes to the open62541 library itself need to be released under the same license. The server and client implementations in the [/examples](examples/) directory are in the public domain (CC0 license). They can be used under any license and changes don't have to be published.
 
+C Code Status:
 [![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
 [![Build Status](https://travis-ci.org/acplt/open62541.png?branch=master)](https://travis-ci.org/acplt/open62541)
 [![MSVS build status](https://ci.appveyor.com/api/projects/status/w2geggs5s28gfu6t/branch/master?svg=true)](https://ci.appveyor.com/project/Stasik0/open62541/branch/master)
 [![Coverage Status](https://coveralls.io/repos/acplt/open62541/badge.png?branch=master)](https://coveralls.io/r/acplt/open62541?branch=master)
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/1864/badge.svg)](https://scan.coverity.com/projects/1864)
+
+HTML Validation of Website: [![Build Status](https://travis-ci.org/acplt/open62541-www.svg?branch=gh-pages)](https://travis-ci.org/acplt/open62541-www)
 
 ### Documentation
 A general introduction to OPC UA and the open62541 documentation can be found at http://open62541.org/doc.
