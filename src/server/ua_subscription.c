@@ -362,7 +362,7 @@ void MonitoredItem_ClearQueue(UA_MonitoredItem *monitoredItem) {
     MonitoredItem_queuedValue *val, *val_tmp;
     TAILQ_FOREACH_SAFE(val, &monitoredItem->queue, listEntry, val_tmp) {
         TAILQ_REMOVE(&monitoredItem->queue, val, listEntry);
-        UA_Variant_deleteMembers(&val->value);
+        UA_DataValue_deleteMembers(&val->value);
         UA_free(val);
     }
     monitoredItem->queueSize.currentValue = 0;
