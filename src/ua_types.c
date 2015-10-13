@@ -815,7 +815,8 @@ UA_StatusCode UA_DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_Diagnostic
 /*******************/
 
 void UA_init(void *p, const UA_DataType *dataType) {
-    switch(dataType->typeIndex) {
+    /* builtin types */
+    switch(dataType->typeIndex + (0x8000 * !dataType->namespaceZero)) {
     case UA_TYPES_BOOLEAN:
     case UA_TYPES_SBYTE:
     case UA_TYPES_BYTE:
@@ -857,6 +858,7 @@ void UA_init(void *p, const UA_DataType *dataType) {
         return;
     }
 
+    /* structured types */
     uintptr_t ptr = (uintptr_t)p;
     UA_Byte membersSize = dataType->membersSize;
     for(size_t i = 0; i < membersSize; i++) {
@@ -892,7 +894,7 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
         memcpy(dst, src, dataType->memSize);
         return UA_STATUSCODE_GOOD;
     }
-    switch(dataType->typeIndex) {
+    switch(dataType->typeIndex + (0x8000 * !dataType->namespaceZero)) {
     case UA_TYPES_NODEID:
         return UA_NodeId_copy((const UA_NodeId*)src, (UA_NodeId*)dst);
     case UA_TYPES_EXTENSIONOBJECT:
@@ -951,7 +953,7 @@ void UA_deleteMembers(void *p, const UA_DataType *dataType) {
 void UA_deleteMembersUntil(void *p, const UA_DataType *dataType, size_t lastMember) {
     if(dataType->fixedSize)
         return;
-    switch(dataType->typeIndex) {
+    switch(dataType->typeIndex + (0x8000 * !dataType->namespaceZero)) {
     case UA_TYPES_NODEID:
         UA_NodeId_deleteMembers((UA_NodeId*)p);
         return;

@@ -931,7 +931,7 @@ UA_StatusCode UA_DiagnosticInfo_decodeBinary(UA_ByteString const *src, size_t *U
 UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_ByteString *dst,
                               size_t *UA_RESTRICT offset) {
     /* builtin types */
-    switch (dataType->typeIndex) {
+    switch(dataType->typeIndex + (0x8000 * !dataType->namespaceZero)) {
     case UA_TYPES_BOOLEAN:
     case UA_TYPES_SBYTE:
     case UA_TYPES_BYTE:
@@ -998,7 +998,7 @@ UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_B
 UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset,
                               void *dst, const UA_DataType *dataType) {
     /* builtin types */
-    switch (dataType->typeIndex) {
+    switch(dataType->typeIndex + (0x8000 * !dataType->namespaceZero)) {
     case UA_TYPES_BOOLEAN:
     case UA_TYPES_SBYTE:
     case UA_TYPES_BYTE:
@@ -1231,7 +1231,7 @@ static size_t UA_DiagnosticInfo_calcSizeBinary(UA_DiagnosticInfo const *p) {
 
 size_t UA_calcSizeBinary(const void *p, const UA_DataType *dataType) {
     /* builtin types */
-    switch (dataType->typeIndex) {
+    switch(dataType->typeIndex + (0x8000 * !dataType->namespaceZero)) {
     case UA_TYPES_BOOLEAN:
     case UA_TYPES_SBYTE:
     case UA_TYPES_BYTE:
