@@ -14,7 +14,7 @@ git add -A doc/*
 git config --global user.email "open62541-travis-ci@users.noreply.github.com"
 git config --global user.name "Open62541 travis-ci"
 git config --global push.default simple
-git commit -am "gh-pages updated by travis-ci"
+git commit -am "updated generated documentation on webpage by travis-ci [ci skip]"
 git push https://$GITAUTH@github.com/acplt/open62541-www
 cd ..
 rm -rf open62541-www
