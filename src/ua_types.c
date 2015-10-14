@@ -934,9 +934,8 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
             ptrs += sizeof(UA_Int32) + (member->padding & 0x07);
             ptrd += sizeof(UA_Int32) + (member->padding & 0x07);
             retval = UA_Array_copy(*(void* const*)ptrs, (void**)ptrd, memberType, elements);
-            if(retval != UA_STATUSCODE_GOOD)
-                break;
-            *dstNoElements = elements;
+            if(retval == UA_STATUSCODE_GOOD)
+                *dstNoElements = elements;
             ptrs += sizeof(void*);
             ptrd += sizeof(void*);
         }
@@ -947,7 +946,7 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *dataType) {
 }
 
 void UA_deleteMembers(void *p, const UA_DataType *dataType) {
-    UA_deleteMembersUntil(p, dataType, UA_UINT16_MIN); // lastMember is bigger than the possible member count
+    UA_deleteMembersUntil(p, dataType, UA_UINT16_MAX); // lastMember is bigger than the possible member count
 }
 
 void UA_deleteMembersUntil(void *p, const UA_DataType *dataType, size_t lastMember) {
@@ -988,7 +987,7 @@ void UA_deleteMembersUntil(void *p, const UA_DataType *dataType, size_t lastMemb
             ptr += memberType->memSize;
         } else {
             ptr += (member->padding >> 3);
-            UA_Int32 elements = *((UA_Int32*)ptr);
+            UA_Int32 elements = *(UA_Int32*)ptr;
             ptr += sizeof(UA_Int32) + (member->padding & 0x07);
             UA_Array_delete(*(void**)ptr, memberType, elements);
             *(void**)ptr = UA_NULL;
