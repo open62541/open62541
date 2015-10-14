@@ -179,7 +179,7 @@ getMonitoredItems(const UA_NodeId objectId, const UA_Variant *input,
 #endif
 
 static void stopHandler(int sign) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Received Ctrl-C\n");
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Received Ctrl-C");
 	running = 0;
 }
 

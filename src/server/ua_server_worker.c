@@ -632,6 +632,7 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server, UA_UInt16 nThreads){
     for(size_t i = 0; i < server->networkLayersSize; i++) {
         size_t stopJobsSize = server->networkLayers[i]->stop(server->networkLayers[i], &stopJobs);
         processJobs(server, stopJobs, stopJobsSize);
+        UA_free(stopJobs);
     }
 #ifdef UA_MULTITHREADING
     /* Wait for all worker threads to finish */

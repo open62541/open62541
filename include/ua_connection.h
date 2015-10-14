@@ -59,7 +59,7 @@ struct UA_Connection {
     UA_ByteString incompleteMessage; ///< A half-received message (TCP is a streaming protocol) is stored here
 
     /** Get a buffer for sending */
-    UA_StatusCode (*getSendBuffer)(UA_Connection *connection, UA_Int32 length, UA_ByteString *buf);
+    UA_StatusCode (*getSendBuffer)(UA_Connection *connection, size_t length, UA_ByteString *buf);
 
     /** Release the send buffer manually */
     void (*releaseSendBuffer)(UA_Connection *connection, UA_ByteString *buf);

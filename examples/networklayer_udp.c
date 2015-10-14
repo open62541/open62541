@@ -39,8 +39,8 @@
 /* Generic Buffer Management */
 /*****************************/
 
-static UA_StatusCode GetMallocedBuffer(UA_Connection *connection, UA_Int32 length, UA_ByteString *buf) {
-    if((UA_UInt32)length > connection->remoteConf.recvBufferSize)
+static UA_StatusCode GetMallocedBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
+    if(length > connection->remoteConf.recvBufferSize)
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     return UA_ByteString_newMembers(buf, connection->remoteConf.recvBufferSize);
 }
