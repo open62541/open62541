@@ -117,16 +117,15 @@ is_relevant: ;
 		UA_Array_delete(readNodesResults, &UA_TYPES[UA_TYPES_DATAVALUE], 6);
 		UA_Array_delete(diagnosticInfos, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], 6);
 		node = tempNode;
+        if(node && descr->nodeClassMask != 0 && (node->nodeClass & descr->nodeClassMask) == 0) {
+            UA_ObjectNode_delete((UA_ObjectNode*)tempNode);
+            return UA_NULL;
+        }
 	}
 #else
     const UA_Node *node = UA_NodeStore_get(server->nodestore, &reference->targetId.nodeId);
 #endif
     if(node && descr->nodeClassMask != 0 && (node->nodeClass & descr->nodeClassMask) == 0) {
-#ifdef UA_EXTERNAL_NAMESPACES
-    	if(*isExternal == UA_TRUE){
-    		UA_ObjectNode_delete((UA_ObjectNode*)node);
-    	} else
-#endif
     	UA_NodeStore_release(node);
         return UA_NULL;
     }
@@ -309,7 +308,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
 #ifdef UA_EXTERNAL_NAMESPACES
         	if(isExternal == UA_TRUE)
         		/*	relevant_node returns a node malloced with UA_ObjectNode_new if it is external (there is no UA_Node_new function)	*/
-        		UA_ObjectNode_delete((UA_ObjectNode*)current);
+        		UA_ObjectNode_delete((UA_ObjectNode*)(uintptr_t)current);
         	else
         		UA_NodeStore_release(current);
 #else
@@ -322,7 +321,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
                                                         descr->resultMask, &result->references[referencesCount]);
 #ifdef UA_EXTERNAL_NAMESPACES
         if(isExternal == UA_TRUE)
-        	UA_ObjectNode_delete((UA_ObjectNode*)current);
+        	UA_ObjectNode_delete((UA_ObjectNode*)(uintptr_t)current);
         else
         	UA_NodeStore_release(current);
 #else
