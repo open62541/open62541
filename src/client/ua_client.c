@@ -44,7 +44,7 @@ struct UA_Client {
 };
 
 const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard =
-    { .timeout = 5 /* ms receive timout */, .secureChannelLifeTime = 30000, .timeToRenewSecureChannel = 2000,
+    { .timeout = 500 /* ms receive timout */, .secureChannelLifeTime = 30000, .timeToRenewSecureChannel = 2000,
       {.protocolVersion = 0, .sendBufferSize = 65536, .recvBufferSize  = 65536,
        .maxMessageSize = 65536, .maxChunkCount = 1}};
 
@@ -100,7 +100,8 @@ void UA_Client_delete(UA_Client* client){
     UA_free(client);
 }
 
-static UA_StatusCode HelAckHandshake(UA_Client *c) {
+static UA_StatusCode
+HelAckHandshake(UA_Client *c) {
     UA_TcpMessageHeader messageHeader;
     messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_HELF;
 
@@ -115,7 +116,8 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     hello.sendBufferSize = conn->localConf.sendBufferSize;
 
     UA_ByteString message;
-    UA_StatusCode retval = c->connection.getSendBuffer(&c->connection, c->connection.remoteConf.recvBufferSize, &message);
+    UA_StatusCode retval;
+    retval = c->connection.getSendBuffer(&c->connection, c->connection.remoteConf.recvBufferSize, &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -262,9 +264,11 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     }
 
     UA_OpenSecureChannelResponse response;
+    UA_OpenSecureChannelResponse_init(&response);
     retval = UA_OpenSecureChannelResponse_decodeBinary(&reply, &offset, &response);
-    if(!retval) {
-        UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_SECURECHANNEL, "Decoding OpenSecureChannelResponse failed");
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_SECURECHANNEL,
+                     "Decoding OpenSecureChannelResponse failed");
         UA_ByteString_deleteMembers(&reply);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         UA_OpenSecureChannelResponse_init(&response);
@@ -276,7 +280,8 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     retval = response.responseHeader.serviceResult;
 
     if(retval != UA_STATUSCODE_GOOD)
-        UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_SECURECHANNEL, "SecureChannel could not be opened / renewed");
+        UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_SECURECHANNEL,
+                     "SecureChannel could not be opened / renewed");
     else if(!renew) {
         UA_ChannelSecurityToken_copy(&response.securityToken, &client->channel.securityToken);
         /* if the handshake is repeated, replace the old nonce */
@@ -318,7 +323,8 @@ static void synchronousRequest(UA_Client *client, void *r, const UA_DataType *re
 
     /* Send the request */
     UA_UInt32 requestId = ++client->requestId;
-    UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_CLIENT, "Sending a request of type %i", requestType->typeId.identifier.numeric);
+    UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_CLIENT,
+                 "Sending a request of type %i", requestType->typeId.identifier.numeric);
     retval = UA_SecureChannel_sendBinaryMessage(&client->channel, requestId, request, requestType);
     if(retval) {
         if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED)
