@@ -43,16 +43,8 @@ UA_StatusCode
 UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
                              const UA_OpenSecureChannelRequest *request,
                              UA_OpenSecureChannelResponse *response) {
-    switch(request->securityMode) {
-    case UA_MESSAGESECURITYMODE_NONE:
-        break;
-    case UA_MESSAGESECURITYMODE_INVALID:
-    case UA_MESSAGESECURITYMODE_SIGN:
-    case UA_MESSAGESECURITYMODE_SIGNANDENCRYPT:
-    default:
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURITYMODEREJECTED;
-        return response->responseHeader.serviceResult;
-    }
+    if(request->securityMode != UA_MESSAGESECURITYMODE_NONE)
+        return UA_STATUSCODE_BADSECURITYMODEREJECTED;
 
     channel_list_entry *entry = UA_malloc(sizeof(channel_list_entry));
     if(!entry)
@@ -63,9 +55,9 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
     response->responseHeader.timestamp = UA_DateTime_now();
     response->serverProtocolVersion = 0;
 
-    entry->channel.securityToken.channelId       = cm->lastChannelId++;
-    entry->channel.securityToken.tokenId         = cm->lastTokenId++;
-    entry->channel.securityToken.createdAt       = UA_DateTime_now();
+    entry->channel.securityToken.channelId = cm->lastChannelId++;
+    entry->channel.securityToken.tokenId = cm->lastTokenId++;
+    entry->channel.securityToken.createdAt = UA_DateTime_now();
     entry->channel.securityToken.revisedLifetime = (request->requestedLifetime > cm->maxChannelLifetime) ?
                                                    cm->maxChannelLifetime : request->requestedLifetime;
     /* pragmatic workaround to get clients requesting lifetime of 0 working */
@@ -82,7 +74,6 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
 
     UA_Connection_attachSecureChannel(conn, &entry->channel);
     LIST_INSERT_HEAD(&cm->channels, entry, pointers);
-
     return UA_STATUSCODE_GOOD;
 }
 
@@ -91,7 +82,7 @@ UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_Connection *conn,
                               const UA_OpenSecureChannelRequest *request,
                               UA_OpenSecureChannelResponse *response) {
     UA_SecureChannel *channel = conn->channel;
-    if(channel == UA_NULL)
+    if(!channel)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* if no security token is already issued */
@@ -108,8 +99,10 @@ UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_Connection *conn,
         if(channel->nextSecurityToken.revisedLifetime == 0)
             channel->nextSecurityToken.revisedLifetime = cm->maxChannelLifetime;
     }
+
     if(channel->clientNonce.data)
         UA_ByteString_deleteMembers(&channel->clientNonce);
+
     UA_ByteString_copy(&request->clientNonce, &channel->clientNonce);
     UA_ByteString_copy(&channel->serverNonce, &response->serverNonce);
     UA_ChannelSecurityToken_copy(&channel->nextSecurityToken, &response->securityToken);
