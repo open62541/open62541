@@ -364,10 +364,8 @@ class opcua_value_t():
         else:
           for v in self.value:
             code.append(valueName + "[" + str(self.value.index(v)) + "] = " + v.printOpen62541CCode_SubType() + ";")
-        code.append("UA_Variant_setArrayCopy(" + self.parent.getCodePrintableID() + "_variant, &" + valueName + ", (UA_Int32) " + str(len(self.value)) + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
-        # Variant creation is now part of printSubtypeEarly, the node does not exist when the type is initialized!
-        #if (bootstrapping == True):
-        #  code.append(self.parent.getCodePrintableID() + "->value.variant.value = *" + self.parent.getCodePrintableID() + "_variant;")
+        code.append("UA_Variant_setArrayCopy(" + self.parent.getCodePrintableID() + "_variant, &" + valueName +
+                    ", (UA_Int32) " + str(len(self.value)) + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
     else:
       # User the following strategy for all directly mappable values a la 'UA_Type MyInt = (UA_Type) 23;'
       if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_GUID:
@@ -389,16 +387,10 @@ class opcua_value_t():
           code.append("UA_Variant_setScalarCopy(" + self.parent.getCodePrintableID() + "_variant, " + valueName + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
           #FIXME: There is no membership definition for extensionObjects generated in this function.
           code.append("UA_" + self.value[0].stringRepresentation + "_deleteMembers(" + valueName + ");")
-          # Variant creation is now part of printSubtypeEarly, the node does not exist when the type is initialized!
-          #if (bootstrapping == True):
-          #  code.append(self.parent.getCodePrintableID() + "->value.variant.value = *" + self.parent.getCodePrintableID() + "_variant;")
         else:
           code.append("UA_" + self.value[0].stringRepresentation + " " + valueName + " = " + self.value[0].printOpen62541CCode_SubType() + ";")
           code.append("UA_Variant_setScalarCopy(" + self.parent.getCodePrintableID() + "_variant, &" + valueName + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
           code.append("UA_" + self.value[0].stringRepresentation + "_deleteMembers(&" + valueName + ");")
-          # Variant creation is now part of printSubtypeEarly, the node does not exist when the type is initialized!
-          #if (bootstrapping == True):
-          #  code.append(self.parent.getCodePrintableID() + "->value.variant.value = *" + self.parent.getCodePrintableID() + "_variant;")
     return code
 
 
