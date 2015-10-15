@@ -13,8 +13,7 @@
 extern "C" {
 #endif
 
-/** Initialises the logger for the current thread. */
-UA_EXPORT UA_Logger Logger_Stdout_new(void);
+UA_EXPORT void Logger_Stdout(UA_LogLevel level, UA_LogCategory category, const char *msg, ...);
 
 #ifdef __cplusplus
 }

@@ -16,7 +16,7 @@
 #endif
 
 UA_Boolean running = UA_TRUE;
-UA_Logger logger;
+UA_Logger logger = Logger_Stdout;
 
 static UA_StatusCode
 helloWorldMethod(const UA_NodeId objectId, const UA_Variant *input,
@@ -53,7 +53,6 @@ int main(int argc, char** argv) {
 
     /* initialize the server */
     UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-    logger = Logger_Stdout_new();
     UA_Server_setLogger(server, logger);
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 

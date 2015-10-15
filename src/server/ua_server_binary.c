@@ -233,6 +233,9 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     if(clientChannel != &anonymousChannel && tokenId != clientChannel->securityToken.tokenId) {
         if(tokenId != clientChannel->nextSecurityToken.tokenId) {
             /* close the securechannel but keep the connection open */
+            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_SECURECHANNEL,
+                        "Request with a wrong security token. Closing the SecureChannel %i.",
+                        clientChannel->securityToken.channelId);
             Service_CloseSecureChannel(server, clientChannel->securityToken.channelId);
             return;
         }
@@ -250,6 +253,12 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
 
     switch(requestType.identifier.numeric - UA_ENCODINGOFFSET_BINARY) {
     case UA_NS0ID_GETENDPOINTSREQUEST: {
+        if(clientChannel == &anonymousChannel)
+            UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_NETWORK, "Processing GetEndpointsRequest on Connection %i",
+                         connection->sockfd);
+        else
+            UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SECURECHANNEL, "Processing GetEndpointsRequest on SecureChannel %i",
+                         clientChannel->securityToken.channelId);
         UA_GetEndpointsRequest p;
         UA_GetEndpointsResponse r;
         if(UA_GetEndpointsRequest_decodeBinary(msg, pos, &p))
@@ -265,6 +274,12 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     }
 
     case UA_NS0ID_FINDSERVERSREQUEST: {
+        if(clientChannel == &anonymousChannel)
+            UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_NETWORK, "Processing FindServerRequest on Connection %i",
+                         connection->sockfd);
+        else
+            UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SECURECHANNEL, "Processing FindServerRequest on SecureChannel %i",
+                         clientChannel->securityToken.channelId);
         UA_FindServersRequest  p;
         UA_FindServersResponse r;
         if(UA_FindServersRequest_decodeBinary(msg, pos, &p))
@@ -333,7 +348,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     case UA_NS0ID_TRANSLATEBROWSEPATHSTONODEIDSREQUEST:
         INVOKE_SERVICE(TranslateBrowsePathsToNodeIds, UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE);
         break;
-#ifdef ENABLE_SUBSCRIPTIONS    
+#ifdef ENABLE_SUBSCRIPTIONS
     case UA_NS0ID_CREATESUBSCRIPTIONREQUEST:
         INVOKE_SERVICE(CreateSubscription, UA_TYPES_CREATESUBSCRIPTIONRESPONSE);
         break;
@@ -366,18 +381,18 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         INVOKE_SERVICE(AddReferences, UA_TYPES_ADDREFERENCESRESPONSE);
         break;
     case UA_NS0ID_DELETENODESREQUEST:
-      INVOKE_SERVICE(DeleteNodes, UA_TYPES_DELETENODESRESPONSE);
-      break;
+        INVOKE_SERVICE(DeleteNodes, UA_TYPES_DELETENODESRESPONSE);
+        break;
     case UA_NS0ID_DELETEREFERENCESREQUEST:
-      INVOKE_SERVICE(DeleteReferences, UA_TYPES_DELETEREFERENCESRESPONSE);
-      break;
+        INVOKE_SERVICE(DeleteReferences, UA_TYPES_DELETEREFERENCESRESPONSE);
+        break;
 #endif
     default: {
         if(requestType.namespaceIndex == 0 && requestType.identifier.numeric==787)
-            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_COMMUNICATION,
+            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_NETWORK,
                         "Client requested a subscription that are not supported, the message will be skipped");
         else
-            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_COMMUNICATION, "Unknown request: NodeId(ns=%d, i=%d)",
+            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_NETWORK, "Unknown request: NodeId(ns=%d, i=%d)",
                         requestType.namespaceIndex, requestType.identifier.numeric);
         UA_RequestHeader p;
         UA_ServiceFault r;
@@ -405,7 +420,7 @@ static void processCLO(UA_Connection *connection, UA_Server *server, const UA_By
 }
 
 /**
- * process binary message received from socket
+ * process binary message received from Connection
  * dose not modify UA_ByteString you have to free it youself.
  * use of connection->getSendBuffer() and connection->sent() to answer Message
  */
@@ -414,7 +429,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
     UA_TcpMessageHeader tcpMessageHeader;
     do {
         if(UA_TcpMessageHeader_decodeBinary(msg, &pos, &tcpMessageHeader)) {
-            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_COMMUNICATION, "Decoding of message header failed");
+            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_NETWORK, "Decoding of message header failed");
             connection->close(connection);
             break;
         }
@@ -432,20 +447,23 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             if(connection->state != UA_CONNECTION_ESTABLISHED) {
                 connection->close(connection);
                 return;
-            } else
+            }
 #endif
-                processMSG(connection, server, msg, &pos);
+            processMSG(connection, server, msg, &pos);
             break;
         case UA_MESSAGETYPEANDFINAL_CLOF & 0xffffff:
             processCLO(connection, server, msg, &pos);
             connection->close(connection);
             return;
+        default:
+            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_NETWORK, "Unknown request type on Connection %i", connection->sockfd);
         }
 
         UA_TcpMessageHeader_deleteMembers(&tcpMessageHeader);
         if(pos != targetpos) {
-            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_COMMUNICATION,
-                        "The message was not entirely processed, skipping to the end");
+            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_NETWORK,
+                        "Message on Connection %i was not entirely processed. Arrived at position %i, skip after the announced length to position %i",
+                        connection->sockfd, pos, targetpos);
             pos = targetpos;
         }
     } while(msg->length > (UA_Int32)pos);

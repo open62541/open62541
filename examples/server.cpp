@@ -23,8 +23,8 @@
 
 using namespace std;
 
-UA_Logger logger;
 UA_Boolean running = 1;
+UA_Logger logger = Logger_Stdout;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
@@ -36,7 +36,6 @@ int main() {
 
     UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-    logger = Logger_Stdout_new();
     UA_Server_setLogger(server, logger);
 
     // add a variable node to the adresspace

@@ -16,8 +16,12 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 	UA_Session *newSession;
     response->responseHeader.serviceResult = UA_SessionManager_createSession(&server->sessionManager,
                                                                              channel, request, &newSession);
-	if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+	if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+                 "Processing CreateSessionRequest on SecureChannel %i failed",
+                 channel->securityToken.channelId);
 		return;
+    }
 
     //TODO get maxResponseMessageSize internally
     newSession->maxResponseMessageSize = request->maxResponseMessageSize;
@@ -32,6 +36,10 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_SessionManager_removeSession(&server->sessionManager, server, &newSession->authenticationToken);
          return;
     }
+    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+                 "Processing CreateSessionRequest on SecureChannel %i succeeded, created Session (ns=%i,i=%i)",
+                 channel->securityToken.channelId, response->sessionId.namespaceIndex,
+                 response->sessionId.identifier.numeric);
 }
 
 void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
@@ -44,11 +52,21 @@ void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
 	if(foundSession == UA_NULL) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+        UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+                     "Processing ActivateSessionRequest on SecureChannel %i, but no session found for the authentication token",
+                     channel->securityToken.channelId);
         return;
 	} else if(foundSession->validTill < UA_DateTime_now()) {
+        UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+                     "Processing ActivateSessionRequest on SecureChannel %i, but the session has timed out",
+                     channel->securityToken.channelId);
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         return;
 	}
+    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+                 "Processing ActivateSessionRequest on SecureChannel %i for Session (ns=%i,i=%i)",
+                 channel->securityToken.channelId, foundSession->sessionId.namespaceIndex,
+                 foundSession->sessionId.identifier.numeric);
 
     UA_UserIdentityToken token;
     UA_UserIdentityToken_init(&token);
@@ -116,12 +134,9 @@ void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
 void Service_CloseSession(UA_Server *server, UA_Session *session, const UA_CloseSessionRequest *request,
                           UA_CloseSessionResponse *response) {
-	UA_Session *foundSession =
-        UA_SessionManager_getSession(&server->sessionManager,
-		                             (const UA_NodeId*)&request->requestHeader.authenticationToken);
-	if(foundSession == UA_NULL)
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-	else 
-        response->responseHeader.serviceResult =
-            UA_SessionManager_removeSession(&server->sessionManager, server, &session->authenticationToken);
+    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+                 "Processing CloseSessionRequest for Session (ns=%i,i=%i)",
+                 session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
+    response->responseHeader.serviceResult =
+        UA_SessionManager_removeSession(&server->sessionManager, server, &session->authenticationToken);
 }

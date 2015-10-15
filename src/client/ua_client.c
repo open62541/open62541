@@ -132,15 +132,20 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
 
     message.length = messageHeader.messageSize;
     retval = c->connection.send(&c->connection, &message);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_DEBUG(c->logger, UA_LOGCATEGORY_NETWORK, "Sending HEL failed");
         return retval;
+    }
+    UA_LOG_DEBUG(c->logger, UA_LOGCATEGORY_NETWORK, "Sent HEL message");
 
     UA_ByteString reply;
     UA_ByteString_init(&reply);
     do {
         retval = c->connection.recv(&c->connection, &reply, c->config.timeout);
-        if(retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_DEBUG(c->logger, UA_LOGCATEGORY_NETWORK, "Receiving ACK message failed");
             return retval;
+        }
     } while(!reply.data);
 
     offset = 0;
@@ -148,8 +153,12 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     UA_TcpAcknowledgeMessage ackMessage;
     retval = UA_TcpAcknowledgeMessage_decodeBinary(&reply, &offset, &ackMessage);
     UA_ByteString_deleteMembers(&reply);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_DEBUG(c->logger, UA_LOGCATEGORY_NETWORK, "Decoding ACK message failed");
         return retval;
+    }
+
+    UA_LOG_DEBUG(c->logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
     conn->remoteConf.maxChunkCount = ackMessage.maxChunkCount;
     conn->remoteConf.maxMessageSize = ackMessage.maxMessageSize;
     conn->remoteConf.protocolVersion = ackMessage.protocolVersion;
@@ -187,11 +196,13 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     opnSecRq.requestedLifetime = client->config.secureChannelLifeTime;
     if(renew) {
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_RENEW;
+        UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_SECURECHANNEL, "Requesting to renew the SecureChannel");
     } else {
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_ISSUE;
         UA_ByteString_init(&client->channel.clientNonce);
         UA_ByteString_copy(&client->channel.clientNonce, &opnSecRq.clientNonce);
         opnSecRq.securityMode = UA_MESSAGESECURITYMODE_NONE;
+        UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_SECURECHANNEL, "Requesting to open a SecureChannel");
     }
 
     UA_ByteString message;
@@ -228,8 +239,10 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     UA_ByteString_init(&reply);
     do {
         retval = client->connection.recv(&client->connection, &reply, client->config.timeout);
-        if(retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_SECURECHANNEL, "Receiving OpenSecureChannelResponse failed");
             return retval;
+        }
     } while(!reply.data);
 
     offset = 0;
@@ -243,22 +256,35 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         UA_ByteString_deleteMembers(&reply);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         UA_NodeId_deleteMembers(&requestType);
-        UA_LOG_ERROR(client->logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_CLIENT,
                      "Reply answers the wrong request. Expected OpenSecureChannelResponse.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     UA_OpenSecureChannelResponse response;
-    UA_OpenSecureChannelResponse_decodeBinary(&reply, &offset, &response);
+    retval = UA_OpenSecureChannelResponse_decodeBinary(&reply, &offset, &response);
+    if(!retval) {
+        UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_SECURECHANNEL, "Decoding OpenSecureChannelResponse failed");
+        UA_ByteString_deleteMembers(&reply);
+        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+        UA_OpenSecureChannelResponse_init(&response);
+        response.responseHeader.serviceResult = retval;
+        return retval;
+    }
     client->scExpiresAt = UA_DateTime_now() + response.securityToken.revisedLifetime * 10000;
     UA_ByteString_deleteMembers(&reply);
     retval = response.responseHeader.serviceResult;
 
-    if(!renew && retval == UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_SECURECHANNEL, "SecureChannel could not be opened / renewed");
+    else if(!renew) {
         UA_ChannelSecurityToken_copy(&response.securityToken, &client->channel.securityToken);
-        UA_ByteString_deleteMembers(&client->channel.serverNonce); // if the handshake is repeated
+        /* if the handshake is repeated, replace the old nonce */
+        UA_ByteString_deleteMembers(&client->channel.serverNonce);
         UA_ByteString_copy(&response.serverNonce, &client->channel.serverNonce);
-    }
+        UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_SECURECHANNEL, "SecureChannel opened");
+    } else
+        UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_SECURECHANNEL, "SecureChannel renewed");
 
     UA_OpenSecureChannelResponse_deleteMembers(&response);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
@@ -266,9 +292,12 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
 }
 
 /** If the request fails, then the response is cast to UA_ResponseHeader (at the beginning of every
-    response) and filled with the appropriate error code */
-static void synchronousRequest(UA_Client *client, void *request, const UA_DataType *requestType,
+    response) and filled with theaappropriate error code */
+static void synchronousRequest(UA_Client *client, void *r, const UA_DataType *requestType,
                                void *response, const UA_DataType *responseType) {
+    /* Requests always begin witih a RequestHeader, therefore we can cast. */
+    UA_RequestHeader *request = r;
+
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!response)
         return;
@@ -282,25 +311,15 @@ static void synchronousRequest(UA_Client *client, void *request, const UA_DataTy
         return;
     }
 
-    /* HANDLING REQUEST HEADER PARAMETERS */
-    typedef struct {
-        UA_RequestHeader requestHeader;
-    } headerOnlyRequest;
-    /* The cast is valid, since all requests start with a requestHeader */
-
-    /* Copy authenticationToken token to request header */
-    UA_NodeId_copy(&client->authenticationToken, &((headerOnlyRequest*)request)->requestHeader.authenticationToken);
-
-    ((headerOnlyRequest*)request)->requestHeader.timestamp = UA_DateTime_now();
-
-    ((headerOnlyRequest*)request)->requestHeader.requestHandle = ++client->requestHandle;
-
-    /*/HANDLING REQUEST HEADER PARAMETERS */
+    /* handling request parameters */
+    UA_NodeId_copy(&client->authenticationToken, &request->authenticationToken);
+    request->timestamp = UA_DateTime_now();
+    request->requestHandle = ++client->requestHandle;
 
     /* Send the request */
     UA_UInt32 requestId = ++client->requestId;
-    retval = UA_SecureChannel_sendBinaryMessage(&client->channel, requestId,
-                                                              request, requestType);
+    UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_CLIENT, "Sending a request of type %i", requestType->typeId.identifier.numeric);
+    retval = UA_SecureChannel_sendBinaryMessage(&client->channel, requestId, request, requestType);
     if(retval) {
         if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED)
             respHeader->serviceResult = UA_STATUSCODE_BADREQUESTTOOLARGE;
@@ -335,8 +354,9 @@ static void synchronousRequest(UA_Client *client, void *request, const UA_DataTy
     UA_NodeId expectedNodeId = UA_NODEID_NUMERIC(0, responseType->typeId.identifier.numeric +
                                                  UA_ENCODINGOFFSET_BINARY);
 
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
         goto finish;
+    }
 
     /* Todo: we need to demux responses since a publish responses may come at any time */
     if(!UA_NodeId_equal(&responseId, &expectedNodeId) || seqHeader.requestId != requestId) {
@@ -359,9 +379,11 @@ static void synchronousRequest(UA_Client *client, void *request, const UA_DataTy
     UA_SymmetricAlgorithmSecurityHeader_deleteMembers(&symHeader);
     UA_ByteString_deleteMembers(&reply);
     if(retval != UA_STATUSCODE_GOOD){
+        UA_LOG_INFO(client->logger, UA_LOGCATEGORY_CLIENT, "Error receiving the response");
         client->state = UA_CLIENTSTATE_ERRORED;
         respHeader->serviceResult = retval;
     }
+    UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_CLIENT, "Received a response of type %i", responseId.identifier.numeric);
 }
 
 static UA_StatusCode ActivateSession(UA_Client *client) {
@@ -1040,7 +1062,7 @@ void UA_Client_doPublish(UA_Client *client) {
 #ifdef ENABLE_METHODCALLS
 UA_CallResponse UA_Client_call(UA_Client *client, UA_CallRequest *request) {
     UA_CallResponse response;
-    synchronousRequest(client, request, &UA_TYPES[UA_TYPES_CALLREQUEST],
+    synchronousRequest(client, (UA_RequestHeader*)request, &UA_TYPES[UA_TYPES_CALLREQUEST],
                        &response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
     return response;
 }

@@ -37,8 +37,7 @@ void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_Dat
                 entry->channel.connection){
             UA_SecureChannel_revolveTokens(&entry->channel);
             entry = LIST_NEXT(entry, pointers);
-        }
-        else {
+        } else {
             channel_list_entry *next = LIST_NEXT(entry, pointers);
             LIST_REMOVE(entry, pointers);
             UA_SecureChannel_deleteMembersCleanup(&entry->channel);
@@ -99,8 +98,7 @@ UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Conne
 
 UA_StatusCode UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_Connection *conn,
                                             const UA_OpenSecureChannelRequest *request,
-                                            UA_OpenSecureChannelResponse *response)
-{
+                                            UA_OpenSecureChannelResponse *response) {
     UA_SecureChannel *channel = conn->channel;
     if(channel == UA_NULL)
         return UA_STATUSCODE_BADINTERNALERROR;

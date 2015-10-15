@@ -312,6 +312,9 @@ void Service_Read_single(UA_Server *server, UA_Session *session, const UA_Timest
 
 void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request,
                   UA_ReadResponse *response) {
+    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+                 "Processing ReadRequest for Session (ns=%i,i=%i)",
+                 session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
     if(request->nodesToReadSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
@@ -323,7 +326,6 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
     }
 
     size_t size = request->nodesToReadSize;
-
     response->results = UA_Array_new(&UA_TYPES[UA_TYPES_DATAVALUE], size);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -331,7 +333,6 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
     }
 
     response->resultsSize = size;
-
     if(request->maxAge < 0) {
     	response->responseHeader.serviceResult = UA_STATUSCODE_BADMAXAGEINVALID;
         return;
@@ -661,6 +662,9 @@ UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, UA_Wr
 void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,
                    UA_WriteResponse *response) {
     UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
+    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+                 "Processing WriteRequest for Session (ns=%i,i=%i)",
+                 session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
 
     if(request->nodesToWriteSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;

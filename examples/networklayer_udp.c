@@ -94,7 +94,7 @@ static UA_StatusCode sendUDP(UA_Connection *connection, UA_ByteString *buf) {
 		UA_Int32 n = sendto(layer->serversockfd, buf->data, buf->length, 0,
                             (struct sockaddr*)sin, sizeof(struct sockaddr_in));
         if(n == -1L) {
-            UA_LOG_WARNING(layer->layer.logger, UA_LOGCATEGORY_COMMUNICATION, "UDP send error %i", errno);
+            UA_LOG_WARNING(layer->layer.logger, UA_LOGCATEGORY_NETWORK, "UDP send error %i", errno);
             UA_ByteString_deleteMembers(buf);
             return UA_STATUSCODE_BADINTERNALERROR;
         }
@@ -124,7 +124,7 @@ static UA_StatusCode ServerNetworkLayerUDP_start(ServerNetworkLayerUDP *layer, U
     layer->layer.logger = logger;
     layer->serversockfd = socket(PF_INET, SOCK_DGRAM, 0);
     if(layer->serversockfd < 0) {
-		UA_LOG_WARNING(layer->layer.logger, UA_LOGCATEGORY_COMMUNICATION, "Error opening socket");
+		UA_LOG_WARNING(layer->layer.logger, UA_LOGCATEGORY_NETWORK, "Error opening socket");
 		return UA_STATUSCODE_BADINTERNALERROR;
 	} 
 	const struct sockaddr_in serv_addr =
@@ -133,18 +133,18 @@ static UA_StatusCode ServerNetworkLayerUDP_start(ServerNetworkLayerUDP *layer, U
 	int optval = 1;
 	if(setsockopt(layer->serversockfd, SOL_SOCKET,
                   SO_REUSEADDR, (const char *)&optval, sizeof(optval)) == -1) {
-        UA_LOG_WARNING(layer->layer.logger, UA_LOGCATEGORY_COMMUNICATION, "Could not setsockopt");
+        UA_LOG_WARNING(layer->layer.logger, UA_LOGCATEGORY_NETWORK, "Could not setsockopt");
 		CLOSESOCKET(layer->serversockfd);
 		return UA_STATUSCODE_BADINTERNALERROR;
 	}
 	if(bind(layer->serversockfd, (const struct sockaddr *)&serv_addr,
             sizeof(serv_addr)) < 0) {
-        UA_LOG_WARNING(layer->layer.logger, UA_LOGCATEGORY_COMMUNICATION, "Could not bind the socket");
+        UA_LOG_WARNING(layer->layer.logger, UA_LOGCATEGORY_NETWORK, "Could not bind the socket");
 		CLOSESOCKET(layer->serversockfd);
 		return UA_STATUSCODE_BADINTERNALERROR;
 	}
 	socket_set_nonblocking(layer->serversockfd);
-    UA_LOG_WARNING(layer->layer.logger, UA_LOGCATEGORY_COMMUNICATION, "Listening for UDP connections on %s:%d",
+    UA_LOG_WARNING(layer->layer.logger, UA_LOGCATEGORY_NETWORK, "Listening for UDP connections on %s:%d",
                    inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port));
     return UA_STATUSCODE_GOOD;
 }
@@ -165,7 +165,7 @@ static size_t ServerNetworkLayerUDP_getJobs(ServerNetworkLayerUDP *layer, UA_Job
     if(!buf.data) {
         buf.data = malloc(sizeof(UA_Byte) * layer->conf.recvBufferSize);
         if(!buf.data)
-            UA_LOG_WARNING(layer->layer.logger, UA_LOGCATEGORY_COMMUNICATION, "malloc failed");
+            UA_LOG_WARNING(layer->layer.logger, UA_LOGCATEGORY_NETWORK, "malloc failed");
     }
     struct sockaddr sender;
     socklen_t sendsize = sizeof(sender);

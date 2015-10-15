@@ -20,9 +20,9 @@ void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value) {
 }
 
 int main(int argc, char *argv[]) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
+    UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
     UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
-                                             "opc.tcp://localhost:16664");
+                                             "opc.tcp://virtualbox:16663");
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);

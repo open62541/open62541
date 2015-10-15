@@ -385,6 +385,9 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
 
 void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseRequest *request,
                     UA_BrowseResponse *response) {
+    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+                 "Processing BrowseRequest for Session (ns=%i,i=%i)",
+                 session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
     if(!UA_NodeId_isNull(&request->view.viewId)) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADVIEWIDUNKNOWN;
         return;
@@ -440,6 +443,9 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
 
 void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseNextRequest *request,
                         UA_BrowseNextResponse *response) {
+    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+                 "Processing BrowseNextRequest for Session (ns=%i,i=%i)",
+                 session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
    if(request->continuationPointsSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
@@ -606,13 +612,15 @@ translateBrowsePath(UA_Server *server, UA_Session *session, const UA_BrowsePath 
 void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                            const UA_TranslateBrowsePathsToNodeIdsRequest *request,
                                            UA_TranslateBrowsePathsToNodeIdsResponse *response) {
+    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+                 "Processing TranslateBrowsePathsToNodeIdsRequest for Session (ns=%i,i=%i)",
+                 session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
 	if(request->browsePathsSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }
 
     size_t size = request->browsePathsSize;
-
     response->results = UA_Array_new(&UA_TYPES[UA_TYPES_BROWSEPATHRESULT], size);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -656,6 +664,9 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
 
 void Service_RegisterNodes(UA_Server *server, UA_Session *session, const UA_RegisterNodesRequest *request,
                            UA_RegisterNodesResponse *response) {
+    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+                 "Processing RegisterNodesRequest for Session (ns=%i,i=%i)",
+                 session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
 	//TODO: hang the nodeids to the session if really needed
 	response->responseHeader.timestamp = UA_DateTime_now();
     if(request->nodesToRegisterSize <= 0)
@@ -671,6 +682,9 @@ void Service_RegisterNodes(UA_Server *server, UA_Session *session, const UA_Regi
 
 void Service_UnregisterNodes(UA_Server *server, UA_Session *session, const UA_UnregisterNodesRequest *request,
                              UA_UnregisterNodesResponse *response) {
+    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+                 "Processing UnRegisterNodesRequest for Session (ns=%i,i=%i)",
+                 session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
 	//TODO: remove the nodeids from the session if really needed
 	response->responseHeader.timestamp = UA_DateTime_now();
 	if(request->nodesToUnregisterSize==0)
