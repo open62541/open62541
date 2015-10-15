@@ -79,9 +79,11 @@ argConformsToDefinition(UA_CallMethodRequest *rs, const UA_VariableNode *argDefi
     if(argDefinition->value.variant.value.type != &UA_TYPES[UA_TYPES_ARGUMENT] &&
         argDefinition->value.variant.value.type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
         return UA_STATUSCODE_BADINTERNALERROR;
-    if(rs->inputArgumentsSize < argDefinition->value.variant.value.arrayLength)
+    if(rs->inputArgumentsSize < argDefinition->value.variant.value.arrayLength &&
+       argDefinition->value.variant.value.arrayLength > 0)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
-    if(rs->inputArgumentsSize > argDefinition->value.variant.value.arrayLength)
+    if(rs->inputArgumentsSize > 0 &&
+       rs->inputArgumentsSize > argDefinition->value.variant.value.arrayLength)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     
     const UA_ExtensionObject *thisArgDefExtObj;
