@@ -1040,8 +1040,7 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offs
     uintptr_t ptr = (uintptr_t) dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Byte membersSize = dataType->membersSize;
-    size_t i = 0;
-    for(i = 0; i < membersSize && retval == UA_STATUSCODE_GOOD; i++) {
+    for(size_t i = 0; i < membersSize && retval == UA_STATUSCODE_GOOD; i++) {
         const UA_DataTypeMember *member = &dataType->members[i];
         const UA_DataType *memberType;
         if(member->namespaceZero)
@@ -1068,7 +1067,7 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offs
         }
     }
     if(retval != UA_STATUSCODE_GOOD)
-        UA_deleteMembersUntil(dst, dataType, i);
+        UA_deleteMembers(dst, dataType);
     return retval;
 }
 

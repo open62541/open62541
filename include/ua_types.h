@@ -240,77 +240,88 @@ UA_Boolean UA_EXPORT * UA_Boolean_new(void);
 static UA_INLINE void UA_Boolean_init(UA_Boolean *p) { *p = UA_FALSE; }
 void UA_EXPORT UA_Boolean_delete(UA_Boolean *p);
 static UA_INLINE void UA_Boolean_deleteMembers(UA_Boolean *p) { }
-static UA_INLINE UA_StatusCode UA_Boolean_copy(const UA_Boolean *src, UA_Boolean *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+static UA_INLINE UA_StatusCode UA_Boolean_copy(const UA_Boolean *src, UA_Boolean *dst) {
+    *dst = *src; return UA_STATUSCODE_GOOD; }
 
 /* SByte */
 UA_SByte UA_EXPORT * UA_SByte_new(void);
 static UA_INLINE void UA_SByte_init(UA_SByte *p) { *p = 0; }
 void UA_EXPORT UA_SByte_delete(UA_SByte *p);
 static UA_INLINE void UA_SByte_deleteMembers(UA_SByte *p) { }
-static UA_INLINE UA_StatusCode UA_SByte_copy(const UA_SByte *src, UA_SByte *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+static UA_INLINE UA_StatusCode UA_SByte_copy(const UA_SByte *src, UA_SByte *dst) {
+    *dst = *src; return UA_STATUSCODE_GOOD; }
 
 /* Byte */
 UA_Byte UA_EXPORT * UA_Byte_new(void);
 static UA_INLINE void UA_Byte_init(UA_Byte *p) { *p = 0; }
 void UA_EXPORT UA_Byte_delete(UA_Byte *p);
 static UA_INLINE void UA_Byte_deleteMembers(UA_Byte *p) { }
-static UA_INLINE UA_StatusCode UA_Byte_copy(const UA_Byte *src, UA_Byte *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+static UA_INLINE UA_StatusCode UA_Byte_copy(const UA_Byte *src, UA_Byte *dst) {
+    *dst = *src; return UA_STATUSCODE_GOOD; }
 
 /* Int16 */
 UA_Int16 UA_EXPORT * UA_Int16_new(void);
 static UA_INLINE void UA_Int16_init(UA_Int16 *p) { *p = 0; }
 void UA_EXPORT UA_Int16_delete(UA_Int16 *p);
 static UA_INLINE void UA_Int16_deleteMembers(UA_Int16 *p) { }
-static UA_INLINE UA_StatusCode UA_Int16_copy(const UA_Int16 *src, UA_Int16 *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+static UA_INLINE UA_StatusCode UA_Int16_copy(const UA_Int16 *src, UA_Int16 *dst) {
+    *dst = *src; return UA_STATUSCODE_GOOD; }
 
 /* UInt16 */
 UA_UInt16 UA_EXPORT * UA_UInt16_new(void);
 static UA_INLINE void UA_UInt16_init(UA_UInt16 *p) { *p = 0; }
 void UA_EXPORT UA_UInt16_delete(UA_UInt16 *p);
 static UA_INLINE void UA_UInt16_deleteMembers(UA_UInt16 *p) { }
-static UA_INLINE UA_StatusCode UA_UInt16_copy(const UA_UInt16 *src, UA_UInt16 *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+static UA_INLINE UA_StatusCode UA_UInt16_copy(const UA_UInt16 *src, UA_UInt16 *dst) {
+    *dst = *src; return UA_STATUSCODE_GOOD; }
 
 /* Int32 */
 UA_Int32 UA_EXPORT * UA_Int32_new(void);
 static UA_INLINE void UA_Int32_init(UA_Int32 *p) { *p = 0; }
 void UA_EXPORT UA_Int32_delete(UA_Int32 *p);
 static UA_INLINE void UA_Int32_deleteMembers(UA_Int32 *p) { }
-static UA_INLINE UA_StatusCode UA_Int32_copy(const UA_Int32 *src, UA_Int32 *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+static UA_INLINE UA_StatusCode UA_Int32_copy(const UA_Int32 *src, UA_Int32 *dst) {
+    *dst = *src; return UA_STATUSCODE_GOOD; }
 
 /* UInt32 */
 UA_UInt32 UA_EXPORT * UA_UInt32_new(void);
 static UA_INLINE void UA_UInt32_init(UA_UInt32 *p) { *p = 0; }
 void UA_EXPORT UA_UInt32_delete(UA_UInt32 *p);
 static UA_INLINE void UA_UInt32_deleteMembers(UA_UInt32 *p) { }
-static UA_INLINE UA_StatusCode UA_UInt32_copy(const UA_UInt32 *src, UA_UInt32 *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+static UA_INLINE UA_StatusCode UA_UInt32_copy(const UA_UInt32 *src, UA_UInt32 *dst) {
+    *dst = *src; return UA_STATUSCODE_GOOD; }
 
 /* Int64 */
 UA_Int64 UA_EXPORT * UA_Int64_new(void);
 static UA_INLINE void UA_Int64_init(UA_Int64 *p) { *p = 0; }
 void UA_EXPORT UA_Int64_delete(UA_Int64 *p);
 static UA_INLINE void UA_Int64_deleteMembers(UA_Int64 *p) { }
-static UA_INLINE UA_StatusCode UA_Int64_copy(const UA_Int64 *src, UA_Int64 *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+static UA_INLINE UA_StatusCode UA_Int64_copy(const UA_Int64 *src, UA_Int64 *dst) {
+    *dst = *src; return UA_STATUSCODE_GOOD; }
 
 /* UInt64 */
 UA_UInt64 UA_EXPORT * UA_UInt64_new(void);
 static UA_INLINE void UA_UInt64_init(UA_UInt64 *p) { *p = 0; }
 void UA_EXPORT UA_UInt64_delete(UA_UInt64 *p);
 static UA_INLINE void UA_UInt64_deleteMembers(UA_UInt64 *p) { }
-static UA_INLINE UA_StatusCode UA_UInt64_copy(const UA_UInt64 *src, UA_UInt64 *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+static UA_INLINE UA_StatusCode UA_UInt64_copy(const UA_UInt64 *src, UA_UInt64 *dst) {
+    *dst = *src; return UA_STATUSCODE_GOOD; }
 
 /* Float */
 UA_Float UA_EXPORT * UA_Float_new(void);
 static UA_INLINE void UA_Float_init(UA_Float *p) { *p = 0.0f; }
 void UA_EXPORT UA_Float_delete(UA_Float *p);
 static UA_INLINE void UA_Float_deleteMembers(UA_Float *p) { }
-static UA_INLINE UA_StatusCode UA_Float_copy(const UA_Float *src, UA_Float *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+static UA_INLINE UA_StatusCode UA_Float_copy(const UA_Float *src, UA_Float *dst) {
+    *dst = *src; return UA_STATUSCODE_GOOD; }
 
 /* Double */
 UA_Double UA_EXPORT * UA_Double_new(void);
 static UA_INLINE void UA_Double_init(UA_Double *p) { *p = 0.0f; }
 void UA_EXPORT UA_Double_delete(UA_Double *p);
 static UA_INLINE void UA_Double_deleteMembers(UA_Double *p) { }
-static UA_INLINE UA_StatusCode UA_Double_copy(const UA_Double *src, UA_Double *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+static UA_INLINE UA_StatusCode UA_Double_copy(const UA_Double *src, UA_Double *dst) {
+    *dst = *src; return UA_STATUSCODE_GOOD; }
 
 /* String */
 UA_String UA_EXPORT * UA_String_new(void);
@@ -334,7 +345,8 @@ UA_DateTime UA_EXPORT * UA_DateTime_new(void);
 static UA_INLINE void UA_DateTime_init(UA_DateTime *p) { *p = (UA_DateTime)0.0f; }
 void UA_EXPORT UA_DateTime_delete(UA_DateTime *p);
 static UA_INLINE void UA_DateTime_deleteMembers(UA_DateTime *p) { }
-static UA_INLINE UA_StatusCode UA_DateTime_copy(const UA_DateTime *src, UA_DateTime *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+static UA_INLINE UA_StatusCode UA_DateTime_copy(const UA_DateTime *src, UA_DateTime *dst) {
+    *dst = *src; return UA_STATUSCODE_GOOD; }
 UA_DateTime UA_EXPORT UA_DateTime_now(void); ///> The current time
 UA_StatusCode UA_EXPORT UA_DateTime_toString(UA_DateTime time, UA_String *timeString);
 
@@ -357,7 +369,8 @@ UA_Guid UA_EXPORT * UA_Guid_new(void);
 static UA_INLINE void UA_Guid_init(UA_Guid *p) { memset(p, 0, sizeof(UA_Guid)); }
 void UA_EXPORT UA_Guid_delete(UA_Guid *p);
 static UA_INLINE void UA_Guid_deleteMembers(UA_Guid *p) { }
-static UA_INLINE UA_StatusCode UA_Guid_copy(const UA_Guid *src, UA_Guid *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
+static UA_INLINE UA_StatusCode UA_Guid_copy(const UA_Guid *src, UA_Guid *dst) {
+    *dst = *src; return UA_STATUSCODE_GOOD; }
 UA_Boolean UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
 UA_Guid UA_EXPORT UA_Guid_random(UA_UInt32 *seed); ///> Do not use for security-critical entropy!
 
@@ -567,7 +580,7 @@ UA_Boolean UA_EXPORT UA_Variant_isScalar(const UA_Variant *v);
  * @param type The datatype of the value in question
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setScalar(UA_Variant *v, void *p, const UA_DataType *type);
+UA_StatusCode UA_EXPORT UA_Variant_setScalar(UA_Variant *v, void * UA_RESTRICT p, const UA_DataType *type);
 
 /**
  * Set the variant to a scalar value that is copied from an existing variable.
@@ -590,7 +603,7 @@ UA_StatusCode UA_EXPORT UA_Variant_setScalarCopy(UA_Variant *v, const void *p, c
  * @return Indicates whether the operation succeeded or returns an error code
  */
 UA_StatusCode UA_EXPORT
-UA_Variant_setArray(UA_Variant *v, void *array, UA_Int32 elements, const UA_DataType *type);
+UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array, UA_Int32 elements, const UA_DataType *type);
 
 /**
  * Set the variant to an array that is copied from an existing array.
@@ -628,7 +641,8 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRan
  * @return Returns UA_STATUSCODE_GOOD or an error code
  */
 UA_StatusCode UA_EXPORT
-UA_Variant_setRange(UA_Variant *v, void *dataArray, UA_Int32 dataArraySize, const UA_NumericRange range);
+UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT dataArray,
+                    UA_Int32 dataArraySize, const UA_NumericRange range);
 
 /**
  * Deep-copy a range of data into an existing variant.
@@ -696,18 +710,18 @@ struct UA_DataType {
 /**
  * Allocates and initializes a variable of type dataType
  *
- * @param dataType The datatype description
+ * @param type The datatype description
  * @return Returns the memory location of the variable or (void*)0 if no memory is available
  */
-void UA_EXPORT * UA_new(const UA_DataType *dataType);
+void UA_EXPORT * UA_new(const UA_DataType *type);
 
 /**
  * Initializes a variable to default values
  *
  * @param p The memory location of the variable
- * @param dataType The datatype description
+ * @param type The datatype description
  */
-void UA_EXPORT UA_init(void *p, const UA_DataType *dataType);
+void UA_EXPORT UA_init(void *p, const UA_DataType *type);
 
 /**
  * Copies the content of two variables. If copying fails (e.g. because no memory was available for
@@ -715,10 +729,10 @@ void UA_EXPORT UA_init(void *p, const UA_DataType *dataType);
  *
  * @param src The memory location of the source variable
  * @param dst The memory location of the destination variable
- * @param dataType The datatype description
+ * @param type The datatype description
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_copy(const void *src, void *dst, const UA_DataType *dataType);
+UA_StatusCode UA_EXPORT UA_copy(const void *src, void *dst, const UA_DataType *type);
 
 /**
  * Deletes the dynamically assigned content of a variable (e.g. a member-array). Afterwards, the
@@ -726,19 +740,17 @@ UA_StatusCode UA_EXPORT UA_copy(const void *src, void *dst, const UA_DataType *d
  * and may contain old data that is not memory-relevant.
  *
  * @param p The memory location of the variable
- * @param dataType The datatype description of the variable
+ * @param type The datatype description of the variable
  */
-void UA_EXPORT UA_deleteMembers(void *p, const UA_DataType *dataType);
-
-void UA_EXPORT UA_deleteMembersUntil(void *p, const UA_DataType *dataType, size_t lastMember);
+void UA_EXPORT UA_deleteMembers(void *p, const UA_DataType *type);
 
 /**
  * Deletes (frees) a variable and all of its content.
  *
  * @param p The memory location of the variable
- * @param dataType The datatype description of the variable
+ * @param type The datatype description of the variable
  */
-void UA_EXPORT UA_delete(void *p, const UA_DataType *dataType);
+void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
 
 /********************/
 /* Array operations */
@@ -749,31 +761,31 @@ void UA_EXPORT UA_delete(void *p, const UA_DataType *dataType);
 /**
  * Allocates and initializes an array of variables of a specific type
  *
- * @param dataType The datatype description
+ * @param type The datatype description
  * @param elements The number of elements in the array
  * @return Returns the memory location of the variable or (void*)0 if no memory could be allocated
  */
-void UA_EXPORT * UA_Array_new(const UA_DataType *dataType, UA_Int32 elements);
+void UA_EXPORT * UA_Array_new(const UA_DataType *type, UA_Int32 elements);
 
 /**
  * Allocates and copies an array. dst is set to (void*)0 if not enough memory is available.
  *
  * @param src The memory location of the source array
  * @param dst The memory location where the pointer to the destination array is written
- * @param dataType The datatype of the array members
+ * @param type The datatype of the array members
  * @param elements The size of the array
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Array_copy(const void *src, void **dst, const UA_DataType *dataType, UA_Int32 elements);
+UA_StatusCode UA_EXPORT UA_Array_copy(const void *src, void **dst, const UA_DataType *type, UA_Int32 elements);
 
 /**
  * Deletes an array.
  *
  * @param p The memory location of the array
- * @param dataType The datatype of the array members
+ * @param type The datatype of the array members
  * @param elements The size of the array
  */
-void UA_EXPORT UA_Array_delete(void *p, const UA_DataType *dataType, UA_Int32 elements);
+void UA_EXPORT UA_Array_delete(void *p, const UA_DataType *type, UA_Int32 elements);
 
 /**********************/
 /* Node Attribute Ids */

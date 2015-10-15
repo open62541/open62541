@@ -75,4 +75,12 @@
 # define UA_INLINE inline
 #endif
 
+/* Define non-aliasing pointers */
+#ifdef _MSC_VER
+# define UA_RESTRICT __restrict
+#else
+# define UA_RESTRICT restrict
+#endif
+
+
 #endif /* UA_CONFIG_H_ */

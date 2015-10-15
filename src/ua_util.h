@@ -15,13 +15,6 @@
 # include <malloc.h>
 #endif
 
-/* Visual Studio needs __restrict */
-#ifdef _MSC_VER
-# define UA_RESTRICT __restrict
-#else
-# define UA_RESTRICT restrict
-#endif
-
 /* Visual Studio does not know fnct/unistd file access results */
 #ifdef _MSC_VER
     #ifndef R_OK
