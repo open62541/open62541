@@ -127,10 +127,14 @@ class open62541_MacroHelper():
       code.append("UA_QualifiedName nodeName = UA_QUALIFIEDNAME(0, \"" + str(node.browseName()) + "\");")
 
     code.append("UA_Server_add%sNode(server, nodeId, parentNodeId, parentReferenceNodeId, nodeName" % nodetype)
+      
     if nodetype in ["Object", "Variable"]:
       code.append("       , typeDefinition")
-    code.append("       , attr, NULL);")
-      
+    
+    if nodetype != "Method":
+      code.append("       , attr, UA_NULL);")
+    else:
+      code.append("       , attr, (UA_MethodCallback) UA_NULL, UA_NULL, 0, UA_NULL, 0, UA_NULL, UA_NULL);")
     return code
     
   def getCreateNodeBootstrap(self, node):
@@ -138,7 +142,6 @@ class open62541_MacroHelper():
     code = []
 
     code.append("// Node: " + str(node) + ", " + str(node.browseName()))
-    code.append("/* sorry, nodebootstrap needs to be updated */")
 
     if node.nodeClass() == NODE_CLASS_OBJECT:
       nodetype = "Object"
@@ -160,9 +163,7 @@ class open62541_MacroHelper():
       code.append("/* undefined nodeclass */")
       return;
 
-    code.append("UA_%sAttributes attr;\nUA_%sAttributes_init(&attr);" % (nodetype, nodetype)); 
-
-    code.append(nodetype + " *" + node.getCodePrintableID() + " = " + nodetype + "_new();")
+    code.append("UA_" + nodetype + "Node *" + node.getCodePrintableID() + " = UA_" + nodetype + "Node_new();")
     if not "browsename" in self.supressGenerationOfAttribute:
       extrNs = node.browseName().split(":")
       if len(extrNs) > 1:
@@ -180,8 +181,6 @@ class open62541_MacroHelper():
     if not "userwritemask" in self.supressGenerationOfAttribute:
         if node.__node_userWriteMask__ != 0:
           code.append(node.getCodePrintableID() + "->userWriteMask = (UA_Int32) " + str(node.__node_userWriteMask__) + ";")
-    #FIXME: Allocate descriptions, etc.
-
     if not "nodeid" in self.supressGenerationOfAttribute:
       if node.id().ns != 0:
         code.append(node.getCodePrintableID() + "->nodeId.namespaceIndex = " + str(node.id().ns) + ";")

@@ -671,8 +671,6 @@ class opcua_node_t:
       code = code + codegen.getCreateNodeNoBootstrap(self, parentNode, parentRef)
       #code = code + self.printOpen62541CCode_Subtype(unPrintedReferences = unPrintedReferences, bootstrapping = False)
       #code.append("       UA_NULL);") # createdNodeId, wraps up the UA_Server_add<XYType>Node() call
-      if self.nodeClass() == NODE_CLASS_METHOD:
-        code.append("#endif //ENABLE_METHODCALL") # ifdef added by codegen when methods are detected
       # Parent to child reference is added by the server, do not reprint that reference
       if parentRef in unPrintedReferences:
         unPrintedReferences.remove(parentRef)
