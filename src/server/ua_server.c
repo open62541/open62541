@@ -102,8 +102,22 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     return (UA_UInt16)server->namespacesSize - 1;
 }
 
-UA_StatusCode UA_Server_deleteNode(UA_Server *server, UA_NodeId nodeId) {
-    return Service_DeleteNodes_single(server, &adminSession, &nodeId, UA_TRUE);
+UA_StatusCode UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId,
+                                   UA_Boolean deleteReferences) {
+    return Service_DeleteNodes_single(server, &adminSession, &nodeId, deleteReferences);
+}
+
+UA_StatusCode
+UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId, const UA_NodeId referenceTypeId,
+                          UA_Boolean isForward, const UA_ExpandedNodeId targetNodeId,
+                          UA_Boolean deleteBidirectional) {
+    UA_DeleteReferencesItem item;
+    item.sourceNodeId = sourceNodeId;
+    item.referenceTypeId = referenceTypeId;
+    item.isForward = isForward;
+    item.targetNodeId = targetNodeId;
+    item.deleteBidirectional = deleteBidirectional;
+    return Service_DeleteReferences_single(server, &adminSession, &item);
 }
 
 UA_StatusCode
@@ -1181,14 +1195,17 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 }
 
 UA_StatusCode
-__UA_Server_setNodeAttribute(UA_Server *server, const UA_NodeId nodeId,
+__UA_Server_writeAttribute(UA_Server *server, const UA_NodeId nodeId,
                              const UA_AttributeId attributeId, const UA_DataType *type,
                              const void *value) {
     UA_WriteValue wvalue;
     UA_WriteValue_init(&wvalue);
     wvalue.nodeId = nodeId;
     wvalue.attributeId = attributeId;
-    UA_Variant_setScalarCopy(&wvalue.value.value, value, type);
+    if(attributeId != UA_ATTRIBUTEID_VALUE)
+        UA_Variant_setScalarCopy(&wvalue.value.value, value, type);
+    else
+        UA_Variant_copy(value, &wvalue.value.value);
     wvalue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = Service_Write_single(server, &adminSession, &wvalue);
     UA_NodeId_init(&wvalue.nodeId);
@@ -1197,25 +1214,7 @@ __UA_Server_setNodeAttribute(UA_Server *server, const UA_NodeId nodeId,
 }
 
 UA_StatusCode
-UA_Server_setNodeAttribute_value(UA_Server *server, const UA_NodeId nodeId,
-                                 const UA_DataType *type, const UA_Variant value) {
-    UA_WriteValue wvalue;
-    UA_WriteValue_init(&wvalue);
-    wvalue.nodeId = nodeId;
-    wvalue.attributeId = UA_ATTRIBUTEID_VALUE;
-    UA_StatusCode retval = UA_Variant_copy(&value, &wvalue.value.value);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    wvalue.value.hasValue = UA_TRUE;
-    retval = Service_Write_single(server, &adminSession, &wvalue);
-    UA_NodeId_init(&wvalue.nodeId);
-    UA_WriteValue_deleteMembers(&wvalue);
-    return retval;
-}
-
-UA_StatusCode
-UA_Server_setNodeAttribute_value_move(UA_Server *server, const UA_NodeId nodeId,
-                                      const UA_DataType *type, UA_Variant *value) {
+UA_Server_writeValueAttribute_move(UA_Server *server, const UA_NodeId nodeId, UA_Variant *value) {
     UA_WriteValue wvalue;
     UA_WriteValue_init(&wvalue);
     wvalue.nodeId = nodeId;
@@ -1229,53 +1228,25 @@ UA_Server_setNodeAttribute_value_move(UA_Server *server, const UA_NodeId nodeId,
     return retval;
 }
 
-#ifdef ENABLE_METHODCALLS
-struct methodAndHandle {
-    UA_MethodCallback method;
-    void *handle;
-};
-
-static UA_StatusCode replaceMethod(UA_Server *server, UA_Session *session, UA_MethodNode *node,
-                                   const struct methodAndHandle *mah) {
-
-    if(node->nodeClass != UA_NODECLASS_METHOD)
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-    node->attachedMethod = mah->method;
-    node->methodHandle   = mah->handle;
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Server_setNodeAttribute_method(UA_Server *server, const UA_NodeId methodNodeId,
-                                  UA_MethodCallback method, void *handle) {
-    struct methodAndHandle mah;
-    mah.method = method;
-    mah.handle = handle;
-    return UA_Server_editNode(server, &adminSession, &methodNodeId,
-                              (UA_EditNodeCallback)replaceMethod, &mah);
-}
-#endif
-
 static UA_StatusCode setValueCallback(UA_Server *server, UA_Session *session, UA_VariableNode *node,
                                       UA_ValueCallback *callback) {
-    if(node->nodeClass != UA_NODECLASS_VARIABLE &&
-       node->nodeClass != UA_NODECLASS_VARIABLETYPE)
+    if(node->nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
     node->value.variant.callback = *callback;
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode UA_EXPORT
-UA_Server_setNodeAttribute_value_callback(UA_Server *server, const UA_NodeId nodeId,
-                                          const UA_ValueCallback callback) {
+UA_Server_setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
+                                        const UA_ValueCallback callback) {
     return UA_Server_editNode(server, &adminSession, &nodeId,
                               (UA_EditNodeCallback)setValueCallback, &callback);
 }
 
 static UA_StatusCode
-setDataSource(UA_Server *server, UA_Session *session, UA_VariableNode* node, UA_DataSource *dataSource) {
-    if(node->nodeClass != UA_NODECLASS_VARIABLE &&
-       node->nodeClass != UA_NODECLASS_VARIABLETYPE)
+setDataSource(UA_Server *server, UA_Session *session,
+              UA_VariableNode* node, UA_DataSource *dataSource) {
+    if(node->nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
     if(node->valueSource == UA_VALUESOURCE_VARIANT)
         UA_Variant_deleteMembers(&node->value.variant.value);
@@ -1285,83 +1256,55 @@ setDataSource(UA_Server *server, UA_Session *session, UA_VariableNode* node, UA_
 }
 
 UA_StatusCode
-UA_Server_setNodeAttribute_value_dataSource(UA_Server *server, const UA_NodeId nodeId,
-                                            const UA_DataSource dataSource) {
+UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
+                                     const UA_DataSource dataSource) {
     return UA_Server_editNode(server, &adminSession, &nodeId,
                               (UA_EditNodeCallback)setDataSource, &dataSource);
 }
 
 static UA_StatusCode
-setObjectManagement(UA_Server *server, UA_Session *session, UA_ObjectTypeNode* node,
-                    UA_ObjectInstanceManagement *oim) {
+setObjectTypeLifecycleManagement(UA_Server *server, UA_Session *session, UA_ObjectTypeNode* node,
+                                 UA_ObjectTypeLifecycleManagement *oim) {
     if(node->nodeClass != UA_NODECLASS_OBJECTTYPE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    node->instanceManagement = *oim;
+    node->lifecycleManagement = *oim;
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode UA_EXPORT
-UA_Server_setObjectInstanceManagement(UA_Server *server, UA_NodeId nodeId,
-                                      UA_ObjectInstanceManagement oim) {
+UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nodeId,
+                                                UA_ObjectTypeLifecycleManagement oim) {
     return UA_Server_editNode(server, &adminSession, &nodeId,
-                              (UA_EditNodeCallback)setObjectManagement, &oim);
+                              (UA_EditNodeCallback)setObjectTypeLifecycleManagement, &oim);
 }
 
 UA_StatusCode
-UA_Server_getNodeAttribute(UA_Server *server, const UA_NodeId nodeId,
-                           const UA_AttributeId attributeId, void *v) {
-    UA_Variant out;
-    UA_Variant_init(&out);
-    UA_StatusCode retval;
-    retval = UA_Server_getNodeAttribute(server, nodeId, attributeId, &out); 
-    if(retval != UA_STATUSCODE_GOOD)
+__UA_Server_readAttribute(UA_Server *server, const UA_NodeId nodeId,
+                          const UA_AttributeId attributeId, void *v) {
+    UA_ReadValueId item;
+    UA_ReadValueId_init(&item);
+    item.nodeId = nodeId;
+    item.attributeId = attributeId;
+    UA_DataValue dv;
+    UA_DataValue_init(&dv);
+    Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER,
+                        &item, &dv);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(dv.hasStatus)
+        retval = dv.hasStatus;
+    else if(!dv.hasValue)
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_DataValue_deleteMembers(&dv);
         return retval;
+    }
     if(attributeId == UA_ATTRIBUTEID_VALUE)
-        UA_memcpy(v, &out, sizeof(UA_Variant));
+        UA_memcpy(v, &dv.value, sizeof(UA_Variant));
     else {
-        UA_memcpy(v, out.data, out.type->memSize);
-        out.data = UA_NULL;
-        out.arrayLength = -1;
-        UA_Variant_deleteMembers(&out);
+        UA_memcpy(v, dv.value.data, dv.value.type->memSize);
+        dv.value.data = UA_NULL;
+        dv.value.arrayLength = -1;
+        UA_Variant_deleteMembers(&dv.value);
     }
-    return UA_STATUSCODE_GOOD;
-}
-
-#ifdef ENABLE_METHODCALLS
-UA_StatusCode
-UA_Server_getNodeAttribute_method(UA_Server *server, UA_NodeId nodeId,
-                                  UA_MethodCallback *method) {
-    const UA_Node *node = UA_NodeStore_get(server->nodestore, &nodeId);
-    if(!node)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    
-    if(node->nodeClass != UA_NODECLASS_METHOD) {
-        UA_NodeStore_release(node);
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-    }
-
-    *method = ((const UA_MethodNode*)node)->attachedMethod;
-    UA_NodeStore_release(node);
-    return UA_STATUSCODE_GOOD;
-}
-#endif
-
-UA_StatusCode
-UA_Server_getNodeAttribute_value_dataSource(UA_Server *server, UA_NodeId nodeId,
-                                            UA_DataSource *dataSource) {
-    const UA_VariableNode *node =
-        (const UA_VariableNode*)UA_NodeStore_get(server->nodestore, &nodeId);
-    if(!node)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
-
-    if((node->nodeClass != UA_NODECLASS_VARIABLE &&
-        node->nodeClass != UA_NODECLASS_VARIABLETYPE) ||
-       node->valueSource != UA_VALUESOURCE_DATASOURCE) {
-        UA_NodeStore_release((const UA_Node*)node);
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-    }
-
-    *dataSource = node->value.dataSource;
-    UA_NodeStore_release((const UA_Node*)node);
     return UA_STATUSCODE_GOOD;
 }

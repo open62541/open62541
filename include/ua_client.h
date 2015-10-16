@@ -14,13 +14,6 @@ extern "C" {
 struct UA_Client;
 typedef struct UA_Client UA_Client;
 
-/**
- * The client networklayer is defined by a single function that fills a UA_Connection struct after
- * successfully connecting.
- */
-typedef UA_Connection (*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, char *endpointUrl,
-                                                    UA_Logger logger);
-
 typedef struct UA_ClientConfig {
     UA_Int32 timeout; //sync response timeout
     UA_Int32 secureChannelLifeTime; // lifetime in ms (then the channel needs to be renewed)
@@ -32,146 +25,181 @@ extern UA_EXPORT const UA_ClientConfig UA_ClientConfig_standard;
 
 UA_Client UA_EXPORT * UA_Client_new(UA_ClientConfig config, UA_Logger logger);
 
-UA_EXPORT void UA_Client_reset(UA_Client* client);
+void UA_EXPORT UA_Client_reset(UA_Client* client);
 
-UA_EXPORT void UA_Client_init(UA_Client* client, UA_ClientConfig config, UA_Logger logger);
+void UA_EXPORT UA_Client_delete(UA_Client* client);
 
-UA_EXPORT void UA_Client_deleteMembers(UA_Client* client);
+/*************************/
+/* Manage the Connection */
+/*************************/
 
-UA_EXPORT void UA_Client_delete(UA_Client* client);
+typedef UA_Connection (*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, char *endpointUrl,
+                                                    UA_Logger logger);
 
 UA_StatusCode UA_EXPORT
 UA_Client_connect(UA_Client *client, UA_ConnectClientConnection connFunc, char *endpointUrl);
 
 UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client);
 
-UA_StatusCode UA_EXPORT UA_Client_renewSecureChannel(UA_Client *client);
+UA_StatusCode UA_EXPORT UA_Client_manuallyRenewSecureChannel(UA_Client *client);
 
-/* Attribute Service Set */
-UA_ReadResponse UA_EXPORT UA_Client_read(UA_Client *client, UA_ReadRequest *request);
+/****************/
+/* Raw Services */
+/****************/
 
-UA_WriteResponse UA_EXPORT UA_Client_write(UA_Client *client, UA_WriteRequest *request);
-
-/* View Service Set */    
-UA_BrowseResponse UA_EXPORT UA_Client_browse(UA_Client *client, UA_BrowseRequest *request);
-
-UA_BrowseNextResponse UA_EXPORT UA_Client_browseNext(UA_Client *client, UA_BrowseNextRequest *request);
-
-UA_TranslateBrowsePathsToNodeIdsResponse UA_EXPORT
-UA_Client_translateTranslateBrowsePathsToNodeIds(UA_Client *client,
-                                                 UA_TranslateBrowsePathsToNodeIdsRequest *request);
+/* Don't use this function. There are typed versions. */
+void UA_EXPORT
+__UA_Client_Service(UA_Client *client, const void *request, const UA_DataType *requestType,
+                    void *response, const UA_DataType *responseType);
 
 /* NodeManagement Service Set */
-UA_AddNodesResponse UA_EXPORT UA_Client_addNodes(UA_Client *client, UA_AddNodesRequest *request);
+static UA_INLINE UA_AddNodesResponse
+UA_Client_Service_addNodes(UA_Client *client, const UA_AddNodesRequest request) {
+    UA_AddNodesResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_ADDNODESREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_ADDNODESRESPONSE]);
+    return response; }
 
-UA_AddReferencesResponse UA_EXPORT
-UA_Client_addReferences(UA_Client *client, UA_AddReferencesRequest *request);
+static UA_INLINE UA_AddReferencesResponse
+UA_Client_Service_addReferences(UA_Client *client, const UA_AddReferencesRequest request) {
+    UA_AddReferencesResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_ADDNODESREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_ADDNODESRESPONSE]);
+    return response; }
 
-UA_DeleteNodesResponse UA_EXPORT UA_Client_deleteNodes(UA_Client *client, UA_DeleteNodesRequest *request);
+static UA_INLINE UA_DeleteNodesResponse
+UA_Client_Service_deleteNodes(UA_Client *client, const UA_DeleteNodesRequest request) {
+    UA_DeleteNodesResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETENODESREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_DELETENODESRESPONSE]);
+    return response; }
 
-UA_DeleteReferencesResponse UA_EXPORT
-UA_Client_deleteReferences(UA_Client *client, UA_DeleteReferencesRequest *request);
+static UA_INLINE UA_DeleteReferencesResponse
+UA_Client_Service_deleteReferences(UA_Client *client, const UA_DeleteReferencesRequest request) {
+    UA_DeleteReferencesResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETENODESREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_DELETENODESRESPONSE]);
+    return response; }
 
+/* View Service Set */    
+static UA_INLINE UA_BrowseResponse
+UA_Client_Service_browse(UA_Client *client, const UA_BrowseRequest request) {
+    UA_BrowseResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_BROWSEREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_BROWSERESPONSE]);
+    return response; }
 
-/* Client-Side Macro/Procy functions */
-#ifdef ENABLE_METHODCALLS
-UA_CallResponse UA_EXPORT UA_Client_call(UA_Client *client, UA_CallRequest *request);
+static UA_INLINE UA_BrowseNextResponse
+UA_Client_Service_browseNext(UA_Client *client, const UA_BrowseNextRequest request) {
+    UA_BrowseNextResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_BROWSENEXTREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_BROWSENEXTRESPONSE]);
+    return response; }
 
-UA_StatusCode UA_EXPORT
-UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId,
-                           UA_Int32 inputSize, const UA_Variant *input,
-                           UA_Int32 *outputSize, UA_Variant **output);
-#endif
+static UA_INLINE UA_TranslateBrowsePathsToNodeIdsResponse
+UA_Client_Service_translateBrowsePathsToNodeIds(UA_Client *client,
+                                                const UA_TranslateBrowsePathsToNodeIdsRequest request) {
+    UA_TranslateBrowsePathsToNodeIdsResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE]);
+    return response; }
 
-/* Don't call this function, use the typed versions */
-UA_StatusCode UA_EXPORT
-__UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass,
-                    const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
-                    const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
-                    const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
-                    const UA_DataType *attributeType, UA_NodeId *outNewNodeId);
+static UA_INLINE UA_RegisterNodesResponse
+UA_Client_Service_registerNodes(UA_Client *client, const UA_RegisterNodesRequest request) {
+    UA_RegisterNodesResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERNODESREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_REGISTERNODESRESPONSE]);
+    return response; }
 
-static UA_INLINE UA_StatusCode
-UA_Client_addVariableNode(UA_Client *client, const UA_NodeId requestedNewNodeId,
-                          const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                          const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
-                          const UA_VariableAttributes attr, UA_NodeId *outNewNodeId) {
-    return __UA_Client_addNode(client, UA_NODECLASS_VARIABLE, requestedNewNodeId,
-                               parentNodeId, referenceTypeId, browseName, typeDefinition,
-                               (const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES],
-                               outNewNodeId); }
+static UA_INLINE UA_UnregisterNodesResponse
+UA_Client_Service_unregisterNodes(UA_Client *client, const UA_UnregisterNodesRequest request) {
+    UA_UnregisterNodesResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_UNREGISTERNODESREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_UNREGISTERNODESRESPONSE]);
+    return response; }
 
-static UA_INLINE UA_StatusCode
-UA_Client_addVariableTypeNode(UA_Client *client, const UA_NodeId requestedNewNodeId,
-                              const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                              const UA_QualifiedName browseName, const UA_VariableTypeAttributes attr,
-                              UA_NodeId *outNewNodeId) {
-    return __UA_Client_addNode(client, UA_NODECLASS_VARIABLETYPE, requestedNewNodeId,
-                               parentNodeId, referenceTypeId, browseName, UA_NODEID_NULL,
-                               (const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES],
-                               outNewNodeId); }
+/* Query Service Set */
+static UA_INLINE UA_QueryFirstResponse
+UA_Client_Service_queryFirst(UA_Client *client, const UA_QueryFirstRequest request) {
+    UA_QueryFirstResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_QUERYFIRSTREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_QUERYFIRSTRESPONSE]);
+    return response; }
 
-static UA_INLINE UA_StatusCode
-UA_Client_addObjectNode(UA_Client *client, const UA_NodeId requestedNewNodeId,
-                        const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                        const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
-                        const UA_ObjectAttributes attr, UA_NodeId *outNewNodeId) {
-    return __UA_Client_addNode(client, UA_NODECLASS_OBJECT, requestedNewNodeId,
-                               parentNodeId, referenceTypeId, browseName, typeDefinition,
-                               (const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
-                               outNewNodeId); }
+static UA_INLINE UA_QueryNextResponse
+UA_Client_Service_queryNext(UA_Client *client, const UA_QueryNextRequest request) {
+    UA_QueryNextResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_QUERYFIRSTREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_QUERYFIRSTRESPONSE]);
+    return response; }
 
-static UA_INLINE UA_StatusCode
-UA_Client_addObjectTypeNode(UA_Client *client, const UA_NodeId requestedNewNodeId,
-                            const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                            const UA_QualifiedName browseName, const UA_ObjectTypeAttributes attr,
-                            UA_NodeId *outNewNodeId) {
-    return __UA_Client_addNode(client, UA_NODECLASS_OBJECTTYPE, requestedNewNodeId,
-                               parentNodeId, referenceTypeId, browseName, UA_NODEID_NULL,
-                               (const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES],
-                               outNewNodeId); }
+/* Attribute Service Set */
+static UA_INLINE UA_ReadResponse
+UA_Client_Service_read(UA_Client *client, const UA_ReadRequest request) {
+    UA_ReadResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_READRESPONSE]);
+    return response; }
 
-static UA_INLINE UA_StatusCode
-UA_Client_addViewNode(UA_Client *client, const UA_NodeId requestedNewNodeId,
-                      const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                      const UA_QualifiedName browseName, const UA_ViewAttributes attr,
-                      UA_NodeId *outNewNodeId) {
-    return __UA_Client_addNode(client, UA_NODECLASS_VIEW, requestedNewNodeId,
-                               parentNodeId, referenceTypeId, browseName, UA_NODEID_NULL,
-                               (const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_VIEWATTRIBUTES],
-                               outNewNodeId); }
+static UA_INLINE UA_WriteResponse
+UA_Client_Service_write(UA_Client *client, const UA_WriteRequest request) {
+    UA_WriteResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_WRITEREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_WRITERESPONSE]);
+    return response; }
 
-static UA_INLINE UA_StatusCode
-UA_Client_addReferenceTypeNode(UA_Client *client, const UA_NodeId requestedNewNodeId,
-                               const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                               const UA_QualifiedName browseName, const UA_ReferenceTypeAttributes attr,
-                               UA_NodeId *outNewNodeId) {
-    return __UA_Client_addNode(client, UA_NODECLASS_REFERENCETYPE, requestedNewNodeId,
-                               parentNodeId, referenceTypeId, browseName, UA_NODEID_NULL,
-                               (const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES],
-                               outNewNodeId); }
+/* Method Service Set */
+static UA_INLINE UA_CallResponse
+UA_Client_Service_call(UA_Client *client, const UA_CallRequest request) {
+    UA_CallResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CALLREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
+    return response; }
 
-static UA_INLINE UA_StatusCode
-UA_Client_addDataTypeNode(UA_Client *client, const UA_NodeId requestedNewNodeId,
-                          const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                          const UA_QualifiedName browseName, const UA_DataTypeAttributes attr,
-                          UA_NodeId *outNewNodeId) {
-    return __UA_Client_addNode(client, UA_NODECLASS_DATATYPE, requestedNewNodeId,
-                               parentNodeId, referenceTypeId, browseName, UA_NODEID_NULL,
-                               (const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_DATATYPEATTRIBUTES],
-                               outNewNodeId); }
-    
 #ifdef ENABLE_SUBSCRIPTIONS
-UA_Int32      UA_EXPORT UA_Client_newSubscription(UA_Client *client, UA_Int32 publishInterval);
-UA_StatusCode UA_EXPORT UA_Client_removeSubscription(UA_Client *client, UA_UInt32 subscriptionId);
-//void UA_EXPORT UA_Client_modifySubscription(UA_Client *client);
-void UA_EXPORT UA_Client_doPublish(UA_Client *client);
+/* MonitoredItem Service Set */
+static UA_INLINE UA_CreateMonitoredItemsResponse
+UA_Client_Service_createMonitoredItems(UA_Client *client, const UA_CreateMonitoredItemsRequest request) {
+    UA_CreateMonitoredItemsResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE]);
+    return response; }
 
-UA_UInt32     UA_EXPORT UA_Client_monitorItemChanges(UA_Client *client, UA_UInt32 subscriptionId,
-                                                     UA_NodeId nodeId, UA_UInt32 attributeID,
-                                                     void *handlingFunction);
-UA_StatusCode UA_EXPORT UA_Client_unMonitorItemChanges(UA_Client *client, UA_UInt32 subscriptionId,
-                                                       UA_UInt32 monitoredItemId );
+static UA_INLINE UA_DeleteMonitoredItemsResponse
+UA_Client_Service_deleteMonitoredItems(UA_Client *client, const UA_DeleteMonitoredItemsRequest request) {
+    UA_DeleteMonitoredItemsResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE]);
+    return response; }
+
+/* Subscription Service Set */
+static UA_INLINE UA_CreateSubscriptionResponse
+UA_Client_Service_createSubscription(UA_Client *client, const UA_CreateSubscriptionRequest request) {
+    UA_CreateSubscriptionResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE]);
+    return response; }
+
+static UA_INLINE UA_ModifySubscriptionResponse
+UA_Client_Service_modifySubscription(UA_Client *client, const UA_ModifySubscriptionRequest request) {
+    UA_ModifySubscriptionResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE]);
+    return response; }
+
+static UA_INLINE UA_DeleteSubscriptionsResponse
+UA_Client_Service_deleteSubscriptions(UA_Client *client, const UA_DeleteSubscriptionsRequest request) {
+    UA_DeleteSubscriptionsResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE]);
+    return response; }
+
+static UA_INLINE UA_PublishResponse
+UA_Client_Service_publish(UA_Client *client, const UA_PublishRequest request) {
+    UA_PublishResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+    return response; }
 #endif
 
 #ifdef __cplusplus

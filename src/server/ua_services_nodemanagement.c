@@ -830,7 +830,7 @@ void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddR
 
 // TODO: Check consistency constraints, remove the references.
 
-UA_StatusCode Service_DeleteNodes_single(UA_Server *server, UA_Session *session, UA_NodeId *nodeId,
+UA_StatusCode Service_DeleteNodes_single(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                                          UA_Boolean deleteReferences) {
     const UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
     if(!node)
