@@ -238,13 +238,6 @@ int main(int argc, char** argv) {
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), dateName,
                                         UA_NODEID_NULL, v_attr, dateDataSource, &dataSourceId);
 
-    // Get and reattach the datasource
-    UA_DataSource dataSourceCopy;
-    UA_Server_getNodeAttribute_value_dataSource(server, dataSourceId, &dataSourceCopy);
-    if (dataSourceCopy.read != dateDataSource.read)
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "The returned dataSource is not the same as we set?");
-    else
-        UA_Server_setNodeAttribute_value_dataSource(server, dataSourceId, dataSourceCopy);
 #ifndef _WIN32
     /* cpu temperature monitoring for linux machines */
     if((temperatureFile = fopen("/sys/class/thermal/thermal_zone0/temp", "r"))) {
@@ -429,7 +422,7 @@ int main(int argc, char** argv) {
   
     // Some easy localization
     UA_LocalizedText objectsName = UA_LOCALIZEDTEXT("de_DE", "Objekte");
-    UA_Server_setNodeAttribute_displayName(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), objectsName);
+    UA_Server_writeDisplayNameAttribute(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), objectsName);
   
     //start server
     UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false

@@ -31,7 +31,7 @@ int main(void) {
     rReq.nodesToRead[0].nodeId = UA_NODEID_NUMERIC(0, 2258);
     rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
 
-    UA_ReadResponse rResp = UA_Client_read(client, &rReq);
+    UA_ReadResponse rResp = UA_Client_Service_read(client, rReq);
     if(rResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
             rResp.resultsSize > 0 && rResp.results[0].hasValue &&
             UA_Variant_isScalar(&rResp.results[0].value) &&
