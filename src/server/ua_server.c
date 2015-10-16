@@ -1188,7 +1188,7 @@ UA_Server_setNodeAttribute(UA_Server *server, const UA_NodeId nodeId,
     UA_WriteValue_init(&wvalue);
     wvalue.nodeId = nodeId;
     wvalue.attributeId = attributeId;
-    UA_Variant_setScalarCopy(&wvalue.value.value, type, value);
+    UA_Variant_setScalarCopy(&wvalue.value.value, value, type);
     wvalue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = Service_Write_single(server, &adminSession, &wvalue);
     UA_NodeId_init(&wvalue.nodeId);
