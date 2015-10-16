@@ -781,7 +781,7 @@ UA_StatusCode UA_Variant_encodeBinary(UA_Variant const *src, UA_ByteString *dst,
             /* Jump back and print the length of the extension object */
             UA_Int32 encodingLength = *offset - oldoffset;
             oldoffset -= 4;
-            UA_Int32_encodeBinary(&encodingLength, dst, &oldoffset);
+            retval |= UA_Int32_encodeBinary(&encodingLength, dst, &oldoffset);
         }
         ptr += memSize;
     }
