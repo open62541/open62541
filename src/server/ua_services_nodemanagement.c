@@ -510,8 +510,9 @@ static void Service_AddNodes_single_unparsed(UA_Server *server, UA_Session *sess
     }
 
     UA_NodeAttributes *attr = UA_alloca(attributeType->memSize);
+    UA_init(attr, attributeType);
     size_t pos = 0;
-    result->statusCode = UA_decodeBinary(&item->nodeAttributes.body, &pos, &attr, attributeType);
+    result->statusCode = UA_decodeBinary(&item->nodeAttributes.body, &pos, attr, attributeType);
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
 
