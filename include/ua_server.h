@@ -350,12 +350,12 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
 
 UA_StatusCode UA_EXPORT
 UA_Server_setNodeAttribute_value(UA_Server *server, const UA_NodeId nodeId,
-                                 const UA_DataType *type, const UA_Variant value);
+                                 const UA_Variant value);
 
 /* The value is moved into the node (not copied). The value variant is _inited internally. */
 UA_StatusCode UA_EXPORT
 UA_Server_setNodeAttribute_value_move(UA_Server *server, const UA_NodeId nodeId,
-                                      const UA_DataType *type, UA_Variant *value);
+                                      UA_Variant *value);
 
 /* Succeeds only if the node contains a variant value */
 UA_StatusCode UA_EXPORT

@@ -1198,7 +1198,7 @@ __UA_Server_setNodeAttribute(UA_Server *server, const UA_NodeId nodeId,
 
 UA_StatusCode
 UA_Server_setNodeAttribute_value(UA_Server *server, const UA_NodeId nodeId,
-                                 const UA_DataType *type, const UA_Variant value) {
+                                 const UA_Variant value) {
     UA_WriteValue wvalue;
     UA_WriteValue_init(&wvalue);
     wvalue.nodeId = nodeId;
@@ -1215,7 +1215,7 @@ UA_Server_setNodeAttribute_value(UA_Server *server, const UA_NodeId nodeId,
 
 UA_StatusCode
 UA_Server_setNodeAttribute_value_move(UA_Server *server, const UA_NodeId nodeId,
-                                      const UA_DataType *type, UA_Variant *value) {
+                                      UA_Variant *value) {
     UA_WriteValue wvalue;
     UA_WriteValue_init(&wvalue);
     wvalue.nodeId = nodeId;
