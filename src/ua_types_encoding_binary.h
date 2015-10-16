@@ -74,10 +74,10 @@ UA_TYPE_BINARY_ENCODING(UA_Variant)
 UA_TYPE_BINARY_ENCODING(UA_DiagnosticInfo)
 
 UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_ByteString *dst,
-                              size_t *UA_RESTRICT offset);
+                              size_t *UA_RESTRICT offset) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t * UA_RESTRICT offset, void *dst,
-                              const UA_DataType *dataType);
-size_t UA_calcSizeBinary(const void *p, const UA_DataType *dataType);
+                              const UA_DataType *dataType) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+size_t UA_calcSizeBinary(const void *p, const UA_DataType *dataType) UA_FUNC_ATTR_PURE;
 
 /// @}
 

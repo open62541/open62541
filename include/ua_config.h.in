@@ -84,5 +84,17 @@
 # define UA_RESTRICT restrict
 #endif
 
+/* Function attributes */
+#ifdef __GNUC__
+# define UA_FUNC_ATTR_MALLOC __attribute__((malloc))
+# define UA_FUNC_ATTR_PURE __attribute__ ((pure))
+# define UA_FUNC_ATTR_CONST __attribute__((const))
+# define UA_FUNC_ATTR_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+#else
+# define UA_FUNC_ATTR_MALLOC
+# define UA_FUNC_ATTR_PURE
+# define UA_FUNC_ATTR_CONST
+# define UA_FUNC_ATTR_WARN_UNUSED_RESULT
+#endif
 
 #endif /* UA_CONFIG_H_ */
