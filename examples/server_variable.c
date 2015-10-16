@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
                               UA_NODEID_NULL, attr, NULL);
 
     UA_ValueCallback callback = {(void*)7, onRead, onWrite};
-    UA_Server_setAttribute_value_callback(server, myIntegerNodeId, callback);
+    UA_Server_setNodeAttribute_value_callback(server, myIntegerNodeId, callback);
 
     UA_StatusCode retval = UA_Server_run(server, 1, &running);
     UA_Server_delete(server);

@@ -148,11 +148,11 @@ addNodeInternal(UA_Server *server, UA_Node *node, const UA_NodeId parentNodeId,
 }
 
 UA_StatusCode
-UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
-                  const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
-                  const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
-                  const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
-                  const UA_DataType *attributeType, UA_NodeId *outNewNodeId) {
+__UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
+                    const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
+                    const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
+                    const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
+                    const UA_DataType *attributeType, UA_NodeId *outNewNodeId) {
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
 
@@ -1181,9 +1181,9 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 }
 
 UA_StatusCode
-UA_Server_setNodeAttribute(UA_Server *server, const UA_NodeId nodeId,
-                           const UA_AttributeId attributeId, const UA_DataType *type,
-                           const void *value) {
+__UA_Server_setNodeAttribute(UA_Server *server, const UA_NodeId nodeId,
+                             const UA_AttributeId attributeId, const UA_DataType *type,
+                             const void *value) {
     UA_WriteValue wvalue;
     UA_WriteValue_init(&wvalue);
     wvalue.nodeId = nodeId;
@@ -1214,8 +1214,8 @@ UA_Server_setNodeAttribute_value(UA_Server *server, const UA_NodeId nodeId,
 }
 
 UA_StatusCode
-UA_Server_setNodeAttribute_value_destructive(UA_Server *server, const UA_NodeId nodeId,
-                                             const UA_DataType *type, UA_Variant *value) {
+UA_Server_setNodeAttribute_value_move(UA_Server *server, const UA_NodeId nodeId,
+                                      const UA_DataType *type, UA_Variant *value) {
     UA_WriteValue wvalue;
     UA_WriteValue_init(&wvalue);
     wvalue.nodeId = nodeId;
@@ -1266,8 +1266,8 @@ static UA_StatusCode setValueCallback(UA_Server *server, UA_Session *session, UA
 }
 
 UA_StatusCode UA_EXPORT
-UA_Server_setAttribute_value_callback(UA_Server *server, const UA_NodeId nodeId,
-                                      const UA_ValueCallback callback) {
+UA_Server_setNodeAttribute_value_callback(UA_Server *server, const UA_NodeId nodeId,
+                                          const UA_ValueCallback callback) {
     return UA_Server_editNode(server, &adminSession, &nodeId,
                               (UA_EditNodeCallback)setValueCallback, &callback);
 }
