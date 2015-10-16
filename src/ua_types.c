@@ -5,10 +5,6 @@
 
 #include "pcg_basic.h"
 
-#ifdef _MSC_VER
-#include <strsafe.h>
-#endif
-
 /* Helper Macros */
 #define UA_TYPE_DEFAULT(TYPE)                                  \
     TYPE * TYPE##_new() {                                      \
@@ -567,15 +563,14 @@ UA_Boolean UA_Variant_isScalar(const UA_Variant *v) {
 
 /**
  * Tests if a range is compatible with a variant. If yes, the following values are set:
- * - total: how many elements are indicated by the range
- * - block_size: how big is each contiguous block of elements in the variant denoted by the range
- * - block_distance: how many elements are between the blocks (beginning to beginning)
- * - first_elem: where does the first block begin
+ * - total: how many elements are in the range
+ * - block: how big is each contiguous block of elements in the variant that maps into the range
+ * - stride: how many elements are between the blocks (beginning to beginning)
+ * - first: where does the first block begin
  */
 static UA_StatusCode
 testRangeWithVariant(const UA_Variant *v, const UA_NumericRange range, size_t *total,
-                     size_t *block_size, size_t *block_distance, size_t *first_elem)
-{
+                     size_t *block, size_t *stride, size_t *first) {
     /* Test the integrity of the source variant dimensions */
     UA_Int32 dims_count = 1;
     const UA_Int32 *dims = &v->arrayLength; // default: the array has only one dimension
@@ -602,31 +597,30 @@ testRangeWithVariant(const UA_Variant *v, const UA_NumericRange range, size_t *t
     }
 
     /* Compute the block size and the position of the first element */
-    size_t bs = 0;
-    size_t bd = 0;
-    size_t fe = 0;
+    size_t b = 0, s = 0, f = 0;
     size_t running_dimssize = 1; // elements per block of dimensions k to k_max
     UA_Boolean found_contiguous = UA_FALSE;
     for(UA_Int32 k = dims_count - 1; k >= 0; k--) {
         if(!found_contiguous && (range.dimensions[k].min != 0 ||
                                  range.dimensions[k].max + 1 != (UA_UInt32)dims[k])) {
             found_contiguous = UA_TRUE;
-            bs = (range.dimensions[k].max - range.dimensions[k].min + 1) * running_dimssize;
-            bd = dims[k] * running_dimssize;
+            b = (range.dimensions[k].max - range.dimensions[k].min + 1) * running_dimssize;
+            s = dims[k] * running_dimssize;
         } 
-        fe += running_dimssize * range.dimensions[k].min;
+        f += running_dimssize * range.dimensions[k].min;
         running_dimssize *= dims[k];
     }
     *total = count;
-    *block_size = bs;
-    *block_distance = bd;
-    *first_elem = fe;
+    *block = b;
+    *stride = s;
+    *first = f;
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRange range) {
-    size_t count, block_size, block_distance, first_elem;
-    UA_StatusCode retval = testRangeWithVariant(src, range, &count, &block_size, &block_distance, &first_elem);
+UA_StatusCode
+UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRange range) {
+    size_t count, block, stride, first;
+    UA_StatusCode retval = testRangeWithVariant(src, range, &count, &block, &stride, &first);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -637,23 +631,23 @@ UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Copy the range */
-    size_t block_count = count / block_size;
+    size_t block_count = count / block;
     uintptr_t nextdst = (uintptr_t)dst->data;
-    uintptr_t nextsrc = (uintptr_t)src->data + (elem_size * first_elem);
+    uintptr_t nextsrc = (uintptr_t)src->data + (elem_size * first);
     if(src->type->fixedSize) {
         for(size_t i = 0; i < block_count; i++) {
-            memcpy((void*)nextdst, (void*)nextsrc, elem_size * block_size);
-            nextdst += block_size * elem_size;
-            nextsrc += block_distance * elem_size;
+            memcpy((void*)nextdst, (void*)nextsrc, elem_size * block);
+            nextdst += block * elem_size;
+            nextsrc += stride * elem_size;
         }
     } else {
         for(size_t i = 0; i < block_count; i++) {
-            for(size_t j = 0; j < block_size && retval == UA_STATUSCODE_GOOD; j++) {
+            for(size_t j = 0; j < block && retval == UA_STATUSCODE_GOOD; j++) {
                 retval = UA_copy((const void*)nextsrc, (void*)nextdst, src->type);
                 nextdst += elem_size;
                 nextsrc += elem_size;
             }
-            nextsrc += (block_distance - block_size) * elem_size;
+            nextsrc += (stride - block) * elem_size;
         }
         if(retval != UA_STATUSCODE_GOOD) {
             size_t copied = ((nextdst - elem_size) - (uintptr_t)dst->data) / elem_size;
@@ -678,62 +672,64 @@ UA_StatusCode UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT dataArray,
-                                  UA_Int32 dataArraySize, const UA_NumericRange range) {
-    size_t count, block_size, block_distance, first_elem;
-    UA_StatusCode retval = testRangeWithVariant(v, range, &count, &block_size, &block_distance, &first_elem);
+UA_StatusCode
+UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT dataArray,
+                    UA_Int32 dataArraySize, const UA_NumericRange range) {
+    size_t count, block, stride, first;
+    UA_StatusCode retval = testRangeWithVariant(v, range, &count, &block, &stride, &first);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if((UA_Int32)count != dataArraySize)
         return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
-    size_t block_count = count / block_size;
+    size_t block_count = count / block;
     size_t elem_size = v->type->memSize;
-    uintptr_t nextdst = (uintptr_t)v->data + (first_elem * elem_size);
+    uintptr_t nextdst = (uintptr_t)v->data + (first * elem_size);
     uintptr_t nextsrc = (uintptr_t)dataArray;
     for(size_t i = 0; i < block_count; i++) {
         if(!v->type->fixedSize) {
-            for(size_t j = 0; j < block_size; j++) {
+            for(size_t j = 0; j < block; j++) {
                 UA_deleteMembers((void*)nextdst, v->type);
                 nextdst += elem_size;
             }
-            nextdst -= block_size * elem_size;
+            nextdst -= block * elem_size;
         }
-        memcpy((void*)nextdst, (void*)nextsrc, elem_size * block_size);
-        nextsrc += block_size * elem_size;
-        nextdst += block_distance * elem_size;
+        memcpy((void*)nextdst, (void*)nextsrc, elem_size * block);
+        nextsrc += block * elem_size;
+        nextdst += stride * elem_size;
     }
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_EXPORT UA_Variant_setRangeCopy(UA_Variant *v, const void *dataArray, UA_Int32 dataArraySize,
-                                                const UA_NumericRange range) {
-    size_t count, block_size, block_distance, first_elem;
-    UA_StatusCode retval = testRangeWithVariant(v, range, &count, &block_size, &block_distance, &first_elem);
+UA_StatusCode
+UA_Variant_setRangeCopy(UA_Variant *v, const void *dataArray, UA_Int32 dataArraySize,
+                        const UA_NumericRange range) {
+    size_t count, block, stride, first;
+    UA_StatusCode retval = testRangeWithVariant(v, range, &count, &block, &stride, &first);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if((UA_Int32)count != dataArraySize)
         return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
-    size_t block_count = count / block_size;
+    size_t block_count = count / block;
     size_t elem_size = v->type->memSize;
-    uintptr_t nextdst = (uintptr_t)v->data + (first_elem * elem_size);
+    uintptr_t nextdst = (uintptr_t)v->data + (first * elem_size);
     uintptr_t nextsrc = (uintptr_t)dataArray;
     if(v->type->fixedSize) {
         for(size_t i = 0; i < block_count; i++) {
-            memcpy((void*)nextdst, (void*)nextsrc, elem_size * block_size);
-            nextsrc += block_size * elem_size;
-            nextdst += block_distance * elem_size;
+            memcpy((void*)nextdst, (void*)nextsrc, elem_size * block);
+            nextsrc += block * elem_size;
+            nextdst += stride * elem_size;
         }
     } else {
         for(size_t i = 0; i < block_count; i++) {
-            for(size_t j = 0; j < block_size; j++) {
+            for(size_t j = 0; j < block; j++) {
                 UA_deleteMembers((void*)nextdst, v->type);
                 UA_copy((void*)nextsrc, (void*)nextdst, v->type);
                 nextdst += elem_size;
                 nextsrc += elem_size;
             }
-            nextdst += (block_distance - block_size) * elem_size;
+            nextdst += (stride - block) * elem_size;
         }
     }
     return UA_STATUSCODE_GOOD;

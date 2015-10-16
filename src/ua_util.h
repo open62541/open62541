@@ -11,29 +11,33 @@
 #include <string.h> // memcpy
 #include <assert.h> // assert
 
+#ifdef _MSC_VER
+#include <strsafe.h>
+#endif
+
 #ifdef _WIN32
 # include <malloc.h>
 #endif
 
 /* Visual Studio does not know fnct/unistd file access results */
 #ifdef _MSC_VER
-    #ifndef R_OK
-        #define R_OK    4               /* Test for read permission.  */
-    #endif
-    #ifndef R_OK
-        #define W_OK    2               /* Test for write permission.  */
-    #endif
-    #ifndef X_OK
-        #define X_OK    1               /* Test for execute permission.  */
-    #endif
-    #ifndef F_OK
-        #define F_OK    0               /* Test for existence.  */
-    #endif
+# ifndef R_OK
+#  define R_OK 4 /* Test for read permission */
+# endif
+# ifndef R_OK
+#  define W_OK 2 /* Test for write permission */
+# endif
+# ifndef X_OK
+#  define X_OK 1 /* Test for execute permission */
+# endif
+# ifndef F_OK
+#  define F_OK 0 /* Test for existence */
+# endif
 #endif
 
 #define UA_NULL ((void *)0)
 
-// subtract from nodeids to get from the encoding to the content
+/* Subtract from nodeids to get from the encoding to the content */
 #define UA_ENCODINGOFFSET_XML 1
 #define UA_ENCODINGOFFSET_BINARY 2
 
