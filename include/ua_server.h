@@ -222,11 +222,11 @@ UA_Server_setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeI
 typedef struct {
     void * (*constructor)(const UA_NodeId instance); ///< Returns the instance handle attached to the node
     void (*destructor)(const UA_NodeId instance, void *instanceHandle);
-} UA_ObjectTypeLifecycleManagement;
+} UA_ObjectLifecycleManagement;
 
 UA_StatusCode UA_EXPORT
-UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nodeId,
-                                                UA_ObjectTypeLifecycleManagement oim);
+UA_Server_setObjectTypeNode_instanceLifecycleManagement(UA_Server *server, UA_NodeId nodeId,
+                                                        UA_ObjectLifecycleManagement olm);
 
 /* Iterate over all nodes referenced by parentNodeId by calling the callback
    function for each child node */

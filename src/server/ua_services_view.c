@@ -289,6 +289,10 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
     UA_UInt32 real_maxrefs = maxrefs;
     if(real_maxrefs == 0)
         real_maxrefs = node->referencesSize;
+    if(node->referencesSize <= 0)
+        real_maxrefs = 0;
+    else if(real_maxrefs > (UA_UInt32)node->referencesSize)
+        real_maxrefs = node->referencesSize;
     result->references = UA_malloc(sizeof(UA_ReferenceDescription) * real_maxrefs);
     if(!result->references) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;

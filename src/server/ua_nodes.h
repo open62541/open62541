@@ -48,7 +48,7 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_ObjectNode)
 typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Boolean isAbstract;
-    UA_ObjectTypeLifecycleManagement lifecycleManagement;
+    UA_ObjectLifecycleManagement lifecycleManagement;
 } UA_ObjectTypeNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_ObjectTypeNode)
 

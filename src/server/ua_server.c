@@ -1265,18 +1265,18 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
 
 static UA_StatusCode
 setObjectTypeLifecycleManagement(UA_Server *server, UA_Session *session, UA_ObjectTypeNode* node,
-                                 UA_ObjectTypeLifecycleManagement *oim) {
+                                 UA_ObjectLifecycleManagement *olm) {
     if(node->nodeClass != UA_NODECLASS_OBJECTTYPE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    node->lifecycleManagement = *oim;
+    node->lifecycleManagement = *olm;
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode UA_EXPORT
-UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nodeId,
-                                                UA_ObjectTypeLifecycleManagement oim) {
+UA_Server_setObjectTypeNode_instanceLifecycleManagement(UA_Server *server, UA_NodeId nodeId,
+                                                        UA_ObjectLifecycleManagement olm) {
     return UA_Server_editNode(server, &adminSession, &nodeId,
-                              (UA_EditNodeCallback)setObjectTypeLifecycleManagement, &oim);
+                              (UA_EditNodeCallback)setObjectTypeLifecycleManagement, &olm);
 }
 
 UA_StatusCode

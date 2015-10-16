@@ -151,7 +151,7 @@ copyExistingVariable(UA_Server *server, UA_Session *session, const UA_NodeId *va
     return UA_STATUSCODE_GOOD;
 }
 
-/* copy an existing variable under the given parent. then instantiate the
+/* copy an existing object under the given parent. then instantiate the
    variable for all hastypedefinitions of the original version. */
 static UA_StatusCode
 copyExistingObject(UA_Server *server, UA_Session *session, const UA_NodeId *variable,
@@ -204,7 +204,16 @@ copyExistingObject(UA_Server *server, UA_Session *session, const UA_NodeId *vari
 }
 
 static UA_StatusCode
-instantiateObjectNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId, const UA_NodeId *typeId) {
+setObjectInstanceHandle(UA_Server *server, UA_Session *session, UA_ObjectNode* node, void *handle) {
+    if(node->nodeClass != UA_NODECLASS_OBJECT)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    node->instanceHandle = handle;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+instantiateObjectNode(UA_Server *server, UA_Session *session,
+                      const UA_NodeId *nodeId, const UA_NodeId *typeId) {
     const UA_ObjectTypeNode *type = (const UA_ObjectTypeNode*)UA_NodeStore_get(server->nodestore, typeId);
     if(!type)
         return UA_STATUSCODE_BADNODEIDINVALID;
@@ -245,7 +254,6 @@ instantiateObjectNode(UA_Server *server, UA_Session *session, const UA_NodeId *n
         else if(rd->nodeClass == UA_NODECLASS_OBJECT)
             copyExistingObject(server, session, &rd->nodeId.nodeId, &rd->referenceTypeId, nodeId);
     }
-    UA_NodeStore_release((const UA_Node*)type);
 
     /* add a hastypedefinition reference */
     UA_AddReferencesItem addref;
@@ -258,18 +266,17 @@ instantiateObjectNode(UA_Server *server, UA_Session *session, const UA_NodeId *n
     Service_AddReferences_single(server, session, &addref);
 
     /* call the constructor */
-    /* void *instanceHandle = */
-    /*     ((const UA_ObjectTypeNode*)parent)->instanceManagement.constructor(result->addedNodeId); */
-    /* UA_Server_editNode(server, session, &result->addedNodeId, */
-    /*             (UA_EditNodeCallback)setInstanceHandle, instanceHandle); */
-    /* UA_NodeStore_release(parent); */
-    /* return; */
-    
+    const UA_ObjectLifecycleManagement *olm = &type->lifecycleManagement;
+    if(olm->constructor)
+        UA_Server_editNode(server, session, nodeId,
+                           (UA_EditNodeCallback)setObjectInstanceHandle, olm->constructor(*nodeId));
+    UA_NodeStore_release((const UA_Node*)type);
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-instantiateVariableNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId, const UA_NodeId *typeId) {
+instantiateVariableNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+                        const UA_NodeId *typeId) {
     const UA_ObjectTypeNode *type = (const UA_ObjectTypeNode*)UA_NodeStore_get(server->nodestore, typeId);
     if(!type)
         return UA_STATUSCODE_BADNODEIDINVALID;
@@ -461,9 +468,11 @@ void Service_AddNodes_single(UA_Server *server, UA_Session *session, UA_AddNodes
     /* instantiate if it has a type */
     if(!UA_NodeId_isNull(&item->typeDefinition.nodeId)) {
         if(item->nodeClass == UA_NODECLASS_OBJECT)
-            result->statusCode = instantiateObjectNode(server, session, &result->addedNodeId, &item->typeDefinition.nodeId);
+            result->statusCode = instantiateObjectNode(server, session, &result->addedNodeId,
+                                                       &item->typeDefinition.nodeId);
         else if(item->nodeClass == UA_NODECLASS_VARIABLE)
-            result->statusCode = instantiateVariableNode(server, session, &result->addedNodeId, &item->typeDefinition.nodeId);
+            result->statusCode = instantiateVariableNode(server, session, &result->addedNodeId,
+                                                         &item->typeDefinition.nodeId);
     }
 
     /* if instantiation failed, remove the node */
@@ -839,15 +848,46 @@ UA_StatusCode Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
         UA_DeleteReferencesItem delItem;
         UA_DeleteReferencesItem_init(&delItem);
         delItem.deleteBidirectional = UA_FALSE;
-        UA_NodeId_copy(nodeId, &delItem.targetNodeId.nodeId);
+        delItem.targetNodeId.nodeId = *nodeId;
         for(int i = 0; i < node->referencesSize; i++) {
             delItem.sourceNodeId = node->references[i].targetId.nodeId;
             delItem.isForward = node->references[i].isInverse;
             Service_DeleteReferences_single(server, session, &delItem);
         }
-        UA_NodeId_init(&delItem.sourceNodeId);
-        UA_DeleteReferencesItem_deleteMembers(&delItem);
     }
+
+    /* destroy an object before removing it */
+    if(node->nodeClass == UA_NODECLASS_OBJECT) {
+        /* find the object type(s) */
+        UA_BrowseDescription bd;
+        UA_BrowseDescription_init(&bd);
+        bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
+        bd.nodeId = *nodeId;
+        bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+        bd.includeSubtypes = UA_TRUE;
+        bd.nodeClassMask = UA_NODECLASS_OBJECTTYPE;
+        
+        /* browse type definitions with admin rights */
+        UA_BrowseResult result;
+        UA_BrowseResult_init(&result);
+        Service_Browse_single(server, &adminSession, UA_NULL, &bd, UA_UINT32_MAX, &result);
+        for(int i = 0; i < result.referencesSize; i++) {
+            /* call the destructor */
+            UA_ReferenceDescription *rd = &result.references[i];
+            const UA_ObjectTypeNode *type = (const UA_ObjectTypeNode*)UA_NodeStore_get(server->nodestore, &rd->nodeId.nodeId);
+            if(!type)
+                continue;
+            if(type->nodeClass != UA_NODECLASS_OBJECTTYPE || !type->lifecycleManagement.destructor) {
+                UA_NodeStore_release((const UA_Node*)type);
+                continue;
+            }
+            /* if there are several types with lifecycle management, call all the destructors */
+            type->lifecycleManagement.destructor(*nodeId, ((const UA_ObjectNode*)node)->instanceHandle);
+            UA_NodeStore_release((const UA_Node*)type);
+        }
+        UA_BrowseResult_deleteMembers(&result);
+    }
+    
     UA_NodeStore_release(node);
     return UA_NodeStore_remove(server->nodestore, nodeId);
 }
