@@ -713,7 +713,7 @@ struct UA_DataType {
  * @param type The datatype description
  * @return Returns the memory location of the variable or (void*)0 if no memory is available
  */
-void UA_EXPORT * UA_new(const UA_DataType *type);
+void UA_EXPORT * UA_new(const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
 
 /**
  * Initializes a variable to default values
@@ -765,7 +765,7 @@ void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
  * @param elements The number of elements in the array
  * @return Returns the memory location of the variable or (void*)0 if no memory could be allocated
  */
-void UA_EXPORT * UA_Array_new(const UA_DataType *type, UA_Int32 elements);
+void UA_EXPORT * UA_Array_new(const UA_DataType *type, UA_Int32 elements) UA_FUNC_ATTR_MALLOC;
 
 /**
  * Allocates and copies an array. dst is set to (void*)0 if not enough memory is available.
