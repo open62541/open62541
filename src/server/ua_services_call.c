@@ -101,7 +101,7 @@ argConformsToDefinition(UA_CallMethodRequest *rs, const UA_VariableNode *argDefi
             if(!UA_NodeId_equal(&ArgumentNodeId, &thisArgDefExtObj->typeId))
                 return UA_STATUSCODE_BADINTERNALERROR;
                 
-            UA_decodeBinary(&thisArgDefExtObj->body, &decodingOffset, &arg, &UA_TYPES[UA_TYPES_ARGUMENT]);
+            retval |= UA_decodeBinary(&thisArgDefExtObj->body, &decodingOffset, &arg, &UA_TYPES[UA_TYPES_ARGUMENT]);
         } else if(argDefinition->value.variant.value.type == &UA_TYPES[UA_TYPES_ARGUMENT])
             arg = ((UA_Argument *) argDefinition->value.variant.value.data)[i];
         retval |= statisfySignature(var, arg);

@@ -25,7 +25,6 @@
  *
  * @{
  */
-// Service_FindServers
 void Service_FindServers(UA_Server *server, const UA_FindServersRequest *request,
                          UA_FindServersResponse *response);
 /**
@@ -124,7 +123,8 @@ UA_StatusCode Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
                                          UA_Boolean deleteReferences);
 
 /** Used to delete one or more References of a Node. */
-void Service_DeleteReferences(UA_Server *server, UA_Session *session, const UA_DeleteReferencesRequest *request,
+void Service_DeleteReferences(UA_Server *server, UA_Session *session,
+                              const UA_DeleteReferencesRequest *request,
                               UA_DeleteReferencesResponse *response);
 UA_StatusCode Service_DeleteReferences_single(UA_Server *server, UA_Session *session,
                                               const UA_DeleteReferencesItem *item);
@@ -165,11 +165,11 @@ void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseN
 void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                            const UA_TranslateBrowsePathsToNodeIdsRequest *request,
                                            UA_TranslateBrowsePathsToNodeIdsResponse *response);
+void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session *session,
+                                                  const UA_BrowsePath *path, UA_BrowsePathResult *result);
 
-// Service_RegisterNodes
 void Service_RegisterNodes(UA_Server *server, UA_Session *session, const UA_RegisterNodesRequest *request,
                            UA_RegisterNodesResponse *response);
-// Service_UnregisterNodes
 void Service_UnregisterNodes(UA_Server *server, UA_Session *session, const UA_UnregisterNodesRequest *request,
                              UA_UnregisterNodesResponse *response);
 /** @} */
