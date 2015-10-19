@@ -1,9 +1,15 @@
 #ifndef UA_CLIENT_INTERNAL_H_
 #define UA_CLIENT_INTERNAL_H_
 
+#include "ua_securechannel.h"
 #include "queue.h"
 
+/**************************/
+/* Subscriptions Handling */
+/**************************/
+
 #ifdef ENABLE_SUBSCRIPTIONS
+
 typedef struct UA_Client_NotificationsAckNumber_s {
     UA_SubscriptionAcknowledgement subAck;
     LIST_ENTRY(UA_Client_NotificationsAckNumber_s) listEntry;
@@ -33,15 +39,44 @@ typedef struct UA_Client_Subscription_s {
     LIST_HEAD(UA_ListOfClientMonitoredItems, UA_Client_MonitoredItem_s) MonitoredItems;
 } UA_Client_Subscription;
 
-UA_CreateSubscriptionResponse   UA_Client_createSubscription(UA_Client *client, UA_CreateSubscriptionRequest *request);
-UA_ModifySubscriptionResponse   UA_Client_modifySubscription(UA_Client *client, UA_ModifySubscriptionRequest *request);
-UA_DeleteSubscriptionsResponse  UA_Client_deleteSubscriptions(UA_Client *client, UA_DeleteSubscriptionsRequest *request);
-UA_CreateMonitoredItemsResponse UA_Client_createMonitoredItems(UA_Client *client, UA_CreateMonitoredItemsRequest *request);
-UA_DeleteMonitoredItemsResponse UA_Client_deleteMonitoredItems(UA_Client *client, UA_DeleteMonitoredItemsRequest *request);
-UA_PublishResponse              UA_Client_publish(UA_Client *client, UA_PublishRequest *request);
-
-
-UA_Boolean UA_Client_processPublishRx(UA_Client *client, UA_PublishResponse response);
 #endif
+
+/**********/
+/* Client */
+/**********/
+
+typedef enum {
+    UA_CLIENTSTATE_READY,
+    UA_CLIENTSTATE_CONNECTED,
+    UA_CLIENTSTATE_ERRORED
+} UA_Client_State;
+
+struct UA_Client {
+    /* State */ //maybe it should be visible to user
+    UA_Client_State state;
+
+    /* Connection */
+    UA_Connection connection;
+    UA_SecureChannel channel;
+    UA_String endpointUrl;
+    UA_UInt32 requestId;
+
+    /* Session */
+    UA_UserTokenPolicy token;
+    UA_NodeId sessionId;
+    UA_NodeId authenticationToken;
+    UA_UInt32 requestHandle;
+    
+#ifdef ENABLE_SUBSCRIPTIONS
+    UA_Int32 monitoredItemHandles;
+    LIST_HEAD(UA_ListOfUnacknowledgedNotificationNumbers, UA_Client_NotificationsAckNumber_s) pendingNotificationsAcks;
+    LIST_HEAD(UA_ListOfClientSubscriptionItems, UA_Client_Subscription_s) subscriptions;
+#endif
+    
+    /* Config */
+    UA_Logger logger;
+    UA_ClientConfig config;
+    UA_DateTime scExpiresAt;
+};
 
 #endif /* UA_CLIENT_INTERNAL_H_ */

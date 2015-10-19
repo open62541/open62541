@@ -130,7 +130,6 @@ static UA_StatusCode expand(UA_NodeStore *ns) {
 static void deleteEntry(struct nodeEntry *entry) {
     if(entry->refcount > 0)
         return;
-
     switch(entry->node.nodeClass) {
     case UA_NODECLASS_OBJECT:
         UA_ObjectNode_deleteMembers((UA_ObjectNode*)&entry->node);

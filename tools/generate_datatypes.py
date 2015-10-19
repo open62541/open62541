@@ -60,9 +60,14 @@ minimal_types = ["InvalidType", "Node", "NodeClass", "ReferenceNode", "Applicati
                  "DeleteReferencesItem", "DeleteReferencesRequest", "DeleteReferencesResponse",
                  "RegisterNodesRequest", "RegisterNodesResponse", "UnregisterNodesRequest", "UnregisterNodesResponse", 
                  "UserIdentityToken", "UserNameIdentityToken", "AnonymousIdentityToken", "ServiceFault",
-                 "CallMethodRequest", "CallMethodResult", "CallResponse", "CallRequest", "Argument"]
+                 "CallMethodRequest", "CallMethodResult", "CallResponse", "CallRequest", "Argument",
+                 "FilterOperator", "ContentFilterElement", "ContentFilter", "QueryDataDescription",
+                 "NodeTypeDescription", "QueryFirstRequest", "QueryDataSet", "ParsingResult",
+                 "ContentFilterElementResult", "ContentFilterResult", "QueryFirstResponse",
+                 "QueryNextRequest", "QueryNextResponse"]
 
-subscription_types = ["DeleteMonitoredItemsRequest", "DeleteMonitoredItemsResponse", "NotificationMessage",
+subscription_types = ["CreateSubscriptionRequest", "CreateSubscriptionResponse",
+                      "DeleteMonitoredItemsRequest", "DeleteMonitoredItemsResponse", "NotificationMessage",
                       "MonitoredItemNotification", "DataChangeNotification", "ModifySubscriptionRequest",
                       "ModifySubscriptionResponse"]
 
