@@ -171,7 +171,8 @@ void UA_ObjectTypeNode_init(UA_ObjectTypeNode *p) {
 	UA_Node_init((UA_Node*)p);
     p->nodeClass = UA_NODECLASS_OBJECTTYPE;
     p->isAbstract = UA_FALSE;
-    p->instanceManagement = (UA_ObjectInstanceManagement){.constructor = UA_NULL, .destructor = UA_NULL};
+    p->lifecycleManagement = (UA_ObjectLifecycleManagement)
+        {.constructor = UA_NULL, .destructor = UA_NULL};
 }
 
 UA_ObjectTypeNode * UA_ObjectTypeNode_new(void) {
@@ -192,7 +193,7 @@ void UA_ObjectTypeNode_delete(UA_ObjectTypeNode *p) {
 
 UA_StatusCode UA_ObjectTypeNode_copy(const UA_ObjectTypeNode *src, UA_ObjectTypeNode *dst) {
     dst->isAbstract = src->isAbstract;
-    dst->instanceManagement = src->instanceManagement;
+    dst->lifecycleManagement = src->lifecycleManagement;
 	return UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
 }
 
