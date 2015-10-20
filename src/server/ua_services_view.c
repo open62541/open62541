@@ -466,8 +466,8 @@ void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseN
        }
        response->resultsSize = size;
        for(size_t i = 0; i < size; i++) {
-           struct ContinuationPointEntry *cp;
-           LIST_FOREACH(cp, &session->continuationPoints, pointers) {
+           struct ContinuationPointEntry *cp, *temp;
+           LIST_FOREACH_SAFE(cp, &session->continuationPoints, pointers, temp) {
                if(UA_ByteString_equal(&cp->identifier, &request->continuationPoints[i])) {
                    Service_Browse_single(server, session, cp, UA_NULL, 0, &response->results[i]);
                    break;
@@ -485,9 +485,9 @@ void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseN
        }
        response->resultsSize = size;
        for(size_t i = 0; i < size; i++) {
-           struct ContinuationPointEntry *cp = UA_NULL;
-           LIST_FOREACH(cp, &session->continuationPoints, pointers) {
-               if(UA_ByteString_equal(&cp->identifier, &request->continuationPoints[i])) {
+           struct ContinuationPointEntry *cp, *temp;
+           LIST_FOREACH_SAFE(cp, &session->continuationPoints, pointers, temp) {
+               if(!UA_ByteString_equal(&cp->identifier, &request->continuationPoints[i])) {
                    removeCp(cp, session);
                    break;
                }
