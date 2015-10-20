@@ -641,27 +641,34 @@ UA_StatusCode UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespac
 	ReadRequest.nodesToRead[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY);
 
 	ReadResponse = UA_Client_read(client, &ReadRequest);
-	if(ReadResponse.responseHeader.serviceResult == UA_STATUSCODE_GOOD){
-		retval = UA_STATUSCODE_BADTYPEMISMATCH;
-		if(ReadResponse.resultsSize > 0 && ReadResponse.results[0].hasValue){
-			if(!UA_Variant_isScalar(&ReadResponse.results[0].value)){
-				if(ReadResponse.results[0].value.type == &UA_TYPES[UA_TYPES_STRING]){
-					retval = UA_STATUSCODE_BADNOTFOUND;
-					for(UA_UInt16 iterator = 0; iterator < ReadResponse.results[0].value.arrayLength;iterator++){
-						if(UA_String_equal(namespaceUri, &((UA_String*)ReadResponse.results[0].value.data)[iterator] )){
-							*namespaceIndex = iterator;
-							retval = UA_STATUSCODE_GOOD;
-						}
-					}
-				}
-			}
-		}
-	}else{
-		retval = ReadResponse.responseHeader.serviceResult;
-	}
+    UA_ReadRequest_deleteMembers(&ReadRequest);
 
-	UA_ReadResponse_deleteMembers(&ReadResponse);
-	UA_ReadRequest_deleteMembers(&ReadRequest);
+    if(ReadResponse.responseHeader.serviceResult != UA_STATUSCODE_GOOD){
+        retval = ReadResponse.responseHeader.serviceResult;
+        goto cleanup;
+    }
+
+    if(ReadResponse.resultsSize != 1 || !ReadResponse.results[0].hasValue){
+        retval = UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
+        goto cleanup;
+    }
+
+    if(ReadResponse.results[0].value.type != &UA_TYPES[UA_TYPES_STRING]){
+        retval = UA_STATUSCODE_BADTYPEMISMATCH;
+        goto cleanup;
+    }
+
+    retval = UA_STATUSCODE_BADNOTFOUND;
+    for(UA_UInt16 iterator = 0; iterator < ReadResponse.results[0].value.arrayLength; iterator++){
+        if(UA_String_equal(namespaceUri, &((UA_String*)ReadResponse.results[0].value.data)[iterator] )){
+            *namespaceIndex = iterator;
+            retval = UA_STATUSCODE_GOOD;
+            break;
+        }
+    }
+
+cleanup:
+    UA_ReadResponse_deleteMembers(&ReadResponse);
 
 	return retval;
 }
