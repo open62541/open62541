@@ -163,8 +163,10 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
                 UA_calloc(msg->notification->notificationData[notmsgn].body.length, sizeof(UA_Byte));
         
             notificationOffset = 0;
-            UA_encodeBinary(changeNotification, &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION],
-                            &msg->notification->notificationData[notmsgn].body, &notificationOffset);
+            UA_StatusCode retval = UA_encodeBinary(changeNotification, &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION],
+                                                   &msg->notification->notificationData[notmsgn].body, &notificationOffset);
+            if(retval != UA_STATUSCODE_GOOD)
+                UA_ByteString_deleteMembers(&msg->notification->notificationData[notmsgn].body);
 	
             // FIXME: Not properly freed!
             for(unsigned int i=0; i<monItemsChangeT; i++) {
@@ -519,7 +521,9 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
     // encode the data to find if its different to the previous
     newValueAsByteString.length = UA_calcSizeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE]);
     newValueAsByteString.data   = UA_malloc(newValueAsByteString.length);
-    UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE], &newValueAsByteString, &encodingOffset);
+    UA_StatusCode retval = UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE], &newValueAsByteString, &encodingOffset);
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_ByteString_deleteMembers(&newValueAsByteString);
   
     if(!monitoredItem->lastSampledValue.data) { 
         UA_ByteString_copy(&newValueAsByteString, &monitoredItem->lastSampledValue);

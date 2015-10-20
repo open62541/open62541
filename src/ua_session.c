@@ -53,8 +53,8 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
     UA_NodeId_deleteMembers(&session->authenticationToken);
     UA_NodeId_deleteMembers(&session->sessionId);
     UA_String_deleteMembers(&session->sessionName);
-    struct ContinuationPointEntry *cp;
-    while((cp = LIST_FIRST(&session->continuationPoints))) {
+    struct ContinuationPointEntry *cp, *temp;
+    LIST_FOREACH_SAFE(cp, &session->continuationPoints, pointers, temp) {
         LIST_REMOVE(cp, pointers);
         UA_ByteString_deleteMembers(&cp->identifier);
         UA_BrowseDescription_deleteMembers(&cp->browseDescription);

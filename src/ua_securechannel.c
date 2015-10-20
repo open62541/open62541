@@ -31,9 +31,12 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
             c->close(c);
     }
     /* just remove the pointers and free the linked list (not the sessions) */
-    struct SessionEntry *se;
-    while((se = LIST_FIRST(&channel->sessions))) {
-        UA_SecureChannel_detachSession(channel, se->session); /* the se is deleted inside */
+    struct SessionEntry *se, *temp;
+    LIST_FOREACH_SAFE(se, &channel->sessions, pointers, temp) {
+        if(se->session)
+            se->session->channel = UA_NULL;
+        LIST_REMOVE(se, pointers);
+        UA_free(se);
     }
 }
 
@@ -69,8 +72,8 @@ void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *sessi
 void UA_SecureChannel_detachSession(UA_SecureChannel *channel, UA_Session *session) {
     if(session)
         session->channel = UA_NULL;
-    struct SessionEntry *se;
-    LIST_FOREACH(se, &channel->sessions, pointers) {
+    struct SessionEntry *se, *temp;
+    LIST_FOREACH_SAFE(se, &channel->sessions, pointers, temp) {
         if(se->session != session)
             continue;
         LIST_REMOVE(se, pointers);

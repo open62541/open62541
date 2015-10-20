@@ -14,8 +14,8 @@ UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt32 maxSessionCo
 }
 
 void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager, UA_Server *server) {
-    session_list_entry *current;
-    while((current = LIST_FIRST(&sessionManager->sessions))) {
+    session_list_entry *current, *temp;
+    LIST_FOREACH_SAFE(current, &sessionManager->sessions, pointers, temp) {
         LIST_REMOVE(current, pointers);
         UA_Session_deleteMembersCleanup(&current->session, server);
         UA_free(current);
