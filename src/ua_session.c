@@ -3,32 +3,32 @@
 #include "ua_statuscodes.h"
 
 UA_Session anonymousSession = {
-    .clientDescription =  {.applicationUri = {-1, UA_NULL}, .productUri = {-1, UA_NULL},
-                           .applicationName = {.locale = {-1, UA_NULL}, .text = {-1, UA_NULL}},
+    .clientDescription =  {.applicationUri = {-1, NULL}, .productUri = {-1, NULL},
+                           .applicationName = {.locale = {-1, NULL}, .text = {-1, NULL}},
                            .applicationType = UA_APPLICATIONTYPE_CLIENT,
-                           .gatewayServerUri = {-1, UA_NULL}, .discoveryProfileUri = {-1, UA_NULL},
-                           .discoveryUrlsSize = -1, .discoveryUrls = UA_NULL},
+                           .gatewayServerUri = {-1, NULL}, .discoveryProfileUri = {-1, NULL},
+                           .discoveryUrlsSize = -1, .discoveryUrls = NULL},
     .sessionName = {sizeof("Anonymous Session")-1, (UA_Byte*)"Anonymous Session"},
     .authenticationToken = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
                             .identifier.numeric = 0}, 
     .sessionId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0},
     .maxRequestMessageSize = UA_UINT32_MAX, .maxResponseMessageSize = UA_UINT32_MAX,
-    .timeout = UA_INT64_MAX, .validTill = UA_INT64_MAX, .channel = UA_NULL,
-    .continuationPoints = {UA_NULL}};
+    .timeout = UA_INT64_MAX, .validTill = UA_INT64_MAX, .channel = NULL,
+    .continuationPoints = {NULL}};
 
 UA_Session adminSession = {
-    .clientDescription =  {.applicationUri = {-1, UA_NULL}, .productUri = {-1, UA_NULL},
-                           .applicationName = {.locale = {-1, UA_NULL}, .text = {-1, UA_NULL}},
+    .clientDescription =  {.applicationUri = {-1, NULL}, .productUri = {-1, NULL},
+                           .applicationName = {.locale = {-1, NULL}, .text = {-1, NULL}},
                            .applicationType = UA_APPLICATIONTYPE_CLIENT,
-                           .gatewayServerUri = {-1, UA_NULL}, .discoveryProfileUri = {-1, UA_NULL},
-                           .discoveryUrlsSize = -1, .discoveryUrls = UA_NULL},
+                           .gatewayServerUri = {-1, NULL}, .discoveryProfileUri = {-1, NULL},
+                           .discoveryUrlsSize = -1, .discoveryUrls = NULL},
     .sessionName = {sizeof("Administrator Session")-1, (UA_Byte*)"Administrator Session"},
     .authenticationToken = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
                             .identifier.numeric = 1},
     .sessionId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 1},
     .maxRequestMessageSize = UA_UINT32_MAX, .maxResponseMessageSize = UA_UINT32_MAX,
-    .timeout = UA_INT64_MAX, .validTill = UA_INT64_MAX, .channel = UA_NULL,
-    .continuationPoints = {UA_NULL}};
+    .timeout = UA_INT64_MAX, .validTill = UA_INT64_MAX, .channel = NULL,
+    .continuationPoints = {NULL}};
 
 void UA_Session_init(UA_Session *session) {
     UA_ApplicationDescription_init(&session->clientDescription);
@@ -40,7 +40,7 @@ void UA_Session_init(UA_Session *session) {
     session->maxResponseMessageSize = 0;
     session->timeout = 0;
     UA_DateTime_init(&session->validTill);
-    session->channel = UA_NULL;
+    session->channel = NULL;
 #ifdef ENABLE_SUBSCRIPTIONS
     SubscriptionManager_init(session);
 #endif

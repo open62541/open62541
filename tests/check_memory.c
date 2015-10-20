@@ -12,7 +12,7 @@ START_TEST(newAndEmptyObjectShallBeDeleted) {
 	// given
 	void *obj = UA_new(&UA_TYPES[_i]);
 	// then
-	ck_assert_ptr_ne(obj, UA_NULL);
+	ck_assert_ptr_ne(obj, NULL);
     // finally
 	UA_delete(obj, &UA_TYPES[_i]);
 }
@@ -113,7 +113,7 @@ END_TEST
 
 START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
 	// given
-	void *obj1 = UA_NULL;
+	void *obj1 = NULL;
 	UA_ByteString msg1;
 	UA_Int32 retval = UA_STATUSCODE_GOOD;
 	UA_Int32 buflen = 256;

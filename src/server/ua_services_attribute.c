@@ -9,70 +9,77 @@
 /* Read Attribute */
 /******************/
 
+static size_t readNumber(UA_Byte *buf, UA_Int32 buflen, UA_UInt32 *number) {
+    UA_UInt32 n = 0;
+    size_t progress = 0;
+    /* read numbers until the end or a non-number character appears */
+    UA_Byte c;
+    while((UA_Int32)progress < buflen) {
+        c = buf[progress];
+        if('0' > c || '9' < c)
+            break;
+        n = (n*10) + (c-'0');
+        progress++;
+    }
+    *number = n;
+    return progress;
+}
+
+static size_t readDimension(UA_Byte *buf, UA_Int32 buflen, struct UA_NumericRangeDimension *dim) {
+    size_t progress = readNumber(buf, buflen, &dim->min);
+    if(progress == 0)
+        return 0;
+    if(buflen <= (UA_Int32)progress || buf[progress] != ':') {
+        dim->max = dim->min;
+        return progress;
+    }
+    size_t progress2 = readNumber(&buf[progress+1], buflen - (progress + 1), &dim->max);
+    if(progress2 == 0)
+        return 0;
+    return progress + progress2 + 1;
+}
+
 #ifndef BUILD_UNIT_TESTS
 static
 #endif
-UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range) {
-    if(str.length < 0 || str.length >= 1023)
-        return UA_STATUSCODE_BADINTERNALERROR;
-#ifdef _MSC_VER
-    char *cstring = (char*)UA_alloca(sizeof(char)*str.length+1);
-#else
-    char cstring[str.length+1];
-#endif
-    UA_memcpy(cstring, str.data, str.length);
-    cstring[str.length] = 0;
+UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
     UA_Int32 index = 0;
-    size_t dimensionsIndex = 0;
-    size_t dimensionsMax = 3; // more should be uncommon, realloc if necessary
-    struct UA_NumericRangeDimension *dimensions = UA_malloc(sizeof(struct UA_NumericRangeDimension) * 3);
-    if(!dimensions)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    
+    size_t dimensionsMax = 0;
+    struct UA_NumericRangeDimension *dimensions = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_Int32 pos = 0;
     do {
-        UA_Int32 min, max;
-        UA_Int32 progress;
-        UA_Int32 res = sscanf(&cstring[index], "%" SCNu32 "%n", &min, &progress);
-        if(res <= 0 || min < 0) {
+        /* alloc dimensions */
+        if(index >= (UA_Int32)dimensionsMax) {
+            struct UA_NumericRangeDimension *newds = UA_realloc(dimensions, dimensionsMax + 2);
+            if(!newds) {
+                retval = UA_STATUSCODE_BADOUTOFMEMORY;
+                break;
+            }
+            dimensions = newds;
+            dimensionsMax = dimensionsMax + 2;
+        }
+
+        /* read the dimension */
+        size_t progress = readDimension(&str->data[pos], str->length - pos, &dimensions[index]);
+        if(progress == 0) {
             retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
             break;
         }
-        index += progress;
-        if(index >= str.length || cstring[index] == ',')
-            max = min;
-        else {
-            res = sscanf(&cstring[index], ":%" SCNu32 "%n", &max, &progress);
-            if(res <= 0 || max < 0 || min >= max) {
-                retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
-                break;
-            }
-            index += progress;
-        }
-        
-        if(dimensionsIndex >= dimensionsMax) {
-            struct UA_NumericRangeDimension *newDimensions =
-                UA_realloc(dimensions, sizeof(struct UA_NumericRangeDimension) * 2 * dimensionsMax);
-            if(!newDimensions) {
-                UA_free(dimensions);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            dimensions = newDimensions;
-            dimensionsMax *= 2;
-        }
+        pos += progress;
+        index++;
 
-        dimensions[dimensionsIndex].min = min;
-        dimensions[dimensionsIndex].max = max;
-        dimensionsIndex++;
-    } while(retval == UA_STATUSCODE_GOOD && index + 1 < str.length && cstring[index] == ',' && ++index);
+        /* loop into the next dimension */
+        if(pos >= str->length)
+            break;
+    } while(str->data[pos] == ',' && pos++);
 
-    if(retval != UA_STATUSCODE_GOOD) {
+    if(retval == UA_STATUSCODE_GOOD && index > 0) {
+        range->dimensions = dimensions;
+        range->dimensionsSize = index;
+    } else
         UA_free(dimensions);
-        return retval;
-    }
-        
-    range->dimensions = dimensions;
-    range->dimensionsSize = dimensionsIndex;
+
     return retval;
 }
 
@@ -99,10 +106,10 @@ static void handleSourceTimestamps(UA_TimestampsToReturn timestamps, UA_DataValu
 static UA_StatusCode getVariableNodeValue(const UA_VariableNode *vn, const UA_TimestampsToReturn timestamps,
                                           const UA_ReadValueId *id, UA_DataValue *v) {
     UA_NumericRange range;
-    UA_NumericRange *rangeptr = UA_NULL;
+    UA_NumericRange *rangeptr = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(id->indexRange.length > 0) {
-        retval = parse_numericrange(id->indexRange, &range);
+        retval = parse_numericrange(&id->indexRange, &range);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         rangeptr = &range;
@@ -139,7 +146,7 @@ static UA_StatusCode getVariableNodeDataType(const UA_VariableNode *vn, UA_DataV
         /* Read from the datasource to see the data type */
         UA_DataValue val;
         UA_DataValue_init(&val);
-        retval = vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId, UA_FALSE, UA_NULL, &val);
+        retval = vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId, UA_FALSE, NULL, &val);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         retval = UA_Variant_setScalarCopy(&v->value, &val.value.type->typeId, &UA_TYPES[UA_TYPES_NODEID]);
@@ -157,7 +164,7 @@ static UA_StatusCode getVariableNodeArrayDimensions(const UA_VariableNode *vn, U
         /* Read the datasource to see the array dimensions */
         UA_DataValue val;
         UA_DataValue_init(&val);
-        retval = vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId, UA_FALSE, UA_NULL, &val);
+        retval = vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId, UA_FALSE, NULL, &val);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         retval = UA_Variant_setArrayCopy(&v->value, val.value.arrayDimensions,
@@ -341,7 +348,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 #ifdef UA_EXTERNAL_NAMESPACES
     UA_Boolean isExternal[size];
     UA_UInt32 indices[size];
-    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
+    memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
     for(size_t j = 0;j<server->externalNamespacesSize;j++) {
         size_t indexSize = 0;
         for(size_t i = 0;i < size;i++) {
@@ -378,7 +385,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 		UA_Variant variant;
 		UA_Variant_init(&variant);
 
-		UA_DateTime* expireArray = UA_NULL;
+		UA_DateTime* expireArray = NULL;
 		expireArray = UA_Array_new(&UA_TYPES[UA_TYPES_DATETIME], request->nodesToReadSize);
 		variant.data = expireArray;
 
@@ -427,7 +434,7 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const U
             UA_Node_deleteAnyNodeClass(copy);
             return retval;
         }
-        retval = UA_NodeStore_replace(server->nodestore, node, copy, UA_NULL);
+        retval = UA_NodeStore_replace(server->nodestore, node, copy, NULL);
         if(retval != UA_STATUSCODE_GOOD)
             UA_Node_deleteAnyNodeClass(copy);
 #endif
@@ -459,10 +466,10 @@ Service_Write_single_ValueDataSource(UA_Server *server, UA_Session *session, con
     UA_StatusCode retval;
     if(wvalue->indexRange.length <= 0) {
         retval = node->value.dataSource.write(node->value.dataSource.handle, node->nodeId,
-                                              &wvalue->value.value, UA_NULL);
+                                              &wvalue->value.value, NULL);
     } else {
         UA_NumericRange range;
-        retval = parse_numericrange(wvalue->indexRange, &range);
+        retval = parse_numericrange(&wvalue->indexRange, &range);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         retval = node->value.dataSource.write(node->value.dataSource.handle, node->nodeId,
@@ -481,10 +488,10 @@ MoveValueIntoNode(UA_Server *server, UA_Session *session, UA_VariableNode *node,
 
     /* Parse the range */
     UA_NumericRange range;
-    UA_NumericRange *rangeptr = UA_NULL;
+    UA_NumericRange *rangeptr = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(wvalue->indexRange.length > 0) {
-        retval = parse_numericrange(wvalue->indexRange, &range);
+        retval = parse_numericrange(&wvalue->indexRange, &range);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         rangeptr = &range;
@@ -661,7 +668,7 @@ UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, UA_Wr
 
 void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,
                    UA_WriteResponse *response) {
-    UA_assert(server != UA_NULL && session != UA_NULL && request != UA_NULL && response != UA_NULL);
+    UA_assert(server != NULL && session != NULL && request != NULL && response != NULL);
     UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
                  "Processing WriteRequest for Session (ns=%i,i=%i)",
                  session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
@@ -680,7 +687,7 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
 #ifdef UA_EXTERNAL_NAMESPACES
     UA_Boolean isExternal[request->nodesToWriteSize];
     UA_UInt32 indices[request->nodesToWriteSize];
-    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToWriteSize);
+    memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToWriteSize);
     for(size_t j = 0; j < server->externalNamespacesSize; j++) {
         UA_UInt32 indexSize = 0;
         for(UA_Int32 i = 0; i < request->nodesToWriteSize; i++) {

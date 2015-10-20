@@ -202,7 +202,7 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session, const UA_Un
 
 /* Mock-Up of the function signature for Unit Tests */
 #ifdef BUILD_UNIT_TESTS
-UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range);
+UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range);
 #endif
 
 /**

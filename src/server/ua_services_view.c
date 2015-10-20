@@ -83,7 +83,7 @@ static const UA_Node * returnRelevantNodeExternal(UA_ExternalNodeStore *ens, con
     UA_Array_delete(diagnosticInfos, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], 6);
     if(node && descr->nodeClassMask != 0 && (node->nodeClass & descr->nodeClassMask) == 0) {
         UA_ObjectNode_delete((UA_ObjectNode*)node);
-        return UA_NULL;
+        return NULL;
     }
     return node;
 }
@@ -97,9 +97,9 @@ returnRelevantNode(UA_Server *server, const UA_BrowseDescription *descr, UA_Bool
                    UA_Boolean *isExternal) {
     /* reference in the right direction? */
     if(reference->isInverse && descr->browseDirection == UA_BROWSEDIRECTION_FORWARD)
-        return UA_NULL;
+        return NULL;
     if(!reference->isInverse && descr->browseDirection == UA_BROWSEDIRECTION_INVERSE)
-        return UA_NULL;
+        return NULL;
 
     /* is the reference part of the hierarchy of references we look for? */
     if(!return_all) {
@@ -111,7 +111,7 @@ returnRelevantNode(UA_Server *server, const UA_BrowseDescription *descr, UA_Bool
             }
         }
         if(!is_relevant)
-            return UA_NULL;
+            return NULL;
     }
 
 #ifdef UA_EXTERNAL_NAMESPACES
@@ -129,7 +129,7 @@ returnRelevantNode(UA_Server *server, const UA_BrowseDescription *descr, UA_Bool
     const UA_Node *node = UA_NodeStore_get(server->nodestore, &reference->targetId.nodeId);
     if(node && descr->nodeClassMask != 0 && (node->nodeClass & descr->nodeClassMask) == 0) {
     	UA_NodeStore_release(node);
-        return UA_NULL;
+        return NULL;
     }
     *isExternal = UA_FALSE;
     return node;
@@ -245,7 +245,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
     
     /* get the references that match the browsedescription */
     size_t relevant_refs_size = 0;
-    UA_NodeId *relevant_refs = UA_NULL;
+    UA_NodeId *relevant_refs = NULL;
     UA_Boolean all_refs = UA_NodeId_isNull(&descr->referenceTypeId);
     if(!all_refs) {
         if(descr->includeSubtypes) {
@@ -339,7 +339,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
 #endif
         if(retval != UA_STATUSCODE_GOOD) {
             UA_Array_delete(result->references, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION], referencesCount);
-            result->references = UA_NULL;
+            result->references = NULL;
             result->referencesSize = 0;
             result->statusCode = UA_STATUSCODE_UNCERTAINNOTALLNODESAVAILABLE;
             goto cleanup;
@@ -350,7 +350,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
     result->referencesSize = referencesCount;
     if(referencesCount == 0) {
         UA_free(result->references);
-        result->references = UA_NULL;
+        result->references = NULL;
     }
 
     cleanup:
@@ -424,7 +424,7 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
 #endif /*NO_ALLOCA */
-    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
+    memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
     for(size_t j = 0; j < server->externalNamespacesSize; j++) {
         size_t indexSize = 0;
         for(size_t i = 0; i < size; i++) {
@@ -446,7 +446,7 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
 #ifdef UA_EXTERNAL_NAMESPACES
         if(!isExternal[i])
 #endif
-            Service_Browse_single(server, session, UA_NULL, &request->nodesToBrowse[i],
+            Service_Browse_single(server, session, NULL, &request->nodesToBrowse[i],
                                   request->requestedMaxReferencesPerNode, &response->results[i]);
     }
 }
@@ -473,7 +473,7 @@ void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseN
            struct ContinuationPointEntry *cp, *temp;
            LIST_FOREACH_SAFE(cp, &session->continuationPoints, pointers, temp) {
                if(UA_ByteString_equal(&cp->identifier, &request->continuationPoints[i])) {
-                   Service_Browse_single(server, session, cp, UA_NULL, 0, &response->results[i]);
+                   Service_Browse_single(server, session, cp, NULL, 0, &response->results[i]);
                    break;
                }
            }
@@ -515,7 +515,7 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
         return UA_STATUSCODE_BADBROWSENAMEINVALID;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_NodeId *reftypes = UA_NULL;
+    UA_NodeId *reftypes = NULL;
     size_t reftypes_count = 1; // all_refs or no subtypes => 1
     UA_Boolean all_refs = UA_FALSE;
     if(UA_NodeId_isNull(&elem->referenceTypeId))
@@ -603,7 +603,7 @@ void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session 
     if(!firstNode) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         UA_free(result->targets);
-        result->targets = UA_NULL;
+        result->targets = NULL;
         return;
     }
     result->statusCode = walkBrowsePath(server, session, firstNode, &path->relativePath, 0,
@@ -613,7 +613,7 @@ void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session 
         result->statusCode = UA_STATUSCODE_BADNOMATCH;
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_Array_delete(result->targets, &UA_TYPES[UA_TYPES_BROWSEPATHTARGET], result->targetsSize);
-        result->targets = UA_NULL;
+        result->targets = NULL;
         result->targetsSize = -1;
     }
 }
@@ -644,7 +644,7 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
 #endif /*NO_ALLOCA */
-    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
+    memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
     for(size_t j = 0; j < server->externalNamespacesSize; j++) {
     	size_t indexSize = 0;
     	for(size_t i = 0;i < size;i++) {

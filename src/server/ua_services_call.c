@@ -25,7 +25,7 @@ static const UA_VariableNode
             UA_NodeStore_release(refTarget);
         }
     }
-    return UA_NULL;
+    return NULL;
 }
 
 static UA_StatusCode

@@ -77,7 +77,7 @@ class open62541_MacroHelper():
     #else:
       #code.append(refid + ".isForward = UA_FALSE;")
     #code.append(refid + ".targetNodeId = " + self.getCreateExpandedNodeIDMacro(reference.target()) + ";")
-    #code.append("addOneWayReferenceWithSession(server, (UA_Session *) UA_NULL, &" + refid + ");")
+    #code.append("addOneWayReferenceWithSession(server, (UA_Session *) NULL, &" + refid + ");")
 
     if reference.isForward():
       code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", UA_TRUE);")
@@ -132,9 +132,9 @@ class open62541_MacroHelper():
       code.append("       , typeDefinition")
     
     if nodetype != "Method":
-      code.append("       , attr, UA_NULL);")
+      code.append("       , attr, NULL);")
     else:
-      code.append("       , attr, (UA_MethodCallback) UA_NULL, UA_NULL, 0, UA_NULL, 0, UA_NULL, UA_NULL);")
+      code.append("       , attr, (UA_MethodCallback) NULL, NULL, 0, NULL, 0, NULL, NULL);")
     return code
     
   def getCreateNodeBootstrap(self, node):

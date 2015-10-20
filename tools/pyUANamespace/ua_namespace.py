@@ -642,7 +642,7 @@ class opcua_namespace():
     header.append('#include "ua_types.h"')
     header.append('#else')
     header.append('#include "open62541.h"')
-    header.append('#define UA_NULL ((void *)0)')
+    header.append('#define NULL ((void *)0)')
     header.append('#endif')
       
     code.append('#include "'+outfilename+'.h"')

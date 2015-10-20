@@ -44,7 +44,7 @@ static void UA_Client_init(UA_Client* client, UA_ClientConfig config,
 UA_Client * UA_Client_new(UA_ClientConfig config, UA_Logger logger) {
     UA_Client *client = UA_calloc(1, sizeof(UA_Client));
     if(!client)
-        return UA_NULL;
+        return NULL;
 
     UA_Client_init(client, config, logger);
     return client;

@@ -9,12 +9,12 @@
 UA_Subscription *UA_Subscription_new(UA_Int32 subscriptionID) {
     UA_Subscription *new = UA_malloc(sizeof(UA_Subscription));
     if(!new)
-        return UA_NULL;
+        return NULL;
     new->subscriptionID = subscriptionID;
     new->lastPublished  = 0;
     new->sequenceNumber = 1;
     memset(&new->timedUpdateJobGuid, 0, sizeof(UA_Guid));
-    new->timedUpdateJob          = UA_NULL;
+    new->timedUpdateJob          = NULL;
     new->timedUpdateIsRegistered = UA_FALSE;
     LIST_INIT(&new->MonitoredItems);
     LIST_INIT(&new->unpublishedNotifications);
@@ -38,7 +38,7 @@ void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *ser
     Subscription_deleteUnpublishedNotification(0, true, subscription);
     
     // Unhook/Unregister any timed work assiociated with this subscription
-    if(subscription->timedUpdateJob != UA_NULL){
+    if(subscription->timedUpdateJob != NULL){
         Subscription_unregisterUpdateJob(server, subscription);
         UA_free(subscription->timedUpdateJob);
     }
@@ -63,9 +63,9 @@ void Subscription_generateKeepAlive(UA_Subscription *subscription) {
     UA_unpublishedNotification *msg = UA_malloc(sizeof(UA_unpublishedNotification));
     if(!msg)
         return;
-    msg->notification = UA_NULL;
+    msg->notification = NULL;
     msg->notification = UA_malloc(sizeof(UA_NotificationMessage));
-    msg->notification->notificationData = UA_NULL;
+    msg->notification->notificationData = NULL;
     // KeepAlive uses next message, but does not increment counter
     msg->notification->sequenceNumber = subscription->sequenceNumber + 1;
     msg->notification->publishTime    = UA_DateTime_now();
@@ -155,7 +155,7 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
             
             changeNotification->monitoredItemsSize  = monItemsChangeT;
             changeNotification->diagnosticInfosSize = 0;
-            changeNotification->diagnosticInfos     = UA_NULL;
+            changeNotification->diagnosticInfos     = NULL;
         
             msg->notification->notificationData[notmsgn].body.length =
                 UA_calcSizeBinary(changeNotification, &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION]);
@@ -187,7 +187,7 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
 UA_UInt32 *Subscription_getAvailableSequenceNumbers(UA_Subscription *sub) {
     UA_UInt32 *seqArray = UA_malloc(sizeof(UA_UInt32) * Subscription_queuedNotifications(sub));
     if(!seqArray)
-        return UA_NULL;
+        return NULL;
   
     int i = 0;
     UA_unpublishedNotification *not;
@@ -269,7 +269,7 @@ static void Subscription_timedUpdateNotificationsJob(UA_Server *server, void *da
 
 
 UA_StatusCode Subscription_createdUpdateJob(UA_Server *server, UA_Guid jobId, UA_Subscription *sub) {
-    if(server == UA_NULL || sub == UA_NULL)
+    if(server == NULL || sub == NULL)
         return UA_STATUSCODE_BADSERVERINDEXINVALID;
         
     UA_Job *theWork;
@@ -287,7 +287,7 @@ UA_StatusCode Subscription_createdUpdateJob(UA_Server *server, UA_Guid jobId, UA
 }
 
 UA_StatusCode Subscription_registerUpdateJob(UA_Server *server, UA_Subscription *sub) {
-    if(server == UA_NULL || sub == UA_NULL)
+    if(server == NULL || sub == NULL)
         return UA_STATUSCODE_BADSERVERINDEXINVALID;
     
     if(sub->publishingInterval <= 5 ) 
@@ -302,7 +302,7 @@ UA_StatusCode Subscription_registerUpdateJob(UA_Server *server, UA_Subscription 
 }
 
 UA_StatusCode Subscription_unregisterUpdateJob(UA_Server *server, UA_Subscription *sub) {
-    if(server == UA_NULL || sub == UA_NULL)
+    if(server == NULL || sub == NULL)
         return UA_STATUSCODE_BADSERVERINDEXINVALID;
     UA_Int32 retval = UA_Server_removeRepeatedJob(server, sub->timedUpdateJobGuid);
     sub->timedUpdateIsRegistered = UA_FALSE;
@@ -428,14 +428,14 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
                 if(srcAsVariableNode->valueSource != UA_VALUESOURCE_DATASOURCE)
                     break;
                 // todo: handle numeric ranges
-                if(srcAsVariableNode->value.dataSource.read(vsrc->value.dataSource.handle, vsrc->nodeId, UA_TRUE, UA_NULL,
+                if(srcAsVariableNode->value.dataSource.read(vsrc->value.dataSource.handle, vsrc->nodeId, UA_TRUE, NULL,
                                                             &sourceDataValue) != UA_STATUSCODE_GOOD)
                     break;
                 UA_DataValue_copy(&sourceDataValue, dst);
                 if(sourceDataValue.value.data) {
                     UA_deleteMembers(sourceDataValue.value.data, sourceDataValue.value.type);
                     UA_free(sourceDataValue.value.data);
-                    sourceDataValue.value.data = UA_NULL;
+                    sourceDataValue.value.data = NULL;
                 }
                 UA_DataValue_deleteMembers(&sourceDataValue);
                 samplingError = UA_FALSE;
@@ -483,8 +483,8 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
     if(!newvalue)
         return;
 
-    newvalue->listEntry.tqe_next = UA_NULL;
-    newvalue->listEntry.tqe_prev = UA_NULL;
+    newvalue->listEntry.tqe_next = NULL;
+    newvalue->listEntry.tqe_prev = NULL;
     UA_DataValue_init(&newvalue->value);
 
     // Verify that the *Node being monitored is still valid

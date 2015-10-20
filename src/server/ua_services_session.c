@@ -50,7 +50,7 @@ void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_SessionManager_getSession(&server->sessionManager,
                                      (const UA_NodeId*)&request->requestHeader.authenticationToken);
 
-	if(foundSession == UA_NULL) {
+	if(foundSession == NULL) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
                      "Processing ActivateSessionRequest on SecureChannel %i, but no session found for the authentication token",
@@ -81,12 +81,12 @@ void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     //(Compatibility notice)
     //Siemens OPC Scout v10 provides an empty policyId, this is not okay
     //For compatibility we will assume that empty policyId == ANONYMOUS_POLICY
-    //if(token.policyId.data == UA_NULL) {
+    //if(token.policyId.data == NULL) {
     //    /* 1) no policy defined */
     //    response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
     //} else
     //(End Compatibility notice)
-    if(server->config.Login_enableAnonymous && (token.policyId.data == UA_NULL || UA_String_equal(&token.policyId, &ap))) {
+    if(server->config.Login_enableAnonymous && (token.policyId.data == NULL || UA_String_equal(&token.policyId, &ap))) {
         /* 2) anonymous logins */
         if(foundSession->channel && foundSession->channel != channel)
             UA_SecureChannel_detachSession(foundSession->channel, foundSession);
@@ -97,7 +97,7 @@ void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         /* 3) username logins */
         offset = 0;
         UA_UserNameIdentityToken_decodeBinary(&request->userIdentityToken.body, &offset, &username_token);
-        if(username_token.encryptionAlgorithm.data != UA_NULL) {
+        if(username_token.encryptionAlgorithm.data != NULL) {
             /* 3.1) we only support encryption */
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
         } else  if(username_token.userName.length == -1 && username_token.password.length == -1){

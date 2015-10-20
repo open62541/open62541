@@ -81,13 +81,13 @@ void UA_NodeStore_release(const UA_Node *managed) {
 UA_NodeStore * UA_NodeStore_new() {
     UA_NodeStore *ns;
     if(!(ns = UA_malloc(sizeof(UA_NodeStore))))
-        return UA_NULL;
+        return NULL;
 
     /* 32 is the minimum size for the hashtable. */
     ns->ht = cds_lfht_new(32, 32, 0, CDS_LFHT_AUTO_RESIZE, NULL);
     if(!ns->ht) {
         UA_free(ns);
-        return UA_NULL;
+        return NULL;
     }
     return ns;
 }
@@ -106,7 +106,7 @@ void UA_NodeStore_delete(UA_NodeStore *ns) {
         cds_lfht_next(ht, &iter);
     }
     rcu_read_unlock();
-    cds_lfht_destroy(ht, UA_NULL);
+    cds_lfht_destroy(ht, NULL);
 
     UA_free(ns);
 }
@@ -146,7 +146,7 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, const UA_Node
     struct nodeEntry *entry;
     if(!(entry = UA_malloc(sizeof(struct nodeEntry) - sizeof(UA_Node) + nodesize)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_memcpy((void*)&entry->node, node, nodesize);
+    memcpy((void*)&entry->node, node, nodesize);
 
     cds_lfht_node_init(&entry->htn);
     entry->refcount = ALIVE_BIT;
@@ -239,7 +239,7 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode, UA_
     struct nodeEntry *newEntry;
     if(!(newEntry = UA_malloc(sizeof(struct nodeEntry) - sizeof(UA_Node) + nodesize)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_memcpy((void*)&newEntry->node, node, nodesize);
+    memcpy((void*)&newEntry->node, node, nodesize);
 
     cds_lfht_node_init(&newEntry->htn);
     newEntry->refcount = ALIVE_BIT;
@@ -313,7 +313,7 @@ const UA_Node * UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid
 
     if(!found_entry) {
         rcu_read_unlock();
-        return UA_NULL;
+        return NULL;
     }
 
     /* This is done within a read-lock. The node will not be marked dead within a read-lock. */
@@ -328,7 +328,7 @@ void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visit
 
     rcu_read_lock();
     cds_lfht_first(ht, &iter);
-    while(iter.node != UA_NULL) {
+    while(iter.node != NULL) {
         struct nodeEntry *found_entry = (struct nodeEntry *)cds_lfht_iter_get_node(&iter);
         uatomic_inc(&found_entry->refcount);
         const UA_Node      *node = &found_entry->node;

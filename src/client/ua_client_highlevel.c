@@ -218,7 +218,7 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId meth
     if(retval == UA_STATUSCODE_GOOD) {
         *output = response.results[0].outputArguments;
         *outputSize = response.results[0].outputArgumentsSize;
-        response.results[0].outputArguments = UA_NULL;
+        response.results[0].outputArguments = NULL;
         response.results[0].outputArgumentsSize = -1;
     }
     UA_CallResponse_deleteMembers(&response);
@@ -258,15 +258,15 @@ __UA_Client_readAttribute(UA_Client *client, UA_NodeId nodeId, UA_AttributeId at
         return retval;
     }
     if(attributeId == UA_ATTRIBUTEID_VALUE) {
-        UA_memcpy(out, &res->value, sizeof(UA_Variant));
+        memcpy(out, &res->value, sizeof(UA_Variant));
         UA_Variant_init(&res->value);
     }
     else if(res->value.type != outDataType) {
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     } else {
-        UA_memcpy(out, res->value.data, res->value.type->memSize);
+        memcpy(out, res->value.data, res->value.type->memSize);
         UA_free(res->value.data);
-        res->value.data = UA_NULL;
+        res->value.data = NULL;
     }
     UA_ReadResponse_deleteMembers(&response);
     return retval;

@@ -21,11 +21,10 @@ extern "C" {
 #endif
 
 #ifndef UA_FFI_BINDINGS
-#include <inttypes.h>
 #include <stdbool.h>
-#include <stddef.h>
-#include <string.h>
+#include <inttypes.h>
 #endif
+
 #include "ua_config.h"
 #include "ua_statuscodes.h"
 
@@ -331,7 +330,6 @@ void UA_EXPORT UA_String_deleteMembers(UA_String *p);
 UA_StatusCode UA_EXPORT UA_String_copy(const UA_String *src, UA_String *dst);
 UA_String UA_EXPORT UA_String_fromChars(char const src[]); ///> Copies the content on the heap. Returns a null-string when alloc fails.
 UA_Boolean UA_EXPORT UA_String_equal(const UA_String *s1, const UA_String *s2); ///> Compares two strings
-UA_StatusCode UA_EXPORT UA_String_copyprintf(char const fmt[], UA_String *dst, ...); ///> Printf a char-array into a UA_String. Memory for the string data is allocated.
 UA_EXPORT extern const UA_String UA_STRING_NULL;
 static UA_INLINE UA_String UA_STRING(char *chars) {
     UA_String str;
@@ -351,15 +349,15 @@ UA_DateTime UA_EXPORT UA_DateTime_now(void); ///> The current time
 UA_StatusCode UA_EXPORT UA_DateTime_toString(UA_DateTime time, UA_String *timeString);
 
 typedef struct UA_DateTimeStruct {
-    UA_Int16 nanoSec;
-    UA_Int16 microSec;
-    UA_Int16 milliSec;
-    UA_Int16 sec;
-    UA_Int16 min;
-    UA_Int16 hour;
-    UA_Int16 day;
-    UA_Int16 month;
-    UA_Int16 year;
+    UA_UInt16 nanoSec;
+    UA_UInt16 microSec;
+    UA_UInt16 milliSec;
+    UA_UInt16 sec;
+    UA_UInt16 min;
+    UA_UInt16 hour;
+    UA_UInt16 day;
+    UA_UInt16 month;
+    UA_UInt16 year;
 } UA_DateTimeStruct;
 
 UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime time);

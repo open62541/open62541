@@ -879,7 +879,7 @@ START_TEST(WriteSingleAttributeUserExecutable) {
 START_TEST(numericRange) {
     UA_NumericRange range;
     const UA_String str = (UA_String){9, (UA_Byte*)"1:2,0:3,5"};
-    UA_StatusCode retval = parse_numericrange(str, &range);
+    UA_StatusCode retval = parse_numericrange(&str, &range);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(range.dimensionsSize,3);
     ck_assert_int_eq(range.dimensions[0].min,1);
@@ -958,7 +958,7 @@ int main(void) {
 	Suite *s;
 	s = testSuite_services_attributes();
 	SRunner *sr = srunner_create(s);
-	// srunner_set_fork_status(sr, CK_NOFORK);
+	srunner_set_fork_status(sr, CK_NOFORK);
 	srunner_run_all(sr, CK_NORMAL);
 
 	number_failed += srunner_ntests_failed(sr);

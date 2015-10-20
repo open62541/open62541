@@ -685,7 +685,7 @@ class opcua_node_t:
       code = code + codegen.getCreateNodeBootstrap(self)
       code = code + self.printOpen62541CCode_Subtype(unPrintedReferences = unPrintedReferences, bootstrapping = True)
       code.append("// Parent node does not exist yet. This node will be bootstrapped and linked later.")
-      code.append("UA_NodeStore_insert(server->nodestore, (UA_Node*) " + self.getCodePrintableID() + ", UA_NULL);")
+      code.append("UA_NodeStore_insert(server->nodestore, (UA_Node*) " + self.getCodePrintableID() + ", NULL);")
       
     # Try to print all references to nodes that already exist
     # Note: we know the reference types exist, because the namespace class made sure they were
@@ -1150,10 +1150,10 @@ class opcua_node_method_t(opcua_node_t):
     if bootstrapping == False:
       code.append("       // Note: in/outputArguments are added by attaching the variable nodes,")
       code.append("       //       not by including the in the addMethodNode() call.")
-      code.append("       UA_NULL,")
-      code.append("       UA_NULL,")
-      code.append("       0, UA_NULL,")
-      code.append("       0, UA_NULL,")
+      code.append("       NULL,")
+      code.append("       NULL,")
+      code.append("       0, NULL,")
+      code.append("       0, NULL,")
       code.append("       // FIXME: Missing executable")
       code.append("       // FIXME: Missing userExecutable")
       return code

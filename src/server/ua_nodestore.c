@@ -56,7 +56,7 @@ static UA_Boolean containsNodeId(const UA_NodeStore *ns, const UA_NodeId *nodeid
     hash_t         index = mod(h, size);
     struct nodeEntry **e = &ns->entries[index];
 
-    if(*e == UA_NULL) {
+    if(*e == NULL) {
         *entry = e;
         return UA_FALSE;
     }
@@ -74,7 +74,7 @@ static UA_Boolean containsNodeId(const UA_NodeStore *ns, const UA_NodeId *nodeid
 
         e = &ns->entries[index];
 
-        if(*e == UA_NULL) {
+        if(*e == NULL) {
             *entry = e;
             return UA_FALSE;
         }
@@ -106,7 +106,7 @@ static UA_StatusCode expand(UA_NodeStore *ns) {
     if(!(nentries = UA_malloc(sizeof(struct nodeEntry *) * nsize)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_memset(nentries, 0, nsize * sizeof(struct nodeEntry *));
+    memset(nentries, 0, nsize * sizeof(struct nodeEntry *));
     struct nodeEntry **oentries = ns->entries;
     ns->entries = nentries;
     ns->size    = nsize;
@@ -196,9 +196,9 @@ static struct nodeEntry * nodeEntryFromNode(UA_Node *node) {
 
     struct nodeEntry *newEntry;
     if(!(newEntry = UA_malloc(sizeof(struct nodeEntry) - sizeof(UA_Node) + nodesize)))
-        return UA_NULL;
+        return NULL;
 
-    UA_memcpy(&newEntry->node, node, nodesize);
+    memcpy(&newEntry->node, node, nodesize);
     UA_free(node);
     return newEntry;
 }
@@ -210,16 +210,16 @@ static struct nodeEntry * nodeEntryFromNode(UA_Node *node) {
 UA_NodeStore * UA_NodeStore_new(void) {
     UA_NodeStore *ns;
     if(!(ns = UA_malloc(sizeof(UA_NodeStore))))
-        return UA_NULL;
+        return NULL;
 
     ns->sizePrimeIndex = higher_prime_index(32);
     ns->size = primes[ns->sizePrimeIndex];
     ns->count = 0;
     if(!(ns->entries = UA_malloc(sizeof(struct nodeEntry *) * ns->size))) {
         UA_free(ns);
-        return UA_NULL;
+        return NULL;
     }
-    UA_memset(ns->entries, 0, ns->size * sizeof(struct nodeEntry *));
+    memset(ns->entries, 0, ns->size * sizeof(struct nodeEntry *));
     return ns;
 }
 
@@ -227,10 +227,10 @@ void UA_NodeStore_delete(UA_NodeStore *ns) {
     UA_UInt32 size = ns->size;
     struct nodeEntry **entries = ns->entries;
     for(UA_UInt32 i = 0;i < size;i++) {
-        if(entries[i] != UA_NULL) {
+        if(entries[i] != NULL) {
             entries[i]->refcount &= ~ALIVE_BIT; // mark dead
             deleteEntry(entries[i]);
-            entries[i] = UA_NULL;
+            entries[i] = NULL;
             ns->count--;
         }
     }
@@ -323,7 +323,7 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode, UA_
 const UA_Node * UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
     struct nodeEntry **slot;
     if(!containsNodeId(ns, nodeid, &slot))
-        return UA_NULL;
+        return NULL;
     (*slot)->refcount++;
     return &(*slot)->node;
 }
@@ -336,7 +336,7 @@ UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     // Check before if deleting the node makes the UA_NodeStore inconsistent.
     (*slot)->refcount &= ~ALIVE_BIT; // mark dead
     deleteEntry(*slot);
-    *slot = UA_NULL;
+    *slot = NULL;
     ns->count--;
 
     /* Downsize the hashmap if it is very empty */
@@ -348,7 +348,7 @@ UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
 
 void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
     for(UA_UInt32 i = 0;i < ns->size;i++) {
-        if(ns->entries[i] != UA_NULL)
+        if(ns->entries[i] != NULL)
             visitor(&ns->entries[i]->node);
     }
 }

@@ -143,6 +143,11 @@ else()
   set(generate_typeintrospection "")
 endif()
 
+option(UA_EMBEDDED_LIBC "Target has no libc, use internal definitions" OFF)
+if(UA_EMBEDDED_LIBC)
+  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/libc_string.c)
+endif()
+
 option(ENABLE_SUBSCRIPTIONS "Enable compilation of subscription and monitoring support." OFF)
 if(ENABLE_SUBSCRIPTIONS)
   set(ENABLE_SUBSCRIPTIONS ON) #to propagate it to the config file

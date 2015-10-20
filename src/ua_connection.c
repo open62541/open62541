@@ -12,16 +12,16 @@ void UA_Connection_init(UA_Connection *connection) {
     connection->state = UA_CONNECTION_CLOSED;
     connection->localConf = UA_ConnectionConfig_standard;
     connection->remoteConf = UA_ConnectionConfig_standard;
-    connection->channel = UA_NULL;
+    connection->channel = NULL;
     connection->sockfd = 0;
-    connection->handle = UA_NULL;
+    connection->handle = NULL;
     UA_ByteString_init(&connection->incompleteMessage);
-    connection->send = UA_NULL;
-    connection->close = UA_NULL;
-    connection->recv = UA_NULL;
-    connection->getSendBuffer = UA_NULL;
-    connection->releaseSendBuffer = UA_NULL;
-    connection->releaseRecvBuffer = UA_NULL;
+    connection->send = NULL;
+    connection->close = NULL;
+    connection->recv = NULL;
+    connection->getSendBuffer = NULL;
+    connection->releaseSendBuffer = NULL;
+    connection->releaseRecvBuffer = NULL;
 }
 
 void UA_Connection_deleteMembers(UA_Connection *connection) {
@@ -46,7 +46,7 @@ UA_Job UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString r
             connection->releaseRecvBuffer(connection, &received);
             return job;
         }
-        UA_memcpy(current.data + connection->incompleteMessage.length, received.data, received.length);
+        memcpy(current.data + connection->incompleteMessage.length, received.data, received.length);
         current.length = connection->incompleteMessage.length + received.length;
         connection->releaseRecvBuffer(connection, &received);
         UA_ByteString_init(&connection->incompleteMessage);
@@ -106,7 +106,7 @@ UA_Job UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString r
         /* there is an incomplete message at the end of current */
         connection->incompleteMessage.data = UA_malloc(current.length - pos);
         if(connection->incompleteMessage.data) {
-            UA_memcpy(connection->incompleteMessage.data, &current.data[pos], current.length - pos);
+            memcpy(connection->incompleteMessage.data, &current.data[pos], current.length - pos);
             connection->incompleteMessage.length = current.length - pos;
         }
         current.length = pos;
@@ -125,21 +125,21 @@ void UA_Connection_detachSecureChannel(UA_Connection *connection) {
 #ifdef UA_MULTITHREADING
     UA_SecureChannel *channel = connection->channel;
     if(channel)
-        uatomic_cmpxchg(&channel->connection, connection, UA_NULL);
-    uatomic_set(&connection->channel, UA_NULL);
+        uatomic_cmpxchg(&channel->connection, connection, NULL);
+    uatomic_set(&connection->channel, NULL);
 #else
     if(connection->channel)
-        connection->channel->connection = UA_NULL;
-    connection->channel = UA_NULL;
+        connection->channel->connection = NULL;
+    connection->channel = NULL;
 #endif
 }
 
 void UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChannel *channel) {
 #ifdef UA_MULTITHREADING
-    if(uatomic_cmpxchg(&channel->connection, UA_NULL, connection) == UA_NULL)
+    if(uatomic_cmpxchg(&channel->connection, NULL, connection) == NULL)
         uatomic_set(&connection->channel, channel);
 #else
-    if(channel->connection != UA_NULL)
+    if(channel->connection != NULL)
         return;
     channel->connection = connection;
     connection->channel = channel;

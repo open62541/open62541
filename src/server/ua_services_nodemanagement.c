@@ -43,7 +43,7 @@ void UA_Server_addExistingNode(UA_Server *server, UA_Session *session, UA_Node *
 
     // todo: test if the referencetype is hierarchical
     // todo: namespace index is assumed to be valid
-    const UA_Node *managed = UA_NULL;
+    const UA_Node *managed = NULL;
     UA_NodeId tempNodeid = node->nodeId;
     tempNodeid.namespaceIndex = 0;
     if(UA_NodeId_isNull(&tempNodeid)) {
@@ -235,7 +235,7 @@ instantiateObjectNode(UA_Server *server, UA_Session *session,
     UA_BrowseResult browseResult;
     UA_BrowseResult_init(&browseResult);
     // todo: continuation points if there are too many results
-    Service_Browse_single(server, session, UA_NULL, &browseChildren, 100, &browseResult);
+    Service_Browse_single(server, session, NULL, &browseChildren, 100, &browseResult);
 
     for(UA_Int32 i = 0; i < browseResult.referencesSize; i++) {
         UA_ReferenceDescription *rd = &browseResult.references[i];
@@ -298,7 +298,7 @@ instantiateVariableNode(UA_Server *server, UA_Session *session, const UA_NodeId 
     UA_BrowseResult browseResult;
     UA_BrowseResult_init(&browseResult);
     // todo: continuation points if there are too many results
-    Service_Browse_single(server, session, UA_NULL, &browseChildren, 100, &browseResult);
+    Service_Browse_single(server, session, NULL, &browseChildren, 100, &browseResult);
 
     /* add the child properties */
     for(UA_Int32 i = 0; i < browseResult.referencesSize; i++) {
@@ -337,7 +337,7 @@ static UA_Node *
 variableNodeFromAttributes(UA_AddNodesItem *item, UA_VariableAttributes *attr) {
     UA_VariableNode *vnode = UA_VariableNode_new();
     if(!vnode)
-        return UA_NULL;
+        return NULL;
     moveStandardAttributes((UA_Node*)vnode, item, (UA_NodeAttributes*)attr);
     // todo: test if the type / valueRank / value attributes are consistent
     vnode->accessLevel = attr->accessLevel;
@@ -354,7 +354,7 @@ static UA_Node *
 objectNodeFromAttributes(UA_AddNodesItem *item, UA_ObjectAttributes *attr) {
     UA_ObjectNode *onode = UA_ObjectNode_new();
     if(!onode)
-        return UA_NULL;
+        return NULL;
     moveStandardAttributes((UA_Node*)onode, item, (UA_NodeAttributes*)attr);
     onode->eventNotifier = attr->eventNotifier;
     return (UA_Node*)onode;
@@ -364,7 +364,7 @@ static UA_Node *
 referenceTypeNodeFromAttributes(UA_AddNodesItem *item, UA_ReferenceTypeAttributes *attr) {
     UA_ReferenceTypeNode *rtnode = UA_ReferenceTypeNode_new();
     if(!rtnode)
-        return UA_NULL;
+        return NULL;
     moveStandardAttributes((UA_Node*)rtnode, item, (UA_NodeAttributes*)attr);
     rtnode->isAbstract = attr->isAbstract;
     rtnode->symmetric = attr->symmetric;
@@ -377,7 +377,7 @@ static UA_Node *
 objectTypeNodeFromAttributes(UA_AddNodesItem *item, UA_ObjectTypeAttributes *attr) {
     UA_ObjectTypeNode *otnode = UA_ObjectTypeNode_new();
     if(!otnode)
-        return UA_NULL;
+        return NULL;
     moveStandardAttributes((UA_Node*)otnode, item, (UA_NodeAttributes*)attr);
     otnode->isAbstract = attr->isAbstract;
     return (UA_Node*)otnode;
@@ -387,7 +387,7 @@ static UA_Node *
 variableTypeNodeFromAttributes(UA_AddNodesItem *item, UA_VariableTypeAttributes *attr) {
     UA_VariableTypeNode *vtnode = UA_VariableTypeNode_new();
     if(!vtnode)
-        return UA_NULL;
+        return NULL;
     moveStandardAttributes((UA_Node*)vtnode, item, (UA_NodeAttributes*)attr);
     vtnode->value.variant.value = attr->value;
     UA_Variant_init(&attr->value);
@@ -402,7 +402,7 @@ static UA_Node *
 viewNodeFromAttributes(UA_AddNodesItem *item, UA_ViewAttributes *attr) {
     UA_ViewNode *vnode = UA_ViewNode_new();
     if(!vnode)
-        return UA_NULL;
+        return NULL;
     moveStandardAttributes((UA_Node*)vnode, item, (UA_NodeAttributes*)attr);
     vnode->containsNoLoops = attr->containsNoLoops;
     vnode->eventNotifier = attr->eventNotifier;
@@ -413,7 +413,7 @@ static UA_Node *
 dataTypeNodeFromAttributes(UA_AddNodesItem *item, UA_DataTypeAttributes *attr) {
     UA_DataTypeNode *dtnode = UA_DataTypeNode_new();
     if(!dtnode)
-        return UA_NULL;
+        return NULL;
     moveStandardAttributes((UA_Node*)dtnode, item, (UA_NodeAttributes*)attr);
     dtnode->isAbstract = attr->isAbstract;
     return (UA_Node*)dtnode;
@@ -551,7 +551,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
     UA_Boolean isExternal[size];
     UA_UInt32 indices[size];
 #endif
-    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
+    memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
     for(size_t j = 0; j <server->externalNamespacesSize; j++) {
         size_t indexSize = 0;
         for(size_t i = 0;i < size;i++) {
@@ -688,7 +688,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     if(result.statusCode != UA_STATUSCODE_GOOD)
         UA_MethodNode_delete(node);
     
-    if(result.statusCode == UA_STATUSCODE_GOOD && method != UA_NULL) {
+    if(result.statusCode == UA_STATUSCODE_GOOD && method != NULL) {
         UA_ExpandedNodeId parent;
         UA_ExpandedNodeId_init(&parent);
         parent.nodeId = result.addedNodeId;
@@ -805,7 +805,7 @@ void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddR
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
 #endif /*NO_ALLOCA */
-    UA_memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
+    memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
 	for(size_t j = 0; j < server->externalNamespacesSize; j++) {
 		size_t indicesSize = 0;
 		for(size_t i = 0;i < size;i++) {
@@ -870,7 +870,7 @@ UA_StatusCode Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
         /* browse type definitions with admin rights */
         UA_BrowseResult result;
         UA_BrowseResult_init(&result);
-        Service_Browse_single(server, &adminSession, UA_NULL, &bd, UA_UINT32_MAX, &result);
+        Service_Browse_single(server, &adminSession, NULL, &bd, UA_UINT32_MAX, &result);
         for(int i = 0; i < result.referencesSize; i++) {
             /* call the destructor */
             UA_ReferenceDescription *rd = &result.references[i];

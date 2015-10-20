@@ -81,12 +81,12 @@ UA_TYPE_DEFAULT(UA_String)
 
 void UA_String_init(UA_String *p) {
     p->length = -1;
-    p->data   = UA_NULL;
+    p->data   = NULL;
 }
 
 void UA_String_deleteMembers(UA_String *p) {
     UA_free(p->data);
-    p->data = UA_NULL;
+    p->data = NULL;
     p->length = -1;
 }
 
@@ -95,7 +95,7 @@ UA_StatusCode UA_String_copy(UA_String const *src, UA_String *dst) {
     if(src->length > 0) {
         if(!(dst->data = UA_malloc((UA_UInt32)src->length)))
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        UA_memcpy((void *)dst->data, src->data, (UA_UInt32)src->length);
+        memcpy((void *)dst->data, src->data, (UA_UInt32)src->length);
     }
     dst->length = src->length;
     return UA_STATUSCODE_GOOD;
@@ -106,7 +106,7 @@ UA_String UA_String_fromChars(char const src[]) {
     size_t length = strlen(src);
     if(length == 0) {
         str.length = 0;
-        str.data = UA_NULL;
+        str.data = NULL;
         return str;
     }
     str.data = UA_malloc(length);
@@ -114,35 +114,9 @@ UA_String UA_String_fromChars(char const src[]) {
         str.length = -1;
         return str;
     }
-    UA_memcpy(str.data, src, length);
+    memcpy(str.data, src, length);
     str.length = length;
     return str;
-}
-
-#define UA_STRING_ALLOCPRINTF_BUFSIZE 1024
-UA_StatusCode UA_String_copyprintf(char const fmt[], UA_String *dst, ...) {
-    char src[UA_STRING_ALLOCPRINTF_BUFSIZE];
-    va_list ap;
-    va_start(ap, dst);
-#if ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4 || defined(__clang__))
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-nonliteral"
-#endif
-    // vsnprintf should only take a literal and no variable to be secure
-    UA_Int32 len = vsnprintf(src, UA_STRING_ALLOCPRINTF_BUFSIZE, fmt, ap);
-#if ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4 || defined(__clang__))
-#pragma GCC diagnostic pop
-#endif
-    va_end(ap);
-    if(len < 0)  // FIXME: old glibc 2.0 would return -1 when truncated
-        return UA_STATUSCODE_BADINTERNALERROR;
-    // since glibc 2.1 vsnprintf returns the len that would have resulted if buf were large enough
-    len = ( len > UA_STRING_ALLOCPRINTF_BUFSIZE ? UA_STRING_ALLOCPRINTF_BUFSIZE : len );
-    if(!(dst->data = UA_malloc((UA_UInt32)len)))
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_memcpy((void *)dst->data, src, (UA_UInt32)len);
-    dst->length = len;
-    return UA_STATUSCODE_GOOD;
 }
 
 UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
@@ -191,7 +165,7 @@ int gettimeofday(struct timeval *tp, struct timezone *tzp) {
 UA_DateTime UA_DateTime_now() {
     UA_DateTime    dateTime;
     struct timeval tv;
-    gettimeofday(&tv, UA_NULL);
+    gettimeofday(&tv, NULL);
     dateTime = (tv.tv_sec + UNIX_EPOCH_BIAS_SEC)
                * HUNDRED_NANOSEC_PER_SEC + tv.tv_usec * HUNDRED_NANOSEC_PER_USEC;
     return dateTime;
@@ -200,20 +174,27 @@ UA_DateTime UA_DateTime_now() {
 UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime atime) {
     UA_DateTimeStruct dateTimeStruct;
     //calcualting the the milli-, micro- and nanoseconds
-    dateTimeStruct.nanoSec  = (UA_Int16)((atime % 10) * 100);
-    dateTimeStruct.microSec = (UA_Int16)((atime % 10000) / 10);
-    dateTimeStruct.milliSec = (UA_Int16)((atime % 10000000) / 10000);
+    dateTimeStruct.nanoSec  = (UA_UInt16)((atime % 10) * 100);
+    dateTimeStruct.microSec = (UA_UInt16)((atime % 10000) / 10);
+    dateTimeStruct.milliSec = (UA_UInt16)((atime % 10000000) / 10000);
 
     //calculating the unix time with #include <time.h>
     time_t secSinceUnixEpoch = (atime/10000000) - UNIX_EPOCH_BIAS_SEC;
     struct tm ts = *gmtime(&secSinceUnixEpoch);
-    dateTimeStruct.sec    = (UA_Int16)ts.tm_sec;
-    dateTimeStruct.min    = (UA_Int16)ts.tm_min;
-    dateTimeStruct.hour   = (UA_Int16)ts.tm_hour;
-    dateTimeStruct.day    = (UA_Int16)ts.tm_mday;
-    dateTimeStruct.month  = (UA_Int16)(ts.tm_mon + 1);
-    dateTimeStruct.year   = (UA_Int16)(ts.tm_year + 1900);
+    dateTimeStruct.sec    = (UA_UInt16)ts.tm_sec;
+    dateTimeStruct.min    = (UA_UInt16)ts.tm_min;
+    dateTimeStruct.hour   = (UA_UInt16)ts.tm_hour;
+    dateTimeStruct.day    = (UA_UInt16)ts.tm_mday;
+    dateTimeStruct.month  = (UA_UInt16)(ts.tm_mon + 1);
+    dateTimeStruct.year   = (UA_UInt16)(ts.tm_year + 1900);
     return dateTimeStruct;
+}
+
+static void printNumber(UA_UInt16 n, UA_Byte *pos, size_t digits) {
+    for(size_t i = 0; i < digits; i++) {
+        pos[digits-i-1] = (n % 10) + '0';
+        n = n / 10;
+    }
 }
 
 UA_StatusCode UA_DateTime_toString(UA_DateTime atime, UA_String *timeString) {
@@ -223,15 +204,23 @@ UA_StatusCode UA_DateTime_toString(UA_DateTime atime, UA_String *timeString) {
     timeString->length = 31;
 
     UA_DateTimeStruct tSt = UA_DateTime_toStruct(atime);
-#ifdef _MSC_VER
-    StringCchPrintf((char*)timeString->data, (size_t)timeString->length,
-        "%02d/%02d/%04d %02d:%02d:%02d.%03d.%03d.%03d",
-        tSt.month, tSt.day, tSt.year, tSt.hour, tSt.min, tSt.sec, tSt.milliSec, tSt.microSec, tSt.nanoSec);
-#else
-    sprintf((char*)timeString->data,
-        "%02d/%02d/%04d %02d:%02d:%02d.%03d.%03d.%03d", 
-        tSt.month, tSt.day, tSt.year, tSt.hour, tSt.min, tSt.sec, tSt.milliSec, tSt.microSec, tSt.nanoSec);
-#endif
+    printNumber(tSt.month, timeString->data, 2);
+    timeString->data[2] = '/';
+    printNumber(tSt.day, &timeString->data[3], 2);
+    timeString->data[5] = '/';
+    printNumber(tSt.year, &timeString->data[6], 4);
+    timeString->data[10] = ' ';
+    printNumber(tSt.hour, &timeString->data[11], 2);
+    timeString->data[13] = ':';
+    printNumber(tSt.min, &timeString->data[14], 2);
+    timeString->data[16] = ':';
+    printNumber(tSt.sec, &timeString->data[17], 2);
+    timeString->data[19] = '.';
+    printNumber(tSt.milliSec, &timeString->data[20], 3);
+    timeString->data[23] = '.';
+    printNumber(tSt.microSec, &timeString->data[24], 3);
+    timeString->data[27] = '.';
+    printNumber(tSt.nanoSec, &timeString->data[28], 3);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -269,7 +258,7 @@ UA_StatusCode UA_ByteString_newMembers(UA_ByteString *p, UA_Int32 length) {
             return UA_STATUSCODE_BADOUTOFMEMORY;
         p->length = length;
     } else {
-        p->data = UA_NULL;
+        p->data = NULL;
         if(length == 0)
             p->length = 0;
         else
@@ -485,12 +474,12 @@ void UA_DataValue_deleteMembers(UA_DataValue *p) {
 }
 
 void UA_DataValue_init(UA_DataValue *p) {
-    UA_memset(p, 0, sizeof(UA_DataValue));
+    memset(p, 0, sizeof(UA_DataValue));
     UA_Variant_init(&p->value);
 }
 
 UA_StatusCode UA_DataValue_copy(UA_DataValue const *src, UA_DataValue *dst) {
-    UA_memcpy(dst, src, sizeof(UA_DataValue));
+    memcpy(dst, src, sizeof(UA_DataValue));
     UA_Variant_init(&dst->value);
     UA_StatusCode retval = UA_Variant_copy(&src->value, &dst->value);
     if(retval) {
@@ -506,8 +495,8 @@ UA_TYPE_DEFAULT(UA_Variant)
 void UA_Variant_init(UA_Variant *p) {
     p->storageType = UA_VARIANT_DATA;
     p->arrayLength = -1;
-    p->data = UA_NULL;
-    p->arrayDimensions = UA_NULL;
+    p->data = NULL;
+    p->arrayDimensions = NULL;
     p->arrayDimensionsSize = -1;
     p->type = &UA_TYPES[UA_TYPES_BOOLEAN];
 }
@@ -519,12 +508,12 @@ void UA_Variant_deleteMembers(UA_Variant *p) {
         if(p->arrayLength == -1)
             p->arrayLength = 1;
         UA_Array_delete(p->data, p->type, p->arrayLength);
-        p->data = UA_NULL;
+        p->data = NULL;
         p->arrayLength = -1;
     }
     if(p->arrayDimensions) {
         UA_free(p->arrayDimensions);
-        p->arrayDimensions = UA_NULL;
+        p->arrayDimensions = NULL;
         p->arrayDimensionsSize = -1;
     }
 }
@@ -558,7 +547,7 @@ UA_StatusCode UA_Variant_copy(UA_Variant const *src, UA_Variant *dst) {
 }
 
 UA_Boolean UA_Variant_isScalar(const UA_Variant *v) {
-    return (v->data != UA_NULL && v->arrayLength == -1);
+    return (v->data != NULL && v->arrayLength == -1);
 }
 
 /**
@@ -775,19 +764,19 @@ void UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) {
     UA_String_deleteMembers(&p->additionalInfo);
     if(p->hasInnerDiagnosticInfo && p->innerDiagnosticInfo) {
         UA_DiagnosticInfo_delete(p->innerDiagnosticInfo);
-        p->innerDiagnosticInfo = UA_NULL;
+        p->innerDiagnosticInfo = NULL;
     }
 }
 
 void UA_DiagnosticInfo_init(UA_DiagnosticInfo *p) {
-    UA_memset(p, 0, sizeof(UA_DiagnosticInfo));
+    memset(p, 0, sizeof(UA_DiagnosticInfo));
     UA_String_init(&p->additionalInfo);
 }
 
 UA_StatusCode UA_DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst) {
-    UA_memcpy(dst, src, sizeof(UA_DiagnosticInfo));
+    memcpy(dst, src, sizeof(UA_DiagnosticInfo));
     UA_String_init(&dst->additionalInfo);
-    dst->innerDiagnosticInfo = UA_NULL;
+    dst->innerDiagnosticInfo = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(src->hasAdditionalInfo)
        retval = UA_String_copy(&src->additionalInfo, &dst->additionalInfo);
@@ -872,7 +861,7 @@ void UA_init(void *p, const UA_DataType *type) {
             ptr += (member->padding >> 3);
             *((UA_Int32*)ptr) = -1;
             ptr += sizeof(UA_Int32) + (member->padding & 0x07);
-            *((void**)ptr) = UA_NULL;
+            *((void**)ptr) = NULL;
             ptr += sizeof(void*);
         }
     }
@@ -981,7 +970,7 @@ void UA_deleteMembers(void *p, const UA_DataType *type) {
             UA_Int32 elements = *(UA_Int32*)ptr;
             ptr += sizeof(UA_Int32) + (member->padding & 0x07);
             UA_Array_delete(*(void**)ptr, memberType, elements);
-            *(void**)ptr = UA_NULL;
+            *(void**)ptr = NULL;
             ptr += sizeof(void*);
         }
     }
@@ -998,7 +987,7 @@ void UA_delete(void *p, const UA_DataType *type) {
 
 void* UA_Array_new(const UA_DataType *type, UA_Int32 elements) {
     if((UA_Int32)type->memSize * elements < 0 || type->memSize * elements > MAX_ARRAY_SIZE )
-        return UA_NULL;
+        return NULL;
 
     if(type->fixedSize)
         return UA_calloc(elements, type->memSize);
@@ -1017,7 +1006,7 @@ void* UA_Array_new(const UA_DataType *type, UA_Int32 elements) {
 
 UA_StatusCode UA_Array_copy(const void *src, void **dst, const UA_DataType *type, UA_Int32 elements) {
     if(elements <= 0) {
-        *dst = UA_NULL;
+        *dst = NULL;
         return UA_STATUSCODE_GOOD;
     }
 

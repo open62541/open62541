@@ -36,15 +36,15 @@ void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sessionManager,
 
 UA_Session *
 UA_SessionManager_getSession(UA_SessionManager *sessionManager, const UA_NodeId *token) {
-    session_list_entry *current = UA_NULL;
+    session_list_entry *current = NULL;
     LIST_FOREACH(current, &sessionManager->sessions, pointers) {
         if(UA_NodeId_equal(&current->session.authenticationToken, token)) {
             if(UA_DateTime_now() > current->session.validTill)
-                return UA_NULL;
+                return NULL;
             return &current->session;
         }
     }
-    return UA_NULL;
+    return NULL;
 }
 
 /** Creates and adds a session. But it is not yet attached to a secure channel. */

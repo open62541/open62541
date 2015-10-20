@@ -68,11 +68,11 @@ static int sendOpenSecureChannel(UA_Int32 sock) {
     securityPolicy = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
 
     UA_String senderCert;
-    senderCert.data = UA_NULL;
+    senderCert.data = NULL;
     senderCert.length = -1;
 
     UA_String receiverCertThumb;
-    receiverCertThumb.data = UA_NULL;
+    receiverCertThumb.data = NULL;
     receiverCertThumb.length = -1;
 
     UA_UInt32 sequenceNumber = 51;
@@ -672,7 +672,7 @@ int main(int argc, char *argv[]) {
     //save to file
     char data[100];
     const char flag = 'a';
-    FILE* fHandle = UA_NULL;
+    FILE* fHandle = NULL;
     if (defaultParams) {
         fHandle =  fopen("client.log", &flag);
     }else{

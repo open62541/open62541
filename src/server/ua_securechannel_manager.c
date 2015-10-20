@@ -116,7 +116,7 @@ UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
         if(entry->channel.securityToken.channelId == channelId)
             return &entry->channel;
     }
-    return UA_NULL;
+    return NULL;
 }
 
 UA_StatusCode

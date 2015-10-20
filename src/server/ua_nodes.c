@@ -11,7 +11,7 @@ static void UA_Node_init(UA_Node *p) {
 	UA_UInt32_init(&p->writeMask);
 	UA_UInt32_init(&p->userWriteMask);
 	p->referencesSize = -1;
-	p->references = UA_NULL;
+	p->references = NULL;
 }
 
 static void UA_Node_deleteMembers(UA_Node *p) {
@@ -122,16 +122,16 @@ UA_Node * UA_Node_copyAnyNodeClass(const UA_Node *node) {
         deleteNode = (UA_DeleteNodeFunction)UA_ViewNode_delete;
         break;
     default:
-        return UA_NULL;
+        return NULL;
         break;
     }
 
     UA_Node *copy = newNode();
     if(!copy)
-        return UA_NULL;
+        return NULL;
     if(copyNode(node, copy) != UA_STATUSCODE_GOOD) {
         deleteNode(copy);
-        return UA_NULL;
+        return NULL;
     }
     return copy;
 }
@@ -141,7 +141,7 @@ void UA_ObjectNode_init(UA_ObjectNode *p) {
 	UA_Node_init((UA_Node*)p);
     p->nodeClass = UA_NODECLASS_OBJECT;
     p->eventNotifier = 0;
-    p->instanceHandle = UA_NULL;
+    p->instanceHandle = NULL;
 }
 
 UA_ObjectNode * UA_ObjectNode_new(void) {
@@ -172,7 +172,7 @@ void UA_ObjectTypeNode_init(UA_ObjectTypeNode *p) {
     p->nodeClass = UA_NODECLASS_OBJECTTYPE;
     p->isAbstract = UA_FALSE;
     p->lifecycleManagement = (UA_ObjectLifecycleManagement)
-        {.constructor = UA_NULL, .destructor = UA_NULL};
+        {.constructor = NULL, .destructor = NULL};
 }
 
 UA_ObjectTypeNode * UA_ObjectTypeNode_new(void) {
@@ -203,7 +203,7 @@ void UA_VariableNode_init(UA_VariableNode *p) {
     p->nodeClass = UA_NODECLASS_VARIABLE;
     p->valueSource = UA_VALUESOURCE_VARIANT;
     UA_Variant_init(&p->value.variant.value);
-    p->value.variant.callback = (UA_ValueCallback){UA_NULL,UA_NULL,UA_NULL};
+    p->value.variant.callback = (UA_ValueCallback){NULL,NULL,NULL};
     p->valueRank = -2; // scalar or array of any dimension
     p->accessLevel = 0;
     p->userAccessLevel = 0;
@@ -256,7 +256,7 @@ void UA_VariableTypeNode_init(UA_VariableTypeNode *p) {
     p->nodeClass = UA_NODECLASS_VARIABLETYPE;
     p->valueSource = UA_VALUESOURCE_VARIANT;
     UA_Variant_init(&p->value.variant.value);
-    p->value.variant.callback = (UA_ValueCallback){UA_NULL, UA_NULL, UA_NULL};
+    p->value.variant.callback = (UA_ValueCallback){NULL, NULL, NULL};
     p->valueRank = -2; // scalar or array of any dimension
     p->isAbstract = UA_FALSE;
 }
@@ -344,8 +344,8 @@ void UA_MethodNode_init(UA_MethodNode *p) {
     p->executable = UA_FALSE;
     p->userExecutable = UA_FALSE;
 #ifdef ENABLE_METHODCALLS
-    p->methodHandle        = UA_NULL;
-    p->attachedMethod      = UA_NULL;
+    p->methodHandle        = NULL;
+    p->attachedMethod      = NULL;
 #endif
 }
 
@@ -358,7 +358,7 @@ UA_MethodNode * UA_MethodNode_new(void) {
 
 void UA_MethodNode_deleteMembers(UA_MethodNode *p) {
 #ifdef ENABLE_METHODCALLS
-    p->attachedMethod = UA_NULL;
+    p->attachedMethod = NULL;
 #endif
     UA_Node_deleteMembers((UA_Node*)p);
 }
@@ -366,8 +366,8 @@ void UA_MethodNode_deleteMembers(UA_MethodNode *p) {
 void UA_MethodNode_delete(UA_MethodNode *p) {
     UA_MethodNode_deleteMembers(p);
 #ifdef ENABLE_METHODCALLS
-    p->methodHandle   = UA_NULL;
-    p->attachedMethod = UA_NULL;
+    p->methodHandle   = NULL;
+    p->attachedMethod = NULL;
 #endif
     UA_free(p);
 }

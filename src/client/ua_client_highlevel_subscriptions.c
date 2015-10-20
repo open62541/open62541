@@ -273,8 +273,6 @@ UA_Client_processPublishRx(UA_Client *client, UA_PublishResponse response) {
         tmpAck = UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
         tmpAck->subAck.sequenceNumber = msg.sequenceNumber;
         tmpAck->subAck.subscriptionId = sub->SubscriptionID;
-        tmpAck->listEntry.le_next = UA_NULL;
-        tmpAck->listEntry.le_prev = UA_NULL;
         LIST_INSERT_HEAD(&client->pendingNotificationsAcks, tmpAck, listEntry);
     }
     

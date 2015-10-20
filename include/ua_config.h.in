@@ -10,6 +10,7 @@
 #cmakedefine ENABLE_METHODCALLS
 #cmakedefine ENABLE_SUBSCRIPTIONS
 #cmakedefine ENABLE_TYPEINTROSPECTION
+#cmakedefine UA_EMBEDDED_LIBC
 
 /* Function Export */
 #ifdef _WIN32
@@ -95,6 +96,16 @@
 # define UA_FUNC_ATTR_PURE
 # define UA_FUNC_ATTR_CONST
 # define UA_FUNC_ATTR_WARN_UNUSED_RESULT
+#endif
+
+#include <stddef.h>
+#ifdef UA_EMBEDDED_LIBC
+  void *memcpy(void *UA_RESTRICT dest, const void *UA_RESTRICT src, size_t n);
+  void *memset(void *dest, int c, size_t n);
+  size_t strlen(const char *s);
+  int memcmp(const void *vl, const void *vr, size_t n);
+#else
+# include <string.h>
 #endif
 
 #endif /* UA_CONFIG_H_ */

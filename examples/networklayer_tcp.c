@@ -6,6 +6,7 @@
 #include "networklayer_tcp.h"
 
 #include <stdlib.h> // malloc, free
+#include <stdio.h> // snprintf
 #include <string.h> // memset
 #include <errno.h>
 
@@ -426,8 +427,13 @@ UA_ServerNetworkLayer * ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_U
     layer->mappings = NULL;
     layer->port = port;
     char hostname[256];
-    gethostname(hostname, 255);
-    UA_String_copyprintf("opc.tcp://%s:%d", &layer->layer.discoveryUrl, hostname, port);
+    if(gethostname(hostname, 255) == 0) {
+        char discoveryUrl[256];
+        UA_String str;
+        str.length = snprintf(discoveryUrl, 255, "opc.tcp://%s:%d", hostname, port);
+        str.data = (UA_Byte*)discoveryUrl;
+        UA_String_copy(&str, &layer->layer.discoveryUrl);
+    }
 
     layer->layer.start = (UA_StatusCode(*)(UA_ServerNetworkLayer*,UA_Logger))ServerNetworkLayerTCP_start;
     layer->layer.getJobs = (size_t(*)(UA_ServerNetworkLayer*,UA_Job**,UA_UInt16))ServerNetworkLayerTCP_getJobs;

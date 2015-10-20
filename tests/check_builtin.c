@@ -80,7 +80,7 @@ END_TEST
 
 START_TEST(UA_String_calcSizeWithNegativLengthShallReturnEncodingSize) {
     // given
-    UA_String arg = { -1, UA_NULL };
+    UA_String arg = { -1, NULL };
     // when
     UA_UInt32 encodingSize = UA_calcSizeBinary(&arg, &UA_TYPES[UA_TYPES_STRING]);
     // then
@@ -100,7 +100,7 @@ END_TEST
 
 START_TEST(UA_String_calcSizeWithZeroLengthShallReturnEncodingSize) {
     // given
-    UA_String arg = { 0, UA_NULL };
+    UA_String arg = { 0, NULL };
     // when
     UA_UInt32 encodingSize = UA_calcSizeBinary(&arg, &UA_TYPES[UA_TYPES_STRING]);
     // then
@@ -300,9 +300,9 @@ START_TEST(UA_Variant_calcSizeVariableSizeArrayShallReturnEncodingSize) {
 #define ARRAY_LEN 3
     arg.arrayLength = ARRAY_LEN;
     UA_String strings[3];
-    strings[0] = (UA_String) {-1, UA_NULL };
+    strings[0] = (UA_String) {-1, NULL };
     strings[1] = (UA_String) {3, (UA_Byte *)"PLT" };
-    strings[2] = (UA_String) {47, UA_NULL };
+    strings[2] = (UA_String) {47, NULL };
     arg.data   = (void *)strings;
     // when
     UA_UInt32 encodingSize = UA_calcSizeBinary(&arg, &UA_TYPES[UA_TYPES_VARIANT]);
@@ -611,7 +611,7 @@ START_TEST(UA_String_decodeWithNegativeSizeShallNotAllocateMemoryAndNullPtr) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(dst.length, -1);
-    ck_assert_ptr_eq(dst.data, UA_NULL);
+    ck_assert_ptr_eq(dst.data, NULL);
 }
 END_TEST
 
@@ -627,7 +627,7 @@ START_TEST(UA_String_decodeWithZeroSizeShallNotAllocateMemoryAndNullPtr) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(dst.length, 0);
-    ck_assert_ptr_eq(dst.data, UA_NULL);
+    ck_assert_ptr_eq(dst.data, NULL);
 }
 END_TEST
 
@@ -751,7 +751,7 @@ START_TEST(UA_Variant_decodeSingleExtensionObjectShallSetVTAndAllocateMemory){
 
     UA_Variant tmpVariant;
     UA_Variant_init(&tmpVariant);
-    tmpVariant.arrayDimensions = UA_NULL;
+    tmpVariant.arrayDimensions = NULL;
     tmpVariant.arrayDimensionsSize = -1;
     tmpVariant.arrayLength = -1;
     tmpVariant.storageType = UA_VARIANT_DATA_NODELETE;
@@ -1305,7 +1305,7 @@ START_TEST(UA_ExtensionObject_copyShallWorkOnExample) {
     ck_assert_int_eq(valueCopied.typeId.identifier.numeric, value.typeId.identifier.numeric);
 
     //finally
-    value.body.data = UA_NULL; // we cannot free the static string
+    value.body.data = NULL; // we cannot free the static string
     UA_ExtensionObject_deleteMembers(&value);
     UA_ExtensionObject_deleteMembers(&valueCopied);
 }
@@ -1390,8 +1390,8 @@ START_TEST(UA_DiagnosticInfo_copyShallWorkOnExample) {
     ck_assert_int_eq(copiedValue.symbolicId, value.symbolicId);
 
     //finally
-    value.additionalInfo.data = UA_NULL; // do not delete the static string
-    value.innerDiagnosticInfo = UA_NULL; // do not delete the static innerdiagnosticinfo
+    value.additionalInfo.data = NULL; // do not delete the static string
+    value.innerDiagnosticInfo = NULL; // do not delete the static innerdiagnosticinfo
     UA_DiagnosticInfo_deleteMembers(&value);
     UA_DiagnosticInfo_deleteMembers(&copiedValue);
 
@@ -1549,7 +1549,7 @@ START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
     ck_assert_int_eq(value.arrayLength, copiedValue.arrayLength);
 
     //finally
-    ((UA_String*)value.data)->data = UA_NULL; // the string is statically allocated. do not free it.
+    ((UA_String*)value.data)->data = NULL; // the string is statically allocated. do not free it.
     UA_Variant_deleteMembers(&value);
     UA_Variant_deleteMembers(&copiedValue);
 }

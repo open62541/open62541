@@ -34,10 +34,6 @@ add_test(memory ${CMAKE_CURRENT_BINARY_DIR}/check_memory)
 # target_link_libraries(check_stack ${LIBS})
 # add_test(stack ${CMAKE_CURRENT_BINARY_DIR}/check_stack)
 
-# add_executable(check_base64 check_base64.c)
-# target_link_libraries(check_base64 ${LIBS})
-# add_test(base64 ${CMAKE_CURRENT_BINARY_DIR}/check_base64)
-
 add_executable(check_services_view check_services_view.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_services_view ${LIBS})
 add_test(services_view ${CMAKE_CURRENT_BINARY_DIR}/check_services_view)
