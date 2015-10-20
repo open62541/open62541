@@ -224,6 +224,7 @@ static UA_StatusCode addRepeatedJob(UA_Server *server, struct AddRepeatedJob * U
     struct RepeatedJobs *matchingTw = NULL; // add the item here
     struct RepeatedJobs *lastTw = NULL; // if there is no repeated job, add a new one this entry
     struct RepeatedJobs *tempTw;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* search for matching entry */
     UA_DateTime firstTime = UA_DateTime_now() + arw->interval;
@@ -244,25 +245,17 @@ static UA_StatusCode addRepeatedJob(UA_Server *server, struct AddRepeatedJob * U
         matchingTw = UA_realloc(matchingTw, sizeof(struct RepeatedJobs) +
                                 (sizeof(struct IdentifiedJob) * (matchingTw->jobsSize + 1)));
         if(!matchingTw) {
-#ifdef UA_MULTITHREADING
-            UA_free(arw);
-#endif
-            return UA_STATUSCODE_BADOUTOFMEMORY;
+            retval = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto cleanup;
         }
-
-        /* point the realloced struct */
-        if(matchingTw->pointers.le_next)
-            matchingTw->pointers.le_next->pointers.le_prev = &matchingTw->pointers.le_next;
-        if(matchingTw->pointers.le_prev)
-            *matchingTw->pointers.le_prev = matchingTw;
+        /* link the reallocated tw into the list */
+        LIST_REPLACE(matchingTw, matchingTw, pointers);
     } else {
         /* create a new entry */
         matchingTw = UA_malloc(sizeof(struct RepeatedJobs) + sizeof(struct IdentifiedJob));
         if(!matchingTw) {
-#ifdef UA_MULTITHREADING
-            UA_free(arw);
-#endif
-            return UA_STATUSCODE_BADOUTOFMEMORY;
+            retval = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto cleanup;
         }
         matchingTw->jobsSize = 0;
         matchingTw->nextTime = firstTime;
@@ -274,10 +267,12 @@ static UA_StatusCode addRepeatedJob(UA_Server *server, struct AddRepeatedJob * U
     }
     matchingTw->jobs[matchingTw->jobsSize] = arw->job;
     matchingTw->jobsSize++;
+
+ cleanup:
 #ifdef UA_MULTITHREADING
     UA_free(arw);
 #endif
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 UA_StatusCode UA_Server_addRepeatedJob(UA_Server *server, UA_Job job, UA_UInt32 interval, UA_Guid *jobId) {
@@ -416,8 +411,8 @@ UA_StatusCode UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid jobId) {
 }
 
 void UA_Server_deleteAllRepeatedJobs(UA_Server *server) {
-    struct RepeatedJobs *current;
-    while((current = LIST_FIRST(&server->repeatedJobs))) {
+    struct RepeatedJobs *current, *temp;
+    LIST_FOREACH_SAFE(current, &server->repeatedJobs, pointers, temp) {
         LIST_REMOVE(current, pointers);
         UA_free(current);
     }
