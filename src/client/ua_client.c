@@ -658,6 +658,50 @@ UA_BrowseResponse UA_Client_browse(UA_Client *client, UA_BrowseRequest *request)
     return response;
 }
 
+UA_StatusCode UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri, UA_UInt16 *namespaceIndex){
+	UA_ReadRequest ReadRequest;
+	UA_ReadResponse ReadResponse;
+	UA_StatusCode retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+
+	UA_ReadRequest_init(&ReadRequest);
+	ReadRequest.nodesToRead = UA_ReadValueId_new();
+	ReadRequest.nodesToReadSize = 1;
+	ReadRequest.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
+	ReadRequest.nodesToRead[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY);
+
+	ReadResponse = UA_Client_read(client, &ReadRequest);
+    UA_ReadRequest_deleteMembers(&ReadRequest);
+
+    if(ReadResponse.responseHeader.serviceResult != UA_STATUSCODE_GOOD){
+        retval = ReadResponse.responseHeader.serviceResult;
+        goto cleanup;
+    }
+
+    if(ReadResponse.resultsSize != 1 || !ReadResponse.results[0].hasValue){
+        retval = UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
+        goto cleanup;
+    }
+
+    if(ReadResponse.results[0].value.type != &UA_TYPES[UA_TYPES_STRING]){
+        retval = UA_STATUSCODE_BADTYPEMISMATCH;
+        goto cleanup;
+    }
+
+    retval = UA_STATUSCODE_BADNOTFOUND;
+    for(UA_UInt16 iterator = 0; iterator < ReadResponse.results[0].value.arrayLength; iterator++){
+        if(UA_String_equal(namespaceUri, &((UA_String*)ReadResponse.results[0].value.data)[iterator] )){
+            *namespaceIndex = iterator;
+            retval = UA_STATUSCODE_GOOD;
+            break;
+        }
+    }
+
+cleanup:
+    UA_ReadResponse_deleteMembers(&ReadResponse);
+
+	return retval;
+}
+
 UA_BrowseNextResponse UA_Client_browseNext(UA_Client *client, UA_BrowseNextRequest *request) {
     UA_BrowseNextResponse response;
     synchronousRequest(client, request, &UA_TYPES[UA_TYPES_BROWSENEXTREQUEST], &response,

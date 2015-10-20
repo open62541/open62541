@@ -61,6 +61,16 @@ UA_TranslateBrowsePathsToNodeIdsResponse UA_EXPORT
 UA_Client_translateTranslateBrowsePathsToNodeIds(UA_Client *client,
                                                  UA_TranslateBrowsePathsToNodeIdsRequest *request);
 
+/**
+ * Get the namespace-index of a namespace-URI
+ *
+ * @param client The UA_Client struct for this connection
+ * @param namespaceUri The interested namespace URI
+ * @param namespaceIndex The namespace index of the URI. The value is unchanged in case of an error
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
+UA_StatusCode UA_EXPORT UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri, UA_UInt16 *namespaceIndex);
+
 /* NodeManagement Service Set */
 UA_AddNodesResponse UA_EXPORT UA_Client_addNodes(UA_Client *client, UA_AddNodesRequest *request);
 
