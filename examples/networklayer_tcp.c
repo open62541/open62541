@@ -430,7 +430,11 @@ UA_ServerNetworkLayer * ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_U
     if(gethostname(hostname, 255) == 0) {
         char discoveryUrl[256];
         UA_String str;
+#ifndef _MSVC
         str.length = snprintf(discoveryUrl, 255, "opc.tcp://%s:%d", hostname, port);
+#else
+        str.length = _snprintf(discoveryUrl, 255, "opc.tcp://%s:%d", hostname, port);
+#endif
         str.data = (UA_Byte*)discoveryUrl;
         UA_String_copy(&str, &layer->layer.discoveryUrl);
     }
