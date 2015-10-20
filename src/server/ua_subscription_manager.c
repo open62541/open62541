@@ -47,9 +47,9 @@ void SubscriptionManager_init(UA_Session *session) {
 }
 
 void SubscriptionManager_deleteMembers(UA_Session *session, UA_Server *server) {
-    UA_SubscriptionManager *manager = &(session->subscriptionManager);
-    UA_Subscription *current;
-    while((current = LIST_FIRST(&manager->serverSubscriptions))) {
+    UA_SubscriptionManager *manager = &session->subscriptionManager;
+    UA_Subscription *current, *temp;
+    LIST_FOREACH_SAFE(current, &manager->serverSubscriptions, listEntry, temp) {
         LIST_REMOVE(current, listEntry);
         UA_Subscription_deleteMembers(current, server);
         UA_free(current);
