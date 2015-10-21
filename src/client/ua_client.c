@@ -497,7 +497,6 @@ UA_StatusCode UA_Client_disconnect(UA_Client *client) {
         if(retval == UA_STATUSCODE_GOOD)
             retval = CloseSecureChannel(client);
     }
-    UA_Client_reset(client);
     return retval;
 }
 
