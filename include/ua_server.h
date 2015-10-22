@@ -203,8 +203,8 @@ UA_StatusCode UA_EXPORT
 UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                                      const UA_DataSource dataSource);
 
-/* Value Callbacks can be attach to value and value type nodes. If not-null, they are called before
-   reading and after writing respectively */
+/* Value Callbacks can be attach to variable and variable type nodes. If
+   not-null, they are called before reading and after writing respectively */
 typedef struct {
     void *handle;
     void (*onRead)(void *handle, const UA_NodeId nodeid,
@@ -370,79 +370,55 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
 
 /* Don't use this function. There are typed versions with no additional overhead. */
 UA_StatusCode UA_EXPORT
-__UA_Server_writeAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_AttributeId attributeId,
-                           const UA_DataType *type, const void *value);
+__UA_Server_writeAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_AttributeId attributeId, const UA_DataType *type, const void *value);
 
 static UA_INLINE UA_StatusCode
-UA_Server_writeBrowseNameAttribute(UA_Server *server, const UA_NodeId nodeId,
-                                   const UA_QualifiedName browseName) {
-    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_BROWSENAME,
-                                      &UA_TYPES[UA_TYPES_QUALIFIEDNAME], &browseName); }
+UA_Server_writeBrowseNameAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_QualifiedName browseName) {
+    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_BROWSENAME, &UA_TYPES[UA_TYPES_QUALIFIEDNAME], &browseName); }
 
 static UA_INLINE UA_StatusCode
-UA_Server_writeDisplayNameAttribute(UA_Server *server, const UA_NodeId nodeId,
-                                    const UA_LocalizedText displayName) {
-    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_DISPLAYNAME,
-                                      &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &displayName); }
+UA_Server_writeDisplayNameAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_LocalizedText displayName) {
+    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_DISPLAYNAME, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &displayName); }
 
 static UA_INLINE UA_StatusCode
-UA_Server_writeDescriptionAttribute(UA_Server *server, const UA_NodeId nodeId,
-                                    const UA_LocalizedText description) {
-    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_DESCRIPTION,
-                                      &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &description); }
+UA_Server_writeDescriptionAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_LocalizedText description) {
+    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_DESCRIPTION, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &description); }
 
 static UA_INLINE UA_StatusCode
-UA_Server_writeWriteMaskAttribute(UA_Server *server, const UA_NodeId nodeId,
-                                  const UA_UInt32 writeMask) {
-    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_WRITEMASK,
-                                      &UA_TYPES[UA_TYPES_UINT32], &writeMask); }
+UA_Server_writeWriteMaskAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_UInt32 writeMask) {
+    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_WRITEMASK, &UA_TYPES[UA_TYPES_UINT32], &writeMask); }
 
 static UA_INLINE UA_StatusCode
-UA_Server_writeIsAbstractAttribute(UA_Server *server, const UA_NodeId nodeId,
-                                   const UA_Boolean isAbstract) {
-    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_ISABSTRACT,
-                                      &UA_TYPES[UA_TYPES_BOOLEAN], &isAbstract); }
+UA_Server_writeIsAbstractAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_Boolean isAbstract) {
+    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_ISABSTRACT, &UA_TYPES[UA_TYPES_BOOLEAN], &isAbstract); }
 
 static UA_INLINE UA_StatusCode
-UA_Server_writeInverseNameAttribute(UA_Server *server, const UA_NodeId nodeId,
-                                    const UA_LocalizedText inverseName) {
-    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_INVERSENAME,
-                                      &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &inverseName); }
+UA_Server_writeInverseNameAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_LocalizedText inverseName) {
+    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_INVERSENAME, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &inverseName); }
 
 static UA_INLINE UA_StatusCode
-UA_Server_writeEventNotifierAttribute(UA_Server *server, const UA_NodeId nodeId,
-                                      const UA_Byte eventNotifier) {
-    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER,
-                                      &UA_TYPES[UA_TYPES_BYTE], &eventNotifier); }
+UA_Server_writeEventNotifierAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_Byte eventNotifier) {
+    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER, &UA_TYPES[UA_TYPES_BYTE], &eventNotifier); }
 
 static UA_INLINE UA_StatusCode
-UA_Server_writeValueAttribute(UA_Server *server, const UA_NodeId nodeId,
-                              const UA_Variant value) {
-    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_VALUE,
-                                      &UA_TYPES[UA_TYPES_VARIANT], &value); }
+UA_Server_writeValueAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_Variant value) {
+    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value); }
 
 /* The value content is moved into the node (not copied). The input variant is _inited internally. */
 UA_StatusCode UA_EXPORT
-UA_Server_writeValueAttribute_move(UA_Server *server, const UA_NodeId nodeId,
-                                   UA_Variant *value);
+UA_Server_writeValueAttribute_move(UA_Server *server, const UA_NodeId nodeId, UA_Variant *value);
 
 static UA_INLINE UA_StatusCode
-UA_Server_writeAccessLevelAttribute(UA_Server *server, const UA_NodeId nodeId,
-                                    const UA_UInt32 accessLevel) {
-    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
-                                      &UA_TYPES[UA_TYPES_UINT32], &accessLevel); }
+UA_Server_writeAccessLevelAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_UInt32 accessLevel) {
+    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_ACCESSLEVEL, &UA_TYPES[UA_TYPES_UINT32], &accessLevel); }
 
 static UA_INLINE UA_StatusCode
-UA_Server_writeMinimumSamplingIntervalAttribute(UA_Server *server, const UA_NodeId nodeId,
-                                                const UA_Double miniumSamplingInterval) {
-    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
-                                      &UA_TYPES[UA_TYPES_DOUBLE], &miniumSamplingInterval); }
+UA_Server_writeMinimumSamplingIntervalAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_Double miniumSamplingInterval) {
+    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL, &UA_TYPES[UA_TYPES_DOUBLE], &miniumSamplingInterval); }
 
 static UA_INLINE UA_StatusCode
-UA_Server_writeExecutableAttribute(UA_Server *server, const UA_NodeId nodeId,
-                                   const UA_Boolean executable) {
-    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_EXECUTABLE,
-                                      &UA_TYPES[UA_TYPES_BOOLEAN], &executable); }
+UA_Server_writeExecutableAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_Boolean executable) {
+    return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_EXECUTABLE, &UA_TYPES[UA_TYPES_BOOLEAN], &executable); }
 
 /************************/
 /* Read Node Attributes */
@@ -524,10 +500,8 @@ UA_Server_readAccessLevelAttribute(UA_Server *server, UA_NodeId nodeId, UA_UInt3
     return __UA_Server_readAttribute(server, nodeId, UA_ATTRIBUTEID_ACCESSLEVEL, outAccessLevel); }
 
 static UA_INLINE UA_StatusCode
-UA_Server_readMinimumSamplingIntervalAttribute(UA_Server *server, UA_NodeId nodeId,
-                                               UA_Double *outMinimumSamplingInterval) {
-    return __UA_Server_readAttribute(server, nodeId, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
-                                     outMinimumSamplingInterval); }
+UA_Server_readMinimumSamplingIntervalAttribute(UA_Server *server, UA_NodeId nodeId, UA_Double *outMinimumSamplingInterval) {
+    return __UA_Server_readAttribute(server, nodeId, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL, outMinimumSamplingInterval); }
 
 static UA_INLINE UA_StatusCode
 UA_Server_readHistorizingAttribute(UA_Server *server, UA_NodeId nodeId, UA_Boolean *outHistorizing) {
@@ -536,78 +510,6 @@ UA_Server_readHistorizingAttribute(UA_Server *server, UA_NodeId nodeId, UA_Boole
 static UA_INLINE UA_StatusCode
 UA_Server_readExecutableAttribute(UA_Server *server, UA_NodeId nodeId, UA_Boolean *outExecutable) {
     return __UA_Server_readAttribute(server, nodeId, UA_ATTRIBUTEID_EXECUTABLE, outExecutable); }
-
-#ifdef UA_EXTERNAL_NAMESPACES
-
-/**
- * An external application that manages its own data and data model. To plug in
- * outside data sources, one can use
- *
- * - VariableNodes with a data source (functions that are called for read and write access)
- * - An external nodestore that is mapped to specific namespaces
- *
- * If no external nodestore is defined for a nodeid, it is always looked up in
- * the "local" nodestore of open62541. Namespace Zero is always in the local
- * nodestore.
- *
- * @{
- */
-
-typedef UA_Int32 (*UA_ExternalNodeStore_addNodes)
-(void *ensHandle, const UA_RequestHeader *requestHeader, UA_AddNodesItem *nodesToAdd, UA_UInt32 *indices,
- UA_UInt32 indicesSize, UA_AddNodesResult* addNodesResults, UA_DiagnosticInfo *diagnosticInfos);
-
-typedef UA_Int32 (*UA_ExternalNodeStore_addReferences)
-(void *ensHandle, const UA_RequestHeader *requestHeader, UA_AddReferencesItem* referencesToAdd,
- UA_UInt32 *indices,UA_UInt32 indicesSize, UA_StatusCode *addReferencesResults,
- UA_DiagnosticInfo *diagnosticInfos);
-
-typedef UA_Int32 (*UA_ExternalNodeStore_deleteNodes)
-(void *ensHandle, const UA_RequestHeader *requestHeader, UA_DeleteNodesItem *nodesToDelete, UA_UInt32 *indices,
- UA_UInt32 indicesSize, UA_StatusCode *deleteNodesResults, UA_DiagnosticInfo *diagnosticInfos);
-
-typedef UA_Int32 (*UA_ExternalNodeStore_deleteReferences)
-(void *ensHandle, const UA_RequestHeader *requestHeader, UA_DeleteReferencesItem *referenceToDelete,
- UA_UInt32 *indices, UA_UInt32 indicesSize, UA_StatusCode deleteReferencesresults,
- UA_DiagnosticInfo *diagnosticInfos);
-
-typedef UA_Int32 (*UA_ExternalNodeStore_readNodes)
-(void *ensHandle, const UA_RequestHeader *requestHeader, UA_ReadValueId *readValueIds, UA_UInt32 *indices,
- UA_UInt32 indicesSize,UA_DataValue *readNodesResults, UA_Boolean timeStampToReturn,
- UA_DiagnosticInfo *diagnosticInfos);
-
-typedef UA_Int32 (*UA_ExternalNodeStore_writeNodes)
-(void *ensHandle, const UA_RequestHeader *requestHeader, UA_WriteValue *writeValues, UA_UInt32 *indices,
- UA_UInt32 indicesSize, UA_StatusCode *writeNodesResults, UA_DiagnosticInfo *diagnosticInfo);
-
-typedef UA_Int32 (*UA_ExternalNodeStore_browseNodes)
-(void *ensHandle, const UA_RequestHeader *requestHeader, UA_BrowseDescription *browseDescriptions,
- UA_UInt32 *indices, UA_UInt32 indicesSize, UA_UInt32 requestedMaxReferencesPerNode,
- UA_BrowseResult *browseResults, UA_DiagnosticInfo *diagnosticInfos);
-
-typedef UA_Int32 (*UA_ExternalNodeStore_translateBrowsePathsToNodeIds)
-(void *ensHandle, const UA_RequestHeader *requestHeader, UA_BrowsePath *browsePath, UA_UInt32 *indices,
- UA_UInt32 indicesSize, UA_BrowsePathResult *browsePathResults, UA_DiagnosticInfo *diagnosticInfos);
-
-typedef UA_Int32 (*UA_ExternalNodeStore_delete)(void *ensHandle);
-
-typedef struct UA_ExternalNodeStore {
-    void *ensHandle;
-	UA_ExternalNodeStore_addNodes addNodes;
-	UA_ExternalNodeStore_deleteNodes deleteNodes;
-	UA_ExternalNodeStore_writeNodes writeNodes;
-	UA_ExternalNodeStore_readNodes readNodes;
-	UA_ExternalNodeStore_browseNodes browseNodes;
-	UA_ExternalNodeStore_translateBrowsePathsToNodeIds translateBrowsePathsToNodeIds;
-	UA_ExternalNodeStore_addReferences addReferences;
-	UA_ExternalNodeStore_deleteReferences deleteReferences;
-	UA_ExternalNodeStore_delete destroy;
-} UA_ExternalNodeStore;
-
-UA_StatusCode UA_EXPORT
-UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, const UA_String *url,
-                               UA_ExternalNodeStore *nodeStore);
-#endif
 
 #ifdef __cplusplus
 }
