@@ -27,6 +27,7 @@ void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sessionManager,
     session_list_entry *sentry, *temp;
     LIST_FOREACH_SAFE(sentry, &sessionManager->sessions, pointers, temp) {
         if(sentry->session.validTill < now) {
+            LIST_REMOVE(sentry, pointers);
             UA_Session_deleteMembersCleanup(&sentry->session, server);
             UA_free(sentry);
             sessionManager->currentSessionCount--;
