@@ -62,8 +62,8 @@ void SubscriptionManager_addSubscription(UA_SubscriptionManager *manager, UA_Sub
 
 UA_Subscription *SubscriptionManager_getSubscriptionByID(UA_SubscriptionManager *manager,
                                                          UA_Int32 subscriptionID) {
-    UA_Subscription *sub;
-    LIST_FOREACH(sub, &manager->serverSubscriptions, listEntry) {
+    UA_Subscription *sub, *tmp_sub;
+    LIST_FOREACH_SAFE(sub, &manager->serverSubscriptions, listEntry, tmp_sub) {
         if(sub->subscriptionID == subscriptionID)
             break;
     }
