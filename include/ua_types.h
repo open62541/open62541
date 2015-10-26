@@ -36,7 +36,7 @@ typedef bool UA_Boolean;
 /** An integer value between -128 and 127. */
 typedef int8_t UA_SByte;
 #define UA_SBYTE_MAX 127
-#define UA_SBYTE_MIN -128
+#define UA_SBYTE_MIN (-128)
 
 /** An integer value between 0 and 256. */
 typedef uint8_t UA_Byte;
@@ -46,7 +46,7 @@ typedef uint8_t UA_Byte;
 /** An integer value between -32 768 and 32 767. */
 typedef int16_t UA_Int16;
 #define UA_INT16_MAX 32767
-#define UA_INT16_MIN -32768
+#define UA_INT16_MIN (-32768)
 
 /** An integer value between 0 and 65 535. */
 typedef uint16_t UA_UInt16;
@@ -56,7 +56,7 @@ typedef uint16_t UA_UInt16;
 /** An integer value between -2 147 483 648 and 2 147 483 647. */
 typedef int32_t UA_Int32;
 #define UA_INT32_MAX 2147483647
-#define UA_INT32_MIN -2147483648
+#define UA_INT32_MIN (-2147483648)
 
 /** An integer value between 0 and 429 4967 295. */
 typedef uint32_t UA_UInt32;
@@ -66,7 +66,7 @@ typedef uint32_t UA_UInt32;
 /** An integer value between -10 223 372 036 854 775 808 and 9 223 372 036 854 775 807 */
 typedef int64_t UA_Int64;
 #define UA_INT64_MAX (int64_t)9223372036854775807
-#define UA_INT64_MIN (int64_t)-9223372036854775808
+#define UA_INT64_MIN ((int64_t)-9223372036854775808)
 
 /** An integer value between 0 and 18 446 744 073 709 551 615. */
 typedef uint64_t UA_UInt64;
