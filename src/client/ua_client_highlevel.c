@@ -154,22 +154,12 @@ UA_StatusCode __UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClas
     item.browseName = browseName;
     item.nodeClass = nodeClass;
     item.typeDefinition.nodeId = typeDefinition;
-    size_t attributes_length = UA_calcSizeBinary(attr, attributeType);
-    item.nodeAttributes.typeId = attributeType->typeId;
-    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
-    retval = UA_ByteString_newMembers(&item.nodeAttributes.body, attributes_length);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    size_t offset = 0;
-    retval = UA_encodeBinary(attr, attributeType, &item.nodeAttributes.body, &offset);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_deleteMembers(&item.nodeAttributes.body);
-        return retval;
-    }
+    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    item.nodeAttributes.content.decoded.type = attributeType;
+    item.nodeAttributes.content.decoded.data = (void*)(uintptr_t)attr; // hack. is not written into.
     request.nodesToAdd = &item;
     request.nodesToAddSize = 1;
     UA_AddNodesResponse response = UA_Client_Service_addNodes(client, request);
-    UA_ByteString_deleteMembers(&item.nodeAttributes.body);
     if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         retval = response.responseHeader.serviceResult;
         UA_AddNodesResponse_deleteMembers(&response);

@@ -7,8 +7,8 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                            const UA_CreateSessionRequest *request,
                            UA_CreateSessionResponse *response) {
     response->responseHeader.serviceResult =
-        UA_Array_copy(server->endpointDescriptions, (void**)&response->serverEndpoints,
-                      &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION], server->endpointDescriptionsSize);
+        UA_Array_copy(server->endpointDescriptions, server->endpointDescriptionsSize,
+                      (void**)&response->serverEndpoints, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
     response->serverEndpointsSize = server->endpointDescriptionsSize;
@@ -68,13 +68,17 @@ void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                  channel->securityToken.channelId, foundSession->sessionId.namespaceIndex,
                  foundSession->sessionId.identifier.numeric);
 
-    UA_UserIdentityToken token;
-    UA_UserIdentityToken_init(&token);
-    size_t offset = 0;
-    UA_UserIdentityToken_decodeBinary(&request->userIdentityToken.body, &offset, &token);
-
-    UA_UserNameIdentityToken username_token;
-    UA_UserNameIdentityToken_init(&username_token);
+    if(request->userIdentityToken.encoding < UA_EXTENSIONOBJECT_DECODED ||
+       (request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_USERIDENTITYTOKEN] &&
+        request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])) {
+        UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+                     "Invalided UserIdentityToken on SecureChannel %i for Session (ns=%i,i=%i)",
+                     channel->securityToken.channelId, foundSession->sessionId.namespaceIndex,
+                     foundSession->sessionId.identifier.numeric);
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+        return;
+    }
+    const UA_UserIdentityToken token = *(const UA_UserIdentityToken*)request->userIdentityToken.content.decoded.data;
 
     UA_String ap = UA_STRING(ANONYMOUS_POLICY);
     UA_String up = UA_STRING(USERNAME_POLICY);
@@ -93,19 +97,21 @@ void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_SecureChannel_attachSession(channel, foundSession);
         foundSession->activated = UA_TRUE;
         UA_Session_updateLifetime(foundSession);
-    } else if(server->config.Login_enableUsernamePassword && UA_String_equal(&token.policyId, &up)) {
+    } else if(server->config.Login_enableUsernamePassword && UA_String_equal(&token.policyId, &up) &&
+              request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
         /* 3) username logins */
-        offset = 0;
-        UA_UserNameIdentityToken_decodeBinary(&request->userIdentityToken.body, &offset, &username_token);
+        const UA_UserNameIdentityToken username_token =
+            *(const UA_UserNameIdentityToken*)request->userIdentityToken.content.decoded.data;
+
         if(username_token.encryptionAlgorithm.data != NULL) {
             /* 3.1) we only support encryption */
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-        } else  if(username_token.userName.length == -1 && username_token.password.length == -1){
+        } else  if(username_token.userName.data == NULL && username_token.password.data == NULL){
             /* 3.2) empty username and password */
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
         } else {
             /* 3.3) ok, trying to match the username */
-            UA_UInt32 i = 0;
+            size_t i = 0;
             for(; i < server->config.Login_loginsCount; ++i) {
                 UA_String user = UA_STRING(server->config.Login_usernames[i]);
                 UA_String pw = UA_STRING(server->config.Login_passwords[i]);
@@ -127,8 +133,6 @@ void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     } else {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
     }
-    UA_UserIdentityToken_deleteMembers(&token);
-    UA_UserNameIdentityToken_deleteMembers(&username_token);
     return;
 }
 

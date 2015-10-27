@@ -466,5 +466,5 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
                         connection->sockfd, pos, targetpos);
             pos = targetpos;
         }
-    } while(msg->length > (UA_Int32)pos);
+    } while(msg->length > pos);
 }

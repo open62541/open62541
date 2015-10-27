@@ -16,8 +16,7 @@ const char *LogCategoryNames[6] = {"network", "channel", "session", "server", "c
 #endif
 
 void Logger_Stdout(UA_LogLevel level, UA_LogCategory category, const char *msg, ...) {
-	UA_String time;
-	UA_DateTime_toString(UA_DateTime_now(), &time);
+	UA_String time = UA_DateTime_toString(UA_DateTime_now());
     printf("[%.23s] %s/%s\t", time.data, LogLevelNames[level], LogCategoryNames[category]);
 	UA_ByteString_deleteMembers(&time);
     va_list ap;

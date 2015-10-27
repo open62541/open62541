@@ -36,7 +36,7 @@ struct UA_Server {
     UA_DateTime startTime;
     UA_DateTime buildDate;
     UA_ApplicationDescription description;
-    UA_Int32 endpointDescriptionsSize;
+    size_t endpointDescriptionsSize;
     UA_EndpointDescription *endpointDescriptions;
 
     /* Communication */

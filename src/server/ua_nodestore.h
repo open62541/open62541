@@ -1,7 +1,7 @@
 #ifndef UA_NODESTORE_H_
 #define UA_NODESTORE_H_
 
-#include "ua_types_generated.h"
+#include "ua_types.h"
 #include "ua_nodes.h"
 
 /**

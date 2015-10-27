@@ -30,9 +30,6 @@ void UA_Connection_deleteMembers(UA_Connection *connection) {
 
 UA_Job UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString received) {
     UA_Job job = (UA_Job){.type = UA_JOBTYPE_NOTHING};
-    if(received.length == -1)
-        return job;
-
     UA_ByteString current;
     if(connection->incompleteMessage.length <= 0)
         current = received;
@@ -69,13 +66,12 @@ UA_Job UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString r
         UA_Int32 length = 0;
         size_t length_pos = pos + 4;
         UA_StatusCode retval = UA_Int32_decodeBinary(&current, &length_pos, &length);
-        if(retval != UA_STATUSCODE_GOOD || length < 16 ||
-           length > (UA_Int32)connection->localConf.maxMessageSize) {
+        if(retval != UA_STATUSCODE_GOOD || length < 16 || length > (UA_Int32)connection->localConf.maxMessageSize) {
             /* the message size is not allowed. throw the remaining bytestring away */
             current.length = pos;
             break;
         }
-        if(length + (UA_Int32)pos > current.length)
+        if(length + pos > current.length)
             break; /* the message is incomplete. keep the beginning */
         pos += length;
     }
@@ -102,7 +98,7 @@ UA_Job UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString r
         return job;
     }
 
-    if(current.length != (UA_Int32)pos) {
+    if(current.length != pos) {
         /* there is an incomplete message at the end of current */
         connection->incompleteMessage.data = UA_malloc(current.length - pos);
         if(connection->incompleteMessage.data) {

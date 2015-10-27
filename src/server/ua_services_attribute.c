@@ -47,7 +47,7 @@ UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
     size_t dimensionsMax = 0;
     struct UA_NumericRangeDimension *dimensions = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_Int32 pos = 0;
+    size_t pos = 0;
     do {
         /* alloc dimensions */
         if(index >= (UA_Int32)dimensionsMax) {
@@ -181,14 +181,14 @@ static const UA_String binEncoding = {sizeof("DefaultBinary")-1, (UA_Byte*)"Defa
 /** Reads a single attribute from a node in the nodestore. */
 void Service_Read_single(UA_Server *server, UA_Session *session, const UA_TimestampsToReturn timestamps,
                          const UA_ReadValueId *id, UA_DataValue *v) {
-	if(id->dataEncoding.name.length >= 0 && !UA_String_equal(&binEncoding, &id->dataEncoding.name)) {
+	if(!UA_String_equal(&binEncoding, &id->dataEncoding.name)) {
            v->hasStatus = UA_TRUE;
            v->status = UA_STATUSCODE_BADDATAENCODINGINVALID;
            return;
 	}
 
 	//index range for a non-value
-	if(id->indexRange.length >= 0 && id->attributeId != UA_ATTRIBUTEID_VALUE){
+	if(id->indexRange.length > 0 && id->attributeId != UA_ATTRIBUTEID_VALUE){
 		v->hasStatus = UA_TRUE;
 		v->status = UA_STATUSCODE_BADINDEXRANGENODATA;
 		return;
@@ -333,7 +333,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
     }
 
     size_t size = request->nodesToReadSize;
-    response->results = UA_Array_new(&UA_TYPES[UA_TYPES_DATAVALUE], size);
+    response->results = UA_Array_new(size, &UA_TYPES[UA_TYPES_DATAVALUE]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -479,6 +479,22 @@ Service_Write_single_ValueDataSource(UA_Server *server, UA_Session *session, con
     return retval;
 }
 
+enum type_equivalence {
+    TYPE_EQUIVALENCE_NONE,
+    TYPE_EQUIVALENCE_ENUM,
+    TYPE_EQUIVALENCE_OPAQUE
+};
+
+static enum type_equivalence typeEquivalence(const UA_DataType *type) {
+    if(type->membersSize != 1 || !type->members[0].namespaceZero)
+        return TYPE_EQUIVALENCE_NONE;
+    if(type->members[0].memberTypeIndex == UA_TYPES_INT32)
+        return TYPE_EQUIVALENCE_ENUM;
+    if(type->members[0].memberTypeIndex == UA_TYPES_BYTE && type->members[0].isArray)
+        return TYPE_EQUIVALENCE_OPAQUE;
+    return TYPE_EQUIVALENCE_NONE;
+}
+
 /* In the multithreaded case, node is a copy */
 static UA_StatusCode
 MoveValueIntoNode(UA_Server *server, UA_Session *session, UA_VariableNode *node, UA_WriteValue *wvalue) {
@@ -505,8 +521,9 @@ MoveValueIntoNode(UA_Server *server, UA_Session *session, UA_VariableNode *node,
     if(!UA_NodeId_equal(&oldV->type->typeId, &newV->type->typeId)) {
         cast_v = wvalue->value.value;
         newV = &cast_v;
-        if(oldV->type->namespaceZero && newV->type->namespaceZero &&
-           oldV->type->typeIndex == newV->type->typeIndex) {
+        enum type_equivalence te1 = typeEquivalence(oldV->type);
+        enum type_equivalence te2 = typeEquivalence(newV->type);
+        if(te1 != TYPE_EQUIVALENCE_NONE && te1 == te2) {
             /* An enum was sent as an int32, or an opaque type as a bytestring. This is
                detected with the typeIndex indicated the "true" datatype. */
             newV->type = oldV->type;
@@ -678,7 +695,7 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
         return;
     }
 
-    response->results = UA_Array_new(&UA_TYPES[UA_TYPES_STATUSCODE], request->nodesToWriteSize);
+    response->results = UA_Array_new(request->nodesToWriteSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -707,7 +724,7 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
 #endif
     
     response->resultsSize = request->nodesToWriteSize;
-    for(UA_Int32 i = 0;i < request->nodesToWriteSize;i++) {
+    for(size_t i = 0;i < request->nodesToWriteSize;i++) {
 #ifdef UA_EXTERNAL_NAMESPACES
         if(!isExternal[i])
 #endif

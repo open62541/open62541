@@ -24,7 +24,7 @@ fillReferenceDescription(UA_NodeStore *ns, const UA_Node *curr, UA_ReferenceNode
         retval |= UA_LocalizedText_copy(&curr->displayName, &descr->displayName);
     if(mask & UA_BROWSERESULTMASK_TYPEDEFINITION){
         if(curr->nodeClass == UA_NODECLASS_OBJECT || curr->nodeClass == UA_NODECLASS_VARIABLE) {
-            for(UA_Int32 i = 0; i < curr->referencesSize; i++) {
+            for(size_t i = 0; i < curr->referencesSize; i++) {
                 UA_ReferenceNode *refnode = &curr->references[i];
                 if(refnode->referenceTypeId.identifier.numeric != UA_NS0ID_HASTYPEDEFINITION)
                     continue;
@@ -169,7 +169,7 @@ findSubTypes(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **reftypes, size
         node = UA_NodeStore_get(ns, &results[index]);
         if(!node || node->nodeClass != UA_NODECLASS_REFERENCETYPE)
             continue;
-        for(UA_Int32 i = 0; i < node->referencesSize; i++) {
+        for(size_t i = 0; i < node->referencesSize; i++) {
             if(node->references[i].referenceTypeId.identifier.numeric != UA_NS0ID_HASSUBTYPE ||
                node->references[i].isInverse == UA_TRUE)
                 continue;
@@ -194,7 +194,7 @@ findSubTypes(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **reftypes, size
     } while(++index <= last && retval == UA_STATUSCODE_GOOD);
 
     if(retval) {
-        UA_Array_delete(results, &UA_TYPES[UA_TYPES_NODEID], last);
+        UA_Array_delete(results, last, &UA_TYPES[UA_TYPES_NODEID]);
         return retval;
     }
 
@@ -226,7 +226,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
                       const UA_BrowseDescription *descr, UA_UInt32 maxrefs, UA_BrowseResult *result) {
     UA_UInt32 continuationIndex = 0;
     size_t referencesCount = 0;
-    UA_Int32 referencesIndex = 0;
+    size_t referencesIndex = 0;
     
     /* set the browsedescription if a cp is given */
     if(cp) {
@@ -275,7 +275,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
     if(!node) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         if(!all_refs && descr->includeSubtypes)
-            UA_Array_delete(relevant_refs, &UA_TYPES[UA_TYPES_NODEID], relevant_refs_size);
+            UA_Array_delete(relevant_refs, relevant_refs_size, &UA_TYPES[UA_TYPES_NODEID]);
         return;
     }
 
@@ -284,7 +284,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
         result->referencesSize = 0;
         UA_NodeStore_release(node);
         if(!all_refs && descr->includeSubtypes)
-            UA_Array_delete(relevant_refs, &UA_TYPES[UA_TYPES_NODEID], relevant_refs_size);
+            UA_Array_delete(relevant_refs, relevant_refs_size, &UA_TYPES[UA_TYPES_NODEID]);
         return;
     }
 
@@ -338,7 +338,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
         UA_NodeStore_release(current);
 #endif
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_Array_delete(result->references, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION], referencesCount);
+            UA_Array_delete(result->references, referencesCount, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION]);
             result->references = NULL;
             result->referencesSize = 0;
             result->statusCode = UA_STATUSCODE_UNCERTAINNOTALLNODESAVAILABLE;
@@ -356,7 +356,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
     cleanup:
     UA_NodeStore_release(node);
     if(!all_refs && descr->includeSubtypes)
-        UA_Array_delete(relevant_refs, &UA_TYPES[UA_TYPES_NODEID], relevant_refs_size);
+        UA_Array_delete(relevant_refs, relevant_refs_size, &UA_TYPES[UA_TYPES_NODEID]);
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
 
@@ -409,7 +409,7 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
     }
 
     size_t size = request->nodesToBrowseSize;
-    response->results = UA_Array_new(&UA_TYPES[UA_TYPES_BROWSERESULT], size);
+    response->results = UA_Array_new(size, &UA_TYPES[UA_TYPES_BROWSERESULT]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -463,7 +463,7 @@ void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseN
    size_t size = request->continuationPointsSize;
    if(!request->releaseContinuationPoints) {
        /* continue with the cp */
-       response->results = UA_Array_new(&UA_TYPES[UA_TYPES_BROWSERESULT], size);
+       response->results = UA_Array_new(size, &UA_TYPES[UA_TYPES_BROWSERESULT]);
        if(!response->results) {
            response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
            return;
@@ -482,7 +482,7 @@ void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseN
        }
    } else {
        /* remove the cp */
-       response->results = UA_Array_new(&UA_TYPES[UA_TYPES_BROWSERESULT], size);
+       response->results = UA_Array_new(size, &UA_TYPES[UA_TYPES_BROWSERESULT]);
        if(!response->results) {
            response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
            return;
@@ -508,12 +508,9 @@ void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseN
 
 static UA_StatusCode
 walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, const UA_RelativePath *path,
-               UA_Int32 pathindex, UA_BrowsePathTarget **targets, UA_Int32 *targets_size,
-               UA_Int32 *target_count) {
+               size_t pathindex, UA_BrowsePathTarget **targets, size_t *targets_size,
+               size_t *target_count) {
     const UA_RelativePathElement *elem = &path->elements[pathindex];
-    if(elem->targetName.name.length == -1)
-        return UA_STATUSCODE_BADBROWSENAMEINVALID;
-
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_NodeId *reftypes = NULL;
     size_t reftypes_count = 1; // all_refs or no subtypes => 1
@@ -528,7 +525,7 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
             return retval;
     }
 
-    for(UA_Int32 i = 0; i < node->referencesSize && retval == UA_STATUSCODE_GOOD; i++) {
+    for(size_t i = 0; i < node->referencesSize && retval == UA_STATUSCODE_GOOD; i++) {
         UA_Boolean match = all_refs;
         for(size_t j = 0; j < reftypes_count && !match; j++) {
             if(node->references[i].isInverse == elem->isInverse &&
@@ -581,7 +578,7 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
     }
 
     if(!all_refs && elem->includeSubtypes)
-        UA_Array_delete(reftypes, &UA_TYPES[UA_TYPES_NODEID], (UA_Int32)reftypes_count);
+        UA_Array_delete(reftypes, reftypes_count, &UA_TYPES[UA_TYPES_NODEID]);
     return retval;
 }
 
@@ -592,7 +589,7 @@ void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session 
         return;
     }
         
-    UA_Int32 arraySize = 10;
+    size_t arraySize = 10;
     result->targets = UA_malloc(sizeof(UA_BrowsePathTarget) * arraySize);
     if(!result->targets) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -612,7 +609,7 @@ void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session 
     if(result->targetsSize == 0 && result->statusCode == UA_STATUSCODE_GOOD)
         result->statusCode = UA_STATUSCODE_BADNOMATCH;
     if(result->statusCode != UA_STATUSCODE_GOOD) {
-        UA_Array_delete(result->targets, &UA_TYPES[UA_TYPES_BROWSEPATHTARGET], result->targetsSize);
+        UA_Array_delete(result->targets, result->targetsSize, &UA_TYPES[UA_TYPES_BROWSEPATHTARGET]);
         result->targets = NULL;
         result->targetsSize = -1;
     }
@@ -630,7 +627,7 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
     }
 
     size_t size = request->browsePathsSize;
-    response->results = UA_Array_new(&UA_TYPES[UA_TYPES_BROWSEPATHRESULT], size);
+    response->results = UA_Array_new(size, &UA_TYPES[UA_TYPES_BROWSEPATHRESULT]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -684,8 +681,8 @@ void Service_RegisterNodes(UA_Server *server, UA_Session *session, const UA_Regi
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
     else {
         response->responseHeader.serviceResult =
-            UA_Array_copy(request->nodesToRegister, (void**)&response->registeredNodeIds,
-                          &UA_TYPES[UA_TYPES_NODEID], request->nodesToRegisterSize);
+            UA_Array_copy(request->nodesToRegister, request->nodesToRegisterSize,
+                          (void**)&response->registeredNodeIds, &UA_TYPES[UA_TYPES_NODEID]);
         if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD)
             response->registeredNodeIdsSize = request->nodesToRegisterSize;
     }

@@ -280,22 +280,12 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
 
     UA_AnonymousIdentityToken identityToken;
     UA_AnonymousIdentityToken_init(&identityToken);
-    UA_String_copy(&client->token.policyId, &identityToken.policyId);
+    identityToken.policyId = client->token.policyId,
 
     //manual ExtensionObject encoding of the identityToken
-    request.userIdentityToken.encoding = UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING;
-    request.userIdentityToken.typeId = UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN].typeId;
-    request.userIdentityToken.typeId.identifier.numeric+=UA_ENCODINGOFFSET_BINARY;
-    
-    if (identityToken.policyId.length >= 0)
-        UA_ByteString_newMembers(&request.userIdentityToken.body, identityToken.policyId.length+4);
-    else {
-        identityToken.policyId.length = -1;
-        UA_ByteString_newMembers(&request.userIdentityToken.body, 4);
-    }
-    
-    size_t offset = 0;
-    UA_ByteString_encodeBinary(&identityToken.policyId,&request.userIdentityToken.body,&offset);
+    request.userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    request.userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN];
+    request.userIdentityToken.content.decoded.data = &identityToken;
 
     UA_ActivateSessionResponse response;
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
@@ -326,7 +316,7 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
     UA_Boolean endpointFound = UA_FALSE;
     UA_Boolean tokenFound = UA_FALSE;
     UA_String securityNone = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
-    for(UA_Int32 i = 0; i < response.endpointsSize; i++) {
+    for(size_t i = 0; i < response.endpointsSize; i++) {
         UA_EndpointDescription* endpoint = &response.endpoints[i];
         /* look out for an endpoint without security */
         if(!UA_String_equal(&endpoint->securityPolicyUri, &securityNone))
@@ -334,7 +324,7 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
         endpointFound = UA_TRUE;
         /* endpoint with no security found */
         /* look for a user token policy with an anonymous token */
-        for(UA_Int32 j=0; j<endpoint->userIdentityTokensSize; ++j) {
+        for(size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
             UA_UserTokenPolicy* userToken = &endpoint->userIdentityTokens[j];
             if(userToken->tokenType != UA_USERTOKENTYPE_ANONYMOUS)
                 continue;
@@ -461,7 +451,7 @@ UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection co
     }
 
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
-    if(client->endpointUrl.length < 0) {
+    if(client->endpointUrl.data == NULL) {
         retval = UA_STATUSCODE_BADOUTOFMEMORY;
         goto cleanup;
     }

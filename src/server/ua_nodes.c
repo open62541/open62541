@@ -2,29 +2,16 @@
 #include "ua_util.h"
 
 /* UA_Node */
-static void UA_Node_init(UA_Node *p) {
-	UA_NodeId_init(&p->nodeId);
-	UA_NodeClass_init(&p->nodeClass);
-	UA_QualifiedName_init(&p->browseName);
-	UA_LocalizedText_init(&p->displayName);
-	UA_LocalizedText_init(&p->description);
-	UA_UInt32_init(&p->writeMask);
-	UA_UInt32_init(&p->userWriteMask);
-	p->referencesSize = -1;
-	p->references = NULL;
-}
-
 static void UA_Node_deleteMembers(UA_Node *p) {
 	UA_NodeId_deleteMembers(&p->nodeId);
 	UA_QualifiedName_deleteMembers(&p->browseName);
 	UA_LocalizedText_deleteMembers(&p->displayName);
 	UA_LocalizedText_deleteMembers(&p->description);
-	UA_Array_delete(p->references, &UA_TYPES[UA_TYPES_REFERENCENODE], p->referencesSize);
+	UA_Array_delete(p->references, p->referencesSize, &UA_TYPES[UA_TYPES_REFERENCENODE]);
 }
 
 static UA_StatusCode UA_Node_copy(const UA_Node *src, UA_Node *dst) {
 	UA_StatusCode retval = UA_STATUSCODE_GOOD;
-	UA_Node_init(dst);
 	retval |= UA_NodeId_copy(&src->nodeId, &dst->nodeId);
 	dst->nodeClass = src->nodeClass;
 	retval |= UA_QualifiedName_copy(&src->browseName, &dst->browseName);
@@ -32,11 +19,14 @@ static UA_StatusCode UA_Node_copy(const UA_Node *src, UA_Node *dst) {
 	retval |= UA_LocalizedText_copy(&src->description, &dst->description);
 	dst->writeMask = src->writeMask;
 	dst->userWriteMask = src->userWriteMask;
-	dst->referencesSize = src->referencesSize;
-	retval |= UA_Array_copy(src->references, (void**)&dst->references, &UA_TYPES[UA_TYPES_REFERENCENODE],
-                            src->referencesSize);
-	if(retval)
+	if(retval) {
     	UA_Node_deleteMembers(dst);
+        return retval;
+    }
+	retval |= UA_Array_copy(src->references, src->referencesSize, (void**)&dst->references,
+                            &UA_TYPES[UA_TYPES_REFERENCENODE]);
+	if(retval == UA_STATUSCODE_GOOD)
+        dst->referencesSize = src->referencesSize;
 	return retval;
 }
 
@@ -138,10 +128,8 @@ UA_Node * UA_Node_copyAnyNodeClass(const UA_Node *node) {
 
 /* UA_ObjectNode */
 void UA_ObjectNode_init(UA_ObjectNode *p) {
-	UA_Node_init((UA_Node*)p);
+    memset(p, 0, sizeof(UA_ObjectNode));
     p->nodeClass = UA_NODECLASS_OBJECT;
-    p->eventNotifier = 0;
-    p->instanceHandle = NULL;
 }
 
 UA_ObjectNode * UA_ObjectNode_new(void) {
@@ -168,11 +156,8 @@ UA_StatusCode UA_ObjectNode_copy(const UA_ObjectNode *src, UA_ObjectNode *dst) {
 
 /* UA_ObjectTypeNode */
 void UA_ObjectTypeNode_init(UA_ObjectTypeNode *p) {
-	UA_Node_init((UA_Node*)p);
+    memset(p, 0, sizeof(UA_ObjectTypeNode));
     p->nodeClass = UA_NODECLASS_OBJECTTYPE;
-    p->isAbstract = UA_FALSE;
-    p->lifecycleManagement = (UA_ObjectLifecycleManagement)
-        {.constructor = NULL, .destructor = NULL};
 }
 
 UA_ObjectTypeNode * UA_ObjectTypeNode_new(void) {
@@ -199,16 +184,8 @@ UA_StatusCode UA_ObjectTypeNode_copy(const UA_ObjectTypeNode *src, UA_ObjectType
 
 /* UA_VariableNode */
 void UA_VariableNode_init(UA_VariableNode *p) {
-	UA_Node_init((UA_Node*)p);
+    memset(p, 0, sizeof(UA_VariableNode));
     p->nodeClass = UA_NODECLASS_VARIABLE;
-    p->valueSource = UA_VALUESOURCE_VARIANT;
-    UA_Variant_init(&p->value.variant.value);
-    p->value.variant.callback = (UA_ValueCallback){NULL,NULL,NULL};
-    p->valueRank = -2; // scalar or array of any dimension
-    p->accessLevel = 0;
-    p->userAccessLevel = 0;
-    p->minimumSamplingInterval = 0.0;
-    p->historizing = UA_FALSE;
 }
 
 UA_VariableNode * UA_VariableNode_new(void) {
@@ -230,7 +207,6 @@ void UA_VariableNode_delete(UA_VariableNode *p) {
 }
 
 UA_StatusCode UA_VariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
-    UA_VariableNode_init(dst);
 	UA_StatusCode retval = UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
     dst->valueRank = src->valueRank;
     dst->valueSource = src->valueSource;
@@ -252,13 +228,9 @@ UA_StatusCode UA_VariableNode_copy(const UA_VariableNode *src, UA_VariableNode *
 
 /* UA_VariableTypeNode */
 void UA_VariableTypeNode_init(UA_VariableTypeNode *p) {
-	UA_Node_init((UA_Node*)p);
+    memset(p, 0, sizeof(UA_VariableTypeNode));
     p->nodeClass = UA_NODECLASS_VARIABLETYPE;
-    p->valueSource = UA_VALUESOURCE_VARIANT;
-    UA_Variant_init(&p->value.variant.value);
-    p->value.variant.callback = (UA_ValueCallback){NULL, NULL, NULL};
     p->valueRank = -2; // scalar or array of any dimension
-    p->isAbstract = UA_FALSE;
 }
 
 UA_VariableTypeNode * UA_VariableTypeNode_new(void) {
@@ -280,7 +252,6 @@ void UA_VariableTypeNode_delete(UA_VariableTypeNode *p) {
 }
 
 UA_StatusCode UA_VariableTypeNode_copy(const UA_VariableTypeNode *src, UA_VariableTypeNode *dst) {
-    UA_VariableTypeNode_init(dst);
 	UA_StatusCode retval = UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
     dst->valueRank = src->valueRank;
     dst->valueSource = src->valueSource;
@@ -299,11 +270,8 @@ UA_StatusCode UA_VariableTypeNode_copy(const UA_VariableTypeNode *src, UA_Variab
 
 /* UA_ReferenceTypeNode */
 void UA_ReferenceTypeNode_init(UA_ReferenceTypeNode *p) {
-	UA_Node_init((UA_Node*)p);
+    memset(p, 0, sizeof(UA_ReferenceTypeNode));
     p->nodeClass = UA_NODECLASS_REFERENCETYPE;
-    p->isAbstract = UA_FALSE;
-    p->symmetric = UA_FALSE;
-    UA_LocalizedText_init(&p->inverseName);
 }
 
 UA_ReferenceTypeNode * UA_ReferenceTypeNode_new(void) {
@@ -339,14 +307,8 @@ UA_StatusCode UA_ReferenceTypeNode_copy(const UA_ReferenceTypeNode *src, UA_Refe
 
 /* UA_MethodNode */
 void UA_MethodNode_init(UA_MethodNode *p) {
-    UA_Node_init((UA_Node*)p);
+    memset(p, 0, sizeof(UA_MethodNode));
     p->nodeClass = UA_NODECLASS_METHOD;
-    p->executable = UA_FALSE;
-    p->userExecutable = UA_FALSE;
-#ifdef ENABLE_METHODCALLS
-    p->methodHandle        = NULL;
-    p->attachedMethod      = NULL;
-#endif
 }
 
 UA_MethodNode * UA_MethodNode_new(void) {
@@ -387,10 +349,8 @@ UA_StatusCode UA_MethodNode_copy(const UA_MethodNode *src, UA_MethodNode *dst) {
 
 /* UA_ViewNode */
 void UA_ViewNode_init(UA_ViewNode *p) {
-    UA_Node_init((UA_Node*)p);
+    memset(p, 0, sizeof(UA_ViewNode));
     p->nodeClass = UA_NODECLASS_VIEW;
-    p->containsNoLoops = UA_FALSE;
-    p->eventNotifier = 0;
 }
 
 UA_ViewNode * UA_ViewNode_new(void) {
@@ -417,9 +377,8 @@ UA_StatusCode UA_ViewNode_copy(const UA_ViewNode *src, UA_ViewNode *dst) {
 
 /* UA_DataTypeNode */
 void UA_DataTypeNode_init(UA_DataTypeNode *p) {
-	UA_Node_init((UA_Node*)p);
+    memset(p, 0, sizeof(UA_DataTypeNode));
     p->nodeClass = UA_NODECLASS_DATATYPE;
-    p->isAbstract = UA_FALSE;
 }
 
 UA_DataTypeNode * UA_DataTypeNode_new(void) {

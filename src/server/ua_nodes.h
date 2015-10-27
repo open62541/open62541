@@ -20,7 +20,7 @@
     UA_LocalizedText description;               \
     UA_UInt32 writeMask;                        \
     UA_UInt32 userWriteMask;                    \
-    UA_Int32 referencesSize;                    \
+    size_t referencesSize;                      \
     UA_ReferenceNode *references;
 
 typedef struct {

@@ -124,16 +124,16 @@ class BuiltinType(object):
         if self.name in ["UA_String", "UA_ByteString", "UA_XmlElement"]:
             return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
                 ".memSize = sizeof(" + self.name + "), " + \
-                ".namespaceZero = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
+                ".builtin = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
                 ".membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_BYTE, .namespaceZero = UA_TRUE, " + \
-                (".memberName = (char*)0, " if typeintrospection else "") + \
-                ".padding = offsetof(UA_String, data) - sizeof(UA_Int32), .isArray = UA_TRUE }}, " + \
+                (".memberName = \"\", " if typeintrospection else "") + \
+                ".padding = offsetof(UA_String, data) - sizeof(size_t), .isArray = UA_TRUE }}, " + \
                 ".typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
 
         if self.name == "UA_ExpandedNodeId":
             return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
                 ".memSize = sizeof(UA_ExpandedNodeId), " + \
-                ".namespaceZero = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
+                ".builtin = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
                 ".membersSize = 3, .members = {" + \
                 "\n\t{.memberTypeIndex = UA_TYPES_NODEID, .namespaceZero = UA_TRUE, " + \
                 (".memberName = \"nodeId\", " if typeintrospection else "") + \
@@ -149,7 +149,7 @@ class BuiltinType(object):
         if self.name == "UA_QualifiedName":
             return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
                 ".memSize = sizeof(UA_QualifiedName), " + \
-                ".namespaceZero = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
+                ".builtin = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
                 ".membersSize = 2, .members = {" + \
                 "\n\t{.memberTypeIndex = UA_TYPES_UINT16, .namespaceZero = UA_TRUE, " + \
                 (".memberName = \"namespaceIndex\", " if typeintrospection else "") + \
@@ -162,7 +162,7 @@ class BuiltinType(object):
         if self.name == "UA_LocalizedText":
             return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
                 ".memSize = sizeof(UA_LocalizedText), " + \
-                ".namespaceZero = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
+                ".builtin = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
                 ".membersSize = 2, .members = {" + \
                 "\n\t{.memberTypeIndex = UA_TYPES_STRING, .namespaceZero = UA_TRUE, " + \
                 (".memberName = \"locale\", " if typeintrospection else "") + \
@@ -174,10 +174,13 @@ class BuiltinType(object):
 
         return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
             ".memSize = sizeof(" + self.name + "), " + \
-            ".namespaceZero = UA_TRUE, " + \
-            ".fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
+            ".builtin = UA_TRUE, .fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
             ", .zeroCopyable = " + ("UA_TRUE" if self.zero_copy() else "UA_FALSE") + \
-            ", .membersSize = 0, .typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
+            ", .membersSize = 1, .members = {" + \
+            "\n\t{.memberTypeIndex = UA_TYPES_" + self.name[3:].upper() + " , .namespaceZero = UA_TRUE, " + \
+            (".memberName = \"\", " if typeintrospection else "") + \
+            ".padding = 0, .isArray = UA_FALSE }},\n" + \
+            ".typeIndex = UA_TYPES_" + self.name[3:].upper() + " }"
 
 class EnumerationType(object):
     def __init__(self, name, description = "", elements = OrderedDict()):
@@ -212,19 +215,18 @@ class EnumerationType(object):
         else:
             typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
         return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
-            ".memSize = sizeof(" + self.name + "), " +\
-            ".namespaceZero = UA_TRUE, " + \
+            ".memSize = sizeof(" + self.name + "), .builtin = UA_FALSE, " + \
             ".fixedSize = UA_TRUE, .zeroCopyable = UA_TRUE, " + \
             ".membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_INT32," + \
-            (".memberName = (char*)0, " if typeintrospection else "") + \
-            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = UA_TYPES_INT32 }"
+            (".memberName = \"\", " if typeintrospection else "") + \
+            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
 
     def functions_c(self, typeTableName):
-        return '''static UA_INLINE %s * %s_new(void) { %s *v = (%s*)UA_Int32_new(); return v; }
-static UA_INLINE void %s_init(%s *p) { UA_Int32_init((UA_Int32*)p); }
-static UA_INLINE void %s_delete(%s *p) { UA_Int32_delete((UA_Int32*)p); }
+        return '''static UA_INLINE %s * %s_new(void) { return UA_new(&UA_TYPES[UA_TYPES_INT32]); }
+static UA_INLINE void %s_init(%s *p) { *p = 0; }
+static UA_INLINE void %s_delete(%s *p) { UA_delete(p, &UA_TYPES[UA_TYPES_INT32]); }
 static UA_INLINE void %s_deleteMembers(%s *p) { }
-static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { return UA_Int32_copy((const UA_Int32*)src, (UA_Int32*)dst); }''' % tuple(itertools.repeat(self.name, 13))
+static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }''' % tuple(itertools.repeat(self.name, 11))
 
     def encoding_h(self, typeTableName):
         return '''static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src, UA_ByteString *dst, size_t *offset) { return UA_Int32_encodeBinary((const UA_Int32*)src, dst, offset); }
@@ -251,16 +253,16 @@ class OpaqueType(object):
             typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
         return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
             ".memSize = sizeof(" + self.name + "), .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
-            ".namespaceZero = UA_TRUE, .membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_BYTESTRING," + \
-            (".memberName = (char*)0, " if typeintrospection else "") + \
-            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = UA_TYPES_BYTESTRING }"
+            ".builtin = UA_FALSE, .membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_BYTE," + \
+            (".memberName = \"\", " if typeintrospection else "") + \
+            ".namespaceZero = UA_TRUE, .padding = offsetof(UA_String, data) - sizeof(size_t), .isArray = UA_TRUE }}, .typeIndex = %s}" % (outname.upper() + "_" + self.name[3:].upper())
 
     def functions_c(self, typeTableName):
         return '''static UA_INLINE %s * %s_new(void) { %s *v = (%s*)UA_ByteString_new(); return v; }
-static UA_INLINE void %s_init(%s *p) { UA_ByteString_init((UA_ByteString*)p); }
+static UA_INLINE void %s_init(%s *p) { memset(p, 0, sizeof(%s); }
 static UA_INLINE void %s_delete(%s *p) { UA_ByteString_delete((UA_ByteString*)p); }
 static UA_INLINE void %s_deleteMembers(%s *p) { }
-static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { return UA_ByteString_copy((const UA_ByteString*)src, (UA_ByteString*)dst); }''' % tuple(itertools.repeat(self.name, 13))
+static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { return UA_ByteString_copy((const UA_ByteString*)src, (UA_ByteString*)dst); }''' % tuple(itertools.repeat(self.name, 14))
 
     def encoding_h(self, typeTableName):
         return '''static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src, UA_ByteString *dst, size_t *offset) { return UA_ByteString_encodeBinary((UA_ByteString*)src, dst, offset); }
@@ -309,7 +311,7 @@ class StructType(object):
             values = self.members.items()
         for name, member in values:
             if member.isArray:
-                returnstr += "    UA_Int32 " + name + "Size;\n"
+                returnstr += "    size_t " + name + "Size;\n"
                 returnstr += "    " + member.memberType.name + " *" +name + ";\n"
             else:
                 returnstr += "    " + member.memberType.name + " " +name + ";\n"
@@ -322,7 +324,7 @@ class StructType(object):
             typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
         layout = (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
                  ".memSize = sizeof(" + self.name + "), "+ \
-                 ".namespaceZero = " + ("UA_TRUE" if namespace_0 else "UA_FALSE") + \
+                 ".builtin = UA_FALSE" + \
                  ", .fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
                  ", .zeroCopyable = " + ("sizeof(" + self.name + ") == " + str(self.mem_size()) if self.zero_copy() \
                                          else "UA_FALSE") + \
@@ -357,7 +359,7 @@ class StructType(object):
                     length_pos = "offsetof(%s, %sSize)" % (self.name, member.name)
                     if index != 0:
                         layout += "((%s - %s) << 3) + " % (length_pos, before_endpos)
-                    layout += "(%s - sizeof(UA_Int32) - %s)" % (thispos, length_pos)
+                    layout += "(%s - sizeof(size_t) - %s)" % (thispos, length_pos)
                 else:
                     layout += "%s - %s" % (thispos, before_endpos)
                 layout += ", .isArray = " + ("UA_TRUE" if member.isArray else "UA_FALSE") + " }, "
@@ -365,7 +367,7 @@ class StructType(object):
         return layout + "}"
 
     def functions_c(self, typeTableName):
-        return '''static UA_INLINE void %s_init(%s *p) { UA_init(p, %s); }
+        return '''static UA_INLINE void %s_init(%s *p) { memset(p, 0, sizeof(%s)); }
 static UA_INLINE void %s_delete(%s *p) { UA_delete(p, %s); }
 static UA_INLINE void %s_deleteMembers(%s *p) { UA_deleteMembers(p, %s); }
 static UA_INLINE %s * %s_new(void) { return (%s *) UA_new(%s); }
@@ -549,8 +551,7 @@ extern "C" {
 #include "ua_types.h"
 #ifdef UA_INTERNAL
 #include "ua_types_encoding_binary.h"
-#endif'''
- + ('\n#include "ua_types_generated.h"\n' if args.namespace_id != 0 else '') + '''
+#endif
 
 /**
 * @ingroup types
@@ -629,11 +630,6 @@ for t in values:
         printe("/* " + t.name + " */")
         printe(t.encoding_h(outname.upper()))
 printc("};\n")
-# if args.typedescriptions:
-#     printc('const UA_UInt32 *' + outname.upper() + '_IDS = (UA_UInt32[]){')
-#     for t in types.itervalues():
-#         print(str(typedescriptions[t.name].nodeid) + ", ", end='', file=fc)
-#     printc("};")
 
 fh.close()
 fe.close()

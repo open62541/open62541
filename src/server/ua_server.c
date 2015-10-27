@@ -128,7 +128,7 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     if(!parent)
         return UA_STATUSCODE_BADNODEIDINVALID;
     
-    for(int i=0; i<parent->referencesSize; i++) {
+    for(size_t i = 0; i < parent->referencesSize; i++) {
         UA_ReferenceNode *ref = &parent->references[i];
         retval |= callback(ref->targetId.nodeId, ref->isInverse,
                            ref->referenceTypeId, handle);
@@ -179,17 +179,19 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
     result.statusCode |= UA_NodeId_copy(&requestedNewNodeId,
                                         &item.requestedNewNodeId.nodeId);
     result.statusCode |= UA_NodeId_copy(&typeDefinition, &item.typeDefinition.nodeId);
-    UA_NodeAttributes *attrCopy = UA_alloca(attributeType->memSize);
-    result.statusCode |= UA_copy(attr, attrCopy, attributeType);
+    UA_NodeAttributes *attrCopy;
+    result.statusCode |= UA_Array_copy(attr, 1, (void**)&attrCopy, attributeType);
+    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED;
+    item.nodeAttributes.content.decoded.type = attributeType;
+    item.nodeAttributes.content.decoded.data = attrCopy;
     if(result.statusCode == UA_STATUSCODE_GOOD)
-        Service_AddNodes_single(server, &adminSession, &item, attrCopy, &result);
+        Service_AddNodes_single(server, &adminSession, &item, &result);
 
     if(outNewNodeId && result.statusCode == UA_STATUSCODE_GOOD)
         *outNewNodeId = result.addedNodeId;
     else
         UA_AddNodesResult_deleteMembers(&result);
     UA_AddNodesItem_deleteMembers(&item);
-    UA_deleteMembers(attrCopy, attributeType);
     return result.statusCode;
 }
 
@@ -208,11 +210,8 @@ void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer *network
     server->networkLayers[server->networkLayersSize] = networkLayer;
     server->networkLayersSize++;
 
-    if(server->description.discoveryUrlsSize < 0)
-        server->description.discoveryUrlsSize = 0;
-    UA_String* newUrls;
-    newUrls = UA_realloc(server->description.discoveryUrls,
-                         sizeof(UA_String)*(server->description.discoveryUrlsSize+1));
+    UA_String* newUrls = UA_realloc(server->description.discoveryUrls,
+                                    sizeof(UA_String)*(server->description.discoveryUrlsSize+1));
     if(!newUrls) {
         UA_LOG_ERROR(server->logger, UA_LOGCATEGORY_SERVER, "Adding discoveryUrl");
         return;
@@ -221,7 +220,7 @@ void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer *network
     UA_String_copy(&networkLayer->discoveryUrl,
                    &server->description.discoveryUrls[server->description.discoveryUrlsSize]);
     server->description.discoveryUrlsSize++;
-    for(UA_Int32 i = 0; i < server->endpointDescriptionsSize; i++) {
+    for(size_t i = 0; i < server->endpointDescriptionsSize; i++) {
         if(!server->endpointDescriptions[i].endpointUrl.data)
             UA_String_copy(&networkLayer->discoveryUrl,
                            &server->endpointDescriptions[i].endpointUrl);
@@ -229,7 +228,7 @@ void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer *network
 }
 
 void UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate) {
-    for(UA_Int32 i = 0; i < server->endpointDescriptionsSize; i++)
+    for(size_t i = 0; i < server->endpointDescriptionsSize; i++)
         UA_ByteString_copy(&certificate,
                            &server->endpointDescriptions[i].serverCertificate);
 }
@@ -256,11 +255,9 @@ void UA_Server_delete(UA_Server *server) {
     UA_Server_deleteExternalNamespaces(server);
 #endif
     UA_ByteString_deleteMembers(&server->serverCertificate);
-    UA_Array_delete(server->namespaces, &UA_TYPES[UA_TYPES_STRING],
-                    server->namespacesSize);
-    UA_Array_delete(server->endpointDescriptions,
-                    &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION],
-                    server->endpointDescriptionsSize);
+    UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Array_delete(server->endpointDescriptions, server->endpointDescriptionsSize,
+                    &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
     // Delete the network layers
     for(size_t i = 0; i < server->networkLayersSize; i++) {
@@ -471,7 +468,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 #endif
 
     /* ns0 and ns1 */
-    server->namespaces = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 2);
+    server->namespaces = UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
     server->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
     UA_String_copy(&server->description.applicationUri, &server->namespaces[1]);
     server->namespacesSize = 2;
@@ -495,7 +492,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
             size++;
         }
         endpoint->userIdentityTokensSize = size;
-        endpoint->userIdentityTokens = UA_Array_new(&UA_TYPES[UA_TYPES_USERTOKENPOLICY], size);
+        endpoint->userIdentityTokens = UA_Array_new(size, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
 
         int currentIndex = 0;
         if(server->config.Login_enableAnonymous){
@@ -949,7 +946,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     UA_VariableNode *serverArray = UA_VariableNode_new();
     copyNames((UA_Node*)serverArray, "ServerArray");
     serverArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERARRAY;
-    serverArray->value.variant.value.data = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 1);
+    serverArray->value.variant.value.data = UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
     serverArray->value.variant.value.arrayLength = 1;
     serverArray->value.variant.value.type = &UA_TYPES[UA_TYPES_STRING];
     *(UA_String *)serverArray->value.variant.value.data =
@@ -972,7 +969,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     UA_VariableNode *localeIdArray = UA_VariableNode_new();
     copyNames((UA_Node*)localeIdArray, "LocaleIdArray");
     localeIdArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERCAPABILITIES_LOCALEIDARRAY;
-    localeIdArray->value.variant.value.data = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], 1);
+    localeIdArray->value.variant.value.data = UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
     localeIdArray->value.variant.value.arrayLength = 1;
     localeIdArray->value.variant.value.type = &UA_TYPES[UA_TYPES_STRING];
     *(UA_String *)localeIdArray->value.variant.value.data = UA_STRING_ALLOC("en");
@@ -1016,7 +1013,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     copyNames((UA_Node*)serverProfileArray, "ServerProfileArray");
     serverProfileArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERCAPABILITIES_SERVERPROFILEARRAY;
     serverProfileArray->value.variant.value.arrayLength = profileArraySize;
-    serverProfileArray->value.variant.value.data = UA_Array_new(&UA_TYPES[UA_TYPES_STRING], profileArraySize);
+    serverProfileArray->value.variant.value.data = UA_Array_new(profileArraySize, &UA_TYPES[UA_TYPES_STRING]);
     serverProfileArray->value.variant.value.type = &UA_TYPES[UA_TYPES_STRING];
     for(UA_UInt16 i=0;i<profileArraySize;i++)
         ((UA_String *)serverProfileArray->value.variant.value.data)[i] = profileArray[i];

@@ -28,56 +28,138 @@
  * @{
  */
 
-#define UA_TYPE_BINARY_ENCODING(TYPE)                                   \
-    UA_StatusCode TYPE##_encodeBinary(TYPE const *src, UA_ByteString *dst, size_t *UA_RESTRICT offset); \
-    UA_StatusCode TYPE##_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset, TYPE *dst);
-
-UA_TYPE_BINARY_ENCODING(UA_Boolean)
-UA_TYPE_BINARY_ENCODING(UA_Byte)
-#define UA_SByte_encodeBinary(src, dst, offset) UA_Byte_encodeBinary((const UA_Byte *)src, dst, offset)
-#define UA_SByte_decodeBinary(src, offset, dst) UA_Byte_decodeBinary(src, offset, (UA_Byte *)dst)
-UA_TYPE_BINARY_ENCODING(UA_UInt16)
-#define UA_Int16_encodeBinary(src, dst, offset) UA_UInt16_encodeBinary((const UA_UInt16 *)src, dst, offset)
-#define UA_Int16_decodeBinary(src, offset, dst) UA_UInt16_decodeBinary(src, offset, (UA_UInt16 *)dst)
-UA_TYPE_BINARY_ENCODING(UA_UInt32)
-#define UA_Int32_encodeBinary(src, dst, offset) UA_UInt32_encodeBinary((const UA_UInt32 *)src, dst, offset)
-#define UA_Int32_decodeBinary(src, offset, dst) UA_UInt32_decodeBinary(src, offset, (UA_UInt32 *)dst)
-UA_TYPE_BINARY_ENCODING(UA_UInt64)
-#define UA_Int64_encodeBinary(src, dst, offset) UA_UInt64_encodeBinary((const UA_UInt64 *)src, dst, offset)
-#define UA_Int64_decodeBinary(src, offset, dst) UA_UInt64_decodeBinary(src, offset, (UA_UInt64 *)dst)
-#ifdef UA_MIXED_ENDIAN
- UA_TYPE_BINARY_ENCODING(UA_Float)
- UA_TYPE_BINARY_ENCODING(UA_Double)
-#else
- #define UA_Float_encodeBinary(src, dst, offset) UA_UInt32_encodeBinary((const UA_UInt32 *)src, dst, offset)
- #define UA_Float_decodeBinary(src, offset, dst) UA_UInt32_decodeBinary(src, offset, (UA_UInt32 *)dst)
- #define UA_Double_encodeBinary(src, dst, offset) UA_UInt64_encodeBinary((const UA_UInt64 *)src, dst, offset)
- #define UA_Double_decodeBinary(src, offset, dst) UA_UInt64_decodeBinary(src, offset, (UA_UInt64 *)dst)
-#endif
-UA_TYPE_BINARY_ENCODING(UA_String)
-#define UA_DateTime_encodeBinary(src, dst, offset) UA_UInt64_encodeBinary((const UA_UInt64 *)src, dst, offset)
-#define UA_DateTime_decodeBinary(src, offset, dst) UA_UInt64_decodeBinary(src, offset, (UA_UInt64 *)dst)
-UA_TYPE_BINARY_ENCODING(UA_Guid)
-#define UA_ByteString_encodeBinary(src, dst, offset) UA_String_encodeBinary((const UA_String *)src, dst, offset)
-#define UA_ByteString_decodeBinary(src, offset, dst) UA_String_decodeBinary(src, offset, (UA_String *)dst)
-#define UA_XmlElement_encodeBinary(src, dst, offset) UA_String_encodeBinary((const UA_String *)src, dst, offset)
-#define UA_XmlElement_decodeBinary(src, offset, dst) UA_String_decodeBinary(src, offset, (UA_String *)dst)
-UA_TYPE_BINARY_ENCODING(UA_NodeId)
-UA_TYPE_BINARY_ENCODING(UA_ExpandedNodeId)
-#define UA_StatusCode_encodeBinary(src, dst, offset) UA_UInt32_encodeBinary((const UA_UInt32 *)src, dst, offset)
-#define UA_StatusCode_decodeBinary(src, offset, dst) UA_UInt32_decodeBinary(src, offset, (UA_UInt32 *)dst)
-UA_TYPE_BINARY_ENCODING(UA_QualifiedName)
-UA_TYPE_BINARY_ENCODING(UA_LocalizedText)
-UA_TYPE_BINARY_ENCODING(UA_ExtensionObject)
-UA_TYPE_BINARY_ENCODING(UA_DataValue)
-UA_TYPE_BINARY_ENCODING(UA_Variant)
-UA_TYPE_BINARY_ENCODING(UA_DiagnosticInfo)
-
-UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *dataType, UA_ByteString *dst,
+/* Generic Types */
+UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *type, UA_ByteString *dst,
                               size_t *UA_RESTRICT offset) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
 UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t * UA_RESTRICT offset, void *dst,
-                              const UA_DataType *dataType) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-size_t UA_calcSizeBinary(const void *p, const UA_DataType *dataType) UA_FUNC_ATTR_PURE;
+                              const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+/* Builtin Types */
+static UA_INLINE UA_StatusCode UA_Boolean_encodeBinary(const UA_Boolean *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_BOOLEAN], dst, offset); }
+static UA_INLINE UA_StatusCode UA_Boolean_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_Boolean *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_BOOLEAN]); }
+
+static UA_INLINE UA_StatusCode UA_Byte_encodeBinary(const UA_Byte *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_BYTE], dst, offset); }
+static UA_INLINE UA_StatusCode UA_Byte_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_Byte *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_BYTE]); }
+
+static UA_INLINE UA_StatusCode UA_SByte_encodeBinary(const UA_SByte *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_SBYTE], dst, offset); }
+static UA_INLINE UA_StatusCode UA_SByte_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_SByte *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_SBYTE]); }
+
+static UA_INLINE UA_StatusCode UA_UInt16_encodeBinary(const UA_UInt16 *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_UINT16], dst, offset); }
+static UA_INLINE UA_StatusCode UA_UInt16_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_UInt16 *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_UINT16]); }
+
+static UA_INLINE UA_StatusCode UA_Int16_encodeBinary(const UA_Int16 *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_INT16], dst, offset); }
+static UA_INLINE UA_StatusCode UA_Int16_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_Int16 *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_INT16]); }
+
+static UA_INLINE UA_StatusCode UA_UInt32_encodeBinary(const UA_UInt32 *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_UINT32], dst, offset); }
+static UA_INLINE UA_StatusCode UA_UInt32_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_UInt32 *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_UINT32]); }
+
+static UA_INLINE UA_StatusCode UA_Int32_encodeBinary(const UA_Int32 *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_INT32], dst, offset); }
+static UA_INLINE UA_StatusCode UA_Int32_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_Int32 *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_INT32]); }
+
+static UA_INLINE UA_StatusCode UA_UInt64_encodeBinary(const UA_UInt64 *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_UINT64], dst, offset); }
+static UA_INLINE UA_StatusCode UA_UInt64_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_UInt64 *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_UINT64]); }
+
+static UA_INLINE UA_StatusCode UA_Int64_encodeBinary(const UA_Int64 *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_INT64], dst, offset); }
+static UA_INLINE UA_StatusCode UA_Int64_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_Int64 *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_INT64]); }
+
+static UA_INLINE UA_StatusCode UA_Float_encodeBinary(const UA_Float *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_FLOAT], dst, offset); }
+static UA_INLINE UA_StatusCode UA_Float_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_Float *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_FLOAT]); }
+
+static UA_INLINE UA_StatusCode UA_Double_encodeBinary(const UA_Double *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_DOUBLE], dst, offset); }
+static UA_INLINE UA_StatusCode UA_Double_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_Double *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_DOUBLE]); }
+
+static UA_INLINE UA_StatusCode UA_String_encodeBinary(const UA_String*src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_STRING], dst, offset); }
+static UA_INLINE UA_StatusCode UA_String_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_String *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_STRING]); }
+
+static UA_INLINE UA_StatusCode UA_DateTime_encodeBinary(const UA_DateTime *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_DATETIME], dst, offset); }
+static UA_INLINE UA_StatusCode UA_DateTime_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_DateTime *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_DATETIME]); }
+
+static UA_INLINE UA_StatusCode UA_Guid_encodeBinary(const UA_Guid *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_GUID], dst, offset); }
+static UA_INLINE UA_StatusCode UA_Guid_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_Guid *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_GUID]); }
+
+static UA_INLINE UA_StatusCode UA_ByteString_encodeBinary(const UA_ByteString *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_BYTESTRING], dst, offset); }
+static UA_INLINE UA_StatusCode UA_ByteString_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_ByteString *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_BYTESTRING]); }
+
+static UA_INLINE UA_StatusCode UA_XmlElement_encodeBinary(const UA_XmlElement *src, UA_XmlElement *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_XMLELEMENT], dst, offset); }
+static UA_INLINE UA_StatusCode UA_XmlElement_decodeBinary(const UA_XmlElement *src, size_t *UA_RESTRICT offset, UA_XmlElement *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_XMLELEMENT]); }
+
+static UA_INLINE UA_StatusCode UA_NodeId_encodeBinary(const UA_NodeId *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_NODEID], dst, offset); }
+static UA_INLINE UA_StatusCode UA_NodeId_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_NodeId *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_NODEID]); }
+
+static UA_INLINE UA_StatusCode UA_ExpandedNodeId_encodeBinary(const UA_ExpandedNodeId *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_EXPANDEDNODEID], dst, offset); }
+static UA_INLINE UA_StatusCode UA_ExpandedNodeId_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_ExpandedNodeId *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]); }
+
+static UA_INLINE UA_StatusCode UA_StatusCode_encodeBinary(const UA_StatusCode *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_STATUSCODE], dst, offset); }
+static UA_INLINE UA_StatusCode UA_StatusCode_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_StatusCode *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_STATUSCODE]); }
+
+static UA_INLINE UA_StatusCode UA_QualifiedName_encodeBinary(const UA_QualifiedName*src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_QUALIFIEDNAME], dst, offset); }
+static UA_INLINE UA_StatusCode UA_QualifiedName_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_QualifiedName *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]); }
+
+static UA_INLINE UA_StatusCode UA_LocalizedText_encodeBinary(const UA_LocalizedText *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], dst, offset); }
+static UA_INLINE UA_StatusCode UA_LocalizedText_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_LocalizedText *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]); }
+
+static UA_INLINE UA_StatusCode UA_ExtensionObject_encodeBinary(const UA_ExtensionObject *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], dst, offset); }
+static UA_INLINE UA_StatusCode UA_ExtensionObject_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_ExtensionObject *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]); }
+
+static UA_INLINE UA_StatusCode UA_DataValue_encodeBinary(const UA_DataValue *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_DATAVALUE], dst, offset); }
+static UA_INLINE UA_StatusCode UA_DataValue_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_DataValue *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_DATAVALUE]); }
+
+static UA_INLINE UA_StatusCode UA_Variant_encodeBinary(const UA_Variant *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_VARIANT], dst, offset); }
+static UA_INLINE UA_StatusCode UA_Variant_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_Variant *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_VARIANT]); }
+
+static UA_INLINE UA_StatusCode UA_DiagnosticInfo_encodeBinary(const UA_DiagnosticInfo *src, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return UA_encodeBinary(src, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], dst, offset); }
+static UA_INLINE UA_StatusCode UA_DiagnosticInfo_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_DiagnosticInfo *dst) {
+    return UA_decodeBinary(src, offset, dst, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]); }
 
 /// @}
 
