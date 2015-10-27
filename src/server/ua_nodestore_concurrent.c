@@ -196,7 +196,7 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, const UA_Node
         }
         rcu_read_unlock();
     }
-
+    UA_NodeId_deleteMembers(&tempNodeid);
     UA_free(node);
     if(inserted)
         *inserted = &entry->node;
