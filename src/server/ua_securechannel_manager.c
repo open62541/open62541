@@ -39,7 +39,7 @@ void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm,
 #ifndef UA_MULTITHREADING
 			cm->currentChannelCount--;
 #else
-			cm->currentChannelCount = uatomic_add_return(&cm->currentChannelCount, --1);
+			cm->currentChannelCount = uatomic_add_return(&cm->currentChannelCount, -1);
 #endif
 			UA_free(entry);
 		} else if (entry->channel.nextSecurityToken.tokenId > 0) {
