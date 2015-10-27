@@ -366,101 +366,10 @@ UA_Array_copy(const void *src, size_t src_size, void **dst,
  */
 void UA_EXPORT UA_Array_delete(void *p, size_t size, const UA_DataType *type);
 
-/***********************************/
-/* Builtin Type Handling Functions */
-/***********************************/
 
-#include "ua_types_generated.h"
-
-/* Boolean */
-static UA_INLINE UA_Boolean * UA_Boolean_new(void) { return UA_new(&UA_TYPES[UA_TYPES_BOOLEAN]); }
-static UA_INLINE void UA_Boolean_init(UA_Boolean *p) { *p = UA_FALSE; }
-static UA_INLINE void UA_Boolean_delete(UA_Boolean *p) { UA_delete(p, &UA_TYPES[UA_TYPES_BOOLEAN]); }
-static UA_INLINE void UA_Boolean_deleteMembers(UA_Boolean *p) { }
-static UA_INLINE UA_StatusCode UA_Boolean_copy(const UA_Boolean *src, UA_Boolean *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
-
-/* SByte */
-static UA_INLINE UA_SByte * UA_SByte_new(void) { return UA_new(&UA_TYPES[UA_TYPES_SBYTE]); }
-static UA_INLINE void UA_SByte_init(UA_SByte *p) { *p = 0; }
-static UA_INLINE void UA_SByte_delete(UA_SByte *p) { UA_delete(p, &UA_TYPES[UA_TYPES_SBYTE]); }
-static UA_INLINE void UA_SByte_deleteMembers(UA_SByte *p) { }
-static UA_INLINE UA_StatusCode UA_SByte_copy(const UA_SByte *src, UA_SByte *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
-
-/* Byte */
-static UA_INLINE UA_Byte * UA_Byte_new(void) { return UA_new(&UA_TYPES[UA_TYPES_BYTE]); }
-static UA_INLINE void UA_Byte_init(UA_Byte *p) { *p = 0; }
-static UA_INLINE void UA_Byte_delete(UA_Byte *p) { UA_delete(p, &UA_TYPES[UA_TYPES_BYTE]); }
-static UA_INLINE void UA_Byte_deleteMembers(UA_Byte *p) { }
-static UA_INLINE UA_StatusCode UA_Byte_copy(const UA_Byte *src, UA_Byte *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
-
-/* Int16 */
-static UA_INLINE UA_Int16 * UA_Int16_new(void) { return UA_new(&UA_TYPES[UA_TYPES_INT16]); }
-static UA_INLINE void UA_Int16_init(UA_Int16 *p) { *p = 0; }
-static UA_INLINE void UA_Int16_delete(UA_Int16 *p) { UA_delete(p, &UA_TYPES[UA_TYPES_INT16]); }
-static UA_INLINE void UA_Int16_deleteMembers(UA_Int16 *p) { }
-static UA_INLINE UA_StatusCode UA_Int16_copy(const UA_Int16 *src, UA_Int16 *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
-
-/* UInt16 */
-static UA_INLINE UA_UInt16 * UA_UInt16_new(void) { return UA_new(&UA_TYPES[UA_TYPES_UINT16]); }
-static UA_INLINE void UA_UInt16_init(UA_UInt16 *p) { *p = 0; }
-static UA_INLINE void UA_UInt16_delete(UA_UInt16 *p) { UA_delete(p, &UA_TYPES[UA_TYPES_UINT16]); }
-static UA_INLINE void UA_UInt16_deleteMembers(UA_UInt16 *p) { }
-static UA_INLINE UA_StatusCode UA_UInt16_copy(const UA_UInt16 *src, UA_UInt16 *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
-
-/* Int32 */
-static UA_INLINE UA_Int32 * UA_Int32_new(void) { return UA_new(&UA_TYPES[UA_TYPES_INT32]); }
-static UA_INLINE void UA_Int32_init(UA_Int32 *p) { *p = 0; }
-static UA_INLINE void UA_Int32_delete(UA_Int32 *p) { UA_delete(p, &UA_TYPES[UA_TYPES_INT32]); }
-static UA_INLINE void UA_Int32_deleteMembers(UA_Int32 *p) { }
-static UA_INLINE UA_StatusCode UA_Int32_copy(const UA_Int32 *src, UA_Int32 *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
-
-/* UInt32 */
-static UA_INLINE UA_UInt32 * UA_UInt32_new(void) { return UA_new(&UA_TYPES[UA_TYPES_UINT32]); }
-static UA_INLINE void UA_UInt32_init(UA_UInt32 *p) { *p = 0; }
-static UA_INLINE void UA_UInt32_delete(UA_UInt32 *p) { UA_delete(p, &UA_TYPES[UA_TYPES_UINT32]); }
-static UA_INLINE void UA_UInt32_deleteMembers(UA_UInt32 *p) { }
-static UA_INLINE UA_StatusCode UA_UInt32_copy(const UA_UInt32 *src, UA_UInt32 *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
-
-/* Int64 */
-static UA_INLINE UA_Int64 * UA_Int64_new(void) { return UA_new(&UA_TYPES[UA_TYPES_INT64]); }
-static UA_INLINE void UA_Int64_init(UA_Int64 *p) { *p = 0; }
-static UA_INLINE void UA_Int64_delete(UA_Int64 *p) { UA_delete(p, &UA_TYPES[UA_TYPES_INT64]); }
-static UA_INLINE void UA_Int64_deleteMembers(UA_Int64 *p) { }
-static UA_INLINE UA_StatusCode UA_Int64_copy(const UA_Int64 *src, UA_Int64 *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
-
-/* UInt64 */
-static UA_INLINE UA_UInt64 * UA_UInt64_new(void) { return UA_new(&UA_TYPES[UA_TYPES_UINT64]); }
-static UA_INLINE void UA_UInt64_init(UA_UInt64 *p) { *p = 0; }
-static UA_INLINE void UA_UInt64_delete(UA_UInt64 *p) { UA_delete(p, &UA_TYPES[UA_TYPES_UINT64]); }
-static UA_INLINE void UA_UInt64_deleteMembers(UA_UInt64 *p) { }
-static UA_INLINE UA_StatusCode UA_UInt64_copy(const UA_UInt64 *src, UA_UInt64 *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
-
-/* Float */
-static UA_INLINE UA_Float * UA_Float_new(void) { return UA_new(&UA_TYPES[UA_TYPES_FLOAT]); }
-static UA_INLINE void UA_Float_init(UA_Float *p) { *p = 0.0f; }
-static UA_INLINE void UA_Float_delete(UA_Float *p) { UA_delete(p, &UA_TYPES[UA_TYPES_FLOAT]); }
-static UA_INLINE void UA_Float_deleteMembers(UA_Float *p) { }
-static UA_INLINE UA_StatusCode UA_Float_copy(const UA_Float *src, UA_Float *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
-
-/* Double */
-static UA_INLINE UA_Double * UA_Double_new(void) { return UA_new(&UA_TYPES[UA_TYPES_DOUBLE]); }
-static UA_INLINE void UA_Double_init(UA_Double *p) { *p = 0.0f; }
-static UA_INLINE void UA_Double_delete(UA_Double *p) { UA_delete(p, &UA_TYPES[UA_TYPES_DOUBLE]); }
-static UA_INLINE void UA_Double_deleteMembers(UA_Double *p) { }
-static UA_INLINE UA_StatusCode UA_Double_copy(const UA_Double *src, UA_Double *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
-
+/**********/
 /* String */
-static UA_INLINE UA_String * UA_String_new(void) { return UA_new(&UA_TYPES[UA_TYPES_STRING]); }
-static UA_INLINE void UA_String_init(UA_String *p) { memset(p, 0, sizeof(UA_String)); }
-static UA_INLINE void UA_String_delete(UA_String *p) { UA_delete(p, &UA_TYPES[UA_TYPES_STRING]); }
-static UA_INLINE void UA_String_deleteMembers(UA_String *p) { UA_deleteMembers(p, &UA_TYPES[UA_TYPES_STRING]); }
-static UA_INLINE UA_StatusCode UA_String_copy(const UA_String *src, UA_String *dst) {return UA_copy(src, dst, &UA_TYPES[UA_TYPES_STRING]); }
-
-/** Copies the content on the heap. Returns a null-string when alloc fails */
-UA_String UA_EXPORT UA_String_fromChars(char const src[]);
-
-UA_Boolean UA_EXPORT UA_String_equal(const UA_String *s1, const UA_String *s2);
-
+/**********/
 UA_EXPORT extern const UA_String UA_STRING_NULL;
 
 static UA_INLINE UA_String UA_STRING(char *chars) {
@@ -470,14 +379,15 @@ static UA_INLINE UA_String UA_STRING(char *chars) {
     return str; }
 
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
+    
+/** Copies the content on the heap. Returns a null-string when alloc fails */
+UA_String UA_EXPORT UA_String_fromChars(char const src[]);
 
+UA_Boolean UA_EXPORT UA_String_equal(const UA_String *s1, const UA_String *s2);
+
+/************/
 /* DateTime */
-static UA_INLINE UA_DateTime * UA_DateTime_new(void) { return UA_new(&UA_TYPES[UA_TYPES_DATETIME]); }
-static UA_INLINE void UA_DateTime_init(UA_DateTime *p) { *p = 0; }
-static UA_INLINE void UA_DateTime_delete(UA_DateTime *p) { UA_delete(p, &UA_TYPES[UA_TYPES_DATETIME]); }
-static UA_INLINE void UA_DateTime_deleteMembers(UA_DateTime *p) { }
-static UA_INLINE UA_StatusCode UA_DateTime_copy(const UA_DateTime *src, UA_DateTime *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
-
+/************/
 UA_DateTime UA_EXPORT UA_DateTime_now(void); ///> The current time
 
 typedef struct UA_DateTimeStruct {
@@ -496,24 +406,16 @@ UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime time);
 
 UA_String UA_EXPORT UA_DateTime_toString(UA_DateTime time);
 
+/********/
 /* Guid */
-static UA_INLINE UA_Guid * UA_Guid_new(void) { return UA_new(&UA_TYPES[UA_TYPES_GUID]); }
-static UA_INLINE void UA_Guid_init(UA_Guid *p) { memset(p, 0, sizeof(UA_Guid)); }
-static UA_INLINE void UA_Guid_delete(UA_Guid *p) { UA_delete(p, &UA_TYPES[UA_TYPES_GUID]); }
-static UA_INLINE void UA_Guid_deleteMembers(UA_Guid *p) { }
-static UA_INLINE UA_StatusCode UA_Guid_copy(const UA_Guid *src, UA_Guid *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }
-
+/********/
 UA_Boolean UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
 
 UA_Guid UA_EXPORT UA_Guid_random(UA_UInt32 *seed);
 
+/**************/
 /* ByteString */
-static UA_INLINE UA_ByteString * UA_ByteString_new(void) { return UA_new(&UA_TYPES[UA_TYPES_BYTESTRING]); }
-static UA_INLINE void UA_ByteString_init(UA_ByteString *p) { memset(p, 0, sizeof(UA_ByteString)); }
-static UA_INLINE void UA_ByteString_delete(UA_ByteString *p) { UA_delete(p, &UA_TYPES[UA_TYPES_BYTESTRING]); }
-static UA_INLINE void UA_ByteString_deleteMembers(UA_ByteString *p) { UA_deleteMembers(p, &UA_TYPES[UA_TYPES_BYTESTRING]); }
-static UA_INLINE UA_StatusCode UA_ByteString_copy(const UA_ByteString *src, UA_ByteString *dst) { return UA_copy(src, dst, &UA_TYPES[UA_TYPES_BYTESTRING]); }
-
+/**************/
 static UA_INLINE UA_Boolean UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2) {
     return UA_String_equal((const UA_String*)string1, (const UA_String*)string2); }
 
@@ -536,28 +438,17 @@ static UA_INLINE UA_ByteString UA_BYTESTRING_ALLOC(const char *chars) {
     return bstr;
 }
 
-/* XmlElement */
-static UA_INLINE UA_XmlElement * UA_XmlElement_new(void) { return UA_new(&UA_TYPES[UA_TYPES_XMLELEMENT]); }
-static UA_INLINE void UA_XmlElement_init(UA_XmlElement *p) { memset(p, 0, sizeof(UA_XmlElement)); }
-static UA_INLINE void UA_XmlElement_delete(UA_XmlElement *p) { UA_delete(p, &UA_TYPES[UA_TYPES_XMLELEMENT]); }
-static UA_INLINE void UA_XmlElement_deleteMembers(UA_XmlElement *p) { UA_deleteMembers(p, &UA_TYPES[UA_TYPES_XMLELEMENT]); }
-static UA_INLINE UA_StatusCode UA_XmlElement_copy(const UA_XmlElement *src, UA_XmlElement *dst) { return UA_copy(src, dst, &UA_TYPES[UA_TYPES_XMLELEMENT]); }
-
+/**********/
 /* NodeId */
-static UA_INLINE UA_NodeId * UA_NodeId_new(void) { return UA_new(&UA_TYPES[UA_TYPES_NODEID]); }
-static UA_INLINE void UA_NodeId_init(UA_NodeId *p) { memset(p, 0, sizeof(UA_NodeId)); }
-static UA_INLINE void UA_NodeId_delete(UA_NodeId *p) { UA_delete(p, &UA_TYPES[UA_TYPES_NODEID]); }
-static UA_INLINE void UA_NodeId_deleteMembers(UA_NodeId *p) { UA_deleteMembers(p, &UA_TYPES[UA_TYPES_NODEID]); }
-static UA_INLINE UA_StatusCode UA_NodeId_copy(const UA_NodeId *src, UA_NodeId *dst) { return UA_copy(src, dst, &UA_TYPES[UA_TYPES_NODEID]); }
-
-UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
-
+/**********/
 static UA_INLINE UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
     return (p->namespaceIndex == 0 && p->identifierType == UA_NODEIDTYPE_NUMERIC &&
             p->identifier.numeric == 0);
 }
 
 UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
+
+UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 
 static UA_INLINE UA_NodeId UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_Int32 identifier) {
     UA_NodeId id;
@@ -601,13 +492,9 @@ static UA_INLINE UA_NodeId UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const c
     id.identifier.byteString = UA_BYTESTRING_ALLOC(chars);
     return id; }
 
+/******************/
 /* ExpandedNodeId */
-static UA_INLINE UA_ExpandedNodeId * UA_ExpandedNodeId_new(void) { return UA_new(&UA_TYPES[UA_TYPES_EXPANDEDNODEID]); }
-static UA_INLINE void UA_ExpandedNodeId_init(UA_ExpandedNodeId *p) { memset(p, 0, sizeof(UA_ExpandedNodeId)); }
-static UA_INLINE void UA_ExpandedNodeId_delete(UA_ExpandedNodeId *p) { UA_delete(p, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]); }
-static UA_INLINE void UA_ExpandedNodeId_deleteMembers(UA_ExpandedNodeId *p) { UA_deleteMembers(p, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]); }
-static UA_INLINE UA_StatusCode UA_ExpandedNodeId_copy(const UA_ExpandedNodeId *src, UA_ExpandedNodeId *dst) { return UA_copy(src, dst, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]); }
-
+/******************/
 static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_Int32 identifier) {
     UA_ExpandedNodeId id;
     id.nodeId       = UA_NODEID_NUMERIC(nsIndex, identifier);
@@ -650,20 +537,9 @@ static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 
     id.namespaceUri = UA_STRING_NULL;
     return id; }
 
-/* StatusCode */
-static UA_INLINE UA_StatusCode * UA_StatusCode_new(void) { return UA_new(&UA_TYPES[UA_TYPES_STATUSCODE]); }
-static UA_INLINE void UA_StatusCode_init(UA_StatusCode *p) { *p = UA_STATUSCODE_GOOD; }
-static UA_INLINE void UA_StatusCode_delete(UA_StatusCode *p) { UA_delete(p, &UA_TYPES[UA_TYPES_STATUSCODE]); }
-static UA_INLINE void UA_StatusCode_deleteMembers(UA_StatusCode *p) { }
-static UA_INLINE UA_StatusCode UA_StatusCode_copy(const UA_StatusCode *src, UA_StatusCode *dst) {*dst = *src; return UA_STATUSCODE_GOOD; }
-
+/*****************/
 /* QualifiedName */
-static UA_INLINE UA_QualifiedName * UA_QualifiedName_new(void) { return UA_new(&UA_TYPES[UA_TYPES_QUALIFIEDNAME]); }
-static UA_INLINE void UA_QualifiedName_init(UA_QualifiedName *p) { memset(p, 0, sizeof(UA_QualifiedName)); }
-static UA_INLINE void UA_QualifiedName_delete(UA_QualifiedName *p) { UA_delete(p, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]); }
-static UA_INLINE void UA_QualifiedName_deleteMembers(UA_QualifiedName *p) { UA_deleteMembers(p, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]); }
-static UA_INLINE UA_StatusCode UA_QualifiedName_copy(const UA_QualifiedName *src, UA_QualifiedName *dst) { return UA_copy(src, dst, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]); }
-
+/*****************/
 static UA_INLINE UA_QualifiedName UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars) {
     UA_QualifiedName qn;
     qn.namespaceIndex = nsIndex;
@@ -676,13 +552,9 @@ static UA_INLINE UA_QualifiedName UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, cons
     qn.name           = UA_STRING_ALLOC(chars);
     return qn; }
 
+/*****************/
 /* LocalizedText */
-static UA_INLINE UA_LocalizedText * UA_LocalizedText_new(void) { return UA_new(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT]); }
-static UA_INLINE void UA_LocalizedText_init(UA_LocalizedText *p) { memset(p, 0, sizeof(UA_LocalizedText)); }
-static UA_INLINE void UA_LocalizedText_delete(UA_LocalizedText *p) { UA_delete(p, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]); }
-static UA_INLINE void UA_LocalizedText_deleteMembers(UA_LocalizedText *p) { UA_deleteMembers(p, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]); }
-static UA_INLINE UA_StatusCode UA_LocalizedText_copy(const UA_LocalizedText *src, UA_LocalizedText *dst) { return UA_copy(src, dst, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]); }
-
+/*****************/
 static UA_INLINE UA_LocalizedText UA_LOCALIZEDTEXT(char *locale, char *text) {
     UA_LocalizedText lt;
     lt.locale = UA_STRING(locale);
@@ -695,20 +567,9 @@ static UA_INLINE UA_LocalizedText UA_LOCALIZEDTEXT_ALLOC(const char *locale, con
     lt.text   = UA_STRING_ALLOC(text);
     return lt; }
 
-/* ExtensionObject */
-static UA_INLINE UA_ExtensionObject * UA_ExtensionObject_new(void) { return UA_new(&UA_TYPES[UA_TYPES_EXTENSIONOBJECT]); }
-static UA_INLINE void UA_ExtensionObject_init(UA_ExtensionObject *p) { memset(p, 0, sizeof(UA_ExtensionObject)); }
-static UA_INLINE void UA_ExtensionObject_delete(UA_ExtensionObject *p) { UA_delete(p, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]); }
-static UA_INLINE void UA_ExtensionObject_deleteMembers(UA_ExtensionObject *p) { UA_deleteMembers(p, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]); }
-static UA_INLINE UA_StatusCode UA_ExtensionObject_copy(const UA_ExtensionObject *src, UA_ExtensionObject *dst) { return UA_copy(src, dst, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]); }
-
+/***********/
 /* Variant */
-static UA_INLINE UA_Variant * UA_Variant_new(void) { return UA_new(&UA_TYPES[UA_TYPES_VARIANT]); }
-static UA_INLINE void UA_Variant_init(UA_Variant *p) { memset(p, 0, sizeof(UA_Variant)); }
-static UA_INLINE void UA_Variant_delete(UA_Variant *p) { UA_delete(p, &UA_TYPES[UA_TYPES_VARIANT]); }
-static UA_INLINE void UA_Variant_deleteMembers(UA_Variant *p) { UA_deleteMembers(p, &UA_TYPES[UA_TYPES_VARIANT]); }
-static UA_INLINE UA_StatusCode UA_Variant_copy(const UA_Variant *src, UA_Variant *dst) { return UA_copy(src, dst, &UA_TYPES[UA_TYPES_VARIANT]); }
-
+/***********/
 /**
  * Returns true if the variant contains a scalar value. Note that empty variants contain an array of
  * length -1 (undefined).
@@ -802,20 +663,6 @@ UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize, c
  */
 UA_StatusCode UA_EXPORT
 UA_Variant_setRangeCopy(UA_Variant *v, const void *array, size_t arraySize, const UA_NumericRange range);
-
-/* DataValue */
-static UA_INLINE UA_DataValue * UA_DataValue_new(void) { return UA_new(&UA_TYPES[UA_TYPES_DATAVALUE]); }
-static UA_INLINE void UA_DataValue_init(UA_DataValue *p) { memset(p, 0, sizeof(UA_DataValue)); }
-static UA_INLINE void UA_DataValue_delete(UA_DataValue *p) { UA_delete(p, &UA_TYPES[UA_TYPES_DATAVALUE]); }
-static UA_INLINE void UA_DataValue_deleteMembers(UA_DataValue *p) { UA_deleteMembers(p, &UA_TYPES[UA_TYPES_DATAVALUE]); }
-static UA_INLINE UA_StatusCode UA_DataValue_copy(const UA_DataValue *src, UA_DataValue *dst) { return UA_copy(src, dst, &UA_TYPES[UA_TYPES_DATAVALUE]); }
-
-/* DiagnosticInfo */
-static UA_INLINE UA_DiagnosticInfo * UA_DiagnosticInfo_new(void) { return UA_new(&UA_TYPES[UA_TYPES_DIAGNOSTICINFO]); }
-static UA_INLINE void UA_DiagnosticInfo_init(UA_DiagnosticInfo *p) { memset(p, 0, sizeof(UA_DiagnosticInfo)); }
-static UA_INLINE void UA_DiagnosticInfo_delete(UA_DiagnosticInfo *p) { UA_delete(p, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]); }
-static UA_INLINE void UA_DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p) { UA_deleteMembers(p, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]); }
-static UA_INLINE UA_StatusCode UA_DiagnosticInfo_copy(const UA_DiagnosticInfo *src, UA_DiagnosticInfo *dst) { return UA_copy(src, dst, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]); }
 
 /**********************/
 /* Node Attribute Ids */

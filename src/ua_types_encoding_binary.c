@@ -221,8 +221,10 @@ UInt32_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
 }
 
 /* UInt64 */
+#define dateTime_encodeBinary uint64_encodeBinary;
+#define int64_encodeBinary uint64_encodeBinary;
 static UA_StatusCode
-UInt64_encodeBinary(UA_UInt64 const *src, const UA_DataType *dummy,
+uint64_encodeBinary(UA_UInt64 const *src, const UA_DataType *dummy,
                     UA_ByteString *dst, size_t *UA_RESTRICT offset) {
     if(*offset + sizeof(UA_UInt64) > dst->length)
         return UA_STATUSCODE_BADENCODINGERROR;

@@ -97,8 +97,7 @@ def parseTypeDescriptions(filename, namespaceid):
             definitions["UA_" + row[0]] = TypeDescription(row[0], row[1], namespaceid)
     return definitions
 
-class BuiltinType(object):
-    "Generic type without members. Used for builtin types."
+class Type(object):
     def __init__(self, name, description = ""):
         self.name = name
         self.description = description
@@ -114,7 +113,27 @@ class BuiltinType(object):
 
     def typedef_c(self):
         pass
+    
+    def functions_c(self, typeTableName):
+        return ('''static UA_INLINE void %s_init(%s *p) { memset(p, 0, sizeof(%s)); }
+static UA_INLINE void %s_delete(%s *p) { UA_delete(p, %s); }
+static UA_INLINE void %s_deleteMembers(%s *p) { ''' + ("UA_deleteMembers(p, &"+typeTableName+"["+typeTableName+"_"+self.name[3:].upper()+"]);" if not self.fixed_size() else "") + ''' }
+static UA_INLINE %s * %s_new(void) { return (%s*) UA_new(%s); }
+static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { ''' + \
+                ("*dst = *src; return UA_STATUSCODE_GOOD;" if self.fixed_size() else "return UA_copy(src, dst, &" + typeTableName+"["+typeTableName+"_"+self.name[3:].upper() + "]);") +" }") % \
+    tuple([self.name, self.name, self.name] +
+          [self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"] +
+          [self.name, self.name] + 
+          [self.name, self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"] +
+          [self.name, self.name, self.name]) 
 
+    def encoding_h(self, typeTableName):
+        return '''static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src, UA_ByteString *dst, size_t *offset) { return UA_encodeBinary(src, %s, dst, offset); }
+static UA_INLINE UA_StatusCode %s_decodeBinary(const UA_ByteString *src, size_t *offset, %s *dst) { return UA_decodeBinary(src, offset, dst, %s); }''' % \
+    tuple(list(itertools.chain(*itertools.repeat([self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 2))))
+
+class BuiltinType(Type):
+    "Generic type without members. Used for builtin types."
     def typelayout_c(self, namespace_0, description, outname):
         if description == None:
             typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, "
@@ -182,7 +201,7 @@ class BuiltinType(object):
             ".padding = 0, .isArray = UA_FALSE }},\n" + \
             ".typeIndex = UA_TYPES_" + self.name[3:].upper() + " }"
 
-class EnumerationType(object):
+class EnumerationType(Type):
     def __init__(self, name, description = "", elements = OrderedDict()):
         self.name = name
         self.description = description
@@ -217,26 +236,11 @@ class EnumerationType(object):
         return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
             ".memSize = sizeof(" + self.name + "), .builtin = UA_FALSE, " + \
             ".fixedSize = UA_TRUE, .zeroCopyable = UA_TRUE, " + \
-            ".membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_INT32," + \
+            ".membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_INT32, " + \
             (".memberName = \"\", " if typeintrospection else "") + \
             ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
 
-    def functions_c(self, typeTableName):
-        return '''static UA_INLINE %s * %s_new(void) { return UA_new(&UA_TYPES[UA_TYPES_INT32]); }
-static UA_INLINE void %s_init(%s *p) { *p = 0; }
-static UA_INLINE void %s_delete(%s *p) { UA_delete(p, &UA_TYPES[UA_TYPES_INT32]); }
-static UA_INLINE void %s_deleteMembers(%s *p) { }
-static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }''' % tuple(itertools.repeat(self.name, 11))
-
-    def encoding_h(self, typeTableName):
-        return '''static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src, UA_ByteString *dst, size_t *offset) { return UA_Int32_encodeBinary((const UA_Int32*)src, dst, offset); }
-static UA_INLINE UA_StatusCode %s_decodeBinary(const UA_ByteString *src, size_t *offset, %s *dst) { return UA_Int32_decodeBinary(src, offset, (UA_Int32*)dst); }''' % tuple(itertools.repeat(self.name, 4))
-
-class OpaqueType(object):
-    def __init__(self, name, description = ""):
-        self.name = name
-        self.description = description
-
+class OpaqueType(Type):
     def fixed_size(self):
         return False
 
@@ -257,24 +261,13 @@ class OpaqueType(object):
             (".memberName = \"\", " if typeintrospection else "") + \
             ".namespaceZero = UA_TRUE, .padding = offsetof(UA_String, data) - sizeof(size_t), .isArray = UA_TRUE }}, .typeIndex = %s}" % (outname.upper() + "_" + self.name[3:].upper())
 
-    def functions_c(self, typeTableName):
-        return '''static UA_INLINE %s * %s_new(void) { %s *v = (%s*)UA_ByteString_new(); return v; }
-static UA_INLINE void %s_init(%s *p) { memset(p, 0, sizeof(%s); }
-static UA_INLINE void %s_delete(%s *p) { UA_ByteString_delete((UA_ByteString*)p); }
-static UA_INLINE void %s_deleteMembers(%s *p) { }
-static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { return UA_ByteString_copy((const UA_ByteString*)src, (UA_ByteString*)dst); }''' % tuple(itertools.repeat(self.name, 14))
-
-    def encoding_h(self, typeTableName):
-        return '''static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src, UA_ByteString *dst, size_t *offset) { return UA_ByteString_encodeBinary((UA_ByteString*)src, dst, offset); }
-static UA_INLINE UA_StatusCode %s_decodeBinary(const UA_ByteString *src, size_t *offset, %s *dst) { return UA_ByteString_decodeBinary(src, offset, (UA_ByteString*)dst); }''' % tuple(itertools.repeat(self.name, 4))
-
 class StructMember(object):
     def __init__(self, name, memberType, isArray):
         self.name = name
         self.memberType = memberType
         self.isArray = isArray
 
-class StructType(object):
+class StructType(Type):
     def __init__(self, name, description, members = OrderedDict()):
         self.name = name
         self.description = description
@@ -365,20 +358,6 @@ class StructType(object):
                 layout += ", .isArray = " + ("UA_TRUE" if member.isArray else "UA_FALSE") + " }, "
             layout += "}"
         return layout + "}"
-
-    def functions_c(self, typeTableName):
-        return '''static UA_INLINE void %s_init(%s *p) { memset(p, 0, sizeof(%s)); }
-static UA_INLINE void %s_delete(%s *p) { UA_delete(p, %s); }
-static UA_INLINE void %s_deleteMembers(%s *p) { UA_deleteMembers(p, %s); }
-static UA_INLINE %s * %s_new(void) { return (%s *) UA_new(%s); }
-static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { return UA_copy(src, dst, %s); }''' % \
-    tuple(  list(itertools.chain(*itertools.repeat([self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 3)))
-          + list(itertools.chain(*itertools.repeat([self.name, self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 2))) )
-
-    def encoding_h(self, typeTableName):
-        return '''static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src, UA_ByteString *dst, size_t *offset) { return UA_encodeBinary(src, %s, dst, offset); }
-static UA_INLINE UA_StatusCode %s_decodeBinary(const UA_ByteString *src, size_t *offset, %s *dst) { return UA_decodeBinary(src, offset, dst, %s); }''' % \
-    tuple(list(itertools.chain(*itertools.repeat([self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 2))))
 
 def parseTypeDefinitions(xmlDescription, existing_types = OrderedDict()):
     '''Returns an ordered dict that maps names to types. The order is such that
@@ -551,7 +530,8 @@ extern "C" {
 #include "ua_types.h"
 #ifdef UA_INTERNAL
 #include "ua_types_encoding_binary.h"
-#endif
+#endif'''
+ + ('\n#include "ua_types_generated.h"\n' if args.namespace_id != 0 else '') + '''
 
 /**
 * @ingroup types
@@ -573,14 +553,13 @@ else:
     values = types.values()
 
 for t in values:
+    printh("")
     if type(t) != BuiltinType:
-        printh("")
         if t.description != "":
             printh("/** @brief " + t.description + " */")
         printh(t.typedef_c())
     printh("#define " + outname.upper() + "_" + t.name[3:].upper() + " " + str(i))
-    if type(t) != BuiltinType:
-        printh(t.functions_c(outname.upper()))
+    printh(t.functions_c(outname.upper()))
     i += 1
 
 printh('''
@@ -625,10 +604,9 @@ for t in values:
     else:
         td = None
     printc(t.typelayout_c(args.namespace_id == 0, td, outname) + ",")
-    if not type(t) == BuiltinType:
-        printe("")
-        printe("/* " + t.name + " */")
-        printe(t.encoding_h(outname.upper()))
+    printe("")
+    printe("/* " + t.name + " */")
+    printe(t.encoding_h(outname.upper()))
 printc("};\n")
 
 fh.close()

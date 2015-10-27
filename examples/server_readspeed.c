@@ -15,6 +15,7 @@
 #endif
 
 #include <time.h>
+#include <stdio.h>
 #include "ua_types_generated.h"
 #include "server/ua_services.h"
 #include "ua_types_encoding_binary.h"
@@ -35,18 +36,19 @@ int main(int argc, char** argv) {
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 
     /* add a variable node to the address space */
-    UA_Variant *myIntegerVariant = UA_Variant_new();
+    UA_VariableAttributes attr;
+    UA_VariableAttributes_init(&attr);
     UA_Int32 myInteger = 42;
-    UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    //NOTE: the link between myInteger and the value of the node is lost here, you can safely reuse myInteger
+    UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    attr.description = UA_LOCALIZEDTEXT("en_US","the answer");
+    attr.displayName = UA_LOCALIZEDTEXT("en_US","the answer");
+    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
-    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer"); /* UA_NODEID_NULL would assign a random free nodeid */
-    UA_LocalizedText myIntegerBrowseName = UA_LOCALIZEDTEXT("en_US","the answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-
-    UA_Server_addVariableNode(server, myIntegerNodeId, myIntegerName, myIntegerBrowseName, myIntegerBrowseName, 0, 0,
-                              parentNodeId, parentReferenceNodeId, myIntegerVariant, NULL);
+    UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
+                              parentReferenceNodeId, myIntegerName,
+                              UA_NODEID_NULL, attr, NULL);
 
     UA_ReadRequest request;
     UA_ReadRequest_init(&request);
@@ -59,12 +61,11 @@ int main(int argc, char** argv) {
     request.nodesToReadSize = 1;
     request.nodesToRead = &rvi;
 
-    UA_ByteString request_msg;
-    UA_ByteString response_msg;
-    UA_ByteString_newMembers(&request_msg, 1000);
-    UA_ByteString_newMembers(&response_msg, 1000);
+    UA_ByteString request_msg = UA_ByteString_withSize(1000);
+    UA_ByteString response_msg = UA_ByteString_withSize(1000);
     size_t offset = 0;
-    UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_READREQUEST], &request_msg, &offset);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_READREQUEST], &request_msg, &offset);
     
     clock_t begin, end;
     begin = clock();
@@ -77,12 +78,12 @@ int main(int argc, char** argv) {
         UA_ReadResponse_init(&rr);
 
         offset = 0;
-        UA_decodeBinary(&request_msg, &offset, &rq, &UA_TYPES[UA_TYPES_READREQUEST]);
+        retval |= UA_decodeBinary(&request_msg, &offset, &rq, &UA_TYPES[UA_TYPES_READREQUEST]);
 
         Service_Read(server, &adminSession, &rq, &rr);
 
         offset = 0;
-        UA_encodeBinary(&rr, &UA_TYPES[UA_TYPES_READRESPONSE], &response_msg, &offset);
+        retval |= UA_encodeBinary(&rr, &UA_TYPES[UA_TYPES_READRESPONSE], &response_msg, &offset);
 
         UA_ReadRequest_deleteMembers(&rq);
         UA_ReadResponse_deleteMembers(&rr);
@@ -95,7 +96,7 @@ int main(int argc, char** argv) {
     UA_ByteString_deleteMembers(&request_msg);
     UA_ByteString_deleteMembers(&response_msg);
 
-    UA_StatusCode retval = UA_Server_run(server, 1, &running);
+    retval |= UA_Server_run(server, 1, &running);
     UA_Server_delete(server);
 
     return retval;
