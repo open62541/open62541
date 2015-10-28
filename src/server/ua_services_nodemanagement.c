@@ -10,9 +10,10 @@
 /* Add Node */
 /************/
 
-void UA_Server_addExistingNode(UA_Server *server, UA_Session *session, UA_Node *node,
-                               const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                               UA_AddNodesResult *result) {
+void
+UA_Server_addExistingNode(UA_Server *server, UA_Session *session, UA_Node *node,
+                          const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
+                          UA_AddNodesResult *result) {
     if(node->nodeId.namespaceIndex >= server->namespacesSize) {
         result->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
         return;
@@ -924,7 +925,7 @@ deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
     if(!edited)
         return UA_STATUSCODE_UNCERTAINREFERENCENOTDELETED;
     /* we removed the last reference */
-    if(node->referencesSize <= 0 && node->references)
+    if(node->referencesSize == 0 && node->references)
         UA_free(node->references);
     return UA_STATUSCODE_GOOD;;
 }

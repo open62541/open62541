@@ -313,7 +313,7 @@ START_TEST(UA_String_decodeWithNegativeSizeShallNotAllocateMemoryAndNullPtr) {
     UA_StatusCode retval = UA_String_decodeBinary(&src, &pos, &dst);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(dst.length, -1);
+    ck_assert_int_eq(dst.length, 0);
     ck_assert_ptr_eq(dst.data, NULL);
 }
 END_TEST
@@ -330,7 +330,7 @@ START_TEST(UA_String_decodeWithZeroSizeShallNotAllocateMemoryAndNullPtr) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(dst.length, 0);
-    ck_assert_ptr_eq(dst.data, NULL);
+    ck_assert_ptr_eq(dst.data, UA_EMPTY_ARRAY_SENTINEL);
 }
 END_TEST
 
@@ -401,7 +401,8 @@ START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArr
     ck_assert_int_eq(pos, 5);
     //ck_assert_ptr_eq((const void *)dst.type, (const void *)&UA_TYPES[UA_TYPES_INT32]); //does not compile in gcc 4.6
     ck_assert_int_eq((uintptr_t)dst.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]); 
-    ck_assert_int_eq(dst.arrayLength, -1);
+    ck_assert_int_eq(dst.arrayLength, 0);
+    ck_assert_int_ne(dst.data, NULL);
     ck_assert_int_eq(*(UA_Int32 *)dst.data, 255);
     // finally
     UA_Variant_deleteMembers(&dst);
@@ -879,12 +880,12 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithoutVariant) {
     src.serverTimestamp = 80;
     src.hasServerTimestamp = UA_TRUE;
 
-    UA_Byte data[] = {  0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,       0x55,
-            0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,       0x55,
-            0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,       0x55 };
+    UA_Byte data[] = { 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+                       0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+                       0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55 };
     UA_ByteString dst = { 24, data };
 
-    UA_Int32  retval  = 0;
+    UA_Int32 retval = 0;
     size_t pos     = 0;
 
     // when
@@ -912,8 +913,8 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithVariant) {
     src.hasValue = UA_TRUE;
     src.hasServerTimestamp = UA_TRUE;
     src.value.type = &UA_TYPES[UA_TYPES_INT32];
-    src.value.arrayLength  = -1; // one element (encoded as not an array)
-    UA_Int32  vdata  = 45;
+    src.value.arrayLength  = 0; // one element (encoded as not an array)
+    UA_Int32 vdata = 45;
     src.value.data = (void *)&vdata;
 
     UA_Byte data[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,

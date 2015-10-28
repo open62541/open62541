@@ -316,9 +316,9 @@ readStatus(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
     status->secondsTillShutdown = 0;
 
     value->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
-    value->value.arrayLength = -1;
+    value->value.arrayLength = 0;
     value->value.data = status;
-    value->value.arrayDimensionsSize = -1;
+    value->value.arrayDimensionsSize = 0;
     value->value.arrayDimensions = NULL;
     value->hasValue = UA_TRUE;
     if(sourceTimeStamp) {
@@ -1084,7 +1084,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     copyNames((UA_Node*)state, "State");
     state->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERSTATUS_STATE;
     state->value.variant.value.type = &UA_TYPES[UA_TYPES_SERVERSTATE];
-    state->value.variant.value.arrayLength = -1;
+    state->value.variant.value.arrayLength = 0;
     state->value.variant.value.data = stateEnum; // points into the other object.
     addNodeInternal(server, (UA_Node*)state, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
                     nodeIdHasComponent);
@@ -1301,7 +1301,7 @@ __UA_Server_readAttribute(UA_Server *server, const UA_NodeId nodeId,
     else {
         memcpy(v, dv.value.data, dv.value.type->memSize);
         dv.value.data = NULL;
-        dv.value.arrayLength = -1;
+        dv.value.arrayLength = 0;
         UA_Variant_deleteMembers(&dv.value);
     }
     return UA_STATUSCODE_GOOD;

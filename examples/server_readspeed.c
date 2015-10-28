@@ -79,6 +79,7 @@ int main(int argc, char** argv) {
 
         offset = 0;
         retval |= UA_decodeBinary(&request_msg, &offset, &rq, &UA_TYPES[UA_TYPES_READREQUEST]);
+        //assert(retval != UA_STATUSCODE_GOOD);
 
         Service_Read(server, &adminSession, &rq, &rr);
 

@@ -209,7 +209,7 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId meth
         *output = response.results[0].outputArguments;
         *outputSize = response.results[0].outputArgumentsSize;
         response.results[0].outputArguments = NULL;
-        response.results[0].outputArgumentsSize = -1;
+        response.results[0].outputArgumentsSize = 0;
     }
     UA_CallResponse_deleteMembers(&response);
     return retval;

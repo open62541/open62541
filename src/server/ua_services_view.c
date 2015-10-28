@@ -9,8 +9,6 @@ fillReferenceDescription(UA_NodeStore *ns, const UA_Node *curr, UA_ReferenceNode
                          UA_UInt32 mask, UA_ReferenceDescription *descr) {
     UA_ReferenceDescription_init(descr);
     UA_StatusCode retval = UA_NodeId_copy(&curr->nodeId, &descr->nodeId.nodeId);
-    descr->nodeId.serverIndex = 0;
-    descr->nodeId.namespaceUri.length = -1;
 
     if(mask & UA_BROWSERESULTMASK_REFERENCETYPEID)
         retval |= UA_NodeId_copy(&ref->referenceTypeId, &descr->referenceTypeId);
@@ -611,7 +609,7 @@ void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session 
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_Array_delete(result->targets, result->targetsSize, &UA_TYPES[UA_TYPES_BROWSEPATHTARGET]);
         result->targets = NULL;
-        result->targetsSize = -1;
+        result->targetsSize = 0;
     }
 }
 

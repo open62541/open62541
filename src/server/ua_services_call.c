@@ -56,17 +56,17 @@ statisfySignature(UA_Variant *var, UA_Argument arg) {
             return UA_STATUSCODE_BADINVALIDARGUMENT;
         
         //variants do not always encode the dimension flag (e.g. 1d array)
-       if(var->arrayDimensionsSize==-1 && arg.arrayDimensionsSize == 1 &&
-    		   var->arrayLength > 0 && arg.arrayDimensions[0] == (UA_UInt32)var->arrayLength ){
+       if(!var->arrayDimensions && arg.arrayDimensionsSize == 1 &&
+          arg.arrayDimensions[0] == var->arrayLength) {
     	   return UA_STATUSCODE_GOOD;
-       }else{
+       } else {
          if(arg.valueRank >= 1 && var->arrayDimensionsSize != arg.arrayDimensionsSize)
             return UA_STATUSCODE_BADINVALIDARGUMENT;
          if(arg.arrayDimensionsSize >= 1) {
             if(arg.arrayDimensionsSize != var->arrayDimensionsSize)
                 return UA_STATUSCODE_BADINVALIDARGUMENT;
-            for(UA_Int32 i = 0; i < arg.arrayDimensionsSize; i++) {
-                if(arg.arrayDimensions[i] != (UA_UInt32) var->arrayDimensions[i])
+            for(size_t i = 0; i < arg.arrayDimensionsSize; i++) {
+                if(arg.arrayDimensions[i] != var->arrayDimensions[i])
                     return UA_STATUSCODE_BADINVALIDARGUMENT;
             }
          }

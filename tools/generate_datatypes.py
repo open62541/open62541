@@ -146,7 +146,7 @@ class BuiltinType(Type):
                 ".builtin = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
                 ".membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_BYTE, .namespaceZero = UA_TRUE, " + \
                 (".memberName = \"\", " if typeintrospection else "") + \
-                ".padding = offsetof(UA_String, data) - sizeof(size_t), .isArray = UA_TRUE }}, " + \
+                ".padding = 0, .isArray = UA_TRUE }}, " + \
                 ".typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
 
         if self.name == "UA_ExpandedNodeId":
@@ -259,7 +259,7 @@ class OpaqueType(Type):
             ".memSize = sizeof(" + self.name + "), .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
             ".builtin = UA_FALSE, .membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_BYTE," + \
             (".memberName = \"\", " if typeintrospection else "") + \
-            ".namespaceZero = UA_TRUE, .padding = offsetof(UA_String, data) - sizeof(size_t), .isArray = UA_TRUE }}, .typeIndex = %s}" % (outname.upper() + "_" + self.name[3:].upper())
+            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_TRUE }}, .typeIndex = %s}" % (outname.upper() + "_" + self.name[3:].upper())
 
 class StructMember(object):
     def __init__(self, name, memberType, isArray):
@@ -334,8 +334,11 @@ class StructType(Type):
                           ("UA_TRUE, " if args.namespace_id == 0 or member.memberType.name in existing_types else "UA_FALSE, ") + \
                           ".padding = "
 
+                if not member.isArray:
+                    thispos = "offsetof(%s, %s)" % (self.name, member.name)
+                else:
+                    thispos = "offsetof(%s, %sSize)" % (self.name, member.name)
                 before_endpos = "0"
-                thispos = "offsetof(%s, %s)" % (self.name, member.name)
                 if index > 0:
                     if sys.version_info[0] < 3:
                         before = self.members.values()[index-1]
@@ -346,15 +349,8 @@ class StructType(Type):
                         before_endpos += " + sizeof(void*))"
                     else:
                         before_endpos += " + sizeof(%s))" % before.memberType.name
-            
-                if member.isArray:
-                    # the first two bytes are padding for the length index, the last three for the pointer
-                    length_pos = "offsetof(%s, %sSize)" % (self.name, member.name)
-                    if index != 0:
-                        layout += "((%s - %s) << 3) + " % (length_pos, before_endpos)
-                    layout += "(%s - sizeof(size_t) - %s)" % (thispos, length_pos)
-                else:
-                    layout += "%s - %s" % (thispos, before_endpos)
+                layout += "%s - %s" % (thispos, before_endpos)
+
                 layout += ", .isArray = " + ("UA_TRUE" if member.isArray else "UA_FALSE") + " }, "
             layout += "}"
         return layout + "}"

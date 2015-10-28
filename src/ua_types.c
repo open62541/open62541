@@ -603,7 +603,7 @@ static UA_StatusCode UA_copyFixedSize(const void *src, void *dst, const UA_DataT
 }
 
 typedef UA_StatusCode (*UA_copySignature)(const void *src, void *dst, const UA_DataType *type);
-static const UA_copySignature copyJumpTable[UA_BUILTIN_TYPES_COUNT * 2] = {
+static const UA_copySignature copyJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
     (UA_copySignature)UA_copyFixedSize, // Boolean
     (UA_copySignature)UA_copyFixedSize, // SByte
     (UA_copySignature)UA_copyFixedSize, // Byte
@@ -629,32 +629,7 @@ static const UA_copySignature copyJumpTable[UA_BUILTIN_TYPES_COUNT * 2] = {
     (UA_copySignature)DataValue_copy,
     (UA_copySignature)variant_copy,
     (UA_copySignature)DiagnosticInfo_copy,
-    /* Only UA_copy from here on. Double the table size. */
     (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy,
-    (UA_copySignature)UA_copy
 };
 
 UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *type) {
@@ -672,18 +647,17 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *type) {
         if(!member->isArray) {
             ptrs += member->padding;
             ptrd += member->padding;
-            size_t func_index = (type->typeIndex % UA_BUILTIN_TYPES_COUNT) +
-                (!type->builtin * UA_BUILTIN_TYPES_COUNT);
-            retval |= copyJumpTable[func_index]((const void*)ptrs, (void*)ptrd, memberType);
+            size_t fi = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+            retval |= copyJumpTable[fi]((const void*)ptrs, (void*)ptrd, memberType);
             ptrs += memberType->memSize;
             ptrd += memberType->memSize;
         } else {
-            ptrs += (member->padding >> 3);
-            ptrd += (member->padding >> 3);
+            ptrs += member->padding;
+            ptrd += member->padding;
             size_t *dst_size = (size_t*)ptrd;
             const size_t size = *((const size_t*)ptrs);
-            ptrs += sizeof(size_t) + (member->padding & 0x07);
-            ptrd += sizeof(size_t) + (member->padding & 0x07);
+            ptrs += sizeof(size_t);
+            ptrd += sizeof(size_t);
             retval |= UA_Array_copy(*(void* const*)ptrs, size, (void**)ptrd, memberType);
             *dst_size = size;
             if(retval != UA_STATUSCODE_GOOD)
@@ -699,7 +673,7 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *type) {
 
 typedef void (*UA_deleteMembersSignature)(void *p, const UA_DataType *type);
 static void nopDeleteMembers(void *p, const UA_DataType *type) { }
-static const UA_deleteMembersSignature deleteMembersJumpTable[UA_BUILTIN_TYPES_COUNT * 2] = {
+static const UA_deleteMembersSignature deleteMembersJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
     (UA_deleteMembersSignature)nopDeleteMembers, // Boolean
     (UA_deleteMembersSignature)nopDeleteMembers, // SByte
     (UA_deleteMembersSignature)nopDeleteMembers, // Byte
@@ -725,37 +699,13 @@ static const UA_deleteMembersSignature deleteMembersJumpTable[UA_BUILTIN_TYPES_C
     (UA_deleteMembersSignature)DataValue_deleteMembers,
     (UA_deleteMembersSignature)variant_deleteMembers,
     (UA_deleteMembersSignature)DiagnosticInfo_deleteMembers,
-    /* Only UA_deleteMembers from here on. Double the table size. */
     (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers
 };
 
 void UA_deleteMembers(void *p, const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t)p;
-    for(size_t i = 0; i < type->membersSize; i++) {
+    UA_Byte membersSize = type->membersSize;
+    for(size_t i = 0; i < membersSize; i++) {
         const UA_DataTypeMember *member = &type->members[i];
         const UA_DataType *memberType;
         if(member->namespaceZero)
@@ -764,14 +714,13 @@ void UA_deleteMembers(void *p, const UA_DataType *type) {
             memberType = &type[member->memberTypeIndex - type->typeIndex];
         if(!member->isArray) {
             ptr += member->padding;
-            size_t func_index = (type->typeIndex % UA_BUILTIN_TYPES_COUNT) +
-                (!type->builtin * UA_BUILTIN_TYPES_COUNT);
-            deleteMembersJumpTable[func_index]((void*)ptr, memberType);
+            size_t fi = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+            deleteMembersJumpTable[fi]((void*)ptr, memberType);
             ptr += memberType->memSize;
         } else {
-            ptr += (member->padding >> 3);
+            ptr += member->padding;
             size_t length = *(size_t*)ptr;
-            ptr += sizeof(size_t) + (member->padding & 0x07);
+            ptr += sizeof(size_t);
             UA_Array_delete(*(void**)ptr, length, memberType);
             *(void**)ptr = NULL;
             ptr += sizeof(void*);
