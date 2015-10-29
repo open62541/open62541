@@ -891,7 +891,7 @@ UA_StatusCode UA_DiagnosticInfo_decodeBinary(UA_ByteString const *src, size_t *U
                                              UA_DiagnosticInfo *dst) {
     UA_DiagnosticInfo_init(dst);
     UA_StatusCode retval = UA_Byte_decodeBinary(src, offset, (UA_Byte*) dst);
-    if(!retval)
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if(dst->hasSymbolicId)
         retval |= UA_Int32_decodeBinary(src, offset, &dst->symbolicId);
