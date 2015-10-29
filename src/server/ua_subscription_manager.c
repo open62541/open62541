@@ -76,10 +76,10 @@ UA_Int32 SubscriptionManager_deleteMonitoredItem(UA_SubscriptionManager *manager
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     
-    UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
+    UA_MonitoredItem *mon, *tmp_mon;
+    LIST_FOREACH_SAFE(mon, &sub->MonitoredItems, listEntry, tmp_mon) {
         if (mon->itemId == monitoredItemID) {
-            // FIXME!! don't we need to remove the list entry?
+            LIST_REMOVE(mon, listEntry);
             MonitoredItem_delete(mon);
             return UA_STATUSCODE_GOOD;
         }
