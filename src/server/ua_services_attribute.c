@@ -181,7 +181,7 @@ static const UA_String binEncoding = {sizeof("DefaultBinary")-1, (UA_Byte*)"Defa
 /** Reads a single attribute from a node in the nodestore. */
 void Service_Read_single(UA_Server *server, UA_Session *session, const UA_TimestampsToReturn timestamps,
                          const UA_ReadValueId *id, UA_DataValue *v) {
-	if(!UA_String_equal(&binEncoding, &id->dataEncoding.name)) {
+	if(id->dataEncoding.name.length > 0 && !UA_String_equal(&binEncoding, &id->dataEncoding.name)) {
            v->hasStatus = UA_TRUE;
            v->status = UA_STATUSCODE_BADDATAENCODINGINVALID;
            return;

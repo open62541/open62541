@@ -169,16 +169,11 @@ UA_Guid UA_Guid_random(UA_UInt32 *seed) {
 }
 
 /* ByteString */
-UA_ByteString UA_ByteString_withSize(size_t length) {
-    UA_ByteString bs = UA_BYTESTRING_NULL;
-    if(length == 0) {
-        bs.data = UA_EMPTY_ARRAY_SENTINEL;
-        return bs;
-    }
-    if(!(bs.data = UA_malloc((UA_UInt32)length)))
-        return bs;
-    bs.length = length;
-    return bs;
+UA_StatusCode UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
+    if(!(bs->data = UA_malloc(length)))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    bs->length = length;
+    return UA_STATUSCODE_GOOD;
 }
 
 /* NodeId */

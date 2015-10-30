@@ -200,10 +200,7 @@ static UA_StatusCode
 ServerNetworkLayerGetSendBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
     if(length > connection->remoteConf.recvBufferSize)
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-    *buf = UA_ByteString_withSize(length);
-    if(buf->data == NULL)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    return UA_STATUSCODE_GOOD;
+    return UA_ByteString_allocBuffer(buf, length);
 }
 
 static void
@@ -459,10 +456,7 @@ ClientNetworkLayerGetBuffer(UA_Connection *connection, size_t length, UA_ByteStr
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     if(connection->state == UA_CONNECTION_CLOSED)
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
-    *buf = UA_ByteString_withSize(connection->remoteConf.recvBufferSize);
-    if(buf->data == NULL)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    return UA_STATUSCODE_GOOD;
+    return UA_ByteString_allocBuffer(buf, connection->remoteConf.recvBufferSize);
 }
 
 static void

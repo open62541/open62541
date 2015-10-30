@@ -61,10 +61,12 @@ int main(int argc, char** argv) {
     request.nodesToReadSize = 1;
     request.nodesToRead = &rvi;
 
-    UA_ByteString request_msg = UA_ByteString_withSize(1000);
-    UA_ByteString response_msg = UA_ByteString_withSize(1000);
-    size_t offset = 0;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_ByteString request_msg;
+    retval |= UA_ByteString_allocBuffer(&request_msg, 1000);
+    UA_ByteString response_msg;
+    retval |= UA_ByteString_allocBuffer(&response_msg, 1000);
+    size_t offset = 0;
     retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_READREQUEST], &request_msg, &offset);
     
     clock_t begin, end;

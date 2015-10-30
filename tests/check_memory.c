@@ -51,10 +51,11 @@ START_TEST(encodeShallYieldDecode) {
 	UA_ByteString msg1, msg2;
 	size_t pos = 0;
 	void *obj1 = UA_new(&UA_TYPES[_i]);
-	msg1 = UA_ByteString_withSize(65000); // fixed buf size
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, 65000); // fixed buf size
+	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     printf("%i\n", _i);
     fflush(stdout);
-    UA_StatusCode retval = UA_encodeBinary(obj1, &UA_TYPES[_i], &msg1, &pos);
+    retval = UA_encodeBinary(obj1, &UA_TYPES[_i], &msg1, &pos);
     msg1.length = pos;
 	if(retval != UA_STATUSCODE_GOOD) {
 		UA_delete(obj1, &UA_TYPES[_i]);
@@ -68,7 +69,8 @@ START_TEST(encodeShallYieldDecode) {
 	ck_assert_msg(retval == UA_STATUSCODE_GOOD, "could not decode idx=%d,nodeid=%i", _i, UA_TYPES[_i].typeId.identifier.numeric);
 	ck_assert(!memcmp(obj1, obj2, UA_TYPES[_i].memSize)); // bit identical decoding
     assert(!memcmp(obj1, obj2, UA_TYPES[_i].memSize));
-	msg2 = UA_ByteString_withSize(65000);
+	retval = UA_ByteString_allocBuffer(&msg2, 65000);
+	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	pos = 0; retval = UA_encodeBinary(obj2, &UA_TYPES[_i], &msg2, &pos);
     msg2.length = pos;
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
@@ -90,8 +92,8 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
 	UA_ByteString msg1;
 	void *obj1 = UA_new(&UA_TYPES[_i]);
 	size_t pos = 0;
-	msg1 = UA_ByteString_withSize(65000); // fixed buf size
-    UA_StatusCode retval = UA_encodeBinary(obj1, &UA_TYPES[_i], &msg1, &pos);
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, 65000); // fixed buf size
+    retval |= UA_encodeBinary(obj1, &UA_TYPES[_i], &msg1, &pos);
 	UA_delete(obj1, &UA_TYPES[_i]);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_deleteMembers(&msg1);
@@ -120,7 +122,7 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
 	UA_ByteString msg1;
 	UA_Int32 retval = UA_STATUSCODE_GOOD;
 	UA_Int32 buflen = 256;
-	msg1 = UA_ByteString_withSize(buflen); // fixed size
+	retval = UA_ByteString_allocBuffer(&msg1, buflen); // fixed size
 #ifdef _WIN32
 	srand(42);
 #else
@@ -153,7 +155,7 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
 	UA_ByteString msg1;
 	UA_Int32 retval = UA_STATUSCODE_GOOD;
 	UA_Int32 buflen = 256;
-	msg1 = UA_ByteString_withSize(buflen); // fixed size
+	retval = UA_ByteString_allocBuffer(&msg1, buflen); // fixed size
 #ifdef _WIN32
 	srand(42);
 #else

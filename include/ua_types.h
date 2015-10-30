@@ -37,68 +37,106 @@ extern "C" {
 
 #define UA_BUILTIN_TYPES_COUNT 25
 
-/** A two-state logical value (true or false). */
+/** Boolean: A two-state logical value (true or false) */
 typedef bool UA_Boolean;
 #define UA_TRUE true
 #define UA_FALSE false
 
-/** An integer value between -128 and 127. */
+/** SByte: An integer value between -128 and 127 */
 typedef int8_t UA_SByte;
 #define UA_SBYTE_MAX 127
 #define UA_SBYTE_MIN (-128)
 
-/** An integer value between 0 and 256. */
+/** Byte: An integer value between 0 and 256 */
 typedef uint8_t UA_Byte;
 #define UA_BYTE_MAX 256
 #define UA_BYTE_MIN 0
 
-/** An integer value between -32 768 and 32 767. */
+/** Int16: An integer value between -32 768 and 32 767 */
 typedef int16_t UA_Int16;
 #define UA_INT16_MAX 32767
 #define UA_INT16_MIN (-32768)
 
-/** An integer value between 0 and 65 535. */
+/** UInt16: An integer value between 0 and 65 535 */
 typedef uint16_t UA_UInt16;
 #define UA_UINT16_MAX 65535
 #define UA_UINT16_MIN 0
 
-/** An integer value between -2 147 483 648 and 2 147 483 647. */
+/** Int32: An integer value between -2 147 483 648 and 2 147 483 647 */
 typedef int32_t UA_Int32;
 #define UA_INT32_MAX 2147483647
 #define UA_INT32_MIN (-2147483648)
 
-/** An integer value between 0 and 429 4967 295. */
+/** UInt32: An integer value between 0 and 429 4967 295 */
 typedef uint32_t UA_UInt32;
 #define UA_UINT32_MAX 4294967295
 #define UA_UINT32_MIN 0
 
-/** An integer value between -10 223 372 036 854 775 808 and 9 223 372 036 854 775 807 */
+/** Int64: An integer value between -10 223 372 036 854 775 808 and 9 223 372 036 854 775 807 */
 typedef int64_t UA_Int64;
 #define UA_INT64_MAX (int64_t)9223372036854775807
 #define UA_INT64_MIN ((int64_t)-9223372036854775808)
 
-/** An integer value between 0 and 18 446 744 073 709 551 615. */
+/** UInt64: An integer value between 0 and 18 446 744 073 709 551 615 */
 typedef uint64_t UA_UInt64;
 #define UA_UINT64_MAX (int64_t)18446744073709551615
 #define UA_UINT64_MIN (int64_t)0
 
-/** An IEEE single precision (32 bit) floating point value. */
+/** Float: An IEEE single precision (32 bit) floating point value */
 typedef float UA_Float;
 
-/** An IEEE double precision (64 bit) floating point value. */
+/** Double: An IEEE double precision (64 bit) floating point value */
 typedef double UA_Double;
 
-/** A sequence of Unicode characters. */
+/********************************************/
+/* String: A sequence of Unicode characters */
+/********************************************/
 typedef struct {
     size_t length; ///< The length of the string
     UA_Byte *data; ///< The string's content (not null-terminated)
 } UA_String;
 
-/** An instance in time. A DateTime value is encoded as a 64-bit signed integer which represents the
-    number of 100 nanosecond intervals since January 1, 1601 (UTC). */
+UA_EXPORT extern const UA_String UA_STRING_NULL;
+
+static UA_INLINE UA_String UA_STRING(char *chars) {
+    UA_String str; str.length = strlen(chars);
+    str.data   = (UA_Byte*)chars; return str; }
+
+#define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
+    
+/** Copies the content on the heap. Returns a null-string when alloc fails */
+UA_String UA_EXPORT UA_String_fromChars(char const src[]) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+UA_Boolean UA_EXPORT UA_String_equal(const UA_String *s1, const UA_String *s2);
+
+/*********************************/
+/* DateTime: An instance in time */
+/*********************************/
+/* A DateTime value is encoded as a 64-bit signed integer which represents the
+   number of 100 nanosecond intervals since January 1, 1601 (UTC). */
 typedef UA_Int64 UA_DateTime;
 
-/** A 16 byte value that can be used as a globally unique identifier. */
+UA_DateTime UA_EXPORT UA_DateTime_now(void); ///> The current time
+
+typedef struct UA_DateTimeStruct {
+    UA_UInt16 nanoSec;
+    UA_UInt16 microSec;
+    UA_UInt16 milliSec;
+    UA_UInt16 sec;
+    UA_UInt16 min;
+    UA_UInt16 hour;
+    UA_UInt16 day;
+    UA_UInt16 month;
+    UA_UInt16 year;
+} UA_DateTimeStruct;
+
+UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime time);
+
+UA_String UA_EXPORT UA_DateTime_toString(UA_DateTime time);
+
+/**************************************************************************/
+/* Guid: A 16 byte value that can be used as a globally unique identifier */
+/**************************************************************************/
 typedef struct {
     UA_UInt32 data1;
     UA_UInt16 data2;
@@ -106,12 +144,39 @@ typedef struct {
     UA_Byte   data4[8];
 } UA_Guid;
 
-/** A sequence of octets. */
+UA_Boolean UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
+
+UA_Guid UA_EXPORT UA_Guid_random(UA_UInt32 *seed);
+
+/************************************/
+/* ByteString: A sequence of octets */
+/************************************/
 typedef UA_String UA_ByteString;
 
-/** An XML element. */
+static UA_INLINE UA_Boolean UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2) {
+    return UA_String_equal((const UA_String*)string1, (const UA_String*)string2); }
+
+/* Allocates memory of size length for the bytestring. The content is not set to zero. */
+UA_StatusCode UA_EXPORT UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
+
+static UA_INLINE UA_ByteString UA_BYTESTRING(char *chars) {
+    UA_ByteString str; str.length = strlen(chars); str.data = (UA_Byte*)chars; return str; }
+
+static UA_INLINE UA_ByteString UA_BYTESTRING_ALLOC(const char *chars) {
+    UA_String str = UA_String_fromChars(chars); UA_ByteString bstr;
+    bstr.length = str.length; bstr.data = str.data; return bstr;
+}
+
+/******************************/
+/* XmlElement: An XML element */
+/******************************/
 typedef UA_String UA_XmlElement;
 
+/*****************************************************************************/
+/* NodeId: An identifier for a node in the address space of an OPC UA Server */
+/*****************************************************************************/
 enum UA_NodeIdType {
     UA_NODEIDTYPE_NUMERIC    = 0, ///< On the wire, this can be 0,1,2 for numeric nodeids of different sizes
     UA_NODEIDTYPE_STRING     = 3,
@@ -119,8 +184,6 @@ enum UA_NodeIdType {
     UA_NODEIDTYPE_BYTESTRING = 5
 };
 
-/** An identifier for a node in the address space of an OPC UA Server. The shortened numeric types
-    are introduced during encoding. */
 typedef struct {
     UA_UInt16 namespaceIndex;
     enum UA_NodeIdType identifierType;
@@ -132,30 +195,110 @@ typedef struct {
     } identifier;
 } UA_NodeId;
 
-/** A NodeId that allows the namespace URI to be specified instead of an index. */
+static UA_INLINE UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
+    return (p->namespaceIndex == 0 && p->identifierType == UA_NODEIDTYPE_NUMERIC &&
+            p->identifier.numeric == 0);
+}
+
+UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
+
+UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
+
+static UA_INLINE UA_NodeId UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_Int32 identifier) {
+    UA_NodeId id; id.namespaceIndex = nsIndex; id.identifierType = UA_NODEIDTYPE_NUMERIC;
+    id.identifier.numeric = identifier; return id; }
+
+static UA_INLINE UA_NodeId UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars) {
+    UA_NodeId id; id.namespaceIndex = nsIndex; id.identifierType = UA_NODEIDTYPE_STRING;
+    id.identifier.string = UA_STRING(chars); return id; }
+
+static UA_INLINE UA_NodeId UA_NODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
+    UA_NodeId id; id.namespaceIndex = nsIndex; id.identifierType = UA_NODEIDTYPE_STRING;
+    id.identifier.string = UA_STRING_ALLOC(chars); return id; }
+
+static UA_INLINE UA_NodeId UA_NODEID_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
+    UA_NodeId id; id.namespaceIndex = nsIndex; id.identifierType = UA_NODEIDTYPE_GUID;
+    id.identifier.guid = guid; return id; }
+
+static UA_INLINE UA_NodeId UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
+    UA_NodeId id; id.namespaceIndex = nsIndex; id.identifierType = UA_NODEIDTYPE_BYTESTRING;
+    id.identifier.byteString = UA_BYTESTRING(chars); return id; }
+
+static UA_INLINE UA_NodeId UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
+    UA_NodeId id; id.namespaceIndex = nsIndex; id.identifierType = UA_NODEIDTYPE_BYTESTRING;
+    id.identifier.byteString = UA_BYTESTRING_ALLOC(chars); return id; }
+
+/**********************************************************************************************/
+/* ExpandedNodeId: A NodeId that allows the namespace URI to be specified instead of an index */
+/**********************************************************************************************/
 typedef struct {
     UA_NodeId nodeId;
     UA_String namespaceUri;
     UA_UInt32 serverIndex;
 } UA_ExpandedNodeId;
 
-/** A name qualified by a namespace. */
+static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_Int32 identifier) {
+    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_NUMERIC(nsIndex, identifier);
+    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id; }
+
+static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_STRING(UA_UInt16 nsIndex, char *chars) {
+    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_STRING(nsIndex, chars);
+    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id; }
+
+static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
+    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_STRING_ALLOC(nsIndex, chars);
+    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id; }
+
+static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_STRING_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
+    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_GUID(nsIndex, guid);
+    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id; }
+
+static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
+    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_BYTESTRING(nsIndex, chars);
+    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id; }
+
+static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
+    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_BYTESTRING_ALLOC(nsIndex, chars);
+    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id; }
+
+/**************************************************/
+/* QualifiedName: A name qualified by a namespace */
+/**************************************************/
 typedef struct {
     UA_UInt16 namespaceIndex; ///< The namespace index
     UA_String name; ///< The actual name
 } UA_QualifiedName;
 
-/** Human readable text with an optional locale identifier. */
+static UA_INLINE UA_QualifiedName UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars) {
+    UA_QualifiedName qn; qn.namespaceIndex = nsIndex; qn.name = UA_STRING(chars); return qn; }
+
+static UA_INLINE UA_QualifiedName UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, const char *chars) {
+    UA_QualifiedName qn; qn.namespaceIndex = nsIndex; qn.name = UA_STRING_ALLOC(chars); return qn; }
+
+/*************************************************************************/
+/* LocalizedText: Human readable text with an optional locale identifier */
+/*************************************************************************/
 typedef struct {
     UA_String locale; ///< The locale (e.g. "en-US")
     UA_String text; ///< The actual text
 } UA_LocalizedText;
 
+static UA_INLINE UA_LocalizedText UA_LOCALIZEDTEXT(char *locale, char *text) {
+    UA_LocalizedText lt; lt.locale = UA_STRING(locale);
+    lt.text = UA_STRING(text); return lt; }
+
+static UA_INLINE UA_LocalizedText UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text) {
+    UA_LocalizedText lt; lt.locale = UA_STRING_ALLOC(locale);
+    lt.text = UA_STRING_ALLOC(text); return lt; }
+
 /* Forward Declaration of UA_DataType */
 struct UA_DataType;
 typedef struct UA_DataType UA_DataType; 
 
-/** A structure that contains an application specific data type that may not be recognized by the receiver. */
+/********************************************************************************/
+/* ExtensionObject: A structure that contains an application specific data type */
+/* that may not be recognized by the receiver                                   */
+/********************************************************************************/
 typedef struct {
     enum {
         UA_EXTENSIONOBJECT_ENCODED_NOBODY     = 0,
@@ -176,28 +319,18 @@ typedef struct {
     } content;
 } UA_ExtensionObject;
 
-/* NumericRanges are used select a subset in a (multidimensional) variant array.
- * NumericRange has no official type structure in the standard. On the wire, it
- * only exists as an encoded string, such as "1:2,0:3,5". The colon separates
- * min/max index and the comma separates dimensions. A single value indicates a
- * range with a single element (min==max). */
-typedef struct {
-    size_t dimensionsSize;
-    struct UA_NumericRangeDimension {
-        UA_UInt32 min;
-        UA_UInt32 max;
-    } *dimensions;
-} UA_NumericRange;
+/*********************************************/
+/* Variant: Stores (arrays of) any data type */
+/*********************************************/
+ /* Variants either they provide a pointer to the data in memory, or functions
+    from which the data can be accessed. Variants are replaced together with
+    the data they store (exception: use a data source).
 
- /** Variants store (arrays of) any data type. Either they provide a pointer to the data in
- *   memory, or functions from which the data can be accessed. Variants are replaced together with
- *   the data they store (exception: use a data source).
- *
- * Variant semantics:
- *  - arrayLength == 0 && data == NULL: no existing data
- *  - arrayLength == 0 && data == 0x01: array of length 0
- *  - arrayLength == 0 && data > 0x01: scalar value
- *  - arrayLength > 0: array of the given length
+    Variant semantics:
+    - arrayLength == 0 && data == NULL: no existing data
+    - arrayLength == 0 && data == 0x01: array of length 0
+    - arrayLength == 0 && data > 0x01: scalar value
+    - arrayLength > 0: array of the given length
  */
 typedef struct {
     const UA_DataType *type; ///< The nodeid of the datatype
@@ -214,7 +347,116 @@ typedef struct {
     UA_UInt32 *arrayDimensions; ///< the length of each dimension of the data-array
 } UA_Variant;
 
-/** A data value with an associated status code and timestamps. */
+/**
+ * Returns true if the variant contains a scalar value. Note that empty variants contain an array of
+ * length -1 (undefined).
+ *
+ * @param v The variant
+ * @return Does the variant contain a scalar value.
+ */
+static UA_INLINE UA_Boolean UA_Variant_isScalar(const UA_Variant *v) {
+    return (v->arrayLength == 0 && v->data >= UA_EMPTY_ARRAY_SENTINEL); }
+    
+/**
+ * Set the variant to a scalar value that already resides in memory. The value takes on the
+ * lifecycle of the variant and is deleted with it.
+ *
+ * @param v The variant
+ * @param p A pointer to the value data
+ * @param type The datatype of the value in question
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
+UA_StatusCode UA_EXPORT UA_Variant_setScalar(UA_Variant *v, void * UA_RESTRICT p, const UA_DataType *type);
+
+/**
+ * Set the variant to a scalar value that is copied from an existing variable.
+ *
+ * @param v The variant
+ * @param p A pointer to the value data
+ * @param type The datatype of the value
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
+UA_StatusCode UA_EXPORT UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_DataType *type);
+
+/**
+ * Set the variant to an array that already resides in memory. The array takes on the lifecycle of
+ * the variant and is deleted with it.
+ *
+ * @param v The variant
+ * @param array A pointer to the array data
+ * @param arraySize The size of the array
+ * @param type The datatype of the array
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
+UA_StatusCode UA_EXPORT
+UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize, const UA_DataType *type);
+
+/**
+ * Set the variant to an array that is copied from an existing array.
+ *
+ * @param v The variant
+ * @param array A pointer to the array data
+ * @param arraySize The size of the array
+ * @param type The datatype of the array
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
+UA_StatusCode UA_EXPORT
+UA_Variant_setArrayCopy(UA_Variant *v, const void *array, size_t arraySize, const UA_DataType *type);
+
+/* NumericRanges are used select a subset in a (multidimensional) variant array.
+ * NumericRange has no official type structure in the standard. On the wire, it
+ * only exists as an encoded string, such as "1:2,0:3,5". The colon separates
+ * min/max index and the comma separates dimensions. A single value indicates a
+ * range with a single element (min==max). */
+typedef struct {
+    size_t dimensionsSize;
+    struct UA_NumericRangeDimension {
+        UA_UInt32 min;
+        UA_UInt32 max;
+    } *dimensions;
+} UA_NumericRange;
+
+/**
+ * Copy the variant, but use only a subset of the (multidimensional) array into a variant. Returns
+ * an error code if the variant is not an array or if the indicated range does not fit.
+ *
+ * @param src The source variant
+ * @param dst The target variant
+ * @param range The range of the copied data
+ * @return Returns UA_STATUSCODE_GOOD or an error code
+ */
+UA_StatusCode UA_EXPORT
+UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRange range);
+
+/**
+ * Insert a range of data into an existing variant. The data array can't be reused afterwards if it
+ * contains types without a fixed size (e.g. strings) since the members are moved into the variant
+ * and take on its lifecycle.
+ *
+ * @param v The variant
+ * @param dataArray The data array. The type must match the variant
+ * @param dataArraySize The length of the data array. This is checked to match the range size.
+ * @param range The range of where the new data is inserted
+ * @return Returns UA_STATUSCODE_GOOD or an error code
+ */
+UA_StatusCode UA_EXPORT
+UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize, const UA_NumericRange range);
+
+/**
+ * Deep-copy a range of data into an existing variant.
+ *
+ * @param v The variant
+ * @param dataArray The data array. The type must match the variant
+ * @param dataArraySize The length of the data array. This is checked to match the range size.
+ * @param range The range of where the new data is inserted
+ * @return Returns UA_STATUSCODE_GOOD or an error code
+ */
+UA_StatusCode UA_EXPORT
+UA_Variant_setRangeCopy(UA_Variant *v, const void *array, size_t arraySize, const UA_NumericRange range);
+
+/**************************************************************************/
+/* DataValue: A data value with an associated status code and timestamps. */
+/**************************************************************************/
 typedef struct {
     UA_Boolean    hasValue             : 1;
     UA_Boolean    hasStatus            : 1;
@@ -230,7 +472,10 @@ typedef struct {
     UA_Int16      serverPicoseconds;
 } UA_DataValue;
 
-/** A structure that contains detailed error and diagnostic information associated with a StatusCode. */
+/***************************************************************************/
+/* DiagnosticInfo: A structure that contains detailed error and diagnostic */
+/* information associated with a StatusCode.                               */
+/***************************************************************************/
 typedef struct UA_DiagnosticInfo {
     UA_Boolean    hasSymbolicId          : 1;
     UA_Boolean    hasNamespaceUri        : 1;
@@ -365,304 +610,6 @@ UA_Array_copy(const void *src, size_t src_size, void **dst,
  * @param type The datatype of the array members
  */
 void UA_EXPORT UA_Array_delete(void *p, size_t size, const UA_DataType *type);
-
-
-/**********/
-/* String */
-/**********/
-UA_EXPORT extern const UA_String UA_STRING_NULL;
-
-static UA_INLINE UA_String UA_STRING(char *chars) {
-    UA_String str;
-    str.length = strlen(chars);
-    str.data   = (UA_Byte*)chars;
-    return str; }
-
-#define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
-    
-/** Copies the content on the heap. Returns a null-string when alloc fails */
-UA_String UA_EXPORT UA_String_fromChars(char const src[]);
-
-UA_Boolean UA_EXPORT UA_String_equal(const UA_String *s1, const UA_String *s2);
-
-/************/
-/* DateTime */
-/************/
-UA_DateTime UA_EXPORT UA_DateTime_now(void); ///> The current time
-
-typedef struct UA_DateTimeStruct {
-    UA_UInt16 nanoSec;
-    UA_UInt16 microSec;
-    UA_UInt16 milliSec;
-    UA_UInt16 sec;
-    UA_UInt16 min;
-    UA_UInt16 hour;
-    UA_UInt16 day;
-    UA_UInt16 month;
-    UA_UInt16 year;
-} UA_DateTimeStruct;
-
-UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime time);
-
-UA_String UA_EXPORT UA_DateTime_toString(UA_DateTime time);
-
-/********/
-/* Guid */
-/********/
-UA_Boolean UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
-
-UA_Guid UA_EXPORT UA_Guid_random(UA_UInt32 *seed);
-
-/**************/
-/* ByteString */
-/**************/
-static UA_INLINE UA_Boolean UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2) {
-    return UA_String_equal((const UA_String*)string1, (const UA_String*)string2); }
-
-/* Allocates memory of size length for the bytestring. The content is not set to zero. */
-UA_ByteString UA_EXPORT UA_ByteString_withSize(size_t length);
-
-UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
-
-static UA_INLINE UA_ByteString UA_BYTESTRING(char *chars) {
-    UA_ByteString str;
-    str.length = strlen(chars);
-    str.data   = (UA_Byte*)chars;
-    return str; }
-
-static UA_INLINE UA_ByteString UA_BYTESTRING_ALLOC(const char *chars) {
-    UA_String str = UA_String_fromChars(chars);
-    UA_ByteString bstr;
-    bstr.length = str.length;
-    bstr.data   = str.data;
-    return bstr;
-}
-
-/**********/
-/* NodeId */
-/**********/
-static UA_INLINE UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
-    return (p->namespaceIndex == 0 && p->identifierType == UA_NODEIDTYPE_NUMERIC &&
-            p->identifier.numeric == 0);
-}
-
-UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
-
-UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
-
-static UA_INLINE UA_NodeId UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_Int32 identifier) {
-    UA_NodeId id;
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_NUMERIC;
-    id.identifier.numeric = identifier;
-    return id; }
-
-static UA_INLINE UA_NodeId UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars) {
-    UA_NodeId id;
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_STRING;
-    id.identifier.string = UA_STRING(chars);
-    return id; }
-
-static UA_INLINE UA_NodeId UA_NODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
-    UA_NodeId id;
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_STRING;
-    id.identifier.string = UA_STRING_ALLOC(chars);
-    return id; }
-
-static UA_INLINE UA_NodeId UA_NODEID_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
-    UA_NodeId id;
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_GUID;
-    id.identifier.guid = guid;
-    return id; }
-
-static UA_INLINE UA_NodeId UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
-    UA_NodeId id;
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_BYTESTRING;
-    id.identifier.byteString = UA_BYTESTRING(chars);
-    return id; }
-
-static UA_INLINE UA_NodeId UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
-    UA_NodeId id;
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_BYTESTRING;
-    id.identifier.byteString = UA_BYTESTRING_ALLOC(chars);
-    return id; }
-
-/******************/
-/* ExpandedNodeId */
-/******************/
-static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_Int32 identifier) {
-    UA_ExpandedNodeId id;
-    id.nodeId       = UA_NODEID_NUMERIC(nsIndex, identifier);
-    id.serverIndex  = 0;
-    id.namespaceUri = UA_STRING_NULL;
-    return id; }
-
-static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_STRING(UA_UInt16 nsIndex, char *chars) {
-    UA_ExpandedNodeId id;
-    id.nodeId       = UA_NODEID_STRING(nsIndex, chars);
-    id.serverIndex  = 0;
-    id.namespaceUri = UA_STRING_NULL;
-    return id; }
-
-static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
-    UA_ExpandedNodeId id;
-    id.nodeId       = UA_NODEID_STRING_ALLOC(nsIndex, chars);
-    id.serverIndex  = 0;
-    id.namespaceUri = UA_STRING_NULL;
-    return id; }
-
-static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_STRING_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
-    UA_ExpandedNodeId id;
-    id.nodeId       = UA_NODEID_GUID(nsIndex, guid);
-    id.serverIndex  = 0;
-    id.namespaceUri = UA_STRING_NULL;
-    return id; }
-
-static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
-    UA_ExpandedNodeId id;
-    id.nodeId       = UA_NODEID_BYTESTRING(nsIndex, chars);
-    id.serverIndex  = 0;
-    id.namespaceUri = UA_STRING_NULL;
-    return id; }
-
-static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
-    UA_ExpandedNodeId id;
-    id.nodeId       = UA_NODEID_BYTESTRING_ALLOC(nsIndex, chars);
-    id.serverIndex  = 0;
-    id.namespaceUri = UA_STRING_NULL;
-    return id; }
-
-/*****************/
-/* QualifiedName */
-/*****************/
-static UA_INLINE UA_QualifiedName UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars) {
-    UA_QualifiedName qn;
-    qn.namespaceIndex = nsIndex;
-    qn.name           = UA_STRING(chars);
-    return qn; }
-
-static UA_INLINE UA_QualifiedName UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, const char *chars) {
-    UA_QualifiedName qn;
-    qn.namespaceIndex = nsIndex;
-    qn.name           = UA_STRING_ALLOC(chars);
-    return qn; }
-
-/*****************/
-/* LocalizedText */
-/*****************/
-static UA_INLINE UA_LocalizedText UA_LOCALIZEDTEXT(char *locale, char *text) {
-    UA_LocalizedText lt;
-    lt.locale = UA_STRING(locale);
-    lt.text   = UA_STRING(text);
-    return lt; }
-
-static UA_INLINE UA_LocalizedText UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text) {
-    UA_LocalizedText lt;
-    lt.locale = UA_STRING_ALLOC(locale);
-    lt.text   = UA_STRING_ALLOC(text);
-    return lt; }
-
-/***********/
-/* Variant */
-/***********/
-/**
- * Returns true if the variant contains a scalar value. Note that empty variants contain an array of
- * length -1 (undefined).
- *
- * @param v The variant
- * @return Does the variant contain a scalar value.
- */
-static UA_INLINE UA_Boolean UA_Variant_isScalar(const UA_Variant *v) {
-    return (v->arrayLength == 0 && v->data >= UA_EMPTY_ARRAY_SENTINEL); }
-    
-/**
- * Set the variant to a scalar value that already resides in memory. The value takes on the
- * lifecycle of the variant and is deleted with it.
- *
- * @param v The variant
- * @param p A pointer to the value data
- * @param type The datatype of the value in question
- * @return Indicates whether the operation succeeded or returns an error code
- */
-UA_StatusCode UA_EXPORT UA_Variant_setScalar(UA_Variant *v, void * UA_RESTRICT p, const UA_DataType *type);
-
-/**
- * Set the variant to a scalar value that is copied from an existing variable.
- *
- * @param v The variant
- * @param p A pointer to the value data
- * @param type The datatype of the value
- * @return Indicates whether the operation succeeded or returns an error code
- */
-UA_StatusCode UA_EXPORT UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_DataType *type);
-
-/**
- * Set the variant to an array that already resides in memory. The array takes on the lifecycle of
- * the variant and is deleted with it.
- *
- * @param v The variant
- * @param array A pointer to the array data
- * @param arraySize The size of the array
- * @param type The datatype of the array
- * @return Indicates whether the operation succeeded or returns an error code
- */
-UA_StatusCode UA_EXPORT
-UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize, const UA_DataType *type);
-
-/**
- * Set the variant to an array that is copied from an existing array.
- *
- * @param v The variant
- * @param array A pointer to the array data
- * @param arraySize The size of the array
- * @param type The datatype of the array
- * @return Indicates whether the operation succeeded or returns an error code
- */
-UA_StatusCode UA_EXPORT
-UA_Variant_setArrayCopy(UA_Variant *v, const void *array, size_t arraySize, const UA_DataType *type);
-
-/**
- * Copy the variant, but use only a subset of the (multidimensional) array into a variant. Returns
- * an error code if the variant is not an array or if the indicated range does not fit.
- *
- * @param src The source variant
- * @param dst The target variant
- * @param range The range of the copied data
- * @return Returns UA_STATUSCODE_GOOD or an error code
- */
-UA_StatusCode UA_EXPORT
-UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRange range);
-
-/**
- * Insert a range of data into an existing variant. The data array can't be reused afterwards if it
- * contains types without a fixed size (e.g. strings) since the members are moved into the variant
- * and take on its lifecycle.
- *
- * @param v The variant
- * @param dataArray The data array. The type must match the variant
- * @param dataArraySize The length of the data array. This is checked to match the range size.
- * @param range The range of where the new data is inserted
- * @return Returns UA_STATUSCODE_GOOD or an error code
- */
-UA_StatusCode UA_EXPORT
-UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize, const UA_NumericRange range);
-
-/**
- * Deep-copy a range of data into an existing variant.
- *
- * @param v The variant
- * @param dataArray The data array. The type must match the variant
- * @param dataArraySize The length of the data array. This is checked to match the range size.
- * @param range The range of where the new data is inserted
- * @return Returns UA_STATUSCODE_GOOD or an error code
- */
-UA_StatusCode UA_EXPORT
-UA_Variant_setRangeCopy(UA_Variant *v, const void *array, size_t arraySize, const UA_NumericRange range);
 
 /**********************/
 /* Node Attribute Ids */
