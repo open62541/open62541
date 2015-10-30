@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
     UA_ReadRequest rq;
     UA_ReadResponse rr;
 
-    for(int i = 0; i < 600000; i++) {
+    for(int i = 0; i < 800000; i++) {
         UA_ReadRequest_init(&rq);
         UA_ReadResponse_init(&rr);
 

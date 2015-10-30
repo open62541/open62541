@@ -30,35 +30,41 @@ static UA_StatusCode UA_Node_copy(const UA_Node *src, UA_Node *dst) {
 	return retval;
 }
 
-void UA_Node_deleteAnyNodeClass(UA_Node *node) {
+
+void UA_Node_deleteMembersAnyNodeClass(UA_Node *node) {
     switch(node->nodeClass) {
     case UA_NODECLASS_OBJECT:
-        UA_ObjectNode_delete((UA_ObjectNode*)node);
+        UA_ObjectNode_deleteMembers((UA_ObjectNode*)node);
         break;
     case UA_NODECLASS_VARIABLE:
-        UA_VariableNode_delete((UA_VariableNode*)node);
+        UA_VariableNode_deleteMembers((UA_VariableNode*)node);
         break;
     case UA_NODECLASS_METHOD:
-        UA_MethodNode_delete((UA_MethodNode*)node);
+        UA_MethodNode_deleteMembers((UA_MethodNode*)node);
         break;
     case UA_NODECLASS_OBJECTTYPE:
-        UA_ObjectTypeNode_delete((UA_ObjectTypeNode*)node);
+        UA_ObjectTypeNode_deleteMembers((UA_ObjectTypeNode*)node);
         break;
     case UA_NODECLASS_VARIABLETYPE:
-        UA_VariableTypeNode_delete((UA_VariableTypeNode*)node);
+        UA_VariableTypeNode_deleteMembers((UA_VariableTypeNode*)node);
         break;
     case UA_NODECLASS_REFERENCETYPE:
-        UA_ReferenceTypeNode_delete((UA_ReferenceTypeNode*)node);
+        UA_ReferenceTypeNode_deleteMembers((UA_ReferenceTypeNode*)node);
         break;
     case UA_NODECLASS_DATATYPE:
-        UA_DataTypeNode_delete((UA_DataTypeNode*)node);
+        UA_DataTypeNode_deleteMembers((UA_DataTypeNode*)node);
         break;
     case UA_NODECLASS_VIEW:
-        UA_ViewNode_delete((UA_ViewNode*)node);
+        UA_ViewNode_deleteMembers((UA_ViewNode*)node);
         break;
     default:
         break;
     }
+}
+
+void UA_Node_deleteAnyNodeClass(UA_Node *node) {
+    UA_Node_deleteMembersAnyNodeClass(node);
+    UA_free(node);
 }
 
 typedef UA_Node *(*UA_NewNodeFunction)(void);
