@@ -1035,7 +1035,7 @@ DiagnosticInfo_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset
                             UA_DiagnosticInfo *dst, const UA_DataType *_) {
     UA_DiagnosticInfo_init(dst);
     UA_StatusCode retval = Byte_decodeBinary(src, offset, (UA_Byte*) dst, NULL);
-    if(!retval)
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if(dst->hasSymbolicId)
         retval |= Int32_decodeBinary(src, offset, &dst->symbolicId, NULL);
