@@ -639,15 +639,12 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *type) {
     UA_Byte membersSize = type->membersSize;
     for(size_t i = 0; i < membersSize; i++) {
         const UA_DataTypeMember *member = &type->members[i];
-        const UA_DataType *memberType;
-        if(member->namespaceZero)
-            memberType = &UA_TYPES[member->memberTypeIndex];
-        else
-            memberType = &type[member->memberTypeIndex - type->typeIndex];
+        const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
+        const UA_DataType *memberType = &typelists[!member->namespaceZero][member->memberTypeIndex];
         if(!member->isArray) {
             ptrs += member->padding;
             ptrd += member->padding;
-            size_t fi = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+            size_t fi = memberType->builtin ? memberType->typeIndex : UA_BUILTIN_TYPES_COUNT;
             retval |= copyJumpTable[fi]((const void*)ptrs, (void*)ptrd, memberType);
             ptrs += memberType->memSize;
             ptrd += memberType->memSize;
@@ -707,14 +704,11 @@ void UA_deleteMembers(void *p, const UA_DataType *type) {
     UA_Byte membersSize = type->membersSize;
     for(size_t i = 0; i < membersSize; i++) {
         const UA_DataTypeMember *member = &type->members[i];
-        const UA_DataType *memberType;
-        if(member->namespaceZero)
-            memberType = &UA_TYPES[member->memberTypeIndex];
-        else
-            memberType = &type[member->memberTypeIndex - type->typeIndex];
+        const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
+        const UA_DataType *memberType = &typelists[!member->namespaceZero][member->memberTypeIndex];
         if(!member->isArray) {
             ptr += member->padding;
-            size_t fi = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+            size_t fi = memberType->builtin ? memberType->typeIndex : UA_BUILTIN_TYPES_COUNT;
             deleteMembersJumpTable[fi]((void*)ptr, memberType);
             ptr += memberType->memSize;
         } else {

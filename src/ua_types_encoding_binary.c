@@ -444,6 +444,51 @@ Array_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, UA_Int3
 /* Builtin Types */
 /*****************/
 
+static UA_StatusCode
+String_encodeBinary(UA_String const *src, const UA_DataType *dummy,
+                    UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    if(*offset + src->length > dst->length)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    UA_StatusCode retval;
+    if((void*)src->data <= UA_EMPTY_ARRAY_SENTINEL) {
+        UA_Int32 signed_length = -1;
+        if(src->data == UA_EMPTY_ARRAY_SENTINEL)
+            signed_length = 0;
+        retval = Int32_encodeBinary(&signed_length, NULL, dst, offset);
+    } else {
+        UA_Int32 signed_length = src->length;
+        retval = Int32_encodeBinary(&signed_length, NULL, dst, offset);
+        memcpy(&dst->data[*offset], src->data, src->length);
+        *offset += src->length;
+    }
+    return retval;
+}
+
+static UA_StatusCode
+String_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
+                    UA_String *dst, const UA_DataType *dummy) {
+    UA_String_init(dst);
+    UA_Int32 signed_length;
+    UA_StatusCode retval = Int32_decodeBinary(src, offset, &signed_length, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(signed_length <= 0) {
+        if(signed_length == 0)
+            dst->data = UA_EMPTY_ARRAY_SENTINEL;
+        else
+            dst->data = NULL;
+        return UA_STATUSCODE_GOOD;
+    }
+    if(*offset + (size_t)signed_length > src->length)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    if(!(dst->data = UA_malloc(signed_length)))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    memcpy(dst->data, &src->data[*offset], signed_length);
+    dst->length = signed_length;
+    *offset += signed_length;
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Guid */
 static UA_StatusCode
 Guid_encodeBinary(UA_Guid const *src, const UA_DataType *dummy,
@@ -533,6 +578,7 @@ NodeId_encodeBinary(UA_NodeId const *src, const UA_DataType *dummy,
 static UA_StatusCode
 NodeId_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
                     UA_NodeId *dst, const UA_DataType *dummy) {
+    UA_NodeId_init(dst);
     /* temporary variables to overcome decoder's non-endian-saveness for
        datatypes with different length */
     UA_Byte dstByte = 0, encodingByte = 0;
@@ -699,6 +745,7 @@ ExtensionObject_encodeBinary(UA_ExtensionObject const *src, const UA_DataType *d
 static UA_StatusCode
 ExtensionObject_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
                              UA_ExtensionObject *dst, const UA_DataType *dummy) {
+    UA_ExtensionObject_init(dst);
     UA_Byte encoding = 0;
     UA_NodeId typeId;
     UA_StatusCode retval = NodeId_decodeBinary(src, offset, &typeId, NULL);
@@ -1031,11 +1078,11 @@ static const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COU
     (UA_encodeBinarySignature)UInt64_encodeBinary, 
     (UA_encodeBinarySignature)Float_encodeBinary, 
     (UA_encodeBinarySignature)Double_encodeBinary, 
-    (UA_encodeBinarySignature)UA_encodeBinary, // String
+    (UA_encodeBinarySignature)String_encodeBinary,
     (UA_encodeBinarySignature)UInt64_encodeBinary, // DateTime 
     (UA_encodeBinarySignature)Guid_encodeBinary, 
-    (UA_encodeBinarySignature)UA_encodeBinary, // ByteString
-    (UA_encodeBinarySignature)UA_encodeBinary, // XmlElement
+    (UA_encodeBinarySignature)String_encodeBinary, // ByteString
+    (UA_encodeBinarySignature)String_encodeBinary, // XmlElement
     (UA_encodeBinarySignature)NodeId_encodeBinary,
     (UA_encodeBinarySignature)ExpandedNodeId_encodeBinary,
     (UA_encodeBinarySignature)UInt32_encodeBinary, // StatusCode
@@ -1060,7 +1107,7 @@ UA_encodeBinary(const void *src, const UA_DataType *type,
         const UA_DataType *memberType = &typelists[!member->namespaceZero][member->memberTypeIndex];
         if(!member->isArray) {
             ptr += member->padding;
-            size_t fi = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+            size_t fi = memberType->builtin ? memberType->typeIndex : UA_BUILTIN_TYPES_COUNT;
             retval |= encodeBinaryJumpTable[fi]((const void*)ptr, memberType, dst, offset);
             ptr += memberType->memSize;
         } else {
@@ -1074,7 +1121,8 @@ UA_encodeBinary(const void *src, const UA_DataType *type,
     return retval;
 }
 
-typedef UA_StatusCode (*UA_decodeBinarySignature) (const UA_ByteString *src, size_t *UA_RESTRICT offset, void *dst);
+typedef UA_StatusCode (*UA_decodeBinarySignature) (const UA_ByteString *src, size_t *UA_RESTRICT offset,
+                                                   void *dst, const UA_DataType*);
 static const UA_decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
     (UA_decodeBinarySignature)Boolean_decodeBinary, 
     (UA_decodeBinarySignature)Byte_decodeBinary, // SByte
@@ -1087,11 +1135,11 @@ static const UA_decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COU
     (UA_decodeBinarySignature)UInt64_decodeBinary, 
     (UA_decodeBinarySignature)Float_decodeBinary, 
     (UA_decodeBinarySignature)Double_decodeBinary, 
-    (UA_decodeBinarySignature)UA_decodeBinary, // String
+    (UA_decodeBinarySignature)String_decodeBinary,
     (UA_decodeBinarySignature)UInt64_decodeBinary, // DateTime 
     (UA_decodeBinarySignature)Guid_decodeBinary, 
-    (UA_decodeBinarySignature)UA_decodeBinary, // ByteString
-    (UA_decodeBinarySignature)UA_decodeBinary, // XmlElement
+    (UA_decodeBinarySignature)String_decodeBinary, // ByteString
+    (UA_decodeBinarySignature)String_decodeBinary, // XmlElement
     (UA_decodeBinarySignature)NodeId_decodeBinary,
     (UA_decodeBinarySignature)ExpandedNodeId_decodeBinary,
     (UA_decodeBinarySignature)UInt32_decodeBinary, // StatusCode
@@ -1114,14 +1162,10 @@ UA_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset,
         const UA_DataTypeMember *member = &type->members[i];
         const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
         const UA_DataType *memberType = &typelists[!member->namespaceZero][member->memberTypeIndex];
-        /* if(member->namespaceZero) */
-        /*     memberType = &UA_TYPES[member->memberTypeIndex]; */
-        /* else */
-        /*     memberType = &type[member->memberTypeIndex - type->typeIndex]; */
         if(!member->isArray) {
             ptr += member->padding;
-            size_t fi = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
-            retval |= decodeBinaryJumpTable[fi](src, offset, (void*)ptr);
+            size_t fi = memberType->builtin ? memberType->typeIndex : UA_BUILTIN_TYPES_COUNT;
+            retval |= decodeBinaryJumpTable[fi](src, offset, (void*)ptr, memberType);
             ptr += memberType->memSize;
         } else {
             ptr += member->padding;

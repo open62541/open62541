@@ -52,6 +52,8 @@ START_TEST(encodeShallYieldDecode) {
 	size_t pos = 0;
 	void *obj1 = UA_new(&UA_TYPES[_i]);
 	msg1 = UA_ByteString_withSize(65000); // fixed buf size
+    printf("%i\n", _i);
+    fflush(stdout);
     UA_StatusCode retval = UA_encodeBinary(obj1, &UA_TYPES[_i], &msg1, &pos);
     msg1.length = pos;
 	if(retval != UA_STATUSCODE_GOOD) {
@@ -64,7 +66,7 @@ START_TEST(encodeShallYieldDecode) {
 	void *obj2 = UA_new(&UA_TYPES[_i]);
 	pos = 0; retval = UA_decodeBinary(&msg1, &pos, obj2, &UA_TYPES[_i]);
 	ck_assert_msg(retval == UA_STATUSCODE_GOOD, "could not decode idx=%d,nodeid=%i", _i, UA_TYPES[_i].typeId.identifier.numeric);
-	ck_assert_msg(!memcmp(obj1, obj2, UA_TYPES[_i].memSize), "Decoded structure is not bit-identical idx=%d,nodeid=%i", _i, UA_TYPES[_i].typeId.identifier.numeric);
+	ck_assert(!memcmp(obj1, obj2, UA_TYPES[_i].memSize)); // bit identical decoding
     assert(!memcmp(obj1, obj2, UA_TYPES[_i].memSize));
 	msg2 = UA_ByteString_withSize(65000);
 	pos = 0; retval = UA_encodeBinary(obj2, &UA_TYPES[_i], &msg2, &pos);
