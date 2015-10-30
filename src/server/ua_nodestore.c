@@ -2,7 +2,7 @@
 #include "ua_util.h"
 #include "ua_statuscodes.h"
 
-#define UA_NODESTORE_MINSIZE 128
+#define UA_NODESTORE_MINSIZE 64
 
 typedef struct {
     UA_Boolean taken;
