@@ -727,7 +727,7 @@ void UA_delete(void *p, const UA_DataType *type) {
 /******************/
 
 void * UA_Array_new(size_t size, const UA_DataType *type) {
-    if(type->memSize * size > MAX_ARRAY_SIZE )
+    if(size > MAX_ARRAY_SIZE || type->memSize * size > MAX_ARRAY_SIZE)
         return NULL;
     if(size == 0)
         return UA_EMPTY_ARRAY_SENTINEL;
@@ -743,6 +743,9 @@ UA_Array_copy(const void *src, size_t src_size, void **dst, const UA_DataType *t
             *dst= UA_EMPTY_ARRAY_SENTINEL;
         return UA_STATUSCODE_GOOD;
     }
+
+    if(src_size > MAX_ARRAY_SIZE || type->memSize * src_size > MAX_ARRAY_SIZE)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* calloc, so we don't have to check retval in every iteration of copying */
     *dst = UA_calloc(src_size, type->memSize);

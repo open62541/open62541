@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
     /* add the method node with the callback */
     UA_Argument inputArguments;
     UA_Argument_init(&inputArguments);
-    inputArguments.arrayDimensionsSize = -1;
+    inputArguments.arrayDimensionsSize = 0;
     inputArguments.arrayDimensions = NULL;
     inputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
     inputArguments.description = UA_LOCALIZEDTEXT("en_US", "A String");
@@ -69,7 +69,7 @@ int main(int argc, char** argv) {
 
     UA_Argument outputArguments;
     UA_Argument_init(&outputArguments);
-    outputArguments.arrayDimensionsSize = -1;
+    outputArguments.arrayDimensionsSize = 0;
     outputArguments.arrayDimensions = NULL;
     outputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
     outputArguments.description = UA_LOCALIZEDTEXT("en_US", "A String");
