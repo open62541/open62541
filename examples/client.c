@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
                             UA_NODEID_NUMERIC(1, 62541), 1, &input, &outputSize, &output);
     if(retval == UA_STATUSCODE_GOOD) {
         printf("Method call was successfull, and %i returned values available.\n", outputSize);
-        UA_Array_delete(output, &UA_TYPES[UA_TYPES_VARIANT], outputSize);
+        UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
     } else {
         printf("Method call was unsuccessfull, and %x returned values available.\n", retval);
     }
