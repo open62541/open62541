@@ -245,7 +245,7 @@ static void ExtensionObject_deleteMembers(UA_ExtensionObject *p, const UA_DataTy
     case UA_EXTENSIONOBJECT_DECODED:
         if(!p->content.decoded.data)
             break;
-        UA_deleteMembers(p->content.decoded.data, p->content.decoded.type);
+        UA_delete(p->content.decoded.data, p->content.decoded.type);
         p->content.decoded.data = NULL;
         p->content.decoded.type = NULL;
         break;
@@ -709,6 +709,7 @@ void UA_deleteMembers(void *p, const UA_DataType *type) {
         } else {
             ptr += member->padding;
             size_t length = *(size_t*)ptr;
+            *(size_t*)ptr = 0;
             ptr += sizeof(size_t);
             UA_Array_delete(*(void**)ptr, length, memberType);
             *(void**)ptr = NULL;
@@ -727,7 +728,7 @@ void UA_delete(void *p, const UA_DataType *type) {
 /******************/
 
 void * UA_Array_new(size_t size, const UA_DataType *type) {
-    if(type->memSize * size > MAX_ARRAY_SIZE )
+    if(size > MAX_ARRAY_SIZE || type->memSize * size > MAX_ARRAY_SIZE)
         return NULL;
     if(size == 0)
         return UA_EMPTY_ARRAY_SENTINEL;
@@ -743,6 +744,9 @@ UA_Array_copy(const void *src, size_t src_size, void **dst, const UA_DataType *t
             *dst= UA_EMPTY_ARRAY_SENTINEL;
         return UA_STATUSCODE_GOOD;
     }
+
+    if(src_size > MAX_ARRAY_SIZE || type->memSize * src_size > MAX_ARRAY_SIZE)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* calloc, so we don't have to check retval in every iteration of copying */
     *dst = UA_calloc(src_size, type->memSize);
@@ -762,8 +766,10 @@ UA_Array_copy(const void *src, size_t src_size, void **dst, const UA_DataType *t
         ptrs += type->memSize;
         ptrd += type->memSize;
     }
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_Array_delete(dst, src_size, type);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Array_delete(*dst, src_size, type);
+        *dst = NULL;
+    }
     return retval;
 }
 
