@@ -119,14 +119,14 @@ void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
         return;
     }
 
-    response->results = UA_Array_new(&UA_TYPES[UA_TYPES_MONITOREDITEMCREATERESULT], request->itemsToCreateSize);
+    response->results = UA_Array_new(request->itemsToCreateSize, &UA_TYPES[UA_TYPES_MONITOREDITEMCREATERESULT]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
     response->resultsSize = request->itemsToCreateSize;
 
-    for(UA_Int32 i = 0; i<request->itemsToCreateSize; i++)
+    for(size_t i = 0; i < request->itemsToCreateSize; i++)
         createMonitoredItems(server, session, sub, &request->itemsToCreate[i], &response->results[i]);
 }
 
@@ -139,7 +139,7 @@ void Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishReq
     // Delete Acknowledged Subscription Messages
     response->resultsSize = request->subscriptionAcknowledgementsSize;
     response->results     = UA_malloc(sizeof(UA_StatusCode)*(response->resultsSize));
-    for(UA_Int32 i = 0; i < request->subscriptionAcknowledgementsSize; i++) {
+    for(size_t i = 0; i < request->subscriptionAcknowledgementsSize; i++) {
         response->results[i] = UA_STATUSCODE_GOOD;
         UA_Subscription *sub =
             SubscriptionManager_getSubscriptionByID(&session->subscriptionManager,
@@ -248,9 +248,10 @@ void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->subscriptionIdsSize;
 
-    for(UA_Int32 i = 0; i < request->subscriptionIdsSize; i++)
-        response->results[i] = SubscriptionManager_deleteSubscription(server, &session->subscriptionManager,
-                                                                      request->subscriptionIds[i]);
+    for(size_t i = 0; i < request->subscriptionIdsSize; i++)
+        response->results[i] =
+            SubscriptionManager_deleteSubscription(server, &session->subscriptionManager,
+                                                   request->subscriptionIds[i]);
 } 
 
 void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
@@ -270,7 +271,8 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->monitoredItemIdsSize;
 
-    for(UA_Int32 i = 0; i < request->monitoredItemIdsSize; i++)
-        response->results[i] = SubscriptionManager_deleteMonitoredItem(manager, sub->subscriptionID,
-                                                                       request->monitoredItemIds[i]);
+    for(size_t i = 0; i < request->monitoredItemIdsSize; i++)
+        response->results[i] =
+            SubscriptionManager_deleteMonitoredItem(manager, sub->subscriptionID,
+                                                    request->monitoredItemIds[i]);
 }

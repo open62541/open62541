@@ -38,7 +38,7 @@ static UA_StatusCode
 IncInt32ArrayValuesMethod(const UA_NodeId objectId, const UA_Variant *input,
                           UA_Variant *output, void *handle) {
 	UA_Variant_setArrayCopy(output, input->data, 5, &UA_TYPES[UA_TYPES_INT32]);
-	for(int i = 0; i< input->arrayLength; i++)
+	for(size_t i = 0; i< input->arrayLength; i++)
 		((UA_Int32*)output->data)[i] = ((UA_Int32*)input->data)[i] + 1;
 	return UA_STATUSCODE_GOOD;
 }

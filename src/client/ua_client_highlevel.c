@@ -2,6 +2,7 @@
 #include "ua_nodeids.h"
 #include "ua_client_highlevel.h"
 #include "ua_types_encoding_binary.h"
+#include "ua_util.h"
 
 UA_StatusCode UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri, UA_UInt16 *namespaceIndex){
 	UA_ReadRequest ReadRequest;

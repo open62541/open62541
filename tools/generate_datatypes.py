@@ -234,11 +234,11 @@ class EnumerationType(Type):
         else:
             typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
         return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
-            ".memSize = sizeof(" + self.name + "), .builtin = UA_FALSE, " + \
+            ".memSize = sizeof(" + self.name + "), .builtin = UA_TRUE, " + \
             ".fixedSize = UA_TRUE, .zeroCopyable = UA_TRUE, " + \
             ".membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_INT32, " + \
             (".memberName = \"\", " if typeintrospection else "") + \
-            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
+            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = UA_TYPES_INT32 }"
 
 class OpaqueType(Type):
     def fixed_size(self):
