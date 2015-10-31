@@ -245,7 +245,7 @@ static void ExtensionObject_deleteMembers(UA_ExtensionObject *p, const UA_DataTy
     case UA_EXTENSIONOBJECT_DECODED:
         if(!p->content.decoded.data)
             break;
-        UA_deleteMembers(p->content.decoded.data, p->content.decoded.type);
+        UA_delete(p->content.decoded.data, p->content.decoded.type);
         p->content.decoded.data = NULL;
         p->content.decoded.type = NULL;
         break;
