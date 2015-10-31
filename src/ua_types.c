@@ -709,6 +709,7 @@ void UA_deleteMembers(void *p, const UA_DataType *type) {
         } else {
             ptr += member->padding;
             size_t length = *(size_t*)ptr;
+            *(size_t*)ptr = 0;
             ptr += sizeof(size_t);
             UA_Array_delete(*(void**)ptr, length, memberType);
             *(void**)ptr = NULL;
@@ -765,8 +766,10 @@ UA_Array_copy(const void *src, size_t src_size, void **dst, const UA_DataType *t
         ptrs += type->memSize;
         ptrd += type->memSize;
     }
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_Array_delete(dst, src_size, type);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Array_delete(*dst, src_size, type);
+        *dst = NULL;
+    }
     return retval;
 }
 
