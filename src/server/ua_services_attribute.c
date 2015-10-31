@@ -305,8 +305,6 @@ void Service_Read_single(UA_Server *server, UA_Session *session, const UA_Timest
         break;
     }
 
-    UA_NodeStore_release(node);
-
     if(retval != UA_STATUSCODE_GOOD) {
         v->hasValue = UA_FALSE;
         v->hasStatus = UA_TRUE;
@@ -422,11 +420,9 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const U
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
 #ifndef UA_MULTITHREADING
         retval = callback(server, session, (UA_Node*)(uintptr_t)node, data);
-        UA_NodeStore_release(node);
         return retval;
 #else
         UA_Node *copy = UA_Node_copyAnyNodeClass(node);
-        UA_NodeStore_release(node);
         if(!copy)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         retval = callback(server, session, copy, data);
@@ -673,11 +669,10 @@ UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, UA_Wr
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
         if(orig->nodeClass & (UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLE) &&
            ((const UA_VariableNode*)orig)->valueSource == UA_VALUESOURCE_DATASOURCE) {
-            UA_StatusCode retval = Service_Write_single_ValueDataSource(server, session, (const UA_VariableNode*)orig, wvalue);
-            UA_NodeStore_release(orig);
+            UA_StatusCode retval =
+                Service_Write_single_ValueDataSource(server, session, (const UA_VariableNode*)orig, wvalue);
             return retval;
         }
-        UA_NodeStore_release(orig);
     }
     return UA_Server_editNode(server, session, &wvalue->nodeId,
                               (UA_EditNodeCallback)MoveAttributeIntoNode, wvalue);

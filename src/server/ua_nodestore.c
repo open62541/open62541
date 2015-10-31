@@ -197,7 +197,7 @@ void UA_NodeStore_delete(UA_NodeStore *ns) {
     UA_free(ns);
 }
 
-UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, const UA_Node **inserted) {
+UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, UA_Node **inserted) {
     if(ns->size * 3 <= ns->count * 4) {
         if(expand(ns) != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADINTERNALERROR;
@@ -235,7 +235,8 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, const UA_Node
 }
 
 UA_StatusCode
-UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode, UA_Node *node, const UA_Node **inserted) {
+UA_NodeStore_replace(UA_NodeStore *ns, UA_Node *oldNode,
+                     UA_Node *node, UA_Node **inserted) {
     UA_NodeStoreEntry *slot;
     if(!containsNodeId(ns, &node->nodeId, &slot))
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -249,7 +250,7 @@ UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode, UA_Node *node, co
     return UA_STATUSCODE_GOOD;
 }
 
-const UA_Node * UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
+UA_Node * UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
     UA_NodeStoreEntry *slot;
     if(!containsNodeId(ns, nodeid, &slot))
         return NULL;
@@ -273,7 +274,4 @@ void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visit
         if(ns->entries[i].taken)
             visitor(&ns->entries[i].node.node);
     }
-}
-
-void UA_NodeStore_release(const UA_Node *managed) {
 }

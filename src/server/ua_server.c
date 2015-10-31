@@ -127,14 +127,11 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     const UA_Node *parent = UA_NodeStore_get(server->nodestore, &parentNodeId);
     if(!parent)
         return UA_STATUSCODE_BADNODEIDINVALID;
-    
     for(size_t i = 0; i < parent->referencesSize; i++) {
         UA_ReferenceNode *ref = &parent->references[i];
         retval |= callback(ref->targetId.nodeId, ref->isInverse,
                            ref->referenceTypeId, handle);
     }
-    
-    UA_NodeStore_release(parent);
     return retval;
 }
 

@@ -29,40 +29,40 @@ UA_Server_addExistingNode(UA_Server *server, UA_Session *session, UA_Node *node,
         (const UA_ReferenceTypeNode *)UA_NodeStore_get(server->nodestore, referenceTypeId);
     if(!referenceType) {
         result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
-        goto ret;
+        return;
     }
 
     if(referenceType->nodeClass != UA_NODECLASS_REFERENCETYPE) {
         result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
-        goto ret2;
+        return;
     }
 
     if(referenceType->isAbstract == UA_TRUE) {
         result->statusCode = UA_STATUSCODE_BADREFERENCENOTALLOWED;
-        goto ret2;
+        return;
     }
 
     // todo: test if the referencetype is hierarchical
     // todo: namespace index is assumed to be valid
-    const UA_Node *managed = NULL;
+    UA_MT_CONST UA_Node *managed = NULL;
     UA_NodeId tempNodeid = node->nodeId;
     tempNodeid.namespaceIndex = 0;
     if(UA_NodeId_isNull(&tempNodeid)) {
         if(UA_NodeStore_insert(server->nodestore, node, &managed) != UA_STATUSCODE_GOOD) {
             result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
-            goto ret2;
+            return;
         }
         result->addedNodeId = managed->nodeId; // cannot fail as unique nodeids are numeric
     } else {
         if(UA_NodeId_copy(&node->nodeId, &result->addedNodeId) != UA_STATUSCODE_GOOD) {
             result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
-            goto ret2;
+            return;
         }
 
         if(UA_NodeStore_insert(server->nodestore, node, &managed) != UA_STATUSCODE_GOOD) {
             result->statusCode = UA_STATUSCODE_BADNODEIDEXISTS;
             UA_NodeId_deleteMembers(&result->addedNodeId);
-            goto ret2;
+            return;
         }
     }
     
@@ -76,12 +76,6 @@ UA_Server_addExistingNode(UA_Server *server, UA_Session *session, UA_Node *node,
     Service_AddReferences_single(server, session, &item);
 
     // todo: error handling. remove new node from nodestore
-    UA_NodeStore_release(managed);
-    
- ret2:
-    UA_NodeStore_release((const UA_Node*)referenceType);
- ret:
-    UA_NodeStore_release(parent);
 }
 
 static UA_StatusCode
@@ -99,10 +93,8 @@ copyExistingVariable(UA_Server *server, UA_Session *session, const UA_NodeId *va
     const UA_VariableNode *node = (const UA_VariableNode*)UA_NodeStore_get(server->nodestore, variable);
     if(!node)
         return UA_STATUSCODE_BADNODEIDINVALID;
-    if(node->nodeClass != UA_NODECLASS_VARIABLE) {
-        UA_NodeStore_release((const UA_Node*)node);
+    if(node->nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    }
     
     // copy the variable attributes
     UA_VariableAttributes attr;
@@ -151,7 +143,6 @@ copyExistingVariable(UA_Server *server, UA_Session *session, const UA_NodeId *va
     }
 
     UA_AddNodesResult_deleteMembers(&res);
-    UA_NodeStore_release((const UA_Node*)node);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -163,10 +154,9 @@ copyExistingObject(UA_Server *server, UA_Session *session, const UA_NodeId *vari
     const UA_ObjectNode *node = (const UA_ObjectNode*)UA_NodeStore_get(server->nodestore, variable);
     if(!node)
         return UA_STATUSCODE_BADNODEIDINVALID;
-    if(node->nodeClass != UA_NODECLASS_OBJECT) {
-        UA_NodeStore_release((const UA_Node*)node);
+    if(node->nodeClass != UA_NODECLASS_OBJECT)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    }
+
     // copy the variable attributes
     UA_ObjectAttributes attr;
     UA_ObjectAttributes_init(&attr);
@@ -206,7 +196,6 @@ copyExistingObject(UA_Server *server, UA_Session *session, const UA_NodeId *vari
     }
 
     UA_AddNodesResult_deleteMembers(&res);
-    UA_NodeStore_release((const UA_Node*)node);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -224,10 +213,8 @@ instantiateObjectNode(UA_Server *server, UA_Session *session,
     const UA_ObjectTypeNode *type = (const UA_ObjectTypeNode*)UA_NodeStore_get(server->nodestore, typeId);
     if(!type)
         return UA_STATUSCODE_BADNODEIDINVALID;
-    if(type->nodeClass != UA_NODECLASS_OBJECTTYPE) {
-        UA_NodeStore_release((const UA_Node*)type);
+    if(type->nodeClass != UA_NODECLASS_OBJECTTYPE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    }
 
     /* Add all the child nodes */
     UA_BrowseDescription browseChildren;
@@ -277,7 +264,6 @@ instantiateObjectNode(UA_Server *server, UA_Session *session,
     if(olm->constructor)
         UA_Server_editNode(server, session, nodeId,
                            (UA_EditNodeCallback)setObjectInstanceHandle, olm->constructor(*nodeId));
-    UA_NodeStore_release((const UA_Node*)type);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -287,10 +273,8 @@ instantiateVariableNode(UA_Server *server, UA_Session *session, const UA_NodeId 
     const UA_ObjectTypeNode *type = (const UA_ObjectTypeNode*)UA_NodeStore_get(server->nodestore, typeId);
     if(!type)
         return UA_STATUSCODE_BADNODEIDINVALID;
-    if(type->nodeClass != UA_NODECLASS_VARIABLETYPE) {
-        UA_NodeStore_release((const UA_Node*)type);
+    if(type->nodeClass != UA_NODECLASS_VARIABLETYPE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    }
 
     /* get the references to child properties */
     UA_BrowseDescription browseChildren;
@@ -312,7 +296,6 @@ instantiateVariableNode(UA_Server *server, UA_Session *session, const UA_NodeId 
         UA_ReferenceDescription *rd = &browseResult.references[i];
         copyExistingVariable(server, session, &rd->nodeId.nodeId, &rd->referenceTypeId, nodeId);
     }
-    UA_NodeStore_release((const UA_Node*)type);
 
     /* add a hastypedefinition reference */
     UA_AddReferencesItem addref;
@@ -831,7 +814,7 @@ void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddR
 
 UA_StatusCode Service_DeleteNodes_single(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                                          UA_Boolean deleteReferences) {
-    const UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
+    UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
     if(!node)
         return UA_STATUSCODE_BADNODEIDINVALID;
     if(deleteReferences == UA_TRUE) {
@@ -864,21 +847,19 @@ UA_StatusCode Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
         for(size_t i = 0; i < result.referencesSize; i++) {
             /* call the destructor */
             UA_ReferenceDescription *rd = &result.references[i];
-            const UA_ObjectTypeNode *type = (const UA_ObjectTypeNode*)UA_NodeStore_get(server->nodestore, &rd->nodeId.nodeId);
+            const UA_ObjectTypeNode *type =
+                (const UA_ObjectTypeNode*)UA_NodeStore_get(server->nodestore, &rd->nodeId.nodeId);
             if(!type)
                 continue;
-            if(type->nodeClass != UA_NODECLASS_OBJECTTYPE || !type->lifecycleManagement.destructor) {
-                UA_NodeStore_release((const UA_Node*)type);
+            if(type->nodeClass != UA_NODECLASS_OBJECTTYPE || !type->lifecycleManagement.destructor)
                 continue;
-            }
+
             /* if there are several types with lifecycle management, call all the destructors */
             type->lifecycleManagement.destructor(*nodeId, ((const UA_ObjectNode*)node)->instanceHandle);
-            UA_NodeStore_release((const UA_Node*)type);
         }
         UA_BrowseResult_deleteMembers(&result);
     }
     
-    UA_NodeStore_release(node);
     return UA_NodeStore_remove(server->nodestore, nodeId);
 }
 

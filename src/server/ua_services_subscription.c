@@ -63,7 +63,6 @@ static void createMonitoredItems(UA_Server *server, UA_Session *session, UA_Subs
     UA_MonitoredItem *newMon = UA_MonitoredItem_new();
     if(!newMon) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
-        UA_NodeStore_release(target);
         return;
     }
 
@@ -71,7 +70,6 @@ static void createMonitoredItems(UA_Server *server, UA_Session *session, UA_Subs
     if(retval != UA_STATUSCODE_GOOD) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         MonitoredItem_delete(newMon);
-        UA_NodeStore_release(target);
         return;
     }
 
@@ -100,8 +98,6 @@ static void createMonitoredItems(UA_Server *server, UA_Session *session, UA_Subs
 
     // todo: add a job that samples the value (for fixed intervals)
     // todo: add a pointer to the monitoreditem to the variable, so that events get propagated
-    
-    UA_NodeStore_release(target);
 }
 
 void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
