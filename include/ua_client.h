@@ -23,10 +23,29 @@ typedef struct UA_ClientConfig {
 
 extern UA_EXPORT const UA_ClientConfig UA_ClientConfig_standard;
 
+/**
+ * Creates and initialize a Client object
+ *
+ * @param config for the new client. You can use UA_ClientConfig_standard which has sane defaults
+ * @param logger function pointer to a logger function. See examples/logger_stdout.c for a simple implementation
+ * @return return the new Client object
+ */
 UA_Client UA_EXPORT * UA_Client_new(UA_ClientConfig config, UA_Logger logger);
 
+/**
+ * resets a Client object
+ *
+ * @param client to reset
+ * @return Void
+ */
 void UA_EXPORT UA_Client_reset(UA_Client* client);
 
+/**
+ * delete a Client object
+ *
+ * @param client to delete
+ * @return Void
+ */
 void UA_EXPORT UA_Client_delete(UA_Client* client);
 
 /*************************/
@@ -36,11 +55,31 @@ void UA_EXPORT UA_Client_delete(UA_Client* client);
 typedef UA_Connection (*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, char *endpointUrl,
                                                     UA_Logger logger);
 
+/**
+ * start a connection to the selected server
+ *
+ * @param client to use
+ * @param connection function. You can use ClientNetworkLayerTCP_connect from examples/networklayer_tcp.h
+ * @param endpointURL to connect (for example "opc.tcp://localhost:16664")
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
 UA_StatusCode UA_EXPORT
 UA_Client_connect(UA_Client *client, UA_ConnectClientConnection connFunc, char *endpointUrl);
 
+/**
+ * close a connection to the selected server
+ *
+ * @param client to use
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
 UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client);
 
+/**
+ * renew a secure channel if needed
+ *
+ * @param client to use
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
 UA_StatusCode UA_EXPORT UA_Client_manuallyRenewSecureChannel(UA_Client *client);
 
 /****************/
@@ -53,6 +92,14 @@ __UA_Client_Service(UA_Client *client, const void *request, const UA_DataType *r
                     void *response, const UA_DataType *responseType);
 
 /* NodeManagement Service Set */
+
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_AddNodesResponse
 UA_Client_Service_addNodes(UA_Client *client, const UA_AddNodesRequest request) {
     UA_AddNodesResponse response;
@@ -60,6 +107,13 @@ UA_Client_Service_addNodes(UA_Client *client, const UA_AddNodesRequest request) 
                         &response, &UA_TYPES[UA_TYPES_ADDNODESRESPONSE]);
     return response; }
 
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_AddReferencesResponse
 UA_Client_Service_addReferences(UA_Client *client, const UA_AddReferencesRequest request) {
     UA_AddReferencesResponse response;
@@ -67,6 +121,13 @@ UA_Client_Service_addReferences(UA_Client *client, const UA_AddReferencesRequest
                         &response, &UA_TYPES[UA_TYPES_ADDNODESRESPONSE]);
     return response; }
 
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_DeleteNodesResponse
 UA_Client_Service_deleteNodes(UA_Client *client, const UA_DeleteNodesRequest request) {
     UA_DeleteNodesResponse response;
@@ -74,6 +135,13 @@ UA_Client_Service_deleteNodes(UA_Client *client, const UA_DeleteNodesRequest req
                         &response, &UA_TYPES[UA_TYPES_DELETENODESRESPONSE]);
     return response; }
 
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_DeleteReferencesResponse
 UA_Client_Service_deleteReferences(UA_Client *client, const UA_DeleteReferencesRequest request) {
     UA_DeleteReferencesResponse response;
@@ -81,7 +149,15 @@ UA_Client_Service_deleteReferences(UA_Client *client, const UA_DeleteReferencesR
                         &response, &UA_TYPES[UA_TYPES_DELETENODESRESPONSE]);
     return response; }
 
-/* View Service Set */    
+/* View Service Set */
+
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_BrowseResponse
 UA_Client_Service_browse(UA_Client *client, const UA_BrowseRequest request) {
     UA_BrowseResponse response;
@@ -89,6 +165,13 @@ UA_Client_Service_browse(UA_Client *client, const UA_BrowseRequest request) {
                         &response, &UA_TYPES[UA_TYPES_BROWSERESPONSE]);
     return response; }
 
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_BrowseNextResponse
 UA_Client_Service_browseNext(UA_Client *client, const UA_BrowseNextRequest request) {
     UA_BrowseNextResponse response;
@@ -96,6 +179,13 @@ UA_Client_Service_browseNext(UA_Client *client, const UA_BrowseNextRequest reque
                         &response, &UA_TYPES[UA_TYPES_BROWSENEXTRESPONSE]);
     return response; }
 
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_TranslateBrowsePathsToNodeIdsResponse
 UA_Client_Service_translateBrowsePathsToNodeIds(UA_Client *client,
                                                 const UA_TranslateBrowsePathsToNodeIdsRequest request) {
@@ -104,6 +194,13 @@ UA_Client_Service_translateBrowsePathsToNodeIds(UA_Client *client,
                         &response, &UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE]);
     return response; }
 
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_RegisterNodesResponse
 UA_Client_Service_registerNodes(UA_Client *client, const UA_RegisterNodesRequest request) {
     UA_RegisterNodesResponse response;
@@ -111,6 +208,13 @@ UA_Client_Service_registerNodes(UA_Client *client, const UA_RegisterNodesRequest
                         &response, &UA_TYPES[UA_TYPES_REGISTERNODESRESPONSE]);
     return response; }
 
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_UnregisterNodesResponse
 UA_Client_Service_unregisterNodes(UA_Client *client, const UA_UnregisterNodesRequest request) {
     UA_UnregisterNodesResponse response;
@@ -119,6 +223,14 @@ UA_Client_Service_unregisterNodes(UA_Client *client, const UA_UnregisterNodesReq
     return response; }
 
 /* Query Service Set */
+
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_QueryFirstResponse
 UA_Client_Service_queryFirst(UA_Client *client, const UA_QueryFirstRequest request) {
     UA_QueryFirstResponse response;
@@ -126,6 +238,13 @@ UA_Client_Service_queryFirst(UA_Client *client, const UA_QueryFirstRequest reque
                         &response, &UA_TYPES[UA_TYPES_QUERYFIRSTRESPONSE]);
     return response; }
 
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_QueryNextResponse
 UA_Client_Service_queryNext(UA_Client *client, const UA_QueryNextRequest request) {
     UA_QueryNextResponse response;
@@ -134,6 +253,14 @@ UA_Client_Service_queryNext(UA_Client *client, const UA_QueryNextRequest request
     return response; }
 
 /* Attribute Service Set */
+
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_ReadResponse
 UA_Client_Service_read(UA_Client *client, const UA_ReadRequest request) {
     UA_ReadResponse response;
@@ -141,6 +268,13 @@ UA_Client_Service_read(UA_Client *client, const UA_ReadRequest request) {
                         &response, &UA_TYPES[UA_TYPES_READRESPONSE]);
     return response; }
 
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_WriteResponse
 UA_Client_Service_write(UA_Client *client, const UA_WriteRequest request) {
     UA_WriteResponse response;
@@ -149,6 +283,14 @@ UA_Client_Service_write(UA_Client *client, const UA_WriteRequest request) {
     return response; }
 
 /* Method Service Set */
+
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_CallResponse
 UA_Client_Service_call(UA_Client *client, const UA_CallRequest request) {
     UA_CallResponse response;
@@ -158,6 +300,14 @@ UA_Client_Service_call(UA_Client *client, const UA_CallRequest request) {
 
 #ifdef ENABLE_SUBSCRIPTIONS
 /* MonitoredItem Service Set */
+
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_CreateMonitoredItemsResponse
 UA_Client_Service_createMonitoredItems(UA_Client *client, const UA_CreateMonitoredItemsRequest request) {
     UA_CreateMonitoredItemsResponse response;
@@ -165,6 +315,13 @@ UA_Client_Service_createMonitoredItems(UA_Client *client, const UA_CreateMonitor
                         &response, &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE]);
     return response; }
 
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_DeleteMonitoredItemsResponse
 UA_Client_Service_deleteMonitoredItems(UA_Client *client, const UA_DeleteMonitoredItemsRequest request) {
     UA_DeleteMonitoredItemsResponse response;
@@ -173,6 +330,14 @@ UA_Client_Service_deleteMonitoredItems(UA_Client *client, const UA_DeleteMonitor
     return response; }
 
 /* Subscription Service Set */
+
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_CreateSubscriptionResponse
 UA_Client_Service_createSubscription(UA_Client *client, const UA_CreateSubscriptionRequest request) {
     UA_CreateSubscriptionResponse response;
@@ -180,6 +345,13 @@ UA_Client_Service_createSubscription(UA_Client *client, const UA_CreateSubscript
                         &response, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE]);
     return response; }
 
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_ModifySubscriptionResponse
 UA_Client_Service_modifySubscription(UA_Client *client, const UA_ModifySubscriptionRequest request) {
     UA_ModifySubscriptionResponse response;
@@ -187,6 +359,13 @@ UA_Client_Service_modifySubscription(UA_Client *client, const UA_ModifySubscript
                         &response, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE]);
     return response; }
 
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_DeleteSubscriptionsResponse
 UA_Client_Service_deleteSubscriptions(UA_Client *client, const UA_DeleteSubscriptionsRequest request) {
     UA_DeleteSubscriptionsResponse response;
@@ -194,6 +373,13 @@ UA_Client_Service_deleteSubscriptions(UA_Client *client, const UA_DeleteSubscrip
                         &response, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE]);
     return response; }
 
+/**
+ * performs a service
+ *
+ * @param client to use
+ * @param request to use
+ * @return returns the response which has the UA_StatusCode in a UA_ResponseHeader
+ */
 static UA_INLINE UA_PublishResponse
 UA_Client_Service_publish(UA_Client *client, const UA_PublishRequest request) {
     UA_PublishResponse response;

@@ -296,7 +296,7 @@ UA_StatusCode Subscription_registerUpdateJob(UA_Server *server, UA_Subscription 
     // Practically enough, the client sends a uint32 in ms, which we store as datetime, which here is required in as uint32 in ms as the interval
     UA_StatusCode retval = UA_Server_addRepeatedJob(server, *sub->timedUpdateJob, sub->publishingInterval,
                                                     &sub->timedUpdateJobGuid);
-    if(!retval)
+    if(retval == UA_STATUSCODE_GOOD)
         sub->timedUpdateIsRegistered = UA_TRUE;
     return retval;
 }
