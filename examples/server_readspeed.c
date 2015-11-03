@@ -7,6 +7,7 @@
 
 #ifdef UA_NO_AMALGAMATION
 # include "ua_types.h"
+# include "ua_types_generated.h"
 # include "ua_server.h"
 # include "logger_stdout.h"
 # include "networklayer_tcp.h"
@@ -16,7 +17,6 @@
 
 #include <time.h>
 #include <stdio.h>
-#include "ua_types_generated.h"
 #include "server/ua_services.h"
 #include "ua_types_encoding_binary.h"
 
