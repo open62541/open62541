@@ -37,7 +37,7 @@ static const UA_NodeId nodeIdOrganizes = {
 
 static const UA_ExpandedNodeId expandedNodeIdBaseDataVariabletype = {
     .nodeId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-               .identifier.numeric = UA_NS0ID_HASTYPEDEFINITION},
+               .identifier.numeric = UA_NS0ID_BASEDATAVARIABLETYPE},
     .namespaceUri = {.length = -1, .data = NULL}, .serverIndex = 0};
 
 #ifndef ENABLE_GENERATE_NAMESPACE0

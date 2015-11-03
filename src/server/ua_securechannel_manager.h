@@ -13,7 +13,8 @@ typedef struct channel_list_entry {
 
 typedef struct UA_SecureChannelManager {
     LIST_HEAD(channel_list, channel_list_entry) channels; // doubly-linked list of channels
-    UA_Int32    maxChannelCount;
+    size_t    maxChannelCount;
+    size_t currentChannelCount;
     UA_DateTime maxChannelLifetime;
     UA_MessageSecurityMode securityMode;
     UA_DateTime channelLifeTime;
@@ -22,7 +23,7 @@ typedef struct UA_SecureChannelManager {
 } UA_SecureChannelManager;
 
 UA_StatusCode
-UA_SecureChannelManager_init(UA_SecureChannelManager *cm, UA_UInt32 maxChannelCount,
+UA_SecureChannelManager_init(UA_SecureChannelManager *cm, size_t maxChannelCount,
                              UA_UInt32 tokenLifetime, UA_UInt32 startChannelId,
                              UA_UInt32 startTokenId);
 
