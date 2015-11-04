@@ -205,8 +205,8 @@ void UA_VariableNode_init(UA_VariableNode *p) {
     UA_Variant_init(&p->value.variant.value);
     p->value.variant.callback = (UA_ValueCallback){NULL,NULL,NULL};
     p->valueRank = -2; // scalar or array of any dimension
-    p->accessLevel = 0;
-    p->userAccessLevel = 0;
+    p->accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    p->userAccessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     p->minimumSamplingInterval = 0.0;
     p->historizing = UA_FALSE;
 }

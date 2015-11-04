@@ -815,6 +815,14 @@ typedef enum {
     UA_ATTRIBUTEID_USEREXECUTABLE          = 22
 } UA_AttributeId;
 
+typedef enum {
+    UA_ACCESSLEVELMASK_READ = 0x01,
+    UA_ACCESSLEVELMASK_WRITE = 0x02,
+    UA_ACCESSLEVELMASK_HISTORYREAD = 0x4,
+    UA_ACCESSLEVELMASK_HISTORYWRITE = 0x08,
+    UA_ACCESSLEVELMASK_SEMANTICCHANGE = 0x10
+} UA_AccessLevelMask;
+
 /***************************/
 /* Random Number Generator */
 /***************************/
