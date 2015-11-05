@@ -502,7 +502,6 @@ ClientNetworkLayerTCP_connect(UA_ConnectionConfig localConf, char *endpointUrl, 
             unsigned long int tempulong = strtoul(&endpointUrl[portpos+1], &endPtr, 10);
             if (ERANGE != errno &&
                 tempulong < UINT16_MAX &&
-                tempulong > 0 &&
                 endPtr != &endpointUrl[portpos+1])
             {
                 port = (UA_UInt16)tempulong;
