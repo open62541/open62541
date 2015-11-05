@@ -90,13 +90,13 @@ UA_DateTime UA_DateTime_now(void) {
 }
 
 UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime atime) {
+    /* Calculating the the milli-, micro- and nanoseconds */
     UA_DateTimeStruct dateTimeStruct;
-    //calcualting the the milli-, micro- and nanoseconds
     dateTimeStruct.nanoSec  = (UA_UInt16)((atime % 10) * 100);
     dateTimeStruct.microSec = (UA_UInt16)((atime % 10000) / 10);
     dateTimeStruct.milliSec = (UA_UInt16)((atime % 10000000) / 10000);
 
-    //calculating the unix time with #include <time.h>
+    /* Calculating the unix time with #include <time.h> */
     time_t secSinceUnixEpoch = (atime/10000000) - UNIX_EPOCH_BIAS_SEC;
     struct tm ts = *gmtime(&secSinceUnixEpoch);
     dateTimeStruct.sec    = (UA_UInt16)ts.tm_sec;
@@ -109,15 +109,15 @@ UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime atime) {
 }
 
 static void printNumber(UA_UInt16 n, UA_Byte *pos, size_t digits) {
-    for(size_t i = 0; i < digits; i++) {
-        pos[digits-i-1] = (n % 10) + '0';
+    for(size_t i = digits; i > 0; i--) {
+        pos[i-1] = (n % 10) + '0';
         n = n / 10;
     }
 }
 
 UA_String UA_DateTime_toString(UA_DateTime time) {
     UA_String str = UA_STRING_NULL;
-    // length of the string is 31 (incl. \0 at the end)
+    // length of the string is 31 (plus \0 at the end)
     if(!(str.data = UA_malloc(32)))
         return str;
     str.length = 31;
@@ -257,7 +257,8 @@ static void ExtensionObject_deleteMembers(UA_ExtensionObject *p, const UA_DataTy
 }
 
 static UA_StatusCode
-ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst, const UA_DataType *dummy) {
+ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst,
+                     const UA_DataType *dummy) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(src->encoding) {
     case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
@@ -273,7 +274,8 @@ ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst, con
             return UA_STATUSCODE_BADINTERNALERROR;
         dst->encoding = UA_EXTENSIONOBJECT_DECODED;
         dst->content.decoded.type = src->content.decoded.type;
-        retval = UA_Array_copy(src->content.decoded.data, 1, &dst->content.decoded.data, src->content.decoded.type);
+        retval = UA_Array_copy(src->content.decoded.data, 1,
+            &dst->content.decoded.data, src->content.decoded.type);
         break;
     default:
         break;
@@ -282,7 +284,7 @@ ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst, con
 }
 
 /* Variant */
-static void variant_deleteMembers(UA_Variant *p, const UA_DataType *dummy) {
+static void Variant_deletemembers(UA_Variant *p, const UA_DataType *dummy) {
     if(p->storageType != UA_VARIANT_DATA)
         return;
     if(p->data >= UA_EMPTY_ARRAY_SENTINEL) {
@@ -300,7 +302,7 @@ static void variant_deleteMembers(UA_Variant *p, const UA_DataType *dummy) {
 }
 
 static UA_StatusCode
-variant_copy(UA_Variant const *src, UA_Variant *dst, const UA_DataType *dummy) {
+Variant_copy(UA_Variant const *src, UA_Variant *dst, const UA_DataType *dummy) {
     UA_Variant_init(dst);
     size_t length = src->arrayLength;
     if(UA_Variant_isScalar(src))
@@ -311,12 +313,12 @@ variant_copy(UA_Variant const *src, UA_Variant *dst, const UA_DataType *dummy) {
     dst->arrayLength = src->arrayLength;
     dst->type = src->type;
     if(src->arrayDimensions) {
-        retval = UA_Array_copy(src->arrayDimensions, src->arrayDimensionsSize, (void**)&dst->arrayDimensions,
-                               &UA_TYPES[UA_TYPES_UINT32]);
+        retval = UA_Array_copy(src->arrayDimensions, src->arrayDimensionsSize,
+            (void**)&dst->arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
         if(retval == UA_STATUSCODE_GOOD)
             dst->arrayDimensionsSize = src->arrayDimensionsSize;
         else
-            variant_deleteMembers(dst, NULL);
+            Variant_deletemembers(dst, NULL);
     }
     return retval;
 }
@@ -329,8 +331,8 @@ variant_copy(UA_Variant const *src, UA_Variant *dst, const UA_DataType *dummy) {
  * - first: where does the first block begin
  */
 static UA_StatusCode
-testRangeWithVariant(const UA_Variant *v, const UA_NumericRange range, size_t *total,
-                     size_t *block, size_t *stride, size_t *first) {
+processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t *total,
+                       size_t *block, size_t *stride, size_t *first) {
     /* Test the integrity of the source variant dimensions */
     size_t dims_count = 1;
     UA_UInt32 arrayLength = v->arrayLength;
@@ -382,7 +384,7 @@ testRangeWithVariant(const UA_Variant *v, const UA_NumericRange range, size_t *t
 UA_StatusCode
 UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRange range) {
     size_t count, block, stride, first;
-    UA_StatusCode retval = testRangeWithVariant(src, range, &count, &block, &stride, &first);
+    UA_StatusCode retval = processRangeDefinition(src, range, &count, &block, &stride, &first);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     UA_Variant_init(dst);
@@ -424,7 +426,7 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRan
     if(src->arrayDimensionsSize > 0) {
         dst->arrayDimensions = UA_Array_new(src->arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
         if(!dst) {
-            variant_deleteMembers(dst, NULL);
+            Variant_deletemembers(dst, NULL);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         dst->arrayDimensionsSize = src->arrayDimensionsSize;
@@ -437,7 +439,7 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRan
 UA_StatusCode
 UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize, const UA_NumericRange range) {
     size_t count, block, stride, first;
-    UA_StatusCode retval = testRangeWithVariant(v, range, &count, &block, &stride, &first);
+    UA_StatusCode retval = processRangeDefinition(v, range, &count, &block, &stride, &first);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if(count != arraySize)
@@ -465,7 +467,7 @@ UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize, c
 UA_StatusCode
 UA_Variant_setRangeCopy(UA_Variant *v, const void *array, size_t arraySize, const UA_NumericRange range) {
     size_t count, block, stride, first;
-    UA_StatusCode retval = testRangeWithVariant(v, range, &count, &block, &stride, &first);
+    UA_StatusCode retval = processRangeDefinition(v, range, &count, &block, &stride, &first);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if(count != arraySize)
@@ -537,14 +539,14 @@ UA_Variant_setArrayCopy(UA_Variant *v, const void *array, size_t arraySize, cons
 
 /* DataValue */
 static void DataValue_deleteMembers(UA_DataValue *p, const UA_DataType *dummy) {
-    variant_deleteMembers(&p->value, NULL);
+    Variant_deletemembers(&p->value, NULL);
 }
 
 static UA_StatusCode
 DataValue_copy(UA_DataValue const *src, UA_DataValue *dst, const UA_DataType *dummy) {
     memcpy(dst, src, sizeof(UA_DataValue));
     UA_Variant_init(&dst->value);
-    UA_StatusCode retval = variant_copy(&src->value, &dst->value, NULL);
+    UA_StatusCode retval = Variant_copy(&src->value, &dst->value, NULL);
     if(retval)
         DataValue_deleteMembers(dst, NULL);
     return retval;
@@ -622,7 +624,7 @@ static const UA_copySignature copyJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
     (UA_copySignature)UA_copy, // LocalizedText
     (UA_copySignature)ExtensionObject_copy,
     (UA_copySignature)DataValue_copy,
-    (UA_copySignature)variant_copy,
+    (UA_copySignature)Variant_copy,
     (UA_copySignature)DiagnosticInfo_copy,
     (UA_copySignature)UA_copy,
 };
@@ -689,7 +691,7 @@ static const UA_deleteMembersSignature deleteMembersJumpTable[UA_BUILTIN_TYPES_C
     (UA_deleteMembersSignature)UA_deleteMembers, // LocalizedText
     (UA_deleteMembersSignature)ExtensionObject_deleteMembers,
     (UA_deleteMembersSignature)DataValue_deleteMembers,
-    (UA_deleteMembersSignature)variant_deleteMembers,
+    (UA_deleteMembersSignature)Variant_deletemembers,
     (UA_deleteMembersSignature)DiagnosticInfo_deleteMembers,
     (UA_deleteMembersSignature)UA_deleteMembers,
 };
