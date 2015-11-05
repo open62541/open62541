@@ -8,8 +8,8 @@ static void UA_Node_init(UA_Node *p) {
 	UA_QualifiedName_init(&p->browseName);
 	UA_LocalizedText_init(&p->displayName);
 	UA_LocalizedText_init(&p->description);
-	UA_UInt32_init(&p->writeMask);
-	UA_UInt32_init(&p->userWriteMask);
+	p->writeMask = 0;
+	p->userWriteMask = 0;
 	p->referencesSize = -1;
 	p->references = NULL;
 }

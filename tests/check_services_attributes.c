@@ -452,14 +452,15 @@ START_TEST(ReadSingleAttributeUserAccessLevelWithoutTimestamp) {
     rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
     rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_USERACCESSLEVEL;
     Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
-    UA_VariableNode* compNode = makeCompareSequence();
+    const UA_VariableNode* compNode =
+        (const UA_VariableNode*)UA_NodeStore_get(server->nodestore, &rReq.nodesToRead[0].nodeId);
     ck_assert_int_eq(-1, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BYTE], resp.value.type);
     ck_assert_int_eq(*(UA_Byte*)resp.value.data, compNode->userAccessLevel);
+    UA_NodeStore_release((const UA_Node*)compNode);
     UA_Server_delete(server);
     UA_DataValue_deleteMembers(&resp);
     UA_ReadRequest_deleteMembers(&rReq);
-    UA_VariableNode_delete(compNode);
 } END_TEST
 
 START_TEST(ReadSingleAttributeMinimumSamplingIntervalWithoutTimestamp) {
