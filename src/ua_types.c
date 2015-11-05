@@ -562,11 +562,11 @@ testRangeWithVariant(const UA_Variant *v, const UA_NumericRange range, size_t *t
                      size_t *block, size_t *stride, size_t *first) {
     /* Test the integrity of the source variant dimensions */
     UA_Int32 dims_count = 1;
+    UA_Int32 elements = 1;
     const UA_Int32 *dims = &v->arrayLength; // default: the array has only one dimension
     if(v->arrayDimensionsSize > 0) {
         dims_count = v->arrayDimensionsSize;
         dims = v->arrayDimensions;
-        UA_Int32 elements = 1;
         for(UA_Int32 i = 0; i < dims_count; i++)
             elements *= dims[i];
         if(elements != v->arrayLength)
@@ -586,7 +586,7 @@ testRangeWithVariant(const UA_Variant *v, const UA_NumericRange range, size_t *t
     }
 
     /* Compute the block size and the position of the first element */
-    size_t b = 0, s = 0, f = 0;
+    size_t b = 1, s = elements, f = 0;
     size_t running_dimssize = 1; // elements per block of dimensions k to k_max
     UA_Boolean found_contiguous = UA_FALSE;
     for(UA_Int32 k = dims_count - 1; k >= 0; k--) {
