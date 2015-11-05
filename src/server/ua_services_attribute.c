@@ -51,7 +51,7 @@ UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
     do {
         /* alloc dimensions */
         if(index >= (UA_Int32)dimensionsMax) {
-            struct UA_NumericRangeDimension *newds = UA_realloc(dimensions, dimensionsMax + 2);
+            struct UA_NumericRangeDimension *newds = UA_realloc(dimensions, sizeof(struct UA_NumericRangeDimension) * (dimensionsMax + 2));
             if(!newds) {
                 retval = UA_STATUSCODE_BADOUTOFMEMORY;
                 break;
@@ -535,7 +535,6 @@ MoveValueIntoNode(UA_Server *server, UA_Session *session, UA_VariableNode *node,
     if(node->value.variant.callback.onWrite)
         node->value.variant.callback.onWrite(node->value.variant.callback.handle, node->nodeId,
                                              &node->value.variant.value, rangeptr);
-
     if(rangeptr)
         UA_free(range.dimensions);
     return retval;

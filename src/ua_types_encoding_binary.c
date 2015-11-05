@@ -1036,6 +1036,7 @@ UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offs
         return UA_DiagnosticInfo_decodeBinary(src, offset, (UA_DiagnosticInfo*)dst);
     }
 
+    UA_init(dst, dataType);
     /* structured types */
     uintptr_t ptr = (uintptr_t) dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
