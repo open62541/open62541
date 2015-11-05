@@ -100,7 +100,7 @@ UA_EXPORT extern const UA_String UA_STRING_NULL;
 
 static UA_INLINE UA_String UA_STRING(char *chars) {
     UA_String str; str.length = strlen(chars);
-    str.data   = (UA_Byte*)chars; return str; }
+    str.data = (UA_Byte*)chars; return str; }
 
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
     
@@ -113,7 +113,7 @@ UA_Boolean UA_EXPORT UA_String_equal(const UA_String *s1, const UA_String *s2);
 /* DateTime: An instance in time */
 /*********************************/
 /* A DateTime value is encoded as a 64-bit signed integer which represents the
-   number of 100 nanosecond intervals since January 1, 1601 (UTC). */
+   number of 100 nanosecond intervals since January 1, 1601 (UTC) */
 typedef UA_Int64 UA_DateTime;
 
 UA_DateTime UA_EXPORT UA_DateTime_now(void); ///> The current time
