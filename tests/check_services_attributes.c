@@ -24,14 +24,30 @@ static UA_Server* makeTestSequence(void) {
     UA_VariableAttributes vattr;
     UA_VariableAttributes_init(&vattr);
     UA_Int32 myInteger = 42;
-    UA_Variant_setScalarCopy(&vattr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalar(&vattr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     vattr.description = UA_LOCALIZEDTEXT("locale","the answer");
     vattr.displayName = UA_LOCALIZEDTEXT("locale","the answer");
     vattr.valueRank = -2;
-    const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
-    const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
+    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
+                              parentReferenceNodeId, myIntegerName,
+                              UA_NODEID_NULL, vattr, NULL);
+    
+    /* VariableNode with array */
+    UA_VariableAttributes_init(&vattr);
+    UA_Int32 myIntegerArray[9] = {1,2,3,4,5,6,7,8,9};
+    UA_Variant_setArray(&vattr.value, &myIntegerArray, 9, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Int32 myIntegerDimensions[2] = {3,3};
+    vattr.value.arrayDimensions = myIntegerDimensions;
+    vattr.value.arrayDimensionsSize = 2;
+    vattr.displayName = UA_LOCALIZEDTEXT("locale","myarray");
+    myIntegerName = UA_QUALIFIEDNAME(1, "myarray");
+    myIntegerNodeId = UA_NODEID_STRING(1, "myarray");
+    parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
                               UA_NODEID_NULL, vattr, NULL);
@@ -109,6 +125,25 @@ START_TEST(ReadSingleAttributeValueWithoutTimestamp) {
     ck_assert_int_eq(-1, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_INT32], resp.value.type);
     ck_assert_int_eq(42, *(UA_Int32* )resp.value.data);
+    UA_Server_delete(server);
+    UA_ReadRequest_deleteMembers(&rReq);
+    UA_DataValue_deleteMembers(&resp);
+} END_TEST
+
+START_TEST(ReadSingleAttributeValueRangeWithoutTimestamp) {
+    UA_Server *server = makeTestSequence();
+    UA_DataValue resp;
+    UA_DataValue_init(&resp);
+    UA_ReadRequest rReq;
+    UA_ReadRequest_init(&rReq);
+    rReq.nodesToRead = UA_ReadValueId_new();
+    rReq.nodesToReadSize = 1;
+    rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "myarray");
+    rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
+    rReq.nodesToRead[0].indexRange = UA_STRING_ALLOC("2:3,1:2");
+    Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
+    ck_assert_int_eq(4, resp.value.arrayLength);
+    ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_INT32], resp.value.type);
     UA_Server_delete(server);
     UA_ReadRequest_deleteMembers(&rReq);
     UA_DataValue_deleteMembers(&resp);
@@ -896,6 +931,7 @@ static Suite * testSuite_services_attributes(void) {
 
 	TCase *tc_readSingleAttributes = tcase_create("readSingleAttributes");
 	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueWithoutTimestamp);
+	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueRangeWithoutTimestamp);
 	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeNodeIdWithoutTimestamp);
 	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeNodeClassWithoutTimestamp);
 	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeBrowseNameWithoutTimestamp);
