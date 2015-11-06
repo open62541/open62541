@@ -208,7 +208,7 @@ static UA_StatusCode NodeId_copy(UA_NodeId const *src, UA_NodeId *dst, const UA_
     }
     dst->namespaceIndex = src->namespaceIndex;
     dst->identifierType = src->identifierType;
-    if(retval)
+    if(retval != UA_STATUSCODE_GOOD)
         NodeId_deleteMembers(dst, NULL);
     return retval;
 }
@@ -334,7 +334,7 @@ static UA_StatusCode
 processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t *total,
                        size_t *block, size_t *stride, size_t *first) {
     /* Test the integrity of the source variant dimensions */
-    UA_Int32 dims_count = 1;
+    UA_UInt32 dims_count = 1;
     UA_UInt32 elements = 1;
     UA_UInt32 arrayLength = v->arrayLength;
     const UA_UInt32 *dims = &arrayLength;
@@ -547,7 +547,7 @@ DataValue_copy(UA_DataValue const *src, UA_DataValue *dst, const UA_DataType *du
     memcpy(dst, src, sizeof(UA_DataValue));
     UA_Variant_init(&dst->value);
     UA_StatusCode retval = Variant_copy(&src->value, &dst->value, NULL);
-    if(retval)
+    if(retval != UA_STATUSCODE_GOOD)
         DataValue_deleteMembers(dst, NULL);
     return retval;
 }

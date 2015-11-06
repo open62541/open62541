@@ -31,8 +31,7 @@ fillReferenceDescription(UA_NodeStore *ns, const UA_Node *curr, UA_ReferenceNode
             }
         }
     }
-
-    if(retval)
+    if(retval != UA_STATUSCODE_GOOD)
         UA_ReferenceDescription_deleteMembers(descr);
     return retval;
 }
@@ -191,7 +190,7 @@ findSubTypes(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **reftypes, size
         UA_NodeStore_release(node);
     } while(++index <= last && retval == UA_STATUSCODE_GOOD);
 
-    if(retval) {
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_Array_delete(results, last, &UA_TYPES[UA_TYPES_NODEID]);
         return retval;
     }
