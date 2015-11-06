@@ -730,6 +730,7 @@ ExtensionObject_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offse
                              UA_ExtensionObject *dst, const UA_DataType *_) {
     UA_Byte encoding = 0;
     UA_NodeId typeId;
+    UA_NodeId_init(&typeId);
     UA_StatusCode retval = NodeId_decodeBinary(src, offset, &typeId, NULL);
     retval |= Byte_decodeBinary(src, offset, &encoding, NULL);
     if(typeId.namespaceIndex != 0 || typeId.identifierType != UA_NODEIDTYPE_NUMERIC)

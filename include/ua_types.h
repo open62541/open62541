@@ -541,7 +541,8 @@ void UA_EXPORT * UA_new(const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
  * @param p The memory location of the variable
  * @param type The datatype description
  */
-void UA_EXPORT UA_init(void *p, const UA_DataType *type);
+static UA_INLINE void UA_init(void *p, const UA_DataType *type) {
+    memset(p, 0, type->memSize); }
 
 /**
  * Copies the content of two variables. If copying fails (e.g. because no memory was available for

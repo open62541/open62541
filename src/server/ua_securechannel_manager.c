@@ -49,22 +49,17 @@ void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm,
     }
 }
 
-UA_StatusCode UA_SecureChannelManager_open(UA_SecureChannelManager *cm,
-        UA_Connection *conn, const UA_OpenSecureChannelRequest *request,
-        UA_OpenSecureChannelResponse *response) {
-
-    if (request->securityMode != UA_MESSAGESECURITYMODE_NONE) {
+UA_StatusCode
+UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
+                             const UA_OpenSecureChannelRequest *request,
+                             UA_OpenSecureChannelResponse *response) {
+    if(request->securityMode != UA_MESSAGESECURITYMODE_NONE)
         return UA_STATUSCODE_BADSECURITYMODEREJECTED;
-
-    }
-
+    if(cm->currentChannelCount >= cm->maxChannelCount)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     channel_list_entry *entry = UA_malloc(sizeof(channel_list_entry));
-    if (!entry) {
+    if (!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    if (cm->currentChannelCount >= cm->maxChannelCount) {
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
 #ifndef UA_MULTITHREADING
     cm->currentChannelCount++;
 #else
