@@ -1136,6 +1136,7 @@ static const UA_decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COU
 
 UA_StatusCode
 UA_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, void *dst, const UA_DataType *type) {
+    UA_init(dst, dataType);
     uintptr_t ptr = (uintptr_t)dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Byte membersSize = type->membersSize;

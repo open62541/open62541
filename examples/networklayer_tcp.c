@@ -498,7 +498,14 @@ ClientNetworkLayerTCP_connect(UA_ConnectionConfig localConf, char *endpointUrl, 
     UA_UInt16 port;
     for(port = 0; portpos < urlLength-1; portpos++) {
         if(endpointUrl[portpos] == ':') {
-            port = atoi(&endpointUrl[portpos+1]);
+            char *endPtr = NULL;
+            unsigned long int tempulong = strtoul(&endpointUrl[portpos+1], &endPtr, 10);
+            if (ERANGE != errno &&
+                tempulong < UINT16_MAX &&
+                endPtr != &endpointUrl[portpos+1])
+            {
+                port = (UA_UInt16)tempulong;
+            }
             break;
         }
     }

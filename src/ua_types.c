@@ -334,13 +334,13 @@ static UA_StatusCode
 processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t *total,
                        size_t *block, size_t *stride, size_t *first) {
     /* Test the integrity of the source variant dimensions */
-    size_t dims_count = 1;
+    UA_Int32 dims_count = 1;
+    UA_UInt32 elements = 1;
     UA_UInt32 arrayLength = v->arrayLength;
     const UA_UInt32 *dims = &arrayLength;
     if(v->arrayDimensionsSize > 0) {
         dims_count = v->arrayDimensionsSize;
         dims = v->arrayDimensions;
-        size_t elements = 1;
         for(size_t i = 0; i < dims_count; i++)
             elements *= dims[i];
         if(elements != v->arrayLength)
@@ -360,7 +360,7 @@ processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t 
     }
 
     /* Compute the block size and the position of the first element */
-    size_t b = 0, s = 0, f = 0;
+    size_t b = 1, s = elements, f = 0;
     size_t running_dimssize = 1; // elements per block of dimensions k to k_max
     UA_Boolean found_contiguous = UA_FALSE;
     for(size_t k = dims_count - 1; ; k--) {

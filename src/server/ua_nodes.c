@@ -186,6 +186,9 @@ UA_StatusCode UA_ObjectTypeNode_copy(const UA_ObjectTypeNode *src, UA_ObjectType
 void UA_VariableNode_init(UA_VariableNode *p) {
     memset(p, 0, sizeof(UA_VariableNode));
     p->nodeClass = UA_NODECLASS_VARIABLE;
+    p->valueRank = -2; // scalar or array of any dimension
+    p->accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    p->userAccessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
 }
 
 UA_VariableNode * UA_VariableNode_new(void) {
@@ -258,7 +261,7 @@ UA_StatusCode UA_VariableTypeNode_copy(const UA_VariableTypeNode *src, UA_Variab
     if(src->valueSource == UA_VALUESOURCE_VARIANT){
         UA_Variant_copy(&src->value.variant.value, &dst->value.variant.value);
         dst->value.variant.callback = src->value.variant.callback;
-    }else
+    } else
         dst->value.dataSource = src->value.dataSource;
     if(retval) {
         UA_VariableTypeNode_deleteMembers(dst);

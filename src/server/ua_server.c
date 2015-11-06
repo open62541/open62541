@@ -290,7 +290,7 @@ static void UA_Server_cleanup(UA_Server *server, void *nothing) {
 #define SOFTWARE_VERSION TOSTRING(VERSION)
 #define BUILD_NUMBER "0"
 
-static void getBulidInfo(const UA_Server* server, UA_BuildInfo *buildInfo) {
+static void getBuildInfo(const UA_Server* server, UA_BuildInfo *buildInfo) {
     buildInfo->productUri = UA_STRING_ALLOC(PRODUCT_URI);
     buildInfo->manufacturerName = UA_STRING_ALLOC(MANUFACTURER_NAME);
     buildInfo->productName = UA_STRING_ALLOC(PRODUCT_NAME);
@@ -307,12 +307,13 @@ readStatus(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
         return UA_STATUSCODE_GOOD;
     }
-    
+
+    UA_Server *server = (UA_Server*)handle;
     UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
-    status->startTime = ((const UA_Server*)handle)->startTime;
+    status->startTime = server->startTime;
     status->currentTime = UA_DateTime_now();
     status->state = UA_SERVERSTATE_RUNNING;
-    getBulidInfo(((const UA_Server*)handle), &status->buildInfo);
+    getBuildInfo(server, &status->buildInfo);
     status->secondsTillShutdown = 0;
 
     value->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
@@ -358,16 +359,14 @@ readCurrentTime(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
         return UA_STATUSCODE_GOOD;
     }
-    UA_DateTime *currentTime = UA_DateTime_new();
-    if(!currentTime)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    *currentTime = UA_DateTime_now();
-    value->value.type = &UA_TYPES[UA_TYPES_DATETIME];
-    value->value.data = currentTime;
+    UA_DateTime currentTime = UA_DateTime_now();
+    UA_StatusCode retval = UA_Variant_setScalarCopy(&value->value, &currentTime, &UA_TYPES[UA_TYPES_DATETIME]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
     value->hasValue = UA_TRUE;
     if(sourceTimeStamp) {
         value->hasSourceTimestamp = UA_TRUE;
-        value->sourceTimestamp = *currentTime;
+        value->sourceTimestamp = currentTime;
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -1050,11 +1049,9 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     serverstatus->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS);
     serverstatus->valueSource = UA_VALUESOURCE_DATASOURCE;
     serverstatus->value.dataSource = (UA_DataSource) {.handle = server, .read = readStatus, .write = NULL};
-    addNodeInternal(server, (UA_Node*)serverstatus, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
-                    nodeIdHasComponent);
-    UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
-                           nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVERSTATUSTYPE),
-                           UA_TRUE);
+    addNodeInternal(server, (UA_Node*)serverstatus, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), nodeIdHasComponent);
+    UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS), nodeIdHasTypeDefinition,
+                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVERSTATUSTYPE), UA_TRUE);
 
     UA_VariableNode *starttime = UA_VariableNode_new();
     copyNames((UA_Node*)starttime, "StartTime");
@@ -1096,7 +1093,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     buildinfo->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO);
     buildinfo->value.variant.value.data = UA_BuildInfo_new();
     buildinfo->value.variant.value.type = &UA_TYPES[UA_TYPES_BUILDINFO];
-    getBulidInfo(server, (UA_BuildInfo*)buildinfo->value.variant.value.data);
+    getBuildInfo(server, (UA_BuildInfo*)buildinfo->value.variant.value.data);
     addNodeInternal(server, (UA_Node*)buildinfo,
                     UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS), nodeIdHasComponent);
     UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO),
