@@ -1119,7 +1119,7 @@ static const UA_decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COU
     (UA_decodeBinarySignature)NodeId_decodeBinary,
     (UA_decodeBinarySignature)ExpandedNodeId_decodeBinary,
     (UA_decodeBinarySignature)UInt32_decodeBinary, // StatusCode
-    (UA_decodeBinarySignature)UA_decodeBinary, // QualifiedName
+    (UA_decodeBinarySignature)UA_decodeBinaryNoInit, // QualifiedName
     (UA_decodeBinarySignature)LocalizedText_decodeBinary,
     (UA_decodeBinarySignature)ExtensionObject_decodeBinary,
     (UA_decodeBinarySignature)DataValue_decodeBinary,
