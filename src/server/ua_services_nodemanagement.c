@@ -814,7 +814,7 @@ void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddR
 
 UA_StatusCode Service_DeleteNodes_single(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                                          UA_Boolean deleteReferences) {
-    UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
+    UA_MT_CONST UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
     if(!node)
         return UA_STATUSCODE_BADNODEIDINVALID;
     if(deleteReferences == UA_TRUE) {

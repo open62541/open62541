@@ -85,7 +85,24 @@
 # include <urcu/wfcqueue.h>
 # include <urcu/uatomic.h>
 # include <urcu/rculfhash.h>
-#include <urcu/lfstack.h>
+# include <urcu/lfstack.h>
+# ifdef NDEBUG
+# define UA_RCU_LOCK() rcu_read_lock()
+# define UA_RCU_UNLOCK() rcu_read_unlock()
+# else
+extern UA_THREAD_LOCAL bool rcu_locked;
+# define UA_RCU_LOCK() do {     \
+        assert(!rcu_locked);    \
+        rcu_locked = UA_TRUE;   \
+        rcu_read_lock(); } while(0)
+# define UA_RCU_UNLOCK() do { \
+        assert(rcu_locked);   \
+        rcu_locked = UA_FALSE;    \
+        rcu_read_lock(); } while(0)
+# endif
+#else
+# define UA_RCU_LOCK()
+# define UA_RCU_UNLOCK()
 #endif
 
 #endif /* UA_UTIL_H_ */

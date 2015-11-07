@@ -58,13 +58,13 @@ static int compare(struct cds_lfht_node *htn, const void *orig) {
 UA_NodeStore * UA_NodeStore_new() {
     UA_NodeStore *ns;
     if(!(ns = UA_malloc(sizeof(UA_NodeStore))))
-        return UA_NULL;
+        return NULL;
 
     /* 32 is the minimum size for the hashtable. */
     ns->ht = cds_lfht_new(32, 32, 0, CDS_LFHT_AUTO_RESIZE, NULL);
     if(!ns->ht) {
         UA_free(ns);
-        ns = UA_NULL;
+        ns = NULL;
     }
     return ns;
 }
@@ -84,7 +84,7 @@ void UA_NodeStore_delete(UA_NodeStore *ns) {
         cds_lfht_next(ht, &iter);
     }
     rcu_read_unlock();
-    cds_lfht_destroy(ht, UA_NULL);
+    cds_lfht_destroy(ht, NULL);
     UA_free(ns);
 }
 
@@ -124,7 +124,7 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, const UA_Node
     if(!(entry = UA_malloc(sizeof(struct nodeEntry) - sizeof(UA_Node) + nodesize)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_Node *newNode = &entry->node;
-    UA_memcpy(newNode, node, nodesize);
+    memcpy(newNode, node, nodesize);
 
     cds_lfht_node_init(&entry->htn);
     struct cds_lfht_node *result;
@@ -218,7 +218,7 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode, UA_
     struct nodeEntry *newEntry;
     if(!(newEntry = UA_malloc(sizeof(struct nodeEntry) - sizeof(UA_Node) + nodesize)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_memcpy((void*)&newEntry->node, node, nodesize);
+    memcpy((void*)&newEntry->node, node, nodesize);
     cds_lfht_node_init(&newEntry->htn);
 
     if(cds_lfht_replace(ns->ht, &iter, h, compare, &node->nodeId, &newEntry->htn) != 0) {
@@ -253,7 +253,7 @@ const UA_Node * UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid
     cds_lfht_lookup(ns->ht, h, compare, nodeid, &iter);
     struct nodeEntry *found_entry = (struct nodeEntry*)iter.node;
     if(!found_entry)
-        return UA_NULL;
+        return NULL;
     return &found_entry->node;
 }
 
@@ -261,7 +261,7 @@ void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visit
     struct cds_lfht *ht = ns->ht;
     struct cds_lfht_iter iter;
     cds_lfht_first(ht, &iter);
-    while(iter.node != UA_NULL) {
+    while(iter.node != NULL) {
         struct nodeEntry *found_entry = (struct nodeEntry*)iter.node;
         visitor(&found_entry->node);
         cds_lfht_next(ht, &iter);

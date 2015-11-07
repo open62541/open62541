@@ -148,9 +148,11 @@ static void * workerLoop(struct workerStartData *startInfo) {
         struct DispatchJobsList *wln = (struct DispatchJobsList*)
             cds_wfcq_dequeue_blocking(&server->dispatchQueue_head, &server->dispatchQueue_tail);
         if(wln) {
+            UA_RCU_LOCK();
             processJobs(server, wln->jobs, wln->jobsSize);
             UA_free(wln->jobs);
             UA_free(wln);
+            UA_RCU_UNLOCK();
         } else {
             /* sleep until a work arrives (and wakes up all worker threads) */
             #if defined(__APPLE__) || defined(__MACH__) // OS X does not have clock_gettime, use clock_get_time
