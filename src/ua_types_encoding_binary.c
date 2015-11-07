@@ -13,6 +13,10 @@ typedef UA_StatusCode (*UA_encodeBinarySignature)(const void *src, const UA_Data
 typedef UA_StatusCode (*UA_decodeBinarySignature) (const UA_ByteString *src, size_t *UA_RESTRICT offset,
                                                    void *dst, const UA_DataType*);
 
+static UA_StatusCode
+UA_decodeBinaryNoInit(const UA_ByteString *src, size_t *UA_RESTRICT offset,
+                      void *dst, const UA_DataType *type);
+
 /*****************/
 /* Integer Types */
 /*****************/
@@ -405,7 +409,7 @@ Array_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset,
 
     uintptr_t ptr = (uintptr_t)*dst;
     for(size_t i = 0; i < length; i++) {
-        UA_StatusCode retval = UA_decodeBinary(src, offset, (void*)ptr, type);
+        UA_StatusCode retval = UA_decodeBinaryNoInit(src, offset, (void*)ptr, type);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_Array_delete(*dst, i, type);
             *dst = NULL;
@@ -441,10 +445,14 @@ String_encodeBinary(UA_String const *src, const UA_DataType *_,
     return retval;
 }
 
+static UA_INLINE UA_StatusCode
+ByteString_encodeBinary(UA_ByteString const *src, const UA_DataType *_,
+                        UA_ByteString *dst, size_t *UA_RESTRICT offset) {
+    return String_encodeBinary((const UA_String*)src, _, dst, offset); }
+
 static UA_StatusCode
 String_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
                     UA_String *dst, const UA_DataType *_) {
-    UA_String_init(dst);
     UA_Int32 signed_length;
     UA_StatusCode retval = Int32_decodeBinary(src, offset, &signed_length, NULL);
     if(retval != UA_STATUSCODE_GOOD)
@@ -466,6 +474,11 @@ String_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_INLINE UA_StatusCode
+ByteString_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
+                        UA_ByteString *dst, const UA_DataType *_) {
+    return String_decodeBinary(src, offset, (UA_ByteString*)dst, _); }
+
 /* Guid */
 static UA_StatusCode
 Guid_encodeBinary(UA_Guid const *src, const UA_DataType *_,
@@ -481,14 +494,12 @@ Guid_encodeBinary(UA_Guid const *src, const UA_DataType *_,
 static UA_StatusCode
 Guid_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
                   UA_Guid *dst, const UA_DataType *_) {
-    // This could be done with a single memcpy (if the compiler does no fancy
-    // realigning of structs)
     UA_StatusCode retval = UInt32_decodeBinary(src, offset, &dst->data1, NULL);
     retval |= UInt16_decodeBinary(src, offset, &dst->data2, NULL);
     retval |= UInt16_decodeBinary(src, offset, &dst->data3, NULL);
     for(size_t i = 0; i < 8; i++)
         retval |= Byte_decodeBinary(src, offset, &dst->data4[i], NULL);
-    if(retval)
+    if(retval != UA_STATUSCODE_GOOD)
         UA_Guid_deleteMembers(dst);
     return retval;
 }
@@ -532,7 +543,7 @@ NodeId_encodeBinary(UA_NodeId const *src, const UA_DataType *_,
         srcByte = UA_NODEIDTYPE_STRING;
         retval |= Byte_encodeBinary(&srcByte, NULL, dst, offset);
         retval |= UInt16_encodeBinary(&src->namespaceIndex, NULL, dst, offset);
-        retval |= UA_encodeBinary(&src->identifier.string, &UA_TYPES[UA_TYPES_STRING], dst, offset);
+        retval |= String_encodeBinary(&src->identifier.string, NULL, dst, offset);
         break;
     case UA_NODEIDTYPE_GUID:
         srcByte = UA_NODEIDTYPE_GUID;
@@ -544,7 +555,7 @@ NodeId_encodeBinary(UA_NodeId const *src, const UA_DataType *_,
         srcByte = UA_NODEIDTYPE_BYTESTRING;
         retval |= Byte_encodeBinary(&srcByte, NULL, dst, offset);
         retval |= UInt16_encodeBinary(&src->namespaceIndex, NULL, dst, offset);
-        retval |= UA_encodeBinary(&src->identifier.byteString, &UA_TYPES[UA_TYPES_BYTESTRING], dst, offset);
+        retval |= ByteString_encodeBinary(&src->identifier.byteString, NULL, dst, offset);
         break;
     default:
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -555,13 +566,11 @@ NodeId_encodeBinary(UA_NodeId const *src, const UA_DataType *_,
 static UA_StatusCode
 NodeId_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
                     UA_NodeId *dst, const UA_DataType *_) {
-    UA_NodeId_init(dst);
     UA_Byte dstByte = 0, encodingByte = 0;
     UA_UInt16 dstUInt16 = 0;
     UA_StatusCode retval = Byte_decodeBinary(src, offset, &encodingByte, NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-
     switch (encodingByte) {
     case UA_NODEIDTYPE_NUMERIC_TWOBYTE:
         dst->identifierType = UA_NODEIDTYPE_NUMERIC;
@@ -584,7 +593,7 @@ NodeId_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
     case UA_NODEIDTYPE_STRING:
         dst->identifierType = UA_NODEIDTYPE_STRING;
         retval |= UInt16_decodeBinary(src, offset, &dst->namespaceIndex, NULL);
-        retval |= UA_decodeBinary(src, offset, &dst->identifier.string, &UA_TYPES[UA_TYPES_STRING]);
+        retval |= String_decodeBinary(src, offset, &dst->identifier.string, NULL);
         break;
     case UA_NODEIDTYPE_GUID:
         dst->identifierType = UA_NODEIDTYPE_GUID;
@@ -594,14 +603,13 @@ NodeId_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
     case UA_NODEIDTYPE_BYTESTRING:
         dst->identifierType = UA_NODEIDTYPE_BYTESTRING;
         retval |= UInt16_decodeBinary(src, offset, &dst->namespaceIndex, NULL);
-        retval |= UA_decodeBinary(src, offset, &dst->identifier.byteString, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        retval |= ByteString_decodeBinary(src, offset, &dst->identifier.byteString, NULL);
         break;
     default:
-        UA_NodeId_init(dst);
         retval |= UA_STATUSCODE_BADINTERNALERROR; // the client sends an encodingByte we do not recognize
         break;
     }
-    if(retval)
+    if(retval != UA_STATUSCODE_GOOD)
         UA_NodeId_deleteMembers(dst);
     return retval;
 }
@@ -616,7 +624,7 @@ ExpandedNodeId_encodeBinary(UA_ExpandedNodeId const *src, const UA_DataType *_,
     UA_UInt32 start = *offset;
     UA_StatusCode retval = NodeId_encodeBinary(&src->nodeId, NULL, dst, offset);
     if(src->namespaceUri.length > 0) {
-        retval |= UA_encodeBinary(&src->namespaceUri, &UA_TYPES[UA_TYPES_STRING], dst, offset);
+        retval |= String_encodeBinary(&src->namespaceUri, NULL, dst, offset);
         dst->data[start] |= UA_EXPANDEDNODEID_NAMESPACEURI_FLAG;
     }
     if(src->serverIndex > 0) {
@@ -629,7 +637,6 @@ ExpandedNodeId_encodeBinary(UA_ExpandedNodeId const *src, const UA_DataType *_,
 static UA_StatusCode
 ExpandedNodeId_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
                             UA_ExpandedNodeId *dst, const UA_DataType *_) {
-    UA_ExpandedNodeId_init(dst);
     if(*offset >= src->length)
         return UA_STATUSCODE_BADDECODINGERROR;
     UA_Byte encodingByte = src->data[*offset];
@@ -638,11 +645,11 @@ ExpandedNodeId_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset
     UA_StatusCode retval = NodeId_decodeBinary(src, offset, &dst->nodeId, NULL);
     if(encodingByte & UA_EXPANDEDNODEID_NAMESPACEURI_FLAG) {
         dst->nodeId.namespaceIndex = 0;
-        retval |= UA_decodeBinary(src, offset, &dst->namespaceUri, &UA_TYPES[UA_TYPES_STRING]);
+        retval |= String_decodeBinary(src, offset, &dst->namespaceUri, NULL);
     }
     if(encodingByte & UA_EXPANDEDNODEID_SERVERINDEX_FLAG)
         retval |= UInt32_decodeBinary(src, offset, &dst->serverIndex, NULL);
-    if(retval)
+    if(retval != UA_STATUSCODE_GOOD)
         UA_ExpandedNodeId_deleteMembers(dst);
     return retval;
 }
@@ -661,23 +668,22 @@ LocalizedText_encodeBinary(UA_LocalizedText const *src, const UA_DataType *_,
         encodingMask |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
     UA_StatusCode retval = Byte_encodeBinary(&encodingMask, NULL, dst, offset);
     if(encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE)
-        retval |= UA_encodeBinary(&src->locale, &UA_TYPES[UA_TYPES_STRING], dst, offset);
+        retval |= String_encodeBinary(&src->locale, NULL, dst, offset);
     if(encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT)
-        retval |= UA_encodeBinary(&src->text, &UA_TYPES[UA_TYPES_STRING], dst, offset);
+        retval |= String_encodeBinary(&src->text, NULL, dst, offset);
     return retval;
 }
 
 static UA_StatusCode
 LocalizedText_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
                            UA_LocalizedText *dst, const UA_DataType *_) {
-    UA_LocalizedText_init(dst);
     UA_Byte encodingMask = 0;
     UA_StatusCode retval = Byte_decodeBinary(src, offset, &encodingMask, NULL);
     if(encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE)
-        retval |= UA_decodeBinary(src, offset, &dst->locale, &UA_TYPES[UA_TYPES_STRING]);
+        retval |= String_decodeBinary(src, offset, &dst->locale, NULL);
     if(encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT)
-        retval |= UA_decodeBinary(src, offset, &dst->text, &UA_TYPES[UA_TYPES_STRING]);
-    if(retval)
+        retval |= String_decodeBinary(src, offset, &dst->text, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
         UA_LocalizedText_deleteMembers(dst);
     return retval;
 }
@@ -703,7 +709,7 @@ ExtensionObject_encodeBinary(UA_ExtensionObject const *src, const UA_DataType *_
         retval |= UA_encodeBinary(src->content.decoded.data, src->content.decoded.type, dst, offset);
         UA_Int32 length = *offset - old_offset - 4;
         retval |= Int32_encodeBinary(&length, NULL, dst, &old_offset);
-    } else  {
+    } else {
         retval = NodeId_encodeBinary(&src->content.encoded.typeId, NULL, dst, offset);
         retval |= Byte_encodeBinary(&encoding, NULL, dst, offset);
         switch (src->encoding) {
@@ -711,7 +717,7 @@ ExtensionObject_encodeBinary(UA_ExtensionObject const *src, const UA_DataType *_
             break;
         case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
         case UA_EXTENSIONOBJECT_ENCODED_XML:
-            retval |= UA_encodeBinary(&src->content.encoded.body, &UA_TYPES[UA_TYPES_BYTESTRING], dst, offset);
+            retval |= ByteString_encodeBinary(&src->content.encoded.body, NULL, dst, offset);
             break;
         default:
             return UA_STATUSCODE_BADINTERNALERROR;
@@ -733,9 +739,9 @@ static UA_StatusCode findDataType(const UA_NodeId *typeId, const UA_DataType **t
 static UA_StatusCode
 ExtensionObject_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
                              UA_ExtensionObject *dst, const UA_DataType *_) {
-    UA_ExtensionObject_init(dst);
     UA_Byte encoding = 0;
     UA_NodeId typeId;
+    UA_NodeId_init(&typeId);
     UA_StatusCode retval = NodeId_decodeBinary(src, offset, &typeId, NULL);
     retval |= Byte_decodeBinary(src, offset, &encoding, NULL);
     if(typeId.namespaceIndex != 0 || typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
@@ -752,7 +758,7 @@ ExtensionObject_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offse
     } else if(encoding == UA_EXTENSIONOBJECT_ENCODED_XML) {
         dst->encoding = encoding;
         dst->content.encoded.typeId = typeId;
-        retval = UA_decodeBinary(src, offset, &dst->content.encoded.body, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        retval = ByteString_decodeBinary(src, offset, &dst->content.encoded.body, NULL);
     } else {
         /* try to decode the content */
         size_t oldoffset = *offset;
@@ -767,7 +773,7 @@ ExtensionObject_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offse
         if(type) {
             dst->content.decoded.data = UA_new(type);
             if(dst->content.decoded.data) {
-                retval = UA_decodeBinary(src, offset, dst->content.decoded.data, type);
+                retval = UA_decodeBinaryNoInit(src, offset, dst->content.decoded.data, type);
                 dst->content.decoded.type = type;
                 dst->encoding = UA_EXTENSIONOBJECT_DECODED;
             } else
@@ -777,7 +783,7 @@ ExtensionObject_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offse
                 retval = UA_STATUSCODE_BADDECODINGERROR;
         } else {
             *offset = oldoffset;
-            retval = UA_decodeBinary(src, offset, &dst->content.encoded.body, &UA_TYPES[UA_TYPES_BYTESTRING]);
+            retval = ByteString_decodeBinary(src, offset, &dst->content.encoded.body, NULL);
             dst->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
             dst->content.encoded.typeId = typeId;
         }
@@ -871,12 +877,10 @@ Variant_encodeBinary(UA_Variant const *src, const UA_DataType *_,
 static UA_StatusCode
 Variant_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
                      UA_Variant *dst, const UA_DataType *_) {
-    UA_Variant_init(dst);
     UA_Byte encodingByte;
     UA_StatusCode retval = Byte_decodeBinary(src, offset, &encodingByte, NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-
     UA_Boolean isArray = encodingByte & UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
     size_t typeIndex = (encodingByte & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) - 1;
     if(typeIndex > 24) /* must be builtin */
@@ -918,12 +922,15 @@ Variant_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
         UA_NodeId_deleteMembers(&typeId);
 
         /* decode the type */
-        dst->data = UA_malloc(dst->type->memSize);
-        retval = UA_decodeBinary(src, offset, dst->data, dst->type);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_free(dst->data);
-            dst->data = NULL;
-        }
+        dst->data = UA_calloc(1,dst->type->memSize);
+        if(dst->data) {
+            retval = UA_decodeBinaryNoInit(src, offset, dst->data, dst->type);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_free(dst->data);
+                dst->data = NULL;
+            }
+        } else
+            retval = UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     /* array dimensions */
@@ -959,16 +966,15 @@ DataValue_encodeBinary(UA_DataValue const *src, const UA_DataType *_,
     return retval;
 }
 
-#define MAX_PICO_SECONDS 1000
+#define MAX_PICO_SECONDS 999
 static UA_StatusCode
 DataValue_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
                        UA_DataValue *dst, const UA_DataType *_) {
-    UA_DataValue_init(dst);
     UA_StatusCode retval = Byte_decodeBinary(src, offset, (UA_Byte*) dst, NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if(dst->hasValue)
-        retval |= UA_decodeBinary(src, offset, &dst->value, &UA_TYPES[UA_TYPES_VARIANT]);
+        retval |= Variant_decodeBinary(src, offset, &dst->value, NULL);
     if(dst->hasStatus)
         retval |= StatusCode_decodeBinary(src, offset, &dst->status, NULL);
     if(dst->hasSourceTimestamp)
@@ -985,7 +991,7 @@ DataValue_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
         if(dst->serverPicoseconds > MAX_PICO_SECONDS)
             dst->serverPicoseconds = MAX_PICO_SECONDS;
     }
-    if(retval)
+    if(retval != UA_STATUSCODE_GOOD)
         UA_DataValue_deleteMembers(dst);
     return retval;
 }
@@ -1004,7 +1010,7 @@ DiagnosticInfo_encodeBinary(const UA_DiagnosticInfo *src, const UA_DataType *_,
     if(src->hasLocale)
         retval |= Int32_encodeBinary(&src->locale, NULL, dst, offset);
     if(src->hasAdditionalInfo)
-        retval |= UA_encodeBinary(&src->additionalInfo, &UA_TYPES[UA_TYPES_STRING], dst, offset);
+        retval |= String_encodeBinary(&src->additionalInfo, NULL, dst, offset);
     if(src->hasInnerStatusCode)
         retval |= StatusCode_encodeBinary(&src->innerStatusCode, NULL, dst, offset);
     if(src->hasInnerDiagnosticInfo)
@@ -1015,7 +1021,6 @@ DiagnosticInfo_encodeBinary(const UA_DiagnosticInfo *src, const UA_DataType *_,
 static UA_StatusCode
 DiagnosticInfo_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
                             UA_DiagnosticInfo *dst, const UA_DataType *_) {
-    UA_DiagnosticInfo_init(dst);
     UA_StatusCode retval = Byte_decodeBinary(src, offset, (UA_Byte*) dst, NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -1028,17 +1033,17 @@ DiagnosticInfo_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset
     if(dst->hasLocale)
         retval |= Int32_decodeBinary(src, offset, &dst->locale, NULL);
     if(dst->hasAdditionalInfo)
-        retval |= UA_decodeBinary(src, offset, &dst->additionalInfo, &UA_TYPES[UA_TYPES_STRING]);
+        retval |= String_decodeBinary(src, offset, &dst->additionalInfo, NULL);
     if(dst->hasInnerStatusCode)
         retval |= StatusCode_decodeBinary(src, offset, &dst->innerStatusCode, NULL);
     if(dst->hasInnerDiagnosticInfo) {
         // innerDiagnosticInfo is a pointer to struct, therefore allocate
-        dst->innerDiagnosticInfo = UA_malloc(sizeof(UA_DiagnosticInfo));
+        dst->innerDiagnosticInfo = UA_calloc(1, sizeof(UA_DiagnosticInfo));
         if(dst->innerDiagnosticInfo) {
-            if(DiagnosticInfo_decodeBinary(src, offset, dst->innerDiagnosticInfo, NULL) != UA_STATUSCODE_GOOD) {
+            retval |= DiagnosticInfo_decodeBinary(src, offset, dst->innerDiagnosticInfo, NULL);
+            if(retval != UA_STATUSCODE_GOOD) {
                 UA_free(dst->innerDiagnosticInfo);
                 dst->innerDiagnosticInfo = NULL;
-                retval |= UA_STATUSCODE_BADINTERNALERROR;
             }
         } else
             retval |= UA_STATUSCODE_BADOUTOFMEMORY;
@@ -1125,17 +1130,17 @@ static const UA_decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COU
     (UA_decodeBinarySignature)NodeId_decodeBinary,
     (UA_decodeBinarySignature)ExpandedNodeId_decodeBinary,
     (UA_decodeBinarySignature)UInt32_decodeBinary, // StatusCode
-    (UA_decodeBinarySignature)UA_decodeBinary, // QualifiedName
+    (UA_decodeBinarySignature)UA_decodeBinaryNoInit, // QualifiedName
     (UA_decodeBinarySignature)LocalizedText_decodeBinary,
     (UA_decodeBinarySignature)ExtensionObject_decodeBinary,
     (UA_decodeBinarySignature)DataValue_decodeBinary,
     (UA_decodeBinarySignature)Variant_decodeBinary,
     (UA_decodeBinarySignature)DiagnosticInfo_decodeBinary,
-    (UA_decodeBinarySignature)UA_decodeBinary,
+    (UA_decodeBinarySignature)UA_decodeBinaryNoInit,
 };
 
-UA_StatusCode
-UA_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, void *dst, const UA_DataType *type) {
+static UA_StatusCode
+UA_decodeBinaryNoInit(const UA_ByteString *src, size_t *UA_RESTRICT offset, void *dst, const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t)dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Byte membersSize = type->membersSize;
@@ -1161,4 +1166,10 @@ UA_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, void *dst,
     if(retval != UA_STATUSCODE_GOOD)
         UA_deleteMembers(dst, type);
     return retval;
+}
+
+UA_StatusCode
+UA_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, void *dst, const UA_DataType *type) {
+    memset(dst, 0, type->memSize); // init
+    return UA_decodeBinaryNoInit(src, offset, dst, type);
 }

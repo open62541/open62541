@@ -19,7 +19,7 @@ static UA_StatusCode UA_Node_copy(const UA_Node *src, UA_Node *dst) {
 	retval |= UA_LocalizedText_copy(&src->description, &dst->description);
 	dst->writeMask = src->writeMask;
 	dst->userWriteMask = src->userWriteMask;
-	if(retval) {
+	if(retval != UA_STATUSCODE_GOOD) {
     	UA_Node_deleteMembers(dst);
         return retval;
     }
@@ -192,6 +192,9 @@ UA_StatusCode UA_ObjectTypeNode_copy(const UA_ObjectTypeNode *src, UA_ObjectType
 void UA_VariableNode_init(UA_VariableNode *p) {
     memset(p, 0, sizeof(UA_VariableNode));
     p->nodeClass = UA_NODECLASS_VARIABLE;
+    p->valueRank = -2; // scalar or array of any dimension
+    p->accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    p->userAccessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
 }
 
 UA_VariableNode * UA_VariableNode_new(void) {
@@ -221,7 +224,7 @@ UA_StatusCode UA_VariableNode_copy(const UA_VariableNode *src, UA_VariableNode *
         dst->value.variant.callback = src->value.variant.callback;
     } else
         dst->value.dataSource = src->value.dataSource;
-    if(retval) {
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_VariableNode_deleteMembers(dst);
         return retval;
     }
@@ -264,9 +267,9 @@ UA_StatusCode UA_VariableTypeNode_copy(const UA_VariableTypeNode *src, UA_Variab
     if(src->valueSource == UA_VALUESOURCE_VARIANT){
         UA_Variant_copy(&src->value.variant.value, &dst->value.variant.value);
         dst->value.variant.callback = src->value.variant.callback;
-    }else
+    } else
         dst->value.dataSource = src->value.dataSource;
-    if(retval) {
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_VariableTypeNode_deleteMembers(dst);
         return retval;
     }
@@ -299,10 +302,10 @@ void UA_ReferenceTypeNode_delete(UA_ReferenceTypeNode *p) {
 
 UA_StatusCode UA_ReferenceTypeNode_copy(const UA_ReferenceTypeNode *src, UA_ReferenceTypeNode *dst) {
     UA_StatusCode retval = UA_Node_copy((const UA_Node*)src, (UA_Node*)dst);
-    if(retval)
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
     retval = UA_LocalizedText_copy(&src->inverseName, &dst->inverseName);
-    if(retval) {
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_ReferenceTypeNode_deleteMembers(dst);
         return retval;
     }

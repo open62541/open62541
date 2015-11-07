@@ -100,7 +100,7 @@ UA_EXPORT extern const UA_String UA_STRING_NULL;
 
 static UA_INLINE UA_String UA_STRING(char *chars) {
     UA_String str; str.length = strlen(chars);
-    str.data   = (UA_Byte*)chars; return str; }
+    str.data = (UA_Byte*)chars; return str; }
 
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
     
@@ -113,7 +113,7 @@ UA_Boolean UA_EXPORT UA_String_equal(const UA_String *s1, const UA_String *s2);
 /* DateTime: An instance in time */
 /*********************************/
 /* A DateTime value is encoded as a 64-bit signed integer which represents the
-   number of 100 nanosecond intervals since January 1, 1601 (UTC). */
+   number of 100 nanosecond intervals since January 1, 1601 (UTC) */
 typedef UA_Int64 UA_DateTime;
 
 UA_DateTime UA_EXPORT UA_DateTime_now(void); ///> The current time
@@ -541,7 +541,8 @@ void UA_EXPORT * UA_new(const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
  * @param p The memory location of the variable
  * @param type The datatype description
  */
-void UA_EXPORT UA_init(void *p, const UA_DataType *type);
+static UA_INLINE void UA_init(void *p, const UA_DataType *type) {
+    memset(p, 0, type->memSize); }
 
 /**
  * Copies the content of two variables. If copying fails (e.g. because no memory was available for
@@ -640,6 +641,14 @@ typedef enum {
     UA_ATTRIBUTEID_EXECUTABLE              = 21,
     UA_ATTRIBUTEID_USEREXECUTABLE          = 22
 } UA_AttributeId;
+
+typedef enum {
+    UA_ACCESSLEVELMASK_READ = 0x01,
+    UA_ACCESSLEVELMASK_WRITE = 0x02,
+    UA_ACCESSLEVELMASK_HISTORYREAD = 0x4,
+    UA_ACCESSLEVELMASK_HISTORYWRITE = 0x08,
+    UA_ACCESSLEVELMASK_SEMANTICCHANGE = 0x10
+} UA_AccessLevelMask;
 
 /***************************/
 /* Random Number Generator */

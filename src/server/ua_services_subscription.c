@@ -168,7 +168,8 @@ void Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishReq
         
         response->subscriptionId = sub->subscriptionID;
         Subscription_copyTopNotificationMessage(&response->notificationMessage, sub);
-        if(sub->unpublishedNotifications.lh_first->notification->sequenceNumber > sub->sequenceNumber) {
+        UA_unpublishedNotification *firstUnPublished = LIST_FIRST(&sub->unpublishedNotifications);
+        if(firstUnPublished->notification.sequenceNumber > sub->sequenceNumber) {
             // If this is a keepalive message, its seqNo is the next seqNo to be used for an actual msg.
             response->availableSequenceNumbersSize = 0;
             // .. and must be deleted

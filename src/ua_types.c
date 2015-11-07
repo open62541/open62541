@@ -65,7 +65,7 @@ struct timezone {
 #endif
 
 #ifdef _WIN32
-static const unsigned __int64 epoch = 116444736000000000;
+static const UA_UInt64 epoch = 116444736000000000;
 int gettimeofday(struct timeval *tp, struct timezone *tzp);
 int gettimeofday(struct timeval *tp, struct timezone *tzp) {
     FILETIME       ft;
@@ -90,13 +90,13 @@ UA_DateTime UA_DateTime_now(void) {
 }
 
 UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime atime) {
+    /* Calculating the the milli-, micro- and nanoseconds */
     UA_DateTimeStruct dateTimeStruct;
-    //calcualting the the milli-, micro- and nanoseconds
     dateTimeStruct.nanoSec  = (UA_UInt16)((atime % 10) * 100);
     dateTimeStruct.microSec = (UA_UInt16)((atime % 10000) / 10);
     dateTimeStruct.milliSec = (UA_UInt16)((atime % 10000000) / 10000);
 
-    //calculating the unix time with #include <time.h>
+    /* Calculating the unix time with #include <time.h> */
     time_t secSinceUnixEpoch = (atime/10000000) - UNIX_EPOCH_BIAS_SEC;
     struct tm ts = *gmtime(&secSinceUnixEpoch);
     dateTimeStruct.sec    = (UA_UInt16)ts.tm_sec;
@@ -109,15 +109,15 @@ UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime atime) {
 }
 
 static void printNumber(UA_UInt16 n, UA_Byte *pos, size_t digits) {
-    for(size_t i = 0; i < digits; i++) {
-        pos[digits-i-1] = (n % 10) + '0';
+    for(size_t i = digits; i > 0; i--) {
+        pos[i-1] = (n % 10) + '0';
         n = n / 10;
     }
 }
 
 UA_String UA_DateTime_toString(UA_DateTime time) {
     UA_String str = UA_STRING_NULL;
-    // length of the string is 31 (incl. \0 at the end)
+    // length of the string is 31 (plus \0 at the end)
     if(!(str.data = UA_malloc(32)))
         return str;
     str.length = 31;
@@ -177,7 +177,7 @@ UA_StatusCode UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
 }
 
 /* NodeId */
-static void NodeId_deleteMembers(UA_NodeId *p, const UA_DataType *dummy) {
+static void NodeId_deleteMembers(UA_NodeId *p, const UA_DataType *_) {
     switch(p->identifierType) {
     case UA_NODEIDTYPE_STRING:
     case UA_NODEIDTYPE_BYTESTRING:
@@ -188,7 +188,7 @@ static void NodeId_deleteMembers(UA_NodeId *p, const UA_DataType *dummy) {
     }
 }
 
-static UA_StatusCode NodeId_copy(UA_NodeId const *src, UA_NodeId *dst, const UA_DataType *dummy) {
+static UA_StatusCode NodeId_copy(UA_NodeId const *src, UA_NodeId *dst, const UA_DataType *_) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(src->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
@@ -208,7 +208,7 @@ static UA_StatusCode NodeId_copy(UA_NodeId const *src, UA_NodeId *dst, const UA_
     }
     dst->namespaceIndex = src->namespaceIndex;
     dst->identifierType = src->identifierType;
-    if(retval)
+    if(retval != UA_STATUSCODE_GOOD)
         NodeId_deleteMembers(dst, NULL);
     return retval;
 }
@@ -233,7 +233,7 @@ UA_Boolean UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
 }
 
 /* ExtensionObject */
-static void ExtensionObject_deleteMembers(UA_ExtensionObject *p, const UA_DataType *dummy) {
+static void ExtensionObject_deleteMembers(UA_ExtensionObject *p, const UA_DataType *_) {
     switch(p->encoding) {
     case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
     case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
@@ -257,7 +257,7 @@ static void ExtensionObject_deleteMembers(UA_ExtensionObject *p, const UA_DataTy
 }
 
 static UA_StatusCode
-ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst, const UA_DataType *dummy) {
+ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst, const UA_DataType *_) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(src->encoding) {
     case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
@@ -273,7 +273,8 @@ ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst, con
             return UA_STATUSCODE_BADINTERNALERROR;
         dst->encoding = UA_EXTENSIONOBJECT_DECODED;
         dst->content.decoded.type = src->content.decoded.type;
-        retval = UA_Array_copy(src->content.decoded.data, 1, &dst->content.decoded.data, src->content.decoded.type);
+        retval = UA_Array_copy(src->content.decoded.data, 1,
+            &dst->content.decoded.data, src->content.decoded.type);
         break;
     default:
         break;
@@ -282,7 +283,7 @@ ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst, con
 }
 
 /* Variant */
-static void variant_deleteMembers(UA_Variant *p, const UA_DataType *dummy) {
+static void Variant_deletemembers(UA_Variant *p, const UA_DataType *_) {
     if(p->storageType != UA_VARIANT_DATA)
         return;
     if(p->data >= UA_EMPTY_ARRAY_SENTINEL) {
@@ -300,8 +301,7 @@ static void variant_deleteMembers(UA_Variant *p, const UA_DataType *dummy) {
 }
 
 static UA_StatusCode
-variant_copy(UA_Variant const *src, UA_Variant *dst, const UA_DataType *dummy) {
-    UA_Variant_init(dst);
+Variant_copy(UA_Variant const *src, UA_Variant *dst, const UA_DataType *_) {
     size_t length = src->arrayLength;
     if(UA_Variant_isScalar(src))
         length = 1;
@@ -311,34 +311,34 @@ variant_copy(UA_Variant const *src, UA_Variant *dst, const UA_DataType *dummy) {
     dst->arrayLength = src->arrayLength;
     dst->type = src->type;
     if(src->arrayDimensions) {
-        retval = UA_Array_copy(src->arrayDimensions, src->arrayDimensionsSize, (void**)&dst->arrayDimensions,
-                               &UA_TYPES[UA_TYPES_UINT32]);
+        retval = UA_Array_copy(src->arrayDimensions, src->arrayDimensionsSize,
+            (void**)&dst->arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
         if(retval == UA_STATUSCODE_GOOD)
             dst->arrayDimensionsSize = src->arrayDimensionsSize;
         else
-            variant_deleteMembers(dst, NULL);
+            Variant_deletemembers(dst, NULL);
     }
     return retval;
 }
 
 /**
- * Tests if a range is compatible with a variant. If yes, the following values are set:
+ * Test if a range is compatible with a variant. If yes, the following values are set:
  * - total: how many elements are in the range
  * - block: how big is each contiguous block of elements in the variant that maps into the range
  * - stride: how many elements are between the blocks (beginning to beginning)
  * - first: where does the first block begin
  */
 static UA_StatusCode
-testRangeWithVariant(const UA_Variant *v, const UA_NumericRange range, size_t *total,
-                     size_t *block, size_t *stride, size_t *first) {
+processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t *total,
+                       size_t *block, size_t *stride, size_t *first) {
     /* Test the integrity of the source variant dimensions */
-    size_t dims_count = 1;
+    UA_UInt32 dims_count = 1;
+    UA_UInt32 elements = 1;
     UA_UInt32 arrayLength = v->arrayLength;
     const UA_UInt32 *dims = &arrayLength;
     if(v->arrayDimensionsSize > 0) {
         dims_count = v->arrayDimensionsSize;
         dims = v->arrayDimensions;
-        size_t elements = 1;
         for(size_t i = 0; i < dims_count; i++)
             elements *= dims[i];
         if(elements != v->arrayLength)
@@ -358,7 +358,7 @@ testRangeWithVariant(const UA_Variant *v, const UA_NumericRange range, size_t *t
     }
 
     /* Compute the block size and the position of the first element */
-    size_t b = 0, s = 0, f = 0;
+    size_t b = 1, s = elements, f = 0;
     size_t running_dimssize = 1; // elements per block of dimensions k to k_max
     UA_Boolean found_contiguous = UA_FALSE;
     for(size_t k = dims_count - 1; ; k--) {
@@ -382,7 +382,7 @@ testRangeWithVariant(const UA_Variant *v, const UA_NumericRange range, size_t *t
 UA_StatusCode
 UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRange range) {
     size_t count, block, stride, first;
-    UA_StatusCode retval = testRangeWithVariant(src, range, &count, &block, &stride, &first);
+    UA_StatusCode retval = processRangeDefinition(src, range, &count, &block, &stride, &first);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     UA_Variant_init(dst);
@@ -424,7 +424,7 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRan
     if(src->arrayDimensionsSize > 0) {
         dst->arrayDimensions = UA_Array_new(src->arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
         if(!dst) {
-            variant_deleteMembers(dst, NULL);
+            Variant_deletemembers(dst, NULL);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         dst->arrayDimensionsSize = src->arrayDimensionsSize;
@@ -437,7 +437,7 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRan
 UA_StatusCode
 UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize, const UA_NumericRange range) {
     size_t count, block, stride, first;
-    UA_StatusCode retval = testRangeWithVariant(v, range, &count, &block, &stride, &first);
+    UA_StatusCode retval = processRangeDefinition(v, range, &count, &block, &stride, &first);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if(count != arraySize)
@@ -465,7 +465,7 @@ UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize, c
 UA_StatusCode
 UA_Variant_setRangeCopy(UA_Variant *v, const void *array, size_t arraySize, const UA_NumericRange range) {
     size_t count, block, stride, first;
-    UA_StatusCode retval = testRangeWithVariant(v, range, &count, &block, &stride, &first);
+    UA_StatusCode retval = processRangeDefinition(v, range, &count, &block, &stride, &first);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if(count != arraySize)
@@ -536,31 +536,32 @@ UA_Variant_setArrayCopy(UA_Variant *v, const void *array, size_t arraySize, cons
 }
 
 /* DataValue */
-static void DataValue_deleteMembers(UA_DataValue *p, const UA_DataType *dummy) {
-    variant_deleteMembers(&p->value, NULL);
+static void DataValue_deleteMembers(UA_DataValue *p, const UA_DataType *_) {
+    Variant_deletemembers(&p->value, NULL);
 }
 
 static UA_StatusCode
-DataValue_copy(UA_DataValue const *src, UA_DataValue *dst, const UA_DataType *dummy) {
+DataValue_copy(UA_DataValue const *src, UA_DataValue *dst, const UA_DataType *_) {
     memcpy(dst, src, sizeof(UA_DataValue));
     UA_Variant_init(&dst->value);
-    UA_StatusCode retval = variant_copy(&src->value, &dst->value, NULL);
-    if(retval)
+    UA_StatusCode retval = Variant_copy(&src->value, &dst->value, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
         DataValue_deleteMembers(dst, NULL);
     return retval;
 }
 
 /* DiagnosticInfo */
-static void DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p, const UA_DataType *dummy) {
+static void DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p, const UA_DataType *_) {
     UA_String_deleteMembers(&p->additionalInfo);
     if(p->hasInnerDiagnosticInfo && p->innerDiagnosticInfo) {
-        UA_DiagnosticInfo_delete(p->innerDiagnosticInfo);
+        DiagnosticInfo_deleteMembers(p->innerDiagnosticInfo, _);
+        UA_free(p->innerDiagnosticInfo);
         p->innerDiagnosticInfo = NULL;
     }
 }
 
 static UA_StatusCode
-DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst, const UA_DataType *dummy) {
+DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst, const UA_DataType *_) {
     memcpy(dst, src, sizeof(UA_DiagnosticInfo));
     UA_String_init(&dst->additionalInfo);
     dst->innerDiagnosticInfo = NULL;
@@ -583,10 +584,6 @@ DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst, const 
 /* Structure Types */
 /*******************/
 
-void UA_init(void *p, const UA_DataType *type) {
-    memset(p, 0, type->memSize);
-}
-
 void * UA_new(const UA_DataType *type) {
     void *p = UA_calloc(1, type->memSize);
     return p;
@@ -596,6 +593,8 @@ static UA_StatusCode UA_copyFixedSize(const void *src, void *dst, const UA_DataT
     memcpy(dst, src, type->memSize);
     return UA_STATUSCODE_GOOD;
 }
+
+static UA_StatusCode UA_copyNoInit(const void *src, void *dst, const UA_DataType *type);
 
 typedef UA_StatusCode (*UA_copySignature)(const void *src, void *dst, const UA_DataType *type);
 static const UA_copySignature copyJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
@@ -610,24 +609,24 @@ static const UA_copySignature copyJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
     (UA_copySignature)UA_copyFixedSize, // UInt64 
     (UA_copySignature)UA_copyFixedSize, // Float 
     (UA_copySignature)UA_copyFixedSize, // Double 
-    (UA_copySignature)UA_copy, // String
+    (UA_copySignature)UA_copyNoInit, // String
     (UA_copySignature)UA_copyFixedSize, // DateTime
     (UA_copySignature)UA_copyFixedSize, // Guid 
-    (UA_copySignature)UA_copy, // ByteString
-    (UA_copySignature)UA_copy, // XmlElement
+    (UA_copySignature)UA_copyNoInit, // ByteString
+    (UA_copySignature)UA_copyNoInit, // XmlElement
     (UA_copySignature)NodeId_copy,
-    (UA_copySignature)UA_copy, // ExpandedNodeId
+    (UA_copySignature)UA_copyNoInit, // ExpandedNodeId
     (UA_copySignature)UA_copyFixedSize, // StatusCode
-    (UA_copySignature)UA_copy, // QualifiedName
-    (UA_copySignature)UA_copy, // LocalizedText
+    (UA_copySignature)UA_copyNoInit, // QualifiedName
+    (UA_copySignature)UA_copyNoInit, // LocalizedText
     (UA_copySignature)ExtensionObject_copy,
     (UA_copySignature)DataValue_copy,
-    (UA_copySignature)variant_copy,
+    (UA_copySignature)Variant_copy,
     (UA_copySignature)DiagnosticInfo_copy,
-    (UA_copySignature)UA_copy,
+    (UA_copySignature)UA_copyNoInit,
 };
 
-UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *type) {
+static UA_StatusCode UA_copyNoInit(const void *src, void *dst, const UA_DataType *type) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     uintptr_t ptrs = (uintptr_t)src;
     uintptr_t ptrd = (uintptr_t)dst;
@@ -663,8 +662,14 @@ UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *type) {
     return retval;
 }
 
+UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *type) {
+    memset(dst, 0, type->memSize);
+    return UA_copyNoInit(src, dst, type);
+}
+
 typedef void (*UA_deleteMembersSignature)(void *p, const UA_DataType *type);
 static void nopDeleteMembers(void *p, const UA_DataType *type) { }
+
 static const UA_deleteMembersSignature deleteMembersJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
     (UA_deleteMembersSignature)nopDeleteMembers, // Boolean
     (UA_deleteMembersSignature)nopDeleteMembers, // SByte
@@ -689,7 +694,7 @@ static const UA_deleteMembersSignature deleteMembersJumpTable[UA_BUILTIN_TYPES_C
     (UA_deleteMembersSignature)UA_deleteMembers, // LocalizedText
     (UA_deleteMembersSignature)ExtensionObject_deleteMembers,
     (UA_deleteMembersSignature)DataValue_deleteMembers,
-    (UA_deleteMembersSignature)variant_deleteMembers,
+    (UA_deleteMembersSignature)Variant_deletemembers,
     (UA_deleteMembersSignature)DiagnosticInfo_deleteMembers,
     (UA_deleteMembersSignature)UA_deleteMembers,
 };

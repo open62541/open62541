@@ -6,9 +6,6 @@
 #include "ua_types_generated.h"
 #include "ua_nodes.h"
 
-#define INITPOINTER(src) (src) = NULL;
-#define ISNOTZERO(value) ((value == 0) ? 0 : 1)
-
 /*****************/
 /* MonitoredItem */
 /*****************/
@@ -70,7 +67,7 @@ int MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *d
 
 typedef struct UA_unpublishedNotification {
     LIST_ENTRY(UA_unpublishedNotification) listEntry;
-    UA_NotificationMessage *notification;
+    UA_NotificationMessage notification;
 } UA_unpublishedNotification;
 
 typedef struct UA_Subscription {

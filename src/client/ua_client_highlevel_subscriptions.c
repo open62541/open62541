@@ -282,8 +282,12 @@ void UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
         UA_Client_NotificationsAckNumber *ack;
         LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry)
             request.subscriptionAcknowledgementsSize++;
-        request.subscriptionAcknowledgements = UA_malloc(sizeof(UA_SubscriptionAcknowledgement) *
-                                                         request.subscriptionAcknowledgementsSize);
+        if(request.subscriptionAcknowledgementsSize > 0) {
+            request.subscriptionAcknowledgements = UA_malloc(sizeof(UA_SubscriptionAcknowledgement) *
+                                                             request.subscriptionAcknowledgementsSize);
+            if(!request.subscriptionAcknowledgements)
+                return;
+        }
         
         int index = 0 ;
         LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry) {

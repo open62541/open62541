@@ -524,7 +524,7 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
     UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_CLIENT,
                  "Sending a request of type %i", requestType->typeId.identifier.numeric);
     retval = UA_SecureChannel_sendBinaryMessage(&client->channel, requestId, request, requestType);
-    if(retval) {
+    if(retval != UA_STATUSCODE_GOOD) {
         if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED)
             respHeader->serviceResult = UA_STATUSCODE_BADREQUESTTOOLARGE;
         else
