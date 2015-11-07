@@ -33,7 +33,6 @@ int main(int argc, char** argv) {
 
     UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
     UA_Server_setLogger(server, logger);
-    UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 
     /* add a variable node to the address space */
     UA_VariableAttributes attr;
@@ -75,14 +74,11 @@ int main(int argc, char** argv) {
     UA_ReadRequest rq;
     UA_ReadResponse rr;
 
-    for(int i = 0; i < 600000; i++) {
-        UA_ReadRequest_init(&rq);
-        UA_ReadResponse_init(&rr);
-
+    for(int i = 0; i < 750000; i++) {
         offset = 0;
         retval |= UA_decodeBinary(&request_msg, &offset, &rq, &UA_TYPES[UA_TYPES_READREQUEST]);
-        //assert(retval != UA_STATUSCODE_GOOD);
 
+        UA_ReadResponse_init(&rr);
         Service_Read(server, &adminSession, &rq, &rr);
 
         offset = 0;
@@ -95,6 +91,7 @@ int main(int argc, char** argv) {
     end = clock();
     double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
     printf("duration was %f s\n", time_spent);
+    printf("retval is %i\n", retval);
 
     UA_ByteString_deleteMembers(&request_msg);
     UA_ByteString_deleteMembers(&response_msg);
