@@ -40,7 +40,7 @@ static UA_Server* makeTestSequence(void) {
     UA_VariableAttributes_init(&vattr);
     UA_Int32 myIntegerArray[9] = {1,2,3,4,5,6,7,8,9};
     UA_Variant_setArray(&vattr.value, &myIntegerArray, 9, &UA_TYPES[UA_TYPES_INT32]);
-    UA_Int32 myIntegerDimensions[2] = {3,3};
+    UA_UInt32 myIntegerDimensions[2] = {3,3};
     vattr.value.arrayDimensions = myIntegerDimensions;
     vattr.value.arrayDimensionsSize = 2;
     vattr.displayName = UA_LOCALIZEDTEXT("locale","myarray");

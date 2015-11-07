@@ -65,7 +65,7 @@ struct timezone {
 #endif
 
 #ifdef _WIN32
-static const unsigned __int64 epoch = 116444736000000000;
+static const UA_UInt64 epoch = 116444736000000000;
 int gettimeofday(struct timeval *tp, struct timezone *tzp);
 int gettimeofday(struct timeval *tp, struct timezone *tzp) {
     FILETIME       ft;
@@ -177,7 +177,7 @@ UA_StatusCode UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
 }
 
 /* NodeId */
-static void NodeId_deleteMembers(UA_NodeId *p, const UA_DataType *dummy) {
+static void NodeId_deleteMembers(UA_NodeId *p, const UA_DataType *_) {
     switch(p->identifierType) {
     case UA_NODEIDTYPE_STRING:
     case UA_NODEIDTYPE_BYTESTRING:
@@ -188,7 +188,7 @@ static void NodeId_deleteMembers(UA_NodeId *p, const UA_DataType *dummy) {
     }
 }
 
-static UA_StatusCode NodeId_copy(UA_NodeId const *src, UA_NodeId *dst, const UA_DataType *dummy) {
+static UA_StatusCode NodeId_copy(UA_NodeId const *src, UA_NodeId *dst, const UA_DataType *_) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(src->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
@@ -233,7 +233,7 @@ UA_Boolean UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
 }
 
 /* ExtensionObject */
-static void ExtensionObject_deleteMembers(UA_ExtensionObject *p, const UA_DataType *dummy) {
+static void ExtensionObject_deleteMembers(UA_ExtensionObject *p, const UA_DataType *_) {
     switch(p->encoding) {
     case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
     case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
@@ -257,8 +257,7 @@ static void ExtensionObject_deleteMembers(UA_ExtensionObject *p, const UA_DataTy
 }
 
 static UA_StatusCode
-ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst,
-                     const UA_DataType *dummy) {
+ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst, const UA_DataType *_) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(src->encoding) {
     case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
@@ -284,7 +283,7 @@ ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst,
 }
 
 /* Variant */
-static void Variant_deletemembers(UA_Variant *p, const UA_DataType *dummy) {
+static void Variant_deletemembers(UA_Variant *p, const UA_DataType *_) {
     if(p->storageType != UA_VARIANT_DATA)
         return;
     if(p->data >= UA_EMPTY_ARRAY_SENTINEL) {
@@ -302,7 +301,7 @@ static void Variant_deletemembers(UA_Variant *p, const UA_DataType *dummy) {
 }
 
 static UA_StatusCode
-Variant_copy(UA_Variant const *src, UA_Variant *dst, const UA_DataType *dummy) {
+Variant_copy(UA_Variant const *src, UA_Variant *dst, const UA_DataType *_) {
     size_t length = src->arrayLength;
     if(UA_Variant_isScalar(src))
         length = 1;
@@ -323,7 +322,7 @@ Variant_copy(UA_Variant const *src, UA_Variant *dst, const UA_DataType *dummy) {
 }
 
 /**
- * Tests if a range is compatible with a variant. If yes, the following values are set:
+ * Test if a range is compatible with a variant. If yes, the following values are set:
  * - total: how many elements are in the range
  * - block: how big is each contiguous block of elements in the variant that maps into the range
  * - stride: how many elements are between the blocks (beginning to beginning)
@@ -537,12 +536,12 @@ UA_Variant_setArrayCopy(UA_Variant *v, const void *array, size_t arraySize, cons
 }
 
 /* DataValue */
-static void DataValue_deleteMembers(UA_DataValue *p, const UA_DataType *dummy) {
+static void DataValue_deleteMembers(UA_DataValue *p, const UA_DataType *_) {
     Variant_deletemembers(&p->value, NULL);
 }
 
 static UA_StatusCode
-DataValue_copy(UA_DataValue const *src, UA_DataValue *dst, const UA_DataType *dummy) {
+DataValue_copy(UA_DataValue const *src, UA_DataValue *dst, const UA_DataType *_) {
     memcpy(dst, src, sizeof(UA_DataValue));
     UA_Variant_init(&dst->value);
     UA_StatusCode retval = Variant_copy(&src->value, &dst->value, NULL);
@@ -552,16 +551,17 @@ DataValue_copy(UA_DataValue const *src, UA_DataValue *dst, const UA_DataType *du
 }
 
 /* DiagnosticInfo */
-static void DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p, const UA_DataType *dummy) {
+static void DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p, const UA_DataType *_) {
     UA_String_deleteMembers(&p->additionalInfo);
     if(p->hasInnerDiagnosticInfo && p->innerDiagnosticInfo) {
-        UA_DiagnosticInfo_delete(p->innerDiagnosticInfo);
+        DiagnosticInfo_deleteMembers(p->innerDiagnosticInfo, _);
+        UA_free(p->innerDiagnosticInfo);
         p->innerDiagnosticInfo = NULL;
     }
 }
 
 static UA_StatusCode
-DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst, const UA_DataType *dummy) {
+DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst, const UA_DataType *_) {
     memcpy(dst, src, sizeof(UA_DiagnosticInfo));
     UA_String_init(&dst->additionalInfo);
     dst->innerDiagnosticInfo = NULL;
