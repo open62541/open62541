@@ -31,43 +31,55 @@ satisfySignature(const UA_Variant *var, const UA_Argument *arg) {
     if(!UA_NodeId_equal(&var->type->typeId, &arg->dataType) )
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     
-    // Note: The namespace compiler will compile nodes with their actual array dimensions, never -1
+    // Note: The namespace compiler will compile nodes with their actual array dimensions
+    // Todo: Check if this is standard conform for scalars
     if(arg->arrayDimensionsSize > 0 && var->arrayDimensionsSize > 0)
         if(var->arrayDimensionsSize != arg->arrayDimensionsSize) 
             return UA_STATUSCODE_BADINVALIDARGUMENT;
         
-        // Continue with jpfr's satisfySignature from here on
-        /* ValueRank Semantics
-         *  n >= 1: the value is an array with the specified number of dimens*ions.
-         *  n = 0: the value is an array with one or more dimensions.
-         *  n = -1: the value is a scalar.
-         *  n = -2: the value can be a scalar or an array with any number of dimensions.
-         *  n = -3:  the value can be a scalar or a one dimensional array. */
-        UA_Boolean scalar = UA_Variant_isScalar(var);
-        if(arg->valueRank == 0 && scalar)
+    UA_UInt32 *varDims = var->arrayDimensions;
+    size_t varDimsSize = var->arrayDimensionsSize;
+    UA_Boolean scalar = UA_Variant_isScalar(var);
+
+    /* The dimension 1 is implicit in the array length */
+    UA_UInt32 fakeDims;
+    if(!scalar && !varDims) {
+        fakeDims = var->arrayLength;
+        varDims = &fakeDims;
+        varDimsSize = 1;
+    }
+
+    /* ValueRank Semantics
+     *  n >= 1: the value is an array with the specified number of dimens*ions.
+     *  n = 0: the value is an array with one or more dimensions.
+     *  n = -1: the value is a scalar.
+     *  n = -2: the value can be a scalar or an array with any number of dimensions.
+     *  n = -3:  the value can be a scalar or a one dimensional array. */
+    switch(arg->valueRank) {
+    case -3:
+        if(varDimsSize > 1)
             return UA_STATUSCODE_BADINVALIDARGUMENT;
-        if(arg->valueRank == -1 && !scalar)
+        break;
+    case -2:
+        break;
+    case -1:
+        if(!scalar)
             return UA_STATUSCODE_BADINVALIDARGUMENT;
-        if(arg->valueRank == -3 && var->arrayDimensionsSize > 1)
+        break;
+    case 0:
+        if(scalar || !varDims)
             return UA_STATUSCODE_BADINVALIDARGUMENT;
-        if(arg->valueRank > 1 && var->arrayDimensionsSize != arg->arrayDimensionsSize)
+        break;
+    default:
+        break;
+    }
+
+    /* do the array dimensions match? */
+    if(arg->arrayDimensionsSize != varDimsSize)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    for(size_t i = 0; i < varDimsSize; i++) {
+        if(arg->arrayDimensions[i] != varDims[i])
             return UA_STATUSCODE_BADINVALIDARGUMENT;
-        
-        //variants do not always encode the dimension flag (e.g. 1d array)
-       if(!var->arrayDimensions && arg->arrayDimensionsSize == 1 &&
-          arg->arrayDimensions[0] == var->arrayLength) {
-    	   return UA_STATUSCODE_GOOD;
-       } else {
-         if(arg->valueRank >= 1 && var->arrayDimensionsSize != arg->arrayDimensionsSize)
-            return UA_STATUSCODE_BADINVALIDARGUMENT;
-         if(arg->arrayDimensionsSize >= 1) {
-            if(arg->arrayDimensionsSize != var->arrayDimensionsSize)
-                return UA_STATUSCODE_BADINVALIDARGUMENT;
-            for(size_t i = 0; i < arg->arrayDimensionsSize; i++) {
-                if(arg->arrayDimensions[i] != var->arrayDimensions[i])
-                    return UA_STATUSCODE_BADINVALIDARGUMENT;
-            }
-         }
     }
     return UA_STATUSCODE_GOOD;
 }
