@@ -195,11 +195,11 @@ findSubTypes(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **reftypes, size
 }
 
 static void removeCp(struct ContinuationPointEntry *cp, UA_Session* session) {
-    session->availableContinuationPoints++;
+    LIST_REMOVE(cp, pointers);
     UA_ByteString_deleteMembers(&cp->identifier);
     UA_BrowseDescription_deleteMembers(&cp->browseDescription);
-    LIST_REMOVE(cp, pointers);
     UA_free(cp);
+    session->availableContinuationPoints++;
 }
 
 /**
@@ -440,43 +440,25 @@ void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseN
         return;
    }
    size_t size = request->continuationPointsSize;
-   if(!request->releaseContinuationPoints) {
-       /* continue with the cp */
-       response->results = UA_Array_new(size, &UA_TYPES[UA_TYPES_BROWSERESULT]);
-       if(!response->results) {
-           response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-           return;
-       }
-       response->resultsSize = size;
-       for(size_t i = 0; i < size; i++) {
-           struct ContinuationPointEntry *cp, *temp;
-           LIST_FOREACH_SAFE(cp, &session->continuationPoints, pointers, temp) {
-               if(UA_ByteString_equal(&cp->identifier, &request->continuationPoints[i])) {
+   response->results = UA_Array_new(size, &UA_TYPES[UA_TYPES_BROWSERESULT]);
+   if(!response->results) {
+       response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+       return;
+   }
+
+   response->resultsSize = size;
+   for(size_t i = 0; i < size; i++) {
+       response->results[i].statusCode = UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
+       struct ContinuationPointEntry *cp, *temp;
+       LIST_FOREACH_SAFE(cp, &session->continuationPoints, pointers, temp) {
+           if(UA_ByteString_equal(&cp->identifier, &request->continuationPoints[i])) {
+               response->results[i].statusCode = UA_STATUSCODE_GOOD;
+               if(!request->releaseContinuationPoints)
                    Service_Browse_single(server, session, cp, NULL, 0, &response->results[i]);
-                   break;
-               }
-           }
-           if(!cp)
-               response->results[i].statusCode = UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
-       }
-   } else {
-       /* remove the cp */
-       response->results = UA_Array_new(size, &UA_TYPES[UA_TYPES_BROWSERESULT]);
-       if(!response->results) {
-           response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-           return;
-       }
-       response->resultsSize = size;
-       for(size_t i = 0; i < size; i++) {
-           struct ContinuationPointEntry *cp, *temp;
-           LIST_FOREACH_SAFE(cp, &session->continuationPoints, pointers, temp) {
-               if(!UA_ByteString_equal(&cp->identifier, &request->continuationPoints[i])) {
+               else
                    removeCp(cp, session);
-                   break;
-               }
+               break;
            }
-           if(!cp)
-               response->results[i].statusCode = UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
        }
    }
 }
