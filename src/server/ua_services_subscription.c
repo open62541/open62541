@@ -17,6 +17,10 @@ void Service_CreateSubscription(UA_Server *server, UA_Session *session,
                                 UA_CreateSubscriptionResponse *response) {
     response->subscriptionId = SubscriptionManager_getUniqueUIntID(&session->subscriptionManager);
     UA_Subscription *newSubscription = UA_Subscription_new(response->subscriptionId);
+    if(!newSubscription) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
     
     /* set the publishing interval */
     UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalPublishingInterval,
@@ -163,7 +167,7 @@ void Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishReq
             Subscription_updateNotifications(sub);
         }
         
-        if(Subscription_queuedNotifications(sub) <= 0)
+        if(sub->unpublishedNotificationsSize == 0)
             continue;
         
         response->subscriptionId = sub->subscriptionID;
@@ -175,7 +179,7 @@ void Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishReq
             // .. and must be deleted
             Subscription_deleteUnpublishedNotification(sub->sequenceNumber + 1, false, sub);
         } else {
-            response->availableSequenceNumbersSize = Subscription_queuedNotifications(sub);
+            response->availableSequenceNumbersSize = sub->unpublishedNotificationsSize;
             response->availableSequenceNumbers = Subscription_getAvailableSequenceNumbers(sub);
         }	  
         // FIXME: This should be in processMSG();
