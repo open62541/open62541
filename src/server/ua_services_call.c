@@ -85,26 +85,23 @@ satisfySignature(const UA_Variant *var, const UA_Argument *arg) {
 }
 
 static UA_StatusCode
-argConformsToDefinition(UA_CallMethodRequest *rs, const UA_VariableNode *argDefinition) {
-    if(argDefinition->value.variant.value.type != &UA_TYPES[UA_TYPES_ARGUMENT] &&
-        argDefinition->value.variant.value.type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
+argConformsToDefinition(const UA_VariableNode *argRequirements, size_t argsSize, const UA_Variant *args) {
+    if(argRequirements->value.variant.value.type != &UA_TYPES[UA_TYPES_ARGUMENT])
         return UA_STATUSCODE_BADINTERNALERROR;
-    if(rs->inputArgumentsSize < argDefinition->value.variant.value.arrayLength &&
-       argDefinition->value.variant.value.arrayLength > 0)
+    UA_Argument *argReqs = (UA_Argument*)argRequirements->value.variant.value.data;
+    size_t argReqsSize = argRequirements->value.variant.value.arrayLength;
+    if(argRequirements->valueSource != UA_VALUESOURCE_VARIANT)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(UA_Variant_isScalar(&argRequirements->value.variant.value))
+        argReqsSize = 1;
+    if(argReqsSize > argsSize)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
-    if(rs->inputArgumentsSize > 0 &&
-       rs->inputArgumentsSize > argDefinition->value.variant.value.arrayLength)
+    if(argReqsSize != argsSize)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    
-    if(argDefinition->value.variant.value.type != &UA_TYPES[UA_TYPES_ARGUMENT])
-        return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < argDefinition->value.variant.value.arrayLength; i++) {
-        UA_Variant *var = &rs->inputArguments[i];
-        UA_Argument *arg = &((UA_Argument*)argDefinition->value.variant.value.data)[i];
-        retval |= satisfySignature(var, arg);
-    }
+    for(size_t i = 0; i < argReqsSize; i++)
+        retval |= satisfySignature(&args[i], &argReqs[i]);
     return retval;
 }
 
@@ -161,7 +158,8 @@ callMethod(UA_Server *server, UA_Session *session, UA_CallMethodRequest *request
     const UA_VariableNode *inputArguments =
         getArgumentsVariableNode(server, methodCalled, UA_STRING("InputArguments"));
     if(inputArguments) {
-        result->statusCode = argConformsToDefinition(request, inputArguments);
+        result->statusCode = argConformsToDefinition(inputArguments, request->inputArgumentsSize,
+                                                     request->inputArguments);
         if(result->statusCode != UA_STATUSCODE_GOOD)
             return;
     } else if(request->inputArgumentsSize > 0) {
