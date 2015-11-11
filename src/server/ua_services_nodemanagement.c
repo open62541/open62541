@@ -65,16 +65,16 @@ UA_Server_addExistingNode(UA_Server *server, UA_Session *session, UA_Node *node,
             return;
         }
     }
+    /* Careful. The node is inserted. If the nodestore makes an expand, nodes change their address */
     
     // reference back to the parent
     UA_AddReferencesItem item;
     UA_AddReferencesItem_init(&item);
     item.sourceNodeId = managed->nodeId;
-    item.referenceTypeId = referenceType->nodeId;
+    item.referenceTypeId = *referenceTypeId;
     item.isForward = UA_FALSE;
-    item.targetNodeId.nodeId = parent->nodeId;
+    item.targetNodeId.nodeId = *parentNodeId;
     Service_AddReferences_single(server, session, &item);
-
     // todo: error handling. remove new node from nodestore
 }
 
@@ -310,106 +310,130 @@ instantiateVariableNode(UA_Server *server, UA_Session *session, const UA_NodeId 
     return UA_STATUSCODE_GOOD;
 }
 
-static void moveStandardAttributes(UA_Node *node, UA_AddNodesItem *item, UA_NodeAttributes *attr) {
-    node->nodeId = item->requestedNewNodeId.nodeId;
-    UA_NodeId_init(&item->requestedNewNodeId.nodeId);
-    node->browseName = item->browseName;
-    UA_QualifiedName_init(&item->browseName);
-    node->displayName = attr->displayName;
-    UA_LocalizedText_init(&attr->displayName);
-    node->description = attr->description;
-    UA_LocalizedText_init(&attr->description);
+static UA_StatusCode
+copyStandardAttributes(UA_Node *node, const UA_AddNodesItem *item, const UA_NodeAttributes *attr) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    retval |= UA_NodeId_copy(&item->requestedNewNodeId.nodeId, &node->nodeId);
+    retval |= UA_QualifiedName_copy(&item->browseName, &node->browseName);
+    retval |= UA_LocalizedText_copy(&attr->displayName, &node->displayName);
+    retval |= UA_LocalizedText_copy(&attr->description, &node->description);
     node->writeMask = attr->writeMask;
     node->userWriteMask = attr->userWriteMask;
+    return retval;
 }
 
 static UA_Node *
-variableNodeFromAttributes(UA_AddNodesItem *item, UA_VariableAttributes *attr) {
+variableNodeFromAttributes(const UA_AddNodesItem *item, const UA_VariableAttributes *attr) {
     UA_VariableNode *vnode = UA_VariableNode_new();
     if(!vnode)
         return NULL;
-    moveStandardAttributes((UA_Node*)vnode, item, (UA_NodeAttributes*)attr);
+    UA_StatusCode retval = copyStandardAttributes((UA_Node*)vnode, item, (const UA_NodeAttributes*)attr);
     // todo: test if the type / valueRank / value attributes are consistent
     vnode->accessLevel = attr->accessLevel;
     vnode->userAccessLevel = attr->userAccessLevel;
     vnode->historizing = attr->historizing;
     vnode->minimumSamplingInterval = attr->minimumSamplingInterval;
     vnode->valueRank = attr->valueRank;
-    vnode->value.variant.value = attr->value;
-    UA_Variant_init(&attr->value);
+    retval |= UA_Variant_copy(&attr->value, &vnode->value.variant.value);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Node_deleteAnyNodeClass((UA_Node*)vnode);
+        return NULL;
+    }
     return (UA_Node*)vnode;
 }
 
 static UA_Node *
-objectNodeFromAttributes(UA_AddNodesItem *item, UA_ObjectAttributes *attr) {
+objectNodeFromAttributes(const UA_AddNodesItem *item, const UA_ObjectAttributes *attr) {
     UA_ObjectNode *onode = UA_ObjectNode_new();
     if(!onode)
         return NULL;
-    moveStandardAttributes((UA_Node*)onode, item, (UA_NodeAttributes*)attr);
+    UA_StatusCode retval = copyStandardAttributes((UA_Node*)onode, item, (const UA_NodeAttributes*)attr);
     onode->eventNotifier = attr->eventNotifier;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Node_deleteAnyNodeClass((UA_Node*)onode);
+        return NULL;
+    }
     return (UA_Node*)onode;
 }
 
 static UA_Node *
-referenceTypeNodeFromAttributes(UA_AddNodesItem *item, UA_ReferenceTypeAttributes *attr) {
+referenceTypeNodeFromAttributes(const UA_AddNodesItem *item, const UA_ReferenceTypeAttributes *attr) {
     UA_ReferenceTypeNode *rtnode = UA_ReferenceTypeNode_new();
     if(!rtnode)
         return NULL;
-    moveStandardAttributes((UA_Node*)rtnode, item, (UA_NodeAttributes*)attr);
+    UA_StatusCode retval = copyStandardAttributes((UA_Node*)rtnode, item, (const UA_NodeAttributes*)attr);
     rtnode->isAbstract = attr->isAbstract;
     rtnode->symmetric = attr->symmetric;
-    rtnode->inverseName = attr->inverseName;
-    UA_LocalizedText_init(&attr->inverseName);
+    retval |= UA_LocalizedText_copy(&attr->inverseName, &rtnode->inverseName);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Node_deleteAnyNodeClass((UA_Node*)rtnode);
+        return NULL;
+    }
     return (UA_Node*)rtnode;
 }
 
 static UA_Node *
-objectTypeNodeFromAttributes(UA_AddNodesItem *item, UA_ObjectTypeAttributes *attr) {
+objectTypeNodeFromAttributes(const UA_AddNodesItem *item, const UA_ObjectTypeAttributes *attr) {
     UA_ObjectTypeNode *otnode = UA_ObjectTypeNode_new();
     if(!otnode)
         return NULL;
-    moveStandardAttributes((UA_Node*)otnode, item, (UA_NodeAttributes*)attr);
+    UA_StatusCode retval = copyStandardAttributes((UA_Node*)otnode, item, (const UA_NodeAttributes*)attr);
     otnode->isAbstract = attr->isAbstract;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Node_deleteAnyNodeClass((UA_Node*)otnode);
+        return NULL;
+    }
     return (UA_Node*)otnode;
 }
 
 static UA_Node *
-variableTypeNodeFromAttributes(UA_AddNodesItem *item, UA_VariableTypeAttributes *attr) {
+variableTypeNodeFromAttributes(const UA_AddNodesItem *item, const UA_VariableTypeAttributes *attr) {
     UA_VariableTypeNode *vtnode = UA_VariableTypeNode_new();
     if(!vtnode)
         return NULL;
-    moveStandardAttributes((UA_Node*)vtnode, item, (UA_NodeAttributes*)attr);
-    vtnode->value.variant.value = attr->value;
-    UA_Variant_init(&attr->value);
+    UA_StatusCode retval = copyStandardAttributes((UA_Node*)vtnode, item, (const UA_NodeAttributes*)attr);
+    UA_Variant_copy(&attr->value, &vtnode->value.variant.value);
     // datatype is taken from the value
     vtnode->valueRank = attr->valueRank;
     // array dimensions are taken from the value
     vtnode->isAbstract = attr->isAbstract;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Node_deleteAnyNodeClass((UA_Node*)vtnode);
+        return NULL;
+    }
     return (UA_Node*)vtnode;
 }
 
 static UA_Node *
-viewNodeFromAttributes(UA_AddNodesItem *item, UA_ViewAttributes *attr) {
+viewNodeFromAttributes(const UA_AddNodesItem *item, const UA_ViewAttributes *attr) {
     UA_ViewNode *vnode = UA_ViewNode_new();
     if(!vnode)
         return NULL;
-    moveStandardAttributes((UA_Node*)vnode, item, (UA_NodeAttributes*)attr);
+    UA_StatusCode retval = copyStandardAttributes((UA_Node*)vnode, item, (const UA_NodeAttributes*)attr);
     vnode->containsNoLoops = attr->containsNoLoops;
     vnode->eventNotifier = attr->eventNotifier;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Node_deleteAnyNodeClass((UA_Node*)vnode);
+        return NULL;
+    }
     return (UA_Node*)vnode;
 }
 
 static UA_Node *
-dataTypeNodeFromAttributes(UA_AddNodesItem *item, UA_DataTypeAttributes *attr) {
+dataTypeNodeFromAttributes(const UA_AddNodesItem *item, const UA_DataTypeAttributes *attr) {
     UA_DataTypeNode *dtnode = UA_DataTypeNode_new();
     if(!dtnode)
         return NULL;
-    moveStandardAttributes((UA_Node*)dtnode, item, (UA_NodeAttributes*)attr);
+    UA_StatusCode retval = copyStandardAttributes((UA_Node*)dtnode, item, (const UA_NodeAttributes*)attr);
     dtnode->isAbstract = attr->isAbstract;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Node_deleteAnyNodeClass((UA_Node*)dtnode);
+        return NULL;
+    }
     return (UA_Node*)dtnode;
 }
 
-void Service_AddNodes_single(UA_Server *server, UA_Session *session, UA_AddNodesItem *item,
+void Service_AddNodes_single(UA_Server *server, UA_Session *session, const UA_AddNodesItem *item,
                              UA_AddNodesResult *result) {
     if(item->nodeAttributes.encoding < UA_EXTENSIONOBJECT_DECODED ||
        !item->nodeAttributes.content.decoded.type) {
@@ -590,7 +614,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    moveStandardAttributes((UA_Node*)node, &item, (UA_NodeAttributes*)&attrCopy);
+    copyStandardAttributes((UA_Node*)node, &item, (UA_NodeAttributes*)&attrCopy);
     node->valueSource = UA_VALUESOURCE_DATASOURCE;
     node->value.dataSource = dataSource;
     node->accessLevel = attr.accessLevel;
@@ -650,7 +674,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
         return result.statusCode;
     }
     
-    moveStandardAttributes((UA_Node*)node, &item, (UA_NodeAttributes*)&attrCopy);
+    copyStandardAttributes((UA_Node*)node, &item, (UA_NodeAttributes*)&attrCopy);
     node->executable = attrCopy.executable;
     node->userExecutable = attrCopy.executable;
     node->attachedMethod = method;

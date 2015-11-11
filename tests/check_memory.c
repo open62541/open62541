@@ -1,5 +1,4 @@
 #define _XOPEN_SOURCE 500
-#include <stdio.h>
 #include <stdlib.h>
 
 #include "ua_types.h"
@@ -53,8 +52,6 @@ START_TEST(encodeShallYieldDecode) {
 	void *obj1 = UA_new(&UA_TYPES[_i]);
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, 65000); // fixed buf size
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    printf("%i\n", _i);
-    fflush(stdout);
     retval = UA_encodeBinary(obj1, &UA_TYPES[_i], &msg1, &pos);
     msg1.length = pos;
 	if(retval != UA_STATUSCODE_GOOD) {

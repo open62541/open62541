@@ -404,10 +404,6 @@ static UA_INLINE UA_StatusCode
 UA_Server_writeValueAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_Variant value) {
     return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value); }
 
-/* The value content is moved into the node (not copied). The input variant is _inited internally. */
-UA_StatusCode UA_EXPORT
-UA_Server_writeValueAttribute_move(UA_Server *server, const UA_NodeId nodeId, UA_Variant *value);
-
 static UA_INLINE UA_StatusCode
 UA_Server_writeAccessLevelAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_UInt32 accessLevel) {
     return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_ACCESSLEVEL, &UA_TYPES[UA_TYPES_UINT32], &accessLevel); }

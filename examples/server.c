@@ -54,17 +54,12 @@ readTimeData(void *handle, const UA_NodeId nodeId, UA_Boolean sourceTimeStamp,
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
         return UA_STATUSCODE_GOOD;
     }
-	UA_DateTime *currentTime = UA_DateTime_new();
-	if(!currentTime)
-		return UA_STATUSCODE_BADOUTOFMEMORY;
-	*currentTime = UA_DateTime_now();
-	value->value.type = &UA_TYPES[UA_TYPES_DATETIME];
-	value->value.arrayLength = -1;
-	value->value.data = currentTime;
+	UA_DateTime currentTime = UA_DateTime_now();
+    UA_Variant_setScalarCopy(&value->value, &currentTime, &UA_TYPES[UA_TYPES_DATETIME]);
 	value->hasValue = UA_TRUE;
 	if(sourceTimeStamp) {
 		value->hasSourceTimestamp = UA_TRUE;
-		value->sourceTimestamp = *currentTime;
+		value->sourceTimestamp = currentTime;
 	}
 	return UA_STATUSCODE_GOOD;
 }
@@ -83,28 +78,20 @@ readTemperature(void *handle, const UA_NodeId nodeId, UA_Boolean sourceTimeStamp
         return UA_STATUSCODE_GOOD;
     }
 
-	UA_Double* currentTemperature = UA_Double_new();
-
-	if(!currentTemperature)
-		return UA_STATUSCODE_BADOUTOFMEMORY;
-
 	rewind(temperatureFile);
 	fflush(temperatureFile);
 
-	if(fscanf(temperatureFile, "%lf", currentTemperature) != 1){
+	UA_Double currentTemperature;
+	if(fscanf(temperatureFile, "%lf", &currentTemperature) != 1){
 		UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "Can not parse temperature");
 		exit(1);
 	}
 
-	*currentTemperature /= 1000.0;
+	currentTemperature /= 1000.0;
 
 	value->sourceTimestamp = UA_DateTime_now();
 	value->hasSourceTimestamp = UA_TRUE;
-	value->value.type = &UA_TYPES[UA_TYPES_DOUBLE];
-	value->value.arrayLength = -1;
-	value->value.data = currentTemperature;
-	value->value.arrayDimensionsSize = -1;
-	value->value.arrayDimensions = NULL;
+    UA_Variant_setScalarCopy(&value->value, &currentTemperature, &UA_TYPES[UA_TYPES_DOUBLE]);
 	value->hasValue = UA_TRUE;
 	return UA_STATUSCODE_GOOD;
 }
@@ -385,21 +372,21 @@ int main(int argc, char** argv) {
 #ifdef ENABLE_METHODCALLS
     UA_Argument inputArguments;
     UA_Argument_init(&inputArguments);
-    inputArguments.arrayDimensionsSize = -1;
+    inputArguments.arrayDimensionsSize = 0;
     inputArguments.arrayDimensions = NULL;
     inputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
     inputArguments.description = UA_LOCALIZEDTEXT("en_US", "A String");
     inputArguments.name = UA_STRING("Input an integer");
-    inputArguments.valueRank = -1;
+    inputArguments.valueRank = 0;
 
     UA_Argument outputArguments;
     UA_Argument_init(&outputArguments);
-    outputArguments.arrayDimensionsSize = -1;
+    outputArguments.arrayDimensionsSize = 0;
     outputArguments.arrayDimensions = NULL;
     outputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
     outputArguments.description = UA_LOCALIZEDTEXT("en_US", "A String");
     outputArguments.name = UA_STRING("Input an integer");
-    outputArguments.valueRank = -1;
+    outputArguments.valueRank = 0;
 
     UA_MethodAttributes addmethodattributes;
     UA_MethodAttributes_init(&addmethodattributes);

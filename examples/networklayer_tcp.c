@@ -86,7 +86,7 @@ static UA_StatusCode
 socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout) {
     response->data = malloc(connection->localConf.recvBufferSize);
     if(!response->data) {
-        response->length = -1;
+        response->length = 0;
         return UA_STATUSCODE_BADOUTOFMEMORY; /* not enough memory retry */
     }
 
@@ -296,8 +296,7 @@ static UA_StatusCode ServerNetworkLayerTCP_start(ServerNetworkLayerTCP *layer, U
          .sin_port = htons(layer->port), .sin_zero = {0}};
     int optval = 1;
     if(setsockopt(layer->serversockfd, SOL_SOCKET,
-                  SO_REUSEADDR, (const char *)&optval,
-                  sizeof(optval)) == -1) {
+                  SO_REUSEADDR, (const char *)&optval, sizeof(optval)) == -1) {
         UA_LOG_WARNING(layer->layer.logger, UA_LOGCATEGORY_NETWORK,
                        "Error during setting of socket options");
         CLOSESOCKET(layer->serversockfd);

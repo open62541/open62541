@@ -107,7 +107,7 @@ void Service_CloseSession(UA_Server *server, UA_Session *session, const UA_Close
 /** Used to add one or more Nodes into the AddressSpace hierarchy. */
 void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesRequest *request,
                       UA_AddNodesResponse *response);
-void Service_AddNodes_single(UA_Server *server, UA_Session *session, UA_AddNodesItem *item,
+void Service_AddNodes_single(UA_Server *server, UA_Session *session, const UA_AddNodesItem *item,
                              UA_AddNodesResult *result);
 
 /** Used to add one or more References to one or more Nodes. */
@@ -227,7 +227,7 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
                    UA_WriteResponse *response);
 
 /** Single attribute writes are exposed to the userspace. The wvalue may be destroyed (deleteMembers) */
-UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, UA_WriteValue *wvalue);
+UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, const UA_WriteValue *wvalue);
 
 // Service_HistoryUpdate
 /** @} */

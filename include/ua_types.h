@@ -364,9 +364,8 @@ static UA_INLINE UA_Boolean UA_Variant_isScalar(const UA_Variant *v) {
  * @param v The variant
  * @param p A pointer to the value data
  * @param type The datatype of the value in question
- * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setScalar(UA_Variant *v, void * UA_RESTRICT p, const UA_DataType *type);
+void UA_EXPORT UA_Variant_setScalar(UA_Variant *v, void * UA_RESTRICT p, const UA_DataType *type);
 
 /**
  * Set the variant to a scalar value that is copied from an existing variable.
@@ -386,9 +385,8 @@ UA_StatusCode UA_EXPORT UA_Variant_setScalarCopy(UA_Variant *v, const void *p, c
  * @param array A pointer to the array data
  * @param arraySize The size of the array
  * @param type The datatype of the array
- * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT
+void UA_EXPORT
 UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize, const UA_DataType *type);
 
 /**

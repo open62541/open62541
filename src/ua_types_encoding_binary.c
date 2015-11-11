@@ -1039,14 +1039,12 @@ DiagnosticInfo_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset
     if(dst->hasInnerDiagnosticInfo) {
         // innerDiagnosticInfo is a pointer to struct, therefore allocate
         dst->innerDiagnosticInfo = UA_calloc(1, sizeof(UA_DiagnosticInfo));
-        if(dst->innerDiagnosticInfo) {
+        if(dst->innerDiagnosticInfo)
             retval |= DiagnosticInfo_decodeBinary(src, offset, dst->innerDiagnosticInfo, NULL);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_free(dst->innerDiagnosticInfo);
-                dst->innerDiagnosticInfo = NULL;
-            }
-        } else
+        else {
+            dst->hasInnerDiagnosticInfo = UA_FALSE;
             retval |= UA_STATUSCODE_BADOUTOFMEMORY;
+        }
     }
     if(retval != UA_STATUSCODE_GOOD)
         UA_DiagnosticInfo_deleteMembers(dst);

@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
     UA_ReadRequest rq;
     UA_ReadResponse rr;
 
-    for(int i = 0; i < 750000; i++) {
+    for(int i = 0; i < 900000; i++) {
         offset = 0;
         retval |= UA_decodeBinary(&request_msg, &offset, &rq, &UA_TYPES[UA_TYPES_READREQUEST]);
 

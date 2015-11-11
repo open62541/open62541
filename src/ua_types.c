@@ -351,9 +351,9 @@ processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t 
         return UA_STATUSCODE_BADINDEXRANGEINVALID;
     for(size_t i = 0; i < dims_count; i++) {
         if(range.dimensions[i].min > range.dimensions[i].max)
-            return UA_STATUSCODE_BADINDEXRANGEINVALID;
-        if(range.dimensions[i].max > dims[i])
             return UA_STATUSCODE_BADINDEXRANGENODATA;
+        if(range.dimensions[i].max >= dims[i])
+            return UA_STATUSCODE_BADINDEXRANGEINVALID;
         count *= (range.dimensions[i].max - range.dimensions[i].min) + 1;
     }
 
@@ -495,12 +495,11 @@ UA_Variant_setRangeCopy(UA_Variant *v, const void *array, size_t arraySize, cons
     return retval;
 }
 
-UA_StatusCode UA_Variant_setScalar(UA_Variant *v, void * UA_RESTRICT p, const UA_DataType *type) {
+void UA_Variant_setScalar(UA_Variant *v, void * UA_RESTRICT p, const UA_DataType *type) {
     UA_Variant_init(v);
     v->type = type;
     v->arrayLength = 0;
     v->data = p;
-    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_DataType *type) {
@@ -512,16 +511,16 @@ UA_StatusCode UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_Da
 		UA_free(new);
 		return retval;
 	}
-    return UA_Variant_setScalar(v, new, type);
+    UA_Variant_setScalar(v, new, type);
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
+void
 UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize, const UA_DataType *type) {
     UA_Variant_init(v);
     v->data = array;
     v->arrayLength = arraySize;
     v->type = type;
-    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -554,9 +553,10 @@ DataValue_copy(UA_DataValue const *src, UA_DataValue *dst, const UA_DataType *_)
 static void DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p, const UA_DataType *_) {
     UA_String_deleteMembers(&p->additionalInfo);
     if(p->hasInnerDiagnosticInfo && p->innerDiagnosticInfo) {
-        DiagnosticInfo_deleteMembers(p->innerDiagnosticInfo, _);
+        DiagnosticInfo_deleteMembers(p->innerDiagnosticInfo, NULL);
         UA_free(p->innerDiagnosticInfo);
         p->innerDiagnosticInfo = NULL;
+        p->hasInnerDiagnosticInfo = UA_FALSE;
     }
 }
 
@@ -571,9 +571,11 @@ DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst, const 
     if(src->hasInnerDiagnosticInfo && src->innerDiagnosticInfo) {
         if((dst->innerDiagnosticInfo = UA_malloc(sizeof(UA_DiagnosticInfo)))) {
             retval |= DiagnosticInfo_copy(src->innerDiagnosticInfo, dst->innerDiagnosticInfo, NULL);
-            dst->hasInnerDiagnosticInfo = src->hasInnerDiagnosticInfo;
-        } else
+            dst->hasInnerDiagnosticInfo = UA_TRUE;
+        } else {
+            dst->hasInnerDiagnosticInfo = UA_FALSE;
             retval |= UA_STATUSCODE_BADOUTOFMEMORY;
+        }
     }
     if(retval != UA_STATUSCODE_GOOD)
         DiagnosticInfo_deleteMembers(dst, NULL);

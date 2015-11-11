@@ -193,34 +193,26 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
                     const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
                     const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
                     const UA_DataType *attributeType, UA_NodeId *outNewNodeId) {
+    const UA_AddNodesItem item = (const UA_AddNodesItem){
+        .parentNodeId = (UA_ExpandedNodeId){.nodeId = parentNodeId, .namespaceUri = UA_STRING_NULL,
+                                            .serverIndex = 0},
+        .referenceTypeId = referenceTypeId, .requestedNewNodeId = requestedNewNodeId,
+        .browseName = browseName, .nodeClass = nodeClass,
+        .typeDefinition = (UA_ExpandedNodeId){.nodeId = typeDefinition, .namespaceUri = UA_STRING_NULL,
+                                              .serverIndex = 0},
+        .nodeAttributes = {.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE,
+                           .content.decoded.type = attributeType,
+                           .content.decoded.data = (void*)(uintptr_t)attr}};
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
-
-    UA_AddNodesItem item;
-    UA_AddNodesItem_init(&item);
-    result.statusCode = UA_QualifiedName_copy(&browseName, &item.browseName);
-    item.nodeClass = nodeClass;
-    result.statusCode |= UA_NodeId_copy(&parentNodeId, &item.parentNodeId.nodeId);
-    result.statusCode |= UA_NodeId_copy(&referenceTypeId, &item.referenceTypeId);
-    result.statusCode |= UA_NodeId_copy(&requestedNewNodeId,
-                                        &item.requestedNewNodeId.nodeId);
-    result.statusCode |= UA_NodeId_copy(&typeDefinition, &item.typeDefinition.nodeId);
-    UA_NodeAttributes *attrCopy;
-    result.statusCode |= UA_Array_copy(attr, 1, (void**)&attrCopy, attributeType);
-    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED;
-    item.nodeAttributes.content.decoded.type = attributeType;
-    item.nodeAttributes.content.decoded.data = attrCopy;
-    if(result.statusCode == UA_STATUSCODE_GOOD) {
-        UA_RCU_LOCK();
-        Service_AddNodes_single(server, &adminSession, &item, &result);
-        UA_RCU_UNLOCK();
-    }
+    UA_RCU_LOCK();
+    Service_AddNodes_single(server, &adminSession, &item, &result);
+    UA_RCU_UNLOCK();
 
     if(outNewNodeId && result.statusCode == UA_STATUSCODE_GOOD)
         *outNewNodeId = result.addedNodeId;
     else
         UA_AddNodesResult_deleteMembers(&result);
-    UA_AddNodesItem_deleteMembers(&item);
     return result.statusCode;
 }
 
@@ -1206,28 +1198,12 @@ __UA_Server_writeAttribute(UA_Server *server, const UA_NodeId nodeId,
     wvalue.nodeId = nodeId;
     wvalue.attributeId = attributeId;
     if(attributeId != UA_ATTRIBUTEID_VALUE)
-        UA_Variant_setScalarCopy(&wvalue.value.value, value, type);
+        /* hacked cast. the target WriteValue is used as const anyway */
+        UA_Variant_setScalar(&wvalue.value.value, (void*)(uintptr_t)value, type);
     else
-        UA_Variant_copy(value, &wvalue.value.value);
+        wvalue.value.value = *(const UA_Variant*)value;
     wvalue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = Service_Write_single(server, &adminSession, &wvalue);
-    UA_NodeId_init(&wvalue.nodeId);
-    UA_WriteValue_deleteMembers(&wvalue);
-    return retval;
-}
-
-UA_StatusCode
-UA_Server_writeValueAttribute_move(UA_Server *server, const UA_NodeId nodeId, UA_Variant *value) {
-    UA_WriteValue wvalue;
-    UA_WriteValue_init(&wvalue);
-    wvalue.nodeId = nodeId;
-    wvalue.attributeId = UA_ATTRIBUTEID_VALUE;
-    wvalue.value.value = *value;
-    UA_Variant_init(value);
-    wvalue.value.hasValue = UA_TRUE;
-    UA_StatusCode retval = Service_Write_single(server, &adminSession, &wvalue);
-    UA_NodeId_init(&wvalue.nodeId);
-    UA_WriteValue_deleteMembers(&wvalue);
     return retval;
 }
 

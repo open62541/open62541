@@ -222,11 +222,11 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     UA_SequenceHeader sequenceHeader;
     retval = UA_UInt32_decodeBinary(msg, pos, &tokenId);
     retval |= UA_SequenceHeader_decodeBinary(msg, pos, &sequenceHeader);
-#ifndef EXTENSION_STATELESS
-    if(retval != UA_STATUSCODE_GOOD || tokenId == 0) // 0 is invalid
-        return;
-#else
     if(retval != UA_STATUSCODE_GOOD)
+        return;
+
+#ifndef EXTENSION_STATELESS
+    if(tokenId == 0) // 0 is invalid
         return;
 #endif
 
