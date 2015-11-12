@@ -193,16 +193,16 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
                     const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
                     const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
                     const UA_DataType *attributeType, UA_NodeId *outNewNodeId) {
-    const UA_AddNodesItem item = (const UA_AddNodesItem){
-        .parentNodeId = (UA_ExpandedNodeId){.nodeId = parentNodeId, .namespaceUri = UA_STRING_NULL,
-                                            .serverIndex = 0},
-        .referenceTypeId = referenceTypeId, .requestedNewNodeId = requestedNewNodeId,
-        .browseName = browseName, .nodeClass = nodeClass,
-        .typeDefinition = (UA_ExpandedNodeId){.nodeId = typeDefinition, .namespaceUri = UA_STRING_NULL,
-                                              .serverIndex = 0},
-        .nodeAttributes = {.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE,
-                           .content.decoded.type = attributeType,
-                           .content.decoded.data = (void*)(uintptr_t)attr}};
+    UA_AddNodesItem item;
+    UA_AddNodesItem_init(&item);
+    item.parentNodeId.nodeId = parentNodeId;
+    item.referenceTypeId = referenceTypeId;
+    item.requestedNewNodeId.nodeId = requestedNewNodeId;
+    item.browseName = browseName;
+    item.nodeClass = nodeClass;
+    item.typeDefinition.nodeId = typeDefinition;
+    item.nodeAttributes = (UA_ExtensionObject){.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE,
+                                               .content.decoded = {attributeType, (void*)(uintptr_t)attr}};
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
     UA_RCU_LOCK();
