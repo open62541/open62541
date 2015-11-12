@@ -51,7 +51,8 @@ UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
     do {
         /* alloc dimensions */
         if(index >= (UA_Int32)dimensionsMax) {
-            struct UA_NumericRangeDimension *newds = UA_realloc(dimensions, sizeof(struct UA_NumericRangeDimension) * (dimensionsMax + 2));
+            struct UA_NumericRangeDimension *newds;
+            newds = UA_realloc(dimensions, sizeof(struct UA_NumericRangeDimension) * (dimensionsMax + 2));
             if(!newds) {
                 retval = UA_STATUSCODE_BADOUTOFMEMORY;
                 break;
@@ -107,7 +108,6 @@ static void handleSourceTimestamps(UA_TimestampsToReturn timestamps, UA_DataValu
 static void forceVariantSetScalar(UA_Variant *v, const void *p, const UA_DataType *type) {
     UA_Variant_init(v);
     v->type = type;
-    v->arrayLength = 0;
     v->data = (void*)(uintptr_t)p;
     v->storageType = UA_VARIANT_DATA_NODELETE;
 }
