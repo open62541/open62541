@@ -247,7 +247,7 @@ After adding you XML file to CMakeLists.txt, rerun cmake in your build directory
   [ 10%] Generating src_generated/ua_transport_generated.c, src_generated/ua_transport_generated.h
   [ 13%] Generating src_generated/ua_namespaceinit_generated.c, src_generated/ua_namespaceinit_generated.h
 
-At this point, the make process will most likely hang for 30-60s until the namespace is parsed, checked, linked and finally generated (be pacient). It sould continue as follows::
+At this point, the make process will most likely hang for 30-60s until the namespace is parsed, checked, linked and finally generated (be patient). It should continue as follows::
   
   Scanning dependencies of target open62541-object
   [ 17%] Building C object CMakeFiles/open62541-object.dir/src/ua_types.c.o
