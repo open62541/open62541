@@ -331,8 +331,9 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
                                     UA_NodeId *outNewNodeId);
 
 #ifdef ENABLE_METHODCALLS
-typedef UA_StatusCode (*UA_MethodCallback)(const UA_NodeId objectId, const UA_Variant *input,
-                                           UA_Variant *output, void *handle);
+typedef UA_StatusCode (*UA_MethodCallback)(void *methodHandle, const UA_NodeId objectId,
+                                           size_t inputSize, const UA_Variant *input,
+                                           size_t outputSize, UA_Variant *output);
 
 UA_StatusCode UA_EXPORT
 UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,

@@ -155,8 +155,8 @@ callMethod(UA_Server *server, UA_Session *session, UA_CallMethodRequest *request
     }
 
     /* Verify Input Argument count, types and sizes */
-    const UA_VariableNode *inputArguments =
-        getArgumentsVariableNode(server, methodCalled, UA_STRING("InputArguments"));
+    const UA_VariableNode *inputArguments;
+    inputArguments = getArgumentsVariableNode(server, methodCalled, UA_STRING("InputArguments"));
     if(inputArguments) {
         result->statusCode = argConformsToDefinition(inputArguments, request->inputArgumentsSize,
                                                      request->inputArguments);
@@ -180,8 +180,9 @@ callMethod(UA_Server *server, UA_Session *session, UA_CallMethodRequest *request
         result->outputArguments = UA_Array_new(outputArguments->value.variant.value.arrayLength,
                                                &UA_TYPES[UA_TYPES_VARIANT]);
         result->outputArgumentsSize = outputArguments->value.variant.value.arrayLength;
-        result->statusCode = methodCalled->attachedMethod(withObject->nodeId, request->inputArguments,
-                                                          result->outputArguments, methodCalled->methodHandle);
+        result->statusCode = methodCalled->attachedMethod(methodCalled->methodHandle, withObject->nodeId,
+                                                          request->inputArgumentsSize, request->inputArguments,
+                                                          result->outputArgumentsSize, result->outputArguments);
     }
     else
         result->statusCode = UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?
