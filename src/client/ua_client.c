@@ -148,6 +148,10 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     if(renew && client->scExpiresAt - UA_DateTime_now() > client->config.timeToRenewSecureChannel * 10000)
         return UA_STATUSCODE_GOOD;
 
+    UA_Connection *c = &client->connection;
+    if(c->state != UA_CONNECTION_ESTABLISHED)
+        return UA_STATUSCODE_BADSERVERNOTCONNECTED;
+
     UA_SecureConversationMessageHeader messageHeader;
     messageHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_OPNF;
     messageHeader.secureChannelId = 0;
@@ -180,7 +184,6 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     }
 
     UA_ByteString message;
-    UA_Connection *c = &client->connection;
     UA_StatusCode retval = c->getSendBuffer(c, c->remoteConf.recvBufferSize, &message);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
@@ -280,7 +283,7 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
 
     UA_AnonymousIdentityToken identityToken;
     UA_AnonymousIdentityToken_init(&identityToken);
-    identityToken.policyId = client->token.policyId,
+    UA_String_copy(&client->token.policyId, &identityToken.policyId);
 
     //manual ExtensionObject encoding of the identityToken
     request.userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
@@ -312,6 +315,11 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
     UA_GetEndpointsResponse_init(&response);
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
                         &response, &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE]);
+
+    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(client->logger, UA_LOGCATEGORY_CLIENT, "GetEndpointRequest failed");
+        return response.responseHeader.serviceResult;
+    }
 
     UA_Boolean endpointFound = UA_FALSE;
     UA_Boolean tokenFound = UA_FALSE;

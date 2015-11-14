@@ -483,6 +483,14 @@ ClientNetworkLayerTCP_connect(UA_ConnectionConfig localConf, char *endpointUrl, 
     UA_Connection_init(&connection);
     connection.localConf = localConf;
 
+    //socket_set_nonblocking(connection.sockfd);
+    connection.send = socket_write;
+    connection.recv = socket_recv;
+    connection.close = ClientNetworkLayerClose;
+    connection.getSendBuffer = ClientNetworkLayerGetBuffer;
+    connection.releaseSendBuffer = ClientNetworkLayerReleaseBuffer;
+    connection.releaseRecvBuffer = ClientNetworkLayerReleaseBuffer;
+
     size_t urlLength = strlen(endpointUrl);
     if(urlLength < 11 || urlLength >= 512) {
         UA_LOG_WARNING((*logger), UA_LOGCATEGORY_NETWORK, "Server url size invalid");
@@ -554,12 +562,5 @@ ClientNetworkLayerTCP_connect(UA_ConnectionConfig localConf, char *endpointUrl, 
     }
 #endif
 
-    //socket_set_nonblocking(connection.sockfd);
-    connection.send = socket_write;
-    connection.recv = socket_recv;
-    connection.close = ClientNetworkLayerClose;
-    connection.getSendBuffer = ClientNetworkLayerGetBuffer;
-    connection.releaseSendBuffer = ClientNetworkLayerReleaseBuffer;
-    connection.releaseRecvBuffer = ClientNetworkLayerReleaseBuffer;
     return connection;
 }

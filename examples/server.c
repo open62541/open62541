@@ -156,8 +156,9 @@ writeLedStatus(void *handle, const UA_NodeId nodeid,
 
 #ifdef ENABLE_METHODCALLS
 static UA_StatusCode
-getMonitoredItems(const UA_NodeId objectId, const UA_Variant *input,
-                  UA_Variant *output, void *handle) {
+getMonitoredItems(void *methodHandle, const UA_NodeId objectId,
+                  size_t inputSize, const UA_Variant *input,
+                  size_t outputSize, UA_Variant *output) {
     UA_String tmp = UA_STRING("Hello World");
     UA_Variant_setScalarCopy(output, &tmp, &UA_TYPES[UA_TYPES_STRING]);
     printf("getMonitoredItems was called\n");
