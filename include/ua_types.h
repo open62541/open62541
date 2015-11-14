@@ -355,7 +355,7 @@ typedef struct {
  * @return Does the variant contain a scalar value.
  */
 static UA_INLINE UA_Boolean UA_Variant_isScalar(const UA_Variant *v) {
-    return (v->arrayLength == 0 && v->data >= UA_EMPTY_ARRAY_SENTINEL); }
+    return (v->arrayLength == 0 && v->data > UA_EMPTY_ARRAY_SENTINEL); }
     
 /**
  * Set the variant to a scalar value that already resides in memory. The value takes on the
