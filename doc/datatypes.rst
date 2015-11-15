@@ -1,8 +1,45 @@
-Data Types
-==========
+Data Types Introduction
+=======================
+In open62541, all data types share the same basic API for creation, copying and deletion. Assume that *T* is the data type in question.
+
+void T_init(T *ptr)
+  Initialize the data type. This is synonymous with zeroing out the memory, i.e. *memset(dataptr, 0, sizeof(T))*.
+T* T_new()
+  Allocate and return the memory for the data type. The memory is already initialized.
+UA_StatusCode T_copy(const T *src, T *dst)
+  Copy the content of the data type. Returns *UA_STATUSCODE_GOOD* if it succeeded.
+void T_deleteMembers(T *ptr)
+  Delete the dynamically allocated content of the data type, but not the data type itself.
+void T_delete(T *ptr)
+  Delete the content of the data type and the memory for the data type itself.
+
+Here's a small example for the UA_String data type. UA_String will be introduced in more detail later on, but you should be able to follow the example already.
+
+.. code-block:: c
+
+  /* The definition of UA_String copied from ua_types.h */ 
+  typedef struct {
+      size_t length; ///< The length of the string
+      UA_Byte *data; ///< The string's content (not null-terminated)
+  } UA_String;
+
+  UA_String s1 = UA_STRING("test1");       /* s1 points to the statically allocated string buffer */
+  UA_String_init(&s1);                     /* Reset s1 (no memleak due to the statically allocated buffer) */
+  
+  UA_String s2 = UA_STRING_ALLOC("test2"); /* s2 points to a new copy of the string buffer (with malloc) */
+  UA_String_deleteMembers(&s2);            /* Free the content of s2, but not s2 itself */
+  
+  UA_String *s3 = UA_String_new();         /* The string s3 is malloced and initialized */
+  *s3 = UA_STRING_ALLOC("test3");          /* s3 points to a new copy of the string buffer */
+  
+  UA_String s4;
+  UA_copy(s3, &s4);                        /* Copy the content of s3 to s4 */
+  
+  UA_String_delete(s3);                    /* Free the string buffer and the string itself */
+  UA_String_deleteMembers(&s4);            /* Again, delete only the string buffer */
 
 Generic Data Type Handling
---------------------------
+==========================
 
 All data types are combinations of the 25 builtin data types show below. Types
 are described in the UA_DataType structure.
