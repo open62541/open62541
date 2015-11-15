@@ -52,7 +52,7 @@ void UA_EXPORT UA_Client_delete(UA_Client* client);
 /* Manage the Connection */
 /*************************/
 
-typedef UA_Connection (*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, char *endpointUrl,
+typedef UA_Connection (*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, const char *endpointUrl,
                                                     UA_Logger logger);
 
 /**
@@ -64,7 +64,7 @@ typedef UA_Connection (*UA_ConnectClientConnection)(UA_ConnectionConfig localCon
  * @return Indicates whether the operation succeeded or returns an error code
  */
 UA_StatusCode UA_EXPORT
-UA_Client_connect(UA_Client *client, UA_ConnectClientConnection connFunc, char *endpointUrl);
+UA_Client_connect(UA_Client *client, UA_ConnectClientConnection connFunc, const char *endpointUrl);
 
 /**
  * close a connection to the selected server
