@@ -446,7 +446,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
 }
 
 UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection connectFunc,
-                                char *endpointUrl) {
+                                const char *endpointUrl) {
     if(client->state == UA_CLIENTSTATE_CONNECTED)
         return UA_STATUSCODE_GOOD;
     if(client->state == UA_CLIENTSTATE_ERRORED) {

@@ -479,7 +479,7 @@ ClientNetworkLayerClose(UA_Connection *connection) {
 
 /* we have no networklayer. instead, attach the reusable buffer to the handle */
 UA_Connection
-ClientNetworkLayerTCP_connect(UA_ConnectionConfig localConf, char *endpointUrl, UA_Logger logger) {
+ClientNetworkLayerTCP_connect(UA_ConnectionConfig localConf, const char *endpointUrl, UA_Logger logger) {
     UA_Connection connection;
     UA_Connection_init(&connection);
     connection.localConf = localConf;

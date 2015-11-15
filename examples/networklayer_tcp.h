@@ -17,7 +17,7 @@ extern "C" {
 UA_ServerNetworkLayer UA_EXPORT * ServerNetworkLayerTCP_new(UA_ConnectionConfig conf, UA_UInt32 port);
 
 UA_Connection UA_EXPORT
-ClientNetworkLayerTCP_connect(UA_ConnectionConfig conf, char *endpointUrl, UA_Logger logger);
+ClientNetworkLayerTCP_connect(UA_ConnectionConfig conf, const char *endpointUrl, UA_Logger logger);
 
 #ifdef __cplusplus
 } // extern "C"
