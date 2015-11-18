@@ -377,7 +377,7 @@ int main(int argc, char** argv) {
     inputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
     inputArguments.description = UA_LOCALIZEDTEXT("en_US", "A String");
     inputArguments.name = UA_STRING("Input an integer");
-    inputArguments.valueRank = 0;
+    inputArguments.valueRank = -1;
 
     UA_Argument outputArguments;
     UA_Argument_init(&outputArguments);
@@ -386,7 +386,7 @@ int main(int argc, char** argv) {
     outputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
     outputArguments.description = UA_LOCALIZEDTEXT("en_US", "A String");
     outputArguments.name = UA_STRING("Input an integer");
-    outputArguments.valueRank = 0;
+    outputArguments.valueRank = -1;
 
     UA_MethodAttributes addmethodattributes;
     UA_MethodAttributes_init(&addmethodattributes);
