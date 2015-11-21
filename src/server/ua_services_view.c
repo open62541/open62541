@@ -37,8 +37,9 @@ fillReferenceDescription(UA_NodeStore *ns, const UA_Node *curr, UA_ReferenceNode
 }
 
 #ifdef UA_EXTERNAL_NAMESPACES
-static const UA_Node * returnRelevantNodeExternal(UA_ExternalNodeStore *ens, const UA_BrowseDescription *descr,
-                                                  const UA_ReferenceNode *reference) {
+static const UA_Node *
+returnRelevantNodeExternal(UA_ExternalNodeStore *ens, const UA_BrowseDescription *descr,
+                           const UA_ReferenceNode *reference) {
     /*	prepare a read request in the external nodestore	*/
     UA_ReadValueId *readValueIds = UA_Array_new(&UA_TYPES[UA_TYPES_READVALUEID], 6);
     UA_UInt32 *indices = UA_Array_new(&UA_TYPES[UA_TYPES_UINT32], 6);

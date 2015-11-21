@@ -3,8 +3,7 @@
 #include "ua_session_manager.h"
 #include "ua_types_generated_encoding_binary.h"
 
-void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
-                           const UA_CreateSessionRequest *request,
+void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel, const UA_CreateSessionRequest *request,
                            UA_CreateSessionResponse *response) {
     response->responseHeader.serviceResult =
         UA_Array_copy(server->endpointDescriptions, server->endpointDescriptionsSize,
@@ -14,12 +13,12 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->serverEndpointsSize = server->endpointDescriptionsSize;
 
 	UA_Session *newSession;
-    response->responseHeader.serviceResult = UA_SessionManager_createSession(&server->sessionManager,
-                                                                             channel, request, &newSession);
+    response->responseHeader.serviceResult =
+        UA_SessionManager_createSession(&server->sessionManager, channel, request, &newSession);
 	if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
-                 "Processing CreateSessionRequest on SecureChannel %i failed",
-                 channel->securityToken.channelId);
+        UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+                     "Processing CreateSessionRequest on SecureChannel %i failed",
+                     channel->securityToken.channelId);
 		return;
     }
 
@@ -43,11 +42,10 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 }
 
 void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
-                             const UA_ActivateSessionRequest *request,
-                             UA_ActivateSessionResponse *response) {
+                             const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response) {
     // make the channel know about the session
-	UA_Session *foundSession = UA_SessionManager_getSession(&server->sessionManager,
-                                                            &request->requestHeader.authenticationToken);
+	UA_Session *foundSession =
+        UA_SessionManager_getSession(&server->sessionManager, &request->requestHeader.authenticationToken);
 
 	if(!foundSession) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;

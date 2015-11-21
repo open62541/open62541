@@ -4,50 +4,44 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_util.h"
 
-UA_StatusCode UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri, UA_UInt16 *namespaceIndex){
-	UA_ReadRequest ReadRequest;
-	UA_ReadResponse ReadResponse;
-	UA_StatusCode retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
-
-	UA_ReadRequest_init(&ReadRequest);
+UA_StatusCode
+UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri, UA_UInt16 *namespaceIndex) {
+	UA_request request;
+	UA_request_init(&request);
     UA_ReadValueId id;
 	id.attributeId = UA_ATTRIBUTEID_VALUE;
 	id.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY);
-	ReadRequest.nodesToRead = &id;
-	ReadRequest.nodesToReadSize = 1;
+	request.nodesToRead = &id;
+	request.nodesToReadSize = 1;
 
-	ReadResponse = UA_Client_Service_read(client, ReadRequest);
+	UA_response response = UA_Client_Service_read(client, request);
 
-    if(ReadResponse.responseHeader.serviceResult != UA_STATUSCODE_GOOD){
-        retval = ReadResponse.responseHeader.serviceResult;
-        goto cleanup;
-    }
-
-    if(ReadResponse.resultsSize != 1 || !ReadResponse.results[0].hasValue){
+	UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+        retval = response.responseHeader.serviceResult;
+    else if(response.resultsSize != 1 || !response.results[0].hasValue)
         retval = UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
-        goto cleanup;
-    }
-
-    if(ReadResponse.results[0].value.type != &UA_TYPES[UA_TYPES_STRING]){
+    else if(response.results[0].value.type != &UA_TYPES[UA_TYPES_STRING])
         retval = UA_STATUSCODE_BADTYPEMISMATCH;
-        goto cleanup;
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_response_deleteMembers(&response);
+        return retval;
     }
 
     retval = UA_STATUSCODE_BADNOTFOUND;
-    for(UA_UInt16 iterator = 0; iterator < ReadResponse.results[0].value.arrayLength; iterator++){
-        if(UA_String_equal(namespaceUri, &((UA_String*)ReadResponse.results[0].value.data)[iterator] )){
-            *namespaceIndex = iterator;
+    UA_String *ns = response.results[0].value.data;
+    for(size_t i = 0; i < response.results[0].value.arrayLength; i++){
+        if(UA_String_equal(namespaceUri, &ns[i])) {
+            *namespaceIndex = i;
             retval = UA_STATUSCODE_GOOD;
             break;
         }
     }
 
-cleanup:
-    UA_ReadResponse_deleteMembers(&ReadResponse);
-
+    UA_response_deleteMembers(&response);
 	return retval;
 }
-
 
 /*******************/
 /* Node Management */
@@ -114,8 +108,8 @@ UA_Client_deleteReference(UA_Client *client, const UA_NodeId sourceNodeId, const
     return retval;
 }
 
-UA_StatusCode UA_Client_deleteNode(UA_Client *client, const UA_NodeId nodeId,
-                                   UA_Boolean deleteTargetReferences) {
+UA_StatusCode
+UA_Client_deleteNode(UA_Client *client, const UA_NodeId nodeId, UA_Boolean deleteTargetReferences) {
     UA_DeleteNodesItem item;
     UA_DeleteNodesItem_init(&item);
     item.nodeId = nodeId;
@@ -139,11 +133,11 @@ UA_StatusCode UA_Client_deleteNode(UA_Client *client, const UA_NodeId nodeId,
     return retval;
 }
 
-UA_StatusCode __UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass,
-                                  const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
-                                  const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
-                                  const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
-                                  const UA_DataType *attributeType, UA_NodeId *outNewNodeId) {
+UA_StatusCode
+__UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass, const UA_NodeId requestedNewNodeId,
+                    const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                    const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
+                    const UA_NodeAttributes *attr, const UA_DataType *attributeType, UA_NodeId *outNewNodeId) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_AddNodesRequest request;
     UA_AddNodesRequest_init(&request);
@@ -182,9 +176,8 @@ UA_StatusCode __UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClas
 /********/
 
 UA_StatusCode
-UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId methodId,
-               UA_Int32 inputSize, const UA_Variant *input, UA_Int32 *outputSize,
-               UA_Variant **output) {
+UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId methodId, UA_Int32 inputSize,
+               const UA_Variant *input, UA_Int32 *outputSize, UA_Variant **output) {
     UA_CallRequest request;
     UA_CallRequest_init(&request);
     UA_CallMethodRequest item;
@@ -239,6 +232,7 @@ __UA_Client_readAttribute(UA_Client *client, UA_NodeId nodeId, UA_AttributeId at
         UA_ReadResponse_deleteMembers(&response);
         return retval;
     }
+
     UA_DataValue *res = response.results;
     if(res->hasStatus != UA_STATUSCODE_GOOD)
         retval = res->hasStatus;
@@ -248,17 +242,18 @@ __UA_Client_readAttribute(UA_Client *client, UA_NodeId nodeId, UA_AttributeId at
         UA_ReadResponse_deleteMembers(&response);
         return retval;
     }
+
     if(attributeId == UA_ATTRIBUTEID_VALUE) {
         memcpy(out, &res->value, sizeof(UA_Variant));
         UA_Variant_init(&res->value);
-    }
-    else if(res->value.type != outDataType) {
+    } else if(res->value.type != outDataType) {
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     } else {
         memcpy(out, res->value.data, res->value.type->memSize);
         UA_free(res->value.data);
         res->value.data = NULL;
     }
+
     UA_ReadResponse_deleteMembers(&response);
     return retval;
 }

@@ -2,7 +2,8 @@
 #include "ua_services.h"
 #include "ua_util.h"
 
-void Service_FindServers(UA_Server *server, const UA_FindServersRequest *request, UA_FindServersResponse *response) {
+void Service_FindServers(UA_Server *server, const UA_FindServersRequest *request,
+                         UA_FindServersResponse *response) {
     response->servers = UA_malloc(sizeof(UA_ApplicationDescription));
     if(!response->servers) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -16,7 +17,8 @@ void Service_FindServers(UA_Server *server, const UA_FindServersRequest *request
 	response->serversSize = 1;
 }
 
-void Service_GetEndpoints(UA_Server *server, const UA_GetEndpointsRequest *request, UA_GetEndpointsResponse *response) {
+void Service_GetEndpoints(UA_Server *server, const UA_GetEndpointsRequest *request,
+                          UA_GetEndpointsResponse *response) {
     /* test if the supported binary profile shall be returned */
 #ifdef NO_ALLOCA
 	UA_Boolean relevant_endpoints[server->endpointDescriptionsSize];
@@ -67,4 +69,3 @@ void Service_GetEndpoints(UA_Server *server, const UA_GetEndpointsRequest *reque
     }
     response->endpointsSize = relevant_count;
 }
-

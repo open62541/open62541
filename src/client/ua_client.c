@@ -251,6 +251,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         response.responseHeader.serviceResult = retval;
         return retval;
     }
+
     client->scExpiresAt = UA_DateTime_now() + response.securityToken.revisedLifetime * 10000;
     UA_ByteString_deleteMembers(&reply);
     retval = response.responseHeader.serviceResult;
