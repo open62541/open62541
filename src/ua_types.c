@@ -47,7 +47,7 @@ UA_String UA_String_fromChars(char const src[]) {
 UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
     if(string1->length != string2->length)
         return UA_FALSE;
-    UA_Int32 is = memcmp((char const *)string1->data, (char const *)string2->data, (size_t)string1->length);
+    UA_Int32 is = memcmp((char const*)string1->data, (char const*)string2->data, string1->length);
     return (is == 0) ? UA_TRUE : UA_FALSE;
 }
 
@@ -357,9 +357,9 @@ processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t 
         count *= (range.dimensions[i].max - range.dimensions[i].min) + 1;
     }
 
-    /* Compute the block size and the position of the first element */
+    /* Compute the stride length and the position of the first element */
     size_t b = 1, s = elements, f = 0;
-    size_t running_dimssize = 1; // elements per block of dimensions k to k_max
+    size_t running_dimssize = 1;
     UA_Boolean found_contiguous = UA_FALSE;
     for(size_t k = dims_count - 1; ; k--) {
         if(!found_contiguous && (range.dimensions[k].min != 0 || range.dimensions[k].max + 1 != dims[k])) {
@@ -516,7 +516,8 @@ UA_StatusCode UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_Da
 }
 
 void
-UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize, const UA_DataType *type) {
+UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array,
+                    size_t arraySize, const UA_DataType *type) {
     UA_Variant_init(v);
     v->data = array;
     v->arrayLength = arraySize;
@@ -524,7 +525,8 @@ UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize, c
 }
 
 UA_StatusCode
-UA_Variant_setArrayCopy(UA_Variant *v, const void *array, size_t arraySize, const UA_DataType *type) {
+UA_Variant_setArrayCopy(UA_Variant *v, const void *array,
+                        size_t arraySize, const UA_DataType *type) {
     UA_Variant_init(v);
     UA_StatusCode retval = UA_Array_copy(array, arraySize, &v->data, type);
     if(retval != UA_STATUSCODE_GOOD)
