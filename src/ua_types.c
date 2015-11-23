@@ -286,7 +286,7 @@ ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst, con
 static void Variant_deletemembers(UA_Variant *p, const UA_DataType *_) {
     if(p->storageType != UA_VARIANT_DATA)
         return;
-    if(p->data >= UA_EMPTY_ARRAY_SENTINEL) {
+    if(p->data > UA_EMPTY_ARRAY_SENTINEL) {
         if(p->arrayLength == 0)
             p->arrayLength = 1;
         UA_Array_delete(p->data, p->arrayLength, p->type);

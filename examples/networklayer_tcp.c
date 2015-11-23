@@ -92,8 +92,10 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
 
     if(timeout > 0) {
         /* currently, only the client uses timeouts */
-        struct timeval tmptv = {0, timeout * 1000};
-        if(0 != setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tmptv, sizeof(struct timeval))) {
+        int timeout_usec = timeout * 1000;
+        struct timeval tmptv = {timeout_usec / 1000000, timeout_usec % 1000000};
+        int ret = setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tmptv, sizeof(struct timeval));
+        if(0 != ret) {
             UA_ByteString_deleteMembers(response);
             socket_close(connection);
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
