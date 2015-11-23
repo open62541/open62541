@@ -9,7 +9,7 @@
 #include "ua_transport_generated_encoding_binary.h"
 
 const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard =
-    { .timeout = 500 /* ms receive timout */, .secureChannelLifeTime = 30000,
+    { .timeout = 5000 /* ms receive timout */, .secureChannelLifeTime = 30000,
       .timeToRenewSecureChannel = 2000,
       {.protocolVersion = 0, .sendBufferSize = 65536, .recvBufferSize  = 65536,
        .maxMessageSize = 65536, .maxChunkCount = 1}};

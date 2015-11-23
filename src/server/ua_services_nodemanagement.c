@@ -586,7 +586,8 @@ UA_StatusCode UA_EXPORT
 UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                                     const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                                     const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
-                                    const UA_VariableAttributes attr, const UA_DataSource dataSource, UA_NodeId *outNewNodeId) {
+                                    const UA_VariableAttributes attr, const UA_DataSource dataSource,
+                                    UA_NodeId *outNewNodeId) {
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
 
@@ -684,47 +685,47 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
 
     UA_Server_addExistingNode(server, &adminSession, (UA_Node*)node, &item.parentNodeId.nodeId,
                               &item.referenceTypeId, &result);
-    if(result.statusCode != UA_STATUSCODE_GOOD)
+    if(result.statusCode != UA_STATUSCODE_GOOD) {
         UA_MethodNode_delete(node);
-    
-    if(result.statusCode == UA_STATUSCODE_GOOD && method != NULL) {
-        UA_ExpandedNodeId parent;
-        UA_ExpandedNodeId_init(&parent);
-        parent.nodeId = result.addedNodeId;
-    
-        /* create InputArguments */
-        UA_VariableNode *inputArgumentsVariableNode = UA_VariableNode_new();
-        inputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
-        inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME_ALLOC(0,"InputArguments");
-        inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
-        inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
-        inputArgumentsVariableNode->valueRank = 1;
-        UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant.value, inputArguments,
-                                inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
-        UA_AddNodesResult inputAddRes;
-        const UA_NodeId hasproperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-        UA_Server_addExistingNode(server, &adminSession, (UA_Node*)inputArgumentsVariableNode,
-                                  &parent.nodeId, &hasproperty, &inputAddRes);
-        // todo: check if adding succeeded
-        UA_AddNodesResult_deleteMembers(&inputAddRes);
-
-        /* create OutputArguments */
-        UA_VariableNode *outputArgumentsVariableNode  = UA_VariableNode_new();
-        outputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
-        outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME_ALLOC(0,"OutputArguments");
-        outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
-        outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
-        outputArgumentsVariableNode->valueRank = 1;
-        UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.variant.value, outputArguments,
-                                outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
-        UA_AddNodesResult outputAddRes;
-        UA_Server_addExistingNode(server, &adminSession, (UA_Node*)outputArgumentsVariableNode,
-                                  &parent.nodeId, &hasproperty, &outputAddRes);
-        // todo: check if adding succeeded
-        UA_AddNodesResult_deleteMembers(&outputAddRes);
+        return result.statusCode;
     }
+    
+    UA_ExpandedNodeId parent;
+    UA_ExpandedNodeId_init(&parent);
+    parent.nodeId = result.addedNodeId;
+    
+    /* create InputArguments */
+    UA_VariableNode *inputArgumentsVariableNode = UA_VariableNode_new();
+    inputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
+    inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME_ALLOC(0,"InputArguments");
+    inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
+    inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
+    inputArgumentsVariableNode->valueRank = 1;
+    UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant.value, inputArguments,
+                            inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
+    UA_AddNodesResult inputAddRes;
+    const UA_NodeId hasproperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    UA_Server_addExistingNode(server, &adminSession, (UA_Node*)inputArgumentsVariableNode,
+                              &parent.nodeId, &hasproperty, &inputAddRes);
+    // todo: check if adding succeeded
+    UA_AddNodesResult_deleteMembers(&inputAddRes);
 
-    if(outNewNodeId && result.statusCode == UA_STATUSCODE_GOOD)
+    /* create OutputArguments */
+    UA_VariableNode *outputArgumentsVariableNode  = UA_VariableNode_new();
+    outputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
+    outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME_ALLOC(0,"OutputArguments");
+    outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
+    outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
+    outputArgumentsVariableNode->valueRank = 1;
+    UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.variant.value, outputArguments,
+                            outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
+    UA_AddNodesResult outputAddRes;
+    UA_Server_addExistingNode(server, &adminSession, (UA_Node*)outputArgumentsVariableNode,
+                              &parent.nodeId, &hasproperty, &outputAddRes);
+    // todo: check if adding succeeded
+    UA_AddNodesResult_deleteMembers(&outputAddRes);
+
+    if(outNewNodeId)
         *outNewNodeId = result.addedNodeId;
     else
         UA_AddNodesResult_deleteMembers(&result);
@@ -756,8 +757,8 @@ addOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node, const 
 	return retval;
 }
 
-UA_StatusCode Service_AddReferences_single(UA_Server *server, UA_Session *session,
-                                           const UA_AddReferencesItem *item) {
+UA_StatusCode
+Service_AddReferences_single(UA_Server *server, UA_Session *session, const UA_AddReferencesItem *item) {
     if(item->targetServerUri.length > 0)
         return UA_STATUSCODE_BADNOTIMPLEMENTED; // currently no expandednodeids are allowed
 
@@ -836,8 +837,9 @@ void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddR
 
 // TODO: Check consistency constraints, remove the references.
 
-UA_StatusCode Service_DeleteNodes_single(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
-                                         UA_Boolean deleteReferences) {
+UA_StatusCode
+Service_DeleteNodes_single(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+                           UA_Boolean deleteReferences) {
     UA_MT_CONST UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
     if(!node)
         return UA_STATUSCODE_BADNODEIDINVALID;
@@ -926,6 +928,7 @@ deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
         node->references[i] = node->references[node->referencesSize-1];
         node->referencesSize--;
         edited = UA_TRUE;
+        break;
     }
     if(!edited)
         return UA_STATUSCODE_UNCERTAINREFERENCENOTDELETED;
@@ -936,9 +939,10 @@ deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
 }
 
 UA_StatusCode
-Service_DeleteReferences_single(UA_Server *server, UA_Session *session, const UA_DeleteReferencesItem *item) {
+Service_DeleteReferences_single(UA_Server *server, UA_Session *session,
+                                const UA_DeleteReferencesItem *item) {
     UA_StatusCode retval = UA_Server_editNode(server, session, &item->sourceNodeId,
-                                       (UA_EditNodeCallback)deleteOneWayReference, item);
+                                              (UA_EditNodeCallback)deleteOneWayReference, item);
     if(!item->deleteBidirectional || item->targetNodeId.serverIndex != 0)
         return retval;
     UA_DeleteReferencesItem secondItem;
@@ -950,9 +954,9 @@ Service_DeleteReferences_single(UA_Server *server, UA_Session *session, const UA
                               (UA_EditNodeCallback)deleteOneWayReference, &secondItem);
 }
 
-void Service_DeleteReferences(UA_Server *server, UA_Session *session,
-                              const UA_DeleteReferencesRequest *request,
-                              UA_DeleteReferencesResponse *response) {
+void
+Service_DeleteReferences(UA_Server *server, UA_Session *session, const UA_DeleteReferencesRequest *request,
+                         UA_DeleteReferencesResponse *response) {
     if(request->referencesToDeleteSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
@@ -964,6 +968,6 @@ void Service_DeleteReferences(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->referencesToDeleteSize;
     for(size_t i = 0; i < request->referencesToDeleteSize; i++)
-        response->results[i] = Service_DeleteReferences_single(server, session,
-                                                               &request->referencesToDelete[i]);
+        response->results[i] =
+            Service_DeleteReferences_single(server, session, &request->referencesToDelete[i]);
 }
