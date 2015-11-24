@@ -57,7 +57,7 @@ UA_StatusCode UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscr
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     
-    UA_DeleteSubscriptionsRequest  request;
+    UA_DeleteSubscriptionsRequest request;
     UA_DeleteSubscriptionsRequest_init(&request);
     request.subscriptionIdsSize = 1;
     request.subscriptionIds = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32));
@@ -68,7 +68,7 @@ UA_StatusCode UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscr
         retval |= UA_Client_Subscriptions_removeMonitoredItem(client, sub->SubscriptionID,
                                                               mon->MonitoredItemId);
     }
-    if(retval != UA_STATUSCODE_GOOD){
+    if(retval != UA_STATUSCODE_GOOD) {
 	    UA_DeleteSubscriptionsRequest_deleteMembers(&request);
         return retval;
     }

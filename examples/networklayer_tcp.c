@@ -116,7 +116,7 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
 #else
 		if(errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
 #endif
-            return UA_STATUSCODE_BADINTERNALERROR; /* retry */
+            return UA_STATUSCODE_GOOD; /* retry */
         else {
             socket_close(connection);
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
@@ -357,7 +357,16 @@ ServerNetworkLayerTCP_getJobs(ServerNetworkLayerTCP *layer, UA_Job **jobs, UA_UI
             continue;
         UA_StatusCode retval = socket_recv(layer->mappings[i].connection, &buf, 0);
         if(retval == UA_STATUSCODE_GOOD) {
-            js[j] = UA_Connection_completeMessages(layer->mappings[i].connection, buf);
+            UA_Boolean realloced = UA_FALSE;
+            retval = UA_Connection_completeMessages(layer->mappings[i].connection, &buf, &realloced);
+            if(retval != UA_STATUSCODE_GOOD || buf.length == 0)
+                continue;
+            js[j].job.binaryMessage.connection = layer->mappings[i].connection;
+            js[j].job.binaryMessage.message = buf;
+            if(!realloced)
+                js[j].type = UA_JOBTYPE_BINARYMESSAGE_NETWORKLAYER;
+            else
+                js[j].type = UA_JOBTYPE_BINARYMESSAGE_ALLOCATED;
             j++;
         } else if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
             UA_Connection *c = layer->mappings[i].connection;

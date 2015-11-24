@@ -164,11 +164,13 @@ __UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass, const UA_No
         UA_AddNodesResponse_deleteMembers(&response);
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
-    if(outNewNodeId && response.results[0].statusCode) {
+    if(outNewNodeId && response.results[0].statusCode == UA_STATUSCODE_GOOD) {
         *outNewNodeId = response.results[0].addedNodeId;
         UA_NodeId_init(&response.results[0].addedNodeId);
     }
-    return response.results[0].statusCode;
+    retval = response.results[0].statusCode;
+    UA_AddNodesResponse_deleteMembers(&response);
+    return retval;
 }
 
 /********/

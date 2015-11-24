@@ -159,13 +159,12 @@ static void invoke_service(UA_Server *server, UA_SecureChannel *channel, UA_UInt
     if(request->authenticationToken.namespaceIndex == 0
             && request->authenticationToken.identifierType == UA_NODEIDTYPE_NUMERIC
             && request->authenticationToken.identifier.numeric == 0
-    && (responseType->typeIndex == UA_TYPES_READRESPONSE
-            || responseType->typeIndex == UA_TYPES_WRITERESPONSE
-            || responseType->typeIndex == UA_TYPES_BROWSERESPONSE)
-    ){
+       && (responseType->typeIndex == UA_TYPES_READRESPONSE
+           || responseType->typeIndex == UA_TYPES_WRITERESPONSE
+           || responseType->typeIndex == UA_TYPES_BROWSERESPONSE)) {
         session = &anonymousSession;
         service(server, session, request, response);
-    }else{
+    } else {
 #endif
     if(!session || session->channel != channel) {
         response->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
