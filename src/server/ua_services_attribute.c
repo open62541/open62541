@@ -564,7 +564,7 @@ static UA_StatusCode
 CopyAttributeIntoNode(UA_Server *server, UA_Session *session, UA_Node *node, const UA_WriteValue *wvalue) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     void *value = wvalue->value.value.data;
-    void *target;
+    void *target = NULL;
     const UA_DataType *type = NULL;
 	switch(wvalue->attributeId) {
     case UA_ATTRIBUTEID_NODEID:
