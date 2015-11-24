@@ -92,9 +92,14 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
 
     if(timeout > 0) {
         /* currently, only the client uses timeouts */
+#ifndef _WIN32
         int timeout_usec = timeout * 1000;
         struct timeval tmptv = {timeout_usec / 1000000, timeout_usec % 1000000};
-        int ret = setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tmptv, sizeof(struct timeval));
+        int ret = setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tmptv, sizeof(struct timeval));
+#else
+        DWORD timeout_dw = timeout;
+        int ret = setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout_dw, sizeof(DWORD));
+#endif
         if(0 != ret) {
             UA_ByteString_deleteMembers(response);
             socket_close(connection);
