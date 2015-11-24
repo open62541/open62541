@@ -213,6 +213,8 @@ static void removeCp(struct ContinuationPointEntry *cp, UA_Session* session) {
 void
 Service_Browse_single(UA_Server *server, UA_Session *session, struct ContinuationPointEntry *cp,
                       const UA_BrowseDescription *descr, UA_UInt32 maxrefs, UA_BrowseResult *result) { 
+    size_t referencesCount = 0;
+    size_t referencesIndex = 0;
     /* set the browsedescription if a cp is given */
     UA_UInt32 continuationIndex = 0;
     if(cp) {
@@ -284,8 +286,6 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
     /* loop over the node's references */
     size_t skipped = 0;
     UA_Boolean isExternal = UA_FALSE;
-    size_t referencesCount = 0;
-    size_t referencesIndex = 0;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(; referencesIndex < node->referencesSize && referencesCount < real_maxrefs; referencesIndex++) {
     	isExternal = UA_FALSE;
