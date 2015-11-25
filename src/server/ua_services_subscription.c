@@ -138,18 +138,20 @@ void Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishReq
     
     // Delete Acknowledged Subscription Messages
     response->resultsSize = request->subscriptionAcknowledgementsSize;
-    response->results     = UA_malloc(sizeof(UA_StatusCode)*(response->resultsSize));
-    for(UA_Int32 i = 0; i < request->subscriptionAcknowledgementsSize; i++) {
-        response->results[i] = UA_STATUSCODE_GOOD;
-        UA_Subscription *sub =
-            SubscriptionManager_getSubscriptionByID(&session->subscriptionManager,
-                                                    request->subscriptionAcknowledgements[i].subscriptionId);
-        if(!sub) {
-            response->results[i] = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-            continue;
+    if (request->subscriptionAcknowledgementsSize > 0) {
+        response->results     = UA_malloc(sizeof(UA_StatusCode)*(response->resultsSize));
+        for(UA_Int32 i = 0; i < request->subscriptionAcknowledgementsSize; i++) {
+            response->results[i] = UA_STATUSCODE_GOOD;
+            UA_Subscription *sub =
+                SubscriptionManager_getSubscriptionByID(&session->subscriptionManager,
+                                                        request->subscriptionAcknowledgements[i].subscriptionId);
+            if(!sub) {
+                response->results[i] = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+                continue;
+            }
+            if(Subscription_deleteUnpublishedNotification(request->subscriptionAcknowledgements[i].sequenceNumber, false, sub) == 0)
+                response->results[i] = UA_STATUSCODE_BADSEQUENCENUMBERINVALID;
         }
-        if(Subscription_deleteUnpublishedNotification(request->subscriptionAcknowledgements[i].sequenceNumber, false, sub) == 0)
-            response->results[i] = UA_STATUSCODE_BADSEQUENCENUMBERINVALID;
     }
     
     // See if any new data is available
