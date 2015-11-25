@@ -298,7 +298,10 @@ void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                                      
 void Service_Publish(UA_Server *server, UA_Session *session,
                      const UA_PublishRequest *request, UA_PublishResponse *response);
-                         
+
+void Service_Republish(UA_Server *server, UA_Session *session, const UA_RepublishRequest *request,
+                                UA_RepublishResponse *response);
+
 // Service_ModifySubscription
 // Service_SetPublishingMode
 // UA_Int32 Service_SetPublishingMode(UA_Server *server, UA_Session *session,

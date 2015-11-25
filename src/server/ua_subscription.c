@@ -118,6 +118,7 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
     msg = (UA_unpublishedNotification *) UA_malloc(sizeof(UA_unpublishedNotification));
     msg->notification = UA_malloc(sizeof(UA_NotificationMessage));
     INITPOINTER(msg->notification->notificationData);
+    msg->publishedOnce = UA_FALSE;
     msg->notification->sequenceNumber = subscription->sequenceNumber++;
     msg->notification->publishTime    = UA_DateTime_now();
     
@@ -133,7 +134,7 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
         //   the three possible NotificationData Types
         msg->notification->notificationData[notmsgn].encoding = 1; // Encoding is always binary
         msg->notification->notificationData[notmsgn].typeId = UA_NODEID_NUMERIC(0, 811);
-      
+        
         if(notmsgn == 0) {
             // Construct a DataChangeNotification
             changeNotification = UA_malloc(sizeof(UA_DataChangeNotification));
@@ -198,18 +199,11 @@ UA_UInt32 *Subscription_getAvailableSequenceNumbers(UA_Subscription *sub) {
     return seqArray;
 }
 
-void Subscription_copyTopNotificationMessage(UA_NotificationMessage *dst, UA_Subscription *sub) {
+void Subscription_copyNotificationMessage(UA_NotificationMessage *dst, UA_unpublishedNotification *src) {
     if(!dst)
         return;
     
-    if(Subscription_queuedNotifications(sub) == 0) {
-      dst->notificationDataSize = 0;
-      dst->publishTime = UA_DateTime_now();
-      dst->sequenceNumber = 0;
-      return;
-    }
-    
-    UA_NotificationMessage *latest = LIST_FIRST(&sub->unpublishedNotifications)->notification;
+    UA_NotificationMessage *latest = src->notification;
     dst->notificationDataSize = latest->notificationDataSize;
     dst->publishTime = latest->publishTime;
     dst->sequenceNumber = latest->sequenceNumber;

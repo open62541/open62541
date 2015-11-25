@@ -170,9 +170,22 @@ void Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishReq
         if(Subscription_queuedNotifications(sub) <= 0)
             continue;
         
+	// This subscription has notifications in its queue (top NotificationMessage exists in the queue). 
+	// Due to republish, we need to check if there are any unplublished notifications first ()
+	UA_unpublishedNotification *notification = NULL;
+	LIST_FOREACH(notification, &sub->unpublishedNotifications, listEntry) {
+	  if (notification->publishedOnce == UA_FALSE)
+	    break;
+	}
+	if (notification == NULL)
+	  continue;
+	
+	// We found an unpublished notification message in this subscription, which we will now publish.
         response->subscriptionId = sub->subscriptionID;
-        Subscription_copyTopNotificationMessage(&response->notificationMessage, sub);
-        if(sub->unpublishedNotifications.lh_first->notification->sequenceNumber > sub->sequenceNumber) {
+        Subscription_copyNotificationMessage(&response->notificationMessage, notification);
+	// Mark this notification as published
+	notification->publishedOnce = UA_TRUE;
+        if(notification->notification->sequenceNumber > sub->sequenceNumber) {
             // If this is a keepalive message, its seqNo is the next seqNo to be used for an actual msg.
             response->availableSequenceNumbersSize = 0;
             // .. and must be deleted
@@ -195,7 +208,7 @@ void Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishReq
         response->subscriptionId = sub->subscriptionID;
         sub->keepAliveCount.currentValue=sub->keepAliveCount.minValue;
         Subscription_generateKeepAlive(sub);
-        Subscription_copyTopNotificationMessage(&response->notificationMessage, sub);
+        Subscription_copyNotificationMessage(&response->notificationMessage, sub->unpublishedNotifications.lh_first);
         Subscription_deleteUnpublishedNotification(sub->sequenceNumber + 1, false, sub);
     }
     
@@ -273,4 +286,42 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
     for(UA_Int32 i = 0; i < request->monitoredItemIdsSize; i++)
         response->results[i] = SubscriptionManager_deleteMonitoredItem(manager, sub->subscriptionID,
                                                                        request->monitoredItemIds[i]);
+}
+
+void Service_Republish(UA_Server *server, UA_Session *session,
+                                const UA_RepublishRequest *request,
+                                UA_RepublishResponse *response) {
+    UA_SubscriptionManager *manager = &session->subscriptionManager;
+    UA_Subscription *sub = SubscriptionManager_getSubscriptionByID(manager, request->subscriptionId);
+    if (!sub) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+        return;
+    }
+    
+    // Find the notification in question
+    UA_unpublishedNotification *notification;
+    LIST_FOREACH(notification, &sub->unpublishedNotifications, listEntry) {
+      if (notification->notification->sequenceNumber == request->retransmitSequenceNumber)
+	break;
+    }
+    if (!notification) {
+      response->responseHeader.serviceResult = UA_STATUSCODE_BADSEQUENCENUMBERINVALID;
+      return;
+    }
+    
+    // FIXME: By spec, this notification has to be in the "retransmit queue", i.e. publishedOnce must be
+    //        true. If this is not tested, the client just gets what he asks for... hence this part is
+    //        commented:
+    /* Check if the notification is in the published queue
+    if (notification->publishedOnce == UA_FALSE) {
+      response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+      return;
+    }
+    */
+    // Retransmit 
+    Subscription_copyNotificationMessage(&response->notificationMessage, notification);
+    // Mark this notification as published
+    notification->publishedOnce = UA_TRUE;
+    
+    return;
 }

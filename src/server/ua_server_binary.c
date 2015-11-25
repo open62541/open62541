@@ -355,6 +355,9 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     case UA_NS0ID_PUBLISHREQUEST:
         INVOKE_SERVICE(Publish, UA_TYPES_PUBLISHRESPONSE);
         break;
+    case UA_NS0ID_REPUBLISHREQUEST:
+        INVOKE_SERVICE(Republish, UA_TYPES_REPUBLISHRESPONSE);
+        break;
     case UA_NS0ID_MODIFYSUBSCRIPTIONREQUEST:
         INVOKE_SERVICE(ModifySubscription, UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE);
         break;
