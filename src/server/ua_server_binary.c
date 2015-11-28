@@ -302,7 +302,7 @@ sendError(UA_SecureChannel *channel, const UA_ByteString *msg, size_t pos,
 static void
 processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, size_t *pos) {
     /* If we cannot decode these, don't respond */
-    UA_UInt32 secureChannelId;
+    UA_UInt32 secureChannelId = 0;
     UA_UInt32 tokenId = 0;
     UA_SequenceHeader sequenceHeader;
     UA_NodeId requestTypeId;
