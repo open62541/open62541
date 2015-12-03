@@ -122,30 +122,27 @@ Service_ActivateSession(UA_Server *server, UA_Session *session,
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
             return;
         }
-        if(token->encryptionAlgorithm.data) {
+        if(token->encryptionAlgorithm.length > 0) {
             /* we don't support encryption */
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-        } else  if(!token->userName.data && !token->password.data) {
-            /* empty username and password */
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-        } else {
-            /* ok, trying to match the username */
-            for(size_t i = 0; i < server->config.Login_loginsCount; ++i) {
-                UA_String user = UA_STRING(server->config.Login_usernames[i]);
-                UA_String pw = UA_STRING(server->config.Login_passwords[i]);
-                if(!UA_String_equal(&token->userName, &user) || !UA_String_equal(&token->password, &pw))
-                    continue;
-                /* success - activate */
-                if(foundSession->channel && foundSession->channel != channel)
-                    UA_SecureChannel_detachSession(foundSession->channel, foundSession);
-                UA_SecureChannel_attachSession(channel, foundSession);
-                foundSession->activated = UA_TRUE;
-                UA_Session_updateLifetime(foundSession);
-                return;
-            }
-            /* no match */
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
+            return;
         }
+        /* ok, trying to match the username */
+        for(size_t i = 0; i < server->config.Login_loginsCount; ++i) {
+            UA_String user = UA_STRING(server->config.Login_usernames[i]);
+            UA_String pw = UA_STRING(server->config.Login_passwords[i]);
+            if(!UA_String_equal(&token->userName, &user) || !UA_String_equal(&token->password, &pw))
+                continue;
+            /* success - activate */
+            if(foundSession->channel && foundSession->channel != channel)
+                UA_SecureChannel_detachSession(foundSession->channel, foundSession);
+            UA_SecureChannel_attachSession(channel, foundSession);
+            foundSession->activated = UA_TRUE;
+            UA_Session_updateLifetime(foundSession);
+            return;
+        }
+        /* no match */
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
         return;
     }
     response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;

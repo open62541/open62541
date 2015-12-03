@@ -423,7 +423,7 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRan
     /* Copy the range dimensions */
     if(src->arrayDimensionsSize > 0) {
         dst->arrayDimensions = UA_Array_new(src->arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
-        if(!dst) {
+        if(!dst->arrayDimensions) {
             Variant_deletemembers(dst, NULL);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
