@@ -135,7 +135,7 @@ This group contains build options related to the supported OPC UA features.
    Enable method calls in server and client
 **ENABLE_MULTITHREADING**
    Enable multi-threading support (experimental)
-**ENABLE_SUBSCRIPTONS**
+**ENABLE_SUBSCRIPTIONS**
    Enable subscriptions
 **GENERATE_SELFSIGNED**
    Generate a self-signed certificate for the server (openSSL required)

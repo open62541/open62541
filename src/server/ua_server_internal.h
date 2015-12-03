@@ -85,7 +85,7 @@ void UA_Server_addExistingNode(UA_Server *server, UA_Session *session, UA_Node *
                                const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
                                UA_AddNodesResult *result);
 
-typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server *server, UA_Session*, UA_Node*, const void*);
+typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, const void*);
 
 /* Calls callback on the node. In the multithreaded case, the node is copied before and replaced in
    the nodestore. */
@@ -97,5 +97,12 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
 UA_StatusCode UA_Server_addDelayedJob(UA_Server *server, UA_Job job);
 
 void UA_Server_deleteAllRepeatedJobs(UA_Server *server);
+
+typedef void (*UA_SendResponseCallback)(UA_Server*, UA_Session*, const void*, const UA_DataType*);
+
+void UA_Server_processRequest(UA_Server *server, UA_Session *session,
+                              const void *request, const UA_DataType *requestType,
+                              void *response, const UA_DataType *responseType,
+                              UA_SendResponseCallback *send);
 
 #endif /* UA_SERVER_INTERNAL_H_ */

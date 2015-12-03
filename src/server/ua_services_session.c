@@ -3,8 +3,13 @@
 #include "ua_session_manager.h"
 #include "ua_types_generated_encoding_binary.h"
 
-void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel, const UA_CreateSessionRequest *request,
+void Service_CreateSession(UA_Server *server, UA_Session *session, const UA_CreateSessionRequest *request,
                            UA_CreateSessionResponse *response) {
+    UA_SecureChannel *channel = session->channel;
+    if(channel->securityToken.channelId == 0) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURECHANNELIDINVALID;
+        return;
+    }
     response->responseHeader.serviceResult =
         UA_Array_copy(server->endpointDescriptions, server->endpointDescriptionsSize,
                       (void**)&response->serverEndpoints, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
@@ -41,8 +46,10 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel, const U
                  response->sessionId.identifier.numeric);
 }
 
-void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
-                             const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response) {
+void
+Service_ActivateSession(UA_Server *server, UA_Session *session, const UA_ActivateSessionRequest *request,
+                        UA_ActivateSessionResponse *response) {
+    UA_SecureChannel *channel = session->channel;
     // make the channel know about the session
 	UA_Session *foundSession =
         UA_SessionManager_getSession(&server->sessionManager, &request->requestHeader.authenticationToken);

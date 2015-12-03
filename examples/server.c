@@ -228,7 +228,11 @@ int main(int argc, char** argv) {
 
 #ifndef _WIN32
     /* cpu temperature monitoring for linux machines */
-    if((temperatureFile = fopen("/sys/class/thermal/thermal_zone0/temp", "r"))) {
+    const char *temperatureFileName = "/sys/class/thermal/thermal_zone0/temp"; // RaspberryPi
+    // const char *temperatureFileName = "/sys/class/hwmon/hwmon0/device/temp1_input"; // Beaglebone
+    // const char *temperatureFileName = "/sys/class/thermal/thermal_zone3/temp"; // Intel Edison Alternative 1
+    // const char *temperatureFileName = "/sys/class/thermal/thermal_zone4/temp"; // Intel Edison Alternative 2
+    if((temperatureFile = fopen(temperatureFileName, "r"))) {
         // add node with the data source
         UA_DataSource temperatureDataSource = (UA_DataSource) {
             .handle = NULL, .read = readTemperature, .write = NULL};

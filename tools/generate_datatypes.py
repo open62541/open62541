@@ -69,7 +69,7 @@ minimal_types = ["InvalidType", "Node", "NodeClass", "ReferenceNode", "Applicati
 subscription_types = ["CreateSubscriptionRequest", "CreateSubscriptionResponse",
                       "DeleteMonitoredItemsRequest", "DeleteMonitoredItemsResponse", "NotificationMessage",
                       "MonitoredItemNotification", "DataChangeNotification", "ModifySubscriptionRequest",
-                      "ModifySubscriptionResponse"]
+                      "ModifySubscriptionResponse", "RepublishRequest", "RepublishResponse"]
 
 class TypeDescription(object):
     def __init__(self, name, nodeid, namespaceid):
