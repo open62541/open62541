@@ -98,11 +98,4 @@ UA_StatusCode UA_Server_addDelayedJob(UA_Server *server, UA_Job job);
 
 void UA_Server_deleteAllRepeatedJobs(UA_Server *server);
 
-typedef void (*UA_SendResponseCallback)(UA_Server*, UA_Session*, const void*, const UA_DataType*);
-
-void UA_Server_processRequest(UA_Server *server, UA_Session *session,
-                              const void *request, const UA_DataType *requestType,
-                              void *response, const UA_DataType *responseType,
-                              UA_SendResponseCallback *send);
-
 #endif /* UA_SERVER_INTERNAL_H_ */

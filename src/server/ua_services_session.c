@@ -3,7 +3,8 @@
 #include "ua_session_manager.h"
 #include "ua_types_generated_encoding_binary.h"
 
-void Service_CreateSession(UA_Server *server, UA_Session *session, const UA_CreateSessionRequest *request,
+void Service_CreateSession(UA_Server *server, UA_Session *session,
+                           const UA_CreateSessionRequest *request,
                            UA_CreateSessionResponse *response) {
     UA_SecureChannel *channel = session->channel;
     if(channel->securityToken.channelId == 0) {
@@ -47,7 +48,8 @@ void Service_CreateSession(UA_Server *server, UA_Session *session, const UA_Crea
 }
 
 void
-Service_ActivateSession(UA_Server *server, UA_Session *session, const UA_ActivateSessionRequest *request,
+Service_ActivateSession(UA_Server *server, UA_Session *session,
+                        const UA_ActivateSessionRequest *request,
                         UA_ActivateSessionResponse *response) {
     UA_SecureChannel *channel = session->channel;
     // make the channel know about the session
@@ -149,8 +151,10 @@ Service_ActivateSession(UA_Server *server, UA_Session *session, const UA_Activat
     response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 }
 
-void Service_CloseSession(UA_Server *server, UA_Session *session, const UA_CloseSessionRequest *request,
-                          UA_CloseSessionResponse *response) {
+void
+Service_CloseSession(UA_Server *server, UA_Session *session,
+                     const UA_CloseSessionRequest *request,
+                     UA_CloseSessionResponse *response) {
     UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
                  "Processing CloseSessionRequest for Session (ns=%i,i=%i)",
                  session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);

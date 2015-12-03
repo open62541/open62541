@@ -395,12 +395,14 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
 
     /* Test if the session is valid */
     if(!session->activated && requestType->typeIndex != UA_TYPES_ACTIVATESESSIONREQUEST) {
+        UA_LOG_INFO(server->logger, UA_LOGCATEGORY_SERVER, "Client tries to call a service with a non-activated session");
         sendError(channel, msg, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
         return;
     }
 #ifndef EXTENSION_STATELESS
     if(session == &anonymousSession &&
-       requestType->typeIndex > UA_TYPES_CREATESESSIONREQUEST) {
+       requestType->typeIndex > UA_TYPES_ACTIVATESESSIONREQUEST) {
+        UA_LOG_INFO(server->logger, UA_LOGCATEGORY_SERVER, "Client tries to call a service without a session");
         sendError(channel, msg, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
         return;
     }
