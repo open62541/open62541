@@ -1,19 +1,25 @@
-Data Types Introduction
-=======================
-In open62541, all data types share the same basic API for creation, copying and deletion. Assume that *T* is the data type in question.
+Data Types
+==========
 
-void T_init(T *ptr)
+Introduction
+------------
+
+In open62541, all data types share the same basic API for creation, copying and
+deletion. The following functions are present for all data types ``T``.
+
+``void T_init(T *ptr)``
   Initialize the data type. This is synonymous with zeroing out the memory, i.e. *memset(dataptr, 0, sizeof(T))*.
-T* T_new()
+``T* T_new()``
   Allocate and return the memory for the data type. The memory is already initialized.
-UA_StatusCode T_copy(const T *src, T *dst)
+``UA_StatusCode T_copy(const T *src, T *dst)``
   Copy the content of the data type. Returns *UA_STATUSCODE_GOOD* if it succeeded.
-void T_deleteMembers(T *ptr)
+``void T_deleteMembers(T *ptr)``
   Delete the dynamically allocated content of the data type, but not the data type itself.
-void T_delete(T *ptr)
+``void T_delete(T *ptr)``
   Delete the content of the data type and the memory for the data type itself.
 
-Here's a small example for the UA_String data type. UA_String will be introduced in more detail later on, but you should be able to follow the example already.
+Here's a small example for the UA_String data type. UA_String will be introduced
+in more detail later on, but you should be able to follow the example already.
 
 .. code-block:: c
 
@@ -38,11 +44,18 @@ Here's a small example for the UA_String data type. UA_String will be introduced
   UA_String_delete(s3);                    /* Free the string buffer and the string itself */
   UA_String_deleteMembers(&s4);            /* Again, delete only the string buffer */
 
-Generic Data Type Handling
-==========================
+The builtin data types
+----------------------
 
-All data types are combinations of the 25 builtin data types show below. Types
-are described in the UA_DataType structure.
+OPC UA defines 25 builtin data types. All other data types are combinations of
+the 25 builtin data types.
+
+*TODO*
+
+Generic Data Type Handling
+--------------------------
+
+All standard-defined types are described with an ``UA_DataType`` structure.
 
 .. doxygenstruct:: UA_DataType
    :members:
@@ -91,166 +104,3 @@ Array Handling
 .. doxygenfunction:: UA_Array_new
 .. doxygenfunction:: UA_Array_copy
 .. doxygenfunction:: UA_Array_delete
-
-Builtin Data Types
-------------------
-
-Number-Types
-^^^^^^^^^^^^
-
-.. doxygentypedef:: UA_Boolean
-.. doxygentypedef:: UA_SByte
-.. doxygentypedef:: UA_Byte
-.. doxygentypedef:: UA_Int16
-.. doxygentypedef:: UA_UInt16
-.. doxygentypedef:: UA_Int32
-.. doxygentypedef:: UA_UInt32
-.. doxygentypedef:: UA_Int64
-.. doxygentypedef:: UA_UInt64
-.. doxygentypedef:: UA_Float
-.. doxygentypedef:: UA_Double
-
-UA_String
-^^^^^^^^^
-.. doxygenstruct:: UA_String
-  :members:
-
-.. c:macro:: UA_STRING_NULL
-
-  The empty string
-
-.. c:macro:: UA_STRING(CHARS)
-     
-  Creates an UA_String from an array of ``char``. The characters are not copied
-  on the heap. Instead, the string points into the existing array.
-
-.. c:macro:: UA_STRING_ALLOC(CHARS)
-     
-  Creates an UA_String from an array of ``char``. The characters are copied on
-  the heap.
-
-.. doxygenfunction:: UA_String_equal
-.. doxygenfunction:: UA_String_copyprintf
-
-UA_DateTime
-^^^^^^^^^^^
-.. doxygentypedef:: UA_DateTime
-.. doxygenfunction:: UA_DateTime_now(void)
-.. doxygenfunction:: UA_DateTime_toString
-.. doxygenfunction:: UA_DateTime_toStruct
-
-UA_Guid
-^^^^^^^
-.. doxygenstruct:: UA_Guid
-.. doxygenfunction:: UA_Guid_equal
-.. doxygenfunction:: UA_Guid_random
-   
-UA_ByteString
-^^^^^^^^^^^^^
-Bytestring are just a redefinition of strings. The semantic difference is that
-ByteStrings may hold non-UTF8 data.
-
-.. doxygentypedef:: UA_ByteString
-
-.. c:macro:: UA_BYTESTRING_NULL
-
-   The empty ByteString
-
-.. c:function:: UA_Boolean UA_ByteString_equal(const UA_ByteString *s1, const UA_ByteString *s2)
-
-   Compares two ByteStrings.
-   
-UA_XmlElement
-^^^^^^^^^^^^^
-XmlElements are just a redefinition of strings.
-
-.. doxygentypedef:: UA_XmlElement
-
-UA_NodeId
-^^^^^^^^^
-.. doxygenstruct:: UA_NodeId
-  :members:
-
-.. doxygenfunction:: UA_NodeId_equal
-.. doxygenfunction:: UA_NodeId_isNull
-
-.. c:macro:: UA_NODEID_NULL
-
-  The null NodeId
-
-.. c:macro:: UA_NODEID_NUMERIC(NSID, NUMERICID)
-.. c:macro:: UA_NODEID_STRING(NSID, CHARS)
-.. c:macro:: UA_NODEID_STRING_ALLOC(NSID, CHARS)
-.. c:macro:: UA_NODEID_GUID(NSID, GUID)
-.. c:macro:: UA_NODEID_BYTESTRING(NSID, CHARS)
-.. c:macro:: UA_NODEID_BYTESTRING_ALLOC(NSID, CHARS)
-
-UA_ExpandedNodeId
-^^^^^^^^^^^^^^^^^
-.. doxygenstruct:: UA_ExpandedNodeId
-  :members:
-
-.. doxygenfunction:: UA_ExpandedNodeId_isNull
-.. c:macro:: UA_EXPANDEDNODEID_NUMERIC(NSID, NUMERICID)
-  
-UA_StatusCode
-^^^^^^^^^^^^^
-Many functions in open62541 return either ``UA_STATUSCODE_GOOD`` or an error code.
-
-.. doxygentypedef:: UA_StatusCode
-
-UA_QualifiedName
-^^^^^^^^^^^^^^^^   
-.. doxygenstruct:: UA_QualifiedName
-  :members:
-
-.. c:macro:: UA_QUALIFIEDNAME(NSID, CHARS)
-.. c:macro:: UA_QUALIFIEDNAME_ALLOC(NSID, CHARS)
-  
-UA_LocalizedText
-^^^^^^^^^^^^^^^^
-.. doxygenstruct:: UA_LocalizedText
-  :members:
-
-.. c:macro:: UA_LOCALIZEDTEXT(LOCALE, TEXT)
-   Takes two arrays of ``char`` as the input.
-
-.. c:macro:: UA_LOCALIZEDTEXT_ALLOC(LOCALE, TEXT)
-  
-UA_ExtensionObject
-^^^^^^^^^^^^^^^^^^
-
-.. doxygenstruct:: UA_ExtensionObject
-  :members:
-
-UA_DataValue
-^^^^^^^^^^^^
-
-.. doxygenstruct:: UA_DataValue
-  :members:
-  :undoc-members:
-
-UA_Variant
-^^^^^^^^^^
-
-.. doxygenstruct:: UA_Variant
-  :members:
-
-.. doxygenfunction:: UA_Variant_isScalar
-.. doxygenfunction:: UA_Variant_setScalar
-.. doxygenfunction:: UA_Variant_setScalarCopy
-.. doxygenfunction:: UA_Variant_setArray
-.. doxygenfunction:: UA_Variant_setArrayCopy
-
-.. doxygenstruct:: UA_NumericRange
-   :undoc-members:
-
-.. doxygenfunction:: UA_Variant_setRange
-.. doxygenfunction:: UA_Variant_setRangeCopy
-        
-UA_DiagnosticInfo
-^^^^^^^^^^^^^^^^^
-
-.. doxygenstruct:: UA_DiagnosticInfo
-  :members:
-  :undoc-members:
