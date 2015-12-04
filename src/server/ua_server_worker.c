@@ -343,7 +343,12 @@ static UA_UInt16 processRepeatedJobs(UA_Server *server) {
             //processJobs may sort the list but dont delete entries
             processJobs(server, &tw->jobs[i].job, 1); // does not free the job ptr
 #endif
+
+        /* set the time for the next execution */
         tw->nextTime += tw->interval;
+        if(tw->nextTime < current)
+            tw->nextTime = current;
+
         //start iterating the list from the beginning
         struct RepeatedJobs *prevTw = LIST_FIRST(&server->repeatedJobs); // after which tw do we insert?
         while(UA_TRUE) {
