@@ -67,7 +67,7 @@ typedef int32_t UA_Int32;
 #define UA_INT32_MAX 2147483647
 #define UA_INT32_MIN (-2147483648)
 
-/** UInt32: An integer value between 0 and 429 4967 295 */
+/** UInt32: An integer value between 0 and 4 294 967 295 */
 typedef uint32_t UA_UInt32;
 #define UA_UINT32_MAX 4294967295
 #define UA_UINT32_MIN 0
@@ -92,8 +92,8 @@ typedef double UA_Double;
 /* String: A sequence of Unicode characters */
 /********************************************/
 typedef struct {
-    size_t length; ///< The length of the string
-    UA_Byte *data; ///< The string's content (not null-terminated)
+    size_t length; // The length of the string
+    UA_Byte *data; // The string's content (not null-terminated)
 } UA_String;
 
 UA_EXPORT extern const UA_String UA_STRING_NULL;
@@ -195,14 +195,14 @@ typedef struct {
     } identifier;
 } UA_NodeId;
 
+UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
+
 static UA_INLINE UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
     return (p->namespaceIndex == 0 && p->identifierType == UA_NODEIDTYPE_NUMERIC &&
             p->identifier.numeric == 0);
 }
 
 UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
-
-UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
 
 static UA_INLINE UA_NodeId UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_Int32 identifier) {
     UA_NodeId id; id.namespaceIndex = nsIndex; id.identifierType = UA_NODEIDTYPE_NUMERIC;
@@ -265,8 +265,8 @@ static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 
 /* QualifiedName: A name qualified by a namespace */
 /**************************************************/
 typedef struct {
-    UA_UInt16 namespaceIndex; ///< The namespace index
-    UA_String name; ///< The actual name
+    UA_UInt16 namespaceIndex;
+    UA_String name;
 } UA_QualifiedName;
 
 static UA_INLINE UA_QualifiedName UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars) {
@@ -279,8 +279,8 @@ static UA_INLINE UA_QualifiedName UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, cons
 /* LocalizedText: Human readable text with an optional locale identifier */
 /*************************************************************************/
 typedef struct {
-    UA_String locale; ///< The locale (e.g. "en-US")
-    UA_String text; ///< The actual text
+    UA_String locale;
+    UA_String text;
 } UA_LocalizedText;
 
 static UA_INLINE UA_LocalizedText UA_LOCALIZEDTEXT(char *locale, char *text) {
@@ -322,29 +322,23 @@ typedef struct {
 /*********************************************/
 /* Variant: Stores (arrays of) any data type */
 /*********************************************/
- /* Variants either they provide a pointer to the data in memory, or functions
-    from which the data can be accessed. Variants are replaced together with
-    the data they store (exception: use a data source).
-
-    Variant semantics:
+ /* Variant semantics:
     - arrayLength == 0 && data == NULL: no existing data
     - arrayLength == 0 && data == 0x01: array of length 0
     - arrayLength == 0 && data > 0x01: scalar value
     - arrayLength > 0: array of the given length
  */
 typedef struct {
-    const UA_DataType *type; ///< The nodeid of the datatype
+    const UA_DataType *type; // The data type description
     enum {
-        UA_VARIANT_DATA, ///< The data is "owned" by this variant (copied and deleted together)
-        UA_VARIANT_DATA_NODELETE, /**< The data is "borrowed" by the variant and shall not be
-                                       deleted at the end of this variant's lifecycle. It is not
-                                       possible to overwrite borrowed data due to concurrent access.
-                                       Use a custom datasource with a mutex. */
-    } storageType; ///< Shall the data be deleted together with the variant
-    size_t arrayLength;  ///< the number of elements in the data-pointer
-    void *data; ///< points to the scalar or array data
-    size_t arrayDimensionsSize; ///< the number of dimensions the data-array has
-    UA_UInt32 *arrayDimensions; ///< the length of each dimension of the data-array
+        UA_VARIANT_DATA,          /* The data has the same lifecycle as the variant */
+        UA_VARIANT_DATA_NODELETE, /* The data is "borrowed" by the variant and shall not be
+                                     deleted at the end of the variant's lifecycle. */
+    } storageType;
+    size_t arrayLength;  // The number of elements in the data array
+    void *data; // Points to the scalar or array data
+    size_t arrayDimensionsSize; // The number of dimensions the data-array has
+    UA_UInt32 *arrayDimensions; // The length of each dimension of the data-array
 } UA_Variant;
 
 /**
@@ -401,11 +395,11 @@ UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize, c
 UA_StatusCode UA_EXPORT
 UA_Variant_setArrayCopy(UA_Variant *v, const void *array, size_t arraySize, const UA_DataType *type);
 
-/* NumericRanges are used select a subset in a (multidimensional) variant array.
- * NumericRange has no official type structure in the standard. On the wire, it
- * only exists as an encoded string, such as "1:2,0:3,5". The colon separates
- * min/max index and the comma separates dimensions. A single value indicates a
- * range with a single element (min==max). */
+/* NumericRanges are used to indicate subsets of a (multidimensional) variant
+ * array. NumericRange has no official type structure in the standard. On the
+ * wire, it only exists as an encoded string, such as "1:2,0:3,5". The colon
+ * separates min/max index and the comma separates dimensions. A single value
+ * indicates a range with a single element (min==max). */
 typedef struct {
     size_t dimensionsSize;
     struct UA_NumericRangeDimension {
