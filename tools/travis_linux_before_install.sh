@@ -1,5 +1,6 @@
 #!/bin/bash
 set -ev
+sudo apt-get update
 sudo apt-get install binutils-mingw-w64-i686 gcc-mingw-w64-i686 mingw-w64
 sudo add-apt-repository ppa:kalakris/cmake -y
 sudo apt-get update -qq
