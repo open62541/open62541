@@ -35,11 +35,10 @@ static UA_Node* createNode(UA_Int16 nsid, UA_Int32 id) {
 START_TEST(replaceExistingNode) {
 	UA_NodeStore *ns = UA_NodeStore_new();
 	UA_Node* n1 = createNode(0,2253);
-    const UA_Node *inserted;
+    UA_MT_CONST UA_Node *inserted;
 	UA_NodeStore_insert(ns, n1, &inserted);
 	UA_Node* n2 = createNode(0,2253);
     UA_StatusCode retval = UA_NodeStore_replace(ns, inserted, n2, NULL);
-    UA_NodeStore_release(inserted);
     
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     
@@ -67,15 +66,13 @@ START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
 #endif
 	// given
 	UA_NodeStore *ns = UA_NodeStore_new();
-    const UA_Node *inserted;
+    UA_MT_CONST UA_Node *inserted;
 	UA_Node* n1 = createNode(0,2253);
 	UA_NodeStore_insert(ns, n1, &inserted);
 	const UA_Node* nr = UA_NodeStore_get(ns,&inserted->nodeId);
 	// then
 	ck_assert_int_eq((uintptr_t)inserted, (uintptr_t)nr);
 	// finally
-	UA_NodeStore_release(inserted);
-	UA_NodeStore_release(nr);
 	UA_NodeStore_delete(ns);
 #ifdef UA_MULTITHREADING
 	rcu_unregister_thread();
@@ -118,7 +115,7 @@ START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
 	UA_Node* n2 = createNode(0,2255);
     UA_NodeStore_insert(ns, n2, NULL);
 	UA_Node* n3 = createNode(0,2257);
-    const UA_Node *inserted;
+    UA_MT_CONST UA_Node *inserted;
     UA_NodeStore_insert(ns, n3, &inserted);
 	UA_Node* n4 = createNode(0,2200);
     UA_NodeStore_insert(ns, n4, NULL);
@@ -132,8 +129,6 @@ START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
 	// then
 	ck_assert_int_eq((uintptr_t)nr, (uintptr_t)inserted);
 	// finally
-	UA_NodeStore_release(inserted);
-	UA_NodeStore_release(nr);
 	UA_NodeStore_delete(ns);
 #ifdef UA_MULTITHREADING
 	rcu_unregister_thread();
@@ -194,7 +189,6 @@ START_TEST(findNodeInExpandedNamespace) {
 	ck_assert_int_eq(nr->nodeId.identifier.numeric,n2->nodeId.identifier.numeric);
 	// finally
 	UA_free((void*)n2);
-	UA_NodeStore_release(nr);
 	UA_NodeStore_delete(ns);
 #ifdef UA_MULTITHREADING
 	rcu_unregister_thread();
@@ -277,14 +271,12 @@ static void *profileGetThread(void *arg) {
 	struct UA_NodeStoreProfileTest *test = (struct UA_NodeStoreProfileTest*) arg;
 	UA_NodeId id;
     UA_NodeId_init(&id);
-	const UA_Node *cn;
 	UA_Int32 max_val = test->max_val;
 	UA_NodeStore *ns = test->ns;
 	for(UA_Int32 x = 0; x<test->rounds; x++) {
-		for (UA_Int32 i=test->min_val; i<max_val; i++) {
+		for(UA_Int32 i=test->min_val; i<max_val; i++) {
 			id.identifier.numeric = i;
-			cn = UA_NodeStore_get(ns,&id);
-			UA_NodeStore_release(cn);
+			UA_NodeStore_get(ns,&id);
 		}
 	}
 	rcu_unregister_thread();
@@ -320,14 +312,12 @@ START_TEST(profileGetDelete) {
 	end = clock();
 	printf("Time for %d create/get/delete on %d threads in a namespace: %fs.\n", N, THREADS, (double)(end - begin) / CLOCKS_PER_SEC);
 #else
-	const UA_Node *cn;
 	UA_NodeId id;
     UA_NodeId_init(&id);
 	for(UA_Int32 x = 0; x<50; x++) {
 	    for(int i=0; i<N; i++) {
 	        id.identifier.numeric = i;
-			cn = UA_NodeStore_get(ns,&id);
-			UA_NodeStore_release(cn);
+            UA_NodeStore_get(ns,&id);
         }
     }
 	end = clock();

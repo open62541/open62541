@@ -6,9 +6,6 @@
 #include "ua_types_generated.h"
 #include "ua_nodes.h"
 
-#define INITPOINTER(src) (src) = NULL;
-#define ISNOTZERO(value) ((value == 0) ? 0 : 1)
-
 /*****************/
 /* MonitoredItem */
 /*****************/
@@ -71,7 +68,7 @@ int MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *d
 typedef struct UA_unpublishedNotification {
     UA_Boolean publishedOnce;
     LIST_ENTRY(UA_unpublishedNotification) listEntry;
-    UA_NotificationMessage *notification;
+    UA_NotificationMessage notification;
 } UA_unpublishedNotification;
 
 typedef struct UA_Subscription {
@@ -89,21 +86,20 @@ typedef struct UA_Subscription {
     UA_Job *timedUpdateJob;
     UA_Boolean timedUpdateIsRegistered;
     LIST_HEAD(UA_ListOfUnpublishedNotifications, UA_unpublishedNotification) unpublishedNotifications;
+    size_t unpublishedNotificationsSize;
     LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) MonitoredItems;
 } UA_Subscription;
 
 UA_Subscription *UA_Subscription_new(UA_Int32 subscriptionID);
 void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server);
 void Subscription_updateNotifications(UA_Subscription *subscription);
-UA_UInt32 Subscription_queuedNotifications(UA_Subscription *subscription);
 UA_UInt32 *Subscription_getAvailableSequenceNumbers(UA_Subscription *sub);
-void Subscription_copyNotificationMessage(UA_NotificationMessage *dst, UA_unpublishedNotification *sub);
-UA_UInt32 Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Boolean bDeleteAll, UA_Subscription *sub);
 void Subscription_generateKeepAlive(UA_Subscription *subscription);
+void Subscription_copyTopNotificationMessage(UA_NotificationMessage *dst, UA_Subscription *sub);
+UA_UInt32 Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Boolean bDeleteAll, UA_Subscription *sub);
+void Subscription_copyNotificationMessage(UA_NotificationMessage *dst, UA_unpublishedNotification *src);
 UA_StatusCode Subscription_createdUpdateJob(UA_Server *server, UA_Guid jobId, UA_Subscription *sub);
 UA_StatusCode Subscription_registerUpdateJob(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode Subscription_unregisterUpdateJob(UA_Server *server, UA_Subscription *sub);
-
-static void Subscription_timedUpdateNotificationsJob(UA_Server *server, void *data);
 
 #endif /* UA_SUBSCRIPTION_H_ */

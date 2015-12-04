@@ -57,7 +57,7 @@ UA_StatusCode UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscr
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     
-    UA_DeleteSubscriptionsRequest  request;
+    UA_DeleteSubscriptionsRequest request;
     UA_DeleteSubscriptionsRequest_init(&request);
     request.subscriptionIdsSize = 1;
     request.subscriptionIds = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32));
@@ -68,7 +68,7 @@ UA_StatusCode UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscr
         retval |= UA_Client_Subscriptions_removeMonitoredItem(client, sub->SubscriptionID,
                                                               mon->MonitoredItemId);
     }
-    if(retval != UA_STATUSCODE_GOOD){
+    if(retval != UA_STATUSCODE_GOOD) {
 	    UA_DeleteSubscriptionsRequest_deleteMembers(&request);
         return retval;
     }
@@ -197,16 +197,15 @@ UA_Client_processPublishRx(UA_Client *client, UA_PublishResponse response) {
     // Check if the server has acknowledged any of our ACKS
     // Note that a list of serverside status codes may be send without valid publish data, i.e. 
     // during keepalives or no data availability
-    UA_Client_NotificationsAckNumber *tmpAck = client->pendingNotificationsAcks.lh_first;
-    UA_Client_NotificationsAckNumber *nxtAck = tmpAck;
-    for(int i=0; i<response.resultsSize && nxtAck != NULL; i++) {
-        tmpAck = nxtAck;
-        nxtAck = tmpAck->listEntry.le_next;
+    UA_Client_NotificationsAckNumber *ack, *tmpAck;
+    size_t i = 0;
+    LIST_FOREACH_SAFE(ack, &client->pendingNotificationsAcks, listEntry, tmpAck) {
         if(response.results[i] == UA_STATUSCODE_GOOD ||
-            response.results[i] == UA_STATUSCODE_BADSEQUENCENUMBERINVALID) {
-            LIST_REMOVE(tmpAck, listEntry);
-            UA_free(tmpAck);
+           response.results[i] == UA_STATUSCODE_BADSEQUENCENUMBERINVALID) {
+            LIST_REMOVE(ack, listEntry);
+            UA_free(ack);
         }
+        i++;
     }
     
     if(response.subscriptionId == 0)
@@ -221,44 +220,38 @@ UA_Client_processPublishRx(UA_Client *client, UA_PublishResponse response) {
         return UA_FALSE;
     
     UA_NotificationMessage msg = response.notificationMessage;
-    UA_DataChangeNotification dataChangeNotification;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Client_MonitoredItem *mon;
-    size_t decodingOffset = 0;
-    for(int k = 0; k < msg.notificationDataSize; k++) {
-        if(msg.notificationData[k].encoding == UA_EXTENSIONOBJECT_ENCODINGMASK_BODYISBYTESTRING) {
-            if(msg.notificationData[k].typeId.namespaceIndex == 0 &&
-                msg.notificationData[k].typeId.identifier.numeric == 811 ) {
-                // This is a dataChangeNotification
-                retval |= UA_DataChangeNotification_decodeBinary(&msg.notificationData[k].body,
-                                                                 &decodingOffset, &dataChangeNotification);
-                UA_MonitoredItemNotification *mitemNot;
-                for(int i = 0; i < dataChangeNotification.monitoredItemsSize; i++) {
-                    mitemNot = &dataChangeNotification.monitoredItems[i];
-                    // find this client handle
-                    LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
-                        if(mon->ClientHandle == mitemNot->clientHandle) {
-                            mon->handler(mitemNot->clientHandle, &mitemNot->value);
-                            break;
-                        }
+    for(size_t k = 0; k < msg.notificationDataSize; k++) {
+        if(msg.notificationData[k].encoding != UA_EXTENSIONOBJECT_DECODED)
+            continue;
+        
+        if(msg.notificationData[k].content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION]) {
+            // This is a dataChangeNotification
+            UA_DataChangeNotification *dataChangeNotification = msg.notificationData[k].content.decoded.data;
+            for(size_t i = 0; i < dataChangeNotification->monitoredItemsSize; i++) {
+            UA_MonitoredItemNotification *mitemNot = &dataChangeNotification->monitoredItems[i];
+                // find this client handle
+                LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
+                    if(mon->ClientHandle == mitemNot->clientHandle) {
+                        mon->handler(mitemNot->clientHandle, &mitemNot->value);
+                        break;
                     }
                 }
-                UA_DataChangeNotification_deleteMembers(&dataChangeNotification);
-                continue;
             }
-
-            if(msg.notificationData[k].typeId.namespaceIndex == 0 &&
-               msg.notificationData[k].typeId.identifier.numeric == 820 ) {
-                //FIXME: This is a statusChangeNotification (not supported yet)
-                continue;
-            }
-
-            if(msg.notificationData[k].typeId.namespaceIndex == 0 &&
-               msg.notificationData[k].typeId.identifier.numeric == 916 ) {
-                //FIXME: This is an EventNotification
-                continue;
-            }
+            continue;
         }
+
+        /* if(msg.notificationData[k].typeId.namespaceIndex == 0 && */
+        /*    msg.notificationData[k].typeId.identifier.numeric == 820 ) { */
+        /*     //FIXME: This is a statusChangeNotification (not supported yet) */
+        /*     continue; */
+        /* } */
+
+        /* if(msg.notificationData[k].typeId.namespaceIndex == 0 && */
+        /*    msg.notificationData[k].typeId.identifier.numeric == 916 ) { */
+        /*     //FIXME: This is an EventNotification */
+        /*     continue; */
+        /* } */
     }
     
     /* We processed this message, add it to the list of pending acks (but make
@@ -289,8 +282,12 @@ void UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
         UA_Client_NotificationsAckNumber *ack;
         LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry)
             request.subscriptionAcknowledgementsSize++;
-        request.subscriptionAcknowledgements = UA_malloc(sizeof(UA_SubscriptionAcknowledgement) *
-                                                         request.subscriptionAcknowledgementsSize);
+        if(request.subscriptionAcknowledgementsSize > 0) {
+            request.subscriptionAcknowledgements = UA_malloc(sizeof(UA_SubscriptionAcknowledgement) *
+                                                             request.subscriptionAcknowledgementsSize);
+            if(!request.subscriptionAcknowledgements)
+                return;
+        }
         
         int index = 0 ;
         LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry) {

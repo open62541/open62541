@@ -20,7 +20,7 @@
     UA_LocalizedText description;               \
     UA_UInt32 writeMask;                        \
     UA_UInt32 userWriteMask;                    \
-    UA_Int32 referencesSize;                    \
+    size_t referencesSize;                      \
     UA_ReferenceNode *references;
 
 typedef struct {
@@ -28,6 +28,7 @@ typedef struct {
 } UA_Node;
 
 void UA_Node_deleteAnyNodeClass(UA_Node *node);
+void UA_Node_deleteMembersAnyNodeClass(UA_Node *node);
 UA_Node * UA_Node_copyAnyNodeClass(const UA_Node *node);
 
 /**************/
@@ -118,9 +119,9 @@ typedef struct {
 } UA_ReferenceTypeNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_ReferenceTypeNode)
 
-/***********************/
-/* ReferenceMethodNode */
-/***********************/
+/**************/
+/* MethodNode */
+/**************/
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS

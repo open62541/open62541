@@ -56,16 +56,24 @@ int main(int argc, char** argv)
         ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, PORT));
 
     /* add a variable node */
-    UA_Variant *myIntegerVariant = UA_Variant_new();
+    /* 1) set the variable attributes */
     UA_Int32 myInteger = 42;
-    UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
-    UA_LocalizedText myIntegerBrowseName = UA_LOCALIZEDTEXT("en_US","the answer");
-    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
+    UA_VariableAttributes attr;
+    UA_VariableAttributes_init(&attr);
+    UA_Variant_setScalarCopy(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    attr.displayName = UA_LOCALIZEDTEXT("en_US","the answer");
+
+    /* 2) define where the variable shall be added with which browsename */
+    UA_NodeId newNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_Server_addVariableNode(server, myIntegerNodeId, myIntegerName, myIntegerBrowseName, myIntegerBrowseName,
-                              0, 0, parentNodeId, parentReferenceNodeId, myIntegerVariant, NULL);
+    UA_NodeId variableType = UA_NODEID_NULL; /* no variable type defined */
+    UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "the answer");
+
+    /* 3) add the variable */
+    UA_Server_addVariableNode(server, newNodeId, parentNodeId,
+                              parentReferenceNodeId, browseName,
+                              variableType, attr, NULL);
 
     /* run the server loop */
     UA_StatusCode retval = UA_Server_run(server, WORKER_THREADS, &running);
@@ -81,6 +89,7 @@ int main(int argc, char** argv)
 
 int main(int argc, char *argv[])
 {
+    /* create a client and connect */
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
     UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
                                              "opc.tcp://localhost:16664");
@@ -89,16 +98,18 @@ int main(int argc, char *argv[])
     	return retval;
     }
 
-    /* Read a node's value-attribute */
+    /* create a readrequest with one entry */
     UA_ReadRequest req;
     UA_ReadRequest_init(&req);
     req.nodesToRead = UA_ReadValueId_new();
     req.nodesToReadSize = 1;
-    /* copy the nodeid-string to the heap (deleted with the req) */
+    
+    /* define the node and attribute to be read */
     req.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
     req.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
 
-    UA_ReadResponse resp = UA_Client_read(client, &req);
+    /* call the service and print the result */
+    UA_ReadResponse resp = UA_Client_Service_read(client, req);
     if(resp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
        resp.resultsSize > 0 && resp.results[0].hasValue &&
        UA_Variant_isScalar(&resp.results[0].value) &&

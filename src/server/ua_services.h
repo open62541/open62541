@@ -115,8 +115,8 @@ void Service_CloseSession(UA_Server *server, UA_Session *session,
 void Service_AddNodes(UA_Server *server, UA_Session *session,
                       const UA_AddNodesRequest *request,
                       UA_AddNodesResponse *response);
-void Service_AddNodes_single(UA_Server *server, UA_Session *session, UA_AddNodesItem *item,
-                             UA_NodeAttributes *attr, UA_AddNodesResult *result);
+void Service_AddNodes_single(UA_Server *server, UA_Session *session, const UA_AddNodesItem *item,
+                             UA_AddNodesResult *result);
 
 /** Used to add one or more References to one or more Nodes. */
 void Service_AddReferences(UA_Server *server, UA_Session *session,
@@ -249,7 +249,7 @@ Service_Write(UA_Server *server, UA_Session *session,
 
 /** Single attribute writes are exposed to the userspace. The wvalue may be destroyed (deleteMembers) */
 UA_StatusCode
-Service_Write_single(UA_Server *server, UA_Session *session, UA_WriteValue *wvalue);
+Service_Write_single(UA_Server *server, UA_Session *session, const UA_WriteValue *wvalue);
 
 // Service_HistoryUpdate
 /** @} */

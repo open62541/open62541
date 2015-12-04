@@ -86,14 +86,21 @@ static UA_StatusCode
 socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout) {
     response->data = malloc(connection->localConf.recvBufferSize);
     if(!response->data) {
-        response->length = -1;
+        response->length = 0;
         return UA_STATUSCODE_BADOUTOFMEMORY; /* not enough memory retry */
     }
 
     if(timeout > 0) {
         /* currently, only the client uses timeouts */
-        struct timeval tmptv = {0, timeout * 1000};
-        if(0 != setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tmptv, sizeof(struct timeval))) {
+#ifndef _WIN32
+        int timeout_usec = timeout * 1000;
+        struct timeval tmptv = {timeout_usec / 1000000, timeout_usec % 1000000};
+        int ret = setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tmptv, sizeof(struct timeval));
+#else
+        DWORD timeout_dw = timeout;
+        int ret = setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout_dw, sizeof(DWORD));
+#endif
+        if(0 != ret) {
             UA_ByteString_deleteMembers(response);
             socket_close(connection);
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
@@ -114,7 +121,7 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
 #else
 		if(errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
 #endif
-            return UA_STATUSCODE_BADINTERNALERROR; /* retry */
+            return UA_STATUSCODE_GOOD; /* retry */
         else {
             socket_close(connection);
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
@@ -200,7 +207,7 @@ static UA_StatusCode
 ServerNetworkLayerGetSendBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
     if(length > connection->remoteConf.recvBufferSize)
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-    return UA_ByteString_newMembers(buf, length);
+    return UA_ByteString_allocBuffer(buf, length);
 }
 
 static void
@@ -296,8 +303,7 @@ static UA_StatusCode ServerNetworkLayerTCP_start(ServerNetworkLayerTCP *layer, U
          .sin_port = htons(layer->port), .sin_zero = {0}};
     int optval = 1;
     if(setsockopt(layer->serversockfd, SOL_SOCKET,
-                  SO_REUSEADDR, (const char *)&optval,
-                  sizeof(optval)) == -1) {
+                  SO_REUSEADDR, (const char *)&optval, sizeof(optval)) == -1) {
         UA_LOG_WARNING(layer->layer.logger, UA_LOGCATEGORY_NETWORK,
                        "Error during setting of socket options");
         CLOSESOCKET(layer->serversockfd);
@@ -356,7 +362,16 @@ ServerNetworkLayerTCP_getJobs(ServerNetworkLayerTCP *layer, UA_Job **jobs, UA_UI
             continue;
         UA_StatusCode retval = socket_recv(layer->mappings[i].connection, &buf, 0);
         if(retval == UA_STATUSCODE_GOOD) {
-            js[j] = UA_Connection_completeMessages(layer->mappings[i].connection, buf);
+            UA_Boolean realloced = UA_FALSE;
+            retval = UA_Connection_completeMessages(layer->mappings[i].connection, &buf, &realloced);
+            if(retval != UA_STATUSCODE_GOOD || buf.length == 0)
+                continue;
+            js[j].job.binaryMessage.connection = layer->mappings[i].connection;
+            js[j].job.binaryMessage.message = buf;
+            if(!realloced)
+                js[j].type = UA_JOBTYPE_BINARYMESSAGE_NETWORKLAYER;
+            else
+                js[j].type = UA_JOBTYPE_BINARYMESSAGE_ALLOCATED;
             j++;
         } else if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
             UA_Connection *c = layer->mappings[i].connection;
@@ -456,7 +471,7 @@ ClientNetworkLayerGetBuffer(UA_Connection *connection, size_t length, UA_ByteStr
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     if(connection->state == UA_CONNECTION_CLOSED)
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
-    return UA_ByteString_newMembers(buf, connection->remoteConf.recvBufferSize);
+    return UA_ByteString_allocBuffer(buf, connection->remoteConf.recvBufferSize);
 }
 
 static void
@@ -483,6 +498,14 @@ ClientNetworkLayerTCP_connect(UA_ConnectionConfig localConf, const char *endpoin
     UA_Connection connection;
     UA_Connection_init(&connection);
     connection.localConf = localConf;
+
+    //socket_set_nonblocking(connection.sockfd);
+    connection.send = socket_write;
+    connection.recv = socket_recv;
+    connection.close = ClientNetworkLayerClose;
+    connection.getSendBuffer = ClientNetworkLayerGetBuffer;
+    connection.releaseSendBuffer = ClientNetworkLayerReleaseBuffer;
+    connection.releaseRecvBuffer = ClientNetworkLayerReleaseBuffer;
 
     size_t urlLength = strlen(endpointUrl);
     if(urlLength < 11 || urlLength >= 512) {
@@ -555,12 +578,5 @@ ClientNetworkLayerTCP_connect(UA_ConnectionConfig localConf, const char *endpoin
     }
 #endif
 
-    //socket_set_nonblocking(connection.sockfd);
-    connection.send = socket_write;
-    connection.recv = socket_recv;
-    connection.close = ClientNetworkLayerClose;
-    connection.getSendBuffer = ClientNetworkLayerGetBuffer;
-    connection.releaseSendBuffer = ClientNetworkLayerReleaseBuffer;
-    connection.releaseRecvBuffer = ClientNetworkLayerReleaseBuffer;
     return connection;
 }

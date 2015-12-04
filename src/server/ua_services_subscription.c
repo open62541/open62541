@@ -17,6 +17,10 @@ void Service_CreateSubscription(UA_Server *server, UA_Session *session,
                                 UA_CreateSubscriptionResponse *response) {
     response->subscriptionId = SubscriptionManager_getUniqueUIntID(&session->subscriptionManager);
     UA_Subscription *newSubscription = UA_Subscription_new(response->subscriptionId);
+    if(!newSubscription) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
     
     /* set the publishing interval */
     UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalPublishingInterval,
@@ -63,7 +67,6 @@ static void createMonitoredItems(UA_Server *server, UA_Session *session, UA_Subs
     UA_MonitoredItem *newMon = UA_MonitoredItem_new();
     if(!newMon) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
-        UA_NodeStore_release(target);
         return;
     }
 
@@ -71,7 +74,6 @@ static void createMonitoredItems(UA_Server *server, UA_Session *session, UA_Subs
     if(retval != UA_STATUSCODE_GOOD) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         MonitoredItem_delete(newMon);
-        UA_NodeStore_release(target);
         return;
     }
 
@@ -100,8 +102,6 @@ static void createMonitoredItems(UA_Server *server, UA_Session *session, UA_Subs
 
     // todo: add a job that samples the value (for fixed intervals)
     // todo: add a pointer to the monitoreditem to the variable, so that events get propagated
-    
-    UA_NodeStore_release(target);
 }
 
 void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
@@ -119,14 +119,14 @@ void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
         return;
     }
 
-    response->results = UA_Array_new(&UA_TYPES[UA_TYPES_MONITOREDITEMCREATERESULT], request->itemsToCreateSize);
+    response->results = UA_Array_new(request->itemsToCreateSize, &UA_TYPES[UA_TYPES_MONITOREDITEMCREATERESULT]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
     response->resultsSize = request->itemsToCreateSize;
 
-    for(UA_Int32 i = 0; i<request->itemsToCreateSize; i++)
+    for(size_t i = 0; i < request->itemsToCreateSize; i++)
         createMonitoredItems(server, session, sub, &request->itemsToCreate[i], &response->results[i]);
 }
 
@@ -139,7 +139,7 @@ void Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishReq
     // Delete Acknowledged Subscription Messages
     response->resultsSize = request->subscriptionAcknowledgementsSize;
     response->results     = UA_malloc(sizeof(UA_StatusCode)*(response->resultsSize));
-    for(UA_Int32 i = 0; i < request->subscriptionAcknowledgementsSize; i++) {
+    for(size_t i = 0; i < request->subscriptionAcknowledgementsSize; i++) {
         response->results[i] = UA_STATUSCODE_GOOD;
         UA_Subscription *sub =
             SubscriptionManager_getSubscriptionByID(&session->subscriptionManager,
@@ -167,31 +167,31 @@ void Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishReq
             Subscription_updateNotifications(sub);
         }
         
-        if(Subscription_queuedNotifications(sub) <= 0)
+        if(sub->unpublishedNotificationsSize == 0)
             continue;
         
-	// This subscription has notifications in its queue (top NotificationMessage exists in the queue). 
-	// Due to republish, we need to check if there are any unplublished notifications first ()
-	UA_unpublishedNotification *notification = NULL;
-	LIST_FOREACH(notification, &sub->unpublishedNotifications, listEntry) {
-	  if (notification->publishedOnce == UA_FALSE)
-	    break;
-	}
-	if (notification == NULL)
-	  continue;
-	
-	// We found an unpublished notification message in this subscription, which we will now publish.
+        // This subscription has notifications in its queue (top NotificationMessage exists in the queue). 
+        // Due to republish, we need to check if there are any unplublished notifications first ()
+        UA_unpublishedNotification *notification = NULL;
+        LIST_FOREACH(notification, &sub->unpublishedNotifications, listEntry) {
+            if (notification->publishedOnce == UA_FALSE)
+                break;
+        }
+        if (notification == NULL)
+            continue;
+    
+        // We found an unpublished notification message in this subscription, which we will now publish.
         response->subscriptionId = sub->subscriptionID;
         Subscription_copyNotificationMessage(&response->notificationMessage, notification);
-	// Mark this notification as published
-	notification->publishedOnce = UA_TRUE;
-        if(notification->notification->sequenceNumber > sub->sequenceNumber) {
+        // Mark this notification as published
+        notification->publishedOnce = UA_TRUE;
+        if(notification->notification.sequenceNumber > sub->sequenceNumber) {
             // If this is a keepalive message, its seqNo is the next seqNo to be used for an actual msg.
             response->availableSequenceNumbersSize = 0;
             // .. and must be deleted
             Subscription_deleteUnpublishedNotification(sub->sequenceNumber + 1, false, sub);
         } else {
-            response->availableSequenceNumbersSize = Subscription_queuedNotifications(sub);
+            response->availableSequenceNumbersSize = sub->unpublishedNotificationsSize;
             response->availableSequenceNumbers = Subscription_getAvailableSequenceNumbers(sub);
         }	  
         // FIXME: This should be in processMSG();
@@ -261,9 +261,10 @@ void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->subscriptionIdsSize;
 
-    for(UA_Int32 i = 0; i < request->subscriptionIdsSize; i++)
-        response->results[i] = SubscriptionManager_deleteSubscription(server, &session->subscriptionManager,
-                                                                      request->subscriptionIds[i]);
+    for(size_t i = 0; i < request->subscriptionIdsSize; i++)
+        response->results[i] =
+            SubscriptionManager_deleteSubscription(server, &session->subscriptionManager,
+                                                   request->subscriptionIds[i]);
 } 
 
 void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
@@ -283,9 +284,10 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->monitoredItemIdsSize;
 
-    for(UA_Int32 i = 0; i < request->monitoredItemIdsSize; i++)
-        response->results[i] = SubscriptionManager_deleteMonitoredItem(manager, sub->subscriptionID,
-                                                                       request->monitoredItemIds[i]);
+    for(size_t i = 0; i < request->monitoredItemIdsSize; i++)
+        response->results[i] =
+            SubscriptionManager_deleteMonitoredItem(manager, sub->subscriptionID,
+                                                    request->monitoredItemIds[i]);
 }
 
 void Service_Republish(UA_Server *server, UA_Session *session,
@@ -301,7 +303,7 @@ void Service_Republish(UA_Server *server, UA_Session *session,
     // Find the notification in question
     UA_unpublishedNotification *notification;
     LIST_FOREACH(notification, &sub->unpublishedNotifications, listEntry) {
-      if (notification->notification->sequenceNumber == request->retransmitSequenceNumber)
+      if (notification->notification.sequenceNumber == request->retransmitSequenceNumber)
 	break;
     }
     if (!notification) {

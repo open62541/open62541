@@ -426,6 +426,9 @@ if(BUILD_EXAMPLES)
 	add_executable(server_datasource ${PROJECT_SOURCE_DIR}/examples/server_datasource.c $<TARGET_OBJECTS:open62541-object>)
 	target_link_libraries(server_datasource ${LIBS})
 
+	# add_executable(server_readspeed ${PROJECT_SOURCE_DIR}/examples/server_readspeed.c $<TARGET_OBJECTS:open62541-object>)
+	# target_link_libraries(server_readspeed ${LIBS})
+
 	add_executable(server_firstSteps ${PROJECT_SOURCE_DIR}/examples/server_firstSteps.c $<TARGET_OBJECTS:open62541-object>)
 	target_link_libraries(server_firstSteps ${LIBS})
 

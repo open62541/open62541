@@ -3,11 +3,11 @@
 #include "ua_statuscodes.h"
 
 UA_Session anonymousSession = {
-    .clientDescription =  {.applicationUri = {-1, NULL}, .productUri = {-1, NULL},
-                           .applicationName = {.locale = {-1, NULL}, .text = {-1, NULL}},
+    .clientDescription =  {.applicationUri = {0, NULL}, .productUri = {0, NULL},
+                           .applicationName = {.locale = {0, NULL}, .text = {0, NULL}},
                            .applicationType = UA_APPLICATIONTYPE_CLIENT,
-                           .gatewayServerUri = {-1, NULL}, .discoveryProfileUri = {-1, NULL},
-                           .discoveryUrlsSize = -1, .discoveryUrls = NULL},
+                           .gatewayServerUri = {0, NULL}, .discoveryProfileUri = {0, NULL},
+                           .discoveryUrlsSize = 0, .discoveryUrls = NULL},
     .sessionName = {sizeof("Anonymous Session")-1, (UA_Byte*)"Anonymous Session"},
     .authenticationToken = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
                             .identifier.numeric = 0}, 
@@ -17,11 +17,11 @@ UA_Session anonymousSession = {
     .continuationPoints = {NULL}};
 
 UA_Session adminSession = {
-    .clientDescription =  {.applicationUri = {-1, NULL}, .productUri = {-1, NULL},
-                           .applicationName = {.locale = {-1, NULL}, .text = {-1, NULL}},
+    .clientDescription =  {.applicationUri = {0, NULL}, .productUri = {0, NULL},
+                           .applicationName = {.locale = {0, NULL}, .text = {0, NULL}},
                            .applicationType = UA_APPLICATIONTYPE_CLIENT,
-                           .gatewayServerUri = {-1, NULL}, .discoveryProfileUri = {-1, NULL},
-                           .discoveryUrlsSize = -1, .discoveryUrls = NULL},
+                           .gatewayServerUri = {0, NULL}, .discoveryProfileUri = {0, NULL},
+                           .discoveryUrlsSize = 0, .discoveryUrls = NULL},
     .sessionName = {sizeof("Administrator Session")-1, (UA_Byte*)"Administrator Session"},
     .authenticationToken = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
                             .identifier.numeric = 1},

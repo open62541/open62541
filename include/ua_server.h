@@ -331,8 +331,9 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
                                     UA_NodeId *outNewNodeId);
 
 #ifdef ENABLE_METHODCALLS
-typedef UA_StatusCode (*UA_MethodCallback)(const UA_NodeId objectId, const UA_Variant *input,
-                                           UA_Variant *output, void *handle);
+typedef UA_StatusCode (*UA_MethodCallback)(void *methodHandle, const UA_NodeId objectId,
+                                           size_t inputSize, const UA_Variant *input,
+                                           size_t outputSize, UA_Variant *output);
 
 UA_StatusCode UA_EXPORT
 UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
@@ -403,10 +404,6 @@ UA_Server_writeEventNotifierAttribute(UA_Server *server, const UA_NodeId nodeId,
 static UA_INLINE UA_StatusCode
 UA_Server_writeValueAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_Variant value) {
     return __UA_Server_writeAttribute(server, nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value); }
-
-/* The value content is moved into the node (not copied). The input variant is _inited internally. */
-UA_StatusCode UA_EXPORT
-UA_Server_writeValueAttribute_move(UA_Server *server, const UA_NodeId nodeId, UA_Variant *value);
 
 static UA_INLINE UA_StatusCode
 UA_Server_writeAccessLevelAttribute(UA_Server *server, const UA_NodeId nodeId, const UA_UInt32 accessLevel) {

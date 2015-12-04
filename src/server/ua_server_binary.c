@@ -223,7 +223,9 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *responseType = &UA_TYPES[UA_TYPES_PUBLISHRESPONSE];
         break;
     case UA_NS0ID_REPUBLISHREQUEST:
-        INVOKE_SERVICE(Republish, UA_TYPES_REPUBLISHRESPONSE);
+        *service = (UA_Service)Service_Republish;
+        *requestType = &UA_TYPES[UA_TYPES_REPUBLISHREQUEST];
+        *responseType = &UA_TYPES[UA_TYPES_REPUBLISHRESPONSE];
         break;
     case UA_NS0ID_MODIFYSUBSCRIPTIONREQUEST:
         *service = (UA_Service)Service_ModifySubscription;
@@ -232,18 +234,18 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         break;
     case UA_NS0ID_DELETESUBSCRIPTIONSREQUEST:
         *service = (UA_Service)Service_DeleteSubscriptions;
-        *requestType = &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONREQUEST];
-        *responseType = &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONRESPONSE];
+        *requestType = &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST];
+        *responseType = &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE];
         break;
     case UA_NS0ID_CREATEMONITOREDITEMSREQUEST:
         *service = (UA_Service)Service_CreateMonitoredItems;
-        *requestType = &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMREQUEST];
-        *responseType = &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMRESPONSE];
+        *requestType = &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST];
+        *responseType = &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE];
         break;
     case UA_NS0ID_DELETEMONITOREDITEMSREQUEST:
         *service = (UA_Service)Service_DeleteMonitoredItems;
-        *requestType = &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMREQUEST];
-        *responseType = &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMRESPONSE];
+        *requestType = &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST];
+        *responseType = &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE];
         break;
 #endif
 
@@ -393,12 +395,14 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
 
     /* Test if the session is valid */
     if(!session->activated && requestType->typeIndex != UA_TYPES_ACTIVATESESSIONREQUEST) {
+        UA_LOG_INFO(server->logger, UA_LOGCATEGORY_SERVER, "Client tries to call a service with a non-activated session");
         sendError(channel, msg, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
         return;
     }
 #ifndef EXTENSION_STATELESS
     if(session == &anonymousSession &&
-       requestType->typeIndex > UA_TYPES_CREATESESSIONREQUEST) {
+       requestType->typeIndex > UA_TYPES_ACTIVATESESSIONREQUEST) {
+        UA_LOG_INFO(server->logger, UA_LOGCATEGORY_SERVER, "Client tries to call a service without a session");
         sendError(channel, msg, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
         return;
     }
@@ -484,5 +488,5 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
                         connection->sockfd, pos, targetpos);
             pos = targetpos;
         }
-    } while(msg->length > (UA_Int32)pos);
+    } while(msg->length > pos);
 }

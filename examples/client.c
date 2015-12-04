@@ -14,8 +14,7 @@
 
 #include <stdio.h>
 
-void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value);
-void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value) {
+static void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value) {
     printf("The Answer has changed!\n");
     return;
 }
@@ -42,18 +41,19 @@ int main(int argc, char *argv[]) {
 
     UA_BrowseResponse bResp = UA_Client_Service_browse(client, bReq);
     printf("%-9s %-16s %-16s %-16s\n", "NAMESPACE", "NODEID", "BROWSE NAME", "DISPLAY NAME");
-    for (int i = 0; i < bResp.resultsSize; ++i) {
-        for (int j = 0; j < bResp.results[i].referencesSize; ++j) {
+    for (size_t i = 0; i < bResp.resultsSize; ++i) {
+        for (size_t j = 0; j < bResp.results[i].referencesSize; ++j) {
             UA_ReferenceDescription *ref = &(bResp.results[i].references[j]);
             if(ref->nodeId.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC) {
                 printf("%-9d %-16d %-16.*s %-16.*s\n", ref->browseName.namespaceIndex,
-                       ref->nodeId.nodeId.identifier.numeric, ref->browseName.name.length,
-                       ref->browseName.name.data, ref->displayName.text.length, ref->displayName.text.data);
+                       ref->nodeId.nodeId.identifier.numeric, (int)ref->browseName.name.length,
+                       ref->browseName.name.data, (int)ref->displayName.text.length,
+                       ref->displayName.text.data);
             } else if(ref->nodeId.nodeId.identifierType == UA_NODEIDTYPE_STRING) {
                 printf("%-9d %-16.*s %-16.*s %-16.*s\n", ref->browseName.namespaceIndex,
-                       ref->nodeId.nodeId.identifier.string.length, ref->nodeId.nodeId.identifier.string.data,
-                       ref->browseName.name.length, ref->browseName.name.data, ref->displayName.text.length,
-                       ref->displayName.text.data);
+                       (int)ref->nodeId.nodeId.identifier.string.length, ref->nodeId.nodeId.identifier.string.data,
+                       (int)ref->browseName.name.length, ref->browseName.name.data,
+                       (int)ref->displayName.text.length, ref->displayName.text.data);
             }
             //TODO: distinguish further types
         }
@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
                             UA_NODEID_NUMERIC(1, 62541), 1, &input, &outputSize, &output);
     if(retval == UA_STATUSCODE_GOOD) {
         printf("Method call was successfull, and %i returned values available.\n", outputSize);
-        UA_Array_delete(output, &UA_TYPES[UA_TYPES_VARIANT], outputSize);
+        UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
     } else {
         printf("Method call was unsuccessfull, and %x returned values available.\n", retval);
     }
