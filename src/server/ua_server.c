@@ -461,8 +461,8 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     UA_RCU_LOCK();
 #endif
 
-    // random seed
-    server->random_seed = (UA_UInt32)UA_DateTime_now();
+    /* uncomment for non-reproducible server runs */
+    //UA_random_seed(UA_DateTime_now());
 
     // mockup application description
     UA_ApplicationDescription_init(&server->description);

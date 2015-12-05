@@ -72,6 +72,9 @@ typedef uint32_t UA_UInt32;
 #define UA_UINT32_MAX 4294967295
 #define UA_UINT32_MIN 0
 
+/* do not use for cryptographic entropy */
+UA_EXPORT UA_UInt32 UA_UInt32_random(void);
+
 /** Int64: An integer value between -10 223 372 036 854 775 808 and 9 223 372 036 854 775 807 */
 typedef int64_t UA_Int64;
 #define UA_INT64_MAX (int64_t)9223372036854775807
@@ -146,7 +149,8 @@ typedef struct {
 
 UA_Boolean UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
 
-UA_Guid UA_EXPORT UA_Guid_random(UA_UInt32 *seed);
+/* do not use for cryptographic entropy */
+UA_Guid UA_EXPORT UA_Guid_random(void);
 
 /************************************/
 /* ByteString: A sequence of octets */
@@ -651,7 +655,6 @@ typedef enum {
  * initialized for every thread in the server/client.
  */
 UA_EXPORT void UA_random_seed(UA_UInt64 seed);
-UA_EXPORT UA_UInt32 UA_random(void);
 
 #ifdef __cplusplus
 } // extern "C"

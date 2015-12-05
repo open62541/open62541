@@ -291,7 +291,7 @@ UA_StatusCode UA_Server_addRepeatedJob(UA_Server *server, UA_Job job, UA_UInt32 
     arw->interval = interval;
     arw->job.job = job;
     if(jobId) {
-        arw->job.id = UA_Guid_random(&server->random_seed);
+        arw->job.id = UA_Guid_random();
         *jobId = arw->job.id;
     } else
         UA_Guid_init(&arw->job.id);
@@ -310,7 +310,7 @@ UA_StatusCode UA_Server_addRepeatedJob(UA_Server *server, UA_Job job, UA_UInt32 
     arw.interval = interval;
     arw.job.job = job;
     if(jobId) {
-        arw.job.id = UA_Guid_random(&server->random_seed);
+        arw.job.id = UA_Guid_random();
         *jobId = arw.job.id;
     } else
         UA_Guid_init(&arw.job.id);
