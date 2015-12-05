@@ -30,7 +30,6 @@ struct UA_Server {
     /* Config */
     UA_ServerConfig config;
     UA_Logger logger;
-    UA_UInt32 random_seed;
 
     /* Meta */
     UA_DateTime startTime;

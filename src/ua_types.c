@@ -23,13 +23,14 @@ UA_EXPORT void UA_random_seed(UA_UInt64 seed) {
     pcg32_srandom_r(&UA_rng, seed, UA_DateTime_now());
 }
 
-UA_EXPORT UA_UInt32 UA_random(void) {
-    return (UA_UInt32)pcg32_random_r(&UA_rng);
-}
-
 /*****************/
 /* Builtin Types */
 /*****************/
+
+UA_EXPORT UA_UInt32 UA_UInt32_random(void) {
+    return (UA_UInt32)pcg32_random_r(&UA_rng);
+}
+
 UA_String UA_String_fromChars(char const src[]) {
     UA_String str = UA_STRING_NULL;
     size_t length = strlen(src);
@@ -149,7 +150,7 @@ UA_Boolean UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
     return UA_FALSE;
 }
 
-UA_Guid UA_Guid_random(UA_UInt32 *seed) {
+UA_Guid UA_Guid_random(void) {
     UA_Guid result;
     result.data1 = (UA_UInt32)pcg32_random_r(&UA_rng);
     UA_UInt32 r = (UA_UInt32)pcg32_random_r(&UA_rng);

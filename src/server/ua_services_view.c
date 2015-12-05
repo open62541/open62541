@@ -350,8 +350,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
         cp->maxReferences = maxrefs;
         cp->continuationIndex = referencesCount;
         UA_Guid *ident = UA_Guid_new();
-        UA_UInt32 seed = (uintptr_t)cp;
-        *ident = UA_Guid_random(&seed);
+        *ident = UA_Guid_random();
         cp->identifier.data = (UA_Byte*)ident;
         cp->identifier.length = sizeof(UA_Guid);
         UA_ByteString_copy(&cp->identifier, &result->continuationPoint);

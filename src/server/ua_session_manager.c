@@ -62,8 +62,7 @@ UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_SecureChan
     sessionManager->currentSessionCount++;
     UA_Session_init(&newentry->session);
     newentry->session.sessionId = UA_NODEID_NUMERIC(1, sessionManager->lastSessionId++);
-    UA_UInt32 randSeed = (UA_UInt32)(sessionManager->lastSessionId + UA_DateTime_now());
-    newentry->session.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random(&randSeed));
+    newentry->session.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random());
 
     if(request->requestedSessionTimeout <= sessionManager->maxSessionLifeTime &&
        request->requestedSessionTimeout > 0)
