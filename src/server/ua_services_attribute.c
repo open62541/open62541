@@ -39,7 +39,7 @@ static size_t readDimension(UA_Byte *buf, UA_Int32 buflen, struct UA_NumericRang
     return progress + progress2 + 1;
 }
 
-#ifndef BUILD_UNIT_TESTS
+#ifndef UA_BUILD_UNIT_TESTS
 static
 #endif
 UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
@@ -353,7 +353,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
         return;
     }
 
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     UA_Boolean isExternal[size];
     UA_UInt32 indices[size];
     memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
@@ -375,7 +375,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 #endif
 
     for(size_t i = 0;i < size;i++) {
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         if(!isExternal[i])
 #endif
             Service_Read_single(server, session, request->timestampsToReturn,
@@ -428,7 +428,7 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const U
         UA_MT_CONST UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
         if(!node)
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
-#ifndef UA_MULTITHREADING
+#ifndef UA_ENABLE_MULTITHREADING
         retval = callback(server, session, node, data);
         return retval;
 #else
@@ -703,7 +703,7 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
         return;
     }
 
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     UA_Boolean isExternal[request->nodesToWriteSize];
     UA_UInt32 indices[request->nodesToWriteSize];
     memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToWriteSize);
@@ -727,7 +727,7 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
     
     response->resultsSize = request->nodesToWriteSize;
     for(size_t i = 0;i < request->nodesToWriteSize;i++) {
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         if(!isExternal[i])
 #endif
 		  response->results[i] = Service_Write_single(server, session, &request->nodesToWrite[i]);

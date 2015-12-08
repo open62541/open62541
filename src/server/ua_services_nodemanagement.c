@@ -542,7 +542,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
         return;
     }
     
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 #ifdef _MSVC_VER
     UA_Boolean *isExternal = UA_alloca(size);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32)*size);
@@ -571,7 +571,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
     
     response->resultsSize = size;
     for(size_t i = 0; i < size; i++) {
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         if(!isExternal[i])
 #endif
             Service_AddNodes_single(server, session, &request->nodesToAdd[i], &response->results[i]);
@@ -639,7 +639,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
     return result.statusCode;
 }
 
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT
 UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
@@ -795,7 +795,7 @@ void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddR
 	}
 	response->resultsSize = size;
 
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 #ifdef NO_ALLOCA
     UA_Boolean isExternal[size];
     UA_UInt32 indices[size];
@@ -824,7 +824,7 @@ void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddR
 
 	response->resultsSize = size;
 	for(size_t i = 0; i < response->resultsSize; i++) {
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 		if(!isExternal[i])
 #endif
             Service_AddReferences_single(server, session, &request->referencesToAdd[i]);

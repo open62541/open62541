@@ -32,7 +32,7 @@
 # define CLOSESOCKET(S) close(S)
 #endif
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 # include <urcu/uatomic.h>
 #endif
 
@@ -234,7 +234,7 @@ static void setFDSet(ServerNetworkLayerTCP *layer) {
 
 /* callback triggered from the server */
 static void ServerNetworkLayerTCP_closeConnection(UA_Connection *connection) {
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     if(uatomic_xchg(&connection->state, UA_CONNECTION_CLOSED) == UA_CONNECTION_CLOSED)
         return;
 #else
@@ -481,7 +481,7 @@ ClientNetworkLayerReleaseBuffer(UA_Connection *connection, UA_ByteString *buf) {
 
 static void
 ClientNetworkLayerClose(UA_Connection *connection) {
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     if(uatomic_xchg(&connection->state, UA_CONNECTION_CLOSED) == UA_CONNECTION_CLOSED)
         return;
 #else

@@ -12,7 +12,7 @@
 #include "ua_util.h"
 #include "server/ua_server_internal.h"
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 #include <pthread.h>
 #include <urcu.h>
 #endif

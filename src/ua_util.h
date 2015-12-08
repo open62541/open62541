@@ -48,7 +48,7 @@
 /* Thread Local Storage */
 /************************/
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 # ifdef __GNUC__
 #  define UA_THREAD_LOCAL __thread
 # elif defined(_MSC_VER)
@@ -79,7 +79,7 @@
 
 #include "queue.h"
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 # define _LGPL_SOURCE
 # include <urcu.h>
 # include <urcu/wfcqueue.h>

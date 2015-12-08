@@ -94,7 +94,7 @@ The following functions and definitions are used with UA_UInt32.
 .. code-block:: c
 
   /* do not use for cryptographic entropy */
-  UA_EXPORT UA_UInt32 UA_UInt32_random(void);
+  UA_UInt32 UA_UInt32_random(void);
 
 UA_Int64
 ^^^^^^^^
@@ -161,9 +161,9 @@ The following functions and definitions are used with UA_DateTime.
       UA_UInt16 year;
   } UA_DateTimeStruct;
 
-  UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime time);
+  UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time);
 
-  UA_String UA_EXPORT UA_DateTime_toString(UA_DateTime time);
+  UA_String UA_DateTime_toString(UA_DateTime time);
 
 UA_Guid
 ^^^^^^^

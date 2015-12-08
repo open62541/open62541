@@ -82,7 +82,7 @@ static void processJobs(UA_Server *server, UA_Job *jobs, UA_Int32 jobsSize) {
 /* Worker Threads and Dispatch */
 /*******************************/
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 
 struct MainLoopJob {
     struct cds_lfs_node node;
@@ -271,7 +271,7 @@ static UA_StatusCode addRepeatedJob(UA_Server *server, struct AddRepeatedJob * U
     matchingTw->jobsSize++;
 
  cleanup:
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     UA_free(arw);
 #endif
     return retval;
@@ -283,7 +283,7 @@ UA_StatusCode UA_Server_addRepeatedJob(UA_Server *server, UA_Job job, UA_UInt32 
         return UA_STATUSCODE_BADINTERNALERROR;
     interval *= 10000; // from ms to 100ns resolution
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     struct AddRepeatedJob *arw = UA_malloc(sizeof(struct AddRepeatedJob));
     if(!arw)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -328,7 +328,7 @@ static UA_UInt16 processRepeatedJobs(UA_Server *server) {
         if(tw->nextTime > current)
             break;
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
         // copy the entry and insert at the new location
         UA_Job *jobsCopy = UA_malloc(sizeof(UA_Job) * tw->jobsSize);
         if(!jobsCopy) {
@@ -393,14 +393,14 @@ static void removeRepeatedJob(UA_Server *server, UA_Guid *jobId) {
         }
     }
  finish:
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     UA_free(jobId);
 #endif
     return;
 }
 
 UA_StatusCode UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid jobId) {
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     UA_Guid *idptr = UA_malloc(sizeof(UA_Guid));
     if(!idptr)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -429,7 +429,7 @@ void UA_Server_deleteAllRepeatedJobs(UA_Server *server) {
 /* Delayed Jobs */
 /****************/
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 
 #define DELAYEDJOBSSIZE 100 // Collect delayed jobs until we have DELAYEDWORKSIZE items
 
@@ -537,7 +537,7 @@ static void dispatchDelayedJobs(UA_Server *server, void *data /* not used, but n
 /* Main Server Loop */
 /********************/
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 static void processMainLoopJobs(UA_Server *server) {
     /* no synchronization required if we only use push and pop_all */
     struct cds_lfs_head *head = __cds_lfs_pop_all(&server->mainLoopJobs);
@@ -557,7 +557,7 @@ static void processMainLoopJobs(UA_Server *server) {
 UA_StatusCode UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running) {
 UA_StatusCode result = UA_STATUSCODE_GOOD;
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     /* Prepare the worker threads */
     server->running = running; // the threads need to access the variable
     server->nThreads = nThreads;
@@ -585,7 +585,7 @@ UA_StatusCode result = UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode UA_Server_run_mainloop(UA_Server *server, UA_Boolean *running) {
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     /* Run Work in the main loop */
     processMainLoopJobs(server);
 #endif
@@ -605,7 +605,7 @@ UA_StatusCode UA_Server_run_mainloop(UA_Server *server, UA_Boolean *running) {
         } else
             jobsSize = server->networkLayers[i]->stop(nl, &jobs);
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
         /* Filter out delayed work */
         for(UA_Int32 k=0;k<jobsSize;k++) {
             if(jobs[k].type != UA_JOBTYPE_METHODCALL_DELAYED)
@@ -636,7 +636,7 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server, UA_UInt16 nThreads){
         processJobs(server, stopJobs, stopJobsSize);
         UA_free(stopJobs);
     }
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     /* Wait for all worker threads to finish */
     for(UA_UInt32 i=0;i<nThreads;i++) {
         pthread_join(server->thr[i], NULL);

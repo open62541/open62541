@@ -8,7 +8,7 @@
 /* Subscriptions Handling */
 /**************************/
 
-#ifdef ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 
 typedef struct UA_Client_NotificationsAckNumber_s {
     UA_SubscriptionAcknowledgement subAck;
@@ -67,7 +67,7 @@ struct UA_Client {
     UA_NodeId authenticationToken;
     UA_UInt32 requestHandle;
     
-#ifdef ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Int32 monitoredItemHandles;
     LIST_HEAD(UA_ListOfUnacknowledgedNotificationNumbers, UA_Client_NotificationsAckNumber_s) pendingNotificationsAcks;
     LIST_HEAD(UA_ListOfClientSubscriptionItems, UA_Client_Subscription_s) subscriptions;

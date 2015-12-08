@@ -97,7 +97,7 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
     }
 
     /* send the response with an asymmetric security header */
-#ifndef UA_MULTITHREADING
+#ifndef UA_ENABLE_MULTITHREADING
     seqHeader.sequenceNumber = ++channel->sequenceNumber;
 #else
     seqHeader.sequenceNumber = uatomic_add_return(&channel->sequenceNumber, 1);
@@ -211,7 +211,7 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *responseType = &UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE];
         break;
 
-#ifdef ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     case UA_NS0ID_CREATESUBSCRIPTIONREQUEST:
         *service = (UA_Service)Service_CreateSubscription;
         *requestType = &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST];
@@ -249,7 +249,7 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         break;
 #endif
 
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
     case UA_NS0ID_CALLREQUEST:
         *service = (UA_Service)Service_Call;
         *requestType = &UA_TYPES[UA_TYPES_CALLREQUEST];
@@ -257,7 +257,7 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
 	break;
 #endif
 
-#ifdef ENABLE_NODEMANAGEMENT
+#ifdef UA_ENABLE_NODEMANAGEMENT
     case UA_NS0ID_ADDNODESREQUEST:
         *service = (UA_Service)Service_AddNodes;
         *requestType = &UA_TYPES[UA_TYPES_ADDNODESREQUEST];
@@ -365,7 +365,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     }
 
     /* Most services can only be called with a valid securechannel */
-#ifndef EXTENSION_STATELESS
+#ifndef UA_ENABLE_NONSTANDARD_STATELESS
     if(channel == &anonymousChannel &&
        requestType->typeIndex > UA_TYPES_OPENSECURECHANNELREQUEST) {
         sendError(channel, msg, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSECURECHANNELIDINVALID);
@@ -399,7 +399,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
         sendError(channel, msg, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
         return;
     }
-#ifndef EXTENSION_STATELESS
+#ifndef UA_ENABLE_NONSTANDARD_STATELESS
     if(session == &anonymousSession &&
        requestType->typeIndex > UA_TYPES_ACTIVATESESSIONREQUEST) {
         UA_LOG_INFO(server->logger, UA_LOGCATEGORY_SERVER, "Client tries to call a service without a session");
@@ -463,7 +463,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             processOPN(connection, server, msg, &pos);
             break;
         case UA_MESSAGETYPEANDFINAL_MSGF & 0xffffff:
-#ifndef EXTENSION_STATELESS
+#ifndef UA_ENABLE_NONSTANDARD_STATELESS
             if(connection->state != UA_CONNECTION_ESTABLISHED) {
                 connection->close(connection);
                 return;

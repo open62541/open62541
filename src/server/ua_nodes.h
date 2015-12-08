@@ -127,7 +127,7 @@ typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Boolean executable;
     UA_Boolean userExecutable;
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
     void *methodHandle;
     UA_MethodCallback attachedMethod;
 #endif

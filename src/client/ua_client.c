@@ -35,7 +35,7 @@ static void UA_Client_init(UA_Client* client, UA_ClientConfig config,
     client->config = config;
     client->scExpiresAt = 0;
 
-#ifdef ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     client->monitoredItemHandles = 0;
     LIST_INIT(&client->pendingNotificationsAcks);
     LIST_INIT(&client->subscriptions);
@@ -58,7 +58,7 @@ static void UA_Client_deleteMembers(UA_Client* client) {
     if(client->endpointUrl.data)
         UA_String_deleteMembers(&client->endpointUrl);
     UA_UserTokenPolicy_deleteMembers(&client->token);
-#ifdef ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Client_NotificationsAckNumber *n, *tmp;
     LIST_FOREACH_SAFE(n, &client->pendingNotificationsAcks, listEntry, tmp) {
         LIST_REMOVE(n, listEntry);

@@ -55,7 +55,7 @@ void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *sessi
     if(!se)
         return;
     se->session = session;
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     if(uatomic_cmpxchg(&session->channel, NULL, channel) != NULL) {
         UA_free(se);
         return;
@@ -144,7 +144,7 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
 
     /* now write the header with the size */
     respHeader.messageHeader.messageSize = messagePos;
-#ifndef UA_MULTITHREADING
+#ifndef UA_ENABLE_MULTITHREADING
     seqHeader.sequenceNumber = ++channel->sequenceNumber;
 #else
     seqHeader.sequenceNumber = uatomic_add_return(&channel->sequenceNumber, 1);

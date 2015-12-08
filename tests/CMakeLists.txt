@@ -15,9 +15,9 @@ if(NOT WIN32)
 else()
     list(APPEND LIBS ws2_32)
 endif()
-if(ENABLE_MULTITHREADING)
+if(UA_ENABLE_MULTITHREADING)
     list(APPEND LIBS urcu-cds urcu urcu-common)
-endif(ENABLE_MULTITHREADING)
+endif()
 
 # the unit test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library
@@ -68,7 +68,7 @@ add_test(session ${CMAKE_CURRENT_BINARY_DIR}/check_session)
 #                           ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex)
 
 #set(check_fileinput_source check_server_interaction_fileinput.c testing_networklayers.c $<TARGET_OBJECTS:open62541-object>)
-#if(NOT ENABLE_AMALGAMATION)
+#if(NOT UA_ENABLE_AMALGAMATION)
 #    list(APPEND check_fileinput_source ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c)
 #endif()
 #add_executable(check_server_interaction_fileinput ${check_fileinput_source})
