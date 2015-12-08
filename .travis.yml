@@ -1,7 +1,11 @@
 language: c
 compiler:
 - gcc
-- clang
+#- clang
+os:
+- linux
+- osx
+sudo: true
 env:
   global:
   - secure: nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo=
@@ -15,93 +19,20 @@ addons:
     build_command_prepend: mkdir build && cd build && cmake ..
     build_command: make
     branch_pattern: coverity_scan
+matrix:
+  # This excludes OSX GCC builds.
+  exclude:
+    - os: osx
+      compiler: gcc
 before_install:
-- sudo apt-get install binutils-mingw-w64-i686 gcc-mingw-w64-i686 mingw-w64
-- sudo add-apt-repository ppa:kalakris/cmake -y
-- sudo apt-get update -qq
-- sudo apt-get install -qq --no-install-recommends build-essential cmake python-lxml gcc-multilib graphviz doxygen wget zip
-- sudo apt-get install libsubunit-dev #for check_0.10.0
-- wget http://ftp.de.debian.org/debian/pool/main/c/check/check_0.10.0-2_amd64.deb
-- sudo dpkg -i check_0.10.0-2_amd64.deb
-- wget https://launchpad.net/ubuntu/+source/liburcu/0.8.5-1ubuntu1/+build/6513813/+files/liburcu2_0.8.5-1ubuntu1_amd64.deb
-- wget https://launchpad.net/ubuntu/+source/liburcu/0.8.5-1ubuntu1/+build/6513813/+files/liburcu-dev_0.8.5-1ubuntu1_amd64.deb
-- sudo dpkg -i liburcu2_0.8.5-1ubuntu1_amd64.deb
-- sudo dpkg -i liburcu-dev_0.8.5-1ubuntu1_amd64.deb
-- sudo pip install cpp-coveralls
-- sudo pip install Pygments
-- sudo pip install sphinx
-- sudo pip install breathe
-- sudo pip install sphinx_rtd_theme
+- "if [ ${TRAVIS_OS_NAME} == 'linux' ]; then . ./tools/travis_linux_before_install.sh; fi"
+- "if [ ${TRAVIS_OS_NAME} == 'osx' ]; then . ./tools/travis_osx_before_install.sh; fi"
 script:
-- echo "Checking the applicability of patches"
-- # ./tools/.checkPorts.sh
-- echo "Documentation and certificate build"
-- mkdir -p build
-- cd build
-- cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_DOCUMENTATION=ON -DGENERATE_SELFSIGNED=ON ..
-- make doc
-- make selfsigned
-- cp -r doc ..
-- cp server_cert.der ..
-- echo "Testing builds"
-- cd .. && rm build -rf && mkdir -p build && cd build
-- echo "Cross compile release build for MinGW 32 bit"
-- cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw32.cmake -DENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLESERVER=ON -DBUILD_EXAMPLECLIENT=ON ..
-- make 
-- cp ../README.md .
-- cp ../LICENSE .
-- cp ../AUTHORS .
-- cp -r ../doc .
-- cp ../server_cert.der .
-- zip -r open62541-win32.zip doc server_cert.der LICENSE AUTHORS README.md server_static.exe server.exe client.exe client_static.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
-- cp open62541-win32.zip ..
-- cd .. && rm build -rf && mkdir -p build && cd build
-- echo "Cross compile release build for MinGW 64 bit"
-- cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw64.cmake -DENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLESERVER=ON -DBUILD_EXAMPLECLIENT=ON ..
-- make 
-- cp ../README.md .
-- cp ../LICENSE .
-- cp ../AUTHORS .
-- cp -r ../doc .
-- cp ../server_cert.der .
-- zip -r open62541-win64.zip doc server_cert.der LICENSE AUTHORS README.md server_static.exe server.exe client.exe client_static.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
-- cp open62541-win64.zip ..
-- cd .. && rm build -rf && mkdir -p build && cd build
-- echo "Cross compile release build for 32-bit linux"
-- cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-gcc-m32.cmake -DENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLESERVER=ON -DBUILD_EXAMPLECLIENT=ON ..
-- make 
-- tar -pczf open62541-linux32.tar.gz ../doc ../server_cert.der ../LICENSE ../AUTHORS ../README.md server_static server client_static client libopen62541.so open62541.h open62541.c
-- cp open62541-linux32.tar.gz ..
-- cd .. && rm build -rf && mkdir -p build && cd build
-- echo "Compile release build for 64-bit linux"
-- cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_AMALGAMATION=ON -DBUILD_EXAMPLESERVER=ON -DBUILD_EXAMPLECLIENT=ON ..
-- make 
-- tar -pczf open62541-linux64.tar.gz ../doc ../server_cert.der ../LICENSE ../AUTHORS ../README.md server_static server client_static client libopen62541.so open62541.h open62541.c
-- cp open62541-linux64.tar.gz ..
-- cp open62541.h .. #copy single file-release
-- cp open62541.c .. #copy single file-release
-- cd .. && rm build -rf && mkdir -p build && cd build
-- echo "Upgrade to gcc 4.8"
-- sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-- sudo apt-get update -qq
-- sudo apt-get install -qq gcc-4.8 valgrind
-- sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
-- sudo update-alternatives --config gcc
-- echo "Compile multithreaded version"
-- cmake -DENABLE_MULTITHREADING=ON -DBUILD_EXAMPLESERVER=ON ..
-- make 
-- cd .. && rm build -rf && mkdir -p build && cd build
-- echo "Debug build and unit tests (64 bit)"
-- cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_DEMO_NODESET=ON -DBUILD_UNIT_TESTS=ON -DBUILD_EXAMPLESERVER=ON -DENABLE_COVERAGE=ON ..
-- make && make test
-- echo "Run valgrind to see if the server leaks memory (just starting up and closing..)"
-- if [[ ! ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "clang") ]]; then
-  (valgrind --error-exitcode=3 ./server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
-  (coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ ; exit 0);
-  fi
-- cd .. 
+- "if [ ${TRAVIS_OS_NAME} == 'linux' ]; then . ./tools/travis_linux_script.sh; fi"
+- "if [ ${TRAVIS_OS_NAME} == 'osx' ]; then . ./tools/travis_osx_script.sh; fi"
 after_success:
-- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master") ]]; then ./tools/.deployGH.sh; fi
+- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master") ]]; then ./tools/.deployGH_doc.sh; fi
+- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" ) ]]; then ./tools/.deployGH_release.sh; fi
 - if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master") ]]; then ./tools/.coverity.sh; fi
 before_deploy:
 - rm build -rf && mkdir -p build && cd build

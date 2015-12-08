@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.8)
+cmake_minimum_required(VERSION 2.8.11)
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 
 project(open62541 C)
@@ -43,12 +43,12 @@ endif()
 if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
                       -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
-                      -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes # -Wshadow -Wconversion
+                      -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes #-Wshadow #-Wconversion
                       -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral)
     # binary size reduction settings
     add_definitions(-ffunction-sections -fdata-sections -fno-stack-protector -fno-unwind-tables
                     -fno-asynchronous-unwind-tables -fno-math-errno -fmerge-all-constants -fno-ident)
-  if (APPLE)
+  if(APPLE)
       set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-dead_strip")
       set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-dead_strip")
   else()
@@ -56,19 +56,18 @@ if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
       set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
   endif()
   set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
-	if(NOT WIN32)
-     if(NOT CYGWIN)
+	if(NOT WIN32 AND NOT CYGWIN)
 	    add_definitions(-fvisibility=hidden -fPIC)
-      if (NOT APPLE)
-          set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
-      endif()
+      if(NOT APPLE)
+        # these settings reduce the binary size by ~2kb
+        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
       endif()
 	endif()
     if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
         set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -s")
     endif()
-    if (APPLE)
+    if(APPLE)
         set(CMAKE_MACOSX_RPATH 1)
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_DARWIN_C_SOURCE=1")
     endif()
@@ -83,16 +82,22 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_job.h
                      ${PROJECT_SOURCE_DIR}/include/ua_connection.h
                      ${PROJECT_SOURCE_DIR}/include/ua_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_server_external_ns.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
                      ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h
                      ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h)
 set(internal_headers ${PROJECT_SOURCE_DIR}/src/ua_util.h
                      ${PROJECT_SOURCE_DIR}/deps/queue.h
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
+                     ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h
                      ${PROJECT_SOURCE_DIR}/src/ua_session.h
@@ -110,7 +115,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_session.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_server_addressspace.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_worker.c
@@ -123,36 +127,54 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c
-                ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c)
+                ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c
+                ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
                 ##TODO: make client stuff optional
 
 ## generate code from xml definitions
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
+
+option(ENABLE_TYPEINTROSPECTION "Add the type and member names to the internal structures" OFF)
+mark_as_advanced(ENABLE_TYPEINTROSPECTION)
+if(ENABLE_TYPEINTROSPECTION)
+  set(generate_typeintrospection "--typeintrospection")
+else()
+  set(generate_typeintrospection "")
+endif()
+
+option(UA_EMBEDDED_LIBC "Target has no libc, use internal definitions" OFF)
+if(UA_EMBEDDED_LIBC)
+  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/libc_string.c)
+endif()
 
 option(ENABLE_SUBSCRIPTIONS "Enable compilation of subscription and monitoring support." OFF)
 if(ENABLE_SUBSCRIPTIONS)
   set(ENABLE_SUBSCRIPTIONS ON) #to propagate it to the config file
   list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
                           ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
-                          ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.c)
+                          ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.c
+                          ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c)
   ##append subscription headers at before ua_session.
   list(FIND internal_headers "${PROJECT_SOURCE_DIR}/src/ua_session.h" UaSessionPos)
   list(INSERT internal_headers  ${UaSessionPos} ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
-                          ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.h)
+                                                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.h)
 
   add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                             ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
+                            ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
                      PRE_BUILD
-                     COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --enable-subscription-types=1 --typedescriptions ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv 0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types
+                     COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --enable-subscription-types=1 ${generate_typeintrospection} --typedescriptions ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv 0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types
                      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
                              ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
                              ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
 else()
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
                    PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --typedescriptions ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv 0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py ${generate_typeintrospection} --typedescriptions ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv 0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
@@ -160,8 +182,9 @@ endif()
 
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
                    PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --ns0-types-xml ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd 1 ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_transport
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py ${generate_typeintrospection} --ns0-types-xml ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd 1 ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_transport
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
 
@@ -219,9 +242,9 @@ if(ENABLE_EXTERNAL_NAMESPACES)
 endif()
 
 ## enable dynamic nodeset
-option(ENABLE_ADDNODES "Enable dynamic addition of nodes" ON)
-if(ENABLE_ADDNODES)
-    add_definitions(-DENABLE_ADDNODES )
+option(ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes" ON)
+if(ENABLE_NODEMANAGEMENT)
+    add_definitions(-DENABLE_NODEMANAGEMENT)
 endif()
 
 ## set the precompiler flags
@@ -234,11 +257,16 @@ if(EXTENSION_UDP)
 	message(STATUS "Extensions: enabling udp")
 	add_definitions(-DEXTENSION_UDP)
 	add_executable(exampleServerUDP $<TARGET_OBJECTS:open62541-object> examples/networklayer_udp.c examples/server_udp.c)
-  target_link_libraries(exampleServerUDP urcu-cds urcu urcu-common)
+  if(ENABLE_MULTITHREADING)
+  	target_link_libraries(exampleServerUDP urcu-cds urcu urcu-common)
+  endif()
   if (NOT APPLE)
       target_link_libraries(exampleServerUDP rt)
   endif()
 endif()
+
+option(ENABLE_LEGACY "Enable LEGACY code" OFF)
+mark_as_advanced(ENABLE_LEGACY)
 
 option(EXTENSION_STATELESS "Enable stateless extension" OFF)
 if(EXTENSION_STATELESS)
@@ -268,8 +296,8 @@ else()
     include_directories(${PROJECT_SOURCE_DIR}/include)
     include_directories(${PROJECT_SOURCE_DIR}/deps)
     include_directories(${PROJECT_SOURCE_DIR}/src)
-    include_directories(${PROJECT_BINARY_DIR}/src_generated)
 endif()
+include_directories(${PROJECT_BINARY_DIR}/src_generated) #needed to locate an include of examples/server_nodeset.c
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING)
 
 add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-object>)
@@ -284,13 +312,6 @@ endif()
 if(ENABLE_MULTITHREADING)
   target_link_libraries(open62541 urcu-cds urcu urcu-common pthread)
   target_link_libraries(open62541-static urcu-cds urcu urcu-common pthread)
-endif()
-
-# build language bindings for the library
-option(ENABLE_BINDING_LUA "Build Lua bindings" OFF)
-option(ENABLE_BINDING_PYTHON "Build Python bindings" OFF)
-if(ENABLE_BINDING_LUA OR ENABLE_BINDING_PYTHON)
-    add_subdirectory(bindings)
 endif()
 
 # coverage
@@ -361,12 +382,16 @@ if(BUILD_EXAMPLECLIENT)
         target_link_libraries(client_static urcu-cds urcu urcu-common pthread)
         target_link_libraries(client urcu-cds urcu urcu-common pthread)
     endif()
-    if(EXTENSION_STATELESS)
+    if(EXTENSION_STATELESS AND NOT ENABLE_AMALGAMATION)
         add_executable(client_stateless examples/client_stateless.c ${client_source})
         if(ENABLE_MULTITHREADING)
             target_link_libraries(client_stateless urcu-cds urcu urcu-common pthread)
         endif()
     endif()
+    if(ENABLE_LEGACY AND NOT ENABLE_AMALGAMATION)
+    	add_executable(client_legacy ${PROJECT_SOURCE_DIR}/examples/client_legacy.c $<TARGET_OBJECTS:open62541-object>)
+		target_link_libraries(client_legacy ${LIBS})
+	endif()
 endif()
 
 # build unit tests
@@ -394,12 +419,15 @@ if(BUILD_EXAMPLES)
 	if(ENABLE_MULTITHREADING)
 		list(APPEND LIBS urcu-cds urcu urcu-common)
 	endif(ENABLE_MULTITHREADING)
-
+	
     add_executable(server_variable ${PROJECT_SOURCE_DIR}/examples/server_variable.c $<TARGET_OBJECTS:open62541-object>)
 	target_link_libraries(server_variable ${LIBS})
 
 	add_executable(server_datasource ${PROJECT_SOURCE_DIR}/examples/server_datasource.c $<TARGET_OBJECTS:open62541-object>)
 	target_link_libraries(server_datasource ${LIBS})
+
+	# add_executable(server_readspeed ${PROJECT_SOURCE_DIR}/examples/server_readspeed.c $<TARGET_OBJECTS:open62541-object>)
+	# target_link_libraries(server_readspeed ${LIBS})
 
 	add_executable(server_firstSteps ${PROJECT_SOURCE_DIR}/examples/server_firstSteps.c $<TARGET_OBJECTS:open62541-object>)
 	target_link_libraries(server_firstSteps ${LIBS})
@@ -410,23 +438,21 @@ if(BUILD_EXAMPLES)
 	add_executable(server_repeated_job ${PROJECT_SOURCE_DIR}/examples/server_repeated_job.c $<TARGET_OBJECTS:open62541-object>)
 	target_link_libraries(server_repeated_job ${LIBS})
 
-	if(NOT ENABLE_AMALGAMATION AND NOT MSVC)
-		add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
-				       PRE_BUILD
-				       COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.xml ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml ${PROJECT_BINARY_DIR}/src_generated/nodeset
-				       DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-				               ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py
-				               ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
-				               ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py
-				               ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
-				               ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py
-				               ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
-				               ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
-				               ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
-				       
-		add_executable(server_nodeset ${PROJECT_SOURCE_DIR}/examples/server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c $<TARGET_OBJECTS:open62541-object>)
-		target_link_libraries(server_nodeset ${LIBS})
-	endif()
+	add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
+					   PRE_BUILD
+					   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.xml ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml ${PROJECT_BINARY_DIR}/src_generated/nodeset
+					   DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
+					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py
+					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
+					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py
+					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
+					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py
+					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
+					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
+					           ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
+					   
+	add_executable(server_nodeset ${PROJECT_SOURCE_DIR}/examples/server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c $<TARGET_OBJECTS:open62541-object>)
+	target_link_libraries(server_nodeset ${LIBS})
 
 	if(ENABLE_METHODCALLS)
 	  add_executable(server_method ${PROJECT_SOURCE_DIR}/examples/server_method.c $<TARGET_OBJECTS:open62541-object>)

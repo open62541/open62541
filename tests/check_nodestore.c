@@ -16,7 +16,7 @@ int zeroCnt = 0;
 int visitCnt = 0;
 static void checkZeroVisitor(const UA_Node* node) {
 	visitCnt++;
-	if (node == UA_NULL) zeroCnt++;
+	if (node == NULL) zeroCnt++;
 }
 
 static void printVisitor(const UA_Node* node) {
@@ -35,11 +35,10 @@ static UA_Node* createNode(UA_Int16 nsid, UA_Int32 id) {
 START_TEST(replaceExistingNode) {
 	UA_NodeStore *ns = UA_NodeStore_new();
 	UA_Node* n1 = createNode(0,2253);
-    const UA_Node *inserted;
+    UA_MT_CONST UA_Node *inserted;
 	UA_NodeStore_insert(ns, n1, &inserted);
 	UA_Node* n2 = createNode(0,2253);
-    UA_StatusCode retval = UA_NodeStore_replace(ns, inserted, n2, UA_NULL);
-    UA_NodeStore_release(inserted);
+    UA_StatusCode retval = UA_NodeStore_replace(ns, inserted, n2, NULL);
     
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     
@@ -51,7 +50,7 @@ START_TEST(replaceNonExistingNode) {
 	UA_NodeStore *ns = UA_NodeStore_new();
 	UA_Node* n1 = createNode(0,2253);
 	UA_Node* n2 = createNode(0,2253);
-    UA_StatusCode retval = UA_NodeStore_replace(ns, n1, n2, UA_NULL);
+    UA_StatusCode retval = UA_NodeStore_replace(ns, n1, n2, NULL);
     
 	ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
     
@@ -67,15 +66,13 @@ START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
 #endif
 	// given
 	UA_NodeStore *ns = UA_NodeStore_new();
-    const UA_Node *inserted;
+    UA_MT_CONST UA_Node *inserted;
 	UA_Node* n1 = createNode(0,2253);
 	UA_NodeStore_insert(ns, n1, &inserted);
 	const UA_Node* nr = UA_NodeStore_get(ns,&inserted->nodeId);
 	// then
 	ck_assert_int_eq((uintptr_t)inserted, (uintptr_t)nr);
 	// finally
-	UA_NodeStore_release(inserted);
-	UA_NodeStore_release(nr);
 	UA_NodeStore_delete(ns);
 #ifdef UA_MULTITHREADING
 	rcu_unregister_thread();
@@ -91,7 +88,7 @@ START_TEST(failToFindNodeInOtherUA_NodeStore) {
 	UA_NodeStore *ns = UA_NodeStore_new();
 
 	UA_Node* n1 = createNode(0,2255);
-    UA_NodeStore_insert(ns, n1, UA_NULL);
+    UA_NodeStore_insert(ns, n1, NULL);
 
 	// when
 	UA_Node* n = createNode(1,2255);
@@ -114,26 +111,24 @@ START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
 	// given
 	UA_NodeStore *ns = UA_NodeStore_new();
 	UA_Node* n1 = createNode(0,2253);
-    UA_NodeStore_insert(ns, n1, UA_NULL);
+    UA_NodeStore_insert(ns, n1, NULL);
 	UA_Node* n2 = createNode(0,2255);
-    UA_NodeStore_insert(ns, n2, UA_NULL);
+    UA_NodeStore_insert(ns, n2, NULL);
 	UA_Node* n3 = createNode(0,2257);
-    const UA_Node *inserted;
+    UA_MT_CONST UA_Node *inserted;
     UA_NodeStore_insert(ns, n3, &inserted);
 	UA_Node* n4 = createNode(0,2200);
-    UA_NodeStore_insert(ns, n4, UA_NULL);
+    UA_NodeStore_insert(ns, n4, NULL);
 	UA_Node* n5 = createNode(0,1);
-    UA_NodeStore_insert(ns, n5, UA_NULL);
+    UA_NodeStore_insert(ns, n5, NULL);
 	UA_Node* n6 = createNode(0,12);
-    UA_NodeStore_insert(ns, n6, UA_NULL);
+    UA_NodeStore_insert(ns, n6, NULL);
 
 	// when
 	const UA_Node* nr = UA_NodeStore_get(ns,&inserted->nodeId);
 	// then
 	ck_assert_int_eq((uintptr_t)nr, (uintptr_t)inserted);
 	// finally
-	UA_NodeStore_release(inserted);
-	UA_NodeStore_release(nr);
 	UA_NodeStore_delete(ns);
 #ifdef UA_MULTITHREADING
 	rcu_unregister_thread();
@@ -148,17 +143,17 @@ START_TEST(iterateOverUA_NodeStoreShallNotVisitEmptyNodes) {
 	// given
 	UA_NodeStore *ns = UA_NodeStore_new();
 	UA_Node* n1 = createNode(0,2253);
-    UA_NodeStore_insert(ns, n1, UA_NULL);
+    UA_NodeStore_insert(ns, n1, NULL);
 	UA_Node* n2 = createNode(0,2255);
-    UA_NodeStore_insert(ns, n2, UA_NULL);
+    UA_NodeStore_insert(ns, n2, NULL);
 	UA_Node* n3 = createNode(0,2257);
-    UA_NodeStore_insert(ns, n3, UA_NULL);
+    UA_NodeStore_insert(ns, n3, NULL);
 	UA_Node* n4 = createNode(0,2200);
-    UA_NodeStore_insert(ns, n4, UA_NULL);
+    UA_NodeStore_insert(ns, n4, NULL);
 	UA_Node* n5 = createNode(0,1);
-    UA_NodeStore_insert(ns, n5, UA_NULL);
+    UA_NodeStore_insert(ns, n5, NULL);
 	UA_Node* n6 = createNode(0,12);
-    UA_NodeStore_insert(ns, n6, UA_NULL);
+    UA_NodeStore_insert(ns, n6, NULL);
 
 	// when
 	zeroCnt = 0;
@@ -185,7 +180,7 @@ START_TEST(findNodeInExpandedNamespace) {
 	UA_Int32 i=0;
 	for (; i<200; i++) {
 		n = createNode(0,i);
-        UA_NodeStore_insert(ns, n, UA_NULL);
+        UA_NodeStore_insert(ns, n, NULL);
 	}
 	// when
 	UA_Node *n2 = createNode(0,25);
@@ -194,7 +189,6 @@ START_TEST(findNodeInExpandedNamespace) {
 	ck_assert_int_eq(nr->nodeId.identifier.numeric,n2->nodeId.identifier.numeric);
 	// finally
 	UA_free((void*)n2);
-	UA_NodeStore_release(nr);
 	UA_NodeStore_delete(ns);
 #ifdef UA_MULTITHREADING
 	rcu_unregister_thread();
@@ -212,7 +206,7 @@ START_TEST(iterateOverExpandedNamespaceShallNotVisitEmptyNodes) {
 	UA_Int32 i=0;
 	for (; i<200; i++) {
 		n = createNode(0,i);
-        UA_NodeStore_insert(ns, n, UA_NULL);
+        UA_NodeStore_insert(ns, n, NULL);
 	}
 	// when
 	zeroCnt = 0;
@@ -236,15 +230,15 @@ START_TEST(failToFindNonExistantNodeInUA_NodeStoreWithSeveralEntries) {
 	// given
 	UA_NodeStore *ns = UA_NodeStore_new();
 	UA_Node* n1 = createNode(0,2253);
-    UA_NodeStore_insert(ns, n1, UA_NULL);
+    UA_NodeStore_insert(ns, n1, NULL);
 	UA_Node* n2 = createNode(0,2255);
-    UA_NodeStore_insert(ns, n2, UA_NULL);
+    UA_NodeStore_insert(ns, n2, NULL);
 	UA_Node* n3 = createNode(0,2257);
-    UA_NodeStore_insert(ns, n3, UA_NULL);
+    UA_NodeStore_insert(ns, n3, NULL);
 	UA_Node* n4 = createNode(0,2200);
-    UA_NodeStore_insert(ns, n4, UA_NULL);
+    UA_NodeStore_insert(ns, n4, NULL);
 	UA_Node* n5 = createNode(0,1);
-    UA_NodeStore_insert(ns, n5, UA_NULL);
+    UA_NodeStore_insert(ns, n5, NULL);
 	UA_Node* n6 = createNode(0,12); 
 
 	// when
@@ -277,19 +271,17 @@ static void *profileGetThread(void *arg) {
 	struct UA_NodeStoreProfileTest *test = (struct UA_NodeStoreProfileTest*) arg;
 	UA_NodeId id;
     UA_NodeId_init(&id);
-	const UA_Node *cn;
 	UA_Int32 max_val = test->max_val;
 	UA_NodeStore *ns = test->ns;
 	for(UA_Int32 x = 0; x<test->rounds; x++) {
-		for (UA_Int32 i=test->min_val; i<max_val; i++) {
+		for(UA_Int32 i=test->min_val; i<max_val; i++) {
 			id.identifier.numeric = i;
-			cn = UA_NodeStore_get(ns,&id);
-			UA_NodeStore_release(cn);
+			UA_NodeStore_get(ns,&id);
 		}
 	}
 	rcu_unregister_thread();
 	
-	return UA_NULL;
+	return NULL;
 }
 #endif
 
@@ -303,7 +295,7 @@ START_TEST(profileGetDelete) {
 	UA_Node *n;
 	for (int i=0; i<N; i++) {
 		n = createNode(0,i);
-        UA_NodeStore_insert(ns, n, UA_NULL);
+        UA_NodeStore_insert(ns, n, NULL);
 	}
 	clock_t begin, end;
 	begin = clock();
@@ -320,14 +312,12 @@ START_TEST(profileGetDelete) {
 	end = clock();
 	printf("Time for %d create/get/delete on %d threads in a namespace: %fs.\n", N, THREADS, (double)(end - begin) / CLOCKS_PER_SEC);
 #else
-	const UA_Node *cn;
 	UA_NodeId id;
     UA_NodeId_init(&id);
 	for(UA_Int32 x = 0; x<50; x++) {
 	    for(int i=0; i<N; i++) {
 	        id.identifier.numeric = i;
-			cn = UA_NodeStore_get(ns,&id);
-			UA_NodeStore_release(cn);
+            UA_NodeStore_get(ns,&id);
         }
     }
 	end = clock();

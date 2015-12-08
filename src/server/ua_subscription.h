@@ -6,9 +6,6 @@
 #include "ua_types_generated.h"
 #include "ua_nodes.h"
 
-#define INITPOINTER(src) (src) = NULL;
-#define ISNOTZERO(value) ((value == 0) ? 0 : 1)
-
 /*****************/
 /* MonitoredItem */
 /*****************/
@@ -32,7 +29,7 @@ typedef enum {
 } UA_MONITOREDITEM_TYPE;
 
 typedef struct MonitoredItem_queuedValue {
-    UA_Variant value;
+    UA_DataValue value;
     TAILQ_ENTRY(MonitoredItem_queuedValue) listEntry;
 } MonitoredItem_queuedValue;
 
@@ -45,7 +42,7 @@ typedef struct UA_MonitoredItem {
     UA_NodeId monitoredNodeId; 
     UA_UInt32 attributeID;
     UA_UInt32 clientHandle;
-    UA_UInt32 samplingInterval;
+    UA_UInt32 samplingInterval; // [ms]
     UA_UInt32_BoundedValue queueSize;
     UA_Boolean discardOldest;
     UA_DateTime lastSampled;
@@ -60,7 +57,7 @@ void MonitoredItem_delete(UA_MonitoredItem *monitoredItem);
 void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monitoredItem);
 void MonitoredItem_ClearQueue(UA_MonitoredItem *monitoredItem);
 UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, const UA_Node *src,
-                                                     UA_Variant *dst);
+                                                     UA_DataValue *dst);
 int MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *dst,
                                                  UA_MonitoredItem *monitoredItem);
 
@@ -69,15 +66,16 @@ int MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *d
 /****************/
 
 typedef struct UA_unpublishedNotification {
+    UA_Boolean publishedOnce;
     LIST_ENTRY(UA_unpublishedNotification) listEntry;
-    UA_NotificationMessage *notification;
+    UA_NotificationMessage notification;
 } UA_unpublishedNotification;
 
 typedef struct UA_Subscription {
     LIST_ENTRY(UA_Subscription) listEntry;
     UA_UInt32_BoundedValue lifeTime;
     UA_Int32_BoundedValue keepAliveCount;
-    UA_DateTime publishingInterval;
+    UA_DateTime publishingInterval;     // [ms] may be UA_Int32
     UA_DateTime lastPublished;
     UA_Int32 subscriptionID;
     UA_Int32 notificationsPerPublish;
@@ -88,21 +86,20 @@ typedef struct UA_Subscription {
     UA_Job *timedUpdateJob;
     UA_Boolean timedUpdateIsRegistered;
     LIST_HEAD(UA_ListOfUnpublishedNotifications, UA_unpublishedNotification) unpublishedNotifications;
+    size_t unpublishedNotificationsSize;
     LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) MonitoredItems;
 } UA_Subscription;
 
 UA_Subscription *UA_Subscription_new(UA_Int32 subscriptionID);
 void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server);
 void Subscription_updateNotifications(UA_Subscription *subscription);
-UA_UInt32 Subscription_queuedNotifications(UA_Subscription *subscription);
 UA_UInt32 *Subscription_getAvailableSequenceNumbers(UA_Subscription *sub);
-void Subscription_copyTopNotificationMessage(UA_NotificationMessage *dst, UA_Subscription *sub);
-UA_UInt32 Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Subscription *sub);
 void Subscription_generateKeepAlive(UA_Subscription *subscription);
+void Subscription_copyTopNotificationMessage(UA_NotificationMessage *dst, UA_Subscription *sub);
+UA_UInt32 Subscription_deleteUnpublishedNotification(UA_UInt32 seqNo, UA_Boolean bDeleteAll, UA_Subscription *sub);
+void Subscription_copyNotificationMessage(UA_NotificationMessage *dst, UA_unpublishedNotification *src);
 UA_StatusCode Subscription_createdUpdateJob(UA_Server *server, UA_Guid jobId, UA_Subscription *sub);
 UA_StatusCode Subscription_registerUpdateJob(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode Subscription_unregisterUpdateJob(UA_Server *server, UA_Subscription *sub);
-
-static void Subscription_timedUpdateNotificationsJob(UA_Server *server, void *data);
 
 #endif /* UA_SUBSCRIPTION_H_ */

@@ -9,7 +9,14 @@
 #include "ua_types.h"
 #include "ua_log.h"
 
-/** Initialises the logger for the current thread. */
-UA_EXPORT UA_Logger Logger_Stdout_new(void);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+UA_EXPORT void Logger_Stdout(UA_LogLevel level, UA_LogCategory category, const char *msg, ...);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* LOGGER_STDOUT_H_ */

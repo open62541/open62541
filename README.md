@@ -1,7 +1,7 @@
 open62541
 =========
 
-open62541 (http://open62541.org) is an open source and free implementation of OPC UA (OPC Unified Architecture). open62541 is a C-based library that contains all the necessary tools to set up a dedicated OPC UA server, to integrate OPC UA-based communication into existing applications (linking with C++ projects [is possible](examples/server.cpp)), or to create an OPC UA client. The library is distributed as a single pair of [header](http://open62541.org/open62541.h) and [source](http://open62541.org/open62541.c) files, that can be easily dropped into your project. An example server and client implementation can be found in the [/examples](examples/) directory or further down on this page.
+open62541 (http://open62541.org) is an open source and free implementation of OPC UA (OPC Unified Architecture). open62541 is a C-based library that contains all the necessary tools to set up a dedicated OPC UA server, to integrate OPC UA-based communication into existing applications (linking with C++ projects [is possible](examples/server.cpp)), or to create an OPC UA client. The library is distributed as a single pair of [header](https://github.com/acplt/open62541/releases/download/v0.1.1/open62541.h) and [source](https://github.com/acplt/open62541/releases/download/v0.1.1/open62541.c) files, that can be easily dropped into your project. An example server and client implementation can be found in the [/examples](examples/) directory or further down on this page.
 
 open62541 is licensed under the LGPL + static linking exception. That means **open62541 can be freely used also in commercial projects**, although changes to the open62541 library itself need to be released under the same license. The server and client implementations in the [/examples](examples/) directory are in the public domain (CC0 license). They can be used under any license and changes don't have to be published.
 
@@ -26,7 +26,7 @@ Automatically compiled MSVC binaries are available [here](https://ci.appveyor.co
 ### Contribute to open62541
 As an open source project, we invite new contributors to help improving open62541. If you are a developer, your bugfixes and new features are very welcome. Note that there are ways to contribute even without deep knowledge of the project or the UA standard:
 - [Report bugs](https://github.com/acplt/open62541/issues)
-- Improve the [documentation for 0.1](http://open62541.org/doc) and [docuemntation for 0.2](http://open62541.org/doc/sphinx)
+- Improve the [documentation for 0.1](http://open62541.org/doc) and [documentation for 0.2](http://open62541.org/doc/sphinx)
 - Work on issues marked as "[easy hacks](https://github.com/acplt/open62541/labels/easy%20hack)"
 
 ### Example Server Implementation
@@ -56,15 +56,24 @@ int main(int argc, char** argv)
         ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, PORT));
 
     /* add a variable node */
-    UA_Variant *myIntegerVariant = UA_Variant_new();
+    /* 1) set the variable attributes */
     UA_Int32 myInteger = 42;
-    UA_Variant_setScalarCopy(myIntegerVariant, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
-    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
+    UA_VariableAttributes attr;
+    UA_VariableAttributes_init(&attr);
+    UA_Variant_setScalarCopy(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    attr.displayName = UA_LOCALIZEDTEXT("en_US","the answer");
+
+    /* 2) define where the variable shall be added with which browsename */
+    UA_NodeId newNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_Server_addVariableNode(server, myIntegerVariant, myIntegerName,
-                              myIntegerNodeId, parentNodeId, parentReferenceNodeId);
+    UA_NodeId variableType = UA_NODEID_NULL; /* no variable type defined */
+    UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "the answer");
+
+    /* 3) add the variable */
+    UA_Server_addVariableNode(server, newNodeId, parentNodeId,
+                              parentReferenceNodeId, browseName,
+                              variableType, attr, NULL);
 
     /* run the server loop */
     UA_StatusCode retval = UA_Server_run(server, WORKER_THREADS, &running);
@@ -80,6 +89,7 @@ int main(int argc, char** argv)
 
 int main(int argc, char *argv[])
 {
+    /* create a client and connect */
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
     UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
                                              "opc.tcp://localhost:16664");
@@ -88,16 +98,18 @@ int main(int argc, char *argv[])
     	return retval;
     }
 
-    /* Read a node's value-attribute */
+    /* create a readrequest with one entry */
     UA_ReadRequest req;
     UA_ReadRequest_init(&req);
     req.nodesToRead = UA_ReadValueId_new();
     req.nodesToReadSize = 1;
-    /* copy the nodeid-string to the heap (deleted with the req) */
+    
+    /* define the node and attribute to be read */
     req.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
     req.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
 
-    UA_ReadResponse resp = UA_Client_read(client, &req);
+    /* call the service and print the result */
+    UA_ReadResponse resp = UA_Client_Service_read(client, req);
     if(resp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
        resp.resultsSize > 0 && resp.results[0].hasValue &&
        UA_Variant_isScalar(&resp.results[0].value) &&

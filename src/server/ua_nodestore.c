@@ -2,25 +2,28 @@
 #include "ua_util.h"
 #include "ua_statuscodes.h"
 
-/* It could happen that we want to delete a node even though a function higher
-   in the call-chain still has a reference. So we count references and delete
-   once the count falls to zero. That means we copy every node to a new place
-   where it is right behind the refcount integer.
+#define UA_NODESTORE_MINSIZE 64
 
-   Since we copy nodes on the heap, we make the alloc for the nodeEntry bigger
-   to accommodate for the different nodeclasses (the nodeEntry may have an
-   overlength "tail"). */
-#define ALIVE_BIT (1 << 15) /* Alive bit in the refcount */
-struct nodeEntry {
-    UA_UInt16 refcount;
-    UA_Node node; // could be const, but then we cannot free it without compilers warnings
-};
+typedef struct {
+    UA_Boolean taken;
+    union {
+        UA_Node node;
+        UA_ObjectNode objectNode;
+        UA_ObjectTypeNode objectTypeNode;
+        UA_VariableNode variableNode;
+        UA_VariableTypeNode variableTypeNode;
+        UA_ReferenceTypeNode referenceTypeNode;
+        UA_MethodNode methodeNode;
+        UA_ViewNode viewNode;
+        UA_DataTypeNode dataTypeNode;
+    } node;
+} UA_NodeStoreEntry;
 
 struct UA_NodeStore {
-    struct nodeEntry **entries;
-    UA_UInt32          size;
-    UA_UInt32          count;
-    UA_UInt32          sizePrimeIndex;
+    UA_NodeStoreEntry *entries;
+    UA_UInt32 size;
+    UA_UInt32 count;
+    UA_UInt32 sizePrimeIndex;
 };
 
 #include "ua_nodestore_hash.inc"
@@ -50,18 +53,19 @@ static UA_Int16 higher_prime_index(hash_t n) {
 
 /* Returns UA_TRUE if an entry was found under the nodeid. Otherwise, returns
    false and sets slot to a pointer to the next free slot. */
-static UA_Boolean containsNodeId(const UA_NodeStore *ns, const UA_NodeId *nodeid, struct nodeEntry ***entry) {
+static UA_Boolean
+containsNodeId(const UA_NodeStore *ns, const UA_NodeId *nodeid, UA_NodeStoreEntry **entry) {
     hash_t         h     = hash(nodeid);
     UA_UInt32      size  = ns->size;
     hash_t         index = mod(h, size);
-    struct nodeEntry **e = &ns->entries[index];
+    UA_NodeStoreEntry *e = &ns->entries[index];
 
-    if(*e == UA_NULL) {
+    if(!e->taken) {
         *entry = e;
         return UA_FALSE;
     }
 
-    if(UA_NodeId_equal(&(*e)->node.nodeId, nodeid)) {
+    if(UA_NodeId_equal(&e->node.node.nodeId, nodeid)) {
         *entry = e;
         return UA_TRUE;
     }
@@ -71,15 +75,12 @@ static UA_Boolean containsNodeId(const UA_NodeStore *ns, const UA_NodeId *nodeid
         index += hash2;
         if(index >= size)
             index -= size;
-
         e = &ns->entries[index];
-
-        if(*e == UA_NULL) {
+        if(!e->taken) {
             *entry = e;
             return UA_FALSE;
         }
-
-        if(UA_NodeId_equal(&(*e)->node.nodeId, nodeid)) {
+        if(UA_NodeId_equal(&e->node.node.nodeId, nodeid)) {
             *entry = e;
             return UA_TRUE;
         }
@@ -93,31 +94,29 @@ static UA_Boolean containsNodeId(const UA_NodeStore *ns, const UA_NodeId *nodeid
    repeatedly inserts the table elements. The occupancy of the table after the
    call will be about 50%. */
 static UA_StatusCode expand(UA_NodeStore *ns) {
-    UA_Int32 osize = ns->size;
-    UA_Int32 count = ns->count;
+    UA_UInt32 osize = ns->size;
+    UA_UInt32 count = ns->count;
     /* Resize only when table after removal of unused elements is either too full or too empty.  */
-    if(count * 2 < osize && (count * 8 > osize || osize <= 32))
+    if(count * 2 < osize && (count * 8 > osize || osize <= UA_NODESTORE_MINSIZE))
         return UA_STATUSCODE_GOOD;
-
 
     UA_UInt32 nindex = higher_prime_index(count * 2);
     UA_Int32 nsize = primes[nindex];
-    struct nodeEntry **nentries;
-    if(!(nentries = UA_malloc(sizeof(struct nodeEntry *) * nsize)))
+    UA_NodeStoreEntry *nentries;
+    if(!(nentries = UA_calloc(nsize, sizeof(UA_NodeStoreEntry))))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_memset(nentries, 0, nsize * sizeof(struct nodeEntry *));
-    struct nodeEntry **oentries = ns->entries;
+    UA_NodeStoreEntry *oentries = ns->entries;
     ns->entries = nentries;
     ns->size    = nsize;
     ns->sizePrimeIndex = nindex;
 
     // recompute the position of every entry and insert the pointer
-    for(UA_Int32 i=0, j=0;i<osize && j<count;i++) {
-        if(!oentries[i])
+    for(size_t i = 0, j = 0; i < osize && j < count; i++) {
+        if(!oentries[i].taken)
             continue;
-        struct nodeEntry **e;
-        containsNodeId(ns, &(*oentries[i]).node.nodeId, &e);  /* We know this returns an empty entry here */
+        UA_NodeStoreEntry *e;
+        containsNodeId(ns, &oentries[i].node.node.nodeId, &e);  /* We know this returns an empty entry here */
         *e = oentries[i];
         j++;
     }
@@ -127,44 +126,14 @@ static UA_StatusCode expand(UA_NodeStore *ns) {
 }
 
 /* Marks the entry dead and deletes if necessary. */
-static void deleteEntry(struct nodeEntry *entry) {
-    if(entry->refcount > 0)
-        return;
-
-    switch(entry->node.nodeClass) {
-    case UA_NODECLASS_OBJECT:
-        UA_ObjectNode_deleteMembers((UA_ObjectNode*)&entry->node);
-        break;
-    case UA_NODECLASS_VARIABLE:
-        UA_VariableNode_deleteMembers((UA_VariableNode*)&entry->node);
-        break;
-    case UA_NODECLASS_METHOD:
-        UA_MethodNode_deleteMembers((UA_MethodNode *)&entry->node);
-        break;
-    case UA_NODECLASS_OBJECTTYPE:
-        UA_ObjectTypeNode_deleteMembers((UA_ObjectTypeNode*)&entry->node);
-        break;
-    case UA_NODECLASS_VARIABLETYPE:
-        UA_VariableTypeNode_deleteMembers((UA_VariableTypeNode*)&entry->node);
-        break;
-    case UA_NODECLASS_REFERENCETYPE:
-        UA_ReferenceTypeNode_deleteMembers((UA_ReferenceTypeNode*)&entry->node);
-        break;
-    case UA_NODECLASS_DATATYPE:
-        UA_DataTypeNode_deleteMembers((UA_DataTypeNode*)&entry->node);
-        break;
-    case UA_NODECLASS_VIEW:
-        UA_ViewNode_deleteMembers((UA_ViewNode*)&entry->node);
-        break;
-    default:
-        UA_assert(UA_FALSE);
-        break;
-    }
-    UA_free(entry);
+static UA_INLINE void
+deleteEntry(UA_NodeStoreEntry *entry) {
+    UA_Node_deleteMembersAnyNodeClass(&entry->node.node);
+    entry->taken = UA_FALSE;
 }
 
 /** Copies the node into the entry. Then free the original node (but not its content). */
-static struct nodeEntry * nodeEntryFromNode(UA_Node *node) {
+static void fillEntry(UA_NodeStoreEntry *entry, UA_Node *node) {
     size_t nodesize = 0;
     switch(node->nodeClass) {
     case UA_NODECLASS_OBJECT:
@@ -194,14 +163,9 @@ static struct nodeEntry * nodeEntryFromNode(UA_Node *node) {
     default:
         UA_assert(UA_FALSE);
     }
-
-    struct nodeEntry *newEntry;
-    if(!(newEntry = UA_malloc(sizeof(struct nodeEntry) - sizeof(UA_Node) + nodesize)))
-        return UA_NULL;
-
-    UA_memcpy(&newEntry->node, node, nodesize);
+    memcpy(&entry->node, node, nodesize);
     UA_free(node);
-    return newEntry;
+    entry->taken = UA_TRUE;
 }
 
 /**********************/
@@ -211,153 +175,103 @@ static struct nodeEntry * nodeEntryFromNode(UA_Node *node) {
 UA_NodeStore * UA_NodeStore_new(void) {
     UA_NodeStore *ns;
     if(!(ns = UA_malloc(sizeof(UA_NodeStore))))
-        return UA_NULL;
-
-    ns->sizePrimeIndex = higher_prime_index(32);
+        return NULL;
+    ns->sizePrimeIndex = higher_prime_index(UA_NODESTORE_MINSIZE);
     ns->size = primes[ns->sizePrimeIndex];
     ns->count = 0;
-    if(!(ns->entries = UA_malloc(sizeof(struct nodeEntry *) * ns->size))) {
+    if(!(ns->entries = UA_calloc(ns->size, sizeof(UA_NodeStoreEntry)))) {
         UA_free(ns);
-        return UA_NULL;
+        return NULL;
     }
-    UA_memset(ns->entries, 0, ns->size * sizeof(struct nodeEntry *));
     return ns;
 }
 
 void UA_NodeStore_delete(UA_NodeStore *ns) {
     UA_UInt32 size = ns->size;
-    struct nodeEntry **entries = ns->entries;
+    UA_NodeStoreEntry *entries = ns->entries;
     for(UA_UInt32 i = 0;i < size;i++) {
-        if(entries[i] != UA_NULL) {
-            entries[i]->refcount &= ~ALIVE_BIT; // mark dead
-            deleteEntry(entries[i]);
-            entries[i] = UA_NULL;
-            ns->count--;
-        }
+        if(entries[i].taken)
+            deleteEntry(&entries[i]);
     }
-
     UA_free(ns->entries);
     UA_free(ns);
 }
 
-UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, const UA_Node **inserted) {
+UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, UA_Node **inserted) {
     if(ns->size * 3 <= ns->count * 4) {
         if(expand(ns) != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADINTERNALERROR;
     }
-    // get a free slot
-    struct nodeEntry **slot;
-    //FIXME: a bit dirty workaround of preserving namespace
-    //namespace index is assumed to be valid
+
+    UA_NodeStoreEntry *entry;
     UA_NodeId tempNodeid;
-    UA_NodeId_copy(&node->nodeId, &tempNodeid);
+    tempNodeid = node->nodeId;
     tempNodeid.namespaceIndex = 0;
     if(UA_NodeId_isNull(&tempNodeid)) {
-        // find a unique nodeid that is not taken
-        node->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
-
-        if(node->nodeId.namespaceIndex==0) //original request for ns=0 should yield ns=1
-            node->nodeId.namespaceIndex=1;
-
+        /* find a free nodeid */
+        if(node->nodeId.namespaceIndex == 0) //original request for ns=0 should yield ns=1
+            node->nodeId.namespaceIndex = 1;
         UA_Int32 identifier = ns->count+1; // start value
         UA_Int32 size = ns->size;
         hash_t increase = mod2(identifier, size);
         while(UA_TRUE) {
             node->nodeId.identifier.numeric = identifier;
-            if(!containsNodeId(ns, &node->nodeId, &slot))
+            if(!containsNodeId(ns, &node->nodeId, &entry))
                 break;
             identifier += increase;
             if(identifier >= size)
                 identifier -= size;
         }
     } else {
-        UA_NodeId_deleteMembers(&tempNodeid);
-        if(containsNodeId(ns, &node->nodeId, &slot))
+        if(containsNodeId(ns, &node->nodeId, &entry))
             return UA_STATUSCODE_BADNODEIDEXISTS;
     }
 
-    struct nodeEntry *entry = nodeEntryFromNode(node);
-    if(!entry)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    *slot = entry;
+    fillEntry(entry, node);
     ns->count++;
-
-    if(inserted) {
-        entry->refcount = ALIVE_BIT + 1;
-        *inserted = &entry->node;
-    } else {
-        entry->refcount = ALIVE_BIT;
-    }
-
+    if(inserted)
+        *inserted = &entry->node.node;
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, const UA_Node *oldNode, UA_Node *node,
-                                   const UA_Node **inserted) {
-    struct nodeEntry **slot;
-    const UA_NodeId *nodeId = &node->nodeId;
-    if(!containsNodeId(ns, nodeId, &slot))
+UA_StatusCode
+UA_NodeStore_replace(UA_NodeStore *ns, UA_Node *oldNode,
+                     UA_Node *node, UA_Node **inserted) {
+    UA_NodeStoreEntry *slot;
+    if(!containsNodeId(ns, &node->nodeId, &slot))
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
-
-    // you try to replace an obsolete node (without threading this can't happen
-    // if the user doesn't do it deliberately in his code)
-    if(&(*slot)->node != oldNode)
+    /* that is not the node you are looking for */
+    if(&slot->node.node != oldNode)
         return UA_STATUSCODE_BADINTERNALERROR;
-
-    struct nodeEntry *entry = nodeEntryFromNode(node);
-    if(!entry)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    (*slot)->refcount &= ~ALIVE_BIT; // mark dead
-    *slot = entry;
-
-    if(inserted) {
-        entry->refcount = ALIVE_BIT + 1;
-        *inserted = &entry->node;
-    } else {
-        entry->refcount = ALIVE_BIT;
-    }
+    deleteEntry(slot);
+    fillEntry(slot, node);
+    if(inserted)
+        *inserted = &slot->node.node;
     return UA_STATUSCODE_GOOD;
 }
 
-const UA_Node * UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
-    struct nodeEntry **slot;
+UA_Node * UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
+    UA_NodeStoreEntry *slot;
     if(!containsNodeId(ns, nodeid, &slot))
-        return UA_NULL;
-    (*slot)->refcount++;
-    return &(*slot)->node;
+        return NULL;
+    return &slot->node.node;
 }
 
 UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
-    struct nodeEntry **slot;
+    UA_NodeStoreEntry *slot;
     if(!containsNodeId(ns, nodeid, &slot))
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
-
-    // Check before if deleting the node makes the UA_NodeStore inconsistent.
-    (*slot)->refcount &= ~ALIVE_BIT; // mark dead
-    deleteEntry(*slot);
-    *slot = UA_NULL;
+    deleteEntry(slot);
     ns->count--;
-
     /* Downsize the hashmap if it is very empty */
     if(ns->count * 8 < ns->size && ns->size > 32)
         expand(ns); // this can fail. we just continue with the bigger hashmap.
-
     return UA_STATUSCODE_GOOD;
 }
 
 void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
     for(UA_UInt32 i = 0;i < ns->size;i++) {
-        if(ns->entries[i] != UA_NULL)
-            visitor(&ns->entries[i]->node);
+        if(ns->entries[i].taken)
+            visitor(&ns->entries[i].node.node);
     }
-}
-
-void UA_NodeStore_release(const UA_Node *managed) {
-    /* We know what we are doing here and remove a compiler warning. Nobody has
-       a reference to the const pointer, so we can free it. */
-    struct nodeEntry *entry = (struct nodeEntry *) ((uintptr_t)managed - offsetof(struct nodeEntry, node));
-    entry->refcount--;
-    deleteEntry(entry);
 }

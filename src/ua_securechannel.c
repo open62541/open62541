@@ -1,8 +1,9 @@
 #include "ua_util.h"
 #include "ua_securechannel.h"
 #include "ua_session.h"
-#include "ua_statuscodes.h"
 #include "ua_types_encoding_binary.h"
+#include "ua_types_generated_encoding_binary.h"
+#include "ua_transport_generated_encoding_binary.h"
 
 void UA_SecureChannel_init(UA_SecureChannel *channel) {
     UA_MessageSecurityMode_init(&channel->securityMode);
@@ -13,7 +14,7 @@ void UA_SecureChannel_init(UA_SecureChannel *channel) {
     UA_ByteString_init(&channel->clientNonce);
     UA_ByteString_init(&channel->serverNonce);
     channel->sequenceNumber = 0;
-    channel->connection = UA_NULL;
+    channel->connection = NULL;
     LIST_INIT(&channel->sessions);
 }
 
@@ -31,9 +32,12 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
             c->close(c);
     }
     /* just remove the pointers and free the linked list (not the sessions) */
-    struct SessionEntry *se;
-    while((se = LIST_FIRST(&channel->sessions))) {
-        UA_SecureChannel_detachSession(channel, se->session); /* the se is deleted inside */
+    struct SessionEntry *se, *temp;
+    LIST_FOREACH_SAFE(se, &channel->sessions, pointers, temp) {
+        if(se->session)
+            se->session->channel = NULL;
+        LIST_REMOVE(se, pointers);
+        UA_free(se);
     }
 }
 
@@ -52,12 +56,12 @@ void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *sessi
         return;
     se->session = session;
 #ifdef UA_MULTITHREADING
-    if(uatomic_cmpxchg(&session->channel, UA_NULL, channel) != UA_NULL) {
+    if(uatomic_cmpxchg(&session->channel, NULL, channel) != NULL) {
         UA_free(se);
         return;
     }
 #else
-    if(session->channel != UA_NULL) {
+    if(session->channel != NULL) {
         UA_free(se);
         return;
     }
@@ -68,9 +72,9 @@ void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *sessi
 
 void UA_SecureChannel_detachSession(UA_SecureChannel *channel, UA_Session *session) {
     if(session)
-        session->channel = UA_NULL;
-    struct SessionEntry *se;
-    LIST_FOREACH(se, &channel->sessions, pointers) {
+        session->channel = NULL;
+    struct SessionEntry *se, *temp;
+    LIST_FOREACH_SAFE(se, &channel->sessions, pointers, temp) {
         if(se->session != session)
             continue;
         LIST_REMOVE(se, pointers);
@@ -86,7 +90,7 @@ UA_Session * UA_SecureChannel_getSession(UA_SecureChannel *channel, UA_NodeId *t
             break;
     }
     if(!se)
-        return UA_NULL;
+        return NULL;
     return se->session;
 }
 
@@ -124,7 +128,8 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     seqHeader.requestId = requestId;
 
     UA_ByteString message;
-    UA_StatusCode retval = connection->getBuffer(connection, &message);
+    UA_StatusCode retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
+                                                     &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -133,7 +138,7 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     retval |= UA_encodeBinary(content, contentType, &message, &messagePos);
 
     if(retval != UA_STATUSCODE_GOOD) {
-        connection->releaseBuffer(connection, &message);
+        connection->releaseSendBuffer(connection, &message);
         return retval;
     }
 
@@ -149,9 +154,8 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &message, &messagePos);
     UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader, &message, &messagePos);
     UA_SequenceHeader_encodeBinary(&seqHeader, &message, &messagePos);
-    
-    retval = connection->write(connection, &message, respHeader.messageHeader.messageSize);
-    if(retval != UA_STATUSCODE_GOOD)
-        connection->releaseBuffer(connection, &message);
+    message.length = respHeader.messageHeader.messageSize;
+
+    retval = connection->send(connection, &message);
     return retval;
 }

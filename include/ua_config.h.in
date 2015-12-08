@@ -9,6 +9,8 @@
 #cmakedefine UA_MULTITHREADING
 #cmakedefine ENABLE_METHODCALLS
 #cmakedefine ENABLE_SUBSCRIPTIONS
+#cmakedefine ENABLE_TYPEINTROSPECTION
+#cmakedefine UA_EMBEDDED_LIBC
 
 /* Function Export */
 #ifdef _WIN32
@@ -67,5 +69,43 @@
 # define UA_ALIGNED_MEMORY_ACCESS
 #endif
 
+/* Inline Functions */
+#ifdef _MSC_VER
+# define UA_INLINE __inline
+#else
+# define UA_INLINE inline
+#endif
+
+/* Define non-aliasing pointers */
+#ifdef _MSC_VER
+# define UA_RESTRICT __restrict
+#elif defined(__GNUC__)
+# define UA_RESTRICT __restrict__
+#else
+# define UA_RESTRICT restrict
+#endif
+
+/* Function attributes */
+#ifdef __GNUC__
+# define UA_FUNC_ATTR_MALLOC __attribute__((malloc))
+# define UA_FUNC_ATTR_PURE __attribute__ ((pure))
+# define UA_FUNC_ATTR_CONST __attribute__((const))
+# define UA_FUNC_ATTR_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+#else
+# define UA_FUNC_ATTR_MALLOC
+# define UA_FUNC_ATTR_PURE
+# define UA_FUNC_ATTR_CONST
+# define UA_FUNC_ATTR_WARN_UNUSED_RESULT
+#endif
+
+#include <stddef.h>
+#ifdef UA_EMBEDDED_LIBC
+  void *memcpy(void *UA_RESTRICT dest, const void *UA_RESTRICT src, size_t n);
+  void *memset(void *dest, int c, size_t n);
+  size_t strlen(const char *s);
+  int memcmp(const void *vl, const void *vr, size_t n);
+#else
+# include <string.h>
+#endif
 
 #endif /* UA_CONFIG_H_ */

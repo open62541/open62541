@@ -2,7 +2,7 @@
 #define UA_SECURECHANNEL_H_
 
 #include "queue.h"
-#include "ua_types_generated.h"
+#include "ua_types.h"
 #include "ua_transport_generated.h"
 #include "ua_connection.h"
 

@@ -5,6 +5,13 @@
 #include "ua_types_generated.h"
 #include "ua_types_encoding_binary.h"
 
+#define UA_TYPE_HANDLING_FUNCTIONS(TYPE)                             \
+    TYPE UA_EXPORT * TYPE##_new(void);                               \
+    void UA_EXPORT TYPE##_init(TYPE * p);                            \
+    void UA_EXPORT TYPE##_delete(TYPE * p);                          \
+    void UA_EXPORT TYPE##_deleteMembers(TYPE * p);                   \
+    UA_StatusCode UA_EXPORT TYPE##_copy(const TYPE *src, TYPE *dst);
+
 #define UA_STANDARD_NODEMEMBERS                 \
     UA_NodeId nodeId;                           \
     UA_NodeClass nodeClass;                     \
@@ -13,12 +20,16 @@
     UA_LocalizedText description;               \
     UA_UInt32 writeMask;                        \
     UA_UInt32 userWriteMask;                    \
-    UA_Int32 referencesSize;                    \
+    size_t referencesSize;                      \
     UA_ReferenceNode *references;
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS
 } UA_Node;
+
+void UA_Node_deleteAnyNodeClass(UA_Node *node);
+void UA_Node_deleteMembersAnyNodeClass(UA_Node *node);
+UA_Node * UA_Node_copyAnyNodeClass(const UA_Node *node);
 
 /**************/
 /* ObjectNode */
@@ -27,6 +38,7 @@ typedef struct {
 typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Byte eventNotifier;
+    void *instanceHandle;
 } UA_ObjectNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_ObjectNode)
 
@@ -37,6 +49,7 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_ObjectNode)
 typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Boolean isAbstract;
+    UA_ObjectLifecycleManagement lifecycleManagement;
 } UA_ObjectTypeNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_ObjectTypeNode)
 
@@ -58,7 +71,10 @@ typedef struct {
                              n = -3:  the value can be a scalar or a one dimensional array. */
     UA_ValueSource valueSource;
     union {
-        UA_Variant variant;
+        struct {
+        UA_Variant value;
+        UA_ValueCallback callback;
+        } variant;
         UA_DataSource dataSource;
     } value;
     /* <--- similar to variabletypenodes up to there--->*/
@@ -80,7 +96,10 @@ typedef struct {
     UA_Int32 valueRank;
     UA_ValueSource valueSource;
     union {
-        UA_Variant variant;
+        struct {
+            UA_Variant value;
+            UA_ValueCallback callback;
+        } variant;
         UA_DataSource dataSource;
     } value;
     /* <--- similar to variablenodes up to there--->*/
@@ -100,9 +119,9 @@ typedef struct {
 } UA_ReferenceTypeNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_ReferenceTypeNode)
 
-/***********************/
-/* ReferenceMethodNode */
-/***********************/
+/**************/
+/* MethodNode */
+/**************/
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS
@@ -121,8 +140,9 @@ UA_TYPE_HANDLING_FUNCTIONS(UA_MethodNode)
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS
-    UA_Boolean containsNoLoops;
     UA_Byte eventNotifier;
+    /* <-- the same as objectnode until here --> */
+    UA_Boolean containsNoLoops;
 } UA_ViewNode;
 UA_TYPE_HANDLING_FUNCTIONS(UA_ViewNode)
 

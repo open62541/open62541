@@ -1,7 +1,7 @@
 Tutorials
 =========
 
-This section contains sructured tutorials
+This section contains structured tutorials
    
 **Tutorial 1: First steps with open62541-server**
 
@@ -31,7 +31,7 @@ Contents:
 
 * Reading a variable
 
-* Introduction to stings
+* Introduction to strings
 
 **Tutorial 3: Adding nodes to a server and connecting nodes to user-defined values**
 
@@ -39,13 +39,13 @@ Contents:
 
 Contents:
 
-* Intorduction to Variants
+* Introduction to Variants
 
 * Adding user-defined nodes to a server
 
-* Connecting node to a variable
+* Connecting a node to a variable
 
-* Connecting node to a callback function
+* Connecting a node to a callback function
 
 **Tutorial 4: Adding server-side methods**
 

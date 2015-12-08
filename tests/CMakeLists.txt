@@ -8,9 +8,9 @@ find_package(Threads REQUIRED)
 
 set(LIBS ${CHECK_LIBRARIES})
 if(NOT WIN32)
-  list(APPEND LIBS pthread)
+  list(APPEND LIBS pthread m)
   if (NOT APPLE)
-    list(APPEND LIBS rt)
+    list(APPEND LIBS rt subunit)
   endif()
 else()
     list(APPEND LIBS ws2_32)
@@ -34,10 +34,6 @@ add_test(memory ${CMAKE_CURRENT_BINARY_DIR}/check_memory)
 # target_link_libraries(check_stack ${LIBS})
 # add_test(stack ${CMAKE_CURRENT_BINARY_DIR}/check_stack)
 
-# add_executable(check_base64 check_base64.c)
-# target_link_libraries(check_base64 ${LIBS})
-# add_test(base64 ${CMAKE_CURRENT_BINARY_DIR}/check_base64)
-
 add_executable(check_services_view check_services_view.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_services_view ${LIBS})
 add_test(services_view ${CMAKE_CURRENT_BINARY_DIR}/check_services_view)
@@ -46,11 +42,13 @@ add_executable(check_services_attributes check_services_attributes.c $<TARGET_OB
 target_link_libraries(check_services_attributes ${LIBS})
 add_test(services_attributes ${CMAKE_CURRENT_BINARY_DIR}/check_services_attributes)
 
+add_executable(check_services_nodemanagement check_services_nodemanagement.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(check_services_nodemanagement ${LIBS})
+add_test(services_nodemanagement ${CMAKE_CURRENT_BINARY_DIR}/check_services_nodemanagement)
+
 add_executable(check_nodestore check_nodestore.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_nodestore ${LIBS})
 add_test(nodestore ${CMAKE_CURRENT_BINARY_DIR}/check_nodestore)
-
-
 
 add_executable(check_session check_session.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_session ${LIBS})

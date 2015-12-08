@@ -14,6 +14,9 @@ if(ENABLE_MULTITHREADING)
     list(APPEND LIBS urcu-cds urcu urcu-common)
 endif(ENABLE_MULTITHREADING)
 
+# add_executable(server_readspeed server_readspeed.c)
+# target_link_libraries(server_readspeed ${LIBS})
+
 add_executable(server_variable server_variable.c)
 target_link_libraries(server_variable ${LIBS})
 
@@ -25,9 +28,6 @@ target_link_libraries(server_firstSteps ${LIBS})
 
 add_executable(client_firstSteps client_firstSteps.c)
 target_link_libraries(client_firstSteps ${LIBS})
-
-add_executable(server_repeated_job server_repeated_job.c)
-target_link_libraries(server_repeated_job ${LIBS})
 
 if(NOT ENABLE_AMALGAMATION)
 	add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c

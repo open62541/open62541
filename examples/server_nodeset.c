@@ -19,7 +19,7 @@
 #include "nodeset.h"
 
 UA_Boolean running = UA_TRUE;
-UA_Logger logger;
+UA_Logger logger = Logger_Stdout;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
@@ -31,7 +31,6 @@ int main(int argc, char** argv) {
 
     /* initialize the server */
     UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-    logger = Logger_Stdout_new();
     UA_Server_setLogger(server, logger);
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 

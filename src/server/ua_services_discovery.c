@@ -2,7 +2,8 @@
 #include "ua_services.h"
 #include "ua_util.h"
 
-void Service_FindServers(UA_Server *server, const UA_FindServersRequest *request, UA_FindServersResponse *response) {
+void Service_FindServers(UA_Server *server, UA_Session *session,
+                         const UA_FindServersRequest *request, UA_FindServersResponse *response) {
     response->servers = UA_malloc(sizeof(UA_ApplicationDescription));
     if(!response->servers) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -16,7 +17,8 @@ void Service_FindServers(UA_Server *server, const UA_FindServersRequest *request
 	response->serversSize = 1;
 }
 
-void Service_GetEndpoints(UA_Server *server, const UA_GetEndpointsRequest *request, UA_GetEndpointsResponse *response) {
+void Service_GetEndpoints(UA_Server *server, UA_Session *session,
+                          const UA_GetEndpointsRequest *request, UA_GetEndpointsResponse *response) {
     /* test if the supported binary profile shall be returned */
 #ifdef NO_ALLOCA
 	UA_Boolean relevant_endpoints[server->endpointDescriptionsSize];
@@ -24,14 +26,14 @@ void Service_GetEndpoints(UA_Server *server, const UA_GetEndpointsRequest *reque
 	UA_Boolean *relevant_endpoints = UA_alloca(sizeof(UA_Boolean)*server->endpointDescriptionsSize);
 #endif /*NO_ALLOCA */
     size_t relevant_count = 0;
-    for(UA_Int32 j = 0; j < server->endpointDescriptionsSize; j++) {
+    for(size_t j = 0; j < server->endpointDescriptionsSize; j++) {
         relevant_endpoints[j] = UA_FALSE;
         if(request->profileUrisSize <= 0) {
             relevant_endpoints[j] = UA_TRUE;
             relevant_count++;
             continue;
         }
-        for(UA_Int32 i = 0; i < request->profileUrisSize; i++) {
+        for(size_t i = 0; i < request->profileUrisSize; i++) {
             if(UA_String_equal(&request->profileUris[i], &server->endpointDescriptions->transportProfileUri)) {
                 relevant_endpoints[j] = UA_TRUE;
                 relevant_count++;
@@ -53,7 +55,7 @@ void Service_GetEndpoints(UA_Server *server, const UA_GetEndpointsRequest *reque
 
     size_t k = 0;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(UA_Int32 j = 0; j < server->endpointDescriptionsSize && retval == UA_STATUSCODE_GOOD; j++) {
+    for(size_t j = 0; j < server->endpointDescriptionsSize && retval == UA_STATUSCODE_GOOD; j++) {
         if(relevant_endpoints[j] != UA_TRUE)
             continue;
         retval = UA_EndpointDescription_copy(&server->endpointDescriptions[j], &response->endpoints[k]);
@@ -62,9 +64,8 @@ void Service_GetEndpoints(UA_Server *server, const UA_GetEndpointsRequest *reque
 
     if(retval != UA_STATUSCODE_GOOD) {
         response->responseHeader.serviceResult = retval;
-        UA_Array_delete(response->endpoints, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION], --k);
+        UA_Array_delete(response->endpoints, --k, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
         return;
     }
     response->endpointsSize = relevant_count;
 }
-

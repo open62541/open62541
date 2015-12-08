@@ -2,8 +2,9 @@
 #include "ua_statuscodes.h"
 #include "ua_util.h"
 
-UA_StatusCode UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt32 maxSessionCount,
-                                    UA_UInt32 maxSessionLifeTime, UA_UInt32 startSessionId) {
+UA_StatusCode
+UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt32 maxSessionCount,
+                       UA_UInt32 maxSessionLifeTime, UA_UInt32 startSessionId) {
     LIST_INIT(&sessionManager->sessions);
     sessionManager->maxSessionCount = maxSessionCount;
     sessionManager->lastSessionId   = startSessionId;
@@ -13,44 +14,44 @@ UA_StatusCode UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt3
 }
 
 void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager, UA_Server *server) {
-    session_list_entry *current;
-    while((current = LIST_FIRST(&sessionManager->sessions))) {
+    session_list_entry *current, *temp;
+    LIST_FOREACH_SAFE(current, &sessionManager->sessions, pointers, temp) {
         LIST_REMOVE(current, pointers);
         UA_Session_deleteMembersCleanup(&current->session, server);
         UA_free(current);
     }
 }
 
-void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sessionManager, UA_Server* server, UA_DateTime now) {
-    session_list_entry *sentry = LIST_FIRST(&sessionManager->sessions);
-    while(sentry) {
+void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sessionManager,
+                                       UA_Server* server, UA_DateTime now) {
+    session_list_entry *sentry, *temp;
+    LIST_FOREACH_SAFE(sentry, &sessionManager->sessions, pointers, temp) {
         if(sentry->session.validTill < now) {
-            session_list_entry *next = LIST_NEXT(sentry, pointers);
             LIST_REMOVE(sentry, pointers);
             UA_Session_deleteMembersCleanup(&sentry->session, server);
             UA_free(sentry);
             sessionManager->currentSessionCount--;
-            sentry = next;
-        } else {
-            sentry = LIST_NEXT(sentry, pointers);
         }
     }
 }
 
-UA_Session * UA_SessionManager_getSession(UA_SessionManager *sessionManager, const UA_NodeId *token) {
-    session_list_entry *current = UA_NULL;
+UA_Session *
+UA_SessionManager_getSession(UA_SessionManager *sessionManager, const UA_NodeId *token) {
+    session_list_entry *current = NULL;
     LIST_FOREACH(current, &sessionManager->sessions, pointers) {
-        if(UA_NodeId_equal(&current->session.authenticationToken, token))
-            break;
+        if(UA_NodeId_equal(&current->session.authenticationToken, token)) {
+            if(UA_DateTime_now() > current->session.validTill)
+                return NULL;
+            return &current->session;
+        }
     }
-    if(!current || UA_DateTime_now() > current->session.validTill)
-        return UA_NULL;
-    return &current->session;
+    return NULL;
 }
 
 /** Creates and adds a session. But it is not yet attached to a secure channel. */
-UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_SecureChannel *channel,
-                                              const UA_CreateSessionRequest *request, UA_Session **session) {
+UA_StatusCode
+UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_SecureChannel *channel,
+                                const UA_CreateSessionRequest *request, UA_Session **session) {
     if(sessionManager->currentSessionCount >= sessionManager->maxSessionCount)
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
 
@@ -61,27 +62,33 @@ UA_StatusCode UA_SessionManager_createSession(UA_SessionManager *sessionManager,
     sessionManager->currentSessionCount++;
     UA_Session_init(&newentry->session);
     newentry->session.sessionId = UA_NODEID_NUMERIC(1, sessionManager->lastSessionId++);
-    UA_UInt32 randSeed = sessionManager->lastSessionId + UA_DateTime_now();
+    UA_UInt32 randSeed = (UA_UInt32)(sessionManager->lastSessionId + UA_DateTime_now());
     newentry->session.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random(&randSeed));
+
     if(request->requestedSessionTimeout <= sessionManager->maxSessionLifeTime &&
        request->requestedSessionTimeout > 0)
-        newentry->session.timeout = request->requestedSessionTimeout;
+        newentry->session.timeout = (UA_Int64)request->requestedSessionTimeout;
     else
         newentry->session.timeout = sessionManager->maxSessionLifeTime; // todo: remove when the CTT is fixed
+
     UA_Session_updateLifetime(&newentry->session);
     LIST_INSERT_HEAD(&sessionManager->sessions, newentry, pointers);
     *session = &newentry->session;
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_SessionManager_removeSession(UA_SessionManager *sessionManager, UA_Server* server, const UA_NodeId *token) {
+UA_StatusCode
+UA_SessionManager_removeSession(UA_SessionManager *sessionManager,
+                                UA_Server* server, const UA_NodeId *token) {
     session_list_entry *current;
     LIST_FOREACH(current, &sessionManager->sessions, pointers) {
         if(UA_NodeId_equal(&current->session.authenticationToken, token))
             break;
     }
+
     if(!current)
         return UA_STATUSCODE_BADSESSIONIDINVALID;
+
     LIST_REMOVE(current, pointers);
     UA_Session_deleteMembersCleanup(&current->session, server);
     UA_free(current);

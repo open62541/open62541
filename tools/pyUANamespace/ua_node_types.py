@@ -666,13 +666,10 @@ class opcua_node_t:
     # Note: getFirstParentNode will return [parentNode, referenceToChild]
     (parentNode, parentRef) = self.getFirstParentNode()
     if not (parentNode in unPrintedNodes) and (parentNode != None) and (parentRef.referenceType() != None):
-      code.append("// Referencing node found and declared as parent: " + str(parentNode .id()) + "/" + str(parentNode .__node_browseName__) + " using " + str(parentRef.referenceType().id()) + "/" + str(parentRef.referenceType().__node_browseName__))
-      code = code + self.printOpen62541CCode_SubtypeEarly(bootstrapping = False)
+      code.append("// Referencing node found and declared as parent: " + str(parentNode .id()) + "/" +
+                  str(parentNode .__node_browseName__) + " using " + str(parentRef.referenceType().id()) +
+                  "/" + str(parentRef.referenceType().__node_browseName__))
       code = code + codegen.getCreateNodeNoBootstrap(self, parentNode, parentRef)
-      code = code + self.printOpen62541CCode_Subtype(unPrintedReferences = unPrintedReferences, bootstrapping = False)
-      code.append("       UA_NULL);") # createdNodeId, wraps up the UA_Server_add<XYType>Node() call
-      if self.nodeClass() == NODE_CLASS_METHOD:
-        code.append("#endif //ENABLE_METHODCALL") # ifdef added by codegen when methods are detected
       # Parent to child reference is added by the server, do not reprint that reference
       if parentRef in unPrintedReferences:
         unPrintedReferences.remove(parentRef)
@@ -688,7 +685,7 @@ class opcua_node_t:
       code = code + codegen.getCreateNodeBootstrap(self)
       code = code + self.printOpen62541CCode_Subtype(unPrintedReferences = unPrintedReferences, bootstrapping = True)
       code.append("// Parent node does not exist yet. This node will be bootstrapped and linked later.")
-      code.append("UA_NodeStore_insert(server->nodestore, (UA_Node*) " + self.getCodePrintableID() + ", UA_NULL);")
+      code.append("UA_NodeStore_insert(server->nodestore, (UA_Node*) " + self.getCodePrintableID() + ", NULL);")
       
     # Try to print all references to nodes that already exist
     # Note: we know the reference types exist, because the namespace class made sure they were
@@ -1096,7 +1093,7 @@ class opcua_node_variable_t(opcua_node_t):
     code.append(self.getCodePrintableID() + "->accessLevel = (UA_Int32) " + str(self.accessLevel()) + ";")
     code.append(self.getCodePrintableID() + "->valueRank = (UA_Int32) " + str(self.valueRank()) + ";")
     # The variant is guaranteed to exist by SubtypeEarly()
-    code.append(self.getCodePrintableID() + "->value.variant = *" + self.getCodePrintableID() + "_variant;")
+    code.append(self.getCodePrintableID() + "->value.variant.value = *" + self.getCodePrintableID() + "_variant;")
     return code
 
 class opcua_node_method_t(opcua_node_t):
@@ -1153,10 +1150,10 @@ class opcua_node_method_t(opcua_node_t):
     if bootstrapping == False:
       code.append("       // Note: in/outputArguments are added by attaching the variable nodes,")
       code.append("       //       not by including the in the addMethodNode() call.")
-      code.append("       UA_NULL,")
-      code.append("       UA_NULL,")
-      code.append("       0, UA_NULL,")
-      code.append("       0, UA_NULL,")
+      code.append("       NULL,")
+      code.append("       NULL,")
+      code.append("       0, NULL,")
+      code.append("       0, NULL,")
       code.append("       // FIXME: Missing executable")
       code.append("       // FIXME: Missing userExecutable")
       return code
@@ -1348,7 +1345,7 @@ class opcua_node_variableType_t(opcua_node_t):
       code.append(self.getCodePrintableID() + "->isAbstract = UA_FALSE;")
     
     # The variant is guaranteed to exist by SubtypeEarly()
-    code.append(self.getCodePrintableID() + "->value.variant = *" + self.getCodePrintableID() + "_variant;")
+    code.append(self.getCodePrintableID() + "->value.variant.value = *" + self.getCodePrintableID() + "_variant;")
     return code
 
 class opcua_node_dataType_t(opcua_node_t):

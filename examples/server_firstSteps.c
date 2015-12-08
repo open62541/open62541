@@ -14,7 +14,7 @@
 #endif
 
 UA_Boolean running;
-UA_Logger logger;
+UA_Logger logger = Logger_Stdout;
 
 static void stopHandler(int signal) {
     running = UA_FALSE;
@@ -25,7 +25,6 @@ int main(void) {
     signal(SIGTERM, stopHandler);
 
     UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-    logger = Logger_Stdout_new();
     UA_Server_setLogger(server, logger);
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
     running = UA_TRUE;

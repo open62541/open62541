@@ -3,6 +3,7 @@
 
 #include "ua_util.h"
 #include "ua_server.h"
+#include "ua_server_external_ns.h"
 #include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
 #include "ua_nodestore.h"
@@ -15,6 +16,7 @@
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
 
+#ifdef UA_EXTERNAL_NAMESPACES
 /** Mapping of namespace-id and url to an external nodestore. For namespaces
     that have no mapping defined, the internal nodestore is used by default. */
 typedef struct UA_ExternalNamespace {
@@ -22,6 +24,7 @@ typedef struct UA_ExternalNamespace {
 	UA_String url;
 	UA_ExternalNodeStore externalNodeStore;
 } UA_ExternalNamespace;
+#endif
 
 struct UA_Server {
     /* Config */
@@ -33,12 +36,12 @@ struct UA_Server {
     UA_DateTime startTime;
     UA_DateTime buildDate;
     UA_ApplicationDescription description;
-    UA_Int32 endpointDescriptionsSize;
+    size_t endpointDescriptionsSize;
     UA_EndpointDescription *endpointDescriptions;
 
     /* Communication */
     size_t networkLayersSize;
-    UA_ServerNetworkLayer *networkLayers;
+    UA_ServerNetworkLayer **networkLayers;
 
     /* Security */
     UA_ByteString serverCertificate;
@@ -49,8 +52,11 @@ struct UA_Server {
     UA_NodeStore *nodestore;
     size_t namespacesSize;
     UA_String *namespaces;
+
+#ifdef UA_EXTERNAL_NAMESPACES
     size_t externalNamespacesSize;
     UA_ExternalNamespace *externalNamespaces;
+#endif
      
     /* Jobs with a repetition interval */
     LIST_HEAD(RepeatedJobsList, RepeatedJobs) repeatedJobs;
@@ -74,23 +80,19 @@ struct UA_Server {
 #endif
 };
 
-void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, UA_ByteString *msg);
+/* The node is assumed to be "finished", i.e. no instantiation from inheritance is necessary */
+void UA_Server_addExistingNode(UA_Server *server, UA_Session *session, UA_Node *node,
+                               const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
+                               UA_AddNodesResult *result);
 
-UA_AddNodesResult UA_Server_addNodeWithSession(UA_Server *server, UA_Session *session, UA_Node *node,
-                                               const UA_ExpandedNodeId parentNodeId,
-                                               const UA_NodeId referenceTypeId);
+typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, const void*);
 
-UA_AddNodesResult UA_Server_addNode(UA_Server *server, UA_Node *node, const UA_ExpandedNodeId parentNodeId,
-                                    const UA_NodeId referenceTypeId);
+/* Calls callback on the node. In the multithreaded case, the node is copied before and replaced in
+   the nodestore. */
+UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+                                 UA_EditNodeCallback callback, const void *data);
 
-UA_StatusCode UA_Server_addReferenceWithSession(UA_Server *server, UA_Session *session,
-                                                const UA_AddReferencesItem *item);
-
-UA_StatusCode deleteOneWayReferenceWithSession(UA_Server *server, UA_Session *session, 
-                                               const UA_DeleteReferencesItem *item);
-
-UA_StatusCode addOneWayReferenceWithSession(UA_Server *server, UA_Session *session, 
-                                            const UA_AddReferencesItem *item);
+void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
 
 UA_StatusCode UA_Server_addDelayedJob(UA_Server *server, UA_Job job);
 
