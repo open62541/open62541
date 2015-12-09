@@ -19,8 +19,9 @@ UA_Boolean running = UA_TRUE;
 UA_Logger logger = Logger_Stdout;
 
 static UA_StatusCode
-helloWorldMethod(const UA_NodeId objectId, const UA_Variant *input,
-                 UA_Variant *output, void *handle) {
+
+helloWorldMethod(void *handle, const UA_NodeId objectId, size_t inputSize, const UA_Variant *input,
+                 size_t outputSize, UA_Variant *output) {
         UA_String *inputStr = (UA_String*)input->data;
         UA_String tmp = UA_STRING_ALLOC("Hello ");
         if(inputStr->length > 0) {
@@ -35,8 +36,8 @@ helloWorldMethod(const UA_NodeId objectId, const UA_Variant *input,
 } 
 
 static UA_StatusCode
-IncInt32ArrayValuesMethod(const UA_NodeId objectId, const UA_Variant *input,
-                          UA_Variant *output, void *handle) {
+IncInt32ArrayValuesMethod(void *handle, const UA_NodeId objectId, size_t inputSize, const UA_Variant *input, size_t outputSize, 
+                          UA_Variant *output) {
 	UA_Variant_setArrayCopy(output, input->data, 5, &UA_TYPES[UA_TYPES_INT32]);
 	for(size_t i = 0; i< input->arrayLength; i++)
 		((UA_Int32*)output->data)[i] = ((UA_Int32*)input->data)[i] + 1;
