@@ -54,8 +54,8 @@ sudo update-alternatives --config gcc
 
 echo "Building the C++ example"
 mkdir -p build && cd build
-gcc -std=c99 -c open62541.c
 cp ../../open62541.* .
+gcc -std=c99 -c open62541.c
 g++-4.8 ../examples/server.cpp -I./ open62541.o -o cpp-server
 cd .. && rm build -rf 
 
