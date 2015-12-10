@@ -1,12 +1,10 @@
 #!/bin/bash
 set -ev
 
-echo "Checking the applicability of patches"
-# ./tools/.checkPorts.sh
 echo "Documentation and certificate build"
 mkdir -p build
 cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_DOCUMENTATION=ON -DUA_BUILD_SELFSIGNED_CERTIFICATE=ON ..
+cmake -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLECLIENT=ON -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_DOCUMENTATION=ON -DUA_BUILD_SELFSIGNED_CERTIFICATE=ON ..
 make doc
 make selfsigned
 cp -r doc ..
@@ -15,7 +13,7 @@ cp server_cert.der ..
 echo "Testing builds"
 cd .. && rm build -rf && mkdir -p build && cd build
 echo "Cross compile release build for MinGW 32 bit"
-cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLECLIENT=ON ..
+cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLECLIENT=ON -DUA_BUILD_EXAMPLES=ON ..
 make
 cp ../README.md .
 cp ../LICENSE .
@@ -27,7 +25,7 @@ cp open62541-win32.zip ..
 cd .. && rm build -rf && mkdir -p build && cd build
 
 echo "Cross compile release build for MinGW 64 bit"
-cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw64.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLECLIENT=ON ..
+cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw64.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLECLIENT=ON -DUA_BUILD_EXAMPLES=ON ..
 make
 cp ../README.md .
 cp ../LICENSE .
