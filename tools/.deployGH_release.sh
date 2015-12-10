@@ -12,7 +12,7 @@ BRANCH="$(git log --pretty=format:"%d" --date=iso --abbrev=10 --all -1)"
 DATE="$(git log --pretty=format:"%ad" --date=iso --abbrev=10 --all -1)"
 COMMENT="$(git log --pretty=format:"%s" --date=iso --abbrev=10 --all -1)"
 
-git clone --depth=5 -b gh-pages https://$GITAUTH@github.com/acplt/open62541-www
+git clone --depth=5 -b gh-pages https://$GITAUTH@github.com/open62541/open62541-www
 cd open62541-www
 #hanndle releases
 cd releases
@@ -49,6 +49,6 @@ git config --global user.email "open62541-travis-ci@users.noreply.github.com"
 git config --global user.name "Open62541 travis-ci"
 git config --global push.default simple
 git commit -am "added release files and updated releases webpage by travis-ci [ci skip]"
-git push https://$GITAUTH@github.com/acplt/open62541-www
+git push https://$GITAUTH@github.com/open62541/open62541-www
 cd ..
 rm -rf open62541-www
