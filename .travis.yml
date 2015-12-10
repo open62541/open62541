@@ -31,9 +31,9 @@ script:
 - "if [ ${TRAVIS_OS_NAME} == 'linux' ]; then . ./tools/travis_linux_script.sh; fi"
 - "if [ ${TRAVIS_OS_NAME} == 'osx' ]; then . ./tools/travis_osx_script.sh; fi"
 after_success:
-- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master") ]]; then ./tools/.deployGH_doc.sh; fi
+- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master" && ${TRAVIS_PULL_REQUEST} == "false" ) ]]; then ./tools/.deployGH_doc.sh; fi
+- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master" && ${TRAVIS_PULL_REQUEST} == "false" ) ]]; then ./tools/.coverity.sh; fi
 - if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" ) ]]; then ./tools/.deployGH_release.sh; fi
-- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master") ]]; then ./tools/.coverity.sh; fi
 before_deploy:
 - rm build -rf && mkdir -p build && cd build
 - echo "Cross compile release build for Raspberry Pi"
