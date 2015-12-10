@@ -63,7 +63,7 @@ make
 
 # push updated doc
 BRANCH=$(git branch | sed -n -e 's/^\* \(.*\)/\1/p')
-if [[ "$BRANCH" = "master" ]]; then
+if [[ ${BRANCH} == "master" ]]; then
     cd .. && rm build -rf && mkdir -p build && cd build
     cd build
     rm -rf *
