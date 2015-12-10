@@ -41,8 +41,8 @@ cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_AMALGAMATION=ON -DBUILD_EXAMPLESERVER=
 make
 tar -pczf open62541-linux64.tar.gz ../../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md server_static server client_static client libopen62541.so open62541.h open62541.c
 cp open62541-linux64.tar.gz ..
-cp open62541.h .. #copy single file-release
-cp open62541.c .. #copy single file-release
+cp open62541.h ../../ #copy single file-release
+cp open62541.c ../../ #copy single file-release
 cd .. && rm build -rf 
 
 echo "Upgrade to gcc 4.8"
@@ -55,6 +55,7 @@ sudo update-alternatives --config gcc
 echo "Building the C++ example"
 mkdir -p build && cd build
 gcc -std=c99 -c open62541.c
+cp ../../open62541.* .
 g++-4.8 ../examples/server.cpp -I./ open62541.o -o cpp-server
 cd .. && rm build -rf 
 
