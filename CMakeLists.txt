@@ -461,25 +461,14 @@ if(BUILD_EXAMPLES)
 endif()
 
 # build documentation
-option(BUILD_DOCUMENTATION "Generate doxygen/sphinx documentation" OFF)
+option(BUILD_DOCUMENTATION "Generate documentation" OFF)
 if(BUILD_DOCUMENTATION)
-    find_package(Doxygen REQUIRED)
     find_package(Sphinx REQUIRED)
-    configure_file(${PROJECT_SOURCE_DIR}/doc/Doxyfile.in ${PROJECT_BINARY_DIR}/Doxyfile @ONLY)
-    configure_file(${PROJECT_SOURCE_DIR}/doc/conf.py ${PROJECT_BINARY_DIR}/conf.py @ONLY)
-    add_custom_target(doxygen
-                      ${DOXYGEN_EXECUTABLE} ${PROJECT_BINARY_DIR}/Doxyfile
-                      WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
-                      COMMENT "Generating API documentation with Doxygen")
-    add_custom_target(latex ${SPHINX_EXECUTABLE}
-      -b latex -c "${PROJECT_BINARY_DIR}"
-      "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_BINARY_DIR}/doc/sphinx"
-      DEPENDS doxygen
+    add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
+      -b latex -c "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_BINARY_DIR}/doc_latex"
       COMMENT "Building LaTeX sources for documentation with Sphinx")
     add_custom_target(doc ${SPHINX_EXECUTABLE}
-      -b html -c "${PROJECT_BINARY_DIR}"
-      "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_BINARY_DIR}/doc/sphinx"
-      COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/doc/open62541_html.png" "${PROJECT_BINARY_DIR}/doc/sphinx/_static/"
-      DEPENDS doxygen
+      -b html -c "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_BINARY_DIR}/doc"
+      COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/doc/open62541_html.png" "${PROJECT_BINARY_DIR}/doc/_static/"
       COMMENT "Building HTML documentation with Sphinx")
 endif()
