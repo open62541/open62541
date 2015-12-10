@@ -12,7 +12,7 @@ open62541 is licensed under the LGPL + static linking exception. That means **op
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/1864/badge.svg)](https://scan.coverity.com/projects/1864)
 
 ### Documentation
-A general introduction to OPC UA and the open62541 documentation can be found at http://open62541.org/doc.
+A general introduction to OPC UA and the open62541 documentation can be found at http://open62541.org/doc/current.
 Build instruction are here: https://github.com/open62541/open62541/wiki/Building-open62541.
 
 For discussion and help, you can use
@@ -26,7 +26,7 @@ Automatically compiled MSVC binaries are available [here](https://ci.appveyor.co
 ### Contribute to open62541
 As an open source project, we invite new contributors to help improving open62541. If you are a developer, your bugfixes and new features are very welcome. Note that there are ways to contribute even without deep knowledge of the project or the UA standard:
 - [Report bugs](https://github.com/open62541/open62541/issues)
-- Improve the [documentation for 0.1](http://open62541.org/doc) and [documentation for 0.2](http://open62541.org/doc/sphinx)
+- Improve the [documentation for 0.1](http://open62541.org/doc/0.1) and [documentation for 0.2](http://open62541.org/doc/current)
 - Work on issues marked as "[easy hacks](https://github.com/open62541/open62541/labels/easy%20hack)"
 
 ### Example Server Implementation
