@@ -327,8 +327,7 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                                      
 void
 Service_Publish(UA_Server *server, UA_Session *session,
-                const UA_PublishRequest *request,
-                UA_PublishResponse *response);
+                const UA_PublishRequest *request, UA_UInt32 requestId);
 
 void
 Service_Republish(UA_Server *server, UA_Session *session,

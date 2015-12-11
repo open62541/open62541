@@ -142,7 +142,6 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
 
 static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r) {
     r->requestHandle = p->requestHandle;
-    r->stringTableSize = 0;
     r->timestamp = UA_DateTime_now();
 }
 
@@ -218,7 +217,6 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *responseType = &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE];
         break;
     case UA_NS0ID_PUBLISHREQUEST:
-        *service = (UA_Service)Service_Publish;
         *requestType = &UA_TYPES[UA_TYPES_PUBLISHREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_PUBLISHRESPONSE];
         break;
@@ -351,7 +349,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     const UA_DataType *requestType = NULL;
     const UA_DataType *responseType = NULL;
     getServicePointers(requestTypeId.identifier.numeric, &requestType, &responseType, &service);
-    if(!service) {
+    if(!requestType) {
         /* The service is not supported */
         if(requestTypeId.identifier.numeric==787)
             UA_LOG_INFO(server->logger, UA_LOGCATEGORY_SERVER,
@@ -408,8 +406,18 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     }
 #endif
 
-    /* Call the service */
     UA_Session_updateLifetime(session);
+
+#ifdef ENABLE_SUBSCRIPTIONS
+    /* The publish request is answered with a delay */
+    if(requestTypeId.identifier.numeric - UA_ENCODINGOFFSET_BINARY == UA_NS0ID_PUBLISHREQUEST) {
+        Service_Publish(server, session, request, sequenceHeader.requestId);
+        UA_deleteMembers(request, requestType);
+        return;
+    }
+#endif
+        
+    /* Call the service */
     void *response = UA_alloca(responseType->memSize);
     UA_init(response, responseType);
     init_response_header(request, response);
