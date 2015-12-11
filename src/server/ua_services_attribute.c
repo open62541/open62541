@@ -561,11 +561,16 @@ CopyValueIntoNode(UA_VariableNode *node, const UA_WriteValue *wvalue) {
 }
 
 static UA_StatusCode
-CopyAttributeIntoNode(UA_Server *server, UA_Session *session, UA_Node *node, const UA_WriteValue *wvalue) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
+                      UA_Node *node, const UA_WriteValue *wvalue) {
+    if(!wvalue->value.hasValue)
+        return UA_STATUSCODE_BADNODATA;
+
     void *value = wvalue->value.value.data;
     void *target = NULL;
     const UA_DataType *type = NULL;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
 	switch(wvalue->attributeId) {
     case UA_ATTRIBUTEID_NODEID:
     case UA_ATTRIBUTEID_NODECLASS:
@@ -624,7 +629,10 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session, UA_Node *node, con
 		break;
 	case UA_ATTRIBUTEID_VALUE:
 		CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        retval = CopyValueIntoNode((UA_VariableNode*)node, wvalue);
+        if(((const UA_VariableNode*)node)->valueSource == UA_VALUESOURCE_VARIANT)
+            retval = CopyValueIntoNode((UA_VariableNode*)node, wvalue);
+        else
+            retval = Service_Write_single_ValueDataSource(server, session, (const UA_VariableNode*)node, wvalue);
 		break;
 	case UA_ATTRIBUTEID_ACCESSLEVEL:
 		CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
@@ -668,21 +676,7 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session, UA_Node *node, con
 }
 
 UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, const UA_WriteValue *wvalue) {
-    if(!wvalue->value.hasValue || !wvalue->value.value.data)
-        return UA_STATUSCODE_BADNODATA; // TODO: is this the right return code?
-    if(wvalue->attributeId == UA_ATTRIBUTEID_VALUE) {
-        const UA_Node *orig = UA_NodeStore_get(server->nodestore, &wvalue->nodeId);
-        if(!orig)
-            return UA_STATUSCODE_BADNODEIDUNKNOWN;
-        if(orig->nodeClass & (UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLE) &&
-           ((const UA_VariableNode*)orig)->valueSource == UA_VALUESOURCE_DATASOURCE) {
-            UA_StatusCode retval =
-                Service_Write_single_ValueDataSource(server, session, (const UA_VariableNode*)orig, wvalue);
-            return retval;
-        }
-    }
-    return UA_Server_editNode(server, session, &wvalue->nodeId,
-                              (UA_EditNodeCallback)CopyAttributeIntoNode, wvalue);
+    return UA_Server_editNode(server, session, &wvalue->nodeId, (UA_EditNodeCallback)CopyAttributeIntoNode, wvalue);
 }
 
 void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,

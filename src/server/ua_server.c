@@ -1200,8 +1200,11 @@ __UA_Server_writeAttribute(UA_Server *server, const UA_NodeId nodeId,
     if(attributeId != UA_ATTRIBUTEID_VALUE)
         /* hacked cast. the target WriteValue is used as const anyway */
         UA_Variant_setScalar(&wvalue.value.value, (void*)(uintptr_t)value, type);
-    else
+    else {
+        if(type != &UA_TYPES[UA_TYPES_VARIANT])
+            return UA_STATUSCODE_BADTYPEMISMATCH;
         wvalue.value.value = *(const UA_Variant*)value;
+    }
     wvalue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = Service_Write_single(server, &adminSession, &wvalue);
     return retval;
