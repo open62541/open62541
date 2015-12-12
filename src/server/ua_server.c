@@ -1190,12 +1190,12 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 }
 
 UA_StatusCode
-__UA_Server_writeAttribute(UA_Server *server, const UA_NodeId nodeId,
-                             const UA_AttributeId attributeId, const UA_DataType *type,
-                             const void *value) {
+__UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
+                  const UA_AttributeId attributeId, const UA_DataType *type,
+                  const void *value) {
     UA_WriteValue wvalue;
     UA_WriteValue_init(&wvalue);
-    wvalue.nodeId = nodeId;
+    wvalue.nodeId = *nodeId;
     wvalue.attributeId = attributeId;
     if(attributeId != UA_ATTRIBUTEID_VALUE)
         /* hacked cast. the target WriteValue is used as const anyway */
@@ -1261,8 +1261,8 @@ UA_Server_setObjectTypeNode_instanceLifecycleManagement(UA_Server *server, UA_No
 }
 
 UA_StatusCode
-__UA_Server_readAttribute(UA_Server *server, const UA_NodeId *nodeId,
-                          const UA_AttributeId attributeId, void *v) {
+__UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
+                 const UA_AttributeId attributeId, void *v) {
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
     item.nodeId = *nodeId;
