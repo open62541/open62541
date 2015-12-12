@@ -508,6 +508,19 @@ static UA_INLINE UA_StatusCode
 UA_Server_readExecutableAttribute(UA_Server *server, const UA_NodeId nodeId, UA_Boolean *outExecutable) {
     return __UA_Server_readAttribute(server, &nodeId, UA_ATTRIBUTEID_EXECUTABLE, outExecutable); }
 
+/****************/
+/* Browse Nodes */
+/****************/
+
+UA_BrowseResult UA_EXPORT UA_Server_browse(UA_Server *server, UA_UInt32 maxrefs, const UA_BrowseDescription *descr);
+UA_BrowseResult UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint, const UA_ByteString *continuationPoint);
+
+/***************/
+/* Call Method */
+/***************/
+
+UA_CallMethodResult UA_EXPORT UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
+
 #ifdef __cplusplus
 }
 #endif

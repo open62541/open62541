@@ -173,6 +173,8 @@ void Service_Browse_single(UA_Server *server, UA_Session *session,
 void Service_BrowseNext(UA_Server *server, UA_Session *session,
                         const UA_BrowseNextRequest *request,
                         UA_BrowseNextResponse *response);
+void UA_Server_browseNext_single(UA_Server *server, UA_Session *session, UA_Boolean releaseContinuationPoint,
+                                 const UA_ByteString *continuationPoint, UA_BrowseResult *result);
 
 /** Used to translate textual node paths to their respective ids. */
 void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
@@ -267,6 +269,10 @@ void
 Service_Call(UA_Server *server, UA_Session *session,
              const UA_CallRequest *request,
              UA_CallResponse *response);
+void
+Service_Call_single(UA_Server *server, UA_Session *session,
+                    const UA_CallMethodRequest *request,
+                    UA_CallMethodResult *result);
 #endif
 /** @} */
 
