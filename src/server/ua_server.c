@@ -1310,9 +1310,11 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
     return result;
 }
 
+#ifdef ENABLE_METHODCALLS
 UA_CallMethodResult UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
     Service_Call_single(server, &adminSession, request, &result);
     return result;
 }
+#endif

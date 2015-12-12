@@ -519,7 +519,9 @@ UA_BrowseResult UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContin
 /* Call Method */
 /***************/
 
+#ifdef ENABLE_METHODCALLS
 UA_CallMethodResult UA_EXPORT UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
+#endif
 
 #ifdef __cplusplus
 }
