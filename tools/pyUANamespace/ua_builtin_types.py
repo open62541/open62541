@@ -380,8 +380,6 @@ class opcua_value_t():
         # The following strategy applies to all other types, in particular strings and numerics.
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
           code = code + self.value[0].printOpen62541CCode_SubType_build()
-        code.append("UA_Variant *" + self.parent.getCodePrintableID() + "_variant = UA_Variant_new();")
-        code.append(self.parent.getCodePrintableID() + "_variant->type = &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "];")
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
           code.append("UA_" + self.value[0].stringRepresentation + " *" + valueName + " = " + self.value[0].printOpen62541CCode_SubType() + ";")
           code.append("UA_Variant_setScalarCopy( &attr.value, " + valueName + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
