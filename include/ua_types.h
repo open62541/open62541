@@ -161,7 +161,7 @@ static UA_INLINE UA_Boolean UA_ByteString_equal(const UA_ByteString *string1, co
     return UA_String_equal((const UA_String*)string1, (const UA_String*)string2); }
 
 /* Allocates memory of size length for the bytestring. The content is not set to zero. */
-UA_StatusCode UA_EXPORT UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+UA_StatusCode UA_EXPORT UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length);
 
 UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
 
@@ -550,7 +550,7 @@ static UA_INLINE void UA_init(void *p, const UA_DataType *type) {
  * @return Indicates whether the operation succeeded or returns an error code
  */
 UA_StatusCode UA_EXPORT
-UA_copy(const void *src, void *dst, const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+UA_copy(const void *src, void *dst, const UA_DataType *type);
 
 /**
  * Deletes the dynamically assigned content of a variable (e.g. a member-array).
