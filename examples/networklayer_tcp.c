@@ -117,10 +117,11 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
         UA_ByteString_deleteMembers(response);
 #ifdef _WIN32
         const int last_error = WSAGetLastError();
-        if(last_error == WSAEINTR || last_error == WSAEWOULDBLOCK)
+        #define TEST_RETRY (last_error == WSAEINTR || last_error == WSAEWOULDBLOCK)
 #else
-		if(errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
+        #define TEST_RETRY (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
 #endif
+        if (TEST_RETRY)
             return UA_STATUSCODE_GOOD; /* retry */
         else {
             socket_close(connection);

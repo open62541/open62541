@@ -414,7 +414,7 @@ int main(int argc, char** argv) {
   
     // Some easy localization
     UA_LocalizedText objectsName = UA_LOCALIZEDTEXT("de_DE", "Objekte");
-    UA_Server_writeDisplayNameAttribute(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), objectsName);
+    UA_Server_writeDisplayName(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), objectsName);
   
     //start server
     UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false

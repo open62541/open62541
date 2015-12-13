@@ -1190,18 +1190,21 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 }
 
 UA_StatusCode
-__UA_Server_writeAttribute(UA_Server *server, const UA_NodeId nodeId,
-                             const UA_AttributeId attributeId, const UA_DataType *type,
-                             const void *value) {
+__UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
+                  const UA_AttributeId attributeId, const UA_DataType *type,
+                  const void *value) {
     UA_WriteValue wvalue;
     UA_WriteValue_init(&wvalue);
-    wvalue.nodeId = nodeId;
+    wvalue.nodeId = *nodeId;
     wvalue.attributeId = attributeId;
     if(attributeId != UA_ATTRIBUTEID_VALUE)
         /* hacked cast. the target WriteValue is used as const anyway */
         UA_Variant_setScalar(&wvalue.value.value, (void*)(uintptr_t)value, type);
-    else
+    else {
+        if(type != &UA_TYPES[UA_TYPES_VARIANT])
+            return UA_STATUSCODE_BADTYPEMISMATCH;
         wvalue.value.value = *(const UA_Variant*)value;
+    }
     wvalue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = Service_Write_single(server, &adminSession, &wvalue);
     return retval;
@@ -1258,11 +1261,11 @@ UA_Server_setObjectTypeNode_instanceLifecycleManagement(UA_Server *server, UA_No
 }
 
 UA_StatusCode
-__UA_Server_readAttribute(UA_Server *server, const UA_NodeId nodeId,
-                          const UA_AttributeId attributeId, void *v) {
+__UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
+                 const UA_AttributeId attributeId, void *v) {
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
-    item.nodeId = nodeId;
+    item.nodeId = *nodeId;
     item.attributeId = attributeId;
     UA_DataValue dv;
     UA_DataValue_init(&dv);
@@ -1277,7 +1280,8 @@ __UA_Server_readAttribute(UA_Server *server, const UA_NodeId nodeId,
         UA_DataValue_deleteMembers(&dv);
         return retval;
     }
-    if(attributeId == UA_ATTRIBUTEID_VALUE)
+    if(attributeId == UA_ATTRIBUTEID_VALUE ||
+       attributeId == UA_ATTRIBUTEID_ARRAYDIMENSIONS)
         memcpy(v, &dv.value, sizeof(UA_Variant));
     else {
         memcpy(v, dv.value.data, dv.value.type->memSize);
@@ -1287,3 +1291,30 @@ __UA_Server_readAttribute(UA_Server *server, const UA_NodeId nodeId,
     }
     return UA_STATUSCODE_GOOD;
 }
+
+UA_BrowseResult
+UA_Server_browse(UA_Server *server, UA_UInt32 maxrefs, const UA_BrowseDescription *descr) {
+    UA_BrowseResult result;
+    UA_BrowseResult_init(&result);
+    Service_Browse_single(server, &adminSession, NULL, descr, maxrefs, &result);
+    return result;
+}
+
+UA_BrowseResult
+UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
+                     const UA_ByteString *continuationPoint) {
+    UA_BrowseResult result;
+    UA_BrowseResult_init(&result);
+    UA_Server_browseNext_single(server, &adminSession, releaseContinuationPoint,
+                                continuationPoint, &result);
+    return result;
+}
+
+#ifdef ENABLE_METHODCALLS
+UA_CallMethodResult UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
+    UA_CallMethodResult result;
+    UA_CallMethodResult_init(&result);
+    Service_Call_single(server, &adminSession, request, &result);
+    return result;
+}
+#endif

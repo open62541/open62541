@@ -29,11 +29,7 @@ import shlex
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ['breathe']
-
-breathe_projects = { "open62541-breathe": "doc/xml/" }
-breathe_default_project = "open62541-breathe"
-breathe_domain_by_extension = {"h" : "c", "c" : "c"}
+extensions = []
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -232,7 +228,7 @@ latex_documents = [
 
 # The name of an image file (relative to this directory) to place at the top of
 # the title page.
-latex_logo = "doc/open62541.png"
+latex_logo = "open62541.png"
 
 # For "manual" documents, if this is true, then toplevel headings are parts,
 # not chapters.

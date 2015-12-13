@@ -105,9 +105,9 @@ argConformsToDefinition(const UA_VariableNode *argRequirements, size_t argsSize,
     return retval;
 }
 
-static void
-callMethod(UA_Server *server, UA_Session *session, UA_CallMethodRequest *request,
-           UA_CallMethodResult *result) {
+void
+Service_Call_single(UA_Server *server, UA_Session *session, const UA_CallMethodRequest *request,
+                    UA_CallMethodResult *result) {
     const UA_MethodNode *methodCalled =
         (const UA_MethodNode*)UA_NodeStore_get(server->nodestore, &request->methodId);
     if(!methodCalled) {
@@ -206,5 +206,5 @@ void Service_Call(UA_Server *server, UA_Session *session, const UA_CallRequest *
     response->resultsSize = request->methodsToCallSize;
     
     for(size_t i = 0; i < request->methodsToCallSize;i++)
-        callMethod(server, session, &request->methodsToCall[i], &response->results[i]);
+        Service_Call_single(server, session, &request->methodsToCall[i], &response->results[i]);
 }

@@ -91,7 +91,8 @@ UA_StatusCode UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscr
 UA_StatusCode
 UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
                                          UA_NodeId nodeId, UA_UInt32 attributeID,
-                                         void *handlingFunction, UA_UInt32 *newMonitoredItemId) {
+                                         void *handlingFunction, void *handlingContext,
+                                         UA_UInt32 *newMonitoredItemId) {
     UA_Client_Subscription *sub;
     LIST_FOREACH(sub, &client->subscriptions, listEntry) {
         if(sub->SubscriptionID == subscriptionId)
@@ -135,6 +136,7 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
         newMon->QueueSize = 1;
         newMon->DiscardOldest = UA_TRUE;
         newMon->handler = handlingFunction;
+        newMon->handlerContext = handlingContext;
         newMon->MonitoredItemId = response.results[0].monitoredItemId;
         LIST_INSERT_HEAD(&sub->MonitoredItems, newMon, listEntry);
         *newMonitoredItemId = newMon->MonitoredItemId;
@@ -233,7 +235,7 @@ UA_Client_processPublishRx(UA_Client *client, UA_PublishResponse response) {
                 // find this client handle
                 LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
                     if(mon->ClientHandle == mitemNot->clientHandle) {
-                        mon->handler(mitemNot->clientHandle, &mitemNot->value);
+                        mon->handler(mitemNot->clientHandle, &mitemNot->value, mon->handlerContext);
                         break;
                     }
                 }

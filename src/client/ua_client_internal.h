@@ -24,7 +24,8 @@ typedef struct UA_Client_MonitoredItem_s {
     UA_UInt32          SamplingInterval;
     UA_UInt32          QueueSize;
     UA_Boolean         DiscardOldest;
-    void               (*handler)(UA_UInt32 handle, UA_DataValue *value);
+    void               (*handler)(UA_UInt32 handle, UA_DataValue *value, void *context);
+    void               *handlerContext;
     LIST_ENTRY(UA_Client_MonitoredItem_s)  listEntry;
 } UA_Client_MonitoredItem;
 

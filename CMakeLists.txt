@@ -494,16 +494,14 @@ if(UA_BUILD_EXAMPLES)
 	endif()
 endif()
 
+# build documentation
 if(UA_BUILD_DOCUMENTATION)
     find_package(Sphinx REQUIRED)
-    configure_file(${PROJECT_SOURCE_DIR}/doc/conf.py ${PROJECT_BINARY_DIR}/conf.py @ONLY)
-    add_custom_target(latex ${SPHINX_EXECUTABLE}
-      -b latex -c "${PROJECT_BINARY_DIR}"
-      "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_BINARY_DIR}/doc/sphinx"
+    add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
+      -b latex -c "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_BINARY_DIR}/doc_latex"
       COMMENT "Building LaTeX sources for documentation with Sphinx")
     add_custom_target(doc ${SPHINX_EXECUTABLE}
-      -b html -c "${PROJECT_BINARY_DIR}"
-      "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_BINARY_DIR}/doc/sphinx"
-      COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/doc/open62541_html.png" "${PROJECT_BINARY_DIR}/doc/sphinx/_static/"
+      -b html -c "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_BINARY_DIR}/doc"
+      COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/doc/open62541_html.png" "${PROJECT_BINARY_DIR}/doc/_static/"
       COMMENT "Building HTML documentation with Sphinx")
 endif()

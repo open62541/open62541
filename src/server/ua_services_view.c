@@ -419,6 +419,23 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
     }
 }
 
+void
+UA_Server_browseNext_single(UA_Server *server, UA_Session *session, UA_Boolean releaseContinuationPoint,
+                            const UA_ByteString *continuationPoint, UA_BrowseResult *result) {
+    result->statusCode = UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
+    struct ContinuationPointEntry *cp, *temp;
+    LIST_FOREACH_SAFE(cp, &session->continuationPoints, pointers, temp) {
+        if(UA_ByteString_equal(&cp->identifier, continuationPoint)) {
+            result->statusCode = UA_STATUSCODE_GOOD;
+            if(!releaseContinuationPoint)
+                Service_Browse_single(server, session, cp, NULL, 0, result);
+            else
+                removeCp(cp, session);
+            break;
+        }
+    }
+}
+
 void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseNextRequest *request,
                         UA_BrowseNextResponse *response) {
     UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
@@ -436,20 +453,9 @@ void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseN
    }
 
    response->resultsSize = size;
-   for(size_t i = 0; i < size; i++) {
-       response->results[i].statusCode = UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
-       struct ContinuationPointEntry *cp, *temp;
-       LIST_FOREACH_SAFE(cp, &session->continuationPoints, pointers, temp) {
-           if(UA_ByteString_equal(&cp->identifier, &request->continuationPoints[i])) {
-               response->results[i].statusCode = UA_STATUSCODE_GOOD;
-               if(!request->releaseContinuationPoints)
-                   Service_Browse_single(server, session, cp, NULL, 0, &response->results[i]);
-               else
-                   removeCp(cp, session);
-               break;
-           }
-       }
-   }
+   for(size_t i = 0; i < size; i++)
+       UA_Server_browseNext_single(server, session, request->releaseContinuationPoints,
+                                   &request->continuationPoints[i], &response->results[i]);
 }
 
 /***********************/

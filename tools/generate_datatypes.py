@@ -178,19 +178,6 @@ class BuiltinType(Type):
                 ".padding = offsetof(UA_QualifiedName, name)-sizeof(UA_UInt16), .isArray = UA_FALSE }},\n" + \
                 ".typeIndex = UA_TYPES_QUALIFIEDNAME }"
 
-        if self.name == "UA_LocalizedText":
-            return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
-                ".memSize = sizeof(UA_LocalizedText), " + \
-                ".builtin = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
-                ".membersSize = 2, .members = {" + \
-                "\n\t{.memberTypeIndex = UA_TYPES_STRING, .namespaceZero = UA_TRUE, " + \
-                (".memberName = \"locale\", " if typeintrospection else "") + \
-                ".padding = 0, .isArray = UA_FALSE }," + \
-                "\n\t{.memberTypeIndex = UA_TYPES_STRING, .namespaceZero = UA_TRUE, " + \
-                (".memberName = \"text\", " if typeintrospection else "") + \
-                ".padding = offsetof(UA_LocalizedText, text)-sizeof(UA_String), .isArray = UA_FALSE }},\n" + \
-                ".typeIndex = UA_TYPES_LOCALIZEDTEXT }"
-
         return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
             ".memSize = sizeof(" + self.name + "), " + \
             ".builtin = UA_TRUE, .fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \

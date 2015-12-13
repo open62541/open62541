@@ -25,15 +25,15 @@ matrix:
     - os: osx
       compiler: gcc
 before_install:
-- "if [ ${TRAVIS_OS_NAME} == 'linux' ]; then . ./tools/travis_linux_before_install.sh; fi"
-- "if [ ${TRAVIS_OS_NAME} == 'osx' ]; then . ./tools/travis_osx_before_install.sh; fi"
+- if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis_linux_before_install.sh; fi
+- if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis_osx_before_install.sh; fi
 script:
-- "if [ ${TRAVIS_OS_NAME} == 'linux' ]; then . ./tools/travis_linux_script.sh; fi"
-- "if [ ${TRAVIS_OS_NAME} == 'osx' ]; then . ./tools/travis_osx_script.sh; fi"
+- if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis_linux_script.sh; fi
+- if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis_osx_script.sh; fi
 after_success:
-- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master") ]]; then ./tools/.deployGH_doc.sh; fi
-- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" ) ]]; then ./tools/.deployGH_release.sh; fi
-- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master") ]]; then ./tools/.coverity.sh; fi
+- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master" && ${TRAVIS_PULL_REQUEST} == "false" ) ]]; then sh ./tools/travis_push_doc.sh; fi
+- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master" && ${TRAVIS_PULL_REQUEST} == "false" ) ]]; then sh ./tools/travis_push_coverity.sh; fi
+- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" ) ]]; then sh ./tools/travis_push_release.sh; fi
 before_deploy:
 - rm build -rf && mkdir -p build && cd build
 - echo "Cross compile release build for Raspberry Pi"
