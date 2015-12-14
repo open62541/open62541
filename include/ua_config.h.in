@@ -70,11 +70,6 @@
 # define UA_NON_LITTLEENDIAN_ARCHITECTURE
 #endif
 
-/* Aligned Memory Access */
-#if defined(__arm__) && !defined(__ARM_FEATURE_UNALIGNED)
-# define UA_ALIGNED_MEMORY_ACCESS
-#endif
-
 /* Inline Functions */
 #ifdef _MSC_VER
 # define UA_INLINE __inline
@@ -105,7 +100,7 @@
 #endif
 
 #include <stddef.h>
-#ifdef UA_EMBEDDED_LIBC
+#ifdef UA_ENABLE_EMBEDDED_LIBC
   void *memcpy(void *UA_RESTRICT dest, const void *UA_RESTRICT src, size_t n);
   void *memset(void *dest, int c, size_t n);
   size_t strlen(const char *s);

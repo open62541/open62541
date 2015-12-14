@@ -109,8 +109,6 @@ in ua_config.h. Usually there is no need to adjust them.
    Big-endian or mixed endian platform
 **UA_MIXED_ENDIAN**
    Mixed-endian platform (e.g., ARM7TDMI)
-**UA_ALIGNED_MEMORY_ACCESS**
-   Platform with aligned memory access only (some ARM processors, e.g. Cortex M3/M4 ARM7TDMI etc.)
 
 UA_BUILD_* group
 ~~~~~~~~~~~~~
