@@ -106,8 +106,8 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     return (UA_UInt16)server->namespacesSize - 1;
 }
 
-UA_StatusCode UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId,
-                                   UA_Boolean deleteReferences) {
+UA_StatusCode
+UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId, UA_Boolean deleteReferences) {
     UA_RCU_LOCK();
     UA_StatusCode retval = Service_DeleteNodes_single(server, &adminSession, &nodeId, deleteReferences);
     UA_RCU_UNLOCK();
@@ -1210,8 +1210,8 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
     return retval;
 }
 
-static UA_StatusCode setValueCallback(UA_Server *server, UA_Session *session, UA_VariableNode *node,
-                                      UA_ValueCallback *callback) {
+static UA_StatusCode
+setValueCallback(UA_Server *server, UA_Session *session, UA_VariableNode *node, UA_ValueCallback *callback) {
     if(node->nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
     node->value.variant.callback = *callback;
@@ -1261,8 +1261,7 @@ UA_Server_setObjectTypeNode_instanceLifecycleManagement(UA_Server *server, UA_No
 }
 
 UA_StatusCode
-__UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
-                 const UA_AttributeId attributeId, void *v) {
+__UA_Server_read(UA_Server *server, const UA_NodeId *nodeId, const UA_AttributeId attributeId, void *v) {
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
     item.nodeId = *nodeId;
@@ -1310,7 +1309,7 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
     return result;
 }
 
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
 UA_CallMethodResult UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);

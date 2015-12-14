@@ -408,7 +408,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
 
     UA_Session_updateLifetime(session);
 
-#ifdef ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     /* The publish request is answered with a delay */
     if(requestTypeId.identifier.numeric - UA_ENCODINGOFFSET_BINARY == UA_NS0ID_PUBLISHREQUEST) {
         Service_Publish(server, session, request, sequenceHeader.requestId);

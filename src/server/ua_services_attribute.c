@@ -382,7 +382,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
                                 &request->nodesToRead[i], &response->results[i]);
     }
 
-#ifdef EXTENSION_STATELESS
+#ifdef UA_ENABLE_NONSTANDARD_STATELESS
     /* Add an expiry header for caching */
     if(session==&anonymousSession){
 		UA_ExtensionObject additionalHeader;
