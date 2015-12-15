@@ -66,10 +66,8 @@ UInt16_encodeBinary(UA_UInt16 const *src, const UA_DataType *_,
                     UA_ByteString *dst, size_t *UA_RESTRICT offset) {
     if(*offset + sizeof(UA_UInt16) > dst->length)
         return UA_STATUSCODE_BADENCODINGERROR;
-#ifdef UA_NON_LITTLEENDIAN_ARCHITECTURE
     UA_UInt16 le_uint16 = htole16(*src);
     src = &le_uint16;
-#endif
     memcpy(&dst->data[*offset], src, sizeof(UA_UInt16));
     *offset += 2;
     return UA_STATUSCODE_GOOD;
@@ -87,9 +85,7 @@ UInt16_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
         return UA_STATUSCODE_BADDECODINGERROR;
     memcpy(dst, &src->data[*offset], sizeof(UA_UInt16));
     *offset += 2;
-#ifdef UA_NON_LITTLEENDIAN_ARCHITECTURE
     *dst = le16toh(*dst);
-#endif
     return UA_STATUSCODE_GOOD;
 }
 
@@ -104,10 +100,8 @@ UInt32_encodeBinary(UA_UInt32 const *src, const UA_DataType *_,
                     UA_ByteString *dst, size_t *UA_RESTRICT offset) {
     if(*offset + sizeof(UA_UInt32) > dst->length)
         return UA_STATUSCODE_BADENCODINGERROR;
-#ifdef UA_NON_LITTLEENDIAN_ARCHITECTURE
     UA_UInt32 le_uint32 = htole32(*src);
     src = &le_uint32;
-#endif
     memcpy(&dst->data[*offset], src, sizeof(UA_UInt32));
     *offset += 4;
     return UA_STATUSCODE_GOOD;
@@ -131,9 +125,7 @@ UInt32_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
         return UA_STATUSCODE_BADDECODINGERROR;
     memcpy(dst, &src->data[*offset], sizeof(UA_UInt32));
     *offset += 4;
-#ifdef UA_NON_LITTLEENDIAN_ARCHITECTURE
     *dst = le32toh(*dst);
-#endif
     return UA_STATUSCODE_GOOD;
 }
 
@@ -154,10 +146,8 @@ UInt64_encodeBinary(UA_UInt64 const *src, const UA_DataType *_,
                     UA_ByteString *dst, size_t *UA_RESTRICT offset) {
     if(*offset + sizeof(UA_UInt64) > dst->length)
         return UA_STATUSCODE_BADENCODINGERROR;
-#ifdef UA_NON_LITTLEENDIAN_ARCHITECTURE
     UA_UInt64 le_uint64 = htole64(*src);
     src = &le_uint64;
-#endif
     memcpy(&dst->data[*offset], src, sizeof(UA_UInt64));
     *offset += 8;
     return UA_STATUSCODE_GOOD;
@@ -181,9 +171,7 @@ UInt64_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
         return UA_STATUSCODE_BADDECODINGERROR;
     memcpy(dst, &src->data[*offset], sizeof(UA_UInt64));
     *offset += 8;
-#ifdef UA_NON_LITTLEENDIAN_ARCHITECTURE
     *dst = le64toh(*dst);
-#endif
     return UA_STATUSCODE_GOOD;
 }
 

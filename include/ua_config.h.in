@@ -3,6 +3,7 @@
 
 #ifndef _XOPEN_SOURCE
 # define _XOPEN_SOURCE 500
+# define _BSD_SOURCE
 #endif
 
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
