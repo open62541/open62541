@@ -1261,11 +1261,11 @@ UA_Server_setObjectTypeNode_instanceLifecycleManagement(UA_Server *server, UA_No
 }
 
 UA_StatusCode
-__UA_Server_readAttribute(UA_Server *server, const UA_NodeId nodeId,
+__UA_Server_readAttribute(UA_Server *server, const UA_NodeId *nodeId,
                           const UA_AttributeId attributeId, void *v) {
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
-    item.nodeId = nodeId;
+    item.nodeId = *nodeId;
     item.attributeId = attributeId;
     UA_DataValue dv;
     UA_DataValue_init(&dv);
@@ -1280,7 +1280,8 @@ __UA_Server_readAttribute(UA_Server *server, const UA_NodeId nodeId,
         UA_DataValue_deleteMembers(&dv);
         return retval;
     }
-    if(attributeId == UA_ATTRIBUTEID_VALUE)
+    if(attributeId == UA_ATTRIBUTEID_VALUE ||
+       attributeId == UA_ATTRIBUTEID_ARRAYDIMENSIONS)
         memcpy(v, &dv.value, sizeof(UA_Variant));
     else {
         memcpy(v, dv.value.data, dv.value.type->memSize);
