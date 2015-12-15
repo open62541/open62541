@@ -53,48 +53,36 @@ UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
 }
 
 /* DateTime */
-#define UNIX_EPOCH_BIAS_SEC 11644473600LL // Number of seconds from 1 Jan. 1601 00:00 to 1 Jan 1970 00:00 UTC
-#define HUNDRED_NANOSEC_PER_USEC 10LL
-#define HUNDRED_NANOSEC_PER_MSEC (HUNDRED_NANOSEC_PER_USEC * 1000LL)
-#define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_MSEC * 1000LL)
-
+UA_DateTime UA_DateTime_now(void) {
 #ifdef _WIN32
-# if defined(__MINGW32__) && !defined(_TIMEZONE_DEFINED)
-#  define _TIMEZONE_DEFINED
-struct timezone {
-  int tz_minuteswest;
-  int tz_dsttime;
-};
-# endif
-static const UA_UInt64 epoch = 116444736000000000;
-int gettimeofday(struct timeval *tp, struct timezone *tzp) {
+    /* Windows filetime has the same definition as UA_DateTime */
     FILETIME ft;
     SYSTEMTIME st;
-    ULARGE_INTEGER ul;
     GetSystemTime(&st);
     SystemTimeToFileTime(&st, &ft);
+    ULARGE_INTEGER ul;
     ul.LowPart = ft.dwLowDateTime;
     ul.HighPart = ft.dwHighDateTime;
-    tp->tv_sec = (long)((ul.QuadPart - epoch) / 10000000L);
-    tp->tv_usec = st.wMilliseconds * 1000;
-    return 0;
-}
-#endif
-
-UA_DateTime UA_DateTime_now(void) {
+    return (UA_DateTime)ul.QuadPart;
+#else
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    return ((tv.tv_sec + UNIX_EPOCH_BIAS_SEC) * HUNDRED_NANOSEC_PER_SEC) +
-           (tv.tv_usec * HUNDRED_NANOSEC_PER_USEC);
+    return (tv.tv_sec * UA_SEC_TO_DATETIME) + (tv.tv_usec * UA_USEC_TO_DATETIME) + UA_DATETIME_UNIX_EPOCH;
+#endif
 }
 
 UA_DateTime UA_DateTime_nowMonotonic(void) {
 #ifdef _WIN32
-    return GetTickCount64() * HUNDRED_NANOSEC_PER_MSEC;
+    LARGE_INTEGER freq, ticks;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&ticks);
+    UA_Double ticks2dt = UA_SEC_TO_DATETIME;
+    ticks2dt /= freq.QuadPart;
+    return (UA_DateTime)(ticks.QuadPart * ticks2dt);
 #else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
-    return (ts.tv_sec * HUNDRED_NANOSEC_PER_SEC) + (ts.tv_nsec / 100);
+    return (ts.tv_sec * UA_SEC_TO_DATETIME) + (ts.tv_nsec / 100);
 #endif
 }
 
@@ -106,7 +94,7 @@ UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime atime) {
     dateTimeStruct.milliSec = (UA_UInt16)((atime % 10000000) / 10000);
 
     /* Calculating the unix time with #include <time.h> */
-    time_t secSinceUnixEpoch = (atime/10000000) - UNIX_EPOCH_BIAS_SEC;
+    time_t secSinceUnixEpoch = (atime - UA_DATETIME_UNIX_EPOCH) / UA_SEC_TO_DATETIME;
     struct tm ts = *gmtime(&secSinceUnixEpoch);
     dateTimeStruct.sec    = (UA_UInt16)ts.tm_sec;
     dateTimeStruct.min    = (UA_UInt16)ts.tm_min;
