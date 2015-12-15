@@ -149,22 +149,6 @@ class BuiltinType(Type):
                 ".padding = 0, .isArray = UA_TRUE }}, " + \
                 ".typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
 
-        if self.name == "UA_ExpandedNodeId":
-            return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
-                ".memSize = sizeof(UA_ExpandedNodeId), " + \
-                ".builtin = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
-                ".membersSize = 3, .members = {" + \
-                "\n\t{.memberTypeIndex = UA_TYPES_NODEID, .namespaceZero = UA_TRUE, " + \
-                (".memberName = \"nodeId\", " if typeintrospection else "") + \
-                ".padding = 0, .isArray = UA_FALSE }," + \
-                "\n\t{.memberTypeIndex = UA_TYPES_STRING, .namespaceZero = UA_TRUE, " + \
-                (".memberName = \"namespaceUri\", " if typeintrospection else "") + \
-                ".padding = offsetof(UA_ExpandedNodeId, namespaceUri) - sizeof(UA_NodeId), .isArray = UA_FALSE }," + \
-                "\n\t{.memberTypeIndex = UA_TYPES_UINT32, .namespaceZero = UA_TRUE, " + \
-                (".memberName = \"serverIndex\", " if typeintrospection else "") + \
-                ".padding = offsetof(UA_ExpandedNodeId, serverIndex) - offsetof(UA_ExpandedNodeId, namespaceUri) - sizeof(UA_String), .isArray = UA_FALSE }},\n" + \
-                ".typeIndex = UA_TYPES_EXPANDEDNODEID }"
-
         if self.name == "UA_QualifiedName":
             return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
                 ".memSize = sizeof(UA_QualifiedName), " + \

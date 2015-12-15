@@ -873,6 +873,28 @@ START_TEST(UA_String_encodeShallWorkOnExample) {
 }
 END_TEST
 
+START_TEST(UA_ExpandedNodeId_encodeShallWorkOnExample) {
+    // given
+    UA_ExpandedNodeId src = UA_EXPANDEDNODEID_NUMERIC(0, 15);
+    src.namespaceUri = UA_STRING("testUri");
+
+    UA_Byte data[] = { 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+                       0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+                       0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+                       0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55 };
+    UA_ByteString dst = { 32, data };
+    UA_Int32  retval = 0;
+    size_t pos = 0;
+
+    // when
+    retval = UA_ExpandedNodeId_encodeBinary(&src, &dst, &pos);
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(pos, 13);
+    ck_assert_int_eq(dst.data[0], 0x80); // namespaceuri flag
+}
+END_TEST
+
 START_TEST(UA_DataValue_encodeShallWorkOnExampleWithoutVariant) {
     // given
     UA_DataValue src;
@@ -1470,6 +1492,7 @@ static Suite *testSuite_builtin(void) {
     tcase_add_test(tc_encode, UA_Float_encodeShallWorkOnExample);
     tcase_add_test(tc_encode, UA_Double_encodeShallWorkOnExample);
     tcase_add_test(tc_encode, UA_String_encodeShallWorkOnExample);
+    tcase_add_test(tc_encode, UA_ExpandedNodeId_encodeShallWorkOnExample);
     tcase_add_test(tc_encode, UA_DataValue_encodeShallWorkOnExampleWithoutVariant);
     tcase_add_test(tc_encode, UA_DataValue_encodeShallWorkOnExampleWithVariant);
     tcase_add_test(tc_encode, UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject);
