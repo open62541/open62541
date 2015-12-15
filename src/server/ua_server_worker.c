@@ -229,7 +229,7 @@ static UA_StatusCode addRepeatedJob(UA_Server *server, struct AddRepeatedJob * U
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* search for matching entry */
-    UA_DateTime firstTime = UA_DateTime_now() + arw->interval;
+    UA_DateTime firstTime = UA_DateTime_nowMonotonic() + arw->interval;
     tempTw = LIST_FIRST(&server->repeatedJobs);
     while(tempTw) {
         if(arw->interval == tempTw->interval) {
@@ -321,7 +321,7 @@ UA_StatusCode UA_Server_addRepeatedJob(UA_Server *server, UA_Job job, UA_UInt32 
 
 /* Returns the timeout until the next repeated job in ms */
 static UA_UInt16 processRepeatedJobs(UA_Server *server) {
-    UA_DateTime current = UA_DateTime_now();
+    UA_DateTime current = UA_DateTime_nowMonotonic();
     struct RepeatedJobs *tw = NULL;
 
     while((tw = LIST_FIRST(&server->repeatedJobs)) != NULL) {

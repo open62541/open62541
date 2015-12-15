@@ -55,39 +55,47 @@ UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
 /* DateTime */
 #define UNIX_EPOCH_BIAS_SEC 11644473600LL // Number of seconds from 1 Jan. 1601 00:00 to 1 Jan 1970 00:00 UTC
 #define HUNDRED_NANOSEC_PER_USEC 10LL
-#define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
+#define HUNDRED_NANOSEC_PER_MSEC (HUNDRED_NANOSEC_PER_USEC * 1000LL)
+#define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_MSEC * 1000LL)
 
-#if defined(__MINGW32__) && !defined(_TIMEZONE_DEFINED)
-# define _TIMEZONE_DEFINED
+#ifdef _WIN32
+# if defined(__MINGW32__) && !defined(_TIMEZONE_DEFINED)
+#  define _TIMEZONE_DEFINED
 struct timezone {
   int tz_minuteswest;
   int tz_dsttime;
 };
-#endif
-
-#ifdef _WIN32
+# endif
 static const UA_UInt64 epoch = 116444736000000000;
-int gettimeofday(struct timeval *tp, struct timezone *tzp);
 int gettimeofday(struct timeval *tp, struct timezone *tzp) {
-    FILETIME       ft;
-    SYSTEMTIME     st;
+    FILETIME ft;
+    SYSTEMTIME st;
     ULARGE_INTEGER ul;
     GetSystemTime(&st);
     SystemTimeToFileTime(&st, &ft);
-    ul.LowPart  = ft.dwLowDateTime;
+    ul.LowPart = ft.dwLowDateTime;
     ul.HighPart = ft.dwHighDateTime;
-    tp->tv_sec  = (long)((ul.QuadPart - epoch) / 10000000L);
+    tp->tv_sec = (long)((ul.QuadPart - epoch) / 10000000L);
     tp->tv_usec = st.wMilliseconds * 1000;
     return 0;
 }
 #endif
 
 UA_DateTime UA_DateTime_now(void) {
-    UA_DateTime dateTime;
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    dateTime = (tv.tv_sec + UNIX_EPOCH_BIAS_SEC) * HUNDRED_NANOSEC_PER_SEC + tv.tv_usec * HUNDRED_NANOSEC_PER_USEC;
-    return dateTime;
+    return ((tv.tv_sec + UNIX_EPOCH_BIAS_SEC) * HUNDRED_NANOSEC_PER_SEC) +
+           (tv.tv_usec * HUNDRED_NANOSEC_PER_USEC);
+}
+
+UA_DateTime UA_DateTime_nowMonotonic(void) {
+#ifdef _WIN32
+    return GetTickCount64() * HUNDRED_NANOSEC_PER_MSEC;
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    return (ts.tv_sec * HUNDRED_NANOSEC_PER_SEC) + (ts.tv_nsec / 100);
+#endif
 }
 
 UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime atime) {

@@ -119,7 +119,11 @@ UA_Boolean UA_EXPORT UA_String_equal(const UA_String *s1, const UA_String *s2);
    number of 100 nanosecond intervals since January 1, 1601 (UTC) */
 typedef UA_Int64 UA_DateTime;
 
-UA_DateTime UA_EXPORT UA_DateTime_now(void); ///> The current time
+/* The current time */
+UA_DateTime UA_EXPORT UA_DateTime_now(void);
+
+/* CPU clock invariant to system time changes. Use only for time diffs, not current time */
+UA_DateTime UA_EXPORT UA_DateTime_nowMonotonic(void);
 
 typedef struct UA_DateTimeStruct {
     UA_UInt16 nanoSec;
