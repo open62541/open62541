@@ -44,16 +44,23 @@
 
 /* Endianness */
 #if defined(__linux__) || defined(__APPLE__)
-#  ifndef __QNX__
-#    if defined(__APPLE__) || defined(__MACH__)
-#     include <machine/endian.h>
-#    else
-#     include <endian.h>
-#    endif
+# ifndef __QNX__
+#  if defined(__APPLE__) || defined(__MACH__)
+#   include <machine/endian.h>
+#  else
+#   include <endian.h>
 #  endif
+# endif
 # if ( __BYTE_ORDER != __LITTLE_ENDIAN )
 #  define UA_NON_LITTLEENDIAN_ARCHITECTURE
 # endif
+#elif _WIN32
+# define htole16(x) (x)
+# define htole32(x) (x)
+# define htole64(x) (x)
+# define le16toh(x) (x)
+# define le32toh(x) (x)
+# define le64toh(x) (x)
 #endif
 
 /* Force non-little endian manually by setting the following. */
