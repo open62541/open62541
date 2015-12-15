@@ -115,6 +115,9 @@ class open62541_MacroHelper():
     code.append("attr.displayName = UA_LOCALIZEDTEXT(\"\", \"" + str(node.displayName()) + "\");")
     code.append("attr.description = UA_LOCALIZEDTEXT(\"\", \"" + str(node.description()) + "\");")
     
+    if nodetype in ["Variable", "VariableType"]:
+      code = code + node.printOpen62541CCode_SubtypeEarly(bootstrapping = False)
+    
     code.append("UA_NodeId nodeId = " + str(self.getCreateNodeIDMacro(node)) + ";")
     if nodetype in ["Object", "Variable"]:
       code.append("UA_NodeId typeDefinition = UA_NODEID_NULL;") # todo instantiation of object and variable types
