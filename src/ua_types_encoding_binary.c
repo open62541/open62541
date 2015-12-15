@@ -900,11 +900,11 @@ DataValue_encodeBinary(UA_DataValue const *src, const UA_DataType *_,
     if(src->hasSourceTimestamp)
         retval |= DateTime_encodeBinary(&src->sourceTimestamp, NULL, dst, offset);
     if(src->hasSourcePicoseconds)
-        retval |= Int16_encodeBinary(&src->sourcePicoseconds, NULL, dst, offset);
+        retval |= UInt16_encodeBinary(&src->sourcePicoseconds, NULL, dst, offset);
     if(src->hasServerTimestamp)
         retval |= DateTime_encodeBinary(&src->serverTimestamp, NULL, dst, offset);
     if(src->hasServerPicoseconds)
-        retval |= Int16_encodeBinary(&src->serverPicoseconds, NULL, dst, offset);
+        retval |= UInt16_encodeBinary(&src->serverPicoseconds, NULL, dst, offset);
     return retval;
 }
 
@@ -922,14 +922,14 @@ DataValue_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
     if(dst->hasSourceTimestamp)
         retval |= DateTime_decodeBinary(src, offset, &dst->sourceTimestamp, NULL);
     if(dst->hasSourcePicoseconds) {
-        retval |= Int16_decodeBinary(src, offset, &dst->sourcePicoseconds, NULL);
+        retval |= UInt16_decodeBinary(src, offset, &dst->sourcePicoseconds, NULL);
         if(dst->sourcePicoseconds > MAX_PICO_SECONDS)
             dst->sourcePicoseconds = MAX_PICO_SECONDS;
     }
     if(dst->hasServerTimestamp)
         retval |= DateTime_decodeBinary(src, offset, &dst->serverTimestamp, NULL);
     if(dst->hasServerPicoseconds) {
-        retval |= Int16_decodeBinary(src, offset, &dst->serverPicoseconds, NULL);
+        retval |= UInt16_decodeBinary(src, offset, &dst->serverPicoseconds, NULL);
         if(dst->serverPicoseconds > MAX_PICO_SECONDS)
             dst->serverPicoseconds = MAX_PICO_SECONDS;
     }

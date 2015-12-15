@@ -483,9 +483,9 @@ typedef struct {
     UA_Variant    value;
     UA_StatusCode status;
     UA_DateTime   sourceTimestamp;
-    UA_Int16      sourcePicoseconds;
+    UA_UInt16     sourcePicoseconds;
     UA_DateTime   serverTimestamp;
-    UA_Int16      serverPicoseconds;
+    UA_UInt16     serverPicoseconds;
 } UA_DataValue;
 
 /***************************************************************************/
