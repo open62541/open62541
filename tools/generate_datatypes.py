@@ -298,7 +298,7 @@ class StructType(Type):
             layout += "\n\t.members={"
             for index, member in enumerate(self.members.values()):
                 layout += "\n\t{" + \
-                          ((".memberName = \"" + member.name[0].upper() + member.name[1:] + "\", ") if typeintrospection else "") + \
+                          ((".memberName = \"" + member.name + "\", ") if typeintrospection else "") + \
                           ".memberTypeIndex = " + ("UA_TYPES_" + member.memberType.name[3:].upper() if args.namespace_id == 0 or member.memberType.name in existing_types else \
                                                    outname.upper() + "_" + member.memberType.name[3:].upper()) + ", " + \
                           ".namespaceZero = "+ \
