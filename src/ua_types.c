@@ -537,6 +537,19 @@ UA_Variant_setArrayCopy(UA_Variant *v, const void *array,
     return UA_STATUSCODE_GOOD;
 }
 
+/* LocalizedText */
+static void LocalizedText_deleteMembers(UA_LocalizedText *p, const UA_DataType *_) {
+    UA_String_deleteMembers(&p->locale);
+    UA_String_deleteMembers(&p->text);
+}
+
+static UA_StatusCode
+LocalizedText_copy(UA_LocalizedText const *src, UA_LocalizedText *dst, const UA_DataType *_) {
+    UA_StatusCode retval = UA_String_copy(&src->locale, &dst->locale);
+    retval |= UA_String_copy(&src->text, &dst->text);
+    return retval;
+}
+
 /* DataValue */
 static void DataValue_deleteMembers(UA_DataValue *p, const UA_DataType *_) {
     Variant_deletemembers(&p->value, NULL);
@@ -623,7 +636,7 @@ static const UA_copySignature copyJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
     (UA_copySignature)UA_copyNoInit, // ExpandedNodeId
     (UA_copySignature)UA_copyFixedSize, // StatusCode
     (UA_copySignature)UA_copyNoInit, // QualifiedName
-    (UA_copySignature)UA_copyNoInit, // LocalizedText
+    (UA_copySignature)LocalizedText_copy, // LocalizedText
     (UA_copySignature)ExtensionObject_copy,
     (UA_copySignature)DataValue_copy,
     (UA_copySignature)Variant_copy,
@@ -696,7 +709,7 @@ static const UA_deleteMembersSignature deleteMembersJumpTable[UA_BUILTIN_TYPES_C
     (UA_deleteMembersSignature)UA_deleteMembers, // ExpandedNodeId
     (UA_deleteMembersSignature)nopDeleteMembers, // StatusCode
     (UA_deleteMembersSignature)UA_deleteMembers, // QualifiedName
-    (UA_deleteMembersSignature)UA_deleteMembers, // LocalizedText
+    (UA_deleteMembersSignature)LocalizedText_deleteMembers, // LocalizedText
     (UA_deleteMembersSignature)ExtensionObject_deleteMembers,
     (UA_deleteMembersSignature)DataValue_deleteMembers,
     (UA_deleteMembersSignature)Variant_deletemembers,

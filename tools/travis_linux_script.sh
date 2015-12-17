@@ -65,9 +65,10 @@ cmake -DENABLE_MULTITHREADING=ON -DBUILD_EXAMPLESERVER=ON ..
 make
 cd .. && rm build -rf 
 
+#this run inclides full examples and methodcalls
 echo "Debug build and unit tests (64 bit)"
 mkdir -p build && cd build
-cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_DEMO_NODESET=ON -DBUILD_UNIT_TESTS=ON -DBUILD_EXAMPLESERVER=ON -DENABLE_COVERAGE=ON ..
+cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_EXAMPLES=ON -DENABLE_METHODCALLS=ON -DBUILD_DEMO_NODESET=ON -DBUILD_UNIT_TESTS=ON -DBUILD_EXAMPLESERVER=ON -DENABLE_COVERAGE=ON ..
 make && make test ARGS="-V"
 echo "Run valgrind to see if the server leaks memory (just starting up and closing..)"
 (valgrind --error-exitcode=3 ./server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
