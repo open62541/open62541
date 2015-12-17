@@ -128,7 +128,9 @@ class open62541_MacroHelper():
       code.append("UA_QualifiedName nodeName = UA_QUALIFIEDNAME(" +  str(extrNs[0]) + ", \"" + extrNs[1] + "\");")
     else:
       code.append("UA_QualifiedName nodeName = UA_QUALIFIEDNAME(0, \"" + str(node.browseName()) + "\");")
-
+    
+    # In case of a MethodNode: Add in|outArg struct generation here. Mandates that namespace reordering was done using 
+    # Djikstra (check that arguments have not been printed). (@ichrispa)
     code.append("UA_Server_add%sNode(server, nodeId, parentNodeId, parentReferenceNodeId, nodeName" % nodetype)
       
     if nodetype in ["Object", "Variable"]:
@@ -137,7 +139,9 @@ class open62541_MacroHelper():
     if nodetype != "Method":
       code.append("       , attr, NULL);")
     else:
-      code.append("       , attr, (UA_MethodCallback) NULL, NULL, 0, NULL, 0, NULL, NULL);")
+      # FIXME:  Semantic of inputArgumentSize = -1 is used to signal the suppression of argument creation.
+      #         This should be replaced with a properly generated struct for the arguments.
+      code.append("       , attr, (UA_MethodCallback) NULL, NULL, -1, NULL, -1, NULL, NULL);")
     return code
     
   def getCreateNodeBootstrap(self, node):
