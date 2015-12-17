@@ -695,36 +695,49 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     parent.nodeId = result.addedNodeId;
     
     /* create InputArguments */
-    UA_VariableNode *inputArgumentsVariableNode = UA_VariableNode_new();
-    inputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
-    inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME_ALLOC(0,"InputArguments");
-    inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
-    inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
-    inputArgumentsVariableNode->valueRank = 1;
-    UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant.value, inputArguments,
-                            inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
-    UA_AddNodesResult inputAddRes;
+    /* FIXME:   The namespace compiler does currently not recognize the interdependancy between methods
+     *          and arguments - everything is treated as a standalone node.
+     *          In order to allow the compiler to create methods with arguments from an XML, this routine
+     *          must be coerced into *not* creating arguments, as these will be added by the compiler as
+     *          standalone nodes later. A semantic of inputArgumentsSize < 0 is used to signal this.
+     * 
+     *          This is not a production feature and should be fixed on the compiler side! (@ichrispa)
+     */
     const UA_NodeId hasproperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    UA_Server_addExistingNode(server, &adminSession, (UA_Node*)inputArgumentsVariableNode,
-                              &parent.nodeId, &hasproperty, &inputAddRes);
-    // todo: check if adding succeeded
-    UA_AddNodesResult_deleteMembers(&inputAddRes);
-
+    if (inputArgumentsSize >= 0) {
+      UA_VariableNode *inputArgumentsVariableNode = UA_VariableNode_new();
+      inputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
+      inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME_ALLOC(0,"InputArguments");
+      inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
+      inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
+      inputArgumentsVariableNode->valueRank = 1;
+      UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant.value, inputArguments,
+                              inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
+      UA_AddNodesResult inputAddRes;
+      UA_Server_addExistingNode(server, &adminSession, (UA_Node*)inputArgumentsVariableNode,
+                                &parent.nodeId, &hasproperty, &inputAddRes);
+      // todo: check if adding succeeded
+      UA_AddNodesResult_deleteMembers(&inputAddRes);
+    }
+    
     /* create OutputArguments */
-    UA_VariableNode *outputArgumentsVariableNode  = UA_VariableNode_new();
-    outputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
-    outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME_ALLOC(0,"OutputArguments");
-    outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
-    outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
-    outputArgumentsVariableNode->valueRank = 1;
-    UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.variant.value, outputArguments,
-                            outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
-    UA_AddNodesResult outputAddRes;
-    UA_Server_addExistingNode(server, &adminSession, (UA_Node*)outputArgumentsVariableNode,
-                              &parent.nodeId, &hasproperty, &outputAddRes);
-    // todo: check if adding succeeded
-    UA_AddNodesResult_deleteMembers(&outputAddRes);
-
+    /* FIXME:   See comment in inputArguments */
+    if (outputArgumentsSize >= 0) {
+      UA_VariableNode *outputArgumentsVariableNode  = UA_VariableNode_new();
+      outputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
+      outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME_ALLOC(0,"OutputArguments");
+      outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
+      outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
+      outputArgumentsVariableNode->valueRank = 1;
+      UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.variant.value, outputArguments,
+                              outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
+      UA_AddNodesResult outputAddRes;
+      UA_Server_addExistingNode(server, &adminSession, (UA_Node*)outputArgumentsVariableNode,
+                                &parent.nodeId, &hasproperty, &outputAddRes);
+      // todo: check if adding succeeded
+      UA_AddNodesResult_deleteMembers(&outputAddRes);
+    }
+    
     if(outNewNodeId)
         *outNewNodeId = result.addedNodeId;
     else
