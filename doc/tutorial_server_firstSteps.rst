@@ -292,7 +292,7 @@ If you build your stack with the above two options, you will enable the example 
 Unfortunately, these examples include just about everything the stack can do... which makes them rather bad examples for newcomers seeking an easy introduction. They are also dynamically configured by the CMake options, so they might be a bit more difficult to read. Non the less you can find any of the concepts demonstrated here in these examples as well and you can build them like so (and this is what you will see when you run them)::
 
    :open62541/build> make clean
-   :open62541/build> cmake -BUILD_EXAMPLECLIENT=On -BUILD_EXAMPLESERVER=On ../
+   :open62541/build> cmake -DBUILD_EXAMPLECLIENT=On -DBUILD_EXAMPLESERVER=On ../
    :open62541/build> make
    :open62541/build> ./server &
    [07/28/2015 21:42:07.977.352] info/communication        Listening on opc.tcp://Cassandra:16664
