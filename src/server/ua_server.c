@@ -574,12 +574,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     ct.tm_min = ((__TIME__[3] - '0') * 10 + __TIME__[4] - '0');
     ct.tm_sec = ((__TIME__[6] - '0') * 10 + __TIME__[7] - '0');
     ct.tm_isdst = -1; // information is not available.
-
-    //FIXME: next 3 lines are copy-pasted from ua_types.c
-#define UNIX_EPOCH_BIAS_SEC 11644473600LL // Number of seconds from 1 Jan. 1601 00:00 to 1 Jan 1970 00:00 UTC
-#define HUNDRED_NANOSEC_PER_USEC 10LL
-#define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
-    server->buildDate = (mktime(&ct) + UNIX_EPOCH_BIAS_SEC) * HUNDRED_NANOSEC_PER_SEC;
+    server->buildDate = (mktime(&ct) * UA_SEC_TO_DATETIME) + UA_DATETIME_UNIX_EPOCH;
     
     /**************/
     /* References */

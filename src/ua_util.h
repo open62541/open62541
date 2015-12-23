@@ -64,11 +64,15 @@
 /* System Libraries */
 /********************/
 
-#include <time.h>
 #ifdef _WIN32
 # include <winsock2.h> //needed for amalgation
 # include <windows.h>
 # undef SLIST_ENTRY
+#endif
+
+#include <time.h>
+#ifdef _WIN32
+int gettimeofday(struct timeval *tp, struct timezone *tzp);
 #else
 # include <sys/time.h>
 #endif
