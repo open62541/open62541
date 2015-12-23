@@ -469,6 +469,9 @@ Service_Write_single_ValueDataSource(UA_Server *server, UA_Session *session, con
     UA_assert(node->nodeClass == UA_NODECLASS_VARIABLE || node->nodeClass == UA_NODECLASS_VARIABLETYPE);
     UA_assert(node->valueSource == UA_VALUESOURCE_DATASOURCE);
 
+    if(node->value.dataSource.write == NULL)
+        return UA_STATUSCODE_BADNOTWRITABLE;
+
     UA_StatusCode retval;
     if(wvalue->indexRange.length <= 0) {
         retval = node->value.dataSource.write(node->value.dataSource.handle, node->nodeId,
