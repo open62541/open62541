@@ -218,7 +218,7 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
  */
 
 /* Mock-Up of the function signature for Unit Tests */
-#ifdef BUILD_UNIT_TESTS
+#ifdef UA_BUILD_UNIT_TESTS
 UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range);
 #endif
 
@@ -264,7 +264,7 @@ Service_Write_single(UA_Server *server, UA_Session *session, const UA_WriteValue
  *
  * @{
  */
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
 void
 Service_Call(UA_Server *server, UA_Session *session,
              const UA_CallRequest *request,
@@ -276,7 +276,7 @@ Service_Call_single(UA_Server *server, UA_Session *session,
 #endif
 /** @} */
 
-#ifdef ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 /**
  * @name MonitoredItem Service Set
  *

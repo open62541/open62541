@@ -8,7 +8,7 @@
 #include "ua_securechannel_manager.h"
 #include "ua_nodestore.h"
 
-#ifdef ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription_manager.h"
 #endif
 
@@ -16,7 +16,7 @@
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
 
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 /** Mapping of namespace-id and url to an external nodestore. For namespaces
     that have no mapping defined, the internal nodestore is used by default. */
 typedef struct UA_ExternalNamespace {
@@ -52,7 +52,7 @@ struct UA_Server {
     size_t namespacesSize;
     UA_String *namespaces;
 
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     size_t externalNamespacesSize;
     UA_ExternalNamespace *externalNamespaces;
 #endif
@@ -60,7 +60,7 @@ struct UA_Server {
     /* Jobs with a repetition interval */
     LIST_HEAD(RepeatedJobsList, RepeatedJobs) repeatedJobs;
     
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     /* Dispatch queue head for the worker threads (the tail should not be in the same cache line) */
 	struct cds_wfcq_head dispatchQueue_head;
 

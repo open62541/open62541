@@ -61,7 +61,7 @@ int main(int argc, char** argv)
     UA_VariableAttributes attr;
     UA_VariableAttributes_init(&attr);
     UA_Variant_setScalarCopy(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    attr.displayName = UA_LOCALIZEDTEXT("en_US","the answer");
+    attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en_US","the answer");
 
     /* 2) define where the variable shall be added with which browsename */
     UA_NodeId newNodeId = UA_NODEID_STRING(1, "the.answer");
@@ -74,6 +74,7 @@ int main(int argc, char** argv)
     UA_Server_addVariableNode(server, newNodeId, parentNodeId,
                               parentReferenceNodeId, browseName,
                               variableType, attr, NULL);
+    UA_VariableAttributes_deleteMembers(&attr);
 
     /* run the server loop */
     UA_StatusCode retval = UA_Server_run(server, WORKER_THREADS, &running);

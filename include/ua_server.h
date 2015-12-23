@@ -330,7 +330,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
                                     const UA_VariableAttributes attr, const UA_DataSource dataSource,
                                     UA_NodeId *outNewNodeId);
 
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
 typedef UA_StatusCode (*UA_MethodCallback)(void *methodHandle, const UA_NodeId objectId,
                                            size_t inputSize, const UA_Variant *input,
                                            size_t outputSize, UA_Variant *output);
@@ -520,7 +520,7 @@ UA_BrowseResult UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContin
 /* Call Method */
 /***************/
 
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
 UA_CallMethodResult UA_EXPORT UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
 #endif
 

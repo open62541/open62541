@@ -255,7 +255,7 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId meth
 /* Subscriptions Handling */
 /**************************/
 
-#ifdef ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 
 typedef struct {
     UA_Double requestedPublishingInterval;

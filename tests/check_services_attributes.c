@@ -12,7 +12,7 @@
 #include "ua_util.h"
 #include "server/ua_server_internal.h"
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 #include <pthread.h>
 #include <urcu.h>
 #endif
@@ -74,7 +74,7 @@ static UA_Server* makeTestSequence(void) {
                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                           UA_QUALIFIEDNAME(0, "Viewtest"), view_attr, NULL);
 
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
 	/* MethodNode */
     UA_MethodAttributes ma;
     UA_MethodAttributes_init(&ma);
@@ -538,7 +538,7 @@ START_TEST(ReadSingleAttributeHistorizingWithoutTimestamp) {
 } END_TEST
 
 START_TEST(ReadSingleAttributeExecutableWithoutTimestamp) {
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
     UA_Server *server = makeTestSequence();
     UA_DataValue resp;
     UA_DataValue_init(&resp);
@@ -559,7 +559,7 @@ START_TEST(ReadSingleAttributeExecutableWithoutTimestamp) {
 } END_TEST
 
 START_TEST(ReadSingleAttributeUserExecutableWithoutTimestamp) {
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
     UA_Server *server = makeTestSequence();
     UA_DataValue resp;
     UA_DataValue_init(&resp);

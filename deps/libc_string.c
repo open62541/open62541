@@ -3,9 +3,9 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
 
-#include <stddef.h>
+#include "ua_config.h"
 
-void *memcpy(void * UA_RESTRICT dest, const void *UA_RESTRICT src, size_t n) {
+void *memcpy(void *UA_RESTRICT dest, const void *UA_RESTRICT src, size_t n) {
 	unsigned char *d = dest;
 	const unsigned char *s = src;
 	while(n--)

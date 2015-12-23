@@ -33,7 +33,7 @@ fillReferenceDescription(UA_NodeStore *ns, const UA_Node *curr, UA_ReferenceNode
     return retval;
 }
 
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 static const UA_Node *
 returnRelevantNodeExternal(UA_ExternalNodeStore *ens, const UA_BrowseDescription *descr,
                            const UA_ReferenceNode *reference) {
@@ -109,7 +109,7 @@ returnRelevantNode(UA_Server *server, const UA_BrowseDescription *descr, UA_Bool
             return NULL;
     }
 
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     /* return the node from an external namespace*/
 	for(size_t nsIndex = 0; nsIndex < server->externalNamespacesSize; nsIndex++) {
 		if(reference->targetId.nodeId.namespaceIndex != server->externalNamespaces[nsIndex].index)
@@ -302,7 +302,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
                                                descr->resultMask, &result->references[referencesCount]);
             referencesCount++;
         }
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         /* relevant_node returns a node malloced with UA_ObjectNode_new
            if it is external (there is no UA_Node_new function) */
         if(isExternal == UA_TRUE)
@@ -384,7 +384,7 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
     }
     response->resultsSize = size;
     
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 #ifdef NO_ALLOCA
     UA_Boolean isExternal[size];
     UA_UInt32 indices[size];
@@ -411,7 +411,7 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
 #endif
 
     for(size_t i = 0; i < size; i++) {
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         if(!isExternal[i])
 #endif
             Service_Browse_single(server, session, NULL, &request->nodesToBrowse[i],
@@ -584,7 +584,7 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
         return;
     }
 
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 #ifdef NO_ALLOCA
     UA_Boolean isExternal[size];
     UA_UInt32 indices[size];
@@ -612,7 +612,7 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
 
     response->resultsSize = size;
     for(size_t i = 0; i < size; i++) {
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     	if(!isExternal[i])
 #endif
     		Service_TranslateBrowsePathsToNodeIds_single(server, session, &request->browsePaths[i],

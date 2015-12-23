@@ -33,7 +33,7 @@ void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_Dat
         if(timeout < now || !entry->channel.connection) {
             LIST_REMOVE(entry, pointers);
             UA_SecureChannel_deleteMembersCleanup(&entry->channel);
-#ifndef UA_MULTITHREADING
+#ifndef UA_ENABLE_MULTITHREADING
             cm->currentChannelCount--;
 #else
             cm->currentChannelCount = uatomic_add_return(
@@ -57,7 +57,7 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
     channel_list_entry *entry = UA_malloc(sizeof(channel_list_entry));
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-#ifndef UA_MULTITHREADING
+#ifndef UA_ENABLE_MULTITHREADING
     cm->currentChannelCount++;
 #else
     cm->currentChannelCount = uatomic_add_return(&cm->currentChannelCount, 1);
@@ -141,7 +141,7 @@ UA_StatusCode UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt
             LIST_REMOVE(entry, pointers);
             UA_SecureChannel_deleteMembersCleanup(&entry->channel);
             UA_free(entry);
-#ifndef UA_MULTITHREADING
+#ifndef UA_ENABLE_MULTITHREADING
             cm->currentChannelCount--;
 #else
             cm->currentChannelCount = uatomic_add_return(&cm->currentChannelCount, -1);

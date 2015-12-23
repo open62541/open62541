@@ -6,7 +6,7 @@
 #include "ua_services.h"
 #include "ua_nodeids.h"
 
-#ifdef ENABLE_GENERATE_NAMESPACE0
+#ifdef UA_ENABLE_GENERATE_NAMESPACE0
 #include "ua_namespaceinit_generated.h"
 #endif
 
@@ -19,7 +19,7 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     .Application_applicationURI = "urn:unconfigured:open62541:open62541Server",
     .Application_applicationName = "open62541" };
 
-#if defined(UA_MULTITHREADING) && !defined(NDEBUG)
+#if defined(UA_ENABLE_MULTITHREADING) && !defined(NDEBUG)
 UA_THREAD_LOCAL bool rcu_locked = UA_FALSE;
 #endif
 
@@ -44,7 +44,7 @@ static const UA_ExpandedNodeId expandedNodeIdBaseDataVariabletype = {
                .identifier.numeric = UA_NS0ID_BASEDATAVARIABLETYPE},
     .namespaceUri = {.length = -1, .data = NULL}, .serverIndex = 0};
 
-#ifndef ENABLE_GENERATE_NAMESPACE0
+#ifndef UA_ENABLE_GENERATE_NAMESPACE0
 static const UA_NodeId nodeIdNonHierarchicalReferences = {
         .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
         .identifier.numeric = UA_NS0ID_NONHIERARCHICALREFERENCES};
@@ -54,7 +54,7 @@ static const UA_NodeId nodeIdNonHierarchicalReferences = {
 /* Namespace Handling */
 /**********************/
 
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 static void UA_ExternalNamespace_init(UA_ExternalNamespace *ens) {
     ens->index = 0;
     UA_String_init(&ens->url);
@@ -96,7 +96,7 @@ UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex,
     server->externalNamespacesSize++;
     return UA_STATUSCODE_GOOD;
 }
-#endif /* UA_EXTERNAL_NAMESPACES*/
+#endif /* UA_ENABLE_EXTERNAL_NAMESPACES*/
 
 UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     server->namespaces = UA_realloc(server->namespaces,
@@ -106,8 +106,8 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     return (UA_UInt16)server->namespacesSize - 1;
 }
 
-UA_StatusCode UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId,
-                                   UA_Boolean deleteReferences) {
+UA_StatusCode
+UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId, UA_Boolean deleteReferences) {
     UA_RCU_LOCK();
     UA_StatusCode retval = Service_DeleteNodes_single(server, &adminSession, &nodeId, deleteReferences);
     UA_RCU_UNLOCK();
@@ -273,7 +273,7 @@ void UA_Server_delete(UA_Server *server) {
     UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
     UA_SessionManager_deleteMembers(&server->sessionManager, server);
     UA_NodeStore_delete(server->nodestore);
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     UA_Server_deleteExternalNamespaces(server);
 #endif
     UA_ByteString_deleteMembers(&server->serverCertificate);
@@ -290,7 +290,7 @@ void UA_Server_delete(UA_Server *server) {
     UA_free(server->networkLayers);
 
     UA_RCU_UNLOCK();
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     /* so the workers don't spin if the queue is empty */
     pthread_cond_destroy(&server->dispatchQueue_condition);
     rcu_barrier(); // wait for all scheduled call_rcu work to complete
@@ -453,7 +453,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     server->config = config;
 
     LIST_INIT(&server->repeatedJobs);
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     rcu_init();
    	rcu_register_thread();
     cds_wfcq_init(&server->dispatchQueue_head, &server->dispatchQueue_tail);
@@ -584,7 +584,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     /**************/
     /* References */
     /**************/
-#ifndef ENABLE_GENERATE_NAMESPACE0
+#ifndef UA_ENABLE_GENERATE_NAMESPACE0
     /* Bootstrap by manually inserting "references" and "hassubtype" */
     UA_ReferenceTypeNode *references = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)references, "References");
@@ -916,7 +916,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
                                 UA_NS0ID_BASEVARIABLETYPE, UA_FALSE);
 #endif
 
-#ifdef ENABLE_GENERATE_NAMESPACE0
+#ifdef UA_ENABLE_GENERATE_NAMESPACE0
     //load the generated namespace
     ua_namespaceinit_generated(server);
 #endif
@@ -1000,13 +1000,13 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     UA_UInt16 profileArraySize = 0;
     ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/NanoEmbeddedDevice");
 
-#ifdef ENABLE_SERVICESET_NODEMANAGEMENT
+#ifdef UA_ENABLE_SERVICESET_NODEMANAGEMENT
     ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/NodeManagement");
 #endif
-#ifdef ENABLE_SERVICESET_METHOD
+#ifdef UA_ENABLE_SERVICESET_METHOD
     ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/Methods");
 #endif
-#ifdef ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/EmbeddedDataChangeSubscription");
 #endif
 
@@ -1210,8 +1210,8 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
     return retval;
 }
 
-static UA_StatusCode setValueCallback(UA_Server *server, UA_Session *session, UA_VariableNode *node,
-                                      UA_ValueCallback *callback) {
+static UA_StatusCode
+setValueCallback(UA_Server *server, UA_Session *session, UA_VariableNode *node, UA_ValueCallback *callback) {
     if(node->nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
     node->value.variant.callback = *callback;
@@ -1261,8 +1261,7 @@ UA_Server_setObjectTypeNode_instanceLifecycleManagement(UA_Server *server, UA_No
 }
 
 UA_StatusCode
-__UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
-                 const UA_AttributeId attributeId, void *v) {
+__UA_Server_read(UA_Server *server, const UA_NodeId *nodeId, const UA_AttributeId attributeId, void *v) {
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
     item.nodeId = *nodeId;
@@ -1310,7 +1309,7 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
     return result;
 }
 
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
 UA_CallMethodResult UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);

@@ -27,7 +27,7 @@
 # include <unistd.h> //access
 #endif
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 # ifdef UA_NO_AMALGAMATION
 #  ifndef __USE_XOPEN2K
 #   define __USE_XOPEN2K
@@ -99,7 +99,7 @@ readTemperature(void *handle, const UA_NodeId nodeId, UA_Boolean sourceTimeStamp
 /*************************/
 /* Read-write status led */
 /*************************/
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 pthread_rwlock_t writeLock;
 #endif
 FILE* triggerFile = NULL;
@@ -132,7 +132,7 @@ writeLedStatus(void *handle, const UA_NodeId nodeid,
     if(range)
         return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 	pthread_rwlock_wrlock(&writeLock);
 #endif
 	if(data->data)
@@ -148,13 +148,13 @@ writeLedStatus(void *handle, const UA_NodeId nodeid,
 			fprintf(ledFile, "%s", "0");
 		fflush(ledFile);
 	}
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 	pthread_rwlock_unlock(&writeLock);
 #endif
 	return UA_STATUSCODE_GOOD;
 }
 
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
 static UA_StatusCode
 getMonitoredItems(void *methodHandle, const UA_NodeId objectId,
                   size_t inputSize, const UA_Variant *input,
@@ -202,7 +202,7 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
 
 int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     pthread_rwlock_init(&writeLock, 0);
 #endif
 
@@ -374,7 +374,7 @@ int main(int argc, char** argv) {
         UA_Variant_deleteMembers(&attr.value);
     }
 
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
     UA_Argument inputArguments;
     UA_Argument_init(&inputArguments);
     inputArguments.arrayDimensionsSize = 0;
@@ -435,7 +435,7 @@ int main(int argc, char** argv) {
     if(ledFile)
         fclose(ledFile);
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     pthread_rwlock_destroy(&writeLock);
 #endif
 

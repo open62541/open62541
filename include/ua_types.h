@@ -157,7 +157,8 @@ UA_Guid UA_EXPORT UA_Guid_random(void);
 /************************************/
 typedef UA_String UA_ByteString;
 
-static UA_INLINE UA_Boolean UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2) {
+static UA_INLINE UA_Boolean
+UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2) {
     return UA_String_equal((const UA_String*)string1, (const UA_String*)string2); }
 
 /* Allocates memory of size length for the bytestring. The content is not set to zero. */
@@ -346,8 +347,8 @@ typedef struct {
 } UA_Variant;
 
 /**
- * Returns true if the variant contains a scalar value. Note that empty variants contain an array of
- * length -1 (undefined).
+ * Returns true if the variant contains a scalar value. Note that empty variants
+ * contain an array of length -1 (undefined).
  *
  * @param v The variant
  * @return Does the variant contain a scalar value.
@@ -356,14 +357,15 @@ static UA_INLINE UA_Boolean UA_Variant_isScalar(const UA_Variant *v) {
     return (v->arrayLength == 0 && v->data > UA_EMPTY_ARRAY_SENTINEL); }
     
 /**
- * Set the variant to a scalar value that already resides in memory. The value takes on the
- * lifecycle of the variant and is deleted with it.
+ * Set the variant to a scalar value that already resides in memory. The value
+ * takes on the lifecycle of the variant and is deleted with it.
  *
  * @param v The variant
  * @param p A pointer to the value data
  * @param type The datatype of the value in question
  */
-void UA_EXPORT UA_Variant_setScalar(UA_Variant *v, void * UA_RESTRICT p, const UA_DataType *type);
+void UA_EXPORT
+UA_Variant_setScalar(UA_Variant *v, void * UA_RESTRICT p, const UA_DataType *type);
 
 /**
  * Set the variant to a scalar value that is copied from an existing variable.
@@ -373,11 +375,12 @@ void UA_EXPORT UA_Variant_setScalar(UA_Variant *v, void * UA_RESTRICT p, const U
  * @param type The datatype of the value
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_DataType *type);
+UA_StatusCode UA_EXPORT
+UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_DataType *type);
 
 /**
- * Set the variant to an array that already resides in memory. The array takes on the lifecycle of
- * the variant and is deleted with it.
+ * Set the variant to an array that already resides in memory. The array takes
+ * on the lifecycle of the variant and is deleted with it.
  *
  * @param v The variant
  * @param array A pointer to the array data
@@ -385,7 +388,8 @@ UA_StatusCode UA_EXPORT UA_Variant_setScalarCopy(UA_Variant *v, const void *p, c
  * @param type The datatype of the array
  */
 void UA_EXPORT
-UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize, const UA_DataType *type);
+UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array,
+                    size_t arraySize, const UA_DataType *type);
 
 /**
  * Set the variant to an array that is copied from an existing array.
@@ -397,7 +401,8 @@ UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize, c
  * @return Indicates whether the operation succeeded or returns an error code
  */
 UA_StatusCode UA_EXPORT
-UA_Variant_setArrayCopy(UA_Variant *v, const void *array, size_t arraySize, const UA_DataType *type);
+UA_Variant_setArrayCopy(UA_Variant *v, const void *array,
+                        size_t arraySize, const UA_DataType *type);
 
 /* NumericRanges are used to indicate subsets of a (multidimensional) variant
  * array. NumericRange has no official type structure in the standard. On the
@@ -436,7 +441,8 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRan
  * @return Returns UA_STATUSCODE_GOOD or an error code
  */
 UA_StatusCode UA_EXPORT
-UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize, const UA_NumericRange range);
+UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT array,
+                    size_t arraySize, const UA_NumericRange range);
 
 /**
  * Deep-copy a range of data into an existing variant.
@@ -448,7 +454,8 @@ UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize, c
  * @return Returns UA_STATUSCODE_GOOD or an error code
  */
 UA_StatusCode UA_EXPORT
-UA_Variant_setRangeCopy(UA_Variant *v, const void *array, size_t arraySize, const UA_NumericRange range);
+UA_Variant_setRangeCopy(UA_Variant *v, const void *array,
+                        size_t arraySize, const UA_NumericRange range);
 
 /**************************************************************************/
 /* DataValue: A data value with an associated status code and timestamps. */
@@ -496,21 +503,23 @@ typedef struct UA_DiagnosticInfo {
 #define UA_MAX_TYPE_MEMBERS 13 // Maximum number of members per structured type
 
 typedef struct {
-#ifdef ENABLE_TYPEINTROSPECTION
+#ifdef UA_ENABLE_TYPENAMES
     const char *memberName;
 #endif
     UA_UInt16   memberTypeIndex;   ///< Index of the member in the datatypetable
-    UA_Byte     padding;           /**< How much padding is there before this member element? For arrays this is
-                                        split into 2 bytes padding before the length index (max 4 bytes) and 3
-                                        bytes padding before the pointer (max 8 bytes) */
-    UA_Boolean  namespaceZero : 1; /**< The type of the member is defined in namespace zero. In this
-                                        implementation, types from custom namespace may contain
-                                        members from the same namespace or ns0 only.*/
+    UA_Byte     padding;           /**< How much padding is there before this member
+                                        element? For arrays this is the padding before the
+                                        size_t lenght member. (No padding between size_t
+                                        and the following ptr.) */
+    UA_Boolean  namespaceZero : 1; /**< The type of the member is defined in namespace
+                                        zero. In this implementation, types from custom
+                                        namespace may contain members from the same
+                                        namespace or ns0 only.*/
     UA_Boolean  isArray       : 1; ///< The member is an array of the given type
 } UA_DataTypeMember;
     
 struct UA_DataType {
-#ifdef ENABLE_TYPEINTROSPECTION
+#ifdef UA_ENABLE_TYPENAMES
     const char *typeName;
 #endif
     UA_NodeId   typeId;           ///< The nodeid of the type
@@ -651,8 +660,8 @@ typedef enum {
 /***************************/
 
 /**
- * If UA_MULTITHREADING is enabled, then the seed is stored in thread local storage. The seed is
- * initialized for every thread in the server/client.
+ * If UA_ENABLE_MULTITHREADING is defined, then the seed is stored in thread local
+ * storage. The seed is initialized for every thread in the server/client.
  */
 UA_EXPORT void UA_random_seed(UA_UInt64 seed);
 

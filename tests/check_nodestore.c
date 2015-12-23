@@ -7,7 +7,7 @@
 #include "ua_util.h"
 #include "check.h"
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 #include <pthread.h>
 #include <urcu.h>
 #endif
@@ -61,7 +61,7 @@ START_TEST(replaceNonExistingNode) {
 END_TEST
 
 START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
    	rcu_register_thread();
 #endif
 	// given
@@ -74,14 +74,14 @@ START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
 	ck_assert_int_eq((uintptr_t)inserted, (uintptr_t)nr);
 	// finally
 	UA_NodeStore_delete(ns);
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 	rcu_unregister_thread();
 #endif
 }
 END_TEST
 
 START_TEST(failToFindNodeInOtherUA_NodeStore) {
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
    	rcu_register_thread();
 #endif
 	// given
@@ -98,14 +98,14 @@ START_TEST(failToFindNodeInOtherUA_NodeStore) {
 	// finally
 	UA_VariableNode_delete((UA_VariableNode*)n);
 	UA_NodeStore_delete(ns);
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 	rcu_unregister_thread();
 #endif
 }
 END_TEST
 
 START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
    	rcu_register_thread();
 #endif
 	// given
@@ -130,14 +130,14 @@ START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
 	ck_assert_int_eq((uintptr_t)nr, (uintptr_t)inserted);
 	// finally
 	UA_NodeStore_delete(ns);
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 	rcu_unregister_thread();
 #endif
 }
 END_TEST
 
 START_TEST(iterateOverUA_NodeStoreShallNotVisitEmptyNodes) {
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
    	rcu_register_thread();
 #endif
 	// given
@@ -164,14 +164,14 @@ START_TEST(iterateOverUA_NodeStoreShallNotVisitEmptyNodes) {
 	ck_assert_int_eq(visitCnt, 6);
 	// finally
 	UA_NodeStore_delete(ns);
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 	rcu_unregister_thread();
 #endif
 }
 END_TEST
 
 START_TEST(findNodeInExpandedNamespace) {
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
    	rcu_register_thread();
 #endif
 	// given
@@ -190,14 +190,14 @@ START_TEST(findNodeInExpandedNamespace) {
 	// finally
 	UA_free((void*)n2);
 	UA_NodeStore_delete(ns);
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 	rcu_unregister_thread();
 #endif
 }
 END_TEST
 
 START_TEST(iterateOverExpandedNamespaceShallNotVisitEmptyNodes) {
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
    	rcu_register_thread();
 #endif
 	// given
@@ -217,14 +217,14 @@ START_TEST(iterateOverExpandedNamespaceShallNotVisitEmptyNodes) {
 	ck_assert_int_eq(visitCnt, 200);
 	// finally
 	UA_NodeStore_delete(ns);
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 	rcu_unregister_thread();
 #endif
 }
 END_TEST
 
 START_TEST(failToFindNonExistantNodeInUA_NodeStoreWithSeveralEntries) {
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
    	rcu_register_thread();
 #endif
 	// given
@@ -248,7 +248,7 @@ START_TEST(failToFindNonExistantNodeInUA_NodeStoreWithSeveralEntries) {
 	// finally
 	UA_free((void *)n6);
 	UA_NodeStore_delete(ns);
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 	rcu_unregister_thread();
 #endif
 }
@@ -258,7 +258,7 @@ END_TEST
 /* Performance Profiling Test Cases */
 /************************************/
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 struct UA_NodeStoreProfileTest {
 	UA_NodeStore *ns;
 	UA_Int32 min_val;
@@ -286,7 +286,7 @@ static void *profileGetThread(void *arg) {
 #endif
 
 START_TEST(profileGetDelete) {
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
    	rcu_register_thread();
 #endif
 
@@ -299,7 +299,7 @@ START_TEST(profileGetDelete) {
 	}
 	clock_t begin, end;
 	begin = clock();
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 #define THREADS 4
     pthread_t t[THREADS];
 	struct UA_NodeStoreProfileTest p[THREADS];
@@ -326,7 +326,7 @@ START_TEST(profileGetDelete) {
 
 	UA_NodeStore_delete(ns);
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 	rcu_unregister_thread();
 #endif
 }
