@@ -136,10 +136,14 @@ static UA_StatusCode getVariableNodeValue(const UA_VariableNode *vn, const UA_Ti
         if(retval == UA_STATUSCODE_GOOD)
             handleSourceTimestamps(timestamps, v);
     } else {
-        UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
-                                      timestamps == UA_TIMESTAMPSTORETURN_BOTH);
-        retval = vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId,
-                                           sourceTimeStamp, rangeptr, v);
+        if(vn->value.dataSource.read == NULL) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+        } else {
+            UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
+                                          timestamps == UA_TIMESTAMPSTORETURN_BOTH);
+            retval = vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId,
+                                               sourceTimeStamp, rangeptr, v);
+        }
     }
 
     if(rangeptr)
@@ -468,6 +472,9 @@ Service_Write_single_ValueDataSource(UA_Server *server, UA_Session *session, con
     UA_assert(wvalue->attributeId == UA_ATTRIBUTEID_VALUE);
     UA_assert(node->nodeClass == UA_NODECLASS_VARIABLE || node->nodeClass == UA_NODECLASS_VARIABLETYPE);
     UA_assert(node->valueSource == UA_VALUESOURCE_DATASOURCE);
+
+    if(node->value.dataSource.write == NULL)
+        return UA_STATUSCODE_BADWRITENOTSUPPORTED;
 
     UA_StatusCode retval;
     if(wvalue->indexRange.length <= 0) {
