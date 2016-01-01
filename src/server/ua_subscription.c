@@ -316,7 +316,6 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
     UA_Boolean samplingError = UA_TRUE; 
     UA_DataValue sourceDataValue;
     UA_DataValue_init(&sourceDataValue);
-    const UA_VariableNode *srcAsVariableNode = (const UA_VariableNode*)src;
   
     // FIXME: Not all attributeIDs can be monitored yet
     switch(attributeID) {
@@ -368,17 +367,18 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
     case UA_ATTRIBUTEID_VALUE: 
         if(src->nodeClass == UA_NODECLASS_VARIABLE) {
             const UA_VariableNode *vsrc = (const UA_VariableNode*)src;
-            if(srcAsVariableNode->valueSource == UA_VALUESOURCE_VARIANT) {
+            if(vsrc->valueSource == UA_VALUESOURCE_VARIANT) {
+                if(vsrc->value.variant.callback.onRead)
+                    vsrc->value.variant.callback.onRead(vsrc->value.variant.callback.handle, vsrc->nodeId,
+                                                        &dst->value, NULL);
                 UA_Variant_copy(&vsrc->value.variant.value, &dst->value);
                 dst->hasValue = UA_TRUE;
-                //no onRead callback here since triggered by a subscription
                 samplingError = UA_FALSE;
             } else {
-                if(srcAsVariableNode->valueSource != UA_VALUESOURCE_DATASOURCE)
+                if(vsrc->valueSource != UA_VALUESOURCE_DATASOURCE)
                     break;
-                // todo: handle numeric ranges
-                if(srcAsVariableNode->value.dataSource.read(vsrc->value.dataSource.handle, vsrc->nodeId, UA_TRUE, NULL,
-                                                            &sourceDataValue) != UA_STATUSCODE_GOOD)
+                if(vsrc->value.dataSource.read(vsrc->value.dataSource.handle, vsrc->nodeId, UA_TRUE,
+                                               NULL, &sourceDataValue) != UA_STATUSCODE_GOOD)
                     break;
                 UA_DataValue_copy(&sourceDataValue, dst);
                 if(sourceDataValue.value.data) {
