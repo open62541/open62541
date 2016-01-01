@@ -4,17 +4,37 @@
 
 void Service_FindServers(UA_Server *server, UA_Session *session,
                          const UA_FindServersRequest *request, UA_FindServersResponse *response) {
-    response->servers = UA_malloc(sizeof(UA_ApplicationDescription));
-    if(!response->servers) {
+    /* copy ApplicationDescription from the config */
+    UA_ApplicationDescription *descr = UA_malloc(sizeof(UA_ApplicationDescription));
+    if(!descr) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-    if(UA_ApplicationDescription_copy(&server->description, response->servers) != UA_STATUSCODE_GOOD) {
-        UA_free(response->servers);
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+    response->responseHeader.serviceResult =
+        UA_ApplicationDescription_copy(&server->config.applicationDescription, descr);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_free(descr);
         return;
     }
-	response->serversSize = 1;
+
+    /* add the discoveryUrls from the networklayers */
+    UA_String *disc = UA_realloc(descr->discoveryUrls,
+                                 sizeof(UA_String) * (descr->discoveryUrlsSize + server->networkLayersSize));
+    if(!disc) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_ApplicationDescription_delete(descr);
+        return;
+    }
+    size_t index = descr->discoveryUrlsSize;
+    descr->discoveryUrls = disc;
+    descr->discoveryUrlsSize += server->networkLayersSize;
+        
+    // TODO: Add nl only if discoveryUrl not already present
+    for(size_t nl = 0; nl < server->networkLayersSize; nl++)
+        UA_String_copy(&server->networkLayers[nl]->discoveryUrl, &descr->discoveryUrls[index]);
+
+    response->servers = descr;
+    response->serversSize = 1;
 }
 
 void Service_GetEndpoints(UA_Server *server, UA_Session *session,

@@ -29,8 +29,10 @@ static void testCallback(UA_Server *server, void *data) {
 int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-    UA_Server_setLogger(server, logger);
+    UA_ServerConfig config = UA_ServerConfig_standard;
+    config.running = &running;
+    config.logger = Logger_Stdout;
+    UA_Server *server = UA_Server_new(config);
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 
     /* add a repeated job to the server */
@@ -38,7 +40,7 @@ int main(int argc, char** argv) {
                   .job.methodCall = {.method = testCallback, .data = NULL} };
     UA_Server_addRepeatedJob(server, job, 2000, NULL); // call every 2 sec
 
-    UA_StatusCode retval = UA_Server_run(server, 1, &running);
+    UA_StatusCode retval = UA_Server_run(server);
     UA_Server_delete(server);
     return retval;
 }

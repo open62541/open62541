@@ -28,51 +28,53 @@ extern "C" {
 #include "ua_job.h"
 #include "ua_connection.h"
 
-/*********************************/
-/* Initialize and run the server */
-/*********************************/
+/*****************/
+/* Server Config */
+/*****************/
 
-typedef struct UA_ServerConfig {
-    UA_Boolean  Login_enableAnonymous;
+typedef struct {
+    UA_String username;
+    UA_String password;
+} UA_UsernamePasswordLogin;
 
-    UA_Boolean  Login_enableUsernamePassword;
-    char**      Login_usernames;
-    char**      Login_passwords;
-    UA_UInt32   Login_loginsCount;
+typedef struct {
+    UA_Boolean *running; // the main loop iterates as long as *running == true
+    UA_UInt16 nThreads; // only if multithreading is enabled
+    UA_Logger logger;
 
-    char*       Application_applicationURI;
-    char*       Application_applicationName;
+    UA_BuildInfo buildInfo;
+    UA_ApplicationDescription applicationDescription;
+    UA_ByteString serverCertificate;
+
+    UA_Boolean enableAnonymousLogin;
+    UA_Boolean enableUsernamePasswordLogin;
+    size_t usernamePasswordLoginsSize;
+    UA_UsernamePasswordLogin usernamePasswordLogins[];
 } UA_ServerConfig;
 
 extern UA_EXPORT const UA_ServerConfig UA_ServerConfig_standard;
 
-UA_Server UA_EXPORT * UA_Server_new(UA_ServerConfig config);
-void UA_EXPORT UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate);
-void UA_EXPORT UA_Server_delete(UA_Server *server);
+/*********************************/
+/* Initialize and run the server */
+/*********************************/
 
-/** Sets the logger used by the server */
-void UA_EXPORT UA_Server_setLogger(UA_Server *server, UA_Logger logger);
+UA_Server UA_EXPORT * UA_Server_new(const UA_ServerConfig config);
+void UA_EXPORT UA_Server_delete(UA_Server *server);
 
 /**
  * Runs the main loop of the server. In each iteration, this calls into the networklayers to see if
  * jobs have arrived and checks if repeated jobs need to be triggered.
- *
- * @param server The server object
- * @param nThreads The number of worker threads. Is ignored if MULTITHREADING is not activated.
- * @param running Points to a boolean value on the heap. When running is set to false, the worker
- *        threads and the main loop close and the server is shut down.
- * @return Indicates whether the server shut down cleanly
  */
-UA_StatusCode UA_EXPORT UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running);
+UA_StatusCode UA_EXPORT UA_Server_run(UA_Server *server);
 
 /** The prologue part of UA_Server_run (no need to use if you call UA_Server_run) */
-UA_StatusCode UA_EXPORT UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running);
-
-/** The epilogue part of UA_Server_run (no need to use if you call UA_Server_run) */
-UA_StatusCode UA_EXPORT UA_Server_run_shutdown(UA_Server *server, UA_UInt16 nThreads);
+UA_StatusCode UA_EXPORT UA_Server_run_startup(UA_Server *server);
 
 /** One iteration of UA_Server_run (no need to use if you call UA_Server_run) */
-UA_StatusCode UA_EXPORT UA_Server_run_mainloop(UA_Server *server, UA_Boolean *running);
+UA_StatusCode UA_EXPORT UA_Server_run_iterate(UA_Server *server);
+
+/** The epilogue part of UA_Server_run (no need to use if you call UA_Server_run) */
+UA_StatusCode UA_EXPORT UA_Server_run_shutdown(UA_Server *server);
 
 /**
  * @param server The server object.
@@ -97,6 +99,9 @@ UA_StatusCode UA_EXPORT UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
  */
 UA_StatusCode UA_EXPORT UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid jobId);
 
+/** @brief Add a new namespace to the server. Returns the index of the new namespace */
+UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
+
 /**
  * Interface to the binary network layers. This structure is returned from the
  * function that initializes the network layer. The layer is already bound to a
@@ -106,7 +111,7 @@ UA_StatusCode UA_EXPORT UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid j
  */
 typedef struct UA_ServerNetworkLayer {
     UA_String discoveryUrl;
-    UA_Logger logger; ///< Set during _start
+    UA_Logger logger; // Set during start
 
     /**
      * Starts listening on the the networklayer.
@@ -144,16 +149,9 @@ typedef struct UA_ServerNetworkLayer {
     void (*deleteMembers)(struct UA_ServerNetworkLayer *nl);
 } UA_ServerNetworkLayer;
 
-/**
- * Adds a network layer to the server. The network layer is destroyed together
- * with the server. Do not use it after adding it as it might be moved around on
- * the heap.
- */
-void UA_EXPORT UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer *networkLayer);
-
-/** @brief Add a new namespace to the server. Returns the index of the new namespace */
-UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
-
+/* Networklayers are deleted together with the server */
+UA_StatusCode UA_EXPORT
+UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer *networkLayer);
 
 /**********************/
 /* Set Node Callbacks */

@@ -179,52 +179,53 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server_external_ns.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
-                     ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h
-                     ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h)
-set(internal_headers ${PROJECT_SOURCE_DIR}/src/ua_util.h
+                     ${PROJECT_SOURCE_DIR}/aux/server_standard_config.c
+                     ${PROJECT_SOURCE_DIR}/aux/networklayer_tcp.h
+                     ${PROJECT_SOURCE_DIR}/aux/logger_stdout.h)
+set(internal_headers ${PROJECT_SOURCE_DIR}/lib/ua_util.h
                      ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
+                     ${PROJECT_SOURCE_DIR}/lib/ua_types_encoding_binary.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
-                     ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_session.h
-                     ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h
-                     ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.h
-                     ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.h
-                     ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
-                     ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
-                     ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
-set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
-                ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
+                     ${PROJECT_SOURCE_DIR}/lib/ua_securechannel.h
+                     ${PROJECT_SOURCE_DIR}/lib/server/ua_nodes.h
+                     ${PROJECT_SOURCE_DIR}/lib/ua_session.h
+                     ${PROJECT_SOURCE_DIR}/lib/server/ua_nodestore.h
+                     ${PROJECT_SOURCE_DIR}/lib/server/ua_session_manager.h
+                     ${PROJECT_SOURCE_DIR}/lib/server/ua_securechannel_manager.h
+                     ${PROJECT_SOURCE_DIR}/lib/server/ua_server_internal.h
+                     ${PROJECT_SOURCE_DIR}/lib/server/ua_services.h
+                     ${PROJECT_SOURCE_DIR}/lib/client/ua_client_internal.h)
+set(lib_sources ${PROJECT_SOURCE_DIR}/lib/ua_types.c
+                ${PROJECT_SOURCE_DIR}/lib/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
-                ${PROJECT_SOURCE_DIR}/src/ua_connection.c
-                ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
-                ${PROJECT_SOURCE_DIR}/src/ua_session.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_server_worker.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_session.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_attribute.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
-                ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c
-                ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c
+                ${PROJECT_SOURCE_DIR}/lib/ua_connection.c
+                ${PROJECT_SOURCE_DIR}/lib/ua_securechannel.c
+                ${PROJECT_SOURCE_DIR}/lib/ua_session.c
+                ${PROJECT_SOURCE_DIR}/lib/server/ua_server.c
+                ${PROJECT_SOURCE_DIR}/lib/server/ua_server_binary.c
+                ${PROJECT_SOURCE_DIR}/lib/server/ua_nodes.c
+                ${PROJECT_SOURCE_DIR}/lib/server/ua_server_worker.c
+                ${PROJECT_SOURCE_DIR}/lib/server/ua_securechannel_manager.c
+                ${PROJECT_SOURCE_DIR}/lib/server/ua_session_manager.c
+                ${PROJECT_SOURCE_DIR}/lib/server/ua_services_discovery.c
+                ${PROJECT_SOURCE_DIR}/lib/server/ua_services_securechannel.c
+                ${PROJECT_SOURCE_DIR}/lib/server/ua_services_session.c
+                ${PROJECT_SOURCE_DIR}/lib/server/ua_services_attribute.c
+                ${PROJECT_SOURCE_DIR}/lib/server/ua_services_nodemanagement.c
+                ${PROJECT_SOURCE_DIR}/lib/server/ua_services_view.c
+                ${PROJECT_SOURCE_DIR}/lib/client/ua_client.c
+                ${PROJECT_SOURCE_DIR}/lib/client/ua_client_highlevel.c
+                ${PROJECT_SOURCE_DIR}/aux/networklayer_tcp.c
+                ${PROJECT_SOURCE_DIR}/aux/logger_stdout.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
                 ##TODO: make client stuff optional
 
 if(UA_ENABLE_METHODCALLS)
-  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_services_call.c)
+  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/lib/server/ua_services_call.c)
 endif()
 
 if(UA_ENABLE_EMBEDDED_LIBC)
@@ -233,9 +234,9 @@ endif()
 
 if(UA_ENABLE_MULTITHREADING)
   find_package(Threads REQUIRED)
-  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_concurrent.c)
+  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/lib/server/ua_nodestore_concurrent.c)
 else()
-  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.c)
+  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/lib/server/ua_nodestore.c)
 endif()
 
 set(generate_typeintrospection "")
@@ -245,14 +246,14 @@ endif()
 
 set(generate_subscriptiontypes "")
 if(UA_ENABLE_SUBSCRIPTIONS)
-  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
-                          ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
-                          ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.c
-                          ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c)
+  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/lib/server/ua_services_subscription.c
+                          ${PROJECT_SOURCE_DIR}/lib/server/ua_subscription.c
+                          ${PROJECT_SOURCE_DIR}/lib/server/ua_subscription_manager.c
+                          ${PROJECT_SOURCE_DIR}/lib/client/ua_client_highlevel_subscriptions.c)
   #append subscription headers at before ua_session
-  list(FIND internal_headers "${PROJECT_SOURCE_DIR}/src/ua_session.h" UaSessionPos)
-  list(INSERT internal_headers  ${UaSessionPos} ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
-                                                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.h)
+  list(FIND internal_headers "${PROJECT_SOURCE_DIR}/lib/ua_session.h" UaSessionPos)
+  list(INSERT internal_headers  ${UaSessionPos} ${PROJECT_SOURCE_DIR}/lib/server/ua_subscription.h
+                                                ${PROJECT_SOURCE_DIR}/lib/server/ua_subscription_manager.h)
   set(generate_subscriptiontypes "--enable-subscription-types=1")
 endif()
 
@@ -340,11 +341,11 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                                                 ${GIT_COMMIT_ID}
                                                 ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
                                                 ${internal_headers}
-                                                ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc
+                                                ${PROJECT_SOURCE_DIR}/lib/server/ua_nodestore_hash.inc
                                                 ${lib_sources}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                            ${internal_headers}
-                           ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc
+                           ${PROJECT_SOURCE_DIR}/lib/server/ua_nodestore_hash.inc
                            ${lib_sources})
 
 #################
@@ -360,8 +361,9 @@ else()
     add_definitions(-DUA_NO_AMALGAMATION)
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
     include_directories(${PROJECT_SOURCE_DIR}/include)
+    include_directories(${PROJECT_SOURCE_DIR}/aux)
     include_directories(${PROJECT_SOURCE_DIR}/deps)
-    include_directories(${PROJECT_SOURCE_DIR}/src)
+    include_directories(${PROJECT_SOURCE_DIR}/lib)
 endif()
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING)
 add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-object>)

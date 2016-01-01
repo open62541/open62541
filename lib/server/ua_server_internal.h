@@ -26,15 +26,22 @@ typedef struct UA_ExternalNamespace {
 } UA_ExternalNamespace;
 #endif
 
+#ifdef UA_ENABLE_MULTITHREADING
+typedef struct {
+    UA_Server *server;
+    pthread_t thr;
+    volatile UA_UInt32 counter;
+    volatile UA_Boolean running;
+    char padding[64 - sizeof(void*) - sizeof(pthread_t) -
+                 sizeof(UA_UInt32) - sizeof(UA_Boolean)]; // separate cache lines
+} UA_Worker;
+#endif
+
 struct UA_Server {
-    /* Config */
     UA_ServerConfig config;
-    UA_Logger logger;
 
     /* Meta */
     UA_DateTime startTime;
-    UA_DateTime buildDate;
-    UA_ApplicationDescription description;
     size_t endpointDescriptionsSize;
     UA_EndpointDescription *endpointDescriptions;
 
@@ -43,7 +50,6 @@ struct UA_Server {
     UA_ServerNetworkLayer **networkLayers;
 
     /* Security */
-    UA_ByteString serverCertificate;
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;
 
@@ -63,19 +69,12 @@ struct UA_Server {
 #ifdef UA_ENABLE_MULTITHREADING
     /* Dispatch queue head for the worker threads (the tail should not be in the same cache line) */
 	struct cds_wfcq_head dispatchQueue_head;
-
-    UA_Boolean *running;
-    UA_UInt16 nThreads;
-    UA_UInt32 **workerCounters;
-    pthread_t *thr;
-
+    UA_Worker *workers; /* there are nThread workers in a running server */
     struct cds_lfs_stack mainLoopJobs; /* Work that shall be executed only in the main loop and not
                                           by worker threads */
     struct DelayedJobs *delayedJobs;
-
     pthread_cond_t dispatchQueue_condition; /* so the workers don't spin if the queue is empty */
-    /* Dispatch queue tail for the worker threads */
-	struct cds_wfcq_tail dispatchQueue_tail;
+	struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
 #endif
 };
 

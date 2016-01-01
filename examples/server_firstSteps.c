@@ -13,8 +13,7 @@
 # include "open62541.h"
 #endif
 
-UA_Boolean running;
-UA_Logger logger = Logger_Stdout;
+UA_Boolean running = UA_TRUE;
 
 static void stopHandler(int signal) {
     running = UA_FALSE;
@@ -24,13 +23,13 @@ int main(void) {
     signal(SIGINT,  stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-    UA_Server_setLogger(server, logger);
+    UA_ServerConfig config = UA_ServerConfig_standard;
+    config.running = &running;
+    config.logger = Logger_Stdout;
+    UA_Server *server = UA_Server_new(config);
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-    running = UA_TRUE;
-    UA_Server_run(server, 1, &running);
-    UA_Server_delete(server);
 
-    printf("Terminated\n");
-    return 0;
+    UA_StatusCode retval = UA_Server_run(server);
+    UA_Server_delete(server);
+    return retval;
 }
