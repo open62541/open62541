@@ -206,12 +206,13 @@ int main(int argc, char** argv) {
     pthread_rwlock_init(&writeLock, 0);
 #endif
 
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-    UA_Server_setLogger(server, logger);
-    UA_ByteString certificate = loadCertificate();
-    UA_Server_setServerCertificate(server, certificate);
-    UA_ByteString_deleteMembers(&certificate);
-    UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
+    UA_ServerConfig config = UA_ServerConfig_standard;
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, logger);
+    config.serverCertificate = loadCertificate();
+    config.logger = Logger_Stdout;
+    config.networkLayers = &nl;
+    config.networkLayersSize = 1;
+    UA_Server *server = UA_Server_new(config);
 
     // add node with the datetime data source
     UA_DataSource dateDataSource = (UA_DataSource) {.handle = NULL, .read = readTimeData, .write = NULL};
@@ -417,10 +418,11 @@ int main(int argc, char** argv) {
     UA_Server_writeDisplayName(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), objectsName);
   
     //start server
-    UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false
+    UA_StatusCode retval = UA_Server_run(server, &running); //blocks until running=false
 
     //ctrl-c received -> clean up
     UA_Server_delete(server);
+    nl.deleteMembers(&nl);
 
     if(temperatureFile)
         fclose(temperatureFile);
@@ -439,5 +441,6 @@ int main(int argc, char** argv) {
     pthread_rwlock_destroy(&writeLock);
 #endif
 
+    UA_ByteString_deleteMembers(&config.serverCertificate);
     return retval;
 }
