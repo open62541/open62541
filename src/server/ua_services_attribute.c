@@ -157,6 +157,8 @@ static UA_StatusCode getVariableNodeDataType(const UA_VariableNode *vn, UA_DataV
         forceVariantSetScalar(&v->value, &vn->value.variant.value.type->typeId,
                               &UA_TYPES[UA_TYPES_NODEID]);
     } else {
+        if(vn->value.dataSource.read == NULL)
+            return UA_STATUSCODE_BADINTERNALERROR;
         /* Read from the datasource to see the data type */
         UA_DataValue val;
         UA_DataValue_init(&val);
@@ -176,6 +178,8 @@ static UA_StatusCode getVariableNodeArrayDimensions(const UA_VariableNode *vn, U
                             vn->value.variant.value.arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
         v->value.storageType = UA_VARIANT_DATA_NODELETE;
     } else {
+        if(vn->value.dataSource.read == NULL)
+            return UA_STATUSCODE_BADINTERNALERROR;
         /* Read the datasource to see the array dimensions */
         UA_DataValue val;
         UA_DataValue_init(&val);
