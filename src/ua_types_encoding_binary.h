@@ -9,4 +9,6 @@ UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *type, UA_ByteS
 UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t * UA_RESTRICT offset, void *dst,
                               const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
+size_t UA_calcSizeBinary(const UA_ByteString *src, const UA_DataType *type);
+
 #endif /* UA_TYPES_ENCODING_BINARY_H_ */
