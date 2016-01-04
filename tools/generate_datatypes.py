@@ -144,7 +144,7 @@ class BuiltinType(Type):
             return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
                 ".memSize = sizeof(" + self.name + "), " + \
                 ".builtin = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
-                ".membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_BYTE, .namespaceZero = UA_TRUE, " + \
+                ".membersSize = 1,\n\t.members = (UA_DataTypeMember[]){{.memberTypeIndex = UA_TYPES_BYTE, .namespaceZero = UA_TRUE, " + \
                 (".memberName = \"\", " if typeintrospection else "") + \
                 ".padding = 0, .isArray = UA_TRUE }}, " + \
                 ".typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
@@ -153,7 +153,7 @@ class BuiltinType(Type):
             return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
                 ".memSize = sizeof(UA_QualifiedName), " + \
                 ".builtin = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
-                ".membersSize = 2, .members = {" + \
+                ".membersSize = 2, .members = (UA_DataTypeMember[]){" + \
                 "\n\t{.memberTypeIndex = UA_TYPES_UINT16, .namespaceZero = UA_TRUE, " + \
                 (".memberName = \"namespaceIndex\", " if typeintrospection else "") + \
                 ".padding = 0, .isArray = UA_FALSE }," + \
@@ -166,7 +166,7 @@ class BuiltinType(Type):
             ".memSize = sizeof(" + self.name + "), " + \
             ".builtin = UA_TRUE, .fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
             ", .zeroCopyable = " + ("UA_TRUE" if self.zero_copy() else "UA_FALSE") + \
-            ", .membersSize = 1, .members = {" + \
+            ", .membersSize = 1, .members = (UA_DataTypeMember[]){" + \
             "\n\t{.memberTypeIndex = UA_TYPES_" + self.name[3:].upper() + " , .namespaceZero = UA_TRUE, " + \
             (".memberName = \"\", " if typeintrospection else "") + \
             ".padding = 0, .isArray = UA_FALSE }},\n" + \
@@ -207,7 +207,7 @@ class EnumerationType(Type):
         return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
             ".memSize = sizeof(" + self.name + "), .builtin = UA_TRUE, " + \
             ".fixedSize = UA_TRUE, .zeroCopyable = UA_TRUE, " + \
-            ".membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_INT32, " + \
+            ".membersSize = 1,\n\t.members = (UA_DataTypeMember[]){{.memberTypeIndex = UA_TYPES_INT32, " + \
             (".memberName = \"\", " if typeintrospection else "") + \
             ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = UA_TYPES_INT32 }"
 
@@ -228,7 +228,7 @@ class OpaqueType(Type):
             typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
         return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
             ".memSize = sizeof(" + self.name + "), .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
-            ".builtin = UA_FALSE, .membersSize = 1,\n\t.members = {{.memberTypeIndex = UA_TYPES_BYTE," + \
+            ".builtin = UA_FALSE, .membersSize = 1,\n\t.members = (UA_DataTypeMember[]){{.memberTypeIndex = UA_TYPES_BYTE," + \
             (".memberName = \"\", " if typeintrospection else "") + \
             ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_TRUE }}, .typeIndex = %s}" % (outname.upper() + "_" + self.name[3:].upper())
 
@@ -295,7 +295,7 @@ class StructType(Type):
                  ", .typeIndex = " + outname.upper() + "_" + self.name[3:].upper() + \
                  ", .membersSize = " + str(len(self.members)) + ","
         if len(self.members) > 0:
-            layout += "\n\t.members={"
+            layout += "\n\t.members=(UA_DataTypeMember[]){"
             for index, member in enumerate(self.members.values()):
                 layout += "\n\t{" + \
                           ((".memberName = \"" + member.name + "\", ") if typeintrospection else "") + \
@@ -511,7 +511,7 @@ extern "C" {
 */
 ''')
 printh("#define " + outname.upper() + "_COUNT %s\n" % (str(len(types))))
-printh("extern UA_EXPORT const UA_DataType *" + outname.upper() + ";\n")
+printh("extern UA_EXPORT const UA_DataType " + outname.upper() + "[];\n")
 
 i = 0
 if sys.version_info[0] < 3:
@@ -558,7 +558,7 @@ printc('''/**
 #include "stddef.h"
 #include "ua_types.h"
 #include "''' + outname + '''_generated.h"\n
-const UA_DataType *''' + outname.upper() + ''' = (UA_DataType[]){''')
+const UA_DataType ''' + outname.upper() + '''[] = {''')
 if sys.version_info[0] < 3:
     values = types.itervalues()
 else:

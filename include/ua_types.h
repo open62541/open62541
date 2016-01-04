@@ -513,8 +513,6 @@ typedef struct UA_DiagnosticInfo {
 /* Generic Type Handling */
 /*************************/
 
-#define UA_MAX_TYPE_MEMBERS 13 // Maximum number of members per structured type
-
 typedef struct {
 #ifdef UA_ENABLE_TYPENAMES
     const char *memberName;
@@ -542,7 +540,7 @@ struct UA_DataType {
     UA_Boolean  builtin      : 1; ///< The type is "builtin" and has dedicated de- and encoding functions
     UA_Boolean  fixedSize    : 1; ///< The type (and its members) contains no pointers
     UA_Boolean  zeroCopyable : 1; ///< The type can be copied directly off the stream (given that the endianness matches)
-    UA_DataTypeMember members[UA_MAX_TYPE_MEMBERS];
+    UA_DataTypeMember *members;
 };
 
 /**
