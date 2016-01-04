@@ -94,7 +94,7 @@
 // If required, define UA_NON_LITTLEENDIAN_ARCHITECTURE, UA_MIXED_ENDIAN, and
 // the htole / letoh functions here. Even better, post an issue on github or the
 // mailing list, so we can include the architecture in the standard release.
-#define swap16(u16) ((u16s >> 8) | (u16s << 8))
+#define swap16(u16) ((u16 >> 8) | (u16 << 8))
 #define swap32(u32) ((u32 >> 24) | ((u32 << 8) & 0x00FF0000) | ((u32 >> 8) & 0x0000FF00) | (u32 << 24))
 #define swap64(u64) ((u64 >> 56) | ((u64 << 40) & 0x00FF000000000000) | ((u64 << 24) & 0x0000FF0000000000) | \
                      ((u64 << 8) & 0x000000FF00000000) | ((u64 >> 8) & 0x00000000FF000000) |                 \
