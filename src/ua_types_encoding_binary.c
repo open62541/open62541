@@ -14,8 +14,6 @@ typedef UA_StatusCode (*UA_decodeBinarySignature) (const UA_ByteString *src, siz
                                                    void *dst, const UA_DataType*);
 static const UA_decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
 
-typedef size_t (*UA_calcSizeBinarySignature) (const void *src, const UA_DataType*);
-
 /*****************/
 /* Integer Types */
 /*****************/
@@ -418,10 +416,6 @@ ByteString_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
     return String_decodeBinary(src, offset, (UA_ByteString*)dst, _);
 }
 
-static size_t String_calcSizeBinary(const UA_String *p) {
-    return 4 + p->length;
-}
-
 /* Guid */
 static UA_StatusCode
 Guid_encodeBinary(UA_Guid const *src, const UA_DataType *_,
@@ -445,10 +439,6 @@ Guid_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
     if(retval != UA_STATUSCODE_GOOD)
         UA_Guid_deleteMembers(dst);
     return retval;
-}
-
-static size_t Guid_calcSizeBinary(const UA_Guid *p, const UA_DataType* _) {
-    return 16;
 }
 
 /* NodeId */
@@ -561,34 +551,6 @@ NodeId_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
     return retval;
 }
 
-static size_t NodeId_calcSizeBinary(const UA_NodeId *p, const UA_DataType* _) {
-    size_t length = 0;
-    switch (p->identifierType) {
-    case UA_NODEIDTYPE_NUMERIC:
-        if(p->identifier.numeric > UA_UINT16_MAX || p->namespaceIndex > UA_BYTE_MAX)
-            length = sizeof(UA_Byte) + sizeof(UA_UInt16) + sizeof(UA_UInt32);
-        else if(p->identifier.numeric > UA_BYTE_MAX || p->namespaceIndex > 0)
-            length = 4; /* UA_NODEIDTYPE_FOURBYTE */
-        else
-            length = 2; /* UA_NODEIDTYPE_TWOBYTE*/
-        break;
-    case UA_NODEIDTYPE_STRING:
-        length = sizeof(UA_Byte) + sizeof(UA_UInt16) + String_calcSizeBinary(&p->identifier.string);
-        break;
-    case UA_NODEIDTYPE_GUID:
-        length = sizeof(UA_Byte) + sizeof(UA_UInt16) + 128;
-        break;
-    case UA_NODEIDTYPE_BYTESTRING:
-        length = sizeof(UA_Byte) + sizeof(UA_UInt16) +
-            String_calcSizeBinary((const UA_String*)&p->identifier.byteString);
-        break;
-    default:
-        UA_assert(UA_FALSE); // this must never happen
-        break;
-    }
-    return length;
-}
-
 /* ExpandedNodeId */
 #define UA_EXPANDEDNODEID_NAMESPACEURI_FLAG 0x80
 #define UA_EXPANDEDNODEID_SERVERINDEX_FLAG 0x40
@@ -629,16 +591,6 @@ ExpandedNodeId_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset
     return retval;
 }
 
-static size_t
-ExpandedNodeId_calcSizeBinary(UA_ExpandedNodeId const *p, const UA_DataType *_) {
-    size_t length = NodeId_calcSizeBinary(&p->nodeId, _);
-    if(p->namespaceUri.length > 0)
-        length += String_calcSizeBinary(&p->namespaceUri);
-    if(p->serverIndex > 0)
-        length += sizeof(UA_UInt32);
-    return length;
-}
-
 /* LocalizedText */
 #define UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE 0x01
 #define UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT 0x02
@@ -671,15 +623,6 @@ LocalizedText_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
     if(retval != UA_STATUSCODE_GOOD)
         UA_LocalizedText_deleteMembers(dst);
     return retval;
-}
-
-static size_t LocalizedText_calcSizeBinary(const UA_LocalizedText *p, const UA_DataType *_) {
-    size_t length = 1; // for encodingMask
-    if(p->locale.data)
-        length += String_calcSizeBinary(&p->locale);
-    if(p->text.data)
-        length += String_calcSizeBinary(&p->text);
-    return length;
 }
 
 /* ExtensionObject */
@@ -1170,37 +1113,4 @@ UA_StatusCode
 UA_decodeBinary(const UA_ByteString *src, size_t *UA_RESTRICT offset, void *dst, const UA_DataType *type) {
     memset(dst, 0, type->memSize); // init
     return UA_decodeBinaryNoInit(src, offset, dst, type);
-}
-
-static const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
-    (UA_calcSizeBinarySignature)NULL,
-    (UA_calcSizeBinarySignature)NULL,
-    (UA_calcSizeBinarySignature)NULL,
-    (UA_calcSizeBinarySignature)NULL,
-    (UA_calcSizeBinarySignature)NULL,
-    (UA_calcSizeBinarySignature)NULL,
-    (UA_calcSizeBinarySignature)NULL,
-    (UA_calcSizeBinarySignature)NULL,
-    (UA_calcSizeBinarySignature)NULL,
-    (UA_calcSizeBinarySignature)NULL,
-    (UA_calcSizeBinarySignature)NULL,
-    (UA_calcSizeBinarySignature)NULL,
-    (UA_calcSizeBinarySignature)NULL,
-    (UA_calcSizeBinarySignature)Guid_calcSizeBinary, 
-    (UA_calcSizeBinarySignature)NULL,
-    (UA_calcSizeBinarySignature)NULL,
-    (UA_calcSizeBinarySignature)NodeId_calcSizeBinary,
-    (UA_calcSizeBinarySignature)ExpandedNodeId_calcSizeBinary,
-    (UA_calcSizeBinarySignature)NULL,
-    (UA_calcSizeBinarySignature)UA_calcSizeBinary, // QualifiedName
-    (UA_calcSizeBinarySignature)LocalizedText_calcSizeBinary,
-    (UA_calcSizeBinarySignature)ExtensionObject_calcSizeBinary,
-    (UA_calcSizeBinarySignature)DataValue_calcSizeBinary,
-    (UA_calcSizeBinarySignature)Variant_calcSizeBinary,
-    (UA_calcSizeBinarySignature)DiagnosticInfo_calcSizeBinary,
-    (UA_calcSizeBinarySignature)UA_calcSizeBinary,
-};
-
-size_t UA_calcSizeBinary(const UA_ByteString *src, const UA_DataType *type) {
-
 }
