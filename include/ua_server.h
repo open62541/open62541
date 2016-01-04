@@ -162,7 +162,7 @@ UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
 /**
  * Datasources are the interface to local data providers. It is expected that
  * the read and release callbacks are implemented. The write callback can be set
- * to null.
+ * to null. The read callback is set to null will result in a BADINTERNALERROR.
  */
 typedef struct {
     void *handle; ///> A custom pointer to reuse the same datasource functions for multiple sources
