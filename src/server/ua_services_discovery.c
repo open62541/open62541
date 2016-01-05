@@ -56,7 +56,11 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
     /* } */
     
     /* test if the supported binary profile shall be returned */
+#ifdef NO_ALLOCA
 	UA_Boolean relevant_endpoints[server->endpointDescriptionsSize];
+#else
+	UA_Boolean *relevant_endpoints = UA_alloca(sizeof(UA_Byte) * server->endpointDescriptionsSize);
+#endif
     size_t relevant_count = 0;
     for(size_t j = 0; j < server->endpointDescriptionsSize; j++) {
         relevant_endpoints[j] = UA_FALSE;
