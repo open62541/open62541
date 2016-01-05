@@ -35,9 +35,11 @@ int main() {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
     UA_ServerConfig config = UA_ServerConfig_standard;
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, logger);
     config.logger = Logger_Stdout;
+    config.networkLayers = &nl;
+    config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
-    UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 
     // add a variable node to the adresspace
     UA_VariableAttributes attr;
@@ -61,6 +63,7 @@ int main() {
 
     UA_StatusCode retval = UA_Server_run(server, &running);
 	UA_Server_delete(server);
+    nl.deleteMembers(&nl);
 
 	return retval;
 }
