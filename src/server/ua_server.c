@@ -13,7 +13,7 @@
 #define MANUFACTURER_NAME "open62541"
 #define PRODUCT_NAME "open62541 OPC UA Server"
 #define PRODUCT_URI "urn:unconfigured:open62541"
-#define UA_STRING_STATIC(s) (UA_String){sizeof(s)-1, (UA_Byte*)s}
+#define UA_STRING_STATIC(s) {sizeof(s)-1, (UA_Byte*)s}
 #define UA_STRING_STATIC_NULL {0, NULL}
 
 const UA_ServerConfig UA_ServerConfig_standard = {
@@ -30,7 +30,7 @@ const UA_ServerConfig UA_ServerConfig_standard = {
     .applicationDescription = {
         .applicationUri = UA_STRING_STATIC("urn:unconfigured:application"),
         .productUri = UA_STRING_STATIC("urn:unconfigured:product"),
-        .applicationName = { UA_STRING_STATIC(""), UA_STRING_STATIC("open62541Server") },
+        .applicationName = { .locale = UA_STRING_STATIC(""), .text = UA_STRING_STATIC("open62541Server") },
         .applicationType = UA_APPLICATIONTYPE_SERVER,
         .gatewayServerUri = UA_STRING_STATIC_NULL,
         .discoveryProfileUri = UA_STRING_STATIC_NULL,
