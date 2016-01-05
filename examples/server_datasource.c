@@ -39,7 +39,7 @@ static UA_StatusCode
 writeInteger(void *handle, const UA_NodeId nodeid,
              const UA_Variant *data, const UA_NumericRange *range) {
     if(UA_Variant_isScalar(data) && data->type == &UA_TYPES[UA_TYPES_INT32] && data->data){
-        *(UA_UInt32*)handle = *(UA_Int32*)data->data;
+        *(UA_UInt32*)handle = *(UA_UInt32*)data->data;
     }
     // we know the nodeid is a string
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Node written %.*s",
