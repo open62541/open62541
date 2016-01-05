@@ -31,8 +31,9 @@ static void stopHandler(int sign) {
 int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-    UA_Server_setLogger(server, logger);
+    UA_ServerConfig config = UA_ServerConfig_standard;
+    config.logger = Logger_Stdout;
+    UA_Server *server = UA_Server_new(config);
 
     /* add a variable node to the address space */
     UA_VariableAttributes attr;
@@ -96,7 +97,7 @@ int main(int argc, char** argv) {
     UA_ByteString_deleteMembers(&request_msg);
     UA_ByteString_deleteMembers(&response_msg);
 
-    retval |= UA_Server_run(server, 1, &running);
+    retval |= UA_Server_run(server, &running);
     UA_Server_delete(server);
 
     return retval;

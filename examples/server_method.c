@@ -53,9 +53,12 @@ int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
     /* initialize the server */
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-    UA_Server_setLogger(server, logger);
-    UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
+    UA_ServerConfig config = UA_ServerConfig_standard;
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, logger);
+    config.logger = Logger_Stdout;
+    config.networkLayers = &nl;
+    config.networkLayersSize = 1;
+    UA_Server *server = UA_Server_new(config);
 
     //EXAMPLE 1
     /* add the method node with the callback */
@@ -133,12 +136,13 @@ int main(int argc, char** argv) {
     //END OF EXAMPLE 2
 
     /* start server */
-    UA_StatusCode retval = UA_Server_run(server, 1, &running);
+    UA_StatusCode retval = UA_Server_run(server, &running);
 
     /* ctrl-c received -> clean up */
     UA_UInt32_delete(pInputDimensions);
     UA_UInt32_delete(pOutputDimensions);
     UA_Server_delete(server);
+    nl.deleteMembers(&nl);
 
     return retval;
 }

@@ -230,8 +230,8 @@ UA_Client_processPublishRx(UA_Client *client, UA_PublishResponse response) {
         if(msg.notificationData[k].content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION]) {
             // This is a dataChangeNotification
             UA_DataChangeNotification *dataChangeNotification = msg.notificationData[k].content.decoded.data;
-            for(size_t i = 0; i < dataChangeNotification->monitoredItemsSize; i++) {
-            UA_MonitoredItemNotification *mitemNot = &dataChangeNotification->monitoredItems[i];
+            for(size_t j = 0; j < dataChangeNotification->monitoredItemsSize; j++) {
+            UA_MonitoredItemNotification *mitemNot = &dataChangeNotification->monitoredItems[j];
                 // find this client handle
                 LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
                     if(mon->ClientHandle == mitemNot->clientHandle) {

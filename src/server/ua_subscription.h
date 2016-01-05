@@ -58,8 +58,8 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
 void MonitoredItem_ClearQueue(UA_MonitoredItem *monitoredItem);
 UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, const UA_Node *src,
                                                      UA_DataValue *dst);
-int MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *dst,
-                                                 UA_MonitoredItem *monitoredItem);
+UA_UInt32 MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *dst,
+                                                       UA_MonitoredItem *monitoredItem);
 
 /****************/
 /* Subscription */
@@ -74,11 +74,11 @@ typedef struct UA_unpublishedNotification {
 typedef struct UA_Subscription {
     LIST_ENTRY(UA_Subscription) listEntry;
     UA_UInt32_BoundedValue lifeTime;
-    UA_Int32_BoundedValue keepAliveCount;
-    UA_DateTime publishingInterval;     // [ms] may be UA_Int32
+    UA_UInt32_BoundedValue keepAliveCount;
+    UA_Double publishingInterval;     // [ms] 
     UA_DateTime lastPublished;
-    UA_Int32 subscriptionID;
-    UA_Int32 notificationsPerPublish;
+    UA_UInt32 subscriptionID;
+    UA_UInt32 notificationsPerPublish;
     UA_Boolean publishingMode;
     UA_UInt32 priority;
     UA_UInt32 sequenceNumber;
@@ -90,7 +90,7 @@ typedef struct UA_Subscription {
     LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) MonitoredItems;
 } UA_Subscription;
 
-UA_Subscription *UA_Subscription_new(UA_Int32 subscriptionID);
+UA_Subscription *UA_Subscription_new(UA_UInt32 subscriptionID);
 void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server);
 void Subscription_updateNotifications(UA_Subscription *subscription);
 UA_UInt32 *Subscription_getAvailableSequenceNumbers(UA_Subscription *sub);

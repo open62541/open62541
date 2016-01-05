@@ -339,8 +339,8 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                         const UA_QualifiedName browseName, const UA_MethodAttributes attr,
                         UA_MethodCallback method, void *handle,
-                        UA_Int32 inputArgumentsSize, const UA_Argument* inputArguments, 
-                        UA_Int32 outputArgumentsSize, const UA_Argument* outputArguments,
+                        size_t inputArgumentsSize, const UA_Argument* inputArguments, 
+                        size_t outputArgumentsSize, const UA_Argument* outputArguments,
                         UA_NodeId *outNewNodeId);
 #endif
 
