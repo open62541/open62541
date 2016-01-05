@@ -37,8 +37,6 @@ typedef struct {
 #endif
 
 struct UA_Server {
-    UA_ServerConfig config;
-
     /* Meta */
     UA_DateTime startTime;
     size_t endpointDescriptionsSize;
@@ -71,6 +69,10 @@ struct UA_Server {
     pthread_cond_t dispatchQueue_condition; /* so the workers don't spin if the queue is empty */
 	struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
 #endif
+
+    /* Config is the last element so that MSVC allows the usernamePasswordLogins
+       field with zero-sized array */
+    UA_ServerConfig config;
 };
 
 /* The node is assumed to be "finished", i.e. no instantiation from inheritance is necessary */
