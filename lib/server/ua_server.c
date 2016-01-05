@@ -207,25 +207,6 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
     return result.statusCode;
 }
 
-UA_StatusCode UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer *networkLayer) {
-    UA_ServerNetworkLayer **newlayers =
-        UA_realloc(server->networkLayers, sizeof(void*)*(server->networkLayersSize+1));
-    if(!newlayers) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Cannot add networklayer");
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    server->networkLayers = newlayers;
-    server->networkLayers[server->networkLayersSize] = networkLayer;
-    server->networkLayersSize++;
-
-    // TODO: add new endpoints for every networklayer
-    for(size_t i = 0; i < server->endpointDescriptionsSize; i++) {
-        if(!server->endpointDescriptions[i].endpointUrl.data)
-            UA_String_copy(&networkLayer->discoveryUrl, &server->endpointDescriptions[i].endpointUrl);
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
 /**********/
 /* Server */
 /**********/
@@ -246,14 +227,6 @@ void UA_Server_delete(UA_Server *server) {
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
     UA_Array_delete(server->endpointDescriptions, server->endpointDescriptionsSize,
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-
-    // Delete the network layers
-    for(size_t i = 0; i < server->networkLayersSize; i++) {
-        UA_String_deleteMembers(&server->networkLayers[i]->discoveryUrl);
-        server->networkLayers[i]->deleteMembers(server->networkLayers[i]);
-        UA_free(server->networkLayers[i]);
-    }
-    UA_free(server->networkLayers);
 
     UA_RCU_UNLOCK();
 #ifdef UA_ENABLE_MULTITHREADING
@@ -417,8 +390,11 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
     server->namespacesSize = 2;
 
-    UA_EndpointDescription *endpoint = UA_EndpointDescription_new(); // todo: check return code
-    if(endpoint) {
+    server->endpointDescriptions = UA_Array_new(server->config.networkLayersSize,
+                                                &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    server->endpointDescriptionsSize = server->config.networkLayersSize;
+    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+        UA_EndpointDescription *endpoint = &server->endpointDescriptions[i];
         endpoint->securityMode = UA_MESSAGESECURITYMODE_NONE;
         endpoint->securityPolicyUri =
             UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
@@ -449,11 +425,10 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
         /* The standard says "the HostName specified in the Server Certificate is the
            same as the HostName contained in the endpointUrl provided in the
            EndpointDescription */
-        /* UA_String_copy(endpointUrl, &endpoint->endpointUrl); */
-        /* UA_String_copy(&server->serverCertificate, &endpoint->serverCertificate); */
+        UA_String_copy(&server->config.networkLayers[i].discoveryUrl, &endpoint->endpointUrl);
+        UA_String_copy(&server->config.serverCertificate, &endpoint->serverCertificate);
+
         UA_ApplicationDescription_copy(&server->config.applicationDescription, &endpoint->server);
-        server->endpointDescriptions = endpoint;
-        server->endpointDescriptionsSize = 1;
     } 
 
 #define MAXCHANNELCOUNT 100

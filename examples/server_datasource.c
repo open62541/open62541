@@ -15,7 +15,7 @@
 # include "open62541.h"
 #endif
 
-UA_Boolean running = 1;
+UA_Boolean running = UA_TRUE;
 UA_Logger logger = Logger_Stdout;
 
 static void stopHandler(int sign) {
@@ -53,10 +53,11 @@ int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
     UA_ServerConfig config = UA_ServerConfig_standard;
-    config.running = &running;
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, logger);
     config.logger = Logger_Stdout;
+    config.networkLayers = &nl;
+    config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
-    UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 
     /* add a variable node to the address space */
     UA_Int32 myInteger = 42;
@@ -74,8 +75,9 @@ int main(int argc, char** argv) {
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                                         myIntegerName, UA_NODEID_NULL, attr, dateDataSource, NULL);
 
-    UA_StatusCode retval = UA_Server_run(server);
+    UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
+    nl.deleteMembers(&nl);
 
     return retval;
 }

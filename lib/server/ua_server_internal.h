@@ -45,10 +45,6 @@ struct UA_Server {
     size_t endpointDescriptionsSize;
     UA_EndpointDescription *endpointDescriptions;
 
-    /* Communication */
-    size_t networkLayersSize;
-    UA_ServerNetworkLayer **networkLayers;
-
     /* Security */
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;

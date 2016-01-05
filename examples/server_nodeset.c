@@ -31,18 +31,20 @@ int main(int argc, char** argv) {
 
     /* initialize the server */
     UA_ServerConfig config = UA_ServerConfig_standard;
-    config.running = &running;
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, logger);
     config.logger = Logger_Stdout;
+    config.networkLayers = &nl;
+    config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
-    UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 
     /* create nodes from nodeset */
     nodeset(server);
 
     /* start server */
-    UA_StatusCode retval = UA_Server_run(server); // blocks until running=false
+    UA_StatusCode retval = UA_Server_run(server, &running); //UA_blocks until running=false
 
     /* ctrl-c received -> clean up */
     UA_Server_delete(server);
+    nl.deleteMembers(&nl);
     return retval;
 }

@@ -18,8 +18,8 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
     }
 
     /* add the discoveryUrls from the networklayers */
-    UA_String *disc = UA_realloc(descr->discoveryUrls,
-                                 sizeof(UA_String) * (descr->discoveryUrlsSize + server->networkLayersSize));
+    UA_String *disc = UA_realloc(descr->discoveryUrls, sizeof(UA_String) *
+                                 (descr->discoveryUrlsSize + server->config.networkLayersSize));
     if(!disc) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         UA_ApplicationDescription_delete(descr);
@@ -27,28 +27,40 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
     }
     size_t index = descr->discoveryUrlsSize;
     descr->discoveryUrls = disc;
-    descr->discoveryUrlsSize += server->networkLayersSize;
+    descr->discoveryUrlsSize += server->config.networkLayersSize;
         
     // TODO: Add nl only if discoveryUrl not already present
-    for(size_t nl = 0; nl < server->networkLayersSize; nl++)
-        UA_String_copy(&server->networkLayers[nl]->discoveryUrl, &descr->discoveryUrls[index]);
+    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+        UA_String_copy(&nl->discoveryUrl, &descr->discoveryUrls[index + i]);
+    }
 
     response->servers = descr;
     response->serversSize = 1;
 }
 
-void Service_GetEndpoints(UA_Server *server, UA_Session *session,
-                          const UA_GetEndpointsRequest *request, UA_GetEndpointsResponse *response) {
+void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEndpointsRequest *request,
+                          UA_GetEndpointsResponse *response) {
+    /* Test if one of the networklayers exposes the discoveryUrl of the requested endpoint */
+    /* Disabled, servers in a virtualbox don't know their external hostname */
+    /* UA_Boolean foundUri = UA_FALSE; */
+    /* for(size_t i = 0; i < server->config.networkLayersSize; i++) { */
+    /*     if(UA_String_equal(&request->endpointUrl, &server->config.networkLayers[i].discoveryUrl)) { */
+    /*         foundUri = UA_TRUE; */
+    /*         break; */
+    /*     } */
+    /* } */
+    /* if(!foundUri) { */
+    /*     response->endpointsSize = 0; */
+    /*     return; */
+    /* } */
+    
     /* test if the supported binary profile shall be returned */
-#ifdef NO_ALLOCA
 	UA_Boolean relevant_endpoints[server->endpointDescriptionsSize];
-#else
-	UA_Boolean *relevant_endpoints = UA_alloca(sizeof(UA_Boolean)*server->endpointDescriptionsSize);
-#endif /*NO_ALLOCA */
     size_t relevant_count = 0;
     for(size_t j = 0; j < server->endpointDescriptionsSize; j++) {
         relevant_endpoints[j] = UA_FALSE;
-        if(request->profileUrisSize <= 0) {
+        if(request->profileUrisSize == 0) {
             relevant_endpoints[j] = UA_TRUE;
             relevant_count++;
             continue;
@@ -76,9 +88,10 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
     size_t k = 0;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t j = 0; j < server->endpointDescriptionsSize && retval == UA_STATUSCODE_GOOD; j++) {
-        if(relevant_endpoints[j] != UA_TRUE)
+        if(!relevant_endpoints[j])
             continue;
         retval = UA_EndpointDescription_copy(&server->endpointDescriptions[j], &response->endpoints[k]);
+        retval |= UA_String_copy(&request->endpointUrl, &response->endpoints[k].endpointUrl);
         k++;
     }
 

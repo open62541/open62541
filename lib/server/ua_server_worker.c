@@ -555,8 +555,10 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
 
     /* Start the networklayers */
     UA_StatusCode result = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < server->networkLayersSize; i++)
-        result |= server->networkLayers[i]->start(server->networkLayers[i], server->config.logger);
+    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+        result |= nl->start(nl);
+    }
 
     return result;
 }
@@ -570,17 +572,15 @@ UA_StatusCode UA_Server_run_iterate(UA_Server *server) {
     UA_UInt16 timeout = processRepeatedJobs(server);
 
     /* Get work from the networklayer */
-    for(size_t i = 0; i < server->networkLayersSize; i++) {
-        UA_ServerNetworkLayer *nl = server->networkLayers[i];
+    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         UA_Job *jobs;
         size_t jobsSize;
-        if(*server->config.running) {
-            if(i == server->networkLayersSize-1)
-                jobsSize = nl->getJobs(nl, &jobs, timeout);
-            else
-                jobsSize = nl->getJobs(nl, &jobs, 0);
-        } else
-            jobsSize = server->networkLayers[i]->stop(nl, &jobs);
+        if(i == server->config.networkLayersSize-1)
+            /* only the last networklayer waits on the tieout */
+            jobsSize = nl->getJobs(nl, &jobs, timeout);
+        else
+            jobsSize = nl->getJobs(nl, &jobs, 0);
 
 #ifdef UA_ENABLE_MULTITHREADING
         /* Filter out delayed work */
@@ -606,10 +606,11 @@ UA_StatusCode UA_Server_run_iterate(UA_Server *server) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Server_run_shutdown(UA_Server *server){
+UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
     UA_Job *stopJobs;
-    for(size_t i = 0; i < server->networkLayersSize; i++) {
-        size_t stopJobsSize = server->networkLayers[i]->stop(server->networkLayers[i], &stopJobs);
+    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+        size_t stopJobsSize = nl->stop(nl, &stopJobs);
         processJobs(server, stopJobs, stopJobsSize);
         UA_free(stopJobs);
     }
@@ -637,10 +638,11 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server){
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Server_run(UA_Server *server) {
-    if(UA_Server_run_startup(server) == UA_STATUSCODE_GOOD) {
-        while(*server->config.running)
+UA_StatusCode UA_Server_run(UA_Server *server, volatile UA_Boolean *running) {
+    UA_StatusCode retval = UA_Server_run_startup(server);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    while(*running)
             UA_Server_run_iterate(server);
-    }
     return UA_Server_run_shutdown(server);
 }

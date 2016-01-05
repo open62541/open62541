@@ -50,7 +50,6 @@ int main(int argc, char** argv)
 
     /* init the server */
     UA_ServerConfig config = UA_ServerConfig_standard;
-    config.running = &running;
     config.logger = Logger_Stdout;
     UA_Server *server = UA_Server_new(config);
     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, PORT));
@@ -76,7 +75,7 @@ int main(int argc, char** argv)
                               variableType, attr, NULL);
 
     /* run the server loop */
-    UA_StatusCode retval = UA_Server_run(server);
+    UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
     return retval;
 }

@@ -14,7 +14,6 @@
 #endif
 
 UA_Boolean running = UA_TRUE;
-
 static void stopHandler(int signal) {
     running = UA_FALSE;
 }
@@ -24,12 +23,14 @@ int main(void) {
     signal(SIGTERM, stopHandler);
 
     UA_ServerConfig config = UA_ServerConfig_standard;
-    config.running = &running;
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, Logger_Stdout);
     config.logger = Logger_Stdout;
+    config.networkLayers = &nl;
+    config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
-    UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
 
-    UA_StatusCode retval = UA_Server_run(server);
+    UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
+    nl.deleteMembers(&nl);
     return retval;
 }

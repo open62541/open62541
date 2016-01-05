@@ -49,7 +49,6 @@
 #define UA_STRING_STATIC_NULL {0, NULL}
 
 const UA_ServerConfig UA_ServerConfig_standard = {
-    .running = NULL,
     .nThreads = 1,
     .logger = Logger_Stdout,
 
@@ -71,6 +70,8 @@ const UA_ServerConfig UA_ServerConfig_standard = {
         .discoveryUrls = NULL
     },
     .serverCertificate = UA_STRING_STATIC_NULL,
+
+    .networkLayersSize = 0, .networkLayers = NULL,
 
     .enableAnonymousLogin = UA_TRUE,
     .enableUsernamePasswordLogin = UA_TRUE,

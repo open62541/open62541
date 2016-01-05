@@ -32,19 +32,24 @@ extern "C" {
 /* Server Config */
 /*****************/
 
+struct UA_ServerNetworkLayer; // forwards declaration
+typedef struct UA_ServerNetworkLayer UA_ServerNetworkLayer;    
+
 typedef struct {
     UA_String username;
     UA_String password;
 } UA_UsernamePasswordLogin;
 
 typedef struct {
-    UA_Boolean *running; // the main loop iterates as long as *running == true
     UA_UInt16 nThreads; // only if multithreading is enabled
     UA_Logger logger;
 
     UA_BuildInfo buildInfo;
     UA_ApplicationDescription applicationDescription;
     UA_ByteString serverCertificate;
+
+    size_t networkLayersSize;
+    UA_ServerNetworkLayer *networkLayers;
 
     UA_Boolean enableAnonymousLogin;
     UA_Boolean enableUsernamePasswordLogin;
@@ -65,7 +70,7 @@ void UA_EXPORT UA_Server_delete(UA_Server *server);
  * Runs the main loop of the server. In each iteration, this calls into the networklayers to see if
  * jobs have arrived and checks if repeated jobs need to be triggered.
  */
-UA_StatusCode UA_EXPORT UA_Server_run(UA_Server *server);
+UA_StatusCode UA_EXPORT UA_Server_run(UA_Server *server, volatile UA_Boolean *running);
 
 /** The prologue part of UA_Server_run (no need to use if you call UA_Server_run) */
 UA_StatusCode UA_EXPORT UA_Server_run_startup(UA_Server *server);
@@ -109,9 +114,9 @@ UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
  * in parallel but only sequentially from the server's main loop. So the network
  * layer does not need to be thread-safe.
  */
-typedef struct UA_ServerNetworkLayer {
+struct UA_ServerNetworkLayer {
+    void *handle; // pointer to internal data
     UA_String discoveryUrl;
-    UA_Logger logger; // Set during start
 
     /**
      * Starts listening on the the networklayer.
@@ -120,7 +125,7 @@ typedef struct UA_ServerNetworkLayer {
      * @param logger The logger
      * @return Returns UA_STATUSCODE_GOOD or an error code.
      */
-    UA_StatusCode (*start)(struct UA_ServerNetworkLayer *nl, UA_Logger logger);
+    UA_StatusCode (*start)(UA_ServerNetworkLayer *nl);
     
     /**
      * Gets called from the main server loop and returns the jobs (accumulated messages and close
@@ -132,7 +137,7 @@ typedef struct UA_ServerNetworkLayer {
      * @param timeout The timeout during which an event must arrive in microseconds
      * @return The size of the jobs array. If the result is negative, an error has occurred.
      */
-    size_t (*getJobs)(struct UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt16 timeout);
+    size_t (*getJobs)(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt16 timeout);
 
     /**
      * Closes the network connection and returns all the jobs that need to be finished before the
@@ -143,15 +148,11 @@ typedef struct UA_ServerNetworkLayer {
      * returned size.
      * @return The size of the jobs array. If the result is negative, an error has occurred.
      */
-    size_t (*stop)(struct UA_ServerNetworkLayer *nl, UA_Job **jobs);
+    size_t (*stop)(UA_ServerNetworkLayer *nl, UA_Job **jobs);
 
-    /** Deletes the network layer. Call only after a successful shutdown. */
-    void (*deleteMembers)(struct UA_ServerNetworkLayer *nl);
-} UA_ServerNetworkLayer;
-
-/* Networklayers are deleted together with the server */
-UA_StatusCode UA_EXPORT
-UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer *networkLayer);
+    /** Deletes the network content. Call only after stopping. */
+    void (*deleteMembers)(UA_ServerNetworkLayer *nl);
+};
 
 /**********************/
 /* Set Node Callbacks */
