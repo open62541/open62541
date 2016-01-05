@@ -21,7 +21,7 @@ static void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value) {
 
 int main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
-    UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
+    UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP,
                                              "opc.tcp://localhost:16664");
 
     if(retval != UA_STATUSCODE_GOOD) {
