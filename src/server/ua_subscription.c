@@ -375,7 +375,7 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
                 dst->hasValue = UA_TRUE;
                 samplingError = UA_FALSE;
             } else {
-                if(vsrc->valueSource != UA_VALUESOURCE_DATASOURCE)
+                if(vsrc->valueSource != UA_VALUESOURCE_DATASOURCE || vsrc->value.dataSource.read == NULL)
                     break;
                 if(vsrc->value.dataSource.read(vsrc->value.dataSource.handle, vsrc->nodeId, UA_TRUE,
                                                NULL, &sourceDataValue) != UA_STATUSCODE_GOOD)
