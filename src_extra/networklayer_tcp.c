@@ -55,7 +55,7 @@ static UA_StatusCode
 socket_write(UA_Connection *connection, UA_ByteString *buf) {
     size_t nWritten = 0;
     while(buf->length > 0 && nWritten < (size_t)buf->length) {
-        UA_Int32 n = 0;
+        ssize_t n = 0;
         do {
 #ifdef _WIN32
             n = send((SOCKET)connection->sockfd, (const char*)buf->data, (size_t)buf->length, 0);
@@ -75,8 +75,8 @@ socket_write(UA_Connection *connection, UA_ByteString *buf) {
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
             }
 #endif
-        } while (n == -1L);
-        nWritten += n;
+        } while(n == -1L);
+        nWritten += (size_t)n;
     }
     UA_ByteString_deleteMembers(buf);
     return UA_STATUSCODE_GOOD;
@@ -93,7 +93,7 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
     if(timeout > 0) {
         /* currently, only the client uses timeouts */
 #ifndef _WIN32
-        int timeout_usec = timeout * 1000;
+        UA_UInt32 timeout_usec = timeout * 1000;
         struct timeval tmptv = {timeout_usec / 1000000, timeout_usec % 1000000};
         int ret = setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tmptv, sizeof(struct timeval));
 #else
@@ -107,7 +107,7 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
         }
     }
 
-    int ret = recv(connection->sockfd, (char*)response->data, connection->localConf.recvBufferSize, 0);
+    ssize_t ret = recv(connection->sockfd, (char*)response->data, connection->localConf.recvBufferSize, 0);
 	if(ret == 0) {
         /* server has closed the connection */
         UA_ByteString_deleteMembers(response);
@@ -128,7 +128,7 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
         }
     }
-    response->length = ret;
+    response->length = (size_t)ret;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -188,7 +188,7 @@ static void FreeConnectionCallback(UA_Server *server, void *ptr) {
 
 typedef struct {
     UA_ConnectionConfig conf;
-    UA_UInt32 port;
+    UA_UInt16 port;
     UA_Logger logger; // Set during start
     
     /* open sockets and connections */
@@ -354,7 +354,7 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
     /* alloc enough space for a cleanup-connection and free-connection job per resulted socket */
     if(resultsize == 0)
         return 0;
-    UA_Job *js = malloc(sizeof(UA_Job) * resultsize * 2);
+    UA_Job *js = malloc(sizeof(UA_Job) * (size_t)resultsize * 2);
     if(!js)
         return 0;
 
@@ -435,7 +435,7 @@ static void ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
 }
 
 UA_ServerNetworkLayer
-UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt32 port, UA_Logger logger) {
+UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port, UA_Logger logger) {
 #ifdef _WIN32
     WORD wVersionRequested;
     WSADATA wsaData;
@@ -461,9 +461,9 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt32 port, UA_Logger log
     if(gethostname(hostname, 255) == 0) {
         char discoveryUrl[256];
 #ifndef _MSC_VER
-        du.length = snprintf(discoveryUrl, 255, "opc.tcp://%s:%d", hostname, port);
+        du.length = (size_t)snprintf(discoveryUrl, 255, "opc.tcp://%s:%d", hostname, port);
 #else
-        du.length = _snprintf_s(discoveryUrl, 255, _TRUNCATE, "opc.tcp://%s:%d", hostname, port);
+        du.length = (size_t)_snprintf_s(discoveryUrl, 255, _TRUNCATE, "opc.tcp://%s:%d", hostname, port);
 #endif
         du.data = (UA_Byte*)discoveryUrl;
     }
@@ -576,7 +576,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
     }
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
-    memcpy((char *)&server_addr.sin_addr.s_addr, (char *)server->h_addr_list[0], server->h_length);
+    memcpy((char *)&server_addr.sin_addr.s_addr, (char *)server->h_addr_list[0], (size_t)server->h_length);
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(port);
     connection.state = UA_CONNECTION_OPENING;

@@ -929,7 +929,9 @@ static UA_StatusCode
 deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
                       const UA_DeleteReferencesItem *item) {
     UA_Boolean edited = UA_FALSE;
-    for(UA_Int32 i = node->referencesSize - 1; i >= 0; i--) {
+    for(size_t i = node->referencesSize - 1; ; i--) {
+        if(i > node->referencesSize)
+            break; /* underflow after i == 0 */
         if(!UA_NodeId_equal(&item->targetNodeId.nodeId, &node->references[i].targetId.nodeId))
             continue;
         if(!UA_NodeId_equal(&item->referenceTypeId, &node->references[i].referenceTypeId))

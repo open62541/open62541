@@ -391,7 +391,7 @@ END_TEST
 START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArray) {
     // given
     size_t pos = 0;
-    UA_Byte data[] = { UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric, 0xFF, 0x00, 0x00, 0x00 };
+    UA_Byte data[] = { (UA_Byte)UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric, 0xFF, 0x00, 0x00, 0x00 };
     UA_ByteString src = { 5, data };
     UA_Variant dst;
     // when
@@ -412,7 +412,8 @@ END_TEST
 START_TEST(UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray) {
     // given
     size_t pos = 0;
-    UA_Byte data[] = { UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric | UA_VARIANT_ENCODINGMASKTYPE_ARRAY,
+    UA_Byte data[] = { (UA_Byte)(UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric |
+                                 UA_VARIANT_ENCODINGMASKTYPE_ARRAY),
                        0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF,
                        0xFF, 0xFF };
     UA_ByteString src = { 13, data };
@@ -491,7 +492,8 @@ END_TEST
 START_TEST(UA_Variant_decodeWithOutDeleteMembersShallFailInCheckMem) {
     // given
     size_t pos = 0;
-    UA_Byte data[] = { UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric | UA_VARIANT_ENCODINGMASKTYPE_ARRAY,
+    UA_Byte data[] = { (UA_Byte)(UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric |
+                                 UA_VARIANT_ENCODINGMASKTYPE_ARRAY),
                        0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF };
     UA_ByteString src = { 13, data };
     UA_Variant dst;
@@ -507,7 +509,8 @@ END_TEST
 START_TEST(UA_Variant_decodeWithTooSmallSourceShallReturnWithError) {
     // given
     size_t pos = 0;
-    UA_Byte data[] = { UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric | UA_VARIANT_ENCODINGMASKTYPE_ARRAY,
+    UA_Byte data[] = { (UA_Byte)(UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric |
+                                 UA_VARIANT_ENCODINGMASKTYPE_ARRAY),
                        0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF };
     UA_ByteString src = { 4, data };
 

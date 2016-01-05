@@ -114,7 +114,7 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
 
     size_t offset = 8;
     retval |= UA_TcpHelloMessage_encodeBinary(&hello, &message, &offset);
-    messageHeader.messageSize = offset;
+    messageHeader.messageSize = (UA_UInt32)offset;
     offset = 0;
     retval |= UA_TcpMessageHeader_encodeBinary(&messageHeader, &message, &offset);
     UA_TcpHelloMessage_deleteMembers(&hello);
@@ -220,7 +220,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &message, &offset);
     retval |= UA_NodeId_encodeBinary(&requestType, &message, &offset);
     retval |= UA_OpenSecureChannelRequest_encodeBinary(&opnSecRq, &message, &offset);
-    messageHeader.messageHeader.messageSize = offset;
+    messageHeader.messageHeader.messageSize = (UA_UInt32)offset;
     offset = 0;
     retval |= UA_SecureConversationMessageHeader_encodeBinary(&messageHeader, &message, &offset);
 
@@ -457,7 +457,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     retval |= UA_NodeId_encodeBinary(&typeId, &message, &offset);
     retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST], &message, &offset);
 
-    msgHeader.messageHeader.messageSize = offset;
+    msgHeader.messageHeader.messageSize = (UA_UInt32)offset;
     offset = 0;
     retval |= UA_SecureConversationMessageHeader_encodeBinary(&msgHeader, &message, &offset);
 

@@ -154,13 +154,13 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, const UA_Node
         cds_lfht_count_nodes(ns->ht, &before, &identifier, &after); // current amount of nodes stored
         identifier++;
 
-        newNode->nodeId.identifier.numeric = identifier;
+        newNode->nodeId.identifier.numeric = (UA_UInt32)identifier;
         while(UA_TRUE) {
             hash_t h = hash(&newNode->nodeId);
             result = cds_lfht_add_unique(ns->ht, h, compare, &newNode->nodeId, &entry->htn);
             if(result == &entry->htn)
                 break;
-            newNode->nodeId.identifier.numeric += (identifier * 2654435761);
+            newNode->nodeId.identifier.numeric += (UA_UInt32)(identifier * 2654435761);
         }
     }
 

@@ -9,48 +9,51 @@
 /* Read Attribute */
 /******************/
 
-static size_t readNumber(UA_Byte *buf, UA_Int32 buflen, UA_UInt32 *number) {
+static size_t
+readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
     UA_UInt32 n = 0;
     size_t progress = 0;
     /* read numbers until the end or a non-number character appears */
     UA_Byte c;
-    while((UA_Int32)progress < buflen) {
+    while(progress < buflen) {
         c = buf[progress];
         if('0' > c || '9' < c)
             break;
-        n = (n*10) + (c-'0');
+        n = (n*10) + (UA_UInt32)(c-'0');
         progress++;
     }
     *number = n;
     return progress;
 }
 
-static size_t readDimension(UA_Byte *buf, UA_Int32 buflen, struct UA_NumericRangeDimension *dim) {
+static size_t
+readDimension(UA_Byte *buf, size_t buflen, struct UA_NumericRangeDimension *dim) {
     size_t progress = readNumber(buf, buflen, &dim->min);
     if(progress == 0)
         return 0;
-    if(buflen <= (UA_Int32)progress || buf[progress] != ':') {
+    if(buflen <= progress || buf[progress] != ':') {
         dim->max = dim->min;
         return progress;
     }
-    size_t progress2 = readNumber(&buf[progress+1], buflen - (progress + 1), &dim->max);
+    progress++;
+    size_t progress2 = readNumber(&buf[progress+1], buflen - progress, &dim->max);
     if(progress2 == 0)
         return 0;
-    return progress + progress2 + 1;
+    return progress + progress2;
 }
 
 #ifndef UA_BUILD_UNIT_TESTS
 static
 #endif
 UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
-    UA_Int32 index = 0;
+    size_t index = 0;
     size_t dimensionsMax = 0;
     struct UA_NumericRangeDimension *dimensions = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     size_t pos = 0;
     do {
         /* alloc dimensions */
-        if(index >= (UA_Int32)dimensionsMax) {
+        if(index >= dimensionsMax) {
             struct UA_NumericRangeDimension *newds;
             newds = UA_realloc(dimensions, sizeof(struct UA_NumericRangeDimension) * (dimensionsMax + 2));
             if(!newds) {

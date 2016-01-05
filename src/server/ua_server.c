@@ -72,7 +72,7 @@ static const UA_NodeId nodeIdOrganizes = {
 static const UA_ExpandedNodeId expandedNodeIdBaseDataVariabletype = {
     .nodeId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
                .identifier.numeric = UA_NS0ID_BASEDATAVARIABLETYPE},
-    .namespaceUri = {.length = -1, .data = NULL}, .serverIndex = 0};
+    .namespaceUri = {.length = 0, .data = NULL}, .serverIndex = 0};
 
 #ifndef UA_ENABLE_GENERATE_NAMESPACE0
 static const UA_NodeId nodeIdNonHierarchicalReferences = {
@@ -133,7 +133,7 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
                                     sizeof(UA_String) * (server->namespacesSize+1));
     server->namespaces[server->namespacesSize] = UA_STRING_ALLOC(name);
     server->namespacesSize++;
-    return (UA_UInt16)server->namespacesSize - 1;
+    return (UA_UInt16)(server->namespacesSize - 1);
 }
 
 UA_StatusCode
@@ -361,7 +361,7 @@ static void copyNames(UA_Node *node, char *name) {
 }
 
 static void
-addDataTypeNode(UA_Server *server, char* name, UA_UInt32 datatypeid, UA_Int32 parent) {
+addDataTypeNode(UA_Server *server, char* name, UA_UInt32 datatypeid, UA_UInt32 parent) {
     UA_DataTypeNode *datatype = UA_DataTypeNode_new();
     copyNames((UA_Node*)datatype, name);
     datatype->nodeId.identifier.numeric = datatypeid;
@@ -370,7 +370,7 @@ addDataTypeNode(UA_Server *server, char* name, UA_UInt32 datatypeid, UA_Int32 pa
 
 static void
 addObjectTypeNode(UA_Server *server, char* name, UA_UInt32 objecttypeid,
-                  UA_Int32 parent, UA_Int32 parentreference) {
+                  UA_UInt32 parent, UA_UInt32 parentreference) {
     UA_ObjectTypeNode *objecttype = UA_ObjectTypeNode_new();
     copyNames((UA_Node*)objecttype, name);
     objecttype->nodeId.identifier.numeric = objecttypeid;
@@ -380,7 +380,7 @@ addObjectTypeNode(UA_Server *server, char* name, UA_UInt32 objecttypeid,
 
 static UA_VariableTypeNode*
 createVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
-                       UA_Int32 parent, UA_Boolean abstract) {
+                       UA_UInt32 parent, UA_Boolean abstract) {
     UA_VariableTypeNode *variabletype = UA_VariableTypeNode_new();
     copyNames((UA_Node*)variabletype, name);
     variabletype->nodeId.identifier.numeric = variabletypeid;
@@ -391,14 +391,14 @@ createVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
 
 static void
 addVariableTypeNode_organized(UA_Server *server, char* name, UA_UInt32 variabletypeid,
-                              UA_Int32 parent, UA_Boolean abstract) {
+                              UA_UInt32 parent, UA_Boolean abstract) {
     UA_VariableTypeNode *variabletype = createVariableTypeNode(server, name, variabletypeid, parent, abstract);
     addNodeInternal(server, (UA_Node*)variabletype, UA_NODEID_NUMERIC(0, parent), nodeIdOrganizes);
 }
 
 static void
 addVariableTypeNode_subtype(UA_Server *server, char* name, UA_UInt32 variabletypeid,
-                            UA_Int32 parent, UA_Boolean abstract) {
+                            UA_UInt32 parent, UA_Boolean abstract) {
     UA_VariableTypeNode *variabletype =
         createVariableTypeNode(server, name, variabletypeid, parent, abstract);
     addNodeInternal(server, (UA_Node*)variabletype, UA_NODEID_NUMERIC(0, parent), nodeIdHasSubType);

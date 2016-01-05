@@ -38,13 +38,13 @@ static hash_t const primes[] = {
     134217689, 268435399,  536870909,  1073741789, 2147483647,  4294967291
 };
 
-static UA_Int16 higher_prime_index(hash_t n) {
+static UA_UInt16 higher_prime_index(hash_t n) {
     UA_UInt16 low  = 0;
     UA_UInt16 high = sizeof(primes) / sizeof(hash_t);
     while(low != high) {
-        UA_UInt16 mid = low + (high - low) / 2;
+        UA_UInt16 mid = (UA_UInt16)(low + (high - low) / 2);
         if(n > primes[mid])
-            low = mid + 1;
+            low = (UA_UInt16)(mid + 1);
         else
             high = mid;
     }
@@ -101,7 +101,7 @@ static UA_StatusCode expand(UA_NodeStore *ns) {
         return UA_STATUSCODE_GOOD;
 
     UA_UInt32 nindex = higher_prime_index(count * 2);
-    UA_Int32 nsize = primes[nindex];
+    UA_UInt32 nsize = primes[nindex];
     UA_NodeStoreEntry *nentries;
     if(!(nentries = UA_calloc(nsize, sizeof(UA_NodeStoreEntry))))
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -211,8 +211,8 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, UA_Node **ins
         /* find a free nodeid */
         if(node->nodeId.namespaceIndex == 0) //original request for ns=0 should yield ns=1
             node->nodeId.namespaceIndex = 1;
-        UA_Int32 identifier = ns->count+1; // start value
-        UA_Int32 size = ns->size;
+        UA_UInt32 identifier = ns->count+1; // start value
+        UA_UInt32 size = ns->size;
         hash_t increase = mod2(identifier, size);
         while(UA_TRUE) {
             node->nodeId.identifier.numeric = identifier;

@@ -20,7 +20,7 @@ UA_EXPORT const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {
 static UA_THREAD_LOCAL pcg32_random_t UA_rng = PCG32_INITIALIZER;
 
 UA_EXPORT void UA_random_seed(UA_UInt64 seed) {
-    pcg32_srandom_r(&UA_rng, seed, UA_DateTime_now());
+    pcg32_srandom_r(&UA_rng, seed, (uint64_t)UA_DateTime_now());
 }
 
 /*****************/
@@ -114,7 +114,7 @@ UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime atime) {
 
 static void printNumber(UA_UInt16 n, UA_Byte *pos, size_t digits) {
     for(size_t i = digits; i > 0; i--) {
-        pos[i-1] = (n % 10) + '0';
+        pos[i-1] = (UA_Byte)((n % 10) + '0');
         n = n / 10;
     }
 }
@@ -352,9 +352,11 @@ static UA_StatusCode
 processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t *total,
                        size_t *block, size_t *stride, size_t *first) {
     /* Test the integrity of the source variant dimensions */
-    UA_UInt32 dims_count = 1;
+    size_t dims_count = 1;
     UA_UInt32 elements = 1;
-    UA_UInt32 arrayLength = v->arrayLength;
+    if(v->arrayLength > UA_UINT32_MAX)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_UInt32 arrayLength = (UA_UInt32)v->arrayLength;
     const UA_UInt32 *dims = &arrayLength;
     if(v->arrayDimensionsSize > 0) {
         dims_count = v->arrayDimensionsSize;

@@ -143,7 +143,7 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     }
 
     /* now write the header with the size */
-    respHeader.messageHeader.messageSize = messagePos;
+    respHeader.messageHeader.messageSize = (UA_UInt32)messagePos;
 #ifndef UA_ENABLE_MULTITHREADING
     seqHeader.sequenceNumber = ++channel->sequenceNumber;
 #else

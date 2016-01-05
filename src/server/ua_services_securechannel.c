@@ -32,7 +32,7 @@ void Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
 }
 
 /* The server does not send a CloseSecureChannel response */
-void Service_CloseSecureChannel(UA_Server *server, UA_Int32 channelId) {
+void Service_CloseSecureChannel(UA_Server *server, UA_UInt32 channelId) {
     UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SECURECHANNEL,
                  "Closing SecureChannel %i", channelId);
     UA_SecureChannelManager_close(&server->secureChannelManager, channelId);
