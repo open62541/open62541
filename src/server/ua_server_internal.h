@@ -12,7 +12,6 @@
 #include "ua_subscription_manager.h"
 #endif
 
-#define PRODUCT_URI "http://open62541.org"
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
 
