@@ -722,7 +722,7 @@ ExtensionObject_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offse
             void *data = UA_new(type);
             if(data) {
                 size_t decode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
-                retval = decodeBinaryJumpTable[decode_index](src, offset, dst->content.decoded.data, type);
+                retval = decodeBinaryJumpTable[decode_index](src, offset, data, type);
                 /* check if the decoded length was as announced */
                 if(*offset != oldoffset + 4 + (size_t)signed_length)
                     retval |= UA_STATUSCODE_BADDECODINGERROR;
