@@ -29,7 +29,7 @@ typedef struct UA_ExternalNamespace {
 typedef struct {
     UA_Server *server;
     pthread_t thr;
-    volatile UA_UInt32 counter;
+    UA_UInt32 counter;
     volatile UA_Boolean running;
     char padding[64 - sizeof(void*) - sizeof(pthread_t) -
                  sizeof(UA_UInt32) - sizeof(UA_Boolean)]; // separate cache lines

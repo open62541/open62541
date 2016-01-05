@@ -15,7 +15,7 @@
 # include "open62541.h"
 #endif
 
-UA_Boolean running = UA_TRUE;
+UA_Boolean running = true;
 UA_Logger logger = Logger_Stdout;
 
 static UA_StatusCode
@@ -36,8 +36,8 @@ helloWorldMethod(void *handle, const UA_NodeId objectId, size_t inputSize, const
 } 
 
 static UA_StatusCode
-IncInt32ArrayValuesMethod(void *handle, const UA_NodeId objectId, size_t inputSize, const UA_Variant *input, size_t outputSize, 
-                          UA_Variant *output) {
+IncInt32ArrayValuesMethod(void *handle, const UA_NodeId objectId, size_t inputSize,
+                          const UA_Variant *input, size_t outputSize, UA_Variant *output) {
 	UA_Variant_setArrayCopy(output, input->data, 5, &UA_TYPES[UA_TYPES_INT32]);
 	for(size_t i = 0; i< input->arrayLength; i++)
 		((UA_Int32*)output->data)[i] = ((UA_Int32*)input->data)[i] + 1;
@@ -81,8 +81,8 @@ int main(int argc, char** argv) {
     UA_MethodAttributes_init(&helloAttr);
     helloAttr.description = UA_LOCALIZEDTEXT("en_US","Say `Hello World`");
     helloAttr.displayName = UA_LOCALIZEDTEXT("en_US","Hello World");
-    helloAttr.executable = UA_TRUE;
-    helloAttr.userExecutable = UA_TRUE;
+    helloAttr.executable = true;
+    helloAttr.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -122,8 +122,8 @@ int main(int argc, char** argv) {
     UA_MethodAttributes_init(&incAttr);
     incAttr.description = UA_LOCALIZEDTEXT("en_US","1dArrayExample");
     incAttr.displayName = UA_LOCALIZEDTEXT("en_US","1dArrayExample");
-    incAttr.executable = UA_TRUE;
-    incAttr.userExecutable = UA_TRUE;
+    incAttr.executable = true;
+    incAttr.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "IncInt32ArrayValues"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), 

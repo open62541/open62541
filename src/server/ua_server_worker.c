@@ -121,17 +121,16 @@ dispatchJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {
 static void *
 workerLoop(UA_Worker *worker) {
     UA_Server *server = worker->server;
-    volatile UA_UInt32 *counter = &worker->counter;
+    UA_UInt32 *counter = &worker->counter;
     volatile UA_Boolean *running = &worker->running;
     
-    /* Initialize the (thread local) random seed */
-    UA_random_seed((uintptr_t)startInfo);
+    /* Initialize the (thread local) random seed with the ram address of worker */
+    UA_random_seed((uintptr_t)worker);
    	rcu_register_thread();
 
     pthread_mutex_t mutex; // required for the condition variable
     pthread_mutex_init(&mutex,0);
     pthread_mutex_lock(&mutex);
-    struct timespec to;
 
     while(*running) {
         struct DispatchJobsList *wln = (struct DispatchJobsList*)
@@ -139,7 +138,7 @@ workerLoop(UA_Worker *worker) {
         if(!wln) {
             uatomic_inc(counter);
             /* sleep until a work arrives (and wakes up all worker threads) */
-            pthread_cond(&server->dispatchQueue_condition, &mutex);
+            pthread_cond_wait(&server->dispatchQueue_condition, &mutex);
             continue;
         }
         UA_RCU_LOCK();
@@ -149,9 +148,10 @@ workerLoop(UA_Worker *worker) {
         UA_RCU_UNLOCK();
         uatomic_inc(counter);
     }
+
     pthread_mutex_unlock(&mutex);
     pthread_mutex_destroy(&mutex);
-    rcu_barrier(); // wait for all scheduled call_rcu work to complete
+    rcu_barrier();
    	rcu_unregister_thread();
     return NULL;
 }
@@ -419,9 +419,9 @@ struct DelayedJobs {
 
 /* Dispatched as an ordinary job when the DelayedJobs list is full */
 static void getCounters(UA_Server *server, struct DelayedJobs *delayed) {
-    UA_UInt32 *counters = UA_malloc(server->nThreads * sizeof(UA_UInt32));
-    for(UA_UInt16 i = 0;i<server->nThreads;i++)
-        counters[i] = *server->workerCounters[i];
+    UA_UInt32 *counters = UA_malloc(server->config.nThreads * sizeof(UA_UInt32));
+    for(UA_UInt16 i = 0; i < server->config.nThreads; i++)
+        counters[i] = server->workers[i].counter;
     delayed->workerCounters = counters;
 }
 
@@ -487,8 +487,8 @@ static void dispatchDelayedJobs(UA_Server *server, void *data /* not used, but n
             continue;
         }
         UA_Boolean allMoved = UA_TRUE;
-        for(UA_UInt16 i=0;i<server->nThreads;i++) {
-            if(dw->workerCounters[i] == *server->workerCounters[i]) {
+        for(size_t i = 0; i < server->config.nThreads; i++) {
+            if(dw->workerCounters[i] == server->workers[i].counter) {
                 allMoved = UA_FALSE;
                 break;
             }
@@ -535,11 +535,13 @@ static void processMainLoopJobs(UA_Server *server) {
 UA_StatusCode UA_Server_run_startup(UA_Server *server) {
 #ifdef UA_ENABLE_MULTITHREADING
     /* Spin up the worker threads */
+    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                "Spinning up %u worker thread(s)", server->config.nThreads);
     pthread_cond_init(&server->dispatchQueue_condition, 0);
-    server->workers = UA_malloc(nThreads * sizeof(UA_Worker));
+    server->workers = UA_malloc(server->config.nThreads * sizeof(UA_Worker));
     if(!server->workers)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    for(size_t i = 0; i < nThreads; i++) {
+    for(size_t i = 0; i < server->config.nThreads; i++) {
         UA_Worker *worker = &server->workers[i];
         worker->server = server;
         worker->counter = 0;
@@ -615,12 +617,17 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
         UA_free(stopJobs);
     }
 #ifdef UA_ENABLE_MULTITHREADING
+    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                "Shutting down %u worker thread(s)", server->config.nThreads);
     /* Wait for all worker threads to finish */
-    for(size_t i = 0; i <nThreads; i++) {
+    for(size_t i = 0; i < server->config.nThreads; i++)
         server->workers[i].running = false;
-        pthread_join(server->thr[i], NULL);
-    }
+    pthread_cond_broadcast(&server->dispatchQueue_condition);
+    for(size_t i = 0; i < server->config.nThreads; i++)
+        pthread_join(server->workers[i].thr, NULL);
     UA_free(server->workers);
+    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                "Workers shut down");
 
     /* Manually finish the work still enqueued */
     emptyDispatchQueue(server);
