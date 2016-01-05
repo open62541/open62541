@@ -609,6 +609,40 @@ START_TEST(ReadSingleDataSourceAttributeValueWithoutTimestamp) {
     UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
+START_TEST(ReadSingleDataSourceAttributeDataTypeWithoutTimestamp) {
+    UA_Server *server = makeTestSequence();
+    UA_DataValue resp;
+    UA_DataValue_init(&resp);
+    UA_ReadRequest rReq;
+    UA_ReadRequest_init(&rReq);
+    rReq.nodesToRead = UA_ReadValueId_new();
+    rReq.nodesToReadSize = 1;
+    rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "cpu.temperature");
+    rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_DATATYPE;
+    Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
+    ck_assert_int_eq(UA_STATUSCODE_BADINTERNALERROR, resp.status);
+    UA_Server_delete(server);
+    UA_ReadRequest_deleteMembers(&rReq);
+    UA_DataValue_deleteMembers(&resp);
+} END_TEST
+
+START_TEST (ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp) {
+    UA_Server *server = makeTestSequence();
+    UA_DataValue resp;
+    UA_DataValue_init(&resp);
+    UA_ReadRequest rReq;
+    UA_ReadRequest_init(&rReq);
+    rReq.nodesToRead = UA_ReadValueId_new();
+    rReq.nodesToReadSize = 1;
+    rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "cpu.temperature");
+    rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_ARRAYDIMENSIONS;
+    Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
+    ck_assert_int_eq(UA_STATUSCODE_BADINTERNALERROR, resp.status);
+    UA_Server_delete(server);
+    UA_ReadRequest_deleteMembers(&rReq);
+    UA_DataValue_deleteMembers(&resp);
+} END_TEST
+
 /* Tests for writeValue method */
 
 START_TEST(WriteSingleAttributeNodeId) {
@@ -995,6 +1029,8 @@ static Suite * testSuite_services_attributes(void) {
 	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeExecutableWithoutTimestamp);
 	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeUserExecutableWithoutTimestamp);
 	tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeValueWithoutTimestamp);
+	tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeDataTypeWithoutTimestamp);
+	tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp);
 
 	suite_add_tcase(s, tc_readSingleAttributes);
 
