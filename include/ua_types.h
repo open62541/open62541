@@ -146,9 +146,9 @@ typedef struct UA_DateTimeStruct {
     UA_UInt16 year;
 } UA_DateTimeStruct;
 
-UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime time);
+UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime t);
 
-UA_String UA_EXPORT UA_DateTime_toString(UA_DateTime time);
+UA_String UA_EXPORT UA_DateTime_toString(UA_DateTime t);
 
 /**************************************************************************/
 /* Guid: A 16 byte value that can be used as a globally unique identifier */

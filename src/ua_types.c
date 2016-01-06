@@ -93,15 +93,15 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
 #endif
 }
 
-UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime atime) {
+UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime t) {
     /* Calculating the the milli-, micro- and nanoseconds */
     UA_DateTimeStruct dateTimeStruct;
-    dateTimeStruct.nanoSec  = (UA_UInt16)((atime % 10) * 100);
-    dateTimeStruct.microSec = (UA_UInt16)((atime % 10000) / 10);
-    dateTimeStruct.milliSec = (UA_UInt16)((atime % 10000000) / 10000);
+    dateTimeStruct.nanoSec  = (UA_UInt16)((t % 10) * 100);
+    dateTimeStruct.microSec = (UA_UInt16)((t % 10000) / 10);
+    dateTimeStruct.milliSec = (UA_UInt16)((t % 10000000) / 10000);
 
     /* Calculating the unix time with #include <time.h> */
-    time_t secSinceUnixEpoch = (atime - UA_DATETIME_UNIX_EPOCH) / UA_SEC_TO_DATETIME;
+    time_t secSinceUnixEpoch = (t - UA_DATETIME_UNIX_EPOCH) / UA_SEC_TO_DATETIME;
     struct tm ts = *gmtime(&secSinceUnixEpoch);
     dateTimeStruct.sec    = (UA_UInt16)ts.tm_sec;
     dateTimeStruct.min    = (UA_UInt16)ts.tm_min;
@@ -119,13 +119,13 @@ static void printNumber(UA_UInt16 n, UA_Byte *pos, size_t digits) {
     }
 }
 
-UA_String UA_DateTime_toString(UA_DateTime time) {
+UA_String UA_DateTime_toString(UA_DateTime t) {
     UA_String str = UA_STRING_NULL;
     // length of the string is 31 (plus \0 at the end)
     if(!(str.data = UA_malloc(32)))
         return str;
     str.length = 31;
-    UA_DateTimeStruct tSt = UA_DateTime_toStruct(time);
+    UA_DateTimeStruct tSt = UA_DateTime_toStruct(t);
     printNumber(tSt.month, str.data, 2);
     str.data[2] = '/';
     printNumber(tSt.day, &str.data[3], 2);
@@ -354,8 +354,10 @@ processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t 
     /* Test the integrity of the source variant dimensions */
     size_t dims_count = 1;
     UA_UInt32 elements = 1;
+#if(MAX_SIZE > 0xffffffff) /* 64bit only */
     if(v->arrayLength > UA_UINT32_MAX)
         return UA_STATUSCODE_BADINTERNALERROR;
+#endif
     UA_UInt32 arrayLength = (UA_UInt32)v->arrayLength;
     const UA_UInt32 *dims = &arrayLength;
     if(v->arrayDimensionsSize > 0) {
