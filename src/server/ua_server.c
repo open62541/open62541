@@ -1163,8 +1163,8 @@ setObjectTypeLifecycleManagement(UA_Server *server, UA_Session *session, UA_Obje
 }
 
 UA_StatusCode UA_EXPORT
-UA_Server_setObjectTypeNode_instanceLifecycleManagement(UA_Server *server, UA_NodeId nodeId,
-                                                        UA_ObjectLifecycleManagement olm) {
+UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nodeId,
+                                                UA_ObjectLifecycleManagement olm) {
     return UA_Server_editNode(server, &adminSession, &nodeId,
                               (UA_EditNodeCallback)setObjectTypeLifecycleManagement, &olm);
 }
