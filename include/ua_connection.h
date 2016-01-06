@@ -23,13 +23,13 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_job.h"
 
-typedef enum UA_ConnectionState {
+typedef enum {
     UA_CONNECTION_OPENING, ///< The socket is open, but the HEL/ACK handshake is not done
     UA_CONNECTION_ESTABLISHED, ///< The socket is open and the connection configured
     UA_CONNECTION_CLOSED, ///< The socket has been closed and the connection will be deleted
 } UA_ConnectionState;
 
-typedef struct UA_ConnectionConfig {
+typedef struct {
     UA_UInt32 protocolVersion;
     UA_UInt32 sendBufferSize;
     UA_UInt32 recvBufferSize;

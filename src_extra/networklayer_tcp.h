@@ -14,8 +14,7 @@ extern "C" {
 #include "ua_client.h"
 
 /** @brief Create the TCP networklayer and listen to the specified port */
-UA_ServerNetworkLayer UA_EXPORT
-UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt32 port, UA_Logger logger);
+UA_ServerNetworkLayer UA_EXPORT UA_ServerNetworkLayerTCP(UA_UInt32 port);
 
 UA_Connection UA_EXPORT
 UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl, UA_Logger logger);

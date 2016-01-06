@@ -286,8 +286,25 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
 }
 
 static UA_StatusCode
-ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl) {
+ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_ConnectionConfig config, UA_Logger logger) {
     ServerNetworkLayerTCP *layer = nl->handle;
+    layer->conf = config;
+    layer->logger = logger;
+
+    /* get the discovery url from the hostname */
+    UA_String du = UA_STRING_NULL;
+    char hostname[256];
+    if(gethostname(hostname, 255) == 0) {
+        char discoveryUrl[256];
+#ifndef _MSC_VER
+        du.length = snprintf(discoveryUrl, 255, "opc.tcp://%s:%d", hostname, layer->port);
+#else
+        du.length = _snprintf_s(discoveryUrl, 255, _TRUNCATE, "opc.tcp://%s:%d", hostname, layer->port);
+#endif
+        du.data = (UA_Byte*)discoveryUrl;
+        UA_String_copy(&du, &nl->discoveryUrl);
+    }
+
 #ifdef _WIN32
     if((layer->serversockfd = socket(PF_INET, SOCK_STREAM,0)) == (UA_Int32)INVALID_SOCKET) {
         UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK, "Error opening socket, code: %d",
@@ -434,8 +451,7 @@ static void ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
     UA_String_deleteMembers(&nl->discoveryUrl);
 }
 
-UA_ServerNetworkLayer
-UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt32 port, UA_Logger logger) {
+UA_ServerNetworkLayer UA_ServerNetworkLayerTCP(UA_UInt32 port) {
 #ifdef _WIN32
     WORD wVersionRequested;
     WSADATA wsaData;
@@ -449,27 +465,9 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt32 port, UA_Logger log
     if(!layer)
         return nl;
     
-    layer->conf = conf;
     layer->port = port;
-    layer->logger = logger;
-    layer->mappingsSize = 0;
-    layer->mappings = NULL;
-
-    /* get the discovery url from the hostname */
-    UA_String du = UA_STRING_NULL;
-    char hostname[256];
-    if(gethostname(hostname, 255) == 0) {
-        char discoveryUrl[256];
-#ifndef _MSC_VER
-        du.length = snprintf(discoveryUrl, 255, "opc.tcp://%s:%d", hostname, port);
-#else
-        du.length = _snprintf_s(discoveryUrl, 255, _TRUNCATE, "opc.tcp://%s:%d", hostname, port);
-#endif
-        du.data = (UA_Byte*)discoveryUrl;
-    }
 
     nl.handle = layer;
-    UA_String_copy(&du, &nl.discoveryUrl);
     nl.start = ServerNetworkLayerTCP_start;
     nl.getJobs = ServerNetworkLayerTCP_getJobs;
     nl.stop = ServerNetworkLayerTCP_stop;

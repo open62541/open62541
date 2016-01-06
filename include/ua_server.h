@@ -48,6 +48,7 @@ typedef struct {
     UA_ApplicationDescription applicationDescription;
     UA_ByteString serverCertificate;
 
+    UA_ConnectionConfig connectionConfig;
     size_t networkLayersSize;
     UA_ServerNetworkLayer *networkLayers;
 
@@ -125,7 +126,7 @@ struct UA_ServerNetworkLayer {
      * @param logger The logger
      * @return Returns UA_STATUSCODE_GOOD or an error code.
      */
-    UA_StatusCode (*start)(UA_ServerNetworkLayer *nl);
+    UA_StatusCode (*start)(UA_ServerNetworkLayer *nl, UA_ConnectionConfig config, UA_Logger logger);
     
     /**
      * Gets called from the main server loop and returns the jobs (accumulated messages and close
