@@ -703,47 +703,57 @@ ExtensionObject_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offse
         dst->encoding = encoding;
         dst->content.encoded.typeId = typeId;
         dst->content.encoded.body = UA_BYTESTRING_NULL;
-    } else if(encoding == UA_EXTENSIONOBJECT_ENCODED_XML) {
+        return UA_STATUSCODE_GOOD;
+    }
+    
+    if(encoding == UA_EXTENSIONOBJECT_ENCODED_XML) {
         dst->encoding = encoding;
         dst->content.encoded.typeId = typeId;
         retval = ByteString_decodeBinary(src, offset, &dst->content.encoded.body, NULL);
-    } else {
-        /* try to decode the content */
-        size_t oldoffset = *offset;
-        UA_Int32 signed_length = 0;
-        retval |= Int32_decodeBinary(src, offset, &signed_length, NULL);
         if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+            UA_ExtensionObject_deleteMembers(dst);
+        return retval;
+    }
 
-        const UA_DataType *type = NULL;
-        typeId.identifier.numeric -= UA_ENCODINGOFFSET_BINARY;
-        findDataType(&typeId, &type);
-        if(type && signed_length > 0) {
-            void *data = UA_new(type);
-            if(data) {
-                size_t decode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
-                retval = decodeBinaryJumpTable[decode_index](src, offset, data, type);
-                /* check if the decoded length was as announced */
-                if(*offset != oldoffset + 4 + (size_t)signed_length)
-                    retval |= UA_STATUSCODE_BADDECODINGERROR;
-                if(retval == UA_STATUSCODE_GOOD) {
-                    dst->content.decoded.data = data;
-                    dst->content.decoded.type = type;
-                    dst->encoding = UA_EXTENSIONOBJECT_DECODED;
-                } else {
-                    UA_delete(data, type);
-                }
-            } else {
-                retval = UA_STATUSCODE_BADOUTOFMEMORY;
-            }
+    /* try to decode the content */
+    size_t oldoffset = *offset;
+    UA_Int32 signed_length = 0;
+    retval |= Int32_decodeBinary(src, offset, &signed_length, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    const UA_DataType *type = NULL;
+    typeId.identifier.numeric -= UA_ENCODINGOFFSET_BINARY;
+    findDataType(&typeId, &type);
+
+    if(!type || signed_length <= 0) {
+        /* decode as a bytestring */
+        *offset = oldoffset;
+        typeId.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
+        retval = ByteString_decodeBinary(src, offset, &dst->content.encoded.body, NULL);
+        dst->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
+        dst->content.encoded.typeId = typeId;
+        if(retval != UA_STATUSCODE_GOOD)
+            UA_ExtensionObject_deleteMembers(dst);
+        return retval;
+    }
+
+    void *data = UA_new(type);
+    if(data) {
+        size_t decode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+        retval = decodeBinaryJumpTable[decode_index](src, offset, data, type);
+        /* check if the decoded length was as announced */
+        if(*offset != oldoffset + 4 + (size_t)signed_length)
+            retval |= UA_STATUSCODE_BADDECODINGERROR;
+        if(retval == UA_STATUSCODE_GOOD) {
+            dst->content.decoded.data = data;
+            dst->content.decoded.type = type;
+            dst->encoding = UA_EXTENSIONOBJECT_DECODED;
         } else {
-            /* decode as a bytestring */
-            *offset = oldoffset;
-            typeId.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
-            retval = ByteString_decodeBinary(src, offset, &dst->content.encoded.body, NULL);
-            dst->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
-            dst->content.encoded.typeId = typeId;
+            UA_delete(data, type);
         }
+    } else {
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
     }
     if(retval != UA_STATUSCODE_GOOD)
         UA_ExtensionObject_deleteMembers(dst);

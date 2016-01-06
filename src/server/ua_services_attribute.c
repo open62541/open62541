@@ -36,7 +36,7 @@ readDimension(UA_Byte *buf, size_t buflen, struct UA_NumericRangeDimension *dim)
         return progress;
     }
     progress++;
-    size_t progress2 = readNumber(&buf[progress+1], buflen - progress, &dim->max);
+    size_t progress2 = readNumber(&buf[progress], buflen - progress, &dim->max);
     if(progress2 == 0)
         return 0;
     return progress + progress2;
