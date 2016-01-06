@@ -22,7 +22,7 @@ void Service_CreateSession(UA_Server *server, UA_Session *session,
     response->responseHeader.serviceResult =
         UA_SessionManager_createSession(&server->sessionManager, channel, request, &newSession);
 	if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
                      "Processing CreateSessionRequest on SecureChannel %i failed",
                      channel->securityToken.channelId);
 		return;
@@ -41,7 +41,7 @@ void Service_CreateSession(UA_Server *server, UA_Session *session,
         UA_SessionManager_removeSession(&server->sessionManager, server, &newSession->authenticationToken);
          return;
     }
-    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
                  "Processing CreateSessionRequest on SecureChannel %i succeeded, created Session (ns=%i,i=%i)",
                  channel->securityToken.channelId, response->sessionId.namespaceIndex,
                  response->sessionId.identifier.numeric);
@@ -58,14 +58,14 @@ Service_ActivateSession(UA_Server *server, UA_Session *session,
 
 	if(!foundSession) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-        UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
-                     "Processing ActivateSessionRequest on SecureChannel %i, but no session found for the authentication token",
-                     channel->securityToken.channelId);
+        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
+                     "Processing ActivateSessionRequest on SecureChannel %i, but no session found "
+                     "for the authentication token", channel->securityToken.channelId);
         return;
 	}
 
     if(foundSession->validTill < UA_DateTime_now()) {
-        UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
                      "Processing ActivateSessionRequest on SecureChannel %i, but the session has timed out",
                      channel->securityToken.channelId);
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
@@ -75,7 +75,7 @@ Service_ActivateSession(UA_Server *server, UA_Session *session,
     if(request->userIdentityToken.encoding < UA_EXTENSIONOBJECT_DECODED ||
        (request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN] &&
         request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])) {
-        UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
                      "Invalided UserIdentityToken on SecureChannel %i for Session (ns=%i,i=%i)",
                      channel->securityToken.channelId, foundSession->sessionId.namespaceIndex,
                      foundSession->sessionId.identifier.numeric);
@@ -83,7 +83,7 @@ Service_ActivateSession(UA_Server *server, UA_Session *session,
         return;
     }
 
-    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
                  "Processing ActivateSessionRequest on SecureChannel %i for Session (ns=%i,i=%i)",
                  channel->securityToken.channelId, foundSession->sessionId.namespaceIndex,
                  foundSession->sessionId.identifier.numeric);
@@ -152,7 +152,7 @@ void
 Service_CloseSession(UA_Server *server, UA_Session *session,
                      const UA_CloseSessionRequest *request,
                      UA_CloseSessionResponse *response) {
-    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
                  "Processing CloseSessionRequest for Session (ns=%i,i=%i)",
                  session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
     response->responseHeader.serviceResult =
