@@ -103,7 +103,24 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel){
     memcpy(&channel->securityToken, &channel->nextSecurityToken, sizeof(UA_ChannelSecurityToken));
     UA_ChannelSecurityToken_init(&channel->nextSecurityToken);
 }
+static UA_StatusCode UA_SecureChannel_sendChunk(void *anonymObject, UA_ByteString **dst, size_t *UA_RESTRICT offset,UA_Byte chunkType){
+    UA_SecureChannel *channel = (UA_SecureChannel*)anonymObject;
+    channel->sequenceNumber
 
+#ifndef UA_ENABLE_MULTITHREADING
+    seqHeader.sequenceNumber = ++channel->sequenceNumber;
+#else
+    seqHeader.sequenceNumber = uatomic_add_return(&channel->sequenceNumber, 1);
+#endif
+
+
+    channel->connection->send(&channel->connection, *dst);
+    channel->connection->releaseRecvBuffer(*dst);
+    //initialize new buffer
+    channel->connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
+                                                         *dst);
+    offset = 24;
+}
 UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
                                                   const void *content,
                                                   const UA_DataType *contentType) {

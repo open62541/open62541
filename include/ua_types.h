@@ -509,6 +509,9 @@ typedef struct UA_DiagnosticInfo {
     struct UA_DiagnosticInfo *innerDiagnosticInfo;
 } UA_DiagnosticInfo;
 
+/* Signature for callback function which can be called if a send buffer overflow is detected. Use case: e.g., chunking*/
+typedef UA_StatusCode (*UA_encodeBufferOverflowFcn)(void *handle,UA_ByteString **dst, size_t *UA_RESTRICT offset);
+
 /*************************/
 /* Generic Type Handling */
 /*************************/

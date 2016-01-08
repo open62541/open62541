@@ -3,8 +3,6 @@
 
 #include "ua_types.h"
 
-typedef UA_StatusCode (*UA_encodeBufferOverflowFcn)(const void *src, const UA_DataType *type,void *anonymObject,
-                                                  UA_ByteString **dst, size_t *UA_RESTRICT offset);
 
 UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *type,UA_encodeBufferOverflowFcn overflowCallback,void *anonymObject,  UA_ByteString **dst,
                               size_t *UA_RESTRICT offset) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
