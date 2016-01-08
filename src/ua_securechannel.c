@@ -127,18 +127,18 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     UA_SequenceHeader seqHeader;
     seqHeader.requestId = requestId;
 
-    UA_ByteString message;
+    UA_ByteString *message = UA_ByteString_new();
     UA_StatusCode retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
-                                                     &message);
+                                                     message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     size_t messagePos = 24; // after the headers
-    retval |= UA_NodeId_encodeBinary(&typeId, &message, &messagePos);
-    retval |= UA_encodeBinary(content, contentType, &message, &messagePos);
+    retval |= UA_NodeId_encodeBinary(&typeId,NULL,NULL, &message,&messagePos);
+    retval |= UA_encodeBinary(content, contentType,NULL,NULL, &message, &messagePos);
 
     if(retval != UA_STATUSCODE_GOOD) {
-        connection->releaseSendBuffer(connection, &message);
+        connection->releaseSendBuffer(connection, message);
         return retval;
     }
 
@@ -151,11 +151,12 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
 #endif
 
     messagePos = 0;
-    UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &message, &messagePos);
-    UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader, &message, &messagePos);
-    UA_SequenceHeader_encodeBinary(&seqHeader, &message, &messagePos);
-    message.length = respHeader.messageHeader.messageSize;
+    UA_SecureConversationMessageHeader_encodeBinary(&respHeader,NULL,NULL,  &message, &messagePos);
+    UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader,NULL,NULL,  &message, &messagePos);
+    UA_SequenceHeader_encodeBinary(&seqHeader,NULL,NULL,  &message, &messagePos);
+    message->length = respHeader.messageHeader.messageSize;
 
-    retval = connection->send(connection, &message);
+    retval = connection->send(connection, message);
+    UA_free(message);
     return retval;
 }

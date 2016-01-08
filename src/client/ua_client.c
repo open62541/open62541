@@ -106,25 +106,26 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     hello.receiveBufferSize = conn->localConf.recvBufferSize;
     hello.sendBufferSize = conn->localConf.sendBufferSize;
 
-    UA_ByteString message;
+    UA_ByteString *message = UA_ByteString_new();
     UA_StatusCode retval;
-    retval = c->connection.getSendBuffer(&c->connection, c->connection.remoteConf.recvBufferSize, &message);
+    retval = c->connection.getSendBuffer(&c->connection, c->connection.remoteConf.recvBufferSize, message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     size_t offset = 8;
-    retval |= UA_TcpHelloMessage_encodeBinary(&hello, &message, &offset);
+    retval |= UA_TcpHelloMessage_encodeBinary(&hello,NULL,NULL, &message, &offset);
     messageHeader.messageSize = offset;
     offset = 0;
-    retval |= UA_TcpMessageHeader_encodeBinary(&messageHeader, &message, &offset);
+    retval |= UA_TcpMessageHeader_encodeBinary(&messageHeader,NULL,NULL, &message, &offset);
     UA_TcpHelloMessage_deleteMembers(&hello);
     if(retval != UA_STATUSCODE_GOOD) {
-        c->connection.releaseSendBuffer(&c->connection, &message);
+        c->connection.releaseSendBuffer(&c->connection, message);
         return retval;
     }
 
-    message.length = messageHeader.messageSize;
-    retval = c->connection.send(&c->connection, &message);
+    message->length = messageHeader.messageSize;
+    retval = c->connection.send(&c->connection, message);
+    UA_free(message);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(c->logger, UA_LOGCATEGORY_NETWORK, "Sending HEL failed");
         return retval;
@@ -207,8 +208,8 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     UA_ByteString_copy(&client->channel.clientNonce, &opnSecRq.clientNonce);
     opnSecRq.securityMode = UA_MESSAGESECURITYMODE_NONE;
 
-    UA_ByteString message;
-    UA_StatusCode retval = c->getSendBuffer(c, c->remoteConf.recvBufferSize, &message);
+    UA_ByteString *message = UA_ByteString_new();
+    UA_StatusCode retval = c->getSendBuffer(c, c->remoteConf.recvBufferSize, message);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         UA_OpenSecureChannelRequest_deleteMembers(&opnSecRq);
@@ -216,23 +217,25 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     }
 
     size_t offset = 12;
-    retval = UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &message, &offset);
-    retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &message, &offset);
-    retval |= UA_NodeId_encodeBinary(&requestType, &message, &offset);
-    retval |= UA_OpenSecureChannelRequest_encodeBinary(&opnSecRq, &message, &offset);
+    retval = UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader,NULL,NULL, &message, &offset);
+    retval |= UA_SequenceHeader_encodeBinary(&seqHeader,NULL,NULL,  &message, &offset);
+    retval |= UA_NodeId_encodeBinary(&requestType,NULL,NULL,  &message, &offset);
+    retval |= UA_OpenSecureChannelRequest_encodeBinary(&opnSecRq, NULL,NULL, &message, &offset);
     messageHeader.messageHeader.messageSize = offset;
     offset = 0;
-    retval |= UA_SecureConversationMessageHeader_encodeBinary(&messageHeader, &message, &offset);
+    retval |= UA_SecureConversationMessageHeader_encodeBinary(&messageHeader,NULL,NULL,  &message, &offset);
 
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
     UA_OpenSecureChannelRequest_deleteMembers(&opnSecRq);
     if(retval != UA_STATUSCODE_GOOD) {
-        client->connection.releaseSendBuffer(&client->connection, &message);
+        client->connection.releaseSendBuffer(&client->connection, message);
+        UA_free(message);
         return retval;
     }
 
-    message.length = messageHeader.messageHeader.messageSize;
-    retval = client->connection.send(&client->connection, &message);
+    message->length = messageHeader.messageHeader.messageSize;
+    retval = client->connection.send(&client->connection, message);
+    UA_free(message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -445,29 +448,29 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
 
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CLOSESECURECHANNELREQUEST + UA_ENCODINGOFFSET_BINARY);
 
-    UA_ByteString message;
+    UA_ByteString *message = UA_ByteString_new();
     UA_Connection *c = &client->connection;
-    UA_StatusCode retval = c->getSendBuffer(c, c->remoteConf.recvBufferSize, &message);
+    UA_StatusCode retval = c->getSendBuffer(c, c->remoteConf.recvBufferSize, message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     size_t offset = 12;
-    retval |= UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symHeader, &message, &offset);
-    retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &message, &offset);
-    retval |= UA_NodeId_encodeBinary(&typeId, &message, &offset);
-    retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST], &message, &offset);
+    retval |= UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symHeader,NULL,NULL, &message, &offset);
+    retval |= UA_SequenceHeader_encodeBinary(&seqHeader, NULL,NULL,&message, &offset);
+    retval |= UA_NodeId_encodeBinary(&typeId, NULL,NULL,&message, &offset);
+    retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST],NULL,NULL, &message, &offset);
 
     msgHeader.messageHeader.messageSize = offset;
     offset = 0;
-    retval |= UA_SecureConversationMessageHeader_encodeBinary(&msgHeader, &message, &offset);
+    retval |= UA_SecureConversationMessageHeader_encodeBinary(&msgHeader,NULL,NULL, &message, &offset);
 
     if(retval != UA_STATUSCODE_GOOD) {
-        client->connection.releaseSendBuffer(&client->connection, &message);
+        client->connection.releaseSendBuffer(&client->connection, message);
         return retval;
     }
         
-    message.length = msgHeader.messageHeader.messageSize;
-    retval = client->connection.send(&client->connection, &message);
+    message->length = msgHeader.messageHeader.messageSize;
+    retval = client->connection.send(&client->connection, message);
     return retval;
 }
 
