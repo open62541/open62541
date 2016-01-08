@@ -103,23 +103,52 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel){
     memcpy(&channel->securityToken, &channel->nextSecurityToken, sizeof(UA_ChannelSecurityToken));
     UA_ChannelSecurityToken_init(&channel->nextSecurityToken);
 }
-static UA_StatusCode UA_SecureChannel_sendChunk(void *anonymObject, UA_ByteString **dst, size_t *UA_RESTRICT offset,UA_Byte chunkType){
-    UA_SecureChannel *channel = (UA_SecureChannel*)anonymObject;
-    channel->sequenceNumber
 
+static UA_StatusCode UA_SecureChannel_sendChunkAndRenewBuffer(void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset,UA_Byte chunkType){
+    UA_Request* request = (UA_Request*)handle;
+
+    UA_SecureChannel * channel = request->channel;
+
+
+    UA_Connection *connection = channel->connection;
+    if(!connection)
+       return UA_STATUSCODE_BADINTERNALERROR;
+
+	UA_NodeId typeId = request->messageType.typeId;
+	if(typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
+		return UA_STATUSCODE_BADINTERNALERROR;
+	typeId.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
+
+	UA_SecureConversationMessageHeader respHeader;
+	//TODO add proper message type
+	respHeader.messageHeader.messageTypeAndFinal =  UA_MESSAGETYPEANDFINAL_MSGF;
+	respHeader.messageHeader.messageSize = 0;
+	respHeader.secureChannelId = channel->securityToken.channelId;
+	respHeader.messageHeader.messageSize = *offset;
+	UA_SymmetricAlgorithmSecurityHeader symSecHeader;
+	symSecHeader.tokenId = channel->securityToken.tokenId;
+
+	UA_SequenceHeader seqHeader;
+	seqHeader.requestId = request->requestId;
 #ifndef UA_ENABLE_MULTITHREADING
     seqHeader.sequenceNumber = ++channel->sequenceNumber;
 #else
     seqHeader.sequenceNumber = uatomic_add_return(&channel->sequenceNumber, 1);
 #endif
+    *offset = 0;
+    UA_SecureConversationMessageHeader_encodeBinary(&respHeader,NULL,NULL,  dst, offset);
+    UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader,NULL,NULL,  dst, offset);
+    UA_SequenceHeader_encodeBinary(&seqHeader,NULL,NULL,  dst, offset);
+    (*dst)->length = respHeader.messageHeader.messageSize;
 
+    connection->send(channel->connection, *dst);
+    connection->releaseRecvBuffer(channel->connection,*dst);
 
-    channel->connection->send(&channel->connection, *dst);
-    channel->connection->releaseRecvBuffer(*dst);
-    //initialize new buffer
-    channel->connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
+    UA_StatusCode retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
                                                          *dst);
-    offset = 24;
+    *offset = 0;
+    return retval;
+
 }
 UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
                                                   const void *content,
@@ -132,17 +161,6 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     if(typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
         return UA_STATUSCODE_BADINTERNALERROR;
     typeId.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
-
-    UA_SecureConversationMessageHeader respHeader;
-    respHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
-    respHeader.messageHeader.messageSize = 0;
-    respHeader.secureChannelId = channel->securityToken.channelId;
-
-    UA_SymmetricAlgorithmSecurityHeader symSecHeader;
-    symSecHeader.tokenId = channel->securityToken.tokenId;
-
-    UA_SequenceHeader seqHeader;
-    seqHeader.requestId = requestId;
 
     UA_ByteString *message = UA_ByteString_new();
     UA_StatusCode retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
@@ -159,6 +177,16 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
         return retval;
     }
 
+    UA_SecureConversationMessageHeader respHeader;
+    respHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
+    respHeader.messageHeader.messageSize = 0;
+    respHeader.secureChannelId = channel->securityToken.channelId;
+
+    UA_SymmetricAlgorithmSecurityHeader symSecHeader;
+    symSecHeader.tokenId = channel->securityToken.tokenId;
+
+    UA_SequenceHeader seqHeader;
+    seqHeader.requestId = requestId;
     /* now write the header with the size */
     respHeader.messageHeader.messageSize = messagePos;
 #ifndef UA_ENABLE_MULTITHREADING
