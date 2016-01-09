@@ -170,8 +170,8 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     requestInfo.chunkType = UA_MESSAGETYPEANDINTERMEDIATE_MSGC;
     requestInfo.requestId = requestId;
 
-    retval |= UA_NodeId_encodeBinary(&typeId,NULL,NULL, &message,&messagePos);
-    retval |= UA_encodeBinary(content, contentType,NULL,NULL, &message, &messagePos);
+    retval |= UA_NodeId_encodeBinary(&typeId,(UA_encodeBufferOverflowFcn)UA_SecureChannel_sendChunk,(void*)&requestInfo, &message,&messagePos);
+    retval |= UA_encodeBinary(content, contentType,(UA_encodeBufferOverflowFcn)UA_SecureChannel_sendChunk,(void*)&requestInfo, &message, &messagePos);
 
     requestInfo.chunkType = UA_MESSAGETYPEANDFINAL_MSGF;
     //send final chunk
