@@ -18,11 +18,20 @@
     <opc:EnumeratedValue Name="HELF" Value="1179403592" />
     <opc:EnumeratedValue Name="MSGF" Value="1179079501" />
     <opc:EnumeratedValue Name="OPNF" Value="1179537487" />
+   </opc:EnumeratedType>   
+   
+     <opc:EnumeratedType Name="MessageTypeAndIntermediate" LengthInBits="32">
+    <opc:Documentation>Message Type and whether the message contains an intermediate chunk</opc:Documentation>
+    <opc:EnumeratedValue Name="MSGC" Value="0x4347534D" />
+    <opc:EnumeratedValue Name="OPNC" Value="0x434E504F" />
+    <opc:EnumeratedValue Name="MSGA" Value="0x4147534D" />
+    <opc:EnumeratedValue Name="OPNA" Value="0x414E504F" />
   </opc:EnumeratedType>
+
 
    <opc:StructuredType Name="TcpMessageHeader">
     <opc:Documentation>TCP Header</opc:Documentation>
-    <opc:Field Name="MessageTypeAndFinal" TypeName="opc:UInt32" />
+    <opc:Field Name="MessageTypeAndChunkType" TypeName="opc:UInt32" />
     <opc:Field Name="MessageSize" TypeName="opc:UInt32" />
   </opc:StructuredType>
   

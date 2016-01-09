@@ -104,24 +104,16 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel){
     UA_ChannelSecurityToken_init(&channel->nextSecurityToken);
 }
 
-static UA_StatusCode UA_SecureChannel_sendChunkAndRenewBuffer(void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset,UA_Byte chunkType){
-    UA_Request* request = (UA_Request*)handle;
-
-    UA_SecureChannel * channel = request->channel;
-
-
+static UA_StatusCode UA_SecureChannel_sendChunk(UA_Request *requestInfo, UA_ByteString **dst, size_t *UA_RESTRICT offset){
+    UA_SecureChannel * channel = requestInfo->channel;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Connection *connection = channel->connection;
     if(!connection)
        return UA_STATUSCODE_BADINTERNALERROR;
 
-	UA_NodeId typeId = request->messageType.typeId;
-	if(typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
-		return UA_STATUSCODE_BADINTERNALERROR;
-	typeId.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
-
 	UA_SecureConversationMessageHeader respHeader;
-	//TODO add proper message type
-	respHeader.messageHeader.messageTypeAndFinal =  UA_MESSAGETYPEANDFINAL_MSGF;
+
+	respHeader.messageHeader.messageTypeAndChunkType =  requestInfo->chunkType;
 	respHeader.messageHeader.messageSize = 0;
 	respHeader.secureChannelId = channel->securityToken.channelId;
 	respHeader.messageHeader.messageSize = *offset;
@@ -129,7 +121,7 @@ static UA_StatusCode UA_SecureChannel_sendChunkAndRenewBuffer(void *handle, UA_B
 	symSecHeader.tokenId = channel->securityToken.tokenId;
 
 	UA_SequenceHeader seqHeader;
-	seqHeader.requestId = request->requestId;
+	seqHeader.requestId = requestInfo->requestId;
 #ifndef UA_ENABLE_MULTITHREADING
     seqHeader.sequenceNumber = ++channel->sequenceNumber;
 #else
@@ -144,12 +136,16 @@ static UA_StatusCode UA_SecureChannel_sendChunkAndRenewBuffer(void *handle, UA_B
     connection->send(channel->connection, *dst);
     connection->releaseRecvBuffer(channel->connection,*dst);
 
-    UA_StatusCode retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
+    //get new buffer for next chunk (if not is the final/abort chunk)
+    if((requestInfo->chunkType & 0xFF000000) == 'C'){
+        retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
                                                          *dst);
-    *offset = 0;
+        *offset = 0;
+    }
     return retval;
 
 }
+
 UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
                                                   const void *content,
                                                   const UA_DataType *contentType) {
@@ -169,39 +165,18 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
         return retval;
 
     size_t messagePos = 24; // after the headers
+    UA_Request requestInfo;
+    requestInfo.channel = channel;
+    requestInfo.chunkType = UA_MESSAGETYPEANDINTERMEDIATE_MSGC;
+    requestInfo.requestId = requestId;
+
     retval |= UA_NodeId_encodeBinary(&typeId,NULL,NULL, &message,&messagePos);
     retval |= UA_encodeBinary(content, contentType,NULL,NULL, &message, &messagePos);
 
-    if(retval != UA_STATUSCODE_GOOD) {
-        connection->releaseSendBuffer(connection, message);
-        return retval;
-    }
+    requestInfo.chunkType = UA_MESSAGETYPEANDFINAL_MSGF;
+    //send final chunk
+    UA_SecureChannel_sendChunk(&requestInfo,&message,&messagePos);
 
-    UA_SecureConversationMessageHeader respHeader;
-    respHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
-    respHeader.messageHeader.messageSize = 0;
-    respHeader.secureChannelId = channel->securityToken.channelId;
-
-    UA_SymmetricAlgorithmSecurityHeader symSecHeader;
-    symSecHeader.tokenId = channel->securityToken.tokenId;
-
-    UA_SequenceHeader seqHeader;
-    seqHeader.requestId = requestId;
-    /* now write the header with the size */
-    respHeader.messageHeader.messageSize = messagePos;
-#ifndef UA_ENABLE_MULTITHREADING
-    seqHeader.sequenceNumber = ++channel->sequenceNumber;
-#else
-    seqHeader.sequenceNumber = uatomic_add_return(&channel->sequenceNumber, 1);
-#endif
-
-    messagePos = 0;
-    UA_SecureConversationMessageHeader_encodeBinary(&respHeader,NULL,NULL,  &message, &messagePos);
-    UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader,NULL,NULL,  &message, &messagePos);
-    UA_SequenceHeader_encodeBinary(&seqHeader,NULL,NULL,  &message, &messagePos);
-    message->length = respHeader.messageHeader.messageSize;
-
-    retval = connection->send(connection, message);
     UA_free(message);
     return retval;
 }

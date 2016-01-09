@@ -38,7 +38,7 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
     ackMessage.maxChunkCount = connection->localConf.maxChunkCount;
 
     UA_TcpMessageHeader ackHeader;
-    ackHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_ACKF;
+    ackHeader.messageTypeAndChunkType = UA_MESSAGETYPEANDFINAL_ACKF;
     ackHeader.messageSize =  8 + 20; /* ackHeader + ackMessage */
 
     UA_ByteString *ack_msg = UA_ByteString_new();
@@ -105,7 +105,7 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
 #endif
 
     UA_SecureConversationMessageHeader respHeader;
-    respHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_OPNF;
+    respHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPEANDFINAL_OPNF;
     respHeader.messageHeader.messageSize = 0;
     respHeader.secureChannelId = p.securityToken.channelId;
 
@@ -464,7 +464,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
         }
 
         size_t targetpos = pos - 8 + tcpMessageHeader.messageSize;
-        switch(tcpMessageHeader.messageTypeAndFinal & 0xffffff) {
+        switch(tcpMessageHeader.messageTypeAndChunkType & 0xffffff) {
         case UA_MESSAGETYPEANDFINAL_HELF & 0xffffff:
             processHEL(connection, msg, &pos);
             break;

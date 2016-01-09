@@ -94,7 +94,7 @@ void UA_Client_delete(UA_Client* client){
 
 static UA_StatusCode HelAckHandshake(UA_Client *c) {
     UA_TcpMessageHeader messageHeader;
-    messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_HELF;
+    messageHeader.messageTypeAndChunkType = UA_MESSAGETYPEANDFINAL_HELF;
 
     UA_TcpHelloMessage hello;
     UA_String_copy(&c->endpointUrl, &hello.endpointUrl); /* must be less than 4096 bytes */
@@ -178,7 +178,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
     UA_SecureConversationMessageHeader messageHeader;
-    messageHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_OPNF;
+    messageHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPEANDFINAL_OPNF;
     messageHeader.secureChannelId = 0;
 
     UA_SequenceHeader seqHeader;
@@ -436,7 +436,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     request.requestHeader.authenticationToken = client->authenticationToken;
 
     UA_SecureConversationMessageHeader msgHeader;
-    msgHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_CLOF;
+    msgHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPEANDFINAL_CLOF;
     msgHeader.secureChannelId = client->channel.securityToken.channelId;
 
     UA_SymmetricAlgorithmSecurityHeader symHeader;

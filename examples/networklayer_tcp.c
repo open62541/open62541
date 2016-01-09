@@ -243,7 +243,7 @@ static void ServerNetworkLayerTCP_closeConnection(UA_Connection *connection) {
         return;
     connection->state = UA_CONNECTION_CLOSED;
 #endif
-    ServerNetworkLayerTCP *layer = connection->handle;
+   // ServerNetworkLayerTCP *layer = connection->handle;
     UA_LOG_INFO(layer->layer.logger, UA_LOGCATEGORY_NETWORK, "Closing the Connection %i",
                 connection->sockfd);
     /* only "shutdown" here. this triggers the select, where the socket is
