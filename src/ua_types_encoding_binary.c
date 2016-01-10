@@ -1030,7 +1030,7 @@ static const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COU
 };
 
 UA_StatusCode
-UA_encodeBinary(const void *src, const UA_DataType *type,UA_encodeBufferOverflowFcn overflowCallback,void *handle,  UA_ByteString **dst,
+UA_encodeBinary(const void *src, const UA_DataType *type, UA_encodeBufferOverflowFcn overflowCallback, void *handle,  UA_ByteString **dst,
         size_t *UA_RESTRICT offset) {
     uintptr_t ptr = (uintptr_t)src;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
