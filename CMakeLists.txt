@@ -485,6 +485,9 @@ if(UA_BUILD_EXAMPLES)
 	add_executable(server_firstSteps ${PROJECT_SOURCE_DIR}/examples/server_firstSteps.c $<TARGET_OBJECTS:open62541-object>)
 	target_link_libraries(server_firstSteps ${LIBS})
 
+	add_executable(server_chunking ${PROJECT_SOURCE_DIR}/examples/server_chunking.c $<TARGET_OBJECTS:open62541-object>)
+	target_link_libraries(server_chunking ${LIBS})
+
 	add_executable(client_firstSteps ${PROJECT_SOURCE_DIR}/examples/client_firstSteps.c $<TARGET_OBJECTS:open62541-object>)
 	target_link_libraries(client_firstSteps ${LIBS})
 

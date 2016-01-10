@@ -8,7 +8,7 @@
 #include "ua_transport_generated_encoding_binary.h"
 
 /** Max size of messages that are allocated on the stack */
-#define MAX_STACK_MESSAGE 65536
+#define MAX_STACK_MESSAGE 1400//65536
 
 static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size_t *pos) {
     UA_TcpHelloMessage helloMessage;
@@ -20,12 +20,12 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
     connection->remoteConf.maxChunkCount = helloMessage.maxChunkCount;
     connection->remoteConf.maxMessageSize = helloMessage.maxMessageSize;
     connection->remoteConf.protocolVersion = helloMessage.protocolVersion;
-    connection->remoteConf.recvBufferSize = helloMessage.receiveBufferSize;
+    //connection->remoteConf.recvBufferSize = helloMessage.receiveBufferSize;
     if(connection->localConf.sendBufferSize > helloMessage.receiveBufferSize)
         connection->localConf.sendBufferSize = helloMessage.receiveBufferSize;
     if(connection->localConf.recvBufferSize > helloMessage.sendBufferSize)
         connection->localConf.recvBufferSize = helloMessage.sendBufferSize;
-    connection->remoteConf.sendBufferSize = helloMessage.sendBufferSize;
+    //connection->remoteConf.sendBufferSize = helloMessage.sendBufferSize;
     connection->state = UA_CONNECTION_ESTABLISHED;
     UA_TcpHelloMessage_deleteMembers(&helloMessage);
 

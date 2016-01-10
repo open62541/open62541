@@ -128,7 +128,7 @@ static UA_StatusCode UA_SecureChannel_sendChunk(UA_Request *requestInfo, UA_Byte
     *offset = 0;
     UA_SecureConversationMessageHeader_encodeBinary(&respHeader,NULL,NULL,  dst, offset);
     UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader,NULL,NULL,  dst, offset);
-    UA_SequenceHeader_encodeBinary(&seqHeader,NULL,NULL,  dst, offset);
+    UA_SequenceHeader_encodeBinary(&seqHeader,NULL, NULL,  dst, offset);
     (*dst)->length = respHeader.messageHeader.messageSize;
 
     connection->send(channel->connection, *dst);
@@ -138,10 +138,10 @@ static UA_StatusCode UA_SecureChannel_sendChunk(UA_Request *requestInfo, UA_Byte
     if((requestInfo->chunkType) == UA_CHUNKTYPE_INTERMEDIATE){
         retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
                                                          *dst);
-        *offset = 0;
+        *offset = 24;
+        (*dst)->length = connection->remoteConf.recvBufferSize;
     }
     return retval;
-
 }
 
 UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
