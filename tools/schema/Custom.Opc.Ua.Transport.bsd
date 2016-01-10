@@ -28,6 +28,22 @@
     <opc:EnumeratedValue Name="OPNA" Value="0x414E504F" />
   </opc:EnumeratedType>
 
+  <opc:EnumeratedType Name="MessageType" LengthInBits="32">
+    <opc:Documentation>Message Type and whether the message contains an intermediate chunk</opc:Documentation>
+    <opc:EnumeratedValue Name="ACK" Value="0x4B4341" />
+    <opc:EnumeratedValue Name="HEL" Value="0x4E4548" />
+    <opc:EnumeratedValue Name="MSG" Value="0x47534D" />
+    <opc:EnumeratedValue Name="OPN" Value="0x4E504F" />
+    <opc:EnumeratedValue Name="CLO" Value="0x4F4C43" />
+  </opc:EnumeratedType>
+  
+  <opc:EnumeratedType Name="ChunkType" LengthInBits="32">
+    <opc:Documentation>Message Type and whether the message contains an intermediate chunk</opc:Documentation>
+    <opc:EnumeratedValue Name="FINAL" Value="0x46000000" />
+    <opc:EnumeratedValue Name="INTERMEDIATE" Value="0x43000000" />
+    <opc:EnumeratedValue Name="ABORT" Value="0x41000000" />
+
+  </opc:EnumeratedType>
 
    <opc:StructuredType Name="TcpMessageHeader">
     <opc:Documentation>TCP Header</opc:Documentation>

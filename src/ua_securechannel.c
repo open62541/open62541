@@ -112,9 +112,7 @@ static UA_StatusCode UA_SecureChannel_sendChunk(UA_Request *requestInfo, UA_Byte
        return UA_STATUSCODE_BADINTERNALERROR;
 
 	UA_SecureConversationMessageHeader respHeader;
-
-	respHeader.messageHeader.messageTypeAndChunkType =  requestInfo->chunkType;
-	respHeader.messageHeader.messageSize = 0;
+	respHeader.messageHeader.messageTypeAndChunkType =  requestInfo->messageType + requestInfo->chunkType;
 	respHeader.secureChannelId = channel->securityToken.channelId;
 	respHeader.messageHeader.messageSize = *offset;
 	UA_SymmetricAlgorithmSecurityHeader symSecHeader;
@@ -137,7 +135,7 @@ static UA_StatusCode UA_SecureChannel_sendChunk(UA_Request *requestInfo, UA_Byte
     connection->releaseRecvBuffer(channel->connection,*dst);
 
     //get new buffer for next chunk (if not is the final/abort chunk)
-    if((requestInfo->chunkType & 0xFF000000) == 'C'){
+    if((requestInfo->chunkType) == UA_CHUNKTYPE_INTERMEDIATE){
         retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
                                                          *dst);
         *offset = 0;
@@ -159,6 +157,7 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     typeId.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
 
     UA_ByteString *message = UA_ByteString_new();
+
     UA_StatusCode retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
                                                      message);
     if(retval != UA_STATUSCODE_GOOD)
@@ -167,15 +166,24 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     size_t messagePos = 24; // after the headers
     UA_Request requestInfo;
     requestInfo.channel = channel;
-    requestInfo.chunkType = UA_MESSAGETYPEANDINTERMEDIATE_MSGC;
+
+    if(typeId.identifier.numeric == 446 || typeId.identifier.numeric == 449){
+        requestInfo.messageType = UA_MESSAGETYPE_OPN;
+    }else if(typeId.identifier.numeric == 452 || typeId.identifier.numeric == 455){
+        requestInfo.messageType = UA_MESSAGETYPE_CLO;
+    }else{
+        requestInfo.messageType = UA_MESSAGETYPE_MSG;
+    }
+
+    requestInfo.chunkType = UA_CHUNKTYPE_INTERMEDIATE;
     requestInfo.requestId = requestId;
 
-    retval |= UA_NodeId_encodeBinary(&typeId,(UA_encodeBufferOverflowFcn)UA_SecureChannel_sendChunk,(void*)&requestInfo, &message,&messagePos);
+    retval |= UA_NodeId_encodeBinary(&typeId,NULL,NULL, &message,&messagePos);
     retval |= UA_encodeBinary(content, contentType,(UA_encodeBufferOverflowFcn)UA_SecureChannel_sendChunk,(void*)&requestInfo, &message, &messagePos);
 
-    requestInfo.chunkType = UA_MESSAGETYPEANDFINAL_MSGF;
     //send final chunk
-    UA_SecureChannel_sendChunk(&requestInfo,&message,&messagePos);
+    requestInfo.chunkType = UA_CHUNKTYPE_FINAL;
+    retval |= UA_SecureChannel_sendChunk(&requestInfo,&message,&messagePos);
 
     UA_free(message);
     return retval;

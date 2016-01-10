@@ -52,6 +52,7 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel);
 typedef struct UA_Request{
 	UA_UInt32 requestId;
 	UA_SecureChannel *channel;
+	UA_UInt32 messageType;
 	UA_UInt32 chunkType;
 }UA_Request;
 
