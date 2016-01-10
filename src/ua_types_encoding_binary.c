@@ -423,8 +423,7 @@ static UA_StatusCode String_encodeBinary(UA_String const *src,
                 }
                 retval |= overflowCallback(handle, dst, offset);
             }
-        }
-        else {
+        } else {
             memcpy(&(*dst)->data[*offset], src->data, src->length);
             *offset += src->length;
         }
@@ -1128,44 +1127,38 @@ static UA_StatusCode DiagnosticInfo_decodeBinary(UA_ByteString const *src,
 /* Structured Types */
 /********************/
 
+static const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT
+        + 1] = { (UA_encodeBinarySignature) Boolean_encodeBinary,
+        (UA_encodeBinarySignature) Byte_encodeBinary, // SByte
+        (UA_encodeBinarySignature) Byte_encodeBinary,
+        (UA_encodeBinarySignature) UInt16_encodeBinary, // Int16
+        (UA_encodeBinarySignature) UInt16_encodeBinary,
+        (UA_encodeBinarySignature) UInt32_encodeBinary, // Int32
+        (UA_encodeBinarySignature) UInt32_encodeBinary,
+        (UA_encodeBinarySignature) UInt64_encodeBinary, // Int64
+        (UA_encodeBinarySignature) UInt64_encodeBinary,
+        (UA_encodeBinarySignature) Float_encodeBinary,
+        (UA_encodeBinarySignature) Double_encodeBinary,
+        (UA_encodeBinarySignature) String_encodeBinary,
+        (UA_encodeBinarySignature) UInt64_encodeBinary, // DateTime
+        (UA_encodeBinarySignature) Guid_encodeBinary,
+        (UA_encodeBinarySignature) String_encodeBinary, // ByteString
+        (UA_encodeBinarySignature) String_encodeBinary, // XmlElement
+        (UA_encodeBinarySignature) NodeId_encodeBinary,
+        (UA_encodeBinarySignature) ExpandedNodeId_encodeBinary,
+        (UA_encodeBinarySignature) UInt32_encodeBinary, // StatusCode
+        (UA_encodeBinarySignature) UA_encodeBinary, // QualifiedName
+        (UA_encodeBinarySignature) LocalizedText_encodeBinary,
+        (UA_encodeBinarySignature) ExtensionObject_encodeBinary,
+        (UA_encodeBinarySignature) DataValue_encodeBinary,
+        (UA_encodeBinarySignature) Variant_encodeBinary,
+        (UA_encodeBinarySignature) DiagnosticInfo_encodeBinary,
+        (UA_encodeBinarySignature) UA_encodeBinary, };
+
 UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *type,
         UA_encodeBufferOverflowFcn overflowCallback, void *handle,
         UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     uintptr_t ptr = (uintptr_t) src;
-
-static const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
-    (UA_encodeBinarySignature)Boolean_encodeBinary,
-    (UA_encodeBinarySignature)Byte_encodeBinary, // SByte
-    (UA_encodeBinarySignature)Byte_encodeBinary,
-    (UA_encodeBinarySignature)UInt16_encodeBinary, // Int16
-    (UA_encodeBinarySignature)UInt16_encodeBinary,
-    (UA_encodeBinarySignature)UInt32_encodeBinary, // Int32
-    (UA_encodeBinarySignature)UInt32_encodeBinary,
-    (UA_encodeBinarySignature)UInt64_encodeBinary, // Int64
-    (UA_encodeBinarySignature)UInt64_encodeBinary,
-    (UA_encodeBinarySignature)Float_encodeBinary,
-    (UA_encodeBinarySignature)Double_encodeBinary,
-    (UA_encodeBinarySignature)String_encodeBinary,
-    (UA_encodeBinarySignature)UInt64_encodeBinary, // DateTime
-    (UA_encodeBinarySignature)Guid_encodeBinary,
-    (UA_encodeBinarySignature)String_encodeBinary, // ByteString
-    (UA_encodeBinarySignature)String_encodeBinary, // XmlElement
-    (UA_encodeBinarySignature)NodeId_encodeBinary,
-    (UA_encodeBinarySignature)ExpandedNodeId_encodeBinary,
-    (UA_encodeBinarySignature)UInt32_encodeBinary, // StatusCode
-    (UA_encodeBinarySignature)UA_encodeBinary, // QualifiedName
-    (UA_encodeBinarySignature)LocalizedText_encodeBinary,
-    (UA_encodeBinarySignature)ExtensionObject_encodeBinary,
-    (UA_encodeBinarySignature)DataValue_encodeBinary,
-    (UA_encodeBinarySignature)Variant_encodeBinary,
-    (UA_encodeBinarySignature)DiagnosticInfo_encodeBinary,
-    (UA_encodeBinarySignature)UA_encodeBinary,
-};
-
-UA_StatusCode
-UA_encodeBinary(const void *src, const UA_DataType *type, UA_encodeBufferOverflowFcn overflowCallback, void *handle,  UA_ByteString **dst,
-        size_t *UA_RESTRICT offset) {
-    uintptr_t ptr = (uintptr_t)src;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Byte membersSize = type->membersSize;
     for (size_t i = 0; i < membersSize; i++) {
