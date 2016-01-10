@@ -418,6 +418,7 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
 
 void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_ByteString newValueAsByteString = { .length=0, .data=NULL };
+    UA_ByteString* newValueAsByteStringPtr = &newValueAsByteString;
     size_t encodingOffset = 0;
   
     if(!monitoredItem || monitoredItem->lastSampled + monitoredItem->samplingInterval > UA_DateTime_now())
@@ -469,7 +470,7 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
     // encode the data to find if its different to the previous
     newValueAsByteString.length = 512; // Todo: Hack! We should make a copy of the value, not encode it. UA_calcSizeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE]);
     newValueAsByteString.data   = UA_malloc(newValueAsByteString.length);
-    UA_StatusCode retval = UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE], &newValueAsByteString, &encodingOffset);
+    UA_StatusCode retval = UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE], NULL, NULL, &newValueAsByteStringPtr, &encodingOffset);
     //FIXME: Stasik0 workaround to fix due to the absence of calcSizeBinary #496, still a better solution is needed to ensure the comparisson works for values greater than 512 bytes
     newValueAsByteString.length = encodingOffset;
 
