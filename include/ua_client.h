@@ -56,6 +56,18 @@ typedef UA_Connection (*UA_ConnectClientConnection)(UA_ConnectionConfig localCon
                                                     UA_Logger logger);
 
 /**
+ * Gets a list of endpoints of a server
+ * @param client to use
+ * @param connection function. You can use ClientNetworkLayerTCP_connect from examples/networklayer_tcp.h
+ * @param server url to connect (for example "opc.tcp://localhost:16664")
+ * @param endpointDescriptionsSize size of the array of endpoint descriptions
+ * @param endpointDescriptions array of endpoint descriptions that is allocated by the function (you need to free manually)
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
+UA_StatusCode UA_EXPORT
+UA_client_getEndpoints(UA_Client *client, UA_ConnectClientConnection connectFunc,
+        const char *serverUrl, size_t* endpointDescriptionsSize, UA_EndpointDescription** endpointDescriptions);
+/**
  * start a connection to the selected server
  *
  * @param client to use

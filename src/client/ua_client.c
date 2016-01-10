@@ -328,16 +328,18 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
     return response.responseHeader.serviceResult; // not deleted
 }
 
-static UA_StatusCode EndpointsHandshake(UA_Client *client) {
+/**
+ * Gets a list of endpoints
+ * Memory is allocated for endpointDescription array
+ */
+static UA_StatusCode GetEndpoints(UA_Client *client, size_t* endpointDescriptionsSize, UA_EndpointDescription** endpointDescriptions) {
     UA_GetEndpointsRequest request;
     UA_GetEndpointsRequest_init(&request);
     request.requestHeader.authenticationToken = client->authenticationToken;
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
-    request.endpointUrl = client->endpointUrl;
-    UA_String profileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
-    request.profileUris = &profileUri;
-    request.profileUrisSize = 1;
+    //no filter for endpoints
+    request.profileUrisSize = 0;
 
     UA_GetEndpointsResponse response;
     UA_GetEndpointsResponse_init(&response);
@@ -349,11 +351,32 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
         return response.responseHeader.serviceResult;
     }
 
+    *endpointDescriptionsSize = response.endpointsSize;
+    *endpointDescriptions = UA_Array_new(response.endpointsSize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    for(size_t i=0;i<response.endpointsSize;i++){
+        UA_EndpointDescription_copy(&response.endpoints[i], endpointDescriptions[i]);
+    }
+
+    UA_GetEndpointsResponse_deleteMembers(&response);
+
+    return response.responseHeader.serviceResult;
+}
+
+static UA_StatusCode EndpointsHandshake(UA_Client *client) {
+    UA_EndpointDescription* endpointArray = NULL;
+    size_t endpointArraySize = 0;
+    UA_StatusCode retval = GetEndpoints(client, &endpointArraySize, &endpointArray);
+
     UA_Boolean endpointFound = UA_FALSE;
     UA_Boolean tokenFound = UA_FALSE;
     UA_String securityNone = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
-    for(size_t i = 0; i < response.endpointsSize; i++) {
-        UA_EndpointDescription* endpoint = &response.endpoints[i];
+    UA_String binaryTransport = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
+
+    for(size_t i = 0; i < endpointArraySize; i++) {
+        UA_EndpointDescription* endpoint = &endpointArray[i];
+        /* look out for binary transport endpoints */
+        if(!UA_String_equal(&endpoint->transportProfileUri, &binaryTransport))
+            continue;
         /* look out for an endpoint without security */
         if(!UA_String_equal(&endpoint->securityPolicyUri, &securityNone))
             continue;
@@ -370,7 +393,9 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
         }
     }
 
-    UA_GetEndpointsResponse_deleteMembers(&response);
+    //cleanup array
+    UA_Array_delete(endpointArray,endpointArraySize,&UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+
     if(!endpointFound) {
         UA_LOG_ERROR(client->logger, UA_LOGCATEGORY_CLIENT, "No suitable endpoint found");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -379,7 +404,7 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
         UA_LOG_ERROR(client->logger, UA_LOGCATEGORY_CLIENT, "No anonymous token found");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    return response.responseHeader.serviceResult;
+    return retval;
 }
 
 static UA_StatusCode SessionHandshake(UA_Client *client) {
@@ -468,6 +493,36 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
         
     message.length = msgHeader.messageHeader.messageSize;
     retval = client->connection.send(&client->connection, &message);
+    return retval;
+}
+
+UA_StatusCode UA_client_getEndpoints(UA_Client *client, UA_ConnectClientConnection connectFunc,
+        const char *serverUrl, size_t* endpointDescriptionsSize, UA_EndpointDescription** endpointDescriptions) {
+    if(client->state == UA_CLIENTSTATE_CONNECTED)
+        return UA_STATUSCODE_GOOD;
+    if(client->state == UA_CLIENTSTATE_ERRORED) {
+        UA_Client_reset(client);
+    }
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    client->connection = connectFunc(UA_ConnectionConfig_standard, serverUrl, client->logger);
+    if(client->connection.state != UA_CONNECTION_OPENING) {
+        retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
+        goto cleanup;
+    }
+
+    client->connection.localConf = client->config.localConnectionConfig;
+    retval = HelAckHandshake(client);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = SecureChannelHandshake(client, UA_FALSE);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = GetEndpoints(client, endpointDescriptionsSize, endpointDescriptions);
+    //we always cleanup
+    cleanup:
+    retval = CloseSecureChannel(client);
+    client->state = UA_CLIENTSTATE_ERRORED;
+    //here the client is reset in its initial state
+    UA_Client_reset(client);
     return retval;
 }
 
