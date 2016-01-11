@@ -111,6 +111,12 @@ static UA_StatusCode UA_SecureChannel_sendChunk(UA_Request *requestInfo, UA_Byte
     if(!connection)
        return UA_STATUSCODE_BADINTERNALERROR;
 
+    //check if we are able to send another chunk
+    if(requestInfo->chunksLeft<1){
+        return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
+    }
+    requestInfo->chunksLeft--;
+
 	UA_SecureConversationMessageHeader respHeader;
 	respHeader.messageHeader.messageTypeAndChunkType =  requestInfo->messageType + requestInfo->chunkType;
 	respHeader.secureChannelId = channel->securityToken.channelId;
@@ -141,6 +147,7 @@ static UA_StatusCode UA_SecureChannel_sendChunk(UA_Request *requestInfo, UA_Byte
         *offset = 24;
         (*dst)->length = connection->remoteConf.recvBufferSize;
     }
+
     return retval;
 }
 
@@ -165,6 +172,7 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
 
     size_t messagePos = 24; // after the headers
     UA_Request requestInfo;
+    requestInfo.chunksLeft = connection->localConf.maxChunkCount;
     requestInfo.channel = channel;
 
     if(typeId.identifier.numeric == 446 || typeId.identifier.numeric == 449){

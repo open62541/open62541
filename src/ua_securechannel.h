@@ -54,6 +54,7 @@ typedef struct UA_Request{
 	UA_SecureChannel *channel;
 	UA_UInt32 messageType;
 	UA_UInt32 chunkType;
+	size_t chunksLeft;
 }UA_Request;
 
 #endif /* UA_SECURECHANNEL_H_ */
