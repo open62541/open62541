@@ -314,6 +314,27 @@ static UA_StatusCode Array_encodeBinary(const void *src, size_t length,
 
 #ifndef UA_NON_LITTLEENDIAN_ARCHITECTURE
     if (type->zeroCopyable) {
+
+        size_t partialLength = 0;
+        size_t encodable;
+        do {
+            encodable = length - partialLength;
+            uintptr_t srcp = (uintptr_t) src + partialLength * type->memSize;
+            if ((*dst)->length - *offset >= encodable * type->memSize) {
+                /* enough space */
+                memcpy(&(*dst)->data[*offset], (void*) srcp,
+                        encodable * type->memSize);
+                *offset += encodable * type->memSize;
+            } else {
+                /* the complete array does not fit in */
+                encodable = ((*dst)->length - *offset) / type->memSize;
+                partialLength += encodable;
+                memcpy(&(*dst)->data[*offset], (void*) srcp,
+                        encodable * type->memSize);
+                *offset += type->memSize * encodable;
+                overflowCallback(handle, dst, offset);
+            }
+        } while ((*dst)->length - *offset < encodable * type->memSize);
         if ((*dst)->length < *offset + (type->memSize * length))
             return UA_STATUSCODE_BADENCODINGERROR;
         memcpy(&((*dst)->data[*offset]), src, type->memSize * length);
@@ -407,7 +428,7 @@ static UA_StatusCode String_encodeBinary(UA_String const *src,
                 handle, dst, offset);
 
         if (*offset + src->length > (*dst)->length) {
-            if (overflowCallback==NULL){
+            if (overflowCallback == NULL) {
                 return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
             }
             size_t bytesToCopy = src->length;
