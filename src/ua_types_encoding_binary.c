@@ -407,6 +407,9 @@ static UA_StatusCode String_encodeBinary(UA_String const *src,
                 handle, dst, offset);
 
         if (*offset + src->length > (*dst)->length) {
+            if (overflowCallback==NULL){
+                return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
+            }
             size_t bytesToCopy = src->length;
             while (bytesToCopy > 0 && retval == UA_STATUSCODE_GOOD) {
                 if (bytesToCopy > (*dst)->length - *offset) {
