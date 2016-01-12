@@ -142,10 +142,10 @@ static UA_StatusCode UA_SecureChannel_sendChunk(UA_Request *requestInfo, UA_Byte
 
     //get new buffer for next chunk (if not is the final/abort chunk)
     if((requestInfo->chunkType) == UA_CHUNKTYPE_INTERMEDIATE){
-        retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
+        retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize,
                                                          *dst);
         *offset = 24;
-        (*dst)->length = connection->remoteConf.recvBufferSize;
+        (*dst)->length = connection->localConf.sendBufferSize;
     }
 
     return retval;
@@ -165,7 +165,7 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
 
     UA_ByteString *message = UA_ByteString_new();
 
-    UA_StatusCode retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
+    UA_StatusCode retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize,
                                                      message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
