@@ -49,7 +49,7 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel);
 /** @} */
 
 /* type for an OPC UA Message request */
-typedef struct UA_Request{
+typedef struct UA_RequestInfo{
 	UA_UInt32 requestId;
 	UA_SecureChannel *channel;
 	UA_UInt32 messageType;

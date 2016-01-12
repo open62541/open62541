@@ -7,7 +7,7 @@
  So we can use a jump-table to switch into member types. */
 
 typedef UA_StatusCode (*UA_encodeBinarySignature)(const void *src,
-        const UA_DataType *type, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *type, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset);
 static const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT
         + 1];
@@ -23,7 +23,7 @@ static const UA_decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COU
 
 /* Boolean */
 static UA_StatusCode Boolean_encodeBinary(const UA_Boolean *src,
-        const UA_DataType *_, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *_, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     if (*offset + sizeof(UA_Boolean) > (*dst)->length) {
         if (overflowCallback == NULL) {
@@ -47,7 +47,7 @@ static UA_StatusCode Boolean_decodeBinary(UA_ByteString const *src,
 
 /* Byte */
 static UA_StatusCode Byte_encodeBinary(const UA_Byte *src, const UA_DataType *_,
-        UA_encodeBufferOverflowFcn overflowCallback, void *handle,
+        UA_encodeBufferOverflowSignature overflowCallback, void *handle,
         UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     if (*offset + sizeof(UA_Byte) > (*dst)->length) {
         if (overflowCallback == NULL) {
@@ -71,7 +71,7 @@ static UA_StatusCode Byte_decodeBinary(UA_ByteString const *src,
 
 /* UInt16 */
 static UA_StatusCode UInt16_encodeBinary(UA_UInt16 const *src,
-        const UA_DataType *_, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *_, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     if (*offset + sizeof(UA_UInt16) > (*dst)->length) {
         if (overflowCallback == NULL) {
@@ -87,7 +87,7 @@ static UA_StatusCode UInt16_encodeBinary(UA_UInt16 const *src,
 }
 
 static UA_INLINE UA_StatusCode Int16_encodeBinary(UA_Int16 const *src,
-        const UA_DataType *_, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *_, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     return UInt16_encodeBinary((const UA_UInt16*) src, _, overflowCallback,
             handle, dst, offset);
@@ -110,7 +110,7 @@ static UA_INLINE UA_StatusCode Int16_decodeBinary(UA_ByteString const *src,
 
 /* UInt32 */
 static UA_StatusCode UInt32_encodeBinary(UA_UInt32 const *src,
-        const UA_DataType *_, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *_, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     if (*offset + sizeof(UA_UInt32) > (*dst)->length) {
         if (overflowCallback == NULL) {
@@ -126,14 +126,14 @@ static UA_StatusCode UInt32_encodeBinary(UA_UInt32 const *src,
 }
 
 static UA_INLINE UA_StatusCode Int32_encodeBinary(UA_Int32 const *src,
-        const UA_DataType *_, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *_, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     return UInt32_encodeBinary((const UA_UInt32*) src, _, overflowCallback,
             handle, dst, offset);
 }
 
 static UA_INLINE UA_StatusCode StatusCode_encodeBinary(UA_StatusCode const *src,
-        const UA_DataType *_, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *_, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     return UInt32_encodeBinary((const UA_UInt32*) src, _, overflowCallback,
             handle, dst, offset);
@@ -161,7 +161,7 @@ static UA_INLINE UA_StatusCode StatusCode_decodeBinary(UA_ByteString const *src,
 
 /* UInt64 */
 static UA_StatusCode UInt64_encodeBinary(UA_UInt64 const *src,
-        const UA_DataType *_, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *_, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     if (*offset + sizeof(UA_UInt64) > (*dst)->length) {
         if (overflowCallback == NULL) {
@@ -177,14 +177,14 @@ static UA_StatusCode UInt64_encodeBinary(UA_UInt64 const *src,
 }
 
 static UA_INLINE UA_StatusCode Int64_encodeBinary(UA_Int64 const *src,
-        const UA_DataType *_, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *_, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     return UInt64_encodeBinary((const UA_UInt64*) src, _, overflowCallback,
             handle, dst, offset);
 }
 
 static UA_INLINE UA_StatusCode DateTime_encodeBinary(UA_DateTime const *src,
-        const UA_DataType *_, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *_, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     return UInt64_encodeBinary((const UA_UInt64*) src, _, overflowCallback,
             handle, dst, offset);
@@ -242,7 +242,7 @@ Float_decodeBinary(UA_ByteString const *src, size_t *offset, UA_Float *dst, cons
 }
 
 static UA_StatusCode
-Float_encodeBinary(UA_Float const *src, const UA_DataType *_,UA_encodeBufferOverflowFcn overflowCallback,void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
+Float_encodeBinary(UA_Float const *src, const UA_DataType *_,UA_encodeBufferOverflowSignature overflowCallback,void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     if(*offset + sizeof(UA_Float) > dst->length)
     return UA_STATUSCODE_BADENCODINGERROR;
     UA_Float srcFloat = *src;
@@ -276,7 +276,7 @@ Double_decodeBinary(UA_ByteString const *src, size_t *offset, UA_Double *dst, co
 
 /* Expecting double in ieee754 format */
 static UA_StatusCode
-Double_encodeBinary(UA_Double const *src, const UA_DataType *_,UA_encodeBufferOverflowFcn overflowCallback,void *handle,
+Double_encodeBinary(UA_Double const *src, const UA_DataType *_,UA_encodeBufferOverflowSignature overflowCallback,void *handle,
         UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     if(*offset + sizeof(UA_Double) > dst->length)
     return UA_STATUSCODE_BADENCODINGERROR;
@@ -300,7 +300,7 @@ Double_encodeBinary(UA_Double const *src, const UA_DataType *_,UA_encodeBufferOv
 /******************/
 
 static UA_StatusCode Array_encodeBinary(const void *src, size_t length,
-        const UA_DataType *type, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *type, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     UA_Int32 signed_length = -1;
     if (length > 0)
@@ -411,7 +411,7 @@ static UA_StatusCode Array_decodeBinary(const UA_ByteString *src,
 /*****************/
 
 static UA_StatusCode String_encodeBinary(UA_String const *src,
-        const UA_DataType *_, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *_, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
 
     UA_StatusCode retval;
@@ -456,7 +456,7 @@ static UA_StatusCode String_encodeBinary(UA_String const *src,
 }
 
 static UA_INLINE UA_StatusCode ByteString_encodeBinary(UA_ByteString const *src,
-        const UA_DataType *_, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *_, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     return String_encodeBinary((const UA_String*) src, _, overflowCallback,
             handle, dst, offset);
@@ -493,7 +493,7 @@ static UA_INLINE UA_StatusCode ByteString_decodeBinary(UA_ByteString const *src,
 
 /* Guid */
 static UA_StatusCode Guid_encodeBinary(UA_Guid const *src, const UA_DataType *_,
-        UA_encodeBufferOverflowFcn overflowCallback, void *handle,
+        UA_encodeBufferOverflowSignature overflowCallback, void *handle,
         UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     UA_StatusCode retval = UInt32_encodeBinary(&src->data1, NULL,
             overflowCallback, handle, dst, offset);
@@ -525,7 +525,7 @@ static UA_StatusCode Guid_decodeBinary(UA_ByteString const *src,
 #define UA_NODEIDTYPE_NUMERIC_COMPLETE 2
 
 static UA_StatusCode NodeId_encodeBinary(UA_NodeId const *src,
-        const UA_DataType *_, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *_, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString ** dst, size_t *UA_RESTRICT offset) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     // temporary variables for endian-save code
@@ -655,7 +655,7 @@ static UA_StatusCode NodeId_decodeBinary(UA_ByteString const *src,
 #define UA_EXPANDEDNODEID_SERVERINDEX_FLAG 0x40
 
 static UA_StatusCode ExpandedNodeId_encodeBinary(UA_ExpandedNodeId const *src,
-        const UA_DataType *_, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *_, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     UA_UInt32 start = *offset;
     UA_StatusCode retval = NodeId_encodeBinary(&src->nodeId, NULL,
@@ -699,7 +699,7 @@ static UA_StatusCode ExpandedNodeId_decodeBinary(UA_ByteString const *src,
 #define UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT 0x02
 
 static UA_StatusCode LocalizedText_encodeBinary(UA_LocalizedText const *src,
-        const UA_DataType *_, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *_, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     UA_Byte encodingMask = 0;
     if (src->locale.data)
@@ -732,7 +732,7 @@ static UA_StatusCode LocalizedText_decodeBinary(UA_ByteString const *src,
 
 /* ExtensionObject */
 static UA_StatusCode ExtensionObject_encodeBinary(UA_ExtensionObject const *src,
-        const UA_DataType *_, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *_, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     UA_StatusCode retval;
     UA_Byte encoding = src->encoding;
@@ -862,7 +862,7 @@ enum UA_VARIANT_ENCODINGMASKTYPE {
 };
 
 static UA_StatusCode Variant_encodeBinary(UA_Variant const *src,
-        const UA_DataType *_, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *_, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     if (!src->type)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -1024,7 +1024,7 @@ static UA_StatusCode Variant_decodeBinary(UA_ByteString const *src,
 
 /* DataValue */
 static UA_StatusCode DataValue_encodeBinary(UA_DataValue const *src,
-        const UA_DataType *_, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *_, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     UA_StatusCode retval = Byte_encodeBinary((const UA_Byte*) src, NULL,
             overflowCallback, handle, dst, offset);
@@ -1084,7 +1084,7 @@ static UA_StatusCode DataValue_decodeBinary(UA_ByteString const *src,
 
 /* DiagnosticInfo */
 static UA_StatusCode DiagnosticInfo_encodeBinary(const UA_DiagnosticInfo *src,
-        const UA_DataType *_, UA_encodeBufferOverflowFcn overflowCallback,
+        const UA_DataType *_, UA_encodeBufferOverflowSignature overflowCallback,
         void *handle, UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     UA_StatusCode retval = Byte_encodeBinary((const UA_Byte *) src, NULL,
             overflowCallback, handle, dst, offset);
@@ -1180,7 +1180,7 @@ static const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COU
         (UA_encodeBinarySignature) UA_encodeBinary, };
 
 UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *type,
-        UA_encodeBufferOverflowFcn overflowCallback, void *handle,
+        UA_encodeBufferOverflowSignature overflowCallback, void *handle,
         UA_ByteString **dst, size_t *UA_RESTRICT offset) {
     uintptr_t ptr = (uintptr_t) src;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;

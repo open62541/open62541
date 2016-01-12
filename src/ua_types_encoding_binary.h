@@ -4,7 +4,7 @@
 #include "ua_types.h"
 
 
-UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *type,UA_encodeBufferOverflowFcn overflowCallback,void *anonymObject,  UA_ByteString **dst,
+UA_StatusCode UA_encodeBinary(const void *src, const UA_DataType *type,UA_encodeBufferOverflowSignature overflowCallback,void *anonymObject,  UA_ByteString **dst,
                               size_t *UA_RESTRICT offset) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 UA_StatusCode UA_decodeBinary(const UA_ByteString *src, size_t * UA_RESTRICT offset, void *dst,
