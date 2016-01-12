@@ -112,7 +112,7 @@ static UA_StatusCode UA_SecureChannel_sendChunk(UA_Request *requestInfo, UA_Byte
        return UA_STATUSCODE_BADINTERNALERROR;
 
     //check if we are able to send another chunk
-    if(requestInfo->chunksLeft<1){
+    if(requestInfo->chunksLeft == 1 && (requestInfo->chunkType != UA_CHUNKTYPE_FINAL || requestInfo->chunkType != UA_CHUNKTYPE_ABORT)){
         return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
     }
     requestInfo->chunksLeft--;
@@ -131,6 +131,7 @@ static UA_StatusCode UA_SecureChannel_sendChunk(UA_Request *requestInfo, UA_Byte
 #else
     seqHeader.sequenceNumber = uatomic_add_return(&channel->sequenceNumber, 1);
 #endif
+
     *offset = 0;
     UA_SecureConversationMessageHeader_encodeBinary(&respHeader,NULL,NULL,  dst, offset);
     UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader,NULL,NULL,  dst, offset);
@@ -189,8 +190,13 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     retval |= UA_NodeId_encodeBinary(&typeId,NULL,NULL, &message,&messagePos);
     retval |= UA_encodeBinary(content, contentType,(UA_encodeBufferOverflowSignature)UA_SecureChannel_sendChunk,(void*)&requestInfo, &message, &messagePos);
 
-    //send final chunk
-    requestInfo.chunkType = UA_CHUNKTYPE_FINAL;
+    //chunks were already sent, error occured -> abort
+    if(retval!=UA_STATUSCODE_GOOD && requestInfo.chunksLeft != connection->localConf.maxChunkCount){
+        requestInfo.chunkType = UA_CHUNKTYPE_ABORT;
+    }else{
+        //send final chunk
+        requestInfo.chunkType = UA_CHUNKTYPE_FINAL;
+    }
     retval |= UA_SecureChannel_sendChunk(&requestInfo,&message,&messagePos);
 
     UA_free(message);
