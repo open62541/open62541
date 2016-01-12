@@ -42,7 +42,7 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
     ackHeader.messageSize =  8 + 20; /* ackHeader + ackMessage */
 
     UA_ByteString *ack_msg = UA_ByteString_new();
-    if(connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
+    if(connection->getSendBuffer(connection, connection->localConf.sendBufferSize,
                                  ack_msg) != UA_STATUSCODE_GOOD)
         return;
 
@@ -113,7 +113,7 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
                                                UA_ENCODINGOFFSET_BINARY);
 
     UA_ByteString *resp_msg = UA_ByteString_new();
-    retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize, resp_msg);
+    retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize, resp_msg);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_OpenSecureChannelResponse_deleteMembers(&p);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
