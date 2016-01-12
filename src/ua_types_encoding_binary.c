@@ -317,7 +317,13 @@ static UA_StatusCode Array_encodeBinary(const void *src, size_t length,
 
         size_t partialLength = 0;
         size_t encodable;
+
+        if ((*dst)->length < *offset + (type->memSize * length) && overflowCallback == NULL)
+            return UA_STATUSCODE_BADENCODINGERROR;
+
+        UA_StatusCode retval;
         do {
+            retval = UA_STATUSCODE_GOOD;
             encodable = length - partialLength;
             uintptr_t srcp = (uintptr_t) src + partialLength * type->memSize;
             if ((*dst)->length - *offset >= encodable * type->memSize) {
@@ -325,6 +331,7 @@ static UA_StatusCode Array_encodeBinary(const void *src, size_t length,
                 memcpy(&(*dst)->data[*offset], (void*) srcp,
                         encodable * type->memSize);
                 *offset += encodable * type->memSize;
+                break;
             } else {
                 /* the complete array does not fit in */
                 encodable = ((*dst)->length - *offset) / type->memSize;
@@ -332,13 +339,10 @@ static UA_StatusCode Array_encodeBinary(const void *src, size_t length,
                 memcpy(&(*dst)->data[*offset], (void*) srcp,
                         encodable * type->memSize);
                 *offset += type->memSize * encodable;
-                overflowCallback(handle, dst, offset);
+                retval = overflowCallback(handle, dst, offset);
             }
-        } while ((*dst)->length - *offset < encodable * type->memSize);
-        if ((*dst)->length < *offset + (type->memSize * length))
-            return UA_STATUSCODE_BADENCODINGERROR;
-        memcpy(&((*dst)->data[*offset]), src, type->memSize * length);
-        *offset += type->memSize * length;
+        } while (retval==UA_STATUSCODE_GOOD);
+
         return retval;
     }
 #endif
@@ -422,35 +426,7 @@ static UA_StatusCode String_encodeBinary(UA_String const *src,
         retval = Int32_encodeBinary(&signed_length, NULL, overflowCallback,
                 handle, dst, offset);
     } else {
-
-        UA_Int32 signed_length = src->length;
-        retval = Int32_encodeBinary(&signed_length, NULL, overflowCallback,
-                handle, dst, offset);
-
-        if (*offset + src->length > (*dst)->length) {
-            if (overflowCallback == NULL) {
-                return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
-            }
-            size_t bytesToCopy = src->length;
-            while (bytesToCopy > 0 && retval == UA_STATUSCODE_GOOD) {
-                if (bytesToCopy > (*dst)->length - *offset) {
-                    memcpy(&(*dst)->data[*offset],
-                            &src->data[src->length - bytesToCopy],
-                            ((*dst)->length - *offset));
-                    bytesToCopy -= ((*dst)->length - *offset);
-                    *offset += ((*dst)->length - *offset);
-                } else {
-                    memcpy(&(*dst)->data[*offset],
-                            &src->data[src->length - bytesToCopy], bytesToCopy);
-                    *offset += bytesToCopy;
-                    bytesToCopy = 0;
-                }
-                retval |= overflowCallback(handle, dst, offset);
-            }
-        } else {
-            memcpy(&(*dst)->data[*offset], src->data, src->length);
-            *offset += src->length;
-        }
+        retval =  Array_encodeBinary(src->data, src->length, &UA_TYPES[UA_TYPES_BYTE], overflowCallback, handle, dst, offset);
     }
     return retval;
 }
