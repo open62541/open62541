@@ -235,7 +235,7 @@ UA_Client_processPublishRx(UA_Client *client, UA_PublishResponse response) {
                 // find this client handle
                 LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
                     if(mon->ClientHandle == mitemNot->clientHandle) {
-                        mon->handler(mitemNot->clientHandle, &mitemNot->value, mon->handlerContext);
+                        mon->handler(mon->MonitoredItemId, &mitemNot->value, mon->handlerContext);
                         break;
                     }
                 }
